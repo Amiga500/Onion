@@ -63,7 +63,7 @@ The `Imgs` folder name is case sensitive (must have a capital `I`). Examples wou
 **Customize Image:**  
 - Via "ALL SYSTEMS" on the left, go to the "_MEDIA_" tab -> Enable & set "_Resize width to_" to 250 and enable "_Keep Image Ratio_"    
 - Select the image type you don't want in the "_Fetched Media List_" and press the "_minus_" button, so there's only one picture.   
-   > You can change how the image mix looks with the two buttons under "_Media type_",  I recommend changing "_4 IMAGES MIX_" to "_Screenscraper's Recalbox Mix V2_", but use whatever you prefer.
+   > You can change how the image mix looks with the two buttons under "_Media type_", I recommend changing "_4 IMAGES MIX_" to "_Screenscraper's Recalbox Mix V2_", but use whatever you prefer.
    > If you choose a picture that's taller than it's wide, like the boxart, set "_Resize height to_" to 360 and disable "_Keep Image Ratio_"
 
 
