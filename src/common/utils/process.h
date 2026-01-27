@@ -37,14 +37,16 @@ static inline pid_t process_searchpid(const char *commname)
                 sprintf(fname, "/proc/%d/comm", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
+                    bool matched = false;
                     if (fscanf(fp, "%127s", comm) == 1) {
                         if (!strncmp(comm, commname, commlen)) {
                             ret = pid;
-                            fclose(fp);
-                            break;
+                            matched = true;
                         }
                     }
                     fclose(fp);
+                    if (matched)
+                        break;
                 }
             }
         }

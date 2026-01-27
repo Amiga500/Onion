@@ -38,8 +38,8 @@ int main(int argc, char *argv[])
                 is_charging = true;
                 if (DEVICE_ID == MIYOO354) {
                     current_percentage = getBatPercMMP();
-                    // To solve : Sometimes getBatPercMMP returns 1735289191
-                    current_percentage = (current_percentage > 100) ? old_percentage : current_percentage;
+                    // To solve : Sometimes getBatPercMMP returns invalid values
+                    current_percentage = (current_percentage < 0 || current_percentage > 100) ? old_percentage : current_percentage;
                 }
                 else {
                     current_percentage = 500;
@@ -97,8 +97,8 @@ int main(int argc, char *argv[])
                 }
                 else if (DEVICE_ID == MIYOO354) {
                     current_percentage = getBatPercMMP();
-                    // To solve : Sometimes getBatPercMMP returns 1735289191
-                    current_percentage = (current_percentage > 100) ? old_percentage : current_percentage;
+                    // To solve : Sometimes getBatPercMMP returns invalid values
+                    current_percentage = (current_percentage < 0 || current_percentage > 100) ? old_percentage : current_percentage;
                 }
                 printf_debug(
                     "battery check: suspended = %d, perc = %d, warn = %d\n",
