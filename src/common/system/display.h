@@ -258,8 +258,9 @@ void display_setBrightness(uint32_t value)
  *
  * This function reads from or writes to a specific buffer in the framebuffer.
  * It supports optional rotation of the buffer content.
+ * Optimized to cache struct field accesses and reduce bounds checking.
  *
- * @param index The index of the buffer to read/write.
+ * @param buf_index The index of the buffer to read/write.
  * @param display The display structure.
  * @param pixels Pointer to the pixel data.
  * @param rect The rectangle area to read/write.
@@ -267,48 +268,52 @@ void display_setBrightness(uint32_t value)
  * @param write Whether to write to the buffer (true) or read from it (false).
  * @param mask Whether to use a mask when writing to the buffer.
  */
-void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, rect_t rect, bool rotate, bool mask, bool write)
+void display_readOrWriteBuffer(int buf_index, display_t *display, uint32_t *pixels, rect_t rect, bool rotate, bool mask, bool write)
 {
-    int bufferPos = index * display->vinfo.yres;
+    // Cache struct field accesses to avoid repeated dereferencing
+    const int yres = display->vinfo.yres;
+    const int xres = display->vinfo.xres;
+    uint32_t *fb_addr = display->fb_addr;
+    const int bufferPos = buf_index * yres;
 
     for (int oy = 0; oy < rect.h; oy++) {
         int y = rect.y + oy;
 
-        if (y < 0 || y >= display->vinfo.yres)
+        if (y < 0 || y >= yres)
             continue;
 
-        int virtualY = bufferPos + (rotate ? (display->vinfo.yres - 1) - y : y);
-        long baseOffset = (long)virtualY * display->vinfo.xres;
+        int virtualY = bufferPos + (rotate ? (yres - 1) - y : y);
+        long baseOffset = (long)virtualY * xres;
         int baseIndex = oy * rect.w;
 
         for (int ox = 0; ox < rect.w; ox++) {
             int x = rect.x + ox;
 
             if (rotate) {
-                x = (display->vinfo.xres - 1) - x;
+                x = (xres - 1) - x;
             }
 
-            if (x < 0 || x >= display->vinfo.xres)
+            if (x < 0 || x >= xres)
                 continue;
 
             long offset = baseOffset + (long)x;
-            int index = baseIndex + ox;
+            int idx = baseIndex + ox;
             if (write) {
                 if (mask) {
-                    if (pixels[index] != 0) {
-                        display->fb_addr[offset] = 0;
+                    if (pixels[idx] != 0) {
+                        fb_addr[offset] = 0;
                     }
                 }
                 else {
-                    display->fb_addr[offset] = pixels[index];
+                    fb_addr[offset] = pixels[idx];
                 }
             }
             else {
                 if (mask) {
-                    pixels[index] = display->fb_addr[offset] == 0 ? 1 : 0;
+                    pixels[idx] = fb_addr[offset] == 0 ? 1 : 0;
                 }
                 else {
-                    pixels[index] = display->fb_addr[offset];
+                    pixels[idx] = fb_addr[offset];
                 }
             }
         }

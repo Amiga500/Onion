@@ -18,7 +18,8 @@ static SDL_Surface *g_image_cache_next = NULL;
     } while (0)
 #endif
 
-#define MIN(a, b) (a < b) ? (a) : (b)
+// Fixed MIN macro - parentheses prevent evaluation order bugs
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 SDL_Surface *scaleImageIfNecessary(SDL_Surface *image, SDL_Rect target, bool stretch)
 {
@@ -41,21 +42,18 @@ SDL_Surface *scaleImageIfNecessary(SDL_Surface *image, SDL_Rect target, bool str
     return NULL;
 }
 
+/**
+ * @brief Load an image from disk and optionally scale it to fit the screen.
+ *        Optimized to reduce redundant checks and improve early exit.
+ */
 SDL_Surface *loadImage(const char *image_path, SDL_Surface *screen)
 {
-    DEBUG_PRINT(("loadImage: %s\n", image_path));
-    if (!image_path) {
-        printf("Error: Image path is NULL\n");
+    // Early exit checks combined for better branch prediction
+    if (!image_path || !screen || image_path[0] == '\0') {
+        DEBUG_PRINT(("loadImage: invalid arguments\n"));
         return NULL;
     }
-    if (strlen(image_path) == 0) {
-        printf("Error: Image path is empty\n");
-        return NULL;
-    }
-    if (!screen) {
-        printf("Error: Screen is NULL\n");
-        return NULL;
-    }
+
     DEBUG_PRINT(("Loading image: %s\n", image_path));
     SDL_Surface *image = IMG_Load(image_path);
 

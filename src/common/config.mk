@@ -51,7 +51,20 @@ CXXFLAGS := $(CFLAGS)
 LDFLAGS := $(LDFLAGS) -L../../lib -L/usr/local/lib
 
 ifeq ($(PLATFORM),miyoomini)
-CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -Wl,-rpath=$(LIB)
+# ARM Cortex-A7 specific optimizations for Miyoo Mini
+# -O3: Aggressive optimization for performance-critical embedded code
+# -flto: Link-time optimization for cross-module inlining
+# -ffunction-sections -fdata-sections: Enable dead code elimination
+# -ffast-math: Allow aggressive floating-point optimizations (safe for games)
+# -ftree-vectorize: Auto-vectorization for NEON SIMD
+# -funroll-loops: Unroll small loops for better performance
+CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve
+CFLAGS := $(CFLAGS) -O3 -flto -ffunction-sections -fdata-sections
+CFLAGS := $(CFLAGS) -ffast-math -ftree-vectorize -funroll-loops
+CFLAGS := $(CFLAGS) -Wl,-rpath=$(LIB)
+
+# Enable garbage collection of unused sections at link time
+LDFLAGS := $(LDFLAGS) -flto -Wl,--gc-sections
 
 ifdef INCLUDE_SHMVAR
 LDFLAGS := $(LDFLAGS) -lshmvar

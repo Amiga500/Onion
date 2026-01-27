@@ -64,7 +64,25 @@ const char *file_basename(const char *filename)
 }
 
 /**
- * @brief Create directories in dir_path using `mkdir -p` command.
+ * @brief Create a single directory
+ *
+ * @param path The directory path
+ * @param mode The permissions mode
+ * @return 0 on success, -1 on failure
+ */
+static int mkdir_single(const char *path, mode_t mode)
+{
+    struct stat64 st;
+    if (stat64(path, &st) == 0) {
+        // Path exists
+        return S_ISDIR(st.st_mode) ? 0 : -1;
+    }
+    return mkdir(path, mode);
+}
+
+/**
+ * @brief Create directories in dir_path recursively (native implementation).
+ *        This avoids the overhead of fork/exec from system("mkdir -p").
  *
  * @param dir_path The full directory path.
  * @return true If the path didn't exist (dirs were created).
@@ -72,13 +90,44 @@ const char *file_basename(const char *filename)
  */
 bool mkdirs(const char *dir_path)
 {
-    if (!exists(dir_path)) {
-        char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
-        system(dir_cmd);
-        return true;
+    if (exists(dir_path)) {
+        return false;
     }
-    return false;
+
+    char tmp[PATH_MAX];
+    char *p = NULL;
+    size_t len;
+
+    len = strlen(dir_path);
+    if (len == 0 || len >= PATH_MAX) {
+        return false;
+    }
+
+    strncpy(tmp, dir_path, PATH_MAX - 1);
+    tmp[PATH_MAX - 1] = '\0';
+
+    // Remove trailing slash
+    if (tmp[len - 1] == '/') {
+        tmp[len - 1] = '\0';
+    }
+
+    // Create directories recursively
+    for (p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            if (mkdir_single(tmp, 0755) != 0 && errno != EEXIST) {
+                return false;
+            }
+            *p = '/';
+        }
+    }
+
+    // Create final directory
+    if (mkdir_single(tmp, 0755) != 0 && errno != EEXIST) {
+        return false;
+    }
+
+    return true;
 }
 
 void file_readLastLine(const char *filename, char *out_str)
@@ -149,11 +198,52 @@ bool file_write(const char *path, const char *str, uint32_t len)
     return true;
 }
 
+/**
+ * @brief Copy a file from src_path to dest_path using native I/O.
+ *        This avoids the overhead of fork/exec from system("cp").
+ *
+ * @param src_path Source file path
+ * @param dest_path Destination file path
+ */
 void file_copy(const char *src_path, const char *dest_path)
 {
-    char system_cmd[4128];
-    snprintf(system_cmd, sizeof(system_cmd), "cp -f \"%s\" \"%s\"", src_path, dest_path);
-    system(system_cmd);
+    int src_fd = open(src_path, O_RDONLY);
+    if (src_fd < 0) {
+        return;
+    }
+
+    struct stat64 st;
+    if (fstat64(src_fd, &st) < 0) {
+        close(src_fd);
+        return;
+    }
+
+    int dest_fd = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, st.st_mode);
+    if (dest_fd < 0) {
+        close(src_fd);
+        return;
+    }
+
+    // Use a reasonably sized buffer for efficient I/O
+    // 8KB is a good balance between memory usage and performance
+    char buf[8192];
+    ssize_t bytes_read;
+
+    while ((bytes_read = read(src_fd, buf, sizeof(buf))) > 0) {
+        ssize_t bytes_written = 0;
+        while (bytes_written < bytes_read) {
+            ssize_t result = write(dest_fd, buf + bytes_written, bytes_read - bytes_written);
+            if (result < 0) {
+                close(src_fd);
+                close(dest_fd);
+                return;
+            }
+            bytes_written += result;
+        }
+    }
+
+    close(src_fd);
+    close(dest_fd);
 }
 
 char *file_removeExtension(const char *myStr)

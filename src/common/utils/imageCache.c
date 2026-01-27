@@ -8,7 +8,7 @@
 #define IMAGECACHE_MAXSIZE 50
 
 static pthread_t romscreen_thread_pt;
-static bool thread_active = false;
+static volatile bool thread_active = false;
 
 static const int image_cache_len = IMAGECACHE_MAXSIZE;
 static SDL_Surface *image_cache[IMAGECACHE_MAXSIZE] = {NULL};
@@ -17,7 +17,15 @@ static int image_cache_offset = -1;
 static SDL_Surface *(*load_image)(int) = NULL;
 static int images_total = 0;
 
-int modulo(int x, int n) { return (x % n + n) % n; }
+/**
+ * @brief Compute modulo with proper handling of negative numbers.
+ *        Marked inline for performance in hot loops.
+ */
+static inline int modulo(int x, int n)
+{
+    int result = x % n;
+    return (result >= 0) ? result : result + n;
+}
 
 static void *_imageCacheThread(void *param)
 {
@@ -61,7 +69,12 @@ void imageCache_load(int *offset, SDL_Surface *(*_load_image)(int), int total)
     thread_active = true;
     load_image = _load_image;
     images_total = total;
-    pthread_create(&romscreen_thread_pt, NULL, _imageCacheThread, offset);
+
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&romscreen_thread_pt, &attr, _imageCacheThread, offset);
+    pthread_attr_destroy(&attr);
 }
 
 void imageCache_removeItem(int image_index)

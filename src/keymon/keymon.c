@@ -504,7 +504,7 @@ int main(void)
             if (exists("/tmp/settings_changed")) {
                 settings_load();
                 remove("/tmp/settings_changed");
-                sync();
+                // Note: sync() removed as /tmp is tmpfs (RAM-based)
             }
 
             if (exists("/tmp/state_changed")) {
@@ -513,7 +513,7 @@ int main(void)
                 if (delete_flag) {
                     system_state_update();
                     remove("/tmp/state_changed");
-                    sync();
+                    // Note: sync() removed as /tmp is tmpfs (RAM-based)
                     delete_flag = false;
                 }
 
@@ -897,7 +897,7 @@ int main(void)
             if (exists("/tmp/state_changed")) {
                 system_state_update();
                 remove("/tmp/state_changed");
-                sync();
+                // Note: sync() removed as /tmp is tmpfs (RAM-based)
             }
             delete_flag = false;
         }
