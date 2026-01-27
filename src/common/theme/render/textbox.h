@@ -33,6 +33,11 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
     int line_count = 0, max_width = 0, empty_lines = 0;
     int *line_widths = malloc(max_lines * sizeof(int));
     char **lines = malloc(max_lines * sizeof(char *));
+    if (line_widths == NULL || lines == NULL) {
+        free(line_widths);
+        free(lines);
+        return NULL;
+    }
 
     TTF_Font *cur_font = font;
     int font_lineskip = TTF_FontLineSkip(cur_font);
@@ -49,10 +54,24 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
         size_t len = i - start;
         if (line_count >= max_lines) {
             max_lines *= 2;
-            lines = realloc(lines, max_lines * sizeof(char *));
-            line_widths = realloc(line_widths, max_lines * sizeof(int));
+            char **new_lines = realloc(lines, max_lines * sizeof(char *));
+            int *new_widths = realloc(line_widths, max_lines * sizeof(int));
+            if (new_lines == NULL || new_widths == NULL) {
+                for (int j = 0; j < line_count; j++) free(lines[j]);
+                free(lines);
+                free(line_widths);
+                return NULL;
+            }
+            lines = new_lines;
+            line_widths = new_widths;
         }
         char *linebuf = malloc(len + 1);
+        if (linebuf == NULL) {
+            for (int j = 0; j < line_count; j++) free(lines[j]);
+            free(lines);
+            free(line_widths);
+            return NULL;
+        }
         memcpy(linebuf, &s[start], len);
         linebuf[len] = 0;
         lines[line_count] = linebuf;

@@ -154,8 +154,8 @@ void renderPage(int current_page)
             file_cleanName(rom_name, rom->name);
         renderText(rom_name, includeCJK(rom_name) ? fontCJKRomName25 : font30, color_white, &(SDL_Rect){num_width + 100, 75 + 90 * row, 400, 40});
 
-        str_serializeTime(total, entry->play_time_total);
-        str_serializeTime(average, entry->play_time_average);
+        str_serializeTime(total, sizeof(total), entry->play_time_total);
+        str_serializeTime(average, sizeof(average), entry->play_time_average);
         snprintf(plays, 24, "%d", entry->play_count);
 
         const char *details[] = {"TOTAL ", total, "  AVG ", average, "  PLAYS ", plays};
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
 
     int play_time_total = play_activities->play_time_total;
     char play_time_total_formatted[STR_MAX];
-    str_serializeTime(play_time_total_formatted, play_time_total);
+    str_serializeTime(play_time_total_formatted, sizeof(play_time_total_formatted), play_time_total);
     renderText(play_time_total_formatted, font30, color_white, &rectMileage);
 
     SDL_BlitSurface(screen, NULL, video, NULL);

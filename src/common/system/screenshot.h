@@ -61,7 +61,7 @@ bool __get_path_recent(char *path_out)
 
     fnptr = path_out + strlen(path_out);
     for (i = 0; i < 1000; i++) {
-        sprintf(fnptr, "_%03d.png", i);
+        snprintf(fnptr, 13, "_%03d.png", i);
         if (!exists(path_out))
             break;
     }
@@ -73,6 +73,8 @@ uint32_t *__screenshot_buffer(void)
 {
     size_t buffer_size = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint32_t);
     uint32_t *buffer = (uint32_t *)malloc(buffer_size);
+    if (buffer == NULL)
+        return NULL;
 
     ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
     memcpy(buffer, g_display.fb_addr + DISPLAY_WIDTH * g_display.vinfo.yoffset, buffer_size);
@@ -151,6 +153,9 @@ bool __screenshot_perform(bool(get_path)(char *), pid_t p_id)
     if (p_id != 0) {
         kill(p_id, SIGCONT);
     }
+
+    if (buffer == NULL)
+        return false;
 
     if (get_path(path)) {
         retval = screenshot_save(buffer, path, true);

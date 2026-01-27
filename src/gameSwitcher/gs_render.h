@@ -157,15 +157,16 @@ void renderHeader(AppState *state, int battery_percentage)
 
     if (state->show_time && game_list_len > 0) {
         if (strlen(game->totalTime) == 0) {
-            str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
+            str_serializeTime(game->totalTime, sizeof(game->totalTime), play_activity_get_play_time(game->recentItem.rompath));
         }
         strcpy(title_str, game->totalTime);
 
         if (state->show_total) {
             if (strlen(sTotalTimePlayed) == 0) {
-                str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
+                str_serializeTime(sTotalTimePlayed, sizeof(sTotalTimePlayed), play_activity_get_total_play_time());
             }
-            sprintf(title_str + strlen(title_str), " / %s", sTotalTimePlayed);
+            size_t title_len = strlen(title_str);
+            snprintf(title_str + title_len, sizeof(title_str) - title_len, " / %s", sTotalTimePlayed);
         }
     }
 

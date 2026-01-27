@@ -101,6 +101,10 @@ int main(int argc, char *argv[])
 
     // Read jpeg
     tmp = malloc(jpeg.output_width * 3);
+    if (tmp == NULL) {
+        fprintf(stderr, "malloc error\n");
+        goto error;
+    }
     dst = jpgVa;
     for (y = 0; y < sh; y++) {
         src8 = tmp;
@@ -111,6 +115,7 @@ int main(int argc, char *argv[])
         }
     }
     free(tmp);
+    tmp = NULL;
     jpeg_finish_decompress(&jpeg);
     jpeg_destroy_decompress(&jpeg);
     fclose(fp);
@@ -134,8 +139,13 @@ int main(int argc, char *argv[])
     jpgPa = 0;
     printf("sw:%d sh:%d dw:%d dh:%d\n", sw, sh, dw, dh);
 
-    // Create png
-    strcpy(filename, argv[1]);
+    // Create png - copy filename and replace extension with .png
+    size_t input_len = strlen(argv[1]);
+    if (input_len >= sizeof(filename) - 4) {
+        input_len = sizeof(filename) - 5;  // Leave room for ".png\0"
+    }
+    memcpy(filename, argv[1], input_len);
+    filename[input_len] = '\0';
     ptr = strrchr(filename, '.');
     if (ptr)
         *ptr = 0;
@@ -148,6 +158,11 @@ int main(int argc, char *argv[])
 
     // Write png
     tmp = malloc(dw * 4);
+    if (tmp == NULL) {
+        fprintf(stderr, "malloc error\n");
+        fclose(fp);
+        goto error;
+    }
     dst = tmp;
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
     info_ptr = png_create_info_struct(png_ptr);
