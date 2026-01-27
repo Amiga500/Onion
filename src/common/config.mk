@@ -51,7 +51,16 @@ CXXFLAGS := $(CFLAGS)
 LDFLAGS := $(LDFLAGS) -L../../lib -L/usr/local/lib
 
 ifeq ($(PLATFORM),miyoomini)
-CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -Wl,-rpath=$(LIB)
+# ARM Cortex-A7 optimization flags:
+# -O2: Enable optimizations safe for embedded (avoids aggressive -O3 code bloat)
+# -marm: Generate ARM (not Thumb) code for better NEON utilization
+# -mtune=cortex-a7: Tune scheduling for Cortex-A7 pipeline
+# -mfpu=neon-vfpv4: Enable NEON SIMD and VFPv4 floating point
+# -mfloat-abi=hard: Use hardware FPU calling convention
+# -march=armv7ve: Target ARMv7-A with virtualization extensions
+# -ffast-math: Enable floating-point optimizations (safe for game/media apps)
+# -fno-math-errno: Don't set errno on math functions (reduces overhead)
+CFLAGS := $(CFLAGS) -O2 -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -ffast-math -fno-math-errno -Wl,-rpath=$(LIB)
 
 ifdef INCLUDE_SHMVAR
 LDFLAGS := $(LDFLAGS) -lshmvar

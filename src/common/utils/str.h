@@ -15,7 +15,17 @@
 
 bool str_getLastNumber(char *str, long *out_val);
 char *str_split(char *str, const char *delim);
-char *str_replace(char *orig, char *rep, char *with);
+
+/**
+ * @brief Replace all occurrences of a substring with another
+ *
+ * @param orig Original string (restrict: no aliasing)
+ * @param rep Substring to find and replace (restrict: no aliasing)
+ * @param with Replacement string (restrict: no aliasing)
+ * @return Newly allocated string with replacements (caller must free)
+ */
+char *str_replace(char * restrict orig, char * restrict rep, char * restrict with)
+    __attribute__((malloc));
 
 // Stores the trimmed input string into the given output buffer, which must be
 // large enough to store the result.  If it is too small, the output is

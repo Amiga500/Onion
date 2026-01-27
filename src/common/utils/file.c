@@ -17,6 +17,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "arm_hints.h"
 #include "log.h"
 #include "str.h"
 
@@ -115,24 +116,39 @@ void file_readLastLine(const char *filename, char *out_str)
     }
 }
 
+/**
+ * @brief Read entire file contents into allocated buffer
+ *
+ * @param path File path to read
+ * @return Allocated buffer with file contents (caller must free), or NULL on error
+ *
+ * Optimization notes:
+ * - Early NULL check uses unlikely() since valid paths are common
+ * - Single malloc at known size avoids reallocation
+ * - fread uses restrict-qualified buffer for better optimization
+ */
 char *file_read(const char *path)
 {
     FILE *f = NULL;
     char *buffer = NULL;
     long length = 0;
 
-    if (!exists(path))
+    if (unlikely(!exists(path)))
         return NULL;
 
-    if ((f = fopen(path, "rb"))) {
+    if (likely((f = fopen(path, "rb")) != NULL)) {
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
         buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
+        if (likely(buffer != NULL))
             fread(buffer, sizeof(char), length, f);
         fclose(f);
     }
+
+    if (unlikely(buffer == NULL))
+        return NULL;
+
     buffer[length] = '\0';
 
     return buffer;
