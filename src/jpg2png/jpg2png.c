@@ -33,7 +33,7 @@ static inline void swapRedBlueOpaque(uint32_t *restrict dst,
     for (; x < count; x++) {
         uint32_t pix = src[x];
         dst[x] = 0xFF000000 | (pix & 0x0000FF00) |
-                 (pix & 0x00FF0000) >> 16 | (pix & 0x000000FF) << 16;
+                 ((pix & 0x00FF0000) >> 16) | ((pix & 0x000000FF) << 16);
     }
 }
 

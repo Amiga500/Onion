@@ -34,8 +34,8 @@ static inline void swapRedBlue(uint32_t *restrict dst,
 #endif
     for (; x < count; x++) {
         uint32_t pix = src[x];
-        dst[x] = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                 (pix & 0x000000FF) << 16;
+        dst[x] = (pix & 0xFF00FF00) | ((pix & 0x00FF0000) >> 16) |
+                 ((pix & 0x000000FF) << 16);
     }
 }
 
@@ -214,6 +214,8 @@ int main(int argc, char *argv[])
     png_write_info(png_ptr, info_ptr);
     src = dstVa;
     uint32_t *tmp = malloc(dw * 4);
+    if (!tmp)
+        ERROR("png write buffer allocation failed");
     for (y = 0; y < dh; y++) {
         swapRedBlue(tmp, src, dw);
         src += dw;
