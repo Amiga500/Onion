@@ -75,7 +75,9 @@ int main(int argc, char *argv[])
     FILE *fp;
     MI_PHY srcPa = 0, dstPa = 0;
     void *tmp, *srcVa = NULL, *dstVa = NULL;
+#if !USE_NEON_OPTIMIZATION
     uint8_t *src8;
+#endif
     uint32_t *src, *dst, pix, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
                                                     mh = 360;
 

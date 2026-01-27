@@ -19,9 +19,6 @@ static inline void convert_grayscale_neon(const uint8_t *src, uint32_t *dst, uin
         // Load 8 grayscale pixels
         uint8x8_t gray = vld1_u8(src + i);
         
-        // Expand to 16-bit for intermediate processing
-        uint16x8_t gray16 = vmovl_u8(gray);
-        
         // Create ARGB components
         // Alpha = 0xFF (fully opaque)
         uint8x8_t alpha = vdup_n_u8(0xFF);
