@@ -8,7 +8,9 @@
 #include <mi_sys.h>
 #include <mi_gfx.h>
 
-//#define	DOUBLEBUF
+// Enable double-buffering for smoother rendering and reduced tearing
+// This uses hardware page flipping which is significantly faster than software blit
+#define	DOUBLEBUF
  
 int			fd_fb = 0;
 struct			fb_fix_screeninfo finfo;
@@ -131,13 +133,20 @@ void	GFX_CopySurface(SDL_Surface *src, SDL_Surface *dst) {
 //
 void	GFX_Flip(SDL_Surface *surface) {
 	MI_U16	u16Fence;
+	
+	// Cache format detection to avoid conditional on every flip
+	// Most surfaces will be same format throughout their lifetime
+	static SDL_Surface *last_surface = NULL;
+	static MI_GFX_ColorFmt_e cached_format = E_MI_GFX_FMT_ARGB8888;
+	
+	if (surface != last_surface) {
+		cached_format = (surface->format->BytesPerPixel == 2) ? 
+			E_MI_GFX_FMT_RGB565 : E_MI_GFX_FMT_ARGB8888;
+		last_surface = surface;
+	}
 
 	stSrc.phyAddr = surface->pixelsPa;
-	if (surface->format->BytesPerPixel == 2) {
-		stSrc.eColorFmt = E_MI_GFX_FMT_RGB565;
-	} else {
-		stSrc.eColorFmt = E_MI_GFX_FMT_ARGB8888;
-	}
+	stSrc.eColorFmt = cached_format;
 	stSrc.u32Width = surface->w;
 	stSrc.u32Height = surface->h;
 	stSrc.u32Stride = surface->pitch;
