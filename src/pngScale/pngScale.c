@@ -216,7 +216,9 @@ int main(int argc, char *argv[])
         break;
     case 4:
         // RGBA: convert to ARGB8888 format (reorder R and B channels)
-        // PNG RGBA is typically 0xAABBGGRR, target ARGB8888 is 0xAARRGGBB
+        // PNG stores RGBA as sequential bytes in memory: R[0], G[1], B[2], A[3]
+        // When read as uint32_t on little-endian, this becomes: 0xAABBGGRR
+        // Target ARGB8888 format for display: 0xAARRGGBB
         for (y = 0; y < sh; y++) {
             src = (uint32_t *)rows[y];
 #ifdef __ARM_NEON__

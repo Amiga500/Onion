@@ -18,7 +18,8 @@ static FORCE_INLINE void surfaceSetAlpha_NEON_ARGB8888(
 {
     // For integer division by 255, we use: (x * 257) >> 16
     // This works because 257/65536 = 0.00391388... ≈ 1/255 = 0.00392157...
-    const uint16_t scale = alpha;
+    // Result: new_alpha = (old_alpha * alpha * 257) >> 16 ≈ (old_alpha * alpha) / 255
+    const uint16_t scale = alpha;  // The alpha parameter to scale by
     const uint16x4_t scale_vec = vdup_n_u16(scale);
     const uint16x4_t multiplier = vdup_n_u16(257);
     const uint16x4_t mask_255 = vdup_n_u16(0xFF);
@@ -35,8 +36,9 @@ static FORCE_INLINE void surfaceSetAlpha_NEON_ARGB8888(
             // Extract alpha channel (bits 24-31) from each pixel
             uint16x4_t alpha_old = vmovn_u32(vshrq_n_u32(pixels_vec, 24));
             
-            // Compute: new_alpha = (old_alpha * scale * 257) >> 16
-            // Step 1: old_alpha * scale (16-bit x 16-bit = 32-bit)
+            // Compute: new_alpha = (old_alpha * alpha * 257) >> 16
+            // This approximates: (old_alpha * alpha) / 255
+            // Step 1: old_alpha * alpha (16-bit x 16-bit = 32-bit)
             uint32x4_t alpha_mult = vmull_u16(alpha_old, scale_vec);
             // Step 2: result * 257 (32-bit x 16-bit = 32-bit)
             alpha_mult = vmulq_u32(alpha_mult, vmovl_u16(multiplier));
