@@ -17,11 +17,14 @@ void log_setName(const char *log_name)
 void log_debug(const char *file_path, int line, const char *format_str, ...)
 {
     char log_message[1024];
+    int offset;
 
     va_list valist;
     va_start(valist, format_str);
-    sprintf(log_message, "%s:%d>\t", file_path, line);
-    vsprintf(log_message + strlen(log_message), format_str, valist);
+    offset = snprintf(log_message, sizeof(log_message), "%s:%d>\t", file_path, line);
+    if (offset >= 0 && (size_t)offset < sizeof(log_message)) {
+        vsnprintf(log_message + offset, sizeof(log_message) - offset, format_str, valist);
+    }
     va_end(valist);
 
     fprintf(stderr, "%s", log_message);

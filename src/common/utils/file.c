@@ -129,11 +129,12 @@ char *file_read(const char *path)
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
         buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
+        if (buffer) {
             fread(buffer, sizeof(char), length, f);
+            buffer[length] = '\0';
+        }
         fclose(f);
     }
-    buffer[length] = '\0';
 
     return buffer;
 }
@@ -337,13 +338,15 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         ++p2;
     }
 
+    char *ptr = path_out;
     if (strlen(p1) > 0) {
         int num_parens = str_count_char(p1, '/') + 1;
         for (int i = 0; i < num_parens; i++) {
-            strcat(path_out, "../");
+            memcpy(ptr, "../", 3);
+            ptr += 3;
         }
     }
-    strcat(path_out, p2);
+    strcpy(ptr, p2);
 
     return true;
 }
@@ -533,16 +536,20 @@ char *file_resolvePath(const char *path)
         token = strtok(NULL, "/");
     }
 
-    // Reconstruct the resolved path
-    resolvedPath[0] = '\0';
+    // Reconstruct the resolved path using pointer advancement
+    char *ptr = resolvedPath;
     for (int i = 0; i < componentCount; i++) {
-        strcat(resolvedPath, "/");
-        strcat(resolvedPath, components[i]);
+        *ptr++ = '/';
+        size_t len = strlen(components[i]);
+        memcpy(ptr, components[i], len);
+        ptr += len;
     }
+    *ptr = '\0';
 
     // Handle the case where the path is empty
     if (resolvedPath[0] == '\0') {
-        strcpy(resolvedPath, "/");
+        resolvedPath[0] = '/';
+        resolvedPath[1] = '\0';
     }
 
     return resolvedPath;

@@ -104,7 +104,10 @@ bool imageCache_isActive(void) { return thread_active; }
 void imageCache_freeAll(void)
 {
     for (int i = 0; i < image_cache_len; i++) {
-        if (image_cache[i] != NULL)
+        if (image_cache[i] != NULL) {
             SDL_FreeSurface(image_cache[i]);
+            image_cache[i] = NULL;
+        }
     }
+    image_cache_offset = -1;
 }

@@ -555,12 +555,12 @@ void play_activity_list_all(void)
         char rom_name[STR_MAX];
         file_cleanName(rom_name, rom->name);
         char play_time[STR_MAX];
-        str_serializeTime(play_time, entry->play_time_total);
+        str_serializeTime(play_time, sizeof(play_time), entry->play_time_total);
         printf("%03d: %s (%s) [%s]\n", i + 1, rom_name, play_time, rom->type);
     }
 
     char total_str[25];
-    str_serializeTime(total_str, total_play_time);
+    str_serializeTime(total_str, sizeof(total_str), total_play_time);
     printf("\nTotal: %s\n", total_str);
 
     free_play_activities(pas);

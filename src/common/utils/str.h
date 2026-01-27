@@ -25,7 +25,7 @@ size_t str_trim(char *out, size_t len, const char *str, bool first);
 int str_endsWith(const char *str, const char *suffix);
 
 void str_removeParentheses(char *str_out, const char *str_in);
-void str_serializeTime(char *dest_str, int nTime);
+void str_serializeTime(char *dest_str, size_t dest_size, int nTime);
 
 int str_count_char(const char *str, char ch);
 bool includeCJK(char *str);
