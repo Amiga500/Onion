@@ -5,8 +5,86 @@
 #include "theme/background.h"
 #include "theme/config.h"
 #include "theme/resources.h"
+#include "../../include/arm_opt.h"
+#include <string.h>
 
 // static SDL_Color color_black = {0, 0, 0};
+
+// TTF text surface cache for performance optimization
+// Caches rendered text to avoid expensive TTF_RenderUTF8_Blended calls every frame
+#define TEXT_CACHE_SIZE 128
+typedef struct {
+    char text[256];
+    SDL_Color color;
+    SDL_Surface *surface;
+    uint32_t last_used;
+    bool valid;
+} TextCacheEntry;
+
+static TextCacheEntry text_cache[TEXT_CACHE_SIZE] = {{0}};
+static uint32_t text_cache_frame = 0;
+
+// Fast hash function for text cache lookup - optimized for ARM
+static ALWAYS_INLINE uint32_t text_hash(const char *str, SDL_Color color) {
+    uint32_t hash = 5381;
+    const unsigned char *p = (const unsigned char *)str;
+    while (*p) {
+        hash = ((hash << 5) + hash) + *p++;
+    }
+    // Mix in color for unique hash per color combination
+    hash ^= (color.r << 16) | (color.g << 8) | color.b;
+    return hash % TEXT_CACHE_SIZE;
+}
+
+// Get or create cached text surface - eliminates repeated TTF rendering
+// Marked as hot function for compiler optimization
+static HOT_FUNCTION SDL_Surface *get_cached_text_surface(TTF_Font *font, const char *text, SDL_Color color) {
+    uint32_t hash = text_hash(text, color);
+    TextCacheEntry *entry = &text_cache[hash];
+    
+    // Cache hit: return existing surface (LIKELY hint improves branch prediction)
+    if (LIKELY(entry->valid && 
+        strcmp(entry->text, text) == 0 &&
+        entry->color.r == color.r && 
+        entry->color.g == color.g && 
+        entry->color.b == color.b)) {
+        entry->last_used = text_cache_frame;
+        return entry->surface;
+    }
+    
+    // Cache miss or collision: evict old entry and render new (UNLIKELY = cold path)
+    if (UNLIKELY(entry->surface != NULL)) {
+        SDL_FreeSurface(entry->surface);
+    }
+    
+    entry->surface = TTF_RenderUTF8_Blended(font, text, color);
+    strncpy(entry->text, text, sizeof(entry->text) - 1);
+    entry->text[sizeof(entry->text) - 1] = '\0';
+    entry->color = color;
+    entry->last_used = text_cache_frame;
+    entry->valid = true;
+    
+    return entry->surface;
+}
+
+// Increment frame counter for cache aging (call once per render)
+static inline void text_cache_next_frame(void) {
+    text_cache_frame++;
+    
+    // Periodically evict old entries (every 256 frames, ~4 seconds at 60fps)
+    if ((text_cache_frame & 0xFF) == 0) {
+        for (int i = 0; i < TEXT_CACHE_SIZE; i++) {
+            if (text_cache[i].valid && 
+                (text_cache_frame - text_cache[i].last_used) > 512) {
+                if (text_cache[i].surface != NULL) {
+                    SDL_FreeSurface(text_cache[i].surface);
+                    text_cache[i].surface = NULL;
+                }
+                text_cache[i].valid = false;
+            }
+        }
+    }
+}
 
 void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
                            int offset_x, int center_y, bool is_active,
@@ -14,9 +92,11 @@ void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
 {
     TTF_Font *list_font = resource_getFont(LIST);
 
-    SDL_Surface *item_label = TTF_RenderUTF8_Blended(list_font, label, fg);
+    // Use cached text surface instead of rendering every frame
+    SDL_Surface *item_label = get_cached_text_surface(list_font, label, fg);
+    if (item_label == NULL) return; // Safety check
+    
     SDL_Rect item_label_rect = {offset_x, center_y - item_label->h / 2};
-
     SDL_Rect label_crop = {0, 0, label_end - 30 * g_scale, item_label->h};
 
     /* Maybe shadows will be an option in the future
@@ -24,9 +104,8 @@ void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
 
     if (is_active) {
         SDL_Surface *item_shadow =
-            TTF_RenderUTF8_Blended(list_font, label, color_black);
+            get_cached_text_surface(list_font, label, color_black);
         SDL_BlitSurface(item_shadow, &label_crop, screen, &item_shadow_rect);
-        SDL_FreeSurface(item_shadow);
     }*/
 
     if (disabled) {
@@ -34,7 +113,7 @@ void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
     }
 
     SDL_BlitSurface(item_label, &label_crop, screen, &item_label_rect);
-    SDL_FreeSurface(item_label);
+    // DO NOT free - surface is cached and reused
 }
 
 typedef struct {
@@ -160,7 +239,10 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
 
             char value_str[STR_MAX];
             list_getItemValueLabel(item, value_str);
-            SDL_Surface *value_label = TTF_RenderUTF8_Blended(list_font, value_str, theme()->list.color);
+            // Use cached text surface for value labels too
+            SDL_Surface *value_label = get_cached_text_surface(list_font, value_str, theme()->list.color);
+            if (value_label == NULL) continue; // Safety check
+            
             if (show_disabled) {
                 surfaceSetAlpha(value_label, HIDDEN_ITEM_ALPHA);
             }
@@ -170,6 +252,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 640 * g_scale - 20 * g_scale - arrow_right->w - multivalue_width / 2 - label_width / 2,
                 item_center_y - value_size.h / 2};
             SDL_BlitSurface(value_label, &value_size, screen, &value_pos);
+            // DO NOT free - cached surface
         }
 
         theme_renderListLabel(screen, item->label, theme()->list.color,
@@ -219,6 +302,9 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
 
 void theme_renderList(SDL_Surface *screen, List *list)
 {
+    // Advance text cache frame counter
+    text_cache_next_frame();
+    
     ListRenderParams_s params = {
         .background = theme_background(),
         .dim = {0, 60 * g_scale, 640 * g_scale, 360 * g_scale},

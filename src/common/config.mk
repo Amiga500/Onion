@@ -35,6 +35,9 @@ CFLAGS := -I../../include -I../common -DPLATFORM_$(shell echo $(PLATFORM) | tr a
 
 ifeq ($(DEBUG),1)
 CFLAGS := $(CFLAGS) -DLOG_DEBUG -g3
+else
+# ARM Cortex-A7 aggressive optimizations for release builds
+CFLAGS := $(CFLAGS) -O3 -flto -ffast-math -funroll-loops -finline-functions
 endif
 
 ifeq ($(TEST),1)
@@ -49,6 +52,11 @@ endif
 
 CXXFLAGS := $(CFLAGS)
 LDFLAGS := $(LDFLAGS) -L../../lib -L/usr/local/lib
+
+# Enable LTO at link time for release builds
+ifndef DEBUG
+LDFLAGS := $(LDFLAGS) -O3 -flto
+endif
 
 ifeq ($(PLATFORM),miyoomini)
 CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -Wl,-rpath=$(LIB)
