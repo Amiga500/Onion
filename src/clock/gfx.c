@@ -113,7 +113,7 @@ static void *GFX_FlipThreadSingleHW(void *param)
         target_offset = vinfo.yoffset ^ 480;
         Dst.phyAddr = finfo.smem_start + (640 * target_offset * 4);
         MI_GFX_BitBlit(&Src, &SrcRect, &Dst, &DstRect, &stOpt, &Fence);
-        usleep(0x2000); // wait about 10ms
+        MI_GFX_WaitAllDone(FALSE, Fence);
         vinfo.yoffset = target_offset;
         if (flip_callback)
             flip_callback(userdata_callback);

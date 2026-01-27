@@ -23,6 +23,8 @@ static const char *INPUT_DEVICE = "/dev/input/event0";
 static int _input_fd = -1;
 static struct pollfd _fds[1];
 static bool keyinput_disabled = false;
+#define INPUT_GRAB_MAX_SHIFT 3
+#define INPUT_GRAB_MAX_RETRIES 4
 
 #define INIT_PNG 1
 #define INIT_TTF 2
@@ -103,8 +105,13 @@ void keyinput_disable(void)
 {
     if (keyinput_disabled || _input_fd == -1)
         return;
+    int retries = 0;
     while (ioctl(_input_fd, EVIOCGRAB, 1) < 0) {
-        usleep(100000);
+        if (retries++ >= INPUT_GRAB_MAX_RETRIES) {
+            return;
+        }
+        int shift = retries < INPUT_GRAB_MAX_SHIFT ? retries : INPUT_GRAB_MAX_SHIFT;
+        usleep(10000 * (1 << shift));
     }
     keyinput_disabled = true;
     print_debug("Keyinput disabled");
@@ -118,8 +125,13 @@ void keyinput_enable(void)
 {
     if (!keyinput_disabled || _input_fd == -1)
         return;
+    int retries = 0;
     while (ioctl(_input_fd, EVIOCGRAB, 0) < 0) {
-        usleep(100000);
+        if (retries++ >= INPUT_GRAB_MAX_RETRIES) {
+            return;
+        }
+        int shift = retries < INPUT_GRAB_MAX_SHIFT ? retries : INPUT_GRAB_MAX_SHIFT;
+        usleep(10000 * (1 << shift));
     }
     keyinput_disabled = false;
     print_debug("Keyinput enabled");
