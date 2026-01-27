@@ -10,14 +10,14 @@ void surfaceSetAlpha(SDL_Surface *surface, Uint8 alpha)
     SDL_PixelFormat *fmt = surface->format;
 
     // If surface has no alpha channel, just set the surface alpha.
-    if (fmt->Amask == 0) {
+    if (__builtin_expect(fmt->Amask == 0, 1)) {
         SDL_SetAlpha(surface, SDL_SRCALPHA, alpha);
     }
     // Else change the alpha of each pixel.
     else {
         unsigned bpp = fmt->BytesPerPixel;
         // Scaling factor to clamp alpha to [0, alpha].
-        float scale = alpha / 255.0f;
+        uint32_t scale = alpha + 1;
 
         SDL_LockSurface(surface);
 
@@ -32,7 +32,8 @@ void surfaceSetAlpha(SDL_Surface *surface, Uint8 alpha)
                 SDL_GetRGBA(*pixel_ptr, fmt, &r, &g, &b, &a);
 
                 // Set the pixel with the new alpha.
-                *pixel_ptr = SDL_MapRGBA(fmt, r, g, b, scale * a);
+                Uint8 out_a = (Uint8)((a * scale) >> 8);
+                *pixel_ptr = SDL_MapRGBA(fmt, r, g, b, out_a);
             }
 
         SDL_UnlockSurface(surface);

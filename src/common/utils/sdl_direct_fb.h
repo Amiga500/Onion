@@ -103,8 +103,12 @@ void keyinput_disable(void)
 {
     if (keyinput_disabled || _input_fd == -1)
         return;
+    int retries = 0;
     while (ioctl(_input_fd, EVIOCGRAB, 1) < 0) {
-        usleep(100000);
+        if (retries++ >= 4) {
+            return;
+        }
+        usleep(10000 << (retries < 3 ? retries : 3));
     }
     keyinput_disabled = true;
     print_debug("Keyinput disabled");
@@ -118,8 +122,12 @@ void keyinput_enable(void)
 {
     if (!keyinput_disabled || _input_fd == -1)
         return;
+    int retries = 0;
     while (ioctl(_input_fd, EVIOCGRAB, 0) < 0) {
-        usleep(100000);
+        if (retries++ >= 4) {
+            return;
+        }
+        usleep(10000 << (retries < 3 ? retries : 3));
     }
     keyinput_disabled = false;
     print_debug("Keyinput enabled");

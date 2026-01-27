@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
 
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 #define ERROR(str)                 \
@@ -12,6 +15,29 @@
         fprintf(stderr, str "\n"); \
         goto error;                \
     }
+
+static inline void swapRedBlue(uint32_t *restrict dst,
+                               const uint32_t *restrict src, uint32_t count)
+{
+    uint32_t x = 0;
+#if defined(__ARM_NEON)
+    const uint32x4_t mask_ag = vdupq_n_u32(0xFF00FF00u);
+    const uint32x4_t mask_r = vdupq_n_u32(0x00FF0000u);
+    const uint32x4_t mask_b = vdupq_n_u32(0x000000FFu);
+    for (; x + 4 <= count; x += 4) {
+        uint32x4_t pix = vld1q_u32(src + x);
+        uint32x4_t ag = vandq_u32(pix, mask_ag);
+        uint32x4_t r = vshrq_n_u32(vandq_u32(pix, mask_r), 16);
+        uint32x4_t b = vshlq_n_u32(vandq_u32(pix, mask_b), 16);
+        vst1q_u32(dst + x, vorrq_u32(ag, vorrq_u32(r, b)));
+    }
+#endif
+    for (; x < count; x++) {
+        uint32_t pix = src[x];
+        dst[x] = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
+                 (pix & 0x000000FF) << 16;
+    }
+}
 
 //
 //	GFX BlitSurface with scale
@@ -67,9 +93,9 @@ int main(int argc, char *argv[])
     png_bytepp rows;
     FILE *fp;
     MI_PHY srcPa = 0, dstPa = 0;
-    void *tmp, *srcVa = NULL, *dstVa = NULL;
+    void *srcVa = NULL, *dstVa = NULL;
     uint8_t *src8;
-    uint32_t *src, *dst, pix, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
+    uint32_t *src, *dst, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
                                                     mh = 360;
 
     // Read commandline and open src
@@ -144,11 +170,8 @@ int main(int argc, char *argv[])
     case 4:
         for (y = 0; y < sh; y++) {
             src = (uint32_t *)rows[y];
-            for (x = 0; x < sw; x++) {
-                pix = *src++;
-                *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                         (pix & 0x000000FF) << 16;
-            }
+            swapRedBlue(dst, src, sw);
+            dst += sw;
         }
         break;
     }
@@ -190,14 +213,10 @@ int main(int argc, char *argv[])
                  PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png_ptr, info_ptr);
     src = dstVa;
-    tmp = malloc(dw * 4);
+    uint32_t *tmp = malloc(dw * 4);
     for (y = 0; y < dh; y++) {
-        dst = tmp;
-        for (x = 0; x < dw; x++) {
-            pix = *src++;
-            *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                     (pix & 0x000000FF) << 16;
-        }
+        swapRedBlue(tmp, src, dw);
+        src += dw;
         png_write_row(png_ptr, (png_bytep)tmp);
     }
     png_write_end(png_ptr, info_ptr);

@@ -6,8 +6,36 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
 
 #define ALIGN4K(val) ((val + 4095) & (~4095))
+
+static inline void swapRedBlueOpaque(uint32_t *restrict dst,
+                                     const uint32_t *restrict src,
+                                     uint32_t count)
+{
+    uint32_t x = 0;
+#if defined(__ARM_NEON)
+    const uint32x4_t mask_g = vdupq_n_u32(0x0000FF00u);
+    const uint32x4_t mask_r = vdupq_n_u32(0x00FF0000u);
+    const uint32x4_t mask_b = vdupq_n_u32(0x000000FFu);
+    const uint32x4_t mask_a = vdupq_n_u32(0xFF000000u);
+    for (; x + 4 <= count; x += 4) {
+        uint32x4_t pix = vld1q_u32(src + x);
+        uint32x4_t ag = vorrq_u32(mask_a, vandq_u32(pix, mask_g));
+        uint32x4_t r = vshrq_n_u32(vandq_u32(pix, mask_r), 16);
+        uint32x4_t b = vshlq_n_u32(vandq_u32(pix, mask_b), 16);
+        vst1q_u32(dst + x, vorrq_u32(ag, vorrq_u32(r, b)));
+    }
+#endif
+    for (; x < count; x++) {
+        uint32_t pix = src[x];
+        dst[x] = 0xFF000000 | (pix & 0x0000FF00) |
+                 (pix & 0x00FF0000) >> 16 | (pix & 0x000000FF) << 16;
+    }
+}
 
 //
 //	GFX BlitSurface with scale
@@ -64,7 +92,7 @@ int main(int argc, char *argv[])
     MI_PHY jpgPa = 0, pngPa = 0;
     void *tmp, *jpgVa = NULL, *pngVa = NULL;
     uint8_t *src8;
-    uint32_t *src, *dst, pix, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
+    uint32_t *src, *dst, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
                                                     mh = 360;
     char filename[256], *ptr;
 
@@ -148,7 +176,6 @@ int main(int argc, char *argv[])
 
     // Write png
     tmp = malloc(dw * 4);
-    dst = tmp;
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
     info_ptr = png_create_info_struct(png_ptr);
     png_init_io(png_ptr, fp);
@@ -158,11 +185,8 @@ int main(int argc, char *argv[])
     png_write_info(png_ptr, info_ptr);
     src = pngVa;
     for (y = 0; y < dh; y++) {
-        for (x = 0; x < dw; x++) {
-            pix = *src++;
-            dst[x] = 0xFF000000 | (pix & 0x0000FF00) |
-                     (pix & 0x00FF0000) >> 16 | (pix & 0x000000FF) << 16;
-        }
+        swapRedBlueOpaque(tmp, src, dw);
+        src += dw;
         png_write_row(png_ptr, (png_bytep)tmp);
     }
     png_write_end(png_ptr, info_ptr);
