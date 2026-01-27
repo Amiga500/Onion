@@ -11,6 +11,11 @@
 static time_t battery_last_modified = 0;
 static bool battery_is_charging = false;
 
+// Battery check throttling to reduce I/O overhead on every frame
+// Single-core Cortex-A7: File I/O causes expensive context switches
+#define BATTERY_CHECK_INTERVAL_MS 500  // Check battery at most every 500ms
+static uint32_t battery_last_check_ticks = 0;
+
 /**
  * @brief Retrieve the current battery percentage as reported by batmon
  *
@@ -97,6 +102,13 @@ bool battery_isCharging(void)
 bool battery_hasChanged(int ticks, int *out_percentage)
 {
     bool changed = false;
+
+    // Throttle battery checks to reduce expensive file I/O syscalls
+    // On single-core ARM, file I/O causes context switches and SD card latency
+    if (ticks - battery_last_check_ticks < BATTERY_CHECK_INTERVAL_MS) {
+        return false;  // Skip check, too soon since last update
+    }
+    battery_last_check_ticks = ticks;
 
     if (battery_isCharging()) {
         if (!battery_is_charging) {
