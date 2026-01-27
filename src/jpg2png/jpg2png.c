@@ -139,9 +139,13 @@ int main(int argc, char *argv[])
     jpgPa = 0;
     printf("sw:%d sh:%d dw:%d dh:%d\n", sw, sh, dw, dh);
 
-    // Create png
-    strncpy(filename, argv[1], sizeof(filename) - 5);
-    filename[sizeof(filename) - 5] = '\0';
+    // Create png - copy filename and replace extension with .png
+    size_t input_len = strlen(argv[1]);
+    if (input_len >= sizeof(filename) - 4) {
+        input_len = sizeof(filename) - 5;  // Leave room for ".png\0"
+    }
+    memcpy(filename, argv[1], input_len);
+    filename[input_len] = '\0';
     ptr = strrchr(filename, '.');
     if (ptr)
         *ptr = 0;
