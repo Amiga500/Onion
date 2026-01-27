@@ -215,7 +215,8 @@ int main(int argc, char *argv[])
         }
         break;
     case 4:
-        // RGBA: swap R and B channels
+        // RGBA: convert to ARGB8888 format (reorder R and B channels)
+        // PNG RGBA is typically 0xAABBGGRR, target ARGB8888 is 0xAARRGGBB
         for (y = 0; y < sh; y++) {
             src = (uint32_t *)rows[y];
 #ifdef __ARM_NEON__
@@ -226,8 +227,7 @@ int main(int argc, char *argv[])
                 // Load 4 RGBA pixels
                 uint32x4_t rgba = vld1q_u32(src + x);
                 
-                // Swap R and B channels
-                // RGBA format: 0xAABBGGRR -> want 0xAARRGGBB
+                // Reorder channels: RGBA (0xAABBGGRR) -> ARGB (0xAARRGGBB)
                 // Keep GA (green and alpha): mask 0xFF00FF00
                 uint32x4_t ga = vandq_u32(rgba, vdupq_n_u32(0xFF00FF00));
                 
