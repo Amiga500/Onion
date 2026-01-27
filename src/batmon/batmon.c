@@ -331,10 +331,10 @@ int set_best_session_time(int best_session)
 void saveFakeAxpResult(int current_percentage)
 {
     FILE *fp;
-    if ((fp = fopen("/tmp/.axp_result", "w+"))) {
+    // Note: /tmp is typically tmpfs (RAM-based), so we can skip fsync
+    // which is expensive and unnecessary for tmpfs filesystems.
+    if ((fp = fopen("/tmp/.axp_result", "w"))) {
         fprintf(fp, "{\"battery\":%d, \"voltage\":%d, \"charging\":%d}", current_percentage, adc_value_g, current_percentage == 500 ? 3 : 0);
-        fflush(fp);
-        fsync(fileno(fp));
         fclose(fp);
     }
 }
@@ -377,14 +377,20 @@ int updateADCValue(int value)
 
 int getBatPercMMP(void)
 {
-    char buf[100] = "";
-    int battery_number;
+    // Optimization: Use popen() instead of system() + file I/O to avoid
+    // unnecessary file creation overhead and reduce SD card writes.
+    // This reduces both CPU overhead (no fork for file write) and SD wear.
+    static const char *cmd = "cd /customer/app/ ; ./axp_test";
+    char buf[100];
+    int battery_number = -1;
 
-    system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result");
-
-    FILE *fp;
-    file_get(fp, "/tmp/.axp_result", CONTENT_STR, buf);
-    sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
+    FILE *fp = popen(cmd, "r");
+    if (fp != NULL) {
+        if (fgets(buf, sizeof(buf), fp) != NULL) {
+            sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
+        }
+        pclose(fp);
+    }
 
     return battery_number;
 }
@@ -394,41 +400,44 @@ typedef struct {
     float percentage;
 } VoltagePercentMapping;
 
-VoltagePercentMapping VoltageCurveMapping_liion[] = {
-    {4.20, 100.0}, // super accurate fresh miyoom mini battery curve mapping data.
-    {4.13, 95.0},
-    {4.06, 90.0},
-    {4.02, 85.0},
-    {3.99, 80.0},
-    {3.95, 75.0},
-    {3.92, 70.0},
-    {3.88, 65.0},
-    {3.85, 60.0},
-    {3.81, 55.0},
-    {3.78, 50.0},
-    {3.74, 45.0},
-    {3.71, 40.0},
-    {3.67, 35.0},
-    {3.64, 30.0},
-    {3.56, 25.0},
-    {3.49, 20.0},
-    {3.42, 15.0},
-    {3.30, 10.0},
-    {3.14, 5.0},
-    {3.00, 0.0}};
+// Static const lookup table for battery voltage to percentage mapping
+// Making it static const allows the compiler to place it in read-only memory
+// and potentially optimize lookups
+static const VoltagePercentMapping VoltageCurveMapping_liion[] = {
+    {4.20f, 100.0f}, // super accurate fresh miyoom mini battery curve mapping data.
+    {4.13f, 95.0f},
+    {4.06f, 90.0f},
+    {4.02f, 85.0f},
+    {3.99f, 80.0f},
+    {3.95f, 75.0f},
+    {3.92f, 70.0f},
+    {3.88f, 65.0f},
+    {3.85f, 60.0f},
+    {3.81f, 55.0f},
+    {3.78f, 50.0f},
+    {3.74f, 45.0f},
+    {3.71f, 40.0f},
+    {3.67f, 35.0f},
+    {3.64f, 30.0f},
+    {3.56f, 25.0f},
+    {3.49f, 20.0f},
+    {3.42f, 15.0f},
+    {3.30f, 10.0f},
+    {3.14f, 5.0f},
+    {3.00f, 0.0f}};
 
-float adcToVoltage(int adcValue)
+// Compile-time constant for table size
+#define VOLTAGE_TABLE_SIZE (sizeof(VoltageCurveMapping_liion) / sizeof(VoltageCurveMapping_liion[0]))
+
+static inline float adcToVoltage(int adcValue)
 {
-    return (adcValue - 148) * 0.01;
+    return (adcValue - 148) * 0.01f;
 }
 
-float interpolatePercentage(float voltage)
+static float interpolatePercentage(float voltage)
 {
-    // Lookup table size
-    int table_size = sizeof(VoltageCurveMapping_liion) / sizeof(VoltageCurveMapping_liion[0]);
-
-    // Interpolation logic
-    for (int i = 0; i < table_size - 1; i++) {
+    // Interpolation logic with compile-time table size
+    for (int i = 0; i < (int)(VOLTAGE_TABLE_SIZE - 1); i++) {
         if (voltage <= VoltageCurveMapping_liion[i].voltage && voltage > VoltageCurveMapping_liion[i + 1].voltage) {
             // Perform linear interpolation
             float voltage_diff = VoltageCurveMapping_liion[i].voltage - VoltageCurveMapping_liion[i + 1].voltage;
@@ -439,9 +448,9 @@ float interpolatePercentage(float voltage)
     }
     // If voltage is outside the lookup table, see if it's above or below
     if (voltage >= VoltageCurveMapping_liion[0].voltage)
-        return 100;
-    if (voltage <= VoltageCurveMapping_liion[table_size - 1].voltage)
-        return 0;
+        return 100.0f;
+    if (voltage <= VoltageCurveMapping_liion[VOLTAGE_TABLE_SIZE - 1].voltage)
+        return 0.0f;
 
     return -1; // Error
 }

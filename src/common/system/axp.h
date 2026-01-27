@@ -15,13 +15,15 @@
 #define AXPID (0x34) // 0x68 >> 1
 //#define	AXPID	(0x3D)	// test for miyoomini i2c-1
 
-int axp_write(unsigned char address, unsigned char val)
+static inline int axp_write(unsigned char address, unsigned char val)
 {
     struct i2c_msg msg[1];
     struct i2c_rdwr_ioctl_data packets;
     unsigned char buf[2];
     int ret;
     int fd = open(AXPDEV, O_RDWR);
+    if (fd < 0)
+        return -1;
     ioctl(fd, I2C_TIMEOUT, 5);
     ioctl(fd, I2C_RETRIES, 1);
 
@@ -42,13 +44,15 @@ int axp_write(unsigned char address, unsigned char val)
     return 0;
 }
 
-int axp_read(unsigned char address)
+static inline int axp_read(unsigned char address)
 {
     struct i2c_msg msg[2];
     struct i2c_rdwr_ioctl_data packets;
     unsigned char val;
     int ret;
     int fd = open(AXPDEV, O_RDWR);
+    if (fd < 0)
+        return -1;
     ioctl(fd, I2C_TIMEOUT, 5);
     ioctl(fd, I2C_RETRIES, 1);
 
@@ -71,9 +75,9 @@ int axp_read(unsigned char address)
     return val;
 }
 
-int axp_lcd_get(void) { return axp_read(0x21); }
+static inline int axp_lcd_get(void) { return axp_read(0x21); }
 
-int axp_lcd_set(int value)
+static inline int axp_lcd_set(int value)
 {
     int res;
 
