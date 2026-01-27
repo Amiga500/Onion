@@ -16,7 +16,7 @@
 //
 //    Search pid of running executable (forward match)
 //
-pid_t process_searchpid(const char *commname)
+static inline pid_t process_searchpid(const char *commname)
 {
     DIR *procdp;
     struct dirent *dir;
@@ -27,6 +27,9 @@ pid_t process_searchpid(const char *commname)
     size_t commlen = strlen(commname);
 
     procdp = opendir("/proc");
+    if (!procdp)
+        return 0;
+
     while ((dir = readdir(procdp))) {
         if (dir->d_type == DT_DIR) {
             pid = atoi(dir->d_name);
@@ -34,12 +37,14 @@ pid_t process_searchpid(const char *commname)
                 sprintf(fname, "/proc/%d/comm", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
-                    fscanf(fp, "%127s", comm);
-                    fclose(fp);
-                    if (!strncmp(comm, commname, commlen)) {
-                        ret = pid;
-                        break;
+                    if (fscanf(fp, "%127s", comm) == 1) {
+                        if (!strncmp(comm, commname, commlen)) {
+                            ret = pid;
+                            fclose(fp);
+                            break;
+                        }
                     }
+                    fclose(fp);
                 }
             }
         }
@@ -48,19 +53,19 @@ pid_t process_searchpid(const char *commname)
     return ret;
 }
 
-bool process_isRunning(const char *commname)
+static inline bool process_isRunning(const char *commname)
 {
     return process_searchpid(commname) != 0;
 }
 
-void process_kill(const char *commname)
+static inline void process_kill(const char *commname)
 {
     pid_t pid;
     if ((pid = process_searchpid(commname)))
         kill(pid, SIGKILL);
 }
 
-void process_killall(const char *commname)
+static inline void process_killall(const char *commname)
 {
     pid_t pid;
     int max = 999;
@@ -68,54 +73,84 @@ void process_killall(const char *commname)
         kill(pid, SIGKILL);
 }
 
-bool process_start(const char *pname, const char *args, const char *home,
+static inline bool process_start(const char *pname, const char *args, const char *home,
                    bool await)
 {
     char filename[256];
-    sprintf(filename, "%s/bin/%s", home != NULL ? home : ".", pname);
-    if (!exists(filename))
-        sprintf(filename, "%s/%s", home != NULL ? home : ".", pname);
-    if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/bin/%s", pname);
-    if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/%s", pname);
-    if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/miyoo/app/%s", pname);
-    if (!exists(filename))
+
+    // Check possible locations in order of likelihood
+    // Using a single path buffer and testing each location
+    const char *paths[] = {
+        "%s/bin/%s",
+        "%s/%s",
+        "/mnt/SDCARD/.tmp_update/bin/%s",
+        "/mnt/SDCARD/.tmp_update/%s",
+        "/mnt/SDCARD/miyoo/app/%s"
+    };
+    const char *homedir = home != NULL ? home : ".";
+    bool found = false;
+
+    for (int i = 0; i < 5 && !found; i++) {
+        if (i < 2) {
+            sprintf(filename, paths[i], homedir, pname);
+        } else {
+            sprintf(filename, paths[i], pname);
+        }
+        if (exists(filename)) {
+            found = true;
+        }
+    }
+
+    if (!found)
         return false;
 
     char cmd[512];
-    sprintf(cmd, "cd \"%s\"; %s %s %s", home != NULL ? home : ".", filename,
+    sprintf(cmd, "cd \"%s\"; %s %s %s", homedir, filename,
             args != NULL ? args : "", await ? "" : "&");
     system(cmd);
 
     return true;
 }
 
-bool process_start_read_return(const char *cmdline, char *out_str)
+/**
+ * @brief Execute a command and read its output.
+ *        Fixed memory leak from repeated strdup() in loop.
+ *
+ * @param cmdline Command to execute
+ * @param out_str Output buffer for result
+ * @return 0 on success, -1 on error
+ */
+static inline int process_start_read_return(const char *cmdline, char *out_str)
 {
     char buffer[255] = "";
-    char *result = NULL;
 
     FILE *pipe = popen(cmdline, "r");
     if (pipe == NULL) {
         fprintf(stderr, "Error executing command: %s\n", cmdline);
+        out_str[0] = '\0';
         return -1;
     }
 
+    // Read lines, keeping only the last one
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-        result = strdup(buffer);
+        // buffer now contains the last line read
     }
 
     pclose(pipe);
-    if (result != NULL) {
-        result[strlen(buffer) - 1] = '\0';
-        strcpy(out_str, result);
-        free(result);
+
+    // Copy the last line read (or empty if none)
+    if (buffer[0] != '\0') {
+        size_t len = strlen(buffer);
+        // Remove trailing newline if present
+        if (len > 0 && buffer[len - 1] == '\n') {
+            buffer[len - 1] = '\0';
+        }
+        strcpy(out_str, buffer);
     }
     else {
-        strcpy(out_str, "");
+        out_str[0] = '\0';
     }
+
     return 0;
 }
 
