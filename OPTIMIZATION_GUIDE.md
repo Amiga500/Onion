@@ -177,6 +177,44 @@ if (unlikely(game_list_len == 0)) { ... }  // Empty list is rare
 
 ---
 
+## 4. I/O Throttling Optimization
+
+### Battery Monitoring (`src/common/system/battery.h`)
+
+**Problem:**
+- `battery_hasChanged()` called every frame (60 Hz)
+- Each call: File I/O check (`stat()` syscall) + potential `open()/read()`
+- Single-core ARM: Context switches to kernel are expensive (~1000-2000 cycles)
+- SD card I/O: High latency (~5-10ms per access due to SD protocol overhead)
+
+**Solution: Throttle Battery Checks**
+```c
+#define BATTERY_CHECK_INTERVAL_MS 500  // Check at most every 500ms
+
+bool battery_hasChanged(int ticks, int *out_percentage)
+{
+    // Skip check if less than 500ms since last update
+    if (ticks - battery_last_check_ticks < BATTERY_CHECK_INTERVAL_MS) {
+        return false;  // Early return, no I/O
+    }
+    battery_last_check_ticks = ticks;
+    
+    // ... rest of battery check (file I/O)
+}
+```
+
+**Expected Improvement:**
+- **I/O Reduction:** 60 checks/sec → 2 checks/sec = **30x fewer syscalls**
+- **Power Savings:** Reduced SD card accesses = lower battery drain
+- **Latency:** Battery updates still fast enough (500ms imperceptible to users)
+
+**Justification:**
+- Battery percentage changes slowly (minutes, not milliseconds)
+- 500ms update rate = 0.5 second lag (acceptable for battery indicator)
+- Eliminates ~58 `stat()` syscalls per second (each ~500-1000 cycles + kernel overhead)
+
+---
+
 ## 4. Cache & Memory Optimization
 
 ### Alignment Hints
@@ -202,13 +240,14 @@ void process(uint32_t * restrict dst, const uint32_t * restrict src)
 
 ---
 
-## Performance Impact Summary
+## 5. Performance Impact Summary
 
 | Component | Optimization | Expected Gain | Cycle Reduction |
 |-----------|--------------|---------------|-----------------|
 | **pngScale (RGB→ARGB)** | NEON + loop unroll | **4-8x** | ~80% in pixel loops |
 | **pngScale (malloc)** | Move out of loop | **~500 cycles/row** | Heap alloc eliminated |
 | **surfaceSetAlpha** | NEON + fixed-point | **6-8x** | ~85% in alpha blending |
+| **battery_hasChanged** | I/O throttling | **30x fewer syscalls** | 58 file checks/sec eliminated |
 | **gameSwitcher** | Branch hints | **5-10%** | Fewer pipeline stalls |
 | **All modules** | Compiler flags | **10-20%** | Better inlining, alignment |
 
@@ -216,8 +255,10 @@ void process(uint32_t * restrict dst, const uint32_t * restrict src)
 - **Image loading/scaling:** 50-70% faster (critical for UI responsiveness)
 - **Alpha blending (theme transitions):** 60-80% faster
 - **Frame rendering:** 5-15% faster (cumulative from all optimizations)
+- **Battery polling:** 97% reduction in I/O overhead (60 → 2 checks/sec)
 - **Memory fragmentation:** Reduced (fewer allocations in hot paths)
-- **Battery life:** Improved (less CPU time = lower power draw)
+- **Battery life:** Improved (less CPU time + fewer SD card accesses = lower power draw)
+- **SD card wear:** Reduced (fewer write/read cycles extends card lifespan)
 
 ---
 
