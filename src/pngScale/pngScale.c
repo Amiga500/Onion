@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     png_bytepp rows;
     FILE *fp;
     MI_PHY srcPa = 0, dstPa = 0;
-    void *tmp, *srcVa = NULL, *dstVa = NULL;
+    void *tmp = NULL, *srcVa = NULL, *dstVa = NULL;
     uint8_t *src8;
     uint32_t *src, *dst, pix, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
                                                     mh = 360;
@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
                 uint8x8x3_t rgb = vld3_u8(src8 + x * 3);
                 
                 // rgb.val[0] = R, rgb.val[1] = G, rgb.val[2] = B
-                // Need to create: 0xFFBBGGRR (BGR order for ARGB8888)
+                // Need to create: 0xAARRGGBB (ARGB8888 format)
                 uint16x8_t r16 = vmovl_u8(rgb.val[0]);
                 uint16x8_t g16 = vmovl_u8(rgb.val[1]);
                 uint16x8_t b16 = vmovl_u8(rgb.val[2]);
@@ -353,6 +353,8 @@ usage:
         "usage: %s src.png dst.png [max_width:def=250] [max_height:def=360]\n",
         argv[0]);
 error:
+    if (tmp)
+        free(tmp);
     if (srcVa)
         MI_SYS_Munmap(srcVa, ss);
     if (dstVa)

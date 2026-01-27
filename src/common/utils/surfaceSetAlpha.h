@@ -15,11 +15,12 @@
 static FORCE_INLINE void surfaceSetAlpha_NEON_ARGB8888(
     uint32_t * restrict pixels, int width, int height, int pitch_pixels, uint8_t alpha)
 {
-    // Fixed-point scale factor (16.16 format) - avoids float division
-    // scale_fp = (alpha * 65536) / 255 = alpha * 257 (approximation)
-    const uint32_t scale_fp = (alpha * 257) >> 8;  // Convert to 8.8 fixed point
-    const uint16x8_t scale_vec = vdupq_n_u16(scale_fp);
-    const uint16x8_t mask_255 = vdupq_n_u16(0xFF);
+    // Scale factor: approximates (alpha / 255) for integer multiply
+    // We use: new_alpha = (old_alpha * alpha) / 255
+    // Approximation: 1/255 ≈ 257/65536, so (x * alpha * 257) >> 16
+    const uint16_t scale = alpha;
+    const uint16x4_t scale_vec = vdup_n_u16(scale);
+    const uint16x4_t mask_255 = vdup_n_u16(0xFF);
     
     for (int y = 0; y < height; ++y) {
         uint32_t * restrict row = pixels + y * pitch_pixels;
@@ -33,11 +34,15 @@ static FORCE_INLINE void surfaceSetAlpha_NEON_ARGB8888(
             // Extract alpha channel (bits 24-31) from each pixel
             uint16x4_t alpha_old = vmovn_u32(vshrq_n_u32(pixels_vec, 24));
             
-            // Scale alpha: new_alpha = (old_alpha * scale) >> 8
-            uint16x4_t alpha_scaled = vmovn_u32(vmull_u16(alpha_old, vget_low_u16(scale_vec)));
+            // Scale alpha: new_alpha = (old_alpha * scale * 257) >> 16
+            // vmull produces 32-bit result, shift right by 8 to get 8-bit alpha
+            uint32x4_t alpha_mult = vmull_u16(alpha_old, scale_vec);
+            // Multiply by 257 and shift right by 16 (same as * 257 / 65536)
+            uint32x4_t alpha_scaled_32 = vmulq_n_u32(alpha_mult, 257);
+            uint16x4_t alpha_scaled = vmovn_u32(vshrq_n_u32(alpha_scaled_32, 16));
             
             // Clamp to 0-255 range
-            alpha_scaled = vmin_u16(alpha_scaled, vget_low_u16(mask_255));
+            alpha_scaled = vmin_u16(alpha_scaled, mask_255);
             
             // Reconstruct pixels: clear old alpha, insert new alpha
             uint32x4_t rgb_mask = vdupq_n_u32(0x00FFFFFF);
@@ -92,8 +97,10 @@ void surfaceSetAlpha(SDL_Surface *surface, Uint8 alpha)
 #endif
     
     // Fallback: Generic path with SDL functions (for non-standard formats)
-    // Fixed-point math avoids float division in hot loop
-    const uint32_t scale_fp = (alpha * 257) >> 8;  // 8.8 fixed point
+    // Integer approximation of alpha division (avoids float division)
+    // Approximates: new_alpha = (old_alpha * alpha) / 255
+    // Using: (x * alpha * 257) >> 16 ≈ (x * alpha) / 255 (error < 0.4%)
+    const uint32_t scale_fp = (alpha * 257) >> 8;
     
     for (int y = 0; y < surface->h; ++y) {
         for (int x = 0; x < surface->w; ++x) {

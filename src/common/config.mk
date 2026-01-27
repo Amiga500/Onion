@@ -60,8 +60,9 @@ ifeq ($(PLATFORM),miyoomini)
 # - Enable instruction scheduling and inline optimizations
 CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve \
 	-ftree-vectorize -finline-functions -finline-limit=300 \
-	-falign-functions=16 -falign-loops=16 -fomit-frame-pointer \
-	-Wl,-rpath=$(LIB)
+	-falign-functions=16 -falign-loops=16 -fomit-frame-pointer
+
+LDFLAGS := $(LDFLAGS) -Wl,-rpath=$(LIB)
 
 ifdef INCLUDE_SHMVAR
 LDFLAGS := $(LDFLAGS) -lshmvar
