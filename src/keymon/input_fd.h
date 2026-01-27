@@ -76,7 +76,7 @@ void keyinput_send(unsigned short code, signed int value)
     if (keyinput_disabled)
         return;
     char cmd[100];
-    sprintf(cmd, "sendkeys %d %d", code, value);
+    snprintf(cmd, sizeof(cmd), "sendkeys %d %d", code, value);
     printf_debug("Send keys: code=%d, value=%d\n", code, value);
     _ignoreQueue_add(code, value);
     system(cmd);
@@ -88,13 +88,14 @@ void keyinput_sendMulti(int n, int code_value_pairs[n][2])
     if (keyinput_disabled)
         return;
     char cmd[512];
-    strcpy(cmd, "./bin/sendkeys ");
+    int offset = 0;
+    offset = snprintf(cmd, sizeof(cmd), "./bin/sendkeys ");
 
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n && offset < (int)sizeof(cmd) - 1; i++) {
         int code = code_value_pairs[i][0];
         int value = code_value_pairs[i][1];
         _ignoreQueue_add(code, value);
-        sprintf(cmd + strlen(cmd), "%d %d ", code, value);
+        offset += snprintf(cmd + offset, sizeof(cmd) - offset, "%d %d ", code, value);
     }
 
     printf_debug("Send keys: %s\n", cmd);
