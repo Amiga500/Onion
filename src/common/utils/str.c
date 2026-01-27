@@ -7,6 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "arm_hints.h"
+
 bool str_getLastNumber(char *str, long *out_val)
 {
     char *p = str;
@@ -34,7 +36,19 @@ char *str_split(char *str, const char *delim)
     return p + strlen(delim); // return tail substring
 }
 
-char *str_replace(char *orig, char *rep, char *with)
+/**
+ * @brief Replace all occurrences of a substring
+ *
+ * @param orig Original string
+ * @param rep Substring to replace
+ * @param with Replacement string
+ * @return Newly allocated string with replacements (caller must free)
+ *
+ * Optimization notes:
+ * - Uses restrict pointers to help compiler optimize memcpy/strcpy
+ * - Early returns use unlikely() for error conditions
+ */
+char *str_replace(char * restrict orig, char * restrict rep, char * restrict with)
 {
     char *ins;     // the next insert point
     char *tmp;     // varies
@@ -44,10 +58,10 @@ char *str_replace(char *orig, char *rep, char *with)
     int count;     // number of replacements
 
     // sanity checks and initialization
-    if (!orig || !rep)
+    if (unlikely(!orig || !rep))
         return NULL;
     len_rep = strlen(rep);
-    if (len_rep == 0)
+    if (unlikely(len_rep == 0))
         return NULL; // empty rep causes infinite loop during count
     if (!with)
         with = "";
@@ -62,7 +76,7 @@ char *str_replace(char *orig, char *rep, char *with)
         (char *)malloc(strlen(orig) + (len_with - len_rep) * count + 1);
     tmp = result;
 
-    if (!result)
+    if (unlikely(!result))
         return NULL;
 
     // first time through the loop, all the variable are set correctly

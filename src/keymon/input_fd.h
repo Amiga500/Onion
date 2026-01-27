@@ -6,6 +6,7 @@
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 
+#include "utils/arm_hints.h"
 #include "utils/msleep.h"
 
 // for ev.value
@@ -58,11 +59,11 @@ bool keyinput_isValid(void)
 {
     read(input_fd, &ev, sizeof(ev));
 
-    if (ev.type != EV_KEY || ev.value > REPEAT)
+    if (unlikely(ev.type != EV_KEY || ev.value > REPEAT))
         return false;
 
     for (int i = 0; i < ignore_queue_count; i++) {
-        if (ignore_queue[i][0] == ev.code && ignore_queue[i][1] == ev.value) {
+        if (unlikely(ignore_queue[i][0] == ev.code && ignore_queue[i][1] == ev.value)) {
             _ignoreQueue_remove(i);
             return false;
         }
@@ -105,13 +106,20 @@ void keyinput_sendMulti(int n, int code_value_pairs[n][2])
 /**
  * @brief stop input event for other processes
  *
+ * Uses bounded retry loop to avoid infinite spin-wait.
+ * Retry limit: ~500ms (POLL_MAX_RETRIES * POLL_SLEEP_US)
  */
 void keyinput_disable(void)
 {
     if (keyinput_disabled)
         return;
-    while (ioctl(input_fd, EVIOCGRAB, 1) < 0) {
-        usleep(100000);
+    int retries = 0;
+    while (unlikely(ioctl(input_fd, EVIOCGRAB, 1) < 0)) {
+        if (++retries >= POLL_MAX_RETRIES) {
+            print_debug("Warning: EVIOCGRAB failed after max retries");
+            break;
+        }
+        usleep(POLL_SLEEP_US);
     }
     keyinput_disabled = true;
     print_debug("Keyinput disabled");
@@ -120,13 +128,20 @@ void keyinput_disable(void)
 /**
  * @brief restart input event for other processes
  *
+ * Uses bounded retry loop to avoid infinite spin-wait.
+ * Retry limit: ~500ms (POLL_MAX_RETRIES * POLL_SLEEP_US)
  */
 void keyinput_enable(void)
 {
     if (!keyinput_disabled)
         return;
-    while (ioctl(input_fd, EVIOCGRAB, 0) < 0) {
-        usleep(100000);
+    int retries = 0;
+    while (unlikely(ioctl(input_fd, EVIOCGRAB, 0) < 0)) {
+        if (++retries >= POLL_MAX_RETRIES) {
+            print_debug("Warning: EVIOCGRAB release failed after max retries");
+            break;
+        }
+        usleep(POLL_SLEEP_US);
     }
     keyinput_disabled = false;
     print_debug("Keyinput enabled");
