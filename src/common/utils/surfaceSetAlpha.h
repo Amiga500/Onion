@@ -27,20 +27,41 @@ void surfaceSetAlpha(SDL_Surface *surface, Uint8 alpha)
         SDL_LockSurface(surface);
         
         // Fast path for ARGB8888/RGBA8888 32-bit formats
-        if (bpp == 4 && (fmt->Amask == 0xFF000000 || fmt->Amask == 0x000000FF)) {
+        // Check if this is a 32-bit format with an alpha channel
+        if (bpp == 4 && fmt->Amask != 0) {
             uint32_t total_pixels = surface->w * surface->h;
             uint32_t *pixel_ptr = (uint32_t *)surface->pixels;
             
+            // Determine alpha channel position from mask
+            uint32_t alpha_shift = 0;
+            uint32_t mask = fmt->Amask;
+            while (mask && !(mask & 1)) {
+                alpha_shift++;
+                mask >>= 1;
+            }
+            uint32_t rgb_mask = ~fmt->Amask;
+            
 #if USE_NEON_ALPHA_OPT
-            // Use optimized bit manipulation (5-8x faster than SDL functions)
-            scale_alpha_fast(pixel_ptr, total_pixels, alpha);
+            // Use optimized implementation for standard ARGB8888 (alpha at bit 24)
+            if (alpha_shift == 24) {
+                scale_alpha_fast(pixel_ptr, total_pixels, alpha);
+            }
+            else {
+                // Generic path for other alpha positions
+                for (uint32_t i = 0; i < total_pixels; i++) {
+                    uint32_t pixel = pixel_ptr[i];
+                    uint32_t old_alpha = (pixel >> alpha_shift) & 0xFF;
+                    uint32_t new_alpha = (old_alpha * alpha) >> 8;
+                    pixel_ptr[i] = (pixel & rgb_mask) | (new_alpha << alpha_shift);
+                }
+            }
 #else
             // Fallback fast integer implementation
             for (uint32_t i = 0; i < total_pixels; i++) {
                 uint32_t pixel = pixel_ptr[i];
-                uint32_t old_alpha = (pixel >> 24) & 0xFF;
+                uint32_t old_alpha = (pixel >> alpha_shift) & 0xFF;
                 uint32_t new_alpha = (old_alpha * alpha) >> 8;
-                pixel_ptr[i] = (pixel & 0x00FFFFFF) | (new_alpha << 24);
+                pixel_ptr[i] = (pixel & rgb_mask) | (new_alpha << alpha_shift);
             }
 #endif
         }

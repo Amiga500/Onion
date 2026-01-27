@@ -3,16 +3,10 @@
 
 #include <stdint.h>
 
-// Optimized font rendering with lookup tables for bit extraction
-// Eliminates per-pixel bit shifts and branches
+// Optimized font rendering with reduced overhead
+// Eliminates per-pixel function calls and redundant calculations
 
-// Pre-computed lookup table for 8-bit to 8-pixel expansion
-// Each bit becomes a separate element in the array
-static const uint8_t bit_expand_lut[256][8] = {
-    #include "bit_expand_table.h"
-};
-
-// Fast character drawing using lookup table
+// Fast character drawing using pointer arithmetic
 // Processes entire 8x8 character with minimal branching
 static inline void drawChar_optimized(uint16_t *restrict buffer, int32_t *x, int32_t *y,
                                      int32_t margin, char ch, uint16_t fc, uint16_t olc,
@@ -36,7 +30,7 @@ static inline void drawChar_optimized(uint16_t *restrict buffer, int32_t *x, int
         uint8_t row_bits = charSprite[i];
         uint16_t *pixel_col = pixel_row;
         
-        // Use bit manipulation instead of lookup for better performance
+        // Use bit manipulation for better performance
         for (int j = 0; j < 8; j++) {
             int bit_pos = 7 - j;
             if ((row_bits >> bit_pos) & 1) {

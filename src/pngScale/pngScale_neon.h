@@ -30,12 +30,12 @@ static inline void convert_grayscale_neon(const uint8_t *src, uint32_t *dst, uin
         
         // Interleave to create RGBA pixels
         uint8x8x4_t rgba;
-        rgba.val[0] = b;  // Blue
-        rgba.val[1] = g;  // Green
-        rgba.val[2] = r;  // Red
-        rgba.val[3] = alpha;  // Alpha
+        rgba.val[0] = b;  // Blue (byte 0 in little-endian ARGB8888)
+        rgba.val[1] = g;  // Green (byte 1)
+        rgba.val[2] = r;  // Red (byte 2)
+        rgba.val[3] = alpha;  // Alpha (byte 3, MSB in little-endian)
         
-        // Store as ARGB8888 (actually stored as BGRA in little-endian)
+        // Store as ARGB8888 format (0xAARRGGBB in memory appears as BGRA bytes in little-endian)
         vst4_u8((uint8_t *)(dst + i), rgba);
     }
     
@@ -135,10 +135,11 @@ static inline void convert_rgba_neon(const uint32_t *src, uint32_t *dst, uint32_
         vst4_u8((uint8_t *)(dst + i), bgra);
     }
     
-    // Scalar cleanup
+    // Scalar cleanup - optimized with single operation
     for (i = simd_count; i < count; i++) {
         uint32_t pix = src[i];
-        dst[i] = (pix & 0xFF00FF00) | ((pix & 0x00FF0000) >> 16) | ((pix & 0x000000FF) << 16);
+        // Swap R and B: keep G and A, swap R (bits 16-23) with B (bits 0-7)
+        dst[i] = (pix & 0xFF00FF00) | ((pix << 16) & 0x00FF0000) | ((pix >> 16) & 0x000000FF);
     }
 }
 
