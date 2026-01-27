@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#ifdef __ARM_NEON__
+#include <arm_neon.h>
+#endif
+
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 #define ERROR(str)                 \
     {                              \
@@ -116,15 +120,49 @@ int main(int argc, char *argv[])
     dst = srcVa;
     switch (ch) {
     case 1:
+        // Grayscale: replicate luminance to R, G, B channels
         for (y = 0; y < sh; y++) {
             src8 = rows[y];
+#ifdef __ARM_NEON__
+            // NEON optimization: process 8 pixels at a time
+            x = 0;
+            for (; x <= sw - 8; x += 8) {
+                // Load 8 grayscale values
+                uint8x8_t gray = vld1_u8(src8 + x);
+                
+                // Expand to 16-bit for processing
+                uint16x8_t gray16 = vmovl_u8(gray);
+                
+                // Create ARGB values: 0xFF000000 | (gray << 16) | (gray << 8) | gray
+                // Process first 4 pixels
+                uint32x4_t argb_lo = vdupq_n_u32(0xFF000000);
+                argb_lo = vorrq_u32(argb_lo, vshlq_n_u32(vmovl_u16(vget_low_u16(gray16)), 16));
+                argb_lo = vorrq_u32(argb_lo, vshlq_n_u32(vmovl_u16(vget_low_u16(gray16)), 8));
+                argb_lo = vorrq_u32(argb_lo, vmovl_u16(vget_low_u16(gray16)));
+                
+                // Process next 4 pixels
+                uint32x4_t argb_hi = vdupq_n_u32(0xFF000000);
+                argb_hi = vorrq_u32(argb_hi, vshlq_n_u32(vmovl_u16(vget_high_u16(gray16)), 16));
+                argb_hi = vorrq_u32(argb_hi, vshlq_n_u32(vmovl_u16(vget_high_u16(gray16)), 8));
+                argb_hi = vorrq_u32(argb_hi, vmovl_u16(vget_high_u16(gray16)));
+                
+                // Store 8 ARGB pixels
+                vst1q_u32(dst, argb_lo);
+                vst1q_u32(dst + 4, argb_hi);
+                dst += 8;
+            }
+            // Scalar fallback for remaining pixels
+            for (; x < sw; x++, src8++) {
+#else
             for (x = 0; x < sw; x++, src8++) {
+#endif
                 *dst++ =
                     0xFF000000 | (src8[0] << 16) | (src8[0] << 8) | src8[0];
             }
         }
         break;
     case 2:
+        // Grayscale + Alpha
         for (y = 0; y < sh; y++) {
             src8 = rows[y];
             for (x = 0; x < sw; x++, src8 += 2) {
@@ -134,17 +172,84 @@ int main(int argc, char *argv[])
         }
         break;
     case 3:
+        // RGB: reorder channels from RGB to BGR for ARGB8888
         for (y = 0; y < sh; y++) {
             src8 = rows[y];
+#ifdef __ARM_NEON__
+            // NEON optimization: process 8 pixels (24 bytes) at a time
+            x = 0;
+            for (; x <= sw - 8; x += 8) {
+                // Load 24 bytes (8 RGB triplets)
+                uint8x8x3_t rgb = vld3_u8(src8 + x * 3);
+                
+                // rgb.val[0] = R, rgb.val[1] = G, rgb.val[2] = B
+                // Need to create: 0xFFBBGGRR (BGR order for ARGB8888)
+                uint16x8_t r16 = vmovl_u8(rgb.val[0]);
+                uint16x8_t g16 = vmovl_u8(rgb.val[1]);
+                uint16x8_t b16 = vmovl_u8(rgb.val[2]);
+                
+                // First 4 pixels
+                uint32x4_t argb_lo = vdupq_n_u32(0xFF000000);
+                argb_lo = vorrq_u32(argb_lo, vshlq_n_u32(vmovl_u16(vget_low_u16(r16)), 16));
+                argb_lo = vorrq_u32(argb_lo, vshlq_n_u32(vmovl_u16(vget_low_u16(g16)), 8));
+                argb_lo = vorrq_u32(argb_lo, vmovl_u16(vget_low_u16(b16)));
+                
+                // Next 4 pixels
+                uint32x4_t argb_hi = vdupq_n_u32(0xFF000000);
+                argb_hi = vorrq_u32(argb_hi, vshlq_n_u32(vmovl_u16(vget_high_u16(r16)), 16));
+                argb_hi = vorrq_u32(argb_hi, vshlq_n_u32(vmovl_u16(vget_high_u16(g16)), 8));
+                argb_hi = vorrq_u32(argb_hi, vmovl_u16(vget_high_u16(b16)));
+                
+                // Store 8 ARGB pixels
+                vst1q_u32(dst, argb_lo);
+                vst1q_u32(dst + 4, argb_hi);
+                dst += 8;
+            }
+            // Scalar fallback for remaining pixels
+            for (; x < sw; x++, src8 += 3) {
+#else
             for (x = 0; x < sw; x++, src8 += 3) {
+#endif
                 *dst++ = 0xFF000000 | src8[0] << 16 | (src8[1] << 8) | src8[2];
             }
         }
         break;
     case 4:
+        // RGBA: swap R and B channels
         for (y = 0; y < sh; y++) {
             src = (uint32_t *)rows[y];
+#ifdef __ARM_NEON__
+            // NEON optimization: process 4 pixels at a time
+            x = 0;
+            uint32_t *dst_row = dst;
+            for (; x <= sw - 4; x += 4) {
+                // Load 4 RGBA pixels
+                uint32x4_t rgba = vld1q_u32(src + x);
+                
+                // Swap R and B channels
+                // RGBA format: 0xAABBGGRR -> want 0xAARRGGBB
+                // Keep GA (green and alpha): mask 0xFF00FF00
+                uint32x4_t ga = vandq_u32(rgba, vdupq_n_u32(0xFF00FF00));
+                
+                // Extract and swap R and B
+                // R (bits 0-7) -> shift left 16 to bits 16-23
+                // B (bits 16-23) -> shift right 16 to bits 0-7
+                uint32x4_t r_shifted = vshlq_n_u32(vandq_u32(rgba, vdupq_n_u32(0x000000FF)), 16);
+                uint32x4_t b_shifted = vshrq_n_u32(vandq_u32(rgba, vdupq_n_u32(0x00FF0000)), 16);
+                
+                // Combine: GA | R_shifted | B_shifted
+                uint32x4_t argb = vorrq_u32(vorrq_u32(ga, r_shifted), b_shifted);
+                
+                // Store result
+                vst1q_u32(dst_row, argb);
+                dst_row += 4;
+            }
+            dst = dst_row;
+            // Scalar fallback for remaining pixels
+            for (; x < sw; x++) {
+#else
             for (x = 0; x < sw; x++) {
+#endif
                 pix = *src++;
                 *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
                          (pix & 0x000000FF) << 16;
@@ -189,11 +294,38 @@ int main(int argc, char *argv[])
                  PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
                  PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png_ptr, info_ptr);
-    src = dstVa;
+    
+    // Allocate row buffer ONCE outside the loop (avoid malloc in hot path)
     tmp = malloc(dw * 4);
+    if (!tmp)
+        ERROR("memory allocation failed");
+    
+    src = dstVa;
     for (y = 0; y < dh; y++) {
         dst = tmp;
+#ifdef __ARM_NEON__
+        // NEON optimization: convert ARGB to RGBA (swap R and B) for 4 pixels at a time
+        x = 0;
+        for (; x <= dw - 4; x += 4) {
+            // Load 4 ARGB pixels
+            uint32x4_t argb = vld1q_u32(src);
+            src += 4;
+            
+            // Swap R and B channels (same logic as read loop)
+            uint32x4_t ga = vandq_u32(argb, vdupq_n_u32(0xFF00FF00));
+            uint32x4_t r_shifted = vshlq_n_u32(vandq_u32(argb, vdupq_n_u32(0x000000FF)), 16);
+            uint32x4_t b_shifted = vshrq_n_u32(vandq_u32(argb, vdupq_n_u32(0x00FF0000)), 16);
+            uint32x4_t rgba = vorrq_u32(vorrq_u32(ga, r_shifted), b_shifted);
+            
+            // Store 4 RGBA pixels
+            vst1q_u32(dst, rgba);
+            dst += 4;
+        }
+        // Scalar fallback for remaining pixels
+        for (; x < dw; x++) {
+#else
         for (x = 0; x < dw; x++) {
+#endif
             pix = *src++;
             *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
                      (pix & 0x000000FF) << 16;

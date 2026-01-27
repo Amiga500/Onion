@@ -23,6 +23,7 @@
 #include "theme/background.h"
 #include "theme/sound.h"
 #include "theme/theme.h"
+#include "utils/arm_optimization.h"
 #include "utils/config.h"
 #include "utils/msleep.h"
 #include "utils/surfaceSetAlpha.h"
@@ -81,35 +82,40 @@ int main(int argc, char *argv[])
         appState.acc_ticks += ticks - appState.last_ticks;
         appState.last_ticks = ticks;
 
-        if (appState.show_legend && ticks - appState.legend_start > appState.legend_timeout) {
+        // Branch prediction: legend timeout is rare after initial display
+        if (unlikely(appState.show_legend && ticks - appState.legend_start > appState.legend_timeout)) {
             appState.show_legend = false;
             config_flag_set("gameSwitcher/hideLegend", true);
             appState.changed = true;
         }
 
-        if (appState.brightness_changed && ticks - appState.brightness_start > appState.brightness_timeout) {
+        // Branch prediction: brightness changes are transient events
+        if (unlikely(appState.brightness_changed && ticks - appState.brightness_start > appState.brightness_timeout)) {
             appState.brightness_changed = false;
             appState.changed = true;
         }
 
         handleKeystate(&appState);
 
-        if (battery_hasChanged(ticks, &battery_percentage))
+        // Battery check is relatively expensive - hint to compiler it's less common
+        if (unlikely(battery_hasChanged(ticks, &battery_percentage)))
             appState.changed = true;
 
-        if (appState.acc_ticks >= appState.time_step) {
+        // Main render path - most iterations will enter this block
+        if (likely(appState.acc_ticks >= appState.time_step)) {
             appState.acc_ticks -= appState.time_step;
 
-            if (!appState.changed && !appState.brightness_changed && (appState.surfaceGameName == NULL || appState.surfaceGameName->w <= appState.game_name_max_width))
+            // Fast path: skip rendering if nothing changed and game name scrolling not needed
+            if (unlikely(!appState.changed && !appState.brightness_changed && (appState.surfaceGameName == NULL || appState.surfaceGameName->w <= appState.game_name_max_width)))
                 continue;
 
             Game_s *game = &game_list[appState.current_game];
             processItem(game);
 
-            if (appState.changed) {
+            if (likely(appState.changed)) {
                 SDL_FillRect(screen, NULL, 0);
 
-                if (game_list_len == 0) {
+                if (unlikely(game_list_len == 0)) {
                     appState.current_bg = NULL;
                     SDL_Surface *empty = resource_getSurface(EMPTY_BG);
                     SDL_Rect empty_rect = {(g_display.width - empty->w) / 2, (g_display.height - empty->h) / 2};
@@ -118,39 +124,40 @@ int main(int argc, char *argv[])
                 else {
                     appState.current_bg = loadRomScreen(appState.current_game);
 
-                    if (appState.current_bg != NULL) {
+                    if (likely(appState.current_bg != NULL)) {
                         renderCentered(appState.current_bg, appState.view_mode, NULL, NULL);
                     }
                 }
             }
 
-            if (appState.view_mode != VIEW_FULLSCREEN && game_list_len > 0 && !appState.pop_menu_open) {
+            // Common case: render game name unless in fullscreen
+            if (likely(appState.view_mode != VIEW_FULLSCREEN && game_list_len > 0 && !appState.pop_menu_open)) {
                 renderGameName(&appState);
             }
 
-            if (!appState.changed && !appState.brightness_changed) {
+            if (unlikely(!appState.changed && !appState.brightness_changed)) {
                 render();
                 continue;
             }
 
-            if (appState.view_mode == VIEW_NORMAL && !appState.pop_menu_open) {
+            if (likely(appState.view_mode == VIEW_NORMAL && !appState.pop_menu_open)) {
                 renderFooter(&appState);
             }
 
-            if (appState.view_mode == VIEW_NORMAL) {
+            if (likely(appState.view_mode == VIEW_NORMAL)) {
                 renderHeader(&appState, battery_percentage);
             }
 
             renderLegend(&appState);
             renderBrightness(&appState);
 
-            if (!appState.first_render) {
+            if (unlikely(!appState.first_render)) {
                 renderPopMenu(&appState);
             }
 
             render();
 
-            if (appState.first_render) {
+            if (unlikely(appState.first_render)) {
                 appState.first_render = false;
                 readHistory();
                 loadRomScreens();

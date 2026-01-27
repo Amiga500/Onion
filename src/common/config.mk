@@ -35,6 +35,9 @@ CFLAGS := -I../../include -I../common -DPLATFORM_$(shell echo $(PLATFORM) | tr a
 
 ifeq ($(DEBUG),1)
 CFLAGS := $(CFLAGS) -DLOG_DEBUG -g3
+else
+# Release builds: Enable aggressive optimization for performance
+CFLAGS := $(CFLAGS) -O3 -ffast-math
 endif
 
 ifeq ($(TEST),1)
@@ -51,7 +54,14 @@ CXXFLAGS := $(CFLAGS)
 LDFLAGS := $(LDFLAGS) -L../../lib -L/usr/local/lib
 
 ifeq ($(PLATFORM),miyoomini)
-CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -Wl,-rpath=$(LIB)
+# ARMv7 Cortex-A7 optimizations for single-core, cache-sensitive architecture
+# - Enable NEON auto-vectorization for image processing loops
+# - Align functions and loops to 16-byte cache line boundaries
+# - Enable instruction scheduling and inline optimizations
+CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve \
+	-ftree-vectorize -finline-functions -finline-limit=300 \
+	-falign-functions=16 -falign-loops=16 -fomit-frame-pointer \
+	-Wl,-rpath=$(LIB)
 
 ifdef INCLUDE_SHMVAR
 LDFLAGS := $(LDFLAGS) -lshmvar
