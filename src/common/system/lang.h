@@ -135,13 +135,18 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
 
 bool lang_getFilePath(const char *lang_name, char *lang_path)
 {
-    sprintf(lang_path, LANG_DIR_BACKUP "/%s", lang_name);
+    // Try backup first
+    snprintf(lang_path, STR_MAX, LANG_DIR_BACKUP "/%s", lang_name);
     if (exists(lang_path))
         return true;
-    sprintf(lang_path, LANG_DIR "/%s", lang_name);
+    
+    // Try main lang dir
+    snprintf(lang_path, STR_MAX, LANG_DIR "/%s", lang_name);
     if (exists(lang_path))
         return true;
-    sprintf(lang_path, LANG_DIR_FALLBACK "/%s", lang_name);
+    
+    // Try fallback
+    snprintf(lang_path, STR_MAX, LANG_DIR_FALLBACK "/%s", lang_name);
     return exists(lang_path);
 }
 
@@ -164,10 +169,15 @@ bool lang_load(void)
     char key[32];
     char value[STR_MAX];
     for (int i = 0; i < LANG_MAX; i++) {
-        sprintf(key, "%d", i);
+        // Optimize: use snprintf for key generation
+        snprintf(key, sizeof(key), "%d", i);
         if (json_getString(lang_file, key, value)) {
-            lang_list[i] = (char *)malloc(STR_MAX * sizeof(char));
-            strcpy(lang_list[i], value);
+            // Optimize: allocate exact size needed + 1
+            size_t len = strlen(value);
+            lang_list[i] = (char *)malloc(len + 1);
+            if (lang_list[i]) {
+                memcpy(lang_list[i], value, len + 1);  // memcpy faster than strcpy
+            }
         }
     }
 
