@@ -208,12 +208,14 @@ char *file_read(const char *path)
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
-        buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
-            fread(buffer, sizeof(char), length, f);
+        
+        buffer = (char *)malloc(length + 1);  // No need for * sizeof(char)
+        if (buffer) {
+            size_t read = fread(buffer, 1, length, f);
+            buffer[read] = '\0';  // Null terminate at actual read position
+        }
         fclose(f);
     }
-    buffer[length] = '\0';
 
     return buffer;
 }
@@ -232,7 +234,6 @@ bool file_write(const char *path, const char *str, uint32_t len)
 void file_copy(const char *src_path, const char *dest_path)
 {
     FILE *src, *dest;
-    char buffer[8192]; // 8KB buffer for efficient copying
     size_t bytes;
     
     src = fopen(src_path, "rb");
@@ -246,14 +247,31 @@ void file_copy(const char *src_path, const char *dest_path)
         return;
     }
     
-    // Copy file in chunks
-    while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
-        if (fwrite(buffer, 1, bytes, dest) != bytes) {
-            // Write error - cleanup and exit
-            fclose(src);
-            fclose(dest);
-            return;
+    // Determine optimal buffer size based on file size
+    fseek(src, 0, SEEK_END);
+    long file_size = ftell(src);
+    fseek(src, 0, SEEK_SET);
+    
+    // Use larger buffer for larger files (up to 64KB)
+    size_t buffer_size = (file_size < 8192) ? 4096 : 
+                        (file_size < 65536) ? 16384 : 65536;
+    char *buffer = (char *)malloc(buffer_size);
+    if (!buffer) {
+        // Fallback to stack buffer if malloc fails
+        char stack_buffer[4096];
+        while ((bytes = fread(stack_buffer, 1, sizeof(stack_buffer), src)) > 0) {
+            if (fwrite(stack_buffer, 1, bytes, dest) != bytes) {
+                break;
+            }
         }
+    } else {
+        // Copy file in optimally-sized chunks
+        while ((bytes = fread(buffer, 1, buffer_size, src)) > 0) {
+            if (fwrite(buffer, 1, bytes, dest) != bytes) {
+                break;
+            }
+        }
+        free(buffer);
     }
     
     fclose(src);
@@ -264,13 +282,21 @@ char *file_removeExtension(const char *myStr)
 {
     if (myStr == NULL)
         return NULL;
-    char *retStr = (char *)malloc(strlen(myStr) + 1);
+    
+    size_t len = strlen(myStr);
+    char *retStr = (char *)malloc(len + 1);
     char *lastExt;
+    
     if (retStr == NULL)
         return NULL;
-    strcpy(retStr, myStr);
-    if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 2) != '\0')
+    
+    memcpy(retStr, myStr, len + 1);  // memcpy faster than strcpy
+    
+    // Find last dot and validate it's an extension
+    if ((lastExt = strrchr(retStr, '.')) != NULL && 
+        *(lastExt + 1) != ' ' && *(lastExt + 1) != '\0') {
         *lastExt = '\0';
+    }
     return retStr;
 }
 

@@ -31,7 +31,8 @@ char *str_split(char *str, const char *delim)
     if (p == NULL)
         return NULL;          // delimiter not found
     *p = '\0';                // terminate string after head
-    return p + strlen(delim); // return tail substring
+    size_t delim_len = strlen(delim);  // Cache length
+    return p + delim_len;     // return tail substring
 }
 
 char *str_replace(char *orig, char *rep, char *with)
@@ -58,8 +59,9 @@ char *str_replace(char *orig, char *rep, char *with)
     for (count = 0; (tmp = strstr(ins, rep)); ++count)
         ins = tmp + len_rep;
 
-    char *result =
-        (char *)malloc(strlen(orig) + (len_with - len_rep) * count + 1);
+    // Cache orig length for allocation
+    size_t len_orig = strlen(orig);
+    char *result = (char *)malloc(len_orig + (len_with - len_rep) * count + 1);
     tmp = result;
 
     if (!result)
@@ -73,8 +75,11 @@ char *str_replace(char *orig, char *rep, char *with)
     while (count--) {
         ins = strstr(orig, rep);
         len_front = ins - orig;
-        tmp = strncpy(tmp, orig, len_front) + len_front;
-        tmp = strcpy(tmp, with) + len_with;
+        // Use memcpy instead of strncpy (faster, no null padding)
+        memcpy(tmp, orig, len_front);
+        tmp += len_front;
+        memcpy(tmp, with, len_with);
+        tmp += len_with;
         orig += len_front + len_rep; // move to next "end of rep"
     }
     strcpy(tmp, orig);
@@ -160,15 +165,27 @@ int str_endsWith(const char *str, const char *suffix)
     return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
 }
 
+int str_startsWith(const char *str, const char *prefix)
+{
+    if (!str || !prefix)
+        return 0;
+    // Direct comparison without strlen for prefix - more efficient
+    while (*prefix) {
+        if (*str++ != *prefix++)
+            return 0;
+    }
+    return 1;
+}
+
 void str_removeParentheses(char *str_out, const char *str_in)
 {
-    char temp[STR_MAX];
     int len = strlen(str_in);
     int c = 0;
     bool inside = false;
-    char end_char;
+    char end_char = '\0';
 
-    for (int i = 0; i < len && i < STR_MAX; i++) {
+    // Direct write to output, avoiding temp buffer
+    for (int i = 0; i < len && c < STR_MAX - 1; i++) {
         if (!inside && (str_in[i] == '(' || str_in[i] == '[')) {
             end_char = str_in[i] == '(' ? ')' : ']';
             inside = true;
@@ -179,12 +196,20 @@ void str_removeParentheses(char *str_out, const char *str_in)
                 inside = false;
             continue;
         }
-        temp[c++] = str_in[i];
+        str_out[c++] = str_in[i];
     }
 
-    temp[c] = '\0';
+    str_out[c] = '\0';
 
-    str_trim(str_out, STR_MAX - 1, temp, false);
+    // Trim in place if needed
+    if (c > 0) {
+        // Simple inline trim - remove trailing whitespace
+        while (c > 0 && (str_out[c-1] == ' ' || str_out[c-1] == '\t' || 
+                         str_out[c-1] == '\r' || str_out[c-1] == '\n')) {
+            c--;
+        }
+        str_out[c] = '\0';
+    }
 }
 
 // Helper function for fast integer to string conversion
@@ -267,11 +292,12 @@ int str_count_char(const char *str, char ch)
 
 bool includeCJK(char *str)
 {
-    while (*str) {
-        unsigned char c = *str;
-        // normal cjk range
-        if (c >= 0x80 && c <= 0x9FFF) {
-            return true;
+    // Fast path - check for ASCII-only string
+    unsigned char c;
+    while ((c = (unsigned char)*str) != '\0') {
+        // Quick check: if high bit set, might be CJK
+        if (c >= 0x80) {
+            return true;  // Early exit on first non-ASCII
         }
         str++;
     }
