@@ -175,27 +175,71 @@ void str_removeParentheses(char *str_out, const char *str_in)
     str_trim(str_out, STR_MAX - 1, temp, false);
 }
 
+// Helper function for fast integer to string conversion
+static int _int_to_str(char *buf, int value)
+{
+    char temp[16];
+    int i = 0, len = 0;
+    
+    if (value == 0) {
+        buf[0] = '0';
+        return 1;
+    }
+    
+    // Convert digits in reverse order
+    while (value > 0) {
+        temp[i++] = '0' + (value % 10);
+        value /= 10;
+    }
+    
+    // Reverse the string
+    len = i;
+    for (int j = 0; j < i; j++) {
+        buf[j] = temp[i - j - 1];
+    }
+    
+    return len;
+}
+
 void str_serializeTime(char *dest_str, int nTime)
 {
+    char *p = dest_str;
+    
     if (nTime >= 60) {
         int h = nTime / 3600;
         int m = (nTime - 3600 * h) / 60;
         if (h > 0) {
-            sprintf(dest_str, "%dh %dm", h, m);
+            // Format: "Xh Ym"
+            p += _int_to_str(p, h);
+            *p++ = 'h';
+            *p++ = ' ';
+            p += _int_to_str(p, m);
+            *p++ = 'm';
+            *p = '\0';
         }
         else {
-            sprintf(dest_str, "%dm %ds", m, nTime - 60 * m);
+            // Format: "Xm Ys"
+            p += _int_to_str(p, m);
+            *p++ = 'm';
+            *p++ = ' ';
+            p += _int_to_str(p, nTime - 60 * m);
+            *p++ = 's';
+            *p = '\0';
         }
     }
     else {
-        sprintf(dest_str, "%ds", nTime);
+        // Format: "Xs"
+        p += _int_to_str(p, nTime);
+        *p++ = 's';
+        *p = '\0';
     }
 }
 
 int str_count_char(const char *str, char ch)
 {
-    int i, count = 0;
-    for (i = 0; i <= strlen(str); i++) {
+    int count = 0;
+    int len = strlen(str);
+    for (int i = 0; i <= len; i++) {
         if (str[i] == ch) {
             count++;
         }

@@ -49,9 +49,7 @@ void _config_prepare(const char *key, char *filename)
     dirname(dir_path);
 
     if (!exists(dir_path)) {
-        char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
-        system(dir_cmd);
+        mkdirs(dir_path);  // Use optimized mkdirs instead of system()
     }
 }
 

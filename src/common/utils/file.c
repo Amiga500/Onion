@@ -64,7 +64,7 @@ const char *file_basename(const char *filename)
 }
 
 /**
- * @brief Create directories in dir_path using `mkdir -p` command.
+ * @brief Create directories in dir_path recursively (mkdir -p equivalent).
  *
  * @param dir_path The full directory path.
  * @return true If the path didn't exist (dirs were created).
@@ -72,13 +72,43 @@ const char *file_basename(const char *filename)
  */
 bool mkdirs(const char *dir_path)
 {
-    if (!exists(dir_path)) {
-        char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
-        system(dir_cmd);
-        return true;
+    if (exists(dir_path)) {
+        return false;
     }
-    return false;
+    
+    // Create a mutable copy of the path
+    char path_copy[PATH_MAX];
+    strncpy(path_copy, dir_path, PATH_MAX - 1);
+    path_copy[PATH_MAX - 1] = '\0';
+    
+    // Remove trailing slashes
+    size_t len = strlen(path_copy);
+    while (len > 1 && path_copy[len - 1] == '/') {
+        path_copy[--len] = '\0';
+    }
+    
+    // Recursively create parent directories
+    char *p = path_copy;
+    if (*p == '/') p++; // Skip leading slash
+    
+    for (; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            if (!exists(path_copy)) {
+                if (mkdir(path_copy, 0755) != 0 && errno != EEXIST) {
+                    return false;
+                }
+            }
+            *p = '/';
+        }
+    }
+    
+    // Create the final directory
+    if (mkdir(path_copy, 0755) != 0 && errno != EEXIST) {
+        return false;
+    }
+    
+    return true;
 }
 
 void file_readLastLine(const char *filename, char *out_str)
@@ -86,7 +116,8 @@ void file_readLastLine(const char *filename, char *out_str)
     FILE *fd;
     int size;
     char buff[256];
-    char *token = NULL;
+
+    *out_str = '\0'; // Initialize output
 
     if ((fd = fopen(filename, "rb")) != NULL) {
         // get file size
@@ -95,22 +126,42 @@ void file_readLastLine(const char *filename, char *out_str)
         fseek(fd, 0L, SEEK_SET);
 
         int max_len = size < 255 ? size + 1 : 255;
-        if (max_len <= 1)
+        if (max_len <= 1) {
+            fclose(fd);
             return;
+        }
 
-        // get the last line
+        // get the last chunk of file
         fseek(fd, -max_len, SEEK_END);
         fread(buff, max_len - 1, 1, fd);
-
-        // cleanup
         fclose(fd);
         buff[max_len - 1] = '\0';
 
-        token = strtok(buff, "\n");
-        while (token != NULL) {
-            if (strlen(token) > 0)
-                snprintf(out_str, 255, "%s", token);
-            token = strtok(NULL, "\n");
+        // Find last non-empty line using pointer arithmetic (faster than strtok)
+        char *line_start = buff;
+        char *last_line = NULL;
+        
+        for (char *p = buff; *p; p++) {
+            if (*p == '\n') {
+                if (line_start < p) {  // Non-empty line found
+                    last_line = line_start;
+                }
+                line_start = p + 1;
+            }
+        }
+        
+        // Check if there's content after the last newline
+        if (line_start < buff + max_len - 1 && *line_start) {
+            last_line = line_start;
+        }
+        
+        // Copy the last line to output
+        if (last_line) {
+            char *p = out_str;
+            for (char *src = last_line; *src && *src != '\n' && p < out_str + 254; src++) {
+                *p++ = *src;
+            }
+            *p = '\0';
         }
     }
 }
@@ -151,9 +202,33 @@ bool file_write(const char *path, const char *str, uint32_t len)
 
 void file_copy(const char *src_path, const char *dest_path)
 {
-    char system_cmd[4128];
-    snprintf(system_cmd, sizeof(system_cmd), "cp -f \"%s\" \"%s\"", src_path, dest_path);
-    system(system_cmd);
+    FILE *src, *dest;
+    char buffer[8192]; // 8KB buffer for efficient copying
+    size_t bytes;
+    
+    src = fopen(src_path, "rb");
+    if (!src) {
+        return;
+    }
+    
+    dest = fopen(dest_path, "wb");
+    if (!dest) {
+        fclose(src);
+        return;
+    }
+    
+    // Copy file in chunks
+    while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+        if (fwrite(buffer, 1, bytes, dest) != bytes) {
+            // Write error - cleanup and exit
+            fclose(src);
+            fclose(dest);
+            return;
+        }
+    }
+    
+    fclose(src);
+    fclose(dest);
 }
 
 char *file_removeExtension(const char *myStr)
