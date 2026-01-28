@@ -20,10 +20,39 @@
 #include "log.h"
 #include "str.h"
 
+// Simple cache for exists() - caches most recently checked paths
+#define EXISTS_CACHE_SIZE 8
+static struct {
+    char path[PATH_MAX];
+    bool exists;
+    time_t check_time;
+} exists_cache[EXISTS_CACHE_SIZE] = {{0}};
+static int exists_cache_idx = 0;
+
 bool exists(const char *file_path)
 {
+    // Check cache for recent lookups (with 1 second TTL)
+    time_t now = time(NULL);
+    for (int i = 0; i < EXISTS_CACHE_SIZE; i++) {
+        if (exists_cache[i].path[0] != '\0' &&
+            strcmp(exists_cache[i].path, file_path) == 0 &&
+            (now - exists_cache[i].check_time) < 1) {
+            return exists_cache[i].exists;
+        }
+    }
+    
+    // Not in cache, check filesystem
     struct stat64 buffer;
-    return stat64(file_path, &buffer) == 0;
+    bool result = stat64(file_path, &buffer) == 0;
+    
+    // Update cache (simple round-robin)
+    strncpy(exists_cache[exists_cache_idx].path, file_path, PATH_MAX - 1);
+    exists_cache[exists_cache_idx].path[PATH_MAX - 1] = '\0';
+    exists_cache[exists_cache_idx].exists = result;
+    exists_cache[exists_cache_idx].check_time = now;
+    exists_cache_idx = (exists_cache_idx + 1) % EXISTS_CACHE_SIZE;
+    
+    return result;
 }
 
 bool is_file(const char *file_path)
@@ -253,7 +282,7 @@ char *file_dirname(const char *absolutePath)
         size_t pathLength = lastSlash - absolutePath;
         path = (char *)malloc(pathLength + 1);
         if (path != NULL) {
-            strncpy(path, absolutePath, pathLength);
+            memcpy(path, absolutePath, pathLength);  // Faster than strncpy
             path[pathLength] = '\0';
         }
         return path;

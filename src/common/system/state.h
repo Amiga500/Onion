@@ -316,12 +316,15 @@ bool history_getRomscreenPath(char *path_out)
     char filename[STR_MAX];
     char file_path[STR_MAX];
 
+    filename[0] = '\0';  // Initialize
+
     if (history_getRecentPath(file_path) != NULL) {
-        sprintf(filename, "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
+        size_t path_len = strlen(file_path);
+        snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, path_len));
     }
     print_debug(file_path);
-    if (strlen(filename) > 0) {
-        sprintf(path_out, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+    if (filename[0] != '\0') {  // Faster than strlen check
+        snprintf(path_out, STR_MAX, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;
     }
 
