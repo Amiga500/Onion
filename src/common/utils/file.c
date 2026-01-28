@@ -420,9 +420,17 @@ void file_changeKeyValue(const char *file_path, const char *key,
     ssize_t read;
 
     fp = fopen(file_path, "r");
-    cp = fopen("temp", "w+");
     if (fp == NULL)
         exit(EXIT_FAILURE);
+    
+    // Use /tmp for temp file to avoid SD writes
+    char temp_path[PATH_MAX];
+    snprintf(temp_path, sizeof(temp_path), "/tmp/.config_tmp_%d", getpid());
+    cp = fopen(temp_path, "w+");
+    if (cp == NULL) {
+        fclose(fp);
+        exit(EXIT_FAILURE);
+    }
 
     int key_len = strlen(key);
     int line_idx = 0, line_len;
@@ -431,11 +439,15 @@ void file_changeKeyValue(const char *file_path, const char *key,
     printf_debug("Changing '%s' in '%s'\n", key, file_path);
 
     while ((read = getline(&line, &len, fp)) != -1) {
+        // Optimize whitespace skip with inline check
         for (line_idx = 0;
-             line_idx < read &&
-             strchr("\r\n\t {},", (unsigned char)line[line_idx]) != NULL;
+             line_idx < read && (line[line_idx] == ' ' || line[line_idx] == '\t' ||
+                                line[line_idx] == '\r' || line[line_idx] == '\n' ||
+                                line[line_idx] == '{' || line[line_idx] == '}' ||
+                                line[line_idx] == ',');
              line_idx++)
             ;
+        
         if (strncmp(line + line_idx, key, key_len) == 0) {
             fprintf(cp, "%s\n", replacement_line);
             printf_debug("Replace: %s\n", replacement_line);
@@ -462,7 +474,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
         free(line);
 
     remove(file_path);
-    rename("temp", file_path);
+    rename(temp_path, file_path);
 }
 
 bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
@@ -475,8 +487,16 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         return false;
     }
 
+    // Early exit if paths are identical
+    if (strcmp(abs_from, abs_to) == 0) {
+        strcpy(path_out, ".");
+        return true;
+    }
+
     char *p1 = abs_from;
     char *p2 = abs_to;
+    
+    // Find common prefix
     while (*p1 && (*p1 == *p2)) {
         ++p1, ++p2;
     }
@@ -485,12 +505,17 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         ++p2;
     }
 
-    if (strlen(p1) > 0) {
+    // Build relative path more efficiently
+    if (*p1 != '\0') {
         int num_parens = str_count_char(p1, '/') + 1;
+        char *dest = path_out;
         for (int i = 0; i < num_parens; i++) {
-            strcat(path_out, "../");
+            memcpy(dest, "../", 3);
+            dest += 3;
         }
+        *dest = '\0';
     }
+    
     strcat(path_out, p2);
 
     return true;
@@ -517,15 +542,20 @@ bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size
     }
 
     bool found = false;
+    size_t dir_path_len = strlen(dir_path);
+    
     while ((dir = readdir(d)) != NULL) {
         if (dir->d_type == DT_REG) {
             char full_path[PATH_MAX];
-            snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, dir->d_name);
+            // Optimize path building with memcpy
+            memcpy(full_path, dir_path, dir_path_len);
+            full_path[dir_path_len] = '/';
+            strcpy(full_path + dir_path_len + 1, dir->d_name);
 
             if (stat64(full_path, &file_stat) == 0) {
                 if (!found || file_stat.st_mtime > newest_mtime) {
                     newest_mtime = file_stat.st_mtime;
-                    strncpy(newest_file, dir->d_name, buffer_size);
+                    strncpy(newest_file, dir->d_name, buffer_size - 1);
                     newest_file[buffer_size - 1] = '\0';
                     found = true;
                 }

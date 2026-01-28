@@ -10,19 +10,29 @@
 bool str_getLastNumber(char *str, long *out_val)
 {
     char *p = str;
+    char *last_digit = NULL;
     long val = -1;
 
+    // Single pass - remember last digit position
     while (*p) {
-        if (isdigit(*p))
-            val = strtol(p, &p, 10);
-        else
+        if (isdigit(*p)) {
+            last_digit = p;
+            // Skip to end of number
+            while (*p && isdigit(*p))
+                p++;
+        } else {
             p++;
+        }
     }
 
-    if (val != -1)
+    // Convert only the last number found
+    if (last_digit != NULL) {
+        val = strtol(last_digit, NULL, 10);
         *out_val = val;
+        return true;
+    }
 
-    return val != -1;
+    return false;
 }
 
 char *str_split(char *str, const char *delim)
