@@ -84,6 +84,16 @@ bool json_color(cJSON *root, const char *key, SDL_Color *dest)
 
 void json_fontStyle(cJSON *root, FontStyle_s *dest, FontStyle_s *fallback)
 {
+    // Early exit if no root
+    if (!root) {
+        if (fallback) {
+            strcpy(dest->font, fallback->font);
+            dest->size = fallback->size;
+            dest->color = fallback->color;
+        }
+        return;
+    }
+    
     if (!json_getString(root, "font", dest->font) && fallback)
         strcpy(dest->font, fallback->font);
     if (!json_getInt(root, "size", &dest->size) && fallback)
@@ -100,9 +110,13 @@ bool theme_applyConfig(Theme_s *config, const char *config_path,
     if (!exists(config_path) || !(json_str = file_read(config_path)))
         return false;
 
-    // Get JSON objects
+    // Get JSON objects - all upfront to avoid repeated lookups
     cJSON *json_root = cJSON_Parse(json_str);
     free(json_str);
+    
+    if (!json_root)
+        return false;
+    
     cJSON *json_batteryPercentage =
         cJSON_GetObjectItem(json_root, "batteryPercentage");
     cJSON *json_hideLabels = cJSON_GetObjectItem(json_root, "hideLabels");
@@ -137,41 +151,47 @@ bool theme_applyConfig(Theme_s *config, const char *config_path,
     json_fontStyle(json_total, &config->total, use_fallbacks ? &config->hint : NULL);
     json_fontStyle(json_list, &config->list, use_fallbacks ? &config->title : NULL);
 
-    json_getString(json_grid, "font", config->grid.font);
-    json_getInt(json_grid, "grid1x4", &config->grid.grid1x4);
-    json_getInt(json_grid, "grid3x4", &config->grid.grid3x4);
-    json_color(json_grid, "color", &config->grid.color);
-    json_color(json_grid, "selectedcolor", &config->grid.selectedcolor);
-
-    json_getBool(json_batteryPercentage, "visible", &config->batteryPercentage.visible);
-
-    if (!json_getString(json_batteryPercentage, "font", config->batteryPercentage.font) && use_fallbacks)
-        strcpy(config->batteryPercentage.font, config->hint.font);
-
-    json_getInt(json_batteryPercentage, "size", &config->batteryPercentage.size);
-
-    if (!json_color(json_batteryPercentage, "color", &config->batteryPercentage.color) && use_fallbacks)
-        config->batteryPercentage.color = config->hint.color;
-
-    json_getInt(json_batteryPercentage, "offsetX", &config->batteryPercentage.offsetX);
-    json_getInt(json_batteryPercentage, "offsetY", &config->batteryPercentage.offsetY);
-
-    char textAlign_str[JSON_STRING_LEN];
-    if (json_getString(json_batteryPercentage, "textAlign", textAlign_str)) {
-        if (strcmp("center", textAlign_str) == 0)
-            config->batteryPercentage.textAlign = CENTER;
-        else if (strcmp("right", textAlign_str) == 0)
-            config->batteryPercentage.textAlign = RIGHT;
-        else
-            config->batteryPercentage.textAlign = LEFT;
-    }
-    else {
-        bool depr_onleft = false;
-        if (json_getBool(json_batteryPercentage, "onleft", &depr_onleft))
-            config->batteryPercentage.textAlign = depr_onleft ? RIGHT : LEFT;
+    // Grid config - check for null once
+    if (json_grid) {
+        json_getString(json_grid, "font", config->grid.font);
+        json_getInt(json_grid, "grid1x4", &config->grid.grid1x4);
+        json_getInt(json_grid, "grid3x4", &config->grid.grid3x4);
+        json_color(json_grid, "color", &config->grid.color);
+        json_color(json_grid, "selectedcolor", &config->grid.selectedcolor);
     }
 
-    json_getBool(json_batteryPercentage, "fixed", &config->batteryPercentage.fixed);
+    // Battery config - check for null once
+    if (json_batteryPercentage) {
+        json_getBool(json_batteryPercentage, "visible", &config->batteryPercentage.visible);
+
+        if (!json_getString(json_batteryPercentage, "font", config->batteryPercentage.font) && use_fallbacks)
+            strcpy(config->batteryPercentage.font, config->hint.font);
+
+        json_getInt(json_batteryPercentage, "size", &config->batteryPercentage.size);
+
+        if (!json_color(json_batteryPercentage, "color", &config->batteryPercentage.color) && use_fallbacks)
+            config->batteryPercentage.color = config->hint.color;
+
+        json_getInt(json_batteryPercentage, "offsetX", &config->batteryPercentage.offsetX);
+        json_getInt(json_batteryPercentage, "offsetY", &config->batteryPercentage.offsetY);
+
+        char textAlign_str[JSON_STRING_LEN];
+        if (json_getString(json_batteryPercentage, "textAlign", textAlign_str)) {
+            if (strcmp("center", textAlign_str) == 0)
+                config->batteryPercentage.textAlign = CENTER;
+            else if (strcmp("right", textAlign_str) == 0)
+                config->batteryPercentage.textAlign = RIGHT;
+            else
+                config->batteryPercentage.textAlign = LEFT;
+        }
+        else {
+            bool depr_onleft = false;
+            if (json_getBool(json_batteryPercentage, "onleft", &depr_onleft))
+                config->batteryPercentage.textAlign = depr_onleft ? RIGHT : LEFT;
+        }
+
+        json_getBool(json_batteryPercentage, "fixed", &config->batteryPercentage.fixed);
+    }
 
     json_getInt(json_frame, "border-left", &config->frame.border_left);
     json_getInt(json_frame, "border-right", &config->frame.border_right);

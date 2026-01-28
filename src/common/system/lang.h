@@ -68,6 +68,16 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
     DIR *dp;
     struct dirent *ep;
 
+    // Early exit if nothing to do
+    if (!remove_icon_labels && !remove_hints) {
+        // restore original lang files if backup exists
+        if (exists(LANG_DIR_BACKUP)) {
+            system("mv -f " LANG_DIR_BACKUP "/* " LANG_DIR "");
+            remove(LANG_DIR_BACKUP);
+        }
+        return;
+    }
+
     if ((dp = opendir(LANG_DIR)) == NULL)
         return;
 
@@ -79,14 +89,13 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
         }
     }
 
-    if (!remove_icon_labels && !remove_hints) {
-        closedir(dp);
-        return;
-    }
-
     // backup lang files
     if (!exists(LANG_DIR_BACKUP))
         system("cp -R " LANG_DIR " " LANG_DIR_BACKUP "");
+
+    // Cache dir path length for optimization
+    const char *lang_dir = LANG_DIR "/";
+    size_t lang_dir_len = strlen(lang_dir);
 
     while ((ep = readdir(dp))) {
         if (ep->d_type != DT_REG)
@@ -95,9 +104,14 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
             continue; // skip files not having the `.lang` extension
 
         char file_path[STR_MAX * 2];
-        snprintf(file_path, STR_MAX * 2 - 1, LANG_DIR "/%s", ep->d_name);
+        // Optimize path building
+        memcpy(file_path, lang_dir, lang_dir_len);
+        strcpy(file_path + lang_dir_len, ep->d_name);
 
         char *json_data = file_read(file_path);
+        if (!json_data)
+            continue;
+            
         cJSON *root = cJSON_Parse(json_data);
         free(json_data);
 
@@ -108,6 +122,7 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
                      cJSON_GetStringValue(cJSON_GetObjectItem(root, "lang")),
                      ep->d_name);
 
+        // Batch string updates
         if (remove_icon_labels) {
             json_setString(root, "0", " ");   // Expert
             json_setString(root, "1", " ");   // Favorites
