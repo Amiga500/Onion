@@ -23,8 +23,16 @@ bool json_getString(cJSON *object, const char *key, char *dest)
 {
     cJSON *json_object = cJSON_GetObjectItem(object, key);
     if (json_object) {
-        strncpy(dest, cJSON_GetStringValue(json_object), JSON_STRING_LEN - 1);
-        return true;
+        const char *str_value = cJSON_GetStringValue(json_object);
+        if (str_value) {
+            // Fast copy with early termination
+            size_t i;
+            for (i = 0; i < JSON_STRING_LEN - 1 && str_value[i]; i++) {
+                dest[i] = str_value[i];
+            }
+            dest[i] = '\0';
+            return true;
+        }
     }
     return false;
 }

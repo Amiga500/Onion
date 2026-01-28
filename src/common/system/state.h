@@ -230,9 +230,9 @@ char *getMiyooRecentFilePath()
     static char filename[STR_MAX];
 
     if (exists(RECENTLIST_HIDDEN_PATH))
-        sprintf(filename, "%s", RECENTLIST_HIDDEN_PATH);
+        strcpy(filename, RECENTLIST_HIDDEN_PATH);
     else
-        sprintf(filename, "%s", RECENTLIST_PATH);
+        strcpy(filename, RECENTLIST_PATH);
 
     return filename;
 }
@@ -252,35 +252,46 @@ char *history_getRecentPath(char *rom_path)
     }
 
     while (fgets(line, STR_MAX * 3, file) != NULL) {
-        char *jsonContent = (char *)malloc(strlen(line) + 1);
+        // No malloc needed - work directly with line buffer
         char romPathSearch[STR_MAX];
         int type;
 
-        strcpy(jsonContent, line);
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        // Direct sscanf on line, no copy needed
+        const char *typeStr = strstr(line, "\"type\":");
+        if (!typeStr) {
+            continue;
+        }
+        sscanf(typeStr + 7, "%d", &type);
 
         if ((type != 5) && (type != 17)) {
-            free(jsonContent);
             fclose(file);
             return NULL;
         }
 
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"") + 11;
+        const char *rompathStart = strstr(line, "\"rompath\":\"");
+        if (!rompathStart) {
+            continue;
+        }
+        rompathStart += 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
+        if (!rompathEnd) {
+            continue;
+        }
 
-        strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
-        romPathSearch[rompathEnd - rompathStart] = '\0';
+        size_t pathLen = rompathEnd - rompathStart;
+        if (pathLen >= STR_MAX) {
+            continue;
+        }
+        
+        memcpy(romPathSearch, rompathStart, pathLen);
+        romPathSearch[pathLen] = '\0';
 
-        free(jsonContent);
-
-        // Game launched with the search panel
+        // Game launched with the search panel - optimize colon handling
         char *colonPosition = strchr(romPathSearch, ':');
         if (colonPosition != NULL) {
-
-            int position = (int)(colonPosition - romPathSearch);
-            char secondPart[strlen(romPathSearch) - position];
-            strcpy(secondPart, colonPosition + 1);
-            strcpy(romPathSearch, secondPart);
+            // Move string after colon to beginning
+            size_t afterColonLen = strlen(colonPosition + 1);
+            memmove(romPathSearch, colonPosition + 1, afterColonLen + 1);
         }
 
         printf_debug("romPathSearch : %s\n", romPathSearch);

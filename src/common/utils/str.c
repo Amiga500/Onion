@@ -81,6 +81,18 @@ char *str_replace(char *orig, char *rep, char *with)
     return result;
 }
 
+// Fast lookup table for whitespace characters used in trim
+static inline bool is_trim_char(unsigned char c)
+{
+    return (c == '\r' || c == '\n' || c == '\t' || c == ' ' || 
+            c == '{' || c == '}' || c == ',');
+}
+
+static inline bool is_string_quote_char(unsigned char c)
+{
+    return (c == '\r' || c == '\n' || c == '"');
+}
+
 // Stores the trimmed input string into the given output buffer, which must be
 // large enough to store the result.  If it is too small, the output is
 // truncated.
@@ -93,8 +105,8 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
     size_t out_size;
     bool is_string = false;
 
-    // Trim leading space
-    while (strchr("\r\n\t {},", (unsigned char)*str) != NULL)
+    // Trim leading space - use lookup instead of strchr
+    while (is_trim_char((unsigned char)*str))
         str++;
 
     end = str + 1;
@@ -102,7 +114,7 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
     if ((unsigned char)*str == '"') {
         is_string = true;
         str++;
-        while (strchr("\r\n\"", (unsigned char)*end) == NULL)
+        while (!is_string_quote_char((unsigned char)*end))
             end++;
     }
 
@@ -113,12 +125,13 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
     }
 
     // Trim trailing space
-    if (first)
-        while (strchr("\r\n\t {},", (unsigned char)*end) == NULL)
+    if (first) {
+        while (!is_trim_char((unsigned char)*end))
             end++;
+    }
     else {
         end = str + strlen(str) - 1;
-        while (end > str && strchr("\r\n\t {},", (unsigned char)*end) != NULL)
+        while (end > str && is_trim_char((unsigned char)*end))
             end--;
         end++;
     }
@@ -126,8 +139,7 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
     if (is_string && (unsigned char)*(end - 1) == '"')
         end--;
 
-    // Set output size to minimum of trimmed string length and buffer size minus
-    // 1
+    // Set output size to minimum of trimmed string length and buffer size minus 1
     out_size = (end - str) < len - 1 ? (end - str) : len - 1;
 
     // Copy trimmed string and add null terminator

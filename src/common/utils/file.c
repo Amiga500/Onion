@@ -298,27 +298,47 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
                          char *value_out, char divider, int select_index)
 {
     FILE *fp;
-    int f;
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
     char key[256], val[256];
     char key_search[STR_MAX];
-    char search_str[STR_MAX];
-    sprintf(search_str, "%%255[^%c]%c%%255[^\n]\n", divider, divider);
     int match_index = 0;
 
     *value_out = 0;
     if ((fp = fopen(file_path, "r"))) {
-        key[0] = 0;
-        val[0] = 0;
         while ((read = getline(&line, &len, fp)) != -1) {
-            if (!(f = sscanf(line, search_str, key, val))) {
-                if (fscanf(fp, "%*[^\n]\n") == EOF)
-                    break;
-                else
-                    continue;
+            // Manual parsing instead of sprintf + sscanf
+            char *divider_pos = strchr(line, divider);
+            if (!divider_pos) {
+                continue;
             }
+            
+            // Extract key
+            size_t key_len = divider_pos - line;
+            if (key_len >= sizeof(key)) {
+                continue;
+            }
+            memcpy(key, line, key_len);
+            key[key_len] = '\0';
+            
+            // Extract value (skip divider, read until newline)
+            char *val_start = divider_pos + 1;
+            char *newline = strchr(val_start, '\n');
+            size_t val_len;
+            if (newline) {
+                val_len = newline - val_start;
+            } else {
+                val_len = strlen(val_start);
+            }
+            
+            if (val_len >= sizeof(val)) {
+                val_len = sizeof(val) - 1;
+            }
+            memcpy(val, val_start, val_len);
+            val[val_len] = '\0';
+            
+            // Trim and compare key
             if (str_trim(key_search, 256, key, true)) {
                 if (strcmp(key_search, key_in) == 0) {
                     str_trim(value_out, 256, val, false);
@@ -326,8 +346,6 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
                         break;
                 }
             }
-            key[0] = 0;
-            val[0] = 0;
         }
         free(line);
         fclose(fp);
