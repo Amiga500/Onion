@@ -19,17 +19,23 @@ static bool installed_apps_loaded = false;
 bool _getAppDirAndConfig(const char *app_dir_name, char *out_app_dir,
                          char *out_config_path)
 {
-    memset(out_app_dir, 0, STR_MAX * sizeof(char));
-    memset(out_config_path, 0, STR_MAX * sizeof(char));
+    out_app_dir[0] = '\0';
+    out_config_path[0] = '\0';
 
-    strcpy(out_app_dir, "/mnt/SDCARD/App/");
-    strncat(out_app_dir, app_dir_name, 128);
+    // Build app dir path more efficiently
+    const char *base = "/mnt/SDCARD/App/";
+    size_t base_len = 16;  // strlen("/mnt/SDCARD/App/")
+    memcpy(out_app_dir, base, base_len);
+    strncpy(out_app_dir + base_len, app_dir_name, STR_MAX - base_len - 1);
+    out_app_dir[STR_MAX - 1] = '\0';
 
     if (!is_dir(out_app_dir))
         return false;
 
-    strcpy(out_config_path, out_app_dir);
-    strcat(out_config_path, "/config.json");
+    // Build config path efficiently
+    size_t app_dir_len = strlen(out_app_dir);
+    memcpy(out_config_path, out_app_dir, app_dir_len);
+    strcpy(out_config_path + app_dir_len, "/config.json");
 
     if (!is_file(out_config_path))
         return false;

@@ -30,17 +30,39 @@ bool check_isRetroArch(void)
     bool rc = false;
     if (!exists(CMD_TO_RUN_PATH))
         return false;
+    
     char *cmd = file_read(CMD_TO_RUN_PATH);
-    if (strstr(cmd, "retroarch") != NULL ||
-        strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
-        strstr(cmd, "/mnt/SDCARD/RApp/") != NULL) {
+    if (!cmd)
+        return false;
+    
+    // Quick check: look for common patterns
+    // Use str_startsWith where possible for faster checks
+    const char *p = cmd;
+    bool is_retroarch_cmd = false;
+    
+    // Check for "retroarch" anywhere in command
+    if (strstr(p, "retroarch") != NULL) {
+        is_retroarch_cmd = true;
+    }
+    // Check for Emu or RApp paths (common RetroArch launchers)
+    else if (strstr(p, "/mnt/SDCARD/Emu/") != NULL ||
+             strstr(p, "/mnt/SDCARD/RApp/") != NULL) {
+        is_retroarch_cmd = true;
+    }
+    
+    if (is_retroarch_cmd) {
         pid_t pid;
-        if ((pid = process_searchpid("retroarch")) != 0 ||
-            (pid = process_searchpid("ra32")) != 0) {
+        // Try "retroarch" first (most common), then "ra32"
+        if ((pid = process_searchpid("retroarch")) != 0) {
+            system_state_pid = pid;
+            rc = true;
+        }
+        else if ((pid = process_searchpid("ra32")) != 0) {
             system_state_pid = pid;
             rc = true;
         }
     }
+    
     free(cmd);
     return rc;
 }
@@ -88,6 +110,17 @@ bool check_isDrastic(void)
 
 void system_state_update(void)
 {
+    // Cache state checks - avoid expensive checks every call
+    static time_t last_check = 0;
+    static SystemState cached_state = MODE_UNKNOWN;
+    time_t now = time(NULL);
+    
+    // Use cached state if checked recently (within 1 second)
+    if (cached_state != MODE_UNKNOWN && (now - last_check) < 1) {
+        system_state = cached_state;
+        return;
+    }
+    
     if (check_isGameSwitcher())
         system_state = MODE_SWITCHER;
     else if (check_isRetroArch())
@@ -100,6 +133,10 @@ void system_state_update(void)
         system_state = MODE_DRASTIC;
     else
         system_state = MODE_APPS;
+    
+    // Update cache
+    cached_state = system_state;
+    last_check = now;
 
 #ifdef LOG_DEBUG
     switch (system_state) {
@@ -230,9 +267,9 @@ char *getMiyooRecentFilePath()
     static char filename[STR_MAX];
 
     if (exists(RECENTLIST_HIDDEN_PATH))
-        sprintf(filename, "%s", RECENTLIST_HIDDEN_PATH);
+        strcpy(filename, RECENTLIST_HIDDEN_PATH);
     else
-        sprintf(filename, "%s", RECENTLIST_PATH);
+        strcpy(filename, RECENTLIST_PATH);
 
     return filename;
 }
@@ -252,35 +289,46 @@ char *history_getRecentPath(char *rom_path)
     }
 
     while (fgets(line, STR_MAX * 3, file) != NULL) {
-        char *jsonContent = (char *)malloc(strlen(line) + 1);
+        // No malloc needed - work directly with line buffer
         char romPathSearch[STR_MAX];
         int type;
 
-        strcpy(jsonContent, line);
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        // Direct sscanf on line, no copy needed
+        const char *typeStr = strstr(line, "\"type\":");
+        if (!typeStr) {
+            continue;
+        }
+        sscanf(typeStr + 7, "%d", &type);
 
         if ((type != 5) && (type != 17)) {
-            free(jsonContent);
             fclose(file);
             return NULL;
         }
 
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"") + 11;
+        const char *rompathStart = strstr(line, "\"rompath\":\"");
+        if (!rompathStart) {
+            continue;
+        }
+        rompathStart += 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
+        if (!rompathEnd) {
+            continue;
+        }
 
-        strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
-        romPathSearch[rompathEnd - rompathStart] = '\0';
+        size_t pathLen = rompathEnd - rompathStart;
+        if (pathLen >= STR_MAX) {
+            continue;
+        }
+        
+        memcpy(romPathSearch, rompathStart, pathLen);
+        romPathSearch[pathLen] = '\0';
 
-        free(jsonContent);
-
-        // Game launched with the search panel
+        // Game launched with the search panel - optimize colon handling
         char *colonPosition = strchr(romPathSearch, ':');
         if (colonPosition != NULL) {
-
-            int position = (int)(colonPosition - romPathSearch);
-            char secondPart[strlen(romPathSearch) - position];
-            strcpy(secondPart, colonPosition + 1);
-            strcpy(romPathSearch, secondPart);
+            // Move string after colon to beginning
+            size_t afterColonLen = strlen(colonPosition + 1);
+            memmove(romPathSearch, colonPosition + 1, afterColonLen + 1);
         }
 
         printf_debug("romPathSearch : %s\n", romPathSearch);
@@ -305,12 +353,15 @@ bool history_getRomscreenPath(char *path_out)
     char filename[STR_MAX];
     char file_path[STR_MAX];
 
+    filename[0] = '\0';  // Initialize
+
     if (history_getRecentPath(file_path) != NULL) {
-        sprintf(filename, "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
+        size_t path_len = strlen(file_path);
+        snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, path_len));
     }
     print_debug(file_path);
-    if (strlen(filename) > 0) {
-        sprintf(path_out, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+    if (filename[0] != '\0') {  // Faster than strlen check
+        snprintf(path_out, STR_MAX, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;
     }
 

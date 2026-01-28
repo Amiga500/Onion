@@ -90,11 +90,11 @@ void theme_renderFooterStatus(SDL_Surface *screen, int current_num,
         current_num = 0;
 
     char current_str[16];
-    sprintf(current_str, "%d/", current_num);
+    snprintf(current_str, sizeof(current_str), "%d/", current_num);
     SDL_Surface *current = TTF_RenderUTF8_Blended(font_hint, current_str, theme()->currentpage.color);
 
     char total_str[16];
-    sprintf(total_str, "%d", total_num);
+    snprintf(total_str, sizeof(total_str), "%d", total_num);
     SDL_Surface *total = TTF_RenderUTF8_Blended(font_hint, total_str, theme()->total.color);
 
     if (total) {

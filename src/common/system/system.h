@@ -48,12 +48,11 @@ void system_powersave(bool enabled)
         FILE *pipe = popen("cpuclock", "r");
 
         if (pipe) {
-            while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+            if (fgets(buffer, sizeof(buffer), pipe) != NULL) {
                 saved_min_freq = atoi(buffer);
             }
+            pclose(pipe);
         }
-
-        pclose(pipe);
 
         // save values for restoring later
         file_get(fp, CPU_SCALING_GOVERNOR, "%15s", saved_governor);
@@ -62,10 +61,17 @@ void system_powersave(bool enabled)
         file_put(fp, CPU_SCALING_GOVERNOR, "%s", "powersave");
     }
     else {
-        // restore
-        char sCommand[15];
-        sprintf(sCommand, "cpuclock %u", saved_min_freq);
-        system(sCommand);
+        // restore - use direct file write instead of system()
+        char freq_str[16];
+        snprintf(freq_str, sizeof(freq_str), "%u", saved_min_freq);
+        
+        // Write to sysfs directly (cpuclock writes to this file)
+        FILE *cpufreq = fopen(CPU_SCALING_MIN_FREQ, "w");
+        if (cpufreq) {
+            fputs(freq_str, cpufreq);
+            fclose(cpufreq);
+        }
+        
         file_put(fp, CPU_SCALING_GOVERNOR, "%s", saved_governor);
     }
 }

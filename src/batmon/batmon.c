@@ -378,13 +378,16 @@ int updateADCValue(int value)
 int getBatPercMMP(void)
 {
     char buf[100] = "";
-    int battery_number;
+    int battery_number = 0;
 
-    system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result");
-
-    FILE *fp;
-    file_get(fp, "/tmp/.axp_result", CONTENT_STR, buf);
-    sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
+    // Use popen instead of system() + file read (eliminates intermediate file I/O)
+    FILE *fp = popen("cd /customer/app/ && ./axp_test", "r");
+    if (fp != NULL) {
+        if (fgets(buf, sizeof(buf), fp) != NULL) {
+            sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
+        }
+        pclose(fp);
+    }
 
     return battery_number;
 }

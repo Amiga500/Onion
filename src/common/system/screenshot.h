@@ -19,8 +19,11 @@ bool __get_path_recent(char *path_out)
     char *fnptr, *no_extension;
     uint32_t i;
 
-    strcpy(path_out, "/mnt/SDCARD/Screenshots/");
-    fnptr = path_out + strlen(path_out);
+    // Use memcpy for constant strings (faster than strcpy)
+    const char *base_path = "/mnt/SDCARD/Screenshots/";
+    size_t base_len = 25;  // strlen("/mnt/SDCARD/Screenshots/")
+    memcpy(path_out, base_path, base_len);
+    fnptr = path_out + base_len;
 
     system_state_update();
 
@@ -28,14 +31,19 @@ bool __get_path_recent(char *path_out)
         char file_path[STR_MAX];
         if (history_getRecentPath(file_path) != NULL) {
             no_extension = file_removeExtension(basename(file_path));
-            strcat(path_out, no_extension);
+            strcpy(fnptr, no_extension);
+            fnptr += strlen(no_extension);
             free(no_extension);
         }
     }
-    else if (system_state == MODE_SWITCHER)
-        strcat(path_out, "GameSwitcher");
-    else if (system_state == MODE_MAIN_UI)
-        strcat(path_out, "MainUI");
+    else if (system_state == MODE_SWITCHER) {
+        memcpy(fnptr, "GameSwitcher", 13);
+        fnptr += 12;
+    }
+    else if (system_state == MODE_MAIN_UI) {
+        memcpy(fnptr, "MainUI", 7);
+        fnptr += 6;
+    }
     else if ((system_state == MODE_GAME || system_state == MODE_APPS) && exists(CMD_TO_RUN_PATH)) {
         FILE *fp;
         char cmd[STR_MAX];
@@ -53,15 +61,18 @@ bool __get_path_recent(char *path_out)
         }
         printf_debug("app: '%s'\n", app_name);
 
-        strcat(path_out, app_name);
+        size_t app_len = strlen(app_name);
+        memcpy(fnptr, app_name, app_len);
+        fnptr += app_len;
     }
 
-    if (!(*fnptr))
-        strcat(path_out, "Screenshot");
+    if (fnptr == path_out + base_len) {  // Nothing was appended
+        memcpy(fnptr, "Screenshot", 11);
+        fnptr += 10;
+    }
 
-    fnptr = path_out + strlen(path_out);
     for (i = 0; i < 1000; i++) {
-        sprintf(fnptr, "_%03d.png", i);
+        snprintf(fnptr, 10, "_%03d.png", i);  // Max 9 chars + null
         if (!exists(path_out))
             break;
     }

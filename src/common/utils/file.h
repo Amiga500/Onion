@@ -134,4 +134,22 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd);
  */
 char *file_resolvePath(const char *path) __attribute__((malloc));
 
+/**
+ * @brief Move all files from source directory to destination directory
+ * 
+ * @param src_dir Source directory path
+ * @param dst_dir Destination directory path
+ * @return 0 on success, -1 on error
+ */
+int dir_move_files(const char *src_dir, const char *dst_dir);
+
+/**
+ * @brief Recursively copy directory from source to destination
+ * 
+ * @param src_dir Source directory path
+ * @param dst_dir Destination directory path
+ * @return 0 on success, -1 on error
+ */
+int dir_copy_recursive(const char *src_dir, const char *dst_dir);
+
 #endif // UTILS_FILE_H__

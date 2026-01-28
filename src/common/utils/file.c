@@ -20,10 +20,39 @@
 #include "log.h"
 #include "str.h"
 
+// Simple cache for exists() - caches most recently checked paths
+#define EXISTS_CACHE_SIZE 8
+static struct {
+    char path[PATH_MAX];
+    bool exists;
+    time_t check_time;
+} exists_cache[EXISTS_CACHE_SIZE] = {{{0}}};
+static int exists_cache_idx = 0;
+
 bool exists(const char *file_path)
 {
+    // Check cache for recent lookups (with 1 second TTL)
+    time_t now = time(NULL);
+    for (int i = 0; i < EXISTS_CACHE_SIZE; i++) {
+        if (exists_cache[i].path[0] != '\0' &&
+            strcmp(exists_cache[i].path, file_path) == 0 &&
+            (now - exists_cache[i].check_time) < 1) {
+            return exists_cache[i].exists;
+        }
+    }
+    
+    // Not in cache, check filesystem
     struct stat64 buffer;
-    return stat64(file_path, &buffer) == 0;
+    bool result = stat64(file_path, &buffer) == 0;
+    
+    // Update cache (simple round-robin)
+    strncpy(exists_cache[exists_cache_idx].path, file_path, PATH_MAX - 1);
+    exists_cache[exists_cache_idx].path[PATH_MAX - 1] = '\0';
+    exists_cache[exists_cache_idx].exists = result;
+    exists_cache[exists_cache_idx].check_time = now;
+    exists_cache_idx = (exists_cache_idx + 1) % EXISTS_CACHE_SIZE;
+    
+    return result;
 }
 
 bool is_file(const char *file_path)
@@ -64,7 +93,7 @@ const char *file_basename(const char *filename)
 }
 
 /**
- * @brief Create directories in dir_path using `mkdir -p` command.
+ * @brief Create directories in dir_path recursively (mkdir -p equivalent).
  *
  * @param dir_path The full directory path.
  * @return true If the path didn't exist (dirs were created).
@@ -72,13 +101,43 @@ const char *file_basename(const char *filename)
  */
 bool mkdirs(const char *dir_path)
 {
-    if (!exists(dir_path)) {
-        char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
-        system(dir_cmd);
-        return true;
+    if (exists(dir_path)) {
+        return false;
     }
-    return false;
+    
+    // Create a mutable copy of the path
+    char path_copy[PATH_MAX];
+    strncpy(path_copy, dir_path, PATH_MAX - 1);
+    path_copy[PATH_MAX - 1] = '\0';
+    
+    // Remove trailing slashes
+    size_t len = strlen(path_copy);
+    while (len > 1 && path_copy[len - 1] == '/') {
+        path_copy[--len] = '\0';
+    }
+    
+    // Recursively create parent directories
+    char *p = path_copy;
+    if (*p == '/') p++; // Skip leading slash
+    
+    for (; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            if (!exists(path_copy)) {
+                if (mkdir(path_copy, 0755) != 0 && errno != EEXIST) {
+                    return false;
+                }
+            }
+            *p = '/';
+        }
+    }
+    
+    // Create the final directory
+    if (mkdir(path_copy, 0755) != 0 && errno != EEXIST) {
+        return false;
+    }
+    
+    return true;
 }
 
 void file_readLastLine(const char *filename, char *out_str)
@@ -86,7 +145,8 @@ void file_readLastLine(const char *filename, char *out_str)
     FILE *fd;
     int size;
     char buff[256];
-    char *token = NULL;
+
+    *out_str = '\0'; // Initialize output
 
     if ((fd = fopen(filename, "rb")) != NULL) {
         // get file size
@@ -95,22 +155,42 @@ void file_readLastLine(const char *filename, char *out_str)
         fseek(fd, 0L, SEEK_SET);
 
         int max_len = size < 255 ? size + 1 : 255;
-        if (max_len <= 1)
+        if (max_len <= 1) {
+            fclose(fd);
             return;
+        }
 
-        // get the last line
+        // get the last chunk of file
         fseek(fd, -max_len, SEEK_END);
         fread(buff, max_len - 1, 1, fd);
-
-        // cleanup
         fclose(fd);
         buff[max_len - 1] = '\0';
 
-        token = strtok(buff, "\n");
-        while (token != NULL) {
-            if (strlen(token) > 0)
-                snprintf(out_str, 255, "%s", token);
-            token = strtok(NULL, "\n");
+        // Find last non-empty line using pointer arithmetic (faster than strtok)
+        char *line_start = buff;
+        char *last_line = NULL;
+        
+        for (char *p = buff; *p; p++) {
+            if (*p == '\n') {
+                if (line_start < p) {  // Non-empty line found
+                    last_line = line_start;
+                }
+                line_start = p + 1;
+            }
+        }
+        
+        // Check if there's content after the last newline
+        if (line_start < buff + max_len - 1 && *line_start) {
+            last_line = line_start;
+        }
+        
+        // Copy the last line to output
+        if (last_line) {
+            char *p = out_str;
+            for (char *src = last_line; *src && *src != '\n' && p < out_str + 254; src++) {
+                *p++ = *src;
+            }
+            *p = '\0';
         }
     }
 }
@@ -128,12 +208,14 @@ char *file_read(const char *path)
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
-        buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
-            fread(buffer, sizeof(char), length, f);
+        
+        buffer = (char *)malloc(length + 1);  // No need for * sizeof(char)
+        if (buffer) {
+            size_t read = fread(buffer, 1, length, f);
+            buffer[read] = '\0';  // Null terminate at actual read position
+        }
         fclose(f);
     }
-    buffer[length] = '\0';
 
     return buffer;
 }
@@ -151,22 +233,70 @@ bool file_write(const char *path, const char *str, uint32_t len)
 
 void file_copy(const char *src_path, const char *dest_path)
 {
-    char system_cmd[4128];
-    snprintf(system_cmd, sizeof(system_cmd), "cp -f \"%s\" \"%s\"", src_path, dest_path);
-    system(system_cmd);
+    FILE *src, *dest;
+    size_t bytes;
+    
+    src = fopen(src_path, "rb");
+    if (!src) {
+        return;
+    }
+    
+    dest = fopen(dest_path, "wb");
+    if (!dest) {
+        fclose(src);
+        return;
+    }
+    
+    // Determine optimal buffer size based on file size
+    fseek(src, 0, SEEK_END);
+    long file_size = ftell(src);
+    fseek(src, 0, SEEK_SET);
+    
+    // Use larger buffer for larger files (up to 64KB)
+    size_t buffer_size = (file_size < 8192) ? 4096 : 
+                        (file_size < 65536) ? 16384 : 65536;
+    char *buffer = (char *)malloc(buffer_size);
+    if (!buffer) {
+        // Fallback to stack buffer if malloc fails
+        char stack_buffer[4096];
+        while ((bytes = fread(stack_buffer, 1, sizeof(stack_buffer), src)) > 0) {
+            if (fwrite(stack_buffer, 1, bytes, dest) != bytes) {
+                break;
+            }
+        }
+    } else {
+        // Copy file in optimally-sized chunks
+        while ((bytes = fread(buffer, 1, buffer_size, src)) > 0) {
+            if (fwrite(buffer, 1, bytes, dest) != bytes) {
+                break;
+            }
+        }
+        free(buffer);
+    }
+    
+    fclose(src);
+    fclose(dest);
 }
 
 char *file_removeExtension(const char *myStr)
 {
     if (myStr == NULL)
         return NULL;
-    char *retStr = (char *)malloc(strlen(myStr) + 1);
+    
+    size_t len = strlen(myStr);
+    char *retStr = (char *)malloc(len + 1);
     char *lastExt;
+    
     if (retStr == NULL)
         return NULL;
-    strcpy(retStr, myStr);
-    if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 2) != '\0')
+    
+    memcpy(retStr, myStr, len + 1);  // memcpy faster than strcpy
+    
+    // Find last dot and validate it's an extension
+    if ((lastExt = strrchr(retStr, '.')) != NULL && 
+        *(lastExt + 1) != ' ' && *(lastExt + 1) != '\0') {
         *lastExt = '\0';
+    }
     return retStr;
 }
 
@@ -178,7 +308,7 @@ char *file_dirname(const char *absolutePath)
         size_t pathLength = lastSlash - absolutePath;
         path = (char *)malloc(pathLength + 1);
         if (path != NULL) {
-            strncpy(path, absolutePath, pathLength);
+            memcpy(path, absolutePath, pathLength);  // Faster than strncpy
             path[pathLength] = '\0';
         }
         return path;
@@ -223,27 +353,47 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
                          char *value_out, char divider, int select_index)
 {
     FILE *fp;
-    int f;
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
     char key[256], val[256];
     char key_search[STR_MAX];
-    char search_str[STR_MAX];
-    sprintf(search_str, "%%255[^%c]%c%%255[^\n]\n", divider, divider);
     int match_index = 0;
 
     *value_out = 0;
     if ((fp = fopen(file_path, "r"))) {
-        key[0] = 0;
-        val[0] = 0;
         while ((read = getline(&line, &len, fp)) != -1) {
-            if (!(f = sscanf(line, search_str, key, val))) {
-                if (fscanf(fp, "%*[^\n]\n") == EOF)
-                    break;
-                else
-                    continue;
+            // Manual parsing instead of sprintf + sscanf
+            char *divider_pos = strchr(line, divider);
+            if (!divider_pos) {
+                continue;
             }
+            
+            // Extract key
+            size_t key_len = divider_pos - line;
+            if (key_len >= sizeof(key)) {
+                continue;
+            }
+            memcpy(key, line, key_len);
+            key[key_len] = '\0';
+            
+            // Extract value (skip divider, read until newline)
+            char *val_start = divider_pos + 1;
+            char *newline = strchr(val_start, '\n');
+            size_t val_len;
+            if (newline) {
+                val_len = newline - val_start;
+            } else {
+                val_len = strlen(val_start);
+            }
+            
+            if (val_len >= sizeof(val)) {
+                val_len = sizeof(val) - 1;
+            }
+            memcpy(val, val_start, val_len);
+            val[val_len] = '\0';
+            
+            // Trim and compare key
             if (str_trim(key_search, 256, key, true)) {
                 if (strcmp(key_search, key_in) == 0) {
                     str_trim(value_out, 256, val, false);
@@ -251,8 +401,6 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
                         break;
                 }
             }
-            key[0] = 0;
-            val[0] = 0;
         }
         free(line);
         fclose(fp);
@@ -272,9 +420,17 @@ void file_changeKeyValue(const char *file_path, const char *key,
     ssize_t read;
 
     fp = fopen(file_path, "r");
-    cp = fopen("temp", "w+");
     if (fp == NULL)
         exit(EXIT_FAILURE);
+    
+    // Use /tmp for temp file to avoid SD writes
+    char temp_path[PATH_MAX];
+    snprintf(temp_path, sizeof(temp_path), "/tmp/.config_tmp_%d", getpid());
+    cp = fopen(temp_path, "w+");
+    if (cp == NULL) {
+        fclose(fp);
+        exit(EXIT_FAILURE);
+    }
 
     int key_len = strlen(key);
     int line_idx = 0, line_len;
@@ -283,11 +439,15 @@ void file_changeKeyValue(const char *file_path, const char *key,
     printf_debug("Changing '%s' in '%s'\n", key, file_path);
 
     while ((read = getline(&line, &len, fp)) != -1) {
+        // Optimize whitespace skip with inline check
         for (line_idx = 0;
-             line_idx < read &&
-             strchr("\r\n\t {},", (unsigned char)line[line_idx]) != NULL;
+             line_idx < read && (line[line_idx] == ' ' || line[line_idx] == '\t' ||
+                                line[line_idx] == '\r' || line[line_idx] == '\n' ||
+                                line[line_idx] == '{' || line[line_idx] == '}' ||
+                                line[line_idx] == ',');
              line_idx++)
             ;
+        
         if (strncmp(line + line_idx, key, key_len) == 0) {
             fprintf(cp, "%s\n", replacement_line);
             printf_debug("Replace: %s\n", replacement_line);
@@ -314,7 +474,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
         free(line);
 
     remove(file_path);
-    rename("temp", file_path);
+    rename(temp_path, file_path);
 }
 
 bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
@@ -327,8 +487,16 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         return false;
     }
 
+    // Early exit if paths are identical
+    if (strcmp(abs_from, abs_to) == 0) {
+        strcpy(path_out, ".");
+        return true;
+    }
+
     char *p1 = abs_from;
     char *p2 = abs_to;
+    
+    // Find common prefix
     while (*p1 && (*p1 == *p2)) {
         ++p1, ++p2;
     }
@@ -337,12 +505,17 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         ++p2;
     }
 
-    if (strlen(p1) > 0) {
+    // Build relative path more efficiently
+    if (*p1 != '\0') {
         int num_parens = str_count_char(p1, '/') + 1;
+        char *dest = path_out;
         for (int i = 0; i < num_parens; i++) {
-            strcat(path_out, "../");
+            memcpy(dest, "../", 3);
+            dest += 3;
         }
+        *dest = '\0';
     }
+    
     strcat(path_out, p2);
 
     return true;
@@ -369,15 +542,20 @@ bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size
     }
 
     bool found = false;
+    size_t dir_path_len = strlen(dir_path);
+    
     while ((dir = readdir(d)) != NULL) {
         if (dir->d_type == DT_REG) {
             char full_path[PATH_MAX];
-            snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, dir->d_name);
+            // Optimize path building with memcpy
+            memcpy(full_path, dir_path, dir_path_len);
+            full_path[dir_path_len] = '/';
+            strcpy(full_path + dir_path_len + 1, dir->d_name);
 
             if (stat64(full_path, &file_stat) == 0) {
                 if (!found || file_stat.st_mtime > newest_mtime) {
                     newest_mtime = file_stat.st_mtime;
-                    strncpy(newest_file, dir->d_name, buffer_size);
+                    strncpy(newest_file, dir->d_name, buffer_size - 1);
                     newest_file[buffer_size - 1] = '\0';
                     found = true;
                 }
@@ -513,37 +691,182 @@ char *file_resolvePath(const char *path)
     strncpy(tempPath, path, PATH_MAX - 1);
     tempPath[PATH_MAX - 1] = '\0';
 
-    // Initialize an array to hold the path components
-    char *components[PATH_MAX];
+    // Initialize an array to hold the path component start positions
+    // Max components is PATH_MAX/2 (alternating char and slash)
+    #define MAX_COMPONENTS 512
+    char *components[MAX_COMPONENTS];
     int componentCount = 0;
 
-    // Split the path into components
-    char *token = strtok(tempPath, "/");
-    while (token != NULL) {
-        if (strcmp(token, "..") == 0) {
-            // Handle ".." by removing the last component if there is one
+    // Split the path into components without strtok (faster, no modifications)
+    char *p = tempPath;
+    char *start = tempPath;
+    
+    // Skip leading slashes
+    while (*p == '/') p++;
+    start = p;
+    
+    while (*p) {
+        if (*p == '/') {
+            *p = '\0';  // Null terminate the component
+            
+            // Process component
+            if (strcmp(start, "..") == 0) {
+                // Handle ".." by removing the last component if there is one
+                if (componentCount > 0) {
+                    componentCount--;
+                }
+            }
+            else if (strcmp(start, ".") != 0 && *start != '\0') {
+                // Ignore "." and empty components, add others
+                if (componentCount < MAX_COMPONENTS) {
+                    components[componentCount++] = start;
+                }
+            }
+            
+            // Move to next component
+            p++;
+            while (*p == '/') p++;  // Skip multiple slashes
+            start = p;
+        }
+        else {
+            p++;
+        }
+    }
+    
+    // Handle last component
+    if (*start != '\0') {
+        if (strcmp(start, "..") == 0) {
             if (componentCount > 0) {
                 componentCount--;
             }
         }
-        else if (strcmp(token, ".") != 0) {
-            // Ignore "." and add other components to the array
-            components[componentCount++] = token;
+        else if (strcmp(start, ".") != 0) {
+            if (componentCount < MAX_COMPONENTS) {
+                components[componentCount++] = start;
+            }
         }
-        token = strtok(NULL, "/");
     }
 
-    // Reconstruct the resolved path
-    resolvedPath[0] = '\0';
-    for (int i = 0; i < componentCount; i++) {
-        strcat(resolvedPath, "/");
-        strcat(resolvedPath, components[i]);
+    // Reconstruct the resolved path more efficiently with bounds checking
+    char *dest = resolvedPath;
+    char *dest_end = resolvedPath + PATH_MAX - 1;  // Leave room for null terminator
+    
+    for (int i = 0; i < componentCount && dest < dest_end; i++) {
+        *dest++ = '/';
+        char *src = components[i];
+        while (*src && dest < dest_end) {
+            *dest++ = *src++;
+        }
     }
-
+    
     // Handle the case where the path is empty
-    if (resolvedPath[0] == '\0') {
-        strcpy(resolvedPath, "/");
+    if (dest == resolvedPath) {
+        *dest++ = '/';
     }
+    *dest = '\0';
 
     return resolvedPath;
+}
+
+// Move all files from source directory to destination directory
+// Returns 0 on success, -1 on error
+int dir_move_files(const char *src_dir, const char *dst_dir)
+{
+    DIR *d;
+    struct dirent *entry;
+    char src_path[PATH_MAX];
+    char dst_path[PATH_MAX];
+    int errors = 0;
+    
+    d = opendir(src_dir);
+    if (d == NULL) {
+        return -1;
+    }
+    
+    size_t src_len = strlen(src_dir);
+    size_t dst_len = strlen(dst_dir);
+    
+    while ((entry = readdir(d)) != NULL) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+            
+        // Build source path
+        memcpy(src_path, src_dir, src_len);
+        src_path[src_len] = '/';
+        strcpy(src_path + src_len + 1, entry->d_name);
+        
+        // Build destination path
+        memcpy(dst_path, dst_dir, dst_len);
+        dst_path[dst_len] = '/';
+        strcpy(dst_path + dst_len + 1, entry->d_name);
+        
+        // Move file
+        if (rename(src_path, dst_path) != 0) {
+            errors++;
+        }
+    }
+    
+    closedir(d);
+    return errors > 0 ? -1 : 0;
+}
+
+// Recursively copy directory from source to destination
+// Returns 0 on success, -1 on error
+int dir_copy_recursive(const char *src_dir, const char *dst_dir)
+{
+    DIR *d;
+    struct dirent *entry;
+    struct stat64 st;
+    char src_path[PATH_MAX];
+    char dst_path[PATH_MAX];
+    int errors = 0;
+    
+    // Create destination directory
+    if (mkdir(dst_dir, 0755) != 0 && errno != EEXIST) {
+        return -1;
+    }
+    
+    d = opendir(src_dir);
+    if (d == NULL) {
+        return -1;
+    }
+    
+    size_t src_len = strlen(src_dir);
+    size_t dst_len = strlen(dst_dir);
+    
+    while ((entry = readdir(d)) != NULL) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+            
+        // Build paths
+        memcpy(src_path, src_dir, src_len);
+        src_path[src_len] = '/';
+        strcpy(src_path + src_len + 1, entry->d_name);
+        
+        memcpy(dst_path, dst_dir, dst_len);
+        dst_path[dst_len] = '/';
+        strcpy(dst_path + dst_len + 1, entry->d_name);
+        
+        // Get file info
+        if (stat64(src_path, &st) != 0) {
+            errors++;
+            continue;
+        }
+        
+        if (S_ISDIR(st.st_mode)) {
+            // Recursively copy subdirectory
+            if (dir_copy_recursive(src_path, dst_path) != 0) {
+                errors++;
+            }
+        }
+        else if (S_ISREG(st.st_mode)) {
+            // Copy regular file (file_copy returns void, assumes success)
+            file_copy(src_path, dst_path);
+        }
+    }
+    
+    closedir(d);
+    return errors > 0 ? -1 : 0;
 }

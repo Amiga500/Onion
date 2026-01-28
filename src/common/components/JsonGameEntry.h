@@ -41,14 +41,18 @@ JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
 
 void JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
 {
-    strcpy(dest, "{");
-    sprintf(dest + strlen(dest), "\"label\":\"%s\",", entry->label);
-    sprintf(dest + strlen(dest), "\"launch\":\"%s\",", entry->launch);
-    sprintf(dest + strlen(dest), "\"type\":%d,", entry->type);
+    int offset = 0;
+    const int max_len = STR_MAX * 6;
+    
+    // Build JSON string with offset tracking (much faster than strlen in loop)
+    offset += snprintf(dest + offset, max_len - offset, "{");
+    offset += snprintf(dest + offset, max_len - offset, "\"label\":\"%s\",", entry->label);
+    offset += snprintf(dest + offset, max_len - offset, "\"launch\":\"%s\",", entry->launch);
+    offset += snprintf(dest + offset, max_len - offset, "\"type\":%d,", entry->type);
     if (strlen(entry->imgpath) > 0)
-        sprintf(dest + strlen(dest), "\"imgpath\":\"%s\",", entry->imgpath);
-    sprintf(dest + strlen(dest), "\"rompath\":\"%s\"", entry->rompath);
-    strcat(dest, "}");
+        offset += snprintf(dest + offset, max_len - offset, "\"imgpath\":\"%s\",", entry->imgpath);
+    offset += snprintf(dest + offset, max_len - offset, "\"rompath\":\"%s\"", entry->rompath);
+    snprintf(dest + offset, max_len - offset, "}");
 }
 
 #endif // JSON_GAME_ENTRY_H__

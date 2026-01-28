@@ -6,12 +6,17 @@
 
 SDL_Color hex2sdl(char *input)
 {
-    char *ptr;
-    if (input[0] == '#')
-        input++;
-    unsigned long value = strtoul(input, &ptr, 16);
-    SDL_Color color = {(value >> 16) & 0xff, (value >> 8) & 0xff,
-                       (value >> 0) & 0xff};
+    // Skip '#' if present - optimize pointer arithmetic
+    const char *hex_str = (input[0] == '#') ? input + 1 : input;
+    
+    // Direct conversion without intermediate ptr
+    unsigned long value = strtoul(hex_str, NULL, 16);
+    
+    SDL_Color color = {
+        (value >> 16) & 0xff,  // R
+        (value >> 8) & 0xff,   // G
+        value & 0xff           // B
+    };
     return color;
 }
 
