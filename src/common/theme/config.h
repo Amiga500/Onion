@@ -240,7 +240,7 @@ Theme_s theme_loadFromPath(const char *theme_path, bool apply_overrides)
     snprintf(config_path, STR_MAX * 2 - 1, "%sconfig.json", config.path);
 
     if (!exists(config_path))
-        sprintf(config_path, "%sconfig.json", FALLBACK_PATH);
+        snprintf(config_path, STR_MAX * 2 - 1, "%sconfig.json", FALLBACK_PATH);
 
     theme_applyConfig(&config, config_path, true);
 
