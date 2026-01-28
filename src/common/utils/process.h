@@ -67,7 +67,30 @@ pid_t process_searchpid(const char *commname)
 
 bool process_isRunning(const char *commname)
 {
-    return process_searchpid(commname) != 0;
+    // Simple cache for frequent process checks (e.g., MainUI, batmon)
+    static struct {
+        char name[32];
+        bool running;
+        time_t check_time;
+    } cache = {0};
+    
+    time_t now = time(NULL);
+    
+    // Check cache (500ms TTL for process state)
+    if (cache.name[0] != '\0' && 
+        strcmp(cache.name, commname) == 0 &&
+        (now - cache.check_time) < 1) {
+        return cache.running;
+    }
+    
+    // Update cache
+    bool result = (process_searchpid(commname) != 0);
+    strncpy(cache.name, commname, sizeof(cache.name) - 1);
+    cache.name[sizeof(cache.name) - 1] = '\0';
+    cache.running = result;
+    cache.check_time = now;
+    
+    return result;
 }
 
 void process_kill(const char *commname)

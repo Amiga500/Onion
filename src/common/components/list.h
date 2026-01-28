@@ -65,11 +65,30 @@ int _list_modulo(int x, int n) { return (x % n + n) % n; }
 
 int list_countVisible(List *list)
 {
-    int n = 0, i;
-    for (i = 0; i < list->item_count; i++) {
+    // Cache visible count to avoid recounting every time
+    // Only recalculate if list changed (detected via item_count change)
+    static struct {
+        List *cached_list;
+        int cached_item_count;
+        int cached_visible;
+    } cache = {NULL, -1, 0};
+    
+    if (cache.cached_list == list && 
+        cache.cached_item_count == list->item_count) {
+        return cache.cached_visible;
+    }
+    
+    int n = 0;
+    for (int i = 0; i < list->item_count; i++) {
         if (!list->items[i].disabled)
             n++;
     }
+    
+    // Update cache
+    cache.cached_list = list;
+    cache.cached_item_count = list->item_count;
+    cache.cached_visible = n;
+    
     return n;
 }
 

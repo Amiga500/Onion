@@ -30,17 +30,39 @@ bool check_isRetroArch(void)
     bool rc = false;
     if (!exists(CMD_TO_RUN_PATH))
         return false;
+    
     char *cmd = file_read(CMD_TO_RUN_PATH);
-    if (strstr(cmd, "retroarch") != NULL ||
-        strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
-        strstr(cmd, "/mnt/SDCARD/RApp/") != NULL) {
+    if (!cmd)
+        return false;
+    
+    // Quick check: look for common patterns
+    // Use str_startsWith where possible for faster checks
+    const char *p = cmd;
+    bool is_retroarch_cmd = false;
+    
+    // Check for "retroarch" anywhere in command
+    if (strstr(p, "retroarch") != NULL) {
+        is_retroarch_cmd = true;
+    }
+    // Check for Emu or RApp paths (common RetroArch launchers)
+    else if (strstr(p, "/mnt/SDCARD/Emu/") != NULL ||
+             strstr(p, "/mnt/SDCARD/RApp/") != NULL) {
+        is_retroarch_cmd = true;
+    }
+    
+    if (is_retroarch_cmd) {
         pid_t pid;
-        if ((pid = process_searchpid("retroarch")) != 0 ||
-            (pid = process_searchpid("ra32")) != 0) {
+        // Try "retroarch" first (most common), then "ra32"
+        if ((pid = process_searchpid("retroarch")) != 0) {
+            system_state_pid = pid;
+            rc = true;
+        }
+        else if ((pid = process_searchpid("ra32")) != 0) {
             system_state_pid = pid;
             rc = true;
         }
     }
+    
     free(cmd);
     return rc;
 }
@@ -88,6 +110,17 @@ bool check_isDrastic(void)
 
 void system_state_update(void)
 {
+    // Cache state checks - avoid expensive checks every call
+    static time_t last_check = 0;
+    static SystemState cached_state = MODE_UNKNOWN;
+    time_t now = time(NULL);
+    
+    // Use cached state if checked recently (within 1 second)
+    if (cached_state != MODE_UNKNOWN && (now - last_check) < 1) {
+        system_state = cached_state;
+        return;
+    }
+    
     if (check_isGameSwitcher())
         system_state = MODE_SWITCHER;
     else if (check_isRetroArch())
@@ -100,6 +133,10 @@ void system_state_update(void)
         system_state = MODE_DRASTIC;
     else
         system_state = MODE_APPS;
+    
+    // Update cache
+    cached_state = system_state;
+    last_check = now;
 
 #ifdef LOG_DEBUG
     switch (system_state) {
