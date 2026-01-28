@@ -589,7 +589,9 @@ char *file_resolvePath(const char *path)
     tempPath[PATH_MAX - 1] = '\0';
 
     // Initialize an array to hold the path component start positions
-    char *components[PATH_MAX];
+    // Max components is PATH_MAX/2 (alternating char and slash)
+    #define MAX_COMPONENTS 512
+    char *components[MAX_COMPONENTS];
     int componentCount = 0;
 
     // Split the path into components without strtok (faster, no modifications)
@@ -613,7 +615,9 @@ char *file_resolvePath(const char *path)
             }
             else if (strcmp(start, ".") != 0 && *start != '\0') {
                 // Ignore "." and empty components, add others
-                components[componentCount++] = start;
+                if (componentCount < MAX_COMPONENTS) {
+                    components[componentCount++] = start;
+                }
             }
             
             // Move to next component
@@ -634,16 +638,20 @@ char *file_resolvePath(const char *path)
             }
         }
         else if (strcmp(start, ".") != 0) {
-            components[componentCount++] = start;
+            if (componentCount < MAX_COMPONENTS) {
+                components[componentCount++] = start;
+            }
         }
     }
 
-    // Reconstruct the resolved path more efficiently
+    // Reconstruct the resolved path more efficiently with bounds checking
     char *dest = resolvedPath;
-    for (int i = 0; i < componentCount; i++) {
+    char *dest_end = resolvedPath + PATH_MAX - 1;  // Leave room for null terminator
+    
+    for (int i = 0; i < componentCount && dest < dest_end; i++) {
         *dest++ = '/';
         char *src = components[i];
-        while (*src) {
+        while (*src && dest < dest_end) {
             *dest++ = *src++;
         }
     }

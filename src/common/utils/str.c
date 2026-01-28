@@ -176,10 +176,16 @@ void str_removeParentheses(char *str_out, const char *str_in)
 }
 
 // Helper function for fast integer to string conversion
+// Note: Only handles non-negative integers, suitable for time values
 static int _int_to_str(char *buf, int value)
 {
     char temp[16];
     int i = 0, len = 0;
+    
+    // Handle negative values (shouldn't happen with time, but be safe)
+    if (value < 0) {
+        value = 0;
+    }
     
     if (value == 0) {
         buf[0] = '0';
@@ -239,7 +245,7 @@ int str_count_char(const char *str, char ch)
 {
     int count = 0;
     int len = strlen(str);
-    for (int i = 0; i <= len; i++) {
+    for (int i = 0; i < len; i++) {
         if (str[i] == ch) {
             count++;
         }
