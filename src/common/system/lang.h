@@ -72,7 +72,7 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
     if (!remove_icon_labels && !remove_hints) {
         // restore original lang files if backup exists
         if (exists(LANG_DIR_BACKUP)) {
-            system("mv -f " LANG_DIR_BACKUP "/* " LANG_DIR "");
+            dir_move_files(LANG_DIR_BACKUP, LANG_DIR);
             remove(LANG_DIR_BACKUP);
         }
         return;
@@ -84,14 +84,14 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
     if (!remove_icon_labels || !remove_hints) {
         // restore original lang files
         if (exists(LANG_DIR_BACKUP)) {
-            system("mv -f " LANG_DIR_BACKUP "/* " LANG_DIR "");
+            dir_move_files(LANG_DIR_BACKUP, LANG_DIR);
             remove(LANG_DIR_BACKUP);
         }
     }
 
     // backup lang files
     if (!exists(LANG_DIR_BACKUP))
-        system("cp -R " LANG_DIR " " LANG_DIR_BACKUP "");
+        dir_copy_recursive(LANG_DIR, LANG_DIR_BACKUP);
 
     // Cache dir path length for optimization
     const char *lang_dir = LANG_DIR "/";

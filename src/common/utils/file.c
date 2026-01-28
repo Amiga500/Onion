@@ -767,3 +767,108 @@ char *file_resolvePath(const char *path)
 
     return resolvedPath;
 }
+
+// Move all files from source directory to destination directory
+// Returns 0 on success, -1 on error
+int dir_move_files(const char *src_dir, const char *dst_dir)
+{
+    DIR *d;
+    struct dirent *entry;
+    char src_path[PATH_MAX];
+    char dst_path[PATH_MAX];
+    int errors = 0;
+    
+    d = opendir(src_dir);
+    if (d == NULL) {
+        return -1;
+    }
+    
+    size_t src_len = strlen(src_dir);
+    size_t dst_len = strlen(dst_dir);
+    
+    while ((entry = readdir(d)) != NULL) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+            
+        // Build source path
+        memcpy(src_path, src_dir, src_len);
+        src_path[src_len] = '/';
+        strcpy(src_path + src_len + 1, entry->d_name);
+        
+        // Build destination path
+        memcpy(dst_path, dst_dir, dst_len);
+        dst_path[dst_len] = '/';
+        strcpy(dst_path + dst_len + 1, entry->d_name);
+        
+        // Move file
+        if (rename(src_path, dst_path) != 0) {
+            errors++;
+        }
+    }
+    
+    closedir(d);
+    return errors > 0 ? -1 : 0;
+}
+
+// Recursively copy directory from source to destination
+// Returns 0 on success, -1 on error
+int dir_copy_recursive(const char *src_dir, const char *dst_dir)
+{
+    DIR *d;
+    struct dirent *entry;
+    struct stat64 st;
+    char src_path[PATH_MAX];
+    char dst_path[PATH_MAX];
+    int errors = 0;
+    
+    // Create destination directory
+    if (mkdir(dst_dir, 0755) != 0 && errno != EEXIST) {
+        return -1;
+    }
+    
+    d = opendir(src_dir);
+    if (d == NULL) {
+        return -1;
+    }
+    
+    size_t src_len = strlen(src_dir);
+    size_t dst_len = strlen(dst_dir);
+    
+    while ((entry = readdir(d)) != NULL) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+            
+        // Build paths
+        memcpy(src_path, src_dir, src_len);
+        src_path[src_len] = '/';
+        strcpy(src_path + src_len + 1, entry->d_name);
+        
+        memcpy(dst_path, dst_dir, dst_len);
+        dst_path[dst_len] = '/';
+        strcpy(dst_path + dst_len + 1, entry->d_name);
+        
+        // Get file info
+        if (stat64(src_path, &st) != 0) {
+            errors++;
+            continue;
+        }
+        
+        if (S_ISDIR(st.st_mode)) {
+            // Recursively copy subdirectory
+            if (dir_copy_recursive(src_path, dst_path) != 0) {
+                errors++;
+            }
+        }
+        else if (S_ISREG(st.st_mode)) {
+            // Copy regular file
+            if (!file_copy(src_path, dst_path)) {
+                errors++;
+            }
+        }
+    }
+    
+    closedir(d);
+    return errors > 0 ? -1 : 0;
+}
