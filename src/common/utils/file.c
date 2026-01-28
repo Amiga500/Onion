@@ -26,7 +26,7 @@ static struct {
     char path[PATH_MAX];
     bool exists;
     time_t check_time;
-} exists_cache[EXISTS_CACHE_SIZE] = {{0}};
+} exists_cache[EXISTS_CACHE_SIZE] = {{{0}}};
 static int exists_cache_idx = 0;
 
 bool exists(const char *file_path)
@@ -862,10 +862,8 @@ int dir_copy_recursive(const char *src_dir, const char *dst_dir)
             }
         }
         else if (S_ISREG(st.st_mode)) {
-            // Copy regular file
-            if (!file_copy(src_path, dst_path)) {
-                errors++;
-            }
+            // Copy regular file (file_copy returns void, assumes success)
+            file_copy(src_path, dst_path);
         }
     }
     
