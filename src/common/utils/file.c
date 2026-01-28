@@ -588,37 +588,71 @@ char *file_resolvePath(const char *path)
     strncpy(tempPath, path, PATH_MAX - 1);
     tempPath[PATH_MAX - 1] = '\0';
 
-    // Initialize an array to hold the path components
+    // Initialize an array to hold the path component start positions
     char *components[PATH_MAX];
     int componentCount = 0;
 
-    // Split the path into components
-    char *token = strtok(tempPath, "/");
-    while (token != NULL) {
-        if (strcmp(token, "..") == 0) {
-            // Handle ".." by removing the last component if there is one
+    // Split the path into components without strtok (faster, no modifications)
+    char *p = tempPath;
+    char *start = tempPath;
+    
+    // Skip leading slashes
+    while (*p == '/') p++;
+    start = p;
+    
+    while (*p) {
+        if (*p == '/') {
+            *p = '\0';  // Null terminate the component
+            
+            // Process component
+            if (strcmp(start, "..") == 0) {
+                // Handle ".." by removing the last component if there is one
+                if (componentCount > 0) {
+                    componentCount--;
+                }
+            }
+            else if (strcmp(start, ".") != 0 && *start != '\0') {
+                // Ignore "." and empty components, add others
+                components[componentCount++] = start;
+            }
+            
+            // Move to next component
+            p++;
+            while (*p == '/') p++;  // Skip multiple slashes
+            start = p;
+        }
+        else {
+            p++;
+        }
+    }
+    
+    // Handle last component
+    if (*start != '\0') {
+        if (strcmp(start, "..") == 0) {
             if (componentCount > 0) {
                 componentCount--;
             }
         }
-        else if (strcmp(token, ".") != 0) {
-            // Ignore "." and add other components to the array
-            components[componentCount++] = token;
+        else if (strcmp(start, ".") != 0) {
+            components[componentCount++] = start;
         }
-        token = strtok(NULL, "/");
     }
 
-    // Reconstruct the resolved path
-    resolvedPath[0] = '\0';
+    // Reconstruct the resolved path more efficiently
+    char *dest = resolvedPath;
     for (int i = 0; i < componentCount; i++) {
-        strcat(resolvedPath, "/");
-        strcat(resolvedPath, components[i]);
+        *dest++ = '/';
+        char *src = components[i];
+        while (*src) {
+            *dest++ = *src++;
+        }
     }
-
+    
     // Handle the case where the path is empty
-    if (resolvedPath[0] == '\0') {
-        strcpy(resolvedPath, "/");
+    if (dest == resolvedPath) {
+        *dest++ = '/';
     }
+    *dest = '\0';
 
     return resolvedPath;
 }
