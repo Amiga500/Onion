@@ -38,7 +38,7 @@ EOF
             sync
         fi
         
-        # Create Guest profile directory
+        # Create Guest profile directory if it doesn't exist
         if [ ! -d "$PROFILES_DIR/Guest" ]; then
             profile_create_internal "Guest" "normal" ""
         fi
@@ -47,8 +47,11 @@ EOF
         echo "Guest" > "$ACTIVE_PROFILE_FILE"
         sync
         
-        # Migrate existing CurrentProfile data to Guest if it exists
+        # Migrate existing CurrentProfile data to Guest if it exists and is not a symlink
         if [ -d "$CURRENT_PROFILE_LINK" ] && [ ! -L "$CURRENT_PROFILE_LINK" ]; then
+            # Remove the empty Guest/CurrentProfile we just created
+            rm -rf "$PROFILES_DIR/Guest/CurrentProfile"
+            # Move the existing CurrentProfile to Guest
             mv "$CURRENT_PROFILE_LINK" "$PROFILES_DIR/Guest/CurrentProfile"
         fi
     fi
