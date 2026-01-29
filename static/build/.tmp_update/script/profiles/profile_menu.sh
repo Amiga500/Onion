@@ -5,27 +5,61 @@
 
 SYSDIR="/mnt/SDCARD/.tmp_update"
 
+# Enable debug logging
+DEBUG_LOG="$SYSDIR/logs/profile_menu_debug.log"
+mkdir -p "$SYSDIR/logs" 2>/dev/null
+
+# Debug logging function
+debug_log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S'): $*" >> "$DEBUG_LOG"
+}
+
+debug_log "=== ProfileManager Starting ==="
+debug_log "SYSDIR: $SYSDIR"
+debug_log "PWD: $(pwd)"
+
 # Function to show error and exit
 show_error_and_exit() {
     local title="$1"
     local message="$2"
     
-    # Try to show error with infoPanel if available
-    if command -v infoPanel >/dev/null 2>&1; then
+    debug_log "ERROR: $title - $message"
+    
+    # Try multiple ways to show the error
+    # Method 1: Try with full path
+    if [ -x "$SYSDIR/bin/infoPanel" ]; then
+        debug_log "Showing error with infoPanel (full path)"
+        "$SYSDIR/bin/infoPanel" --title "$title" --message "$message" --auto
+    # Method 2: Try from PATH
+    elif command -v infoPanel >/dev/null 2>&1; then
+        debug_log "Showing error with infoPanel (from PATH)"
         infoPanel --title "$title" --message "$message" --auto
+    # Method 3: Try running from bin directory
+    elif [ -f "$SYSDIR/bin/infoPanel" ]; then
+        debug_log "infoPanel exists but not executable, trying to run anyway"
+        "$SYSDIR/bin/infoPanel" --title "$title" --message "$message" --auto 2>/dev/null || true
+    else
+        debug_log "infoPanel not found at all"
     fi
     
     # Also log to stderr
-    echo "ERROR: $message" >&2
+    echo "ERROR: $title - $message" >&2
+    
+    debug_log "Exiting with error code 1"
     
     # Exit with error
     exit 1
 }
 
 # Check if required scripts exist
+debug_log "Checking for profile_manager.sh"
 if [ ! -f "$SYSDIR/script/profiles/profile_manager.sh" ]; then
+    debug_log "ERROR: profile_manager.sh not found"
     show_error_and_exit "Profile System Error" "Profile system scripts not found.\n\nPlease reinstall Onion OS."
 fi
+debug_log "profile_manager.sh found"
+
+debug_log "profile_manager.sh found"
 
 # Define a simple log function in case log.sh is not available
 log() { 
@@ -35,29 +69,52 @@ log() {
 }
 
 # Try to source log.sh if available
+debug_log "Checking for log.sh"
 if [ -f "$SYSDIR/script/log.sh" ]; then
     . "$SYSDIR/script/log.sh" 2>/dev/null || true
+    debug_log "log.sh sourced"
+else
+    debug_log "log.sh not found"
 fi
 
 # Source profile manager
+debug_log "Sourcing profile_manager.sh"
 if ! . "$SYSDIR/script/profiles/profile_manager.sh" 2>/dev/null; then
+    debug_log "ERROR: Failed to source profile_manager.sh"
     show_error_and_exit "Profile System Error" "Failed to load profile manager.\n\nCheck SD card integrity."
 fi
+debug_log "profile_manager.sh sourced successfully"
 
 # Initialize profiles on first run (with error handling)
+debug_log "Calling profile_init"
 if ! profile_init 2>/dev/null; then
+    debug_log "ERROR: profile_init failed"
     show_error_and_exit "Profile Init Error" "Failed to initialize profiles.\n\nCheck:\n- SD card is writable\n- Enough free space\n- File permissions"
 fi
+debug_log "profile_init completed successfully"
 
 # Verify shellect.sh is available for menu display
+debug_log "Checking for shellect.sh"
 if [ ! -f "$SYSDIR/script/shellect.sh" ]; then
+    debug_log "ERROR: shellect.sh not found"
     show_error_and_exit "Menu Error" "Menu system (shellect.sh) not found.\n\nPlease reinstall Onion OS."
 fi
+debug_log "shellect.sh found"
 
 # Make sure shellect.sh is executable
 if [ ! -x "$SYSDIR/script/shellect.sh" ]; then
+    debug_log "shellect.sh not executable, attempting chmod"
     chmod +x "$SYSDIR/script/shellect.sh" 2>/dev/null || true
+    if [ -x "$SYSDIR/script/shellect.sh" ]; then
+        debug_log "shellect.sh is now executable"
+    else
+        debug_log "WARNING: shellect.sh still not executable after chmod"
+    fi
+else
+    debug_log "shellect.sh is executable"
 fi
+
+debug_log "Initialization complete, showing menu"
 
 show_profile_menu() {
     local current_profile=$(profile_get_active)
