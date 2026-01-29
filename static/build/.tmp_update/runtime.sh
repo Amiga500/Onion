@@ -69,10 +69,11 @@ main() {
     cd $sysdir
     bootScreen "Boot"
 
-    # Initialize profile system (safe with error handling)
-    if [ -f "$sysdir/script/profiles/profile_boot.sh" ]; then
-        . "$sysdir/script/profiles/profile_boot.sh" 2>/dev/null || log "Profile system: Boot integration failed, continuing anyway"
-    fi
+    # Initialize profile system (DISABLED - causing boot hang)
+    # Uncomment when issue is resolved
+    # if [ -f "$sysdir/script/profiles/profile_boot.sh" ]; then
+    #     . "$sysdir/script/profiles/profile_boot.sh" 2>/dev/null || log "Profile system: Boot integration failed, continuing anyway"
+    # fi
 
     # Set filebrowser branding to "Onion" and apply custom theme
     if [ -f "$sysdir/config/filebrowser/first.run" ]; then
