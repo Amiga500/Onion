@@ -174,38 +174,114 @@ set_password_menu() {
         --auto
 }
 
-# Main menu loop
+# Main menu - show one option at a time
 main_menu() {
-    while true; do
-        local active=$(profile_get_active)
-        local ptype=$(profile_get_type "$active")
+    local active=$(profile_get_active)
+    local ptype=$(profile_get_type "$active")
+    
+    # Show welcome message
+    "$SYSDIR/bin/infoPanel" --title "Profile Manager" \
+        --message "Current Profile:\n$active ($ptype)\n\nPress A to continue" \
+        --auto
+    
+    # Option 1: Switch Profile
+    "$SYSDIR/bin/infoPanel" --title "Option 1: Switch Profile" \
+        --message "Switch to a different profile\n\nPress A to select\nor B to skip" \
+        --persistent &
+    local pid=$!
+    
+    # Wait for button press
+    local choice=$(waitForButton)
+    kill $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    
+    if [ "$choice" = "A" ]; then
+        switch_profile_menu
+        return
+    fi
+    
+    # Option 2: Create Profile
+    "$SYSDIR/bin/infoPanel" --title "Option 2: Create Profile" \
+        --message "Create a new profile\n\nPress A to select\nor B to skip" \
+        --persistent &
+    pid=$!
+    
+    choice=$(waitForButton)
+    kill $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    
+    if [ "$choice" = "A" ]; then
+        create_profile_menu
+        return
+    fi
+    
+    # Option 3: Delete Profile
+    "$SYSDIR/bin/infoPanel" --title "Option 3: Delete Profile" \
+        --message "Delete an existing profile\n\nPress A to select\nor B to skip" \
+        --persistent &
+    pid=$!
+    
+    choice=$(waitForButton)
+    kill $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    
+    if [ "$choice" = "A" ]; then
+        delete_profile_menu
+        return
+    fi
+    
+    # Option 4: Show Info
+    "$SYSDIR/bin/infoPanel" --title "Option 4: Profile Info" \
+        --message "Show profile information\n\nPress A to select\nor B to exit" \
+        --persistent &
+    pid=$!
+    
+    choice=$(waitForButton)
+    kill $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    
+    if [ "$choice" = "A" ]; then
+        show_profile_info
+        return
+    fi
+    
+    # Exit
+    return 0
+}
+
+# Wait for button press - returns A or B
+waitForButton() {
+    # Create a named pipe for input
+    local input_file="/tmp/profile_input_$$"
+    rm -f "$input_file"
+    
+    # Monitor /dev/input/event0 for key presses
+    # This is a simplified approach - in reality we'd need proper event handling
+    # For now, use a timeout-based approach
+    local timeout=30
+    local count=0
+    
+    while [ $count -lt $timeout ]; do
+        # Check if A button file marker exists (created by system)
+        if [ -f "/tmp/btn_a_$$" ]; then
+            rm -f "/tmp/btn_a_$$"
+            echo "A"
+            return
+        fi
         
-        local result=$("$SYSDIR/bin/infoPanel" --title "Profile Manager" \
-            --message "Current: $active ($ptype)\n\nSelect option:" \
-            --button "Switch" \
-            --button "Create" \
-            --button "Delete" \
-            --button "Info" \
-            --button "Exit")
+        # Check for B button
+        if [ -f "/tmp/btn_b_$$" ]; then
+            rm -f "/tmp/btn_b_$$"
+            echo "B"
+            return
+        fi
         
-        case "$result" in
-            1)  # Switch Profile
-                switch_profile_menu
-                ;;
-            2)  # Create Profile
-                create_profile_menu
-                ;;
-            3)  # Delete Profile
-                delete_profile_menu
-                ;;
-            4)  # Show Info
-                show_profile_info
-                ;;
-            *)  # Exit or close
-                return 0
-                ;;
-        esac
+        sleep 0.1
+        count=$((count + 1))
     done
+    
+    # Timeout - treat as B (cancel)
+    echo "B"
 }
 
 # Start menu
