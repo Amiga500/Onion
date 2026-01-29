@@ -1,33 +1,51 @@
 # User Profiles Feature
 
-## ⚠️ Current Status: Boot Integration Disabled - Manual Use Only
+## ⚠️ Important: CLI-Only Feature (Terminal/SSH Required)
 
-**The profile system does NOT run during boot.** Boot integration was disabled to fix boot hangs.
+**Profile management requires terminal access via SSH or serial console.** The ProfileManager app shows instructions, but actual profile operations must be done via command line.
 
-**Current State:**
-- ✅ Device boots normally (no profile system at boot)
-- ✅ ProfileManager app works after boot
-- ✅ Manual profile management fully functional
-- ❌ Automatic profile loading at boot disabled
-- ❌ Profile persistence across reboots disabled
+### Why CLI-Only?
 
-**Important:** The profile system has NO impact on boot time. If your device takes a long time on the Miyoo logo, it's unrelated to the profile system.
+Interactive menus (shellect) require a real terminal device (TTY) which MainUI apps don't have. Attempting to use shellect from apps results in: `stty: standard input: Inappropriate ioctl for device`
+
+### Quick Start via SSH
+
+```bash
+# Connect to device via SSH
+ssh root@<your-miyoo-ip>
+
+# List all profiles
+/mnt/SDCARD/.tmp_update/script/profiles/profile_cli.sh list
+
+# Create a new profile
+/mnt/SDCARD/.tmp_update/script/profiles/profile_cli.sh create "Player1" normal
+
+# Switch profiles
+/mnt/SDCARD/.tmp_update/script/profiles/profile_cli.sh switch "Player1"
+
+# Get help
+/mnt/SDCARD/.tmp_update/script/profiles/profile_cli.sh help
+```
+
+## Current Status
+
+**Boot Integration:** Disabled (prevents boot hangs)
+**Usage:** Manual via CLI only
+**Boot Impact:** None (profile system doesn't run at boot)
 
 ## Troubleshooting
 
 ### Permission Denied Error
 
-If you get "Permission denied" (Permesso negato) when running profile scripts:
+If you get "Permission denied" (Permesso negato):
 
 ```bash
-# Fix permissions manually:
 chmod +x /mnt/SDCARD/.tmp_update/script/profiles/*.sh
-
-# Then try again:
-/mnt/SDCARD/.tmp_update/script/profiles/profile_cli.sh list
 ```
 
-Or use the ProfileManager app from the Apps menu instead of CLI.
+### ProfileManager App
+
+The ProfileManager app in Apps menu shows CLI usage instructions. It cannot provide interactive menus due to TTY limitations.
 
 ---
 
