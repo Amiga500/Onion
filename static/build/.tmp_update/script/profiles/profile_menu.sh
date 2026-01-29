@@ -148,7 +148,7 @@ show_profile_menu() {
     
     # Show current profile info
     options="Current Profile: $current_profile ($profile_type)\n"
-    options="${options}────────────────────────────────\n"
+    options="${options}--------------------------------\n"
     
     # For limited profiles, only allow exit to profile selector
     if [ "$profile_type" = "limited" ]; then
@@ -184,11 +184,23 @@ show_profile_menu() {
         debug_log "Menu options string length: ${#options}"
         debug_log "Menu options (first 100 chars): ${options:0:100}"
         
+        # Debug: write full options to file for inspection
+        printf '%s' "$options" > "$SYSDIR/logs/menu_options_raw.txt" 2>/dev/null || true
+        echo -e "$options" > "$SYSDIR/logs/menu_options_expanded.txt" 2>/dev/null || true
+        debug_log "Written menu options to logs for inspection"
+        
         # Use shellect to show menu (pipe with echo -e to convert \n to actual newlines)
         debug_log "Calling shellect for normal profile menu"
         choice=$(echo -e "$options" | $SYSDIR/script/shellect.sh -t "Profile Management")
+        shellect_exit=$?
         debug_log "User selected option: $choice"
-        debug_log "Exit code from shellect: $?"
+        debug_log "Exit code from shellect: $shellect_exit"
+        
+        # Check if choice is empty (user cancelled or error)
+        if [ -z "$choice" ]; then
+            debug_log "Empty choice returned from shellect (user cancelled or error)"
+            return
+        fi
         
         case $choice in
             1)
@@ -204,9 +216,11 @@ show_profile_menu() {
                 delete_profile_menu
                 ;;
             4)
+                debug_log "Calling set_password_menu"
                 set_password_menu
                 ;;
             *)
+                debug_log "Unknown choice: $choice, returning"
                 return
                 ;;
         esac
