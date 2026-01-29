@@ -156,9 +156,9 @@ show_profile_menu() {
         options="${options}1. Exit to Profile Selector\n"
         options="${options}2. Back to Main Menu"
         
-        # Use shellect to show menu
+        # Use shellect to show menu (pipe with echo -e to convert \n to actual newlines)
         debug_log "Calling shellect for limited profile menu"
-        choice=$($SYSDIR/script/shellect.sh -t "Profile Management" -c "$options")
+        choice=$(echo -e "$options" | $SYSDIR/script/shellect.sh -t "Profile Management")
         debug_log "User selected option: $choice"
         
         case $choice in
@@ -180,10 +180,15 @@ show_profile_menu() {
         options="${options}4. Set Profile Password\n"
         options="${options}5. Back to Main Menu"
         
-        # Use shellect to show menu
+        # Debug: show the options being passed
+        debug_log "Menu options string length: ${#options}"
+        debug_log "Menu options (first 100 chars): ${options:0:100}"
+        
+        # Use shellect to show menu (pipe with echo -e to convert \n to actual newlines)
         debug_log "Calling shellect for normal profile menu"
-        choice=$($SYSDIR/script/shellect.sh -t "Profile Management" -c "$options")
+        choice=$(echo -e "$options" | $SYSDIR/script/shellect.sh -t "Profile Management")
         debug_log "User selected option: $choice"
+        debug_log "Exit code from shellect: $?"
         
         case $choice in
             1)
@@ -240,9 +245,9 @@ switch_profile_menu() {
     
     debug_log "Built profile menu with $((i-1)) profiles"
     
-    # Show menu
+    # Show menu (pipe with echo -e to convert \n to actual newlines)
     debug_log "Calling shellect for profile selection"
-    choice=$($SYSDIR/script/shellect.sh -t "Switch Profile" -c "$options")
+    choice=$(echo -e "$options" | $SYSDIR/script/shellect.sh -t "Switch Profile")
     debug_log "User selected profile option: $choice"
     
     if [ -z "$choice" ] || [ "$choice" -eq "$i" ]; then
@@ -315,9 +320,9 @@ create_profile_menu() {
         return
     fi
     
-    # Prompt for profile type
+    # Prompt for profile type (pipe with echo -e to convert \n to actual newlines)
     type_options="1. Normal (Full Access)\n2. Limited (Consoles Only)"
-    type_choice=$($SYSDIR/script/shellect.sh -t "Select Profile Type" -c "$type_options")
+    type_choice=$(echo -e "$type_options" | $SYSDIR/script/shellect.sh -t "Select Profile Type")
     
     if [ -z "$type_choice" ]; then
         return
@@ -339,7 +344,7 @@ create_profile_menu() {
         fi
     else
         pwd_options="1. Set Password\n2. No Password"
-        pwd_choice=$($SYSDIR/script/shellect.sh -t "Set Password?" -c "$pwd_options")
+        pwd_choice=$(echo -e "$pwd_options" | $SYSDIR/script/shellect.sh -t "Set Password?")
         
         if [ "$pwd_choice" -eq 1 ]; then
             password=$(prompt_password "Enter password:")
@@ -387,8 +392,8 @@ delete_profile_menu() {
     done
     options="${options}${i}. Cancel"
     
-    # Show menu
-    choice=$($SYSDIR/script/shellect.sh -t "Delete Profile" -c "$options")
+    # Show menu (pipe with echo -e to convert \n to actual newlines)
+    choice=$(echo -e "$options" | $SYSDIR/script/shellect.sh -t "Delete Profile")
     
     if [ -z "$choice" ] || [ "$choice" -eq "$i" ]; then
         return
@@ -402,9 +407,9 @@ delete_profile_menu() {
         return
     fi
     
-    # Confirm deletion
+    # Confirm deletion (pipe with echo -e to convert \n to actual newlines)
     confirm_options="1. Yes, Delete\n2. Cancel"
-    confirm=$($SYSDIR/script/shellect.sh -t "Confirm Deletion" -c "Delete profile '$selected_profile'?\nThis cannot be undone!\n\n$confirm_options")
+    confirm=$(echo -e "Delete profile '$selected_profile'?\nThis cannot be undone!\n\n$confirm_options" | $SYSDIR/script/shellect.sh -t "Confirm Deletion")
     
     if [ "$confirm" -ne 1 ]; then
         return
