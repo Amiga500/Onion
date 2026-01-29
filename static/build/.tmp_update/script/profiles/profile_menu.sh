@@ -5,10 +5,26 @@
 
 SYSDIR="/mnt/SDCARD/.tmp_update"
 
+# Function to show error and exit
+show_error_and_exit() {
+    local title="$1"
+    local message="$2"
+    
+    # Try to show error with infoPanel if available
+    if command -v infoPanel >/dev/null 2>&1; then
+        infoPanel --title "$title" --message "$message" --auto
+    fi
+    
+    # Also log to stderr
+    echo "ERROR: $message" >&2
+    
+    # Exit with error
+    exit 1
+}
+
 # Check if required scripts exist
 if [ ! -f "$SYSDIR/script/profiles/profile_manager.sh" ]; then
-    echo "ERROR: Profile system not found" >&2
-    exit 1
+    show_error_and_exit "Profile System Error" "Profile system scripts not found.\n\nPlease reinstall Onion OS."
 fi
 
 # Define a simple log function in case log.sh is not available
@@ -24,15 +40,23 @@ if [ -f "$SYSDIR/script/log.sh" ]; then
 fi
 
 # Source profile manager
-. "$SYSDIR/script/profiles/profile_manager.sh" || {
-    echo "ERROR: Failed to load profile manager" >&2
-    exit 1
-}
+if ! . "$SYSDIR/script/profiles/profile_manager.sh" 2>/dev/null; then
+    show_error_and_exit "Profile System Error" "Failed to load profile manager.\n\nCheck SD card integrity."
+fi
 
 # Initialize profiles on first run (with error handling)
-if ! profile_init; then
-    echo "ERROR: Failed to initialize profile system. Check SD card and permissions." >&2
-    exit 1
+if ! profile_init 2>/dev/null; then
+    show_error_and_exit "Profile Init Error" "Failed to initialize profiles.\n\nCheck:\n- SD card is writable\n- Enough free space\n- File permissions"
+fi
+
+# Verify shellect.sh is available for menu display
+if [ ! -f "$SYSDIR/script/shellect.sh" ]; then
+    show_error_and_exit "Menu Error" "Menu system (shellect.sh) not found.\n\nPlease reinstall Onion OS."
+fi
+
+# Make sure shellect.sh is executable
+if [ ! -x "$SYSDIR/script/shellect.sh" ]; then
+    chmod +x "$SYSDIR/script/shellect.sh" 2>/dev/null || true
 fi
 
 show_profile_menu() {
