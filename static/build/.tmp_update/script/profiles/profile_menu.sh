@@ -30,10 +30,10 @@ fi
 }
 
 # Initialize profiles on first run (with error handling)
-profile_init 2>/dev/null || {
-    echo "ERROR: Failed to initialize profile system" >&2
+if ! profile_init; then
+    echo "ERROR: Failed to initialize profile system. Check SD card and permissions." >&2
     exit 1
-}
+fi
 
 show_profile_menu() {
     local current_profile=$(profile_get_active)

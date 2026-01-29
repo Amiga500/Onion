@@ -16,7 +16,7 @@ SYSDIR="${SYSDIR:-/mnt/SDCARD/.tmp_update}"
 profile_init() {
     # Create profiles directory if it doesn't exist
     if [ ! -d "$PROFILES_DIR" ]; then
-        mkdir -p "$PROFILES_DIR"
+        mkdir -p "$PROFILES_DIR" || return 1
     fi
     
     # Create profiles config if it doesn't exist
@@ -27,37 +27,39 @@ profile_init() {
 # profile_type: normal or limited
 # password_hash: MD5 hash for limited profile exit (empty if not set)
 EOF
-        sync
+        sync || return 1
     fi
     
     # If no active profile, initialize with Guest
     if [ ! -f "$ACTIVE_PROFILE_FILE" ]; then
         # Check if Guest profile exists in config
-        if ! grep -q "^Guest|" "$PROFILES_CONFIG"; then
-            echo "Guest|normal|" >> "$PROFILES_CONFIG"
-            sync
+        if ! grep -q "^Guest|" "$PROFILES_CONFIG" 2>/dev/null; then
+            echo "Guest|normal|" >> "$PROFILES_CONFIG" || return 1
+            sync || return 1
         fi
         
         # Create Guest profile directory if it doesn't exist
         if [ ! -d "$PROFILES_DIR/Guest" ]; then
-            profile_create_internal "Guest" "normal" ""
+            profile_create_internal "Guest" "normal" "" || return 1
         fi
         
         # Set Guest as active
-        echo "Guest" > "$ACTIVE_PROFILE_FILE"
-        sync
+        echo "Guest" > "$ACTIVE_PROFILE_FILE" || return 1
+        sync || return 1
         
         # Migrate existing CurrentProfile data to Guest if it exists and is not a symlink
         if [ -d "$CURRENT_PROFILE_LINK" ] && [ ! -L "$CURRENT_PROFILE_LINK" ]; then
             # Remove the empty Guest/CurrentProfile we just created
             rm -rf "$PROFILES_DIR/Guest/CurrentProfile"
             # Move the existing CurrentProfile to Guest
-            mv "$CURRENT_PROFILE_LINK" "$PROFILES_DIR/Guest/CurrentProfile"
+            mv "$CURRENT_PROFILE_LINK" "$PROFILES_DIR/Guest/CurrentProfile" || return 1
         fi
     fi
     
     # Ensure CurrentProfile symlink points to active profile
-    profile_activate_current
+    profile_activate_current || return 1
+    
+    return 0
 }
 
 # Get the currently active profile name
