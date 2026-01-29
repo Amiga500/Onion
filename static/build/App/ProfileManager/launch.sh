@@ -1,20 +1,14 @@
 #!/bin/sh
 
-# ProfileManager needs terminal access for shellect to work
-# Ensure we have stdin/stdout/stderr connected properly
+SYSDIR="/mnt/SDCARD/.tmp_update"
 
-# Method 1: Try with /dev/tty if available
-if [ -c "/dev/tty" ]; then
-    /mnt/SDCARD/.tmp_update/script/profiles/profile_menu.sh menu </dev/tty >/dev/tty 2>&1
-    exit $?
-fi
+# ProfileManager cannot use shellect from MainUI app context (no TTY available)
+# Show informational message and provide CLI instructions instead
 
-# Method 2: Try with /dev/console
-if [ -c "/dev/console" ]; then
-    /mnt/SDCARD/.tmp_update/script/profiles/profile_menu.sh menu </dev/console >/dev/console 2>&1
-    exit $?
-fi
+"$SYSDIR/bin/infoPanel" \
+    --title "Profile Manager" \
+    --message "Profile management requires terminal access.\n\nTo manage profiles, use the command line:\n\n1. Connect via SSH/serial\n2. Run: /mnt/SDCARD/.tmp_update/script/profiles/profile_cli.sh\n\nAvailable commands:\n- list: Show all profiles\n- switch <name>: Switch profile\n- create <name> <type>: Create profile\n- delete <name>: Delete profile\n- info <name>: Show profile info\n\nOr use: profile_cli.sh help\n\nPress A to close." \
+    --ok-btn "Close"
 
-# Method 3: Fallback - run directly
-/mnt/SDCARD/.tmp_update/script/profiles/profile_menu.sh menu
+exit 0
 
