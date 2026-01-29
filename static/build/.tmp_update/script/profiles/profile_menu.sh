@@ -120,8 +120,24 @@ debug_log "Initialization complete, showing menu"
 
 show_profile_menu() {
     debug_log "=== show_profile_menu() called ==="
-    local current_profile=$(profile_get_active)
-    local profile_type=$(profile_get_type "$current_profile")
+    
+    debug_log "Calling profile_get_active"
+    local current_profile
+    if current_profile=$(profile_get_active); then
+        debug_log "profile_get_active returned: $current_profile"
+    else
+        debug_log "ERROR: profile_get_active failed with code: $?"
+        show_error_and_exit "Profile Error" "Could not get active profile.\n\nCheck profile system."
+    fi
+    
+    debug_log "Calling profile_get_type for: $current_profile"
+    local profile_type
+    if profile_type=$(profile_get_type "$current_profile"); then
+        debug_log "profile_get_type returned: $profile_type"
+    else
+        debug_log "ERROR: profile_get_type failed with code: $?"
+        show_error_and_exit "Profile Error" "Could not get profile type.\n\nCheck profile system."
+    fi
     
     debug_log "Current profile: $current_profile ($profile_type)"
     
@@ -490,18 +506,30 @@ prompt_password() {
 }
 
 # Main entry point
+debug_log "=== Main entry point reached ==="
+debug_log "Script argument: $1"
+
 if [ "$1" = "menu" ]; then
+    debug_log "Calling show_profile_menu (from menu argument)"
     show_profile_menu
 elif [ "$1" = "switch" ]; then
+    debug_log "Calling switch_profile_menu (from switch argument)"
     switch_profile_menu
 elif [ "$1" = "create" ]; then
+    debug_log "Calling create_profile_menu (from create argument)"
     create_profile_menu
 elif [ "$1" = "delete" ]; then
+    debug_log "Calling delete_profile_menu (from delete argument)"
     delete_profile_menu
 elif [ "$1" = "set_password" ]; then
+    debug_log "Calling set_password_menu (from set_password argument)"
     set_password_menu
 elif [ "$1" = "exit_limited" ]; then
+    debug_log "Calling exit_limited_profile (from exit_limited argument)"
     exit_limited_profile
 else
+    debug_log "Calling show_profile_menu (default, no argument or unrecognized)"
     show_profile_menu
 fi
+
+debug_log "=== Script completed ==="
