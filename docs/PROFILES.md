@@ -1,5 +1,20 @@
 # User Profiles Feature
 
+## ⚠️ Current Status: Boot Integration Temporarily Disabled
+
+The profile boot integration has been temporarily disabled due to a boot hang issue. The device was getting stuck on the Onion OS logo during startup. 
+
+**Current State:**
+- ✅ Device boots successfully
+- ✅ ProfileManager app works after boot
+- ✅ Manual profile management fully functional
+- ❌ Automatic profile loading at boot disabled
+- ❌ Profile persistence across reboots disabled
+
+**Workaround:** Use ProfileManager app after boot to manage profiles manually.
+
+---
+
 ## Overview
 
 The User Profiles feature allows multiple users to have separate configurations, save data, and settings on the same Onion OS device. This is ideal for families or when you want to keep different gaming sessions separate.
