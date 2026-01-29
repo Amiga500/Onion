@@ -156,9 +156,10 @@ show_profile_menu() {
         options="${options}1. Exit to Profile Selector\n"
         options="${options}2. Back to Main Menu"
         
-        # Use shellect to show menu (pipe with echo -e to convert \n to actual newlines)
+        # Use shellect to show menu (use printf %b then -c option)
         debug_log "Calling shellect for limited profile menu"
-        choice=$(echo -e "$options" | $SYSDIR/script/shellect.sh -t "Profile Management")
+        expanded_options=$(printf '%b' "$options")
+        choice=$($SYSDIR/script/shellect.sh -t "Profile Management" -c "$expanded_options")
         debug_log "User selected option: $choice"
         
         case $choice in
@@ -186,12 +187,13 @@ show_profile_menu() {
         
         # Debug: write full options to file for inspection
         printf '%s' "$options" > "$SYSDIR/logs/menu_options_raw.txt" 2>/dev/null || true
-        echo -e "$options" > "$SYSDIR/logs/menu_options_expanded.txt" 2>/dev/null || true
+        printf '%b' "$options" > "$SYSDIR/logs/menu_options_expanded.txt" 2>/dev/null || true
         debug_log "Written menu options to logs for inspection"
         
-        # Use shellect to show menu (pipe with echo -e to convert \n to actual newlines)
+        # Use shellect to show menu (use printf %b to expand \n, then pass via -c option)
         debug_log "Calling shellect for normal profile menu"
-        choice=$(echo -e "$options" | $SYSDIR/script/shellect.sh -t "Profile Management")
+        expanded_options=$(printf '%b' "$options")
+        choice=$($SYSDIR/script/shellect.sh -t "Profile Management" -c "$expanded_options")
         shellect_exit=$?
         debug_log "User selected option: $choice"
         debug_log "Exit code from shellect: $shellect_exit"
@@ -259,9 +261,10 @@ switch_profile_menu() {
     
     debug_log "Built profile menu with $((i-1)) profiles"
     
-    # Show menu (pipe with echo -e to convert \n to actual newlines)
+    # Show menu (use printf %b then -c option)
     debug_log "Calling shellect for profile selection"
-    choice=$(echo -e "$options" | $SYSDIR/script/shellect.sh -t "Switch Profile")
+    expanded_options=$(printf '%b' "$options")
+    choice=$($SYSDIR/script/shellect.sh -t "Switch Profile" -c "$expanded_options")
     debug_log "User selected profile option: $choice"
     
     if [ -z "$choice" ] || [ "$choice" -eq "$i" ]; then
@@ -334,9 +337,10 @@ create_profile_menu() {
         return
     fi
     
-    # Prompt for profile type (pipe with echo -e to convert \n to actual newlines)
+    # Prompt for profile type (use printf %b then -c option)
     type_options="1. Normal (Full Access)\n2. Limited (Consoles Only)"
-    type_choice=$(echo -e "$type_options" | $SYSDIR/script/shellect.sh -t "Select Profile Type")
+    expanded_type_options=$(printf '%b' "$type_options")
+    type_choice=$($SYSDIR/script/shellect.sh -t "Select Profile Type" -c "$expanded_type_options")
     
     if [ -z "$type_choice" ]; then
         return
@@ -358,7 +362,8 @@ create_profile_menu() {
         fi
     else
         pwd_options="1. Set Password\n2. No Password"
-        pwd_choice=$(echo -e "$pwd_options" | $SYSDIR/script/shellect.sh -t "Set Password?")
+        expanded_pwd_options=$(printf '%b' "$pwd_options")
+        pwd_choice=$($SYSDIR/script/shellect.sh -t "Set Password?" -c "$expanded_pwd_options")
         
         if [ "$pwd_choice" -eq 1 ]; then
             password=$(prompt_password "Enter password:")
@@ -406,8 +411,9 @@ delete_profile_menu() {
     done
     options="${options}${i}. Cancel"
     
-    # Show menu (pipe with echo -e to convert \n to actual newlines)
-    choice=$(echo -e "$options" | $SYSDIR/script/shellect.sh -t "Delete Profile")
+    # Show menu (use printf %b then -c option)
+    expanded_options=$(printf '%b' "$options")
+    choice=$($SYSDIR/script/shellect.sh -t "Delete Profile" -c "$expanded_options")
     
     if [ -z "$choice" ] || [ "$choice" -eq "$i" ]; then
         return
@@ -421,9 +427,11 @@ delete_profile_menu() {
         return
     fi
     
-    # Confirm deletion (pipe with echo -e to convert \n to actual newlines)
+    # Confirm deletion (use printf %b then -c option)
     confirm_options="1. Yes, Delete\n2. Cancel"
-    confirm=$(echo -e "Delete profile '$selected_profile'?\nThis cannot be undone!\n\n$confirm_options" | $SYSDIR/script/shellect.sh -t "Confirm Deletion")
+    confirm_message="Delete profile '$selected_profile'?\nThis cannot be undone!\n\n$confirm_options"
+    expanded_confirm=$(printf '%b' "$confirm_message")
+    confirm=$($SYSDIR/script/shellect.sh -t "Confirm Deletion" -c "$expanded_confirm")
     
     if [ "$confirm" -ne 1 ]; then
         return
