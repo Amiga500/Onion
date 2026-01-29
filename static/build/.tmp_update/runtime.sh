@@ -69,6 +69,11 @@ main() {
     cd $sysdir
     bootScreen "Boot"
 
+    # Initialize profile system
+    if [ -f "$sysdir/script/profiles/profile_boot.sh" ]; then
+        . "$sysdir/script/profiles/profile_boot.sh"
+    fi
+
     # Set filebrowser branding to "Onion" and apply custom theme
     if [ -f "$sysdir/config/filebrowser/first.run" ]; then
         $sysdir/bin/filebrowser config set --branding.name "Onion" -d $sysdir/config/filebrowser/filebrowser.db
