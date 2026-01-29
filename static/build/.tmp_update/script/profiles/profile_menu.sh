@@ -119,8 +119,11 @@ fi
 debug_log "Initialization complete, showing menu"
 
 show_profile_menu() {
+    debug_log "=== show_profile_menu() called ==="
     local current_profile=$(profile_get_active)
     local profile_type=$(profile_get_type "$current_profile")
+    
+    debug_log "Current profile: $current_profile ($profile_type)"
     
     # Build menu options
     local options=""
@@ -131,22 +134,28 @@ show_profile_menu() {
     
     # For limited profiles, only allow exit to profile selector
     if [ "$profile_type" = "limited" ]; then
+        debug_log "Building limited profile menu"
         options="${options}1. Exit to Profile Selector\n"
         options="${options}2. Back to Main Menu"
         
         # Use shellect to show menu
+        debug_log "Calling shellect for limited profile menu"
         choice=$($SYSDIR/script/shellect.sh -t "Profile Management" -m "$options")
+        debug_log "User selected option: $choice"
         
         case $choice in
             1)
+                debug_log "Calling exit_limited_profile"
                 exit_limited_profile
                 ;;
             *)
+                debug_log "Returning to main menu"
                 return
                 ;;
         esac
     else
         # Normal profile menu
+        debug_log "Building normal profile menu"
         options="${options}1. Switch Profile\n"
         options="${options}2. Create New Profile\n"
         options="${options}3. Delete Profile\n"
@@ -154,16 +163,21 @@ show_profile_menu() {
         options="${options}5. Back to Main Menu"
         
         # Use shellect to show menu
+        debug_log "Calling shellect for normal profile menu"
         choice=$($SYSDIR/script/shellect.sh -t "Profile Management" -m "$options")
+        debug_log "User selected option: $choice"
         
         case $choice in
             1)
+                debug_log "Calling switch_profile_menu"
                 switch_profile_menu
                 ;;
             2)
+                debug_log "Calling create_profile_menu"
                 create_profile_menu
                 ;;
             3)
+                debug_log "Calling delete_profile_menu"
                 delete_profile_menu
                 ;;
             4)
@@ -177,11 +191,18 @@ show_profile_menu() {
 }
 
 switch_profile_menu() {
+    debug_log "=== switch_profile_menu() called ==="
+    
     # Get list of profiles
+    debug_log "Getting profile list"
     local profiles=$(profile_list)
     local current_profile=$(profile_get_active)
     
+    debug_log "Profiles: $profiles"
+    debug_log "Current: $current_profile"
+    
     if [ -z "$profiles" ]; then
+        debug_log "No profiles found, showing error"
         infoPanel --title "No Profiles" --message "No profiles available." --auto
         return
     fi
@@ -199,49 +220,72 @@ switch_profile_menu() {
     done
     options="${options}${i}. Cancel"
     
+    debug_log "Built profile menu with $((i-1)) profiles"
+    
     # Show menu
+    debug_log "Calling shellect for profile selection"
     choice=$($SYSDIR/script/shellect.sh -t "Switch Profile" -m "$options")
+    debug_log "User selected profile option: $choice"
     
     if [ -z "$choice" ] || [ "$choice" -eq "$i" ]; then
+        debug_log "User cancelled or selected cancel"
         return
     fi
     
     # Get selected profile
     selected_profile=$(echo "$profiles" | sed -n "${choice}p")
+    debug_log "Selected profile: $selected_profile"
     
     if [ -z "$selected_profile" ]; then
+        debug_log "ERROR: Could not determine selected profile"
         return
     fi
     
     # Check if profile has password
     if profile_has_password "$selected_profile"; then
+        debug_log "Profile has password, prompting user"
         # Prompt for password
         password=$(prompt_password "Enter password for $selected_profile:")
         
         if [ -z "$password" ]; then
+            debug_log "User cancelled password prompt"
             infoPanel --title "Cancelled" --message "Profile switch cancelled." --auto
             return
         fi
         
         if ! profile_verify_password "$selected_profile" "$password"; then
+            debug_log "Password verification failed"
             infoPanel --title "Error" --message "Incorrect password." --auto
             return
         fi
+        debug_log "Password verified successfully"
     fi
     
     # Switch profile
+    debug_log "Showing switching message"
     infoPanel --title "Switching Profile" --message "Switching to $selected_profile..." --persistent &
     sleep 1
     
-    profile_switch "$selected_profile"
+    debug_log "Calling profile_switch for: $selected_profile"
+    if profile_switch "$selected_profile"; then
+        debug_log "profile_switch completed successfully"
+    else
+        debug_log "ERROR: profile_switch failed with code: $?"
+        killall infoPanel 2>/dev/null
+        infoPanel --title "Error" --message "Failed to switch profile." --auto
+        return
+    fi
     
     killall infoPanel 2>/dev/null
     
+    debug_log "Showing success message"
     infoPanel --title "Success" --message "Switched to profile: $selected_profile\n\nRestarting MainUI..." --auto
     sleep 2
     
     # Restart MainUI to apply changes
+    debug_log "Killing MainUI to restart"
     killall MainUI 2>/dev/null
+    debug_log "switch_profile_menu completed"
 }
 
 create_profile_menu() {
