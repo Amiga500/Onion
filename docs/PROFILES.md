@@ -1,17 +1,33 @@
 # User Profiles Feature
 
-## ⚠️ Current Status: Boot Integration Temporarily Disabled
+## ⚠️ Current Status: Boot Integration Disabled - Manual Use Only
 
-The profile boot integration has been temporarily disabled due to a boot hang issue. The device was getting stuck on the Onion OS logo during startup. 
+**The profile system does NOT run during boot.** Boot integration was disabled to fix boot hangs.
 
 **Current State:**
-- ✅ Device boots successfully
+- ✅ Device boots normally (no profile system at boot)
 - ✅ ProfileManager app works after boot
 - ✅ Manual profile management fully functional
 - ❌ Automatic profile loading at boot disabled
 - ❌ Profile persistence across reboots disabled
 
-**Workaround:** Use ProfileManager app after boot to manage profiles manually.
+**Important:** The profile system has NO impact on boot time. If your device takes a long time on the Miyoo logo, it's unrelated to the profile system.
+
+## Troubleshooting
+
+### Permission Denied Error
+
+If you get "Permission denied" (Permesso negato) when running profile scripts:
+
+```bash
+# Fix permissions manually:
+chmod +x /mnt/SDCARD/.tmp_update/script/profiles/*.sh
+
+# Then try again:
+/mnt/SDCARD/.tmp_update/script/profiles/profile_cli.sh list
+```
+
+Or use the ProfileManager app from the Apps menu instead of CLI.
 
 ---
 
@@ -178,6 +194,33 @@ To exit a Limited profile:
 4. Choose a different profile to switch to
 
 ## Troubleshooting
+
+### Device Takes Long Time on Miyoo Logo
+
+**Important:** The profile system does NOT affect boot time. Boot integration is completely disabled.
+
+If your device takes a long time to boot:
+- This is unrelated to the profile system
+- Check your SD card health (run SD card diagnostic tools)
+- Try backing up and reformatting your SD card
+- Check for corrupted files in /mnt/SDCARD/.tmp_update/
+- Review other boot scripts in /mnt/SDCARD/.tmp_update/runtime.sh
+
+The profile system only runs when you manually launch ProfileManager or use CLI commands.
+
+### Permission Denied Error
+
+If you get "Permission denied" or "Permesso negato":
+
+```bash
+# Fix execute permissions:
+chmod +x /mnt/SDCARD/.tmp_update/script/profiles/*.sh
+
+# Test:
+/mnt/SDCARD/.tmp_update/script/profiles/profile_cli.sh list
+```
+
+**Alternative:** Use ProfileManager app from Apps menu (doesn't require CLI).
 
 ### Profile not switching
 
