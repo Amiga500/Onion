@@ -397,18 +397,5 @@ profile_switch() {
     return 0
 }
 
-# Export functions for use in other scripts
-export -f profile_init
-export -f profile_get_active
-export -f profile_get_type
-export -f profile_has_password
-export -f profile_verify_password
-export -f profile_set_password
-export -f profile_list
-export -f profile_count
-export -f profile_exists
-export -f profile_validate_name
-export -f profile_create
-export -f profile_delete
-export -f profile_switch
-export -f profile_activate_current
+# Note: Functions are available after sourcing this script
+# No need to export when sourcing in the same shell

@@ -79,11 +79,13 @@ fi
 
 # Source profile manager
 debug_log "Sourcing profile_manager.sh"
-if ! . "$SYSDIR/script/profiles/profile_manager.sh" 2>/dev/null; then
-    debug_log "ERROR: Failed to source profile_manager.sh"
+# Don't suppress errors - we need to see what's failing
+if . "$SYSDIR/script/profiles/profile_manager.sh"; then
+    debug_log "profile_manager.sh sourced successfully"
+else
+    debug_log "ERROR: Failed to source profile_manager.sh (exit code: $?)"
     show_error_and_exit "Profile System Error" "Failed to load profile manager.\n\nCheck SD card integrity."
 fi
-debug_log "profile_manager.sh sourced successfully"
 
 # Initialize profiles on first run (with error handling)
 debug_log "Calling profile_init"
