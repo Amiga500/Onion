@@ -116,8 +116,10 @@ else
     debug_log "shellect.sh is executable"
 fi
 
-debug_log "Initialization complete, showing menu"
+debug_log "Initialization complete, defining functions..."
+sync  # Ensure log is written to disk before defining functions
 
+# Function definitions below this point
 show_profile_menu() {
     debug_log "=== show_profile_menu() called ==="
     
@@ -504,6 +506,9 @@ prompt_password() {
     
     echo "" # Placeholder - actual implementation would use on-screen input
 }
+
+debug_log "=== All functions defined, proceeding to main entry point ==="
+sync  # Ensure log is written to disk
 
 # Main entry point
 debug_log "=== Main entry point reached ==="
