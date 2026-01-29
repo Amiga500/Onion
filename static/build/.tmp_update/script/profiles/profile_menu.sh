@@ -193,10 +193,18 @@ show_profile_menu() {
         # Use shellect to show menu (use printf %b to expand \n, then pass via -c option)
         debug_log "Calling shellect for normal profile menu"
         expanded_options=$(printf '%b' "$options")
-        choice=$($SYSDIR/script/shellect.sh -t "Profile Management" -c "$expanded_options")
+        
+        # Capture both stdout and stderr from shellect
+        shellect_output=$($SYSDIR/script/shellect.sh -t "Profile Management" -c "$expanded_options" 2>&1)
         shellect_exit=$?
+        choice="$shellect_output"
+        
         debug_log "User selected option: $choice"
         debug_log "Exit code from shellect: $shellect_exit"
+        
+        # Write shellect output to debug file
+        echo "shellect output: $shellect_output" > "$SYSDIR/logs/shellect_output.txt" 2>/dev/null || true
+        echo "shellect exit code: $shellect_exit" >> "$SYSDIR/logs/shellect_output.txt" 2>/dev/null || true
         
         # Check if choice is empty (user cancelled or error)
         if [ -z "$choice" ]; then
