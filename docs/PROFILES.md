@@ -1,14 +1,25 @@
 # User Profiles Feature
 
-## ⚠️ Important: CLI-Only Feature (Terminal/SSH Required)
+## ✅ ProfileManager GUI Now Available!
 
-**Profile management requires terminal access via SSH or serial console.** The ProfileManager app shows instructions, but actual profile operations must be done via command line.
+**Profile management is now accessible through the ProfileManager app!**
 
-### Why CLI-Only?
+The ProfileManager app in the Apps menu provides an interactive GUI for managing profiles using infoPanel-based menus.
 
-Interactive menus (shellect) require a real terminal device (TTY) which MainUI apps don't have. Attempting to use shellect from apps results in: `stty: standard input: Inappropriate ioctl for device`
+### Quick Start - GUI Method (Recommended)
 
-### Quick Start via SSH
+1. **Launch ProfileManager** from Apps section
+2. **Navigate the menu:**
+   - **Switch** - Change to another profile (restarts MainUI)
+   - **Create** - Make a new profile (auto-named: Player1, Player2, etc.)
+     - Choose Normal (full access) or Limited (Consoles only)
+   - **Delete** - Remove unused profiles (can't delete Guest or active profile)
+   - **Info** - View current profile and list all profiles
+   - **Exit** - Return to Apps menu
+
+### Alternative: CLI Method (Advanced Users)
+
+For SSH/terminal access or advanced scripting:
 
 ```bash
 # Connect to device via SSH
@@ -30,7 +41,8 @@ ssh root@<your-miyoo-ip>
 ## Current Status
 
 **Boot Integration:** Disabled (prevents boot hangs)
-**Usage:** Manual via CLI only
+**GUI:** ✅ Working via ProfileManager app (infoPanel-based menus)
+**CLI:** ✅ Available for advanced users via SSH
 **Boot Impact:** None (profile system doesn't run at boot)
 
 ## Troubleshooting
@@ -45,7 +57,14 @@ chmod +x /mnt/SDCARD/.tmp_update/script/profiles/*.sh
 
 ### ProfileManager App
 
-The ProfileManager app in Apps menu shows CLI usage instructions. It cannot provide interactive menus due to TTY limitations.
+✅ **Now Working!** The ProfileManager app provides an interactive menu using infoPanel dialogs. No TTY required!
+
+**Features:**
+- Switch between profiles
+- Create new profiles (auto-named)
+- Delete profiles (with safety checks)
+- View profile information
+- All operations work from MainUI app context
 
 ---
 
