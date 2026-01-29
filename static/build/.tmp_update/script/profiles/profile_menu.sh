@@ -4,11 +4,36 @@
 #
 
 SYSDIR="/mnt/SDCARD/.tmp_update"
-. "$SYSDIR/script/profiles/profile_manager.sh"
-. "$SYSDIR/script/log.sh"
 
-# Initialize profiles on first run
-profile_init
+# Check if required scripts exist
+if [ ! -f "$SYSDIR/script/profiles/profile_manager.sh" ]; then
+    echo "ERROR: Profile system not found" >&2
+    exit 1
+fi
+
+# Define a simple log function in case log.sh is not available
+log() { 
+    if [ -f "$SYSDIR/config/.logging" ]; then
+        echo "$(date): $*" >> "$SYSDIR/logs/profile_menu.log"
+    fi
+}
+
+# Try to source log.sh if available
+if [ -f "$SYSDIR/script/log.sh" ]; then
+    . "$SYSDIR/script/log.sh" 2>/dev/null || true
+fi
+
+# Source profile manager
+. "$SYSDIR/script/profiles/profile_manager.sh" || {
+    echo "ERROR: Failed to load profile manager" >&2
+    exit 1
+}
+
+# Initialize profiles on first run (with error handling)
+profile_init 2>/dev/null || {
+    echo "ERROR: Failed to initialize profile system" >&2
+    exit 1
+}
 
 show_profile_menu() {
     local current_profile=$(profile_get_active)
