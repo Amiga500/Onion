@@ -1,0 +1,6 @@
+{
+"label":"Profile Manager",
+"icon":"../../Icons/Default/app/profiles.png",
+"launch":"launch.sh",
+"description":"Manage user profiles"
+}

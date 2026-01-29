@@ -4,12 +4,13 @@
 # Provides functions for creating, switching, and managing user profiles
 #
 
-PROFILES_DIR="/mnt/SDCARD/Profiles"
-PROFILES_CONFIG="$PROFILES_DIR/profiles.cfg"
-ACTIVE_PROFILE_FILE="$PROFILES_DIR/.active_profile"
-SAVES_BASE="/mnt/SDCARD/Saves"
-CURRENT_PROFILE_LINK="$SAVES_BASE/CurrentProfile"
-SYSDIR="/mnt/SDCARD/.tmp_update"
+# Use environment variables if set, otherwise use defaults
+PROFILES_DIR="${PROFILES_DIR:-/mnt/SDCARD/Profiles}"
+PROFILES_CONFIG="${PROFILES_CONFIG:-$PROFILES_DIR/profiles.cfg}"
+ACTIVE_PROFILE_FILE="${ACTIVE_PROFILE_FILE:-$PROFILES_DIR/.active_profile}"
+SAVES_BASE="${SAVES_BASE:-/mnt/SDCARD/Saves}"
+CURRENT_PROFILE_LINK="${CURRENT_PROFILE_LINK:-$SAVES_BASE/CurrentProfile}"
+SYSDIR="${SYSDIR:-/mnt/SDCARD/.tmp_update}"
 
 # Initialize profile system
 profile_init() {
@@ -263,8 +264,12 @@ profile_create() {
     fi
     
     # Check available disk space (need at least 10MB)
-    local available=$(df /mnt/SDCARD | tail -1 | awk '{print $4}')
-    if [ $available -lt 10240 ]; then
+    local available=0
+    if df "$PROFILES_DIR" > /dev/null 2>&1; then
+        available=$(df "$PROFILES_DIR" 2>/dev/null | tail -1 | awk '{print $4}')
+    fi
+    
+    if [ -n "$available" ] && [ "$available" -lt 10240 ]; then
         echo "ERROR: Insufficient disk space. Need at least 10MB free."
         return 1
     fi
