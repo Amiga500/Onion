@@ -1,25 +1,14 @@
 # User Profiles Feature
 
-## ✅ ProfileManager GUI Now Available!
+## ℹ️ ProfileManager: Info Display + CLI Tool
 
-**Profile management is now accessible through the ProfileManager app!**
+**Profile management requires SSH/terminal access via CLI.**
 
-The ProfileManager app in the Apps menu provides an interactive GUI for managing profiles using infoPanel-based menus.
+The ProfileManager app shows profile information and instructions but cannot provide interactive menus due to technical limitations (MainUI apps don't have TTY access, infoPanel is display-only).
 
-### Quick Start - GUI Method (Recommended)
+### Quick Start - CLI Method (Required)
 
-1. **Launch ProfileManager** from Apps section
-2. **Navigate the menu:**
-   - **Switch** - Change to another profile (restarts MainUI)
-   - **Create** - Make a new profile (auto-named: Player1, Player2, etc.)
-     - Choose Normal (full access) or Limited (Consoles only)
-   - **Delete** - Remove unused profiles (can't delete Guest or active profile)
-   - **Info** - View current profile and list all profiles
-   - **Exit** - Return to Apps menu
-
-### Alternative: CLI Method (Advanced Users)
-
-For SSH/terminal access or advanced scripting:
+For actual profile management, use SSH/terminal:
 
 ```bash
 # Connect to device via SSH
@@ -38,11 +27,21 @@ ssh root@<your-miyoo-ip>
 /mnt/SDCARD/.tmp_update/script/profiles/profile_cli.sh help
 ```
 
+### ProfileManager App - What It Shows
+
+Launching ProfileManager from Apps displays:
+- Current profile name and type
+- Total number of profiles
+- Menu options (informational)
+- CLI command for full control
+
+This serves as a quick reference but actual management requires CLI.
+
 ## Current Status
 
 **Boot Integration:** Disabled (prevents boot hangs)
-**GUI:** ✅ Working via ProfileManager app (infoPanel-based menus)
-**CLI:** ✅ Available for advanced users via SSH
+**GUI:** ℹ️ Info display only (use CLI for management)
+**CLI:** ✅ Fully functional via SSH/terminal
 **Boot Impact:** None (profile system doesn't run at boot)
 
 ## Troubleshooting
