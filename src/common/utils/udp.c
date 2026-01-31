@@ -35,6 +35,7 @@ static int _init_socket(const char *ipAddress, int port, int *socket_fd, struct 
 static int _ping_socket(int socket_fd, struct sockaddr_in *server_address)
 {
     const char *ping_message = "VERSION";
+    const size_t ping_msg_len = 7;  // Cache length
     char response[32];
     struct timeval timeout;
     timeout.tv_sec = PING_TIMEOUT_MS / 1000;
@@ -47,7 +48,8 @@ static int _ping_socket(int socket_fd, struct sockaddr_in *server_address)
     }
 
     // Send ping message
-    if (sendto(socket_fd, ping_message, strlen(ping_message), 0, (struct sockaddr *)server_address, sizeof(*server_address)) == -1) {
+    if (sendto(socket_fd, ping_message, ping_msg_len, 0, 
+               (struct sockaddr *)server_address, sizeof(*server_address)) == -1) {
         perror("Failed to send ping");
         return -1;
     }
