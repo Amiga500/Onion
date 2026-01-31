@@ -9,15 +9,14 @@ import DocCardList from '@theme/DocCardList';
 
 *![](https://github.com/OnionUI/Onion/assets/47260768/031e60fa-e6dd-4059-9982-3ec397a3d0cd)*
 
-The entry point to play multiplayer / Netplay is the GLO menu. It will allow you to switch into an optimized version of RetroArch for Netplay without any manual configuration.
-
+The GLO menu is your gateway to effortless multiplayer gaming! It automatically launches an optimized version of RetroArch configured specifically for Netplay — no manual setup required, just select your game and start playing with friends.
 
 ## How to use Netplay GLO menu
 
-Select a game and then press <kbd>Y</kbd> to display the GLO menu and find the "Netplay" option in the list.
-You will note that Onion now automatically selects the best core for your Netplay session.
+Select any game, then press <kbd>Y</kbd> to open the GLO menu and find the "Netplay" option in the list.
+Onion intelligently selects the best core for your Netplay session, ensuring optimal compatibility and performance.
 
-If "No Netplay" is displayed in GLO menu, it means that there are no Netplay-compatible cores available for the selected platform (for example GBA).
+If you see "No Netplay" displayed in the GLO menu, it means there are no Netplay-compatible cores available for the selected platform (e.g., GBA doesn't support netplay).
 
 #### The navigation map of GLO Netplay
 
@@ -46,32 +45,32 @@ If "No Netplay" is displayed in GLO menu, it means that there are no Netplay-com
 
 
 
-#### Once Netplay option selected, then let the GLO menu guide you
+#### Once you've selected the Netplay option, let the GLO menu guide you through the setup
 
-- Select "**Host**" if you want to be the server of a new Netplay session.
-- Select "**Join**" if you want to join an existing Netplay session.
+- Select "**Host**" if you want to create and host a new Netplay session
+- Select "**Join**" if you want to connect to an existing Netplay session
  
-#### Then select the type of Netplay session you want to start
+#### Then choose the type of Netplay session you want to start
 
 - **[Standard Netplay](multiplayer/standardnetplay)**
  
-  This mode uses your current wifi connection to create an online session and on your local network.
+  This mode uses your current Wi-Fi connection to create an online session accessible over the internet or your local network.
 
 - **[Easy Netplay](multiplayer/easynetplay)**
  	
-  When you have two Miyoo Mini Plus in the same room, "Easy Netplay" lets you play a multiplayer game without any configuration, as it requires no prior wifi setup.
+  Perfect when you have two Miyoo Mini Plus devices in the same room! "Easy Netplay" enables instant multiplayer gaming without any Wi-Fi configuration — just select and play.
 
 - **[Easy Netplay - Pokemon Trade/Battle](multiplayer/easynetplay-pokemon)**
  	
-  This option in only available on GB/GBC, similar to the previous "Easy Netplay" but allows to trade pokemon with local friends without any configuration
+  Available exclusively on GB/GBC systems, this mode works just like standard "Easy Netplay" but is optimized for trading and battling Pokémon with local friends — no configuration needed!
 
 
 
 ## Tips
 
-- Always use GLO to run your Netplay sessions, GLO runs RetroArch with a specific configuration which avoids many crashes / freezes.
-- The default Netplay cores for Onion are stored in `.tmp_update/config/netplay_cores.conf`.
-- As Netplay consumes more CPU than usual an overclock option is available in `netplay_cores.conf`.
+- **Always use GLO** to launch your Netplay sessions — GLO runs RetroArch with a specially optimized configuration that prevents many crashes and freezes
+- The default Netplay cores for Onion are stored in `.tmp_update/config/netplay_cores.conf`
+- Since Netplay is more CPU-intensive than normal gameplay, an overclock option is available in `netplay_cores.conf` for demanding games
 
 For example
 ```
