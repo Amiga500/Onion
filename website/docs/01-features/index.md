@@ -44,7 +44,7 @@ description: Overview of the most important features
 <p align="center"><a href="./apps/shortcuts"><img src={require('../07-apps/01-included-in-onion/assets/shortcuts.webp').default} style={{width: 320}} /></a></p>
 
 :::note <a href="./apps/shortcuts">Shortcuts overview</a>
-Onion's **shortcuts** are incredibly powerful, enabling instant actions like rewind, fast-forward, screenshots, volume boost, and much more.
+Onion OS **shortcuts** are impressively versatile and powerful, letting you perform quick in-game actions such as rewinding time, fast-forwarding through slow sections, taking screenshots, boosting volume, loading/saving states, and much more — all without ever leaving the game.
 :::
 
 
