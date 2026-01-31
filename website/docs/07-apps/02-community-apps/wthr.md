@@ -1,6 +1,6 @@
 ---
 slug: /apps/wthr
-description: Weather forecast app for Onion.
+description: Weather forecast app for OnionOS.
 ---
 
 # Wthr

@@ -25,7 +25,7 @@ If you experience issues loading games, you can use [md5 checker](http://getmd5c
 https://www.youtube.com/watch?v=5DdSP1KxzSE
 
 :::note
-Concerning multidisc games:
+Concerning multidisc games :
  Since Onion 4.3.0 Tweaks app contains a multidisc playlist (.m3u) generator so no need to create your m3u files manually or to convert your multidisc roms to `.pbp` anymore. More info [here](../faq#what-is-the-optimal-way-to-organize-multi-disk-games).
 :::
 
@@ -41,7 +41,7 @@ Concerning multidisc games:
 ## Notes on PCSX-ReARMed standalone
 
 PCSX-ReARMed standalone (not a RetroArch core but the classical emulator) offers much improved performances. It allows for using *enhanced resolution* in most games.
-However, its integration in Onion is not perfect: no automatic save states, no resume at boot, different shortcuts...
+However its integration in Onion is not perfect : no automatic save states, no resume at boot , different shortcuts...
 
 ## Notes on Duckstation/SwanStation
 
