@@ -11,4 +11,4 @@ description: Storii
 
 ![Storii Preview](https://raw.githubusercontent.com/pcorbel/storii/main/.github/docs/storii.gif)
 
-A children-friendly MP3 player for the Miyoo Mini (+).
+A children-friendly MP3 player for the MM (+).

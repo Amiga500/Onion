@@ -39,7 +39,7 @@ The `Imgs` folder name is case sensitive (must have a capital `I`). Examples wou
 
 ### Media selection
 
-**Use a (_Great!_) Custom Image Template Designed for OnionOS:**
+**Use a (_Great!_) Custom Image Template Designed for Onion:**
 
 **_Examples:_**<br/>
 ![image](https://user-images.githubusercontent.com/56418567/212767886-753a83ae-2f56-4255-a22d-f658ba656690.png)
@@ -55,8 +55,8 @@ The `Imgs` folder name is case sensitive (must have a capital `I`). Examples wou
 - Extract the _.ZIP_ file into the following _Skraper_ folder: `.\Skraper-#.#.#\Mixes\`
 - Via the "ALL SYSTEMS"selection on the left, go to the "_MEDIA_" tab -> Clear the "_Fetched Media List_" of all but one image type by pressing the "_minus_" button.
 - Change the "_Media type:_" to: "_USER PROVIDED MIX_" and click on the file icon to the right
-- Select the extracted: `Miyoo Mini Big Zoom.xml`
-- Disable settings "_Resize width to_" , "_Resize height to_" , "_Keep Image Ratio_" 
+- Select the extracted: `MM Big Zoom.xml`
+- Disable settings "_Resize width to_", "_Resize height to_", "_Keep Image Ratio_" 
 
 > _**- OR -**_
 
@@ -73,16 +73,16 @@ The `Imgs` folder name is case sensitive (must have a capital `I`). Examples wou
 - Under 'Gamelist Link' ensure that "_Link from node '&lt;thumbnail&gt;'_" is ticked as well as '_Optimize media storage_' (these are important if you wish to use the generated gamelist.xml to create a miyoogamelist.xml for use in Onion (more info on this below on this page).    
 - Now click the system you want to scrape for on the left side, or "all system", and press the play button in the bottom right corner.    
 
-This will automatically scrape images to the correct folders for Miyoo Mini.
+This will automatically scrape images to the correct folders for MM.
 
 
 ### YouTube tutorials
 
-#### Add Stunning Boxart To Your Miyoo Mini In Two Easy Ways _by RetroBreeze_
+#### Add Stunning Boxart To Your MM In Two Easy Ways _by RetroBreeze_
 
 https://www.youtube.com/watch?v=RFu2DKRDq7o
 
 
-#### EASY Scraping art for retro games (MiYoo Mini Skraper tutorial on Onion OS) _by TechDweeb_
+#### EASY Scraping art for retro games (MM Skraper tutorial on Onion) _by TechDweeb_
 
 https://www.youtube.com/watch?v=DguILcIyZQE&ab_channel=TechDweeb

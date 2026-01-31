@@ -8,7 +8,7 @@ slug: /apps/ebook-reader
 
 ## Presentation
 
-An ebook reader app for the Miyoo Mini. Supports epub and txt formats.
+An ebook reader app for the MM. Supports epub and txt formats.
 
 ![](./assets/ebook-reader.png)
 

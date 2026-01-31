@@ -9,7 +9,7 @@ slug: /apps/guest-mode
 ## Presentation
 
 Guest mode is a separate profile so you can safely lend your device to your kid or your friend.
-The Guest profile will have its own save and save states. Guest mode makes the Onion experience perfect when 2 persons are using the same Miyoo Mini.
+The Guest profile will have its own save and save states. Guest mode makes the Onion experience perfect when 2 persons are using the same MM.
 
 ## Usage
 

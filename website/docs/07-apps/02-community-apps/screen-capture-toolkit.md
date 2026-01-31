@@ -1,6 +1,6 @@
 ---
 slug: /apps/screen-capture-toolkit
-description: A Screencapturing toolkit for the Miyoo Mini + (Twitch/VNC/RTMP/Outputfile)
+description: A Screencapturing toolkit for the MM + (Twitch/VNC/RTMP/Outputfile)
 ---
 
 # Screen Capture Toolkit
@@ -8,4 +8,4 @@ description: A Screencapturing toolkit for the Miyoo Mini + (Twitch/VNC/RTMP/Out
 
 [**Screen Capture Toolkit - official page**](https://github.com/XK9274/screencap-toolkit-miyoo)
 
-A Screencapturing toolkit for the Miyoo Mini + (Twitch/VNC/RTMP/Outputfile)
+A Screencapturing toolkit for the MM + (Twitch/VNC/RTMP/Outputfile)

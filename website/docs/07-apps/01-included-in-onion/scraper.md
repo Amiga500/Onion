@@ -1,12 +1,12 @@
 ---
 slug: /apps/scraper
-description: Download your box arts using WiFi
+description: Download your box arts using Wi-Fi
 ---
 
 # Scraper
 
 A missing illustration in your game list? Onion Scraper can solve that!
-Using WiFi (so Miyoo Mini+ only), this app allows you to download game covers without even touching your SD card or a computer.  
+Using Wi-Fi (so MMP only), this app allows you to download game covers without even touching your SD card or a computer.  
 
 https://www.youtube.com/watch?v=lOMP0ozb0I0
 
@@ -17,7 +17,7 @@ https://www.youtube.com/watch?v=lOMP0ozb0I0
 - Preferred region selection (will give a priority to the covers from your own region)
 - Manage ScreenScraper accounts (less errors and faster when registered/logged in)
 - Download one cover or all the missing covers of the current console
-- Auto conversion and resize of images for the Miyoo Mini
+- Auto conversion and resize of images for the MM
 - Find game match even if your rom is not well named thanks to ScreenScraper CRC search
 
 
@@ -73,7 +73,7 @@ Select where the covers will be searched.
 
 ### Toggle background Scraping
 
-Allows to download covers in background, which means that you can use your Miyoo Mini Plus while it is downloading your covers.
+Allows to download covers in background, which means that you can use your MMP while it is downloading your covers.
 
 
 

@@ -1,6 +1,6 @@
 ---
 slug: /apps/logotweak
-description: An app for easily updating the Miyoo Mini boot logo.
+description: An app for easily updating the MM boot logo.
 ---
 
 
@@ -8,7 +8,7 @@ description: An app for easily updating the Miyoo Mini boot logo.
 
 <sup>by Schmurtz</sup>
 
-*An app for easily updating the Miyoo Mini boot logo.*
+*An app for easily updating the MM boot logo.*
 
 <p align="center">
 <a href="https://github.com/schmurtzm/Miyoo-Mini-easy-logotweak"><img title="Easy Logotweak By Schmurtz" width="280px" src="https://user-images.githubusercontent.com/98862735/189468731-c8ee3660-92e2-4cf4-aba6-32ff38a264c0.png" /><br/>Get it here</a>

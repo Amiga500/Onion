@@ -7,13 +7,13 @@ slug: /network/vnc
 
 ![](./assets/vnc.webp)
 
-Remote display and remote control of your Miyoo Mini+ from your computer thanks to VNC.
+Remote display and remote control of your MMP from your computer thanks to VNC.
 
 
 ## Features
 
-- Remote display of the Miyoo Mini+
-- Remote control of the Miyoo Mini+
+- Remote display of the MMP
+- Remote control of the MMP
 
 
 ## Enabling VNC access

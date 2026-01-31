@@ -21,10 +21,10 @@ A full RetroArch in a such tiny device! RetroArch is regularly updated from the 
   > Custom audio driver, custom scalers, new display driver, and a new input driver
 - Minimal input and audio lag
 - Customs cores
-- Fine-tuned with optimal best settings for the Miyoo Mini in mind
+- Fine-tuned with optimal best settings for the MM in mind
 - Automatically choosing the best resolution for your device
-  - 640x480 for the Miyoo Mini v1-3 and the Miyoo Mini+
-  - 752x560 for the Miyoo Mini v4 with firmware >= `202310271401`
+  - 640x480 for the MM v1-3 and the MMP
+  - 752x560 for the MM v4 with firmware >= `202310271401`
 - Can also work as a game launcher  
   > Cores embedded, playlists and favorites unlocked
 - Rotation support for arcade games
@@ -55,7 +55,7 @@ Many additional shortcuts are available for RetroArch, do not forget to check [O
 
 ## Advanced
 
-### <sub>[Onion Retroarch Repository](https://github.com/OnionUI/RetroArch)</sub>
+### <sub>[Onion RetroArch Repository](https://github.com/OnionUI/RetroArch)</sub>
 
 ### <sub>Customized overlays and filters</sub>
 You'll find some advices to customize overlays and filters [Here](https://github.com/OnionUI/Onion/discussions/708).<br /><sup>(Jeltr0n overlays and filters are now directly included in Onion, no need to download them).</sup>

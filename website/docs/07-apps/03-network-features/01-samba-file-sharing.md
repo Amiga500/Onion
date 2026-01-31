@@ -5,7 +5,7 @@ slug: /network/samba
 
 # Samba file sharing
 
-The Samba is a file sharing protocol that provides integrated sharing of files and directories between your Miyoo Mini plus and your PC (Windows/Unix/Linux). It enables easy access, allowing you to share, access, and modify files as if they were stored locally on your PC. 
+The Samba is a file sharing protocol that provides integrated sharing of files and directories between your MMP and your PC (Windows/Unix/Linux). It enables easy access, allowing you to share, access, and modify files as if they were stored locally on your PC. 
 
 
 If the folder you try to access does not exist locally on the device you will get an error.
@@ -38,7 +38,7 @@ The default **username** and **password** is currently `onion`:`onion`
 
 ## Usage
 
-Samba will provide you a streamlined method of transferring files across to your Miyoo Mini Plus. The folders you can access will be hosted by the device, and will be accessible through your file browser within Windows/Linux.
+Samba will provide you a streamlined method of transferring files across to your MMP. The folders you can access will be hosted by the device, and will be accessible through your file browser within Windows/Linux.
 
 Once you've enabled Samba within tweaks, it will instantly activate. 
 

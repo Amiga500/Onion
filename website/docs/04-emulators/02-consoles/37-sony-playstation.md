@@ -25,13 +25,13 @@ If you experience issues loading games, you can use [md5 checker](http://getmd5c
 https://www.youtube.com/watch?v=5DdSP1KxzSE
 
 :::note
-Concerning multidisc games :
+Concerning multidisc games:
  Since Onion 4.3.0 Tweaks app contains a multidisc playlist (.m3u) generator so no need to create your m3u files manually or to convert your multidisc roms to `.pbp` anymore. More info [here](../faq#what-is-the-optimal-way-to-organize-multi-disk-games).
 :::
 
 ## Notes on performance
 
-- Most of PSX games run at 60 FPS natively on the Miyoo Mini. For most demanding games you'll find solutions here to run it at full speed.
+- Most of PSX games run at 60 FPS natively on the MM. For most demanding games you'll find solutions here to run it at full speed.
 - Rewind and Fast Forward capability should be disabled while playing PSX as performance may suffer greatly. 
 - PAL/EUR games run at 50fps, NTSC/USA/JP games run at 60fps. This is by design and as per original hardware.
 - Some titles (e.g. Looney Tunes Sheep Rider, Jedi Power Battles, and 2xtreme/espn extreme games) need to have `SMC Checks` disabled or games will eventually slow down and crash. Go to RetroArch Quick Menu (<kbd>MENU</kbd>+<kbd>SELECT</kbd> while in-game), select `Options` and toggle on `(Speed Hack) Disable SMC Checks`.  
@@ -41,7 +41,7 @@ Concerning multidisc games :
 ## Notes on PCSX-ReARMed standalone
 
 PCSX-ReARMed standalone (not a RetroArch core but the classical emulator) offers much improved performances. It allows for using *enhanced resolution* in most games.
-However its integration in Onion is not perfect : no automatic save states, no resume at boot , different shortcuts...
+However, its integration in Onion is not perfect: no automatic save states, no resume at boot, different shortcuts...
 
 ## Notes on Duckstation/SwanStation
 
