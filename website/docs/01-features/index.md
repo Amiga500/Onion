@@ -44,7 +44,7 @@ description: Overview of the most important features
 <p align="center"><a href="./apps/shortcuts"><img src={require('../07-apps/01-included-in-onion/assets/shortcuts.webp').default} style={{width: 320}} /></a></p>
 
 :::note <a href="./apps/shortcuts">Shortcuts overview</a>
-The Onion **Shortcuts** are very powerful—they allow you to perform quick actions like rewind, fast forward, screenshots, volume boost... 
+Onion's **shortcuts** are incredibly powerful, enabling instant actions like rewind, fast-forward, screenshots, volume boost, and much more.
 :::
 
 
