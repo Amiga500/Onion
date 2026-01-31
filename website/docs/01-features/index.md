@@ -74,7 +74,7 @@ The **Package Manager** puts complete control of your Onion system at your finge
 
 
 :::note <a href="apps/tweaks">Tweaks overview</a>
-**Tweaks** is the backbone of Onion's configuration and personalization! This powerful settings hub lets you fine-tune every aspect of your device — adjust **System Settings** like screen brightness and CPU performance, enable **Network Services** for WiFi connectivity, customize your **Button Shortcuts** for instant access to favorite features, and much more. Make your Miyoo Mini truly yours!
+**Tweaks** is the backbone of Onion's configuration and personalization! This powerful settings hub lets you fine-tune every aspect of your device — adjust **System Settings** like screen brightness and CPU performance, enable **Network Services** for Wi-Fi connectivity, customize your **Button Shortcuts** for instant access to favorite features, and much more. Make your Miyoo Mini truly yours!
 :::
 
 
@@ -155,7 +155,7 @@ Onion includes its own suite of finely-tuned emulators, featuring extensive opti
 <img src="https://user-images.githubusercontent.com/44569252/226447388-8c9c95f1-536a-4946-8b0f-f4b8ead0e97e.png" width="320" />
 
 :::note <a href="apps/game-list-options">Game List Options overview</a>
-**Game List Options** (GLO Menu) is your command center for managing individual games or entire collections. Press <kbd>Y</kbd> while browsing any game list to access powerful options: select which **RetroArch** core to use, download cover art directly from online databases (WiFi/MMP required), launch multiplayer Netplay sessions, reset save states to start fresh, filter your library with keywords, and more.<br />Thanks to GLO Menu's flexible architecture, advanced users can even integrate their own custom scripts for unlimited possibilities!
+**Game List Options** (GLO Menu) is your command center for managing individual games or entire collections. Press <kbd>Y</kbd> while browsing any game list to access powerful options: select which **RetroArch** core to use, download cover art directly from online databases (Wi-Fi/MMP required), launch multiplayer Netplay sessions, reset save states to start fresh, filter your library with keywords, and more.<br />Thanks to GLO Menu's flexible architecture, advanced users can even integrate their own custom scripts for unlimited possibilities!
 :::
 
 
@@ -211,7 +211,7 @@ Check the <a href="included-apps">included apps</a> documentation to discover th
 <img title="Included apps" src={require('./assets/network-features.gif').default} style={{width: 320}} />
 
 :::note <a href="network-features">Network Features</a>
-For the Miyoo Mini Plus (equipped with WiFi), Onion unlocks a world of connected possibilities:<br />
+For the Miyoo Mini Plus (equipped with Wi-Fi), Onion unlocks a world of connected possibilities:<br />
 - [Multiplayer/Netplay](multiplayer) — Play your favorite retro games with friends over the internet or local network
 - [Easy Netplay](multiplayer/easynetplay) — Simplified multiplayer setup that works anywhere (even supports GB/GBC Pokémon trading!)
 - [OTA (Over The Air) Updates](apps/ota-update) — Update Onion directly from your device without needing a computer
