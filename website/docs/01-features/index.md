@@ -44,7 +44,7 @@ description: Overview of the most important features
 <p align="center"><a href="./apps/shortcuts"><img src={require('../07-apps/01-included-in-onion/assets/shortcuts.webp').default} style={{width: 320}} /></a></p>
 
 :::note <a href="./apps/shortcuts">Shortcuts overview</a>
-The Onion **Shortcuts** are very powerful it allows you quick actions like rewind, fast forward, screenshots, volume boost... 
+The Onion **Shortcuts** are very powerful—they allow you to perform quick actions like rewind, fast forward, screenshots, volume boost... 
 :::
 
 
@@ -54,7 +54,7 @@ The Onion **Shortcuts** are very powerful it allows you quick actions like rewin
 
 
 :::note <a href="apps/game-switcher">Game Switcher overview</a>
-The **GameSwitcher** is designed to be the central user interface of Onion. It allows browse and resume the last games played in few seconds.
+The **GameSwitcher** is designed to be the central user interface of Onion. It allows you to browse and resume the last games played in a few seconds.
 Launch the **GameSwitcher** by pressing the <kbd>MENU</kbd> button, then you'll see a screenshot of where you were in your game! Use <kbd>LEFT</kbd> and <kbd>RIGHT</kbd> to browse the last games played like this.
 It also allows you to quickly change games and many other features.
 :::
@@ -88,7 +88,7 @@ The **Package Manager** app is a powerful tool that allows users to easily insta
 
 :::note <a href="apps/search">Search overview</a>
 The **Search** application is the perfect companion for large game collections. It lets you find all the games containing the keyword you've entered.
-**Search** also allows to filter a game list to include only games containing a specific keyword.
+**Search** also allows you to filter a game list to include only games containing a specific keyword.
 :::
 
 
@@ -99,9 +99,9 @@ The **Search** application is the perfect companion for large game collections. 
 
 :::note <a href="apps/theme-switcher">Theme-switcher overview</a>
 Onion loves themes. Onion **Themes** allows you to customize the background, the entry categories, console icons, music background, fonts... And best of all, the chosen theme impacts all Onion's internal applications!<br />
-**Themes** in Onion are two things : <br /> 
+**Themes** in Onion are two things: <br /> 
 - [A fabulous theme repository](https://github.com/OnionUI/Themes/blob/main/README.md) with a very active participation from Onion community <sup><sub>❤️</sub></sup>
-- An application called <a href="apps/theme-switcher">Theme-switcher</a> included in Onion which allows to preview and change themes.
+- An application called <a href="apps/theme-switcher">Theme-switcher</a> included in Onion which allows you to preview and change themes.
 :::
 
 
