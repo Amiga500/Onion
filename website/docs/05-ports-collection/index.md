@@ -5,12 +5,10 @@ slug: /ports
 
 # Ports collection
 
-
 *![](https://user-images.githubusercontent.com/98862735/177056415-02a5f05e-7e95-4184-900a-c0e7945d9207.png)*
 
-
-The Ports Collection in Onion V4.1 has been completely redone and now includes 61 game ports!  
-All the necessary files (except licensed game files) are now hosted in its own repository.
+The Ports Collection in Onion V4.1 has been completely rebuilt and now features an impressive library of 61 game ports!  
+All necessary files (except licensed game data) are now hosted in a dedicated repository for easy access and installation.
 
 [Go to Ports Collection ➜](https://github.com/OnionUI/Ports-Collection)
 
@@ -22,10 +20,10 @@ All the necessary files (except licensed game files) are now hosted in its own r
 </tr></table>
 
 
-- 24 free game ports are offered as complete packs
-- 37 game ports are available through the collection of game engines, and you are only required to supply the licensed data files from the original game
-- Box arts are also included
-- Pre-configured config files are included - which gives you the best settings and uniform key mapping for FPS games (*credit: axcelon*)
+- **24 free game ports** are offered as complete, ready-to-play packages
+- **37 game ports** are available through our collection of game engines — you only need to supply the licensed data files from your original game purchase
+- **Box art included** for all games to enhance your library's visual appeal
+- **Pre-configured settings** that provide optimal performance and uniform key mapping for FPS games *(credit: axcelon)*
 
 <details>
 <summary><i><b>Click to see FPS key mapping</b></i><sub> (By axcelon)</sub></summary> 
@@ -129,16 +127,16 @@ Use inventory
 
 ### Installing a port
 
-[The ports repository](https://github.com/OnionUI/Ports-Collection) contains individual `7z` files for each port, as well as one `7z` file containing all ports.
+[The ports repository](https://github.com/OnionUI/Ports-Collection) contains individual `7z` files for each port, as well as one comprehensive `7z` file containing the complete collection.
 
-To install these you just have to extract the contents of the archive to the root of your SD card (merging the folders).
+To install, simply extract the archive contents to the root of your SD card, allowing the folders to merge with existing ones.
 
-* Licensed game files are not included for the game engines, you will need to supply the necessary game files yourself. These are detailed (along with any necessary subfolder structure) in the `_required_files.txt` file, within each `Roms/PORTS/Games/[Game folder]/`   
-* For freely available (unlicensed) ports, all files required to run the game are included (these will not have a `_required_files.txt` file)  
+* **For game engines:** Licensed game files are not included. You'll need to supply the necessary game files yourself — these requirements are detailed in the `_required_files.txt` file within each `Roms/PORTS/Games/[Game folder]/`   
+* **For free ports:** All files required to run the game are included (these won't have a `_required_files.txt` file)  
 
-> **Notes**  
-> Ensure you have enabled Ports Collection in `Apps` › `Package Manager` › `Verified`   
-> Also see [this helpful video tutorial](https://www.youtube.com/watch?v=ifBQ-1KC570) by _Retro Breeze_  
+> **Important Notes**  
+> Ensure you've enabled Ports Collection in `Apps` › `Package Manager` › `Verified`   
+> Also see [this helpful video tutorial](https://www.youtube.com/watch?v=ifBQ-1KC570) by _Retro Breeze_ for a visual walkthrough  
 
 
 #### Common file structure
@@ -166,18 +164,18 @@ To install these you just have to extract the contents of the archive to the roo
 
 ### Migrating ports from Onion versions prior to 4.1.0
 
-1. Rename your existing "Roms/PORTS" folder into something like Roms/PORTS_OLD  
-2. Update Onion to version 4.1.0 or later (the latest release is recommended) (see [upgrade guide](installation#upgrading-from-stock-or-onion))  
+1. Rename your existing `Roms/PORTS` folder to something like `Roms/PORTS_OLD` as a backup  
+2. Update Onion to version 4.1.0 or later (the latest release is always recommended) — see the [upgrade guide](installation#upgrading-from-stock-or-onion)  
 3. Enable "Ports Collection" in `Apps` › `Package Manager` › `Verified`  
-4. Download the "the full Ports-Collection" from [the official repository](https://github.com/OnionUI/Ports-Collection) (first link in the description)  
+4. Download the complete Ports Collection from [the official repository](https://github.com/OnionUI/Ports-Collection) (first link in the description)  
 5. Extract the archive to the root of your SD card  
-6. Manually populate each `Roms/PORTS/Games/[Game folder]/` with your old assets, as detailed in the `_required_files.txt` file for each  
-7. We have pre-configured many things, so during your copy paste of your assets, do not overwrite the existing files  
-8. Run the `~import ports` script from the ports games list : it will refresh the list of ports which are present  
+6. Manually populate each `Roms/PORTS/Games/[Game folder]/` with your old game assets, following the requirements in the `_required_files.txt` file for each game  
+7. **Important:** During your asset migration, do not overwrite the existing pre-configured files — we've optimized these for best performance  
+8. Run the `~import ports` script from the ports games list to refresh and detect all installed ports  
 
-> **Notes:**  
-> Also see [this helpful video tutorial](https://www.youtube.com/watch?v=ifBQ-1KC570) by _Retro Breeze_  
-> Once you have verified all of your Ports are launching correctly, you may remove your old, renamed Ports folder from step 1   
+> **Helpful Resources:**  
+> Also see [this helpful video tutorial](https://www.youtube.com/watch?v=ifBQ-1KC570) by _Retro Breeze_ for step-by-step guidance  
+> Once you've verified all ports launch correctly, you can safely remove the old `PORTS_OLD` folder from step 1   
   
   
 ***
