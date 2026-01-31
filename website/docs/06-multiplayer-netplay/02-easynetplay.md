@@ -5,54 +5,43 @@ slug: /multiplayer/easynetplay
 
 # Easy Netplay
 
-
 *![](https://github.com/OnionUI/Onion/assets/47260768/031e60fa-e6dd-4059-9982-3ec397a3d0cd)*
 
-*Fight against your friends or fight alongside them, the easy way!*
+*Challenge your friends or team up with them — the easy way!*
 
-**Easy Netplay:** a feature for convenience that streamlines multiplayer gaming: play from anywhere with all nearby Miyoo Mini Plus without any wifi or Retroarch configuration.
+**Easy Netplay** is the ultimate convenience feature for local multiplayer gaming. Play with all nearby Miyoo Mini Plus devices without any Wi-Fi network or RetroArch configuration whatsoever!
 
-This tool effortlessly sets up a hotspot, launches RetroArch and enables Netplay on the host side. On the client side, it joins the hotspot, checks the core and ROM checksums and connects to the RetroArch session, ensuring a seamless and enjoyable multiplayer experience.
+This intelligent tool automatically sets up a personal hotspot, launches RetroArch, and enables Netplay on the host device. On the client side, it seamlessly joins the hotspot, verifies ROM and core checksums for compatibility, and connects to the RetroArch session — ensuring a smooth, hassle-free multiplayer experience from start to finish.
 
-When you've finished playing, provided you exit RetroArch through the menu (and don't power down!) the script will continue to work, re-connecting you to the original Wi-Fi network. 
-
+**Important:** When you're done playing, make sure to exit RetroArch through the menu (don't just power down). The script will then automatically reconnect you to your original Wi-Fi network.
 
 ## Features
 
-- 1-click host setup
-
-- 1-click client setup
-
-- Rom/core checksum verification for higher compatibility
-
+- **1-click host setup** — Start hosting instantly
+- **1-click client setup** — Join games effortlessly
+- **ROM/core checksum verification** — Ensures perfect compatibility between devices
 
 ## Using Easy Netplay
 
-You'll currently find the quick join feature in GLO. GLO can be opened by browsing to the rom you want to play and pressing <kbd>Y</kbd>. 
-
+You'll find the Easy Netplay feature in the GLO menu. Simply browse to the game you want to play and press <kbd>Y</kbd> to access it.
 
 ### As the host
 
-1. Find the rom in the Games submenu
-
+1. Find your game in the Games menu
 2. Press <kbd>Y</kbd> to open GLO
-
-3. Choose `Netplay` -> `Host a session...` -> `Easy Netplay (Play anywhere, local only)`
+3. Choose `Netplay` → `Host a session...` → `Easy Netplay (Play anywhere, local only)`
  
-Onion should now take over and setup a session on the built in personal hotspot.
-
+Onion will now take over and automatically set up a session using the built-in personal hotspot — just wait for your friends to connect!
 
 ### As the client
 
-To join a host, it's a little easier. Currently you'll start the hotspot client connection using the same process as the host. 
+Joining a host session is even simpler! You'll use the same GLO menu process:
 
-1. Navigate to any game in the Games submenu
-
+1. Navigate to any game in the Games menu
 2. Press <kbd>Y</kbd> to open GLO
-
-3. Choose  `Netplay` -> `Join a session...` -> `Easy Netplay (Play anywhere, local only)`
+3. Choose `Netplay` → `Join a session...` → `Easy Netplay (Play anywhere, local only)`
  
-Onion will now take over and join the hotspot, pull the information from the host and connect! 
+Onion will automatically join the hotspot, retrieve the host information, and connect you to the game session! 
 
 
 ## Example
@@ -65,6 +54,6 @@ Onion will now take over and join the hotspot, pull the information from the hos
 
 ![](https://github.com/OnionUI/Onion/assets/47260768/4d6bb983-e986-47b6-8810-17cd9e15f553)
 
-:::note
-If you change the hotspot password on the host then this process will fail. It should be left as `onionos+`.
+:::note Important
+If you change the hotspot password on the host device, the Easy Netplay connection process will fail. The password should be left as the default: `onionos+`
 :::
