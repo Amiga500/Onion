@@ -40,16 +40,16 @@ https://www.youtube.com/watch?v=lOMP0ozb0I0
 Choose the desired kind of media.
 
 
-| Name        | Preview example                                   |   Available on   |
+| Name | Preview example | Available on |
 | ------------------------- | ----------------------------------- | ---------------- |
-| Box Art                   |![](./assets/scraper_2dbox.png)      | SS,LB,RA         |
-| Screenshot - Title Screen |![](./assets/scraper_screentitle.png)| SS,LB,RA         |
-| Screenshot - In Game      |![](./assets/scraper_screenshot.png) | SS,LB,RA         |
-| Box Art - 3D              |![](./assets/scraper_3dbox.png)      | SS,LB            |
-| Wheel                     |![](./assets/scraper_wheel.png)      | SS,LB            |
-| Marquee                   |![](./assets/scraper_marquee.png)    | SS,LB            |
-| ScreenScraper Mix V1      |![](./assets/scraper_mix1.png)       | SS               |
-| ScreenScraper Mix V2      |![](./assets/scraper_mix2.png)       | SS               |
+| Box Art |![](./assets/scraper_2dbox.png) | SS, LB, RA |
+| Screenshot - Title Screen |![](./assets/scraper_screentitle.png)| SS, LB, RA |
+| Screenshot - In Game |![](./assets/scraper_screenshot.png) | SS, LB, RA |
+| Box Art - 3D |![](./assets/scraper_3dbox.png) | SS, LB |
+| Wheel |![](./assets/scraper_wheel.png) | SS, LB |
+| Marquee |![](./assets/scraper_marquee.png) | SS, LB |
+| ScreenScraper Mix V1 |![](./assets/scraper_mix1.png) | SS |
+| ScreenScraper Mix V2 |![](./assets/scraper_mix2.png) | SS |
 
 <sup>SS = ScreenScraper, LB = LaunchBox, RA = RetroArch</sup>
 

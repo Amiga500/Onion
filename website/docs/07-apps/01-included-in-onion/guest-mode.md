@@ -15,8 +15,8 @@ The Guest profile will have its own save and save states. Guest mode makes the O
 
 Go in Apps section and run "Guest Mode", the icon will change to show the current state:
 
-| ![](./assets/guest-mode-off.webp)               | ![](./assets/guest-mode-on.webp)               |
-| ---------------                                 | ---------------                                |
+|![](./assets/guest-mode-off.webp) |![](./assets/guest-mode-on.webp) |
+| --------------- | --------------- |
 | <center><sup>Guest mode disabled</sup></center> | <center><sup>Guest mode enabled</sup></center> |
 
 
@@ -29,7 +29,7 @@ The profile contains the following properties:
 - Core options
 - Custom button remapping layouts
 - RetroArch history  
-  > The Game Switcher list will be different to reflect this
+ > The Game Switcher list will be different to reflect this
 - RetroArch playlists and favorites
 - Timers for your games  
   <sup>Play Activity app</sup>

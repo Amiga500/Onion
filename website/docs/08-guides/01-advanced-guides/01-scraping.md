@@ -14,7 +14,7 @@ Onion now includes an internal scraper ([Scraper](../apps/scraper)). However for
 
 The image file format for scraped artwork is _.PNG_, with a max size of 250px (W) X 360px (H). The images need to be placed into the `Roms/<gamesystem>/Imgs` folder. 
 
-The `Imgs` folder name is case sensitive (must have a capital `I`). Examples would be like the following:    
+The `Imgs` folder name is case sensitive (must have a capital `I`). Examples would be like the following:  
 `Roms/FC/Imgs`  
 `Roms/SFC/Imgs`  
 `Roms/GB/Imgs`  
@@ -25,15 +25,15 @@ The `Imgs` folder name is case sensitive (must have a capital `I`). Examples wou
 
 ### Install
 
-- Download & Extract _Skraper_ from: https://www.skraper.net/   
+- Download & Extract _Skraper_ from: https://www.skraper.net/  
 - Log in to Skraper
 
 
 ### Initial setup
 
-- Select "_Recalbox_"   
-- Tick "_Include non-Recalbox rom folders_"   
-   > (Some systems aren't recognized because their folder-names are non-standard. To add those systems, press the `+` symbol on the bottom left, select the systems that are missing & hit "OK". Then, click the added systems in the bar on the left, and correct the system's folders via the "_GAMES & FRONT END_" tab -> "_Games/Roms folder:_" field -or- by clicking the folder-icon to the right of it.
+- Select "_Recalbox_"  
+- Tick "_Include non-Recalbox rom folders_"  
+ > (Some systems aren't recognized because their folder-names are non-standard. To add those systems, press the `+` symbol on the bottom left, select the systems that are missing & hit "OK". Then, click the added systems in the bar on the left, and correct the system's folders via the "_GAMES & FRONT END_" tab -> "_Games/Roms folder:_" field -or- by clicking the folder-icon to the right of it.
 [You can find a list of all Rom folder names here](../emulators)
 
 
@@ -56,22 +56,22 @@ The `Imgs` folder name is case sensitive (must have a capital `I`). Examples wou
 - Via the "ALL SYSTEMS"selection on the left, go to the "_MEDIA_" tab -> Clear the "_Fetched Media List_" of all but one image type by pressing the "_minus_" button.
 - Change the "_Media type:_" to: "_USER PROVIDED MIX_" and click on the file icon to the right
 - Select the extracted: `Miyoo Mini Big Zoom.xml`
-- Disable settings "_Resize width to_" , "_Resize height to_" , "_Keep Image Ratio_" 
+- Disable settings "_Resize width to_", "_Resize height to_", "_Keep Image Ratio_" 
 
 > _**- OR -**_
 
 **Customize Image:**  
-- Via "ALL SYSTEMS" on the left, go to the "_MEDIA_" tab -> Enable & set "_Resize width to_" to 250 and enable "_Keep Image Ratio_"    
-- Select the image type you don't want in the "_Fetched Media List_" and press the "_minus_" button, so there's only one picture.   
-   > You can change how the image mix looks with the two buttons under "_Media type_",  I recommend changing "_4 IMAGES MIX_" to "_Screenscraper's Recalbox Mix V2_", but use whatever you prefer.
-   > If you choose a picture that's taller than it's wide, like the boxart, set "_Resize height to_" to 360 and disable "_Keep Image Ratio_"
+- Via "ALL SYSTEMS" on the left, go to the "_MEDIA_" tab -> Enable & set "_Resize width to_" to 250 and enable "_Keep Image Ratio_"  
+- Select the image type you don't want in the "_Fetched Media List_" and press the "_minus_" button, so there's only one picture.  
+ > You can change how the image mix looks with the two buttons under "_Media type_", I recommend changing "_4 IMAGES MIX_" to "_Screenscraper's Recalbox Mix V2_", but use whatever you prefer.
+ > If you choose a picture that's taller than it's wide, like the boxart, set "_Resize height to_" to 360 and disable "_Keep Image Ratio_"
 
 
 ### Output settings
 
 - Change "_Output folder_" to `%ROMROOTFOLDER%\Imgs`, with a capital `I`.
-- Under 'Gamelist Link' ensure that "_Link from node '&lt;thumbnail&gt;'_" is ticked as well as '_Optimize media storage_' (these are important if you wish to use the generated gamelist.xml to create a miyoogamelist.xml for use in Onion (more info on this below on this page).    
-- Now click the system you want to scrape for on the left side, or "all system", and press the play button in the bottom right corner.    
+- Under 'Gamelist Link' ensure that "_Link from node '&lt;thumbnail&gt;'_" is ticked as well as '_Optimize media storage_' (these are important if you wish to use the generated gamelist.xml to create a miyoogamelist.xml for use in Onion (more info on this below on this page).  
+- Now click the system you want to scrape for on the left side, or "all system", and press the play button in the bottom right corner.  
 
 This will automatically scrape images to the correct folders for Miyoo Mini.
 

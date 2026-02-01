@@ -18,14 +18,14 @@ Ebook Reader is available in [Package Manager](package-manager).
 
 ### Controls
 
-| Button | Function        |
+| Button | Function |
 | ------ | --------------- |
-| D-pad  | Navigate        |
-| A      | View bottom bar |
-| B      | Close file      |
-| X      | Open menu       |
-| Select | Show Chapters   |
-| Menu   | Exit            |
+| D-pad | Navigate |
+| A | View bottom bar |
+| B | Close file |
+| X | Open menu |
+| Select | Show Chapters |
+| Menu | Exit |
 
 
 ## Advanced

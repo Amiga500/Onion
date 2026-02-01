@@ -31,7 +31,7 @@ Open a Terminal and type :
 `make git-submodules`
 
 `make with-toolchain` or  
-`make with-toolchain CMD=dev` (to enable debug logging )
+`make with-toolchain CMD=dev` (to enable debug logging)
 
 Done!
 

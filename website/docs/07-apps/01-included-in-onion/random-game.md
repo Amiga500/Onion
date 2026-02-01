@@ -11,8 +11,8 @@ slug: /apps/random-game
 Random Game will allow you to discover new games in your collection!
 
 
-| <img src={require('./assets/random-game-image.webp').default} style={{width: 320}} />               | <img src={require('./assets/random-game-text.webp').default} style={{width: 320}} />               |
-| ---------------                                 | ---------------                                |
+| <img src={require('./assets/random-game-image.webp').default} style={{width: 320}} /> | <img src={require('./assets/random-game-text.webp').default} style={{width: 320}} /> |
+| --------------- | --------------- |
 | <center><sup>Box art view</sup></center> | <center><sup>Text view</sup></center> |
 
 ## Usage
@@ -26,11 +26,11 @@ Once installed you can run it from 3 different ways:
 
 ### Controls
 
-| Button            | Function                                   |
-| ------            | -------------------                        |
-| <kbd>A</kbd>      | Run the proposed game                      |
-| <kbd>B</kbd>      | Exit                                       |
-| <kbd>Y</kbd>      | Switch between box art view and text view  |
+| Button | Function |
+| ------ | ------------------- |
+| <kbd>A</kbd> | Run the proposed game |
+| <kbd>B</kbd> | Exit |
+| <kbd>Y</kbd> | Switch between box art view and text view |
 
 
 ## Advanced

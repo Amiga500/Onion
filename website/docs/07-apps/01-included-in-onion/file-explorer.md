@@ -17,14 +17,14 @@ File Explorer is available in [Package Manager](package-manager).
 
 ### Controls
 
-| Button        | Function                                            |
+| Button | Function |
 | ------------- | --------------------------------------------------- |
-| Select        | Select items                                        |
-| A             | Open folder / View or execute file                  |
-| B             | Move up one directory / Cancel action               |
-| X             | Manage selected items (Copy/Delete/Move etc)        |
+| Select | Select items |
+| A | Open folder / View or execute file |
+| B | Move up one directory / Cancel action |
+| X | Manage selected items (Copy/Delete/Move etc) |
 | Y/Menu button | Open general submenu (Select all/New Directory etc) |
-| L1/R1         | Scroll page                                         |
+| L1/R1 | Scroll page |
 
 ## Advanced
 

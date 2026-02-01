@@ -33,11 +33,11 @@ GLO Menu is a native application of Onion, it is installed by default.
 - **Filter list**: *use a keyword to filter the list*
 - **Refresh roms**: *refresh the list’s game cache, useful when you have added some games*
 - *Custom scripts:*
-  - **Random game**: *added by Random Game app - launches a random game from the list*
-  - **Set time**: *added by Clock app - quick access to setting date and time*
+ - **Random game**: *added by Random Game app - launches a random game from the list*
+ - **Set time**: *added by Clock app - quick access to setting date and time*
 - *WiFi scripts: <sub>(Miyoo Mini Plus only)</sub>*
-  - **Scraper**: *Download image covers for your games. <a href="scraper">More details here</a>*
-  - **Netplay**: *Launch or join a multiplayer game. <a href="../multiplayer">More details here</a>*
+ - **Scraper**: *Download image covers for your games. <a href="scraper">More details here</a>*
+ - **Netplay**: *Launch or join a multiplayer game. <a href="../multiplayer">More details here</a>*
 
 
 ## Advanced

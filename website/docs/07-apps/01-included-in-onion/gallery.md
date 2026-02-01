@@ -16,12 +16,12 @@ A viewer for your screenshots.
 
 ### Controls:
 
-| Button           | Function                                 |
+| Button | Function |
 | ---------------- | ---------------------------------------- |
-| D-pad right or A | Next image                               |
-| D-pad left or B  | Previous image                           |
-| Y                | Toggle visibility of top and bottom bars |
-| Menu             | Exit                                     |
+| D-pad right or A | Next image |
+| D-pad left or B | Previous image |
+| Y | Toggle visibility of top and bottom bars |
+| Menu | Exit |
 
 ## Advanced
 

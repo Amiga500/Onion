@@ -11,7 +11,7 @@ slug: /apps/blue-light-filter
 
 ## Presentation
 Blue Light Filter is a tool included in Tweaks app which allows you to change the colortemp of the screen to have more eye comfort in low-light environments.
-It can be compared to "f.lux", "Night Shift" on IOS or "Night Light" on Windows.
+It can be compared to "f. lux", "Night Shift" on IOS or "Night Light" on Windows.
 
 ![](./assets/blue-light-filter.webp)
 
@@ -40,12 +40,12 @@ You'll find it in Tweaks app: [`Appearance` -› `Blue light filter...`](/docs/a
 5. **Time (Off)** - Time Blue light filter will be disabled
 
 :::note
-To use Schedule you'll need a Miyoo Mini with RTC ~~and .noTimeRestore set in config~~ or a Miyoo Mini Plus with "[Set time automatically via internet](/docs/apps/tweaks#set-automatically-via-the-internet)" enabled.
+To use Schedule you'll need a Miyoo Mini with RTC ~~and. noTimeRestore set in config~~ or a Miyoo Mini Plus with "[Set time automatically via internet](/docs/apps/tweaks#set-automatically-via-the-internet)" enabled.
 :::
 
 ### Hotkeys
 
-| Button                                          | Function                               |
+| Button | Function |
 | ----------------------------------------------- | -------------------------------------- |
 | <kbd>Menu</kbd>+<kbd>B</kbd> <sup>hold 2s</sup> | Force enable/disable Blue light filter |
 

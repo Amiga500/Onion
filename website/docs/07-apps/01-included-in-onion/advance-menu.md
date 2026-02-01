@@ -33,11 +33,11 @@ slug: /apps/advancemenu
 2. Copy your snap files (`mng`+`mp3`) to `%ROMROOTFOLDER%/Snaps`
 3. Launch the AdvanceMENU app from the Apps section
 4. To show games from a specific emulator:
-   - Press <kbd>START</kbd> and navigate to Emulators
-   - Press <kbd>Y</kbd> to deselect each of the emulators
-   - Press <kbd>A</kbd> to confirm
-   - Now to can press <kbd>A</kbd> on any system to show games specific to that system
-   - If you want to browse more then one system, you can select them again by pressing <kbd>Y</kbd> and confirming with <kbd>A</kbd>
+ - Press <kbd>START</kbd> and navigate to Emulators
+ - Press <kbd>Y</kbd> to deselect each of the emulators
+ - Press <kbd>A</kbd> to confirm
+ - Now to can press <kbd>A</kbd> on any system to show games specific to that system
+ - If you want to browse more then one system, you can select them again by pressing <kbd>Y</kbd> and confirming with <kbd>A</kbd>
 
 From any regular game list, press <kbd>Y</kbd> and select "Open AdvanceMENU" to launch it to the list's specific emulator.
 
@@ -57,7 +57,7 @@ Furthermore, you can also set AdvanceMENU to be the start application, this is d
 1. Download Skraper (https://www.skraper.net/)
 2. Scrape your ROM collection every system at a time and on the media tab select only videos
 3. On the OnionUI SDCARD find the folder `App\AdvanceMENU\tools\Roms_and_Medias_Management\mp4_to_mng`, copy it to your PC, make a new folder named videos and then copy the video files there, every system at a time, and run the script to convert to mng+mp3 files
-4. Skraper video files start with 10 frames that are black so I made a script that removes the first 10 frames of every .mng file inside a folder. Download the script, copy it to your mng folder then run it. This step is optional. ([remove10.zip](https://github.com/OnionUI/Onion/files/11100644/remove10.zip))
+4. Skraper video files start with 10 frames that are black so I made a script that removes the first 10 frames of every. mng file inside a folder. Download the script, copy it to your mng folder then run it. This step is optional. ([remove10.zip](https://github.com/OnionUI/Onion/files/11100644/remove10.zip))
 5. Copy the mng folder content to the Snaps folder in every systems folder
 
 This process can take some time and it can be a little bit tricky. Videos scraped with Skraper don't have the best resolution, they are not as sharp as the snap pack for MAME. 

@@ -63,7 +63,7 @@ Your Onion netplay session is now ready to be joined from your local home networ
 
 
 
-import NetStdHost from './assets/Netplay - standard - host.mp4';
+import NetStdHost from './assets/Netplay - standard - host. mp4';
 
 <video controls>
   <source src={NetStdHost}/>
@@ -73,7 +73,7 @@ import NetStdHost from './assets/Netplay - standard - host.mp4';
 
 ### Client:
 
-import NetStdJoin from './assets/Netplay - standard - join.mp4';
+import NetStdJoin from './assets/Netplay - standard - join. mp4';
 
 <video controls>
   <source src={NetStdJoin}/>

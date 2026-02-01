@@ -16,17 +16,17 @@ Gmu supports MPEG audio, Ogg Vorbis and Ogg Opus for internet audio
 
 ### Supported file formats
 
-- Ogg Vorbis (.ogg)
-- MP3 (.mp3)
-- MP2 (.mp2)
-- Musepack (.mpc)
-- FLAC (.flac)
-- Speex (.spx)
-- Ogg Opus (.opus)
-- WavPack (.wv, .wvc)
+- Ogg Vorbis (. ogg)
+- MP3 (. mp3)
+- MP2 (. mp2)
+- Musepack (. mpc)
+- FLAC (. flac)
+- Speex (. spx)
+- Ogg Opus (. opus)
+- WavPack (. wv,. wvc)
 - Module formats (including MOD, IT, STM, S3M, XM, 669, ULT among others)
 - M3U (Gmu can read and write .m3u playlists)
-- PLS (Gmu can read .pls playlists)
+- PLS (Gmu can read. pls playlists)
 
 
 ## Usage
@@ -34,26 +34,26 @@ Gmu supports MPEG audio, Ogg Vorbis and Ogg Opus for internet audio
 
 ### Global Controls
 
-| Function        | Button                                                    |
-| --------------- | -----------------------------------                       |
-| Play            | <kbd>A</kbd> (In playlist and in filebrowser)            |
-| Pause           | <kbd>Start</kbd>                                          |
-| Seek in track   | <kbd>Left/Right</kbd>                                     |
-| Prev/Next track | <kbd>L1/R1</kbd>                                          |
-| ToggleView      | <kbd>Select</kbd>                                         |
-| Exit            | <kbd>Menu</kbd> + <kbd>Select</kbd> (similar to RA menu)  |
-| Help            | <kbd>Menu</kbd> + <kbd>Start</kbd>                        |
+| Function | Button |
+| --------------- | ----------------------------------- |
+| Play | <kbd>A</kbd> (In playlist and in filebrowser) |
+| Pause | <kbd>Start</kbd> |
+| Seek in track | <kbd>Left/Right</kbd> |
+| Prev/Next track | <kbd>L1/R1</kbd> |
+| ToggleView | <kbd>Select</kbd> |
+| Exit | <kbd>Menu</kbd> + <kbd>Select</kbd> (similar to RA menu) |
+| Help | <kbd>Menu</kbd> + <kbd>Start</kbd> |
 
 
 ### Playlist Controls
 
-| Function         | Button                         |
-| ---------------- | --------                       |
-| PlayItem         | <kbd>k</kbd>                   |
-| ToggleRandomMode | <kbd>X</kbd>                   |
-| RemoveItem       | <kbd>B</kbd>                   |
-| Clear            | <kbd>Menu</kbd> + <kbd>B</kbd> |
-| Save             | <kbd>Menu</kbd> + <kbd>A</kbd> |
+| Function | Button |
+| ---------------- | -------- |
+| PlayItem | <kbd>k</kbd> |
+| ToggleRandomMode | <kbd>X</kbd> |
+| RemoveItem | <kbd>B</kbd> |
+| Clear | <kbd>Menu</kbd> + <kbd>B</kbd> |
+| Save | <kbd>Menu</kbd> + <kbd>A</kbd> |
 
 <br /><br /><br />
 

@@ -29,10 +29,10 @@ For each game you'll see:
 
 ### Controls
 
-| Button          | Function                                 |
-| --------------- | -----------------------------------      |
-| <kbd>Y</kbd>    | Toggle between full and short game names |
-| <kbd>B</kbd>    | Exit                                     |
+| Button | Function |
+| --------------- | ----------------------------------- |
+| <kbd>Y</kbd> | Toggle between full and short game names |
+| <kbd>B</kbd> | Exit |
 
 
 

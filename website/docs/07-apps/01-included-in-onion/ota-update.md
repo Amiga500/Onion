@@ -33,5 +33,5 @@ Once installed run it from Apps section.
 - displays the size of the release before downloading
 - verify the size of the downloaded file before applying
 - check the current space available before applying update (currently 1GB is required)
-- check disk integrity with fsck.fat, important to avoid SD card FAT file system corruption
+- check disk integrity with fsck. fat, important to avoid SD card FAT file system corruption
 - generate different exit error codes

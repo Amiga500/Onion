@@ -12,6 +12,6 @@ slug: /emulators/turbografx-cd
 - Extensions: `.pce` `.chd` `.ccd` `.iso` `.img` `.bin/.cue`
 - Bios: `syscard3.pce`
 
-This core does not support compressed files (`.zip` or `.7z`), if you find your games are stuck   
-at a `JUST A MOMENT...` loading screen, ensure that you roms (and bios files) are not zipped.   
-For more information relating to this core please review the [official core documentation](https://docs.libretro.com/library/beetle_pce_fast/).   
+This core does not support compressed files (`.zip` or `.7z`), if you find your games are stuck  
+at a `JUST A MOMENT...` loading screen, ensure that you roms (and bios files) are not zipped.  
+For more information relating to this core please review the [official core documentation](https://docs.libretro.com/library/beetle_pce_fast/).  

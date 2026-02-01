@@ -46,21 +46,21 @@ To browse to your shared folders within Windows:
 
 1. Hit the start button
 
-2. Now, type in the IP address of your MMP in this format: \\\x.x.x.x, e.g: 
+2. Now, type in the IP address of your MMP in this format: \\\x. x. x. x, e. g: 
 
-   ![](https://github.com/OnionUI/Onion/assets/47260768/9cf02397-09fb-4517-8ede-7b6dc44ee2b4)
+![](https://github.com/OnionUI/Onion/assets/47260768/9cf02397-09fb-4517-8ede-7b6dc44ee2b4)
 
 3. Press Enter. It may take a second but an explorer window will open and you'll be met with some pre-configured locations we thought would get you started! 
 
-   ![](https://github.com/OnionUI/Onion/assets/47260768/632782d4-b827-44ca-9806-7102a239200f)
+![](https://github.com/OnionUI/Onion/assets/47260768/632782d4-b827-44ca-9806-7102a239200f)
 
 4. If you have Network File Sharing enabled on Windows, you'll also be able to pin the location to your `quick access` by finding it in the left pane of your explorer window, and clicking `Pin to Quick access`
 
-   ![](https://github.com/OnionUI/Onion/assets/47260768/2d5c7366-40ad-4992-ae9d-86e1c9019fb6)
+![](https://github.com/OnionUI/Onion/assets/47260768/2d5c7366-40ad-4992-ae9d-86e1c9019fb6)
 
 5. The shares will now appear in your quick access pane:
 
-   ![](https://github.com/OnionUI/Onion/assets/47260768/5cbcaf2c-f4eb-4921-9fc3-17974f0ddf9e)
+![](https://github.com/OnionUI/Onion/assets/47260768/5cbcaf2c-f4eb-4921-9fc3-17974f0ddf9e)
 
 :::tip Network shares
 The subfolders can also be mapped as network shares by right clicking on "This PC" or "My Computer" and clicking "Map network drive" - Bare in mind you will have the map to a share directory instead of the root; for example: `\\192.168.1.215\screenshots` - Give it a drive letter and it's ready!
@@ -69,7 +69,7 @@ The subfolders can also be mapped as network shares by right clicking on "This P
 
 ## Share control
 
-We've made controlling shares as easy as possible; from the "Samba: Network file share..." menu item, press A. You'll now be met with a list of shares, these can be instantly toggled on or off.
+We've made controlling shares as easy as possible; from the "Samba: Network file share... " menu item, press A. You'll now be met with a list of shares, these can be instantly toggled on or off.
 
 ![](https://github.com/OnionUI/Onion/assets/47260768/1cf85fc9-1583-4c1f-bce6-b441645e1cde)
 
@@ -85,6 +85,6 @@ To add a share folder, just make a copy of and existing entry and modify the pat
 
 ## Security
 
-Samba offers auth at a unix user level. The current username and password is onion:onion
+Samba offers auth at a unix user level. The current username and password is onion: onion
 
 You'll see there's a share in `smb.conf` called "__sdcard"; this should be left disabled unless you're absolutely sure you want to share the whole SD folder structure.

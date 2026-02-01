@@ -5,9 +5,9 @@ slug: /emulators/superbroswar
 # Super Mario War ⚠
 
 <img
-  title="Nintendo - DS"
-  src={require('./assets/supermariowar.webp').default}
-  style={{ width: '240px', float: 'right' }}
+ title="Nintendo - DS"
+ src={require('./assets/supermariowar.webp').default}
+ style={{ width: '240px', float: 'right' }}
 />
 
 - Emulator: **lr-km_superbroswar_libretro**, Super Bros War Standalone (from Ports repo)
@@ -24,14 +24,14 @@ The RetroArch core version allows you to fight against enemies controlled by the
 
 ### Super Mario War
 - Download the last linux version from [the official repo](https://github.com/mmatyas/supermariowar/releases/tag/continuous), "supermariowar_2023-11-23_linux.zip" for example
-- Extract the "data" folder contained in this archive on your SD card in the folder "Roms/SUPERBROSWAR/.data"
+- Extract the "data" folder contained in this archive on your SD card in the folder "Roms/SUPERBROSWAR/. data"
 - Rename this "data" folder in "Super Mario War"
-- Create an empty text file named "Super Mario War.game" in "Roms/SUPERBROSWAR" folder (it will be the shortcut which must have the same name as the folder in ".data")
+- Create an empty text file named "Super Mario War. game" in "Roms/SUPERBROSWAR" folder (it will be the shortcut which must have the same name as the folder in ". data")
 
 ### Super Cat Wars LITE
 - Download the [last version](https://bot.libretro.com/assets/cores/Super%20Bros%20War/Super%20Cat%20Wars%20LITE.zip)
-- Extract the "Super Cat Wars LITE" folder and its content in the folder "Roms/SUPERBROSWAR/.data"
-- Move the file "Super Cat Wars LITE.game" from "Roms/SUPERBROSWAR/.data/Super Cat Wars LITE" folder to "Roms/SUPERBROSWAR" (it will be the shortcut which must have the same name as the folder in ".data")
+- Extract the "Super Cat Wars LITE" folder and its content in the folder "Roms/SUPERBROSWAR/. data"
+- Move the file "Super Cat Wars LITE. game" from "Roms/SUPERBROSWAR/. data/Super Cat Wars LITE" folder to "Roms/SUPERBROSWAR" (it will be the shortcut which must have the same name as the folder in ". data")
 
 
 ## example
@@ -39,9 +39,9 @@ The RetroArch core version allows you to fight against enemies controlled by the
 <table><td>
 
 - 📁`Roms/SUPERBROSWAR/`
-  - 📄`Super Cat Wars LITE.game`
-  - 📄`Super Mario War.game`
-  - 📁`.data/`
+ - 📄`Super Cat Wars LITE.game`
+ - 📄`Super Mario War.game`
+ - 📁`.data/`
     - 📁`Super Cat Wars LITE/`
     - 📁`Super Mario War/`
 

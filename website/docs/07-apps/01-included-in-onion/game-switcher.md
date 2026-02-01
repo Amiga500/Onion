@@ -7,7 +7,7 @@ slug: /apps/game-switcher
 *Stay on top of your games!*
 
 
-import NetStdHost from './assets/game-switcher.mp4';
+import NetStdHost from './assets/game-switcher. mp4';
 
 ## Presentation
 
@@ -50,15 +50,15 @@ The last game played will be resumed in a few seconds, and with the simple press
 
 <p align="center">
 
-| Button | Function        |
+| Button | Function |
 | ------ | --------------- |
-| <kbd>Left/Right</kbd>             | Navigate between last played games                                           |
-| <kbd>Up/Down</kbd>                | Set brightness                                                               |
-| <kbd>A</kbd> or <kbd>Menu</kbd>   | Resume selected game                                                         |
-| <kbd>B</kbd>                      | Quit                                                                         |
-| <kbd>X</kbd>                      | Remove from GameSwitcher <br /><sub>(it will keep the save state)</sub>     |
-| <kbd>Y</kbd>                      | Toggle fullscreen                                                            |
-| <kbd>Select</kbd>                 | Toggle playtime display                                                      |
+| <kbd>Left/Right</kbd> | Navigate between last played games |
+| <kbd>Up/Down</kbd> | Set brightness |
+| <kbd>A</kbd> or <kbd>Menu</kbd> | Resume selected game |
+| <kbd>B</kbd> | Quit |
+| <kbd>X</kbd> | Remove from GameSwitcher <br /><sub>(it will keep the save state)</sub> |
+| <kbd>Y</kbd> | Toggle fullscreen |
+| <kbd>Select</kbd> | Toggle playtime display |
 
 </p>
 

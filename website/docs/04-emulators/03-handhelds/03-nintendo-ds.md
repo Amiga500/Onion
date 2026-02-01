@@ -6,9 +6,9 @@ slug: /emulators/nds
 
 
 <img
-  title="Nintendo - DS"
-  src={require('./assets/nds.webp').default}
-  style={{ width: '240px', float: 'right' }}
+ title="Nintendo - DS"
+ src={require('./assets/nds.webp').default}
+ style={{ width: '240px', float: 'right' }}
 />
 
 - Alias: *DS*, *NDS*
@@ -21,7 +21,7 @@ Nintendo DS emulator has been ported to Miyoo Mini by Steward-Fu.
 
 The DS console had 2 screens so R2 key allow you to switch between these 2 screens. It's also possible to display both screens at the same time. Then <kbd>L2</kbd> allows to display the stylus and then DPAD is used to move touch pen and A button acts touch point.
 
-The Drastic (<kbd>Menu</kbd> + <kbd>Select</kbd> ) menu has been revised and a new custom has been created to offer you more settings (CPU speed, display disposition, ... ).
+The Drastic (<kbd>Menu</kbd> + <kbd>Select</kbd>) menu has been revised and a new custom has been created to offer you more settings (CPU speed, display disposition,...).
 
 Drastic is the first standalone emulator (not RetroArch core) which is compatible with Onion game Switcher : you can power-off the device and resume it at boot, you can browse your last played NDS games in the game Switcher.
 
@@ -33,45 +33,45 @@ For more details about advanced configuration check the [Steward-Fu Drastic Gith
 
 ### In game Hotkeys
 
-|  Keys               | Description                         |
+| Keys | Description |
 | ------------------- | ----------------------------------- |
-| <kbd>R2</kbd>                  | Swap screen                         |
-| <kbd>L2</kbd>                  | Change Keypad mode / Stylus mode    |
-| <kbd>MENU</kbd> + <kbd>LEFT</kbd>         | Change the display layout           |
-| <kbd>MENU</kbd> + <kbd>RIGHT</kbd>        | Change the display layout           |
-| <kbd>MENU</kbd> + <kbd>L1</kbd>           | Exit from DraStic emulator          |
-| <kbd>MENU</kbd> + <kbd>L2</kbd>           | Quick load state                    |
-| <kbd>MENU</kbd> + <kbd>R1</kbd>           | Fast forward                        |
-| <kbd>MENU</kbd> + <kbd>R2</kbd>           | Quick save state                    |
+| <kbd>R2</kbd> | Swap screen |
+| <kbd>L2</kbd> | Change Keypad mode / Stylus mode |
+| <kbd>MENU</kbd> + <kbd>LEFT</kbd> | Change the display layout |
+| <kbd>MENU</kbd> + <kbd>RIGHT</kbd> | Change the display layout |
+| <kbd>MENU</kbd> + <kbd>L1</kbd> | Exit from DraStic emulator |
+| <kbd>MENU</kbd> + <kbd>L2</kbd> | Quick load state |
+| <kbd>MENU</kbd> + <kbd>R1</kbd> | Fast forward |
+| <kbd>MENU</kbd> + <kbd>R2</kbd> | Quick save state |
 
 ### Keypad Mode
 
-|  Keys               | Description                         |
+| Keys | Description |
 | ------------------- | ----------------------------------- |
-| <kbd>MENU</kbd> + <kbd>A</kbd>            | Alternate display layout            |
-| <kbd>MENU</kbd> + <kbd>B</kbd>            | Change video filter (blur or pixel) |
-| <kbd>MENU</kbd> + <kbd>Y</kbd>            | Change background image             |
-| <kbd>MENU</kbd> + <kbd>SELECT</kbd>       | Enter the DraStic menu              |
-| <kbd>MENU</kbd> + <kbd>START</kbd>        | Enter the customized menu           |
+| <kbd>MENU</kbd> + <kbd>A</kbd> | Alternate display layout |
+| <kbd>MENU</kbd> + <kbd>B</kbd> | Change video filter (blur or pixel) |
+| <kbd>MENU</kbd> + <kbd>Y</kbd> | Change background image |
+| <kbd>MENU</kbd> + <kbd>SELECT</kbd> | Enter the DraStic menu |
+| <kbd>MENU</kbd> + <kbd>START</kbd> | Enter the customized menu |
 
 ### Stylus Mode
 
-|  Keys               | Description                         |
+| Keys | Description |
 | ------------------- | ----------------------------------- |
-| <kbd>DPAD</kbd>                | Move the pen                        |
-| <kbd>A</kbd>                   | Touch screen                        |
-| <kbd>R1</kbd>                  | Lower moving speed                  |
-| <kbd>MENU</kbd> + <kbd>UP</kbd>           | Show the pen on screen 1            |
-| <kbd>MENU</kbd> + <kbd>DOWN</kbd>         | Show the pen on screen 0            |
-| <kbd>MENU</kbd> + <kbd>Y</kbd>            | Change the pen image                |
+| <kbd>DPAD</kbd> | Move the pen |
+| <kbd>A</kbd> | Touch screen |
+| <kbd>R1</kbd> | Lower moving speed |
+| <kbd>MENU</kbd> + <kbd>UP</kbd> | Show the pen on screen 1 |
+| <kbd>MENU</kbd> + <kbd>DOWN</kbd> | Show the pen on screen 0 |
+| <kbd>MENU</kbd> + <kbd>Y</kbd> | Change the pen image |
 
 ### Customized Menu
 
-|  Keys               | Description                         |
+| Keys | Description |
 | ------------------- | ----------------------------------- |
-| <kbd>UP</kbd> / <kbd>DOWN</kbd>           | Select item                         |
-| <kbd>LEFT</kbd> / <kbd>RIGHT</kbd>        | Change setting                      |
-| <kbd>B</kbd>                   | Apply change and then exit          |
+| <kbd>UP</kbd> / <kbd>DOWN</kbd> | Select item |
+| <kbd>LEFT</kbd> / <kbd>RIGHT</kbd> | Change setting |
+| <kbd>B</kbd> | Apply change and then exit |
 
 
 &nbsp;

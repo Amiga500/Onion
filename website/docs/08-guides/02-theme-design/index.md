@@ -33,7 +33,7 @@ Since Onion v4 you have additional assets in `skin/extra` folder:
 * `bootScreen.png`: Custom boot screen
 * `Screen_Off.png`: Shutting down screen
 * `Screen_Off_Save.png`: Saving + Shutting down screen
-* `chargingState0.png` -> `chargingState23.png`: 24 images for charging animation, and you can add `chargingState.json` containing a frame delay value (default: 80 milliseconds - values over 10,000 will be parsed as microseconds):
+* `chargingState0.png` -> `chargingState23.png`: 24 images for charging animation, and you can add `chargingState.json` containing a frame delay value (default: 80 milliseconds - values over 10, 000 will be parsed as microseconds):
   ```json
   { "frame_delay": 80 }
   ```
@@ -50,7 +50,7 @@ It is no longer necessary to include the following fonts in your theme, just poi
 **BPreplay Bold**  
 `/mnt/SDCARD/miyoo/app/BPreplayBold.otf`
 
-> ![BPreplayBold.otf](https://user-images.githubusercontent.com/44569252/180784703-d18c8522-9ced-4edb-807e-bcc0f3cbf6c5.png)
+>![BPreplayBold.otf](https://user-images.githubusercontent.com/44569252/180784703-d18c8522-9ced-4edb-807e-bcc0f3cbf6c5.png)
 
 <sup><a href="https://www.fontsquirrel.com/fonts/download/BPreplay">Download BPreplay</a> • <a href="https://www.fontsquirrel.com/license/BPreplay">OFL License</a></sup>
 
@@ -58,7 +58,7 @@ It is no longer necessary to include the following fonts in your theme, just poi
 **Exo 2 Bold Italic**  
 `/mnt/SDCARD/miyoo/app/Exo-2-Bold-Italic.ttf`
 
-> ![Exo-2-Bold-Italic.ttf](https://user-images.githubusercontent.com/44569252/180785009-27df242d-6b42-4a09-9291-2694026abda3.png)
+>![Exo-2-Bold-Italic.ttf](https://user-images.githubusercontent.com/44569252/180785009-27df242d-6b42-4a09-9291-2694026abda3.png)
 
 <sup><a href="https://www.ndiscover.com/exo-2-0/">Download Exo 2</a> • <a href="https://www.fontsquirrel.com/license/exo-2">OFL License</a></sup>
 
@@ -66,7 +66,7 @@ It is no longer necessary to include the following fonts in your theme, just poi
 **Helvetica Neue**  
 `/mnt/SDCARD/miyoo/app/Helvetica-Neue-2.ttf`
 
-> ![Helvetica-Neue-2.ttf](https://user-images.githubusercontent.com/44569252/180785120-e3af9ea8-63d0-413a-ab11-712de82f81d3.png)
+>![Helvetica-Neue-2.ttf](https://user-images.githubusercontent.com/44569252/180785120-e3af9ea8-63d0-413a-ab11-712de82f81d3.png)
 
 <sup>Free for personal use</sup>
 
@@ -74,7 +74,7 @@ It is no longer necessary to include the following fonts in your theme, just poi
 **Helvetica Neue Bold**  
 `/mnt/SDCARD/miyoo/app/HENB.ttf`
 
-> ![HENB.ttf](https://user-images.githubusercontent.com/44569252/180785278-1aeb528e-2c86-4a4e-827a-ea14cd5e4fff.png)
+>![HENB.ttf](https://user-images.githubusercontent.com/44569252/180785278-1aeb528e-2c86-4a4e-827a-ea14cd5e4fff.png)
 
 <sup>Free for personal use</sup>
 
@@ -82,7 +82,7 @@ It is no longer necessary to include the following fonts in your theme, just poi
 **WenQuanYi Micro Hei**  
 `/mnt/SDCARD/miyoo/app/wqy-microhei.ttc`
 
-> ![wqy-microhei.ttc](https://user-images.githubusercontent.com/44569252/180785427-496b49df-037c-4d3b-897b-ac20881aef44.png)
+>![wqy-microhei.ttc](https://user-images.githubusercontent.com/44569252/180785427-496b49df-037c-4d3b-897b-ac20881aef44.png)
 
 <sup><a href="http://wenq.org/wqy2/index.cgi?MicroHei(en)">Download Micro Hei</a> • GPL License</sup>
 
@@ -102,7 +102,7 @@ It is no longer necessary to include the following fonts in your theme, just poi
 
 Since Onion v4 you can override some aspects of themes. This allows you to have elements which stay the same after updating and no matter which theme is applied.
 
-**Example:** To apply your own charging animation, just put the files `chargingState0.png` ... `chargingState23.png` in this folder: `Saves/CurrentProfile/theme/skin/extra`.
+**Example:** To apply your own charging animation, just put the files `chargingState0.png`... `chargingState23.png` in this folder: `Saves/CurrentProfile/theme/skin/extra`.
 
 
 ## Theme Development Tools

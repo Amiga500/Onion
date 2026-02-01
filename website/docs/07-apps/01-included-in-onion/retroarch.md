@@ -18,18 +18,18 @@ A full RetroArch in a such tiny device! RetroArch is regularly updated from the 
 
 - Save State Thumbnails enabled
 - Compiled and partially rebuilt by [Eggs](https://discordapp.com/users/778867980096241715) for precision and performance  
-  > Custom audio driver, custom scalers, new display driver, and a new input driver
+ > Custom audio driver, custom scalers, new display driver, and a new input driver
 - Minimal input and audio lag
 - Customs cores
 - Fine-tuned with optimal best settings for the Miyoo Mini in mind
 - Automatically choosing the best resolution for your device
-  - 640x480 for the Miyoo Mini v1-3 and the Miyoo Mini+
-  - 752x560 for the Miyoo Mini v4 with firmware >= `202310271401`
+ - 640x480 for the Miyoo Mini v1-3 and the Miyoo Mini+
+ - 752x560 for the Miyoo Mini v4 with firmware >= `202310271401`
 - Can also work as a game launcher  
-  > Cores embedded, playlists and favorites unlocked
+ > Cores embedded, playlists and favorites unlocked
 - Rotation support for arcade games
 - Custom video filters  
-  > You can now modify, or create your own
+ > You can now modify, or create your own
 
   
 #### Some examples of video filters made for this RetroArch port (click to view full resolution):

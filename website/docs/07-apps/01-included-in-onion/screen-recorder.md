@@ -44,8 +44,8 @@ Recorded videos are located in `Media\Videos\Recorded` and can be viewed with [O
 
 ### Hotkeys
 
-| Button          | Function                                 |
-| --------------- | -----------------------------------      |
-| <kbd>Menu</kbd>+<kbd>A</kbd> <sup>hold 2s</sup>   | Force enable/disable screen recorder |
+| Button | Function |
+| --------------- | ----------------------------------- |
+| <kbd>Menu</kbd>+<kbd>A</kbd> <sup>hold 2s</sup> | Force enable/disable screen recorder |
 
 

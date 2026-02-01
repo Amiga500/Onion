@@ -3,7 +3,7 @@ slug: /apps/battery-tool
 description: Monitor your battery usage
 ---
 
-#  Battery Tool
+# Battery Tool
 <p><i>{frontMatter.description}</i></p>
 
 
@@ -26,12 +26,12 @@ Onion Battery Tool will allow you to see a little more than the last 24h of use 
 
 ### Controls
 
-| Button          | Function                                 |
-| --------------- | -----------------------------------      |
-| D-pad <kbd>right</kbd> / <kbd>left</kbd> | Scroll left/right when the view is zoomed  |
-| <kbd>L/L2</kbd>    | Zoom out (4, 8 or 16 hours displayed) |
-| <kbd>R/R2</kbd>    | Zoom out (4, 8 or 16 hours displayed) |
-| <kbd>B</kbd>    | Exit                                     |
+| Button | Function |
+| --------------- | ----------------------------------- |
+| D-pad <kbd>right</kbd> / <kbd>left</kbd> | Scroll left/right when the view is zoomed |
+| <kbd>L/L2</kbd> | Zoom out (4, 8 or 16 hours displayed) |
+| <kbd>R/R2</kbd> | Zoom out (4, 8 or 16 hours displayed) |
+| <kbd>B</kbd> | Exit |
 
 
 

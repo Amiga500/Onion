@@ -133,11 +133,11 @@ Use inventory
 
 To install these you just have to extract the contents of the archive to the root of your SD card (merging the folders).
 
-* Licensed game files are not included for the game engines, you will need to supply the necessary game files yourself. These are detailed (along with any necessary subfolder structure) in the `_required_files.txt` file, within each `Roms/PORTS/Games/[Game folder]/`   
+* Licensed game files are not included for the game engines, you will need to supply the necessary game files yourself. These are detailed (along with any necessary subfolder structure) in the `_required_files.txt` file, within each `Roms/PORTS/Games/[Game folder]/`  
 * For freely available (unlicensed) ports, all files required to run the game are included (these will not have a `_required_files.txt` file)  
 
 > **Notes**  
-> Ensure you have enabled Ports Collection in `Apps` › `Package Manager` › `Verified`   
+> Ensure you have enabled Ports Collection in `Apps` › `Package Manager` › `Verified`  
 > Also see [this helpful video tutorial](https://www.youtube.com/watch?v=ifBQ-1KC570) by _Retro Breeze_  
 
 
@@ -146,17 +146,17 @@ To install these you just have to extract the contents of the archive to the roo
 <table><td>
 
 - 📁`Roms/PORTS/`
-  - 📁`Games/`
+ - 📁`Games/`
     - 📁`[Game folder]/`
       - 📄`_required_files.txt`
       - 🎁`[Port files]` <sub><sup>(required)</sup></sub>
       - ...
       - ➕`[Add files specified in _required_files.txt here]` <sub><sup>(required)</sup></sub>
-  - 📁`Imgs/`
+ - 📁`Imgs/`
     - 🖼️`[Game name].png` <sub><sup>(optional)</sup></sub>
-  - 📁`Manuals/`
+ - 📁`Manuals/`
     - 📖`[Game name].pdf` <sub><sup>(optional)</sup></sub>
-  - 📁`Shortcuts/`
+ - 📁`Shortcuts/`
     - 📁`[Category]/`
       - 📄`[Game name].notfound` <sub><sup>(required)</sup></sub>
 
@@ -177,7 +177,7 @@ To install these you just have to extract the contents of the archive to the roo
 
 > **Notes:**  
 > Also see [this helpful video tutorial](https://www.youtube.com/watch?v=ifBQ-1KC570) by _Retro Breeze_  
-> Once you have verified all of your Ports are launching correctly, you may remove your old, renamed Ports folder from step 1   
+> Once you have verified all of your Ports are launching correctly, you may remove your old, renamed Ports folder from step 1  
   
   
 ***
@@ -204,7 +204,7 @@ Please always use one of these 3 scripts as a template to add your own port.
  * `PerformanceMode`: set it to 1 if you use a demanding port  
  * `Arguments`: use this field to parameter additional args to the launch command line. (See [Duke Nukem](https://github.com/OnionUI/Ports-Collection/blob/main/Duke%20nukem%203D%20(eduke32)/Roms/PORTS/Shortcuts/FPS%20-%20Duke%20Collection%20(eduke32)/Duke%20nukem%203D%20(eduke32).notfound) as example)  
  * `touch /tmp/disable_menu_button`: use this flag only if you want to disable the monitoring of menu button pressing but Onion keymon, the you can remap the menu button in your port. (Useful in games which requires many buttons). Don't forget to insert `rm -f /tmp/disable_menu_button` at the end of your script  
- * `running command line`: Do not modify this (it is standardized)   
+ * `running command line`: Do not modify this (it is standardized)  
 
 
 **Specific to retroarch script :**

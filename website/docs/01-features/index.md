@@ -205,7 +205,7 @@ Onion also contains many additional apps like:<br />
 - [a file explorer](apps/file-explorer)
 - [a terminal](apps/terminal)
 - [ebook & pdf readers](apps/ebook-reader)
-- ...
+-...
 Check the <a href="included-apps">included apps</a> documentation for more information.
 :::
 
@@ -243,7 +243,7 @@ Simply copy this folder when you want to backup your data.
 MainUI is the main interface of Onion provided by Miyoo and modified by Onion Team with these improvements :
 
 - Battery percentage is shown in the top bar  
-  > You can configure the battery percentage visibility and color in the theme configuration file. It is also possible to make a theme that only shows the percentage text.
+ > You can configure the battery percentage visibility and color in the theme configuration file. It is also possible to make a theme that only shows the percentage text.
 - No more audio lag  
   <sup>Credit: Eggs</sup>
 - New default theme inspired by the Lilla theme by Evolve  
