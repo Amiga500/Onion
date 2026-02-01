@@ -286,8 +286,6 @@ def find_and_process_files(start_path: Path, dry_run: bool = False) -> Tuple[int
                         print(f"✓ {rel_path} ({num_changes} changes)")
     
     return files_processed, total_changes
-    
-    return files_processed, total_changes
 
 
 def main():
