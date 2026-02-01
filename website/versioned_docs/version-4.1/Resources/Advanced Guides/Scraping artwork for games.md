@@ -7,7 +7,7 @@ slug: /scraping
 
 ## File Type and Placement:
 
-The image file format for scraped artwork is _. PNG_, with a max size of 250px (H) X 360px (W). The images need to be placed into the `Roms/<gamesystem>/Imgs` folder. 
+The image file format for scraped artwork is _.PNG_, with a max size of 250px (H) X 360px (W). The images need to be placed into the `Roms/<gamesystem>/Imgs` folder. 
 
 The `Imgs` folder name is case sensitive (must have a capital `I`). Examples would be like the following:    
 `Roms/FC/Imgs`  
@@ -40,7 +40,7 @@ The `Imgs` folder name is case sensitive (must have a capital `I`). Examples wou
 
 - Download template from the Retro Game Handhelds Discord:<br/>
 [Skraper_Mix_-_Miyoo_Mini_Big_Zoom_by_AchillesPDX.zip](https://cdn.discordapp.com/attachments/979073647685795880/1061416580380119081/Skraper_Mix_-_Miyoo_Mini_Big_Zoom_by_AchillesPDX.zip) - _Template by: AchillesPDX_
-- Extract the _. ZIP_ file into the following _Skraper_ folder: `.\Skraper-#.#.#\Mixes\`
+- Extract the _.ZIP_ file into the following _Skraper_ folder: `.\Skraper-#.#.#\Mixes\`
 - Via the "ALL SYSTEMS"selection on the left, go to the "_MEDIA_" tab -> Clear the "_Fetched Media List_" of all but one image type by pressing the "_minus_" button.
 - Change the "_Media type:_" to: "_USER PROVIDED MIX_" and click on the file icon to the right
 - Select the extracted: `Miyoo Mini Big Zoom.xml`

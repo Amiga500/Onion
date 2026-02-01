@@ -216,5 +216,5 @@ Please always use one of these 3 scripts as a template to add your own port.
 
 > **Notes about the `~Import ports` script:**  
 > The import script reads the content of each shortcut (`.port` and `.notfound`) files to find the field `GameDataFile`  
-> `GameDataFile="CP01. MAP"` for example. If the file `CP01. MAP` exists in the `Roms/PORTS/Games/[Game folder]/` directory, then the shortcut is renamed with `.port` extension and will be displayed in the roms list otherwise it will be named with `.notfound`  
+> `GameDataFile="CP01.MAP"` for example. If the file `CP01.MAP` exists in the `Roms/PORTS/Games/[Game folder]/` directory, then the shortcut is renamed with `.port` extension and will be displayed in the roms list otherwise it will be named with `.notfound`  
 
