@@ -31,7 +31,7 @@ You'll find it in **Apps** › **Tweaks** › **Network** › **Samba: Network f
 
 Make a note of the IP address at the top here, you'll need it for the next steps!
 
-:::note DEFAULT CREDENTIALS
+::: note DEFAULT CREDENTIALS
 The default **username** and **password** is currently `onion`:`onion`
 :::
 
@@ -62,7 +62,7 @@ To browse to your shared folders within Windows:
 
    ![](https://github.com/OnionUI/Onion/assets/47260768/5cbcaf2c-f4eb-4921-9fc3-17974f0ddf9e)
 
-:::tip Network shares
+::: tip Network shares
 The subfolders can also be mapped as network shares by right clicking on "This PC" or "My Computer" and clicking "Map network drive" - Bare in mind you will have the map to a share directory instead of the root; for example: `\\192.168.1.215\screenshots` - Give it a drive letter and it's ready!
 :::
 
@@ -85,6 +85,6 @@ To add a share folder, just make a copy of and existing entry and modify the pat
 
 ## Security
 
-Samba offers auth at a unix user level. The current username and password is onion:onion
+Samba offers auth at a unix user level. The current username and password is onion: onion
 
 You'll see there's a share in `smb.conf` called "__sdcard"; this should be left disabled unless you're absolutely sure you want to share the whole SD folder structure.

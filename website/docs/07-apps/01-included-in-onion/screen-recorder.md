@@ -24,7 +24,7 @@ Screen Recorder adds screen record ability for demoing apps/content/features/bug
 - Hotkey to launch/stop a record from anywhere
 
 
-:::note
+::: note
 Not really suitable to record games in current build as it's CPU encoding and the framerate is too low for a game.
 :::
 

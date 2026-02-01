@@ -69,6 +69,6 @@ And then opening up user management:
 
 ## Security
 
-:::caution Network security
+::: caution Network security
 Although we've taken every precaution to offer as much security as possible, remember to keep your Onion safe. It may not be advisable to use the file server on public/open Wi-Fi!
 :::

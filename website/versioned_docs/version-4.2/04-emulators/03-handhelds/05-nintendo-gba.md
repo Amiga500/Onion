@@ -11,7 +11,7 @@ slug: /emulators/gba
 - Extensions: `.bin` `.gba` `.zip` `.7z`
 - Bios: `gba_bios.bin` (required for lr-gpsp, optional for other cores), `gb_bios.bin` (optional), `gbc_bios.bin` (optional), `sgb_bios.bin` (optional)
 
-:::note
+::: note
 The default GBA emulator on Onion is currently mGBA. It has long provided optimum compatibility with the entire GBA game library. 
 
 However, as gpSP continues to improve, it's preferable for the most demanding, slow or games requiring a better Fast Forward.

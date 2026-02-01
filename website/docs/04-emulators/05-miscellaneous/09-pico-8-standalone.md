@@ -25,7 +25,7 @@ This is an alternative to the RetroArch `fake-08` core, which has access to all 
 
 2. In order to use the wrapper, you need to have previously purchased PICO-8. It is available as a single purchase at [Lexaloffle's website](https://www.lexaloffle.com/games.php?page=updates). Once downloaded, place the `pico8_dyn` and `pico8.dat` files from the **Raspberry Pi** package in the `/RApp/PICO-8/bin` directory of your Onion SD card.
 
-:::tip
+::: tip
 Do not use the FTP wireless transfer service to place these files on the SD card, as it may strip their execution privileges and cause the application to fail to launch.
 :::
 
@@ -62,7 +62,7 @@ While in-game, press the <kbd>X</kbd> button to bring up the **cartridge menu**.
 
 You can also press <kbd>X</kbd> while in the Splore menu to exit Splore (or use the <kbd>SELECT</kbd>+<kbd>MENU</kbd> shortcut).
 
-:::caution
+::: caution
 Do not choose "*Exit to Console*" on the Splore menu or you'll be stuck there due to implementation limitations. If stuck, press <kbd>SELECT</kbd>+<kbd>MENU</kbd> to exit *Splore* and then reenter from the Onion *Apps* menu.
 :::
 

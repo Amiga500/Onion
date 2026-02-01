@@ -65,6 +65,6 @@ Onion will now take over and join the hotspot, pull the information from the hos
 
 ![](https://github.com/OnionUI/Onion/assets/47260768/4d6bb983-e986-47b6-8810-17cd9e15f553)
 
-:::note
+::: note
 If you change the hotspot password on the host then this process will fail. It should be left as `onionos+`.
 :::

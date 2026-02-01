@@ -5,7 +5,7 @@ description: Download your box arts using WiFi
 
 # Scraper
 
-A missing illustration in your game list ? Onion Scraper can solve that !
+A missing illustration in your game list? Onion Scraper can solve that!
 Using WiFi (so Miyoo Mini Plus only), this app allows you to download game covers without even touching your SD card or a computer.  
 
 https://www.youtube.com/watch?v=lOMP0ozb0I0
@@ -42,12 +42,12 @@ Choose the desired kind of media.
 
 | name        | preview example                                   |   available on   |
 | ------------------------- | ----------------------------------- | ---------------- |
-| Box Art                   |![](./assets/scraper_2dbox.png)      | SS,LB,RA         |
-| Screenshot - Title Screen |![](./assets/scraper_screentitle.png)| SS,LB,RA         |
-| Screenshot - In Game      |![](./assets/scraper_screenshot.png) | SS,LB,RA         |
-| Box Art - 3D              |![](./assets/scraper_3dbox.png)      | SS,LB            |
-| Wheel                     |![](./assets/scraper_wheel.png)      | SS,LB            |
-| Marquee                   |![](./assets/scraper_marquee.png)    | SS,LB            |
+| Box Art                   |![](./assets/scraper_2dbox.png)      | SS, LB, RA         |
+| Screenshot - Title Screen |![](./assets/scraper_screentitle.png)| SS, LB, RA         |
+| Screenshot - In Game      |![](./assets/scraper_screenshot.png) | SS, LB, RA         |
+| Box Art - 3D              |![](./assets/scraper_3dbox.png)      | SS, LB            |
+| Wheel                     |![](./assets/scraper_wheel.png)      | SS, LB            |
+| Marquee                   |![](./assets/scraper_marquee.png)    | SS, LB            |
 | Screenscraper Mix V1      |![](./assets/scraper_mix1.png)       | SS               |
 | Screenscraper Mix V2      |![](./assets/scraper_mix2.png)       | SS               |
 

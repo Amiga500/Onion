@@ -21,7 +21,7 @@ https://www.youtube.com/watch?v=8-GnEP1zC6g
 
 - Backup process to avoid any data loss
 
-:::info No GBA support
+::: info No GBA support
 This feature only supports **GB** and **GBC** games (**Red**, **Blue**, **Yellow** / **Gold**, **Silver**, **Crystal**)  
 :::
 
@@ -89,7 +89,7 @@ In the TGB Dual folder, as well as your actual save file you'll find a backup fr
 
 If anything goes wrong, quit RetroArch. Head over to: `Saves/CurrentProfile/saves/TGB Dual` and look for a file with the name ending `_bkup` - Remove this `_bkup` tag and restart RetroArch and all shall be saved - depending on your load save state setting you may need to temporarily move your save states to force load the backup save, then take a new save state.
 
-:::info
+::: info
 If you change the hotspot password on the host then this process will fail. It should be left as `onionos+`.
 :::
 

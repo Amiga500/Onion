@@ -13,7 +13,7 @@ Simple clock app which allows you to manually set the clock of your device. Espe
 ![](./assets/clock.png)
 
 
-:::note
+::: note
 On the Miyoo Mini Plus, Onion can use the wifi connection to set the time at each boot. Configure it from [Tweaks app](tweaks#set-automatically-via-the-internet).
 :::
 

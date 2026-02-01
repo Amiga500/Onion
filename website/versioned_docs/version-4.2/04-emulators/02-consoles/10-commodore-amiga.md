@@ -10,7 +10,7 @@ slug: /emulators/amiga
 - Emulator: **lr-puae**, lr-uae4arm
 - Rom Folder: `AMIGA`
 - Extensions: `.adf` `.hdf` `.lha` `.zip` (For CD32: `.bin/.cue` `.iso`)
-- Bios: `kick33180.A500`, `kick34005.A500`, `kick34005.CDTV`, `kick37175.A500`, `kick37350.A600`, `kick39106.A1200`, `kick39106.A4000`, `kick40060.CD32`, `kick40060.CD32.ext`, `kick40063.A600`, `kick40068.A1200`, and `kick40068.A4000`
+- Bios: `kick33180. A500`, `kick34005. A500`, `kick34005. CDTV`, `kick37175. A500`, `kick37350. A600`, `kick39106. A1200`, `kick39106. A4000`, `kick40060. CD32`, `kick40060. CD32.ext`, `kick40063. A600`, `kick40068. A1200`, and `kick40068. A4000`
 
 For maximum compatibility add ALL above ‘kickstart roms’ to the `/BIOS` folder and ensure they are named exactly as detailed (lowercase).
 

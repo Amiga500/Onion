@@ -27,11 +27,11 @@ Package Manager is a native application of Onion, it is installed by default.
 - at the top right of the screen you'll see the number of current modifications <sub><sup>(on the screenshot above we see that 1 item will be insntalled)</sup></sub>
 - Package Manager will display a summary of the modifications, press <kbd>start</kbd> again to confirm and apply the modifications.
 
-:::note
+::: note
 Removing an emulator or an app will not remove the associated roms and data.
 :::
 
-:::info
+::: info
 If you install an item from the `Expert` section, you'll need to display the expert section in [Tweaks app](tweaks#show-recent) -> `Appearance` -> `Show expert mode`
 :::
 

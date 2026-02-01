@@ -39,7 +39,7 @@ You'll find it in Tweaks app: [`Appearance` -› `Blue light filter...`](/docs/a
 4. **Time (On)** - Time Blue light filter will be activated
 5. **Time (Off)** - Time Blue light filter will be disabled
 
-:::note
+::: note
 To use Schedule you'll need a Miyoo Mini with RTC ~~and .noTimeRestore set in config~~ or a Miyoo Mini Plus with "[Set time automatically via internet](/docs/apps/tweaks#set-automatically-via-the-internet)" enabled.
 :::
 

@@ -64,11 +64,11 @@ The last game played will be resumed in a few seconds, and with the simple press
 
 ## Advanced
 
-:::note Tips:
+::: note Tips:
 In game you can double click on menu button to quickly switch to the previous game played.
 :::
 
 
-:::info standalone emulators are not compatible
+::: info standalone emulators are not compatible
 Game Switcher builds on Retroarch's Save State functionality so it's not compatible with standalone emulators.
 :::

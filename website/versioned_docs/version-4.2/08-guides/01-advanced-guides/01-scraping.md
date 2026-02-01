@@ -6,13 +6,13 @@ slug: /advanced/scraping
 
 <sup>Credit: f8less & Julian</sup>
 
-:::note
+::: note
 Onion now includes an internal scraper ([Scraper](../apps/scraper)). However for big games collections it will be probably faster to make it from a PC so this guide will help you to configure your scraping.
 :::
 
 ## File type and placement
 
-The image file format for scraped artwork is _.PNG_, with a max size of 250px (H) X 360px (W). The images need to be placed into the `Roms/<gamesystem>/Imgs` folder. 
+The image file format for scraped artwork is _. PNG_, with a max size of 250px (H) X 360px (W). The images need to be placed into the `Roms/<gamesystem>/Imgs` folder. 
 
 The `Imgs` folder name is case sensitive (must have a capital `I`). Examples would be like the following:    
 `Roms/FC/Imgs`  
@@ -52,7 +52,7 @@ The `Imgs` folder name is case sensitive (must have a capital `I`). Examples wou
 
 - Download template from the Retro Game Handhelds Discord:<br/>
 [Skraper_Mix_-_Miyoo_Mini_Big_Zoom_by_AchillesPDX.zip](https://cdn.discordapp.com/attachments/979073647685795880/1061416580380119081/Skraper_Mix_-_Miyoo_Mini_Big_Zoom_by_AchillesPDX.zip) - _Template by: AchillesPDX_
-- Extract the _.ZIP_ file into the following _Skraper_ folder: `.\Skraper-#.#.#\Mixes\`
+- Extract the _. ZIP_ file into the following _Skraper_ folder: `.\Skraper-#.#.#\Mixes\`
 - Via the "ALL SYSTEMS"selection on the left, go to the "_MEDIA_" tab -> Clear the "_Fetched Media List_" of all but one image type by pressing the "_minus_" button.
 - Change the "_Media type:_" to: "_USER PROVIDED MIX_" and click on the file icon to the right
 - Select the extracted: `Miyoo Mini Big Zoom.xml`
@@ -70,7 +70,7 @@ The `Imgs` folder name is case sensitive (must have a capital `I`). Examples wou
 ### Output settings
 
 - Change "_Output folder_" to `%ROMROOTFOLDER%\Imgs`, with a capital `I`.
-- Under 'Gamelist Link' ensure that "_Link from node '&lt;thumbnail&gt;'_" is ticked as well as '_Optimize media storage_' (these are important if you wish to use the generated gamelist.xml to create a miyoogamelist.xml for use in Onion (more info on this below on this page).    
+- Under 'Gamelist Link' ensure that "_Link from node '&lt; thumbnail&gt;'_" is ticked as well as '_Optimize media storage_' (these are important if you wish to use the generated gamelist.xml to create a miyoogamelist.xml for use in Onion (more info on this below on this page).    
 - Now click the system you want to scrape for on the left side, or "all system", and press the play button in the bottom right corner.    
 
 This will automatically scrape images to the correct folders for Miyoo Mini.

@@ -44,7 +44,7 @@ In the submenu you'll get 2 options:
 
 ## Logging in
 
-:::note Default credentials
+::: note Default credentials
 **Username:** `onion`  
 **Password:** `onion`  
 *We're using a new auth system, user defined passwords will come in a future update.*
@@ -88,6 +88,6 @@ Head over to **Tweaks** › **Network** › **SSH** and toggle:
 Now you can connect with the username `root` and no password.
 ## Security
 
-:::caution Network security
+::: caution Network security
 Although we've taken every precaution to offer as much security as possible, remember to keep your Onion safe. SSH/SFTP is the most secure of the services Onion offers to communicate with your device but it is not advisable to leave SSH enabled while using public/open Wi-Fi unless you're actively using it.
 :::

@@ -8,7 +8,7 @@ slug: /apps/theme-switcher
 
 ## Presentation
 
-Onion loves themes. Themes in Onion are two things :
+Onion loves themes. Themes in Onion are two things:
 - [A fabulous theme repository](https://github.com/OnionUI/Themes/blob/main/README.md) with a very active participation from Onion community <sup><sub>❤️</sub></sup>
 - An application called Theme-switcher included in Onion which allows to preview and change themes.
 
@@ -58,6 +58,6 @@ Learn how to make your own theme by consulting [our guide](../theme-design).
 
 If you have a big amount of themes on your SD card, you can unzip each theme, Theme Switcher app will be faster to launch.
 
-:::note
+::: note
 You can switch the icon packs without changing your current theme, directly from `Tweaks app` -> `Appearance` -> `Icons packs`
 :::

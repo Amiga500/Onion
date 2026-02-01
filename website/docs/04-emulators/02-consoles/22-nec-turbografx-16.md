@@ -12,6 +12,6 @@ slug: /emulators/turbografx
 - Extensions: `.pce` `.chd` `.zip` `.7z` `.ccd` `.iso` `.img` `.bin/.cue`
 - Bios: None
 
-:::note
+::: note
 "Beetle PCE" slower than "Beetle PCE Fast" but more accurate, full speed with a 1900mhz [overclock](../faq#how-to-overclock-my-miyoo-mini), so more reserved to MMP.
 :::

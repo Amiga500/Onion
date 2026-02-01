@@ -110,8 +110,8 @@ It also allows you to quickly change games and many other features:
 
 <p align="center"><img src="https://user-images.githubusercontent.com/44569252/189435280-9de4f088-b013-4c71-a44b-71f953b128a8.png" width="320" /></p>
 
-- Track your game playtimes (format `h:m`).
-- View your total playtime in the top bar (format `h:m`).
+- Track your game playtimes (format `h: m`).
+- View your total playtime in the top bar (format `h: m`).
 - Share your playtimes by taking a screenshot (press <kbd>MENU</kbd>+<kbd>POWER</kbd> - screenshot is saved in `Screenshots`).
 
 

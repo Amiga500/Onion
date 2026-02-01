@@ -10,7 +10,7 @@ slug: /apps/game-list-options
 Game List Options (GLO menu) is a tool for performing actions for the selected game or for the entire list. <br />
 Press <kbd>Y</kbd> in a game list then from this menu you can choose the Retroarch core, download the image cover of your game (wifi/MMP required), launch a Netplay session, reset your game (to skip the last save state), filter the list of games with a keyword,...
 
-Thanks to GLO menu flexibility, you can even add your own scripts here !*
+Thanks to GLO menu flexibility, you can even add your own scripts here!*
 
 ## Usage
 
@@ -45,7 +45,7 @@ GLO Menu is a native application of Onion, it is installed by default.
 GLO Menu allows you to create your own scripts.
 The GLO scripts are located in `sdcard/App/romscripts`. 
 
-The existing scripts are a great source of inspiration for your future script. Here some examples : 
+The existing scripts are a great source of inspiration for your future script. Here some examples: 
 - [Scraper script](https://github.com/OnionUI/Onion/blob/main/static/build/App/romscripts/emu/Scraper.sh) (Good example to use rom path)
 - [Random game script](https://github.com/OnionUI/Onion/blob/main/static/packages/App/Random%20Game/App/romscripts/Random%20game.sh) (good example to get the current section)
 - [Netplay script](https://github.com/OnionUI/Onion/blob/main/static/build/App/romscripts/emu/Netplay.sh) (good example for dynamic labels entry in GLO menu)

@@ -14,7 +14,7 @@ slug: /emulators/scummvm
 
 ### Adding games
 
-No need to create your shortcuts manually anymore, Onion will import your games automatically ! 
+No need to create your shortcuts manually anymore, Onion will import your games automatically! 
 Just put your games folders in `Roms/SCUMMVM/[Game folder]/` and then run `~Import games` in ScummVM section. 
 
 The import script will ask you if you want to use ScummVM database names or the names specified on your own folders. 

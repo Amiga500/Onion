@@ -22,7 +22,7 @@ Docker must be installed and running.
 
 The following command lines will install the required Docker image to get the preconfigured Toolchain for compilation (credits: [Shaun Inman](https://github.com/shauninman/union-miyoomini-toolchain)), compile all the sources and make a release.
 
-Open a Terminal and type : 
+Open a Terminal and type: 
 
 `git clone https://github.com/OnionUI/Onion.git`
 
@@ -31,7 +31,7 @@ Open a Terminal and type :
 `make git-submodules`
 
 `make with-toolchain` or  
-`make with-toolchain CMD=dev` (to enable debug logging )
+`make with-toolchain CMD=dev` (to enable debug logging)
 
 Done!
 

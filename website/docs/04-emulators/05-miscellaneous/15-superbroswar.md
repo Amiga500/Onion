@@ -48,14 +48,14 @@ The RetroArch core version allows you to fight against enemies controlled by the
 </td></table>
 
 
-:::note
+::: note
 The official website contains many maps and skins: http://smwstuff.net
 :::
 
-:::note
+::: note
 "Super Cat Wars LITE" contains more assets than "Super Mario War" which are all loaded in memory at start, so it can take some time to load and rarely might even crash due to lack of memory
 :::
 
-:::note
+::: note
 Only the standalone version includes the multiplayer mode (not tested)
 :::

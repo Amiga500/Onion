@@ -9,7 +9,7 @@ slug: /apps/retroarch
 
 ## Presentation
 
-A full Retroarch in a such tiny device ! Retroarch is regularly updated from the offcial repository. 
+A full Retroarch in a such tiny device! Retroarch is regularly updated from the offcial repository. 
 
 <p align="center"><img src="https://user-images.githubusercontent.com/44569252/189438841-f419f936-6376-436e-89b5-78ce1f88494f.png" width="320" /></p>
 

@@ -57,6 +57,6 @@ Once connected, Keybinds need to match what MainUI/SDL is expecting, which are:
 
 ## Security
 
-:::caution Network security
+::: caution Network security
 VNC server must be used on local private network only as there is no password and no encryption. It is not recommended you use VNC on an insecure Wi-Fi network that is open or public as traffic is unencrypted, for this reason we strongly recommend you toggle VNC off when you're on the move!
 :::

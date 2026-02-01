@@ -215,7 +215,7 @@ For more detailed information and tips on Arcade emulation, checkout the awesome
 - Emulator: **lr-atari800**
 - Rom Folder: `EIGHTHUNDRED`
 - Extensions: `.atr` `.zip` `.7z`
-- Bios: `ATARIOSA.ROM` and `ATARIOSB.ROM` and `ATARIBAS.ROM`
+- Bios: `ATARIOSA. ROM` and `ATARIOSB. ROM` and `ATARIBAS. ROM`
 
 <img alt="experimental" src="https://user-images.githubusercontent.com/44569252/190520187-500c6659-b99b-497a-b2f3-817f1e6e2669.png" />
 </td></table>
@@ -248,7 +248,7 @@ For more detailed information and tips on Arcade emulation, checkout the awesome
 - Emulator: **lr-atari800**
 - Rom Folder: `FIFTYTWOHUNDRED`
 - Extensions: `.a52` `.zip` `.7z` `.bin`
-- Bios: `5200.rom` and `ATARIBAS.ROM`
+- Bios: `5200.rom` and `ATARIBAS. ROM`
 
 <img alt="verified" src="https://user-images.githubusercontent.com/44569252/189995592-9d9e4702-e237-40a2-a0b7-b5e4578f0d7d.png" />
 </td></table>
@@ -348,7 +348,7 @@ For more detailed information and tips on Arcade emulation, checkout the awesome
 - Emulator: **lr-puae**, lr-uae4arm
 - Rom Folder: `AMIGA`
 - Extensions: `.adf` `.hdf` `.lha` `.zip` (For CD32: `.bin/.cue` `.iso`)
-- Bios: `kick33180.A500`, `kick34005.A500`, `kick34005.CDTV`, `kick37175.A500`, `kick37350.A600`, `kick39106.A1200`, `kick39106.A4000`, `kick40060.CD32`, `kick40060.CD32.ext`, `kick40063.A600`, `kick40068.A1200`, and `kick40068.A4000`
+- Bios: `kick33180. A500`, `kick34005. A500`, `kick34005. CDTV`, `kick37175. A500`, `kick37350. A600`, `kick39106. A1200`, `kick39106. A4000`, `kick40060. CD32`, `kick40060. CD32.ext`, `kick40063. A600`, `kick40068. A1200`, and `kick40068. A4000`
 > **Notes**  
 > For maximum compatibility add ALL above ‘kickstart roms’ to the `/BIOS` folder and ensure they are named exactly as detailed (lowercase).
 > See [this link](https://docs.libretro.com/library/puae/) for more information.
@@ -369,7 +369,7 @@ For more detailed information and tips on Arcade emulation, checkout the awesome
 - Emulator: lr-uae4arm
 - Rom Folder: `AMIGACD`
 - Extensions: `.bin/.cue` `.ccd` `.lha` `.nrg` `.mds` `.iso` `.m3u` `.chd`
-- Bios: `kick33180.A500` and `kick34005.A500` and `kick40068.A1200`  
+- Bios: `kick33180. A500` and `kick34005. A500` and `kick40068. A1200`  
 > See [this link](https://github.com/midwan/amiberry/wiki/Kickstart-ROMs-(BIOS)) for more details.
 
 <img alt="experimental" src="https://user-images.githubusercontent.com/44569252/190520187-500c6659-b99b-497a-b2f3-817f1e6e2669.png" />
@@ -665,7 +665,7 @@ For more detailed information and tips on Arcade emulation, checkout the awesome
 - Emulator: lr-x1
 - Rom Folder: `XONE`
 - Extensions: `.dx1` `.zip` `.2d` `.2hd` `.tfd` `.d88` `.88d` `.hdm` `.xdf` `.dup` `.cmd`
-- Bios: `IPLROM.X1`, `IPLROM.X1T` (need to be placed in a folder named `xmil` within the `BIOS` folder)
+- Bios: `IPLROM. X1`, `IPLROM. X1T` (need to be placed in a folder named `xmil` within the `BIOS` folder)
 
 <img alt="experimental" src="https://user-images.githubusercontent.com/44569252/190520187-500c6659-b99b-497a-b2f3-817f1e6e2669.png" />
 </td></table>
@@ -1219,7 +1219,7 @@ button in the bottom left corner of the play window and choose ‘save link as�
 >
 > **Example**  
 > Game folder: `Roms/SCUMMVM/The Secret of Monkey Island/`  
-> ScummVM file: `Roms/SCUMMVM/The Secret of Monkey Island.scummvm`, contents: `scumm:monkey`
+> ScummVM file: `Roms/SCUMMVM/The Secret of Monkey Island.scummvm`, contents: `scumm: monkey`
 >
 > **Audio Troubleshooting**  
 > We recommend sourcing original `.sou` audio files for `Full Throttle`, `The Dig` and `The Curse of Monkey Island` to avoid audio issues (such as missing speech or dropping out).  
@@ -1290,7 +1290,7 @@ For convenience, a list of Rom folder names for all *fully supported* cores is d
 | MS-DOS                        | `DOS`                       |
 | MSX - MSX2                    | `MSX`                       |
 | NEC SuperGrafx                | `SGFX`                      |
-| NEC TurboGrafx   CD           | `PCECD`                     |
+| NEC TurboGrafx CD           | `PCECD`                     |
 | NEC TurboGrafx-16             | `PCE`                       |
 | Nintendo Entertainment System | `FC`                        |
 | Nintendo Game Boy             | `GB`                        |

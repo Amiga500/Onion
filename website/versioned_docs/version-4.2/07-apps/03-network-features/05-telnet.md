@@ -43,6 +43,6 @@ We've made the choice to remove authentication on Telnet as it is unsecure and w
 
 ## Security
 
-:::caution Network security
+::: caution Network security
 Although we've taken every precaution to offer as much security as possible, remember to keep your Onion safe. It is not recommended you use telnet on an insecure Wi-Fi network that is open or public as traffic is unencrypted and transported in plain text, for this reason we strongly recommend you toggle telnet off when you're on the move!
 :::
