@@ -1,6 +1,6 @@
 ---
 slug: /apps/spotify-client
-description: Builds ncspot for the Miyoo Mini + (contains appfolder).
+description: Builds ncspot for the Miyoo Mini Plus (contains appfolder).
 ---
 
 # Spotify Client
@@ -8,4 +8,4 @@ description: Builds ncspot for the Miyoo Mini + (contains appfolder).
 
 [**Better WiFi Tools - official page**](https://github.com/XK9274/ncspotcli-compile-miyoo)
 
-Builds ncspot for the Miyoo Mini + (contains appfolder).
+Builds ncspot for the Miyoo Mini Plus (contains appfolder).
