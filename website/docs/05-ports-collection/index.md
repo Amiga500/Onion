@@ -169,7 +169,7 @@ To install these you just have to extract the contents of the archive to the roo
 1. Rename your existing "Roms/PORTS" folder into something like Roms/PORTS_OLD  
 2. Update Onion to version 4.1.0 or later (the latest release is recommended) (see [upgrade guide](installation#upgrading-from-stock-or-onion))  
 3. Enable "Ports Collection" in `Apps` › `Package Manager` › `Verified`  
-4. Download the "the full Ports-Collection" from [the official repository](https://github.com/OnionUI/Ports-Collection) (first link in the description)  
+4. Download the full Ports-Collection from [the official repository](https://github.com/OnionUI/Ports-Collection) (first link in the description)  
 5. Extract the archive to the root of your SD card  
 6. Manually populate each `Roms/PORTS/Games/[Game folder]/` with your old assets, as detailed in the `_required_files.txt` file for each  
 7. We have pre-configured many things, so during your copy paste of your assets, do not overwrite the existing files  
@@ -207,11 +207,11 @@ Please always use one of these 3 scripts as a template to add your own port.
  * `running command line`: Do not modify this (it is standardized)   
 
 
-**Specific to retroarch script :**
+**Specific to RetroArch script :**
 
- * `Core`: then name of the core that will be used without `_libretro.so`, for example `ecwolf` for Wolfenstein  
+ * `Core`: the name of the core that will be used without `_libretro.so`, for example `ecwolf` for Wolfenstein  
  * `RomDir`: similar to `GameDir` : it is the path where your rom is located in `Roms/PORTS/Games/[Game folder]/`  
- * `RomFile`: it is the name of the rom that will be passed as a parameter to the retroarch core, will be also used to detect the presence of the game when running `~Import ports` script from the rom list. (the `Core` will be used for detection if not specified) 
+ * `RomFile`: it is the name of the rom that will be passed as a parameter to the RetroArch core, will be also used to detect the presence of the game when running `~Import ports` script from the rom list. (the `Core` will be used for detection if not specified) 
 
 
 > **Notes about the `~Import ports` script :**  
