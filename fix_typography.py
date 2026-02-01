@@ -190,7 +190,7 @@ def apply_typography_fixes(text: str) -> Tuple[str, int]:
     return result, changes_made
 
 
-def process_file(filepath: Path) -> Tuple[bool, int]:
+def process_file(filepath: Path, dry_run: bool = False) -> Tuple[bool, int]:
     """
     Process a single file.
     Returns (modified, num_changes).
@@ -205,13 +205,17 @@ def process_file(filepath: Path) -> Tuple[bool, int]:
     fixed_content, num_changes = apply_typography_fixes(original_content)
     
     if num_changes > 0 and fixed_content != original_content:
-        try:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(fixed_content)
+        if not dry_run:
+            try:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(fixed_content)
+                return True, num_changes
+            except Exception as e:
+                print(f"Error writing {filepath}: {e}")
+                return False, 0
+        else:
+            # In dry-run mode, just report what would be changed
             return True, num_changes
-        except Exception as e:
-            print(f"Error writing {filepath}: {e}")
-            return False, 0
     
     return False, 0
 
@@ -240,7 +244,7 @@ def should_process_file(filepath: Path, website_path: Path) -> bool:
     return True
 
 
-def find_and_process_files(start_path: Path) -> Tuple[int, int]:
+def find_and_process_files(start_path: Path, dry_run: bool = False) -> Tuple[int, int]:
     """
     Find and process all valid files in the website directory.
     Returns (files_processed, total_changes).
@@ -270,13 +274,18 @@ def find_and_process_files(start_path: Path) -> Tuple[int, int]:
             filepath = root_path / filename
             
             if should_process_file(filepath, website_path):
-                modified, num_changes = process_file(filepath)
+                modified, num_changes = process_file(filepath, dry_run)
                 
                 if modified:
                     files_processed += 1
                     total_changes += num_changes
                     rel_path = filepath.relative_to(start_path)
-                    print(f"✓ {rel_path} ({num_changes} changes)")
+                    if dry_run:
+                        print(f"[DRY RUN] {rel_path} ({num_changes} changes)")
+                    else:
+                        print(f"✓ {rel_path} ({num_changes} changes)")
+    
+    return files_processed, total_changes
     
     return files_processed, total_changes
 
@@ -317,7 +326,7 @@ def main():
         print("DRY RUN MODE - No files will be modified")
         print()
     
-    files_processed, total_changes = find_and_process_files(start_path)
+    files_processed, total_changes = find_and_process_files(start_path, args.dry_run)
     
     print()
     print("=" * 70)
