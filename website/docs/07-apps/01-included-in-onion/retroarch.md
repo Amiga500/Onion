@@ -1,5 +1,5 @@
 ---
-slug: /apps/retroarch
+slug: /apps/RetroArch
 ---
 
 # RetroArch
