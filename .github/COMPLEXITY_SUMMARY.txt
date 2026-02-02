@@ -1,0 +1,181 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  CYCLOMATIC COMPLEXITY ANALYSIS SUMMARY                      ║
+║                         Onion Codebase Review                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📊 OVERALL STATISTICS
+────────────────────────────────────────────────────────────────────────────────
+Total Functions Analyzed:         ~200+
+High Complexity (CCN ≥ 15):       45 functions (22.5%)
+Very High (CCN ≥ 30):             13 functions (6.5%)
+Critical (CCN ≥ 50):              4 functions (2%)
+Average Cyclomatic Complexity:    ~12 (target: <10)
+
+🔴 CRITICAL PRIORITY FUNCTIONS (Immediate Action Required)
+────────────────────────────────────────────────────────────────────────────────
+
+1. keymon/keymon.c: main()
+   CCN: 148 | Lines: 439 | Risk: CRITICAL
+   ↳ Core keyboard monitoring system
+   ↳ 15+ button handlers in one switch
+   ↳ 20+ state variables
+   ↳ Recommended: Extract handlers, create state machine
+
+2. infoPanel/infoPanel.c: main()
+   CCN: 111 | Lines: 290 | Risk: CRITICAL
+   ↳ Information panel UI system
+   ↳ Mixed rendering and business logic
+   ↳ Complex navigation handling
+   ↳ Recommended: Extract page renderers, create navigation module
+
+3. prompt/prompt.c: main()
+   CCN: 67 | Lines: 225 | Risk: CRITICAL
+   ↳ User prompt/dialog system
+   ↳ Multiple prompt types in one function
+   ↳ Mixed validation and UI logic
+   ↳ Recommended: Create type-specific handlers
+
+4. tweaks/tweaks.c: main()
+   CCN: 64 | Lines: 196 | Risk: CRITICAL
+   ↳ Settings/tweaks UI
+   ↳ Large menu navigation switch
+   ↳ Complex state transitions
+   ↳ Recommended: Extract menu handlers, use function pointers
+
+🟠 VERY HIGH PRIORITY (Refactoring Recommended)
+────────────────────────────────────────────────────────────────────────────────
+
+5. packageManager/keystateHandler.h: keystateHandler() - CCN: 61
+6. common/theme/resources.h: _loadImage() - CCN: 54
+7. clock/font/font_drawing.c: isOutlinePixel() - CCN: 49
+8. common/theme/render/list.h: theme_renderListCustom() - CCN: 48
+9. themeSwitcher/themeSwitcher.c: main() - CCN: 45
+10. installUI/installUI.c: main() - CCN: 41
+11. clock/main.c: main() - CCN: 35
+12. gameSwitcher/gameSwitcher.c: main() - CCN: 34
+13. pngScale/pngScale.c: main() - CCN: 33
+
+🟡 HIGH PRIORITY (Consider Refactoring)
+────────────────────────────────────────────────────────────────────────────────
+Functions 14-45: CCN range 15-31
+See COMPLEXITY_REPORT.md for complete list
+
+📈 COMPLEXITY BREAKDOWN
+────────────────────────────────────────────────────────────────────────────────
+
+Risk Level         CCN Range    Count   Percentage   Action Required
+─────────────────────────────────────────────────────────────────────────────
+🔴 Critical        ≥ 50         4       2.0%         Immediate refactoring
+🟠 Very High       30-49        9       4.5%         High priority refactoring
+🟡 High            15-29        32      16.0%        Consider refactoring
+🟢 Moderate        10-14        ~50     25.0%        Monitor
+✅ Low             1-9          ~105    52.5%        Acceptable
+
+⚠️ COMMON COMPLEXITY PATTERNS IDENTIFIED
+────────────────────────────────────────────────────────────────────────────────
+
+1. Large main() Functions
+   Problem: Business logic embedded in main()
+   Solution: Extract into modular functions
+   Files: keymon, infoPanel, prompt, tweaks, themeSwitcher
+
+2. Massive Switch Statements
+   Problem: 10-15 case statements with complex logic
+   Solution: Function pointer tables, command pattern
+   Files: keymon, packageManager, gameSwitcher
+
+3. Deep Nesting (4-5 levels)
+   Problem: Multiple nested if statements
+   Solution: Early returns, guard clauses, extraction
+   Files: Multiple files across codebase
+
+4. Mixed Concerns
+   Problem: UI rendering mixed with business logic
+   Solution: Separation of concerns, MVC-like patterns
+   Files: infoPanel, prompt, tweaks, themeSwitcher
+
+5. Complex State Management
+   Problem: 10+ boolean flags tracking state
+   Solution: State machine pattern, consolidated state structs
+   Files: keymon, gameSwitcher, packageManager
+
+💡 QUICK WIN OPPORTUNITIES
+────────────────────────────────────────────────────────────────────────────────
+
+1. Replace Deep Nesting with Early Returns
+   Impact: -2 to -5 CCN per function
+   Effort: Low
+   
+2. Extract Helper Functions
+   Impact: -3 to -10 CCN per function
+   Effort: Low to Medium
+   
+3. Use Function Pointer Tables
+   Impact: -10 to -20 CCN per function
+   Effort: Medium
+
+📋 RECOMMENDED ACTION PLAN
+────────────────────────────────────────────────────────────────────────────────
+
+Phase 1 (Week 1): Documentation & Testing
+  □ Document behavior of top 4 critical functions
+  □ Create characterization tests
+  □ Establish test baseline
+
+Phase 2 (Weeks 2-4): Critical Functions
+  □ Refactor keymon/keymon.c: main() (CCN 148 → <30)
+  □ Refactor infoPanel/infoPanel.c: main() (CCN 111 → <30)
+  
+Phase 3 (Weeks 5-6): Critical Functions Continued
+  □ Refactor prompt/prompt.c: main() (CCN 67 → <20)
+  □ Refactor tweaks/tweaks.c: main() (CCN 64 → <20)
+
+Phase 4 (Weeks 7-8): Very High Priority
+  □ Address 9 functions with CCN 30-49
+  
+Phase 5 (Weeks 9-12): High Priority & Validation
+  □ Review 32 functions with CCN 15-29
+  □ Full regression testing
+  □ Performance validation
+
+🎯 SUCCESS METRICS
+────────────────────────────────────────────────────────────────────────────────
+
+Current State                          Target State
+─────────────────────────────────────────────────────────────────────────────
+Functions with CCN ≥ 50:      4        →  0 functions
+Functions with CCN ≥ 30:      13       →  <5 functions
+Functions with CCN ≥ 15:      45       →  <20 functions
+Average CCN:                  ~12      →  <10
+
+📚 DOCUMENTATION
+────────────────────────────────────────────────────────────────────────────────
+
+Complete Analysis:      .github/COMPLEXITY_REPORT.md (14KB)
+Action Items:          .github/COMPLEXITY_ACTION_ITEMS.md (9KB)
+This Summary:          .github/COMPLEXITY_SUMMARY.txt (5KB)
+
+🔧 TOOLS USED
+────────────────────────────────────────────────────────────────────────────────
+
+Analyzer:    Lizard Code Complexity Analyzer v1.17+
+Language:    C
+Date:        2026-02-02
+Reviewer:    Code Review Expert Agent
+
+📞 NEXT STEPS
+────────────────────────────────────────────────────────────────────────────────
+
+1. Review findings with development team
+2. Prioritize functions for refactoring
+3. Allocate resources and timeline
+4. Create tests before refactoring
+5. Refactor incrementally with continuous testing
+6. Track progress and update metrics
+
+═══════════════════════════════════════════════════════════════════════════════
+
+For detailed analysis and specific refactoring recommendations,
+see COMPLEXITY_REPORT.md and COMPLEXITY_ACTION_ITEMS.md
+
+═══════════════════════════════════════════════════════════════════════════════
