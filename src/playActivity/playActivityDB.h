@@ -265,19 +265,27 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
 {
     if (!file_path_relative_to(rel_path, ROMS_FOLDER, rom_path)) {
         if (strstr(rom_path, "../../Roms/") != NULL) {
-            char *temp = str_split(strdup((const char *)rom_path), "../../Roms/");
-            if (temp) {
-                strncpy(rel_path, temp, PATH_MAX - 1);
-                rel_path[PATH_MAX - 1] = '\0';
-                free(temp);
+            char *rom_path_dup = strdup((const char *)rom_path);
+            if (rom_path_dup) {
+                char *temp = str_split(rom_path_dup, "../../Roms/");
+                if (temp) {
+                    strncpy(rel_path, temp, PATH_MAX - 1);
+                    rel_path[PATH_MAX - 1] = '\0';
+                    free(temp);
+                }
+                free(rom_path_dup);
             }
         }
         else {
-            char *temp = str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", "");
-            if (temp) {
-                strncpy(rel_path, temp, PATH_MAX - 1);
-                rel_path[PATH_MAX - 1] = '\0';
-                free(temp);
+            char *rom_path_dup = strdup((const char *)rom_path);
+            if (rom_path_dup) {
+                char *temp = str_replace(rom_path_dup, "/mnt/SDCARD/Roms/", "");
+                if (temp) {
+                    strncpy(rel_path, temp, PATH_MAX - 1);
+                    rel_path[PATH_MAX - 1] = '\0';
+                    free(temp);
+                }
+                free(rom_path_dup);
             }
         }
     }

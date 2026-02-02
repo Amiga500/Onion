@@ -76,7 +76,13 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
     cache_path_out[0] = '\0';
 
     int cache_version = CACHE_NOT_FOUND;
-    char *cache_dir = dirname(strdup((char *)rom_path));
+    
+    // Use stack buffer to avoid memory leak from strdup
+    char rom_path_copy[PATH_MAX];
+    strncpy(rom_path_copy, rom_path, PATH_MAX - 1);
+    rom_path_copy[PATH_MAX - 1] = '\0';
+    
+    char *cache_dir = dirname(rom_path_copy);
 
     while (strlen(cache_dir) > 16) {
         const char *base = basename(cache_dir);
@@ -152,11 +158,24 @@ CacheDBItem *cache_db_find(const char *path_or_name)
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         cache_db_item = (CacheDBItem *)malloc(sizeof(CacheDBItem));
-        strcpy(cache_db_item->cache_path, cache_db_file_path);
-        strcpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0));
-        strcpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1));
-        strcpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2));
-        printf_debug("cache item found: %s\n", cache_db_item->name);
+        if (cache_db_item) {
+            strncpy(cache_db_item->cache_path, cache_db_file_path, PATH_MAX - 1);
+            cache_db_item->cache_path[PATH_MAX - 1] = '\0';
+            
+            const char *text = (const char *)sqlite3_column_text(stmt, 0);
+            strncpy(cache_db_item->name, text ? text : "", STR_MAX - 1);
+            cache_db_item->name[STR_MAX - 1] = '\0';
+            
+            text = (const char *)sqlite3_column_text(stmt, 1);
+            strncpy(cache_db_item->path, text ? text : "", PATH_MAX - 1);
+            cache_db_item->path[PATH_MAX - 1] = '\0';
+            
+            text = (const char *)sqlite3_column_text(stmt, 2);
+            strncpy(cache_db_item->imgpath, text ? text : "", PATH_MAX - 1);
+            cache_db_item->imgpath[PATH_MAX - 1] = '\0';
+            
+            printf_debug("cache item found: %s\n", cache_db_item->name);
+        }
     }
     else {
         printf("Game not found in this cache db\n");
