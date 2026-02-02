@@ -67,7 +67,13 @@ print-version:
 	@echo Onion v$(VERSION)
 	@echo RetroArch sub-v$(RA_SUBVERSION)
 
-$(CACHE)/.setup:
+$(CACHE)/.submodules:
+	@$(ECHO) $(COLOR_BLUE)"\n-- Initializing git submodules"$(COLOR_NORMAL)
+	@git submodule update --init --recursive
+	@mkdir -p $(CACHE)
+	@touch $(CACHE)/.submodules
+
+$(CACHE)/.setup: $(CACHE)/.submodules
 	@$(ECHO) $(PRINT_RECIPE)
 	@mkdir -p $(BUILD_DIR) $(DIST_DIR) $(RELEASE_DIR)
 	@rsync -a --exclude='.gitkeep' $(STATIC_BUILD)/ $(BUILD_DIR)
@@ -231,8 +237,7 @@ asan: clean
 git-clean:
 	@git clean -xfd -e .vscode
 
-git-submodules:
-	@git submodule update --init --recursive
+git-submodules: $(CACHE)/.submodules
 
 pwd:
 	@echo $(ROOT_DIR)
