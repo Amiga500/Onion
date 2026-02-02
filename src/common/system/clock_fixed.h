@@ -64,12 +64,12 @@ void system_clock_set(void)
 }
 
 //
-//    Write Clock (RTC & system) - FIXED: Added error handling and improved reliability
+//    Write Clock (RTC & system) - FIXED: Added error handling and validation
 //
 void system_rtc_set(void)
 {
     int cfd;
-    // FIX: Always set system clock first as fallback
+    // FIX: Always try to set system clock first as fallback
     system_clock_set();
     
     // Try to set RTC if available

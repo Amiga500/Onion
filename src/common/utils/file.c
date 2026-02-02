@@ -65,6 +65,7 @@ const char *file_basename(const char *filename)
 
 /**
  * @brief Create directories in dir_path using `mkdir -p` command.
+ * FIXED: Added bounds checking and input validation
  *
  * @param dir_path The full directory path.
  * @return true If the path didn't exist (dirs were created).
@@ -72,9 +73,19 @@ const char *file_basename(const char *filename)
  */
 bool mkdirs(const char *dir_path)
 {
+    if (!dir_path || strlen(dir_path) == 0) {
+        // FIX: Validate input parameter
+        return false;
+    }
+    
     if (!exists(dir_path)) {
         char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
+        // FIX: Use snprintf instead of sprintf to prevent buffer overflow
+        // FIX: Also validate path length before formatting
+        if (strlen(dir_path) > 480) {  // Leave room for mkdir -p "" and safety
+            return false;
+        }
+        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
         system(dir_cmd);
         return true;
     }
