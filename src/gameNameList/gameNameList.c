@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <libgen.h>
+#include <limits.h>
 #include <sqlite3/sqlite3.h>
 #include <dlfcn.h>
 
@@ -50,27 +51,38 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
     char folder[STR_MAX];
     FILE *find, *sed;
 
+    // Validate disk_path length to prevent buffer overflow
+    if (!disk_path || strlen(disk_path) > PATH_MAX) {
+        return i;
+    }
+
     // Use the 'find' command to search for 'config.json' files in subdirectories of the disk path
-    sprintf(command, "find %s -name 'config.json' -type f", disk_path);
+    snprintf(command, sizeof(command), "find %s -name 'config.json' -type f", disk_path);
     find = popen(command, "r");
     if (find == NULL) {
         perror("Error executing find command");
-        exit(EXIT_FAILURE);
+        return i; // Return instead of exit to allow graceful error handling
     }
 
     // Read the output of the find command and extract matching folder names
     while (fgets(path, sizeof(path), find) != NULL) {
         path[strcspn(path, "\n")] = '\0'; // Remove trailing newline character
 
+        // Validate path length to prevent buffer overflow in sprintf
+        if (strlen(path) > PATH_MAX) {
+            continue;
+        }
+
         // Check if the file contains the string '"shortname":1'
-        sprintf(command, "grep -q '\"shortname\":[[:space:]]*1' '%s'", path);
+        snprintf(command, sizeof(command), "grep -q '\"shortname\":[[:space:]]*1' '%s'", path);
         if (system(command) == 0) {
             // Get the folder name (someone could have changed the defaults)
-            sprintf(command, "sed -n 's/.*\"rompath\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' '%s'", path);
+            snprintf(command, sizeof(command), "sed -n 's/.*\"rompath\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' '%s'", path);
             sed = popen(command, "r");
             if (sed == NULL) {
                 perror("Error executing sed command");
-                exit(EXIT_FAILURE);
+                pclose(find); // Close find handle before returning
+                return i;
             }
             fgets(folder, sizeof(folder), sed);
             folder[strcspn(folder, "\n")] = '\0'; // Remove trailing newline character
@@ -86,7 +98,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
             }
             if( cmp != 0){
                 // Extract the folder name and add it to the matching_folders array
-                sprintf(matching_folders[i], "%s", system);
+                snprintf(matching_folders[i], 256, "%s", system);
                 i++;
             }
             if (i == MAX_MATCHING_FOLDERS) {

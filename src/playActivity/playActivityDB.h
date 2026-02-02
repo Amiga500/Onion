@@ -186,27 +186,46 @@ PlayActivities *play_activity_find_all(void)
             break;
 
         PlayActivity *entry = play_activities->play_activity[i] = (PlayActivity *)malloc(sizeof(PlayActivity));
+        if (!entry) continue; // Skip on allocation failure
+        
         ROM *rom = play_activities->play_activity[i]->rom = (ROM *)malloc(sizeof(ROM));
+        if (!rom) {
+            free(entry);
+            play_activities->play_activity[i] = NULL;
+            continue;
+        }
+        
         entry->first_played_at = NULL;
         entry->last_played_at = NULL;
+        rom->file_path = NULL;
+        rom->image_path = NULL;
 
         rom->id = sqlite3_column_int(stmt, 0);
-        rom->type = strdup((const char *)sqlite3_column_text(stmt, 1));
-        rom->name = strdup((const char *)sqlite3_column_text(stmt, 2));
+        
+        const char *type_text = (const char *)sqlite3_column_text(stmt, 1);
+        rom->type = type_text ? strdup(type_text) : NULL;
+        
+        const char *name_text = (const char *)sqlite3_column_text(stmt, 2);
+        rom->name = name_text ? strdup(name_text) : NULL;
+        
         if (sqlite3_column_text(stmt, 3) != NULL) {
             rom->file_path = strdup((const char *)sqlite3_column_text(stmt, 3));
-            rom->image_path = malloc(STR_MAX * sizeof(char));
-            memset(rom->image_path, 0, STR_MAX);
-            get_rom_image_path(rom->file_path, rom->image_path);
+            if (rom->file_path) {
+                rom->image_path = malloc(STR_MAX * sizeof(char));
+                if (rom->image_path) {
+                    memset(rom->image_path, 0, STR_MAX);
+                    get_rom_image_path(rom->file_path, rom->image_path);
+                }
+            }
         }
 
         entry->play_count = sqlite3_column_int(stmt, 4);
         entry->play_time_total = sqlite3_column_int(stmt, 5);
         entry->play_time_average = sqlite3_column_int(stmt, 6);
-        if (sqlite3_column_text(stmt, 8) != NULL) {
+        if (sqlite3_column_text(stmt, 7) != NULL) {
             entry->first_played_at = strdup((const char *)sqlite3_column_text(stmt, 7));
         }
-        if (sqlite3_column_text(stmt, 9) != NULL) {
+        if (sqlite3_column_text(stmt, 8) != NULL) {
             entry->last_played_at = strdup((const char *)sqlite3_column_text(stmt, 8));
         }
 
@@ -221,11 +240,22 @@ PlayActivities *play_activity_find_all(void)
 
 void free_play_activities(PlayActivities *pa_ptr)
 {
+    if (!pa_ptr) return;
+    
     for (int i = 0; i < pa_ptr->count; i++) {
-        free(pa_ptr->play_activity[i]->first_played_at);
-        free(pa_ptr->play_activity[i]->last_played_at);
-        free(pa_ptr->play_activity[i]->rom);
-        free(pa_ptr->play_activity[i]);
+        if (pa_ptr->play_activity[i]) {
+            free(pa_ptr->play_activity[i]->first_played_at);
+            free(pa_ptr->play_activity[i]->last_played_at);
+            
+            if (pa_ptr->play_activity[i]->rom) {
+                free(pa_ptr->play_activity[i]->rom->type);
+                free(pa_ptr->play_activity[i]->rom->name);
+                free(pa_ptr->play_activity[i]->rom->file_path);
+                free(pa_ptr->play_activity[i]->rom->image_path);
+                free(pa_ptr->play_activity[i]->rom);
+            }
+            free(pa_ptr->play_activity[i]);
+        }
     }
     free(pa_ptr->play_activity);
     free(pa_ptr);
@@ -235,10 +265,20 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
 {
     if (!file_path_relative_to(rel_path, ROMS_FOLDER, rom_path)) {
         if (strstr(rom_path, "../../Roms/") != NULL) {
-            strcpy(rel_path, str_split(strdup((const char *)rom_path), "../../Roms/"));
+            char *temp = str_split(strdup((const char *)rom_path), "../../Roms/");
+            if (temp) {
+                strncpy(rel_path, temp, PATH_MAX - 1);
+                rel_path[PATH_MAX - 1] = '\0';
+                free(temp);
+            }
         }
         else {
-            strcpy(rel_path, str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", ""));
+            char *temp = str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", "");
+            if (temp) {
+                strncpy(rel_path, temp, PATH_MAX - 1);
+                rel_path[PATH_MAX - 1] = '\0';
+                free(temp);
+            }
         }
     }
 }
