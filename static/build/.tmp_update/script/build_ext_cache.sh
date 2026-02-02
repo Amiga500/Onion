@@ -8,6 +8,8 @@ get_info_value() {
 
 mkdir -p $radir/cores/cache
 
+# Collect all entries first, then sort once at the end (instead of O(n²) sorting)
+temp_file=$(mktemp)
 for entry in "$radir/cores"/*.info; do
     tmp_info=$(cat "$entry")
     tmp_core=$(basename "$entry" .info)
@@ -19,9 +21,9 @@ for entry in "$radir/cores"/*.info; do
     tmp_corename=$(get_info_value "$tmp_info" "corename")
     tmp_extensions=$(get_info_value "$tmp_info" "supported_extensions")
 
-    echo "$tmp_corename;$tmp_core;$tmp_extensions" >> "$ext_cache_path"
-
-    sort -f -o temp "$ext_cache_path"
-    rm -f "$ext_cache_path"
-    mv temp "$ext_cache_path"
+    echo "$tmp_corename;$tmp_core;$tmp_extensions" >> "$temp_file"
 done
+
+# Sort once at the end and write to final destination
+sort -f -o "$ext_cache_path" "$temp_file"
+rm -f "$temp_file"
