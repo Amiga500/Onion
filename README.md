@@ -92,3 +92,28 @@ Code optimizations focus on minimal memory footprint and efficient CPU usage.
 
 For detailed optimization information, see [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md) (English) or [OTTIMIZZAZIONE_PERFORMANCE_ITA.md](OTTIMIZZAZIONE_PERFORMANCE_ITA.md) (Italiano)
 
+### Code Quality & Testing
+
+The codebase now includes comprehensive testing infrastructure:
+
+- 🧪 **Unity Test Framework** - Lightweight C testing framework
+- ✅ **Unit Tests** - String, file, and emulation I/O tests
+- 🚀 **CI/CD Pipeline** - Automated testing with GitHub Actions
+- 📊 **Code Coverage** - Integrated coverage reporting
+- 🔧 **Refactoring Guide** - SOLID principles and C11 standards
+
+For refactoring and testing information, see [REFACTORING_GUIDE.md](REFACTORING_GUIDE.md) (English) or [REFACTORING_GUIDE_ITA.md](REFACTORING_GUIDE_ITA.md) (Italiano)
+
+### Running Tests
+
+```bash
+# Run all unit tests
+cd test && make -f Makefile.unity test
+
+# Generate coverage report
+make -f Makefile.unity coverage
+
+# Clean and rebuild
+make -f Makefile.unity clean all
+```
+
