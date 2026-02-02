@@ -70,6 +70,12 @@ typedef struct settings_s {
 
     char mainui_button_x[JSON_STRING_LEN];
     char mainui_button_y[JSON_STRING_LEN];
+    
+    // Overclocking settings
+    bool overclock_enabled;
+    int overclock_frequency;
+    int overclock_thermal_limit;
+    int overclock_profile;
 } settings_s;
 
 static bool settings_loaded = false;
@@ -126,7 +132,12 @@ static settings_s __default_settings = (settings_s){
     //utility
     .rec_countdown = false,
     .rec_indicator = false,
-    .rec_hotkey = false};
+    .rec_hotkey = false,
+    // Overclocking (disabled by default for safety)
+    .overclock_enabled = false,
+    .overclock_frequency = 1200,
+    .overclock_thermal_limit = 65,
+    .overclock_profile = 0};
 
 void _settings_clone(settings_s *dst, settings_s *src)
 {

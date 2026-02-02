@@ -6,6 +6,9 @@ RA_SUBVERSION=1.22.2-1
 
 ###########################################################
 
+# Auto-detect available CPU cores for parallel builds
+JOBS ?= $(shell nproc 2>/dev/null || echo 2)
+
 ifneq ($(VERSION_OVERRIDE),)
 VERSION = $(VERSION_OVERRIDE)
 endif
@@ -75,21 +78,18 @@ $(CACHE)/.setup:
 	@mkdir -p $(BUILD_DIR)/.tmp_update/onionVersion
 	@echo -n "v$(VERSION)" > $(BUILD_DIR)/.tmp_update/onionVersion/version.txt
 	@sed -i "s/{VERSION}/$(VERSION)/g" $(BUILD_DIR)/autorun.inf
-# Copy all resources from src folders
-	@find \
-		$(SRC_DIR)/gameSwitcher \
-		$(SRC_DIR)/chargingState \
-		$(SRC_DIR)/bootScreen \
-		$(SRC_DIR)/themeSwitcher \
-		$(SRC_DIR)/tweaks \
-		$(SRC_DIR)/randomGamePicker \
-		$(SRC_DIR)/easter \
-		-depth -type d -name res -exec cp -r {}/. $(BUILD_DIR)/.tmp_update/res/ \;
-	@find \
-		$(SRC_DIR)/packageManager \
-		$(SRC_DIR)/themeSwitcher \
-		-depth -type d -name script -exec cp -r {}/. $(BUILD_DIR)/.tmp_update/script/ \;
-	@find $(SRC_DIR)/installUI -depth -type d -name res -exec cp -r {}/. $(INSTALLER_DIR)/res/ \;
+# Copy all resources from src folders (consolidated find operations)
+	@mkdir -p $(BUILD_DIR)/.tmp_update/res $(BUILD_DIR)/.tmp_update/script
+	@find $(SRC_DIR)/gameSwitcher $(SRC_DIR)/chargingState $(SRC_DIR)/bootScreen \
+		$(SRC_DIR)/themeSwitcher $(SRC_DIR)/tweaks $(SRC_DIR)/randomGamePicker \
+		$(SRC_DIR)/easter -depth -type d -name res \
+		-exec cp -r {}/. $(BUILD_DIR)/.tmp_update/res/ \;
+	@find $(SRC_DIR)/packageManager $(SRC_DIR)/themeSwitcher \
+		-depth -type d -name script \
+		-exec cp -r {}/. $(BUILD_DIR)/.tmp_update/script/ \;
+	@mkdir -p $(INSTALLER_DIR)/res
+	@find $(SRC_DIR)/installUI -depth -type d -name res \
+		-exec cp -r {}/. $(INSTALLER_DIR)/res/ \;
 # Download themes from theme repo
 	@chmod a+x $(ROOT_DIR)/.github/get_themes.sh && $(ROOT_DIR)/.github/get_themes.sh
 # Copy static configs
@@ -112,36 +112,21 @@ $(CACHE)/.setup:
 build: core apps external
 	@$(ECHO) $(PRINT_DONE)
 
-core: $(CACHE)/.setup
+# Define all core targets for parallel builds
+CORE_TARGETS := bootScreen chargingState gameSwitcher mainUiBatPerc keymon \
+                playActivity themeSwitcher tweaks packageManager sendkeys setState \
+                renameRom infoPanel prompt batmon easter read_uuid detectKey axp \
+                pressMenu2Kill pngScale libgamename gameNameList sendUDP tree pippi cpuclock
+
+# Make each core target a phony target
+.PHONY: $(CORE_TARGETS)
+
+# Pattern rule for building individual core targets
+$(CORE_TARGETS):
+	@cd $(SRC_DIR)/$@ && BUILD_DIR=$(BIN_DIR) $(MAKE)
+
+core: $(CACHE)/.setup $(CORE_TARGETS)
 	@$(ECHO) $(PRINT_RECIPE)
-# Build Onion binaries
-	@cd $(SRC_DIR)/bootScreen && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/chargingState && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/gameSwitcher && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/mainUiBatPerc && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/keymon && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/playActivity && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/themeSwitcher && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/tweaks && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/packageManager && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/sendkeys && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/setState && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/renameRom && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/infoPanel && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/prompt && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/batmon && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/easter && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/read_uuid && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/detectKey && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/axp && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/pressMenu2Kill && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/pngScale && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/libgamename && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/gameNameList && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/sendUDP && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/tree && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/pippi && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/cpuclock && BUILD_DIR=$(BIN_DIR) make
 
 # Build dependencies for installer
 	@mkdir -p $(INSTALLER_DIR)/bin
@@ -176,7 +161,7 @@ $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354:
 	@$(ECHO) $(PRINT_RECIPE)
 # RetroArch
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build RetroArch"$(COLOR_NORMAL)
-	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && make
+	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && $(MAKE) -j$(JOBS) LTO= HAVE_CHEEVOS=0
 
 external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354
 	@$(ECHO) $(PRINT_RECIPE)
@@ -186,15 +171,15 @@ external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo
 	@$(BUILD_DIR)/.tmp_update/script/build_ext_cache.sh $(BUILD_DIR)/RetroArch/.retroarch
 # SearchFilter
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build SearchFilter"$(COLOR_NORMAL)
-	@cd $(THIRD_PARTY_DIR)/SearchFilter && make build && cp -a build/. $(BUILD_DIR)
+	@cd $(THIRD_PARTY_DIR)/SearchFilter && $(MAKE) -j$(JOBS) build && cp -a build/. $(BUILD_DIR)
 	@cp -a $(BUILD_DIR)/App/Search/. "$(PACKAGES_APP_DEST)/Search (Find your games)/App/Search"
 	@mv -f $(BUILD_DIR)/App/Filter/* "$(PACKAGES_APP_DEST)/List shortcuts (Filter+Refresh)/App/Filter"
 	@rmdir $(BUILD_DIR)/App/Filter
 # Other
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build Terminal"$(COLOR_NORMAL)
-	@cd $(THIRD_PARTY_DIR)/Terminal && make && cp ./st "$(BIN_DIR)"
+	@cd $(THIRD_PARTY_DIR)/Terminal && $(MAKE) -j$(JOBS) && cp ./st "$(BIN_DIR)"
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build DinguxCommander"$(COLOR_NORMAL)
-	@cd $(THIRD_PARTY_DIR)/DinguxCommander && make && cp ./output/DinguxCommander "$(PACKAGES_APP_DEST)/File Explorer (DinguxCommander)/App/Commander_Italic"
+	@cd $(THIRD_PARTY_DIR)/DinguxCommander && $(MAKE) -j$(JOBS) && cp ./output/DinguxCommander "$(PACKAGES_APP_DEST)/File Explorer (DinguxCommander)/App/Commander_Italic"
 
 dist: build
 	@$(ECHO) $(PRINT_RECIPE)

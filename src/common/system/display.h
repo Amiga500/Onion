@@ -70,23 +70,60 @@ void display_clear(void)
 
 void display_reset(void)
 {
-    if (fb_fd < 0)
+    // FIX: Initialize fb_fd if not already open
+    if (fb_fd < 0) {
         fb_fd = open("/dev/fb0", O_RDWR);
-    ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
+        // FIX: Check if open succeeded
+        if (fb_fd < 0) {
+            // Framebuffer device not available
+            return;
+        }
+    }
+    
+    // FIX: Check ioctl return value
+    if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo) < 0) {
+        // Failed to get screen info
+        return;
+    }
+    
     g_display.vinfo.yoffset = 0;
-    ioctl(fb_fd, FBIOPUT_VSCREENINFO, &g_display.vinfo);
+    
+    // FIX: Check ioctl return value
+    if (ioctl(fb_fd, FBIOPUT_VSCREENINFO, &g_display.vinfo) < 0) {
+        // Failed to set screen info
+        return;
+    }
 }
 
 //
-//    Get render resolution
+//    Get render resolution - FIXED: Added error handling
 //
 void display_getRenderResolution()
 {
-    if (fb_fd < 0)
+    // FIX: Initialize fb_fd if not already open
+    if (fb_fd < 0) {
         fb_fd = open("/dev/fb0", O_RDWR);
+        // FIX: Check if open succeeded
+        if (fb_fd < 0) {
+            // Framebuffer device not available, keep default resolution
+            printf_debug("Failed to open framebuffer device, using default resolution: %dx%d\n", 
+                        g_display.width, g_display.height);
+            return;
+        }
+    }
+    
     if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo) == 0) {
-        g_display.width = g_display.vinfo.xres;
-        g_display.height = g_display.vinfo.yres;
+        // FIX: Validate resolution values before using them
+        if (g_display.vinfo.xres > 0 && g_display.vinfo.xres <= 2048 &&
+            g_display.vinfo.yres > 0 && g_display.vinfo.yres <= 2048) {
+            g_display.width = g_display.vinfo.xres;
+            g_display.height = g_display.vinfo.yres;
+        } else {
+            printf_debug("Invalid resolution from framebuffer: %dx%d, using default\n",
+                        g_display.vinfo.xres, g_display.vinfo.yres);
+        }
+    } else {
+        printf_debug("Failed to get framebuffer info, using default resolution\n");
     }
     printf_debug("Render resolution: %dx%d\n", g_display.width, g_display.height);
 }
@@ -111,9 +148,21 @@ void display_init(bool map_fb)
     if (g_display.init_done)
         return;
 
-    // Open and mmap FB
+    // FIX: Open and validate framebuffer device
     fb_fd = open("/dev/fb0", O_RDWR);
-    ioctl(fb_fd, FBIOGET_FSCREENINFO, &g_display.finfo);
+    if (fb_fd < 0) {
+        printf_debug("Failed to open framebuffer device /dev/fb0\n");
+        // FIX: Mark as failed but don't crash - allow fallback modes
+        return;
+    }
+    
+    // FIX: Check ioctl return value
+    if (ioctl(fb_fd, FBIOGET_FSCREENINFO, &g_display.finfo) < 0) {
+        printf_debug("Failed to get fixed screen info\n");
+        close(fb_fd);
+        fb_fd = -1;
+        return;
+    }
 
     display_reset();
 

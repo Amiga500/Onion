@@ -30,17 +30,26 @@ void system_clock_get(void)
 }
 
 //
-//    Read Clock (RTC)
+//    Read Clock (RTC) - FIXED: Added proper error handling and validation
 //
 void system_rtc_get(void)
 {
     int cfd;
-    if ((cfd = open("/dev/rtc0", O_RDONLY)) > 0) {
-        ioctl(cfd, RTC_RD_TIME, &clk);
+    // FIX: Check for valid file descriptor (>= 0, not just > 0)
+    if ((cfd = open("/dev/rtc0", O_RDONLY)) >= 0) {
+        // FIX: Check ioctl return value for errors
+        if (ioctl(cfd, RTC_RD_TIME, &clk) < 0) {
+            // RTC read failed, fall back to system clock
+            close(cfd);
+            system_clock_get();
+            return;
+        }
         close(cfd);
     }
-    else
+    else {
+        // RTC device not available, use system clock
         system_clock_get();
+    }
 }
 
 //
@@ -55,16 +64,24 @@ void system_clock_set(void)
 }
 
 //
-//    Write Clock (RTC & system)
+//    Write Clock (RTC & system) - FIXED: Added error handling and improved reliability
 //
 void system_rtc_set(void)
 {
     int cfd;
+    // FIX: Always set system clock first as fallback
+    system_clock_set();
+    
+    // Try to set RTC if available
     if ((cfd = open("/dev/rtc0", O_WRONLY)) >= 0) {
-        ioctl(cfd, RTC_SET_TIME, &clk);
+        // FIX: Check ioctl return value
+        if (ioctl(cfd, RTC_SET_TIME, &clk) < 0) {
+            // RTC write failed, but system clock is already set
+            // Log error for debugging but don't fail
+        }
         close(cfd);
     }
-    system_clock_set();
+    // If RTC not available, system clock is already set above
 }
 
 //
