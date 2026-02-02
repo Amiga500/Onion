@@ -27,7 +27,7 @@ if command -v xargs >/dev/null 2>&1; then
         if [[ ! -f "$zipfile" ]]; then
             echo "https://github.com/OnionUI/Themes/raw/main/release/$element.zip"
         fi
-    done | xargs -n 1 -P 4 -I {} sh -c 'wget -O "$(basename {})" "{}" -q --show-progress 2>&1 | grep -v "^$" && echo "-- downloaded: $(basename {})"' || true
+    done | xargs -n 1 -P 4 -I {} sh -c 'wget -O "$(basename "{}")" "{}" -q --show-progress 2>&1 | grep -v "^$" && echo "-- downloaded: $(basename "{}")"' || true
 else
     # Sequential download fallback
     for element in "${themes[@]}"
