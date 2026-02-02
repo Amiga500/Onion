@@ -106,8 +106,19 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
             continue;
 
         current = malloc(sizeof(entry_t));
-        current->name =
-            strcpy(malloc(strlen(file_dirent->d_name) + 1), file_dirent->d_name);
+        if (!current) {
+            fprintf(stderr, "Memory allocation failed\n");
+            closedir(dir_handle);
+            return -1;
+        }
+        current->name = malloc(strlen(file_dirent->d_name) + 1);
+        if (!current->name) {
+            fprintf(stderr, "Memory allocation failed\n");
+            free(current);
+            closedir(dir_handle);
+            return -1;
+        }
+        strcpy(current->name, file_dirent->d_name);
         current->is_dir = file_dirent->d_type == DT_DIR;
         current->next = NULL;
 

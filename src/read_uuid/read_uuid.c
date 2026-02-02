@@ -54,7 +54,14 @@ int main()
     for (int i = 0; i < 3; i++) {
         char *output = execute_command(commands[i]);
         if (output != NULL) {
-            strcat(serial, output);
+            size_t current_len = strlen(serial);
+            size_t output_len = strlen(output);
+            if (current_len + output_len < sizeof(serial)) {
+                strncat(serial, output, sizeof(serial) - current_len - 1);
+            }
+            else {
+                fprintf(stderr, "Serial buffer overflow prevented\n");
+            }
             free(output);
         }
         else {
