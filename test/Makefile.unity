@@ -1,0 +1,109 @@
+# Makefile for Onion Unit Tests
+# Uses Unity test framework for C code testing
+
+CC = gcc
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O0 -g
+INCLUDES = -I../src/common -I./unity -I../include
+LDFLAGS = -lm
+
+# Unity framework
+UNITY_SRC = unity/unity.c
+UNITY_OBJ = $(UNITY_SRC:.c=.o)
+
+# Test directories
+UNIT_TEST_DIR = unit
+INTEGRATION_TEST_DIR = integration
+
+# Source files to test
+COMMON_SRC = ../src/common/utils/str.c \
+             ../src/common/utils/file.c \
+             ../src/common/utils/log.c
+
+# Unit test files
+UNIT_TESTS = $(wildcard $(UNIT_TEST_DIR)/test_*.c)
+UNIT_TEST_BINS = $(UNIT_TESTS:.c=)
+
+# All test binaries
+ALL_TESTS = $(UNIT_TEST_BINS)
+
+.PHONY: all clean run test help
+
+# Default target
+all: $(ALL_TESTS)
+
+# Build Unity framework
+$(UNITY_OBJ): $(UNITY_SRC)
+	@echo "Building Unity framework..."
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+# Build unit tests
+$(UNIT_TEST_DIR)/test_str_utils: $(UNIT_TEST_DIR)/test_str_utils.c $(UNITY_OBJ) ../src/common/utils/str.c
+	@echo "Building $@..."
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $^ $(LDFLAGS)
+
+$(UNIT_TEST_DIR)/test_file_utils: $(UNIT_TEST_DIR)/test_file_utils.c $(UNITY_OBJ) ../src/common/utils/file.c ../src/common/utils/str.c
+	@echo "Building $@..."
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $^ $(LDFLAGS)
+
+$(UNIT_TEST_DIR)/test_retroarch_cmd: $(UNIT_TEST_DIR)/test_retroarch_cmd.c $(UNITY_OBJ)
+	@echo "Building $@..."
+	$(CC) $(CFLAGS) $(INCLUDES) -DTEST_BUILD -o $@ $^ $(LDFLAGS)
+
+# Run all tests
+test: $(ALL_TESTS)
+	@echo ""
+	@echo "================================"
+	@echo "Running Unit Tests"
+	@echo "================================"
+	@for test in $(UNIT_TEST_BINS); do \
+		echo ""; \
+		echo "Running $$test..."; \
+		./$$test || exit 1; \
+	done
+	@echo ""
+	@echo "================================"
+	@echo "All Tests Passed!"
+	@echo "================================"
+
+# Run tests and generate coverage report (requires gcov)
+coverage: CFLAGS += -fprofile-arcs -ftest-coverage
+coverage: LDFLAGS += -lgcov --coverage
+coverage: clean $(ALL_TESTS)
+	@for test in $(UNIT_TEST_BINS); do \
+		./$$test; \
+	done
+	@echo "Generating coverage report..."
+	@gcov -r $(COMMON_SRC)
+	@echo "Coverage report generated (.gcov files)"
+
+# Run tests with verbose output
+test-verbose: CFLAGS += -DVERBOSE
+test-verbose: clean test
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning build artifacts..."
+	rm -f $(UNITY_OBJ)
+	rm -f $(ALL_TESTS)
+	rm -f $(UNIT_TEST_DIR)/*.o
+	rm -f $(INTEGRATION_TEST_DIR)/*.o
+	rm -f *.gcov *.gcda *.gcno
+	rm -f $(UNIT_TEST_DIR)/*.gcov $(UNIT_TEST_DIR)/*.gcda $(UNIT_TEST_DIR)/*.gcno
+	@echo "Clean complete."
+
+# Help target
+help:
+	@echo "Onion Test Suite Makefile"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all           - Build all tests (default)"
+	@echo "  test          - Build and run all tests"
+	@echo "  test-verbose  - Run tests with verbose output"
+	@echo "  coverage      - Generate code coverage report"
+	@echo "  clean         - Remove build artifacts"
+	@echo "  help          - Show this help message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make test              # Run all tests"
+	@echo "  make coverage          # Run tests with coverage"
+	@echo "  make clean test        # Clean rebuild and test"
