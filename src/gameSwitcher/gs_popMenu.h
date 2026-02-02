@@ -1,6 +1,7 @@
 #ifndef GAME_SWITCHER_POP_MENU_H__
 #define GAME_SWITCHER_POP_MENU_H__
 
+#include <stdlib.h>
 #include "components/list.h"
 #include "system/lang.h"
 #include "theme/theme.h"
@@ -28,6 +29,15 @@ static pthread_t g_scan_thread_pt;
 
 static bool g_save_thread_running = false;
 static bool g_save_thread_success = false;
+
+// Comparison function for qsort - descending order
+// Uses safe comparison to avoid integer overflow
+static int compare_slots_desc(const void *a, const void *b)
+{
+    int ia = *(const int *)a;
+    int ib = *(const int *)b;
+    return (ib > ia) - (ib < ia);  // Safe: returns -1, 0, or 1
+}
 
 void popMenu_destroy(void)
 {
@@ -122,15 +132,9 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
 
     closedir(dir);
 
-    // Sort the slots in descending order
-    for (int i = 0; i < info->slot_count - 1; i++) {
-        for (int j = i + 1; j < info->slot_count; j++) {
-            if (info->slots[j] > info->slots[i]) {
-                int temp = info->slots[i];
-                info->slots[i] = info->slots[j];
-                info->slots[j] = temp;
-            }
-        }
+    // Sort the slots in descending order using qsort (O(n log n) instead of O(n²))
+    if (info->slot_count > 1) {
+        qsort(info->slots, info->slot_count, sizeof(int), compare_slots_desc);
     }
 
     return true;

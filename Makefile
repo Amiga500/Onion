@@ -67,7 +67,13 @@ print-version:
 	@echo Onion v$(VERSION)
 	@echo RetroArch sub-v$(RA_SUBVERSION)
 
-$(CACHE)/.setup:
+$(CACHE)/.submodules:
+	@$(ECHO) $(COLOR_BLUE)"\n-- Initializing git submodules"$(COLOR_NORMAL)
+	@git submodule update --init --recursive
+	@mkdir -p $(CACHE)
+	@touch $(CACHE)/.submodules
+
+$(CACHE)/.setup: $(CACHE)/.submodules
 	@$(ECHO) $(PRINT_RECIPE)
 	@mkdir -p $(BUILD_DIR) $(DIST_DIR) $(RELEASE_DIR)
 	@rsync -a --exclude='.gitkeep' $(STATIC_BUILD)/ $(BUILD_DIR)
@@ -161,7 +167,8 @@ $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354:
 	@$(ECHO) $(PRINT_RECIPE)
 # RetroArch
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build RetroArch"$(COLOR_NORMAL)
-	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && $(MAKE) -j$(JOBS) LTO= HAVE_CHEEVOS=0
+	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && $(MAKE) clean
+	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && $(MAKE)
 
 external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354
 	@$(ECHO) $(PRINT_RECIPE)
@@ -231,8 +238,7 @@ asan: clean
 git-clean:
 	@git clean -xfd -e .vscode
 
-git-submodules:
-	@git submodule update --init --recursive
+git-submodules: $(CACHE)/.submodules
 
 pwd:
 	@echo $(ROOT_DIR)
@@ -246,7 +252,7 @@ toolchain: $(CACHE)/.docker
 	docker run -it --rm -v "$(ROOT_DIR)":/root/workspace $(TOOLCHAIN) /bin/bash
 
 with-toolchain: $(CACHE)/.docker
-	docker run --rm -v "$(ROOT_DIR)":/root/workspace $(TOOLCHAIN) /bin/bash -c "source /root/.bashrc; make $(CMD)"
+	docker run --rm -v "$(ROOT_DIR)":/root/workspace $(TOOLCHAIN) /bin/bash -c "git config --global --add safe.directory '*'; source /root/.bashrc; make $(CMD)"
 
 patch:
 	@chmod a+x $(ROOT_DIR)/.github/create_patch.sh && $(ROOT_DIR)/.github/create_patch.sh
