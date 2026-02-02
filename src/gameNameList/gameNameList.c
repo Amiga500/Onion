@@ -98,7 +98,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
             }
             if( cmp != 0){
                 // Extract the folder name and add it to the matching_folders array
-                snprintf(matching_folders[i], 256, "%s", system);
+                snprintf(matching_folders[i], sizeof(matching_folders[i]), "%s", system);
                 i++;
             }
             if (i == MAX_MATCHING_FOLDERS) {

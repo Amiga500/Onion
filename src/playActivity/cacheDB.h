@@ -122,7 +122,7 @@ CacheDBItem *cache_db_find(const char *path_or_name)
             if (temp) {
                 strncpy(rel_path, temp, PATH_MAX - 1);
                 rel_path[PATH_MAX - 1] = '\0';
-                free(temp);
+                // NOTE: str_split returns pointer into _path_or_name, don't free temp
             }
         }
         else {
@@ -130,7 +130,7 @@ CacheDBItem *cache_db_find(const char *path_or_name)
             if (tunc_path_or_name) {
                 strncpy(rel_path, tunc_path_or_name, PATH_MAX - 1);
                 rel_path[PATH_MAX - 1] = '\0';
-                free(tunc_path_or_name);
+                free(tunc_path_or_name); // str_replace allocates new memory, must free
             }
         }
     }

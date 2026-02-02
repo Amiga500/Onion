@@ -271,7 +271,7 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
                 if (temp) {
                     strncpy(rel_path, temp, PATH_MAX - 1);
                     rel_path[PATH_MAX - 1] = '\0';
-                    free(temp);
+                    // NOTE: str_split returns pointer into rom_path_dup, don't free temp
                 }
                 free(rom_path_dup);
             }
@@ -283,7 +283,7 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
                 if (temp) {
                     strncpy(rel_path, temp, PATH_MAX - 1);
                     rel_path[PATH_MAX - 1] = '\0';
-                    free(temp);
+                    free(temp); // str_replace allocates new memory, must free
                 }
                 free(rom_path_dup);
             }

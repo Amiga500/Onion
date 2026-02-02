@@ -31,9 +31,12 @@ static bool g_save_thread_running = false;
 static bool g_save_thread_success = false;
 
 // Comparison function for qsort - descending order
+// Uses safe comparison to avoid integer overflow
 static int compare_slots_desc(const void *a, const void *b)
 {
-    return (*(int *)b - *(int *)a);
+    int ia = *(const int *)a;
+    int ib = *(const int *)b;
+    return (ib > ia) - (ib < ia);  // Safe: returns -1, 0, or 1
 }
 
 void popMenu_destroy(void)
