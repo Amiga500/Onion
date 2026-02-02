@@ -167,8 +167,8 @@ $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354:
 	@$(ECHO) $(PRINT_RECIPE)
 # RetroArch
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build RetroArch"$(COLOR_NORMAL)
-	@rm -rf $(THIRD_PARTY_DIR)/RetroArch-patch/build
-	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && $(MAKE) -j$(JOBS)
+	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && $(MAKE) clean
+	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && $(MAKE)
 
 external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354
 	@$(ECHO) $(PRINT_RECIPE)
