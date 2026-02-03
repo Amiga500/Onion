@@ -4,7 +4,9 @@ This directory contains comprehensive research and planning documentation for po
 
 ## Available Documents
 
-### 📄 [MIYOO_FLIP_PORTING_PHASE0.md](./MIYOO_FLIP_PORTING_PHASE0.md) (Italiano)
+### Phase 0 - Research and Initial Planning
+
+#### 📄 [MIYOO_FLIP_PORTING_PHASE0.md](./MIYOO_FLIP_PORTING_PHASE0.md) (Italiano)
 Documento completo in italiano che analizza lo stato attuale del porting di Onion OS sul Miyoo Flip (clamshell con Rockchip RK3566).
 
 **Contenuto:**
@@ -15,7 +17,7 @@ Documento completo in italiano che analizza lo stato attuale del porting di Onio
 - Timeline stimata: 8-18 mesi
 - Raccomandazioni e decisioni go/no-go
 
-### 📄 [MIYOO_FLIP_PORTING_PHASE0_EN.md](./MIYOO_FLIP_PORTING_PHASE0_EN.md) (English)
+#### 📄 [MIYOO_FLIP_PORTING_PHASE0_EN.md](./MIYOO_FLIP_PORTING_PHASE0_EN.md) (English)
 Complete English version of the Miyoo Flip porting research and planning document.
 
 **Contents:**
@@ -25,6 +27,30 @@ Complete English version of the Miyoo Flip porting research and planning documen
 - Detailed 10-phase plan with priorities
 - Estimated timeline: 8-18 months
 - Recommendations and go/no-go decisions
+
+### Phase 1 - Hardware Analysis and Differences
+
+#### 📄 [MIYOO_FLIP_PHASE1_HARDWARE_ANALYSIS.md](./MIYOO_FLIP_PHASE1_HARDWARE_ANALYSIS.md) (Italiano)
+Analisi dettagliata delle differenze hardware con mappatura file-per-file delle modifiche necessarie al codice Onion OS.
+
+**Contenuto:**
+- Confronto hardware dettagliato (Mini+ vs Flip)
+- 8 categorie hardware analizzate (CPU/GPU, Display, Input, Power, Audio, Storage, WiFi/BT)
+- 47+ file Onion OS identificati per modifica/riscrittura
+- Stima complessità per area (LOC, giorni, rischio)
+- Timeline dettagliata per implementazione (67-98 giorni)
+- Tabelle riepilogative e priorità (P0/P1/P2)
+
+#### 📄 [MIYOO_FLIP_PHASE1_HARDWARE_ANALYSIS_EN.md](./MIYOO_FLIP_PHASE1_HARDWARE_ANALYSIS_EN.md) (English)
+Detailed hardware differences analysis with file-by-file mapping of required Onion OS code modifications.
+
+**Contents:**
+- Detailed hardware comparison (Mini+ vs Flip)
+- 8 hardware categories analyzed (CPU/GPU, Display, Input, Power, Audio, Storage, WiFi/BT)
+- 47+ Onion OS files identified for modification/rewrite
+- Complexity estimate per area (LOC, days, risk)
+- Detailed implementation timeline (67-98 days)
+- Summary tables and priorities (P0/P1/P2)
 
 ## Quick Summary
 
@@ -67,6 +93,48 @@ The Miyoo Flip uses a completely different hardware architecture (Rockchip RK356
 | 8 | Port Onion Core Apps | 🔴 HIGH | 4-6 weeks |
 | 9 | Port RetroArch & Emulators | 🔴 HIGH | 6-10 weeks |
 | 10 | Testing & Release | 🟡 MEDIUM | 4-6 weeks |
+
+## Phase 1 Results - File-Level Analysis
+
+**Status:** ✅ **COMPLETED** (February 2026)
+
+### Files Identified for Modification
+
+**Critical Priority (P0):**
+- 8-10 files requiring major rewrite or complete replacement
+- Includes: `Makefile`, `device_model.h`, `axp.h`, `display.h`, `keymap_hw.h`, `input_fd.h`, `keymon.c`, `battery.h`
+- Effort: 45-60 days
+
+**Core Priority (P1):**
+- 10-15 files requiring significant updates
+- Includes: Display DRM/KMS support, analog input handling, lid sensor integration
+- Effort: 15-25 days
+
+**Enhancement Priority (P2):**
+- 5-10 files for nice-to-have features
+- Includes: Dual display, WiFi/BT, advanced power features
+- Effort: 7-13 days
+
+### Hardware Components Analyzed
+
+| Component | Impact | Files | Complexity |
+|-----------|--------|-------|------------|
+| CPU/GPU/Kernel | ⚠️ CRITICAL | 10+ | REWRITE |
+| Display (Dual) | ⚠️ HIGH | 3-5 | MAJOR |
+| Input (Analog) | ⚠️ CRITICAL | 5+ | MAJOR |
+| Power/PMU/Lid | ⚠️ CRITICAL | 8+ | REWRITE |
+| Audio/Vibration | 🟡 MEDIUM | 2-3 | MODERATE |
+| Storage (Dual SD) | 🟡 MEDIUM | 5-10 | MINOR |
+| WiFi/Bluetooth | 🟢 BONUS | 0-3 | MINOR |
+
+### Code Modification Estimate
+
+- **Total Files:** 25-47 files
+- **Lines of Code:** ~6,500+ LOC
+- **Effort:** 67-98 working days (14-20 weeks)
+- **Risk:** 🔴 HIGH
+
+**Note:** This estimate covers only Onion OS userspace code modifications. Kernel, drivers, and U-Boot porting add another 4-8 weeks.
 
 ## Recommendations
 
