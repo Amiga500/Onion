@@ -238,4 +238,22 @@ void renderBrightness(AppState *state)
     }
 }
 
+void renderSound(AppState *state)
+{
+    if (state->sound_changed) {
+        // Display volume slider
+        SDL_Surface *volume = resource_getVolume(settings.bgm_volume);
+        if (volume != NULL) {
+            bool vertical = volume->h > volume->w;
+            SDL_Rect volume_rect = {0, (double)(state->view_mode == VIEW_NORMAL ? 240 : 210) * g_scale - volume->h / 2};
+            if (!vertical) {
+                volume_rect.x = (g_display.width - volume->w) / 2;
+                volume_rect.y = state->view_mode == VIEW_NORMAL ? state->header_height : 0;
+            }
+            SDL_BlitSurface(volume, NULL, screen, &volume_rect);
+        }
+        state->sound_changed = false;
+    }
+}
+
 #endif // GAME_SWITCHER_RENDER_H__

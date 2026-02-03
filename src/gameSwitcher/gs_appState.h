@@ -17,6 +17,7 @@ typedef struct {
     bool changed;
     bool current_game_changed;
     bool brightness_changed;
+    bool sound_changed;
     bool pop_menu_open;
     bool show_time;
     bool show_total;
@@ -32,6 +33,8 @@ typedef struct {
     uint32_t legend_timeout;
     uint32_t brightness_start;
     uint32_t brightness_timeout;
+    uint32_t sound_start;
+    uint32_t sound_timeout;
     SDL_Surface *custom_header;
     SDL_Surface *custom_footer;
     int header_height;
@@ -56,6 +59,7 @@ static AppState appState = {
     .changed = true,
     .current_game_changed = true,
     .brightness_changed = false,
+    .sound_changed = false,
     .pop_menu_open = false,
     .show_time = false,
     .show_total = true,
@@ -71,6 +75,8 @@ static AppState appState = {
     .legend_timeout = 5000,
     .brightness_start = 0,
     .brightness_timeout = 2000,
+    .sound_start = 0,
+    .sound_timeout = 2000,
     .custom_header = NULL,
     .custom_footer = NULL,
     .header_height = 0,

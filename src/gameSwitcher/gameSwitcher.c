@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
     appState.last_ticks = SDL_GetTicks();
     appState.legend_start = appState.last_ticks;
     appState.brightness_start = appState.last_ticks;
+    appState.sound_start = appState.last_ticks;
 
     appState.custom_header = loadOptionalImage("extra/gs-top-bar");
     appState.custom_footer = loadOptionalImage("extra/gs-bottom-bar");
@@ -92,6 +93,11 @@ int main(int argc, char *argv[])
             appState.changed = true;
         }
 
+        if (appState.sound_changed && ticks - appState.sound_start > appState.sound_timeout) {
+            appState.sound_changed = false;
+            appState.changed = true;
+        }
+
         handleKeystate(&appState);
 
         if (battery_hasChanged(ticks, &battery_percentage))
@@ -100,7 +106,7 @@ int main(int argc, char *argv[])
         if (appState.acc_ticks >= appState.time_step) {
             appState.acc_ticks -= appState.time_step;
 
-            if (!appState.changed && !appState.brightness_changed && (appState.surfaceGameName == NULL || appState.surfaceGameName->w <= appState.game_name_max_width))
+            if (!appState.changed && !appState.brightness_changed && !appState.sound_changed && (appState.surfaceGameName == NULL || appState.surfaceGameName->w <= appState.game_name_max_width))
                 continue;
 
             Game_s *game = &game_list[appState.current_game];
@@ -128,7 +134,7 @@ int main(int argc, char *argv[])
                 renderGameName(&appState);
             }
 
-            if (!appState.changed && !appState.brightness_changed) {
+            if (!appState.changed && !appState.brightness_changed && !appState.sound_changed) {
                 render();
                 continue;
             }
@@ -143,6 +149,7 @@ int main(int argc, char *argv[])
 
             renderLegend(&appState);
             renderBrightness(&appState);
+            renderSound(&appState);
 
             if (!appState.first_render) {
                 renderPopMenu(&appState);

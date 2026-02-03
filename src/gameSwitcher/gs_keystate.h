@@ -157,8 +157,11 @@ void handleUpdateKeystateMain(AppState *state)
         return;
     }
 
-    if (keystate[_gs_keystate.changed_key] == PRESSED && _gs_keystate.changed_key != SW_BTN_UP && _gs_keystate.changed_key != SW_BTN_DOWN)
+    if (keystate[_gs_keystate.changed_key] == PRESSED && _gs_keystate.changed_key != SW_BTN_UP && _gs_keystate.changed_key != SW_BTN_DOWN && _gs_keystate.changed_key != SW_BTN_L2 && _gs_keystate.changed_key != SW_BTN_R2)
         state->brightness_changed = false;
+
+    if (keystate[_gs_keystate.changed_key] == PRESSED && _gs_keystate.changed_key != SW_BTN_L2 && _gs_keystate.changed_key != SW_BTN_R2)
+        state->sound_changed = false;
 
     if (_gs_keystate.keystate[SW_BTN_UP] >= PRESSED) {
         // Change brightness
@@ -187,6 +190,29 @@ void handleUpdateKeystateMain(AppState *state)
                                           keystate[SW_BTN_R2] == RELEASED)))) {
         settings_load();
         state->brightness_changed = false;
+        state->sound_changed = false;
+        state->changed = true;
+    }
+
+    if (_gs_keystate.keystate[SW_BTN_L2] >= PRESSED && !_gs_keystate.select_pressed) {
+        // Change volume down
+        if (settings.bgm_volume > 0) {
+            settings.bgm_volume--;
+            settings_saveSystemProperty("bgmvol", settings.bgm_volume);
+        }
+        state->sound_changed = true;
+        state->sound_start = state->last_ticks;
+        state->changed = true;
+    }
+
+    if (_gs_keystate.keystate[SW_BTN_R2] >= PRESSED && !_gs_keystate.select_pressed) {
+        // Change volume up
+        if (settings.bgm_volume < 20) {
+            settings.bgm_volume++;
+            settings_saveSystemProperty("bgmvol", settings.bgm_volume);
+        }
+        state->sound_changed = true;
+        state->sound_start = state->last_ticks;
         state->changed = true;
     }
 

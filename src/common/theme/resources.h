@@ -59,6 +59,27 @@ typedef enum theme_images {
     BRIGHTNESS_8,
     BRIGHTNESS_9,
     BRIGHTNESS_10,
+    VOLUME_0,
+    VOLUME_1,
+    VOLUME_2,
+    VOLUME_3,
+    VOLUME_4,
+    VOLUME_5,
+    VOLUME_6,
+    VOLUME_7,
+    VOLUME_8,
+    VOLUME_9,
+    VOLUME_10,
+    VOLUME_11,
+    VOLUME_12,
+    VOLUME_13,
+    VOLUME_14,
+    VOLUME_15,
+    VOLUME_16,
+    VOLUME_17,
+    VOLUME_18,
+    VOLUME_19,
+    VOLUME_20,
     LEGEND_GAMESWITCHER,
     BG_POP_MENU_1,
     BG_POP_MENU_2,
@@ -211,6 +232,48 @@ SDL_Surface *_loadImage(ThemeImages request)
         return theme_loadImage(t->path, "extra/lum9");
     case BRIGHTNESS_10:
         return theme_loadImage(t->path, "extra/lum10");
+    case VOLUME_0:
+        return theme_loadImage(t->path, "extra/vol0");
+    case VOLUME_1:
+        return theme_loadImage(t->path, "extra/vol1");
+    case VOLUME_2:
+        return theme_loadImage(t->path, "extra/vol2");
+    case VOLUME_3:
+        return theme_loadImage(t->path, "extra/vol3");
+    case VOLUME_4:
+        return theme_loadImage(t->path, "extra/vol4");
+    case VOLUME_5:
+        return theme_loadImage(t->path, "extra/vol5");
+    case VOLUME_6:
+        return theme_loadImage(t->path, "extra/vol6");
+    case VOLUME_7:
+        return theme_loadImage(t->path, "extra/vol7");
+    case VOLUME_8:
+        return theme_loadImage(t->path, "extra/vol8");
+    case VOLUME_9:
+        return theme_loadImage(t->path, "extra/vol9");
+    case VOLUME_10:
+        return theme_loadImage(t->path, "extra/vol10");
+    case VOLUME_11:
+        return theme_loadImage(t->path, "extra/vol11");
+    case VOLUME_12:
+        return theme_loadImage(t->path, "extra/vol12");
+    case VOLUME_13:
+        return theme_loadImage(t->path, "extra/vol13");
+    case VOLUME_14:
+        return theme_loadImage(t->path, "extra/vol14");
+    case VOLUME_15:
+        return theme_loadImage(t->path, "extra/vol15");
+    case VOLUME_16:
+        return theme_loadImage(t->path, "extra/vol16");
+    case VOLUME_17:
+        return theme_loadImage(t->path, "extra/vol17");
+    case VOLUME_18:
+        return theme_loadImage(t->path, "extra/vol18");
+    case VOLUME_19:
+        return theme_loadImage(t->path, "extra/vol19");
+    case VOLUME_20:
+        return theme_loadImage(t->path, "extra/vol20");
     case LEGEND_GAMESWITCHER:
         return theme_loadImage(t->path, "extra/gs-legend");
     case BG_POP_MENU_1:
@@ -405,6 +468,57 @@ SDL_Surface *resource_getBrightness(int brightness)
         return resource_getSurface(BRIGHTNESS_9);
     case 10:
         return resource_getSurface(BRIGHTNESS_10);
+    default:
+        break;
+    }
+    return NULL;
+}
+
+SDL_Surface *resource_getVolume(int volume)
+{
+    switch (volume) {
+    case 0:
+        return resource_getSurface(VOLUME_0);
+    case 1:
+        return resource_getSurface(VOLUME_1);
+    case 2:
+        return resource_getSurface(VOLUME_2);
+    case 3:
+        return resource_getSurface(VOLUME_3);
+    case 4:
+        return resource_getSurface(VOLUME_4);
+    case 5:
+        return resource_getSurface(VOLUME_5);
+    case 6:
+        return resource_getSurface(VOLUME_6);
+    case 7:
+        return resource_getSurface(VOLUME_7);
+    case 8:
+        return resource_getSurface(VOLUME_8);
+    case 9:
+        return resource_getSurface(VOLUME_9);
+    case 10:
+        return resource_getSurface(VOLUME_10);
+    case 11:
+        return resource_getSurface(VOLUME_11);
+    case 12:
+        return resource_getSurface(VOLUME_12);
+    case 13:
+        return resource_getSurface(VOLUME_13);
+    case 14:
+        return resource_getSurface(VOLUME_14);
+    case 15:
+        return resource_getSurface(VOLUME_15);
+    case 16:
+        return resource_getSurface(VOLUME_16);
+    case 17:
+        return resource_getSurface(VOLUME_17);
+    case 18:
+        return resource_getSurface(VOLUME_18);
+    case 19:
+        return resource_getSurface(VOLUME_19);
+    case 20:
+        return resource_getSurface(VOLUME_20);
     default:
         break;
     }
