@@ -1,0 +1,244 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Device Tree Source for Miyoo Flip Handheld Console
+ * 
+ * Based on Rockchip RK3566 SoC
+ * Copyright (c) 2026 Onion Community
+ * 
+ * Inspired by:
+ * - rk3566-quartz64-a.dts (Pine64 Quartz64 Model A)
+ * - rk3566-anbernic-rgxx3.dts (Anbernic RG353 series)
+ * - rk3326-odroid-go2.dts (ODROID-GO Advance)
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/rockchip.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/soc/rockchip,vop2.h>
+#include "rk3566.dtsi"
+
+/ {
+	model = "Miyoo Flip Handheld Console";
+	compatible = "miyoo,flip", "rockchip,rk3566";
+
+	aliases {
+		mmc0 = &sdmmc0;
+		mmc1 = &sdmmc1;
+		mmc2 = &sdmmc2;
+	};
+
+	chosen {
+		stdout-path = "serial2:1500000n8";
+	};
+
+	vcc_sys: vcc-sys-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3800000>;
+		regulator-max-microvolt = <3800000>;
+	};
+
+	panel_internal: panel-internal {
+		compatible = "innolux,at043tn24", "simple-panel";
+		backlight = <&backlight_internal>;
+		power-supply = <&vcc_3v3>;
+		
+		port {
+			panel_internal_in: endpoint {
+				remote-endpoint = <&dsi0_out>;
+			};
+		};
+	};
+
+	backlight_internal: backlight-internal {
+		compatible = "pwm-backlight";
+		pwms = <&pwm4 0 25000 0>;
+		brightness-levels = <0 10 20 30 40 50 60 70 80 90 100>;
+		default-brightness-level = <8>;
+		power-supply = <&vcc_3v3>;
+	};
+
+	vibrator {
+		compatible = "pwm-vibrator";
+		pwm-names = "enable";
+		pwms = <&pwm3 0 1000000 0>;
+		vcc-supply = <&vcc_3v3>;
+	};
+
+	gpio_keys: gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_keys_pins>;
+
+		button-up {
+			label = "DPAD-UP";
+			linux,code = <BTN_DPAD_UP>;
+			gpios = <&gpio3 RK_PA0 GPIO_ACTIVE_LOW>;
+		};
+
+		button-down {
+			label = "DPAD-DOWN";
+			linux,code = <BTN_DPAD_DOWN>;
+			gpios = <&gpio3 RK_PA1 GPIO_ACTIVE_LOW>;
+		};
+
+		button-a {
+			label = "BTN-A";
+			linux,code = <BTN_EAST>;
+			gpios = <&gpio3 RK_PA4 GPIO_ACTIVE_LOW>;
+		};
+
+		button-thumbl {
+			label = "BTN-THUMBL";
+			linux,code = <BTN_THUMBL>;
+			gpios = <&gpio3 RK_PB7 GPIO_ACTIVE_LOW>;
+		};
+
+		button-thumbr {
+			label = "BTN-THUMBR";
+			linux,code = <BTN_THUMBR>;
+			gpios = <&gpio3 RK_PC0 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	gpio_switches: gpio-switches {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&lid_sensor_pin>;
+
+		lid {
+			label = "Lid Switch";
+			gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_LOW>;
+			linux,input-type = <EV_SW>;
+			linux,code = <SW_LID>;
+			wakeup-source;
+			debounce-interval = <10>;
+		};
+	};
+
+	adc_joystick_left: adc-joystick-left {
+		compatible = "adc-joystick";
+		io-channels = <&saradc 0>, <&saradc 1>;
+		io-channel-names = "x", "y";
+		poll-interval = <10>;
+		
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		axis@0 {
+			reg = <0>;
+			linux,code = <ABS_X>;
+			abs-range = <0 1023>;
+			abs-fuzz = <10>;
+			abs-flat = <50>;
+		};
+
+		axis@1 {
+			reg = <1>;
+			linux,code = <ABS_Y>;
+			abs-range = <0 1023>;
+			abs-fuzz = <10>;
+			abs-flat = <50>;
+		};
+	};
+};
+
+&cpu0 {
+	cpu-supply = <&vdd_cpu>;
+};
+
+&gpu {
+	mali-supply = <&vdd_gpu>;
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+	
+	rk809: pmic@20 {
+		compatible = "rockchip,rk809";
+		reg = <0x20>;
+		interrupt-parent = <&gpio0>;
+		interrupts = <RK_PA3 IRQ_TYPE_LEVEL_LOW>;
+		rockchip,system-power-controller;
+		wakeup-source;
+
+		regulators {
+			vdd_cpu: DCDC_REG1 {
+				regulator-name = "vdd_cpu";
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <1350000>;
+			};
+
+			vdd_gpu: DCDC_REG2 {
+				regulator-name = "vdd_gpu";
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <1350000>;
+			};
+		};
+	};
+};
+
+&sdmmc0 {
+	status = "okay";
+	bus-width = <8>;
+	non-removable;
+};
+
+&sdmmc1 {
+	status = "okay";
+	bus-width = <4>;
+	cd-gpios = <&gpio0 RK_PA6 GPIO_ACTIVE_LOW>;
+};
+
+&sdmmc2 {
+	status = "okay";
+	bus-width = <4>;
+	non-removable;
+};
+
+&saradc {
+	status = "okay";
+	vref-supply = <&vcc_1v8>;
+};
+
+&pwm3 {
+	status = "okay";
+};
+
+&pwm4 {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&pinctrl {
+	gpio-keys {
+		gpio_keys_pins: gpio-keys-pins {
+			rockchip,pins =
+				<3 RK_PA0 RK_FUNC_GPIO &pcfg_pull_up>,
+				<3 RK_PA1 RK_FUNC_GPIO &pcfg_pull_up>,
+				<3 RK_PA4 RK_FUNC_GPIO &pcfg_pull_up>,
+				<3 RK_PB7 RK_FUNC_GPIO &pcfg_pull_up>,
+				<3 RK_PC0 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	lid-sensor {
+		lid_sensor_pin: lid-sensor-pin {
+			rockchip,pins = <0 RK_PA5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+};

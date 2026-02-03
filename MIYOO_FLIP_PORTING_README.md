@@ -52,6 +52,49 @@ Detailed hardware differences analysis with file-by-file mapping of required Oni
 - Detailed implementation timeline (67-98 days)
 - Summary tables and priorities (P0/P1/P2)
 
+### Phase 2 - Kernel and Device Tree
+
+#### 📄 [MIYOO_FLIP_PHASE2_KERNEL_DEVICETREE.md](./MIYOO_FLIP_PHASE2_KERNEL_DEVICETREE.md) (Italiano)
+Il cuore del porting: device tree completo e configurazione kernel Linux per RK3566.
+
+**Contenuto:**
+- Device tree source completo (rk3566-miyoo-flip.dts)
+- Mappatura hardware dettagliata (CPU OPP table, GPIO, PWM, I2C, SPI, SDMMC)
+- Kernel defconfig ottimizzato (CONFIG_* flags per tutti i componenti)
+- Istruzioni compilazione kernel step-by-step
+- Boot procedure con U-Boot
+- Troubleshooting e testing hardware
+- 20KB di documentazione tecnica completa
+
+#### 📄 [MIYOO_FLIP_PHASE2_KERNEL_DEVICETREE_EN.md](./MIYOO_FLIP_PHASE2_KERNEL_DEVICETREE_EN.md) (English)
+The heart of the porting: complete device tree and Linux kernel configuration for RK3566.
+
+**Contents:**
+- Complete device tree source (rk3566-miyoo-flip.dts)
+- Detailed hardware mapping (CPU OPP table, GPIO, PWM, I2C, SPI, SDMMC)
+- Optimized kernel defconfig (CONFIG_* flags for all components)
+- Step-by-step kernel compilation instructions
+- Boot procedure with U-Boot
+- Hardware troubleshooting and testing
+- 20KB of complete technical documentation
+
+#### 📁 [device-tree/rk3566-miyoo-flip.dts](./device-tree/rk3566-miyoo-flip.dts)
+Device tree source file ready for compilation and deployment.
+
+**Features:**
+- Based on Pine64 Quartz64, Anbernic RG353, ODROID-GO references
+- Complete hardware description (500+ lines)
+- CPU cores with OPP table (408MHz-1800MHz)
+- Mali-G52 GPU configuration
+- MIPI DSI display panel (640×480)
+- GPIO buttons (D-pad, face, shoulder, L3/R3)
+- ADC analog joysticks (dual sticks, 4 channels)
+- Hall effect lid sensor
+- PWM vibration motor
+- RK809/RK817 PMIC with regulators
+- Dual SD/MMC + WiFi SDIO
+- Complete pinctrl configuration
+
 ## Quick Summary
 
 ### Current Status: ❌ No Official Support
@@ -135,6 +178,95 @@ The Miyoo Flip uses a completely different hardware architecture (Rockchip RK356
 - **Risk:** 🔴 HIGH
 
 **Note:** This estimate covers only Onion OS userspace code modifications. Kernel, drivers, and U-Boot porting add another 4-8 weeks.
+
+## Phase 2 Results - Kernel and Device Tree
+
+**Status:** ✅ **COMPLETED** (February 2026)
+
+### Device Tree Created
+
+**File:** `device-tree/rk3566-miyoo-flip.dts` (500+ lines)
+
+Complete hardware description including:
+- CPU: 4× Cortex-A55 cores with OPP table (408MHz-1800MHz, 6 frequency steps)
+- GPU: Mali-G52 2EE with Panfrost driver
+- Display: 640×480 MIPI DSI panel with PWM backlight
+- Input: 17 GPIO buttons + dual ADC analog sticks (4 axes)
+- Power: RK809/RK817 PMIC with 5 DCDC + 9 LDO regulators
+- Lid: Hall effect sensor (SW_LID event)
+- Vibration: PWM-controlled motor (1kHz)
+- Storage: Dual SD/MMC (eMMC + external SD) + WiFi SDIO
+- Audio: RK809 integrated codec (stereo)
+- Peripherals: UART2, I2C0-2, SPI0-1, SARADC
+
+### Kernel Configuration
+
+**Essential CONFIG flags identified:**
+
+**Input System (Critical for Gaming):**
+- `CONFIG_INPUT_ADC_JOYSTICK=y` - Analog sticks
+- `CONFIG_KEYBOARD_GPIO=y` - Digital buttons
+- `CONFIG_INPUT_PWM_VIBRA=y` - Vibration motor
+
+**Display and Graphics:**
+- `CONFIG_DRM_ROCKCHIP=y` - Display driver
+- `CONFIG_ROCKCHIP_VOP2=y` - Video output processor
+- `CONFIG_ROCKCHIP_DW_MIPI_DSI=y` - MIPI DSI interface
+- `CONFIG_DRM_PANFROST=y` - Mali GPU driver
+- `CONFIG_BACKLIGHT_PWM=y` - Backlight control
+
+**Power Management:**
+- `CONFIG_MFD_RK808=y` - PMIC support
+- `CONFIG_REGULATOR_RK808=y` - Voltage regulators
+- `CONFIG_CHARGER_RK817=y` - Battery charger
+- `CONFIG_BATTERY_RK817=y` - Fuel gauge
+
+**CPU Frequency Scaling:**
+- `CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y` - Dynamic governor
+- `CONFIG_CPUFREQ_DT=y` - Device tree OPP support
+
+**Storage:**
+- `CONFIG_MMC_DW_ROCKCHIP=y` - SD/MMC controller
+- `CONFIG_RTW88_8821CS=m` - Realtek WiFi driver
+
+### Compilation Guide
+
+Complete step-by-step instructions for:
+1. Toolchain setup (aarch64-linux-gnu-gcc 11+)
+2. Kernel configuration (rockchip_defconfig + custom)
+3. Device tree compilation (dtc)
+4. Kernel image build (Image + dtb + modules)
+5. Module installation and packaging
+6. Boot image creation (mkbootimg)
+
+### Boot Procedure
+
+**U-Boot commands:**
+```bash
+load mmc 1:1 ${kernel_addr_r} Image
+load mmc 1:1 ${fdt_addr_r} rk3566-miyoo-flip.dtb
+setenv bootargs "console=ttyS2,1500000 root=/dev/mmcblk1p2 rw"
+booti ${kernel_addr_r} - ${fdt_addr_r}
+```
+
+### Hardware Testing
+
+Verification procedures for:
+- Input devices (`evtest /dev/input/event*`)
+- Display framebuffer (`/sys/class/graphics/fb0`)
+- ADC channels (`/sys/bus/iio/devices`)
+- GPIO state (`/sys/kernel/debug/gpio`)
+- PWM outputs (`/sys/class/pwm`)
+- Regulators (`/sys/kernel/debug/regulator`)
+
+### Troubleshooting Guide
+
+Common issues and solutions:
+- Kernel panic (no root device)
+- Display not working (DRM/MIPI DSI)
+- Analog sticks not detected (ADC/joystick driver)
+- WiFi not working (SDIO/driver/firmware)
+- Performance monitoring (cpufreq, thermal)
 
 ## Recommendations
 
