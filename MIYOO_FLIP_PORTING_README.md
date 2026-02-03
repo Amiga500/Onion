@@ -98,36 +98,81 @@ Device tree source file ready for compilation and deployment.
 ### Phase 3 - Bootloader and First Boot
 
 #### 📄 [MIYOO_FLIP_PHASE3_BOOTLOADER_FIRSTBOOT.md](./MIYOO_FLIP_PHASE3_BOOTLOADER_FIRSTBOOT.md) (Italiano)
-Bootloader U-Boot e creazione immagine SD bootabile per primo avvio sicuro.
+Guida completa per U-Boot bootloader e creazione immagine SD bootabile per Miyoo Flip.
 
 **Contenuto:**
-- Setup toolchain ARM64 cross-compilation completo
-- U-Boot configuration per RK3566 Miyoo Flip
-- Build U-Boot + firmware Rockchip (rkbin tools)
+- U-Boot configuration per RK3566 (mainline + Rockchip vendor)
+- Toolchain ARM64 cross-compilation setup
+- Rockchip boot components (TPL, SPL, ATF, rkbin)
 - Struttura partizioni SD ottimizzata (boot, rootfs, user)
-- Script creazione immagine SD bootabile automatici
-- Integrazione kernel + DTB custom (Phase 2)
-- Procedure primo boot e testing con UART
-- Checklist anti-brick dettagliata (protezione eMMC)
-- Recovery procedures (Maskrom mode, rkdeveloptool)
-- Troubleshooting U-Boot e kernel boot completo
-- 29KB di documentazione tecnica con esempi pratici
+- Script automatici per creazione immagine SD
+- Build procedure U-Boot step-by-step
+- Primo boot procedure e testing
+- **Checklist anti-brick completa** (essenziale!)
+- 3 metodi recovery (SD card, Maskrom, UART)
+- Troubleshooting 10+ scenari comuni
+- 30KB documentazione tecnica
 
 #### 📄 [MIYOO_FLIP_PHASE3_BOOTLOADER_FIRSTBOOT_EN.md](./MIYOO_FLIP_PHASE3_BOOTLOADER_FIRSTBOOT_EN.md) (English)
-U-Boot bootloader and bootable SD image creation for safe first boot.
+Complete guide for U-Boot bootloader and bootable SD image creation for Miyoo Flip.
 
 **Contents:**
-- Complete ARM64 cross-compilation toolchain setup
-- U-Boot configuration for RK3566 Miyoo Flip
-- U-Boot + Rockchip firmware build (rkbin tools)
+- U-Boot configuration for RK3566 (mainline + Rockchip vendor)
+- ARM64 cross-compilation toolchain setup
+- Rockchip boot components (TPL, SPL, ATF, rkbin)
 - Optimized SD partition structure (boot, rootfs, user)
-- Automated bootable SD image creation scripts
-- Custom kernel + DTB integration (Phase 2)
-- First boot procedures and UART testing
-- Detailed anti-brick checklist (eMMC protection)
-- Recovery procedures (Maskrom mode, rkdeveloptool)
-- Complete U-Boot and kernel boot troubleshooting
-- 29KB of technical documentation with practical examples
+- Automated SD image creation scripts
+- Step-by-step U-Boot build procedure
+- First boot procedure and testing
+- **Complete anti-brick checklist** (essential!)
+- 3 recovery methods (SD card, Maskrom, UART)
+- Troubleshooting 10+ common scenarios
+- 30KB technical documentation
+
+### Phase 4 - UI and Input System Adaptation
+
+#### 📄 [MIYOO_FLIP_PHASE4_UI_INPUT_ADAPTATION.md](./MIYOO_FLIP_PHASE4_UI_INPUT_ADAPTATION.md) (Italiano)
+Modifiche complete UI e sistema input per supporto hardware Miyoo Flip.
+
+**Contenuto:**
+- **Dual analog stick support** (4 axes + 2 buttons)
+  - Hardware mapping ADC (SARADC CH0-3)
+  - Linux input events (ABS_X/Y/RX/RY)
+  - Deadzone filtering e calibrazione
+  - Code snippets C completi per `input_fd.h`
+- **Lid sensor sleep/wake** (clamshell)
+  - Hall effect sensor GPIO
+  - Event handling (EV_SW, SW_LID)
+  - Sleep/wake automatico su chiusura/apertura
+  - Debouncing 100ms
+  - Code snippets per `keymon.c`
+- **PWM vibration feedback**
+  - LRA motor control @ 1kHz
+  - Intensità variabile 0-100% (vs on/off Mini+)
+  - 5 livelli intensity
+  - Code snippets per `rumble.h`
+- **Device model detection**
+  - MIYOO_FLIP = 566 (RK3566)
+  - Detection automatica (cpuinfo, lid sensor)
+  - Helper functions
+  - Code snippets per `device_model.h`
+- **Input lag optimization**
+  - Kernel config (HZ=1000, PREEMPT)
+  - CPU governor tuning (schedutil)
+  - RetroArch low-latency settings
+  - Target: <16ms (1 frame @ 60fps)
+- **Aspect ratio verification** (640×480 già compatibile!)
+- Testing procedures complete (hardware + software)
+- Build instructions e checklist implementazione
+- 31KB documentazione con **C/C++ diff-style code**
+
+**Code Modifications:**
+- `device_model.h`: +50 LOC (detection)
+- `keymap_hw.h`: +30 LOC (analog defines)
+- `input_fd.h`: +150 LOC (EV_ABS handling)
+- `keymon.c`: +200 LOC (lid sensor)
+- `rumble.h`: +80 LOC (PWM vibration)
+- **Total: ~510 LOC new + 90 LOC modified**
 
 ## Quick Summary
 
@@ -481,6 +526,254 @@ sudo rkdeveloptool rd  # Reboot
 - `boot.cmd` / `boot.scr` - U-Boot boot script
 - `miyoo_flip_rk3566_defconfig` - U-Boot configuration
 - `rk3566-miyoo-flip-u-boot.dtsi` - U-Boot device tree
+
+## Phase 4 Results - UI and Input System Adaptation
+
+**Status:** ✅ **COMPLETED** (February 2026)
+
+### Code Modifications Documented
+
+**6 core files with detailed C/C++ diff-style modifications:**
+
+#### 1. Dual Analog Stick Support
+**Files modified:** `keymap_hw.h`, `input_fd.h`
+
+**Hardware mapping:**
+- Left stick: ABS_X, ABS_Y (SARADC CH0/1)
+- Right stick: ABS_RX, ABS_RY (SARADC CH2/3)
+- L3/R3 buttons: BTN_THUMBL, BTN_THUMBR
+- Range: 0-1023 (10-bit ADC, centered at 512)
+- Deadzone: ±50 units (configurable)
+
+**Key implementations:**
+```c
+// New analog state structure
+typedef struct {
+    int16_t lx, ly, rx, ry;
+    bool l3_pressed, r3_pressed;
+    uint32_t last_update_ms;
+} analog_state_t;
+
+// Deadzone filtering
+int16_t apply_deadzone(int16_t value, int16_t deadzone);
+
+// EV_ABS event handling
+void analog_update_state(struct input_event *ev);
+```
+
+**LOC:** +150 lines in `input_fd.h`, +30 lines in `keymap_hw.h`
+
+#### 2. Lid Sensor Sleep/Wake
+**Files modified:** `keymon.c`
+
+**Hardware:**
+- Hall effect magnetic sensor (GPIO0_A5)
+- Event: EV_SW, SW_LID
+- Debounce: 100ms
+- Wakeup source: Yes
+
+**Implementation:**
+```c
+void handle_lid_close(void) {
+    // Save state
+    screenshot_system();
+    sync();
+    
+    // Suspend audio and display
+    system("killall -STOP mpg123");
+    display_off();
+    
+    // Enter system suspend
+    system("echo mem > /sys/power/state");
+    
+    // Resume after lid open...
+    display_on();
+    settings_setBrightness(settings.brightness, true, false);
+}
+
+void process_lid_event(struct input_event *ev);
+```
+
+**LOC:** +200 lines in `keymon.c`
+
+#### 3. PWM Vibration Feedback
+**Files modified:** `rumble.h`
+
+**Hardware upgrade:**
+- Miyoo Mini+: GPIO on/off (digital, 100% or 0%)
+- Miyoo Flip: PWM intensity control (0-100% granular)
+- Motor: LRA @ 1kHz
+- Levels: 0%, 25%, 50%, 75%, 100%
+
+**Implementation:**
+```c
+#define PWM_VIBRATION_PATH "/sys/class/pwm/pwmchip0/pwm3"
+#define PWM_PERIOD_NS 1000000  // 1kHz
+
+void rumble_pwm_init(void);
+void rumble_set_intensity(uint8_t percent);
+
+// Intensity-based pulse
+void short_pulse(void) {
+    rumble(true);
+    msleep(SHORT_PULSE_MS);
+    rumble(false);
+}
+```
+
+**LOC:** +80 lines in `rumble.h`
+
+#### 4. Device Model Detection
+**Files modified:** `device_model.h`
+
+**New device ID:**
+- MIYOO_FLIP = 566 (matches RK3566 SoC)
+
+**Detection methods:**
+1. Check /proc/cpuinfo for "RK3566" or "Cortex-A55"
+2. Check for lid sensor device presence
+3. Fallback to /tmp/deviceModel file
+
+**Helper functions:**
+```c
+bool is_miyoo_flip(void);
+bool has_analog_sticks(void);
+bool has_lid_sensor(void);
+```
+
+**LOC:** +50 lines in `device_model.h`
+
+#### 5. Input Lag Optimization
+
+**Kernel configurations:**
+```kconfig
+CONFIG_HZ=1000                    # 1ms timer tick
+CONFIG_PREEMPT=y                  # Full preemption
+CONFIG_NO_HZ_FULL=y               # Tickless CPUs
+CONFIG_INPUT_POLL_INTERVAL=1      # 1ms input polling
+```
+
+**Userspace optimizations:**
+```bash
+# CPU governor: schedutil (fast response)
+echo "schedutil" > .../scaling_governor
+
+# Min frequency: 1.2GHz
+echo "1200000" > .../scaling_min_freq
+
+# Input polling: 1ms (1000Hz)
+echo "1" > /sys/class/input/input0/device/poll_interval
+```
+
+**RetroArch settings:**
+```ini
+input_poll_type_behavior = "2"   # Poll every frame
+video_frame_delay = "0"           # No delay
+video_hard_sync = "true"          # GPU sync
+video_threaded = "false"          # Lower latency
+```
+
+**Target:** <16ms input-to-frame latency (1 frame @ 60fps)
+
+#### 6. Aspect Ratio Verification
+
+**Display comparison:**
+| Device | Resolution | Aspect | Result |
+|--------|-----------|--------|--------|
+| Miyoo Mini+ | 640×480 | 4:3 | Existing |
+| Miyoo Flip | 640×480 | 4:3 | ✅ Identical! |
+
+**Conclusion:** No modifications needed - perfect compatibility!
+
+**Dual display (optional Phase 5+):**
+- Internal: 640×480 (main gaming)
+- External: 240×240 (lid artwork/notifications)
+
+### Code Modification Summary
+
+| File | LOC Added | LOC Modified | Complexity |
+|------|-----------|--------------|------------|
+| `device_model.h` | +50 | ~10 | 🟡 Medium |
+| `keymap_hw.h` | +30 | 0 | 🟢 Low |
+| `input_fd.h` | +150 | ~20 | 🔴 High |
+| `keymon.c` | +200 | ~30 | 🔴 High |
+| `rumble.h` | +80 | ~20 | 🟡 Medium |
+| `display.h` | 0 | ~10 | 🟢 Low |
+| **TOTAL** | **~510** | **~90** | **🔴 High** |
+
+### Testing Procedures
+
+**Hardware tests:**
+```bash
+# Digital buttons
+evtest /dev/input/event0
+
+# Analog sticks (4 axes)
+evtest /dev/input/event1
+
+# Lid sensor
+evtest /dev/input/event2
+
+# PWM vibration
+echo 50 > /sys/class/pwm/pwmchip0/pwm3/duty_cycle
+```
+
+**Performance tests:**
+```bash
+# Input latency (target: <16ms)
+./test_input_lag.sh
+
+# CPU frequency during gaming
+watch -n 1 'cat .../scaling_cur_freq'
+
+# Thermal monitoring
+watch -n 1 'cat /sys/class/thermal/thermal_zone0/temp'
+```
+
+### Build Configuration
+
+**Makefile additions:**
+```makefile
+# Miyoo Flip target
+ifeq ($(TARGET),miyoo_flip)
+    CFLAGS += -DMIYOO_FLIP
+    CFLAGS += -DPLATFORM_MIYOOMINI  # 640x480 compat
+    CROSS_COMPILE ?= aarch64-linux-gnu-
+    ARCH = arm64
+endif
+
+# Build command
+make flip -j$(nproc)
+```
+
+### Implementation Checklist
+
+**P0 - Critical:**
+- [ ] Device detection (MIYOO_FLIP = 566)
+- [ ] Analog stick EV_ABS handling
+- [ ] Lid sensor sleep/wake
+- [ ] PWM vibration control
+- [ ] Hardware testing on Flip
+
+**P1 - Important:**
+- [ ] Kernel optimizations (HZ=1000)
+- [ ] Gaming optimization script
+- [ ] RetroArch low-latency config
+- [ ] Input lag verification
+- [ ] PWM intensity testing
+
+**P2 - Nice to Have:**
+- [ ] Analog deadzone config UI
+- [ ] Vibration intensity slider
+- [ ] Lid sensor enable/disable
+- [ ] Dual display support (Phase 5)
+
+### Estimated Effort
+
+- **Development:** 3-5 days
+- **Testing:** 2-3 days (hardware required)
+- **Debug/Fixes:** 1-2 days
+- **Total:** 7-11 days (1 developer)
 
 ## Recommendations
 
