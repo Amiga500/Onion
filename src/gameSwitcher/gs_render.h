@@ -252,7 +252,6 @@ void renderSound(AppState *state)
             }
             SDL_BlitSurface(volume, NULL, screen, &volume_rect);
         }
-        state->sound_changed = false;
     }
 }
 
