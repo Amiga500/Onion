@@ -23,4 +23,12 @@
 #define HW_BTN_VOLUME_UP KEY_VOLUMEUP
 #define HW_BTN_VOLUME_DOWN KEY_VOLUMEDOWN
 
+// Miyoo Flip specific - Analog stick axes (ABS events)
+#define HW_AXIS_LX ABS_X
+#define HW_AXIS_LY ABS_Y
+#define HW_AXIS_RX ABS_RX
+#define HW_AXIS_RY ABS_RY
+#define HW_BTN_L3 BTN_THUMBL
+#define HW_BTN_R3 BTN_THUMBR
+
 #endif // KEYMAP_HW_H__
