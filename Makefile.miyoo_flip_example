@@ -1,0 +1,196 @@
+# Miyoo Flip Build Configuration Example
+# This file shows the additional configuration needed to build for Miyoo Flip (RK3566)
+#
+# Usage: Include this in your main Makefile or use as reference
+
+# ============================================================================
+# TOOLCHAIN CONFIGURATION
+# ============================================================================
+
+# Detect target device
+DEVICE_MODEL ?= MIYOO_MINI_PLUS  # Default to Mini+
+# DEVICE_MODEL can be: MIYOO_MINI, MIYOO_MINI_PLUS, MIYOO_FLIP
+
+ifeq ($(DEVICE_MODEL),MIYOO_FLIP)
+    # ARM64 toolchain for Miyoo Flip (RK3566)
+    CROSS_COMPILE ?= aarch64-linux-gnu-
+    ARCH := arm64
+    CFLAGS_ARCH := -march=armv8.2-a -mtune=cortex-a55
+    LDFLAGS_ARCH := 
+    
+    # Device-specific defines
+    CFLAGS += -DMIYOO_FLIP=1
+    CFLAGS += -DHAS_DUAL_ANALOG=1
+    CFLAGS += -DHAS_LID_SENSOR=1
+    CFLAGS += -DHAS_PWM_RUMBLE=1
+    CFLAGS += -DHAS_RK809_PMIC=1
+    
+else
+    # ARM32 toolchain for Miyoo Mini/Mini+ (Allwinner)
+    CROSS_COMPILE ?= arm-linux-gnueabihf-
+    ARCH := arm
+    CFLAGS_ARCH := -march=armv5te -mtune=arm926ej-s
+    LDFLAGS_ARCH := 
+    
+    # Device-specific defines
+    CFLAGS += -DMIYOO_MINI=1
+endif
+
+# Compiler setup
+CC := $(CROSS_COMPILE)gcc
+CXX := $(CROSS_COMPILE)g++
+LD := $(CROSS_COMPILE)ld
+AR := $(CROSS_COMPILE)ar
+STRIP := $(CROSS_COMPILE)strip
+
+# ============================================================================
+# BUILD FLAGS
+# ============================================================================
+
+# Common flags
+CFLAGS += -std=gnu99
+CFLAGS += -Wall -Wextra
+CFLAGS += -O2
+CFLAGS += $(CFLAGS_ARCH)
+CFLAGS += -I./include
+CFLAGS += -I./src/common/system
+
+# Optimization flags
+ifeq ($(DEVICE_MODEL),MIYOO_FLIP)
+    # Enable more aggressive optimizations for ARM64
+    CFLAGS += -O3
+    CFLAGS += -ffast-math
+    CFLAGS += -funroll-loops
+else
+    # Conservative optimizations for ARM32
+    CFLAGS += -O2
+endif
+
+# Linker flags
+LDFLAGS += $(LDFLAGS_ARCH)
+LDFLAGS += -lm
+LDFLAGS += -lpthread
+
+# I2C library for RK809 PMIC (Miyoo Flip only)
+ifeq ($(DEVICE_MODEL),MIYOO_FLIP)
+    LDFLAGS += -li2c
+endif
+
+# ============================================================================
+# SOURCE FILES
+# ============================================================================
+
+# Common source files
+COMMON_SOURCES := \
+    src/common/utils/file.c \
+    src/common/utils/str.c \
+    src/common/utils/msleep.c
+
+# Miyoo Flip specific sources
+ifeq ($(DEVICE_MODEL),MIYOO_FLIP)
+    FLIP_HEADERS := \
+        src/common/system/analog_mapper.h \
+        src/common/system/lid_sensor.h \
+        src/common/system/rk809_pmic.h
+    
+    # Integration example (optional, for reference)
+    FLIP_EXAMPLES := \
+        src/keymon/miyoo_flip_integration_example.c
+endif
+
+# ============================================================================
+# TARGETS
+# ============================================================================
+
+.PHONY: all clean device-info
+
+all: device-info keymon
+
+device-info:
+	@echo "============================================"
+	@echo "Building for: $(DEVICE_MODEL)"
+	@echo "Architecture: $(ARCH)"
+	@echo "Compiler: $(CC)"
+	@echo "CFLAGS: $(CFLAGS)"
+	@echo "============================================"
+
+# Example: Build keymon with Miyoo Flip support
+keymon: $(COMMON_SOURCES) src/keymon/keymon.c
+	@echo "Building keymon for $(DEVICE_MODEL)..."
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	$(STRIP) $@
+	@echo "Done. Binary size:"
+	@ls -lh $@
+
+# Clean build artifacts
+clean:
+	rm -f keymon
+	rm -f *.o
+	@echo "Clean complete"
+
+# ============================================================================
+# INSTALLATION
+# ============================================================================
+
+INSTALL_DIR ?= /mnt/SDCARD
+
+install: all
+	@echo "Installing to $(INSTALL_DIR)..."
+	mkdir -p $(INSTALL_DIR)/bin
+	cp keymon $(INSTALL_DIR)/bin/
+	@echo "Installation complete"
+
+# ============================================================================
+# CROSS-COMPILATION EXAMPLES
+# ============================================================================
+
+# Build for Miyoo Mini+
+mini-plus:
+	$(MAKE) DEVICE_MODEL=MIYOO_MINI_PLUS
+
+# Build for Miyoo Flip
+flip:
+	$(MAKE) DEVICE_MODEL=MIYOO_FLIP
+
+# ============================================================================
+# TESTING
+# ============================================================================
+
+# Test compilation (doesn't run, just checks if it compiles)
+test-compile:
+	@echo "Testing compilation for all targets..."
+	@echo ""
+	@echo "1. Testing Miyoo Mini+ build..."
+	$(MAKE) clean
+	$(MAKE) mini-plus
+	@echo ""
+	@echo "2. Testing Miyoo Flip build..."
+	$(MAKE) clean
+	$(MAKE) flip
+	@echo ""
+	@echo "All targets compiled successfully!"
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# To build for Miyoo Flip:
+#   make DEVICE_MODEL=MIYOO_FLIP
+#   or
+#   make flip
+#
+# To build for Miyoo Mini+:
+#   make DEVICE_MODEL=MIYOO_MINI_PLUS
+#   or
+#   make mini-plus
+#
+# Required packages for cross-compilation:
+#   Ubuntu/Debian:
+#     sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+#     sudo apt-get install libi2c-dev
+#
+# Toolchain sources:
+#   ARM64: https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain
+#   Or use distribution packages (gcc-aarch64-linux-gnu)
+#
+# ============================================================================
