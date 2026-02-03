@@ -16,3 +16,5 @@ The OSD_VOLUME_COLOR constant is set to green (0x001CD577) to match the system's
 
 ## Usage
 These images are loaded by the `resource_getVolume()` function in `src/common/theme/resources.h` and rendered by the `renderSound()` function in `src/gameSwitcher/gs_render.h`.
+
+Volume is controlled using the hardware volume keys (Volume Up/Down buttons) on the device.

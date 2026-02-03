@@ -160,7 +160,7 @@ void handleUpdateKeystateMain(AppState *state)
     if (keystate[_gs_keystate.changed_key] == PRESSED && _gs_keystate.changed_key != SW_BTN_UP && _gs_keystate.changed_key != SW_BTN_DOWN && _gs_keystate.changed_key != SW_BTN_L2 && _gs_keystate.changed_key != SW_BTN_R2)
         state->brightness_changed = false;
 
-    if (keystate[_gs_keystate.changed_key] == PRESSED && _gs_keystate.changed_key != SW_BTN_L2 && _gs_keystate.changed_key != SW_BTN_R2)
+    if (keystate[_gs_keystate.changed_key] == PRESSED && _gs_keystate.changed_key != SW_BTN_VOLUME_DOWN && _gs_keystate.changed_key != SW_BTN_VOLUME_UP)
         state->sound_changed = false;
 
     if (_gs_keystate.keystate[SW_BTN_UP] >= PRESSED) {
@@ -194,7 +194,7 @@ void handleUpdateKeystateMain(AppState *state)
         state->changed = true;
     }
 
-    if (_gs_keystate.keystate[SW_BTN_L2] >= PRESSED && !_gs_keystate.select_pressed) {
+    if (_gs_keystate.keystate[SW_BTN_VOLUME_DOWN] >= PRESSED) {
         // Change volume down
         if (settings.bgm_volume > 0) {
             settings.bgm_volume--;
@@ -205,7 +205,7 @@ void handleUpdateKeystateMain(AppState *state)
         state->changed = true;
     }
 
-    if (_gs_keystate.keystate[SW_BTN_R2] >= PRESSED && !_gs_keystate.select_pressed) {
+    if (_gs_keystate.keystate[SW_BTN_VOLUME_UP] >= PRESSED) {
         // Change volume up
         if (settings.bgm_volume < 20) {
             settings.bgm_volume++;

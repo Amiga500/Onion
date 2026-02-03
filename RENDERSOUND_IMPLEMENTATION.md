@@ -93,11 +93,11 @@ appState.sound_start = appState.last_ticks;
 
 ### 5. Input Handling (`src/gameSwitcher/gs_keystate.h`)
 
-#### Volume Control via L2/R2 Buttons
+#### Volume Control via Hardware Volume Keys
 
-**L2 Button (Volume Down):**
+**Volume Down Key:**
 ```c
-if (_gs_keystate.keystate[SW_BTN_L2] >= PRESSED && !_gs_keystate.select_pressed) {
+if (_gs_keystate.keystate[SW_BTN_VOLUME_DOWN] >= PRESSED) {
     if (settings.bgm_volume > 0) {
         settings.bgm_volume--;
         settings_saveSystemProperty("bgmvol", settings.bgm_volume);
@@ -108,9 +108,9 @@ if (_gs_keystate.keystate[SW_BTN_L2] >= PRESSED && !_gs_keystate.select_pressed)
 }
 ```
 
-**R2 Button (Volume Up):**
+**Volume Up Key:**
 ```c
-if (_gs_keystate.keystate[SW_BTN_R2] >= PRESSED && !_gs_keystate.select_pressed) {
+if (_gs_keystate.keystate[SW_BTN_VOLUME_UP] >= PRESSED) {
     if (settings.bgm_volume < 20) {
         settings.bgm_volume++;
         settings_saveSystemProperty("bgmvol", settings.bgm_volume);
@@ -122,7 +122,7 @@ if (_gs_keystate.keystate[SW_BTN_R2] >= PRESSED && !_gs_keystate.select_pressed)
 ```
 
 **Key Features:**
-- Only active when SELECT is NOT pressed (to avoid conflict with SELECT+L2/R2 for other functions)
+- Uses hardware volume keys (mapped to SW_BTN_VOLUME_UP and SW_BTN_VOLUME_DOWN)
 - Respects volume range (0-20)
 - Saves volume to system settings immediately
 - Sets `sound_changed` flag and updates timestamp
@@ -131,8 +131,8 @@ if (_gs_keystate.keystate[SW_BTN_R2] >= PRESSED && !_gs_keystate.select_pressed)
 #### Clear Sound Display on Key Press
 ```c
 if (keystate[_gs_keystate.changed_key] == PRESSED && 
-    _gs_keystate.changed_key != SW_BTN_L2 && 
-    _gs_keystate.changed_key != SW_BTN_R2)
+    _gs_keystate.changed_key != SW_BTN_VOLUME_DOWN && 
+    _gs_keystate.changed_key != SW_BTN_VOLUME_UP)
     state->sound_changed = false;
 ```
 
@@ -166,8 +166,8 @@ if (_gs_keystate.combo_key || ...) {
 ## Button Mapping
 
 ### GameSwitcher Volume Controls
-- **L2** (without SELECT): Decrease volume
-- **R2** (without SELECT): Increase volume
+- **Volume Down Key**: Decrease volume
+- **Volume Up Key**: Increase volume
 - **SELECT + L2/R2**: Reload settings (clears both brightness and volume displays)
 
 ### Existing Controls (unchanged)
@@ -222,11 +222,11 @@ The code review identified these points (addressed as follows):
 ## Testing Considerations
 
 ### Manual Testing Checklist
-- [ ] Press L2 to decrease volume - slider should appear showing current level
-- [ ] Press R2 to increase volume - slider should appear showing current level
-- [ ] Hold L2/R2 for rapid volume changes - slider should stay visible
+- [ ] Press Volume Down key to decrease volume - slider should appear showing current level
+- [ ] Press Volume Up key to increase volume - slider should appear showing current level
+- [ ] Hold Volume Down/Up for rapid volume changes - slider should stay visible
 - [ ] Wait 2 seconds - slider should disappear
-- [ ] Press any key while slider visible - slider should disappear (except L2/R2)
+- [ ] Press any key while slider visible - slider should disappear (except volume keys)
 - [ ] Press SELECT + L2 - should reload settings, slider should disappear
 - [ ] Test in VIEW_NORMAL mode - slider positioned correctly
 - [ ] Test in VIEW_MINIMAL mode - slider positioned correctly
