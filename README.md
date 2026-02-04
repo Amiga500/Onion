@@ -22,4 +22,12 @@
 
 <p align="center"><a href="https://onionui.github.io/docs/features"><img src="https://user-images.githubusercontent.com/44569252/226488511-297034e2-bb69-4f87-bd18-2ae6ff1e7300.gif"></a></p>
 
+---
+
+## Building from Source
+
+Want to build Onion yourself? Check out our [Build Instructions (BUILD.md)](BUILD.md) for detailed guidance on compiling from source using Docker or native toolchains.
+
+---
+
 <p align="right"><sub><i>Icons by <a href="https://icons8.com" target="_blank">Icons8</a></i></sub></p>
