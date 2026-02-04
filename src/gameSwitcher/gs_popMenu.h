@@ -34,37 +34,9 @@ void popMenu_destroy(void)
     list_free(&appState.pop_menu_list);
 }
 
-static bool _hasSaveStates(Game_s *game)
+static int _compareSlotDescending(const void *a, const void *b)
 {
-    char stateDirPath[4096];
-    snprintf(stateDirPath, sizeof(stateDirPath), STATES_DIR "/%s", game->core_name);
-
-    if (!exists(stateDirPath)) {
-        return false;
-    }
-
-    DIR *dir = opendir(stateDirPath);
-    if (dir == NULL) {
-        return false;
-    }
-
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG && strncmp(entry->d_name, game->rom_name, strlen(game->rom_name)) == 0) {
-            char *slotStr = entry->d_name + strlen(game->rom_name);
-            if (strncmp(slotStr, ".state", 6) == 0) {
-                if (strncmp(slotStr, ".state.auto", 11) == 0 || strncmp(slotStr + strlen(slotStr) - 4, ".png", 4) == 0) {
-                    continue; // Skip auto save states and preview images
-                }
-
-                closedir(dir);
-                return true;
-            }
-        }
-    }
-
-    closedir(dir);
-    return false;
+    return (*(const int *)b) - (*(const int *)a);
 }
 
 static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
@@ -84,13 +56,18 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
         return false;
     }
 
+    // Cache rom_name length to avoid repeated strlen() calls in the loop
+    const size_t rom_name_len = strlen(game->rom_name);
+
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG && strncmp(entry->d_name, game->rom_name, strlen(game->rom_name)) == 0) {
-            char *slotStr = entry->d_name + strlen(game->rom_name);
+        if (entry->d_type == DT_REG && strncmp(entry->d_name, game->rom_name, rom_name_len) == 0) {
+            char *slotStr = entry->d_name + rom_name_len;
             if (strncmp(slotStr, ".state", 6) == 0) {
                 int slot = 0;
-                if (strncmp(slotStr, ".state.auto", 11) == 0 || strncmp(slotStr + strlen(slotStr) - 4, ".png", 4) == 0) {
+                size_t slotStr_len = strlen(slotStr);
+                if (strncmp(slotStr, ".state.auto", 11) == 0 || 
+                    (slotStr_len >= 4 && strncmp(slotStr + slotStr_len - 4, ".png", 4) == 0)) {
                     continue; // Skip auto save states and preview images
                 }
                 else if (slotStr[6] != '\0') {
@@ -122,18 +99,24 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
 
     closedir(dir);
 
-    // Sort the slots in descending order
-    for (int i = 0; i < info->slot_count - 1; i++) {
-        for (int j = i + 1; j < info->slot_count; j++) {
-            if (info->slots[j] > info->slots[i]) {
-                int temp = info->slots[i];
-                info->slots[i] = info->slots[j];
-                info->slots[j] = temp;
-            }
-        }
+    // Sort the slots in descending order using qsort (more efficient than bubble sort)
+    if (info->slot_count > 1) {
+        qsort(info->slots, info->slot_count, sizeof(int), _compareSlotDescending);
     }
 
     return true;
+}
+
+/**
+ * @brief Check if save states exist for a game (quick check)
+ * 
+ * This is an optimized version that reuses _scanSaveStates() to avoid
+ * scanning the same directory twice when both checking and loading save states.
+ */
+static bool _hasSaveStates(Game_s *game)
+{
+    SaveStateInfo_s temp_info = {.slots = {0}, .slot_count = 0, .selected_slot = 0};
+    return _scanSaveStates(game, &temp_info) && temp_info.slot_count > 0;
 }
 
 static bool createSaveStatePath(Game_s *game, int slot, char *out_path, size_t out_path_size)

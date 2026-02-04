@@ -15,25 +15,35 @@ void surfaceSetAlpha(SDL_Surface *surface, Uint8 alpha)
     }
     // Else change the alpha of each pixel.
     else {
-        unsigned bpp = fmt->BytesPerPixel;
-        // Scaling factor to clamp alpha to [0, alpha].
-        float scale = alpha / 255.0f;
+        // Precompute alpha lookup table (0-255 scaled by alpha/255)
+        // Using integer arithmetic: scaled_alpha = (a * alpha) / 255
+        Uint8 alpha_lut[256];
+        for (int i = 0; i < 256; i++) {
+            alpha_lut[i] = (Uint8)((i * alpha) / 255);
+        }
 
         SDL_LockSurface(surface);
 
-        for (int y = 0; y < surface->h; ++y)
-            for (int x = 0; x < surface->w; ++x) {
-                // Get a pointer to the current pixel.
-                Uint32 *pixel_ptr = (Uint32 *)((Uint8 *)surface->pixels +
-                                               y * surface->pitch + x * bpp);
+        const int pitch = surface->pitch;
+        const int width = surface->w;
+        const int height = surface->h;
+        Uint8 *pixels = (Uint8 *)surface->pixels;
+
+        for (int y = 0; y < height; ++y) {
+            // Calculate row pointer once per row instead of per pixel
+            Uint32 *row_ptr = (Uint32 *)(pixels + y * pitch);
+            
+            for (int x = 0; x < width; ++x) {
+                Uint32 *pixel_ptr = row_ptr + x;
 
                 // Get the old pixel components.
                 Uint8 r, g, b, a;
                 SDL_GetRGBA(*pixel_ptr, fmt, &r, &g, &b, &a);
 
-                // Set the pixel with the new alpha.
-                *pixel_ptr = SDL_MapRGBA(fmt, r, g, b, scale * a);
+                // Set the pixel with the new alpha using precomputed LUT
+                *pixel_ptr = SDL_MapRGBA(fmt, r, g, b, alpha_lut[a]);
             }
+        }
 
         SDL_UnlockSurface(surface);
     }
