@@ -11,7 +11,7 @@
     {                                                \
         size_t len1 = strlen(str1);                  \
         size_t len2 = strlen(str2);                  \
-        if (len1 + len2 < STR_MAX - 1) {             \
+        if (len1 + len2 <= STR_MAX - 1) {            \
             memcpy(ptr, str1, len1);                 \
             memcpy(ptr + len1, str2, len2 + 1);      \
         }                                            \
