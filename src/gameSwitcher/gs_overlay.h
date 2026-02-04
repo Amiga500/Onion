@@ -34,18 +34,27 @@ void setFbAsFirstRomScreen(void)
     }
 
     game->romScreen = SDL_CreateRGBSurface(SDL_SWSURFACE, g_display.width, g_display.height, 32, 0, 0, 0, 0);
-    display_readCurrentBuffer(&g_display, (uint32_t *)game->romScreen->pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
-
     if (game->romScreen == NULL) {
         print_debug("Error creating fb surface\n");
+        return;
     }
+    
+    display_readCurrentBuffer(&g_display, (uint32_t *)game->romScreen->pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
 }
 
 static bool _isContentNameInInfo(const char *content_info, const char *content_name)
 {
+    if (content_info == NULL || content_name == NULL || strlen(content_name) == 0) {
+        return false;
+    }
+    
     const char *found = strstr(content_info, content_name);
     if (found != NULL) {
-        return *(found - 1) == ',' && *(found + strlen(content_name)) == ',';
+        // Check for preceding comma (or at start of string)
+        bool has_preceding_delim = (found == content_info) || (*(found - 1) == ',');
+        // Check for following comma
+        bool has_following_delim = *(found + strlen(content_name)) == ',';
+        return has_preceding_delim && has_following_delim;
     }
     return false;
 }
@@ -99,7 +108,20 @@ void overlay_init()
     }
 
     Game_s *game = &game_list[0];
+    
+    // Try exact name match first
     game->is_running = _isContentNameInInfo(status.content_info, game->rom_name);
+    
+    // If exact match failed but RetroArch is running content, try a simpler check
+    // to handle cases where filenames differ from ROM internal names
+    if (!game->is_running && strlen(game->rom_name) > 0 && strlen(status.content_info) > 0) {
+        // Check if rom_name appears anywhere in content_info (partial match fallback)
+        if (strstr(status.content_info, game->rom_name) != NULL) {
+            game->is_running = true;
+            printf_debug("Game running detected via partial match\n");
+        }
+    }
+    
     printf_debug("Game is running: %d\n", game->is_running);
 
     // start autosave thread
