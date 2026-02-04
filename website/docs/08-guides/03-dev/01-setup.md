@@ -52,14 +52,35 @@ Done!
 
 You can pass different make targets using the `CMD` parameter:
 
-- `make with-toolchain` - Default: builds everything (equivalent to `make dist`)
-- `make with-toolchain CMD=clean` - Clean build artifacts
-- `make with-toolchain CMD=core` - Build core binaries only
+- `make with-toolchain` - **Recommended**: Builds everything and creates distribution packages (default)
+  - Includes: core binaries, apps, RetroArch, and all external tools
+  - Creates: Ready-to-install packages in `dist/` directory
+  
+- `make with-toolchain CMD=build` - Build all components without packaging
+  - Includes: core binaries, apps, RetroArch, and all external tools
+  - Does NOT create distribution packages
+  
+- `make with-toolchain CMD=core` - Build ONLY core Onion binaries
+  - Includes: bootScreen, keymon, tweaks, installUI, etc.
+  - Does NOT include: apps, RetroArch, SearchFilter, Terminal
+  - **Note**: This is incomplete - use for testing specific core changes only
+  
+- `make with-toolchain CMD=apps` - Build ONLY apps
+  - Includes: Battery Monitor UI, Activity Tracker, etc.
+  - Requires: core binaries to be built first
+  
+- `make with-toolchain CMD=external` - Build ONLY external tools
+  - Includes: RetroArch, SearchFilter, Terminal, DinguxCommander
+  - Requires: core binaries to be built first
+
+- `make with-toolchain CMD=clean` - Clean all build artifacts
 - `make with-toolchain CMD=dev` - Build with debug logging enabled
-- `make with-toolchain CMD=dist` - Build distribution package
-- `make with-toolchain CMD=release` - Build release package
+- `make with-toolchain CMD=dist` - Build and package everything (same as default)
+- `make with-toolchain CMD=release` - Create release ZIP file
 
 **Note:** The `CMD` parameter should contain only the make target name (e.g., `clean`, `core`), NOT the word "make" itself.
+
+**For a complete build including RetroArch**, use `make with-toolchain` (without CMD parameter) or `make with-toolchain CMD=build`.
 
 
 ## Advanced: Using the Toolchain Interactively
