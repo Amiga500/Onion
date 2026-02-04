@@ -7,11 +7,17 @@ This guide explains how to build Onion firmware from source code.
 **If you see `root@containerid` in your prompt**, you're already inside a Docker container. Skip the Docker setup and just run:
 
 ```bash
+# First, install required tools (if not already installed)
+apt-get update && apt-get install -y p7zip-full
+
 # Initialize submodules (first time only)
 make git-submodules
 
 # Build everything
 make all
+
+# Package for distribution (requires 7z)
+make dist
 ```
 
 **Do NOT use `sudo`** (you're already root) and **do NOT use `make with-toolchain`** (you're already in the container).
@@ -23,6 +29,7 @@ make all
 - Git
 - Docker (for the toolchain)
 - Make
+- **p7zip / 7z** (for packaging - see note below)
 
 ## Quick Start
 
@@ -159,6 +166,40 @@ make all
 - Make sure Docker is installed and running
 - On Linux, add your user to the docker group: `sudo usermod -aG docker $USER`
 - Log out and back in for group changes to take effect
+
+### "7z: not found" or "7z: command not found"
+
+**Problem:** Build fails during the `make dist` or `make release` step with error "7z: not found"
+
+**Root Cause:** The build process uses 7-Zip (`7z` command) to create compressed archives (.pak and .zip files). This tool must be installed on the host system.
+
+**Solution:**
+
+If you're building inside the Docker toolchain container:
+```bash
+# Inside the Docker container, install p7zip
+apt-get update && apt-get install -y p7zip-full
+
+# Then continue with your build
+make dist
+```
+
+If you're building natively (without Docker):
+```bash
+# Ubuntu/Debian
+sudo apt-get install p7zip-full
+
+# Fedora/RHEL
+sudo dnf install p7zip p7zip-plugins
+
+# Arch Linux
+sudo pacman -S p7zip
+
+# macOS (with Homebrew)
+brew install p7zip
+```
+
+**Note:** The repository includes an ARM version of 7z for the target device (in `static/build/.tmp_update/bin/7z`), but the build system needs a native (x86_64/aarch64) version of 7z to run on your host machine during the packaging step.
 
 ### Submodule Errors
 
