@@ -1,1 +1,11 @@
-Main branch initialized from OnionUI/Onion on 2026-02-04
+Main branch created locally from OnionUI/Onion on 2026-02-04
+
+The 'main' branch has been successfully created in this repository with content from:
+- Upstream: OnionUI/Onion
+- Branch: main
+- Latest commit: 07505ea - "Update RA_SUBVERSION in Makefile"
+
+To push the main branch to the remote repository, run:
+  git push origin main:refs/heads/main
+
+The branch is currently available locally and tracks upstream/main.
