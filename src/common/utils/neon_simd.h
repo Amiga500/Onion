@@ -356,14 +356,15 @@ static inline void neon_bilinear_interp_8px(const uint16_t *ex, uint16_t ey,
                                             const uint8x8x4_t *c10, const uint8x8x4_t *c11,
                                             uint8x8x4_t *dst)
 {
-    // Load interpolation weights
+    // Load interpolation weights (expected range: 0x0000-0xFFFF)
     uint16x8_t vex = vld1q_u16(ex);
     uint16x8_t vey = vdupq_n_u16(ey);
-    uint16x8_t vone = vdupq_n_u16(0x10000);
+    // For 16-bit fixed point, max value is 0xFFFF (represents 1.0)
+    uint16x8_t vmax = vdupq_n_u16(0xFFFF);
 
-    // Calculate complement weights
-    uint16x8_t vex_inv = vsubq_u16(vone, vex);
-    uint16x8_t vey_inv = vsubq_u16(vone, vey);
+    // Calculate complement weights: (1 - weight) in fixed point
+    uint16x8_t vex_inv = vsubq_u16(vmax, vex);
+    uint16x8_t vey_inv = vsubq_u16(vmax, vey);
 
     // Process each channel
     for (int ch = 0; ch < 4; ch++) {
