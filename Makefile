@@ -50,8 +50,8 @@ endif
 
 TOOLCHAIN := aemiii91/miyoomini-toolchain:latest
 
-# 7z command - can be overridden if 7z is not in PATH (e.g., SEVENZIP=/usr/bin/7za)
-SEVENZIP ?= 7z
+# 7z command - auto-detect or can be overridden (e.g., SEVENZIP=/usr/bin/7za)
+SEVENZIP ?= $(shell command -v 7z 2>/dev/null || command -v 7za 2>/dev/null || command -v 7zr 2>/dev/null)
 
 include ./src/common/commands.mk
 
@@ -201,6 +201,8 @@ external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo
 
 dist: build
 	@$(ECHO) $(PRINT_RECIPE)
+# Check if 7z is available
+	@if [ -z "$(SEVENZIP)" ]; then echo "Error: 7z not found. Please install p7zip (7z, 7za, or 7zr must be in PATH)"; exit 1; fi
 # Package configs
 	@cp -R $(TEMP_DIR)/configs/Saves/CurrentProfile/ $(TEMP_DIR)/configs/Saves/GuestProfile
 	@echo -n "Packaging configs..."
