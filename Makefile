@@ -247,7 +247,7 @@ git-clean:
 	@git clean -xfd -e .vscode
 
 git-submodules:
-	@git submodule update --init --recursive
+	@git submodule update --init --recursive --depth 1
 
 pwd:
 	@echo $(ROOT_DIR)
