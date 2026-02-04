@@ -338,13 +338,15 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         ++p2;
     }
 
+    char *pathPtr = path_out;
     if (strlen(p1) > 0) {
         int num_parens = str_count_char(p1, '/') + 1;
         for (int i = 0; i < num_parens; i++) {
-            strcat(path_out, "../");
+            memcpy(pathPtr, "../", 3);
+            pathPtr += 3;
         }
     }
-    strcat(path_out, p2);
+    strcpy(pathPtr, p2);
 
     return true;
 }

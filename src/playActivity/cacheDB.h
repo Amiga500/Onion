@@ -76,7 +76,8 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
     cache_path_out[0] = '\0';
 
     int cache_version = CACHE_NOT_FOUND;
-    char *cache_dir = dirname(strdup((char *)rom_path));
+    char *cache_dir_alloc = strdup((char *)rom_path);
+    char *cache_dir = dirname(cache_dir_alloc);
     size_t cache_dir_len = strlen(cache_dir);
 
     while (cache_dir_len > 16) {
@@ -95,6 +96,7 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
         }
     }
 
+    free(cache_dir_alloc);
     return cache_version;
 }
 
