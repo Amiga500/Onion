@@ -173,31 +173,31 @@ void switch_zoom_profile(int segment_duration)
     switch (segment_duration) {
     case 7200:
         // A segemmt is 120 minutes
-        sprintf(label[0], "%s", "4h");
-        sprintf(label[1], "%s", "8h");
-        sprintf(label[2], "%s", "12h");
-        sprintf(label[3], "%s", "16h");
+        strcpy(label[0], "4h");
+        strcpy(label[1], "8h");
+        strcpy(label[2], "12h");
+        strcpy(label[3], "16h");
         break;
     case 3600:
         // A segemmt is 60 minutes
-        sprintf(label[0], "%s", "2h");
-        sprintf(label[1], "%s", "4h");
-        sprintf(label[2], "%s", "6h");
-        sprintf(label[3], "%s", "8h");
+        strcpy(label[0], "2h");
+        strcpy(label[1], "4h");
+        strcpy(label[2], "6h");
+        strcpy(label[3], "8h");
         break;
     case 1800:
         // A segemmt is 30 minutes
-        sprintf(label[0], "%s", "1h");
-        sprintf(label[1], "%s", "2h");
-        sprintf(label[2], "%s", "3h");
-        sprintf(label[3], "%s", "4h");
+        strcpy(label[0], "1h");
+        strcpy(label[1], "2h");
+        strcpy(label[2], "3h");
+        strcpy(label[3], "4h");
         break;
 
     default:
-        sprintf(label[0], "%s", "");
-        sprintf(label[1], "%s", "");
-        sprintf(label[2], "%s", "");
-        sprintf(label[3], "%s", "");
+        label[0][0] = '\0';
+        label[1][0] = '\0';
+        label[2][0] = '\0';
+        label[3][0] = '\0';
         break;
     }
 }
