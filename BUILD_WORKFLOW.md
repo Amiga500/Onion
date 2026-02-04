@@ -1,5 +1,49 @@
 # Build Workflow Guide / Guida al Workflow di Build
 
+## ⚠️ Important: Correct Command Syntax / Sintassi Corretta dei Comandi
+
+### ❌ Common Mistakes / Errori Comuni
+
+These commands are **INCORRECT** and will not work as intended:
+
+```bash
+# ❌ WRONG - trying to combine incompatible targets
+sudo make -j4 all git-submodules
+
+# ❌ WRONG - with-toolchain needs CMD parameter
+sudo make -j$(nproc) all with-toolchain
+```
+
+### ✅ Correct Command Sequence / Sequenza Corretta
+
+Use these commands **in order**, one after another:
+
+```bash
+# 1. Initialize submodules (first time only, or when they change)
+make git-submodules
+
+# 2. Clean previous build
+sudo make clean
+
+# 3. Build with Docker toolchain using parallel jobs
+sudo make with-toolchain CMD="all -j4"
+# Or use all CPU cores:
+sudo make with-toolchain CMD="all -j$(nproc)"
+```
+
+Or as a single command line:
+```bash
+make git-submodules && sudo make clean && sudo make with-toolchain CMD="all -j$(nproc)"
+```
+
+**Key Points:**
+- `git-submodules` must be run separately (it's not a build target)
+- `with-toolchain` requires `CMD="..."` parameter
+- The parallel flags (`-j4` or `-j$(nproc)`) go **inside** the CMD parameter
+- Use `sudo` only if needed for file permissions (usually for Docker)
+
+---
+
 ## English Version
 
 ### Updating and Rebuilding Without Re-cloning
@@ -198,6 +242,242 @@ git pull
 
 ---
 
+## Docker Toolchain Builds / Build con Docker Toolchain
+
+### English Version
+
+The Onion project uses a Docker-based cross-compilation toolchain for building firmware for the Miyoo Mini device.
+
+#### First-Time Setup
+
+1. **Initialize Git Submodules** (required for third-party dependencies):
+   ```bash
+   make git-submodules
+   ```
+   This downloads RetroArch, SearchFilter, Terminal, and DinguxCommander.
+
+2. **Pull Docker Toolchain**:
+   ```bash
+   make toolchain
+   ```
+   Or it will be automatically pulled when you first use `with-toolchain`.
+
+#### Building with Docker Toolchain
+
+The `with-toolchain` target runs build commands inside the Docker container:
+
+```bash
+# Basic syntax
+make with-toolchain CMD="<command>"
+
+# Build with parallel jobs
+make with-toolchain CMD="all -j4"
+
+# Build using all CPU cores
+make with-toolchain CMD="all -j$(nproc)"
+```
+
+#### Complete Build Workflow with Docker
+
+**First Time Setup:**
+```bash
+# 1. Initialize submodules
+make git-submodules
+
+# 2. Clean (optional, but recommended)
+make clean
+
+# 3. Build with Docker toolchain
+make with-toolchain CMD="all -j4"
+```
+
+**Subsequent Builds (after git pull):**
+```bash
+# 1. Update code
+git pull
+
+# 2. Update submodules (if needed)
+make git-submodules
+
+# 3. Clean previous build
+make clean
+
+# 4. Rebuild with Docker
+make with-toolchain CMD="all -j$(nproc)"
+```
+
+#### Why Use Docker Toolchain?
+
+- ✅ **Cross-compilation**: Builds ARM binaries for Miyoo Mini on x86/x64 hosts
+- ✅ **Consistent environment**: Same build environment for all developers
+- ✅ **No manual toolchain setup**: Everything is containerized
+
+#### Common Docker Build Commands
+
+```bash
+# Standard build with 4 parallel jobs
+make with-toolchain CMD="all -j4"
+
+# Build using all available CPU cores
+make with-toolchain CMD="all -j$(nproc)"
+
+# Clean and build
+make clean && make with-toolchain CMD="all -j4"
+
+# Deep clean and build
+make deepclean && make with-toolchain CMD="all -j$(nproc)"
+
+# Build only core components
+make with-toolchain CMD="core -j4"
+
+# Build and create release package
+make with-toolchain CMD="release -j4"
+```
+
+#### Interactive Docker Shell
+
+To explore or debug inside the Docker container:
+```bash
+make toolchain
+# This opens an interactive bash shell inside the container
+```
+
+### Versione Italiana
+
+Il progetto Onion utilizza una toolchain Docker per la cross-compilazione del firmware per il dispositivo Miyoo Mini.
+
+#### Configurazione Iniziale
+
+1. **Inizializza i Submodule Git** (richiesto per le dipendenze di terze parti):
+   ```bash
+   make git-submodules
+   ```
+   Questo scarica RetroArch, SearchFilter, Terminal e DinguxCommander.
+
+2. **Scarica la Docker Toolchain**:
+   ```bash
+   make toolchain
+   ```
+   Oppure verrà scaricata automaticamente al primo uso di `with-toolchain`.
+
+#### Build con Docker Toolchain
+
+Il target `with-toolchain` esegue i comandi di build all'interno del container Docker:
+
+```bash
+# Sintassi base
+make with-toolchain CMD="<comando>"
+
+# Build con job paralleli
+make with-toolchain CMD="all -j4"
+
+# Build usando tutti i core CPU
+make with-toolchain CMD="all -j$(nproc)"
+```
+
+#### Workflow Completo di Build con Docker
+
+**Prima Configurazione:**
+```bash
+# 1. Inizializza i submodule
+make git-submodules
+
+# 2. Pulisci (opzionale, ma consigliato)
+make clean
+
+# 3. Build con Docker toolchain
+make with-toolchain CMD="all -j4"
+```
+
+**Build Successive (dopo git pull):**
+```bash
+# 1. Aggiorna il codice
+git pull
+
+# 2. Aggiorna i submodule (se necessario)
+make git-submodules
+
+# 3. Pulisci la build precedente
+make clean
+
+# 4. Ricompila con Docker
+make with-toolchain CMD="all -j$(nproc)"
+```
+
+#### Perché Usare Docker Toolchain?
+
+- ✅ **Cross-compilazione**: Crea binari ARM per Miyoo Mini su host x86/x64
+- ✅ **Ambiente consistente**: Stesso ambiente di build per tutti gli sviluppatori
+- ✅ **Nessuna configurazione manuale**: Tutto è containerizzato
+
+#### Comandi Docker Comuni
+
+```bash
+# Build standard con 4 job paralleli
+make with-toolchain CMD="all -j4"
+
+# Build usando tutti i core disponibili
+make with-toolchain CMD="all -j$(nproc)"
+
+# Pulisci e compila
+make clean && make with-toolchain CMD="all -j4"
+
+# Pulizia profonda e compila
+make deepclean && make with-toolchain CMD="all -j$(nproc)"
+
+# Build solo componenti core
+make with-toolchain CMD="core -j4"
+
+# Build e crea pacchetto release
+make with-toolchain CMD="release -j4"
+```
+
+#### Shell Docker Interattiva
+
+Per esplorare o fare debug all'interno del container Docker:
+```bash
+make toolchain
+# Questo apre una shell bash interattiva all'interno del container
+```
+
+---
+
+## Common Mistakes to Avoid / Errori Comuni da Evitare
+
+### ❌ Incorrect Commands / Comandi Errati
+
+**DON'T DO THIS / NON FARE QUESTO:**
+```bash
+# Wrong: Trying to run multiple targets as if they're one
+make -j4 all git-submodules  # ❌ WRONG
+
+# Wrong: with-toolchain without CMD parameter
+make -j4 all with-toolchain  # ❌ WRONG
+
+# Wrong: Parallel flag on with-toolchain itself
+make -j4 with-toolchain CMD="all"  # ❌ WRONG (parallel flag in wrong place)
+```
+
+**DO THIS INSTEAD / FAI INVECE QUESTO:**
+```bash
+# Correct: Run targets separately in sequence
+make git-submodules
+make clean
+make with-toolchain CMD="all -j4"  # ✅ CORRECT
+
+# Or in one line with && operator
+make git-submodules && make clean && make with-toolchain CMD="all -j4"  # ✅ CORRECT
+```
+
+### Understanding Target Dependencies / Comprendere le Dipendenze dei Target
+
+- `git-submodules` is a **standalone target** - run it separately
+- `with-toolchain` is a **wrapper target** - it needs CMD parameter with the actual build command
+- `all`, `core`, `apps`, `external` are **build targets** - these go inside CMD
+- `-j4` or `-j$(nproc)` **parallel flags** go inside the CMD parameter, not outside
+
+---
+
 ## Tips / Suggerimenti
 
 ### Check What Changed / Controlla Cosa È Cambiato
@@ -270,10 +550,14 @@ git commit
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
 | `git pull` | Update branch | Always before rebuilding |
+| `make git-submodules` | Initialize/update submodules | First time or when submodules change |
 | `make clean` | Clean build artifacts | After most updates |
 | `make deepclean` | Deep clean everything | Major changes or issues |
-| `make all` | Build project | Standard build |
+| `make all` | Build project (native) | Standard build without Docker |
+| `make with-toolchain CMD="all -j4"` | Build with Docker (4 cores) | Cross-compile for Miyoo Mini |
+| `make with-toolchain CMD="all -j$(nproc)"` | Build with Docker (all cores) | Fastest Docker build |
 | `make release` | Create release package | For distribution |
+| `make toolchain` | Interactive Docker shell | Debug or explore toolchain |
 | `git status` | Check repository state | Before pulling |
 | `git log -5` | See recent commits | To check what changed |
 
