@@ -42,11 +42,17 @@ Open a Terminal and type :
 
 `cd Onion/`
 
+**Important:** Initialize git submodules (required for RetroArch and external tools):
+
 `make git-submodules`
+
+Then build:
 
 `make with-toolchain`
 
 Done!
+
+**Note:** If you skip `make git-submodules`, the build will fail when trying to build RetroArch with an error about missing Makefile.
 
 ### Common Build Commands
 

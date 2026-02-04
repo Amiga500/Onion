@@ -177,6 +177,17 @@ apps: $(CACHE)/.setup
 $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354:
 	@$(ECHO) $(PRINT_RECIPE)
 # RetroArch
+	@if [ ! -f "$(THIRD_PARTY_DIR)/RetroArch-patch/Makefile" ]; then \
+		echo ""; \
+		echo "ERROR: Git submodules not initialized!"; \
+		echo ""; \
+		echo "RetroArch and other external components require git submodules."; \
+		echo "Please run: make git-submodules"; \
+		echo ""; \
+		echo "Or manually: git submodule update --init --recursive"; \
+		echo ""; \
+		exit 1; \
+	fi
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build RetroArch"$(COLOR_NORMAL)
 	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && make
 
