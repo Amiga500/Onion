@@ -31,6 +31,62 @@ typedef enum {
     ROM_SCREEN_ARTWORK
 } RomScreenType_e;
 
+/**
+ * @brief Generate the standard Imgs folder artwork path from a ROM path
+ * 
+ * Given a rompath like "/mnt/SDCARD/Roms/FC/game.nes", generates
+ * the artwork path "/mnt/SDCARD/Roms/FC/Imgs/game.png"
+ * 
+ * @param rompath The full path to the ROM file
+ * @param out_imgpath Output buffer for the generated image path
+ * @param out_size Size of the output buffer
+ * @return true if path was generated successfully, false otherwise
+ */
+static bool generateArtworkPath(const char *rompath, char *out_imgpath, size_t out_size)
+{
+    // Validate input
+    if (rompath == NULL || out_imgpath == NULL || out_size == 0) {
+        return false;
+    }
+
+    // Check if rompath starts with expected prefix
+    const char *roms_prefix = "/mnt/SDCARD/Roms/";
+    if (strncmp(rompath, roms_prefix, strlen(roms_prefix)) != 0) {
+        return false;
+    }
+
+    // Extract the relative path after /mnt/SDCARD/Roms/
+    const char *rel_path = rompath + strlen(roms_prefix);
+    
+    // Find the first slash to get the system folder
+    const char *slash = strchr(rel_path, '/');
+    if (slash == NULL) {
+        return false;
+    }
+    
+    // Extract system folder name
+    size_t sys_len = slash - rel_path;
+    char sys_folder[STR_MAX];
+    if (sys_len >= sizeof(sys_folder)) {
+        return false;
+    }
+    strncpy(sys_folder, rel_path, sys_len);
+    sys_folder[sys_len] = '\0';
+    
+    // Get the ROM filename without extension
+    char *rom_name = file_removeExtension(file_basename(rompath));
+    if (rom_name == NULL) {
+        return false;
+    }
+    
+    // Generate the Imgs path: /mnt/SDCARD/Roms/{SYSTEM}/Imgs/{ROM_NAME}.png
+    int written = snprintf(out_imgpath, out_size, "/mnt/SDCARD/Roms/%s/Imgs/%s.png", 
+                           sys_folder, rom_name);
+    free(rom_name);
+    
+    return written > 0 && (size_t)written < out_size;
+}
+
 RomScreenType_e findRomScreen(const Game_s *game, char *currPicture)
 {
     // Check if save state image exists
@@ -50,11 +106,27 @@ RomScreenType_e findRomScreen(const Game_s *game, char *currPicture)
         return ROM_SCREEN_HASH;
     }
 
-    // Check if artwork exists
-    sprintf(currPicture, game->recentItem.imgpath);
-    printf_debug("Checking for artwork: %s\n", currPicture);
-    if (exists(currPicture)) {
-        return ROM_SCREEN_ARTWORK;
+    // Check if artwork exists from imgpath stored in recentlist.json
+    if (strlen(game->recentItem.imgpath) > 0) {
+        sprintf(currPicture, "%s", game->recentItem.imgpath);
+        printf_debug("Checking for artwork: %s\n", currPicture);
+        if (exists(currPicture)) {
+            return ROM_SCREEN_ARTWORK;
+        }
+    }
+
+    // Fallback: Try to generate standard Imgs folder path from rompath
+    // This handles cases where:
+    // 1. imgpath in recentlist.json was empty
+    // 2. imgpath pointed to a deleted file (e.g., after OS update)
+    // 3. romScreens folder was deleted during update
+    char generated_imgpath[STR_MAX * 2];
+    if (generateArtworkPath(game->recentItem.rompath, generated_imgpath, sizeof(generated_imgpath))) {
+        printf_debug("Checking for generated artwork path: %s\n", generated_imgpath);
+        if (exists(generated_imgpath)) {
+            sprintf(currPicture, "%s", generated_imgpath);
+            return ROM_SCREEN_ARTWORK;
+        }
     }
 
     return ROM_SCREEN_NONE;
