@@ -108,7 +108,7 @@ RomScreenType_e findRomScreen(const Game_s *game, char *currPicture)
 
     // Check if artwork exists from imgpath stored in recentlist.json
     if (strlen(game->recentItem.imgpath) > 0) {
-        sprintf(currPicture, "%s", game->recentItem.imgpath);
+        strcpy(currPicture, game->recentItem.imgpath);
         printf_debug("Checking for artwork: %s\n", currPicture);
         if (exists(currPicture)) {
             return ROM_SCREEN_ARTWORK;
@@ -124,7 +124,7 @@ RomScreenType_e findRomScreen(const Game_s *game, char *currPicture)
     if (generateArtworkPath(game->recentItem.rompath, generated_imgpath, sizeof(generated_imgpath))) {
         printf_debug("Checking for generated artwork path: %s\n", generated_imgpath);
         if (exists(generated_imgpath)) {
-            sprintf(currPicture, "%s", generated_imgpath);
+            strcpy(currPicture, generated_imgpath);
             return ROM_SCREEN_ARTWORK;
         }
     }
