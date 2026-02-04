@@ -51,7 +51,10 @@ CXXFLAGS := $(CFLAGS)
 LDFLAGS := $(LDFLAGS) -L../../lib -L/usr/local/lib
 
 ifeq ($(PLATFORM),miyoomini)
-CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -Wl,-rpath=$(LIB)
+# ARM Cortex-A7 optimization flags
+CFLAGS := $(CFLAGS) -O3 -flto=auto -ftree-vectorize -falign-loops=16 -fmerge-all-constants \
+	-marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -Wl,-rpath=$(LIB)
+LDFLAGS := $(LDFLAGS) -flto=auto -O3
 
 ifdef INCLUDE_SHMVAR
 LDFLAGS := $(LDFLAGS) -lshmvar
