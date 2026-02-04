@@ -102,6 +102,10 @@ int main(int argc, char *argv[])
 
     // Read jpeg and convert RGB888 to ARGB8888 (NEON-optimized)
     tmp = malloc(jpeg.output_width * 3);
+    if (!tmp) {
+        fprintf(stderr, "memory allocation failed\n");
+        goto error;
+    }
     dst = jpgVa;
     for (y = 0; y < sh; y++) {
         src8 = tmp;
@@ -135,7 +139,13 @@ int main(int argc, char *argv[])
     printf("sw:%d sh:%d dw:%d dh:%d\n", sw, sh, dw, dh);
 
     // Create png
-    strcpy(filename, argv[1]);
+    size_t arglen = strlen(argv[1]);
+    if (arglen >= sizeof(filename) - 5) {  // Reserve space for ".png\0"
+        fprintf(stderr, "filename too long\n");
+        goto error;
+    }
+    strncpy(filename, argv[1], sizeof(filename) - 1);
+    filename[sizeof(filename) - 1] = '\0';
     ptr = strrchr(filename, '.');
     if (ptr)
         *ptr = 0;
@@ -148,9 +158,27 @@ int main(int argc, char *argv[])
 
     // Write png
     tmp = malloc(dw * 4);
+    if (!tmp) {
+        fprintf(stderr, "memory allocation failed\n");
+        fclose(fp);
+        goto error;
+    }
     dst = tmp;
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    if (!png_ptr) {
+        fprintf(stderr, "png write struct creation failed\n");
+        free(tmp);
+        fclose(fp);
+        goto error;
+    }
     info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        fprintf(stderr, "png info struct creation failed\n");
+        png_destroy_write_struct(&png_ptr, NULL);
+        free(tmp);
+        fclose(fp);
+        goto error;
+    }
     png_init_io(png_ptr, fp);
     png_set_IHDR(png_ptr, info_ptr, dw, dh, 8, PNG_COLOR_TYPE_RGBA,
                  PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,

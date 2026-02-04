@@ -90,7 +90,13 @@ int main(int argc, char *argv[])
     if (png_sig_cmp(sig_bytes, 0, sizeof(sig_bytes)))
         ERROR("png format error");
     png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    if (!png_ptr)
+        ERROR("png read struct creation failed");
     info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        png_destroy_read_struct(&png_ptr, NULL, NULL);
+        ERROR("png info struct creation failed");
+    }
     png_init_io(png_ptr, fp);
     png_set_sig_bytes(png_ptr, sizeof(sig_bytes));
     png_read_png(png_ptr, info_ptr,
@@ -180,7 +186,16 @@ int main(int argc, char *argv[])
 
     // Write png
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    if (!png_ptr) {
+        fclose(fp);
+        ERROR("png write struct creation failed");
+    }
     info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        png_destroy_write_struct(&png_ptr, NULL);
+        fclose(fp);
+        ERROR("png info struct creation failed");
+    }
     png_init_io(png_ptr, fp);
     png_set_IHDR(png_ptr, info_ptr, dw, dh, 8, PNG_COLOR_TYPE_RGBA,
                  PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
@@ -188,6 +203,11 @@ int main(int argc, char *argv[])
     png_write_info(png_ptr, info_ptr);
     src = dstVa;
     tmp = malloc(dw * 4);
+    if (!tmp) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        ERROR("memory allocation failed");
+    }
     for (y = 0; y < dh; y++) {
         dst = tmp;
         // NEON-optimized ARGB -> RGBA conversion (swap R and B)
