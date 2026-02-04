@@ -20,8 +20,8 @@ void log_debug(const char *file_path, int line, const char *format_str, ...)
 
     va_list valist;
     va_start(valist, format_str);
-    sprintf(log_message, "%s:%d>\t", file_path, line);
-    vsprintf(log_message + strlen(log_message), format_str, valist);
+    int prefix_len = sprintf(log_message, "%s:%d>\t", file_path, line);
+    vsprintf(log_message + prefix_len, format_str, valist);
     va_end(valist);
 
     fprintf(stderr, "%s", log_message);

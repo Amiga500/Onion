@@ -25,6 +25,7 @@ typedef struct game_entry_s {
     int c_sum;
     char label[STR_MAX];
     char path[STR_MAX];
+    char resolved_path[STR_MAX];  // Cache for realpath() result
     char img_path[STR_MAX * 3 + 3];
     char emu_name[STR_MAX];
     char launch_path[STR_MAX * 2];
@@ -215,8 +216,6 @@ bool addRandomFromJson(char *json_path)
 
     FILE *fp;
     char line[STR_MAX * 4];
-    char path_a[STR_MAX];
-    char path_b[STR_MAX];
     cJSON *json_root;
     JsonEntryType_e type;
 
@@ -232,10 +231,8 @@ bool addRandomFromJson(char *json_path)
 
         if (type == TYPE_GAME || type == TYPE_EXPERT) {
             GameEntry *game = &random_games[count];
-            memset(game->label, 0, strlen(game->label));
-            memset(game->path, 0, strlen(game->path));
-            memset(game->img_path, 0, strlen(game->img_path));
-            memset(game->launch_path, 0, strlen(game->launch_path));
+            // Initialize entire structure once instead of individual fields
+            memset(game, 0, sizeof(GameEntry));
 
             game->id = type;
             game->sum = 1;
@@ -251,13 +248,14 @@ bool addRandomFromJson(char *json_path)
             if (strcmp("miyoocmd", file_getExtension(game->path)) == 0)
                 continue;
 
-            realpath(game->path, path_b);
+            // Cache realpath result in the structure to avoid repeated expensive calls
+            realpath(game->path, game->resolved_path);
             bool is_duplicate = false;
 
+            // Check against already processed entries using cached realpath
             for (int i = 0; i < count; i++) {
                 GameEntry *other = &random_games[i];
-                realpath(other->path, path_a);
-                if (other->id == game->id && strcmp(path_a, path_b) == 0) {
+                if (other->id == game->id && strcmp(other->resolved_path, game->resolved_path) == 0) {
                     is_duplicate = true;
                     break;
                 }

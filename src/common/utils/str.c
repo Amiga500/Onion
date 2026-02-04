@@ -181,21 +181,22 @@ void str_serializeTime(char *dest_str, int nTime)
         int h = nTime / 3600;
         int m = (nTime - 3600 * h) / 60;
         if (h > 0) {
-            sprintf(dest_str, "%dh %dm", h, m);
+            snprintf(dest_str, STR_MAX, "%dh %dm", h, m);
         }
         else {
-            sprintf(dest_str, "%dm %ds", m, nTime - 60 * m);
+            snprintf(dest_str, STR_MAX, "%dm %ds", m, nTime - 60 * m);
         }
     }
     else {
-        sprintf(dest_str, "%ds", nTime);
+        snprintf(dest_str, STR_MAX, "%ds", nTime);
     }
 }
 
 int str_count_char(const char *str, char ch)
 {
     int i, count = 0;
-    for (i = 0; i <= strlen(str); i++) {
+    size_t len = strlen(str);
+    for (i = 0; i <= len; i++) {
         if (str[i] == ch) {
             count++;
         }

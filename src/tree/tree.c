@@ -106,8 +106,7 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
             continue;
 
         current = malloc(sizeof(entry_t));
-        current->name =
-            strcpy(malloc(strlen(file_dirent->d_name) + 1), file_dirent->d_name);
+        current->name = strdup(file_dirent->d_name);
         current->is_dir = file_dirent->d_type == DT_DIR;
         current->next = NULL;
 
@@ -152,11 +151,13 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
         printf("%s%s%s\n", prefix, pointer, head->name);
 
         if (head->is_dir) {
-            full_path = malloc(strlen(directory) + strlen(head->name) + 2);
-            sprintf(full_path, "%s/%s", directory, head->name);
+            size_t full_path_len = strlen(directory) + strlen(head->name) + 2;
+            full_path = malloc(full_path_len);
+            snprintf(full_path, full_path_len, "%s/%s", directory, head->name);
 
-            next_prefix = malloc(strlen(prefix) + strlen(segment) + 1);
-            sprintf(next_prefix, "%s%s", prefix, segment);
+            size_t next_prefix_len = strlen(prefix) + strlen(segment) + 1;
+            next_prefix = malloc(next_prefix_len);
+            snprintf(next_prefix, next_prefix_len, "%s%s", prefix, segment);
 
             tree(full_path, next_prefix, counter, included_extensions,
                  excluded_directories);

@@ -7,10 +7,17 @@
 #include <string.h>
 
 #define STR_MAX 256
-#define concat(ptr, str1, str2) \
-    {                           \
-        strcpy(ptr, str1);      \
-        strcat(ptr, str2);      \
+#define concat(ptr, str1, str2)                      \
+    {                                                \
+        size_t len1 = strlen(str1);                  \
+        size_t len2 = strlen(str2);                  \
+        if (len1 + len2 <= STR_MAX - 1) {            \
+            memcpy(ptr, str1, len1);                 \
+            memcpy(ptr + len1, str2, len2 + 1);      \
+        }                                            \
+        else {                                       \
+            snprintf(ptr, STR_MAX, "%s%s", str1, str2); \
+        }                                            \
     }
 
 bool str_getLastNumber(char *str, long *out_val);
