@@ -67,6 +67,10 @@ typedef struct {
 
 void scaleRomScreen(Game_s *game, ScalingMode_s mode)
 {
+    if (game->romScreen == NULL) {
+        return;
+    }
+    
     // Zoom the image to fit the screen
     double zx = (double)(DISPLAY_WIDTH) / game->romScreen->w;
     double zy = (double)(DISPLAY_HEIGHT) / game->romScreen->h;
@@ -88,8 +92,10 @@ void scaleRomScreen(Game_s *game, ScalingMode_s mode)
     }
 
     SDL_Surface *zoomed = zoomSurface(game->romScreen, zx, zy, SMOOTHING_OFF);
-    SDL_FreeSurface(game->romScreen);
-    game->romScreen = zoomed;
+    if (zoomed != NULL) {
+        SDL_FreeSurface(game->romScreen);
+        game->romScreen = zoomed;
+    }
 }
 
 ScalingMode_s getDynamicScalingMode(const Game_s *game)

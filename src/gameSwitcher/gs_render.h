@@ -70,6 +70,11 @@ void renderGameName(AppState *state)
     SDL_Color color_white = {255, 255, 255};
     SDL_Surface *arrow_left = resource_getSurface(LEFT_ARROW_WB);
     SDL_Surface *arrow_right = resource_getSurface(RIGHT_ARROW_WB);
+    
+    if (arrow_left == NULL || arrow_right == NULL) {
+        return;
+    }
+    
     int game_name_padding = arrow_left->w + 20;
     state->game_name_max_width = g_display.width - 2 * game_name_padding;
 
@@ -228,6 +233,9 @@ void renderBrightness(AppState *state)
     if (state->brightness_changed) {
         // Display luminosity slider
         SDL_Surface *brightness = resource_getBrightness(settings.brightness);
+        if (brightness == NULL) {
+            return;
+        }
         bool vertical = brightness->h > brightness->w;
         SDL_Rect brightness_rect = {0, (double)(state->view_mode == VIEW_NORMAL ? 240 : 210) * g_scale - brightness->h / 2};
         if (!vertical) {

@@ -78,6 +78,7 @@ bool ra_findItemInRetroArchHistory(Game_s *game)
 
                 if (cJSON_IsString(core_path) && (core_path->valuestring != NULL)) {
                     strncpy(game->core_path, core_path->valuestring, sizeof(game->core_path) - 1);
+                    game->core_path[sizeof(game->core_path) - 1] = '\0';
                 }
 
                 printf_debug("Found item in RetroArch history: %s\n", path->valuestring);
