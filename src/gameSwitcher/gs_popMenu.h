@@ -39,7 +39,15 @@ static int _compareSlotDescending(const void *a, const void *b)
     return (*(const int *)b) - (*(const int *)a);
 }
 
-static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
+/**
+ * @brief Scan for save states for a game
+ * 
+ * @param game The game to scan for
+ * @param info Output structure to store the found slots (can be NULL if only checking existence)
+ * @param early_exit If true, returns as soon as one valid save state is found (for quick existence check)
+ * @return true if at least one save state was found (or directory exists for early_exit=false)
+ */
+static bool _scanSaveStatesInternal(Game_s *game, SaveStateInfo_s *info, bool early_exit)
 {
     char stateDirPath[4096];
     snprintf(stateDirPath, sizeof(stateDirPath), STATES_DIR "/%s", game->core_name);
@@ -48,8 +56,10 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
         return false;
     }
 
-    info->slot_count = 0;
-    info->selected_slot = 0;
+    if (info != NULL) {
+        info->slot_count = 0;
+        info->selected_slot = 0;
+    }
 
     DIR *dir = opendir(stateDirPath);
     if (dir == NULL) {
@@ -58,6 +68,7 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
 
     // Cache rom_name length to avoid repeated strlen() calls in the loop
     const size_t rom_name_len = strlen(game->rom_name);
+    bool found_any = false;
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -77,10 +88,18 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
                     }
                 }
 
-                if (info->slot_count < 10) {
+                found_any = true;
+
+                // Early exit for quick existence check
+                if (early_exit) {
+                    closedir(dir);
+                    return true;
+                }
+
+                if (info != NULL && info->slot_count < 10) {
                     info->slots[info->slot_count++] = slot;
                 }
-                else {
+                else if (info != NULL) {
                     // Find the minimum slot in the array
                     int min_index = 0;
                     for (int i = 1; i < 10; i++) {
@@ -100,23 +119,27 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
     closedir(dir);
 
     // Sort the slots in descending order using qsort (more efficient than bubble sort)
-    if (info->slot_count > 1) {
+    if (info != NULL && info->slot_count > 1) {
         qsort(info->slots, info->slot_count, sizeof(int), _compareSlotDescending);
     }
 
-    return true;
+    return found_any;
+}
+
+static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
+{
+    return _scanSaveStatesInternal(game, info, false);
 }
 
 /**
  * @brief Check if save states exist for a game (quick check)
  * 
- * This is an optimized version that reuses _scanSaveStates() to avoid
- * scanning the same directory twice when both checking and loading save states.
+ * This version returns early upon finding the first valid save state,
+ * avoiding the need to scan the entire directory.
  */
 static bool _hasSaveStates(Game_s *game)
 {
-    SaveStateInfo_s temp_info = {.slots = {0}, .slot_count = 0, .selected_slot = 0};
-    return _scanSaveStates(game, &temp_info) && temp_info.slot_count > 0;
+    return _scanSaveStatesInternal(game, NULL, true);
 }
 
 static bool createSaveStatePath(Game_s *game, int slot, char *out_path, size_t out_path_size)

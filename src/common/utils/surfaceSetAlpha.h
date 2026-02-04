@@ -32,10 +32,10 @@ void surfaceSetAlpha(SDL_Surface *surface, Uint8 alpha)
         for (int y = 0; y < height; ++y) {
             // Calculate row pointer once per row instead of per pixel
             Uint32 *row_ptr = (Uint32 *)(pixels + y * pitch);
+            Uint32 *row_end = row_ptr + width;
             
-            for (int x = 0; x < width; ++x) {
-                Uint32 *pixel_ptr = row_ptr + x;
-
+            // Use pointer arithmetic for inner loop (more efficient than index-based access)
+            for (Uint32 *pixel_ptr = row_ptr; pixel_ptr < row_end; ++pixel_ptr) {
                 // Get the old pixel components.
                 Uint8 r, g, b, a;
                 SDL_GetRGBA(*pixel_ptr, fmt, &r, &g, &b, &a);
