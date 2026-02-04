@@ -29,7 +29,194 @@
 
 #include "SDL_rotozoom.h"
 
+/* ARM NEON SIMD support for Cortex-A7 (Miyoo Mini) */
+#ifdef __ARM_NEON
+#include <arm_neon.h>
+#define NEON_ZOOM_AVAILABLE 1
+/* Prefetch hint for improved cache performance */
+#define PREFETCH(addr) __builtin_prefetch(addr, 0, 3)
+#else
+#define NEON_ZOOM_AVAILABLE 0
+#define PREFETCH(addr) ((void)0)
+#endif
+
 #define MAX(a,b)    (((a) > (b)) ? (a) : (b))
+
+#ifdef __ARM_NEON
+/*
+ * NEON-optimized bilinear interpolation for a single row of 4 pixels
+ * 
+ * This function processes 4 destination pixels at once using NEON SIMD.
+ * Each pixel requires bilinear interpolation from 4 source pixels (2x2 grid).
+ *
+ * The interpolation formula for each channel:
+ *   t1 = c00 * (1-ex) + c01 * ex  (top row interpolation)
+ *   t2 = c10 * (1-ex) + c11 * ex  (bottom row interpolation)
+ *   result = t1 * (1-ey) + t2 * ey (vertical interpolation)
+ */
+static inline void neon_bilinear_interp_4px(
+    tColorRGBA *dp,
+    const tColorRGBA *c00_base,
+    const tColorRGBA *c10_base,
+    const int *csax,
+    int ey)
+{
+    /* Load interpolation weights - x weights from csax, y weight from ey */
+    int ex0 = csax[0] & 0xffff;
+    int ex1 = csax[1] & 0xffff;
+    int ex2 = csax[2] & 0xffff;
+    int ex3 = csax[3] & 0xffff;
+    
+    /* Calculate source pixel offsets */
+    int off0 = 0;
+    int off1 = off0 + (csax[1] >> 16);
+    int off2 = off1 + (csax[2] >> 16);
+    int off3 = off2 + (csax[3] >> 16);
+    
+    /* Load corner pixels for all 4 destination pixels */
+    const tColorRGBA *c00_0 = c00_base + off0;
+    const tColorRGBA *c01_0 = c00_0 + 1;
+    const tColorRGBA *c10_0 = c10_base + off0;
+    const tColorRGBA *c11_0 = c10_0 + 1;
+    
+    const tColorRGBA *c00_1 = c00_base + off1;
+    const tColorRGBA *c01_1 = c00_1 + 1;
+    const tColorRGBA *c10_1 = c10_base + off1;
+    const tColorRGBA *c11_1 = c10_1 + 1;
+    
+    const tColorRGBA *c00_2 = c00_base + off2;
+    const tColorRGBA *c01_2 = c00_2 + 1;
+    const tColorRGBA *c10_2 = c10_base + off2;
+    const tColorRGBA *c11_2 = c10_2 + 1;
+    
+    const tColorRGBA *c00_3 = c00_base + off3;
+    const tColorRGBA *c01_3 = c00_3 + 1;
+    const tColorRGBA *c10_3 = c10_base + off3;
+    const tColorRGBA *c11_3 = c10_3 + 1;
+    
+    /* Process each destination pixel with vectorized calculations */
+    /* For simplicity, we use scalar NEON for interleaved channel data */
+    
+    /* Create weight vectors */
+    int16x4_t vex = { (int16_t)(ex0 >> 8), (int16_t)(ex1 >> 8), 
+                      (int16_t)(ex2 >> 8), (int16_t)(ex3 >> 8) };
+    int16x4_t vey = vdup_n_s16((int16_t)(ey >> 8));
+    int16x4_t v256 = vdup_n_s16(256);
+    int16x4_t vex_inv = vsub_s16(v256, vex);
+    int16x4_t vey_inv = vsub_s16(v256, vey);
+    
+    /* Process R channel */
+    {
+        int16x4_t c00_r = { c00_0->r, c00_1->r, c00_2->r, c00_3->r };
+        int16x4_t c01_r = { c01_0->r, c01_1->r, c01_2->r, c01_3->r };
+        int16x4_t c10_r = { c10_0->r, c10_1->r, c10_2->r, c10_3->r };
+        int16x4_t c11_r = { c11_0->r, c11_1->r, c11_2->r, c11_3->r };
+        
+        /* t1 = c00 * (256-ex)/256 + c01 * ex/256 */
+        int32x4_t t1 = vmull_s16(c00_r, vex_inv);
+        t1 = vmlal_s16(t1, c01_r, vex);
+        
+        /* t2 = c10 * (256-ex)/256 + c11 * ex/256 */
+        int32x4_t t2 = vmull_s16(c10_r, vex_inv);
+        t2 = vmlal_s16(t2, c11_r, vex);
+        
+        /* Reduce to 16-bit and do vertical interpolation */
+        int16x4_t t1_16 = vshrn_n_s32(t1, 8);
+        int16x4_t t2_16 = vshrn_n_s32(t2, 8);
+        
+        int32x4_t result = vmull_s16(t1_16, vey_inv);
+        result = vmlal_s16(result, t2_16, vey);
+        
+        int16x4_t r_out = vshrn_n_s32(result, 8);
+        
+        dp[0].r = vget_lane_s16(r_out, 0);
+        dp[1].r = vget_lane_s16(r_out, 1);
+        dp[2].r = vget_lane_s16(r_out, 2);
+        dp[3].r = vget_lane_s16(r_out, 3);
+    }
+    
+    /* Process G channel */
+    {
+        int16x4_t c00_g = { c00_0->g, c00_1->g, c00_2->g, c00_3->g };
+        int16x4_t c01_g = { c01_0->g, c01_1->g, c01_2->g, c01_3->g };
+        int16x4_t c10_g = { c10_0->g, c10_1->g, c10_2->g, c10_3->g };
+        int16x4_t c11_g = { c11_0->g, c11_1->g, c11_2->g, c11_3->g };
+        
+        int32x4_t t1 = vmull_s16(c00_g, vex_inv);
+        t1 = vmlal_s16(t1, c01_g, vex);
+        
+        int32x4_t t2 = vmull_s16(c10_g, vex_inv);
+        t2 = vmlal_s16(t2, c11_g, vex);
+        
+        int16x4_t t1_16 = vshrn_n_s32(t1, 8);
+        int16x4_t t2_16 = vshrn_n_s32(t2, 8);
+        
+        int32x4_t result = vmull_s16(t1_16, vey_inv);
+        result = vmlal_s16(result, t2_16, vey);
+        
+        int16x4_t g_out = vshrn_n_s32(result, 8);
+        
+        dp[0].g = vget_lane_s16(g_out, 0);
+        dp[1].g = vget_lane_s16(g_out, 1);
+        dp[2].g = vget_lane_s16(g_out, 2);
+        dp[3].g = vget_lane_s16(g_out, 3);
+    }
+    
+    /* Process B channel */
+    {
+        int16x4_t c00_b = { c00_0->b, c00_1->b, c00_2->b, c00_3->b };
+        int16x4_t c01_b = { c01_0->b, c01_1->b, c01_2->b, c01_3->b };
+        int16x4_t c10_b = { c10_0->b, c10_1->b, c10_2->b, c10_3->b };
+        int16x4_t c11_b = { c11_0->b, c11_1->b, c11_2->b, c11_3->b };
+        
+        int32x4_t t1 = vmull_s16(c00_b, vex_inv);
+        t1 = vmlal_s16(t1, c01_b, vex);
+        
+        int32x4_t t2 = vmull_s16(c10_b, vex_inv);
+        t2 = vmlal_s16(t2, c11_b, vex);
+        
+        int16x4_t t1_16 = vshrn_n_s32(t1, 8);
+        int16x4_t t2_16 = vshrn_n_s32(t2, 8);
+        
+        int32x4_t result = vmull_s16(t1_16, vey_inv);
+        result = vmlal_s16(result, t2_16, vey);
+        
+        int16x4_t b_out = vshrn_n_s32(result, 8);
+        
+        dp[0].b = vget_lane_s16(b_out, 0);
+        dp[1].b = vget_lane_s16(b_out, 1);
+        dp[2].b = vget_lane_s16(b_out, 2);
+        dp[3].b = vget_lane_s16(b_out, 3);
+    }
+    
+    /* Process A channel */
+    {
+        int16x4_t c00_a = { c00_0->a, c00_1->a, c00_2->a, c00_3->a };
+        int16x4_t c01_a = { c01_0->a, c01_1->a, c01_2->a, c01_3->a };
+        int16x4_t c10_a = { c10_0->a, c10_1->a, c10_2->a, c10_3->a };
+        int16x4_t c11_a = { c11_0->a, c11_1->a, c11_2->a, c11_3->a };
+        
+        int32x4_t t1 = vmull_s16(c00_a, vex_inv);
+        t1 = vmlal_s16(t1, c01_a, vex);
+        
+        int32x4_t t2 = vmull_s16(c10_a, vex_inv);
+        t2 = vmlal_s16(t2, c11_a, vex);
+        
+        int16x4_t t1_16 = vshrn_n_s32(t1, 8);
+        int16x4_t t2_16 = vshrn_n_s32(t2, 8);
+        
+        int32x4_t result = vmull_s16(t1_16, vey_inv);
+        result = vmlal_s16(result, t2_16, vey);
+        
+        int16x4_t a_out = vshrn_n_s32(result, 8);
+        
+        dp[0].a = vget_lane_s16(a_out, 0);
+        dp[1].a = vget_lane_s16(a_out, 1);
+        dp[2].a = vget_lane_s16(a_out, 2);
+        dp[3].a = vget_lane_s16(a_out, 3);
+    }
+}
+#endif /* __ARM_NEON */
 
 /* 
  
@@ -109,6 +296,10 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
       csay = say;
       for (y = 0; y < dst->h; y++)
 	{
+	  /* Prefetch next source row for better cache utilization */
+	  PREFETCH(csp + src->w);
+	  PREFETCH((Uint8 *)csp + src->pitch + src->w * 4);
+	  
 	  /* Setup color source pointers */
 	  c00 = csp;
 	  c01 = csp;
@@ -119,6 +310,12 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	  csax = sax;
 	  for (x = 0; x < dst->w; x++)
 	    {
+	      /* Prefetch ahead for next pixels */
+	      if ((x & 7) == 0) {
+	        PREFETCH(c00 + 16);
+	        PREFETCH(c10 + 16);
+	      }
+	      
 	      /* ABGR ordering */
 	      /* Interpolate colors */
 	      ex = (*csax & 0xffff);
@@ -161,10 +358,18 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
       csay = say;
       for (y = 0; y < dst->h; y++)
 	{
+	  /* Prefetch next source row */
+	  PREFETCH(csp + src->w);
+	  
 	  sp = csp;
 	  csax = sax;
 	  for (x = 0; x < dst->w; x++)
 	    {
+	      /* Prefetch ahead */
+	      if ((x & 15) == 0) {
+	        PREFETCH(sp + 32);
+	      }
+	      
 	      /* Draw */
 	      *dp = *sp;
 	      /* Advance source pointers */
@@ -266,10 +471,18 @@ zoomSurfaceY (SDL_Surface * src, SDL_Surface * dst)
   csay = say;
   for (y = 0; y < dst->h; y++)
     {
+      /* Prefetch next source row */
+      PREFETCH(csp + src->w);
+      
       csax = sax;
       sp = csp;
       for (x = 0; x < dst->w; x++)
 	{
+	  /* Prefetch ahead */
+	  if ((x & 31) == 0) {
+	    PREFETCH(sp + 64);
+	  }
+	  
 	  /* Draw */
 	  *dp = *sp;
 	  /* Advance source pointers */
