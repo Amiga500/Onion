@@ -84,14 +84,10 @@ void setEntryDefaultValues(Game_s *game, int index)
     game->processed = false;
     game->is_running = false;
 
-    strncpy(game->name, "", sizeof(game->name) - 1);
-    game->name[sizeof(game->name) - 1] = '\0';
-    strncpy(game->shortname, "", sizeof(game->shortname) - 1);
-    game->shortname[sizeof(game->shortname) - 1] = '\0';
-    strncpy(game->core_name, "", sizeof(game->core_name) - 1);
-    game->core_name[sizeof(game->core_name) - 1] = '\0';
-    strncpy(game->core_path, "", sizeof(game->core_path) - 1);
-    game->core_path[sizeof(game->core_path) - 1] = '\0';
+    game->name[0] = '\0';
+    game->shortname[0] = '\0';
+    game->core_name[0] = '\0';
+    game->core_path[0] = '\0';
     game->index = index;
 }
 

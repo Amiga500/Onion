@@ -135,8 +135,8 @@ void getRomNamesDir(const char *dir_path, const char *rom_ext, FILE *rom_names_f
             getRomNamesDir(sub_dir_path, rom_ext, rom_names_file);
         } else if (entry->d_type == DT_REG) {  // regular file
             if (endsWith(entry->d_name, rom_ext)) {
-                strncpy(shortname, entry->d_name, 256);
-                shortname[255] = '\0';
+                strncpy(shortname, entry->d_name, sizeof(shortname) - 1);
+                shortname[sizeof(shortname) - 1] = '\0';
                 removeExtension(shortname);
                 fprintf(rom_names_file, "%s\n", shortname);
             }
