@@ -1,5 +1,49 @@
 # Build Workflow Guide / Guida al Workflow di Build
 
+## 🚨 CRITICAL: Docker Toolchain is REQUIRED / Docker Toolchain è OBBLIGATORIO 🚨
+
+### ⛔ DO NOT TRY TO BUILD NATIVELY / NON COMPILARE NATIVAMENTE ⛔
+
+**English:**
+This project **CANNOT** be built directly on your Linux/Mac/Windows system. You **MUST** use the Docker toolchain!
+
+**Why?**
+- This project builds firmware for **Miyoo Mini** (ARM architecture)
+- Your PC is likely x86/x64 architecture
+- The libraries in this repo (`lib/` folder) are **ARM binaries**
+- Native compilation will fail with errors like:
+  - ❌ `SDL/SDL.h: No such file or directory`
+  - ❌ `cannot find -lSDL`
+  - ❌ `incompatible .so` files
+
+**Solution:**
+Use the Docker toolchain which provides the ARM cross-compilation environment:
+```bash
+make with-toolchain CMD="all -j$(nproc)"
+```
+
+---
+
+**Italiano:**
+Questo progetto **NON PUÒ** essere compilato direttamente sul tuo sistema Linux/Mac/Windows. **DEVI** usare la toolchain Docker!
+
+**Perché?**
+- Questo progetto compila firmware per **Miyoo Mini** (architettura ARM)
+- Il tuo PC è probabilmente architettura x86/x64
+- Le librerie in questa repo (cartella `lib/`) sono **binari ARM**
+- La compilazione nativa fallirà con errori come:
+  - ❌ `SDL/SDL.h: File o directory non esistente`
+  - ❌ `impossibile trovare -lSDL`
+  - ❌ file `.so` `incompatibile`
+
+**Soluzione:**
+Usa la toolchain Docker che fornisce l'ambiente di cross-compilazione ARM:
+```bash
+make with-toolchain CMD="all -j$(nproc)"
+```
+
+---
+
 ## ⚠️ Important: Correct Command Syntax / Sintassi Corretta dei Comandi
 
 ### ❌ Common Mistakes / Errori Comuni
@@ -476,6 +520,37 @@ make git-submodules && make clean && make with-toolchain CMD="all -j4"  # ✅ CO
 - `all`, `core`, `apps`, `external` are **build targets** - these go inside CMD
 - `-j4` or `-j$(nproc)` **parallel flags** go inside the CMD parameter, not outside
 
+### ❌ The Native Build Error / L'Errore di Build Nativa
+
+**If you see these errors, you forgot to use Docker toolchain!**
+
+```
+SDL/SDL.h: No such file or directory
+SDL/SDL.h: File o directory non esistente
+cannot find -lSDL
+impossibile trovare -lSDL
+incompatible .so
+.so incompatibile
+```
+
+**What happened:**
+- You tried to run `make all` or `make -j4 all` directly
+- Your system tried to compile natively (x86/x64)
+- The ARM libraries are incompatible with your architecture
+- SDL headers/libraries are not installed (and shouldn't be)
+
+**Solution:**
+```bash
+# STOP the current build (Ctrl+C if it's running)
+
+# Use Docker toolchain instead
+make git-submodules  # if first time
+make clean  # clean the failed build
+make with-toolchain CMD="all -j$(nproc)"  # ✅ CORRECT
+```
+
+**Remember:** `make all` ❌ vs `make with-toolchain CMD="all"` ✅
+
 ---
 
 ## Tips / Suggerimenti
@@ -497,22 +572,60 @@ git diff HEAD~5
 
 ### Parallel Builds / Build Paralleli
 
-To speed up compilation, you can use parallel jobs:
+To speed up compilation, you can use parallel jobs **inside Docker**:
 ```bash
-make -j4 all  # Uses 4 parallel jobs
-make -j$(nproc) all  # Uses all available CPU cores
+# ✅ CORRECT - parallel flag inside CMD
+make with-toolchain CMD="all -j4"  # Uses 4 parallel jobs
+make with-toolchain CMD="all -j$(nproc)"  # Uses all available CPU cores
+
+# ❌ WRONG - don't use parallel flag outside with-toolchain
+make -j4 with-toolchain CMD="all"  # This doesn't work as expected
 ```
 
 ---
 
 ## Troubleshooting / Risoluzione Problemi
 
+### 🔴 "SDL/SDL.h: No such file" or ".so incompatibile" Errors
+
+**English:**
+This is the most common error! It means you tried to build natively instead of using Docker.
+
+**Symptoms:**
+```
+SDL/SDL.h: No such file or directory
+cannot find -lSDL
+incompatible .so files
+saltato ../../lib/libsqlite3.so incompatibile
+```
+
+**Solution:**
+1. Stop the build (Ctrl+C)
+2. Clean the failed build: `make clean`
+3. Use Docker toolchain: `make with-toolchain CMD="all -j$(nproc)"`
+
+**Italiano:**
+Questo è l'errore più comune! Significa che hai provato a compilare nativamente invece di usare Docker.
+
+**Sintomi:**
+```
+SDL/SDL.h: File o directory non esistente
+impossibile trovare -lSDL
+file .so incompatibile
+saltato ../../lib/libsqlite3.so incompatibile
+```
+
+**Soluzione:**
+1. Ferma la build (Ctrl+C)
+2. Pulisci la build fallita: `make clean`
+3. Usa la toolchain Docker: `make with-toolchain CMD="all -j$(nproc)"`
+
 ### Build Fails After Update / Build Fallisce Dopo Aggiornamento
 
-1. Try deep clean:
+1. Try deep clean with Docker:
    ```bash
    make deepclean
-   make all
+   make with-toolchain CMD="all -j$(nproc)"
    ```
 
 2. Check if you have local uncommitted changes:
@@ -520,8 +633,9 @@ make -j$(nproc) all  # Uses all available CPU cores
    git status
    git stash  # Temporarily save your changes
    git pull
+   make git-submodules  # Update submodules
    make clean
-   make all
+   make with-toolchain CMD="all -j$(nproc)"
    git stash pop  # Restore your changes
    ```
 
@@ -529,6 +643,22 @@ make -j$(nproc) all  # Uses all available CPU cores
    ```bash
    git branch -vv
    ```
+
+### Docker Not Found / Docker Non Trovato
+
+If you get "docker: command not found":
+```bash
+# Install Docker first
+# On Ubuntu/Debian:
+sudo apt-get update
+sudo apt-get install docker.io
+sudo systemctl start docker
+sudo usermod -aG docker $USER
+# Log out and back in for group changes to take effect
+
+# Then try again:
+make with-toolchain CMD="all -j$(nproc)"
+```
 
 ### Merge Conflicts / Conflitti di Merge
 
