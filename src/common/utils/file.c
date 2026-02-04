@@ -103,7 +103,8 @@ void file_readLastLine(const char *filename, char *out_str)
             return;
         }
 
-        int max_len = size < 255 ? (int)size + 1 : 255;
+        // Safely calculate max_len considering long-to-int conversion
+        int max_len = (size < 255L) ? (int)(size + 1) : 255;
         if (max_len <= 1) {
             fclose(fd);
             return;

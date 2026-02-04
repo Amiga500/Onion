@@ -276,18 +276,28 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
     const int bufferPos = index * yres;
 
     // Pre-calculate bounds to avoid redundant checks in inner loop
+    // Handle negative rect values correctly with explicit max(0, x) logic
     int startY = (rect.y < 0) ? -rect.y : 0;
-    int endY = (rect.y + rect.h > yres) ? yres - rect.y : rect.h;
+    int availableY = yres - (rect.y > 0 ? rect.y : 0);
+    int endY = (rect.h > availableY) ? availableY : rect.h;
+    if (endY < startY) endY = startY;  // Ensure valid range
     
     for (int oy = startY; oy < endY; oy++) {
         int y = rect.y + oy;
+        
+        // Skip if y is out of bounds (safety check)
+        if (y < 0 || y >= yres)
+            continue;
+            
         int virtualY = bufferPos + (rotate ? (yres - 1) - y : y);
         long baseOffset = (long)virtualY * xres;
         int baseIndex = oy * rect.w;
 
         // Pre-calculate x bounds for this row
         int startX = (rect.x < 0) ? -rect.x : 0;
-        int endX = (rect.x + rect.w > xres) ? xres - rect.x : rect.w;
+        int availableX = xres - (rect.x > 0 ? rect.x : 0);
+        int endX = (rect.w > availableX) ? availableX : rect.w;
+        if (endX < startX) endX = startX;  // Ensure valid range
 
         for (int ox = startX; ox < endX; ox++) {
             int x = rect.x + ox;
@@ -295,6 +305,10 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
             if (rotate) {
                 x = (xres - 1) - x;
             }
+            
+            // Safety check for rotated coordinates
+            if (x < 0 || x >= xres)
+                continue;
 
             long offset = baseOffset + (long)x;
             int pixelIndex = baseIndex + ox;

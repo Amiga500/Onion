@@ -70,9 +70,10 @@ bool parseJsonToRecentItem(const char *jsonStr, RecentItem *recentItem, int line
     if (colonPosition != NULL) {
         size_t position = colonPosition - recentItem->rompath;
         
-        // Use stack-based fixed-size buffers instead of VLAs
-        char firstPart[PATH_MAX];
-        char secondPart[PATH_MAX];
+        // Use stack-based fixed-size buffers matching the struct field sizes
+        // These are smaller than PATH_MAX and match actual usage requirements
+        char firstPart[STR_MAX];
+        char secondPart[STR_MAX * 2];
         
         // Copy first part (before colon)
         if (position < sizeof(firstPart)) {

@@ -12,6 +12,12 @@
 
 #define CACHE_NOT_FOUND -1
 
+// Path prefix constants for maintainability
+#define RELATIVE_ROMS_PREFIX "../../Roms/"
+#define RELATIVE_ROMS_PREFIX_LEN 11
+#define ABSOLUTE_ROMS_PREFIX "/mnt/SDCARD/Roms/"
+#define ABSOLUTE_ROMS_PREFIX_LEN 17
+
 typedef struct CacheDBItem {
     char cache_path[PATH_MAX];
     char name[STR_MAX];
@@ -119,20 +125,20 @@ CacheDBItem *cache_db_find(const char *path_or_name)
 
     char rel_path[PATH_MAX];
     if (!file_path_relative_to(rel_path, "/mnt/SDCARD/Roms", path_or_name)) {
-        const char *romsSubstr = strstr(path_or_name, "../../Roms/");
+        const char *romsSubstr = strstr(path_or_name, RELATIVE_ROMS_PREFIX);
         if (romsSubstr != NULL) {
             // Skip past "../../Roms/"
-            strncpy(rel_path, romsSubstr + 11, sizeof(rel_path) - 1);
+            strncpy(rel_path, romsSubstr + RELATIVE_ROMS_PREFIX_LEN, sizeof(rel_path) - 1);
             rel_path[sizeof(rel_path) - 1] = '\0';
         }
-        else if (strncmp(path_or_name, "/mnt/SDCARD/Roms/", 17) == 0) {
+        else if (strncmp(path_or_name, ABSOLUTE_ROMS_PREFIX, ABSOLUTE_ROMS_PREFIX_LEN) == 0) {
             // Skip "/mnt/SDCARD/Roms/" prefix directly
-            strncpy(rel_path, path_or_name + 17, sizeof(rel_path) - 1);
+            strncpy(rel_path, path_or_name + ABSOLUTE_ROMS_PREFIX_LEN, sizeof(rel_path) - 1);
             rel_path[sizeof(rel_path) - 1] = '\0';
         }
         else {
             // Fallback to original method for other cases
-            char *tunc_path_or_name = str_replace(_path_or_name_buf, "/mnt/SDCARD/Roms/", "");
+            char *tunc_path_or_name = str_replace(_path_or_name_buf, ABSOLUTE_ROMS_PREFIX, "");
             if (tunc_path_or_name) {
                 strncpy(rel_path, tunc_path_or_name, sizeof(rel_path) - 1);
                 rel_path[sizeof(rel_path) - 1] = '\0';
