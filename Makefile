@@ -50,6 +50,9 @@ endif
 
 TOOLCHAIN := aemiii91/miyoomini-toolchain:latest
 
+# 7z command - can be overridden if 7z is not in PATH (e.g., SEVENZIP=/usr/bin/7za)
+SEVENZIP ?= 7z
+
 include ./src/common/commands.mk
 
 ###########################################################
@@ -201,27 +204,27 @@ dist: build
 # Package configs
 	@cp -R $(TEMP_DIR)/configs/Saves/CurrentProfile/ $(TEMP_DIR)/configs/Saves/GuestProfile
 	@echo -n "Packaging configs..."
-	@cd $(TEMP_DIR)/configs && 7z a -mtm=off $(BUILD_DIR)/.tmp_update/config/configs.pak . -bsp1 -bso0
+	@cd $(TEMP_DIR)/configs && $(SEVENZIP) a -mtm=off $(BUILD_DIR)/.tmp_update/config/configs.pak . -bsp1 -bso0
 	@echo " DONE"
 	@rm -rf $(TEMP_DIR)/configs
 	@rmdir $(TEMP_DIR)
 # Package RetroArch separately
 	@echo -n "Packaging RetroArch..."
-	@cd $(BUILD_DIR) && 7z a -mtm=off retroarch.pak ./RetroArch -bsp1 -bso0
+	@cd $(BUILD_DIR) && $(SEVENZIP) a -mtm=off retroarch.pak ./RetroArch -bsp1 -bso0
 	@echo " DONE"
 	@mkdir -p $(DIST_DIR)/RetroArch
 	@mv $(BUILD_DIR)/retroarch.pak $(DIST_DIR)/RetroArch/
 	@echo $(RA_SUBVERSION) > $(DIST_DIR)/RetroArch/ra_package_version.txt
 # Package Onion core
 	@echo -n "Packaging Onion..."
-	@cd $(BUILD_DIR) && 7z a -mtm=off $(DIST_DIR)/miyoo/app/.tmp_update/onion.pak . -x!RetroArch -bsp1 -bso0
+	@cd $(BUILD_DIR) && $(SEVENZIP) a -mtm=off $(DIST_DIR)/miyoo/app/.tmp_update/onion.pak . -x!RetroArch -bsp1 -bso0
 	@echo " DONE"
 	@$(ECHO) $(PRINT_DONE)
 
 release: dist
 	@$(ECHO) $(PRINT_RECIPE)
 	@rm -f $(RELEASE_DIR)/$(RELEASE_NAME).zip
-	@cd $(DIST_DIR) && 7z a -mtc=off $(RELEASE_DIR)/$(RELEASE_NAME).zip . -bsp1 -bso0
+	@cd $(DIST_DIR) && $(SEVENZIP) a -mtc=off $(RELEASE_DIR)/$(RELEASE_NAME).zip . -bsp1 -bso0
 	@$(ECHO) $(PRINT_DONE)
 
 clean:
