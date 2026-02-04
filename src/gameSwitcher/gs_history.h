@@ -63,7 +63,8 @@ bool parseJsonToRecentItem(const char *jsonStr, RecentItem *recentItem, int line
         strncpy(firstPart, recentItem->rompath, position);
         firstPart[position] = '\0';
 
-        char secondPart[strlen(recentItem->rompath) - position];
+        // Add 1 for null terminator
+        char secondPart[strlen(recentItem->rompath) - position + 1];
         strcpy(secondPart, colonPosition + 1);
 
         strcpy(recentItem->launch, firstPart);

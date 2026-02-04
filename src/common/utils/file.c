@@ -129,11 +129,12 @@ char *file_read(const char *path)
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
         buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
+        if (buffer) {
             fread(buffer, sizeof(char), length, f);
+            buffer[length] = '\0';
+        }
         fclose(f);
     }
-    buffer[length] = '\0';
 
     return buffer;
 }
@@ -535,10 +536,14 @@ char *file_resolvePath(const char *path)
 
     // Reconstruct the resolved path
     resolvedPath[0] = '\0';
+    char *pathPtr = resolvedPath;
     for (int i = 0; i < componentCount; i++) {
-        strcat(resolvedPath, "/");
-        strcat(resolvedPath, components[i]);
+        *pathPtr++ = '/';
+        size_t compLen = strlen(components[i]);
+        memcpy(pathPtr, components[i], compLen);
+        pathPtr += compLen;
     }
+    *pathPtr = '\0';
 
     // Handle the case where the path is empty
     if (resolvedPath[0] == '\0') {

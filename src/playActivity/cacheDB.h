@@ -77,8 +77,9 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
 
     int cache_version = CACHE_NOT_FOUND;
     char *cache_dir = dirname(strdup((char *)rom_path));
+    size_t cache_dir_len = strlen(cache_dir);
 
-    while (strlen(cache_dir) > 16) {
+    while (cache_dir_len > 16) {
         strcpy(cache_name_out, basename(cache_dir));
         cache_version = cache_get_path_and_version(cache_path_out, cache_dir, cache_name_out);
 
@@ -87,6 +88,7 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
         }
 
         cache_dir = dirname(cache_dir);
+        cache_dir_len = strlen(cache_dir);
 
         if (strcmp("Roms", basename(cache_dir)) == 0) {
             break;
