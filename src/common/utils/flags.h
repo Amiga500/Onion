@@ -15,14 +15,14 @@
 bool flag_get(const char *path, const char *key)
 {
     char filename[STR_MAX];
-    concat(filename, path, key);
+    str_concat(filename, STR_MAX, path, key);
     return exists(filename);
 }
 
 void flag_set(const char *path, const char *key, bool value)
 {
     char filename[STR_MAX];
-    concat(filename, path, key);
+    str_concat(filename, STR_MAX, path, key);
 
     if (value)
         close(creat(filename, 777));

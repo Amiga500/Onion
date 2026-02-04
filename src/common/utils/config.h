@@ -20,7 +20,7 @@ bool config_flag_get(const char *key) { return flag_get(CONFIG_PATH, key); }
 void config_flag_set(const char *key, bool value)
 {
     char hidden_flag[STR_MAX];
-    concat(hidden_flag, key, "_");
+    str_concat(hidden_flag, STR_MAX, key, "_");
     flag_set(CONFIG_PATH, key, value);
     flag_set(CONFIG_PATH, hidden_flag, !value);
 }
@@ -30,7 +30,7 @@ bool config_get(const char *key, const char *format, void *dest)
     FILE *fp;
 
     char filename[STR_MAX];
-    concat(filename, CONFIG_PATH, key);
+    str_concat(filename, STR_MAX, CONFIG_PATH, key);
 
     if (exists(filename)) {
         file_get(fp, filename, format, dest);
@@ -42,7 +42,7 @@ bool config_get(const char *key, const char *format, void *dest)
 
 void _config_prepare(const char *key, char *filename)
 {
-    concat(filename, CONFIG_PATH, key);
+    str_concat(filename, STR_MAX, CONFIG_PATH, key);
 
     char dir_path[STR_MAX];
     strcpy(dir_path, filename);
