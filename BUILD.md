@@ -235,6 +235,123 @@ make apps     # Build applications
 # Repeat as needed
 ```
 
+## Git Commands Reference
+
+### Updating Your Local Repository
+
+To get the latest changes from the remote repository:
+
+```bash
+# If you're on the main branch
+git pull origin main
+
+# If you're on a feature branch (like copilot/optimize-code-performance-again)
+git pull origin copilot/optimize-code-performance-again
+
+# Or simply (pulls from the tracked remote branch)
+git pull
+```
+
+### Common Git Operations
+
+#### Checking Your Current Branch
+```bash
+git branch
+# or to see remote branches too
+git branch -a
+```
+
+#### Checking Repository Status
+```bash
+git status
+```
+
+#### Fetching Latest Changes (without merging)
+```bash
+git fetch origin
+```
+
+#### Updating Submodules
+```bash
+# After pulling, update submodules
+git submodule update --init --recursive
+
+# Or use the Makefile target
+make git-submodules
+```
+
+#### Switching Branches
+```bash
+# Switch to main branch
+git checkout main
+
+# Create and switch to a new branch
+git checkout -b my-feature-branch
+```
+
+#### Viewing Commit History
+```bash
+# Recent commits
+git log --oneline -10
+
+# Detailed log
+git log
+```
+
+### Working with Your Changes
+
+#### Checking What Changed
+```bash
+# See unstaged changes
+git diff
+
+# See staged changes
+git diff --staged
+
+# See all changes
+git diff HEAD
+```
+
+#### Saving Your Work
+```bash
+# Stage specific files
+git add path/to/file
+
+# Stage all changes
+git add .
+
+# Commit with message
+git commit -m "Your commit message"
+
+# Push to remote
+git push origin your-branch-name
+```
+
+#### Stashing Changes (temporary save)
+```bash
+# Save your work temporarily
+git stash
+
+# Pull latest changes
+git pull
+
+# Reapply your changes
+git stash pop
+```
+
+### Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `git pull` | Update current branch from remote |
+| `git fetch` | Download changes without merging |
+| `git status` | Check repository state |
+| `git branch` | List branches |
+| `git checkout <branch>` | Switch branches |
+| `git log` | View commit history |
+| `git diff` | View changes |
+| `git stash` | Temporarily save changes |
+
 ## Additional Resources
 
 - [Onion Documentation](https://onionui.github.io/docs)
