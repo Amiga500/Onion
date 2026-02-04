@@ -24,10 +24,14 @@ void flag_set(const char *path, const char *key, bool value)
     char filename[STR_MAX];
     concat(filename, path, key);
 
-    if (value)
-        close(creat(filename, 777));
-    else
+    if (value) {
+        int fd = creat(filename, 0666);  // Use proper octal notation; 0666 for rw-rw-rw-
+        if (fd >= 0)
+            close(fd);
+    }
+    else {
         remove(filename);
+    }
 }
 
 #endif // FLAGS_H__
