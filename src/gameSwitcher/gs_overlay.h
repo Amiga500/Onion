@@ -21,7 +21,7 @@
 static pthread_t autosave_thread_pt;
 static bool autosave_thread_running = false;
 
-void setFbAsFirstRomScreen(void)
+static inline void setFbAsFirstRomScreen(void)
 {
     if (game_list_len == 0)
         return;
@@ -107,7 +107,7 @@ void overlay_init()
     pthread_create(&autosave_thread_pt, NULL, _saveRomScreenAndStateThread, NULL);
 }
 
-void overlay_resume(void)
+static inline void overlay_resume(void)
 {
     if (appState.is_overlay) {
         if (autosave_thread_running) {
@@ -135,7 +135,7 @@ void overlay_resume(void)
     }
 }
 
-void overlay_exit(void)
+static inline void overlay_exit(void)
 {
     if (appState.is_overlay) {
         if (autosave_thread_running) {

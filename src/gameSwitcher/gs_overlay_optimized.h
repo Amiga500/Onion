@@ -33,6 +33,7 @@
 #include "gs_appState.h"
 #include "gs_model.h"
 #include "gs_render.h"
+#include "gs_overlay.h"
 
 // Save state status tracking
 typedef enum {

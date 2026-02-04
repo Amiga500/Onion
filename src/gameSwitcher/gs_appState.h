@@ -4,6 +4,7 @@
 #include <SDL/SDL.h>
 #include <signal.h>
 
+#include "components/list.h"
 #include "gs_model.h"
 
 #define VIEW_NORMAL 0
