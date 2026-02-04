@@ -44,10 +44,22 @@ Open a Terminal and type :
 
 `make git-submodules`
 
-`make with-toolchain` or  
-`make with-toolchain CMD=dev` (to enable debug logging )
+`make with-toolchain`
 
 Done!
+
+### Common Build Commands
+
+You can pass different make targets using the `CMD` parameter:
+
+- `make with-toolchain` - Default: builds everything (equivalent to `make dist`)
+- `make with-toolchain CMD=clean` - Clean build artifacts
+- `make with-toolchain CMD=core` - Build core binaries only
+- `make with-toolchain CMD=dev` - Build with debug logging enabled
+- `make with-toolchain CMD=dist` - Build distribution package
+- `make with-toolchain CMD=release` - Build release package
+
+**Note:** The `CMD` parameter should contain only the make target name (e.g., `clean`, `core`), NOT the word "make" itself.
 
 
 ## Advanced: Using the Toolchain Interactively
@@ -59,3 +71,20 @@ If you need to run commands directly inside the Docker container (for debugging 
 This opens an interactive bash shell inside the Docker container. From there you can run any commands, like `make dev`.
 
 **Note:** For regular development, you don't need this. Just edit code on your host machine and use `make with-toolchain` to build.
+
+
+## Troubleshooting
+
+### Error: "No rule to make target 'make'"
+
+If you see this error:
+```
+make: *** No rule to make target 'make'.  Stop.
+```
+
+**Cause:** You included the word "make" in the CMD parameter.
+
+**Wrong:** `make with-toolchain CMD="make clean"`  
+**Correct:** `make with-toolchain CMD=clean`
+
+The `CMD` parameter should only contain the target name, not the "make" command itself.
