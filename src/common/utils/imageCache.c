@@ -80,16 +80,9 @@ void imageCache_removeItem(int image_index)
         image_cache[idx] = NULL;
     }
 
-    int num_images =
-        (images_total < image_cache_len ? images_total : image_cache_len) - 1;
-    for (int i = 0; i < num_images; i++) {
-        int curr = modulo(image_index + i, image_cache_len);
-        int next = modulo(image_index + i + 1, image_cache_len);
-        image_cache[curr] = image_cache[next];
-        image_cache[next] = NULL;
-    }
-
-    image_cache_offset = image_index + image_cache_len - 2;
+    // Ring buffer optimization: no need to shift array elements
+    // Just mark as NULL and let the cache reload when needed
+    // The ring buffer will naturally handle the empty slot
 }
 
 SDL_Surface *imageCache_getItem(int *index)

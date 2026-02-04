@@ -74,7 +74,7 @@ bool mkdirs(const char *dir_path)
 {
     if (!exists(dir_path)) {
         char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
+        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
         system(dir_cmd);
         return true;
     }
@@ -231,7 +231,7 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
     char key[256], val[256];
     char key_search[STR_MAX];
     char search_str[STR_MAX];
-    sprintf(search_str, "%%255[^%c]%c%%255[^\n]\n", divider, divider);
+    snprintf(search_str, STR_MAX, "%%255[^%c]%c%%255[^\n]\n", divider, divider);
     int match_index = 0;
 
     *value_out = 0;
@@ -470,7 +470,7 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     char tempPath[STR_MAX];
     char *path = file_dirname(filename);
-    sprintf(tempPath, "%s/temp.txt", path);
+    snprintf(tempPath, STR_MAX, "%s/temp.txt", path);
     free(path);
 
     FILE *tempFile = fopen(tempPath, "w");

@@ -140,7 +140,7 @@ void renderPage(int current_page)
         PlayActivity *entry = play_activities->play_activity[index];
         ROM *rom = entry->rom;
 
-        sprintf(num_str, "%d", index + 1);
+        snprintf(num_str, sizeof(num_str), "%d", index + 1);
         renderTextAlignRight(num_str, font40, color_purple, &(SDL_Rect){num_width, 80 + 90 * row, 50, 39});
 
         SDL_Surface *romImage = loadRomImage(rom->image_path);
@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
     renderPage(current_page);
 
     char num_pages_str[25];
-    sprintf(num_pages_str, "%d/%d", current_page + 1, num_pages);
+    snprintf(num_pages_str, sizeof(num_pages_str), "%d/%d", current_page + 1, num_pages);
     renderTextAlignRight(num_pages_str, font30, color_white, &rectPages);
 
     int play_time_total = play_activities->play_time_total;
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
 
         SDL_BlitSurface(background, NULL, screen, NULL);
 
-        sprintf(num_pages_str, "%d/%d", current_page + 1, num_pages);
+        snprintf(num_pages_str, sizeof(num_pages_str), "%d/%d", current_page + 1, num_pages);
         renderTextAlignRight(num_pages_str, font30, color_white, &rectPages);
 
         renderText(play_time_total_formatted, font30, color_white, &rectMileage);
