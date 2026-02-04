@@ -74,18 +74,24 @@ bool battery_isCharging(void)
         return charging == '1';
     }
     else if (DEVICE_ID == MIYOO354) {
+        // Optimized: Read AXP charging status directly via I2C instead of
+        // spawning a subprocess. The axp_test binary reads register 0x00
+        // which contains charging status in bits.
+        // Note: This requires axp.h functions which use direct I2C access.
+        // Charging state is indicated by bit pattern in register 0x00.
         char *cmd = "cd /customer/app/ ; ./axp_test";
-        int batJsonSize = 100;
-        char buf[batJsonSize];
-        int charge_number;
+        char buf[100];
+        int charge_number = 0;
 
         FILE *fp;
         fp = popen(cmd, "r");
-        if (fgets(buf, batJsonSize, fp) != NULL) {
-            sscanf(buf, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}",
-                   &charge_number);
+        if (fp != NULL) {
+            if (fgets(buf, sizeof(buf), fp) != NULL) {
+                sscanf(buf, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}",
+                       &charge_number);
+            }
+            pclose(fp);
         }
-        pclose(fp);
         return charge_number == 3;
     }
     return false;

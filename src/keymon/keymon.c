@@ -368,7 +368,14 @@ void turnOffScreen(void)
  */
 void cpuClockHotkey(int adjust)
 {
-    if (config_flag_get(".cpuClockHotkey") == 0) {
+    // Cache the hotkey state to avoid repeated file system checks
+    // Note: This means changes to the config require restart to take effect
+    static int cpuClockHotkeyEnabled = -1;  // -1 = not initialized
+    if (cpuClockHotkeyEnabled == -1) {
+        cpuClockHotkeyEnabled = config_flag_get(".cpuClockHotkey");
+    }
+    
+    if (cpuClockHotkeyEnabled == 0) {
         return;
     }
     printf_debug("cpuClockHotkey: %d\n", adjust);
@@ -385,7 +392,7 @@ void cpuClockHotkey(int adjust)
         // Unknown device
         return;
     }
-    char cpuclockstr[5];
+    char cpuclockstr[8];  // Increased buffer size for safety
 
     // Read current CPU clock
     int ret = process_start_read_return("cpuclock", cpuclockstr);

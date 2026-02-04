@@ -194,12 +194,14 @@ void str_serializeTime(char *dest_str, int nTime)
 
 int str_count_char(const char *str, char ch)
 {
-    int i, count = 0;
-    size_t len = strlen(str);
-    for (i = 0; i <= len; i++) {
-        if (str[i] == ch) {
+    int count = 0;
+    // Optimized: Iterate until null terminator instead of using strlen()
+    // This avoids traversing the string twice
+    while (*str) {
+        if (*str == ch) {
             count++;
         }
+        str++;
     }
     return count;
 }
