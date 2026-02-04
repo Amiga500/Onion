@@ -34,6 +34,12 @@ bool parseJsonToRecentItem(const char *jsonStr, RecentItem *recentItem, int line
         return false;
     }
 
+    // Initialize strings to empty to ensure proper null termination
+    recentItem->label[0] = '\0';
+    recentItem->rompath[0] = '\0';
+    recentItem->imgpath[0] = '\0';
+    recentItem->launch[0] = '\0';
+
     cJSON *label = cJSON_GetObjectItemCaseSensitive(json, "label");
     cJSON *rompath = cJSON_GetObjectItemCaseSensitive(json, "rompath");
     cJSON *imgpath = cJSON_GetObjectItemCaseSensitive(json, "imgpath");
@@ -41,34 +47,49 @@ bool parseJsonToRecentItem(const char *jsonStr, RecentItem *recentItem, int line
 
     if (cJSON_IsString(label) && (label->valuestring != NULL)) {
         strncpy(recentItem->label, label->valuestring, sizeof(recentItem->label) - 1);
+        recentItem->label[sizeof(recentItem->label) - 1] = '\0';
     }
     if (cJSON_IsString(rompath) && (rompath->valuestring != NULL)) {
         strncpy(recentItem->rompath, rompath->valuestring, sizeof(recentItem->rompath) - 1);
+        recentItem->rompath[sizeof(recentItem->rompath) - 1] = '\0';
     }
     if (cJSON_IsString(imgpath) && (imgpath->valuestring != NULL)) {
         strncpy(recentItem->imgpath, imgpath->valuestring, sizeof(recentItem->imgpath) - 1);
+        recentItem->imgpath[sizeof(recentItem->imgpath) - 1] = '\0';
     }
     if (cJSON_IsString(launch) && (launch->valuestring != NULL)) {
         strncpy(recentItem->launch, launch->valuestring, sizeof(recentItem->launch) - 1);
+        recentItem->launch[sizeof(recentItem->launch) - 1] = '\0';
     }
     recentItem->type = type->valueint;
     recentItem->lineNo = lineNo;
 
     // Check if rompath contains a colon (':') and split it into launch and rompath
+    // Optimized: Process in-place without VLA allocations
     char *colonPosition = strchr(recentItem->rompath, ':');
     if (colonPosition != NULL) {
-        int position = (int)(colonPosition - recentItem->rompath);
+        size_t position = colonPosition - recentItem->rompath;
+        
+        // Use stack-based fixed-size buffers instead of VLAs
+        char firstPart[PATH_MAX];
+        char secondPart[PATH_MAX];
+        
+        // Copy first part (before colon)
+        if (position < sizeof(firstPart)) {
+            memcpy(firstPart, recentItem->rompath, position);
+            firstPart[position] = '\0';
+        } else {
+            firstPart[0] = '\0';
+        }
+        
+        // Copy second part (after colon)
+        strncpy(secondPart, colonPosition + 1, sizeof(secondPart) - 1);
+        secondPart[sizeof(secondPart) - 1] = '\0';
 
-        char firstPart[position + 1];
-        strncpy(firstPart, recentItem->rompath, position);
-        firstPart[position] = '\0';
-
-        // Add 1 for null terminator
-        char secondPart[strlen(recentItem->rompath) - position + 1];
-        strcpy(secondPart, colonPosition + 1);
-
-        strcpy(recentItem->launch, firstPart);
-        strcpy(recentItem->rompath, secondPart);
+        strncpy(recentItem->launch, firstPart, sizeof(recentItem->launch) - 1);
+        recentItem->launch[sizeof(recentItem->launch) - 1] = '\0';
+        strncpy(recentItem->rompath, secondPart, sizeof(recentItem->rompath) - 1);
+        recentItem->rompath[sizeof(recentItem->rompath) - 1] = '\0';
     }
 
     cJSON_Delete(json);

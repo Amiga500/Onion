@@ -72,10 +72,14 @@ const char *file_basename(const char *filename)
  */
 bool mkdirs(const char *dir_path)
 {
+    // Check existence using stat64 which is already cached by the kernel
     if (!exists(dir_path)) {
         char dir_cmd[512];
-        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
-        system(dir_cmd);
+        // Use size-limited snprintf for safety
+        int len = snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
+        if (len > 0 && len < (int)sizeof(dir_cmd)) {
+            system(dir_cmd);
+        }
         return true;
     }
     return false;
@@ -84,34 +88,63 @@ bool mkdirs(const char *dir_path)
 void file_readLastLine(const char *filename, char *out_str)
 {
     FILE *fd;
-    int size;
+    long size;
     char buff[256];
-    char *token = NULL;
+
+    out_str[0] = '\0';  // Initialize output
 
     if ((fd = fopen(filename, "rb")) != NULL) {
         // get file size
         fseek(fd, 0L, SEEK_END);
         size = ftell(fd);
-        fseek(fd, 0L, SEEK_SET);
 
-        int max_len = size < 255 ? size + 1 : 255;
-        if (max_len <= 1)
+        if (size <= 0) {
+            fclose(fd);
             return;
+        }
+
+        int max_len = size < 255 ? (int)size + 1 : 255;
+        if (max_len <= 1) {
+            fclose(fd);
+            return;
+        }
 
         // get the last line
         fseek(fd, -max_len, SEEK_END);
-        fread(buff, max_len - 1, 1, fd);
-
-        // cleanup
+        size_t bytes_read = fread(buff, 1, max_len - 1, fd);
         fclose(fd);
-        buff[max_len - 1] = '\0';
 
-        token = strtok(buff, "\n");
-        while (token != NULL) {
-            if (strlen(token) > 0)
-                snprintf(out_str, 255, "%s", token);
-            token = strtok(NULL, "\n");
-        }
+        if (bytes_read == 0)
+            return;
+
+        buff[bytes_read] = '\0';
+
+        // Find last non-empty line by scanning backwards
+        char *last_line_start = NULL;
+        char *current = buff + bytes_read - 1;
+
+        // Skip trailing newlines
+        while (current >= buff && (*current == '\n' || *current == '\r'))
+            current--;
+
+        if (current < buff)
+            return;
+
+        // Mark end of last line
+        char *line_end = current + 1;
+
+        // Find start of last line
+        while (current >= buff && *current != '\n')
+            current--;
+
+        last_line_start = current + 1;
+
+        // Copy the last line
+        size_t line_len = line_end - last_line_start;
+        if (line_len > 254)
+            line_len = 254;
+        memcpy(out_str, last_line_start, line_len);
+        out_str[line_len] = '\0';
     }
 }
 
@@ -511,46 +544,71 @@ char *file_resolvePath(const char *path)
         return NULL;
     }
 
-    // Copy the input path to a temporary buffer
+    // Use a single buffer for processing - avoid allocating components array
     char tempPath[PATH_MAX];
-    strncpy(tempPath, path, PATH_MAX - 1);
-    tempPath[PATH_MAX - 1] = '\0';
+    size_t pathLen = strlen(path);
+    if (pathLen >= PATH_MAX) {
+        pathLen = PATH_MAX - 1;
+    }
+    memcpy(tempPath, path, pathLen);
+    tempPath[pathLen] = '\0';
 
-    // Initialize an array to hold the path components
-    char *components[PATH_MAX];
-    int componentCount = 0;
+    // Process path in-place using two pointers
+    char *read = tempPath;
+    char *write = resolvedPath;
 
-    // Split the path into components
-    char *token = strtok(tempPath, "/");
-    while (token != NULL) {
-        if (strcmp(token, "..") == 0) {
-            // Handle ".." by removing the last component if there is one
-            if (componentCount > 0) {
-                componentCount--;
+    // Handle leading slash for absolute paths
+    if (*read == '/') {
+        *write++ = '/';
+        read++;
+    }
+
+    while (*read) {
+        // Skip consecutive slashes
+        while (*read == '/')
+            read++;
+
+        if (*read == '\0')
+            break;
+
+        // Find end of current component
+        char *compStart = read;
+        while (*read && *read != '/')
+            read++;
+
+        size_t compLen = read - compStart;
+
+        if (compLen == 1 && compStart[0] == '.') {
+            // Skip "." component
+            continue;
+        }
+        else if (compLen == 2 && compStart[0] == '.' && compStart[1] == '.') {
+            // Handle ".." - go back to previous component
+            if (write > resolvedPath + 1) {
+                write--;  // Remove trailing slash
+                while (write > resolvedPath && *(write - 1) != '/')
+                    write--;
             }
         }
-        else if (strcmp(token, ".") != 0) {
-            // Ignore "." and add other components to the array
-            components[componentCount++] = token;
+        else {
+            // Add component
+            memcpy(write, compStart, compLen);
+            write += compLen;
+            *write++ = '/';
         }
-        token = strtok(NULL, "/");
     }
 
-    // Reconstruct the resolved path
-    resolvedPath[0] = '\0';
-    char *pathPtr = resolvedPath;
-    for (int i = 0; i < componentCount; i++) {
-        *pathPtr++ = '/';
-        size_t compLen = strlen(components[i]);
-        memcpy(pathPtr, components[i], compLen);
-        pathPtr += compLen;
+    // Remove trailing slash (except for root)
+    if (write > resolvedPath + 1 && *(write - 1) == '/') {
+        write--;
     }
-    *pathPtr = '\0';
 
-    // Handle the case where the path is empty
-    if (resolvedPath[0] == '\0') {
-        strcpy(resolvedPath, "/");
+    // Handle empty path case
+    if (write == resolvedPath) {
+        *write++ = '/';
     }
+
+    *write = '\0';
 
     return resolvedPath;
 }

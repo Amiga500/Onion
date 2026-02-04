@@ -269,46 +269,52 @@ void display_setBrightness(uint32_t value)
  */
 void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, rect_t rect, bool rotate, bool mask, bool write)
 {
-    int bufferPos = index * display->vinfo.yres;
+    // Cache frequently accessed values to avoid repeated struct member access
+    const int yres = display->vinfo.yres;
+    const int xres = display->vinfo.xres;
+    uint32_t *fb = display->fb_addr;
+    const int bufferPos = index * yres;
 
-    for (int oy = 0; oy < rect.h; oy++) {
+    // Pre-calculate bounds to avoid redundant checks in inner loop
+    int startY = (rect.y < 0) ? -rect.y : 0;
+    int endY = (rect.y + rect.h > yres) ? yres - rect.y : rect.h;
+    
+    for (int oy = startY; oy < endY; oy++) {
         int y = rect.y + oy;
-
-        if (y < 0 || y >= display->vinfo.yres)
-            continue;
-
-        int virtualY = bufferPos + (rotate ? (display->vinfo.yres - 1) - y : y);
-        long baseOffset = (long)virtualY * display->vinfo.xres;
+        int virtualY = bufferPos + (rotate ? (yres - 1) - y : y);
+        long baseOffset = (long)virtualY * xres;
         int baseIndex = oy * rect.w;
 
-        for (int ox = 0; ox < rect.w; ox++) {
+        // Pre-calculate x bounds for this row
+        int startX = (rect.x < 0) ? -rect.x : 0;
+        int endX = (rect.x + rect.w > xres) ? xres - rect.x : rect.w;
+
+        for (int ox = startX; ox < endX; ox++) {
             int x = rect.x + ox;
 
             if (rotate) {
-                x = (display->vinfo.xres - 1) - x;
+                x = (xres - 1) - x;
             }
 
-            if (x < 0 || x >= display->vinfo.xres)
-                continue;
-
             long offset = baseOffset + (long)x;
-            int index = baseIndex + ox;
+            int pixelIndex = baseIndex + ox;
+            
             if (write) {
                 if (mask) {
-                    if (pixels[index] != 0) {
-                        display->fb_addr[offset] = 0;
+                    if (pixels[pixelIndex] != 0) {
+                        fb[offset] = 0;
                     }
                 }
                 else {
-                    display->fb_addr[offset] = pixels[index];
+                    fb[offset] = pixels[pixelIndex];
                 }
             }
             else {
                 if (mask) {
-                    pixels[index] = display->fb_addr[offset] == 0 ? 1 : 0;
+                    pixels[pixelIndex] = fb[offset] == 0 ? 1 : 0;
                 }
                 else {
-                    pixels[index] = display->fb_addr[offset];
+                    pixels[pixelIndex] = fb[offset];
                 }
             }
         }
