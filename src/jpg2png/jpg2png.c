@@ -140,15 +140,14 @@ int main(int argc, char *argv[])
 
     // Create png
     size_t arglen = strlen(argv[1]);
-    if (arglen >= sizeof(filename) - 5) {  // Reserve space for ".png\0"
+    if (arglen >= sizeof(filename) - 4) {  // Reserve space for ".png" extension (4 chars)
         fprintf(stderr, "filename too long\n");
         goto error;
     }
-    strncpy(filename, argv[1], sizeof(filename) - 1);
-    filename[sizeof(filename) - 1] = '\0';
+    strcpy(filename, argv[1]);  // Safe: we verified arglen < sizeof(filename) - 4
     ptr = strrchr(filename, '.');
     if (ptr)
-        *ptr = 0;
+        *ptr = '\0';
     strcat(filename, ".png");
     fp = fopen(filename, "wb");
     if (!fp) {
