@@ -9,7 +9,7 @@ SOURCES = .
 CFILES = $(foreach dir, $(SOURCES), $(wildcard $(dir)/*.c))
 OFILES = $(CFILES:.c=.o)
 
-CFLAGS = -Os $(ARCH) -ffunction-sections -fdata-sections -Wall
+CFLAGS = -Os $(ARCH) -ffunction-sections -fdata-sections -Wall -I../common
 LDFLAGS = $(ARCH) -lmi_sys -lmi_gfx -lpng -Wl,-Bstatic -ljpeg -Wl,-Bdynamic
 
 $(TARGET): $(OFILES)

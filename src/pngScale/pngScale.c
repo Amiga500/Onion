@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "utils/neon_simd.h"
+
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 #define ERROR(str)                 \
     {                              \
@@ -69,8 +71,7 @@ int main(int argc, char *argv[])
     MI_PHY srcPa = 0, dstPa = 0;
     void *tmp, *srcVa = NULL, *dstVa = NULL;
     uint8_t *src8;
-    uint32_t *src, *dst, pix, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
-                                                    mh = 360;
+    uint32_t *src, *dst, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250, mh = 360;
 
     // Read commandline and open src
     if (argc < 3)
@@ -112,43 +113,39 @@ int main(int argc, char *argv[])
     // Read png
     rows = png_get_rows(png_ptr, info_ptr);
 
-    // Convert png to src ARGB8888
+    // Convert png to src ARGB8888 (NEON-optimized for bulk pixel conversion)
     dst = srcVa;
     switch (ch) {
     case 1:
+        // Grayscale -> ARGB8888
         for (y = 0; y < sh; y++) {
             src8 = rows[y];
-            for (x = 0; x < sw; x++, src8++) {
-                *dst++ =
-                    0xFF000000 | (src8[0] << 16) | (src8[0] << 8) | src8[0];
-            }
+            neon_gray_to_argb8888(dst, src8, sw);
+            dst += sw;
         }
         break;
     case 2:
+        // Grayscale+Alpha -> ARGB8888
         for (y = 0; y < sh; y++) {
             src8 = rows[y];
-            for (x = 0; x < sw; x++, src8 += 2) {
-                *dst++ = (src8[1] << 24) | (src8[0] << 16) | (src8[0] << 8) |
-                         src8[0];
-            }
+            neon_graya_to_argb8888(dst, src8, sw);
+            dst += sw;
         }
         break;
     case 3:
+        // RGB888 -> ARGB8888
         for (y = 0; y < sh; y++) {
             src8 = rows[y];
-            for (x = 0; x < sw; x++, src8 += 3) {
-                *dst++ = 0xFF000000 | src8[0] << 16 | (src8[1] << 8) | src8[2];
-            }
+            neon_rgb888_to_argb8888(dst, src8, sw);
+            dst += sw;
         }
         break;
     case 4:
+        // RGBA8888 -> ARGB8888 (swap R and B)
         for (y = 0; y < sh; y++) {
             src = (uint32_t *)rows[y];
-            for (x = 0; x < sw; x++) {
-                pix = *src++;
-                *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                         (pix & 0x000000FF) << 16;
-            }
+            neon_rgba_to_argb(dst, src, sw);
+            dst += sw;
         }
         break;
     }
@@ -193,11 +190,9 @@ int main(int argc, char *argv[])
     tmp = malloc(dw * 4);
     for (y = 0; y < dh; y++) {
         dst = tmp;
-        for (x = 0; x < dw; x++) {
-            pix = *src++;
-            *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                     (pix & 0x000000FF) << 16;
-        }
+        // NEON-optimized ARGB -> RGBA conversion (swap R and B)
+        neon_swap_rb(dst, src, dw);
+        src += dw;
         png_write_row(png_ptr, (png_bytep)tmp);
     }
     png_write_end(png_ptr, info_ptr);

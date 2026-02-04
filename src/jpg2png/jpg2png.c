@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "utils/neon_simd.h"
+
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 
 //
@@ -64,8 +66,7 @@ int main(int argc, char *argv[])
     MI_PHY jpgPa = 0, pngPa = 0;
     void *tmp, *jpgVa = NULL, *pngVa = NULL;
     uint8_t *src8;
-    uint32_t *src, *dst, pix, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
-                                                    mh = 360;
+    uint32_t *src, *dst, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250, mh = 360;
     char filename[256], *ptr;
 
     // Read commandline and open jpg
@@ -99,16 +100,15 @@ int main(int argc, char *argv[])
     MI_SYS_MMA_Alloc(NULL, ss, &jpgPa);
     MI_SYS_Mmap(jpgPa, ss, &jpgVa, TRUE);
 
-    // Read jpeg
+    // Read jpeg and convert RGB888 to ARGB8888 (NEON-optimized)
     tmp = malloc(jpeg.output_width * 3);
     dst = jpgVa;
     for (y = 0; y < sh; y++) {
         src8 = tmp;
         jpeg_read_scanlines(&jpeg, &src8, 1);
-        for (x = 0; x < sw; x++, src8 += 3) {
-            // Convert RGB888 to ARGB8888
-            *dst++ = 0xFF000000 | (src8[0] << 16) | (src8[1] << 8) | src8[2];
-        }
+        // NEON-optimized RGB888 to ARGB8888 conversion
+        neon_rgb888_to_argb8888(dst, src8, sw);
+        dst += sw;
     }
     free(tmp);
     jpeg_finish_decompress(&jpeg);
@@ -158,11 +158,9 @@ int main(int argc, char *argv[])
     png_write_info(png_ptr, info_ptr);
     src = pngVa;
     for (y = 0; y < dh; y++) {
-        for (x = 0; x < dw; x++) {
-            pix = *src++;
-            dst[x] = 0xFF000000 | (pix & 0x0000FF00) |
-                     (pix & 0x00FF0000) >> 16 | (pix & 0x000000FF) << 16;
-        }
+        // NEON-optimized ARGB -> RGBA conversion (swap R and B, preserve alpha)
+        neon_swap_rb(dst, src, dw);
+        src += dw;
         png_write_row(png_ptr, (png_bytep)tmp);
     }
     png_write_end(png_ptr, info_ptr);
