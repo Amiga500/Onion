@@ -44,13 +44,14 @@ void _config_prepare(const char *key, char *filename)
 {
     concat(filename, CONFIG_PATH, key);
 
+    // dirname() modifies its input, so we work with a copy
     char dir_path[STR_MAX];
     strcpy(dir_path, filename);
-    dirname(dir_path);
+    char *dir_result = dirname(dir_path);
 
-    if (!exists(dir_path)) {
+    if (!exists(dir_result)) {
         char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
+        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_result);
         system(dir_cmd);
     }
 }

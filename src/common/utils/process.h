@@ -20,26 +20,33 @@ pid_t process_searchpid(const char *commname)
 {
     DIR *procdp;
     struct dirent *dir;
-    char fname[24];
+    char fname[32];  // Enough for "/proc/<max_pid>/comm"
     char comm[128];
     pid_t pid;
     pid_t ret = 0;
     size_t commlen = strlen(commname);
 
     procdp = opendir("/proc");
+    if (procdp == NULL)
+        return 0;
+    
     while ((dir = readdir(procdp))) {
         if (dir->d_type == DT_DIR) {
             pid = atoi(dir->d_name);
             if (pid > 2) {
-                sprintf(fname, "/proc/%d/comm", pid);
+                snprintf(fname, sizeof(fname), "/proc/%d/comm", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
-                    fscanf(fp, "%127s", comm);
-                    fclose(fp);
-                    if (!strncmp(comm, commname, commlen)) {
-                        ret = pid;
-                        break;
+                    bool found = false;
+                    if (fscanf(fp, "%127s", comm) == 1) {
+                        if (!strncmp(comm, commname, commlen)) {
+                            ret = pid;
+                            found = true;
+                        }
                     }
+                    fclose(fp);
+                    if (found)
+                        break;
                 }
             }
         }
@@ -72,20 +79,20 @@ bool process_start(const char *pname, const char *args, const char *home,
                    bool await)
 {
     char filename[256];
-    sprintf(filename, "%s/bin/%s", home != NULL ? home : ".", pname);
+    snprintf(filename, sizeof(filename), "%s/bin/%s", home != NULL ? home : ".", pname);
     if (!exists(filename))
-        sprintf(filename, "%s/%s", home != NULL ? home : ".", pname);
+        snprintf(filename, sizeof(filename), "%s/%s", home != NULL ? home : ".", pname);
     if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/bin/%s", pname);
+        snprintf(filename, sizeof(filename), "/mnt/SDCARD/.tmp_update/bin/%s", pname);
     if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/%s", pname);
+        snprintf(filename, sizeof(filename), "/mnt/SDCARD/.tmp_update/%s", pname);
     if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/miyoo/app/%s", pname);
+        snprintf(filename, sizeof(filename), "/mnt/SDCARD/miyoo/app/%s", pname);
     if (!exists(filename))
         return false;
 
     char cmd[512];
-    sprintf(cmd, "cd \"%s\"; %s %s %s", home != NULL ? home : ".", filename,
+    snprintf(cmd, sizeof(cmd), "cd \"%s\"; %s %s %s", home != NULL ? home : ".", filename,
             args != NULL ? args : "", await ? "" : "&");
     system(cmd);
 
@@ -100,23 +107,29 @@ bool process_start_read_return(const char *cmdline, char *out_str)
     FILE *pipe = popen(cmdline, "r");
     if (pipe == NULL) {
         fprintf(stderr, "Error executing command: %s\n", cmdline);
-        return -1;
+        out_str[0] = '\0';
+        return false;
     }
 
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        // Free previous allocation to avoid memory leak
+        free(result);
         result = strdup(buffer);
     }
 
     pclose(pipe);
     if (result != NULL) {
-        result[strlen(buffer) - 1] = '\0';
+        // Remove trailing newline if present
+        size_t len = strlen(result);
+        if (len > 0 && result[len - 1] == '\n')
+            result[len - 1] = '\0';
         strcpy(out_str, result);
         free(result);
     }
     else {
-        strcpy(out_str, "");
+        out_str[0] = '\0';
     }
-    return 0;
+    return true;
 }
 
 #endif // PROCESS_H__

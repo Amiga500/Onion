@@ -175,11 +175,13 @@ char *file_read(const char *path)
 
 bool file_write(const char *path, const char *str, uint32_t len)
 {
-    uint32_t fd;
-    if ((fd = open(path, O_WRONLY)) == 0)
+    int fd = open(path, O_WRONLY);
+    if (fd == -1)
         return false;
-    if (write(fd, str, len) == -1)
+    if (write(fd, str, len) == -1) {
+        close(fd);
         return false;
+    }
     close(fd);
     return true;
 }

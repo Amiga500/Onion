@@ -77,7 +77,11 @@ void imageCache_load(int *offset, SDL_Surface *(*_load_image)(int), int total)
     images_total = total;
     pthread_mutex_unlock(&cache_mutex);
     
-    pthread_create(&romscreen_thread_pt, NULL, _imageCacheThread, offset);
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&romscreen_thread_pt, &attr, _imageCacheThread, offset);
+    pthread_attr_destroy(&attr);
 }
 
 void imageCache_removeItem(int image_index)

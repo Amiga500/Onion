@@ -210,8 +210,11 @@ bool includeCJK(char *str)
 {
     while (*str) {
         unsigned char c = *str;
-        // normal cjk range
-        if (c >= 0x80 && c <= 0x9FFF) {
+        // UTF-8 encoded CJK characters start with bytes 0xE0-0xEF (3-byte sequences)
+        // or 0xF0-0xF4 (4-byte sequences). The common CJK range uses 3-byte sequences.
+        // A simpler check: if we see any multi-byte UTF-8 character (>= 0x80),
+        // treat it as potentially CJK for display purposes.
+        if (c >= 0x80) {
             return true;
         }
         str++;
