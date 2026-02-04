@@ -146,15 +146,17 @@ core: $(CACHE)/.setup
 # Build dependencies for installer
 	@mkdir -p $(INSTALLER_DIR)/bin
 	@cd $(SRC_DIR)/installUI && BUILD_DIR=$(INSTALLER_DIR)/bin/ VERSION=$(VERSION) make
-	@cp $(BIN_DIR)/prompt $(INSTALLER_DIR)/bin/
-	@cp $(BIN_DIR)/batmon $(INSTALLER_DIR)/bin/
-	@cp $(BIN_DIR)/detectKey $(INSTALLER_DIR)/bin/
-	@cp $(BIN_DIR)/infoPanel $(INSTALLER_DIR)/bin/
-	@cp $(BIN_DIR)/gameNameList $(INSTALLER_DIR)/bin/
-	@cp $(BIN_DIR)/playActivity $(INSTALLER_DIR)/bin/
-	@cp $(BIN_DIR)/7z $(INSTALLER_DIR)/bin/
+	@$(ECHO) "\n:: Copying installer dependencies"
+	@cp $(BIN_DIR)/prompt $(INSTALLER_DIR)/bin/ || (echo "ERROR: Failed to copy prompt" && false)
+	@cp $(BIN_DIR)/batmon $(INSTALLER_DIR)/bin/ || (echo "ERROR: Failed to copy batmon" && false)
+	@cp $(BIN_DIR)/detectKey $(INSTALLER_DIR)/bin/ || (echo "ERROR: Failed to copy detectKey" && false)
+	@cp $(BIN_DIR)/infoPanel $(INSTALLER_DIR)/bin/ || (echo "ERROR: Failed to copy infoPanel" && false)
+	@cp $(BIN_DIR)/gameNameList $(INSTALLER_DIR)/bin/ || (echo "ERROR: Failed to copy gameNameList" && false)
+	@cp $(BIN_DIR)/playActivity $(INSTALLER_DIR)/bin/ || (echo "ERROR: Failed to copy playActivity" && false)
+	@cp $(BIN_DIR)/7z $(INSTALLER_DIR)/bin/ || (echo "ERROR: Failed to copy 7z" && false)
 # Overrider miyoo libraries
-	@cp $(BIN_DIR)/libgamename.so $(BUILD_DIR)/miyoo/lib/
+	@cp $(BIN_DIR)/libgamename.so $(BUILD_DIR)/miyoo/lib/ || (echo "ERROR: Failed to copy libgamename.so" && false)
+	@$(ECHO) "-> Installer dependencies copied"
 
 apps: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)

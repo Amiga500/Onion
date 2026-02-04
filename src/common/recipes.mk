@@ -1,9 +1,11 @@
 $(TARGET): $(OFILES)
+	@$(ECHO) $(PRINT_RECIPE)
 	@$(CXX) $(OFILES) -o "$@" $(LDFLAGS)	
 	@if test -z "$(DEBUG)" && test -z "$(SANITIZE)"; then \
 		$(STRIP) "$@"; \
 	fi
 	@-mv -f $(TARGET) "$(BUILD_DIR)/$(TARGET)"
+	@$(ECHO) $(PRINT_DONE)
 
 build: $(TARGET)
 
