@@ -70,7 +70,7 @@ static void *_saveRomScreenAndStateThread(void *arg)
     return NULL;
 }
 
-void overlay_init()
+static inline void overlay_init()
 {
     if (!appState.is_overlay) {
         return;
