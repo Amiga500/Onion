@@ -30,7 +30,11 @@
 #include "gs_appState.h"
 #include "gs_history.h"
 #include "gs_keystate.h"
+#ifdef USE_OPTIMIZED_OVERLAY
+#include "gs_overlay_optimized.h"
+#else
 #include "gs_overlay.h"
+#endif
 #include "gs_render.h"
 
 int main(int argc, char *argv[])

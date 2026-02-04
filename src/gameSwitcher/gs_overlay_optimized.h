@@ -34,6 +34,43 @@
 #include "gs_model.h"
 #include "gs_render.h"
 
+/**
+ * Helper function: Set framebuffer as first ROM screen
+ * (Copied from gs_overlay.h for standalone operation)
+ */
+static void setFbAsFirstRomScreen(void)
+{
+    if (game_list_len == 0)
+        return;
+
+    Game_s *game = &game_list[0];
+
+    if (game->romScreen != NULL) {
+        SDL_FreeSurface(game->romScreen);
+        game->romScreen = NULL;
+    }
+
+    game->romScreen = SDL_CreateRGBSurface(SDL_SWSURFACE, g_display.width, g_display.height, 32, 0, 0, 0, 0);
+    display_readCurrentBuffer(&g_display, (uint32_t *)game->romScreen->pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
+
+    if (game->romScreen == NULL) {
+        print_debug("Error creating fb surface\n");
+    }
+}
+
+/**
+ * Helper function: Check if content name is in info string
+ * (Copied from gs_overlay.h for standalone operation)
+ */
+static bool _isContentNameInInfo(const char *content_info, const char *content_name)
+{
+    const char *found = strstr(content_info, content_name);
+    if (found != NULL) {
+        return *(found - 1) == ',' && *(found + strlen(content_name)) == ',';
+    }
+    return false;
+}
+
 // Save state status tracking
 typedef enum {
     SAVE_STATE_IDLE = 0,
@@ -137,8 +174,6 @@ static void *_saveRomScreenAndStateThreadOptimized(void *arg)
 {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    
-    Game_s *game = &game_list[0];
     
     pthread_mutex_lock(&g_save_context.mutex);
     
@@ -393,5 +428,13 @@ void overlay_exit_optimized(void)
         _cleanupSaveStateContext();
     }
 }
+
+/**
+ * Function aliases to match the standard overlay API
+ * When USE_OPTIMIZED_OVERLAY is defined, these names map to optimized versions
+ */
+#define overlay_init    overlay_init_optimized
+#define overlay_resume  overlay_resume_optimized
+#define overlay_exit    overlay_exit_optimized
 
 #endif // GAME_SWITCHER_OVERLAY_OPTIMIZED_H

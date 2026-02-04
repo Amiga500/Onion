@@ -53,6 +53,12 @@ LDFLAGS := $(LDFLAGS) -L../../lib -L/usr/local/lib
 ifeq ($(PLATFORM),miyoomini)
 CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -Wl,-rpath=$(LIB)
 
+# Performance optimizations (enable with OPTIMIZE_SAVE=1)
+ifeq ($(OPTIMIZE_SAVE),1)
+CFLAGS := $(CFLAGS) -DUSE_OPTIMIZED_OVERLAY
+CFLAGS := $(CFLAGS) -DARM_NEON_OPTIMIZATIONS
+endif
+
 ifdef INCLUDE_SHMVAR
 LDFLAGS := $(LDFLAGS) -lshmvar
 endif
