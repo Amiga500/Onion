@@ -140,8 +140,7 @@ int play_activity_get_total_play_time(void)
 {
     int total_play_time = 0;
     char *sql =
-        "SELECT SUM(play_time_total) FROM (SELECT SUM(play_time) AS play_time_total FROM play_activity GROUP BY rom_id) "
-        "WHERE play_time_total > 60;";
+        "SELECT SUM(play_time_total) FROM (SELECT SUM(play_time) AS play_time_total FROM play_activity GROUP BY rom_id);";
     sqlite3_stmt *stmt;
 
     play_activity_db_open();
