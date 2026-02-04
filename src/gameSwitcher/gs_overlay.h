@@ -44,7 +44,8 @@ void setFbAsFirstRomScreen(void)
 
 static bool _isContentNameInInfo(const char *content_info, const char *content_name)
 {
-    if (content_info == NULL || content_name == NULL || strlen(content_name) == 0) {
+    if (content_info == NULL || content_name == NULL || 
+        content_info[0] == '\0' || content_name[0] == '\0') {
         return false;
     }
     
@@ -113,8 +114,11 @@ void overlay_init()
     game->is_running = _isContentNameInInfo(status.content_info, game->rom_name);
     
     // If exact match failed but RetroArch is running content, try a simpler check
-    // to handle cases where filenames differ from ROM internal names
-    if (!game->is_running && strlen(game->rom_name) > 0 && strlen(status.content_info) > 0) {
+    // to handle cases where filenames differ from ROM internal names.
+    // Note: This partial match may produce false positives if rom_name is a 
+    // substring of another game's name, but this is acceptable as the alternative
+    // is missing preview saves for games with naming mismatches.
+    if (!game->is_running && game->rom_name[0] != '\0' && status.content_info[0] != '\0') {
         // Check if rom_name appears anywhere in content_info (partial match fallback)
         if (strstr(status.content_info, game->rom_name) != NULL) {
             game->is_running = true;
