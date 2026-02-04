@@ -2,6 +2,22 @@
 
 This guide explains how to build Onion firmware from source code.
 
+## ⚠️ Already Inside a Docker Container?
+
+**If you see `root@containerid` in your prompt**, you're already inside a Docker container. Skip the Docker setup and just run:
+
+```bash
+# Initialize submodules (first time only)
+make git-submodules
+
+# Build everything
+make all
+```
+
+**Do NOT use `sudo`** (you're already root) and **do NOT use `make with-toolchain`** (you're already in the container).
+
+---
+
 ## Prerequisites
 
 - Git
