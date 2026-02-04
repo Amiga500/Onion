@@ -99,7 +99,7 @@ int renderTextAlignRight(const char *text, TTF_Font *font, SDL_Color color, SDL_
 
 SDL_Surface *loadRomImage(const char *image_path)
 {
-    SDL_Surface *img = IMG_Load(is_file(image_path) ? image_path : "/mnt/SDCARD/miyoo/app/skin/thumb-default.png");
+    SDL_Surface *img = IMG_Load((image_path != NULL && is_file(image_path)) ? image_path : "/mnt/SDCARD/miyoo/app/skin/thumb-default.png");
 
     double sw = (double)IMG_MAX_WIDTH / img->w;
     double sh = (double)IMG_MAX_HEIGHT / img->h;
@@ -149,9 +149,10 @@ void renderPage(int current_page)
         SDL_FreeSurface(romImage);
 
         if (show_raw_names)
-            strncpy(rom_name, rom->name, STR_MAX - 1);
+            strncpy(rom_name, rom->name ? rom->name : "", STR_MAX - 1);
         else
-            file_cleanName(rom_name, rom->name);
+            file_cleanName(rom_name, rom->name ? rom->name : "");
+        rom_name[STR_MAX - 1] = '\0';
         renderText(rom_name, includeCJK(rom_name) ? fontCJKRomName25 : font30, color_white, &(SDL_Rect){num_width + 100, 75 + 90 * row, 400, 40});
 
         str_serializeTime(total, entry->play_time_total);
