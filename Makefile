@@ -115,33 +115,33 @@ build: core apps external
 core: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)
 # Build Onion binaries
-	@cd $(SRC_DIR)/bootScreen && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/chargingState && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/gameSwitcher && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/mainUiBatPerc && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/keymon && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/playActivity && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/themeSwitcher && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/tweaks && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/packageManager && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/sendkeys && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/setState && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/renameRom && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/infoPanel && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/prompt && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/batmon && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/easter && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/read_uuid && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/detectKey && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/axp && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/pressMenu2Kill && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/pngScale && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/libgamename && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/gameNameList && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/sendUDP && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/tree && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/pippi && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/cpuclock && BUILD_DIR=$(BIN_DIR) make
+	@cd $(SRC_DIR)/bootScreen && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/chargingState && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/gameSwitcher && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/mainUiBatPerc && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/keymon && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/playActivity && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/themeSwitcher && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/tweaks && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/packageManager && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/sendkeys && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/setState && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/renameRom && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/infoPanel && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/prompt && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/batmon && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/easter && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/read_uuid && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/detectKey && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/axp && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/pressMenu2Kill && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/pngScale && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/libgamename && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/gameNameList && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/sendUDP && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/tree && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/pippi && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/cpuclock && BUILD_DIR=$(BIN_DIR) VERSION=$(VERSION) make
 
 # Build dependencies for installer
 	@mkdir -p $(INSTALLER_DIR)/bin
@@ -158,13 +158,13 @@ core: $(CACHE)/.setup
 
 apps: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)
-	@cd $(SRC_DIR)/batteryMonitorUI && BUILD_DIR="$(PACKAGES_APP_DEST)/Battery Monitor/App/BatteryMonitorUI" make
+	@cd $(SRC_DIR)/batteryMonitorUI && BUILD_DIR="$(PACKAGES_APP_DEST)/Battery Monitor/App/BatteryMonitorUI" VERSION=$(VERSION) make
 	@find $(SRC_DIR)/batteryMonitorUI -depth -type d -name res -exec cp -r {}/. "$(PACKAGES_APP_DEST)/Battery Monitor/App/BatteryMonitorUI/res/" \;
-	@cd $(SRC_DIR)/playActivityUI && BUILD_DIR="$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity" make
+	@cd $(SRC_DIR)/playActivityUI && BUILD_DIR="$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity" VERSION=$(VERSION) make
 	@find $(SRC_DIR)/playActivityUI -depth -type d -name res -exec cp -r {}/. "$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity/res/" \;
 	@find $(SRC_DIR)/packageManager -depth -type d -name res -exec cp -r {}/. $(BUILD_DIR)/App/PackageManager/res/ \;
-	@cd $(SRC_DIR)/clock && BUILD_DIR="$(BIN_DIR)" make
-	@cd $(SRC_DIR)/randomGamePicker && BUILD_DIR="$(BIN_DIR)" make
+	@cd $(SRC_DIR)/clock && BUILD_DIR="$(BIN_DIR)" VERSION=$(VERSION) make
+	@cd $(SRC_DIR)/randomGamePicker && BUILD_DIR="$(BIN_DIR)" VERSION=$(VERSION) make
 # Preinstalled apps
 	@cp -a "$(PACKAGES_APP_DEST)/Activity Tracker/." $(BUILD_DIR)/
 	@cp -a "$(PACKAGES_APP_DEST)/Quick Guide/." $(BUILD_DIR)/
