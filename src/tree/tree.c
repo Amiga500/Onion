@@ -207,8 +207,14 @@ int main(int argc, char *argv[])
                 char *token = strtok(directories, " ");
                 int count = 0;
                 while (token != NULL) {
-                    excluded_directories =
-                        realloc(excluded_directories, (count + 2) * sizeof(char *));
+                    // Use temporary pointer to avoid memory leak if realloc fails
+                    char **new_dirs = realloc(excluded_directories, (count + 2) * sizeof(char *));
+                    if (new_dirs == NULL) {
+                        fprintf(stderr, "Error: Memory allocation failed\n");
+                        free(excluded_directories);
+                        return 1;
+                    }
+                    excluded_directories = new_dirs;
                     excluded_directories[count++] = token;
                     excluded_directories[count] = NULL;
                     token = strtok(NULL, " ");
@@ -225,8 +231,14 @@ int main(int argc, char *argv[])
                 char *token = strtok(extensions, " ");
                 int count = 0;
                 while (token != NULL) {
-                    included_extensions =
-                        realloc(included_extensions, (count + 2) * sizeof(char *));
+                    // Use temporary pointer to avoid memory leak if realloc fails
+                    char **new_exts = realloc(included_extensions, (count + 2) * sizeof(char *));
+                    if (new_exts == NULL) {
+                        fprintf(stderr, "Error: Memory allocation failed\n");
+                        free(included_extensions);
+                        return 1;
+                    }
+                    included_extensions = new_exts;
                     included_extensions[count++] = token;
                     included_extensions[count] = NULL;
                     token = strtok(NULL, " ");
