@@ -147,10 +147,11 @@ void installNonDynamicElement(const char *theme_path, const char *image_name)
     char override_image_path[256], theme_image_path[256],
         system_image_path[256], system_image_backup[256];
 
-    sprintf(override_image_path, "%sskin/%s.png", THEME_OVERRIDES, image_name);
-    sprintf(theme_image_path, "%sskin/%s.png", theme_path, image_name);
-    sprintf(system_image_path, SYSTEM_SKIN_DIR "/%s.png", image_name);
-    sprintf(system_image_backup, SYSTEM_SKIN_DIR "/%s_back.png", image_name);
+    // Use snprintf for buffer overflow protection
+    snprintf(override_image_path, sizeof(override_image_path), "%sskin/%s.png", THEME_OVERRIDES, image_name);
+    snprintf(theme_image_path, sizeof(theme_image_path), "%sskin/%s.png", theme_path, image_name);
+    snprintf(system_image_path, sizeof(system_image_path), SYSTEM_SKIN_DIR "/%s.png", image_name);
+    snprintf(system_image_backup, sizeof(system_image_backup), SYSTEM_SKIN_DIR "/%s_back.png", image_name);
 
     // backup system skin
     if (!exists(system_image_backup))
@@ -177,10 +178,11 @@ void installTheme(char *theme_path, bool apply_icons)
 
     if (strstr(theme_path, "/.previews/") != NULL) {
         char cmd[STR_MAX * 2];
-        snprintf(cmd, STR_MAX * 2 - 1,
+        snprintf(cmd, sizeof(cmd),
                  SCRIPT_DIR "/themes_extract_theme.sh \"%s\"", theme_path);
 
-        sprintf(theme_path, THEMES_DIR "/%s/", basename(theme_path));
+        // Use snprintf for buffer overflow protection
+        snprintf(theme_path, STR_MAX, THEMES_DIR "/%s/", basename(theme_path));
 
         system(cmd);
         sync();

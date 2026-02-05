@@ -60,8 +60,10 @@ bool __get_path_recent(char *path_out)
         strcat(path_out, "Screenshot");
 
     fnptr = path_out + strlen(path_out);
+    size_t remaining = STR_MAX - (fnptr - path_out);  // Calculate remaining buffer space
     for (i = 0; i < 1000; i++) {
-        sprintf(fnptr, "_%03d.png", i);
+        // Use snprintf for buffer overflow protection
+        snprintf(fnptr, remaining, "_%03d.png", i);
         if (!exists(path_out))
             break;
     }

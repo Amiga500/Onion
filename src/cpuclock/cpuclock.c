@@ -131,7 +131,8 @@ int main(int argc, char *argv[])
     const char fn_governor[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
     const char fn_setspeed[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_setspeed";
     char clockstr[16];
-    sprintf(clockstr, "%d", clock * 1000);
+    // Use snprintf for buffer overflow protection
+    snprintf(clockstr, sizeof(clockstr), "%d", clock * 1000);
     writefile(fn_governor, "userspace");
     writefile(fn_setspeed, clockstr);
 
