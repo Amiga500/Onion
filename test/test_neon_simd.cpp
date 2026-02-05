@@ -13,6 +13,9 @@
 // Include the NEON SIMD header (it has scalar fallbacks for non-ARM platforms)
 #include "../src/common/utils/neon_simd.h"
 
+// Include assembly header for testing (uses intrinsics as fallback on non-ARM)
+#include "../src/common/utils/neon_asm.h"
+
 // Test RGB888 to ARGB8888 conversion
 TEST(NeonSimdTest, RGB888ToARGB8888)
 {
@@ -353,4 +356,117 @@ TEST(NeonSimdTest, GlyphRenderEmpty)
     for (int i = 0; i < 64; i++) {
         EXPECT_EQ(0xDEADu, buffer[i]) << "Pixel " << i << " should be unchanged";
     }
+}
+
+// ============================================================================
+// Tests for NEON Assembly Macros (use intrinsics fallback on non-ARM)
+// ============================================================================
+
+// Test NEON_RGB888_TO_ARGB8888 macro
+TEST(NeonAsmMacroTest, RGB888ToARGB8888Macro)
+{
+    const uint32_t width = 16;
+    uint8_t src[width * 3];
+    uint32_t dst[width];
+    uint32_t expected[width];
+
+    for (uint32_t i = 0; i < width; i++) {
+        src[i * 3 + 0] = (uint8_t)(i * 10);
+        src[i * 3 + 1] = (uint8_t)(i * 10 + 50);
+        src[i * 3 + 2] = (uint8_t)(i * 10 + 100);
+
+        expected[i] = 0xFF000000u |
+                      ((uint32_t)src[i * 3 + 0] << 16) |
+                      ((uint32_t)src[i * 3 + 1] << 8) |
+                      src[i * 3 + 2];
+    }
+
+    memset(dst, 0, sizeof(dst));
+    NEON_RGB888_TO_ARGB8888(dst, src, width);
+
+    for (uint32_t i = 0; i < width; i++) {
+        EXPECT_EQ(expected[i], dst[i]) << "Mismatch at pixel " << i;
+    }
+}
+
+// Test NEON_GRAY_TO_ARGB8888 macro
+TEST(NeonAsmMacroTest, GrayToARGB8888Macro)
+{
+    const uint32_t width = 16;
+    uint8_t src[width];
+    uint32_t dst[width];
+    uint32_t expected[width];
+
+    for (uint32_t i = 0; i < width; i++) {
+        src[i] = (uint8_t)(i * 16);
+        expected[i] = 0xFF000000u |
+                      ((uint32_t)src[i] << 16) |
+                      ((uint32_t)src[i] << 8) |
+                      src[i];
+    }
+
+    memset(dst, 0, sizeof(dst));
+    NEON_GRAY_TO_ARGB8888(dst, src, width);
+
+    for (uint32_t i = 0; i < width; i++) {
+        EXPECT_EQ(expected[i], dst[i]) << "Mismatch at pixel " << i;
+    }
+}
+
+// Test NEON_SWAP_RB macro
+TEST(NeonAsmMacroTest, SwapRBMacro)
+{
+    const uint32_t count = 16;
+    uint32_t src[count];
+    uint32_t dst[count];
+    uint32_t expected[count];
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint8_t a = (uint8_t)(255 - i * 10);
+        uint8_t r = (uint8_t)(i * 15);
+        uint8_t g = (uint8_t)(128);
+        uint8_t b = (uint8_t)(255 - i * 15);
+
+        src[i] = ((uint32_t)a << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        expected[i] = ((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)g << 8) | r;
+    }
+
+    memset(dst, 0, sizeof(dst));
+    NEON_SWAP_RB(dst, src, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        EXPECT_EQ(expected[i], dst[i]) << "Mismatch at pixel " << i;
+    }
+}
+
+// Test NEON_FILL32 macro
+TEST(NeonAsmMacroTest, Fill32Macro)
+{
+    const uint32_t count = 100;
+    uint32_t dst[count];
+    const uint32_t value = 0xCAFEBABE;
+
+    memset(dst, 0, sizeof(dst));
+    NEON_FILL32(dst, value, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        EXPECT_EQ(value, dst[i]) << "Mismatch at index " << i;
+    }
+}
+
+// Test NEON_MEMCPY macro
+TEST(NeonAsmMacroTest, MemCpyMacro)
+{
+    const size_t bytes = 256;
+    uint8_t src[bytes];
+    uint8_t dst[bytes];
+
+    for (size_t i = 0; i < bytes; i++) {
+        src[i] = (uint8_t)(i & 0xFF);
+    }
+
+    memset(dst, 0, sizeof(dst));
+    NEON_MEMCPY(dst, src, bytes);
+
+    EXPECT_EQ(0, memcmp(src, dst, bytes)) << "Memory copy mismatch";
 }
