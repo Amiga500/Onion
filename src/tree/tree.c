@@ -208,13 +208,14 @@ int main(int argc, char *argv[])
                 int count = 0;
                 while (token != NULL) {
                     // Use temporary pointer to avoid memory leak if realloc fails
-                    char **new_dirs = realloc(excluded_directories, (count + 2) * sizeof(char *));
+                    char **new_dirs = realloc((void *)excluded_directories, (count + 2) * sizeof(char *));
                     if (new_dirs == NULL) {
                         fprintf(stderr, "Error: Memory allocation failed\n");
-                        free(excluded_directories);
+                        free((void *)excluded_directories);
+                        free((void *)included_extensions);
                         return 1;
                     }
-                    excluded_directories = new_dirs;
+                    excluded_directories = (const char **)new_dirs;
                     excluded_directories[count++] = token;
                     excluded_directories[count] = NULL;
                     token = strtok(NULL, " ");
@@ -222,6 +223,8 @@ int main(int argc, char *argv[])
             }
             else {
                 fprintf(stderr, "Error: Missing argument for -e\n");
+                free((void *)excluded_directories);
+                free((void *)included_extensions);
                 return 1;
             }
         }
@@ -232,13 +235,14 @@ int main(int argc, char *argv[])
                 int count = 0;
                 while (token != NULL) {
                     // Use temporary pointer to avoid memory leak if realloc fails
-                    char **new_exts = realloc(included_extensions, (count + 2) * sizeof(char *));
+                    char **new_exts = realloc((void *)included_extensions, (count + 2) * sizeof(char *));
                     if (new_exts == NULL) {
                         fprintf(stderr, "Error: Memory allocation failed\n");
-                        free(included_extensions);
+                        free((void *)excluded_directories);
+                        free((void *)included_extensions);
                         return 1;
                     }
-                    included_extensions = new_exts;
+                    included_extensions = (const char **)new_exts;
                     included_extensions[count++] = token;
                     included_extensions[count] = NULL;
                     token = strtok(NULL, " ");
@@ -246,6 +250,8 @@ int main(int argc, char *argv[])
             }
             else {
                 fprintf(stderr, "Error: Missing argument for -i\n");
+                free((void *)excluded_directories);
+                free((void *)included_extensions);
                 return 1;
             }
         }
@@ -257,9 +263,9 @@ int main(int argc, char *argv[])
            counter.files);
 
     if (excluded_directories)
-        free(excluded_directories);
+        free((void *)excluded_directories);
     if (included_extensions)
-        free(included_extensions);
+        free((void *)included_extensions);
 
     return 0;
 }

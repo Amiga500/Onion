@@ -58,8 +58,7 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
             max_lines *= 2;
             // Use temporary pointers to avoid memory leak if realloc fails
             char **new_lines = realloc(lines, max_lines * sizeof(char *));
-            int *new_widths = realloc(line_widths, max_lines * sizeof(int));
-            if (new_lines == NULL || new_widths == NULL) {
+            if (new_lines == NULL) {
                 // Clean up on failure
                 for (int j = 0; j < line_count; j++) {
                     free(lines[j]);
@@ -69,6 +68,17 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
                 return NULL;
             }
             lines = new_lines;
+            
+            int *new_widths = realloc(line_widths, max_lines * sizeof(int));
+            if (new_widths == NULL) {
+                // Clean up on failure - lines was already updated
+                for (int j = 0; j < line_count; j++) {
+                    free(lines[j]);
+                }
+                free(lines);
+                free(line_widths);
+                return NULL;
+            }
             line_widths = new_widths;
         }
         char *linebuf = malloc(len + 1);
