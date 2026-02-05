@@ -35,7 +35,7 @@ bool ra_loadHistory(const char *jsonFilePath)
     fclose(file);
     
     if (bytesRead != (size_t)fileSize) {
-        print_debug("Error reading JSON file: expected %ld bytes, got %zu", fileSize, bytesRead);
+        printf_debug("Error reading JSON file: expected %ld bytes, got %zu", fileSize, bytesRead);
         free(fileContent);
         return false;
     }
