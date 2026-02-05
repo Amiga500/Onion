@@ -1362,6 +1362,11 @@ static inline void neon_scale_nearest_row(uint32_t *dst, const uint32_t *src,
                                            uint32_t dst_width, uint32_t src_width,
                                            uint32_t y_src, uint32_t src_stride)
 {
+    /* Guard against zero dimensions */
+    if (dst_width == 0 || src_width == 0) {
+        return;
+    }
+
     const uint32_t *src_row = src + y_src * src_stride;
     
     /* Fixed-point scaling factor: 16.16 format */
@@ -1428,6 +1433,11 @@ static inline void neon_scale_nearest(uint32_t *dst, const uint32_t *src,
                                        uint32_t dst_width, uint32_t dst_height,
                                        uint32_t src_width, uint32_t src_height)
 {
+    /* Guard against zero dimensions */
+    if (dst_width == 0 || dst_height == 0 || src_width == 0 || src_height == 0) {
+        return;
+    }
+
     /* Fixed-point Y scaling factor: 16.16 format */
     uint32_t y_ratio = ((src_height << 16) / dst_height);
 

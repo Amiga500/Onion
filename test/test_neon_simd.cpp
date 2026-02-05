@@ -947,6 +947,25 @@ TEST(NeonSimdTest, ScaleNearest2x)
     EXPECT_EQ(0xFFFFFF00u, dst[4 * dst_w + 4]);
 }
 
+// Test scaling with zero dimensions (should not crash)
+TEST(NeonSimdTest, ScaleNearestZeroDimensions)
+{
+    uint32_t src[16] = {0xFFFFFFFF};
+    uint32_t dst[16] = {0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF, 0xDEADBEEF};
+
+    // Zero destination width - should return without modification
+    neon_scale_nearest(dst, src, 0, 4, 4, 4);
+    EXPECT_EQ(0xDEADBEEFu, dst[0]) << "Zero dst_width should not modify destination";
+
+    // Zero destination height - should return without modification
+    neon_scale_nearest(dst, src, 4, 0, 4, 4);
+    EXPECT_EQ(0xDEADBEEFu, dst[0]) << "Zero dst_height should not modify destination";
+
+    // Zero source dimensions - should return without modification
+    neon_scale_nearest(dst, src, 4, 4, 0, 4);
+    EXPECT_EQ(0xDEADBEEFu, dst[0]) << "Zero src_width should not modify destination";
+}
+
 // Test scaling 0.5x (downscale)
 TEST(NeonSimdTest, ScaleNearestHalf)
 {
