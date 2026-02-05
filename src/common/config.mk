@@ -63,7 +63,8 @@ CFLAGS := $(CFLAGS) -DUSE_NEON_ASM=1
 # Assembly flags for NEON on Cortex-A7 (used with gcc as assembler driver)
 ASFLAGS := -marm -march=armv7ve -mfpu=neon-vfpv4 -mfloat-abi=hard
 NEON_ASM_OBJ := ../common/utils/neon_asm.o
-OFILES := $(OFILES) $(NEON_ASM_OBJ)
+# Use += to append without forcing immediate expansion of OFILES
+NEON_ASM_OFILES := $(NEON_ASM_OBJ)
 # Note: The assembly rule is defined in recipes.mk to avoid becoming the default target
 endif
 

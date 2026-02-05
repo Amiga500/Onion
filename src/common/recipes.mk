@@ -1,3 +1,8 @@
+# Add NEON assembly object file to OFILES if USE_NEON_ASM is defined
+ifdef USE_NEON_ASM
+OFILES := $(OFILES) $(NEON_ASM_OFILES)
+endif
+
 $(TARGET): $(OFILES)
 	@$(CXX) $(OFILES) -o "$@" $(LDFLAGS)	
 	@if test -z "$(DEBUG)" && test -z "$(SANITIZE)"; then \
