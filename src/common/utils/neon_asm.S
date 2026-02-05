@@ -1389,15 +1389,21 @@ neon_asm_rgba_to_argb:
     @ Swap R and B: (pix & 0xFF00FF00) | ((pix >> 16) & 0xFF) | ((pix & 0xFF) << 16)
     @ Original: 0xAABBGGRR (RGBA in memory as little-endian)
     @ Target:   0xAARRGGBB (ARGB in memory)
-    @ Note: 0xFF00FF00 is not a valid ARM immediate, so we use bic instead
-    @ bic with 0x00FF00FF clears bytes 0 and 2, keeping bytes 1 and 3 (G and A)
-    bic     lr, r3, #0x00FF00FF     @ Keep G and A (clear R and B positions)
-    and     r12, r3, #0x00FF0000    @ Get B (was at byte 2)
+    @ Extract each component and rebuild
+    @ R is at byte 0, G at byte 1, B at byte 2, A at byte 3
+    @ We need to swap R and B: result = (A << 24) | (R << 16) | (G << 8) | B
+
+    @ Extract components using shifts and masks
+    and     lr, r3, #0xFF000000     @ A (keep in place)
+    and     r12, r3, #0x00FF0000    @ B at byte 2
     lsr     r12, r12, #16           @ Move B to byte 0
-    and     r3, r3, #0x000000FF     @ Get R (was at byte 0)
-    lsl     r3, r3, #16             @ Move R to byte 2
-    orr     r3, r3, r12             @ Combine R and B
-    orr     r3, r3, lr              @ Add G and A
+    orr     lr, lr, r12             @ A | B
+
+    and     r12, r3, #0x0000FF00    @ G at byte 1 (keep in place)
+    orr     lr, lr, r12             @ A | B | G
+
+    and     r3, r3, #0x000000FF     @ R at byte 0
+    orr     r3, lr, r3, lsl #16     @ A | B | G | (R << 16)
 
     str     r3, [r0], #4
 
