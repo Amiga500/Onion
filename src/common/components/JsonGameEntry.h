@@ -41,14 +41,19 @@ JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
 
 void JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
 {
+    size_t dest_size = STR_MAX * 6;
+    size_t offset = 0;
+    
     strcpy(dest, "{");
-    sprintf(dest + strlen(dest), "\"label\":\"%s\",", entry->label);
-    sprintf(dest + strlen(dest), "\"launch\":\"%s\",", entry->launch);
-    sprintf(dest + strlen(dest), "\"type\":%d,", entry->type);
+    offset = 1;
+    
+    // Use snprintf for buffer overflow protection
+    offset += snprintf(dest + offset, dest_size - offset, "\"label\":\"%s\",", entry->label);
+    offset += snprintf(dest + offset, dest_size - offset, "\"launch\":\"%s\",", entry->launch);
+    offset += snprintf(dest + offset, dest_size - offset, "\"type\":%d,", entry->type);
     if (strlen(entry->imgpath) > 0)
-        sprintf(dest + strlen(dest), "\"imgpath\":\"%s\",", entry->imgpath);
-    sprintf(dest + strlen(dest), "\"rompath\":\"%s\"", entry->rompath);
-    strcat(dest, "}");
+        offset += snprintf(dest + offset, dest_size - offset, "\"imgpath\":\"%s\",", entry->imgpath);
+    snprintf(dest + offset, dest_size - offset, "\"rompath\":\"%s\"}", entry->rompath);
 }
 
 #endif // JSON_GAME_ENTRY_H__

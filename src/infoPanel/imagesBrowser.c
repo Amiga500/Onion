@@ -40,7 +40,8 @@ static bool getImagePath(const char *dir_path, const struct dirent *ent,
     if (strcmp(fileExt, "png") == 0 || strcmp(fileExt, "jpg") == 0 ||
         strcmp(fileExt, "jpeg") == 0) {
         char full_path[PATH_MAX];
-        sprintf(full_path, "%s%s", dir_path, filename);
+        // Use snprintf for buffer overflow protection
+        snprintf(full_path, sizeof(full_path), "%s%s", dir_path, filename);
         strcpy(image_path, full_path);
         return true;
     }
@@ -87,7 +88,8 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
         return false;
     }
     if (dir_path[dir_path_length - 1] != '/') {
-        sprintf(normalized_dir_path, "%s/", dir_path);
+        // Use snprintf for buffer overflow protection
+        snprintf(normalized_dir_path, sizeof(normalized_dir_path), "%s/", dir_path);
     }
     else {
         strcpy(normalized_dir_path, dir_path);

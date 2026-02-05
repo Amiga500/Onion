@@ -102,7 +102,8 @@ void displayLayersInstall(void)
     }
 
     char footer_str[STR_MAX];
-    sprintf(footer_str, "%d added  |  %d removed  |  %d installed  |  %d total",
+    // Use snprintf for buffer overflow protection
+    snprintf(footer_str, sizeof(footer_str), "%d added  |  %d removed  |  %d installed  |  %d total",
             changes_installs[nTab], changes_removals[nTab],
             package_installed_count[nTab], package_count[nTab]);
     renderFooter(footer_str);
@@ -277,7 +278,8 @@ void renderApplication(void)
         char status_str[STR_MAX] = "";
 
         if (installs_count > 0)
-            sprintf(status_str, "+%d", installs_count);
+            // Use snprintf for buffer overflow protection
+            snprintf(status_str, sizeof(status_str), "+%d", installs_count);
 
         if (removals_count > 0) {
             int len = strlen(status_str);
@@ -285,7 +287,8 @@ void renderApplication(void)
                 strcpy(status_str + len, "  ");
                 len += 2;
             }
-            sprintf(status_str + len, " −%d", removals_count);
+            // Use snprintf for buffer overflow protection
+            snprintf(status_str + len, sizeof(status_str) - len, " −%d", removals_count);
         }
 
         SDL_Surface *status =

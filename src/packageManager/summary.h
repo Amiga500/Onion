@@ -50,19 +50,21 @@ void renderSummary()
             pos_y += 10;
 
             char line_str[STR_MAX * 2];
-            sprintf(line_str, "%s:", layer_names[nT]);
+            size_t line_size = sizeof(line_str);
+            size_t offset = 0;
+            
+            // Use snprintf for buffer overflow protection
+            offset = snprintf(line_str, line_size, "%s:", layer_names[nT]);
 
             if (changes_installs[nT] > 0)
-                sprintf(line_str + strlen(line_str), " %d added",
+                offset += snprintf(line_str + offset, line_size - offset, " %d added",
                         changes_installs[nT]);
 
             if (changes_removals[nT] > 0) {
-                int len = strlen(line_str);
                 if (changes_installs[nT] > 0) {
-                    strcpy(line_str + len, ",");
-                    len += 1;
+                    offset += snprintf(line_str + offset, line_size - offset, ",");
                 }
-                sprintf(line_str + len, " %d removed", changes_removals[nT]);
+                snprintf(line_str + offset, line_size - offset, " %d removed", changes_removals[nT]);
             }
 
             pos_y += renderSummaryLine(surfaceTemp, pos_y, line_str, 255,
@@ -79,7 +81,8 @@ void renderSummary()
                 memset(line_str, 0, STR_MAX * 2);
 
                 bool is_removed = package->changed && package->installed;
-                sprintf(line_str, "[%s]  %s", is_removed ? "−" : "+",
+                // Use snprintf for buffer overflow protection
+                snprintf(line_str, line_size, "[%s]  %s", is_removed ? "−" : "+",
                         package->name);
 
                 pos_y +=
