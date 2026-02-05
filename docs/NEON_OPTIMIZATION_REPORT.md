@@ -26,7 +26,7 @@ The following table summarizes the performance improvements achieved by converti
 | Original scalar code | 1x | Baseline |
 | + NEON C intrinsics | 3.5-4x | Using `arm_neon.h` |
 | + Pure ARM assembly | **4.5-5x** | Additional 15-30% |
-| + Cache-optimized atlas | **5-5.5x** | Additional 10-15% |
+| + Cache-optimized atlas | **~5-5.75x** | Additional 10-15% (multiplicative) |
 
 ### Real-World Application Impact
 
@@ -498,7 +498,7 @@ A new cache-optimized texture atlas system has been added for grouping frequentl
 
 | Scenario | Without Atlas | With Atlas | Improvement |
 |----------|---------------|------------|-------------|
-| Random texture access | ~10 cache misses/tex | ~2-3 cache misses/tex | **~70% reduction** |
+| Random texture access | ~10 cache misses/tex | ~2-3 cache misses/tex | **~70-80% reduction** |
 | UI icon rendering | 1x | ~1.5x | **50% faster** |
 | Memory fragmentation | High | Low | **Single allocation** |
 | Theme element loading | 1x | ~1.3x | **30% faster** |

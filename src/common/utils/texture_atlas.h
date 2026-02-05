@@ -67,6 +67,7 @@ typedef struct TextureRegion {
  */
 typedef struct TextureAtlas {
     uint32_t *pixels;           /**< Pixel data (ARGB8888 format) */
+    void *raw_alloc;            /**< Original allocation pointer (for manual alignment fallback) */
     uint32_t width;             /**< Atlas width in pixels */
     uint32_t height;            /**< Atlas height in pixels */
     uint32_t stride;            /**< Stride in pixels (may be padded for alignment) */
@@ -114,6 +115,7 @@ static inline TextureAtlas *atlas_create(uint32_t width, uint32_t height)
     atlas->stride = atlas_align_up(width, ATLAS_CACHE_LINE_SIZE / sizeof(uint32_t));
     atlas->width = width;
     atlas->height = height;
+    atlas->raw_alloc = NULL;  /* Initialize to NULL for non-fallback cases */
 
     /* Allocate cache-aligned pixel buffer */
     size_t pixel_bytes = atlas->stride * height * sizeof(uint32_t);
@@ -135,6 +137,7 @@ static inline TextureAtlas *atlas_create(uint32_t width, uint32_t height)
     /* Fallback: allocate extra space and manually align */
     void *raw = malloc(pixel_bytes + ATLAS_CACHE_LINE_SIZE);
     if (raw) {
+        atlas->raw_alloc = raw;  /* Store original pointer for free() */
         uintptr_t addr = (uintptr_t)raw + ATLAS_CACHE_LINE_SIZE;
         atlas->pixels = (uint32_t *)(addr & ~((uintptr_t)ATLAS_CACHE_LINE_SIZE - 1));
     } else {
@@ -170,8 +173,17 @@ static inline void atlas_destroy(TextureAtlas *atlas)
     if (atlas) {
 #if defined(_WIN32)
         _aligned_free(atlas->pixels);
-#else
+#elif defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L
         free(atlas->pixels);
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+        free(atlas->pixels);
+#else
+        /* Fallback: free the original raw allocation if used */
+        if (atlas->raw_alloc) {
+            free(atlas->raw_alloc);
+        } else {
+            free(atlas->pixels);
+        }
 #endif
         free(atlas);
     }
