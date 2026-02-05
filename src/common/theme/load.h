@@ -42,30 +42,31 @@ int theme_getImagePath(const char *theme_path, const char *name, char *out_path)
 {
     int load_mode = 2;
     char rel_path[STR_MAX], image_path[STR_MAX * 2];
-    sprintf(rel_path, "skin/%s.png", name);
+    // Use snprintf for buffer overflow protection
+    snprintf(rel_path, sizeof(rel_path), "skin/%s.png", name);
 
-    sprintf(image_path, THEME_OVERRIDES "/%s", rel_path);
+    snprintf(image_path, sizeof(image_path), THEME_OVERRIDES "/%s", rel_path);
     bool override_exists = exists(image_path);
 
     if (!override_exists) {
         load_mode = 1;
-        sprintf(image_path, "%s%s", theme_path, rel_path);
+        snprintf(image_path, sizeof(image_path), "%s%s", theme_path, rel_path);
         bool theme_exists = exists(image_path);
 
         if (!theme_exists) {
             load_mode = 0;
             if (strncmp(name, "extra/", 6) == 0) {
-                sprintf(rel_path, "%s.png", name + 6);
-                sprintf(image_path, "%s%s", SYSTEM_RESOURCES, rel_path);
+                snprintf(rel_path, sizeof(rel_path), "%s.png", name + 6);
+                snprintf(image_path, sizeof(image_path), "%s%s", SYSTEM_RESOURCES, rel_path);
             }
             else {
-                sprintf(image_path, "%s%s", FALLBACK_PATH, rel_path);
+                snprintf(image_path, sizeof(image_path), "%s%s", FALLBACK_PATH, rel_path);
             }
         }
     }
 
     if (out_path)
-        sprintf(out_path, "%s", image_path);
+        snprintf(out_path, STR_MAX * 2, "%s", image_path);
 
     return load_mode;
 }

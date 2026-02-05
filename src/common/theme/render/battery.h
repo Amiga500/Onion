@@ -36,8 +36,9 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
         offsetY -= 0.075 * TTF_FontHeight(font);
 
     // Battery percentage text
-    char buffer[5];
-    sprintf(buffer, "%d%%", percentage);
+    char buffer[8];  // Slightly larger buffer for safety
+    // Use snprintf for buffer overflow protection
+    snprintf(buffer, sizeof(buffer), "%d%%", percentage);
 
     // Battery icon
     ThemeImages icon_request = _getBatteryRequest(percentage);
