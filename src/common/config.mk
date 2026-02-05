@@ -64,10 +64,7 @@ CFLAGS := $(CFLAGS) -DUSE_NEON_ASM=1
 ASFLAGS := -marm -march=armv7ve -mfpu=neon-vfpv4 -mfloat-abi=hard
 NEON_ASM_OBJ := ../common/utils/neon_asm.o
 OFILES := $(OFILES) $(NEON_ASM_OBJ)
-
-# Rule for assembling the NEON assembly file
-$(NEON_ASM_OBJ): ../common/utils/neon_asm.S
-	$(AS) $(ASFLAGS) -c $< -o $@
+# Note: The assembly rule is defined in recipes.mk to avoid becoming the default target
 endif
 
 ifdef INCLUDE_SHMVAR
