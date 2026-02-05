@@ -1389,7 +1389,9 @@ neon_asm_rgba_to_argb:
     @ Swap R and B: (pix & 0xFF00FF00) | ((pix >> 16) & 0xFF) | ((pix & 0xFF) << 16)
     @ Original: 0xAABBGGRR (RGBA in memory as little-endian)
     @ Target:   0xAARRGGBB (ARGB in memory)
-    and     lr, r3, #0xFF00FF00     @ Keep G and A
+    @ Note: 0xFF00FF00 is not a valid ARM immediate, so we use bic instead
+    @ bic with 0x00FF00FF clears bytes 0 and 2, keeping bytes 1 and 3 (G and A)
+    bic     lr, r3, #0x00FF00FF     @ Keep G and A (clear R and B positions)
     and     r12, r3, #0x00FF0000    @ Get B (was at byte 2)
     lsr     r12, r12, #16           @ Move B to byte 0
     and     r3, r3, #0x000000FF     @ Get R (was at byte 0)
@@ -1555,12 +1557,15 @@ neon_asm_render_glyph_8x8:
     vld1.16 {q10}, [r0]             @ q10 = current 8 pixels
 
     @ Expand masks to 16-bit for selection
-    vmovl.u8 q11, d2                @ q11 = pixel mask (16-bit)
-    vmovl.u8 q12, d5                @ q12 = outline mask (16-bit)
+    vmovl.u8 q11, d2                @ q11 = pixel mask (16-bit, 0x00FF where set)
+    vmovl.u8 q12, d5                @ q12 = outline mask (16-bit, 0x00FF where set)
 
     @ Create selection masks (0x00FF -> 0xFFFF)
-    vcgt.u16 q13, q11, #0           @ q13 = pixel selection
-    vcgt.u16 q14, q12, #0           @ q14 = outline selection
+    @ NEON vcgt doesn't support immediate #0, so we use vceq with #0 and invert
+    vceq.u16 q13, q11, #0           @ q13 = 0xFFFF where pixel == 0
+    vmvn.u16 q13, q13               @ q13 = 0xFFFF where pixel != 0 (pixel selection)
+    vceq.u16 q14, q12, #0           @ q14 = 0xFFFF where outline == 0
+    vmvn.u16 q14, q14               @ q14 = 0xFFFF where outline != 0 (outline selection)
 
     @ Select colors: pixel ? fg : (outline ? outline : dst)
     vbsl.16 q14, q9, q10            @ q14 = outline ? outline_color : dst
