@@ -470,3 +470,256 @@ TEST(NeonAsmMacroTest, MemCpyMacro)
 
     EXPECT_EQ(0, memcmp(src, dst, bytes)) << "Memory copy mismatch";
 }
+
+// ============================================================================
+// Tests for YUV to RGB Conversion
+// ============================================================================
+
+// Test YUV420 to ARGB8888 conversion (single row)
+TEST(NeonSimdTest, YUV420ToARGB8888Row)
+{
+    const uint32_t width = 16;
+    uint8_t y_row[width];
+    uint8_t u_row[width / 2];
+    uint8_t v_row[width / 2];
+    uint32_t dst[width];
+    uint32_t expected[width];
+
+    // Test pattern: gradient in Y, neutral U/V (should produce grayscale)
+    for (uint32_t i = 0; i < width; i++) {
+        y_row[i] = (uint8_t)(16 + i * 14);  // Y: 16-235 range
+    }
+    for (uint32_t i = 0; i < width / 2; i++) {
+        u_row[i] = 128;  // Neutral U (no blue/yellow shift)
+        v_row[i] = 128;  // Neutral V (no red/green shift)
+    }
+
+    // Calculate expected values using BT.601 formula
+    for (uint32_t col = 0; col < width; col++) {
+        int y = y_row[col] - 16;
+        int u = u_row[col / 2] - 128;
+        int v = v_row[col / 2] - 128;
+
+        int r = (298 * y + 409 * v + 128) >> 8;
+        int g = (298 * y - 100 * u - 208 * v + 128) >> 8;
+        int b = (298 * y + 516 * u + 128) >> 8;
+
+        r = r < 0 ? 0 : (r > 255 ? 255 : r);
+        g = g < 0 ? 0 : (g > 255 ? 255 : g);
+        b = b < 0 ? 0 : (b > 255 ? 255 : b);
+
+        expected[col] = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+    }
+
+    // Run NEON-optimized conversion
+    memset(dst, 0, sizeof(dst));
+    NEON_YUV420_TO_ARGB8888_ROW(dst, y_row, u_row, v_row, width);
+
+    // Verify results (allow small rounding differences)
+    for (uint32_t i = 0; i < width; i++) {
+        uint32_t exp_r = (expected[i] >> 16) & 0xFF;
+        uint32_t exp_g = (expected[i] >> 8) & 0xFF;
+        uint32_t exp_b = expected[i] & 0xFF;
+
+        uint32_t got_r = (dst[i] >> 16) & 0xFF;
+        uint32_t got_g = (dst[i] >> 8) & 0xFF;
+        uint32_t got_b = dst[i] & 0xFF;
+
+        EXPECT_NEAR(exp_r, got_r, 2) << "R mismatch at pixel " << i;
+        EXPECT_NEAR(exp_g, got_g, 2) << "G mismatch at pixel " << i;
+        EXPECT_NEAR(exp_b, got_b, 2) << "B mismatch at pixel " << i;
+    }
+}
+
+// Test YUV420 to ARGB8888 with color (red tint)
+TEST(NeonSimdTest, YUV420ToARGB8888RowColor)
+{
+    const uint32_t width = 8;
+    uint8_t y_row[width];
+    uint8_t u_row[width / 2];
+    uint8_t v_row[width / 2];
+    uint32_t dst[width];
+
+    // Fill with mid-gray Y and high V (should produce red-ish)
+    for (uint32_t i = 0; i < width; i++) {
+        y_row[i] = 128;
+    }
+    for (uint32_t i = 0; i < width / 2; i++) {
+        u_row[i] = 128;  // Neutral U
+        v_row[i] = 200;  // High V = more red
+    }
+
+    memset(dst, 0, sizeof(dst));
+    NEON_YUV420_TO_ARGB8888_ROW(dst, y_row, u_row, v_row, width);
+
+    // All pixels should have red > blue (high V shifts towards red)
+    for (uint32_t i = 0; i < width; i++) {
+        uint32_t r = (dst[i] >> 16) & 0xFF;
+        uint32_t b = dst[i] & 0xFF;
+        EXPECT_GT(r, b) << "R should be greater than B at pixel " << i << " due to high V";
+    }
+}
+
+// ============================================================================
+// Tests for Box Blur
+// ============================================================================
+
+// Test box blur with radius 0 (should be identity)
+TEST(NeonSimdTest, BoxBlurRadius0)
+{
+    const uint32_t width = 16;
+    uint32_t src[width];
+    uint32_t dst[width];
+
+    for (uint32_t i = 0; i < width; i++) {
+        src[i] = 0xFF000000u | (i << 16) | (i << 8) | i;
+    }
+
+    NEON_BOX_BLUR_ROW(dst, src, width, 0);
+
+    // Should be identical to source
+    for (uint32_t i = 0; i < width; i++) {
+        EXPECT_EQ(src[i], dst[i]) << "Radius 0 should be identity at pixel " << i;
+    }
+}
+
+// Test box blur with radius 1 (3-pixel kernel)
+TEST(NeonSimdTest, BoxBlurRadius1)
+{
+    const uint32_t width = 16;
+    uint32_t src[width];
+    uint32_t dst[width];
+
+    // Create a simple pattern: all zeros except center pixel is white
+    for (uint32_t i = 0; i < width; i++) {
+        src[i] = 0xFF000000u;  // Black with full alpha
+    }
+    src[8] = 0xFFFFFFFF;  // White pixel in center
+
+    NEON_BOX_BLUR_ROW(dst, src, width, 1);
+
+    // Center and neighbors should be affected
+    // With radius 1, kernel is 3 pixels, so sum at center = (0 + 255 + 0) / 3 = 85
+    uint32_t center_r = (dst[8] >> 16) & 0xFF;
+    EXPECT_GT(center_r, 0u) << "Center pixel should be affected by blur";
+    EXPECT_LT(center_r, 255u) << "Center pixel should be diluted";
+
+    // Neighbors should also have some white
+    uint32_t left_r = (dst[7] >> 16) & 0xFF;
+    uint32_t right_r = (dst[9] >> 16) & 0xFF;
+    EXPECT_GT(left_r, 0u) << "Left neighbor should be affected";
+    EXPECT_GT(right_r, 0u) << "Right neighbor should be affected";
+}
+
+// Test box blur preserves uniform color
+TEST(NeonSimdTest, BoxBlurUniformColor)
+{
+    const uint32_t width = 16;
+    uint32_t src[width];
+    uint32_t dst[width];
+
+    // All pixels same color
+    for (uint32_t i = 0; i < width; i++) {
+        src[i] = 0xFF808080u;  // Mid-gray
+    }
+
+    NEON_BOX_BLUR_ROW(dst, src, width, 2);
+
+    // All pixels should remain the same (within rounding)
+    for (uint32_t i = 0; i < width; i++) {
+        uint32_t r = (dst[i] >> 16) & 0xFF;
+        uint32_t g = (dst[i] >> 8) & 0xFF;
+        uint32_t b = dst[i] & 0xFF;
+        EXPECT_NEAR(r, 128u, 1) << "R should be preserved at pixel " << i;
+        EXPECT_NEAR(g, 128u, 1) << "G should be preserved at pixel " << i;
+        EXPECT_NEAR(b, 128u, 1) << "B should be preserved at pixel " << i;
+    }
+}
+
+// ============================================================================
+// Tests for Dithering
+// ============================================================================
+
+// Test basic dithering conversion
+TEST(NeonSimdTest, DitherARGB8888ToRGB565)
+{
+    const uint32_t width = 16;
+    uint32_t src[width];
+    uint16_t dst[width];
+
+    // Create gradient
+    for (uint32_t i = 0; i < width; i++) {
+        uint8_t gray = (uint8_t)(i * 16);
+        src[i] = 0xFF000000u | ((uint32_t)gray << 16) | ((uint32_t)gray << 8) | gray;
+    }
+
+    NEON_DITHER_ARGB8888_TO_RGB565(dst, src, width, 0);
+
+    // Verify conversion produces valid RGB565 values
+    for (uint32_t i = 0; i < width; i++) {
+        uint16_t pixel = dst[i];
+        uint8_t r5 = (pixel >> 11) & 0x1F;
+        uint8_t g6 = (pixel >> 5) & 0x3F;
+        uint8_t b5 = pixel & 0x1F;
+
+        // R and B should be similar (grayscale input)
+        EXPECT_NEAR(r5, b5, 2) << "R5 and B5 should be similar at pixel " << i;
+        // G should be approximately 2x (6 bits vs 5 bits)
+        EXPECT_NEAR(g6, r5 * 2, 3) << "G6 should be ~2x R5 at pixel " << i;
+    }
+}
+
+// Test dithering reduces banding
+TEST(NeonSimdTest, DitherReducesBanding)
+{
+    const uint32_t width = 16;
+    uint32_t src[width];
+    uint16_t dst_y0[width];
+    uint16_t dst_y1[width];
+
+    // Create uniform color that would cause banding without dithering
+    for (uint32_t i = 0; i < width; i++) {
+        src[i] = 0xFF404040u;  // Dark gray
+    }
+
+    // Convert two consecutive rows
+    NEON_DITHER_ARGB8888_TO_RGB565(dst_y0, src, width, 0);
+    NEON_DITHER_ARGB8888_TO_RGB565(dst_y1, src, width, 1);
+
+    // Dithering should produce different patterns on different rows
+    int differences = 0;
+    for (uint32_t i = 0; i < width; i++) {
+        if (dst_y0[i] != dst_y1[i]) {
+            differences++;
+        }
+    }
+
+    // Some pixels should differ due to dithering pattern
+    EXPECT_GT(differences, 0) << "Dithering should create pattern differences between rows";
+}
+
+// Test dithering with pure colors
+TEST(NeonSimdTest, DitherPureColors)
+{
+    const uint32_t width = 8;
+    uint32_t src[width];
+    uint16_t dst[width];
+
+    // Pure red
+    for (uint32_t i = 0; i < width; i++) {
+        src[i] = 0xFFFF0000u;  // Red
+    }
+
+    NEON_DITHER_ARGB8888_TO_RGB565(dst, src, width, 0);
+
+    // All pixels should be red-ish (high R, low G, low B)
+    for (uint32_t i = 0; i < width; i++) {
+        uint8_t r5 = (dst[i] >> 11) & 0x1F;
+        uint8_t g6 = (dst[i] >> 5) & 0x3F;
+        uint8_t b5 = dst[i] & 0x1F;
+
+        EXPECT_GT(r5, 28u) << "R channel should be high at pixel " << i;
+        EXPECT_LT(g6, 5u) << "G channel should be low at pixel " << i;
+        EXPECT_LT(b5, 3u) << "B channel should be low at pixel " << i;
+    }
+}
