@@ -126,7 +126,8 @@ void set_cmd_app(const char *app_dir_name)
     char launch[STR_MAX];
     file_parseKeyValue(config_path, "launch", launch, ':', 0);
 
-    if (strlen(launch) == 0)
+    // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+    if (launch[0] == '\0')
         return;
 
     FILE *fp;

@@ -390,7 +390,8 @@ bool list_hasInfoNote(List *list)
 {
     ListItem *item = list_currentItem(list);
 
-    if (item == NULL || strlen(item->info_note) == 0)
+    // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+    if (item == NULL || item->info_note[0] == '\0')
         return false;
 
     return true;

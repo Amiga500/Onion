@@ -49,7 +49,8 @@ void removeCurrentItem()
 
     file_delete_line(getMiyooRecentFilePath(), game->recentItem.lineNo);
 
-    if (strlen(game->recentItem.imgpath) > 0 && is_file(game->recentItem.imgpath)) {
+    // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+    if (game->recentItem.imgpath[0] != '\0' && is_file(game->recentItem.imgpath)) {
         if (strncmp(game->recentItem.imgpath, ROM_SCREENS_DIR, strlen(ROM_SCREENS_DIR)) == 0) {
             remove(game->recentItem.imgpath);
         }

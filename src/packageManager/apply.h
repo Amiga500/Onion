@@ -18,7 +18,8 @@ void applyAllChanges(bool auto_update)
     for (int nT = 0; nT < tab_count; nT++) {
         const char *data_path = layer_dirs[nT];
 
-        if (strlen(data_path) == 0 || !exists(data_path))
+        // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+        if (data_path[0] == '\0' || !exists(data_path))
             continue;
 
         SDL_Rect rectMessage = {10, 420, 603, 48};

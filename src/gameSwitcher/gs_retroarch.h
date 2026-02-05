@@ -96,8 +96,9 @@ bool ra_findItemInRetroArchHistory(Game_s *game)
 
 void ra_getCoreNameFromInfo(Game_s *game)
 {
-    if (strlen(game->core_name) == 0) {
-        if (strlen(game->core_path) == 0) {
+    // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+    if (game->core_name[0] == '\0') {
+        if (game->core_path[0] == '\0') {
             return;
         }
 

@@ -161,13 +161,15 @@ void renderHeader(AppState *state, int battery_percentage)
     Game_s *game = &game_list[state->current_game];
 
     if (state->show_time && game_list_len > 0) {
-        if (strlen(game->totalTime) == 0) {
+        // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+        if (game->totalTime[0] == '\0') {
             str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
         }
         strcpy(title_str, game->totalTime);
 
         if (state->show_total) {
-            if (strlen(sTotalTimePlayed) == 0) {
+            // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+            if (sTotalTimePlayed[0] == '\0') {
                 str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
             }
             // Use snprintf for buffer overflow protection

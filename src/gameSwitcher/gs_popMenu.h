@@ -138,7 +138,8 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
 
 static bool createSaveStatePath(Game_s *game, int slot, char *out_path, size_t out_path_size)
 {
-    if (strlen(game->core_name) == 0) {
+    // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+    if (game->core_name[0] == '\0') {
         return false;
     }
 

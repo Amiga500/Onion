@@ -128,8 +128,9 @@ void theme_clearDialogProgress(void) { dialog_progress = 0; }
 
 void theme_renderInfoPanel(SDL_Surface *screen, const char *title_str, const char *message_str, bool use_dialog)
 {
-    bool has_title = title_str != NULL && strlen(title_str) > 0;
-    bool has_message = message_str != NULL && strlen(message_str) > 0;
+    // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+    bool has_title = title_str != NULL && title_str[0] != '\0';
+    bool has_message = message_str != NULL && message_str[0] != '\0';
 
     if (use_dialog) {
         theme_renderDialog(screen, has_title ? title_str : " ", has_message ? message_str : " ", false);

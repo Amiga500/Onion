@@ -99,7 +99,8 @@ bool hasExtension(const char *file_name, const char *extlist)
 {
     const char *file_ext = file_getExtension(file_name);
 
-    if (extlist == NULL || strlen(extlist) == 0)
+    // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+    if (extlist == NULL || extlist[0] == '\0')
         return true;
 
     if (strcasecmp(file_ext, "miyoocmd") == 0)
@@ -202,7 +203,8 @@ void loadPackages(bool auto_update)
         const bool check_roms = layer_check_roms[nT];
         package_count[nT] = 0;
 
-        if (strlen(data_path) == 0 || !exists(data_path) ||
+        // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+        if (data_path[0] == '\0' || !exists(data_path) ||
             (dp = opendir(data_path)) == NULL)
             continue;
 

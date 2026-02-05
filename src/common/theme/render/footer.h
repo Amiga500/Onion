@@ -41,7 +41,8 @@ void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
         offsetX += label_open->w + 30.0 * g_scale;
     }
 
-    if (btn_b_str != NULL && strlen(label_b_str) > 0) {
+    // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+    if (btn_b_str != NULL && label_b_str[0] != '\0') {
         SDL_Surface *button_b = resource_getSurface(BUTTON_B);
         SDL_Rect btn_b_rect = {offsetX, 450.0 * g_scale - button_b->h / 2};
         SDL_BlitSurface(button_b, NULL, screen, &btn_b_rect);

@@ -377,7 +377,8 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
     }
 
     char *pathPtr = path_out;
-    if (strlen(p1) > 0) {
+    // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+    if (p1[0] != '\0') {
         int num_parens = str_count_char(p1, '/') + 1;
         for (int i = 0; i < num_parens; i++) {
             memcpy(pathPtr, "../", 3);
