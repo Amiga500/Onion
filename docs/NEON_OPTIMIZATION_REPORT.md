@@ -560,8 +560,9 @@ This builds with **pure ARM assembly** implementations, providing **4.5-5x speed
 | Build Type | Command | Speedup vs Scalar |
 |------------|---------|-------------------|
 | Standard (intrinsics) | `make all PLATFORM=miyoomini` | 3.5-4x |
-| Maximum (+ assembly) | `make all PLATFORM=miyoomini USE_NEON_ASM=1` | 4.5-5x |
-| Maximum (+ atlas) | `make all PLATFORM=miyoomini USE_NEON_ASM=1` | ~5-5.75x |
+| Maximum (+ assembly) | `make all PLATFORM=miyoomini USE_NEON_ASM=1` | 4.5-5.75x |
+
+**Note:** The assembly build includes all optimizations (intrinsics + assembly + atlas assembly support). The texture atlas automatically uses assembly blit functions when `USE_NEON_ASM=1` is defined.
 
 ### What Gets Compiled with `USE_NEON_ASM=1`
 
