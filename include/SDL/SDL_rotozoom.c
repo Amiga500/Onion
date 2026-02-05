@@ -40,6 +40,11 @@
 #define PREFETCH(addr) ((void)0)
 #endif
 
+/* Include assembly optimizations when available */
+#ifdef USE_NEON_ASM
+#include "../../src/common/utils/neon_asm.h"
+#endif
+
 #define MAX(a,b)    (((a) > (b)) ? (a) : (b))
 
 #ifdef __ARM_NEON
@@ -308,6 +313,69 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	  c11 = c10;
 	  c11++;
 	  csax = sax;
+
+#if defined(USE_NEON_ASM) && defined(NEON_BILINEAR_INTERP_4PX_AVAILABLE) && NEON_BILINEAR_INTERP_4PX_AVAILABLE
+	  /* Use assembly-optimized 4-pixel batch processing */
+	  ey = (*csay & 0xffff);
+	  
+	  /* Process 4 pixels at a time with NEON assembly */
+	  for (x = 0; x + 4 <= dst->w; x += 4)
+	    {
+	      /* Prefetch ahead for next pixels */
+	      if ((x & 15) == 0) {
+	        PREFETCH(csp + (csax[4] >> 16) + 16);
+	        PREFETCH((Uint8 *)csp + src->pitch + ((csax[4] >> 16) + 16) * 4);
+	      }
+	      
+	      /* Call assembly bilinear interpolation for 4 pixels */
+	      NEON_BILINEAR_INTERP_4PX((uint32_t *)dp, (const uint32_t *)csp,
+	                               (const uint32_t *)((Uint8 *)csp + src->pitch),
+	                               csax, ey);
+	      
+	      /* Advance pointers by 4 pixels */
+	      csax += 4;
+	      dp += 4;
+	    }
+	  
+	  /* Handle remaining pixels (0-3) with scalar code */
+	  /* Recalculate c00/c10 base for remaining pixels */
+	  {
+	      int total_step = 0;
+	      int *csax_start = sax;
+	      for (int i = 0; i < x; i++) {
+	          total_step += (csax_start[i+1] >> 16);
+	      }
+	      c00 = csp + total_step;
+	      c01 = c00 + 1;
+	      c10 = (tColorRGBA *)((Uint8 *)csp + src->pitch) + total_step;
+	      c11 = c10 + 1;
+	  }
+	  
+	  for (; x < dst->w; x++)
+	    {
+	      ex = (*csax & 0xffff);
+	      t1 = ((((c01->r - c00->r) * ex) >> 16) + c00->r) & 0xff;
+	      t2 = ((((c11->r - c10->r) * ex) >> 16) + c10->r) & 0xff;
+	      dp->r = (((t2 - t1) * ey) >> 16) + t1;
+	      t1 = ((((c01->g - c00->g) * ex) >> 16) + c00->g) & 0xff;
+	      t2 = ((((c11->g - c10->g) * ex) >> 16) + c10->g) & 0xff;
+	      dp->g = (((t2 - t1) * ey) >> 16) + t1;
+	      t1 = ((((c01->b - c00->b) * ex) >> 16) + c00->b) & 0xff;
+	      t2 = ((((c11->b - c10->b) * ex) >> 16) + c10->b) & 0xff;
+	      dp->b = (((t2 - t1) * ey) >> 16) + t1;
+	      t1 = ((((c01->a - c00->a) * ex) >> 16) + c00->a) & 0xff;
+	      t2 = ((((c11->a - c10->a) * ex) >> 16) + c10->a) & 0xff;
+	      dp->a = (((t2 - t1) * ey) >> 16) + t1;
+	      csax++;
+	      sstep = (*csax >> 16);
+	      c00 += sstep;
+	      c01 += sstep;
+	      c10 += sstep;
+	      c11 += sstep;
+	      dp++;
+	    }
+#else
+	  /* Scalar fallback - process one pixel at a time */
 	  for (x = 0; x < dst->w; x++)
 	    {
 	      /* Prefetch ahead for next pixels */
@@ -342,6 +410,7 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	      /* Advance destination pointer */
 	      dp++;
 	    }
+#endif
 	  /* Advance source pointer */
 	  csay++;
 	  csp = (tColorRGBA *) ((Uint8 *) csp + (*csay >> 16) * src->pitch);
