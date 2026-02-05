@@ -1299,10 +1299,12 @@ neon_asm_graya_to_argb8888:
     ldrb    r4, [r1], #1            @ alpha
 
     @ Build ARGB pixel: 0xAARRGGBB
-    orr     r3, r3, r3, lsl #8      @ gray | (gray << 8) = 0x00GGBB
-    orr     r3, r3, r3, lsl #8      @ Now all RGB channels have gray
-    bic     r3, r3, #0xFF000000     @ Clear top byte
-    orr     r3, r3, r4, lsl #24     @ Add alpha
+    @ gray (0x000000GG) | (gray << 8) = 0x0000GGGG
+    orr     r3, r3, r3, lsl #8
+    @ 0x0000GGGG | (0x0000GGGG << 8) = 0x00GGGGGG (with overlap)
+    orr     r3, r3, r3, lsl #8      @ Now R=G=B=gray in lower 24 bits
+    bic     r3, r3, #0xFF000000     @ Clear top byte (ensure clean alpha placement)
+    orr     r3, r3, r4, lsl #24     @ Add alpha -> 0xAARRGGBB
 
     str     r3, [r0], #4
 
@@ -1459,56 +1461,57 @@ neon_asm_render_glyph_8x8:
     vld1.8  {d0}, [lr]              @ d0 = [0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01]
 
     @ Process row 0 (no row above)
+    @ r5 already contains row 0 from initial load
     mov     r1, #0                  @ row_above = 0
     mov     r14, r6                 @ row_below = row 1
     bl      .Lrender_one_row
     add     r0, r0, r2              @ advance dst
 
     @ Process row 1
-    mov     r1, r5                  @ row_above = row 0
+    mov     r1, r5                  @ row_above = row 0 (save before overwriting)
+    mov     r5, r6                  @ current = row 1 (subroutine reads r5)
     mov     r14, r7                 @ row_below = row 2
-    mov     r5, r6                  @ current = row 1
     bl      .Lrender_one_row
     add     r0, r0, r2
 
     @ Process row 2
-    mov     r1, r6                  @ row_above = row 1
-    mov     r6, r7                  @ current = row 2
+    mov     r1, r5                  @ row_above = row 1 (previous current)
+    mov     r5, r7                  @ current = row 2
     mov     r14, r8                 @ row_below = row 3
     bl      .Lrender_one_row
     add     r0, r0, r2
 
     @ Process row 3
-    mov     r1, r7                  @ row_above = row 2
-    mov     r7, r8                  @ current = row 3
+    mov     r1, r5                  @ row_above = row 2
+    mov     r5, r8                  @ current = row 3
     mov     r14, r9                 @ row_below = row 4
     bl      .Lrender_one_row
     add     r0, r0, r2
 
     @ Process row 4
-    mov     r1, r8                  @ row_above = row 3
-    mov     r8, r9                  @ current = row 4
+    mov     r1, r5                  @ row_above = row 3
+    mov     r5, r9                  @ current = row 4
     mov     r14, r10                @ row_below = row 5
     bl      .Lrender_one_row
     add     r0, r0, r2
 
     @ Process row 5
-    mov     r1, r9                  @ row_above = row 4
-    mov     r9, r10                 @ current = row 5
+    mov     r1, r5                  @ row_above = row 4
+    mov     r5, r10                 @ current = row 5
     mov     r14, r11                @ row_below = row 6
     bl      .Lrender_one_row
     add     r0, r0, r2
 
     @ Process row 6
-    mov     r1, r10                 @ row_above = row 5
-    mov     r10, r11                @ current = row 6
+    mov     r1, r5                  @ row_above = row 5 (previous current)
+    mov     r5, r11                 @ current = row 6
     mov     r14, r12                @ row_below = row 7
     bl      .Lrender_one_row
     add     r0, r0, r2
 
     @ Process row 7 (no row below)
-    mov     r1, r11                 @ row_above = row 6
-    mov     r11, r12                @ current = row 7
+    mov     r1, r5                  @ row_above = row 6 (previous current)
+    mov     r5, r12                 @ current = row 7
     mov     r14, #0                 @ row_below = 0
     bl      .Lrender_one_row
 
@@ -1516,19 +1519,15 @@ neon_asm_render_glyph_8x8:
 
 @ Helper subroutine to render one row
 @ Inputs:
-@   r5 = current row (glyph byte) - NOTE: Uses the value that was moved there
-@   r1 = row_above
-@   r14 = row_below
-@   r0 = dst pointer
-@   q8 = fg_color, q9 = outline_color
-@   d0 = bit masks
+@   r5 = current row glyph byte (caller must set this before calling)
+@   r1 = row_above glyph byte
+@   r14 = row_below glyph byte
+@   r0 = dst pointer (16-bit pixels)
+@   q8 = fg_color (8 copies), q9 = outline_color (8 copies)
+@   d0 = bit masks for pixel extraction
 @ Clobbers: r3, d1-d7, q10-q15
 .Lrender_one_row:
-    @ Use the current row value (it's been moved to the register before calling)
-    @ For row 0, r5 has original row 0
-    @ For subsequent rows, the value has been updated
-
-    @ Create pixel mask from glyph byte
+    @ Create pixel mask from glyph byte (r5 = current row)
     vdup.8  d1, r5                  @ d1 = current row (8 copies)
     vtst.8  d2, d1, d0              @ d2 = 0xFF where bit set, 0x00 otherwise
 
