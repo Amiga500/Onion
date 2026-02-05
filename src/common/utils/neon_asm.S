@@ -602,9 +602,9 @@ neon_asm_gray_to_argb8888:
     @ Load grayscale value
     ldrb    r3, [r1], #1
 
-    @ Pack as 0xFF | (G << 16) | (G << 8) | G
-    orr     lr, r3, r3, lsl #8      @ (G << 8) | G = 0x00GG
-    orr     lr, lr, r3, lsl #16     @ | (G << 16) = 0x0GGG
+    @ Pack as 0xFFGGGGGG (gray in R, G, B channels, alpha = 0xFF)
+    orr     lr, r3, r3, lsl #8      @ (G << 8) | G = 0x0000GGGG
+    orr     lr, lr, r3, lsl #16     @ | (G << 16) = 0x00GGGGGG
     orr     lr, lr, #0xFF000000     @ | 0xFF000000 = 0xFFGGGGGG
 
     str     lr, [r0], #4
