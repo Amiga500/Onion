@@ -109,7 +109,7 @@ int suspend(uint32_t mode)
         if (dir->d_type == DT_DIR) {
             pid = atoi(dir->d_name);
             if ((pid > 2) && (pid != suspend_pid)) {
-                sprintf(fname, "/proc/%d/stat", pid);
+                snprintf(fname, sizeof(fname), "/proc/%d/stat", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
                     fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
@@ -206,7 +206,8 @@ void wait(int seconds)
 void showBootScreen(const char *type)
 {
     char cmd[256];
-    sprintf(cmd, "bootScreen \"%s\" &", type);
+    // Use snprintf for buffer overflow protection
+    snprintf(cmd, sizeof(cmd), "bootScreen \"%s\" &", type);
     system(cmd);
 }
 
@@ -460,7 +461,8 @@ int main(void)
     display_init(true);
 
     // Prepare for Poll button input
-    input_fd = open("/dev/input/event0", O_RDONLY);
+    // Use O_CLOEXEC to prevent file descriptor leak to child processes
+    input_fd = open("/dev/input/event0", O_RDONLY | O_CLOEXEC);
     memset(&fds, 0, sizeof(fds));
     fds[0].fd = input_fd;
     fds[0].events = POLLIN;

@@ -50,7 +50,8 @@ bool file_isModified(const char *path, time_t *old_mtime)
 
 bool file_isLocked(const char *path)
 {
-    int fd = open(path, O_RDONLY | O_CREAT, 0666);
+    // Use O_CLOEXEC to prevent file descriptor leak to child processes
+    int fd = open(path, O_RDONLY | O_CREAT | O_CLOEXEC, 0666);
     if (fd == -1)
         return true;
     close(fd);
@@ -175,7 +176,8 @@ char *file_read(const char *path)
 
 bool file_write(const char *path, const char *str, uint32_t len)
 {
-    int fd = open(path, O_WRONLY);
+    // Use O_CLOEXEC to prevent file descriptor leak to child processes
+    int fd = open(path, O_WRONLY | O_CLOEXEC);
     if (fd == -1)
         return false;
     if (write(fd, str, len) == -1) {

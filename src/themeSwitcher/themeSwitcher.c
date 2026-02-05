@@ -390,7 +390,8 @@ int main(int argc, char *argv[])
 
             rectThemeName.x = 60;
             char msg[STR_MAX];
-            sprintf(msg, "%s [%s]", has_icons ? "Apply icons" : "Reset icons", apply_icons ? "ON" : "OFF");
+            // Use snprintf for buffer overflow protection
+            snprintf(msg, sizeof(msg), "%s [%s]", has_icons ? "Apply icons" : "Reset icons", apply_icons ? "ON" : "OFF");
             imagePages = TTF_RenderUTF8_Blended(font21, msg, color_white);
             SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
             SDL_FreeSurface(imagePages);

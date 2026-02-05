@@ -211,7 +211,8 @@ void write_mainui_state(MainUIState state, int currpos, int total)
         page_start = currpos;
     page_end = page_start + page_size - 1;
 
-    sprintf(state_str,
+    // Use snprintf for buffer overflow protection
+    snprintf(state_str, sizeof(state_str),
             "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
             "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
             "\"pagestart\":%d,\"pageend\":%d}]}",
@@ -229,10 +230,11 @@ char *getMiyooRecentFilePath()
 {
     static char filename[STR_MAX];
 
+    // Use snprintf for buffer overflow protection
     if (exists(RECENTLIST_HIDDEN_PATH))
-        sprintf(filename, "%s", RECENTLIST_HIDDEN_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_HIDDEN_PATH);
     else
-        sprintf(filename, "%s", RECENTLIST_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_PATH);
 
     return filename;
 }
@@ -305,12 +307,15 @@ bool history_getRomscreenPath(char *path_out)
     char filename[STR_MAX];
     char file_path[STR_MAX];
 
+    filename[0] = '\0';  // Initialize to empty string
     if (history_getRecentPath(file_path) != NULL) {
-        sprintf(filename, "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
+        // Use snprintf for buffer overflow protection
+        snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
     }
     print_debug(file_path);
     if (strlen(filename) > 0) {
-        sprintf(path_out, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+        // Use snprintf for buffer overflow protection
+        snprintf(path_out, STR_MAX, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;
     }
 
@@ -408,7 +413,8 @@ void resumeGame(int index)
 
             fclose(file);
             file = NULL;
-            sprintf(LaunchCommand, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
+            // Use snprintf for buffer overflow protection
+            snprintf(LaunchCommand, sizeof(LaunchCommand), "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
 
             remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
 

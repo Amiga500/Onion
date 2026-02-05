@@ -23,8 +23,19 @@ void log_debug(const char *file_path, int line, const char *format_str, ...)
 
     va_list valist;
     va_start(valist, format_str);
-    int prefix_len = sprintf(log_message, "%s:%d>\t", file_path, line);
-    msg_len = prefix_len + vsprintf(log_message + prefix_len, format_str, valist);
+    // Use snprintf/vsnprintf for buffer overflow protection
+    int prefix_len = snprintf(log_message, sizeof(log_message), "%s:%d>\t", file_path, line);
+    if (prefix_len < 0)
+        prefix_len = 0;
+    if (prefix_len >= (int)sizeof(log_message))
+        prefix_len = sizeof(log_message) - 1;
+    int remaining = (int)sizeof(log_message) - prefix_len;
+    int body_len = vsnprintf(log_message + prefix_len, remaining, format_str, valist);
+    if (body_len < 0)
+        body_len = 0;
+    if (body_len >= remaining)
+        body_len = remaining - 1;
+    msg_len = prefix_len + body_len;
     va_end(valist);
 
     fprintf(stderr, "%s", log_message);

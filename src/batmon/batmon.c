@@ -347,7 +347,8 @@ int updateADCValue(int value)
         return 100;
 
     if (!sar_fd) {
-        sar_fd = open("/dev/sar", O_WRONLY);
+        // Use O_CLOEXEC to prevent file descriptor leak to child processes
+        sar_fd = open("/dev/sar", O_WRONLY | O_CLOEXEC);
         ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
     }
 

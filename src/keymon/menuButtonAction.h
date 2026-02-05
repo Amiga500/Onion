@@ -33,7 +33,8 @@ void _action_runTool(const char *tool_name)
 {
     FILE *fp;
     char cmd[STR_MAX * 4];
-    sprintf(cmd, "cd /mnt/SDCARD/.tmp_update; ./bin/tweaks --apply_tool \"%s\"",
+    // Use snprintf for buffer overflow protection
+    snprintf(cmd, sizeof(cmd), "cd /mnt/SDCARD/.tmp_update; ./bin/tweaks --apply_tool \"%s\"",
             tool_name);
     file_put_sync(fp, "/tmp/cmd_to_run.sh", "%s", cmd);
     write_mainui_state(MAIN_MENU, 0, 10);
@@ -74,7 +75,7 @@ void applyExtraButtonShortcut(int button)
 //
 bool terminate_retroarch(void)
 {
-    char fname[20];
+    char fname[24];  // "/proc/" + max PID digits + null terminator
     pid_t pid = process_searchpid("retroarch");
     if (!pid)
         pid = process_searchpid("ra32");
@@ -85,8 +86,8 @@ bool terminate_retroarch(void)
         kill(pid, SIGCONT);
         usleep(100000);
         retroarch_quit();
-        // wait for terminate
-        sprintf(fname, "/proc/%d", pid);
+        // wait for terminate - use snprintf for buffer overflow protection
+        snprintf(fname, sizeof(fname), "/proc/%d", pid);
 
         uint32_t count = 20; // 4s
         while (--count && exists(fname))
@@ -102,7 +103,7 @@ bool terminate_retroarch(void)
 bool terminate_drastic(void)
 {
     pid_t pid = process_searchpid("drastic");
-    char fname[20];
+    char fname[24];  // "/proc/" + max PID digits + null terminator
 
     if (pid) {
         // If swap L<>L2 is on, the off button combo becomes 1 + 15 instead of 1 + 18
@@ -117,7 +118,8 @@ bool terminate_drastic(void)
             system("sendkeys 1 0, 18 0");
         };
 
-        sprintf(fname, "/proc/%d", pid);
+        // Use snprintf for buffer overflow protection
+        snprintf(fname, sizeof(fname), "/proc/%d", pid);
         uint32_t count = 150; // 30s
 
         while (--count && exists(fname))
