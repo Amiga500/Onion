@@ -15,6 +15,7 @@ LIB = /mnt/SDCARD/.tmp_update/lib
 
 CC 		= $(CROSS_COMPILE)gcc
 CXX 	= $(CROSS_COMPILE)g++
+AS 		= $(CROSS_COMPILE)as
 STRIP 	= $(CROSS_COMPILE)strip
 
 SOURCES := $(SOURCES) .
@@ -29,7 +30,9 @@ CFILES := $(CFILES) \
 endif
 CFILES := $(CFILES) $(foreach dir, $(SOURCES), $(wildcard $(dir)/*.c))
 CPPFILES := $(CPPFILES) $(foreach dir, $(SOURCES), $(wildcard $(dir)/*.cpp))
-OFILES = $(CFILES:.c=.o) $(CPPFILES:.cpp=.o)
+# Assembly files (.S) for NEON optimizations
+SFILES := $(SFILES) $(foreach dir, $(SOURCES), $(wildcard $(dir)/*.S))
+OFILES = $(CFILES:.c=.o) $(CPPFILES:.cpp=.o) $(SFILES:.S=.o)
 
 CFLAGS := -I../../include -I../common -DPLATFORM_$(shell echo $(PLATFORM) | tr a-z A-Z) -DONION_VERSION="\"$(VERSION)\"" -Wall -O3
 
@@ -52,10 +55,22 @@ LDFLAGS := $(LDFLAGS) -L../../lib -L/usr/local/lib
 
 ifeq ($(PLATFORM),miyoomini)
 CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -Wl,-rpath=$(LIB) -ffunction-sections -fdata-sections
+# Assembly flags for NEON on Cortex-A7
+ASFLAGS := -marm -march=armv7ve -mfpu=neon-vfpv4 -mfloat-abi=hard
 LDFLAGS := $(LDFLAGS) -Wl,--gc-sections
+
+# Enable NEON assembly optimizations (optional, define USE_NEON_ASM=1 to use)
+ifdef USE_NEON_ASM
+CFLAGS := $(CFLAGS) -DUSE_NEON_ASM=1
+SFILES := $(SFILES) ../common/utils/neon_asm.S
+endif
 
 ifdef INCLUDE_SHMVAR
 LDFLAGS := $(LDFLAGS) -lshmvar
 endif
 
 endif
+
+# Rule for assembling .S files
+%.o: %.S
+	$(CC) $(ASFLAGS) -c $< -o $@
