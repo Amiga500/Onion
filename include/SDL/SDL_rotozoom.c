@@ -318,19 +318,30 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	  /* Use assembly-optimized 4-pixel batch processing */
 	  ey = (*csay & 0xffff);
 	  
+	  /* Track cumulative source offset for the batch processing */
+	  int batch_src_offset = 0;
+	  
 	  /* Process 4 pixels at a time with NEON assembly */
 	  for (x = 0; x + 4 <= dst->w; x += 4)
 	    {
-	      /* Prefetch ahead for next pixels */
-	      if ((x & 15) == 0) {
-	        PREFETCH(csp + (csax[4] >> 16) + 16);
-	        PREFETCH((Uint8 *)csp + src->pitch + ((csax[4] >> 16) + 16) * 4);
+	      /* Prefetch ahead for next pixels (safe bounds check) */
+	      if ((x & 15) == 0 && x + 8 < dst->w) {
+	        PREFETCH(csp + batch_src_offset + 16);
+	        PREFETCH((Uint8 *)csp + src->pitch + (batch_src_offset + 16) * 4);
 	      }
 	      
 	      /* Call assembly bilinear interpolation for 4 pixels */
-	      NEON_BILINEAR_INTERP_4PX((uint32_t *)dp, (const uint32_t *)csp,
-	                               (const uint32_t *)((Uint8 *)csp + src->pitch),
+	      NEON_BILINEAR_INTERP_4PX((uint32_t *)dp, (const uint32_t *)(csp + batch_src_offset),
+	                               (const uint32_t *)((Uint8 *)(csp + batch_src_offset) + src->pitch),
 	                               csax, ey);
+	      
+	      /* Update cumulative offset: add steps from csax[1], csax[2], csax[3], csax[4] */
+	      batch_src_offset += (csax[1] >> 16);
+	      batch_src_offset += (csax[2] >> 16);
+	      batch_src_offset += (csax[3] >> 16);
+	      if (x + 4 < dst->w) {
+	          batch_src_offset += (csax[4] >> 16);
+	      }
 	      
 	      /* Advance pointers by 4 pixels */
 	      csax += 4;
@@ -338,18 +349,11 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	    }
 	  
 	  /* Handle remaining pixels (0-3) with scalar code */
-	  /* Recalculate c00/c10 base for remaining pixels */
-	  {
-	      int total_step = 0;
-	      int *csax_start = sax;
-	      for (int i = 0; i < x; i++) {
-	          total_step += (csax_start[i+1] >> 16);
-	      }
-	      c00 = csp + total_step;
-	      c01 = c00 + 1;
-	      c10 = (tColorRGBA *)((Uint8 *)csp + src->pitch) + total_step;
-	      c11 = c10 + 1;
-	  }
+	  /* Use tracked cumulative offset instead of recalculating */
+	  c00 = csp + batch_src_offset;
+	  c01 = c00 + 1;
+	  c10 = (tColorRGBA *)((Uint8 *)csp + src->pitch) + batch_src_offset;
+	  c11 = c10 + 1;
 	  
 	  for (; x < dst->w; x++)
 	    {

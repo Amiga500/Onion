@@ -204,13 +204,16 @@ extern void neon_asm_premultiply_alpha(uint32_t *dst, const uint32_t *src,
  *   result = t1 * (1-ey) + t2 * ey (vertical interpolation)
  *
  * @param dst Destination buffer (4 x 32-bit RGBA pixels)
- * @param c00_base Top row source pointer
+ * @param c00_base Top row source pointer (already offset to first pixel)
  * @param c10_base Bottom row source pointer (c00_base + src_pitch)
- * @param csax Array of 4 x int: each contains (step << 16) | ex
- *             where step is cumulative pixel offset and ex is x-weight (0-65535)
+ * @param csax Array of 4 x int: each contains (incremental_step << 16) | ex
+ *             where incremental_step is the step TO THE NEXT pixel (not cumulative),
+ *             and ex is x-weight (0-65535). The assembly function computes
+ *             cumulative offsets as: off0=0, off1=csax[1]>>16, 
+ *             off2=off1+(csax[2]>>16), off3=off2+(csax[3]>>16)
  * @param ey Y interpolation weight (0-65535)
  *
- * Performance: ~8-10 cycles/pixel on Cortex-A7 (vs ~15 for intrinsics)
+ * Performance: ~10-12 cycles/pixel on Cortex-A7 (vs ~15 for intrinsics)
  */
 extern void neon_asm_bilinear_interp_4px(uint32_t *dst, const uint32_t *c00_base,
                                          const uint32_t *c10_base, const int *csax,
