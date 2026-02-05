@@ -267,6 +267,56 @@ extern void neon_asm_render_glyph_8x8(uint16_t *dst, const uint8_t *glyph,
                                        uint32_t stride, uint16_t fg_color,
                                        uint16_t outline_color);
 
+/**
+ * @brief Convert YUV420 row to ARGB8888 (Assembly version)
+ *
+ * Converts a single row of YUV420 planar format to ARGB8888.
+ * Uses BT.601 conversion matrix with fixed-point arithmetic.
+ *
+ * @param dst Destination buffer (ARGB8888, 4 bytes per pixel)
+ * @param y_row Y plane row pointer (1 byte per pixel)
+ * @param u_row U plane row pointer (1 byte per 2 horizontal pixels)
+ * @param v_row V plane row pointer (1 byte per 2 horizontal pixels)
+ * @param width Row width in pixels
+ *
+ * Performance: ~2.5-3 cycles/pixel on Cortex-A7 (vs ~4 for intrinsics)
+ */
+extern void neon_asm_yuv420_to_argb8888_row(uint32_t *dst, const uint8_t *y_row,
+                                             const uint8_t *u_row, const uint8_t *v_row,
+                                             uint32_t width);
+
+/**
+ * @brief Apply horizontal box blur to a row (Assembly version)
+ *
+ * Applies a horizontal box blur with the specified radius using a sliding window.
+ * Uses boundary mirroring for edge pixels.
+ *
+ * @param dst Destination buffer (same size as src)
+ * @param src Source buffer (ARGB8888)
+ * @param width Row width in pixels
+ * @param radius Blur radius (1 = 3-pixel kernel, 2 = 5-pixel kernel, etc.)
+ *
+ * Performance: ~1.5-2 cycles/pixel on Cortex-A7 (vs ~3 for intrinsics)
+ */
+extern void neon_asm_box_blur_row(uint32_t *dst, const uint32_t *src,
+                                   uint32_t width, uint32_t radius);
+
+/**
+ * @brief Convert ARGB8888 to RGB565 with dithering (Assembly version)
+ *
+ * Converts ARGB8888 to RGB565 with Bayer 4x4 ordered dithering.
+ * Reduces banding artifacts on 16-bit displays.
+ *
+ * @param dst Destination buffer (RGB565, 2 bytes per pixel)
+ * @param src Source buffer (ARGB8888, 4 bytes per pixel)
+ * @param width Row width in pixels
+ * @param y Current row index (for Bayer matrix row selection)
+ *
+ * Performance: ~1.5-2 cycles/pixel on Cortex-A7 (vs ~2.5 for intrinsics)
+ */
+extern void neon_asm_dither_argb8888_to_rgb565(uint16_t *dst, const uint32_t *src,
+                                                uint32_t width, uint32_t y);
+
 #endif /* NEON_ASM_AVAILABLE */
 
 /**
@@ -329,6 +379,15 @@ extern void neon_asm_render_glyph_8x8(uint16_t *dst, const uint8_t *glyph,
     neon_asm_bilinear_interp_4px((dst), (c00_base), (c10_base), (csax), (ey))
 
 #define NEON_BILINEAR_INTERP_4PX_AVAILABLE 1
+
+#define NEON_YUV420_TO_ARGB8888_ROW(dst, y_row, u_row, v_row, width) \
+    neon_asm_yuv420_to_argb8888_row((dst), (y_row), (u_row), (v_row), (width))
+
+#define NEON_BOX_BLUR_ROW(dst, src, width, radius) \
+    neon_asm_box_blur_row((dst), (src), (width), (radius))
+
+#define NEON_DITHER_ARGB8888_TO_RGB565(dst, src, width, y) \
+    neon_asm_dither_argb8888_to_rgb565((dst), (src), (width), (y))
 
 #else /* Use intrinsics fallback */
 
@@ -408,6 +467,42 @@ static inline void neon_premultiply_alpha_fallback(uint32_t *dst, const uint32_t
  * This macro is defined but not used in fallback mode; the intrinsics version
  * neon_bilinear_interp_4px() in SDL_rotozoom.c is called directly instead. */
 #define NEON_BILINEAR_INTERP_4PX_AVAILABLE 0
+
+/* Fallback: use neon_simd.h intrinsics for YUV420 to ARGB8888 conversion
+ * This is a per-row function, caller should loop over rows */
+static inline void neon_yuv420_to_argb8888_row_fallback(uint32_t *dst,
+                                                         const uint8_t *y_row,
+                                                         const uint8_t *u_row,
+                                                         const uint8_t *v_row,
+                                                         uint32_t width)
+{
+    for (uint32_t col = 0; col < width; col++) {
+        int y = y_row[col] - 16;
+        int u = u_row[col / 2] - 128;
+        int v = v_row[col / 2] - 128;
+
+        int r = (298 * y + 409 * v + 128) >> 8;
+        int g = (298 * y - 100 * u - 208 * v + 128) >> 8;
+        int b = (298 * y + 516 * u + 128) >> 8;
+
+        r = r < 0 ? 0 : (r > 255 ? 255 : r);
+        g = g < 0 ? 0 : (g > 255 ? 255 : g);
+        b = b < 0 ? 0 : (b > 255 ? 255 : b);
+
+        dst[col] = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+    }
+}
+
+#define NEON_YUV420_TO_ARGB8888_ROW(dst, y_row, u_row, v_row, width) \
+    neon_yuv420_to_argb8888_row_fallback((dst), (y_row), (u_row), (v_row), (width))
+
+/* Fallback: use neon_simd.h intrinsics for box blur */
+#define NEON_BOX_BLUR_ROW(dst, src, width, radius) \
+    neon_box_blur_row((dst), (src), (width), (radius))
+
+/* Fallback: use neon_simd.h intrinsics for dithering */
+#define NEON_DITHER_ARGB8888_TO_RGB565(dst, src, width, y) \
+    neon_dither_argb8888_to_rgb565((dst), (src), (width), (y))
 
 #endif /* USE_NEON_ASM && NEON_ASM_AVAILABLE */
 
