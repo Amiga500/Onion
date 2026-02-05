@@ -13,10 +13,14 @@ bool str_getLastNumber(const char *str, long *out_val)
     long val = -1;
 
     while (*p) {
-        if (isdigit(*p))
-            val = strtol(p, (char **)&p, 10);
-        else
+        if (isdigit((unsigned char)*p)) {
+            char *endptr;
+            val = strtol(p, &endptr, 10);
+            p = endptr;  // Move to position after the number
+        }
+        else {
             p++;
+        }
     }
 
     if (val != -1)
