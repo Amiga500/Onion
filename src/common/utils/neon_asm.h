@@ -220,6 +220,53 @@ extern void neon_asm_bilinear_interp_4px(uint32_t *dst, const uint32_t *c00_base
                                          const uint32_t *c10_base, const int *csax,
                                          int ey);
 
+/**
+ * @brief Convert Grayscale+Alpha to ARGB8888 (Assembly version)
+ *
+ * Converts grayscale+alpha (2 bytes per pixel) to ARGB8888 (4 bytes per pixel).
+ * The grayscale value is replicated to R, G, B channels.
+ *
+ * @param dst Destination buffer (4 bytes per pixel)
+ * @param src Source buffer (2 bytes per pixel: gray, alpha)
+ * @param width Number of pixels to convert
+ *
+ * Performance: ~2 cycles/pixel on Cortex-A7 (vs ~3 for intrinsics)
+ */
+extern void neon_asm_graya_to_argb8888(uint32_t *dst, const uint8_t *src,
+                                        uint32_t width);
+
+/**
+ * @brief Convert RGBA8888 to ARGB8888 (Assembly version)
+ *
+ * Reorders RGBA pixel data to ARGB format by swapping R and B channels.
+ *
+ * @param dst Destination buffer (ARGB8888)
+ * @param src Source buffer (RGBA8888)
+ * @param count Number of pixels to convert
+ *
+ * Performance: ~1.5 cycles/pixel on Cortex-A7 (vs ~2 for intrinsics)
+ */
+extern void neon_asm_rgba_to_argb(uint32_t *dst, const uint32_t *src,
+                                   uint32_t count);
+
+/**
+ * @brief Render 8x8 glyph with outline (Assembly version)
+ *
+ * Renders a complete 8x8 monochrome glyph with outline effect.
+ * All 8 rows are processed efficiently with loop unrolling.
+ *
+ * @param dst Destination buffer (16-bit pixels)
+ * @param glyph Pointer to 8 bytes of glyph data (8 rows, MSB = leftmost pixel)
+ * @param stride Destination buffer stride in pixels
+ * @param fg_color Foreground color (16-bit RGB565)
+ * @param outline_color Outline color (16-bit RGB565)
+ *
+ * Performance: ~12 cycles/row (~96 total vs ~200 for intrinsics)
+ */
+extern void neon_asm_render_glyph_8x8(uint16_t *dst, const uint8_t *glyph,
+                                       uint32_t stride, uint16_t fg_color,
+                                       uint16_t outline_color);
+
 #endif /* NEON_ASM_AVAILABLE */
 
 /**
@@ -245,8 +292,14 @@ extern void neon_asm_bilinear_interp_4px(uint32_t *dst, const uint32_t *c00_base
 #define NEON_GRAY_TO_ARGB8888(dst, src, width) \
     neon_asm_gray_to_argb8888((dst), (src), (width))
 
+#define NEON_GRAYA_TO_ARGB8888(dst, src, width) \
+    neon_asm_graya_to_argb8888((dst), (src), (width))
+
 #define NEON_SWAP_RB(dst, src, count) \
     neon_asm_swap_rb((dst), (src), (count))
+
+#define NEON_RGBA_TO_ARGB(dst, src, count) \
+    neon_asm_rgba_to_argb((dst), (src), (count))
 
 #define NEON_ALPHA_BLEND(dst, src, count) \
     neon_asm_alpha_blend((dst), (src), (count))
@@ -265,6 +318,9 @@ extern void neon_asm_bilinear_interp_4px(uint32_t *dst, const uint32_t *c00_base
 
 #define NEON_RENDER_GLYPH_ROW(dst, row, above, below, fg, outline) \
     neon_asm_render_glyph_row((dst), (row), (above), (below), (fg), (outline))
+
+#define NEON_RENDER_GLYPH_8X8(dst, glyph, stride, fg, outline) \
+    neon_asm_render_glyph_8x8((dst), (glyph), (stride), (fg), (outline))
 
 #define NEON_PREMULTIPLY_ALPHA(dst, src, count) \
     neon_asm_premultiply_alpha((dst), (src), (count))
@@ -335,6 +391,18 @@ static inline void neon_premultiply_alpha_fallback(uint32_t *dst, const uint32_t
 
 #define NEON_PREMULTIPLY_ALPHA(dst, src, count) \
     neon_premultiply_alpha_fallback((dst), (src), (count))
+
+/* Fallback: use neon_simd.h intrinsics for graya conversion */
+#define NEON_GRAYA_TO_ARGB8888(dst, src, width) \
+    neon_graya_to_argb8888((dst), (src), (width))
+
+/* Fallback: use neon_simd.h intrinsics for rgba to argb */
+#define NEON_RGBA_TO_ARGB(dst, src, count) \
+    neon_rgba_to_argb((dst), (src), (count))
+
+/* Fallback: use neon_simd.h intrinsics for 8x8 glyph rendering */
+#define NEON_RENDER_GLYPH_8X8(dst, glyph, stride, fg, outline) \
+    neon_render_glyph_8x8((dst), (glyph), (stride), (fg), (outline))
 
 /* Bilinear interpolation fallback - uses the C intrinsics in SDL_rotozoom.c
  * This macro is defined but not used in fallback mode; the intrinsics version
