@@ -32,8 +32,14 @@ bool ra_loadHistory(const char *jsonFilePath)
     }
     
     size_t bytesRead = fread(fileContent, 1, fileSize, file);
-    fileContent[bytesRead] = '\0';
     fclose(file);
+    
+    if (bytesRead != (size_t)fileSize) {
+        print_debug("Error reading JSON file: expected %ld bytes, got %zu", fileSize, bytesRead);
+        free(fileContent);
+        return false;
+    }
+    fileContent[bytesRead] = '\0';
 
     g_cachedRetroArchHistory = cJSON_Parse(fileContent);
     free(fileContent);
