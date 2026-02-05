@@ -751,7 +751,10 @@ static inline void neon_yuv420_to_argb8888(uint32_t *dst,
             vy = vsubq_s16(vy, v16);
 
             /* Load 4 U and V values (one per 2 horizontal pixels)
-             * We only need 4 bytes each, so use a temporary buffer to avoid overread */
+             * We use a temporary buffer with memcpy to safely load exactly 4 bytes
+             * without risking buffer overread. While this adds some overhead in the
+             * hot loop, it ensures safety at buffer boundaries. For maximum performance,
+             * use the assembly version which uses vld1.32 with lane indexing. */
             uint8_t u_temp[8] = {0};
             uint8_t v_temp[8] = {0};
             memcpy(u_temp, u_row + col / 2, 4);

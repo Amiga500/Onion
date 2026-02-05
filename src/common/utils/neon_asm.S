@@ -1672,9 +1672,11 @@ neon_asm_yuv420_to_argb8888_row:
     vsub.s16    q0, q0, q13         @ Y - 16
 
     @ Load 4 U and 4 V values (for 8 pixels, U/V are subsampled 2x horizontally)
-    @ We only need 4 bytes each, advance by 4
-    vld1.32 {d2[0]}, [r2]!          @ d2[0..3] = U[0..3]
-    vld1.32 {d3[0]}, [r3]!          @ d3[0..3] = V[0..3]
+    @ Using vld1.32 with lane 0 loads exactly 4 bytes into the lower 32-bits of
+    @ the register without overreading past the buffer end. The upper 32-bits
+    @ (d2[4..7], d3[4..7]) are unused after vzip interleaves the lower values.
+    vld1.32 {d2[0]}, [r2]!          @ d2[0..3] = U[0..3], advances r2 by 4
+    vld1.32 {d3[0]}, [r3]!          @ d3[0..3] = V[0..3], advances r3 by 4
 
     @ Duplicate U/V for pairs: U0,U0,U1,U1,U2,U2,U3,U3
     @ Use vzip with itself to interleave: [a,b,c,d,0,0,0,0] -> [a,a,b,b,c,c,d,d]
@@ -2175,9 +2177,6 @@ neon_asm_dither_argb8888_to_rgb565:
     .byte    2,-2,  3,-1
     .byte   -3, 1, -4, 0
     .byte    3,-1,  2,-2
-
-.Lbayer_matrix_scalar:
-    .byte   -4, 0, -3, 1
 
     .size neon_asm_dither_argb8888_to_rgb565, .-neon_asm_dither_argb8888_to_rgb565
 
