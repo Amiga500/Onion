@@ -3,6 +3,7 @@
 
 #include "utils/file.h"
 #include "utils/log.h"
+#include "utils/security.h"
 
 #include "./fileActions.h"
 #include "./globals.h"
@@ -49,6 +50,12 @@ void applyAllChanges(bool auto_update)
                 SDL_BlitSurface(screen, NULL, video, NULL);
                 SDL_Flip(video);
 
+                // Security: Validate package name before using in shell command
+                if (!filename_isValid(package->name)) {
+                    printf_debug("applyAllChanges: Invalid package name, skipping\n");
+                    continue;
+                }
+                
                 // Use snprintf for buffer overflow protection
                 snprintf(cmd, sizeof(cmd), "/mnt/SDCARD/.tmp_update/script/pacman_install.sh \"%s\" \"%s\"", data_path, package->name);
                 system(cmd);
@@ -58,6 +65,13 @@ void applyAllChanges(bool auto_update)
             }
             else if (package->installed) {
                 printf_debug("Removing %s...\n", package->name);
+                
+                // Security: Validate package name before using
+                if (!filename_isValid(package->name)) {
+                    printf_debug("applyAllChanges: Invalid package name for removal, skipping\n");
+                    continue;
+                }
+                
                 callPackageInstaller(data_path, package->name, false);
 
                 // app removal

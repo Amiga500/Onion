@@ -7,6 +7,7 @@
 #include "utils/file.h"
 #include "utils/json.h"
 #include "utils/log.h"
+#include "utils/security.h"
 #include "utils/str.h"
 
 #include "./globals.h"
@@ -309,7 +310,19 @@ void callPackageInstaller(const char *data_path, const char *package_name,
 {
     char main_path[STR_MAX], cmd[STR_MAX];
 
+    // Security: Validate package name doesn't contain dangerous characters
+    if (!filename_isValid(package_name)) {
+        printf_debug("callPackageInstaller: Invalid package name\n");
+        return;
+    }
+
     if (getPackageMainPath(main_path, data_path, package_name)) {
+        // Security: Validate the resolved path is safe for shell use
+        if (!path_isValidForShell(main_path, "/mnt/SDCARD/")) {
+            printf_debug("callPackageInstaller: Invalid main_path\n");
+            return;
+        }
+        
         char config_path[STR_MAX + 32];
         snprintf(config_path, STR_MAX + 32 - 1, "%s/config.json", main_path);
 

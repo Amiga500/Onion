@@ -8,6 +8,7 @@
 #include "utils/hash.h"
 #include "utils/log.h"
 #include "utils/process.h"
+#include "utils/security.h"
 #include "utils/str.h"
 
 #include "./display.h"
@@ -403,6 +404,13 @@ void resumeGame(int index)
 
         if (!exists(rompath) || !exists(launch))
             continue;
+
+        // Security: Validate paths before using in shell command
+        if (!path_isValidForShell(rompath, "/mnt/SDCARD/") || 
+            !path_isValidForShell(launch, "/mnt/SDCARD/")) {
+            printf_debug("resumeGame: Invalid path detected, skipping\n");
+            continue;
+        }
 
         ++validGameCount;
 

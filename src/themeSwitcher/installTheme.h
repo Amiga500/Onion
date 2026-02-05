@@ -11,6 +11,7 @@
 #include "utils/file.h"
 #include "utils/json.h"
 #include "utils/log.h"
+#include "utils/security.h"
 #include "utils/str.h"
 
 #ifdef PLATFORM_MIYOOMINI
@@ -174,6 +175,26 @@ void installNonDynamicElement(const char *theme_path, const char *image_name)
 
 void installTheme(char *theme_path, bool apply_icons)
 {
+    // Security: Validate theme path before use in shell commands
+    // Theme paths must be within the Themes directory or tmp_update directory
+    if (!path_isSafe(theme_path)) {
+        printf_debug("installTheme: Invalid theme path (directory traversal detected)\n");
+        return;
+    }
+    
+    // Theme paths must start with allowed directories
+    if (!path_isWithinDirectory(theme_path, THEMES_DIR) && 
+        !path_isWithinDirectory(theme_path, "/mnt/SDCARD/.tmp_update/")) {
+        printf_debug("installTheme: Theme path not in allowed directory\n");
+        return;
+    }
+    
+    // Check for shell metacharacters that could enable command injection
+    if (!path_isValidForShell(theme_path, NULL)) {
+        printf_debug("installTheme: Theme path contains dangerous characters\n");
+        return;
+    }
+
     system("/mnt/SDCARD/.tmp_update/bin/mainUiBatPerc --restore");
 
     if (strstr(theme_path, "/.previews/") != NULL) {
