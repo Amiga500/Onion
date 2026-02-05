@@ -67,7 +67,7 @@ OFILES := $(OFILES) $(NEON_ASM_OBJ)
 
 # Rule for assembling the NEON assembly file
 $(NEON_ASM_OBJ): ../common/utils/neon_asm.S
-$(AS) $(ASFLAGS) -c $< -o $@
+	$(AS) $(ASFLAGS) -c $< -o $@
 endif
 
 ifdef INCLUDE_SHMVAR
