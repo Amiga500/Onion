@@ -99,10 +99,15 @@ bool process_start(const char *pname, const char *args, const char *home,
     return true;
 }
 
-bool process_start_read_return(const char *cmdline, char *out_str)
+bool process_start_read_return(const char *cmdline, char *out_str, size_t out_size)
 {
     char buffer[255] = "";
     char *result = NULL;
+
+    // Validate output buffer
+    if (out_str == NULL || out_size == 0) {
+        return false;
+    }
 
     FILE *pipe = popen(cmdline, "r");
     if (pipe == NULL) {
@@ -123,9 +128,9 @@ bool process_start_read_return(const char *cmdline, char *out_str)
         size_t len = strlen(result);
         if (len > 0 && result[len - 1] == '\n')
             result[len - 1] = '\0';
-        // Use strncpy for safety - assume out_str is at least 255 bytes (buffer size)
-        strncpy(out_str, result, 254);
-        out_str[254] = '\0';
+        // Use strncpy with caller-provided buffer size for safety
+        strncpy(out_str, result, out_size - 1);
+        out_str[out_size - 1] = '\0';
         free(result);
     }
     else {
