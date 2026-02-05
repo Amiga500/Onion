@@ -51,9 +51,9 @@ RomScreenType_e findRomScreen(const Game_s *game, char *currPicture)
         return ROM_SCREEN_HASH;
     }
 
-    // Check if artwork exists
-    // Use snprintf for buffer overflow protection
-    snprintf(currPicture, STR_MAX * 2, "%s", game->recentItem.imgpath);
+    // Check if artwork exists - use strncpy for simple string copy
+    strncpy(currPicture, game->recentItem.imgpath, STR_MAX * 2 - 1);
+    currPicture[STR_MAX * 2 - 1] = '\0';
     printf_debug("Checking for artwork: %s\n", currPicture);
     if (exists(currPicture)) {
         return ROM_SCREEN_ARTWORK;

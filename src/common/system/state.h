@@ -313,7 +313,7 @@ bool history_getRomscreenPath(char *path_out)
         snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
     }
     print_debug(file_path);
-    if (strlen(filename) > 0) {
+    if (filename[0] != '\0') {
         // Use snprintf for buffer overflow protection
         snprintf(path_out, STR_MAX, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;

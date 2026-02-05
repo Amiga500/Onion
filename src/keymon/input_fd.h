@@ -90,15 +90,21 @@ void keyinput_sendMulti(int n, int code_value_pairs[n][2])
         return;
     char cmd[512];
     int offset = 0;
+    int max_offset = (int)sizeof(cmd) - 1;
 
     // Use snprintf for buffer overflow protection
     offset = snprintf(cmd, sizeof(cmd), "./bin/sendkeys ");
+    if (offset < 0 || offset >= max_offset)
+        return;
 
-    for (int i = 0; i < n && offset < (int)sizeof(cmd); i++) {
+    for (int i = 0; i < n; i++) {
         int code = code_value_pairs[i][0];
         int value = code_value_pairs[i][1];
         _ignoreQueue_add(code, value);
-        offset += snprintf(cmd + offset, sizeof(cmd) - offset, "%d %d ", code, value);
+        int written = snprintf(cmd + offset, sizeof(cmd) - offset, "%d %d ", code, value);
+        if (written < 0 || offset + written >= max_offset)
+            break;  // Stop if buffer would overflow
+        offset += written;
     }
 
     printf_debug("Send keys: %s\n", cmd);
