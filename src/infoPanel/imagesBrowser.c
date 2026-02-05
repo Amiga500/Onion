@@ -107,6 +107,10 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
 
     *images_paths_count = 0;
     *images_paths = (char **)malloc(images_count * sizeof(char *));
+    if (*images_paths == NULL) {
+        closedir(dir);
+        return false;
+    }
 
     while ((ent = readdir(dir)) != NULL) {
         char image_path[PATH_MAX];
@@ -119,6 +123,10 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
 
         (*images_paths)[*images_paths_count] =
             (char *)malloc(PATH_MAX * sizeof(char));
+        if ((*images_paths)[*images_paths_count] == NULL) {
+            // Memory allocation failed - continue with what we have
+            break;
+        }
         strcpy((*images_paths)[*images_paths_count], image_path);
         (*images_paths_count)++;
 

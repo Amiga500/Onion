@@ -144,7 +144,13 @@ void network_getSmbShares()
                 }
 
                 numShares++;
-                _network_shares = (Share *)realloc(_network_shares, numShares * sizeof(Share));
+                // Use temporary pointer to avoid memory leak if realloc fails
+                Share *new_shares = (Share *)realloc(_network_shares, numShares * sizeof(Share));
+                if (new_shares == NULL) {
+                    numShares--;  // Revert the count increment
+                    break;  // Stop processing, keep what we have
+                }
+                _network_shares = new_shares;
 
                 bool add_exclamation = false;
                 if (strncmp("__", shareName, 2) == 0) {

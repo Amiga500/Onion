@@ -65,11 +65,15 @@ void diags_getEntries(void)
 
                 if (entry.label[0] && entry.tooltip[0]) {
                     diags_numScripts++;
-                    scripts = realloc(scripts, diags_numScripts * sizeof(diagScripts));
-                    if (scripts == NULL) {
+                    // Use temporary pointer to avoid memory leak if realloc fails
+                    diagScripts *new_scripts = realloc(scripts, diags_numScripts * sizeof(diagScripts));
+                    if (new_scripts == NULL) {
                         printf("Memory allocation failed...\n");
+                        diags_numScripts--;  // Revert the count increment
+                        // Note: original scripts pointer is still valid and will be freed later
                         return;
                     }
+                    scripts = new_scripts;
                     scripts[diags_numScripts - 1] = entry;
                 }
             }

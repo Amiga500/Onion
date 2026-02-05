@@ -45,15 +45,55 @@ static bool loadImagesPathsFromJson(const char *config_path,
     // Get JSON objects
     cJSON *json_root = cJSON_Parse(json_str);
     free(json_str);
+    if (json_root == NULL) {
+        *images_paths_count = 0;
+        return;
+    }
     cJSON *json_images_array = cJSON_GetObjectItem(json_root, "images");
+    if (json_images_array == NULL) {
+        cJSON_Delete(json_root);
+        *images_paths_count = 0;
+        return;
+    }
     *images_paths_count = cJSON_GetArraySize(json_images_array);
+    if (*images_paths_count == 0) {
+        cJSON_Delete(json_root);
+        return;
+    }
     *images_paths = (char **)malloc(*images_paths_count * sizeof(char *));
     *images_titles = (char **)malloc(*images_paths_count * sizeof(char *));
+    if (*images_paths == NULL || *images_titles == NULL) {
+        free(*images_paths);
+        free(*images_titles);
+        *images_paths = NULL;
+        *images_titles = NULL;
+        *images_paths_count = 0;
+        cJSON_Delete(json_root);
+        return;
+    }
 
     for (int i = 0; i < *images_paths_count; i++) {
         (*images_paths)[i] = (char *)malloc((STR_MAX * 2 + 2) * sizeof(char));
         static const int g_title_max_length = 50;
         (*images_titles)[i] = (char *)malloc(g_title_max_length * sizeof(char));
+        
+        // Check for allocation failures
+        if ((*images_paths)[i] == NULL || (*images_titles)[i] == NULL) {
+            // Free what we've allocated so far
+            for (int j = 0; j < i; j++) {
+                free((*images_paths)[j]);
+                free((*images_titles)[j]);
+            }
+            free((*images_paths)[i]);  // May be NULL, but free(NULL) is safe
+            free((*images_titles)[i]);
+            free(*images_paths);
+            free(*images_titles);
+            *images_paths = NULL;
+            *images_titles = NULL;
+            *images_paths_count = 0;
+            cJSON_Delete(json_root);
+            return;
+        }
 
         const cJSON *json_image_item = cJSON_GetArrayItem(json_images_array, i);
         if (!json_image_item) {
