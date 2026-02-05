@@ -52,17 +52,22 @@ void renderSummary()
             char line_str[STR_MAX * 2];
             size_t line_size = sizeof(line_str);
             size_t offset = 0;
+            int written;
             
-            // Use snprintf for buffer overflow protection
-            offset = snprintf(line_str, line_size, "%s:", layer_names[nT]);
+            // Use snprintf for buffer overflow protection with bounds checking
+            written = snprintf(line_str, line_size, "%s:", layer_names[nT]);
+            if (written > 0 && (size_t)written < line_size) offset = written;
 
-            if (changes_installs[nT] > 0)
-                offset += snprintf(line_str + offset, line_size - offset, " %d added",
+            if (changes_installs[nT] > 0) {
+                written = snprintf(line_str + offset, line_size - offset, " %d added",
                         changes_installs[nT]);
+                if (written > 0 && offset + written < line_size) offset += written;
+            }
 
             if (changes_removals[nT] > 0) {
                 if (changes_installs[nT] > 0) {
-                    offset += snprintf(line_str + offset, line_size - offset, ",");
+                    written = snprintf(line_str + offset, line_size - offset, ",");
+                    if (written > 0 && offset + written < line_size) offset += written;
                 }
                 snprintf(line_str + offset, line_size - offset, " %d removed", changes_removals[nT]);
             }

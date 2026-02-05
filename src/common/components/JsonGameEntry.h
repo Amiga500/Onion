@@ -43,16 +43,25 @@ void JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
 {
     size_t dest_size = STR_MAX * 6;
     size_t offset = 0;
+    int written;
     
-    strcpy(dest, "{");
-    offset = 1;
+    // Use snprintf for buffer overflow protection with proper bounds checking
+    written = snprintf(dest, dest_size, "{");
+    if (written > 0 && (size_t)written < dest_size) offset = written;
     
-    // Use snprintf for buffer overflow protection
-    offset += snprintf(dest + offset, dest_size - offset, "\"label\":\"%s\",", entry->label);
-    offset += snprintf(dest + offset, dest_size - offset, "\"launch\":\"%s\",", entry->launch);
-    offset += snprintf(dest + offset, dest_size - offset, "\"type\":%d,", entry->type);
-    if (strlen(entry->imgpath) > 0)
-        offset += snprintf(dest + offset, dest_size - offset, "\"imgpath\":\"%s\",", entry->imgpath);
+    written = snprintf(dest + offset, dest_size - offset, "\"label\":\"%s\",", entry->label);
+    if (written > 0 && offset + written < dest_size) offset += written;
+    
+    written = snprintf(dest + offset, dest_size - offset, "\"launch\":\"%s\",", entry->launch);
+    if (written > 0 && offset + written < dest_size) offset += written;
+    
+    written = snprintf(dest + offset, dest_size - offset, "\"type\":%d,", entry->type);
+    if (written > 0 && offset + written < dest_size) offset += written;
+    
+    if (strlen(entry->imgpath) > 0) {
+        written = snprintf(dest + offset, dest_size - offset, "\"imgpath\":\"%s\",", entry->imgpath);
+        if (written > 0 && offset + written < dest_size) offset += written;
+    }
     snprintf(dest + offset, dest_size - offset, "\"rompath\":\"%s\"}", entry->rompath);
 }
 
