@@ -16,8 +16,10 @@
 
 #ifdef PLATFORM_MIYOOMINI
 #define SCRIPT_DIR "/mnt/SDCARD/.tmp_update/script"
+#define TMP_UPDATE_DIR "/mnt/SDCARD/.tmp_update/"
 #else
 #define SCRIPT_DIR "./script"
+#define TMP_UPDATE_DIR "./.tmp_update/"
 #endif
 
 #define SYSTEM_SKIN_DIR "/mnt/SDCARD/miyoo/app/skin"
@@ -184,7 +186,7 @@ void installTheme(char *theme_path, bool apply_icons)
     
     // Theme paths must start with allowed directories
     if (!path_isWithinDirectory(theme_path, THEMES_DIR) && 
-        !path_isWithinDirectory(theme_path, "/mnt/SDCARD/.tmp_update/")) {
+        !path_isWithinDirectory(theme_path, TMP_UPDATE_DIR)) {
         printf_debug("installTheme: Theme path not in allowed directory\n");
         return;
     }

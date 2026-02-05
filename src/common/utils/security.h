@@ -33,14 +33,6 @@ static inline bool path_isSafe(const char *path)
         return false;
     }
     
-    // Check for null bytes embedded in the path (truncation attack)
-    size_t len = strlen(path);
-    for (size_t i = 0; i < len; i++) {
-        if (path[i] == '\0') {
-            return false;  // Should not happen with strlen, but defensive
-        }
-    }
-    
     // Check for directory traversal patterns
     const char *p = path;
     while (*p) {
@@ -213,10 +205,6 @@ static inline bool filename_isValid(const char *filename)
         // No shell metacharacters
         if (c == '`' || c == '$' || c == '"' || c == '\'' || 
             c == ';' || c == '&' || c == '|' || c == '\n' || c == '\r') {
-            return false;
-        }
-        // No null bytes (shouldn't be possible with strlen)
-        if (c == '\0') {
             return false;
         }
         p++;
