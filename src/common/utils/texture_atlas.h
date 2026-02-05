@@ -121,13 +121,22 @@ static inline TextureAtlas *atlas_create(uint32_t width, uint32_t height)
     /* Use aligned allocation for cache-line alignment */
 #if defined(_WIN32)
     atlas->pixels = (uint32_t *)_aligned_malloc(pixel_bytes, ATLAS_CACHE_LINE_SIZE);
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_ATOMICS__)
-    atlas->pixels = (uint32_t *)aligned_alloc(ATLAS_CACHE_LINE_SIZE, pixel_bytes);
-#else
+#elif defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L
     /* POSIX-compliant aligned allocation */
     void *ptr = NULL;
     if (posix_memalign(&ptr, ATLAS_CACHE_LINE_SIZE, pixel_bytes) == 0) {
         atlas->pixels = (uint32_t *)ptr;
+    } else {
+        atlas->pixels = NULL;
+    }
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+    atlas->pixels = (uint32_t *)aligned_alloc(ATLAS_CACHE_LINE_SIZE, pixel_bytes);
+#else
+    /* Fallback: allocate extra space and manually align */
+    void *raw = malloc(pixel_bytes + ATLAS_CACHE_LINE_SIZE);
+    if (raw) {
+        uintptr_t addr = (uintptr_t)raw + ATLAS_CACHE_LINE_SIZE;
+        atlas->pixels = (uint32_t *)(addr & ~((uintptr_t)ATLAS_CACHE_LINE_SIZE - 1));
     } else {
         atlas->pixels = NULL;
     }
@@ -455,8 +464,8 @@ static inline bool atlas_can_fit(const TextureAtlas *atlas,
 
     /* Check if it fits on current shelf */
     if (atlas->shelf_x + padded_width <= atlas->width) {
-        uint16_t effective_height = height > atlas->shelf_height ? height : atlas->shelf_height;
-        if (atlas->shelf_y + effective_height <= atlas->height) {
+        uint16_t max_shelf_height = height > atlas->shelf_height ? height : atlas->shelf_height;
+        if (atlas->shelf_y + max_shelf_height <= atlas->height) {
             return true;
         }
     }
