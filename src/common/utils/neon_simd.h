@@ -750,9 +750,14 @@ static inline void neon_yuv420_to_argb8888(uint32_t *dst,
             int16x8_t vy = vreinterpretq_s16_u16(vmovl_u8(vy8));
             vy = vsubq_s16(vy, v16);
 
-            /* Load 4 U and V values (one per 2 horizontal pixels) */
-            uint8x8_t vu4 = vld1_u8(u_row + col / 2);
-            uint8x8_t vv4 = vld1_u8(v_row + col / 2);
+            /* Load 4 U and V values (one per 2 horizontal pixels)
+             * We only need 4 bytes each, so use a temporary buffer to avoid overread */
+            uint8_t u_temp[8] = {0};
+            uint8_t v_temp[8] = {0};
+            memcpy(u_temp, u_row + col / 2, 4);
+            memcpy(v_temp, v_row + col / 2, 4);
+            uint8x8_t vu4 = vld1_u8(u_temp);
+            uint8x8_t vv4 = vld1_u8(v_temp);
 
             /* Duplicate U/V for each pair of pixels (4 -> 8 values) */
             uint8x8x2_t vu_dup = vzip_u8(vu4, vu4);
@@ -1122,15 +1127,11 @@ static inline void neon_dither_argb8888_to_rgb565(uint16_t *dst, const uint32_t 
     uint32_t simd_width = width & ~7u; /* Process 8 pixels at a time */
 
     /* Preload dither values for 8 pixels (2 repetitions of 4-pixel pattern) */
-    int8x8_t vdither = vld1_dup_s8(&dither_row[0]);
-    vdither = vset_lane_s8(dither_row[0], vdither, 0);
-    vdither = vset_lane_s8(dither_row[1], vdither, 1);
-    vdither = vset_lane_s8(dither_row[2], vdither, 2);
-    vdither = vset_lane_s8(dither_row[3], vdither, 3);
-    vdither = vset_lane_s8(dither_row[0], vdither, 4);
-    vdither = vset_lane_s8(dither_row[1], vdither, 5);
-    vdither = vset_lane_s8(dither_row[2], vdither, 6);
-    vdither = vset_lane_s8(dither_row[3], vdither, 7);
+    int8_t dither_pattern[8] = {
+        dither_row[0], dither_row[1], dither_row[2], dither_row[3],
+        dither_row[0], dither_row[1], dither_row[2], dither_row[3]
+    };
+    int8x8_t vdither = vld1_s8(dither_pattern);
 
     for (; x < simd_width; x += 8) {
         /* Load 8 ARGB8888 pixels */

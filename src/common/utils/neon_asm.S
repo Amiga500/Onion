@@ -1606,7 +1606,7 @@ neon_asm_render_glyph_8x8:
  *   r1 = y_row pointer
  *   r2 = u_row pointer
  *   r3 = v_row pointer
- *   [sp+16] = width
+ *   [sp+20] = width
  *
  *   NEON registers for coefficients and intermediate values
  *
@@ -1617,11 +1617,12 @@ neon_asm_render_glyph_8x8:
     .align 4
 
 neon_asm_yuv420_to_argb8888_row:
-    push    {r4-r8, lr}
+    push    {r4-r8, r11, lr}
     vpush   {d8-d15}
 
     @ Load width from stack
-    ldr     r4, [sp, #88]           @ width (after push: 6*4 + 16*4 = 24 + 64 = 88)
+    @ Stack layout: 7 regs (r4-r8, r11, lr) * 4 = 28 bytes + 8 double regs * 8 = 64 bytes = 92 bytes
+    ldr     r4, [sp, #92]           @ width
 
     @ Early exit if width == 0
     cmp     r4, #0
@@ -1671,11 +1672,15 @@ neon_asm_yuv420_to_argb8888_row:
     vsub.s16    q0, q0, q13         @ Y - 16
 
     @ Load 4 U and 4 V values (for 8 pixels, U/V are subsampled 2x horizontally)
-    vld1.8  {d2}, [r2]!             @ d2 = U[0..7] but we only use first 4
-    vld1.8  {d3}, [r3]!             @ d3 = V[0..7] but we only use first 4
+    @ We only need 4 bytes each, advance by 4
+    vld1.32 {d2[0]}, [r2]!          @ d2[0..3] = U[0..3]
+    vld1.32 {d3[0]}, [r3]!          @ d3[0..3] = V[0..3]
 
     @ Duplicate U/V for pairs: U0,U0,U1,U1,U2,U2,U3,U3
+    @ Use vzip with itself to interleave: [a,b,c,d,0,0,0,0] -> [a,a,b,b,c,c,d,d]
+    vmov    d4, d2                  @ Copy U to d4
     vzip.8  d2, d4                  @ d2 = U0,U0,U1,U1,U2,U2,U3,U3
+    vmov    d5, d3                  @ Copy V to d5
     vzip.8  d3, d5                  @ d3 = V0,V0,V1,V1,V2,V2,V3,V3
 
     @ Widen U and V to 16-bit and subtract 128
@@ -1718,22 +1723,26 @@ neon_asm_yuv420_to_argb8888_row:
     cmp     r6, #0
     beq     .Lyuv_exit
 
+    @ Use a pixel counter to track even/odd for U/V advancement
+    mov     r11, #0                 @ pixel counter within remainder
+
     @ r0 = dst, r1 = y_row, r2 = u_row, r3 = v_row, r6 = remaining count
 .Lyuv_scalar_loop:
     ldrb    r7, [r1], #1            @ Y
     sub     r7, r7, #16             @ Y - 16
 
-    @ Get U and V (note: for odd pixels, we already advanced, so use previous)
+    @ Get U and V (same for pixel pairs due to 2x horizontal subsampling)
     ldrb    r8, [r2]                @ U
     ldrb    lr, [r3]                @ V
     sub     r8, r8, #128            @ U - 128
     sub     lr, lr, #128            @ V - 128
 
-    @ R = (298*Y + 409*V + 128) >> 8
+    @ Calculate R = (298*(Y-16) + 409*(V-128) + 128) >> 8
+    @ Use stack to save intermediate results
     mov     r4, #298
-    mul     r4, r7, r4
+    mul     r4, r7, r4              @ 298 * (Y-16)
     mov     r5, #409
-    mla     r4, lr, r5, r4
+    mla     r4, lr, r5, r4          @ + 409 * (V-128)
     add     r4, r4, #128
     asr     r4, r4, #8
     @ Clamp R to 0-255
@@ -1741,60 +1750,50 @@ neon_asm_yuv420_to_argb8888_row:
     movlt   r4, #0
     cmp     r4, #255
     movgt   r4, #255
+    push    {r4}                    @ Save R on stack
 
-    @ G = (298*Y - 100*U - 208*V + 128) >> 8
-    mov     r5, #298
-    mul     r5, r7, r5
-    mov     r12, #100
-    mls     r5, r8, r12, r5         @ -= 100*U
-    mov     r12, #208
-    mls     r5, lr, r12, r5         @ -= 208*V
-    add     r5, r5, #128
-    asr     r5, r5, #8
-    cmp     r5, #0
-    movlt   r5, #0
-    cmp     r5, #255
-    movgt   r5, #255
-
-    @ B = (298*Y + 516*U + 128) >> 8
-    push    {r4, r5}
+    @ Calculate G = (298*(Y-16) - 100*(U-128) - 208*(V-128) + 128) >> 8
     mov     r4, #298
-    mul     r4, r7, r4
-    mov     r5, #516
-    mla     r4, r8, r5, r4
+    mul     r4, r7, r4              @ 298 * (Y-16)
+    mov     r5, #100
+    mls     r4, r8, r5, r4          @ -= 100 * (U-128)
+    mov     r5, #208
+    mls     r4, lr, r5, r4          @ -= 208 * (V-128)
     add     r4, r4, #128
     asr     r4, r4, #8
     cmp     r4, #0
     movlt   r4, #0
     cmp     r4, #255
     movgt   r4, #255
-    mov     r7, r4                  @ r7 = B
-    pop     {r4, r5}
+    push    {r4}                    @ Save G on stack
+
+    @ Calculate B = (298*(Y-16) + 516*(U-128) + 128) >> 8
+    mov     r4, #298
+    mul     r4, r7, r4              @ 298 * (Y-16)
+    mov     r5, #516
+    mla     r4, r8, r5, r4          @ + 516 * (U-128)
+    add     r4, r4, #128
+    asr     r4, r4, #8
+    cmp     r4, #0
+    movlt   r4, #0
+    cmp     r4, #255
+    movgt   r4, #255
+    @ r4 = B
+
+    @ Pop G and R from stack
+    pop     {r5}                    @ r5 = G
+    pop     {r7}                    @ r7 = R
 
     @ Pack ARGB: 0xFF000000 | (R << 16) | (G << 8) | B
-    orr     r4, r7, r5, lsl #8      @ B | (G << 8)
-    pop     {r5}
-    push    {r5}
-    orr     r4, r4, r5, lsl #16     @ Oops, need to reload R from stack
-    @ Simplified: reconstruct
-    pop     {r5}
-    push    {r5}
-    lsl     r5, r5, #16
-    orr     r4, r7, r4, lsl #8      @ B | (G << 8)
-    @ Actually let's simplify
-    @ r4 = R, r5 = G, r7 = B
-    @ This is getting complex, use simpler approach
-    push    {r4}
-    ldr     r4, [sp, #4]            @ reload R
-    add     sp, sp, #8              @ clean up stack
+    orr     r4, r4, r5, lsl #8      @ B | (G << 8)
+    orr     r4, r4, r7, lsl #16     @ | (R << 16)
+    orr     r4, r4, #0xFF000000     @ | (A << 24)
 
-    @ Simplified scalar path:
-    @ Just store placeholder and exit
-    mov     r4, #0xFF000000
     str     r4, [r0], #4
 
-    @ Advance U/V every 2 pixels
-    tst     r6, #1
+    @ Advance U/V every 2 pixels (when pixel counter is odd)
+    add     r11, r11, #1
+    tst     r11, #1
     addne   r2, r2, #1
     addne   r3, r3, #1
 
@@ -1803,7 +1802,7 @@ neon_asm_yuv420_to_argb8888_row:
 
 .Lyuv_exit:
     vpop    {d8-d15}
-    pop     {r4-r8, pc}
+    pop     {r4-r8, r11, pc}
 
     .size neon_asm_yuv420_to_argb8888_row, .-neon_asm_yuv420_to_argb8888_row
 
@@ -2108,6 +2107,10 @@ neon_asm_dither_argb8888_to_rgb565:
     cmp     r10, #0
     beq     .Ldither_exit
 
+    @ r4 still points to the bayer matrix row from setup
+    @ r5, r6, r7, r8 contain dither values d0, d1, d2, d3
+    @ Save them to stack for lookup
+    push    {r5, r6, r7, r8}
     mov     r11, #0                 @ x counter for dither index
 
 .Ldither_scalar_loop:
@@ -2118,23 +2121,13 @@ neon_asm_dither_argb8888_to_rgb565:
     ubfx    r5, r3, #8, #8          @ G
     ubfx    r6, r3, #16, #8         @ R
 
-    @ Get dither value for this x position
+    @ Get dither value for this x position from stack
+    @ Stack layout: [d0, d1, d2, d3] at sp+0, sp+4, sp+8, sp+12
     and     r7, r11, #3             @ x & 3
-    adr     r8, .Lbayer_matrix_scalar
-    @ Need to reload y from original, but we don't have it anymore
-    @ Use the dither values we already loaded
-    cmp     r7, #0
-    ldreqsb r8, [r4, #0]
-    cmp     r7, #1
-    ldreqsb r8, [r4, #1]
-    cmp     r7, #2
-    ldreqsb r8, [r4, #2]
-    cmp     r7, #3
-    ldreqsb r8, [r4, #3]
-    @ Simplified: just use r5 (first dither value) for scalar path
-    mov     r8, r5
+    ldr     r8, [sp, r7, lsl #2]    @ Load dither value (sign-extended word)
+    sxtb    r8, r8                  @ Sign-extend byte to word
 
-    @ Apply dither
+    @ Apply dither (r8 is signed)
     add     r6, r6, r8, lsl #1      @ R += dither * 2
     add     r5, r5, r8              @ G += dither
     add     r4, r4, r8, lsl #1      @ B += dither * 2
@@ -2168,6 +2161,8 @@ neon_asm_dither_argb8888_to_rgb565:
     add     r11, r11, #1
     subs    r10, r10, #1
     bne     .Ldither_scalar_loop
+
+    add     sp, sp, #16             @ Clean up stack (4 words)
 
 .Ldither_exit:
     vpop    {d8-d15}

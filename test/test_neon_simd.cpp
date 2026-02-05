@@ -599,7 +599,8 @@ TEST(NeonSimdTest, BoxBlurRadius1)
     NEON_BOX_BLUR_ROW(dst, src, width, 1);
 
     // Center and neighbors should be affected
-    // With radius 1, kernel is 3 pixels, so sum at center = (0 + 255 + 0) / 3 = 85
+    // With radius 1, kernel is 3 pixels. Due to boundary mirroring, the actual
+    // average depends on neighboring pixels. The center should be diluted.
     uint32_t center_r = (dst[8] >> 16) & 0xFF;
     EXPECT_GT(center_r, 0u) << "Center pixel should be affected by blur";
     EXPECT_LT(center_r, 255u) << "Center pixel should be diluted";
