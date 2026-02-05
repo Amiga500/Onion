@@ -26,10 +26,10 @@
 #ifndef UTILS_TEXTURE_ATLAS_H__
 #define UTILS_TEXTURE_ATLAS_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
 #include "neon_simd.h"
 
@@ -49,7 +49,7 @@ extern "C" {
 #define ATLAS_MAX_TEXTURES 128
 
 /** Invalid texture ID marker */
-#define ATLAS_INVALID_ID ((uint32_t)-1)
+#define ATLAS_INVALID_ID ((uint32_t) - 1)
 
 /**
  * @brief Texture region descriptor within an atlas
@@ -58,10 +58,10 @@ extern "C" {
  * These are packed together for cache efficiency during lookups.
  */
 typedef struct TextureRegion {
-    uint16_t x;         /**< X offset in atlas (pixels) */
-    uint16_t y;         /**< Y offset in atlas (pixels) */
-    uint16_t width;     /**< Texture width (pixels) */
-    uint16_t height;    /**< Texture height (pixels) */
+    uint16_t x;      /**< X offset in atlas (pixels) */
+    uint16_t y;      /**< Y offset in atlas (pixels) */
+    uint16_t width;  /**< Texture width (pixels) */
+    uint16_t height; /**< Texture height (pixels) */
 } TextureRegion;
 
 /**
@@ -71,21 +71,21 @@ typedef struct TextureRegion {
  * for optimal performance on ARM Cortex-A7 with NEON.
  */
 typedef struct TextureAtlas {
-    uint32_t *pixels;           /**< Pixel data (ARGB8888 format) */
-    void *raw_alloc;            /**< Original allocation pointer (for manual alignment fallback) */
-    uint32_t width;             /**< Atlas width in pixels */
-    uint32_t height;            /**< Atlas height in pixels */
-    uint32_t stride;            /**< Stride in pixels (may be padded for alignment) */
+    uint32_t *pixels; /**< Pixel data (ARGB8888 format) */
+    void *raw_alloc;  /**< Original allocation pointer (for manual alignment fallback) */
+    uint32_t width;   /**< Atlas width in pixels */
+    uint32_t height;  /**< Atlas height in pixels */
+    uint32_t stride;  /**< Stride in pixels (may be padded for alignment) */
 
-    TextureRegion regions[ATLAS_MAX_TEXTURES];  /**< Texture region descriptors */
-    uint32_t region_count;      /**< Number of textures in atlas */
+    TextureRegion regions[ATLAS_MAX_TEXTURES]; /**< Texture region descriptors */
+    uint32_t region_count;                     /**< Number of textures in atlas */
 
     /* Simple bin-packing state using shelf algorithm */
-    uint16_t shelf_y;           /**< Current shelf Y position */
-    uint16_t shelf_height;      /**< Current shelf height */
-    uint16_t shelf_x;           /**< Current X position on shelf */
+    uint16_t shelf_y;      /**< Current shelf Y position */
+    uint16_t shelf_height; /**< Current shelf height */
+    uint16_t shelf_x;      /**< Current X position on shelf */
 
-    bool dirty;                 /**< Whether atlas needs cache flush before GPU use */
+    bool dirty; /**< Whether atlas needs cache flush before GPU use */
 } TextureAtlas;
 
 /**
@@ -120,7 +120,7 @@ static inline TextureAtlas *atlas_create(uint32_t width, uint32_t height)
     atlas->stride = atlas_align_up(width, ATLAS_CACHE_LINE_SIZE / sizeof(uint32_t));
     atlas->width = width;
     atlas->height = height;
-    atlas->raw_alloc = NULL;  /* Initialize to NULL for non-fallback cases */
+    atlas->raw_alloc = NULL; /* Initialize to NULL for non-fallback cases */
 
     /* Allocate cache-aligned pixel buffer */
     size_t pixel_bytes = atlas->stride * height * sizeof(uint32_t);
@@ -133,7 +133,8 @@ static inline TextureAtlas *atlas_create(uint32_t width, uint32_t height)
     void *ptr = NULL;
     if (posix_memalign(&ptr, ATLAS_CACHE_LINE_SIZE, pixel_bytes) == 0) {
         atlas->pixels = (uint32_t *)ptr;
-    } else {
+    }
+    else {
         atlas->pixels = NULL;
     }
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
@@ -142,10 +143,11 @@ static inline TextureAtlas *atlas_create(uint32_t width, uint32_t height)
     /* Fallback: allocate extra space and manually align */
     void *raw = malloc(pixel_bytes + ATLAS_CACHE_LINE_SIZE);
     if (raw) {
-        atlas->raw_alloc = raw;  /* Store original pointer for free() */
+        atlas->raw_alloc = raw; /* Store original pointer for free() */
         uintptr_t addr = (uintptr_t)raw + ATLAS_CACHE_LINE_SIZE;
         atlas->pixels = (uint32_t *)(addr & ~((uintptr_t)ATLAS_CACHE_LINE_SIZE - 1));
-    } else {
+    }
+    else {
         atlas->pixels = NULL;
     }
 #endif
@@ -186,7 +188,8 @@ static inline void atlas_destroy(TextureAtlas *atlas)
         /* Fallback: free the original raw allocation if used */
         if (atlas->raw_alloc) {
             free(atlas->raw_alloc);
-        } else {
+        }
+        else {
             free(atlas->pixels);
         }
 #endif
@@ -207,8 +210,8 @@ static inline void atlas_destroy(TextureAtlas *atlas)
  * @return Texture ID for future reference, or ATLAS_INVALID_ID if atlas is full
  */
 static inline uint32_t atlas_add_texture(TextureAtlas *atlas,
-                                          const uint32_t *pixels,
-                                          uint16_t width, uint16_t height)
+                                         const uint32_t *pixels,
+                                         uint16_t width, uint16_t height)
 {
     if (!atlas || !pixels || atlas->region_count >= ATLAS_MAX_TEXTURES) {
         return ATLAS_INVALID_ID;
@@ -295,8 +298,8 @@ static inline const TextureRegion *atlas_get_region(const TextureAtlas *atlas, u
  * @param dst_stride Destination stride in pixels
  */
 static inline void atlas_blit(const TextureAtlas *atlas, uint32_t id,
-                               uint32_t *dst, uint32_t dst_x, uint32_t dst_y,
-                               uint32_t dst_stride)
+                              uint32_t *dst, uint32_t dst_x, uint32_t dst_y,
+                              uint32_t dst_stride)
 {
     const TextureRegion *region = atlas_get_region(atlas, id);
     if (!region || !dst) {
@@ -308,7 +311,7 @@ static inline void atlas_blit(const TextureAtlas *atlas, uint32_t id,
 
 #ifdef USE_NEON_ASM
     /* Use optimized assembly rectangle blit */
-    NEON_BLIT_RECT(dst_ptr, dst_stride, src_ptr, atlas->stride, 
+    NEON_BLIT_RECT(dst_ptr, dst_stride, src_ptr, atlas->stride,
                    region->width, region->height);
 #else
     /* Fallback: row-by-row with NEON memcpy and prefetch */
@@ -348,8 +351,8 @@ static inline void atlas_blit(const TextureAtlas *atlas, uint32_t id,
  * @param dst_stride Destination stride in pixels
  */
 static inline void atlas_blit_blend(const TextureAtlas *atlas, uint32_t id,
-                                     uint32_t *dst, uint32_t dst_x, uint32_t dst_y,
-                                     uint32_t dst_stride)
+                                    uint32_t *dst, uint32_t dst_x, uint32_t dst_y,
+                                    uint32_t dst_stride)
 {
     const TextureRegion *region = atlas_get_region(atlas, id);
     if (!region || !dst) {
@@ -388,7 +391,7 @@ static inline void atlas_blit_blend(const TextureAtlas *atlas, uint32_t id,
  * @param count Number of IDs in array
  */
 static inline void atlas_prefetch_regions(const TextureAtlas *atlas,
-                                           const uint32_t *ids, uint32_t count)
+                                          const uint32_t *ids, uint32_t count)
 {
     if (!atlas || !ids) {
         return;
@@ -428,11 +431,12 @@ static inline void atlas_prefetch_regions(const TextureAtlas *atlas,
  * @return Pointer to texture pixels, or NULL if invalid ID
  */
 static inline const uint32_t *atlas_get_pixels(const TextureAtlas *atlas,
-                                                uint32_t id, uint32_t *out_stride)
+                                               uint32_t id, uint32_t *out_stride)
 {
     const TextureRegion *region = atlas_get_region(atlas, id);
     if (!region) {
-        if (out_stride) *out_stride = 0;
+        if (out_stride)
+            *out_stride = 0;
         return NULL;
     }
 
@@ -479,7 +483,7 @@ static inline void atlas_clear(TextureAtlas *atlas)
  * @return true if texture would fit, false otherwise
  */
 static inline bool atlas_can_fit(const TextureAtlas *atlas,
-                                  uint16_t width, uint16_t height)
+                                 uint16_t width, uint16_t height)
 {
     if (!atlas || atlas->region_count >= ATLAS_MAX_TEXTURES) {
         return false;
@@ -512,11 +516,13 @@ static inline bool atlas_can_fit(const TextureAtlas *atlas,
  * @param out_total_pixels Output: total atlas capacity in pixels
  */
 static inline void atlas_get_stats(const TextureAtlas *atlas,
-                                    uint32_t *out_used_pixels, uint32_t *out_total_pixels)
+                                   uint32_t *out_used_pixels, uint32_t *out_total_pixels)
 {
     if (!atlas) {
-        if (out_used_pixels) *out_used_pixels = 0;
-        if (out_total_pixels) *out_total_pixels = 0;
+        if (out_used_pixels)
+            *out_used_pixels = 0;
+        if (out_total_pixels)
+            *out_total_pixels = 0;
         return;
     }
 
@@ -525,8 +531,10 @@ static inline void atlas_get_stats(const TextureAtlas *atlas,
         used += atlas->regions[i].width * atlas->regions[i].height;
     }
 
-    if (out_used_pixels) *out_used_pixels = used;
-    if (out_total_pixels) *out_total_pixels = atlas->width * atlas->height;
+    if (out_used_pixels)
+        *out_used_pixels = used;
+    if (out_total_pixels)
+        *out_total_pixels = atlas->width * atlas->height;
 }
 
 /**
@@ -543,10 +551,10 @@ static inline void atlas_get_stats(const TextureAtlas *atlas,
  * @param dst_stride Destination stride in pixels
  */
 static inline void atlas_blit_batch(const TextureAtlas *atlas,
-                                     const uint32_t *ids,
-                                     const uint16_t *dst_positions,
-                                     uint32_t count,
-                                     uint32_t *dst, uint32_t dst_stride)
+                                    const uint32_t *ids,
+                                    const uint16_t *dst_positions,
+                                    uint32_t count,
+                                    uint32_t *dst, uint32_t dst_stride)
 {
     if (!atlas || !ids || !dst_positions || !dst || count == 0) {
         return;

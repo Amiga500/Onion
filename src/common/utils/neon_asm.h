@@ -34,8 +34,8 @@
 #ifndef UTILS_NEON_ASM_H__
 #define UTILS_NEON_ASM_H__
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,7 +63,7 @@ extern "C" {
  * Performance: ~5-6 cycles/pixel on Cortex-A7
  */
 extern void neon_asm_rgb888_to_argb8888(uint32_t *dst, const uint8_t *src,
-                                         uint32_t width);
+                                        uint32_t width);
 
 /**
  * @brief Convert grayscale pixels to ARGB8888 (Assembly version)
@@ -75,7 +75,7 @@ extern void neon_asm_rgb888_to_argb8888(uint32_t *dst, const uint8_t *src,
  * Performance: ~1.5 cycles/pixel on Cortex-A7
  */
 extern void neon_asm_gray_to_argb8888(uint32_t *dst, const uint8_t *src,
-                                       uint32_t width);
+                                      uint32_t width);
 
 /**
  * @brief Swap red and blue channels (Assembly version)
@@ -89,7 +89,7 @@ extern void neon_asm_gray_to_argb8888(uint32_t *dst, const uint8_t *src,
  * Performance: ~1.5 cycles/pixel on Cortex-A7
  */
 extern void neon_asm_swap_rb(uint32_t *dst, const uint32_t *src,
-                              uint32_t count);
+                             uint32_t count);
 
 /**
  * @brief Alpha blend source over destination (Assembly version)
@@ -103,7 +103,7 @@ extern void neon_asm_swap_rb(uint32_t *dst, const uint32_t *src,
  * Performance: ~3-4 cycles/pixel on Cortex-A7
  */
 extern void neon_asm_alpha_blend(uint32_t *dst, const uint32_t *src,
-                                  uint32_t count);
+                                 uint32_t count);
 
 /**
  * @brief Optimized memory copy (Assembly version)
@@ -157,8 +157,8 @@ extern void neon_asm_blit_row(uint32_t *dst, const uint32_t *src, uint32_t pixel
  * Performance: ~0.35 cycles/pixel on Cortex-A7 for 32x32+ regions
  */
 extern void neon_asm_blit_rect(uint32_t *dst, uint32_t dst_stride,
-                                const uint32_t *src, uint32_t src_stride,
-                                uint32_t width, uint32_t height);
+                               const uint32_t *src, uint32_t src_stride,
+                               uint32_t width, uint32_t height);
 
 /**
  * @brief Render a glyph row with outline detection (Assembly version)
@@ -175,8 +175,8 @@ extern void neon_asm_blit_rect(uint32_t *dst, uint32_t dst_stride,
  * Performance: ~15 cycles/row on Cortex-A7 (vs ~25 for intrinsics)
  */
 extern void neon_asm_render_glyph_row(uint16_t *dst, uint8_t glyph_row,
-                                       uint8_t glyph_row_above, uint8_t glyph_row_below,
-                                       uint16_t fg_color, uint16_t outline_color);
+                                      uint8_t glyph_row_above, uint8_t glyph_row_below,
+                                      uint16_t fg_color, uint16_t outline_color);
 
 /**
  * @brief Premultiply alpha for ARGB8888 pixels (Assembly version)
@@ -190,7 +190,7 @@ extern void neon_asm_render_glyph_row(uint16_t *dst, uint8_t glyph_row,
  * Performance: ~2 cycles/pixel on Cortex-A7
  */
 extern void neon_asm_premultiply_alpha(uint32_t *dst, const uint32_t *src,
-                                        uint32_t count);
+                                       uint32_t count);
 
 /* Note: Bilinear interpolation assembly is not yet implemented.
  * Use the C intrinsics version in SDL_rotozoom.c for now.
@@ -244,7 +244,7 @@ extern void neon_asm_premultiply_alpha(uint32_t *dst, const uint32_t *src,
     neon_asm_render_glyph_row((dst), (row), (above), (below), (fg), (outline))
 
 #define NEON_PREMULTIPLY_ALPHA(dst, src, count) \
-        neon_asm_premultiply_alpha((dst), (src), (count))
+    neon_asm_premultiply_alpha((dst), (src), (count))
 
 /* Note: NEON_BILINEAR_4PX is not available - bilinear interpolation
  * uses the C intrinsics version in SDL_rotozoom.c */
@@ -277,8 +277,8 @@ extern void neon_asm_premultiply_alpha(uint32_t *dst, const uint32_t *src,
 
 /* Fallback: row-by-row blit using neon_memcpy */
 static inline void neon_blit_rect_fallback(uint32_t *dst, uint32_t dst_stride,
-                                            const uint32_t *src, uint32_t src_stride,
-                                            uint32_t width, uint32_t height)
+                                           const uint32_t *src, uint32_t src_stride,
+                                           uint32_t width, uint32_t height)
 {
     for (uint32_t row = 0; row < height; row++) {
         neon_memcpy(dst, src, width * sizeof(uint32_t));
@@ -296,7 +296,7 @@ static inline void neon_blit_rect_fallback(uint32_t *dst, uint32_t dst_stride,
 
 /* Fallback: scalar premultiply alpha */
 static inline void neon_premultiply_alpha_fallback(uint32_t *dst, const uint32_t *src,
-                                                    uint32_t count)
+                                                   uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) {
         uint32_t px = src[i];
