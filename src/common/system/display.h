@@ -1,6 +1,19 @@
 #ifndef DISPLAY_H__
 #define DISPLAY_H__
 
+/**
+ * @file display.h
+ * @brief Framebuffer display management for Miyoo Mini
+ * 
+ * Provides direct framebuffer access for:
+ * - Screen on/off control
+ * - Brightness adjustment (hardware and software gamma)
+ * - Display initialization and cleanup
+ * - Screen save/restore functionality
+ * 
+ * Uses /dev/fb0 for direct framebuffer access on embedded Linux.
+ */
+
 #include <linux/fb.h>
 #include <math.h>
 #include <stdbool.h>
@@ -12,14 +25,18 @@
 #include "utils/log.h"
 
 #ifdef PLATFORM_MIYOOMINI
+/** Physical screen width in pixels (Miyoo Mini) */
 #define DEFAULT_WIDTH 640
+/** Physical screen height in pixels (Miyoo Mini) */
 #define DEFAULT_HEIGHT 480
 #else
 #define DEFAULT_WIDTH 752
 #define DEFAULT_HEIGHT 560
 #endif
 
+/** Convenience macro to turn display on */
 #define display_on() display_setScreen(true)
+/** Convenience macro to turn display off */
 #define display_off() display_setScreen(false)
 
 static int fb_fd;

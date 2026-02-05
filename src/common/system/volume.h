@@ -1,21 +1,45 @@
 #ifndef VOLUME_H__
 #define VOLUME_H__
 
+/**
+ * @file volume.h
+ * @brief Audio volume control for Miyoo Mini
+ * 
+ * Provides volume control using the MI (MediaTek Interface) audio driver.
+ * Volume is controlled via ioctl calls to /dev/mi_ao device.
+ * 
+ * Volume levels:
+ * - User-facing: 0-20 (MAX_VOLUME)
+ * - Raw driver values: -60 to +30 dB
+ */
+
 #include <fcntl.h>
 #include <math.h>
 #include <sys/ioctl.h>
 
 #include "utils/file.h"
 
+/** Maximum user-facing volume level (0-20 scale) */
 #define MAX_VOLUME 20
+/** Minimum raw driver volume value (dB) */
 #define MIN_RAW_VALUE -60
+/** Maximum raw driver volume value (dB) */
 #define MAX_RAW_VALUE 30
 
+/** ioctl command to set audio output volume */
 #define MI_AO_SETVOLUME 0x4008690b
+/** ioctl command to get audio output volume */
 #define MI_AO_GETVOLUME 0xc008690c
+/** ioctl command to set mute state */
 #define MI_AO_SETMUTE 0x4008690d
 
-// Set volume output between 0 and 60, use `add` for boosting
+/**
+ * @brief Set volume using raw driver values (-60 to +30 dB)
+ * 
+ * @param value Base value (added to MIN_RAW_VALUE if add==0)
+ * @param add If non-zero, add this to current volume instead
+ * @return Current volume value after setting
+ */
 int setVolumeRaw(int value, int add)
 {
     int fd;

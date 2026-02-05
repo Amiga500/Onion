@@ -1,6 +1,19 @@
 #ifndef BATTERY_H__
 #define BATTERY_H__
 
+/**
+ * @file battery.h
+ * @brief Battery monitoring interface for Miyoo Mini
+ * 
+ * Provides functions to:
+ * - Read battery percentage (via batmon daemon)
+ * - Detect charging state (via GPIO)
+ * - Check battery status changes
+ * 
+ * Battery percentage is read from /tmp/percBat which is updated
+ * by the batmon daemon running in the background.
+ */
+
 #include "system/device_model.h"
 #include "system/system.h"
 #include "utils/file.h"
@@ -8,13 +21,18 @@
 #include "utils/msleep.h"
 #include "utils/process.h"
 
+/** Timestamp of last battery file modification */
 static time_t battery_last_modified = 0;
+/** Cached charging state */
 static bool battery_is_charging = false;
 
 /**
  * @brief Retrieve the current battery percentage as reported by batmon
  *
- * @return int : Battery percentage (0-100) or 500 if charging
+ * Reads from /tmp/percBat with retry logic if file not yet available.
+ * Will wait up to 300ms for batmon to create the file.
+ *
+ * @return int Battery percentage (0-100) or 500 if charging
  */
 
 int battery_getPercentage(void)
