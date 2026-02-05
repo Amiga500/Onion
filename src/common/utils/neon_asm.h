@@ -195,8 +195,7 @@ extern void neon_asm_premultiply_alpha(uint32_t *dst, const uint32_t *src,
 /**
  * @brief Bilinear interpolation for 4 pixels (Assembly version)
  *
- * Performs bilinear interpolation for 4 destination pixels at once.
- * This is the core operation for high-quality image scaling.
+ * Performs bilinear interpolation for 4 destination pixels.
  *
  * The bilinear interpolation formula for each channel:
  *   t1 = c00 * (1-ex) + c01 * ex   (top row interpolation)
@@ -204,13 +203,13 @@ extern void neon_asm_premultiply_alpha(uint32_t *dst, const uint32_t *src,
  *   result = t1 * (1-ey) + t2 * ey (vertical interpolation)
  *
  * @param dst Destination buffer (4 x 32-bit RGBA pixels)
- * @param c00_base Top row source pointer (already offset to first pixel)
+ * @param c00_base Top row source pointer (already offset to batch start)
  * @param c10_base Bottom row source pointer (c00_base + src_pitch)
- * @param csax Array of 4 x int: each contains (incremental_step << 16) | ex
- *             where incremental_step is the step TO THE NEXT pixel (not cumulative),
- *             and ex is x-weight (0-65535). The assembly function computes
- *             cumulative offsets as: off0=0, off1=csax[1]>>16, 
- *             off2=off1+(csax[2]>>16), off3=off2+(csax[3]>>16)
+ * @param csax Array of 4 x int, where each csax[i] = (step << 16) | ex:
+ *             - csax[0]: ex for pixel 0 (step in upper bits is ignored for pixel 0)
+ *             - csax[1]: ex for pixel 1, (csax[1]>>16) = step from pixel 0 to 1
+ *             - csax[2]: ex for pixel 2, (csax[2]>>16) = step from pixel 1 to 2
+ *             - csax[3]: ex for pixel 3, (csax[3]>>16) = step from pixel 2 to 3
  * @param ey Y interpolation weight (0-65535)
  *
  * Performance: ~10-12 cycles/pixel on Cortex-A7 (vs ~15 for intrinsics)

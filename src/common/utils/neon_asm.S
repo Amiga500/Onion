@@ -1037,8 +1037,7 @@ neon_asm_premultiply_alpha:
  *                                    const uint32_t *c10_base, const int *csax,
  *                                    int ey)
  *
- * Performs bilinear interpolation for 4 destination pixels at once.
- * This is the core operation for high-quality image scaling.
+ * Performs bilinear interpolation for 4 destination pixels.
  *
  * The bilinear interpolation formula for each channel:
  *   t1 = c00 * (1-ex) + c01 * ex   (top row interpolation)
@@ -1047,15 +1046,18 @@ neon_asm_premultiply_alpha:
  *
  * Register allocation:
  *   r0 = dst pointer (4 x tColorRGBA = 16 bytes)
- *   r1 = c00_base (top row source pointer)
+ *   r1 = c00_base (top row source pointer, already offset)
  *   r2 = c10_base (bottom row source pointer)
- *   r3 = csax (array of 4 x int, each containing step<<16 | ex)
- *        where step is the incremental offset to the next pixel
- *   [sp+0] = ey (y interpolation weight, 0-65535)
+ *   r3 = csax (array of 4 x int, each = (step << 16) | ex)
+ *        csax[0]: ex for pixel 0, step is ignored (we start at offset 0)
+ *        csax[1]: ex for pixel 1, step>>16 = offset from pixel 0 to pixel 1
+ *        csax[2]: ex for pixel 2, step>>16 = offset from pixel 1 to pixel 2
+ *        csax[3]: ex for pixel 3, step>>16 = offset from pixel 2 to pixel 3
+ *   [sp+36] = ey (y interpolation weight, 0-65535)
  *
  * Pixel format: tColorRGBA = { r, g, b, a } each 8-bit, packed as 32-bit
  *
- * Performance: ~8-10 cycles per pixel (vs ~15 for intrinsics)
+ * Performance: ~10-12 cycles per pixel (vs ~15 for intrinsics)
  */
     .global neon_asm_bilinear_interp_4px
     .type neon_asm_bilinear_interp_4px, %function
@@ -1065,142 +1067,44 @@ neon_asm_bilinear_interp_4px:
     push    {r4-r11, lr}
 
     @ Stack layout after push:
-    @   sp+0 to sp+32: saved r4-r11 (8 regs * 4 bytes = 32 bytes)
+    @   sp+0 to sp+31: saved r4-r11 (8 regs * 4 bytes = 32 bytes)
     @   sp+32 to sp+35: saved lr (4 bytes)
-    @   sp+36: ey parameter (first stack parameter)
+    @   sp+36: ey parameter
 
-    ldr     r12, [sp, #36]          @ r12 = ey (0-65535)
-    lsr     r12, r12, #8            @ r12 = ey (0-255)
+    @ Save parameters to stack for loop access
+    @ Create local frame: [ey, csax, c10_base, c00_base, dst]
+    ldr     r12, [sp, #36]          @ ey (0-65535)
+    str     r12, [sp, #-4]!         @ push ey
+    str     r3, [sp, #-4]!          @ push csax
+    str     r2, [sp, #-4]!          @ push c10_base
+    str     r1, [sp, #-4]!          @ push c00_base
+    str     r0, [sp, #-4]!          @ push dst
+    @ Stack: [dst, c00_base, c10_base, csax, ey] at sp+0,4,8,12,16
 
-    @ Load csax array (4 integers)
-    ldm     r3, {r4, r5, r6, r7}    @ r4=csax[0], r5=csax[1], r6=csax[2], r7=csax[3]
+    @ Initialize loop
+    mov     r11, #0                 @ pixel_index = 0
+    mov     r10, #0                 @ cumulative_offset = 0
 
     @ Prefetch source data
     pld     [r1]
     pld     [r2]
 
-    @ Calculate cumulative offsets from incremental steps in upper 16 bits
-    @ off0 = 0
-    @ off1 = csax[1] >> 16 (step from pixel 0 to pixel 1)
-    @ off2 = off1 + (csax[2] >> 16)
-    @ off3 = off2 + (csax[3] >> 16)
-    mov     r8, #0                  @ off0 = 0
-    lsr     r9, r5, #16             @ off1 = step1
-    lsr     r10, r6, #16
-    add     r10, r9, r10            @ off2 = off1 + step2
-    lsr     r11, r7, #16
-    add     r11, r10, r11           @ off3 = off2 + step3
-
-    @ ========== Process Pixel 0 ==========
-    @ ex0 = (csax[0] >> 8) & 0xFF for 8-bit weight
-    ubfx    r3, r4, #8, #8          @ ex0 (0-255)
-
-    @ Load corner pixels
-    ldr     r4, [r1, r8, lsl #2]    @ c00_0
-    add     lr, r8, #1
-    ldr     lr, [r1, lr, lsl #2]    @ c01_0
-    ldr     r5, [r2, r8, lsl #2]    @ c10_0
-    add     r6, r8, #1
-    ldr     r6, [r2, r6, lsl #2]    @ c11_0
-
-    @ Interpolate pixel 0: result stored in r7
-    bl      .Linterp_pixel
-    str     r7, [r0], #4            @ Store pixel 0, advance dst
-
-    @ ========== Process Pixel 1 ==========
-    ldr     r4, [sp, #36 - 36 + 4]  @ Reload csax... Actually, we need to reload from stack
-    @ Simpler: save csax pointer before using r3
-    @ Let's restructure to keep csax values available
-
-    @ Actually, let's do a cleaner implementation using the stack to save state
-    pop     {r4-r11, lr}
-
-    @ ========== Cleaner Scalar Implementation ==========
-    @ Process each pixel with a helper macro, trading some speed for correctness
-
-    push    {r4-r11, lr}
-
-    ldr     r12, [sp, #36]          @ ey (0-65535)
-    lsr     r12, r12, #8            @ ey (0-255)
-    rsb     lr, r12, #256           @ ey_inv = 256 - ey
-
-    @ Save base pointers
-    mov     r4, r0                  @ dst
-    mov     r5, r1                  @ c00_base
-    mov     r6, r2                  @ c10_base
-    mov     r7, r3                  @ csax
-
-    @ Load csax[0..3]
-    ldm     r7, {r8, r9, r10, r11}
-
-    @ Prefetch
-    pld     [r5]
-    pld     [r6]
-
-    @ Process pixel 0 (offset = 0)
-    mov     r0, #0                  @ offset = 0
-    ubfx    r1, r8, #8, #8          @ ex = (csax[0] >> 8) & 0xFF
-    rsb     r2, r1, #256            @ ex_inv = 256 - ex
-    @ r12 = ey, lr = ey_inv (already set)
-
-    @ Load c00, c01, c10, c11
-    ldr     r3, [r5, r0, lsl #2]    @ c00
-    add     r0, r0, #1
-    ldr     r7, [r5, r0, lsl #2]    @ c01
-    sub     r0, r0, #1
-    push    {r4-r7}                 @ save dst, c00_base, c10_base, c01
-
-    ldr     r4, [r6, r0, lsl #2]    @ c10
-    add     r0, r0, #1
-    ldr     r5, [r6, r0, lsl #2]    @ c11
-
-    @ Now: r3=c00, r7(on stack)=c01, r4=c10, r5=c11
-    @ r1=ex, r2=ex_inv, r12=ey, lr=ey_inv
-
-    pop     {r6}                    @ r6 = dst (pop just dst for now)
-    @ r3=c00, still need c01 from stack
-
-    @ This is getting complex. Let me use a much simpler approach.
-    pop     {r4, r5, r7}            @ restore
-
-    @ ========== Simplest Correct Implementation ==========
-    @ Unroll 4 iterations manually with inline interpolation
-
-    pop     {r4-r11, lr}            @ Clean up stack
-
-    @ Final clean implementation
-    push    {r4-r11, lr}
-
-    @ Parameters: r0=dst, r1=c00_base, r2=c10_base, r3=csax, [sp+36]=ey
-    ldr     r12, [sp, #36]          @ ey (0-65535)
-
-    @ Save parameters
-    str     r0, [sp, #-4]!          @ push dst
-    str     r1, [sp, #-4]!          @ push c00_base
-    str     r2, [sp, #-4]!          @ push c10_base
-    str     r3, [sp, #-4]!          @ push csax
-    str     r12, [sp, #-4]!         @ push ey
-
-    @ Process 4 pixels in a loop
-    mov     r11, #0                 @ pixel counter
-    mov     r10, #0                 @ cumulative offset
-
-.Lbilinear_pixel_loop:
+.Lbilinear_loop:
     @ Load parameters from stack
-    ldr     r12, [sp, #0]           @ ey
-    ldr     r3, [sp, #4]            @ csax
+    ldr     r0, [sp, #0]            @ dst
+    ldr     r1, [sp, #4]            @ c00_base
     ldr     r2, [sp, #8]            @ c10_base
-    ldr     r1, [sp, #12]           @ c00_base
-    ldr     r0, [sp, #16]           @ dst
+    ldr     r3, [sp, #12]           @ csax
+    ldr     r12, [sp, #16]          @ ey (0-65535)
 
-    @ Get csax[pixel] - need to index by r11
+    @ Get csax[pixel_index]
     ldr     r4, [r3, r11, lsl #2]   @ csax[i]
 
-    @ Extract ex = (csax[i] >> 8) & 0xFF
+    @ Extract interpolation weight: ex = (csax[i] >> 8) & 0xFF
     ubfx    r5, r4, #8, #8          @ ex (0-255)
     rsb     r6, r5, #256            @ ex_inv = 256 - ex
 
-    @ ey weights
+    @ Convert ey to 8-bit
     lsr     r7, r12, #8             @ ey (0-255)
     rsb     r8, r7, #256            @ ey_inv = 256 - ey
 
@@ -1212,32 +1116,30 @@ neon_asm_bilinear_interp_4px:
     ldr     r2, [r9]                @ c10
     ldr     r4, [r9, #4]            @ c11
 
-    @ Interpolate R channel (byte 0)
+    @ Now: r1=c00, r3=c01, r2=c10, r4=c11
+    @ r5=ex, r6=ex_inv, r7=ey, r8=ey_inv
+
+    @ ========== Interpolate R channel (byte 0) ==========
     and     r9, r1, #0xFF           @ c00.r
     mul     r9, r9, r6              @ c00.r * ex_inv
     and     lr, r3, #0xFF           @ c01.r
-    mla     r9, lr, r5, r9          @ + c01.r * ex -> t1
-    lsr     r9, r9, #8              @ t1 >> 8
+    mla     r9, lr, r5, r9          @ + c01.r * ex -> t1 * 256
+    lsr     r9, r9, #8              @ t1
 
     and     lr, r2, #0xFF           @ c10.r
     mul     lr, lr, r6              @ c10.r * ex_inv
-    push    {r1, r2, r3, r4}        @ save corner pixels
+    push    {r1, r2, r3, r4}        @ save corner pixels for other channels
     and     r1, r4, #0xFF           @ c11.r
-    mla     lr, r1, r5, lr          @ + c11.r * ex -> t2
-    lsr     lr, lr, #8              @ t2 >> 8
+    mla     lr, r1, r5, lr          @ + c11.r * ex -> t2 * 256
+    lsr     lr, lr, #8              @ t2
 
     mul     r9, r9, r8              @ t1 * ey_inv
     mla     r9, lr, r7, r9          @ + t2 * ey
     lsr     r9, r9, #8              @ result.r
-    and     r9, r9, #0xFF
+    and     r12, r9, #0xFF          @ r12 = R
 
-    @ Save R result
-    mov     r12, r9                 @ r12 = R
-
-    @ Reload corner pixels
-    pop     {r1, r2, r3, r4}
-
-    @ Interpolate G channel (byte 1)
+    @ ========== Interpolate G channel (byte 1) ==========
+    pop     {r1, r2, r3, r4}        @ restore corner pixels
     ubfx    r9, r1, #8, #8          @ c00.g
     mul     r9, r9, r6
     ubfx    lr, r3, #8, #8          @ c01.g
@@ -1257,9 +1159,8 @@ neon_asm_bilinear_interp_4px:
     and     r9, r9, #0xFF
     orr     r12, r12, r9, lsl #8    @ r12 = R | (G << 8)
 
+    @ ========== Interpolate B channel (byte 2) ==========
     pop     {r1, r2, r3, r4}
-
-    @ Interpolate B channel (byte 2)
     ubfx    r9, r1, #16, #8         @ c00.b
     mul     r9, r9, r6
     ubfx    lr, r3, #16, #8         @ c01.b
@@ -1279,9 +1180,8 @@ neon_asm_bilinear_interp_4px:
     and     r9, r9, #0xFF
     orr     r12, r12, r9, lsl #16   @ r12 = R | (G << 8) | (B << 16)
 
+    @ ========== Interpolate A channel (byte 3) ==========
     pop     {r1, r2, r4}
-
-    @ Interpolate A channel (byte 3)
     lsr     r9, r1, #24             @ c00.a
     mul     r9, r9, r6
     lsr     lr, r3, #24             @ c01.a
@@ -1301,31 +1201,27 @@ neon_asm_bilinear_interp_4px:
     orr     r12, r12, r9, lsl #24   @ r12 = R | (G << 8) | (B << 16) | (A << 24)
 
     @ Store result pixel
-    ldr     r0, [sp, #16]           @ dst
+    ldr     r0, [sp, #0]            @ dst (adjusted for inner pushes: we're at sp+0)
     str     r12, [r0, r11, lsl #2]  @ dst[pixel_index] = result
 
     @ Update cumulative offset for next pixel
-    ldr     r3, [sp, #4]            @ csax
-    add     r1, r11, #1             @ next pixel index
-    cmp     r1, #4
+    add     r11, r11, #1            @ pixel_index++
+    cmp     r11, #4
     bge     .Lbilinear_done
 
-    ldr     r4, [r3, r1, lsl #2]    @ csax[next]
-    lsr     r4, r4, #16             @ step to next pixel
-    add     r10, r10, r4            @ cumulative offset
+    @ Get step to next pixel from csax[pixel_index]
+    ldr     r3, [sp, #12]           @ csax
+    ldr     r4, [r3, r11, lsl #2]   @ csax[next_pixel]
+    lsr     r4, r4, #16             @ step to this pixel
+    add     r10, r10, r4            @ update cumulative offset
 
-    add     r11, r11, #1            @ pixel_index++
-    b       .Lbilinear_pixel_loop
+    b       .Lbilinear_loop
 
 .Lbilinear_done:
-    @ Clean up stack (5 words pushed)
+    @ Clean up local frame (5 words)
     add     sp, sp, #20
 
     pop     {r4-r11, pc}
-
-.Linterp_pixel:
-    @ Helper to interpolate one pixel (not actually used in final version)
-    bx      lr
 
     .size neon_asm_bilinear_interp_4px, .-neon_asm_bilinear_interp_4px
 

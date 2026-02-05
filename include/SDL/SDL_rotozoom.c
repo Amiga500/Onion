@@ -330,15 +330,24 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	        PREFETCH((Uint8 *)csp + src->pitch + (batch_src_offset + 16) * 4);
 	      }
 	      
-	      /* Call assembly bilinear interpolation for 4 pixels */
+	      /* Call assembly bilinear interpolation for 4 pixels
+	       * csax[0-3] are used for the current batch of 4 pixels
+	       * The assembly uses csax[1-3]>>16 as incremental steps within the batch
+	       */
 	      NEON_BILINEAR_INTERP_4PX((uint32_t *)dp, (const uint32_t *)(csp + batch_src_offset),
 	                               (const uint32_t *)((Uint8 *)(csp + batch_src_offset) + src->pitch),
 	                               csax, ey);
 	      
-	      /* Update cumulative offset: add steps from csax[1], csax[2], csax[3], csax[4] */
+	      /* Update cumulative offset for the next batch:
+	       * Add steps csax[1]>>16 (0→1), csax[2]>>16 (1→2), csax[3]>>16 (2→3)
+	       * These are the steps between pixels within the batch we just processed.
+	       * For the next batch, we also need csax[4]>>16 (3→next batch's 0),
+	       * but we check bounds first.
+	       */
 	      batch_src_offset += (csax[1] >> 16);
 	      batch_src_offset += (csax[2] >> 16);
 	      batch_src_offset += (csax[3] >> 16);
+	      /* Step to the start of next batch (from pixel 3 to next pixel 0) */
 	      if (x + 4 < dst->w) {
 	          batch_src_offset += (csax[4] >> 16);
 	      }
