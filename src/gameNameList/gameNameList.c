@@ -130,7 +130,8 @@ void getRomNamesDir(const char *dir_path, const char *rom_ext, FILE *rom_names_f
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         if (entry->d_type == DT_DIR) {  // directory
-            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            // Use IS_DOT_OR_DOTDOT macro for O(1) check instead of strcmp
+            if (IS_DOT_OR_DOTDOT(entry->d_name)) {
                 continue;
             }
             char sub_dir_path[1024];

@@ -31,6 +31,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @brief Fast macro to check if a filename is "." or ".."
+ * Uses direct character comparison instead of strcmp() for O(1) performance.
+ */
+#define IS_DOT_OR_DOTDOT(name) \
+    ((name)[0] == '.' && ((name)[1] == '\0' || ((name)[1] == '.' && (name)[2] == '\0')))
+
 typedef struct counter {
     size_t dirs;
     size_t files;
@@ -94,7 +101,8 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
     counter->dirs++;
 
     while ((file_dirent = readdir(dir_handle)) != NULL) {
-        if (strcmp(file_dirent->d_name, ".") == 0 || strcmp(file_dirent->d_name, "..") == 0) // no . or ..
+        // Use IS_DOT_OR_DOTDOT macro for O(1) check instead of strcmp
+        if (IS_DOT_OR_DOTDOT(file_dirent->d_name))
             continue;
 
         if (file_dirent->d_type == DT_DIR &&

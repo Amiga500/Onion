@@ -27,7 +27,8 @@ bool checkAppInstalled(const char *basePath, int base_len, int level, bool compl
         return true;
 
     while ((dp = readdir(dir)) != NULL && run == 1) {
-        if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
+        // Use IS_DOT_OR_DOTDOT macro for O(1) check instead of strcmp
+        if (IS_DOT_OR_DOTDOT(dp->d_name))
             continue;
 
         // Ignore other dirs
@@ -78,7 +79,8 @@ bool getConfigPath(char *config_path, const char *data_path, const char *base_di
         return false;
 
     while ((dp = readdir(dir)) != NULL) {
-        if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
+        // Use IS_DOT_OR_DOTDOT macro for O(1) check instead of strcmp
+        if (IS_DOT_OR_DOTDOT(dp->d_name))
             continue;
         if (dp->d_type != DT_DIR)
             continue;
@@ -287,7 +289,8 @@ bool getPackageMainPath(char *out_path, const char *data_path,
         return false;
 
     while ((dp = readdir(dir)) != NULL) {
-        if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
+        // Use IS_DOT_OR_DOTDOT macro for O(1) check instead of strcmp
+        if (IS_DOT_OR_DOTDOT(dp->d_name))
             continue;
         if (dp->d_type != DT_DIR)
             continue;

@@ -57,6 +57,14 @@
 #define PATH_MAX 4096
 #endif
 
+/**
+ * @brief Fast macro to check if a filename is "." or ".."
+ * Uses direct character comparison instead of strcmp() for O(1) performance.
+ * This is a common operation when iterating directory entries.
+ */
+#define IS_DOT_OR_DOTDOT(name) \
+    ((name)[0] == '.' && ((name)[1] == '\0' || ((name)[1] == '.' && (name)[2] == '\0')))
+
 #define CONTENT_INT "%d"
 #define CONTENT_STR "%[^\n]"
 

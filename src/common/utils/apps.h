@@ -53,8 +53,8 @@ InstalledApp *getInstalledApps(bool sort)
             return NULL;
 
         while ((ep = readdir(dp))) {
-            if (ep->d_type != DT_DIR || strcmp(ep->d_name, ".") == 0 ||
-                strcmp(ep->d_name, "..") == 0)
+            // Use IS_DOT_OR_DOTDOT macro for O(1) check instead of strcmp
+            if (ep->d_type != DT_DIR || IS_DOT_OR_DOTDOT(ep->d_name))
                 continue;
             int i = installed_apps_count;
 
