@@ -140,8 +140,7 @@ int play_activity_get_total_play_time(void)
 {
     int total_play_time = 0;
     char *sql =
-        "SELECT SUM(play_time_total) FROM (SELECT SUM(play_time) AS play_time_total FROM play_activity GROUP BY rom_id) "
-        "WHERE play_time_total > 60;";
+        "SELECT SUM(play_time_total) FROM (SELECT SUM(play_time) AS play_time_total FROM play_activity GROUP BY rom_id);";
     sqlite3_stmt *stmt;
 
     play_activity_db_open();
@@ -170,7 +169,7 @@ PlayActivities *play_activity_find_all(void)
         "           datetime(MAX(play_activity.created_at), 'unixepoch') AS last_played_at "
         "    FROM rom LEFT JOIN play_activity ON rom.id = play_activity.rom_id "
         "    GROUP BY rom.id) "
-        "WHERE play_time_total > 60 "
+        "WHERE play_time_total > 0 "
         "ORDER BY play_time_total DESC;";
     sqlite3_stmt *stmt;
 
