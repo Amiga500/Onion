@@ -34,7 +34,8 @@ void _migrate_loadCacheDBs(void)
 
             if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
                 char romFolder[PATH_MAX];
-                sprintf(romFolder, ROMS_FOLDER "/%s", entry->d_name);
+                // Use snprintf for buffer overflow protection
+                snprintf(romFolder, sizeof(romFolder), ROMS_FOLDER "/%s", entry->d_name);
 
                 char cache_db_file_path[STR_MAX];
                 int cache_version = cache_get_path_and_version(cache_db_file_path, romFolder, entry->d_name);
