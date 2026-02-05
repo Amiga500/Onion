@@ -25,8 +25,14 @@ bool ra_loadHistory(const char *jsonFilePath)
     fseek(file, 0, SEEK_SET);
 
     char *fileContent = (char *)malloc(fileSize + 1);
-    fread(fileContent, 1, fileSize, file);
-    fileContent[fileSize] = '\0';
+    if (fileContent == NULL) {
+        print_debug("Error allocating memory for JSON file");
+        fclose(file);
+        return false;
+    }
+    
+    size_t bytesRead = fread(fileContent, 1, fileSize, file);
+    fileContent[bytesRead] = '\0';
     fclose(file);
 
     g_cachedRetroArchHistory = cJSON_Parse(fileContent);
