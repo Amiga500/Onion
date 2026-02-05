@@ -7,14 +7,14 @@
 #include <string.h>
 #include <unistd.h>
 
-bool str_getLastNumber(char *str, long *out_val)
+bool str_getLastNumber(const char *str, long *out_val)
 {
-    char *p = str;
+    const char *p = str;
     long val = -1;
 
     while (*p) {
         if (isdigit(*p))
-            val = strtol(p, &p, 10);
+            val = strtol(p, (char **)&p, 10);
         else
             p++;
     }
@@ -34,14 +34,16 @@ char *str_split(char *str, const char *delim)
     return p + strlen(delim); // return tail substring
 }
 
-char *str_replace(char *orig, char *rep, char *with)
+char *str_replace(char *orig, const char *rep, const char *with)
 {
-    char *ins;     // the next insert point
-    char *tmp;     // varies
-    int len_rep;   // length of rep (the string to remove)
-    int len_with;  // length of with (the string to replace rep with)
-    int len_front; // distance between rep and end of last rep
-    int count;     // number of replacements
+    char *ins;           // the next insert point
+    char *tmp;           // varies
+    char *orig_ptr;      // pointer to traverse orig
+    size_t len_rep;      // length of rep (the string to remove)
+    size_t len_with;     // length of with (the string to replace rep with)
+    size_t len_front;    // distance between rep and end of last rep
+    int count;           // number of replacements
+    const char *with_str = with ? with : "";  // use empty string if with is NULL
 
     // sanity checks and initialization
     if (!orig || !rep)
@@ -49,9 +51,7 @@ char *str_replace(char *orig, char *rep, char *with)
     len_rep = strlen(rep);
     if (len_rep == 0)
         return NULL; // empty rep causes infinite loop during count
-    if (!with)
-        with = "";
-    len_with = strlen(with);
+    len_with = strlen(with_str);
 
     // count the number of replacements needed
     ins = orig;
@@ -69,15 +69,16 @@ char *str_replace(char *orig, char *rep, char *with)
     // from here on,
     //    tmp points to the end of the result string
     //    ins points to the next occurrence of rep in orig
-    //    orig points to the remainder of orig after "end of rep"
+    //    orig_ptr points to the remainder of orig after "end of rep"
+    orig_ptr = orig;
     while (count--) {
-        ins = strstr(orig, rep);
-        len_front = ins - orig;
-        tmp = strncpy(tmp, orig, len_front) + len_front;
-        tmp = strcpy(tmp, with) + len_with;
-        orig += len_front + len_rep; // move to next "end of rep"
+        ins = strstr(orig_ptr, rep);
+        len_front = ins - orig_ptr;
+        tmp = strncpy(tmp, orig_ptr, len_front) + len_front;
+        tmp = strcpy(tmp, with_str) + len_with;
+        orig_ptr += len_front + len_rep; // move to next "end of rep"
     }
-    strcpy(tmp, orig);
+    strcpy(tmp, orig_ptr);
     return result;
 }
 
@@ -206,7 +207,7 @@ int str_count_char(const char *str, char ch)
     return count;
 }
 
-bool includeCJK(char *str)
+bool includeCJK(const char *str)
 {
     while (*str) {
         unsigned char c = *str;

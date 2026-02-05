@@ -20,9 +20,9 @@
         }                                            \
     }
 
-bool str_getLastNumber(char *str, long *out_val);
+bool str_getLastNumber(const char *str, long *out_val);
 char *str_split(char *str, const char *delim);
-char *str_replace(char *orig, char *rep, char *with);
+char *str_replace(char *orig, const char *rep, const char *with);
 
 // Stores the trimmed input string into the given output buffer, which must be
 // large enough to store the result.  If it is too small, the output is
@@ -35,6 +35,6 @@ void str_removeParentheses(char *str_out, const char *str_in);
 void str_serializeTime(char *dest_str, int nTime);
 
 int str_count_char(const char *str, char ch);
-bool includeCJK(char *str);
+bool includeCJK(const char *str);
 
 #endif // UTILS_STR_H__
