@@ -1,6 +1,51 @@
 #ifndef TWEAKS_MENUS_H__
 #define TWEAKS_MENUS_H__
 
+/**
+ * @file menus.h
+ * @brief Tweaks application menu definitions and handlers
+ *
+ * This file contains all menu definitions for the Tweaks application.
+ * Each menu is created lazily on first access and cached in static variables.
+ *
+ * ARCHITECTURE OVERVIEW:
+ * ======================
+ * - Menu functions follow the pattern: menu_<category>_<subcategory>(void *)
+ * - Each menu function creates a List if not already created (_created flag)
+ * - Menus are organized hierarchically via menu_stack[]
+ * - Navigation uses menu_level to track depth
+ *
+ * MENU HIERARCHY:
+ * ===============
+ * menu_main
+ * ├── menu_system
+ * │   ├── menu_systemStartup       (auto-resume, start app, start tab)
+ * │   ├── menu_systemDisplay       (display settings)
+ * │   ├── menu_datetime            (date/time configuration)
+ * │   └── menu_systemSaveAndExit   (shutdown options)
+ * ├── menu_network                 (WiFi, services, NTP)
+ * ├── menu_buttonAction            (button shortcuts)
+ * ├── menu_userInterface           (appearance settings)
+ * │   ├── menu_user_blue_light     (blue light filter)
+ * │   └── menu_user_theme          (theme overrides)
+ * ├── menu_advanced                (emulator tweaks, resets)
+ * │   └── menu_advancedReset       (reset options)
+ * └── menu_tools                   (utilities, diagnostics)
+ *     └── menu_screen_recorder     (screen recording)
+ *
+ * FUTURE REFACTORING:
+ * ===================
+ * TODO: Split this file into separate modules:
+ *   - menus_system.h   (system-related menus)
+ *   - menus_network.h  (network-related menus)
+ *   - menus_ui.h       (UI/appearance menus)
+ *   - menus_tools.h    (tools and utilities)
+ *
+ * @see actions.h for action handlers
+ * @see values.h for value getters
+ * @see formatters.h for value display formatting
+ */
+
 #include <SDL/SDL_image.h>
 #include <dirent.h>
 #include <stdbool.h>
@@ -26,6 +71,19 @@
 #include "./tools.h"
 #include "./values.h"
 
+/* ============================================================================
+ * SECTION: System Menus
+ * Menus for system configuration: startup, display, date/time, save & exit
+ * ============================================================================ */
+
+/**
+ * @brief System startup configuration menu
+ *
+ * Options:
+ * - Auto-resume last game
+ * - Start application selection
+ * - MainUI start tab
+ */
 void menu_systemStartup(void *_)
 {
     if (!_menu_system_startup._created) {
@@ -231,6 +289,16 @@ void menu_system(void *_)
     header_changed = true;
 }
 
+/* ============================================================================
+ * SECTION: Button Action Menus
+ * Menus for configuring button shortcuts and actions
+ * ============================================================================ */
+
+/**
+ * @brief MainUI menu button configuration
+ *
+ * Configures what happens when the menu button is pressed in MainUI.
+ */
 void menu_buttonActionMainUIMenu(void *_)
 {
     if (!_menu_button_action_mainui_menu._created) {
@@ -373,6 +441,16 @@ void menu_buttonAction(void *_)
     header_changed = true;
 }
 
+/* ============================================================================
+ * SECTION: User Interface / Appearance Menus
+ * Menus for UI customization: themes, blue light filter, battery display
+ * ============================================================================ */
+
+/**
+ * @brief Battery percentage display configuration
+ *
+ * Options for customizing how battery percentage is displayed.
+ */
 void menu_batteryPercentage(void *_)
 {
     if (!_menu_battery_percentage._created) {
@@ -618,6 +696,16 @@ void menu_userInterface(void *_)
     header_changed = true;
 }
 
+/* ============================================================================
+ * SECTION: Advanced Menus
+ * Menus for advanced settings: reset, diagnostics, emulator tweaks
+ * ============================================================================ */
+
+/**
+ * @brief Reset settings menu
+ *
+ * Options for resetting various system configurations.
+ */
 void menu_resetSettings(void *_)
 {
     if (!_menu_reset_settings._created) {
@@ -786,6 +874,16 @@ void menu_advanced(void *_)
     header_changed = true;
 }
 
+/* ============================================================================
+ * SECTION: Tools Menus
+ * Menus for utilities: screen recorder, file tools, favorites management
+ * ============================================================================ */
+
+/**
+ * @brief Screen recorder configuration menu
+ *
+ * Configure and control the screen recording feature.
+ */
 void menu_screen_recorder(void *pt)
 {
     if (!_menu_screen_recorder._created) {
@@ -932,6 +1030,17 @@ void menu_tools(void *_)
     header_changed = true;
 }
 
+/* ============================================================================
+ * SECTION: Main Menu and Navigation
+ * Root menu and navigation utilities
+ * ============================================================================ */
+
+/**
+ * @brief Load menu icon from theme or default resources
+ *
+ * @param name Icon name (without path or extension)
+ * @return void* SDL_Surface pointer to loaded icon, or NULL if not found
+ */
 void *_get_menu_icon(const char *name)
 {
     char path[STR_MAX * 2] = {0};

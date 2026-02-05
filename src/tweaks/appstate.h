@@ -1,19 +1,64 @@
 #ifndef TWEAKS_APPSTATE_H__
 #define TWEAKS_APPSTATE_H__
 
+/**
+ * @file appstate.h
+ * @brief Global application state for the Tweaks application
+ *
+ * This file contains:
+ * - Menu stack for navigation (menu_level, menu_stack[])
+ * - Static List instances for all menus
+ * - UI state flags (quit, changed flags, key states)
+ * - Signal handler for graceful shutdown
+ *
+ * MENU MANAGEMENT:
+ * ================
+ * Menus are managed as a stack where:
+ * - menu_level: current depth in the menu hierarchy
+ * - menu_stack[]: array of List pointers representing the navigation path
+ *
+ * Each menu is a static List instance that is lazily initialized
+ * (checked via _created flag) and cached for the application lifetime.
+ *
+ * UI STATE FLAGS:
+ * ===============
+ * - quit: Set to true to exit the main loop
+ * - all_changed: Force complete redraw
+ * - header_changed: Redraw header only
+ * - list_changed: Redraw list items only
+ * - footer_changed: Redraw footer only
+ * - battery_changed: Update battery indicator
+ *
+ * FUTURE REFACTORING:
+ * ===================
+ * TODO: Convert static List instances to a dynamic registry
+ * TODO: Separate UI state from menu definitions
+ */
+
 #include <signal.h>
 
 #include "components/list.h"
 #include "utils/keystate.h"
 #include "utils/sdl_init.h"
 
+/* ============================================================================
+ * Menu Navigation Stack
+ * ============================================================================ */
+
 static int menu_level = 0;
 static List *menu_stack[5];
 
+/**
+ * @brief Check if the current menu matches a target menu
+ */
 bool isMenu(List *target)
 {
     return menu_stack[menu_level]->_created && target->_created && menu_stack[menu_level]->_id == target->_id;
 }
+
+/* ============================================================================
+ * Network Menu Instances
+ * ============================================================================ */
 
 static List _menu_network;
 static List _menu_wifi;
@@ -38,6 +83,10 @@ void menu_network_free_all(void)
     list_free(&_menu_vnc);
 }
 
+/* ============================================================================
+ * Icon Menu Instances
+ * ============================================================================ */
+
 static List _menu_icons;
 static List _menu_icon_packs;
 static List _menu_console_icons;
@@ -54,6 +103,10 @@ void menu_icons_free_all(void)
     list_free(&_menu_expert_icons);
     list_free(&_menu_temp);
 }
+
+/* ============================================================================
+ * Main Menu Instances
+ * ============================================================================ */
 
 static List _menu_main;
 static List _menu_system;
@@ -73,8 +126,12 @@ static List _menu_tools;
 static List _menu_tools_m3uGenerator;
 static List _menu_diagnostics;
 static List _menu_screen_recorder;
-static List _menu_user_blue_light;
 
+/**
+ * @brief Free all menu instances
+ *
+ * Called when resetting menus or on application exit.
+ */
 void menu_free_all(void)
 {
     list_free(&_menu_main);
@@ -100,24 +157,35 @@ void menu_free_all(void)
     menu_network_free_all();
 }
 
-static bool quit = false;
-static bool all_changed = true;
-static bool header_changed = true;
-static bool list_changed = true;
-static bool footer_changed = true;
-static bool battery_changed = true;
-static KeyState keystate[320] = {(KeyState)0};
-static bool keys_enabled = true;
-static bool reset_menus = false;
-static bool skip_next_change = false;
-static bool blf_changing = false;
-static bool prev_blf_changing = false;
+/* ============================================================================
+ * UI State Flags
+ * ============================================================================ */
+
+static bool quit = false;              /* Exit main loop when true */
+static bool all_changed = true;        /* Force complete redraw */
+static bool header_changed = true;     /* Redraw header */
+static bool list_changed = true;       /* Redraw list items */
+static bool footer_changed = true;     /* Redraw footer */
+static bool battery_changed = true;    /* Update battery indicator */
+static KeyState keystate[320] = {(KeyState)0};  /* Key press states */
+static bool keys_enabled = true;       /* Process key input */
+static bool reset_menus = false;       /* Rebuild all menus */
+static bool skip_next_change = false;  /* Skip next change event */
+static bool blf_changing = false;      /* Blue light filter changing */
+static bool prev_blf_changing = false; /* Previous BLF state */
 
 static bool _disable_confirm = false;
 static SDL_Surface *background_cache = NULL;
 
 static char ip_address_label[STR_MAX];
 
+/* ============================================================================
+ * Signal Handler
+ * ============================================================================ */
+
+/**
+ * @brief Handle system signals for graceful shutdown
+ */
 static void sigHandler(int sig)
 {
     switch (sig) {

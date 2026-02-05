@@ -1,6 +1,29 @@
 #ifndef TWEAKS_ACTIONS_H__
 #define TWEAKS_ACTIONS_H__
 
+/**
+ * @file actions.h
+ * @brief Menu action handlers for the Tweaks application
+ *
+ * This file contains all action callback functions that are triggered
+ * when users select or modify menu items in the Tweaks application.
+ *
+ * ACTION NAMING CONVENTION:
+ * =========================
+ * - action_<feature>         : Toggle or single-action handlers
+ * - action_set<Setting>      : Set a specific setting value
+ * - action_reset<Feature>    : Reset/restore handlers
+ *
+ * Each action function follows the signature: void action_name(void *pt)
+ * where 'pt' is typically a ListItem pointer containing:
+ * - item->value: current value (for toggles/multivalue)
+ * - item->action_id: disambiguation for shared handlers
+ * - item->payload: additional string data
+ *
+ * @see menus.h for menu definitions that use these actions
+ * @see values.h for value getter functions
+ */
+
 #include "components/list.h"
 #include "system/axp.h"
 #include "system/osd.h"
@@ -18,6 +41,11 @@
 #include "./reset.h"
 #include "./values.h"
 
+/**
+ * @brief Set application shortcut for MainUI buttons (X or Y)
+ *
+ * @param pt ListItem pointer with action_id (0=X, 1=Y) and value (app index)
+ */
 void action_setAppShortcut(void *pt)
 {
     ListItem *item = (ListItem *)pt;

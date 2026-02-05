@@ -1,6 +1,27 @@
 #ifndef TWEAKS_VALUES_H__
 #define TWEAKS_VALUES_H__
 
+/**
+ * @file values.h
+ * @brief Value getter functions for Tweaks menu items
+ *
+ * This file contains functions that retrieve current values for menu items.
+ * These are used to populate initial values when menus are displayed.
+ *
+ * VALUE NAMING CONVENTION:
+ * ========================
+ * - value_<setting>      : Get current value of a setting
+ * - stored_value_<name>  : Cached values with change tracking
+ *
+ * These functions typically:
+ * - Read from config files
+ * - Query system state
+ * - Calculate derived values
+ *
+ * @see actions.h for functions that modify these values
+ * @see formatters.h for functions that format values for display
+ */
+
 #include <time.h>
 
 #include "components/list.h"
@@ -18,12 +39,18 @@
 
 #define LCD_VOLT_CONFIG "/mnt/SDCARD/.tmp_update/config/.lcdvolt"
 
+/* Cached values with change tracking for settings that need confirmation */
 static int stored_value_frame_throttle = 0;
 static bool stored_value_frame_throttle_changed = false;
 
 static int stored_value_swap_triggers = 0;
 static bool stored_value_swap_triggers_changed = false;
 
+/**
+ * @brief Get current timezone offset value
+ *
+ * @return int Timezone index (0-48, where 24 = UTC)
+ */
 int value_timezone(void)
 {
 
