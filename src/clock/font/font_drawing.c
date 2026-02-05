@@ -36,7 +36,7 @@ static void drawChar(uint16_t *restrict buffer, int32_t *x, int32_t *y,
         *y += 8;
     }
     else if (*y < HOST_HEIGHT_RESOLUTION - 1) {
-        const uint8_t *charSprite = (const uint8_t *)ch * 8 + n2DLib_font;
+        const uint8_t *charSprite = n2DLib_font + ((uint8_t)ch * 8);
 
         /* Use NEON-optimized glyph rendering for the 8x8 character */
         uint16_t *dst = buffer + *x + (*y * HOST_WIDTH_RESOLUTION);
