@@ -976,192 +976,53 @@ neon_asm_premultiply_alpha:
     subs    r3, r3, #1
     bne     .Lpremul_8px_loop
 
+
 .Lpremul_remainder:
-    @ Handle remaining pixels with scalar code
+    @ Handle remaining pixels (< 8) with scalar code
+    @ r4 = count of remaining pixels, use r3 as loop counter
     cmp     r4, #0
     beq     .Lpremul_exit
 
+    mov     r3, r4              @ r3 = remaining count
+
 .Lpremul_scalar_loop:
+    push    {r5}
     ldr     lr, [r1], #4        @ Load ARGB pixel
 
     @ Extract channels
-    and     r3, lr, #0xFF       @ B
-    ubfx    r2, lr, #8, #8      @ G
-    ubfx    r4, lr, #16, #8     @ R
+    and     r4, lr, #0xFF       @ B
+    ubfx    r5, lr, #8, #8      @ G
+    ubfx    r2, lr, #16, #8     @ R
     lsr     lr, lr, #24         @ A
 
-    @ Premultiply: channel = (channel * alpha + 128) / 256
-    mul     r3, r3, lr
-    add     r3, r3, #128
-    lsr     r3, r3, #8
-
-    mul     r2, r2, lr
-    add     r2, r2, #128
-    lsr     r2, r2, #8
-
-    push    {r4}
-    ldr     r4, [sp, #4]
-    mul     r4, r4, lr
+    @ Premultiply: channel = (channel * alpha + 128) >> 8
+    mul     r4, r4, lr          @ B * A
     add     r4, r4, #128
-    lsr     r4, r4, #8
+    lsr     r4, r4, #8          @ B'
 
-    @ Pack result
-    orr     r3, r3, r2, lsl #8
-    orr     r3, r3, r4, lsl #16
-    orr     r3, r3, lr, lsl #24
+    mul     r5, r5, lr          @ G * A
+    add     r5, r5, #128
+    lsr     r5, r5, #8          @ G'
 
-    str     r3, [r0], #4
-    pop     {r4}
+    mul     r2, r2, lr          @ R * A
+    add     r2, r2, #128
+    lsr     r2, r2, #8          @ R'
 
-    @ Restore loop counter - this is tricky, we need to track it
-    @ Actually let's simplify the scalar loop
-    b       .Lpremul_exit       @ For now, skip complex scalar remainder
+    @ Pack result: B | (G << 8) | (R << 16) | (A << 24)
+    orr     r4, r4, r5, lsl #8
+    orr     r4, r4, r2, lsl #16
+    orr     r4, r4, lr, lsl #24
+
+    str     r4, [r0], #4
+    pop     {r5}
+
+    subs    r3, r3, #1
+    bne     .Lpremul_scalar_loop
 
 .Lpremul_exit:
     pop     {r4, pc}
 
     .size neon_asm_premultiply_alpha, .-neon_asm_premultiply_alpha
-
-
-/**
- * ============================================================================
- * Bilinear Interpolation 4 Pixels - Pure Assembly
- * ============================================================================
- *
- * void neon_asm_bilinear_interp_4px(uint32_t *dst, const uint32_t *src_row0,
- *                                    const uint32_t *src_row1, const int *sx_array,
- *                                    int ey)
- *
- * Performs bilinear interpolation for 4 destination pixels from 2x2 source regions.
- * Used in image scaling for smooth results.
- *
- * For each output pixel:
- *   t1 = c00 * (256-ex) + c01 * ex  (top row lerp)
- *   t2 = c10 * (256-ex) + c11 * ex  (bottom row lerp)
- *   result = t1 * (256-ey) + t2 * ey (vertical lerp)
- *
- * Performance: ~8 cycles per output pixel (vs ~15 for intrinsics)
- */
-    .global neon_asm_bilinear_interp_4px
-    .type neon_asm_bilinear_interp_4px, %function
-    .align 4
-
-neon_asm_bilinear_interp_4px:
-    @ Arguments:
-    @   r0 = dst (output 4 pixels)
-    @   r1 = src_row0 (top source row)
-    @   r2 = src_row1 (bottom source row)
-    @   r3 = sx_array (4 x int, fractional x positions with offsets)
-    @ Stack:
-    @   [sp+0] = ey (y interpolation weight, 0-255)
-
-    push    {r4-r11, lr}
-    vpush   {d8-d15}
-
-    @ Load ey from stack
-    ldr     r4, [sp, #100]      @ ey (after pushing 9 regs + 8 d-regs)
-
-    @ Load source X positions and weights
-    ldmia   r3, {r5, r6, r7, r8}  @ sx[0..3]
-
-    @ For each pixel i, extract:
-    @   offset = sx[i] >> 16 (source pixel offset)
-    @   ex = sx[i] & 0xFFFF (x interpolation weight)
-
-    @ We'll process all 4 pixels using NEON
-
-    @ Create ey weight vector (all 4 values same)
-    vdup.16 q15, r4             @ q15 = ey x 8
-
-    @ Create inverse ey weight: 256 - ey
-    vmov.i16 q14, #256
-    vsub.i16 q14, q14, q15      @ q14 = (256 - ey) x 8
-
-    @ Process pixel 0
-    lsr     r9, r5, #16         @ offset0
-    and     r10, r5, #0xFFFF    @ ex0
-
-    @ Load c00, c01 from row0
-    add     r11, r1, r9, lsl #2
-    vld1.32 {d0[0]}, [r11]!     @ c00
-    vld1.32 {d0[1]}, [r11]      @ c01
-
-    @ Load c10, c11 from row1
-    add     r11, r2, r9, lsl #2
-    vld1.32 {d1[0]}, [r11]!     @ c10
-    vld1.32 {d1[1]}, [r11]      @ c11
-
-    @ Extract and widen channels for c00, c01, c10, c11
-    @ For simplicity, we'll do scalar computation here
-    @ Full NEON optimization would require more complex channel extraction
-
-    @ Store ex0 for later
-    push    {r10}
-
-    @ Process pixel 1
-    lsr     r9, r6, #16
-    and     r10, r6, #0xFFFF
-
-    add     r11, r1, r9, lsl #2
-    vld1.32 {d2[0]}, [r11]!
-    vld1.32 {d2[1]}, [r11]
-
-    add     r11, r2, r9, lsl #2
-    vld1.32 {d3[0]}, [r11]!
-    vld1.32 {d3[1]}, [r11]
-
-    push    {r10}
-
-    @ Process pixel 2
-    lsr     r9, r7, #16
-    and     r10, r7, #0xFFFF
-
-    add     r11, r1, r9, lsl #2
-    vld1.32 {d4[0]}, [r11]!
-    vld1.32 {d4[1]}, [r11]
-
-    add     r11, r2, r9, lsl #2
-    vld1.32 {d5[0]}, [r11]!
-    vld1.32 {d5[1]}, [r11]
-
-    push    {r10}
-
-    @ Process pixel 3
-    lsr     r9, r8, #16
-    and     r10, r8, #0xFFFF
-
-    add     r11, r1, r9, lsl #2
-    vld1.32 {d6[0]}, [r11]!
-    vld1.32 {d6[1]}, [r11]
-
-    add     r11, r2, r9, lsl #2
-    vld1.32 {d7[0]}, [r11]!
-    vld1.32 {d7[1]}, [r11]
-
-    @ Now we have:
-    @ d0 = [c00_0, c01_0], d1 = [c10_0, c11_0] for pixel 0
-    @ d2 = [c00_1, c01_1], d3 = [c10_1, c11_1] for pixel 1
-    @ d4 = [c00_2, c01_2], d5 = [c10_2, c11_2] for pixel 2
-    @ d6 = [c00_3, c01_3], d7 = [c10_3, c11_3] for pixel 3
-    @ Stack: ex3, ex2, ex1, ex0 (top to bottom)
-
-    @ For a simplified but still fast version, we'll compute each pixel
-    @ using scalar with some NEON acceleration for channel operations
-
-    @ Pop ex values
-    pop     {r10}               @ ex2
-    pop     {r11}               @ ex1
-    pop     {lr}                @ ex0
-
-    @ For now, output zeros as placeholder (full implementation is complex)
-    @ A complete implementation would do proper channel extraction and lerp
-    vmov.i32 q0, #0
-    vst1.32 {d0, d1}, [r0]
-
-    vpop    {d8-d15}
-    pop     {r4-r11, pc}
-
-    .size neon_asm_bilinear_interp_4px, .-neon_asm_bilinear_interp_4px
 
 #endif /* __ARM_NEON || __arm__ */
 

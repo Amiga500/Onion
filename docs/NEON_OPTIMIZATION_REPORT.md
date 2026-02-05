@@ -22,7 +22,7 @@ The following table summarizes the performance improvements achieved by converti
 | `blit_rect` | ~0.5 cy/px | ~0.35 cy/px | **~30%** | Strided rectangle blit |
 | `render_glyph_row` | ~25 cy/row | ~15 cy/row | **~40%** | 8-pixel font row with outline |
 | `premultiply_alpha` | ~4 cy/px | ~2 cy/px | **~50%** | ARGB premultiplication |
-| `bilinear_interp_4px` | ~15 cy/px | ~8 cy/px | **~45%** | Bilinear image scaling |
+| `bilinear_interp_4px` | ~15 cy/px | (planned) | ~45% | *Coming soon* |
 
 ### Cumulative Performance Gains
 
@@ -583,7 +583,7 @@ The following optimizations have been implemented:
 
 | Operation | Status | Improvement | Notes |
 |-----------|--------|-------------|-------|
-| ✅ Bilinear interpolation (scaling) | **Implemented** | ~45% | `neon_asm_bilinear_interp_4px` |
+| 🔄 Bilinear interpolation (scaling) | *In progress* | ~45% | Uses C intrinsics for now |
 | ✅ Texture atlas blit | **Implemented** | ~30-40% | `neon_asm_blit_rect`, `neon_asm_blit_row` |
 | ✅ Glyph rendering with outline | **Implemented** | ~40% | `neon_asm_render_glyph_row` |
 | ✅ RGBA premultiply alpha | **Implemented** | ~50% | `neon_asm_premultiply_alpha` |

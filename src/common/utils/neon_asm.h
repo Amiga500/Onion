@@ -192,22 +192,10 @@ extern void neon_asm_render_glyph_row(uint16_t *dst, uint8_t glyph_row,
 extern void neon_asm_premultiply_alpha(uint32_t *dst, const uint32_t *src,
                                         uint32_t count);
 
-/**
- * @brief Bilinear interpolation for 4 pixels (Assembly version)
- *
- * Performs bilinear interpolation for 4 destination pixels.
- *
- * @param dst Output buffer (4 pixels)
- * @param src_row0 Top source row
- * @param src_row1 Bottom source row
- * @param sx_array Array of 4 x-positions (fractional, with offsets)
- * @param ey Y interpolation weight (0-255)
- *
- * Performance: ~8 cycles/pixel on Cortex-A7 (vs ~15 for intrinsics)
+/* Note: Bilinear interpolation assembly is not yet implemented.
+ * Use the C intrinsics version in SDL_rotozoom.c for now.
+ * A future version may add neon_asm_bilinear_interp_4px() for ~45% improvement.
  */
-extern void neon_asm_bilinear_interp_4px(uint32_t *dst, const uint32_t *src_row0,
-                                          const uint32_t *src_row1, const int *sx_array,
-                                          int ey);
 
 #endif /* NEON_ASM_AVAILABLE */
 
@@ -256,10 +244,10 @@ extern void neon_asm_bilinear_interp_4px(uint32_t *dst, const uint32_t *src_row0
     neon_asm_render_glyph_row((dst), (row), (above), (below), (fg), (outline))
 
 #define NEON_PREMULTIPLY_ALPHA(dst, src, count) \
-    neon_asm_premultiply_alpha((dst), (src), (count))
+        neon_asm_premultiply_alpha((dst), (src), (count))
 
-#define NEON_BILINEAR_4PX(dst, row0, row1, sx, ey) \
-    neon_asm_bilinear_interp_4px((dst), (row0), (row1), (sx), (ey))
+/* Note: NEON_BILINEAR_4PX is not available - bilinear interpolation
+ * uses the C intrinsics version in SDL_rotozoom.c */
 
 #else /* Use intrinsics fallback */
 
@@ -323,9 +311,8 @@ static inline void neon_premultiply_alpha_fallback(uint32_t *dst, const uint32_t
 #define NEON_PREMULTIPLY_ALPHA(dst, src, count) \
     neon_premultiply_alpha_fallback((dst), (src), (count))
 
-/* Fallback: placeholder for bilinear (not commonly used in fallback path) */
-#define NEON_BILINEAR_4PX(dst, row0, row1, sx, ey) \
-    ((void)0) /* Use original SDL_rotozoom path when assembly not available */
+/* Note: Bilinear interpolation uses C intrinsics in SDL_rotozoom.c
+ * A future version may add assembly optimization for ~45% improvement */
 
 #endif /* USE_NEON_ASM && NEON_ASM_AVAILABLE */
 
