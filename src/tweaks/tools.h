@@ -59,7 +59,8 @@ void _runCommandPopup(const char *tool_name, const char *_cmd)
 
     keys_enabled = false;
     char full_title[STR_MAX];
-    sprintf(full_title, "Tool: %s", tool_name);
+    // Use snprintf for buffer overflow protection
+    snprintf(full_title, sizeof(full_title), "Tool: %s", tool_name);
     _toolDialog(full_title, msg_apply, false);
 
     char cmd[STR_MAX];

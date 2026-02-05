@@ -163,8 +163,9 @@ void action_setDisableStandby(void *pt)
 void action_setEnableLogging(void *pt)
 {
     settings.enable_logging = ((ListItem *)pt)->value == 1;
-    char new_value[22];
-    sprintf(new_value, "log_to_file = %s", settings.enable_logging ? "\"true\"" : "\"false\"");
+    char new_value[64];  // Increased buffer size for safety
+    // Use snprintf for buffer overflow protection
+    snprintf(new_value, sizeof(new_value), "log_to_file = %s", settings.enable_logging ? "\"true\"" : "\"false\"");
     file_changeKeyValue(RETROARCH_CONFIG, "log_to_file =", new_value);
 }
 

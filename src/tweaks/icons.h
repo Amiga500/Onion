@@ -176,7 +176,8 @@ void _action_apply_icon_pack(void *_item)
         char message_done[STR_MAX];
         int applied = apply_iconPack(item->payload, false);
 
-        sprintf(message_done, "Applied %d icons", applied);
+        // Use snprintf for buffer overflow protection
+        snprintf(message_done, sizeof(message_done), "Applied %d icons", applied);
 
         list_free(&_menu_console_icons);
         list_free(&_menu_app_icons);

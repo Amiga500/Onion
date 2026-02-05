@@ -416,9 +416,11 @@ void list_getItemValueLabel(ListItem *item, char *out_label)
     if (item->value_formatter != NULL)
         item->value_formatter(item, out_label);
     else if (item->value_labels[0][0] != '\0')
-        sprintf(out_label, "%s", item->value_labels[item->value]);
+        // Use snprintf for buffer overflow protection
+        snprintf(out_label, STR_MAX, "%s", item->value_labels[item->value]);
     else
-        sprintf(out_label, "%d", item->value);
+        // Use snprintf for buffer overflow protection
+        snprintf(out_label, STR_MAX, "%d", item->value);
 }
 
 void list_free(List *list)
