@@ -20,7 +20,8 @@ int setVolumeRaw(int value, int add)
 {
     int fd;
 
-    if ((fd = open("/dev/mi_ao", O_RDWR)) < 0)
+    // Use O_CLOEXEC to prevent file descriptor leak to child processes
+    if ((fd = open("/dev/mi_ao", O_RDWR | O_CLOEXEC)) < 0)
         return 0;
 
     int buf2[] = {0, 0};

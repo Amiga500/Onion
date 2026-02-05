@@ -57,13 +57,14 @@ bool battery_isCharging(void)
 #ifdef PLATFORM_MIYOOMINI
     if (DEVICE_ID == MIYOO283) {
         char charging = 0;
-        int fd = open(GPIO_DIR2 "gpio59/value", O_RDONLY);
+        // Use O_CLOEXEC to prevent file descriptor leak to child processes
+        int fd = open(GPIO_DIR2 "gpio59/value", O_RDONLY | O_CLOEXEC);
 
         if (fd < 0) {
             // export gpio59, direction: in
             file_write(GPIO_DIR1 "export", "59", 2);
             file_write(GPIO_DIR2 "gpio59/direction", "in", 2);
-            fd = open(GPIO_DIR2 "gpio59/value", O_RDONLY);
+            fd = open(GPIO_DIR2 "gpio59/value", O_RDONLY | O_CLOEXEC);
         }
 
         if (fd >= 0) {

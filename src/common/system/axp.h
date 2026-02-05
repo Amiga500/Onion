@@ -21,7 +21,8 @@ int axp_write(unsigned char address, unsigned char val)
     struct i2c_rdwr_ioctl_data packets;
     unsigned char buf[2];
     int ret;
-    int fd = open(AXPDEV, O_RDWR);
+    // Use O_CLOEXEC to prevent file descriptor leak to child processes
+    int fd = open(AXPDEV, O_RDWR | O_CLOEXEC);
     ioctl(fd, I2C_TIMEOUT, 5);
     ioctl(fd, I2C_RETRIES, 1);
 
@@ -48,7 +49,8 @@ int axp_read(unsigned char address)
     struct i2c_rdwr_ioctl_data packets;
     unsigned char val;
     int ret;
-    int fd = open(AXPDEV, O_RDWR);
+    // Use O_CLOEXEC to prevent file descriptor leak to child processes
+    int fd = open(AXPDEV, O_RDWR | O_CLOEXEC);
     ioctl(fd, I2C_TIMEOUT, 5);
     ioctl(fd, I2C_RETRIES, 1);
 

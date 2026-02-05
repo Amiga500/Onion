@@ -71,7 +71,8 @@ void display_clear(void)
 void display_reset(void)
 {
     if (fb_fd < 0)
-        fb_fd = open("/dev/fb0", O_RDWR);
+        // Use O_CLOEXEC to prevent file descriptor leak to child processes
+        fb_fd = open("/dev/fb0", O_RDWR | O_CLOEXEC);
     ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
     g_display.vinfo.yoffset = 0;
     ioctl(fb_fd, FBIOPUT_VSCREENINFO, &g_display.vinfo);
@@ -83,7 +84,8 @@ void display_reset(void)
 void display_getRenderResolution()
 {
     if (fb_fd < 0)
-        fb_fd = open("/dev/fb0", O_RDWR);
+        // Use O_CLOEXEC to prevent file descriptor leak to child processes
+        fb_fd = open("/dev/fb0", O_RDWR | O_CLOEXEC);
     if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo) == 0) {
         g_display.width = g_display.vinfo.xres;
         g_display.height = g_display.vinfo.yres;
@@ -112,7 +114,8 @@ void display_init(bool map_fb)
         return;
 
     // Open and mmap FB
-    fb_fd = open("/dev/fb0", O_RDWR);
+    // Use O_CLOEXEC to prevent file descriptor leak to child processes
+    fb_fd = open("/dev/fb0", O_RDWR | O_CLOEXEC);
     ioctl(fb_fd, FBIOGET_FSCREENINFO, &g_display.finfo);
 
     display_reset();

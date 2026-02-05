@@ -123,7 +123,9 @@ bool process_start_read_return(const char *cmdline, char *out_str)
         size_t len = strlen(result);
         if (len > 0 && result[len - 1] == '\n')
             result[len - 1] = '\0';
-        strcpy(out_str, result);
+        // Use strncpy for safety - assume out_str is at least 255 bytes (buffer size)
+        strncpy(out_str, result, 254);
+        out_str[254] = '\0';
         free(result);
     }
     else {

@@ -35,7 +35,8 @@ void system_clock_get(void)
 void system_rtc_get(void)
 {
     int cfd;
-    if ((cfd = open("/dev/rtc0", O_RDONLY)) > 0) {
+    // Use O_CLOEXEC to prevent file descriptor leak to child processes
+    if ((cfd = open("/dev/rtc0", O_RDONLY | O_CLOEXEC)) > 0) {
         ioctl(cfd, RTC_RD_TIME, &clk);
         close(cfd);
     }

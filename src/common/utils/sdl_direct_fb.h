@@ -45,7 +45,8 @@ void init(int flags)
         if (flags & INIT_TTF)
             TTF_Init();
         if (flags & INIT_INPUT) {
-            _input_fd = open(INPUT_DEVICE, O_RDONLY);
+            // Use O_CLOEXEC to prevent file descriptor leak to child processes
+            _input_fd = open(INPUT_DEVICE, O_RDONLY | O_CLOEXEC);
             if (_input_fd == -1) {
                 perror("Failed to open input device");
                 exit(1);
