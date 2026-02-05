@@ -724,3 +724,332 @@ TEST(NeonSimdTest, DitherPureColors)
         EXPECT_LT(b5, 3u) << "B channel should be low at pixel " << i;
     }
 }
+
+// ============================================================================
+// Tests for Alpha Blending
+// ============================================================================
+
+// Test alpha blending with 50% alpha
+TEST(NeonSimdTest, AlphaBlend50Percent)
+{
+    const uint32_t count = 16;
+    uint32_t src[count];
+    uint32_t dst[count];
+    uint32_t expected[count];
+
+    // Create source with 50% alpha (0x80 = 128)
+    // Create white source over black destination
+    for (uint32_t i = 0; i < count; i++) {
+        src[i] = 0x80FFFFFF;  // 50% white
+        dst[i] = 0xFF000000;  // Opaque black
+        // Expected: ~50% gray (127-128 in each channel)
+        // Formula: result = src * alpha + dst * (1-alpha)
+        // R = 255 * 128/255 + 0 * 127/255 ≈ 128
+        expected[i] = 0x80808080;
+    }
+
+    neon_alpha_blend(dst, src, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t got_r = (dst[i] >> 16) & 0xFF;
+        uint32_t got_g = (dst[i] >> 8) & 0xFF;
+        uint32_t got_b = dst[i] & 0xFF;
+        uint32_t exp_r = (expected[i] >> 16) & 0xFF;
+
+        // Allow small rounding differences
+        EXPECT_NEAR(got_r, exp_r, 2) << "R mismatch at pixel " << i;
+        EXPECT_NEAR(got_g, exp_r, 2) << "G mismatch at pixel " << i;
+        EXPECT_NEAR(got_b, exp_r, 2) << "B mismatch at pixel " << i;
+    }
+}
+
+// Test alpha blending with fully opaque source
+TEST(NeonSimdTest, AlphaBlendOpaque)
+{
+    const uint32_t count = 8;
+    uint32_t src[count];
+    uint32_t dst[count];
+
+    // Fully opaque source should completely replace destination
+    for (uint32_t i = 0; i < count; i++) {
+        src[i] = 0xFFFF0000;  // Opaque red
+        dst[i] = 0xFF00FF00;  // Opaque green
+    }
+
+    neon_alpha_blend(dst, src, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        // With 100% alpha, destination should be source color
+        // Allow small rounding error (254-255 due to (x * 255 + 128) >> 8 approximation)
+        uint32_t got_r = (dst[i] >> 16) & 0xFF;
+        uint32_t got_g = (dst[i] >> 8) & 0xFF;
+        uint32_t got_b = dst[i] & 0xFF;
+
+        EXPECT_NEAR(got_r, 255u, 1) << "R should be ~255 at pixel " << i;
+        EXPECT_EQ(0u, got_g) << "G should be 0 at pixel " << i;
+        EXPECT_EQ(0u, got_b) << "B should be 0 at pixel " << i;
+    }
+}
+
+// Test alpha blending with fully transparent source
+TEST(NeonSimdTest, AlphaBlendTransparent)
+{
+    const uint32_t count = 8;
+    uint32_t src[count];
+    uint32_t dst[count];
+    uint32_t original[count];
+
+    // Fully transparent source should not change destination
+    for (uint32_t i = 0; i < count; i++) {
+        src[i] = 0x00FF0000;  // Transparent red
+        dst[i] = 0xFF00FF00;  // Opaque green
+        original[i] = dst[i];
+    }
+
+    neon_alpha_blend(dst, src, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        // With 0% alpha, destination RGB should remain unchanged
+        // Allow small rounding error (254-255 due to approximation)
+        uint32_t got_r = (dst[i] >> 16) & 0xFF;
+        uint32_t got_g = (dst[i] >> 8) & 0xFF;
+        uint32_t got_b = dst[i] & 0xFF;
+
+        EXPECT_EQ(0u, got_r) << "R should be 0 at pixel " << i;
+        EXPECT_NEAR(got_g, 255u, 1) << "G should be ~255 at pixel " << i;
+        EXPECT_EQ(0u, got_b) << "B should be 0 at pixel " << i;
+    }
+}
+
+// ============================================================================
+// Tests for Alpha Pre-multiplication
+// ============================================================================
+
+// Test premultiply with various alpha values
+TEST(NeonSimdTest, PremultiplyAlpha)
+{
+    const uint32_t count = 16;
+    uint32_t src[count];
+    uint32_t dst[count];
+    uint32_t expected[count];
+
+    for (uint32_t i = 0; i < count; i++) {
+        // Create pixels with varying alpha
+        uint8_t a = (uint8_t)(i * 16);  // 0, 16, 32, ... 240
+        uint8_t r = 200;
+        uint8_t g = 100;
+        uint8_t b = 50;
+
+        src[i] = ((uint32_t)a << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+
+        // Expected: each channel multiplied by alpha/255
+        uint32_t pr = (r * a + 128) >> 8;
+        uint32_t pg = (g * a + 128) >> 8;
+        uint32_t pb = (b * a + 128) >> 8;
+
+        expected[i] = ((uint32_t)a << 24) | (pr << 16) | (pg << 8) | pb;
+    }
+
+    memset(dst, 0, sizeof(dst));
+    neon_premultiply_alpha(dst, src, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        EXPECT_EQ(expected[i], dst[i]) << "Mismatch at pixel " << i;
+    }
+}
+
+// Test premultiply with opaque pixels (should be nearly unchanged)
+TEST(NeonSimdTest, PremultiplyAlphaOpaque)
+{
+    const uint32_t count = 8;
+    uint32_t src[count];
+    uint32_t dst[count];
+
+    for (uint32_t i = 0; i < count; i++) {
+        // Fully opaque pixels: RGB * 255 / 255 should be nearly unchanged
+        // Using (C * 255 + 128) >> 8 gives slightly different results
+        src[i] = 0xFFABCDEF;
+    }
+
+    neon_premultiply_alpha(dst, src, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        // Allow small rounding differences due to (C * A + 128) >> 8 approximation
+        uint32_t src_r = (src[i] >> 16) & 0xFF;
+        uint32_t src_g = (src[i] >> 8) & 0xFF;
+        uint32_t src_b = src[i] & 0xFF;
+        uint32_t dst_r = (dst[i] >> 16) & 0xFF;
+        uint32_t dst_g = (dst[i] >> 8) & 0xFF;
+        uint32_t dst_b = dst[i] & 0xFF;
+
+        EXPECT_NEAR(dst_r, src_r, 1) << "R should be nearly unchanged at " << i;
+        EXPECT_NEAR(dst_g, src_g, 1) << "G should be nearly unchanged at " << i;
+        EXPECT_NEAR(dst_b, src_b, 1) << "B should be nearly unchanged at " << i;
+    }
+}
+
+// Test premultiply with transparent pixels (should be zeroed RGB)
+TEST(NeonSimdTest, PremultiplyAlphaTransparent)
+{
+    const uint32_t count = 8;
+    uint32_t src[count];
+    uint32_t dst[count];
+
+    for (uint32_t i = 0; i < count; i++) {
+        // Fully transparent pixels should have RGB = 0
+        src[i] = 0x00FFFFFF;
+    }
+
+    neon_premultiply_alpha(dst, src, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        EXPECT_EQ(0x00000000u, dst[i]) << "Transparent pixel should be all zeros at " << i;
+    }
+}
+
+// ============================================================================
+// Tests for Nearest-Neighbor Scaling
+// ============================================================================
+
+// Test scaling 2x (upscale)
+TEST(NeonSimdTest, ScaleNearest2x)
+{
+    const uint32_t src_w = 4, src_h = 4;
+    const uint32_t dst_w = 8, dst_h = 8;
+    uint32_t src[src_w * src_h];
+    uint32_t dst[dst_w * dst_h];
+
+    // Create 4x4 source with distinct colors in each quadrant
+    src[0] = 0xFFFF0000; src[1] = 0xFFFF0000; src[2] = 0xFF00FF00; src[3] = 0xFF00FF00;
+    src[4] = 0xFFFF0000; src[5] = 0xFFFF0000; src[6] = 0xFF00FF00; src[7] = 0xFF00FF00;
+    src[8] = 0xFF0000FF; src[9] = 0xFF0000FF; src[10] = 0xFFFFFF00; src[11] = 0xFFFFFF00;
+    src[12] = 0xFF0000FF; src[13] = 0xFF0000FF; src[14] = 0xFFFFFF00; src[15] = 0xFFFFFF00;
+
+    memset(dst, 0, sizeof(dst));
+    neon_scale_nearest(dst, src, dst_w, dst_h, src_w, src_h);
+
+    // Check that scaling preserved colors (each source pixel becomes 2x2 block)
+    // Top-left quadrant should be red
+    EXPECT_EQ(0xFFFF0000u, dst[0]);
+    EXPECT_EQ(0xFFFF0000u, dst[1]);
+    EXPECT_EQ(0xFFFF0000u, dst[dst_w]);
+    EXPECT_EQ(0xFFFF0000u, dst[dst_w + 1]);
+
+    // Top-right quadrant should be green
+    EXPECT_EQ(0xFF00FF00u, dst[4]);
+    EXPECT_EQ(0xFF00FF00u, dst[5]);
+
+    // Bottom-left quadrant should be blue
+    EXPECT_EQ(0xFF0000FFu, dst[4 * dst_w]);
+    EXPECT_EQ(0xFF0000FFu, dst[4 * dst_w + 1]);
+
+    // Bottom-right quadrant should be yellow
+    EXPECT_EQ(0xFFFFFF00u, dst[4 * dst_w + 4]);
+}
+
+// Test scaling 0.5x (downscale)
+TEST(NeonSimdTest, ScaleNearestHalf)
+{
+    const uint32_t src_w = 8, src_h = 8;
+    const uint32_t dst_w = 4, dst_h = 4;
+    uint32_t src[src_w * src_h];
+    uint32_t dst[dst_w * dst_h];
+
+    // Create 8x8 source with 2x2 blocks of the same color
+    for (uint32_t y = 0; y < src_h; y++) {
+        for (uint32_t x = 0; x < src_w; x++) {
+            // Color based on which quadrant (2x2 blocks)
+            uint32_t qx = x / 2;
+            uint32_t qy = y / 2;
+            uint32_t color = ((qx + qy * 4) * 30) & 0xFF;
+            src[y * src_w + x] = 0xFF000000 | (color << 16) | (color << 8) | color;
+        }
+    }
+
+    memset(dst, 0, sizeof(dst));
+    neon_scale_nearest(dst, src, dst_w, dst_h, src_w, src_h);
+
+    // Each destination pixel should be one of the source pixels
+    // Just verify we got valid pixels (non-zero)
+    for (uint32_t i = 0; i < dst_w * dst_h; i++) {
+        EXPECT_NE(0u, dst[i]) << "Destination pixel should not be zero at " << i;
+        EXPECT_EQ(0xFFu, (dst[i] >> 24) & 0xFF) << "Alpha should be preserved at " << i;
+    }
+}
+
+// Test scaling identity (1:1)
+TEST(NeonSimdTest, ScaleNearestIdentity)
+{
+    const uint32_t size = 16;
+    uint32_t src[size * size];
+    uint32_t dst[size * size];
+
+    // Create gradient pattern
+    for (uint32_t i = 0; i < size * size; i++) {
+        src[i] = 0xFF000000 | (i * 0x010101);
+    }
+
+    neon_scale_nearest(dst, src, size, size, size, size);
+
+    // Identity scaling should produce exact copy
+    for (uint32_t i = 0; i < size * size; i++) {
+        EXPECT_EQ(src[i], dst[i]) << "Identity scale should be exact copy at " << i;
+    }
+}
+
+// ============================================================================
+// Tests for Pre-multiplied Alpha Blending
+// ============================================================================
+
+// Test blending pre-multiplied pixels
+TEST(NeonSimdTest, BlendPremultiplied50Percent)
+{
+    const uint32_t count = 8;
+    uint32_t src[count];
+    uint32_t dst[count];
+
+    // Create pre-multiplied 50% white over black
+    // Pre-multiplied: RGB already multiplied by alpha
+    // So 50% white = 0x80808080 (not 0x80FFFFFF)
+    for (uint32_t i = 0; i < count; i++) {
+        src[i] = 0x80808080;  // Pre-multiplied 50% white
+        dst[i] = 0xFF000000;  // Opaque black (pre-mult same as straight)
+    }
+
+    neon_blend_premultiplied(dst, src, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        // Result should be approximately 50% gray
+        uint32_t got_r = (dst[i] >> 16) & 0xFF;
+        uint32_t got_g = (dst[i] >> 8) & 0xFF;
+        uint32_t got_b = dst[i] & 0xFF;
+
+        EXPECT_NEAR(got_r, 128u, 2) << "R mismatch at pixel " << i;
+        EXPECT_NEAR(got_g, 128u, 2) << "G mismatch at pixel " << i;
+        EXPECT_NEAR(got_b, 128u, 2) << "B mismatch at pixel " << i;
+    }
+}
+
+// Test blending with opaque pre-multiplied source
+TEST(NeonSimdTest, BlendPremultipliedOpaque)
+{
+    const uint32_t count = 8;
+    uint32_t src[count];
+    uint32_t dst[count];
+
+    for (uint32_t i = 0; i < count; i++) {
+        src[i] = 0xFFFF0000;  // Opaque red (pre-mult same as straight)
+        dst[i] = 0xFF00FF00;  // Opaque green
+    }
+
+    neon_blend_premultiplied(dst, src, count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        // Opaque source should completely replace destination
+        uint32_t got_r = (dst[i] >> 16) & 0xFF;
+        uint32_t got_g = (dst[i] >> 8) & 0xFF;
+
+        EXPECT_EQ(255u, got_r) << "R should be 255 at pixel " << i;
+        EXPECT_EQ(0u, got_g) << "G should be 0 at pixel " << i;
+    }
+}
