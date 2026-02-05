@@ -13,10 +13,10 @@ endif
 
 LIB = /mnt/SDCARD/.tmp_update/lib
 
-CC 		= $(CROSS_COMPILE)gcc
-CXX 	= $(CROSS_COMPILE)g++
-AS 		= $(CROSS_COMPILE)gcc
-STRIP 	= $(CROSS_COMPILE)strip
+CC = $(CROSS_COMPILE)gcc
+CXX = $(CROSS_COMPILE)g++
+AS = $(CROSS_COMPILE)gcc
+STRIP = $(CROSS_COMPILE)strip
 
 SOURCES := $(SOURCES) .
 ifeq ($(INCLUDE_CJSON),1)
@@ -24,9 +24,9 @@ SOURCES := $(SOURCES) ../../include/cjson
 endif
 ifneq ($(INCLUDE_UTILS),0)
 CFILES := $(CFILES) \
-	../common/utils/str.c \
-	../common/utils/log.c \
-	../common/utils/file.c
+../common/utils/str.c \
+../common/utils/log.c \
+../common/utils/file.c
 endif
 CFILES := $(CFILES) $(foreach dir, $(SOURCES), $(wildcard $(dir)/*.c))
 CPPFILES := $(CPPFILES) $(foreach dir, $(SOURCES), $(wildcard $(dir)/*.cpp))
@@ -67,7 +67,7 @@ OFILES := $(OFILES) $(NEON_ASM_OBJ)
 
 # Rule for assembling the NEON assembly file
 $(NEON_ASM_OBJ): ../common/utils/neon_asm.S
-	$(AS) $(ASFLAGS) -c $< -o $@
+$(AS) $(ASFLAGS) -c $< -o $@
 endif
 
 ifdef INCLUDE_SHMVAR
