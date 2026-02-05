@@ -108,23 +108,12 @@ neon_asm_rgb888_to_argb8888:
     beq     .Lrgb888_exit
 
 .Lrgb888_scalar_loop:
-    @ Load RGB values
+    @ Load RGB values (already advancing pointer)
     ldrb    r5, [r1], #1        @ R
     ldrb    r6, [r1], #1        @ G
     ldrb    lr, [r1], #1        @ B
 
-    @ Pack as 0xFFRRGGBB
-    orr     r5, lr, r6, lsl #8
-    orr     r5, r5, r5, lsl #8
-    lsr     r5, r5, #8
-    orr     r5, r5, #0xFF000000
-
-    @ Actually construct correctly:
-    @ ARGB = 0xFF000000 | (R << 16) | (G << 8) | B
-    ldrb    r5, [r1, #-3]       @ Re-load R
-    ldrb    r6, [r1, #-2]       @ Re-load G
-    ldrb    lr, [r1, #-1]       @ Re-load B
-
+    @ Construct ARGB = 0xFF000000 | (R << 16) | (G << 8) | B
     mov     r5, r5, lsl #16     @ R << 16
     orr     r5, r5, r6, lsl #8  @ | (G << 8)
     orr     r5, r5, lr          @ | B
@@ -464,8 +453,15 @@ neon_asm_alpha_blend:
 
 .Lblend_remainder:
     @ Scalar fallback for remaining pixels
+    @ We need a different approach since r4 holds the counter
+    @ Save r4 to stack at beginning of scalar section
     cmp     r4, #0
     beq     .Lblend_exit
+
+    @ Use r7 (callee-saved, need to save it) as loop counter instead
+    @ Actually, let's just push r4 and use the stack properly
+    push    {r7}
+    mov     r7, r4              @ r7 = loop counter
 
 .Lblend_scalar_loop:
     ldr     r5, [r1], #4        @ src pixel
@@ -486,45 +482,43 @@ neon_asm_alpha_blend:
     rsb     r3, lr, #255        @ r3 = 255 - alpha
 
     @ Blend each channel: result = (src * alpha + dst * inv_alpha + 128) >> 8
+    @ Use r4 as temporary (we saved loop counter to r7)
 
     @ Blue channel
     and     r2, r5, #0xFF       @ src_B
     mul     r2, r2, lr          @ src_B * alpha
-    and     r4, r6, #0xFF       @ dst_B (using r4 as temp, will restore loop counter)
+    and     r4, r6, #0xFF       @ dst_B
     mla     r2, r4, r3, r2      @ + dst_B * inv_alpha
     add     r2, r2, #128
     lsr     r2, r2, #8
-    and     r2, r2, #0xFF       @ clamp to 0-255
-
-    push    {r2}                @ save B result
+    mov     r4, r2              @ r4 = B result
 
     @ Green channel
     ubfx    r2, r5, #8, #8      @ src_G
     mul     r2, r2, lr
+    push    {r4}                @ save B result
     ubfx    r4, r6, #8, #8      @ dst_G
     mla     r2, r4, r3, r2
     add     r2, r2, #128
     lsr     r2, r2, #8
-
-    pop     {r4}                @ r4 = B result
+    pop     {r4}                @ restore B result
     orr     r4, r4, r2, lsl #8  @ B | (G << 8)
 
     @ Red channel
     ubfx    r2, r5, #16, #8     @ src_R
     mul     r2, r2, lr
-    ubfx    r5, r6, #16, #8     @ dst_R (can reuse r5 now)
-    mla     r2, r5, r3, r2
+    push    {r4}                @ save partial result
+    ubfx    r4, r6, #16, #8     @ dst_R
+    mla     r2, r4, r3, r2
     add     r2, r2, #128
     lsr     r2, r2, #8
+    pop     {r4}                @ restore partial result
     orr     r4, r4, r2, lsl #16 @ B | (G << 8) | (R << 16)
 
     @ Add source alpha
     orr     r4, r4, lr, lsl #24 @ | (A << 24)
 
     str     r4, [r0], #4
-    ldr     r4, [sp, #-4]       @ restore loop counter from stack... actually we need different approach
-
-    @ Note: simplified scalar, less optimal but correct
     b       .Lblend_scalar_check
 
 .Lblend_scalar_copy:
@@ -535,11 +529,11 @@ neon_asm_alpha_blend:
     add     r0, r0, #4          @ skip (keep dst)
 
 .Lblend_scalar_check:
-    @ We corrupted r4, need to track remainder differently
-    @ For simplicity, just decrement stored counter
-    subs    r4, r4, #1
-    cmp     r4, #0
+    @ Decrement loop counter (saved in r7)
+    subs    r7, r7, #1
     bgt     .Lblend_scalar_loop
+
+    pop     {r7}                @ restore r7
 
 .Lblend_exit:
     vpop    {d8-d15}
@@ -605,22 +599,13 @@ neon_asm_gray_to_argb8888:
     beq     .Lgray_exit
 
 .Lgray_scalar_loop:
+    @ Load grayscale value
     ldrb    r3, [r1], #1
 
-    @ Pack as 0xFFGGGGGG (gray in R, G, B)
-    orr     r3, r3, r3, lsl #8      @ GG
-    orr     r3, r3, r3, lsl #8      @ GGGG (wrong, need GGGGGG)
-    bic     r3, r3, #0xFF000000
-    orr     r3, r3, r3, lsl #8
-    lsr     r3, r3, #8
-    bic     r3, r3, #0xFF000000
-    orr     r3, r3, #0xFF000000
-
-    @ Actually, simpler approach:
-    ldrb    r3, [r1, #-1]           @ reload
-    orr     lr, r3, r3, lsl #8      @ (G << 8) | G
-    orr     lr, lr, r3, lsl #16     @ | (G << 16)
-    orr     lr, lr, #0xFF000000     @ | 0xFF000000
+    @ Pack as 0xFF | (G << 16) | (G << 8) | G
+    orr     lr, r3, r3, lsl #8      @ (G << 8) | G = 0x00GG
+    orr     lr, lr, r3, lsl #16     @ | (G << 16) = 0x0GGG
+    orr     lr, lr, #0xFF000000     @ | 0xFF000000 = 0xFFGGGGGG
 
     str     lr, [r0], #4
 
