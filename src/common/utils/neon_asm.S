@@ -892,8 +892,11 @@ neon_asm_render_glyph_row:
     vmovl.u8 q7, d5             @ q7 = outline mask 16-bit (d14, d15)
 
     @ Convert 0x00FF to 0xFFFF for proper bsl selection
-    vcgt.u16 q6, q6, #0         @ q6 = 0xFFFF where pixel ON
-    vcgt.u16 q7, q7, #0         @ q7 = 0xFFFF where outline
+    @ Use vceq to check == 0, then invert with vmvn
+    vceq.i16 q6, q6, #0         @ q6 = 0xFFFF where zero
+    vceq.i16 q7, q7, #0         @ q7 = 0xFFFF where zero
+    vmvn.u16 q6, q6             @ q6 = 0xFFFF where NOT zero (pixel ON)
+    vmvn.u16 q7, q7             @ q7 = 0xFFFF where NOT zero (outline)
 
     @ Select colors: pixel ON -> fg, else outline -> outline_color, else keep dst
     vbsl.16 q7, q4, q5          @ q7 = outline_color where outline, else dst
