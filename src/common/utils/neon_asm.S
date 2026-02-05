@@ -1715,7 +1715,12 @@ neon_asm_yuv420_to_argb8888_row:
 
     @ Store as ARGB8888 (little-endian: BGRA in memory)
     @ d8 = B, d7 = G, d6 = R, d30 = A
-    vst4.8  {d8, d7, d6, d30}, [r0]!
+    @ vst4.8 requires consecutive registers, so copy to d0-d3
+    vmov    d0, d8                  @ d0 = B
+    vmov    d1, d7                  @ d1 = G
+    vmov    d2, d6                  @ d2 = R
+    vmov    d3, d30                 @ d3 = A
+    vst4.8  {d0, d1, d2, d3}, [r0]!
 
     subs    r5, r5, #1
     bne     .Lyuv_8px_loop
