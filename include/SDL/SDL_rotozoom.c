@@ -40,6 +40,11 @@
 #define PREFETCH(addr) ((void)0)
 #endif
 
+/* Include assembly optimizations when available */
+#ifdef USE_NEON_ASM
+#include "../../src/common/utils/neon_asm.h"
+#endif
+
 #define MAX(a,b)    (((a) > (b)) ? (a) : (b))
 
 #ifdef __ARM_NEON
@@ -308,6 +313,85 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	  c11 = c10;
 	  c11++;
 	  csax = sax;
+
+#if defined(USE_NEON_ASM) && defined(NEON_BILINEAR_INTERP_4PX_AVAILABLE) && NEON_BILINEAR_INTERP_4PX_AVAILABLE
+	  /* Use assembly-optimized 4-pixel batch processing */
+	  ey = (*csay & 0xffff);
+	  
+	  /* Track cumulative source offset for the batch processing */
+	  int batch_src_offset = 0;
+	  
+	  /* Process 4 pixels at a time with NEON assembly */
+	  for (x = 0; x + 4 <= dst->w; x += 4)
+	    {
+	      /* Prefetch ahead for next pixels (safe bounds check) */
+	      if ((x & 15) == 0 && x + 8 < dst->w) {
+	        PREFETCH(csp + batch_src_offset + 16);
+	        PREFETCH((Uint8 *)csp + src->pitch + (batch_src_offset + 16) * 4);
+	      }
+	      
+	      /* Call assembly bilinear interpolation for 4 pixels
+	       * csax[0-3] are used for the current batch of 4 pixels
+	       * The assembly uses csax[1-3]>>16 as incremental steps within the batch
+	       */
+	      NEON_BILINEAR_INTERP_4PX((uint32_t *)dp, (const uint32_t *)(csp + batch_src_offset),
+	                               (const uint32_t *)((Uint8 *)(csp + batch_src_offset) + src->pitch),
+	                               csax, ey);
+	      
+	      /* Update cumulative offset for the next batch:
+	       * Add steps csax[1]>>16 (0→1), csax[2]>>16 (1→2), csax[3]>>16 (2→3)
+	       * These are the steps between pixels within the batch we just processed.
+	       * For the next batch, we also need csax[4]>>16 (3→next batch's 0),
+	       * but we check bounds first.
+	       */
+	      batch_src_offset += (csax[1] >> 16);
+	      batch_src_offset += (csax[2] >> 16);
+	      batch_src_offset += (csax[3] >> 16);
+	      
+	      /* Advance csax pointer FIRST, then safely access the next step if needed */
+	      csax += 4;
+	      
+	      /* If there's another batch or remainder pixels, add the step to next pixel */
+	      if (x + 4 < dst->w) {
+	          batch_src_offset += (csax[0] >> 16);  /* csax now points to next batch, [0] is the next pixel's step */
+	      }
+	      
+	      /* Advance destination pointer */
+	      dp += 4;
+	    }
+	  
+	  /* Handle remaining pixels (0-3) with scalar code */
+	  /* Use tracked cumulative offset instead of recalculating */
+	  c00 = csp + batch_src_offset;
+	  c01 = c00 + 1;
+	  c10 = (tColorRGBA *)((Uint8 *)(csp + batch_src_offset) + src->pitch);
+	  c11 = c10 + 1;
+	  
+	  for (; x < dst->w; x++)
+	    {
+	      ex = (*csax & 0xffff);
+	      t1 = ((((c01->r - c00->r) * ex) >> 16) + c00->r) & 0xff;
+	      t2 = ((((c11->r - c10->r) * ex) >> 16) + c10->r) & 0xff;
+	      dp->r = (((t2 - t1) * ey) >> 16) + t1;
+	      t1 = ((((c01->g - c00->g) * ex) >> 16) + c00->g) & 0xff;
+	      t2 = ((((c11->g - c10->g) * ex) >> 16) + c10->g) & 0xff;
+	      dp->g = (((t2 - t1) * ey) >> 16) + t1;
+	      t1 = ((((c01->b - c00->b) * ex) >> 16) + c00->b) & 0xff;
+	      t2 = ((((c11->b - c10->b) * ex) >> 16) + c10->b) & 0xff;
+	      dp->b = (((t2 - t1) * ey) >> 16) + t1;
+	      t1 = ((((c01->a - c00->a) * ex) >> 16) + c00->a) & 0xff;
+	      t2 = ((((c11->a - c10->a) * ex) >> 16) + c10->a) & 0xff;
+	      dp->a = (((t2 - t1) * ey) >> 16) + t1;
+	      csax++;
+	      sstep = (*csax >> 16);
+	      c00 += sstep;
+	      c01 += sstep;
+	      c10 += sstep;
+	      c11 += sstep;
+	      dp++;
+	    }
+#else
+	  /* Scalar fallback - process one pixel at a time */
 	  for (x = 0; x < dst->w; x++)
 	    {
 	      /* Prefetch ahead for next pixels */
@@ -342,6 +426,7 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	      /* Advance destination pointer */
 	      dp++;
 	    }
+#endif
 	  /* Advance source pointer */
 	  csay++;
 	  csp = (tColorRGBA *) ((Uint8 *) csp + (*csay >> 16) * src->pitch);
