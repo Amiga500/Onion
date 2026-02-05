@@ -206,11 +206,13 @@ extern void neon_asm_premultiply_alpha(uint32_t *dst, const uint32_t *src,
  * @param c00_base Top row source pointer (already offset to batch start)
  * @param c10_base Bottom row source pointer (c00_base + src_pitch)
  * @param csax Array of 4 x int, where each csax[i] = (step << 16) | ex:
- *             - csax[0]: ex for pixel 0 (step in upper bits is ignored for pixel 0)
+ *             - Bits 0-15: ex weight (0-65535, assembly converts to 8-bit by >> 8)
+ *             - Bits 16-31: incremental step to reach this pixel from previous
+ *             - csax[0]: ex for pixel 0 (step in upper bits is not used)
  *             - csax[1]: ex for pixel 1, (csax[1]>>16) = step from pixel 0 to 1
  *             - csax[2]: ex for pixel 2, (csax[2]>>16) = step from pixel 1 to 2
  *             - csax[3]: ex for pixel 3, (csax[3]>>16) = step from pixel 2 to 3
- * @param ey Y interpolation weight (0-65535)
+ * @param ey Y interpolation weight (0-65535, assembly converts to 8-bit by >> 8)
  *
  * Performance: ~10-12 cycles/pixel on Cortex-A7 (vs ~15 for intrinsics)
  */

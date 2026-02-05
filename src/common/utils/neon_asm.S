@@ -1201,7 +1201,8 @@ neon_asm_bilinear_interp_4px:
     orr     r12, r12, r9, lsl #24   @ r12 = R | (G << 8) | (B << 16) | (A << 24)
 
     @ Store result pixel
-    ldr     r0, [sp, #0]            @ dst (adjusted for inner pushes: we're at sp+0)
+    @ Note: All inner push/pop pairs are balanced, so sp points to local frame here
+    ldr     r0, [sp, #0]            @ dst
     str     r12, [r0, r11, lsl #2]  @ dst[pixel_index] = result
 
     @ Update cumulative offset for next pixel

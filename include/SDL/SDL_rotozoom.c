@@ -347,13 +347,16 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	      batch_src_offset += (csax[1] >> 16);
 	      batch_src_offset += (csax[2] >> 16);
 	      batch_src_offset += (csax[3] >> 16);
-	      /* Step to the start of next batch (from pixel 3 to next pixel 0) */
+	      
+	      /* Advance csax pointer FIRST, then safely access the next step if needed */
+	      csax += 4;
+	      
+	      /* If there's another batch or remainder pixels, add the step to next pixel */
 	      if (x + 4 < dst->w) {
-	          batch_src_offset += (csax[4] >> 16);
+	          batch_src_offset += (csax[0] >> 16);  /* csax now points to next batch, [0] is the next pixel's step */
 	      }
 	      
-	      /* Advance pointers by 4 pixels */
-	      csax += 4;
+	      /* Advance destination pointer */
 	      dp += 4;
 	    }
 	  
@@ -361,7 +364,7 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	  /* Use tracked cumulative offset instead of recalculating */
 	  c00 = csp + batch_src_offset;
 	  c01 = c00 + 1;
-	  c10 = (tColorRGBA *)((Uint8 *)csp + src->pitch) + batch_src_offset;
+	  c10 = (tColorRGBA *)((Uint8 *)(csp + batch_src_offset) + src->pitch);
 	  c11 = c10 + 1;
 	  
 	  for (; x < dst->w; x++)
