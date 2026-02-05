@@ -248,3 +248,109 @@ TEST(NeonSimdTest, SinglePixel)
     neon_gray_to_argb8888(dst, src_gray, 1);
     EXPECT_EQ(0xFF808080u, dst[0]);
 }
+
+// Test glyph row rendering with foreground pixels
+TEST(NeonSimdTest, GlyphRowForeground)
+{
+    // Test rendering a glyph row with some pixels ON
+    uint16_t dst[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    const uint16_t fg_color = 0xFFFF;  // White
+    const uint16_t ol_color = 0x8410;  // Gray
+    const uint8_t glyph_row = 0xAA;    // Pattern: 10101010 (pixels 0,2,4,6 ON)
+
+    neon_render_glyph_row(dst, glyph_row, 0, 0, fg_color, ol_color);
+
+    // Verify foreground pixels are set correctly (MSB = pixel 0)
+    EXPECT_EQ(fg_color, dst[0]) << "Pixel 0 should be foreground";
+    EXPECT_EQ(fg_color, dst[2]) << "Pixel 2 should be foreground";
+    EXPECT_EQ(fg_color, dst[4]) << "Pixel 4 should be foreground";
+    EXPECT_EQ(fg_color, dst[6]) << "Pixel 6 should be foreground";
+}
+
+// Test glyph row rendering with outline detection
+TEST(NeonSimdTest, GlyphRowOutline)
+{
+    // Test rendering a glyph row with outline detection
+    uint16_t dst[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    const uint16_t fg_color = 0xFFFF;  // White
+    const uint16_t ol_color = 0x8410;  // Gray
+    const uint8_t glyph_row = 0x10;    // Pattern: 00010000 (only pixel 3 ON)
+
+    neon_render_glyph_row(dst, glyph_row, 0, 0, fg_color, ol_color);
+
+    // Pixel 3 should be foreground
+    EXPECT_EQ(fg_color, dst[3]) << "Pixel 3 should be foreground";
+
+    // Pixels 2 and 4 should be outline (adjacent to pixel 3)
+    EXPECT_EQ(ol_color, dst[2]) << "Pixel 2 should be outline";
+    EXPECT_EQ(ol_color, dst[4]) << "Pixel 4 should be outline";
+}
+
+// Test glyph row with vertical neighbors affecting outline
+TEST(NeonSimdTest, GlyphRowVerticalOutline)
+{
+    // Test outline detection with vertical neighbors
+    uint16_t dst[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    const uint16_t fg_color = 0xFFFF;
+    const uint16_t ol_color = 0x8410;
+    const uint8_t glyph_row = 0x00;        // All OFF
+    const uint8_t glyph_row_above = 0x10;  // Pixel 3 ON above
+
+    neon_render_glyph_row(dst, glyph_row, glyph_row_above, 0, fg_color, ol_color);
+
+    // Pixels 2, 3, 4 should be outline (below the ON pixel above)
+    EXPECT_EQ(ol_color, dst[2]) << "Pixel 2 should be outline (diagonal from above)";
+    EXPECT_EQ(ol_color, dst[3]) << "Pixel 3 should be outline (directly below)";
+    EXPECT_EQ(ol_color, dst[4]) << "Pixel 4 should be outline (diagonal from above)";
+}
+
+// Test full 8x8 glyph rendering
+TEST(NeonSimdTest, GlyphRender8x8)
+{
+    // Simple vertical line in center (pixel 3 in each row)
+    uint8_t glyph[8] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10};
+    const uint32_t stride = 16;  // 16 pixels per row (wider than glyph)
+    uint16_t buffer[16 * 8] = {0};  // 8 rows, 16 pixels wide
+
+    const uint16_t fg_color = 0xFFFF;
+    const uint16_t ol_color = 0x8410;
+
+    neon_render_glyph_8x8(buffer, glyph, stride, fg_color, ol_color);
+
+    // Verify center column is foreground
+    for (int row = 0; row < 8; row++) {
+        EXPECT_EQ(fg_color, buffer[row * stride + 3])
+            << "Pixel at row " << row << ", col 3 should be foreground";
+    }
+
+    // Verify adjacent columns are outline
+    for (int row = 0; row < 8; row++) {
+        EXPECT_EQ(ol_color, buffer[row * stride + 2])
+            << "Pixel at row " << row << ", col 2 should be outline";
+        EXPECT_EQ(ol_color, buffer[row * stride + 4])
+            << "Pixel at row " << row << ", col 4 should be outline";
+    }
+}
+
+// Test empty glyph (no rendering)
+TEST(NeonSimdTest, GlyphRenderEmpty)
+{
+    uint8_t glyph[8] = {0, 0, 0, 0, 0, 0, 0, 0};  // All OFF
+    const uint32_t stride = 8;
+    uint16_t buffer[8 * 8];
+
+    // Fill with sentinel values
+    for (int i = 0; i < 64; i++) {
+        buffer[i] = 0xDEAD;
+    }
+
+    const uint16_t fg_color = 0xFFFF;
+    const uint16_t ol_color = 0x8410;
+
+    neon_render_glyph_8x8(buffer, glyph, stride, fg_color, ol_color);
+
+    // All pixels should remain unchanged (empty glyph, no outline)
+    for (int i = 0; i < 64; i++) {
+        EXPECT_EQ(0xDEADu, buffer[i]) << "Pixel " << i << " should be unchanged";
+    }
+}
