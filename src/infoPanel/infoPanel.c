@@ -201,7 +201,8 @@ int main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
     }
-    else if (strlen(title_str) > 0 || strlen(message_str) > 0) {
+    // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+    else if (title_str[0] != '\0' || message_str[0] != '\0') {
         info_panel_mode = true;
         g_show_theme_controls = true;
     }
@@ -322,7 +323,8 @@ int main(int argc, char *argv[])
             footer_changed = true;
             battery_changed = true;
 
-            if (strlen(message_str) > 0 && !romscreen) {
+            // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+            if (message_str[0] != '\0' && !romscreen) {
                 SDL_BlitSurface(theme_background(), NULL, screen, NULL);
             }
         }
@@ -337,7 +339,8 @@ int main(int argc, char *argv[])
             if (all_changed || header_changed || footer_changed || battery_changed) {
                 if (g_show_theme_controls) {
                     if (header_changed || battery_changed) {
-                        if (strlen(message_str) > 0) {
+                        // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+                        if (message_str[0] != '\0') {
                             theme_renderInfoPanel(screen, title_str, message_str, show_romscreen);
                         }
                         else if (g_images_titles) {

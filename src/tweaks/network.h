@@ -137,7 +137,8 @@ void network_getSmbShares()
             }
 
             char *shareName = strtok(trimmedLine + 1, "]");
-            if (shareName != NULL && strlen(shareName) > 0) {
+            // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+            if (shareName != NULL && shareName[0] != '\0') {
                 if (strcmp(shareName, "global") == 0) {
                     continue;
                 }

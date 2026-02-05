@@ -377,7 +377,8 @@ int main(int argc, char *argv[])
             SDL_FreeSurface(imagePages);
             rectThemeName.y += 50;
 
-            if (strlen(theme.author) > 0) {
+            // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+            if (theme.author[0] != '\0') {
                 char author[STR_MAX * 2];
                 snprintf(author, STR_MAX * 2 - 1, "by %s", theme.author);
                 imagePages = TTF_RenderUTF8_Blended(font30, author, color_white);

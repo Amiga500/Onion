@@ -74,7 +74,8 @@ int main(int argc, char *argv[])
     signal(SIGINT, sigHandler);
     signal(SIGTERM, sigHandler);
 
-    if (use_display || strlen(apply_tool) == 0)
+    // Use str[0] == '\0' instead of strlen() == 0 for O(1) empty string check
+    if (use_display || apply_tool[0] == '\0')
         SDL_InitDefault();
 
     settings_load();
@@ -82,7 +83,8 @@ int main(int argc, char *argv[])
     lang_load();
 
     // Apply tool via command line
-    if (strlen(apply_tool) > 0) {
+    // Use str[0] != '\0' instead of strlen() > 0 for O(1) non-empty string check
+    if (apply_tool[0] != '\0') {
         for (int i = 0; i < NUM_TOOLS; i++) {
             if (strncmp(tools_short_names[i], apply_tool, STR_MAX - 1) == 0) {
                 printf("Tool '%s':\n", tools_short_names[i]);
