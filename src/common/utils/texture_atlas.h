@@ -33,6 +33,11 @@
 
 #include "neon_simd.h"
 
+/* Include assembly header for USE_NEON_ASM support */
+#ifdef USE_NEON_ASM
+#include "neon_asm.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -298,27 +303,35 @@ static inline void atlas_blit(const TextureAtlas *atlas, uint32_t id,
         return;
     }
 
-    const uint32_t *src_row = atlas->pixels + region->y * atlas->stride + region->x;
-    uint32_t *dst_row = dst + dst_y * dst_stride + dst_x;
+    const uint32_t *src_ptr = atlas->pixels + region->y * atlas->stride + region->x;
+    uint32_t *dst_ptr = dst + dst_y * dst_stride + dst_x;
+
+#ifdef USE_NEON_ASM
+    /* Use optimized assembly rectangle blit */
+    NEON_BLIT_RECT(dst_ptr, dst_stride, src_ptr, atlas->stride, 
+                   region->width, region->height);
+#else
+    /* Fallback: row-by-row with NEON memcpy and prefetch */
     uint32_t row_bytes = region->width * sizeof(uint32_t);
 
     /* Prefetch first rows */
-    neon_prefetch(src_row);
-    neon_prefetch(src_row + atlas->stride);
-    neon_prefetch_write(dst_row);
+    neon_prefetch(src_ptr);
+    neon_prefetch(src_ptr + atlas->stride);
+    neon_prefetch_write(dst_ptr);
 
     for (uint16_t row = 0; row < region->height; row++) {
         /* Prefetch next source and destination rows */
         if (row + 2 < region->height) {
-            neon_prefetch(src_row + 2 * atlas->stride);
+            neon_prefetch(src_ptr + 2 * atlas->stride);
         }
-        neon_prefetch_write(dst_row + dst_stride);
+        neon_prefetch_write(dst_ptr + dst_stride);
 
-        neon_memcpy(dst_row, src_row, row_bytes);
+        neon_memcpy(dst_ptr, src_ptr, row_bytes);
 
-        src_row += atlas->stride;
-        dst_row += dst_stride;
+        src_ptr += atlas->stride;
+        dst_ptr += dst_stride;
     }
+#endif
 }
 
 /**
