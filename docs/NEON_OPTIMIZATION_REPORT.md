@@ -32,7 +32,7 @@ The following table summarizes the performance improvements achieved by converti
 | Optimization Stage | Speedup vs Scalar | Notes |
 |-------------------|-------------------|-------|
 | Original scalar code | 1x | Baseline |
-| + NEON C intrinsics | 3.5-4x | Using `arm_neon.h` |
+| + NEON C intrinsics | 3.5-4x | Using `<arm_neon.h>` (system header) via `neon_simd.h` |
 | + Pure ARM assembly | **4.5-5x** | Additional 15-30% |
 | + Cache-optimized atlas | **~5-5.75x** | Additional 10-15% (multiplicative) |
 | + Bilinear assembly | **~5.5-6x** | Additional ~30-45% improvement for scaling operations specifically |
@@ -289,6 +289,26 @@ All NEON functions include scalar fallbacks for:
     // NEON SIMD path
 #else
     // Scalar fallback path
+#endif
+```
+
+### NEON Intrinsics Header
+
+The NEON intrinsics used in this project are provided by `<arm_neon.h>`, which is a **system header** included with the ARM compiler toolchain (GCC/Clang). This header is not part of the repository itself but is automatically available when compiling for ARM targets with NEON support.
+
+The project wraps NEON intrinsics in the following source files:
+- `src/common/utils/neon_simd.h` - C intrinsics wrapper functions
+- `src/common/utils/neon_asm.S` - Pure ARM assembly implementations
+- `include/SDL/SDL_rotozoom.c` - NEON-optimized image scaling
+
+Example usage in the codebase:
+
+```c
+#ifdef __ARM_NEON
+#include <arm_neon.h>  // System header from ARM toolchain
+#define NEON_AVAILABLE 1
+#else
+#define NEON_AVAILABLE 0
 #endif
 ```
 
