@@ -5,100 +5,43 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* Include NEON SIMD utilities for optimized glyph rendering.
+ * The Makefile in src/clock includes -I../common via config.mk,
+ * and the compilation runs from src/clock directory. */
+#include "utils/neon_simd.h"
+
 extern SDL_Surface *sdl_screen;
 #define HOST_WIDTH_RESOLUTION sdl_screen->w
 #define HOST_HEIGHT_RESOLUTION sdl_screen->h
 
-#define setPixel(buffer, x, y, c) \
-    *((uint16_t *restrict)buffer + ((x) + (y)*HOST_WIDTH_RESOLUTION)) = c;
-
-static int32_t isOutlinePixel(uint8_t *charfont, int32_t x, int32_t y)
-{
-    int32_t xis0 = !x, xis7 = x == 7, yis0 = !y, yis7 = y == 7;
-
-    if (xis0) {
-        if (yis0) {
-            return !(*charfont & 0x80) &&
-                   ((*charfont & 0x40) || (charfont[1] & 0x80) ||
-                    (charfont[1] & 0x40));
-        }
-        else if (yis7) {
-            return !(charfont[7] & 0x80) &&
-                   ((charfont[7] & 0x40) || (charfont[6] & 0x80) ||
-                    (charfont[6] & 0x40));
-        }
-        else {
-            return !(charfont[y] & 0x80) &&
-                   ((charfont[y - 1] & 0x80) || (charfont[y - 1] & 0x40) ||
-                    (charfont[y] & 0x40) || (charfont[y + 1] & 0x80) ||
-                    (charfont[y + 1] & 0x40));
-        }
-    }
-    else if (xis7) {
-        if (yis0) {
-            return !(*charfont & 0x01) &&
-                   ((*charfont & 0x02) || (charfont[1] & 0x01) ||
-                    (charfont[1] & 0x02));
-        }
-        else if (yis7) {
-            return !(charfont[7] & 0x01) &&
-                   ((charfont[7] & 0x02) || (charfont[6] & 0x01) ||
-                    (charfont[6] & 0x02));
-        }
-        else {
-            return !(charfont[y] & 0x01) &&
-                   ((charfont[y - 1] & 0x01) || (charfont[y - 1] & 0x02) ||
-                    (charfont[y] & 0x02) || (charfont[y + 1] & 0x01) ||
-                    (charfont[y + 1] & 0x02));
-        }
-    }
-    else {
-        int32_t b = 1 << (7 - x);
-        if (yis0) {
-            return !(*charfont & b) &&
-                   ((*charfont & (b << 1)) || (*charfont & (b >> 1)) ||
-                    (charfont[1] & (b << 1)) || (charfont[1] & b) ||
-                    (charfont[1] & (b >> 1)));
-        }
-        else if (yis7) {
-            return !(charfont[7] & b) &&
-                   ((charfont[7] & (b << 1)) || (charfont[7] & (b >> 1)) ||
-                    (charfont[6] & (b << 1)) || (charfont[6] & b) ||
-                    (charfont[6] & (b >> 1)));
-        }
-        else {
-            return !(charfont[y] & b) &&
-                   ((charfont[y] & (b << 1)) || (charfont[y] & (b >> 1)) ||
-                    (charfont[y - 1] & (b << 1)) || (charfont[y - 1] & b) ||
-                    (charfont[y - 1] & (b >> 1)) ||
-                    (charfont[y + 1] & (b << 1)) || (charfont[y + 1] & b) ||
-                    (charfont[y + 1] & (b >> 1)));
-        }
-    }
-}
-
+/**
+ * @brief Draw a single character using NEON-optimized glyph rendering
+ *
+ * This function renders an 8x8 monochrome font glyph with outline effect.
+ * Uses NEON SIMD for parallel pixel processing when available.
+ *
+ * @param buffer Destination pixel buffer (16-bit RGB565)
+ * @param x Current x position (updated after drawing)
+ * @param y Current y position (updated on newline)
+ * @param margin Left margin for newline
+ * @param ch Character to draw
+ * @param fc Foreground color (16-bit RGB565)
+ * @param olc Outline color (16-bit RGB565)
+ */
 static void drawChar(uint16_t *restrict buffer, int32_t *x, int32_t *y,
                      int32_t margin, char ch, uint16_t fc, uint16_t olc)
 {
-    int32_t i, j;
-    uint8_t *charSprite;
     if (ch == '\n') {
         *x = margin;
         *y += 8;
     }
     else if (*y < HOST_HEIGHT_RESOLUTION - 1) {
-        charSprite = ch * 8 + n2DLib_font;
-        // Draw charSprite as monochrome 8*8 image using given color
-        for (i = 0; i < 8; i++) {
-            for (j = 7; j >= 0; j--) {
-                if ((charSprite[i] >> j) & 1) {
-                    setPixel(buffer, *x + (7 - j), *y + i, fc)
-                }
-                else if (isOutlinePixel(charSprite, 7 - j, i)) {
-                    setPixel(buffer, *x + (7 - j), *y + i, olc)
-                }
-            }
-        }
+        const uint8_t *charSprite = (const uint8_t *)ch * 8 + n2DLib_font;
+
+        /* Use NEON-optimized glyph rendering for the 8x8 character */
+        uint16_t *dst = buffer + *x + (*y * HOST_WIDTH_RESOLUTION);
+        neon_render_glyph_8x8(dst, charSprite, (uint32_t)HOST_WIDTH_RESOLUTION, fc, olc);
+
         *x += 8;
     }
 }

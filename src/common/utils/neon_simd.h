@@ -536,4 +536,139 @@ static inline void neon_alpha_blend(uint32_t *dst, const uint32_t *src, uint32_t
 #endif
 }
 
+/**
+ * @brief Render a single 8x8 monochrome font glyph row using NEON
+ *
+ * Expands a single byte (8 bits) of a monochrome glyph into 8 pixels.
+ * Each bit becomes either the foreground color (if set) or remains unchanged.
+ * This function processes one row of an 8x8 character glyph.
+ *
+ * The outline detection is performed using a pre-computed approach:
+ * A pixel is an outline pixel if it's OFF but has an adjacent ON pixel.
+ *
+ * @param dst Destination buffer (16-bit pixels, must have space for 8 pixels)
+ * @param glyph_row The 8-bit glyph row data (MSB = leftmost pixel)
+ * @param glyph_row_above The glyph row above (for outline detection), or 0 if first row
+ * @param glyph_row_below The glyph row below (for outline detection), or 0 if last row
+ * @param fg_color Foreground color (16-bit RGB565)
+ * @param outline_color Outline color (16-bit RGB565)
+ */
+static inline void neon_render_glyph_row(uint16_t *dst, uint8_t glyph_row,
+                                         uint8_t glyph_row_above, uint8_t glyph_row_below,
+                                         uint16_t fg_color, uint16_t outline_color)
+{
+#ifdef __ARM_NEON
+    /*
+     * NEON optimization strategy:
+     * 1. Expand the 8-bit glyph row into 8 separate mask values (0x00 or 0xFF)
+     * 2. Use vector operations to select foreground/outline/background colors
+     *
+     * Outline detection: A pixel is an outline if:
+     * - Current pixel is OFF (bit=0)
+     * - At least one neighbor (in 8-connected neighborhood) is ON
+     *
+     * For efficiency, we compute "neighbor OR" for the current row and adjacent rows
+     */
+
+    /* Create bit masks for each pixel position (MSB first: bit 7 = pixel 0) */
+    static const uint8_t bit_masks[8] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
+
+    /* Load current row and expand to check which pixels are ON */
+    uint8x8_t vglyph = vdup_n_u8(glyph_row);
+    uint8x8_t vmasks = vld1_u8(bit_masks);
+    uint8x8_t vpixels = vtst_u8(vglyph, vmasks);  /* 0xFF if bit set, 0x00 otherwise */
+
+    /* Compute neighbor mask for outline detection:
+     * For each pixel position, check if any adjacent pixel (left, right, above, below,
+     * and diagonals) is ON. Outline = current OFF && neighbor ON */
+
+    /* Horizontal neighbors: shift glyph_row left and right */
+    uint8_t left_shift = (glyph_row << 1);
+    uint8_t right_shift = (glyph_row >> 1);
+
+    /* Combine all potential neighbor pixels */
+    uint8_t neighbors = glyph_row | left_shift | right_shift |
+                        glyph_row_above | (glyph_row_above << 1) | (glyph_row_above >> 1) |
+                        glyph_row_below | (glyph_row_below << 1) | (glyph_row_below >> 1);
+
+    uint8x8_t vneighbors_byte = vdup_n_u8(neighbors);
+    uint8x8_t vneighbor_mask = vtst_u8(vneighbors_byte, vmasks);  /* 0xFF if neighbor ON */
+
+    /* Outline mask: NOT(current pixel) AND (neighbor exists) */
+    uint8x8_t voutline = vbic_u8(vneighbor_mask, vpixels);  /* outline where neighbor but not self */
+
+    /* Create color vectors (16-bit values stored as pairs of bytes) */
+    uint16x8_t vfg = vdupq_n_u16(fg_color);
+    uint16x8_t vol = vdupq_n_u16(outline_color);
+
+    /* Load current destination pixels */
+    uint16x8_t vdst = vld1q_u16(dst);
+
+    /* Expand 8-bit masks to 16-bit for color selection */
+    uint16x8_t vpixels16 = vmovl_u8(vpixels);  /* 0x00FF or 0x0000 */
+    uint16x8_t voutline16 = vmovl_u8(voutline);
+
+    /* Create selection masks (convert 0x00FF to 0xFFFF) */
+    uint16x8_t vpix_sel = vcgtq_u16(vpixels16, vdupq_n_u16(0));
+    uint16x8_t vout_sel = vcgtq_u16(voutline16, vdupq_n_u16(0));
+
+    /* Select colors: if pixel ON -> fg_color, else if outline -> outline_color, else keep dst */
+    uint16x8_t vresult = vbslq_u16(vpix_sel, vfg, vbslq_u16(vout_sel, vol, vdst));
+
+    /* Store result */
+    vst1q_u16(dst, vresult);
+
+#else
+    /* Scalar fallback */
+    for (int j = 7; j >= 0; j--) {
+        int px = 7 - j;
+        if ((glyph_row >> j) & 1) {
+            dst[px] = fg_color;
+        }
+        else {
+            /* Check outline: current pixel is OFF but has ON neighbor */
+            uint8_t b = 1 << j;
+            uint8_t b_left = (j < 7) ? (1 << (j + 1)) : 0;
+            uint8_t b_right = (j > 0) ? (1 << (j - 1)) : 0;
+            uint8_t neighbor_mask = b_left | b_right;
+
+            int is_outline = (glyph_row & neighbor_mask) ||
+                             (glyph_row_above & (neighbor_mask | b)) ||
+                             (glyph_row_below & (neighbor_mask | b));
+
+            if (is_outline) {
+                dst[px] = outline_color;
+            }
+        }
+    }
+#endif
+}
+
+/**
+ * @brief Render an 8x8 monochrome font glyph using NEON
+ *
+ * Renders a complete 8x8 monochrome character glyph with outline effect.
+ * This is optimized for the common case of text rendering with outlined glyphs.
+ *
+ * @param dst Destination buffer (16-bit pixels, stride = screen width)
+ * @param glyph Pointer to 8 bytes of glyph data (8 rows, MSB = leftmost pixel)
+ * @param stride Destination buffer stride in pixels (typically screen width)
+ * @param fg_color Foreground color (16-bit RGB565)
+ * @param outline_color Outline color (16-bit RGB565)
+ */
+static inline void neon_render_glyph_8x8(uint16_t *dst, const uint8_t *glyph,
+                                         uint32_t stride,
+                                         uint16_t fg_color, uint16_t outline_color)
+{
+    /* Process each row of the 8x8 glyph */
+    for (int row = 0; row < 8; row++) {
+        uint8_t row_above = (row > 0) ? glyph[row - 1] : 0;
+        uint8_t row_below = (row < 7) ? glyph[row + 1] : 0;
+
+        neon_render_glyph_row(dst + row * stride, glyph[row],
+                              row_above, row_below,
+                              fg_color, outline_color);
+    }
+}
+
 #endif // UTILS_NEON_SIMD_H__
