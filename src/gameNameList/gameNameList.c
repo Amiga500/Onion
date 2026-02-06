@@ -341,7 +341,7 @@ int updateCallback(void *data, int argc, char **argv, char **col_name)
     char *title = GetGameName_func( "wathever", romname);
     if ( title != NULL ){
         // Build and execute the update statement
-        sprintf(update_sql, "UPDATE %s SET disp = ? WHERE id = ?", table_name);
+        snprintf(update_sql, sizeof(update_sql), "UPDATE %s SET disp = ? WHERE id = ?", table_name);
         sqlite3_stmt *stmt;
         int rc = sqlite3_prepare_v2(db, update_sql, -1, &stmt, NULL);  
         sqlite3_bind_text(stmt, 1, title, -1, SQLITE_STATIC);
@@ -374,7 +374,7 @@ int updateSqlliteCache(char* base_dir_path) {
             continue; //skip this db, the update cache not found
 
         
-        sprintf(table_name, "%s_roms", matching_folders[i]);
+        snprintf(table_name, sizeof(table_name), "%s_roms", matching_folders[i]);
         int rc =  sqlite3_open(cache_path, &db);
         if ( rc != SQLITE_OK) {
             fprintf(stderr, "Cannot open database: %s (%s)\n", sqlite3_errmsg(db),
@@ -389,7 +389,7 @@ int updateSqlliteCache(char* base_dir_path) {
         // we use 'path' because we are going to override 'dist', this way the tool can be run multiple times.
         data.table_name = table_name;
         data.db = db;
-        sprintf(select_sql, "SELECT ID, PATH FROM %s WHERE type = 0", table_name);
+        snprintf(select_sql, sizeof(select_sql), "SELECT ID, PATH FROM %s WHERE type = 0", table_name);
         if (sqlite3_exec(db, select_sql, updateCallback, &data, NULL) != SQLITE_OK) {
             printf("Error selecting rows: %s\n", sqlite3_errmsg(db));
             sqlite3_close(db);
@@ -421,10 +421,10 @@ int main(int argc, char *argv[]) {
 
     base_dir_path = argv[1];
     list_dir_path = argv[2];
-    sprintf(full_rom_list_path ,"%s/%s", list_dir_path, FULL_ROM_LIST_NAME);
-    sprintf(arcade_rom_names_path ,"%s/%s", list_dir_path, ARCADE_ROM_NAMES_NAME);
-    sprintf(missing_rom_names_path ,"%s/%s", list_dir_path, MISSING_ROM_NAMES_NAME);
-    sprintf(rom_names_file_path ,"%s/%s", list_dir_path, ROM_NAMES_FILE_NAME);
+    snprintf(full_rom_list_path, sizeof(full_rom_list_path), "%s/%s", list_dir_path, FULL_ROM_LIST_NAME);
+    snprintf(arcade_rom_names_path, sizeof(arcade_rom_names_path), "%s/%s", list_dir_path, ARCADE_ROM_NAMES_NAME);
+    snprintf(missing_rom_names_path, sizeof(missing_rom_names_path), "%s/%s", list_dir_path, MISSING_ROM_NAMES_NAME);
+    snprintf(rom_names_file_path, sizeof(rom_names_file_path), "%s/%s", list_dir_path, ROM_NAMES_FILE_NAME);
 
 
     if ( createCopyFile(arcade_rom_names_path, full_rom_list_path) < 0 ){
@@ -446,7 +446,7 @@ int main(int argc, char *argv[]) {
 
     //open the shared library to get the rom title from the rom short name
     char libpath[256];
-    sprintf(libpath, "%s/miyoo/lib/libgamename.so", base_dir_path);
+    snprintf(libpath, sizeof(libpath), "%s/miyoo/lib/libgamename.so", base_dir_path);
     //sprintf(libpath, "../libgamename/libgamename.so"); for debug
     void *handle = dlopen(libpath, RTLD_LAZY);
     if (handle == NULL) {

@@ -363,7 +363,7 @@ void network_setTzSelectState(void *pt)
     }
     else {
         // UTC +/- is reversed for export TZ
-        sprintf(utc_str, utc_value > 0 ? "UTC-%02d:%02d" : "UTC+%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
+        snprintf(utc_str, sizeof(utc_str), utc_value > 0 ? "UTC-%02d:%02d" : "UTC+%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
     }
 
     printf_debug("Set timezone: %s\n", utc_str);
@@ -380,8 +380,8 @@ void network_toggleVNC(void *pt)
 
     int new_fps = (int)network_state.vncfps;
 
-    sprintf(command_start, "/mnt/SDCARD/.tmp_update/bin/vncserver -k /dev/input/event0 -F %d -r 180 > /dev/null 2>&1 &", new_fps);
-    sprintf(command_stop, "killall -9 vncserver");
+    snprintf(command_start, sizeof(command_start), "/mnt/SDCARD/.tmp_update/bin/vncserver -k /dev/input/event0 -F %d -r 180 > /dev/null 2>&1 &", new_fps);
+    snprintf(command_stop, sizeof(command_stop), "killall -9 vncserver");
 
     if (!network_state.vncserv) {
         network_state.vncserv = true;

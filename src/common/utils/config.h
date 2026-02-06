@@ -50,7 +50,7 @@ void _config_prepare(const char *key, char *filename)
 
     if (!exists(dir_path)) {
         char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
+        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
         system(dir_cmd);
     }
 }
