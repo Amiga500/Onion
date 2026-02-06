@@ -149,7 +149,8 @@ bool getGameName(char *name_out, const char *rom_path)
 {
     CacheDBItem *cache_item = cache_db_find(rom_path);
     if (cache_item != NULL) {
-        strcpy(name_out, cache_item->name);
+        strncpy(name_out, cache_item->name, STR_MAX * 2 - 1);
+        name_out[STR_MAX * 2 - 1] = '\0';
         free(cache_item);
         return true;
     }
@@ -165,7 +166,8 @@ void processItem(Game_s *game)
     game->processed = true;
 
     char *rom_name = file_removeExtension(file_basename(game->recentItem.rompath));
-    strcpy(game->rom_name, rom_name);
+    strncpy(game->rom_name, rom_name, sizeof(game->rom_name) - 1);
+    game->rom_name[sizeof(game->rom_name) - 1] = '\0';
     free(rom_name);
 
     if (!getGameName(game->name, game->recentItem.rompath)) {

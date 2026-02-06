@@ -34,7 +34,7 @@ SDL_Surface *createLabelSurface(Package *package)
     SDL_BlitSurface(label_surface, NULL, textbox, &label_pos);
 
     if (package->installed && !package->complete)
-        strcat(parens, "*");
+        strncat(parens, "*", sizeof(parens) - strlen(parens) - 1);
 
     if (strlen(parens) > 0) {
         SDL_Surface *parens_surface =

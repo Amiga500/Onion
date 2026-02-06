@@ -18,6 +18,7 @@ bool __get_path_recent(char *path_out)
 {
     char *fnptr, *no_extension;
     uint32_t i;
+    const size_t path_size = 512;
 
     strcpy(path_out, "/mnt/SDCARD/Screenshots/");
     fnptr = path_out + strlen(path_out);
@@ -28,14 +29,14 @@ bool __get_path_recent(char *path_out)
         char file_path[STR_MAX];
         if (history_getRecentPath(file_path) != NULL) {
             no_extension = file_removeExtension(basename(file_path));
-            strcat(path_out, no_extension);
+            strncat(path_out, no_extension, path_size - strlen(path_out) - 1);
             free(no_extension);
         }
     }
     else if (system_state == MODE_SWITCHER)
-        strcat(path_out, "GameSwitcher");
+        strncat(path_out, "GameSwitcher", path_size - strlen(path_out) - 1);
     else if (system_state == MODE_MAIN_UI)
-        strcat(path_out, "MainUI");
+        strncat(path_out, "MainUI", path_size - strlen(path_out) - 1);
     else if ((system_state == MODE_GAME || system_state == MODE_APPS) && exists(CMD_TO_RUN_PATH)) {
         FILE *fp;
         char cmd[STR_MAX];
@@ -48,16 +49,17 @@ bool __get_path_recent(char *path_out)
             state_getAppName(app_name, cmd);
         else {
             no_extension = file_removeExtension(basename(cmd));
-            strcpy(app_name, no_extension);
+            strncpy(app_name, no_extension, sizeof(app_name) - 1);
+            app_name[sizeof(app_name) - 1] = '\0';
             free(no_extension);
         }
         printf_debug("app: '%s'\n", app_name);
 
-        strcat(path_out, app_name);
+        strncat(path_out, app_name, path_size - strlen(path_out) - 1);
     }
 
     if (!(*fnptr))
-        strcat(path_out, "Screenshot");
+        strncat(path_out, "Screenshot", path_size - strlen(path_out) - 1);
 
     fnptr = path_out + strlen(path_out);
     for (i = 0; i < 1000; i++) {

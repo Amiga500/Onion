@@ -29,7 +29,7 @@ bool _getAppDirAndConfig(const char *app_dir_name, char *out_app_dir,
         return false;
 
     strcpy(out_config_path, out_app_dir);
-    strcat(out_config_path, "/config.json");
+    strncat(out_config_path, "/config.json", STR_MAX - strlen(out_config_path) - 1);
 
     if (!is_file(out_config_path))
         return false;
