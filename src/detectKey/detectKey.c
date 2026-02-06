@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    int key = atoi(argv[1]);
+    int key = (int)strtol(argv[1], NULL, 10);
 
     FILE *kbd = fopen("/dev/input/event0", "r");
     if (!kbd) {

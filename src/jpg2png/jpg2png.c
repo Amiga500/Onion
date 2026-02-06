@@ -72,9 +72,9 @@ int main(int argc, char *argv[])
     if (argc < 2)
         goto usage;
     if (argc > 2)
-        mw = atoi(argv[2]);
+        mw = (uint32_t)strtol(argv[2], NULL, 10);
     if (argc > 3)
-        mh = atoi(argv[3]);
+        mh = (uint32_t)strtol(argv[3], NULL, 10);
     fp = fopen(argv[1], "rb");
     if ((!fp) || (!mw) || (!mh))
         goto usage;

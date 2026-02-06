@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -73,9 +74,9 @@ int main(int argc, char *argv[])
     int i;
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--begin") == 0)
-            start_at = atoi(argv[++i]);
+            start_at = (int)strtol(argv[++i], NULL, 10);
         else if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--total") == 0)
-            total_offset = atoi(argv[++i]);
+            total_offset = (int)strtol(argv[++i], NULL, 10);
         else if (strcmp(argv[i], "-m") == 0 ||
                  strcmp(argv[i], "--message") == 0)
             strncpy(message_str, argv[++i], STR_MAX - 1);

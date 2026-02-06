@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    MainUIState state = atoi(argv[1]);
+    MainUIState state = (MainUIState)strtol(argv[1], NULL, 10);
     int currpos = 0, total = 10;
 
     if (argc == 3)

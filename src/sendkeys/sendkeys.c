@@ -21,8 +21,8 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; i += 2) {
         int ev_idx = (i - 1) / 2;
         events[ev_idx].type = EV_KEY;
-        events[ev_idx].code = atoi(argv[i]);
-        events[ev_idx].value = atoi(argv[i + 1]);
+        events[ev_idx].code = (unsigned short)strtol(argv[i], NULL, 10);
+        events[ev_idx].value = (int)strtol(argv[i + 1], NULL, 10);
     }
 
     int input_fd;

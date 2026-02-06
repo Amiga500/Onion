@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
         return 0;
     }
     if (argc == 2)
-        clock = atoi(argv[1]);
+        clock = (int)strtol(argv[1], NULL, 10);
 
     if ((clock < 100) || (clock > 2400)) {
         puts("usage: cpuclock freq[MHz, 100 - 2400]");

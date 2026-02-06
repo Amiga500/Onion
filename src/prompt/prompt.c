@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -116,7 +117,7 @@ int main(int argc, char *argv[])
             }
             if (strcmp(argv[i], "-s") == 0 ||
                 strcmp(argv[i], "--selected") == 0) {
-                selected = atoi(argv[++i]);
+                selected = (int)strtol(argv[++i], NULL, 10);
                 continue;
             }
         }
