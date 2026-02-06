@@ -353,10 +353,12 @@ void _menu_temp_action(void *_item)
         keys_enabled = false;
 
         apply_singleIconByFullPath(info->config_path, item->preview_path);
-        strcpy(info->path, item->preview_path);
+        strncpy(info->path, item->preview_path, sizeof(info->path) - 1);
+        info->path[sizeof(info->path) - 1] = '\0';
 
         if (mode != ICON_MODE_APP) {
-            strcpy(temp_action_item->preview_path, item->preview_path);
+            strncpy(temp_action_item->preview_path, item->preview_path, sizeof(temp_action_item->preview_path) - 1);
+            temp_action_item->preview_path[sizeof(temp_action_item->preview_path) - 1] = '\0';
             if (temp_action_item->preview_ptr != NULL) {
                 SDL_FreeSurface((SDL_Surface *)temp_action_item->preview_ptr);
                 temp_action_item->preview_ptr = NULL;

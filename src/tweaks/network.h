@@ -622,7 +622,8 @@ void menu_wifi(void *_)
         //                  .label = "WPS...",
         //                  .action = menu_wps});
     }
-    strcpy(_menu_wifi.items[0].label, ip_address_label);
+    strncpy(_menu_wifi.items[0].label, ip_address_label, STR_MAX - 1);
+    _menu_wifi.items[0].label[STR_MAX - 1] = '\0';
     menu_stack[++menu_level] = &_menu_wifi;
     header_changed = true;
 }
@@ -732,7 +733,8 @@ void menu_network(void *_)
                                  "This helps to conserve battery and\n"
                                  "to keep performance at a maximum.");
     }
-    strcpy(_menu_network.items[0].label, ip_address_label);
+    strncpy(_menu_network.items[0].label, ip_address_label, STR_MAX - 1);
+    _menu_network.items[0].label[STR_MAX - 1] = '\0';
     menu_stack[++menu_level] = &_menu_network;
     header_changed = true;
 }

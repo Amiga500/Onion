@@ -219,10 +219,14 @@ int main(int argc, char *argv[])
             if (isMenu(&_menu_network) || isMenu(&_menu_wifi)) {
                 network_loadState();
                 if (netinfo_getIpAddress(ip_address_label, network_state.hotspot ? "wlan1" : "wlan0")) {
-                    if (_menu_network._created)
-                        strcpy(_menu_network.items[0].label, ip_address_label);
-                    if (_menu_wifi._created)
-                        strcpy(_menu_wifi.items[0].label, ip_address_label);
+                    if (_menu_network._created) {
+                        strncpy(_menu_network.items[0].label, ip_address_label, STR_MAX - 1);
+                        _menu_network.items[0].label[STR_MAX - 1] = '\0';
+                    }
+                    if (_menu_wifi._created) {
+                        strncpy(_menu_wifi.items[0].label, ip_address_label, STR_MAX - 1);
+                        _menu_wifi.items[0].label[STR_MAX - 1] = '\0';
+                    }
                     list_changed = true;
                 }
             }

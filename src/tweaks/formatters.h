@@ -83,7 +83,8 @@ void formatter_appShortcut(void *pt, char *out_label)
     value -= 1;
     if (value < installed_apps_count) {
         InstalledApp *app = &apps[value];
-        strcpy(out_label, app->is_duplicate ? app->dirName : app->label);
+        strncpy(out_label, app->is_duplicate ? app->dirName : app->label, STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
         return;
     }
 
@@ -127,7 +128,8 @@ void formatter_fontFamily(void *pt, char *out_label)
     if (item->value == 0)
         strcpy(out_label, "-");
     else
-        strcpy(out_label, font_families[item->value - 1]);
+        strncpy(out_label, font_families[item->value - 1], STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
 }
 
 static const int num_font_sizes = 5;

@@ -120,7 +120,8 @@ void action_blueLightTimeOn(void *pt)
 {
     char time_str[10];
     formatter_Time(pt, time_str);
-    strcpy(settings.blue_light_time, time_str);
+    strncpy(settings.blue_light_time, time_str, sizeof(settings.blue_light_time) - 1);
+    settings.blue_light_time[sizeof(settings.blue_light_time) - 1] = '\0';
     config_setString("display/blueLightTime", time_str);
 }
 
@@ -128,7 +129,8 @@ void action_blueLightTimeOff(void *pt)
 {
     char time_str[10];
     formatter_Time(pt, time_str);
-    strcpy(settings.blue_light_time_off, time_str);
+    strncpy(settings.blue_light_time_off, time_str, sizeof(settings.blue_light_time_off) - 1);
+    settings.blue_light_time_off[sizeof(settings.blue_light_time_off) - 1] = '\0';
     config_setString("display/blueLightTimeOff", time_str);
 }
 
@@ -217,10 +219,12 @@ void action_batteryPercentageFontFamily(void *pt)
 {
     int item_value = ((ListItem *)pt)->value;
     char theme_value[JSON_STRING_LEN];
-    strcpy(theme_value, resources.theme_back.batteryPercentage.font);
+    strncpy(theme_value, resources.theme_back.batteryPercentage.font, sizeof(theme_value) - 1);
+    theme_value[sizeof(theme_value) - 1] = '\0';
 
     if (item_value == 0) {
-        strcpy(resources.theme.batteryPercentage.font, theme_value);
+        strncpy(resources.theme.batteryPercentage.font, theme_value, STR_MAX - 1);
+        resources.theme.batteryPercentage.font[STR_MAX - 1] = '\0';
     }
     else {
         char font_path[JSON_STRING_LEN] = "/mnt/SDCARD/miyoo/app/";
