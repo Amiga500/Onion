@@ -20,7 +20,8 @@ bool __get_path_recent(char *path_out)
     uint32_t i;
     const size_t path_size = 512;
 
-    strcpy(path_out, "/mnt/SDCARD/Screenshots/");
+    strncpy(path_out, "/mnt/SDCARD/Screenshots/", path_size - 1);
+    path_out[path_size - 1] = '\0';
     fnptr = path_out + strlen(path_out);
 
     system_state_update();

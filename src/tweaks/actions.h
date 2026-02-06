@@ -225,7 +225,8 @@ void action_batteryPercentageFontFamily(void *pt)
     else {
         char font_path[JSON_STRING_LEN] = "/mnt/SDCARD/miyoo/app/";
         strncat(font_path, font_families[item_value - 1], sizeof(font_path) - strlen(font_path) - 1);
-        strcpy(resources.theme.batteryPercentage.font, font_path);
+        strncpy(resources.theme.batteryPercentage.font, font_path, STR_MAX - 1);
+        resources.theme.batteryPercentage.font[STR_MAX - 1] = '\0';
     }
 
     theme_changeOverride("batteryPercentage", "font",
