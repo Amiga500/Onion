@@ -231,7 +231,7 @@ void value_setFrameThrottle(void)
     if (!stored_value_frame_throttle_changed)
         return;
     char new_value[STR_MAX];
-    sprintf(new_value, "fastforward_ratio = \"%d.000000\"",
+    snprintf(new_value, sizeof(new_value), "fastforward_ratio = \"%d.000000\"",
             stored_value_frame_throttle);
     file_changeKeyValue(RETROARCH_CONFIG, "fastforward_ratio =", new_value);
 }
@@ -272,16 +272,16 @@ void value_setSwapTriggers(void)
     if (stored_value_swap_triggers == 1)
         l_btn = 12, r_btn = 13, l2_btn = 10, r2_btn = 11;
 
-    sprintf(value, "input_player1_l_btn = \"%d\"", l_btn);
+    snprintf(value, sizeof(value), "input_player1_l_btn = \"%d\"", l_btn);
     file_changeKeyValue(RETROARCH_CONFIG, "input_player1_l_btn =", value);
 
-    sprintf(value, "input_player1_r_btn = \"%d\"", r_btn);
+    snprintf(value, sizeof(value), "input_player1_r_btn = \"%d\"", r_btn);
     file_changeKeyValue(RETROARCH_CONFIG, "input_player1_r_btn =", value);
 
-    sprintf(value, "input_player1_l2_btn = \"%d\"", l2_btn);
+    snprintf(value, sizeof(value), "input_player1_l2_btn = \"%d\"", l2_btn);
     file_changeKeyValue(RETROARCH_CONFIG, "input_player1_l2_btn =", value);
 
-    sprintf(value, "input_player1_r2_btn = \"%d\"", r2_btn);
+    snprintf(value, sizeof(value), "input_player1_r2_btn = \"%d\"", r2_btn);
     file_changeKeyValue(RETROARCH_CONFIG, "input_player1_r2_btn =", value);
 
     printf_debug("Saved triggers = l: %d, r: %d, l2: %d, r2: %d\n", l_btn,
