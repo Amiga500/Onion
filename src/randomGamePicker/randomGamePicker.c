@@ -1,5 +1,6 @@
 #include <dirent.h>
 #include <libgen.h>
+#include <limits.h>
 #include <sqlite3/sqlite3.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -216,8 +217,8 @@ bool addRandomFromJson(char *json_path)
 
     FILE *fp;
     char line[STR_MAX * 4];
-    char path_a[STR_MAX];
-    char path_b[STR_MAX];
+    char path_a[PATH_MAX];
+    char path_b[PATH_MAX];
     cJSON *json_root;
     JsonEntryType_e type;
 

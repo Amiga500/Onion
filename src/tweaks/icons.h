@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "components/list.h"
 #include "system/keymap_sw.h"
@@ -211,7 +212,7 @@ void menu_icon_packs(void *_)
 
         list_sortByLabel(&_menu_icon_packs);
 
-        char selected_path[STR_MAX];
+        char selected_path[PATH_MAX];
         realpath(is_dir(active_icon_pack) ? active_icon_pack
                                           : "/mnt/SDCARD/Icons/Default",
                  selected_path);
@@ -219,7 +220,7 @@ void menu_icon_packs(void *_)
         for (int i = 0; i < _menu_icon_packs.item_count; i++) {
             ListItem *current_item = &_menu_icon_packs.items[i];
 
-            char current_path[STR_MAX];
+            char current_path[PATH_MAX];
             realpath(current_item->payload, current_path);
 
             if (strcmp(selected_path, current_path) == 0) {
@@ -265,7 +266,7 @@ bool _add_config_icon(const char *path, const char *name,
     else
         strncpy(preview_path, icon_path, STR_MAX * 2 - 1);
 
-    char abs_path[STR_MAX - 56];
+    char abs_path[PATH_MAX];
     realpath(preview_path, abs_path);
 
     icon_name = file_removeExtension(basename(icon_path));
@@ -283,7 +284,8 @@ bool _add_config_icon(const char *path, const char *name,
     }
 
     IconInfo_t *info = &icon_infos[icon_infos_len++];
-    strcpy(info->name, icon_name);
+    strncpy(info->name, icon_name, STR_MAX - 1);
+    info->name[STR_MAX - 1] = '\0';
     strncpy(info->path, preview_path, STR_MAX - 1);
     strncpy(info->config_path, config_path, STR_MAX - 1);
     item.payload_ptr = (void *)info;
@@ -397,13 +399,13 @@ void _menu_change_icon(ListItem *item, IconMode_e mode)
 
     list_sortByLabel(&_menu_temp);
 
-    char selected_path[STR_MAX];
+    char selected_path[PATH_MAX];
     realpath(info->path, selected_path);
 
     for (int i = 0; i < _menu_temp.item_count; i++) {
         ListItem *current_item = &_menu_temp.items[i];
 
-        char current_path[STR_MAX];
+        char current_path[PATH_MAX];
         realpath(current_item->preview_path, current_path);
 
         if (strcmp(selected_path, current_path) == 0) {
