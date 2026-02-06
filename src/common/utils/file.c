@@ -73,8 +73,10 @@ const char *file_basename(const char *filename)
 bool mkdirs(const char *dir_path)
 {
     if (!exists(dir_path)) {
+        // Reject paths with single quotes to prevent shell injection
+        if (strchr(dir_path, '\'') != NULL)
+            return false;
         char dir_cmd[512];
-        // Prevent buffer overflow by using snprintf
         int n = snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p '%s'", dir_path);
         if (n < 0 || (size_t)n >= sizeof(dir_cmd))
             return false;
