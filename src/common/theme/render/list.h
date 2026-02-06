@@ -138,6 +138,10 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
     const int scaled_62 = 62 * g_scale;
     const int scaled_226 = 226 * g_scale;
 
+    // Hoist theme colors out of per-item loop
+    const SDL_Color list_color = theme()->list.color;
+    const SDL_Color grid_color = theme()->grid.color;
+
     for (int i = list->scroll_pos; i < last_item; i++) {
         ListItem *item = &list->items[i];
         bool show_disabled = item->disabled && !item->show_opaque;
@@ -206,7 +210,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             if (item->_value_cache == NULL || item->_cached_value != item->value) {
                 if (item->_value_cache != NULL)
                     SDL_FreeSurface((SDL_Surface *)item->_value_cache);
-                item->_value_cache = (void *)TTF_RenderUTF8_Blended(list_font, value_str, theme()->list.color);
+                item->_value_cache = (void *)TTF_RenderUTF8_Blended(list_font, value_str, list_color);
                 item->_cached_value = item->value;
             }
             SDL_Surface *value_label = (SDL_Surface *)item->_value_cache;
@@ -226,13 +230,13 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         }
 
         // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)
-        _theme_renderListLabelCached(screen, item, theme()->list.color,
+        _theme_renderListLabelCached(screen, item, list_color,
                                      offset_x, item_bg_rect.y + label_y,
                                      label_end, show_disabled);
 
         if (!list_small && item->description[0] != '\0') {
             theme_renderListLabel(
-                screen, item->description, theme()->grid.color, offset_x,
+                screen, item->description, grid_color, offset_x,
                 item_bg_rect.y + scaled_62, list->active_pos == i, label_end, show_disabled);
         }
     }
