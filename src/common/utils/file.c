@@ -129,28 +129,29 @@ void file_readLastLine(const char *filename, char *out_str)
 
 char *file_read(const char *path)
 {
-    FILE *f = NULL;
-    char *buffer = NULL;
-    long length = 0;
-
-    if (!exists(path))
+    struct stat64 st;
+    if (stat64(path, &st) != 0 || st.st_size < 0)
         return NULL;
 
-    if ((f = fopen(path, "rb"))) {
-        fseek(f, 0, SEEK_END);
-        length = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
-            fread(buffer, sizeof(char), length, f);
-        fclose(f);
+    int fd = open(path, O_RDONLY);
+    if (fd < 0)
+        return NULL;
+
+    char *buffer = (char *)malloc(st.st_size + 1);
+    if (buffer == NULL) {
+        close(fd);
+        return NULL;
     }
 
-    if (buffer == NULL)
+    ssize_t nread = read(fd, buffer, st.st_size);
+    close(fd);
+
+    if (nread < 0) {
+        free(buffer);
         return NULL;
+    }
 
-    buffer[length] = '\0';
-
+    buffer[nread] = '\0';
     return buffer;
 }
 

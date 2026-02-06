@@ -99,16 +99,19 @@ void renderGameName(AppState *state)
 
     SDL_BlitSurface(state->transparent_bg, &game_name_bg_size, screen, &game_name_bg_pos);
 
+    // Pre-compute scaled constants (avoid double→int conversion per frame)
+    int scaled_30 = (int)(30.0 * g_scale);
+
     if (state->current_game > 0) {
-        SDL_Rect arrow_left_rect = {(double)(theme()->frame.border_left + 10) * g_scale, 30.0 * g_scale - arrow_left->h / 2};
+        SDL_Rect arrow_left_rect = {(int)((theme()->frame.border_left + 10) * g_scale), scaled_30 - arrow_left->h / 2};
         arrow_left_rect.y += game_name_bg_pos.y;
         SDL_BlitSurface(arrow_left, NULL, screen, &arrow_left_rect);
     }
 
     if (state->current_game < game_list_len - 1) {
         SDL_Rect arrow_right_rect = {
-            (double)(630 - theme()->frame.border_right) * g_scale - arrow_right->w,
-            30.0 * g_scale - arrow_right->h / 2};
+            (int)((630 - theme()->frame.border_right) * g_scale) - arrow_right->w,
+            scaled_30 - arrow_right->h / 2};
         arrow_right_rect.y += game_name_bg_pos.y;
         SDL_BlitSurface(arrow_right, NULL, screen, &arrow_right_rect);
     }
@@ -132,7 +135,7 @@ void renderGameName(AppState *state)
     }
 
     SDL_Rect game_name_rect = {(g_display.width - state->surfaceGameName->w) / 2,
-                               game_name_bg_pos.y + 30.0 * g_scale - state->surfaceGameName->h / 2};
+                               game_name_bg_pos.y + scaled_30 - state->surfaceGameName->h / 2};
     if (game_name_rect.x < game_name_padding)
         game_name_rect.x = game_name_padding;
 

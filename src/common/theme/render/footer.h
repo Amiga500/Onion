@@ -91,6 +91,11 @@ void theme_renderFooter(SDL_Surface *screen)
 
 static int old_status_width = -1;
 
+static SDL_Surface *_footer_current_cache = NULL;
+static SDL_Surface *_footer_total_cache = NULL;
+static int _footer_current_num = -1;
+static int _footer_total_num = -1;
+
 void theme_renderFooterStatus(SDL_Surface *screen, int current_num,
                               int total_num)
 {
@@ -110,31 +115,37 @@ void theme_renderFooterStatus(SDL_Surface *screen, int current_num,
     if (total_num == 0)
         current_num = 0;
 
-    char current_str[16];
-    snprintf(current_str, sizeof(current_str), "%d/", current_num);
-    SDL_Surface *current = TTF_RenderUTF8_Blended(font_hint, current_str, theme()->currentpage.color);
-
-    char total_str[16];
-    snprintf(total_str, sizeof(total_str), "%d", total_num);
-    SDL_Surface *total = TTF_RenderUTF8_Blended(font_hint, total_str, theme()->total.color);
-
-    if (total) {
-        SDL_Rect current_rect = {0, 0};
-        SDL_Rect total_rect = {(int)(620.0 * g_scale) - total->w, (int)(449.0 * g_scale) - total->h / 2};
-
-        SDL_BlitSurface(total, NULL, screen, &total_rect);
-        if (current) {
-            current_rect.x = total_rect.x - current->w;
-            current_rect.y = (int)(449.0 * g_scale) - current->h / 2;
-            old_status_width = total->w + current->w;
-            SDL_BlitSurface(current, NULL, screen, &current_rect);
-            SDL_FreeSurface(current);
-        }
-
-        SDL_FreeSurface(total);
+    // Cache current number surface — only re-render when value changes
+    if (current_num != _footer_current_num) {
+        if (_footer_current_cache)
+            SDL_FreeSurface(_footer_current_cache);
+        char current_str[16];
+        snprintf(current_str, sizeof(current_str), "%d/", current_num);
+        _footer_current_cache = TTF_RenderUTF8_Blended(font_hint, current_str, theme()->currentpage.color);
+        _footer_current_num = current_num;
     }
-    else if (current) {
-        SDL_FreeSurface(current);
+
+    // Cache total number surface — only re-render when value changes
+    if (total_num != _footer_total_num) {
+        if (_footer_total_cache)
+            SDL_FreeSurface(_footer_total_cache);
+        char total_str[16];
+        snprintf(total_str, sizeof(total_str), "%d", total_num);
+        _footer_total_cache = TTF_RenderUTF8_Blended(font_hint, total_str, theme()->total.color);
+        _footer_total_num = total_num;
+    }
+
+    if (_footer_total_cache) {
+        SDL_Rect current_rect = {0, 0};
+        SDL_Rect total_rect = {(int)(620.0 * g_scale) - _footer_total_cache->w, (int)(449.0 * g_scale) - _footer_total_cache->h / 2};
+
+        SDL_BlitSurface(_footer_total_cache, NULL, screen, &total_rect);
+        if (_footer_current_cache) {
+            current_rect.x = total_rect.x - _footer_current_cache->w;
+            current_rect.y = (int)(449.0 * g_scale) - _footer_current_cache->h / 2;
+            old_status_width = _footer_total_cache->w + _footer_current_cache->w;
+            SDL_BlitSurface(_footer_current_cache, NULL, screen, &current_rect);
+        }
     }
 }
 
