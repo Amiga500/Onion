@@ -83,6 +83,8 @@ void overlay_init()
     if (pid == 0) {
         execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "stop_all", NULL);
         _exit(127);
+    } else if (pid < 0) {
+        print_debug("fork failed for playActivity stop_all");
     }
     setFbAsFirstRomScreen();
 
@@ -138,6 +140,8 @@ void overlay_resume(void)
         if (pid == 0) {
             execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "resume", NULL);
             _exit(127);
+        } else if (pid < 0) {
+            print_debug("fork failed for playActivity resume");
         }
 
         msleep(200);
