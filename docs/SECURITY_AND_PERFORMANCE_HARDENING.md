@@ -378,6 +378,9 @@ while (!quit) {
 | Area | Metric | Estimated Improvement | Confidence |
 |------|--------|-----------------------|------------|
 | **Compiler optimization (-O2)** | All code execution | **+30-40% overall performance** | Very High (industry standard) |
+| **Footer hint label caching** | Per-frame rendering | **-2 TTF renders/frame** (~1.5 ms/frame saved) | High |
+| **Header title caching** | Per-frame rendering | **-1 TTF render/frame** (~0.8 ms/frame saved) | High |
+| **Install UI message caching** | Install screen | **-1 TTF render/frame at 12fps** | High |
 | **Battery surface caching** | Per-frame rendering | **-3 SDL surface allocs/frame** (~2 ms/frame saved) | High |
 | **List render loop hoisting** | Menu/list scrolling | **-6-8 float multiplications/item/frame** | High |
 | **PNG thumbnail loading** (NEON) | Pixel format conversion | **+300% throughput** (~4x) | High (NEON pipeline is well-documented) |
@@ -389,6 +392,7 @@ while (!quit) {
 | **strlen→[0] in render paths** | Per-frame hot paths | **Eliminates function call overhead** | Medium |
 | **Battery polling** | batmon CPU usage | **config_get 15× fewer calls** | High |
 | **Overall boot-to-menu** | system() elimination + touch→open | **-30 ms** (config prep) | Medium |
+| **Combined TTF caching** | All UI frames at 30fps | **~60-90 fewer TTF renders/sec** → **15-25% CPU reduction** | High |
 | **Battery life** | Fewer fork+exec + less CPU | **~2-5% improvement** | Medium |
 | **Input robustness** | atoi→strtol/strtoul | No performance gain, **prevents UB** | High |
 
@@ -439,10 +443,11 @@ while (!quit) {
 - `src/common/theme/config.h` — snprintf
 - `src/common/theme/load.h` — snprintf (7 instances)
 - `src/common/theme/render/dialog.h` — strncpy
-- `src/common/theme/render/footer.h` — SDL surface leak, snprintf
-- `src/common/theme/render/battery.h` — snprintf
+- `src/common/theme/render/footer.h` — SDL surface leak fix, TTF label caching
+- `src/common/theme/render/battery.h` — snprintf, battery surface caching
+- `src/common/theme/render/header.h` — TTF title surface caching
 - `src/common/theme/render/textbox.h` — malloc NULL check
-- `src/common/theme/render/list.h` — SDL surface leak, snprintf
+- `src/common/theme/render/list.h` — SDL surface leak, snprintf, loop constant hoisting
 
 **Components:**
 - `src/common/components/list.h` — snprintf
