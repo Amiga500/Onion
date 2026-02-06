@@ -102,6 +102,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
     // Pre-compute scaled constants used in the loop
     const int scaled_640 = 640 * g_scale;
     const int scaled_620 = 620 * g_scale;
+    const int scaled_60 = 60 * g_scale;
     const int scaled_20 = 20 * g_scale;
     const int scaled_17 = 17 * g_scale;
     const int scaled_62 = 62 * g_scale;
@@ -197,7 +198,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
 
         if (params.preview_bg) {
             SDL_Surface *preview_bg = resource_getSurface(PREVIEW_BG);
-            SDL_Rect preview_bg_rect = {scaled_640 - preview_bg->w, (int)(60 * g_scale)};
+            SDL_Rect preview_bg_rect = {scaled_640 - preview_bg->w, scaled_60};
             SDL_BlitSurface(preview_bg, NULL, screen, &preview_bg_rect);
             preview_x -= preview_bg->w;
         }
