@@ -92,7 +92,7 @@ bool process_start(const char *pname, const char *args, const char *home,
     return true;
 }
 
-bool process_start_read_return(const char *cmdline, char *out_str)
+int process_start_read_return(const char *cmdline, char *out_str)
 {
     char buffer[255] = "";
     char *result = NULL;
@@ -104,17 +104,21 @@ bool process_start_read_return(const char *cmdline, char *out_str)
     }
 
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        free(result);
         result = strdup(buffer);
     }
 
     pclose(pipe);
     if (result != NULL) {
-        result[strlen(buffer) - 1] = '\0';
-        strcpy(out_str, result);
+        size_t len = strlen(result);
+        if (len > 0 && result[len - 1] == '\n')
+            result[len - 1] = '\0';
+        strncpy(out_str, result, STR_MAX - 1);
+        out_str[STR_MAX - 1] = '\0';
         free(result);
     }
     else {
-        strcpy(out_str, "");
+        out_str[0] = '\0';
     }
     return 0;
 }
