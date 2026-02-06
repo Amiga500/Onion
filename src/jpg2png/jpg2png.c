@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "../common/utils/neon_pixel.h"
+
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 
 //
@@ -64,7 +66,7 @@ int main(int argc, char *argv[])
     MI_PHY jpgPa = 0, pngPa = 0;
     void *tmp, *jpgVa = NULL, *pngVa = NULL;
     uint8_t *src8;
-    uint32_t *src, *dst, pix, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
+    uint32_t *src, *dst, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
                                                     mh = 360;
     char filename[256], *ptr;
 
@@ -105,10 +107,9 @@ int main(int argc, char *argv[])
     for (y = 0; y < sh; y++) {
         src8 = tmp;
         jpeg_read_scanlines(&jpeg, &src8, 1);
-        for (x = 0; x < sw; x++, src8 += 3) {
-            // Convert RGB888 to ARGB8888
-            *dst++ = 0xFF000000 | (src8[0] << 16) | (src8[1] << 8) | src8[2];
-        }
+        /* NEON-accelerated RGB888 → ARGB8888 conversion (16 pixels per iteration) */
+        neon_rgb888_to_argb(dst, tmp, sw);
+        dst += sw;
     }
     free(tmp);
     jpeg_finish_decompress(&jpeg);
@@ -165,11 +166,9 @@ int main(int argc, char *argv[])
     png_write_info(png_ptr, info_ptr);
     src = pngVa;
     for (y = 0; y < dh; y++) {
-        for (x = 0; x < dw; x++) {
-            pix = *src++;
-            dst[x] = 0xFF000000 | (pix & 0x0000FF00) |
-                     (pix & 0x00FF0000) >> 16 | (pix & 0x000000FF) << 16;
-        }
+        /* NEON-accelerated ARGB→RGBA conversion for PNG output */
+        neon_argb_to_rgba(dst, src, dw);
+        src += dw;
         png_write_row(png_ptr, (png_bytep)tmp);
     }
     png_write_end(png_ptr, info_ptr);

@@ -11,6 +11,7 @@
 #include "utils/file.h"
 #include "utils/hash.h"
 #include "utils/log.h"
+#include "utils/neon_pixel.h"
 #include "utils/process.h"
 #include "utils/str.h"
 
@@ -124,9 +125,16 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool r
     }
 
     for (y = 0; y < g_display.height; y++) {
-        for (x = 0; x < g_display.width; x++) {
-            pix = rotate180 ? *(--src) : *(src++);
-            line_buffer[x] = 0xFF000000 | (pix & 0x0000FF00) | (pix & 0x00FF0000) >> 16 | (pix & 0x000000FF) << 16;
+        if (rotate180) {
+            /* Reverse row pixel-by-pixel (can't use NEON for reverse traversal) */
+            for (x = 0; x < g_display.width; x++) {
+                pix = *(--src);
+                line_buffer[x] = 0xFF000000 | (pix & 0x0000FF00) | ((pix & 0x00FF0000) >> 16) | ((pix & 0x000000FF) << 16);
+            }
+        } else {
+            /* Forward: NEON-accelerated ARGB→RGBA swap, 16 pixels per iteration */
+            neon_argb_to_rgba(line_buffer, src, g_display.width);
+            src += g_display.width;
         }
         png_write_row(png_ptr, (png_bytep)line_buffer);
     }

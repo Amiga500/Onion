@@ -7,9 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#ifdef __ARM_NEON
-#include <arm_neon.h>
-#endif
+#include "../common/utils/neon_pixel.h"
 
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 #define ERROR(str)                 \
@@ -19,99 +17,25 @@
     }
 
 //
-//	Swap R and B channels: ABGR8888 <-> ARGB8888 (4 bytes per pixel)
-//	ARM NEON assembly: uses VLD4.8/VST4.8 to deinterleave RGBA channels,
-//	swap R↔B, then re-interleave. Processes 16 pixels (64 bytes) per iteration.
-//	~4x faster than intrinsics version, ~16x faster than scalar.
+//	Swap R and B channels: ABGR8888 <-> ARGB8888
+//	Delegates to shared NEON assembly in neon_pixel.h
 //
-static void swap_rb_channels(const uint32_t *src, uint32_t *dst, uint32_t count)
+static inline void swap_rb_channels(const uint32_t *src, uint32_t *dst, uint32_t count)
 {
-#ifdef __ARM_NEON
-    uint32_t bulk = count >> 4; // number of 16-pixel blocks
-    uint32_t rem = count & 15;  // remaining pixels
-    if (bulk > 0) {
-        // VLD4.8 deinterleaves: {d0=R, d1=G, d2=B, d3=A} for 8 pixels
-        // We simply swap d0(R) and d2(B), then VST4.8 re-interleaves as BGRA
-        // Process 16 pixels (2x VLD4/VST4) per iteration with prefetch
-        asm volatile(
-            "1:                             \n"
-            "   pld     [%[src], #128]      \n" // prefetch next cache line
-            "   vld4.8  {d0-d3}, [%[src]]!  \n" // load 8 px: d0=R d1=G d2=B d3=A
-            "   vld4.8  {d4-d7}, [%[src]]!  \n" // load next 8 px
-            "   vswp    d0, d2              \n" // swap R↔B (first 8 px)
-            "   vswp    d4, d6              \n" // swap R↔B (next 8 px)
-            "   vst4.8  {d0-d3}, [%[dst]]!  \n" // store 8 px
-            "   vst4.8  {d4-d7}, [%[dst]]!  \n" // store next 8 px
-            "   subs    %[bulk], %[bulk], #1 \n"
-            "   bne     1b                  \n"
-            : [src] "+r"(src), [dst] "+r"(dst), [bulk] "+r"(bulk)
-            :
-            : "d0","d1","d2","d3","d4","d5","d6","d7", "memory", "cc"
-        );
+    if (src == dst) {
+        neon_swap_rb_inplace((uint32_t *)src, (int)count);
+    } else {
+        neon_argb_to_rgba((uint32_t *)dst, src, (int)count);
     }
-    // Handle remaining 0-15 pixels with scalar
-    for (uint32_t i = 0; i < rem; i++) {
-        uint32_t pix = src[i];
-        dst[i] = (pix & 0xFF00FF00) | ((pix & 0x00FF0000) >> 16) |
-                 ((pix & 0x000000FF) << 16);
-    }
-#else
-    for (uint32_t i = 0; i < count; i++) {
-        uint32_t pix = src[i];
-        dst[i] = (pix & 0xFF00FF00) | ((pix & 0x00FF0000) >> 16) |
-                 ((pix & 0x000000FF) << 16);
-    }
-#endif
 }
 
 //
-//	Convert RGB888 to ARGB8888 (3 bytes per pixel -> 4 bytes per pixel)
-//	ARM NEON assembly: uses VLD3.8 to deinterleave RGB, fills alpha=0xFF,
-//	then VST4.8 to interleave as ARGB. Processes 16 pixels per iteration.
-//	~10x faster than scalar loop.
+//	Convert RGB888 to ARGB8888
+//	Delegates to shared NEON assembly in neon_pixel.h
 //
-static void rgb_to_argb(const uint8_t *src_rgb, uint32_t *dst_argb, uint32_t count)
+static inline void rgb_to_argb(const uint8_t *src_rgb, uint32_t *dst_argb, uint32_t count)
 {
-#ifdef __ARM_NEON
-    uint32_t bulk = count >> 4; // 16-pixel blocks
-    uint32_t rem = count & 15;
-    if (bulk > 0) {
-        // VLD3 deinterleaves RGB: d0=R, d1=G, d2=B
-        // ARGB8888 little-endian memory layout: byte0=B, byte1=G, byte2=R, byte3=A
-        // So we need to store {B,G,R,A} = {d2,d1,d0,d3}
-        // But VLD4/VST4 require consecutive d-registers, so we rearrange:
-        // Load into d0,d1,d2 → swap d0↔d2 → store {d0,d1,d2,d3} = {B,G,R,A}
-        asm volatile(
-            "   vmov.u8 d3, #0xFF           \n" // alpha = 0xFF
-            "   vmov.u8 d7, #0xFF           \n"
-            "1:                             \n"
-            "   pld     [%[src], #96]       \n"
-            "   vld3.8  {d0-d2}, [%[src]]!  \n" // 8 px: d0=R d1=G d2=B
-            "   vld3.8  {d4-d6}, [%[src]]!  \n" // next 8 px
-            "   vswp    d0, d2              \n" // swap R↔B: {d0=B,d1=G,d2=R,d3=A}
-            "   vswp    d4, d6              \n"
-            "   vst4.8  {d0-d3}, [%[dst]]!  \n" // store 8 px as BGRA = ARGB8888
-            "   vst4.8  {d4-d7}, [%[dst]]!  \n"
-            "   subs    %[bulk], %[bulk], #1 \n"
-            "   bne     1b                  \n"
-            : [src] "+r"(src_rgb), [dst] "+r"(dst_argb), [bulk] "+r"(bulk)
-            :
-            : "d0","d1","d2","d3","d4","d5","d6","d7", "memory", "cc"
-        );
-    }
-    // Remaining pixels scalar
-    for (uint32_t i = 0; i < rem; i++) {
-        dst_argb[i] = 0xFF000000 | ((uint32_t)src_rgb[0] << 16) |
-                      ((uint32_t)src_rgb[1] << 8) | src_rgb[2];
-        src_rgb += 3;
-    }
-#else
-    for (uint32_t i = 0; i < count; i++) {
-        dst_argb[i] = 0xFF000000 | ((uint32_t)src_rgb[0] << 16) |
-                      ((uint32_t)src_rgb[1] << 8) | src_rgb[2];
-        src_rgb += 3;
-    }
-#endif
+    neon_rgb888_to_argb(dst_argb, src_rgb, (int)count);
 }
 
 //
