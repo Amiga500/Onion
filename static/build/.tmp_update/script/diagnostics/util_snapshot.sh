@@ -62,16 +62,16 @@ snapshot() {
 ##################
 
 write_info() {
-    write_header "$1" $3
-    echo -e "$1\n" >> $3
+    write_header "$1" "$3"
+    echo -e "$1\n" >> "$3"
     log "Executing command $2 and appending output to $3"
-    eval $2 >> $3
-    echo -e "\n\n" >> $3
+    eval "$2" >> "$3"
+    echo -e "\n\n" >> "$3"
     log "Finished writing information for $1 to $3"
 }
 
 write_header() {
-    echo -e "############################ $1 ############################\n\n" >> $2
+    echo -e "############################ $1 ############################\n\n" >> "$2"
 }
 
 ##################

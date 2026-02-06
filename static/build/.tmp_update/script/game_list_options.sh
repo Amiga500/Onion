@@ -11,13 +11,13 @@ recentlist_temp=/tmp/recentlist-temp.json
 save_dir=/mnt/SDCARD/Saves/CurrentProfile/saves
 gpsp_migration_log="$save_dir/gpSP/migration_status.log"
 
-mkdir -p $radir/cores/cache
+mkdir -p "$radir/cores/cache"
 
 # Logging setup
 logfile=$(basename "$0" .sh)
-. $sysdir/script/log.sh
+. "$sysdir/script/log.sh"
 
-cd $sysdir
+cd "$sysdir"
 
 device_model=$(cat /tmp/deviceModel)
 has_networking=$([ $device_model -eq 354 ] && echo 1 || echo 0)
@@ -63,15 +63,15 @@ main() {
     fi
 
     # Recent list entry removal
-    if [ ! -f $sysdir/config/.showRecents ]; then
+    if [ ! -f "$sysdir/config/.showRecents" ]; then
         currentrecentlist=$recentlist_hidden
     else
         currentrecentlist=$recentlist
     fi
 
     firstrecententry=$(head -n 1 "$currentrecentlist")
-    sed '1d' $currentrecentlist > $recentlist_temp
-    mv $recentlist_temp $currentrecentlist
+    sed '1d' "$currentrecentlist" > "$recentlist_temp"
+    mv "$recentlist_temp" "$currentrecentlist"
 
     if [ $current_tab -eq $TAB_GAMES ]; then
         log "tab: games"
@@ -233,11 +233,10 @@ main() {
 
     # Execute chosen action
     menu_action=$(get_item "$menu_options" $retcode)
-    menu_arg=$(get_item "$menu_option_args" $retcode)
-    runcmd="$menu_action $menu_arg"
-    log "> $runcmd"
+    menu_arg=$(get_item "$menu_option_args" $retcode | sed 's/^"//;s/"$//')
+    log "> $menu_action $menu_arg"
     log "\n\n==================================================================================================\n\n"
-    eval $runcmd
+    "$menu_action" "$menu_arg"
     log "\n\n=================================================================================================="
 
     rm -f ./cmd_to_run.sh 2> /dev/null
@@ -307,7 +306,7 @@ add_script_files() {
                 # We run the script with "DynamicLabel" in third parameter to generate the name
                 "$entry" "$rompath" "$emupath" "DynamicLabel" "$emulabel" "$retroarch_core" "$romdirname" "$romext"
                 scriptlabel=$(cat /tmp/DynamicLabel.tmp)
-                rm /tmp/DynamicLabel.tmp
+                rm -f /tmp/DynamicLabel.tmp
             fi
 
             scriptlabel=$(echo "$scriptlabel" | sed "s/%LIST%/$emulabel/g")
@@ -457,8 +456,8 @@ change_core() {
                     continue
                 fi
 
-                echo "$entry" >> $single_ext_cache_path
-            done < $ext_cache_path
+                echo "$entry" >> "$single_ext_cache_path"
+            done < "$ext_cache_path"
         fi
 
         if [ "$default_core" == "" ]; then
@@ -486,7 +485,7 @@ change_core() {
 
             available_cores="$available_cores $tmp_core"
             available_corenames="$available_corenames \"$tmp_corename\""
-        done < $single_ext_cache_path
+        done < "$single_ext_cache_path"
 
         if [ "$is_archive" == "" ]; then
             break
@@ -550,9 +549,8 @@ get_core_extensions() {
 rename_rom() {
     log ":: rename_rom $*"
     prev_name="$(basename "$rompath" ".$romext")"
-    runcmd="LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/kbinput -i \"$prev_name\" -t \"RENAME ROM\""
 
-    eval $runcmd > temp
+    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/kbinput -i "$prev_name" -t "RENAME ROM" > temp
     retcode=$?
 
     kboutput=$(cat temp | tail -1)
@@ -568,7 +566,7 @@ rename_rom() {
 
     log "rename: '$prev_name' -> '$new_name'"
 
-    cd $sysdir
+    cd "$sysdir"
     ./bin/renameRom "$rompath" "$new_name"
 }
 
