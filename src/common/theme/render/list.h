@@ -6,8 +6,48 @@
 #include "theme/config.h"
 #include "theme/resources.h"
 
-// static SDL_Color color_black = {0, 0, 0};
+// Fast FNV-1a hash for cache invalidation
+static inline uint32_t _label_hash_fnv1a(const char *str)
+{
+    uint32_t hash = 2166136261u;
+    if (str == NULL) return hash;
+    for (const char *p = str; *p; p++) {
+        hash ^= (uint8_t)*p;
+        hash *= 16777619u;
+    }
+    return hash;
+}
 
+// Render a list label with per-item TTF surface caching
+// Caches the TTF render in item->_label_cache; only re-renders when label changes
+static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
+                                         SDL_Color fg, int offset_x, int center_y,
+                                         int label_end, bool disabled)
+{
+    uint32_t hash = _label_hash_fnv1a(item->label);
+    if (item->_label_cache == NULL || item->_label_hash != hash) {
+        if (item->_label_cache != NULL)
+            SDL_FreeSurface((SDL_Surface *)item->_label_cache);
+        item->_label_cache = (void *)TTF_RenderUTF8_Blended(
+            resource_getFont(LIST), item->label, fg);
+        item->_label_hash = hash;
+    }
+    SDL_Surface *item_label = (SDL_Surface *)item->_label_cache;
+    if (item_label == NULL) return;
+
+    SDL_Rect item_label_rect = {offset_x, center_y - item_label->h / 2};
+    SDL_Rect label_crop = {0, 0, label_end - 30 * g_scale, item_label->h};
+
+    if (disabled)
+        surfaceSetAlpha(item_label, HIDDEN_ITEM_ALPHA);
+
+    SDL_BlitSurface(item_label, &label_crop, screen, &item_label_rect);
+
+    if (disabled)
+        surfaceSetAlpha(item_label, 255);
+}
+
+// Uncached version for one-off labels (descriptions, sticky notes)
 void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
                            int offset_x, int center_y, bool is_active,
                            int label_end, bool disabled)
@@ -18,16 +58,6 @@ void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
     SDL_Rect item_label_rect = {offset_x, center_y - item_label->h / 2};
 
     SDL_Rect label_crop = {0, 0, label_end - 30 * g_scale, item_label->h};
-
-    /* Maybe shadows will be an option in the future
-    SDL_Rect item_shadow_rect = {item_label_rect.x + 1, item_label_rect.y + 2};
-
-    if (is_active) {
-        SDL_Surface *item_shadow =
-            TTF_RenderUTF8_Blended(list_font, label, color_black);
-        SDL_BlitSurface(item_shadow, &label_crop, screen, &item_shadow_rect);
-        SDL_FreeSurface(item_shadow);
-    }*/
 
     if (disabled) {
         surfaceSetAlpha(item_label, HIDDEN_ITEM_ALPHA);
@@ -185,9 +215,10 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             SDL_FreeSurface(value_label);
         }
 
-        theme_renderListLabel(screen, item->label, theme()->list.color,
-                              offset_x, item_bg_rect.y + label_y,
-                              list->active_pos == i, label_end, show_disabled);
+        // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)
+        _theme_renderListLabelCached(screen, item, theme()->list.color,
+                                     offset_x, item_bg_rect.y + label_y,
+                                     label_end, show_disabled);
 
         if (!list_small && item->description[0] != '\0') {
             theme_renderListLabel(
