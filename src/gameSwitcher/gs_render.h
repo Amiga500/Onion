@@ -151,6 +151,9 @@ void renderGameName(AppState *state)
     }
 }
 
+static SDL_Surface *_gs_header_title_cache = NULL;
+static char _gs_header_title_str[STR_MAX] = "";
+
 void renderHeader(AppState *state, int battery_percentage)
 {
     char title_str[STR_MAX] = "GameSwitcher";
@@ -175,14 +178,19 @@ void renderHeader(AppState *state, int battery_percentage)
     if (state->custom_header) {
         if (state->header_height > 0) {
             SDL_BlitSurface(state->custom_header, NULL, screen, NULL);
-            SDL_Surface *title = TTF_RenderUTF8_Blended(
-                resource_getFont(TITLE), title_str,
-                theme()->title.color);
-            if (title) {
-                SDL_Rect title_rect = {(g_display.width - title->w) / 2,
-                                       (state->header_height - title->h) / 2};
-                SDL_BlitSurface(title, NULL, screen, &title_rect);
-                SDL_FreeSurface(title);
+            // Cache title surface — only re-render when text changes
+            if (strcmp(title_str, _gs_header_title_str) != 0) {
+                if (_gs_header_title_cache)
+                    SDL_FreeSurface(_gs_header_title_cache);
+                _gs_header_title_cache = TTF_RenderUTF8_Blended(
+                    resource_getFont(TITLE), title_str, theme()->title.color);
+                strncpy(_gs_header_title_str, title_str, STR_MAX - 1);
+                _gs_header_title_str[STR_MAX - 1] = '\0';
+            }
+            if (_gs_header_title_cache) {
+                SDL_Rect title_rect = {(g_display.width - _gs_header_title_cache->w) / 2,
+                                       (state->header_height - _gs_header_title_cache->h) / 2};
+                SDL_BlitSurface(_gs_header_title_cache, NULL, screen, &title_rect);
             }
             theme_renderHeaderBatteryCustom(screen, battery_percentage, state->header_height);
         }

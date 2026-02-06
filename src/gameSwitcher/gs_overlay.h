@@ -78,7 +78,12 @@ void overlay_init()
     }
 
     retroarch_pause();
-    system("playActivity stop_all &");
+    // Use fork+exec instead of system() — avoids shell overhead
+    pid_t pid = fork();
+    if (pid == 0) {
+        execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "stop_all", NULL);
+        _exit(127);
+    }
     setFbAsFirstRomScreen();
 
     RetroArchStatus_s status;
@@ -128,7 +133,12 @@ void overlay_resume(void)
         render();
 
         retroarch_unpause();
-        system("playActivity resume &");
+        // Use fork+exec instead of system() — avoids shell overhead
+        pid_t pid = fork();
+        if (pid == 0) {
+            execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "resume", NULL);
+            _exit(127);
+        }
 
         msleep(200);
 
