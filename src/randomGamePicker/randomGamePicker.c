@@ -268,8 +268,9 @@ bool addRandomFromJson(char *json_path)
             if (is_duplicate)
                 continue;
 
-            char emupath[STR_MAX];
-            strcpy(emupath, game->launch_path);
+            char emupath[STR_MAX * 2];
+            strncpy(emupath, game->launch_path, sizeof(emupath) - 1);
+            emupath[sizeof(emupath) - 1] = '\0';
 
             if (!extractEmuPath(emupath, PATH_EMU))
                 extractEmuPath(emupath, PATH_RAPP);

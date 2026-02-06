@@ -152,7 +152,8 @@ ListItem *list_addItem(List *list, ListItem item)
 ListItem *list_addItemWithInfoNote(List *list, ListItem item, const char *info_note)
 {
     ListItem *_item = list_addItem(list, item);
-    strcpy(_item->info_note, info_note);
+    strncpy(_item->info_note, info_note, sizeof(_item->info_note) - 1);
+    _item->info_note[sizeof(_item->info_note) - 1] = '\0';
     return _item;
 }
 
@@ -160,7 +161,8 @@ ListItem *list_addItemWithLang(List *list, ListItem item, const lang_hash key)
 {
     ListItem *_item = list_addItem(list, item);
     if (lang_list && lang_list[key])
-        strcpy(_item->label, lang_list[key]);
+        strncpy(_item->label, lang_list[key], sizeof(_item->label) - 1);
+        _item->label[sizeof(_item->label) - 1] = '\0';
     return _item;
 }
 
