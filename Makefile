@@ -248,10 +248,10 @@ clean:
 
 deepclean: clean
 	@rm -rf $(CACHE)
-	@test -f $(THIRD_PARTY_DIR)/RetroArch-patch/Makefile && cd $(THIRD_PARTY_DIR)/RetroArch-patch && make clean || true
-	@test -f $(THIRD_PARTY_DIR)/SearchFilter/Makefile && cd $(THIRD_PARTY_DIR)/SearchFilter && make clean || true
-	@test -f $(THIRD_PARTY_DIR)/Terminal/Makefile && cd $(THIRD_PARTY_DIR)/Terminal && make clean || true
-	@test -f $(THIRD_PARTY_DIR)/DinguxCommander/Makefile && cd $(THIRD_PARTY_DIR)/DinguxCommander && make clean || true
+	@(test -f $(THIRD_PARTY_DIR)/RetroArch-patch/Makefile && cd $(THIRD_PARTY_DIR)/RetroArch-patch && make clean) || true
+	@(test -f $(THIRD_PARTY_DIR)/SearchFilter/Makefile && cd $(THIRD_PARTY_DIR)/SearchFilter && make clean) || true
+	@(test -f $(THIRD_PARTY_DIR)/Terminal/Makefile && cd $(THIRD_PARTY_DIR)/Terminal && make clean) || true
+	@(test -f $(THIRD_PARTY_DIR)/DinguxCommander/Makefile && cd $(THIRD_PARTY_DIR)/DinguxCommander && make clean) || true
 
 dev: clean
 	@$(MAKE_DEV)
