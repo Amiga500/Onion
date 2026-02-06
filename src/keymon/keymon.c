@@ -385,7 +385,7 @@ void cpuClockHotkey(int adjust)
         // Unknown device
         return;
     }
-    char cpuclockstr[5];
+    char cpuclockstr[STR_MAX];
 
     // Read current CPU clock
     int ret = process_start_read_return("cpuclock", cpuclockstr);
