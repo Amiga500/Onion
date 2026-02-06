@@ -270,13 +270,19 @@ void _print_bar(void)
 {
 #ifdef PLATFORM_MIYOOMINI
     uint32_t *ofs = g_display.fb_addr;
-    uint32_t i, j, curr, percentage = _bar_max > 0 ? _bar_value * g_display.height / _bar_max : 0;
+    const uint32_t height = g_display.height;
+    const uint32_t percentage = _bar_max > 0 ? _bar_value * height / _bar_max : 0;
+    const uint32_t active_color = _bar_color;
 
     ofs += g_display.width - meterWidth;
-    for (i = 0; i < g_display.height * 3; i++, ofs += g_display.width) {
-        curr = (i % g_display.height) < percentage ? _bar_color : 0;
-        for (j = 0; j < meterWidth; j++)
-            ofs[j] = curr;
+    // Triple-buffer: write same pattern to 3 consecutive framebuffers
+    for (uint32_t buf = 0; buf < 3; buf++) {
+        uint32_t *row = ofs + buf * height * g_display.width;
+        for (uint32_t i = 0; i < height; i++, row += g_display.width) {
+            const uint32_t curr = i < percentage ? active_color : 0;
+            for (int j = 0; j < meterWidth; j++)
+                row[j] = curr;
+        }
     }
 #endif
 }
@@ -289,12 +295,11 @@ void _bar_restoreBufferBehind(void)
     _bar_color = 0;
     _print_bar();
     if (_bar_savebuf) {
-        uint32_t i, j, *ofs = g_display.fb_addr, *ofss = _bar_savebuf;
-        ofs += g_display.width - meterWidth;
-        ofss += g_display.width - meterWidth;
-        for (i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += g_display.width) {
-            for (j = 0; j < meterWidth; j++)
-                ofs[j] = ofss[j];
+        uint32_t *ofs = g_display.fb_addr + g_display.width - meterWidth;
+        const uint32_t *ofss = _bar_savebuf;
+        const size_t row_bytes = meterWidth * sizeof(uint32_t);
+        for (uint32_t i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += meterWidth) {
+            memcpy(ofs, ofss, row_bytes);
         }
         free(_bar_savebuf);
         _bar_savebuf = NULL;
@@ -305,15 +310,14 @@ void _bar_restoreBufferBehind(void)
 void _bar_saveBufferBehind(void)
 {
 #ifdef PLATFORM_MIYOOMINI
-    // Save display area and clear
-    if ((_bar_savebuf = (uint32_t *)malloc(g_display.width * g_display.height *
+    // Compact buffer: only meterWidth * height pixels (was width * height — 160x smaller!)
+    if ((_bar_savebuf = (uint32_t *)malloc(meterWidth * g_display.height *
                                            sizeof(uint32_t)))) {
-        uint32_t i, j, *ofs = g_display.fb_addr, *ofss = _bar_savebuf;
-        ofs += g_display.width - meterWidth;
-        ofss += g_display.width - meterWidth;
-        for (i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += g_display.width) {
-            for (j = 0; j < meterWidth; j++)
-                ofss[j] = ofs[j];
+        const uint32_t *ofs = g_display.fb_addr + g_display.width - meterWidth;
+        uint32_t *ofss = _bar_savebuf;
+        const size_t row_bytes = meterWidth * sizeof(uint32_t);
+        for (uint32_t i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += meterWidth) {
+            memcpy(ofss, ofs, row_bytes);
         }
     }
 #endif
@@ -326,7 +330,7 @@ static void *_osd_thread(void *_)
 {
     while (getMilliseconds() - _bar_timer < 2000) {
         _print_bar();
-        usleep(100);
+        usleep(16000); // ~60fps (was 100µs = 10,000 loops/sec busy-wait!)
     }
     _bar_restoreBufferBehind();
     osd_thread_active = false;
@@ -348,7 +352,12 @@ void osd_showBar(int value, int value_max, uint32_t color)
     _bar_color = color;
     osd_bar_activated = true;
 
-    config_get("display/meterWidth", CONFIG_INT, &meterWidth);
+    // Cache meterWidth — only read config on first call
+    static bool meterWidth_cached = false;
+    if (!meterWidth_cached) {
+        config_get("display/meterWidth", CONFIG_INT, &meterWidth);
+        meterWidth_cached = true;
+    }
 
     if (osd_thread_active)
         return;
