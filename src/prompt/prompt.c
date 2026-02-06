@@ -89,6 +89,8 @@ int main(int argc, char *argv[])
     bool has_info = false;
 
     pargs = malloc(MAX_ELEMENTS * sizeof(char *));
+    if (pargs == NULL)
+        return EXIT_FAILURE;
 
     int i;
     for (i = 1; i < argc; i++) {

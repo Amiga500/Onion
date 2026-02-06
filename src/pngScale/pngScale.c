@@ -195,6 +195,15 @@ int main(int argc, char *argv[])
     png_write_info(png_ptr, info_ptr);
     src = dstVa;
     tmp = malloc(dw * 4);
+    if (tmp == NULL) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        MI_SYS_Munmap(dstVa, ds);
+        MI_SYS_MMA_Free(dstPa);
+        MI_GFX_Close();
+        MI_SYS_Exit();
+        return 1;
+    }
     for (y = 0; y < dh; y++) {
         dst = tmp;
         for (x = 0; x < dw; x++) {
