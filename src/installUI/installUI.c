@@ -258,12 +258,12 @@ int main(int argc, char *argv[])
 
     config_setNumber("currentSlide", current_slide);
 
+    if (cached_message != NULL)
+        SDL_FreeSurface(cached_message);
+
     TTF_CloseFont(font);
     TTF_CloseFont(font_small);
     TTF_Quit();
-
-    if (cached_message != NULL)
-        SDL_FreeSurface(cached_message);
     if (slide != NULL) {
         SDL_FreeSurface(slide);
     }
