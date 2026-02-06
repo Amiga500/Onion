@@ -143,15 +143,21 @@ char *file_read(const char *path)
         return NULL;
     }
 
-    ssize_t nread = read(fd, buffer, st.st_size);
+    ssize_t total = 0;
+    while (total < st.st_size) {
+        ssize_t nread = read(fd, buffer + total, st.st_size - total);
+        if (nread <= 0)
+            break;
+        total += nread;
+    }
     close(fd);
 
-    if (nread < 0) {
+    if (total <= 0) {
         free(buffer);
         return NULL;
     }
 
-    buffer[nread] = '\0';
+    buffer[total] = '\0';
     return buffer;
 }
 
