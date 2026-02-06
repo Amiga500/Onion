@@ -208,4 +208,54 @@ static inline void neon_rgb888_to_argb(uint32_t *dst, const uint8_t *src, int co
 #endif
 }
 
+/**
+ * Rotate a 32bpp pixel buffer 180 degrees in-place using NEON.
+ * Reverses the pixel array so first pixel becomes last and vice versa.
+ * Processes 8 pixels (32 bytes) per iteration from both ends.
+ *
+ * @param pixels  Pointer to ARGB8888 pixel buffer (modified in-place)
+ * @param count   Total number of pixels
+ */
+static inline void neon_rotate180_inplace(uint32_t *pixels, int count)
+{
+    uint32_t *lo = pixels;
+    uint32_t *hi = pixels + count - 1;
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+    /* Process 8 pixels (32 bytes) from each end per iteration */
+    while (hi - lo >= 15) {
+        asm volatile(
+            "pld        [%[lo], #64]        \n"
+            "pld        [%[hi], #-64]       \n"
+            /* Load 8 pixels from lo end */
+            "vld1.32    {q0, q1}, [%[lo]]   \n"
+            /* Load 8 pixels from hi end (need to go back 7 from hi) */
+            "sub        r4, %[hi], #28      \n"
+            "vld1.32    {q2, q3}, [r4]      \n"
+            /* Reverse lo pixels: q0=[0,1,2,3] q1=[4,5,6,7] → q5=[7,6,5,4] q4=[3,2,1,0] */
+            "vrev64.32  q4, q0              \n"
+            "vrev64.32  q5, q1              \n"
+            "vswp       d8, d9              \n"
+            "vswp       d10, d11            \n"
+            /* Reverse hi pixels: q2 q3 → q7 q6 */
+            "vrev64.32  q6, q2              \n"
+            "vrev64.32  q7, q3              \n"
+            "vswp       d12, d13            \n"
+            "vswp       d14, d15            \n"
+            /* Store reversed hi pixels at lo, reversed lo pixels at hi */
+            "vst1.32    {q7, q6}, [%[lo]]!  \n"
+            "vst1.32    {q5, q4}, [r4]      \n"
+            "sub        %[hi], %[hi], #32   \n"
+            : [lo] "+r"(lo), [hi] "+r"(hi)
+            :
+            : "r4", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "memory", "cc");
+    }
+#endif
+    /* Scalar tail: swap remaining pixels from both ends */
+    while (lo < hi) {
+        uint32_t tmp = *lo;
+        *lo++ = *hi;
+        *hi-- = tmp;
+    }
+}
+
 #endif /* NEON_PIXEL_H__ */

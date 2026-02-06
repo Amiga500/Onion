@@ -48,6 +48,8 @@ typedef struct ListItem {
     uint32_t _label_hash;    // Hash of label text for cache invalidation
     void *_value_cache;      // Cached TTF surface for value label (internal)
     int _cached_value;       // Cached value for value label invalidation
+    void *_scaled_preview;   // Cached scaled preview surface (internal)
+    int _scaled_preview_w;   // Width the preview was scaled to (for invalidation)
 } ListItem;
 
 typedef struct List {
@@ -441,6 +443,8 @@ void list_free(List *list)
             SDL_FreeSurface((SDL_Surface *)item->_label_cache);
         if (item->_value_cache != NULL)
             SDL_FreeSurface((SDL_Surface *)item->_value_cache);
+        if (item->_scaled_preview != NULL)
+            SDL_FreeSurface((SDL_Surface *)item->_scaled_preview);
     }
     free(list->items);
     list->_created = false;

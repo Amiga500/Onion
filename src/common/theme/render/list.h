@@ -257,20 +257,24 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
 
         SDL_Surface *preview = (SDL_Surface *)active_preview->preview_ptr;
         if (preview) {
-            bool free_after = false;
-
             if (preview->w > preview_width || (params.preview_stretch && preview->w < preview_width)) {
-                double scale = (double)preview_width / (double)preview->w;
-                preview = zoomSurface(preview, scale, scale, params.preview_smoothing ? SMOOTHING_ON : SMOOTHING_OFF);
-                free_after = true;
+                // Use cached scaled preview if available and width matches
+                if (active_preview->_scaled_preview != NULL && active_preview->_scaled_preview_w == preview_width) {
+                    preview = (SDL_Surface *)active_preview->_scaled_preview;
+                } else {
+                    // Free old cache if width changed
+                    if (active_preview->_scaled_preview != NULL)
+                        SDL_FreeSurface((SDL_Surface *)active_preview->_scaled_preview);
+                    double scale = (double)preview_width / (double)preview->w;
+                    preview = zoomSurface(preview, scale, scale, params.preview_smoothing ? SMOOTHING_ON : SMOOTHING_OFF);
+                    active_preview->_scaled_preview = (void *)preview;
+                    active_preview->_scaled_preview_w = preview_width;
+                }
             }
 
             SDL_Rect preview_rect = {preview_x + (preview_width - preview->w) / 2,
                                      240 * g_scale - preview->h / 2};
             SDL_BlitSurface(preview, NULL, screen, &preview_rect);
-
-            if (free_after)
-                SDL_FreeSurface(preview);
         }
     }
 }
