@@ -76,7 +76,7 @@ void keyinput_send(unsigned short code, signed int value)
     if (keyinput_disabled)
         return;
     char cmd[100];
-    sprintf(cmd, "sendkeys %d %d", code, value);
+    snprintf(cmd, sizeof(cmd), "sendkeys %d %d", code, value);
     printf_debug("Send keys: code=%d, value=%d\n", code, value);
     _ignoreQueue_add(code, value);
     system(cmd);

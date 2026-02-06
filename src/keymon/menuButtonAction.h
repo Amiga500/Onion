@@ -33,7 +33,7 @@ void _action_runTool(const char *tool_name)
 {
     FILE *fp;
     char cmd[STR_MAX * 4];
-    sprintf(cmd, "cd /mnt/SDCARD/.tmp_update; ./bin/tweaks --apply_tool \"%s\"",
+    snprintf(cmd, sizeof(cmd), "cd /mnt/SDCARD/.tmp_update; ./bin/tweaks --apply_tool \"%s\"",
             tool_name);
     file_put_sync(fp, "/tmp/cmd_to_run.sh", "%s", cmd);
     write_mainui_state(MAIN_MENU, 0, 10);
@@ -86,7 +86,7 @@ bool terminate_retroarch(void)
         usleep(100000);
         retroarch_quit();
         // wait for terminate
-        sprintf(fname, "/proc/%d", pid);
+        snprintf(fname, sizeof(fname), "/proc/%d", pid);
 
         uint32_t count = 20; // 4s
         while (--count && exists(fname))
@@ -117,7 +117,7 @@ bool terminate_drastic(void)
             system("sendkeys 1 0, 18 0");
         };
 
-        sprintf(fname, "/proc/%d", pid);
+        snprintf(fname, sizeof(fname), "/proc/%d", pid);
         uint32_t count = 150; // 30s
 
         while (--count && exists(fname))
