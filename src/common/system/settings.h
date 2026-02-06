@@ -131,11 +131,16 @@ static settings_s __default_settings = (settings_s){
 void _settings_clone(settings_s *dst, settings_s *src)
 {
     *dst = *src;
-    strcpy(dst->keymap, src->keymap);
-    strcpy(dst->language, src->language);
-    strcpy(dst->theme, src->theme);
-    strcpy(dst->mainui_button_x, src->mainui_button_x);
-    strcpy(dst->mainui_button_y, src->mainui_button_y);
+    strncpy(dst->keymap, src->keymap, sizeof(dst->keymap) - 1);
+    dst->keymap[sizeof(dst->keymap) - 1] = '\0';
+    strncpy(dst->language, src->language, sizeof(dst->language) - 1);
+    dst->language[sizeof(dst->language) - 1] = '\0';
+    strncpy(dst->theme, src->theme, sizeof(dst->theme) - 1);
+    dst->theme[sizeof(dst->theme) - 1] = '\0';
+    strncpy(dst->mainui_button_x, src->mainui_button_x, sizeof(dst->mainui_button_x) - 1);
+    dst->mainui_button_x[sizeof(dst->mainui_button_x) - 1] = '\0';
+    strncpy(dst->mainui_button_y, src->mainui_button_y, sizeof(dst->mainui_button_y) - 1);
+    dst->mainui_button_y[sizeof(dst->mainui_button_y) - 1] = '\0';
 }
 
 void _settings_reset(settings_s *_settings)
@@ -187,7 +192,8 @@ void _settings_load_mainui(void)
     json_getString(json_root, "theme", settings.theme);
 
     if (strcmp(settings.theme, "./") == 0) {
-        strcpy(settings.theme, DEFAULT_THEME_PATH);
+        strncpy(settings.theme, DEFAULT_THEME_PATH, sizeof(settings.theme) - 1);
+        settings.theme[sizeof(settings.theme) - 1] = '\0';
     }
 
     cJSON_Delete(json_root);

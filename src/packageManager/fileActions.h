@@ -104,7 +104,8 @@ bool hasExtension(const char *file_name, const char *extlist)
         return false;
 
     char extlist_dup[STR_MAX];
-    strcpy(extlist_dup, extlist);
+    strncpy(extlist_dup, extlist, sizeof(extlist_dup) - 1);
+    extlist_dup[sizeof(extlist_dup) - 1] = '\0';
 
     char *token = strtok(extlist_dup, "|");
 
@@ -206,7 +207,8 @@ void loadPackages(bool auto_update)
 
         while ((ep = readdir(dp)) && package_count[nT] < LAYER_ITEM_COUNT) {
             char cShort[MAX_LAYER_NAME_SIZE];
-            strcpy(cShort, ep->d_name);
+            strncpy(cShort, ep->d_name, sizeof(cShort) - 1);
+            cShort[sizeof(cShort) - 1] = '\0';
 
             const char *file_name = ep->d_name;
             if (file_name[0] != '.') {
@@ -230,7 +232,8 @@ void loadPackages(bool auto_update)
                         changes_installs[nT]++;
                 }
 
-                strcpy(package.name, file_name);
+                strncpy(package.name, file_name, sizeof(package.name) - 1);
+                package.name[sizeof(package.name) - 1] = '\0';
 
                 packages[nT][package_count[nT]] = package;
                 package_count[nT]++;

@@ -235,10 +235,16 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
 {
     if (!file_path_relative_to(rel_path, ROMS_FOLDER, rom_path)) {
         if (strstr(rom_path, "../../Roms/") != NULL) {
-            strcpy(rel_path, str_split(strdup((const char *)rom_path), "../../Roms/"));
+            char *dup = strdup((const char *)rom_path);
+            strncpy(rel_path, str_split(dup, "../../Roms/"), PATH_MAX - 1);
+            rel_path[PATH_MAX - 1] = '\0';
+            free(dup);
         }
         else {
-            strcpy(rel_path, str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", ""));
+            char *replaced = str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", "");
+            strncpy(rel_path, replaced, PATH_MAX - 1);
+            rel_path[PATH_MAX - 1] = '\0';
+            free(replaced);
         }
     }
 }
@@ -512,7 +518,8 @@ void play_activity_fix_paths(void)
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         int rom_id = sqlite3_column_int(stmt, 0);
         char file_path[PATH_MAX];
-        strcpy(file_path, (const char *)sqlite3_column_text(stmt, 1));
+        strncpy(file_path, (const char *)sqlite3_column_text(stmt, 1), sizeof(file_path) - 1);
+        file_path[sizeof(file_path) - 1] = '\0';
 
         if (strlen(file_path) == 0) {
             continue;

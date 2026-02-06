@@ -27,6 +27,10 @@ int main(int argc, char *argv[])
 
     int input_fd;
     input_fd = open("/dev/input/event0", O_WRONLY);
+    if (input_fd < 0) {
+        perror("open /dev/input/event0");
+        return 1;
+    }
 
     for (int j = 0; j < num_events; j++) {
         printf_debug("sendkeys: code = %d, value = %d\n", events[j].code,

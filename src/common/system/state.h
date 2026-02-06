@@ -292,7 +292,8 @@ char *history_getRecentPath(char *rom_path)
             return NULL;
         }
 
-        strcpy(rom_path, romPathSearch);
+        strncpy(rom_path, romPathSearch, STR_MAX - 1);
+        rom_path[STR_MAX - 1] = '\0';
 
         fclose(file);
         return rom_path;
@@ -382,10 +383,13 @@ void resumeGame(int index)
             firstPart[position] = '\0';
 
             char secondPart[strlen(rompath) - position];
-            strcpy(secondPart, colonPosition + 1);
+            strncpy(secondPart, colonPosition + 1, strlen(rompath) - position - 1);
+            secondPart[strlen(rompath) - position - 1] = '\0';
 
-            strcpy(launch, firstPart);
-            strcpy(rompath, secondPart);
+            strncpy(launch, firstPart, sizeof(launch) - 1);
+            launch[sizeof(launch) - 1] = '\0';
+            strncpy(rompath, secondPart, sizeof(rompath) - 1);
+            rompath[sizeof(rompath) - 1] = '\0';
             printf_debug("launch cutted: %s\n", launch);
             printf_debug("rompath cutted: %s\n", rompath);
         }

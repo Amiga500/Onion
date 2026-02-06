@@ -15,10 +15,22 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Reject program names with shell metacharacters to prevent command injection
+    if (strchr(argv[1], '\'') != NULL || strchr(argv[1], ';') != NULL ||
+        strchr(argv[1], '|') != NULL || strchr(argv[1], '&') != NULL ||
+        strchr(argv[1], '$') != NULL || strchr(argv[1], '`') != NULL) {
+        fprintf(stderr, "Invalid program name\n");
+        return 1;
+    }
+
     char command[256];
-    snprintf(command, sizeof(command), "pkill -9 -f %s", argv[1]);
+    snprintf(command, sizeof(command), "pkill -9 -f '%s'", argv[1]);
 
     int input_fd = open("/dev/input/event0", O_RDONLY);
+    if (input_fd < 0) {
+        perror("open /dev/input/event0");
+        return 1;
+    }
     struct input_event event;
 
     while (read(input_fd, &event, sizeof(event)) == sizeof(event)) {
