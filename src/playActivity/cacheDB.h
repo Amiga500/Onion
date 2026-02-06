@@ -81,7 +81,7 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
         return CACHE_NOT_FOUND;
     char *cache_dir = dirname(rom_path_dup);
 
-    while (cache_dir[0] != '\0' && strlen(cache_dir) > 16) {
+    while (cache_dir[0] != '\0' && strnlen(cache_dir, 17) > 16) { // O(1) bounded check vs O(n) strlen
         strncpy(cache_name_out, basename(cache_dir), STR_MAX - 1);
         cache_name_out[STR_MAX - 1] = '\0';
         cache_version = cache_get_path_and_version(cache_path_out, cache_dir, cache_name_out);

@@ -100,29 +100,22 @@ void secondsToHoursMinutes(int seconds, char *output)
 void drawLine(int x1, int y1, int x2, int y2, Uint32 color)
 {
     int dx, dy, sx, sy, err, e2;
+    // Direct pixel write — avoids SDL_FillRect overhead per pixel
+    const int pitch_px = screen->pitch / sizeof(Uint32);
+    Uint32 *pixels = (Uint32 *)screen->pixels;
 
     dx = abs(x2 - x1);
     dy = abs(y2 - y1);
 
-    if (x1 < x2) {
-        sx = 1;
-    }
-    else {
-        sx = -1;
-    }
-
-    if (y1 < y2) {
-        sy = 1;
-    }
-    else {
-        sy = -1;
-    }
+    sx = x1 < x2 ? 1 : -1;
+    sy = y1 < y2 ? 1 : -1;
 
     err = dx - dy;
 
     while (1) {
-        SDL_Rect pixel = {x1, y1, 1, 1};
-        SDL_FillRect(screen, &pixel, color);
+        if (x1 >= 0 && x1 < screen->w && y1 >= 0 && y1 < screen->h) {
+            pixels[y1 * pitch_px + x1] = color;
+        }
 
         if (x1 == x2 && y1 == y2) {
             break;

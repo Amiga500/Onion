@@ -234,10 +234,11 @@ bool addRandomFromJson(char *json_path)
 
         if (type == TYPE_GAME || type == TYPE_EXPERT) {
             GameEntry *game = &random_games[count];
-            memset(game->label, 0, strlen(game->label));
-            memset(game->path, 0, strlen(game->path));
-            memset(game->img_path, 0, strlen(game->img_path));
-            memset(game->launch_path, 0, strlen(game->launch_path));
+            // Clear fields — use sizeof, not strlen (avoids scanning uninitialized data)
+            game->label[0] = '\0';
+            game->path[0] = '\0';
+            game->img_path[0] = '\0';
+            game->launch_path[0] = '\0';
 
             game->id = type;
             game->sum = 1;
