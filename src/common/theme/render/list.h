@@ -125,8 +125,12 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         if (i == list->active_pos) {
             SDL_BlitSurface(item_bg, &item_bg_size, screen, &item_bg_rect);
 
-            if (item->preview_ptr == NULL && item->preview_path[0] != '\0' && is_file(item->preview_path)) {
-                item->preview_ptr = (void *)IMG_Load(item->preview_path);
+            if (item->preview_ptr == NULL && item->preview_path[0] != '\0') {
+                if (is_file(item->preview_path)) {
+                    item->preview_ptr = (void *)IMG_Load(item->preview_path);
+                } else {
+                    item->preview_path[0] = '\0'; // Cache negative result — stop re-checking
+                }
             }
 
             if (item->preview_ptr != NULL)

@@ -391,8 +391,6 @@ void renderPage()
     renderTextAlignRight(session_left, font_Arkhip, color_white, &(SDL_Rect){LABEL_LEFT_X, LABEL_LEFT_Y, LABEL_SIZE_X, LABEL_SIZE_Y});
     renderTextAlignRight(session_best, font_Arkhip, color_white, &(SDL_Rect){LABEL_BEST_X, LABEL_BEST_Y, LABEL_SIZE_X, LABEL_SIZE_Y});
 
-    int half_line_width = (int)(GRAPH_LINE_WIDTH) / 2;
-
     Uint32 white_pixel_color = SDL_MapRGBA(screen->format, 255, 255, 255, 0);
     Uint32 red_pixel_color = SDL_MapRGBA(screen->format, 255, 170, 170, 0);
     Uint32 blue_pixel_color = SDL_MapRGBA(screen->format, 89, 167, 255, 0);
@@ -402,46 +400,50 @@ void renderPage()
     int y;
     int x_end = 0;
     int y_end = 0;
-    int index;
 
     int zoom_level = (int)segment_duration / 1800;
 
+    // Pre-compute constants outside the loop
+    const int x_limit = GRAPH_DISPLAY_START_X + GRAPH_DISPLAY_SIZE_X;
+    const int y_est_limit = GRAPH_DISPLAY_START_Y + 5;
+    const int y_end_offset = GRAPH_DISPLAY_SIZE_Y + GRAPH_DISPLAY_START_Y - 45;
+    const int loop_limit = graph_max_size - current_index;
+
     if (SDL_LockSurface(screen) == 0) {
-        for (int i = 0; i < graph_max_size - current_index; i += zoom_level) {
+        Uint8 *pixels = (Uint8 *)screen->pixels;
+        const int pitch = screen->pitch;
+        const int bpp = screen->format->BytesPerPixel;
+
+        for (int i = 0; i < loop_limit; i += zoom_level) {
 
             x = GRAPH_DISPLAY_START_X + (int)(i / zoom_level);
-            y = graphic[i + current_index].pixel_height;
+            const graph_spot *spot = &graphic[i + current_index];
+            y = spot->pixel_height;
 
-            bool is_charging = graphic[i + current_index].is_charging;
-            bool is_estimated = graphic[i + current_index].is_estimated;
-            //if ((!is_charging)
-            if ((!is_charging) && (!is_estimated))
+            if (!spot->is_charging && !spot->is_estimated)
                 pixel_color = white_pixel_color;
-            else if (is_charging)
+            else if (spot->is_charging)
                 pixel_color = red_pixel_color;
-            else if (is_estimated) {
+            else {
                 pixel_color = blue_pixel_color;
-                if ((y < GRAPH_DISPLAY_START_Y + 5) && (x < GRAPH_DISPLAY_SIZE_X + GRAPH_DISPLAY_START_X)) {
+                if ((y < y_est_limit) && (x < x_limit)) {
                     x_end = x - 12;
-                    y_end = GRAPH_DISPLAY_SIZE_Y + GRAPH_DISPLAY_START_Y - 45;
+                    y_end = y_end_offset;
                 }
             }
 
-            if (x < (GRAPH_DISPLAY_START_X + GRAPH_DISPLAY_SIZE_X)) {
-                if (half_line_width >= 0) {
-                    for (int k = -half_line_width; k <= half_line_width; k++) {
-                        index = (480 - y + k) * screen->pitch + x * screen->format->BytesPerPixel;
-                        *((Uint32 *)((Uint8 *)screen->pixels + index)) = pixel_color;
-                    }
-                }
+            if (x < x_limit) {
+                // Direct pixel write (GRAPH_LINE_WIDTH=1, so half_line_width=0, single pixel)
+                const int x_byte_offset = x * bpp;
+                *((Uint32 *)(pixels + (480 - y) * pitch + x_byte_offset)) = pixel_color;
 
-                // Graph background
+                // Graph background: step by GRAPH_BACKGROUND_OPACITY instead of modulo check
                 if ((x % GRAPH_BACKGROUND_OPACITY) == 0) {
-                    for (int k = y; k > GRAPH_DISPLAY_START_Y; k--) {
-                        if ((k % GRAPH_BACKGROUND_OPACITY) == 0) {
-                            index = (480 - k) * screen->pitch + x * screen->format->BytesPerPixel;
-                            *((Uint32 *)((Uint8 *)screen->pixels + index)) = pixel_color;
-                        }
+                    // Round y down to nearest multiple of GRAPH_BACKGROUND_OPACITY
+                    int k_start = y - (y % GRAPH_BACKGROUND_OPACITY);
+                    if (k_start == y) k_start -= GRAPH_BACKGROUND_OPACITY;
+                    for (int k = k_start; k > GRAPH_DISPLAY_START_Y; k -= GRAPH_BACKGROUND_OPACITY) {
+                        *((Uint32 *)(pixels + (480 - k) * pitch + x_byte_offset)) = pixel_color;
                     }
                 }
             }
