@@ -176,6 +176,10 @@ $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354:
 	@$(ECHO) $(PRINT_RECIPE)
 # RetroArch
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build RetroArch"$(COLOR_NORMAL)
+	@if [ ! -f $(THIRD_PARTY_DIR)/RetroArch-patch/Makefile ]; then \
+		$(ECHO) $(COLOR_BLUE)"-- Initializing RetroArch-patch submodule"$(COLOR_NORMAL); \
+		git submodule update --init $(THIRD_PARTY_DIR)/RetroArch-patch; \
+	fi
 	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && make
 
 external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354
@@ -186,14 +190,26 @@ external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo
 	@$(BUILD_DIR)/.tmp_update/script/build_ext_cache.sh $(BUILD_DIR)/RetroArch/.retroarch
 # SearchFilter
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build SearchFilter"$(COLOR_NORMAL)
+	@if [ ! -f $(THIRD_PARTY_DIR)/SearchFilter/Makefile ]; then \
+		$(ECHO) $(COLOR_BLUE)"-- Initializing SearchFilter submodule"$(COLOR_NORMAL); \
+		git submodule update --init $(THIRD_PARTY_DIR)/SearchFilter; \
+	fi
 	@cd $(THIRD_PARTY_DIR)/SearchFilter && make build && cp -a build/. $(BUILD_DIR)
 	@cp -a $(BUILD_DIR)/App/Search/. "$(PACKAGES_APP_DEST)/Search (Find your games)/App/Search"
 	@mv -f $(BUILD_DIR)/App/Filter/* "$(PACKAGES_APP_DEST)/List shortcuts (Filter+Refresh)/App/Filter"
 	@rmdir $(BUILD_DIR)/App/Filter
 # Other
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build Terminal"$(COLOR_NORMAL)
+	@if [ ! -f $(THIRD_PARTY_DIR)/Terminal/Makefile ]; then \
+		$(ECHO) $(COLOR_BLUE)"-- Initializing Terminal submodule"$(COLOR_NORMAL); \
+		git submodule update --init $(THIRD_PARTY_DIR)/Terminal; \
+	fi
 	@cd $(THIRD_PARTY_DIR)/Terminal && make && cp ./st "$(BIN_DIR)"
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build DinguxCommander"$(COLOR_NORMAL)
+	@if [ ! -f $(THIRD_PARTY_DIR)/DinguxCommander/Makefile ]; then \
+		$(ECHO) $(COLOR_BLUE)"-- Initializing DinguxCommander submodule"$(COLOR_NORMAL); \
+		git submodule update --init $(THIRD_PARTY_DIR)/DinguxCommander; \
+	fi
 	@cd $(THIRD_PARTY_DIR)/DinguxCommander && make && cp ./output/DinguxCommander "$(PACKAGES_APP_DEST)/File Explorer (DinguxCommander)/App/Commander_Italic"
 
 dist: build
@@ -232,10 +248,10 @@ clean:
 
 deepclean: clean
 	@rm -rf $(CACHE)
-	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && make clean
-	@cd $(THIRD_PARTY_DIR)/SearchFilter && make clean
-	@cd $(THIRD_PARTY_DIR)/Terminal && make clean
-	@cd $(THIRD_PARTY_DIR)/DinguxCommander && make clean
+	@test -f $(THIRD_PARTY_DIR)/RetroArch-patch/Makefile && cd $(THIRD_PARTY_DIR)/RetroArch-patch && make clean || true
+	@test -f $(THIRD_PARTY_DIR)/SearchFilter/Makefile && cd $(THIRD_PARTY_DIR)/SearchFilter && make clean || true
+	@test -f $(THIRD_PARTY_DIR)/Terminal/Makefile && cd $(THIRD_PARTY_DIR)/Terminal && make clean || true
+	@test -f $(THIRD_PARTY_DIR)/DinguxCommander/Makefile && cd $(THIRD_PARTY_DIR)/DinguxCommander && make clean || true
 
 dev: clean
 	@$(MAKE_DEV)

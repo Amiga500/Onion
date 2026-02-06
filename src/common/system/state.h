@@ -302,9 +302,10 @@ char *history_getRecentPath(char *rom_path)
 
 bool history_getRomscreenPath(char *path_out)
 {
-    char filename[STR_MAX];
+    char filename[32];
     char file_path[STR_MAX];
 
+    filename[0] = '\0';
     if (history_getRecentPath(file_path) != NULL) {
         snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
     }
