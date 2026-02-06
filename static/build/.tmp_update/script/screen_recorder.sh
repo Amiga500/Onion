@@ -19,7 +19,7 @@ if [ ! -d "$re_dir" ]; then
     mkdir -p "$re_dir"
 fi
 
-cd $re_dir
+cd "$re_dir"
 
 # we'll hopefully never need this, but it checks whether /dev/l has the screen init already (and mi_disp exists, otherwise we can't change the screen colour)
 # the function will call, the binary will run but if it detects disp is init it will return
@@ -30,7 +30,7 @@ check_disp_init() {
     fi
 
     if ! pgrep -f "/dev/l" >/dev/null; then
-        $sysdir/bin/disp_init &
+        "$sysdir/bin/disp_init" &
     fi
 }
 
@@ -144,7 +144,7 @@ show_countdown() {
 }
 
 show_indicator() {
-    imgpop 10000 0 $rec_icon 150 435 >/dev/null 2>&1 &
+    imgpop 10000 0 "$rec_icon" 150 435 >/dev/null 2>&1 &
 }
 
 toggle_ffmpeg() {
