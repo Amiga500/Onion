@@ -125,7 +125,6 @@ static inline void neon_argb_to_rgba_alpha(uint32_t *dst, const uint32_t *src, i
             "mov r4, %[s]\n\t"
             "mov r5, %[d]\n\t"
             "mov r6, %[neon_count]\n\t"
-            "vmov.i32 q8, #0\n\t"        /* zero register for alpha comparison */
             "1:\n\t"
             "pld [r4, #64]\n\t"
             "vld4.8 {d0-d3}, [r4]!\n\t"  /* d0=B, d1=G, d2=R, d3=A (8 px) */
@@ -134,14 +133,13 @@ static inline void neon_argb_to_rgba_alpha(uint32_t *dst, const uint32_t *src, i
             "vbic d0, d0, d4\n\t"        /* zero R where A==0 */
             "vbic d1, d1, d4\n\t"        /* zero G where A==0 */
             "vbic d2, d2, d4\n\t"        /* zero B where A==0 */
-            "vbic d3, d3, d4\n\t"        /* zero A where A==0 (already 0) */
             "vst4.8 {d0-d3}, [r5]!\n\t"
             "subs r6, r6, #8\n\t"
             "bgt 1b\n\t"
             : [s] "+r"(s), [d] "+r"(d), [neon_count] "+r"(neon_count)
             :
             : "r4", "r5", "r6", "d0", "d1", "d2", "d3", "d4",
-              "q8", "memory", "cc");
+              "memory", "cc");
     }
     /* scalar tail */
     for (i = (count & ~7); i < count; i++) {

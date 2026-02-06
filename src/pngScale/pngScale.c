@@ -23,7 +23,8 @@
 static inline void swap_rb_channels(const uint32_t *src, uint32_t *dst, uint32_t count)
 {
     if (src == dst) {
-        neon_swap_rb_inplace((uint32_t *)src, (int)count);
+        /* In-place swap: caller guarantees src is writable when src==dst */
+        neon_swap_rb_inplace(dst, (int)count);
     } else {
         neon_argb_to_rgba((uint32_t *)dst, src, (int)count);
     }
