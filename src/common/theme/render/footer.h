@@ -5,6 +5,20 @@
 #include "theme/config.h"
 #include "theme/resources.h"
 
+// Cached hint label surfaces to avoid TTF_RenderUTF8_Blended every frame
+static SDL_Surface *_cached_label_a = NULL;
+static SDL_Surface *_cached_label_b = NULL;
+static char _cached_label_a_str[STR_MAX] = "";
+static char _cached_label_b_str[STR_MAX] = "";
+
+void theme_renderStandardHint_cleanup(void)
+{
+    if (_cached_label_a) { SDL_FreeSurface(_cached_label_a); _cached_label_a = NULL; }
+    if (_cached_label_b) { SDL_FreeSurface(_cached_label_b); _cached_label_b = NULL; }
+    _cached_label_a_str[0] = '\0';
+    _cached_label_b_str[0] = '\0';
+}
+
 void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
                               const char *btn_b_str)
 {
@@ -21,7 +35,6 @@ void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
     SDL_Rect btn_a_rect = {offsetX, 450.0 * g_scale};
     SDL_Rect label_open_rect = {0, 449.0 * g_scale};
 
-    SDL_Surface *label_open, *label_back;
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
 
     if (button_a) {
@@ -30,34 +43,42 @@ void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
         offsetX += button_a->w + 5;
     }
 
-    TTF_Font *font_hint = resource_getFont(HINT);
-    label_open =
-        TTF_RenderUTF8_Blended(font_hint, label_a_str, theme()->hint.color);
-
-    if (label_open) {
-        label_open_rect.x = offsetX;
-        label_open_rect.y -= label_open->h / 2;
-        SDL_BlitSurface(label_open, NULL, screen, &label_open_rect);
-        offsetX += label_open->w + 30.0 * g_scale;
+    // Cache label_a surface — only re-render when text changes
+    if (strcmp(label_a_str, _cached_label_a_str) != 0) {
+        if (_cached_label_a) SDL_FreeSurface(_cached_label_a);
+        TTF_Font *font_hint = resource_getFont(HINT);
+        _cached_label_a = TTF_RenderUTF8_Blended(font_hint, label_a_str, theme()->hint.color);
+        strncpy(_cached_label_a_str, label_a_str, STR_MAX - 1);
+        _cached_label_a_str[STR_MAX - 1] = '\0';
     }
 
-    if (btn_b_str != NULL && strlen(label_b_str) > 0) {
+    if (_cached_label_a) {
+        label_open_rect.x = offsetX;
+        label_open_rect.y -= _cached_label_a->h / 2;
+        SDL_BlitSurface(_cached_label_a, NULL, screen, &label_open_rect);
+        offsetX += _cached_label_a->w + 30.0 * g_scale;
+    }
+
+    if (btn_b_str != NULL && label_b_str[0] != '\0') {
         SDL_Surface *button_b = resource_getSurface(BUTTON_B);
         SDL_Rect btn_b_rect = {offsetX, 450.0 * g_scale - button_b->h / 2};
         SDL_BlitSurface(button_b, NULL, screen, &btn_b_rect);
         offsetX += button_b->w + 5;
 
-        label_back =
-            TTF_RenderUTF8_Blended(font_hint, label_b_str, theme()->hint.color);
+        // Cache label_b surface — only re-render when text changes
+        if (strcmp(label_b_str, _cached_label_b_str) != 0) {
+            if (_cached_label_b) SDL_FreeSurface(_cached_label_b);
+            TTF_Font *font_hint = resource_getFont(HINT);
+            _cached_label_b = TTF_RenderUTF8_Blended(font_hint, label_b_str, theme()->hint.color);
+            strncpy(_cached_label_b_str, label_b_str, STR_MAX - 1);
+            _cached_label_b_str[STR_MAX - 1] = '\0';
+        }
 
-        if (label_back) {
-            SDL_Rect label_back_rect = {offsetX, 449.0 * g_scale - label_back->h / 2};
-            SDL_BlitSurface(label_back, NULL, screen, &label_back_rect);
-            SDL_FreeSurface(label_back);
+        if (_cached_label_b) {
+            SDL_Rect label_back_rect = {offsetX, 449.0 * g_scale - _cached_label_b->h / 2};
+            SDL_BlitSurface(_cached_label_b, NULL, screen, &label_back_rect);
         }
     }
-
-    SDL_FreeSurface(label_open);
 }
 
 void theme_renderFooter(SDL_Surface *screen)
