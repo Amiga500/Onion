@@ -16,11 +16,13 @@ int main(int argc, char *argv[])
     }
 
     // Reject program names with shell metacharacters to prevent command injection
-    if (strchr(argv[1], '\'') != NULL || strchr(argv[1], ';') != NULL ||
-        strchr(argv[1], '|') != NULL || strchr(argv[1], '&') != NULL ||
-        strchr(argv[1], '$') != NULL || strchr(argv[1], '`') != NULL) {
-        fprintf(stderr, "Invalid program name\n");
-        return 1;
+    for (const char *p = argv[1]; *p; p++) {
+        if (!(*p >= 'a' && *p <= 'z') && !(*p >= 'A' && *p <= 'Z') &&
+            !(*p >= '0' && *p <= '9') && *p != '_' && *p != '-' &&
+            *p != '.' && *p != '/') {
+            fprintf(stderr, "Invalid program name\n");
+            return 1;
+        }
     }
 
     char command[256];
