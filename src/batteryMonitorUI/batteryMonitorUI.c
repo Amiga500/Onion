@@ -439,9 +439,8 @@ void renderPage()
 
                 // Graph background: step by GRAPH_BACKGROUND_OPACITY instead of modulo check
                 if ((x % GRAPH_BACKGROUND_OPACITY) == 0) {
-                    // Round y down to nearest multiple of GRAPH_BACKGROUND_OPACITY
-                    int k_start = y - (y % GRAPH_BACKGROUND_OPACITY);
-                    if (k_start == y) k_start -= GRAPH_BACKGROUND_OPACITY;
+                    // Start at highest grid line below y
+                    int k_start = ((y - 1) / GRAPH_BACKGROUND_OPACITY) * GRAPH_BACKGROUND_OPACITY;
                     for (int k = k_start; k > GRAPH_DISPLAY_START_Y; k -= GRAPH_BACKGROUND_OPACITY) {
                         *((Uint32 *)(pixels + (480 - k) * pitch + x_byte_offset)) = pixel_color;
                     }
