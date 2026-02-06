@@ -18,7 +18,6 @@ void theme_renderHeaderBattery(SDL_Surface *screen, int battery_percentage)
     SDL_Surface *battery = theme_batterySurface(battery_percentage);
     SDL_Rect battery_rect = {596.0 * g_scale - battery->w / 2, 30.0 * g_scale - battery->h / 2};
     SDL_BlitSurface(battery, NULL, screen, &battery_rect);
-    SDL_FreeSurface(battery);
 }
 
 void theme_renderHeaderBatteryCustom(SDL_Surface *screen,
@@ -28,7 +27,6 @@ void theme_renderHeaderBatteryCustom(SDL_Surface *screen,
     SDL_Rect battery_rect = {596.0 * g_scale - battery->w / 2,
                              header_height / 2 - battery->h / 2};
     SDL_BlitSurface(battery, NULL, screen, &battery_rect);
-    SDL_FreeSurface(battery);
 }
 
 void theme_renderHeader(SDL_Surface *screen, const char *title_str, bool show_logo)

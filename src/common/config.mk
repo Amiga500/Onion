@@ -35,6 +35,8 @@ CFLAGS := -I../../include -I../common -DPLATFORM_$(shell echo $(PLATFORM) | tr a
 
 ifeq ($(DEBUG),1)
 CFLAGS := $(CFLAGS) -DLOG_DEBUG -g3
+else
+CFLAGS := $(CFLAGS) -O2
 endif
 
 ifeq ($(TEST),1)

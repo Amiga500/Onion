@@ -159,7 +159,19 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
 
 SDL_Surface *theme_batterySurface(int percentage)
 {
-    return theme_batterySurfaceWithBg(percentage, NULL);
+    // Cache the battery surface — only regenerate when percentage changes
+    static int cached_percentage = -1;
+    static SDL_Surface *cached_surface = NULL;
+
+    if (percentage == cached_percentage && cached_surface != NULL)
+        return cached_surface;
+
+    if (cached_surface != NULL)
+        SDL_FreeSurface(cached_surface);
+
+    cached_surface = theme_batterySurfaceWithBg(percentage, NULL);
+    cached_percentage = percentage;
+    return cached_surface;
 }
 
 #endif // RENDER_BATTERY_H__
