@@ -82,10 +82,10 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
 
     if (emuname_out != NULL) {
         char label_temp[STR_MAX];
-        if (!json_getString(json_root, "label", label_temp))
+        if (!json_getString(json_root, "label", label_temp)) {
             strncpy(emuname_out, basename(emupath), STR_MAX - 1);
             emuname_out[STR_MAX - 1] = '\0';
-        else
+        } else
             str_trim(emuname_out, STR_MAX - 1, label_temp, false);
     }
 

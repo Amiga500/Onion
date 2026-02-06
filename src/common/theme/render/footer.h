@@ -112,6 +112,9 @@ void theme_renderFooterStatus(SDL_Surface *screen, int current_num,
 
         SDL_FreeSurface(total);
     }
+    else if (current) {
+        SDL_FreeSurface(current);
+    }
 }
 
 void theme_renderListFooter(SDL_Surface *screen, int current_num, int total_num,

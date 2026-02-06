@@ -170,6 +170,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 640 * g_scale - 20 * g_scale - arrow_right->w - multivalue_width / 2 - label_width / 2,
                 item_center_y - value_size.h / 2};
             SDL_BlitSurface(value_label, &value_size, screen, &value_pos);
+            SDL_FreeSurface(value_label);
         }
 
         theme_renderListLabel(screen, item->label, theme()->list.color,
