@@ -94,7 +94,10 @@ void keyinput_sendMulti(int n, int code_value_pairs[n][2])
         int code = code_value_pairs[i][0];
         int value = code_value_pairs[i][1];
         _ignoreQueue_add(code, value);
-        offset += snprintf(cmd + offset, sizeof(cmd) - offset, "%d %d ", code, value);
+        int written = snprintf(cmd + offset, sizeof(cmd) - offset, "%d %d ", code, value);
+        if (written < 0 || offset + written >= (int)sizeof(cmd))
+            break;
+        offset += written;
     }
 
     printf_debug("Send keys: %s\n", cmd);

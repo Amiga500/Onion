@@ -360,7 +360,7 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         }
     }
     size_t p2_len = strlen(p2);
-    if (offset + p2_len < PATH_MAX) {
+    if (offset + p2_len + 1 < PATH_MAX) {
         memcpy(path_out + offset, p2, p2_len);
         offset += p2_len;
     }
