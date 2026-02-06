@@ -65,6 +65,10 @@ This document details all security hardening and extreme performance optimizatio
 | **NEON: rotate180** | Theme background load | rotozoomSurface(180°) bilinear | neon_rotate180_inplace vrev64+vswp | ⚡ **~50× faster** |
 | **Preview zoom cache** | List preview rendering | zoomSurface() EVERY frame | Cached per-item, invalidated on change | 📺 **~5-20 ms/frame saved** |
 | **Easter frame timing** | Easter egg animation | SDL_Delay(2)=500fps busy-wait | SDL_GetTicks() @ 60/30fps | 🔋 **~87% CPU saved** |
+| **Rumble GPIO cache** | Vibration motor | export+direction every call (3 writes) | init once, value only (1 write) | 🔋 **67% fewer writes** |
+| **Footer status cache** | Page N/M indicator | 2× TTF_Render/frame | 0 (number-change detection) | 📺 **~1 ms/frame saved** |
+| **file_read optimization** | All config + JSON loads | 7 syscalls (stdio) | 4 syscalls (raw I/O) | ⚡ **43% fewer syscalls** |
+| **GS float→int** | GameSwitcher arrows/text | 30.0*g_scale computed 3-4×/frame | Pre-computed int constant | 📺 **Eliminate FPU per frame** |
 
 ### 🏆 Cumulative Performance Gains
 
@@ -87,6 +91,10 @@ This document details all security hardening and extreme performance optimizatio
 | **+ NEON rotate180** | **~50× faster** bg load | In-place pixel reversal replaces bilinear rotozoom |
 | **+ Preview zoom cache** | **-5-20 ms/frame** | zoomSurface result cached per-item |
 | **+ Easter frame timing** | **-87% CPU** in easter | Proper SDL_GetTicks-based frame pacing |
+| **+ Rumble GPIO cache** | **-67% writes** per pulse | Export+direction only on first call |
+| **+ Footer status cache** | **-2 TTF renders/frame** | Page N/M numbers cached until value changes |
+| **+ file_read optimization** | **7→4 syscalls** | stat64+open+read+close replaces fopen+fseek+ftell+fseek+fread+fclose |
+| **+ GS float→int constants** | **Eliminate FPU per frame** | `30.0*g_scale` computed once, reused for arrow + text positioning |
 
 ### 🎯 Real-World Impact Estimates (Miyoo Mini)
 
