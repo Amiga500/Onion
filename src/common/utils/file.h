@@ -127,6 +127,14 @@ void file_delete_line(const char *fileName, int n);
 void file_add_line_to_beginning(const char *filename, const char *lineToAdd);
 
 /**
+ * @brief Recursively remove a directory and all its contents.
+ *
+ * @param path The directory to remove.
+ * @return 0 on success, -1 on error.
+ */
+int file_remove_recursive(const char *path);
+
+/**
  * @brief Resolve a path to an absolute path
  * 
  * "/mnt/SDCARD/Emu/GBA/../../Roms/GBA/game.gba" -> "/mnt/SDCARD/Roms/GBA/game.gba"

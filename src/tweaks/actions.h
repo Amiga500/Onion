@@ -447,7 +447,21 @@ void action_deleteAllRecordings(void *pt)
         }
     }
 
-    system("rm -f /mnt/SDCARD/Media/Videos/Recorded/*.mp4");
+    {
+        DIR *dir = opendir("/mnt/SDCARD/Media/Videos/Recorded");
+        if (dir) {
+            struct dirent *entry;
+            char fpath[PATH_MAX];
+            while ((entry = readdir(dir)) != NULL) {
+                const char *ext = strrchr(entry->d_name, '.');
+                if (ext && strcmp(ext, ".mp4") == 0) {
+                    snprintf(fpath, sizeof(fpath), "/mnt/SDCARD/Media/Videos/Recorded/%s", entry->d_name);
+                    remove(fpath);
+                }
+            }
+            closedir(dir);
+        }
+    }
     list_updateStickyNote(item, "Recorded directory emptied!");
     if (!_disable_confirm)
         _notifyResetDone("Deleted!");

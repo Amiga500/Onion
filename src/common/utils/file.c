@@ -1,10 +1,12 @@
 #define _LARGEFILE64_SOURCE
+#define _XOPEN_SOURCE 500
 
 #include "file.h"
 
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <ftw.h>
 #include <limits.h>
 #include <regex.h>
 #include <stdbool.h>
@@ -72,18 +74,23 @@ const char *file_basename(const char *filename)
  */
 bool mkdirs(const char *dir_path)
 {
-    if (!exists(dir_path)) {
-        // Reject paths with single quotes to prevent shell injection
-        if (strchr(dir_path, '\'') != NULL)
-            return false;
-        char dir_cmd[512];
-        int n = snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p '%s'", dir_path);
-        if (n < 0 || (size_t)n >= sizeof(dir_cmd))
-            return false;
-        system(dir_cmd);
-        return true;
+    if (exists(dir_path))
+        return false;
+
+    char tmp[PATH_MAX];
+    size_t len = strlen(dir_path);
+    if (len == 0 || len >= sizeof(tmp))
+        return false;
+    memcpy(tmp, dir_path, len + 1);
+
+    for (char *p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(tmp, 0755);
+            *p = '/';
+        }
     }
-    return false;
+    return mkdir(tmp, 0755) == 0 || errno == EEXIST;
 }
 
 void file_readLastLine(const char *filename, char *out_str)
@@ -162,12 +169,40 @@ bool file_write(const char *path, const char *str, uint32_t len)
 
 void file_copy(const char *src_path, const char *dest_path)
 {
-    // Reject paths with double quotes to prevent shell injection
-    if (strchr(src_path, '"') != NULL || strchr(dest_path, '"') != NULL)
+    int src_fd = open(src_path, O_RDONLY);
+    if (src_fd < 0)
         return;
-    char system_cmd[4128];
-    snprintf(system_cmd, sizeof(system_cmd), "cp -f \"%s\" \"%s\"", src_path, dest_path);
-    system(system_cmd);
+
+    struct stat st;
+    if (fstat(src_fd, &st) < 0) {
+        close(src_fd);
+        return;
+    }
+
+    int dst_fd = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, st.st_mode);
+    if (dst_fd < 0) {
+        close(src_fd);
+        return;
+    }
+
+    char buf[4096];
+    ssize_t nread;
+    while ((nread = read(src_fd, buf, sizeof(buf))) > 0) {
+        const char *p = buf;
+        while (nread > 0) {
+            ssize_t nwritten = write(dst_fd, p, nread);
+            if (nwritten < 0) {
+                close(src_fd);
+                close(dst_fd);
+                return;
+            }
+            nread -= nwritten;
+            p += nwritten;
+        }
+    }
+
+    close(src_fd);
+    close(dst_fd);
 }
 
 char *file_removeExtension(const char *myStr)
@@ -576,4 +611,20 @@ char *file_resolvePath(const char *path)
     }
 
     return resolvedPath;
+}
+
+static int _remove_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+{
+    (void)sb;
+    (void)ftwbuf;
+    if (typeflag == FTW_DP)
+        return rmdir(fpath);
+    return remove(fpath);
+}
+
+int file_remove_recursive(const char *path)
+{
+    if (path == NULL || !exists(path))
+        return -1;
+    return nftw(path, _remove_cb, 64, FTW_DEPTH | FTW_PHYS);
 }

@@ -50,14 +50,14 @@ void _saveConfigFile(const char *config_path, const char *content)
     fclose(config_file);
 
     if (strcmp(SEARCH_CONFIG_SRC, config_path) == 0 && is_file(SEARCH_CONFIG))
-        system("cp \"" SEARCH_CONFIG_SRC "\" \"" SEARCH_CONFIG "\"");
+        file_copy(SEARCH_CONFIG_SRC, SEARCH_CONFIG);
     else if (strcmp(GUEST_OFF_CONFIG, config_path) == 0) {
         if (is_dir(GUEST_DIR)) // main profile
-            system("cp \"" GUEST_OFF_CONFIG "\" \"" GUEST_CONFIG "\"");
+            file_copy(GUEST_OFF_CONFIG, GUEST_CONFIG);
     }
     else if (strcmp(GUEST_ON_CONFIG, config_path) == 0) {
         if (!is_dir(GUEST_DIR)) // guest profile
-            system("cp \"" GUEST_ON_CONFIG "\" \"" GUEST_CONFIG "\"");
+            file_copy(GUEST_ON_CONFIG, GUEST_CONFIG);
     }
 }
 
