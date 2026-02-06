@@ -346,7 +346,7 @@ int updateADCValue(int value)
     if (battery_isCharging())
         return 100;
 
-    if (sar_fd <= 0) {
+    if (sar_fd < 0) {
         sar_fd = open("/dev/sar", O_WRONLY);
         ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
     }
