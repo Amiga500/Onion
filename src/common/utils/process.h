@@ -60,6 +60,13 @@ void process_kill(const char *commname)
         kill(pid, SIGKILL);
 }
 
+void process_kill_signal(const char *commname, int sig)
+{
+    pid_t pid;
+    if ((pid = process_searchpid(commname)))
+        kill(pid, sig);
+}
+
 void process_killall(const char *commname)
 {
     pid_t pid;

@@ -12,6 +12,7 @@
 #include "system/battery.h"
 #include "system/screenshot.h"
 #include "utils/msleep.h"
+#include "utils/process.h"
 #include "utils/str.h"
 
 #include "gs_appState.h"
@@ -146,21 +147,21 @@ void overlay_exit(void)
         }
 
         // try graceful shutdown first
-        system("killall -TERM retroarch");
+        process_kill_signal("retroarch", SIGTERM);
 
         // wait up to 5 seconds for RetroArch to exit
         for (int i = 0; i < 10; i++) {
             msleep(500);  // 0.5s x 10 = 5s
-            if (system("pidof retroarch > /dev/null") != 0) {
+            if (!process_isRunning("retroarch")) {
                 break;  // retroarch is gone
             }
         }
 
         // if still running, force kill
-        if (system("pidof retroarch > /dev/null") == 0) {
+        if (process_isRunning("retroarch")) {
             print_debug("RetroArch still running, force killing...");
             temp_flag_set(".forceKillRetroarch", true);
-            system("killall -9 retroarch");
+            process_kill("retroarch");
         }
     }
 }

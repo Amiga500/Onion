@@ -4,7 +4,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+
+#ifdef __ARM_NEON
+#include <arm_neon.h>
+#endif
 
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 #define ERROR(str)                 \
@@ -14,9 +19,48 @@
     }
 
 //
+//	Swap R and B channels: ABGR8888 <-> ARGB8888 (4 bytes per pixel)
+//	Processes pixels in bulk using NEON SIMD when available.
+//
+static void swap_rb_channels(const uint32_t *src, uint32_t *dst, uint32_t count)
+{
+#ifdef __ARM_NEON
+    uint32_t i = 0;
+    // Process 4 pixels (16 bytes) at a time with NEON
+    // Swap byte 0 (R) and byte 2 (B) within each 32-bit pixel
+    for (; i + 4 <= count; i += 4) {
+        uint8x16_t pixels = vld1q_u8((const uint8_t *)(src + i));
+        // ARMv7 NEON: use vtbl with two 8-byte halves
+        uint8x8_t lo = vget_low_u8(pixels);
+        uint8x8_t hi = vget_high_u8(pixels);
+        static const uint8_t tbl_lo_arr[8] = {2,1,0,3, 6,5,4,7};
+        static const uint8_t tbl_hi_arr[8] = {2,1,0,3, 6,5,4,7};
+        uint8x8_t idx_lo = vld1_u8(tbl_lo_arr);
+        uint8x8_t idx_hi = vld1_u8(tbl_hi_arr);
+        uint8x8_t swapped_lo = vtbl1_u8(lo, idx_lo);
+        uint8x8_t swapped_hi = vtbl1_u8(hi, idx_hi);
+        vst1_u8((uint8_t *)(dst + i), swapped_lo);
+        vst1_u8((uint8_t *)(dst + i + 2), swapped_hi);
+    }
+    // Handle remaining pixels
+    for (; i < count; i++) {
+        uint32_t pix = src[i];
+        dst[i] = (pix & 0xFF00FF00) | ((pix & 0x00FF0000) >> 16) |
+                 ((pix & 0x000000FF) << 16);
+    }
+#else
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t pix = src[i];
+        dst[i] = (pix & 0xFF00FF00) | ((pix & 0x00FF0000) >> 16) |
+                 ((pix & 0x000000FF) << 16);
+    }
+#endif
+}
+
+//
 //	GFX BlitSurface with scale
 //
-void GFX_BlitSurface(MI_PHY srcPa, void *srcVa, uint32_t sw, uint32_t sh,
+void GFX_BlitSurface(MI_PHY srcPa, const void *srcVa, uint32_t sw, uint32_t sh,
                      MI_PHY dstPa, void *dstVa, uint32_t dw, uint32_t dh)
 {
     MI_GFX_Surface_t Src;
@@ -49,7 +93,7 @@ void GFX_BlitSurface(MI_PHY srcPa, void *srcVa, uint32_t sw, uint32_t sh,
     memset(&Opt, 0, sizeof(Opt));
     Opt.eSrcDfbBldOp = E_MI_GFX_DFB_BLD_ONE;
 
-    MI_SYS_FlushInvCache(srcVa, ALIGN4K(sw * sh * 4));
+    MI_SYS_FlushInvCache((void *)srcVa, ALIGN4K(sw * sh * 4));
     MI_SYS_FlushInvCache(dstVa, ALIGN4K(dw * dh * 4));
     MI_GFX_BitBlit(&Src, &SrcRect, &Dst, &DstRect, &Opt, &Fence);
     MI_GFX_WaitAllDone(FALSE, Fence);
@@ -137,18 +181,14 @@ int main(int argc, char *argv[])
         for (y = 0; y < sh; y++) {
             src8 = rows[y];
             for (x = 0; x < sw; x++, src8 += 3) {
-                *dst++ = 0xFF000000 | src8[0] << 16 | (src8[1] << 8) | src8[2];
+                *dst++ = 0xFF000000 | (src8[0] << 16) | (src8[1] << 8) | src8[2];
             }
         }
         break;
     case 4:
         for (y = 0; y < sh; y++) {
-            src = (uint32_t *)rows[y];
-            for (x = 0; x < sw; x++) {
-                pix = *src++;
-                *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                         (pix & 0x000000FF) << 16;
-            }
+            swap_rb_channels((const uint32_t *)rows[y], dst, sw);
+            dst += sw;
         }
         break;
     }
@@ -205,12 +245,8 @@ int main(int argc, char *argv[])
         return 1;
     }
     for (y = 0; y < dh; y++) {
-        dst = tmp;
-        for (x = 0; x < dw; x++) {
-            pix = *src++;
-            *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                     (pix & 0x000000FF) << 16;
-        }
+        swap_rb_channels(src, tmp, dw);
+        src += dw;
         png_write_row(png_ptr, (png_bytep)tmp);
     }
     png_write_end(png_ptr, info_ptr);
