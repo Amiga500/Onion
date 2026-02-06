@@ -65,7 +65,8 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
 void logMessage(char *Message)
 {
     FILE *file = fopen("/mnt/SDCARD/log_Easter_Message.txt", "a");
-
+    if (file == NULL)
+        return;
     char valLog[MAXCHARACTERSARRAY];
     snprintf(valLog, sizeof(valLog), "%s %s", Message, "\n");
     fputs(valLog, file);
@@ -167,14 +168,17 @@ int main(int argc, char *argv[])
 
             FILE *file =
                 fopen("/mnt/SDCARD/.tmp_update/onionVersion/version.txt", "r");
-            char c;
-            c = getc(file);
-            while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
-
-                gText[charIndex] = c;
-
-                charIndex++;
+            if (file != NULL) {
+                char c;
                 c = getc(file);
+                while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
+
+                    gText[charIndex] = c;
+
+                    charIndex++;
+                    c = getc(file);
+                }
+                fclose(file);
             }
             gText[charIndex] = '\n';
             charIndex++;
@@ -186,15 +190,18 @@ int main(int argc, char *argv[])
             file = fopen(
                 "/mnt/SDCARD/.tmp_update/onionVersion/acknowledgments.txt",
                 "r");
-            c = getc(file);
-            while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
-                gText[charIndex] = c;
-                charIndex++;
+            if (file != NULL) {
+                char c;
                 c = getc(file);
+                while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
+                    gText[charIndex] = c;
+                    charIndex++;
+                    c = getc(file);
+                }
+                fclose(file);
             }
 
             gText[charIndex] = '\0';
-            fclose(file);
 
             TTF_Font *font35 =
                 TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 35);

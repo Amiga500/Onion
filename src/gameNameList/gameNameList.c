@@ -51,7 +51,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
     FILE *find, *sed;
 
     // Use the 'find' command to search for 'config.json' files in subdirectories of the disk path
-    snprintf(command, sizeof(command), "find %s -name 'config.json' -type f", disk_path);
+    snprintf(command, sizeof(command), "find '%s' -name 'config.json' -type f", disk_path);
     find = popen(command, "r");
     if (find == NULL) {
         perror("Error executing find command");
@@ -103,7 +103,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
 
 int sortFileLines(const char* filename) {
     char cmd[STR_MAX];
-    snprintf(cmd, STR_MAX, "awk '$1' %s | sort -uk 1 -o %s", filename, filename);
+    snprintf(cmd, STR_MAX, "awk '$1' '%s' | sort -uk 1 -o '%s'", filename, filename);
     return system(cmd);
 }
 

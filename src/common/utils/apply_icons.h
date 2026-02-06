@@ -43,6 +43,8 @@ IconMode_e icons_getIconMode(const char *config_path)
 void _saveConfigFile(const char *config_path, const char *content)
 {
     FILE *config_file = fopen(config_path, "w+");
+    if (config_file == NULL)
+        return;
     fprintf(config_file, "%s", content);
     fflush(config_file);
     fclose(config_file);
