@@ -42,21 +42,22 @@ JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
 void JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
 {
     size_t dest_size = STR_MAX * 6;
-    size_t len;
-    strcpy(dest, "{");
-    len = strlen(dest);
-    snprintf(dest + len, dest_size - len, "\"label\":\"%s\",", entry->label);
-    len = strlen(dest);
-    snprintf(dest + len, dest_size - len, "\"launch\":\"%s\",", entry->launch);
-    len = strlen(dest);
-    snprintf(dest + len, dest_size - len, "\"type\":%d,", entry->type);
+    size_t len = 0;
+    int n;
+    dest[0] = '{';
+    dest[1] = '\0';
+    len = 1;
+    n = snprintf(dest + len, dest_size - len, "\"label\":\"%s\",", entry->label);
+    if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
+    n = snprintf(dest + len, dest_size - len, "\"launch\":\"%s\",", entry->launch);
+    if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
+    n = snprintf(dest + len, dest_size - len, "\"type\":%d,", entry->type);
+    if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
     if (strlen(entry->imgpath) > 0) {
-        len = strlen(dest);
-        snprintf(dest + len, dest_size - len, "\"imgpath\":\"%s\",", entry->imgpath);
+        n = snprintf(dest + len, dest_size - len, "\"imgpath\":\"%s\",", entry->imgpath);
+        if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
     }
-    len = strlen(dest);
-    snprintf(dest + len, dest_size - len, "\"rompath\":\"%s\"", entry->rompath);
-    strcat(dest, "}");
+    n = snprintf(dest + len, dest_size - len, "\"rompath\":\"%s\"}", entry->rompath);
 }
 
 #endif // JSON_GAME_ENTRY_H__
