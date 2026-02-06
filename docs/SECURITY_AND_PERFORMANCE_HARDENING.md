@@ -209,6 +209,39 @@ offset += written;
 | JSON serialization (100-char entry) | ~6 strlen scans | 0 strlen scans | **~50% fewer string ops** |
 | Game list generation (1000 ROMs) | ~6000 redundant traversals | 0 | **Measurable on large libraries** |
 
+### 2.5 Loop Optimization
+
+**File:** `src/common/utils/str.c`
+
+`str_count_char()` was O(n²) due to `strlen()` in the loop condition — it recomputed the full string length on every iteration:
+
+```c
+// Before: O(n²) — strlen called n times
+for (i = 0; i < strlen(str); i++)
+
+// After: O(n) — pointer walk, no strlen at all
+for (const char *p = str; *p; p++)
+```
+
+### 2.6 Input Safety: atoi → strtol/strtoul
+
+**Files:** 10 command-line programs (pngScale, jpg2png, sendkeys, sendUDP, detectKey, setState, cpuclock, installUI, prompt, keymon)
+
+`atoi()` has undefined behavior on overflow and returns 0 for non-numeric input with no error indication. Replaced with `strtol()`/`strtoul()` (matching signedness):
+
+| Type Target | Function Used | Files |
+|-------------|---------------|-------|
+| `int` | `strtol()` | cpuclock, detectKey, setState, installUI, prompt, sendkeys (value), sendUDP (port) |
+| `uint32_t` | `strtoul()` | pngScale (mw, mh), jpg2png (mw, mh) |
+| `unsigned short` | `strtoul()` | sendkeys (code) |
+| `size_t` | `strtoul()` | sendUDP (response_size) |
+
+### 2.7 Tweaks Module Buffer Fixes
+
+- **icons.h:** Fixed `preview_path[4096]` → `info->path[256]` copy (real overflow, discovered by analysis)
+- **values.h:** Fixed `blueLightTime[12]` undersized for `settings.blue_light_time[16]`
+- **keymon.c:** Replaced `system("touch file")` with POSIX `close(open(file, O_CREAT|O_WRONLY))` — 2 instances
+
 ---
 
 ## 3. Build System Fixes
@@ -234,8 +267,10 @@ offset += written;
 | **Config/theme operations** | mkdir, cp, rm operations | **-150 ms cumulative** (~20% faster) | Medium (depends on SD card speed) |
 | **Menu scrolling** (SDL leak fix) | Memory usage over time | **-1.8 MB/30min** (was leaking) | High (measured leak rate) |
 | **JSON game list generation** | String building | **-50% string operations** | Medium (depends on library size) |
-| **Overall boot-to-menu** | system() elimination | **-30 ms** (config prep) | Medium |
+| **str_count_char** | Character counting | **O(n²) → O(n)** | High (algorithmic improvement) |
+| **Overall boot-to-menu** | system() elimination + touch→open | **-30 ms** (config prep) | Medium |
 | **Battery life** | Fewer fork+exec | **~1-2% improvement** | Low (marginal, needs testing) |
+| **Input robustness** | atoi→strtol/strtoul | No performance gain, **prevents UB** | High |
 
 ### Security Metrics
 
@@ -244,10 +279,11 @@ offset += written;
 | Unbounded `sprintf` calls | ~150 | **0** |
 | Unbounded `strcat` calls | ~20 | **0** |
 | Unsafe `strcpy` from external data | ~40 | **0** |
+| Unsafe `atoi()` in CLI tools | ~25 | **0** (all → strtol/strtoul) |
 | Command injection vectors | 6+ | **0** |
 | NULL dereference crash paths | 25+ | **0** |
 | Memory/resource leaks | 7+ | **0** |
-| `system()` shell calls (removable) | 15+ | **0** (replaced with POSIX) |
+| `system()` shell calls (removable) | 17+ | **0** (replaced with POSIX) |
 | Shell scripts with unquoted variables | 6 | **0** |
 
 ---
