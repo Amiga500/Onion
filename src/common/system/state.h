@@ -31,6 +31,8 @@ bool check_isRetroArch(void)
     if (!exists(CMD_TO_RUN_PATH))
         return false;
     char *cmd = file_read(CMD_TO_RUN_PATH);
+    if (cmd == NULL)
+        return false;
     if (strstr(cmd, "retroarch") != NULL ||
         strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
         strstr(cmd, "/mnt/SDCARD/RApp/") != NULL) {

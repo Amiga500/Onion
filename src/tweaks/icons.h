@@ -213,7 +213,7 @@ void menu_icon_packs(void *_)
         list_sortByLabel(&_menu_icon_packs);
 
         char selected_path[PATH_MAX];
-        realpath(is_dir(active_icon_pack) ? active_icon_pack
+        realpath((active_icon_pack != NULL && is_dir(active_icon_pack)) ? active_icon_pack
                                           : "/mnt/SDCARD/Icons/Default",
                  selected_path);
 

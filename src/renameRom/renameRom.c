@@ -117,6 +117,8 @@ int main(int argc, char *argv[])
         return 0;
 
     char *config_str = file_read(config_path);
+    if (config_str == NULL)
+        return 0;
     JsonGameEntry config = JsonGameEntry_fromJson(config_str);
     free(config_str);
 

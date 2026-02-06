@@ -150,6 +150,11 @@ int main(int argc, char *argv[])
 
     // Write png
     tmp = malloc(dw * 4);
+    if (tmp == NULL) {
+        fprintf(stderr, "malloc error\n");
+        fclose(fp);
+        goto error;
+    }
     dst = tmp;
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
     info_ptr = png_create_info_struct(png_ptr);
