@@ -420,9 +420,11 @@ void resumeGame(int index)
                 temp_flag_set("quick_switch", true);
 
                 char *line_n = file_read_lineN(recentPath, lineCount);
-                file_add_line_to_beginning(recentPath, line_n);
-                file_delete_line(recentPath, lineCount + 1);
-                free(line_n);
+                if (line_n != NULL) {
+                    file_add_line_to_beginning(recentPath, line_n);
+                    file_delete_line(recentPath, lineCount + 1);
+                    free(line_n);
+                }
             }
 
             file_put_sync(fp, CMD_TO_RUN_PATH, "%s", LaunchCommand);

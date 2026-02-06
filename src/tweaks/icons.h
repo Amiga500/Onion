@@ -50,6 +50,8 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
             snprintf(preview_path, STR_MAX * 2, "%s/%s", pack_dir, ep->d_name);
 
             icon_name = file_removeExtension(ep->d_name);
+            if (icon_name == NULL)
+                continue;
             str_split(icon_name, "-");
             snprintf(alt_name, STR_MAX - 1, "%s - %s", pack_name, icon_name);
             free(icon_name);
@@ -270,6 +272,8 @@ bool _add_config_icon(const char *path, const char *name,
     realpath(preview_path, abs_path);
 
     icon_name = file_removeExtension(basename(icon_path));
+    if (icon_name == NULL)
+        return false;
     str_split(icon_name, "-");
 
     char short_label[56];
