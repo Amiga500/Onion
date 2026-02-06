@@ -2,7 +2,7 @@
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/optimize-fork-for-embedded-devices`  
-**Target Hardware:** Miyoo Mini / Mini+ (ARM Cortex-A7, NEON VFPv4, 128–256 MB RAM)  
+**Target Hardware:** Miyoo Mini / Mini+ (ARM Cortex-A7 dual-core, NEON VFPv4, 128 MB RAM)  
 **Date:** February 2026  
 
 ---
@@ -156,7 +156,7 @@ vst1_u8(&row[x * 4], swapped);
 
 ### 2.2 system() → POSIX C Replacement
 
-Every `system()` call forks a new process, spawns `/bin/sh`, parses the command, and executes it. On the Miyoo Mini's single-core 1.2 GHz Cortex-A7, each `system()` costs ~5–15 ms (fork + exec + shell parse + process teardown).
+Every `system()` call forks a new process, spawns `/bin/sh`, parses the command, and executes it. On the Miyoo Mini's dual-core 1.2 GHz Cortex-A7, each `system()` costs ~5–15 ms (fork + exec + shell parse + process teardown).
 
 | Function | Before | After | Estimated Savings |
 |----------|--------|-------|-------------------|
