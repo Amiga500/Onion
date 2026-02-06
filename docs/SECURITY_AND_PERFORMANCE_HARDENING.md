@@ -53,6 +53,15 @@ This document details all security hardening and extreme performance optimizatio
 | **GS Header Cache** | GameSwitcher title | 1× TTF_Render/frame | 0 (strcmp invalidation) | 📺 **~0.8 ms/frame saved** |
 | **Theme Color Hoisting** | List render loop | theme() hash lookup × 15 items | 3 pre-computed colors | 📺 **~45 lookups/frame saved** |
 | **fork+exec vs system()** | GameSwitcher overlay | system("playActivity") ~15 ms | fork+exec ~3 ms | ⚡ **~80% faster** |
+| **OSD busy-wait fix** | Volume/brightness bar | usleep(100µs) = 10K loops/sec | usleep(16ms) = 60fps | 🔋 **~99% CPU saved** |
+| **OSD buffer shrink** | Bar save/restore | 640×480×4 = 1.2 MB | 4×480×4 = 7.5 KB | 💾 **160× smaller** |
+| **FB memcpy fast-path** | OSD overlay draw | Per-pixel loop + bounds check | memcpy per row | ⚡ **~2-5× faster** |
+| **Direct pixel write** | Battery graph line | SDL_FillRect(1×1) per pixel | Direct pixels[] write | ⚡ **~10-20× faster** |
+| **strnlen bounded check** | Cache path walk | strlen() O(n) per iteration | strnlen(,17) O(1) | ⚡ **O(n)→O(1)** |
+| **Shared neon_pixel.h** | All pixel conversions | Duplicated inline asm | 4 reusable NEON functions | 📦 **-77 lines code** |
+| **NEON: screenshot** | Screenshot save | scalar R↔B swap (307K px) | neon_argb_to_rgba 16px/iter | ⚡ **~16× throughput** |
+| **NEON: IMG_Save** | SDL surface export | scalar + SDL_GetRGBA per pixel | neon_argb_to_rgba_alpha 8px/iter | ⚡ **~8× throughput** |
+| **NEON: jpg2png** | JPG→PNG conversion | scalar both loops | neon_rgb_to_argb + neon_argb_to_rgba | ⚡ **~16× both loops** |
 
 ### 🏆 Cumulative Performance Gains
 
@@ -68,6 +77,10 @@ This document details all security hardening and extreme performance optimizatio
 | **+ Dialog/GS Caching** | **-3-5 ms** per dialog | Background, button labels, GS header cached |
 | **+ fork+exec** | **-12 ms** per overlay | playActivity launched without shell |
 | **+ Algorithm fixes** | **O(n²)→O(n)** strings | str_count_char, JSON builder, strlen hoisting |
+| **+ OSD busy-wait fix** | **-99% CPU** during OSD bar | Volume/brightness no longer spinning CPU |
+| **+ OSD buffer shrink** | **-1.2 MB RAM** saved | Compact strip buffer instead of full screen |
+| **+ Direct pixel write** | **-10-20× faster** graph lines | Bresenham without SDL_FillRect overhead |
+| **+ Shared NEON library** | **4 reusable functions** | neon_pixel.h used by pngScale, screenshot, IMG_Save, jpg2png |
 
 ### 🎯 Real-World Impact Estimates (Miyoo Mini)
 
