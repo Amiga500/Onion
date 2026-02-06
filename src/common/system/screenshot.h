@@ -61,7 +61,7 @@ bool __get_path_recent(char *path_out)
 
     fnptr = path_out + strlen(path_out);
     for (i = 0; i < 1000; i++) {
-        sprintf(fnptr, "_%03d.png", i);
+        snprintf(fnptr, STR_MAX - (fnptr - path_out), "_%03d.png", i);
         if (!exists(path_out))
             break;
     }

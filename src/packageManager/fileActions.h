@@ -37,10 +37,10 @@ bool checkAppInstalled(const char *basePath, int base_len, int level, bool compl
             continue;
 
         // Construct new path from our base path
-        sprintf(path, "%s/%s", basePath, dp->d_name);
+        snprintf(path, sizeof(path), "%s/%s", basePath, dp->d_name);
 
         if (exists(path)) {
-            sprintf(pathInstalledApp, "/mnt/SDCARD%s", path + base_len);
+            snprintf(pathInstalledApp, sizeof(pathInstalledApp), "/mnt/SDCARD%s", path + base_len);
 
             if (!exists(pathInstalledApp))
                 is_installed = false;
@@ -81,7 +81,7 @@ bool getConfigPath(char *config_path, const char *data_path, const char *base_di
             continue;
         if (dp->d_type != DT_DIR)
             continue;
-        sprintf(config_path, "%s/%s/config.json", base_dir, dp->d_name);
+        snprintf(config_path, STR_MAX - 1, "%s/%s/config.json", base_dir, dp->d_name);
         if (!is_file(config_path)) {
             closedir(dir);
             return false;

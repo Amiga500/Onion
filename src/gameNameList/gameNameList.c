@@ -51,7 +51,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
     FILE *find, *sed;
 
     // Use the 'find' command to search for 'config.json' files in subdirectories of the disk path
-    sprintf(command, "find %s -name 'config.json' -type f", disk_path);
+    snprintf(command, sizeof(command), "find %s -name 'config.json' -type f", disk_path);
     find = popen(command, "r");
     if (find == NULL) {
         perror("Error executing find command");
@@ -63,10 +63,10 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
         path[strcspn(path, "\n")] = '\0'; // Remove trailing newline character
 
         // Check if the file contains the string '"shortname":1'
-        sprintf(command, "grep -q '\"shortname\":[[:space:]]*1' '%s'", path);
+        snprintf(command, sizeof(command), "grep -q '\"shortname\":[[:space:]]*1' '%s'", path);
         if (system(command) == 0) {
             // Get the folder name (someone could have changed the defaults)
-            sprintf(command, "sed -n 's/.*\"rompath\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' '%s'", path);
+            snprintf(command, sizeof(command), "sed -n 's/.*\"rompath\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' '%s'", path);
             sed = popen(command, "r");
             if (sed == NULL) {
                 perror("Error executing sed command");
@@ -86,7 +86,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
             }
             if( cmp != 0){
                 // Extract the folder name and add it to the matching_folders array
-                sprintf(matching_folders[i], "%s", system);
+                snprintf(matching_folders[i], sizeof(matching_folders[i]), "%s", system);
                 i++;
             }
             if (i == MAX_MATCHING_FOLDERS) {
@@ -135,7 +135,7 @@ void getRomNamesDir(const char *dir_path, const char *rom_ext, FILE *rom_names_f
             getRomNamesDir(sub_dir_path, rom_ext, rom_names_file);
         } else if (entry->d_type == DT_REG) {  // regular file
             if (endsWith(entry->d_name, rom_ext)) {
-                strcpy( shortname, entry->d_name);
+                snprintf( shortname, sizeof(shortname), "%s", entry->d_name);
                 removeExtension(shortname);
                 fprintf(rom_names_file, "%s\n", shortname);
             }
@@ -149,9 +149,9 @@ int getRomNames(char* rom_dir_path, char* rom_names_file_path) {
     FILE *rom_names_file;
     char foldername[1256];
 
-    sprintf( foldername, "%s%s", rom_dir_path, "/Emu");
+    snprintf( foldername, sizeof(foldername), "%s%s", rom_dir_path, "/Emu");
     systems_count = findFoldersWithShortname(foldername, matching_folders, 0);
-    sprintf( foldername, "%s%s", rom_dir_path, "/RApp");
+    snprintf( foldername, sizeof(foldername), "%s%s", rom_dir_path, "/RApp");
     systems_count = findFoldersWithShortname(foldername, matching_folders, systems_count);
 
     // Open the file to write the rom names to
@@ -162,7 +162,7 @@ int getRomNames(char* rom_dir_path, char* rom_names_file_path) {
     }
     
     for (int i = 0; i < systems_count ; i++){
-        sprintf( foldername, "%s/Roms/%s" , rom_dir_path, matching_folders[i] );
+        snprintf( foldername, sizeof(foldername), "%s/Roms/%s" , rom_dir_path, matching_folders[i] );
         getRomNamesDir(foldername, ".zip", rom_names_file);
     }
 
