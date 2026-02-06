@@ -228,7 +228,7 @@ static inline void neon_rotate180_inplace(uint32_t *pixels, int count)
             "pld        [%[hi], #-64]       \n"
             /* Load 8 pixels from lo end */
             "vld1.32    {q0, q1}, [%[lo]]   \n"
-            /* Load 8 pixels from hi end (need to go back 7 from hi) */
+            /* Load 8 pixels from hi end (go back 7 pixels = 28 bytes from hi) */
             "sub        r4, %[hi], #28      \n"
             "vld1.32    {q2, q3}, [r4]      \n"
             /* Reverse lo pixels: q0=[0,1,2,3] q1=[4,5,6,7] → q5=[7,6,5,4] q4=[3,2,1,0] */
