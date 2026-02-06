@@ -26,7 +26,7 @@ retcode=$?
 
 echo "retcode: $retcode"
 
-if [ $retcode -ne 0 ]; then
+if [ "$retcode" -ne 0 ]; then
     echo "canceling random game..."
     rm -f "$sysdir/cmd_to_run.sh" 2> /dev/null
     exit 1
