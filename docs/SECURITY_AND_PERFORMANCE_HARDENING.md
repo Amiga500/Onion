@@ -400,3 +400,23 @@ valgrind --leak-check=full ./build/.tmp_update/bin/packageManager
 ---
 
 *This document was generated as part of the security and performance hardening effort for the Amiga500/Onion fork. All estimates are based on ARM Cortex-A7 architecture characteristics and should be validated with hardware profiling on actual Miyoo Mini/Mini+ devices.*
+
+---
+
+## Appendix: Additional Fixes (Session 14+)
+
+### Buffer Overflow in icons.h (CRITICAL)
+- `strcpy(info->path, item->preview_path)` copied 4096-byte `preview_path` into 256-byte `info->path` — **real overflow**
+- Fixed with `strncpy` + null termination
+
+### Undersized Buffer in values.h
+- `blueLightTime[12]` was too small for `settings.blue_light_time[16]` — resized to 16
+
+### Remaining strcpy → strncpy Conversions
+- `formatters.h`: app labels, font families (from user-configurable data)
+- `actions.h`: blue_light_time settings, theme font path
+- `network.h` + `tweaks.c`: IP address label into menu label fields
+- `menus.h`: date string, schedule toggle label (also eliminated unnecessary temp variable)
+
+### system("touch") → POSIX
+- `keymon.c`: 2 instances of `system("touch /tmp/.blfIgnoreSchedule")` → `close(open(..., O_CREAT|O_WRONLY, 0644))`
