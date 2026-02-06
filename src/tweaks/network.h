@@ -213,10 +213,8 @@ void network_execServiceState(const char *service_name, bool background)
 
     sync();
 
-    sprintf(state, NET_SCRIPT_PATH "/update_networking.sh %s toggle", service_name);
-    sprintf(command, "%s 2>&1", state);
-    if (background)
-        strcat(command, " &");
+    snprintf(state, sizeof(state), NET_SCRIPT_PATH "/update_networking.sh %s toggle", service_name);
+    snprintf(command, sizeof(command), "%s 2>&1%s", state, background ? " &" : "");
     system(command);
 
     printf_debug("network_execServiceState: %s\n", state);
@@ -229,8 +227,8 @@ void network_execServiceAuth(const char *service_name)
 
     sync();
 
-    sprintf(authed, NET_SCRIPT_PATH "/update_networking.sh %s authed", service_name);
-    sprintf(command, "%s 2>&1", authed);
+    snprintf(authed, sizeof(authed), NET_SCRIPT_PATH "/update_networking.sh %s authed", service_name);
+    snprintf(command, sizeof(command), "%s 2>&1", authed);
 
     system(command);
 

@@ -162,6 +162,9 @@ bool file_write(const char *path, const char *str, uint32_t len)
 
 void file_copy(const char *src_path, const char *dest_path)
 {
+    // Reject paths with double quotes to prevent shell injection
+    if (strchr(src_path, '"') != NULL || strchr(dest_path, '"') != NULL)
+        return;
     char system_cmd[4128];
     snprintf(system_cmd, sizeof(system_cmd), "cp -f \"%s\" \"%s\"", src_path, dest_path);
     system(system_cmd);
@@ -348,13 +351,20 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         ++p2;
     }
 
+    size_t offset = 0;
     if (strlen(p1) > 0) {
         int num_parens = str_count_char(p1, '/') + 1;
-        for (int i = 0; i < num_parens; i++) {
-            strcat(path_out, "../");
+        for (int i = 0; i < num_parens && offset + 3 < PATH_MAX; i++) {
+            memcpy(path_out + offset, "../", 3);
+            offset += 3;
         }
     }
-    strcat(path_out, p2);
+    size_t p2_len = strlen(p2);
+    if (offset + p2_len < PATH_MAX) {
+        memcpy(path_out + offset, p2, p2_len);
+        offset += p2_len;
+    }
+    path_out[offset] = '\0';
 
     return true;
 }
@@ -545,11 +555,17 @@ char *file_resolvePath(const char *path)
     }
 
     // Reconstruct the resolved path
+    size_t offset = 0;
     resolvedPath[0] = '\0';
     for (int i = 0; i < componentCount; i++) {
-        strcat(resolvedPath, "/");
-        strcat(resolvedPath, components[i]);
+        size_t comp_len = strlen(components[i]);
+        if (offset + 1 + comp_len >= PATH_MAX)
+            break;
+        resolvedPath[offset++] = '/';
+        memcpy(resolvedPath + offset, components[i], comp_len);
+        offset += comp_len;
     }
+    resolvedPath[offset] = '\0';
 
     // Handle the case where the path is empty
     if (resolvedPath[0] == '\0') {
