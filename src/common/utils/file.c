@@ -74,7 +74,10 @@ bool mkdirs(const char *dir_path)
 {
     if (!exists(dir_path)) {
         char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
+        // Prevent buffer overflow by using snprintf
+        int n = snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p '%s'", dir_path);
+        if (n < 0 || (size_t)n >= sizeof(dir_cmd))
+            return false;
         system(dir_cmd);
         return true;
     }
@@ -133,6 +136,10 @@ char *file_read(const char *path)
             fread(buffer, sizeof(char), length, f);
         fclose(f);
     }
+
+    if (buffer == NULL)
+        return NULL;
+
     buffer[length] = '\0';
 
     return buffer;
@@ -140,11 +147,13 @@ char *file_read(const char *path)
 
 bool file_write(const char *path, const char *str, uint32_t len)
 {
-    uint32_t fd;
-    if ((fd = open(path, O_WRONLY)) == 0)
+    int fd;
+    if ((fd = open(path, O_WRONLY)) < 0)
         return false;
-    if (write(fd, str, len) == -1)
+    if (write(fd, str, len) == -1) {
+        close(fd);
         return false;
+    }
     close(fd);
     return true;
 }
@@ -230,7 +239,7 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
     char key[256], val[256];
     char key_search[STR_MAX];
     char search_str[STR_MAX];
-    sprintf(search_str, "%%255[^%c]%c%%255[^\n]\n", divider, divider);
+    snprintf(search_str, sizeof(search_str), "%%255[^%c]%c%%255[^\n]\n", divider, divider);
     int match_index = 0;
 
     *value_out = 0;
@@ -296,7 +305,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
         }
 
         line_len = strlen(line);
-        if (line[line_len - 1] != '\n') {
+        if (line_len > 0 && line[line_len - 1] != '\n') {
             line[line_len - 1] = '\n';
             line[line_len] = '\0';
         }
@@ -467,7 +476,7 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     char tempPath[STR_MAX];
     char *path = file_dirname(filename);
-    sprintf(tempPath, "%s/temp.txt", path);
+    snprintf(tempPath, sizeof(tempPath), "%s/temp.txt", path);
     free(path);
 
     FILE *tempFile = fopen(tempPath, "w");

@@ -228,6 +228,8 @@ uint32_t display_getBrightnessRaw()
 int display_getBrightnessFromRaw()
 {
     int value_raw = display_getBrightnessRaw();
+    if (value_raw <= 0)
+        return 0;
     int value = round((log(value_raw / 3.0) / 0.350656));
     return value;
 }
@@ -329,6 +331,8 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
  */
 void display_readCurrentBuffer(display_t *display, uint32_t *pixels, rect_t rect, bool rotate, bool mask)
 {
+    if (display->vinfo.yres == 0)
+        return;
     int index = display->vinfo.yoffset / display->vinfo.yres;
     display_readOrWriteBuffer(index, display, pixels, rect, rotate, mask, false);
 }
@@ -384,6 +388,8 @@ void display_writeBuffer(int index, display_t *display, uint32_t *pixels, rect_t
  */
 void display_readOrWriteBuffers(display_t *display, uint32_t **pixels, rect_t rect, bool rotate, bool mask, bool write)
 {
+    if (display->vinfo.yres == 0)
+        return;
     int numBuffers = display->vinfo.yres_virtual / display->vinfo.yres;
 
     for (int b = 0; b < numBuffers; b++) {

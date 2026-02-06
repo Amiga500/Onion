@@ -159,11 +159,15 @@ int main(int argc, char *argv[])
 
     // Calculate dst size
     dw = mw;
+    if (sw == 0 || sh == 0)
+        ERROR("png has zero dimensions");
     dh = sh * dw / sw;
     if (dh > mh) {
         dh = mh;
         dw = sw * dh / sh;
     }
+    if (dw == 0 || dh == 0)
+        ERROR("scaled dimensions are zero");
     ds = ALIGN4K(dw * dh * 4);
 
     // Allocate dst png mem and scale
