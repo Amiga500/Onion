@@ -46,6 +46,8 @@ typedef struct ListItem {
     char info_note[STR_MAX];
     void *_label_cache;      // Cached TTF surface for label (internal)
     uint32_t _label_hash;    // Hash of label text for cache invalidation
+    void *_value_cache;      // Cached TTF surface for value label (internal)
+    int _cached_value;       // Cached value for value label invalidation
 } ListItem;
 
 typedef struct List {
@@ -437,6 +439,8 @@ void list_free(List *list)
             SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
         if (item->_label_cache != NULL)
             SDL_FreeSurface((SDL_Surface *)item->_label_cache);
+        if (item->_value_cache != NULL)
+            SDL_FreeSurface((SDL_Surface *)item->_value_cache);
     }
     free(list->items);
     list->_created = false;

@@ -200,9 +200,17 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             SDL_BlitSurface(arrow_right, NULL, screen, &arrow_right_pos);
             label_end = arrow_left_pos.x;
 
+            // Cache MULTIVALUE label — only re-render when value changes
             char value_str[STR_MAX];
             list_getItemValueLabel(item, value_str);
-            SDL_Surface *value_label = TTF_RenderUTF8_Blended(list_font, value_str, theme()->list.color);
+            if (item->_value_cache == NULL || item->_cached_value != item->value) {
+                if (item->_value_cache != NULL)
+                    SDL_FreeSurface((SDL_Surface *)item->_value_cache);
+                item->_value_cache = (void *)TTF_RenderUTF8_Blended(list_font, value_str, theme()->list.color);
+                item->_cached_value = item->value;
+            }
+            SDL_Surface *value_label = (SDL_Surface *)item->_value_cache;
+            if (value_label == NULL) continue;
             if (show_disabled) {
                 surfaceSetAlpha(value_label, HIDDEN_ITEM_ALPHA);
             }
@@ -212,7 +220,9 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 scaled_640 - scaled_20 - arrow_right->w - scaled_226 / 2 - label_width / 2,
                 item_center_y - value_size.h / 2};
             SDL_BlitSurface(value_label, &value_size, screen, &value_pos);
-            SDL_FreeSurface(value_label);
+            if (show_disabled) {
+                surfaceSetAlpha(value_label, 255);
+            }
         }
 
         // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)
