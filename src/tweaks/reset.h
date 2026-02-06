@@ -77,7 +77,7 @@ void action_resetTweaks(void *pt)
         return;
     rename(RESET_CONFIGS_PAK, "/mnt/SDCARD/.tmp_update/temp");
     file_remove_recursive("/mnt/SDCARD/.tmp_update/config");
-    mkdir("/mnt/SDCARD/.tmp_update/config", 0755);
+    mkdirs("/mnt/SDCARD/.tmp_update/config");
     system("7z x /mnt/SDCARD/.tmp_update/temp -o/mnt/SDCARD/ -ir!.tmp_update/config/*");
     rename("/mnt/SDCARD/.tmp_update/temp", RESET_CONFIGS_PAK);
     reset_menus = true;
@@ -92,7 +92,7 @@ void action_resetThemeOverrides(void *pt)
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset theme overrides?"))
         return;
     file_remove_recursive("/mnt/SDCARD/Saves/CurrentProfile/theme");
-    mkdir("/mnt/SDCARD/Saves/CurrentProfile/theme", 0755);
+    mkdirs("/mnt/SDCARD/Saves/CurrentProfile/theme");
     if (!_disable_confirm)
         _notifyResetDone(title_str);
 }
@@ -138,7 +138,7 @@ void action_resetRACores(void *pt)
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to reset\nall RetroArch core overrides?"))
         return;
     file_remove_recursive("/mnt/SDCARD/Saves/CurrentProfile/config");
-    mkdir("/mnt/SDCARD/Saves/CurrentProfile/config", 0755);
+    mkdirs("/mnt/SDCARD/Saves/CurrentProfile/config");
     system("7z x " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!Saves/CurrentProfile/config/*");
     reset_menus = true;
     if (!_disable_confirm)

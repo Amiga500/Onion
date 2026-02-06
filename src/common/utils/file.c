@@ -624,7 +624,9 @@ static int _remove_cb(const char *fpath, const struct stat *sb, int typeflag, st
 
 int file_remove_recursive(const char *path)
 {
-    if (path == NULL || !exists(path))
+    if (path == NULL)
         return -1;
+    if (!exists(path))
+        return 0;
     return nftw(path, _remove_cb, 64, FTW_DEPTH | FTW_PHYS);
 }
