@@ -194,6 +194,7 @@ external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo
 		$(ECHO) $(COLOR_BLUE)"-- Initializing SearchFilter submodule"$(COLOR_NORMAL); \
 		git submodule update --init $(THIRD_PARTY_DIR)/SearchFilter; \
 	fi
+	@cp -f $(INCLUDE_DIR)/sqlite3/sqlite3.h $(THIRD_PARTY_DIR)/SearchFilter/include/sqlite3/ 2>/dev/null || true
 	@cd $(THIRD_PARTY_DIR)/SearchFilter && make build && cp -a build/. $(BUILD_DIR)
 	@cp -a $(BUILD_DIR)/App/Search/. "$(PACKAGES_APP_DEST)/Search (Find your games)/App/Search"
 	@mv -f $(BUILD_DIR)/App/Filter/* "$(PACKAGES_APP_DEST)/List shortcuts (Filter+Refresh)/App/Filter"
