@@ -28,17 +28,14 @@ static void swap_rb_channels(const uint32_t *src, uint32_t *dst, uint32_t count)
     uint32_t i = 0;
     // Process 4 pixels (16 bytes) at a time with NEON
     // Swap byte 0 (R) and byte 2 (B) within each 32-bit pixel
+    static const uint8_t swap_tbl[8] = {2,1,0,3, 6,5,4,7};
+    uint8x8_t idx = vld1_u8(swap_tbl);
     for (; i + 4 <= count; i += 4) {
         uint8x16_t pixels = vld1q_u8((const uint8_t *)(src + i));
-        // ARMv7 NEON: use vtbl with two 8-byte halves
         uint8x8_t lo = vget_low_u8(pixels);
         uint8x8_t hi = vget_high_u8(pixels);
-        static const uint8_t tbl_lo_arr[8] = {2,1,0,3, 6,5,4,7};
-        static const uint8_t tbl_hi_arr[8] = {2,1,0,3, 6,5,4,7};
-        uint8x8_t idx_lo = vld1_u8(tbl_lo_arr);
-        uint8x8_t idx_hi = vld1_u8(tbl_hi_arr);
-        uint8x8_t swapped_lo = vtbl1_u8(lo, idx_lo);
-        uint8x8_t swapped_hi = vtbl1_u8(hi, idx_hi);
+        uint8x8_t swapped_lo = vtbl1_u8(lo, idx);
+        uint8x8_t swapped_hi = vtbl1_u8(hi, idx);
         vst1_u8((uint8_t *)(dst + i), swapped_lo);
         vst1_u8((uint8_t *)(dst + i + 2), swapped_hi);
     }
