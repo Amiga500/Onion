@@ -106,8 +106,14 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
             continue;
 
         current = malloc(sizeof(entry_t));
-        current->name =
-            strcpy(malloc(strlen(file_dirent->d_name) + 1), file_dirent->d_name);
+        if (current == NULL)
+            continue;
+        current->name = malloc(strlen(file_dirent->d_name) + 1);
+        if (current->name == NULL) {
+            free(current);
+            continue;
+        }
+        strcpy(current->name, file_dirent->d_name);
         current->is_dir = file_dirent->d_type == DT_DIR;
         current->next = NULL;
 

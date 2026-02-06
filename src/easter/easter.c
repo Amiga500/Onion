@@ -67,7 +67,7 @@ void logMessage(char *Message)
     FILE *file = fopen("/mnt/SDCARD/log_Easter_Message.txt", "a");
 
     char valLog[MAXCHARACTERSARRAY];
-    sprintf(valLog, "%s %s", Message, "\n");
+    snprintf(valLog, sizeof(valLog), "%s %s", Message, "\n");
     fputs(valLog, file);
     fclose(file);
 }
@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
             TTF_Init();
 
             // Read the text from the text file
-            sprintf(gText, "%s", "Onion ");
+            snprintf(gText, sizeof(gText), "%s", "Onion ");
             charIndex = 6;
 
             FILE *file =

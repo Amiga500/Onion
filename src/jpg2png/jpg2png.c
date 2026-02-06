@@ -135,11 +135,13 @@ int main(int argc, char *argv[])
     printf("sw:%d sh:%d dw:%d dh:%d\n", sw, sh, dw, dh);
 
     // Create png
-    strcpy(filename, argv[1]);
+    snprintf(filename, sizeof(filename), "%s", argv[1]);
     ptr = strrchr(filename, '.');
     if (ptr)
         *ptr = 0;
-    strcat(filename, ".png");
+    size_t fn_len = strlen(filename);
+    if (fn_len + 4 < sizeof(filename))
+        memcpy(filename + fn_len, ".png", 5);
     fp = fopen(filename, "wb");
     if (!fp) {
         fprintf(stderr, "png write error\n");
