@@ -280,7 +280,7 @@ void _print_bar(void)
         uint32_t *row = ofs + buf * height * g_display.width;
         for (uint32_t i = 0; i < height; i++, row += g_display.width) {
             const uint32_t curr = i < percentage ? active_color : 0;
-            for (int j = 0; j < meterWidth; j++)
+            for (uint32_t j = 0; j < (uint32_t)meterWidth; j++)
                 row[j] = curr;
         }
     }
@@ -352,11 +352,12 @@ void osd_showBar(int value, int value_max, uint32_t color)
     _bar_color = color;
     osd_bar_activated = true;
 
-    // Cache meterWidth — only read config on first call
-    static bool meterWidth_cached = false;
+    // Cache meterWidth — only read config on first call (atomic for thread safety)
+    static volatile int meterWidth_cached = 0;
     if (!meterWidth_cached) {
         config_get("display/meterWidth", CONFIG_INT, &meterWidth);
-        meterWidth_cached = true;
+        __sync_synchronize();
+        meterWidth_cached = 1;
     }
 
     if (osd_thread_active)
