@@ -81,7 +81,7 @@ bool getConfigPath(char *config_path, const char *data_path, const char *base_di
             continue;
         if (dp->d_type != DT_DIR)
             continue;
-        snprintf(config_path, STR_MAX - 1, "%s/%s/config.json", base_dir, dp->d_name);
+        snprintf(config_path, STR_MAX, "%s/%s/config.json", base_dir, dp->d_name);
         if (!is_file(config_path)) {
             closedir(dir);
             return false;
