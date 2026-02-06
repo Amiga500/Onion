@@ -117,9 +117,9 @@ int main(int argc, char *argv[])
     if (argc < 3)
         goto usage;
     if (argc > 3)
-        mw = (uint32_t)strtol(argv[3], NULL, 10);
+        mw = (uint32_t)strtoul(argv[3], NULL, 10);
     if (argc > 4)
-        mh = (uint32_t)strtol(argv[4], NULL, 10);
+        mh = (uint32_t)strtoul(argv[4], NULL, 10);
     fp = fopen(argv[1], "rb");
     if ((!fp) || (!mw) || (!mh))
         goto usage;

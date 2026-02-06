@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(argv[i], "-r") == 0) {
             if (i + 1 < argc) {
-                response_size = (size_t)strtol(argv[i + 1], NULL, 10);
+                response_size = (size_t)strtoul(argv[i + 1], NULL, 10);
                 i++;
             }
         }
