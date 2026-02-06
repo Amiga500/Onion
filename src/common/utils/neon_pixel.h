@@ -231,19 +231,19 @@ static inline void neon_rotate180_inplace(uint32_t *pixels, int count)
             /* Load 8 pixels from hi end (go back 7 pixels = 28 bytes from hi) */
             "sub        r4, %[hi], #28      \n"
             "vld1.32    {q2, q3}, [r4]      \n"
-            /* Reverse lo pixels: q0=[0,1,2,3] q1=[4,5,6,7] → q5=[7,6,5,4] q4=[3,2,1,0] */
-            "vrev64.32  q4, q0              \n"
-            "vrev64.32  q5, q1              \n"
+            /* Reverse lo pixels: q0=[0,1,2,3] q1=[4,5,6,7] → q4=[7,6,5,4] q5=[3,2,1,0] */
+            "vrev64.32  q4, q1              \n"
+            "vrev64.32  q5, q0              \n"
             "vswp       d8, d9              \n"
             "vswp       d10, d11            \n"
-            /* Reverse hi pixels: q2 q3 → q7 q6 */
-            "vrev64.32  q6, q2              \n"
-            "vrev64.32  q7, q3              \n"
+            /* Reverse hi pixels: q2 q3 → q6=[h,g,f,e] q7=[d,c,b,a] */
+            "vrev64.32  q6, q3              \n"
+            "vrev64.32  q7, q2              \n"
             "vswp       d12, d13            \n"
             "vswp       d14, d15            \n"
-            /* Store reversed hi pixels at lo, reversed lo pixels at hi */
-            "vst1.32    {q7, q6}, [%[lo]]!  \n"
-            "vst1.32    {q5, q4}, [r4]      \n"
+            /* Store reversed hi pixels at lo, reversed lo pixels at hi (ascending reg order) */
+            "vst1.32    {q6, q7}, [%[lo]]!  \n"
+            "vst1.32    {q4, q5}, [r4]      \n"
             "sub        %[hi], %[hi], #32   \n"
             : [lo] "+r"(lo), [hi] "+r"(hi)
             :
