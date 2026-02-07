@@ -226,7 +226,14 @@ void free_play_activities(PlayActivities *pa_ptr)
     for (int i = 0; i < pa_ptr->count; i++) {
         free(pa_ptr->play_activity[i]->first_played_at);
         free(pa_ptr->play_activity[i]->last_played_at);
-        free(pa_ptr->play_activity[i]->rom);
+        // Free ROM structure fields before freeing the structure itself
+        if (pa_ptr->play_activity[i]->rom != NULL) {
+            free(pa_ptr->play_activity[i]->rom->type);
+            free(pa_ptr->play_activity[i]->rom->name);
+            free(pa_ptr->play_activity[i]->rom->file_path);
+            free(pa_ptr->play_activity[i]->rom->image_path);
+            free(pa_ptr->play_activity[i]->rom);
+        }
         free(pa_ptr->play_activity[i]);
     }
     free(pa_ptr->play_activity);
@@ -243,7 +250,9 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
             free(dup);
         }
         else {
-            char *replaced = str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", "");
+            char *temp = strdup((const char *)rom_path);
+            char *replaced = str_replace(temp, "/mnt/SDCARD/Roms/", "");
+            free(temp);
             strncpy(rel_path, replaced, PATH_MAX - 1);
             rel_path[PATH_MAX - 1] = '\0';
             free(replaced);

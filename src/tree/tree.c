@@ -140,7 +140,6 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
     closedir(dir_handle);
 
     if (!head) { // no entries at all
-        free(head);
         return 0;
     }
 

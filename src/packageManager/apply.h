@@ -40,8 +40,13 @@ void applyAllChanges(bool auto_update)
                 printf_debug("Installing %s...\n", package->name);
 
                 // Reject names with shell metacharacters (used in double-quoted system() call)
+                // Extended check to include more dangerous characters
                 if (strchr(package->name, '"') || strchr(package->name, '$') ||
-                    strchr(package->name, '`') || strchr(package->name, '\\')) {
+                    strchr(package->name, '`') || strchr(package->name, '\\') ||
+                    strchr(package->name, ';') || strchr(package->name, '|') ||
+                    strchr(package->name, '&') || strchr(package->name, '>') ||
+                    strchr(package->name, '<') || strchr(package->name, '\n') ||
+                    strchr(package->name, '\r')) {
                     printf_debug("Skipping package with unsafe name: %s\n", package->name);
                     continue;
                 }
