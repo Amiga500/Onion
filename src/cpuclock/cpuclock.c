@@ -111,7 +111,16 @@ int main(int argc, char *argv[])
     }
 
     int fd_mem = open("/dev/mem", O_RDWR);
+    if (fd_mem < 0) {
+        perror("open /dev/mem");
+        return 1;
+    }
     pll_map = mmap(0, PLL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd_mem, BASE_REG_MPLL_PA);
+    if (pll_map == MAP_FAILED) {
+        perror("mmap");
+        close(fd_mem);
+        return 1;
+    }
 
     int clock = 0;
     if (argc == 1) {
@@ -119,7 +128,7 @@ int main(int argc, char *argv[])
         return 0;
     }
     if (argc == 2)
-        clock = atoi(argv[1]);
+        clock = (int)strtol(argv[1], NULL, 10);
 
     if ((clock < 100) || (clock > 2400)) {
         puts("usage: cpuclock freq[MHz, 100 - 2400]");
@@ -131,7 +140,7 @@ int main(int argc, char *argv[])
     const char fn_governor[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
     const char fn_setspeed[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_setspeed";
     char clockstr[16];
-    sprintf(clockstr, "%d", clock * 1000);
+    snprintf(clockstr, sizeof(clockstr), "%d", clock * 1000);
     writefile(fn_governor, "userspace");
     writefile(fn_setspeed, clockstr);
 

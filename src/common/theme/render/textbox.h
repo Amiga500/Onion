@@ -33,6 +33,11 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
     int line_count = 0, max_width = 0, empty_lines = 0;
     int *line_widths = malloc(max_lines * sizeof(int));
     char **lines = malloc(max_lines * sizeof(char *));
+    if (line_widths == NULL || lines == NULL) {
+        free(line_widths);
+        free(lines);
+        return NULL;
+    }
 
     TTF_Font *cur_font = font;
     int font_lineskip = TTF_FontLineSkip(cur_font);

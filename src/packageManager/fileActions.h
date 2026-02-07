@@ -37,10 +37,10 @@ bool checkAppInstalled(const char *basePath, int base_len, int level, bool compl
             continue;
 
         // Construct new path from our base path
-        sprintf(path, "%s/%s", basePath, dp->d_name);
+        snprintf(path, sizeof(path), "%s/%s", basePath, dp->d_name);
 
         if (exists(path)) {
-            sprintf(pathInstalledApp, "/mnt/SDCARD%s", path + base_len);
+            snprintf(pathInstalledApp, sizeof(pathInstalledApp), "/mnt/SDCARD%s", path + base_len);
 
             if (!exists(pathInstalledApp))
                 is_installed = false;
@@ -81,7 +81,7 @@ bool getConfigPath(char *config_path, const char *data_path, const char *base_di
             continue;
         if (dp->d_type != DT_DIR)
             continue;
-        sprintf(config_path, "%s/%s/config.json", base_dir, dp->d_name);
+        snprintf(config_path, PATH_MAX, "%s/%s/config.json", base_dir, dp->d_name);
         if (!is_file(config_path)) {
             closedir(dir);
             return false;
@@ -104,7 +104,8 @@ bool hasExtension(const char *file_name, const char *extlist)
         return false;
 
     char extlist_dup[STR_MAX];
-    strcpy(extlist_dup, extlist);
+    strncpy(extlist_dup, extlist, sizeof(extlist_dup) - 1);
+    extlist_dup[sizeof(extlist_dup) - 1] = '\0';
 
     char *token = strtok(extlist_dup, "|");
 
@@ -206,12 +207,13 @@ void loadPackages(bool auto_update)
 
         while ((ep = readdir(dp)) && package_count[nT] < LAYER_ITEM_COUNT) {
             char cShort[MAX_LAYER_NAME_SIZE];
-            strcpy(cShort, ep->d_name);
+            strncpy(cShort, ep->d_name, sizeof(cShort) - 1);
+            cShort[sizeof(cShort) - 1] = '\0';
 
             const char *file_name = ep->d_name;
             if (file_name[0] != '.') {
                 // Installation check
-                sprintf(basePath, "%s/%s", data_path, file_name);
+                snprintf(basePath, STR_MAX, "%s/%s", data_path, file_name);
 
                 bool is_installed = checkAppInstalled(basePath, strlen(basePath), 0, false);
                 bool is_complete = !auto_update && is_installed
@@ -230,7 +232,8 @@ void loadPackages(bool auto_update)
                         changes_installs[nT]++;
                 }
 
-                strcpy(package.name, file_name);
+                strncpy(package.name, file_name, sizeof(package.name) - 1);
+                package.name[sizeof(package.name) - 1] = '\0';
 
                 packages[nT][package_count[nT]] = package;
                 package_count[nT]++;
@@ -268,7 +271,7 @@ bool getPackageMainPath(char *out_path, const char *data_path,
                         const char *package_name)
 {
     const char *base_dir = basename((char *)data_path);
-    sprintf(out_path, "%s/%s/%s/", data_path, package_name, base_dir);
+    snprintf(out_path, STR_MAX, "%s/%s/%s/", data_path, package_name, base_dir);
 
     if (!is_dir(out_path))
         return false;
@@ -285,7 +288,7 @@ bool getPackageMainPath(char *out_path, const char *data_path,
             continue;
         if (dp->d_type != DT_DIR)
             continue;
-        sprintf(out_path, "/mnt/SDCARD/%s/%s", base_dir, dp->d_name);
+        snprintf(out_path, STR_MAX, "/mnt/SDCARD/%s/%s", base_dir, dp->d_name);
         closedir(dir);
         return is_dir(out_path);
     }
@@ -310,7 +313,7 @@ void callPackageInstaller(const char *data_path, const char *package_name,
         concat(installer_path, main_path,
                install ? "/install.sh" : "/uninstall.sh");
         if (is_file(installer_path)) {
-            sprintf(cmd,
+            snprintf(cmd, sizeof(cmd),
                     install
                         ? "cd \"%s\"; chmod a+x ./install.sh; ./install.sh"
                         : "cd \"%s\"; chmod a+x ./uninstall.sh; ./uninstall.sh",
@@ -335,10 +338,10 @@ void appUninstall(char *basePath, int strlenBase)
     while ((dp = readdir(dir)) != NULL) {
         if (strcmp(dp->d_name, ".") != 0 && strcmp(dp->d_name, "..") != 0) {
             // Construct new path from our base path
-            sprintf(path, "%s/%s", basePath, dp->d_name);
+            snprintf(path, sizeof(path), "%s/%s", basePath, dp->d_name);
 
             if (exists(path)) {
-                sprintf(pathInstalledApp, "/mnt/SDCARD%s", path + strlenBase);
+                snprintf(pathInstalledApp, sizeof(pathInstalledApp), "/mnt/SDCARD%s", path + strlenBase);
 
                 if (is_file(pathInstalledApp))
                     remove(pathInstalledApp);

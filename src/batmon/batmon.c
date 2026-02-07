@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
                 printf_debug("Charging detected - Previous session duration = %d\n", session_time);
 
                 if (session_time > best_session_time) {
-                    printf_debug("Best session duration\n", 1);
+                    printf_debug("Best session duration\n");
                     set_best_session_time(session_time);
                     best_session_time = session_time;
                 }
@@ -80,9 +80,8 @@ int main(int argc, char *argv[])
         }
 
         if (!is_suspended) {
-            config_get("battery/warnAt", CONFIG_INT, &warn_at);
-
             if (ticks >= CHECK_BATTERY_TIMEOUT_S) {
+                config_get("battery/warnAt", CONFIG_INT, &warn_at);
                 if (DEVICE_ID == MIYOO283) {
                     adc_value_g = updateADCValue(adc_value_g);
                     current_percentage = batteryPercentage(adc_value_g);
@@ -346,7 +345,7 @@ int updateADCValue(int value)
     if (battery_isCharging())
         return 100;
 
-    if (!sar_fd) {
+    if (sar_fd < 0) {
         sar_fd = open("/dev/sar", O_WRONLY);
         ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
     }
@@ -378,7 +377,7 @@ int updateADCValue(int value)
 int getBatPercMMP(void)
 {
     char buf[100] = "";
-    int battery_number;
+    int battery_number = -1;
 
     system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result");
 

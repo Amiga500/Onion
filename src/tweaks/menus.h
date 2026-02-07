@@ -83,7 +83,8 @@ bool _writeDateString(char *label_out)
     struct tm tm = *localtime(&t);
     strftime(new_label, STR_MAX - 1, "Now: %Y-%m-%d %H:%M:%S", &tm);
     if (strncmp(new_label, label_out, STR_MAX) != 0) {
-        strcpy(label_out, new_label);
+        strncpy(label_out, new_label, STR_MAX - 1);
+        label_out[STR_MAX - 1] = '\0';
         return true;
     }
     return false;
@@ -559,9 +560,10 @@ void menu_blueLight(void *_)
     }
     if (schedule_show) {
         _writeDateString(_menu_user_blue_light.items[0].label);
-        char scheduleToggleLabel[100];
-        strcpy(scheduleToggleLabel, exists("/tmp/.blfIgnoreSchedule") ? "Schedule (ignored)" : "Schedule");
-        strcpy(_menu_user_blue_light.items[2].label, scheduleToggleLabel);
+        strncpy(_menu_user_blue_light.items[2].label,
+                exists("/tmp/.blfIgnoreSchedule") ? "Schedule (ignored)" : "Schedule",
+                STR_MAX - 1);
+        _menu_user_blue_light.items[2].label[STR_MAX - 1] = '\0';
     }
     menu_stack[++menu_level] = &_menu_user_blue_light;
     header_changed = true;

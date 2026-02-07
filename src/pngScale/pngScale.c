@@ -4,7 +4,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+
+#include "../common/utils/neon_pixel.h"
 
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 #define ERROR(str)                 \
@@ -14,9 +17,32 @@
     }
 
 //
+//	Swap R and B channels: ABGR8888 <-> ARGB8888
+//	Delegates to shared NEON assembly in neon_pixel.h
+//
+static inline void swap_rb_channels(const uint32_t *src, uint32_t *dst, uint32_t count)
+{
+    if (src == dst) {
+        /* In-place swap: caller guarantees src is writable when src==dst */
+        neon_swap_rb_inplace(dst, (int)count);
+    } else {
+        neon_argb_to_rgba((uint32_t *)dst, src, (int)count);
+    }
+}
+
+//
+//	Convert RGB888 to ARGB8888
+//	Delegates to shared NEON assembly in neon_pixel.h
+//
+static inline void rgb_to_argb(const uint8_t *src_rgb, uint32_t *dst_argb, uint32_t count)
+{
+    neon_rgb888_to_argb(dst_argb, src_rgb, (int)count);
+}
+
+//
 //	GFX BlitSurface with scale
 //
-void GFX_BlitSurface(MI_PHY srcPa, void *srcVa, uint32_t sw, uint32_t sh,
+void GFX_BlitSurface(MI_PHY srcPa, const void *srcVa, uint32_t sw, uint32_t sh,
                      MI_PHY dstPa, void *dstVa, uint32_t dw, uint32_t dh)
 {
     MI_GFX_Surface_t Src;
@@ -49,7 +75,7 @@ void GFX_BlitSurface(MI_PHY srcPa, void *srcVa, uint32_t sw, uint32_t sh,
     memset(&Opt, 0, sizeof(Opt));
     Opt.eSrcDfbBldOp = E_MI_GFX_DFB_BLD_ONE;
 
-    MI_SYS_FlushInvCache(srcVa, ALIGN4K(sw * sh * 4));
+    MI_SYS_FlushInvCache((void *)srcVa, ALIGN4K(sw * sh * 4));
     MI_SYS_FlushInvCache(dstVa, ALIGN4K(dw * dh * 4));
     MI_GFX_BitBlit(&Src, &SrcRect, &Dst, &DstRect, &Opt, &Fence);
     MI_GFX_WaitAllDone(FALSE, Fence);
@@ -76,9 +102,9 @@ int main(int argc, char *argv[])
     if (argc < 3)
         goto usage;
     if (argc > 3)
-        mw = atoi(argv[3]);
+        mw = (uint32_t)strtoul(argv[3], NULL, 10);
     if (argc > 4)
-        mh = atoi(argv[4]);
+        mh = (uint32_t)strtoul(argv[4], NULL, 10);
     fp = fopen(argv[1], "rb");
     if ((!fp) || (!mw) || (!mh))
         goto usage;
@@ -135,20 +161,14 @@ int main(int argc, char *argv[])
         break;
     case 3:
         for (y = 0; y < sh; y++) {
-            src8 = rows[y];
-            for (x = 0; x < sw; x++, src8 += 3) {
-                *dst++ = 0xFF000000 | src8[0] << 16 | (src8[1] << 8) | src8[2];
-            }
+            rgb_to_argb(rows[y], dst, sw);
+            dst += sw;
         }
         break;
     case 4:
         for (y = 0; y < sh; y++) {
-            src = (uint32_t *)rows[y];
-            for (x = 0; x < sw; x++) {
-                pix = *src++;
-                *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                         (pix & 0x000000FF) << 16;
-            }
+            swap_rb_channels((const uint32_t *)rows[y], dst, sw);
+            dst += sw;
         }
         break;
     }
@@ -159,11 +179,15 @@ int main(int argc, char *argv[])
 
     // Calculate dst size
     dw = mw;
+    if (sw == 0 || sh == 0)
+        ERROR("png has zero dimensions");
     dh = sh * dw / sw;
     if (dh > mh) {
         dh = mh;
         dw = sw * dh / sh;
     }
+    if (dw == 0 || dh == 0)
+        ERROR("scaled dimensions are zero");
     ds = ALIGN4K(dw * dh * 4);
 
     // Allocate dst png mem and scale
@@ -191,13 +215,18 @@ int main(int argc, char *argv[])
     png_write_info(png_ptr, info_ptr);
     src = dstVa;
     tmp = malloc(dw * 4);
+    if (tmp == NULL) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        MI_SYS_Munmap(dstVa, ds);
+        MI_SYS_MMA_Free(dstPa);
+        MI_GFX_Close();
+        MI_SYS_Exit();
+        return 1;
+    }
     for (y = 0; y < dh; y++) {
-        dst = tmp;
-        for (x = 0; x < dw; x++) {
-            pix = *src++;
-            *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                     (pix & 0x000000FF) << 16;
-        }
+        swap_rb_channels(src, tmp, dw);
+        src += dw;
         png_write_row(png_ptr, (png_bytep)tmp);
     }
     png_write_end(png_ptr, info_ptr);

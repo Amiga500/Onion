@@ -26,13 +26,13 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(argv[i], "-p") == 0) {
             if (i + 1 < argc) {
-                port = atoi(argv[i + 1]);
+                port = (int)strtol(argv[i + 1], NULL, 10);
                 i++;
             }
         }
         else if (strcmp(argv[i], "-r") == 0) {
             if (i + 1 < argc) {
-                response_size = atoi(argv[i + 1]);
+                response_size = (size_t)strtoul(argv[i + 1], NULL, 10);
                 i++;
             }
         }

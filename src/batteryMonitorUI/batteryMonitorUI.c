@@ -94,35 +94,28 @@ void secondsToHoursMinutes(int seconds, char *output)
 {
     int hours = seconds / 3600;
     int minutes = (seconds % 3600) / 60;
-    sprintf(output, "%dh%02d", hours, minutes);
+    snprintf(output, 10, "%dh%02d", hours, minutes);
 }
 
 void drawLine(int x1, int y1, int x2, int y2, Uint32 color)
 {
     int dx, dy, sx, sy, err, e2;
+    // Direct pixel write — avoids SDL_FillRect overhead per pixel
+    const int pitch_px = screen->pitch / sizeof(Uint32);
+    Uint32 *pixels = (Uint32 *)screen->pixels;
 
     dx = abs(x2 - x1);
     dy = abs(y2 - y1);
 
-    if (x1 < x2) {
-        sx = 1;
-    }
-    else {
-        sx = -1;
-    }
-
-    if (y1 < y2) {
-        sy = 1;
-    }
-    else {
-        sy = -1;
-    }
+    sx = x1 < x2 ? 1 : -1;
+    sy = y1 < y2 ? 1 : -1;
 
     err = dx - dy;
 
     while (1) {
-        SDL_Rect pixel = {x1, y1, 1, 1};
-        SDL_FillRect(screen, &pixel, color);
+        if (x1 >= 0 && x1 < screen->w && y1 >= 0 && y1 < screen->h) {
+            pixels[y1 * pitch_px + x1] = color;
+        }
 
         if (x1 == x2 && y1 == y2) {
             break;
@@ -173,31 +166,31 @@ void switch_zoom_profile(int segment_duration)
     switch (segment_duration) {
     case 7200:
         // A segemmt is 120 minutes
-        sprintf(label[0], "%s", "4h");
-        sprintf(label[1], "%s", "8h");
-        sprintf(label[2], "%s", "12h");
-        sprintf(label[3], "%s", "16h");
+        snprintf(label[0], sizeof(label[0]), "%s", "4h");
+        snprintf(label[1], sizeof(label[1]), "%s", "8h");
+        snprintf(label[2], sizeof(label[2]), "%s", "12h");
+        snprintf(label[3], sizeof(label[3]), "%s", "16h");
         break;
     case 3600:
         // A segemmt is 60 minutes
-        sprintf(label[0], "%s", "2h");
-        sprintf(label[1], "%s", "4h");
-        sprintf(label[2], "%s", "6h");
-        sprintf(label[3], "%s", "8h");
+        snprintf(label[0], sizeof(label[0]), "%s", "2h");
+        snprintf(label[1], sizeof(label[1]), "%s", "4h");
+        snprintf(label[2], sizeof(label[2]), "%s", "6h");
+        snprintf(label[3], sizeof(label[3]), "%s", "8h");
         break;
     case 1800:
         // A segemmt is 30 minutes
-        sprintf(label[0], "%s", "1h");
-        sprintf(label[1], "%s", "2h");
-        sprintf(label[2], "%s", "3h");
-        sprintf(label[3], "%s", "4h");
+        snprintf(label[0], sizeof(label[0]), "%s", "1h");
+        snprintf(label[1], sizeof(label[1]), "%s", "2h");
+        snprintf(label[2], sizeof(label[2]), "%s", "3h");
+        snprintf(label[3], sizeof(label[3]), "%s", "4h");
         break;
 
     default:
-        sprintf(label[0], "%s", "");
-        sprintf(label[1], "%s", "");
-        sprintf(label[2], "%s", "");
-        sprintf(label[3], "%s", "");
+        snprintf(label[0], sizeof(label[0]), "%s", "");
+        snprintf(label[1], sizeof(label[1]), "%s", "");
+        snprintf(label[2], sizeof(label[2]), "%s", "");
+        snprintf(label[3], sizeof(label[3]), "%s", "");
         break;
     }
 }
@@ -256,7 +249,7 @@ void compute_graph(void)
                     bool is_charging = sqlite3_column_int(stmt, 4);
 
                     if (total_duration == 0) {
-                        sprintf(current_percentage, "%d%%", bat_perc);
+                        snprintf(current_percentage, sizeof(current_percentage), "%d%%", bat_perc);
                     }
 
                     current_index = (graph_max_size - 1) - duration_to_pixel(total_duration);
@@ -345,23 +338,23 @@ void renderPage()
 
     switch (current_zoom) {
     case 0:
-        sprintf(sub_title, "%s", "16 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "16 HOURS VIEW");
         segment_duration = 7200;
         SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 1:
-        sprintf(sub_title, "%s", "8 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "8 HOURS VIEW");
         segment_duration = 3600;
         SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 2:
-        sprintf(sub_title, "%s", "4 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "4 HOURS VIEW");
         segment_duration = 1800;
         SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     default:
-        sprintf(sub_title, "%s", "8 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "8 HOURS VIEW");
         segment_duration = 3600;
         SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
@@ -391,8 +384,6 @@ void renderPage()
     renderTextAlignRight(session_left, font_Arkhip, color_white, &(SDL_Rect){LABEL_LEFT_X, LABEL_LEFT_Y, LABEL_SIZE_X, LABEL_SIZE_Y});
     renderTextAlignRight(session_best, font_Arkhip, color_white, &(SDL_Rect){LABEL_BEST_X, LABEL_BEST_Y, LABEL_SIZE_X, LABEL_SIZE_Y});
 
-    int half_line_width = (int)(GRAPH_LINE_WIDTH) / 2;
-
     Uint32 white_pixel_color = SDL_MapRGBA(screen->format, 255, 255, 255, 0);
     Uint32 red_pixel_color = SDL_MapRGBA(screen->format, 255, 170, 170, 0);
     Uint32 blue_pixel_color = SDL_MapRGBA(screen->format, 89, 167, 255, 0);
@@ -402,46 +393,49 @@ void renderPage()
     int y;
     int x_end = 0;
     int y_end = 0;
-    int index;
 
     int zoom_level = (int)segment_duration / 1800;
 
+    // Pre-compute constants outside the loop
+    const int x_limit = GRAPH_DISPLAY_START_X + GRAPH_DISPLAY_SIZE_X;
+    const int y_est_limit = GRAPH_DISPLAY_START_Y + 5;
+    const int y_end_offset = GRAPH_DISPLAY_SIZE_Y + GRAPH_DISPLAY_START_Y - 45;
+    const int loop_limit = graph_max_size - current_index;
+
     if (SDL_LockSurface(screen) == 0) {
-        for (int i = 0; i < graph_max_size - current_index; i += zoom_level) {
+        Uint8 *pixels = (Uint8 *)screen->pixels;
+        const int pitch = screen->pitch;
+        const int bpp = screen->format->BytesPerPixel;
+
+        for (int i = 0; i < loop_limit; i += zoom_level) {
 
             x = GRAPH_DISPLAY_START_X + (int)(i / zoom_level);
-            y = graphic[i + current_index].pixel_height;
+            const graph_spot *spot = &graphic[i + current_index];
+            y = spot->pixel_height;
 
-            bool is_charging = graphic[i + current_index].is_charging;
-            bool is_estimated = graphic[i + current_index].is_estimated;
-            //if ((!is_charging)
-            if ((!is_charging) && (!is_estimated))
+            if (!spot->is_charging && !spot->is_estimated)
                 pixel_color = white_pixel_color;
-            else if (is_charging)
+            else if (spot->is_charging)
                 pixel_color = red_pixel_color;
-            else if (is_estimated) {
+            else {
                 pixel_color = blue_pixel_color;
-                if ((y < GRAPH_DISPLAY_START_Y + 5) && (x < GRAPH_DISPLAY_SIZE_X + GRAPH_DISPLAY_START_X)) {
+                if ((y < y_est_limit) && (x < x_limit)) {
                     x_end = x - 12;
-                    y_end = GRAPH_DISPLAY_SIZE_Y + GRAPH_DISPLAY_START_Y - 45;
+                    y_end = y_end_offset;
                 }
             }
 
-            if (x < (GRAPH_DISPLAY_START_X + GRAPH_DISPLAY_SIZE_X)) {
-                if (half_line_width >= 0) {
-                    for (int k = -half_line_width; k <= half_line_width; k++) {
-                        index = (480 - y + k) * screen->pitch + x * screen->format->BytesPerPixel;
-                        *((Uint32 *)((Uint8 *)screen->pixels + index)) = pixel_color;
-                    }
-                }
+            if (x < x_limit) {
+                // Direct pixel write (GRAPH_LINE_WIDTH=1, so half_line_width=0, single pixel)
+                const int x_byte_offset = x * bpp;
+                *((Uint32 *)(pixels + (480 - y) * pitch + x_byte_offset)) = pixel_color;
 
-                // Graph background
+                // Graph background: step by GRAPH_BACKGROUND_OPACITY instead of modulo check
                 if ((x % GRAPH_BACKGROUND_OPACITY) == 0) {
-                    for (int k = y; k > GRAPH_DISPLAY_START_Y; k--) {
-                        if ((k % GRAPH_BACKGROUND_OPACITY) == 0) {
-                            index = (480 - k) * screen->pitch + x * screen->format->BytesPerPixel;
-                            *((Uint32 *)((Uint8 *)screen->pixels + index)) = pixel_color;
-                        }
+                    // Start at highest grid line below y
+                    int k_start = ((y - 1) / GRAPH_BACKGROUND_OPACITY) * GRAPH_BACKGROUND_OPACITY;
+                    for (int k = k_start; k > GRAPH_DISPLAY_START_Y; k -= GRAPH_BACKGROUND_OPACITY) {
+                        *((Uint32 *)(pixels + (480 - k) * pitch + x_byte_offset)) = pixel_color;
                     }
                 }
             }

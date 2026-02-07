@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -29,7 +30,7 @@ static SDL_Surface *slide = NULL;
 SDL_Surface *_loadSlide(int index)
 {
     char image_path[STR_MAX];
-    sprintf(image_path, "res/installSlide%d.png", index);
+    snprintf(image_path, sizeof(image_path), "res/installSlide%d.png", index);
     if (exists(image_path))
         return IMG_Load(image_path);
     return NULL;
@@ -73,9 +74,9 @@ int main(int argc, char *argv[])
     int i;
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--begin") == 0)
-            start_at = atoi(argv[++i]);
+            start_at = (int)strtol(argv[++i], NULL, 10);
         else if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--total") == 0)
-            total_offset = atoi(argv[++i]);
+            total_offset = (int)strtol(argv[++i], NULL, 10);
         else if (strcmp(argv[i], "-m") == 0 ||
                  strcmp(argv[i], "--message") == 0)
             strncpy(message_str, argv[++i], STR_MAX - 1);
@@ -102,7 +103,7 @@ int main(int argc, char *argv[])
     SDL_Color fg_color = {255, 255, 255, 0};
 
     char version_str[STR_MAX];
-    sprintf(version_str, "v%s", ONION_VERSION);
+    snprintf(version_str, sizeof(version_str), "v%s", ONION_VERSION);
 
     SDL_Surface *surface_version = TTF_RenderUTF8_Blended(font_small, version_str, fg_color);
     SDL_Rect rect_version = {10, 10};
@@ -125,6 +126,8 @@ int main(int argc, char *argv[])
     int progress = 0;
     int progress_div = 100 / total_offset;
     int spinner_tick = 0;
+    char prev_message_str[STR_MAX] = "";
+    SDL_Surface *cached_message = NULL;
 
     SDL_Event event;
 
@@ -173,7 +176,7 @@ int main(int argc, char *argv[])
         }
 
         if (exists(".installFailed")) {
-            sprintf(message_str, "Installation failed");
+            snprintf(message_str, sizeof(message_str), "Installation failed");
             progress = 100;
             failed = true;
             quit = true;
@@ -189,7 +192,7 @@ int main(int argc, char *argv[])
             }
             else if (!quit && ticks - check_timer > TIMEOUT_M * 60 * 1000 &&
                      !exists(".waitConfirm")) {
-                sprintf(message_str, "The installation timed out, exiting...");
+                snprintf(message_str, sizeof(message_str), "The installation timed out, exiting...");
                 progress = 100;
                 failed = true;
                 quit = true;
@@ -224,10 +227,15 @@ int main(int argc, char *argv[])
                              failed ? failed_color : progress_color);
             }
 
-            SDL_Surface *message =
-                TTF_RenderUTF8_Blended(font, message_str, fg_color);
-            SDL_BlitSurface(message, NULL, screen, &rectMessage);
-            SDL_FreeSurface(message);
+            // Cache message surface — only re-render when text changes
+            if (strcmp(message_str, prev_message_str) != 0) {
+                if (cached_message) SDL_FreeSurface(cached_message);
+                cached_message = TTF_RenderUTF8_Blended(font, message_str, fg_color);
+                strncpy(prev_message_str, message_str, STR_MAX - 1);
+                prev_message_str[STR_MAX - 1] = '\0';
+            }
+            if (cached_message)
+                SDL_BlitSurface(cached_message, NULL, screen, &rectMessage);
 
             SDL_BlitSurface(screen, NULL, video, NULL);
             SDL_Flip(video);
@@ -250,10 +258,12 @@ int main(int argc, char *argv[])
 
     config_setNumber("currentSlide", current_slide);
 
+    if (cached_message != NULL)
+        SDL_FreeSurface(cached_message);
+
     TTF_CloseFont(font);
     TTF_CloseFont(font_small);
     TTF_Quit();
-
     if (slide != NULL) {
         SDL_FreeSurface(slide);
     }

@@ -2,6 +2,7 @@
 #define SAVE_IMAGE_H__
 
 #include "png/png.h"
+#include "neon_pixel.h"
 #include <SDL/SDL.h>
 #include <stdlib.h>
 
@@ -18,6 +19,10 @@ void IMG_Save(SDL_Surface *image, char *path)
         return;
 
     Uint32 *linebuffer = (Uint32 *)malloc(image->pitch);
+    if (linebuffer == NULL) {
+        fclose(fp);
+        return;
+    }
     Uint32 *src = (Uint32 *)image->pixels;
 
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
@@ -29,18 +34,9 @@ void IMG_Save(SDL_Surface *image, char *path)
     png_write_info(png_ptr, info_ptr);
 
     for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            Uint32 pix = *src++;
-            /* Use pix only when alpha is non-zero */
-            linebuffer[x] = (pix & 0xFF000000)
-                                ? (pix & 0xFF00FF00) | (pix & 0xFF0000) >> 16 |
-                                      (pix & 0xFF) << 16
-                                : 0;
-            /* Following is also fine, but the above creates a cleaner png
-            linebuffer[x] = (pix & 0xFF00FF00) | (pix & 0xFF0000)>>16 | (pix &
-            0xFF)<<16;
-            */
-        }
+        /* NEON-accelerated ARGB→RGBA with alpha-conditional zeroing */
+        neon_argb_to_rgba_alpha(linebuffer, src, width);
+        src += width;
         png_write_row(png_ptr, (png_bytep)linebuffer);
     }
 

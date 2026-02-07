@@ -43,19 +43,21 @@ IconMode_e icons_getIconMode(const char *config_path)
 void _saveConfigFile(const char *config_path, const char *content)
 {
     FILE *config_file = fopen(config_path, "w+");
+    if (config_file == NULL)
+        return;
     fprintf(config_file, "%s", content);
     fflush(config_file);
     fclose(config_file);
 
     if (strcmp(SEARCH_CONFIG_SRC, config_path) == 0 && is_file(SEARCH_CONFIG))
-        system("cp \"" SEARCH_CONFIG_SRC "\" \"" SEARCH_CONFIG "\"");
+        file_copy(SEARCH_CONFIG_SRC, SEARCH_CONFIG);
     else if (strcmp(GUEST_OFF_CONFIG, config_path) == 0) {
         if (is_dir(GUEST_DIR)) // main profile
-            system("cp \"" GUEST_OFF_CONFIG "\" \"" GUEST_CONFIG "\"");
+            file_copy(GUEST_OFF_CONFIG, GUEST_CONFIG);
     }
     else if (strcmp(GUEST_ON_CONFIG, config_path) == 0) {
         if (!is_dir(GUEST_DIR)) // guest profile
-            system("cp \"" GUEST_ON_CONFIG "\" \"" GUEST_CONFIG "\"");
+            file_copy(GUEST_ON_CONFIG, GUEST_CONFIG);
     }
 }
 
@@ -73,7 +75,7 @@ bool apply_singleIconByFullPath(const char *config_path, const char *icon_path)
     cJSON *config = json_load(config_path);
 
     char sel_path[STR_MAX];
-    sprintf(sel_path, "%s/sel/%s", dir_path, file_name);
+    snprintf(sel_path, sizeof(sel_path), "%s/sel/%s", dir_path, file_name);
 
     if (!is_file(sel_path))
         strcpy(sel_path, icon_path);
@@ -146,12 +148,12 @@ bool _apply_singleIconFromPack(const char *config_path,
     IconMode_e mode = icons_getIconMode(config_path);
 
     char icon_path[STR_MAX];
-    sprintf(icon_path, icons_getIconPathFormat(mode), icon_pack_path,
+    snprintf(icon_path, sizeof(icon_path), icons_getIconPathFormat(mode), icon_pack_path,
             icon_name);
 
     if (!is_file(icon_path)) {
         if (reset_default) {
-            sprintf(icon_path, icons_getIconPathFormat(mode), ICON_PACK_DEFAULT,
+            snprintf(icon_path, sizeof(icon_path), icons_getIconPathFormat(mode), ICON_PACK_DEFAULT,
                     icon_name);
         }
 
@@ -162,7 +164,7 @@ bool _apply_singleIconFromPack(const char *config_path,
     }
 
     char sel_path[STR_MAX];
-    sprintf(sel_path, icons_getSelectedIconPathFormat(mode), icon_pack_path,
+    snprintf(sel_path, sizeof(sel_path), icons_getSelectedIconPathFormat(mode), icon_pack_path,
             icon_name);
     free(icon_name);
 

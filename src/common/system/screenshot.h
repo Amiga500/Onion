@@ -11,6 +11,7 @@
 #include "utils/file.h"
 #include "utils/hash.h"
 #include "utils/log.h"
+#include "utils/neon_pixel.h"
 #include "utils/process.h"
 #include "utils/str.h"
 
@@ -18,8 +19,10 @@ bool __get_path_recent(char *path_out)
 {
     char *fnptr, *no_extension;
     uint32_t i;
+    const size_t path_size = 512;
 
-    strcpy(path_out, "/mnt/SDCARD/Screenshots/");
+    strncpy(path_out, "/mnt/SDCARD/Screenshots/", path_size - 1);
+    path_out[path_size - 1] = '\0';
     fnptr = path_out + strlen(path_out);
 
     system_state_update();
@@ -28,14 +31,14 @@ bool __get_path_recent(char *path_out)
         char file_path[STR_MAX];
         if (history_getRecentPath(file_path) != NULL) {
             no_extension = file_removeExtension(basename(file_path));
-            strcat(path_out, no_extension);
+            strncat(path_out, no_extension, path_size - strlen(path_out) - 1);
             free(no_extension);
         }
     }
     else if (system_state == MODE_SWITCHER)
-        strcat(path_out, "GameSwitcher");
+        strncat(path_out, "GameSwitcher", path_size - strlen(path_out) - 1);
     else if (system_state == MODE_MAIN_UI)
-        strcat(path_out, "MainUI");
+        strncat(path_out, "MainUI", path_size - strlen(path_out) - 1);
     else if ((system_state == MODE_GAME || system_state == MODE_APPS) && exists(CMD_TO_RUN_PATH)) {
         FILE *fp;
         char cmd[STR_MAX];
@@ -48,20 +51,21 @@ bool __get_path_recent(char *path_out)
             state_getAppName(app_name, cmd);
         else {
             no_extension = file_removeExtension(basename(cmd));
-            strcpy(app_name, no_extension);
+            strncpy(app_name, no_extension, sizeof(app_name) - 1);
+            app_name[sizeof(app_name) - 1] = '\0';
             free(no_extension);
         }
         printf_debug("app: '%s'\n", app_name);
 
-        strcat(path_out, app_name);
+        strncat(path_out, app_name, path_size - strlen(path_out) - 1);
     }
 
     if (!(*fnptr))
-        strcat(path_out, "Screenshot");
+        strncat(path_out, "Screenshot", path_size - strlen(path_out) - 1);
 
     fnptr = path_out + strlen(path_out);
     for (i = 0; i < 1000; i++) {
-        sprintf(fnptr, "_%03d.png", i);
+        snprintf(fnptr, STR_MAX - (fnptr - path_out), "_%03d.png", i);
         if (!exists(path_out))
             break;
     }
@@ -73,6 +77,8 @@ uint32_t *__screenshot_buffer(void)
 {
     size_t buffer_size = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint32_t);
     uint32_t *buffer = (uint32_t *)malloc(buffer_size);
+    if (buffer == NULL)
+        return NULL;
 
     ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
     memcpy(buffer, g_display.fb_addr + DISPLAY_WIDTH * g_display.vinfo.yoffset, buffer_size);
@@ -119,9 +125,16 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool r
     }
 
     for (y = 0; y < g_display.height; y++) {
-        for (x = 0; x < g_display.width; x++) {
-            pix = rotate180 ? *(--src) : *(src++);
-            line_buffer[x] = 0xFF000000 | (pix & 0x0000FF00) | (pix & 0x00FF0000) >> 16 | (pix & 0x000000FF) << 16;
+        if (rotate180) {
+            /* Reverse row pixel-by-pixel (can't use NEON for reverse traversal) */
+            for (x = 0; x < g_display.width; x++) {
+                pix = *(--src);
+                line_buffer[x] = 0xFF000000 | (pix & 0x0000FF00) | ((pix & 0x00FF0000) >> 16) | ((pix & 0x000000FF) << 16);
+            }
+        } else {
+            /* Forward: NEON-accelerated ARGB→RGBA swap, 16 pixels per iteration */
+            neon_argb_to_rgba(line_buffer, src, g_display.width);
+            src += g_display.width;
         }
         png_write_row(png_ptr, (png_bytep)line_buffer);
     }

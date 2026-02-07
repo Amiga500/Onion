@@ -65,9 +65,10 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
 void logMessage(char *Message)
 {
     FILE *file = fopen("/mnt/SDCARD/log_Easter_Message.txt", "a");
-
+    if (file == NULL)
+        return;
     char valLog[MAXCHARACTERSARRAY];
-    sprintf(valLog, "%s %s", Message, "\n");
+    snprintf(valLog, sizeof(valLog), "%s %s", Message, "\n");
     fputs(valLog, file);
     fclose(file);
 }
@@ -94,8 +95,11 @@ int main(int argc, char *argv[])
     int bTouchWall2 = 0;
 
     int mainLoop = 1;
+    const Uint32 FRAME_TIME_BOUNCE = 16; // ~60fps for bounce animation
+    const Uint32 FRAME_TIME_SCROLL = 33; // ~30fps for text scroll
 
     while (mainLoop) {
+        Uint32 frame_start = SDL_GetTicks();
 
         bTouchWall1 = 0;
         bTouchWall2 = 0;
@@ -162,19 +166,22 @@ int main(int argc, char *argv[])
             TTF_Init();
 
             // Read the text from the text file
-            sprintf(gText, "%s", "Onion ");
+            snprintf(gText, sizeof(gText), "%s", "Onion ");
             charIndex = 6;
 
             FILE *file =
                 fopen("/mnt/SDCARD/.tmp_update/onionVersion/version.txt", "r");
-            char c;
-            c = getc(file);
-            while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
-
-                gText[charIndex] = c;
-
-                charIndex++;
+            if (file != NULL) {
+                char c;
                 c = getc(file);
+                while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
+
+                    gText[charIndex] = c;
+
+                    charIndex++;
+                    c = getc(file);
+                }
+                fclose(file);
             }
             gText[charIndex] = '\n';
             charIndex++;
@@ -186,15 +193,18 @@ int main(int argc, char *argv[])
             file = fopen(
                 "/mnt/SDCARD/.tmp_update/onionVersion/acknowledgments.txt",
                 "r");
-            c = getc(file);
-            while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
-                gText[charIndex] = c;
-                charIndex++;
+            if (file != NULL) {
+                char c;
                 c = getc(file);
+                while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
+                    gText[charIndex] = c;
+                    charIndex++;
+                    c = getc(file);
+                }
+                fclose(file);
             }
 
             gText[charIndex] = '\0';
-            fclose(file);
 
             TTF_Font *font35 =
                 TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 35);
@@ -232,7 +242,8 @@ int main(int argc, char *argv[])
                         cptFrames = 0;
                     }
                     cptFrames++;
-                    SDL_Delay(2);
+                    { Uint32 elapsed = SDL_GetTicks() - frame_start;
+                      if (elapsed < FRAME_TIME_BOUNCE) SDL_Delay(FRAME_TIME_BOUNCE - elapsed); }
                     break;
 
                 case 2:
@@ -251,7 +262,8 @@ int main(int argc, char *argv[])
                         loop = 0;
                         mainLoop = 0;
                     }
-                    SDL_Delay(10);
+                    { Uint32 elapsed = SDL_GetTicks() - frame_start;
+                      if (elapsed < FRAME_TIME_SCROLL) SDL_Delay(FRAME_TIME_SCROLL - elapsed); }
                     break;
                 }
 
@@ -272,7 +284,8 @@ int main(int argc, char *argv[])
             SDL_BlitSurface(logo1, NULL, screen, &rect);
             SDL_BlitSurface(screen, NULL, video, NULL);
             SDL_Flip(video);
-            SDL_Delay(2);
+            { Uint32 elapsed = SDL_GetTicks() - frame_start;
+              if (elapsed < FRAME_TIME_BOUNCE) SDL_Delay(FRAME_TIME_BOUNCE - elapsed); }
         }
     }
     // Clean up

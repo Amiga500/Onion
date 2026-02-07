@@ -109,7 +109,7 @@ int suspend(uint32_t mode)
         if (dir->d_type == DT_DIR) {
             pid = atoi(dir->d_name);
             if ((pid > 2) && (pid != suspend_pid)) {
-                sprintf(fname, "/proc/%d/stat", pid);
+                snprintf(fname, sizeof(fname), "/proc/%d/stat", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
                     fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
@@ -206,7 +206,7 @@ void wait(int seconds)
 void showBootScreen(const char *type)
 {
     char cmd[256];
-    sprintf(cmd, "bootScreen \"%s\" &", type);
+    snprintf(cmd, sizeof(cmd), "bootScreen \"%s\" &", type);
     system(cmd);
 }
 
@@ -385,7 +385,7 @@ void cpuClockHotkey(int adjust)
         // Unknown device
         return;
     }
-    char cpuclockstr[5];
+    char cpuclockstr[STR_MAX];
 
     // Read current CPU clock
     int ret = process_start_read_return("cpuclock", cpuclockstr);
@@ -824,11 +824,11 @@ int main(void)
             if (menuAndBPressed && (getMilliseconds() - menuAndBPressedTime >= 2000)) {
                 if (access("/tmp/.blfOn", F_OK) != -1) {
                     system("/mnt/SDCARD/.tmp_update/script/blue_light.sh disable &");
-                    system("touch /tmp/.blfIgnoreSchedule");
+                    close(open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644));
                 }
                 else {
                     system("/mnt/SDCARD/.tmp_update/script/blue_light.sh enable &");
-                    system("touch /tmp/.blfIgnoreSchedule");
+                    close(open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644));
                 }
 
                 menuAndBPressed = false;
@@ -869,8 +869,10 @@ int main(void)
                         // The entire Konami code was entered!
                         FILE *file =
                             fopen("/mnt/SDCARD/.tmp_update/cmd_to_run.sh", "w");
-                        fputs("cd /mnt/SDCARD/.tmp_update/bin; ./easter", file);
-                        fclose(file);
+                        if (file) {
+                            fputs("cd /mnt/SDCARD/.tmp_update/bin; ./easter", file);
+                            fclose(file);
+                        }
 
                         konamiCodeIndex = 0;
                         kill_mainUI();

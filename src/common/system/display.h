@@ -228,6 +228,8 @@ uint32_t display_getBrightnessRaw()
 int display_getBrightnessFromRaw()
 {
     int value_raw = display_getBrightnessRaw();
+    if (value_raw <= 0)
+        return 0;
     int value = round((log(value_raw / 3.0) / 0.350656));
     return value;
 }
@@ -274,12 +276,23 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
     for (int oy = 0; oy < rect.h; oy++) {
         int y = rect.y + oy;
 
-        if (y < 0 || y >= display->vinfo.yres)
+        if (y < 0 || y >= (int)display->vinfo.yres)
             continue;
 
         int virtualY = bufferPos + (rotate ? (display->vinfo.yres - 1) - y : y);
         long baseOffset = (long)virtualY * display->vinfo.xres;
         int baseIndex = oy * rect.w;
+
+        // Fast path: non-rotated, non-masked, contiguous row — use memcpy
+        if (!rotate && !mask && rect.x >= 0 && rect.x + rect.w <= (int)display->vinfo.xres) {
+            long rowOffset = baseOffset + (long)rect.x;
+            if (write) {
+                memcpy(&display->fb_addr[rowOffset], &pixels[baseIndex], rect.w * sizeof(uint32_t));
+            } else {
+                memcpy(&pixels[baseIndex], &display->fb_addr[rowOffset], rect.w * sizeof(uint32_t));
+            }
+            continue;
+        }
 
         for (int ox = 0; ox < rect.w; ox++) {
             int x = rect.x + ox;
@@ -288,7 +301,7 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
                 x = (display->vinfo.xres - 1) - x;
             }
 
-            if (x < 0 || x >= display->vinfo.xres)
+            if (x < 0 || x >= (int)display->vinfo.xres)
                 continue;
 
             long offset = baseOffset + (long)x;
@@ -329,6 +342,8 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
  */
 void display_readCurrentBuffer(display_t *display, uint32_t *pixels, rect_t rect, bool rotate, bool mask)
 {
+    if (display->vinfo.yres == 0)
+        return;
     int index = display->vinfo.yoffset / display->vinfo.yres;
     display_readOrWriteBuffer(index, display, pixels, rect, rotate, mask, false);
 }
@@ -384,6 +399,8 @@ void display_writeBuffer(int index, display_t *display, uint32_t *pixels, rect_t
  */
 void display_readOrWriteBuffers(display_t *display, uint32_t **pixels, rect_t rect, bool rotate, bool mask, bool write)
 {
+    if (display->vinfo.yres == 0)
+        return;
     int numBuffers = display->vinfo.yres_virtual / display->vinfo.yres;
 
     for (int b = 0; b < numBuffers; b++) {

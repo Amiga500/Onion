@@ -18,8 +18,12 @@ static int short_timings[] = {0, 50, 100, 150};
 
 void rumble(bool enabled)
 {
-    file_write("/sys/class/gpio/export", "48", 2);
-    file_write("/sys/class/gpio/gpio48/direction", "out", 3);
+    static bool gpio_initialized = false;
+    if (!gpio_initialized) {
+        file_write("/sys/class/gpio/export", "48", 2);
+        file_write("/sys/class/gpio/gpio48/direction", "out", 3);
+        gpio_initialized = true;
+    }
     file_write("/sys/class/gpio/gpio48/value", enabled ? "0" : "1", 1);
 }
 

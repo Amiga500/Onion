@@ -64,10 +64,13 @@ bool parseJsonToRecentItem(const char *jsonStr, RecentItem *recentItem, int line
         firstPart[position] = '\0';
 
         char secondPart[strlen(recentItem->rompath) - position];
-        strcpy(secondPart, colonPosition + 1);
+        strncpy(secondPart, colonPosition + 1, sizeof(secondPart) - 1);
+        secondPart[sizeof(secondPart) - 1] = '\0';
 
-        strcpy(recentItem->launch, firstPart);
-        strcpy(recentItem->rompath, secondPart);
+        strncpy(recentItem->launch, firstPart, sizeof(recentItem->launch) - 1);
+        recentItem->launch[sizeof(recentItem->launch) - 1] = '\0';
+        strncpy(recentItem->rompath, secondPart, sizeof(recentItem->rompath) - 1);
+        recentItem->rompath[sizeof(recentItem->rompath) - 1] = '\0';
     }
 
     cJSON_Delete(json);
@@ -149,7 +152,8 @@ bool getGameName(char *name_out, const char *rom_path)
 {
     CacheDBItem *cache_item = cache_db_find(rom_path);
     if (cache_item != NULL) {
-        strcpy(name_out, cache_item->name);
+        strncpy(name_out, cache_item->name, STR_MAX * 2 - 1);
+        name_out[STR_MAX * 2 - 1] = '\0';
         free(cache_item);
         return true;
     }
@@ -165,11 +169,13 @@ void processItem(Game_s *game)
     game->processed = true;
 
     char *rom_name = file_removeExtension(file_basename(game->recentItem.rompath));
-    strcpy(game->rom_name, rom_name);
+    strncpy(game->rom_name, rom_name, sizeof(game->rom_name) - 1);
+    game->rom_name[sizeof(game->rom_name) - 1] = '\0';
     free(rom_name);
 
     if (!getGameName(game->name, game->recentItem.rompath)) {
-        strcpy(game->name, game->rom_name);
+        strncpy(game->name, game->rom_name, sizeof(game->name) - 1);
+        game->name[sizeof(game->name) - 1] = '\0';
     }
 
     file_cleanName(game->shortname, game->name);

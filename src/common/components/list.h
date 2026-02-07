@@ -44,6 +44,12 @@ typedef struct ListItem {
     char preview_path[4096];
     char sticky_note[STR_MAX];
     char info_note[STR_MAX];
+    void *_label_cache;      // Cached TTF surface for label (internal)
+    uint32_t _label_hash;    // Hash of label text for cache invalidation
+    void *_value_cache;      // Cached TTF surface for value label (internal)
+    int _cached_value;       // Cached value for value label invalidation
+    void *_scaled_preview;   // Cached scaled preview surface (internal)
+    int _scaled_preview_w;   // Width the preview was scaled to (for invalidation)
 } ListItem;
 
 typedef struct List {
@@ -152,7 +158,8 @@ ListItem *list_addItem(List *list, ListItem item)
 ListItem *list_addItemWithInfoNote(List *list, ListItem item, const char *info_note)
 {
     ListItem *_item = list_addItem(list, item);
-    strcpy(_item->info_note, info_note);
+    strncpy(_item->info_note, info_note, sizeof(_item->info_note) - 1);
+    _item->info_note[sizeof(_item->info_note) - 1] = '\0';
     return _item;
 }
 
@@ -160,7 +167,8 @@ ListItem *list_addItemWithLang(List *list, ListItem item, const lang_hash key)
 {
     ListItem *_item = list_addItem(list, item);
     if (lang_list && lang_list[key])
-        strcpy(_item->label, lang_list[key]);
+        strncpy(_item->label, lang_list[key], sizeof(_item->label) - 1);
+        _item->label[sizeof(_item->label) - 1] = '\0';
     return _item;
 }
 
@@ -416,9 +424,9 @@ void list_getItemValueLabel(ListItem *item, char *out_label)
     if (item->value_formatter != NULL)
         item->value_formatter(item, out_label);
     else if (item->value_labels[0][0] != '\0')
-        sprintf(out_label, "%s", item->value_labels[item->value]);
+        snprintf(out_label, STR_MAX, "%s", item->value_labels[item->value]);
     else
-        sprintf(out_label, "%d", item->value);
+        snprintf(out_label, STR_MAX, "%d", item->value);
 }
 
 void list_free(List *list)
@@ -431,6 +439,12 @@ void list_free(List *list)
             SDL_FreeSurface((SDL_Surface *)item->icon_ptr);
         if (item->preview_ptr != NULL)
             SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
+        if (item->_label_cache != NULL)
+            SDL_FreeSurface((SDL_Surface *)item->_label_cache);
+        if (item->_value_cache != NULL)
+            SDL_FreeSurface((SDL_Surface *)item->_value_cache);
+        if (item->_scaled_preview != NULL)
+            SDL_FreeSurface((SDL_Surface *)item->_scaled_preview);
     }
     free(list->items);
     list->_created = false;

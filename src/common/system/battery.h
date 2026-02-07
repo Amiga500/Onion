@@ -75,13 +75,12 @@ bool battery_isCharging(void)
     }
     else if (DEVICE_ID == MIYOO354) {
         char *cmd = "cd /customer/app/ ; ./axp_test";
-        int batJsonSize = 100;
-        char buf[batJsonSize];
-        int charge_number;
+        char buf[100];
+        int charge_number = 0;
 
         FILE *fp;
         fp = popen(cmd, "r");
-        if (fgets(buf, batJsonSize, fp) != NULL) {
+        if (fgets(buf, sizeof(buf), fp) != NULL) {
             sscanf(buf, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}",
                    &charge_number);
         }

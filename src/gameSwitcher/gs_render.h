@@ -99,22 +99,26 @@ void renderGameName(AppState *state)
 
     SDL_BlitSurface(state->transparent_bg, &game_name_bg_size, screen, &game_name_bg_pos);
 
+    // Pre-compute scaled constants (avoid double→int conversion per frame)
+    int scaled_30 = (int)(30.0 * g_scale);
+
     if (state->current_game > 0) {
-        SDL_Rect arrow_left_rect = {(double)(theme()->frame.border_left + 10) * g_scale, 30.0 * g_scale - arrow_left->h / 2};
+        SDL_Rect arrow_left_rect = {(int)((theme()->frame.border_left + 10) * g_scale), scaled_30 - arrow_left->h / 2};
         arrow_left_rect.y += game_name_bg_pos.y;
         SDL_BlitSurface(arrow_left, NULL, screen, &arrow_left_rect);
     }
 
     if (state->current_game < game_list_len - 1) {
         SDL_Rect arrow_right_rect = {
-            (double)(630 - theme()->frame.border_right) * g_scale - arrow_right->w,
-            30.0 * g_scale - arrow_right->h / 2};
+            (int)((630 - theme()->frame.border_right) * g_scale) - arrow_right->w,
+            scaled_30 - arrow_right->h / 2};
         arrow_right_rect.y += game_name_bg_pos.y;
         SDL_BlitSurface(arrow_right, NULL, screen, &arrow_right_rect);
     }
 
     char game_name_str[STR_MAX * 2 + 4];
-    strcpy(game_name_str, game->shortname);
+    strncpy(game_name_str, game->shortname, sizeof(game_name_str) - 1);
+    game_name_str[sizeof(game_name_str) - 1] = '\0';
 
     if (state->current_game_changed) {
         if (state->surfaceGameName != NULL)
@@ -131,7 +135,7 @@ void renderGameName(AppState *state)
     }
 
     SDL_Rect game_name_rect = {(g_display.width - state->surfaceGameName->w) / 2,
-                               game_name_bg_pos.y + 30.0 * g_scale - state->surfaceGameName->h / 2};
+                               game_name_bg_pos.y + scaled_30 - state->surfaceGameName->h / 2};
     if (game_name_rect.x < game_name_padding)
         game_name_rect.x = game_name_padding;
 
@@ -150,36 +154,46 @@ void renderGameName(AppState *state)
     }
 }
 
+static SDL_Surface *_gs_header_title_cache = NULL;
+static char _gs_header_title_str[STR_MAX] = "";
+
 void renderHeader(AppState *state, int battery_percentage)
 {
     char title_str[STR_MAX] = "GameSwitcher";
     Game_s *game = &game_list[state->current_game];
 
     if (state->show_time && game_list_len > 0) {
-        if (strlen(game->totalTime) == 0) {
+        if (game->totalTime[0] == '\0') {
             str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
         }
-        strcpy(title_str, game->totalTime);
+        strncpy(title_str, game->totalTime, STR_MAX - 1);
+        title_str[STR_MAX - 1] = '\0';
 
         if (state->show_total) {
-            if (strlen(sTotalTimePlayed) == 0) {
+            if (sTotalTimePlayed[0] == '\0') {
                 str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
             }
-            sprintf(title_str + strlen(title_str), " / %s", sTotalTimePlayed);
+            int title_len = strlen(title_str);
+            snprintf(title_str + title_len, STR_MAX - title_len, " / %s", sTotalTimePlayed);
         }
     }
 
     if (state->custom_header) {
         if (state->header_height > 0) {
             SDL_BlitSurface(state->custom_header, NULL, screen, NULL);
-            SDL_Surface *title = TTF_RenderUTF8_Blended(
-                resource_getFont(TITLE), title_str,
-                theme()->title.color);
-            if (title) {
-                SDL_Rect title_rect = {(g_display.width - title->w) / 2,
-                                       (state->header_height - title->h) / 2};
-                SDL_BlitSurface(title, NULL, screen, &title_rect);
-                SDL_FreeSurface(title);
+            // Cache title surface — only re-render when text changes
+            if (strcmp(title_str, _gs_header_title_str) != 0) {
+                if (_gs_header_title_cache)
+                    SDL_FreeSurface(_gs_header_title_cache);
+                _gs_header_title_cache = TTF_RenderUTF8_Blended(
+                    resource_getFont(TITLE), title_str, theme()->title.color);
+                strncpy(_gs_header_title_str, title_str, STR_MAX - 1);
+                _gs_header_title_str[STR_MAX - 1] = '\0';
+            }
+            if (_gs_header_title_cache) {
+                SDL_Rect title_rect = {(g_display.width - _gs_header_title_cache->w) / 2,
+                                       (state->header_height - _gs_header_title_cache->h) / 2};
+                SDL_BlitSurface(_gs_header_title_cache, NULL, screen, &title_rect);
             }
             theme_renderHeaderBatteryCustom(screen, battery_percentage, state->header_height);
         }

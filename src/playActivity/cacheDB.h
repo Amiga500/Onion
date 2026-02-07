@@ -76,10 +76,14 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
     cache_path_out[0] = '\0';
 
     int cache_version = CACHE_NOT_FOUND;
-    char *cache_dir = dirname(strdup((char *)rom_path));
+    char *rom_path_dup = strdup((char *)rom_path);
+    if (rom_path_dup == NULL)
+        return CACHE_NOT_FOUND;
+    char *cache_dir = dirname(rom_path_dup);
 
-    while (strlen(cache_dir) > 16) {
-        strcpy(cache_name_out, basename(cache_dir));
+    while (cache_dir[0] != '\0' && strnlen(cache_dir, 17) > 16) { // O(1) bounded check vs O(n) strlen
+        strncpy(cache_name_out, basename(cache_dir), STR_MAX - 1);
+        cache_name_out[STR_MAX - 1] = '\0';
         cache_version = cache_get_path_and_version(cache_path_out, cache_dir, cache_name_out);
 
         if (cache_version != CACHE_NOT_FOUND) {
@@ -93,6 +97,7 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
         }
     }
 
+    free(rom_path_dup);
     return cache_version;
 }
 
@@ -108,11 +113,13 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     char rel_path[PATH_MAX];
     if (!file_path_relative_to(rel_path, "/mnt/SDCARD/Roms", path_or_name)) {
         if (strstr(path_or_name, "../../Roms/") != NULL) {
-            strcpy(rel_path, str_split(_path_or_name, "../../Roms/"));
+            strncpy(rel_path, str_split(_path_or_name, "../../Roms/"), sizeof(rel_path) - 1);
+            rel_path[sizeof(rel_path) - 1] = '\0';
         }
         else {
             char *tunc_path_or_name = str_replace(_path_or_name, "/mnt/SDCARD/Roms/", "");
-            strcpy(rel_path, tunc_path_or_name);
+            strncpy(rel_path, tunc_path_or_name, sizeof(rel_path) - 1);
+            rel_path[sizeof(rel_path) - 1] = '\0';
             free(tunc_path_or_name);
         }
     }
@@ -140,11 +147,17 @@ CacheDBItem *cache_db_find(const char *path_or_name)
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         cache_db_item = (CacheDBItem *)malloc(sizeof(CacheDBItem));
-        strcpy(cache_db_item->cache_path, cache_db_file_path);
-        strcpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0));
-        strcpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1));
-        strcpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2));
-        printf_debug("cache item found: %s\n", cache_db_item->name);
+        if (cache_db_item != NULL) {
+            strncpy(cache_db_item->cache_path, cache_db_file_path, sizeof(cache_db_item->cache_path) - 1);
+            cache_db_item->cache_path[sizeof(cache_db_item->cache_path) - 1] = '\0';
+            strncpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0), sizeof(cache_db_item->name) - 1);
+            cache_db_item->name[sizeof(cache_db_item->name) - 1] = '\0';
+            strncpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1), sizeof(cache_db_item->path) - 1);
+            cache_db_item->path[sizeof(cache_db_item->path) - 1] = '\0';
+            strncpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2), sizeof(cache_db_item->imgpath) - 1);
+            cache_db_item->imgpath[sizeof(cache_db_item->imgpath) - 1] = '\0';
+            printf_debug("cache item found: %s\n", cache_db_item->name);
+        }
     }
     else {
         printf("Game not found in this cache db\n");

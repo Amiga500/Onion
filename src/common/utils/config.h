@@ -48,11 +48,7 @@ void _config_prepare(const char *key, char *filename)
     strcpy(dir_path, filename);
     dirname(dir_path);
 
-    if (!exists(dir_path)) {
-        char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
-        system(dir_cmd);
-    }
+    mkdirs(dir_path);
 }
 
 void config_setNumber(const char *key, int value)

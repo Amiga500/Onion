@@ -42,15 +42,15 @@ static struct pollfd fds[1];
 void getImageDir(const char *theme_path, char *image_dir)
 {
     char image0_path[STR_MAX * 2];
-    sprintf(image0_path, "%s/skin/extra/chargingState0.png", THEME_OVERRIDES);
+    snprintf(image0_path, sizeof(image0_path), "%s/skin/extra/chargingState0.png", THEME_OVERRIDES);
     if (exists(image0_path)) {
-        sprintf(image_dir, "%s/skin/extra", THEME_OVERRIDES);
+        snprintf(image_dir, STR_MAX * 2, "%s/skin/extra", THEME_OVERRIDES);
         return;
     }
 
-    sprintf(image0_path, "%sskin/extra/chargingState0.png", theme_path);
+    snprintf(image0_path, sizeof(image0_path), "%sskin/extra/chargingState0.png", theme_path);
     if (exists(image0_path)) {
-        sprintf(image_dir, "%sskin/extra", theme_path);
+        snprintf(image_dir, STR_MAX * 2, "%sskin/extra", theme_path);
         return;
     }
 

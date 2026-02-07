@@ -120,7 +120,8 @@ void action_blueLightTimeOn(void *pt)
 {
     char time_str[10];
     formatter_Time(pt, time_str);
-    strcpy(settings.blue_light_time, time_str);
+    strncpy(settings.blue_light_time, time_str, sizeof(settings.blue_light_time) - 1);
+    settings.blue_light_time[sizeof(settings.blue_light_time) - 1] = '\0';
     config_setString("display/blueLightTime", time_str);
 }
 
@@ -128,7 +129,8 @@ void action_blueLightTimeOff(void *pt)
 {
     char time_str[10];
     formatter_Time(pt, time_str);
-    strcpy(settings.blue_light_time_off, time_str);
+    strncpy(settings.blue_light_time_off, time_str, sizeof(settings.blue_light_time_off) - 1);
+    settings.blue_light_time_off[sizeof(settings.blue_light_time_off) - 1] = '\0';
     config_setString("display/blueLightTimeOff", time_str);
 }
 
@@ -164,7 +166,7 @@ void action_setEnableLogging(void *pt)
 {
     settings.enable_logging = ((ListItem *)pt)->value == 1;
     char new_value[22];
-    sprintf(new_value, "log_to_file = %s", settings.enable_logging ? "\"true\"" : "\"false\"");
+    snprintf(new_value, sizeof(new_value), "log_to_file = %s", settings.enable_logging ? "\"true\"" : "\"false\"");
     file_changeKeyValue(RETROARCH_CONFIG, "log_to_file =", new_value);
 }
 
@@ -217,15 +219,18 @@ void action_batteryPercentageFontFamily(void *pt)
 {
     int item_value = ((ListItem *)pt)->value;
     char theme_value[JSON_STRING_LEN];
-    strcpy(theme_value, resources.theme_back.batteryPercentage.font);
+    strncpy(theme_value, resources.theme_back.batteryPercentage.font, sizeof(theme_value) - 1);
+    theme_value[sizeof(theme_value) - 1] = '\0';
 
     if (item_value == 0) {
-        strcpy(resources.theme.batteryPercentage.font, theme_value);
+        strncpy(resources.theme.batteryPercentage.font, theme_value, STR_MAX - 1);
+        resources.theme.batteryPercentage.font[STR_MAX - 1] = '\0';
     }
     else {
         char font_path[JSON_STRING_LEN] = "/mnt/SDCARD/miyoo/app/";
-        strcat(font_path, font_families[item_value - 1]);
-        strcpy(resources.theme.batteryPercentage.font, font_path);
+        strncat(font_path, font_families[item_value - 1], sizeof(font_path) - strlen(font_path) - 1);
+        strncpy(resources.theme.batteryPercentage.font, font_path, STR_MAX - 1);
+        resources.theme.batteryPercentage.font[STR_MAX - 1] = '\0';
     }
 
     theme_changeOverride("batteryPercentage", "font",
@@ -446,7 +451,21 @@ void action_deleteAllRecordings(void *pt)
         }
     }
 
-    system("rm -f /mnt/SDCARD/Media/Videos/Recorded/*.mp4");
+    {
+        DIR *dir = opendir("/mnt/SDCARD/Media/Videos/Recorded");
+        if (dir) {
+            struct dirent *entry;
+            char fpath[PATH_MAX];
+            while ((entry = readdir(dir)) != NULL) {
+                const char *ext = strrchr(entry->d_name, '.');
+                if (ext && strcmp(ext, ".mp4") == 0) {
+                    snprintf(fpath, sizeof(fpath), "/mnt/SDCARD/Media/Videos/Recorded/%s", entry->d_name);
+                    remove(fpath);
+                }
+            }
+            closedir(dir);
+        }
+    }
     list_updateStickyNote(item, "Recorded directory emptied!");
     if (!_disable_confirm)
         _notifyResetDone("Deleted!");

@@ -48,7 +48,7 @@ void applyAllChanges(bool auto_update)
                 SDL_BlitSurface(screen, NULL, video, NULL);
                 SDL_Flip(video);
 
-                sprintf(cmd, "/mnt/SDCARD/.tmp_update/script/pacman_install.sh \"%s\" \"%s\"", data_path, package->name);
+                snprintf(cmd, sizeof(cmd), "/mnt/SDCARD/.tmp_update/script/pacman_install.sh \"%s\" \"%s\"", data_path, package->name);
                 system(cmd);
                 sync();
 
@@ -60,7 +60,7 @@ void applyAllChanges(bool auto_update)
 
                 // app removal
                 char pathAppUninstall[1000];
-                sprintf(pathAppUninstall, "%s/%s", data_path, package->name);
+                snprintf(pathAppUninstall, sizeof(pathAppUninstall), "%s/%s", data_path, package->name);
                 appUninstall(pathAppUninstall, strlen(pathAppUninstall));
             }
         }

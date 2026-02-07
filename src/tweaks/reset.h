@@ -76,7 +76,8 @@ void action_resetTweaks(void *pt)
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset system tweaks?"))
         return;
     rename(RESET_CONFIGS_PAK, "/mnt/SDCARD/.tmp_update/temp");
-    system("rm -rf /mnt/SDCARD/.tmp_update/config && mkdir -p /mnt/SDCARD/.tmp_update/config");
+    file_remove_recursive("/mnt/SDCARD/.tmp_update/config");
+    mkdirs("/mnt/SDCARD/.tmp_update/config");
     system("7z x /mnt/SDCARD/.tmp_update/temp -o/mnt/SDCARD/ -ir!.tmp_update/config/*");
     rename("/mnt/SDCARD/.tmp_update/temp", RESET_CONFIGS_PAK);
     reset_menus = true;
@@ -90,7 +91,8 @@ void action_resetThemeOverrides(void *pt)
     const char title_str[] = "Reset theme overrides";
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset theme overrides?"))
         return;
-    system("rm -rf /mnt/SDCARD/Saves/CurrentProfile/theme/*");
+    file_remove_recursive("/mnt/SDCARD/Saves/CurrentProfile/theme");
+    mkdirs("/mnt/SDCARD/Saves/CurrentProfile/theme");
     if (!_disable_confirm)
         _notifyResetDone(title_str);
 }
@@ -102,15 +104,15 @@ void action_resetMainUI(void *pt)
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset MainUI settings?"))
         return;
 
-    system("rm -f /mnt/SDCARD/system.json");
+    remove("/mnt/SDCARD/system.json");
 
-    char cmd_str[80];
-    sprintf(cmd_str, "cp /mnt/SDCARD/.tmp_update/res/miyoo%d_system.json /mnt/SDCARD/system.json", DEVICE_ID);
-    system(cmd_str);
+    char src_path[80];
+    snprintf(src_path, sizeof(src_path), "/mnt/SDCARD/.tmp_update/res/miyoo%d_system.json", DEVICE_ID);
+    file_copy(src_path, "/mnt/SDCARD/system.json");
 
     if (DEVICE_ID == MIYOO354) {
-        system("rm -f /appconfigs/wpa_supplicant.conf");
-        system("cp /mnt/SDCARD/.tmp_update/res/wpa_supplicant.reset /appconfigs/wpa_supplicant.conf");
+        remove("/appconfigs/wpa_supplicant.conf");
+        file_copy("/mnt/SDCARD/.tmp_update/res/wpa_supplicant.reset", "/appconfigs/wpa_supplicant.conf");
     }
 
     reset_menus = true;
@@ -135,7 +137,8 @@ void action_resetRACores(void *pt)
     const char title_str[] = "Reset all RA core overrides";
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to reset\nall RetroArch core overrides?"))
         return;
-    system("rm -rf /mnt/SDCARD/Saves/CurrentProfile/config/*");
+    file_remove_recursive("/mnt/SDCARD/Saves/CurrentProfile/config");
+    mkdirs("/mnt/SDCARD/Saves/CurrentProfile/config");
     system("7z x " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!Saves/CurrentProfile/config/*");
     reset_menus = true;
     if (!_disable_confirm)

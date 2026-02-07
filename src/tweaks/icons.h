@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "components/list.h"
 #include "system/keymap_sw.h"
@@ -49,6 +50,8 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
             snprintf(preview_path, STR_MAX * 2, "%s/%s", pack_dir, ep->d_name);
 
             icon_name = file_removeExtension(ep->d_name);
+            if (icon_name == NULL)
+                continue;
             str_split(icon_name, "-");
             snprintf(alt_name, STR_MAX - 1, "%s - %s", pack_name, icon_name);
             free(icon_name);
@@ -176,7 +179,7 @@ void _action_apply_icon_pack(void *_item)
         char message_done[STR_MAX];
         int applied = apply_iconPack(item->payload, false);
 
-        sprintf(message_done, "Applied %d icons", applied);
+        snprintf(message_done, sizeof(message_done), "Applied %d icons", applied);
 
         list_free(&_menu_console_icons);
         list_free(&_menu_app_icons);
@@ -211,15 +214,15 @@ void menu_icon_packs(void *_)
 
         list_sortByLabel(&_menu_icon_packs);
 
-        char selected_path[STR_MAX];
-        realpath(is_dir(active_icon_pack) ? active_icon_pack
+        char selected_path[PATH_MAX];
+        realpath((active_icon_pack != NULL && is_dir(active_icon_pack)) ? active_icon_pack
                                           : "/mnt/SDCARD/Icons/Default",
                  selected_path);
 
         for (int i = 0; i < _menu_icon_packs.item_count; i++) {
             ListItem *current_item = &_menu_icon_packs.items[i];
 
-            char current_path[STR_MAX];
+            char current_path[PATH_MAX];
             realpath(current_item->payload, current_path);
 
             if (strcmp(selected_path, current_path) == 0) {
@@ -265,10 +268,12 @@ bool _add_config_icon(const char *path, const char *name,
     else
         strncpy(preview_path, icon_path, STR_MAX * 2 - 1);
 
-    char abs_path[STR_MAX - 56];
+    char abs_path[PATH_MAX];
     realpath(preview_path, abs_path);
 
     icon_name = file_removeExtension(basename(icon_path));
+    if (icon_name == NULL)
+        return false;
     str_split(icon_name, "-");
 
     char short_label[56];
@@ -283,7 +288,8 @@ bool _add_config_icon(const char *path, const char *name,
     }
 
     IconInfo_t *info = &icon_infos[icon_infos_len++];
-    strcpy(info->name, icon_name);
+    strncpy(info->name, icon_name, STR_MAX - 1);
+    info->name[STR_MAX - 1] = '\0';
     strncpy(info->path, preview_path, STR_MAX - 1);
     strncpy(info->config_path, config_path, STR_MAX - 1);
     item.payload_ptr = (void *)info;
@@ -347,10 +353,12 @@ void _menu_temp_action(void *_item)
         keys_enabled = false;
 
         apply_singleIconByFullPath(info->config_path, item->preview_path);
-        strcpy(info->path, item->preview_path);
+        strncpy(info->path, item->preview_path, sizeof(info->path) - 1);
+        info->path[sizeof(info->path) - 1] = '\0';
 
         if (mode != ICON_MODE_APP) {
-            strcpy(temp_action_item->preview_path, item->preview_path);
+            strncpy(temp_action_item->preview_path, item->preview_path, sizeof(temp_action_item->preview_path) - 1);
+            temp_action_item->preview_path[sizeof(temp_action_item->preview_path) - 1] = '\0';
             if (temp_action_item->preview_ptr != NULL) {
                 SDL_FreeSurface((SDL_Surface *)temp_action_item->preview_ptr);
                 temp_action_item->preview_ptr = NULL;
@@ -397,13 +405,13 @@ void _menu_change_icon(ListItem *item, IconMode_e mode)
 
     list_sortByLabel(&_menu_temp);
 
-    char selected_path[STR_MAX];
+    char selected_path[PATH_MAX];
     realpath(info->path, selected_path);
 
     for (int i = 0; i < _menu_temp.item_count; i++) {
         ListItem *current_item = &_menu_temp.items[i];
 
-        char current_path[STR_MAX];
+        char current_path[PATH_MAX];
         realpath(current_item->preview_path, current_path);
 
         if (strcmp(selected_path, current_path) == 0) {

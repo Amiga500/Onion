@@ -12,15 +12,20 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    int key = atoi(argv[1]);
+    int key = (int)strtol(argv[1], NULL, 10);
 
     FILE *kbd = fopen("/dev/input/event0", "r");
+    if (!kbd) {
+        perror("Failed to open /dev/input/event0");
+        return 1;
+    }
 
     char key_map[KEY_MAX / 8 + 1];
     memset(key_map, 0, sizeof(key_map));
 
     //  Fill the keymap with the current keyboard state
     ioctl(fileno(kbd), EVIOCGKEY(sizeof(key_map)), key_map);
+    fclose(kbd);
 
     //  The key we want (and the seven others around it)
     int keyb = key_map[key / 8];

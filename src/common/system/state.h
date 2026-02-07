@@ -31,6 +31,8 @@ bool check_isRetroArch(void)
     if (!exists(CMD_TO_RUN_PATH))
         return false;
     char *cmd = file_read(CMD_TO_RUN_PATH);
+    if (cmd == NULL)
+        return false;
     if (strstr(cmd, "retroarch") != NULL ||
         strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
         strstr(cmd, "/mnt/SDCARD/RApp/") != NULL) {
@@ -211,7 +213,7 @@ void write_mainui_state(MainUIState state, int currpos, int total)
         page_start = currpos;
     page_end = page_start + page_size - 1;
 
-    sprintf(state_str,
+    snprintf(state_str, sizeof(state_str),
             "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
             "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
             "\"pagestart\":%d,\"pageend\":%d}]}",
@@ -230,9 +232,9 @@ char *getMiyooRecentFilePath()
     static char filename[STR_MAX];
 
     if (exists(RECENTLIST_HIDDEN_PATH))
-        sprintf(filename, "%s", RECENTLIST_HIDDEN_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_HIDDEN_PATH);
     else
-        sprintf(filename, "%s", RECENTLIST_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_PATH);
 
     return filename;
 }
@@ -290,7 +292,8 @@ char *history_getRecentPath(char *rom_path)
             return NULL;
         }
 
-        strcpy(rom_path, romPathSearch);
+        strncpy(rom_path, romPathSearch, STR_MAX - 1);
+        rom_path[STR_MAX - 1] = '\0';
 
         fclose(file);
         return rom_path;
@@ -302,15 +305,16 @@ char *history_getRecentPath(char *rom_path)
 
 bool history_getRomscreenPath(char *path_out)
 {
-    char filename[STR_MAX];
+    char filename[32];
     char file_path[STR_MAX];
 
+    filename[0] = '\0';
     if (history_getRecentPath(file_path) != NULL) {
-        sprintf(filename, "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
+        snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
     }
     print_debug(file_path);
     if (strlen(filename) > 0) {
-        sprintf(path_out, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+        snprintf(path_out, STR_MAX, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;
     }
 
@@ -379,10 +383,13 @@ void resumeGame(int index)
             firstPart[position] = '\0';
 
             char secondPart[strlen(rompath) - position];
-            strcpy(secondPart, colonPosition + 1);
+            strncpy(secondPart, colonPosition + 1, strlen(rompath) - position - 1);
+            secondPart[strlen(rompath) - position - 1] = '\0';
 
-            strcpy(launch, firstPart);
-            strcpy(rompath, secondPart);
+            strncpy(launch, firstPart, sizeof(launch) - 1);
+            launch[sizeof(launch) - 1] = '\0';
+            strncpy(rompath, secondPart, sizeof(rompath) - 1);
+            rompath[sizeof(rompath) - 1] = '\0';
             printf_debug("launch cutted: %s\n", launch);
             printf_debug("rompath cutted: %s\n", rompath);
         }
@@ -408,7 +415,7 @@ void resumeGame(int index)
 
             fclose(file);
             file = NULL;
-            sprintf(LaunchCommand, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
+            snprintf(LaunchCommand, sizeof(LaunchCommand), "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
 
             remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
 
@@ -417,9 +424,11 @@ void resumeGame(int index)
                 temp_flag_set("quick_switch", true);
 
                 char *line_n = file_read_lineN(recentPath, lineCount);
-                file_add_line_to_beginning(recentPath, line_n);
-                file_delete_line(recentPath, lineCount + 1);
-                free(line_n);
+                if (line_n != NULL) {
+                    file_add_line_to_beginning(recentPath, line_n);
+                    file_delete_line(recentPath, lineCount + 1);
+                    free(line_n);
+                }
             }
 
             file_put_sync(fp, CMD_TO_RUN_PATH, "%s", LaunchCommand);

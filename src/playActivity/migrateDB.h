@@ -34,7 +34,7 @@ void _migrate_loadCacheDBs(void)
 
             if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
                 char romFolder[PATH_MAX];
-                sprintf(romFolder, ROMS_FOLDER "/%s", entry->d_name);
+                snprintf(romFolder, sizeof(romFolder), ROMS_FOLDER "/%s", entry->d_name);
 
                 char cache_db_file_path[STR_MAX];
                 int cache_version = cache_get_path_and_version(cache_db_file_path, romFolder, entry->d_name);
@@ -52,8 +52,10 @@ void _migrate_loadCacheDBs(void)
 
                     __migrate_cache_handles[__migrate_cache_count].db_handle = db;
 
-                    strcpy(__migrate_cache_handles[__migrate_cache_count].db_path, cache_db_file_path);
-                    strcpy(__migrate_cache_handles[__migrate_cache_count].db_type, entry->d_name);
+                    strncpy(__migrate_cache_handles[__migrate_cache_count].db_path, cache_db_file_path, sizeof(__migrate_cache_handles[0].db_path) - 1);
+                    __migrate_cache_handles[__migrate_cache_count].db_path[sizeof(__migrate_cache_handles[0].db_path) - 1] = '\0';
+                    strncpy(__migrate_cache_handles[__migrate_cache_count].db_type, entry->d_name, sizeof(__migrate_cache_handles[0].db_type) - 1);
+                    __migrate_cache_handles[__migrate_cache_count].db_type[sizeof(__migrate_cache_handles[0].db_type) - 1] = '\0';
                     __migrate_cache_count++;
 
                     if (__migrate_cache_count >= MIGRATE_DB_MAX_FILES) {
@@ -148,10 +150,16 @@ void migrateDB(void)
                 is_found = true;
 
                 cache_db_item = (CacheDBItem *)malloc(sizeof(CacheDBItem));
-                strcpy(cache_db_item->cache_path, handle->db_path);
-                strcpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0));
-                strcpy(cache_db_item->path, rom_path);
-                strcpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2));
+                if (cache_db_item == NULL)
+                    break;
+                strncpy(cache_db_item->cache_path, handle->db_path, sizeof(cache_db_item->cache_path) - 1);
+                cache_db_item->cache_path[sizeof(cache_db_item->cache_path) - 1] = '\0';
+                strncpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0), sizeof(cache_db_item->name) - 1);
+                cache_db_item->name[sizeof(cache_db_item->name) - 1] = '\0';
+                strncpy(cache_db_item->path, rom_path, sizeof(cache_db_item->path) - 1);
+                cache_db_item->path[sizeof(cache_db_item->path) - 1] = '\0';
+                strncpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2), sizeof(cache_db_item->imgpath) - 1);
+                cache_db_item->imgpath[sizeof(cache_db_item->imgpath) - 1] = '\0';
 
                 sqlite3_free(sql);
                 sqlite3_finalize(stmt);

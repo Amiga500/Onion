@@ -50,8 +50,12 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
     char folder[STR_MAX];
     FILE *find, *sed;
 
+    // Reject paths containing single quotes to prevent shell injection
+    if (strchr(disk_path, '\'') != NULL)
+        return i;
+
     // Use the 'find' command to search for 'config.json' files in subdirectories of the disk path
-    sprintf(command, "find %s -name 'config.json' -type f", disk_path);
+    snprintf(command, sizeof(command), "find '%s' -name 'config.json' -type f", disk_path);
     find = popen(command, "r");
     if (find == NULL) {
         perror("Error executing find command");
@@ -63,10 +67,10 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
         path[strcspn(path, "\n")] = '\0'; // Remove trailing newline character
 
         // Check if the file contains the string '"shortname":1'
-        sprintf(command, "grep -q '\"shortname\":[[:space:]]*1' '%s'", path);
+        snprintf(command, sizeof(command), "grep -q '\"shortname\":[[:space:]]*1' '%s'", path);
         if (system(command) == 0) {
             // Get the folder name (someone could have changed the defaults)
-            sprintf(command, "sed -n 's/.*\"rompath\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' '%s'", path);
+            snprintf(command, sizeof(command), "sed -n 's/.*\"rompath\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' '%s'", path);
             sed = popen(command, "r");
             if (sed == NULL) {
                 perror("Error executing sed command");
@@ -86,7 +90,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
             }
             if( cmp != 0){
                 // Extract the folder name and add it to the matching_folders array
-                sprintf(matching_folders[i], "%s", system);
+                snprintf(matching_folders[i], sizeof(matching_folders[i]), "%s", system);
                 i++;
             }
             if (i == MAX_MATCHING_FOLDERS) {
@@ -102,8 +106,10 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
 
 
 int sortFileLines(const char* filename) {
+    if (strchr(filename, '\'') != NULL)
+        return -1;
     char cmd[STR_MAX];
-    snprintf(cmd, STR_MAX, "awk '$1' %s | sort -uk 1 -o %s", filename, filename);
+    snprintf(cmd, STR_MAX, "awk '$1' '%s' | sort -uk 1 -o '%s'", filename, filename);
     return system(cmd);
 }
 
@@ -135,7 +141,7 @@ void getRomNamesDir(const char *dir_path, const char *rom_ext, FILE *rom_names_f
             getRomNamesDir(sub_dir_path, rom_ext, rom_names_file);
         } else if (entry->d_type == DT_REG) {  // regular file
             if (endsWith(entry->d_name, rom_ext)) {
-                strcpy( shortname, entry->d_name);
+                snprintf( shortname, sizeof(shortname), "%s", entry->d_name);
                 removeExtension(shortname);
                 fprintf(rom_names_file, "%s\n", shortname);
             }
@@ -149,9 +155,9 @@ int getRomNames(char* rom_dir_path, char* rom_names_file_path) {
     FILE *rom_names_file;
     char foldername[1256];
 
-    sprintf( foldername, "%s%s", rom_dir_path, "/Emu");
+    snprintf( foldername, sizeof(foldername), "%s%s", rom_dir_path, "/Emu");
     systems_count = findFoldersWithShortname(foldername, matching_folders, 0);
-    sprintf( foldername, "%s%s", rom_dir_path, "/RApp");
+    snprintf( foldername, sizeof(foldername), "%s%s", rom_dir_path, "/RApp");
     systems_count = findFoldersWithShortname(foldername, matching_folders, systems_count);
 
     // Open the file to write the rom names to
@@ -162,7 +168,7 @@ int getRomNames(char* rom_dir_path, char* rom_names_file_path) {
     }
     
     for (int i = 0; i < systems_count ; i++){
-        sprintf( foldername, "%s/Roms/%s" , rom_dir_path, matching_folders[i] );
+        snprintf( foldername, sizeof(foldername), "%s/Roms/%s" , rom_dir_path, matching_folders[i] );
         getRomNamesDir(foldername, ".zip", rom_names_file);
     }
 
@@ -341,7 +347,7 @@ int updateCallback(void *data, int argc, char **argv, char **col_name)
     char *title = GetGameName_func( "wathever", romname);
     if ( title != NULL ){
         // Build and execute the update statement
-        sprintf(update_sql, "UPDATE %s SET disp = ? WHERE id = ?", table_name);
+        snprintf(update_sql, sizeof(update_sql), "UPDATE %s SET disp = ? WHERE id = ?", table_name);
         sqlite3_stmt *stmt;
         int rc = sqlite3_prepare_v2(db, update_sql, -1, &stmt, NULL);  
         sqlite3_bind_text(stmt, 1, title, -1, SQLITE_STATIC);
@@ -374,7 +380,7 @@ int updateSqlliteCache(char* base_dir_path) {
             continue; //skip this db, the update cache not found
 
         
-        sprintf(table_name, "%s_roms", matching_folders[i]);
+        snprintf(table_name, sizeof(table_name), "%s_roms", matching_folders[i]);
         int rc =  sqlite3_open(cache_path, &db);
         if ( rc != SQLITE_OK) {
             fprintf(stderr, "Cannot open database: %s (%s)\n", sqlite3_errmsg(db),
@@ -389,7 +395,7 @@ int updateSqlliteCache(char* base_dir_path) {
         // we use 'path' because we are going to override 'dist', this way the tool can be run multiple times.
         data.table_name = table_name;
         data.db = db;
-        sprintf(select_sql, "SELECT ID, PATH FROM %s WHERE type = 0", table_name);
+        snprintf(select_sql, sizeof(select_sql), "SELECT ID, PATH FROM %s WHERE type = 0", table_name);
         if (sqlite3_exec(db, select_sql, updateCallback, &data, NULL) != SQLITE_OK) {
             printf("Error selecting rows: %s\n", sqlite3_errmsg(db));
             sqlite3_close(db);
@@ -421,10 +427,10 @@ int main(int argc, char *argv[]) {
 
     base_dir_path = argv[1];
     list_dir_path = argv[2];
-    sprintf(full_rom_list_path ,"%s/%s", list_dir_path, FULL_ROM_LIST_NAME);
-    sprintf(arcade_rom_names_path ,"%s/%s", list_dir_path, ARCADE_ROM_NAMES_NAME);
-    sprintf(missing_rom_names_path ,"%s/%s", list_dir_path, MISSING_ROM_NAMES_NAME);
-    sprintf(rom_names_file_path ,"%s/%s", list_dir_path, ROM_NAMES_FILE_NAME);
+    snprintf(full_rom_list_path, sizeof(full_rom_list_path), "%s/%s", list_dir_path, FULL_ROM_LIST_NAME);
+    snprintf(arcade_rom_names_path, sizeof(arcade_rom_names_path), "%s/%s", list_dir_path, ARCADE_ROM_NAMES_NAME);
+    snprintf(missing_rom_names_path, sizeof(missing_rom_names_path), "%s/%s", list_dir_path, MISSING_ROM_NAMES_NAME);
+    snprintf(rom_names_file_path, sizeof(rom_names_file_path), "%s/%s", list_dir_path, ROM_NAMES_FILE_NAME);
 
 
     if ( createCopyFile(arcade_rom_names_path, full_rom_list_path) < 0 ){
@@ -446,7 +452,7 @@ int main(int argc, char *argv[]) {
 
     //open the shared library to get the rom title from the rom short name
     char libpath[256];
-    sprintf(libpath, "%s/miyoo/lib/libgamename.so", base_dir_path);
+    snprintf(libpath, sizeof(libpath), "%s/miyoo/lib/libgamename.so", base_dir_path);
     //sprintf(libpath, "../libgamename/libgamename.so"); for debug
     void *handle = dlopen(libpath, RTLD_LAZY);
     if (handle == NULL) {

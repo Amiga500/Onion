@@ -1,5 +1,6 @@
 #include <dirent.h>
 #include <libgen.h>
+#include <limits.h>
 #include <sqlite3/sqlite3.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -82,9 +83,10 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
 
     if (emuname_out != NULL) {
         char label_temp[STR_MAX];
-        if (!json_getString(json_root, "label", label_temp))
-            strcpy(emuname_out, basename(emupath));
-        else
+        if (!json_getString(json_root, "label", label_temp)) {
+            strncpy(emuname_out, basename(emupath), STR_MAX - 1);
+            emuname_out[STR_MAX - 1] = '\0';
+        } else
             str_trim(emuname_out, STR_MAX - 1, label_temp, false);
     }
 
@@ -215,8 +217,8 @@ bool addRandomFromJson(char *json_path)
 
     FILE *fp;
     char line[STR_MAX * 4];
-    char path_a[STR_MAX];
-    char path_b[STR_MAX];
+    char path_a[PATH_MAX];
+    char path_b[PATH_MAX];
     cJSON *json_root;
     JsonEntryType_e type;
 
@@ -232,10 +234,11 @@ bool addRandomFromJson(char *json_path)
 
         if (type == TYPE_GAME || type == TYPE_EXPERT) {
             GameEntry *game = &random_games[count];
-            memset(game->label, 0, strlen(game->label));
-            memset(game->path, 0, strlen(game->path));
-            memset(game->img_path, 0, strlen(game->img_path));
-            memset(game->launch_path, 0, strlen(game->launch_path));
+            // Clear fields — use sizeof, not strlen (avoids scanning uninitialized data)
+            game->label[0] = '\0';
+            game->path[0] = '\0';
+            game->img_path[0] = '\0';
+            game->launch_path[0] = '\0';
 
             game->id = type;
             game->sum = 1;
@@ -266,8 +269,9 @@ bool addRandomFromJson(char *json_path)
             if (is_duplicate)
                 continue;
 
-            char emupath[STR_MAX];
-            strcpy(emupath, game->launch_path);
+            char emupath[STR_MAX * 2];
+            strncpy(emupath, game->launch_path, sizeof(emupath) - 1);
+            emupath[sizeof(emupath) - 1] = '\0';
 
             if (!extractEmuPath(emupath, PATH_EMU))
                 extractEmuPath(emupath, PATH_RAPP);

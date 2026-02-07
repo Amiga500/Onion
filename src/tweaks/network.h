@@ -213,10 +213,8 @@ void network_execServiceState(const char *service_name, bool background)
 
     sync();
 
-    sprintf(state, NET_SCRIPT_PATH "/update_networking.sh %s toggle", service_name);
-    sprintf(command, "%s 2>&1", state);
-    if (background)
-        strcat(command, " &");
+    snprintf(state, sizeof(state), NET_SCRIPT_PATH "/update_networking.sh %s toggle", service_name);
+    snprintf(command, sizeof(command), "%s 2>&1%s", state, background ? " &" : "");
     system(command);
 
     printf_debug("network_execServiceState: %s\n", state);
@@ -229,8 +227,8 @@ void network_execServiceAuth(const char *service_name)
 
     sync();
 
-    sprintf(authed, NET_SCRIPT_PATH "/update_networking.sh %s authed", service_name);
-    sprintf(command, "%s 2>&1", authed);
+    snprintf(authed, sizeof(authed), NET_SCRIPT_PATH "/update_networking.sh %s authed", service_name);
+    snprintf(command, sizeof(command), "%s 2>&1", authed);
 
     system(command);
 
@@ -365,7 +363,7 @@ void network_setTzSelectState(void *pt)
     }
     else {
         // UTC +/- is reversed for export TZ
-        sprintf(utc_str, utc_value > 0 ? "UTC-%02d:%02d" : "UTC+%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
+        snprintf(utc_str, sizeof(utc_str), utc_value > 0 ? "UTC-%02d:%02d" : "UTC+%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
     }
 
     printf_debug("Set timezone: %s\n", utc_str);
@@ -382,8 +380,8 @@ void network_toggleVNC(void *pt)
 
     int new_fps = (int)network_state.vncfps;
 
-    sprintf(command_start, "/mnt/SDCARD/.tmp_update/bin/vncserver -k /dev/input/event0 -F %d -r 180 > /dev/null 2>&1 &", new_fps);
-    sprintf(command_stop, "killall -9 vncserver");
+    snprintf(command_start, sizeof(command_start), "/mnt/SDCARD/.tmp_update/bin/vncserver -k /dev/input/event0 -F %d -r 180 > /dev/null 2>&1 &", new_fps);
+    snprintf(command_stop, sizeof(command_stop), "killall -9 vncserver");
 
     if (!network_state.vncserv) {
         network_state.vncserv = true;
@@ -624,7 +622,8 @@ void menu_wifi(void *_)
         //                  .label = "WPS...",
         //                  .action = menu_wps});
     }
-    strcpy(_menu_wifi.items[0].label, ip_address_label);
+    strncpy(_menu_wifi.items[0].label, ip_address_label, STR_MAX - 1);
+    _menu_wifi.items[0].label[STR_MAX - 1] = '\0';
     menu_stack[++menu_level] = &_menu_wifi;
     header_changed = true;
 }
@@ -734,7 +733,8 @@ void menu_network(void *_)
                                  "This helps to conserve battery and\n"
                                  "to keep performance at a maximum.");
     }
-    strcpy(_menu_network.items[0].label, ip_address_label);
+    strncpy(_menu_network.items[0].label, ip_address_label, STR_MAX - 1);
+    _menu_network.items[0].label[STR_MAX - 1] = '\0';
     menu_stack[++menu_level] = &_menu_network;
     header_changed = true;
 }
