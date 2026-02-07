@@ -109,6 +109,11 @@ void readHistory()
         return;
     }
 
+    // Collect duplicate line numbers for a single batch rewrite at end,
+    // instead of calling file_delete_line() per duplicate (which rewrites
+    // the entire file each time — O(n*m) I/O on slow SD card).
+    int dupLines[MAX_HISTORY];
+    int numDups = 0;
     int lineNo = 0;
 
     while ((fgets(line, sizeof(line), file) != NULL) && (numRecents < MAX_HISTORY)) {
@@ -128,8 +133,8 @@ void readHistory()
         }
 
         if (isDuplicate) {
-            file_delete_line(recentFilePath, lineNo);
-            lineNo--;
+            if (numDups < MAX_HISTORY)
+                dupLines[numDups++] = lineNo;
             continue;
         }
 
@@ -146,6 +151,35 @@ void readHistory()
 
     fclose(file);
     game_list_len = numRecents;
+
+    // Single-pass batch rewrite: remove all duplicate lines at once
+    if (numDups > 0) {
+        file = fopen(recentFilePath, "r");
+        if (file == NULL)
+            return;
+        FILE *tempFile = fopen("/tmp/recentlist_clean.tmp", "w");
+        if (tempFile == NULL) {
+            fclose(file);
+            return;
+        }
+
+        int currentLine = 0;
+        int dupIdx = 0;
+        while (fgets(line, sizeof(line), file) != NULL) {
+            ++currentLine;
+            // dupLines is in ascending order (filled sequentially)
+            if (dupIdx < numDups && currentLine == dupLines[dupIdx]) {
+                dupIdx++;
+                continue; // skip this duplicate line
+            }
+            fputs(line, tempFile);
+        }
+
+        fclose(file);
+        fclose(tempFile);
+        remove(recentFilePath);
+        rename("/tmp/recentlist_clean.tmp", recentFilePath);
+    }
 }
 
 bool getGameName(char *name_out, const char *rom_path)

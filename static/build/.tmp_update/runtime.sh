@@ -159,7 +159,6 @@ state_change() {
     runifnecessary "keymon" keymon
     check_networking
     touch /tmp/state_changed
-    sync
     eval "$1"
 }
 
@@ -232,7 +231,6 @@ launch_main_ui() {
     if [ $(/customer/app/jsonval wifi) -ne $wifi_setting ]; then
         touch /tmp/network_changed
         rm /tmp/ntp_synced 2> /dev/null
-        sync
     fi
 
     $sysdir/bin/freemma
@@ -358,7 +356,7 @@ launch_game() {
     fi
 
     if [ $is_game -eq 1 ]; then
-        if [ -f "$launch_script" ] && cat "$launch_script" | grep -q '.retroarch/cores'; then
+        if [ -f "$launch_script" ] && grep -q '.retroarch/cores' "$launch_script"; then
             # Override core if needed
             override_game_core "$romcfgpath" "$launch_script"
         fi
@@ -590,7 +588,7 @@ get_full_resolution_path() {
         if grep -qF "/mnt/SDCARD/App/" $sysdir/cmd_to_run.sh; then
             # ----- App launch ----- #
 
-            echo "$(cat $sysdir/cmd_to_run.sh | cut -d' ' -f 2 | sed 's/;/\/full_resolution/')"
+            echo "$(cut -d' ' -f 2 "$sysdir/cmd_to_run.sh" | sed 's/;/\/full_resolution/')"
 
         elif grep -qF "/mnt/SDCARD/Roms/PORTS/" $sysdir/cmd_to_run.sh; then
             # ----- Port launch ----- #
@@ -690,7 +688,7 @@ mainui_target=$miyoodir/app/MainUI
 mount_main_ui() {
     mainui_mode=$([ -f $sysdir/config/.showExpert ] && echo "expert" || echo "clean")
     mainui_srcname="MainUI-$DEVICE_ID-$mainui_mode"
-    mainui_mount=$(basename "$(cat /proc/self/mountinfo | grep $mainui_target | cut -d' ' -f4)")
+    mainui_mount=$(basename "$(grep "$mainui_target" /proc/self/mountinfo | cut -d' ' -f4)")
 
     if [ "$mainui_mount" != "$mainui_srcname" ]; then
         if mount | grep -q "$mainui_target"; then
@@ -840,10 +838,9 @@ load_settings() {
 
         if [ $(/customer/app/jsonval vol) -ne 20 ] || [ $(/customer/app/jsonval mute) -ne 0 ]; then
             # Force volume and mute settings
-            cat /mnt/SDCARD/system.json |
-                sed 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t20/g' |
-                sed 's/^\s*"mute":\s*[0-9][0-9]*/\t"mute":\t0/g' \
-                    > temp
+            sed -e 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t20/g' \
+                -e 's/^\s*"mute":\s*[0-9][0-9]*/\t"mute":\t0/g' \
+                /mnt/SDCARD/system.json > temp
             mv -f temp /mnt/SDCARD/system.json
         fi
     fi
@@ -852,8 +849,8 @@ load_settings() {
     if [ -f "$default_volume" ]; then
         volume=$(printf '%d' "$(cat "$default_volume")")
         if [ $? -eq 0 ]; then
-            cat /mnt/SDCARD/system.json |
-                sed 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t'$volume'/g' > temp
+            sed 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t'$volume'/g' \
+                /mnt/SDCARD/system.json > temp
             mv -f temp /mnt/SDCARD/system.json
         fi
     fi
@@ -934,7 +931,6 @@ start_networking() {
     rm "$sysdir/config/.hotspotState" # dont start hotspot at boot
 
     touch /tmp/network_changed
-    sync
 
     check_networking
 }
