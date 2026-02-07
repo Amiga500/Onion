@@ -65,6 +65,13 @@ void init(void)
 
     video = SDL_SetVideoMode(640, 480, 32, SDL_HWSURFACE);
     screen = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+
+    if (video == NULL || screen == NULL) {
+        fprintf(stderr, "SDL video init failed\n");
+        SDL_Quit();
+        return;
+    }
+
     waiting_screen = IMG_Load("./res/waiting_screen.png");
     background = IMG_Load("./res/background.png");
     right_arrow = IMG_Load("./res/right_arrow.png");
@@ -197,7 +204,8 @@ void switch_zoom_profile(int segment_duration)
 
 void render_waiting_screen()
 {
-    SDL_BlitSurface(waiting_screen, NULL, screen, NULL);
+    if (waiting_screen != NULL)
+        SDL_BlitSurface(waiting_screen, NULL, screen, NULL);
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
     sleep(1.5);
@@ -340,24 +348,30 @@ void renderPage()
     case 0:
         snprintf(sub_title, sizeof(sub_title), "%s", "16 HOURS VIEW");
         segment_duration = 7200;
-        SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        if (right_arrow != NULL)
+            SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 1:
         snprintf(sub_title, sizeof(sub_title), "%s", "8 HOURS VIEW");
         segment_duration = 3600;
-        SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
-        SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        if (right_arrow != NULL)
+            SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        if (left_arrow != NULL)
+            SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 2:
         snprintf(sub_title, sizeof(sub_title), "%s", "4 HOURS VIEW");
         segment_duration = 1800;
-        SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        if (left_arrow != NULL)
+            SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     default:
         snprintf(sub_title, sizeof(sub_title), "%s", "8 HOURS VIEW");
         segment_duration = 3600;
-        SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
-        SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        if (right_arrow != NULL)
+            SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        if (left_arrow != NULL)
+            SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     }
     if (estimation_line_size == 0)
@@ -441,7 +455,7 @@ void renderPage()
             }
         }
         SDL_UnlockSurface(screen);
-        if (x_end != 0)
+        if (x_end != 0 && end_graph != NULL)
             SDL_BlitSurface(end_graph, NULL, screen, &(SDL_Rect){x_end, y_end, 24, 45});
     }
 

@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–20)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–26)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-This document details all security hardening, crash fixes, battery optimizations, and infrastructure improvements applied in Sessions 14–20. Changes span **42 C source/header files**, **1 shell script**, and add a **performance timing framework** and **unit test infrastructure** (5 new files).
+This document details all security hardening, crash fixes, battery optimizations, and infrastructure improvements applied in Sessions 14–26. Changes span **46 C source/header files**, **6 shell scripts**, and add a **performance timing framework** and **unit test infrastructure** (5 new files).
 
 **🔑 Key Benefits:**
 - 🔋 **~98% fewer subprocess spawns** during charging — `battery_isCharging()` cached with 2s MONOTONIC_RAW timestamp
@@ -19,12 +19,14 @@ This document details all security hardening, crash fixes, battery optimizations
 - 🛡️ **~50 `strcpy` calls hardened** — all converted to bounded `strncpy`/`memcpy` with null-termination
 - 🛡️ **12 `atoi` calls replaced** — all converted to `strtol` with defined overflow behavior
 - 🛡️ **`concat` macro hardened** — `strcpy`+`strcat` replaced by bounded `snprintf`
-- 💥 **15 NULL-dereference crash paths eliminated** — SDL surfaces, TTF renders, opendir, popen
+- 💥 **18+ NULL-dereference crash paths eliminated** — SDL surfaces, TTF renders, opendir, popen, SDL_CreateRGBSurface
 - 💥 **2 division-by-zero guards added** — `jpg2png.c` and `gs_romscreen.h`
 - 💥 **1 critical dereference-before-NULL-check fixed** — `gs_overlay.h`
+- 💥 **1 realloc double-free vulnerability fixed** — `pippi.c`
 - ⚡ **NEON-accelerated screenshot rotate180** — `neon_swap_rb_inplace()` replaces scalar loop
 - 📐 **IMG_Save pitch correctness** — uses `pitch` for row addressing instead of `width`
-- 🔒 **Shell script quoting** — 4 unquoted `rm -rf` variables secured in `util_exporter.sh`
+- 🔒 **Shell script quoting** — unquoted variables in `rm`/`mv`/`cp` secured across 6 scripts
+- 🔧 **Build system fixes** — `CMD`→`DOCKER_TARGET` rename, in-container detection, GTest separation
 - ⏱️ **Performance timing framework** (`perf.h`) — zero-overhead `PERF_START`/`PERF_END` macros
 - 🧪 **31 unit tests** — host-runnable C test suite via `make unit-test`
 
@@ -480,3 +482,60 @@ cat /mnt/SDCARD/.tmp_update/logs/perf.log | sort -t, -k3 -n | tail -20
 # 1234710,theme_loadImage,3
 # 1234720,screenshot_save,5
 ```
+
+---
+
+## Appendix: Session 23–26 Changes
+
+### Session 23–25: Build System Fixes
+
+| File | Change | Impact |
+|------|--------|--------|
+| `Makefile` | Renamed `CMD` → `DOCKER_TARGET` | Prevents variable leak to DinguxCommander submodule causing `test/opt/.../g++: not found` |
+| `Makefile` | Added `IN_CONTAINER` detection | `make with-toolchain` works both inside and outside Docker |
+| `Makefile` | Separated `unit-test` from `gtest` targets | Prevents multiple `main()` conflict between `onion_test.h` and GTest |
+| `test/Makefile` | Set `SOURCES=` empty, explicit GTest listing | Stops wildcard from picking up pure-C test files |
+| 4× website docs | `CMD=dev` → `DOCKER_TARGET=dev` | Documentation consistency |
+
+### Session 26: Crash Fixes, Memory Safety, Shell Hardening
+
+#### 🔴 Memory Safety — pippi.c realloc double-free
+
+| Before | After |
+|--------|-------|
+| `input_buffer = realloc(input_buffer, size);` | `char *new_buffer = realloc(input_buffer, size);` |
+| `if (input_buffer == NULL) { free(input_buffer); }` | `if (new_buffer == NULL) { free(input_buffer); }` |
+| ❌ Original pointer lost on realloc failure → free(NULL) | ✅ Original pointer preserved → proper cleanup |
+
+#### 💥 NULL Guard — installUI.c
+
+| Call | Risk | Guard Added |
+|------|------|-------------|
+| `SDL_SetVideoMode()` | `video == NULL` → all subsequent SDL calls crash | Early return with `EXIT_FAILURE` |
+| `SDL_CreateRGBSurface()` | `screen == NULL` → `SDL_BlitSurface` crash | Early return with `EXIT_FAILURE` |
+| `IMG_Load("res/waitingBG.png")` | `waiting_bg == NULL` → `SDL_BlitSurface(NULL, ...)` crash | `if (waiting_bg != NULL)` guard on blit |
+| `IMG_Load("res/progress_stripes.png")` | `progress_stripes == NULL` → `SDL_BlitSurface(NULL, ...)` crash | `if (progress_stripes != NULL)` guard on blit |
+
+#### 💥 NULL Guard — batteryMonitorUI.c
+
+| Call | Risk | Guard Added |
+|------|------|-------------|
+| `SDL_SetVideoMode()` / `SDL_CreateRGBSurface()` | NULL → all rendering crashes | Early return from `init()` |
+| `IMG_Load("waiting_screen.png")` | NULL → `render_waiting_screen()` crash | `if (waiting_screen != NULL)` guard |
+| `IMG_Load("background.png")` | NULL → `renderPage()` crash | Already safe (SDL_BlitSurface with NULL is no-op on some impls, but guarded for safety) |
+| `IMG_Load("right_arrow.png")` / `left_arrow` / `end_graph` | NULL → `SDL_BlitSurface` crash | `if (ptr != NULL)` guard on each blit call |
+
+#### 🔒 Shell Script Variable Quoting
+
+| Script | Line | Before | After |
+|--------|------|--------|-------|
+| `runtime.sh` | 266 | `rm -f $sysdir/cmd_to_run.sh` | `rm -f "$sysdir/cmd_to_run.sh"` |
+| `runtime.sh` | 630 | `rm $sysdir/cmd_to_run.sh` | `rm "$sysdir/cmd_to_run.sh"` |
+| `runtime.sh` | 642 | `rm $sysdir/.runGameSwitcher` | `rm "$sysdir/.runGameSwitcher"` |
+| `runtime.sh` | 674-682 | `rm -f $recentlist` | `rm -f "$recentlist"` (and `mv`, `cat`) |
+| `runtime.sh` | 934 | `rm $sysdir/config/.hotspotState` | `rm "$sysdir/config/.hotspotState"` |
+| `update_networking.sh` | 451 | `rm $sysdir/config/.hotspotState` | `rm "$sysdir/config/.hotspotState"` |
+| `update_networking.sh` | 552 | `cp $sysdir/config/.tz ...` | `cp "$sysdir/config/.tz" ...` |
+| `update_networking.sh` | 569 | `rm $sysdir/config/.tz_sync` | `rm "$sysdir/config/.tz_sync"` |
+| `ota_update.sh` | 35 | `rm $sysdir/cmd_to_run.sh` | `rm "$sysdir/cmd_to_run.sh"` |
+| `run_advmenu.sh` | 6 | `rm $sysdir/cmd_to_run.sh` | `rm "$sysdir/cmd_to_run.sh"` |

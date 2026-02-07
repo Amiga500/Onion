@@ -263,7 +263,7 @@ launch_game_menu() {
 
     if [ $? -ne 0 ]; then
         log "\n\n< Back to MainUI\n\n"
-        rm -f $sysdir/cmd_to_run.sh 2> /dev/null
+        rm -f "$sysdir/cmd_to_run.sh" 2> /dev/null
         check_off_order "End"
     fi
 }
@@ -627,7 +627,7 @@ check_switcher() {
         rm -f /tmp/quick_switch
     else
         # Return to MainUI
-        rm $sysdir/cmd_to_run.sh 2> /dev/null
+        rm "$sysdir/cmd_to_run.sh" 2> /dev/null
         sync
     fi
 
@@ -639,7 +639,7 @@ launch_switcher() {
     cd $sysdir
     start_audioserver
     LD_PRELOAD="$miyoodir/lib/libpadsp.so" gameSwitcher
-    rm $sysdir/.runGameSwitcher
+    rm "$sysdir/.runGameSwitcher"
     set_prev_state "switcher"
     sync
 }
@@ -670,16 +670,16 @@ check_hide_recents() {
     if [ ! -f $sysdir/config/.showRecents ]; then
         # Hide recents by removing the json file
         if [ -f $recentlist ]; then
-            cat $recentlist $recentlist_hidden > $recentlist_temp
-            mv -f $recentlist_temp $recentlist_hidden
-            rm -f $recentlist
+            cat "$recentlist" "$recentlist_hidden" > "$recentlist_temp"
+            mv -f "$recentlist_temp" "$recentlist_hidden"
+            rm -f "$recentlist"
         fi
     else
         # Restore recentlist
         if [ -f $recentlist_hidden ]; then
-            cat $recentlist $recentlist_hidden > $recentlist_temp
-            mv -f $recentlist_temp $recentlist
-            rm -f $recentlist_hidden
+            cat "$recentlist" "$recentlist_hidden" > "$recentlist_temp"
+            mv -f "$recentlist_temp" "$recentlist"
+            rm -f "$recentlist_hidden"
         fi
     fi
     sync
@@ -931,7 +931,7 @@ runifnecessary() {
 }
 
 start_networking() {
-    rm $sysdir/config/.hotspotState # dont start hotspot at boot
+    rm "$sysdir/config/.hotspotState" # dont start hotspot at boot
 
     touch /tmp/network_changed
     sync
