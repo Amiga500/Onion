@@ -216,6 +216,10 @@ int main(int argc, char *argv[])
                 fclose(file);
             }
 
+            // Ensure we don't exceed array bounds
+            if (charIndex >= MAXCHARACTERSARRAY) {
+                charIndex = MAXCHARACTERSARRAY - 1;
+            }
             gText[charIndex] = '\0';
 
             TTF_Font *font35 =
