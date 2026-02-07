@@ -39,7 +39,7 @@ SOFTWARE.
 #define MAX_SECOND 59
 #define MAX_MINUTE MAX_SECOND
 #define MAX_HOUR 23
-#define MS_TO_US(ms)  ms * 1000 
+#define MS_TO_US(ms) ms * 1000
 
 SDL_Surface *sdl_screen, *screen;
 
