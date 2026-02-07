@@ -282,7 +282,11 @@ void renderApplication(void)
         if (removals_count > 0) {
             int len = strlen(status_str);
             if (len > 0) {
-                strcpy(status_str + len, "  ");
+                if (len + 2 < (int)sizeof(status_str)) {
+                    status_str[len] = ' ';
+                    status_str[len + 1] = ' ';
+                    status_str[len + 2] = '\0';
+                }
                 len += 2;
             }
             snprintf(status_str + len, sizeof(status_str) - len, " −%d", removals_count);
@@ -290,9 +294,11 @@ void renderApplication(void)
 
         SDL_Surface *status =
             TTF_RenderUTF8_Blended(font18, status_str, color_white);
-        SDL_Rect status_rect = {620 - status->w, 16 - status->h / 2};
-        SDL_BlitSurface(status, NULL, screen, &status_rect);
-        SDL_FreeSurface(status);
+        if (status != NULL) {
+            SDL_Rect status_rect = {620 - status->w, 16 - status->h / 2};
+            SDL_BlitSurface(status, NULL, screen, &status_rect);
+            SDL_FreeSurface(status);
+        }
     }
 
     renderCurrentTab();

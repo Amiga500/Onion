@@ -813,3 +813,28 @@ All remaining `atoi()` calls converted to `strtol(str, NULL, 10)` for robust int
 ### Overlapping strcpy → memmove in state.h
 - `history_getRecentPath()`: used `strcpy(romPathSearch, secondPart)` where `secondPart` pointed into `romPathSearch`
 - Overlapping `strcpy` is undefined behavior; replaced with `memmove()` for safe overlapping copy
+
+---
+
+## Appendix: Additional Fixes (Session 16+)
+
+### NULL Guard for opendir("/proc") in keymon.c (CRASH FIX)
+- `suspend_exec()` called `readdir()` on the result of `opendir("/proc")` without NULL check
+- If `/proc` is unavailable (e.g., early boot or chroot), `readdir(NULL)` causes immediate segfault
+- Added early `return` if `opendir()` fails
+
+### NULL Guard for TTF_RenderUTF8_Blended in packageManager/render.h (CRASH FIX)
+- `TTF_RenderUTF8_Blended()` can return NULL on font rendering failure (out of memory, invalid font)
+- Status surface was dereferenced (`status->w`, `status->h`) unconditionally — crash on NULL
+- Now wrapped in NULL check; rendering gracefully skipped if font render fails
+
+### Remaining strcpy Elimination (6 sites)
+Converted the final `strcpy` calls in the codebase:
+- **`gameNameList.c`** (×2): `strcpy(filename, full_rom_name)` → `strncpy` with null-termination
+- **`packageManager/render.h`**: `strcpy(status_str + len, "  ")` → direct char assignment with bounds check
+- **`packageManager/summary.h`**: `strcpy(line_str + len, ",")` → direct char assignment with bounds check
+- **`file.c`** (×2): `strcpy` into exact-size `malloc()` buffers → `memcpy` (faster, no scanning for NUL)
+- **`file.c`**: `strcpy(resolvedPath, "/")` → direct char assignment
+- **`tree.c`**: `strcpy` into exact-size `malloc()` buffer → `memcpy`
+
+**Note:** The 2 remaining `strcpy` calls in `str.c` (`str_replace()`) operate on a dynamically-calculated malloc'd buffer that is exactly sized for the result. Converting these would require tracking the remaining buffer size through pointer arithmetic, adding complexity without security benefit since the buffer size is mathematically guaranteed correct.

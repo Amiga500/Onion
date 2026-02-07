@@ -220,7 +220,7 @@ char *file_removeExtension(const char *myStr)
     char *lastExt;
     if (retStr == NULL)
         return NULL;
-    strcpy(retStr, myStr);
+    memcpy(retStr, myStr, strlen(myStr) + 1);
     if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 2) != '\0')
         *lastExt = '\0';
     return retStr;
@@ -472,7 +472,7 @@ char *file_read_lineN(const char *filename, int n)
                 print_debug("Memory allocation error");
                 return NULL;
             }
-            strcpy(lineN, line);
+            memcpy(lineN, line, strlen(line) + 1);
             return lineN;
         }
         lineNumber++;
@@ -614,7 +614,8 @@ char *file_resolvePath(const char *path)
 
     // Handle the case where the path is empty
     if (resolvedPath[0] == '\0') {
-        strcpy(resolvedPath, "/");
+        resolvedPath[0] = '/';
+        resolvedPath[1] = '\0';
     }
 
     return resolvedPath;

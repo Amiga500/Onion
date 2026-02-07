@@ -212,7 +212,8 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
         strtok(full_rom_name, "\n");
 
         // Get first word from full rom name
-        strcpy(filename, full_rom_name);//preserve the original line;
+        strncpy(filename, full_rom_name, sizeof(filename) - 1);//preserve the original line;
+        filename[sizeof(filename) - 1] = '\0';
         full_rom_name_first_word = strtok(filename, "\t ");        
 
         if (strcmp(full_rom_name_first_word, rom_name) == 0) {
@@ -233,7 +234,8 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
             while (strcmp(full_rom_name_first_word, rom_name) < 0 && !feof(full_rom_list_fp)) {
                 fgets(full_rom_name, 200, full_rom_list_fp);
                 strtok(full_rom_name, "\n");
-                strcpy(filename, full_rom_name);//preserve the original line;
+                strncpy(filename, full_rom_name, sizeof(filename) - 1);//preserve the original line;
+                filename[sizeof(filename) - 1] = '\0';
                 full_rom_name_first_word = strtok(filename, "\t ");                        
             }
         }

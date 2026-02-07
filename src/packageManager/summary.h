@@ -61,7 +61,10 @@ void renderSummary()
             if (changes_removals[nT] > 0) {
                 int len = strlen(line_str);
                 if (changes_installs[nT] > 0) {
-                    strcpy(line_str + len, ",");
+                    if (len + 1 < (int)sizeof(line_str)) {
+                        line_str[len] = ',';
+                        line_str[len + 1] = '\0';
+                    }
                     len += 1;
                 }
                 snprintf(line_str + len, sizeof(line_str) - len, " %d removed", changes_removals[nT]);

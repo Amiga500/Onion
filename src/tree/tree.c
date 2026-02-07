@@ -113,7 +113,7 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
             free(current);
             continue;
         }
-        strcpy(current->name, file_dirent->d_name);
+        memcpy(current->name, file_dirent->d_name, strlen(file_dirent->d_name) + 1);
         current->is_dir = file_dirent->d_type == DT_DIR;
         current->next = NULL;
 

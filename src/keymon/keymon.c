@@ -94,6 +94,8 @@ int suspend(uint32_t mode)
 
     sync();
     procdp = opendir("/proc");
+    if (procdp == NULL)
+        return 0;
 
     // Pick active processes to suspend and send SIGSTOP
     // Cond:1. PID is greater than 2(kthreadd) and not myself
