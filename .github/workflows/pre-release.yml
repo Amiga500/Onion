@@ -42,6 +42,13 @@ jobs:
     - name: Print version
       run: |
         echo "Onion-v${{ env.BUILD_VERSION }}-${{ env.SHA_SHORT }}"
+    - name: Determine release tag
+      run: |
+        if [ "${{ github.ref_type }}" = "tag" ] && [ "${{ github.ref_name }}" = "beta" ]; then
+          echo "RELEASE_TAG=beta" >> $GITHUB_ENV
+        else
+          echo "RELEASE_TAG=latest" >> $GITHUB_ENV
+        fi
     - name: Build release
       shell: bash
       run: |
@@ -50,7 +57,7 @@ jobs:
     - uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        automatic_release_tag: ${{ github.ref_type == 'tag' && github.ref_name == 'beta' && 'beta' || 'latest' }}
+        automatic_release_tag: ${{ env.RELEASE_TAG }}
         prerelease: true
         title: "Onion V${{ env.BUILD_VERSION }}"
         files: |
