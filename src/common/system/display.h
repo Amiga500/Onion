@@ -54,6 +54,8 @@ static display_t g_display = {
     .init_done = false,
 };
 
+static uint32_t _cached_brightness_raw = UINT32_MAX; // UINT32_MAX = no cached value
+
 typedef struct Rect {
     int x;
     int y;
@@ -203,6 +205,7 @@ void display_setScreen(bool enabled)
         file_write(PWM_DIR "export", "0", 1);
         file_write(PWM_DIR "pwm0/enable", "0", 1);
         file_write(PWM_DIR "pwm0/enable", "1", 1);
+        _cached_brightness_raw = UINT32_MAX; // invalidate cache after PWM re-export
         display_restore();
     }
     else {
@@ -238,8 +241,11 @@ int display_getBrightnessFromRaw()
 //
 void display_setBrightnessRaw(uint32_t value)
 {
+    if (value == _cached_brightness_raw)
+        return;
     FILE *fp;
     file_put_sync(fp, PWM_DIR "pwm0/duty_cycle", "%u", value);
+    _cached_brightness_raw = value;
     printf_debug("Raw brightness: %d\n", value);
 }
 
