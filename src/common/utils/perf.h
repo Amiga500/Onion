@@ -63,11 +63,14 @@ static inline void perf_log(const char *label, long start_ms, long end_ms)
 
 /**
  * PERF_START(label) — Begin a named timing measurement.
- * Declares a local variable _perf_start_<hash> to hold the start time.
+ * Declares a local variable _perf_start_<line> to hold the start time.
  * The label must be a string literal.
  */
+#define _PERF_VAR(prefix, line) prefix##line
+#define _PERF_VAR2(prefix, line) _PERF_VAR(prefix, line)
 #define PERF_START(label) \
-    long _perf_start_ = perf_get_ms();
+    long _PERF_VAR2(_perf_start_, __LINE__) = perf_get_ms(); \
+    const long *_perf_start_ptr_ = &_PERF_VAR2(_perf_start_, __LINE__);
 
 /**
  * PERF_END(label) — End a named timing measurement and log the result.
@@ -76,7 +79,7 @@ static inline void perf_log(const char *label, long start_ms, long end_ms)
 #define PERF_END(label) \
     do { \
         long _perf_end_ = perf_get_ms(); \
-        perf_log(label, _perf_start_, _perf_end_); \
+        perf_log(label, *_perf_start_ptr_, _perf_end_); \
     } while (0)
 
 #else /* PERF_ENABLED not defined */
