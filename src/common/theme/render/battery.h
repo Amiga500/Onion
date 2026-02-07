@@ -47,7 +47,9 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
         return NULL;
 
     SDL_Surface *image = NULL;
-    SDL_Surface *text = TTF_RenderUTF8_Blended(font, buffer, style->color);
+    SDL_Surface *text = font
+        ? TTF_RenderUTF8_Blended(font, buffer, style->color)
+        : NULL;
 
     if (!text) {
         text = SDL_CreateRGBSurface(0, 1, 1, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
