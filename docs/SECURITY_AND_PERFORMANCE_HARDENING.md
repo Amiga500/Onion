@@ -756,3 +756,60 @@ valgrind --leak-check=full ./build/.tmp_update/bin/packageManager
 
 ### system("touch") → POSIX
 - `keymon.c`: 2 instances of `system("touch /tmp/.blfIgnoreSchedule")` → `close(open(..., O_CREAT|O_WRONLY, 0644))`
+
+---
+
+## Appendix: Additional Fixes (Session 15+)
+
+### Remaining strcpy → strncpy Conversions (Codebase-wide)
+Converted ~40 remaining `strcpy` call sites to `strncpy` with null-termination across 27 files:
+- **tweaks/**: `actions.h` (app shortcut prefixes), `formatters.h` (all label writes), `network.h` (8 menu titles), `icons.h` (5 menu titles), `menus.h` (4 menu titles)
+- **common/theme/**: `config.h` (font fallback copies), `load.h` (theme path), `resources.h` (sound paths)
+- **common/system/**: `lang.h` (language string loading), `state.h` (JSON buffer handling)
+- **common/utils/**: `config.h`, `retroarch_cmd.c`, `netinfo.h`, `apps.h`, `apply_icons.h`
+- **common/components/**: `JsonGameEntry.h` (emupath copy)
+- **gameSwitcher/**: `gs_history.h` (empty string init → `[0]='\0'`)
+- **Other**: `chargingState.c`, `themeSwitcher.c`, `easter.c`
+
+### Remaining atoi → strtol Conversions (12 call sites)
+All remaining `atoi()` calls converted to `strtol(str, NULL, 10)` for robust integer parsing:
+- `gameNameList.c`, `chargingState.c`, `gs_popMenu.h`, `actions.h`, `keymon.c` (×2), `values.h` (×5), `system.h`, `process.h`
+
+### concat Macro Hardened (str.h)
+```c
+// Before: unbounded strcpy+strcat
+#define concat(ptr, str1, str2) { strcpy(ptr, str1); strcat(ptr, str2); }
+
+// After: bounded snprintf with STR_MAX
+#define concat(ptr, str1, str2) snprintf(ptr, STR_MAX, "%s%s", str1, str2)
+```
+
+### Division-by-Zero Guard in jpg2png.c (CRASH FIX)
+- Lines 121, 124: `dh = sh * dw / sw` and `dw = sw * dh / sh` had **no zero-check** on `sw`/`sh`
+- Unlike `pngScale.c` (which had guards), `jpg2png.c` would crash on degenerate JPEG inputs
+- Added pre-division validation for `sw`, `sh`, `dw`, `dh` with descriptive error messages
+
+### Division-by-Zero Guard in gs_romscreen.h (CRASH FIX)
+- `scaleRomScreen()` divides by `game->romScreen->w` and `game->romScreen->h`
+- Added NULL and zero-dimension guard at function entry to prevent FPE on corrupt/empty images
+
+### NULL Pointer Guard for popen() in battery.h (CRASH FIX)
+- `battery_isCharging()` on MIYOO354: `popen()` return was used directly in `fgets()` without NULL check
+- If `popen()` fails (e.g., fork failure under memory pressure), `fgets(buf, sizeof(buf), NULL)` would segfault
+- Now checks `fp != NULL` before `fgets()` and only calls `pclose()` on valid handle
+
+### Screenshot rotate180 NEON Optimization (PERFORMANCE)
+- **Before**: Per-pixel scalar loop doing reverse traversal + ARGB→RGBA conversion (3 operations per pixel)
+- **After**: Reverse-copy row to line_buffer + `neon_swap_rb_inplace()` (NEON processes 16 pixels/iteration)
+- **Impact**: ~2-3× faster screenshot save in rotate180 mode (640×480 = 307,200 pixels)
+- Removes branch-per-pixel overhead by splitting rotate180 and forward paths into separate loops
+
+### IMG_Save Pitch-Correctness Fix (BUG FIX)
+- `IMG_Save()` advanced source pointer by `width` pixels per row (`src += width`)
+- SDL surfaces can have `pitch > width * BytesPerPixel` (row padding for alignment)
+- Now uses `(Uint8*)image->pixels + y * pitch` to correctly handle non-contiguous surfaces
+- Also fixed `malloc(image->pitch)` → `malloc(width * 4)` (allocate exactly what's needed for output)
+
+### Overlapping strcpy → memmove in state.h
+- `history_getRecentPath()`: used `strcpy(romPathSearch, secondPart)` where `secondPart` pointed into `romPathSearch`
+- Overlapping `strcpy` is undefined behavior; replaced with `memmove()` for safe overlapping copy

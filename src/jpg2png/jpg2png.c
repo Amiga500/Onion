@@ -117,11 +117,19 @@ int main(int argc, char *argv[])
     fclose(fp);
 
     // Calculate png size
+    if (sw == 0 || sh == 0) {
+        fprintf(stderr, "jpg has zero dimensions\n");
+        goto error;
+    }
     dw = mw;
     dh = sh * dw / sw;
     if (dh > mh) {
         dh = mh;
         dw = sw * dh / sh;
+    }
+    if (dw == 0 || dh == 0) {
+        fprintf(stderr, "scaled dimensions are zero\n");
+        goto error;
     }
     ds = ALIGN4K(dw * dh * 4);
 

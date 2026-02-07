@@ -67,6 +67,9 @@ typedef struct {
 
 void scaleRomScreen(Game_s *game, ScalingMode_s mode)
 {
+    if (game->romScreen == NULL || game->romScreen->w == 0 || game->romScreen->h == 0)
+        return;
+
     // Zoom the image to fit the screen
     double zx = (double)(DISPLAY_WIDTH) / game->romScreen->w;
     double zy = (double)(DISPLAY_HEIGHT) / game->romScreen->h;

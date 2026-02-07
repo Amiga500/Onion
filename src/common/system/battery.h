@@ -80,11 +80,13 @@ bool battery_isCharging(void)
 
         FILE *fp;
         fp = popen(cmd, "r");
-        if (fgets(buf, sizeof(buf), fp) != NULL) {
-            sscanf(buf, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}",
-                   &charge_number);
+        if (fp != NULL) {
+            if (fgets(buf, sizeof(buf), fp) != NULL) {
+                sscanf(buf, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}",
+                       &charge_number);
+            }
+            pclose(fp);
         }
-        pclose(fp);
         return charge_number == 3;
     }
     return false;
