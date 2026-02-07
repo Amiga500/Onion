@@ -100,6 +100,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
                 i++;
             }
             if (i == MAX_MATCHING_FOLDERS) {
+                pclose(find);
                 break; // Maximum number of folders reached
             }
         }

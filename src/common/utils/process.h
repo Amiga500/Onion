@@ -27,6 +27,9 @@ pid_t process_searchpid(const char *commname)
     size_t commlen = strlen(commname);
 
     procdp = opendir("/proc");
+    if (procdp == NULL) {
+        return 0;
+    }
     while ((dir = readdir(procdp))) {
         if (dir->d_type == DT_DIR) {
             pid = (int)strtol(dir->d_name, NULL, 10);

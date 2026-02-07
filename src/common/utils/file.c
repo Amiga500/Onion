@@ -254,6 +254,17 @@ void file_cleanName(char *name_out, const char *file_name)
 {
     char *name_without_ext = file_removeExtension(file_name);
     char *no_underscores = str_replace(name_without_ext, "_", " ");
+    if (no_underscores == NULL) {
+        // Handle allocation failure
+        if (name_without_ext != NULL) {
+            strncpy(name_out, name_without_ext, STR_MAX - 1);
+            name_out[STR_MAX - 1] = '\0';
+            free(name_without_ext);
+        } else {
+            name_out[0] = '\0';
+        }
+        return;
+    }
     char *dot_ptr = strstr(no_underscores, ".");
     if (dot_ptr != NULL) {
         char *s = no_underscores;
