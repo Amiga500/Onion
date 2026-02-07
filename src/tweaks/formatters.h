@@ -202,6 +202,7 @@ void formatter_startupTab(void *pt, char *out_label)
     default:
         break;
     }
+    out_label[STR_MAX - 1] = '\0';
 }
 
 void formatter_timeSkip(void *pt, char *out_label)

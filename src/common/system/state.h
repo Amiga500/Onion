@@ -279,8 +279,6 @@ char *history_getRecentPath(char *rom_path)
         // Game launched with the search panel
         char *colonPosition = strchr(romPathSearch, ':');
         if (colonPosition != NULL) {
-
-            int position = (int)(colonPosition - romPathSearch);
             memmove(romPathSearch, colonPosition + 1, strlen(colonPosition + 1) + 1);
         }
 
