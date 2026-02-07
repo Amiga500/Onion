@@ -86,6 +86,12 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Validate total_offset to prevent division by zero
+    if (total_offset <= 0) {
+        fprintf(stderr, "Error: total offset must be positive (got %d)\n", total_offset);
+        exit(EXIT_FAILURE);
+    }
+
     SDL_Init(SDL_INIT_VIDEO);
     SDL_ShowCursor(SDL_DISABLE);
     TTF_Init();

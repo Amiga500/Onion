@@ -54,10 +54,32 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
         size_t len = i - start;
         if (line_count >= max_lines) {
             max_lines *= 2;
-            lines = realloc(lines, max_lines * sizeof(char *));
-            line_widths = realloc(line_widths, max_lines * sizeof(int));
+            char **new_lines = realloc(lines, max_lines * sizeof(char *));
+            int *new_line_widths = realloc(line_widths, max_lines * sizeof(int));
+            if (!new_lines || !new_line_widths) {
+                // Cleanup on allocation failure
+                for (size_t j = 0; j < line_count; j++) {
+                    free(lines[j]);
+                }
+                free(lines);
+                free(line_widths);
+                free(new_lines);
+                free(new_line_widths);
+                return NULL;
+            }
+            lines = new_lines;
+            line_widths = new_line_widths;
         }
         char *linebuf = malloc(len + 1);
+        if (!linebuf) {
+            // Cleanup on allocation failure
+            for (size_t j = 0; j < line_count; j++) {
+                free(lines[j]);
+            }
+            free(lines);
+            free(line_widths);
+            return NULL;
+        }
         memcpy(linebuf, &s[start], len);
         linebuf[len] = 0;
         lines[line_count] = linebuf;

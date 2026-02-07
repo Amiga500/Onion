@@ -1,11 +1,13 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_ttf.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/reboot.h>
 #include <sys/stat.h>
@@ -459,6 +461,10 @@ int main(void)
 
     // Prepare for Poll button input
     input_fd = open("/dev/input/event0", O_RDONLY);
+    if (input_fd < 0) {
+        fprintf(stderr, "Failed to open input device: %s\n", strerror(errno));
+        return EXIT_FAILURE;
+    }
     memset(&fds, 0, sizeof(fds));
     fds[0].fd = input_fd;
     fds[0].events = POLLIN;

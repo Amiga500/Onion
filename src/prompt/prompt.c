@@ -2,6 +2,7 @@
 #include <SDL/SDL_image.h>
 #include <SDL/SDL_ttf.h>
 #include <dirent.h>
+#include <errno.h>
 #include <linux/input.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -212,6 +213,10 @@ int main(int argc, char *argv[])
     bool first_draw = true;
     int input_fd;
     input_fd = open("/dev/input/event0", O_RDONLY);
+    if (input_fd < 0) {
+        fprintf(stderr, "Failed to open input device: %s\n", strerror(errno));
+        return EXIT_FAILURE;
+    }
     struct input_event ev;
     uint32_t shutdown_timer = 0;
 #endif
