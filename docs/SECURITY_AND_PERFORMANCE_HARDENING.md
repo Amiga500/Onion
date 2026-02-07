@@ -939,3 +939,32 @@ cd test && make -f Makefile.unit test_perf  # Run perf timing tests
 - `_migrate_loadCacheDBs()`: `opendir(ROMS_FOLDER)` result used in `readdir()` without NULL check
 - If ROMS_FOLDER is missing/inaccessible, `readdir(NULL)` causes segfault
 - Now returns early if `opendir()` fails
+
+---
+
+## Appendix: Battery Optimization (Session 20)
+
+### `battery_isCharging()` — Subprocess Caching (MIYOO354 Power Savings)
+**Problem:** On MIYOO354, every `battery_isCharging()` call spawns `popen("cd /customer/app/ ; ./axp_test")` — a full fork+exec of a shell and binary (~5-10ms CPU time per call). This is called:
+- Every 1s in batmon main loop
+- Every 15ms in chargingState animation loop
+- In keymon suspend polling loop
+
+**Fix:** Added a 2-second timestamp-based cache using `clock_gettime(CLOCK_MONOTONIC_RAW)`. Subsequent calls within 2s return the cached result immediately. This eliminates ~99% of subprocess overhead in hot loops while maintaining responsive charging detection.
+
+**Impact:** ~30 subprocess spawns/second → ~0.5/second during charging animation. On MIYOO283 (GPIO read), the cache avoids repeated open/read/close cycles on the gpio sysfs file.
+
+### `getBatPercMMP()` — Eliminate Double I/O (MIYOO354)
+**Problem:** Used `system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result")` (fork+exec+redirect) then `fopen` + `fread` from the file — two syscall chains where one suffices.
+
+**Fix:** Replaced with single `popen()` call that reads directly from the process pipe. Still writes to `/tmp/.axp_result` for other consumers, but the primary data path uses one syscall chain instead of two.
+
+### `batteryWarning_thread` — Reduce CPU Wake-ups (Power Savings)
+**Problem:** Low battery icon thread was polling at `usleep(0x4000)` = 16,384µs = ~60fps. This busy-wakes the CPU for a static icon redraw during the exact scenario (low battery) when power conservation matters most.
+
+**Fix:** Changed to `usleep(500000)` = 500ms (~2fps). The low battery icon is a static indicator that doesn't need animation-rate refresh. This reduces CPU wake-ups by ~30x when battery is low.
+
+### `system_powersave()` — Eliminate Subprocess for Sysfs Read
+**Problem:** Used `popen("cpuclock", "r")` to read the current CPU minimum frequency — forking a subprocess just to read a single integer from a sysfs file.
+
+**Fix:** Read directly from `/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq` using the existing `file_get()` macro. Eliminates one fork+exec on every suspend/resume cycle.
