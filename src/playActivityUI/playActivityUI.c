@@ -100,8 +100,12 @@ int renderTextAlignRight(const char *text, TTF_Font *font, SDL_Color color, SDL_
 SDL_Surface *loadRomImage(const char *image_path)
 {
     SDL_Surface *img = IMG_Load(is_file(image_path) ? image_path : "/mnt/SDCARD/miyoo/app/skin/thumb-default.png");
-    if (img == NULL || img->w == 0 || img->h == 0)
-        return img;
+    if (img == NULL)
+        return NULL;
+    if (img->w == 0 || img->h == 0) {
+        SDL_FreeSurface(img);
+        return NULL;
+    }
 
     double sw = (double)IMG_MAX_WIDTH / img->w;
     double sh = (double)IMG_MAX_HEIGHT / img->h;
