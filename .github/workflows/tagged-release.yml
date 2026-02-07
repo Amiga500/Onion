@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - v*
+      - stable
 
 jobs:
   tagged-release:
@@ -20,7 +21,14 @@ jobs:
     - name: Get version
       run: |
         TAG="${{ github.ref_name }}"
-        echo "BUILD_VERSION=${TAG#v}" >> $GITHUB_ENV
+        if [ "$TAG" = "stable" ]; then
+          # For stable tag, use version from Makefile
+          BUILD_VERSION=$(make version)
+        else
+          # For v* tags, strip the 'v' prefix
+          BUILD_VERSION=${TAG#v}
+        fi
+        echo "BUILD_VERSION=$BUILD_VERSION" >> $GITHUB_ENV
     - name: Build release
       shell: bash
       run: |
