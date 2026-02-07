@@ -599,7 +599,7 @@ For comprehensive details on all security and performance work:
 - Performance impact measurements
 - Code quality assessment (9/10 rating)
 
-**[OPTIMIZATION_REVIEW.md](../OPTIMIZATION_REVIEW.md)** — Code optimization review covering:
+**[OPTIMIZATION_REVIEW.md](OPTIMIZATION_REVIEW.md)** — Code optimization review covering:
 - PR #79: Path computation optimization
 - PR #81: CJK detection fix + string optimizations
 - Compiler configuration analysis
