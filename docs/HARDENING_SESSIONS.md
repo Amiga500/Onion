@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–35)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–36)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -819,3 +819,27 @@ Each `cat file | grep/cut/sed` spawns an extra `cat` process + creates a pipe. O
 **Fix:**
 - All shared variables marked `volatile` (`_bar_timer`, `_bar_value`, `_bar_max`, `_bar_color`, `osd_bar_activated`, `osd_thread_active`)
 - `_print_bar()` snapshots volatile values into local variables for consistent use within a single frame render (prevents mid-frame tearing if main thread updates during render)
+
+---
+
+## Session 36 — Deep Bug Audit: Buffer Overflow + Uninitialized Variables + fd Safety
+
+### state.h — Buffer Overflow + NULL Pointer Arithmetic + Uninitialized Variables
+
+**Bug 1 — Buffer Overflow:** `strncpy(label, labelStart, labelEnd - labelStart)` copies up to `STR_MAX * 4` bytes into a 256-byte `label[]` buffer (also `rompath[]`, `imgpath[]`, `launch[]`). If JSON contains a label longer than 255 characters, this overflows the stack buffer.
+
+**Bug 2 — NULL Pointer Arithmetic:** `strchr(labelStart, '"')` can return NULL if the JSON is malformed (no closing quote). The code then does `labelEnd - labelStart` and `label[labelEnd - labelStart]` with a NULL `labelEnd`, causing undefined behavior.
+
+**Bug 3 — Uninitialized Variable Use:** `label`, `rompath`, `imgpath`, `launch` arrays were uninitialized. If `strstr()` finds no key, the buffer is used uninitialized in `printf_debug()`, `exists()`, and `strchr()` calls.
+
+**Fix:**
+- Initialize all 4 buffers to `""` (empty string)
+- Add `strchr` NULL check before dereferencing
+- Clamp copy length to `sizeof(buf) - 1`
+- Use `memcpy` + manual null-termination instead of `strncpy` (avoids zero-padding waste)
+
+### keymon.c — close(open()) on Failure Returns close(-1)
+
+**Bug:** `close(open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644))` — if `open()` fails and returns -1, `close(-1)` is undefined behavior.
+
+**Fix:** Separated into variable assignment with `>= 0` check before `close()`. Also deduplicated the identical call from both if/else branches.

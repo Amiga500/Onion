@@ -351,10 +351,10 @@ void resumeGame(int index)
     int lineCount = 0;
 
     while (fgets(jsonContent, sizeof(jsonContent), file) != NULL) {
-        char label[256];
-        char rompath[256];
-        char imgpath[256];
-        char launch[256];
+        char label[256] = "";
+        char rompath[256] = "";
+        char imgpath[256] = "";
+        char launch[256] = "";
         lineCount++;
 
         const char *typeStr = strstr(jsonContent, "\"type\":");
@@ -368,24 +368,36 @@ void resumeGame(int index)
         if (labelStart != NULL) {
             labelStart += 9;
             const char *labelEnd = strchr(labelStart, '\"');
-            strncpy(label, labelStart, labelEnd - labelStart);
-            label[labelEnd - labelStart] = '\0';
+            if (labelEnd != NULL) {
+                size_t len = (size_t)(labelEnd - labelStart);
+                if (len >= sizeof(label)) len = sizeof(label) - 1;
+                memcpy(label, labelStart, len);
+                label[len] = '\0';
+            }
         }
         printf_debug("label: %s\n", label);
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
         if (rompathStart != NULL) {
             rompathStart += 11;
             const char *rompathEnd = strchr(rompathStart, '\"');
-            strncpy(rompath, rompathStart, rompathEnd - rompathStart);
-            rompath[rompathEnd - rompathStart] = '\0';
+            if (rompathEnd != NULL) {
+                size_t len = (size_t)(rompathEnd - rompathStart);
+                if (len >= sizeof(rompath)) len = sizeof(rompath) - 1;
+                memcpy(rompath, rompathStart, len);
+                rompath[len] = '\0';
+            }
         }
         printf_debug("rompath: %s\n", rompath);
         const char *imgpathStart = strstr(jsonContent, "\"imgpath\":\"");
         if (imgpathStart != NULL) {
             imgpathStart += 11;
             const char *imgpathEnd = strchr(imgpathStart, '\"');
-            strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
-            imgpath[imgpathEnd - imgpathStart] = '\0';
+            if (imgpathEnd != NULL) {
+                size_t len = (size_t)(imgpathEnd - imgpathStart);
+                if (len >= sizeof(imgpath)) len = sizeof(imgpath) - 1;
+                memcpy(imgpath, imgpathStart, len);
+                imgpath[len] = '\0';
+            }
         }
 
         char *colonPosition = strchr(rompath, ':');
@@ -413,8 +425,12 @@ void resumeGame(int index)
             if (launchStart != NULL) {
                 launchStart += 10;
                 const char *launchEnd = strchr(launchStart, '\"');
-                strncpy(launch, launchStart, launchEnd - launchStart);
-                launch[launchEnd - launchStart] = '\0';
+                if (launchEnd != NULL) {
+                    size_t len = (size_t)(launchEnd - launchStart);
+                    if (len >= sizeof(launch)) len = sizeof(launch) - 1;
+                    memcpy(launch, launchStart, len);
+                    launch[len] = '\0';
+                }
             }
         }
 

@@ -829,12 +829,13 @@ int main(void)
             if (menuAndBPressed && (getMilliseconds() - menuAndBPressedTime >= 2000)) {
                 if (access("/tmp/.blfOn", F_OK) != -1) {
                     system("/mnt/SDCARD/.tmp_update/script/blue_light.sh disable &");
-                    close(open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644));
                 }
                 else {
                     system("/mnt/SDCARD/.tmp_update/script/blue_light.sh enable &");
-                    close(open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644));
                 }
+                int blf_fd = open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644);
+                if (blf_fd >= 0)
+                    close(blf_fd);
 
                 menuAndBPressed = false;
                 menuAndBPressedTime = 0;
