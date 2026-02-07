@@ -392,8 +392,6 @@ int getBatPercMMP(void)
         FILE *fp2;
         if ((fp2 = fopen("/tmp/.axp_result", "w+"))) {
             fputs(buf, fp2);
-            fflush(fp2);
-            fsync(fileno(fp2));
             fclose(fp2);
         }
     }

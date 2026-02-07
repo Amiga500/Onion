@@ -15,7 +15,9 @@ static bool battery_is_charging = false;
 
 /* Cache for battery_isCharging() to avoid repeated GPIO reads / subprocess spawns.
  * On MIYOO354, each uncached call forks+execs /customer/app/axp_test (~5-10ms).
- * Caching for 2 seconds eliminates ~99% of subprocess overhead in hot loops. */
+ * Caching for 2 seconds eliminates ~99% of subprocess overhead in hot loops.
+ * Note: Cache variables are per-translation-unit (static). Thread safety is not
+ * required as all callers (batmon main loop, chargingState, keymon) are single-threaded. */
 #define BATTERY_CHARGING_CACHE_MS 2000
 static struct timespec _charging_cache_ts = {0, 0};
 static bool _charging_cache_val = false;
@@ -120,9 +122,14 @@ bool battery_isCharging(void)
     clock_gettime(CLOCK_MONOTONIC_RAW, &now);
 
     if (_charging_cache_valid) {
-        long elapsed_ms = (now.tv_sec - _charging_cache_ts.tv_sec) * 1000L +
-                          (now.tv_nsec - _charging_cache_ts.tv_nsec) / 1000000L;
-        if (elapsed_ms < BATTERY_CHARGING_CACHE_MS)
+        long elapsed_ms = (now.tv_sec - _charging_cache_ts.tv_sec) * 1000L;
+        long ns_diff = now.tv_nsec - _charging_cache_ts.tv_nsec;
+        if (ns_diff < 0) {
+            elapsed_ms -= 1000L;
+            ns_diff += 1000000000L;
+        }
+        elapsed_ms += ns_diff / 1000000L;
+        if (elapsed_ms >= 0 && elapsed_ms < BATTERY_CHARGING_CACHE_MS)
             return _charging_cache_val;
     }
 
