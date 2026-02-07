@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <libgen.h>
 #include <sqlite3/sqlite3.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -231,7 +232,9 @@ int matchRomNames(char *rom_names_file, char *full_rom_list_file, char *arcade_r
     }
 
     // Loop through files, writing matches to output file
-    while (!feof(rom_names_fp) && !feof(full_rom_list_fp)) {
+    bool rom_names_eof = false;
+    bool full_rom_list_eof = false;
+    while (!rom_names_eof && !full_rom_list_eof) {
         // Strip newline characters from input strings
         strtok(rom_name, "\n");
         strtok(full_rom_name, "\n");
@@ -247,21 +250,29 @@ int matchRomNames(char *rom_names_file, char *full_rom_list_file, char *arcade_r
             // Write matched line to output file
             fprintf(arcade_rom_names_fp, "%s\n", full_rom_name);
             // Read next line from input files
-            fgets(rom_name, 50, rom_names_fp);
-            fgets(full_rom_name, 200, full_rom_list_fp);
+            if (fgets(rom_name, 50, rom_names_fp) == NULL)
+                rom_names_eof = true;
+            if (fgets(full_rom_name, 200, full_rom_list_fp) == NULL)
+                full_rom_list_eof = true;
         }
         else if (strcmp(full_rom_name_first_word, rom_name) > 0) {
             // Skip ahead in full_rom_list_file until a match is found or EOF is reached
-            while (strcmp(full_rom_name_first_word, rom_name) > 0 && !feof(rom_names_fp)) {
+            while (strcmp(full_rom_name_first_word, rom_name) > 0 && !rom_names_eof) {
                 fprintf(missing_rom_names_fp, "%s\n", rom_name);
-                fgets(rom_name, 50, rom_names_fp);
+                if (fgets(rom_name, 50, rom_names_fp) == NULL) {
+                    rom_names_eof = true;
+                    break;
+                }
                 strtok(rom_name, "\n");
             }
         }
         else if (strcmp(full_rom_name_first_word, rom_name) < 0) {
             // Skip ahead in rom_names_file until a match is found or EOF is reached
-            while (strcmp(full_rom_name_first_word, rom_name) < 0 && !feof(full_rom_list_fp)) {
-                fgets(full_rom_name, 200, full_rom_list_fp);
+            while (strcmp(full_rom_name_first_word, rom_name) < 0 && !full_rom_list_eof) {
+                if (fgets(full_rom_name, 200, full_rom_list_fp) == NULL) {
+                    full_rom_list_eof = true;
+                    break;
+                }
                 strtok(full_rom_name, "\n");
                 strncpy(filename, full_rom_name, sizeof(filename) - 1); //preserve the original line;
                 filename[sizeof(filename) - 1] = '\0';
@@ -342,7 +353,7 @@ void splitString(char *input, char *token1, char *token2)
         if (input[tab_pos] == '\"') {
             // If the second token starts with a quote, skip it
             i = tab_pos + 1;
-            while (input[i] != '\"' && i < len) {
+            while (i < len && input[i] != '\"') {
                 token2[j] = input[i];
                 j++;
                 i++;

@@ -210,6 +210,9 @@ void update_current_duration(void)
 
                         // Exécuter la mise à jour
                         rc = sqlite3_step(update_stmt);
+                        if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
+                            fprintf(stderr, "Failed to update duration: %s\n", sqlite3_errmsg(bat_log_db));
+                        }
 
                         battery_current_state_duration = 0;
                         sqlite3_finalize(stmt);
@@ -314,6 +317,9 @@ int set_best_session_time(int best_session)
 
                         // Exécuter la mise à jour
                         rc = sqlite3_step(update_stmt);
+                        if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
+                            fprintf(stderr, "Failed to update best_session: %s\n", sqlite3_errmsg(bat_log_db));
+                        }
 
                         sqlite3_finalize(stmt);
                         sqlite3_finalize(update_stmt);
