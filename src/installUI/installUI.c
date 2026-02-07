@@ -111,7 +111,9 @@ int main(int argc, char *argv[])
     char version_str[STR_MAX];
     snprintf(version_str, sizeof(version_str), "v%s", ONION_VERSION);
 
-    SDL_Surface *surface_version = TTF_RenderUTF8_Blended(font_small, version_str, fg_color);
+    SDL_Surface *surface_version = font_small
+        ? TTF_RenderUTF8_Blended(font_small, version_str, fg_color)
+        : NULL;
     SDL_Rect rect_version = {10, 10};
 
     Uint32 progress_bg = SDL_MapRGB(video->format, 29, 30, 37);
@@ -238,7 +240,9 @@ int main(int argc, char *argv[])
             // Cache message surface — only re-render when text changes
             if (strcmp(message_str, prev_message_str) != 0) {
                 if (cached_message) SDL_FreeSurface(cached_message);
-                cached_message = TTF_RenderUTF8_Blended(font, message_str, fg_color);
+                cached_message = font
+                    ? TTF_RenderUTF8_Blended(font, message_str, fg_color)
+                    : NULL;
                 strncpy(prev_message_str, message_str, STR_MAX - 1);
                 prev_message_str[STR_MAX - 1] = '\0';
             }

@@ -32,7 +32,7 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
     int offsetY = style->offsetY;
 
     // Correct Exo 2 font offset
-    if (strncmp(TTF_FontFaceFamilyName(font), "Exo 2", 5) == 0)
+    if (font && strncmp(TTF_FontFaceFamilyName(font), "Exo 2", 5) == 0)
         offsetY -= 0.075 * TTF_FontHeight(font);
 
     // Battery percentage text
@@ -42,6 +42,9 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
     // Battery icon
     ThemeImages icon_request = _getBatteryRequest(percentage);
     SDL_Surface *icon = resource_getSurface(icon_request);
+
+    if (!icon)
+        return NULL;
 
     SDL_Surface *image = NULL;
     SDL_Surface *text = TTF_RenderUTF8_Blended(font, buffer, style->color);
@@ -114,21 +117,29 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
         }
     }
 
-    icon = SDL_ConvertSurface(icon, image->format, 0);
-    SDL_SetAlpha(icon, 0, SDL_ALPHA_TRANSPARENT); /* important */
-    SDL_BlitSurface(icon, NULL, image, &rect_icon);
+    SDL_Surface *converted_icon = SDL_ConvertSurface(icon, image->format, 0);
+    if (converted_icon) {
+        SDL_SetAlpha(converted_icon, 0, SDL_ALPHA_TRANSPARENT); /* important */
+        SDL_BlitSurface(converted_icon, NULL, image, &rect_icon);
+    }
 
     if (visible)
         SDL_BlitSurface(text, NULL, image, &rect_text);
 
     if (background != NULL) {
         SDL_Surface *bg = SDL_ConvertSurface(background, image->format, 0);
+        if (!bg)
+            goto cleanup;
         SDL_SetAlpha(bg, 0, SDL_ALPHA_TRANSPARENT);
 
-        SDL_Surface *bg_title =
-            SDL_ConvertSurface(resource_getSurface(BG_TITLE), image->format, 0);
-        SDL_SetAlpha(bg_title, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
-        SDL_BlitSurface(bg_title, NULL, bg, NULL);
+        SDL_Surface *bg_title_src = resource_getSurface(BG_TITLE);
+        SDL_Surface *bg_title = bg_title_src
+            ? SDL_ConvertSurface(bg_title_src, image->format, 0)
+            : NULL;
+        if (bg_title) {
+            SDL_SetAlpha(bg_title, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
+            SDL_BlitSurface(bg_title, NULL, bg, NULL);
+        }
 
         SDL_Rect bg_crop = {572, 6, 48, 48};
         SDL_Rect bg_pos = {(img_width - 48) / 2, (img_height - 48) / 2};
@@ -138,10 +149,10 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
         rect_text.x += bg_crop.x - bg_pos.x;
         rect_text.y += bg_crop.y - bg_pos.y;
 
-        SDL_SetAlpha(icon, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
-        SDL_SetAlpha(text, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
-
-        SDL_BlitSurface(icon, NULL, bg, &rect_icon);
+        if (converted_icon) {
+            SDL_SetAlpha(converted_icon, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
+            SDL_BlitSurface(converted_icon, NULL, bg, &rect_icon);
+        }
         if (visible)
             SDL_BlitSurface(text, NULL, bg, &rect_text);
 
@@ -151,8 +162,9 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
         SDL_FreeSurface(bg_title);
     }
 
+cleanup:
     SDL_FreeSurface(text);
-    SDL_FreeSurface(icon);
+    SDL_FreeSurface(converted_icon);
 
     return image;
 }

@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–38)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–39)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -896,3 +896,52 @@ Each `cat file | grep/cut/sed` spawns an extra `cat` process + creates a pipe. O
 **Bug:** `fread(buff, max_len - 1, 1, fd)` not checked. On short read, `buff` may not contain valid data, but `strtok(buff, "\n")` processes it anyway → garbage output for "last line" used in paths and configs.
 
 **Fix:** If `fread() != 1`, `fclose(fd)` and `return` early before processing.
+
+---
+
+## Session 39: TTF_OpenFont/SDL_ConvertSurface NULL Dereference Crash Fixes
+
+### battery.h — 4 NULL Dereference Crash Paths
+
+**Bugs:**
+1. `resource_getFont(BATTERY)` returns NULL → `TTF_FontFaceFamilyName(NULL)` crash at line 35
+2. `resource_getSurface(icon_request)` returns NULL → `icon->w` dereference at line 55
+3. `SDL_ConvertSurface(icon, ...)` returns NULL → `SDL_SetAlpha(NULL, ...)` crash
+4. `SDL_ConvertSurface(resource_getSurface(BG_TITLE), ...)` — double NULL risk (BG_TITLE NULL + convert NULL)
+
+**Fix:** Guard font with `font &&`, early return NULL on missing icon, use separate `converted_icon` variable with NULL check, guard bg_title_src before conversion.
+
+### themeSwitcher.c — surfaceFileZIP/surfaceHasIcons NULL Dereference
+
+**Bug:** `surfaceFileZIP->w` and `surfaceHasIcons->w` dereferenced in SDL_Rect initializers at lines 183-191 without NULL checks. If any `res/*.png` file is missing → immediate crash.
+
+**Fix:** Extract dimensions into local variables with ternary NULL guards (fallback to 0).
+
+### installUI.c — TTF_OpenFont NULL → TTF_RenderUTF8_Blended Crash
+
+**Bug:** `TTF_OpenFont()` at lines 106-108 not checked. If font file missing, `TTF_RenderUTF8_Blended(NULL, ...)` crashes inside SDL_ttf.
+
+**Fix:** Ternary guard: `font_small ? TTF_RenderUTF8_Blended(...) : NULL` at both render sites.
+
+### packageManager/render.h — 5 TTF_RenderUTF8_Blended Crash Paths
+
+**Bugs:** 5 calls to `TTF_RenderUTF8_Blended(font18/font25, ...)` without checking font for NULL:
+- `renderTabLabel()` line 31: `label_surface->w` dereference
+- `renderTabLabel()` line 44: `parens_pos` uses `label_surface->w`
+- `renderFooter()` line 78: `footer->w` dereference
+- `renderTabName()` line 234: `tab_name->w` dereference
+- `renderStatus()` line 314: font18 NULL check
+
+**Fix:** All 5 sites now guard font with ternary and check render result for NULL before dereference.
+
+### packageManager/summary.h — TTF_RenderUTF8_Blended Crash
+
+**Bug:** `TTF_RenderUTF8_Blended(font18, ...)` at line 16, then `surfaceLine->h` dereference at line 18.
+
+**Fix:** Guard font18 with ternary, return fallback line height (20) on NULL.
+
+### batteryMonitorUI.c — _renderText() NULL Font Crash
+
+**Bug:** `TTF_RenderUTF8_Blended(font, text, color)` at line 148 crashes inside SDL_ttf when font is NULL. The NULL check at line 149 only catches render failure, not font failure.
+
+**Fix:** Early return 0 if `!font`.

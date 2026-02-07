@@ -180,15 +180,16 @@ int main(int argc, char *argv[])
     SDL_Surface *surfaceFileZIP = IMG_Load("res/file_zip.png");
     SDL_Surface *surfaceFile7Z = IMG_Load("res/file_7z.png");
     SDL_Surface *surfaceFileRAR = IMG_Load("res/file_rar.png");
-    SDL_Rect rectPreviewIcon = {560 - surfaceFileZIP->w,
-                                21 - surfaceFileZIP->h / 2};
+    int zipW = surfaceFileZIP ? surfaceFileZIP->w : 0;
+    int zipH = surfaceFileZIP ? surfaceFileZIP->h : 0;
+    SDL_Rect rectPreviewIcon = {560 - zipW, 21 - zipH / 2};
 
     SDL_Surface *surfaceHasIcons = IMG_Load("res/themes_has_icons.png");
-    SDL_Rect rectHasIcons = {560 - surfaceHasIcons->w,
-                             21 - surfaceHasIcons->h / 2};
-    SDL_Rect rectHasIconsPreviewIcon = {560 - surfaceFileZIP->w -
-                                            surfaceHasIcons->w - 10,
-                                        21 - surfaceFileZIP->h / 2};
+    int iconsW = surfaceHasIcons ? surfaceHasIcons->w : 0;
+    int iconsH = surfaceHasIcons ? surfaceHasIcons->h : 0;
+    SDL_Rect rectHasIcons = {560 - iconsW, 21 - iconsH / 2};
+    SDL_Rect rectHasIconsPreviewIcon = {560 - zipW - iconsW - 10,
+                                        21 - zipH / 2};
 
     SDL_Rect preview_src_rect = {0, 0, 480, 360};
     SDL_Rect rectArrowLeft = {24, 210, 28, 32};

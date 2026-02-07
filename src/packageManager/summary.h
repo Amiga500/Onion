@@ -13,7 +13,11 @@
 int renderSummaryLine(SDL_Surface *surfaceTemp, int pos_y, const char *line_str,
                       int alpha, SDL_Color color)
 {
-    SDL_Surface *surfaceLine = TTF_RenderUTF8_Blended(font18, line_str, color);
+    SDL_Surface *surfaceLine = font18
+        ? TTF_RenderUTF8_Blended(font18, line_str, color)
+        : NULL;
+    if (!surfaceLine)
+        return 20; /* fallback line height */
     SDL_Rect rectLine = {0, pos_y};
     int h = surfaceLine->h;
 
