@@ -56,6 +56,8 @@ void get_rom_image_path(char *rom_file, char *out_image_path)
 
     char *clean_rom_name = file_removeExtension(basename(rom_file));
     char *rom_folder = strtok(rom_file, "/");
+    if (rom_folder == NULL)
+        rom_folder = rom_file;
 
     snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s/Imgs/%s.png", rom_folder, clean_rom_name);
     free(clean_rom_name);

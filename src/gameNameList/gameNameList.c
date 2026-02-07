@@ -231,6 +231,8 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
         strncpy(filename, full_rom_name, sizeof(filename) - 1);//preserve the original line;
         filename[sizeof(filename) - 1] = '\0';
         full_rom_name_first_word = strtok(filename, "\t ");        
+        if (full_rom_name_first_word == NULL)
+            full_rom_name_first_word = filename;
 
         if (strcmp(full_rom_name_first_word, rom_name) == 0) {
             // Write matched line to output file
@@ -252,7 +254,9 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
                 strtok(full_rom_name, "\n");
                 strncpy(filename, full_rom_name, sizeof(filename) - 1);//preserve the original line;
                 filename[sizeof(filename) - 1] = '\0';
-                full_rom_name_first_word = strtok(filename, "\t ");                        
+                full_rom_name_first_word = strtok(filename, "\t ");
+                if (full_rom_name_first_word == NULL)
+                    full_rom_name_first_word = filename;
             }
         }
     }

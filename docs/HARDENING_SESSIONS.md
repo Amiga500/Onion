@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–36)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–37)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -843,3 +843,34 @@ Each `cat file | grep/cut/sed` spawns an extra `cat` process + creates a pipe. O
 **Bug:** `close(open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644))` — if `open()` fails and returns -1, `close(-1)` is undefined behavior.
 
 **Fix:** Separated into variable assignment with `>= 0` check before `close()`. Also deduplicated the identical call from both if/else branches.
+
+---
+
+## Session 37 — Deep Bug Audit: malloc NULL, strtok NULL, Dialog NULL Dereference
+
+### prompt.c — malloc() Without NULL Check
+
+**Bug:** `pargs[pargc] = malloc((STR_MAX + 1) * sizeof(char))` at line 126 — if allocation fails, `strncpy(pargs[pargc], ...)` writes to NULL pointer → crash.
+
+**Fix:** Added NULL check with `break` to stop parsing further args (safe: pargc stays at current count).
+
+### playActivityDB.h — strtok() Returns NULL on Empty Input
+
+**Bug:** `strtok(rom_file, "/")` returns NULL if rom_file has no `/` character, then NULL passed to `snprintf(%s, rom_folder)` → undefined behavior.
+
+**Fix:** Fallback to original `rom_file` when strtok returns NULL.
+
+### gameNameList.c — strtok() NULL Dereference in Comparison Loop
+
+**Bug:** `full_rom_name_first_word = strtok(filename, "\t ")` returns NULL if filename is all whitespace/tabs, then passed to `strcmp()` → crash. Occurs in two separate code paths (initial parse + skip-ahead loop).
+
+**Fix:** Fallback to `filename` when strtok returns NULL (both sites).
+
+### dialog.h — 3× NULL Dereference on Missing Theme Resources
+
+**Bugs:**
+1. `theme_textboxSurface()` returns NULL → `textbox->w` dereference on line 60
+2. `resource_getSurface(BUTTON_A)` returns NULL → `button_a->w` dereference on line 73
+3. `resource_getSurface(BUTTON_B)` returns NULL → `button_b->w` dereference on line 90, `button_b->h` on line 106
+
+**Fix:** Added NULL checks before all dereferences. For button_b, skip width calculation and blit when NULL.
