@@ -401,13 +401,13 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
 
     size_t offset = 0;
     if (*p1 != '\0') {
-        int num_parens = 1;
+        int parent_dir_count = 1;
         for (const char *p = p1; *p; p++) {
             if (*p == '/') {
-                num_parens++;
+                parent_dir_count++;
             }
         }
-        for (int i = 0; i < num_parens && offset + 3 < PATH_MAX; i++) {
+        for (int i = 0; i < parent_dir_count && offset + 3 < PATH_MAX; i++) {
             memcpy(path_out + offset, "../", 3);
             offset += 3;
         }
