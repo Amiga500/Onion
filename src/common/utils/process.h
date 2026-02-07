@@ -27,6 +27,9 @@ pid_t process_searchpid(const char *commname)
     size_t commlen = strlen(commname);
 
     procdp = opendir("/proc");
+    if (procdp == NULL) {
+        return 0;
+    }
     while ((dir = readdir(procdp))) {
         if (dir->d_type == DT_DIR) {
             pid = (int)strtol(dir->d_name, NULL, 10);
@@ -93,7 +96,7 @@ bool process_start(const char *pname, const char *args, const char *home,
 
     char cmd[512];
     snprintf(cmd, sizeof(cmd), "cd \"%s\"; %s %s %s", home != NULL ? home : ".", filename,
-            args != NULL ? args : "", await ? "" : "&");
+             args != NULL ? args : "", await ? "" : "&");
     system(cmd);
 
     return true;
