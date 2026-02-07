@@ -1,9 +1,14 @@
 TEST = 1
 INCLUDE_UTILS = 0
+
+# Explicitly list source files — do NOT auto-discover from current directory,
+# because test_str.c/test_perf.c use a different test framework (onion_test.h).
+SOURCES =
 CFILES := ../src/infoPanel/imagesCache.c ../src/common/utils/log.c ../src/common/utils/file.c ../src/common/utils/str.c
+CPPFILES := test_infoPanel.cpp
 include ../src/common/config.mk
 
-TARGET = test
+TARGET = test_infoPanel
 LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lSDL_rotozoom -lgtest -lgtest_main -lpthread
 
 include ../src/common/commands.mk
