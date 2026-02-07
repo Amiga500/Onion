@@ -94,7 +94,7 @@ void menu_datetime(void *_)
 {
     if (!_menu_date_time._created) {
         _menu_date_time = list_create(7, LIST_SMALL);
-        strcpy(_menu_date_time.title, "Date and time");
+        strncpy(_menu_date_time.title, "Date and time", sizeof(_menu_date_time.title) - 1);
         list_addItem(&_menu_date_time,
                      (ListItem){
                          .label = "[DATESTRING]",
@@ -236,7 +236,7 @@ void menu_buttonActionMainUIMenu(void *_)
 {
     if (!_menu_button_action_mainui_menu._created) {
         _menu_button_action_mainui_menu = list_create(3, LIST_SMALL);
-        strcpy(_menu_button_action_mainui_menu.title, "MainUI: Menu button");
+        strncpy(_menu_button_action_mainui_menu.title, "MainUI: Menu button", sizeof(_menu_button_action_mainui_menu.title) - 1);
         list_addItemWithInfoNote(&_menu_button_action_mainui_menu,
                                  (ListItem){
                                      .label = "Single press",
@@ -443,7 +443,7 @@ void menu_themeOverrides(void *_)
 {
     if (!_menu_theme_overrides._created) {
         _menu_theme_overrides = list_create(7, LIST_SMALL);
-        strcpy(_menu_theme_overrides.title, "Theme overrides");
+        strncpy(_menu_theme_overrides.title, "Theme overrides", sizeof(_menu_theme_overrides.title) - 1);
         list_addItem(&_menu_theme_overrides,
                      (ListItem){
                          .label = "Battery percentage...",
@@ -879,7 +879,7 @@ void menu_tools(void *_)
 {
     if (!_menu_tools._created) {
         _menu_tools = list_create(NUM_TOOLS, LIST_SMALL);
-        strcpy(_menu_tools.title, "Tools");
+        strncpy(_menu_tools.title, "Tools", sizeof(_menu_tools.title) - 1);
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
                                      .label = "Generate CUE files for BIN games",

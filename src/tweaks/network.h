@@ -359,7 +359,8 @@ void network_setTzSelectState(void *pt)
     bool half_past = round(utc_value) != utc_value;
 
     if (utc_value == 0.0) {
-        strcpy(utc_str, "UTC");
+        strncpy(utc_str, "UTC", sizeof(utc_str) - 1);
+        utc_str[sizeof(utc_str) - 1] = '\0';
     }
     else {
         // UTC +/- is reversed for export TZ
@@ -457,7 +458,7 @@ void menu_http(void *pt)
     item->value = (int)network_state.http;
     if (!_menu_http._created) {
         _menu_http = list_create(2, LIST_SMALL);
-        strcpy(_menu_http.title, "HTTP");
+        strncpy(_menu_http.title, "HTTP", sizeof(_menu_http.title) - 1);
         list_addItemWithInfoNote(&_menu_http,
                                  (ListItem){
                                      .label = "Enable",
@@ -488,7 +489,7 @@ void menu_ftp(void *pt)
     item->value = (int)network_state.ftp;
     if (!_menu_ftp._created) {
         _menu_ftp = list_create(2, LIST_SMALL);
-        strcpy(_menu_ftp.title, "FTP");
+        strncpy(_menu_ftp.title, "FTP", sizeof(_menu_ftp.title) - 1);
         list_addItemWithInfoNote(&_menu_ftp,
                                  (ListItem){
                                      .label = "Enable",
@@ -517,7 +518,7 @@ void menu_wps(void *_)
 {
     if (!_menu_wps._created) {
         _menu_wps = list_create(1, LIST_SMALL);
-        strcpy(_menu_wps.title, "WPS");
+        strncpy(_menu_wps.title, "WPS", sizeof(_menu_wps.title) - 1);
         list_addItem(&_menu_wps,
                      (ListItem){
                          .label = "WPS connect",
@@ -533,7 +534,7 @@ void menu_ssh(void *pt)
     item->value = (int)network_state.ssh;
     if (!_menu_ssh._created) {
         _menu_ssh = list_create(2, LIST_SMALL);
-        strcpy(_menu_ssh.title, "SSH");
+        strncpy(_menu_ssh.title, "SSH", sizeof(_menu_ssh.title) - 1);
         list_addItemWithInfoNote(&_menu_ssh,
                                  (ListItem){
                                      .label = "Enable",
@@ -564,7 +565,7 @@ void menu_vnc(void *pt)
     item->value = (int)network_state.vncserv;
     if (!_menu_vnc._created) {
         _menu_vnc = list_create(2, LIST_SMALL);
-        strcpy(_menu_vnc.title, "VNC");
+        strncpy(_menu_vnc.title, "VNC", sizeof(_menu_vnc.title) - 1);
         list_addItem(&_menu_vnc,
                      (ListItem){
                          .label = "Enable",
@@ -591,7 +592,7 @@ void menu_wifi(void *_)
 {
     if (!_menu_wifi._created) {
         _menu_wifi = list_create(3, LIST_SMALL);
-        strcpy(_menu_wifi.title, "WiFi");
+        strncpy(_menu_wifi.title, "WiFi", sizeof(_menu_wifi.title) - 1);
         list_addItem(&_menu_wifi,
                      (ListItem){
                          .label = "IP address: N/A",
@@ -632,7 +633,7 @@ void menu_network(void *_)
 {
     if (!_menu_network._created) {
         _menu_network = list_create(9, LIST_SMALL);
-        strcpy(_menu_network.title, "Network");
+        strncpy(_menu_network.title, "Network", sizeof(_menu_network.title) - 1);
 
         network_loadState();
 

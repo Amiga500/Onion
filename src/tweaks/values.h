@@ -224,7 +224,7 @@ int value_getFrameThrottle(void)
     char value[STR_MAX];
     if (file_parseKeyValue(RETROARCH_CONFIG, "fastforward_ratio", value, '=',
                            0) != NULL)
-        stored_value_frame_throttle = atoi(value);
+        stored_value_frame_throttle = (int)strtol(value, NULL, 10);
     return stored_value_frame_throttle;
 }
 
@@ -245,16 +245,16 @@ int value_getSwapTriggers(void)
 
     if (file_parseKeyValue(RETROARCH_CONFIG, "input_player1_l_btn", value, '=',
                            0) != NULL)
-        l_btn = atoi(value);
+        l_btn = (int)strtol(value, NULL, 10);
     if (file_parseKeyValue(RETROARCH_CONFIG, "input_player1_r_btn", value, '=',
                            0) != NULL)
-        r_btn = atoi(value);
+        r_btn = (int)strtol(value, NULL, 10);
     if (file_parseKeyValue(RETROARCH_CONFIG, "input_player1_l2_btn", value, '=',
                            0) != NULL)
-        l2_btn = atoi(value);
+        l2_btn = (int)strtol(value, NULL, 10);
     if (file_parseKeyValue(RETROARCH_CONFIG, "input_player1_r2_btn", value, '=',
                            0) != NULL)
-        r2_btn = atoi(value);
+        r2_btn = (int)strtol(value, NULL, 10);
 
     printf_debug("l: %d, r: %d, l2: %d, r2: %d\n", l_btn, r_btn, l2_btn,
                  r2_btn);

@@ -121,7 +121,8 @@ char *theme_getPath(char *theme_path)
     cJSON_Delete(j);
 
     if (strcmp(theme_path, "./") == 0 || !is_dir(theme_path)) {
-        strcpy(theme_path, FALLBACK_THEME_PATH);
+        strncpy(theme_path, FALLBACK_THEME_PATH, STR_MAX - 1);
+        theme_path[STR_MAX - 1] = '\0';
     }
 
     return theme_path;

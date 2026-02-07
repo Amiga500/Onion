@@ -205,7 +205,7 @@ void menu_icon_packs(void *_)
 
     if (!_menu_icon_packs._created) {
         _menu_icon_packs = list_create(200, LIST_SMALL);
-        strcpy(_menu_icon_packs.title, "Icon packs");
+        strncpy(_menu_icon_packs.title, "Icon packs", sizeof(_menu_icon_packs.title) - 1);
 
         _add_icon_packs("/mnt/SDCARD/Icons", &_menu_icon_packs,
                         _action_apply_icon_pack, false, NULL);
@@ -435,7 +435,7 @@ void menu_console_icons(void *_)
 {
     if (!_menu_console_icons._created) {
         _menu_console_icons = list_create(200, LIST_SMALL);
-        strcpy(_menu_console_icons.title, "Console icons");
+        strncpy(_menu_console_icons.title, "Console icons", sizeof(_menu_console_icons.title) - 1);
 
         _add_config_icons(CONFIG_EMU_PATH, &_menu_console_icons,
                           menu_change_console_icon);
@@ -457,7 +457,7 @@ void menu_app_icons(void *_)
 {
     if (!_menu_app_icons._created) {
         _menu_app_icons = list_create(200, LIST_LARGE);
-        strcpy(_menu_app_icons.title, "App icons");
+        strncpy(_menu_app_icons.title, "App icons", sizeof(_menu_app_icons.title) - 1);
 
         _add_config_icons(CONFIG_APP_PATH, &_menu_app_icons,
                           menu_change_app_icon);
@@ -481,7 +481,7 @@ void menu_expert_icons(void *_)
 {
     if (!_menu_expert_icons._created) {
         _menu_expert_icons = list_create(200, LIST_SMALL);
-        strcpy(_menu_expert_icons.title, "Expert icons");
+        strncpy(_menu_expert_icons.title, "Expert icons", sizeof(_menu_expert_icons.title) - 1);
 
         _add_config_icons(CONFIG_RAPP_PATH, &_menu_expert_icons,
                           menu_change_expert_icon);
@@ -496,7 +496,7 @@ void menu_icons(void *_)
 {
     if (!_menu_icons._created) {
         _menu_icons = list_create(5, LIST_SMALL);
-        strcpy(_menu_icons.title, "Icons");
+        strncpy(_menu_icons.title, "Icons", sizeof(_menu_icons.title) - 1);
         list_addItem(&_menu_icons, (ListItem){.label = "Apply icon pack...",
                                               .action = menu_icon_packs});
         list_addItem(&_menu_icons, (ListItem){.label = "Edit console icon...",

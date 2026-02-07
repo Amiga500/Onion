@@ -89,7 +89,7 @@ int retroarch_getStatus(RetroArchStatus_s *status)
     int parsed = sscanf(response, "GET_STATUS %31s %[^\n]", status_str, status->content_info);
 
     if (parsed < 2)
-        strcpy(status->content_info, "");
+        status->content_info[0] = '\0';
     if (parsed < 1)
         return -1;
 

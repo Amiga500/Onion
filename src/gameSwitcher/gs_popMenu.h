@@ -94,7 +94,7 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
                     continue; // Skip auto save states and preview images
                 }
                 else if (slotStr[6] != '\0') {
-                    slot = atoi(slotStr + 6);
+                    slot = (int)strtol(slotStr + 6, NULL, 10);
                     if (slot == 0) {
                         continue; // '.state0' is not a valid slot (should be '.state')
                     }

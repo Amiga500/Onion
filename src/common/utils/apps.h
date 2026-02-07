@@ -22,7 +22,7 @@ bool _getAppDirAndConfig(const char *app_dir_name, char *out_app_dir,
     memset(out_app_dir, 0, STR_MAX * sizeof(char));
     memset(out_config_path, 0, STR_MAX * sizeof(char));
 
-    strcpy(out_app_dir, "/mnt/SDCARD/App/");
+    strncpy(out_app_dir, "/mnt/SDCARD/App/", STR_MAX - 1);
     strncat(out_app_dir, app_dir_name, 128);
 
     if (!is_dir(out_app_dir))

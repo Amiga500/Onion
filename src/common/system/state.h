@@ -254,11 +254,12 @@ char *history_getRecentPath(char *rom_path)
     }
 
     while (fgets(line, STR_MAX * 3, file) != NULL) {
-        char *jsonContent = (char *)malloc(strlen(line) + 1);
+        size_t line_len = strlen(line);
+        char *jsonContent = (char *)malloc(line_len + 1);
         char romPathSearch[STR_MAX];
         int type;
 
-        strcpy(jsonContent, line);
+        memcpy(jsonContent, line, line_len + 1);
         sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
 
         if ((type != 5) && (type != 17)) {
@@ -280,9 +281,7 @@ char *history_getRecentPath(char *rom_path)
         if (colonPosition != NULL) {
 
             int position = (int)(colonPosition - romPathSearch);
-            char secondPart[strlen(romPathSearch) - position];
-            strcpy(secondPart, colonPosition + 1);
-            strcpy(romPathSearch, secondPart);
+            memmove(romPathSearch, colonPosition + 1, strlen(colonPosition + 1) + 1);
         }
 
         printf_debug("romPathSearch : %s\n", romPathSearch);

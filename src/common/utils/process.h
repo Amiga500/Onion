@@ -29,7 +29,7 @@ pid_t process_searchpid(const char *commname)
     procdp = opendir("/proc");
     while ((dir = readdir(procdp))) {
         if (dir->d_type == DT_DIR) {
-            pid = atoi(dir->d_name);
+            pid = (int)strtol(dir->d_name, NULL, 10);
             if (pid > 2) {
                 snprintf(fname, sizeof(fname), "/proc/%d/comm", pid);
                 FILE *fp = fopen(fname, "r");

@@ -49,7 +49,7 @@ void system_powersave(bool enabled)
 
         if (pipe) {
             while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-                saved_min_freq = atoi(buffer);
+                saved_min_freq = (int)strtol(buffer, NULL, 10);
             }
         }
 

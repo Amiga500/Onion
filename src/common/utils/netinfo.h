@@ -35,7 +35,8 @@ bool netinfo_getIpAddress(char *label_out, const char *interface)
     snprintf(ip_address, STR_MAX - 1, "IP address: %s (%s)", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr), interface);
 
     if (strncmp(ip_address, label_out, STR_MAX) != 0) {
-        strcpy(label_out, ip_address);
+        strncpy(label_out, ip_address, STR_MAX - 1);
+        label_out[STR_MAX - 1] = '\0';
         return true;
     }
     return false;

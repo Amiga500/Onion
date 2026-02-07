@@ -34,7 +34,7 @@ void action_setAppShortcut(void *pt)
     value -= 1;
 
     if (value < installed_apps_count) {
-        strcpy(sett_pt, "app:");
+        strncpy(sett_pt, "app:", JSON_STRING_LEN - 1);
         strncat(sett_pt, apps[value].dirName, JSON_STRING_LEN - 5);
         return;
     }
@@ -42,13 +42,14 @@ void action_setAppShortcut(void *pt)
     value -= installed_apps_count;
 
     if (value < NUM_TOOLS) {
-        strcpy(sett_pt, "tool:");
+        strncpy(sett_pt, "tool:", JSON_STRING_LEN - 1);
         strncat(sett_pt, tools_short_names[value], JSON_STRING_LEN - 6);
         return;
     }
 
     if (item->action_id == 1) {
-        strcpy(sett_pt, "glo");
+        strncpy(sett_pt, "glo", JSON_STRING_LEN - 1);
+        sett_pt[JSON_STRING_LEN - 1] = '\0';
     }
 }
 
@@ -374,7 +375,7 @@ void action_advancedSetPWMFreqency(void *pt)
 {
     FILE *fp;
     int item_value = ((ListItem *)pt)->value;
-    int pwmfrequency = atoi(((ListItem *)pt)->value_labels[item_value]);
+    int pwmfrequency = (int)strtol(((ListItem *)pt)->value_labels[item_value], NULL, 10);
     char *filename = "/sys/class/pwm/pwmchip0/pwm0/period";
     file_put(fp, filename, "%d", pwmfrequency);
     config_setNumber(".pwmfrequency", item_value);

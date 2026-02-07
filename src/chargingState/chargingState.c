@@ -54,7 +54,7 @@ void getImageDir(const char *theme_path, char *image_dir)
         return;
     }
 
-    strcpy(image_dir, "res");
+    strncpy(image_dir, "res", STR_MAX * 2 - 1);
 }
 
 void suspend(bool enabled, SDL_Surface *video)
@@ -125,7 +125,7 @@ int main(void)
         char json_value[STR_MAX];
         if (file_parseKeyValue(json_path, "frame_delay", json_value, ':', 0) !=
             NULL) {
-            value = atoi(json_value);
+            value = (int)strtol(json_value, NULL, 10);
             // accept both microseconds and milliseconds
             frame_delay = value >= 10000 ? value / 1000 : value;
         }

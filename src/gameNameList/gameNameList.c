@@ -340,7 +340,7 @@ int updateCallback(void *data, int argc, char **argv, char **col_name)
     char *table_name = d->table_name;
 
     // Retrieve the values from the current row of the result set
-    int id = atoi(argv[0]); // Assuming the first column is an integer ID
+    int id = (int)strtol(argv[0], NULL, 10); // Assuming the first column is an integer ID
     char * path = argv[1] ; // The new value to be updated
     char *romname = basename(path);
     removeExtension(romname);

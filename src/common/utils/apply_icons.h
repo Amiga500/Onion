@@ -78,7 +78,7 @@ bool apply_singleIconByFullPath(const char *config_path, const char *icon_path)
     snprintf(sel_path, sizeof(sel_path), "%s/sel/%s", dir_path, file_name);
 
     if (!is_file(sel_path))
-        strcpy(sel_path, icon_path);
+        strncpy(sel_path, icon_path, sizeof(sel_path) - 1);
 
     json_forceSetString(config, "icon", icon_path);
     json_forceSetString(config, "iconsel", sel_path);
@@ -194,7 +194,7 @@ bool apply_singleIcon(const char *config_path)
     if (active_icon_pack != NULL && is_dir(active_icon_pack))
         strncpy(icon_pack_path, active_icon_pack, STR_MAX - 1);
     else {
-        strcpy(icon_pack_path, "/mnt/SDCARD/Icons/Default");
+        strncpy(icon_pack_path, "/mnt/SDCARD/Icons/Default", STR_MAX - 1);
     }
 
     if (!is_dir(icon_pack_path))

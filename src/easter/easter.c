@@ -27,7 +27,8 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
     char *token = NULL;
     char *delim = "\n";
     char s[MAXCHARACTERSARRAY];
-    strcpy(s, message);
+    strncpy(s, message, MAXCHARACTERSARRAY - 1);
+    s[MAXCHARACTERSARRAY - 1] = '\0';
 
     token = strtok(s, delim);
     while (token != NULL) {
