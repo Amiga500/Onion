@@ -870,3 +870,26 @@ Converted the final `strcpy` calls in the codebase:
 - `rm -rf $workingdir` → `rm -rf "$workingdir"` — prevents accidental directory deletion on unexpected paths
 - `. $sysdir/script/log.sh` → `. "$sysdir/script/log.sh"` — prevents source failure on paths with spaces
 - `ls -A $sysdir/logs/` → `ls -A "$sysdir/logs/"` — prevents glob expansion in test condition
+
+---
+
+## Appendix: Additional Fixes (Session 18+)
+
+### Dereference-before-NULL-check in gs_overlay.h (CRITICAL BUG FIX)
+- `setFbAsFirstRomScreen()`: `SDL_CreateRGBSurface()` result was dereferenced on line 38 (`->pixels`), but the NULL check was on line 40 — **after** the dereference
+- If `SDL_CreateRGBSurface()` returns NULL (out of video memory), `game->romScreen->pixels` is an immediate segfault
+- Fixed by moving NULL check before the `display_readCurrentBuffer()` call; function returns early on failure
+
+### NULL Guard for SDL_CreateRGBSurface in playActivityUI.c (CRASH FIX)
+- `loadRomImage()`: `SDL_CreateRGBSurface()` result `dst` dereferenced via `dst->w`/`dst->h` on next line without NULL check
+- If surface allocation fails (OOM), `SDL_SoftStretch()` receives NULL → crash
+- Now frees the source `img` surface and returns NULL on allocation failure
+
+### NULL Guard for SDL_CreateRGBSurface in prompt.c (CRASH FIX)
+- `__showInfoDialog()`: `background_surface` used in `SDL_BlitSurface()` without NULL check
+- Now conditionally blits only if surface allocation succeeds; `SDL_FreeSurface(NULL)` is safe
+
+### NULL Guard for opendir in migrateDB.h (CRASH FIX)
+- `_migrate_loadCacheDBs()`: `opendir(ROMS_FOLDER)` result used in `readdir()` without NULL check
+- If ROMS_FOLDER is missing/inaccessible, `readdir(NULL)` causes segfault
+- Now returns early if `opendir()` fails

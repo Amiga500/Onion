@@ -35,11 +35,11 @@ void setFbAsFirstRomScreen(void)
     }
 
     game->romScreen = SDL_CreateRGBSurface(SDL_SWSURFACE, g_display.width, g_display.height, 32, 0, 0, 0, 0);
-    display_readCurrentBuffer(&g_display, (uint32_t *)game->romScreen->pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
-
     if (game->romScreen == NULL) {
         print_debug("Error creating fb surface\n");
+        return;
     }
+    display_readCurrentBuffer(&g_display, (uint32_t *)game->romScreen->pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
 }
 
 static bool _isContentNameInInfo(const char *content_info, const char *content_name)
