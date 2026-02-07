@@ -31,7 +31,7 @@ bool ra_loadHistory(const char *jsonFilePath)
     }
     size_t bytesRead = fread(fileContent, 1, fileSize, file);
     fclose(file);
-    if (bytesRead == 0) {
+    if (bytesRead != (size_t)fileSize) {
         free(fileContent);
         return false;
     }
