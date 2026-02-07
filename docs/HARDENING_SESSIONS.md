@@ -522,7 +522,7 @@ cat /mnt/SDCARD/.tmp_update/logs/perf.log | sort -t, -k3 -n | tail -20
 |------|------|-------------|
 | `SDL_SetVideoMode()` / `SDL_CreateRGBSurface()` | NULL → all rendering crashes | Early return from `init()` |
 | `IMG_Load("waiting_screen.png")` | NULL → `render_waiting_screen()` crash | `if (waiting_screen != NULL)` guard |
-| `IMG_Load("background.png")` | NULL → `renderPage()` crash | Already safe (SDL_BlitSurface with NULL is no-op on some impls, but guarded for safety) |
+| `IMG_Load("background.png")` | NULL → `renderPage()` crash | `if (background != NULL)` guard on blit |
 | `IMG_Load("right_arrow.png")` / `left_arrow` / `end_graph` | NULL → `SDL_BlitSurface` crash | `if (ptr != NULL)` guard on each blit call |
 
 #### 🔒 Shell Script Variable Quoting

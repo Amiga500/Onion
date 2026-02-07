@@ -342,7 +342,8 @@ void compute_graph(void)
 void renderPage()
 {
     char sub_title[30];
-    SDL_BlitSurface(background, NULL, screen, NULL);
+    if (background != NULL)
+        SDL_BlitSurface(background, NULL, screen, NULL);
 
     switch (current_zoom) {
     case 0:
