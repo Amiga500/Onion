@@ -260,7 +260,8 @@ void file_cleanName(char *name_out, const char *file_name)
             strncpy(name_out, name_without_ext, STR_MAX - 1);
             name_out[STR_MAX - 1] = '\0';
             free(name_without_ext);
-        } else {
+        }
+        else {
             name_out[0] = '\0';
         }
         return;

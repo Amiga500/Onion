@@ -96,7 +96,7 @@ bool process_start(const char *pname, const char *args, const char *home,
 
     char cmd[512];
     snprintf(cmd, sizeof(cmd), "cd \"%s\"; %s %s %s", home != NULL ? home : ".", filename,
-            args != NULL ? args : "", await ? "" : "&");
+             args != NULL ? args : "", await ? "" : "&");
     system(cmd);
 
     return true;
