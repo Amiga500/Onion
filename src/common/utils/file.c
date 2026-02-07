@@ -333,8 +333,10 @@ void file_changeKeyValue(const char *file_path, const char *key,
     fp = fopen(file_path, "r");
     cp = fopen("temp", "w+");
     if (fp == NULL || cp == NULL) {
-        if (fp != NULL) fclose(fp);
-        if (cp != NULL) fclose(cp);
+        if (fp != NULL)
+            fclose(fp);
+        if (cp != NULL)
+            fclose(cp);
         return;
     }
 
@@ -400,9 +402,15 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
     }
 
     size_t offset = 0;
-    if (strlen(p1) > 0) {
-        int num_parens = str_count_char(p1, '/') + 1;
-        for (int i = 0; i < num_parens && offset + 3 < PATH_MAX; i++) {
+    if (*p1 != '\0') {
+        int up_levels = 0;
+        for (const char *cursor = p1; *cursor; cursor++) {
+            if (*cursor == '/') {
+                up_levels++;
+            }
+        }
+        up_levels++;
+        for (int i = 0; i < up_levels && offset + 3 < PATH_MAX; i++) {
             memcpy(path_out + offset, "../", 3);
             offset += 3;
         }
