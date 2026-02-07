@@ -838,3 +838,35 @@ Converted the final `strcpy` calls in the codebase:
 - **`tree.c`**: `strcpy` into exact-size `malloc()` buffer → `memcpy`
 
 **Note:** The 2 remaining `strcpy` calls in `str.c` (`str_replace()`) operate on a dynamically-calculated malloc'd buffer that is exactly sized for the result. Converting these would require tracking the remaining buffer size through pointer arithmetic, adding complexity without security benefit since the buffer size is mathematically guaranteed correct.
+
+---
+
+## Appendix: Additional Fixes (Session 17+)
+
+### NULL Guard for TTF_RenderUTF8_Blended in themeSwitcher.c (CRASH FIX)
+- `showCenteredMessage()`: `TTF_RenderUTF8_Blended()` return used for `->w`/`->h` without NULL check
+- If font rendering fails (OOM, corrupt font), `message->w` dereferences NULL → segfault
+- Now wrapped in NULL guard; screen fill proceeds even if text rendering fails
+
+### NULL Guard for IMG_Load in themeSwitcher.c (CRASH FIX)
+- `createBottomBar()`: Three `IMG_Load()` calls for button icons used without NULL checks
+- `surfaceButtonA->h`, `surfaceButtonB->h`, `surfaceButtonX->h` all dereference NULL if images missing
+- Also 3 `TTF_RenderUTF8_Blended()` calls for label text used without checks
+- All 6 return values now guarded; rendering gracefully skips missing elements
+- Added `cleanup_buttons` label for safe freeing of partially-loaded resources
+
+### NULL Guard for IMG_Load in playActivityUI.c (CRASH FIX + DIV-BY-ZERO)
+- `loadRomImage()`: `IMG_Load()` return used for `->w` and `->h` division without NULL check
+- If image file missing/corrupt: NULL dereference crash; if w=0 or h=0: floating-point divide-by-zero
+- Now returns early on NULL or zero-dimension images
+
+### NULL Guard for IMG_Load in easter.c (CRASH FIX)
+- `easter()`: Four `IMG_Load()` calls used without checks (`logo1->w` dereference on line 123)
+- If any of the 3 main easter images fail to load, all resources are freed and function returns early
+- `endingScreen` NULL is tolerable (only used in non-critical path)
+
+### Shell Script Hardening: util_exporter.sh
+- `rm -rf $filename` → `rm -rf "$filename"` — prevents word-splitting/glob expansion on file paths
+- `rm -rf $workingdir` → `rm -rf "$workingdir"` — prevents accidental directory deletion on unexpected paths
+- `. $sysdir/script/log.sh` → `. "$sysdir/script/log.sh"` — prevents source failure on paths with spaces
+- `ls -A $sysdir/logs/` → `ls -A "$sysdir/logs/"` — prevents glob expansion in test condition

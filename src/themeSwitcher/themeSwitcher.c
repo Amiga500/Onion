@@ -24,12 +24,14 @@ void showCenteredMessage(SDL_Surface *video, SDL_Surface *screen,
                          SDL_Color color)
 {
     SDL_Surface *message = TTF_RenderUTF8_Blended(font, message_str, color);
-    SDL_Rect loadingRect = {320 - message->w / 2, 240 - message->h / 2};
     SDL_FillRect(screen, NULL, 0);
-    SDL_BlitSurface(message, NULL, screen, &loadingRect);
+    if (message != NULL) {
+        SDL_Rect loadingRect = {320 - message->w / 2, 240 - message->h / 2};
+        SDL_BlitSurface(message, NULL, screen, &loadingRect);
+        SDL_FreeSurface(message);
+    }
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
-    SDL_FreeSurface(message);
 }
 
 SDL_Surface *createBottomBar(TTF_Font *font)
@@ -39,44 +41,60 @@ SDL_Surface *createBottomBar(TTF_Font *font)
     SDL_Surface *surfaceButtonX = IMG_Load("res/button_x.png");
 
     SDL_Surface *surface = SDL_CreateRGBSurface(0, 640, 70, 32, 0, 0, 0, 0);
+    if (surface == NULL)
+        goto cleanup_buttons;
 
     SDL_FillRect(surface, NULL, 0);
 
-    SDL_Rect pos = {20, 35 - surfaceButtonA->h / 2};
-    SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
-    pos.x += surfaceButtonA->w + 10;
+    SDL_Rect pos = {20, 35};
+    if (surfaceButtonA != NULL) {
+        pos.y = 35 - surfaceButtonA->h / 2;
+        SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
+        pos.x += surfaceButtonA->w + 10;
+    }
 
     SDL_Surface *text =
         TTF_RenderUTF8_Blended(font, "INSTALL", (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
+    if (text != NULL) {
+        pos.y = 35 - text->h / 2 - 3;
+        SDL_BlitSurface(text, NULL, surface, &pos);
+        pos.x += text->w + 20;
+        SDL_FreeSurface(text);
+    }
 
-    pos.y = 35 - surfaceButtonB->h / 2;
-    SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
-    pos.x += surfaceButtonB->w + 10;
+    if (surfaceButtonB != NULL) {
+        pos.y = 35 - surfaceButtonB->h / 2;
+        SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
+        pos.x += surfaceButtonB->w + 10;
+    }
 
     text = TTF_RenderUTF8_Blended(font, "CANCEL", (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
+    if (text != NULL) {
+        pos.y = 35 - text->h / 2 - 3;
+        SDL_BlitSurface(text, NULL, surface, &pos);
+        pos.x += text->w + 20;
+        SDL_FreeSurface(text);
+    }
 
-    pos.y = 35 - surfaceButtonX->h / 2;
-    SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
-    pos.x += surfaceButtonX->w + 10;
+    if (surfaceButtonX != NULL) {
+        pos.y = 35 - surfaceButtonX->h / 2;
+        SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
+        pos.x += surfaceButtonX->w + 10;
+    }
 
     text = TTF_RenderUTF8_Blended(font, "TOGGLE ICONS",
                                   (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
+    if (text != NULL) {
+        pos.y = 35 - text->h / 2 - 3;
+        SDL_BlitSurface(text, NULL, surface, &pos);
+        pos.x += text->w + 20;
+        SDL_FreeSurface(text);
+    }
 
-    SDL_FreeSurface(surfaceButtonA);
-    SDL_FreeSurface(surfaceButtonB);
-    SDL_FreeSurface(surfaceButtonX);
+cleanup_buttons:
+    if (surfaceButtonA != NULL) SDL_FreeSurface(surfaceButtonA);
+    if (surfaceButtonB != NULL) SDL_FreeSurface(surfaceButtonB);
+    if (surfaceButtonX != NULL) SDL_FreeSurface(surfaceButtonX);
 
     return surface;
 }
