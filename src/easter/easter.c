@@ -192,12 +192,15 @@ int main(int argc, char *argv[])
                 }
                 fclose(file);
             }
-            gText[charIndex] = '\n';
-            charIndex++;
-            gText[charIndex] = ' ';
-            charIndex++;
-            gText[charIndex] = '\n';
-            charIndex++;
+            if (charIndex < MAXCHARACTERSARRAY) {
+                gText[charIndex++] = '\n';
+            }
+            if (charIndex < MAXCHARACTERSARRAY) {
+                gText[charIndex++] = ' ';
+            }
+            if (charIndex < MAXCHARACTERSARRAY) {
+                gText[charIndex++] = '\n';
+            }
 
             file = fopen(
                 "/mnt/SDCARD/.tmp_update/onionVersion/acknowledgments.txt",
@@ -222,10 +225,9 @@ int main(int argc, char *argv[])
 
             // DVD touching corner + text sliding Animation
             int cptFrames = 0;
-            int moduloFrame;
             SDL_PixelFormat *fmt = screen->format;
             while (loop) {
-                moduloFrame = cptFrames % moduloFrame;
+                int moduloFrame = cptFrames % 3;
 
                 switch (animationStep) {
                 case 1:
