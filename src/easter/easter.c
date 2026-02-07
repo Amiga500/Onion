@@ -87,10 +87,14 @@ int main(int argc, char *argv[])
     SDL_Surface *endingScreen = IMG_Load("/mnt/SDCARD/.tmp_update/res/easter4");
 
     if (logo1 == NULL || logo2 == NULL || logo3 == NULL) {
-        if (logo1 != NULL) SDL_FreeSurface(logo1);
-        if (logo2 != NULL) SDL_FreeSurface(logo2);
-        if (logo3 != NULL) SDL_FreeSurface(logo3);
-        if (endingScreen != NULL) SDL_FreeSurface(endingScreen);
+        if (logo1 != NULL)
+            SDL_FreeSurface(logo1);
+        if (logo2 != NULL)
+            SDL_FreeSurface(logo2);
+        if (logo3 != NULL)
+            SDL_FreeSurface(logo3);
+        if (endingScreen != NULL)
+            SDL_FreeSurface(endingScreen);
         return 1;
     }
 
@@ -192,12 +196,15 @@ int main(int argc, char *argv[])
                 }
                 fclose(file);
             }
-            gText[charIndex] = '\n';
-            charIndex++;
-            gText[charIndex] = ' ';
-            charIndex++;
-            gText[charIndex] = '\n';
-            charIndex++;
+            if (charIndex < MAXCHARACTERSARRAY) {
+                gText[charIndex++] = '\n';
+            }
+            if (charIndex < MAXCHARACTERSARRAY) {
+                gText[charIndex++] = ' ';
+            }
+            if (charIndex < MAXCHARACTERSARRAY) {
+                gText[charIndex++] = '\n';
+            }
 
             file = fopen(
                 "/mnt/SDCARD/.tmp_update/onionVersion/acknowledgments.txt",
@@ -213,6 +220,10 @@ int main(int argc, char *argv[])
                 fclose(file);
             }
 
+            // Ensure we don't exceed array bounds
+            if (charIndex >= MAXCHARACTERSARRAY) {
+                charIndex = MAXCHARACTERSARRAY - 1;
+            }
             gText[charIndex] = '\0';
 
             TTF_Font *font35 =
@@ -222,10 +233,9 @@ int main(int argc, char *argv[])
 
             // DVD touching corner + text sliding Animation
             int cptFrames = 0;
-            int moduloFrame;
             SDL_PixelFormat *fmt = screen->format;
             while (loop) {
-                moduloFrame = cptFrames % moduloFrame;
+                int moduloFrame = cptFrames % 3;
 
                 switch (animationStep) {
                 case 1:
@@ -251,8 +261,11 @@ int main(int argc, char *argv[])
                         cptFrames = 0;
                     }
                     cptFrames++;
-                    { Uint32 elapsed = SDL_GetTicks() - frame_start;
-                      if (elapsed < FRAME_TIME_BOUNCE) SDL_Delay(FRAME_TIME_BOUNCE - elapsed); }
+                    {
+                        Uint32 elapsed = SDL_GetTicks() - frame_start;
+                        if (elapsed < FRAME_TIME_BOUNCE)
+                            SDL_Delay(FRAME_TIME_BOUNCE - elapsed);
+                    }
                     break;
 
                 case 2:
@@ -271,8 +284,11 @@ int main(int argc, char *argv[])
                         loop = 0;
                         mainLoop = 0;
                     }
-                    { Uint32 elapsed = SDL_GetTicks() - frame_start;
-                      if (elapsed < FRAME_TIME_SCROLL) SDL_Delay(FRAME_TIME_SCROLL - elapsed); }
+                    {
+                        Uint32 elapsed = SDL_GetTicks() - frame_start;
+                        if (elapsed < FRAME_TIME_SCROLL)
+                            SDL_Delay(FRAME_TIME_SCROLL - elapsed);
+                    }
                     break;
                 }
 
@@ -293,8 +309,11 @@ int main(int argc, char *argv[])
             SDL_BlitSurface(logo1, NULL, screen, &rect);
             SDL_BlitSurface(screen, NULL, video, NULL);
             SDL_Flip(video);
-            { Uint32 elapsed = SDL_GetTicks() - frame_start;
-              if (elapsed < FRAME_TIME_BOUNCE) SDL_Delay(FRAME_TIME_BOUNCE - elapsed); }
+            {
+                Uint32 elapsed = SDL_GetTicks() - frame_start;
+                if (elapsed < FRAME_TIME_BOUNCE)
+                    SDL_Delay(FRAME_TIME_BOUNCE - elapsed);
+            }
         }
     }
     // Clean up

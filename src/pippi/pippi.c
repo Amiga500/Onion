@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <utils/hash.h>
@@ -39,7 +40,7 @@ int main()
 
     input_buffer[total_size] = '\0';
 
-    int hash = FNV1A_Pippip_Yurii(input_buffer, strlen(input_buffer));
+    uint32_t hash = FNV1A_Pippip_Yurii(input_buffer, strlen(input_buffer));
     printf("%u\n", hash);
 
     free(input_buffer);

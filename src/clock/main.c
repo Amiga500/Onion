@@ -39,7 +39,7 @@ SOFTWARE.
 #define MAX_SECOND 59
 #define MAX_MINUTE MAX_SECOND
 #define MAX_HOUR 23
-#define MS_TO_US(ms)  ms * 1000 
+#define MS_TO_US(ms) ms * 1000
 
 SDL_Surface *sdl_screen, *screen;
 
@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
         PrintWhiteString("Please set the Clock", sdl_screen, 10, 5);
 
         PrintString("dd/mm/yyyy hh:mm:ss", sdl_screen, DARK_GRAY_COLOR, 26, 20);
-        snprintf(tmp_str, sizeof(tmp_str), "%02d/%02d/%04d %02d:%02d:%02d",
+        snprintf(tmp_str, sizeof(tmp_str), "%02u/%02u/%04u %02u:%02u:%02u",
                  date_selected, month_selected, year_selected, hour_selected,
                  minute_selected, seconds_selected);
         PrintWhiteString(tmp_str, sdl_screen, 26, 30);
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
 
     if (update_clock == 1) {
         snprintf(final_long_string, sizeof(final_long_string),
-                 "date -s '%d-%d-%d %d:%d:%d';hwclock --utc -w", year_selected,
+                 "date -s '%u-%u-%u %u:%u:%u';hwclock --utc -w", year_selected,
                  month_selected, date_selected, hour_selected, minute_selected,
                  seconds_selected);
         execlp("/bin/sh", "/bin/sh", "-c", final_long_string, (char *)NULL);

@@ -3,7 +3,8 @@
 int main(int argc, char **argv)
 {
     unsigned int reg_address, i, j;
-    int w_val, val, ret;
+    unsigned int w_val;
+    int val, ret;
 
     if (argc < 2) {
         printf("Usage: %s reg_addr [+][write_val]\n\nRegisters:\n", argv[0]);

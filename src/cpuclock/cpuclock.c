@@ -40,7 +40,7 @@ void print_clock(void)
     rate = (divsrc / lpf_value * 2 / post_div * 16);
 
     // print MHz
-    printf("%d\n", rate / 1000000);
+    printf("%u\n", rate / 1000000);
 }
 
 void writefile(const char *fname, char *str)
