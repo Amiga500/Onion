@@ -78,6 +78,7 @@ void renderFooter(const char *footer_str)
 
 void displayLayersInstall(void)
 {
+    if (surfaceCheck == NULL) return;
     SDL_Rect rectInstall = {600 - surfaceCheck->w, 96};
 
     for (int i = 0; i < 7; i++) {
@@ -241,6 +242,7 @@ void renderCurrentTab(void)
     renderTabName(layer_names[nTab], 320, ALIGN_CENTER, true,
                   changes_installs[nTab] > 0 || changes_removals[nTab] > 0);
 
+    if (surfaceDotNeutral == NULL || surfaceDotActive == NULL) return;
     int tab_dots_width =
         (tab_count - 1) * surfaceDotNeutral->w + surfaceDotActive->w;
     SDL_Rect rectTabDot = {320 - tab_dots_width / 2, 14};
@@ -254,6 +256,7 @@ void renderCurrentTab(void)
             current_dot =
                 i == nTab ? surfaceDotApplyActive : surfaceDotApplyNeutral;
 
+        if (current_dot == NULL) continue;
         rectTabDot.y = 14 - current_dot->h / 2;
 
         SDL_BlitSurface(current_dot, NULL, screen, &rectTabDot);

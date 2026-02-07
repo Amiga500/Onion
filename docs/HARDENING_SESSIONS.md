@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–28)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–29)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -590,3 +590,27 @@ cat /mnt/SDCARD/.tmp_update/logs/perf.log | sort -t, -k3 -n | tail -20
 | `fileActions.h` | `callPackageInstaller()` | `main_path` via `snprintf(cmd, ..., "cd \"%s\"; ...", main_path)` | `strpbrk(path, "$\`\"\\")` → `return` |
 
 **Impact:** Prevents shell injection via `$(...)`, backticks, or escape sequences in theme/package paths.
+
+---
+
+## 📎 Appendix D — Session 29 Changes
+
+### 🛡️ realloc Double-Free Prevention
+
+| File | Line | Issue | Fix |
+|------|------|-------|-----|
+| `tree.c` | 215 | `excluded_directories = realloc(excluded_directories, ...)` — loses old pointer on failure | Use temp var `tmp`, check NULL, free old on failure |
+| `tree.c` | 240 | `included_extensions = realloc(included_extensions, ...)` — same pattern | Same fix |
+| `tweaks/network.h` | 146 | `_network_shares = realloc(...)` — loses old pointer, dereferences on next line | Use temp var, revert `numShares` on failure, break loop |
+
+### 💥 IMG_Load NULL Dereference Guards (packageManager/render.h)
+
+| Line | Access | Guard Added |
+|------|--------|-------------|
+| 81 | `surfaceCheck->w` | `if (surfaceCheck == NULL) return;` at function entry |
+| 86 | `surfaceCheck->h / 2` | Same guard |
+| 245 | `surfaceDotNeutral->w + surfaceDotActive->w` | `if (surfaceDotNeutral == NULL \|\| surfaceDotActive == NULL) return;` |
+| 257 | `current_dot->h / 2` | `if (current_dot == NULL) continue;` |
+| 260 | `current_dot->w` | Same guard |
+
+**Impact:** Prevents 5 crash paths if resource PNGs are missing from SD card.
