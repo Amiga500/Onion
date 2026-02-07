@@ -28,6 +28,11 @@ bool exists(const char *file_path)
     return stat64(file_path, &buffer) == 0;
 }
 
+static inline bool is_line_break(char ch)
+{
+    return ch == '\n' || ch == '\r';
+}
+
 bool is_file(const char *file_path)
 {
     struct stat64 buffer;
@@ -96,38 +101,57 @@ bool mkdirs(const char *dir_path)
 void file_readLastLine(const char *filename, char *out_str)
 {
     FILE *fd;
-    int size;
-    char buff[256];
-    char *token = NULL;
+    long size;
+    char buff[FILE_LASTLINE_MAX + 1];
 
-    if ((fd = fopen(filename, "rb")) != NULL) {
-        // get file size
-        fseek(fd, 0L, SEEK_END);
-        size = ftell(fd);
-        fseek(fd, 0L, SEEK_SET);
+    out_str[0] = '\0';
 
-        int max_len = size < 255 ? size + 1 : 255;
-        if (max_len <= 1)
-            return;
+    if ((fd = fopen(filename, "rb")) == NULL)
+        return;
 
-        // get the last line
-        fseek(fd, -max_len, SEEK_END);
-        if (fread(buff, max_len - 1, 1, fd) != 1) {
-            fclose(fd);
-            return;
-        }
-
-        // cleanup
+    if (fseek(fd, 0L, SEEK_END) != 0) {
         fclose(fd);
-        buff[max_len - 1] = '\0';
-
-        token = strtok(buff, "\n");
-        while (token != NULL) {
-            if (strlen(token) > 0)
-                snprintf(out_str, 255, "%s", token);
-            token = strtok(NULL, "\n");
-        }
+        return;
     }
+
+    size = ftell(fd);
+    if (size <= 0) {
+        fclose(fd);
+        return;
+    }
+
+    size_t max_len =
+        size < FILE_LASTLINE_MAX ? (size_t)size : (size_t)FILE_LASTLINE_MAX;
+
+    if (fseek(fd, -(long)max_len, SEEK_END) != 0) {
+        fclose(fd);
+        return;
+    }
+
+    size_t bytes_read = fread(buff, 1, max_len, fd);
+    bool read_error = ferror(fd);
+    fclose(fd);
+    if (read_error || bytes_read == 0) // bytes_read == 0 should not happen with positive size, but guard anyway
+        return;
+
+    buff[bytes_read] = '\0';
+
+    char *end = buff + bytes_read;
+    while (end > buff && is_line_break(*(end - 1)))
+        end--;
+
+    char *start = end;
+    while (start > buff && !is_line_break(*(start - 1)))
+        start--;
+
+    size_t line_len = (size_t)(end - start);
+    if (line_len == 0) // Empty last line results in an empty output string
+        return;
+
+    size_t copy_len =
+        line_len < FILE_LASTLINE_MAX ? line_len : FILE_LASTLINE_MAX;
+    memcpy(out_str, start, copy_len);
+    out_str[copy_len] = '\0';
 }
 
 char *file_read(const char *path)

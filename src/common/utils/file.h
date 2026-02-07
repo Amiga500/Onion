@@ -60,6 +60,8 @@
 #define CONTENT_INT "%d"
 #define CONTENT_STR "%[^\n]"
 
+#define FILE_LASTLINE_MAX 255
+
 bool exists(const char *file_path);
 bool is_file(const char *file_path);
 bool is_dir(const char *file_path);
