@@ -269,16 +269,28 @@ git-submodules:
 pwd:
 	@echo $(ROOT_DIR)
 
+IN_CONTAINER := $(shell [ -f /.dockerenv ] && echo 1)
+
 $(CACHE)/.docker:
 	docker pull $(TOOLCHAIN)
 	$(makedir) cache
 	$(createfile) $(CACHE)/.docker
 
-toolchain: $(CACHE)/.docker
+toolchain: $(if $(IN_CONTAINER),,$(CACHE)/.docker)
+ifeq ($(IN_CONTAINER),1)
+	@echo "Already inside container -- dropping to shell"
+	$(SHELL)
+else
 	docker run -it --rm -v "$(ROOT_DIR)":/root/workspace $(TOOLCHAIN) /bin/bash
+endif
 
-with-toolchain: $(CACHE)/.docker
+with-toolchain: $(if $(IN_CONTAINER),,$(CACHE)/.docker)
+ifeq ($(IN_CONTAINER),1)
+	@echo "Already inside container -- running: make $(DOCKER_TARGET)"
+	$(MAKE) $(DOCKER_TARGET)
+else
 	docker run --rm -v "$(ROOT_DIR)":/root/workspace $(TOOLCHAIN) /bin/bash -c "source /root/.bashrc; make $(DOCKER_TARGET)"
+endif
 
 patch:
 	@chmod a+x $(ROOT_DIR)/.github/create_patch.sh && $(ROOT_DIR)/.github/create_patch.sh
