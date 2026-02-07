@@ -48,7 +48,7 @@ static bool adcthread_active = false;
 static pthread_t adc_pt;
 static volatile sig_atomic_t quit = 0;
 static int sar_fd = -1;
-static volatile int adc_value_g;
+static volatile sig_atomic_t adc_value_g;
 static volatile sig_atomic_t is_suspended = 0;
 
 static void sigHandler(int sig);

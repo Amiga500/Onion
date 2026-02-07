@@ -810,7 +810,7 @@ Each `cat file | grep/cut/sed` spawns an extra `cat` process + creates a pipe. O
 - `quit` → `volatile sig_atomic_t` (was `bool`)
 - `is_suspended` → `volatile sig_atomic_t` (was `bool`)
 - `msleep_interrupt` → `volatile sig_atomic_t` (was `int`)
-- `adc_value_g` → `volatile int` (not `sig_atomic_t` because it holds ADC values, but `volatile` ensures visibility)
+- `adc_value_g` → `volatile sig_atomic_t` (was `int`)
 
 ### osd.h — OSD Thread Data Race
 
