@@ -359,7 +359,7 @@ Changes were:
 
 For comprehensive details on all security and performance work:
 
-**[SECURITY_HARDENING_COMPLETE.md](SECURITY_HARDENING_COMPLETE.md)** — Complete consolidated report covering:
+**[COMPLETE SECURITY & PERFORMANCE HARDENING REPORT.MD](COMPLETE%20SECURITY%20%26%20PERFORMANCE%20HARDENING%20REPORT.MD)** — Complete consolidated report covering:
 - All security hardening work (Sessions 1-41)
 - Performance optimization details
 - Session-by-session changes
