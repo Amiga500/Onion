@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
     jpeg_start_decompress(&jpeg);
     sw = jpeg.output_width;
     sh = jpeg.output_height;
-    if ((uint64_t)sw * sh * 4 > UINT32_MAX) {
+    if ((uint64_t)sw * (uint64_t)sh * 4 > UINT32_MAX) {
         fprintf(stderr, "jpg dimensions too large: %ux%u\n", sw, sh);
         goto error;
     }

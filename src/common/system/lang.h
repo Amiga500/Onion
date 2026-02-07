@@ -167,6 +167,10 @@ bool lang_load(void)
         snprintf(key, sizeof(key), "%d", i);
         if (json_getString(lang_file, key, value)) {
             lang_list[i] = (char *)malloc(STR_MAX * sizeof(char));
+            if (!lang_list[i]) {
+                fprintf(stderr, "Failed to allocate memory for language string %d\n", i);
+                continue; // Skip this entry and continue loading others
+            }
             strncpy(lang_list[i], value, STR_MAX - 1);
             lang_list[i][STR_MAX - 1] = '\0';
         }

@@ -1,4 +1,5 @@
 #include <SDL/SDL.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <linux/fb.h>
 #include <mi_gfx.h>
@@ -6,6 +7,7 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -467,6 +469,10 @@ void GFX_Init(void)
         MI_SYS_Init();
         MI_GFX_Open();
         fd_fb = open("/dev/fb0", O_RDWR);
+        if (fd_fb < 0) {
+            fprintf(stderr, "Failed to open framebuffer device: %s\n", strerror(errno));
+            return;
+        }
 
         // 640 x 480 x 32bpp x 3screen init
         SDL_SetVideoMode(640, 480, 32, SDL_SWSURFACE);
