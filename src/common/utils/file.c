@@ -333,8 +333,10 @@ void file_changeKeyValue(const char *file_path, const char *key,
     fp = fopen(file_path, "r");
     cp = fopen("temp", "w+");
     if (fp == NULL || cp == NULL) {
-        if (fp != NULL) fclose(fp);
-        if (cp != NULL) fclose(cp);
+        if (fp != NULL)
+            fclose(fp);
+        if (cp != NULL)
+            fclose(cp);
         return;
     }
 
