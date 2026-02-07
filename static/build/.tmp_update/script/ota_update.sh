@@ -15,12 +15,12 @@ GITHUB_REPOSITORY=Amiga500/Onion
 
 # channel : stable or beta
 channel=$(cat "$sysdir/config/ota_channel" 2> /dev/null)
-if [ "$channel" == "" ]; then
+if [ "$channel" = "" ]; then
 	channel="stable"
 fi
 
 main() {
-	if [ "$cmd" == "check" ]; then
+	if [ "$cmd" = "check" ]; then
 		IP=$(ip route get 1 | awk '{print $NF;exit}')
 		if [ "$IP" != "" ]; then
 			get_release_info
@@ -88,7 +88,7 @@ enable_wifi() {
 
 check_connection() {
 	echo -n "Checking internet connection... "
-	if wget -q --spider https://github.com > /dev/null; then
+	if wget -q --spider https://github.com > /dev/null 2>&1; then
 		echo -e "${GREEN}OK${NC}"
 	else
 		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable. Check your wifi connection."
@@ -126,16 +126,22 @@ get_release_info() {
 
 	Release_asset=$(echo "$Release_assets_info" | jq '.assets[]? | select(.name | contains("Onion-v"))')
 
-	Release_url=$(echo $Release_asset | jq '.browser_download_url' | tr -d '"')
-	Release_FullVersion=$(echo $Release_asset | jq '.name' | tr -d "\"" | sed 's/^Onion-v//g' | sed 's/\.zip$//g')
-	Release_Version=$(echo $Release_FullVersion | sed 's/-.*$//g')
-	Release_size=$(echo $Release_asset | jq -r '.size')
+	if [ -z "$Release_asset" ]; then
+		echo -e "${GREEN}DONE${NC}\n\n" \
+			"No matching release asset found for $channel channel\n"
+		return 1
+	fi
+
+	Release_url=$(echo "$Release_asset" | jq '.browser_download_url' | tr -d '"')
+	Release_FullVersion=$(echo "$Release_asset" | jq '.name' | tr -d "\"" | sed 's/^Onion-v//g' | sed 's/\.zip$//g')
+	Release_Version=$(echo "$Release_FullVersion" | sed 's/-.*$//g')
+	Release_size=$(echo "$Release_asset" | jq -r '.size')
 	Release_size_MB=$(echo "$(($Release_size / 1024 / 1024))MB")
-	Release_Date=$(echo $Release_asset | jq -r '.created_at')
-	Release_info=$(echo $Release_assets_info | jq '.body')
+	Release_Date=$(echo "$Release_asset" | jq -r '.created_at')
+	Release_info=$(echo "$Release_assets_info" | jq '.body')
 
 	Current_FullVersion=$(installUI --version)
-	Current_Version=$(echo $Current_FullVersion | sed 's/-.*$//g')
+	Current_Version=$(echo "$Current_FullVersion" | sed 's/-.*$//g')
 
 	echo -e "${GREEN}DONE${NC}"
 
@@ -155,7 +161,7 @@ get_release_info() {
 	v1=$(get_version $Current_Version)
 	v2=$(get_version $Release_Version)
 
-	if [ $v1 -gt $v2 ] || ([ $v1 -eq $v2 ] && [ "$Current_FullVersion" = "$Release_FullVersion" ]); then
+	if [ "${v1:-0}" -gt "${v2:-0}" ] || ([ "${v1:-0}" -eq "${v2:-0}" ] && [ "$Current_FullVersion" = "$Release_FullVersion" ]); then
 		echo -e "Version is up to date\n"
 		return 1
 	fi
@@ -174,8 +180,8 @@ download_update() {
 	if [ "$Mychoice" = "Yes" ]; then
 
 		echo -ne "\n${BLUE}================== CHECKDISK ==================${NC}\n"
-		/mnt/SDCARD/.tmp_update/script/stop_audioserver.sh > nul 2> nul # we need a maximum of memory available to run fsck.fat
-		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
+		/mnt/SDCARD/.tmp_update/script/stop_audioserver.sh > /dev/null 2>&1 # we need a maximum of memory available to run fsck.fat
+		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 		echo -ne "\n" \
 			"Please wait during FAT file system integrity check.\n" \
 			"Issues should be fixed automatically.\n" \
@@ -186,9 +192,9 @@ download_update() {
 		mkdir -p $sysdir/download/
 		echo -ne "\n\n" \
 			"${BLUE}== Downloading Onion $Release_Version ($channel channel) ==${NC}\n"
-		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
+		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 		sync
-		wget --no-check-certificate $Release_url -O "$sysdir/download/$Release_Version.zip"
+		wget --no-check-certificate "$Release_url" -O "$sysdir/download/$Release_Version.zip"
 		echo -ne "\n\n" \
 			"${GREEN}================== Download done ==================${NC}\n"
 		sync
@@ -217,7 +223,7 @@ apply_update() {
 		echo "Applying update... "
 
 		umount /mnt/SDCARD/miyoo/app/MainUI 2> /dev/null
-		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
+		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 
 		# unzip -o "$sysdir/download/$Release_Version.zip" -d "/mnt/SDCARD"
 		7z x -aoa -o"/mnt/SDCARD" "$sysdir/download/$Release_Version.zip"
@@ -246,6 +252,6 @@ apply_update() {
 	fi
 }
 
-get_version() { echo "$@" | tr -d [:alpha:] | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
+get_version() { echo "$@" | tr -d '[:alpha:]' | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
 
 main
