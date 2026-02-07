@@ -2,7 +2,7 @@
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
-**Target Hardware:** Miyoo Mini / Mini+ (ARM Cortex-A7 dual-core ~1.2 GHz, NEON VFPv4, 128–256 MB RAM)  
+**Target Hardware:** Miyoo Mini / Mini+ (ARM Cortex-A7 dual-core ~1.2 GHz, NEON VFPv4, 128 MB RAM)  
 **Date:** February 2026  
 
 ---
