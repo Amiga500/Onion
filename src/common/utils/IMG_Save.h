@@ -19,7 +19,7 @@ void IMG_Save(SDL_Surface *image, char *path)
     if (!(fp = fopen(path, "wb")))
         return;
 
-    Uint32 *linebuffer = (Uint32 *)malloc(width * 4);
+    Uint32 *linebuffer = (Uint32 *)malloc(width * sizeof(Uint32));
     if (linebuffer == NULL) {
         fclose(fp);
         return;
