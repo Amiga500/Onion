@@ -59,7 +59,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
     find = popen(command, "r");
     if (find == NULL) {
         perror("Error executing find command");
-        exit(EXIT_FAILURE);
+        return i;
     }
 
     // Read the output of the find command and extract matching folder names
@@ -78,10 +78,12 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
             sed = popen(command, "r");
             if (sed == NULL) {
                 perror("Error executing sed command");
-                exit(EXIT_FAILURE);
+                continue;
             }
-            fgets(folder, sizeof(folder), sed);
-            folder[strcspn(folder, "\n")] = '\0'; // Remove trailing newline character
+            if (fgets(folder, sizeof(folder), sed) == NULL)
+                folder[0] = '\0';
+            else
+                folder[strcspn(folder, "\n")] = '\0'; // Remove trailing newline character
             pclose(sed);
             char * system = basename(folder);
             int cmp = -1;
@@ -210,8 +212,14 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
     char rom_name[50], full_rom_name[200];
 
     // Read first lines from input files
-    fgets(rom_name, 50, rom_names_fp);
-    fgets(full_rom_name, 200, full_rom_list_fp);
+    if (fgets(rom_name, 50, rom_names_fp) == NULL ||
+        fgets(full_rom_name, 200, full_rom_list_fp) == NULL) {
+        fclose(rom_names_fp);
+        fclose(full_rom_list_fp);
+        fclose(arcade_rom_names_fp);
+        fclose(missing_rom_names_fp);
+        return 0;
+    }
 
     // Loop through files, writing matches to output file
     while (!feof(rom_names_fp) && !feof(full_rom_list_fp)) {

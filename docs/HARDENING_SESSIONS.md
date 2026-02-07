@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–31)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–32)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -669,3 +669,33 @@ cat /mnt/SDCARD/.tmp_update/logs/perf.log | sort -t, -k3 -n | tail -20
 | 51 | Reject `package->name` containing `"`, `$`, `` ` ``, `\` before passing to `system()` via double-quoted string |
 
 **Impact:** Prevents command injection via crafted package names in `.tmp_update/packages/` directory.
+
+---
+
+## Appendix: Session 32 — Uninitialized Variable Bug, Graceful Error Handling, fgets Safety
+
+### 🔴 CRITICAL: Uninitialized Variable in Process Management Logic
+
+| File | Line | Issue | Fix |
+|------|------|-------|-----|
+| `keymon.c` | 115-123 | If `/proc/PID/stat` fopen fails, `state`/`ppid`/`comm`/`flags` used uninitialized in process management decision | Skip process with `continue` on fopen failure; also validate `fscanf` return == 4 |
+
+**Impact:** Prevents random process termination when `/proc/PID/stat` is inaccessible (race condition: process exits between readdir and fopen). On 128 MB device, random terminations could crash the UI or emulator.
+
+### 🟡 Replace exit(EXIT_FAILURE) with Graceful Return
+
+| File | Line | Before | After |
+|------|------|--------|-------|
+| `gameNameList.c` | 62 | `exit(EXIT_FAILURE)` on popen fail | `return i` (return current count) |
+| `gameNameList.c` | 81 | `exit(EXIT_FAILURE)` on nested popen fail | `continue` (skip this config.json, process next) |
+
+**Impact:** Prevents entire process abort from a non-fatal error. `findFoldersWithShortname()` is called early in gameNameList which runs at boot — an exit would break game name resolution for all ROMs.
+
+### 🟡 fgets Return Value Checks
+
+| File | Line | Issue | Fix |
+|------|------|-------|-----|
+| `gameNameList.c` | 83 | `fgets(folder, ...)` for sed output unchecked | Check NULL, set empty string on failure |
+| `gameNameList.c` | 215-216 | Initial `fgets()` for both rom_names and full_rom_list unchecked | Check NULL, close files and return 0 on empty input |
+
+**Impact:** Prevents `strtok()` on uninitialized buffer content. Empty input files are common on first boot before ROM scanning completes.

@@ -113,11 +113,14 @@ int suspend(uint32_t mode)
             if ((pid > 2) && (pid != suspend_pid)) {
                 snprintf(fname, sizeof(fname), "/proc/%d/stat", pid);
                 FILE *fp = fopen(fname, "r");
-                if (fp) {
-                    fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
-                           (char *)&comm, &state, &ppid, &flags);
+                if (!fp)
+                    continue;
+                if (fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
+                           (char *)&comm, &state, &ppid, &flags) != 4) {
                     fclose(fp);
+                    continue;
                 }
+                fclose(fp);
                 if ((ppid > 2) &&
                     ((state == 'R') || (state == 'S') || (state == 'D')) &&
                     (strcmp(comm, "(sh)")) && (!(flags & PF_KTHREAD))) {
