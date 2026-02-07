@@ -125,7 +125,9 @@ void network_getSmbShares()
         }
 
         if (strstr(trimmedLine, "path = ") != NULL) {
-            strncpy(_network_shares[numShares - 1].path, trimmedLine + 7, STR_MAX);
+            if (numShares > 0) {
+                strncpy(_network_shares[numShares - 1].path, trimmedLine + 7, STR_MAX);
+            }
             continue;
         }
 
