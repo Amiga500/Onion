@@ -94,6 +94,8 @@ int suspend(uint32_t mode)
 
     sync();
     procdp = opendir("/proc");
+    if (procdp == NULL)
+        return 0;
 
     // Pick active processes to suspend and send SIGSTOP
     // Cond:1. PID is greater than 2(kthreadd) and not myself
@@ -107,15 +109,18 @@ int suspend(uint32_t mode)
         suspendpid[0] = 0;
     while ((dir = readdir(procdp))) {
         if (dir->d_type == DT_DIR) {
-            pid = atoi(dir->d_name);
+            pid = (int)strtol(dir->d_name, NULL, 10);
             if ((pid > 2) && (pid != suspend_pid)) {
                 snprintf(fname, sizeof(fname), "/proc/%d/stat", pid);
                 FILE *fp = fopen(fname, "r");
-                if (fp) {
-                    fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
-                           (char *)&comm, &state, &ppid, &flags);
+                if (!fp)
+                    continue;
+                if (fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
+                           (char *)&comm, &state, &ppid, &flags) != 4) {
                     fclose(fp);
+                    continue;
                 }
+                fclose(fp);
                 if ((ppid > 2) &&
                     ((state == 'R') || (state == 'S') || (state == 'D')) &&
                     (strcmp(comm, "(sh)")) && (!(flags & PF_KTHREAD))) {
@@ -389,7 +394,7 @@ void cpuClockHotkey(int adjust)
 
     // Read current CPU clock
     int ret = process_start_read_return("cpuclock", cpuclockstr);
-    int cpuclock = atoi(cpuclockstr);
+    int cpuclock = (int)strtol(cpuclockstr, NULL, 10);
     printf_debug("Current CPU clock: %d\n", cpuclock);
     cpuclock += adjust;
     printf_debug("Desired CPU clock: %d\n", cpuclock);
@@ -824,12 +829,13 @@ int main(void)
             if (menuAndBPressed && (getMilliseconds() - menuAndBPressedTime >= 2000)) {
                 if (access("/tmp/.blfOn", F_OK) != -1) {
                     system("/mnt/SDCARD/.tmp_update/script/blue_light.sh disable &");
-                    close(open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644));
                 }
                 else {
                     system("/mnt/SDCARD/.tmp_update/script/blue_light.sh enable &");
-                    close(open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644));
                 }
+                int blf_fd = open("/tmp/.blfIgnoreSchedule", O_CREAT | O_WRONLY, 0644);
+                if (blf_fd >= 0)
+                    close(blf_fd);
 
                 menuAndBPressed = false;
                 menuAndBPressedTime = 0;

@@ -39,7 +39,8 @@ void __showInfoDialog(const char *title, const char *message)
     SDLKey changed_key = SDLK_UNKNOWN;
 
     SDL_Surface *background_surface = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
-    SDL_BlitSurface(screen, NULL, background_surface, NULL);
+    if (background_surface != NULL)
+        SDL_BlitSurface(screen, NULL, background_surface, NULL);
 
     theme_renderDialog(screen, title, message, false);
     SDL_BlitSurface(screen, NULL, video, NULL);
@@ -123,7 +124,10 @@ int main(int argc, char *argv[])
         }
         if (pargc < MAX_ELEMENTS && strlen(argv[i]) > 0) {
             pargs[pargc] = malloc((STR_MAX + 1) * sizeof(char));
+            if (pargs[pargc] == NULL)
+                break;
             strncpy(pargs[pargc], argv[i], STR_MAX);
+            pargs[pargc][STR_MAX] = '\0';
             pargc++;
         }
     }

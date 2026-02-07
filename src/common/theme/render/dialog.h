@@ -57,7 +57,7 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     }
 
     SDL_Surface *textbox = theme_textboxSurface(message_str, resource_getFont(TITLE), theme()->grid.color, ALIGN_CENTER);
-    if (textbox->w > DIALOG_WIDTH || textbox->h > 6 * (double)DIALOG_LINE_HEIGHT * g_scale) {
+    if (textbox != NULL && (textbox->w > DIALOG_WIDTH || textbox->h > 6 * (double)DIALOG_LINE_HEIGHT * g_scale)) {
         SDL_FreeSurface(textbox);
         TTF_Font *temp_font = theme_loadFont(theme()->path, theme()->title.font, __get_font_size());
         textbox = theme_textboxSurface(message_str, temp_font, theme()->grid.color, ALIGN_CENTER);
@@ -70,7 +70,7 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     }
 
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
-    if (show_hint && button_a->w < g_display.width) {
+    if (show_hint && button_a != NULL && button_a->w < g_display.width) {
         SDL_Rect hint_rect = {center_rect.x + pop_bg->w - 30.0 * g_scale, center_rect.y + pop_bg->h - 60.0 * g_scale};
 
         SDL_Surface *button_b = resource_getSurface(BUTTON_B);
@@ -87,7 +87,8 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
             hint_rect.x -= label_ok->w + 30.0 * g_scale;
         }
 
-        hint_rect.x -= button_b->w + 5.0 * g_scale;
+        if (button_b != NULL)
+            hint_rect.x -= button_b->w + 5.0 * g_scale;
         if (label_cancel) {
             hint_rect.x -= label_cancel->w + 30.0 * g_scale;
         }
@@ -102,7 +103,7 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
             SDL_BlitSurface(label_ok, NULL, screen, &label_ok_rect);
         }
 
-        if (label_cancel) {
+        if (label_cancel && button_b != NULL) {
             SDL_Rect button_b_rect = {hint_rect.x, hint_rect.y - button_b->h / 2};
             hint_rect.x += button_b->w + 5.0 * g_scale;
             SDL_BlitSurface(button_b, NULL, screen, &button_b_rect);

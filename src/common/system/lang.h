@@ -167,7 +167,8 @@ bool lang_load(void)
         snprintf(key, sizeof(key), "%d", i);
         if (json_getString(lang_file, key, value)) {
             lang_list[i] = (char *)malloc(STR_MAX * sizeof(char));
-            strcpy(lang_list[i], value);
+            strncpy(lang_list[i], value, STR_MAX - 1);
+            lang_list[i][STR_MAX - 1] = '\0';
         }
     }
 

@@ -54,7 +54,7 @@ include ./src/common/commands.mk
 
 ###########################################################
 
-.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test
+.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test
 
 all: dist
 
@@ -269,16 +269,28 @@ git-submodules:
 pwd:
 	@echo $(ROOT_DIR)
 
+IN_CONTAINER := $(shell [ -f /.dockerenv ] && echo 1)
+
 $(CACHE)/.docker:
 	docker pull $(TOOLCHAIN)
 	$(makedir) cache
 	$(createfile) $(CACHE)/.docker
 
-toolchain: $(CACHE)/.docker
+toolchain: $(if $(IN_CONTAINER),,$(CACHE)/.docker)
+ifeq ($(IN_CONTAINER),1)
+	@echo "Already inside container -- dropping to shell"
+	$(SHELL)
+else
 	docker run -it --rm -v "$(ROOT_DIR)":/root/workspace $(TOOLCHAIN) /bin/bash
+endif
 
-with-toolchain: $(CACHE)/.docker
-	docker run --rm -v "$(ROOT_DIR)":/root/workspace $(TOOLCHAIN) /bin/bash -c "source /root/.bashrc; make $(CMD)"
+with-toolchain: $(if $(IN_CONTAINER),,$(CACHE)/.docker)
+ifeq ($(IN_CONTAINER),1)
+	@echo "Already inside container -- running: make $(DOCKER_TARGET)"
+	$(MAKE) $(DOCKER_TARGET)
+else
+	docker run --rm -v "$(ROOT_DIR)":/root/workspace $(TOOLCHAIN) /bin/bash -c "source /root/.bashrc; make $(DOCKER_TARGET)"
+endif
 
 patch:
 	@chmod a+x $(ROOT_DIR)/.github/create_patch.sh && $(ROOT_DIR)/.github/create_patch.sh
@@ -286,10 +298,21 @@ patch:
 external-libs:
 	@cd $(ROOT_DIR)/include/SDL && make clean && make
 
-test: external-libs
-	@mkdir -p $(BUILD_TEST_DIR)/infoPanel_test_data && cd $(TEST_SRC_DIR) && BUILD_DIR=$(BUILD_TEST_DIR)/ make dev
-	@cp -R $(TEST_SRC_DIR)/infoPanel_test_data $(BUILD_TEST_DIR)/
-	cd $(BUILD_TEST_DIR) && LD_LIBRARY_PATH=$(ROOT_DIR)/lib/ ./test
+test: unit-test gtest
+
+unit-test:
+	@cd $(TEST_SRC_DIR) && make -f Makefile.unit all
+
+gtest: external-libs
+	@if echo '#include <gtest/gtest.h>' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null; then \
+		echo "-- GTest found, building integration tests"; \
+		mkdir -p $(BUILD_TEST_DIR)/infoPanel_test_data; \
+		cd $(TEST_SRC_DIR) && BUILD_DIR=$(BUILD_TEST_DIR)/ make dev; \
+		cp -R $(TEST_SRC_DIR)/infoPanel_test_data $(BUILD_TEST_DIR)/; \
+		cd $(BUILD_TEST_DIR) && LD_LIBRARY_PATH=$(ROOT_DIR)/lib/ ./test_infoPanel; \
+	else \
+		echo "-- GTest not found, skipping integration tests (install libgtest-dev to enable)"; \
+	fi
 
 static-analysis: external-libs
 	@cd $(ROOT_DIR) && cppcheck -I $(INCLUDE_DIR) --enable=all $(SRC_DIR)

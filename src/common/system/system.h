@@ -44,18 +44,9 @@ void system_powersave(bool enabled)
     FILE *fp;
 
     if (enabled) {
-        char buffer[128];
-        FILE *pipe = popen("cpuclock", "r");
-
-        if (pipe) {
-            while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-                saved_min_freq = atoi(buffer);
-            }
-        }
-
-        pclose(pipe);
-
-        // save values for restoring later
+        // Read current min freq directly from sysfs (avoids forking cpuclock)
+        file_get(fp, CPU_SCALING_MIN_FREQ, "%u", &saved_min_freq);
+        // save governor for restoring later
         file_get(fp, CPU_SCALING_GOVERNOR, "%15s", saved_governor);
         // set powersaving values
         file_put(fp, CPU_SCALING_MIN_FREQ, "%u", 0);

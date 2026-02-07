@@ -56,6 +56,8 @@ void get_rom_image_path(char *rom_file, char *out_image_path)
 
     char *clean_rom_name = file_removeExtension(basename(rom_file));
     char *rom_folder = strtok(rom_file, "/");
+    if (rom_folder == NULL)
+        rom_folder = rom_file;
 
     snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s/Imgs/%s.png", rom_folder, clean_rom_name);
     free(clean_rom_name);
@@ -467,46 +469,58 @@ int __db_get_active_closed_activity(void)
 void play_activity_start(char *rom_file_path)
 {
     printf_debug("\n:: play_activity_start(%s)\n", rom_file_path);
-    int rom_id = play_activity_transaction_rom_find_by_file_path(rom_file_path, true);
+    play_activity_db_open();
+    int rom_id = __db_rom_find_by_file_path(rom_file_path, true);
     if (rom_id == ROM_NOT_FOUND) {
+        play_activity_db_close();
         exit(1);
     }
     char *sql = sqlite3_mprintf("INSERT INTO play_activity(rom_id) VALUES(%d);", rom_id);
-    play_activity_db_execute(sql);
+    sqlite3_exec(play_activity_db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
+    play_activity_db_close();
 }
 
 void play_activity_resume(void)
 {
     print_debug("\n:: play_activity_resume()");
-    int rom_id = play_activity_db_transaction(__db_get_active_closed_activity);
+    play_activity_db_open();
+    int rom_id = __db_get_active_closed_activity();
     if (rom_id == ROM_NOT_FOUND) {
+        play_activity_db_close();
         printf("Error: no active rom\n");
         exit(1);
     }
     char *sql = sqlite3_mprintf("INSERT INTO play_activity(rom_id) VALUES(%d);", rom_id);
-    play_activity_db_execute(sql);
+    sqlite3_exec(play_activity_db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
+    play_activity_db_close();
 }
 
 void play_activity_stop(char *rom_file_path)
 {
     printf_debug("\n:: play_activity_stop(%s)\n", rom_file_path);
-    int rom_id = play_activity_transaction_rom_find_by_file_path(rom_file_path, false);
+    play_activity_db_open();
+    int rom_id = __db_rom_find_by_file_path(rom_file_path, false);
     if (rom_id == ROM_NOT_FOUND) {
+        play_activity_db_close();
         exit(1);
     }
     char *sql = sqlite3_mprintf("UPDATE play_activity SET play_time = (strftime('%%s', 'now')) - created_at, updated_at = (strftime('%%s', 'now')) WHERE rom_id = %d AND play_time IS NULL;", rom_id);
-    play_activity_db_execute(sql);
+    sqlite3_exec(play_activity_db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
+    play_activity_db_close();
 }
 
 void play_activity_stop_all(void)
 {
     print_debug("\n:: play_activity_stop_all()");
-    play_activity_db_execute(
+    play_activity_db_open();
+    sqlite3_exec(play_activity_db,
         "UPDATE play_activity SET play_time = (strftime('%s', 'now')) - created_at, updated_at = (strftime('%s', 'now')) WHERE play_time IS NULL;"
-        "DELETE FROM play_activity WHERE play_time < 0;");
+        "DELETE FROM play_activity WHERE play_time < 0;",
+        NULL, NULL, NULL);
+    play_activity_db_close();
 }
 
 void play_activity_fix_paths(void)

@@ -12,6 +12,7 @@
 #include "utils/hash.h"
 #include "utils/log.h"
 #include "utils/neon_pixel.h"
+#include "utils/perf.h"
 #include "utils/process.h"
 #include "utils/str.h"
 
@@ -94,10 +95,11 @@ uint32_t *__screenshot_buffer(void)
  * @return true Screenshot was saved
  * @return false Screenshot was not saved
  */
-bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool rotate180)
+bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool do_rotate180)
 {
+    PERF_START("screenshot_save");
     uint32_t *src;
-    uint32_t line_buffer[g_display.width], x, y, pix;
+    uint32_t line_buffer[g_display.width], x, y;
 
     FILE *fp;
     png_structp png_ptr;
@@ -120,23 +122,30 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool r
     png_write_info(png_ptr, info_ptr);
 
     src = (uint32_t *)buffer;
-    if (rotate180) {
-        src += g_display.width * g_display.height;
-    }
-
-    for (y = 0; y < g_display.height; y++) {
-        if (rotate180) {
-            /* Reverse row pixel-by-pixel (can't use NEON for reverse traversal) */
+    if (do_rotate180) {
+        /* Rotated: read rows from bottom-to-top, each row reversed.
+         * Copy reversed row into line_buffer, then NEON-swap ARGB→RGBA.
+         * This replaces the slow per-pixel scalar loop with a memcpy+reverse
+         * followed by a NEON color conversion pass. */
+        const uint32_t *end = buffer + g_display.width * g_display.height;
+        for (y = 0; y < g_display.height; y++) {
+            /* Point to start of the row we need (reading bottom-to-top) */
+            const uint32_t *row_start = end - (y + 1) * g_display.width;
+            /* Reverse-copy the row into line_buffer */
             for (x = 0; x < g_display.width; x++) {
-                pix = *(--src);
-                line_buffer[x] = 0xFF000000 | (pix & 0x0000FF00) | ((pix & 0x00FF0000) >> 16) | ((pix & 0x000000FF) << 16);
+                line_buffer[x] = row_start[g_display.width - 1 - x];
             }
-        } else {
+            /* NEON-accelerated ARGB→RGBA swap on the reversed row */
+            neon_swap_rb_inplace(line_buffer, g_display.width);
+            png_write_row(png_ptr, (png_bytep)line_buffer);
+        }
+    } else {
+        for (y = 0; y < g_display.height; y++) {
             /* Forward: NEON-accelerated ARGB→RGBA swap, 16 pixels per iteration */
             neon_argb_to_rgba(line_buffer, src, g_display.width);
             src += g_display.width;
+            png_write_row(png_ptr, (png_bytep)line_buffer);
         }
-        png_write_row(png_ptr, (png_bytep)line_buffer);
     }
 
     png_write_end(png_ptr, info_ptr);
@@ -146,6 +155,7 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool r
     fsync(fileno(fp));
     fclose(fp);
 
+    PERF_END("screenshot_save");
     return true;
 }
 

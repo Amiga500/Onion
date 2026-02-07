@@ -335,7 +335,7 @@ Mix_Chunk *resource_getSoundChange(void)
         snprintf(sound_path, STR_MAX * 2 - 1, "%ssound/change.wav",
                  theme()->path);
         if (!is_file(sound_path))
-            strcpy(sound_path, "/mnt/SDCARD/miyoo/app/sound/change.wav");
+            strncpy(sound_path, "/mnt/SDCARD/miyoo/app/sound/change.wav", STR_MAX * 2 - 1);
         if (is_file(sound_path))
             resources.sound_change = Mix_LoadWAV(sound_path);
     }
@@ -352,7 +352,7 @@ Mix_Music *resource_getBGM(void)
         char sound_path[STR_MAX * 2];
         snprintf(sound_path, STR_MAX * 2 - 1, "%ssound/bgm.mp3", theme()->path);
         if (!is_file(sound_path))
-            strcpy(sound_path, "/mnt/SDCARD/miyoo/app/sound/bgm.mp3");
+            strncpy(sound_path, "/mnt/SDCARD/miyoo/app/sound/bgm.mp3", STR_MAX * 2 - 1);
         if (is_file(sound_path))
             resources.bgm = Mix_LoadMUS(sound_path);
     }

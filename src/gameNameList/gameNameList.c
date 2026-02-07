@@ -59,12 +59,16 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
     find = popen(command, "r");
     if (find == NULL) {
         perror("Error executing find command");
-        exit(EXIT_FAILURE);
+        return i;
     }
 
     // Read the output of the find command and extract matching folder names
     while (fgets(path, sizeof(path), find) != NULL) {
         path[strcspn(path, "\n")] = '\0'; // Remove trailing newline character
+
+        // Reject paths containing single quotes to prevent shell injection
+        if (strchr(path, '\'') != NULL)
+            continue;
 
         // Check if the file contains the string '"shortname":1'
         snprintf(command, sizeof(command), "grep -q '\"shortname\":[[:space:]]*1' '%s'", path);
@@ -74,10 +78,12 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
             sed = popen(command, "r");
             if (sed == NULL) {
                 perror("Error executing sed command");
-                exit(EXIT_FAILURE);
+                continue;
             }
-            fgets(folder, sizeof(folder), sed);
-            folder[strcspn(folder, "\n")] = '\0'; // Remove trailing newline character
+            if (fgets(folder, sizeof(folder), sed) == NULL)
+                folder[0] = '\0';
+            else
+                folder[strcspn(folder, "\n")] = '\0'; // Remove trailing newline character
             pclose(sed);
             char * system = basename(folder);
             int cmp = -1;
@@ -195,6 +201,10 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
 
     if (rom_names_fp == NULL || full_rom_list_fp == NULL || arcade_rom_names_fp == NULL || missing_rom_names_fp == NULL) {
         printf("Error opening files\n");
+        if (rom_names_fp) fclose(rom_names_fp);
+        if (full_rom_list_fp) fclose(full_rom_list_fp);
+        if (arcade_rom_names_fp) fclose(arcade_rom_names_fp);
+        if (missing_rom_names_fp) fclose(missing_rom_names_fp);
         return 1;
     }
 
@@ -202,8 +212,14 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
     char rom_name[50], full_rom_name[200];
 
     // Read first lines from input files
-    fgets(rom_name, 50, rom_names_fp);
-    fgets(full_rom_name, 200, full_rom_list_fp);
+    if (fgets(rom_name, 50, rom_names_fp) == NULL ||
+        fgets(full_rom_name, 200, full_rom_list_fp) == NULL) {
+        fclose(rom_names_fp);
+        fclose(full_rom_list_fp);
+        fclose(arcade_rom_names_fp);
+        fclose(missing_rom_names_fp);
+        return 0;
+    }
 
     // Loop through files, writing matches to output file
     while (!feof(rom_names_fp) && !feof(full_rom_list_fp)) {
@@ -212,8 +228,11 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
         strtok(full_rom_name, "\n");
 
         // Get first word from full rom name
-        strcpy(filename, full_rom_name);//preserve the original line;
+        strncpy(filename, full_rom_name, sizeof(filename) - 1);//preserve the original line;
+        filename[sizeof(filename) - 1] = '\0';
         full_rom_name_first_word = strtok(filename, "\t ");        
+        if (full_rom_name_first_word == NULL)
+            full_rom_name_first_word = filename;
 
         if (strcmp(full_rom_name_first_word, rom_name) == 0) {
             // Write matched line to output file
@@ -233,8 +252,11 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
             while (strcmp(full_rom_name_first_word, rom_name) < 0 && !feof(full_rom_list_fp)) {
                 fgets(full_rom_name, 200, full_rom_list_fp);
                 strtok(full_rom_name, "\n");
-                strcpy(filename, full_rom_name);//preserve the original line;
-                full_rom_name_first_word = strtok(filename, "\t ");                        
+                strncpy(filename, full_rom_name, sizeof(filename) - 1);//preserve the original line;
+                filename[sizeof(filename) - 1] = '\0';
+                full_rom_name_first_word = strtok(filename, "\t ");
+                if (full_rom_name_first_word == NULL)
+                    full_rom_name_first_word = filename;
             }
         }
     }
@@ -260,6 +282,10 @@ int createCopyFile(const char* src_path, const char* dst_path) {
         // Destination file already exists
         return 0;
     }
+
+    // Reject paths containing single quotes to prevent shell injection
+    if (strchr(src_path, '\'') != NULL || strchr(dst_path, '\'') != NULL)
+        return -1;
 
     // Create the destination file as a copy of the source file
     char command[1024];
@@ -340,7 +366,7 @@ int updateCallback(void *data, int argc, char **argv, char **col_name)
     char *table_name = d->table_name;
 
     // Retrieve the values from the current row of the result set
-    int id = atoi(argv[0]); // Assuming the first column is an integer ID
+    int id = (int)strtol(argv[0], NULL, 10); // Assuming the first column is an integer ID
     char * path = argv[1] ; // The new value to be updated
     char *romname = basename(path);
     removeExtension(romname);

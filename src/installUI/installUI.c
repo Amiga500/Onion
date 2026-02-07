@@ -94,6 +94,12 @@ int main(int argc, char *argv[])
     SDL_Surface *screen =
         SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
 
+    if (video == NULL || screen == NULL) {
+        fprintf(stderr, "SDL video init failed: %s\n", SDL_GetError());
+        SDL_Quit();
+        return EXIT_FAILURE;
+    }
+
     SDL_Surface *waiting_bg = IMG_Load("res/waitingBG.png");
     SDL_Surface *progress_stripes = IMG_Load("res/progress_stripes.png");
 
@@ -105,7 +111,9 @@ int main(int argc, char *argv[])
     char version_str[STR_MAX];
     snprintf(version_str, sizeof(version_str), "v%s", ONION_VERSION);
 
-    SDL_Surface *surface_version = TTF_RenderUTF8_Blended(font_small, version_str, fg_color);
+    SDL_Surface *surface_version = font_small
+        ? TTF_RenderUTF8_Blended(font_small, version_str, fg_color)
+        : NULL;
     SDL_Rect rect_version = {10, 10};
 
     Uint32 progress_bg = SDL_MapRGB(video->format, 29, 30, 37);
@@ -203,8 +211,10 @@ int main(int argc, char *argv[])
             break;
 
         if (acc_ticks >= time_step) {
-            if (slide == NULL)
-                SDL_BlitSurface(waiting_bg, NULL, screen, NULL);
+            if (slide == NULL) {
+                if (waiting_bg != NULL)
+                    SDL_BlitSurface(waiting_bg, NULL, screen, NULL);
+            }
             else
                 SDL_BlitSurface(slide, NULL, screen, NULL);
 
@@ -215,7 +225,7 @@ int main(int argc, char *argv[])
             SDL_FillRect(screen, &rectProgress, progress_bg);
 
             // spinner
-            if (progress < 100) {
+            if (progress < 100 && progress_stripes != NULL) {
                 stripes_frame.x = spinner_tick;
                 SDL_BlitSurface(progress_stripes, &stripes_frame, screen,
                                 &stripes_pos);
@@ -230,7 +240,9 @@ int main(int argc, char *argv[])
             // Cache message surface — only re-render when text changes
             if (strcmp(message_str, prev_message_str) != 0) {
                 if (cached_message) SDL_FreeSurface(cached_message);
-                cached_message = TTF_RenderUTF8_Blended(font, message_str, fg_color);
+                cached_message = font
+                    ? TTF_RenderUTF8_Blended(font, message_str, fg_color)
+                    : NULL;
                 strncpy(prev_message_str, message_str, STR_MAX - 1);
                 prev_message_str[STR_MAX - 1] = '\0';
             }

@@ -7,6 +7,7 @@
 
 #include "utils/file.h"
 #include "utils/json.h"
+#include "utils/perf.h"
 #include "utils/str.h"
 
 #define SYSTEM_CONFIG "/mnt/SDCARD/system.json"
@@ -72,6 +73,7 @@ int theme_getImagePath(const char *theme_path, const char *name, char *out_path)
 
 SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
 {
+    PERF_START("theme_loadImage");
     char image_path[512];
     theme_getImagePath(theme_path, name, image_path);
 
@@ -81,6 +83,7 @@ SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
 
     if (!image) {
         printf_debug("Failed to load image: %s\n", image_path);
+        PERF_END("theme_loadImage");
         return NULL;
     }
 
@@ -99,6 +102,7 @@ SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
         image = scaled;
     }
 
+    PERF_END("theme_loadImage");
     return image;
 }
 
@@ -121,7 +125,8 @@ char *theme_getPath(char *theme_path)
     cJSON_Delete(j);
 
     if (strcmp(theme_path, "./") == 0 || !is_dir(theme_path)) {
-        strcpy(theme_path, FALLBACK_THEME_PATH);
+        strncpy(theme_path, FALLBACK_THEME_PATH, STR_MAX - 1);
+        theme_path[STR_MAX - 1] = '\0';
     }
 
     return theme_path;

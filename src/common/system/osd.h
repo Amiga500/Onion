@@ -29,7 +29,7 @@
 #define CLOCK_MONOTONIC 1
 #endif
 
-static bool osd_thread_active = false;
+static volatile bool osd_thread_active = false;
 static pthread_t osd_pt;
 
 typedef struct {
@@ -257,11 +257,11 @@ int overlay_surface(SDL_Surface *surface, int destX, int destY, int duration_ms,
 }
 
 static int meterWidth = 4;
-static bool osd_bar_activated = false;
-static int _bar_timer = 0;
-static int _bar_value = 0;
-static int _bar_max = 0;
-static uint32_t _bar_color = 0x00FFFFFF;
+static volatile bool osd_bar_activated = false;
+static volatile int _bar_timer = 0;
+static volatile int _bar_value = 0;
+static volatile int _bar_max = 0;
+static volatile uint32_t _bar_color = 0x00FFFFFF;
 #ifdef PLATFORM_MIYOOMINI
 static uint32_t *_bar_savebuf;
 #endif
@@ -271,7 +271,10 @@ void _print_bar(void)
 #ifdef PLATFORM_MIYOOMINI
     uint32_t *ofs = g_display.fb_addr;
     const uint32_t height = g_display.height;
-    const uint32_t percentage = _bar_max > 0 ? _bar_value * height / _bar_max : 0;
+    // Snapshot volatile values into locals for consistent use within this frame
+    const int bar_max = _bar_max;
+    const int bar_value = _bar_value;
+    const uint32_t percentage = bar_max > 0 ? (uint32_t)bar_value * height / (uint32_t)bar_max : 0;
     const uint32_t active_color = _bar_color;
 
     ofs += g_display.width - meterWidth;

@@ -13,7 +13,11 @@
 int renderSummaryLine(SDL_Surface *surfaceTemp, int pos_y, const char *line_str,
                       int alpha, SDL_Color color)
 {
-    SDL_Surface *surfaceLine = TTF_RenderUTF8_Blended(font18, line_str, color);
+    SDL_Surface *surfaceLine = font18
+        ? TTF_RenderUTF8_Blended(font18, line_str, color)
+        : NULL;
+    if (!surfaceLine)
+        return 20; /* fallback line height */
     SDL_Rect rectLine = {0, pos_y};
     int h = surfaceLine->h;
 
@@ -61,8 +65,11 @@ void renderSummary()
             if (changes_removals[nT] > 0) {
                 int len = strlen(line_str);
                 if (changes_installs[nT] > 0) {
-                    strcpy(line_str + len, ",");
-                    len += 1;
+                    if (len + 1 < (int)sizeof(line_str)) {
+                        line_str[len] = ',';
+                        line_str[len + 1] = '\0';
+                        len += 1;
+                    }
                 }
                 snprintf(line_str + len, sizeof(line_str) - len, " %d removed", changes_removals[nT]);
             }

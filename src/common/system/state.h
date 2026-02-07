@@ -254,12 +254,18 @@ char *history_getRecentPath(char *rom_path)
     }
 
     while (fgets(line, STR_MAX * 3, file) != NULL) {
-        char *jsonContent = (char *)malloc(strlen(line) + 1);
+        size_t line_len = strlen(line);
+        char *jsonContent = (char *)malloc(line_len + 1);
         char romPathSearch[STR_MAX];
         int type;
 
-        strcpy(jsonContent, line);
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        memcpy(jsonContent, line, line_len + 1);
+        const char *typeStr = strstr(jsonContent, "\"type\":");
+        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1) {
+            free(jsonContent);
+            fclose(file);
+            return NULL;
+        }
 
         if ((type != 5) && (type != 17)) {
             free(jsonContent);
@@ -267,8 +273,19 @@ char *history_getRecentPath(char *rom_path)
             return NULL;
         }
 
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"") + 11;
+        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
+        if (rompathStart == NULL) {
+            free(jsonContent);
+            fclose(file);
+            return NULL;
+        }
+        rompathStart += 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
+        if (rompathEnd == NULL) {
+            free(jsonContent);
+            fclose(file);
+            return NULL;
+        }
 
         strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
         romPathSearch[rompathEnd - rompathStart] = '\0';
@@ -278,11 +295,7 @@ char *history_getRecentPath(char *rom_path)
         // Game launched with the search panel
         char *colonPosition = strchr(romPathSearch, ':');
         if (colonPosition != NULL) {
-
-            int position = (int)(colonPosition - romPathSearch);
-            char secondPart[strlen(romPathSearch) - position];
-            strcpy(secondPart, colonPosition + 1);
-            strcpy(romPathSearch, secondPart);
+            memmove(romPathSearch, colonPosition + 1, strlen(colonPosition + 1) + 1);
         }
 
         printf_debug("romPathSearch : %s\n", romPathSearch);
@@ -338,13 +351,15 @@ void resumeGame(int index)
     int lineCount = 0;
 
     while (fgets(jsonContent, sizeof(jsonContent), file) != NULL) {
-        char label[256];
-        char rompath[256];
-        char imgpath[256];
-        char launch[256];
+        char label[256] = "";
+        char rompath[256] = "";
+        char imgpath[256] = "";
+        char launch[256] = "";
         lineCount++;
 
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        const char *typeStr = strstr(jsonContent, "\"type\":");
+        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1)
+            continue;
 
         if ((type != 5) && (type != 17))
             continue;
@@ -353,24 +368,36 @@ void resumeGame(int index)
         if (labelStart != NULL) {
             labelStart += 9;
             const char *labelEnd = strchr(labelStart, '\"');
-            strncpy(label, labelStart, labelEnd - labelStart);
-            label[labelEnd - labelStart] = '\0';
+            if (labelEnd != NULL) {
+                size_t len = (size_t)(labelEnd - labelStart);
+                if (len >= sizeof(label)) len = sizeof(label) - 1;
+                memcpy(label, labelStart, len);
+                label[len] = '\0';
+            }
         }
         printf_debug("label: %s\n", label);
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
         if (rompathStart != NULL) {
             rompathStart += 11;
             const char *rompathEnd = strchr(rompathStart, '\"');
-            strncpy(rompath, rompathStart, rompathEnd - rompathStart);
-            rompath[rompathEnd - rompathStart] = '\0';
+            if (rompathEnd != NULL) {
+                size_t len = (size_t)(rompathEnd - rompathStart);
+                if (len >= sizeof(rompath)) len = sizeof(rompath) - 1;
+                memcpy(rompath, rompathStart, len);
+                rompath[len] = '\0';
+            }
         }
         printf_debug("rompath: %s\n", rompath);
         const char *imgpathStart = strstr(jsonContent, "\"imgpath\":\"");
         if (imgpathStart != NULL) {
             imgpathStart += 11;
             const char *imgpathEnd = strchr(imgpathStart, '\"');
-            strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
-            imgpath[imgpathEnd - imgpathStart] = '\0';
+            if (imgpathEnd != NULL) {
+                size_t len = (size_t)(imgpathEnd - imgpathStart);
+                if (len >= sizeof(imgpath)) len = sizeof(imgpath) - 1;
+                memcpy(imgpath, imgpathStart, len);
+                imgpath[len] = '\0';
+            }
         }
 
         char *colonPosition = strchr(rompath, ':');
@@ -398,8 +425,12 @@ void resumeGame(int index)
             if (launchStart != NULL) {
                 launchStart += 10;
                 const char *launchEnd = strchr(launchStart, '\"');
-                strncpy(launch, launchStart, launchEnd - launchStart);
-                launch[launchEnd - launchStart] = '\0';
+                if (launchEnd != NULL) {
+                    size_t len = (size_t)(launchEnd - launchStart);
+                    if (len >= sizeof(launch)) len = sizeof(launch) - 1;
+                    memcpy(launch, launchStart, len);
+                    launch[len] = '\0';
+                }
             }
         }
 

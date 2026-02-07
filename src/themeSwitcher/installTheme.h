@@ -177,6 +177,10 @@ void installTheme(char *theme_path, bool apply_icons)
     system("/mnt/SDCARD/.tmp_update/bin/mainUiBatPerc --restore");
 
     if (strstr(theme_path, "/.previews/") != NULL) {
+        // Reject paths with shell metacharacters (dangerous inside double quotes)
+        if (strpbrk(theme_path, "$`\"\\") != NULL)
+            return;
+
         char cmd[STR_MAX * 2];
         snprintf(cmd, STR_MAX * 2 - 1,
                  SCRIPT_DIR "/themes_extract_theme.sh \"%s\"", theme_path);

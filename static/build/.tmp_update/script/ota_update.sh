@@ -32,7 +32,7 @@ main() {
 		exit 1
 	fi
 
-	rm $sysdir/cmd_to_run.sh 2> /dev/null
+	rm "$sysdir/cmd_to_run.sh" 2> /dev/null
 
 	check_available_space
 	enable_wifi

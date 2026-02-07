@@ -44,6 +44,10 @@ ifeq ($(TEST),1)
 CFLAGS := $(CFLAGS) -I../include -I../src/common -I$(GTEST_INCLUDE_DIR)
 endif
 
+ifeq ($(PERF),1)
+CFLAGS := $(CFLAGS) -DPERF_ENABLED
+endif
+
 ifeq ($(SANITIZE),1)
 CFILES := $(CFILES) ../common/utils/asan.c
 CFLAGS := $(CFLAGS) -fno-omit-frame-pointer -fsanitize=address -static-libasan

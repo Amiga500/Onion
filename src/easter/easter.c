@@ -27,7 +27,8 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
     char *token = NULL;
     char *delim = "\n";
     char s[MAXCHARACTERSARRAY];
-    strcpy(s, message);
+    strncpy(s, message, MAXCHARACTERSARRAY - 1);
+    s[MAXCHARACTERSARRAY - 1] = '\0';
 
     token = strtok(s, delim);
     while (token != NULL) {
@@ -84,6 +85,14 @@ int main(int argc, char *argv[])
     SDL_Surface *logo2 = IMG_Load("/mnt/SDCARD/.tmp_update/res/easter2.png");
     SDL_Surface *logo3 = IMG_Load("/mnt/SDCARD/.tmp_update/res/easter3.png");
     SDL_Surface *endingScreen = IMG_Load("/mnt/SDCARD/.tmp_update/res/easter4");
+
+    if (logo1 == NULL || logo2 == NULL || logo3 == NULL) {
+        if (logo1 != NULL) SDL_FreeSurface(logo1);
+        if (logo2 != NULL) SDL_FreeSurface(logo2);
+        if (logo3 != NULL) SDL_FreeSurface(logo3);
+        if (endingScreen != NULL) SDL_FreeSurface(endingScreen);
+        return 1;
+    }
 
     // Set the icon's initial position and velocity
     int x = 1;

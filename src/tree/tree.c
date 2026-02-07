@@ -113,7 +113,7 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
             free(current);
             continue;
         }
-        strcpy(current->name, file_dirent->d_name);
+        memcpy(current->name, file_dirent->d_name, strlen(file_dirent->d_name) + 1);
         current->is_dir = file_dirent->d_type == DT_DIR;
         current->next = NULL;
 
@@ -212,8 +212,14 @@ int main(int argc, char *argv[])
                 char *token = strtok(directories, " ");
                 int count = 0;
                 while (token != NULL) {
-                    excluded_directories =
+                    const char **tmp =
                         realloc(excluded_directories, (count + 2) * sizeof(char *));
+                    if (tmp == NULL) {
+                        free(excluded_directories);
+                        fprintf(stderr, "Error: Memory allocation failed\n");
+                        return 1;
+                    }
+                    excluded_directories = tmp;
                     excluded_directories[count++] = token;
                     excluded_directories[count] = NULL;
                     token = strtok(NULL, " ");
@@ -230,8 +236,14 @@ int main(int argc, char *argv[])
                 char *token = strtok(extensions, " ");
                 int count = 0;
                 while (token != NULL) {
-                    included_extensions =
+                    const char **tmp =
                         realloc(included_extensions, (count + 2) * sizeof(char *));
+                    if (tmp == NULL) {
+                        free(included_extensions);
+                        fprintf(stderr, "Error: Memory allocation failed\n");
+                        return 1;
+                    }
+                    included_extensions = tmp;
                     included_extensions[count++] = token;
                     included_extensions[count] = NULL;
                     token = strtok(NULL, " ");

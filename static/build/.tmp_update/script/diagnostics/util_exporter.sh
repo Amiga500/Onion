@@ -11,13 +11,13 @@ filename="/mnt/SDCARD/log_export.7z"
 
 ## Source global utils
 logfile=util_exporter
-. $sysdir/script/log.sh
+. "$sysdir/script/log.sh"
 program=$(basename "$0" .sh)
 
 move_runtime_logs() {
     log "Moving runtime logs"
     mkdir -p "$runtime_logs_dir"
-    if [ -n "$(ls -A $sysdir/logs/)" ]; then
+    if [ -n "$(ls -A "$sysdir/logs/")" ]; then
         cp -r /mnt/SDCARD/.tmp_update/logs/* "$runtime_logs_dir/"
     else
         log "No logs found in .tmp_update"
@@ -26,7 +26,7 @@ move_runtime_logs() {
 
 exporter() {
     log "Exporting and archiving logs"
-    rm -rf $filename
+    rm -rf "$filename"
     move_runtime_logs
     sync
     sleep 1
@@ -35,7 +35,7 @@ exporter() {
 
     if [ -s "$filename" ]; then
         log "Exported to: $filename"
-        rm -rf $workingdir
+        rm -rf "$workingdir"
     else
         log "Failed to export"
     fi

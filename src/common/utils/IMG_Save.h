@@ -10,6 +10,7 @@ void IMG_Save(SDL_Surface *image, char *path)
 {
     int width = image->w;
     int height = image->h;
+    int pitch = image->pitch;
 
     png_structp png_ptr;
     png_infop info_ptr;
@@ -18,12 +19,11 @@ void IMG_Save(SDL_Surface *image, char *path)
     if (!(fp = fopen(path, "wb")))
         return;
 
-    Uint32 *linebuffer = (Uint32 *)malloc(image->pitch);
+    Uint32 *linebuffer = (Uint32 *)malloc(width * sizeof(Uint32));
     if (linebuffer == NULL) {
         fclose(fp);
         return;
     }
-    Uint32 *src = (Uint32 *)image->pixels;
 
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
     info_ptr = png_create_info_struct(png_ptr);
@@ -34,9 +34,10 @@ void IMG_Save(SDL_Surface *image, char *path)
     png_write_info(png_ptr, info_ptr);
 
     for (int y = 0; y < height; y++) {
+        /* Use pitch to correctly advance row pointer for non-contiguous surfaces */
+        Uint32 *src = (Uint32 *)((Uint8 *)image->pixels + y * pitch);
         /* NEON-accelerated ARGB→RGBA with alpha-conditional zeroing */
         neon_argb_to_rgba_alpha(linebuffer, src, width);
-        src += width;
         png_write_row(png_ptr, (png_bytep)linebuffer);
     }
 

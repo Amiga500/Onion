@@ -84,10 +84,10 @@ void setEntryDefaultValues(Game_s *game, int index)
     game->processed = false;
     game->is_running = false;
 
-    strcpy(game->name, "");
-    strcpy(game->shortname, "");
-    strcpy(game->core_name, "");
-    strcpy(game->core_path, "");
+    game->name[0] = '\0';
+    game->shortname[0] = '\0';
+    game->core_name[0] = '\0';
+    game->core_path[0] = '\0';
     game->index = index;
 }
 
@@ -109,6 +109,11 @@ void readHistory()
         return;
     }
 
+    // Collect duplicate line numbers for a single batch rewrite at end,
+    // instead of calling file_delete_line() per duplicate (which rewrites
+    // the entire file each time — O(n*m) I/O on slow SD card).
+    int dupLines[MAX_HISTORY];
+    int numDups = 0;
     int lineNo = 0;
 
     while ((fgets(line, sizeof(line), file) != NULL) && (numRecents < MAX_HISTORY)) {
@@ -128,8 +133,8 @@ void readHistory()
         }
 
         if (isDuplicate) {
-            file_delete_line(recentFilePath, lineNo);
-            lineNo--;
+            if (numDups < MAX_HISTORY)
+                dupLines[numDups++] = lineNo;
             continue;
         }
 
@@ -146,6 +151,46 @@ void readHistory()
 
     fclose(file);
     game_list_len = numRecents;
+
+    // Single-pass batch rewrite: remove all duplicate lines at once
+    if (numDups > 0) {
+        file = fopen(recentFilePath, "r");
+        if (file == NULL) {
+            print_debug("readHistory: failed to reopen for dedup");
+            return;
+        }
+
+        char tmpPath[STR_MAX];
+        snprintf(tmpPath, sizeof(tmpPath), "%s.dedup.tmp", recentFilePath);
+
+        FILE *tempFile = fopen(tmpPath, "w");
+        if (tempFile == NULL) {
+            print_debug("readHistory: failed to create dedup temp file");
+            fclose(file);
+            return;
+        }
+
+        int currentLine = 0;
+        int dupIdx = 0;
+        while (fgets(line, sizeof(line), file) != NULL) {
+            ++currentLine;
+            // dupLines is in ascending order (filled sequentially)
+            if (dupIdx < numDups && currentLine == dupLines[dupIdx]) {
+                dupIdx++;
+                continue; // skip this duplicate line
+            }
+            fputs(line, tempFile);
+        }
+
+        fclose(file);
+        fclose(tempFile);
+
+        // rename() atomically replaces target if it exists — no need for remove()
+        if (rename(tmpPath, recentFilePath) != 0) {
+            print_debug("readHistory: failed to replace file after dedup");
+            remove(tmpPath);
+        }
+    }
 }
 
 bool getGameName(char *name_out, const char *rom_path)

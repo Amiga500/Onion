@@ -229,6 +229,7 @@ bool addRandomFromJson(char *json_path)
         json_root = cJSON_Parse(line);
         if(!json_getInt(json_root, "type", (int *)&type)) {
             print_debug("Malformed json; Skipping\n");
+            cJSON_Delete(json_root);
             continue;
         }
 
@@ -248,11 +249,15 @@ bool addRandomFromJson(char *json_path)
             json_getString(json_root, "imgpath", game->img_path);
             json_getString(json_root, "launch", game->launch_path);
 
-            if (!is_file(game->path))
+            if (!is_file(game->path)) {
+                cJSON_Delete(json_root);
                 continue;
+            }
 
-            if (strcmp("miyoocmd", file_getExtension(game->path)) == 0)
+            if (strcmp("miyoocmd", file_getExtension(game->path)) == 0) {
+                cJSON_Delete(json_root);
                 continue;
+            }
 
             realpath(game->path, path_b);
             bool is_duplicate = false;
@@ -266,8 +271,10 @@ bool addRandomFromJson(char *json_path)
                 }
             }
 
-            if (is_duplicate)
+            if (is_duplicate) {
+                cJSON_Delete(json_root);
                 continue;
+            }
 
             char emupath[STR_MAX * 2];
             strncpy(emupath, game->launch_path, sizeof(emupath) - 1);
@@ -281,8 +288,10 @@ bool addRandomFromJson(char *json_path)
             if (!is_dir(emupath) ||
                 !loadEmuConfig(emupath, game->emu_name, NULL, game->launch_path,
                                imgsdir) ||
-                !is_file(game->launch_path))
+                !is_file(game->launch_path)) {
+                cJSON_Delete(json_root);
                 continue;
+            }
 
             if (strlen(game->img_path) == 0) {
                 char *no_extension = file_removeExtension(basename(game->path));

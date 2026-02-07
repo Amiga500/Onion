@@ -313,6 +313,10 @@ void callPackageInstaller(const char *data_path, const char *package_name,
         concat(installer_path, main_path,
                install ? "/install.sh" : "/uninstall.sh");
         if (is_file(installer_path)) {
+            // Reject paths with shell metacharacters (dangerous inside double quotes)
+            if (strpbrk(main_path, "$`\"\\") != NULL)
+                return;
+
             snprintf(cmd, sizeof(cmd),
                     install
                         ? "cd \"%s\"; chmod a+x ./install.sh; ./install.sh"

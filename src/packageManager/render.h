@@ -27,23 +27,29 @@ SDL_Surface *createLabelSurface(Package *package)
         strncat(parens, str_split(label_text, "("), STR_MAX - 2);
     }
 
-    SDL_Surface *label_surface =
-        TTF_RenderUTF8_Blended(font25, label_text, color_white);
-    SDL_SetAlpha(label_surface, 0, 0); /* important */
-    SDL_Rect label_pos = {0, 0};
-    SDL_BlitSurface(label_surface, NULL, textbox, &label_pos);
+    SDL_Surface *label_surface = font25
+        ? TTF_RenderUTF8_Blended(font25, label_text, color_white)
+        : NULL;
+    if (label_surface) {
+        SDL_SetAlpha(label_surface, 0, 0); /* important */
+        SDL_Rect label_pos = {0, 0};
+        SDL_BlitSurface(label_surface, NULL, textbox, &label_pos);
+    }
 
     if (package->installed && !package->complete)
         strncat(parens, "*", sizeof(parens) - strlen(parens) - 1);
 
     if (strlen(parens) > 0) {
-        SDL_Surface *parens_surface =
-            TTF_RenderUTF8_Blended(font25, parens, color_white);
-        SDL_SetAlpha(parens_surface, 0, 0); /* important */
-        surfaceSetAlpha(parens_surface, 120);
-        SDL_Rect parens_pos = {label_surface->w, 0};
-        SDL_BlitSurface(parens_surface, NULL, textbox, &parens_pos);
-        SDL_FreeSurface(parens_surface);
+        SDL_Surface *parens_surface = font25
+            ? TTF_RenderUTF8_Blended(font25, parens, color_white)
+            : NULL;
+        if (parens_surface) {
+            SDL_SetAlpha(parens_surface, 0, 0); /* important */
+            surfaceSetAlpha(parens_surface, 120);
+            SDL_Rect parens_pos = {label_surface ? label_surface->w : 0, 0};
+            SDL_BlitSurface(parens_surface, NULL, textbox, &parens_pos);
+            SDL_FreeSurface(parens_surface);
+        }
     }
 
     SDL_FreeSurface(label_surface);
@@ -68,8 +74,11 @@ void displayLayersNames(void)
 
 void renderFooter(const char *footer_str)
 {
-    SDL_Surface *footer =
-        TTF_RenderUTF8_Blended(font18, footer_str, color_white);
+    SDL_Surface *footer = font18
+        ? TTF_RenderUTF8_Blended(font18, footer_str, color_white)
+        : NULL;
+    if (!footer)
+        return;
     surfaceSetAlpha(footer, 120);
     SDL_Rect footer_rect = {320 - footer->w / 2, 414};
     SDL_BlitSurface(footer, NULL, screen, &footer_rect);
@@ -78,6 +87,7 @@ void renderFooter(const char *footer_str)
 
 void displayLayersInstall(void)
 {
+    if (surfaceCheck == NULL) return;
     SDL_Rect rectInstall = {600 - surfaceCheck->w, 96};
 
     for (int i = 0; i < 7; i++) {
@@ -133,7 +143,9 @@ void showScroller(void)
     }
 
     float markerSlice = 323.0 / (float)(package_count[nTab]);
-    float markerOffset = 0.5 * markerSlice - (float)surfaceMarker->h / 2;
+    float markerOffset = surfaceMarker != NULL
+        ? 0.5 * markerSlice - (float)surfaceMarker->h / 2
+        : 0;
 
     for (int i = 0; i < package_count[nTab]; i++) {
         Package *package = &packages[nTab][i];
@@ -218,8 +230,12 @@ void renderTabName(const char *name, int x, alignment_e alignment, bool active,
     char name_str[STR_MAX];
     snprintf(name_str, STR_MAX - 1, has_changes ? "%s*" : "%s", name);
 
-    SDL_Surface *tab_name =
-        TTF_RenderUTF8_Blended(active ? font25 : font18, name_str, color_white);
+    TTF_Font *tab_font = active ? font25 : font18;
+    SDL_Surface *tab_name = tab_font
+        ? TTF_RenderUTF8_Blended(tab_font, name_str, color_white)
+        : NULL;
+    if (!tab_name)
+        return;
     SDL_Rect tab_rect = {alignCoord(x, tab_name->w, alignment),
                          (active ? 53 : 56) - 2 - tab_name->h / 2};
 
@@ -239,6 +255,7 @@ void renderCurrentTab(void)
     renderTabName(layer_names[nTab], 320, ALIGN_CENTER, true,
                   changes_installs[nTab] > 0 || changes_removals[nTab] > 0);
 
+    if (surfaceDotNeutral == NULL || surfaceDotActive == NULL) return;
     int tab_dots_width =
         (tab_count - 1) * surfaceDotNeutral->w + surfaceDotActive->w;
     SDL_Rect rectTabDot = {320 - tab_dots_width / 2, 14};
@@ -252,6 +269,7 @@ void renderCurrentTab(void)
             current_dot =
                 i == nTab ? surfaceDotApplyActive : surfaceDotApplyNeutral;
 
+        if (current_dot == NULL) continue;
         rectTabDot.y = 14 - current_dot->h / 2;
 
         SDL_BlitSurface(current_dot, NULL, screen, &rectTabDot);
@@ -282,17 +300,24 @@ void renderApplication(void)
         if (removals_count > 0) {
             int len = strlen(status_str);
             if (len > 0) {
-                strcpy(status_str + len, "  ");
-                len += 2;
+                if (len + 2 < (int)sizeof(status_str)) {
+                    status_str[len] = ' ';
+                    status_str[len + 1] = ' ';
+                    status_str[len + 2] = '\0';
+                    len += 2;
+                }
             }
             snprintf(status_str + len, sizeof(status_str) - len, " −%d", removals_count);
         }
 
-        SDL_Surface *status =
-            TTF_RenderUTF8_Blended(font18, status_str, color_white);
-        SDL_Rect status_rect = {620 - status->w, 16 - status->h / 2};
-        SDL_BlitSurface(status, NULL, screen, &status_rect);
-        SDL_FreeSurface(status);
+        SDL_Surface *status = font18
+            ? TTF_RenderUTF8_Blended(font18, status_str, color_white)
+            : NULL;
+        if (status != NULL) {
+            SDL_Rect status_rect = {620 - status->w, 16 - status->h / 2};
+            SDL_BlitSurface(status, NULL, screen, &status_rect);
+            SDL_FreeSurface(status);
+        }
     }
 
     renderCurrentTab();

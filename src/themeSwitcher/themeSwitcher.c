@@ -24,12 +24,14 @@ void showCenteredMessage(SDL_Surface *video, SDL_Surface *screen,
                          SDL_Color color)
 {
     SDL_Surface *message = TTF_RenderUTF8_Blended(font, message_str, color);
-    SDL_Rect loadingRect = {320 - message->w / 2, 240 - message->h / 2};
     SDL_FillRect(screen, NULL, 0);
-    SDL_BlitSurface(message, NULL, screen, &loadingRect);
+    if (message != NULL) {
+        SDL_Rect loadingRect = {320 - message->w / 2, 240 - message->h / 2};
+        SDL_BlitSurface(message, NULL, screen, &loadingRect);
+        SDL_FreeSurface(message);
+    }
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
-    SDL_FreeSurface(message);
 }
 
 SDL_Surface *createBottomBar(TTF_Font *font)
@@ -39,44 +41,60 @@ SDL_Surface *createBottomBar(TTF_Font *font)
     SDL_Surface *surfaceButtonX = IMG_Load("res/button_x.png");
 
     SDL_Surface *surface = SDL_CreateRGBSurface(0, 640, 70, 32, 0, 0, 0, 0);
+    if (surface == NULL)
+        goto cleanup_buttons;
 
     SDL_FillRect(surface, NULL, 0);
 
-    SDL_Rect pos = {20, 35 - surfaceButtonA->h / 2};
-    SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
-    pos.x += surfaceButtonA->w + 10;
+    SDL_Rect pos = {20, 35};
+    if (surfaceButtonA != NULL) {
+        pos.y = 35 - surfaceButtonA->h / 2;
+        SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
+        pos.x += surfaceButtonA->w + 10;
+    }
 
     SDL_Surface *text =
         TTF_RenderUTF8_Blended(font, "INSTALL", (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
+    if (text != NULL) {
+        pos.y = 35 - text->h / 2 - 3;
+        SDL_BlitSurface(text, NULL, surface, &pos);
+        pos.x += text->w + 20;
+        SDL_FreeSurface(text);
+    }
 
-    pos.y = 35 - surfaceButtonB->h / 2;
-    SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
-    pos.x += surfaceButtonB->w + 10;
+    if (surfaceButtonB != NULL) {
+        pos.y = 35 - surfaceButtonB->h / 2;
+        SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
+        pos.x += surfaceButtonB->w + 10;
+    }
 
     text = TTF_RenderUTF8_Blended(font, "CANCEL", (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
+    if (text != NULL) {
+        pos.y = 35 - text->h / 2 - 3;
+        SDL_BlitSurface(text, NULL, surface, &pos);
+        pos.x += text->w + 20;
+        SDL_FreeSurface(text);
+    }
 
-    pos.y = 35 - surfaceButtonX->h / 2;
-    SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
-    pos.x += surfaceButtonX->w + 10;
+    if (surfaceButtonX != NULL) {
+        pos.y = 35 - surfaceButtonX->h / 2;
+        SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
+        pos.x += surfaceButtonX->w + 10;
+    }
 
     text = TTF_RenderUTF8_Blended(font, "TOGGLE ICONS",
                                   (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
+    if (text != NULL) {
+        pos.y = 35 - text->h / 2 - 3;
+        SDL_BlitSurface(text, NULL, surface, &pos);
+        pos.x += text->w + 20;
+        SDL_FreeSurface(text);
+    }
 
-    SDL_FreeSurface(surfaceButtonA);
-    SDL_FreeSurface(surfaceButtonB);
-    SDL_FreeSurface(surfaceButtonX);
+cleanup_buttons:
+    if (surfaceButtonA != NULL) SDL_FreeSurface(surfaceButtonA);
+    if (surfaceButtonB != NULL) SDL_FreeSurface(surfaceButtonB);
+    if (surfaceButtonX != NULL) SDL_FreeSurface(surfaceButtonX);
 
     return surface;
 }
@@ -162,15 +180,16 @@ int main(int argc, char *argv[])
     SDL_Surface *surfaceFileZIP = IMG_Load("res/file_zip.png");
     SDL_Surface *surfaceFile7Z = IMG_Load("res/file_7z.png");
     SDL_Surface *surfaceFileRAR = IMG_Load("res/file_rar.png");
-    SDL_Rect rectPreviewIcon = {560 - surfaceFileZIP->w,
-                                21 - surfaceFileZIP->h / 2};
+    int zipW = surfaceFileZIP ? surfaceFileZIP->w : 0;
+    int zipH = surfaceFileZIP ? surfaceFileZIP->h : 0;
+    SDL_Rect rectPreviewIcon = {560 - zipW, 21 - zipH / 2};
 
     SDL_Surface *surfaceHasIcons = IMG_Load("res/themes_has_icons.png");
-    SDL_Rect rectHasIcons = {560 - surfaceHasIcons->w,
-                             21 - surfaceHasIcons->h / 2};
-    SDL_Rect rectHasIconsPreviewIcon = {560 - surfaceFileZIP->w -
-                                            surfaceHasIcons->w - 10,
-                                        21 - surfaceFileZIP->h / 2};
+    int iconsW = surfaceHasIcons ? surfaceHasIcons->w : 0;
+    int iconsH = surfaceHasIcons ? surfaceHasIcons->h : 0;
+    SDL_Rect rectHasIcons = {560 - iconsW, 21 - iconsH / 2};
+    SDL_Rect rectHasIconsPreviewIcon = {560 - zipW - iconsW - 10,
+                                        21 - zipH / 2};
 
     SDL_Rect preview_src_rect = {0, 0, 480, 360};
     SDL_Rect rectArrowLeft = {24, 210, 28, 32};
@@ -350,7 +369,8 @@ int main(int argc, char *argv[])
             if (current_page == installed_page && !is_preview)
                 snprintf(title, STR_MAX + 12, "%s - Installed", theme.name);
             else
-                strcpy(title, theme.name);
+                strncpy(title, theme.name, sizeof(title) - 1);
+                title[sizeof(title) - 1] = '\0';
 
             imageThemeNom = TTF_RenderUTF8_Blended(font21, title, color_white);
             SDL_BlitSurface(imageThemeNom, NULL, screen, &rectImageThemeNom);

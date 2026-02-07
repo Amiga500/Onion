@@ -45,7 +45,8 @@ void _config_prepare(const char *key, char *filename)
     concat(filename, CONFIG_PATH, key);
 
     char dir_path[STR_MAX];
-    strcpy(dir_path, filename);
+    strncpy(dir_path, filename, STR_MAX - 1);
+    dir_path[STR_MAX - 1] = '\0';
     dirname(dir_path);
 
     mkdirs(dir_path);

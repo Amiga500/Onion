@@ -379,11 +379,23 @@ int getBatPercMMP(void)
     char buf[100] = "";
     int battery_number = -1;
 
-    system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result");
+    FILE *fp = popen("cd /customer/app/ ; ./axp_test", "r");
+    if (fp != NULL) {
+        if (fgets(buf, sizeof(buf), fp) != NULL) {
+            if (sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number) != 1)
+                battery_number = -1;
+        }
+        pclose(fp);
+    }
 
-    FILE *fp;
-    file_get(fp, "/tmp/.axp_result", CONTENT_STR, buf);
-    sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
+    /* Also update the cached result file for other consumers */
+    if (buf[0] != '\0') {
+        FILE *fp2;
+        if ((fp2 = fopen("/tmp/.axp_result", "w+"))) {
+            fputs(buf, fp2);
+            fclose(fp2);
+        }
+    }
 
     return battery_number;
 }
@@ -485,7 +497,7 @@ static void *batteryWarning_thread(void *param)
             display_drawBatteryIcon(0x00FF0000, 15, g_display.height - 30, 10,
                                     0x00FF0000); // draw red battery icon
         }
-        usleep(0x4000);
+        usleep(500000); // 500ms — low battery icon doesn't need fast refresh
     }
     return 0;
 }
