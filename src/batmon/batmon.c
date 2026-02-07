@@ -382,7 +382,8 @@ int getBatPercMMP(void)
     FILE *fp = popen("cd /customer/app/ ; ./axp_test", "r");
     if (fp != NULL) {
         if (fgets(buf, sizeof(buf), fp) != NULL) {
-            sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
+            if (sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number) != 1)
+                battery_number = -1;
         }
         pclose(fp);
     }

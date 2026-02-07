@@ -21,7 +21,10 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    sscanf(argv[1], "%x", &reg_address);
+    if (sscanf(argv[1], "%x", &reg_address) != 1) {
+        fprintf(stderr, "Invalid register address: %s\n", argv[1]);
+        return 1;
+    }
 
     if (argc == 2) {
         val = axp_read(reg_address);
@@ -33,7 +36,10 @@ int main(int argc, char **argv)
                val);
     }
     else {
-        sscanf(argv[2], "%x", &w_val);
+        if (sscanf(argv[2], "%x", &w_val) != 1) {
+            fprintf(stderr, "Invalid write value: %s\n", argv[2]);
+            return 1;
+        }
         if ((w_val & ~0xff) != 0)
             fprintf(stderr, "Error on written value %s\n", argv[2]);
         if (argv[2][0] == '+') {

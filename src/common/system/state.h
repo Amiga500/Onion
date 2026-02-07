@@ -260,7 +260,12 @@ char *history_getRecentPath(char *rom_path)
         int type;
 
         memcpy(jsonContent, line, line_len + 1);
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        const char *typeStr = strstr(jsonContent, "\"type\":");
+        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1) {
+            free(jsonContent);
+            fclose(file);
+            return NULL;
+        }
 
         if ((type != 5) && (type != 17)) {
             free(jsonContent);
@@ -268,8 +273,19 @@ char *history_getRecentPath(char *rom_path)
             return NULL;
         }
 
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"") + 11;
+        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
+        if (rompathStart == NULL) {
+            free(jsonContent);
+            fclose(file);
+            return NULL;
+        }
+        rompathStart += 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
+        if (rompathEnd == NULL) {
+            free(jsonContent);
+            fclose(file);
+            return NULL;
+        }
 
         strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
         romPathSearch[rompathEnd - rompathStart] = '\0';
@@ -341,7 +357,9 @@ void resumeGame(int index)
         char launch[256];
         lineCount++;
 
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        const char *typeStr = strstr(jsonContent, "\"type\":");
+        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1)
+            continue;
 
         if ((type != 5) && (type != 17))
             continue;

@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–29)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–30)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -614,3 +614,29 @@ cat /mnt/SDCARD/.tmp_update/logs/perf.log | sort -t, -k3 -n | tail -20
 | 260 | `current_dot->w` | Same guard |
 
 **Impact:** Prevents 5 crash paths if resource PNGs are missing from SD card.
+
+---
+
+## Appendix F: Session 30 — strstr NULL Dereference + sscanf Validation
+
+### 🔴 CRITICAL: strstr() NULL + Arithmetic Dereference (state.h)
+
+| Line | Before | After |
+|------|--------|-------|
+| 263 | `sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type)` — if `"type":` key missing, dereferences NULL+7 | Extract to `typeStr`, check NULL before `+7` |
+| 271 | `strstr(jsonContent, "\"rompath\":\"") + 11` — same pattern | NULL check + early return with proper `free(jsonContent)` + `fclose(file)` |
+| 272 | `strchr(rompathStart, '\"')` — could return NULL | NULL check + early return |
+| 344 | Same `strstr() + 7` pattern in `state_getRecentHistoryData()` | NULL check + `continue` to skip malformed lines |
+
+**Impact:** Prevents 4 crash paths when JSON content file is malformed or missing expected keys.
+
+### 🟡 sscanf Return Value Validation
+
+| File | Line | Fix |
+|------|------|-----|
+| `formatters.h` | 65 | `sscanf(time_str, "%02d:%02d", ...)` — initialize vars to 0, return 0 on parse failure |
+| `axp.c` | 24, 36 | `sscanf(argv[N], "%x", ...)` — return 1 with error message on invalid hex input |
+| `batmon.c` | 385 | `sscanf(buf, ...)` — explicit reset to -1 on parse failure |
+| `battery.h` | 101 | `sscanf(buf, ...)` — explicit reset to 0 on parse failure |
+
+**Impact:** Prevents undefined variable usage when input doesn't match expected format.

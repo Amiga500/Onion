@@ -61,8 +61,9 @@ void formatter_Time(void *pt, char *out_label)
 
 int formatter_timeStringToID(const char *time_str)
 {
-    int hours, minutes;
-    sscanf(time_str, "%02d:%02d", &hours, &minutes);
+    int hours = 0, minutes = 0;
+    if (sscanf(time_str, "%02d:%02d", &hours, &minutes) != 2)
+        return 0;
     int intervalsFromHours = hours * 4;
     int intervalsFromMinutes = minutes / 15;
     return intervalsFromHours + intervalsFromMinutes;

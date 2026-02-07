@@ -98,8 +98,9 @@ static bool _battery_isCharging_impl(void)
         fp = popen(cmd, "r");
         if (fp != NULL) {
             if (fgets(buf, sizeof(buf), fp) != NULL) {
-                sscanf(buf, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}",
-                       &charge_number);
+                if (sscanf(buf, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}",
+                           &charge_number) != 1)
+                    charge_number = 0;
             }
             pclose(fp);
         }
