@@ -199,6 +199,10 @@ int matchRomNames(char* rom_names_file, char* full_rom_list_file, char* arcade_r
 
     if (rom_names_fp == NULL || full_rom_list_fp == NULL || arcade_rom_names_fp == NULL || missing_rom_names_fp == NULL) {
         printf("Error opening files\n");
+        if (rom_names_fp) fclose(rom_names_fp);
+        if (full_rom_list_fp) fclose(full_rom_list_fp);
+        if (arcade_rom_names_fp) fclose(arcade_rom_names_fp);
+        if (missing_rom_names_fp) fclose(missing_rom_names_fp);
         return 1;
     }
 

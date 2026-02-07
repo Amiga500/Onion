@@ -103,6 +103,11 @@ int main(int argc, char *argv[])
 
     // Read jpeg
     tmp = malloc(jpeg.output_width * 3);
+    if (tmp == NULL) {
+        jpeg_destroy_decompress(&jpeg);
+        fclose(fp);
+        goto error;
+    }
     dst = jpgVa;
     for (y = 0; y < sh; y++) {
         src8 = tmp;

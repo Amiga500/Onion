@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–27)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–28)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -560,3 +560,33 @@ cat /mnt/SDCARD/.tmp_update/logs/perf.log | sort -t, -k3 -n | tail -20
 | `createCopyFile()` — `src_path`/`dst_path` | No validation before `system("cp '%s' '%s'")` | `strchr(path, '\'')` check → return `-1` |
 
 **Impact:** Prevents shell injection via single-quoted paths in filesystem traversal and file copy operations.
+
+---
+
+## Appendix: Session 28 — malloc NULL Guards, fopen Leak Fix, Command Injection
+
+### 💥 malloc NULL Dereference Fixes
+
+| File | Line | Issue | Fix |
+|------|------|-------|-----|
+| `imagesBrowser.c` | 109 | `malloc()` for images_paths array unchecked | NULL check → `closedir()` + `return false` |
+| `jpg2png.c` | 105 | `malloc(tmp)` for scanline buffer unchecked | NULL check → destroy jpeg + `fclose(fp)` + `goto error` |
+
+**Impact:** Prevents crashes on memory pressure (128 MB system with emulators loaded).
+
+### 🔧 File Handle Leak Fix
+
+| File | Function | Issue | Fix |
+|------|----------|-------|-----|
+| `gameNameList.c` | `matchRomNames()` | 4× `fopen()` — if any fail, already-opened handles leak | Close all non-NULL handles before `return 1` |
+
+**Impact:** Prevents file descriptor exhaustion on repeated partial failures.
+
+### 🔒 Command Injection: Double-Quote Metacharacter Rejection
+
+| File | Function | Dangerous Variable | Fix |
+|------|----------|--------------------|-----|
+| `installTheme.h` | `installTheme()` | `theme_path` via `snprintf(cmd, ..., "\"%s\"", theme_path)` | `strpbrk(path, "$\`\"\\")` → `return` |
+| `fileActions.h` | `callPackageInstaller()` | `main_path` via `snprintf(cmd, ..., "cd \"%s\"; ...", main_path)` | `strpbrk(path, "$\`\"\\")` → `return` |
+
+**Impact:** Prevents shell injection via `$(...)`, backticks, or escape sequences in theme/package paths.
