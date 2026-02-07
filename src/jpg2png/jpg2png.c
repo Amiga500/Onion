@@ -89,6 +89,10 @@ int main(int argc, char *argv[])
     jpeg_start_decompress(&jpeg);
     sw = jpeg.output_width;
     sh = jpeg.output_height;
+    if ((uint64_t)sw * sh * 4 > UINT32_MAX) {
+        fprintf(stderr, "jpg dimensions too large: %ux%u\n", sw, sh);
+        goto error;
+    }
     ss = ALIGN4K(sw * sh * 4);
     if ((!sw) || (!sh) || (!ss) || (jpeg.out_color_components != 3)) {
         fprintf(stderr, "jpg format error\n");
@@ -134,6 +138,10 @@ int main(int argc, char *argv[])
     }
     if (dw == 0 || dh == 0) {
         fprintf(stderr, "scaled dimensions are zero\n");
+        goto error;
+    }
+    if ((uint64_t)dw * dh * 4 > UINT32_MAX) {
+        fprintf(stderr, "scaled dimensions too large: %ux%u\n", dw, dh);
         goto error;
     }
     ds = ALIGN4K(dw * dh * 4);

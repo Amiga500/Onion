@@ -38,6 +38,14 @@ void applyAllChanges(bool auto_update)
 
             if (should_install) {
                 printf_debug("Installing %s...\n", package->name);
+
+                // Reject names with shell metacharacters (used in double-quoted system() call)
+                if (strchr(package->name, '"') || strchr(package->name, '$') ||
+                    strchr(package->name, '`') || strchr(package->name, '\\')) {
+                    printf_debug("Skipping package with unsafe name: %s\n", package->name);
+                    continue;
+                }
+
                 SDL_BlitSurface(surfaceBackground, NULL, screen, NULL);
 
                 surfaceMessage = TTF_RenderUTF8_Blended(

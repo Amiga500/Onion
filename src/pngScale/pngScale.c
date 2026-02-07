@@ -125,6 +125,8 @@ int main(int argc, char *argv[])
     ch = png_get_channels(png_ptr, info_ptr);
     sw = png_get_image_width(png_ptr, info_ptr);
     sh = png_get_image_height(png_ptr, info_ptr);
+    if ((uint64_t)sw * sh * 4 > UINT32_MAX)
+        ERROR("png dimensions too large");
     ss = ALIGN4K(sw * sh * 4);
     if ((!sw) || (!sh) || (!ss) || (!ch))
         ERROR("png format error");

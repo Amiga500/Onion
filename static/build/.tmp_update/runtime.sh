@@ -236,7 +236,7 @@ launch_main_ui() {
     fi
 
     $sysdir/bin/freemma
-    mv -f /tmp/cmd_to_run.sh $sysdir/cmd_to_run.sh
+    mv -f /tmp/cmd_to_run.sh "$sysdir/cmd_to_run.sh"
 
     set_prev_state "mainui"
 }
@@ -821,7 +821,7 @@ load_settings() {
         if [ -f /appconfigs/system.json ]; then
             cp -f /appconfigs/system.json /mnt/SDCARD/system.json
         else
-            cp -f $sysdir/res/miyoo${DEVICE_ID}_system.json /mnt/SDCARD/system.json
+            cp -f "$sysdir/res/miyoo${DEVICE_ID}_system.json" /mnt/SDCARD/system.json
         fi
     fi
 

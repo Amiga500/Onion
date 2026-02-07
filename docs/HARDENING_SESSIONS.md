@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–30)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–31)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -640,3 +640,32 @@ cat /mnt/SDCARD/.tmp_update/logs/perf.log | sort -t, -k3 -n | tail -20
 | `battery.h` | 101 | `sscanf(buf, ...)` — explicit reset to 0 on parse failure |
 
 **Impact:** Prevents undefined variable usage when input doesn't match expected format.
+
+---
+
+## Appendix: Session 31 — Integer Overflow Guards, Shell Quoting, Command Injection
+
+### 🔴 Integer Overflow Before Allocation
+
+| File | Line | Fix |
+|------|------|-----|
+| `jpg2png.c` | 92 | `sw * sh * 4` — cast to `uint64_t` and check against `UINT32_MAX` before ALIGN4K |
+| `jpg2png.c` | 139 | `dw * dh * 4` — same overflow check before allocation |
+| `pngScale.c` | 128 | `sw * sh * 4` — same overflow check before allocation |
+
+**Impact:** Prevents heap underflow on 32-bit ARM when processing large source images (>32K pixels in either dimension).
+
+### 🔒 Shell Script Variable Quoting
+
+| File | Line | Before | After |
+|------|------|--------|-------|
+| `runtime.sh` | 239 | `mv -f /tmp/cmd_to_run.sh $sysdir/cmd_to_run.sh` | `mv -f /tmp/cmd_to_run.sh "$sysdir/cmd_to_run.sh"` |
+| `runtime.sh` | 824 | `cp -f $sysdir/res/miyoo${DEVICE_ID}_system.json ...` | `cp -f "$sysdir/res/miyoo${DEVICE_ID}_system.json" ...` |
+
+### 🔒 Command Injection — packageManager/apply.h
+
+| Line | Fix |
+|------|-----|
+| 51 | Reject `package->name` containing `"`, `$`, `` ` ``, `\` before passing to `system()` via double-quoted string |
+
+**Impact:** Prevents command injection via crafted package names in `.tmp_update/packages/` directory.
