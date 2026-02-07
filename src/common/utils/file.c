@@ -402,8 +402,8 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
     size_t offset = 0;
     if (*p1 != '\0') {
         int parent_dir_count = 1;
-        for (const char *p = p1; *p; p++) {
-            if (*p == '/') {
+        for (const char *cursor = p1; *cursor; cursor++) {
+            if (*cursor == '/') {
                 parent_dir_count++;
             }
         }
