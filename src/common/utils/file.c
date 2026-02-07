@@ -401,14 +401,14 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
 
     size_t offset = 0;
     if (*p1 != '\0') {
-        int parent_dir_count = 0;
+        int up_levels = 0;
         for (const char *cursor = p1; *cursor; cursor++) {
             if (*cursor == '/') {
-                parent_dir_count++;
+                up_levels++;
             }
         }
-        parent_dir_count++;
-        for (int i = 0; i < parent_dir_count && offset + 3 < PATH_MAX; i++) {
+        up_levels++;
+        for (int i = 0; i < up_levels && offset + 3 < PATH_MAX; i++) {
             memcpy(path_out + offset, "../", 3);
             offset += 3;
         }
