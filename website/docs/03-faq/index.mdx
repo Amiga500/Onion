@@ -648,6 +648,40 @@ Onion features two ways in which you can manage the emulated in-game time (or RT
 
 
 
+## <sup><img align="left" src="https://user-images.githubusercontent.com/44569252/189906120-248301c7-373e-482c-9c67-11f0faab9f39.png" width="54" /></sup>Development & Contributing
+
+
+<details><summary>
+
+### How long does it take for the <u>.zip file to appear</u> after triggering a GitHub Actions build?
+
+</summary>
+
+When you trigger a build workflow on GitHub Actions, the complete process typically takes **10-15 minutes**:
+
+1. **Source files appear immediately** when the workflow starts
+2. **The .zip file only appears after the build completes successfully**
+
+**Where to find the .zip file:**
+- For pre-releases: Check the [latest release page](https://github.com/OnionUI/Onion/releases/tag/latest)
+- For tagged releases: Check the [releases page](https://github.com/OnionUI/Onion/releases)
+
+**What happens during the build:**
+- Checkout and setup: ~2 minutes
+- Build and compile: ~8-12 minutes  
+- Package and upload: ~2 minutes
+
+**If it takes longer than 30 minutes:**
+- Check the [Actions tab](https://github.com/OnionUI/Onion/actions) for errors
+- The workflow may have failed - look for red X marks
+- You may need to cancel and retry
+
+For more details, see the [GitHub Actions Workflows guide](/docs/dev/github-actions).
+
+</details>
+
+
+
 ## <sup><img align="left" src={require('./assets/question-mark.png').default} width="54" /></sup>Various
 
 
