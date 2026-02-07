@@ -155,10 +155,17 @@ void readHistory()
     // Single-pass batch rewrite: remove all duplicate lines at once
     if (numDups > 0) {
         file = fopen(recentFilePath, "r");
-        if (file == NULL)
+        if (file == NULL) {
+            print_debug("readHistory: failed to reopen for dedup");
             return;
-        FILE *tempFile = fopen("/tmp/recentlist_clean.tmp", "w");
+        }
+
+        char tmpPath[STR_MAX];
+        snprintf(tmpPath, sizeof(tmpPath), "%s.dedup.tmp", recentFilePath);
+
+        FILE *tempFile = fopen(tmpPath, "w");
         if (tempFile == NULL) {
+            print_debug("readHistory: failed to create dedup temp file");
             fclose(file);
             return;
         }
@@ -177,8 +184,12 @@ void readHistory()
 
         fclose(file);
         fclose(tempFile);
-        remove(recentFilePath);
-        rename("/tmp/recentlist_clean.tmp", recentFilePath);
+
+        // rename() atomically replaces target if it exists — no need for remove()
+        if (rename(tmpPath, recentFilePath) != 0) {
+            print_debug("readHistory: failed to replace file after dedup");
+            remove(tmpPath);
+        }
     }
 }
 
