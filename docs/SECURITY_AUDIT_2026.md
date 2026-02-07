@@ -355,6 +355,21 @@ Changes were:
 
 ---
 
+## 📚 Related Documentation
+
+For comprehensive details on all security and performance work:
+
+**[SECURITY_HARDENING_COMPLETE.md](SECURITY_HARDENING_COMPLETE.md)** — Complete consolidated report covering:
+- All security hardening work (Sessions 1-41)
+- Performance optimization details
+- Session-by-session changes
+- OTA security analysis
+- Final security posture
+
+This audit document (SECURITY_AUDIT_2026.md) provides detailed code examples for the 14 vulnerabilities fixed in February 2026. For the complete context and all historical changes, refer to the consolidated security hardening document.
+
+---
+
 **Audit Successfully Completed** ✅  
 **Ready for Deployment** ✅  
 **Security Review Passed** ✅
