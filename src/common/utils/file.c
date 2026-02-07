@@ -112,7 +112,10 @@ void file_readLastLine(const char *filename, char *out_str)
 
         // get the last line
         fseek(fd, -max_len, SEEK_END);
-        fread(buff, max_len - 1, 1, fd);
+        if (fread(buff, max_len - 1, 1, fd) != 1) {
+            fclose(fd);
+            return;
+        }
 
         // cleanup
         fclose(fd);

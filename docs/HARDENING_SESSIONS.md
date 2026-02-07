@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–37)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–38)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -874,3 +874,25 @@ Each `cat file | grep/cut/sed` spawns an extra `cat` process + creates a pipe. O
 3. `resource_getSurface(BUTTON_B)` returns NULL → `button_b->w` dereference on line 90, `button_b->h` on line 106
 
 **Fix:** Added NULL checks before all dereferences. For button_b, skip width calculation and blit when NULL.
+
+---
+
+## Session 38: Unchecked fread() — Silent Data Corruption
+
+### gs_retroarch.h — fread() Return Ignored
+
+**Bug:** `fread(fileContent, 1, fileSize, file)` return value ignored. On partial read (SD card error, NFS timeout), `fileContent[fileSize]` writes null-terminator beyond actual data → stale/garbage bytes passed to `cJSON_Parse()` → unpredictable behavior.
+
+**Fix:** Check `bytesRead`, close file immediately, null-terminate at actual read position, return `false` on zero read.
+
+### legacyDB.h — fread() Binary Struct Array Not Checked
+
+**Bug:** `fread(rom_list, sizeof(rom_list), 1, fp)` reads 104KB struct array without checking success. On short read (truncated file, SD removal mid-read), `rom_list` contains partially-initialized entries → `strlen(rom_list[i].name)` reads uninitialized memory → undefined behavior.
+
+**Fix:** If `fread() != 1`, `memset(rom_list, 0, sizeof(rom_list))` to zero all entries before counting.
+
+### file.c file_readLastLine() — fread() Not Checked
+
+**Bug:** `fread(buff, max_len - 1, 1, fd)` not checked. On short read, `buff` may not contain valid data, but `strtok(buff, "\n")` processes it anyway → garbage output for "last line" used in paths and configs.
+
+**Fix:** If `fread() != 1`, `fclose(fd)` and `return` early before processing.
