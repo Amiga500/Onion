@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–34)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–35)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -783,3 +783,39 @@ Each `cat file | grep/cut/sed` spawns an extra `cat` process + creates a pipe. O
 - Initial value `UINT32_MAX` ensures first write always goes through
 
 **Impact:** During brightness OSD slider drag, eliminates ~10+ redundant sysfs write cycles.
+
+---
+
+## Session 35 — Critical Bug Audit & Fixes
+
+### randomGamePicker.c — cJSON Memory Leak (5 Paths)
+
+**Bug:** `cJSON_Parse(line)` allocates JSON object at line 229 inside `while(fgets)` loop. Five `continue` statements (lines 232, 252, 255, 270, 285) skip `cJSON_Delete(json_root)` at line 297, leaking the parsed JSON object on each skipped iteration.
+
+**Impact:** With hundreds of game entries, each malformed/filtered entry leaks a cJSON tree (~200-500 bytes each). On a 128 MB system, this can accumulate to significant waste during random game picker initialization.
+
+| Continue Site | Condition | Fix |
+|---|---|---|
+| Line 232 | Malformed JSON (type key missing) | Added `cJSON_Delete(json_root)` before `continue` |
+| Line 252 | File not found (`!is_file`) | Added `cJSON_Delete(json_root)` before `continue` |
+| Line 255 | `.miyoocmd` extension | Added `cJSON_Delete(json_root)` before `continue` |
+| Line 270 | Duplicate game entry | Added `cJSON_Delete(json_root)` before `continue` |
+| Line 285 | Invalid emu path/config | Added `cJSON_Delete(json_root)` before `continue` |
+
+### batmon.c — Signal Handler Race Condition
+
+**Bug:** Signal handler `sigHandler()` writes `quit`, `is_suspended`, `adc_value_g`, and `msleep_interrupt` — all plain `bool`/`int` variables. The main thread reads these variables in its loop. Per C11 §7.14.1.1, accessing non-`volatile sig_atomic_t` variables from a signal handler is undefined behavior.
+
+**Fix:**
+- `quit` → `volatile sig_atomic_t` (was `bool`)
+- `is_suspended` → `volatile sig_atomic_t` (was `bool`)
+- `msleep_interrupt` → `volatile sig_atomic_t` (was `int`)
+- `adc_value_g` → `volatile int` (not `sig_atomic_t` because it holds ADC values, but `volatile` ensures visibility)
+
+### osd.h — OSD Thread Data Race
+
+**Bug:** `_osd_thread()` reads `_bar_timer`, `_bar_value`, `_bar_max`, `_bar_color` while `osd_showBar()` writes them from the main thread. Without `volatile`, the compiler can cache stale values in registers across loop iterations, causing the OSD bar to display stale data or loop indefinitely.
+
+**Fix:**
+- All shared variables marked `volatile` (`_bar_timer`, `_bar_value`, `_bar_max`, `_bar_color`, `osd_bar_activated`, `osd_thread_active`)
+- `_print_bar()` snapshots volatile values into local variables for consistent use within a single frame render (prevents mid-frame tearing if main thread updates during render)
