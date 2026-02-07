@@ -58,8 +58,9 @@ char *str_replace(char *orig, char *rep, char *with)
     for (count = 0; (tmp = strstr(ins, rep)); ++count)
         ins = tmp + len_rep;
 
+    size_t len_orig = strlen(orig);
     char *result =
-        (char *)malloc(strlen(orig) + (len_with - len_rep) * count + 1);
+        (char *)malloc(len_orig + (len_with - len_rep) * count + 1);
     tmp = result;
 
     if (!result)
@@ -205,10 +206,16 @@ int str_count_char(const char *str, char ch)
 bool includeCJK(char *str)
 {
     while (*str) {
-        unsigned char c = *str;
-        // normal cjk range
-        if (c >= 0x80 && c <= 0x9FFF) {
-            return true;
+        unsigned char c = (unsigned char)*str;
+        // Check for CJK UTF-8 sequences
+        // CJK Unified Ideographs: U+4E00–U+9FFF (0xE4 0xB8 0x80 to 0xE9 0xBF 0xBF)
+        // Hiragana: U+3040–U+309F (0xE3 0x81 0x80 to 0xE3 0x82 0x9F)
+        // Katakana: U+30A0–U+30FF (0xE3 0x82 0xA0 to 0xE3 0x83 0xBF)
+        if (c >= 0xE3 && c <= 0xE9) {
+            // Check if this is a valid 3-byte UTF-8 sequence start
+            if (str[1] && ((unsigned char)str[1] & 0xC0) == 0x80) {
+                return true;
+            }
         }
         str++;
     }

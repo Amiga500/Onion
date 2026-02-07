@@ -136,6 +136,10 @@ char *file_read(const char *path)
     if (stat64(path, &st) != 0 || st.st_size < 0)
         return NULL;
 
+    // Safety check: limit file size to 100MB to prevent excessive memory allocation
+    if (st.st_size > 100 * 1024 * 1024)
+        return NULL;
+
     int fd = open(path, O_RDONLY);
     if (fd < 0)
         return NULL;
@@ -219,11 +223,12 @@ char *file_removeExtension(const char *myStr)
 {
     if (myStr == NULL)
         return NULL;
-    char *retStr = (char *)malloc(strlen(myStr) + 1);
+    size_t len = strlen(myStr);
+    char *retStr = (char *)malloc(len + 1);
     char *lastExt;
     if (retStr == NULL)
         return NULL;
-    memcpy(retStr, myStr, strlen(myStr) + 1);
+    memcpy(retStr, myStr, len + 1);
     if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 2) != '\0')
         *lastExt = '\0';
     return retStr;
