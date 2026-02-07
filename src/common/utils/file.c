@@ -400,8 +400,13 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
     }
 
     size_t offset = 0;
-    if (strlen(p1) > 0) {
-        int num_parens = str_count_char(p1, '/') + 1;
+    if (*p1 != '\0') {
+        int num_parens = 1;
+        for (const char *p = p1; *p; p++) {
+            if (*p == '/') {
+                num_parens++;
+            }
+        }
         for (int i = 0; i < num_parens && offset + 3 < PATH_MAX; i++) {
             memcpy(path_out + offset, "../", 3);
             offset += 3;
