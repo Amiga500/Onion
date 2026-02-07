@@ -873,6 +873,52 @@ Converted the final `strcpy` calls in the codebase:
 
 ---
 
+## Appendix: Performance Timing Framework (Session 19+)
+
+### New: `perf.h` — Lightweight Performance Instrumentation
+A zero-overhead timing framework for measuring critical code paths on Miyoo Mini hardware:
+
+```c
+#include "utils/perf.h"
+
+void myFunction(void) {
+    PERF_START("game_launch");
+    // ... code to measure ...
+    PERF_END("game_launch");
+}
+```
+
+**Key features:**
+- Uses `clock_gettime(CLOCK_MONOTONIC_RAW)` — millisecond precision, no NTP interference
+- Compile with `make core PERF=1` to enable; zero overhead when disabled (macros expand to nothing)
+- Output: stderr `[PERF] label: Xms` + CSV file `/mnt/SDCARD/.tmp_update/logs/perf.log` (timestamp_ms,label,elapsed_ms)
+- CSV format allows easy parsing for regression tracking: `sort -t, -k3 -n perf.log | tail`
+
+**Instrumented code paths:**
+- `gameSwitcher.c` — full init sequence (SDL init, rom screens, settings, lang, theme)
+- `theme/load.h` — `theme_loadImage()` (IMG_Load + format conversion + scaling)
+- `screenshot.h` — `screenshot_save()` (PNG encode + NEON pixel swap + write)
+
+### New: Unit Test Infrastructure (`test/`)
+Pure C unit test framework that runs on the host machine without cross-compiler, SDL, or Google Test:
+
+```bash
+make unit-test              # Run all C unit tests
+cd test && make -f Makefile.unit test_str   # Run specific test suite
+cd test && make -f Makefile.unit test_perf  # Run perf timing tests
+```
+
+**Test framework (`onion_test.h`):**
+- Lightweight single-header framework: `TEST()`, `RUN_TEST()`, `TEST_REPORT()`
+- Assertions: `ASSERT_TRUE`, `ASSERT_EQ`, `ASSERT_STREQ`, `ASSERT_NULL`, `ASSERT_GT`, etc.
+- Reports pass/fail count and exits non-zero on failure (CI-friendly)
+
+**Test suites:**
+- `test_str.c` — 26 tests covering `str_endsWith`, `str_count_char`, `str_trim`, `str_replace`, `str_split`, `str_removeParentheses`, `str_getLastNumber`
+- `test_perf.c` — 5 tests validating `perf_get_ms()` monotonicity, `PERF_START`/`PERF_END` timing accuracy
+
+---
+
 ## Appendix: Additional Fixes (Session 18+)
 
 ### Dereference-before-NULL-check in gs_overlay.h (CRITICAL BUG FIX)

@@ -25,6 +25,7 @@
 #include "theme/theme.h"
 #include "utils/config.h"
 #include "utils/msleep.h"
+#include "utils/perf.h"
 #include "utils/surfaceSetAlpha.h"
 
 #include "gs_appState.h"
@@ -39,6 +40,8 @@ int main(int argc, char *argv[])
 
     log_setName("gameSwitcher");
     print_debug("\n\nDebug logging enabled");
+
+    PERF_START("gameSwitcher_init");
 
     signal(SIGINT, sigHandler);
     signal(SIGTERM, sigHandler);
@@ -63,6 +66,8 @@ int main(int argc, char *argv[])
     SDL_FillRect(appState.transparent_bg, NULL, 0xBE000000);
 
     int battery_percentage = battery_getPercentage();
+
+    PERF_END("gameSwitcher_init");
 
     appState.last_ticks = SDL_GetTicks();
     appState.legend_start = appState.last_ticks;

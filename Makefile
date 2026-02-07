@@ -54,7 +54,7 @@ include ./src/common/commands.mk
 
 ###########################################################
 
-.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test
+.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test
 
 all: dist
 
@@ -290,6 +290,9 @@ test: external-libs
 	@mkdir -p $(BUILD_TEST_DIR)/infoPanel_test_data && cd $(TEST_SRC_DIR) && BUILD_DIR=$(BUILD_TEST_DIR)/ make dev
 	@cp -R $(TEST_SRC_DIR)/infoPanel_test_data $(BUILD_TEST_DIR)/
 	cd $(BUILD_TEST_DIR) && LD_LIBRARY_PATH=$(ROOT_DIR)/lib/ ./test
+
+unit-test:
+	@cd $(TEST_SRC_DIR) && make -f Makefile.unit all
 
 static-analysis: external-libs
 	@cd $(ROOT_DIR) && cppcheck -I $(INCLUDE_DIR) --enable=all $(SRC_DIR)

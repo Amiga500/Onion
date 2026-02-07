@@ -1,0 +1,48 @@
+# Makefile.unit - Standalone C unit tests for Onion OS
+#
+# These tests run on the host machine (x86/arm64) without needing
+# the Miyoo Mini cross-compiler, SDL, or Google Test.
+#
+# Usage:
+#   make -f Makefile.unit          # Build and run all tests
+#   make -f Makefile.unit test_str # Build and run str tests only
+#   make -f Makefile.unit clean    # Remove build artifacts
+#
+# From the top-level Makefile:
+#   make unit-test
+
+CC      ?= gcc
+CFLAGS  := -Wall -Wextra -std=c99 -g -I../include -I../src/common \
+           -DPLATFORM_LINUX -DONION_VERSION="\"test\"" -D_GNU_SOURCE
+LDFLAGS :=
+
+BUILD_DIR := ../build_test
+
+# Source files for common utils (no SDL dependency)
+COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
+
+# Test targets
+TESTS := test_str test_perf
+
+.PHONY: all clean $(TESTS)
+
+all: $(TESTS)
+
+test_str: $(BUILD_DIR)/test_str
+	@echo ""
+	@$(BUILD_DIR)/test_str
+
+test_perf: $(BUILD_DIR)/test_perf
+	@echo ""
+	@$(BUILD_DIR)/test_perf
+
+$(BUILD_DIR)/test_str: test_str.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_str.c $(COMMON_SRCS) $(LDFLAGS)
+
+$(BUILD_DIR)/test_perf: test_perf.c onion_test.h ../src/common/utils/perf.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DPERF_ENABLED -o $@ test_perf.c $(LDFLAGS)
+
+clean:
+	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf

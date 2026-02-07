@@ -12,6 +12,7 @@
 #include "utils/hash.h"
 #include "utils/log.h"
 #include "utils/neon_pixel.h"
+#include "utils/perf.h"
 #include "utils/process.h"
 #include "utils/str.h"
 
@@ -96,6 +97,7 @@ uint32_t *__screenshot_buffer(void)
  */
 bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool do_rotate180)
 {
+    PERF_START("screenshot_save");
     uint32_t *src;
     uint32_t line_buffer[g_display.width], x, y;
 
@@ -153,6 +155,7 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool d
     fsync(fileno(fp));
     fclose(fp);
 
+    PERF_END("screenshot_save");
     return true;
 }
 
