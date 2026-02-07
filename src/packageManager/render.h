@@ -133,7 +133,9 @@ void showScroller(void)
     }
 
     float markerSlice = 323.0 / (float)(package_count[nTab]);
-    float markerOffset = 0.5 * markerSlice - (float)surfaceMarker->h / 2;
+    float markerOffset = surfaceMarker != NULL
+        ? 0.5 * markerSlice - (float)surfaceMarker->h / 2
+        : 0;
 
     for (int i = 0; i < package_count[nTab]; i++) {
         Package *package = &packages[nTab][i];

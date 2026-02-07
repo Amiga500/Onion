@@ -66,6 +66,10 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
     while (fgets(path, sizeof(path), find) != NULL) {
         path[strcspn(path, "\n")] = '\0'; // Remove trailing newline character
 
+        // Reject paths containing single quotes to prevent shell injection
+        if (strchr(path, '\'') != NULL)
+            continue;
+
         // Check if the file contains the string '"shortname":1'
         snprintf(command, sizeof(command), "grep -q '\"shortname\":[[:space:]]*1' '%s'", path);
         if (system(command) == 0) {
@@ -262,6 +266,10 @@ int createCopyFile(const char* src_path, const char* dst_path) {
         // Destination file already exists
         return 0;
     }
+
+    // Reject paths containing single quotes to prevent shell injection
+    if (strchr(src_path, '\'') != NULL || strchr(dst_path, '\'') != NULL)
+        return -1;
 
     // Create the destination file as a copy of the source file
     char command[1024];

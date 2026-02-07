@@ -1,4 +1,4 @@
-# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–26)
+# 🚀 Onion OS — Security & Performance Hardening Report (Sessions 14–27)
 
 **Fork:** [Amiga500/Onion](https://github.com/Amiga500/Onion)  
 **Branch:** `copilot/continue-work-on-feature`  
@@ -539,3 +539,24 @@ cat /mnt/SDCARD/.tmp_update/logs/perf.log | sort -t, -k3 -n | tail -20
 | `update_networking.sh` | 569 | `rm $sysdir/config/.tz_sync` | `rm "$sysdir/config/.tz_sync"` |
 | `ota_update.sh` | 35 | `rm $sysdir/cmd_to_run.sh` | `rm "$sysdir/cmd_to_run.sh"` |
 | `run_advmenu.sh` | 6 | `rm $sysdir/cmd_to_run.sh` | `rm "$sysdir/cmd_to_run.sh"` |
+
+---
+
+## Appendix: Session 27 — P2 Remaining Items
+
+### 💥 NULL Dereference Fix: packageManager surfaceMarker
+
+| File | Line | Before | After |
+|------|------|--------|-------|
+| `packageManager/render.h` | 136 | `surfaceMarker->h` dereference without NULL check | Ternary guard: `surfaceMarker != NULL ? ... : 0` |
+
+**Impact:** Prevents crash if `res/marker.png` is missing or corrupt on SD card.
+
+### 🔒 Command Injection Hardening: gameNameList.c
+
+| Fix Site | Before | After |
+|----------|--------|-------|
+| `findFoldersWithShortname()` — `path` from `find` output | No validation before passing to `grep`/`sed` | `strchr(path, '\'')` check → `continue` |
+| `createCopyFile()` — `src_path`/`dst_path` | No validation before `system("cp '%s' '%s'")` | `strchr(path, '\'')` check → return `-1` |
+
+**Impact:** Prevents shell injection via single-quoted paths in filesystem traversal and file copy operations.
