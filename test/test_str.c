@@ -176,6 +176,36 @@ TEST(str_getLastNumber_not_found) {
     ASSERT_FALSE(ok);
 }
 
+/* ---- includeCJK ---- */
+
+TEST(includeCJK_chinese) {
+    // "你好" (hello in Chinese) in UTF-8
+    ASSERT_TRUE(includeCJK("你好"));
+}
+
+TEST(includeCJK_japanese_hiragana) {
+    // "こんにちは" (hello in Japanese hiragana) in UTF-8
+    ASSERT_TRUE(includeCJK("こんにちは"));
+}
+
+TEST(includeCJK_japanese_katakana) {
+    // "カタカナ" (katakana) in UTF-8
+    ASSERT_TRUE(includeCJK("カタカナ"));
+}
+
+TEST(includeCJK_mixed) {
+    // English with Chinese characters
+    ASSERT_TRUE(includeCJK("Game 游戏"));
+}
+
+TEST(includeCJK_no_cjk) {
+    ASSERT_FALSE(includeCJK("English Game"));
+}
+
+TEST(includeCJK_empty) {
+    ASSERT_FALSE(includeCJK(""));
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -214,6 +244,13 @@ int main(void)
 
     RUN_TEST(str_getLastNumber_found);
     RUN_TEST(str_getLastNumber_not_found);
+
+    RUN_TEST(includeCJK_chinese);
+    RUN_TEST(includeCJK_japanese_hiragana);
+    RUN_TEST(includeCJK_japanese_katakana);
+    RUN_TEST(includeCJK_mixed);
+    RUN_TEST(includeCJK_no_cjk);
+    RUN_TEST(includeCJK_empty);
 
     TEST_REPORT();
     return test_failures;
