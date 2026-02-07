@@ -286,8 +286,8 @@ void renderApplication(void)
                     status_str[len] = ' ';
                     status_str[len + 1] = ' ';
                     status_str[len + 2] = '\0';
+                    len += 2;
                 }
-                len += 2;
             }
             snprintf(status_str + len, sizeof(status_str) - len, " −%d", removals_count);
         }
