@@ -155,7 +155,9 @@ TEST(json_getDouble_exists) {
     bool success = json_getDouble(json, "pi", &result);
     
     ASSERT_TRUE(success);
-    ASSERT_GE((long)(result * 100), 314);
+    // Check that result is close to 3.14159 (within 0.01 tolerance)
+    ASSERT_GE((long)(result * 100000), 314150);
+    ASSERT_GE(314170, (long)(result * 100000));
     
     cJSON_Delete(json);
 }
@@ -261,17 +263,17 @@ TEST(json_save_and_load) {
 }
 
 TEST(json_save_null_object) {
-    // Should not crash with NULL object
+    // Should not crash with NULL object - if we reach this point, it didn't crash
     json_save(NULL, (char *)"/tmp/test.json");
-    ASSERT_TRUE(1); // If we get here, it didn't crash
+    // Test passes if no crash occurs
 }
 
 TEST(json_save_null_path) {
     cJSON *json = cJSON_CreateObject();
-    // Should not crash with NULL path
+    // Should not crash with NULL path - if we reach this point, it didn't crash
     json_save(json, NULL);
-    ASSERT_TRUE(1); // If we get here, it didn't crash
     cJSON_Delete(json);
+    // Test passes if no crash occurs
 }
 
 TEST(json_load_nonexistent) {
