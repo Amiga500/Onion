@@ -278,6 +278,189 @@ TEST(mkdirs_empty_path) {
     ASSERT_FALSE(mkdirs(""));
 }
 
+/* ---- file_readLastLine ---- */
+
+TEST(file_readLastLine_single_line) {
+    const char *tmpfile = "/tmp/onion_test_readlast.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "single line");
+    fclose(fp);
+    
+    char result[256] = {0};
+    file_readLastLine(tmpfile, result);
+    ASSERT_STREQ(result, "single line");
+    
+    unlink(tmpfile);
+}
+
+TEST(file_readLastLine_multiple_lines) {
+    const char *tmpfile = "/tmp/onion_test_readlast2.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "first line\nsecond line\nthird line");
+    fclose(fp);
+    
+    char result[256] = {0};
+    file_readLastLine(tmpfile, result);
+    ASSERT_STREQ(result, "third line");
+    
+    unlink(tmpfile);
+}
+
+TEST(file_readLastLine_empty_file) {
+    const char *tmpfile = "/tmp/onion_test_readlast3.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+    
+    char result[256] = "unchanged";
+    file_readLastLine(tmpfile, result);
+    ASSERT_STREQ(result, "unchanged");
+    
+    unlink(tmpfile);
+}
+
+TEST(file_readLastLine_with_trailing_newline) {
+    const char *tmpfile = "/tmp/onion_test_readlast4.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "line1\nline2\n");
+    fclose(fp);
+    
+    char result[256] = {0};
+    file_readLastLine(tmpfile, result);
+    ASSERT_STREQ(result, "line2");
+    
+    unlink(tmpfile);
+}
+
+/* ---- file_write ---- */
+
+TEST(file_write_basic) {
+    const char *tmpfile = "/tmp/onion_test_write.txt";
+    const char *content = "test content";
+    
+    // Create the file first since file_write doesn't create it
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+    
+    bool result = file_write(tmpfile, content, strlen(content));
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(exists(tmpfile));
+    
+    char buffer[256] = {0};
+    fp = fopen(tmpfile, "r");
+    ASSERT_NOT_NULL(fp);
+    fread(buffer, 1, strlen(content), fp);
+    fclose(fp);
+    ASSERT_STREQ(buffer, content);
+    
+    unlink(tmpfile);
+}
+
+TEST(file_write_overwrite) {
+    const char *tmpfile = "/tmp/onion_test_write2.txt";
+    
+    // Create file with initial content
+    FILE *fp = fopen(tmpfile, "w");
+    fprintf(fp, "old");
+    fclose(fp);
+    
+    file_write(tmpfile, "new", 3);
+    
+    char buffer[256] = {0};
+    fp = fopen(tmpfile, "r");
+    fread(buffer, 1, 3, fp);
+    fclose(fp);
+    ASSERT_STREQ(buffer, "new");
+    
+    unlink(tmpfile);
+}
+
+/* ---- file_copy ---- */
+
+TEST(file_copy_basic) {
+    const char *src = "/tmp/onion_test_copy_src.txt";
+    const char *dest = "/tmp/onion_test_copy_dest.txt";
+    
+    // Create source file
+    FILE *fp = fopen(src, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "copy test content");
+    fclose(fp);
+    
+    // Copy file
+    file_copy(src, dest);
+    
+    // Verify destination exists and has same content
+    ASSERT_TRUE(exists(dest));
+    char buffer[256] = {0};
+    fp = fopen(dest, "r");
+    ASSERT_NOT_NULL(fp);
+    fread(buffer, 1, 17, fp);
+    fclose(fp);
+    ASSERT_STREQ(buffer, "copy test content");
+    
+    // Cleanup
+    unlink(src);
+    unlink(dest);
+}
+
+/* ---- file_isModified ---- */
+
+TEST(file_isModified_initially_modified) {
+    const char *tmpfile = "/tmp/onion_test_modified.txt";
+    
+    // Create file
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "test");
+    fclose(fp);
+    
+    // Initial check with old time should return true
+    time_t old_mtime = 0;
+    ASSERT_TRUE(file_isModified(tmpfile, &old_mtime));
+    ASSERT_GT(old_mtime, 0);
+    
+    // Immediate check again should return false
+    ASSERT_FALSE(file_isModified(tmpfile, &old_mtime));
+    
+    unlink(tmpfile);
+}
+
+TEST(file_isModified_nonexistent) {
+    time_t old_mtime = 0;
+    ASSERT_FALSE(file_isModified("/tmp/nonexistent_file_12345.txt", &old_mtime));
+}
+
+/* ---- file_cleanName ---- */
+
+TEST(file_cleanName_basic) {
+    char result[256];
+    file_cleanName(result, "Game (USA).gba");
+    ASSERT_STREQ(result, "Game");
+}
+
+TEST(file_cleanName_brackets) {
+    char result[256];
+    file_cleanName(result, "Game [Rev 1].rom");
+    ASSERT_STREQ(result, "Game");
+}
+
+TEST(file_cleanName_no_parens) {
+    char result[256];
+    file_cleanName(result, "SimpleName.zip");
+    ASSERT_STREQ(result, "SimpleName");
+}
+
+TEST(file_cleanName_with_underscores) {
+    char result[256];
+    file_cleanName(result, "Game_Name_Test.gba");
+    ASSERT_STREQ(result, "Game Name Test");
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -326,6 +509,24 @@ int main(void)
 
     RUN_TEST(mkdirs_creates_directory);
     RUN_TEST(mkdirs_empty_path);
+
+    RUN_TEST(file_readLastLine_single_line);
+    RUN_TEST(file_readLastLine_multiple_lines);
+    RUN_TEST(file_readLastLine_empty_file);
+    RUN_TEST(file_readLastLine_with_trailing_newline);
+
+    RUN_TEST(file_write_basic);
+    RUN_TEST(file_write_overwrite);
+
+    RUN_TEST(file_copy_basic);
+
+    RUN_TEST(file_isModified_initially_modified);
+    RUN_TEST(file_isModified_nonexistent);
+
+    RUN_TEST(file_cleanName_basic);
+    RUN_TEST(file_cleanName_brackets);
+    RUN_TEST(file_cleanName_no_parens);
+    RUN_TEST(file_cleanName_with_underscores);
 
     TEST_REPORT();
     return test_failures;
