@@ -89,6 +89,7 @@ static AppState appState = {
 
 static void sigHandler(int sig)
 {
+    // Custom handler: gameSwitcher needs to set both exit_to_menu and quit flags
     if (sig == SIGINT || sig == SIGTERM) {
         appState.exit_to_menu = true;
         appState.quit = true;
