@@ -113,7 +113,12 @@ get_release_info() {
 
 	# Github source api url
 	if [ "$channel" = "beta" ]; then
-		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/latest)
+		# Get the latest prerelease (beta) release
+		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '.[0]' | jq 'select(.prerelease == true)')
+		if [ -z "$Release_assets_info" ] || [ "$Release_assets_info" = "null" ]; then
+			# If no prerelease found, get the first release (could be stable or beta)
+			Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '.[0]')
+		fi
 	else
 		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest)
 	fi
