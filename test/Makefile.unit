@@ -22,7 +22,7 @@ BUILD_DIR := ../build_test
 COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
 
 # Test targets
-TESTS := test_str test_perf
+TESTS := test_str test_perf test_file test_hash
 
 .PHONY: all clean $(TESTS)
 
@@ -36,6 +36,14 @@ test_perf: $(BUILD_DIR)/test_perf
 	@echo ""
 	@$(BUILD_DIR)/test_perf
 
+test_file: $(BUILD_DIR)/test_file
+	@echo ""
+	@$(BUILD_DIR)/test_file
+
+test_hash: $(BUILD_DIR)/test_hash
+	@echo ""
+	@$(BUILD_DIR)/test_hash
+
 $(BUILD_DIR)/test_str: test_str.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_str.c $(COMMON_SRCS) $(LDFLAGS)
@@ -44,5 +52,13 @@ $(BUILD_DIR)/test_perf: test_perf.c onion_test.h ../src/common/utils/perf.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -DPERF_ENABLED -o $@ test_perf.c $(LDFLAGS)
 
+$(BUILD_DIR)/test_file: test_file.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_file.c $(COMMON_SRCS) $(LDFLAGS)
+
+$(BUILD_DIR)/test_hash: test_hash.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_hash.c $(LDFLAGS)
+
 clean:
-	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf
+	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash
