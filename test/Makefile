@@ -1,15 +1,29 @@
-TEST = 1
-INCLUDE_UTILS = 0
+# Check if gtest is available (once at parse time)
+GTEST_AVAILABLE := $(shell printf '\#include <gtest/gtest.h>\n' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null && echo yes)
 
-# Explicitly list source files — do NOT auto-discover from current directory,
-# because test_str.c/test_perf.c use a different test framework (onion_test.h).
-SOURCES =
-CFILES := ../src/infoPanel/imagesCache.c ../src/common/utils/log.c ../src/common/utils/file.c ../src/common/utils/str.c
-CPPFILES := test_infoPanel.cpp
-include ../src/common/config.mk
+.PHONY: all check-gtest clean
 
-TARGET = test_infoPanel
-LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lSDL_rotozoom -lgtest -lgtest_main -lpthread
+# Default target when running 'make' without arguments
+all: check-gtest
 
-include ../src/common/commands.mk
-include ../src/common/recipes.mk
+# Check if gtest is available, then build or skip
+check-gtest:
+	@if [ "$(GTEST_AVAILABLE)" = "yes" ]; then \
+		echo "-- GTest found, building test_infoPanel"; \
+		$(MAKE) -f Makefile.gtest; \
+	else \
+		echo "-- GTest not found, skipping test_infoPanel (install libgtest-dev to enable)"; \
+	fi
+
+# Allow clean to work without gtest
+clean:
+	@$(MAKE) -f Makefile.gtest clean 2>/dev/null || true
+
+# Pass build-related targets to Makefile.gtest if gtest is available
+dev asan build:
+	@if [ "$(GTEST_AVAILABLE)" = "yes" ]; then \
+		$(MAKE) -f Makefile.gtest $@; \
+	else \
+		echo "-- GTest not found, cannot build test_infoPanel (install libgtest-dev to enable)"; \
+		exit 1; \
+	fi
