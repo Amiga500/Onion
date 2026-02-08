@@ -63,3 +63,12 @@ Stable releases continue to work as before:
 - Triggered by pushing tags like `v*` or `stable`
 - Managed by the `tagged-release.yml` workflow
 - Creates permanent, non-prerelease releases
+
+## Known Issues (Resolved)
+
+### Extra Dash in Release Filename
+**Issue**: Previous versions of the workflow generated filenames with an extra dash before `.zip` (e.g., `Onion-v4.4.0-beta-20260120-.zip`)
+
+**Cause**: The workflow tried to extract the commit SHA from `origin/main`, but this repository uses `OniOpus46` as the default branch. This resulted in an empty SHA_SHORT variable.
+
+**Resolution**: Fixed in the workflow to use `HEAD` instead of `origin/main` for SHA extraction. New releases will have proper filenames like `Onion-v4.4.0-beta-20260120-abc1234.zip`.
