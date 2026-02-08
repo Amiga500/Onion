@@ -206,6 +206,56 @@ TEST(includeCJK_empty) {
     ASSERT_FALSE(includeCJK(""));
 }
 
+/* ---- str_serializeTime ---- */
+
+TEST(str_serializeTime_seconds_only) {
+    char result[STR_MAX];
+    str_serializeTime(result, 30);
+    ASSERT_STREQ(result, "30s");
+}
+
+TEST(str_serializeTime_zero) {
+    char result[STR_MAX];
+    str_serializeTime(result, 0);
+    ASSERT_STREQ(result, "0s");
+}
+
+TEST(str_serializeTime_one_minute) {
+    char result[STR_MAX];
+    str_serializeTime(result, 60);
+    ASSERT_STREQ(result, "1m 0s");
+}
+
+TEST(str_serializeTime_minutes_and_seconds) {
+    char result[STR_MAX];
+    str_serializeTime(result, 150);
+    ASSERT_STREQ(result, "2m 30s");
+}
+
+TEST(str_serializeTime_one_hour) {
+    char result[STR_MAX];
+    str_serializeTime(result, 3600);
+    ASSERT_STREQ(result, "1h 0m");
+}
+
+TEST(str_serializeTime_hours_and_minutes) {
+    char result[STR_MAX];
+    str_serializeTime(result, 3900);
+    ASSERT_STREQ(result, "1h 5m");
+}
+
+TEST(str_serializeTime_multiple_hours) {
+    char result[STR_MAX];
+    str_serializeTime(result, 7325);
+    ASSERT_STREQ(result, "2h 2m");
+}
+
+TEST(str_serializeTime_large_value) {
+    char result[STR_MAX];
+    str_serializeTime(result, 86400);
+    ASSERT_STREQ(result, "24h 0m");
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -251,6 +301,15 @@ int main(void)
     RUN_TEST(includeCJK_mixed);
     RUN_TEST(includeCJK_no_cjk);
     RUN_TEST(includeCJK_empty);
+
+    RUN_TEST(str_serializeTime_seconds_only);
+    RUN_TEST(str_serializeTime_zero);
+    RUN_TEST(str_serializeTime_one_minute);
+    RUN_TEST(str_serializeTime_minutes_and_seconds);
+    RUN_TEST(str_serializeTime_one_hour);
+    RUN_TEST(str_serializeTime_hours_and_minutes);
+    RUN_TEST(str_serializeTime_multiple_hours);
+    RUN_TEST(str_serializeTime_large_value);
 
     TEST_REPORT();
     return test_failures;
