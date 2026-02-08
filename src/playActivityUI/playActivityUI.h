@@ -9,7 +9,6 @@
 #include <linux/fb.h>
 #include <linux/input.h>
 #include <math.h>
-#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -24,6 +23,7 @@
 #include "utils/file.h"
 #include "utils/keystate.h"
 #include "utils/log.h"
+#include "utils/signal_handler.h"
 #include "utils/str.h"
 
 #include "../playActivity/playActivityDB.h"
