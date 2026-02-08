@@ -26,6 +26,7 @@
 #include "utils/file.h"
 #include "utils/log.h"
 #include "utils/msleep.h"
+#include "utils/signal_handler.h"
 
 #define RELEASED 0
 #define PRESSED 1
@@ -70,14 +71,7 @@ void suspend(bool enabled, SDL_Surface *video)
 
 static void sigHandler(int sig)
 {
-    switch (sig) {
-    case SIGINT:
-    case SIGTERM:
-        quit = true;
-        break;
-    default:
-        break;
-    }
+    signal_handler_quit(&quit, sig);
 }
 
 int main(void)
