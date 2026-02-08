@@ -1,5 +1,5 @@
 # Check if gtest is available
-GTEST_CHECK = echo '\#include <gtest/gtest.h>' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null
+GTEST_CHECK = printf '\#include <gtest/gtest.h>\n' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null
 
 .PHONY: all check-gtest clean
 
