@@ -69,6 +69,13 @@ make
 
 ### Installing gtest on Ubuntu/Debian
 
+**Modern Ubuntu (20.04+):**
+```bash
+sudo apt-get install libgtest-dev
+```
+
+Most recent distributions include pre-built binaries. For older versions or custom builds:
+
 ```bash
 sudo apt-get install build-essential libgtest-dev cmake
 cd /usr/src/gtest

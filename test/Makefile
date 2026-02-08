@@ -1,3 +1,6 @@
+# Check if gtest is available
+GTEST_CHECK = echo '\#include <gtest/gtest.h>' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null
+
 .PHONY: all check-gtest clean
 
 # Default target when running 'make' without arguments
@@ -5,7 +8,7 @@ all: check-gtest
 
 # Check if gtest is available, then build or skip
 check-gtest:
-	@if echo '#include <gtest/gtest.h>' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null; then \
+	@if $(GTEST_CHECK); then \
 		echo "-- GTest found, building test_infoPanel"; \
 		$(MAKE) -f Makefile.gtest; \
 	else \
@@ -18,7 +21,7 @@ clean:
 
 # Pass build-related targets to Makefile.gtest if gtest is available
 dev asan build:
-	@if echo '#include <gtest/gtest.h>' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null; then \
+	@if $(GTEST_CHECK); then \
 		$(MAKE) -f Makefile.gtest $@; \
 	else \
 		echo "-- GTest not found, cannot build test_infoPanel (install libgtest-dev to enable)"; \
