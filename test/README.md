@@ -78,10 +78,12 @@ Most recent distributions include pre-built binaries. For older versions or cust
 
 ```bash
 sudo apt-get install build-essential libgtest-dev cmake
-cd /usr/src/gtest
+cd /usr/src/gtest  # Path may vary by distribution
 sudo cmake CMakeLists.txt && sudo make
-sudo cp lib/*.a /usr/lib
+sudo cp lib/*.a /usr/lib  # Output directory may vary
 ```
+
+**Note:** Paths and directory structure may differ depending on your distribution and gtest version. Consult your distribution's documentation if the above paths don't exist.
 
 ## CI/CD
 
