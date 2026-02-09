@@ -67,8 +67,7 @@ void _runCommandPopup(const char *tool_name, const char *_cmd)
     _toolDialog(full_title, msg_apply, false);
 
     char cmd[STR_MAX];
-    strncpy(cmd, _cmd, STR_MAX - 1);
-    cmd[STR_MAX - 1] = '\0';
+    snprintf(cmd, STR_MAX, "%s", _cmd);
     thread_active = true;
     int ret = pthread_create(&romscreen_thread_pt, NULL, _runCommandThread, cmd);
     if (ret != 0) {
