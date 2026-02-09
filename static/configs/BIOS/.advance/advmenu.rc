@@ -41,6 +41,10 @@ event_assign mute period_pad
 event_assign volume none
 event_assign difficulty none
 misc_quiet yes
+misc_merge default
+idle_start 1.0
+idle_screensaver 0
+idle_screensaver_preview snap
 mode tile_tiny
 Arcade/mode_skip full_mixed list_mixed title_enormous title_giant title_icon title_marquee
 sound_background_loop none
