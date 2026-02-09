@@ -80,7 +80,11 @@ AdvanceMAME requires MAME 0.106 romset to work, you can find some rompacks on th
 
 If you download the complete romset I recommend you run BestArcade (https://github.com/Voljega/BestArcade) to remove clones, duplicates and not working roms. This will not guarantee that every ROM will run on the Mini but it's a good start.
 
-For PSX, if you use .m3u files and you don't want to have duplicates, you will need to edit `BIOS\.advance\advmenu.rc`, find `emulator_roms_filter "PSX"` and leave only `*.m3u`. 
+:::tip Multi-disc Game Handling
+For multi-disc games (PSX, Amiga, Sega CD, etc.), AdvanceMENU now **automatically prioritizes .m3u playlist files** to prevent duplicate entries. When both .m3u and individual disc files (.cue, .iso, .bin) are present, only the .m3u file will be shown in the game list.
+
+This happens automatically during system configuration - no manual editing required!
+:::
 
 
 
