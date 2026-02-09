@@ -28,12 +28,15 @@ find . -name config.json -type f -exec dirname {} \; | sort -t/ -k4 | (
     
         emuname=`basename "$emupath"`
 
+        # Escape regex special characters in emuname for safe pattern matching
+        emuname_escaped=$(printf '%s\n' "$emuname" | sed 's/[.[{\^$|?*+()]/\\&/g')
+
         # Remove any existing entries for this emulator to prevent duplicates
-        if grep -q "^emulator[_a-z]* \"$emuname\"" "$advmenu_rc" 2>/dev/null; then
+        if grep -q "^emulator[_a-z]* \"$emuname_escaped\"" "$advmenu_rc" 2>/dev/null; then
             # Create temporary file without the existing entries for this emulator
             # Match lines starting with emulator directives followed by the emulator name
             # Note: grep -v returns 1 if all lines match (resulting in empty output), which is valid
-            grep -v "^emulator[_a-z]* \"$emuname\"" "$advmenu_rc" > "$advmenu_rc.tmp"
+            grep -v "^emulator[_a-z]* \"$emuname_escaped\"" "$advmenu_rc" > "$advmenu_rc.tmp"
             grep_exit=$?
             if [ $grep_exit -eq 0 ] || [ $grep_exit -eq 1 ]; then
                 # Success (0) or all lines matched/empty result (1) are both valid
