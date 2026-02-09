@@ -138,7 +138,8 @@ int suspend(uint32_t mode)
                         }
                     }
                     else {
-                        if (suspendpid[0] < PIDMAX) {
+                        // PIDMAX-1 because index 0 is used for count, so max index is PIDMAX-1
+                        if (suspendpid[0] < PIDMAX - 1) {
                             suspendpid[++suspendpid[0]] = pid;
                             kill(pid, SIGSTOP);
                             ret++;

@@ -346,7 +346,8 @@ int main(int argc, char *argv[])
 
         if (levelPage == 0) {
             if (previews[current_page] == NULL) {
-                SDL_BlitSurface(noPreview, NULL, screen, &rectThemePreview);
+                if (noPreview != NULL)
+                    SDL_BlitSurface(noPreview, NULL, screen, &rectThemePreview);
             }
             else {
                 SDL_BlitSurface(previews[current_page], &preview_src_rect, screen, &rectThemePreview);

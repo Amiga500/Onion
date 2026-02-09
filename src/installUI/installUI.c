@@ -286,6 +286,7 @@ int main(int argc, char *argv[])
         SDL_FreeSurface(slide);
     }
     SDL_FreeSurface(waiting_bg);
+    SDL_FreeSurface(progress_stripes);
     SDL_FreeSurface(surface_version);
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);
