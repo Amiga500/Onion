@@ -63,6 +63,10 @@ int main(int argc, char *argv[])
     appState.view_mode = appState.view_restore = config_flag_get("gameSwitcher/minimal") ? VIEW_MINIMAL : VIEW_NORMAL;
 
     appState.transparent_bg = SDL_CreateRGBSurface(0, g_display.width, g_display.height, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+    if (appState.transparent_bg == NULL) {
+        fprintf(stderr, "Failed to create transparent background surface: %s\n", SDL_GetError());
+        return EXIT_FAILURE;
+    }
     SDL_FillRect(appState.transparent_bg, NULL, 0xBE000000);
 
     int battery_percentage = battery_getPercentage();

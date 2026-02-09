@@ -279,6 +279,12 @@ void action_saveGame(void *_)
     pthread_create(&save_thread, NULL, _save_thread, NULL);
 
     SDL_Surface *bg = SDL_CreateRGBSurface(SDL_SWSURFACE, g_display.width, g_display.height, 32, 0, 0, 0, 0);
+    if (bg == NULL) {
+        fprintf(stderr, "Failed to create background surface: %s\n", SDL_GetError());
+        // Wait for save thread to complete before returning
+        pthread_join(save_thread, NULL);
+        return;
+    }
     SDL_BlitSurface(screen, NULL, bg, NULL);
 
     theme_clearDialogProgress();

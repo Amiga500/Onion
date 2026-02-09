@@ -121,6 +121,12 @@ void overlay_resume(void)
         if (autosave_thread_running) {
             // backup screen SDL_Surface
             SDL_Surface *screen_backup = SDL_CreateRGBSurface(SDL_SWSURFACE, screen->w, screen->h, 32, 0, 0, 0, 0);
+            if (screen_backup == NULL) {
+                fprintf(stderr, "Failed to create screen backup surface: %s\n", SDL_GetError());
+                // Continue without backup - wait for autosave anyway
+                pthread_join(autosave_thread_pt, NULL);
+                return;
+            }
             SDL_BlitSurface(screen, NULL, screen_backup, NULL);
 
             render_showFullscreenMessage("SAVING", false);
