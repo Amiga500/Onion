@@ -15,6 +15,11 @@ void __showInfoDialog(const char *title, const char *message)
     keys_enabled = false;
 
     background_cache = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+    if (background_cache == NULL) {
+        printf("Failed to create background cache surface\n");
+        keys_enabled = true;
+        return;
+    }
     SDL_BlitSurface(screen, NULL, background_cache, NULL);
 
     theme_renderDialog(screen, title, message, false);
@@ -30,6 +35,8 @@ void __showInfoDialog(const char *title, const char *message)
         }
     }
 
+    SDL_FreeSurface(background_cache);
+    background_cache = NULL;
     keys_enabled = true;
     all_changed = true;
 }

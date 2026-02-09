@@ -153,6 +153,11 @@ void _action_apply_icon_pack(void *_item)
 
     SDL_Surface *background_cache =
         SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+    if (background_cache == NULL) {
+        printf("Failed to create background cache surface\n");
+        keys_enabled = true;
+        return;
+    }
     SDL_BlitSurface(screen, NULL, background_cache, NULL);
 
     theme_renderDialog(screen, item->label,
