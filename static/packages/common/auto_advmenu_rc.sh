@@ -32,10 +32,14 @@ find . -name config.json -type f -exec dirname {} \; | sort -t/ -k4 | (
         if grep -q "^emulator[_a-z]* \"$emuname\"" "$advmenu_rc" 2>/dev/null; then
             # Create temporary file without the existing entries for this emulator
             # Match lines starting with emulator directives followed by the emulator name
-            if grep -v "^emulator[_a-z]* \"$emuname\"" "$advmenu_rc" > "$advmenu_rc.tmp" && [ -s "$advmenu_rc.tmp" ]; then
+            # Note: grep -v returns 1 if all lines match (resulting in empty output), which is valid
+            grep -v "^emulator[_a-z]* \"$emuname\"" "$advmenu_rc" > "$advmenu_rc.tmp"
+            grep_exit=$?
+            if [ $grep_exit -eq 0 ] || [ $grep_exit -eq 1 ]; then
+                # Success (0) or all lines matched/empty result (1) are both valid
                 mv "$advmenu_rc.tmp" "$advmenu_rc"
             else
-                # If grep fails or results in empty file, remove temp file and continue
+                # grep failed for other reasons, remove temp file and keep original
                 rm -f "$advmenu_rc.tmp"
             fi
         fi
