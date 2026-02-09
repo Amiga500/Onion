@@ -21,6 +21,11 @@ bool _confirmReset(const char *title_str, const char *message_str)
     keys_enabled = false;
 
     background_cache = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+    if (background_cache == NULL) {
+        printf("Failed to create background cache surface\n");
+        keys_enabled = true;
+        return false;
+    }
     SDL_BlitSurface(screen, NULL, background_cache, NULL);
 
     theme_renderDialog(screen, title_str, message_str, true);
@@ -48,6 +53,9 @@ bool _confirmReset(const char *title_str, const char *message_str)
         SDL_Flip(video);
     }
     else {
+        // Clean up if user cancelled
+        SDL_FreeSurface(background_cache);
+        background_cache = NULL;
         keys_enabled = true;
         all_changed = true;
     }
@@ -57,13 +65,16 @@ bool _confirmReset(const char *title_str, const char *message_str)
 
 void _notifyResetDone(const char *title_str)
 {
-    SDL_BlitSurface(background_cache, NULL, screen, NULL);
-    theme_renderDialog(screen, title_str, "Done", false);
-    SDL_BlitSurface(screen, NULL, video, NULL);
-    SDL_Flip(video);
-    msleep(300);
+    if (background_cache != NULL) {
+        SDL_BlitSurface(background_cache, NULL, screen, NULL);
+        theme_renderDialog(screen, title_str, "Done", false);
+        SDL_BlitSurface(screen, NULL, video, NULL);
+        SDL_Flip(video);
+        msleep(300);
 
-    SDL_FreeSurface(background_cache);
+        SDL_FreeSurface(background_cache);
+        background_cache = NULL;
+    }
     keys_enabled = true;
     all_changed = true;
 

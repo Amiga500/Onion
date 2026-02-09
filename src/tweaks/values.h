@@ -316,7 +316,7 @@ int value_getLcdVoltage(void)
 
 void value_setLcdVoltage(void)
 {
-    FILE *fp;
+    FILE *fp = NULL;
     int value;
 
     if (!is_file(LCD_VOLT_CONFIG))

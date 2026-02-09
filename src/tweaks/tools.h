@@ -39,6 +39,10 @@ void _toolDialog(const char *title_str, const char *message_str,
     if (_tool_bg_cache == NULL) {
         _tool_bg_cache =
             SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+        if (_tool_bg_cache == NULL) {
+            printf("Failed to create tool background cache surface\n");
+            return;
+        }
         SDL_BlitSurface(screen, NULL, _tool_bg_cache, NULL);
     }
 
@@ -64,8 +68,15 @@ void _runCommandPopup(const char *tool_name, const char *_cmd)
 
     char cmd[STR_MAX];
     strncpy(cmd, _cmd, STR_MAX - 1);
+    cmd[STR_MAX - 1] = '\0';
     thread_active = true;
-    pthread_create(&romscreen_thread_pt, NULL, _runCommandThread, cmd);
+    int ret = pthread_create(&romscreen_thread_pt, NULL, _runCommandThread, cmd);
+    if (ret != 0) {
+        printf("Failed to create thread: %d\n", ret);
+        thread_active = false;
+        keys_enabled = true;
+        return;
+    }
 
     theme_clearDialogProgress();
 

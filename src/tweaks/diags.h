@@ -51,11 +51,11 @@ void diags_getEntries(void)
                     if (strcmp(line, "# IGNORE") == 0) {
                         break;
                     }
-                    if (sscanf(line, "menulabel=\"%64[^\"]\"", entry.label) == 1) {
+                    if (sscanf(line, "menulabel=\"%63[^\"]\"", entry.label) == 1) {
                         entry.label[DIAG_MAX_LABEL_LENGTH - 1] = '\0';
                         continue;
                     }
-                    if (sscanf(line, "tooltip=\"%256[^\"]\"", entry.tooltip) == 1) {
+                    if (sscanf(line, "tooltip=\"%255[^\"]\"", entry.tooltip) == 1) {
                         entry.tooltip[STR_MAX - 1] = '\0';
                         continue;
                     }

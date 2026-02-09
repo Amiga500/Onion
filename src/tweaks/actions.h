@@ -35,7 +35,8 @@ void action_setAppShortcut(void *pt)
 
     if (value < installed_apps_count) {
         strncpy(sett_pt, "app:", JSON_STRING_LEN - 1);
-        strncat(sett_pt, apps[value].dirName, JSON_STRING_LEN - 5);
+        sett_pt[JSON_STRING_LEN - 1] = '\0';
+        strncat(sett_pt, apps[value].dirName, JSON_STRING_LEN - strlen(sett_pt) - 1);
         return;
     }
 
@@ -43,7 +44,8 @@ void action_setAppShortcut(void *pt)
 
     if (value < NUM_TOOLS) {
         strncpy(sett_pt, "tool:", JSON_STRING_LEN - 1);
-        strncat(sett_pt, tools_short_names[value], JSON_STRING_LEN - 6);
+        sett_pt[JSON_STRING_LEN - 1] = '\0';
+        strncat(sett_pt, tools_short_names[value], JSON_STRING_LEN - strlen(sett_pt) - 1);
         return;
     }
 
@@ -373,7 +375,7 @@ void action_advancedSetFrameThrottle(void *pt)
 
 void action_advancedSetPWMFreqency(void *pt)
 {
-    FILE *fp;
+    FILE *fp = NULL;
     int item_value = ((ListItem *)pt)->value;
     int pwmfrequency = (int)strtol(((ListItem *)pt)->value_labels[item_value], NULL, 10);
     char *filename = "/sys/class/pwm/pwmchip0/pwm0/period";
@@ -501,7 +503,7 @@ void action_advancedSetLcdVoltage(void *pt)
 
     config_flag_set(".lcdvolt", true);
 
-    FILE *fp;
+    FILE *fp = NULL;
     file_put(fp, LCD_VOLT_CONFIG, "%x", 0x0e);
 }
 
