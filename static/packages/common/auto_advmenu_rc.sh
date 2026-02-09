@@ -28,8 +28,11 @@ find . -name config.json -type f -exec dirname {} \; | sort -t/ -k4 | (
     
         emuname=`basename "$emupath"`
 
+        # Remove any existing entries for this emulator to prevent duplicates
         if echo `cat "$advmenu_rc"` | grep -q "emulator \"$emuname\""; then
-            continue
+            # Create temporary file without the existing entries for this emulator
+            grep -v "\"$emuname\"" "$advmenu_rc" > "$advmenu_rc.tmp"
+            mv "$advmenu_rc.tmp" "$advmenu_rc"
         fi
 
         rel_dir="/mnt/SDCARD/$dir_name/$emuname"
