@@ -66,12 +66,34 @@ void init(void)
     }
 
     waiting_screen = IMG_Load("./res/waiting_screen.png");
+    if (waiting_screen == NULL) {
+        fprintf(stderr, "Failed to load waiting_screen.png: %s\n", IMG_GetError());
+    }
+    
     background = IMG_Load("./res/background.png");
+    if (background == NULL) {
+        fprintf(stderr, "Failed to load background.png: %s\n", IMG_GetError());
+    }
+    
     right_arrow = IMG_Load("./res/right_arrow.png");
+    if (right_arrow == NULL) {
+        fprintf(stderr, "Failed to load right_arrow.png: %s\n", IMG_GetError());
+    }
+    
     left_arrow = IMG_Load("./res/left_arrow.png");
+    if (left_arrow == NULL) {
+        fprintf(stderr, "Failed to load left_arrow.png: %s\n", IMG_GetError());
+    }
+    
     end_graph = IMG_Load("./res/end.png");
+    if (end_graph == NULL) {
+        fprintf(stderr, "Failed to load end.png: %s\n", IMG_GetError());
+    }
 
     font_Arkhip = TTF_OpenFont("./res/Arkhip_font.ttf", 15);
+    if (font_Arkhip == NULL) {
+        fprintf(stderr, "Failed to load font: %s\n", TTF_GetError());
+    }
 }
 
 void free_resources(void)
@@ -203,7 +225,7 @@ void render_waiting_screen()
         SDL_BlitSurface(waiting_screen, NULL, screen, NULL);
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
-    sleep(1.5);
+    usleep(1500000);  // 1.5 seconds in microseconds
 }
 
 int battery_to_pixel(int battery_perc)

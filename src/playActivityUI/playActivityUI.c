@@ -147,9 +147,11 @@ void renderPage(int current_page)
         renderTextAlignRight(num_str, font40, color_purple, &(SDL_Rect){num_width, 80 + 90 * row, 50, 39});
 
         SDL_Surface *romImage = loadRomImage(rom->image_path);
-        SDL_Rect rectRomImage = {num_width + 10 + (80 - romImage->w) / 2, 70 + 90 * row, 80, 80};
-        SDL_BlitSurface(romImage, NULL, screen, &rectRomImage);
-        SDL_FreeSurface(romImage);
+        if (romImage != NULL) {
+            SDL_Rect rectRomImage = {num_width + 10 + (80 - romImage->w) / 2, 70 + 90 * row, 80, 80};
+            SDL_BlitSurface(romImage, NULL, screen, &rectRomImage);
+            SDL_FreeSurface(romImage);
+        }
 
         if (show_raw_names)
             strncpy(rom_name, rom->name, STR_MAX - 1);

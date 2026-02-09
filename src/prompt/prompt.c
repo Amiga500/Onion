@@ -119,8 +119,14 @@ int main(int argc, char *argv[])
         }
         if (pargc < MAX_ELEMENTS && strlen(argv[i]) > 0) {
             pargs[pargc] = malloc((STR_MAX + 1) * sizeof(char));
-            if (pargs[pargc] == NULL)
-                break;
+            if (pargs[pargc] == NULL) {
+                // Free all previously allocated memory before exiting
+                for (int j = 0; j < pargc; j++) {
+                    free(pargs[j]);
+                }
+                free(pargs);
+                return EXIT_FAILURE;
+            }
             strncpy(pargs[pargc], argv[i], STR_MAX);
             pargs[pargc][STR_MAX] = '\0';
             pargc++;
@@ -209,6 +215,8 @@ int main(int argc, char *argv[])
     input_fd = open("/dev/input/event0", O_RDONLY);
     if (input_fd < 0) {
         fprintf(stderr, "Failed to open input device: %s\n", strerror(errno));
+        // Clean up SDL resources before returning
+        SDL_Quit();
         return EXIT_FAILURE;
     }
     struct input_event ev;
