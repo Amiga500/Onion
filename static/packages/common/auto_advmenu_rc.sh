@@ -41,6 +41,15 @@ find . -name config.json -type f -exec dirname {} \; | sort -t/ -k4 | (
             if echo "$extlist" | grep -q '\bmiyoocmd\b'; then
                 extlist=`echo "$extlist" | sed -e 's/miyoocmd//g' -e 's/||*/|/g' -e 's/^|//g' -e 's/|$//g'`
             fi
+            
+            # Prioritize .m3u for multi-disc games to avoid duplicates
+            # If m3u is present, remove other disc image formats that would create duplicates
+            if echo "$extlist" | grep -q '\bm3u\b'; then
+                # Remove disc formats that m3u replaces: cue, bin, iso, img, ccd, mdf, nrg, mds, chd
+                # Keep formats that are independent: pbp, adf, adz, dms, fdi, ipf, hdf, hdz, lha, slave, info, uae, rp9, zip, 7z
+                extlist=`echo "$extlist" | sed -e 's/|cue//g' -e 's/|bin//g' -e 's/|iso//g' -e 's/|img//g' -e 's/|ccd//g' -e 's/|mdf//g' -e 's/|nrg//g' -e 's/|mds//g' -e 's/|chd//g' -e 's/|toc//g' -e 's/|cbn//g' -e 's/cue|//g' -e 's/bin|//g' -e 's/iso|//g' -e 's/img|//g' -e 's/ccd|//g' -e 's/mdf|//g' -e 's/nrg|//g' -e 's/mds|//g' -e 's/chd|//g' -e 's/toc|//g' -e 's/cbn|//g' -e 's/||*/|/g' -e 's/^|//g' -e 's/|$//g'`
+            fi
+            
             extlist="*.${extlist//|/\:\*.}"
         fi
 
