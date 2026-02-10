@@ -127,3 +127,32 @@ For PSX, if you use .m3u files and you don't want to have duplicates, you will n
 </table>
 
 
+
+## Troubleshooting
+
+### AdvanceMENU shows loading then returns to menu
+
+If AdvanceMENU briefly shows "LOADING" and then returns to the main menu without opening, check the log file at:
+
+```
+/mnt/SDCARD/.tmp_update/logs/advmenu.log
+```
+
+This log captures all output from AdvanceMENU, including:
+- Startup messages
+- Any error messages during loading
+- Exit codes and timestamps
+
+Common causes for this issue:
+- **No emulators configured**: The `advmenu.rc` file may not have any emulators configured. This happens if AdvanceMENU was installed before emulators were added.
+- **No ROMs found**: If configured emulators have no ROMs, AdvanceMENU may exit immediately.
+- **Missing directories**: ROM directories specified in the configuration may not exist.
+
+To check your current configuration, view:
+```
+/mnt/SDCARD/BIOS/.advance/advmenu.rc
+```
+
+Look for lines starting with `emulator` to see which emulators are configured. If you see only one or no emulators, you may need to reinstall AdvanceMENU after ensuring your emulators are properly installed.
+
+
