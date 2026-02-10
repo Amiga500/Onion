@@ -15,7 +15,7 @@ cd $progdir
 
 # Run advmenu and capture all output to log file
 echo "=== AdvanceMENU started at $(date) ===" >> "$logdir/advmenu.log"
-HOME=$homedir ./advmenu >> "$logdir/advmenu.log" 2>&1
+HOME=$homedir LD_LIBRARY_PATH="$sysdir/lib:$LD_LIBRARY_PATH" ./advmenu >> "$logdir/advmenu.log" 2>&1
 advmenu_exit=$?
 
 # Log exit code
