@@ -127,3 +127,15 @@ For PSX, if you use .m3u files and you don't want to have duplicates, you will n
 </table>
 
 
+
+## Troubleshooting
+
+If AdvanceMENU exits with an error, you can check the error log file at:
+
+```
+/tmp/advmenu_error.log
+```
+
+This log contains exit codes and timestamps for any non-zero exits from AdvanceMENU, which can help diagnose issues.
+
+
