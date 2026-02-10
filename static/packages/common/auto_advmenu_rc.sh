@@ -48,7 +48,7 @@ find . -name config.json -type f -exec dirname {} \; | sort -t/ -k4 | (
             fi
         fi
 
-        rel_dir="/mnt/SDCARD/$dir_name/$emuname"
+        rel_dir="/mnt/SDCARD/App/PackageManager/data/$dir_name/${emupath#./}"
         rompath=`get_json_value "$config_json" rompath`
         imgpath=`get_json_value "$config_json" imgpath`
         extlist=`get_json_value "$config_json" extlist`
