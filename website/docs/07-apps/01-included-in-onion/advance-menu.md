@@ -130,12 +130,17 @@ For PSX, if you use .m3u files and you don't want to have duplicates, you will n
 
 ## Troubleshooting
 
-If AdvanceMENU exits with an error, you can check the error log file at:
+If AdvanceMENU has issues starting or exits with an error, you can check the log file at:
 
 ```
-/tmp/advmenu_error.log
+/mnt/SDCARD/.tmp_update/logs/advmenu.log
 ```
 
-This log contains exit codes and timestamps for any non-zero exits from AdvanceMENU, which can help diagnose issues.
+This log captures all output from AdvanceMENU, including:
+- Startup messages
+- Any error messages during loading
+- Exit codes and timestamps
+
+The log file is created in the system logs directory and persists across runs, making it easier to diagnose issues like loading problems or crashes.
 
 
