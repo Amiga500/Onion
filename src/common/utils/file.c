@@ -129,11 +129,12 @@ char *file_read(const char *path)
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
         buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
+        if (buffer) {
             fread(buffer, sizeof(char), length, f);
+            buffer[length] = '\0';
+        }
         fclose(f);
     }
-    buffer[length] = '\0';
 
     return buffer;
 }
@@ -495,6 +496,10 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     print_debug("Line added to the beginning of the file successfully.\n");
 }
 
+// Maximum path components for file_resolvePath (128 covers any real path and
+// uses only 128×4=512 B of stack instead of PATH_MAX×4=16 KB)
+#define MAX_PATH_COMPONENTS 128
+
 char *file_resolvePath(const char *path)
 {
     if (path == NULL) {
@@ -514,7 +519,7 @@ char *file_resolvePath(const char *path)
     tempPath[PATH_MAX - 1] = '\0';
 
     // Initialize an array to hold the path components
-    char *components[PATH_MAX];
+    char *components[MAX_PATH_COMPONENTS];
     int componentCount = 0;
 
     // Split the path into components
@@ -528,7 +533,10 @@ char *file_resolvePath(const char *path)
         }
         else if (strcmp(token, ".") != 0) {
             // Ignore "." and add other components to the array
-            components[componentCount++] = token;
+            if (componentCount < MAX_PATH_COMPONENTS)
+                components[componentCount++] = token;
+            else
+                print_debug("file_resolvePath: path exceeds MAX_PATH_COMPONENTS, truncating\n");
         }
         token = strtok(NULL, "/");
     }

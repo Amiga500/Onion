@@ -17,11 +17,15 @@ void log_setName(const char *log_name)
 void log_debug(const char *file_path, int line, const char *format_str, ...)
 {
     char log_message[1024];
+    int prefix_len;
 
     va_list valist;
     va_start(valist, format_str);
-    sprintf(log_message, "%s:%d>\t", file_path, line);
-    vsprintf(log_message + strlen(log_message), format_str, valist);
+    prefix_len = snprintf(log_message, sizeof(log_message), "%s:%d>\t", file_path, line);
+    // Only call vsnprintf when at least one byte of message content fits
+    // (prefix_len == sizeof-1 means buffer is already full with just the prefix)
+    if (prefix_len >= 0 && prefix_len < (int)sizeof(log_message) - 1)
+        vsnprintf(log_message + prefix_len, sizeof(log_message) - prefix_len, format_str, valist);
     va_end(valist);
 
     fprintf(stderr, "%s", log_message);
