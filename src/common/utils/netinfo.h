@@ -22,6 +22,8 @@ bool netinfo_getIpAddress(char *label_out, const char *interface)
 {
     char ip_address[STR_MAX];
     int n = socket(AF_INET, SOCK_DGRAM, 0);
+    if (n < 0)
+        return false;
     struct ifreq ifr;
 
     // Type of address to retrieve - IPv4 IP address
@@ -29,8 +31,10 @@ bool netinfo_getIpAddress(char *label_out, const char *interface)
 
     // Copy the interface name in the ifreq structure
     strncpy(ifr.ifr_name, interface, IFNAMSIZ - 1);
-    ioctl(n, SIOCGIFADDR, &ifr);
+    int rc = ioctl(n, SIOCGIFADDR, &ifr);
     close(n);
+    if (rc < 0)
+        return false;
 
     snprintf(ip_address, STR_MAX - 1, "IP address: %s (%s)", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr), interface);
 

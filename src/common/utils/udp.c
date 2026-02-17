@@ -122,7 +122,7 @@ static int _udp_send_receive(const char *ipAddress, int port, const char *messag
         return -1;
     }
 
-    ssize_t bytes_received = recvfrom(socket_fd, response, response_size, 0, NULL, NULL);
+    ssize_t bytes_received = recvfrom(socket_fd, response, response_size - 1, 0, NULL, NULL);
     if (bytes_received == -1) {
         perror("Failed to receive data");
         close(socket_fd);
