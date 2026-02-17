@@ -349,8 +349,11 @@ void file_changeKeyValue(const char *file_path, const char *key,
     size_t len = 0;
     ssize_t read;
 
+    char temp_path[PATH_MAX];
+    snprintf(temp_path, sizeof(temp_path), "%s.tmp", file_path);
+
     fp = fopen(file_path, "r");
-    cp = fopen("temp", "w+");
+    cp = fopen(temp_path, "w+");
     if (fp == NULL || cp == NULL) {
         if (fp != NULL)
             fclose(fp);
@@ -379,11 +382,9 @@ void file_changeKeyValue(const char *file_path, const char *key,
         }
 
         line_len = strlen(line);
-        if (line_len > 0 && line[line_len - 1] != '\n') {
-            line[line_len - 1] = '\n';
-            line[line_len] = '\0';
-        }
         fprintf(cp, "%s", line);
+        if (line_len > 0 && line[line_len - 1] != '\n')
+            fputc('\n', cp);
     }
 
     if (!found) {
@@ -397,7 +398,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
         free(line);
 
     remove(file_path);
-    rename("temp", file_path);
+    rename(temp_path, file_path);
 }
 
 bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
@@ -521,7 +522,9 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    FILE *tempFile = fopen("temp.txt", "w");
+    char temp_path[PATH_MAX];
+    snprintf(temp_path, sizeof(temp_path), "%s.tmp", fileName);
+    FILE *tempFile = fopen(temp_path, "w");
     if (tempFile == NULL) {
         fclose(file);
         print_debug("Error creating temporary file");
@@ -546,7 +549,7 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    if (rename("temp.txt", fileName) != 0) {
+    if (rename(temp_path, fileName) != 0) {
         print_debug("Error renaming temporary file");
         return;
     }
@@ -561,10 +564,8 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
         print_debug("Error opening the file");
         return;
     }
-    char tempPath[STR_MAX];
-    char *path = file_dirname(filename);
-    snprintf(tempPath, sizeof(tempPath), "%s/temp.txt", path);
-    free(path);
+    char tempPath[PATH_MAX];
+    snprintf(tempPath, sizeof(tempPath), "%s.tmp", filename);
 
     FILE *tempFile = fopen(tempPath, "w");
     if (tempFile == NULL) {
