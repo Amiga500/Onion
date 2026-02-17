@@ -109,7 +109,7 @@ int suspend(uint32_t mode)
         if (dir->d_type == DT_DIR) {
             pid = atoi(dir->d_name);
             if ((pid > 2) && (pid != suspend_pid)) {
-                sprintf(fname, "/proc/%d/stat", pid);
+                snprintf(fname, sizeof(fname), "/proc/%d/stat", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
                     fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
@@ -206,7 +206,7 @@ void wait(int seconds)
 void showBootScreen(const char *type)
 {
     char cmd[256];
-    sprintf(cmd, "bootScreen \"%s\" &", type);
+    snprintf(cmd, sizeof(cmd), "bootScreen \"%s\" &", type);
     system(cmd);
 }
 
