@@ -177,16 +177,41 @@ PlayActivities *play_activity_find_all(void)
     sqlite3_reset(stmt);
 
     play_activities = (PlayActivities *)malloc(sizeof(PlayActivities));
+    if (play_activities == NULL) {
+        sqlite3_finalize(stmt);
+        play_activity_db_close();
+        return NULL;
+    }
     play_activities->count = play_activity_count;
     play_activities->play_time_total = 0;
     play_activities->play_activity = (PlayActivity **)malloc(sizeof(PlayActivity *) * play_activities->count);
+    if (play_activities->play_activity == NULL) {
+        free(play_activities);
+        play_activities = NULL;
+        sqlite3_finalize(stmt);
+        play_activity_db_close();
+        return NULL;
+    }
 
     for (int i = 0; i < play_activities->count; i++) {
-        if (sqlite3_step(stmt) != SQLITE_ROW)
+        if (sqlite3_step(stmt) != SQLITE_ROW) {
+            play_activities->count = i;
             break;
+        }
 
-        PlayActivity *entry = play_activities->play_activity[i] = (PlayActivity *)malloc(sizeof(PlayActivity));
-        ROM *rom = play_activities->play_activity[i]->rom = (ROM *)malloc(sizeof(ROM));
+        PlayActivity *entry = (PlayActivity *)malloc(sizeof(PlayActivity));
+        if (entry == NULL) {
+            play_activities->count = i;
+            break;
+        }
+        ROM *rom = (ROM *)malloc(sizeof(ROM));
+        if (rom == NULL) {
+            free(entry);
+            play_activities->count = i;
+            break;
+        }
+        play_activities->play_activity[i] = entry;
+        entry->rom = rom;
         entry->first_played_at = NULL;
         entry->last_played_at = NULL;
 
@@ -196,8 +221,10 @@ PlayActivities *play_activity_find_all(void)
         if (sqlite3_column_text(stmt, 3) != NULL) {
             rom->file_path = strdup((const char *)sqlite3_column_text(stmt, 3));
             rom->image_path = malloc(STR_MAX * sizeof(char));
-            memset(rom->image_path, 0, STR_MAX);
-            get_rom_image_path(rom->file_path, rom->image_path);
+            if (rom->image_path != NULL) {
+                memset(rom->image_path, 0, STR_MAX);
+                get_rom_image_path(rom->file_path, rom->image_path);
+            }
         }
 
         entry->play_count = sqlite3_column_int(stmt, 4);

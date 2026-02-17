@@ -140,11 +140,16 @@ CacheDBItem *cache_db_find(const char *path_or_name)
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         cache_db_item = (CacheDBItem *)malloc(sizeof(CacheDBItem));
-        strcpy(cache_db_item->cache_path, cache_db_file_path);
-        strcpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0));
-        strcpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1));
-        strcpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2));
-        printf_debug("cache item found: %s\n", cache_db_item->name);
+        if (cache_db_item != NULL) {
+            strcpy(cache_db_item->cache_path, cache_db_file_path);
+            strcpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0));
+            strcpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1));
+            strcpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2));
+            printf_debug("cache item found: %s\n", cache_db_item->name);
+        }
+        /* On malloc failure cache_db_item stays NULL — caller treats it as
+         * "not found", which is safe since lang_get / cache consumers already
+         * check for NULL returns. */
     }
     else {
         printf("Game not found in this cache db\n");

@@ -73,6 +73,16 @@ int is_directory_excluded(const char *directory_name,
     return false;
 }
 
+static void free_entry_list(entry_t *head)
+{
+    while (head) {
+        entry_t *tmp = head->next;
+        free(head->name);
+        free(head);
+        head = tmp;
+    }
+}
+
 int tree(const char *directory, const char *prefix, counter_t *counter,
          const char *included_extensions[],
          const char *excluded_directories[])
@@ -106,8 +116,20 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
             continue;
 
         current = malloc(sizeof(entry_t));
-        current->name =
-            strcpy(malloc(strlen(file_dirent->d_name) + 1), file_dirent->d_name);
+        if (current == NULL) {
+            closedir(dir_handle);
+            free_entry_list(head);
+            return -1;
+        }
+        char *entry_name = malloc(strlen(file_dirent->d_name) + 1);
+        if (entry_name == NULL) {
+            free(current);
+            closedir(dir_handle);
+            free_entry_list(head);
+            return -1;
+        }
+        strcpy(entry_name, file_dirent->d_name);
+        current->name = entry_name;
         current->is_dir = file_dirent->d_type == DT_DIR;
         current->next = NULL;
 
@@ -153,9 +175,21 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
 
         if (head->is_dir) {
             full_path = malloc(strlen(directory) + strlen(head->name) + 2);
+            if (full_path == NULL) {
+                /* free remaining list entries before aborting */
+                free_entry_list(head->next);
+                head->next = NULL;
+                break;
+            }
             sprintf(full_path, "%s/%s", directory, head->name);
 
             next_prefix = malloc(strlen(prefix) + strlen(segment) + 1);
+            if (next_prefix == NULL) {
+                free(full_path);
+                free_entry_list(head->next);
+                head->next = NULL;
+                break;
+            }
             sprintf(next_prefix, "%s%s", prefix, segment);
 
             tree(full_path, next_prefix, counter, included_extensions,
