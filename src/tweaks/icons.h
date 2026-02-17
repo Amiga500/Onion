@@ -176,7 +176,7 @@ void _action_apply_icon_pack(void *_item)
         char message_done[STR_MAX];
         int applied = apply_iconPack(item->payload, false);
 
-        sprintf(message_done, "Applied %d icons", applied);
+        snprintf(message_done, sizeof(message_done), "Applied %d icons", applied);
 
         list_free(&_menu_console_icons);
         list_free(&_menu_app_icons);
@@ -347,10 +347,13 @@ void _menu_temp_action(void *_item)
         keys_enabled = false;
 
         apply_singleIconByFullPath(info->config_path, item->preview_path);
-        strcpy(info->path, item->preview_path);
+        strncpy(info->path, item->preview_path, sizeof(info->path) - 1);
+        info->path[sizeof(info->path) - 1] = '\0';
 
         if (mode != ICON_MODE_APP) {
-            strcpy(temp_action_item->preview_path, item->preview_path);
+            strncpy(temp_action_item->preview_path, item->preview_path,
+                    sizeof(temp_action_item->preview_path) - 1);
+            temp_action_item->preview_path[sizeof(temp_action_item->preview_path) - 1] = '\0';
             if (temp_action_item->preview_ptr != NULL) {
                 SDL_FreeSurface((SDL_Surface *)temp_action_item->preview_ptr);
                 temp_action_item->preview_ptr = NULL;

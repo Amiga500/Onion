@@ -165,7 +165,9 @@ void renderHeader(AppState *state, int battery_percentage)
             if (strlen(sTotalTimePlayed) == 0) {
                 str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
             }
-            sprintf(title_str + strlen(title_str), " / %s", sTotalTimePlayed);
+            size_t title_used = strlen(title_str);
+            snprintf(title_str + title_used, sizeof(title_str) - title_used,
+                     " / %s", sTotalTimePlayed);
         }
     }
 

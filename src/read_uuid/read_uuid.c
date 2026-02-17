@@ -54,7 +54,8 @@ int main()
     for (int i = 0; i < 3; i++) {
         char *output = execute_command(commands[i]);
         if (output != NULL) {
-            strcat(serial, output);
+            size_t remaining = sizeof(serial) - strlen(serial) - 1;
+            strncat(serial, output, remaining);
             free(output);
         }
         else {
