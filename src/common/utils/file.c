@@ -20,6 +20,11 @@
 #include "log.h"
 #include "str.h"
 
+/* Maximum number of path components supported by file_resolvePath().
+ * 64 is far more than any real path on this device requires and keeps
+ * the stack frame small (256 bytes vs 16 KB for components[PATH_MAX]). */
+#define MAX_PATH_COMPONENTS 64
+
 bool exists(const char *file_path)
 {
     struct stat64 buffer;
@@ -129,11 +134,12 @@ char *file_read(const char *path)
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
         buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
+        if (buffer) {
             fread(buffer, sizeof(char), length, f);
+            buffer[length] = '\0';
+        }
         fclose(f);
     }
-    buffer[length] = '\0';
 
     return buffer;
 }
@@ -272,9 +278,19 @@ void file_changeKeyValue(const char *file_path, const char *key,
     ssize_t read;
 
     fp = fopen(file_path, "r");
-    cp = fopen("temp", "w+");
     if (fp == NULL)
-        exit(EXIT_FAILURE);
+        return;
+
+    char tempPath[PATH_MAX];
+    char *dir = file_dirname(file_path);
+    snprintf(tempPath, sizeof(tempPath), "%s/.tmp_ckv", dir ? dir : ".");
+    free(dir);
+
+    cp = fopen(tempPath, "w+");
+    if (cp == NULL) {
+        fclose(fp);
+        return;
+    }
 
     int key_len = strlen(key);
     int line_idx = 0, line_len;
@@ -314,7 +330,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
         free(line);
 
     remove(file_path);
-    rename("temp", file_path);
+    rename(tempPath, file_path);
 }
 
 bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
@@ -425,7 +441,12 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    FILE *tempFile = fopen("temp.txt", "w");
+    char tempPath[PATH_MAX];
+    char *dir = file_dirname(fileName);
+    snprintf(tempPath, sizeof(tempPath), "%s/.tmp_dl", dir ? dir : ".");
+    free(dir);
+
+    FILE *tempFile = fopen(tempPath, "w");
     if (tempFile == NULL) {
         fclose(file);
         print_debug("Error creating temporary file");
@@ -450,7 +471,7 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    if (rename("temp.txt", fileName) != 0) {
+    if (rename(tempPath, fileName) != 0) {
         print_debug("Error renaming temporary file");
         return;
     }
@@ -513,8 +534,9 @@ char *file_resolvePath(const char *path)
     strncpy(tempPath, path, PATH_MAX - 1);
     tempPath[PATH_MAX - 1] = '\0';
 
-    // Initialize an array to hold the path components
-    char *components[PATH_MAX];
+    /* PATH_MAX/2 is the theoretical max component count, but MAX_PATH_COMPONENTS is
+     * more than enough for any real path on this device and avoids a 16 KB stack frame. */
+    char *components[MAX_PATH_COMPONENTS];
     int componentCount = 0;
 
     // Split the path into components
@@ -528,7 +550,12 @@ char *file_resolvePath(const char *path)
         }
         else if (strcmp(token, ".") != 0) {
             // Ignore "." and add other components to the array
-            components[componentCount++] = token;
+            if (componentCount < MAX_PATH_COMPONENTS) {
+                components[componentCount++] = token;
+            }
+            else {
+                print_debug("file_resolvePath: path has too many components, truncating");
+            }
         }
         token = strtok(NULL, "/");
     }
