@@ -10,6 +10,7 @@
 
 #include "onion_test.h"
 #include "../src/common/utils/file.h"
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -461,6 +462,113 @@ TEST(file_cleanName_with_underscores) {
     ASSERT_STREQ(result, "Game Name Test");
 }
 
+/* ---- file_changeKeyValue ---- */
+
+TEST(file_changeKeyValue_replaces_existing_key) {
+    const char *tmpfile = "/tmp/onion_test_changekv.cfg";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "brightness=50\nvolume=80\ntheme=dark\n");
+    fclose(fp);
+
+    file_changeKeyValue(tmpfile, "volume", "volume=60");
+
+    char result[256] = {0};
+    file_parseKeyValue(tmpfile, "volume", result, '=', 0);
+    ASSERT_STREQ(result, "60");
+
+    /* other keys must be untouched */
+    char r2[256] = {0};
+    file_parseKeyValue(tmpfile, "brightness", r2, '=', 0);
+    ASSERT_STREQ(r2, "50");
+
+    unlink(tmpfile);
+}
+
+TEST(file_changeKeyValue_appends_missing_key) {
+    const char *tmpfile = "/tmp/onion_test_changekv2.cfg";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "brightness=50\n");
+    fclose(fp);
+
+    file_changeKeyValue(tmpfile, "volume", "volume=70");
+
+    char result[256] = {0};
+    file_parseKeyValue(tmpfile, "volume", result, '=', 0);
+    ASSERT_STREQ(result, "70");
+
+    unlink(tmpfile);
+}
+
+/* Regression: last character of a non-matching line must NOT be corrupted */
+TEST(file_changeKeyValue_preserves_line_without_trailing_newline) {
+    const char *tmpfile = "/tmp/onion_test_changekv3.cfg";
+    /* Write a file whose last line intentionally has no trailing newline */
+    int fd = open(tmpfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    ASSERT_TRUE(fd >= 0);
+    const char *content = "key1=aaa\nkey2=bbb";
+    write(fd, content, strlen(content));
+    close(fd);
+
+    /* Replace key1; key2 (no trailing newline) must survive intact */
+    file_changeKeyValue(tmpfile, "key1", "key1=zzz");
+
+    char r1[256] = {0}, r2[256] = {0};
+    file_parseKeyValue(tmpfile, "key1", r1, '=', 0);
+    file_parseKeyValue(tmpfile, "key2", r2, '=', 0);
+    ASSERT_STREQ(r1, "zzz");
+    ASSERT_STREQ(r2, "bbb"); /* was corrupted to "bb\n" before the fix */
+
+    unlink(tmpfile);
+}
+
+/* ---- file_delete_line ---- */
+
+TEST(file_delete_line_removes_correct_line) {
+    const char *tmpfile = "/tmp/onion_test_delline.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "line1\nline2\nline3\n");
+    fclose(fp);
+
+    file_delete_line(tmpfile, 2);
+
+    char *l1 = file_read_lineN(tmpfile, 1);
+    char *l2 = file_read_lineN(tmpfile, 2);
+    ASSERT_NOT_NULL(l1);
+    ASSERT_TRUE(strncmp(l1, "line1", 5) == 0);
+    ASSERT_NOT_NULL(l2);
+    ASSERT_TRUE(strncmp(l2, "line3", 5) == 0);
+    free(l1);
+    free(l2);
+
+    unlink(tmpfile);
+}
+
+/* ---- file_add_line_to_beginning ---- */
+
+TEST(file_add_line_to_beginning_prepends_line) {
+    const char *tmpfile = "/tmp/onion_test_prepend.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "existing line\n");
+    fclose(fp);
+
+    file_add_line_to_beginning(tmpfile, "new first line\n");
+
+    char *l1 = file_read_lineN(tmpfile, 1);
+    char *l2 = file_read_lineN(tmpfile, 2);
+    ASSERT_NOT_NULL(l1);
+    ASSERT_TRUE(strncmp(l1, "new first line", 14) == 0);
+    ASSERT_NOT_NULL(l2);
+    ASSERT_TRUE(strncmp(l2, "existing line", 13) == 0);
+    free(l1);
+    free(l2);
+
+    unlink(tmpfile);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -527,6 +635,14 @@ int main(void)
     RUN_TEST(file_cleanName_brackets);
     RUN_TEST(file_cleanName_no_parens);
     RUN_TEST(file_cleanName_with_underscores);
+
+    RUN_TEST(file_changeKeyValue_replaces_existing_key);
+    RUN_TEST(file_changeKeyValue_appends_missing_key);
+    RUN_TEST(file_changeKeyValue_preserves_line_without_trailing_newline);
+
+    RUN_TEST(file_delete_line_removes_correct_line);
+
+    RUN_TEST(file_add_line_to_beginning_prepends_line);
 
     TEST_REPORT();
     return test_failures;
