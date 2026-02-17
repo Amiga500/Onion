@@ -157,6 +157,8 @@ bool lang_load(void)
         return false;
 
     lang_list = (char **)malloc(LANG_MAX * sizeof(char *));
+    if (lang_list == NULL)
+        return false;
     memset(lang_list, 0, LANG_MAX * sizeof(char *));
 
     cJSON *lang_file = json_load(lang_path);
@@ -167,7 +169,10 @@ bool lang_load(void)
         sprintf(key, "%d", i);
         if (json_getString(lang_file, key, value)) {
             lang_list[i] = (char *)malloc(STR_MAX * sizeof(char));
-            strcpy(lang_list[i], value);
+            if (lang_list[i] != NULL)
+                strcpy(lang_list[i], value);
+            /* If malloc fails, lang_list[i] stays NULL; lang_get() checks for
+             * NULL and returns its fallback string, so this is safe. */
         }
     }
 

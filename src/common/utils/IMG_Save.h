@@ -18,6 +18,10 @@ void IMG_Save(SDL_Surface *image, char *path)
         return;
 
     Uint32 *linebuffer = (Uint32 *)malloc(image->pitch);
+    if (linebuffer == NULL) {
+        fclose(fp);
+        return;
+    }
     Uint32 *src = (Uint32 *)image->pixels;
 
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
