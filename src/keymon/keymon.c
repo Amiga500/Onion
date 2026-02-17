@@ -116,6 +116,9 @@ int suspend(uint32_t mode)
                            (char *)&comm, &state, &ppid, &flags);
                     fclose(fp);
                 }
+                else {
+                    continue;
+                }
                 if ((ppid > 2) &&
                     ((state == 'R') || (state == 'S') || (state == 'D')) &&
                     (strcmp(comm, "(sh)")) && (!(flags & PF_KTHREAD))) {
@@ -206,7 +209,7 @@ void wait(int seconds)
 void showBootScreen(const char *type)
 {
     char cmd[256];
-    sprintf(cmd, "bootScreen \"%s\" &", type);
+    snprintf(cmd, sizeof(cmd), "bootScreen \"%s\" &", type);
     system(cmd);
 }
 
@@ -869,8 +872,11 @@ int main(void)
                         // The entire Konami code was entered!
                         FILE *file =
                             fopen("/mnt/SDCARD/.tmp_update/cmd_to_run.sh", "w");
-                        fputs("cd /mnt/SDCARD/.tmp_update/bin; ./easter", file);
-                        fclose(file);
+                        if (file) {
+                            fputs("cd /mnt/SDCARD/.tmp_update/bin; ./easter",
+                                  file);
+                            fclose(file);
+                        }
 
                         konamiCodeIndex = 0;
                         kill_mainUI();

@@ -74,7 +74,7 @@ bool mkdirs(const char *dir_path)
 {
     if (!exists(dir_path)) {
         char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
+        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
         system(dir_cmd);
         return true;
     }
@@ -129,19 +129,20 @@ char *file_read(const char *path)
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
         buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
+        if (buffer) {
             fread(buffer, sizeof(char), length, f);
+            buffer[length] = '\0';
+        }
         fclose(f);
     }
-    buffer[length] = '\0';
 
     return buffer;
 }
 
 bool file_write(const char *path, const char *str, uint32_t len)
 {
-    uint32_t fd;
-    if ((fd = open(path, O_WRONLY)) == 0)
+    int fd;
+    if ((fd = open(path, O_WRONLY)) < 0)
         return false;
     if (write(fd, str, len) == -1)
         return false;
@@ -467,8 +468,13 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     char tempPath[STR_MAX];
     char *path = file_dirname(filename);
-    sprintf(tempPath, "%s/temp.txt", path);
-    free(path);
+    if (path != NULL) {
+        snprintf(tempPath, sizeof(tempPath), "%s/temp.txt", path);
+        free(path);
+    }
+    else {
+        snprintf(tempPath, sizeof(tempPath), "/tmp/file_line_add.tmp");
+    }
 
     FILE *tempFile = fopen(tempPath, "w");
     if (tempFile == NULL) {

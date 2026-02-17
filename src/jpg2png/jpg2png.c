@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
     printf("sw:%d sh:%d dw:%d dh:%d\n", sw, sh, dw, dh);
 
     // Create png
-    strcpy(filename, argv[1]);
+    snprintf(filename, sizeof(filename), "%s", argv[1]);
     ptr = strrchr(filename, '.');
     if (ptr)
         *ptr = 0;
