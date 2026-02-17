@@ -59,15 +59,10 @@ bool parseJsonToRecentItem(const char *jsonStr, RecentItem *recentItem, int line
     if (colonPosition != NULL) {
         int position = (int)(colonPosition - recentItem->rompath);
 
-        char firstPart[position + 1];
-        strncpy(firstPart, recentItem->rompath, position);
-        firstPart[position] = '\0';
-
-        char secondPart[strlen(recentItem->rompath) - position];
-        strcpy(secondPart, colonPosition + 1);
-
-        strcpy(recentItem->launch, firstPart);
-        strcpy(recentItem->rompath, secondPart);
+        strncpy(recentItem->launch, recentItem->rompath, position);
+        recentItem->launch[position] = '\0';
+        size_t suffixLen = strlen(colonPosition + 1);
+        memmove(recentItem->rompath, colonPosition + 1, suffixLen + 1);
     }
 
     cJSON_Delete(json);
