@@ -31,6 +31,8 @@ bool check_isRetroArch(void)
     if (!exists(CMD_TO_RUN_PATH))
         return false;
     char *cmd = file_read(CMD_TO_RUN_PATH);
+    if (cmd == NULL)
+        return false;
     if (strstr(cmd, "retroarch") != NULL ||
         strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
         strstr(cmd, "/mnt/SDCARD/RApp/") != NULL) {
@@ -257,7 +259,12 @@ char *history_getRecentPath(char *rom_path)
         int type;
 
         strcpy(jsonContent, line);
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        char *typeStr = strstr(jsonContent, "\"type\":");
+        if (typeStr == NULL) {
+            free(jsonContent);
+            continue;
+        }
+        sscanf(typeStr + 7, "%d", &type);
 
         if ((type != 5) && (type != 17)) {
             free(jsonContent);
@@ -265,8 +272,19 @@ char *history_getRecentPath(char *rom_path)
             return NULL;
         }
 
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"") + 11;
+        const char *rompathStr = strstr(jsonContent, "\"rompath\":\"");
+        if (rompathStr == NULL) {
+            free(jsonContent);
+            fclose(file);
+            return NULL;
+        }
+        const char *rompathStart = rompathStr + 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
+        if (rompathEnd == NULL) {
+            free(jsonContent);
+            fclose(file);
+            return NULL;
+        }
 
         strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
         romPathSearch[rompathEnd - rompathStart] = '\0';
@@ -302,7 +320,7 @@ char *history_getRecentPath(char *rom_path)
 
 bool history_getRomscreenPath(char *path_out)
 {
-    char filename[STR_MAX];
+    char filename[STR_MAX] = "";
     char file_path[STR_MAX];
 
     if (history_getRecentPath(file_path) != NULL) {
@@ -340,7 +358,10 @@ void resumeGame(int index)
         char launch[256];
         lineCount++;
 
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        char *typeStr = strstr(jsonContent, "\"type\":");
+        if (typeStr == NULL)
+            continue;
+        sscanf(typeStr + 7, "%d", &type);
 
         if ((type != 5) && (type != 17))
             continue;
@@ -349,24 +370,30 @@ void resumeGame(int index)
         if (labelStart != NULL) {
             labelStart += 9;
             const char *labelEnd = strchr(labelStart, '\"');
-            strncpy(label, labelStart, labelEnd - labelStart);
-            label[labelEnd - labelStart] = '\0';
+            if (labelEnd != NULL) {
+                strncpy(label, labelStart, labelEnd - labelStart);
+                label[labelEnd - labelStart] = '\0';
+            }
         }
         printf_debug("label: %s\n", label);
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
         if (rompathStart != NULL) {
             rompathStart += 11;
             const char *rompathEnd = strchr(rompathStart, '\"');
-            strncpy(rompath, rompathStart, rompathEnd - rompathStart);
-            rompath[rompathEnd - rompathStart] = '\0';
+            if (rompathEnd != NULL) {
+                strncpy(rompath, rompathStart, rompathEnd - rompathStart);
+                rompath[rompathEnd - rompathStart] = '\0';
+            }
         }
         printf_debug("rompath: %s\n", rompath);
         const char *imgpathStart = strstr(jsonContent, "\"imgpath\":\"");
         if (imgpathStart != NULL) {
             imgpathStart += 11;
             const char *imgpathEnd = strchr(imgpathStart, '\"');
-            strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
-            imgpath[imgpathEnd - imgpathStart] = '\0';
+            if (imgpathEnd != NULL) {
+                strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
+                imgpath[imgpathEnd - imgpathStart] = '\0';
+            }
         }
 
         char *colonPosition = strchr(rompath, ':');
@@ -391,8 +418,10 @@ void resumeGame(int index)
             if (launchStart != NULL) {
                 launchStart += 10;
                 const char *launchEnd = strchr(launchStart, '\"');
-                strncpy(launch, launchStart, launchEnd - launchStart);
-                launch[launchEnd - launchStart] = '\0';
+                if (launchEnd != NULL) {
+                    strncpy(launch, launchStart, launchEnd - launchStart);
+                    launch[launchEnd - launchStart] = '\0';
+                }
             }
         }
 

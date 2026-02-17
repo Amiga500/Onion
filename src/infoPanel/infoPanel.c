@@ -36,6 +36,7 @@ static bool loadImagesPathsFromJson(const char *config_path,
 
     char temp_path[STR_MAX];
     strncpy(temp_path, config_path, STR_MAX - 1);
+    temp_path[STR_MAX - 1] = '\0';
     dirname(temp_path);
 
     if (!(json_str = file_read(config_path))) {
@@ -75,7 +76,7 @@ static bool loadImagesPathsFromJson(const char *config_path,
             continue;
         }
         char *image_title = cJSON_GetStringValue(json_image_title);
-        strncpy((*images_titles)[i], image_title, g_title_max_length);
+        snprintf((*images_titles)[i], g_title_max_length, "%s", image_title);
     }
 
     cJSON_Delete(json_root);

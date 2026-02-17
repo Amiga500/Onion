@@ -156,7 +156,7 @@ void str_removeParentheses(char *str_out, const char *str_in)
     bool inside = false;
     char end_char;
 
-    for (int i = 0; i < len && i < STR_MAX; i++) {
+    for (int i = 0; i < len && i < STR_MAX - 1; i++) {
         if (!inside && (str_in[i] == '(' || str_in[i] == '[')) {
             end_char = str_in[i] == '(' ? ')' : ']';
             inside = true;
