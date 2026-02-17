@@ -131,11 +131,6 @@ static settings_s __default_settings = (settings_s){
 void _settings_clone(settings_s *dst, settings_s *src)
 {
     *dst = *src;
-    strcpy(dst->keymap, src->keymap);
-    strcpy(dst->language, src->language);
-    strcpy(dst->theme, src->theme);
-    strcpy(dst->mainui_button_x, src->mainui_button_x);
-    strcpy(dst->mainui_button_y, src->mainui_button_y);
 }
 
 void _settings_reset(settings_s *_settings)
