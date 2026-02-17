@@ -35,7 +35,8 @@ bool netinfo_getIpAddress(char *label_out, const char *interface)
     snprintf(ip_address, STR_MAX - 1, "IP address: %s (%s)", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr), interface);
 
     if (strncmp(ip_address, label_out, STR_MAX) != 0) {
-        strcpy(label_out, ip_address);
+        strncpy(label_out, ip_address, STR_MAX - 1);
+        label_out[STR_MAX - 1] = '\0';
         return true;
     }
     return false;
@@ -51,7 +52,7 @@ void netinfo_getHostnameAndIpAddress(char *hostname, char *ip_address)
     // Retrieve hostname
     if (gethostname(host_buffer, sizeof(host_buffer)) != -1) {
         printf_debug("Hostname: %s\n", host_buffer);
-        sprintf(hostname, "Hostname: %s", host_buffer);
+        snprintf(hostname, STR_MAX, "Hostname: %s", host_buffer);
 
         // To retrieve host information
         struct hostent *host_entry = gethostbyname(host_buffer);
@@ -59,7 +60,7 @@ void netinfo_getHostnameAndIpAddress(char *hostname, char *ip_address)
         if (host_entry != NULL) {
             // Convert IP address to ASCII string
             ip_buffer = inet_ntoa(*((struct in_addr *)host_entry->h_addr_list[0]));
-            sprintf(ip_address, "IP address: %s", ip_buffer);
+            snprintf(ip_address, STR_MAX, "IP address: %s", ip_buffer);
             printf_debug("IP address: %s\n", ip_address);
         }
         else {
