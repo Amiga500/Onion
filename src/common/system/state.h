@@ -252,35 +252,39 @@ char *history_getRecentPath(char *rom_path)
     }
 
     while (fgets(line, STR_MAX * 3, file) != NULL) {
-        char *jsonContent = (char *)malloc(strlen(line) + 1);
         char romPathSearch[STR_MAX];
         int type;
 
-        strcpy(jsonContent, line);
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        const char *typePtr = strstr(line, "\"type\":");
+        if (typePtr == NULL)
+            continue;
+        sscanf(typePtr + 7, "%d", &type);
 
         if ((type != 5) && (type != 17)) {
-            free(jsonContent);
             fclose(file);
             return NULL;
         }
 
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"") + 11;
+        const char *rompathPtr = strstr(line, "\"rompath\":\"");
+        if (rompathPtr == NULL) {
+            fclose(file);
+            return NULL;
+        }
+        const char *rompathStart = rompathPtr + 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
+        if (rompathEnd == NULL) {
+            fclose(file);
+            return NULL;
+        }
 
         strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
         romPathSearch[rompathEnd - rompathStart] = '\0';
 
-        free(jsonContent);
-
         // Game launched with the search panel
         char *colonPosition = strchr(romPathSearch, ':');
         if (colonPosition != NULL) {
-
-            int position = (int)(colonPosition - romPathSearch);
-            char secondPart[strlen(romPathSearch) - position];
-            strcpy(secondPart, colonPosition + 1);
-            strcpy(romPathSearch, secondPart);
+            size_t suffixLen = strlen(colonPosition + 1);
+            memmove(romPathSearch, colonPosition + 1, suffixLen + 1);
         }
 
         printf_debug("romPathSearch : %s\n", romPathSearch);

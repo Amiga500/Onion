@@ -141,7 +141,7 @@ void theme_renderInfoPanel(SDL_Surface *screen, const char *title_str, const cha
     if (has_message) {
         SDL_Surface *message = NULL;
         char message_newline[4096];
-        strcpy(message_newline, message_str);
+        snprintf(message_newline, sizeof(message_newline), "%s", message_str);
         char *str = str_replace(message_newline, "\\n", "\n");
         message = theme_textboxSurface(str, resource_getFont(TITLE), theme()->list.color, ALIGN_CENTER);
         if (message) {

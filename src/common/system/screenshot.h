@@ -73,6 +73,8 @@ uint32_t *__screenshot_buffer(void)
 {
     size_t buffer_size = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint32_t);
     uint32_t *buffer = (uint32_t *)malloc(buffer_size);
+    if (buffer == NULL)
+        return NULL;
 
     ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
     memcpy(buffer, g_display.fb_addr + DISPLAY_WIDTH * g_display.vinfo.yoffset, buffer_size);
@@ -91,7 +93,7 @@ uint32_t *__screenshot_buffer(void)
 bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool rotate180)
 {
     uint32_t *src;
-    uint32_t line_buffer[g_display.width], x, y, pix;
+    uint32_t line_buffer[DEFAULT_WIDTH], x, y, pix;
 
     FILE *fp;
     png_structp png_ptr;
@@ -99,6 +101,10 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool r
 
     // make sure render resolution is up to date
     display_getRenderResolution();
+
+    // Guard: display width must not exceed the fixed line buffer size
+    if ((uint32_t)g_display.width > DEFAULT_WIDTH)
+        return false;
 
     if (!(fp = file_open_ensure_path(screenshot_path, "wb"))) {
         return false;
@@ -152,7 +158,7 @@ bool __screenshot_perform(bool(get_path)(char *), pid_t p_id)
         kill(p_id, SIGCONT);
     }
 
-    if (get_path(path)) {
+    if (buffer != NULL && get_path(path)) {
         retval = screenshot_save(buffer, path, true);
     }
 
