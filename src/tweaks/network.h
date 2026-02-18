@@ -215,7 +215,7 @@ void network_setState(bool *state_ptr, const char *flag_name, bool value)
 void network_execServiceState(const char *service_name, bool background)
 {
     char state[256];
-    char command[512];
+    char command[STR_MAX + 16];
 
     sync();
 
@@ -232,7 +232,7 @@ void network_execServiceState(const char *service_name, bool background)
 void network_execServiceAuth(const char *service_name)
 {
     char authed[256];
-    char command[512];
+    char command[STR_MAX + 16];
 
     sync();
 

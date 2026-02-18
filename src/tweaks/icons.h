@@ -306,7 +306,7 @@ int _add_config_icons(const char *path, List *list, void (*action)(void *))
 {
     DIR *dp;
     struct dirent *ep;
-    char config_path[STR_MAX * 2];
+    char config_path[STR_MAX + 32];
     int count = 0;
 
     if ((dp = opendir(path)) != NULL) {

@@ -10,7 +10,7 @@
 void applyAllChanges(bool auto_update)
 {
     // installation
-    char cmd[STR_MAX * 2 + 100];
+    char cmd[STR_MAX + 128];
 
     SDL_Surface *surfaceBackground = IMG_Load("/mnt/SDCARD/.tmp_update/res/waitingBG.png");
     SDL_Surface *surfaceMessage;
