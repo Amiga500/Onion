@@ -99,6 +99,12 @@ int main(int argc, char *argv[])
     TTF_Font *font = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 36);
     TTF_Font *font_small =
         TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 18);
+    if (!font || !font_small) {
+        fprintf(stderr, "TTF_OpenFont failed: %s\n", TTF_GetError());
+        TTF_Quit();
+        SDL_Quit();
+        return EXIT_FAILURE;
+    }
     SDL_Color fg_color = {255, 255, 255, 0};
 
     char version_str[STR_MAX];
@@ -226,8 +232,10 @@ int main(int argc, char *argv[])
 
             SDL_Surface *message =
                 TTF_RenderUTF8_Blended(font, message_str, fg_color);
-            SDL_BlitSurface(message, NULL, screen, &rectMessage);
-            SDL_FreeSurface(message);
+            if (message) {
+                SDL_BlitSurface(message, NULL, screen, &rectMessage);
+                SDL_FreeSurface(message);
+            }
 
             SDL_BlitSurface(screen, NULL, video, NULL);
             SDL_Flip(video);

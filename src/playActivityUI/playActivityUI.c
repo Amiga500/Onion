@@ -75,6 +75,8 @@ void free_resources(void)
 int _renderText(const char *text, TTF_Font *font, SDL_Color color, SDL_Rect *rect, bool right_align)
 {
     int text_width = 0;
+    if (!font)
+        return text_width;
     SDL_Surface *textSurface = TTF_RenderUTF8_Blended(font, text, color);
     if (textSurface != NULL) {
         text_width = textSurface->w;

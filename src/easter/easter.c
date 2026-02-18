@@ -213,8 +213,13 @@ int main(int argc, char *argv[])
 
             TTF_Font *font35 =
                 TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 35);
-            gTextSurface = theme_textboxSurface_High_Memory(
-                gText, font35, gTextColor, ALIGN_LEFT);
+            if (font35) {
+                gTextSurface = theme_textboxSurface_High_Memory(
+                    gText, font35, gTextColor, ALIGN_LEFT);
+                TTF_CloseFont(font35);
+            } else {
+                gTextSurface = NULL;
+            }
 
             // DVD touching corner + text sliding Animation
             int cptFrames = 0;

@@ -145,6 +145,8 @@ void drawLine(int x1, int y1, int x2, int y2, Uint32 color)
 int _renderText(const char *text, TTF_Font *font, SDL_Color color, SDL_Rect *rect, bool right_align)
 {
     int text_width = 0;
+    if (!font)
+        return text_width;
     SDL_Surface *textSurface = TTF_RenderUTF8_Blended(font, text, color);
     if (textSurface != NULL) {
         text_width = textSurface->w;
