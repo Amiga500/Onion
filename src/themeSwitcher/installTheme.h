@@ -23,8 +23,8 @@
 #define THEMES_DIR "/mnt/SDCARD/Themes"
 #define ACTIVE_THEME "/mnt/SDCARD/.tmp_update/config/active_theme"
 
-// Max number of records in the DB
-#define NUMBER_OF_THEMES 500
+// Max number of themes (Onion ships ~20 built-in; 128 is generous for user installs)
+#define NUMBER_OF_THEMES 128
 
 int _comp_themes(const void *a, const void *b)
 {
@@ -59,6 +59,12 @@ void loadThemeDirectory(const char *theme_dir,
             }
 
             if (is_file(config_path)) {
+                if (*count >= NUMBER_OF_THEMES) {
+                    /* limit reached; keep reading to drain the directory, then closedir() */
+                    printf_debug("loadThemeDirectory: theme limit reached (%d), skipping '%s'\n",
+                                 NUMBER_OF_THEMES, ep->d_name);
+                    continue;
+                }
                 strncpy(themes_out[*count], ep->d_name, STR_MAX - 1);
                 themes_out[*count][STR_MAX - 1] = '\0';
                 *count += 1;
