@@ -29,6 +29,8 @@ SDL_Surface *createLabelSurface(Package *package)
 
     SDL_Surface *label_surface =
         TTF_RenderUTF8_Blended(font25, label_text, color_white);
+    if (!label_surface)
+        return textbox;
     SDL_SetAlpha(label_surface, 0, 0); /* important */
     SDL_Rect label_pos = {0, 0};
     SDL_BlitSurface(label_surface, NULL, textbox, &label_pos);
@@ -39,11 +41,13 @@ SDL_Surface *createLabelSurface(Package *package)
     if (strlen(parens) > 0) {
         SDL_Surface *parens_surface =
             TTF_RenderUTF8_Blended(font25, parens, color_white);
-        SDL_SetAlpha(parens_surface, 0, 0); /* important */
-        surfaceSetAlpha(parens_surface, 120);
-        SDL_Rect parens_pos = {label_surface->w, 0};
-        SDL_BlitSurface(parens_surface, NULL, textbox, &parens_pos);
-        SDL_FreeSurface(parens_surface);
+        if (parens_surface) {
+            SDL_SetAlpha(parens_surface, 0, 0); /* important */
+            surfaceSetAlpha(parens_surface, 120);
+            SDL_Rect parens_pos = {label_surface->w, 0};
+            SDL_BlitSurface(parens_surface, NULL, textbox, &parens_pos);
+            SDL_FreeSurface(parens_surface);
+        }
     }
 
     SDL_FreeSurface(label_surface);
@@ -295,9 +299,11 @@ void renderApplication(void)
 
         SDL_Surface *status =
             TTF_RenderUTF8_Blended(font18, status_str, color_white);
-        SDL_Rect status_rect = {620 - status->w, 16 - status->h / 2};
-        SDL_BlitSurface(status, NULL, screen, &status_rect);
-        SDL_FreeSurface(status);
+        if (status) {
+            SDL_Rect status_rect = {620 - status->w, 16 - status->h / 2};
+            SDL_BlitSurface(status, NULL, screen, &status_rect);
+            SDL_FreeSurface(status);
+        }
     }
 
     renderCurrentTab();
@@ -311,11 +317,13 @@ void renderApplication(void)
         else {
             SDL_Surface *status = TTF_RenderUTF8_Blended(
                 font35, "NO CHANGES", color_white);
-            SDL_Rect status_rect = {
-                alignCoord(320, status->w, ALIGN_CENTER),
-                alignCoord(247, status->h, ALIGN_CENTER)};
-            SDL_BlitSurface(status, NULL, screen, &status_rect);
-            SDL_FreeSurface(status);
+            if (status) {
+                SDL_Rect status_rect = {
+                    alignCoord(320, status->w, ALIGN_CENTER),
+                    alignCoord(247, status->h, ALIGN_CENTER)};
+                SDL_BlitSurface(status, NULL, screen, &status_rect);
+                SDL_FreeSurface(status);
+            }
             renderFooter("Press A or START to exit");
         }
     }

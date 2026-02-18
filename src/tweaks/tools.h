@@ -39,6 +39,8 @@ void _toolDialog(const char *title_str, const char *message_str,
     if (_tool_bg_cache == NULL) {
         _tool_bg_cache =
             SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+        if (!_tool_bg_cache)
+            return;
         SDL_BlitSurface(screen, NULL, _tool_bg_cache, NULL);
     }
 

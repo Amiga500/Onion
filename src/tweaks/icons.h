@@ -150,7 +150,8 @@ void _action_apply_icon_pack(void *_item)
 
     SDL_Surface *background_cache =
         SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
-    SDL_BlitSurface(screen, NULL, background_cache, NULL);
+    if (background_cache)
+        SDL_BlitSurface(screen, NULL, background_cache, NULL);
 
     theme_renderDialog(screen, item->label,
                        "Do you want to apply\nthis icon pack?", true);

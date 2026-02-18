@@ -44,9 +44,11 @@ SDL_Surface *createBottomBar(TTF_Font *font)
 
     SDL_FillRect(surface, NULL, 0);
 
-    SDL_Rect pos = {20, 35 - surfaceButtonA->h / 2};
-    SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
-    pos.x += surfaceButtonA->w + 10;
+    SDL_Rect pos = {20, surfaceButtonA ? 35 - surfaceButtonA->h / 2 : 20};
+    if (surfaceButtonA) {
+        SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
+        pos.x += surfaceButtonA->w + 10;
+    }
 
     SDL_Surface *text =
         TTF_RenderUTF8_Blended(font, "INSTALL", (SDL_Color){255, 255, 255});
@@ -57,9 +59,11 @@ SDL_Surface *createBottomBar(TTF_Font *font)
         SDL_FreeSurface(text);
     }
 
-    pos.y = 35 - surfaceButtonB->h / 2;
-    SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
-    pos.x += surfaceButtonB->w + 10;
+    if (surfaceButtonB) {
+        pos.y = 35 - surfaceButtonB->h / 2;
+        SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
+        pos.x += surfaceButtonB->w + 10;
+    }
 
     text = TTF_RenderUTF8_Blended(font, "CANCEL", (SDL_Color){255, 255, 255});
     if (text) {
@@ -69,9 +73,11 @@ SDL_Surface *createBottomBar(TTF_Font *font)
         SDL_FreeSurface(text);
     }
 
-    pos.y = 35 - surfaceButtonX->h / 2;
-    SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
-    pos.x += surfaceButtonX->w + 10;
+    if (surfaceButtonX) {
+        pos.y = 35 - surfaceButtonX->h / 2;
+        SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
+        pos.x += surfaceButtonX->w + 10;
+    }
 
     text = TTF_RenderUTF8_Blended(font, "TOGGLE ICONS",
                                   (SDL_Color){255, 255, 255});

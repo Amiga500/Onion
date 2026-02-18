@@ -120,40 +120,47 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
     }
 
     icon = SDL_ConvertSurface(icon, image->format, 0);
-    SDL_SetAlpha(icon, 0, SDL_ALPHA_TRANSPARENT); /* important */
-    SDL_BlitSurface(icon, NULL, image, &rect_icon);
+    if (icon) {
+        SDL_SetAlpha(icon, 0, SDL_ALPHA_TRANSPARENT); /* important */
+        SDL_BlitSurface(icon, NULL, image, &rect_icon);
+    }
 
     if (visible)
         SDL_BlitSurface(text, NULL, image, &rect_text);
 
     if (background != NULL) {
         SDL_Surface *bg = SDL_ConvertSurface(background, image->format, 0);
-        SDL_SetAlpha(bg, 0, SDL_ALPHA_TRANSPARENT);
+        if (bg) {
+            SDL_SetAlpha(bg, 0, SDL_ALPHA_TRANSPARENT);
 
-        SDL_Surface *bg_title =
-            SDL_ConvertSurface(resource_getSurface(BG_TITLE), image->format, 0);
-        SDL_SetAlpha(bg_title, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
-        SDL_BlitSurface(bg_title, NULL, bg, NULL);
+            SDL_Surface *bg_title =
+                SDL_ConvertSurface(resource_getSurface(BG_TITLE), image->format, 0);
+            if (bg_title) {
+                SDL_SetAlpha(bg_title, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
+                SDL_BlitSurface(bg_title, NULL, bg, NULL);
+            }
 
-        SDL_Rect bg_crop = {572, 6, 48, 48};
-        SDL_Rect bg_pos = {(img_width - 48) / 2, (img_height - 48) / 2};
+            SDL_Rect bg_crop = {572, 6, 48, 48};
+            SDL_Rect bg_pos = {(img_width - 48) / 2, (img_height - 48) / 2};
 
-        rect_icon.x += bg_crop.x - bg_pos.x;
-        rect_icon.y += bg_crop.y - bg_pos.y;
-        rect_text.x += bg_crop.x - bg_pos.x;
-        rect_text.y += bg_crop.y - bg_pos.y;
+            rect_icon.x += bg_crop.x - bg_pos.x;
+            rect_icon.y += bg_crop.y - bg_pos.y;
+            rect_text.x += bg_crop.x - bg_pos.x;
+            rect_text.y += bg_crop.y - bg_pos.y;
 
-        SDL_SetAlpha(icon, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
-        SDL_SetAlpha(text, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
+            if (icon) {
+                SDL_SetAlpha(icon, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
+                SDL_BlitSurface(icon, NULL, bg, &rect_icon);
+            }
+            SDL_SetAlpha(text, SDL_SRCALPHA, SDL_ALPHA_TRANSPARENT);
+            if (visible)
+                SDL_BlitSurface(text, NULL, bg, &rect_text);
 
-        SDL_BlitSurface(icon, NULL, bg, &rect_icon);
-        if (visible)
-            SDL_BlitSurface(text, NULL, bg, &rect_text);
+            SDL_BlitSurface(bg, &bg_crop, image, &bg_pos);
 
-        SDL_BlitSurface(bg, &bg_crop, image, &bg_pos);
-
-        SDL_FreeSurface(bg);
-        SDL_FreeSurface(bg_title);
+            SDL_FreeSurface(bg);
+            SDL_FreeSurface(bg_title);
+        }
     }
 
     SDL_FreeSurface(text);

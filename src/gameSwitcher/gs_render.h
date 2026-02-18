@@ -70,6 +70,8 @@ void renderGameName(AppState *state)
     SDL_Color color_white = {255, 255, 255};
     SDL_Surface *arrow_left = resource_getSurface(LEFT_ARROW_WB);
     SDL_Surface *arrow_right = resource_getSurface(RIGHT_ARROW_WB);
+    if (!arrow_left || !arrow_right)
+        return;
     int game_name_padding = arrow_left->w + 20;
     state->game_name_max_width = g_display.width - 2 * game_name_padding;
 
@@ -122,6 +124,8 @@ void renderGameName(AppState *state)
             SDL_FreeSurface(state->surfaceGameName);
 
         state->surfaceGameName = TTF_RenderUTF8_Blended(resource_getFont(TITLE), game_name_str, color_white);
+        if (!state->surfaceGameName)
+            return;
 
         state->game_name_size.w = state->surfaceGameName->w < state->game_name_max_width ? state->surfaceGameName->w : state->game_name_max_width;
         state->game_name_size.h = state->surfaceGameName->h;
@@ -130,6 +134,9 @@ void renderGameName(AppState *state)
 
         state->current_game_changed = false;
     }
+
+    if (!state->surfaceGameName)
+        return;
 
     SDL_Rect game_name_rect = {(g_display.width - state->surfaceGameName->w) / 2,
                                game_name_bg_pos.y + 30.0 * g_scale - state->surfaceGameName->h / 2};
