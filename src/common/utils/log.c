@@ -16,7 +16,7 @@ void log_setName(const char *log_name)
 
 void log_debug(const char *file_path, int line, const char *format_str, ...)
 {
-    char log_message[1024];
+    char log_message[512];
     log_message[0] = '\0';
 
     int prefix_len = snprintf(log_message, sizeof(log_message), "%s:%d>\t", file_path, line);

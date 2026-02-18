@@ -133,8 +133,8 @@ bool checkRomDir(const char *rom_dir, const char *extlist, int level)
 
         if (dp->d_type == DT_DIR) {
             if (level == 0) {
-                char subdir[PATH_MAX];
-                snprintf(subdir, PATH_MAX - 1, "%s/%s", rom_dir, dp->d_name);
+                char subdir[STR_MAX * 2 + 16];
+                snprintf(subdir, sizeof(subdir), "%s/%s", rom_dir, dp->d_name);
                 if (checkRomDir(subdir, extlist, level + 1)) {
                     closedir(dir);
                     return true;
@@ -158,11 +158,11 @@ bool checkRomDir(const char *rom_dir, const char *extlist, int level)
 
 bool checkRoms(const char *data_path)
 {
-    char path_dup[PATH_MAX];
-    strncpy(path_dup, data_path, PATH_MAX - 1);
+    char path_dup[STR_MAX];
+    snprintf(path_dup, sizeof(path_dup), "%s", data_path);
 
     char *base_dir_name = basename(dirname(path_dup));
-    char config_path[PATH_MAX];
+    char config_path[STR_MAX * 2];
 
     if (!getConfigPath(config_path, data_path, base_dir_name)) {
         return false;
@@ -184,8 +184,8 @@ bool checkRoms(const char *data_path)
     if (strncmp(roms_rel_path, "../../", 6) != 0)
         return false;
 
-    char rom_dir[PATH_MAX];
-    snprintf(rom_dir, PATH_MAX - 1, "/mnt/SDCARD/%s", roms_rel_path + 6);
+    char rom_dir[STR_MAX + 16];
+    snprintf(rom_dir, sizeof(rom_dir), "/mnt/SDCARD/%s", roms_rel_path + 6);
 
     return checkRomDir(rom_dir, extlist, 0);
 }
@@ -194,7 +194,7 @@ void loadPackages(bool auto_update)
 {
     DIR *dp;
     struct dirent *ep;
-    char basePath[1000];
+    char basePath[STR_MAX * 2];
 
     for (int nT = 0; nT < tab_count; nT++) {
         const char *data_path = layer_dirs[nT];

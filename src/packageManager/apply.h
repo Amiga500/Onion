@@ -59,7 +59,7 @@ void applyAllChanges(bool auto_update)
                 callPackageInstaller(data_path, package->name, false);
 
                 // app removal
-                char pathAppUninstall[1000];
+                char pathAppUninstall[STR_MAX * 2];
                 snprintf(pathAppUninstall, sizeof(pathAppUninstall), "%s/%s", data_path, package->name);
                 appUninstall(pathAppUninstall, strlen(pathAppUninstall));
             }
