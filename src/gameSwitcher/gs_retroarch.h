@@ -148,11 +148,13 @@ bool ra_getConfigOverrideOption(const Game_s *game, const char *key, bool defaul
 
     // Content directory override
     char *contentDir = file_dirname(game->recentItem.rompath);
-    snprintf(cfg_path, sizeof(cfg_path), CONFIG_DIR "/%s/%s.cfg", game->core_name, file_basename(contentDir));
-    free(contentDir);
-    if (ra_getBoolFromConfig(cfg_path, &result, key)) {
-        printf_debug("Content directory override: %s=%s\n", key, result ? "true" : "false");
-        return result;
+    if (contentDir != NULL) {
+        snprintf(cfg_path, sizeof(cfg_path), CONFIG_DIR "/%s/%s.cfg", game->core_name, file_basename(contentDir));
+        free(contentDir);
+        if (ra_getBoolFromConfig(cfg_path, &result, key)) {
+            printf_debug("Content directory override: %s=%s\n", key, result ? "true" : "false");
+            return result;
+        }
     }
 
     // Core override
