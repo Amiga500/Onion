@@ -134,6 +134,9 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     char *game_name = file_removeExtension(file_basename(_path_or_name));
     free(_path_or_name);
 
+    if (game_name == NULL)
+        return NULL;
+
     if (cache_version == 2) {
         sql = sqlite3_mprintf("SELECT disp, path, imgpath FROM %q_roms WHERE path LIKE '%%%q' OR disp = %Q LIMIT 1;", cache_type, rel_path, game_name);
     }
