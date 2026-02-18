@@ -238,7 +238,16 @@ char *file_dirname(const char *absolutePath)
 void file_cleanName(char *name_out, const char *file_name)
 {
     char *name_without_ext = file_removeExtension(file_name);
+    if (name_without_ext == NULL) {
+        name_out[0] = '\0';
+        return;
+    }
     char *no_underscores = str_replace(name_without_ext, "_", " ");
+    if (no_underscores == NULL) {
+        str_removeParentheses(name_out, name_without_ext);
+        free(name_without_ext);
+        return;
+    }
     char *dot_ptr = strstr(no_underscores, ".");
     if (dot_ptr != NULL) {
         char *s = no_underscores;
