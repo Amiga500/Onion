@@ -65,11 +65,14 @@ void diags_getEntries(void)
 
                 if (entry.label[0] && entry.tooltip[0]) {
                     diags_numScripts++;
-                    scripts = realloc(scripts, diags_numScripts * sizeof(diagScripts));
-                    if (scripts == NULL) {
+                    diagScripts *tmp_scripts = realloc(scripts, diags_numScripts * sizeof(diagScripts));
+                    if (tmp_scripts == NULL) {
+                        free(scripts);
+                        scripts = NULL;
                         printf("Memory allocation failed...\n");
                         return;
                     }
+                    scripts = tmp_scripts;
                     scripts[diags_numScripts - 1] = entry;
                 }
             }

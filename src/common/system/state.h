@@ -339,13 +339,16 @@ void resumeGame(int index)
     int lineCount = 0;
 
     while (fgets(jsonContent, sizeof(jsonContent), file) != NULL) {
-        char label[256];
-        char rompath[256];
-        char imgpath[256];
-        char launch[256];
+        char label[256] = {'\0'};
+        char rompath[256] = {'\0'};
+        char imgpath[256] = {'\0'};
+        char launch[256] = {'\0'};
         lineCount++;
 
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        const char *typePtr = strstr(jsonContent, "\"type\":");
+        if (typePtr == NULL)
+            continue;
+        sscanf(typePtr + 7, "%d", &type);
 
         if ((type != 5) && (type != 17))
             continue;
@@ -354,24 +357,30 @@ void resumeGame(int index)
         if (labelStart != NULL) {
             labelStart += 9;
             const char *labelEnd = strchr(labelStart, '\"');
-            strncpy(label, labelStart, labelEnd - labelStart);
-            label[labelEnd - labelStart] = '\0';
+            if (labelEnd != NULL) {
+                strncpy(label, labelStart, labelEnd - labelStart);
+                label[labelEnd - labelStart] = '\0';
+            }
         }
         printf_debug("label: %s\n", label);
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
         if (rompathStart != NULL) {
             rompathStart += 11;
             const char *rompathEnd = strchr(rompathStart, '\"');
-            strncpy(rompath, rompathStart, rompathEnd - rompathStart);
-            rompath[rompathEnd - rompathStart] = '\0';
+            if (rompathEnd != NULL) {
+                strncpy(rompath, rompathStart, rompathEnd - rompathStart);
+                rompath[rompathEnd - rompathStart] = '\0';
+            }
         }
         printf_debug("rompath: %s\n", rompath);
         const char *imgpathStart = strstr(jsonContent, "\"imgpath\":\"");
         if (imgpathStart != NULL) {
             imgpathStart += 11;
             const char *imgpathEnd = strchr(imgpathStart, '\"');
-            strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
-            imgpath[imgpathEnd - imgpathStart] = '\0';
+            if (imgpathEnd != NULL) {
+                strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
+                imgpath[imgpathEnd - imgpathStart] = '\0';
+            }
         }
 
         char *colonPosition = strchr(rompath, ':');
@@ -402,8 +411,10 @@ void resumeGame(int index)
             if (launchStart != NULL) {
                 launchStart += 10;
                 const char *launchEnd = strchr(launchStart, '\"');
-                strncpy(launch, launchStart, launchEnd - launchStart);
-                launch[launchEnd - launchStart] = '\0';
+                if (launchEnd != NULL) {
+                    strncpy(launch, launchStart, launchEnd - launchStart);
+                    launch[launchEnd - launchStart] = '\0';
+                }
             }
         }
 

@@ -236,8 +236,13 @@ int main(int argc, char *argv[])
                 char *token = strtok(directories, " ");
                 int count = 0;
                 while (token != NULL) {
-                    excluded_directories =
-                        realloc(excluded_directories, (count + 2) * sizeof(char *));
+                    const char **tmp_ed = realloc(excluded_directories, (count + 2) * sizeof(char *));
+                    if (tmp_ed == NULL) {
+                        free(excluded_directories);
+                        fprintf(stderr, "Error: out of memory\n");
+                        return 1;
+                    }
+                    excluded_directories = tmp_ed;
                     excluded_directories[count++] = token;
                     excluded_directories[count] = NULL;
                     token = strtok(NULL, " ");
@@ -254,8 +259,13 @@ int main(int argc, char *argv[])
                 char *token = strtok(extensions, " ");
                 int count = 0;
                 while (token != NULL) {
-                    included_extensions =
-                        realloc(included_extensions, (count + 2) * sizeof(char *));
+                    const char **tmp_ie = realloc(included_extensions, (count + 2) * sizeof(char *));
+                    if (tmp_ie == NULL) {
+                        free(included_extensions);
+                        fprintf(stderr, "Error: out of memory\n");
+                        return 1;
+                    }
+                    included_extensions = tmp_ie;
                     included_extensions[count++] = token;
                     included_extensions[count] = NULL;
                     token = strtok(NULL, " ");

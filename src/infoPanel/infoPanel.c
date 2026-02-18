@@ -20,6 +20,7 @@
 #include "utils/str.h"
 
 #define FRAMES_PER_SECOND 60
+#define IMAGE_TITLE_MAX_LENGTH 50
 
 static char **g_images_paths;
 static char **g_images_titles;
@@ -48,12 +49,47 @@ static bool loadImagesPathsFromJson(const char *config_path,
     cJSON *json_images_array = cJSON_GetObjectItem(json_root, "images");
     *images_paths_count = cJSON_GetArraySize(json_images_array);
     *images_paths = (char **)malloc(*images_paths_count * sizeof(char *));
+    if (*images_paths == NULL) {
+        cJSON_Delete(json_root);
+        return false;
+    }
     *images_titles = (char **)malloc(*images_paths_count * sizeof(char *));
+    if (*images_titles == NULL) {
+        free(*images_paths);
+        *images_paths = NULL;
+        cJSON_Delete(json_root);
+        return false;
+    }
 
     for (int i = 0; i < *images_paths_count; i++) {
         (*images_paths)[i] = (char *)malloc((STR_MAX * 2 + 2) * sizeof(char));
-        static const int g_title_max_length = 50;
-        (*images_titles)[i] = (char *)malloc(g_title_max_length * sizeof(char));
+        if ((*images_paths)[i] == NULL) {
+            /* free already-allocated entries and the pointer arrays */
+            for (int j = 0; j < i; j++) {
+                free((*images_paths)[j]);
+                free((*images_titles)[j]);
+            }
+            free(*images_paths);
+            free(*images_titles);
+            *images_paths = NULL;
+            *images_titles = NULL;
+            cJSON_Delete(json_root);
+            return false;
+        }
+        (*images_titles)[i] = (char *)malloc(IMAGE_TITLE_MAX_LENGTH * sizeof(char));
+        if ((*images_titles)[i] == NULL) {
+            free((*images_paths)[i]);
+            for (int j = 0; j < i; j++) {
+                free((*images_paths)[j]);
+                free((*images_titles)[j]);
+            }
+            free(*images_paths);
+            free(*images_titles);
+            *images_paths = NULL;
+            *images_titles = NULL;
+            cJSON_Delete(json_root);
+            return false;
+        }
 
         const cJSON *json_image_item = cJSON_GetArrayItem(json_images_array, i);
         if (!json_image_item) {
@@ -75,7 +111,8 @@ static bool loadImagesPathsFromJson(const char *config_path,
             continue;
         }
         char *image_title = cJSON_GetStringValue(json_image_title);
-        strncpy((*images_titles)[i], image_title, g_title_max_length);
+        strncpy((*images_titles)[i], image_title, IMAGE_TITLE_MAX_LENGTH - 1);
+        (*images_titles)[i][IMAGE_TITLE_MAX_LENGTH - 1] = '\0';
     }
 
     cJSON_Delete(json_root);

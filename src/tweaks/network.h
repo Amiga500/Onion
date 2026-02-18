@@ -143,7 +143,13 @@ void network_getSmbShares()
                 }
 
                 numShares++;
-                _network_shares = (Share *)realloc(_network_shares, numShares * sizeof(Share));
+                Share *tmp_shares = (Share *)realloc(_network_shares, numShares * sizeof(Share));
+                if (tmp_shares == NULL) {
+                    free(_network_shares);
+                    _network_shares = NULL;
+                    break;
+                }
+                _network_shares = tmp_shares;
 
                 bool add_exclamation = false;
                 if (strncmp("__", shareName, 2) == 0) {
