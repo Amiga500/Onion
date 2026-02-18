@@ -73,11 +73,12 @@ char *str_replace(char *orig, char *rep, char *with)
     while (count--) {
         ins = strstr(orig, rep);
         len_front = ins - orig;
-        tmp = strncpy(tmp, orig, len_front) + len_front;
-        tmp = strcpy(tmp, with) + len_with;
+        tmp = memcpy(tmp, orig, len_front) + len_front;
+        tmp = memcpy(tmp, with, len_with) + len_with;
         orig += len_front + len_rep; // move to next "end of rep"
     }
-    strcpy(tmp, orig);
+    size_t len_tail = strlen(orig);
+    memcpy(tmp, orig, len_tail + 1);
     return result;
 }
 

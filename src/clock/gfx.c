@@ -574,7 +574,8 @@ void GFX_Quit(void)
         ioctl(fd_fb, FBIOPUT_VSCREENINFO, &vinfo);
 
         // unmap fb memory
-        munmap(fb_addr, finfo.smem_len);
+        if (fb_addr != NULL && fb_addr != MAP_FAILED)
+            munmap(fb_addr, finfo.smem_len);
 
         close(fd_fb);
         fd_fb = -1;

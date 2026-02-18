@@ -133,12 +133,17 @@ char *file_read(const char *path)
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
-        buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer) {
-            fread(buffer, sizeof(char), length, f);
-            buffer[length] = '\0';
+        if (length < 0) {
+            fclose(f);
         }
-        fclose(f);
+        else {
+            buffer = (char *)malloc((length + 1) * sizeof(char));
+            if (buffer) {
+                fread(buffer, sizeof(char), length, f);
+                buffer[length] = '\0';
+            }
+            fclose(f);
+        }
     }
 
     return buffer;
@@ -168,11 +173,12 @@ char *file_removeExtension(const char *myStr)
 {
     if (myStr == NULL)
         return NULL;
-    char *retStr = (char *)malloc(strlen(myStr) + 1);
+    size_t myStr_len = strlen(myStr);
+    char *retStr = (char *)malloc(myStr_len + 1);
     char *lastExt;
     if (retStr == NULL)
         return NULL;
-    strcpy(retStr, myStr);
+    memcpy(retStr, myStr, myStr_len + 1);
     if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 2) != '\0')
         *lastExt = '\0';
     return retStr;
@@ -421,12 +427,13 @@ char *file_read_lineN(const char *filename, int n)
     while (fgets(line, sizeof(line), file) != NULL) {
         if (lineNumber == n) {
             fclose(file);
-            char *lineN = malloc(strlen(line) + 1);
+            size_t line_len = strlen(line);
+            char *lineN = malloc(line_len + 1);
             if (lineN == NULL) {
                 print_debug("Memory allocation error");
                 return NULL;
             }
-            strcpy(lineN, line);
+            memcpy(lineN, line, line_len + 1);
             return lineN;
         }
         lineNumber++;

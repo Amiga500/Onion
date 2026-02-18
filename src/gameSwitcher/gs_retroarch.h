@@ -24,6 +24,11 @@ bool ra_loadHistory(const char *jsonFilePath)
     long fileSize = ftell(file);
     fseek(file, 0, SEEK_SET);
 
+    if (fileSize < 0) {
+        fclose(file);
+        return false;
+    }
+
     char *fileContent = (char *)malloc(fileSize + 1);
     if (fileContent == NULL) {
         fclose(file);

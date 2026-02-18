@@ -121,14 +121,15 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
             free_entry_list(head);
             return -1;
         }
-        char *entry_name = malloc(strlen(file_dirent->d_name) + 1);
+        size_t name_len = strlen(file_dirent->d_name);
+        char *entry_name = malloc(name_len + 1);
         if (entry_name == NULL) {
             free(current);
             closedir(dir_handle);
             free_entry_list(head);
             return -1;
         }
-        strcpy(entry_name, file_dirent->d_name);
+        memcpy(entry_name, file_dirent->d_name, name_len + 1);
         current->name = entry_name;
         current->is_dir = file_dirent->d_type == DT_DIR;
         current->next = NULL;
@@ -174,23 +175,25 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
         printf("%s%s%s\n", prefix, pointer, head->name);
 
         if (head->is_dir) {
-            full_path = malloc(strlen(directory) + strlen(head->name) + 2);
+            size_t fp_len = strlen(directory) + strlen(head->name) + 2;
+            full_path = malloc(fp_len);
             if (full_path == NULL) {
                 /* free remaining list entries before aborting */
                 free_entry_list(head->next);
                 head->next = NULL;
                 break;
             }
-            sprintf(full_path, "%s/%s", directory, head->name);
+            snprintf(full_path, fp_len, "%s/%s", directory, head->name);
 
-            next_prefix = malloc(strlen(prefix) + strlen(segment) + 1);
+            size_t np_len = strlen(prefix) + strlen(segment) + 1;
+            next_prefix = malloc(np_len);
             if (next_prefix == NULL) {
                 free(full_path);
                 free_entry_list(head->next);
                 head->next = NULL;
                 break;
             }
-            sprintf(next_prefix, "%s%s", prefix, segment);
+            snprintf(next_prefix, np_len, "%s%s", prefix, segment);
 
             tree(full_path, next_prefix, counter, included_extensions,
                  excluded_directories);
