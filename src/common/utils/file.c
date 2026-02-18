@@ -321,7 +321,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
     if (fp == NULL)
         return;
 
-    char tempPath[PATH_MAX];
+    char tempPath[STR_MAX + 16];
     char *dir = file_dirname(file_path);
     snprintf(tempPath, sizeof(tempPath), "%s/.tmp_ckv", dir ? dir : ".");
     free(dir);
@@ -428,7 +428,7 @@ bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size
     bool found = false;
     while ((dir = readdir(d)) != NULL) {
         if (dir->d_type == DT_REG) {
-            char full_path[PATH_MAX];
+            char full_path[STR_MAX * 2];
             snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, dir->d_name);
 
             if (stat64(full_path, &file_stat) == 0) {
@@ -483,7 +483,7 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    char tempPath[PATH_MAX];
+    char tempPath[STR_MAX + 16];
     char *dir = file_dirname(fileName);
     snprintf(tempPath, sizeof(tempPath), "%s/.tmp_dl", dir ? dir : ".");
     free(dir);
@@ -572,9 +572,9 @@ char *file_resolvePath(const char *path)
     }
 
     // Copy the input path to a temporary buffer
-    char tempPath[PATH_MAX];
-    strncpy(tempPath, path, PATH_MAX - 1);
-    tempPath[PATH_MAX - 1] = '\0';
+    char tempPath[STR_MAX * 2];
+    strncpy(tempPath, path, sizeof(tempPath) - 1);
+    tempPath[sizeof(tempPath) - 1] = '\0';
 
     /* PATH_MAX/2 is the theoretical max component count, but MAX_PATH_COMPONENTS is
      * more than enough for any real path on this device and avoids a 16 KB stack frame. */

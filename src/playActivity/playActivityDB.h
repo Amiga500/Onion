@@ -260,13 +260,13 @@ void free_play_activities(PlayActivities *pa_ptr)
     free(pa_ptr);
 }
 
-void __ensure_rel_path(char *rel_path, const char *rom_path)
+void __ensure_rel_path(char *rel_path, size_t dest_size, const char *rom_path)
 {
     if (!file_path_relative_to(rel_path, ROMS_FOLDER, rom_path)) {
         if (strstr(rom_path, "../../Roms/") != NULL) {
             char *_copy = strdup((const char *)rom_path);
             if (_copy != NULL) {
-                strncpy(rel_path, str_split(_copy, "../../Roms/"), PATH_MAX - 1);
+                strncpy(rel_path, str_split(_copy, "../../Roms/"), dest_size - 1);
                 free(_copy);
             }
         }
@@ -276,12 +276,12 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
                 char *_replaced = str_replace(_copy, "/mnt/SDCARD/Roms/", "");
                 free(_copy);
                 if (_replaced != NULL) {
-                    strncpy(rel_path, _replaced, PATH_MAX - 1);
+                    strncpy(rel_path, _replaced, dest_size - 1);
                     free(_replaced);
                 }
             }
         }
-        rel_path[PATH_MAX - 1] = '\0';
+        rel_path[dest_size - 1] = '\0';
     }
 }
 
@@ -289,8 +289,8 @@ int __db_insert_rom(const char *rom_type, const char *rom_name, const char *file
 {
     int rom_id = ROM_NOT_FOUND;
 
-    char rel_path[PATH_MAX];
-    __ensure_rel_path(rel_path, file_path);
+    char rel_path[STR_MAX * 2];
+    __ensure_rel_path(rel_path, sizeof(rel_path), file_path);
 
     char *sql = sqlite3_mprintf("INSERT INTO rom(type, name, file_path, image_path) VALUES(%Q, %Q, %Q, %Q);",
                                 rom_type, rom_name, rel_path, image_path);
@@ -313,8 +313,8 @@ int __db_insert_rom_from_cache(CacheDBItem *cache_db_item)
 
 void __db_update_rom(int rom_id, const char *rom_type, const char *rom_name, const char *file_path, const char *image_path)
 {
-    char rel_path[PATH_MAX];
-    __ensure_rel_path(rel_path, file_path);
+    char rel_path[STR_MAX * 2];
+    __ensure_rel_path(rel_path, sizeof(rel_path), file_path);
 
     char *sql = sqlite3_mprintf("UPDATE rom SET type = %Q, name = %Q, file_path = %Q, image_path = %Q WHERE id = %d;",
                                 rom_type, rom_name, rel_path, image_path, rom_id);
@@ -355,8 +355,8 @@ int __db_get_rom_id_by_path(const char *rom_path)
 {
     int rom_id = ROM_NOT_FOUND;
 
-    char rel_path[PATH_MAX];
-    __ensure_rel_path(rel_path, rom_path);
+    char rel_path[STR_MAX * 2];
+    __ensure_rel_path(rel_path, sizeof(rel_path), rom_path);
 
     char *sql = sqlite3_mprintf("SELECT id FROM rom WHERE file_path=%Q LIMIT 1;", rel_path);
     sqlite3_stmt *stmt = play_activity_db_prepare(sql);
@@ -555,20 +555,20 @@ void play_activity_fix_paths(void)
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         int rom_id = sqlite3_column_int(stmt, 0);
-        char file_path[PATH_MAX];
-        strncpy(file_path, (const char *)sqlite3_column_text(stmt, 1), PATH_MAX - 1);
-        file_path[PATH_MAX - 1] = '\0';
+        char file_path[STR_MAX * 2];
+        strncpy(file_path, (const char *)sqlite3_column_text(stmt, 1), sizeof(file_path) - 1);
+        file_path[sizeof(file_path) - 1] = '\0';
 
         if (strlen(file_path) == 0) {
             continue;
         }
 
-        char cache_path[PATH_MAX];
+        char cache_path[STR_MAX * 2];
         char cache_name[STR_MAX];
         int cache_version = cache_get_path(cache_path, cache_name, file_path);
 
-        char rel_path[PATH_MAX];
-        __ensure_rel_path(rel_path, file_path);
+        char rel_path[STR_MAX * 2];
+        __ensure_rel_path(rel_path, sizeof(rel_path), file_path);
 
         char *sql;
         if (cache_version == CACHE_NOT_FOUND) {
