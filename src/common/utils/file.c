@@ -100,8 +100,10 @@ void file_readLastLine(const char *filename, char *out_str)
         fseek(fd, 0L, SEEK_SET);
 
         int max_len = size < 255 ? size + 1 : 255;
-        if (max_len <= 1)
+        if (max_len <= 1) {
+            fclose(fd);
             return;
+        }
 
         // get the last line
         fseek(fd, -max_len, SEEK_END);
@@ -499,7 +501,7 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     char tempPath[STR_MAX];
     char *path = file_dirname(filename);
-    snprintf(tempPath, sizeof(tempPath), "%s/temp.txt", path);
+    snprintf(tempPath, sizeof(tempPath), "%s/.tmp_alb", path);
     free(path);
 
     FILE *tempFile = fopen(tempPath, "w");

@@ -216,8 +216,10 @@ PlayActivities *play_activity_find_all(void)
         entry->last_played_at = NULL;
 
         rom->id = sqlite3_column_int(stmt, 0);
-        rom->type = strdup((const char *)sqlite3_column_text(stmt, 1));
-        rom->name = strdup((const char *)sqlite3_column_text(stmt, 2));
+        if (sqlite3_column_text(stmt, 1) != NULL)
+            rom->type = strdup((const char *)sqlite3_column_text(stmt, 1));
+        if (sqlite3_column_text(stmt, 2) != NULL)
+            rom->name = strdup((const char *)sqlite3_column_text(stmt, 2));
         if (sqlite3_column_text(stmt, 3) != NULL) {
             rom->file_path = strdup((const char *)sqlite3_column_text(stmt, 3));
             rom->image_path = malloc(STR_MAX * sizeof(char));
