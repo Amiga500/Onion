@@ -256,7 +256,7 @@ void compute_graph(void)
                     bool is_charging = sqlite3_column_int(stmt, 4);
 
                     if (total_duration == 0) {
-                        sprintf(current_percentage, "%d%%", bat_perc);
+                        snprintf(current_percentage, sizeof(current_percentage), "%d%%", bat_perc);
                     }
 
                     current_index = (graph_max_size - 1) - duration_to_pixel(total_duration);
@@ -345,23 +345,23 @@ void renderPage()
 
     switch (current_zoom) {
     case 0:
-        sprintf(sub_title, "%s", "16 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "16 HOURS VIEW");
         segment_duration = 7200;
         SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 1:
-        sprintf(sub_title, "%s", "8 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "8 HOURS VIEW");
         segment_duration = 3600;
         SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 2:
-        sprintf(sub_title, "%s", "4 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "4 HOURS VIEW");
         segment_duration = 1800;
         SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     default:
-        sprintf(sub_title, "%s", "8 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "8 HOURS VIEW");
         segment_duration = 3600;
         SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});

@@ -40,8 +40,9 @@ static bool getImagePath(const char *dir_path, const struct dirent *ent,
     if (strcmp(fileExt, "png") == 0 || strcmp(fileExt, "jpg") == 0 ||
         strcmp(fileExt, "jpeg") == 0) {
         char full_path[PATH_MAX];
-        sprintf(full_path, "%s%s", dir_path, filename);
-        strcpy(image_path, full_path);
+        snprintf(full_path, sizeof(full_path), "%s%s", dir_path, filename);
+        strncpy(image_path, full_path, PATH_MAX - 1);
+        image_path[PATH_MAX - 1] = '\0';
         return true;
     }
     return false;
@@ -87,10 +88,11 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
         return false;
     }
     if (dir_path[dir_path_length - 1] != '/') {
-        sprintf(normalized_dir_path, "%s/", dir_path);
+        snprintf(normalized_dir_path, sizeof(normalized_dir_path), "%s/", dir_path);
     }
     else {
-        strcpy(normalized_dir_path, dir_path);
+        strncpy(normalized_dir_path, dir_path, PATH_MAX - 1);
+        normalized_dir_path[PATH_MAX - 1] = '\0';
     }
 
     const int images_count = getImagesCount(normalized_dir_path);
@@ -115,9 +117,12 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
             continue;
         }
 
-        (*images_paths)[*images_paths_count] =
-            (char *)malloc(PATH_MAX * sizeof(char));
-        strcpy((*images_paths)[*images_paths_count], image_path);
+        char *img_entry = (char *)malloc(PATH_MAX * sizeof(char));
+        if (img_entry == NULL)
+            break;
+        strncpy(img_entry, image_path, PATH_MAX - 1);
+        img_entry[PATH_MAX - 1] = '\0';
+        (*images_paths)[*images_paths_count] = img_entry;
         (*images_paths_count)++;
 
         if ((*images_paths_count) >= images_count) {

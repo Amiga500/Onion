@@ -214,7 +214,8 @@ void installTheme(char *theme_path, bool apply_icons)
 
 bool checkAndSetDir(char *dest, const char *dir_path)
 {
-    strcpy(dest, dir_path);
+    strncpy(dest, dir_path, STR_MAX - 1);
+    dest[STR_MAX - 1] = '\0';
     return is_dir(dest);
 }
 

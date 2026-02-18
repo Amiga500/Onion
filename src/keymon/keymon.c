@@ -388,7 +388,7 @@ void cpuClockHotkey(int adjust)
     char cpuclockstr[5];
 
     // Read current CPU clock
-    int ret = process_start_read_return("cpuclock", cpuclockstr);
+    int ret = process_start_read_return("cpuclock", cpuclockstr, sizeof(cpuclockstr));
     int cpuclock = atoi(cpuclockstr);
     printf_debug("Current CPU clock: %d\n", cpuclock);
     cpuclock += adjust;
@@ -407,7 +407,7 @@ void cpuClockHotkey(int adjust)
     // Set new CPU clock
     char cmd[STR_MAX];
     snprintf(cmd, STR_MAX, "cpuclock %d", cpuclock);
-    ret = process_start_read_return(cmd, cpuclockstr);
+    ret = process_start_read_return(cmd, cpuclockstr, sizeof(cpuclockstr));
     if (ret == 0) {
         printf_debug("Updated CPU clock: %s\n", cpuclockstr);
         char osd_txt[STR_MAX];

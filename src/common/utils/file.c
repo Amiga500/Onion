@@ -79,7 +79,7 @@ bool mkdirs(const char *dir_path)
 {
     if (!exists(dir_path)) {
         char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
+        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
         system(dir_cmd);
         return true;
     }
@@ -236,7 +236,7 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
     char key[256], val[256];
     char key_search[STR_MAX];
     char search_str[STR_MAX];
-    sprintf(search_str, "%%255[^%c]%c%%255[^\n]\n", divider, divider);
+    snprintf(search_str, sizeof(search_str), "%%255[^%c]%c%%255[^\n]\n", divider, divider);
     int match_index = 0;
 
     *value_out = 0;
@@ -356,10 +356,10 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
     if (strlen(p1) > 0) {
         int num_parens = str_count_char(p1, '/') + 1;
         for (int i = 0; i < num_parens; i++) {
-            strcat(path_out, "../");
+            strncat(path_out, "../", PATH_MAX - strlen(path_out) - 1);
         }
     }
-    strcat(path_out, p2);
+    strncat(path_out, p2, PATH_MAX - strlen(path_out) - 1);
 
     return true;
 }
@@ -488,7 +488,7 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     char tempPath[STR_MAX];
     char *path = file_dirname(filename);
-    sprintf(tempPath, "%s/temp.txt", path);
+    snprintf(tempPath, sizeof(tempPath), "%s/temp.txt", path);
     free(path);
 
     FILE *tempFile = fopen(tempPath, "w");
@@ -563,13 +563,14 @@ char *file_resolvePath(const char *path)
     // Reconstruct the resolved path
     resolvedPath[0] = '\0';
     for (int i = 0; i < componentCount; i++) {
-        strcat(resolvedPath, "/");
-        strcat(resolvedPath, components[i]);
+        strncat(resolvedPath, "/", PATH_MAX - strlen(resolvedPath) - 1);
+        strncat(resolvedPath, components[i], PATH_MAX - strlen(resolvedPath) - 1);
     }
 
     // Handle the case where the path is empty
     if (resolvedPath[0] == '\0') {
-        strcpy(resolvedPath, "/");
+        strncpy(resolvedPath, "/", PATH_MAX - 1);
+        resolvedPath[PATH_MAX - 1] = '\0';
     }
 
     return resolvedPath;

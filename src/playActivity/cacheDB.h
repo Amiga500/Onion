@@ -79,7 +79,8 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
     char *cache_dir = dirname(strdup((char *)rom_path));
 
     while (strlen(cache_dir) > 16) {
-        strcpy(cache_name_out, basename(cache_dir));
+        strncpy(cache_name_out, basename(cache_dir), STR_MAX - 1);
+        cache_name_out[STR_MAX - 1] = '\0';
         cache_version = cache_get_path_and_version(cache_path_out, cache_dir, cache_name_out);
 
         if (cache_version != CACHE_NOT_FOUND) {
@@ -108,13 +109,14 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     char rel_path[PATH_MAX];
     if (!file_path_relative_to(rel_path, "/mnt/SDCARD/Roms", path_or_name)) {
         if (strstr(path_or_name, "../../Roms/") != NULL) {
-            strcpy(rel_path, str_split(_path_or_name, "../../Roms/"));
+            strncpy(rel_path, str_split(_path_or_name, "../../Roms/"), PATH_MAX - 1);
         }
         else {
             char *tunc_path_or_name = str_replace(_path_or_name, "/mnt/SDCARD/Roms/", "");
-            strcpy(rel_path, tunc_path_or_name);
+            strncpy(rel_path, tunc_path_or_name, PATH_MAX - 1);
             free(tunc_path_or_name);
         }
+        rel_path[PATH_MAX - 1] = '\0';
     }
 
     char *sql;
@@ -141,10 +143,14 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         cache_db_item = (CacheDBItem *)malloc(sizeof(CacheDBItem));
         if (cache_db_item != NULL) {
-            strcpy(cache_db_item->cache_path, cache_db_file_path);
-            strcpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0));
-            strcpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1));
-            strcpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2));
+            strncpy(cache_db_item->cache_path, cache_db_file_path, PATH_MAX - 1);
+            cache_db_item->cache_path[PATH_MAX - 1] = '\0';
+            strncpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0), STR_MAX - 1);
+            cache_db_item->name[STR_MAX - 1] = '\0';
+            strncpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1), PATH_MAX - 1);
+            cache_db_item->path[PATH_MAX - 1] = '\0';
+            strncpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2), PATH_MAX - 1);
+            cache_db_item->imgpath[PATH_MAX - 1] = '\0';
             printf_debug("cache item found: %s\n", cache_db_item->name);
         }
         /* On malloc failure cache_db_item stays NULL — caller treats it as

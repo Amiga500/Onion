@@ -182,7 +182,8 @@ void _settings_load_mainui(void)
     json_getString(json_root, "theme", settings.theme);
 
     if (strcmp(settings.theme, "./") == 0) {
-        strcpy(settings.theme, DEFAULT_THEME_PATH);
+        strncpy(settings.theme, DEFAULT_THEME_PATH, sizeof(settings.theme) - 1);
+        settings.theme[sizeof(settings.theme) - 1] = '\0';
     }
 
     cJSON_Delete(json_root);

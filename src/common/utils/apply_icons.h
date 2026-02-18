@@ -194,7 +194,8 @@ bool apply_singleIcon(const char *config_path)
     if (active_icon_pack != NULL && is_dir(active_icon_pack))
         strncpy(icon_pack_path, active_icon_pack, STR_MAX - 1);
     else {
-        strcpy(icon_pack_path, "/mnt/SDCARD/Icons/Default");
+        strncpy(icon_pack_path, "/mnt/SDCARD/Icons/Default", STR_MAX - 1);
+        icon_pack_path[STR_MAX - 1] = '\0';
     }
 
     if (!is_dir(icon_pack_path))

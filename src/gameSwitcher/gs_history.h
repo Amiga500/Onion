@@ -76,10 +76,10 @@ void setEntryDefaultValues(Game_s *game, int index)
     game->processed = false;
     game->is_running = false;
 
-    strcpy(game->name, "");
-    strcpy(game->shortname, "");
-    strcpy(game->core_name, "");
-    strcpy(game->core_path, "");
+    game->name[0] = '\0';
+    game->shortname[0] = '\0';
+    game->core_name[0] = '\0';
+    game->core_path[0] = '\0';
     game->index = index;
 }
 
@@ -144,7 +144,8 @@ bool getGameName(char *name_out, const char *rom_path)
 {
     CacheDBItem *cache_item = cache_db_find(rom_path);
     if (cache_item != NULL) {
-        strcpy(name_out, cache_item->name);
+        strncpy(name_out, cache_item->name, STR_MAX - 1);
+        name_out[STR_MAX - 1] = '\0';
         free(cache_item);
         return true;
     }
@@ -160,11 +161,13 @@ void processItem(Game_s *game)
     game->processed = true;
 
     char *rom_name = file_removeExtension(file_basename(game->recentItem.rompath));
-    strcpy(game->rom_name, rom_name);
+    strncpy(game->rom_name, rom_name, STR_MAX * 2 - 1);
+    game->rom_name[STR_MAX * 2 - 1] = '\0';
     free(rom_name);
 
     if (!getGameName(game->name, game->recentItem.rompath)) {
-        strcpy(game->name, game->rom_name);
+        strncpy(game->name, game->rom_name, STR_MAX - 1);
+        game->name[STR_MAX - 1] = '\0';
     }
 
     file_cleanName(game->shortname, game->name);

@@ -211,7 +211,7 @@ void write_mainui_state(MainUIState state, int currpos, int total)
         page_start = currpos;
     page_end = page_start + page_size - 1;
 
-    sprintf(state_str,
+    snprintf(state_str, sizeof(state_str),
             "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
             "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
             "\"pagestart\":%d,\"pageend\":%d}]}",
@@ -230,9 +230,9 @@ char *getMiyooRecentFilePath()
     static char filename[STR_MAX];
 
     if (exists(RECENTLIST_HIDDEN_PATH))
-        sprintf(filename, "%s", RECENTLIST_HIDDEN_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_HIDDEN_PATH);
     else
-        sprintf(filename, "%s", RECENTLIST_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_PATH);
 
     return filename;
 }
@@ -294,7 +294,8 @@ char *history_getRecentPath(char *rom_path)
             return NULL;
         }
 
-        strcpy(rom_path, romPathSearch);
+        strncpy(rom_path, romPathSearch, STR_MAX - 1);
+        rom_path[STR_MAX - 1] = '\0';
 
         fclose(file);
         return rom_path;
@@ -310,11 +311,11 @@ bool history_getRomscreenPath(char *path_out)
     char file_path[STR_MAX];
 
     if (history_getRecentPath(file_path) != NULL) {
-        sprintf(filename, "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
+        snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
     }
     print_debug(file_path);
     if (strlen(filename) > 0) {
-        sprintf(path_out, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+        snprintf(path_out, STR_MAX * 2, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;
     }
 
@@ -378,15 +379,21 @@ void resumeGame(int index)
 
             int position = (int)(colonPosition - rompath);
 
-            char firstPart[position + 1];
+            char firstPart[256];
             strncpy(firstPart, rompath, position);
             firstPart[position] = '\0';
 
-            char secondPart[strlen(rompath) - position];
-            strcpy(secondPart, colonPosition + 1);
+            size_t suffixLen = strlen(colonPosition + 1);
+            char secondPart[256];
+            if (suffixLen >= sizeof(secondPart))
+                suffixLen = sizeof(secondPart) - 1;
+            memmove(secondPart, colonPosition + 1, suffixLen);
+            secondPart[suffixLen] = '\0';
 
-            strcpy(launch, firstPart);
-            strcpy(rompath, secondPart);
+            strncpy(launch, firstPart, sizeof(launch) - 1);
+            launch[sizeof(launch) - 1] = '\0';
+            strncpy(rompath, secondPart, sizeof(rompath) - 1);
+            rompath[sizeof(rompath) - 1] = '\0';
             printf_debug("launch cutted: %s\n", launch);
             printf_debug("rompath cutted: %s\n", rompath);
         }
@@ -412,7 +419,7 @@ void resumeGame(int index)
 
             fclose(file);
             file = NULL;
-            sprintf(LaunchCommand, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
+            snprintf(LaunchCommand, sizeof(LaunchCommand), "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
 
             remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
 

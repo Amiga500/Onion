@@ -95,7 +95,7 @@ bool process_start(const char *pname, const char *args, const char *home,
     return true;
 }
 
-bool process_start_read_return(const char *cmdline, char *out_str)
+bool process_start_read_return(const char *cmdline, char *out_str, size_t out_str_size)
 {
     char buffer[255] = "";
     char *result = NULL;
@@ -113,11 +113,12 @@ bool process_start_read_return(const char *cmdline, char *out_str)
     pclose(pipe);
     if (result != NULL) {
         result[strlen(buffer) - 1] = '\0';
-        strcpy(out_str, result);
+        strncpy(out_str, result, out_str_size - 1);
+        out_str[out_str_size - 1] = '\0';
         free(result);
     }
     else {
-        strcpy(out_str, "");
+        out_str[0] = '\0';
     }
     return 0;
 }

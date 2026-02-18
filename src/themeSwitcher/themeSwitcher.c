@@ -350,7 +350,8 @@ int main(int argc, char *argv[])
             if (current_page == installed_page && !is_preview)
                 snprintf(title, STR_MAX + 12, "%s - Installed", theme.name);
             else
-                strcpy(title, theme.name);
+                strncpy(title, theme.name, STR_MAX + 12);
+                title[STR_MAX + 11] = '\0';
 
             imageThemeNom = TTF_RenderUTF8_Blended(font21, title, color_white);
             SDL_BlitSurface(imageThemeNom, NULL, screen, &rectImageThemeNom);
@@ -390,7 +391,7 @@ int main(int argc, char *argv[])
 
             rectThemeName.x = 60;
             char msg[STR_MAX];
-            sprintf(msg, "%s [%s]", has_icons ? "Apply icons" : "Reset icons", apply_icons ? "ON" : "OFF");
+            snprintf(msg, sizeof(msg), "%s [%s]", has_icons ? "Apply icons" : "Reset icons", apply_icons ? "ON" : "OFF");
             imagePages = TTF_RenderUTF8_Blended(font21, msg, color_white);
             SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
             SDL_FreeSurface(imagePages);

@@ -135,13 +135,13 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
 
 bool lang_getFilePath(const char *lang_name, char *lang_path)
 {
-    sprintf(lang_path, LANG_DIR_BACKUP "/%s", lang_name);
+    snprintf(lang_path, STR_MAX, LANG_DIR_BACKUP "/%s", lang_name);
     if (exists(lang_path))
         return true;
-    sprintf(lang_path, LANG_DIR "/%s", lang_name);
+    snprintf(lang_path, STR_MAX, LANG_DIR "/%s", lang_name);
     if (exists(lang_path))
         return true;
-    sprintf(lang_path, LANG_DIR_FALLBACK "/%s", lang_name);
+    snprintf(lang_path, STR_MAX, LANG_DIR_FALLBACK "/%s", lang_name);
     return exists(lang_path);
 }
 
@@ -166,11 +166,13 @@ bool lang_load(void)
     char key[32];
     char value[STR_MAX];
     for (int i = 0; i < LANG_MAX; i++) {
-        sprintf(key, "%d", i);
+        snprintf(key, sizeof(key), "%d", i);
         if (json_getString(lang_file, key, value)) {
             lang_list[i] = (char *)malloc(STR_MAX * sizeof(char));
-            if (lang_list[i] != NULL)
-                strcpy(lang_list[i], value);
+            if (lang_list[i] != NULL) {
+                strncpy(lang_list[i], value, STR_MAX - 1);
+                lang_list[i][STR_MAX - 1] = '\0';
+            }
             /* If malloc fails, lang_list[i] stays NULL; lang_get() checks for
              * NULL and returns its fallback string, so this is safe. */
         }

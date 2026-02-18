@@ -84,8 +84,10 @@ bool json_color(cJSON *root, const char *key, SDL_Color *dest)
 
 void json_fontStyle(cJSON *root, FontStyle_s *dest, FontStyle_s *fallback)
 {
-    if (!json_getString(root, "font", dest->font) && fallback)
-        strcpy(dest->font, fallback->font);
+    if (!json_getString(root, "font", dest->font) && fallback) {
+        strncpy(dest->font, fallback->font, STR_MAX - 1);
+        dest->font[STR_MAX - 1] = '\0';
+    }
     if (!json_getInt(root, "size", &dest->size) && fallback)
         dest->size = fallback->size;
     if (!json_color(root, "color", &dest->color) && fallback)
@@ -145,8 +147,10 @@ bool theme_applyConfig(Theme_s *config, const char *config_path,
 
     json_getBool(json_batteryPercentage, "visible", &config->batteryPercentage.visible);
 
-    if (!json_getString(json_batteryPercentage, "font", config->batteryPercentage.font) && use_fallbacks)
-        strcpy(config->batteryPercentage.font, config->hint.font);
+    if (!json_getString(json_batteryPercentage, "font", config->batteryPercentage.font) && use_fallbacks) {
+        strncpy(config->batteryPercentage.font, config->hint.font, STR_MAX - 1);
+        config->batteryPercentage.font[STR_MAX - 1] = '\0';
+    }
 
     json_getInt(json_batteryPercentage, "size", &config->batteryPercentage.size);
 
