@@ -13,8 +13,10 @@
 
 bool checkAppInstalled(const char *basePath, int base_len, int level, bool complete)
 {
-    char path[1000];
-    char pathInstalledApp[1000];
+    /* Max: PACKAGE_DIR(42)+"/"+pkg_name(255)+"/"+dp_name(254) = 552 B;
+     * STR_MAX*2+64 = 576 B provides the required 552 B plus 24 B headroom. */
+    char path[STR_MAX * 2 + 64];
+    char pathInstalledApp[STR_MAX * 2 + 64];
 
     struct dirent *dp;
     DIR *dir = opendir(basePath);
@@ -325,8 +327,9 @@ void callPackageInstaller(const char *data_path, const char *package_name,
 
 void appUninstall(char *basePath, int strlenBase)
 {
-    char path[1000];
-    char pathInstalledApp[1000];
+    /* Max: same bound as checkAppInstalled: 552 B; STR_MAX*2+64 = 576 B (24 B headroom) */
+    char path[STR_MAX * 2 + 64];
+    char pathInstalledApp[STR_MAX * 2 + 64];
 
     struct dirent *dp;
     DIR *dir = opendir(basePath);
