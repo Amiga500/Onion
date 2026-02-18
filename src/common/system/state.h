@@ -40,9 +40,9 @@ bool check_isRetroArch(void)
     if (!exists(CMD_TO_RUN_PATH))
         return false;
     char *cmd = file_read(CMD_TO_RUN_PATH);
-    if (strstr(cmd, "retroarch") != NULL ||
+    if (cmd != NULL && (strstr(cmd, "retroarch") != NULL ||
         strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
-        strstr(cmd, "/mnt/SDCARD/RApp/") != NULL) {
+        strstr(cmd, "/mnt/SDCARD/RApp/") != NULL)) {
         pid_t pid;
         if ((pid = process_searchpid("retroarch")) != 0 ||
             (pid = process_searchpid("ra32")) != 0) {
@@ -316,7 +316,7 @@ char *history_getRecentPath(char *rom_path)
 
 bool history_getRomscreenPath(char *path_out)
 {
-    char filename[STR_MAX];
+    char filename[STR_MAX] = "";
     char file_path[STR_MAX];
 
     if (history_getRecentPath(file_path) != NULL) {

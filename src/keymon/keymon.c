@@ -116,6 +116,9 @@ int suspend(uint32_t mode)
                            (char *)&comm, &state, &ppid, &flags);
                     fclose(fp);
                 }
+                else {
+                    continue;
+                }
                 if ((ppid > 2) &&
                     ((state == 'R') || (state == 'S') || (state == 'D')) &&
                     (strcmp(comm, "(sh)")) && (!(flags & PF_KTHREAD))) {
