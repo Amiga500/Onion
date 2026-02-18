@@ -68,33 +68,6 @@ void process_killall(const char *commname)
         kill(pid, SIGKILL);
 }
 
-bool process_start(const char *pname, const char *args, const char *home,
-                   bool await)
-{
-    char filename[256];
-    snprintf(filename, sizeof(filename), "%s/bin/%s", home != NULL ? home : ".", pname);
-    if (!exists(filename))
-        snprintf(filename, sizeof(filename), "%s/%s", home != NULL ? home : ".", pname);
-    if (!exists(filename))
-        snprintf(filename, sizeof(filename), "/mnt/SDCARD/.tmp_update/bin/%s", pname);
-    if (!exists(filename))
-        snprintf(filename, sizeof(filename), "/mnt/SDCARD/.tmp_update/%s", pname);
-    if (!exists(filename))
-        snprintf(filename, sizeof(filename), "/mnt/SDCARD/miyoo/app/%s", pname);
-    if (!exists(filename))
-        return false;
-
-    char cmd[512];
-    int cmd_len = snprintf(cmd, sizeof(cmd), "cd \"%s\"; %s %s %s",
-                           home != NULL ? home : ".", filename,
-                           args != NULL ? args : "", await ? "" : "&");
-    if (cmd_len < 0 || cmd_len >= (int)sizeof(cmd))
-        return false;
-    system(cmd);
-
-    return true;
-}
-
 bool process_start_read_return(const char *cmdline, char *out_str, size_t out_str_size)
 {
     char buffer[255] = "";

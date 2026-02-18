@@ -565,7 +565,8 @@ void menu_blueLight(void *_)
     }
     if (schedule_show) {
         _writeDateString(_menu_user_blue_light.items[0].label);
-        char scheduleToggleLabel[100];
+        /* Max content: "Schedule (ignored)" = 18 chars */
+        char scheduleToggleLabel[32];
         strncpy(scheduleToggleLabel,
                 exists("/tmp/.blfIgnoreSchedule") ? "Schedule (ignored)" : "Schedule",
                 sizeof(scheduleToggleLabel) - 1);

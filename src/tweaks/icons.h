@@ -77,7 +77,8 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
     DIR *dp;
     struct dirent *ep;
     char icon_pack_name[STR_MAX];
-    char icon_pack_path[STR_MAX * 2];
+    /* Max: path("/mnt/SDCARD/Themes"=19) + "/" + NAME_MAX-1(253) + "/icons"(6) + NUL = 280 B */
+    char icon_pack_path[STR_MAX + 32];
     char preview_path[STR_MAX * 2 + 32];
     int count = 0;
 
@@ -96,7 +97,7 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
             if (strcmp("icons", ep->d_name) == 0)
                 continue;
 
-            snprintf(icon_pack_path, STR_MAX * 2 - 1,
+            snprintf(icon_pack_path, sizeof(icon_pack_path) - 1,
                      is_theme ? "%s/%s/icons" : "%s/%s", path, ep->d_name);
 
             if (required_icon != NULL) {
@@ -327,7 +328,7 @@ int _add_config_icons(const char *path, List *list, void (*action)(void *))
             if (strcmp("romscripts", ep->d_name) == 0)
                 continue;
 
-            snprintf(config_path, STR_MAX * 2 - 1, "%s/%s/config.json", path,
+            snprintf(config_path, sizeof(config_path) - 1, "%s/%s/config.json", path,
                      ep->d_name);
 
             if (strcmp(SEARCH_CONFIG, config_path) == 0)
