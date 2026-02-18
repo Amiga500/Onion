@@ -170,9 +170,35 @@ bool file_write(const char *path, const char *str, uint32_t len)
 
 void file_copy(const char *src_path, const char *dest_path)
 {
-    char system_cmd[4128];
-    snprintf(system_cmd, sizeof(system_cmd), "cp -f \"%s\" \"%s\"", src_path, dest_path);
-    system(system_cmd);
+    int src_fd = open(src_path, O_RDONLY);
+    if (src_fd < 0) {
+        printf_debug("file_copy: cannot open src '%s': %s\n", src_path, strerror(errno));
+        return;
+    }
+
+    struct stat st;
+    mode_t mode = 0644;
+    if (fstat(src_fd, &st) == 0)
+        mode = st.st_mode & 0777;
+
+    int dst_fd = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, mode);
+    if (dst_fd < 0) {
+        printf_debug("file_copy: cannot open dst '%s': %s\n", dest_path, strerror(errno));
+        close(src_fd);
+        return;
+    }
+
+    char buf[4096];
+    ssize_t n;
+    while ((n = read(src_fd, buf, sizeof(buf))) > 0) {
+        if (write(dst_fd, buf, n) != n) {
+            printf_debug("file_copy: write error to '%s': %s\n", dest_path, strerror(errno));
+            break;
+        }
+    }
+
+    close(src_fd);
+    close(dst_fd);
 }
 
 char *file_removeExtension(const char *myStr)

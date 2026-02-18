@@ -16,7 +16,7 @@
 #define MAX_FILE_NAME_LEN 256
 #define MAX_LINE_LEN 1024
 #define MAX_ROM_NAME_LENGTH 100
-#define MAX_MATCHING_FOLDERS 1000
+#define MAX_MATCHING_FOLDERS 128
 #define FULL_ROM_LIST_NAME "full-arcade-rom-name-list.txt"
 #define ARCADE_ROM_NAMES_NAME "arcade-rom-names.txt"
 #define MISSING_ROM_NAMES_NAME "missing_roms_name.txt"
@@ -152,7 +152,7 @@ void getRomNamesDir(const char *dir_path, const char *rom_ext, FILE *rom_names_f
 int getRomNames(char *rom_dir_path, char *rom_names_file_path)
 {
     FILE *rom_names_file;
-    char foldername[1256];
+    char foldername[STR_MAX * 2 + 8];
 
     snprintf(foldername, sizeof(foldername), "%s%s", rom_dir_path, "/Emu");
     systems_count = findFoldersWithShortname(foldername, matching_folders, 0);
@@ -274,7 +274,7 @@ int createCopyFile(const char *src_path, const char *dst_path)
     }
 
     // Create the destination file as a copy of the source file
-    char command[1024];
+    char command[STR_MAX * 2 + 32];
     snprintf(command, sizeof(command), "cp '%s' '%s'", src_path, dst_path);
     int result = system(command);
 
@@ -388,7 +388,7 @@ int updateSqlliteCache(char *base_dir_path)
     for (int i = 0; i < systems_count; i++) {
         char cache_path[STR_MAX * 3];
         //a bit of assumption here on the path, to be perfected
-        snprintf(cache_path, STR_MAX * 3 - 1, "%s/Roms/%s/%s_cache6.db", base_dir_path, matching_folders[i], matching_folders[i]);
+        snprintf(cache_path, sizeof(cache_path), "%s/Roms/%s/%s_cache6.db", base_dir_path, matching_folders[i], matching_folders[i]);
 
         if (!is_file(cache_path))
             continue; //skip this db, the update cache not found
