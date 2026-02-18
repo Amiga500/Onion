@@ -386,7 +386,7 @@ int updateSqlliteCache(char *base_dir_path)
 
     //for every system open the DB and update every occurrence
     for (int i = 0; i < systems_count; i++) {
-        char cache_path[STR_MAX * 3];
+        char cache_path[STR_MAX * 2 + 64]; /* /mnt/SDCARD/Roms/SYS/SYS_cache6.db ~538 B */
         //a bit of assumption here on the path, to be perfected
         snprintf(cache_path, sizeof(cache_path), "%s/Roms/%s/%s_cache6.db", base_dir_path, matching_folders[i], matching_folders[i]);
 

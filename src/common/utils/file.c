@@ -565,7 +565,7 @@ char *file_resolvePath(const char *path)
     }
 
     // Allocate memory for the resolved path
-    char *resolvedPath = (char *)malloc(PATH_MAX);
+    char *resolvedPath = (char *)malloc(STR_MAX * 2);
     if (resolvedPath == NULL) {
         perror("Error allocating memory for resolved path");
         return NULL;
@@ -605,14 +605,14 @@ char *file_resolvePath(const char *path)
     // Reconstruct the resolved path
     resolvedPath[0] = '\0';
     for (int i = 0; i < componentCount; i++) {
-        strncat(resolvedPath, "/", PATH_MAX - strlen(resolvedPath) - 1);
-        strncat(resolvedPath, components[i], PATH_MAX - strlen(resolvedPath) - 1);
+        strncat(resolvedPath, "/", STR_MAX * 2 - strlen(resolvedPath) - 1);
+        strncat(resolvedPath, components[i], STR_MAX * 2 - strlen(resolvedPath) - 1);
     }
 
     // Handle the case where the path is empty
     if (resolvedPath[0] == '\0') {
-        strncpy(resolvedPath, "/", PATH_MAX - 1);
-        resolvedPath[PATH_MAX - 1] = '\0';
+        strncpy(resolvedPath, "/", STR_MAX * 2 - 1);
+        resolvedPath[STR_MAX * 2 - 1] = '\0';
     }
 
     return resolvedPath;

@@ -41,7 +41,7 @@ typedef struct ListItem {
     int _reset_value;
     void *icon_ptr;
     void *preview_ptr;
-    char preview_path[STR_MAX * 4];
+    char preview_path[STR_MAX * 2 + 64]; /* max: STATES_DIR+core+rom+ext+".png"+NUL ~569 B */
     char sticky_note[STR_MAX];
     char info_note[STR_MAX];
 } ListItem;

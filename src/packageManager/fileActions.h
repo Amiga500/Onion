@@ -61,7 +61,7 @@ bool checkAppInstalled(const char *basePath, int base_len, int level, bool compl
     return is_installed;
 }
 
-bool getConfigPath(char *config_path, const char *data_path, const char *base_dir_name)
+bool getConfigPath(char *config_path, size_t config_path_size, const char *data_path, const char *base_dir_name)
 {
     char base_dir[STR_MAX];
     snprintf(base_dir, STR_MAX - 1, "%s/%s", data_path, base_dir_name);
@@ -81,7 +81,7 @@ bool getConfigPath(char *config_path, const char *data_path, const char *base_di
             continue;
         if (dp->d_type != DT_DIR)
             continue;
-        snprintf(config_path, PATH_MAX, "%s/%s/config.json", base_dir, dp->d_name);
+        snprintf(config_path, config_path_size, "%s/%s/config.json", base_dir, dp->d_name);
         if (!is_file(config_path)) {
             closedir(dir);
             return false;
@@ -162,9 +162,9 @@ bool checkRoms(const char *data_path)
     snprintf(path_dup, sizeof(path_dup), "%s", data_path);
 
     char *base_dir_name = basename(dirname(path_dup));
-    char config_path[STR_MAX * 2];
+    char config_path[STR_MAX + 64]; /* data_path+/+version_dir+/config.json ~62 B typical */
 
-    if (!getConfigPath(config_path, data_path, base_dir_name)) {
+    if (!getConfigPath(config_path, sizeof(config_path), data_path, base_dir_name)) {
         return false;
     }
 

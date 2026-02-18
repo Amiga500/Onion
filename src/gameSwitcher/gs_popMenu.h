@@ -169,7 +169,7 @@ static void setLoadPreview()
         if (g_save_state_info.selected_slot >= 0 && g_save_state_info.selected_slot < g_save_state_info.slot_count) {
             const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
             Game_s *game = &game_list[appState.current_game];
-            char stateFilePath[STR_MAX * 4];
+            char stateFilePath[STR_MAX * 2 + 64]; /* STATES_DIR+core+rom+ext+NUL ~564 B */
 
             if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath))) {
                 snprintf(item->preview_path, sizeof(item->preview_path), "%s.png", stateFilePath);
@@ -199,10 +199,8 @@ static void *_save_thread(void *_)
     int slot = g_save_state_info.slot_count > 0 ? g_save_state_info.slots[0] + 1 : 1;
     printf_debug("Saving state to slot %d\n", slot);
 
-    char stateFilePath[STR_MAX * 4];
+    char stateFilePath[STR_MAX * 2 + 64];
     time_t saveLastModified = 0;
-
-    // Check if save state exists
     if (createSaveStatePath(game, slot, stateFilePath, sizeof(stateFilePath))) {
         printf_debug("Checking for save state: %s\n", stateFilePath);
         if (exists(stateFilePath)) {
@@ -315,8 +313,8 @@ void action_loadGame(void *_)
     else {
         // Copy the save state to the auto state path
         Game_s *game = &game_list[appState.current_game];
-        char stateFilePath[STR_MAX * 4];
-        char autoStateFilePath[STR_MAX * 4];
+        char stateFilePath[STR_MAX * 2 + 64];
+        char autoStateFilePath[STR_MAX * 2 + 64];
 
         if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath)) &&
             createSaveStatePath(game, -1, autoStateFilePath, sizeof(autoStateFilePath))) {
@@ -339,8 +337,8 @@ void popMenu_deleteSaveState(void)
 
     const int real_slot = g_save_state_info.slots[selected_slot];
     Game_s *game = &game_list[appState.current_game];
-    char stateFilePath[STR_MAX * 4];
-    char imageFilePath[STR_MAX * 4];
+    char stateFilePath[STR_MAX * 2 + 64];
+    char imageFilePath[STR_MAX * 2 + 64];
 
     if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath))) {
         theme_renderDialog(
