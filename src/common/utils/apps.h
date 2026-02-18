@@ -138,8 +138,8 @@ void set_cmd_app(const char *app_dir_name)
         return;
 
     FILE *fp;
-    char cmd[STR_MAX * 4];
-    snprintf(cmd, STR_MAX * 4 - 1,
+    char cmd[STR_MAX + 128];
+    snprintf(cmd, sizeof(cmd),
              "cd %s; chmod a+x ./%s; "
              "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so ./%s",
              app_dir, launch, launch);

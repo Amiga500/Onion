@@ -218,9 +218,12 @@ void readFirstEntry()
     fclose(file);
 }
 
-void getLaunchCommand(Game_s *game, char *launchCommand)
+/* Writes the LD_PRELOAD launch command into launchCommand.
+ * dest_size must be at least STR_MAX*3+64 (832 B) to hold the worst-case
+ * output: 56 + launch(STR_MAX-1) + " " + rompath(STR_MAX*2-1) + NUL. */
+void getLaunchCommand(Game_s *game, char *launchCommand, size_t dest_size)
 {
-    snprintf(launchCommand, 4096, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", game->recentItem.launch, game->recentItem.rompath);
+    snprintf(launchCommand, dest_size, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", game->recentItem.launch, game->recentItem.rompath);
 }
 
 #endif // GAME_SWITCHER_HISTORY_H

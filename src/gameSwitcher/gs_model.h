@@ -22,10 +22,10 @@
 #define INTEGER_SCALING_OPTION "video_scale_integer"
 
 typedef struct {
-    char label[STR_MAX * 2];
+    char label[STR_MAX];
     char rompath[STR_MAX * 2];
     char imgpath[STR_MAX * 2];
-    char launch[STR_MAX * 2];
+    char launch[STR_MAX];
     int type;
     int lineNo;
 } RecentItem;
