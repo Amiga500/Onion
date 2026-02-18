@@ -46,8 +46,8 @@ void removeExtension(char *file_name)
 
 int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int i)
 {
-    char command[STR_MAX * 5];
-    char path[STR_MAX * 3];
+    char command[STR_MAX + 128];
+    char path[STR_MAX + 32];
     char folder[STR_MAX];
     FILE *find, *sed;
 
@@ -132,7 +132,7 @@ void getRomNamesDir(const char *dir_path, const char *rom_ext, FILE *rom_names_f
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                 continue;
             }
-            char sub_dir_path[1024];
+            char sub_dir_path[STR_MAX * 2];
             snprintf(sub_dir_path, sizeof(sub_dir_path), "%s/%s", dir_path, entry->d_name);
             getRomNamesDir(sub_dir_path, rom_ext, rom_names_file);
         }
@@ -346,7 +346,7 @@ void splitString(char *input, char *token1, char *token2)
 
 int updateCallback(void *data, int argc, char **argv, char **col_name)
 {
-    char update_sql[STR_MAX * 2];
+    char update_sql[STR_MAX + 64];
     UpdateData *d = (UpdateData *)data;
 
     sqlite3 *db = d->db;
@@ -380,7 +380,7 @@ int updateSqlliteCache(char *base_dir_path)
 {
 
     char table_name[STR_MAX + 6];
-    char select_sql[STR_MAX * 2];
+    char select_sql[STR_MAX + 64];
     sqlite3 *db;
     UpdateData data;
 
