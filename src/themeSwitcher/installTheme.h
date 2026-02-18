@@ -154,8 +154,14 @@ bool loadTheme(const char *theme_name, Theme_s *theme_out)
 
 void installNonDynamicElement(const char *theme_path, const char *image_name)
 {
-    char override_image_path[256], theme_image_path[256],
-        system_image_path[256], system_image_backup[256];
+    /* theme_image_path: settings.theme max 255 B + "skin/" 5 + image_name (max "bg-io-testing"=13)
+     * + ".png" 4 + NUL = up to 278 B; [STR_MAX+32=288] prevents overflow.
+     * override_image_path: THEME_OVERRIDES 40 + "skin/" 5 + image_name 13 + ".png" 5 = 63 B max.
+     * system_image_path:   SYSTEM_SKIN_DIR 27 + "/" + image_name 13 + ".png" 5 = 46 B max.
+     * system_image_backup: same prefix + "_back.png" 9 = 50 B max.
+     * [128] provides ample headroom for the three system/override paths. */
+    char override_image_path[128], theme_image_path[STR_MAX + 32],
+        system_image_path[128], system_image_backup[128];
 
     snprintf(override_image_path, sizeof(override_image_path), "%sskin/%s.png", THEME_OVERRIDES, image_name);
     snprintf(theme_image_path, sizeof(theme_image_path), "%sskin/%s.png", theme_path, image_name);

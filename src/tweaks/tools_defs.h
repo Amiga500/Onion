@@ -5,7 +5,8 @@
 
 #define NUM_TOOLS 7
 
-static char tools_short_names[NUM_TOOLS][STR_MAX] = {
+/* Longest entry is "build_short_rom_game_list" = 25 chars; [32] provides headroom. */
+static char tools_short_names[NUM_TOOLS][32] = {
     "cue_gen",
     "m3u_gen_sd",
     "m3u_gen_md",

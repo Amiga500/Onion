@@ -32,8 +32,10 @@ typedef struct package_s {
     bool has_roms;
 } Package;
 
-static char layer_names[][STR_MAX] = {"VERIFIED", "APPS", "EXPERT", "SUMMARY"};
-static char layer_dirs[][STR_MAX] = {PACKAGE_DIR "Emu", PACKAGE_DIR "App",
+/* Longest name "VERIFIED" = 8 chars; [16] provides headroom. */
+static char layer_names[][16] = {"VERIFIED", "APPS", "EXPERT", "SUMMARY"};
+/* Longest dir PACKAGE_DIR "RApp" = 28 chars; [32] provides headroom. */
+static char layer_dirs[][32] = {PACKAGE_DIR "Emu", PACKAGE_DIR "App",
                                      PACKAGE_DIR "RApp", ""};
 static bool layer_check_roms[] = {true, false, true, false};
 static const int tab_count = 4;
