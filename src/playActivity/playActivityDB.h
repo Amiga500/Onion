@@ -23,8 +23,8 @@
 
 /* Cap the number of play-activity entries loaded into RAM at once.
  * Each entry allocates ~950 B heap; 2000 × 950 B ≈ 1.9 MB.
- * Without this limit a 20 000-game collection with many played titles
- * could allocate up to 19 MB just for this list. */
+ * Without this limit a 10 000-game collection with many played titles
+ * could allocate up to 9.5 MB just for this list. */
 #define PLAY_ACTIVITY_MAX_ENTRIES 2000
 #define _PA_STR2(x) #x
 #define _PA_STR(x) _PA_STR2(x)
