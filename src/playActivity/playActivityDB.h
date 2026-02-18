@@ -262,11 +262,12 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
 {
     if (!file_path_relative_to(rel_path, ROMS_FOLDER, rom_path)) {
         if (strstr(rom_path, "../../Roms/") != NULL) {
-            strcpy(rel_path, str_split(strdup((const char *)rom_path), "../../Roms/"));
+            strncpy(rel_path, str_split(strdup((const char *)rom_path), "../../Roms/"), PATH_MAX - 1);
         }
         else {
-            strcpy(rel_path, str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", ""));
+            strncpy(rel_path, str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", ""), PATH_MAX - 1);
         }
+        rel_path[PATH_MAX - 1] = '\0';
     }
 }
 
@@ -539,7 +540,8 @@ void play_activity_fix_paths(void)
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         int rom_id = sqlite3_column_int(stmt, 0);
         char file_path[PATH_MAX];
-        strcpy(file_path, (const char *)sqlite3_column_text(stmt, 1));
+        strncpy(file_path, (const char *)sqlite3_column_text(stmt, 1), PATH_MAX - 1);
+        file_path[PATH_MAX - 1] = '\0';
 
         if (strlen(file_path) == 0) {
             continue;
@@ -582,12 +584,12 @@ void play_activity_list_all(void)
         char rom_name[STR_MAX];
         file_cleanName(rom_name, rom->name);
         char play_time[STR_MAX];
-        str_serializeTime(play_time, entry->play_time_total);
+        str_serializeTime(play_time, sizeof(play_time), entry->play_time_total);
         printf("%03d: %s (%s) [%s]\n", i + 1, rom_name, play_time, rom->type);
     }
 
     char total_str[25];
-    str_serializeTime(total_str, total_play_time);
+    str_serializeTime(total_str, sizeof(total_str), total_play_time);
     printf("\nTotal: %s\n", total_str);
 
     free_play_activities(pas);

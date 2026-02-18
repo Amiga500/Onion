@@ -175,20 +175,20 @@ void str_removeParentheses(char *str_out, const char *str_in)
     str_trim(str_out, STR_MAX - 1, temp, false);
 }
 
-void str_serializeTime(char *dest_str, int nTime)
+void str_serializeTime(char *dest_str, size_t dest_size, int nTime)
 {
     if (nTime >= 60) {
         int h = nTime / 3600;
         int m = (nTime - 3600 * h) / 60;
         if (h > 0) {
-            sprintf(dest_str, "%dh %dm", h, m);
+            snprintf(dest_str, dest_size, "%dh %dm", h, m);
         }
         else {
-            sprintf(dest_str, "%dm %ds", m, nTime - 60 * m);
+            snprintf(dest_str, dest_size, "%dm %ds", m, nTime - 60 * m);
         }
     }
     else {
-        sprintf(dest_str, "%ds", nTime);
+        snprintf(dest_str, dest_size, "%ds", nTime);
     }
 }
 

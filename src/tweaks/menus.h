@@ -83,7 +83,8 @@ bool _writeDateString(char *label_out)
     struct tm tm = *localtime(&t);
     strftime(new_label, STR_MAX - 1, "Now: %Y-%m-%d %H:%M:%S", &tm);
     if (strncmp(new_label, label_out, STR_MAX) != 0) {
-        strcpy(label_out, new_label);
+        strncpy(label_out, new_label, STR_MAX - 1);
+        label_out[STR_MAX - 1] = '\0';
         return true;
     }
     return false;
@@ -93,7 +94,8 @@ void menu_datetime(void *_)
 {
     if (!_menu_date_time._created) {
         _menu_date_time = list_create(7, LIST_SMALL);
-        strcpy(_menu_date_time.title, "Date and time");
+        strncpy(_menu_date_time.title, "Date and time", sizeof(_menu_date_time.title) - 1);
+        _menu_date_time.title[sizeof(_menu_date_time.title) - 1] = '\0';
         list_addItem(&_menu_date_time,
                      (ListItem){
                          .label = "[DATESTRING]",
@@ -235,7 +237,9 @@ void menu_buttonActionMainUIMenu(void *_)
 {
     if (!_menu_button_action_mainui_menu._created) {
         _menu_button_action_mainui_menu = list_create(3, LIST_SMALL);
-        strcpy(_menu_button_action_mainui_menu.title, "MainUI: Menu button");
+        strncpy(_menu_button_action_mainui_menu.title, "MainUI: Menu button",
+                sizeof(_menu_button_action_mainui_menu.title) - 1);
+        _menu_button_action_mainui_menu.title[sizeof(_menu_button_action_mainui_menu.title) - 1] = '\0';
         list_addItemWithInfoNote(&_menu_button_action_mainui_menu,
                                  (ListItem){
                                      .label = "Single press",
@@ -442,7 +446,9 @@ void menu_themeOverrides(void *_)
 {
     if (!_menu_theme_overrides._created) {
         _menu_theme_overrides = list_create(7, LIST_SMALL);
-        strcpy(_menu_theme_overrides.title, "Theme overrides");
+        strncpy(_menu_theme_overrides.title, "Theme overrides",
+                sizeof(_menu_theme_overrides.title) - 1);
+        _menu_theme_overrides.title[sizeof(_menu_theme_overrides.title) - 1] = '\0';
         list_addItem(&_menu_theme_overrides,
                      (ListItem){
                          .label = "Battery percentage...",
@@ -560,8 +566,13 @@ void menu_blueLight(void *_)
     if (schedule_show) {
         _writeDateString(_menu_user_blue_light.items[0].label);
         char scheduleToggleLabel[100];
-        strcpy(scheduleToggleLabel, exists("/tmp/.blfIgnoreSchedule") ? "Schedule (ignored)" : "Schedule");
-        strcpy(_menu_user_blue_light.items[2].label, scheduleToggleLabel);
+        strncpy(scheduleToggleLabel,
+                exists("/tmp/.blfIgnoreSchedule") ? "Schedule (ignored)" : "Schedule",
+                sizeof(scheduleToggleLabel) - 1);
+        scheduleToggleLabel[sizeof(scheduleToggleLabel) - 1] = '\0';
+        strncpy(_menu_user_blue_light.items[2].label, scheduleToggleLabel,
+                sizeof(_menu_user_blue_light.items[2].label) - 1);
+        _menu_user_blue_light.items[2].label[sizeof(_menu_user_blue_light.items[2].label) - 1] = '\0';
     }
     menu_stack[++menu_level] = &_menu_user_blue_light;
     header_changed = true;
@@ -877,7 +888,8 @@ void menu_tools(void *_)
 {
     if (!_menu_tools._created) {
         _menu_tools = list_create(NUM_TOOLS, LIST_SMALL);
-        strcpy(_menu_tools.title, "Tools");
+        strncpy(_menu_tools.title, "Tools", sizeof(_menu_tools.title) - 1);
+        _menu_tools.title[sizeof(_menu_tools.title) - 1] = '\0';
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
                                      .label = "Generate CUE files for BIN games",

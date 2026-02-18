@@ -114,7 +114,8 @@ void renderGameName(AppState *state)
     }
 
     char game_name_str[STR_MAX * 2 + 4];
-    strcpy(game_name_str, game->shortname);
+    strncpy(game_name_str, game->shortname, sizeof(game_name_str) - 1);
+    game_name_str[sizeof(game_name_str) - 1] = '\0';
 
     if (state->current_game_changed) {
         if (state->surfaceGameName != NULL)
@@ -157,13 +158,14 @@ void renderHeader(AppState *state, int battery_percentage)
 
     if (state->show_time && game_list_len > 0) {
         if (strlen(game->totalTime) == 0) {
-            str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
+            str_serializeTime(game->totalTime, sizeof(game->totalTime), play_activity_get_play_time(game->recentItem.rompath));
         }
-        strcpy(title_str, game->totalTime);
+        strncpy(title_str, game->totalTime, sizeof(title_str) - 1);
+        title_str[sizeof(title_str) - 1] = '\0';
 
         if (state->show_total) {
             if (strlen(sTotalTimePlayed) == 0) {
-                str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
+                str_serializeTime(sTotalTimePlayed, sizeof(sTotalTimePlayed), play_activity_get_total_play_time());
             }
             size_t title_used = strlen(title_str);
             snprintf(title_str + title_used, sizeof(title_str) - title_used,
