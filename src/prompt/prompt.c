@@ -151,7 +151,9 @@ int main(int argc, char *argv[])
         for (i = 0; i < (pargc >> 1); i++) {
             ListItem item = {.action_id = i, .action = NULL};
             strncpy(item.label, pargs[i], STR_MAX - 1);
+            item.label[STR_MAX - 1] = '\0';
             strncpy(item.info_note, pargs[i + (pargc >> 1)], STR_MAX - 1);
+            item.info_note[STR_MAX - 1] = '\0';
             printf_debug("Adding list item: %s %s (%d)\n", item.label, item.info_note, item.action_id);
             list_addItemWithInfoNote(&list, item, item.info_note);
         }
@@ -160,6 +162,7 @@ int main(int argc, char *argv[])
         for (i = 0; i < pargc; i++) {
             ListItem item = {.action_id = i, .action = NULL};
             strncpy(item.label, pargs[i], STR_MAX - 1);
+            item.label[STR_MAX - 1] = '\0';
             printf_debug("Adding list item: %s (%d)\n", item.label, item.action_id);
             list_addItem(&list, item);
         }

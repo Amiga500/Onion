@@ -72,6 +72,7 @@ InstalledApp *getInstalledApps(bool sort)
             InstalledApp *app = &_installed_apps[i];
 
             strncpy(app->dirName, ep->d_name, STR_MAX - 1);
+            app->dirName[STR_MAX - 1] = '\0';
             file_parseKeyValue(config_path, "label", app->label, ':', 0);
             app->is_duplicate = false;
             app->dup_id = 0;
