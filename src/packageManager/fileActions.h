@@ -310,7 +310,7 @@ void callPackageInstaller(const char *data_path, const char *package_name,
             apply_singleIcon(config_path);
 
         char installer_path[STR_MAX + 32];
-        concat(installer_path, main_path,
+        concat(installer_path, sizeof(installer_path), main_path,
                install ? "/install.sh" : "/uninstall.sh");
         if (is_file(installer_path)) {
             snprintf(cmd, sizeof(cmd),

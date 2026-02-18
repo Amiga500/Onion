@@ -20,7 +20,7 @@ bool config_flag_get(const char *key) { return flag_get(CONFIG_PATH, key); }
 void config_flag_set(const char *key, bool value)
 {
     char hidden_flag[STR_MAX];
-    concat(hidden_flag, key, "_");
+    concat(hidden_flag, sizeof(hidden_flag), key, "_");
     flag_set(CONFIG_PATH, key, value);
     flag_set(CONFIG_PATH, hidden_flag, !value);
 }
@@ -30,7 +30,7 @@ bool config_get(const char *key, const char *format, void *dest)
     FILE *fp;
 
     char filename[STR_MAX];
-    concat(filename, CONFIG_PATH, key);
+    concat(filename, sizeof(filename), CONFIG_PATH, key);
 
     if (exists(filename)) {
         file_get(fp, filename, format, dest);
@@ -40,9 +40,9 @@ bool config_get(const char *key, const char *format, void *dest)
     return false;
 }
 
-void _config_prepare(const char *key, char *filename)
+void _config_prepare(const char *key, char *filename, size_t filename_size)
 {
-    concat(filename, CONFIG_PATH, key);
+    concat(filename, filename_size, CONFIG_PATH, key);
 
     char dir_path[STR_MAX];
     strncpy(dir_path, filename, STR_MAX - 1);
@@ -60,7 +60,7 @@ void config_setNumber(const char *key, int value)
 {
     FILE *fp;
     char filename[STR_MAX];
-    _config_prepare(key, filename);
+    _config_prepare(key, filename, sizeof(filename));
     file_put_sync(fp, filename, "%d", value);
 }
 
@@ -68,7 +68,7 @@ void config_setString(const char *key, char *value)
 {
     FILE *fp;
     char filename[STR_MAX];
-    _config_prepare(key, filename);
+    _config_prepare(key, filename, sizeof(filename));
     file_put_sync(fp, filename, "%s", value);
 }
 
