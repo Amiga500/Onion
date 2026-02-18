@@ -37,8 +37,8 @@ void loadThemeDirectory(const char *theme_dir,
 {
     DIR *dp;
     struct dirent *ep;
-    char config_path[STR_MAX * 2];
-    char preview_path[STR_MAX * 2];
+    char config_path[STR_MAX + 64];
+    char preview_path[STR_MAX + 64];
 
     if ((dp = opendir(theme_dir)) != NULL) {
         while ((ep = readdir(dp))) {
@@ -47,11 +47,11 @@ void loadThemeDirectory(const char *theme_dir,
             if (ep->d_name[0] == '.')
                 continue;
 
-            snprintf(config_path, STR_MAX * 2 - 1, "%s/%s/config.json",
+            snprintf(config_path, sizeof(config_path), "%s/%s/config.json",
                      theme_dir, ep->d_name);
 
             if (check_preview) {
-                snprintf(preview_path, STR_MAX * 2 - 1,
+                snprintf(preview_path, sizeof(preview_path),
                          THEMES_DIR "/.previews/%s/config.json", ep->d_name);
 
                 if (is_file(preview_path))
@@ -103,8 +103,8 @@ bool checkPreview(const char *preview_path)
     if (!is_dir(preview_path))
         return false;
 
-    char source_path[STR_MAX * 2];
-    snprintf(source_path, STR_MAX * 2 - 1, "%s/source", preview_path);
+    char source_path[STR_MAX + 64];
+    snprintf(source_path, sizeof(source_path), "%s/source", preview_path);
 
     if (!is_file(source_path))
         return false;
@@ -133,7 +133,7 @@ bool getThemePath(const char *theme_name, char *theme_path_out)
 
 bool loadTheme(const char *theme_name, Theme_s *theme_out)
 {
-    char theme_path[STR_MAX * 2];
+    char theme_path[STR_MAX + 32];
 
     if (getThemePath(theme_name, theme_path)) {
         *theme_out = theme_loadFromPath(theme_path, false);
@@ -177,8 +177,8 @@ void installTheme(char *theme_path, bool apply_icons)
     system("/mnt/SDCARD/.tmp_update/bin/mainUiBatPerc --restore");
 
     if (strstr(theme_path, "/.previews/") != NULL) {
-        char cmd[STR_MAX * 2];
-        snprintf(cmd, STR_MAX * 2 - 1,
+        char cmd[STR_MAX + 128];
+        snprintf(cmd, sizeof(cmd),
                  SCRIPT_DIR "/themes_extract_theme.sh \"%s\"", theme_path);
 
         snprintf(theme_path, STR_MAX, THEMES_DIR "/%s/", basename(theme_path));
@@ -249,7 +249,7 @@ bool ensureThemePath(const char *theme_name, char *theme_path_out)
 void reinstallTheme(const char *theme_name, bool apply_icons,
                     bool update_previews)
 {
-    char theme_path[STR_MAX * 2];
+    char theme_path[STR_MAX + 32];
 
     if (update_previews)
         updatePreviews();

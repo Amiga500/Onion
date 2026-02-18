@@ -946,19 +946,19 @@ void menu_tools(void *_)
 
 void *_get_menu_icon(const char *name)
 {
-    char path[STR_MAX * 2] = {0};
+    char path[STR_MAX + 32] = {0};
     const char *config_path = "/mnt/SDCARD/App/Tweaks/config.json";
 
     if (is_file(config_path)) {
         cJSON *config = json_load(config_path);
         char icon_path[STR_MAX];
         if (json_getString(config, "icon", icon_path))
-            snprintf(path, STR_MAX * 2 - 1, "%s/%s.png", dirname(icon_path),
+            snprintf(path, sizeof(path), "%s/%s.png", dirname(icon_path),
                      name);
     }
 
     if (!is_file(path))
-        snprintf(path, STR_MAX * 2 - 1, "res/%s.png", name);
+        snprintf(path, sizeof(path), "res/%s.png", name);
 
     return (void *)IMG_Load(path);
 }
