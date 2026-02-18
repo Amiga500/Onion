@@ -11,7 +11,7 @@
 #include "utils/flags.h"
 #include "utils/log.h"
 
-#define MAX_SYSTEMS 500
+#define MAX_SYSTEMS 128
 #define ERROR_CODE_NO_GAME_FOUND 99
 
 #define PATH_FAVORITES "/mnt/SDCARD/Roms/favourite.json"
@@ -153,6 +153,12 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
     }
 
     if (sqlite3_step(res) == SQLITE_ROW) {
+        if (system_count >= MAX_SYSTEMS) {
+            printf_debug("pickRandomGameFromCache: MAX_SYSTEMS (%d) reached, skipping entry\n", MAX_SYSTEMS);
+            sqlite3_finalize(res);
+            sqlite3_close(db);
+            return false;
+        }
         GameEntry *game = &random_games[system_count];
         system_count++;
         total_games_count += count;
@@ -233,11 +239,13 @@ bool addRandomFromJson(char *json_path)
         }
 
         if (type == TYPE_GAME || type == TYPE_EXPERT) {
+            if (count >= MAX_SYSTEMS) {
+                printf_debug("addRandomFromJson: MAX_SYSTEMS (%d) reached, ignoring further entries\n", MAX_SYSTEMS);
+                cJSON_Delete(json_root);
+                break;
+            }
             GameEntry *game = &random_games[count];
-            memset(game->label, 0, strlen(game->label));
-            memset(game->path, 0, strlen(game->path));
-            memset(game->img_path, 0, strlen(game->img_path));
-            memset(game->launch_path, 0, strlen(game->launch_path));
+            memset(game, 0, sizeof(*game));
 
             game->id = type;
             game->sum = 1;
