@@ -222,7 +222,9 @@ bool addRandomFromJson(char *json_path)
     int count = 0;
 
     FILE *fp;
-    char line[STR_MAX * 4];
+    /* JSON lines from JsonGameEntry_toJson reach 1086 chars + newline.
+     * STR_MAX*4+130 = 1154 avoids fgets truncation of long entries. */
+    char line[STR_MAX * 4 + 130];
     char path_a[STR_MAX];
     char path_b[STR_MAX];
     cJSON *json_root;

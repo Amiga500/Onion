@@ -447,7 +447,9 @@ bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size
 }
 char *file_read_lineN(const char *filename, int n)
 {
-    char line[STR_MAX * 4];
+    /* JSON recents lines reach 1086 chars (JsonGameEntry_toJson max output + newline).
+     * STR_MAX*4+130 = 1154 matches JSON_RECENTS_LINE_MAX and avoids fgets truncation. */
+    char line[STR_MAX * 4 + 130];
     int lineNumber = 1;
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
@@ -495,7 +497,9 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    char line[STR_MAX * 4];
+    /* JSON recents lines reach 1086 chars (JsonGameEntry_toJson max output + newline).
+     * STR_MAX*4+130 = 1154 matches JSON_RECENTS_LINE_MAX and avoids fgets truncation. */
+    char line[STR_MAX * 4 + 130];
     int lineNumber = 1;
 
     while (fgets(line, sizeof(line), file) != NULL) {
@@ -541,7 +545,9 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     fputs(lineToAdd, tempFile);
 
-    char line[STR_MAX * 4];
+    /* JSON recents lines reach 1086 chars (JsonGameEntry_toJson max output + newline).
+     * STR_MAX*4+130 = 1154 matches JSON_RECENTS_LINE_MAX and avoids fgets truncation. */
+    char line[STR_MAX * 4 + 130];
     while (fgets(line, sizeof(line), file) != NULL) {
         fputs(line, tempFile);
     }
