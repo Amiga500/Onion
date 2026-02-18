@@ -86,7 +86,7 @@ int retroarch_getStatus(RetroArchStatus_s *status)
     char status_str[32];
 
     // Parse response "GET_STATUS PAUSED game_boy_advance,Advance Wars (U) (V1.1) [!],crc32=26fd0fc9"
-    int parsed = sscanf(response, "GET_STATUS %31s %1023[^\n]", status_str, status->content_info);
+    int parsed = sscanf(response, "GET_STATUS %31s %511[^\n]", status_str, status->content_info);
 
     if (parsed < 2)
         status->content_info[0] = '\0';
