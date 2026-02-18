@@ -90,7 +90,7 @@ void setEntryDefaultValues(Game_s *game, int index)
 void readHistory()
 {
     FILE *file;
-    char line[STR_MAX * 6];
+    char line[JSON_RECENTS_LINE_MAX];
     int numRecents = 0;
 
     const char *recentFilePath = getMiyooRecentFilePath();
@@ -188,7 +188,7 @@ void processItem(Game_s *game)
 void readFirstEntry()
 {
     FILE *file;
-    char line[STR_MAX * 6];
+    char line[JSON_RECENTS_LINE_MAX];
 
     file = fopen(getMiyooRecentFilePath(), "r");
     if (file == NULL) {

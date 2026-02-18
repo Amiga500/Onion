@@ -16,8 +16,10 @@
 
 bool __get_path_recent(char *path_out)
 {
-    /* path_out is always path[512] from __screenshot_perform */
-    const size_t path_max = 512;
+    /* path_out is always path[STR_MAX+64] from __screenshot_perform.
+     * Max content: "/mnt/SDCARD/Screenshots/"(25) + name(≤255) + "_999.png"(8) = 288 B.
+     */
+    const size_t path_max = STR_MAX + 64;
     char *fnptr, *no_extension;
     uint32_t i;
 
@@ -149,7 +151,7 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool r
 bool __screenshot_perform(bool(get_path)(char *), pid_t p_id)
 {
     bool retval = false;
-    char path[512];
+    char path[STR_MAX + 64];
     uint32_t *buffer;
 
     if (p_id != 0) {
