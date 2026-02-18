@@ -706,8 +706,9 @@ void menu_diagnostics(void *pt)
                 prefix = "%.62s";
             }
 
-            snprintf(diagItem.label, DIAG_MAX_LABEL_LENGTH - 1, prefix, scripts[i].label);
+            snprintf(diagItem.label, DIAG_MAX_LABEL_LENGTH, prefix, scripts[i].label);
             strncpy(diagItem.sticky_note, "Idle: Selected script not running", STR_MAX - 1);
+            diagItem.sticky_note[STR_MAX - 1] = '\0';
 
             char *parsed_Tooltip = diags_parseNewLines(scripts[i].tooltip);
             list_addItemWithInfoNote(&_menu_diagnostics, diagItem, parsed_Tooltip);
