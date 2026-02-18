@@ -104,7 +104,7 @@ static bool loadImagesPathsFromJson(const char *config_path,
             continue;
         }
         const char *image_path = cJSON_GetStringValue(json_image_path);
-        snprintf((*images_paths)[i], STR_MAX * 2 + 1, "%s/%s", temp_path,
+        snprintf((*images_paths)[i], STR_MAX * 2 + 2, "%s/%s", temp_path,
                  image_path);
 
         cJSON *json_image_title = cJSON_GetObjectItem(json_image_item, "title");

@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
             while ((ep = readdir(dp))) {
                 if (ep->d_type != DT_DIR)
                     continue;
-                snprintf(emupath, STR_MAX + 16, "/mnt/SDCARD/Emu/%s",
+                snprintf(emupath, sizeof(emupath), "/mnt/SDCARD/Emu/%s",
                          ep->d_name);
                 addRandomFromEmu(emupath);
             }
