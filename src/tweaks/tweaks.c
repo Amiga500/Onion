@@ -65,8 +65,11 @@ int main(int argc, char *argv[])
     bool use_display = true;
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--apply_tool") == 0)
+        if (strcmp(argv[i], "--apply_tool") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
             strncpy(apply_tool, argv[++i], STR_MAX - 1);
+            apply_tool[STR_MAX - 1] = '\0';
+        }
         else if (strcmp(argv[i], "--no_display") == 0)
             use_display = false;
     }

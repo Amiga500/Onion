@@ -98,11 +98,13 @@ int main(int argc, char *argv[])
     for (i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 strncpy(title_str, argv[++i], STR_MAX - 1);
                 continue;
             }
             if (strcmp(argv[i], "-m") == 0 ||
                 strcmp(argv[i], "--message") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 strncpy(message_str, argv[++i], STR_MAX - 1);
                 continue;
             }
@@ -118,6 +120,7 @@ int main(int argc, char *argv[])
             }
             if (strcmp(argv[i], "-s") == 0 ||
                 strcmp(argv[i], "--selected") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 selected = atoi(argv[++i]);
                 continue;
             }
