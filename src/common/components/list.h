@@ -177,6 +177,7 @@ ListItem *list_currentItem(List *list)
 void list_updateStickyNote(ListItem *item, const char *message)
 {
     strncpy(item->sticky_note, message, STR_MAX - 1);
+    item->sticky_note[STR_MAX - 1] = '\0';
 }
 
 const char *list_getStickyNote(ListItem *item)

@@ -214,8 +214,9 @@ Theme_s theme_loadFromPath(const char *theme_path, bool apply_overrides)
         .list = {.font = FALLBACK_FONT, .size = 24, .color = {255, 255, 255}}};
 
     strncpy(config.path, theme_path, STR_MAX - 1);
+    config.path[STR_MAX - 1] = '\0';
     int len = strlen(config.path);
-    if (config.path[len - 1] != '/') {
+    if (len > 0 && len < STR_MAX - 1 && config.path[len - 1] != '/') {
         config.path[len] = '/';
         config.path[len + 1] = '\0';
     }
