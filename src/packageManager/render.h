@@ -21,10 +21,14 @@ SDL_Surface *createLabelSurface(Package *package)
 
     char label_text[STR_MAX], parens[STR_MAX] = "";
     strncpy(label_text, package->name, STR_MAX - 1);
+    label_text[STR_MAX - 1] = '\0';
 
     if (strchr(package->name, '(') != NULL) {
-        parens[0] = '(';
-        strncat(parens, str_split(label_text, "("), STR_MAX - 2);
+        char *tail = str_split(label_text, "(");
+        if (tail != NULL) {
+            parens[0] = '(';
+            strncat(parens, tail, STR_MAX - 2);
+        }
     }
 
     SDL_Surface *label_surface =
