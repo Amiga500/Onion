@@ -32,7 +32,7 @@ void _action_runApp(const char *app_dir_name)
 void _action_runTool(const char *tool_name)
 {
     FILE *fp;
-    char cmd[STR_MAX * 4];
+    char cmd[STR_MAX + 64];
     snprintf(cmd, sizeof(cmd), "cd /mnt/SDCARD/.tmp_update; ./bin/tweaks --apply_tool \"%s\"",
              tool_name);
     file_put_sync(fp, "/tmp/cmd_to_run.sh", "%s", cmd);

@@ -11,8 +11,9 @@ typedef struct {
     bool is_duplicate;
     int dup_id;
 } InstalledApp;
-static InstalledApp _installed_apps[100];
-static InstalledApp _installed_apps_sorted[100];
+#define MAX_INSTALLED_APPS 64
+static InstalledApp _installed_apps[MAX_INSTALLED_APPS];
+static InstalledApp _installed_apps_sorted[MAX_INSTALLED_APPS];
 static int installed_apps_count = 0;
 static bool installed_apps_loaded = false;
 
@@ -59,6 +60,11 @@ InstalledApp *getInstalledApps(bool sort)
                 strcmp(ep->d_name, "..") == 0)
                 continue;
             int i = installed_apps_count;
+
+            if (i >= MAX_INSTALLED_APPS) {
+                printf_debug("getInstalledApps: limit of %d apps reached, ignoring further entries\n", MAX_INSTALLED_APPS);
+                break;
+            }
 
             if (!_getAppDirAndConfig(ep->d_name, app_dir, config_path))
                 continue;

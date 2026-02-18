@@ -426,7 +426,7 @@ void resumeGame(int index)
         if (validGameCount == index) {
 
             FILE *fp;
-            char LaunchCommand[STR_MAX * 3];
+            char LaunchCommand[STR_MAX * 2 + 64];
 
             fclose(file);
             file = NULL;
