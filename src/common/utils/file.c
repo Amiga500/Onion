@@ -372,7 +372,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
     rename(tempPath, file_path);
 }
 
-bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
+bool file_path_relative_to(char *path_out, size_t dest_size, const char *dir_from, const char *file_to)
 {
     path_out[0] = '\0';
 
@@ -395,10 +395,10 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
     if (strlen(p1) > 0) {
         int num_parens = str_count_char(p1, '/') + 1;
         for (int i = 0; i < num_parens; i++) {
-            strncat(path_out, "../", PATH_MAX - strlen(path_out) - 1);
+            strncat(path_out, "../", dest_size - strlen(path_out) - 1);
         }
     }
-    strncat(path_out, p2, PATH_MAX - strlen(path_out) - 1);
+    strncat(path_out, p2, dest_size - strlen(path_out) - 1);
 
     return true;
 }

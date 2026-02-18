@@ -262,7 +262,7 @@ void free_play_activities(PlayActivities *pa_ptr)
 
 void __ensure_rel_path(char *rel_path, size_t dest_size, const char *rom_path)
 {
-    if (!file_path_relative_to(rel_path, ROMS_FOLDER, rom_path)) {
+    if (!file_path_relative_to(rel_path, dest_size, ROMS_FOLDER, rom_path)) {
         if (strstr(rom_path, "../../Roms/") != NULL) {
             char *_copy = strdup((const char *)rom_path);
             if (_copy != NULL) {

@@ -324,7 +324,8 @@ bool history_getRomscreenPath(char *path_out)
     }
     print_debug(file_path);
     if (strlen(filename) > 0) {
-        snprintf(path_out, STR_MAX * 2, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+        /* Max: 44-char prefix + 10-digit hash + ".png" + NUL = 59 B; fits in STR_MAX. */
+        snprintf(path_out, STR_MAX, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;
     }
 

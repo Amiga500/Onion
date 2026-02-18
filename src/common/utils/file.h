@@ -114,7 +114,7 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
 void file_changeKeyValue(const char *file_path, const char *key,
                          const char *replacement_line);
 
-bool file_path_relative_to(char *path_out, const char *path_from, const char *path_to);
+bool file_path_relative_to(char *path_out, size_t dest_size, const char *path_from, const char *path_to);
 
 bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size);
 

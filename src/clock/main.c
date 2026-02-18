@@ -54,8 +54,6 @@ uint32_t update_clock = 0;
 
 char final_long_string[64];
 
-uint8_t string_tmp[2][512];
-
 int select_cursor = 0;
 
 /* I could probably make this smaller */

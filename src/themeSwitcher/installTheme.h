@@ -127,11 +127,13 @@ bool checkPreview(const char *preview_path)
 
 bool getThemePath(const char *theme_name, char *theme_path_out)
 {
-    snprintf(theme_path_out, STR_MAX * 2 - 1, THEMES_DIR "/.previews/%s/",
+    /* Max: THEMES_DIR (19) + "/.previews/" (11) + NAME_MAX-1 (253) + "/" + NUL = 285 B.
+     * All callers pass theme_path[STR_MAX+32=288]; use STR_MAX+32-1 as the limit. */
+    snprintf(theme_path_out, STR_MAX + 32 - 1, THEMES_DIR "/.previews/%s/",
              theme_name);
 
     if (!checkPreview(theme_path_out))
-        snprintf(theme_path_out, STR_MAX * 2 - 1, THEMES_DIR "/%s/",
+        snprintf(theme_path_out, STR_MAX + 32 - 1, THEMES_DIR "/%s/",
                  theme_name);
 
     return is_dir(theme_path_out);

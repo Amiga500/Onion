@@ -114,7 +114,7 @@ CacheDBItem *cache_db_find(const char *path_or_name)
         return NULL;
 
     char rel_path[STR_MAX * 2];
-    if (!file_path_relative_to(rel_path, "/mnt/SDCARD/Roms", path_or_name)) {
+    if (!file_path_relative_to(rel_path, sizeof(rel_path), "/mnt/SDCARD/Roms", path_or_name)) {
         if (strstr(path_or_name, "../../Roms/") != NULL) {
             strncpy(rel_path, str_split(_path_or_name, "../../Roms/"), sizeof(rel_path) - 1);
         }
