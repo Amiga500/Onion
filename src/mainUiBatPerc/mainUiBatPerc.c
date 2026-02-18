@@ -32,8 +32,8 @@ void restoreRegularDisplay(void)
 
     printf_debug("theme_path: %s\n", theme_path);
 
-    bool icon_exists = theme_getImagePath(theme_path, "power-full-icon", icon_path) == 1;
-    bool backup_exists = theme_getImagePath(theme_path, "power-full-icon_back", icon_backup) == 1;
+    bool icon_exists = theme_getImagePath(theme_path, "power-full-icon", icon_path, sizeof(icon_path)) == 1;
+    bool backup_exists = theme_getImagePath(theme_path, "power-full-icon_back", icon_backup, sizeof(icon_backup)) == 1;
 
     // Restore regular battery display
     if (icon_exists && backup_exists) {

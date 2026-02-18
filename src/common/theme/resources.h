@@ -149,9 +149,9 @@ SDL_Surface *_loadImage(ThemeImages request)
     case BATTERY_80:
         return theme_loadImage(t->path, "power-80%-icon");
     case BATTERY_100:
-        real_location = theme_getImagePath(t->path, "power-full-icon", NULL);
+        real_location = theme_getImagePath(t->path, "power-full-icon", NULL, 0);
         backup_location =
-            theme_getImagePath(t->path, "power-full-icon_back", NULL);
+            theme_getImagePath(t->path, "power-full-icon_back", NULL, 0);
         return theme_loadImage(t->path, real_location == backup_location
                                             ? "power-full-icon_back"
                                             : "power-full-icon");

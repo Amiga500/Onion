@@ -137,7 +137,7 @@ bool ra_getBoolFromConfig(const char *cfg_path, bool *out_value, const char *key
 bool ra_getConfigOverrideOption(const Game_s *game, const char *key, bool defaultValue)
 {
     bool result = false;
-    char cfg_path[STR_MAX * 4];
+    char cfg_path[STR_MAX * 2 + 64];
 
     // Game override
     snprintf(cfg_path, sizeof(cfg_path), CONFIG_DIR "/%s/%s.cfg", game->core_name, game->rom_name);
