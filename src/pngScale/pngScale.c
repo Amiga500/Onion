@@ -191,6 +191,9 @@ int main(int argc, char *argv[])
     png_write_info(png_ptr, info_ptr);
     src = dstVa;
     tmp = malloc(dw * 4);
+    if (!tmp) {
+        ERROR("out of memory");
+    }
     for (y = 0; y < dh; y++) {
         dst = tmp;
         for (x = 0; x < dw; x++) {
