@@ -33,9 +33,11 @@ int __get_font_size()
 void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *message_str, bool show_hint)
 {
     SDL_Surface *transparent_bg = SDL_CreateRGBSurface(0, g_display.width, g_display.height, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-    SDL_FillRect(transparent_bg, NULL, /* 33.3% transparent black */ 0x55000000);
-    SDL_BlitSurface(transparent_bg, NULL, screen, NULL);
-    SDL_FreeSurface(transparent_bg);
+    if (transparent_bg) {
+        SDL_FillRect(transparent_bg, NULL, /* 33.3% transparent black */ 0x55000000);
+        SDL_BlitSurface(transparent_bg, NULL, screen, NULL);
+        SDL_FreeSurface(transparent_bg);
+    }
 
     SDL_Surface *pop_bg = resource_getSurface(POP_BG);
     SDL_Rect center_rect = {(g_display.width - pop_bg->w) / 2, (g_display.height - pop_bg->h) / 2};
@@ -50,7 +52,7 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     }
 
     SDL_Surface *textbox = theme_textboxSurface(message_str, resource_getFont(TITLE), theme()->grid.color, ALIGN_CENTER);
-    if (textbox->w > DIALOG_WIDTH || textbox->h > 6 * (double)DIALOG_LINE_HEIGHT * g_scale) {
+    if (textbox && (textbox->w > DIALOG_WIDTH || textbox->h > 6 * (double)DIALOG_LINE_HEIGHT * g_scale)) {
         SDL_FreeSurface(textbox);
         TTF_Font *temp_font = theme_loadFont(theme()->path, theme()->title.font, __get_font_size());
         textbox = theme_textboxSurface(message_str, temp_font, theme()->grid.color, ALIGN_CENTER);

@@ -130,6 +130,13 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
     SDL_Surface *textbox = SDL_CreateRGBSurface(
         0, max_width, textbox_height, 32, 0x00FF0000, 0x0000FF00,
         0x000000FF, 0xFF000000);
+    if (!textbox) {
+        for (int k = 0; k < line_count; ++k)
+            free(lines[k]);
+        free(lines);
+        free(line_widths);
+        return NULL;
+    }
     SDL_FillRect(textbox, NULL, 0x000000FF);
 
     // --- Second pass: render each line if not empty
@@ -197,6 +204,10 @@ SDL_Surface *theme_createTextOverlay(const char *text, SDL_Color fg, SDL_Color b
     int overlayH = text_surface->h + 2 * padding;
 
     SDL_Surface *overlay_surface = SDL_CreateRGBSurface(SDL_SWSURFACE, overlayW, overlayH, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+    if (!overlay_surface) {
+        SDL_FreeSurface(text_surface);
+        return NULL;
+    }
     SDL_FillRect(overlay_surface, NULL, SDL_MapRGBA(overlay_surface->format, bg.r, bg.g, bg.b, (Uint8)(bgAlpha * 255.0)));
 
     SDL_Rect dest = {padding, padding};

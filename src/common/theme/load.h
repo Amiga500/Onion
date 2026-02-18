@@ -90,9 +90,10 @@ SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
         // Normalize to 32-bit surface with alpha channel
         SDL_Surface *converted = SDL_CreateRGBSurface(SDL_SWSURFACE, image->w, image->h, 32,
                                                       0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
-        SDL_BlitSurface(image, NULL, converted, NULL);
+        if (converted)
+            SDL_BlitSurface(image, NULL, converted, NULL);
         SDL_FreeSurface(image);
-        image = converted;
+        image = converted; // NULL if OOM; callers check for NULL return
     }
 
     if (g_scale != 1.0 && scaleSurfaceFunc) {

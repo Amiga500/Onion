@@ -89,7 +89,7 @@ bool mkdirs(const char *dir_path)
 void file_readLastLine(const char *filename, char *out_str)
 {
     FILE *fd;
-    int size;
+    long size;
     char buff[256];
     char *token = NULL;
 
