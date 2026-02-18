@@ -60,14 +60,21 @@ void get_rom_image_path(char *rom_file, char *out_image_path)
 {
     if (str_endsWith(rom_file, ".p8") || str_endsWith(rom_file, ".png")) {
         snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s", rom_file);
+        return;
     }
 
     char *clean_rom_name = file_removeExtension(basename(rom_file));
     if (clean_rom_name == NULL)
         return;
-    char *rom_folder = strtok(rom_file, "/");
+    char *rom_file_copy = strdup(rom_file);
+    if (rom_file_copy == NULL) {
+        free(clean_rom_name);
+        return;
+    }
+    char *rom_folder = strtok(rom_file_copy, "/");
 
     snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s/Imgs/%s.png", rom_folder, clean_rom_name);
+    free(rom_file_copy);
     free(clean_rom_name);
 }
 
