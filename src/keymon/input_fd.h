@@ -26,7 +26,7 @@
 #define QUEUE_MAX 10
 
 // Global Variables
-static int input_fd;
+static int input_fd = -1;
 static struct input_event ev;
 static struct pollfd fds[1];
 static bool keyinput_disabled = false;

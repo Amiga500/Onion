@@ -51,9 +51,8 @@ void system_powersave(bool enabled)
             while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
                 saved_min_freq = atoi(buffer);
             }
+            pclose(pipe);
         }
-
-        pclose(pipe);
 
         // save values for restoring later
         file_get(fp, CPU_SCALING_GOVERNOR, "%15s", saved_governor);

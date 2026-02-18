@@ -169,7 +169,7 @@ void resume(void)
 void quit(int exitcode)
 {
     display_close();
-    if (input_fd > 0)
+    if (input_fd >= 0)
         close(input_fd);
     system_clock_get();
     system_rtc_set();
@@ -453,7 +453,12 @@ int main(void)
     display_init(true);
 
     // Prepare for Poll button input
-    input_fd = open("/dev/input/event0", O_RDONLY);
+    const char *input_dev = "/dev/input/event0";
+    input_fd = open(input_dev, O_RDONLY);
+    if (input_fd < 0) {
+        fprintf(stderr, "keymon: failed to open %s\n", input_dev);
+        quit(1);
+    }
     memset(&fds, 0, sizeof(fds));
     fds[0].fd = input_fd;
     fds[0].events = POLLIN;
