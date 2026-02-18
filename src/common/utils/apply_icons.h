@@ -70,6 +70,7 @@ bool apply_singleIconByFullPath(const char *config_path, const char *icon_path)
 
     char temp_path[STR_MAX];
     strncpy(temp_path, icon_path, STR_MAX - 1);
+    temp_path[STR_MAX - 1] = '\0';
 
     const char *file_name = basename(temp_path);
     const char *dir_path = dirname(temp_path);
