@@ -113,7 +113,7 @@ bool process_start_read_return(const char *cmdline, char *out_str, size_t out_st
 
     pclose(pipe);
     if (result != NULL) {
-        result[strlen(buffer) - 1] = '\0';
+        result[strcspn(result, "\n")] = '\0';
         strncpy(out_str, result, out_str_size - 1);
         out_str[out_str_size - 1] = '\0';
         free(result);

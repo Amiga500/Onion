@@ -322,11 +322,10 @@ void file_changeKeyValue(const char *file_path, const char *key,
         }
 
         line_len = strlen(line);
-        if (line[line_len - 1] != '\n') {
-            line[line_len - 1] = '\n';
-            line[line_len] = '\0';
-        }
-        fprintf(cp, "%s", line);
+        if (line_len > 0 && line[line_len - 1] != '\n')
+            fprintf(cp, "%s\n", line);
+        else
+            fprintf(cp, "%s", line);
     }
 
     if (!found) {
