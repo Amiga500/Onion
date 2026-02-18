@@ -182,7 +182,8 @@ void cleanup(void)
 {
     remove("/tmp/percBat");
     display_close();
-    close(sar_fd);
+    if (sar_fd >= 0)
+        close(sar_fd);
 }
 
 void update_current_duration(void)
@@ -346,8 +347,12 @@ int updateADCValue(int value)
     if (battery_isCharging())
         return 100;
 
-    if (!sar_fd) {
+    if (sar_fd < 0) {
         sar_fd = open("/dev/sar", O_WRONLY);
+        if (sar_fd < 0) {
+            perror("updateADCValue: open /dev/sar");
+            return value;
+        }
         ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
     }
 
