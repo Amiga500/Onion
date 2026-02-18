@@ -129,12 +129,12 @@ bool checkPreview(const char *preview_path)
 bool getThemePath(const char *theme_name, char *theme_path_out)
 {
     /* Max: THEMES_DIR (19) + "/.previews/" (11) + NAME_MAX-1 (253) + "/" + NUL = 285 B.
-     * All callers pass theme_path[STR_MAX+32=288]; use STR_MAX+32-1 as the limit. */
-    snprintf(theme_path_out, STR_MAX + 32 - 1, THEMES_DIR "/.previews/%s/",
+     * All callers pass theme_path[STR_MAX+32=288]; snprintf size includes NUL. */
+    snprintf(theme_path_out, STR_MAX + 32, THEMES_DIR "/.previews/%s/",
              theme_name);
 
     if (!checkPreview(theme_path_out))
-        snprintf(theme_path_out, STR_MAX + 32 - 1, THEMES_DIR "/%s/",
+        snprintf(theme_path_out, STR_MAX + 32, THEMES_DIR "/%s/",
                  theme_name);
 
     return is_dir(theme_path_out);
@@ -221,7 +221,7 @@ void installTheme(char *theme_path, bool apply_icons)
 
     if (apply_icons) {
         char icon_pack_path[STR_MAX + 32];
-        snprintf(icon_pack_path, STR_MAX + 32 - 1, "%sicons", theme_path);
+        snprintf(icon_pack_path, sizeof(icon_pack_path), "%sicons", theme_path);
         apply_iconPack(
             is_dir(icon_pack_path) ? icon_pack_path : ICON_PACK_DEFAULT, true);
     }

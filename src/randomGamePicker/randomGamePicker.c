@@ -50,7 +50,7 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
                    char *launch_out, char *imgsdir_out)
 {
     char config_path[STR_MAX + 13];
-    snprintf(config_path, STR_MAX + 12, "%s/config.json", emupath);
+    snprintf(config_path, sizeof(config_path), "%s/config.json", emupath);
 
     if (!exists(config_path))
         return false;
