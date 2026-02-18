@@ -76,7 +76,11 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
     cache_path_out[0] = '\0';
 
     int cache_version = CACHE_NOT_FOUND;
-    char *cache_dir = dirname(strdup((char *)rom_path));
+    /* Keep original strdup pointer so we can free it after dirname modifies it */
+    char *_rom_path_copy = strdup((char *)rom_path);
+    if (_rom_path_copy == NULL)
+        return cache_version;
+    char *cache_dir = dirname(_rom_path_copy);
 
     while (strlen(cache_dir) > 16) {
         strncpy(cache_name_out, basename(cache_dir), STR_MAX - 1);
@@ -94,6 +98,7 @@ int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_p
         }
     }
 
+    free(_rom_path_copy);
     return cache_version;
 }
 
@@ -105,6 +110,8 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     char cache_db_file_path[STR_MAX];
     char cache_type[STR_MAX];
     char *_path_or_name = strdup(path_or_name);
+    if (_path_or_name == NULL)
+        return NULL;
 
     char rel_path[PATH_MAX];
     if (!file_path_relative_to(rel_path, "/mnt/SDCARD/Roms", path_or_name)) {

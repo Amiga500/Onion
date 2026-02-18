@@ -40,6 +40,23 @@ bool config_get(const char *key, const char *format, void *dest)
     return false;
 }
 
+bool config_getString(const char *key, char *dest, size_t dest_size)
+{
+    FILE *fp;
+
+    char filename[STR_MAX];
+    concat(filename, sizeof(filename), CONFIG_PATH, key);
+
+    if (exists(filename)) {
+        char format[16];
+        snprintf(format, sizeof(format), "%%%zu[^\n]", dest_size - 1);
+        file_get(fp, filename, format, dest);
+        return true;
+    }
+
+    return false;
+}
+
 void _config_prepare(const char *key, char *filename, size_t filename_size)
 {
     concat(filename, filename_size, CONFIG_PATH, key);

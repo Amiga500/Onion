@@ -388,7 +388,7 @@ int getBatPercMMP(void)
     system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result");
 
     FILE *fp;
-    file_get(fp, "/tmp/.axp_result", CONTENT_STR, buf);
+    file_get(fp, "/tmp/.axp_result", "%99[^\n]", buf);
     sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
 
     return battery_number;

@@ -42,7 +42,7 @@ bool __get_path_recent(char *path_out)
     else if ((system_state == MODE_GAME || system_state == MODE_APPS) && exists(CMD_TO_RUN_PATH)) {
         FILE *fp;
         char cmd[STR_MAX];
-        file_get(fp, CMD_TO_RUN_PATH, "%[^\n]", cmd);
+        file_get(fp, CMD_TO_RUN_PATH, "%255[^\n]", cmd);
         printf_debug("cmd: '%s'\n", cmd);
 
         char app_name[STR_MAX];

@@ -111,7 +111,7 @@ bool checkPreview(const char *preview_path)
 
     FILE *fp;
     char archive_path[STR_MAX * 2];
-    file_get(fp, source_path, "%[^\n]", archive_path);
+    file_get(fp, source_path, "%511[^\n]", archive_path);
 
     if (!is_file(archive_path))
         return false;
@@ -226,7 +226,7 @@ bool checkActiveTheme(char *theme_path_out)
 
     FILE *fp;
     char active_theme_path[STR_MAX];
-    file_get(fp, ACTIVE_THEME, "%[^\n]", active_theme_path);
+    file_get(fp, ACTIVE_THEME, "%255[^\n]", active_theme_path);
 
     printf_debug("active theme: %s\n", active_theme_path);
 

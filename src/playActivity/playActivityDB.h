@@ -262,10 +262,22 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
 {
     if (!file_path_relative_to(rel_path, ROMS_FOLDER, rom_path)) {
         if (strstr(rom_path, "../../Roms/") != NULL) {
-            strncpy(rel_path, str_split(strdup((const char *)rom_path), "../../Roms/"), PATH_MAX - 1);
+            char *_copy = strdup((const char *)rom_path);
+            if (_copy != NULL) {
+                strncpy(rel_path, str_split(_copy, "../../Roms/"), PATH_MAX - 1);
+                free(_copy);
+            }
         }
         else {
-            strncpy(rel_path, str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", ""), PATH_MAX - 1);
+            char *_copy = strdup((const char *)rom_path);
+            if (_copy != NULL) {
+                char *_replaced = str_replace(_copy, "/mnt/SDCARD/Roms/", "");
+                free(_copy);
+                if (_replaced != NULL) {
+                    strncpy(rel_path, _replaced, PATH_MAX - 1);
+                    free(_replaced);
+                }
+            }
         }
         rel_path[PATH_MAX - 1] = '\0';
     }
@@ -439,7 +451,7 @@ bool _get_active_rom_path(char *rom_path_out)
     char cmd[STR_MAX] = "";
 
     FILE *fp;
-    file_get(fp, CMD_TO_RUN, CONTENT_STR, cmd);
+    file_get(fp, CMD_TO_RUN, "%255[^\n]", cmd);
 
     if (strlen(cmd) == 0) {
         return false;

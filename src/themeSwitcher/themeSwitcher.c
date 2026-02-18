@@ -91,7 +91,7 @@ SDL_Surface *getPreviewIcon(const char *path, SDL_Surface *file_zip,
         return NULL;
 
     FILE *fp;
-    file_get(fp, source_path, "%[^\n]", source_path);
+    file_get(fp, source_path, "%255[^\n]", source_path);
 
     const char *ext = file_getExtension(source_path);
 
