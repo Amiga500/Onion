@@ -25,9 +25,9 @@ typedef struct game_entry_s {
     int c_sum;
     char label[STR_MAX];
     char path[STR_MAX];
-    char img_path[STR_MAX * 3 + 3];
+    char img_path[STR_MAX * 2 + 32];
     char emu_name[STR_MAX];
-    char launch_path[STR_MAX * 2];
+    char launch_path[STR_MAX + 64];
 } GameEntry;
 
 static GameEntry
@@ -77,7 +77,7 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
         char launch_rel[STR_MAX];
         if (!json_getString(json_root, "launch", launch_rel))
             return false;
-        snprintf(launch_out, STR_MAX * 2 + 1, "%s/%s", emupath, launch_rel);
+        snprintf(launch_out, STR_MAX + 64, "%s/%s", emupath, launch_rel);
     }
 
     if (emuname_out != NULL) {
@@ -122,8 +122,8 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
     sqlite3 *db;
     sqlite3_stmt *res;
 
-    char cache_path[STR_MAX * 3];
-    snprintf(cache_path, STR_MAX * 3 - 1, "%s/%s_cache6.db", romsdir,
+    char cache_path[STR_MAX * 2 + 64];
+    snprintf(cache_path, sizeof(cache_path) - 1, "%s/%s_cache6.db", romsdir,
              basename(romsdir));
     printf_debug("cache: %s\n", cache_path);
 
@@ -174,7 +174,7 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
         strncpy(game->img_path, (const char *)sqlite3_column_text(res, 3),
                 STR_MAX - 1);
 
-        strncpy(game->launch_path, launch_path, STR_MAX * 2 - 1);
+        strncpy(game->launch_path, launch_path, sizeof(game->launch_path) - 1);
         strncpy(game->emu_name, emuname, STR_MAX - 1);
     }
 
@@ -188,7 +188,7 @@ bool addRandomFromEmu(char *emupath)
 {
     char emuname[STR_MAX];
     char romsdir[STR_MAX * 2 + 2];
-    char launch_path[STR_MAX * 2 + 2];
+    char launch_path[STR_MAX + 64];
 
     if (!loadEmuConfig(emupath, emuname, romsdir, launch_path, NULL))
         return false;
@@ -293,7 +293,7 @@ bool addRandomFromJson(char *json_path)
 
             if (strlen(game->img_path) == 0) {
                 char *no_extension = file_removeExtension(basename(game->path));
-                snprintf(game->img_path, STR_MAX * 3 + 2, "%s/%s.png", imgsdir,
+                snprintf(game->img_path, sizeof(game->img_path) - 1, "%s/%s.png", imgsdir,
                          no_extension);
                 free(no_extension);
             }
@@ -433,9 +433,9 @@ int main(int argc, char *argv[])
 
     GameEntry *chosen_game = &random_games[random_number];
 
-    char cmd_to_run[STR_MAX * 3 + 65];
+    char cmd_to_run[STR_MAX * 2 + 128];
     snprintf(
-        cmd_to_run, STR_MAX * 3 + 64,
+        cmd_to_run, sizeof(cmd_to_run),
         "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"",
         chosen_game->launch_path, chosen_game->path);
 
