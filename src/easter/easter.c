@@ -27,11 +27,16 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
     char *token = NULL;
     char *delim = "\n";
     char s[MAXCHARACTERSARRAY];
-    strcpy(s, message);
+    strncpy(s, message, sizeof(s) - 1);
+    s[sizeof(s) - 1] = '\0';
 
     token = strtok(s, delim);
-    while (token != NULL) {
+    while (token != NULL && line_count < MAXTEXTLINES) {
         lines[line_count] = TTF_RenderUTF8_Blended(font, token, fg);
+        if (lines[line_count] == NULL) {
+            token = strtok(NULL, delim);
+            continue;
+        }
         SDL_SetAlpha(lines[line_count], 0, 0); /* important */
         if (lines[line_count]->w > line_width)
             line_width = lines[line_count]->w;
@@ -65,9 +70,11 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
 void logMessage(char *Message)
 {
     FILE *file = fopen("/mnt/SDCARD/log_Easter_Message.txt", "a");
+    if (file == NULL)
+        return;
 
     char valLog[MAXCHARACTERSARRAY];
-    sprintf(valLog, "%s %s", Message, "\n");
+    snprintf(valLog, sizeof(valLog), "%s \n", Message);
     fputs(valLog, file);
     fclose(file);
 }
@@ -162,19 +169,24 @@ int main(int argc, char *argv[])
             TTF_Init();
 
             // Read the text from the text file
-            sprintf(gText, "%s", "Onion ");
+            strncpy(gText, "Onion ", sizeof(gText) - 1);
+            gText[sizeof(gText) - 1] = '\0';
             charIndex = 6;
 
             FILE *file =
                 fopen("/mnt/SDCARD/.tmp_update/onionVersion/version.txt", "r");
-            char c;
-            c = getc(file);
-            while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
-
-                gText[charIndex] = c;
-
-                charIndex++;
+            if (file != NULL) {
+                char c;
                 c = getc(file);
+                while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY - 4)) {
+                    /* Reserve 4 bytes: '\n', ' ', '\n' separators (lines 190-194) + final '\0' */
+
+                    gText[charIndex] = c;
+
+                    charIndex++;
+                    c = getc(file);
+                }
+                fclose(file);
             }
             gText[charIndex] = '\n';
             charIndex++;
@@ -186,27 +198,36 @@ int main(int argc, char *argv[])
             file = fopen(
                 "/mnt/SDCARD/.tmp_update/onionVersion/acknowledgments.txt",
                 "r");
-            c = getc(file);
-            while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
-                gText[charIndex] = c;
-                charIndex++;
+            if (file != NULL) {
+                char c;
                 c = getc(file);
+                while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY - 1)) {
+                    gText[charIndex] = c;
+                    charIndex++;
+                    c = getc(file);
+                }
+                fclose(file);
             }
 
             gText[charIndex] = '\0';
-            fclose(file);
 
             TTF_Font *font35 =
                 TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 35);
-            gTextSurface = theme_textboxSurface_High_Memory(
-                gText, font35, gTextColor, ALIGN_LEFT);
+            if (font35) {
+                gTextSurface = theme_textboxSurface_High_Memory(
+                    gText, font35, gTextColor, ALIGN_LEFT);
+                TTF_CloseFont(font35);
+            }
+            else {
+                gTextSurface = NULL;
+            }
 
             // DVD touching corner + text sliding Animation
             int cptFrames = 0;
-            int moduloFrame;
+            int moduloFrame = 0;
             SDL_PixelFormat *fmt = screen->format;
             while (loop) {
-                moduloFrame = cptFrames % moduloFrame;
+                moduloFrame = cptFrames % 3;
 
                 switch (animationStep) {
                 case 1:

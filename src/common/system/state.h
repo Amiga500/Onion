@@ -211,12 +211,12 @@ void write_mainui_state(MainUIState state, int currpos, int total)
         page_start = currpos;
     page_end = page_start + page_size - 1;
 
-    sprintf(state_str,
-            "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
-            "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
-            "\"pagestart\":%d,\"pageend\":%d}]}",
-            main_currpos, main_page_start, main_page_end, title_num, page_type,
-            currpos, page_start, page_end);
+    snprintf(state_str, sizeof(state_str),
+             "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
+             "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
+             "\"pagestart\":%d,\"pageend\":%d}]}",
+             main_currpos, main_page_start, main_page_end, title_num, page_type,
+             currpos, page_start, page_end);
 
     file_put_sync(fp, "/tmp/state.json", "%s", state_str);
 }
@@ -230,9 +230,9 @@ char *getMiyooRecentFilePath()
     static char filename[STR_MAX];
 
     if (exists(RECENTLIST_HIDDEN_PATH))
-        sprintf(filename, "%s", RECENTLIST_HIDDEN_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_HIDDEN_PATH);
     else
-        sprintf(filename, "%s", RECENTLIST_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_PATH);
 
     return filename;
 }
@@ -252,35 +252,39 @@ char *history_getRecentPath(char *rom_path)
     }
 
     while (fgets(line, STR_MAX * 3, file) != NULL) {
-        char *jsonContent = (char *)malloc(strlen(line) + 1);
         char romPathSearch[STR_MAX];
         int type;
 
-        strcpy(jsonContent, line);
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        const char *typePtr = strstr(line, "\"type\":");
+        if (typePtr == NULL)
+            continue;
+        sscanf(typePtr + 7, "%d", &type);
 
         if ((type != 5) && (type != 17)) {
-            free(jsonContent);
             fclose(file);
             return NULL;
         }
 
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"") + 11;
+        const char *rompathPtr = strstr(line, "\"rompath\":\"");
+        if (rompathPtr == NULL) {
+            fclose(file);
+            return NULL;
+        }
+        const char *rompathStart = rompathPtr + 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
+        if (rompathEnd == NULL) {
+            fclose(file);
+            return NULL;
+        }
 
         strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
         romPathSearch[rompathEnd - rompathStart] = '\0';
 
-        free(jsonContent);
-
         // Game launched with the search panel
         char *colonPosition = strchr(romPathSearch, ':');
         if (colonPosition != NULL) {
-
-            int position = (int)(colonPosition - romPathSearch);
-            char secondPart[strlen(romPathSearch) - position];
-            strcpy(secondPart, colonPosition + 1);
-            strcpy(romPathSearch, secondPart);
+            size_t suffixLen = strlen(colonPosition + 1);
+            memmove(romPathSearch, colonPosition + 1, suffixLen + 1);
         }
 
         printf_debug("romPathSearch : %s\n", romPathSearch);
@@ -290,7 +294,8 @@ char *history_getRecentPath(char *rom_path)
             return NULL;
         }
 
-        strcpy(rom_path, romPathSearch);
+        strncpy(rom_path, romPathSearch, STR_MAX - 1);
+        rom_path[STR_MAX - 1] = '\0';
 
         fclose(file);
         return rom_path;
@@ -306,11 +311,11 @@ bool history_getRomscreenPath(char *path_out)
     char file_path[STR_MAX];
 
     if (history_getRecentPath(file_path) != NULL) {
-        sprintf(filename, "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
+        snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
     }
     print_debug(file_path);
     if (strlen(filename) > 0) {
-        sprintf(path_out, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+        snprintf(path_out, STR_MAX * 2, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;
     }
 
@@ -334,13 +339,16 @@ void resumeGame(int index)
     int lineCount = 0;
 
     while (fgets(jsonContent, sizeof(jsonContent), file) != NULL) {
-        char label[256];
-        char rompath[256];
-        char imgpath[256];
-        char launch[256];
+        char label[256] = {'\0'};
+        char rompath[256] = {'\0'};
+        char imgpath[256] = {'\0'};
+        char launch[256] = {'\0'};
         lineCount++;
 
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        const char *typePtr = strstr(jsonContent, "\"type\":");
+        if (typePtr == NULL)
+            continue;
+        sscanf(typePtr + 7, "%d", &type);
 
         if ((type != 5) && (type != 17))
             continue;
@@ -349,24 +357,30 @@ void resumeGame(int index)
         if (labelStart != NULL) {
             labelStart += 9;
             const char *labelEnd = strchr(labelStart, '\"');
-            strncpy(label, labelStart, labelEnd - labelStart);
-            label[labelEnd - labelStart] = '\0';
+            if (labelEnd != NULL) {
+                strncpy(label, labelStart, labelEnd - labelStart);
+                label[labelEnd - labelStart] = '\0';
+            }
         }
         printf_debug("label: %s\n", label);
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
         if (rompathStart != NULL) {
             rompathStart += 11;
             const char *rompathEnd = strchr(rompathStart, '\"');
-            strncpy(rompath, rompathStart, rompathEnd - rompathStart);
-            rompath[rompathEnd - rompathStart] = '\0';
+            if (rompathEnd != NULL) {
+                strncpy(rompath, rompathStart, rompathEnd - rompathStart);
+                rompath[rompathEnd - rompathStart] = '\0';
+            }
         }
         printf_debug("rompath: %s\n", rompath);
         const char *imgpathStart = strstr(jsonContent, "\"imgpath\":\"");
         if (imgpathStart != NULL) {
             imgpathStart += 11;
             const char *imgpathEnd = strchr(imgpathStart, '\"');
-            strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
-            imgpath[imgpathEnd - imgpathStart] = '\0';
+            if (imgpathEnd != NULL) {
+                strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
+                imgpath[imgpathEnd - imgpathStart] = '\0';
+            }
         }
 
         char *colonPosition = strchr(rompath, ':');
@@ -374,15 +388,21 @@ void resumeGame(int index)
 
             int position = (int)(colonPosition - rompath);
 
-            char firstPart[position + 1];
+            char firstPart[256];
             strncpy(firstPart, rompath, position);
             firstPart[position] = '\0';
 
-            char secondPart[strlen(rompath) - position];
-            strcpy(secondPart, colonPosition + 1);
+            size_t suffixLen = strlen(colonPosition + 1);
+            char secondPart[256];
+            if (suffixLen >= sizeof(secondPart))
+                suffixLen = sizeof(secondPart) - 1;
+            memmove(secondPart, colonPosition + 1, suffixLen);
+            secondPart[suffixLen] = '\0';
 
-            strcpy(launch, firstPart);
-            strcpy(rompath, secondPart);
+            strncpy(launch, firstPart, sizeof(launch) - 1);
+            launch[sizeof(launch) - 1] = '\0';
+            strncpy(rompath, secondPart, sizeof(rompath) - 1);
+            rompath[sizeof(rompath) - 1] = '\0';
             printf_debug("launch cutted: %s\n", launch);
             printf_debug("rompath cutted: %s\n", rompath);
         }
@@ -391,8 +411,10 @@ void resumeGame(int index)
             if (launchStart != NULL) {
                 launchStart += 10;
                 const char *launchEnd = strchr(launchStart, '\"');
-                strncpy(launch, launchStart, launchEnd - launchStart);
-                launch[launchEnd - launchStart] = '\0';
+                if (launchEnd != NULL) {
+                    strncpy(launch, launchStart, launchEnd - launchStart);
+                    launch[launchEnd - launchStart] = '\0';
+                }
             }
         }
 
@@ -408,7 +430,7 @@ void resumeGame(int index)
 
             fclose(file);
             file = NULL;
-            sprintf(LaunchCommand, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
+            snprintf(LaunchCommand, sizeof(LaunchCommand), "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
 
             remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
 

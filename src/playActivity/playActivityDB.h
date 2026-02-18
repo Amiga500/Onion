@@ -177,27 +177,56 @@ PlayActivities *play_activity_find_all(void)
     sqlite3_reset(stmt);
 
     play_activities = (PlayActivities *)malloc(sizeof(PlayActivities));
+    if (play_activities == NULL) {
+        sqlite3_finalize(stmt);
+        play_activity_db_close();
+        return NULL;
+    }
     play_activities->count = play_activity_count;
     play_activities->play_time_total = 0;
     play_activities->play_activity = (PlayActivity **)malloc(sizeof(PlayActivity *) * play_activities->count);
+    if (play_activities->play_activity == NULL) {
+        free(play_activities);
+        play_activities = NULL;
+        sqlite3_finalize(stmt);
+        play_activity_db_close();
+        return NULL;
+    }
 
     for (int i = 0; i < play_activities->count; i++) {
-        if (sqlite3_step(stmt) != SQLITE_ROW)
+        if (sqlite3_step(stmt) != SQLITE_ROW) {
+            play_activities->count = i;
             break;
+        }
 
-        PlayActivity *entry = play_activities->play_activity[i] = (PlayActivity *)malloc(sizeof(PlayActivity));
-        ROM *rom = play_activities->play_activity[i]->rom = (ROM *)malloc(sizeof(ROM));
+        PlayActivity *entry = (PlayActivity *)malloc(sizeof(PlayActivity));
+        if (entry == NULL) {
+            play_activities->count = i;
+            break;
+        }
+        ROM *rom = (ROM *)malloc(sizeof(ROM));
+        if (rom == NULL) {
+            free(entry);
+            play_activities->count = i;
+            break;
+        }
+        play_activities->play_activity[i] = entry;
+        entry->rom = rom;
         entry->first_played_at = NULL;
         entry->last_played_at = NULL;
 
         rom->id = sqlite3_column_int(stmt, 0);
-        rom->type = strdup((const char *)sqlite3_column_text(stmt, 1));
-        rom->name = strdup((const char *)sqlite3_column_text(stmt, 2));
+        if (sqlite3_column_text(stmt, 1) != NULL)
+            rom->type = strdup((const char *)sqlite3_column_text(stmt, 1));
+        if (sqlite3_column_text(stmt, 2) != NULL)
+            rom->name = strdup((const char *)sqlite3_column_text(stmt, 2));
         if (sqlite3_column_text(stmt, 3) != NULL) {
             rom->file_path = strdup((const char *)sqlite3_column_text(stmt, 3));
             rom->image_path = malloc(STR_MAX * sizeof(char));
-            memset(rom->image_path, 0, STR_MAX);
-            get_rom_image_path(rom->file_path, rom->image_path);
+            if (rom->image_path != NULL) {
+                memset(rom->image_path, 0, STR_MAX);
+                get_rom_image_path(rom->file_path, rom->image_path);
+            }
         }
 
         entry->play_count = sqlite3_column_int(stmt, 4);
@@ -235,11 +264,24 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
 {
     if (!file_path_relative_to(rel_path, ROMS_FOLDER, rom_path)) {
         if (strstr(rom_path, "../../Roms/") != NULL) {
-            strcpy(rel_path, str_split(strdup((const char *)rom_path), "../../Roms/"));
+            char *_copy = strdup((const char *)rom_path);
+            if (_copy != NULL) {
+                strncpy(rel_path, str_split(_copy, "../../Roms/"), PATH_MAX - 1);
+                free(_copy);
+            }
         }
         else {
-            strcpy(rel_path, str_replace(strdup((const char *)rom_path), "/mnt/SDCARD/Roms/", ""));
+            char *_copy = strdup((const char *)rom_path);
+            if (_copy != NULL) {
+                char *_replaced = str_replace(_copy, "/mnt/SDCARD/Roms/", "");
+                free(_copy);
+                if (_replaced != NULL) {
+                    strncpy(rel_path, _replaced, PATH_MAX - 1);
+                    free(_replaced);
+                }
+            }
         }
+        rel_path[PATH_MAX - 1] = '\0';
     }
 }
 
@@ -289,6 +331,8 @@ int __db_get_orphan_rom_id(const char *rom_path)
 {
     int rom_id = ROM_NOT_FOUND;
     char *_file_name = strdup(rom_path);
+    if (_file_name == NULL)
+        return rom_id;
     char *file_name = basename(_file_name);
     char *rom_name = file_removeExtension(file_name);
 
@@ -411,7 +455,7 @@ bool _get_active_rom_path(char *rom_path_out)
     char cmd[STR_MAX] = "";
 
     FILE *fp;
-    file_get(fp, CMD_TO_RUN, CONTENT_STR, cmd);
+    file_get(fp, CMD_TO_RUN, "%255[^\n]", cmd);
 
     if (strlen(cmd) == 0) {
         return false;
@@ -512,7 +556,8 @@ void play_activity_fix_paths(void)
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         int rom_id = sqlite3_column_int(stmt, 0);
         char file_path[PATH_MAX];
-        strcpy(file_path, (const char *)sqlite3_column_text(stmt, 1));
+        strncpy(file_path, (const char *)sqlite3_column_text(stmt, 1), PATH_MAX - 1);
+        file_path[PATH_MAX - 1] = '\0';
 
         if (strlen(file_path) == 0) {
             continue;
@@ -555,12 +600,12 @@ void play_activity_list_all(void)
         char rom_name[STR_MAX];
         file_cleanName(rom_name, rom->name);
         char play_time[STR_MAX];
-        str_serializeTime(play_time, entry->play_time_total);
+        str_serializeTime(play_time, sizeof(play_time), entry->play_time_total);
         printf("%03d: %s (%s) [%s]\n", i + 1, rom_name, play_time, rom->type);
     }
 
     char total_str[25];
-    str_serializeTime(total_str, total_play_time);
+    str_serializeTime(total_str, sizeof(total_str), total_play_time);
     printf("\nTotal: %s\n", total_str);
 
     free_play_activities(pas);

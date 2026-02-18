@@ -94,7 +94,7 @@ void secondsToHoursMinutes(int seconds, char *output)
 {
     int hours = seconds / 3600;
     int minutes = (seconds % 3600) / 60;
-    sprintf(output, "%dh%02d", hours, minutes);
+    snprintf(output, 10, "%dh%02d", hours, minutes);
 }
 
 void drawLine(int x1, int y1, int x2, int y2, Uint32 color)
@@ -145,6 +145,8 @@ void drawLine(int x1, int y1, int x2, int y2, Uint32 color)
 int _renderText(const char *text, TTF_Font *font, SDL_Color color, SDL_Rect *rect, bool right_align)
 {
     int text_width = 0;
+    if (!font)
+        return text_width;
     SDL_Surface *textSurface = TTF_RenderUTF8_Blended(font, text, color);
     if (textSurface != NULL) {
         text_width = textSurface->w;
@@ -173,31 +175,43 @@ void switch_zoom_profile(int segment_duration)
     switch (segment_duration) {
     case 7200:
         // A segemmt is 120 minutes
-        sprintf(label[0], "%s", "4h");
-        sprintf(label[1], "%s", "8h");
-        sprintf(label[2], "%s", "12h");
-        sprintf(label[3], "%s", "16h");
+        strncpy(label[0], "4h", sizeof(label[0]) - 1);
+        label[0][sizeof(label[0]) - 1] = '\0';
+        strncpy(label[1], "8h", sizeof(label[1]) - 1);
+        label[1][sizeof(label[1]) - 1] = '\0';
+        strncpy(label[2], "12h", sizeof(label[2]) - 1);
+        label[2][sizeof(label[2]) - 1] = '\0';
+        strncpy(label[3], "16h", sizeof(label[3]) - 1);
+        label[3][sizeof(label[3]) - 1] = '\0';
         break;
     case 3600:
         // A segemmt is 60 minutes
-        sprintf(label[0], "%s", "2h");
-        sprintf(label[1], "%s", "4h");
-        sprintf(label[2], "%s", "6h");
-        sprintf(label[3], "%s", "8h");
+        strncpy(label[0], "2h", sizeof(label[0]) - 1);
+        label[0][sizeof(label[0]) - 1] = '\0';
+        strncpy(label[1], "4h", sizeof(label[1]) - 1);
+        label[1][sizeof(label[1]) - 1] = '\0';
+        strncpy(label[2], "6h", sizeof(label[2]) - 1);
+        label[2][sizeof(label[2]) - 1] = '\0';
+        strncpy(label[3], "8h", sizeof(label[3]) - 1);
+        label[3][sizeof(label[3]) - 1] = '\0';
         break;
     case 1800:
         // A segemmt is 30 minutes
-        sprintf(label[0], "%s", "1h");
-        sprintf(label[1], "%s", "2h");
-        sprintf(label[2], "%s", "3h");
-        sprintf(label[3], "%s", "4h");
+        strncpy(label[0], "1h", sizeof(label[0]) - 1);
+        label[0][sizeof(label[0]) - 1] = '\0';
+        strncpy(label[1], "2h", sizeof(label[1]) - 1);
+        label[1][sizeof(label[1]) - 1] = '\0';
+        strncpy(label[2], "3h", sizeof(label[2]) - 1);
+        label[2][sizeof(label[2]) - 1] = '\0';
+        strncpy(label[3], "4h", sizeof(label[3]) - 1);
+        label[3][sizeof(label[3]) - 1] = '\0';
         break;
 
     default:
-        sprintf(label[0], "%s", "");
-        sprintf(label[1], "%s", "");
-        sprintf(label[2], "%s", "");
-        sprintf(label[3], "%s", "");
+        label[0][0] = '\0';
+        label[1][0] = '\0';
+        label[2][0] = '\0';
+        label[3][0] = '\0';
         break;
     }
 }
@@ -256,7 +270,7 @@ void compute_graph(void)
                     bool is_charging = sqlite3_column_int(stmt, 4);
 
                     if (total_duration == 0) {
-                        sprintf(current_percentage, "%d%%", bat_perc);
+                        snprintf(current_percentage, sizeof(current_percentage), "%d%%", bat_perc);
                     }
 
                     current_index = (graph_max_size - 1) - duration_to_pixel(total_duration);
@@ -345,23 +359,23 @@ void renderPage()
 
     switch (current_zoom) {
     case 0:
-        sprintf(sub_title, "%s", "16 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "16 HOURS VIEW");
         segment_duration = 7200;
         SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 1:
-        sprintf(sub_title, "%s", "8 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "8 HOURS VIEW");
         segment_duration = 3600;
         SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 2:
-        sprintf(sub_title, "%s", "4 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "4 HOURS VIEW");
         segment_duration = 1800;
         SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     default:
-        sprintf(sub_title, "%s", "8 HOURS VIEW");
+        snprintf(sub_title, sizeof(sub_title), "%s", "8 HOURS VIEW");
         segment_duration = 3600;
         SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});

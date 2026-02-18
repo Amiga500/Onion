@@ -43,9 +43,11 @@ void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
 
     if (btn_b_str != NULL && strlen(label_b_str) > 0) {
         SDL_Surface *button_b = resource_getSurface(BUTTON_B);
-        SDL_Rect btn_b_rect = {offsetX, 450.0 * g_scale - button_b->h / 2};
-        SDL_BlitSurface(button_b, NULL, screen, &btn_b_rect);
-        offsetX += button_b->w + 5;
+        if (button_b) {
+            SDL_Rect btn_b_rect = {offsetX, 450.0 * g_scale - button_b->h / 2};
+            SDL_BlitSurface(button_b, NULL, screen, &btn_b_rect);
+            offsetX += button_b->w + 5;
+        }
 
         label_back =
             TTF_RenderUTF8_Blended(font_hint, label_b_str, theme()->hint.color);
@@ -90,11 +92,11 @@ void theme_renderFooterStatus(SDL_Surface *screen, int current_num,
         current_num = 0;
 
     char current_str[16];
-    sprintf(current_str, "%d/", current_num);
+    snprintf(current_str, sizeof(current_str), "%d/", current_num);
     SDL_Surface *current = TTF_RenderUTF8_Blended(font_hint, current_str, theme()->currentpage.color);
 
     char total_str[16];
-    sprintf(total_str, "%d", total_num);
+    snprintf(total_str, sizeof(total_str), "%d", total_num);
     SDL_Surface *total = TTF_RenderUTF8_Blended(font_hint, total_str, theme()->total.color);
 
     if (total) {

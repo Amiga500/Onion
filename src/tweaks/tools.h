@@ -39,6 +39,8 @@ void _toolDialog(const char *title_str, const char *message_str,
     if (_tool_bg_cache == NULL) {
         _tool_bg_cache =
             SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+        if (!_tool_bg_cache)
+            return;
         SDL_BlitSurface(screen, NULL, _tool_bg_cache, NULL);
     }
 
@@ -59,7 +61,7 @@ void _runCommandPopup(const char *tool_name, const char *_cmd)
 
     keys_enabled = false;
     char full_title[STR_MAX];
-    sprintf(full_title, "Tool: %s", tool_name);
+    snprintf(full_title, sizeof(full_title), "Tool: %s", tool_name);
     _toolDialog(full_title, msg_apply, false);
 
     char cmd[STR_MAX];

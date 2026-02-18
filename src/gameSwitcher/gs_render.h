@@ -70,6 +70,8 @@ void renderGameName(AppState *state)
     SDL_Color color_white = {255, 255, 255};
     SDL_Surface *arrow_left = resource_getSurface(LEFT_ARROW_WB);
     SDL_Surface *arrow_right = resource_getSurface(RIGHT_ARROW_WB);
+    if (!arrow_left || !arrow_right)
+        return;
     int game_name_padding = arrow_left->w + 20;
     state->game_name_max_width = g_display.width - 2 * game_name_padding;
 
@@ -114,13 +116,16 @@ void renderGameName(AppState *state)
     }
 
     char game_name_str[STR_MAX * 2 + 4];
-    strcpy(game_name_str, game->shortname);
+    strncpy(game_name_str, game->shortname, sizeof(game_name_str) - 1);
+    game_name_str[sizeof(game_name_str) - 1] = '\0';
 
     if (state->current_game_changed) {
         if (state->surfaceGameName != NULL)
             SDL_FreeSurface(state->surfaceGameName);
 
         state->surfaceGameName = TTF_RenderUTF8_Blended(resource_getFont(TITLE), game_name_str, color_white);
+        if (!state->surfaceGameName)
+            return;
 
         state->game_name_size.w = state->surfaceGameName->w < state->game_name_max_width ? state->surfaceGameName->w : state->game_name_max_width;
         state->game_name_size.h = state->surfaceGameName->h;
@@ -129,6 +134,9 @@ void renderGameName(AppState *state)
 
         state->current_game_changed = false;
     }
+
+    if (!state->surfaceGameName)
+        return;
 
     SDL_Rect game_name_rect = {(g_display.width - state->surfaceGameName->w) / 2,
                                game_name_bg_pos.y + 30.0 * g_scale - state->surfaceGameName->h / 2};
@@ -157,15 +165,18 @@ void renderHeader(AppState *state, int battery_percentage)
 
     if (state->show_time && game_list_len > 0) {
         if (strlen(game->totalTime) == 0) {
-            str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
+            str_serializeTime(game->totalTime, sizeof(game->totalTime), play_activity_get_play_time(game->recentItem.rompath));
         }
-        strcpy(title_str, game->totalTime);
+        strncpy(title_str, game->totalTime, sizeof(title_str) - 1);
+        title_str[sizeof(title_str) - 1] = '\0';
 
         if (state->show_total) {
             if (strlen(sTotalTimePlayed) == 0) {
-                str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
+                str_serializeTime(sTotalTimePlayed, sizeof(sTotalTimePlayed), play_activity_get_total_play_time());
             }
-            sprintf(title_str + strlen(title_str), " / %s", sTotalTimePlayed);
+            size_t title_used = strlen(title_str);
+            snprintf(title_str + title_used, sizeof(title_str) - title_used,
+                     " / %s", sTotalTimePlayed);
         }
     }
 

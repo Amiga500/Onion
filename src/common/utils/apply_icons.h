@@ -43,6 +43,10 @@ IconMode_e icons_getIconMode(const char *config_path)
 void _saveConfigFile(const char *config_path, const char *content)
 {
     FILE *config_file = fopen(config_path, "w+");
+    if (config_file == NULL) {
+        print_debug("Failed to open config file for writing: %s", config_path);
+        return;
+    }
     fprintf(config_file, "%s", content);
     fflush(config_file);
     fclose(config_file);
@@ -73,10 +77,12 @@ bool apply_singleIconByFullPath(const char *config_path, const char *icon_path)
     cJSON *config = json_load(config_path);
 
     char sel_path[STR_MAX];
-    sprintf(sel_path, "%s/sel/%s", dir_path, file_name);
+    snprintf(sel_path, sizeof(sel_path), "%s/sel/%s", dir_path, file_name);
 
-    if (!is_file(sel_path))
-        strcpy(sel_path, icon_path);
+    if (!is_file(sel_path)) {
+        strncpy(sel_path, icon_path, sizeof(sel_path) - 1);
+        sel_path[sizeof(sel_path) - 1] = '\0';
+    }
 
     json_forceSetString(config, "icon", icon_path);
     json_forceSetString(config, "iconsel", sel_path);
@@ -146,13 +152,13 @@ bool _apply_singleIconFromPack(const char *config_path,
     IconMode_e mode = icons_getIconMode(config_path);
 
     char icon_path[STR_MAX];
-    sprintf(icon_path, icons_getIconPathFormat(mode), icon_pack_path,
-            icon_name);
+    snprintf(icon_path, sizeof(icon_path), icons_getIconPathFormat(mode), icon_pack_path,
+             icon_name);
 
     if (!is_file(icon_path)) {
         if (reset_default) {
-            sprintf(icon_path, icons_getIconPathFormat(mode), ICON_PACK_DEFAULT,
-                    icon_name);
+            snprintf(icon_path, sizeof(icon_path), icons_getIconPathFormat(mode), ICON_PACK_DEFAULT,
+                     icon_name);
         }
 
         if (!is_file(icon_path)) {
@@ -162,8 +168,8 @@ bool _apply_singleIconFromPack(const char *config_path,
     }
 
     char sel_path[STR_MAX];
-    sprintf(sel_path, icons_getSelectedIconPathFormat(mode), icon_pack_path,
-            icon_name);
+    snprintf(sel_path, sizeof(sel_path), icons_getSelectedIconPathFormat(mode), icon_pack_path,
+             icon_name);
     free(icon_name);
 
     if (is_file(sel_path))
@@ -173,7 +179,7 @@ bool _apply_singleIconFromPack(const char *config_path,
 
     json_forceSetString(config, "icon", icon_path);
 
-    char* config_str = cJSON_Print(config);
+    char *config_str = cJSON_Print(config);
     _saveConfigFile(config_path, config_str);
     cJSON_free(config_str);
     cJSON_Delete(config);
@@ -192,7 +198,8 @@ bool apply_singleIcon(const char *config_path)
     if (active_icon_pack != NULL && is_dir(active_icon_pack))
         strncpy(icon_pack_path, active_icon_pack, STR_MAX - 1);
     else {
-        strcpy(icon_pack_path, "/mnt/SDCARD/Icons/Default");
+        strncpy(icon_pack_path, "/mnt/SDCARD/Icons/Default", STR_MAX - 1);
+        icon_pack_path[STR_MAX - 1] = '\0';
     }
 
     if (!is_dir(icon_pack_path))

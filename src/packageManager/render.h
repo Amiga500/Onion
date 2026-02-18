@@ -29,21 +29,25 @@ SDL_Surface *createLabelSurface(Package *package)
 
     SDL_Surface *label_surface =
         TTF_RenderUTF8_Blended(font25, label_text, color_white);
+    if (!label_surface)
+        return textbox;
     SDL_SetAlpha(label_surface, 0, 0); /* important */
     SDL_Rect label_pos = {0, 0};
     SDL_BlitSurface(label_surface, NULL, textbox, &label_pos);
 
     if (package->installed && !package->complete)
-        strcat(parens, "*");
+        strncat(parens, "*", sizeof(parens) - strlen(parens) - 1);
 
     if (strlen(parens) > 0) {
         SDL_Surface *parens_surface =
             TTF_RenderUTF8_Blended(font25, parens, color_white);
-        SDL_SetAlpha(parens_surface, 0, 0); /* important */
-        surfaceSetAlpha(parens_surface, 120);
-        SDL_Rect parens_pos = {label_surface->w, 0};
-        SDL_BlitSurface(parens_surface, NULL, textbox, &parens_pos);
-        SDL_FreeSurface(parens_surface);
+        if (parens_surface) {
+            SDL_SetAlpha(parens_surface, 0, 0); /* important */
+            surfaceSetAlpha(parens_surface, 120);
+            SDL_Rect parens_pos = {label_surface->w, 0};
+            SDL_BlitSurface(parens_surface, NULL, textbox, &parens_pos);
+            SDL_FreeSurface(parens_surface);
+        }
     }
 
     SDL_FreeSurface(label_surface);
@@ -102,9 +106,10 @@ void displayLayersInstall(void)
     }
 
     char footer_str[STR_MAX];
-    sprintf(footer_str, "%d added  |  %d removed  |  %d installed  |  %d total",
-            changes_installs[nTab], changes_removals[nTab],
-            package_installed_count[nTab], package_count[nTab]);
+    snprintf(footer_str, sizeof(footer_str),
+             "%d added  |  %d removed  |  %d installed  |  %d total",
+             changes_installs[nTab], changes_removals[nTab],
+             package_installed_count[nTab], package_count[nTab]);
     renderFooter(footer_str);
 }
 
@@ -277,22 +282,28 @@ void renderApplication(void)
         char status_str[STR_MAX] = "";
 
         if (installs_count > 0)
-            sprintf(status_str, "+%d", installs_count);
+            snprintf(status_str, sizeof(status_str), "+%d", installs_count);
 
         if (removals_count > 0) {
-            int len = strlen(status_str);
+            size_t len = strlen(status_str);
             if (len > 0) {
-                strcpy(status_str + len, "  ");
-                len += 2;
+                if (len < sizeof(status_str) - 2) {
+                    status_str[len] = ' ';
+                    status_str[len + 1] = ' ';
+                    status_str[len + 2] = '\0';
+                    len += 2;
+                }
             }
-            sprintf(status_str + len, " −%d", removals_count);
+            snprintf(status_str + len, sizeof(status_str) - len, " −%d", removals_count);
         }
 
         SDL_Surface *status =
             TTF_RenderUTF8_Blended(font18, status_str, color_white);
-        SDL_Rect status_rect = {620 - status->w, 16 - status->h / 2};
-        SDL_BlitSurface(status, NULL, screen, &status_rect);
-        SDL_FreeSurface(status);
+        if (status) {
+            SDL_Rect status_rect = {620 - status->w, 16 - status->h / 2};
+            SDL_BlitSurface(status, NULL, screen, &status_rect);
+            SDL_FreeSurface(status);
+        }
     }
 
     renderCurrentTab();
@@ -306,11 +317,13 @@ void renderApplication(void)
         else {
             SDL_Surface *status = TTF_RenderUTF8_Blended(
                 font35, "NO CHANGES", color_white);
-            SDL_Rect status_rect = {
-                alignCoord(320, status->w, ALIGN_CENTER),
-                alignCoord(247, status->h, ALIGN_CENTER)};
-            SDL_BlitSurface(status, NULL, screen, &status_rect);
-            SDL_FreeSurface(status);
+            if (status) {
+                SDL_Rect status_rect = {
+                    alignCoord(320, status->w, ALIGN_CENTER),
+                    alignCoord(247, status->h, ALIGN_CENTER)};
+                SDL_BlitSurface(status, NULL, screen, &status_rect);
+                SDL_FreeSurface(status);
+            }
             renderFooter("Press A or START to exit");
         }
     }

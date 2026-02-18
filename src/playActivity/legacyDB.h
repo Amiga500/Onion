@@ -50,7 +50,7 @@ void displayLegacyDB(void)
         printf("rom_list name: %s\n", rom_list[i].name);
 
         char cPlayTime[15];
-        sprintf(cPlayTime, "%d", rom_list[i].playTime);
+        snprintf(cPlayTime, sizeof(cPlayTime), "%d", rom_list[i].playTime);
         printf("playtime: %s\n", cPlayTime);
     }
 }

@@ -16,10 +16,13 @@
 
 bool __get_path_recent(char *path_out)
 {
+    /* path_out is always path[512] from __screenshot_perform */
+    const size_t path_max = 512;
     char *fnptr, *no_extension;
     uint32_t i;
 
-    strcpy(path_out, "/mnt/SDCARD/Screenshots/");
+    strncpy(path_out, "/mnt/SDCARD/Screenshots/", path_max - 1);
+    path_out[path_max - 1] = '\0';
     fnptr = path_out + strlen(path_out);
 
     system_state_update();
@@ -28,18 +31,18 @@ bool __get_path_recent(char *path_out)
         char file_path[STR_MAX];
         if (history_getRecentPath(file_path) != NULL) {
             no_extension = file_removeExtension(basename(file_path));
-            strcat(path_out, no_extension);
+            strncat(path_out, no_extension, path_max - strlen(path_out) - 1);
             free(no_extension);
         }
     }
     else if (system_state == MODE_SWITCHER)
-        strcat(path_out, "GameSwitcher");
+        strncat(path_out, "GameSwitcher", path_max - strlen(path_out) - 1);
     else if (system_state == MODE_MAIN_UI)
-        strcat(path_out, "MainUI");
+        strncat(path_out, "MainUI", path_max - strlen(path_out) - 1);
     else if ((system_state == MODE_GAME || system_state == MODE_APPS) && exists(CMD_TO_RUN_PATH)) {
         FILE *fp;
         char cmd[STR_MAX];
-        file_get(fp, CMD_TO_RUN_PATH, "%[^\n]", cmd);
+        file_get(fp, CMD_TO_RUN_PATH, "%255[^\n]", cmd);
         printf_debug("cmd: '%s'\n", cmd);
 
         char app_name[STR_MAX];
@@ -48,20 +51,21 @@ bool __get_path_recent(char *path_out)
             state_getAppName(app_name, cmd);
         else {
             no_extension = file_removeExtension(basename(cmd));
-            strcpy(app_name, no_extension);
+            strncpy(app_name, no_extension, STR_MAX - 1);
+            app_name[STR_MAX - 1] = '\0';
             free(no_extension);
         }
         printf_debug("app: '%s'\n", app_name);
 
-        strcat(path_out, app_name);
+        strncat(path_out, app_name, path_max - strlen(path_out) - 1);
     }
 
     if (!(*fnptr))
-        strcat(path_out, "Screenshot");
+        strncat(path_out, "Screenshot", path_max - strlen(path_out) - 1);
 
     fnptr = path_out + strlen(path_out);
     for (i = 0; i < 1000; i++) {
-        sprintf(fnptr, "_%03d.png", i);
+        snprintf(fnptr, path_max - (size_t)(fnptr - path_out), "_%03d.png", i);
         if (!exists(path_out))
             break;
     }
@@ -73,6 +77,8 @@ uint32_t *__screenshot_buffer(void)
 {
     size_t buffer_size = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint32_t);
     uint32_t *buffer = (uint32_t *)malloc(buffer_size);
+    if (buffer == NULL)
+        return NULL;
 
     ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
     memcpy(buffer, g_display.fb_addr + DISPLAY_WIDTH * g_display.vinfo.yoffset, buffer_size);
@@ -91,7 +97,7 @@ uint32_t *__screenshot_buffer(void)
 bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool rotate180)
 {
     uint32_t *src;
-    uint32_t line_buffer[g_display.width], x, y, pix;
+    uint32_t line_buffer[DEFAULT_WIDTH], x, y, pix;
 
     FILE *fp;
     png_structp png_ptr;
@@ -99,6 +105,10 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool r
 
     // make sure render resolution is up to date
     display_getRenderResolution();
+
+    // Guard: display width must not exceed the fixed line buffer size
+    if ((uint32_t)g_display.width > DEFAULT_WIDTH)
+        return false;
 
     if (!(fp = file_open_ensure_path(screenshot_path, "wb"))) {
         return false;
@@ -152,7 +162,7 @@ bool __screenshot_perform(bool(get_path)(char *), pid_t p_id)
         kill(p_id, SIGCONT);
     }
 
-    if (get_path(path)) {
+    if (buffer != NULL && get_path(path)) {
         retval = screenshot_save(buffer, path, true);
     }
 

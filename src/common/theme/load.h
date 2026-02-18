@@ -42,30 +42,32 @@ int theme_getImagePath(const char *theme_path, const char *name, char *out_path)
 {
     int load_mode = 2;
     char rel_path[STR_MAX], image_path[STR_MAX * 2];
-    sprintf(rel_path, "skin/%s.png", name);
+    snprintf(rel_path, sizeof(rel_path), "skin/%s.png", name);
 
-    sprintf(image_path, THEME_OVERRIDES "/%s", rel_path);
+    snprintf(image_path, sizeof(image_path), THEME_OVERRIDES "/%s", rel_path);
     bool override_exists = exists(image_path);
 
     if (!override_exists) {
         load_mode = 1;
-        sprintf(image_path, "%s%s", theme_path, rel_path);
+        snprintf(image_path, sizeof(image_path), "%s%s", theme_path, rel_path);
         bool theme_exists = exists(image_path);
 
         if (!theme_exists) {
             load_mode = 0;
             if (strncmp(name, "extra/", 6) == 0) {
-                sprintf(rel_path, "%s.png", name + 6);
-                sprintf(image_path, "%s%s", SYSTEM_RESOURCES, rel_path);
+                snprintf(rel_path, sizeof(rel_path), "%s.png", name + 6);
+                snprintf(image_path, sizeof(image_path), "%s%s", SYSTEM_RESOURCES, rel_path);
             }
             else {
-                sprintf(image_path, "%s%s", FALLBACK_PATH, rel_path);
+                snprintf(image_path, sizeof(image_path), "%s%s", FALLBACK_PATH, rel_path);
             }
         }
     }
 
-    if (out_path)
-        sprintf(out_path, "%s", image_path);
+    if (out_path) {
+        strncpy(out_path, image_path, STR_MAX * 2 - 1);
+        out_path[STR_MAX * 2 - 1] = '\0';
+    }
 
     return load_mode;
 }
@@ -88,9 +90,10 @@ SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
         // Normalize to 32-bit surface with alpha channel
         SDL_Surface *converted = SDL_CreateRGBSurface(SDL_SWSURFACE, image->w, image->h, 32,
                                                       0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
-        SDL_BlitSurface(image, NULL, converted, NULL);
+        if (converted)
+            SDL_BlitSurface(image, NULL, converted, NULL);
         SDL_FreeSurface(image);
-        image = converted;
+        image = converted; // NULL if OOM; callers check for NULL return
     }
 
     if (g_scale != 1.0 && scaleSurfaceFunc) {
@@ -121,7 +124,8 @@ char *theme_getPath(char *theme_path)
     cJSON_Delete(j);
 
     if (strcmp(theme_path, "./") == 0 || !is_dir(theme_path)) {
-        strcpy(theme_path, FALLBACK_THEME_PATH);
+        strncpy(theme_path, FALLBACK_THEME_PATH, STR_MAX - 1);
+        theme_path[STR_MAX - 1] = '\0';
     }
 
     return theme_path;

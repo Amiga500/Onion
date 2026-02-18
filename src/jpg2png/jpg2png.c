@@ -101,6 +101,11 @@ int main(int argc, char *argv[])
 
     // Read jpeg
     tmp = malloc(jpeg.output_width * 3);
+    if (tmp == NULL) {
+        fprintf(stderr, "out of memory\n");
+        fclose(fp);
+        goto error;
+    }
     dst = jpgVa;
     for (y = 0; y < sh; y++) {
         src8 = tmp;
@@ -135,11 +140,12 @@ int main(int argc, char *argv[])
     printf("sw:%d sh:%d dw:%d dh:%d\n", sw, sh, dw, dh);
 
     // Create png
-    strcpy(filename, argv[1]);
+    strncpy(filename, argv[1], sizeof(filename) - 5); /* reserve 5 bytes for ".png\0" */
+    filename[sizeof(filename) - 5] = '\0';
     ptr = strrchr(filename, '.');
     if (ptr)
         *ptr = 0;
-    strcat(filename, ".png");
+    strncat(filename, ".png", sizeof(filename) - strlen(filename) - 1);
     fp = fopen(filename, "wb");
     if (!fp) {
         fprintf(stderr, "png write error\n");
@@ -148,6 +154,11 @@ int main(int argc, char *argv[])
 
     // Write png
     tmp = malloc(dw * 4);
+    if (tmp == NULL) {
+        fprintf(stderr, "out of memory\n");
+        fclose(fp);
+        goto error;
+    }
     dst = tmp;
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
     info_ptr = png_create_info_struct(png_ptr);

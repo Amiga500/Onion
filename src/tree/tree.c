@@ -73,6 +73,16 @@ int is_directory_excluded(const char *directory_name,
     return false;
 }
 
+static void free_entry_list(entry_t *head)
+{
+    while (head) {
+        entry_t *tmp = head->next;
+        free(head->name);
+        free(head);
+        head = tmp;
+    }
+}
+
 int tree(const char *directory, const char *prefix, counter_t *counter,
          const char *included_extensions[],
          const char *excluded_directories[])
@@ -106,8 +116,21 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
             continue;
 
         current = malloc(sizeof(entry_t));
-        current->name =
-            strcpy(malloc(strlen(file_dirent->d_name) + 1), file_dirent->d_name);
+        if (current == NULL) {
+            closedir(dir_handle);
+            free_entry_list(head);
+            return -1;
+        }
+        size_t name_len = strlen(file_dirent->d_name);
+        char *entry_name = malloc(name_len + 1);
+        if (entry_name == NULL) {
+            free(current);
+            closedir(dir_handle);
+            free_entry_list(head);
+            return -1;
+        }
+        memcpy(entry_name, file_dirent->d_name, name_len + 1);
+        current->name = entry_name;
         current->is_dir = file_dirent->d_type == DT_DIR;
         current->next = NULL;
 
@@ -152,11 +175,25 @@ int tree(const char *directory, const char *prefix, counter_t *counter,
         printf("%s%s%s\n", prefix, pointer, head->name);
 
         if (head->is_dir) {
-            full_path = malloc(strlen(directory) + strlen(head->name) + 2);
-            sprintf(full_path, "%s/%s", directory, head->name);
+            size_t fp_len = strlen(directory) + strlen(head->name) + 2;
+            full_path = malloc(fp_len);
+            if (full_path == NULL) {
+                /* free remaining list entries before aborting */
+                free_entry_list(head->next);
+                head->next = NULL;
+                break;
+            }
+            snprintf(full_path, fp_len, "%s/%s", directory, head->name);
 
-            next_prefix = malloc(strlen(prefix) + strlen(segment) + 1);
-            sprintf(next_prefix, "%s%s", prefix, segment);
+            size_t np_len = strlen(prefix) + strlen(segment) + 1;
+            next_prefix = malloc(np_len);
+            if (next_prefix == NULL) {
+                free(full_path);
+                free_entry_list(head->next);
+                head->next = NULL;
+                break;
+            }
+            snprintf(next_prefix, np_len, "%s%s", prefix, segment);
 
             tree(full_path, next_prefix, counter, included_extensions,
                  excluded_directories);
@@ -202,8 +239,13 @@ int main(int argc, char *argv[])
                 char *token = strtok(directories, " ");
                 int count = 0;
                 while (token != NULL) {
-                    excluded_directories =
-                        realloc(excluded_directories, (count + 2) * sizeof(char *));
+                    const char **tmp_ed = realloc(excluded_directories, (count + 2) * sizeof(char *));
+                    if (tmp_ed == NULL) {
+                        free(excluded_directories);
+                        fprintf(stderr, "Error: out of memory\n");
+                        return 1;
+                    }
+                    excluded_directories = tmp_ed;
                     excluded_directories[count++] = token;
                     excluded_directories[count] = NULL;
                     token = strtok(NULL, " ");
@@ -220,8 +262,13 @@ int main(int argc, char *argv[])
                 char *token = strtok(extensions, " ");
                 int count = 0;
                 while (token != NULL) {
-                    included_extensions =
-                        realloc(included_extensions, (count + 2) * sizeof(char *));
+                    const char **tmp_ie = realloc(included_extensions, (count + 2) * sizeof(char *));
+                    if (tmp_ie == NULL) {
+                        free(included_extensions);
+                        fprintf(stderr, "Error: out of memory\n");
+                        return 1;
+                    }
+                    included_extensions = tmp_ie;
                     included_extensions[count++] = token;
                     included_extensions[count] = NULL;
                     token = strtok(NULL, " ");

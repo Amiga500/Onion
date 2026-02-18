@@ -131,11 +131,6 @@ static settings_s __default_settings = (settings_s){
 void _settings_clone(settings_s *dst, settings_s *src)
 {
     *dst = *src;
-    strcpy(dst->keymap, src->keymap);
-    strcpy(dst->language, src->language);
-    strcpy(dst->theme, src->theme);
-    strcpy(dst->mainui_button_x, src->mainui_button_x);
-    strcpy(dst->mainui_button_y, src->mainui_button_y);
 }
 
 void _settings_reset(settings_s *_settings)
@@ -187,7 +182,8 @@ void _settings_load_mainui(void)
     json_getString(json_root, "theme", settings.theme);
 
     if (strcmp(settings.theme, "./") == 0) {
-        strcpy(settings.theme, DEFAULT_THEME_PATH);
+        strncpy(settings.theme, DEFAULT_THEME_PATH, sizeof(settings.theme) - 1);
+        settings.theme[sizeof(settings.theme) - 1] = '\0';
     }
 
     cJSON_Delete(json_root);
@@ -227,8 +223,8 @@ void settings_load(void)
     config_get("vibration", CONFIG_INT, &settings.vibration);
     config_get("startup/tab", CONFIG_INT, &settings.startup_tab);
     config_get("display/blueLightLevel", CONFIG_INT, &settings.blue_light_level);
-    config_get("display/blueLightTime", CONFIG_STR, &settings.blue_light_time);
-    config_get("display/blueLightTimeOff", CONFIG_STR, &settings.blue_light_time_off);
+    config_getString("display/blueLightTime", settings.blue_light_time, sizeof(settings.blue_light_time));
+    config_getString("display/blueLightTimeOff", settings.blue_light_time_off, sizeof(settings.blue_light_time_off));
     config_get("display/blueLightRGB", CONFIG_INT, &settings.blue_light_rgb);
     config_get("pwmfrequency", CONFIG_INT, &settings.pwmfrequency);
     config_get("recCountdown", CONFIG_INT, &settings.rec_countdown);

@@ -29,7 +29,7 @@ static SDL_Surface *slide = NULL;
 SDL_Surface *_loadSlide(int index)
 {
     char image_path[STR_MAX];
-    sprintf(image_path, "res/installSlide%d.png", index);
+    snprintf(image_path, sizeof(image_path), "res/installSlide%d.png", index);
     if (exists(image_path))
         return IMG_Load(image_path);
     return NULL;
@@ -99,10 +99,16 @@ int main(int argc, char *argv[])
     TTF_Font *font = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 36);
     TTF_Font *font_small =
         TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 18);
+    if (!font || !font_small) {
+        fprintf(stderr, "TTF_OpenFont failed: %s\n", TTF_GetError());
+        TTF_Quit();
+        SDL_Quit();
+        return EXIT_FAILURE;
+    }
     SDL_Color fg_color = {255, 255, 255, 0};
 
     char version_str[STR_MAX];
-    sprintf(version_str, "v%s", ONION_VERSION);
+    snprintf(version_str, sizeof(version_str), "v%s", ONION_VERSION);
 
     SDL_Surface *surface_version = TTF_RenderUTF8_Blended(font_small, version_str, fg_color);
     SDL_Rect rect_version = {10, 10};
@@ -173,7 +179,7 @@ int main(int argc, char *argv[])
         }
 
         if (exists(".installFailed")) {
-            sprintf(message_str, "Installation failed");
+            snprintf(message_str, sizeof(message_str), "Installation failed");
             progress = 100;
             failed = true;
             quit = true;
@@ -189,7 +195,7 @@ int main(int argc, char *argv[])
             }
             else if (!quit && ticks - check_timer > TIMEOUT_M * 60 * 1000 &&
                      !exists(".waitConfirm")) {
-                sprintf(message_str, "The installation timed out, exiting...");
+                snprintf(message_str, sizeof(message_str), "The installation timed out, exiting...");
                 progress = 100;
                 failed = true;
                 quit = true;
@@ -226,8 +232,10 @@ int main(int argc, char *argv[])
 
             SDL_Surface *message =
                 TTF_RenderUTF8_Blended(font, message_str, fg_color);
-            SDL_BlitSurface(message, NULL, screen, &rectMessage);
-            SDL_FreeSurface(message);
+            if (message) {
+                SDL_BlitSurface(message, NULL, screen, &rectMessage);
+                SDL_FreeSurface(message);
+            }
 
             SDL_BlitSurface(screen, NULL, video, NULL);
             SDL_Flip(video);

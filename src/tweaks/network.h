@@ -143,7 +143,13 @@ void network_getSmbShares()
                 }
 
                 numShares++;
-                _network_shares = (Share *)realloc(_network_shares, numShares * sizeof(Share));
+                Share *tmp_shares = (Share *)realloc(_network_shares, numShares * sizeof(Share));
+                if (tmp_shares == NULL) {
+                    free(_network_shares);
+                    _network_shares = NULL;
+                    break;
+                }
+                _network_shares = tmp_shares;
 
                 bool add_exclamation = false;
                 if (strncmp("__", shareName, 2) == 0) {
@@ -213,10 +219,11 @@ void network_execServiceState(const char *service_name, bool background)
 
     sync();
 
-    sprintf(state, NET_SCRIPT_PATH "/update_networking.sh %s toggle", service_name);
-    sprintf(command, "%s 2>&1", state);
+    snprintf(state, sizeof(state), NET_SCRIPT_PATH "/update_networking.sh %s toggle", service_name);
     if (background)
-        strcat(command, " &");
+        snprintf(command, sizeof(command), "%s 2>&1 &", state);
+    else
+        snprintf(command, sizeof(command), "%s 2>&1", state);
     system(command);
 
     printf_debug("network_execServiceState: %s\n", state);
@@ -229,8 +236,8 @@ void network_execServiceAuth(const char *service_name)
 
     sync();
 
-    sprintf(authed, NET_SCRIPT_PATH "/update_networking.sh %s authed", service_name);
-    sprintf(command, "%s 2>&1", authed);
+    snprintf(authed, sizeof(authed), NET_SCRIPT_PATH "/update_networking.sh %s authed", service_name);
+    snprintf(command, sizeof(command), "%s 2>&1", authed);
 
     system(command);
 
@@ -340,7 +347,7 @@ void network_setTzManualState(void *pt)
     network_setState(&network_state.manual_tz, ".manual_tz", !enabled);
     if (enabled) {
         char utc_str[10];
-        if (config_get(".tz_sync", CONFIG_STR, utc_str)) {
+        if (config_getString(".tz_sync", utc_str, sizeof(utc_str))) {
             setenv("TZ", utc_str, 1);
             tzset();
             config_setString(".tz", utc_str);
@@ -361,11 +368,15 @@ void network_setTzSelectState(void *pt)
     bool half_past = round(utc_value) != utc_value;
 
     if (utc_value == 0.0) {
-        strcpy(utc_str, "UTC");
+        strncpy(utc_str, "UTC", sizeof(utc_str) - 1);
+        utc_str[sizeof(utc_str) - 1] = '\0';
+    }
+    else if (utc_value > 0) {
+        // UTC +/- is reversed for export TZ
+        snprintf(utc_str, sizeof(utc_str), "UTC-%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
     }
     else {
-        // UTC +/- is reversed for export TZ
-        sprintf(utc_str, utc_value > 0 ? "UTC-%02d:%02d" : "UTC+%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
+        snprintf(utc_str, sizeof(utc_str), "UTC+%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
     }
 
     printf_debug("Set timezone: %s\n", utc_str);
@@ -382,8 +393,8 @@ void network_toggleVNC(void *pt)
 
     int new_fps = (int)network_state.vncfps;
 
-    sprintf(command_start, "/mnt/SDCARD/.tmp_update/bin/vncserver -k /dev/input/event0 -F %d -r 180 > /dev/null 2>&1 &", new_fps);
-    sprintf(command_stop, "killall -9 vncserver");
+    snprintf(command_start, sizeof(command_start), "/mnt/SDCARD/.tmp_update/bin/vncserver -k /dev/input/event0 -F %d -r 180 > /dev/null 2>&1 &", new_fps);
+    snprintf(command_stop, sizeof(command_stop), "killall -9 vncserver");
 
     if (!network_state.vncserv) {
         network_state.vncserv = true;
@@ -459,7 +470,8 @@ void menu_http(void *pt)
     item->value = (int)network_state.http;
     if (!_menu_http._created) {
         _menu_http = list_create(2, LIST_SMALL);
-        strcpy(_menu_http.title, "HTTP");
+        strncpy(_menu_http.title, "HTTP", sizeof(_menu_http.title) - 1);
+        _menu_http.title[sizeof(_menu_http.title) - 1] = '\0';
         list_addItemWithInfoNote(&_menu_http,
                                  (ListItem){
                                      .label = "Enable",
@@ -490,7 +502,8 @@ void menu_ftp(void *pt)
     item->value = (int)network_state.ftp;
     if (!_menu_ftp._created) {
         _menu_ftp = list_create(2, LIST_SMALL);
-        strcpy(_menu_ftp.title, "FTP");
+        strncpy(_menu_ftp.title, "FTP", sizeof(_menu_ftp.title) - 1);
+        _menu_ftp.title[sizeof(_menu_ftp.title) - 1] = '\0';
         list_addItemWithInfoNote(&_menu_ftp,
                                  (ListItem){
                                      .label = "Enable",
@@ -519,7 +532,8 @@ void menu_wps(void *_)
 {
     if (!_menu_wps._created) {
         _menu_wps = list_create(1, LIST_SMALL);
-        strcpy(_menu_wps.title, "WPS");
+        strncpy(_menu_wps.title, "WPS", sizeof(_menu_wps.title) - 1);
+        _menu_wps.title[sizeof(_menu_wps.title) - 1] = '\0';
         list_addItem(&_menu_wps,
                      (ListItem){
                          .label = "WPS connect",
@@ -535,7 +549,8 @@ void menu_ssh(void *pt)
     item->value = (int)network_state.ssh;
     if (!_menu_ssh._created) {
         _menu_ssh = list_create(2, LIST_SMALL);
-        strcpy(_menu_ssh.title, "SSH");
+        strncpy(_menu_ssh.title, "SSH", sizeof(_menu_ssh.title) - 1);
+        _menu_ssh.title[sizeof(_menu_ssh.title) - 1] = '\0';
         list_addItemWithInfoNote(&_menu_ssh,
                                  (ListItem){
                                      .label = "Enable",
@@ -566,7 +581,8 @@ void menu_vnc(void *pt)
     item->value = (int)network_state.vncserv;
     if (!_menu_vnc._created) {
         _menu_vnc = list_create(2, LIST_SMALL);
-        strcpy(_menu_vnc.title, "VNC");
+        strncpy(_menu_vnc.title, "VNC", sizeof(_menu_vnc.title) - 1);
+        _menu_vnc.title[sizeof(_menu_vnc.title) - 1] = '\0';
         list_addItem(&_menu_vnc,
                      (ListItem){
                          .label = "Enable",
@@ -593,7 +609,8 @@ void menu_wifi(void *_)
 {
     if (!_menu_wifi._created) {
         _menu_wifi = list_create(3, LIST_SMALL);
-        strcpy(_menu_wifi.title, "WiFi");
+        strncpy(_menu_wifi.title, "WiFi", sizeof(_menu_wifi.title) - 1);
+        _menu_wifi.title[sizeof(_menu_wifi.title) - 1] = '\0';
         list_addItem(&_menu_wifi,
                      (ListItem){
                          .label = "IP address: N/A",
@@ -624,7 +641,8 @@ void menu_wifi(void *_)
         //                  .label = "WPS...",
         //                  .action = menu_wps});
     }
-    strcpy(_menu_wifi.items[0].label, ip_address_label);
+    strncpy(_menu_wifi.items[0].label, ip_address_label, sizeof(_menu_wifi.items[0].label) - 1);
+    _menu_wifi.items[0].label[sizeof(_menu_wifi.items[0].label) - 1] = '\0';
     menu_stack[++menu_level] = &_menu_wifi;
     header_changed = true;
 }
@@ -633,7 +651,8 @@ void menu_network(void *_)
 {
     if (!_menu_network._created) {
         _menu_network = list_create(9, LIST_SMALL);
-        strcpy(_menu_network.title, "Network");
+        strncpy(_menu_network.title, "Network", sizeof(_menu_network.title) - 1);
+        _menu_network.title[sizeof(_menu_network.title) - 1] = '\0';
 
         network_loadState();
 
@@ -734,7 +753,8 @@ void menu_network(void *_)
                                  "This helps to conserve battery and\n"
                                  "to keep performance at a maximum.");
     }
-    strcpy(_menu_network.items[0].label, ip_address_label);
+    strncpy(_menu_network.items[0].label, ip_address_label, sizeof(_menu_network.items[0].label) - 1);
+    _menu_network.items[0].label[sizeof(_menu_network.items[0].label) - 1] = '\0';
     menu_stack[++menu_level] = &_menu_network;
     header_changed = true;
 }

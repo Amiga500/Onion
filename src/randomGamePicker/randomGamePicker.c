@@ -82,8 +82,10 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
 
     if (emuname_out != NULL) {
         char label_temp[STR_MAX];
-        if (!json_getString(json_root, "label", label_temp))
-            strcpy(emuname_out, basename(emupath));
+        if (!json_getString(json_root, "label", label_temp)) {
+            strncpy(emuname_out, basename(emupath), STR_MAX - 1);
+            emuname_out[STR_MAX - 1] = '\0';
+        }
         else
             str_trim(emuname_out, STR_MAX - 1, label_temp, false);
     }
@@ -225,7 +227,7 @@ bool addRandomFromJson(char *json_path)
 
     while (fgets(line, sizeof(line), fp)) {
         json_root = cJSON_Parse(line);
-        if(!json_getInt(json_root, "type", (int *)&type)) {
+        if (!json_getInt(json_root, "type", (int *)&type)) {
             print_debug("Malformed json; Skipping\n");
             continue;
         }
@@ -267,7 +269,8 @@ bool addRandomFromJson(char *json_path)
                 continue;
 
             char emupath[STR_MAX];
-            strcpy(emupath, game->launch_path);
+            strncpy(emupath, game->launch_path, STR_MAX - 1);
+            emupath[STR_MAX - 1] = '\0';
 
             if (!extractEmuPath(emupath, PATH_EMU))
                 extractEmuPath(emupath, PATH_RAPP);

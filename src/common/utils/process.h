@@ -31,7 +31,7 @@ pid_t process_searchpid(const char *commname)
         if (dir->d_type == DT_DIR) {
             pid = atoi(dir->d_name);
             if (pid > 2) {
-                sprintf(fname, "/proc/%d/comm", pid);
+                snprintf(fname, sizeof(fname), "/proc/%d/comm", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
                     fscanf(fp, "%127s", comm);
@@ -72,27 +72,30 @@ bool process_start(const char *pname, const char *args, const char *home,
                    bool await)
 {
     char filename[256];
-    sprintf(filename, "%s/bin/%s", home != NULL ? home : ".", pname);
+    snprintf(filename, sizeof(filename), "%s/bin/%s", home != NULL ? home : ".", pname);
     if (!exists(filename))
-        sprintf(filename, "%s/%s", home != NULL ? home : ".", pname);
+        snprintf(filename, sizeof(filename), "%s/%s", home != NULL ? home : ".", pname);
     if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/bin/%s", pname);
+        snprintf(filename, sizeof(filename), "/mnt/SDCARD/.tmp_update/bin/%s", pname);
     if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/%s", pname);
+        snprintf(filename, sizeof(filename), "/mnt/SDCARD/.tmp_update/%s", pname);
     if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/miyoo/app/%s", pname);
+        snprintf(filename, sizeof(filename), "/mnt/SDCARD/miyoo/app/%s", pname);
     if (!exists(filename))
         return false;
 
     char cmd[512];
-    sprintf(cmd, "cd \"%s\"; %s %s %s", home != NULL ? home : ".", filename,
-            args != NULL ? args : "", await ? "" : "&");
+    int cmd_len = snprintf(cmd, sizeof(cmd), "cd \"%s\"; %s %s %s",
+                           home != NULL ? home : ".", filename,
+                           args != NULL ? args : "", await ? "" : "&");
+    if (cmd_len < 0 || cmd_len >= (int)sizeof(cmd))
+        return false;
     system(cmd);
 
     return true;
 }
 
-bool process_start_read_return(const char *cmdline, char *out_str)
+bool process_start_read_return(const char *cmdline, char *out_str, size_t out_str_size)
 {
     char buffer[255] = "";
     char *result = NULL;
@@ -104,17 +107,19 @@ bool process_start_read_return(const char *cmdline, char *out_str)
     }
 
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        free(result);
         result = strdup(buffer);
     }
 
     pclose(pipe);
     if (result != NULL) {
-        result[strlen(buffer) - 1] = '\0';
-        strcpy(out_str, result);
+        result[strcspn(result, "\n")] = '\0';
+        strncpy(out_str, result, out_str_size - 1);
+        out_str[out_str_size - 1] = '\0';
         free(result);
     }
     else {
-        strcpy(out_str, "");
+        out_str[0] = '\0';
     }
     return 0;
 }

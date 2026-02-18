@@ -51,9 +51,8 @@ void system_powersave(bool enabled)
             while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
                 saved_min_freq = atoi(buffer);
             }
+            pclose(pipe);
         }
-
-        pclose(pipe);
 
         // save values for restoring later
         file_get(fp, CPU_SCALING_GOVERNOR, "%15s", saved_governor);
@@ -63,8 +62,8 @@ void system_powersave(bool enabled)
     }
     else {
         // restore
-        char sCommand[15];
-        sprintf(sCommand, "cpuclock %u", saved_min_freq);
+        char sCommand[32];
+        snprintf(sCommand, sizeof(sCommand), "cpuclock %u", saved_min_freq);
         system(sCommand);
         file_put(fp, CPU_SCALING_GOVERNOR, "%s", saved_governor);
     }

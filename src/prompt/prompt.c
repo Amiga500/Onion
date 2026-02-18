@@ -89,6 +89,10 @@ int main(int argc, char *argv[])
     bool has_info = false;
 
     pargs = malloc(MAX_ELEMENTS * sizeof(char *));
+    if (pargs == NULL) {
+        fprintf(stderr, "prompt: failed to allocate argument list\n");
+        return EXIT_FAILURE;
+    }
 
     int i;
     for (i = 1; i < argc; i++) {
@@ -120,7 +124,10 @@ int main(int argc, char *argv[])
         }
         if (pargc < MAX_ELEMENTS && strlen(argv[i]) > 0) {
             pargs[pargc] = malloc((STR_MAX + 1) * sizeof(char));
+            if (pargs[pargc] == NULL)
+                break;
             strncpy(pargs[pargc], argv[i], STR_MAX);
+            pargs[pargc][STR_MAX] = '\0';
             pargc++;
         }
     }
@@ -205,6 +212,10 @@ int main(int argc, char *argv[])
     bool first_draw = true;
     int input_fd;
     input_fd = open("/dev/input/event0", O_RDONLY);
+    if (input_fd < 0) {
+        fprintf(stderr, "prompt: failed to open /dev/input/event0\n");
+        return EXIT_FAILURE;
+    }
     struct input_event ev;
     uint32_t shutdown_timer = 0;
 #endif

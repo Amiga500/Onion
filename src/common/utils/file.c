@@ -20,6 +20,11 @@
 #include "log.h"
 #include "str.h"
 
+/* Maximum number of path components supported by file_resolvePath().
+ * 64 is far more than any real path on this device requires and keeps
+ * the stack frame small (256 bytes vs 16 KB for components[PATH_MAX]). */
+#define MAX_PATH_COMPONENTS 64
+
 bool exists(const char *file_path)
 {
     struct stat64 buffer;
@@ -74,7 +79,7 @@ bool mkdirs(const char *dir_path)
 {
     if (!exists(dir_path)) {
         char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
+        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
         system(dir_cmd);
         return true;
     }
@@ -84,7 +89,7 @@ bool mkdirs(const char *dir_path)
 void file_readLastLine(const char *filename, char *out_str)
 {
     FILE *fd;
-    int size;
+    long size;
     char buff[256];
     char *token = NULL;
 
@@ -95,8 +100,10 @@ void file_readLastLine(const char *filename, char *out_str)
         fseek(fd, 0L, SEEK_SET);
 
         int max_len = size < 255 ? size + 1 : 255;
-        if (max_len <= 1)
+        if (max_len <= 1) {
+            fclose(fd);
             return;
+        }
 
         // get the last line
         fseek(fd, -max_len, SEEK_END);
@@ -128,23 +135,31 @@ char *file_read(const char *path)
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
-        buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
-            fread(buffer, sizeof(char), length, f);
-        fclose(f);
+        if (length < 0) {
+            fclose(f);
+        }
+        else {
+            buffer = (char *)malloc((length + 1) * sizeof(char));
+            if (buffer) {
+                fread(buffer, sizeof(char), length, f);
+                buffer[length] = '\0';
+            }
+            fclose(f);
+        }
     }
-    buffer[length] = '\0';
 
     return buffer;
 }
 
 bool file_write(const char *path, const char *str, uint32_t len)
 {
-    uint32_t fd;
-    if ((fd = open(path, O_WRONLY)) == 0)
+    int fd = open(path, O_WRONLY);
+    if (fd < 0)
         return false;
-    if (write(fd, str, len) == -1)
+    if (write(fd, str, len) == -1) {
+        close(fd);
         return false;
+    }
     close(fd);
     return true;
 }
@@ -160,11 +175,12 @@ char *file_removeExtension(const char *myStr)
 {
     if (myStr == NULL)
         return NULL;
-    char *retStr = (char *)malloc(strlen(myStr) + 1);
+    size_t myStr_len = strlen(myStr);
+    char *retStr = (char *)malloc(myStr_len + 1);
     char *lastExt;
     if (retStr == NULL)
         return NULL;
-    strcpy(retStr, myStr);
+    memcpy(retStr, myStr, myStr_len + 1);
     if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 2) != '\0')
         *lastExt = '\0';
     return retStr;
@@ -230,7 +246,7 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
     char key[256], val[256];
     char key_search[STR_MAX];
     char search_str[STR_MAX];
-    sprintf(search_str, "%%255[^%c]%c%%255[^\n]\n", divider, divider);
+    snprintf(search_str, sizeof(search_str), "%%255[^%c]%c%%255[^\n]\n", divider, divider);
     int match_index = 0;
 
     *value_out = 0;
@@ -272,9 +288,19 @@ void file_changeKeyValue(const char *file_path, const char *key,
     ssize_t read;
 
     fp = fopen(file_path, "r");
-    cp = fopen("temp", "w+");
     if (fp == NULL)
-        exit(EXIT_FAILURE);
+        return;
+
+    char tempPath[PATH_MAX];
+    char *dir = file_dirname(file_path);
+    snprintf(tempPath, sizeof(tempPath), "%s/.tmp_ckv", dir ? dir : ".");
+    free(dir);
+
+    cp = fopen(tempPath, "w+");
+    if (cp == NULL) {
+        fclose(fp);
+        return;
+    }
 
     int key_len = strlen(key);
     int line_idx = 0, line_len;
@@ -296,11 +322,10 @@ void file_changeKeyValue(const char *file_path, const char *key,
         }
 
         line_len = strlen(line);
-        if (line[line_len - 1] != '\n') {
-            line[line_len - 1] = '\n';
-            line[line_len] = '\0';
-        }
-        fprintf(cp, "%s", line);
+        if (line_len > 0 && line[line_len - 1] != '\n')
+            fprintf(cp, "%s\n", line);
+        else
+            fprintf(cp, "%s", line);
     }
 
     if (!found) {
@@ -314,7 +339,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
         free(line);
 
     remove(file_path);
-    rename("temp", file_path);
+    rename(tempPath, file_path);
 }
 
 bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
@@ -340,10 +365,10 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
     if (strlen(p1) > 0) {
         int num_parens = str_count_char(p1, '/') + 1;
         for (int i = 0; i < num_parens; i++) {
-            strcat(path_out, "../");
+            strncat(path_out, "../", PATH_MAX - strlen(path_out) - 1);
         }
     }
-    strcat(path_out, p2);
+    strncat(path_out, p2, PATH_MAX - strlen(path_out) - 1);
 
     return true;
 }
@@ -351,8 +376,10 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
 FILE *file_open_ensure_path(const char *path, const char *mode)
 {
     char *_path = strdup(path);
-    mkdirs(dirname(_path));
-    free(_path);
+    if (_path != NULL) {
+        mkdirs(dirname(_path));
+        free(_path);
+    }
     return fopen(path, mode);
 }
 
@@ -401,12 +428,13 @@ char *file_read_lineN(const char *filename, int n)
     while (fgets(line, sizeof(line), file) != NULL) {
         if (lineNumber == n) {
             fclose(file);
-            char *lineN = malloc(strlen(line) + 1);
+            size_t line_len = strlen(line);
+            char *lineN = malloc(line_len + 1);
             if (lineN == NULL) {
                 print_debug("Memory allocation error");
                 return NULL;
             }
-            strcpy(lineN, line);
+            memcpy(lineN, line, line_len + 1);
             return lineN;
         }
         lineNumber++;
@@ -425,7 +453,12 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    FILE *tempFile = fopen("temp.txt", "w");
+    char tempPath[PATH_MAX];
+    char *dir = file_dirname(fileName);
+    snprintf(tempPath, sizeof(tempPath), "%s/.tmp_dl", dir ? dir : ".");
+    free(dir);
+
+    FILE *tempFile = fopen(tempPath, "w");
     if (tempFile == NULL) {
         fclose(file);
         print_debug("Error creating temporary file");
@@ -450,7 +483,7 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    if (rename("temp.txt", fileName) != 0) {
+    if (rename(tempPath, fileName) != 0) {
         print_debug("Error renaming temporary file");
         return;
     }
@@ -467,7 +500,7 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     char tempPath[STR_MAX];
     char *path = file_dirname(filename);
-    sprintf(tempPath, "%s/temp.txt", path);
+    snprintf(tempPath, sizeof(tempPath), "%s/.tmp_alb", path);
     free(path);
 
     FILE *tempFile = fopen(tempPath, "w");
@@ -513,8 +546,9 @@ char *file_resolvePath(const char *path)
     strncpy(tempPath, path, PATH_MAX - 1);
     tempPath[PATH_MAX - 1] = '\0';
 
-    // Initialize an array to hold the path components
-    char *components[PATH_MAX];
+    /* PATH_MAX/2 is the theoretical max component count, but MAX_PATH_COMPONENTS is
+     * more than enough for any real path on this device and avoids a 16 KB stack frame. */
+    char *components[MAX_PATH_COMPONENTS];
     int componentCount = 0;
 
     // Split the path into components
@@ -528,7 +562,12 @@ char *file_resolvePath(const char *path)
         }
         else if (strcmp(token, ".") != 0) {
             // Ignore "." and add other components to the array
-            components[componentCount++] = token;
+            if (componentCount < MAX_PATH_COMPONENTS) {
+                components[componentCount++] = token;
+            }
+            else {
+                print_debug("file_resolvePath: path has too many components, truncating");
+            }
         }
         token = strtok(NULL, "/");
     }
@@ -536,13 +575,14 @@ char *file_resolvePath(const char *path)
     // Reconstruct the resolved path
     resolvedPath[0] = '\0';
     for (int i = 0; i < componentCount; i++) {
-        strcat(resolvedPath, "/");
-        strcat(resolvedPath, components[i]);
+        strncat(resolvedPath, "/", PATH_MAX - strlen(resolvedPath) - 1);
+        strncat(resolvedPath, components[i], PATH_MAX - strlen(resolvedPath) - 1);
     }
 
     // Handle the case where the path is empty
     if (resolvedPath[0] == '\0') {
-        strcpy(resolvedPath, "/");
+        strncpy(resolvedPath, "/", PATH_MAX - 1);
+        resolvedPath[PATH_MAX - 1] = '\0';
     }
 
     return resolvedPath;

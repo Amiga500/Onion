@@ -109,7 +109,7 @@ int suspend(uint32_t mode)
         if (dir->d_type == DT_DIR) {
             pid = atoi(dir->d_name);
             if ((pid > 2) && (pid != suspend_pid)) {
-                sprintf(fname, "/proc/%d/stat", pid);
+                snprintf(fname, sizeof(fname), "/proc/%d/stat", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
                     fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
@@ -169,7 +169,7 @@ void resume(void)
 void quit(int exitcode)
 {
     display_close();
-    if (input_fd > 0)
+    if (input_fd >= 0)
         close(input_fd);
     system_clock_get();
     system_rtc_set();
@@ -206,7 +206,7 @@ void wait(int seconds)
 void showBootScreen(const char *type)
 {
     char cmd[256];
-    sprintf(cmd, "bootScreen \"%s\" &", type);
+    snprintf(cmd, sizeof(cmd), "bootScreen \"%s\" &", type);
     system(cmd);
 }
 
@@ -388,7 +388,7 @@ void cpuClockHotkey(int adjust)
     char cpuclockstr[5];
 
     // Read current CPU clock
-    int ret = process_start_read_return("cpuclock", cpuclockstr);
+    int ret = process_start_read_return("cpuclock", cpuclockstr, sizeof(cpuclockstr));
     int cpuclock = atoi(cpuclockstr);
     printf_debug("Current CPU clock: %d\n", cpuclock);
     cpuclock += adjust;
@@ -407,7 +407,7 @@ void cpuClockHotkey(int adjust)
     // Set new CPU clock
     char cmd[STR_MAX];
     snprintf(cmd, STR_MAX, "cpuclock %d", cpuclock);
-    ret = process_start_read_return(cmd, cpuclockstr);
+    ret = process_start_read_return(cmd, cpuclockstr, sizeof(cpuclockstr));
     if (ret == 0) {
         printf_debug("Updated CPU clock: %s\n", cpuclockstr);
         char osd_txt[STR_MAX];
@@ -453,7 +453,12 @@ int main(void)
     display_init(true);
 
     // Prepare for Poll button input
-    input_fd = open("/dev/input/event0", O_RDONLY);
+    const char *input_dev = "/dev/input/event0";
+    input_fd = open(input_dev, O_RDONLY);
+    if (input_fd < 0) {
+        fprintf(stderr, "keymon: failed to open %s\n", input_dev);
+        quit(1);
+    }
     memset(&fds, 0, sizeof(fds));
     fds[0].fd = input_fd;
     fds[0].events = POLLIN;
@@ -869,8 +874,11 @@ int main(void)
                         // The entire Konami code was entered!
                         FILE *file =
                             fopen("/mnt/SDCARD/.tmp_update/cmd_to_run.sh", "w");
-                        fputs("cd /mnt/SDCARD/.tmp_update/bin; ./easter", file);
-                        fclose(file);
+                        if (file != NULL) {
+                            fputs("cd /mnt/SDCARD/.tmp_update/bin; ./easter",
+                                  file);
+                            fclose(file);
+                        }
 
                         konamiCodeIndex = 0;
                         kill_mainUI();

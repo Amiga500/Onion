@@ -59,7 +59,8 @@ void loadThemeDirectory(const char *theme_dir,
             }
 
             if (is_file(config_path)) {
-                strcpy(themes_out[*count], ep->d_name);
+                strncpy(themes_out[*count], ep->d_name, STR_MAX - 1);
+                themes_out[*count][STR_MAX - 1] = '\0';
                 *count += 1;
             }
         }
@@ -110,7 +111,7 @@ bool checkPreview(const char *preview_path)
 
     FILE *fp;
     char archive_path[STR_MAX * 2];
-    file_get(fp, source_path, "%[^\n]", archive_path);
+    file_get(fp, source_path, "%511[^\n]", archive_path);
 
     if (!is_file(archive_path))
         return false;
@@ -147,10 +148,10 @@ void installNonDynamicElement(const char *theme_path, const char *image_name)
     char override_image_path[256], theme_image_path[256],
         system_image_path[256], system_image_backup[256];
 
-    sprintf(override_image_path, "%sskin/%s.png", THEME_OVERRIDES, image_name);
-    sprintf(theme_image_path, "%sskin/%s.png", theme_path, image_name);
-    sprintf(system_image_path, SYSTEM_SKIN_DIR "/%s.png", image_name);
-    sprintf(system_image_backup, SYSTEM_SKIN_DIR "/%s_back.png", image_name);
+    snprintf(override_image_path, sizeof(override_image_path), "%sskin/%s.png", THEME_OVERRIDES, image_name);
+    snprintf(theme_image_path, sizeof(theme_image_path), "%sskin/%s.png", theme_path, image_name);
+    snprintf(system_image_path, sizeof(system_image_path), SYSTEM_SKIN_DIR "/%s.png", image_name);
+    snprintf(system_image_backup, sizeof(system_image_backup), SYSTEM_SKIN_DIR "/%s_back.png", image_name);
 
     // backup system skin
     if (!exists(system_image_backup))
@@ -180,14 +181,15 @@ void installTheme(char *theme_path, bool apply_icons)
         snprintf(cmd, STR_MAX * 2 - 1,
                  SCRIPT_DIR "/themes_extract_theme.sh \"%s\"", theme_path);
 
-        sprintf(theme_path, THEMES_DIR "/%s/", basename(theme_path));
+        snprintf(theme_path, STR_MAX, THEMES_DIR "/%s/", basename(theme_path));
 
         system(cmd);
         sync();
     }
 
     // change theme setting
-    strcpy(settings.theme, theme_path);
+    strncpy(settings.theme, theme_path, sizeof(settings.theme) - 1);
+    settings.theme[sizeof(settings.theme) - 1] = '\0';
     settings_save();
 
     FILE *fp;
@@ -212,7 +214,8 @@ void installTheme(char *theme_path, bool apply_icons)
 
 bool checkAndSetDir(char *dest, const char *dir_path)
 {
-    strcpy(dest, dir_path);
+    strncpy(dest, dir_path, STR_MAX - 1);
+    dest[STR_MAX - 1] = '\0';
     return is_dir(dest);
 }
 
@@ -223,7 +226,7 @@ bool checkActiveTheme(char *theme_path_out)
 
     FILE *fp;
     char active_theme_path[STR_MAX];
-    file_get(fp, ACTIVE_THEME, "%[^\n]", active_theme_path);
+    file_get(fp, ACTIVE_THEME, "%255[^\n]", active_theme_path);
 
     printf_debug("active theme: %s\n", active_theme_path);
 

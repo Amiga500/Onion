@@ -24,6 +24,8 @@ void showCenteredMessage(SDL_Surface *video, SDL_Surface *screen,
                          SDL_Color color)
 {
     SDL_Surface *message = TTF_RenderUTF8_Blended(font, message_str, color);
+    if (!message)
+        return;
     SDL_Rect loadingRect = {320 - message->w / 2, 240 - message->h / 2};
     SDL_FillRect(screen, NULL, 0);
     SDL_BlitSurface(message, NULL, screen, &loadingRect);
@@ -42,37 +44,49 @@ SDL_Surface *createBottomBar(TTF_Font *font)
 
     SDL_FillRect(surface, NULL, 0);
 
-    SDL_Rect pos = {20, 35 - surfaceButtonA->h / 2};
-    SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
-    pos.x += surfaceButtonA->w + 10;
+    SDL_Rect pos = {20, surfaceButtonA ? 35 - surfaceButtonA->h / 2 : 20};
+    if (surfaceButtonA) {
+        SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
+        pos.x += surfaceButtonA->w + 10;
+    }
 
     SDL_Surface *text =
         TTF_RenderUTF8_Blended(font, "INSTALL", (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
+    if (text) {
+        pos.y = 35 - text->h / 2 - 3;
+        SDL_BlitSurface(text, NULL, surface, &pos);
+        pos.x += text->w + 20;
+        SDL_FreeSurface(text);
+    }
 
-    pos.y = 35 - surfaceButtonB->h / 2;
-    SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
-    pos.x += surfaceButtonB->w + 10;
+    if (surfaceButtonB) {
+        pos.y = 35 - surfaceButtonB->h / 2;
+        SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
+        pos.x += surfaceButtonB->w + 10;
+    }
 
     text = TTF_RenderUTF8_Blended(font, "CANCEL", (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
+    if (text) {
+        pos.y = 35 - text->h / 2 - 3;
+        SDL_BlitSurface(text, NULL, surface, &pos);
+        pos.x += text->w + 20;
+        SDL_FreeSurface(text);
+    }
 
-    pos.y = 35 - surfaceButtonX->h / 2;
-    SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
-    pos.x += surfaceButtonX->w + 10;
+    if (surfaceButtonX) {
+        pos.y = 35 - surfaceButtonX->h / 2;
+        SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
+        pos.x += surfaceButtonX->w + 10;
+    }
 
     text = TTF_RenderUTF8_Blended(font, "TOGGLE ICONS",
                                   (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
+    if (text) {
+        pos.y = 35 - text->h / 2 - 3;
+        SDL_BlitSurface(text, NULL, surface, &pos);
+        pos.x += text->w + 20;
+        SDL_FreeSurface(text);
+    }
 
     SDL_FreeSurface(surfaceButtonA);
     SDL_FreeSurface(surfaceButtonB);
@@ -91,7 +105,7 @@ SDL_Surface *getPreviewIcon(const char *path, SDL_Surface *file_zip,
         return NULL;
 
     FILE *fp;
-    file_get(fp, source_path, "%[^\n]", source_path);
+    file_get(fp, source_path, "%255[^\n]", source_path);
 
     const char *ext = file_getExtension(source_path);
 
@@ -145,6 +159,12 @@ int main(int argc, char *argv[])
     TTF_Font *font40 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 40);
     TTF_Font *font21 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 21);
     TTF_Font *font30 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 30);
+    if (!font40 || !font21 || !font30) {
+        fprintf(stderr, "TTF_OpenFont failed: %s\n", TTF_GetError());
+        TTF_Quit();
+        SDL_Quit();
+        return EXIT_FAILURE;
+    }
 
     SDL_Color color_white = {255, 255, 255};
 
@@ -341,20 +361,25 @@ int main(int argc, char *argv[])
 
             snprintf(cPages, sizeof(cPages) - 1, "%d/%d", current_page + 1, themes_count);
             imagePages = TTF_RenderUTF8_Blended(font30, cPages, color_white);
-            rectPages.x = 620 - imagePages->w;
-            rectPages.y = 450 - imagePages->h / 2;
-            SDL_BlitSurface(imagePages, NULL, screen, &rectPages);
-            SDL_FreeSurface(imagePages);
+            if (imagePages) {
+                rectPages.x = 620 - imagePages->w;
+                rectPages.y = 450 - imagePages->h / 2;
+                SDL_BlitSurface(imagePages, NULL, screen, &rectPages);
+                SDL_FreeSurface(imagePages);
+            }
 
             char title[STR_MAX + 13];
             if (current_page == installed_page && !is_preview)
                 snprintf(title, STR_MAX + 12, "%s - Installed", theme.name);
             else
-                strcpy(title, theme.name);
+                strncpy(title, theme.name, STR_MAX + 12);
+            title[STR_MAX + 11] = '\0';
 
             imageThemeNom = TTF_RenderUTF8_Blended(font21, title, color_white);
-            SDL_BlitSurface(imageThemeNom, NULL, screen, &rectImageThemeNom);
-            SDL_FreeSurface(imageThemeNom);
+            if (imageThemeNom) {
+                SDL_BlitSurface(imageThemeNom, NULL, screen, &rectImageThemeNom);
+                SDL_FreeSurface(imageThemeNom);
+            }
 
             if (has_icons) {
                 SDL_BlitSurface(surfaceHasIcons, NULL, screen, &rectHasIcons);
@@ -373,16 +398,20 @@ int main(int argc, char *argv[])
             rectThemeName.y = 175;
 
             imagePages = TTF_RenderUTF8_Blended(font40, theme.name, color_white);
-            SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
-            SDL_FreeSurface(imagePages);
+            if (imagePages) {
+                SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
+                SDL_FreeSurface(imagePages);
+            }
             rectThemeName.y += 50;
 
             if (strlen(theme.author) > 0) {
                 char author[STR_MAX * 2];
                 snprintf(author, STR_MAX * 2 - 1, "by %s", theme.author);
                 imagePages = TTF_RenderUTF8_Blended(font30, author, color_white);
-                SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
-                SDL_FreeSurface(imagePages);
+                if (imagePages) {
+                    SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
+                    SDL_FreeSurface(imagePages);
+                }
                 rectThemeName.y += 70;
             }
 
@@ -390,10 +419,12 @@ int main(int argc, char *argv[])
 
             rectThemeName.x = 60;
             char msg[STR_MAX];
-            sprintf(msg, "%s [%s]", has_icons ? "Apply icons" : "Reset icons", apply_icons ? "ON" : "OFF");
+            snprintf(msg, sizeof(msg), "%s [%s]", has_icons ? "Apply icons" : "Reset icons", apply_icons ? "ON" : "OFF");
             imagePages = TTF_RenderUTF8_Blended(font21, msg, color_white);
-            SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
-            SDL_FreeSurface(imagePages);
+            if (imagePages) {
+                SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
+                SDL_FreeSurface(imagePages);
+            }
 
             SDL_BlitSurface(surfaceBottomBar, NULL, screen, &rectBottomBar);
         }

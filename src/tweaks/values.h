@@ -85,8 +85,9 @@ int value_blueLightTimeOn(void)
 {
     char blueLightTime[12] = {0};
     int blueLightID = 0;
-    if (!config_get("display/blueLightTime", CONFIG_STR, blueLightTime)) {
-        strcpy(blueLightTime, settings.blue_light_time);
+    if (!config_getString("display/blueLightTime", blueLightTime, sizeof(blueLightTime))) {
+        strncpy(blueLightTime, settings.blue_light_time, sizeof(blueLightTime) - 1);
+        blueLightTime[sizeof(blueLightTime) - 1] = '\0';
         config_setString("display/blueLightTime", blueLightTime);
     }
     blueLightID = formatter_timeStringToID(blueLightTime);
@@ -97,8 +98,9 @@ int value_blueLightTimeOff(void)
 {
     char blueLightTimeOff[12] = {0};
     int blueLightID = 0;
-    if (!config_get("display/blueLightTimeOff", CONFIG_STR, blueLightTimeOff)) {
-        strcpy(blueLightTimeOff, settings.blue_light_time_off);
+    if (!config_getString("display/blueLightTimeOff", blueLightTimeOff, sizeof(blueLightTimeOff))) {
+        strncpy(blueLightTimeOff, settings.blue_light_time_off, sizeof(blueLightTimeOff) - 1);
+        blueLightTimeOff[sizeof(blueLightTimeOff) - 1] = '\0';
         config_setString("display/blueLightTimeOff", blueLightTimeOff);
     }
     blueLightID = formatter_timeStringToID(blueLightTimeOff);
@@ -231,8 +233,8 @@ void value_setFrameThrottle(void)
     if (!stored_value_frame_throttle_changed)
         return;
     char new_value[STR_MAX];
-    sprintf(new_value, "fastforward_ratio = \"%d.000000\"",
-            stored_value_frame_throttle);
+    snprintf(new_value, sizeof(new_value), "fastforward_ratio = \"%d.000000\"",
+             stored_value_frame_throttle);
     file_changeKeyValue(RETROARCH_CONFIG, "fastforward_ratio =", new_value);
 }
 
@@ -272,16 +274,16 @@ void value_setSwapTriggers(void)
     if (stored_value_swap_triggers == 1)
         l_btn = 12, r_btn = 13, l2_btn = 10, r2_btn = 11;
 
-    sprintf(value, "input_player1_l_btn = \"%d\"", l_btn);
+    snprintf(value, sizeof(value), "input_player1_l_btn = \"%d\"", l_btn);
     file_changeKeyValue(RETROARCH_CONFIG, "input_player1_l_btn =", value);
 
-    sprintf(value, "input_player1_r_btn = \"%d\"", r_btn);
+    snprintf(value, sizeof(value), "input_player1_r_btn = \"%d\"", r_btn);
     file_changeKeyValue(RETROARCH_CONFIG, "input_player1_r_btn =", value);
 
-    sprintf(value, "input_player1_l2_btn = \"%d\"", l2_btn);
+    snprintf(value, sizeof(value), "input_player1_l2_btn = \"%d\"", l2_btn);
     file_changeKeyValue(RETROARCH_CONFIG, "input_player1_l2_btn =", value);
 
-    sprintf(value, "input_player1_r2_btn = \"%d\"", r2_btn);
+    snprintf(value, sizeof(value), "input_player1_r2_btn = \"%d\"", r2_btn);
     file_changeKeyValue(RETROARCH_CONFIG, "input_player1_r2_btn =", value);
 
     printf_debug("Saved triggers = l: %d, r: %d, l2: %d, r2: %d\n", l_btn,

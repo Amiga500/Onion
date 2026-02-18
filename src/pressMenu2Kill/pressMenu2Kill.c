@@ -19,6 +19,10 @@ int main(int argc, char *argv[])
     snprintf(command, sizeof(command), "pkill -9 -f %s", argv[1]);
 
     int input_fd = open("/dev/input/event0", O_RDONLY);
+    if (input_fd < 0) {
+        fprintf(stderr, "Failed to open /dev/input/event0\n");
+        return 1;
+    }
     struct input_event event;
 
     while (read(input_fd, &event, sizeof(event)) == sizeof(event)) {

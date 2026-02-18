@@ -182,7 +182,8 @@ void cleanup(void)
 {
     remove("/tmp/percBat");
     display_close();
-    close(sar_fd);
+    if (sar_fd >= 0)
+        close(sar_fd);
 }
 
 void update_current_duration(void)
@@ -346,8 +347,12 @@ int updateADCValue(int value)
     if (battery_isCharging())
         return 100;
 
-    if (!sar_fd) {
+    if (sar_fd < 0) {
         sar_fd = open("/dev/sar", O_WRONLY);
+        if (sar_fd < 0) {
+            perror("updateADCValue: open /dev/sar");
+            return value;
+        }
         ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
     }
 
@@ -383,7 +388,7 @@ int getBatPercMMP(void)
     system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result");
 
     FILE *fp;
-    file_get(fp, "/tmp/.axp_result", CONTENT_STR, buf);
+    file_get(fp, "/tmp/.axp_result", "%99[^\n]", buf);
     sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
 
     return battery_number;

@@ -42,19 +42,20 @@ static struct pollfd fds[1];
 void getImageDir(const char *theme_path, char *image_dir)
 {
     char image0_path[STR_MAX * 2];
-    sprintf(image0_path, "%s/skin/extra/chargingState0.png", THEME_OVERRIDES);
+    snprintf(image0_path, sizeof(image0_path), "%s/skin/extra/chargingState0.png", THEME_OVERRIDES);
     if (exists(image0_path)) {
-        sprintf(image_dir, "%s/skin/extra", THEME_OVERRIDES);
+        snprintf(image_dir, STR_MAX, "%s/skin/extra", THEME_OVERRIDES);
         return;
     }
 
-    sprintf(image0_path, "%sskin/extra/chargingState0.png", theme_path);
+    snprintf(image0_path, sizeof(image0_path), "%sskin/extra/chargingState0.png", theme_path);
     if (exists(image0_path)) {
-        sprintf(image_dir, "%sskin/extra", theme_path);
+        snprintf(image_dir, STR_MAX, "%sskin/extra", theme_path);
         return;
     }
 
-    strcpy(image_dir, "res");
+    strncpy(image_dir, "res", STR_MAX - 1);
+    image_dir[STR_MAX - 1] = '\0';
 }
 
 void suspend(bool enabled, SDL_Surface *video)
@@ -134,8 +135,10 @@ int main(void)
     // Prepare for Poll button input
     input_fd = open("/dev/input/event0", O_RDONLY);
     memset(&fds, 0, sizeof(fds));
-    fds[0].fd = input_fd;
-    fds[0].events = POLLIN;
+    if (input_fd >= 0) {
+        fds[0].fd = input_fd;
+        fds[0].events = POLLIN;
+    }
 
     if (frame_delay < min_delay)
         frame_delay = min_delay;

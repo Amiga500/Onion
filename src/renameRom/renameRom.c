@@ -77,7 +77,7 @@ bool renameCache(const char *cache_path, const char *rom_dirname,
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) {
+    if (argc < 3) {
         printf("Usage: renameRom [ROMPATH] [NEWNAME]\n");
         return 1;
     }
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
     printf_debug("emupath: %s\n", emupath);
 
     char config_path[STR_MAX];
-    concat(config_path, emupath, "/config.json");
+    concat(config_path, sizeof(config_path), emupath, "/config.json");
 
     if (!is_file(config_path))
         return 0;

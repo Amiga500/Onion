@@ -37,8 +37,10 @@ void theme_renderHeader(SDL_Surface *screen, const char *title_str, bool show_lo
 
     if (show_logo) {
         SDL_Surface *logo = resource_getSurface(LOGO);
-        SDL_Rect logo_rect = {20.0 * g_scale, 30.0 * g_scale - logo->h / 2};
-        SDL_BlitSurface(logo, NULL, screen, &logo_rect);
+        if (logo) {
+            SDL_Rect logo_rect = {20.0 * g_scale, 30.0 * g_scale - logo->h / 2};
+            SDL_BlitSurface(logo, NULL, screen, &logo_rect);
+        }
     }
 
     if (title_str) {
@@ -60,9 +62,11 @@ void theme_renderHeaderExtra(SDL_Surface *screen, const char *title_str,
     theme_renderHeaderBackground(screen);
 
     SDL_Surface *title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), title_str, theme()->title.color);
-    SDL_Rect title_rect = {(g_display.width - title->w) / 2, 29.0 * g_scale - title->h / 2};
-    SDL_BlitSurface(title, NULL, screen, &title_rect);
-    SDL_FreeSurface(title);
+    if (title) {
+        SDL_Rect title_rect = {(g_display.width - title->w) / 2, 29.0 * g_scale - title->h / 2};
+        SDL_BlitSurface(title, NULL, screen, &title_rect);
+        SDL_FreeSurface(title);
+    }
 }
 
 #endif // RENDER_HEADER_H__

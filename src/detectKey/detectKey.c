@@ -15,6 +15,10 @@ int main(int argc, char *argv[])
     int key = atoi(argv[1]);
 
     FILE *kbd = fopen("/dev/input/event0", "r");
+    if (kbd == NULL) {
+        fprintf(stderr, "Failed to open /dev/input/event0\n");
+        return 1;
+    }
 
     char key_map[KEY_MAX / 8 + 1];
     memset(key_map, 0, sizeof(key_map));

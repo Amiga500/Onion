@@ -22,7 +22,7 @@
 #define display_on() display_setScreen(true)
 #define display_off() display_setScreen(false)
 
-static int fb_fd;
+static int fb_fd = -1;
 static int DISPLAY_WIDTH = DEFAULT_WIDTH; // physical screen resolution
 static int DISPLAY_HEIGHT = DEFAULT_HEIGHT;
 struct timeval start_time, end_time;
@@ -113,13 +113,24 @@ void display_init(bool map_fb)
 
     // Open and mmap FB
     fb_fd = open("/dev/fb0", O_RDWR);
+    if (fb_fd < 0) {
+        printf("display_init: failed to open /dev/fb0\n");
+        return;
+    }
     ioctl(fb_fd, FBIOGET_FSCREENINFO, &g_display.finfo);
 
     display_reset();
 
     if (map_fb) {
         g_display.fb_size = g_display.finfo.smem_len;
-        g_display.fb_addr = (uint32_t *)mmap(0, g_display.fb_size, PROT_READ | PROT_WRITE, MAP_SHARED, fb_fd, 0);
+        void *mapped = mmap(0, g_display.fb_size, PROT_READ | PROT_WRITE, MAP_SHARED, fb_fd, 0);
+        if (mapped == MAP_FAILED) {
+            printf("display_init: mmap failed\n");
+            g_display.fb_addr = NULL;
+        }
+        else {
+            g_display.fb_addr = (uint32_t *)mapped;
+        }
     }
     else {
         g_display.fb_addr = NULL;
@@ -177,7 +188,7 @@ void display_free(display_t *display)
         free(display->savebuf);
         display->savebuf = NULL;
     }
-    if (display->fb_addr) {
+    if (display->fb_addr && display->fb_addr != (uint32_t *)MAP_FAILED) {
         munmap(display->fb_addr, display->fb_size);
         display->fb_addr = NULL;
     }
@@ -494,7 +505,7 @@ void display_close(void)
     display_reset();
     display_free(&g_display);
 
-    if (fb_fd > 0)
+    if (fb_fd >= 0)
         close(fb_fd);
 }
 

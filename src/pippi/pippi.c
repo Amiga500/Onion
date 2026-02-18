@@ -26,13 +26,14 @@ int main()
         // Check if the buffer is full, resize it if needed
         if (total_size == buffer_size) {
             buffer_size *= 2;
-            input_buffer = realloc(input_buffer, buffer_size);
+            char *new_buf = realloc(input_buffer, buffer_size);
 
-            if (input_buffer == NULL) {
+            if (new_buf == NULL) {
                 fprintf(stderr, "Memory reallocation error\n");
                 free(input_buffer);
                 return 1;
             }
+            input_buffer = new_buf;
         }
     }
 

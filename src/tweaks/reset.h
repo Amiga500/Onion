@@ -21,7 +21,8 @@ bool _confirmReset(const char *title_str, const char *message_str)
     keys_enabled = false;
 
     background_cache = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
-    SDL_BlitSurface(screen, NULL, background_cache, NULL);
+    if (background_cache)
+        SDL_BlitSurface(screen, NULL, background_cache, NULL);
 
     theme_renderDialog(screen, title_str, message_str, true);
     SDL_BlitSurface(screen, NULL, video, NULL);
@@ -105,7 +106,7 @@ void action_resetMainUI(void *pt)
     system("rm -f /mnt/SDCARD/system.json");
 
     char cmd_str[80];
-    sprintf(cmd_str, "cp /mnt/SDCARD/.tmp_update/res/miyoo%d_system.json /mnt/SDCARD/system.json", DEVICE_ID);
+    snprintf(cmd_str, sizeof(cmd_str), "cp /mnt/SDCARD/.tmp_update/res/miyoo%d_system.json /mnt/SDCARD/system.json", DEVICE_ID);
     system(cmd_str);
 
     if (DEVICE_ID == MIYOO354) {

@@ -101,6 +101,12 @@ void initResources(void)
     font18 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 18);
     font25 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 25);
     font35 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 35);
+    if (!font18 || !font25 || !font35) {
+        fprintf(stderr, "TTF_OpenFont failed: %s\n", TTF_GetError());
+        TTF_Quit();
+        SDL_Quit();
+        exit(EXIT_FAILURE);
+    }
 }
 
 void freeResources(void)

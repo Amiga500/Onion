@@ -150,7 +150,8 @@ void _action_apply_icon_pack(void *_item)
 
     SDL_Surface *background_cache =
         SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
-    SDL_BlitSurface(screen, NULL, background_cache, NULL);
+    if (background_cache)
+        SDL_BlitSurface(screen, NULL, background_cache, NULL);
 
     theme_renderDialog(screen, item->label,
                        "Do you want to apply\nthis icon pack?", true);
@@ -176,7 +177,7 @@ void _action_apply_icon_pack(void *_item)
         char message_done[STR_MAX];
         int applied = apply_iconPack(item->payload, false);
 
-        sprintf(message_done, "Applied %d icons", applied);
+        snprintf(message_done, sizeof(message_done), "Applied %d icons", applied);
 
         list_free(&_menu_console_icons);
         list_free(&_menu_app_icons);
@@ -202,7 +203,8 @@ void menu_icon_packs(void *_)
 
     if (!_menu_icon_packs._created) {
         _menu_icon_packs = list_create(200, LIST_SMALL);
-        strcpy(_menu_icon_packs.title, "Icon packs");
+        strncpy(_menu_icon_packs.title, "Icon packs", sizeof(_menu_icon_packs.title) - 1);
+        _menu_icon_packs.title[sizeof(_menu_icon_packs.title) - 1] = '\0';
 
         _add_icon_packs("/mnt/SDCARD/Icons", &_menu_icon_packs,
                         _action_apply_icon_pack, false, NULL);
@@ -283,7 +285,8 @@ bool _add_config_icon(const char *path, const char *name,
     }
 
     IconInfo_t *info = &icon_infos[icon_infos_len++];
-    strcpy(info->name, icon_name);
+    strncpy(info->name, icon_name, sizeof(info->name) - 1);
+    info->name[sizeof(info->name) - 1] = '\0';
     strncpy(info->path, preview_path, STR_MAX - 1);
     strncpy(info->config_path, config_path, STR_MAX - 1);
     item.payload_ptr = (void *)info;
@@ -347,10 +350,13 @@ void _menu_temp_action(void *_item)
         keys_enabled = false;
 
         apply_singleIconByFullPath(info->config_path, item->preview_path);
-        strcpy(info->path, item->preview_path);
+        strncpy(info->path, item->preview_path, sizeof(info->path) - 1);
+        info->path[sizeof(info->path) - 1] = '\0';
 
         if (mode != ICON_MODE_APP) {
-            strcpy(temp_action_item->preview_path, item->preview_path);
+            strncpy(temp_action_item->preview_path, item->preview_path,
+                    sizeof(temp_action_item->preview_path) - 1);
+            temp_action_item->preview_path[sizeof(temp_action_item->preview_path) - 1] = '\0';
             if (temp_action_item->preview_ptr != NULL) {
                 SDL_FreeSurface((SDL_Surface *)temp_action_item->preview_ptr);
                 temp_action_item->preview_ptr = NULL;
@@ -427,7 +433,8 @@ void menu_console_icons(void *_)
 {
     if (!_menu_console_icons._created) {
         _menu_console_icons = list_create(200, LIST_SMALL);
-        strcpy(_menu_console_icons.title, "Console icons");
+        strncpy(_menu_console_icons.title, "Console icons", sizeof(_menu_console_icons.title) - 1);
+        _menu_console_icons.title[sizeof(_menu_console_icons.title) - 1] = '\0';
 
         _add_config_icons(CONFIG_EMU_PATH, &_menu_console_icons,
                           menu_change_console_icon);
@@ -449,7 +456,8 @@ void menu_app_icons(void *_)
 {
     if (!_menu_app_icons._created) {
         _menu_app_icons = list_create(200, LIST_LARGE);
-        strcpy(_menu_app_icons.title, "App icons");
+        strncpy(_menu_app_icons.title, "App icons", sizeof(_menu_app_icons.title) - 1);
+        _menu_app_icons.title[sizeof(_menu_app_icons.title) - 1] = '\0';
 
         _add_config_icons(CONFIG_APP_PATH, &_menu_app_icons,
                           menu_change_app_icon);
@@ -473,7 +481,8 @@ void menu_expert_icons(void *_)
 {
     if (!_menu_expert_icons._created) {
         _menu_expert_icons = list_create(200, LIST_SMALL);
-        strcpy(_menu_expert_icons.title, "Expert icons");
+        strncpy(_menu_expert_icons.title, "Expert icons", sizeof(_menu_expert_icons.title) - 1);
+        _menu_expert_icons.title[sizeof(_menu_expert_icons.title) - 1] = '\0';
 
         _add_config_icons(CONFIG_RAPP_PATH, &_menu_expert_icons,
                           menu_change_expert_icon);
@@ -488,7 +497,8 @@ void menu_icons(void *_)
 {
     if (!_menu_icons._created) {
         _menu_icons = list_create(5, LIST_SMALL);
-        strcpy(_menu_icons.title, "Icons");
+        strncpy(_menu_icons.title, "Icons", sizeof(_menu_icons.title) - 1);
+        _menu_icons.title[sizeof(_menu_icons.title) - 1] = '\0';
         list_addItem(&_menu_icons, (ListItem){.label = "Apply icon pack...",
                                               .action = menu_icon_packs});
         list_addItem(&_menu_icons, (ListItem){.label = "Edit console icon...",

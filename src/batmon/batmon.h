@@ -47,7 +47,8 @@ typedef struct {
 static bool adcthread_active = false;
 static pthread_t adc_pt;
 static bool quit = false;
-static int sar_fd, adc_value_g;
+static int sar_fd = -1;
+static int adc_value_g = 0;
 static bool is_suspended = false;
 
 static void sigHandler(int sig);

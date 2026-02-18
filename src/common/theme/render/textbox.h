@@ -34,6 +34,12 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
     int *line_widths = malloc(max_lines * sizeof(int));
     char **lines = malloc(max_lines * sizeof(char *));
 
+    if (line_widths == NULL || lines == NULL) {
+        free(line_widths);
+        free(lines);
+        return NULL;
+    }
+
     TTF_Font *cur_font = font;
     int font_lineskip = TTF_FontLineSkip(cur_font);
     int line_height = 1.2 * font_lineskip; // default height
@@ -48,11 +54,43 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
         }
         size_t len = i - start;
         if (line_count >= max_lines) {
-            max_lines *= 2;
-            lines = realloc(lines, max_lines * sizeof(char *));
-            line_widths = realloc(line_widths, max_lines * sizeof(int));
+            int new_max = max_lines * 2;
+            int *new_lw = realloc(line_widths, new_max * sizeof(int));
+            char **new_lines = realloc(lines, new_max * sizeof(char *));
+            if (new_lw == NULL) {
+                /* realloc for line_widths failed; original line_widths is
+                 * still valid (realloc did not free it on failure). Free it
+                 * along with any lines that were already allocated. */
+                free(line_widths);
+                /* If new_lines succeeded, lines was moved by realloc */
+                if (new_lines)
+                    lines = new_lines;
+                for (int k = 0; k < line_count; k++)
+                    free(lines[k]);
+                free(lines);
+                return NULL;
+            }
+            if (new_lines == NULL) {
+                /* realloc for lines failed; original lines is still valid.
+                 * new_lw is the successfully reallocated line_widths — free it. */
+                free(new_lw);
+                for (int k = 0; k < line_count; k++)
+                    free(lines[k]);
+                free(lines);
+                return NULL;
+            }
+            line_widths = new_lw;
+            lines = new_lines;
+            max_lines = new_max;
         }
         char *linebuf = malloc(len + 1);
+        if (linebuf == NULL) {
+            for (int k = 0; k < line_count; k++)
+                free(lines[k]);
+            free(lines);
+            free(line_widths);
+            return NULL;
+        }
         memcpy(linebuf, &s[start], len);
         linebuf[len] = 0;
         lines[line_count] = linebuf;
@@ -92,6 +130,13 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
     SDL_Surface *textbox = SDL_CreateRGBSurface(
         0, max_width, textbox_height, 32, 0x00FF0000, 0x0000FF00,
         0x000000FF, 0xFF000000);
+    if (!textbox) {
+        for (int k = 0; k < line_count; ++k)
+            free(lines[k]);
+        free(lines);
+        free(line_widths);
+        return NULL;
+    }
     SDL_FillRect(textbox, NULL, 0x000000FF);
 
     // --- Second pass: render each line if not empty
@@ -159,6 +204,10 @@ SDL_Surface *theme_createTextOverlay(const char *text, SDL_Color fg, SDL_Color b
     int overlayH = text_surface->h + 2 * padding;
 
     SDL_Surface *overlay_surface = SDL_CreateRGBSurface(SDL_SWSURFACE, overlayW, overlayH, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+    if (!overlay_surface) {
+        SDL_FreeSurface(text_surface);
+        return NULL;
+    }
     SDL_FillRect(overlay_surface, NULL, SDL_MapRGBA(overlay_surface->format, bg.r, bg.g, bg.b, (Uint8)(bgAlpha * 255.0)));
 
     SDL_Rect dest = {padding, padding};

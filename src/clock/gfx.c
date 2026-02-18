@@ -28,7 +28,7 @@ enum { GFX_BLOCKING = 1,
 //// middle performance nonblock, recommended for most cases
 #define DEFAULTFLIPFLAGS 0 // high performance but with the above precautions
 
-int fd_fb = 0;
+int fd_fb = -1;
 void *fb_addr;
 struct fb_fix_screeninfo finfo;
 struct fb_var_screeninfo vinfo;
@@ -199,7 +199,7 @@ void GFX_FlipExec(SDL_Surface *surface, uint32_t flags)
 {
     uint32_t target_offset, surfacesize;
 
-    if ((fd_fb) && (surface) && (surface->pixelsPa)) {
+    if ((fd_fb >= 0) && (surface) && (surface->pixelsPa)) {
         surfacesize = surface->pitch * surface->h;
         stSrc.eColorFmt = GFX_ColorFmt(surface);
         stSrc.u32Width = surface->w;
@@ -463,10 +463,14 @@ void GFX_ClearFrameBuffer(void) { memset(fb_addr, 0, finfo.smem_len); }
 //
 void GFX_Init(void)
 {
-    if (!fd_fb) {
+    if (fd_fb < 0) {
         MI_SYS_Init();
         MI_GFX_Open();
         fd_fb = open("/dev/fb0", O_RDWR);
+        if (fd_fb < 0) {
+            fprintf(stderr, "GFX_Init: failed to open /dev/fb0\n");
+            return;
+        }
 
         // 640 x 480 x 32bpp x 3screen init
         SDL_SetVideoMode(640, 480, 32, SDL_SWSURFACE);
@@ -488,6 +492,12 @@ void GFX_Init(void)
         // map fb memory
         fb_addr = mmap(0, finfo.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED,
                        fd_fb, 0);
+        if (fb_addr == MAP_FAILED) {
+            fprintf(stderr, "GFX_Init: failed to mmap /dev/fb0\n");
+            close(fd_fb);
+            fd_fb = -1;
+            return;
+        }
 
         // clear entire FB
         GFX_ClearFrameBuffer();
@@ -526,7 +536,7 @@ void GFX_Init(void)
 //
 void GFX_Quit(void)
 {
-    if (fd_fb) {
+    if (fd_fb >= 0) {
         pthread_cancel(flip_pt);
         pthread_join(flip_pt, NULL);
 
@@ -564,10 +574,11 @@ void GFX_Quit(void)
         ioctl(fd_fb, FBIOPUT_VSCREENINFO, &vinfo);
 
         // unmap fb memory
-        munmap(fb_addr, finfo.smem_len);
+        if (fb_addr != NULL && fb_addr != MAP_FAILED)
+            munmap(fb_addr, finfo.smem_len);
 
         close(fd_fb);
-        fd_fb = 0;
+        fd_fb = -1;
 
         MI_GFX_Close();
         MI_SYS_Exit();
@@ -581,7 +592,7 @@ void GFX_Quit(void)
 //
 SDL_Surface *GFX_SetVideoMode(int width, int height, int bpp, uint32_t flags)
 {
-    if (!fd_fb)
+    if (fd_fb < 0)
         GFX_Init();
     if (!width)
         width = 640;
@@ -764,7 +775,7 @@ SDL_Surface *GFX_DuplicateSurface(SDL_Surface *src)
 void GFX_UpdateRectExec(SDL_Surface *screen, int x, int y, int w, int h,
                         uint32_t flags)
 {
-    if ((fd_fb) && (screen) && (screen->pixelsPa)) {
+    if ((fd_fb >= 0) && (screen) && (screen->pixelsPa)) {
         if (x | y | w | h) {
             if (!sHWsurface) {
                 MI_GFX_Rect_t DstRectPush = stDstRect;

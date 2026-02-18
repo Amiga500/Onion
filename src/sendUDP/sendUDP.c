@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 {
     char *ipAddress = "127.0.0.1"; // localhost
     int port = 55355;              // default RetroArch CMD port
-    char *message;
+    char *message = NULL;
     size_t response_size = 0;
 
     if (argc < 2 || (argc == 2 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0))) {
@@ -39,6 +39,11 @@ int main(int argc, char *argv[])
         else {
             message = argv[i];
         }
+    }
+
+    if (message == NULL) {
+        fprintf(stderr, "Usage: %s [-h <ipAddress>] [-p <port>] [-r <response_size>] <message>\n", argv[0]);
+        exit(EXIT_FAILURE);
     }
 
     if (response_size > 0) {

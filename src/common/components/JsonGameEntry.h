@@ -33,7 +33,8 @@ JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
     json_getString(root, "imgpath", entry.imgpath);
     cJSON_Delete(root);
 
-    strcpy(entry.emupath, entry.rompath);
+    strncpy(entry.emupath, entry.rompath, STR_MAX - 1);
+    entry.emupath[STR_MAX - 1] = '\0';
     str_split(entry.emupath, "/../../");
 
     return entry;
@@ -41,14 +42,20 @@ JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
 
 void JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
 {
-    strcpy(dest, "{");
-    sprintf(dest + strlen(dest), "\"label\":\"%s\",", entry->label);
-    sprintf(dest + strlen(dest), "\"launch\":\"%s\",", entry->launch);
-    sprintf(dest + strlen(dest), "\"type\":%d,", entry->type);
-    if (strlen(entry->imgpath) > 0)
-        sprintf(dest + strlen(dest), "\"imgpath\":\"%s\",", entry->imgpath);
-    sprintf(dest + strlen(dest), "\"rompath\":\"%s\"", entry->rompath);
-    strcat(dest, "}");
+    if (strlen(entry->imgpath) > 0) {
+        snprintf(dest, STR_MAX * 6,
+                 "{\"label\":\"%s\",\"launch\":\"%s\",\"type\":%d,"
+                 "\"imgpath\":\"%s\",\"rompath\":\"%s\"}",
+                 entry->label, entry->launch, entry->type,
+                 entry->imgpath, entry->rompath);
+    }
+    else {
+        snprintf(dest, STR_MAX * 6,
+                 "{\"label\":\"%s\",\"launch\":\"%s\",\"type\":%d,"
+                 "\"rompath\":\"%s\"}",
+                 entry->label, entry->launch, entry->type,
+                 entry->rompath);
+    }
 }
 
 #endif // JSON_GAME_ENTRY_H__

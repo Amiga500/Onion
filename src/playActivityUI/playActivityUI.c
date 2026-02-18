@@ -75,6 +75,8 @@ void free_resources(void)
 int _renderText(const char *text, TTF_Font *font, SDL_Color color, SDL_Rect *rect, bool right_align)
 {
     int text_width = 0;
+    if (!font)
+        return text_width;
     SDL_Surface *textSurface = TTF_RenderUTF8_Blended(font, text, color);
     if (textSurface != NULL) {
         text_width = textSurface->w;
@@ -100,6 +102,8 @@ int renderTextAlignRight(const char *text, TTF_Font *font, SDL_Color color, SDL_
 SDL_Surface *loadRomImage(const char *image_path)
 {
     SDL_Surface *img = IMG_Load(is_file(image_path) ? image_path : "/mnt/SDCARD/miyoo/app/skin/thumb-default.png");
+    if (!img)
+        return NULL;
 
     double sw = (double)IMG_MAX_WIDTH / img->w;
     double sh = (double)IMG_MAX_HEIGHT / img->h;
@@ -107,6 +111,10 @@ SDL_Surface *loadRomImage(const char *image_path)
 
     SDL_PixelFormat *ft = img->format;
     SDL_Surface *dst = SDL_CreateRGBSurface(0, (int)(s * img->w), (int)(s * img->h), ft->BitsPerPixel, ft->Rmask, ft->Gmask, ft->Bmask, ft->Amask);
+    if (!dst) {
+        SDL_FreeSurface(img);
+        return NULL;
+    }
 
     SDL_Rect src_rect = {0, 0, img->w, img->h};
     SDL_Rect dst_rect = {0, 0, dst->w, dst->h};
@@ -140,7 +148,7 @@ void renderPage(int current_page)
         PlayActivity *entry = play_activities->play_activity[index];
         ROM *rom = entry->rom;
 
-        sprintf(num_str, "%d", index + 1);
+        snprintf(num_str, sizeof(num_str), "%d", index + 1);
         renderTextAlignRight(num_str, font40, color_purple, &(SDL_Rect){num_width, 80 + 90 * row, 50, 39});
 
         SDL_Surface *romImage = loadRomImage(rom->image_path);
@@ -154,8 +162,8 @@ void renderPage(int current_page)
             file_cleanName(rom_name, rom->name);
         renderText(rom_name, includeCJK(rom_name) ? fontCJKRomName25 : font30, color_white, &(SDL_Rect){num_width + 100, 75 + 90 * row, 400, 40});
 
-        str_serializeTime(total, entry->play_time_total);
-        str_serializeTime(average, entry->play_time_average);
+        str_serializeTime(total, sizeof(total), entry->play_time_total);
+        str_serializeTime(average, sizeof(average), entry->play_time_average);
         snprintf(plays, 24, "%d", entry->play_count);
 
         const char *details[] = {"TOTAL ", total, "  AVG ", average, "  PLAYS ", plays};
@@ -186,12 +194,12 @@ int main(int argc, char *argv[])
     renderPage(current_page);
 
     char num_pages_str[25];
-    sprintf(num_pages_str, "%d/%d", current_page + 1, num_pages);
+    snprintf(num_pages_str, sizeof(num_pages_str), "%d/%d", current_page + 1, num_pages);
     renderTextAlignRight(num_pages_str, font30, color_white, &rectPages);
 
     int play_time_total = play_activities->play_time_total;
     char play_time_total_formatted[STR_MAX];
-    str_serializeTime(play_time_total_formatted, play_time_total);
+    str_serializeTime(play_time_total_formatted, sizeof(play_time_total_formatted), play_time_total);
     renderText(play_time_total_formatted, font30, color_white, &rectMileage);
 
     SDL_BlitSurface(screen, NULL, video, NULL);
@@ -229,7 +237,7 @@ int main(int argc, char *argv[])
 
         SDL_BlitSurface(background, NULL, screen, NULL);
 
-        sprintf(num_pages_str, "%d/%d", current_page + 1, num_pages);
+        snprintf(num_pages_str, sizeof(num_pages_str), "%d/%d", current_page + 1, num_pages);
         renderTextAlignRight(num_pages_str, font30, color_white, &rectPages);
 
         renderText(play_time_total_formatted, font30, color_white, &rectMileage);
