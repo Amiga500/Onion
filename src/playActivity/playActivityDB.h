@@ -489,7 +489,8 @@ bool _get_active_rom_path(char *rom_path_out)
     }
 
     if ((ptr = strrchr(cmd, '"')) != NULL) {
-        strncpy(rom_path_out, ptr + 1, STR_MAX);
+        strncpy(rom_path_out, ptr + 1, STR_MAX - 1);
+        rom_path_out[STR_MAX - 1] = '\0';
         return true;
     }
 

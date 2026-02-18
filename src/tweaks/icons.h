@@ -121,6 +121,7 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
 
             if (is_dir(icon_pack_path)) {
                 strncpy(icon_pack_name, ep->d_name, STR_MAX - 1);
+                icon_pack_name[STR_MAX - 1] = '\0';
                 str_split(icon_pack_name, " by ");
 
                 ListItem item = {.action = action};
@@ -260,8 +261,10 @@ bool _add_config_icon(const char *path, const char *name,
         return false;
     }
 
-    if (!json_getString(config, "label", label))
+    if (!json_getString(config, "label", label)) {
         strncpy(label, name, STR_MAX - 1);
+        label[STR_MAX - 1] = '\0';
+    }
 
     cJSON_Delete(config);
 
