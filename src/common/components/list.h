@@ -10,7 +10,7 @@
 #include "system/lang.h"
 #include "utils/str.h"
 
-#define MAX_NUM_VALUES 16
+#define MAX_NUM_VALUES 10 /* PWM_FREQUENCIES is the largest value_labels array (10 entries) */
 
 typedef enum list_type { LIST_SMALL,
                          LIST_LARGE } ListType;

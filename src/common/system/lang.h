@@ -9,7 +9,7 @@
 #include "utils/log.h"
 #include "utils/str.h"
 
-#define LANG_MAX 400
+#define LANG_MAX (LANG_RESUME_UC + 1) /* must be > highest lang_hash value */
 #define LANG_DEFAULT "en.lang"
 #define LANG_DIR "/mnt/SDCARD/miyoo/app/lang"
 #define LANG_DIR_FALLBACK "/customer/app/lang"

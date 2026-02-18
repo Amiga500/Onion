@@ -108,11 +108,13 @@ SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
 
 TTF_Font *theme_loadFont(const char *theme_path, const char *font, int size)
 {
-    char font_path[STR_MAX * 2];
-    if (font[0] == '/')
-        strncpy(font_path, font, STR_MAX * 2 - 1);
+    char font_path[STR_MAX + 64]; /* theme_path(≤255) + relative font path(≤63) */
+    if (font[0] == '/') {
+        strncpy(font_path, font, sizeof(font_path) - 1);
+        font_path[sizeof(font_path) - 1] = '\0'; /* guard: strncpy omits NUL when src > size */
+    }
     else
-        snprintf(font_path, STR_MAX * 2, "%s%s", theme_path, font);
+        snprintf(font_path, sizeof(font_path), "%s%s", theme_path, font);
     if (g_scale != 1.0)
         size = (int)(size * g_scale);
     return TTF_OpenFont(exists(font_path) ? font_path : FALLBACK_FONT, size);
