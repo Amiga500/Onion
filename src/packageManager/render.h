@@ -288,7 +288,7 @@ void renderApplication(void)
             size_t len = strlen(status_str);
             if (len > 0) {
                 if (len < sizeof(status_str) - 2) {
-                    status_str[len]     = ' ';
+                    status_str[len] = ' ';
                     status_str[len + 1] = ' ';
                     status_str[len + 2] = '\0';
                     len += 2;

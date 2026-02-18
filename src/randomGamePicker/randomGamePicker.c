@@ -227,7 +227,7 @@ bool addRandomFromJson(char *json_path)
 
     while (fgets(line, sizeof(line), fp)) {
         json_root = cJSON_Parse(line);
-        if(!json_getInt(json_root, "type", (int *)&type)) {
+        if (!json_getInt(json_root, "type", (int *)&type)) {
             print_debug("Malformed json; Skipping\n");
             continue;
         }

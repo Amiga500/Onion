@@ -175,24 +175,36 @@ void switch_zoom_profile(int segment_duration)
     switch (segment_duration) {
     case 7200:
         // A segemmt is 120 minutes
-        strncpy(label[0], "4h",  sizeof(label[0]) - 1); label[0][sizeof(label[0]) - 1] = '\0';
-        strncpy(label[1], "8h",  sizeof(label[1]) - 1); label[1][sizeof(label[1]) - 1] = '\0';
-        strncpy(label[2], "12h", sizeof(label[2]) - 1); label[2][sizeof(label[2]) - 1] = '\0';
-        strncpy(label[3], "16h", sizeof(label[3]) - 1); label[3][sizeof(label[3]) - 1] = '\0';
+        strncpy(label[0], "4h", sizeof(label[0]) - 1);
+        label[0][sizeof(label[0]) - 1] = '\0';
+        strncpy(label[1], "8h", sizeof(label[1]) - 1);
+        label[1][sizeof(label[1]) - 1] = '\0';
+        strncpy(label[2], "12h", sizeof(label[2]) - 1);
+        label[2][sizeof(label[2]) - 1] = '\0';
+        strncpy(label[3], "16h", sizeof(label[3]) - 1);
+        label[3][sizeof(label[3]) - 1] = '\0';
         break;
     case 3600:
         // A segemmt is 60 minutes
-        strncpy(label[0], "2h", sizeof(label[0]) - 1); label[0][sizeof(label[0]) - 1] = '\0';
-        strncpy(label[1], "4h", sizeof(label[1]) - 1); label[1][sizeof(label[1]) - 1] = '\0';
-        strncpy(label[2], "6h", sizeof(label[2]) - 1); label[2][sizeof(label[2]) - 1] = '\0';
-        strncpy(label[3], "8h", sizeof(label[3]) - 1); label[3][sizeof(label[3]) - 1] = '\0';
+        strncpy(label[0], "2h", sizeof(label[0]) - 1);
+        label[0][sizeof(label[0]) - 1] = '\0';
+        strncpy(label[1], "4h", sizeof(label[1]) - 1);
+        label[1][sizeof(label[1]) - 1] = '\0';
+        strncpy(label[2], "6h", sizeof(label[2]) - 1);
+        label[2][sizeof(label[2]) - 1] = '\0';
+        strncpy(label[3], "8h", sizeof(label[3]) - 1);
+        label[3][sizeof(label[3]) - 1] = '\0';
         break;
     case 1800:
         // A segemmt is 30 minutes
-        strncpy(label[0], "1h", sizeof(label[0]) - 1); label[0][sizeof(label[0]) - 1] = '\0';
-        strncpy(label[1], "2h", sizeof(label[1]) - 1); label[1][sizeof(label[1]) - 1] = '\0';
-        strncpy(label[2], "3h", sizeof(label[2]) - 1); label[2][sizeof(label[2]) - 1] = '\0';
-        strncpy(label[3], "4h", sizeof(label[3]) - 1); label[3][sizeof(label[3]) - 1] = '\0';
+        strncpy(label[0], "1h", sizeof(label[0]) - 1);
+        label[0][sizeof(label[0]) - 1] = '\0';
+        strncpy(label[1], "2h", sizeof(label[1]) - 1);
+        label[1][sizeof(label[1]) - 1] = '\0';
+        strncpy(label[2], "3h", sizeof(label[2]) - 1);
+        label[2][sizeof(label[2]) - 1] = '\0';
+        strncpy(label[3], "4h", sizeof(label[3]) - 1);
+        label[3][sizeof(label[3]) - 1] = '\0';
         break;
 
     default:

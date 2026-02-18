@@ -212,11 +212,11 @@ void write_mainui_state(MainUIState state, int currpos, int total)
     page_end = page_start + page_size - 1;
 
     snprintf(state_str, sizeof(state_str),
-            "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
-            "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
-            "\"pagestart\":%d,\"pageend\":%d}]}",
-            main_currpos, main_page_start, main_page_end, title_num, page_type,
-            currpos, page_start, page_end);
+             "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
+             "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
+             "\"pagestart\":%d,\"pageend\":%d}]}",
+             main_currpos, main_page_start, main_page_end, title_num, page_type,
+             currpos, page_start, page_end);
 
     file_put_sync(fp, "/tmp/state.json", "%s", state_str);
 }

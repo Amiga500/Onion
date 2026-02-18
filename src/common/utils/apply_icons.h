@@ -179,7 +179,7 @@ bool _apply_singleIconFromPack(const char *config_path,
 
     json_forceSetString(config, "icon", icon_path);
 
-    char* config_str = cJSON_Print(config);
+    char *config_str = cJSON_Print(config);
     _saveConfigFile(config_path, config_str);
     cJSON_free(config_str);
     cJSON_Delete(config);

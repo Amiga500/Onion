@@ -217,7 +217,8 @@ int main(int argc, char *argv[])
                 gTextSurface = theme_textboxSurface_High_Memory(
                     gText, font35, gTextColor, ALIGN_LEFT);
                 TTF_CloseFont(font35);
-            } else {
+            }
+            else {
                 gTextSurface = NULL;
             }
 

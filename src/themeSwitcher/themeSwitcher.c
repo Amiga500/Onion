@@ -373,7 +373,7 @@ int main(int argc, char *argv[])
                 snprintf(title, STR_MAX + 12, "%s - Installed", theme.name);
             else
                 strncpy(title, theme.name, STR_MAX + 12);
-                title[STR_MAX + 11] = '\0';
+            title[STR_MAX + 11] = '\0';
 
             imageThemeNom = TTF_RenderUTF8_Blended(font21, title, color_white);
             if (imageThemeNom) {
