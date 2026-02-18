@@ -12,7 +12,7 @@ typedef enum RetroArchState {
 } RetroArchState_e;
 
 typedef struct RetroArchStatus {
-    char content_info[1024];
+    char content_info[512];
     RetroArchState_e state;
 } RetroArchStatus_s;
 

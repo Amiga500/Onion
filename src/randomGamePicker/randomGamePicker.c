@@ -11,7 +11,7 @@
 #include "utils/flags.h"
 #include "utils/log.h"
 
-#define MAX_SYSTEMS 500
+#define MAX_SYSTEMS 128
 #define ERROR_CODE_NO_GAME_FOUND 99
 
 #define PATH_FAVORITES "/mnt/SDCARD/Roms/favourite.json"
@@ -25,9 +25,9 @@ typedef struct game_entry_s {
     int c_sum;
     char label[STR_MAX];
     char path[STR_MAX];
-    char img_path[STR_MAX * 3 + 3];
+    char img_path[STR_MAX * 2 + 32];
     char emu_name[STR_MAX];
-    char launch_path[STR_MAX * 2];
+    char launch_path[STR_MAX + 64];
 } GameEntry;
 
 static GameEntry
@@ -77,7 +77,7 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
         char launch_rel[STR_MAX];
         if (!json_getString(json_root, "launch", launch_rel))
             return false;
-        snprintf(launch_out, STR_MAX * 2 + 1, "%s/%s", emupath, launch_rel);
+        snprintf(launch_out, STR_MAX + 64, "%s/%s", emupath, launch_rel);
     }
 
     if (emuname_out != NULL) {
@@ -122,8 +122,8 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
     sqlite3 *db;
     sqlite3_stmt *res;
 
-    char cache_path[STR_MAX * 3];
-    snprintf(cache_path, STR_MAX * 3 - 1, "%s/%s_cache6.db", romsdir,
+    char cache_path[STR_MAX * 2 + 64];
+    snprintf(cache_path, sizeof(cache_path) - 1, "%s/%s_cache6.db", romsdir,
              basename(romsdir));
     printf_debug("cache: %s\n", cache_path);
 
@@ -141,11 +141,15 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
     }
 
     int count = getTotalGamesCount(db, table_name);
+    if (count <= 0) {
+        sqlite3_close(db);
+        return false;
+    }
 
     const char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
                                       "%q WHERE type=0 AND path NOT LIKE "
-                                      "'%%.miyoocmd' ORDER BY RANDOM() LIMIT 1",
-                                      table_name);
+                                      "'%%.miyoocmd' LIMIT 1 OFFSET (ABS(RANDOM()) %% %d)",
+                                      table_name, count);
 
     if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
         sqlite3_close(db);
@@ -153,6 +157,12 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
     }
 
     if (sqlite3_step(res) == SQLITE_ROW) {
+        if (system_count >= MAX_SYSTEMS) {
+            printf_debug("pickRandomGameFromCache: MAX_SYSTEMS (%d) reached, skipping entry\n", MAX_SYSTEMS);
+            sqlite3_finalize(res);
+            sqlite3_close(db);
+            return false;
+        }
         GameEntry *game = &random_games[system_count];
         system_count++;
         total_games_count += count;
@@ -168,7 +178,7 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
         strncpy(game->img_path, (const char *)sqlite3_column_text(res, 3),
                 STR_MAX - 1);
 
-        strncpy(game->launch_path, launch_path, STR_MAX * 2 - 1);
+        strncpy(game->launch_path, launch_path, sizeof(game->launch_path) - 1);
         strncpy(game->emu_name, emuname, STR_MAX - 1);
     }
 
@@ -182,7 +192,7 @@ bool addRandomFromEmu(char *emupath)
 {
     char emuname[STR_MAX];
     char romsdir[STR_MAX * 2 + 2];
-    char launch_path[STR_MAX * 2 + 2];
+    char launch_path[STR_MAX + 64];
 
     if (!loadEmuConfig(emupath, emuname, romsdir, launch_path, NULL))
         return false;
@@ -216,7 +226,9 @@ bool addRandomFromJson(char *json_path)
     int count = 0;
 
     FILE *fp;
-    char line[STR_MAX * 4];
+    /* JSON lines from JsonGameEntry_toJson reach 1086 chars + newline.
+     * STR_MAX*4+130 = 1154 avoids fgets truncation of long entries. */
+    char line[STR_MAX * 4 + 130];
     char path_a[STR_MAX];
     char path_b[STR_MAX];
     cJSON *json_root;
@@ -233,11 +245,13 @@ bool addRandomFromJson(char *json_path)
         }
 
         if (type == TYPE_GAME || type == TYPE_EXPERT) {
+            if (count >= MAX_SYSTEMS) {
+                printf_debug("addRandomFromJson: MAX_SYSTEMS (%d) reached, ignoring further entries\n", MAX_SYSTEMS);
+                cJSON_Delete(json_root);
+                break;
+            }
             GameEntry *game = &random_games[count];
-            memset(game->label, 0, strlen(game->label));
-            memset(game->path, 0, strlen(game->path));
-            memset(game->img_path, 0, strlen(game->img_path));
-            memset(game->launch_path, 0, strlen(game->launch_path));
+            memset(game, 0, sizeof(*game));
 
             game->id = type;
             game->sum = 1;
@@ -285,7 +299,7 @@ bool addRandomFromJson(char *json_path)
 
             if (strlen(game->img_path) == 0) {
                 char *no_extension = file_removeExtension(basename(game->path));
-                snprintf(game->img_path, STR_MAX * 3 + 2, "%s/%s.png", imgsdir,
+                snprintf(game->img_path, sizeof(game->img_path) - 1, "%s/%s.png", imgsdir,
                          no_extension);
                 free(no_extension);
             }
@@ -425,9 +439,9 @@ int main(int argc, char *argv[])
 
     GameEntry *chosen_game = &random_games[random_number];
 
-    char cmd_to_run[STR_MAX * 3 + 65];
+    char cmd_to_run[STR_MAX * 2 + 128];
     snprintf(
-        cmd_to_run, STR_MAX * 3 + 64,
+        cmd_to_run, sizeof(cmd_to_run),
         "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"",
         chosen_game->launch_path, chosen_game->path);
 

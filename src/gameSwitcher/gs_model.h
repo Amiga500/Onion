@@ -22,10 +22,10 @@
 #define INTEGER_SCALING_OPTION "video_scale_integer"
 
 typedef struct {
-    char label[STR_MAX * 2];
+    char label[STR_MAX];
     char rompath[STR_MAX * 2];
     char imgpath[STR_MAX * 2];
-    char launch[STR_MAX * 2];
+    char launch[STR_MAX];
     int type;
     int lineNo;
 } RecentItem;
@@ -34,11 +34,11 @@ typedef struct {
 typedef struct {
     RecentItem recentItem;
     SDL_Surface *romScreen;
-    char rom_name[STR_MAX * 2];
-    char name[STR_MAX * 2];
-    char shortname[STR_MAX * 2];
-    char core_name[STR_MAX * 2];
-    char core_path[STR_MAX * 2];
+    char rom_name[STR_MAX];
+    char name[STR_MAX];
+    char shortname[STR_MAX];
+    char core_name[STR_MAX];
+    char core_path[STR_MAX];
     char totalTime[100];
     int index;
     bool processed;

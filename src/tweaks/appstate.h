@@ -116,7 +116,8 @@ static bool prev_blf_changing = false;
 static bool _disable_confirm = false;
 static SDL_Surface *background_cache = NULL;
 
-static char ip_address_label[STR_MAX];
+/* Max content: "IP address: 192.168.100.100 (wlan0)" = 36 chars; 64 gives ample headroom. */
+static char ip_address_label[64];
 
 static void sigHandler(int sig)
 {

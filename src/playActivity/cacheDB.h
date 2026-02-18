@@ -13,10 +13,10 @@
 #define CACHE_NOT_FOUND -1
 
 typedef struct CacheDBItem {
-    char cache_path[PATH_MAX];
+    char cache_path[STR_MAX];     /* cache DB file path: dir/name_cache{2,6}.db ≤ STR_MAX-1 */
     char name[STR_MAX];
-    char path[PATH_MAX];
-    char imgpath[PATH_MAX];
+    char path[STR_MAX * 2];      /* ROM path on SD card: /mnt/SDCARD/Roms/SYS/game.ext */
+    char imgpath[STR_MAX * 2];   /* Image path on SD card */
 } CacheDBItem;
 
 sqlite3 *cache_db = NULL;
@@ -56,13 +56,13 @@ sqlite3_stmt *cache_db_prepare(char *cache_db_file_path, char *sql)
 int cache_get_path_and_version(char *cache_db_file_path, const char *cache_dir, const char *dir_name)
 {
     // Check if "_cache6.db" file exists
-    snprintf(cache_db_file_path, PATH_MAX - 1, "%s/%s_cache6.db", cache_dir, dir_name);
+    snprintf(cache_db_file_path, STR_MAX - 1, "%s/%s_cache6.db", cache_dir, dir_name);
     if (is_file(cache_db_file_path) == 1) {
         return 6;
     }
 
     // Check if "_cache2.db" file exists
-    snprintf(cache_db_file_path, PATH_MAX - 1, "%s/%s_cache2.db", cache_dir, dir_name);
+    snprintf(cache_db_file_path, STR_MAX - 1, "%s/%s_cache2.db", cache_dir, dir_name);
     if (is_file(cache_db_file_path) == 1) {
         return 2;
     }
@@ -113,17 +113,17 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     if (_path_or_name == NULL)
         return NULL;
 
-    char rel_path[PATH_MAX];
-    if (!file_path_relative_to(rel_path, "/mnt/SDCARD/Roms", path_or_name)) {
+    char rel_path[STR_MAX * 2];
+    if (!file_path_relative_to(rel_path, sizeof(rel_path), "/mnt/SDCARD/Roms", path_or_name)) {
         if (strstr(path_or_name, "../../Roms/") != NULL) {
-            strncpy(rel_path, str_split(_path_or_name, "../../Roms/"), PATH_MAX - 1);
+            strncpy(rel_path, str_split(_path_or_name, "../../Roms/"), sizeof(rel_path) - 1);
         }
         else {
             char *tunc_path_or_name = str_replace(_path_or_name, "/mnt/SDCARD/Roms/", "");
-            strncpy(rel_path, tunc_path_or_name, PATH_MAX - 1);
+            strncpy(rel_path, tunc_path_or_name, sizeof(rel_path) - 1);
             free(tunc_path_or_name);
         }
-        rel_path[PATH_MAX - 1] = '\0';
+        rel_path[sizeof(rel_path) - 1] = '\0';
     }
 
     char *sql;
@@ -150,14 +150,14 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         cache_db_item = (CacheDBItem *)malloc(sizeof(CacheDBItem));
         if (cache_db_item != NULL) {
-            strncpy(cache_db_item->cache_path, cache_db_file_path, PATH_MAX - 1);
-            cache_db_item->cache_path[PATH_MAX - 1] = '\0';
+            strncpy(cache_db_item->cache_path, cache_db_file_path, sizeof(cache_db_item->cache_path) - 1);
+            cache_db_item->cache_path[sizeof(cache_db_item->cache_path) - 1] = '\0';
             strncpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0), STR_MAX - 1);
             cache_db_item->name[STR_MAX - 1] = '\0';
-            strncpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1), PATH_MAX - 1);
-            cache_db_item->path[PATH_MAX - 1] = '\0';
-            strncpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2), PATH_MAX - 1);
-            cache_db_item->imgpath[PATH_MAX - 1] = '\0';
+            strncpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1), sizeof(cache_db_item->path) - 1);
+            cache_db_item->path[sizeof(cache_db_item->path) - 1] = '\0';
+            strncpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2), sizeof(cache_db_item->imgpath) - 1);
+            cache_db_item->imgpath[sizeof(cache_db_item->imgpath) - 1] = '\0';
             printf_debug("cache item found: %s\n", cache_db_item->name);
         }
         /* On malloc failure cache_db_item stays NULL — caller treats it as

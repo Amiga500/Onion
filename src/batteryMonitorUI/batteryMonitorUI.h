@@ -29,8 +29,8 @@
 // Space between pixels, higher is more transparent
 #define GRAPH_BACKGROUND_OPACITY 4
 
-// A multiple of 4 is recommended
-#define GRAPH_MAX_FULL_PAGES 8
+// A multiple of 4 is recommended; 4 pages = 18 h history = ~3-4 full sessions on Miyoo Mini
+#define GRAPH_MAX_FULL_PAGES 4
 
 #define GRAPH_DISPLAY_SIZE_X 583
 #define GRAPH_DISPLAY_SIZE_Y 324

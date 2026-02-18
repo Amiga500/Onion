@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
 
         if (ticks - check_timer > CHECK_TIMEOUT) {
             if (exists("/tmp/.update_msg")) {
-                file_readLastLine("/tmp/.update_msg", message_str);
+                file_readLastLine("/tmp/.update_msg", message_str, sizeof(message_str));
                 long n = 0;
                 if (!exists(".installed") && str_getLastNumber(message_str, &n))
                     progress = (int)(start_at + n / progress_div);

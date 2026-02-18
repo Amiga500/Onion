@@ -13,8 +13,10 @@
 
 bool checkAppInstalled(const char *basePath, int base_len, int level, bool complete)
 {
-    char path[1000];
-    char pathInstalledApp[1000];
+    /* Max: PACKAGE_DIR(42)+"/"+pkg_name(255)+"/"+dp_name(254) = 552 B;
+     * STR_MAX*2+64 = 576 B provides the required 552 B plus 24 B headroom. */
+    char path[STR_MAX * 2 + 64];
+    char pathInstalledApp[STR_MAX * 2 + 64];
 
     struct dirent *dp;
     DIR *dir = opendir(basePath);
@@ -61,7 +63,7 @@ bool checkAppInstalled(const char *basePath, int base_len, int level, bool compl
     return is_installed;
 }
 
-bool getConfigPath(char *config_path, const char *data_path, const char *base_dir_name)
+bool getConfigPath(char *config_path, size_t config_path_size, const char *data_path, const char *base_dir_name)
 {
     char base_dir[STR_MAX];
     snprintf(base_dir, STR_MAX - 1, "%s/%s", data_path, base_dir_name);
@@ -81,7 +83,7 @@ bool getConfigPath(char *config_path, const char *data_path, const char *base_di
             continue;
         if (dp->d_type != DT_DIR)
             continue;
-        snprintf(config_path, PATH_MAX, "%s/%s/config.json", base_dir, dp->d_name);
+        snprintf(config_path, config_path_size, "%s/%s/config.json", base_dir, dp->d_name);
         if (!is_file(config_path)) {
             closedir(dir);
             return false;
@@ -133,8 +135,8 @@ bool checkRomDir(const char *rom_dir, const char *extlist, int level)
 
         if (dp->d_type == DT_DIR) {
             if (level == 0) {
-                char subdir[PATH_MAX];
-                snprintf(subdir, PATH_MAX - 1, "%s/%s", rom_dir, dp->d_name);
+                char subdir[STR_MAX * 2 + 16];
+                snprintf(subdir, sizeof(subdir), "%s/%s", rom_dir, dp->d_name);
                 if (checkRomDir(subdir, extlist, level + 1)) {
                     closedir(dir);
                     return true;
@@ -158,13 +160,13 @@ bool checkRomDir(const char *rom_dir, const char *extlist, int level)
 
 bool checkRoms(const char *data_path)
 {
-    char path_dup[PATH_MAX];
-    strncpy(path_dup, data_path, PATH_MAX - 1);
+    char path_dup[STR_MAX];
+    snprintf(path_dup, sizeof(path_dup), "%s", data_path);
 
     char *base_dir_name = basename(dirname(path_dup));
-    char config_path[PATH_MAX];
+    char config_path[STR_MAX + 64]; /* data_path+/+version_dir+/config.json ~62 B typical */
 
-    if (!getConfigPath(config_path, data_path, base_dir_name)) {
+    if (!getConfigPath(config_path, sizeof(config_path), data_path, base_dir_name)) {
         return false;
     }
 
@@ -184,8 +186,8 @@ bool checkRoms(const char *data_path)
     if (strncmp(roms_rel_path, "../../", 6) != 0)
         return false;
 
-    char rom_dir[PATH_MAX];
-    snprintf(rom_dir, PATH_MAX - 1, "/mnt/SDCARD/%s", roms_rel_path + 6);
+    char rom_dir[STR_MAX + 16];
+    snprintf(rom_dir, sizeof(rom_dir), "/mnt/SDCARD/%s", roms_rel_path + 6);
 
     return checkRomDir(rom_dir, extlist, 0);
 }
@@ -194,7 +196,7 @@ void loadPackages(bool auto_update)
 {
     DIR *dp;
     struct dirent *ep;
-    char basePath[1000];
+    char basePath[STR_MAX * 2];
 
     for (int nT = 0; nT < tab_count; nT++) {
         const char *data_path = layer_dirs[nT];
@@ -325,8 +327,9 @@ void callPackageInstaller(const char *data_path, const char *package_name,
 
 void appUninstall(char *basePath, int strlenBase)
 {
-    char path[1000];
-    char pathInstalledApp[1000];
+    /* Max: same bound as checkAppInstalled: 552 B; STR_MAX*2+64 = 576 B (24 B headroom) */
+    char path[STR_MAX * 2 + 64];
+    char pathInstalledApp[STR_MAX * 2 + 64];
 
     struct dirent *dp;
     DIR *dir = opendir(basePath);

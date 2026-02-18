@@ -13,6 +13,15 @@
 #include "./display.h"
 #include "./settings.h"
 
+/*
+ * Maximum byte size needed to read one line from recentlist.json.
+ * Format: {"label":"L","launch":"X","type":17,"imgpath":"I","rompath":"R"}
+ * Boilerplate: 64 bytes; 4 fields × (STR_MAX-1)=255 chars = 1020 bytes;
+ * '\n' and '\0' = 2 bytes; 68 bytes headroom.
+ * Total: 64 + 1020 + 2 + 68 = 1154 = STR_MAX * 4 + 130.
+ */
+#define JSON_RECENTS_LINE_MAX (STR_MAX * 4 + 130)
+
 typedef enum system_state_e {
     MODE_UNKNOWN,
     MODE_MAIN_UI,
@@ -243,7 +252,7 @@ char *getMiyooRecentFilePath()
 char *history_getRecentPath(char *rom_path)
 {
     FILE *file;
-    char line[STR_MAX * 3];
+    char line[JSON_RECENTS_LINE_MAX];
 
     file = fopen(getMiyooRecentFilePath(), "r");
 
@@ -251,7 +260,7 @@ char *history_getRecentPath(char *rom_path)
         return NULL;
     }
 
-    while (fgets(line, STR_MAX * 3, file) != NULL) {
+    while (fgets(line, sizeof(line), file) != NULL) {
         char romPathSearch[STR_MAX];
         int type;
 
@@ -315,7 +324,8 @@ bool history_getRomscreenPath(char *path_out)
     }
     print_debug(file_path);
     if (strlen(filename) > 0) {
-        snprintf(path_out, STR_MAX * 2, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+        /* Max: 44-char prefix + 10-digit hash + ".png" + NUL = 59 B; fits in STR_MAX. */
+        snprintf(path_out, STR_MAX, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;
     }
 
@@ -334,7 +344,7 @@ void resumeGame(int index)
         return;
     }
 
-    char jsonContent[STR_MAX * 4];
+    char jsonContent[JSON_RECENTS_LINE_MAX];
     int validGameCount = -1;
     int lineCount = 0;
 
@@ -426,7 +436,7 @@ void resumeGame(int index)
         if (validGameCount == index) {
 
             FILE *fp;
-            char LaunchCommand[STR_MAX * 3];
+            char LaunchCommand[STR_MAX * 2 + 64];
 
             fclose(file);
             file = NULL;

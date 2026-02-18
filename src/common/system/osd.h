@@ -289,12 +289,11 @@ void _bar_restoreBufferBehind(void)
     _bar_color = 0;
     _print_bar();
     if (_bar_savebuf) {
-        uint32_t i, j, *ofs = g_display.fb_addr, *ofss = _bar_savebuf;
-        ofs += g_display.width - meterWidth;
-        ofss += g_display.width - meterWidth;
-        for (i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += g_display.width) {
+        /* Compact buffer: row i, column j stored at [i*meterWidth+j] */
+        uint32_t i, j, *ofs = g_display.fb_addr + g_display.width - meterWidth;
+        for (i = 0; i < g_display.height; i++, ofs += g_display.width) {
             for (j = 0; j < meterWidth; j++)
-                ofs[j] = ofss[j];
+                ofs[j] = _bar_savebuf[i * meterWidth + j];
         }
         free(_bar_savebuf);
         _bar_savebuf = NULL;
@@ -305,15 +304,14 @@ void _bar_restoreBufferBehind(void)
 void _bar_saveBufferBehind(void)
 {
 #ifdef PLATFORM_MIYOOMINI
-    // Save display area and clear
-    if ((_bar_savebuf = (uint32_t *)malloc(g_display.width * g_display.height *
+    /* Save only the meterWidth-wide right-edge strip: height*meterWidth pixels
+     * (was width*height = 1.2 MB; now height*meterWidth = 7.5 KB on 640x480) */
+    if ((_bar_savebuf = (uint32_t *)malloc((size_t)g_display.height * (size_t)meterWidth *
                                            sizeof(uint32_t)))) {
-        uint32_t i, j, *ofs = g_display.fb_addr, *ofss = _bar_savebuf;
-        ofs += g_display.width - meterWidth;
-        ofss += g_display.width - meterWidth;
-        for (i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += g_display.width) {
+        uint32_t i, j, *ofs = g_display.fb_addr + g_display.width - meterWidth;
+        for (i = 0; i < g_display.height; i++, ofs += g_display.width) {
             for (j = 0; j < meterWidth; j++)
-                ofss[j] = ofs[j];
+                _bar_savebuf[i * meterWidth + j] = ofs[j];
         }
     }
 #endif

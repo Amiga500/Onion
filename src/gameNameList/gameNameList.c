@@ -12,11 +12,10 @@
 #include "gamename.h"
 #include "utils/file.h"
 
-#define MAX_FOLDER_NAME_LEN 256
-#define MAX_FILE_NAME_LEN 256
-#define MAX_LINE_LEN 1024
-#define MAX_ROM_NAME_LENGTH 100
-#define MAX_MATCHING_FOLDERS 1000
+/* Longest real Onion system shortname is ~10 chars; 64 gives generous headroom
+   for any user-created folder name while being still safely under NAME_MAX. */
+#define MAX_SYSTEM_SHORTNAME_LEN 64
+#define MAX_MATCHING_FOLDERS 128
 #define FULL_ROM_LIST_NAME "full-arcade-rom-name-list.txt"
 #define ARCADE_ROM_NAMES_NAME "arcade-rom-names.txt"
 #define MISSING_ROM_NAMES_NAME "missing_roms_name.txt"
@@ -24,7 +23,7 @@
 
 #define STR_MAX 256
 
-char matching_folders[MAX_MATCHING_FOLDERS][256];
+char matching_folders[MAX_MATCHING_FOLDERS][MAX_SYSTEM_SHORTNAME_LEN];
 int systems_count = 0;
 
 //loaded shared linb function
@@ -44,10 +43,10 @@ void removeExtension(char *file_name)
     }
 }
 
-int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int i)
+int findFoldersWithShortname(char *disk_path, char matching_folders[][MAX_SYSTEM_SHORTNAME_LEN], int i)
 {
-    char command[STR_MAX * 5];
-    char path[STR_MAX * 3];
+    char command[STR_MAX + 128];
+    char path[STR_MAX + 32];
     char folder[STR_MAX];
     FILE *find, *sed;
 
@@ -132,7 +131,7 @@ void getRomNamesDir(const char *dir_path, const char *rom_ext, FILE *rom_names_f
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                 continue;
             }
-            char sub_dir_path[1024];
+            char sub_dir_path[STR_MAX * 2];
             snprintf(sub_dir_path, sizeof(sub_dir_path), "%s/%s", dir_path, entry->d_name);
             getRomNamesDir(sub_dir_path, rom_ext, rom_names_file);
         }
@@ -152,7 +151,7 @@ void getRomNamesDir(const char *dir_path, const char *rom_ext, FILE *rom_names_f
 int getRomNames(char *rom_dir_path, char *rom_names_file_path)
 {
     FILE *rom_names_file;
-    char foldername[1256];
+    char foldername[STR_MAX * 2 + 8];
 
     snprintf(foldername, sizeof(foldername), "%s%s", rom_dir_path, "/Emu");
     systems_count = findFoldersWithShortname(foldername, matching_folders, 0);
@@ -274,7 +273,7 @@ int createCopyFile(const char *src_path, const char *dst_path)
     }
 
     // Create the destination file as a copy of the source file
-    char command[1024];
+    char command[STR_MAX * 2 + 32];
     snprintf(command, sizeof(command), "cp '%s' '%s'", src_path, dst_path);
     int result = system(command);
 
@@ -346,7 +345,7 @@ void splitString(char *input, char *token1, char *token2)
 
 int updateCallback(void *data, int argc, char **argv, char **col_name)
 {
-    char update_sql[STR_MAX * 2];
+    char update_sql[STR_MAX + 64];
     UpdateData *d = (UpdateData *)data;
 
     sqlite3 *db = d->db;
@@ -380,15 +379,15 @@ int updateSqlliteCache(char *base_dir_path)
 {
 
     char table_name[STR_MAX + 6];
-    char select_sql[STR_MAX * 2];
+    char select_sql[STR_MAX + 64];
     sqlite3 *db;
     UpdateData data;
 
     //for every system open the DB and update every occurrence
     for (int i = 0; i < systems_count; i++) {
-        char cache_path[STR_MAX * 3];
+        char cache_path[STR_MAX * 2 + 64]; /* /mnt/SDCARD/Roms/SYS/SYS_cache6.db ~538 B */
         //a bit of assumption here on the path, to be perfected
-        snprintf(cache_path, STR_MAX * 3 - 1, "%s/Roms/%s/%s_cache6.db", base_dir_path, matching_folders[i], matching_folders[i]);
+        snprintf(cache_path, sizeof(cache_path), "%s/Roms/%s/%s_cache6.db", base_dir_path, matching_folders[i], matching_folders[i]);
 
         if (!is_file(cache_path))
             continue; //skip this db, the update cache not found

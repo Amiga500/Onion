@@ -9,18 +9,20 @@
 #include "utils/log.h"
 #include "utils/str.h"
 
-void _path(char *dest, const char *dir_path, const char *file_name,
+#define RENAMEROM_PATH_SIZE (STR_MAX * 2 + 64)
+
+void _path(char *dest, size_t dest_size, const char *dir_path, const char *file_name,
            const char *file_ext)
 {
-    snprintf(dest, STR_MAX * 3 - 1, "%s/%s.%s", dir_path, file_name, file_ext);
+    snprintf(dest, dest_size, "%s/%s.%s", dir_path, file_name, file_ext);
 }
 
 bool renameFile(const char *dir_path, const char *file_ext,
                 const char *old_name, const char *new_name)
 {
-    char old_path[STR_MAX * 3], new_path[STR_MAX * 3];
-    _path(old_path, dir_path, old_name, file_ext);
-    _path(new_path, dir_path, new_name, file_ext);
+    char old_path[RENAMEROM_PATH_SIZE], new_path[RENAMEROM_PATH_SIZE];
+    _path(old_path, sizeof(old_path), dir_path, old_name, file_ext);
+    _path(new_path, sizeof(new_path), dir_path, new_name, file_ext);
 
     if (is_file(old_path)) {
         printf_debug("\nrename: '%s'\n     -> '%s'\n", old_path, new_path);
@@ -122,8 +124,8 @@ int main(int argc, char *argv[])
 
     // Rename box art
 
-    char imgdir[STR_MAX * 2 + 1];
-    snprintf(imgdir, STR_MAX * 2, "%s/%s", emupath, config.imgpath);
+    char imgdir[STR_MAX + 32];
+    snprintf(imgdir, sizeof(imgdir), "%s/%s", emupath, config.imgpath);
 
     if (!renameFile(imgdir, "png", old_name, new_name)) {
         print_debug("No box art found");
@@ -132,13 +134,13 @@ int main(int argc, char *argv[])
 
     // Rename cache entry
 
-    char cache_path[STR_MAX * 3];
-    snprintf(cache_path, STR_MAX * 3 - 1, "%s/%s/%s_cache6.db", emupath,
+    char cache_path[RENAMEROM_PATH_SIZE];
+    snprintf(cache_path, sizeof(cache_path), "%s/%s/%s_cache6.db", emupath,
              config.rompath, basename(config.rompath));
 
-    char new_rompath[STR_MAX * 3], new_imgpath[STR_MAX * 3];
-    _path(new_rompath, romdir, new_name, romext);
-    _path(new_imgpath, imgdir, new_name, "png");
+    char new_rompath[RENAMEROM_PATH_SIZE], new_imgpath[RENAMEROM_PATH_SIZE];
+    _path(new_rompath, sizeof(new_rompath), romdir, new_name, romext);
+    _path(new_imgpath, sizeof(new_imgpath), imgdir, new_name, "png");
 
     printf_debug("cache path: %s\n", cache_path);
     renameCache(cache_path, basename(config.rompath), rompath, new_rompath,

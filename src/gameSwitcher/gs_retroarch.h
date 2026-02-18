@@ -111,7 +111,7 @@ void ra_getCoreNameFromInfo(Game_s *game)
 
         char *basePath = file_removeExtension(game->core_path);
         if (basePath != NULL) {
-            char infoPath[STR_MAX * 2];
+            char infoPath[STR_MAX + 8]; /* core_path (≤255) - ext + ".info" (5 chars + NUL) = 261 B max */
             snprintf(infoPath, sizeof(infoPath), "%s.info", basePath);
             file_parseKeyValue(infoPath, "corename", game->core_name, '=', 0);
             printf_debug("Core name: %s\n", game->core_name);
@@ -121,7 +121,7 @@ void ra_getCoreNameFromInfo(Game_s *game)
 }
 bool ra_getBoolFromConfig(const char *cfg_path, bool *out_value, const char *key)
 {
-    char value[STR_MAX * 2];
+    char value[STR_MAX];
     file_parseKeyValue(cfg_path, key, value, '=', 0);
     if (strcmp(value, "true") == 0) {
         *out_value = true;
@@ -137,7 +137,7 @@ bool ra_getBoolFromConfig(const char *cfg_path, bool *out_value, const char *key
 bool ra_getConfigOverrideOption(const Game_s *game, const char *key, bool defaultValue)
 {
     bool result = false;
-    char cfg_path[4096];
+    char cfg_path[STR_MAX * 2 + 64];
 
     // Game override
     snprintf(cfg_path, sizeof(cfg_path), CONFIG_DIR "/%s/%s.cfg", game->core_name, game->rom_name);

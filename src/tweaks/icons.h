@@ -25,7 +25,9 @@ typedef struct IconInfo {
     char config_path[STR_MAX];
 } IconInfo_t;
 
-static IconInfo_t icon_infos[500];
+/* 256 > 150 config.json files shipped with Onion across Emu/App/RApp. */
+#define MAX_ICON_INFOS 256
+static IconInfo_t icon_infos[MAX_ICON_INFOS];
 static int icon_infos_len = 0;
 
 int _add_icon_alts(const char *pack_dir, const char *pack_name,
@@ -35,7 +37,8 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
     struct dirent *ep;
     char *icon_name;
     char alt_name[STR_MAX];
-    char preview_path[STR_MAX * 2 + 1];
+    /* Max content: icon_pack_path(STR_MAX+32 buf, 287 chars max) + "/" + NAME_MAX-1(254) + NUL = 543 B */
+    char preview_path[STR_MAX * 2 + 64];
     int count = 0;
 
     if ((dp = opendir(pack_dir)) != NULL) {
@@ -46,7 +49,7 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
                 ep->d_name[strlen(icon_prefix)] != '-')
                 continue;
 
-            snprintf(preview_path, STR_MAX * 2, "%s/%s", pack_dir, ep->d_name);
+            snprintf(preview_path, sizeof(preview_path), "%s/%s", pack_dir, ep->d_name);
 
             icon_name = file_removeExtension(ep->d_name);
             str_split(icon_name, "-");
@@ -58,7 +61,7 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
             strncpy(item.payload, pack_dir, STR_MAX - 1);
 
             if (is_file(preview_path))
-                strncpy(item.preview_path, preview_path, STR_MAX - 1);
+                strncpy(item.preview_path, preview_path, sizeof(item.preview_path) - 1);
 
             list_addItem(list, item);
             count++;
@@ -75,7 +78,8 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
     DIR *dp;
     struct dirent *ep;
     char icon_pack_name[STR_MAX];
-    char icon_pack_path[STR_MAX * 2];
+    /* Max: path("/mnt/SDCARD/Themes"=19) + "/" + NAME_MAX-1(253) + "/icons"(6) + NUL = 280 B */
+    char icon_pack_path[STR_MAX + 32];
     char preview_path[STR_MAX * 2 + 32];
     int count = 0;
 
@@ -94,22 +98,22 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
             if (strcmp("icons", ep->d_name) == 0)
                 continue;
 
-            snprintf(icon_pack_path, STR_MAX * 2 - 1,
+            snprintf(icon_pack_path, sizeof(icon_pack_path) - 1,
                      is_theme ? "%s/%s/icons" : "%s/%s", path, ep->d_name);
 
             if (required_icon != NULL) {
-                snprintf(preview_path, STR_MAX * 2 + 31, "%s/%s.png",
+                snprintf(preview_path, sizeof(preview_path), "%s/%s.png",
                          icon_pack_path, required_icon);
 
                 if (!is_file(preview_path))
                     continue;
             }
             else {
-                snprintf(preview_path, STR_MAX * 2 + 31, "%s/preview.png",
+                snprintf(preview_path, sizeof(preview_path), "%s/preview.png",
                          icon_pack_path);
 
                 if (!is_file(preview_path))
-                    snprintf(preview_path, STR_MAX * 2 + 31, "%s/gba.png",
+                    snprintf(preview_path, sizeof(preview_path), "%s/gba.png",
                              icon_pack_path);
             }
 
@@ -122,7 +126,7 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
                 strncpy(item.payload, icon_pack_path, STR_MAX - 1);
 
                 if (is_file(preview_path))
-                    strncpy(item.preview_path, preview_path, STR_MAX - 1);
+                    strncpy(item.preview_path, preview_path, sizeof(item.preview_path) - 1);
 
                 list_addItem(list, item);
                 count++;
@@ -259,16 +263,20 @@ bool _add_config_icon(const char *path, const char *name,
 
     cJSON_Delete(config);
 
+    /* Guard before any heap allocation or expensive work. */
+    if (icon_infos_len >= MAX_ICON_INFOS) {
+        printf_debug("_add_icon_item: icon_infos full (%d), skipping %s\n",
+                     MAX_ICON_INFOS, name);
+        return false;
+    }
+
     ListItem item = {.action = action};
 
     if (icon_path[0] != '/')
-        snprintf(preview_path, STR_MAX * 2 + 32 - 1, "%s/%s/%s", path, name,
+        snprintf(preview_path, sizeof(preview_path), "%s/%s/%s", path, name,
                  icon_path);
     else
-        strncpy(preview_path, icon_path, STR_MAX * 2 - 1);
-
-    char abs_path[STR_MAX - 56];
-    realpath(preview_path, abs_path);
+        strncpy(preview_path, icon_path, sizeof(preview_path) - 1);
 
     icon_name = file_removeExtension(basename(icon_path));
     str_split(icon_name, "-");
@@ -292,7 +300,7 @@ bool _add_config_icon(const char *path, const char *name,
     item.payload_ptr = (void *)info;
 
     if (mode != ICON_MODE_APP)
-        strncpy(item.preview_path, preview_path, STR_MAX - 1);
+        strncpy(item.preview_path, preview_path, sizeof(item.preview_path) - 1);
     else
         item.icon_ptr = (void *)IMG_Load(preview_path);
 
@@ -306,7 +314,7 @@ int _add_config_icons(const char *path, List *list, void (*action)(void *))
 {
     DIR *dp;
     struct dirent *ep;
-    char config_path[STR_MAX * 2];
+    char config_path[STR_MAX + 32];
     int count = 0;
 
     if ((dp = opendir(path)) != NULL) {
@@ -318,7 +326,7 @@ int _add_config_icons(const char *path, List *list, void (*action)(void *))
             if (strcmp("romscripts", ep->d_name) == 0)
                 continue;
 
-            snprintf(config_path, STR_MAX * 2 - 1, "%s/%s/config.json", path,
+            snprintf(config_path, sizeof(config_path) - 1, "%s/%s/config.json", path,
                      ep->d_name);
 
             if (strcmp(SEARCH_CONFIG, config_path) == 0)

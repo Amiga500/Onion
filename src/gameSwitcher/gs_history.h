@@ -90,7 +90,7 @@ void setEntryDefaultValues(Game_s *game, int index)
 void readHistory()
 {
     FILE *file;
-    char line[STR_MAX * 6];
+    char line[JSON_RECENTS_LINE_MAX];
     int numRecents = 0;
 
     const char *recentFilePath = getMiyooRecentFilePath();
@@ -161,8 +161,8 @@ void processItem(Game_s *game)
     game->processed = true;
 
     char *rom_name = file_removeExtension(file_basename(game->recentItem.rompath));
-    strncpy(game->rom_name, rom_name, STR_MAX * 2 - 1);
-    game->rom_name[STR_MAX * 2 - 1] = '\0';
+    strncpy(game->rom_name, rom_name, sizeof(game->rom_name) - 1);
+    game->rom_name[sizeof(game->rom_name) - 1] = '\0';
     free(rom_name);
 
     if (!getGameName(game->name, game->recentItem.rompath)) {
@@ -188,7 +188,7 @@ void processItem(Game_s *game)
 void readFirstEntry()
 {
     FILE *file;
-    char line[STR_MAX * 6];
+    char line[JSON_RECENTS_LINE_MAX];
 
     file = fopen(getMiyooRecentFilePath(), "r");
     if (file == NULL) {
@@ -218,9 +218,12 @@ void readFirstEntry()
     fclose(file);
 }
 
-void getLaunchCommand(Game_s *game, char *launchCommand)
+/* Writes the LD_PRELOAD launch command into launchCommand.
+ * dest_size must be at least STR_MAX*3+64 (832 B) to hold the worst-case
+ * output: 56 + launch(STR_MAX-1) + " " + rompath(STR_MAX*2-1) + NUL. */
+void getLaunchCommand(Game_s *game, char *launchCommand, size_t dest_size)
 {
-    snprintf(launchCommand, 4096, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", game->recentItem.launch, game->recentItem.rompath);
+    snprintf(launchCommand, dest_size, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", game->recentItem.launch, game->recentItem.rompath);
 }
 
 #endif // GAME_SWITCHER_HISTORY_H

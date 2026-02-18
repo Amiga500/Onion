@@ -11,8 +11,9 @@ typedef struct {
     bool is_duplicate;
     int dup_id;
 } InstalledApp;
-static InstalledApp _installed_apps[100];
-static InstalledApp _installed_apps_sorted[100];
+#define MAX_INSTALLED_APPS 64
+static InstalledApp _installed_apps[MAX_INSTALLED_APPS];
+static InstalledApp _installed_apps_sorted[MAX_INSTALLED_APPS];
 static int installed_apps_count = 0;
 static bool installed_apps_loaded = false;
 
@@ -59,6 +60,11 @@ InstalledApp *getInstalledApps(bool sort)
                 strcmp(ep->d_name, "..") == 0)
                 continue;
             int i = installed_apps_count;
+
+            if (i >= MAX_INSTALLED_APPS) {
+                printf_debug("getInstalledApps: limit of %d apps reached, ignoring further entries\n", MAX_INSTALLED_APPS);
+                break;
+            }
 
             if (!_getAppDirAndConfig(ep->d_name, app_dir, config_path))
                 continue;
@@ -132,8 +138,8 @@ void set_cmd_app(const char *app_dir_name)
         return;
 
     FILE *fp;
-    char cmd[STR_MAX * 4];
-    snprintf(cmd, STR_MAX * 4 - 1,
+    char cmd[STR_MAX + 128];
+    snprintf(cmd, sizeof(cmd),
              "cd %s; chmod a+x ./%s; "
              "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so ./%s",
              app_dir, launch, launch);

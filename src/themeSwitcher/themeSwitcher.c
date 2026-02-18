@@ -219,15 +219,15 @@ int main(int argc, char *argv[])
 
     showCenteredMessage(video, screen, "Loading previews...", font30, color_white);
 
-    char preview_path[STR_MAX * 2];
+    char preview_path[STR_MAX + 64];
     SDL_Surface *previews[themes_count];
     SDL_Surface *noPreview = IMG_Load("res/noThemePreview.png");
 
     for (int i = 0; i < themes_count; i++) {
-        snprintf(preview_path, STR_MAX * 2 - 1, THEMES_DIR "/%s/preview.png", themes[i]);
+        snprintf(preview_path, sizeof(preview_path), THEMES_DIR "/%s/preview.png", themes[i]);
 
         if (!is_file(preview_path))
-            snprintf(preview_path, STR_MAX * 2 - 1, THEMES_DIR "/.previews/%s/preview.png", themes[i]);
+            snprintf(preview_path, sizeof(preview_path), THEMES_DIR "/.previews/%s/preview.png", themes[i]);
 
         previews[i] = is_file(preview_path) ? IMG_Load(preview_path) : NULL;
 
@@ -405,8 +405,8 @@ int main(int argc, char *argv[])
             rectThemeName.y += 50;
 
             if (strlen(theme.author) > 0) {
-                char author[STR_MAX * 2];
-                snprintf(author, STR_MAX * 2 - 1, "by %s", theme.author);
+                char author[STR_MAX + 4];
+                snprintf(author, sizeof(author), "by %s", theme.author);
                 imagePages = TTF_RenderUTF8_Blended(font30, author, color_white);
                 if (imagePages) {
                     SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);

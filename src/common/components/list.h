@@ -10,7 +10,7 @@
 #include "system/lang.h"
 #include "utils/str.h"
 
-#define MAX_NUM_VALUES 100
+#define MAX_NUM_VALUES 10 /* PWM_FREQUENCIES is the largest value_labels array (10 entries) */
 
 typedef enum list_type { LIST_SMALL,
                          LIST_LARGE } ListType;
@@ -41,7 +41,7 @@ typedef struct ListItem {
     int _reset_value;
     void *icon_ptr;
     void *preview_ptr;
-    char preview_path[4096];
+    char preview_path[STR_MAX * 2 + 64]; /* max: STATES_DIR+core+rom+ext+".png"+NUL ~569 B */
     char sticky_note[STR_MAX];
     char info_note[STR_MAX];
 } ListItem;

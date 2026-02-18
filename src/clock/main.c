@@ -52,9 +52,7 @@ uint32_t hour_selected = 0, minute_selected = 0, seconds_selected = 0;
 uint32_t february_days = 28;
 uint32_t update_clock = 0;
 
-char final_long_string[512];
-
-uint8_t string_tmp[2][512];
+char final_long_string[64];
 
 int select_cursor = 0;
 

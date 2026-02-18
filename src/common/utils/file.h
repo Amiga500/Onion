@@ -92,7 +92,7 @@ const char *file_basename(const char *filename);
  */
 bool mkdirs(const char *dir_path);
 
-void file_readLastLine(const char *filename, char *out_str);
+void file_readLastLine(const char *filename, char *out_str, size_t out_size);
 
 char *file_read(const char *path) __attribute__((malloc));
 
@@ -114,7 +114,7 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
 void file_changeKeyValue(const char *file_path, const char *key,
                          const char *replacement_line);
 
-bool file_path_relative_to(char *path_out, const char *path_from, const char *path_to);
+bool file_path_relative_to(char *path_out, size_t dest_size, const char *path_from, const char *path_to);
 
 bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size);
 

@@ -51,7 +51,7 @@ void renderSummary()
 
             pos_y += 10;
 
-            char line_str[STR_MAX * 2];
+            char line_str[STR_MAX];
             snprintf(line_str, sizeof(line_str), "%s:", layer_names[nT]);
 
             if (changes_installs[nT] > 0) {

@@ -23,8 +23,8 @@
 #define THEMES_DIR "/mnt/SDCARD/Themes"
 #define ACTIVE_THEME "/mnt/SDCARD/.tmp_update/config/active_theme"
 
-// Max number of records in the DB
-#define NUMBER_OF_THEMES 500
+// Max number of themes (Onion ships ~20 built-in; 128 is generous for user installs)
+#define NUMBER_OF_THEMES 128
 
 int _comp_themes(const void *a, const void *b)
 {
@@ -37,8 +37,8 @@ void loadThemeDirectory(const char *theme_dir,
 {
     DIR *dp;
     struct dirent *ep;
-    char config_path[STR_MAX * 2];
-    char preview_path[STR_MAX * 2];
+    char config_path[STR_MAX + 64];
+    char preview_path[STR_MAX + 64];
 
     if ((dp = opendir(theme_dir)) != NULL) {
         while ((ep = readdir(dp))) {
@@ -47,11 +47,11 @@ void loadThemeDirectory(const char *theme_dir,
             if (ep->d_name[0] == '.')
                 continue;
 
-            snprintf(config_path, STR_MAX * 2 - 1, "%s/%s/config.json",
+            snprintf(config_path, sizeof(config_path), "%s/%s/config.json",
                      theme_dir, ep->d_name);
 
             if (check_preview) {
-                snprintf(preview_path, STR_MAX * 2 - 1,
+                snprintf(preview_path, sizeof(preview_path),
                          THEMES_DIR "/.previews/%s/config.json", ep->d_name);
 
                 if (is_file(preview_path))
@@ -59,6 +59,12 @@ void loadThemeDirectory(const char *theme_dir,
             }
 
             if (is_file(config_path)) {
+                if (*count >= NUMBER_OF_THEMES) {
+                    /* limit reached; keep reading to drain the directory, then closedir() */
+                    printf_debug("loadThemeDirectory: theme limit reached (%d), skipping '%s'\n",
+                                 NUMBER_OF_THEMES, ep->d_name);
+                    continue;
+                }
                 strncpy(themes_out[*count], ep->d_name, STR_MAX - 1);
                 themes_out[*count][STR_MAX - 1] = '\0';
                 *count += 1;
@@ -103,15 +109,16 @@ bool checkPreview(const char *preview_path)
     if (!is_dir(preview_path))
         return false;
 
-    char source_path[STR_MAX * 2];
-    snprintf(source_path, STR_MAX * 2 - 1, "%s/source", preview_path);
+    char source_path[STR_MAX + 64];
+    snprintf(source_path, sizeof(source_path), "%s/source", preview_path);
 
     if (!is_file(source_path))
         return false;
 
     FILE *fp;
-    char archive_path[STR_MAX * 2];
-    file_get(fp, source_path, "%511[^\n]", archive_path);
+    /* Max: THEMES_DIR(19) + "/" + NAME_MAX-1(253) + ".zip"(4) + NUL = 278 B */
+    char archive_path[STR_MAX + 32];
+    file_get(fp, source_path, "%286[^\n]", archive_path);
 
     if (!is_file(archive_path))
         return false;
@@ -121,11 +128,13 @@ bool checkPreview(const char *preview_path)
 
 bool getThemePath(const char *theme_name, char *theme_path_out)
 {
-    snprintf(theme_path_out, STR_MAX * 2 - 1, THEMES_DIR "/.previews/%s/",
+    /* Max: THEMES_DIR (19) + "/.previews/" (11) + NAME_MAX-1 (253) + "/" + NUL = 285 B.
+     * All callers pass theme_path[STR_MAX+32=288]; use STR_MAX+32-1 as the limit. */
+    snprintf(theme_path_out, STR_MAX + 32 - 1, THEMES_DIR "/.previews/%s/",
              theme_name);
 
     if (!checkPreview(theme_path_out))
-        snprintf(theme_path_out, STR_MAX * 2 - 1, THEMES_DIR "/%s/",
+        snprintf(theme_path_out, STR_MAX + 32 - 1, THEMES_DIR "/%s/",
                  theme_name);
 
     return is_dir(theme_path_out);
@@ -133,7 +142,7 @@ bool getThemePath(const char *theme_name, char *theme_path_out)
 
 bool loadTheme(const char *theme_name, Theme_s *theme_out)
 {
-    char theme_path[STR_MAX * 2];
+    char theme_path[STR_MAX + 32];
 
     if (getThemePath(theme_name, theme_path)) {
         *theme_out = theme_loadFromPath(theme_path, false);
@@ -145,8 +154,14 @@ bool loadTheme(const char *theme_name, Theme_s *theme_out)
 
 void installNonDynamicElement(const char *theme_path, const char *image_name)
 {
-    char override_image_path[256], theme_image_path[256],
-        system_image_path[256], system_image_backup[256];
+    /* theme_image_path: settings.theme max 255 B + "skin/" 5 + image_name (max "bg-io-testing"=13)
+     * + ".png" 4 + NUL = up to 278 B; [STR_MAX+32=288] prevents overflow.
+     * override_image_path: THEME_OVERRIDES 40 + "skin/" 5 + image_name 13 + ".png" 5 = 63 B max.
+     * system_image_path:   SYSTEM_SKIN_DIR 27 + "/" + image_name 13 + ".png" 5 = 46 B max.
+     * system_image_backup: same prefix + "_back.png" 9 = 50 B max.
+     * [128] provides ample headroom for the three system/override paths. */
+    char override_image_path[128], theme_image_path[STR_MAX + 32],
+        system_image_path[128], system_image_backup[128];
 
     snprintf(override_image_path, sizeof(override_image_path), "%sskin/%s.png", THEME_OVERRIDES, image_name);
     snprintf(theme_image_path, sizeof(theme_image_path), "%sskin/%s.png", theme_path, image_name);
@@ -177,8 +192,8 @@ void installTheme(char *theme_path, bool apply_icons)
     system("/mnt/SDCARD/.tmp_update/bin/mainUiBatPerc --restore");
 
     if (strstr(theme_path, "/.previews/") != NULL) {
-        char cmd[STR_MAX * 2];
-        snprintf(cmd, STR_MAX * 2 - 1,
+        char cmd[STR_MAX + 128];
+        snprintf(cmd, sizeof(cmd),
                  SCRIPT_DIR "/themes_extract_theme.sh \"%s\"", theme_path);
 
         snprintf(theme_path, STR_MAX, THEMES_DIR "/%s/", basename(theme_path));
@@ -249,7 +264,7 @@ bool ensureThemePath(const char *theme_name, char *theme_path_out)
 void reinstallTheme(const char *theme_name, bool apply_icons,
                     bool update_previews)
 {
-    char theme_path[STR_MAX * 2];
+    char theme_path[STR_MAX + 32];
 
     if (update_previews)
         updatePreviews();

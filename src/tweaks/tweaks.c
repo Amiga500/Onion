@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
             }
             if (isMenu(&_menu_network) || isMenu(&_menu_wifi)) {
                 network_loadState();
-                if (netinfo_getIpAddress(ip_address_label, network_state.hotspot ? "wlan1" : "wlan0")) {
+                if (netinfo_getIpAddress(ip_address_label, sizeof(ip_address_label), network_state.hotspot ? "wlan1" : "wlan0")) {
                     if (_menu_network._created) {
                         strncpy(_menu_network.items[0].label, ip_address_label,
                                 sizeof(_menu_network.items[0].label) - 1);

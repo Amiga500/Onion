@@ -131,7 +131,8 @@ void formatter_battExit(void *pt, char *out_label)
 }
 
 static const int num_font_families = 5;
-static const char font_families[][STR_MAX] = {
+/* Max font filename: "Exo-2-Bold-Italic_Universal.ttf" = 31 chars; 64 gives ample headroom. */
+static const char font_families[][64] = {
     "BPreplayBold.otf", "Exo-2-Bold-Italic_Universal.ttf",
     "Helvetica-Neue-2.ttf", "HENB.TTF", "wqy-microhei.ttc"};
 void formatter_fontFamily(void *pt, char *out_label)
@@ -142,8 +143,8 @@ void formatter_fontFamily(void *pt, char *out_label)
         out_label[STR_MAX - 1] = '\0';
     }
     else {
-        strncpy(out_label, font_families[item->value - 1], STR_MAX - 1);
-        out_label[STR_MAX - 1] = '\0';
+        strncpy(out_label, font_families[item->value - 1], sizeof(font_families[0]) - 1);
+        out_label[sizeof(font_families[0]) - 1] = '\0';
     }
 }
 

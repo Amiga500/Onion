@@ -205,7 +205,8 @@ void wait(int seconds)
 
 void showBootScreen(const char *type)
 {
-    char cmd[256];
+    /* "bootScreen \"End_Save\" &" = 25 B max (only caller uses "End_Save") */
+    char cmd[64];
     snprintf(cmd, sizeof(cmd), "bootScreen \"%s\" &", type);
     system(cmd);
 }
@@ -404,14 +405,15 @@ void cpuClockHotkey(int adjust)
         return;
     }
 
-    // Set new CPU clock
-    char cmd[STR_MAX];
-    snprintf(cmd, STR_MAX, "cpuclock %d", cpuclock);
+    /* "cpuclock 9999" = 13 B max */
+    char cmd[32];
+    snprintf(cmd, sizeof(cmd), "cpuclock %d", cpuclock);
     ret = process_start_read_return(cmd, cpuclockstr, sizeof(cpuclockstr));
     if (ret == 0) {
         printf_debug("Updated CPU clock: %s\n", cpuclockstr);
-        char osd_txt[STR_MAX];
-        snprintf(osd_txt, STR_MAX, "CPU clock set to %s MHz", cpuclockstr);
+        /* "CPU clock set to 9999 MHz" = 25 B max */
+        char osd_txt[64];
+        snprintf(osd_txt, sizeof(osd_txt), "CPU clock set to %s MHz", cpuclockstr);
         SDL_Surface *surface = theme_createTextOverlay(osd_txt, (SDL_Color){255, 255, 255}, (SDL_Color){0, 0, 0}, 1.0, 10);
         if (surface && overlay_surface(surface, 10, 10, 1000, true) != 0) {
             SDL_FreeSurface(surface);

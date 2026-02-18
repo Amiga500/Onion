@@ -38,10 +38,11 @@ SDL_Rect theme_scaleRect(SDL_Rect rect)
     return rect;
 }
 
-int theme_getImagePath(const char *theme_path, const char *name, char *out_path)
+int theme_getImagePath(const char *theme_path, const char *name, char *out_path,
+                       size_t out_path_size)
 {
     int load_mode = 2;
-    char rel_path[STR_MAX], image_path[STR_MAX * 2];
+    char rel_path[STR_MAX], image_path[STR_MAX + 64];
     snprintf(rel_path, sizeof(rel_path), "skin/%s.png", name);
 
     snprintf(image_path, sizeof(image_path), THEME_OVERRIDES "/%s", rel_path);
@@ -64,9 +65,9 @@ int theme_getImagePath(const char *theme_path, const char *name, char *out_path)
         }
     }
 
-    if (out_path) {
-        strncpy(out_path, image_path, STR_MAX * 2 - 1);
-        out_path[STR_MAX * 2 - 1] = '\0';
+    if (out_path && out_path_size > 0) {
+        strncpy(out_path, image_path, out_path_size - 1);
+        out_path[out_path_size - 1] = '\0';
     }
 
     return load_mode;
@@ -74,8 +75,8 @@ int theme_getImagePath(const char *theme_path, const char *name, char *out_path)
 
 SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
 {
-    char image_path[512];
-    theme_getImagePath(theme_path, name, image_path);
+    char image_path[STR_MAX + 64];
+    theme_getImagePath(theme_path, name, image_path, sizeof(image_path));
 
     printf_debug("Loading image: %s\n", image_path);
 
@@ -107,11 +108,13 @@ SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
 
 TTF_Font *theme_loadFont(const char *theme_path, const char *font, int size)
 {
-    char font_path[STR_MAX * 2];
-    if (font[0] == '/')
-        strncpy(font_path, font, STR_MAX * 2 - 1);
+    char font_path[STR_MAX * 2]; /* theme_path(≤255) + separator + relative font(≤255) + NUL; fits in STR_MAX*2 */
+    if (font[0] == '/') {
+        strncpy(font_path, font, sizeof(font_path) - 1);
+        font_path[sizeof(font_path) - 1] = '\0'; /* guard: strncpy omits NUL when src > size */
+    }
     else
-        snprintf(font_path, STR_MAX * 2, "%s%s", theme_path, font);
+        snprintf(font_path, sizeof(font_path), "%s%s", theme_path, font);
     if (g_scale != 1.0)
         size = (int)(size * g_scale);
     return TTF_OpenFont(exists(font_path) ? font_path : FALLBACK_FONT, size);

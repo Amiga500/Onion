@@ -40,17 +40,22 @@ JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
     return entry;
 }
 
-void JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
+/*
+ * dest must hold the full JSON serialisation of entry.
+ * Max size: 63 chars fixed boilerplate + 4 fields × (STR_MAX-1) chars + 2 = 1085 chars + NUL.
+ * STR_MAX * 4 + 128 = 1152 provides adequate headroom.
+ */
+void JsonGameEntry_toJson(char dest[STR_MAX * 4 + 128], JsonGameEntry *entry)
 {
     if (strlen(entry->imgpath) > 0) {
-        snprintf(dest, STR_MAX * 6,
+        snprintf(dest, STR_MAX * 4 + 128,
                  "{\"label\":\"%s\",\"launch\":\"%s\",\"type\":%d,"
                  "\"imgpath\":\"%s\",\"rompath\":\"%s\"}",
                  entry->label, entry->launch, entry->type,
                  entry->imgpath, entry->rompath);
     }
     else {
-        snprintf(dest, STR_MAX * 6,
+        snprintf(dest, STR_MAX * 4 + 128,
                  "{\"label\":\"%s\",\"launch\":\"%s\",\"type\":%d,"
                  "\"rompath\":\"%s\"}",
                  entry->label, entry->launch, entry->type,

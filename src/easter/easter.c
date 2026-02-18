@@ -8,8 +8,10 @@
 
 #include "utils/sdl_init.h"
 
-#define MAXCHARACTERSARRAY 5000
-#define MAXTEXTLINES 150
+/* Max content: "Onion " (6) + version.txt (~50) + acks.txt (578) + 3 newlines + NUL = ~638;
+ * rounded up to 1024 (next power of 2) for alignment and headroom. */
+#define MAXCHARACTERSARRAY 1024
+#define MAXTEXTLINES 100
 
 typedef enum { ALIGN_LEFT,
                ALIGN_CENTER,
@@ -65,18 +67,6 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
     }
 
     return textbox;
-}
-
-void logMessage(char *Message)
-{
-    FILE *file = fopen("/mnt/SDCARD/log_Easter_Message.txt", "a");
-    if (file == NULL)
-        return;
-
-    char valLog[MAXCHARACTERSARRAY];
-    snprintf(valLog, sizeof(valLog), "%s \n", Message);
-    fputs(valLog, file);
-    fclose(file);
 }
 
 int main(int argc, char *argv[])

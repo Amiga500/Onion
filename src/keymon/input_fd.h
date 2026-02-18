@@ -87,7 +87,7 @@ void keyinput_sendMulti(int n, int code_value_pairs[n][2])
 {
     if (keyinput_disabled)
         return;
-    char cmd[512];
+    char cmd[128];
     strncpy(cmd, "./bin/sendkeys ", sizeof(cmd) - 1);
     cmd[sizeof(cmd) - 1] = '\0';
 

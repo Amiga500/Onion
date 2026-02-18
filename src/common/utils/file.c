@@ -78,20 +78,27 @@ const char *file_basename(const char *filename)
 bool mkdirs(const char *dir_path)
 {
     if (!exists(dir_path)) {
-        char dir_cmd[512];
-        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
+        char dir_cmd[STR_MAX + 16];
+        int cmd_len = snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
+        if (cmd_len < 0 || cmd_len >= (int)sizeof(dir_cmd)) {
+            printf_debug("mkdirs: path too long, skipping mkdir for: %s\n", dir_path);
+            return false;
+        }
         system(dir_cmd);
         return true;
     }
     return false;
 }
 
-void file_readLastLine(const char *filename, char *out_str)
+void file_readLastLine(const char *filename, char *out_str, size_t out_size)
 {
     FILE *fd;
     long size;
     char buff[256];
     char *token = NULL;
+
+    if (out_size == 0)
+        return;
 
     if ((fd = fopen(filename, "rb")) != NULL) {
         // get file size
@@ -116,7 +123,7 @@ void file_readLastLine(const char *filename, char *out_str)
         token = strtok(buff, "\n");
         while (token != NULL) {
             if (strlen(token) > 0)
-                snprintf(out_str, 255, "%s", token);
+                snprintf(out_str, out_size, "%s", token);
             token = strtok(NULL, "\n");
         }
     }
@@ -166,9 +173,35 @@ bool file_write(const char *path, const char *str, uint32_t len)
 
 void file_copy(const char *src_path, const char *dest_path)
 {
-    char system_cmd[4128];
-    snprintf(system_cmd, sizeof(system_cmd), "cp -f \"%s\" \"%s\"", src_path, dest_path);
-    system(system_cmd);
+    int src_fd = open(src_path, O_RDONLY);
+    if (src_fd < 0) {
+        printf_debug("file_copy: cannot open src '%s': %s\n", src_path, strerror(errno));
+        return;
+    }
+
+    struct stat st;
+    mode_t mode = 0644;
+    if (fstat(src_fd, &st) == 0)
+        mode = st.st_mode & 0777;
+
+    int dst_fd = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, mode);
+    if (dst_fd < 0) {
+        printf_debug("file_copy: cannot open dst '%s': %s\n", dest_path, strerror(errno));
+        close(src_fd);
+        return;
+    }
+
+    char buf[4096];
+    ssize_t n;
+    while ((n = read(src_fd, buf, sizeof(buf))) > 0) {
+        if (write(dst_fd, buf, n) != n) {
+            printf_debug("file_copy: write error to '%s': %s\n", dest_path, strerror(errno));
+            break;
+        }
+    }
+
+    close(src_fd);
+    close(dst_fd);
 }
 
 char *file_removeExtension(const char *myStr)
@@ -291,7 +324,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
     if (fp == NULL)
         return;
 
-    char tempPath[PATH_MAX];
+    char tempPath[STR_MAX + 16];
     char *dir = file_dirname(file_path);
     snprintf(tempPath, sizeof(tempPath), "%s/.tmp_ckv", dir ? dir : ".");
     free(dir);
@@ -342,12 +375,14 @@ void file_changeKeyValue(const char *file_path, const char *key,
     rename(tempPath, file_path);
 }
 
-bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
+bool file_path_relative_to(char *path_out, size_t dest_size, const char *dir_from, const char *file_to)
 {
     path_out[0] = '\0';
 
-    char abs_from[PATH_MAX];
-    char abs_to[PATH_MAX];
+    /* SD card paths are at most STR_MAX*2 (~510 B); realpath() returns NULL with
+     * ENAMETOOLONG if the resolved path exceeds the buffer, which is already handled. */
+    char abs_from[STR_MAX * 2];
+    char abs_to[STR_MAX * 2];
     if (realpath(dir_from, abs_from) == NULL || realpath(file_to, abs_to) == NULL) {
         return false;
     }
@@ -365,10 +400,10 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
     if (strlen(p1) > 0) {
         int num_parens = str_count_char(p1, '/') + 1;
         for (int i = 0; i < num_parens; i++) {
-            strncat(path_out, "../", PATH_MAX - strlen(path_out) - 1);
+            strncat(path_out, "../", dest_size - strlen(path_out) - 1);
         }
     }
-    strncat(path_out, p2, PATH_MAX - strlen(path_out) - 1);
+    strncat(path_out, p2, dest_size - strlen(path_out) - 1);
 
     return true;
 }
@@ -398,7 +433,7 @@ bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size
     bool found = false;
     while ((dir = readdir(d)) != NULL) {
         if (dir->d_type == DT_REG) {
-            char full_path[PATH_MAX];
+            char full_path[STR_MAX * 2];
             snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, dir->d_name);
 
             if (stat64(full_path, &file_stat) == 0) {
@@ -417,7 +452,9 @@ bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size
 }
 char *file_read_lineN(const char *filename, int n)
 {
-    char line[STR_MAX * 4];
+    /* JSON recents lines reach 1086 chars (JsonGameEntry_toJson max output + newline).
+     * STR_MAX*4+130 = 1154 matches JSON_RECENTS_LINE_MAX and avoids fgets truncation. */
+    char line[STR_MAX * 4 + 130];
     int lineNumber = 1;
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
@@ -453,7 +490,7 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    char tempPath[PATH_MAX];
+    char tempPath[STR_MAX + 16];
     char *dir = file_dirname(fileName);
     snprintf(tempPath, sizeof(tempPath), "%s/.tmp_dl", dir ? dir : ".");
     free(dir);
@@ -465,7 +502,9 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    char line[STR_MAX * 4];
+    /* JSON recents lines reach 1086 chars (JsonGameEntry_toJson max output + newline).
+     * STR_MAX*4+130 = 1154 matches JSON_RECENTS_LINE_MAX and avoids fgets truncation. */
+    char line[STR_MAX * 4 + 130];
     int lineNumber = 1;
 
     while (fgets(line, sizeof(line), file) != NULL) {
@@ -511,7 +550,9 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     fputs(lineToAdd, tempFile);
 
-    char line[STR_MAX * 4];
+    /* JSON recents lines reach 1086 chars (JsonGameEntry_toJson max output + newline).
+     * STR_MAX*4+130 = 1154 matches JSON_RECENTS_LINE_MAX and avoids fgets truncation. */
+    char line[STR_MAX * 4 + 130];
     while (fgets(line, sizeof(line), file) != NULL) {
         fputs(line, tempFile);
     }
@@ -535,16 +576,16 @@ char *file_resolvePath(const char *path)
     }
 
     // Allocate memory for the resolved path
-    char *resolvedPath = (char *)malloc(PATH_MAX);
+    char *resolvedPath = (char *)malloc(STR_MAX * 2);
     if (resolvedPath == NULL) {
         perror("Error allocating memory for resolved path");
         return NULL;
     }
 
     // Copy the input path to a temporary buffer
-    char tempPath[PATH_MAX];
-    strncpy(tempPath, path, PATH_MAX - 1);
-    tempPath[PATH_MAX - 1] = '\0';
+    char tempPath[STR_MAX * 2];
+    strncpy(tempPath, path, sizeof(tempPath) - 1);
+    tempPath[sizeof(tempPath) - 1] = '\0';
 
     /* PATH_MAX/2 is the theoretical max component count, but MAX_PATH_COMPONENTS is
      * more than enough for any real path on this device and avoids a 16 KB stack frame. */
@@ -575,14 +616,14 @@ char *file_resolvePath(const char *path)
     // Reconstruct the resolved path
     resolvedPath[0] = '\0';
     for (int i = 0; i < componentCount; i++) {
-        strncat(resolvedPath, "/", PATH_MAX - strlen(resolvedPath) - 1);
-        strncat(resolvedPath, components[i], PATH_MAX - strlen(resolvedPath) - 1);
+        strncat(resolvedPath, "/", STR_MAX * 2 - strlen(resolvedPath) - 1);
+        strncat(resolvedPath, components[i], STR_MAX * 2 - strlen(resolvedPath) - 1);
     }
 
     // Handle the case where the path is empty
     if (resolvedPath[0] == '\0') {
-        strncpy(resolvedPath, "/", PATH_MAX - 1);
-        resolvedPath[PATH_MAX - 1] = '\0';
+        strncpy(resolvedPath, "/", STR_MAX * 2 - 1);
+        resolvedPath[STR_MAX * 2 - 1] = '\0';
     }
 
     return resolvedPath;
