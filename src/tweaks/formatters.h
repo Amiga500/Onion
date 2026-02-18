@@ -42,10 +42,14 @@ void formatter_timezone(void *pt, char *out_label)
     double utc_value = ((double)value / 2.0) - 12.0;
     bool half_past = round(utc_value) != utc_value;
     if (utc_value == 0.0) {
-        strcpy(out_label, "UTC");
+        strncpy(out_label, "UTC", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
+    else if (utc_value > 0.0) {
+        snprintf(out_label, STR_MAX, "UTC+%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
     }
     else {
-        sprintf(out_label, utc_value > 0.0 ? "UTC+%02d:%02d" : "UTC-%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
+        snprintf(out_label, STR_MAX, "UTC-%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
     }
 }
 
@@ -55,7 +59,7 @@ void formatter_Time(void *pt, char *out_label)
     int value = item->value;
     int hours = value / 4;
     int minutes = (value % 4) * 15;
-    sprintf(out_label, "%02d:%02d", hours, minutes);
+    snprintf(out_label, STR_MAX, "%02d:%02d", hours, minutes);
 }
 
 int formatter_timeStringToID(const char *time_str)
@@ -75,7 +79,8 @@ void formatter_appShortcut(void *pt, char *out_label)
     int max_value = installed_apps_count + NUM_TOOLS + item->action_id;
 
     if (value <= 0 || value > max_value) {
-        strcpy(out_label, item->action_id == 0 ? "B button" : "A button");
+        strncpy(out_label, item->action_id == 0 ? "B button" : "A button", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
         return;
     }
 
@@ -83,38 +88,46 @@ void formatter_appShortcut(void *pt, char *out_label)
     value -= 1;
     if (value < installed_apps_count) {
         InstalledApp *app = &apps[value];
-        strcpy(out_label, app->is_duplicate ? app->dirName : app->label);
+        strncpy(out_label, app->is_duplicate ? app->dirName : app->label, STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
         return;
     }
 
     // tools
     value -= installed_apps_count;
     if (value < NUM_TOOLS) {
-        sprintf(out_label, "Tool: %s", tools_short_names[value]);
+        snprintf(out_label, STR_MAX, "Tool: %s", tools_short_names[value]);
         return;
     }
 
     if (item->action_id == 1) {
-        strcpy(out_label, "GLO");
+        strncpy(out_label, "GLO", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
     }
 }
 
 void formatter_battWarn(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    if (item->value == 0)
-        strcpy(out_label, "Off");
-    else
-        sprintf(out_label, "< %d%%", item->value * 5);
+    if (item->value == 0) {
+        strncpy(out_label, "Off", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
+    else {
+        snprintf(out_label, STR_MAX, "< %d%%", item->value * 5);
+    }
 }
 
 void formatter_battExit(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    if (item->value == 0)
-        strcpy(out_label, "Off");
-    else
-        sprintf(out_label, "< %d%%", item->value);
+    if (item->value == 0) {
+        strncpy(out_label, "Off", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
+    else {
+        snprintf(out_label, STR_MAX, "< %d%%", item->value);
+    }
 }
 
 static const int num_font_families = 5;
@@ -124,10 +137,14 @@ static const char font_families[][STR_MAX] = {
 void formatter_fontFamily(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    if (item->value == 0)
-        strcpy(out_label, "-");
-    else
-        strcpy(out_label, font_families[item->value - 1]);
+    if (item->value == 0) {
+        strncpy(out_label, "-", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
+    else {
+        strncpy(out_label, font_families[item->value - 1], STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
 }
 
 static const int num_font_sizes = 5;
@@ -135,34 +152,43 @@ static const int font_sizes[] = {13, 18, 24, 32, 40};
 void formatter_fontSize(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    if (item->value == 0)
-        strcpy(out_label, "-");
-    else
-        sprintf(out_label, "%d px", font_sizes[item->value - 1]);
+    if (item->value == 0) {
+        strncpy(out_label, "-", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
+    else {
+        snprintf(out_label, STR_MAX, "%d px", font_sizes[item->value - 1]);
+    }
 }
 
 void formatter_fastForward(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    if (item->value == 0)
-        strcpy(out_label, "Unlimited");
-    else
-        sprintf(out_label, "%d.0x", item->value);
+    if (item->value == 0) {
+        strncpy(out_label, "Unlimited", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
+    else {
+        snprintf(out_label, STR_MAX, "%d.0x", item->value);
+    }
 }
 
 void formatter_positionOffset(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    if (item->value == 0)
-        strcpy(out_label, "-");
-    else
-        sprintf(out_label, "%d px", item->value - 1 - BATTPERC_MAX_OFFSET);
+    if (item->value == 0) {
+        strncpy(out_label, "-", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
+    else {
+        snprintf(out_label, STR_MAX, "%d px", item->value - 1 - BATTPERC_MAX_OFFSET);
+    }
 }
 
 void formatter_meterWidth(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    sprintf(out_label, "%d px", item->value);
+    snprintf(out_label, STR_MAX, "%d px", item->value);
 }
 
 void formatter_startupTab(void *pt, char *out_label)
@@ -170,7 +196,8 @@ void formatter_startupTab(void *pt, char *out_label)
     ListItem *item = (ListItem *)pt;
     switch (item->value) {
     case 0:
-        strcpy(out_label, "Main menu");
+        strncpy(out_label, "Main menu", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
         break;
     case 1:
         strncpy(out_label,
@@ -202,10 +229,13 @@ void formatter_startupTab(void *pt, char *out_label)
 void formatter_timeSkip(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    if (item->value == 0)
-        strcpy(out_label, "Off");
-    else
-        sprintf(out_label, "+ %dh", item->value);
+    if (item->value == 0) {
+        strncpy(out_label, "Off", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
+    else {
+        snprintf(out_label, STR_MAX, "+ %dh", item->value);
+    }
 }
 
 #endif // TWEAKS_FORMATTERS_H__

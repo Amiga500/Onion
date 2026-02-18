@@ -34,21 +34,24 @@ void action_setAppShortcut(void *pt)
     value -= 1;
 
     if (value < installed_apps_count) {
-        strcpy(sett_pt, "app:");
-        strncat(sett_pt, apps[value].dirName, JSON_STRING_LEN - 5);
+        strncpy(sett_pt, "app:", JSON_STRING_LEN - 1);
+        sett_pt[JSON_STRING_LEN - 1] = '\0';
+        strncat(sett_pt, apps[value].dirName, JSON_STRING_LEN - strlen(sett_pt) - 1);
         return;
     }
 
     value -= installed_apps_count;
 
     if (value < NUM_TOOLS) {
-        strcpy(sett_pt, "tool:");
-        strncat(sett_pt, tools_short_names[value], JSON_STRING_LEN - 6);
+        strncpy(sett_pt, "tool:", JSON_STRING_LEN - 1);
+        sett_pt[JSON_STRING_LEN - 1] = '\0';
+        strncat(sett_pt, tools_short_names[value], JSON_STRING_LEN - strlen(sett_pt) - 1);
         return;
     }
 
     if (item->action_id == 1) {
-        strcpy(sett_pt, "glo");
+        strncpy(sett_pt, "glo", JSON_STRING_LEN - 1);
+        sett_pt[JSON_STRING_LEN - 1] = '\0';
     }
 }
 
@@ -120,7 +123,8 @@ void action_blueLightTimeOn(void *pt)
 {
     char time_str[10];
     formatter_Time(pt, time_str);
-    strcpy(settings.blue_light_time, time_str);
+    strncpy(settings.blue_light_time, time_str, sizeof(settings.blue_light_time) - 1);
+    settings.blue_light_time[sizeof(settings.blue_light_time) - 1] = '\0';
     config_setString("display/blueLightTime", time_str);
 }
 
@@ -128,7 +132,8 @@ void action_blueLightTimeOff(void *pt)
 {
     char time_str[10];
     formatter_Time(pt, time_str);
-    strcpy(settings.blue_light_time_off, time_str);
+    strncpy(settings.blue_light_time_off, time_str, sizeof(settings.blue_light_time_off) - 1);
+    settings.blue_light_time_off[sizeof(settings.blue_light_time_off) - 1] = '\0';
     config_setString("display/blueLightTimeOff", time_str);
 }
 
@@ -164,7 +169,8 @@ void action_setEnableLogging(void *pt)
 {
     settings.enable_logging = ((ListItem *)pt)->value == 1;
     char new_value[22];
-    sprintf(new_value, "log_to_file = %s", settings.enable_logging ? "\"true\"" : "\"false\"");
+    snprintf(new_value, sizeof(new_value), "log_to_file = %s",
+             settings.enable_logging ? "\"true\"" : "\"false\"");
     file_changeKeyValue(RETROARCH_CONFIG, "log_to_file =", new_value);
 }
 
@@ -217,15 +223,22 @@ void action_batteryPercentageFontFamily(void *pt)
 {
     int item_value = ((ListItem *)pt)->value;
     char theme_value[JSON_STRING_LEN];
-    strcpy(theme_value, resources.theme_back.batteryPercentage.font);
+    strncpy(theme_value, resources.theme_back.batteryPercentage.font,
+            sizeof(theme_value) - 1);
+    theme_value[sizeof(theme_value) - 1] = '\0';
 
     if (item_value == 0) {
-        strcpy(resources.theme.batteryPercentage.font, theme_value);
+        strncpy(resources.theme.batteryPercentage.font, theme_value,
+                sizeof(resources.theme.batteryPercentage.font) - 1);
+        resources.theme.batteryPercentage.font[sizeof(resources.theme.batteryPercentage.font) - 1] = '\0';
     }
     else {
         char font_path[JSON_STRING_LEN] = "/mnt/SDCARD/miyoo/app/";
-        strcat(font_path, font_families[item_value - 1]);
-        strcpy(resources.theme.batteryPercentage.font, font_path);
+        strncat(font_path, font_families[item_value - 1],
+                sizeof(font_path) - strlen(font_path) - 1);
+        strncpy(resources.theme.batteryPercentage.font, font_path,
+                sizeof(resources.theme.batteryPercentage.font) - 1);
+        resources.theme.batteryPercentage.font[sizeof(resources.theme.batteryPercentage.font) - 1] = '\0';
     }
 
     theme_changeOverride("batteryPercentage", "font",

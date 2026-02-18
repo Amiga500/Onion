@@ -22,14 +22,16 @@ bool _getAppDirAndConfig(const char *app_dir_name, char *out_app_dir,
     memset(out_app_dir, 0, STR_MAX * sizeof(char));
     memset(out_config_path, 0, STR_MAX * sizeof(char));
 
-    strcpy(out_app_dir, "/mnt/SDCARD/App/");
-    strncat(out_app_dir, app_dir_name, 128);
+    strncpy(out_app_dir, "/mnt/SDCARD/App/", STR_MAX - 1);
+    out_app_dir[STR_MAX - 1] = '\0';
+    strncat(out_app_dir, app_dir_name, STR_MAX - strlen(out_app_dir) - 1);
 
     if (!is_dir(out_app_dir))
         return false;
 
-    strcpy(out_config_path, out_app_dir);
-    strcat(out_config_path, "/config.json");
+    strncpy(out_config_path, out_app_dir, STR_MAX - 1);
+    out_config_path[STR_MAX - 1] = '\0';
+    strncat(out_config_path, "/config.json", STR_MAX - strlen(out_config_path) - 1);
 
     if (!is_file(out_config_path))
         return false;
