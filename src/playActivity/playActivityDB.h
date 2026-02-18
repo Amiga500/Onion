@@ -346,6 +346,10 @@ int __db_get_orphan_rom_id(const char *rom_path)
         return rom_id;
     char *file_name = basename(_file_name);
     char *rom_name = file_removeExtension(file_name);
+    if (rom_name == NULL) {
+        free(_file_name);
+        return rom_id;
+    }
 
     char *sql = sqlite3_mprintf("SELECT id FROM rom WHERE (name=%Q OR name=%Q) AND type='ORPHAN' LIMIT 1;", rom_name, file_name);
     sqlite3_stmt *stmt = play_activity_db_prepare(sql);
@@ -412,8 +416,10 @@ int __db_rom_find_by_file_path(const char *rom_path, bool create_or_update)
         }
         else {
             char *rom_name = file_removeExtension(file_basename(rom_path));
-            __db_update_rom(rom_id, "", rom_name, rom_path, "");
-            free(rom_name);
+            if (rom_name != NULL) {
+                __db_update_rom(rom_id, "", rom_name, rom_path, "");
+                free(rom_name);
+            }
         }
     }
     else if (rom_id == ROM_NOT_FOUND && create_or_update) {
@@ -425,8 +431,10 @@ int __db_rom_find_by_file_path(const char *rom_path, bool create_or_update)
         }
         else {
             char *rom_name = file_removeExtension(file_basename(rom_path));
-            rom_id = __db_insert_rom("", rom_name, rom_path, "");
-            free(rom_name);
+            if (rom_name != NULL) {
+                rom_id = __db_insert_rom("", rom_name, rom_path, "");
+                free(rom_name);
+            }
         }
     }
 
