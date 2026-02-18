@@ -21,6 +21,14 @@
 #define CMD_TO_RUN "/mnt/SDCARD/.tmp_update/cmd_to_run.sh"
 #define ROM_NOT_FOUND -1
 
+/* Cap the number of play-activity entries loaded into RAM at once.
+ * Each entry allocates ~950 B heap; 2000 × 950 B ≈ 1.9 MB.
+ * Without this limit a 20 000-game collection with many played titles
+ * could allocate up to 19 MB just for this list. */
+#define PLAY_ACTIVITY_MAX_ENTRIES 2000
+#define _PA_STR2(x) #x
+#define _PA_STR(x) _PA_STR2(x)
+
 typedef struct ROM ROM;
 typedef struct PlayActivity PlayActivity;
 typedef struct PlayActivities PlayActivities;
@@ -163,7 +171,8 @@ PlayActivities *play_activity_find_all(void)
         "    FROM rom LEFT JOIN play_activity ON rom.id = play_activity.rom_id "
         "    GROUP BY rom.id) "
         "WHERE play_time_total > 60 "
-        "ORDER BY play_time_total DESC;";
+        "ORDER BY play_time_total DESC "
+        "LIMIT " _PA_STR(PLAY_ACTIVITY_MAX_ENTRIES) ";";
     sqlite3_stmt *stmt;
 
     play_activity_db_open();

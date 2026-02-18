@@ -141,11 +141,15 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
     }
 
     int count = getTotalGamesCount(db, table_name);
+    if (count <= 0) {
+        sqlite3_close(db);
+        return false;
+    }
 
     const char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
                                       "%q WHERE type=0 AND path NOT LIKE "
-                                      "'%%.miyoocmd' ORDER BY RANDOM() LIMIT 1",
-                                      table_name);
+                                      "'%%.miyoocmd' LIMIT 1 OFFSET (ABS(RANDOM()) %% %d)",
+                                      table_name, count);
 
     if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
         sqlite3_close(db);
