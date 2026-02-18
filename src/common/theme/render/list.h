@@ -15,6 +15,8 @@ void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
     TTF_Font *list_font = resource_getFont(LIST);
 
     SDL_Surface *item_label = TTF_RenderUTF8_Blended(list_font, label, fg);
+    if (!item_label)
+        return;
     SDL_Rect item_label_rect = {offset_x, center_y - item_label->h / 2};
 
     SDL_Rect label_crop = {0, 0, label_end - 30 * g_scale, item_label->h};

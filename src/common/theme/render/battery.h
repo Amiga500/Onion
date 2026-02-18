@@ -79,6 +79,11 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
 
     image = SDL_CreateRGBSurface(0, img_width, img_height, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
 
+    if (!image) {
+        SDL_FreeSurface(text);
+        return NULL;
+    }
+
     SDL_Rect rect_icon = {0, (img_height - icon->h) / 2};
     SDL_Rect rect_text = {0, (img_height - text->h) / 2 + offsetY};
 
