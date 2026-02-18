@@ -331,8 +331,8 @@ Mix_Chunk *resource_getSoundChange(void)
 {
 #ifdef HAS_AUDIO
     if (resources.sound_change == NULL) {
-        char sound_path[STR_MAX * 2];
-        snprintf(sound_path, STR_MAX * 2 - 1, "%ssound/change.wav",
+        char sound_path[STR_MAX + 32];
+        snprintf(sound_path, sizeof(sound_path), "%ssound/change.wav",
                  theme()->path);
         if (!is_file(sound_path))
             strncpy(sound_path, "/mnt/SDCARD/miyoo/app/sound/change.wav", sizeof(sound_path) - 1);
@@ -349,8 +349,8 @@ Mix_Music *resource_getBGM(void)
 {
 #ifdef HAS_AUDIO
     if (resources.bgm == NULL) {
-        char sound_path[STR_MAX * 2];
-        snprintf(sound_path, STR_MAX * 2 - 1, "%ssound/bgm.mp3", theme()->path);
+        char sound_path[STR_MAX + 32];
+        snprintf(sound_path, sizeof(sound_path), "%ssound/bgm.mp3", theme()->path);
         if (!is_file(sound_path))
             strncpy(sound_path, "/mnt/SDCARD/miyoo/app/sound/bgm.mp3", sizeof(sound_path) - 1);
         if (is_file(sound_path))

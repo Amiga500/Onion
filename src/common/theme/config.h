@@ -220,8 +220,8 @@ Theme_s theme_loadFromPath(const char *theme_path, bool apply_overrides)
         config.path[len + 1] = '\0';
     }
 
-    char config_path[STR_MAX * 2];
-    snprintf(config_path, STR_MAX * 2 - 1, "%sconfig.json", config.path);
+    char config_path[STR_MAX + 16];
+    snprintf(config_path, sizeof(config_path), "%sconfig.json", config.path);
 
     if (!exists(config_path))
         snprintf(config_path, sizeof(config_path), "%sconfig.json", FALLBACK_PATH);

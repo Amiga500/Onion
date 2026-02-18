@@ -94,8 +94,8 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
         if (strcmp("lang", file_getExtension(ep->d_name)) != 0)
             continue; // skip files not having the `.lang` extension
 
-        char file_path[STR_MAX * 2];
-        snprintf(file_path, STR_MAX * 2 - 1, LANG_DIR "/%s", ep->d_name);
+        char file_path[STR_MAX + 32];
+        snprintf(file_path, sizeof(file_path), LANG_DIR "/%s", ep->d_name);
 
         char *json_data = file_read(file_path);
         cJSON *root = cJSON_Parse(json_data);
