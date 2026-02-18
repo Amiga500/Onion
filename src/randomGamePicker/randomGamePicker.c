@@ -385,6 +385,7 @@ int main(int argc, char *argv[])
             mode = MODE_RECENTS;
         else {
             strncpy(emupath, argv[1], STR_MAX + 16);
+            emupath[STR_MAX + 16] = '\0';
             mode = MODE_SINGLE_SYSTEM;
         }
     }

@@ -120,8 +120,10 @@ CacheDBItem *cache_db_find(const char *path_or_name)
         }
         else {
             char *tunc_path_or_name = str_replace(_path_or_name, "/mnt/SDCARD/Roms/", "");
-            strncpy(rel_path, tunc_path_or_name, sizeof(rel_path) - 1);
-            free(tunc_path_or_name);
+            if (tunc_path_or_name != NULL) {
+                strncpy(rel_path, tunc_path_or_name, sizeof(rel_path) - 1);
+                free(tunc_path_or_name);
+            }
         }
         rel_path[sizeof(rel_path) - 1] = '\0';
     }
