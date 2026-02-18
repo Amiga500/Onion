@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 
     /* "pkill -9 -f " (12) + argv[1] (up to NAME_MAX=255) + NUL = 268 B max */
     char command[280];
-    snprintf(command, sizeof(command), "pkill -9 -f %s", argv[1]);
+    snprintf(command, sizeof(command), "pkill -9 -f '%s'", argv[1]);
 
     int input_fd = open("/dev/input/event0", O_RDONLY);
     if (input_fd < 0) {

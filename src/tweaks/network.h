@@ -148,6 +148,7 @@ void network_getSmbShares()
                 if (tmp_shares == NULL) {
                     free(_network_shares);
                     _network_shares = NULL;
+                    found_shares = false;
                     break;
                 }
                 _network_shares = tmp_shares;

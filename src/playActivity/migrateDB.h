@@ -29,6 +29,8 @@ void _migrate_loadCacheDBs(void)
         // Scanning across all console roms for this specific game
         // If the rom is found, the miyoo cache db is retrieved to retrieve the displayed name + img path
         dir = opendir(ROMS_FOLDER);
+        if (dir == NULL)
+            return;
 
         while ((entry = readdir(dir)) != NULL) {
 
