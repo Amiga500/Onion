@@ -35,9 +35,9 @@ typedef struct {
     RecentItem recentItem;
     SDL_Surface *romScreen;
     char rom_name[STR_MAX * 2];
-    char name[STR_MAX * 2];
-    char shortname[STR_MAX * 2];
-    char core_name[STR_MAX * 2];
+    char name[STR_MAX];
+    char shortname[STR_MAX];
+    char core_name[STR_MAX];
     char core_path[STR_MAX * 2];
     char totalTime[100];
     int index;

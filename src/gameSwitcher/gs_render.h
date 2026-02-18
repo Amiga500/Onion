@@ -115,7 +115,7 @@ void renderGameName(AppState *state)
         SDL_BlitSurface(arrow_right, NULL, screen, &arrow_right_rect);
     }
 
-    char game_name_str[STR_MAX * 2 + 4];
+    char game_name_str[STR_MAX + 4];
     strncpy(game_name_str, game->shortname, sizeof(game_name_str) - 1);
     game_name_str[sizeof(game_name_str) - 1] = '\0';
 
