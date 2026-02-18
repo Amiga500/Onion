@@ -92,7 +92,7 @@ const char *file_basename(const char *filename);
  */
 bool mkdirs(const char *dir_path);
 
-void file_readLastLine(const char *filename, char *out_str);
+void file_readLastLine(const char *filename, char *out_str, size_t out_size);
 
 char *file_read(const char *path) __attribute__((malloc));
 

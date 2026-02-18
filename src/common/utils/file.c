@@ -90,12 +90,15 @@ bool mkdirs(const char *dir_path)
     return false;
 }
 
-void file_readLastLine(const char *filename, char *out_str)
+void file_readLastLine(const char *filename, char *out_str, size_t out_size)
 {
     FILE *fd;
     long size;
     char buff[256];
     char *token = NULL;
+
+    if (out_size == 0)
+        return;
 
     if ((fd = fopen(filename, "rb")) != NULL) {
         // get file size
@@ -120,7 +123,7 @@ void file_readLastLine(const char *filename, char *out_str)
         token = strtok(buff, "\n");
         while (token != NULL) {
             if (strlen(token) > 0)
-                snprintf(out_str, 255, "%s", token);
+                snprintf(out_str, out_size, "%s", token);
             token = strtok(NULL, "\n");
         }
     }
