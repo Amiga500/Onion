@@ -252,7 +252,7 @@ void _settings_save_keymap(void)
 {
     FILE *fp;
 
-    if ((fp = fopen(CONFIG_PATH "keymap.json", "w+")) == 0)
+    if ((fp = fopen(CONFIG_PATH "keymap.json", "w+")) == NULL)
         return;
 
     fprintf(fp, "{\n");
