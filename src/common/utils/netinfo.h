@@ -18,7 +18,8 @@
 #include "log.h"
 #include "str.h"
 
-bool netinfo_getIpAddress(char *label_out, const char *interface)
+/* Max content: "IP address: 192.168.100.100 (wlan0)" = 36 chars; out_size must be >= 37. */
+bool netinfo_getIpAddress(char *label_out, size_t out_size, const char *interface)
 {
     char ip_address[STR_MAX];
     int n = socket(AF_INET, SOCK_DGRAM, 0);
@@ -34,9 +35,9 @@ bool netinfo_getIpAddress(char *label_out, const char *interface)
 
     snprintf(ip_address, STR_MAX - 1, "IP address: %s (%s)", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr), interface);
 
-    if (strncmp(ip_address, label_out, STR_MAX) != 0) {
-        strncpy(label_out, ip_address, STR_MAX - 1);
-        label_out[STR_MAX - 1] = '\0';
+    if (strcmp(ip_address, label_out) != 0) {
+        strncpy(label_out, ip_address, out_size - 1);
+        label_out[out_size - 1] = '\0';
         return true;
     }
     return false;
