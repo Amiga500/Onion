@@ -67,7 +67,8 @@ void _config_prepare(const char *key, char *filename, size_t filename_size)
     dirname(dir_path);
 
     if (!exists(dir_path)) {
-        char dir_cmd[512];
+        /* dir_path is bounded to STR_MAX-1 chars by the strncpy above */
+        char dir_cmd[STR_MAX + 16];
         snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
         system(dir_cmd);
     }

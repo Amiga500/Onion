@@ -78,8 +78,12 @@ const char *file_basename(const char *filename)
 bool mkdirs(const char *dir_path)
 {
     if (!exists(dir_path)) {
-        char dir_cmd[512];
-        snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
+        char dir_cmd[STR_MAX + 16];
+        int cmd_len = snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p \"%s\"", dir_path);
+        if (cmd_len < 0 || cmd_len >= (int)sizeof(dir_cmd)) {
+            printf_debug("mkdirs: path too long, skipping mkdir for: %s\n", dir_path);
+            return false;
+        }
         system(dir_cmd);
         return true;
     }
