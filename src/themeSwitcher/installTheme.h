@@ -116,8 +116,9 @@ bool checkPreview(const char *preview_path)
         return false;
 
     FILE *fp;
-    char archive_path[STR_MAX * 2];
-    file_get(fp, source_path, "%511[^\n]", archive_path);
+    /* Max: THEMES_DIR(19) + "/" + NAME_MAX-1(253) + ".zip"(4) + NUL = 278 B */
+    char archive_path[STR_MAX + 32];
+    file_get(fp, source_path, "%286[^\n]", archive_path);
 
     if (!is_file(archive_path))
         return false;

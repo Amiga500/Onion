@@ -376,8 +376,10 @@ bool file_path_relative_to(char *path_out, size_t dest_size, const char *dir_fro
 {
     path_out[0] = '\0';
 
-    char abs_from[PATH_MAX];
-    char abs_to[PATH_MAX];
+    /* SD card paths are at most STR_MAX*2 (~510 B); realpath() returns NULL with
+     * ENAMETOOLONG if the resolved path exceeds the buffer, which is already handled. */
+    char abs_from[STR_MAX * 2];
+    char abs_to[STR_MAX * 2];
     if (realpath(dir_from, abs_from) == NULL || realpath(file_to, abs_to) == NULL) {
         return false;
     }
