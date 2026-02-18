@@ -111,7 +111,7 @@ void ra_getCoreNameFromInfo(Game_s *game)
 
         char *basePath = file_removeExtension(game->core_path);
         if (basePath != NULL) {
-            char infoPath[STR_MAX * 2];
+            char infoPath[STR_MAX + 8]; /* core_path (≤255) - ext + ".info" (5 chars + NUL) = 261 B max */
             snprintf(infoPath, sizeof(infoPath), "%s.info", basePath);
             file_parseKeyValue(infoPath, "corename", game->core_name, '=', 0);
             printf_debug("Core name: %s\n", game->core_name);

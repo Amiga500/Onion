@@ -14,7 +14,6 @@
 
 #define MAX_FOLDER_NAME_LEN 256
 #define MAX_FILE_NAME_LEN 256
-#define MAX_LINE_LEN 1024
 #define MAX_ROM_NAME_LENGTH 100
 #define MAX_MATCHING_FOLDERS 128
 #define FULL_ROM_LIST_NAME "full-arcade-rom-name-list.txt"

@@ -25,7 +25,9 @@ typedef struct IconInfo {
     char config_path[STR_MAX];
 } IconInfo_t;
 
-static IconInfo_t icon_infos[500];
+/* 256 > 150 config.json files shipped with Onion across Emu/App/RApp. */
+#define MAX_ICON_INFOS 256
+static IconInfo_t icon_infos[MAX_ICON_INFOS];
 static int icon_infos_len = 0;
 
 int _add_icon_alts(const char *pack_dir, const char *pack_name,
@@ -46,7 +48,7 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
                 ep->d_name[strlen(icon_prefix)] != '-')
                 continue;
 
-            snprintf(preview_path, STR_MAX * 2, "%s/%s", pack_dir, ep->d_name);
+            snprintf(preview_path, sizeof(preview_path), "%s/%s", pack_dir, ep->d_name);
 
             icon_name = file_removeExtension(ep->d_name);
             str_split(icon_name, "-");
@@ -58,7 +60,7 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
             strncpy(item.payload, pack_dir, STR_MAX - 1);
 
             if (is_file(preview_path))
-                strncpy(item.preview_path, preview_path, STR_MAX - 1);
+                strncpy(item.preview_path, preview_path, sizeof(item.preview_path) - 1);
 
             list_addItem(list, item);
             count++;
@@ -122,7 +124,7 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
                 strncpy(item.payload, icon_pack_path, STR_MAX - 1);
 
                 if (is_file(preview_path))
-                    strncpy(item.preview_path, preview_path, STR_MAX - 1);
+                    strncpy(item.preview_path, preview_path, sizeof(item.preview_path) - 1);
 
                 list_addItem(list, item);
                 count++;
@@ -259,6 +261,13 @@ bool _add_config_icon(const char *path, const char *name,
 
     cJSON_Delete(config);
 
+    /* Guard before any heap allocation or expensive work. */
+    if (icon_infos_len >= MAX_ICON_INFOS) {
+        printf_debug("_add_icon_item: icon_infos full (%d), skipping %s\n",
+                     MAX_ICON_INFOS, name);
+        return false;
+    }
+
     ListItem item = {.action = action};
 
     if (icon_path[0] != '/')
@@ -292,7 +301,7 @@ bool _add_config_icon(const char *path, const char *name,
     item.payload_ptr = (void *)info;
 
     if (mode != ICON_MODE_APP)
-        strncpy(item.preview_path, preview_path, STR_MAX - 1);
+        strncpy(item.preview_path, preview_path, sizeof(item.preview_path) - 1);
     else
         item.icon_ptr = (void *)IMG_Load(preview_path);
 

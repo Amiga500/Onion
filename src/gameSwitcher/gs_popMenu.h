@@ -36,7 +36,7 @@ void popMenu_destroy(void)
 
 static bool _hasSaveStates(Game_s *game)
 {
-    char stateDirPath[STR_MAX * 2];
+    char stateDirPath[STR_MAX + 64]; /* STATES_DIR(40) + "/" + core_name(≤255) = 296 B max */
     snprintf(stateDirPath, sizeof(stateDirPath), STATES_DIR "/%s", game->core_name);
 
     if (!exists(stateDirPath)) {
@@ -69,7 +69,7 @@ static bool _hasSaveStates(Game_s *game)
 
 static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
 {
-    char stateDirPath[STR_MAX * 2];
+    char stateDirPath[STR_MAX + 64]; /* STATES_DIR(40) + "/" + core_name(≤255) = 296 B max */
     snprintf(stateDirPath, sizeof(stateDirPath), STATES_DIR "/%s", game->core_name);
 
     if (!exists(stateDirPath)) {

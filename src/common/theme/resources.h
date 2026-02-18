@@ -20,7 +20,6 @@
 #include "./config.h"
 
 #define HIDDEN_ITEM_ALPHA 60
-#define RES_MAX_REQUESTS 200
 
 typedef enum theme_images {
     NULL_IMAGE,
