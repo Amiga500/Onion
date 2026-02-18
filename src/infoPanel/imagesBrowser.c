@@ -29,13 +29,13 @@ static char *toLower(char *s)
 static bool getImagePath(const char *dir_path, const struct dirent *ent,
                          char *image_path)
 {
-    const int ext_size = 50;
-    char ext[ext_size];
+    char ext[50];
     const char *filename = ent->d_name;
     if (filename[0] == '.' || S_ISDIR(ent->d_type & DT_DIR)) {
         return false;
     }
-    strncpy(ext, getFilenameExt(filename), ext_size);
+    strncpy(ext, getFilenameExt(filename), sizeof(ext) - 1);
+    ext[sizeof(ext) - 1] = '\0';
     const char *fileExt = toLower(ext);
     if (strcmp(fileExt, "png") == 0 || strcmp(fileExt, "jpg") == 0 ||
         strcmp(fileExt, "jpeg") == 0) {

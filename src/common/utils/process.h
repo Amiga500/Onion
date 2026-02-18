@@ -107,6 +107,7 @@ bool process_start_read_return(const char *cmdline, char *out_str, size_t out_st
     }
 
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        free(result);
         result = strdup(buffer);
     }
 

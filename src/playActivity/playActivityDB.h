@@ -329,6 +329,8 @@ int __db_get_orphan_rom_id(const char *rom_path)
 {
     int rom_id = ROM_NOT_FOUND;
     char *_file_name = strdup(rom_path);
+    if (_file_name == NULL)
+        return rom_id;
     char *file_name = basename(_file_name);
     char *rom_name = file_removeExtension(file_name);
 
