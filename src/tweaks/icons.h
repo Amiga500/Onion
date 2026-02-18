@@ -37,7 +37,8 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
     struct dirent *ep;
     char *icon_name;
     char alt_name[STR_MAX];
-    char preview_path[STR_MAX * 2 + 1];
+    /* Max content: icon_pack_path(STR_MAX+32 buf, 287 chars max) + "/" + NAME_MAX-1(254) + NUL = 543 B */
+    char preview_path[STR_MAX * 2 + 64];
     int count = 0;
 
     if ((dp = opendir(pack_dir)) != NULL) {
@@ -101,18 +102,18 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
                      is_theme ? "%s/%s/icons" : "%s/%s", path, ep->d_name);
 
             if (required_icon != NULL) {
-                snprintf(preview_path, STR_MAX * 2 + 31, "%s/%s.png",
+                snprintf(preview_path, sizeof(preview_path), "%s/%s.png",
                          icon_pack_path, required_icon);
 
                 if (!is_file(preview_path))
                     continue;
             }
             else {
-                snprintf(preview_path, STR_MAX * 2 + 31, "%s/preview.png",
+                snprintf(preview_path, sizeof(preview_path), "%s/preview.png",
                          icon_pack_path);
 
                 if (!is_file(preview_path))
-                    snprintf(preview_path, STR_MAX * 2 + 31, "%s/gba.png",
+                    snprintf(preview_path, sizeof(preview_path), "%s/gba.png",
                              icon_pack_path);
             }
 
@@ -272,13 +273,10 @@ bool _add_config_icon(const char *path, const char *name,
     ListItem item = {.action = action};
 
     if (icon_path[0] != '/')
-        snprintf(preview_path, STR_MAX * 2 + 32 - 1, "%s/%s/%s", path, name,
+        snprintf(preview_path, sizeof(preview_path), "%s/%s/%s", path, name,
                  icon_path);
     else
-        strncpy(preview_path, icon_path, STR_MAX * 2 - 1);
-
-    char abs_path[STR_MAX - 56];
-    realpath(preview_path, abs_path);
+        strncpy(preview_path, icon_path, sizeof(preview_path) - 1);
 
     icon_name = file_removeExtension(basename(icon_path));
     str_split(icon_name, "-");
