@@ -12,9 +12,9 @@
 #include "gamename.h"
 #include "utils/file.h"
 
-#define MAX_FOLDER_NAME_LEN 256
-#define MAX_FILE_NAME_LEN 256
-#define MAX_ROM_NAME_LENGTH 100
+/* Longest real Onion system shortname is ~10 chars; 64 gives generous headroom
+   for any user-created folder name while being still safely under NAME_MAX. */
+#define MAX_SYSTEM_SHORTNAME_LEN 64
 #define MAX_MATCHING_FOLDERS 128
 #define FULL_ROM_LIST_NAME "full-arcade-rom-name-list.txt"
 #define ARCADE_ROM_NAMES_NAME "arcade-rom-names.txt"
@@ -23,7 +23,7 @@
 
 #define STR_MAX 256
 
-char matching_folders[MAX_MATCHING_FOLDERS][256];
+char matching_folders[MAX_MATCHING_FOLDERS][MAX_SYSTEM_SHORTNAME_LEN];
 int systems_count = 0;
 
 //loaded shared linb function
@@ -43,7 +43,7 @@ void removeExtension(char *file_name)
     }
 }
 
-int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int i)
+int findFoldersWithShortname(char *disk_path, char matching_folders[][MAX_SYSTEM_SHORTNAME_LEN], int i)
 {
     char command[STR_MAX + 128];
     char path[STR_MAX + 32];
