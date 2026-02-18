@@ -135,8 +135,10 @@ int main(void)
     // Prepare for Poll button input
     input_fd = open("/dev/input/event0", O_RDONLY);
     memset(&fds, 0, sizeof(fds));
-    fds[0].fd = input_fd;
-    fds[0].events = POLLIN;
+    if (input_fd >= 0) {
+        fds[0].fd = input_fd;
+        fds[0].events = POLLIN;
+    }
 
     if (frame_delay < min_delay)
         frame_delay = min_delay;

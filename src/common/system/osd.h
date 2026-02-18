@@ -354,7 +354,10 @@ void osd_showBar(int value, int value_max, uint32_t color)
         return;
 
     _bar_saveBufferBehind();
-    pthread_create(&osd_pt, NULL, _osd_thread, _print_bar);
+    if (pthread_create(&osd_pt, NULL, _osd_thread, _print_bar) != 0) {
+        _bar_restoreBufferBehind();
+        return;
+    }
     osd_thread_active = true;
 }
 
