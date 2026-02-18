@@ -108,7 +108,7 @@ SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
 
 TTF_Font *theme_loadFont(const char *theme_path, const char *font, int size)
 {
-    char font_path[STR_MAX + 64]; /* theme_path(≤255) + relative font path(≤63) */
+    char font_path[STR_MAX * 2]; /* theme_path(≤255) + separator + relative font(≤255) + NUL; fits in STR_MAX*2 */
     if (font[0] == '/') {
         strncpy(font_path, font, sizeof(font_path) - 1);
         font_path[sizeof(font_path) - 1] = '\0'; /* guard: strncpy omits NUL when src > size */
