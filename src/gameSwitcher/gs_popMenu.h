@@ -36,7 +36,7 @@ void popMenu_destroy(void)
 
 static bool _hasSaveStates(Game_s *game)
 {
-    char stateDirPath[4096];
+    char stateDirPath[STR_MAX * 2];
     snprintf(stateDirPath, sizeof(stateDirPath), STATES_DIR "/%s", game->core_name);
 
     if (!exists(stateDirPath)) {
@@ -69,7 +69,7 @@ static bool _hasSaveStates(Game_s *game)
 
 static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
 {
-    char stateDirPath[4096];
+    char stateDirPath[STR_MAX * 2];
     snprintf(stateDirPath, sizeof(stateDirPath), STATES_DIR "/%s", game->core_name);
 
     if (!exists(stateDirPath)) {
@@ -169,7 +169,7 @@ static void setLoadPreview()
         if (g_save_state_info.selected_slot >= 0 && g_save_state_info.selected_slot < g_save_state_info.slot_count) {
             const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
             Game_s *game = &game_list[appState.current_game];
-            char stateFilePath[2048];
+            char stateFilePath[STR_MAX * 4];
 
             if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath))) {
                 snprintf(item->preview_path, sizeof(item->preview_path), "%s.png", stateFilePath);
@@ -199,7 +199,7 @@ static void *_save_thread(void *_)
     int slot = g_save_state_info.slot_count > 0 ? g_save_state_info.slots[0] + 1 : 1;
     printf_debug("Saving state to slot %d\n", slot);
 
-    char stateFilePath[4096];
+    char stateFilePath[STR_MAX * 4];
     time_t saveLastModified = 0;
 
     // Check if save state exists
@@ -315,8 +315,8 @@ void action_loadGame(void *_)
     else {
         // Copy the save state to the auto state path
         Game_s *game = &game_list[appState.current_game];
-        char stateFilePath[2048];
-        char autoStateFilePath[2048];
+        char stateFilePath[STR_MAX * 4];
+        char autoStateFilePath[STR_MAX * 4];
 
         if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath)) &&
             createSaveStatePath(game, -1, autoStateFilePath, sizeof(autoStateFilePath))) {
@@ -339,8 +339,8 @@ void popMenu_deleteSaveState(void)
 
     const int real_slot = g_save_state_info.slots[selected_slot];
     Game_s *game = &game_list[appState.current_game];
-    char stateFilePath[2048];
-    char imageFilePath[2056];
+    char stateFilePath[STR_MAX * 4];
+    char imageFilePath[STR_MAX * 4];
 
     if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath))) {
         theme_renderDialog(
