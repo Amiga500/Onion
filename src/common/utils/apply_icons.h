@@ -44,7 +44,7 @@ void _saveConfigFile(const char *config_path, const char *content)
 {
     FILE *config_file = fopen(config_path, "w+");
     if (config_file == NULL) {
-        print_debug("Failed to open config file for writing: %s", config_path);
+        printf_debug("Failed to open config file for writing: %s", config_path);
         return;
     }
     fprintf(config_file, "%s", content);
