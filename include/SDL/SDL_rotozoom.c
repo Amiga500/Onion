@@ -27,9 +27,76 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __ARM_NEON__
+#include <arm_neon.h>
+#endif
+
 #include "SDL_rotozoom.h"
 
 #define MAX(a,b)    (((a) > (b)) ? (a) : (b))
+
+/*
+ * Bilinear interpolation helper for a single RGBA pixel.
+ *
+ * On ARM targets with NEON support (defined via -mfpu=neon-vfpv4) the four
+ * colour channels are interpolated simultaneously using SIMD intrinsics,
+ * replacing the original 12 scalar multiply-shift-add operations per pixel
+ * with a handful of NEON vector instructions.  A portable scalar fallback is
+ * compiled on all other platforms.
+ *
+ * ex / ey are 16.16 fixed-point fractional parts (0 … 65535).
+ */
+static inline tColorRGBA
+bilinear_pixel(tColorRGBA c00, tColorRGBA c01,
+               tColorRGBA c10, tColorRGBA c11,
+               int ex, int ey)
+{
+    tColorRGBA out;
+#ifdef __ARM_NEON__
+    uint32_t p00, p01, p10, p11;
+    memcpy(&p00, &c00, sizeof(uint32_t));
+    memcpy(&p01, &c01, sizeof(uint32_t));
+    memcpy(&p10, &c10, sizeof(uint32_t));
+    memcpy(&p11, &c11, sizeof(uint32_t));
+    /* Pack pixel pairs into 64-bit NEON registers:
+     *   v_top = [ R00 G00 B00 A00 | R01 G01 B01 A01 ]
+     *   v_bot = [ R10 G10 B10 A10 | R11 G11 B11 A11 ] */
+    uint8x8_t v_top = vcreate_u8(((uint64_t)p01 << 32) | (uint64_t)p00);
+    uint8x8_t v_bot = vcreate_u8(((uint64_t)p11 << 32) | (uint64_t)p10);
+    /* Widen to signed 16-bit lanes for arithmetic */
+    int16x8_t wide_top = vreinterpretq_s16_u16(vmovl_u8(v_top));
+    int16x8_t wide_bot = vreinterpretq_s16_u16(vmovl_u8(v_bot));
+    int16x4_t s00 = vget_low_s16(wide_top);
+    int16x4_t s01 = vget_high_s16(wide_top);
+    int16x4_t s10 = vget_low_s16(wide_bot);
+    int16x4_t s11 = vget_high_s16(wide_bot);
+    /* Horizontal interpolation across all channels at once.
+     * vqdmulh(a, b) = (2*a*b)>>16, so (diff*ex)>>16 = vqdmulh(diff, ex>>1). */
+    int16x4_t horiz_top = vadd_s16(s00, vqdmulh_n_s16(vsub_s16(s01, s00), (int16_t)(ex >> 1)));
+    int16x4_t horiz_bot = vadd_s16(s10, vqdmulh_n_s16(vsub_s16(s11, s10), (int16_t)(ex >> 1)));
+    /* Vertical interpolation */
+    int16x4_t vert_interp = vadd_s16(horiz_top, vqdmulh_n_s16(vsub_s16(horiz_bot, horiz_top), (int16_t)(ey >> 1)));
+    /* Narrow back to uint8, saturating, and write result */
+    uint32_t result = vget_lane_u32(
+        vreinterpret_u32_u8(vqmovun_s16(vcombine_s16(vert_interp, vdup_n_s16(0)))), 0);
+    memcpy(&out, &result, sizeof(uint32_t));
+#else
+    int t1, t2;
+    t1 = ((((c01.r - c00.r) * ex) >> 16) + c00.r) & 0xff;
+    t2 = ((((c11.r - c10.r) * ex) >> 16) + c10.r) & 0xff;
+    out.r = (((t2 - t1) * ey) >> 16) + t1;
+    t1 = ((((c01.g - c00.g) * ex) >> 16) + c00.g) & 0xff;
+    t2 = ((((c11.g - c10.g) * ex) >> 16) + c10.g) & 0xff;
+    out.g = (((t2 - t1) * ey) >> 16) + t1;
+    t1 = ((((c01.b - c00.b) * ex) >> 16) + c00.b) & 0xff;
+    t2 = ((((c11.b - c10.b) * ex) >> 16) + c10.b) & 0xff;
+    out.b = (((t2 - t1) * ey) >> 16) + t1;
+    t1 = ((((c01.a - c00.a) * ex) >> 16) + c00.a) & 0xff;
+    t2 = ((((c11.a - c10.a) * ex) >> 16) + c10.a) & 0xff;
+    out.a = (((t2 - t1) * ey) >> 16) + t1;
+#endif
+    return out;
+}
 
 /* 
  
@@ -42,7 +109,7 @@
 int
 zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 {
-  int x, y, sx, sy, *sax, *say, *csax, *csay, csx, csy, ex, ey, t1, t2, sstep;
+  int x, y, sx, sy, *sax, *say, *csax, *csay, csx, csy, ex, ey, sstep;
   tColorRGBA *c00, *c01, *c10, *c11;
   tColorRGBA *sp, *csp, *dp;
   int sgap, dgap, orderRGBA;
@@ -123,18 +190,7 @@ zoomSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int smooth)
 	      /* Interpolate colors */
 	      ex = (*csax & 0xffff);
 	      ey = (*csay & 0xffff);
-	      t1 = ((((c01->r - c00->r) * ex) >> 16) + c00->r) & 0xff;
-	      t2 = ((((c11->r - c10->r) * ex) >> 16) + c10->r) & 0xff;
-	      dp->r = (((t2 - t1) * ey) >> 16) + t1;
-	      t1 = ((((c01->g - c00->g) * ex) >> 16) + c00->g) & 0xff;
-	      t2 = ((((c11->g - c10->g) * ex) >> 16) + c10->g) & 0xff;
-	      dp->g = (((t2 - t1) * ey) >> 16) + t1;
-	      t1 = ((((c01->b - c00->b) * ex) >> 16) + c00->b) & 0xff;
-	      t2 = ((((c11->b - c10->b) * ex) >> 16) + c10->b) & 0xff;
-	      dp->b = (((t2 - t1) * ey) >> 16) + t1;
-	      t1 = ((((c01->a - c00->a) * ex) >> 16) + c00->a) & 0xff;
-	      t2 = ((((c11->a - c10->a) * ex) >> 16) + c10->a) & 0xff;
-	      dp->a = (((t2 - t1) * ey) >> 16) + t1;
+	      *dp = bilinear_pixel(*c00, *c01, *c10, *c11, ex, ey);
 	      /* Advance source pointers */
 	      csax++;
 	      sstep = (*csax >> 16);
@@ -304,7 +360,7 @@ void
 transformSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int cx, int cy,
 		      int isin, int icos, int smooth)
 {
-  int x, y, t1, t2, dx, dy, xd, yd, sdx, sdy, ax, ay, ex, ey, sw, sh;
+  int x, y, dx, dy, xd, yd, sdx, sdy, ax, ay, ex, ey, sw, sh;
   tColorRGBA c00, c01, c10, c11;
   tColorRGBA *pc, *sp;
   int gap, orderRGBA;
@@ -436,18 +492,7 @@ transformSurfaceRGBA (SDL_Surface * src, SDL_Surface * dst, int cx, int cy,
 		  /* Interpolate colors */
 		  ex = (sdx & 0xffff);
 		  ey = (sdy & 0xffff);
-		  t1 = ((((c01.r - c00.r) * ex) >> 16) + c00.r) & 0xff;
-		  t2 = ((((c11.r - c10.r) * ex) >> 16) + c10.r) & 0xff;
-		  pc->r = (((t2 - t1) * ey) >> 16) + t1;
-		  t1 = ((((c01.g - c00.g) * ex) >> 16) + c00.g) & 0xff;
-		  t2 = ((((c11.g - c10.g) * ex) >> 16) + c10.g) & 0xff;
-		  pc->g = (((t2 - t1) * ey) >> 16) + t1;
-		  t1 = ((((c01.b - c00.b) * ex) >> 16) + c00.b) & 0xff;
-		  t2 = ((((c11.b - c10.b) * ex) >> 16) + c10.b) & 0xff;
-		  pc->b = (((t2 - t1) * ey) >> 16) + t1;
-		  t1 = ((((c01.a - c00.a) * ex) >> 16) + c00.a) & 0xff;
-		  t2 = ((((c11.a - c10.a) * ex) >> 16) + c10.a) & 0xff;
-		  pc->a = (((t2 - t1) * ey) >> 16) + t1;
+		  *pc = bilinear_pixel(c00, c01, c10, c11, ex, ey);
 
 		}
 	      sdx += icos;
