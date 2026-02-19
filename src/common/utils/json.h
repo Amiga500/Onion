@@ -102,6 +102,8 @@ void json_save(cJSON *object, char *file_path)
         return;
 
     char *output = cJSON_Print(object);
+    if (output == NULL)
+        return;
 
     FILE *fp = NULL;
     if ((fp = fopen(file_path, "w+")) != NULL) {
@@ -109,8 +111,7 @@ void json_save(cJSON *object, char *file_path)
         fclose(fp);
     }
 
-    if (output != NULL)
-        cJSON_free(output);
+    cJSON_free(output);
 }
 
 #endif // JSON_H__

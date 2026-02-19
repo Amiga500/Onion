@@ -88,7 +88,11 @@ bool apply_singleIconByFullPath(const char *config_path, const char *icon_path)
     json_forceSetString(config, "icon", icon_path);
     json_forceSetString(config, "iconsel", sel_path);
 
-    _saveConfigFile(config_path, cJSON_Print(config));
+    char *icon_config_str = cJSON_Print(config);
+    if (icon_config_str != NULL) {
+        _saveConfigFile(config_path, icon_config_str);
+        cJSON_free(icon_config_str);
+    }
     cJSON_Delete(config);
 
     return true;
