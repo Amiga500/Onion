@@ -288,7 +288,9 @@ void __ensure_rel_path(char *rel_path, size_t dest_size, const char *rom_path)
         if (strstr(rom_path, "../../Roms/") != NULL) {
             char *_copy = strdup((const char *)rom_path);
             if (_copy != NULL) {
-                strncpy(rel_path, str_split(_copy, "../../Roms/"), dest_size - 1);
+                char *tail = str_split(_copy, "../../Roms/");
+                if (tail != NULL)
+                    strncpy(rel_path, tail, dest_size - 1);
                 free(_copy);
             }
         }

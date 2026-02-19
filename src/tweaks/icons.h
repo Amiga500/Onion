@@ -54,7 +54,7 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
             icon_name = file_removeExtension(ep->d_name);
             if (icon_name == NULL)
                 continue;
-            str_split(icon_name, "-");
+            (void)str_split(icon_name, "-");
             snprintf(alt_name, STR_MAX - 1, "%s - %s", pack_name, icon_name);
             free(icon_name);
 
@@ -122,7 +122,7 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
             if (is_dir(icon_pack_path)) {
                 strncpy(icon_pack_name, ep->d_name, STR_MAX - 1);
                 icon_pack_name[STR_MAX - 1] = '\0';
-                str_split(icon_pack_name, " by ");
+                (void)str_split(icon_pack_name, " by ");
 
                 ListItem item = {.action = action};
                 strncpy(item.label, icon_pack_name, STR_MAX - 1);
@@ -286,7 +286,7 @@ bool _add_config_icon(const char *path, const char *name,
     icon_name = file_removeExtension(basename(icon_path));
     if (icon_name == NULL)
         return false;
-    str_split(icon_name, "-");
+    (void)str_split(icon_name, "-");
 
     char short_label[56];
     str_trim(short_label, 55, label, false);

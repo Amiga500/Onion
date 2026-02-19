@@ -156,10 +156,9 @@ bool _apply_singleIconFromPack(const char *config_path,
         cJSON_Delete(config);
         return false;
     }
-    str_split(icon_name, "-");
+    (void)str_split(icon_name, "-");
 
     IconMode_e mode = icons_getIconMode(config_path);
-
     char icon_path[STR_MAX];
     snprintf(icon_path, sizeof(icon_path), icons_getIconPathFormat(mode), icon_pack_path,
              icon_name);

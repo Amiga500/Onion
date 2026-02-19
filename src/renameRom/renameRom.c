@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
     char emupath[STR_MAX];
     strncpy(emupath, rompath, STR_MAX - 1);
     emupath[STR_MAX - 1] = '\0';
-    str_split(emupath, "/../../");
+    (void)str_split(emupath, "/../../");
 
     printf_debug("emupath: %s\n", emupath);
 
