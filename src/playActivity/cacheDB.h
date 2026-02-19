@@ -159,11 +159,14 @@ CacheDBItem *cache_db_find(const char *path_or_name)
         if (cache_db_item != NULL) {
             strncpy(cache_db_item->cache_path, cache_db_file_path, sizeof(cache_db_item->cache_path) - 1);
             cache_db_item->cache_path[sizeof(cache_db_item->cache_path) - 1] = '\0';
-            strncpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0), STR_MAX - 1);
+            const char *col_name = (const char *)sqlite3_column_text(stmt, 0);
+            strncpy(cache_db_item->name, col_name ? col_name : "", STR_MAX - 1);
             cache_db_item->name[STR_MAX - 1] = '\0';
-            strncpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1), sizeof(cache_db_item->path) - 1);
+            const char *col_path = (const char *)sqlite3_column_text(stmt, 1);
+            strncpy(cache_db_item->path, col_path ? col_path : "", sizeof(cache_db_item->path) - 1);
             cache_db_item->path[sizeof(cache_db_item->path) - 1] = '\0';
-            strncpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2), sizeof(cache_db_item->imgpath) - 1);
+            const char *col_img = (const char *)sqlite3_column_text(stmt, 2);
+            strncpy(cache_db_item->imgpath, col_img ? col_img : "", sizeof(cache_db_item->imgpath) - 1);
             cache_db_item->imgpath[sizeof(cache_db_item->imgpath) - 1] = '\0';
             printf_debug("cache item found: %s\n", cache_db_item->name);
         }
