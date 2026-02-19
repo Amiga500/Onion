@@ -62,8 +62,9 @@ int main(int argc, char *argv[])
     char version_str[STR_MAX] = "";
     if (show_version) {
         char *version = file_read("/mnt/SDCARD/.tmp_update/onionVersion/version.txt");
-        if (strlen(version) > 0) {
+        if (version != NULL && strlen(version) > 0) {
             strncpy(version_str, version, STR_MAX - 1);
+            version_str[STR_MAX - 1] = '\0';
         }
         free(version);
     }

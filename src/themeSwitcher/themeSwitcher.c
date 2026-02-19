@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
 
         if (page_changed) {
             loadTheme(themes[current_page], &theme);
-            snprintf(icon_pack_path, STR_MAX + 32 - 1, "%sicons", theme.path);
+            snprintf(icon_pack_path, sizeof(icon_pack_path), "%sicons", theme.path);
             apply_icons = true;
             has_icons = is_dir(icon_pack_path);
 
@@ -370,10 +370,10 @@ int main(int argc, char *argv[])
 
             char title[STR_MAX + 13];
             if (current_page == installed_page && !is_preview)
-                snprintf(title, STR_MAX + 12, "%s - Installed", theme.name);
+                snprintf(title, sizeof(title), "%s - Installed", theme.name);
             else
-                strncpy(title, theme.name, STR_MAX + 12);
-            title[STR_MAX + 11] = '\0';
+                strncpy(title, theme.name, sizeof(title) - 1);
+            title[sizeof(title) - 1] = '\0';
 
             imageThemeNom = TTF_RenderUTF8_Blended(font21, title, color_white);
             if (imageThemeNom) {

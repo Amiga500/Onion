@@ -33,8 +33,10 @@ bool __get_path_recent(char *path_out)
         char file_path[STR_MAX];
         if (history_getRecentPath(file_path) != NULL) {
             no_extension = file_removeExtension(basename(file_path));
-            strncat(path_out, no_extension, path_max - strlen(path_out) - 1);
-            free(no_extension);
+            if (no_extension != NULL) {
+                strncat(path_out, no_extension, path_max - strlen(path_out) - 1);
+                free(no_extension);
+            }
         }
     }
     else if (system_state == MODE_SWITCHER)
@@ -47,15 +49,17 @@ bool __get_path_recent(char *path_out)
         file_get(fp, CMD_TO_RUN_PATH, "%255[^\n]", cmd);
         printf_debug("cmd: '%s'\n", cmd);
 
-        char app_name[STR_MAX];
+        char app_name[STR_MAX] = "";
 
         if (strstr(cmd, "; chmod") != NULL)
             state_getAppName(app_name, cmd);
         else {
             no_extension = file_removeExtension(basename(cmd));
-            strncpy(app_name, no_extension, STR_MAX - 1);
-            app_name[STR_MAX - 1] = '\0';
-            free(no_extension);
+            if (no_extension != NULL) {
+                strncpy(app_name, no_extension, STR_MAX - 1);
+                app_name[STR_MAX - 1] = '\0';
+                free(no_extension);
+            }
         }
         printf_debug("app: '%s'\n", app_name);
 

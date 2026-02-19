@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 
     print_debug("gameSwitcher started\n");
 
-    while (!appState.quit) {
+    while (!appState.quit && !gs_quit_requested) {
         uint32_t ticks = SDL_GetTicks();
         appState.acc_ticks += ticks - appState.last_ticks;
         appState.last_ticks = ticks;

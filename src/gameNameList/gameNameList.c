@@ -47,7 +47,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][MAX_SYSTEM
 {
     char command[STR_MAX + 128];
     char path[STR_MAX + 32];
-    char folder[STR_MAX];
+    char folder[STR_MAX] = "";
     FILE *find, *sed;
 
     // Use the 'find' command to search for 'config.json' files in subdirectories of the disk path
@@ -222,6 +222,13 @@ int matchRomNames(char *rom_names_file, char *full_rom_list_file, char *arcade_r
         filename[sizeof(filename) - 1] = '\0';
         full_rom_name_first_word = strtok(filename, "\t ");
 
+        // Skip blank/whitespace-only lines in the full rom list
+        if (full_rom_name_first_word == NULL) {
+            if (!fgets(full_rom_name, 200, full_rom_list_fp))
+                break;
+            continue;
+        }
+
         if (strcmp(full_rom_name_first_word, rom_name) == 0) {
             // Write matched line to output file
             fprintf(arcade_rom_names_fp, "%s\n", full_rom_name);
@@ -245,6 +252,8 @@ int matchRomNames(char *rom_names_file, char *full_rom_list_file, char *arcade_r
                 strncpy(filename, full_rom_name, sizeof(filename) - 1); //preserve the original line
                 filename[sizeof(filename) - 1] = '\0';
                 full_rom_name_first_word = strtok(filename, "\t ");
+                if (full_rom_name_first_word == NULL)
+                    break;
             }
         }
     }
@@ -362,6 +371,10 @@ int updateCallback(void *data, int argc, char **argv, char **col_name)
         snprintf(update_sql, sizeof(update_sql), "UPDATE %s SET disp = ? WHERE id = ?", table_name);
         sqlite3_stmt *stmt;
         int rc = sqlite3_prepare_v2(db, update_sql, -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+            fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+            return 1;
+        }
         sqlite3_bind_text(stmt, 1, title, -1, SQLITE_STATIC);
         sqlite3_bind_int(stmt, 2, id);
 

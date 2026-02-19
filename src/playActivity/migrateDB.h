@@ -29,6 +29,8 @@ void _migrate_loadCacheDBs(void)
         // Scanning across all console roms for this specific game
         // If the rom is found, the miyoo cache db is retrieved to retrieve the displayed name + img path
         dir = opendir(ROMS_FOLDER);
+        if (dir == NULL)
+            return;
 
         while ((entry = readdir(dir)) != NULL) {
 
@@ -141,6 +143,8 @@ void migrateDB(void)
             while (sqlite3_step(stmt) == SQLITE_ROW && is_found == false) {
                 char *rom_path = (char *)sqlite3_column_text(stmt, 1);
                 char *no_extension = file_removeExtension(rom_path);
+                if (no_extension == NULL)
+                    continue;
 
                 if (strcmp(basename(rom_path), rom_list[i].name) != 0 &&
                     strcmp(basename(no_extension), rom_list[i].name) != 0) {
@@ -155,11 +159,13 @@ void migrateDB(void)
                 if (cache_db_item != NULL) {
                     strncpy(cache_db_item->cache_path, handle->db_path, sizeof(cache_db_item->cache_path) - 1);
                     cache_db_item->cache_path[sizeof(cache_db_item->cache_path) - 1] = '\0';
-                    strncpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0), STR_MAX - 1);
+                    const char *col_name = (const char *)sqlite3_column_text(stmt, 0);
+                    strncpy(cache_db_item->name, col_name ? col_name : "", STR_MAX - 1);
                     cache_db_item->name[STR_MAX - 1] = '\0';
                     strncpy(cache_db_item->path, rom_path, sizeof(cache_db_item->path) - 1);
                     cache_db_item->path[sizeof(cache_db_item->path) - 1] = '\0';
-                    strncpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2), sizeof(cache_db_item->imgpath) - 1);
+                    const char *col_img = (const char *)sqlite3_column_text(stmt, 2);
+                    strncpy(cache_db_item->imgpath, col_img ? col_img : "", sizeof(cache_db_item->imgpath) - 1);
                     cache_db_item->imgpath[sizeof(cache_db_item->imgpath) - 1] = '\0';
                 }
 

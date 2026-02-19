@@ -165,7 +165,7 @@ SDLKey _translate_input(int key)
     }
 }
 
-bool _updateKeystate(KeyState keystate[320], bool *quit_flag, bool enabled, SDLKey *changed_key)
+bool _updateKeystate(KeyState keystate[320], volatile bool *quit_flag, bool enabled, SDLKey *changed_key)
 {
     if (!_render_direct_to_fb) {
         return updateKeystate(keystate, quit_flag, enabled, changed_key);

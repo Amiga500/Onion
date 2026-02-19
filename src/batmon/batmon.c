@@ -214,10 +214,10 @@ void update_current_duration(void)
                         rc = sqlite3_step(update_stmt);
 
                         battery_current_state_duration = 0;
-                        sqlite3_finalize(stmt);
                         sqlite3_finalize(update_stmt);
                     }
                 }
+                sqlite3_finalize(stmt);
             }
             close_battery_log_db();
         }
@@ -248,9 +248,10 @@ void log_new_percentage(int new_bat_value, int is_charging)
             if (count > FILO_MIN_SIZE) {
                 // Deletion of the 1st entry
                 const char *delete_sql = "DELETE FROM bat_activity WHERE id = (SELECT MIN(id) FROM bat_activity);";
-                sqlite3_prepare_v2(bat_log_db, delete_sql, -1, &stmt, 0);
-                sqlite3_step(stmt);
-                sqlite3_finalize(stmt);
+                if (sqlite3_prepare_v2(bat_log_db, delete_sql, -1, &stmt, 0) == SQLITE_OK) {
+                    sqlite3_step(stmt);
+                    sqlite3_finalize(stmt);
+                }
             }
         }
         close_battery_log_db();
@@ -317,11 +318,11 @@ int set_best_session_time(int best_session)
                         // Exécuter la mise à jour
                         rc = sqlite3_step(update_stmt);
 
-                        sqlite3_finalize(stmt);
                         sqlite3_finalize(update_stmt);
                         is_success = 1;
                     }
                 }
+                sqlite3_finalize(stmt);
             }
             close_battery_log_db();
         }

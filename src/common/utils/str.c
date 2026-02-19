@@ -157,7 +157,7 @@ void str_removeParentheses(char *str_out, const char *str_in)
     bool inside = false;
     char end_char;
 
-    for (int i = 0; i < len && i < STR_MAX; i++) {
+    for (int i = 0; i < len && i < STR_MAX - 1; i++) {
         if (!inside && (str_in[i] == '(' || str_in[i] == '[')) {
             end_char = str_in[i] == '(' ? ')' : ']';
             inside = true;
@@ -195,11 +195,10 @@ void str_serializeTime(char *dest_str, size_t dest_size, int nTime)
 
 int str_count_char(const char *str, char ch)
 {
-    int i, count = 0;
-    for (i = 0; i <= strlen(str); i++) {
-        if (str[i] == ch) {
+    int count = 0;
+    for (const char *p = str; *p; p++) {
+        if (*p == ch)
             count++;
-        }
     }
     return count;
 }

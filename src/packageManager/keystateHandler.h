@@ -12,7 +12,7 @@
 
 static KeyState keystate[320] = {RELEASED};
 
-bool keystateHandler(bool *quit_flag, bool *apply_changes, bool show_confirm, bool auto_update)
+bool keystateHandler(volatile bool *quit_flag, bool *apply_changes, bool show_confirm, bool auto_update)
 {
     if (!updateKeystate(keystate, quit_flag, true, NULL)) {
         return false;

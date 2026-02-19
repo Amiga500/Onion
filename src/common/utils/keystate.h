@@ -11,7 +11,7 @@ typedef enum { RELEASED,
 
 static SDL_Event keystate_event;
 
-bool updateKeystate(KeyState keystate[320], bool *quit_flag, bool enabled,
+bool updateKeystate(KeyState keystate[320], volatile bool *quit_flag, bool enabled,
                     SDLKey *changed_key)
 {
     bool retval = false;

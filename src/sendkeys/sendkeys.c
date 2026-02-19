@@ -17,8 +17,12 @@ int main(int argc, char *argv[])
     }
 
     int num_events = (argc - 1) / 2;
+    if (num_events > 100) {
+        fprintf(stderr, "sendkeys: too many key pairs (%d), truncating to 100\n", num_events);
+        num_events = 100;
+    }
 
-    for (int i = 1; i < argc; i += 2) {
+    for (int i = 1; i < 1 + num_events * 2; i += 2) {
         int ev_idx = (i - 1) / 2;
         events[ev_idx].type = EV_KEY;
         events[ev_idx].code = atoi(argv[i]);

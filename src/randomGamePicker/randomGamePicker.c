@@ -50,7 +50,7 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
                    char *launch_out, char *imgsdir_out)
 {
     char config_path[STR_MAX + 13];
-    snprintf(config_path, STR_MAX + 12, "%s/config.json", emupath);
+    snprintf(config_path, sizeof(config_path), "%s/config.json", emupath);
 
     if (!exists(config_path))
         return false;
@@ -104,16 +104,21 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
 int getTotalGamesCount(sqlite3 *db, const char *table_name)
 {
     sqlite3_stmt *res;
-    const char *sql = sqlite3_mprintf(
+    char *sql = sqlite3_mprintf(
         "SELECT COUNT(id) FROM %q WHERE type=0 AND path NOT LIKE '%%.miyoocmd'",
         table_name);
-    if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK)
+    if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
+        sqlite3_free(sql);
         return 0;
+    }
+    sqlite3_free(sql);
     if (sqlite3_step(res) != SQLITE_ROW) {
         sqlite3_finalize(res);
         return 0;
     }
-    return sqlite3_column_int(res, 0);
+    int count = sqlite3_column_int(res, 0);
+    sqlite3_finalize(res);
+    return count;
 }
 
 bool pickRandomGameFromCache(char *emuname, char *romsdir,
@@ -146,15 +151,17 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
         return false;
     }
 
-    const char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
+    char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
                                       "%q WHERE type=0 AND path NOT LIKE "
                                       "'%%.miyoocmd' LIMIT 1 OFFSET (ABS(RANDOM()) %% %d)",
                                       table_name, count);
 
     if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
+        sqlite3_free(sql);
         sqlite3_close(db);
         return false;
     }
+    sqlite3_free(sql);
 
     if (sqlite3_step(res) == SQLITE_ROW) {
         if (system_count >= MAX_SYSTEMS) {
@@ -171,12 +178,15 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
         game->sum = count;
         game->c_sum = total_games_count;
 
-        strncpy(game->label, (const char *)sqlite3_column_text(res, 1),
-                STR_MAX - 1);
-        strncpy(game->path, (const char *)sqlite3_column_text(res, 2),
-                STR_MAX - 1);
-        strncpy(game->img_path, (const char *)sqlite3_column_text(res, 3),
-                STR_MAX - 1);
+        const char *col_label = (const char *)sqlite3_column_text(res, 1);
+        strncpy(game->label, col_label ? col_label : "", sizeof(game->label) - 1);
+        game->label[sizeof(game->label) - 1] = '\0';
+        const char *col_path = (const char *)sqlite3_column_text(res, 2);
+        strncpy(game->path, col_path ? col_path : "", sizeof(game->path) - 1);
+        game->path[sizeof(game->path) - 1] = '\0';
+        const char *col_img = (const char *)sqlite3_column_text(res, 3);
+        strncpy(game->img_path, col_img ? col_img : "", sizeof(game->img_path) - 1);
+        game->img_path[sizeof(game->img_path) - 1] = '\0';
 
         strncpy(game->launch_path, launch_path, sizeof(game->launch_path) - 1);
         strncpy(game->emu_name, emuname, STR_MAX - 1);
@@ -299,9 +309,11 @@ bool addRandomFromJson(char *json_path)
 
             if (strlen(game->img_path) == 0) {
                 char *no_extension = file_removeExtension(basename(game->path));
-                snprintf(game->img_path, sizeof(game->img_path) - 1, "%s/%s.png", imgsdir,
-                         no_extension);
-                free(no_extension);
+                if (no_extension != NULL) {
+                    snprintf(game->img_path, sizeof(game->img_path) - 1, "%s/%s.png", imgsdir,
+                             no_extension);
+                    free(no_extension);
+                }
             }
 
             count++;
@@ -385,6 +397,7 @@ int main(int argc, char *argv[])
             mode = MODE_RECENTS;
         else {
             strncpy(emupath, argv[1], STR_MAX + 16);
+            emupath[STR_MAX + 16] = '\0';
             mode = MODE_SINGLE_SYSTEM;
         }
     }
@@ -408,7 +421,7 @@ int main(int argc, char *argv[])
             while ((ep = readdir(dp))) {
                 if (ep->d_type != DT_DIR)
                     continue;
-                snprintf(emupath, STR_MAX + 16, "/mnt/SDCARD/Emu/%s",
+                snprintf(emupath, sizeof(emupath), "/mnt/SDCARD/Emu/%s",
                          ep->d_name);
                 addRandomFromEmu(emupath);
             }

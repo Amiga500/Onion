@@ -94,6 +94,8 @@ int suspend(uint32_t mode)
 
     sync();
     procdp = opendir("/proc");
+    if (procdp == NULL)
+        return ret;
 
     // Pick active processes to suspend and send SIGSTOP
     // Cond:1. PID is greater than 2(kthreadd) and not myself
@@ -115,6 +117,9 @@ int suspend(uint32_t mode)
                     fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
                            (char *)&comm, &state, &ppid, &flags);
                     fclose(fp);
+                }
+                else {
+                    continue;
                 }
                 if ((ppid > 2) &&
                     ((state == 'R') || (state == 'S') || (state == 'D')) &&

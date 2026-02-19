@@ -138,6 +138,8 @@ List list_createWithSticky(int max_items, const char *title)
 
 ListItem *list_addItem(List *list, ListItem item)
 {
+    if (list == NULL || list->items == NULL)
+        return NULL;
     item._reset_value = item.value;
     item._id = list->item_count;
     memset(item.info_note, 0, STR_MAX);
@@ -152,6 +154,8 @@ ListItem *list_addItem(List *list, ListItem item)
 ListItem *list_addItemWithInfoNote(List *list, ListItem item, const char *info_note)
 {
     ListItem *_item = list_addItem(list, item);
+    if (_item == NULL)
+        return NULL;
     strncpy(_item->info_note, info_note, sizeof(_item->info_note) - 1);
     _item->info_note[sizeof(_item->info_note) - 1] = '\0';
     return _item;
@@ -160,6 +164,8 @@ ListItem *list_addItemWithInfoNote(List *list, ListItem item, const char *info_n
 ListItem *list_addItemWithLang(List *list, ListItem item, const lang_hash key)
 {
     ListItem *_item = list_addItem(list, item);
+    if (_item == NULL)
+        return NULL;
     if (lang_list && lang_list[key]) {
         strncpy(_item->label, lang_list[key], sizeof(_item->label) - 1);
         _item->label[sizeof(_item->label) - 1] = '\0';
@@ -177,6 +183,7 @@ ListItem *list_currentItem(List *list)
 void list_updateStickyNote(ListItem *item, const char *message)
 {
     strncpy(item->sticky_note, message, STR_MAX - 1);
+    item->sticky_note[STR_MAX - 1] = '\0';
 }
 
 const char *list_getStickyNote(ListItem *item)

@@ -125,7 +125,8 @@ void network_getSmbShares()
         }
 
         if (strstr(trimmedLine, "path = ") != NULL) {
-            strncpy(_network_shares[numShares - 1].path, trimmedLine + 7, STR_MAX);
+            strncpy(_network_shares[numShares - 1].path, trimmedLine + 7, STR_MAX - 1);
+            _network_shares[numShares - 1].path[STR_MAX - 1] = '\0';
             continue;
         }
 
@@ -147,6 +148,7 @@ void network_getSmbShares()
                 if (tmp_shares == NULL) {
                     free(_network_shares);
                     _network_shares = NULL;
+                    found_shares = false;
                     break;
                 }
                 _network_shares = tmp_shares;
@@ -157,10 +159,12 @@ void network_getSmbShares()
                     add_exclamation = true;
                 }
 
-                strncpy(_network_shares[numShares - 1].name, shareName, STR_MAX - 11);
+                strncpy(_network_shares[numShares - 1].name, shareName, STR_MAX - 12);
+                _network_shares[numShares - 1].name[STR_MAX - 12] = '\0';
 
                 if (add_exclamation) {
-                    strncat(_network_shares[numShares - 1].name, " (!)", STR_MAX - 11 - strlen(shareName));
+                    strncat(_network_shares[numShares - 1].name, " (!)",
+                            sizeof(_network_shares[numShares - 1].name) - strlen(_network_shares[numShares - 1].name) - 1);
                 }
 
                 found_shares = true;
@@ -195,8 +199,11 @@ void network_toggleSmbAvailable(void *item)
         return;
     }
 
-    char line[STR_MAX];
-    fgets(line, sizeof(line), file);
+    char line[STR_MAX] = "";
+    if (fgets(line, sizeof(line), file) == NULL) {
+        fclose(file);
+        return;
+    }
     share->available = strstr(line, "1") == NULL; // toggle
 
     fseek(file, share->availablePos, SEEK_SET);
@@ -455,7 +462,12 @@ void menu_smbd(void *pt)
                 .payload_ptr = _network_shares + i // store a pointer to the share in the payload
             };
             snprintf(shareItem.label, STR_MAX - 1, "Share: %s", _network_shares[i].name);
-            strncpy(shareItem.sticky_note, str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:"), STR_MAX - 1);
+            char *_share_path = str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:");
+            if (_share_path != NULL) {
+                strncpy(shareItem.sticky_note, _share_path, STR_MAX - 1);
+                shareItem.sticky_note[STR_MAX - 1] = '\0';
+                free(_share_path);
+            }
             list_addItem(&_menu_smbd, shareItem);
         }
     }

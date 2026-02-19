@@ -37,6 +37,7 @@ static bool loadImagesPathsFromJson(const char *config_path,
 
     char temp_path[STR_MAX];
     strncpy(temp_path, config_path, STR_MAX - 1);
+    temp_path[STR_MAX - 1] = '\0';
     dirname(temp_path);
 
     if (!(json_str = file_read(config_path))) {
@@ -103,15 +104,19 @@ static bool loadImagesPathsFromJson(const char *config_path,
             continue;
         }
         const char *image_path = cJSON_GetStringValue(json_image_path);
-        snprintf((*images_paths)[i], STR_MAX * 2 + 1, "%s/%s", temp_path,
+        if (!image_path) {
+            (*images_paths_count)--;
+            continue;
+        }
+        snprintf((*images_paths)[i], STR_MAX * 2 + 2, "%s/%s", temp_path,
                  image_path);
 
         cJSON *json_image_title = cJSON_GetObjectItem(json_image_item, "title");
         if (!json_image_title) {
             continue;
         }
-        char *image_title = cJSON_GetStringValue(json_image_title);
-        strncpy((*images_titles)[i], image_title, IMAGE_TITLE_MAX_LENGTH - 1);
+        const char *image_title = cJSON_GetStringValue(json_image_title);
+        strncpy((*images_titles)[i], image_title ? image_title : "", IMAGE_TITLE_MAX_LENGTH - 1);
         (*images_titles)[i][IMAGE_TITLE_MAX_LENGTH - 1] = '\0';
     }
 
@@ -153,16 +158,26 @@ int main(int argc, char *argv[])
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
-            if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0)
+            if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 strncpy(title_str, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--message") == 0)
+            }
+            else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--message") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 strncpy(message_str, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--image") == 0)
+            }
+            else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--image") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 strncpy(image_path, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--images-json") == 0)
+            }
+            else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--images-json") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 strncpy(images_json_path, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--directory") == 0)
+            }
+            else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--directory") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 strncpy(images_dir_path, argv[++i], STR_MAX - 1);
+            }
             else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--show-theme-controls") == 0)
                 g_show_theme_controls = true;
             else if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--auto") == 0)

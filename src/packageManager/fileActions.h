@@ -306,7 +306,7 @@ void callPackageInstaller(const char *data_path, const char *package_name,
 
     if (getPackageMainPath(main_path, data_path, package_name)) {
         char config_path[STR_MAX + 32];
-        snprintf(config_path, STR_MAX + 32 - 1, "%s/config.json", main_path);
+        snprintf(config_path, sizeof(config_path), "%s/config.json", main_path);
 
         if (install && is_file(config_path))
             apply_singleIcon(config_path);

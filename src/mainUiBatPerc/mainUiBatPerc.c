@@ -56,7 +56,7 @@ void drawBatteryPercentage(void)
     printf_debug("theme_path: %s\n", theme_path);
 
     char icon_path[STR_MAX + 20];
-    snprintf(icon_path, STR_MAX + 19, "%sskin/.batt-perc.png", theme_path);
+    snprintf(icon_path, sizeof(icon_path), "%sskin/.batt-perc.png", theme_path);
 
     printf_debug("icon_path: %s\n", icon_path);
 

@@ -72,13 +72,19 @@ int main(int argc, char *argv[])
 
     int i;
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--begin") == 0)
+        if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--begin") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
             start_at = atoi(argv[++i]);
-        else if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--total") == 0)
+        }
+        else if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--total") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
             total_offset = atoi(argv[++i]);
+        }
         else if (strcmp(argv[i], "-m") == 0 ||
-                 strcmp(argv[i], "--message") == 0)
+                 strcmp(argv[i], "--message") == 0) {
+            if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
             strncpy(message_str, argv[++i], STR_MAX - 1);
+        }
         else {
             printf_debug("Error: Unknown argument '%s'\n", argv[i]);
             exit(EXIT_FAILURE);

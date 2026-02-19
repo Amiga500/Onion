@@ -67,11 +67,13 @@ void netinfo_getHostnameAndIpAddress(char *hostname, char *ip_address)
         else {
             print_debug("Failed to retrieve IP address");
             strncpy(ip_address, "IP address: -", STR_MAX - 1);
+            ip_address[STR_MAX - 1] = '\0';
         }
     }
     else {
         print_debug("Failed to retrieve hostname");
         strncpy(hostname, "Hostname: -", STR_MAX - 1);
+        hostname[STR_MAX - 1] = '\0';
     }
 
     print_debug("Done");

@@ -40,9 +40,9 @@ bool check_isRetroArch(void)
     if (!exists(CMD_TO_RUN_PATH))
         return false;
     char *cmd = file_read(CMD_TO_RUN_PATH);
-    if (strstr(cmd, "retroarch") != NULL ||
+    if (cmd != NULL && (strstr(cmd, "retroarch") != NULL ||
         strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
-        strstr(cmd, "/mnt/SDCARD/RApp/") != NULL) {
+        strstr(cmd, "/mnt/SDCARD/RApp/") != NULL)) {
         pid_t pid;
         if ((pid = process_searchpid("retroarch")) != 0 ||
             (pid = process_searchpid("ra32")) != 0) {
@@ -286,8 +286,10 @@ char *history_getRecentPath(char *rom_path)
             return NULL;
         }
 
-        strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
-        romPathSearch[rompathEnd - rompathStart] = '\0';
+        size_t romPathLength = (size_t)(rompathEnd - rompathStart);
+        if (romPathLength >= sizeof(romPathSearch)) romPathLength = sizeof(romPathSearch) - 1;
+        strncpy(romPathSearch, rompathStart, romPathLength);
+        romPathSearch[romPathLength] = '\0';
 
         // Game launched with the search panel
         char *colonPosition = strchr(romPathSearch, ':');
@@ -316,7 +318,7 @@ char *history_getRecentPath(char *rom_path)
 
 bool history_getRomscreenPath(char *path_out)
 {
-    char filename[STR_MAX];
+    char filename[STR_MAX] = "";
     char file_path[STR_MAX];
 
     if (history_getRecentPath(file_path) != NULL) {
@@ -368,8 +370,10 @@ void resumeGame(int index)
             labelStart += 9;
             const char *labelEnd = strchr(labelStart, '\"');
             if (labelEnd != NULL) {
-                strncpy(label, labelStart, labelEnd - labelStart);
-                label[labelEnd - labelStart] = '\0';
+                size_t labelLength = (size_t)(labelEnd - labelStart);
+                if (labelLength >= sizeof(label)) labelLength = sizeof(label) - 1;
+                strncpy(label, labelStart, labelLength);
+                label[labelLength] = '\0';
             }
         }
         printf_debug("label: %s\n", label);
@@ -378,8 +382,10 @@ void resumeGame(int index)
             rompathStart += 11;
             const char *rompathEnd = strchr(rompathStart, '\"');
             if (rompathEnd != NULL) {
-                strncpy(rompath, rompathStart, rompathEnd - rompathStart);
-                rompath[rompathEnd - rompathStart] = '\0';
+                size_t rompathLength = (size_t)(rompathEnd - rompathStart);
+                if (rompathLength >= sizeof(rompath)) rompathLength = sizeof(rompath) - 1;
+                strncpy(rompath, rompathStart, rompathLength);
+                rompath[rompathLength] = '\0';
             }
         }
         printf_debug("rompath: %s\n", rompath);
@@ -388,8 +394,10 @@ void resumeGame(int index)
             imgpathStart += 11;
             const char *imgpathEnd = strchr(imgpathStart, '\"');
             if (imgpathEnd != NULL) {
-                strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
-                imgpath[imgpathEnd - imgpathStart] = '\0';
+                size_t imgpathLength = (size_t)(imgpathEnd - imgpathStart);
+                if (imgpathLength >= sizeof(imgpath)) imgpathLength = sizeof(imgpath) - 1;
+                strncpy(imgpath, imgpathStart, imgpathLength);
+                imgpath[imgpathLength] = '\0';
             }
         }
 
@@ -422,8 +430,10 @@ void resumeGame(int index)
                 launchStart += 10;
                 const char *launchEnd = strchr(launchStart, '\"');
                 if (launchEnd != NULL) {
-                    strncpy(launch, launchStart, launchEnd - launchStart);
-                    launch[launchEnd - launchStart] = '\0';
+                    size_t launchLength = (size_t)(launchEnd - launchStart);
+                    if (launchLength >= sizeof(launch)) launchLength = sizeof(launch) - 1;
+                    strncpy(launch, launchStart, launchLength);
+                    launch[launchLength] = '\0';
                 }
             }
         }

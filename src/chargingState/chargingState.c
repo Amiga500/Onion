@@ -33,7 +33,7 @@
 
 #define DISPLAY_TIMEOUT 15000
 
-static bool quit = false;
+static volatile bool quit = false;
 static bool suspended = false;
 static int input_fd;
 static struct input_event ev;
@@ -113,14 +113,14 @@ int main(void)
 
     for (int i = 0; i < 24; i++) {
         char image_path[STR_MAX + 50];
-        snprintf(image_path, STR_MAX + 49, "%s/chargingState%d.png", image_dir,
+        snprintf(image_path, sizeof(image_path), "%s/chargingState%d.png", image_dir,
                  i);
         if ((image = IMG_Load(image_path)))
             frames[frame_count++] = image;
     }
 
     char json_path[STR_MAX + 20];
-    snprintf(json_path, STR_MAX + 19, "%s/chargingState.json", image_dir);
+    snprintf(json_path, sizeof(json_path), "%s/chargingState.json", image_dir);
     if (is_file(json_path)) {
         int value;
         char json_value[STR_MAX];

@@ -60,12 +60,21 @@ void get_rom_image_path(char *rom_file, char *out_image_path)
 {
     if (str_endsWith(rom_file, ".p8") || str_endsWith(rom_file, ".png")) {
         snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s", rom_file);
+        return;
     }
 
     char *clean_rom_name = file_removeExtension(basename(rom_file));
-    char *rom_folder = strtok(rom_file, "/");
+    if (clean_rom_name == NULL)
+        return;
+    char *rom_file_copy = strdup(rom_file);
+    if (rom_file_copy == NULL) {
+        free(clean_rom_name);
+        return;
+    }
+    char *rom_folder = strtok(rom_file_copy, "/");
 
     snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s/Imgs/%s.png", rom_folder, clean_rom_name);
+    free(rom_file_copy);
     free(clean_rom_name);
 }
 
@@ -147,7 +156,7 @@ int play_activity_get_total_play_time(void)
     play_activity_db_open();
     stmt = play_activity_db_prepare(sql);
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         total_play_time = sqlite3_column_int(stmt, 0);
     }
 
@@ -178,6 +187,10 @@ PlayActivities *play_activity_find_all(void)
     play_activity_db_open();
 
     stmt = play_activity_db_prepare(sql);
+    if (stmt == NULL) {
+        play_activity_db_close();
+        return NULL;
+    }
 
     int play_activity_count = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -241,10 +254,10 @@ PlayActivities *play_activity_find_all(void)
         entry->play_count = sqlite3_column_int(stmt, 4);
         entry->play_time_total = sqlite3_column_int(stmt, 5);
         entry->play_time_average = sqlite3_column_int(stmt, 6);
-        if (sqlite3_column_text(stmt, 8) != NULL) {
+        if (sqlite3_column_text(stmt, 7) != NULL) {
             entry->first_played_at = strdup((const char *)sqlite3_column_text(stmt, 7));
         }
-        if (sqlite3_column_text(stmt, 9) != NULL) {
+        if (sqlite3_column_text(stmt, 8) != NULL) {
             entry->last_played_at = strdup((const char *)sqlite3_column_text(stmt, 8));
         }
 
@@ -275,7 +288,9 @@ void __ensure_rel_path(char *rel_path, size_t dest_size, const char *rom_path)
         if (strstr(rom_path, "../../Roms/") != NULL) {
             char *_copy = strdup((const char *)rom_path);
             if (_copy != NULL) {
-                strncpy(rel_path, str_split(_copy, "../../Roms/"), dest_size - 1);
+                char *tail = str_split(_copy, "../../Roms/");
+                if (tail != NULL)
+                    strncpy(rel_path, tail, dest_size - 1);
                 free(_copy);
             }
         }
@@ -307,7 +322,7 @@ int __db_insert_rom(const char *rom_type, const char *rom_name, const char *file
     sqlite3_free(sql);
 
     sqlite3_stmt *stmt = play_activity_db_prepare("SELECT id FROM rom WHERE ROWID = last_insert_rowid()");
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         rom_id = sqlite3_column_int(stmt, 0);
     }
     sqlite3_finalize(stmt);
@@ -344,6 +359,10 @@ int __db_get_orphan_rom_id(const char *rom_path)
         return rom_id;
     char *file_name = basename(_file_name);
     char *rom_name = file_removeExtension(file_name);
+    if (rom_name == NULL) {
+        free(_file_name);
+        return rom_id;
+    }
 
     char *sql = sqlite3_mprintf("SELECT id FROM rom WHERE (name=%Q OR name=%Q) AND type='ORPHAN' LIMIT 1;", rom_name, file_name);
     sqlite3_stmt *stmt = play_activity_db_prepare(sql);
@@ -351,7 +370,7 @@ int __db_get_orphan_rom_id(const char *rom_path)
     free(rom_name);
     free(_file_name);
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         rom_id = sqlite3_column_int(stmt, 0);
     }
 
@@ -371,7 +390,7 @@ int __db_get_rom_id_by_path(const char *rom_path)
     sqlite3_stmt *stmt = play_activity_db_prepare(sql);
     sqlite3_free(sql);
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         rom_id = sqlite3_column_int(stmt, 0);
     }
 
@@ -410,8 +429,10 @@ int __db_rom_find_by_file_path(const char *rom_path, bool create_or_update)
         }
         else {
             char *rom_name = file_removeExtension(file_basename(rom_path));
-            __db_update_rom(rom_id, "", rom_name, rom_path, "");
-            free(rom_name);
+            if (rom_name != NULL) {
+                __db_update_rom(rom_id, "", rom_name, rom_path, "");
+                free(rom_name);
+            }
         }
     }
     else if (rom_id == ROM_NOT_FOUND && create_or_update) {
@@ -423,8 +444,10 @@ int __db_rom_find_by_file_path(const char *rom_path, bool create_or_update)
         }
         else {
             char *rom_name = file_removeExtension(file_basename(rom_path));
-            rom_id = __db_insert_rom("", rom_name, rom_path, "");
-            free(rom_name);
+            if (rom_name != NULL) {
+                rom_id = __db_insert_rom("", rom_name, rom_path, "");
+                free(rom_name);
+            }
         }
     }
 
@@ -449,7 +472,7 @@ int play_activity_get_play_time(const char *rom_path)
         char *sql = sqlite3_mprintf("SELECT SUM(play_time) FROM play_activity WHERE rom_id = %d;", rom_id);
         sqlite3_stmt *stmt = play_activity_db_prepare(sql);
         sqlite3_free(sql);
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
+        if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
             play_time = sqlite3_column_int(stmt, 0);
         }
         sqlite3_finalize(stmt);
@@ -475,7 +498,8 @@ bool _get_active_rom_path(char *rom_path_out)
     }
 
     if ((ptr = strrchr(cmd, '"')) != NULL) {
-        strncpy(rom_path_out, ptr + 1, STR_MAX);
+        strncpy(rom_path_out, ptr + 1, STR_MAX - 1);
+        rom_path_out[STR_MAX - 1] = '\0';
         return true;
     }
 
@@ -500,7 +524,7 @@ int __db_get_active_closed_activity(void)
     char *sql = sqlite3_mprintf("SELECT * FROM play_activity WHERE rom_id = %d AND play_time IS NULL;", rom_id);
     sqlite3_stmt *stmt = play_activity_db_prepare(sql);
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         // Activity is not closed
         rom_id = ROM_NOT_FOUND;
     }
@@ -561,6 +585,10 @@ void play_activity_fix_paths(void)
     print_debug("\n:: play_activity_fix_paths()");
     play_activity_db_open();
     sqlite3_stmt *stmt = play_activity_db_prepare("SELECT id, file_path FROM rom WHERE file_path LIKE '/mnt/SDCARD/%%';");
+    if (stmt == NULL) {
+        play_activity_db_close();
+        return;
+    }
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         int rom_id = sqlite3_column_int(stmt, 0);

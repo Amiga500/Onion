@@ -35,7 +35,7 @@ JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
 
     strncpy(entry.emupath, entry.rompath, STR_MAX - 1);
     entry.emupath[STR_MAX - 1] = '\0';
-    str_split(entry.emupath, "/../../");
+    (void)str_split(entry.emupath, "/../../");
 
     return entry;
 }

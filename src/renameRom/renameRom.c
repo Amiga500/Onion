@@ -52,12 +52,13 @@ bool renameCache(const char *cache_path, const char *rom_dirname,
         return false;
     }
 
-    const char *sql = sqlite3_mprintf(
+    char *sql = sqlite3_mprintf(
         "UPDATE %q_roms SET path = %Q, imgpath = %Q, disp = %Q WHERE path = %Q",
         rom_dirname, new_rompath, new_imgpath, new_name, rom_path);
     printf_debug("query: %s\n", sql);
 
     rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    sqlite3_free(sql);
 
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Failed to fetch data: %s\n", sqlite3_errmsg(db));
@@ -87,7 +88,9 @@ int main(int argc, char *argv[])
     char rompath[STR_MAX], new_name[STR_MAX];
 
     strncpy(rompath, argv[1], STR_MAX - 1);
+    rompath[STR_MAX - 1] = '\0';
     strncpy(new_name, argv[2], STR_MAX - 1);
+    new_name[STR_MAX - 1] = '\0';
 
     printf_debug("rompath: %s\n", rompath);
     printf_debug("rename to: %s\n", new_name);
@@ -97,10 +100,13 @@ int main(int argc, char *argv[])
 
     char romdir[STR_MAX];
     strncpy(romdir, rompath, STR_MAX - 1);
+    romdir[STR_MAX - 1] = '\0';
     dirname(romdir);
 
     const char *romext = file_getExtension(rompath);
     char *old_name = file_removeExtension(basename(rompath));
+    if (old_name == NULL)
+        return 1;
     printf_debug("old name: %s\n", old_name);
 
     // Rename rom file
@@ -108,7 +114,8 @@ int main(int argc, char *argv[])
 
     char emupath[STR_MAX];
     strncpy(emupath, rompath, STR_MAX - 1);
-    str_split(emupath, "/../../");
+    emupath[STR_MAX - 1] = '\0';
+    (void)str_split(emupath, "/../../");
 
     printf_debug("emupath: %s\n", emupath);
 

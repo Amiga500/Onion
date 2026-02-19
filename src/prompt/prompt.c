@@ -29,7 +29,7 @@
 
 #define MAX_ELEMENTS 100
 
-static bool quit = false;
+static volatile bool quit = false;
 static KeyState keystate[320] = {(KeyState)0};
 
 void __showInfoDialog(const char *title, const char *message)
@@ -98,11 +98,13 @@ int main(int argc, char *argv[])
     for (i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 strncpy(title_str, argv[++i], STR_MAX - 1);
                 continue;
             }
             if (strcmp(argv[i], "-m") == 0 ||
                 strcmp(argv[i], "--message") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 strncpy(message_str, argv[++i], STR_MAX - 1);
                 continue;
             }
@@ -118,6 +120,7 @@ int main(int argc, char *argv[])
             }
             if (strcmp(argv[i], "-s") == 0 ||
                 strcmp(argv[i], "--selected") == 0) {
+                if (i + 1 >= argc) { fprintf(stderr, "Error: Missing value for %s\n", argv[i]); exit(EXIT_FAILURE); }
                 selected = atoi(argv[++i]);
                 continue;
             }
@@ -151,7 +154,9 @@ int main(int argc, char *argv[])
         for (i = 0; i < (pargc >> 1); i++) {
             ListItem item = {.action_id = i, .action = NULL};
             strncpy(item.label, pargs[i], STR_MAX - 1);
+            item.label[STR_MAX - 1] = '\0';
             strncpy(item.info_note, pargs[i + (pargc >> 1)], STR_MAX - 1);
+            item.info_note[STR_MAX - 1] = '\0';
             printf_debug("Adding list item: %s %s (%d)\n", item.label, item.info_note, item.action_id);
             list_addItemWithInfoNote(&list, item, item.info_note);
         }
@@ -160,6 +165,7 @@ int main(int argc, char *argv[])
         for (i = 0; i < pargc; i++) {
             ListItem item = {.action_id = i, .action = NULL};
             strncpy(item.label, pargs[i], STR_MAX - 1);
+            item.label[STR_MAX - 1] = '\0';
             printf_debug("Adding list item: %s (%d)\n", item.label, item.action_id);
             list_addItem(&list, item);
         }
@@ -175,8 +181,9 @@ int main(int argc, char *argv[])
 
     if (has_message) {
         char *str = str_replace(message_str, "\\n", "\n");
-        printf_debug("Message: %s\n", str);
-        message = theme_textboxSurface(str, resource_getFont(TITLE),
+        const char *display_str = (str != NULL) ? str : message_str;
+        printf_debug("Message: %s\n", display_str);
+        message = theme_textboxSurface(display_str, resource_getFont(TITLE),
                                        theme()->grid.color, ALIGN_CENTER);
         free(str);
 

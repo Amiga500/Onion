@@ -116,12 +116,16 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     char rel_path[STR_MAX * 2];
     if (!file_path_relative_to(rel_path, sizeof(rel_path), "/mnt/SDCARD/Roms", path_or_name)) {
         if (strstr(path_or_name, "../../Roms/") != NULL) {
-            strncpy(rel_path, str_split(_path_or_name, "../../Roms/"), sizeof(rel_path) - 1);
+            char *tail = str_split(_path_or_name, "../../Roms/");
+            if (tail != NULL)
+                strncpy(rel_path, tail, sizeof(rel_path) - 1);
         }
         else {
             char *tunc_path_or_name = str_replace(_path_or_name, "/mnt/SDCARD/Roms/", "");
-            strncpy(rel_path, tunc_path_or_name, sizeof(rel_path) - 1);
-            free(tunc_path_or_name);
+            if (tunc_path_or_name != NULL) {
+                strncpy(rel_path, tunc_path_or_name, sizeof(rel_path) - 1);
+                free(tunc_path_or_name);
+            }
         }
         rel_path[sizeof(rel_path) - 1] = '\0';
     }
@@ -131,6 +135,9 @@ CacheDBItem *cache_db_find(const char *path_or_name)
 
     char *game_name = file_removeExtension(file_basename(_path_or_name));
     free(_path_or_name);
+
+    if (game_name == NULL)
+        return NULL;
 
     if (cache_version == 2) {
         sql = sqlite3_mprintf("SELECT disp, path, imgpath FROM %q_roms WHERE path LIKE '%%%q' OR disp = %Q LIMIT 1;", cache_type, rel_path, game_name);
@@ -152,11 +159,14 @@ CacheDBItem *cache_db_find(const char *path_or_name)
         if (cache_db_item != NULL) {
             strncpy(cache_db_item->cache_path, cache_db_file_path, sizeof(cache_db_item->cache_path) - 1);
             cache_db_item->cache_path[sizeof(cache_db_item->cache_path) - 1] = '\0';
-            strncpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0), STR_MAX - 1);
+            const char *col_name = (const char *)sqlite3_column_text(stmt, 0);
+            strncpy(cache_db_item->name, col_name ? col_name : "", STR_MAX - 1);
             cache_db_item->name[STR_MAX - 1] = '\0';
-            strncpy(cache_db_item->path, (const char *)sqlite3_column_text(stmt, 1), sizeof(cache_db_item->path) - 1);
+            const char *col_path = (const char *)sqlite3_column_text(stmt, 1);
+            strncpy(cache_db_item->path, col_path ? col_path : "", sizeof(cache_db_item->path) - 1);
             cache_db_item->path[sizeof(cache_db_item->path) - 1] = '\0';
-            strncpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2), sizeof(cache_db_item->imgpath) - 1);
+            const char *col_img = (const char *)sqlite3_column_text(stmt, 2);
+            strncpy(cache_db_item->imgpath, col_img ? col_img : "", sizeof(cache_db_item->imgpath) - 1);
             cache_db_item->imgpath[sizeof(cache_db_item->imgpath) - 1] = '\0';
             printf_debug("cache item found: %s\n", cache_db_item->name);
         }

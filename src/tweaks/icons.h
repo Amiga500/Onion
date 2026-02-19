@@ -52,7 +52,9 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
             snprintf(preview_path, sizeof(preview_path), "%s/%s", pack_dir, ep->d_name);
 
             icon_name = file_removeExtension(ep->d_name);
-            str_split(icon_name, "-");
+            if (icon_name == NULL)
+                continue;
+            (void)str_split(icon_name, "-");
             snprintf(alt_name, STR_MAX - 1, "%s - %s", pack_name, icon_name);
             free(icon_name);
 
@@ -119,7 +121,8 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
 
             if (is_dir(icon_pack_path)) {
                 strncpy(icon_pack_name, ep->d_name, STR_MAX - 1);
-                str_split(icon_pack_name, " by ");
+                icon_pack_name[STR_MAX - 1] = '\0';
+                (void)str_split(icon_pack_name, " by ");
 
                 ListItem item = {.action = action};
                 strncpy(item.label, icon_pack_name, STR_MAX - 1);
@@ -203,7 +206,7 @@ void _action_apply_icon_pack(void *_item)
 
 void menu_icon_packs(void *_)
 {
-    const char *active_icon_pack = file_read(ACTIVE_ICON_PACK);
+    char *active_icon_pack = file_read(ACTIVE_ICON_PACK);
 
     if (!_menu_icon_packs._created) {
         _menu_icon_packs = list_create(200, LIST_SMALL);
@@ -218,8 +221,9 @@ void menu_icon_packs(void *_)
         list_sortByLabel(&_menu_icon_packs);
 
         char selected_path[STR_MAX];
-        realpath(is_dir(active_icon_pack) ? active_icon_pack
-                                          : "/mnt/SDCARD/Icons/Default",
+        realpath((active_icon_pack != NULL && is_dir(active_icon_pack))
+                     ? active_icon_pack
+                     : "/mnt/SDCARD/Icons/Default",
                  selected_path);
 
         for (int i = 0; i < _menu_icon_packs.item_count; i++) {
@@ -236,6 +240,7 @@ void menu_icon_packs(void *_)
     }
     menu_stack[++menu_level] = &_menu_icon_packs;
     header_changed = true;
+    free(active_icon_pack);
 }
 
 bool _add_config_icon(const char *path, const char *name,
@@ -258,8 +263,10 @@ bool _add_config_icon(const char *path, const char *name,
         return false;
     }
 
-    if (!json_getString(config, "label", label))
+    if (!json_getString(config, "label", label)) {
         strncpy(label, name, STR_MAX - 1);
+        label[STR_MAX - 1] = '\0';
+    }
 
     cJSON_Delete(config);
 
@@ -279,7 +286,9 @@ bool _add_config_icon(const char *path, const char *name,
         strncpy(preview_path, icon_path, sizeof(preview_path) - 1);
 
     icon_name = file_removeExtension(basename(icon_path));
-    str_split(icon_name, "-");
+    if (icon_name == NULL)
+        return false;
+    (void)str_split(icon_name, "-");
 
     char short_label[56];
     str_trim(short_label, 55, label, false);
