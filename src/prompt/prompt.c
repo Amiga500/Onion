@@ -181,8 +181,9 @@ int main(int argc, char *argv[])
 
     if (has_message) {
         char *str = str_replace(message_str, "\\n", "\n");
-        printf_debug("Message: %s\n", str);
-        message = theme_textboxSurface(str, resource_getFont(TITLE),
+        const char *display_str = (str != NULL) ? str : message_str;
+        printf_debug("Message: %s\n", display_str);
+        message = theme_textboxSurface(display_str, resource_getFont(TITLE),
                                        theme()->grid.color, ALIGN_CENTER);
         free(str);
 

@@ -34,8 +34,8 @@ bool ra_loadHistory(const char *jsonFilePath)
         fclose(file);
         return false;
     }
-    fread(fileContent, 1, fileSize, file);
-    fileContent[fileSize] = '\0';
+    size_t bytes_read = fread(fileContent, 1, fileSize, file);
+    fileContent[bytes_read] = '\0';
     fclose(file);
 
     g_cachedRetroArchHistory = cJSON_Parse(fileContent);
