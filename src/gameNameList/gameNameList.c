@@ -47,7 +47,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][MAX_SYSTEM
 {
     char command[STR_MAX + 128];
     char path[STR_MAX + 32];
-    char folder[STR_MAX];
+    char folder[STR_MAX] = "";
     FILE *find, *sed;
 
     // Use the 'find' command to search for 'config.json' files in subdirectories of the disk path
