@@ -1,6 +1,6 @@
 #include "./playActivityUI.h"
 
-static bool quit = false;
+static volatile bool quit = false;
 
 static void sigHandler(int sig)
 {

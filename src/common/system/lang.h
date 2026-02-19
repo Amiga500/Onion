@@ -104,8 +104,9 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
         if (!root)
             continue;
 
+        cJSON *lang_node = cJSON_GetObjectItem(root, "lang");
         printf_debug("Lang: %s (%s)\n",
-                     cJSON_GetStringValue(cJSON_GetObjectItem(root, "lang")),
+                     cJSON_IsString(lang_node) ? cJSON_GetStringValue(lang_node) : "<unknown>",
                      ep->d_name);
 
         if (remove_icon_labels) {

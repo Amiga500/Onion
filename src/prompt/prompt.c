@@ -29,7 +29,7 @@
 
 #define MAX_ELEMENTS 100
 
-static bool quit = false;
+static volatile bool quit = false;
 static KeyState keystate[320] = {(KeyState)0};
 
 void __showInfoDialog(const char *title, const char *message)
