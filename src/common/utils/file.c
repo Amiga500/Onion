@@ -555,7 +555,7 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     char tempPath[STR_MAX];
     char *path = file_dirname(filename);
-    snprintf(tempPath, sizeof(tempPath), "%s/.tmp_alb", path);
+    snprintf(tempPath, sizeof(tempPath), "%s/.tmp_alb", path ? path : ".");
     free(path);
 
     FILE *tempFile = fopen(tempPath, "w");
