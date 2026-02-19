@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#ifdef __ARM_NEON__
+#include <arm_neon.h>
+#endif
+
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 #define ERROR(str)                 \
     {                              \
@@ -142,6 +146,31 @@ int main(int argc, char *argv[])
         }
         break;
     case 4:
+#ifdef __ARM_NEON__
+        /* Swap R and B channels (bytes 0↔2) in each 4-byte pixel.
+         * Process 4 pixels (16 bytes) per iteration using vtbl byte-shuffle. */
+        {
+            static const uint8_t rb_swap_tbl[8] = {2, 1, 0, 3, 6, 5, 4, 7};
+            const uint8x8_t tbl = vld1_u8(rb_swap_tbl);
+            uint32_t nx = sw & ~3u;
+            for (y = 0; y < sh; y++) {
+                src = (uint32_t *)rows[y];
+                for (x = 0; x < nx; x += 4) {
+                    uint8x16_t v = vld1q_u8((const uint8_t *)src);
+                    uint8x8_t lo = vtbl1_u8(vget_low_u8(v), tbl);
+                    uint8x8_t hi = vtbl1_u8(vget_high_u8(v), tbl);
+                    vst1q_u8((uint8_t *)dst, vcombine_u8(lo, hi));
+                    src += 4;
+                    dst += 4;
+                }
+                for (x = nx; x < sw; x++) {
+                    pix = *src++;
+                    *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
+                             (pix & 0x000000FF) << 16;
+                }
+            }
+        }
+#else
         for (y = 0; y < sh; y++) {
             src = (uint32_t *)rows[y];
             for (x = 0; x < sw; x++) {
@@ -150,6 +179,7 @@ int main(int argc, char *argv[])
                          (pix & 0x000000FF) << 16;
             }
         }
+#endif
         break;
     }
 
@@ -194,6 +224,32 @@ int main(int argc, char *argv[])
     if (!tmp) {
         ERROR("out of memory");
     }
+#ifdef __ARM_NEON__
+    /* Swap R and B channels (bytes 0↔2) in each 4-byte pixel.
+     * Process 4 pixels (16 bytes) per iteration using vtbl byte-shuffle. */
+    {
+        static const uint8_t rb_swap_tbl[8] = {2, 1, 0, 3, 6, 5, 4, 7};
+        const uint8x8_t tbl = vld1_u8(rb_swap_tbl);
+        uint32_t nx = dw & ~3u;
+        for (y = 0; y < dh; y++) {
+            dst = tmp;
+            for (x = 0; x < nx; x += 4) {
+                uint8x16_t v = vld1q_u8((const uint8_t *)src);
+                uint8x8_t lo = vtbl1_u8(vget_low_u8(v), tbl);
+                uint8x8_t hi = vtbl1_u8(vget_high_u8(v), tbl);
+                vst1q_u8((uint8_t *)dst, vcombine_u8(lo, hi));
+                src += 4;
+                dst += 4;
+            }
+            for (x = nx; x < dw; x++) {
+                pix = *src++;
+                *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
+                         (pix & 0x000000FF) << 16;
+            }
+            png_write_row(png_ptr, (png_bytep)tmp);
+        }
+    }
+#else
     for (y = 0; y < dh; y++) {
         dst = tmp;
         for (x = 0; x < dw; x++) {
@@ -203,6 +259,7 @@ int main(int argc, char *argv[])
         }
         png_write_row(png_ptr, (png_bytep)tmp);
     }
+#endif
     png_write_end(png_ptr, info_ptr);
     png_destroy_write_struct(&png_ptr, &info_ptr);
     free(tmp);
