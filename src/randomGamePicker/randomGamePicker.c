@@ -382,7 +382,8 @@ int main(int argc, char *argv[])
         else if (strcmp("--recents", argv[1]) == 0)
             mode = MODE_RECENTS;
         else {
-            strncpy(emupath, argv[1], STR_MAX + 16);
+            strncpy(emupath, argv[1], sizeof(emupath) - 1);
+            emupath[sizeof(emupath) - 1] = '\0';
             mode = MODE_SINGLE_SYSTEM;
         }
     }

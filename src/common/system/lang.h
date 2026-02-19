@@ -157,6 +157,8 @@ bool lang_load(void)
         return false;
 
     lang_list = (char **)malloc(LANG_MAX * sizeof(char *));
+    if (lang_list == NULL)
+        return false;
     memset(lang_list, 0, LANG_MAX * sizeof(char *));
 
     cJSON *lang_file = json_load(lang_path);
