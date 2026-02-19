@@ -114,7 +114,10 @@ void file_readLastLine(const char *filename, char *out_str, size_t out_size)
 
         // get the last line
         fseek(fd, -max_len, SEEK_END);
-        fread(buff, max_len - 1, 1, fd);
+        if (fread(buff, max_len - 1, 1, fd) == 0) {
+            fclose(fd);
+            return;
+        }
 
         // cleanup
         fclose(fd);
@@ -148,8 +151,12 @@ char *file_read(const char *path)
         else {
             buffer = (char *)malloc((length + 1) * sizeof(char));
             if (buffer) {
-                fread(buffer, sizeof(char), length, f);
-                buffer[length] = '\0';
+                size_t bytes_read = fread(buffer, sizeof(char), length, f);
+                buffer[bytes_read] = '\0';
+                if (ferror(f)) {
+                    free(buffer);
+                    buffer = NULL;
+                }
             }
             fclose(f);
         }

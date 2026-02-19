@@ -199,8 +199,11 @@ void network_toggleSmbAvailable(void *item)
         return;
     }
 
-    char line[STR_MAX];
-    fgets(line, sizeof(line), file);
+    char line[STR_MAX] = "";
+    if (fgets(line, sizeof(line), file) == NULL) {
+        fclose(file);
+        return;
+    }
     share->available = strstr(line, "1") == NULL; // toggle
 
     fseek(file, share->availablePos, SEEK_SET);

@@ -371,6 +371,10 @@ int updateCallback(void *data, int argc, char **argv, char **col_name)
         snprintf(update_sql, sizeof(update_sql), "UPDATE %s SET disp = ? WHERE id = ?", table_name);
         sqlite3_stmt *stmt;
         int rc = sqlite3_prepare_v2(db, update_sql, -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+            fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+            return 1;
+        }
         sqlite3_bind_text(stmt, 1, title, -1, SQLITE_STATIC);
         sqlite3_bind_int(stmt, 2, id);
 
