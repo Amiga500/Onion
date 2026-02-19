@@ -3,7 +3,7 @@
 
 #include <signal.h>
 
-static bool quit = false;
+static volatile bool quit = false;
 static bool all_changed = true;
 static bool header_changed = true;
 static bool footer_changed = true;

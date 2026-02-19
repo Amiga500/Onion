@@ -33,7 +33,7 @@
 
 #define DISPLAY_TIMEOUT 15000
 
-static bool quit = false;
+static volatile bool quit = false;
 static bool suspended = false;
 static int input_fd;
 static struct input_event ev;

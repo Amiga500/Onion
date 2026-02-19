@@ -87,11 +87,14 @@ static AppState appState = {
     .gameNameScrollStart = 20,
     .gameNameScrollEnd = 20};
 
+static volatile bool gs_quit_requested = false;
+
 static void sigHandler(int sig)
 {
     switch (sig) {
     case SIGINT:
     case SIGTERM:
+        gs_quit_requested = true;
         appState.exit_to_menu = true;
         appState.quit = true;
         break;

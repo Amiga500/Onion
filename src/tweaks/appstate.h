@@ -100,7 +100,7 @@ void menu_free_all(void)
     menu_network_free_all();
 }
 
-static bool quit = false;
+static volatile bool quit = false;
 static bool all_changed = true;
 static bool header_changed = true;
 static bool list_changed = true;
