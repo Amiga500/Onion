@@ -67,13 +67,11 @@ TEST(str_trim_no_whitespace) {
 }
 
 TEST(str_trim_all_whitespace) {
-    /* NOTE: str_trim has a known edge case with all-whitespace and empty inputs
-     * where strchr("\r\n\t {},", '\0') matches NUL, causing the trim loop to
-     * read past the input. We only test well-defined inputs here. */
+    /* After fix: all-whitespace input is safe (no null-byte overread). */
     char out[64] = {0};
-    size_t len = str_trim(out, sizeof(out), "  hello  ", false);
-    ASSERT_GT(len, 0);
-    ASSERT_STREQ(out, "hello");
+    size_t len = str_trim(out, sizeof(out), "   ", false);
+    ASSERT_EQ(len, 1); /* str_trim returns 1 when it writes only the null terminator */
+    ASSERT_STREQ(out, "");
 }
 
 TEST(str_trim_tabs_and_newlines) {

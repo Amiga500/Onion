@@ -10,7 +10,7 @@ static char _log_path[64] = "";
 
 void log_setName(const char *log_name)
 {
-    snprintf(_log_path, 63, "/mnt/SDCARD/.tmp_update/logs/%s.log", log_name);
+    snprintf(_log_path, sizeof(_log_path), "/mnt/SDCARD/.tmp_update/logs/%s.log", log_name);
     mkdirs("/mnt/SDCARD/.tmp_update/logs");
 }
 

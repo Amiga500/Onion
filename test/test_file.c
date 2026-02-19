@@ -523,6 +523,24 @@ TEST(file_changeKeyValue_preserves_line_without_trailing_newline) {
     unlink(tmpfile);
 }
 
+/* Regression: blank lines in a config must NOT cause the following key to be
+ * skipped (was caused by a spurious fscanf() call after a failed sscanf()). */
+TEST(file_parseKeyValue_skips_blank_lines) {
+    const char *tmpfile = "/tmp/onion_test_parsekv_blank.cfg";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "key1=aaa\n\nkey2=bbb\n");
+    fclose(fp);
+
+    char r1[256] = {0}, r2[256] = {0};
+    file_parseKeyValue(tmpfile, "key1", r1, '=', 0);
+    file_parseKeyValue(tmpfile, "key2", r2, '=', 0);
+    ASSERT_STREQ(r1, "aaa");
+    ASSERT_STREQ(r2, "bbb"); /* was empty string before the fix */
+
+    unlink(tmpfile);
+}
+
 /* ---- file_delete_line ---- */
 
 TEST(file_delete_line_removes_correct_line) {
@@ -639,6 +657,8 @@ int main(void)
     RUN_TEST(file_changeKeyValue_replaces_existing_key);
     RUN_TEST(file_changeKeyValue_appends_missing_key);
     RUN_TEST(file_changeKeyValue_preserves_line_without_trailing_newline);
+
+    RUN_TEST(file_parseKeyValue_skips_blank_lines);
 
     RUN_TEST(file_delete_line_removes_correct_line);
 

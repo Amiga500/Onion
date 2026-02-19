@@ -316,12 +316,8 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
         key[0] = 0;
         val[0] = 0;
         while ((read = getline(&line, &len, fp)) != -1) {
-            if (!(f = sscanf(line, search_str, key, val))) {
-                if (fscanf(fp, "%*[^\n]\n") == EOF)
-                    break;
-                else
-                    continue;
-            }
+            if (!(f = sscanf(line, search_str, key, val)))
+                continue;
             if (str_trim(key_search, 256, key, true)) {
                 if (strcmp(key_search, key_in) == 0) {
                     str_trim(value_out, 256, val, false);

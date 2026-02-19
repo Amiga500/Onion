@@ -95,7 +95,7 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
     bool is_string = false;
 
     // Trim leading space
-    while (strchr("\r\n\t {},", (unsigned char)*str) != NULL)
+    while (*str != '\0' && strchr("\r\n\t {},", (unsigned char)*str) != NULL)
         str++;
 
     end = str + 1;
