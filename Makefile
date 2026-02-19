@@ -190,7 +190,7 @@ external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo
 # SearchFilter
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build SearchFilter"$(COLOR_NORMAL)
 	@if [ ! -f "$(THIRD_PARTY_DIR)/SearchFilter/Makefile" ]; then \
-		git -c safe.directory=$(ROOT_DIR) submodule update --init -- third-party/SearchFilter; \
+		git -c safe.directory=$(ROOT_DIR) submodule update --init --recursive -- third-party/SearchFilter; \
 	fi
 	@cd $(THIRD_PARTY_DIR)/SearchFilter && make build && cp -a build/. $(BUILD_DIR)
 	@cp -a $(BUILD_DIR)/App/Search/. "$(PACKAGES_APP_DEST)/Search (Find your games)/App/Search"
