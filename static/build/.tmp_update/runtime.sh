@@ -69,6 +69,11 @@ main() {
     cd $sysdir
     bootScreen "Boot"
 
+    # Restore user mute setting after boot screen completes
+    if [ -e /proc/mi_modules/mi_ao/mi_ao0 ]; then
+        echo "set_ao_mute $(/customer/app/jsonval mute)" > /proc/mi_modules/mi_ao/mi_ao0
+    fi
+
     # Set filebrowser branding to "Onion" and apply custom theme
     if [ -f "$sysdir/config/filebrowser/first.run" ]; then
         $sysdir/bin/filebrowser config set --branding.name "Onion" -d $sysdir/config/filebrowser/filebrowser.db
@@ -787,6 +792,7 @@ init_system() {
     fi
 
     start_audioserver
+    mute_boot_audio &
 
     brightness=$(/customer/app/jsonval brightness)
     brightness_raw=$(awk "BEGIN { print int(3 * exp(0.350656 * $brightness) + 0.5) }")
@@ -915,6 +921,22 @@ set_startup_tab() {
 start_audioserver() {
     defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%.0f\n", 48 * (log(1 + $1) / log(10)) - 60 }')
     runifnecessary "audioserver" $miyoodir/app/audioserver $defvol
+}
+
+mute_boot_audio() {
+    # Suppress startup pop: mute audio hardware until boot screen completes
+    t=0
+    while [ ! -e /proc/mi_modules/mi_ao/mi_ao0 ] && [ $t -lt 50 ]; do
+        sleep 0.1
+        t=$((t + 1))
+    done
+    # Apply mute with retries to override audioserver initialization
+    i=0
+    while [ $i -lt 5 ]; do
+        echo "set_ao_mute 1" > /proc/mi_modules/mi_ao/mi_ao0 2>/dev/null
+        sleep 0.2
+        i=$((i + 1))
+    done
 }
 
 runifnecessary() {
