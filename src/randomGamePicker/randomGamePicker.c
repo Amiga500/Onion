@@ -104,16 +104,21 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
 int getTotalGamesCount(sqlite3 *db, const char *table_name)
 {
     sqlite3_stmt *res;
-    const char *sql = sqlite3_mprintf(
+    char *sql = sqlite3_mprintf(
         "SELECT COUNT(id) FROM %q WHERE type=0 AND path NOT LIKE '%%.miyoocmd'",
         table_name);
-    if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK)
+    if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
+        sqlite3_free(sql);
         return 0;
+    }
+    sqlite3_free(sql);
     if (sqlite3_step(res) != SQLITE_ROW) {
         sqlite3_finalize(res);
         return 0;
     }
-    return sqlite3_column_int(res, 0);
+    int count = sqlite3_column_int(res, 0);
+    sqlite3_finalize(res);
+    return count;
 }
 
 bool pickRandomGameFromCache(char *emuname, char *romsdir,
@@ -146,15 +151,17 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
         return false;
     }
 
-    const char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
+    char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
                                       "%q WHERE type=0 AND path NOT LIKE "
                                       "'%%.miyoocmd' LIMIT 1 OFFSET (ABS(RANDOM()) %% %d)",
                                       table_name, count);
 
     if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
+        sqlite3_free(sql);
         sqlite3_close(db);
         return false;
     }
+    sqlite3_free(sql);
 
     if (sqlite3_step(res) == SQLITE_ROW) {
         if (system_count >= MAX_SYSTEMS) {
