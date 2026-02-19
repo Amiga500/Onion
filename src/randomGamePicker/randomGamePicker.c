@@ -76,8 +76,10 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
 
     if (launch_out != NULL) {
         char launch_rel[STR_MAX];
-        if (!json_getString(json_root, "launch", launch_rel))
+        if (!json_getString(json_root, "launch", launch_rel)) {
+            cJSON_Delete(json_root);
             return false;
+        }
         snprintf(launch_out, STR_MAX * 2 + 1, "%s/%s", emupath, launch_rel);
     }
 

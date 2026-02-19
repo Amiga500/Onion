@@ -453,7 +453,10 @@ void menu_smbd(void *pt)
                 .payload_ptr = _network_shares + i // store a pointer to the share in the payload
             };
             snprintf(shareItem.label, STR_MAX - 1, "Share: %s", _network_shares[i].name);
-            strncpy(shareItem.sticky_note, str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:"), STR_MAX - 1);
+            char *share_note = str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:");
+            strncpy(shareItem.sticky_note, share_note ? share_note : _network_shares[i].path, STR_MAX - 1);
+            shareItem.sticky_note[STR_MAX - 1] = '\0';
+            free(share_note);
             list_addItem(&_menu_smbd, shareItem);
         }
     }

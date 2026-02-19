@@ -669,16 +669,27 @@ TEST(file_open_ensure_path_creates_dirs) {
 /* ---- file_findNewest ---- */
 
 TEST(file_findNewest_basic) {
+    ASSERT_EQ(file_remove_recursive("/tmp/onion_newest"), 0);
     mkdir("/tmp/onion_newest", 0755);
 
-    /* Create two files with a small sleep so mtime differs */
+    /* Create both files, then touch the second one again after a 1-second delay
+     * so its mtime is strictly greater on filesystems with 1-second resolution. */
     FILE *fp = fopen("/tmp/onion_newest/a.txt", "w");
     ASSERT_NOT_NULL(fp);
+    fputs("a", fp);
     fclose(fp);
-    /* Touch the second file slightly after the first */
-    usleep(10000);
+
     fp = fopen("/tmp/onion_newest/b.txt", "w");
     ASSERT_NOT_NULL(fp);
+    fputs("b", fp);
+    fclose(fp);
+
+    sleep(1);
+
+    /* Re-write b.txt to guarantee its mtime > a.txt's mtime */
+    fp = fopen("/tmp/onion_newest/b.txt", "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("b", fp);
     fclose(fp);
 
     char newest[256] = {0};
