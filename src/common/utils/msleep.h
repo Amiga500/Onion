@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <time.h>
 
-static int msleep_interrupt = 0;
+static volatile int msleep_interrupt = 0;
 
 /* msleep(): Sleep for the requested number of milliseconds. */
 int msleep(long msec)

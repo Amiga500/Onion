@@ -3,7 +3,7 @@
 
 #include "../batmon/batmonDB.h"
 
-static bool quit = false;
+static volatile bool quit = false;
 static int current_zoom = 1;
 static int current_page = 0;
 static int current_index;
