@@ -176,6 +176,7 @@ $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354:
 	@$(ECHO) $(PRINT_RECIPE)
 # RetroArch
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build RetroArch"$(COLOR_NORMAL)
+	@git submodule update --init -- third-party/RetroArch-patch
 	@cd $(THIRD_PARTY_DIR)/RetroArch-patch && make
 
 external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354

@@ -10,7 +10,7 @@
 #define concat(ptr, size, str1, str2) snprintf((ptr), (size), "%s%s", (str1), (str2))
 
 bool str_getLastNumber(char *str, long *out_val);
-char *str_split(char *str, const char *delim) __attribute__((warn_unused_result));
+char *str_split(char *str, const char *delim);
 char *str_replace(char *orig, char *rep, char *with) __attribute__((warn_unused_result));
 
 // Stores the trimmed input string into the given output buffer, which must be
