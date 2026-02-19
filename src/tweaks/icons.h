@@ -206,7 +206,7 @@ void _action_apply_icon_pack(void *_item)
 
 void menu_icon_packs(void *_)
 {
-    const char *active_icon_pack = file_read(ACTIVE_ICON_PACK);
+    char *active_icon_pack = file_read(ACTIVE_ICON_PACK);
 
     if (!_menu_icon_packs._created) {
         _menu_icon_packs = list_create(200, LIST_SMALL);
@@ -221,8 +221,9 @@ void menu_icon_packs(void *_)
         list_sortByLabel(&_menu_icon_packs);
 
         char selected_path[STR_MAX];
-        realpath(is_dir(active_icon_pack) ? active_icon_pack
-                                          : "/mnt/SDCARD/Icons/Default",
+        realpath((active_icon_pack != NULL && is_dir(active_icon_pack))
+                     ? active_icon_pack
+                     : "/mnt/SDCARD/Icons/Default",
                  selected_path);
 
         for (int i = 0; i < _menu_icon_packs.item_count; i++) {
@@ -239,6 +240,7 @@ void menu_icon_packs(void *_)
     }
     menu_stack[++menu_level] = &_menu_icon_packs;
     header_changed = true;
+    free(active_icon_pack);
 }
 
 bool _add_config_icon(const char *path, const char *name,
