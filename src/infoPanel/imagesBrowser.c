@@ -10,6 +10,7 @@
 #define STR_MAX 256
 /* dir_path <= STR_MAX-1 bytes, trailing '/', filename <= NAME_MAX-1 bytes */
 #define IMAGES_PATH_SIZE (STR_MAX * 2)
+#define IMAGES_ARRAY_GROWTH_SIZE 16
 
 static const char *getFilenameExt(const char *filename)
 {
@@ -93,7 +94,7 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
         normalized_dir_path[sizeof(normalized_dir_path) - 1] = '\0';
     }
 
-    const int images_count = getImagesCount(normalized_dir_path);
+    int images_count = getImagesCount(normalized_dir_path);
 
     DIR *dir = opendir(normalized_dir_path);
 
@@ -128,9 +129,16 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
         (*images_paths_count)++;
 
         if ((*images_paths_count) >= images_count) {
-            // we found more images than allocated memory
-            // TODO: handle this
-            break;
+            // Directory changed between scans; grow the array
+            int new_count = images_count + IMAGES_ARRAY_GROWTH_SIZE;
+            char **new_paths = (char **)realloc(*images_paths, new_count * sizeof(char *));
+            if (new_paths == NULL)
+                break;
+            // Initialize the newly allocated slots to NULL
+            for (int k = images_count; k < new_count; k++)
+                new_paths[k] = NULL;
+            *images_paths = new_paths;
+            images_count = new_count;
         }
     }
 

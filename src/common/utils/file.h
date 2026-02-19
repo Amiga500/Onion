@@ -94,15 +94,15 @@ bool mkdirs(const char *dir_path);
 
 void file_readLastLine(const char *filename, char *out_str, size_t out_size);
 
-char *file_read(const char *path) __attribute__((malloc));
+char *file_read(const char *path) __attribute__((malloc, warn_unused_result));
 
 bool file_write(const char *path, const char *str, uint32_t len);
 
 void file_copy(const char *src_path, const char *dest_path);
 
-char *file_removeExtension(const char *myStr) __attribute__((malloc));
+char *file_removeExtension(const char *myStr) __attribute__((malloc, warn_unused_result));
 
-char *file_dirname(const char *absolutePath) __attribute__((malloc));
+char *file_dirname(const char *absolutePath) __attribute__((malloc, warn_unused_result));
 
 void file_cleanName(char *name_out, const char *file_name);
 
@@ -120,7 +120,7 @@ bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size
 
 FILE *file_open_ensure_path(const char *path, const char *mode);
 
-char *file_read_lineN(const char *filename, int n) __attribute__((malloc));
+char *file_read_lineN(const char *filename, int n) __attribute__((malloc, warn_unused_result));
 
 void file_delete_line(const char *fileName, int n);
 
@@ -132,6 +132,6 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd);
  * "/mnt/SDCARD/Emu/GBA/../../Roms/GBA/game.gba" -> "/mnt/SDCARD/Roms/GBA/game.gba"
  *
  */
-char *file_resolvePath(const char *path) __attribute__((malloc));
+char *file_resolvePath(const char *path) __attribute__((malloc, warn_unused_result));
 
 #endif // UTILS_FILE_H__
