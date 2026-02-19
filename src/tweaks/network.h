@@ -159,10 +159,12 @@ void network_getSmbShares()
                     add_exclamation = true;
                 }
 
-                strncpy(_network_shares[numShares - 1].name, shareName, STR_MAX - 11);
+                strncpy(_network_shares[numShares - 1].name, shareName, sizeof(_network_shares[numShares - 1].name) - 1);
+                _network_shares[numShares - 1].name[sizeof(_network_shares[numShares - 1].name) - 1] = '\0';
 
                 if (add_exclamation) {
-                    strncat(_network_shares[numShares - 1].name, " (!)", STR_MAX - 11 - strlen(shareName));
+                    char *dest = _network_shares[numShares - 1].name;
+                    strncat(dest, " (!)", sizeof(_network_shares[numShares - 1].name) - strlen(dest) - 1);
                 }
 
                 found_shares = true;

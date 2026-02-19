@@ -201,7 +201,7 @@ void _action_apply_icon_pack(void *_item)
 
 void menu_icon_packs(void *_)
 {
-    const char *active_icon_pack = file_read(ACTIVE_ICON_PACK);
+    char *active_icon_pack = file_read(ACTIVE_ICON_PACK);
 
     if (!_menu_icon_packs._created) {
         _menu_icon_packs = list_create(200, LIST_SMALL);
@@ -231,6 +231,7 @@ void menu_icon_packs(void *_)
             }
         }
     }
+    free(active_icon_pack);
     menu_stack[++menu_level] = &_menu_icon_packs;
     header_changed = true;
 }
