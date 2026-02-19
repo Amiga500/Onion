@@ -122,6 +122,48 @@ TEST(hash_slightly_different) {
     free(str2);
 }
 
+/* ---- known values ---- */
+
+TEST(hash_known_value_hello) {
+    /* Verified expected value: FNV1A_Pippip_Yurii("hello", 5) == 0x4E020623 */
+    char *str = (char *)malloc(strlen("hello") + 1 + HASH_BUFFER_EXTRA);
+    strcpy(str, "hello");
+    uint32_t hash = FNV1A_Pippip_Yurii(str, strlen(str));
+    ASSERT_EQ(hash, 0x4E020623u);
+    free(str);
+}
+
+TEST(hash_known_value_world) {
+    /* Verified expected value: FNV1A_Pippip_Yurii("world", 5) == 0x74BFE10F */
+    char *str = (char *)malloc(strlen("world") + 1 + HASH_BUFFER_EXTRA);
+    strcpy(str, "world");
+    uint32_t hash = FNV1A_Pippip_Yurii(str, strlen(str));
+    ASSERT_EQ(hash, 0x74BFE10Fu);
+    free(str);
+}
+
+TEST(hash_known_value_path) {
+    /* Long path (> 8 bytes) exercises the Cycles loop */
+    /* Verified: FNV1A_Pippip_Yurii("/mnt/SDCARD/Roms/GBA/game.gba", 30) == 0x165E4B94 */
+    const char *text = "/mnt/SDCARD/Roms/GBA/game.gba";
+    char *str = (char *)malloc(strlen(text) + 1 + HASH_BUFFER_EXTRA);
+    strcpy(str, text);
+    uint32_t hash = FNV1A_Pippip_Yurii(str, strlen(str));
+    ASSERT_EQ(hash, 0x165E4B94u);
+    free(str);
+}
+
+TEST(hash_different_lengths_differ) {
+    /* "abc" and "ab" should produce different hashes */
+    char *str1 = (char *)malloc(3 + 1 + HASH_BUFFER_EXTRA);
+    char *str2 = (char *)malloc(2 + 1 + HASH_BUFFER_EXTRA);
+    strcpy(str1, "abc");
+    strcpy(str2, "ab");
+    ASSERT_NE(FNV1A_Pippip_Yurii(str1, 3), FNV1A_Pippip_Yurii(str2, 2));
+    free(str1);
+    free(str2);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -136,6 +178,10 @@ int main(void)
     RUN_TEST(hash_case_sensitive);
     RUN_TEST(hash_short_strings);
     RUN_TEST(hash_slightly_different);
+    RUN_TEST(hash_known_value_hello);
+    RUN_TEST(hash_known_value_world);
+    RUN_TEST(hash_known_value_path);
+    RUN_TEST(hash_different_lengths_differ);
 
     TEST_REPORT();
     return test_failures;
