@@ -114,6 +114,9 @@ build: core apps external
 
 core: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)
+# Build SDL_rotozoom library for target platform
+	@cd $(INCLUDE_DIR)/SDL && make clean
+	@cd $(INCLUDE_DIR)/SDL && make
 # Build Onion binaries
 	@cd $(SRC_DIR)/bootScreen && BUILD_DIR=$(BIN_DIR) make
 	@cd $(SRC_DIR)/chargingState && BUILD_DIR=$(BIN_DIR) make
