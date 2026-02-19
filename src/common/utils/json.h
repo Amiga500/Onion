@@ -22,7 +22,7 @@
 bool json_getString(cJSON *object, const char *key, char *dest)
 {
     cJSON *json_object = cJSON_GetObjectItem(object, key);
-    if (json_object) {
+    if (cJSON_IsString(json_object)) {
         strncpy(dest, cJSON_GetStringValue(json_object), JSON_STRING_LEN - 1);
         dest[JSON_STRING_LEN - 1] = '\0';
         return true;

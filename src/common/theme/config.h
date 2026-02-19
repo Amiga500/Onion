@@ -75,7 +75,7 @@ typedef struct Theme {
 bool json_color(cJSON *root, const char *key, SDL_Color *dest)
 {
     cJSON *json_object = cJSON_GetObjectItem(root, key);
-    if (json_object) {
+    if (cJSON_IsString(json_object)) {
         *dest = hex2sdl(cJSON_GetStringValue(json_object));
         return true;
     }

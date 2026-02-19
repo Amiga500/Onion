@@ -104,6 +104,10 @@ static bool loadImagesPathsFromJson(const char *config_path,
             continue;
         }
         const char *image_path = cJSON_GetStringValue(json_image_path);
+        if (!image_path) {
+            (*images_paths_count)--;
+            continue;
+        }
         snprintf((*images_paths)[i], STR_MAX * 2 + 2, "%s/%s", temp_path,
                  image_path);
 
@@ -111,8 +115,8 @@ static bool loadImagesPathsFromJson(const char *config_path,
         if (!json_image_title) {
             continue;
         }
-        char *image_title = cJSON_GetStringValue(json_image_title);
-        strncpy((*images_titles)[i], image_title, IMAGE_TITLE_MAX_LENGTH - 1);
+        const char *image_title = cJSON_GetStringValue(json_image_title);
+        strncpy((*images_titles)[i], image_title ? image_title : "", IMAGE_TITLE_MAX_LENGTH - 1);
         (*images_titles)[i][IMAGE_TITLE_MAX_LENGTH - 1] = '\0';
     }
 
