@@ -198,8 +198,14 @@ external: $(CACHE)/.setup $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo
 	@rmdir $(BUILD_DIR)/App/Filter
 # Other
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build Terminal"$(COLOR_NORMAL)
+	@if [ ! -f "$(THIRD_PARTY_DIR)/Terminal/Makefile" ]; then \
+		git -c safe.directory=$(ROOT_DIR) submodule update --init -- third-party/Terminal; \
+	fi
 	@cd $(THIRD_PARTY_DIR)/Terminal && make && cp ./st "$(BIN_DIR)"
 	@$(ECHO) $(COLOR_BLUE)"\n-- Build DinguxCommander"$(COLOR_NORMAL)
+	@if [ ! -f "$(THIRD_PARTY_DIR)/DinguxCommander/Makefile" ]; then \
+		git -c safe.directory=$(ROOT_DIR) submodule update --init -- third-party/DinguxCommander; \
+	fi
 	@cd $(THIRD_PARTY_DIR)/DinguxCommander && make && cp ./output/DinguxCommander "$(PACKAGES_APP_DEST)/File Explorer (DinguxCommander)/App/Commander_Italic"
 
 dist: build
