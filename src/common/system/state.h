@@ -131,6 +131,8 @@ size_t state_getAppName(char *out, const char *str)
 
     str += 19;
     end = (char *)strchr(str, ';');
+    if (end == NULL)
+        end = (char *)(str + strlen(str));
 
     out_size = (end - str) < STR_MAX - 1 ? (end - str) : STR_MAX - 1;
     memcpy(out, str, out_size);

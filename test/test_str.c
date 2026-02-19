@@ -159,6 +159,21 @@ TEST(str_removeParentheses_brackets) {
     ASSERT_STREQ(out, "Game");
 }
 
+/* Regression: STR_MAX-length input with no parentheses must not write OOB */
+TEST(str_removeParentheses_max_length_no_parens) {
+    /* Build a string of exactly STR_MAX - 1 'a' chars (plus null terminator) */
+    char input[STR_MAX];
+    memset(input, 'a', STR_MAX - 1);
+    input[STR_MAX - 1] = '\0';
+
+    char out[STR_MAX];
+    str_removeParentheses(out, input); /* must not crash or overwrite past out[] */
+    /* str_trim(buf, STR_MAX-1, ...) truncates to STR_MAX-2 printable chars */
+    ASSERT_EQ((int)strlen(out), STR_MAX - 2);
+    for (int i = 0; i < STR_MAX - 2; i++)
+        ASSERT_TRUE(out[i] == 'a');
+}
+
 /* ---- str_getLastNumber ---- */
 
 TEST(str_getLastNumber_found) {
@@ -289,6 +304,7 @@ int main(void)
     RUN_TEST(str_removeParentheses_basic);
     RUN_TEST(str_removeParentheses_no_parens);
     RUN_TEST(str_removeParentheses_brackets);
+    RUN_TEST(str_removeParentheses_max_length_no_parens);
 
     RUN_TEST(str_getLastNumber_found);
     RUN_TEST(str_getLastNumber_not_found);

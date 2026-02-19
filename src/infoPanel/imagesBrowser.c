@@ -32,10 +32,10 @@ static bool getImagePath(const char *dir_path, const struct dirent *ent,
     const int ext_size = 50;
     char ext[ext_size];
     const char *filename = ent->d_name;
-    if (filename[0] == '.' || S_ISDIR(ent->d_type & DT_DIR)) {
+    if (filename[0] == '.' || ent->d_type == DT_DIR) {
         return false;
     }
-    strncpy(ext, getFilenameExt(filename), ext_size);
+    snprintf(ext, ext_size, "%s", getFilenameExt(filename));
     const char *fileExt = toLower(ext);
     if (strcmp(fileExt, "png") == 0 || strcmp(fileExt, "jpg") == 0 ||
         strcmp(fileExt, "jpeg") == 0) {
