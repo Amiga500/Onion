@@ -129,7 +129,16 @@ size_t state_getAppName(char *out, const char *str)
     char *end;
     size_t out_size;
 
-    str += 19;
+    /* Skip the "HOME=<path> ./" prefix to reach the app name.
+     * Using a dynamic search instead of a hardcoded offset avoids
+     * mis-parsing when HOME is not exactly "/mnt/SDCARD". */
+    const char *prefix_end = strstr(str, " ./");
+    if (prefix_end == NULL) {
+        *out = '\0';
+        return 0;
+    }
+    str = prefix_end + 3; /* skip " ./" */
+
     end = (char *)strchr(str, ';');
     if (end == NULL)
         end = (char *)(str + strlen(str));
@@ -265,14 +274,12 @@ char *history_getRecentPath(char *rom_path)
         const char *typeStr = strstr(jsonContent, "\"type\":");
         if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1) {
             free(jsonContent);
-            fclose(file);
-            return NULL;
+            continue;
         }
 
         if ((type != 5) && (type != 17)) {
             free(jsonContent);
-            fclose(file);
-            return NULL;
+            continue;
         }
 
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
