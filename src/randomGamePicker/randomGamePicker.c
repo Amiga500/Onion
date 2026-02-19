@@ -76,8 +76,10 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
 
     if (launch_out != NULL) {
         char launch_rel[STR_MAX];
-        if (!json_getString(json_root, "launch", launch_rel))
+        if (!json_getString(json_root, "launch", launch_rel)) {
+            cJSON_Delete(json_root);
             return false;
+        }
         snprintf(launch_out, STR_MAX * 2 + 1, "%s/%s", emupath, launch_rel);
     }
 
@@ -380,7 +382,8 @@ int main(int argc, char *argv[])
         else if (strcmp("--recents", argv[1]) == 0)
             mode = MODE_RECENTS;
         else {
-            strncpy(emupath, argv[1], STR_MAX + 16);
+            strncpy(emupath, argv[1], sizeof(emupath) - 1);
+            emupath[sizeof(emupath) - 1] = '\0';
             mode = MODE_SINGLE_SYSTEM;
         }
     }

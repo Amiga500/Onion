@@ -173,13 +173,13 @@ bool checkRoms(const char *data_path)
     char extlist[STR_MAX] = {0};
 
     if (!json_getString(config, "rompath", roms_rel_path)) {
-        free(config);
+        cJSON_Delete(config);
         return false;
     }
 
     json_getString(config, "extlist", extlist);
 
-    free(config);
+    cJSON_Delete(config);
 
     if (strncmp(roms_rel_path, "../../", 6) != 0)
         return false;

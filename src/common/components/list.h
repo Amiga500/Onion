@@ -56,6 +56,7 @@ typedef struct List {
     char title[STR_MAX];
     int _id;
     int item_count;
+    int max_items;
     int active_pos;
     int scroll_pos;
     int scroll_height;
@@ -122,6 +123,7 @@ List list_create(int max_items, ListType list_type)
 {
     return (List){.scroll_height = list_type == LIST_SMALL ? 6 : 4,
                   .list_type = list_type,
+                  .max_items = max_items,
                   .items = (ListItem *)calloc(max_items, sizeof(ListItem)),
                   ._created = true,
                   ._id = list_id_incr++};
@@ -144,6 +146,8 @@ List list_createWithSticky(int max_items, const char *title)
 
 ListItem *list_addItem(List *list, ListItem item)
 {
+    if (list->items == NULL || list->item_count >= list->max_items)
+        return NULL;
     item._reset_value = item.value;
     item._id = list->item_count;
     memset(item.info_note, 0, STR_MAX);
@@ -158,6 +162,8 @@ ListItem *list_addItem(List *list, ListItem item)
 ListItem *list_addItemWithInfoNote(List *list, ListItem item, const char *info_note)
 {
     ListItem *_item = list_addItem(list, item);
+    if (_item == NULL)
+        return NULL;
     strncpy(_item->info_note, info_note, sizeof(_item->info_note) - 1);
     _item->info_note[sizeof(_item->info_note) - 1] = '\0';
     return _item;
@@ -166,9 +172,12 @@ ListItem *list_addItemWithInfoNote(List *list, ListItem item, const char *info_n
 ListItem *list_addItemWithLang(List *list, ListItem item, const lang_hash key)
 {
     ListItem *_item = list_addItem(list, item);
-    if (lang_list && lang_list[key])
+    if (_item == NULL)
+        return NULL;
+    if (lang_list && lang_list[key]) {
         strncpy(_item->label, lang_list[key], sizeof(_item->label) - 1);
         _item->label[sizeof(_item->label) - 1] = '\0';
+    }
     return _item;
 }
 
@@ -433,20 +442,22 @@ void list_free(List *list)
 {
     if (!list->_created)
         return;
-    for (int i = 0; i < list->item_count; i++) {
-        ListItem *item = &list->items[i];
-        if (item->icon_ptr != NULL)
-            SDL_FreeSurface((SDL_Surface *)item->icon_ptr);
-        if (item->preview_ptr != NULL)
-            SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
-        if (item->_label_cache != NULL)
-            SDL_FreeSurface((SDL_Surface *)item->_label_cache);
-        if (item->_value_cache != NULL)
-            SDL_FreeSurface((SDL_Surface *)item->_value_cache);
-        if (item->_scaled_preview != NULL)
-            SDL_FreeSurface((SDL_Surface *)item->_scaled_preview);
+    if (list->items != NULL) {
+        for (int i = 0; i < list->item_count; i++) {
+            ListItem *item = &list->items[i];
+            if (item->icon_ptr != NULL)
+                SDL_FreeSurface((SDL_Surface *)item->icon_ptr);
+            if (item->preview_ptr != NULL)
+                SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
+            if (item->_label_cache != NULL)
+                SDL_FreeSurface((SDL_Surface *)item->_label_cache);
+            if (item->_value_cache != NULL)
+                SDL_FreeSurface((SDL_Surface *)item->_value_cache);
+            if (item->_scaled_preview != NULL)
+                SDL_FreeSurface((SDL_Surface *)item->_scaled_preview);
+        }
+        free(list->items);
     }
-    free(list->items);
     list->_created = false;
 }
 

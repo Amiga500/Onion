@@ -67,13 +67,11 @@ TEST(str_trim_no_whitespace) {
 }
 
 TEST(str_trim_all_whitespace) {
-    /* NOTE: str_trim has a known edge case with all-whitespace and empty inputs
-     * where strchr("\r\n\t {},", '\0') matches NUL, causing the trim loop to
-     * read past the input. We only test well-defined inputs here. */
+    /* After fix: all-whitespace input is safe (no null-byte overread). */
     char out[64] = {0};
-    size_t len = str_trim(out, sizeof(out), "  hello  ", false);
-    ASSERT_GT(len, 0);
-    ASSERT_STREQ(out, "hello");
+    size_t len = str_trim(out, sizeof(out), "   ", false);
+    ASSERT_EQ(len, 1); /* str_trim returns 1 when it writes only the null terminator */
+    ASSERT_STREQ(out, "");
 }
 
 TEST(str_trim_tabs_and_newlines) {
@@ -159,6 +157,21 @@ TEST(str_removeParentheses_brackets) {
     char out[64];
     str_removeParentheses(out, "Game [v1.0]");
     ASSERT_STREQ(out, "Game");
+}
+
+/* Regression: STR_MAX-length input with no parentheses must not write OOB */
+TEST(str_removeParentheses_max_length_no_parens) {
+    /* Build a string of exactly STR_MAX - 1 'a' chars (plus null terminator) */
+    char input[STR_MAX];
+    memset(input, 'a', STR_MAX - 1);
+    input[STR_MAX - 1] = '\0';
+
+    char out[STR_MAX];
+    str_removeParentheses(out, input); /* must not crash or overwrite past out[] */
+    /* str_trim(buf, STR_MAX-1, ...) truncates to STR_MAX-2 printable chars */
+    ASSERT_EQ((int)strlen(out), STR_MAX - 2);
+    for (int i = 0; i < STR_MAX - 2; i++)
+        ASSERT_TRUE(out[i] == 'a');
 }
 
 /* ---- str_getLastNumber ---- */
@@ -256,6 +269,120 @@ TEST(str_serializeTime_large_value) {
     ASSERT_STREQ(result, "24h 0m");
 }
 
+/* ---- str_endsWith (extra) ---- */
+
+TEST(str_endsWith_case_sensitive) {
+    /* Suffix match is case-sensitive */
+    ASSERT_FALSE(str_endsWith("HELLO.PNG", ".png"));
+    ASSERT_FALSE(str_endsWith("hello.png", ".PNG"));
+}
+
+TEST(str_endsWith_null_str) {
+    ASSERT_FALSE(str_endsWith(NULL, ".png"));
+}
+
+TEST(str_endsWith_null_suffix) {
+    ASSERT_FALSE(str_endsWith("hello.png", NULL));
+}
+
+/* ---- str_trim (extra) ---- */
+
+TEST(str_trim_quoted_string) {
+    /* str_trim strips surrounding double-quotes when the first non-WS char is " */
+    char out[64] = {0};
+    str_trim(out, sizeof(out), "\"hello world\"", false);
+    ASSERT_STREQ(out, "hello world");
+}
+
+TEST(str_trim_truncates_to_buffer) {
+    /* When output buffer is smaller than the trimmed string it must be truncated */
+    char out[4] = {0};
+    str_trim(out, sizeof(out), "hello", false);
+    /* Only the first 3 printable chars fit plus the NUL */
+    ASSERT_EQ((int)strlen(out), 3);
+    ASSERT_TRUE(out[3] == '\0');
+}
+
+/* ---- str_split (extra) ---- */
+
+TEST(str_split_only_first_occurrence) {
+    /* str_split splits on the FIRST occurrence; tail may contain more delimiters */
+    char buf[32];
+    strncpy(buf, "a=b=c", sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    char *tail = str_split(buf, "=");
+    ASSERT_STREQ(buf, "a");
+    ASSERT_NOT_NULL(tail);
+    ASSERT_STREQ(tail, "b=c");
+}
+
+TEST(str_split_empty_head) {
+    char buf[32];
+    strncpy(buf, "=value", sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    char *tail = str_split(buf, "=");
+    ASSERT_STREQ(buf, "");
+    ASSERT_NOT_NULL(tail);
+    ASSERT_STREQ(tail, "value");
+}
+
+/* ---- str_replace (extra) ---- */
+
+TEST(str_replace_null_with_means_empty) {
+    /* When 'with' is NULL str_replace treats it as "" */
+    char *result = str_replace("hello world", "world", NULL);
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "hello ");
+    free(result);
+}
+
+TEST(str_replace_entire_string) {
+    char *result = str_replace("abc", "abc", "xyz");
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "xyz");
+    free(result);
+}
+
+/* ---- str_getLastNumber (extra) ---- */
+
+TEST(str_getLastNumber_multiple_numbers) {
+    /* Returns the LAST number in the string */
+    long val = 0;
+    bool ok = str_getLastNumber("track12of34", &val);
+    ASSERT_TRUE(ok);
+    ASSERT_EQ(val, 34);
+}
+
+TEST(str_getLastNumber_leading_number) {
+    long val = 0;
+    bool ok = str_getLastNumber("99bottles", &val);
+    ASSERT_TRUE(ok);
+    ASSERT_EQ(val, 99);
+}
+
+/* ---- str_count_char (extra) ---- */
+
+TEST(str_count_char_slash) {
+    ASSERT_EQ(str_count_char("/mnt/SDCARD/Roms/game.gba", '/'), 4);
+}
+
+/* ---- str_removeParentheses (extra) ---- */
+
+TEST(str_removeParentheses_nested_not_supported) {
+    /* The function only handles one level: the first ')' closes the paren
+     * group, so the second unmatched ')' is preserved in the output. */
+    char out[64];
+    str_removeParentheses(out, "Game (PAL (v1.1))");
+    /* After first ')' closes the outer '(', the trailing ')' is kept → "Game )" */
+    ASSERT_STREQ(out, "Game )");
+}
+
+TEST(str_removeParentheses_multiple_parens) {
+    char out[64];
+    str_removeParentheses(out, "Super Game (USA) (Rev 2)");
+    ASSERT_STREQ(out, "Super Game");
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -291,6 +418,7 @@ int main(void)
     RUN_TEST(str_removeParentheses_basic);
     RUN_TEST(str_removeParentheses_no_parens);
     RUN_TEST(str_removeParentheses_brackets);
+    RUN_TEST(str_removeParentheses_max_length_no_parens);
 
     RUN_TEST(str_getLastNumber_found);
     RUN_TEST(str_getLastNumber_not_found);
@@ -310,6 +438,27 @@ int main(void)
     RUN_TEST(str_serializeTime_hours_and_minutes);
     RUN_TEST(str_serializeTime_multiple_hours);
     RUN_TEST(str_serializeTime_large_value);
+
+    RUN_TEST(str_endsWith_case_sensitive);
+    RUN_TEST(str_endsWith_null_str);
+    RUN_TEST(str_endsWith_null_suffix);
+
+    RUN_TEST(str_trim_quoted_string);
+    RUN_TEST(str_trim_truncates_to_buffer);
+
+    RUN_TEST(str_split_only_first_occurrence);
+    RUN_TEST(str_split_empty_head);
+
+    RUN_TEST(str_replace_null_with_means_empty);
+    RUN_TEST(str_replace_entire_string);
+
+    RUN_TEST(str_getLastNumber_multiple_numbers);
+    RUN_TEST(str_getLastNumber_leading_number);
+
+    RUN_TEST(str_count_char_slash);
+
+    RUN_TEST(str_removeParentheses_nested_not_supported);
+    RUN_TEST(str_removeParentheses_multiple_parens);
 
     TEST_REPORT();
     return test_failures;

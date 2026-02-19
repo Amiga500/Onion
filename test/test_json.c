@@ -281,6 +281,118 @@ TEST(json_load_nonexistent) {
     ASSERT_NULL(json);
 }
 
+/* ---- extra coverage ---- */
+
+TEST(json_load_invalid_json) {
+    const char *tmpfile = "/tmp/onion_test_invalid.json";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "{ this is not valid JSON !!! }");
+    fclose(fp);
+
+    cJSON *json = json_load(tmpfile);
+    ASSERT_NULL(json);
+
+    unlink(tmpfile);
+}
+
+TEST(json_load_empty_file) {
+    const char *tmpfile = "/tmp/onion_test_empty.json";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+
+    cJSON *json = json_load(tmpfile);
+    ASSERT_NULL(json);
+
+    unlink(tmpfile);
+}
+
+TEST(json_getString_null_object) {
+    char result[JSON_STRING_LEN] = {0};
+    bool success = json_getString(NULL, "key", result);
+    ASSERT_FALSE(success);
+}
+
+TEST(json_getInt_null_object) {
+    int result = 99;
+    bool success = json_getInt(NULL, "key", &result);
+    ASSERT_FALSE(success);
+    ASSERT_EQ(result, 99); /* unchanged on failure */
+}
+
+TEST(json_getBool_null_object) {
+    bool result = true;
+    bool success = json_getBool(NULL, "key", &result);
+    ASSERT_FALSE(success);
+}
+
+TEST(json_nested_object) {
+    /* Build {"outer": {"inner": "value"}} and retrieve nested value */
+    cJSON *root = cJSON_CreateObject();
+    cJSON *inner = cJSON_CreateObject();
+    cJSON_AddStringToObject(inner, "inner", "nested_value");
+    cJSON_AddItemToObject(root, "outer", inner);
+
+    cJSON *outer_item = cJSON_GetObjectItem(root, "outer");
+    ASSERT_NOT_NULL(outer_item);
+
+    char result[JSON_STRING_LEN] = {0};
+    bool success = json_getString(outer_item, "inner", result);
+    ASSERT_TRUE(success);
+    ASSERT_STREQ(result, "nested_value");
+
+    cJSON_Delete(root);
+}
+
+TEST(json_forceSetString_update_and_retrieve_twice) {
+    /* Calling forceSetString twice on the same key updates the value each time */
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "label", "first");
+
+    json_forceSetString(json, "label", "second");
+    char result[JSON_STRING_LEN] = {0};
+    json_getString(json, "label", result);
+    ASSERT_STREQ(result, "second");
+
+    json_forceSetString(json, "label", "third");
+    json_getString(json, "label", result);
+    ASSERT_STREQ(result, "third");
+
+    cJSON_Delete(json);
+}
+
+TEST(json_getInt_large_value) {
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(json, "big", 2000000);
+
+    int result = 0;
+    bool success = json_getInt(json, "big", &result);
+    ASSERT_TRUE(success);
+    ASSERT_EQ(result, 2000000);
+
+    cJSON_Delete(json);
+}
+
+TEST(json_save_roundtrip_unicode) {
+    const char *tmpfile = "/tmp/onion_test_unicode.json";
+
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "title", "ゲーム");  /* Japanese "game" */
+    json_save(json, (char *)tmpfile);
+    cJSON_Delete(json);
+
+    cJSON *loaded = json_load(tmpfile);
+    ASSERT_NOT_NULL(loaded);
+
+    char result[JSON_STRING_LEN] = {0};
+    ASSERT_TRUE(json_getString(loaded, "title", result));
+    ASSERT_STREQ(result, "ゲーム");
+
+    cJSON_Delete(loaded);
+    unlink(tmpfile);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -313,6 +425,16 @@ int main(void)
     RUN_TEST(json_save_null_object);
     RUN_TEST(json_save_null_path);
     RUN_TEST(json_load_nonexistent);
+
+    RUN_TEST(json_load_invalid_json);
+    RUN_TEST(json_load_empty_file);
+    RUN_TEST(json_getString_null_object);
+    RUN_TEST(json_getInt_null_object);
+    RUN_TEST(json_getBool_null_object);
+    RUN_TEST(json_nested_object);
+    RUN_TEST(json_forceSetString_update_and_retrieve_twice);
+    RUN_TEST(json_getInt_large_value);
+    RUN_TEST(json_save_roundtrip_unicode);
 
     TEST_REPORT();
     return test_failures;

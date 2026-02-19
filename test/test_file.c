@@ -523,6 +523,24 @@ TEST(file_changeKeyValue_preserves_line_without_trailing_newline) {
     unlink(tmpfile);
 }
 
+/* Regression: blank lines in a config must NOT cause the following key to be
+ * skipped (was caused by a spurious fscanf() call after a failed sscanf()). */
+TEST(file_parseKeyValue_skips_blank_lines) {
+    const char *tmpfile = "/tmp/onion_test_parsekv_blank.cfg";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "key1=aaa\n\nkey2=bbb\n");
+    fclose(fp);
+
+    char r1[256] = {0}, r2[256] = {0};
+    file_parseKeyValue(tmpfile, "key1", r1, '=', 0);
+    file_parseKeyValue(tmpfile, "key2", r2, '=', 0);
+    ASSERT_STREQ(r1, "aaa");
+    ASSERT_STREQ(r2, "bbb"); /* was empty string before the fix */
+
+    unlink(tmpfile);
+}
+
 /* ---- file_delete_line ---- */
 
 TEST(file_delete_line_removes_correct_line) {
@@ -567,6 +585,281 @@ TEST(file_add_line_to_beginning_prepends_line) {
     free(l2);
 
     unlink(tmpfile);
+}
+
+/* ---- file_isLocked ---- */
+
+TEST(file_isLocked_existing_file) {
+    const char *tmpfile = "/tmp/onion_test_locked.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+
+    /* An existing readable file must not report itself as locked */
+    ASSERT_FALSE(file_isLocked(tmpfile));
+
+    unlink(tmpfile);
+}
+
+TEST(file_isLocked_uncreateable_path) {
+    /* A path inside a non-existent directory cannot be opened/created */
+    ASSERT_TRUE(file_isLocked("/tmp/nonexistent_dir_xyz/file.txt"));
+}
+
+/* ---- file_path_relative_to ---- */
+
+TEST(file_path_relative_to_same_dir) {
+    /* Create two real paths under /tmp so realpath() works */
+    mkdir("/tmp/onion_relpath_test", 0755);
+    FILE *fp = fopen("/tmp/onion_relpath_test/file.txt", "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+
+    char out[PATH_MAX] = {0};
+    bool ok = file_path_relative_to(out, "/tmp/onion_relpath_test",
+                                    "/tmp/onion_relpath_test/file.txt");
+    ASSERT_TRUE(ok);
+    ASSERT_STREQ(out, "file.txt");
+
+    unlink("/tmp/onion_relpath_test/file.txt");
+    rmdir("/tmp/onion_relpath_test");
+}
+
+TEST(file_path_relative_to_subdirectory) {
+    mkdir("/tmp/onion_rp_base", 0755);
+    mkdir("/tmp/onion_rp_base/sub", 0755);
+    FILE *fp = fopen("/tmp/onion_rp_base/sub/file.txt", "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+
+    char out[PATH_MAX] = {0};
+    bool ok = file_path_relative_to(out, "/tmp/onion_rp_base",
+                                    "/tmp/onion_rp_base/sub/file.txt");
+    ASSERT_TRUE(ok);
+    ASSERT_STREQ(out, "sub/file.txt");
+
+    unlink("/tmp/onion_rp_base/sub/file.txt");
+    rmdir("/tmp/onion_rp_base/sub");
+    rmdir("/tmp/onion_rp_base");
+}
+
+TEST(file_path_relative_to_nonexistent) {
+    /* Both paths must exist for realpath() to succeed */
+    char out[PATH_MAX] = {0};
+    bool ok = file_path_relative_to(out, "/tmp/nonexistent_dir_abc",
+                                    "/tmp/nonexistent_dir_abc/file.txt");
+    ASSERT_FALSE(ok);
+}
+
+/* ---- file_open_ensure_path ---- */
+
+TEST(file_open_ensure_path_creates_dirs) {
+    const char *deep = "/tmp/onion_oep/a/b/c/file.txt";
+    file_remove_recursive("/tmp/onion_oep");
+
+    FILE *fp = file_open_ensure_path(deep, "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+
+    ASSERT_TRUE(exists(deep));
+
+    file_remove_recursive("/tmp/onion_oep");
+}
+
+/* ---- file_findNewest ---- */
+
+TEST(file_findNewest_basic) {
+    ASSERT_EQ(file_remove_recursive("/tmp/onion_newest"), 0);
+    mkdir("/tmp/onion_newest", 0755);
+
+    /* Create both files, then touch the second one again after a 1-second delay
+     * so its mtime is strictly greater on filesystems with 1-second resolution. */
+    FILE *fp = fopen("/tmp/onion_newest/a.txt", "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("a", fp);
+    fclose(fp);
+
+    fp = fopen("/tmp/onion_newest/b.txt", "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("b", fp);
+    fclose(fp);
+
+    sleep(1);
+
+    /* Re-write b.txt to guarantee its mtime > a.txt's mtime */
+    fp = fopen("/tmp/onion_newest/b.txt", "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("b", fp);
+    fclose(fp);
+
+    char newest[256] = {0};
+    bool found = file_findNewest("/tmp/onion_newest", newest, sizeof(newest));
+    ASSERT_TRUE(found);
+    ASSERT_STREQ(newest, "b.txt");
+
+    unlink("/tmp/onion_newest/a.txt");
+    unlink("/tmp/onion_newest/b.txt");
+    rmdir("/tmp/onion_newest");
+}
+
+TEST(file_findNewest_empty_dir) {
+    mkdir("/tmp/onion_newest_empty", 0755);
+    char newest[256] = {0};
+    bool found = file_findNewest("/tmp/onion_newest_empty", newest, sizeof(newest));
+    ASSERT_FALSE(found);
+    rmdir("/tmp/onion_newest_empty");
+}
+
+TEST(file_findNewest_nonexistent_dir) {
+    char newest[256] = {0};
+    bool found = file_findNewest("/tmp/nonexistent_dir_987654", newest, sizeof(newest));
+    ASSERT_FALSE(found);
+}
+
+/* ---- file_remove_recursive ---- */
+
+TEST(file_remove_recursive_removes_tree) {
+    mkdir("/tmp/onion_rmrec", 0755);
+    mkdir("/tmp/onion_rmrec/sub", 0755);
+    FILE *fp = fopen("/tmp/onion_rmrec/a.txt", "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+    fp = fopen("/tmp/onion_rmrec/sub/b.txt", "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+
+    int ret = file_remove_recursive("/tmp/onion_rmrec");
+    ASSERT_EQ(ret, 0);
+    ASSERT_FALSE(exists("/tmp/onion_rmrec"));
+}
+
+TEST(file_remove_recursive_null) {
+    ASSERT_EQ(file_remove_recursive(NULL), -1);
+}
+
+TEST(file_remove_recursive_nonexistent) {
+    /* Non-existent path must return 0 without error */
+    ASSERT_EQ(file_remove_recursive("/tmp/nonexistent_xyz_998877"), 0);
+}
+
+/* ---- file_read_lineN (direct) ---- */
+
+TEST(file_read_lineN_first_line) {
+    const char *tmpfile = "/tmp/onion_readln.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "line1\nline2\nline3\n");
+    fclose(fp);
+
+    char *line = file_read_lineN(tmpfile, 1);
+    ASSERT_NOT_NULL(line);
+    ASSERT_TRUE(strncmp(line, "line1", 5) == 0);
+    free(line);
+
+    unlink(tmpfile);
+}
+
+TEST(file_read_lineN_last_line) {
+    const char *tmpfile = "/tmp/onion_readln2.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "alpha\nbeta\ngamma\n");
+    fclose(fp);
+
+    char *line = file_read_lineN(tmpfile, 3);
+    ASSERT_NOT_NULL(line);
+    ASSERT_TRUE(strncmp(line, "gamma", 5) == 0);
+    free(line);
+
+    unlink(tmpfile);
+}
+
+TEST(file_read_lineN_out_of_range) {
+    const char *tmpfile = "/tmp/onion_readln3.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "only one line\n");
+    fclose(fp);
+
+    char *line = file_read_lineN(tmpfile, 99);
+    ASSERT_NULL(line);
+
+    unlink(tmpfile);
+}
+
+/* ---- file_parseKeyValue (extra) ---- */
+
+TEST(file_parseKeyValue_colon_divider) {
+    const char *tmpfile = "/tmp/onion_parsekv_colon.cfg";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "host: localhost\nport: 8080\n");
+    fclose(fp);
+
+    char result[256] = {0};
+    file_parseKeyValue(tmpfile, "port", result, ':', 0);
+    ASSERT_STREQ(result, "8080");
+
+    unlink(tmpfile);
+}
+
+TEST(file_parseKeyValue_key_not_found) {
+    const char *tmpfile = "/tmp/onion_parsekv_miss.cfg";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "brightness=50\n");
+    fclose(fp);
+
+    char result[256] = {0};
+    char *ret = file_parseKeyValue(tmpfile, "missing_key", result, '=', 0);
+    ASSERT_NULL(ret);
+
+    unlink(tmpfile);
+}
+
+TEST(file_parseKeyValue_select_index) {
+    /* When a key appears multiple times, select_index picks which occurrence */
+    const char *tmpfile = "/tmp/onion_parsekv_idx.cfg";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "plugin=alpha\nplugin=beta\nplugin=gamma\n");
+    fclose(fp);
+
+    char r0[256] = {0}, r1[256] = {0}, r2[256] = {0};
+    file_parseKeyValue(tmpfile, "plugin", r0, '=', 0);
+    file_parseKeyValue(tmpfile, "plugin", r1, '=', 1);
+    file_parseKeyValue(tmpfile, "plugin", r2, '=', 2);
+    ASSERT_STREQ(r0, "alpha");
+    ASSERT_STREQ(r1, "beta");
+    ASSERT_STREQ(r2, "gamma");
+
+    unlink(tmpfile);
+}
+
+/* ---- file_cleanName (extra) ---- */
+
+TEST(file_cleanName_numbered_prefix) {
+    /* "01. Name.rom" → numbered prefix stripped, extension removed */
+    char result[256];
+    file_cleanName(result, "01. Super Mario.sfc");
+    ASSERT_STREQ(result, "Super Mario");
+}
+
+/* ---- file_write (extra) ---- */
+
+TEST(file_write_nonexistent_file) {
+    /* file_write opens with O_WRONLY, so it fails for a nonexistent path */
+    bool ret = file_write("/tmp/nonexistent_write_test_xyz.txt", "data", 4);
+    ASSERT_FALSE(ret);
+}
+
+/* ---- file_copy (extra) ---- */
+
+TEST(file_copy_nonexistent_src) {
+    /* Must not crash when source doesn't exist */
+    file_copy("/tmp/nonexistent_src_xyz.txt", "/tmp/onion_copy_dest.txt");
+    /* Destination must NOT have been created */
+    ASSERT_FALSE(exists("/tmp/onion_copy_dest.txt"));
 }
 
 /* ---- main ---- */
@@ -640,9 +933,41 @@ int main(void)
     RUN_TEST(file_changeKeyValue_appends_missing_key);
     RUN_TEST(file_changeKeyValue_preserves_line_without_trailing_newline);
 
+    RUN_TEST(file_parseKeyValue_skips_blank_lines);
+
     RUN_TEST(file_delete_line_removes_correct_line);
 
     RUN_TEST(file_add_line_to_beginning_prepends_line);
+
+    RUN_TEST(file_isLocked_existing_file);
+    RUN_TEST(file_isLocked_uncreateable_path);
+
+    RUN_TEST(file_path_relative_to_same_dir);
+    RUN_TEST(file_path_relative_to_subdirectory);
+    RUN_TEST(file_path_relative_to_nonexistent);
+
+    RUN_TEST(file_open_ensure_path_creates_dirs);
+
+    RUN_TEST(file_findNewest_basic);
+    RUN_TEST(file_findNewest_empty_dir);
+    RUN_TEST(file_findNewest_nonexistent_dir);
+
+    RUN_TEST(file_remove_recursive_removes_tree);
+    RUN_TEST(file_remove_recursive_null);
+    RUN_TEST(file_remove_recursive_nonexistent);
+
+    RUN_TEST(file_read_lineN_first_line);
+    RUN_TEST(file_read_lineN_last_line);
+    RUN_TEST(file_read_lineN_out_of_range);
+
+    RUN_TEST(file_parseKeyValue_colon_divider);
+    RUN_TEST(file_parseKeyValue_key_not_found);
+    RUN_TEST(file_parseKeyValue_select_index);
+
+    RUN_TEST(file_cleanName_numbered_prefix);
+
+    RUN_TEST(file_write_nonexistent_file);
+    RUN_TEST(file_copy_nonexistent_src);
 
     TEST_REPORT();
     return test_failures;

@@ -945,6 +945,7 @@ void *_get_menu_icon(const char *name)
         if (json_getString(config, "icon", icon_path))
             snprintf(path, STR_MAX * 2 - 1, "%s/%s.png", dirname(icon_path),
                      name);
+        cJSON_Delete(config);
     }
 
     if (!is_file(path))

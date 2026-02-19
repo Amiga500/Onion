@@ -139,8 +139,10 @@ bool _apply_singleIconFromPack(const char *config_path,
 
     cJSON *config = json_load(config_path);
     char temp_path[STR_MAX];
-    if (!json_getString(config, "icon", temp_path))
+    if (!json_getString(config, "icon", temp_path)) {
+        cJSON_Delete(config);
         return false;
+    }
 
     char *icon_name = file_removeExtension(basename(temp_path));
     str_split(icon_name, "-");

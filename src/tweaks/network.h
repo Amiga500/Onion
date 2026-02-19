@@ -159,10 +159,12 @@ void network_getSmbShares()
                     add_exclamation = true;
                 }
 
-                strncpy(_network_shares[numShares - 1].name, shareName, STR_MAX - 11);
+                strncpy(_network_shares[numShares - 1].name, shareName, sizeof(_network_shares[numShares - 1].name) - 1);
+                _network_shares[numShares - 1].name[sizeof(_network_shares[numShares - 1].name) - 1] = '\0';
 
                 if (add_exclamation) {
-                    strncat(_network_shares[numShares - 1].name, " (!)", STR_MAX - 11 - strlen(shareName));
+                    char *dest = _network_shares[numShares - 1].name;
+                    strncat(dest, " (!)", sizeof(_network_shares[numShares - 1].name) - strlen(dest) - 1);
                 }
 
                 found_shares = true;
@@ -451,7 +453,10 @@ void menu_smbd(void *pt)
                 .payload_ptr = _network_shares + i // store a pointer to the share in the payload
             };
             snprintf(shareItem.label, STR_MAX - 1, "Share: %s", _network_shares[i].name);
-            strncpy(shareItem.sticky_note, str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:"), STR_MAX - 1);
+            char *share_note = str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:");
+            strncpy(shareItem.sticky_note, share_note ? share_note : _network_shares[i].path, STR_MAX - 1);
+            shareItem.sticky_note[STR_MAX - 1] = '\0';
+            free(share_note);
             list_addItem(&_menu_smbd, shareItem);
         }
     }

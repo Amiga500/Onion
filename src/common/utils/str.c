@@ -95,7 +95,7 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
     bool is_string = false;
 
     // Trim leading space
-    while (strchr("\r\n\t {},", (unsigned char)*str) != NULL)
+    while (*str != '\0' && strchr("\r\n\t {},", (unsigned char)*str) != NULL)
         str++;
 
     end = str + 1;
@@ -158,7 +158,7 @@ void str_removeParentheses(char *str_out, const char *str_in)
     bool inside = false;
     char end_char;
 
-    for (int i = 0; i < len && i < STR_MAX; i++) {
+    for (int i = 0; i < len && i < STR_MAX - 1; i++) {
         if (!inside && (str_in[i] == '(' || str_in[i] == '[')) {
             end_char = str_in[i] == '(' ? ')' : ']';
             inside = true;

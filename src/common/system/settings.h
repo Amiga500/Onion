@@ -386,10 +386,18 @@ void settings_save(void)
 bool settings_saveSystemProperty(const char *prop_name, int value)
 {
     cJSON *json_root = json_load(MAIN_UI_SETTINGS);
-    cJSON *prop = cJSON_GetObjectItem(json_root, prop_name);
-
-    if (cJSON_GetNumberValue(prop) == value)
+    if (json_root == NULL)
         return false;
+    cJSON *prop = cJSON_GetObjectItem(json_root, prop_name);
+    if (prop == NULL) {
+        cJSON_Delete(json_root);
+        return false;
+    }
+
+    if (cJSON_GetNumberValue(prop) == value) {
+        cJSON_Delete(json_root);
+        return false;
+    }
 
     cJSON_SetNumberValue(prop, value);
     json_save(json_root, MAIN_UI_SETTINGS);
