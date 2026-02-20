@@ -55,6 +55,8 @@ void get_rom_image_path(char *rom_file, char *out_image_path)
     }
 
     char *clean_rom_name = file_removeExtension(basename(rom_file));
+    if (clean_rom_name == NULL)
+        return;
     char *rom_folder = strtok(rom_file, "/");
     if (rom_folder == NULL)
         rom_folder = rom_file;
