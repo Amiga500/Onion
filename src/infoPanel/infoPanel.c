@@ -54,6 +54,11 @@ static bool loadImagesPathsFromJson(const char *config_path,
     *images_titles = (char **)malloc(total * sizeof(char *));
 
     static const int g_title_max_length = 50;
+    char *temp_path = file_dirname(config_path);
+    if (temp_path == NULL) {
+        cJSON_Delete(json_root);
+        return false;
+    }
     int valid = 0;
     for (int i = 0; i < total; i++) {
         const cJSON *json_image_item = cJSON_GetArrayItem(json_images_array, i);
@@ -90,6 +95,7 @@ static bool loadImagesPathsFromJson(const char *config_path,
     }
     *images_paths_count = valid;
 
+    free(temp_path);
     cJSON_Delete(json_root);
 
     return true;
