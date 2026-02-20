@@ -99,6 +99,8 @@ int main(int argc, char *argv[])
 
     const char *romext = file_getExtension(rompath);
     char *old_name = file_removeExtension(basename(rompath));
+    if (old_name == NULL)
+        return 0;
     printf_debug("old name: %s\n", old_name);
 
     // Rename rom file

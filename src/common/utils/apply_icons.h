@@ -155,6 +155,10 @@ bool _apply_singleIconFromPack(const char *config_path,
     }
 
     char *icon_name = file_removeExtension(basename(temp_path));
+    if (icon_name == NULL) {
+        cJSON_Delete(config);
+        return false;
+    }
     str_split(icon_name, "-");
 
     IconMode_e mode = icons_getIconMode(config_path);
