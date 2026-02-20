@@ -1,5 +1,5 @@
 # Check if gtest is available (once at parse time)
-GTEST_AVAILABLE := $(shell printf '\#include <gtest/gtest.h>\n' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null && echo yes)
+GTEST_AVAILABLE := $(shell echo '#include <gtest/gtest.h>' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null && echo yes)
 
 .PHONY: all check-gtest clean
 
