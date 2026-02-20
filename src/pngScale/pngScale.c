@@ -40,6 +40,24 @@ static inline void rgb_to_argb(const uint8_t *src_rgb, uint32_t *dst_argb, uint3
 }
 
 //
+//	Convert gray8 (1 byte/pixel) to ARGB8888
+//	Delegates to shared NEON assembly in neon_pixel.h
+//
+static inline void gray8_to_argb(const uint8_t *src_gray, uint32_t *dst_argb, uint32_t count)
+{
+    neon_gray8_to_argb(dst_argb, src_gray, (int)count);
+}
+
+//
+//	Convert gray8+alpha (2 bytes/pixel) to ARGB8888
+//	Delegates to shared NEON assembly in neon_pixel.h
+//
+static inline void gray8a_to_argb(const uint8_t *src_ga, uint32_t *dst_argb, uint32_t count)
+{
+    neon_gray8a_to_argb(dst_argb, src_ga, (int)count);
+}
+
+//
 //	GFX BlitSurface with scale
 //
 void GFX_BlitSurface(MI_PHY srcPa, const void *srcVa, uint32_t sw, uint32_t sh,
@@ -94,9 +112,9 @@ int main(int argc, char *argv[])
     FILE *fp;
     MI_PHY srcPa = 0, dstPa = 0;
     void *tmp, *srcVa = NULL, *dstVa = NULL;
-    uint8_t *src8;
-    uint32_t *src, *dst, pix, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
-                                                    mh = 360;
+    uint32_t *src, *dst;
+    uint32_t y, sw, sh, dw, dh;
+    uint32_t ss = 0, ds = 0, mw = 250, mh = 360;
 
     // Read commandline and open src
     if (argc < 3)
@@ -145,20 +163,14 @@ int main(int argc, char *argv[])
     switch (ch) {
     case 1:
         for (y = 0; y < sh; y++) {
-            src8 = rows[y];
-            for (x = 0; x < sw; x++, src8++) {
-                *dst++ =
-                    0xFF000000 | (src8[0] << 16) | (src8[0] << 8) | src8[0];
-            }
+            gray8_to_argb(rows[y], dst, sw);
+            dst += sw;
         }
         break;
     case 2:
         for (y = 0; y < sh; y++) {
-            src8 = rows[y];
-            for (x = 0; x < sw; x++, src8 += 2) {
-                *dst++ = (src8[1] << 24) | (src8[0] << 16) | (src8[0] << 8) |
-                         src8[0];
-            }
+            gray8a_to_argb(rows[y], dst, sw);
+            dst += sw;
         }
         break;
     case 3:
