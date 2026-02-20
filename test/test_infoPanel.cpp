@@ -40,7 +40,7 @@ TEST(test_infoPanel, cacheTest)
 
 	for (int i = 0; i < images_paths_count; i++)
 	{
-		images_paths[i] = new char[STR_MAX];
+		images_paths[i] = new char[STR_MAX]();
 
 		strcat(images_paths[i], "./infoPanel_test_data/page");
         char index_str[10];
