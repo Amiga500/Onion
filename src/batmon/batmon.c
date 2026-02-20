@@ -219,6 +219,7 @@ void update_current_duration(void)
                     }
                 }
                 sqlite3_finalize(stmt);
+            }
             close_battery_log_db();
         }
     }
@@ -325,6 +326,7 @@ int set_best_session_time(int best_session)
                     }
                 }
                 sqlite3_finalize(stmt);
+            }
             close_battery_log_db();
         }
     }
