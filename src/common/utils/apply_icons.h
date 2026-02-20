@@ -66,24 +66,34 @@ bool apply_singleIconByFullPath(const char *config_path, const char *icon_path)
     if (!is_file(config_path) || !is_file(icon_path))
         return false;
 
-    char temp_path[STR_MAX];
-    strncpy(temp_path, icon_path, STR_MAX - 1);
+    char basename_buf[STR_MAX];
+    char dirname_buf[STR_MAX];
+    strncpy(basename_buf, icon_path, STR_MAX - 1);
+    basename_buf[STR_MAX - 1] = '\0';
+    strncpy(dirname_buf, icon_path, STR_MAX - 1);
+    dirname_buf[STR_MAX - 1] = '\0';
 
-    const char *file_name = basename(temp_path);
-    const char *dir_path = dirname(temp_path);
+    const char *file_name = basename(basename_buf);
+    const char *dir_path = dirname(dirname_buf);
 
     cJSON *config = json_load(config_path);
+    if (config == NULL)
+        return false;
 
     char sel_path[STR_MAX];
     snprintf(sel_path, sizeof(sel_path), "%s/sel/%s", dir_path, file_name);
 
-    if (!is_file(sel_path))
+    if (!is_file(sel_path)) {
         strncpy(sel_path, icon_path, sizeof(sel_path) - 1);
+        sel_path[sizeof(sel_path) - 1] = '\0';
+    }
 
     json_forceSetString(config, "icon", icon_path);
     json_forceSetString(config, "iconsel", sel_path);
 
-    _saveConfigFile(config_path, cJSON_Print(config));
+    char *config_str = cJSON_Print(config);
+    _saveConfigFile(config_path, config_str);
+    cJSON_free(config_str);
     cJSON_Delete(config);
 
     return true;
@@ -145,6 +155,10 @@ bool _apply_singleIconFromPack(const char *config_path,
     }
 
     char *icon_name = file_removeExtension(basename(temp_path));
+    if (icon_name == NULL) {
+        cJSON_Delete(config);
+        return false;
+    }
     str_split(icon_name, "-");
 
     IconMode_e mode = icons_getIconMode(config_path);
@@ -195,9 +209,9 @@ bool apply_singleIcon(const char *config_path)
 
     if (active_icon_pack != NULL && is_dir(active_icon_pack))
         strncpy(icon_pack_path, active_icon_pack, STR_MAX - 1);
-    else {
+    else
         strncpy(icon_pack_path, "/mnt/SDCARD/Icons/Default", STR_MAX - 1);
-    }
+    icon_pack_path[STR_MAX - 1] = '\0';
 
     if (!is_dir(icon_pack_path))
         return false;

@@ -32,7 +32,8 @@ bool __get_path_recent(char *path_out)
         char file_path[STR_MAX];
         if (history_getRecentPath(file_path) != NULL) {
             no_extension = file_removeExtension(basename(file_path));
-            strncat(path_out, no_extension, path_size - strlen(path_out) - 1);
+            if (no_extension != NULL)
+                strncat(path_out, no_extension, path_size - strlen(path_out) - 1);
             free(no_extension);
         }
     }
@@ -52,8 +53,13 @@ bool __get_path_recent(char *path_out)
             state_getAppName(app_name, cmd);
         else {
             no_extension = file_removeExtension(basename(cmd));
-            strncpy(app_name, no_extension, sizeof(app_name) - 1);
-            app_name[sizeof(app_name) - 1] = '\0';
+            if (no_extension != NULL) {
+                strncpy(app_name, no_extension, sizeof(app_name) - 1);
+                app_name[sizeof(app_name) - 1] = '\0';
+            }
+            else {
+                app_name[0] = '\0';
+            }
             free(no_extension);
         }
         printf_debug("app: '%s'\n", app_name);

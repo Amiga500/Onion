@@ -862,6 +862,57 @@ TEST(file_copy_nonexistent_src) {
     ASSERT_FALSE(exists("/tmp/onion_copy_dest.txt"));
 }
 
+/* ---- file_read ---- */
+
+TEST(file_read_basic) {
+    const char *tmpfile = "/tmp/onion_test_file_read.txt";
+    const char *content = "hello file_read";
+
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs(content, fp);
+    fclose(fp);
+
+    char *result = file_read(tmpfile);
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, content);
+    free(result);
+    unlink(tmpfile);
+}
+
+TEST(file_read_nonexistent) {
+    char *result = file_read("/tmp/no_such_file_xyz_12345.txt");
+    ASSERT_NULL(result);
+}
+
+TEST(file_read_empty_file) {
+    const char *tmpfile = "/tmp/onion_test_file_read_empty.txt";
+
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+
+    /* file_read returns NULL for an empty file (st_size == 0 → total <= 0) */
+    char *result = file_read(tmpfile);
+    ASSERT_NULL(result);
+    unlink(tmpfile);
+}
+
+TEST(file_read_multiline) {
+    const char *tmpfile = "/tmp/onion_test_file_read_multi.txt";
+
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "line1\nline2\nline3");
+    fclose(fp);
+
+    char *result = file_read(tmpfile);
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "line1\nline2\nline3");
+    free(result);
+    unlink(tmpfile);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -968,6 +1019,11 @@ int main(void)
 
     RUN_TEST(file_write_nonexistent_file);
     RUN_TEST(file_copy_nonexistent_src);
+
+    RUN_TEST(file_read_basic);
+    RUN_TEST(file_read_nonexistent);
+    RUN_TEST(file_read_empty_file);
+    RUN_TEST(file_read_multiline);
 
     TEST_REPORT();
     return test_failures;

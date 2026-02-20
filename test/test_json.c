@@ -393,6 +393,41 @@ TEST(json_save_roundtrip_unicode) {
     unlink(tmpfile);
 }
 
+/* ---- json_getString with non-string value (regression for NULL deref fix) ---- */
+
+TEST(json_getString_non_string_value) {
+    /* json_getString must return false and NOT dereference NULL when the
+     * stored value is a number (not a string).
+     * Before the fix: cJSON_GetStringValue returns NULL for number items
+     * and the code called strncpy(dest, NULL, ...) — undefined behaviour.
+     * After the fix: the NULL is detected and the function returns false. */
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(json, "count", 42);
+
+    char result[JSON_STRING_LEN] = {0};
+    bool success = json_getString(json, "count", result);
+
+    ASSERT_FALSE(success);
+    /* dest must remain untouched */
+    ASSERT_STREQ(result, "");
+
+    cJSON_Delete(json);
+}
+
+TEST(json_getString_bool_value) {
+    /* Same regression: boolean value must not trigger a NULL deref */
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddBoolToObject(json, "flag", true);
+
+    char result[JSON_STRING_LEN] = {0};
+    bool success = json_getString(json, "flag", result);
+
+    ASSERT_FALSE(success);
+    ASSERT_STREQ(result, "");
+
+    cJSON_Delete(json);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -435,6 +470,8 @@ int main(void)
     RUN_TEST(json_forceSetString_update_and_retrieve_twice);
     RUN_TEST(json_getInt_large_value);
     RUN_TEST(json_save_roundtrip_unicode);
+    RUN_TEST(json_getString_non_string_value);
+    RUN_TEST(json_getString_bool_value);
 
     TEST_REPORT();
     return test_failures;

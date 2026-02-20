@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
                 g_show_theme_controls = true;
             else if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--auto") == 0)
                 wait_confirm = false;
-            else if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--romscreen") == 0) {
+            else if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--romscreen") == 0) {
                 no_footer = true;
                 show_romscreen = true;
             }

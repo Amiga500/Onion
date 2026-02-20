@@ -155,7 +155,7 @@ void theme_renderInfoPanel(SDL_Surface *screen, const char *title_str, const cha
         strncpy(message_newline, message_str, sizeof(message_newline) - 1);
         message_newline[sizeof(message_newline) - 1] = '\0';
         char *str = str_replace(message_newline, "\\n", "\n");
-        message = theme_textboxSurface(str, resource_getFont(TITLE), theme()->list.color, ALIGN_CENTER);
+        message = theme_textboxSurface(str ? str : message_newline, resource_getFont(TITLE), theme()->list.color, ALIGN_CENTER);
         if (message) {
             SDL_Rect message_rect = {(g_display.width) / 2, (g_display.height) / 2};
             message_rect.x -= message->w / 2;

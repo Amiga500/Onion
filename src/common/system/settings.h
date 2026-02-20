@@ -154,6 +154,8 @@ void _settings_load_keymap(void)
         return;
 
     cJSON *keymap = json_load(CONFIG_PATH "keymap.json");
+    if (keymap == NULL)
+        return;
     json_getInt(keymap, "mainui_single_press", &settings.mainui_single_press);
     json_getInt(keymap, "mainui_long_press", &settings.mainui_long_press);
     json_getInt(keymap, "mainui_double_press", &settings.mainui_double_press);

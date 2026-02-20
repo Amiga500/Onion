@@ -214,9 +214,11 @@ void processItem(Game_s *game)
     game->processed = true;
 
     char *rom_name = file_removeExtension(file_basename(game->recentItem.rompath));
-    strncpy(game->rom_name, rom_name, sizeof(game->rom_name) - 1);
-    game->rom_name[sizeof(game->rom_name) - 1] = '\0';
-    free(rom_name);
+    if (rom_name != NULL) {
+        strncpy(game->rom_name, rom_name, sizeof(game->rom_name) - 1);
+        game->rom_name[sizeof(game->rom_name) - 1] = '\0';
+        free(rom_name);
+    }
 
     if (!getGameName(game->name, game->recentItem.rompath)) {
         strncpy(game->name, game->rom_name, sizeof(game->name) - 1);

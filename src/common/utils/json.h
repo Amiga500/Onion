@@ -23,7 +23,10 @@ bool json_getString(cJSON *object, const char *key, char *dest)
 {
     cJSON *json_object = cJSON_GetObjectItem(object, key);
     if (json_object) {
-        strncpy(dest, cJSON_GetStringValue(json_object), JSON_STRING_LEN - 1);
+        const char *val = cJSON_GetStringValue(json_object);
+        if (val == NULL)
+            return false;
+        strncpy(dest, val, JSON_STRING_LEN - 1);
         return true;
     }
     return false;
@@ -101,6 +104,8 @@ void json_save(cJSON *object, char *file_path)
         return;
 
     char *output = cJSON_Print(object);
+    if (output == NULL)
+        return;
 
     FILE *fp = NULL;
     if ((fp = fopen(file_path, "w+")) != NULL) {
@@ -108,8 +113,7 @@ void json_save(cJSON *object, char *file_path)
         fclose(fp);
     }
 
-    if (output != NULL)
-        cJSON_free(output);
+    cJSON_free(output);
 }
 
 #endif // JSON_H__
