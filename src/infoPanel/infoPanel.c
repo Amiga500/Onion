@@ -34,11 +34,6 @@ static bool loadImagesPathsFromJson(const char *config_path,
 {
     char *json_str = NULL;
 
-    char temp_path[STR_MAX];
-    strncpy(temp_path, config_path, STR_MAX - 1);
-    temp_path[STR_MAX - 1] = '\0';
-    dirname(temp_path);
-
     if (!(json_str = file_read(config_path))) {
         return false;
     }

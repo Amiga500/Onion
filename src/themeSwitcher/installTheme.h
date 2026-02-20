@@ -46,6 +46,8 @@ void loadThemeDirectory(const char *theme_dir,
                 continue;
             if (ep->d_name[0] == '.')
                 continue;
+            if (*count >= NUMBER_OF_THEMES)
+                break;
 
             snprintf(config_path, STR_MAX * 2 - 1, "%s/%s/config.json",
                      theme_dir, ep->d_name);
