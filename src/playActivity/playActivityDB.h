@@ -255,7 +255,7 @@ void __ensure_rel_path(char *rel_path, const char *rom_path)
             char *temp = strdup((const char *)rom_path);
             char *replaced = str_replace(temp, "/mnt/SDCARD/Roms/", "");
             free(temp);
-            strncpy(rel_path, replaced, PATH_MAX - 1);
+            strncpy(rel_path, replaced ? replaced : (const char *)rom_path, PATH_MAX - 1);
             rel_path[PATH_MAX - 1] = '\0';
             free(replaced);
         }

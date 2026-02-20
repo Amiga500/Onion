@@ -120,6 +120,7 @@ TTF_Font *theme_loadFont(const char *theme_path, const char *font, int size)
 
 char *theme_getPath(char *theme_path)
 {
+    theme_path[0] = '\0';
     cJSON *j = json_load(SYSTEM_CONFIG);
     json_getString(j, "theme", theme_path);
     cJSON_Delete(j);
