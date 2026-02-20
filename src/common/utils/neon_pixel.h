@@ -286,12 +286,14 @@ static inline void neon_gray8a_to_argb(uint32_t *dst, const uint8_t *src, int co
             "mov r6, %[neon_count]\n\t"
             "1:\n\t"
             "pld [r4, #64]\n\t"
-            "vld2.8 {d0, d3}, [r4]!\n\t"  /* d0=gray[8], d3=alpha[8] (16 bytes) */
-            "vmov d1, d0\n\t"             /* d1 = gray (G channel) */
+            "vld2.8 {d0, d1}, [r4]!\n\t"  /* d0=gray[8], d1=alpha[8] (16 bytes) */
+            "vmov d3, d1\n\t"             /* d3 = alpha */
             "vmov d2, d0\n\t"             /* d2 = gray (R channel) */
-            "vld2.8 {d4, d7}, [r4]!\n\t"  /* next 8 pixels */
-            "vmov d5, d4\n\t"
-            "vmov d6, d4\n\t"
+            "vmov d1, d0\n\t"             /* d1 = gray (G channel) */
+            "vld2.8 {d4, d5}, [r4]!\n\t"  /* next 8 pixels: d4=gray, d5=alpha */
+            "vmov d7, d5\n\t"             /* d7 = alpha */
+            "vmov d6, d4\n\t"             /* d6 = gray (R channel) */
+            "vmov d5, d4\n\t"             /* d5 = gray (G channel) */
             "vst4.8 {d0-d3}, [r5]!\n\t"   /* store [B,G,R,A] = [gray,gray,gray,alpha] */
             "vst4.8 {d4-d7}, [r5]!\n\t"
             "subs r6, r6, #16\n\t"
