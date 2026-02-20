@@ -181,6 +181,7 @@ void migrateDB(void)
                     // Rom not already inserted
                     __db_insert_rom_from_cache(cache_db_item);
 
+                    sqlite3_finalize(stmt);
                     if (sqlite3_prepare_v2(play_activity_db, "SELECT last_insert_rowid()", -1, &stmt, NULL) != SQLITE_OK) {
                         printf("%s: %s\n", sqlite3_errmsg(play_activity_db), sqlite3_sql(stmt));
                     }
@@ -194,9 +195,15 @@ void migrateDB(void)
                 else {
                     rom_id = sqlite3_column_int(stmt, 0);
                     printf("- already added - ID %d\n", rom_id);
+                    sqlite3_finalize(stmt);
                 }
+                sqlite3_free(sql);
                 free(cache_db_item);
                 break;
+            }
+            if (!is_found) {
+                sqlite3_free(sql);
+                sqlite3_finalize(stmt);
             }
         }
 
@@ -224,17 +231,21 @@ void migrateDB(void)
 
             if (sqlite3_step(stmt) != SQLITE_ROW) {
                 // Game not found
+                sqlite3_free(sql);
 
                 sql = sqlite3_mprintf("INSERT INTO rom(type, name, file_path, image_path) VALUES('ORPHAN', %Q, '', '');", rom_list[i].name);
                 int rc = sqlite3_exec(play_activity_db, sql, NULL, NULL, NULL);
                 sqlite3_free(sql);
+                sql = NULL;
 
                 if (rc != SQLITE_OK) {
                     printf("%s: %s\n", sqlite3_errmsg(play_activity_db), sqlite3_sql(stmt));
+                    sqlite3_finalize(stmt);
                     continue;
                 }
                 // Retrieve ROM id by its name
 
+                sqlite3_finalize(stmt);
                 rc = sqlite3_prepare_v2(play_activity_db, "SELECT last_insert_rowid()", -1, &stmt, NULL);
 
                 if (rc != SQLITE_OK) {
@@ -249,6 +260,8 @@ void migrateDB(void)
             else {
                 printf("Orphan already exists\n");
                 rom_id = sqlite3_column_int(stmt, 0);
+                sqlite3_free(sql);
+                sql = NULL;
             }
             sqlite3_finalize(stmt);
 

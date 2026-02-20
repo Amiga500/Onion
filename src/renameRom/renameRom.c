@@ -50,12 +50,13 @@ bool renameCache(const char *cache_path, const char *rom_dirname,
         return false;
     }
 
-    const char *sql = sqlite3_mprintf(
+    char *sql = sqlite3_mprintf(
         "UPDATE %q_roms SET path = %Q, imgpath = %Q, disp = %Q WHERE path = %Q",
         rom_dirname, new_rompath, new_imgpath, new_name, rom_path);
     printf_debug("query: %s\n", sql);
 
     rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    sqlite3_free(sql);
 
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Failed to fetch data: %s\n", sqlite3_errmsg(db));

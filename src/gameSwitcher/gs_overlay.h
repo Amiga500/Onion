@@ -121,15 +121,18 @@ void overlay_resume(void)
         if (autosave_thread_running) {
             // backup screen SDL_Surface
             SDL_Surface *screen_backup = SDL_CreateRGBSurface(SDL_SWSURFACE, screen->w, screen->h, 32, 0, 0, 0, 0);
-            SDL_BlitSurface(screen, NULL, screen_backup, NULL);
+            if (screen_backup != NULL)
+                SDL_BlitSurface(screen, NULL, screen_backup, NULL);
 
             render_showFullscreenMessage("SAVING", false);
 
             // wait for autosave thread to finish
             pthread_join(autosave_thread_pt, NULL);
 
-            SDL_BlitSurface(screen_backup, NULL, screen, NULL);
-            SDL_FreeSurface(screen_backup);
+            if (screen_backup != NULL) {
+                SDL_BlitSurface(screen_backup, NULL, screen, NULL);
+                SDL_FreeSurface(screen_backup);
+            }
         }
 
         render();

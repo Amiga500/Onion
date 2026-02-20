@@ -15,7 +15,8 @@ void __showInfoDialog(const char *title, const char *message)
     keys_enabled = false;
 
     background_cache = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
-    SDL_BlitSurface(screen, NULL, background_cache, NULL);
+    if (background_cache != NULL)
+        SDL_BlitSurface(screen, NULL, background_cache, NULL);
 
     theme_renderDialog(screen, title, message, false);
     SDL_BlitSurface(screen, NULL, video, NULL);

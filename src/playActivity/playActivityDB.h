@@ -193,6 +193,8 @@ PlayActivities *play_activity_find_all(void)
         ROM *rom = play_activities->play_activity[i]->rom = (ROM *)malloc(sizeof(ROM));
         entry->first_played_at = NULL;
         entry->last_played_at = NULL;
+        rom->file_path = NULL;
+        rom->image_path = NULL;
 
         rom->id = sqlite3_column_int(stmt, 0);
         const char *col_type = (const char *)sqlite3_column_text(stmt, 1);
@@ -310,6 +312,8 @@ int __db_get_orphan_rom_id(const char *rom_path)
 {
     int rom_id = ROM_NOT_FOUND;
     char *_file_name = strdup(rom_path);
+    if (_file_name == NULL)
+        return ROM_NOT_FOUND;
     char *file_name = basename(_file_name);
     char *rom_name = file_removeExtension(file_name);
 

@@ -279,17 +279,20 @@ void action_saveGame(void *_)
     pthread_create(&save_thread, NULL, _save_thread, NULL);
 
     SDL_Surface *bg = SDL_CreateRGBSurface(SDL_SWSURFACE, g_display.width, g_display.height, 32, 0, 0, 0, 0);
-    SDL_BlitSurface(screen, NULL, bg, NULL);
+    if (bg != NULL)
+        SDL_BlitSurface(screen, NULL, bg, NULL);
 
     theme_clearDialogProgress();
 
     while (g_save_thread_running) {
-        SDL_BlitSurface(bg, NULL, screen, NULL);
+        if (bg != NULL)
+            SDL_BlitSurface(bg, NULL, screen, NULL);
         theme_renderDialogProgress(screen, "Saving", " ", false);
         render();
     }
 
-    SDL_BlitSurface(bg, NULL, screen, NULL);
+    if (bg != NULL)
+        SDL_BlitSurface(bg, NULL, screen, NULL);
     theme_renderDialog(screen, "Saving", g_save_thread_success ? "State saved" : "Save failed", false);
     render();
 

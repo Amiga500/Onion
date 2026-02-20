@@ -109,6 +109,8 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     char cache_db_file_path[STR_MAX];
     char cache_type[STR_MAX];
     char *_path_or_name = strdup(path_or_name);
+    if (_path_or_name == NULL)
+        return NULL;
 
     char rel_path[PATH_MAX];
     if (!file_path_relative_to(rel_path, "/mnt/SDCARD/Roms", path_or_name)) {
