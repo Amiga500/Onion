@@ -26,7 +26,8 @@ typedef struct IconInfo {
     char config_path[STR_MAX];
 } IconInfo_t;
 
-static IconInfo_t icon_infos[500];
+#define MAX_ICON_INFOS 500
+static IconInfo_t icon_infos[MAX_ICON_INFOS];
 static int icon_infos_len = 0;
 
 int _add_icon_alts(const char *pack_dir, const char *pack_name,
@@ -288,6 +289,10 @@ bool _add_config_icon(const char *path, const char *name,
         strncpy(item.description, icon_name, STR_MAX - 1);
     }
 
+    if (icon_infos_len >= MAX_ICON_INFOS) {
+        free(icon_name);
+        return false;
+    }
     IconInfo_t *info = &icon_infos[icon_infos_len++];
     strncpy(info->name, icon_name, STR_MAX - 1);
     info->name[STR_MAX - 1] = '\0';

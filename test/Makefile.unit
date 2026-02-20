@@ -22,7 +22,7 @@ BUILD_DIR := ../build_test
 COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
 
 # Test targets
-TESTS := test_str test_perf test_file test_hash test_json test_state
+TESTS := test_str test_perf test_file test_hash test_json test_state test_neon
 
 .PHONY: all clean $(TESTS)
 
@@ -76,5 +76,13 @@ $(BUILD_DIR)/test_state: test_state.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_state.c $(COMMON_SRCS) $(LDFLAGS)
 
+test_neon: $(BUILD_DIR)/test_neon
+	@echo ""
+	@$(BUILD_DIR)/test_neon
+
+$(BUILD_DIR)/test_neon: test_neon.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_neon.c $(LDFLAGS)
+
 clean:
-	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state
+	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon

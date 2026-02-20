@@ -58,6 +58,8 @@ InstalledApp *getInstalledApps(bool sort)
                 strcmp(ep->d_name, "..") == 0)
                 continue;
             int i = installed_apps_count;
+            if (i >= 100)
+                continue;
 
             if (!_getAppDirAndConfig(ep->d_name, app_dir, config_path))
                 continue;
