@@ -163,12 +163,12 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
         game->sum = count;
         game->c_sum = total_games_count;
 
-        strncpy(game->label, (const char *)sqlite3_column_text(res, 1),
-                STR_MAX - 1);
-        strncpy(game->path, (const char *)sqlite3_column_text(res, 2),
-                STR_MAX - 1);
-        strncpy(game->img_path, (const char *)sqlite3_column_text(res, 3),
-                STR_MAX - 1);
+        const char *col_label = (const char *)sqlite3_column_text(res, 1);
+        strncpy(game->label, col_label != NULL ? col_label : "", STR_MAX - 1);
+        const char *col_path = (const char *)sqlite3_column_text(res, 2);
+        strncpy(game->path, col_path != NULL ? col_path : "", STR_MAX - 1);
+        const char *col_img = (const char *)sqlite3_column_text(res, 3);
+        strncpy(game->img_path, col_img != NULL ? col_img : "", STR_MAX - 1);
 
         strncpy(game->launch_path, launch_path, STR_MAX * 2 - 1);
         strncpy(game->emu_name, emuname, STR_MAX - 1);

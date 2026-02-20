@@ -158,11 +158,13 @@ void migrateDB(void)
                     break;
                 strncpy(cache_db_item->cache_path, handle->db_path, sizeof(cache_db_item->cache_path) - 1);
                 cache_db_item->cache_path[sizeof(cache_db_item->cache_path) - 1] = '\0';
-                strncpy(cache_db_item->name, (const char *)sqlite3_column_text(stmt, 0), sizeof(cache_db_item->name) - 1);
+                const char *col_name = (const char *)sqlite3_column_text(stmt, 0);
+                strncpy(cache_db_item->name, col_name != NULL ? col_name : "", sizeof(cache_db_item->name) - 1);
                 cache_db_item->name[sizeof(cache_db_item->name) - 1] = '\0';
                 strncpy(cache_db_item->path, rom_path, sizeof(cache_db_item->path) - 1);
                 cache_db_item->path[sizeof(cache_db_item->path) - 1] = '\0';
-                strncpy(cache_db_item->imgpath, (const char *)sqlite3_column_text(stmt, 2), sizeof(cache_db_item->imgpath) - 1);
+                const char *col_imgpath = (const char *)sqlite3_column_text(stmt, 2);
+                strncpy(cache_db_item->imgpath, col_imgpath != NULL ? col_imgpath : "", sizeof(cache_db_item->imgpath) - 1);
                 cache_db_item->imgpath[sizeof(cache_db_item->imgpath) - 1] = '\0';
 
                 sqlite3_free(sql);
