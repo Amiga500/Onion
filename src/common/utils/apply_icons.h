@@ -92,8 +92,10 @@ bool apply_singleIconByFullPath(const char *config_path, const char *icon_path)
     json_forceSetString(config, "iconsel", sel_path);
 
     char *config_str = cJSON_Print(config);
-    _saveConfigFile(config_path, config_str);
-    cJSON_free(config_str);
+    if (config_str != NULL) {
+        _saveConfigFile(config_path, config_str);
+        cJSON_free(config_str);
+    }
     cJSON_Delete(config);
 
     return true;
@@ -192,8 +194,10 @@ bool _apply_singleIconFromPack(const char *config_path,
     json_forceSetString(config, "icon", icon_path);
 
     char* config_str = cJSON_Print(config);
-    _saveConfigFile(config_path, config_str);
-    cJSON_free(config_str);
+    if (config_str != NULL) {
+        _saveConfigFile(config_path, config_str);
+        cJSON_free(config_str);
+    }
     cJSON_Delete(config);
 
     printf_debug("Applied icon to %s\nicon:    %s\niconsel: %s\n", config_path,
@@ -213,8 +217,10 @@ bool apply_singleIcon(const char *config_path)
         strncpy(icon_pack_path, "/mnt/SDCARD/Icons/Default", STR_MAX - 1);
     icon_pack_path[STR_MAX - 1] = '\0';
 
-    if (!is_dir(icon_pack_path))
+    if (!is_dir(icon_pack_path)) {
+        free(active_icon_pack);
         return false;
+    }
 
     if (strcmp(GUEST_CONFIG, config_path) == 0) {
         _apply_singleIconFromPack(GUEST_OFF_CONFIG, icon_pack_path, false);
