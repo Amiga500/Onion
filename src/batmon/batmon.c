@@ -215,11 +215,10 @@ void update_current_duration(void)
                         }
 
                         battery_current_state_duration = 0;
-                        sqlite3_finalize(stmt);
                         sqlite3_finalize(update_stmt);
                     }
                 }
-            }
+                sqlite3_finalize(stmt);
             close_battery_log_db();
         }
     }
@@ -321,12 +320,11 @@ int set_best_session_time(int best_session)
                             fprintf(stderr, "Failed to update best_session: %s\n", sqlite3_errmsg(bat_log_db));
                         }
 
-                        sqlite3_finalize(stmt);
                         sqlite3_finalize(update_stmt);
                         is_success = 1;
                     }
                 }
-            }
+                sqlite3_finalize(stmt);
             close_battery_log_db();
         }
     }
