@@ -16,11 +16,10 @@ The workflows have been updated to support custom tags:
   - For `stable` tag: uses version from Makefile
 
 ### 2. **Pre-release** (`.github/workflows/pre-release.yml`)
-- **Trigger**: Activates when a `beta` tag is created or manually via workflow_dispatch
+- **Trigger**: Manually via workflow_dispatch (GitHub Actions UI)
 - **Output**: Creates an `Onion-v{VERSION}-{SHA}.zip` file as a pre-release
 - **Behavior**:
-  - For `beta` tag: uses version from Makefile + current commit SHA
-  - For manual workflow_dispatch: uses version from Makefile + origin/main SHA
+  - Uses version from Makefile + current commit SHA (from `HEAD`)
 
 ## How to Use
 
@@ -39,16 +38,13 @@ The workflows have been updated to support custom tags:
 
 ### To Create a Beta Release
 
-1. **Ensure your code is committed**
-2. **Create and push the `beta` tag**:
-   ```bash
-   git tag -f beta
-   git push -f origin beta
-   ```
-3. The `pre-release` workflow will automatically:
+1. **Update the version** in `Makefile` if needed (format: `X.Y.Z-beta-DD_MM_YYYY`)
+2. **Go to GitHub → Actions** and select the "Pre-release" workflow
+3. Click **"Run workflow"**, select the branch, and click **"Run workflow"**
+4. The `pre-release` workflow will automatically:
    - Build the project
    - Create the `Onion-v{VERSION}-{SHA}.zip` file
-   - Upload it to the release with tag `beta` (as pre-release)
+   - Upload it to the release with tag `latest` (as pre-release)
 
 ### For Version-Specific Releases
 
