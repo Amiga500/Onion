@@ -39,10 +39,12 @@ void _toolDialog(const char *title_str, const char *message_str,
     if (_tool_bg_cache == NULL) {
         _tool_bg_cache =
             SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
-        SDL_BlitSurface(screen, NULL, _tool_bg_cache, NULL);
+        if (_tool_bg_cache != NULL)
+            SDL_BlitSurface(screen, NULL, _tool_bg_cache, NULL);
     }
 
-    SDL_BlitSurface(_tool_bg_cache, NULL, screen, NULL);
+    if (_tool_bg_cache != NULL)
+        SDL_BlitSurface(_tool_bg_cache, NULL, screen, NULL);
 
     if (show_progress)
         theme_renderDialogProgress(screen, title_str, message_str, false);

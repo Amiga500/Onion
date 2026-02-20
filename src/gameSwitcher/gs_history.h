@@ -59,11 +59,11 @@ bool parseJsonToRecentItem(const char *jsonStr, RecentItem *recentItem, int line
     if (colonPosition != NULL) {
         int position = (int)(colonPosition - recentItem->rompath);
 
-        char firstPart[position + 1];
+        char firstPart[STR_MAX * 2];
         strncpy(firstPart, recentItem->rompath, position);
         firstPart[position] = '\0';
 
-        char secondPart[strlen(recentItem->rompath) - position];
+        char secondPart[STR_MAX * 2];
         strncpy(secondPart, colonPosition + 1, sizeof(secondPart) - 1);
         secondPart[sizeof(secondPart) - 1] = '\0';
 
