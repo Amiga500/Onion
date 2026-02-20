@@ -109,7 +109,7 @@ $(CACHE)/.setup:
 # Set flag: finished setup
 	@touch $(CACHE)/.setup
 
-build: core apps external
+build: external-libs core apps external
 	@$(ECHO) $(PRINT_DONE)
 
 core: $(CACHE)/.setup
