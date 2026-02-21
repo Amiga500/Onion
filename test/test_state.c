@@ -199,6 +199,68 @@ static char *_fixed_history_getRecentPath(const char *recentlist_path,
     return NULL;
 }
 
+/* Testable version with ALL fixes applied:
+ * - continue on malformed/non-game lines
+ * - continue when rompath key is missing
+ * - continue when rompath value is truncated
+ * - bounds-checked rompath copy
+ * - continue when ROM file no longer exists on disk */
+static char *_fully_fixed_history_getRecentPath(const char *recentlist_path,
+                                                 char *rom_path)
+{
+    FILE *file = fopen(recentlist_path, "r");
+    if (file == NULL)
+        return NULL;
+
+    char line[STR_MAX * 3];
+    while (fgets(line, STR_MAX * 3, file) != NULL) {
+        size_t line_len = strlen(line);
+        char *jsonContent = (char *)malloc(line_len + 1);
+        int type;
+
+        memcpy(jsonContent, line, line_len + 1);
+        const char *typeStr = strstr(jsonContent, "\"type\":");
+        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1) {
+            free(jsonContent);
+            continue;
+        }
+
+        if ((type != 5) && (type != 17)) {
+            free(jsonContent);
+            continue;
+        }
+
+        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
+        if (rompathStart == NULL) {
+            free(jsonContent);
+            continue;
+        }
+        rompathStart += 11;
+        const char *rompathEnd = strchr(rompathStart, '"');
+        if (rompathEnd == NULL) {
+            free(jsonContent);
+            continue;
+        }
+        size_t len = (size_t)(rompathEnd - rompathStart);
+        if (len >= STR_MAX)
+            len = STR_MAX - 1;
+        strncpy(rom_path, rompathStart, len);
+        rom_path[len] = '\0';
+
+        free(jsonContent);
+
+        /* Skip if the ROM file no longer exists */
+        if (!exists(rom_path))
+            continue;
+
+        fclose(file);
+        return rom_path;
+    }
+
+    fclose(file);
+    return NULL;
+}
+
 /* ------------------------------------------------------------------ */
 /* Tests for state_getAppName                                          */
 /* ------------------------------------------------------------------ */
@@ -412,6 +474,83 @@ TEST(history_getRecentPath_multiple_non_game_entries_then_game) {
 /* main                                                                */
 /* ------------------------------------------------------------------ */
 
+/*
+ * BUG #3 — Logged regression test.
+ *
+ * A game entry (type 5) whose "rompath" key is entirely absent is a
+ * valid reason to continue scanning: it is a malformed record, not a
+ * signal to stop.
+ *
+ * Buggy behaviour (state.h before fix):
+ *   rompathStart == NULL → fclose + return NULL, missing line 2.
+ * Fixed behaviour:
+ *   rompathStart == NULL → continue, line 2 is found.
+ */
+TEST(history_getRecentPath_missing_rompath_key_skipped) {
+    FILE *fp = fopen(_TMP_RECENT, "w");
+    ASSERT_NOT_NULL(fp);
+    /* Line 1: type-5 entry but no "rompath" key — should be skipped */
+    fprintf(fp, "{\"label\":\"BadGame\",\"type\":5}\n");
+    /* Line 2: valid game entry */
+    fprintf(fp,
+        "{\"label\":\"GoodGame\",\"type\":5,"
+        "\"rompath\":\"/mnt/SDCARD/Roms/GBA/good.gba\","
+        "\"imgpath\":\"/mnt/SDCARD/Roms/GBA/Imgs/good.png\","
+        "\"launch\":\"/mnt/SDCARD/Emu/GBA/launch.sh\"}\n");
+    fclose(fp);
+
+    char rom_path[STR_MAX] = {0};
+    /* _fixed_history_getRecentPath already uses continue for this case */
+    char *result = _fixed_history_getRecentPath(_TMP_RECENT, rom_path);
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "/mnt/SDCARD/Roms/GBA/good.gba");
+    unlink(_TMP_RECENT);
+}
+
+/*
+ * BUG #4 — Logged regression test.
+ *
+ * When the most recently played game's ROM file has been deleted from
+ * the SD card, the function should skip that entry and return the path
+ * of the next game in the history that still exists.
+ *
+ * Buggy behaviour (state.h before fix):
+ *   !exists(romPathSearch) → fclose + return NULL.
+ * Fixed behaviour:
+ *   !exists(romPathSearch) → continue, next existing ROM is returned.
+ */
+TEST(history_getRecentPath_nonexistent_rom_skipped) {
+    const char *tmp_rom = "/tmp/onion_test_game.gba";
+
+    /* Create a "real" ROM file for the second entry */
+    FILE *fp = fopen(tmp_rom, "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+
+    fp = fopen(_TMP_RECENT, "w");
+    ASSERT_NOT_NULL(fp);
+    /* Line 1: ROM file does not exist on this host */
+    fprintf(fp,
+        "{\"label\":\"DeletedGame\",\"type\":5,"
+        "\"rompath\":\"/mnt/SDCARD/Roms/GBA/deleted.gba\"}\n");
+    /* Line 2: ROM file exists (the temp file we just created) */
+    fprintf(fp,
+        "{\"label\":\"ExistingGame\",\"type\":5,"
+        "\"rompath\":\"%s\"}\n", tmp_rom);
+    fclose(fp);
+
+    char rom_path[STR_MAX] = {0};
+    char *result = _fully_fixed_history_getRecentPath(_TMP_RECENT, rom_path);
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, tmp_rom);
+    unlink(_TMP_RECENT);
+    unlink(tmp_rom);
+}
+
+/* ------------------------------------------------------------------ */
+/* main                                                                */
+/* ------------------------------------------------------------------ */
+
 int main(void)
 {
     printf("\n=== state.h / AdvanceMENU Unit Tests ===\n\n");
@@ -431,6 +570,8 @@ int main(void)
     RUN_TEST(history_getRecentPath_malformed_line_then_game);
     RUN_TEST(history_getRecentPath_app_entry_before_game_entry_bug);
     RUN_TEST(history_getRecentPath_multiple_non_game_entries_then_game);
+    RUN_TEST(history_getRecentPath_missing_rompath_key_skipped);
+    RUN_TEST(history_getRecentPath_nonexistent_rom_skipped);
 
     TEST_REPORT();
     return test_failures;
