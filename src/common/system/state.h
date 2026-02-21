@@ -285,19 +285,20 @@ char *history_getRecentPath(char *rom_path)
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
         if (rompathStart == NULL) {
             free(jsonContent);
-            fclose(file);
-            return NULL;
+            continue;
         }
         rompathStart += 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
         if (rompathEnd == NULL) {
             free(jsonContent);
-            fclose(file);
-            return NULL;
+            continue;
         }
 
-        strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
-        romPathSearch[rompathEnd - rompathStart] = '\0';
+        size_t romPathLen = (size_t)(rompathEnd - rompathStart);
+        if (romPathLen >= STR_MAX)
+            romPathLen = STR_MAX - 1;
+        strncpy(romPathSearch, rompathStart, romPathLen);
+        romPathSearch[romPathLen] = '\0';
 
         free(jsonContent);
 
@@ -310,8 +311,7 @@ char *history_getRecentPath(char *rom_path)
         printf_debug("romPathSearch : %s\n", romPathSearch);
 
         if (!exists(romPathSearch)) {
-            fclose(file);
-            return NULL;
+            continue;
         }
 
         strncpy(rom_path, romPathSearch, STR_MAX - 1);
