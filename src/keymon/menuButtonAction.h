@@ -18,7 +18,7 @@
 #include "utils/retroarch_cmd.h"
 
 static SystemState menu_pressed_state = MODE_UNKNOWN;
-static int menu_last_pressed = 0;
+static long menu_last_pressed = 0;
 static int menu_long_press_timeout = 700;
 static bool menu_ignore_next = false;
 
