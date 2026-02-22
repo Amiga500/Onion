@@ -279,7 +279,7 @@ bool _add_config_icon(const char *path, const char *name,
     str_split(icon_name, "-");
 
     char short_label[56];
-    str_trim(short_label, 55, label, false);
+    str_trim(short_label, 56, label, false);
     short_label[55] = 0;
 
     if (mode != ICON_MODE_APP)

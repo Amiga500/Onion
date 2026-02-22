@@ -168,9 +168,9 @@ TEST(str_removeParentheses_max_length_no_parens) {
 
     char out[STR_MAX];
     str_removeParentheses(out, input); /* must not crash or overwrite past out[] */
-    /* str_trim(buf, STR_MAX-1, ...) truncates to STR_MAX-2 printable chars */
-    ASSERT_EQ((int)strlen(out), STR_MAX - 2);
-    for (int i = 0; i < STR_MAX - 2; i++)
+    /* str_trim(buf, STR_MAX, ...) preserves up to STR_MAX-1 printable chars */
+    ASSERT_EQ((int)strlen(out), STR_MAX - 1);
+    for (int i = 0; i < STR_MAX - 1; i++)
         ASSERT_TRUE(out[i] == 'a');
 }
 

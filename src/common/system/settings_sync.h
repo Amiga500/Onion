@@ -14,7 +14,7 @@ static KeyShmInfo shminfo;
 #define VOLUME_DISPLAY_TIMEOUT 2000
 
 static int _volume_changed = 0;
-static int _changed_timer = 0;
+static long _changed_timer = 0;
 
 // Currently not working, has a delay which means the last volume level is
 // shown, not the current

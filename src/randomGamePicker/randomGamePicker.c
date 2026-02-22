@@ -89,7 +89,7 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
             strncpy(emuname_out, basename(emupath), STR_MAX - 1);
             emuname_out[STR_MAX - 1] = '\0';
         } else
-            str_trim(emuname_out, STR_MAX - 1, label_temp, false);
+            str_trim(emuname_out, STR_MAX, label_temp, false);
     }
 
     if (imgsdir_out != NULL) {

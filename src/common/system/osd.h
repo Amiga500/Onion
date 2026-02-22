@@ -258,7 +258,7 @@ int overlay_surface(SDL_Surface *surface, int destX, int destY, int duration_ms,
 
 static int meterWidth = 4;
 static volatile bool osd_bar_activated = false;
-static volatile int _bar_timer = 0;
+static volatile long _bar_timer = 0;
 static volatile int _bar_value = 0;
 static volatile int _bar_max = 0;
 static volatile uint32_t _bar_color = 0x00FFFFFF;

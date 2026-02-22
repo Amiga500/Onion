@@ -487,11 +487,11 @@ int main(void)
     bool comboKey_select = false;
     bool menuAndAPressed = false; // screen recorder
     bool menuAndBPressed = false; // blue light filter
-    int menuAndAPressedTime = 0;
-    int menuAndBPressedTime = 0;
+    long menuAndAPressedTime = 0;
+    long menuAndBPressedTime = 0;
 
-    int ticks = getMilliseconds();
-    int hibernate_start = ticks;
+    long ticks = getMilliseconds();
+    long hibernate_start = ticks;
     int hibernate_time;
     int elapsed_sec = 0;
 

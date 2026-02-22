@@ -143,7 +143,7 @@ int play_activity_get_total_play_time(void)
     play_activity_db_open();
     stmt = play_activity_db_prepare(sql);
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         total_play_time = sqlite3_column_int(stmt, 0);
     }
 
@@ -175,10 +175,11 @@ PlayActivities *play_activity_find_all(void)
     stmt = play_activity_db_prepare(sql);
 
     int play_activity_count = 0;
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    while (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         play_activity_count++;
     }
-    sqlite3_reset(stmt);
+    if (stmt != NULL)
+        sqlite3_reset(stmt);
 
     play_activities = (PlayActivities *)malloc(sizeof(PlayActivities));
     play_activities->count = play_activity_count;
@@ -279,7 +280,7 @@ int __db_insert_rom(const char *rom_type, const char *rom_name, const char *file
     sqlite3_free(sql);
 
     sqlite3_stmt *stmt = play_activity_db_prepare("SELECT id FROM rom WHERE ROWID = last_insert_rowid()");
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         rom_id = sqlite3_column_int(stmt, 0);
     }
     sqlite3_finalize(stmt);
@@ -323,7 +324,7 @@ int __db_get_orphan_rom_id(const char *rom_path)
     free(rom_name);
     free(_file_name);
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         rom_id = sqlite3_column_int(stmt, 0);
     }
 
@@ -343,7 +344,7 @@ int __db_get_rom_id_by_path(const char *rom_path)
     sqlite3_stmt *stmt = play_activity_db_prepare(sql);
     sqlite3_free(sql);
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         rom_id = sqlite3_column_int(stmt, 0);
     }
 
@@ -421,7 +422,7 @@ int play_activity_get_play_time(const char *rom_path)
         char *sql = sqlite3_mprintf("SELECT SUM(play_time) FROM play_activity WHERE rom_id = %d;", rom_id);
         sqlite3_stmt *stmt = play_activity_db_prepare(sql);
         sqlite3_free(sql);
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
+        if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
             play_time = sqlite3_column_int(stmt, 0);
         }
         sqlite3_finalize(stmt);
@@ -472,7 +473,7 @@ int __db_get_active_closed_activity(void)
     char *sql = sqlite3_mprintf("SELECT * FROM play_activity WHERE rom_id = %d AND play_time IS NULL;", rom_id);
     sqlite3_stmt *stmt = play_activity_db_prepare(sql);
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         // Activity is not closed
         rom_id = ROM_NOT_FOUND;
     }
@@ -546,7 +547,7 @@ void play_activity_fix_paths(void)
     play_activity_db_open();
     sqlite3_stmt *stmt = play_activity_db_prepare("SELECT id, file_path FROM rom WHERE file_path LIKE '/mnt/SDCARD/%%';");
 
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    while (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
         int rom_id = sqlite3_column_int(stmt, 0);
         char file_path[PATH_MAX];
         const char *col_file_path = (const char *)sqlite3_column_text(stmt, 1);

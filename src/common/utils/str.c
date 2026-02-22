@@ -174,7 +174,7 @@ void str_removeParentheses(char *str_out, const char *str_in)
 
     temp[c] = '\0';
 
-    str_trim(str_out, STR_MAX - 1, temp, false);
+    str_trim(str_out, STR_MAX, temp, false);
 }
 
 void str_serializeTime(char *dest_str, int nTime)
