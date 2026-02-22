@@ -52,7 +52,7 @@ bool file_isModified(const char *path, time_t *old_mtime)
 
 bool file_isLocked(const char *path)
 {
-    int fd = open(path, O_RDONLY | O_CREAT, 0666);
+    int fd = open(path, O_RDONLY);
     if (fd == -1)
         return true;
     close(fd);

@@ -20,7 +20,7 @@
 
 TEST(hash_basic_string) {
     // Add extra buffer as required by hash function
-    char *str = (char *)malloc(strlen("hello") + 1 + HASH_BUFFER_EXTRA);
+    char *str = (char *)calloc(1, strlen("hello") + 1 + HASH_BUFFER_EXTRA);
     strcpy(str, "hello");
     uint32_t hash = FNV1A_Pippip_Yurii(str, strlen(str));
     // Hash should be deterministic - same input produces same output
@@ -32,8 +32,8 @@ TEST(hash_basic_string) {
 
 TEST(hash_different_strings) {
     // Different strings should produce different hashes (in most cases)
-    char *str1 = (char *)malloc(strlen("hello") + 1 + HASH_BUFFER_EXTRA);
-    char *str2 = (char *)malloc(strlen("world") + 1 + HASH_BUFFER_EXTRA);
+    char *str1 = (char *)calloc(1, strlen("hello") + 1 + HASH_BUFFER_EXTRA);
+    char *str2 = (char *)calloc(1, strlen("world") + 1 + HASH_BUFFER_EXTRA);
     strcpy(str1, "hello");
     strcpy(str2, "world");
     
@@ -46,7 +46,7 @@ TEST(hash_different_strings) {
 }
 
 TEST(hash_empty_string) {
-    char *str = (char *)malloc(1 + HASH_BUFFER_EXTRA);
+    char *str = (char *)calloc(1, 1 + HASH_BUFFER_EXTRA);
     str[0] = '\0';
     uint32_t hash = FNV1A_Pippip_Yurii(str, 0);
     ASSERT_GT(hash, 0);
@@ -56,7 +56,7 @@ TEST(hash_empty_string) {
 TEST(hash_long_string) {
     // Test with string longer than 8 bytes
     const char *text = "this is a longer string for testing";
-    char *str = (char *)malloc(strlen(text) + 1 + HASH_BUFFER_EXTRA);
+    char *str = (char *)calloc(1, strlen(text) + 1 + HASH_BUFFER_EXTRA);
     strcpy(str, text);
     uint32_t hash = FNV1A_Pippip_Yurii(str, strlen(str));
     ASSERT_GT(hash, 0);
@@ -66,7 +66,7 @@ TEST(hash_long_string) {
 TEST(hash_deterministic) {
     // Verify hash is deterministic across multiple calls
     const char *text = "test_string_123";
-    char *str = (char *)malloc(strlen(text) + 1 + HASH_BUFFER_EXTRA);
+    char *str = (char *)calloc(1, strlen(text) + 1 + HASH_BUFFER_EXTRA);
     strcpy(str, text);
     
     uint32_t hash1 = FNV1A_Pippip_Yurii(str, strlen(str));
@@ -80,8 +80,8 @@ TEST(hash_deterministic) {
 
 TEST(hash_case_sensitive) {
     // Hash should be case-sensitive
-    char *str1 = (char *)malloc(strlen("Hello") + 1 + HASH_BUFFER_EXTRA);
-    char *str2 = (char *)malloc(strlen("hello") + 1 + HASH_BUFFER_EXTRA);
+    char *str1 = (char *)calloc(1, strlen("Hello") + 1 + HASH_BUFFER_EXTRA);
+    char *str2 = (char *)calloc(1, strlen("hello") + 1 + HASH_BUFFER_EXTRA);
     strcpy(str1, "Hello");
     strcpy(str2, "hello");
     
@@ -99,7 +99,7 @@ TEST(hash_short_strings) {
     size_t num_strings = sizeof(short_strs) / sizeof(short_strs[0]);
     
     for (size_t i = 0; i < num_strings; i++) {
-        char *str = (char *)malloc(strlen(short_strs[i]) + 1 + HASH_BUFFER_EXTRA);
+        char *str = (char *)calloc(1, strlen(short_strs[i]) + 1 + HASH_BUFFER_EXTRA);
         strcpy(str, short_strs[i]);
         uint32_t hash = FNV1A_Pippip_Yurii(str, strlen(str));
         ASSERT_GT(hash, 0);
@@ -109,8 +109,8 @@ TEST(hash_short_strings) {
 
 TEST(hash_slightly_different) {
     // Small changes should produce different hashes
-    char *str1 = (char *)malloc(strlen("test123") + 1 + HASH_BUFFER_EXTRA);
-    char *str2 = (char *)malloc(strlen("test124") + 1 + HASH_BUFFER_EXTRA);
+    char *str1 = (char *)calloc(1, strlen("test123") + 1 + HASH_BUFFER_EXTRA);
+    char *str2 = (char *)calloc(1, strlen("test124") + 1 + HASH_BUFFER_EXTRA);
     strcpy(str1, "test123");
     strcpy(str2, "test124");
     
@@ -126,7 +126,7 @@ TEST(hash_slightly_different) {
 
 TEST(hash_known_value_hello) {
     /* Verified expected value: FNV1A_Pippip_Yurii("hello", 5) == 0x4E020623 */
-    char *str = (char *)malloc(strlen("hello") + 1 + HASH_BUFFER_EXTRA);
+    char *str = (char *)calloc(1, strlen("hello") + 1 + HASH_BUFFER_EXTRA);
     strcpy(str, "hello");
     uint32_t hash = FNV1A_Pippip_Yurii(str, strlen(str));
     ASSERT_EQ(hash, 0x4E020623u);
@@ -135,7 +135,7 @@ TEST(hash_known_value_hello) {
 
 TEST(hash_known_value_world) {
     /* Verified expected value: FNV1A_Pippip_Yurii("world", 5) == 0x74BFE10F */
-    char *str = (char *)malloc(strlen("world") + 1 + HASH_BUFFER_EXTRA);
+    char *str = (char *)calloc(1, strlen("world") + 1 + HASH_BUFFER_EXTRA);
     strcpy(str, "world");
     uint32_t hash = FNV1A_Pippip_Yurii(str, strlen(str));
     ASSERT_EQ(hash, 0x74BFE10Fu);
@@ -146,7 +146,7 @@ TEST(hash_known_value_path) {
     /* Long path (> 8 bytes) exercises the Cycles loop */
     /* Verified: FNV1A_Pippip_Yurii("/mnt/SDCARD/Roms/GBA/game.gba", 30) == 0x165E4B94 */
     const char *text = "/mnt/SDCARD/Roms/GBA/game.gba";
-    char *str = (char *)malloc(strlen(text) + 1 + HASH_BUFFER_EXTRA);
+    char *str = (char *)calloc(1, strlen(text) + 1 + HASH_BUFFER_EXTRA);
     strcpy(str, text);
     uint32_t hash = FNV1A_Pippip_Yurii(str, strlen(str));
     ASSERT_EQ(hash, 0x165E4B94u);
@@ -155,8 +155,8 @@ TEST(hash_known_value_path) {
 
 TEST(hash_different_lengths_differ) {
     /* "abc" and "ab" should produce different hashes */
-    char *str1 = (char *)malloc(3 + 1 + HASH_BUFFER_EXTRA);
-    char *str2 = (char *)malloc(2 + 1 + HASH_BUFFER_EXTRA);
+    char *str1 = (char *)calloc(1, 3 + 1 + HASH_BUFFER_EXTRA);
+    char *str2 = (char *)calloc(1, 2 + 1 + HASH_BUFFER_EXTRA);
     strcpy(str1, "abc");
     strcpy(str2, "ab");
     ASSERT_NE(FNV1A_Pippip_Yurii(str1, 3), FNV1A_Pippip_Yurii(str2, 2));
