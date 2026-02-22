@@ -133,7 +133,7 @@ void formatter_fontFamily(void *pt, char *out_label)
         strncpy(out_label, "-", STR_MAX - 1);
     else
         strncpy(out_label, font_families[item->value - 1], STR_MAX - 1);
-        out_label[STR_MAX - 1] = '\0';
+    out_label[STR_MAX - 1] = '\0';
 }
 
 static const int num_font_sizes = 5;
@@ -141,8 +141,10 @@ static const int font_sizes[] = {13, 18, 24, 32, 40};
 void formatter_fontSize(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    if (item->value == 0)
+    if (item->value == 0) {
         strncpy(out_label, "-", STR_MAX - 1);
+        out_label[STR_MAX - 1] = '\0';
+    }
     else
         snprintf(out_label, STR_MAX, "%d px", font_sizes[item->value - 1]);
 }
