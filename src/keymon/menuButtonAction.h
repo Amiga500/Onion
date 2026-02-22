@@ -218,15 +218,19 @@ void action_drastic_gameSwitcher(void)
 {
     enableSavingMessage();
     screenshot_system();
+    displaySavingMessage();
     set_gameSwitcher();
     terminate_drastic();
+    temp_flag_set("dismiss_info_panel", true);
 }
 
 void action_drastic_exitToMenu(void)
 {
     enableSavingMessage();
     screenshot_system();
+    displaySavingMessage();
     terminate_drastic();
+    temp_flag_set("dismiss_info_panel", true);
 }
 
 void action_drastic_quickSwitch(void)
