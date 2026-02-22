@@ -9,7 +9,7 @@
 int main()
 {
     size_t buffer_size = 1024;
-    char *input_buffer = malloc(buffer_size + 1); // +1 for null terminator
+    char *input_buffer = malloc(buffer_size + 1 + 8); // +1 null terminator, +8 for FNV1A read-ahead
 
     if (input_buffer == NULL) {
         fprintf(stderr, "Memory allocation error\n");
@@ -27,7 +27,7 @@ int main()
         // Check if the buffer is full, resize it if needed
         if (total_size == buffer_size) {
             buffer_size *= 2;
-            char *new_buffer = realloc(input_buffer, buffer_size + 1); // +1 for null terminator
+            char *new_buffer = realloc(input_buffer, buffer_size + 1 + 8); // +1 null terminator, +8 for FNV1A read-ahead
 
             if (new_buffer == NULL) {
                 fprintf(stderr, "Memory reallocation error\n");
