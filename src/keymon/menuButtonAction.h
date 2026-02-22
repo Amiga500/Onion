@@ -147,7 +147,6 @@ void displaySavingMessage(void)
     if (temp_flag_get(".displaySavingMessage")) {
         temp_flag_set(".displaySavingMessage", false);
         system("infoPanel --message \"SAVING\" --persistent --romscreen &");
-        temp_flag_set("dismiss_info_panel", true);
     }
 }
 
@@ -173,7 +172,8 @@ void action_MainUI_resumeGame(void)
 
 static void _saveAndQuitRetroArch(bool quickSwitch)
 {
-    if (check_autosave()) {
+    bool has_autosave = check_autosave();
+    if (has_autosave) {
         enableSavingMessage();
         retroarch_pause();
         screenshot_system();
@@ -185,6 +185,8 @@ static void _saveAndQuitRetroArch(bool quickSwitch)
     if (quickSwitch)
         set_quickSwitch();
     terminate_retroarch();
+    if (has_autosave)
+        temp_flag_set("dismiss_info_panel", true);
 }
 
 void action_RA_gameSwitcher(void)
