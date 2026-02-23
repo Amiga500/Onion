@@ -199,10 +199,9 @@ void force_shutdown(void)
     system("shutdown");
     while (1)
         pause();
-    exit(0);
 }
 
-void wait(int seconds)
+void wait_seconds(int seconds)
 {
     time_t t = time(NULL);
     while ((time(NULL) - t) < seconds) {
@@ -256,7 +255,7 @@ void deepsleep(void)
     }
 
     // Wait 30s before forcing a shutdown
-    wait(30);
+    wait_seconds(30);
     if (!temp_flag_get("shutting_down")) {
         force_shutdown();
     }
