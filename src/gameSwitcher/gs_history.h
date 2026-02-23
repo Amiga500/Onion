@@ -41,15 +41,19 @@ bool parseJsonToRecentItem(const char *jsonStr, RecentItem *recentItem, int line
 
     if (cJSON_IsString(label) && (label->valuestring != NULL)) {
         strncpy(recentItem->label, label->valuestring, sizeof(recentItem->label) - 1);
+        recentItem->label[sizeof(recentItem->label) - 1] = '\0';
     }
     if (cJSON_IsString(rompath) && (rompath->valuestring != NULL)) {
         strncpy(recentItem->rompath, rompath->valuestring, sizeof(recentItem->rompath) - 1);
+        recentItem->rompath[sizeof(recentItem->rompath) - 1] = '\0';
     }
     if (cJSON_IsString(imgpath) && (imgpath->valuestring != NULL)) {
         strncpy(recentItem->imgpath, imgpath->valuestring, sizeof(recentItem->imgpath) - 1);
+        recentItem->imgpath[sizeof(recentItem->imgpath) - 1] = '\0';
     }
     if (cJSON_IsString(launch) && (launch->valuestring != NULL)) {
         strncpy(recentItem->launch, launch->valuestring, sizeof(recentItem->launch) - 1);
+        recentItem->launch[sizeof(recentItem->launch) - 1] = '\0';
     }
     recentItem->type = type->valueint;
     recentItem->lineNo = lineNo;
