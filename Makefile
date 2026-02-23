@@ -52,9 +52,19 @@ TOOLCHAIN := aemiii91/miyoomini-toolchain:latest
 
 include ./src/common/commands.mk
 
+# Individual component lists
+CORE_COMPONENTS = bootScreen chargingState gameSwitcher mainUiBatPerc keymon \
+	playActivity themeSwitcher tweaks packageManager sendkeys setState \
+	renameRom infoPanel prompt batmon easter read_uuid detectKey axp \
+	pressMenu2Kill pngScale libgamename gameNameList sendUDP tree pippi \
+	cpuclock jpg2png
+
+APP_COMPONENTS = batteryMonitorUI playActivityUI clock randomGamePicker
+
 ###########################################################
 
-.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test
+.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test \
+	$(CORE_COMPONENTS) $(APP_COMPONENTS) installUI
 
 all: dist
 
@@ -142,6 +152,7 @@ core: $(CACHE)/.setup
 	@cd $(SRC_DIR)/tree && BUILD_DIR=$(BIN_DIR) make
 	@cd $(SRC_DIR)/pippi && BUILD_DIR=$(BIN_DIR) make
 	@cd $(SRC_DIR)/cpuclock && BUILD_DIR=$(BIN_DIR) make
+	@cd $(SRC_DIR)/jpg2png && BUILD_DIR=$(BIN_DIR) make
 
 # Build dependencies for installer
 	@mkdir -p $(INSTALLER_DIR)/bin
@@ -171,6 +182,19 @@ apps: $(CACHE)/.setup
 	@cp -a "$(PACKAGES_APP_DEST)/RetroArch (Shortcut)/." $(BUILD_DIR)/
 	@cp -a "$(PACKAGES_APP_DEST)/Tweaks/." $(BUILD_DIR)/
 	@cp -a "$(PACKAGES_APP_DEST)/ThemeSwitcher/." $(BUILD_DIR)/
+
+# Individual component targets
+# Usage: make <component> (e.g., make bootScreen, make keymon, make jpg2png)
+
+$(CORE_COMPONENTS): $(CACHE)/.setup
+	@cd $(SRC_DIR)/$@ && BUILD_DIR=$(BIN_DIR) make
+
+$(APP_COMPONENTS): $(CACHE)/.setup
+	@cd $(SRC_DIR)/$@ && make
+
+installUI: $(CACHE)/.setup
+	@mkdir -p $(INSTALLER_DIR)/bin
+	@cd $(SRC_DIR)/installUI && BUILD_DIR=$(INSTALLER_DIR)/bin/ VERSION=$(VERSION) make
 
 $(THIRD_PARTY_DIR)/RetroArch-patch/bin/retroarch_miyoo354:
 	@$(ECHO) $(PRINT_RECIPE)
