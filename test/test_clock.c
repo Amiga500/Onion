@@ -17,6 +17,10 @@
  * CLOCK_MONOTONIC_RAW / CLOCK_MONOTONIC_COARSE which work everywhere. */
 #include "../src/common/system/clock.h"
 
+/* Tolerances for timing-sensitive tests */
+#define SLEEP_JITTER_TOLERANCE_MS 15
+#define MAX_CLOCK_DRIFT_SECONDS 5
+
 /* ---- getMilliseconds ---- */
 
 TEST(getMilliseconds_positive) {
@@ -34,7 +38,7 @@ TEST(getMilliseconds_advances_with_sleep) {
     long before = getMilliseconds();
     usleep(20000); /* 20 ms */
     long after = getMilliseconds();
-    ASSERT_GE(after - before, 15); /* allow small scheduling jitter */
+    ASSERT_GE(after - before, SLEEP_JITTER_TOLERANCE_MS);
 }
 
 /* ---- getSeconds ---- */
@@ -56,8 +60,7 @@ TEST(getSeconds_consistent_with_millis) {
     int sec = getSeconds();
     long ms = getMilliseconds();
     long diff = (ms / 1000) - (long)sec;
-    /* Allow up to 5 seconds of drift between the two clocks */
-    ASSERT_TRUE(diff >= -5 && diff <= 5);
+    ASSERT_TRUE(diff >= -MAX_CLOCK_DRIFT_SECONDS && diff <= MAX_CLOCK_DRIFT_SECONDS);
 }
 
 /* ---- main ---- */
