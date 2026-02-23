@@ -3,9 +3,10 @@
 TARGET = ../../lib/libSDL_rotozoom.so
 
 CC = $(CROSS_COMPILE)gcc
+SDL_CFLAGS := $(shell sdl-config --cflags 2>/dev/null)
 
 $(TARGET):
-	$(CC) -shared -o $(TARGET) -fPIC SDL_rotozoom.c
+	$(CC) $(SDL_CFLAGS) -shared -o $(TARGET) -fPIC SDL_rotozoom.c
 
 clean:
 	rm -f $(TARGET)
