@@ -514,6 +514,7 @@ int main(void)
 
     while (1) {
         if (quit_signal_received) {
+            quit_signal_received = 0;
             quit(0);
         }
         if (refresh_signal_received) {
