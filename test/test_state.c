@@ -33,6 +33,7 @@
 #include "onion_test.h"
 #include "../src/common/utils/str.h"
 #include "../src/common/utils/file.h"
+#include "../src/common/utils/hash.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -421,7 +422,6 @@ TEST(history_getRecentPath_multiple_non_game_entries_then_game) {
 
 /* Reproduce history_getRomscreenPath with the FIX applied,
  * using a testable file path parameter. */
-#include "../src/common/utils/hash.h"
 static bool _fixed_history_getRomscreenPath(const char *recentlist_path,
                                             char *path_out)
 {
@@ -450,7 +450,7 @@ TEST(history_getRomscreenPath_no_game_returns_false) {
     fprintf(fp, "{\"label\":\"App\",\"type\":3,\"rompath\":\"/App/App1\"}\n");
     fclose(fp);
 
-    char path_out[STR_MAX] = "unchanged";
+    char path_out[STR_MAX] = "";
     bool result = _fixed_history_getRomscreenPath(_TMP_RECENT, path_out);
     ASSERT_FALSE(result);
     unlink(_TMP_RECENT);
