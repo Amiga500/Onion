@@ -5,7 +5,7 @@ TARGET = pngScale
 LDFLAGS := $(LDFLAGS) -lSDL  -lmi_sys -lmi_gfx -lpng
 
 # Check if SDL headers are available before attempting to build
-SDL_AVAILABLE := $(shell echo '#include <SDL/SDL.h>' | $(CC) $(CFLAGS) -x c -c - -o /dev/null 2>/dev/null && echo yes)
+SDL_AVAILABLE := $(shell $(CC) $(CFLAGS) -include SDL/SDL.h -x c -c /dev/null -o /dev/null 2>/dev/null && echo yes)
 
 ifneq ($(SDL_AVAILABLE),yes)
 .PHONY: all build clean dev asan

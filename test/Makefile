@@ -1,6 +1,6 @@
 # Check if gtest and SDL are available (once at parse time)
-GTEST_AVAILABLE := $(shell echo '#include <gtest/gtest.h>' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null && echo yes)
-SDL_AVAILABLE := $(shell echo '#include <SDL/SDL.h>' | $(CROSS_COMPILE)gcc -x c -c - -o /dev/null 2>/dev/null && echo yes)
+GTEST_AVAILABLE := $(shell $(CROSS_COMPILE)g++ -include gtest/gtest.h -x c++ -c /dev/null -o /dev/null 2>/dev/null && echo yes)
+SDL_AVAILABLE := $(shell $(CROSS_COMPILE)gcc -include SDL/SDL.h -x c -c /dev/null -o /dev/null 2>/dev/null && echo yes)
 
 .PHONY: all check-deps clean
 

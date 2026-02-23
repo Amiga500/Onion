@@ -7,7 +7,7 @@ SYSROOT := $(shell $(CC) -print-sysroot 2>/dev/null)
 SDL_CFLAGS := $(shell $(CROSS_COMPILE)sdl-config --cflags 2>/dev/null || pkg-config --cflags sdl 2>/dev/null || if [ -d "$(SYSROOT)/usr/include/SDL" ]; then echo "-I$(SYSROOT)/usr/include"; fi)
 
 # Check if SDL headers are available before attempting to build
-SDL_AVAILABLE := $(shell echo '#include <SDL/SDL.h>' | $(CC) $(SDL_CFLAGS) -x c -c - -o /dev/null 2>/dev/null && echo yes)
+SDL_AVAILABLE := $(shell $(CC) $(SDL_CFLAGS) -include SDL/SDL.h -x c -c /dev/null -o /dev/null 2>/dev/null && echo yes)
 
 $(TARGET):
 ifeq ($(SDL_AVAILABLE),yes)
