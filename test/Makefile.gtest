@@ -9,13 +9,11 @@ CPPFILES := test_infoPanel.cpp
 include ../src/common/config.mk
 
 TARGET = test_infoPanel
+LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lgtest -lgtest_main -lpthread
 
 # Only link SDL_rotozoom if the library exists
-ROTOZOOM_LIB := $(wildcard ../lib/libSDL_rotozoom.so)
-ifneq ($(ROTOZOOM_LIB),)
-LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lSDL_rotozoom -lgtest -lgtest_main -lpthread
-else
-LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lgtest -lgtest_main -lpthread
+ifneq ($(wildcard ../lib/libSDL_rotozoom.so),)
+LDFLAGS := $(LDFLAGS) -lSDL_rotozoom
 endif
 
 include ../src/common/commands.mk
