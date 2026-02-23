@@ -15,6 +15,8 @@
 
 static int super_short_timings[] = {0, 25, 50, 75};
 static int short_timings[] = {0, 50, 100, 150};
+#define VIBRATION_LEVEL_MAX ((int)(sizeof(short_timings) / sizeof(short_timings[0])) - 1)
+#define CLAMP_VIBRATION(v) ((v) > VIBRATION_LEVEL_MAX ? VIBRATION_LEVEL_MAX : (v))
 
 void rumble(bool enabled)
 {
@@ -35,8 +37,9 @@ void short_pulse(void)
 {
     if (settings.vibration == 0)
         return;
+    int level = CLAMP_VIBRATION(settings.vibration);
     rumble(true);
-    msleep(short_timings[settings.vibration]);
+    msleep(short_timings[level]);
     rumble(false);
 }
 
@@ -48,8 +51,9 @@ void super_short_pulse(void)
 {
     if (settings.vibration == 0)
         return;
+    int level = CLAMP_VIBRATION(settings.vibration);
     rumble(true);
-    msleep(super_short_timings[settings.vibration]);
+    msleep(super_short_timings[level]);
     rumble(false);
 }
 
@@ -61,8 +65,9 @@ void menu_short_pulse(void)
 {
     if (settings.vibration == 0 || !settings.menu_button_haptics)
         return;
+    int level = CLAMP_VIBRATION(settings.vibration);
     rumble(true);
-    msleep(short_timings[settings.vibration]);
+    msleep(short_timings[level]);
     rumble(false);
 }
 
@@ -74,8 +79,9 @@ void menu_super_short_pulse(void)
 {
     if (settings.vibration == 0 || !settings.menu_button_haptics)
         return;
+    int level = CLAMP_VIBRATION(settings.vibration);
     rumble(true);
-    msleep(super_short_timings[settings.vibration]);
+    msleep(super_short_timings[level]);
     rumble(false);
 }
 

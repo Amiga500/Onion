@@ -14,7 +14,12 @@ CFILES := $(filter-out $(wildcard ./test_*.c), $(CFILES))
 CPPFILES := $(filter-out $(wildcard ./test_*.cpp), $(CPPFILES))
 
 TARGET = test_infoPanel
-LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lSDL_rotozoom -lgtest -lgtest_main -lpthread
+LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lgtest -lgtest_main -lpthread
+
+# Only link SDL_rotozoom if the library exists
+ifneq ($(wildcard ../lib/libSDL_rotozoom.so),)
+LDFLAGS := $(LDFLAGS) -lSDL_rotozoom
+endif
 
 include ../src/common/commands.mk
 include ../src/common/recipes.mk
