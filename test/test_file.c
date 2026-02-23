@@ -10,6 +10,7 @@
 
 #include "onion_test.h"
 #include "../src/common/utils/file.h"
+#include "../src/common/utils/flags.h"
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -913,7 +914,33 @@ TEST(file_read_multiline) {
     unlink(tmpfile);
 }
 
-/* ---- main ---- */
+/* ---- flag_set / flag_get ---- */
+
+TEST(flag_set_creates_file_with_correct_permissions) {
+    const char *key = "onion_test_flag";
+    remove("/tmp/onion_test_flag");
+
+    flag_set("/tmp/", key, true);
+
+    /* Flag file must exist */
+    ASSERT_TRUE(flag_get("/tmp/", key));
+
+    /* Verify permissions are 0644 (rw-r--r--), not the old decimal 777 (01411) */
+    struct stat st;
+    ASSERT_EQ(stat("/tmp/onion_test_flag", &st), 0);
+    mode_t perms = st.st_mode & 0777;
+    ASSERT_EQ((int)perms, 0644);
+
+    /* Clearing the flag must remove the file */
+    flag_set("/tmp/", key, false);
+    ASSERT_FALSE(flag_get("/tmp/", key));
+}
+
+TEST(flag_set_clear_nonexistent_is_safe) {
+    /* Clearing a flag that doesn't exist must not crash */
+    flag_set("/tmp/", "onion_test_flag_nonexistent", false);
+    ASSERT_FALSE(flag_get("/tmp/", "onion_test_flag_nonexistent"));
+}
 
 int main(void)
 {
@@ -1024,6 +1051,9 @@ int main(void)
     RUN_TEST(file_read_nonexistent);
     RUN_TEST(file_read_empty_file);
     RUN_TEST(file_read_multiline);
+
+    RUN_TEST(flag_set_creates_file_with_correct_permissions);
+    RUN_TEST(flag_set_clear_nonexistent_is_safe);
 
     TEST_REPORT();
     return test_failures;
