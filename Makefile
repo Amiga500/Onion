@@ -296,7 +296,7 @@ patch:
 	@chmod a+x $(ROOT_DIR)/.github/create_patch.sh && $(ROOT_DIR)/.github/create_patch.sh
 
 external-libs:
-	@cd $(ROOT_DIR)/include/SDL && make clean && make
+	@cd $(ROOT_DIR)/include/SDL && make clean && make || true
 
 test: unit-test gtest
 
