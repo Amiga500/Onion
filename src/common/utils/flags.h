@@ -25,7 +25,7 @@ void flag_set(const char *path, const char *key, bool value)
     concat(filename, path, key);
 
     if (value)
-        close(creat(filename, 777));
+        close(creat(filename, 0644));
     else
         remove(filename);
 }
