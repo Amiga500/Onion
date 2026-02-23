@@ -8,6 +8,11 @@ CFILES := ../src/infoPanel/imagesCache.c ../src/common/utils/log.c ../src/common
 CPPFILES := test_infoPanel.cpp
 include ../src/common/config.mk
 
+# Remove standalone unit test files picked up by the wildcard — they use
+# onion_test.h (not gtest), define their own main(), and are built separately.
+CFILES := $(filter-out $(wildcard ./test_*.c), $(CFILES))
+CPPFILES := $(filter-out $(wildcard ./test_*.cpp), $(CPPFILES))
+
 TARGET = test_infoPanel
 LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lSDL_rotozoom -lgtest -lgtest_main -lpthread
 
