@@ -434,7 +434,7 @@ TEST(str_split_multi_char_delim) {
     ASSERT_STREQ(tail, "world");
 }
 
-TEST(str_split_null_str) {
+TEST(str_split_delimiter_not_found) {
     /* str_split takes char*, not const — can't pass NULL safely.
      * But test with a string where delimiter doesn't match */
     char buf[16];
@@ -596,7 +596,7 @@ int main(void)
 
     RUN_TEST(str_split_delimiter_at_end);
     RUN_TEST(str_split_multi_char_delim);
-    RUN_TEST(str_split_null_str);
+    RUN_TEST(str_split_delimiter_not_found);
 
     RUN_TEST(str_getLastNumber_zero_padded);
     RUN_TEST(str_getLastNumber_only_number);

@@ -17,7 +17,7 @@
 
 /* ---- process_searchpid ---- */
 
-TEST(process_searchpid_finds_init) {
+TEST(process_searchpid_finds_self) {
     /* PID 1 (init/systemd) is always running but is skipped (pid > 2 check).
      * Let's search for the test process itself instead. */
     char self_comm[128];
@@ -95,7 +95,7 @@ int main(void)
 {
     printf("\n=== process.h Unit Tests ===\n\n");
 
-    RUN_TEST(process_searchpid_finds_init);
+    RUN_TEST(process_searchpid_finds_self);
     RUN_TEST(process_searchpid_not_found);
     RUN_TEST(process_searchpid_empty_name);
     RUN_TEST(process_isRunning_self);
