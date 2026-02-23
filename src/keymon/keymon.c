@@ -55,6 +55,9 @@
 
 uint32_t suspendpid[PIDMAX];
 
+static volatile sig_atomic_t quit_signal_received = 0;
+static volatile sig_atomic_t refresh_signal_received = 0;
+
 const int KONAMI_CODE[] = {HW_BTN_UP, HW_BTN_UP, HW_BTN_DOWN, HW_BTN_DOWN,
                            HW_BTN_LEFT, HW_BTN_RIGHT, HW_BTN_LEFT, HW_BTN_RIGHT,
                            HW_BTN_B, HW_BTN_A};
@@ -173,6 +176,13 @@ void resume(void)
 //
 //    Quit
 //
+static void quit_handler(int sig)
+{
+    if (sig == SIGSEGV)
+        _exit(139);
+    quit_signal_received = 1;
+}
+
 void quit(int exitcode)
 {
     display_close();
@@ -427,7 +437,7 @@ void cpuClockHotkey(int adjust)
 
 static void signal_refresh(int sig)
 {
-    display_getRenderResolution();
+    refresh_signal_received = 1;
 }
 
 //
@@ -436,8 +446,8 @@ static void signal_refresh(int sig)
 int main(void)
 {
     // Initialize
-    signal(SIGTERM, quit);
-    signal(SIGSEGV, quit);
+    signal(SIGTERM, quit_handler);
+    signal(SIGSEGV, quit_handler);
     signal(SIGUSR1, signal_refresh);
     log_setName("keymon");
 
@@ -503,6 +513,13 @@ int main(void)
     time_t fav_last_modified = time(NULL);
 
     while (1) {
+        if (quit_signal_received) {
+            quit(0);
+        }
+        if (refresh_signal_received) {
+            refresh_signal_received = 0;
+            display_getRenderResolution();
+        }
         if (poll(fds, 1, (CHECK_SEC - elapsed_sec) * 1000) > 0) {
             if (!keyinput_isValid())
                 continue;
