@@ -35,7 +35,7 @@ void system_clock_get(void)
 void system_rtc_get(void)
 {
     int cfd;
-    if ((cfd = open("/dev/rtc0", O_RDONLY)) >= 0) {
+    if ((cfd = open("/dev/rtc0", O_RDONLY)) > 0) {
         ioctl(cfd, RTC_RD_TIME, &clk);
         close(cfd);
     }

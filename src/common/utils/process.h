@@ -37,8 +37,7 @@ pid_t process_searchpid(const char *commname)
                 snprintf(fname, sizeof(fname), "/proc/%d/comm", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
-                    if (fscanf(fp, "%127s", comm) != 1)
-                        comm[0] = '\0';
+                    fscanf(fp, "%127s", comm);
                     fclose(fp);
                     if (!strncmp(comm, commname, commlen)) {
                         ret = pid;

@@ -60,7 +60,7 @@ void config_setNumber(const char *key, int value)
     file_put_sync(fp, filename, "%d", value);
 }
 
-void config_setString(const char *key, const char *value)
+void config_setString(const char *key, char *value)
 {
     FILE *fp;
     char filename[STR_MAX];

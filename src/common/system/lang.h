@@ -185,15 +185,12 @@ bool lang_load(void)
 
 void lang_free(void)
 {
-    if (lang_list == NULL)
-        return;
     for (int i = 0; i < LANG_MAX; i++) {
         if (lang_list[i] == NULL)
             continue;
         free(lang_list[i]);
     }
     free(lang_list);
-    lang_list = NULL;
 }
 
 const char *lang_get(lang_hash key, const char *fallback)

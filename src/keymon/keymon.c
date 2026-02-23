@@ -55,9 +55,6 @@
 
 uint32_t suspendpid[PIDMAX];
 
-static volatile sig_atomic_t quit_signal_received = 0;
-static volatile sig_atomic_t refresh_signal_received = 0;
-
 const int KONAMI_CODE[] = {HW_BTN_UP, HW_BTN_UP, HW_BTN_DOWN, HW_BTN_DOWN,
                            HW_BTN_LEFT, HW_BTN_RIGHT, HW_BTN_LEFT, HW_BTN_RIGHT,
                            HW_BTN_B, HW_BTN_A};
@@ -141,7 +138,7 @@ int suspend(uint32_t mode)
                         }
                     }
                     else {
-                        if (suspendpid[0] < PIDMAX - 1) {
+                        if (suspendpid[0] < PIDMAX) {
                             suspendpid[++suspendpid[0]] = pid;
                             kill(pid, SIGSTOP);
                             ret++;
@@ -176,13 +173,6 @@ void resume(void)
 //
 //    Quit
 //
-static void quit_handler(int sig)
-{
-    if (sig == SIGSEGV)
-        _exit(139);
-    quit_signal_received = 1;
-}
-
 void quit(int exitcode)
 {
     display_close();
@@ -209,9 +199,10 @@ void force_shutdown(void)
     system("shutdown");
     while (1)
         pause();
+    exit(0);
 }
 
-void wait_seconds(int seconds)
+void wait(int seconds)
 {
     time_t t = time(NULL);
     while ((time(NULL) - t) < seconds) {
@@ -265,7 +256,7 @@ void deepsleep(void)
     }
 
     // Wait 30s before forcing a shutdown
-    wait_seconds(30);
+    wait(30);
     if (!temp_flag_get("shutting_down")) {
         force_shutdown();
     }
@@ -437,7 +428,7 @@ void cpuClockHotkey(int adjust)
 
 static void signal_refresh(int sig)
 {
-    refresh_signal_received = 1;
+    display_getRenderResolution();
 }
 
 //
@@ -446,8 +437,8 @@ static void signal_refresh(int sig)
 int main(void)
 {
     // Initialize
-    signal(SIGTERM, quit_handler);
-    signal(SIGSEGV, quit_handler);
+    signal(SIGTERM, quit);
+    signal(SIGSEGV, quit);
     signal(SIGUSR1, signal_refresh);
     log_setName("keymon");
 
@@ -513,14 +504,6 @@ int main(void)
     time_t fav_last_modified = time(NULL);
 
     while (1) {
-        if (quit_signal_received) {
-            quit_signal_received = 0;
-            quit(0);
-        }
-        if (refresh_signal_received) {
-            refresh_signal_received = 0;
-            display_getRenderResolution();
-        }
         if (poll(fds, 1, (CHECK_SEC - elapsed_sec) * 1000) > 0) {
             if (!keyinput_isValid())
                 continue;

@@ -214,13 +214,11 @@ int overlay_surface(SDL_Surface *surface, int destX, int destY, int duration_ms,
     // Query FB info
     if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &display->vinfo) == -1) {
         perror("Error reading variable screen info");
-        free(data);
         return -1;
     }
 
     if (display->vinfo.bits_per_pixel != 32) {
         perror("Only 32bpp is supported for now\n");
-        free(data);
         return -1;
     }
 
