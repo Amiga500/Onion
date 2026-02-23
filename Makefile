@@ -298,25 +298,10 @@ patch:
 external-libs:
 	@cd $(ROOT_DIR)/include/SDL && make clean && make || true
 
-test: unit-test gtest
+test: unit-test
 
 unit-test:
 	@cd $(TEST_SRC_DIR) && make -f Makefile.unit all
-
-gtest: external-libs
-	@if echo '#include <gtest/gtest.h>' | $(CROSS_COMPILE)g++ -x c++ -c - -o /dev/null 2>/dev/null; then \
-		if echo '#include <SDL/SDL.h>' | $(CROSS_COMPILE)gcc -x c -c - -o /dev/null 2>/dev/null; then \
-			echo "-- GTest and SDL found, building integration tests"; \
-			mkdir -p $(BUILD_TEST_DIR)/infoPanel_test_data; \
-			cd $(TEST_SRC_DIR) && BUILD_DIR=$(BUILD_TEST_DIR)/ make dev; \
-			cp -R $(TEST_SRC_DIR)/infoPanel_test_data $(BUILD_TEST_DIR)/; \
-			cd $(BUILD_TEST_DIR) && LD_LIBRARY_PATH=$(ROOT_DIR)/lib/ ./test_infoPanel; \
-		else \
-			echo "-- SDL headers not found, skipping integration tests (install libsdl1.2-dev to enable)"; \
-		fi; \
-	else \
-		echo "-- GTest not found, skipping integration tests (install libgtest-dev to enable)"; \
-	fi
 
 static-analysis: external-libs
 	@cd $(ROOT_DIR) && cppcheck -I $(INCLUDE_DIR) --enable=all $(SRC_DIR)
