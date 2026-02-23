@@ -26,7 +26,10 @@ static void capture_stderr_start(int *saved_fd, int *pipe_fds)
 {
     fflush(stderr);
     *saved_fd = dup(STDERR_FILENO);
-    pipe(pipe_fds);
+    if (*saved_fd < 0 || pipe(pipe_fds) != 0) {
+        captured_stderr[0] = '\0';
+        return;
+    }
     dup2(pipe_fds[1], STDERR_FILENO);
     close(pipe_fds[1]);
 }
@@ -34,8 +37,10 @@ static void capture_stderr_start(int *saved_fd, int *pipe_fds)
 static void capture_stderr_end(int saved_fd, int pipe_read_fd)
 {
     fflush(stderr);
-    dup2(saved_fd, STDERR_FILENO);
-    close(saved_fd);
+    if (saved_fd >= 0)
+        dup2(saved_fd, STDERR_FILENO);
+    if (saved_fd >= 0)
+        close(saved_fd);
 
     ssize_t n = read(pipe_read_fd, captured_stderr, sizeof(captured_stderr) - 1);
     if (n < 0) n = 0;
