@@ -141,7 +141,7 @@ int suspend(uint32_t mode)
                         }
                     }
                     else {
-                        if (suspendpid[0] < PIDMAX) {
+                        if (suspendpid[0] < PIDMAX - 1) {
                             suspendpid[++suspendpid[0]] = pid;
                             kill(pid, SIGSTOP);
                             ret++;
