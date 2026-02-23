@@ -22,7 +22,7 @@ BUILD_DIR := ../build_test
 COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
 
 # Test targets
-TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags
+TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process
 
 .PHONY: all clean $(TESTS)
 
@@ -132,5 +132,13 @@ $(BUILD_DIR)/test_flags: test_flags.c onion_test.h $(COMMON_SRCS) ../src/common/
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_flags.c $(COMMON_SRCS) $(LDFLAGS)
 
+test_process: $(BUILD_DIR)/test_process
+	@echo ""
+	@$(BUILD_DIR)/test_process
+
+$(BUILD_DIR)/test_process: test_process.c onion_test.h $(COMMON_SRCS) ../src/common/utils/process.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_process.c $(COMMON_SRCS) $(LDFLAGS)
+
 clean:
-	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon $(BUILD_DIR)/test_playactivity $(BUILD_DIR)/test_clock $(BUILD_DIR)/test_msleep $(BUILD_DIR)/test_config $(BUILD_DIR)/test_log $(BUILD_DIR)/test_flags
+	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon $(BUILD_DIR)/test_playactivity $(BUILD_DIR)/test_clock $(BUILD_DIR)/test_msleep $(BUILD_DIR)/test_config $(BUILD_DIR)/test_log $(BUILD_DIR)/test_flags $(BUILD_DIR)/test_process
