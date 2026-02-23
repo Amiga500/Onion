@@ -55,10 +55,11 @@ LDFLAGS := -fsanitize=address -static-libasan $(LDFLAGS)
 endif
 
 CXXFLAGS := $(CFLAGS)
-LDFLAGS := $(LDFLAGS) -L../../lib -L/usr/local/lib
+LDFLAGS := $(LDFLAGS) -L/usr/local/lib
 
 ifeq ($(PLATFORM),miyoomini)
 CFLAGS := $(CFLAGS) -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve -Wl,-rpath=$(LIB)
+LDFLAGS := $(LDFLAGS) -L../../lib
 
 ifdef INCLUDE_SHMVAR
 LDFLAGS := $(LDFLAGS) -lshmvar
