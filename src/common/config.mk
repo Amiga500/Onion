@@ -31,8 +31,7 @@ CFILES := $(CFILES) $(foreach dir, $(SOURCES), $(wildcard $(dir)/*.c))
 CPPFILES := $(CPPFILES) $(foreach dir, $(SOURCES), $(wildcard $(dir)/*.cpp))
 OFILES = $(CFILES:.c=.o) $(CPPFILES:.cpp=.o)
 
-SDL_CFLAGS := $(shell $(CROSS_COMPILE)sdl-config --cflags 2>/dev/null || pkg-config --cflags sdl 2>/dev/null)
-CFLAGS := -I../../include -I../common $(SDL_CFLAGS) -DPLATFORM_$(shell echo $(PLATFORM) | tr a-z A-Z) -DONION_VERSION="\"$(VERSION)\"" -Wall
+CFLAGS := -I../../include -I../common -DPLATFORM_$(shell echo $(PLATFORM) | tr a-z A-Z) -DONION_VERSION="\"$(VERSION)\"" -Wall
 
 ifeq ($(DEBUG),1)
 CFLAGS := $(CFLAGS) -DLOG_DEBUG -g3

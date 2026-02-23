@@ -517,7 +517,7 @@ void display_close(void)
     display_reset();
     display_free(&g_display);
 
-    if (fb_fd >= 0)
+    if (fb_fd > 0)
         close(fb_fd);
 }
 

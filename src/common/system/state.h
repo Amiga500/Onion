@@ -267,9 +267,6 @@ char *history_getRecentPath(char *rom_path)
     while (fgets(line, STR_MAX * 3, file) != NULL) {
         size_t line_len = strlen(line);
         char *jsonContent = (char *)malloc(line_len + 1);
-        if (jsonContent == NULL) {
-            continue;
-        }
         char romPathSearch[STR_MAX];
         int type;
 
@@ -331,7 +328,7 @@ char *history_getRecentPath(char *rom_path)
 bool history_getRomscreenPath(char *path_out)
 {
     char filename[32];
-    char file_path[STR_MAX] = "";
+    char file_path[STR_MAX];
 
     filename[0] = '\0';
     if (history_getRecentPath(file_path) != NULL) {

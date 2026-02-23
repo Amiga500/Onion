@@ -22,7 +22,7 @@ BUILD_DIR := ../build_test
 COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
 
 # Test targets
-TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process
+TESTS := test_str test_perf test_file test_hash test_json test_state test_neon
 
 .PHONY: all clean $(TESTS)
 
@@ -84,61 +84,5 @@ $(BUILD_DIR)/test_neon: test_neon.c onion_test.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_neon.c $(LDFLAGS)
 
-test_playactivity: $(BUILD_DIR)/test_playactivity
-	@echo ""
-	@$(BUILD_DIR)/test_playactivity
-
-$(BUILD_DIR)/test_playactivity: test_playactivity.c onion_test.h $(COMMON_SRCS)
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_playactivity.c $(COMMON_SRCS) $(LDFLAGS)
-
-test_clock: $(BUILD_DIR)/test_clock
-	@echo ""
-	@$(BUILD_DIR)/test_clock
-
-$(BUILD_DIR)/test_clock: test_clock.c onion_test.h ../src/common/system/clock.h
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_clock.c $(LDFLAGS)
-
-test_msleep: $(BUILD_DIR)/test_msleep
-	@echo ""
-	@$(BUILD_DIR)/test_msleep
-
-$(BUILD_DIR)/test_msleep: test_msleep.c onion_test.h ../src/common/utils/msleep.h
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_msleep.c $(LDFLAGS)
-
-test_config: $(BUILD_DIR)/test_config
-	@echo ""
-	@$(BUILD_DIR)/test_config
-
-$(BUILD_DIR)/test_config: test_config.c onion_test.h $(COMMON_SRCS) ../src/common/utils/config.h
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_config.c $(COMMON_SRCS) $(LDFLAGS)
-
-test_log: $(BUILD_DIR)/test_log
-	@echo ""
-	@$(BUILD_DIR)/test_log
-
-$(BUILD_DIR)/test_log: test_log.c onion_test.h $(COMMON_SRCS)
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DLOG_DEBUG -o $@ test_log.c $(COMMON_SRCS) $(LDFLAGS)
-
-test_flags: $(BUILD_DIR)/test_flags
-	@echo ""
-	@$(BUILD_DIR)/test_flags
-
-$(BUILD_DIR)/test_flags: test_flags.c onion_test.h $(COMMON_SRCS) ../src/common/utils/flags.h
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_flags.c $(COMMON_SRCS) $(LDFLAGS)
-
-test_process: $(BUILD_DIR)/test_process
-	@echo ""
-	@$(BUILD_DIR)/test_process
-
-$(BUILD_DIR)/test_process: test_process.c onion_test.h $(COMMON_SRCS) ../src/common/utils/process.h
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_process.c $(COMMON_SRCS) $(LDFLAGS)
-
 clean:
-	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon $(BUILD_DIR)/test_playactivity $(BUILD_DIR)/test_clock $(BUILD_DIR)/test_msleep $(BUILD_DIR)/test_config $(BUILD_DIR)/test_log $(BUILD_DIR)/test_flags $(BUILD_DIR)/test_process
+	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon

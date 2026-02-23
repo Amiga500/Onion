@@ -27,7 +27,6 @@ bool json_getString(cJSON *object, const char *key, char *dest)
         if (val == NULL)
             return false;
         strncpy(dest, val, JSON_STRING_LEN - 1);
-        dest[JSON_STRING_LEN - 1] = '\0';
         return true;
     }
     return false;
@@ -99,7 +98,7 @@ cJSON *json_load(const char *file_path)
     return json_contents;
 }
 
-void json_save(cJSON *object, const char *file_path)
+void json_save(cJSON *object, char *file_path)
 {
     if (object == NULL || file_path == NULL)
         return;
