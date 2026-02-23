@@ -124,6 +124,22 @@ TEST(file_removeExtension_space_after_dot) {
     free(result);
 }
 
+TEST(file_removeExtension_trailing_dot) {
+    // Regression: "file." must not cause out-of-bounds read at *(lastExt + 2)
+    char *result = file_removeExtension("file.");
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "file.");
+    free(result);
+}
+
+TEST(file_removeExtension_single_char_ext) {
+    // Single-char extensions are intentionally kept (avoids stripping "Game 1.3")
+    char *result = file_removeExtension("file.a");
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "file.a");
+    free(result);
+}
+
 /* ---- file_dirname ---- */
 
 TEST(file_dirname_basic) {
@@ -966,6 +982,8 @@ int main(void)
     RUN_TEST(file_removeExtension_null);
     RUN_TEST(file_removeExtension_path);
     RUN_TEST(file_removeExtension_space_after_dot);
+    RUN_TEST(file_removeExtension_trailing_dot);
+    RUN_TEST(file_removeExtension_single_char_ext);
 
     RUN_TEST(file_dirname_basic);
     RUN_TEST(file_dirname_root);

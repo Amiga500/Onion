@@ -238,7 +238,7 @@ TEST(json_save_and_load) {
     cJSON_AddNumberToObject(json, "value", 123);
     cJSON_AddBoolToObject(json, "enabled", true);
     
-    json_save(json, (char *)tmpfile);
+    json_save(json, tmpfile);
     cJSON_Delete(json);
     
     // Load and verify
@@ -264,7 +264,7 @@ TEST(json_save_and_load) {
 
 TEST(json_save_null_object) {
     // Should not crash with NULL object - if we reach this point, it didn't crash
-    json_save(NULL, (char *)"/tmp/test.json");
+    json_save(NULL, "/tmp/test.json");
     // Test passes if no crash occurs
 }
 
@@ -379,7 +379,7 @@ TEST(json_save_roundtrip_unicode) {
 
     cJSON *json = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "title", "ゲーム");  /* Japanese "game" */
-    json_save(json, (char *)tmpfile);
+    json_save(json, tmpfile);
     cJSON_Delete(json);
 
     cJSON *loaded = json_load(tmpfile);
@@ -428,7 +428,52 @@ TEST(json_getString_bool_value) {
     cJSON_Delete(json);
 }
 
-/* ---- main ---- */
+/* Regression: json_getString must null-terminate dest even if the value
+ * is longer than JSON_STRING_LEN - 1 characters. Without the fix,
+ * strncpy alone does NOT add a '\0' when the source is too long. */
+TEST(json_getString_long_value_null_terminated) {
+    cJSON *json = cJSON_CreateObject();
+    /* Build a string of exactly JSON_STRING_LEN chars (256) — longer than the
+     * 255-char limit of strncpy(dest, val, JSON_STRING_LEN - 1). */
+    char long_value[JSON_STRING_LEN + 1];
+    memset(long_value, 'X', JSON_STRING_LEN);
+    long_value[JSON_STRING_LEN] = '\0';
+
+    cJSON_AddStringToObject(json, "long_key", long_value);
+
+    char result[JSON_STRING_LEN];
+    memset(result, 'A', sizeof(result)); /* fill with non-zero to detect missing '\0' */
+    bool success = json_getString(json, "long_key", result);
+
+    ASSERT_TRUE(success);
+    /* The last byte must be '\0' even though the source was longer */
+    ASSERT_EQ((int)result[JSON_STRING_LEN - 1], 0);
+    /* The result must be exactly JSON_STRING_LEN - 1 chars long */
+    ASSERT_EQ((int)strlen(result), JSON_STRING_LEN - 1);
+
+    cJSON_Delete(json);
+}
+
+/* json_save must accept const char* file_path without warnings */
+TEST(json_save_const_path) {
+    const char *tmpfile = "/tmp/onion_test_json_const.json";
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "test", "value");
+
+    /* This call must compile without -Wdiscarded-qualifiers */
+    json_save(json, tmpfile);
+    cJSON_Delete(json);
+
+    cJSON *loaded = json_load(tmpfile);
+    ASSERT_NOT_NULL(loaded);
+
+    char result[JSON_STRING_LEN] = {0};
+    ASSERT_TRUE(json_getString(loaded, "test", result));
+    ASSERT_STREQ(result, "value");
+
+    cJSON_Delete(loaded);
+    unlink(tmpfile);
+}
 
 int main(void)
 {
@@ -472,6 +517,8 @@ int main(void)
     RUN_TEST(json_save_roundtrip_unicode);
     RUN_TEST(json_getString_non_string_value);
     RUN_TEST(json_getString_bool_value);
+    RUN_TEST(json_getString_long_value_null_terminated);
+    RUN_TEST(json_save_const_path);
 
     TEST_REPORT();
     return test_failures;
