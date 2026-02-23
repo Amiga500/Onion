@@ -33,8 +33,10 @@
 #include "onion_test.h"
 #include "../src/common/utils/str.h"
 #include "../src/common/utils/file.h"
+#include "../src/common/utils/hash.h"
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -409,6 +411,74 @@ TEST(history_getRecentPath_multiple_non_game_entries_then_game) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Tests for history_getRomscreenPath                                  */
+/*                                                                     */
+/* BUG #7 — Uninitialized file_path read                              */
+/* When history_getRecentPath() returns NULL (e.g. no game entries),   */
+/* the original code had char file_path[STR_MAX] without init.        */
+/* The print_debug(file_path) on the failure path would read garbage. */
+/* Fix: initialize file_path to "" so print_debug reads a valid       */
+/* empty string even on the failure path.                             */
+/* ------------------------------------------------------------------ */
+
+/* Reproduce history_getRomscreenPath with the FIX applied,
+ * using a testable file path parameter. */
+static bool _fixed_history_getRomscreenPath(const char *recentlist_path,
+                                            char *path_out)
+{
+    char filename[32];
+    char file_path[STR_MAX] = "";  /* FIX: initialize to empty string */
+
+    filename[0] = '\0';
+    char *result = _fixed_history_getRecentPath(recentlist_path, file_path);
+    if (result != NULL) {
+        snprintf(filename, sizeof(filename), "%" PRIu32,
+                 FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
+    }
+    /* file_path is always valid here (either filled by getRecentPath or "") */
+    if (strlen(filename) > 0) {
+        snprintf(path_out, STR_MAX,
+                 "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+        return true;
+    }
+    return false;
+}
+
+/* When no game entries exist, getRomscreenPath returns false safely. */
+TEST(history_getRomscreenPath_no_game_returns_false) {
+    FILE *fp = fopen(_TMP_RECENT, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "{\"label\":\"App\",\"type\":3,\"rompath\":\"/App/App1\"}\n");
+    fclose(fp);
+
+    char path_out[STR_MAX] = "";
+    bool result = _fixed_history_getRomscreenPath(_TMP_RECENT, path_out);
+    ASSERT_FALSE(result);
+    unlink(_TMP_RECENT);
+}
+
+/* When a game entry exists, getRomscreenPath returns true with a valid path. */
+TEST(history_getRomscreenPath_game_found_returns_path) {
+    FILE *fp = fopen(_TMP_RECENT, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp,
+        "{\"label\":\"MyGame\",\"type\":5,"
+        "\"rompath\":\"/mnt/SDCARD/Roms/GBA/game.gba\","
+        "\"imgpath\":\"/mnt/SDCARD/Roms/GBA/Imgs/game.png\","
+        "\"launch\":\"/mnt/SDCARD/Emu/GBA/launch.sh\"}\n");
+    fclose(fp);
+
+    char path_out[STR_MAX] = "";
+    bool result = _fixed_history_getRomscreenPath(_TMP_RECENT, path_out);
+    ASSERT_TRUE(result);
+    /* path must end with .png */
+    ASSERT_TRUE(str_endsWith(path_out, ".png"));
+    /* path must contain romScreens directory */
+    ASSERT_NOT_NULL(strstr(path_out, "romScreens/"));
+    unlink(_TMP_RECENT);
+}
+
+/* ------------------------------------------------------------------ */
 /* main                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -431,6 +501,10 @@ int main(void)
     RUN_TEST(history_getRecentPath_malformed_line_then_game);
     RUN_TEST(history_getRecentPath_app_entry_before_game_entry_bug);
     RUN_TEST(history_getRecentPath_multiple_non_game_entries_then_game);
+
+    /* history_getRomscreenPath */
+    RUN_TEST(history_getRomscreenPath_no_game_returns_false);
+    RUN_TEST(history_getRomscreenPath_game_found_returns_path);
 
     TEST_REPORT();
     return test_failures;

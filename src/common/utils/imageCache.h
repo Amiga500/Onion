@@ -1,6 +1,8 @@
 #ifndef UTILS_IMAGE_CACHE_H__
 #define UTILS_IMAGE_CACHE_H__
 
+#include <stdbool.h>
+
 typedef struct SDL_Surface SDL_Surface;
 
 void imageCache_load(int *offset, SDL_Surface *(*_load_image)(int), int total);

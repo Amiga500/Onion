@@ -10,6 +10,7 @@
 
 #include "onion_test.h"
 #include "../src/common/utils/file.h"
+#include "../src/common/utils/flags.h"
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -120,6 +121,22 @@ TEST(file_removeExtension_space_after_dot) {
     char *result = file_removeExtension("file. x");
     ASSERT_NOT_NULL(result);
     ASSERT_STREQ(result, "file. x");
+    free(result);
+}
+
+TEST(file_removeExtension_trailing_dot) {
+    // Regression: "file." must not cause out-of-bounds read at *(lastExt + 2)
+    char *result = file_removeExtension("file.");
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "file.");
+    free(result);
+}
+
+TEST(file_removeExtension_single_char_ext) {
+    // Single-char extensions are intentionally kept (avoids stripping "Game 1.3")
+    char *result = file_removeExtension("file.a");
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "file.a");
     free(result);
 }
 
@@ -913,6 +930,34 @@ TEST(file_read_multiline) {
     unlink(tmpfile);
 }
 
+/* ---- flag_set / flag_get ---- */
+
+TEST(flag_set_creates_file_with_correct_permissions) {
+    const char *key = "onion_test_flag";
+    remove("/tmp/onion_test_flag");
+
+    flag_set("/tmp/", key, true);
+
+    /* Flag file must exist */
+    ASSERT_TRUE(flag_get("/tmp/", key));
+
+    /* Verify permissions are 0644 (rw-r--r--), not the old decimal 777 (01411) */
+    struct stat st;
+    ASSERT_EQ(stat("/tmp/onion_test_flag", &st), 0);
+    mode_t perms = st.st_mode & 0777;
+    ASSERT_EQ((int)perms, 0644);
+
+    /* Clearing the flag must remove the file */
+    flag_set("/tmp/", key, false);
+    ASSERT_FALSE(flag_get("/tmp/", key));
+}
+
+TEST(flag_set_clear_nonexistent_is_safe) {
+    /* Clearing a flag that doesn't exist must not crash */
+    flag_set("/tmp/", "onion_test_flag_nonexistent", false);
+    ASSERT_FALSE(flag_get("/tmp/", "onion_test_flag_nonexistent"));
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -939,6 +984,8 @@ int main(void)
     RUN_TEST(file_removeExtension_null);
     RUN_TEST(file_removeExtension_path);
     RUN_TEST(file_removeExtension_space_after_dot);
+    RUN_TEST(file_removeExtension_trailing_dot);
+    RUN_TEST(file_removeExtension_single_char_ext);
 
     RUN_TEST(file_dirname_basic);
     RUN_TEST(file_dirname_root);
@@ -1024,6 +1071,9 @@ int main(void)
     RUN_TEST(file_read_nonexistent);
     RUN_TEST(file_read_empty_file);
     RUN_TEST(file_read_multiline);
+
+    RUN_TEST(flag_set_creates_file_with_correct_permissions);
+    RUN_TEST(flag_set_clear_nonexistent_is_safe);
 
     TEST_REPORT();
     return test_failures;

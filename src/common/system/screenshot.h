@@ -119,7 +119,16 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool d
     }
 
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    if (!png_ptr) {
+        fclose(fp);
+        return false;
+    }
     info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        png_destroy_write_struct(&png_ptr, NULL);
+        fclose(fp);
+        return false;
+    }
 
     png_init_io(png_ptr, fp);
     png_set_IHDR(png_ptr, info_ptr, g_display.width, g_display.height, 8,
@@ -181,7 +190,7 @@ bool __screenshot_perform(bool(get_path)(char *), pid_t p_id)
         kill(p_id, SIGCONT);
     }
 
-    if (get_path(path)) {
+    if (buffer != NULL && get_path(path)) {
         retval = screenshot_save(buffer, path, true);
     }
 

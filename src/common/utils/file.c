@@ -231,7 +231,7 @@ char *file_removeExtension(const char *myStr)
     if (retStr == NULL)
         return NULL;
     memcpy(retStr, myStr, len + 1);
-    if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 2) != '\0')
+    if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 1) != '\0' && *(lastExt + 2) != '\0')
         *lastExt = '\0';
     return retStr;
 }
