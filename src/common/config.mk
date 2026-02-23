@@ -65,3 +65,11 @@ LDFLAGS := $(LDFLAGS) -lshmvar
 endif
 
 endif
+
+# Detect SDL include path (for Linux native and cross-compilation builds)
+SDL_SYSROOT := $(shell $(CC) -print-sysroot 2>/dev/null)
+SDL_CFLAGS := $(shell $(CROSS_COMPILE)sdl-config --cflags 2>/dev/null || pkg-config --cflags sdl 2>/dev/null || if [ -d "$(SDL_SYSROOT)/usr/include/SDL" ]; then echo "-I$(SDL_SYSROOT)/usr/include"; fi)
+ifneq ($(SDL_CFLAGS),)
+CFLAGS := $(CFLAGS) $(SDL_CFLAGS)
+CXXFLAGS := $(CXXFLAGS) $(SDL_CFLAGS)
+endif
