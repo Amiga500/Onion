@@ -99,9 +99,7 @@ static void setup_config_dir(void)
 
 static void cleanup_config_dir(void)
 {
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "rm -rf %s", test_config_path);
-    system(cmd);
+    file_remove_recursive(test_config_path);
 }
 
 /* ---- config_setNumber / config_get ---- */
@@ -177,12 +175,15 @@ TEST(config_setString_empty) {
     setup_config_dir();
 
     config_setString("empty_key", "");
-    /* Empty string creates a file, but reading it back gives empty */
+    /* File is created but contains empty string; fscanf with %[^\n]
+     * won't match on empty content, so config_get returns true
+     * (file exists) but value is unchanged. */
     char value[STR_MAX] = "placeholder";
     bool found = config_get("empty_key", CONFIG_STR, value);
 
     ASSERT_TRUE(found);
-    /* fscanf with %[^\n] on empty content won't match, so value stays */
+    /* fscanf %[^\n] on empty content doesn't write to dest */
+    ASSERT_STREQ(value, "placeholder");
 
     cleanup_config_dir();
 }
