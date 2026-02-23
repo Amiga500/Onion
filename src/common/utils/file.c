@@ -1,5 +1,5 @@
 #define _LARGEFILE64_SOURCE
-#define _XOPEN_SOURCE 500
+#define _XOPEN_SOURCE 700
 
 #include "file.h"
 
