@@ -46,7 +46,7 @@ sqlite3_stmt *cache_db_prepare(char *cache_db_file_path, char *sql)
     if (cache_db != NULL) {
         int rc = sqlite3_prepare_v2(cache_db, sql, -1, &stmt, NULL);
         if (rc != SQLITE_OK) {
-            printf_debug("%s: %s\n", sqlite3_errmsg(cache_db), sqlite3_sql(stmt));
+            printf_debug("%s: %s\n", sqlite3_errmsg(cache_db), sql);
         }
         cache_db_close();
     }

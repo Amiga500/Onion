@@ -128,7 +128,7 @@ sqlite3_stmt *play_activity_db_prepare(char *sql)
     }
     sqlite3_stmt *stmt = NULL;
     if (sqlite3_prepare_v2(play_activity_db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        printf("%s: %s\n", sqlite3_errmsg(play_activity_db), sqlite3_sql(stmt));
+        printf("%s: %s\n", sqlite3_errmsg(play_activity_db), sql);
     }
     return stmt;
 }

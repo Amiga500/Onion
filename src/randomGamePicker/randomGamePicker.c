@@ -147,7 +147,7 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
 
     int count = getTotalGamesCount(db, table_name);
 
-    const char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
+    char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
                                       "%q WHERE type=0 AND path NOT LIKE "
                                       "'%%.miyoocmd' ORDER BY RANDOM() LIMIT 1",
                                       table_name);

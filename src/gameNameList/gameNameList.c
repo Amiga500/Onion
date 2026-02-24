@@ -392,7 +392,9 @@ int updateCallback(void *data, int argc, char **argv, char **col_name)
     // Retrieve the values from the current row of the result set
     int id = (int)strtol(argv[0], NULL, 10); // Assuming the first column is an integer ID
     char *path = argv[1];                    // The new value to be updated
-    char *romname = basename(path);
+    char romname[MAX_FILE_NAME_LEN];
+    strncpy(romname, basename(path), sizeof(romname) - 1);
+    romname[sizeof(romname) - 1] = '\0';
     removeExtension(romname);
     char *title = GetGameName_func("wathever", romname);
     if (title != NULL) {
