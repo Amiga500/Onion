@@ -53,7 +53,8 @@ static bool _hasSaveStates(Game_s *game)
         if (entry->d_type == DT_REG && strncmp(entry->d_name, game->rom_name, strlen(game->rom_name)) == 0) {
             char *slotStr = entry->d_name + strlen(game->rom_name);
             if (strncmp(slotStr, ".state", 6) == 0) {
-                if (strncmp(slotStr, ".state.auto", 11) == 0 || strncmp(slotStr + strlen(slotStr) - 4, ".png", 4) == 0) {
+                size_t slotStrLen = strlen(slotStr);
+                if (strncmp(slotStr, ".state.auto", 11) == 0 || (slotStrLen >= 4 && strncmp(slotStr + slotStrLen - 4, ".png", 4) == 0)) {
                     continue; // Skip auto save states and preview images
                 }
 
@@ -90,7 +91,8 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
             char *slotStr = entry->d_name + strlen(game->rom_name);
             if (strncmp(slotStr, ".state", 6) == 0) {
                 int slot = 0;
-                if (strncmp(slotStr, ".state.auto", 11) == 0 || strncmp(slotStr + strlen(slotStr) - 4, ".png", 4) == 0) {
+                size_t slotStrLen = strlen(slotStr);
+                if (strncmp(slotStr, ".state.auto", 11) == 0 || (slotStrLen >= 4 && strncmp(slotStr + slotStrLen - 4, ".png", 4) == 0)) {
                     continue; // Skip auto save states and preview images
                 }
                 else if (slotStr[6] != '\0') {
@@ -168,10 +170,10 @@ static void setLoadPreview()
     if (item != NULL) {
         if (g_save_state_info.selected_slot >= 0 && g_save_state_info.selected_slot < g_save_state_info.slot_count) {
             const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
-            Game_s *game = &game_list[appState.current_game];
+            Game_s *game = currentGame();
             char stateFilePath[2048];
 
-            if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath))) {
+            if (game != NULL && createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath))) {
                 snprintf(item->preview_path, sizeof(item->preview_path), "%s.png", stateFilePath);
             }
         }
@@ -238,20 +240,24 @@ static void *_save_thread(void *_)
 
 static void *_scan_thread(void *_)
 {
-    _scanSaveStates(&game_list[appState.current_game], &g_save_state_info);
-    setLoadPreview();
+    Game_s *game = currentGame();
+    if (game != NULL) {
+        _scanSaveStates(game, &g_save_state_info);
+        setLoadPreview();
+    }
     return NULL;
 }
 
 static bool _isSaveEnabled(void)
 {
-    return currentGame()->is_running;
+    Game_s *game = currentGame();
+    return game != NULL && game->is_running;
 }
 
 static bool _isLoadEnabled(void)
 {
-    Game_s *game = &game_list[appState.current_game];
-    return _hasSaveStates(game);
+    Game_s *game = currentGame();
+    return game != NULL && _hasSaveStates(game);
 }
 
 void action_resumeGame(void *_)
@@ -291,6 +297,8 @@ void action_saveGame(void *_)
         render();
     }
 
+    pthread_join(save_thread, NULL);
+
     if (bg != NULL)
         SDL_BlitSurface(bg, NULL, screen, NULL);
     theme_renderDialog(screen, "Saving", g_save_thread_success ? "State saved" : "Save failed", false);
@@ -306,22 +314,24 @@ void action_saveGame(void *_)
 
 void action_loadGame(void *_)
 {
-    if (g_save_state_info.selected_slot < 0 && g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
+    if (g_save_state_info.selected_slot < 0 || g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
         return;
     }
 
     const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
 
-    if (currentGame()->is_running) {
+    Game_s *game = currentGame();
+
+    if (game != NULL && game->is_running) {
         retroarch_load(real_slot);
     }
     else {
         // Copy the save state to the auto state path
-        Game_s *game = &game_list[appState.current_game];
         char stateFilePath[2048];
         char autoStateFilePath[2048];
 
-        if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath)) &&
+        if (game != NULL &&
+            createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath)) &&
             createSaveStatePath(game, -1, autoStateFilePath, sizeof(autoStateFilePath))) {
             file_copy(stateFilePath, autoStateFilePath);
         }
@@ -341,7 +351,12 @@ void popMenu_deleteSaveState(void)
     }
 
     const int real_slot = g_save_state_info.slots[selected_slot];
-    Game_s *game = &game_list[appState.current_game];
+
+    Game_s *game = currentGame();
+    if (game == NULL) {
+        return;
+    }
+
     char stateFilePath[2048];
     char imageFilePath[2056];
 

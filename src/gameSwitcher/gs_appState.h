@@ -100,6 +100,8 @@ static char sTotalTimePlayed[50] = "";
 
 Game_s *currentGame(void)
 {
+    if (game_list_len == 0)
+        return NULL;
     return &game_list[appState.current_game];
 }
 

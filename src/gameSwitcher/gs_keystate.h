@@ -37,7 +37,9 @@ static AppKeyState_s _gs_keystate = {
 
 void removeCurrentItem()
 {
-    Game_s *game = &game_list[appState.current_game];
+    Game_s *game = currentGame();
+    if (game == NULL)
+        return;
 
     printf_debug("removing: %s\n", game->name);
     printf_debug("linenumber: %i\n", game->recentItem.lineNo);

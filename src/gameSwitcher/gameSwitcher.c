@@ -109,8 +109,9 @@ int main(int argc, char *argv[])
             if (!appState.changed && !appState.brightness_changed && (appState.surfaceGameName == NULL || appState.surfaceGameName->w <= appState.game_name_max_width))
                 continue;
 
-            Game_s *game = &game_list[appState.current_game];
-            processItem(game);
+            Game_s *game = currentGame();
+            if (game != NULL)
+                processItem(game);
 
             if (appState.changed) {
                 SDL_FillRect(screen, NULL, 0);
@@ -175,18 +176,21 @@ int main(int argc, char *argv[])
         SDL_FillRect(screen, NULL, 0);
         render();
     }
-    else if (currentGame()->is_running) {
-        if (appState.current_bg != NULL) {
-            SDL_FillRect(screen, NULL, 0);
-            renderCentered(appState.current_bg, VIEW_FULLSCREEN, NULL, NULL);
-        }
-        overlay_resume();
-    }
     else {
-        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, game_list[appState.current_game].index);
-        resumeGame(game_list[appState.current_game].index);
-        overlay_exit();
-        render_showFullscreenMessage("LOADING", true);
+        Game_s *game = currentGame();
+        if (game != NULL && game->is_running) {
+            if (appState.current_bg != NULL) {
+                SDL_FillRect(screen, NULL, 0);
+                renderCentered(appState.current_bg, VIEW_FULLSCREEN, NULL, NULL);
+            }
+            overlay_resume();
+        }
+        else if (game != NULL) {
+            printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, game->index);
+            resumeGame(game->index);
+            overlay_exit();
+            render_showFullscreenMessage("LOADING", true);
+        }
     }
 
 #ifndef PLATFORM_MIYOOMINI
@@ -202,6 +206,8 @@ int main(int argc, char *argv[])
     if (appState.transparent_bg != NULL)
         SDL_FreeSurface(appState.transparent_bg);
 
+    popMenu_destroy();
+    render_freeCache();
     resources_free();
 
     freeRomScreens();

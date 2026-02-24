@@ -73,7 +73,9 @@ void renderGameName(AppState *state)
     int game_name_padding = arrow_left->w + 20;
     state->game_name_max_width = g_display.width - 2 * game_name_padding;
 
-    Game_s *game = &game_list[state->current_game];
+    Game_s *game = currentGame();
+    if (game == NULL)
+        return;
     SDL_Rect game_name_bg_size = theme_scaleRect((SDL_Rect){0, 0, 640, 60});
     SDL_Rect game_name_bg_pos = {0, 0};
 
@@ -160,21 +162,23 @@ static char _gs_header_title_str[STR_MAX] = "";
 void renderHeader(AppState *state, int battery_percentage)
 {
     char title_str[STR_MAX] = "GameSwitcher";
-    Game_s *game = &game_list[state->current_game];
 
     if (state->show_time && game_list_len > 0) {
-        if (game->totalTime[0] == '\0') {
-            str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
-        }
-        strncpy(title_str, game->totalTime, STR_MAX - 1);
-        title_str[STR_MAX - 1] = '\0';
-
-        if (state->show_total) {
-            if (sTotalTimePlayed[0] == '\0') {
-                str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
+        Game_s *game = currentGame();
+        if (game != NULL) {
+            if (game->totalTime[0] == '\0') {
+                str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
             }
-            int title_len = strlen(title_str);
-            snprintf(title_str + title_len, STR_MAX - title_len, " / %s", sTotalTimePlayed);
+            strncpy(title_str, game->totalTime, STR_MAX - 1);
+            title_str[STR_MAX - 1] = '\0';
+
+            if (state->show_total) {
+                if (sTotalTimePlayed[0] == '\0') {
+                    str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
+                }
+                int title_len = strlen(title_str);
+                snprintf(title_str + title_len, STR_MAX - title_len, " / %s", sTotalTimePlayed);
+            }
         }
     }
 
@@ -249,6 +253,14 @@ void renderBrightness(AppState *state)
             brightness_rect.y = state->view_mode == VIEW_NORMAL ? state->header_height : 0;
         }
         SDL_BlitSurface(brightness, NULL, screen, &brightness_rect);
+    }
+}
+
+void render_freeCache(void)
+{
+    if (_gs_header_title_cache != NULL) {
+        SDL_FreeSurface(_gs_header_title_cache);
+        _gs_header_title_cache = NULL;
     }
 }
 

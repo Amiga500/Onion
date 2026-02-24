@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "system/battery.h"
@@ -53,6 +54,11 @@ static bool _isContentNameInInfo(const char *content_info, const char *content_n
 
 static void *_saveRomScreenAndStateThread(void *arg)
 {
+    if (game_list_len == 0) {
+        autosave_thread_running = false;
+        return NULL;
+    }
+
     Game_s *game = &game_list[0];
 
     if (game->romScreen != NULL && game->is_running) {
@@ -83,7 +89,9 @@ void overlay_init()
     if (pid == 0) {
         execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "stop_all", NULL);
         _exit(127);
-    } else if (pid < 0) {
+    } else if (pid > 0) {
+        waitpid(pid, NULL, 0);
+    } else {
         print_debug("fork failed for playActivity stop_all");
     }
     setFbAsFirstRomScreen();
@@ -143,7 +151,9 @@ void overlay_resume(void)
         if (pid == 0) {
             execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "resume", NULL);
             _exit(127);
-        } else if (pid < 0) {
+        } else if (pid > 0) {
+            waitpid(pid, NULL, 0);
+        } else {
             print_debug("fork failed for playActivity resume");
         }
 

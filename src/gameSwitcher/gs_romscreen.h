@@ -91,8 +91,10 @@ void scaleRomScreen(Game_s *game, ScalingMode_s mode)
     }
 
     SDL_Surface *zoomed = zoomSurface(game->romScreen, zx, zy, SMOOTHING_OFF);
-    SDL_FreeSurface(game->romScreen);
-    game->romScreen = zoomed;
+    if (zoomed != NULL) {
+        SDL_FreeSurface(game->romScreen);
+        game->romScreen = zoomed;
+    }
 }
 
 ScalingMode_s getDynamicScalingMode(const Game_s *game)
@@ -170,6 +172,9 @@ static void *_loadRomScreensThread(void *_)
 
 void loadRomScreens()
 {
+    if (__initial_romscreens_loaded) {
+        pthread_join(romscreen_thread_pt, NULL);
+    }
     pthread_create(&romscreen_thread_pt, NULL, _loadRomScreensThread, NULL);
 }
 
