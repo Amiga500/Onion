@@ -313,16 +313,18 @@ void action_loadGame(void *_)
 
     const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
 
-    if (currentGame() != NULL && currentGame()->is_running) {
+    Game_s *game = currentGame();
+
+    if (game != NULL && game->is_running) {
         retroarch_load(real_slot);
     }
     else {
         // Copy the save state to the auto state path
-        Game_s *game = &game_list[appState.current_game];
         char stateFilePath[2048];
         char autoStateFilePath[2048];
 
-        if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath)) &&
+        if (game != NULL &&
+            createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath)) &&
             createSaveStatePath(game, -1, autoStateFilePath, sizeof(autoStateFilePath))) {
             file_copy(stateFilePath, autoStateFilePath);
         }

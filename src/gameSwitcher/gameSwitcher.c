@@ -175,18 +175,21 @@ int main(int argc, char *argv[])
         SDL_FillRect(screen, NULL, 0);
         render();
     }
-    else if (currentGame() != NULL && currentGame()->is_running) {
-        if (appState.current_bg != NULL) {
-            SDL_FillRect(screen, NULL, 0);
-            renderCentered(appState.current_bg, VIEW_FULLSCREEN, NULL, NULL);
-        }
-        overlay_resume();
-    }
     else {
-        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, game_list[appState.current_game].index);
-        resumeGame(game_list[appState.current_game].index);
-        overlay_exit();
-        render_showFullscreenMessage("LOADING", true);
+        Game_s *game = currentGame();
+        if (game != NULL && game->is_running) {
+            if (appState.current_bg != NULL) {
+                SDL_FillRect(screen, NULL, 0);
+                renderCentered(appState.current_bg, VIEW_FULLSCREEN, NULL, NULL);
+            }
+            overlay_resume();
+        }
+        else if (game != NULL) {
+            printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, game->index);
+            resumeGame(game->index);
+            overlay_exit();
+            render_showFullscreenMessage("LOADING", true);
+        }
     }
 
 #ifndef PLATFORM_MIYOOMINI
