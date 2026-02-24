@@ -110,7 +110,7 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
     if (*str == 0) // All spaces?
     {
         *out = 0;
-        return 1;
+        return 0;
     }
 
     // Trim trailing space

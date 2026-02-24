@@ -146,8 +146,8 @@ void migrateDB(void)
                 if (no_extension == NULL)
                     continue;
 
-                if (strcmp(basename(rom_path), rom_list[i].name) != 0 &&
-                    strcmp(basename(no_extension), rom_list[i].name) != 0) {
+                if (strcmp(file_basename(rom_path), rom_list[i].name) != 0 &&
+                    strcmp(file_basename(no_extension), rom_list[i].name) != 0) {
                     free(no_extension);
                     continue;
                 }

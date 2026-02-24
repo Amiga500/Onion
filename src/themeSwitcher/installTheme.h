@@ -187,7 +187,10 @@ void installTheme(char *theme_path, bool apply_icons)
         snprintf(cmd, STR_MAX * 2 - 1,
                  SCRIPT_DIR "/themes_extract_theme.sh \"%s\"", theme_path);
 
-        snprintf(theme_path, STR_MAX, THEMES_DIR "/%s/", basename(theme_path));
+        char theme_name[STR_MAX];
+        strncpy(theme_name, file_basename(theme_path), STR_MAX - 1);
+        theme_name[STR_MAX - 1] = '\0';
+        snprintf(theme_path, STR_MAX, THEMES_DIR "/%s/", theme_name);
 
         system(cmd);
         sync();
@@ -236,7 +239,7 @@ bool checkActiveTheme(char *theme_path_out)
 
     printf_debug("active theme: %s\n", active_theme_path);
 
-    return getThemePath(basename(active_theme_path), theme_path_out);
+    return getThemePath(file_basename(active_theme_path), theme_path_out);
 }
 
 bool ensureThemePath(const char *theme_name, char *theme_path_out)

@@ -67,10 +67,10 @@ TEST(str_trim_no_whitespace) {
 }
 
 TEST(str_trim_all_whitespace) {
-    /* After fix: all-whitespace input is safe (no null-byte overread). */
+    /* All-whitespace input trims to empty string, returns 0 (no content). */
     char out[64] = {0};
     size_t len = str_trim(out, sizeof(out), "   ", false);
-    ASSERT_EQ(len, 1); /* str_trim returns 1 when it writes only the null terminator */
+    ASSERT_EQ(len, 0); /* empty result: 0 characters written */
     ASSERT_STREQ(out, "");
 }
 
@@ -84,6 +84,15 @@ TEST(str_trim_first_mode) {
     char out[64];
     str_trim(out, sizeof(out), "  hello world  ", true);
     ASSERT_STREQ(out, "hello");
+}
+
+TEST(str_trim_all_whitespace_falsy) {
+    /* All-whitespace input should return 0 (falsy), so callers that use
+       the return value as a boolean correctly skip empty keys/values. */
+    char out[64] = "stale";
+    size_t len = str_trim(out, sizeof(out), "\t \r\n", true);
+    ASSERT_EQ(len, 0);
+    ASSERT_STREQ(out, "");
 }
 
 /* ---- str_replace ---- */
@@ -534,6 +543,7 @@ int main(void)
     RUN_TEST(str_trim_all_whitespace);
     RUN_TEST(str_trim_tabs_and_newlines);
     RUN_TEST(str_trim_first_mode);
+    RUN_TEST(str_trim_all_whitespace_falsy);
 
     RUN_TEST(str_replace_basic);
     RUN_TEST(str_replace_no_match);
