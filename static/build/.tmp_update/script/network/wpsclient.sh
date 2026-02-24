@@ -14,7 +14,7 @@ main() {
         sleep 1
         log "WPS: Wi-Fi is up"
         killall -9 imgpop
-        break
+        return
     else
         wifiquery
         log "WPS: Wi-Fi disabled, trying to enable before connecting.."
@@ -45,7 +45,7 @@ main() {
     start_time=$(date +%s)
 
     while true; do
-        IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
+        IP=$(ip route get 1 2>/dev/null | sed -n 's/.*src \([0-9.]*\).*/\1/p')
 
         if [ -z "$IP" ]; then
             wpsflicker

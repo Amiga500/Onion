@@ -662,16 +662,16 @@ convert_seconds_to_utc_offset() {
     seconds=$(($1))
     if [ $seconds -ne 0 ]; then
         printf "UTC%s%02d%s" \
-            $([[ $seconds -lt 0 ]] && echo -n "-" || echo -n "+") \
+            $([ $seconds -lt 0 ] && echo -n "-" || echo -n "+") \
             $(abs $(($seconds / 3600))) \
-            $([[ $(($seconds % 3600)) -eq 0 ]] && echo -n ":00" || echo -n ":30")
+            $([ $(($seconds % 3600)) -eq 0 ] && echo -n ":00" || echo -n ":30")
     else
         echo -n "UTC"
     fi
 }
 
 abs() {
-    [[ $(($@)) -lt 0 ]] && echo "$((($@) * -1))" || echo "$(($@))"
+    [ $(($@)) -lt 0 ] && echo "$((($@) * -1))" || echo "$(($@))"
 }
 
 set_tzid() {
@@ -719,7 +719,7 @@ enable_flag() {
 
 disable_flag() {
     flag="$1"
-    mv "$sysdir/config/.$flag" "$sysdir/config/.$flag_"
+    mv "$sysdir/config/.$flag" "$sysdir/config/.${flag}_"
 }
 
 is_running() {
