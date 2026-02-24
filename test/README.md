@@ -23,6 +23,9 @@ Unit tests use a lightweight custom test framework (`onion_test.h`) and don't re
 - `test_json.c` - JSON parsing and manipulation
 - `test_hash.c` - Hash functions
 - `test_perf.c` - Performance utilities
+- `test_str_security.c` - String security edge cases (buffer overflow, NULL safety, boundary values)
+- `test_file_security.c` - File security edge cases (path traversal, corrupted data, symlinks)
+- `test_json_security.c` - JSON security edge cases (malformed input, NULL safety, deep nesting)
 
 To run only unit tests:
 
