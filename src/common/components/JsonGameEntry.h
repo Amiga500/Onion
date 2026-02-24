@@ -59,6 +59,7 @@ void JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
         if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
     }
     n = snprintf(dest + len, dest_size - len, "\"rompath\":\"%s\"}", entry->rompath);
+    if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
 }
 
 #endif // JSON_GAME_ENTRY_H__

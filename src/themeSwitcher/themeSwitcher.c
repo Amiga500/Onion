@@ -366,11 +366,13 @@ int main(int argc, char *argv[])
             SDL_FreeSurface(imagePages);
 
             char title[STR_MAX + 13];
-            if (current_page == installed_page && !is_preview)
+            if (current_page == installed_page && !is_preview) {
                 snprintf(title, STR_MAX + 12, "%s - Installed", theme.name);
-            else
+            }
+            else {
                 strncpy(title, theme.name, sizeof(title) - 1);
                 title[sizeof(title) - 1] = '\0';
+            }
 
             imageThemeNom = TTF_RenderUTF8_Blended(font21, title, color_white);
             SDL_BlitSurface(imageThemeNom, NULL, screen, &rectImageThemeNom);
@@ -380,7 +382,7 @@ int main(int argc, char *argv[])
                 SDL_BlitSurface(surfaceHasIcons, NULL, screen, &rectHasIcons);
             }
 
-            if (is_preview) {
+            if (is_preview && previewIcon != NULL) {
                 SDL_BlitSurface(previewIcon, NULL, screen, has_icons ? &rectHasIconsPreviewIcon : &rectPreviewIcon);
             }
 

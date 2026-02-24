@@ -237,6 +237,8 @@ int main(void)
     msleep(100);
 #endif
 
+    close(input_fd);
+
     for (int i = 0; i < frame_count; i++)
         SDL_FreeSurface(frames[i]);
     SDL_FreeSurface(screen);
