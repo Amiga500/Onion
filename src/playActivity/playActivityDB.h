@@ -206,7 +206,14 @@ PlayActivities *play_activity_find_all(void)
             break;
 
         PlayActivity *entry = play_activities->play_activity[i] = (PlayActivity *)malloc(sizeof(PlayActivity));
+        if (entry == NULL)
+            break;
         ROM *rom = play_activities->play_activity[i]->rom = (ROM *)malloc(sizeof(ROM));
+        if (rom == NULL) {
+            free(entry);
+            play_activities->play_activity[i] = NULL;
+            break;
+        }
         entry->first_played_at = NULL;
         entry->last_played_at = NULL;
         rom->file_path = NULL;

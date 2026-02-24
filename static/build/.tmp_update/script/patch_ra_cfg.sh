@@ -2,7 +2,7 @@
 patch="$1"
 config="$2"
 
-if [ "$config" == "" ]; then
+if [ "$config" = "" ]; then
     config=/mnt/SDCARD/RetroArch/.retroarch/retroarch.cfg
 fi
 
@@ -31,7 +31,7 @@ cat "$patch" | (
 $key = \"$value\""
         fi
 
-        let count++
+        count=$((count + 1))
     done
 
     echo "$content" > "$config"

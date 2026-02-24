@@ -139,7 +139,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 	! -path '*/Imgs/*' ! -path '*/.*/*' $romfilter"); do
 	
     echo "-------------------------------------------------"
-    let romcount++;
+    romcount=$((romcount + 1))
     
     # Cleaning up names
     romName=$(basename "$file")
@@ -159,7 +159,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
     	FILE=/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png
     	if [ -f "$FILE" ]; then
     		echo -e "${YELLOW}already Scraped !${NONE}"
-    		let Scrap_notrequired++;
+    		Scrap_notrequired=$((Scrap_notrequired + 1))
     	else
     	    wget -q --spider "http://thumbnails.libretro.com/$remoteSystemNoSpace/${MediaType}/$romNameNoExtensionNoSpace.png" 2>&1
     	    WgetResult=$?
@@ -173,10 +173,10 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
                 pngScale "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
 
             	echo -e "${GREEN}Scraped!${NONE}"
-            	let Scrap_Success++;
+            	Scrap_Success=$((Scrap_Success + 1))
     		else
     		    echo -e "${RED}No match found${NONE}"
-    		    let Scrap_Fail++;
+    		    Scrap_Fail=$((Scrap_Fail + 1))
     		fi
     	fi
     

@@ -91,7 +91,7 @@ main() {
 
     emupath=$(dirname $(echo "$cmd" | awk '{ gsub(/"/, "", $2); st = index($2,".."); if (st) { print substr($2,0,st) } else { print $2 } }'))
 
-    if [ "$emupath" == "/mnt/SDCARD/App" ]; then
+    if [ "$emupath" = "/mnt/SDCARD/App" ]; then
         romtype=$ROM_TYPE_APP
     else
         rompath=$(echo "$cmd" | awk '{ st = index($0,"\" \""); print substr($0,st+3,length($0)-st-3) }')
@@ -137,7 +137,7 @@ main() {
 
     skip_game_options=0
 
-    if [ ! -f "$rompath" ] || [ "$romext" == "miyoocmd" ] || [ $romtype -ne $ROM_TYPE_GAME ]; then
+    if [ ! -f "$rompath" ] || [ "$romext" = "miyoocmd" ] || [ $romtype -ne $ROM_TYPE_GAME ]; then
         skip_game_options=1
     fi
 
@@ -158,7 +158,7 @@ main() {
 
             game_core_label="Game core: $corename"
 
-            if [ "$retroarch_core" == "$default_core" ]; then
+            if [ "$retroarch_core" = "$default_core" ]; then
                 game_core_label="$game_core_label (Default)"
             else
                 add_reset_core=1
@@ -185,7 +185,7 @@ main() {
         fi
 
         # Add "Migrate mGBA Save" option dynamically
-        if [ "$retroarch_core" == "gpsp_libretro" ] && [ -f "$save_dir/mGBA/$romname.srm" ]; then
+        if [ "$retroarch_core" = "gpsp_libretro" ] && [ -f "$save_dir/mGBA/$romname.srm" ]; then
             add_menu_option transfer_mgba_save "Transfer mGBA save" \
                 "Transfer mGBA save to gpSP.\nConfirmation will be requested if a\nnon-empty save already exists." \
                 "$romname"
@@ -300,9 +300,9 @@ add_script_files() {
 
             scriptlabel=$(get_info_value "$(cat "$entry")" scriptlabel)
 
-            if [ "$scriptlabel" == "" ]; then
+            if [ "$scriptlabel" = "" ]; then
                 scriptlabel=$(basename "$entry" .sh)
-            elif [ "$scriptlabel" == "DynamicLabel" ]; then
+            elif [ "$scriptlabel" = "DynamicLabel" ]; then
                 # We run the script with "DynamicLabel" in third parameter to generate the name
                 "$entry" "$rompath" "$emupath" "DynamicLabel" "$emulabel" "$retroarch_core" "$romdirname" "$romext"
                 scriptlabel=$(cat /tmp/DynamicLabel.tmp)
@@ -312,7 +312,7 @@ add_script_files() {
             scriptlabel=$(echo "$scriptlabel" | sed "s/%LIST%/$emulabel/g")
 
             scriptinfo=$(get_info_value "$(cat "$entry")" scriptinfo)
-            if [ "$scriptinfo" == "" ]; then
+            if [ "$scriptinfo" = "" ]; then
                 scriptinfo="Runs the script:\n$scriptlabel"
             fi
 
@@ -333,7 +333,7 @@ add_menu_option() {
     # Escape newlines in the info message for proper passing to `prompt`
     escaped_info=$(echo -e "$info" | sed ':a;N;$!ba;s/\n/\\n/g')
 
-    if [ "$menu_options" == "" ]; then
+    if [ "$menu_options" = "" ]; then
         menu_options="$action"
         menu_option_labels="$label"
         menu_option_args="\"$args\""
@@ -373,7 +373,7 @@ get_core_info() {
         default_core=$(cat "$launch_path" | grep ".retroarch/cores/" | awk '{st = index($0,".retroarch/cores/"); s = substr($0,st+17); st2 = index(s,".so"); print substr(s,0,st2-1)}' | xargs)
     fi
 
-    if [ "$retroarch_core" == "" ]; then
+    if [ "$retroarch_core" = "" ]; then
         retroarch_core="$default_core"
     fi
 
@@ -413,11 +413,11 @@ change_core() {
     ext="$romext"
     is_archive=""
 
-    if [ "$ext" == "zip" ] || [ "$ext" == "7z" ]; then
+    if [ "$ext" = "zip" ] || [ "$ext" = "7z" ]; then
         is_archive="$ext"
 
         if ! cat "$emupath/config.json" | grep -q "\"shortname\"\s*:\s*1"; then
-            if [ "$ext" == "zip" ]; then
+            if [ "$ext" = "zip" ]; then
                 zip_files=$(unzip -l "$rompath" | sed '1,3d;$d' | sed '$d' | sort -n -r)
             else
                 zip_files=$(./bin/7z l -ba "$rompath" | awk '{$1="";$2="";$3="";print $0;}' | sort -n -r)
@@ -427,7 +427,7 @@ change_core() {
             log "$zip_files"
 
             inner_name=$(basename "$(echo "$zip_files" | grep "[!]")")
-            if [ "$inner_name" == "" ]; then
+            if [ "$inner_name" = "" ]; then
                 inner_name=$(basename "$(echo "$zip_files" | head -n 1)")
             fi
             ext=$(echo "$inner_name" | awk -F. '{print tolower($NF)}')
@@ -460,7 +460,7 @@ change_core() {
             done < "$ext_cache_path"
         fi
 
-        if [ "$default_core" == "" ]; then
+        if [ "$default_core" = "" ]; then
             is_valid=1
         fi
 
@@ -468,12 +468,12 @@ change_core() {
             tmp_corename=$(echo "$entry" | awk '{split($0,a,";"); print a[1]}')
             tmp_core=$(echo "$entry" | awk '{split($0,a,";"); print a[2]}')
 
-            if [ "$tmp_core" == "$default_core" ]; then
+            if [ "$tmp_core" = "$default_core" ]; then
                 is_valid=1
                 tmp_corename="$tmp_corename (Default)"
             fi
 
-            if [ "$tmp_core" == "$retroarch_core" ]; then
+            if [ "$tmp_core" = "$retroarch_core" ]; then
                 selected_index=$count
             fi
 
@@ -487,7 +487,7 @@ change_core() {
             available_corenames="$available_corenames \"$tmp_corename\""
         done < "$single_ext_cache_path"
 
-        if [ "$is_archive" == "" ]; then
+        if [ "$is_archive" = "" ]; then
             break
         fi
 
@@ -517,7 +517,7 @@ change_core() {
 
     log "new default core: $new_core"
 
-    if [ "$new_core" == "$default_core" ]; then
+    if [ "$new_core" = "$default_core" ]; then
         reset_core
     else
         if [ -f "$romcfgpath" ]; then
