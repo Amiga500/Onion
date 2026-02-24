@@ -347,12 +347,13 @@ void popMenu_deleteSaveState(void)
         return;
     }
 
+    const int real_slot = g_save_state_info.slots[selected_slot];
+
     Game_s *game = currentGame();
     if (game == NULL) {
         return;
     }
 
-    const int real_slot = g_save_state_info.slots[selected_slot];
     char stateFilePath[2048];
     char imageFilePath[2056];
 
