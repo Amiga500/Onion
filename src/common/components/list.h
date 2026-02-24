@@ -103,8 +103,7 @@ bool _list_did_wraparound(int before, int after, int direction)
 
 ListItem *list_getVisibleItemAt(List *list, int index)
 {
-    int items_left = list->item_count - index;
-    while (list->items[index].disabled && items_left-- > 0) {
+    while (index < list->item_count && list->items[index].disabled) {
         index++;
     }
     return index < list->item_count ? &list->items[index] : NULL;
@@ -191,6 +190,7 @@ ListItem *list_currentItem(List *list)
 void list_updateStickyNote(ListItem *item, const char *message)
 {
     strncpy(item->sticky_note, message, STR_MAX - 1);
+    item->sticky_note[STR_MAX - 1] = '\0';
 }
 
 const char *list_getStickyNote(ListItem *item)
