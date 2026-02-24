@@ -177,6 +177,8 @@ void migrateDB(void)
 
                 if (sqlite3_prepare_v2(play_activity_db, sql, -1, &stmt, NULL) != SQLITE_OK) {
                     printf("%s: %s\n", sqlite3_errmsg(play_activity_db), sql);
+                    sqlite3_free(sql);
+                    continue;
                 }
 
                 if (sqlite3_step(stmt) != SQLITE_ROW) {
@@ -229,6 +231,8 @@ void migrateDB(void)
 
             if (rc != SQLITE_OK) {
                 printf("%s: %s\n", sqlite3_errmsg(play_activity_db), sql);
+                sqlite3_free(sql);
+                continue;
             }
 
             if (sqlite3_step(stmt) != SQLITE_ROW) {
@@ -290,6 +294,7 @@ void migrateDB(void)
 
         if (rc != SQLITE_OK) {
             printf("%s\n", sqlite3_errmsg(play_activity_db));
+            sqlite3_free(sql);
             continue;
         }
         else {

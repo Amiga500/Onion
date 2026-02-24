@@ -33,6 +33,10 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
     token = strtok(s, delim);
     while (token != NULL && line_count < MAXTEXTLINES) {
         lines[line_count] = TTF_RenderUTF8_Blended(font, token, fg);
+        if (lines[line_count] == NULL) {
+            token = strtok(NULL, delim);
+            continue;
+        }
         SDL_SetAlpha(lines[line_count], 0, 0); /* important */
         if (lines[line_count]->w > line_width)
             line_width = lines[line_count]->w;

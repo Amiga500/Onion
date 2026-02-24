@@ -147,6 +147,10 @@ CacheDBItem *cache_db_find(const char *path_or_name)
     sqlite3_stmt *stmt = cache_db_prepare(cache_db_file_path, sql);
     sqlite3_free(sql);
 
+    if (stmt == NULL) {
+        return NULL;
+    }
+
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         cache_db_item = (CacheDBItem *)malloc(sizeof(CacheDBItem));
         if (cache_db_item != NULL) {

@@ -360,10 +360,12 @@ int main(int argc, char *argv[])
 
             snprintf(cPages, sizeof(cPages) - 1, "%d/%d", current_page + 1, themes_count);
             imagePages = TTF_RenderUTF8_Blended(font30, cPages, color_white);
-            rectPages.x = 620 - imagePages->w;
-            rectPages.y = 450 - imagePages->h / 2;
-            SDL_BlitSurface(imagePages, NULL, screen, &rectPages);
-            SDL_FreeSurface(imagePages);
+            if (imagePages != NULL) {
+                rectPages.x = 620 - imagePages->w;
+                rectPages.y = 450 - imagePages->h / 2;
+                SDL_BlitSurface(imagePages, NULL, screen, &rectPages);
+                SDL_FreeSurface(imagePages);
+            }
 
             char title[STR_MAX + 13];
             if (current_page == installed_page && !is_preview) {
@@ -375,8 +377,10 @@ int main(int argc, char *argv[])
             }
 
             imageThemeNom = TTF_RenderUTF8_Blended(font21, title, color_white);
-            SDL_BlitSurface(imageThemeNom, NULL, screen, &rectImageThemeNom);
-            SDL_FreeSurface(imageThemeNom);
+            if (imageThemeNom != NULL) {
+                SDL_BlitSurface(imageThemeNom, NULL, screen, &rectImageThemeNom);
+                SDL_FreeSurface(imageThemeNom);
+            }
 
             if (has_icons) {
                 SDL_BlitSurface(surfaceHasIcons, NULL, screen, &rectHasIcons);
@@ -395,16 +399,20 @@ int main(int argc, char *argv[])
             rectThemeName.y = 175;
 
             imagePages = TTF_RenderUTF8_Blended(font40, theme.name, color_white);
-            SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
-            SDL_FreeSurface(imagePages);
+            if (imagePages != NULL) {
+                SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
+                SDL_FreeSurface(imagePages);
+            }
             rectThemeName.y += 50;
 
             if (strlen(theme.author) > 0) {
                 char author[STR_MAX * 2];
                 snprintf(author, STR_MAX * 2 - 1, "by %s", theme.author);
                 imagePages = TTF_RenderUTF8_Blended(font30, author, color_white);
-                SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
-                SDL_FreeSurface(imagePages);
+                if (imagePages != NULL) {
+                    SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
+                    SDL_FreeSurface(imagePages);
+                }
                 rectThemeName.y += 70;
             }
 
@@ -414,8 +422,10 @@ int main(int argc, char *argv[])
             char msg[STR_MAX];
             snprintf(msg, sizeof(msg), "%s [%s]", has_icons ? "Apply icons" : "Reset icons", apply_icons ? "ON" : "OFF");
             imagePages = TTF_RenderUTF8_Blended(font21, msg, color_white);
-            SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
-            SDL_FreeSurface(imagePages);
+            if (imagePages != NULL) {
+                SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
+                SDL_FreeSurface(imagePages);
+            }
 
             SDL_BlitSurface(surfaceBottomBar, NULL, screen, &rectBottomBar);
         }

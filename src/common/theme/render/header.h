@@ -73,6 +73,8 @@ void theme_renderHeaderExtra(SDL_Surface *screen, const char *title_str,
     theme_renderHeaderBackground(screen);
 
     SDL_Surface *title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), title_str, theme()->title.color);
+    if (title == NULL)
+        return;
     SDL_Rect title_rect = {(g_display.width - title->w) / 2, 29.0 * g_scale - title->h / 2};
     SDL_BlitSurface(title, NULL, screen, &title_rect);
     SDL_FreeSurface(title);
