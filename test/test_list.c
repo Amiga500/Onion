@@ -6,8 +6,9 @@
  * list_countVisible, list_create, list_addItem, list_currentItem,
  * list_keyUp, list_keyDown, list_keyLeft, list_keyRight,
  * list_activateItem, list_resetCurrentItem, list_getItemValueLabel,
- * list_scrollTo, list_sortByLabel, list_hasInfoNote, and
- * _list_did_wraparound.
+ * list_scrollTo, list_sortByLabel, list_hasInfoNote,
+ * _list_did_wraparound, list_updateStickyNote, list_getStickyNote,
+ * list_getVisibleItemAt, and list_hideAllExcept.
  *
  * SDL-dependent functions (list_free with SDL_FreeSurface) are
  * stubbed out to avoid pulling in SDL dependencies.
@@ -415,6 +416,34 @@ int _list_comp_labels(const void *a, const void *b)
 void list_sortByLabel(List *list)
 {
     qsort(list->items, list->item_count, sizeof(ListItem), _list_comp_labels);
+}
+
+void list_updateStickyNote(ListItem *item, const char *message)
+{
+    strncpy(item->sticky_note, message, STR_MAX - 1);
+}
+
+const char *list_getStickyNote(ListItem *item)
+{
+    return item->sticky_note;
+}
+
+ListItem *list_getVisibleItemAt(List *list, int index)
+{
+    int items_left = list->item_count - index;
+    while (list->items[index].disabled && items_left-- > 0) {
+        index++;
+    }
+    return index < list->item_count ? &list->items[index] : NULL;
+}
+
+void list_hideAllExcept(List *list, ListItem *item, bool disabled)
+{
+    for (int i = 0; i < list->item_count; i++) {
+        if (i == item->_id)
+            continue;
+        list->items[i].disabled = disabled;
+    }
 }
 
 /* Simplified list_free without SDL_FreeSurface calls */
@@ -1139,6 +1168,285 @@ TEST(ensure_visible_skips_disabled) {
     list_free(&list);
 }
 
+/* ---- list_updateStickyNote / list_getStickyNote ---- */
+
+TEST(sticky_note_set_and_get) {
+    ListItem item;
+    memset(&item, 0, sizeof(item));
+    list_updateStickyNote(&item, "Hello sticky");
+    ASSERT_STREQ(list_getStickyNote(&item), "Hello sticky");
+}
+
+TEST(sticky_note_overwrite) {
+    ListItem item;
+    memset(&item, 0, sizeof(item));
+    list_updateStickyNote(&item, "First");
+    list_updateStickyNote(&item, "Second");
+    ASSERT_STREQ(list_getStickyNote(&item), "Second");
+}
+
+TEST(sticky_note_empty_string) {
+    ListItem item;
+    memset(&item, 0, sizeof(item));
+    list_updateStickyNote(&item, "");
+    ASSERT_STREQ(list_getStickyNote(&item), "");
+}
+
+TEST(sticky_note_get_unset) {
+    ListItem item;
+    memset(&item, 0, sizeof(item));
+    /* sticky_note is zeroed, should return empty string */
+    ASSERT_STREQ(list_getStickyNote(&item), "");
+}
+
+TEST(sticky_note_long_message) {
+    ListItem item;
+    memset(&item, 0, sizeof(item));
+    /* Build a string of length STR_MAX + 10 to test truncation */
+    char long_msg[STR_MAX + 10];
+    memset(long_msg, 'A', sizeof(long_msg) - 1);
+    long_msg[sizeof(long_msg) - 1] = '\0';
+    list_updateStickyNote(&item, long_msg);
+    /* Should be truncated to STR_MAX - 1 characters */
+    ASSERT_EQ((int)strlen(list_getStickyNote(&item)), STR_MAX - 1);
+}
+
+TEST(sticky_note_with_list_item) {
+    List list = list_create(5, LIST_SMALL);
+    ListItem item = _make_item("Item", ACTION, 0);
+    ListItem *added = list_addItem(&list, item);
+    list_updateStickyNote(added, "Note on item");
+    ASSERT_STREQ(list_getStickyNote(added), "Note on item");
+    list_free(&list);
+}
+
+/* ---- list_getVisibleItemAt ---- */
+
+TEST(visible_item_at_all_enabled) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list_addItem(&list, _make_item("B", ACTION, 0));
+    list_addItem(&list, _make_item("C", ACTION, 0));
+
+    ListItem *item = list_getVisibleItemAt(&list, 1);
+    ASSERT_NOT_NULL(item);
+    ASSERT_STREQ(item->label, "B");
+    list_free(&list);
+}
+
+TEST(visible_item_at_skips_disabled) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+
+    ListItem disabled = _make_item("B", ACTION, 0);
+    disabled.disabled = true;
+    list_addItem(&list, disabled);
+
+    list_addItem(&list, _make_item("C", ACTION, 0));
+
+    ListItem *item = list_getVisibleItemAt(&list, 1);
+    ASSERT_NOT_NULL(item);
+    ASSERT_STREQ(item->label, "C");
+    list_free(&list);
+}
+
+TEST(visible_item_at_first_item) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list_addItem(&list, _make_item("B", ACTION, 0));
+
+    ListItem *item = list_getVisibleItemAt(&list, 0);
+    ASSERT_NOT_NULL(item);
+    ASSERT_STREQ(item->label, "A");
+    list_free(&list);
+}
+
+TEST(visible_item_at_all_disabled_returns_null) {
+    List list = list_create(5, LIST_SMALL);
+
+    ListItem d1 = _make_item("A", ACTION, 0);
+    d1.disabled = true;
+    list_addItem(&list, d1);
+
+    ListItem d2 = _make_item("B", ACTION, 0);
+    d2.disabled = true;
+    list_addItem(&list, d2);
+
+    ListItem *item = list_getVisibleItemAt(&list, 0);
+    ASSERT_NULL(item);
+    list_free(&list);
+}
+
+TEST(visible_item_at_last_item) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list_addItem(&list, _make_item("B", ACTION, 0));
+    list_addItem(&list, _make_item("C", ACTION, 0));
+
+    ListItem *item = list_getVisibleItemAt(&list, 2);
+    ASSERT_NOT_NULL(item);
+    ASSERT_STREQ(item->label, "C");
+    list_free(&list);
+}
+
+TEST(visible_item_at_skips_multiple_disabled) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+
+    ListItem d1 = _make_item("B", ACTION, 0);
+    d1.disabled = true;
+    list_addItem(&list, d1);
+
+    ListItem d2 = _make_item("C", ACTION, 0);
+    d2.disabled = true;
+    list_addItem(&list, d2);
+
+    list_addItem(&list, _make_item("D", ACTION, 0));
+
+    ListItem *item = list_getVisibleItemAt(&list, 1);
+    ASSERT_NOT_NULL(item);
+    ASSERT_STREQ(item->label, "D");
+    list_free(&list);
+}
+
+/* ---- list_hideAllExcept ---- */
+
+TEST(hide_all_except_disables_others) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list_addItem(&list, _make_item("B", ACTION, 0));
+    list_addItem(&list, _make_item("C", ACTION, 0));
+
+    list_hideAllExcept(&list, &list.items[1], true);
+
+    ASSERT_TRUE(list.items[0].disabled);
+    ASSERT_FALSE(list.items[1].disabled);
+    ASSERT_TRUE(list.items[2].disabled);
+    list_free(&list);
+}
+
+TEST(hide_all_except_re_enables_others) {
+    List list = list_create(5, LIST_SMALL);
+    ListItem d1 = _make_item("A", ACTION, 0);
+    d1.disabled = true;
+    list_addItem(&list, d1);
+
+    list_addItem(&list, _make_item("B", ACTION, 0));
+
+    ListItem d2 = _make_item("C", ACTION, 0);
+    d2.disabled = true;
+    list_addItem(&list, d2);
+
+    /* Re-enable all except B */
+    list_hideAllExcept(&list, &list.items[1], false);
+
+    ASSERT_FALSE(list.items[0].disabled);
+    ASSERT_FALSE(list.items[1].disabled);
+    ASSERT_FALSE(list.items[2].disabled);
+    list_free(&list);
+}
+
+TEST(hide_all_except_single_item) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("Only", ACTION, 0));
+
+    list_hideAllExcept(&list, &list.items[0], true);
+    /* The only item should remain enabled */
+    ASSERT_FALSE(list.items[0].disabled);
+    list_free(&list);
+}
+
+TEST(hide_all_except_first_item) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list_addItem(&list, _make_item("B", ACTION, 0));
+    list_addItem(&list, _make_item("C", ACTION, 0));
+
+    list_hideAllExcept(&list, &list.items[0], true);
+
+    ASSERT_FALSE(list.items[0].disabled);
+    ASSERT_TRUE(list.items[1].disabled);
+    ASSERT_TRUE(list.items[2].disabled);
+    list_free(&list);
+}
+
+TEST(hide_all_except_last_item) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list_addItem(&list, _make_item("B", ACTION, 0));
+    list_addItem(&list, _make_item("C", ACTION, 0));
+
+    list_hideAllExcept(&list, &list.items[2], true);
+
+    ASSERT_TRUE(list.items[0].disabled);
+    ASSERT_TRUE(list.items[1].disabled);
+    ASSERT_FALSE(list.items[2].disabled);
+    list_free(&list);
+}
+
+TEST(hide_all_except_visible_count) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list_addItem(&list, _make_item("B", ACTION, 0));
+    list_addItem(&list, _make_item("C", ACTION, 0));
+    list_addItem(&list, _make_item("D", ACTION, 0));
+
+    list_hideAllExcept(&list, &list.items[2], true);
+    ASSERT_EQ(list_countVisible(&list), 1);
+
+    list_hideAllExcept(&list, &list.items[2], false);
+    ASSERT_EQ(list_countVisible(&list), 4);
+    list_free(&list);
+}
+
+/* ---- list_free guard path ---- */
+
+TEST(free_not_created) {
+    List list;
+    memset(&list, 0, sizeof(list));
+    list._created = false;
+    /* Should not crash or double-free */
+    list_free(&list);
+    ASSERT_FALSE(list._created);
+}
+
+TEST(free_sets_created_false) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    ASSERT_TRUE(list._created);
+    list_free(&list);
+    ASSERT_FALSE(list._created);
+}
+
+TEST(free_double_free_safe) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list_free(&list);
+    /* Second free should be safe (guard by _created flag) */
+    list_free(&list);
+    ASSERT_FALSE(list._created);
+}
+
+/* ---- list_addItemWithInfoNote edge cases ---- */
+
+TEST(add_item_with_info_note_null_check) {
+    List list = list_create(1, LIST_SMALL);
+    list_addItem(&list, _make_item("Fill", ACTION, 0));
+    /* List is full, should return NULL */
+    ListItem *result = list_addItemWithInfoNote(&list, _make_item("Extra", ACTION, 0), "Note");
+    ASSERT_NULL(result);
+    list_free(&list);
+}
+
+TEST(add_item_with_info_note_preserves_label) {
+    List list = list_create(5, LIST_SMALL);
+    ListItem *item = list_addItemWithInfoNote(&list, _make_item("MyItem", ACTION, 0), "A note");
+    ASSERT_NOT_NULL(item);
+    ASSERT_STREQ(item->label, "MyItem");
+    ASSERT_STREQ(item->info_note, "A note");
+    list_free(&list);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -1222,6 +1530,34 @@ int main(void)
     RUN_TEST(scroll_not_needed_few_items);
 
     RUN_TEST(ensure_visible_skips_disabled);
+
+    RUN_TEST(sticky_note_set_and_get);
+    RUN_TEST(sticky_note_overwrite);
+    RUN_TEST(sticky_note_empty_string);
+    RUN_TEST(sticky_note_get_unset);
+    RUN_TEST(sticky_note_long_message);
+    RUN_TEST(sticky_note_with_list_item);
+
+    RUN_TEST(visible_item_at_all_enabled);
+    RUN_TEST(visible_item_at_skips_disabled);
+    RUN_TEST(visible_item_at_first_item);
+    RUN_TEST(visible_item_at_all_disabled_returns_null);
+    RUN_TEST(visible_item_at_last_item);
+    RUN_TEST(visible_item_at_skips_multiple_disabled);
+
+    RUN_TEST(hide_all_except_disables_others);
+    RUN_TEST(hide_all_except_re_enables_others);
+    RUN_TEST(hide_all_except_single_item);
+    RUN_TEST(hide_all_except_first_item);
+    RUN_TEST(hide_all_except_last_item);
+    RUN_TEST(hide_all_except_visible_count);
+
+    RUN_TEST(free_not_created);
+    RUN_TEST(free_sets_created_false);
+    RUN_TEST(free_double_free_safe);
+
+    RUN_TEST(add_item_with_info_note_null_check);
+    RUN_TEST(add_item_with_info_note_preserves_label);
 
     TEST_REPORT();
     return test_failures;
