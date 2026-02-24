@@ -174,14 +174,12 @@ TEST(str_getLastNumber_no_digits) {
 TEST(str_getLastNumber_just_zero) {
     long val = -1;
     bool found = str_getLastNumber("file0.txt", &val);
-    /* str_getLastNumber returns false when val is -1, but 0 is a valid number */
-    /* The function sets val to -1 initially and only returns true if val != -1 */
-    /* So finding "0" won't change val from the loop's perspective since strtol returns 0 */
-    /* This documents the known limitation: 0 is not detected */
-    (void)found;
-    (void)val;
-    /* Just verifying no crash occurs */
-    ASSERT_TRUE(1);
+    /*
+     * The digit '0' is found by strtol, which sets val to 0.
+     * Since 0 != -1 (the sentinel), the function correctly returns true.
+     */
+    ASSERT_TRUE(found);
+    ASSERT_EQ(val, 0);
 }
 
 TEST(str_getLastNumber_large_number) {

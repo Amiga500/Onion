@@ -328,8 +328,15 @@ TEST(file_readLastLine_trailing_newline) {
 
 /* ---- file_getExtension: security-relevant edge cases ---- */
 
-TEST(file_getExtension_double_dot_path) {
-    /* strrchr finds last '.' in ".." components; returns substring after it */
+TEST(file_getExtension_dotdot_path_known_behavior) {
+    /*
+     * Known behavior: file_getExtension uses strrchr('.') which matches dots
+     * inside ".." path components, not just file extensions. For paths with
+     * ".." traversal (e.g. "../../etc/passwd"), the last '.' is in the ".."
+     * component, so the function returns a misleading "extension" that
+     * includes path components. Callers should validate or normalize paths
+     * before using this function for security-sensitive operations.
+     */
     const char *ext = file_getExtension("../../etc/passwd");
     ASSERT_STREQ(ext, "/etc/passwd");
 }
@@ -454,7 +461,7 @@ int main(void) {
     RUN_TEST(file_readLastLine_trailing_newline);
 
     /* file_getExtension security */
-    RUN_TEST(file_getExtension_double_dot_path);
+    RUN_TEST(file_getExtension_dotdot_path_known_behavior);
     RUN_TEST(file_getExtension_very_long_ext);
 
     /* file_read_lineN edge cases */
