@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
         SDL_FillRect(screen, NULL, 0);
         render();
     }
-    else if (currentGame()->is_running) {
+    else if (currentGame() != NULL && currentGame()->is_running) {
         if (appState.current_bg != NULL) {
             SDL_FillRect(screen, NULL, 0);
             renderCentered(appState.current_bg, VIEW_FULLSCREEN, NULL, NULL);
@@ -202,6 +202,7 @@ int main(int argc, char *argv[])
     if (appState.transparent_bg != NULL)
         SDL_FreeSurface(appState.transparent_bg);
 
+    render_freeCache();
     resources_free();
 
     freeRomScreens();

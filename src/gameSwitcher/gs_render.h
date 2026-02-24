@@ -252,4 +252,12 @@ void renderBrightness(AppState *state)
     }
 }
 
+void render_freeCache(void)
+{
+    if (_gs_header_title_cache != NULL) {
+        SDL_FreeSurface(_gs_header_title_cache);
+        _gs_header_title_cache = NULL;
+    }
+}
+
 #endif // GAME_SWITCHER_RENDER_H__

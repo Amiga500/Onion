@@ -170,6 +170,9 @@ static void *_loadRomScreensThread(void *_)
 
 void loadRomScreens()
 {
+    if (__initial_romscreens_loaded) {
+        pthread_join(romscreen_thread_pt, NULL);
+    }
     pthread_create(&romscreen_thread_pt, NULL, _loadRomScreensThread, NULL);
 }
 

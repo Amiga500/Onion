@@ -245,7 +245,8 @@ static void *_scan_thread(void *_)
 
 static bool _isSaveEnabled(void)
 {
-    return currentGame()->is_running;
+    Game_s *game = currentGame();
+    return game != NULL && game->is_running;
 }
 
 static bool _isLoadEnabled(void)
@@ -306,13 +307,13 @@ void action_saveGame(void *_)
 
 void action_loadGame(void *_)
 {
-    if (g_save_state_info.selected_slot < 0 && g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
+    if (g_save_state_info.selected_slot < 0 || g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
         return;
     }
 
     const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
 
-    if (currentGame()->is_running) {
+    if (currentGame() != NULL && currentGame()->is_running) {
         retroarch_load(real_slot);
     }
     else {
