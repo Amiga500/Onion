@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
                             if (g_images_paths_count > 0 && g_images_paths && g_image_index >= 0) {
                                 current_image_path = g_images_paths[g_image_index];
                             }
-                            char *no_extension = file_removeExtension(basename(current_image_path));
+                            char *no_extension = file_removeExtension(file_basename(current_image_path));
                             theme_renderHeader(screen, no_extension, false);
                             free(no_extension);
                         }
