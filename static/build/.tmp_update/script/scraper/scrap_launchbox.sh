@@ -58,8 +58,8 @@ get_url_media_box() {
 			  
   urlMediaBox=$(execute_sql_query "$query")
   
-  unset $romNameTrimmed_Ampersand
-  unset $romNameTrimmed_WithoutAnd
+  unset romNameTrimmed_Ampersand
+  unset romNameTrimmed_WithoutAnd
 }
 
 

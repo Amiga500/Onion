@@ -186,9 +186,20 @@ PlayActivities *play_activity_find_all(void)
         sqlite3_reset(stmt);
 
     play_activities = (PlayActivities *)malloc(sizeof(PlayActivities));
+    if (play_activities == NULL) {
+        sqlite3_finalize(stmt);
+        play_activity_db_close();
+        return NULL;
+    }
     play_activities->count = play_activity_count;
     play_activities->play_time_total = 0;
     play_activities->play_activity = (PlayActivity **)malloc(sizeof(PlayActivity *) * play_activities->count);
+    if (play_activities->play_activity == NULL) {
+        free(play_activities);
+        sqlite3_finalize(stmt);
+        play_activity_db_close();
+        return NULL;
+    }
 
     for (int i = 0; i < play_activities->count; i++) {
         if (sqlite3_step(stmt) != SQLITE_ROW)
