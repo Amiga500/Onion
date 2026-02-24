@@ -31,6 +31,10 @@ Unit tests use a lightweight custom test framework (`onion_test.h`) and don't re
 - `test_config_security.c` - Config key-value parsing, file line operations, file_cleanName
 - `test_volume.c` - Volume curve calculations (logarithmic mapping, clamping, monotonicity)
 - `test_display.c` - Brightness exponential/logarithmic curve, framebuffer read/write/rotate/mask operations
+- `test_lang.c` - Language lookup with fallback, lang_free NULL/double-free safety, lifecycle
+- `test_signal_handler.c` - Signal handler flag behavior for SIGINT, SIGTERM, and unhandled signals
+- `test_battery.c` - Battery charging cache timing logic (elapsed_ms calculation, cache validity)
+- `test_playactivity_paths.c` - ROM path normalization (__ensure_rel_path with ../../Roms/ and /mnt/SDCARD/Roms/ prefixes)
 
 To run only unit tests:
 
