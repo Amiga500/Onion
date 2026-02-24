@@ -382,14 +382,14 @@ http_authed() {
     if flag_enabled httpState; then
         if flag_enabled authhttpState; then
             killall -9 filebrowser
-            $filebrowserbin config set --auth.method=json -d $filebrowserdb 2>&1 > /dev/null
+            $filebrowserbin config set --auth.method=json -d $filebrowserdb > /dev/null 2>&1
         else
             if [ "$(is_noauth_enabled)" -eq 0 ]; then
                 killall -9 filebrowser
-                $filebrowserbin config set --auth.method=noauth -d $filebrowserdb 2>&1 > /dev/null
+                $filebrowserbin config set --auth.method=noauth -d $filebrowserdb > /dev/null 2>&1
             fi
         fi
-        $filebrowserbin -p 80 -a 0.0.0.0 -r /mnt/SDCARD -d $filebrowserdb 2>&1 > /dev/null &
+        $filebrowserbin -p 80 -a 0.0.0.0 -r /mnt/SDCARD -d $filebrowserdb > /dev/null 2>&1 &
     fi
 }
 
@@ -675,7 +675,7 @@ abs() {
 }
 
 set_tzid() {
-    export TZ=$(cat "$sysdir/config/.tz")
+    export TZ="$(cat "$sysdir/config/.tz" 2>/dev/null)"
 }
 
 is_noauth_enabled() { # Used to check authMethod val for HTTPFS
@@ -740,5 +740,5 @@ get_password() {
 if [ -f $sysdir/config/.logging ]; then
     main "$@"
 else
-    main "$@" 2>&1 > /dev/null
+    main "$@" > /dev/null 2>&1
 fi

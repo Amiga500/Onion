@@ -103,7 +103,7 @@ wait_for_ip() {
 	ip addr flush dev wlan0
 
 	while [ -z "$IP" ]; do
-		IP=$(ip route get 1 2>/dev/null | awk '{print $NF;exit}')
+		IP=$(ip route get 1 2>/dev/null | sed -n 's/.*src \([0-9.]*\).*/\1/p')
 		sleep 0.5
 		counter=$((counter + 1))
 
@@ -145,7 +145,9 @@ wait_for_connectivity() {
 save_wifi_state() {
 	# cp /appconfigs/wpa_supplicant.conf /tmp/wpa_supplicant.conf_bk
 	old_ipv4=$(ip -4 addr show wlan0 | grep -o 'inet [^ ]*' | cut -d ' ' -f 2)
-	ip addr del $old_ipv4/$old_mask dev wlan0
+	if [ -n "$old_ipv4" ]; then
+		ip addr del "$old_ipv4" dev wlan0
+	fi
 	echo "$old_ipv4" >/tmp/old_ipv4.txt
 }
 
