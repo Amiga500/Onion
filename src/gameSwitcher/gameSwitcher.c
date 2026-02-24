@@ -205,6 +205,7 @@ int main(int argc, char *argv[])
     if (appState.transparent_bg != NULL)
         SDL_FreeSurface(appState.transparent_bg);
 
+    popMenu_destroy();
     render_freeCache();
     resources_free();
 

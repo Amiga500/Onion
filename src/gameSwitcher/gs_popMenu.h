@@ -53,7 +53,8 @@ static bool _hasSaveStates(Game_s *game)
         if (entry->d_type == DT_REG && strncmp(entry->d_name, game->rom_name, strlen(game->rom_name)) == 0) {
             char *slotStr = entry->d_name + strlen(game->rom_name);
             if (strncmp(slotStr, ".state", 6) == 0) {
-                if (strncmp(slotStr, ".state.auto", 11) == 0 || strncmp(slotStr + strlen(slotStr) - 4, ".png", 4) == 0) {
+                size_t slotStrLen = strlen(slotStr);
+                if (strncmp(slotStr, ".state.auto", 11) == 0 || (slotStrLen >= 4 && strncmp(slotStr + slotStrLen - 4, ".png", 4) == 0)) {
                     continue; // Skip auto save states and preview images
                 }
 
@@ -90,7 +91,8 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
             char *slotStr = entry->d_name + strlen(game->rom_name);
             if (strncmp(slotStr, ".state", 6) == 0) {
                 int slot = 0;
-                if (strncmp(slotStr, ".state.auto", 11) == 0 || strncmp(slotStr + strlen(slotStr) - 4, ".png", 4) == 0) {
+                size_t slotStrLen = strlen(slotStr);
+                if (strncmp(slotStr, ".state.auto", 11) == 0 || (slotStrLen >= 4 && strncmp(slotStr + slotStrLen - 4, ".png", 4) == 0)) {
                     continue; // Skip auto save states and preview images
                 }
                 else if (slotStr[6] != '\0') {
@@ -251,8 +253,8 @@ static bool _isSaveEnabled(void)
 
 static bool _isLoadEnabled(void)
 {
-    Game_s *game = &game_list[appState.current_game];
-    return _hasSaveStates(game);
+    Game_s *game = currentGame();
+    return game != NULL && _hasSaveStates(game);
 }
 
 void action_resumeGame(void *_)
@@ -291,6 +293,8 @@ void action_saveGame(void *_)
         theme_renderDialogProgress(screen, "Saving", " ", false);
         render();
     }
+
+    pthread_join(save_thread, NULL);
 
     if (bg != NULL)
         SDL_BlitSurface(bg, NULL, screen, NULL);
@@ -343,8 +347,12 @@ void popMenu_deleteSaveState(void)
         return;
     }
 
+    Game_s *game = currentGame();
+    if (game == NULL) {
+        return;
+    }
+
     const int real_slot = g_save_state_info.slots[selected_slot];
-    Game_s *game = &game_list[appState.current_game];
     char stateFilePath[2048];
     char imageFilePath[2056];
 
