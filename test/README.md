@@ -26,6 +26,9 @@ Unit tests use a lightweight custom test framework (`onion_test.h`) and don't re
 - `test_str_security.c` - String security edge cases (buffer overflow, NULL safety, boundary values)
 - `test_file_security.c` - File security edge cases (path traversal, corrupted data, symlinks)
 - `test_json_security.c` - JSON security edge cases (malformed input, NULL safety, deep nesting)
+- `test_game_entry.c` - JsonGameEntry fromJson/toJson roundtrip, emupath extraction, edge cases
+- `test_state_security.c` - MainUI state JSON formatting, page calculations, state_getAppName edge cases
+- `test_config_security.c` - Config key-value parsing, file line operations, file_cleanName
 
 To run only unit tests:
 
