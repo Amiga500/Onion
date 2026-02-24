@@ -22,7 +22,7 @@ BUILD_DIR := ../build_test
 COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
 
 # Test targets
-TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process
+TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings
 
 # Build-only targets (compilation without running)
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
@@ -174,5 +174,29 @@ $(BUILD_DIR)/test_process: test_process.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_process.c $(COMMON_SRCS) $(LDFLAGS)
 
+test_timer: $(BUILD_DIR)/test_timer
+	@echo ""
+	@$(BUILD_DIR)/test_timer
+
+$(BUILD_DIR)/test_timer: test_timer.c onion_test.h ../src/common/utils/timer.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_timer.c $(LDFLAGS)
+
+test_apply_icons: $(BUILD_DIR)/test_apply_icons
+	@echo ""
+	@$(BUILD_DIR)/test_apply_icons
+
+$(BUILD_DIR)/test_apply_icons: test_apply_icons.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_apply_icons.c $(LDFLAGS)
+
+test_settings: $(BUILD_DIR)/test_settings
+	@echo ""
+	@$(BUILD_DIR)/test_settings
+
+$(BUILD_DIR)/test_settings: test_settings.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_settings.c $(LDFLAGS)
+
 clean:
-	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon $(BUILD_DIR)/test_playactivity $(BUILD_DIR)/test_clock $(BUILD_DIR)/test_msleep $(BUILD_DIR)/test_config $(BUILD_DIR)/test_log $(BUILD_DIR)/test_flags $(BUILD_DIR)/test_process
+	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon $(BUILD_DIR)/test_playactivity $(BUILD_DIR)/test_clock $(BUILD_DIR)/test_msleep $(BUILD_DIR)/test_config $(BUILD_DIR)/test_log $(BUILD_DIR)/test_flags $(BUILD_DIR)/test_process $(BUILD_DIR)/test_timer $(BUILD_DIR)/test_apply_icons $(BUILD_DIR)/test_settings
