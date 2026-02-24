@@ -202,16 +202,21 @@ PlayActivities *play_activity_find_all(void)
     }
 
     for (int i = 0; i < play_activities->count; i++) {
-        if (sqlite3_step(stmt) != SQLITE_ROW)
+        if (sqlite3_step(stmt) != SQLITE_ROW) {
+            play_activities->count = i;
             break;
+        }
 
         PlayActivity *entry = play_activities->play_activity[i] = (PlayActivity *)malloc(sizeof(PlayActivity));
-        if (entry == NULL)
+        if (entry == NULL) {
+            play_activities->count = i;
             break;
+        }
         ROM *rom = play_activities->play_activity[i]->rom = (ROM *)malloc(sizeof(ROM));
         if (rom == NULL) {
             free(entry);
             play_activities->play_activity[i] = NULL;
+            play_activities->count = i;
             break;
         }
         entry->first_played_at = NULL;
