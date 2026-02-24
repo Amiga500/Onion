@@ -24,9 +24,43 @@ COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common
 # Test targets
 TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process
 
-.PHONY: all clean $(TESTS)
+# Build-only targets (compilation without running)
+BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
-all: $(TESTS)
+.PHONY: all clean $(TESTS) summary
+
+all: $(BINARIES)
+	@total_tests=0; total_asserts=0; total_fails=0; \
+	summary=""; \
+	for t in $(TESTS); do \
+		printf "\n"; \
+		output=$$($(BUILD_DIR)/$$t 2>&1) && status="PASSED" || status="FAILED"; \
+		printf "%s\n" "$$output"; \
+		tc=$$(printf "%s\n" "$$output" | grep "Tests:" | head -1 | sed 's/.*Tests: *\([0-9]*\).*/\1/'); \
+		ac=$$(printf "%s\n" "$$output" | grep "Assertions:" | head -1 | sed 's/.*Assertions: *\([0-9]*\).*/\1/'); \
+		fc=$$(printf "%s\n" "$$output" | grep "Failures:" | head -1 | sed 's/.*Failures: *\([0-9]*\).*/\1/'); \
+		total_tests=$$((total_tests + $${tc:-0})); \
+		total_asserts=$$((total_asserts + $${ac:-0})); \
+		total_fails=$$((total_fails + $${fc:-0})); \
+		summary="$$summary$$(printf '  %-20s %6s %11s  %s' "$$t" "$${tc:-0}" "$${ac:-0}" "$$status")\n"; \
+	done; \
+	printf "\n"; \
+	printf "==========================================\n"; \
+	printf "          UNIT TEST SUMMARY\n"; \
+	printf "==========================================\n"; \
+	printf "  %-20s %6s %11s  %s\n" "Suite" "Tests" "Assertions" "Result"; \
+	printf "  %-20s %6s %11s  %s\n" "--------------------" "------" "-----------" "------"; \
+	printf "%b" "$$summary"; \
+	printf "  %-20s %6s %11s  %s\n" "--------------------" "------" "-----------" "------"; \
+	printf "  %-20s %6d %11d\n" "Total" $$total_tests $$total_asserts; \
+	printf "\n"; \
+	if [ $$total_fails -eq 0 ]; then \
+		printf "  Result: ALL PASSED\n"; \
+	else \
+		printf "  Result: SOME TESTS FAILED ($$total_fails failures)\n"; \
+	fi; \
+	printf "==========================================\n"; \
+	[ $$total_fails -eq 0 ]
 
 test_str: $(BUILD_DIR)/test_str
 	@echo ""
