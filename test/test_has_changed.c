@@ -9,6 +9,7 @@
  */
 
 #include "onion_test.h"
+#include <limits.h>
 #include <stdbool.h>
 
 /* ---- Inline the pure-logic function from settings_sync.h ---- */
@@ -101,14 +102,14 @@ TEST(has_changed_sequential_updates) {
 
 TEST(has_changed_large_values) {
     int old = 0;
-    ASSERT_TRUE(_has_changed(2147483647, &old));
-    ASSERT_EQ(old, 2147483647);
+    ASSERT_TRUE(_has_changed(INT_MAX, &old));
+    ASSERT_EQ(old, INT_MAX);
 }
 
 TEST(has_changed_boundary_min) {
     int old = 0;
-    ASSERT_TRUE(_has_changed(-2147483647, &old));
-    ASSERT_EQ(old, -2147483647);
+    ASSERT_TRUE(_has_changed(INT_MIN, &old));
+    ASSERT_EQ(old, INT_MIN);
 }
 
 /* ---- Simulated settings field tracking ---- */

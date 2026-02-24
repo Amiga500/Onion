@@ -282,7 +282,7 @@ TEST(default_values_index) {
 
 TEST(default_values_clears_strings) {
     Game_s game;
-    memset(&game, 'X', sizeof(game));
+    memset(&game, 0xFF, sizeof(game));
 
     setEntryDefaultValues(&game, 0);
 
