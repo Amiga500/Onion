@@ -22,7 +22,7 @@ BUILD_DIR := ../build_test
 COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
 
 # Test targets
-TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings test_list test_color test_apps
+TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings test_list test_color test_apps test_changes test_gs_history test_has_changed
 
 # Build-only targets (compilation without running)
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
@@ -222,5 +222,29 @@ $(BUILD_DIR)/test_apps: test_apps.c onion_test.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_apps.c $(LDFLAGS)
 
+test_changes: $(BUILD_DIR)/test_changes
+	@echo ""
+	@$(BUILD_DIR)/test_changes
+
+$(BUILD_DIR)/test_changes: test_changes.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_changes.c $(LDFLAGS)
+
+test_gs_history: $(BUILD_DIR)/test_gs_history
+	@echo ""
+	@$(BUILD_DIR)/test_gs_history
+
+$(BUILD_DIR)/test_gs_history: test_gs_history.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_gs_history.c ../include/cjson/cJSON.c $(LDFLAGS)
+
+test_has_changed: $(BUILD_DIR)/test_has_changed
+	@echo ""
+	@$(BUILD_DIR)/test_has_changed
+
+$(BUILD_DIR)/test_has_changed: test_has_changed.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_has_changed.c $(LDFLAGS)
+
 clean:
-	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon $(BUILD_DIR)/test_playactivity $(BUILD_DIR)/test_clock $(BUILD_DIR)/test_msleep $(BUILD_DIR)/test_config $(BUILD_DIR)/test_log $(BUILD_DIR)/test_flags $(BUILD_DIR)/test_process $(BUILD_DIR)/test_timer $(BUILD_DIR)/test_apply_icons $(BUILD_DIR)/test_settings $(BUILD_DIR)/test_list $(BUILD_DIR)/test_color $(BUILD_DIR)/test_apps
+	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon $(BUILD_DIR)/test_playactivity $(BUILD_DIR)/test_clock $(BUILD_DIR)/test_msleep $(BUILD_DIR)/test_config $(BUILD_DIR)/test_log $(BUILD_DIR)/test_flags $(BUILD_DIR)/test_process $(BUILD_DIR)/test_timer $(BUILD_DIR)/test_apply_icons $(BUILD_DIR)/test_settings $(BUILD_DIR)/test_list $(BUILD_DIR)/test_color $(BUILD_DIR)/test_apps $(BUILD_DIR)/test_changes $(BUILD_DIR)/test_gs_history $(BUILD_DIR)/test_has_changed
