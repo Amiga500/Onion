@@ -255,7 +255,7 @@ void readFirstEntry()
         return;
     }
 
-    int lineNo = -1;
+    int lineNo = 0;
     bool found = false;
 
     while (fgets(line, sizeof(line), file) != NULL) {

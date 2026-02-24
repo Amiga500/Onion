@@ -21,31 +21,34 @@
 /* Local reproduction of get_rom_image_path                           */
 /* ------------------------------------------------------------------ */
 
-/* FIXED version: returns early for .p8/.png files */
-static void _fixed_get_rom_image_path(char *rom_file, char *out_image_path)
+/* Version that preserves rom_file (uses local copy for strtok) */
+static void _safe_get_rom_image_path(char *rom_file, char *out_image_path)
 {
     if (str_endsWith(rom_file, ".p8") || str_endsWith(rom_file, ".png")) {
         snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s", rom_file);
         return;
     }
 
-    char *clean_rom_name = file_removeExtension(basename(rom_file));
+    char *clean_rom_name = file_removeExtension(file_basename(rom_file));
     if (clean_rom_name == NULL)
         return;
-    char *rom_folder = strtok(rom_file, "/");
+    char rom_file_copy[STR_MAX];
+    strncpy(rom_file_copy, rom_file, sizeof(rom_file_copy) - 1);
+    rom_file_copy[sizeof(rom_file_copy) - 1] = '\0';
+    char *rom_folder = strtok(rom_file_copy, "/");
     if (rom_folder == NULL)
-        rom_folder = rom_file;
+        rom_folder = rom_file_copy;
 
     snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s/Imgs/%s.png", rom_folder, clean_rom_name);
     free(clean_rom_name);
 }
 
-/* BUGGY version: falls through after .p8/.png match */
-static void _buggy_get_rom_image_path(char *rom_file, char *out_image_path)
+/* Old version that corrupts rom_file via strtok */
+static void _corrupting_get_rom_image_path(char *rom_file, char *out_image_path)
 {
     if (str_endsWith(rom_file, ".p8") || str_endsWith(rom_file, ".png")) {
         snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s", rom_file);
-        /* BUG: no return — falls through to strtok which corrupts rom_file */
+        return;
     }
 
     char *clean_rom_name = file_removeExtension(basename(rom_file));
@@ -69,7 +72,7 @@ TEST(get_rom_image_path_normal_rom) {
     strncpy(rom_file, "GBA/game.gba", STR_MAX - 1);
     char out_path[STR_MAX] = "";
 
-    _fixed_get_rom_image_path(rom_file, out_path);
+    _safe_get_rom_image_path(rom_file, out_path);
     ASSERT_STREQ(out_path, "/mnt/SDCARD/Roms/GBA/Imgs/game.png");
 }
 
@@ -79,7 +82,7 @@ TEST(get_rom_image_path_p8_file) {
     strncpy(rom_file, "PICO/game.p8", STR_MAX - 1);
     char out_path[STR_MAX] = "";
 
-    _fixed_get_rom_image_path(rom_file, out_path);
+    _safe_get_rom_image_path(rom_file, out_path);
     ASSERT_STREQ(out_path, "/mnt/SDCARD/Roms/PICO/game.p8");
 }
 
@@ -89,36 +92,39 @@ TEST(get_rom_image_path_png_file) {
     strncpy(rom_file, "PICO/game.png", STR_MAX - 1);
     char out_path[STR_MAX] = "";
 
-    _fixed_get_rom_image_path(rom_file, out_path);
+    _safe_get_rom_image_path(rom_file, out_path);
     ASSERT_STREQ(out_path, "/mnt/SDCARD/Roms/PICO/game.png");
 }
 
 /*
- * BUG #10 — Logged regression test.
+ * BUG — strtok corrupts the caller's rom_file string.
  *
- * The buggy version falls through after the .p8/.png snprintf, causing
- * strtok to corrupt rom_file and overwrite out_image_path with an
- * incorrect Imgs path.
+ * The old version calls strtok directly on rom_file, placing '\0'
+ * at the first '/' separator. This corrupts rom->file_path when
+ * called from play_activity_find_all().
  *
- * The fixed version returns early with the correct direct path.
+ * The fixed version uses a local copy for strtok.
  */
-TEST(get_rom_image_path_p8_fallthrough_bug) {
-    char rom_file_buggy[STR_MAX];
-    strncpy(rom_file_buggy, "PICO/game.p8", STR_MAX - 1);
-    char out_path_buggy[STR_MAX] = "";
+TEST(get_rom_image_path_preserves_input) {
+    char rom_file[STR_MAX];
+    strncpy(rom_file, "GBA/game.gba", STR_MAX - 1);
+    char out_path[STR_MAX] = "";
 
-    char rom_file_fixed[STR_MAX];
-    strncpy(rom_file_fixed, "PICO/game.p8", STR_MAX - 1);
-    char out_path_fixed[STR_MAX] = "";
+    _safe_get_rom_image_path(rom_file, out_path);
+    /* The safe version must NOT corrupt rom_file */
+    ASSERT_STREQ(rom_file, "GBA/game.gba");
+    ASSERT_STREQ(out_path, "/mnt/SDCARD/Roms/GBA/Imgs/game.png");
+}
 
-    _buggy_get_rom_image_path(rom_file_buggy, out_path_buggy);
-    _fixed_get_rom_image_path(rom_file_fixed, out_path_fixed);
+TEST(get_rom_image_path_old_corrupts_input) {
+    char rom_file[STR_MAX];
+    strncpy(rom_file, "GBA/game.gba", STR_MAX - 1);
+    char out_path[STR_MAX] = "";
 
-    /* The buggy version overwrites the correct .p8 path with an Imgs path */
-    ASSERT_STREQ(out_path_buggy, "/mnt/SDCARD/Roms/PICO/Imgs/game.png");
-
-    /* The fixed version returns the correct direct path */
-    ASSERT_STREQ(out_path_fixed, "/mnt/SDCARD/Roms/PICO/game.p8");
+    _corrupting_get_rom_image_path(rom_file, out_path);
+    /* The old version corrupts rom_file via strtok */
+    ASSERT_STREQ(rom_file, "GBA");
+    ASSERT_STREQ(out_path, "/mnt/SDCARD/Roms/GBA/Imgs/game.png");
 }
 
 /* ------------------------------------------------------------------ */
@@ -230,7 +236,8 @@ int main(void)
     RUN_TEST(get_rom_image_path_normal_rom);
     RUN_TEST(get_rom_image_path_p8_file);
     RUN_TEST(get_rom_image_path_png_file);
-    RUN_TEST(get_rom_image_path_p8_fallthrough_bug);
+    RUN_TEST(get_rom_image_path_preserves_input);
+    RUN_TEST(get_rom_image_path_old_corrupts_input);
 
     /* _get_active_rom_path */
     RUN_TEST(get_active_rom_path_standard);
