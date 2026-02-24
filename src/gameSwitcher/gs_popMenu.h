@@ -170,10 +170,10 @@ static void setLoadPreview()
     if (item != NULL) {
         if (g_save_state_info.selected_slot >= 0 && g_save_state_info.selected_slot < g_save_state_info.slot_count) {
             const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
-            Game_s *game = &game_list[appState.current_game];
+            Game_s *game = currentGame();
             char stateFilePath[2048];
 
-            if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath))) {
+            if (game != NULL && createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath))) {
                 snprintf(item->preview_path, sizeof(item->preview_path), "%s.png", stateFilePath);
             }
         }
@@ -240,8 +240,11 @@ static void *_save_thread(void *_)
 
 static void *_scan_thread(void *_)
 {
-    _scanSaveStates(&game_list[appState.current_game], &g_save_state_info);
-    setLoadPreview();
+    Game_s *game = currentGame();
+    if (game != NULL) {
+        _scanSaveStates(game, &g_save_state_info);
+        setLoadPreview();
+    }
     return NULL;
 }
 

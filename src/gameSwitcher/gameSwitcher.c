@@ -109,8 +109,9 @@ int main(int argc, char *argv[])
             if (!appState.changed && !appState.brightness_changed && (appState.surfaceGameName == NULL || appState.surfaceGameName->w <= appState.game_name_max_width))
                 continue;
 
-            Game_s *game = &game_list[appState.current_game];
-            processItem(game);
+            Game_s *game = currentGame();
+            if (game != NULL)
+                processItem(game);
 
             if (appState.changed) {
                 SDL_FillRect(screen, NULL, 0);

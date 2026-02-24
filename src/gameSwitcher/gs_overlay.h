@@ -54,6 +54,11 @@ static bool _isContentNameInInfo(const char *content_info, const char *content_n
 
 static void *_saveRomScreenAndStateThread(void *arg)
 {
+    if (game_list_len == 0) {
+        autosave_thread_running = false;
+        return NULL;
+    }
+
     Game_s *game = &game_list[0];
 
     if (game->romScreen != NULL && game->is_running) {
