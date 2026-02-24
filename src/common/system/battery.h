@@ -148,9 +148,8 @@ bool battery_hasChanged(int ticks, int *out_percentage)
         if (!battery_is_charging) {
             *out_percentage = 500;
             battery_is_charging = true;
-            return true;
+            changed = true;
         }
-        return false;
     }
     else if (battery_is_charging) {
         battery_is_charging = false;
