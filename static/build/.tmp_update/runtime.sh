@@ -745,11 +745,11 @@ mute_theme_bgm() {
     muted_bgm_file="${system_theme}sound/bgm_muted.mp3"
 
     if [ -f "$sysdir/config/.bgmMute" ]; then
-        if [[ -f "$bgm_file" ]]; then
+        if [ -f "$bgm_file" ]; then
             mv -f "$bgm_file" "$muted_bgm_file"
         fi
     else
-        if [[ -f "$muted_bgm_file" ]]; then
+        if [ -f "$muted_bgm_file" ]; then
             mv -f "$muted_bgm_file" "$bgm_file"
         fi
     fi

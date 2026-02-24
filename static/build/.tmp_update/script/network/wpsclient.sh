@@ -7,7 +7,7 @@ export IMGPOP=$sysdir/bin/imgpop
 # Syntax: ./imgpop duration delay image_path x_position y_position.
 
 main() {
-    if ifconfig wlan0 &> /dev/null; then
+    if ifconfig wlan0 >/dev/null 2>&1; then
         if is_running wpa_supplicant && is_running udhcpc; then
             wifiup
         fi

@@ -161,7 +161,7 @@ get_netserv_status() { # Just checks if these exist - will need upkeep in this f
 
 wpa_supplicant_health_check() {
     log "Running wpa_supplicant health checks"
-    if [[ -f "$wpa_conf_path" ]]; then
+    if [ -f "$wpa_conf_path" ]; then
         echo "File $wpa_conf_path exists."
         if grep -Fxq "ctrl_interface=/var/run/wpa_supplicant" "$wpa_conf_path" && grep -Fxq "update_config=1" "$wpa_conf_path"; then
             echo "Wpa_supplicant.conf contains the correct info"
@@ -174,7 +174,7 @@ wpa_supplicant_health_check() {
 }
 
 wpa_supplicant_contains_networks() {
-    if [[ -f "$wpa_conf_path" ]]; then
+    if [ -f "$wpa_conf_path" ]; then
         num_ssids=$(grep -c "ssid=" "$wpa_conf_path")
         num_disabled=$(grep -c "disabled=" "$wpa_conf_path")
 
@@ -197,7 +197,7 @@ check_hostapd_conf() {
     file_path="$sysdir/config/hostapd.conf"
     file_size=$(stat -c%s "$file_path")
 
-    if [[ "$file_size" -eq 245 ]]; then
+    if [ "$file_size" -eq 245 ]; then
         echo "Filesize matches; hostapd.conf has not been modified."
     else
         echo "Mismatch; hostapd.conf has been modified."
@@ -209,7 +209,7 @@ check_dnsmasq_conf() { # This file can either be 251 or 187 depending on the sta
     file_path="$sysdir/config/dnsmasq.conf"
     file_size=$(stat -c%s "$file_path")
 
-    if [[ "$file_size" -eq 251 || "$file_size" -eq 187 ]]; then
+    if [ "$file_size" -eq 251 ] || [ "$file_size" -eq 187 ]; then
         echo "Filesize matches; dnsmasq.conf has not been modified."
     else
         echo "Mismatch; dnsmasq.conf has been modified."

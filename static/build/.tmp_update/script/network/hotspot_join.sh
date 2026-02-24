@@ -31,7 +31,7 @@ check_wifi() {
 	$WPACLI save_config
 	save_wifi_state
 	sync
-	if ifconfig wlan0 &>/dev/null; then
+	if ifconfig wlan0 >/dev/null 2>&1; then
 		$display_func "WIFI" "Wifi up"
 	else
 		$log_func "Wi-Fi disabled, trying to enable before connecting.."

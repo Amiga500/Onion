@@ -1,3 +1,4 @@
+#!/bin/sh
 # GLO HOST
 # Script to:
 # 	Start hotspot,

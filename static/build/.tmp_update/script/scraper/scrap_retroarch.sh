@@ -96,7 +96,7 @@ esac
 #Retroarch system folder name
 get_ra_alias $CurrentSystem
  #ls /mnt/SDCARD/Roms/$CurrentSystem
-mkdir -p /mnt/SDCARD/Roms/$CurrentSystem/Imgs &> /dev/null
+mkdir -p /mnt/SDCARD/Roms/$CurrentSystem/Imgs > /dev/null 2>&1
 clear
 echo -e "\n*****************************************************"
 echo -e "*******************   RETROARCH   *******************"
