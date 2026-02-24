@@ -55,9 +55,12 @@ static char *file_parseKeyValue(const char *file_path, const char *key_in,
             val++;
 
         /* Remove trailing whitespace/newline */
-        char *end = val + strlen(val) - 1;
-        while (end > val && (*end == '\n' || *end == '\r' || *end == ' ' || *end == '"'))
-            *end-- = '\0';
+        size_t val_len = strlen(val);
+        if (val_len > 0) {
+            char *end = val + val_len - 1;
+            while (end > val && (*end == '\n' || *end == '\r' || *end == ' ' || *end == '"'))
+                *end-- = '\0';
+        }
 
         /* Remove leading quote if present */
         if (*val == '"')
