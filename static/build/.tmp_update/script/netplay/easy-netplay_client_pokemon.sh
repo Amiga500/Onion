@@ -1,3 +1,4 @@
+#!/bin/sh
 # GLO Pokemon trade
 # Used within GLO as an addon script.
 
@@ -370,7 +371,7 @@ sync_file() {
 
     RequestResult=$(curl -I "$file_url" 2>&1)
 
-    if [[ $RequestResult == *"The file does not exist"* ]]; then
+    if echo "$RequestResult" | grep -q "The file does not exist"; then
         log "The remote file does not exist."
         msg="The remote file does not exist."
         build_infoPanel_and_log "Syncing" "The remote file does not exist."

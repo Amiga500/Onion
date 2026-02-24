@@ -30,7 +30,7 @@ fi
 
 check_wifi() {
 	ifconfig wlan1 down
-	if ifconfig wlan0 &>/dev/null; then
+	if ifconfig wlan0 >/dev/null 2>&1; then
 		$display_func "WIFI" "Wifi up"
 	else
 		$display_func "WIFI" "Wifi disabled, starting..."

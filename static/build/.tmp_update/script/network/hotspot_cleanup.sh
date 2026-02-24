@@ -79,7 +79,7 @@ udhcpc_control() {
 	if pgrep "udhcpc" >/dev/null; then
 		$log_func "DHCP started"
 	else
-		$display_func "DHCP" "Unable to start DHCP client\n unable to continue."
+		$log_func "DHCP" "Unable to start DHCP client, unable to continue."
 	fi
 }
 

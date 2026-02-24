@@ -58,8 +58,8 @@ get_url_media_box() {
 			  
   urlMediaBox=$(execute_sql_query "$query")
   
-  unset $romNameTrimmed_Ampersand
-  unset $romNameTrimmed_WithoutAnd
+  unset romNameTrimmed_Ampersand
+  unset romNameTrimmed_WithoutAnd
 }
 
 
@@ -245,7 +245,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 	! -path '*/Imgs/*' ! -path '*/.*/*' $romfilter"); do
 
     echo "-------------------------------------------------"
-    let romcount++;
+    romcount=$((romcount + 1))
     # Cleaning up names
     romName=$(basename "$file")
     romNameNoExtension=${romName%.*}	
@@ -279,7 +279,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 
 	if [ -f "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" ]; then
 		echo -e "${YELLOW}already Scraped !${NONE}"
-		let Scrap_notrequired++;
+		Scrap_notrequired=$((Scrap_notrequired + 1))
 	else
         	
 
@@ -335,16 +335,16 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 				 fi
 				 
 				 echo -e "${GREEN}Scraped!${NONE}"
-				 let Scrap_Success++;
+				 Scrap_Success=$((Scrap_Success + 1))
 			else
 				 echo -e "${RED}Download failed.${NONE}"
-				 let Scrap_Fail++;
+				 Scrap_Fail=$((Scrap_Fail + 1))
 			fi
 		else
 		    echo -e "${RED}No match found${NONE}"
         	echo "Couldn't find a match for $romNameTrimmed" >> /mnt/SDCARD/.tmp_update/logs/scrap.log
 		    #echo -e "Couldn't find a match for $romNameTrimmed, ${YELLOW}skipping${NONE}"    # for debugging
-		    let Scrap_Fail++;
+		    Scrap_Fail=$((Scrap_Fail + 1))
 		fi
 		unset urlMediaBox
 							

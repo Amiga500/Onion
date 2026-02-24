@@ -118,7 +118,7 @@ search_on_screenscraper() {
                 read dummy
                 break
             else
-                let retry_count++
+                retry_count=$((retry_count + 1))
                 echo "Retrying API call ($retry_count / $max_retries)..."
 				echo "Registering a Screenscraper account can help !"
                 sleep_duration=$((5 + retry_count))
@@ -132,7 +132,7 @@ search_on_screenscraper() {
     # Don't check art if screenscraper is closed
     if echo "$Head_api_result" | grep -q "API closed"; then
         echo -e "${RED}The Screenscraper API is currently down, please try again later.{NONE}"
-        let Scrap_Fail++
+        Scrap_Fail=$((Scrap_Fail + 1))
         read -n 1 -s -r -p "Press A to exit"
         return
     fi
@@ -141,7 +141,7 @@ search_on_screenscraper() {
     if [ -z "$Head_api_result" ]; then
         echo -e "${RED}Request failed${NONE}"
         echo "Request failed for $romNameNoExtensionTrimmed" >> /mnt/SDCARD/.tmp_update/logs/scrap.log
-        let Scrap_Fail++
+        Scrap_Fail=$((Scrap_Fail + 1))
         return
     fi
     
@@ -398,7 +398,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
     echo "-------------------------------------------------"
 	gameIDSS=""
 	url=""
-    let romcount++;
+    romcount=$((romcount + 1))
     
     # Cleaning up names
     romName=$(basename "$file")
@@ -421,7 +421,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 
 	if [ -f "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" ]; then
 		echo -e "${YELLOW}already Scraped !${NONE}"
-		let Scrap_notrequired++;
+		Scrap_notrequired=$((Scrap_notrequired + 1))
 	
 	else
 		rom_size=$(stat -c%s "$file")
@@ -435,7 +435,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 			
 			if [ "$rom_size" -gt "$MAX_FILE_SIZE_BYTES" ]; then
 				echo -e "${RED}Rom is too big to make a checksum.${NONE}"
-				let Scrap_Fail++;
+				Scrap_Fail=$((Scrap_Fail + 1))
 				continue;
 				
 			else
@@ -447,7 +447,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 				search_on_screenscraper
 				if ! [ "$gameIDSS" -eq "$gameIDSS" ] 2> /dev/null; then	
 					echo -e "${RED}Failed to get game ID${NONE}"
-					let Scrap_Fail++;
+					Scrap_Fail=$((Scrap_Fail + 1))
 					continue;
 				fi
 				
@@ -500,7 +500,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 
         if [ -z "$MediaURL" ]; then 
             echo -e "${YELLOW}Game matches but no media found!${NONE}"
-            let Scrap_Fail++
+            Scrap_Fail=$((Scrap_Fail + 1))
             continue
         fi
         
@@ -518,10 +518,10 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 
 		if [ -f "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" ]; then
 			echo -e "${GREEN}Scraped!${NONE}"
-			let Scrap_Success++;
+			Scrap_Success=$((Scrap_Success + 1))
 		else
 			echo -e "${RED}Download failed.${NONE}"
-			let Scrap_Fail++;
+			Scrap_Fail=$((Scrap_Fail + 1))
 		fi
         
         

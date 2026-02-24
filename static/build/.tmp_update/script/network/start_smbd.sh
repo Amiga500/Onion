@@ -1,3 +1,4 @@
+#!/bin/sh
 #unset preload or samba doesn't work correctly.
 
 unset LD_PRELOAD

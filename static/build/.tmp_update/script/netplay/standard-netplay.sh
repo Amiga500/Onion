@@ -1,3 +1,4 @@
+#!/bin/sh
 # GLO NETPLAY HOST
 # Script to:
 #   Find the recommended core for the current system
@@ -25,7 +26,7 @@ program=$(basename "$0" .sh)
 # We'll need wifi up for this. Lets try and start it..
 check_wifi() {
 	ifconfig wlan1 down
-	if ifconfig wlan0 &>/dev/null; then
+	if ifconfig wlan0 >/dev/null 2>&1; then
 		log "Wifi up"
 	else
 		build_infoPanel_and_log "WIFI" "Wifi disabled, starting..."

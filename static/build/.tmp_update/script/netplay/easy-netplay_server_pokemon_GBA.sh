@@ -1,3 +1,4 @@
+#!/bin/sh
 # GLO Pokemon trade
 # Used within GLO as an addon script.
 

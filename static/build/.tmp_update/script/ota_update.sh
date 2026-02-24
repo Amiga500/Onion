@@ -21,7 +21,7 @@ fi
 
 main() {
 	if [ "$cmd" = "check" ]; then
-		IP=$(ip route get 1 | awk '{print $NF;exit}')
+		IP=$(ip route get 1 2>/dev/null | sed -n 's/.*src \([0-9.]*\).*/\1/p')
 		if [ "$IP" != "" ]; then
 			get_release_info
 			if [ $? -eq 0 ]; then
@@ -71,7 +71,7 @@ check_available_space() {
 
 enable_wifi() {
 	# Enable wifi if necessary
-	IP=$(ip route get 1 | awk '{print $NF;exit}')
+	IP=$(ip route get 1 2>/dev/null | sed -n 's/.*src \([0-9.]*\).*/\1/p')
 	if [ "$IP" = "" ]; then
 		echo "Wifi is disabled - trying to enable it..."
 		insmod /mnt/SDCARD/8188fu.ko
@@ -200,6 +200,14 @@ download_update() {
 		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 		sync
 		wget --no-check-certificate "$Release_url" -O "$sysdir/download/$Release_Version.zip"
+		if [ $? -ne 0 ]; then
+			echo -ne "\n\n" \
+				"${RED}Error: Download failed${NC}\n"
+			rm -f "$sysdir/download/$Release_Version.zip"
+			echo -ne "${YELLOW}"
+			read -n 1 -s -r -p "Press A to exit"
+			exit 5
+		fi
 		echo -ne "\n\n" \
 			"${GREEN}================== Download done ==================${NC}\n"
 		sync
@@ -215,9 +223,10 @@ download_update() {
 	else
 		echo -ne "\n\n" \
 			"${RED}Error: Wrong download size${NC} ($Downloaded_size instead of $Release_size)\n"
+		rm -f "$sysdir/download/$Release_Version.zip"
 		echo -ne "${YELLOW}"
 		read -n 1 -s -r -p "Press A to exit"
-		exit 5
+		exit 8
 	fi
 }
 

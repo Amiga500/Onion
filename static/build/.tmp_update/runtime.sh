@@ -222,7 +222,7 @@ launch_main_ui() {
     PATH="$miyoodir/app:$PATH" \
         LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" \
         LD_PRELOAD="$miyoodir/lib/libpadsp.so" \
-        ./MainUI 2>&1 > /dev/null
+        ./MainUI > /dev/null 2>&1
 
     # Merge the last game launched into the recent list
     check_hide_recents
@@ -745,11 +745,11 @@ mute_theme_bgm() {
     muted_bgm_file="${system_theme}sound/bgm_muted.mp3"
 
     if [ -f "$sysdir/config/.bgmMute" ]; then
-        if [[ -f "$bgm_file" ]]; then
+        if [ -f "$bgm_file" ]; then
             mv -f "$bgm_file" "$muted_bgm_file"
         fi
     else
-        if [[ -f "$muted_bgm_file" ]]; then
+        if [ -f "$muted_bgm_file" ]; then
             mv -f "$muted_bgm_file" "$bgm_file"
         fi
     fi
@@ -963,5 +963,5 @@ check_installer() {
 if [ -f $sysdir/config/.logging ]; then
     main
 else
-    main 2>&1 > /dev/null
+    main > /dev/null 2>&1
 fi
