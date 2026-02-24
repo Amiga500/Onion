@@ -36,7 +36,7 @@ TEST(flag_set_creates_file) {
 
     flag_set(test_flag_path, "feature_a", true);
 
-    char expected[STR_MAX];
+    char expected[sizeof(test_flag_path) + sizeof("feature_a")];
     snprintf(expected, sizeof(expected), "%s%s", test_flag_path, "feature_a");
     ASSERT_TRUE(exists(expected));
 
