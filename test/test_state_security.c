@@ -207,12 +207,14 @@ TEST(write_state_currpos_at_start) {
 }
 
 TEST(write_state_total_smaller_than_page_size) {
-    /* When total < page_size, page_start becomes negative */
+    /* When total < page_size, page_start becomes negative.
+     * This documents the current behavior; in practice, the UI
+     * ensures total >= page_size for each state. However, callers
+     * should be aware that invalid inputs can produce negative indices. */
     char buf[STR_MAX];
     _write_mainui_state_to_buf(buf, sizeof(buf),
                                 EXPERT, 0, 3, true, true);
     /* EXPERT page_size = 9, total = 3, page_start = 3-9 = -6 */
-    /* Documents the negative page_start behavior */
     ASSERT_NOT_NULL(strstr(buf, "\"pagestart\":-6"));
 }
 
