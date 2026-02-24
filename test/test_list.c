@@ -3,12 +3,14 @@
  * @brief Unit tests for src/common/components/list.h
  *
  * Tests the pure-logic list/menu functions: _list_modulo,
- * list_countVisible, list_create, list_addItem, list_currentItem,
+ * list_countVisible, list_create, list_createWithTitle,
+ * list_createWithSticky, list_addItem, list_currentItem,
  * list_keyUp, list_keyDown, list_keyLeft, list_keyRight,
  * list_activateItem, list_resetCurrentItem, list_getItemValueLabel,
  * list_scrollTo, list_sortByLabel, list_hasInfoNote,
  * _list_did_wraparound, list_updateStickyNote, list_getStickyNote,
- * list_getVisibleItemAt, and list_hideAllExcept.
+ * list_getVisibleItemAt, list_hideAllExcept, _list_scroll,
+ * and list_scroll.
  *
  * SDL-dependent functions (list_free with SDL_FreeSurface) are
  * stubbed out to avoid pulling in SDL dependencies.
@@ -133,6 +135,7 @@ List list_createWithTitle(int max_items, ListType list_type, const char *title)
 {
     List list = list_create(max_items, list_type);
     strncpy(list.title, title, STR_MAX - 1);
+    list.title[STR_MAX - 1] = '\0';
     return list;
 }
 
@@ -1447,6 +1450,261 @@ TEST(add_item_with_info_note_preserves_label) {
     list_free(&list);
 }
 
+/* ---- list_createWithTitle edge cases ---- */
+
+TEST(create_with_title_long_truncates) {
+    char long_title[STR_MAX + 20];
+    memset(long_title, 'T', sizeof(long_title) - 1);
+    long_title[sizeof(long_title) - 1] = '\0';
+    List list = list_createWithTitle(5, LIST_SMALL, long_title);
+    /* Title should be truncated to STR_MAX - 1 characters */
+    ASSERT_EQ((int)strlen(list.title), STR_MAX - 1);
+    list_free(&list);
+}
+
+TEST(create_with_title_empty) {
+    List list = list_createWithTitle(5, LIST_SMALL, "");
+    ASSERT_STREQ(list.title, "");
+    ASSERT_TRUE(list._created);
+    list_free(&list);
+}
+
+TEST(create_with_title_preserves_list_type) {
+    List list = list_createWithTitle(10, LIST_LARGE, "Large List");
+    ASSERT_STREQ(list.title, "Large List");
+    ASSERT_EQ(list.list_type, LIST_LARGE);
+    ASSERT_EQ(list.scroll_height, 4);
+    ASSERT_EQ(list.max_items, 10);
+    list_free(&list);
+}
+
+/* ---- list_createWithSticky edge cases ---- */
+
+TEST(create_with_sticky_has_sticky_flag) {
+    List list = list_createWithSticky(8, "Sticky Title");
+    ASSERT_TRUE(list.has_sticky);
+    ASSERT_EQ(list.scroll_height, 5);
+    ASSERT_STREQ(list.title, "Sticky Title");
+    ASSERT_EQ(list.list_type, LIST_SMALL);
+    list_free(&list);
+}
+
+TEST(create_with_sticky_empty_title) {
+    List list = list_createWithSticky(3, "");
+    ASSERT_TRUE(list.has_sticky);
+    ASSERT_STREQ(list.title, "");
+    list_free(&list);
+}
+
+TEST(create_with_sticky_long_title) {
+    char long_title[STR_MAX + 20];
+    memset(long_title, 'S', sizeof(long_title) - 1);
+    long_title[sizeof(long_title) - 1] = '\0';
+    List list = list_createWithSticky(5, long_title);
+    ASSERT_TRUE(list.has_sticky);
+    ASSERT_EQ((int)strlen(list.title), STR_MAX - 1);
+    list_free(&list);
+}
+
+/* ---- _list_scroll direct edge cases ---- */
+
+TEST(scroll_down_past_height) {
+    List list = list_create(10, LIST_SMALL);
+    for (int i = 0; i < 10; i++)
+        list_addItem(&list, _make_item("X", ACTION, 0));
+    /* scroll_height is 6 for LIST_SMALL, scroll to pos 8 */
+    _list_scroll(&list, 8);
+    /* scroll_pos should be 8 - 6 + 1 = 3 */
+    ASSERT_EQ(list.scroll_pos, 3);
+    list_free(&list);
+}
+
+TEST(scroll_up_before_pos) {
+    List list = list_create(10, LIST_SMALL);
+    for (int i = 0; i < 10; i++)
+        list_addItem(&list, _make_item("X", ACTION, 0));
+    /* First scroll down to set scroll_pos */
+    _list_scroll(&list, 8);
+    ASSERT_EQ(list.scroll_pos, 3);
+    /* Now scroll up to pos 1 */
+    _list_scroll(&list, 1);
+    ASSERT_EQ(list.scroll_pos, 1);
+    list_free(&list);
+}
+
+TEST(scroll_clamps_to_max) {
+    List list = list_create(10, LIST_SMALL);
+    for (int i = 0; i < 10; i++)
+        list_addItem(&list, _make_item("X", ACTION, 0));
+    /* Scroll to last item */
+    _list_scroll(&list, 9);
+    /* scroll_pos should be clamped to item_count - scroll_height = 4 */
+    ASSERT_EQ(list.scroll_pos, 4);
+    list_free(&list);
+}
+
+TEST(scroll_few_items_stays_zero) {
+    List list = list_create(5, LIST_SMALL);
+    for (int i = 0; i < 3; i++)
+        list_addItem(&list, _make_item("X", ACTION, 0));
+    /* With 3 items and scroll_height 6, no scrolling needed */
+    _list_scroll(&list, 2);
+    ASSERT_EQ(list.scroll_pos, 0);
+    list_free(&list);
+}
+
+TEST(scroll_wraps_negative_pos) {
+    List list = list_create(10, LIST_SMALL);
+    for (int i = 0; i < 10; i++)
+        list_addItem(&list, _make_item("X", ACTION, 0));
+    /* Negative pos wraps via _list_modulo: -1 mod 10 = 9 */
+    _list_scroll(&list, -1);
+    ASSERT_EQ(list.scroll_pos, 4);
+    list_free(&list);
+}
+
+/* ---- list_scroll via active_pos ---- */
+
+TEST(list_scroll_uses_active_pos) {
+    List list = list_create(10, LIST_SMALL);
+    for (int i = 0; i < 10; i++)
+        list_addItem(&list, _make_item("X", ACTION, 0));
+    list.active_pos = 8;
+    list_scroll(&list);
+    ASSERT_EQ(list.scroll_pos, 3);
+    list_free(&list);
+}
+
+/* ---- list_keyLeft / list_keyRight alternative_arrow_action ---- */
+
+static int _arrow_action_count = 0;
+static void _stub_arrow_action(void *self) { (void)self; _arrow_action_count++; }
+
+TEST(key_right_alternative_arrow_action) {
+    List list = list_create(5, LIST_SMALL);
+    ListItem item = _make_item("Alt", MULTIVALUE, 0);
+    item.value_max = 3;
+    item.alternative_arrow_action = true;
+    item.arrow_action = _stub_arrow_action;
+    item.action = _stub_action;
+    list_addItem(&list, item);
+
+    _arrow_action_count = 0;
+    _action_call_count = 0;
+    bool changed = list_keyRight(&list, false);
+    ASSERT_TRUE(changed);
+    ASSERT_EQ(list.items[0].value, 1);
+    /* arrow_action called, not action */
+    ASSERT_EQ(_arrow_action_count, 1);
+    ASSERT_EQ(_action_call_count, 0);
+    list_free(&list);
+}
+
+TEST(key_left_alternative_arrow_action) {
+    List list = list_create(5, LIST_SMALL);
+    ListItem item = _make_item("Alt", MULTIVALUE, 3);
+    item.value_max = 3;
+    item.alternative_arrow_action = true;
+    item.arrow_action = _stub_arrow_action;
+    item.action = _stub_action;
+    list_addItem(&list, item);
+
+    _arrow_action_count = 0;
+    _action_call_count = 0;
+    bool changed = list_keyLeft(&list, false);
+    ASSERT_TRUE(changed);
+    ASSERT_EQ(list.items[0].value, 2);
+    ASSERT_EQ(_arrow_action_count, 1);
+    ASSERT_EQ(_action_call_count, 0);
+    list_free(&list);
+}
+
+/* ---- list_activateItem ACTION type ---- */
+
+TEST(activate_action_calls_callback) {
+    List list = list_create(5, LIST_SMALL);
+    ListItem item = _make_item("Act", ACTION, 0);
+    item.action = _stub_action;
+    list_addItem(&list, item);
+
+    _action_call_count = 0;
+    bool changed = list_activateItem(&list);
+    /* ACTION type doesn't change value but calls action */
+    ASSERT_FALSE(changed);
+    ASSERT_EQ(_action_call_count, 1);
+    list_free(&list);
+}
+
+TEST(activate_action_no_callback) {
+    List list = list_create(5, LIST_SMALL);
+    ListItem item = _make_item("NoAct", ACTION, 0);
+    list_addItem(&list, item);
+
+    bool changed = list_activateItem(&list);
+    ASSERT_FALSE(changed);
+    list_free(&list);
+}
+
+/* ---- list_resetCurrentItem with action callback ---- */
+
+TEST(reset_item_calls_action) {
+    List list = list_create(5, LIST_SMALL);
+    ListItem item = _make_item("Reset", MULTIVALUE, 5);
+    item.value_max = 10;
+    item.action = _stub_action;
+    list_addItem(&list, item);
+
+    /* Modify value away from reset value */
+    list.items[0].value = 8;
+    _action_call_count = 0;
+    bool changed = list_resetCurrentItem(&list);
+    ASSERT_TRUE(changed);
+    ASSERT_EQ(list.items[0].value, 5);
+    ASSERT_EQ(_action_call_count, 1);
+    list_free(&list);
+}
+
+TEST(reset_item_empty_list) {
+    List list = list_create(5, LIST_SMALL);
+    bool changed = list_resetCurrentItem(&list);
+    ASSERT_FALSE(changed);
+    list_free(&list);
+}
+
+/* ---- list_addItem NULL items guard ---- */
+
+TEST(add_item_null_items) {
+    List list;
+    memset(&list, 0, sizeof(list));
+    list.items = NULL;
+    list._created = false;
+    ListItem *result = list_addItem(&list, _make_item("X", ACTION, 0));
+    ASSERT_NULL(result);
+}
+
+/* ---- list_currentItem boundary cases ---- */
+
+TEST(current_item_at_last_index) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list_addItem(&list, _make_item("B", ACTION, 0));
+    list_addItem(&list, _make_item("C", ACTION, 0));
+    list.active_pos = 2;
+    ListItem *item = list_currentItem(&list);
+    ASSERT_NOT_NULL(item);
+    ASSERT_STREQ(item->label, "C");
+    list_free(&list);
+}
+
+TEST(current_item_beyond_count) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("A", ACTION, 0));
+    list.active_pos = 5;
+    ListItem *item = list_currentItem(&list);
+    ASSERT_NULL(item);
+    list_free(&list);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -1558,6 +1816,36 @@ int main(void)
 
     RUN_TEST(add_item_with_info_note_null_check);
     RUN_TEST(add_item_with_info_note_preserves_label);
+
+    RUN_TEST(create_with_title_long_truncates);
+    RUN_TEST(create_with_title_empty);
+    RUN_TEST(create_with_title_preserves_list_type);
+
+    RUN_TEST(create_with_sticky_has_sticky_flag);
+    RUN_TEST(create_with_sticky_empty_title);
+    RUN_TEST(create_with_sticky_long_title);
+
+    RUN_TEST(scroll_down_past_height);
+    RUN_TEST(scroll_up_before_pos);
+    RUN_TEST(scroll_clamps_to_max);
+    RUN_TEST(scroll_few_items_stays_zero);
+    RUN_TEST(scroll_wraps_negative_pos);
+
+    RUN_TEST(list_scroll_uses_active_pos);
+
+    RUN_TEST(key_right_alternative_arrow_action);
+    RUN_TEST(key_left_alternative_arrow_action);
+
+    RUN_TEST(activate_action_calls_callback);
+    RUN_TEST(activate_action_no_callback);
+
+    RUN_TEST(reset_item_calls_action);
+    RUN_TEST(reset_item_empty_list);
+
+    RUN_TEST(add_item_null_items);
+
+    RUN_TEST(current_item_at_last_index);
+    RUN_TEST(current_item_beyond_count);
 
     TEST_REPORT();
     return test_failures;

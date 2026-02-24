@@ -132,6 +132,7 @@ List list_createWithTitle(int max_items, ListType list_type, const char *title)
 {
     List list = list_create(max_items, list_type);
     strncpy(list.title, title, STR_MAX - 1);
+    list.title[STR_MAX - 1] = '\0';
     return list;
 }
 
