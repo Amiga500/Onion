@@ -668,6 +668,25 @@ TEST(file_path_relative_to_nonexistent) {
     ASSERT_FALSE(ok);
 }
 
+TEST(file_path_relative_to_shared_prefix) {
+    /* Paths that share a common prefix but diverge mid-component */
+    mkdir("/tmp/onion_rp_abc", 0755);
+    mkdir("/tmp/onion_rp_abcdef", 0755);
+    FILE *fp = fopen("/tmp/onion_rp_abcdef/file.txt", "w");
+    ASSERT_NOT_NULL(fp);
+    fclose(fp);
+
+    char out[PATH_MAX] = {0};
+    bool ok = file_path_relative_to(out, "/tmp/onion_rp_abc",
+                                    "/tmp/onion_rp_abcdef/file.txt");
+    ASSERT_TRUE(ok);
+    ASSERT_STREQ(out, "../onion_rp_abcdef/file.txt");
+
+    unlink("/tmp/onion_rp_abcdef/file.txt");
+    rmdir("/tmp/onion_rp_abcdef");
+    rmdir("/tmp/onion_rp_abc");
+}
+
 /* ---- file_open_ensure_path ---- */
 
 TEST(file_open_ensure_path_creates_dirs) {
@@ -1043,6 +1062,7 @@ int main(void)
     RUN_TEST(file_path_relative_to_same_dir);
     RUN_TEST(file_path_relative_to_subdirectory);
     RUN_TEST(file_path_relative_to_nonexistent);
+    RUN_TEST(file_path_relative_to_shared_prefix);
 
     RUN_TEST(file_open_ensure_path_creates_dirs);
 

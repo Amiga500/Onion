@@ -413,6 +413,15 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         ++p1, ++p2;
     }
 
+    // Ensure we're at a directory boundary.
+    // Back up to the last '/' if the match ended mid-component.
+    if (*p1 != '\0' || (*p2 != '\0' && *p2 != '/')) {
+        while (p1 > abs_from && *(p1 - 1) != '/') {
+            --p1;
+            --p2;
+        }
+    }
+
     if (*p2 == '/') {
         ++p2;
     }
