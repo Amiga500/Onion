@@ -29,6 +29,8 @@ Unit tests use a lightweight custom test framework (`onion_test.h`) and don't re
 - `test_game_entry.c` - JsonGameEntry fromJson/toJson roundtrip, emupath extraction, edge cases
 - `test_state_security.c` - MainUI state JSON formatting, page calculations, state_getAppName edge cases
 - `test_config_security.c` - Config key-value parsing, file line operations, file_cleanName
+- `test_volume.c` - Volume curve calculations (logarithmic mapping, clamping, monotonicity)
+- `test_display.c` - Brightness exponential/logarithmic curve, framebuffer read/write/rotate/mask operations
 
 To run only unit tests:
 
