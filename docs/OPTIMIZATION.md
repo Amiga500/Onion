@@ -506,7 +506,7 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
 The Onion OS codebase has been transformed from a project with **200+ latent bugs** and **zero tests**
 into a **robust, secure, and optimized** codebase for the ARM Cortex-A7 processor of the Miyoo Mini.
 
-> **No functional regressions** — all 530+ test suites pass. ✅
+> **No functional regressions** — all 530+ unit tests pass. ✅
 
 ---
 
