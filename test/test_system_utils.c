@@ -106,24 +106,20 @@ TEST(autosave_no_spaces) {
 
 TEST(autosave_extra_spaces) {
     write_config(TEST_CONFIG_PATH, "savestate_auto_save  =  true\n");
-    /* Whitespace handling depends on file_parseKeyValue trimming */
-    /* The value will be "  true" (with leading spaces) so it won't match "true" */
-    /* This tests the actual behavior of the parser */
-    bool result = check_autosave_path(TEST_CONFIG_PATH);
-    /* We just verify it doesn't crash; actual result depends on parser behavior */
-    (void)result;
-    ASSERT_TRUE(true);
+    /* file_parseKeyValue uses str_trim on both key and value,
+       so extra spaces are stripped → value becomes "true" → true */
+    ASSERT_TRUE(check_autosave_path(TEST_CONFIG_PATH));
 }
 
 TEST(autosave_quoted_true) {
     write_config(TEST_CONFIG_PATH, "savestate_auto_save = \"true\"\n");
-    /* file_parseKeyValue strips quotes: value parsed as "true" with quotes included.
-       RetroArch configs may use quotes; the parser includes them in the value. 
-       Actual behavior: the parser strips leading " so the value IS "true" */
+    /* file_parseKeyValue parses value after '=' with leading space stripped,
+       resulting in "\"true\"" which strcmp considers != "true".
+       However, the parser may handle quotes — test actual behavior: */
     bool result = check_autosave_path(TEST_CONFIG_PATH);
-    /* Just verify it doesn't crash; actual behavior depends on parser */
-    (void)result;
-    ASSERT_TRUE(true);
+    /* RetroArch configs with quoted values: parser includes quotes → true
+       because file_parseKeyValue skips leading " in value extraction */
+    ASSERT_TRUE(result);
 }
 
 TEST(autosave_case_sensitive) {
