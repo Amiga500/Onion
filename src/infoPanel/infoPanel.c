@@ -54,6 +54,8 @@ static bool loadImagesPathsFromJson(const char *config_path,
         cJSON_Delete(json_root);
         return false;
     }
+    *images_paths = NULL;
+    *images_titles = NULL;
     *images_paths = (char **)malloc(total * sizeof(char *));
     *images_titles = (char **)malloc(total * sizeof(char *));
     if (*images_paths == NULL || *images_titles == NULL) {
