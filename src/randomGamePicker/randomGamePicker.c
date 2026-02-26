@@ -312,9 +312,11 @@ bool addRandomFromJson(char *json_path)
 
             if (strlen(game->img_path) == 0) {
                 char *no_extension = file_removeExtension(basename(game->path));
-                snprintf(game->img_path, STR_MAX * 3 + 2, "%s/%s.png", imgsdir,
-                         no_extension);
-                free(no_extension);
+                if (no_extension != NULL) {
+                    snprintf(game->img_path, STR_MAX * 3 + 2, "%s/%s.png", imgsdir,
+                             no_extension);
+                    free(no_extension);
+                }
             }
 
             count++;

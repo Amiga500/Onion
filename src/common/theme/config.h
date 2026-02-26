@@ -105,6 +105,8 @@ bool theme_applyConfig(Theme_s *config, const char *config_path,
     // Get JSON objects
     cJSON *json_root = cJSON_Parse(json_str);
     free(json_str);
+    if (json_root == NULL)
+        return false;
     cJSON *json_batteryPercentage =
         cJSON_GetObjectItem(json_root, "batteryPercentage");
     cJSON *json_hideLabels = cJSON_GetObjectItem(json_root, "hideLabels");
