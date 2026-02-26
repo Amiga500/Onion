@@ -233,8 +233,9 @@ PlayActivities *play_activity_find_all(void)
         rom->name = strdup(col_name != NULL ? col_name : "");
         if (rom->name == NULL)
             rom->name = strdup("");
-        if (sqlite3_column_text(stmt, 3) != NULL) {
-            rom->file_path = strdup((const char *)sqlite3_column_text(stmt, 3));
+        const char *col_file_path = (const char *)sqlite3_column_text(stmt, 3);
+        if (col_file_path != NULL) {
+            rom->file_path = strdup(col_file_path);
             if (rom->file_path != NULL) {
                 rom->image_path = malloc(STR_MAX * sizeof(char));
                 if (rom->image_path != NULL) {
@@ -247,11 +248,13 @@ PlayActivities *play_activity_find_all(void)
         entry->play_count = sqlite3_column_int(stmt, 4);
         entry->play_time_total = sqlite3_column_int(stmt, 5);
         entry->play_time_average = sqlite3_column_int(stmt, 6);
-        if (sqlite3_column_text(stmt, 7) != NULL) {
-            entry->first_played_at = strdup((const char *)sqlite3_column_text(stmt, 7));
+        const char *col_first_played = (const char *)sqlite3_column_text(stmt, 7);
+        if (col_first_played != NULL) {
+            entry->first_played_at = strdup(col_first_played);
         }
-        if (sqlite3_column_text(stmt, 8) != NULL) {
-            entry->last_played_at = strdup((const char *)sqlite3_column_text(stmt, 8));
+        const char *col_last_played = (const char *)sqlite3_column_text(stmt, 8);
+        if (col_last_played != NULL) {
+            entry->last_played_at = strdup(col_last_played);
         }
 
         play_activities->play_time_total += entry->play_time_total;
