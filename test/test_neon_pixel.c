@@ -191,7 +191,7 @@ TEST(argb_to_rgba_alpha_mixed) {
     neon_argb_to_rgba_alpha(dst, src, 3);
     ASSERT_EQ(dst[0], 0xFFCCBBAA); /* opaque, swapped */
     ASSERT_EQ(dst[1], 0x00000000); /* transparent, zeroed */
-    ASSERT_EQ(dst[2], 0x01FFEEdd); /* alpha=1, swapped */
+    ASSERT_EQ(dst[2], 0x01FFEEDD); /* alpha=1, swapped */
 }
 
 /* ==== Tests: neon_rgb888_to_argb ==== */

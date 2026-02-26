@@ -484,7 +484,7 @@ test_theme_scale: $(BUILD_DIR)/test_theme_scale
 
 $(BUILD_DIR)/test_theme_scale: test_theme_scale.c onion_test.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_theme_scale.c -lm $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_theme_scale.c $(LDFLAGS) -lm
 
 test_list_sort: $(BUILD_DIR)/test_list_sort
 	@echo ""
@@ -524,7 +524,7 @@ test_formatters: $(BUILD_DIR)/test_formatters
 
 $(BUILD_DIR)/test_formatters: test_formatters.c onion_test.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_formatters.c -lm $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_formatters.c $(LDFLAGS) -lm
 
 test_pacman_changes: $(BUILD_DIR)/test_pacman_changes
 	@echo ""
