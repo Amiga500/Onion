@@ -211,6 +211,8 @@ bool extractEmuPath(char *emupath, char *comp_path)
 {
     if (strncmp(comp_path, emupath, strlen(comp_path)) == 0) {
         char *str_p = strstr(emupath + strlen(comp_path), "/");
+        if (str_p == NULL)
+            return false;
         *str_p = 0;
         return true;
     }
@@ -241,6 +243,10 @@ bool addRandomFromJson(char *json_path)
         }
 
         if (type == TYPE_GAME || type == TYPE_EXPERT) {
+            if (count >= MAX_SYSTEMS) {
+                cJSON_Delete(json_root);
+                break;
+            }
             GameEntry *game = &random_games[count];
             // Clear fields — use sizeof, not strlen (avoids scanning uninitialized data)
             game->label[0] = '\0';
@@ -329,6 +335,9 @@ void logWeights()
     GameEntry *g;
     FILE *fp;
 
+    if (system_count <= 0 || total_games_count <= 0)
+        return;
+
     if ((fp = fopen("/mnt/SDCARD/Emu/random_weights.log", "w+")) == NULL)
         return;
 
@@ -398,6 +407,8 @@ int main(int argc, char *argv[])
     case MODE_RECENTS:
         addRandomFromJson(mode == MODE_FAVORITES ? PATH_FAVORITES
                                                  : PATH_RECENTS);
+        if (total_games_count <= 0)
+            return ERROR_CODE_NO_GAME_FOUND;
         random_number = rand() % total_games_count;
         break;
     case MODE_SINGLE_SYSTEM:
@@ -422,6 +433,9 @@ int main(int argc, char *argv[])
         else {
             perror("Emu folder does not exists");
         }
+
+        if (total_games_count <= 0)
+            return ERROR_CODE_NO_GAME_FOUND;
 
         int random_weighted_index = rand() % total_games_count;
         printf_debug("total: %d\n", total_games_count);

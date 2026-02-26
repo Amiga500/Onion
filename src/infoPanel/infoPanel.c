@@ -50,12 +50,28 @@ static bool loadImagesPathsFromJson(const char *config_path,
         return false;
     }
     int total = cJSON_GetArraySize(json_images_array);
+    if (total <= 0) {
+        cJSON_Delete(json_root);
+        return false;
+    }
     *images_paths = (char **)malloc(total * sizeof(char *));
     *images_titles = (char **)malloc(total * sizeof(char *));
+    if (*images_paths == NULL || *images_titles == NULL) {
+        free(*images_paths);
+        free(*images_titles);
+        *images_paths = NULL;
+        *images_titles = NULL;
+        cJSON_Delete(json_root);
+        return false;
+    }
 
     static const int g_title_max_length = 50;
     char *temp_path = file_dirname(config_path);
     if (temp_path == NULL) {
+        free(*images_paths);
+        free(*images_titles);
+        *images_paths = NULL;
+        *images_titles = NULL;
         cJSON_Delete(json_root);
         return false;
     }
