@@ -41,6 +41,8 @@ static SDL_Color uintToColor(Uint32 color)
 }
 
 /* ---- OSD constants from osd.h ---- */
+/* Cannot #include osd.h directly (SDL/pthread/hardware dependencies).
+   Values are duplicated here intentionally to validate correctness. */
 
 #define CHR_WIDTH (3 * 4 + 4)
 #define CHR_HEIGHT (5 * 4)

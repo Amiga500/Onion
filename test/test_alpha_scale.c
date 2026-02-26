@@ -199,7 +199,8 @@ TEST(buffer_apply_alpha) {
 /* ==== Tests: edge cases ==== */
 
 TEST(scale_all_values_in_range) {
-    /* Verify result is always <= original */
+    /* Exhaustive test: verify result <= original for all 256×256 combinations.
+       This takes ~65K iterations but runs in <100ms on modern hardware. */
     for (int orig = 0; orig < 256; orig++) {
         for (int target = 0; target < 256; target++) {
             uint8_t result = scale_alpha((uint8_t)orig, (uint8_t)target);
