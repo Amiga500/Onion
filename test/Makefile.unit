@@ -45,9 +45,9 @@ all: $(BINARIES)
 		summary="$$summary$$(printf '  %-34s %6s %11s  %s' "$$t" "$${tc:-0}" "$${ac:-0}" "$$status")\n"; \
 	done; \
 	printf "\n"; \
-	printf "==========================================\n"; \
+	printf "===============================================================\n"; \
 	printf "          UNIT TEST SUMMARY\n"; \
-	printf "==========================================\n"; \
+	printf "===============================================================\n"; \
 	printf "  %-34s %6s %11s  %s\n" "Suite" "Tests" "Assertions" "Result"; \
 	printf "  %-34s %6s %11s  %s\n" "----------------------------------" "------" "-----------" "------"; \
 	printf "%b" "$$summary"; \
@@ -59,7 +59,7 @@ all: $(BINARIES)
 	else \
 		printf "  Result: SOME TESTS FAILED ($$total_fails failures)\n"; \
 	fi; \
-	printf "==========================================\n"; \
+	printf "===============================================================\n"; \
 	[ $$total_fails -eq 0 ]
 
 test_str: $(BUILD_DIR)/test_str
