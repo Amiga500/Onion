@@ -385,16 +385,16 @@ TEST(file_readLastLine_exact_254_bytes) {
     const char *tmpfile = "/tmp/onion_test_readlast_254.txt";
     FILE *fp = fopen(tmpfile, "w");
     ASSERT_NOT_NULL(fp);
-    /* Write exactly 254 bytes: newline then 253 'A' chars then the last line */
+    /* Write 246 bytes total: "first\n" (6 bytes) + 240 'A' chars */
     fprintf(fp, "first\n");
     for (int i = 0; i < 240; i++) fputc('A', fp);
-    /* Total around 246 bytes - well within small file range */
     fclose(fp);
     
     char result[256] = {0};
     file_readLastLine(tmpfile, result);
-    /* Should not crash or return garbage - the fseek underflow bug would cause UB here */
-    ASSERT_TRUE(strlen(result) > 0);
+    /* Should not crash - the fseek underflow bug would cause UB here */
+    ASSERT_EQ(strlen(result), 240);
+    ASSERT_EQ(result[0], 'A');
     
     unlink(tmpfile);
 }
