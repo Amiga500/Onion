@@ -31,6 +31,7 @@ bool netinfo_getIpAddress(char *label_out, const char *interface)
 
     // Copy the interface name in the ifreq structure
     strncpy(ifr.ifr_name, interface, IFNAMSIZ - 1);
+    ifr.ifr_name[IFNAMSIZ - 1] = '\0';
     int rc = ioctl(n, SIOCGIFADDR, &ifr);
     close(n);
     if (rc < 0)

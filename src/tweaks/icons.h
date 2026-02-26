@@ -119,6 +119,7 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
 
             if (is_dir(icon_pack_path)) {
                 strncpy(icon_pack_name, ep->d_name, STR_MAX - 1);
+                icon_pack_name[STR_MAX - 1] = '\0';
                 str_split(icon_pack_name, " by ");
 
                 ListItem item = {.action = action};
