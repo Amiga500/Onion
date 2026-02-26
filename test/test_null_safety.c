@@ -171,7 +171,7 @@ TEST(null_rom_name_fallback) {
     char *rom_name = NULL; /* simulated failure */
     const char *safe_name = rom_name != NULL ? rom_name : "";
     ASSERT_STREQ(safe_name, "");
-    free(rom_name); /* free(NULL) is safe */
+    free(rom_name); /* cleanup (safe even though NULL) */
 }
 
 /* ================================================================== */
