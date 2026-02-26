@@ -238,6 +238,10 @@ if ! [ -z "$CurrentRom" ]; then
     romfilter="-name \"*$(echo "$CurrentRom" | sed -e 's_\[_\\\[_g' -e 's_\]_\\\]_g')*\""
 fi
 
+# For SCUMMVM, only scrape game launcher files to avoid scraping internal game data files
+if [ "$CurrentSystem" = "SCUMMVM" ] && [ -z "$CurrentRom" ]; then
+    romfilter="\\( -name '*.scummvm' -o -name '*.target' \\)"
+fi
 
 #Roms loop
 for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \

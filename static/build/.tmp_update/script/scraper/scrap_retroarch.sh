@@ -133,6 +133,11 @@ if ! [ -z "$CurrentRom" ]; then
     
 fi
 
+# For SCUMMVM, only scrape game launcher files to avoid scraping internal game data files
+if [ "$CurrentSystem" = "SCUMMVM" ] && [ -z "$CurrentRom" ]; then
+    romfilter="\\( -name '*.scummvm' -o -name '*.target' \\)"
+fi
+
 #eval echo "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f ! -name '.*' ! -name '*.xml' ! -name '*.db' ! -path '*/Imgs/*' ! -path '*/.*/*' $romfilter"      # for debugging
 for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 	! -name '.*' ! -name '*.xml' ! -name '*.miyoocmd' ! -name '*.cfg' ! -name '*.db' \
