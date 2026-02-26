@@ -1,6 +1,6 @@
 # 🚀 Onion OS — Optimization Report
 
-> **523 commits** · **230+ bug fixes** · **75+ security patches** · **35+ performance optimizations** · **1,373 unit tests**
+> **546 commits** · **236+ bug fixes** · **75+ security patches** · **35+ performance optimizations** · **1,373 unit tests**
 
 ---
 
@@ -24,8 +24,8 @@
 
 ## 📊 Summary Overview
 
-> Analysis of **523 commits** on the Onion OS codebase for Miyoo Mini / Mini+.
-> Over **230 bugs** were fixed, **dozens of NEON/ARM optimizations** introduced,
+> Analysis of **546 commits** on the Onion OS codebase for Miyoo Mini / Mini+.
+> Over **236 bugs** were fixed, **dozens of NEON/ARM optimizations** introduced,
 > **security hardening** (including complete JSON input validation) applied across
 > the entire codebase, and measurable performance improvements achieved.
 
@@ -383,7 +383,7 @@ volume_raw = round(48 * log10(1 + volume));
 
 ## 🐛 3. Critical Bug Fixes
 
-> **230+ bugs** fixed across **160+ source files**, organized below from most to least severe.
+> **236+ bugs** fixed across **160+ source files**, organized below from most to least severe.
 
 ### 3.1 🔴 Critical — Crashes and Undefined Behavior
 
@@ -395,6 +395,7 @@ Fixes for code paths that produced hard crashes or undefined behavior on any exe
 | Array out-of-bounds writes | 5 | `icons.h`, `apps[]`/`themes[]` arrays, `str_removeParentheses`, `cpuclockstr[5]` |
 | CJK/Unicode invalid byte comparison | 1 | `c <= 0x9FFF` always false for `unsigned char` — CJK detection always broken |
 | Async-signal-unsafe handlers | 1 | `keymon.c` signal handlers replaced with deferred `volatile sig_atomic_t` flags |
+| Overlapping `snprintf` buffer UB | 1 | `installTheme.h`: `basename()` returns pointer into `theme_path`, then `snprintf` writes back to `theme_path` — UB |
 
 > 📈 **Result:** All hard-crash and undefined-behavior paths eliminated; validated by 1,373+ unit tests.
 
@@ -410,7 +411,7 @@ Fixes for bugs that could silently corrupt data or allow code/query injection.
 | Shell metacharacter injection | 1 | `packageManager/apply.h`: check extended from 2 to 11 metacharacters (`"` `$` `` ` `` `\` `;` `|` `&` `>` `<` `\n` `\r`) |
 | Arithmetic overflow (heap corruption) | 3 | `str_replace`: `int`→`size_t`; multiplication and addition overflow guards before `malloc` |
 | Double-free / use-after-free | 3+ | `tree.c` / `pippi.c` realloc; `migrateDB.h` `sqlite3_sql()` on finalized statement |
-| In-place string mutation | 1 | `strtok()` in `playActivityDB` corrupted caller's `rom->file_path` |
+| In-place string mutation | 4 | `strtok()` in `playActivityDB` corrupted caller's `rom->file_path`; POSIX `basename()` corrupted input in `migrateDB.h`, `cacheDB.h`, `infoPanel.c` — replaced with non-destructive `file_basename()` |
 
 > 📈 **Result:** 0 known injection paths; heap-corruption risks eliminated.
 
@@ -427,6 +428,7 @@ Fixes for incorrect but non-crashing behavior that produced wrong results.
 | Wrong field / offset usage | 2 | `settings_has_changed()` compared wrong offsets; `state_getAppName()` hardcoded 16-byte `HOME` skip |
 | Path and string logic | 2 | `file_path_relative_to()` ignored directory boundaries; `file_getExtension(NULL)` returned garbage |
 | Quadratic I/O on SD card | 1 | `readHistory()` rewrote entire file per duplicate — O(n²); replaced with single-pass O(n) rewrite |
+| Wrong return value | 1 | `str_trim()` returned `1` for all-whitespace input instead of `0` — caused `file_parseKeyValue()` to treat empty keys as valid |
 
 > 📈 **Result:** Correct UI ordering, reliable dirty detection, and deterministic path resolution.
 
@@ -442,6 +444,7 @@ Fixes that prevent edge-case failures and improve long-term resilience.
 | Sort stability | 1 | `list_sort` replaced with stable insertion sort for consistent UI ordering across identical keys |
 | Missing control-flow guards | 3+ | `themeSwitcher` missing `else` braces; `SDL_BlitSurface` on NULL surface; `snprintf` `len` not updated |
 | Redundant / incorrect settings | 2 | Removed `idle_screensaver_preview`; fixed `playActivity.c` always printing `argv[1]` as error message |
+| Missing `strncpy` null-termination | 1 | `list_createWithTitle`: missing null-terminator when title ≥ `STR_MAX-1` bytes |
 
 > 📈 **Result:** No silent failures on edge-case inputs; consistent UI behavior across all runs.
 
@@ -674,8 +677,8 @@ Fixes that prevent edge-case failures and improve long-term resilience.
 
 | Metric | Value |
 |:-------|------:|
-| 🔧 **Total commits** | **523** |
-| 🐛 **Bugs fixed** | **230+** |
+| 🔧 **Total commits** | **546** |
+| 🐛 **Bugs fixed** | **236+** |
 | 🛡️ **Security vulnerabilities fixed** | **75+** |
 | ⚡ **Performance optimizations** | **35+** |
 | 🧪 **Unit tests** | **1,373+** (67 test suites) |
@@ -686,7 +689,7 @@ Fixes that prevent edge-case failures and improve long-term resilience.
 | 📉 **SQLite open/close reduction** | **−50 %** |
 | 📉 **Unsafe buffers eliminated** | **−100 %** (`sprintf`, `strcpy`, `strncpy` null-term) |
 | 📉 **JSON crash paths eliminated** | **58** dedicated tests passing |
-| 🔀 **Merged pull requests** | **120** |
+| 🔀 **Merged pull requests** | **125** |
 
 ---
 
@@ -700,4 +703,4 @@ ARM Cortex-A7 processor of the Miyoo Mini / Mini+.
 
 ---
 
-<sub>Report generated by GitHub Copilot Agent · Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Date: 2026-02-26 · Commits analyzed: **523**</sub>
+<sub>Report generated by GitHub Copilot Agent · Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Date: 2026-02-26 · Commits analyzed: **546**</sub>
