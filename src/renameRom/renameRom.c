@@ -78,7 +78,7 @@ bool renameCache(const char *cache_path, const char *rom_dirname,
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) {
+    if (argc < 3) {
         printf("Usage: renameRom [ROMPATH] [NEWNAME]\n");
         return 1;
     }

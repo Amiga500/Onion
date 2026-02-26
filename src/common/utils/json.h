@@ -75,6 +75,8 @@ bool json_setString(cJSON *object, const char *key, const char *value)
 
 bool json_forceSetString(cJSON *object, const char *key, const char *value)
 {
+    if (object == NULL)
+        return false;
     cJSON *json_object = cJSON_GetObjectItem(object, key);
 
     if (json_object) {
@@ -94,6 +96,8 @@ bool json_forceSetString(cJSON *object, const char *key, const char *value)
 cJSON *json_load(const char *file_path)
 {
     char *file_contents = file_read(file_path);
+    if (file_contents == NULL)
+        return NULL;
     cJSON *json_contents = cJSON_Parse(file_contents);
     free(file_contents);
     return json_contents;

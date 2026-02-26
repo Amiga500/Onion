@@ -215,11 +215,11 @@ void write_mainui_state(MainUIState state, int currpos, int total)
     }
 
     if (main_currpos + 4 > main_total)
-        main_page_start = main_total - 4;
+        main_page_start = (main_total >= 4) ? main_total - 4 : 0;
     main_page_end = main_page_start + 3;
 
     if (currpos + page_size > total)
-        page_start = total - page_size;
+        page_start = (total >= page_size) ? total - page_size : 0;
     else
         page_start = currpos;
     page_end = page_start + page_size - 1;
@@ -417,13 +417,15 @@ void resumeGame(int index)
 
             int position = (int)(colonPosition - rompath);
 
-            char firstPart[position + 1];
+            char firstPart[256];
+            if (position > (int)sizeof(firstPart) - 1)
+                position = (int)sizeof(firstPart) - 1;
             strncpy(firstPart, rompath, position);
             firstPart[position] = '\0';
 
-            char secondPart[strlen(rompath) - position];
-            strncpy(secondPart, colonPosition + 1, strlen(rompath) - position - 1);
-            secondPart[strlen(rompath) - position - 1] = '\0';
+            char secondPart[256];
+            strncpy(secondPart, colonPosition + 1, sizeof(secondPart) - 1);
+            secondPart[sizeof(secondPart) - 1] = '\0';
 
             strncpy(launch, firstPart, sizeof(launch) - 1);
             launch[sizeof(launch) - 1] = '\0';

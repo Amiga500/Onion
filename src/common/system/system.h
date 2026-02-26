@@ -54,7 +54,7 @@ void system_powersave(bool enabled)
     }
     else {
         // restore
-        char sCommand[15];
+        char sCommand[32];
         snprintf(sCommand, sizeof(sCommand), "cpuclock %u", saved_min_freq);
         system(sCommand);
         file_put(fp, CPU_SCALING_GOVERNOR, "%s", saved_governor);

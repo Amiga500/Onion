@@ -112,8 +112,11 @@ void file_readLastLine(const char *filename, char *out_str)
             return;
         }
 
-        // get the last line
-        fseek(fd, -max_len, SEEK_END);
+        // get the last line (avoid seeking before file start)
+        if (max_len > size)
+            fseek(fd, 0L, SEEK_SET);
+        else
+            fseek(fd, -max_len, SEEK_END);
         if (fread(buff, max_len - 1, 1, fd) != 1) {
             fclose(fd);
             return;
@@ -291,6 +294,8 @@ void file_cleanName(char *name_out, const char *file_name)
 
 const char *file_getExtension(const char *filename)
 {
+    if (filename == NULL)
+        return "";
     const char *dot = strrchr(filename, '.');
     if (!dot || dot == filename)
         return "";

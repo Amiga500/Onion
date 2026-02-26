@@ -129,6 +129,38 @@ TEST(str_replace_entire_string) {
     free(result);
 }
 
+/* ---- str_replace: safe size_t arithmetic ---- */
+
+TEST(str_replace_many_replacements) {
+    /* Build a string with many occurrences to exercise size_t arithmetic.
+     * 200 'a' chars, replace each 'a' with "bbb" -> 600 chars result. */
+    char input[201];
+    memset(input, 'a', 200);
+    input[200] = '\0';
+    char *result = str_replace(input, "a", "bbb");
+    ASSERT_NOT_NULL(result);
+    ASSERT_EQ(strlen(result), 600);
+    /* Verify content: all 'b' */
+    for (int i = 0; i < 600; i++) {
+        ASSERT_EQ(result[i], 'b');
+    }
+    free(result);
+}
+
+TEST(str_replace_shrink_many) {
+    /* 100 'ab' pairs, replace 'ab' with 'x' -> 100 'x' chars */
+    char input[201];
+    for (int i = 0; i < 100; i++) {
+        input[i * 2] = 'a';
+        input[i * 2 + 1] = 'b';
+    }
+    input[200] = '\0';
+    char *result = str_replace(input, "ab", "x");
+    ASSERT_NOT_NULL(result);
+    ASSERT_EQ(strlen(result), 100);
+    free(result);
+}
+
 /* ---- str_split: edge cases ---- */
 
 TEST(str_split_no_delimiter) {
@@ -304,6 +336,8 @@ int main(void) {
     RUN_TEST(str_replace_replace_with_longer);
     RUN_TEST(str_replace_replace_with_shorter);
     RUN_TEST(str_replace_entire_string);
+    RUN_TEST(str_replace_many_replacements);
+    RUN_TEST(str_replace_shrink_many);
 
     /* str_split edge cases */
     RUN_TEST(str_split_no_delimiter);

@@ -150,6 +150,8 @@ bool _apply_singleIconFromPack(const char *config_path,
         return false;
 
     cJSON *config = json_load(config_path);
+    if (config == NULL)
+        return false;
     char temp_path[STR_MAX];
     if (!json_getString(config, "icon", temp_path)) {
         cJSON_Delete(config);

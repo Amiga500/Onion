@@ -169,6 +169,8 @@ bool checkRoms(const char *data_path)
     }
 
     cJSON *config = json_load(config_path);
+    if (config == NULL)
+        return false;
     char roms_rel_path[STR_MAX];
     char extlist[STR_MAX] = {0};
 

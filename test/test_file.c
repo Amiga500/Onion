@@ -353,6 +353,52 @@ TEST(file_readLastLine_with_trailing_newline) {
     unlink(tmpfile);
 }
 
+TEST(file_readLastLine_tiny_file) {
+    const char *tmpfile = "/tmp/onion_test_readlast_tiny.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "hi");
+    fclose(fp);
+    
+    char result[256] = {0};
+    file_readLastLine(tmpfile, result);
+    ASSERT_STREQ(result, "hi");
+    
+    unlink(tmpfile);
+}
+
+TEST(file_readLastLine_one_byte) {
+    const char *tmpfile = "/tmp/onion_test_readlast_1byte.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "x");
+    fclose(fp);
+    
+    char result[256] = {0};
+    file_readLastLine(tmpfile, result);
+    ASSERT_STREQ(result, "x");
+    
+    unlink(tmpfile);
+}
+
+TEST(file_readLastLine_exact_254_bytes) {
+    const char *tmpfile = "/tmp/onion_test_readlast_254.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    /* Write 246 bytes total: "first\n" (6 bytes) + 240 'A' chars */
+    fprintf(fp, "first\n");
+    for (int i = 0; i < 240; i++) fputc('A', fp);
+    fclose(fp);
+    
+    char result[256] = {0};
+    file_readLastLine(tmpfile, result);
+    /* Should not crash - the fseek underflow bug would cause UB here */
+    ASSERT_EQ(strlen(result), 240);
+    ASSERT_EQ(result[0], 'A');
+    
+    unlink(tmpfile);
+}
+
 /* ---- file_write ---- */
 
 TEST(file_write_basic) {
@@ -1032,6 +1078,9 @@ int main(void)
     RUN_TEST(file_readLastLine_multiple_lines);
     RUN_TEST(file_readLastLine_empty_file);
     RUN_TEST(file_readLastLine_with_trailing_newline);
+    RUN_TEST(file_readLastLine_tiny_file);
+    RUN_TEST(file_readLastLine_one_byte);
+    RUN_TEST(file_readLastLine_exact_254_bytes);
 
     RUN_TEST(file_write_basic);
     RUN_TEST(file_write_overwrite);

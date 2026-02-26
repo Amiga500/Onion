@@ -176,6 +176,8 @@ void _settings_load_mainui(void)
 
     cJSON *json_root = cJSON_Parse(json_str);
     free(json_str);
+    if (json_root == NULL)
+        return;
 
     json_getInt(json_root, "vol", &settings.volume);
     json_getInt(json_root, "bgmvol", &settings.bgm_volume);

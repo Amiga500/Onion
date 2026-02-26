@@ -228,7 +228,16 @@ int main(int argc, char *argv[])
                  PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png_ptr, info_ptr);
     src = dstVa;
-    tmp = malloc(dw * 4);
+    if (dw > SIZE_MAX / 4) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        MI_SYS_Munmap(dstVa, ds);
+        MI_SYS_MMA_Free(dstPa);
+        MI_GFX_Close();
+        MI_SYS_Exit();
+        return 1;
+    }
+    tmp = malloc((size_t)dw * 4);
     if (tmp == NULL) {
         png_destroy_write_struct(&png_ptr, &info_ptr);
         fclose(fp);

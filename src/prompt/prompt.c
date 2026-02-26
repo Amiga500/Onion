@@ -93,12 +93,14 @@ int main(int argc, char *argv[])
     for (i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0) {
-                strncpy(title_str, argv[++i], STR_MAX - 1);
+                if (i + 1 < argc)
+                    strncpy(title_str, argv[++i], STR_MAX - 1);
                 continue;
             }
             if (strcmp(argv[i], "-m") == 0 ||
                 strcmp(argv[i], "--message") == 0) {
-                strncpy(message_str, argv[++i], STR_MAX - 1);
+                if (i + 1 < argc)
+                    strncpy(message_str, argv[++i], STR_MAX - 1);
                 continue;
             }
             if (strcmp(argv[i], "-r") == 0 ||
@@ -113,7 +115,8 @@ int main(int argc, char *argv[])
             }
             if (strcmp(argv[i], "-s") == 0 ||
                 strcmp(argv[i], "--selected") == 0) {
-                selected = (int)strtol(argv[++i], NULL, 10);
+                if (i + 1 < argc)
+                    selected = (int)strtol(argv[++i], NULL, 10);
                 continue;
             }
         }

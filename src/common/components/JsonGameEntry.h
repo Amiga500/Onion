@@ -26,6 +26,8 @@ JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
                            .emupath = ""};
 
     cJSON *root = cJSON_Parse(json_str);
+    if (root == NULL)
+        return entry;
     json_getString(root, "label", entry.label);
     json_getString(root, "launch", entry.launch);
     json_getInt(root, "type", &entry.type);

@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     struct jpeg_error_mgr err;
     png_structp png_ptr;
     png_infop info_ptr;
-    FILE *fp;
+    FILE *fp = NULL;
     MI_PHY jpgPa = 0, pngPa = 0;
     void *tmp, *jpgVa = NULL, *pngVa = NULL;
     uint8_t *src8;
@@ -110,6 +110,7 @@ int main(int argc, char *argv[])
     if (tmp == NULL) {
         jpeg_destroy_decompress(&jpeg);
         fclose(fp);
+        fp = NULL;
         goto error;
     }
     dst = jpgVa;
@@ -124,6 +125,7 @@ int main(int argc, char *argv[])
     jpeg_finish_decompress(&jpeg);
     jpeg_destroy_decompress(&jpeg);
     fclose(fp);
+    fp = NULL;
 
     // Calculate png size
     if (sw == 0 || sh == 0) {
@@ -175,6 +177,7 @@ int main(int argc, char *argv[])
     if (tmp == NULL) {
         fprintf(stderr, "malloc error\n");
         fclose(fp);
+        fp = NULL;
         goto error;
     }
     dst = tmp;
@@ -211,6 +214,8 @@ usage:
     printf("usage: %s filename.jpg [max_width:def=250] [max_height:def=360]\n",
            argv[0]);
 error:
+    if (fp)
+        fclose(fp);
     if (jpgVa)
         MI_SYS_Munmap(jpgVa, ss);
     if (pngVa)

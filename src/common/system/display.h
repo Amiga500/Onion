@@ -144,7 +144,9 @@ void display_save(void)
     g_display.fb_ofs = (uint8_t *)g_display.fb_addr + (g_display.vinfo.yoffset * g_display.stride);
 
     // Save display area and clear
-    if ((g_display.savebuf = (uint8_t *)malloc(g_display.width * g_display.bpp * g_display.height))) {
+    size_t save_size = (size_t)g_display.width * (size_t)g_display.bpp * (size_t)g_display.height;
+    if (save_size > 0 && save_size / g_display.width / g_display.bpp == (size_t)g_display.height &&
+        (g_display.savebuf = (uint8_t *)malloc(save_size))) {
         uint32_t i, ofss, ofsd;
         ofss = ofsd = 0;
         for (i = g_display.height; i > 0;

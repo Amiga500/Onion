@@ -63,7 +63,9 @@ void init(int flags)
 void render(void)
 {
     if (_render_direct_to_fb) {
-        int numBuffers = g_display.vinfo.yres_virtual / g_display.vinfo.yres;
+        int numBuffers = g_display.vinfo.yres > 0
+            ? g_display.vinfo.yres_virtual / g_display.vinfo.yres
+            : 1;
         for (int b = 0; b < numBuffers; b++) {
             display_writeBuffer(b, &g_display, (uint32_t *)screen->pixels, (rect_t){0, 0, screen->w, screen->h}, true, false);
         }

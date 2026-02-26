@@ -50,12 +50,30 @@ static bool loadImagesPathsFromJson(const char *config_path,
         return false;
     }
     int total = cJSON_GetArraySize(json_images_array);
+    if (total <= 0) {
+        cJSON_Delete(json_root);
+        return false;
+    }
+    *images_paths = NULL;
+    *images_titles = NULL;
     *images_paths = (char **)malloc(total * sizeof(char *));
     *images_titles = (char **)malloc(total * sizeof(char *));
+    if (*images_paths == NULL || *images_titles == NULL) {
+        free(*images_paths);
+        free(*images_titles);
+        *images_paths = NULL;
+        *images_titles = NULL;
+        cJSON_Delete(json_root);
+        return false;
+    }
 
     static const int g_title_max_length = 50;
     char *temp_path = file_dirname(config_path);
     if (temp_path == NULL) {
+        free(*images_paths);
+        free(*images_titles);
+        *images_paths = NULL;
+        *images_titles = NULL;
         cJSON_Delete(json_root);
         return false;
     }
@@ -134,16 +152,26 @@ int main(int argc, char *argv[])
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
-            if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0)
-                strncpy(title_str, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--message") == 0)
-                strncpy(message_str, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--image") == 0)
-                strncpy(image_path, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--images-json") == 0)
-                strncpy(images_json_path, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--directory") == 0)
-                strncpy(images_dir_path, argv[++i], STR_MAX - 1);
+            if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0) {
+                if (i + 1 < argc)
+                    strncpy(title_str, argv[++i], STR_MAX - 1);
+            }
+            else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--message") == 0) {
+                if (i + 1 < argc)
+                    strncpy(message_str, argv[++i], STR_MAX - 1);
+            }
+            else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--image") == 0) {
+                if (i + 1 < argc)
+                    strncpy(image_path, argv[++i], STR_MAX - 1);
+            }
+            else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--images-json") == 0) {
+                if (i + 1 < argc)
+                    strncpy(images_json_path, argv[++i], STR_MAX - 1);
+            }
+            else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--directory") == 0) {
+                if (i + 1 < argc)
+                    strncpy(images_dir_path, argv[++i], STR_MAX - 1);
+            }
             else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--show-theme-controls") == 0)
                 g_show_theme_controls = true;
             else if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--auto") == 0)
