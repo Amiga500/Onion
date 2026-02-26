@@ -24,7 +24,7 @@ SDL_Surface *createLabelSurface(Package *package)
 
     if (strchr(package->name, '(') != NULL) {
         parens[0] = '(';
-        strncat(parens, str_split(label_text, "("), STR_MAX - 2);
+        strncat(parens, str_split(label_text, "("), sizeof(parens) - strlen(parens) - 1);
     }
 
     SDL_Surface *label_surface = font25
