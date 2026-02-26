@@ -36,8 +36,11 @@ char *execute_command(const char *command)
     }
 
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-        free(result);
-        result = strdup(buffer);
+        char *tmp = strdup(buffer);
+        if (tmp != NULL) {
+            free(result);
+            result = tmp;
+        }
     }
 
     pclose(pipe);
