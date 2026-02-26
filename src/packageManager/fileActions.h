@@ -107,12 +107,13 @@ bool hasExtension(const char *file_name, const char *extlist)
     strncpy(extlist_dup, extlist, sizeof(extlist_dup) - 1);
     extlist_dup[sizeof(extlist_dup) - 1] = '\0';
 
-    char *token = strtok(extlist_dup, "|");
+    char *saveptr;
+    char *token = strtok_r(extlist_dup, "|", &saveptr);
 
     while (token != NULL) {
         if (strcasecmp(file_ext, token) == 0)
             return true;
-        token = strtok(NULL, "|");
+        token = strtok_r(NULL, "|", &saveptr);
     }
 
     return false;

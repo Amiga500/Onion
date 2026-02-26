@@ -211,6 +211,7 @@ int matchRomNames(char *rom_names_file, char *full_rom_list_file, char *arcade_r
     FILE *rom_names_fp, *full_rom_list_fp, *arcade_rom_names_fp, *missing_rom_names_fp;
     char filename[STR_MAX];
     char *full_rom_name_first_word;
+    char *saveptr;
 
     rom_names_fp = fopen(rom_names_file, "r");
     full_rom_list_fp = fopen(full_rom_list_file, "r");
@@ -248,13 +249,13 @@ int matchRomNames(char *rom_names_file, char *full_rom_list_file, char *arcade_r
     bool full_rom_list_eof = false;
     while (!rom_names_eof && !full_rom_list_eof) {
         // Strip newline characters from input strings
-        strtok(rom_name, "\n");
-        strtok(full_rom_name, "\n");
+        rom_name[strcspn(rom_name, "\n")] = '\0';
+        full_rom_name[strcspn(full_rom_name, "\n")] = '\0';
 
         // Get first word from full rom name
         strncpy(filename, full_rom_name, sizeof(filename) - 1); //preserve the original line;
         filename[sizeof(filename) - 1] = '\0';
-        full_rom_name_first_word = strtok(filename, "\t ");
+        full_rom_name_first_word = strtok_r(filename, "\t ", &saveptr);
         if (full_rom_name_first_word == NULL)
             full_rom_name_first_word = filename;
 
@@ -275,7 +276,7 @@ int matchRomNames(char *rom_names_file, char *full_rom_list_file, char *arcade_r
                     rom_names_eof = true;
                     break;
                 }
-                strtok(rom_name, "\n");
+                rom_name[strcspn(rom_name, "\n")] = '\0';
             }
         }
         else if (strcmp(full_rom_name_first_word, rom_name) < 0) {
@@ -285,10 +286,10 @@ int matchRomNames(char *rom_names_file, char *full_rom_list_file, char *arcade_r
                     full_rom_list_eof = true;
                     break;
                 }
-                strtok(full_rom_name, "\n");
+                full_rom_name[strcspn(full_rom_name, "\n")] = '\0';
                 strncpy(filename, full_rom_name, sizeof(filename) - 1); //preserve the original line;
                 filename[sizeof(filename) - 1] = '\0';
-                full_rom_name_first_word = strtok(filename, "\t ");
+                full_rom_name_first_word = strtok_r(filename, "\t ", &saveptr);
                 if (full_rom_name_first_word == NULL)
                     full_rom_name_first_word = filename;
             }

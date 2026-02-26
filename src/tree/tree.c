@@ -208,7 +208,8 @@ int main(int argc, char *argv[])
         if (strcmp(argv[i], "-e") == 0) {
             if (i + 1 < argc) {
                 char *directories = argv[++i];
-                char *token = strtok(directories, " ");
+                char *saveptr;
+                char *token = strtok_r(directories, " ", &saveptr);
                 int count = 0;
                 while (token != NULL) {
                     const char **tmp =
@@ -221,7 +222,7 @@ int main(int argc, char *argv[])
                     excluded_directories = tmp;
                     excluded_directories[count++] = token;
                     excluded_directories[count] = NULL;
-                    token = strtok(NULL, " ");
+                    token = strtok_r(NULL, " ", &saveptr);
                 }
             }
             else {
@@ -232,7 +233,8 @@ int main(int argc, char *argv[])
         else if (strcmp(argv[i], "-i") == 0) {
             if (i + 1 < argc) {
                 char *extensions = argv[++i];
-                char *token = strtok(extensions, " ");
+                char *saveptr;
+                char *token = strtok_r(extensions, " ", &saveptr);
                 int count = 0;
                 while (token != NULL) {
                     const char **tmp =
@@ -245,7 +247,7 @@ int main(int argc, char *argv[])
                     included_extensions = tmp;
                     included_extensions[count++] = token;
                     included_extensions[count] = NULL;
-                    token = strtok(NULL, " ");
+                    token = strtok_r(NULL, " ", &saveptr);
                 }
             }
             else {

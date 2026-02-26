@@ -30,18 +30,19 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
     strncpy(s, message, MAXCHARACTERSARRAY - 1);
     s[MAXCHARACTERSARRAY - 1] = '\0';
 
-    token = strtok(s, delim);
+    char *saveptr;
+    token = strtok_r(s, delim, &saveptr);
     while (token != NULL && line_count < MAXTEXTLINES) {
         lines[line_count] = TTF_RenderUTF8_Blended(font, token, fg);
         if (lines[line_count] == NULL) {
-            token = strtok(NULL, delim);
+            token = strtok_r(NULL, delim, &saveptr);
             continue;
         }
         SDL_SetAlpha(lines[line_count], 0, 0); /* important */
         if (lines[line_count]->w > line_width)
             line_width = lines[line_count]->w;
         line_count++;
-        token = strtok(NULL, delim);
+        token = strtok_r(NULL, delim, &saveptr);
     }
 
     SDL_Surface *textbox = SDL_CreateRGBSurface(

@@ -61,7 +61,8 @@ void get_rom_image_path(char *rom_file, char *out_image_path)
     char rom_file_copy[PATH_MAX];
     strncpy(rom_file_copy, rom_file, sizeof(rom_file_copy) - 1);
     rom_file_copy[sizeof(rom_file_copy) - 1] = '\0';
-    char *rom_folder = strtok(rom_file_copy, "/");
+    char *saveptr;
+    char *rom_folder = strtok_r(rom_file_copy, "/", &saveptr);
     if (rom_folder == NULL)
         rom_folder = rom_file_copy;
 
