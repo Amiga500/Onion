@@ -162,6 +162,11 @@ bool lang_load(void)
     memset(lang_list, 0, LANG_MAX * sizeof(char *));
 
     cJSON *lang_file = json_load(lang_path);
+    if (lang_file == NULL) {
+        free(lang_list);
+        lang_list = NULL;
+        return false;
+    }
 
     char key[32];
     char value[STR_MAX];

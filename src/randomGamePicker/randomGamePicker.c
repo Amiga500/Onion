@@ -57,6 +57,8 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
         return false;
 
     cJSON *json_root = json_load(config_path);
+    if (json_root == NULL)
+        return false;
 
     if (romsdir_out != NULL) {
         char romsdir_rel[STR_MAX];
@@ -236,7 +238,7 @@ bool addRandomFromJson(char *json_path)
 
     while (fgets(line, sizeof(line), fp)) {
         json_root = cJSON_Parse(line);
-        if(!json_getInt(json_root, "type", (int *)&type)) {
+        if (json_root == NULL || !json_getInt(json_root, "type", (int *)&type)) {
             print_debug("Malformed json; Skipping\n");
             cJSON_Delete(json_root);
             continue;

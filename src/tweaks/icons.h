@@ -252,6 +252,8 @@ bool _add_config_icon(const char *path, const char *name,
         return false;
 
     cJSON *config = json_load(config_path);
+    if (config == NULL)
+        return false;
 
     if (!json_getString(config, "icon", icon_path)) {
         cJSON_Delete(config);

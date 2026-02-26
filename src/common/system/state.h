@@ -215,11 +215,11 @@ void write_mainui_state(MainUIState state, int currpos, int total)
     }
 
     if (main_currpos + 4 > main_total)
-        main_page_start = main_total - 4;
+        main_page_start = (main_total >= 4) ? main_total - 4 : 0;
     main_page_end = main_page_start + 3;
 
     if (currpos + page_size > total)
-        page_start = total - page_size;
+        page_start = (total >= page_size) ? total - page_size : 0;
     else
         page_start = currpos;
     page_end = page_start + page_size - 1;
