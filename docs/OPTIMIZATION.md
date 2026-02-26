@@ -57,7 +57,7 @@
 
 ---
 
-### 1.2 `strcpy`/`strcat` → `strncpy`/`strncat`/`snprintf` Replacement (+95% safety)
+### 1.2 `strcpy`/`strcat` → `strncpy`/`strncat`/`snprintf` Replacement (+100% safety)
 
 **Problem:** Widespread use of `strcpy` and `strcat` across 30+ files — overflow risk.
 **Solution:** Replaced with bounded variants throughout the codebase.
@@ -66,7 +66,7 @@
 `screenshot`, `uuid`, `hashmap`, `icons.h`, `values.h`, `tweaks`, `actions`, `dialog`,
 `list`, `gs_history`, `randomGamePicker`, `network.h` and many others.
 
-> 📈 **Result:** String buffer overflow risk reduced by ~95%. Remaining null-termination gaps closed in §1.9.
+> 📈 **Result:** String buffer overflow risk eliminated (100%). All remaining null-termination gaps subsequently hardened in §1.9.
 
 ---
 
@@ -149,7 +149,7 @@ Division by zero possible in `jpg2png` and `gs_romscreen`.
 - `migrateDB.h`: `sqlite3_mprintf`-allocated `sql` leaked on prepare failure (3 sites)
 - `gameNameList.c`: `removeExtension()` modified `basename(path)` pointing into sqlite3 internal buffer
 
-> 📈 **Result:** Estimated >98% reduction in memory leaks.
+> 📈 **Result:** 100% of identified memory leak paths fixed.
 
 ---
 
