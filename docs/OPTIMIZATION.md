@@ -1,6 +1,6 @@
 # 🚀 Onion OS — Optimization Report
 
-> **523 commits** · **230+ bug fixes** · **75+ security patches** · **35+ performance optimizations** · **1,373 unit tests**
+> **523 commits** · **96+ bug fixes** · **75+ security patches** · **35+ performance optimizations** · **1,373 unit tests**
 
 ---
 
@@ -25,7 +25,7 @@
 ## 📊 Summary Overview
 
 > Analysis of **523 commits** on the Onion OS codebase for Miyoo Mini / Mini+.
-> Over **230 bugs** were fixed, **dozens of NEON/ARM optimizations** introduced,
+> Over **96 bugs** were fixed, **dozens of NEON/ARM optimizations** introduced,
 > **security hardening** (including complete JSON input validation) applied across
 > the entire codebase, and measurable performance improvements achieved.
 
@@ -383,7 +383,7 @@ volume_raw = round(48 * log10(1 + volume));
 
 ## 🐛 3. Critical Bug Fixes
 
-> **230+ bugs** fixed across **160+ source files**, organized below from most to least severe.
+> **96+ bugs** fixed across **160+ source files**, organized below from most to least severe.
 
 ### 3.1 🔴 Critical — Crashes and Undefined Behavior
 
@@ -675,7 +675,7 @@ Fixes that prevent edge-case failures and improve long-term resilience.
 | Metric | Value |
 |:-------|------:|
 | 🔧 **Total commits** | **523** |
-| 🐛 **Bugs fixed** | **230+** |
+| 🐛 **Bugs fixed** | **96+** |
 | 🛡️ **Security vulnerabilities fixed** | **75+** |
 | ⚡ **Performance optimizations** | **35+** |
 | 🧪 **Unit tests** | **1,373+** (67 test suites) |
