@@ -417,13 +417,15 @@ void resumeGame(int index)
 
             int position = (int)(colonPosition - rompath);
 
-            char firstPart[position + 1];
+            char firstPart[256];
+            if (position > (int)sizeof(firstPart) - 1)
+                position = (int)sizeof(firstPart) - 1;
             strncpy(firstPart, rompath, position);
             firstPart[position] = '\0';
 
-            char secondPart[strlen(rompath) - position];
-            strncpy(secondPart, colonPosition + 1, strlen(rompath) - position - 1);
-            secondPart[strlen(rompath) - position - 1] = '\0';
+            char secondPart[256];
+            strncpy(secondPart, colonPosition + 1, sizeof(secondPart) - 1);
+            secondPart[sizeof(secondPart) - 1] = '\0';
 
             strncpy(launch, firstPart, sizeof(launch) - 1);
             launch[sizeof(launch) - 1] = '\0';
