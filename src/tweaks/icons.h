@@ -54,7 +54,7 @@ int _add_icon_alts(const char *pack_dir, const char *pack_name,
             if (icon_name == NULL)
                 continue;
             str_split(icon_name, "-");
-            snprintf(alt_name, STR_MAX - 1, "%s - %s", pack_name, icon_name);
+            snprintf(alt_name, STR_MAX, "%s - %s", pack_name, icon_name);
             free(icon_name);
 
             ListItem item = {.action = action};
@@ -98,7 +98,7 @@ int _add_icon_packs(const char *path, List *list, void (*action)(void *),
             if (strcmp("icons", ep->d_name) == 0)
                 continue;
 
-            snprintf(icon_pack_path, STR_MAX * 2 - 1,
+            snprintf(icon_pack_path, STR_MAX * 2,
                      is_theme ? "%s/%s/icons" : "%s/%s", path, ep->d_name);
 
             if (required_icon != NULL) {
@@ -268,7 +268,7 @@ bool _add_config_icon(const char *path, const char *name,
     ListItem item = {.action = action};
 
     if (icon_path[0] != '/')
-        snprintf(preview_path, STR_MAX * 2 + 32 - 1, "%s/%s/%s", path, name,
+        snprintf(preview_path, STR_MAX * 2 + 32, "%s/%s/%s", path, name,
                  icon_path);
     else
         strncpy(preview_path, icon_path, STR_MAX * 2 - 1);
@@ -287,7 +287,7 @@ bool _add_config_icon(const char *path, const char *name,
     short_label[55] = 0;
 
     if (mode != ICON_MODE_APP)
-        snprintf(item.label, STR_MAX - 1, "%s (%s)", short_label, icon_name);
+        snprintf(item.label, STR_MAX, "%s (%s)", short_label, icon_name);
     else {
         strncpy(item.label, short_label, STR_MAX - 1);
         strncpy(item.description, icon_name, STR_MAX - 1);
@@ -331,7 +331,7 @@ int _add_config_icons(const char *path, List *list, void (*action)(void *))
             if (strcmp("romscripts", ep->d_name) == 0)
                 continue;
 
-            snprintf(config_path, STR_MAX * 2 - 1, "%s/%s/config.json", path,
+            snprintf(config_path, STR_MAX * 2, "%s/%s/config.json", path,
                      ep->d_name);
 
             if (strcmp(SEARCH_CONFIG, config_path) == 0)
@@ -405,7 +405,7 @@ void _menu_change_icon(ListItem *item, IconMode_e mode)
     IconInfo_t *info = (IconInfo_t *)item->payload_ptr;
 
     char required_icon[STR_MAX];
-    snprintf(required_icon, STR_MAX - 1, icons_getIconNameFormat(mode),
+    snprintf(required_icon, STR_MAX, icons_getIconNameFormat(mode),
              info->name);
 
     _add_icon_packs("/mnt/SDCARD/Icons", &_menu_temp, _menu_temp_action, false,

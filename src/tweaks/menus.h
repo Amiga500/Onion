@@ -696,7 +696,7 @@ void menu_diagnostics(void *pt)
                 prefix = "%.62s";
             }
 
-            snprintf(diagItem.label, DIAG_MAX_LABEL_LENGTH - 1, prefix, scripts[i].label);
+            snprintf(diagItem.label, DIAG_MAX_LABEL_LENGTH, prefix, scripts[i].label);
             strncpy(diagItem.sticky_note, "Idle: Selected script not running", STR_MAX - 1);
 
             char *parsed_Tooltip = diags_parseNewLines(scripts[i].tooltip);
@@ -944,14 +944,14 @@ void *_get_menu_icon(const char *name)
         if (config != NULL) {
             char icon_path[STR_MAX];
             if (json_getString(config, "icon", icon_path))
-                snprintf(path, STR_MAX * 2 - 1, "%s/%s.png", dirname(icon_path),
+                snprintf(path, STR_MAX * 2, "%s/%s.png", dirname(icon_path),
                          name);
             cJSON_Delete(config);
         }
     }
 
     if (!is_file(path))
-        snprintf(path, STR_MAX * 2 - 1, "res/%s.png", name);
+        snprintf(path, STR_MAX * 2, "res/%s.png", name);
 
     return (void *)IMG_Load(path);
 }

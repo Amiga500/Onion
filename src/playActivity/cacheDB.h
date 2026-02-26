@@ -56,13 +56,13 @@ sqlite3_stmt *cache_db_prepare(char *cache_db_file_path, char *sql)
 int cache_get_path_and_version(char *cache_db_file_path, const char *cache_dir, const char *dir_name)
 {
     // Check if "_cache6.db" file exists
-    snprintf(cache_db_file_path, PATH_MAX - 1, "%s/%s_cache6.db", cache_dir, dir_name);
+    snprintf(cache_db_file_path, PATH_MAX, "%s/%s_cache6.db", cache_dir, dir_name);
     if (is_file(cache_db_file_path) == 1) {
         return 6;
     }
 
     // Check if "_cache2.db" file exists
-    snprintf(cache_db_file_path, PATH_MAX - 1, "%s/%s_cache2.db", cache_dir, dir_name);
+    snprintf(cache_db_file_path, PATH_MAX, "%s/%s_cache2.db", cache_dir, dir_name);
     if (is_file(cache_db_file_path) == 1) {
         return 2;
     }

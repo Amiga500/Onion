@@ -228,7 +228,7 @@ void renderTabName(const char *name, int x, alignment_e alignment, bool active,
                    bool has_changes)
 {
     char name_str[STR_MAX];
-    snprintf(name_str, STR_MAX - 1, has_changes ? "%s*" : "%s", name);
+    snprintf(name_str, STR_MAX, has_changes ? "%s*" : "%s", name);
 
     TTF_Font *tab_font = active ? font25 : font18;
     SDL_Surface *tab_name = tab_font

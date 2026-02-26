@@ -64,7 +64,7 @@ bool checkAppInstalled(const char *basePath, int base_len, int level, bool compl
 bool getConfigPath(char *config_path, const char *data_path, const char *base_dir_name)
 {
     char base_dir[STR_MAX];
-    snprintf(base_dir, STR_MAX - 1, "%s/%s", data_path, base_dir_name);
+    snprintf(base_dir, STR_MAX, "%s/%s", data_path, base_dir_name);
 
     if (!is_dir(base_dir))
         return false;
@@ -135,7 +135,7 @@ bool checkRomDir(const char *rom_dir, const char *extlist, int level)
         if (dp->d_type == DT_DIR) {
             if (level == 0) {
                 char subdir[PATH_MAX];
-                snprintf(subdir, PATH_MAX - 1, "%s/%s", rom_dir, dp->d_name);
+                snprintf(subdir, PATH_MAX, "%s/%s", rom_dir, dp->d_name);
                 if (checkRomDir(subdir, extlist, level + 1)) {
                     closedir(dir);
                     return true;
@@ -188,7 +188,7 @@ bool checkRoms(const char *data_path)
         return false;
 
     char rom_dir[PATH_MAX];
-    snprintf(rom_dir, PATH_MAX - 1, "/mnt/SDCARD/%s", roms_rel_path + 6);
+    snprintf(rom_dir, PATH_MAX, "/mnt/SDCARD/%s", roms_rel_path + 6);
 
     return checkRomDir(rom_dir, extlist, 0);
 }
@@ -307,7 +307,7 @@ void callPackageInstaller(const char *data_path, const char *package_name,
 
     if (getPackageMainPath(main_path, data_path, package_name)) {
         char config_path[STR_MAX + 32];
-        snprintf(config_path, STR_MAX + 32 - 1, "%s/config.json", main_path);
+        snprintf(config_path, STR_MAX + 32, "%s/config.json", main_path);
 
         if (install && is_file(config_path))
             apply_singleIcon(config_path);

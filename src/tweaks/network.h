@@ -455,7 +455,7 @@ void menu_smbd(void *pt)
                 .value = _network_shares[i].available,
                 .payload_ptr = _network_shares + i // store a pointer to the share in the payload
             };
-            snprintf(shareItem.label, STR_MAX - 1, "Share: %s", _network_shares[i].name);
+            snprintf(shareItem.label, STR_MAX, "Share: %s", _network_shares[i].name);
             char *share_note = str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:");
             strncpy(shareItem.sticky_note, share_note ? share_note : _network_shares[i].path, STR_MAX - 1);
             shareItem.sticky_note[STR_MAX - 1] = '\0';
