@@ -627,16 +627,7 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
 - `RetroArch-patch` → Amiga500 fork with bug fixes
 - `SearchFilter` → v1.2.4 from Amiga500/SearchFilter
 
-### 5.4 Italian and Dialect Translations ✅
-
-✅ **Translations added:**
-- Sardinian
-- Neapolitan
-- Sicilian
-
----
-
-### 5.5 Theme System Hardening ✅
+### 5.4 Theme System Hardening ✅
 
 ✅ **Theme subsystem improvements:**
 - `theme_applyConfig`: NULL-safe key/value lookup for all color and font fields
@@ -650,7 +641,7 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
 
 ---
 
-### 5.6 GameSwitcher Improvements ✅
+### 5.5 GameSwitcher Improvements ✅
 
 ✅ **GameSwitcher subsystem improvements:**
 - `gs_appState`: fields zero-initialized; no spurious state transitions on first launch
