@@ -86,7 +86,9 @@ int main(int argc, char *argv[])
     char rompath[STR_MAX], new_name[STR_MAX];
 
     strncpy(rompath, argv[1], STR_MAX - 1);
+    rompath[STR_MAX - 1] = '\0';
     strncpy(new_name, argv[2], STR_MAX - 1);
+    new_name[STR_MAX - 1] = '\0';
 
     printf_debug("rompath: %s\n", rompath);
     printf_debug("rename to: %s\n", new_name);
@@ -96,6 +98,7 @@ int main(int argc, char *argv[])
 
     char romdir[STR_MAX];
     strncpy(romdir, rompath, STR_MAX - 1);
+    romdir[STR_MAX - 1] = '\0';
     dirname(romdir);
 
     const char *romext = file_getExtension(rompath);
@@ -109,6 +112,7 @@ int main(int argc, char *argv[])
 
     char emupath[STR_MAX];
     strncpy(emupath, rompath, STR_MAX - 1);
+    emupath[STR_MAX - 1] = '\0';
     str_split(emupath, "/../../");
 
     printf_debug("emupath: %s\n", emupath);

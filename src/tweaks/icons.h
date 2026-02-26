@@ -260,8 +260,10 @@ bool _add_config_icon(const char *path, const char *name,
         return false;
     }
 
-    if (!json_getString(config, "label", label))
+    if (!json_getString(config, "label", label)) {
         strncpy(label, name, STR_MAX - 1);
+        label[STR_MAX - 1] = '\0';
+    }
 
     cJSON_Delete(config);
 
@@ -270,12 +272,16 @@ bool _add_config_icon(const char *path, const char *name,
     if (icon_path[0] != '/')
         snprintf(preview_path, STR_MAX * 2 + 32, "%s/%s/%s", path, name,
                  icon_path);
-    else
+    else {
         strncpy(preview_path, icon_path, STR_MAX * 2 - 1);
+        preview_path[STR_MAX * 2 - 1] = '\0';
+    }
 
     char abs_path[PATH_MAX];
-    if (realpath(preview_path, abs_path) == NULL)
+    if (realpath(preview_path, abs_path) == NULL) {
         strncpy(abs_path, preview_path, PATH_MAX - 1);
+        abs_path[PATH_MAX - 1] = '\0';
+    }
 
     icon_name = file_removeExtension(basename(icon_path));
     if (icon_name == NULL)

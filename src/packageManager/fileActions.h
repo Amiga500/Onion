@@ -161,6 +161,7 @@ bool checkRoms(const char *data_path)
 {
     char path_dup[PATH_MAX];
     strncpy(path_dup, data_path, PATH_MAX - 1);
+    path_dup[PATH_MAX - 1] = '\0';
 
     char *base_dir_name = basename(dirname(path_dup));
     char config_path[PATH_MAX];

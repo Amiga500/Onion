@@ -151,9 +151,10 @@ void renderPage(int current_page)
         SDL_BlitSurface(romImage, NULL, screen, &rectRomImage);
         SDL_FreeSurface(romImage);
 
-        if (show_raw_names)
+        if (show_raw_names) {
             strncpy(rom_name, rom->name, STR_MAX - 1);
-        else
+            rom_name[STR_MAX - 1] = '\0';
+        } else
             file_cleanName(rom_name, rom->name);
         renderText(rom_name, includeCJK(rom_name) ? fontCJKRomName25 : font30, color_white, &(SDL_Rect){num_width + 100, 75 + 90 * row, 400, 40});
 
