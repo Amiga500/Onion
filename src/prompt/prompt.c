@@ -140,8 +140,8 @@ int main(int argc, char *argv[])
     int battery_percentage = battery_getPercentage();
 
     if (pargc == 0) {
-        pargs[pargc++] = (char *)lang_get(LANG_OK, LANG_FALLBACK_OK);
-        pargs[pargc++] = (char *)lang_get(LANG_CANCEL, LANG_FALLBACK_CANCEL);
+        pargs[pargc++] = strdup(lang_get(LANG_OK, LANG_FALLBACK_OK));
+        pargs[pargc++] = strdup(lang_get(LANG_CANCEL, LANG_FALLBACK_CANCEL));
     }
 
     List list = list_create(pargc, LIST_SMALL);

@@ -237,8 +237,17 @@ void settings_load(void)
     config_get("vibration", CONFIG_INT, &settings.vibration);
     config_get("startup/tab", CONFIG_INT, &settings.startup_tab);
     config_get("display/blueLightLevel", CONFIG_INT, &settings.blue_light_level);
-    config_get("display/blueLightTime", CONFIG_STR, &settings.blue_light_time);
-    config_get("display/blueLightTimeOff", CONFIG_STR, &settings.blue_light_time_off);
+    {
+        char _tmp_time[STR_MAX] = "";
+        if (config_get("display/blueLightTime", CONFIG_STR, _tmp_time)) {
+            strncpy(settings.blue_light_time, _tmp_time, sizeof(settings.blue_light_time) - 1);
+            settings.blue_light_time[sizeof(settings.blue_light_time) - 1] = '\0';
+        }
+        if (config_get("display/blueLightTimeOff", CONFIG_STR, _tmp_time)) {
+            strncpy(settings.blue_light_time_off, _tmp_time, sizeof(settings.blue_light_time_off) - 1);
+            settings.blue_light_time_off[sizeof(settings.blue_light_time_off) - 1] = '\0';
+        }
+    }
     config_get("display/blueLightRGB", CONFIG_INT, &settings.blue_light_rgb);
     config_get("pwmfrequency", CONFIG_INT, &settings.pwmfrequency);
     config_get("recCountdown", CONFIG_INT, &settings.rec_countdown);
