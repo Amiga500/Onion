@@ -342,8 +342,8 @@ void splitString(char *input, char *token1, size_t token1_size, char *token2, si
     int tab_pos = -1;
     int len = strlen(input);
 
-    token1[0] = '\0';
-    token2[0] = '\0';
+    if (token1_size > 0) token1[0] = '\0';
+    if (token2_size > 0) token2[0] = '\0';
 
     // Find the position of the tab character
     for (i = 0; i < len; i++) {
@@ -355,41 +355,43 @@ void splitString(char *input, char *token1, size_t token1_size, char *token2, si
 
     // Extract the first token
     if (tab_pos >= 0) {
-        size_t t1_len = (size_t)tab_pos < token1_size - 1 ? (size_t)tab_pos : token1_size - 1;
-        memcpy(token1, input, t1_len);
-        token1[t1_len] = '\0';
+        if (token1_size > 0) {
+            size_t t1_len = (size_t)tab_pos < token1_size - 1 ? (size_t)tab_pos : token1_size - 1;
+            memcpy(token1, input, t1_len);
+            token1[t1_len] = '\0';
+        }
 
         while (isspace(input[tab_pos]))
             tab_pos++;
 
         // Extract the second token
         j = 0;
-        if (input[tab_pos] == '\"') {
-            // If the second token starts with a quote, skip it
-            i = tab_pos + 1;
-            while (i < len && input[i] != '\"' && j < (int)token2_size - 1) {
-                token2[j] = input[i];
-                j++;
-                i++;
+        if (token2_size > 0) {
+            if (input[tab_pos] == '\"') {
+                // If the second token starts with a quote, skip it
+                i = tab_pos + 1;
+                while (i < len && input[i] != '\"' && j < (int)(token2_size - 1)) {
+                    token2[j] = input[i];
+                    j++;
+                    i++;
+                }
             }
-            // Skip the ending quote
-            tab_pos = i + 1;
-        }
-        else {
-            // If there are no quotes, copy the whole token
-            i = tab_pos;
-            while (i < len && j < (int)token2_size - 1) {
-                token2[j] = input[i];
-                j++;
-                i++;
+            else {
+                // If there are no quotes, copy the whole token
+                i = tab_pos;
+                while (i < len && j < (int)(token2_size - 1)) {
+                    token2[j] = input[i];
+                    j++;
+                    i++;
+                }
             }
-        }
 
-        // Remove any trailing whitespace or quotes
-        while (j > 0 && (isspace(token2[j - 1]) || token2[j - 1] == '\"')) {
-            j--;
+            // Remove any trailing whitespace or quotes
+            while (j > 0 && (isspace(token2[j - 1]) || token2[j - 1] == '\"')) {
+                j--;
+            }
+            token2[j] = '\0';
         }
-        token2[j] = '\0';
     }
 }
 

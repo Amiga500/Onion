@@ -61,12 +61,17 @@ char *str_replace(char *orig, char *rep, char *with)
     size_t len_orig = strlen(orig);
     // Use size_t arithmetic to avoid signed integer overflow.
     // new_len = len_orig - len_rep*count + len_with*count + 1
-    size_t new_len = len_orig
-                     - (size_t)len_rep * (size_t)count
-                     + (size_t)len_with * (size_t)count
-                     + 1;
-    // Guard against wrap-around (result smaller than any component).
-    if (new_len == 0 || new_len < len_orig - (size_t)len_rep * (size_t)count)
+    size_t remove_total = (size_t)len_rep * (size_t)count;
+    size_t insert_total = (size_t)len_with * (size_t)count;
+    // Guard against multiplication overflow
+    if (count > 0 && insert_total / (size_t)count != (size_t)len_with)
+        return NULL;
+    // Guard against final addition overflow
+    size_t base_len = len_orig - remove_total; // safe: we found 'count' non-overlapping matches
+    if (base_len + insert_total < base_len)
+        return NULL;
+    size_t new_len = base_len + insert_total + 1;
+    if (new_len == 0)
         return NULL;
     char *result = (char *)malloc(new_len);
     tmp = result;
