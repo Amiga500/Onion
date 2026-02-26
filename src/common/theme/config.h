@@ -223,7 +223,7 @@ Theme_s theme_loadFromPath(const char *theme_path, bool apply_overrides)
     }
 
     char config_path[STR_MAX * 2];
-    snprintf(config_path, STR_MAX * 2 - 1, "%sconfig.json", config.path);
+    snprintf(config_path, STR_MAX * 2, "%sconfig.json", config.path);
 
     if (!exists(config_path))
         snprintf(config_path, sizeof(config_path), "%sconfig.json", FALLBACK_PATH);

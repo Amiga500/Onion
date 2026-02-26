@@ -31,12 +31,13 @@ bool netinfo_getIpAddress(char *label_out, const char *interface)
 
     // Copy the interface name in the ifreq structure
     strncpy(ifr.ifr_name, interface, IFNAMSIZ - 1);
+    ifr.ifr_name[IFNAMSIZ - 1] = '\0';
     int rc = ioctl(n, SIOCGIFADDR, &ifr);
     close(n);
     if (rc < 0)
         return false;
 
-    snprintf(ip_address, STR_MAX - 1, "IP address: %s (%s)", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr), interface);
+    snprintf(ip_address, STR_MAX, "IP address: %s (%s)", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr), interface);
 
     if (strncmp(ip_address, label_out, STR_MAX) != 0) {
         strncpy(label_out, ip_address, STR_MAX - 1);

@@ -51,7 +51,7 @@ sqlite3 *play_activity_db = NULL;
 void get_rom_image_path(char *rom_file, char *out_image_path)
 {
     if (str_endsWith(rom_file, ".p8") || str_endsWith(rom_file, ".png")) {
-        snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s", rom_file);
+        snprintf(out_image_path, STR_MAX, "/mnt/SDCARD/Roms/%s", rom_file);
         return;
     }
 
@@ -61,11 +61,12 @@ void get_rom_image_path(char *rom_file, char *out_image_path)
     char rom_file_copy[PATH_MAX];
     strncpy(rom_file_copy, rom_file, sizeof(rom_file_copy) - 1);
     rom_file_copy[sizeof(rom_file_copy) - 1] = '\0';
-    char *rom_folder = strtok(rom_file_copy, "/");
+    char *saveptr;
+    char *rom_folder = strtok_r(rom_file_copy, "/", &saveptr);
     if (rom_folder == NULL)
         rom_folder = rom_file_copy;
 
-    snprintf(out_image_path, STR_MAX - 1, "/mnt/SDCARD/Roms/%s/Imgs/%s.png", rom_folder, clean_rom_name);
+    snprintf(out_image_path, STR_MAX, "/mnt/SDCARD/Roms/%s/Imgs/%s.png", rom_folder, clean_rom_name);
     free(clean_rom_name);
 }
 

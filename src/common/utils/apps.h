@@ -23,7 +23,7 @@ bool _getAppDirAndConfig(const char *app_dir_name, char *out_app_dir,
     memset(out_config_path, 0, STR_MAX * sizeof(char));
 
     strncpy(out_app_dir, "/mnt/SDCARD/App/", STR_MAX - 1);
-    strncat(out_app_dir, app_dir_name, 128);
+    strncat(out_app_dir, app_dir_name, STR_MAX - strlen(out_app_dir) - 1);
 
     if (!is_dir(out_app_dir))
         return false;
@@ -134,7 +134,7 @@ void set_cmd_app(const char *app_dir_name)
 
     FILE *fp;
     char cmd[STR_MAX * 4];
-    snprintf(cmd, STR_MAX * 4 - 1,
+    snprintf(cmd, STR_MAX * 4,
              "cd %s; chmod a+x ./%s; "
              "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so ./%s",
              app_dir, launch, launch);

@@ -111,6 +111,7 @@ void formatter_battWarn(void *pt, char *out_label)
         strncpy(out_label, "Off", STR_MAX - 1);
     else
         snprintf(out_label, STR_MAX, "< %d%%", item->value * 5);
+    out_label[STR_MAX - 1] = '\0';
 }
 
 void formatter_battExit(void *pt, char *out_label)
@@ -120,6 +121,7 @@ void formatter_battExit(void *pt, char *out_label)
         strncpy(out_label, "Off", STR_MAX - 1);
     else
         snprintf(out_label, STR_MAX, "< %d%%", item->value);
+    out_label[STR_MAX - 1] = '\0';
 }
 
 static const int num_font_families = 5;
@@ -156,6 +158,7 @@ void formatter_fastForward(void *pt, char *out_label)
         strncpy(out_label, "Unlimited", STR_MAX - 1);
     else
         snprintf(out_label, STR_MAX, "%d.0x", item->value);
+    out_label[STR_MAX - 1] = '\0';
 }
 
 void formatter_positionOffset(void *pt, char *out_label)
@@ -165,6 +168,7 @@ void formatter_positionOffset(void *pt, char *out_label)
         strncpy(out_label, "-", STR_MAX - 1);
     else
         snprintf(out_label, STR_MAX, "%d px", item->value - 1 - BATTPERC_MAX_OFFSET);
+    out_label[STR_MAX - 1] = '\0';
 }
 
 void formatter_meterWidth(void *pt, char *out_label)
@@ -215,6 +219,7 @@ void formatter_timeSkip(void *pt, char *out_label)
         strncpy(out_label, "Off", STR_MAX - 1);
     else
         snprintf(out_label, STR_MAX, "+ %dh", item->value);
+    out_label[STR_MAX - 1] = '\0';
 }
 
 #endif // TWEAKS_FORMATTERS_H__

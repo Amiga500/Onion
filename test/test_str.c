@@ -427,7 +427,7 @@ TEST(str_replace_shrink_to_empty) {
 
 TEST(str_split_delimiter_at_end) {
     char buf[32];
-    strcpy(buf, "key=");
+    snprintf(buf, sizeof(buf), "%s", "key=");
     char *tail = str_split(buf, "=");
     ASSERT_STREQ(buf, "key");
     ASSERT_NOT_NULL(tail);
@@ -436,7 +436,7 @@ TEST(str_split_delimiter_at_end) {
 
 TEST(str_split_multi_char_delim) {
     char buf[64];
-    strcpy(buf, "hello::world");
+    snprintf(buf, sizeof(buf), "%s", "hello::world");
     char *tail = str_split(buf, "::");
     ASSERT_STREQ(buf, "hello");
     ASSERT_NOT_NULL(tail);
@@ -447,7 +447,7 @@ TEST(str_split_delimiter_not_found) {
     /* str_split takes char*, not const — can't pass NULL safely.
      * But test with a string where delimiter doesn't match */
     char buf[16];
-    strcpy(buf, "no_delim");
+    snprintf(buf, sizeof(buf), "%s", "no_delim");
     char *tail = str_split(buf, "=");
     ASSERT_NULL(tail);
     ASSERT_STREQ(buf, "no_delim");

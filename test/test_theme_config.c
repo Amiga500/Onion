@@ -232,7 +232,7 @@ static bool theme_applyConfig(Theme_s *config, const char *config_path,
 static char _tmp_path[64];
 static char *write_temp_json(const char *json_str)
 {
-    strcpy(_tmp_path, "/tmp/test_theme_cfg_XXXXXX");
+    snprintf(_tmp_path, sizeof(_tmp_path), "%s", "/tmp/test_theme_cfg_XXXXXX");
     int fd = mkstemp(_tmp_path);
     if (fd < 0) return NULL;
     write(fd, json_str, strlen(json_str));

@@ -114,8 +114,9 @@ void network_getSmbShares()
     long availablePos = -1;
 
     while (fgets(line, sizeof(line), file) != NULL) {
-        char *trimmedLine = strtok(line, "\n");
-        if (trimmedLine == NULL) {
+        line[strcspn(line, "\n")] = '\0';
+        char *trimmedLine = line;
+        if (*trimmedLine == '\0') {
             continue;
         }
 
@@ -140,7 +141,8 @@ void network_getSmbShares()
                 is_available = false;
             }
 
-            char *shareName = strtok(trimmedLine + 1, "]");
+            char *saveptr;
+            char *shareName = strtok_r(trimmedLine + 1, "]", &saveptr);
             if (shareName != NULL && strlen(shareName) > 0) {
                 if (strcmp(shareName, "global") == 0) {
                     continue;
@@ -453,7 +455,7 @@ void menu_smbd(void *pt)
                 .value = _network_shares[i].available,
                 .payload_ptr = _network_shares + i // store a pointer to the share in the payload
             };
-            snprintf(shareItem.label, STR_MAX - 1, "Share: %s", _network_shares[i].name);
+            snprintf(shareItem.label, STR_MAX, "Share: %s", _network_shares[i].name);
             char *share_note = str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:");
             strncpy(shareItem.sticky_note, share_note ? share_note : _network_shares[i].path, STR_MAX - 1);
             shareItem.sticky_note[STR_MAX - 1] = '\0';

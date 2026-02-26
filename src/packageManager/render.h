@@ -21,10 +21,11 @@ SDL_Surface *createLabelSurface(Package *package)
 
     char label_text[STR_MAX], parens[STR_MAX] = "";
     strncpy(label_text, package->name, STR_MAX - 1);
+    label_text[STR_MAX - 1] = '\0';
 
     if (strchr(package->name, '(') != NULL) {
         parens[0] = '(';
-        strncat(parens, str_split(label_text, "("), STR_MAX - 2);
+        strncat(parens, str_split(label_text, "("), sizeof(parens) - strlen(parens) - 1);
     }
 
     SDL_Surface *label_surface = font25
@@ -228,7 +229,7 @@ void renderTabName(const char *name, int x, alignment_e alignment, bool active,
                    bool has_changes)
 {
     char name_str[STR_MAX];
-    snprintf(name_str, STR_MAX - 1, has_changes ? "%s*" : "%s", name);
+    snprintf(name_str, STR_MAX, has_changes ? "%s*" : "%s", name);
 
     TTF_Font *tab_font = active ? font25 : font18;
     SDL_Surface *tab_name = tab_font

@@ -126,11 +126,12 @@ void file_readLastLine(const char *filename, char *out_str)
         fclose(fd);
         buff[max_len - 1] = '\0';
 
-        token = strtok(buff, "\n");
+        char *saveptr;
+        token = strtok_r(buff, "\n", &saveptr);
         while (token != NULL) {
             if (strlen(token) > 0)
                 snprintf(out_str, 255, "%s", token);
-            token = strtok(NULL, "\n");
+            token = strtok_r(NULL, "\n", &saveptr);
         }
     }
 }
@@ -627,7 +628,8 @@ char *file_resolvePath(const char *path)
     int componentCount = 0;
 
     // Split the path into components
-    char *token = strtok(tempPath, "/");
+    char *saveptr;
+    char *token = strtok_r(tempPath, "/", &saveptr);
     while (token != NULL) {
         if (strcmp(token, "..") == 0) {
             // Handle ".." by removing the last component if there is one
@@ -639,7 +641,7 @@ char *file_resolvePath(const char *path)
             // Ignore "." and add other components to the array
             components[componentCount++] = token;
         }
-        token = strtok(NULL, "/");
+        token = strtok_r(NULL, "/", &saveptr);
     }
 
     // Reconstruct the resolved path

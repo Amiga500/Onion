@@ -49,11 +49,11 @@ void loadThemeDirectory(const char *theme_dir,
             if (*count >= NUMBER_OF_THEMES)
                 break;
 
-            snprintf(config_path, STR_MAX * 2 - 1, "%s/%s/config.json",
+            snprintf(config_path, STR_MAX * 2, "%s/%s/config.json",
                      theme_dir, ep->d_name);
 
             if (check_preview) {
-                snprintf(preview_path, STR_MAX * 2 - 1,
+                snprintf(preview_path, STR_MAX * 2,
                          THEMES_DIR "/.previews/%s/config.json", ep->d_name);
 
                 if (is_file(preview_path))
@@ -106,7 +106,7 @@ bool checkPreview(const char *preview_path)
         return false;
 
     char source_path[STR_MAX * 2];
-    snprintf(source_path, STR_MAX * 2 - 1, "%s/source", preview_path);
+    snprintf(source_path, STR_MAX * 2, "%s/source", preview_path);
 
     if (!is_file(source_path))
         return false;
@@ -123,11 +123,11 @@ bool checkPreview(const char *preview_path)
 
 bool getThemePath(const char *theme_name, char *theme_path_out)
 {
-    snprintf(theme_path_out, STR_MAX * 2 - 1, THEMES_DIR "/.previews/%s/",
+    snprintf(theme_path_out, STR_MAX * 2, THEMES_DIR "/.previews/%s/",
              theme_name);
 
     if (!checkPreview(theme_path_out))
-        snprintf(theme_path_out, STR_MAX * 2 - 1, THEMES_DIR "/%s/",
+        snprintf(theme_path_out, STR_MAX * 2, THEMES_DIR "/%s/",
                  theme_name);
 
     return is_dir(theme_path_out);
@@ -184,7 +184,7 @@ void installTheme(char *theme_path, bool apply_icons)
             return;
 
         char cmd[STR_MAX * 2];
-        snprintf(cmd, STR_MAX * 2 - 1,
+        snprintf(cmd, STR_MAX * 2,
                  SCRIPT_DIR "/themes_extract_theme.sh \"%s\"", theme_path);
 
         char theme_name[STR_MAX];
@@ -215,7 +215,7 @@ void installTheme(char *theme_path, bool apply_icons)
 
     if (apply_icons) {
         char icon_pack_path[STR_MAX + 32];
-        snprintf(icon_pack_path, STR_MAX + 32 - 1, "%sicons", theme_path);
+        snprintf(icon_pack_path, STR_MAX + 32, "%sicons", theme_path);
         apply_iconPack(
             is_dir(icon_pack_path) ? icon_pack_path : ICON_PACK_DEFAULT, true);
     }

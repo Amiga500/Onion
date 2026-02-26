@@ -250,7 +250,7 @@ int _apply_iconPackOnConfigs(const char *path, const char *icon_pack_path,
             if (strcmp("romscripts", ep->d_name) == 0)
                 continue;
 
-            snprintf(config_path, STR_MAX * 2 - 1, "%s/%s/config.json", path,
+            snprintf(config_path, STR_MAX * 2, "%s/%s/config.json", path,
                      ep->d_name);
 
             if (strcmp(SEARCH_CONFIG, config_path) == 0)

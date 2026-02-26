@@ -12,7 +12,7 @@
 void _path(char *dest, const char *dir_path, const char *file_name,
            const char *file_ext)
 {
-    snprintf(dest, STR_MAX * 3 - 1, "%s/%s.%s", dir_path, file_name, file_ext);
+    snprintf(dest, STR_MAX * 3, "%s/%s.%s", dir_path, file_name, file_ext);
 }
 
 bool renameFile(const char *dir_path, const char *file_ext,
@@ -86,7 +86,9 @@ int main(int argc, char *argv[])
     char rompath[STR_MAX], new_name[STR_MAX];
 
     strncpy(rompath, argv[1], STR_MAX - 1);
+    rompath[STR_MAX - 1] = '\0';
     strncpy(new_name, argv[2], STR_MAX - 1);
+    new_name[STR_MAX - 1] = '\0';
 
     printf_debug("rompath: %s\n", rompath);
     printf_debug("rename to: %s\n", new_name);
@@ -96,6 +98,7 @@ int main(int argc, char *argv[])
 
     char romdir[STR_MAX];
     strncpy(romdir, rompath, STR_MAX - 1);
+    romdir[STR_MAX - 1] = '\0';
     dirname(romdir);
 
     const char *romext = file_getExtension(rompath);
@@ -109,6 +112,7 @@ int main(int argc, char *argv[])
 
     char emupath[STR_MAX];
     strncpy(emupath, rompath, STR_MAX - 1);
+    emupath[STR_MAX - 1] = '\0';
     str_split(emupath, "/../../");
 
     printf_debug("emupath: %s\n", emupath);
@@ -138,7 +142,7 @@ int main(int argc, char *argv[])
     // Rename cache entry
 
     char cache_path[STR_MAX * 3];
-    snprintf(cache_path, STR_MAX * 3 - 1, "%s/%s/%s_cache6.db", emupath,
+    snprintf(cache_path, STR_MAX * 3, "%s/%s/%s_cache6.db", emupath,
              config.rompath, basename(config.rompath));
 
     char new_rompath[STR_MAX * 3], new_imgpath[STR_MAX * 3];

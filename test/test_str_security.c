@@ -165,7 +165,7 @@ TEST(str_replace_shrink_many) {
 
 TEST(str_split_no_delimiter) {
     char buf[32];
-    strcpy(buf, "nodash");
+    snprintf(buf, sizeof(buf), "%s", "nodash");
     char *tail = str_split(buf, "-");
     ASSERT_NULL(tail);
     ASSERT_STREQ(buf, "nodash");
@@ -173,7 +173,7 @@ TEST(str_split_no_delimiter) {
 
 TEST(str_split_at_start) {
     char buf[32];
-    strcpy(buf, "-rest");
+    snprintf(buf, sizeof(buf), "%s", "-rest");
     char *tail = str_split(buf, "-");
     ASSERT_STREQ(buf, "");
     ASSERT_STREQ(tail, "rest");
@@ -181,7 +181,7 @@ TEST(str_split_at_start) {
 
 TEST(str_split_at_end) {
     char buf[32];
-    strcpy(buf, "head-");
+    snprintf(buf, sizeof(buf), "%s", "head-");
     char *tail = str_split(buf, "-");
     ASSERT_STREQ(buf, "head");
     ASSERT_STREQ(tail, "");
@@ -189,7 +189,7 @@ TEST(str_split_at_end) {
 
 TEST(str_split_multi_char_delim) {
     char buf[32];
-    strcpy(buf, "hello::world");
+    snprintf(buf, sizeof(buf), "%s", "hello::world");
     char *tail = str_split(buf, "::");
     ASSERT_STREQ(buf, "hello");
     ASSERT_STREQ(tail, "world");

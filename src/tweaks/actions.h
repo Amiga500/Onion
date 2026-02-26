@@ -35,7 +35,7 @@ void action_setAppShortcut(void *pt)
 
     if (value < installed_apps_count) {
         strncpy(sett_pt, "app:", JSON_STRING_LEN - 1);
-        strncat(sett_pt, apps[value].dirName, JSON_STRING_LEN - 5);
+        strncat(sett_pt, apps[value].dirName, JSON_STRING_LEN - strlen(sett_pt) - 1);
         return;
     }
 
@@ -43,7 +43,7 @@ void action_setAppShortcut(void *pt)
 
     if (value < NUM_TOOLS) {
         strncpy(sett_pt, "tool:", JSON_STRING_LEN - 1);
-        strncat(sett_pt, tools_short_names[value], JSON_STRING_LEN - 6);
+        strncat(sett_pt, tools_short_names[value], JSON_STRING_LEN - strlen(sett_pt) - 1);
         return;
     }
 

@@ -130,7 +130,7 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
     sqlite3_stmt *res;
 
     char cache_path[STR_MAX * 3];
-    snprintf(cache_path, STR_MAX * 3 - 1, "%s/%s_cache6.db", romsdir,
+    snprintf(cache_path, STR_MAX * 3, "%s/%s_cache6.db", romsdir,
              basename(romsdir));
     printf_debug("cache: %s\n", cache_path);
 
