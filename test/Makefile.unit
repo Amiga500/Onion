@@ -46,7 +46,7 @@ all: $(BINARIES)
 	done; \
 	printf "\n"; \
 	printf "===============================================================\n"; \
-	printf "          UNIT TEST SUMMARY\n"; \
+	printf "                       UNIT TEST SUMMARY\n"; \
 	printf "===============================================================\n"; \
 	printf "  %-34s %6s %11s  %s\n" "Suite" "Tests" "Assertions" "Result"; \
 	printf "  %-34s %6s %11s  %s\n" "----------------------------------" "------" "-----------" "------"; \
@@ -55,9 +55,9 @@ all: $(BINARIES)
 	printf "  %-34s %6d %11d\n" "Total" $$total_tests $$total_asserts; \
 	printf "\n"; \
 	if [ $$total_fails -eq 0 ]; then \
-		printf "  Result: ALL PASSED\n"; \
+		printf "                      Result: ALL PASSED\n"; \
 	else \
-		printf "  Result: SOME TESTS FAILED ($$total_fails failures)\n"; \
+		printf "                      Result: SOME TESTS FAILED ($$total_fails failures)\n"; \
 	fi; \
 	printf "===============================================================\n"; \
 	[ $$total_fails -eq 0 ]
