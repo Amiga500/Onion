@@ -28,6 +28,18 @@
 char matching_folders[MAX_MATCHING_FOLDERS][256];
 int systems_count = 0;
 
+// Validate that a string is a safe SQL identifier (alphanumeric + underscore only)
+static bool is_safe_sql_identifier(const char *name)
+{
+    if (name == NULL || name[0] == '\0')
+        return false;
+    for (const char *p = name; *p; p++) {
+        if (!isalnum((unsigned char)*p) && *p != '_')
+            return false;
+    }
+    return true;
+}
+
 //loaded shared linb function
 char *(*GetGameName_func)(const char *, const char *);
 
@@ -324,11 +336,14 @@ int createCopyFile(const char *src_path, const char *dst_path)
     return 1;
 }
 
-void splitString(char *input, char *token1, char *token2)
+void splitString(char *input, char *token1, size_t token1_size, char *token2, size_t token2_size)
 {
     int i, j = 0;
     int tab_pos = -1;
     int len = strlen(input);
+
+    token1[0] = '\0';
+    token2[0] = '\0';
 
     // Find the position of the tab character
     for (i = 0; i < len; i++) {
@@ -340,10 +355,9 @@ void splitString(char *input, char *token1, char *token2)
 
     // Extract the first token
     if (tab_pos >= 0) {
-        for (i = 0; i < tab_pos; i++) {
-            token1[i] = input[i];
-        }
-        token1[i] = '\0';
+        size_t t1_len = (size_t)tab_pos < token1_size - 1 ? (size_t)tab_pos : token1_size - 1;
+        memcpy(token1, input, t1_len);
+        token1[t1_len] = '\0';
 
         while (isspace(input[tab_pos]))
             tab_pos++;
@@ -353,7 +367,7 @@ void splitString(char *input, char *token1, char *token2)
         if (input[tab_pos] == '\"') {
             // If the second token starts with a quote, skip it
             i = tab_pos + 1;
-            while (i < len && input[i] != '\"') {
+            while (i < len && input[i] != '\"' && j < (int)token2_size - 1) {
                 token2[j] = input[i];
                 j++;
                 i++;
@@ -364,7 +378,7 @@ void splitString(char *input, char *token1, char *token2)
         else {
             // If there are no quotes, copy the whole token
             i = tab_pos;
-            while (i < len) {
+            while (i < len && j < (int)token2_size - 1) {
                 token2[j] = input[i];
                 j++;
                 i++;
@@ -438,6 +452,13 @@ int updateSqlliteCache(char *base_dir_path)
             continue; //skip this db, the update cache not found
 
         snprintf(table_name, sizeof(table_name), "%s_roms", matching_folders[i]);
+
+        // Validate table name to prevent SQL injection
+        if (!is_safe_sql_identifier(table_name)) {
+            fprintf(stderr, "Skipping unsafe table name: %s\n", table_name);
+            continue;
+        }
+
         int rc = sqlite3_open(cache_path, &db);
         if (rc != SQLITE_OK) {
             fprintf(stderr, "Cannot open database: %s (%s)\n", sqlite3_errmsg(db),
