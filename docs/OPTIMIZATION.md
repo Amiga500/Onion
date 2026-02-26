@@ -30,7 +30,7 @@
 | 🔴 Active critical bugs | ~200+ | 0 | **−100 %** ✅ |
 | 🛡️ Unsafe `sprintf` calls | 21+ files | 0 | **−100 %** ✅ |
 | 🛡️ Unsafe `strcpy`/null-term gaps | 30+ files | 0 | **−100 %** ✅ |
-| ⚡ Image 180° rotation | software rotozoom | NEON VREV64 | **×50 faster** 🚀 |
+| ⚡ Image 180° rotation | software rotozoom | NEON VREV64 | **+5000%** 🚀 |
 | ⚡ ARGB↔RGBA conversion | scalar loop | NEON VLD4/VST4 | **16 px/iter** 🚀 |
 | ⚡ `str_count_char` | O(n²) | O(n) | **−90 %** 🚀 |
 | ⚡ SQLite open/close | 2 per op | 1 per op | **−50 %** 🚀 |
@@ -226,23 +226,23 @@ making the contract uniform.
 
 ## ⚡ 2. Performance — Measurable Optimizations
 
-### 2.1 Shared NEON Library `neon_pixel.h` (up to ×50 faster)
+### 2.1 Shared NEON Library `neon_pixel.h` (up to +5000%)
 
 **Problem:** Critical graphics operations implemented in software (slow).
 **Solution:** Created shared ARM NEON assembly library `src/common/utils/neon_pixel.h`.
 
 | NEON Function | Instructions | Throughput | Speedup |
 |---------------|-------------|-----------|---------|
-| `neon_swap_rb_inplace()` | VLD4/VST4 | **16 px/iter** | 🚀 ~×8 |
-| `neon_argb_to_rgba()` | VLD4/VST4 | **16 px/iter** | 🚀 ~×8 |
-| `neon_argb_to_rgba_alpha()` | VCMP+VMASK | **16 px/iter** | 🚀 ~×6 |
-| `neon_rotate180_inplace()` | VREV64 | **8 px/iter** | 🚀 **×50** |
-| `neon_rgb888_to_argb()` | VLD3/VST4 | **16 px/iter** | 🚀 ~×8 |
-| `neon_gray8_to_argb()` | VLD1/VST4 | **16 px/iter** | 🚀 ~×6 |
-| `neon_gray8a_to_argb()` | VLD2/VST4 | **8 px/iter** | 🚀 ~×5 |
-| `surfaceSetAlpha` NEON | VMULL+VSHR | **8 px/iter** | 🚀 ~×4 |
+| `neon_swap_rb_inplace()` | VLD4/VST4 | **16 px/iter** | 🚀 ~+800% |
+| `neon_argb_to_rgba()` | VLD4/VST4 | **16 px/iter** | 🚀 ~+800% |
+| `neon_argb_to_rgba_alpha()` | VCMP+VMASK | **16 px/iter** | 🚀 ~+600% |
+| `neon_rotate180_inplace()` | VREV64 | **8 px/iter** | 🚀 **+5000%** |
+| `neon_rgb888_to_argb()` | VLD3/VST4 | **16 px/iter** | 🚀 ~+800% |
+| `neon_gray8_to_argb()` | VLD1/VST4 | **16 px/iter** | 🚀 ~+600% |
+| `neon_gray8a_to_argb()` | VLD2/VST4 | **8 px/iter** | 🚀 ~+500% |
+| `surfaceSetAlpha` NEON | VMULL+VSHR | **8 px/iter** | 🚀 ~+400% |
 
-> 📈 **180° rotation:** from ~2ms (software rotozoom) to ~40µs NEON = **×50 faster**.
+> 📈 **180° rotation:** from ~2ms (software rotozoom) to ~40µs NEON = **+5000%**.
 > 📈 **Pixel format conversions:** 16 pixels throughput per clock cycle.
 
 ---
@@ -703,7 +703,7 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
 | 🧪 **Unit tests** | **1,373+** (67 test suites) |
 | 📁 **Source files** | **160+** (.c / .h / .cpp / .sh) |
 | 🗑️ **Duplicated lines eliminated** | **~200** |
-| 🚀 **Max single-op speedup** | **×50** (NEON 180° rotation) |
+| 🚀 **Max single-op speedup** | **+5000%** (NEON 180° rotation) |
 | 📉 **OSD idle CPU reduction** | **~−90 %** |
 | 📉 **SQLite open/close reduction** | **−50 %** |
 | 📉 **Unsafe buffers eliminated** | **−100 %** (`sprintf`, `strcpy`, `strncpy` null-term) |
