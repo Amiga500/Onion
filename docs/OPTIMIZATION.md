@@ -27,7 +27,7 @@
 
 | Category | Before | After | Δ |
 |:---------|:------:|:-----:|--:|
-| 🔴 Active critical bugs | ~200+ | 0 | **−100 %** |
+| 🔴 Active critical bugs | ~200+ | 0 | **−100 %** ✅ |
 | 🛡️ Unsafe `sprintf` calls | 21+ files | 0 | **−100 %** ✅ |
 | 🛡️ Unsafe `strcpy`/null-term gaps | 30+ files | 0 | **−100 %** ✅ |
 | ⚡ Image 180° rotation | software rotozoom | NEON VREV64 | **×50 faster** 🚀 |
