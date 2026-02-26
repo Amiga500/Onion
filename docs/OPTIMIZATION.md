@@ -1,6 +1,6 @@
 # 🚀 Onion OS — Optimization Report
 
-> **521 commits** · **230+ bug fixes** · **70+ security patches** · **35+ performance optimizations** · **1 373 unit tests**
+> **521 commits** · **230+ bug fixes** · **70+ security patches** · **35+ performance optimizations** · **1,373 unit tests**
 
 ---
 
@@ -35,7 +35,7 @@
 | ⚡ SQLite open/close | 2 per op | 1 per op | **−50 %** 🚀 |
 | ⚡ TTF rendering | every frame | cached surfaces | **eliminated** ✅ |
 | ⚡ Brightness sysfs writes | every call | cached | **−100 % dupes** ✅ |
-| 🧪 Unit tests | ~0 | 1 373+ | **+∞** ✅ |
+| 🧪 Unit tests | ~0 | 1,373+ | **+∞** ✅ |
 | 📦 Signal-handler code | 8 files × 8 lines | 1 shared header | **−100 %** ✅ |
 
 ---
@@ -408,10 +408,10 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
 
 ## 🧪 4. Testing and Code Quality
 
-### 4.1 New Unit Tests (+1373 tests added)
+### 4.1 New Unit Tests (+1,373 tests added)
 
 **Before:** ~0 automated unit tests.
-**After:** 1373+ tests on a mixed framework (GTest + pure C).
+**After:** 1,373+ tests on a mixed framework (GTest + pure C).
 
 | Test Suite | Tests | Description |
 |------------|-------|-------------|
@@ -514,7 +514,7 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
   test_list               154         ...  PASSED
   ...
   -------------------- ------ -----------  ------
-  Total                  1373        ...+
+  Total                  1,373        ...+
 
   Result: ALL PASSED
 ==========================================
@@ -646,7 +646,7 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
 | 🐛 **Bugs fixed** | **230+** |
 | 🛡️ **Security vulnerabilities fixed** | **70+** |
 | ⚡ **Performance optimizations** | **35+** |
-| 🧪 **Unit tests** | **1 373+** (67 test suites) |
+| 🧪 **Unit tests** | **1,373+** (67 test suites) |
 | 📁 **Source files** | **160+** (.c / .h / .cpp / .sh) |
 | 🗑️ **Duplicated lines eliminated** | **~200** |
 | 🚀 **Max single-op speedup** | **×50** (NEON 180° rotation) |
@@ -664,7 +664,7 @@ The Onion OS codebase has been transformed from a project with **200+ latent bug
 and **zero tests** into a **robust, secure, and optimized** codebase for the
 ARM Cortex-A7 processor of the Miyoo Mini / Mini+.
 
-> **No functional regressions** — all 1 373+ unit tests pass. ✅
+> **No functional regressions** — all 1,373+ unit tests pass. ✅
 
 ---
 
