@@ -11,6 +11,7 @@
    - [1.9 strncpy Null-Termination Hardening](#19-strncpy-null-termination-hardening-100-strncpy-safety)
 3. [Performance — Measurable Optimizations](#-2-performance--measurable-optimizations)
 4. [Critical Bug Fixes](#-3-critical-bug-fixes)
+   - [3.6 Additional Safety and Correctness Fixes](#36-additional-safety-and-correctness-fixes)
 5. [Testing and Code Quality](#-4-testing-and-code-quality)
 6. [New Features and Infrastructure](#-5-new-features-and-infrastructure)
 7. [Build System and CI/CD](#%EF%B8%8F-6-build-system-and-cicd-improvements)
@@ -394,7 +395,7 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
 
 ---
 
-### 3.2 SQLite and Database Fixes (6+ stmt leaks resolved)
+### 3.2 SQLite and Database Fixes (6+ stmt leaks, SQL injection resolved)
 
 ✅ **Fixes:**
 - Column index off-by-one in `play_activity_find_all`
@@ -405,6 +406,7 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
 - `gameNameList.c`: `sqlite3_prepare_v2` return unchecked — missing `sqlite3_finalize` on error
 - `cacheDB.h`: `cache_db_prepare()` returns NULL, caller passes to `sqlite3_step()` → crash
 - `randomGamePicker.c`: `const char *` on `sqlite3_mprintf` return later passed to `sqlite3_free`
+- `gameNameList.c`: SQL table-name injection — ROM folder name injected verbatim into `SELECT ... FROM <name>` query; now validated via `is_safe_sql_identifier()` (alphanumeric + `_` only)
 
 ---
 
@@ -457,6 +459,35 @@ if (c >= 0xE3 && c <= 0xE9)  // Correct CJK UTF-8 first bytes
 - `settings_has_changed()`: comparison used wrong field offsets — dirty detection unreliable
 - `list_sort`: unstable sort replaced with stable insertion sort for consistent UI ordering
 - `gs_appState`: uninitialized fields caused spurious GameSwitcher state transitions
+
+---
+
+### 3.6 Additional Safety and Correctness Fixes
+
+✅ **`str_replace()` — arithmetic overflow guards** (`str.c`):
+- Replaced `int`-based buffer length arithmetic with `size_t` throughout to eliminate signed integer overflow
+- Added multiplication overflow check: `insert_total / count != len_with` guard before `malloc`
+- Added addition overflow check: `base_len + insert_total < base_len` guard before final allocation
+- Prevents heap corruption or silent truncation when replacing short patterns with long strings at scale
+
+✅ **`file_read()` — excessive allocation protection** (`file.c`):
+- Added a 100 MB safety cap before `malloc`; files larger than 100 MB are rejected with `NULL`
+- Prevents OOM kills triggered by malformed or adversarial file sizes reported by `stat64`
+
+✅ **`state_getAppName()` — dynamic prefix parsing** (`state.h`):
+- Replaced a hardcoded byte-offset skip into the command string with a `strstr(str, " ./")` search
+- The old offset assumed `HOME` was always `/mnt/SDCARD` (16 bytes); any other prefix (e.g. nested RApp paths) caused the app name to be read from the wrong position
+- Returns an empty string instead of reading garbage bytes on no-match
+
+✅ **`readHistory()` — O(n²) → O(n) deduplication I/O** (`gs_history.h`):
+- Previous approach called `file_delete_line()` per duplicate entry, which rewrote the entire file each time — O(n × m) writes on slow SD card storage
+- New approach collects all duplicate line numbers in a single pass, then rewrites the file once with an atomic `rename()` — O(n) total I/O
+
+✅ **`apply.h` — extended shell metacharacter rejection** (`packageManager/apply.h`):
+- Original check covered only `"` and `$`; extended to reject 11 metacharacters: `"` `$` `` ` `` `\` `;` `|` `&` `>` `<` `\n` `\r`
+- Prevents shell command injection via crafted package names passed to double-quoted `system()` calls
+
+> 📈 **Result:** Integer overflow, excessive allocation, mis-parsing, quadratic I/O, and injection vulnerabilities eliminated in additional critical paths.
 
 ---
 
