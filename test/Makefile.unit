@@ -42,17 +42,17 @@ all: $(BINARIES)
 		total_tests=$$((total_tests + $${tc:-0})); \
 		total_asserts=$$((total_asserts + $${ac:-0})); \
 		total_fails=$$((total_fails + $${fc:-0})); \
-		summary="$$summary$$(printf '  %-24s %6s %11s  %s' "$$t" "$${tc:-0}" "$${ac:-0}" "$$status")\n"; \
+		summary="$$summary$$(printf '  %-34s %6s %11s  %s' "$$t" "$${tc:-0}" "$${ac:-0}" "$$status")\n"; \
 	done; \
 	printf "\n"; \
 	printf "==========================================\n"; \
 	printf "          UNIT TEST SUMMARY\n"; \
 	printf "==========================================\n"; \
-	printf "  %-24s %6s %11s  %s\n" "Suite" "Tests" "Assertions" "Result"; \
-	printf "  %-24s %6s %11s  %s\n" "------------------------" "------" "-----------" "------"; \
+	printf "  %-34s %6s %11s  %s\n" "Suite" "Tests" "Assertions" "Result"; \
+	printf "  %-34s %6s %11s  %s\n" "----------------------------------" "------" "-----------" "------"; \
 	printf "%b" "$$summary"; \
-	printf "  %-24s %6s %11s  %s\n" "------------------------" "------" "-----------" "------"; \
-	printf "  %-24s %6d %11d\n" "Total" $$total_tests $$total_asserts; \
+	printf "  %-34s %6s %11s  %s\n" "----------------------------------" "------" "-----------" "------"; \
+	printf "  %-34s %6d %11d\n" "Total" $$total_tests $$total_asserts; \
 	printf "\n"; \
 	if [ $$total_fails -eq 0 ]; then \
 		printf "  Result: ALL PASSED\n"; \
