@@ -291,6 +291,8 @@ void file_cleanName(char *name_out, const char *file_name)
 
 const char *file_getExtension(const char *filename)
 {
+    if (filename == NULL)
+        return "";
     const char *dot = strrchr(filename, '.');
     if (!dot || dot == filename)
         return "";

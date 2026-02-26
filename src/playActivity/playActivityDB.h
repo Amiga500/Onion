@@ -227,8 +227,12 @@ PlayActivities *play_activity_find_all(void)
         rom->id = sqlite3_column_int(stmt, 0);
         const char *col_type = (const char *)sqlite3_column_text(stmt, 1);
         rom->type = strdup(col_type != NULL ? col_type : "");
+        if (rom->type == NULL)
+            rom->type = strdup("");
         const char *col_name = (const char *)sqlite3_column_text(stmt, 2);
         rom->name = strdup(col_name != NULL ? col_name : "");
+        if (rom->name == NULL)
+            rom->name = strdup("");
         if (sqlite3_column_text(stmt, 3) != NULL) {
             rom->file_path = strdup((const char *)sqlite3_column_text(stmt, 3));
             if (rom->file_path != NULL) {
@@ -261,6 +265,8 @@ PlayActivities *play_activity_find_all(void)
 
 void free_play_activities(PlayActivities *pa_ptr)
 {
+    if (pa_ptr == NULL)
+        return;
     for (int i = 0; i < pa_ptr->count; i++) {
         free(pa_ptr->play_activity[i]->first_played_at);
         free(pa_ptr->play_activity[i]->last_played_at);
@@ -633,6 +639,10 @@ void play_activity_list_all(void)
     print_debug("\n:: play_activity_list_all()");
     int total_play_time = play_activity_get_total_play_time();
     PlayActivities *pas = play_activity_find_all();
+    if (pas == NULL) {
+        printf("\nNo play activity data found.\n");
+        return;
+    }
 
     printf("\n");
 

@@ -272,12 +272,16 @@ bool addRandomFromJson(char *json_path)
                 continue;
             }
 
-            realpath(game->path, path_b);
+            if (realpath(game->path, path_b) == NULL) {
+                cJSON_Delete(json_root);
+                continue;
+            }
             bool is_duplicate = false;
 
             for (int i = 0; i < count; i++) {
                 GameEntry *other = &random_games[i];
-                realpath(other->path, path_a);
+                if (realpath(other->path, path_a) == NULL)
+                    continue;
                 if (other->id == game->id && strcmp(path_a, path_b) == 0) {
                     is_duplicate = true;
                     break;

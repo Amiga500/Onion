@@ -216,19 +216,20 @@ void menu_icon_packs(void *_)
         list_sortByLabel(&_menu_icon_packs);
 
         char selected_path[PATH_MAX];
-        realpath((active_icon_pack != NULL && is_dir(active_icon_pack)) ? active_icon_pack
+        if (realpath((active_icon_pack != NULL && is_dir(active_icon_pack)) ? active_icon_pack
                                           : "/mnt/SDCARD/Icons/Default",
-                 selected_path);
+                 selected_path) != NULL) {
+            for (int i = 0; i < _menu_icon_packs.item_count; i++) {
+                ListItem *current_item = &_menu_icon_packs.items[i];
 
-        for (int i = 0; i < _menu_icon_packs.item_count; i++) {
-            ListItem *current_item = &_menu_icon_packs.items[i];
+                char current_path[PATH_MAX];
+                if (realpath(current_item->payload, current_path) == NULL)
+                    continue;
 
-            char current_path[PATH_MAX];
-            realpath(current_item->payload, current_path);
-
-            if (strcmp(selected_path, current_path) == 0) {
-                list_scrollTo(&_menu_icon_packs, i);
-                break;
+                if (strcmp(selected_path, current_path) == 0) {
+                    list_scrollTo(&_menu_icon_packs, i);
+                    break;
+                }
             }
         }
     }
@@ -271,7 +272,8 @@ bool _add_config_icon(const char *path, const char *name,
         strncpy(preview_path, icon_path, STR_MAX * 2 - 1);
 
     char abs_path[PATH_MAX];
-    realpath(preview_path, abs_path);
+    if (realpath(preview_path, abs_path) == NULL)
+        strncpy(abs_path, preview_path, PATH_MAX - 1);
 
     icon_name = file_removeExtension(basename(icon_path));
     if (icon_name == NULL)
@@ -412,17 +414,18 @@ void _menu_change_icon(ListItem *item, IconMode_e mode)
     list_sortByLabel(&_menu_temp);
 
     char selected_path[PATH_MAX];
-    realpath(info->path, selected_path);
+    if (realpath(info->path, selected_path) != NULL) {
+        for (int i = 0; i < _menu_temp.item_count; i++) {
+            ListItem *current_item = &_menu_temp.items[i];
 
-    for (int i = 0; i < _menu_temp.item_count; i++) {
-        ListItem *current_item = &_menu_temp.items[i];
+            char current_path[PATH_MAX];
+            if (realpath(current_item->preview_path, current_path) == NULL)
+                continue;
 
-        char current_path[PATH_MAX];
-        realpath(current_item->preview_path, current_path);
-
-        if (strcmp(selected_path, current_path) == 0) {
-            list_scrollTo(&_menu_temp, i);
-            break;
+            if (strcmp(selected_path, current_path) == 0) {
+                list_scrollTo(&_menu_temp, i);
+                break;
+            }
         }
     }
 
