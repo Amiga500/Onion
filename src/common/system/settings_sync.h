@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
 #include "shmvar/shmvar.h"
 static KeyShmInfo shminfo;
 #endif
@@ -22,14 +22,14 @@ void settings_show_volume_change()
 {
     // _changed_timer = getMilliseconds();
     // _volume_changed = 1;
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
     // SetKeyShm(&shminfo, MONITOR_VOLUME_CHANGED, _volume_changed);
 #endif
 }
 
 void settings_shm_write(void)
 {
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
     SetKeyShm(&shminfo, MONITOR_BRIGHTNESS, settings.brightness);
     SetKeyShm(&shminfo, MONITOR_VOLUME, settings.volume);
     SetKeyShm(&shminfo, MONITOR_BGM_VOLUME, settings.bgm_volume);
@@ -63,12 +63,12 @@ void settings_shm_read(void)
 
     if (getMilliseconds() - _changed_timer > VOLUME_DISPLAY_TIMEOUT) {
         _volume_changed = 0;
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
         SetKeyShm(&shminfo, MONITOR_VOLUME_CHANGED, _volume_changed);
 #endif
     }
 
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
     if (_has_changed(GetKeyShm(&shminfo, MONITOR_BRIGHTNESS),
                      &settings.brightness))
         has_changes = true;
@@ -98,7 +98,7 @@ void settings_shm_read(void)
 
 void settings_init(void)
 {
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
     InitKeyShm(&shminfo);
 
     // Disable MainUI battery monitor

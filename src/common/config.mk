@@ -68,6 +68,11 @@ endif
 
 ifeq ($(PLATFORM),miyooflip)
 CFLAGS := $(CFLAGS) -march=armv8-a -mtune=cortex-a55 -Wl,-rpath=$(LIB)
+
+ifdef INCLUDE_SHMVAR
+LDFLAGS := $(LDFLAGS) -lshmvar
+endif
+
 endif
 
 # Detect SDL include path (for Linux native and cross-compilation builds)

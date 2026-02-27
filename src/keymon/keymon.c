@@ -653,8 +653,8 @@ int main(void)
                             setVolumeRaw(0, -3);
                         break;
                     case SELECT:
-                        if (DEVICE_ID == MIYOO354)
-                            break; // disable this shortcut for MMP
+                        if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP)
+                            break; // disable this shortcut for MMP/Flip
                         // SELECT + L2 : brightness down
                         if (config_flag_get(".altBrightness"))
                             break;
@@ -691,8 +691,8 @@ int main(void)
                             setVolumeRaw(0, +3);
                         break;
                     case SELECT:
-                        if (DEVICE_ID == MIYOO354)
-                            break; // disable this shortcut for MMP
+                        if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP)
+                            break; // disable this shortcut for MMP/Flip
                         // SELECT + R2 : brightness up
                         if (config_flag_get(".altBrightness"))
                             break;

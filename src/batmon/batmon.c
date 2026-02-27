@@ -41,6 +41,9 @@ int main(int argc, char *argv[])
                     // To solve : Sometimes getBatPercMMP returns 1735289191
                     current_percentage = (current_percentage > 100) ? old_percentage : current_percentage;
                 }
+                else if (DEVICE_ID == MIYOOFLIP) {
+                    current_percentage = getBatPercFlip();
+                }
                 else {
                     current_percentage = 500;
                     saveFakeAxpResult(current_percentage);
@@ -75,6 +78,9 @@ int main(int argc, char *argv[])
             else if (DEVICE_ID == MIYOO354) {
                 current_percentage = getBatPercMMP();
             }
+            else if (DEVICE_ID == MIYOOFLIP) {
+                current_percentage = getBatPercFlip();
+            }
             update_current_duration();
             log_new_percentage(current_percentage, is_charging);
         }
@@ -98,6 +104,9 @@ int main(int argc, char *argv[])
                     current_percentage = getBatPercMMP();
                     // To solve : Sometimes getBatPercMMP returns 1735289191
                     current_percentage = (current_percentage > 100) ? old_percentage : current_percentage;
+                }
+                else if (DEVICE_ID == MIYOOFLIP) {
+                    current_percentage = getBatPercFlip();
                 }
                 printf_debug(
                     "battery check: suspended = %d, perc = %d, warn = %d\n",
@@ -407,6 +416,18 @@ int getBatPercMMP(void)
     }
 
     return battery_number;
+}
+
+int getBatPercFlip(void)
+{
+    int capacity = -1;
+    FILE *fp = fopen("/sys/class/power_supply/battery/capacity", "r");
+    if (fp != NULL) {
+        if (fscanf(fp, "%d", &capacity) != 1)
+            capacity = -1;
+        fclose(fp);
+    }
+    return capacity;
 }
 
 typedef struct {

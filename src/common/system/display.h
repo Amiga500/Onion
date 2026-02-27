@@ -478,23 +478,25 @@ void display_drawFrame(uint32_t color)
 {
     uint32_t *ofs = g_display.fb_addr;
     uint32_t i;
-    for (i = 0; i < 640; i++) {
+    int w = g_display.width;
+    int h = g_display.height;
+    for (i = 0; i < (uint32_t)w; i++) {
         ofs[i] = color;
     }
-    ofs += 640 * 479;
-    for (i = 0; i < 640 * 2; i++) {
+    ofs += w * (h - 1);
+    for (i = 0; i < (uint32_t)w * 2; i++) {
         ofs[i] = color;
     }
-    ofs += 640 * 480;
-    for (i = 0; i < 640 * 2; i++) {
+    ofs += w * h;
+    for (i = 0; i < (uint32_t)w * 2; i++) {
         ofs[i] = color;
     }
-    ofs += 640 * 480;
-    for (i = 0; i < 640; i++) {
+    ofs += w * h;
+    for (i = 0; i < (uint32_t)w; i++) {
         ofs[i] = color;
     }
-    ofs = g_display.fb_addr + 639;
-    for (i = 0; i < 480 * 3 - 1; i++, ofs += 640) {
+    ofs = g_display.fb_addr + w - 1;
+    for (i = 0; i < (uint32_t)(h * 3 - 1); i++, ofs += w) {
         ofs[0] = color;
         ofs[1] = color;
     }
