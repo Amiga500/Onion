@@ -109,16 +109,15 @@ static bool _battery_isCharging_impl(void)
     return false;
 #elif defined(PLATFORM_MIYOOFLIP)
     /* RK3566: use standard Linux power_supply sysfs interface */
+    bool charging = false;
     char status[32] = {0};
     FILE *fp = fopen("/sys/class/power_supply/battery/status", "r");
     if (fp != NULL) {
-        if (fgets(status, sizeof(status), fp) != NULL) {
-            fclose(fp);
-            return strncmp(status, "Charging", 8) == 0;
-        }
+        if (fgets(status, sizeof(status), fp) != NULL)
+            charging = (strncmp(status, "Charging", 8) == 0);
         fclose(fp);
     }
-    return false;
+    return charging;
 #else
     return false;
 #endif
