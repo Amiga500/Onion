@@ -112,18 +112,23 @@ TEST(unknown_device_always_out_of_bounds) {
 
 /* ==== Tests: cpuclock tool sysfs bounds (MIYOOFLIP: 100-1800 MHz) ==== */
 
+static bool cpuclock_tool_in_range(int clock_mhz, int min_mhz, int max_mhz)
+{
+    return (clock_mhz >= min_mhz && clock_mhz <= max_mhz);
+}
+
 TEST(cpuclock_sysfs_flip_valid_range) {
     /* cpuclock tool accepts 100-1800 MHz for MIYOOFLIP */
-    ASSERT_TRUE(100 >= 100 && 100 <= 1800);
-    ASSERT_TRUE(1800 >= 100 && 1800 <= 1800);
-    ASSERT_TRUE(1000 >= 100 && 1000 <= 1800);
+    ASSERT_TRUE(cpuclock_tool_in_range(100, 100, 1800));
+    ASSERT_TRUE(cpuclock_tool_in_range(1800, 100, 1800));
+    ASSERT_TRUE(cpuclock_tool_in_range(1000, 100, 1800));
 }
 
 TEST(cpuclock_sysfs_flip_invalid_range) {
     /* cpuclock tool rejects <100 and >1800 for MIYOOFLIP */
-    ASSERT_FALSE(99 >= 100 && 99 <= 1800);
-    ASSERT_FALSE(1801 >= 100 && 1801 <= 1800);
-    ASSERT_FALSE(0 >= 100 && 0 <= 1800);
+    ASSERT_FALSE(cpuclock_tool_in_range(99, 100, 1800));
+    ASSERT_FALSE(cpuclock_tool_in_range(1801, 100, 1800));
+    ASSERT_FALSE(cpuclock_tool_in_range(0, 100, 1800));
 }
 
 /* ---- main ---- */
