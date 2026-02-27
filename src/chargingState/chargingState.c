@@ -233,7 +233,7 @@ int main(void)
     SDL_FillRect(video, NULL, 0);
     SDL_Flip(video);
 
-#ifndef PLATFORM_MIYOOMINI
+#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
     msleep(100);
 #endif
 
@@ -246,13 +246,13 @@ int main(void)
     SDL_Quit();
 
     if (turn_off) {
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
         display_setScreen(false);
         system("shutdown; sleep 10");
 #endif
     }
     else {
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
         display_setScreen(true);
         short_pulse();
 #endif

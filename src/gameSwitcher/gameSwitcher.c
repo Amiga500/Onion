@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
         }
     }
 
-#ifndef PLATFORM_MIYOOMINI
+#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
     msleep(200);
 #endif
 

@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 
     resources_free();
 
-#ifndef PLATFORM_MIYOOMINI
+#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
     sleep(4); // for debugging purposes
 #endif
 

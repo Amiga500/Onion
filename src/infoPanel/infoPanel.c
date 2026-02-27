@@ -479,7 +479,7 @@ int main(int argc, char *argv[])
     lang_free();
     resources_free();
 
-#ifndef PLATFORM_MIYOOMINI
+#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
     msleep(200); // to clear SDL input on quit
 #endif
 

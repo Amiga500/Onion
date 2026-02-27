@@ -52,7 +52,7 @@ int battery_getPercentage(void)
         msleep(100);
     }
 
-#ifndef PLATFORM_MIYOOMINI
+#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
 #ifdef LOG_DEBUG
     return 78;
 #endif

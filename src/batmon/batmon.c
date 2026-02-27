@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
             ticks = -1;
         }
 
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
         if (is_suspended || current_percentage == 500) {
             batteryWarning_hide();
         }

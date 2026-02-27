@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);
 
-#ifndef PLATFORM_MIYOOMINI
+#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
     msleep(200); // to clear SDL input on quit
 #endif
 
