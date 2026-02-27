@@ -4,8 +4,6 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <string.h>
 #include <unistd.h>
 
 #include "settings.h"
@@ -23,24 +21,12 @@ static int short_timings[] = {0, 50, 100, 150};
 void rumble(bool enabled)
 {
     static bool gpio_initialized = false;
-    /*
-     * GPIO pin for vibration motor — must be verified against actual hardware.
-     * Miyoo Mini uses GPIO48; Miyoo Flip pin TBD (update when hardware available).
-     */
-    static const char *gpio_num = "48";
-    static char gpio_dir_path[64] = {0};
-    static char gpio_val_path[64] = {0};
-
     if (!gpio_initialized) {
-        snprintf(gpio_dir_path, sizeof(gpio_dir_path),
-                 "/sys/class/gpio/gpio%s/direction", gpio_num);
-        snprintf(gpio_val_path, sizeof(gpio_val_path),
-                 "/sys/class/gpio/gpio%s/value", gpio_num);
-        file_write("/sys/class/gpio/export", gpio_num, strlen(gpio_num));
-        file_write(gpio_dir_path, "out", 3);
+        file_write("/sys/class/gpio/export", "48", 2);
+        file_write("/sys/class/gpio/gpio48/direction", "out", 3);
         gpio_initialized = true;
     }
-    file_write(gpio_val_path, enabled ? "0" : "1", 1);
+    file_write("/sys/class/gpio/gpio48/value", enabled ? "0" : "1", 1);
 }
 
 /**
