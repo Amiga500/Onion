@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
     }
 
     if (DEVICE_ID != MIYOO354 && DEVICE_ID != MIYOO283) {
-        puts("This tool is only for Miyoo Mini");
+        puts("This tool is only for Miyoo Mini / Mini+");
         return 1;
     }
 

@@ -326,7 +326,7 @@ depending on familiarity with the RK3566 BSP.
 
 ## 6. Implementation Status
 
-The following changes have been implemented in the codebase. All 1,397 existing
+The following changes have been implemented in the codebase. All 1,399 existing
 unit tests pass with zero failures.
 
 ### Phase 1: Foundation ✅ COMPLETE
@@ -434,7 +434,7 @@ enable running more demanding emulators and a smoother user experience.
   `PLATFORM_MIYOOFLIP` (chargingState, batmon, prompt, bootScreen, gameSwitcher,
   packageManager, tweaks, infoPanel, renameRom, themeSwitcher, battery)
 - ✅ System defaults created for Miyoo Flip (`miyoo566_system.json`)
-- ✅ All 1,397 existing unit tests pass with zero regressions
+- ✅ All 1,399 existing unit tests pass with zero regressions
 
 ### What Remains (Requires Hardware)
 

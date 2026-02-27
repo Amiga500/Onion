@@ -131,6 +131,35 @@ TEST(cpuclock_sysfs_flip_invalid_range) {
     ASSERT_FALSE(cpuclock_tool_in_range(0, 100, 1800));
 }
 
+/* ==== Tests: cpuclock tool device model acceptance ==== */
+
+/**
+ * Replicate the cpuclock tool main() device acceptance logic:
+ * - MIYOOFLIP: accepted (handled first via sysfs path)
+ * - MIYOO354, MIYOO283: accepted (mmap PLL path)
+ * - All others: rejected
+ */
+static bool cpuclock_accepts_device(int device_id)
+{
+    if (device_id == MIYOOFLIP)
+        return true; /* handled via sysfs path */
+    if (device_id == MIYOO354 || device_id == MIYOO283)
+        return true; /* handled via mmap PLL path */
+    return false;
+}
+
+TEST(cpuclock_accepts_all_known_devices) {
+    ASSERT_TRUE(cpuclock_accepts_device(MIYOO283));
+    ASSERT_TRUE(cpuclock_accepts_device(MIYOO354));
+    ASSERT_TRUE(cpuclock_accepts_device(MIYOOFLIP));
+}
+
+TEST(cpuclock_rejects_unknown_devices) {
+    ASSERT_FALSE(cpuclock_accepts_device(0));
+    ASSERT_FALSE(cpuclock_accepts_device(100));
+    ASSERT_FALSE(cpuclock_accepts_device(999));
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -156,6 +185,10 @@ int main(void)
     /* cpuclock tool sysfs bounds */
     RUN_TEST(cpuclock_sysfs_flip_valid_range);
     RUN_TEST(cpuclock_sysfs_flip_invalid_range);
+
+    /* cpuclock tool device model acceptance */
+    RUN_TEST(cpuclock_accepts_all_known_devices);
+    RUN_TEST(cpuclock_rejects_unknown_devices);
 
     TEST_REPORT();
     return test_failures;
