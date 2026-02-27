@@ -14,7 +14,7 @@
 #include "utils/log.h"
 #include "utils/sdl_init.h"
 
-#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
+#ifdef PLATFORM_MIYOOMINI
 static bool _render_direct_to_fb = true;
 #else
 static bool _render_direct_to_fb = false;

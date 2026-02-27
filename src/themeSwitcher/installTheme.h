@@ -13,7 +13,7 @@
 #include "utils/log.h"
 #include "utils/str.h"
 
-#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
+#ifdef PLATFORM_MIYOOMINI
 #define SCRIPT_DIR "/mnt/SDCARD/.tmp_update/script"
 #else
 #define SCRIPT_DIR "./script"

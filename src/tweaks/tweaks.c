@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
                         list_changed = true;
                     }
                 }
-                if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP) {
+                if (DEVICE_ID == MIYOO354) {
                     if (isMenu(&_menu_user_blue_light)) {
                         if (_writeDateString(_menu_user_blue_light.items[0].label)) {
                             list_changed = true;
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
     if (DEVICE_ID == MIYOO354) {
         value_setLcdVoltage();
     }
-    if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP) {
+    if (DEVICE_ID == MIYOO354) {
         check_networkChanged();
     }
 
@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);
 
-#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
+#ifndef PLATFORM_MIYOOMINI
     msleep(200); // to clear SDL input on quit
 #endif
 

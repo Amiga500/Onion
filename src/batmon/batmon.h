@@ -14,7 +14,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
+#ifdef PLATFORM_MIYOOMINI
 #include "shmvar/shmvar.h"
 #endif
 
@@ -62,7 +62,6 @@ void saveFakeAxpResult(int current_percentage);
 bool isCharging(void);
 int updateADCValue(int);
 int getBatPercMMP(void);
-int getBatPercFlip(void);
 int batteryPercentage(int);
 static void *batteryWarning_thread(void *param);
 void batteryWarning_show(void);

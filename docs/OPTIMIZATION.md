@@ -1,6 +1,6 @@
 # 🚀 Onion OS — Optimization Report
 
-> **546 commits** · **236+ bug fixes** · **75+ security patches** · **35+ performance optimizations** · **1,399 unit tests**
+> **546 commits** · **236+ bug fixes** · **75+ security patches** · **35+ performance optimizations** · **1,373 unit tests**
 
 ---
 
@@ -18,8 +18,7 @@
 5. [Testing and Code Quality](#-4-testing-and-code-quality)
 6. [New Features and Infrastructure](#-5-new-features-and-infrastructure)
 7. [Build System and CI/CD](#%EF%B8%8F-6-build-system-and-cicd-improvements)
-8. [Miyoo Flip (RK3566) Porting](#-7-miyoo-flip-rk3566-porting)
-9. [Overall Statistics](#-8-overall-statistics)
+8. [Overall Statistics](#-7-overall-statistics)
 
 ---
 
@@ -37,14 +36,12 @@
 | 🛡️ Unsafe `strcpy`/null-term gaps | 30+ files | 0 | **−100 %** ✅ |
 | ⚡ Image 180° rotation | software rotozoom | NEON VREV64 | **+5000%** 🚀 |
 | ⚡ ARGB↔RGBA conversion | scalar loop | NEON VLD4/VST4 | **16 px/iter** 🚀 |
-| ⚡ NEON portability | ARMv7 asm only | `arm_neon.h` intrinsics | **ARMv7 + AArch64** ✅ |
 | ⚡ `str_count_char` | O(n²) | O(n) | **−90 %** 🚀 |
 | ⚡ SQLite open/close | 2 per op | 1 per op | **−50 %** 🚀 |
 | ⚡ TTF rendering | every frame | cached surfaces | **eliminated** ✅ |
 | ⚡ Brightness sysfs writes | every call | cached | **−100 % dupes** ✅ |
-| 🧪 Unit tests | ~0 | 1,399+ | **+∞** ✅ |
+| 🧪 Unit tests | ~0 | 1,373+ | **+∞** ✅ |
 | 📦 Signal-handler code | 8 files × 8 lines | 1 shared header | **−100 %** ✅ |
-| 🔄 Miyoo Flip (RK3566) | unsupported | software-ready | **new platform** ✅ |
 
 ---
 
@@ -236,22 +233,18 @@ making the contract uniform.
 ### 2.1 Shared NEON Library `neon_pixel.h` (up to +5000%)
 
 **Problem:** Critical graphics operations implemented in software (slow).
-**Solution:** Created shared ARM NEON library `src/common/utils/neon_pixel.h`.
-All 7 NEON functions have been rewritten from ARMv7 inline assembly (`VLD4.8`,
-`VREV64`, etc.) to portable **`arm_neon.h` intrinsics** (`vld4q_u8`, `vrev64q_u8`,
-etc.), enabling compilation on both **ARMv7 (Cortex-A7)** and **AArch64
-(Cortex-A55)** without any code changes.
+**Solution:** Created shared ARM NEON assembly library `src/common/utils/neon_pixel.h`.
 
-| NEON Function | Intrinsics | Throughput | Speedup |
+| NEON Function | Instructions | Throughput | Speedup |
 |---------------|------------|-----------|---------|
-| `neon_swap_rb_inplace()` | vld4q/vst4q | **16 px/iter** | 🚀 ~+800% |
-| `neon_argb_to_rgba()` | vld4q/vst4q | **16 px/iter** | 🚀 ~+800% |
-| `neon_argb_to_rgba_alpha()` | vceqq+vandq | **16 px/iter** | 🚀 ~+600% |
-| `neon_rotate180_inplace()` | vrev64q | **8 px/iter** | 🚀 **+5000%** |
-| `neon_rgb888_to_argb()` | vld3q/vst4q | **16 px/iter** | 🚀 ~+800% |
-| `neon_gray8_to_argb()` | vld1q/vst4q | **16 px/iter** | 🚀 ~+600% |
-| `neon_gray8a_to_argb()` | vld2q/vst4q | **8 px/iter** | 🚀 ~+500% |
-| `surfaceSetAlpha` NEON | vmull+vshrn | **8 px/iter** | 🚀 ~+400% |
+| `neon_swap_rb_inplace()` | VLD4/VST4 | **16 px/iter** | 🚀 ~+800% |
+| `neon_argb_to_rgba()` | VLD4/VST4 | **16 px/iter** | 🚀 ~+800% |
+| `neon_argb_to_rgba_alpha()` | VCMP+VMASK | **16 px/iter** | 🚀 ~+600% |
+| `neon_rotate180_inplace()` | VREV64 | **8 px/iter** | 🚀 **+5000%** |
+| `neon_rgb888_to_argb()` | VLD3/VST4 | **16 px/iter** | 🚀 ~+800% |
+| `neon_gray8_to_argb()` | VLD1/VST4 | **16 px/iter** | 🚀 ~+600% |
+| `neon_gray8a_to_argb()` | VLD2/VST4 | **8 px/iter** | 🚀 ~+500% |
+| `surfaceSetAlpha` NEON | VMULL+VSHR | **8 px/iter** | 🚀 ~+400% |
 
 > 📈 **180° rotation:** from ~2ms (software rotozoom) to ~40µs NEON = **+5000%**.
 > 📈 **Pixel format conversions:** 16 pixels throughput per clock cycle.
@@ -317,7 +310,6 @@ LDFLAGS += -Wl,--gc-sections
 - `-O2`: release optimization (balanced speed/size)
 - `-ffunction-sections` + `-fdata-sections` + `--gc-sections`: dead-code elimination
 - ARM Cortex-A7: `-mtune=cortex-a7 -march=armv7ve -mfpu=neon-vfpv4 -mfloat-abi=hard`
-- ARM Cortex-A55 (Miyoo Flip): `-march=armv8-a -mtune=cortex-a55` (AArch64)
 
 > 📈 **Estimated result:** −5–15% final binary size thanks to gc-sections.
 
@@ -681,64 +673,7 @@ Fixes that prevent edge-case failures and improve long-term resilience.
 
 ---
 
-## 🔄 7. Miyoo Flip (RK3566) Porting
-
-Full platform porting to the **Miyoo Flip** handheld (Rockchip RK3566, quad-core
-ARM Cortex-A55, AArch64, 1 GB RAM). All software-side changes are complete;
-remaining work requires access to actual hardware.
-
-> 📄 **Full analysis:** [docs/PORTING_MIYOO_FLIP_RK3566.md](PORTING_MIYOO_FLIP_RK3566.md)
-
-### 7.1 Build System & Device Model
-
-✅ **Build target:** `PLATFORM=miyooflip` in `config.mk` with AArch64 flags
-(`-march=armv8-a -mtune=cortex-a55`) and `libshmvar` linking.
-
-✅ **Device model:** `MIYOOFLIP = 566` constant in `device_model.h` with
-runtime detection via `power_supply` sysfs.
-
-### 7.2 Hardware Abstraction Layers
-
-✅ **All HALs ported to RK3566:**
-
-| Subsystem | Miyoo Mini (SigmaStar) | Miyoo Flip (RK3566) |
-|-----------|------------------------|---------------------|
-| Display | GPIO4 + PWM | Backlight sysfs |
-| Audio | MI_AO ioctl (proprietary) | ALSA `amixer` |
-| Battery | AXP I2C + GPIO59 | `power_supply` sysfs |
-| Input | evdev `event0` | evdev (configurable keymap) |
-| Rumble | Hardcoded GPIO48 | Configurable GPIO path |
-| CPU clock | Memory-mapped PLL registers | `cpufreq` sysfs |
-
-### 7.3 NEON SIMD Portability
-
-✅ All 7 NEON pixel functions rewritten from **ARMv7 inline assembly** to
-portable **`arm_neon.h` intrinsics** — compile identically on both Cortex-A7
-(ARMv7) and Cortex-A55 (AArch64).
-
-### 7.4 Platform Guards
-
-✅ **35+ source files** extended with `PLATFORM_MIYOOFLIP` guards:
-- 11 C application files (batmon, chargingState, keymon, tweaks, etc.)
-- 8 shared headers (display.h, volume.h, battery.h, osd.h, etc.)
-- 6 shell scripts (runtime.sh, install.sh, game_list_options.sh, etc.)
-- System defaults: `miyoo566_system.json` (ALSA audio, no MI_AO workaround)
-
-### 7.5 What Remains (Requires Hardware)
-
-🔲 AArch64 cross-compilation toolchain (Docker/Buildroot)
-🔲 RetroArch + LibRetro cores rebuild for AArch64
-🔲 System utilities (curl, 7z, ffmpeg, jq, sqlite3) cross-compile
-🔲 Button keycodes from actual hardware event device
-🔲 Integration testing on real hardware
-🔲 GPU acceleration (Mali-G52 OpenGL ES / Vulkan) — future
-
-> 📈 **Result:** Codebase is **ready for hardware bring-up**. Estimated 3-5 weeks
-> remaining with hardware access.
-
----
-
-## 📈 8. Overall Statistics
+## 📈 7. Overall Statistics
 
 | Metric | Value |
 |:-------|------:|
@@ -746,7 +681,7 @@ portable **`arm_neon.h` intrinsics** — compile identically on both Cortex-A7
 | 🐛 **Bugs fixed** | **236+** |
 | 🛡️ **Security vulnerabilities fixed** | **75+** |
 | ⚡ **Performance optimizations** | **35+** |
-| 🧪 **Unit tests** | **1,399+** (68 test suites) |
+| 🧪 **Unit tests** | **1,373+** (68 test suites) |
 | 📁 **Source files** | **160+** (.c / .h / .cpp / .sh) |
 | 🗑️ **Duplicated lines eliminated** | **~200** |
 | 🚀 **Max single-op speedup** | **+5000%** (NEON 180° rotation) |
@@ -754,7 +689,7 @@ portable **`arm_neon.h` intrinsics** — compile identically on both Cortex-A7
 | 📉 **SQLite open/close reduction** | **−50 %** |
 | 📉 **Unsafe buffers eliminated** | **−100 %** (`sprintf`, `strcpy`, `strncpy` null-term) |
 | 📉 **JSON crash paths eliminated** | **58** dedicated tests passing |
-| 🔄 **Platforms supported** | **3** (Miyoo Mini 283, Mini+ 354, Flip 566) |
+| 🔄 **Platforms supported** | **2** (Miyoo Mini 283, Mini+ 354) |
 | 🔀 **Merged pull requests** | **125** |
 
 ---
@@ -763,10 +698,9 @@ portable **`arm_neon.h` intrinsics** — compile identically on both Cortex-A7
 
 The Onion OS codebase has been transformed from a project with **200+ latent bugs**
 and **zero tests** into a **robust, secure, and optimized** codebase supporting
-the ARM Cortex-A7 processor of the Miyoo Mini / Mini+ and the ARM Cortex-A55
-processor of the Miyoo Flip (RK3566).
+the ARM Cortex-A7 processor of the Miyoo Mini / Mini+.
 
-> **No functional regressions** — all 1,399+ unit tests pass. ✅
+> **No functional regressions** — all 1,373+ unit tests pass. ✅
 
 ---
 

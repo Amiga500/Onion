@@ -52,7 +52,7 @@ int battery_getPercentage(void)
         msleep(100);
     }
 
-#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
+#ifndef PLATFORM_MIYOOMINI
 #ifdef LOG_DEBUG
     return 78;
 #endif
@@ -107,17 +107,6 @@ static bool _battery_isCharging_impl(void)
         return charge_number == 3;
     }
     return false;
-#elif defined(PLATFORM_MIYOOFLIP)
-    /* RK3566: use standard Linux power_supply sysfs interface */
-    bool charging = false;
-    char status[32] = {0};
-    FILE *fp = fopen("/sys/class/power_supply/battery/status", "r");
-    if (fp != NULL) {
-        if (fgets(status, sizeof(status), fp) != NULL)
-            charging = (strncmp(status, "Charging", 8) == 0);
-        fclose(fp);
-    }
-    return charging;
 #else
     return false;
 #endif
