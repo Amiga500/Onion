@@ -353,7 +353,33 @@ unit tests pass with zero failures.
 | Settings sync | `settings_sync.h` | ✅ Verified: shmvar guards are correct (no-op on Flip) |
 | Screenshot | `screenshot.h` | ✅ Uses portable NEON intrinsics (no changes needed) |
 
-### Phase 3: Runtime — REQUIRES HARDWARE
+### Phase 3: Runtime Scripts & Platform Guards ✅ COMPLETE
+
+| Component | File(s) | Status |
+|---|---|---|
+| Device detection | `runtime.sh` | ✅ `MODEL_FLIP=566`, detected via `power_supply` sysfs |
+| Charging detection | `runtime.sh` | ✅ `battery/status` = "Charging" / "Full" |
+| Backlight init | `runtime.sh` | ✅ Platform-aware: backlight sysfs (Flip) vs PWM (Mini) |
+| Screen resolution | `runtime.sh` | ✅ `fbset` fallback for Flip (no `mi_fb` module) |
+| RetroArch variant | `runtime.sh` | ✅ `retroarch_miyoo566` mount for AArch64 binary |
+| Audio preload | `runtime.sh` | ✅ `LD_PRELOAD=libpadsp.so` skipped on Flip (uses ALSA) |
+| MainUI launch | `runtime.sh` | ✅ Conditional `LD_PRELOAD` for MainUI and gameSwitcher |
+| Installer | `install.sh` | ✅ Model detection, backlight init, firmware check |
+| Networking | `game_list_options.sh` | ✅ `has_networking=1` for model 566 |
+| System defaults | `miyoo566_system.json` | ✅ Created with `audiofix=0` (ALSA, no MI_AO workaround) |
+| chargingState | `chargingState.c` | ✅ Shutdown/display guards extended to Miyoo Flip |
+| Battery monitor | `batmon.c` | ✅ Battery warning OSD enabled on Miyoo Flip |
+| Prompt dialog | `prompt.c` | ✅ Direct input + shutdown handling on Miyoo Flip |
+| Boot screen | `bootScreen.c` | ✅ Debug sleep skipped on Miyoo Flip |
+| Game switcher | `gameSwitcher.c` | ✅ SDL input delay skipped on Miyoo Flip |
+| Package manager | `packageManager.c` | ✅ SDL input delay skipped on Miyoo Flip |
+| Tweaks UI | `tweaks.c` | ✅ SDL input delay skipped on Miyoo Flip |
+| Info panel | `infoPanel.c` | ✅ SDL input delay skipped on Miyoo Flip |
+| Rename ROM | `renameRom.c` | ✅ File rename enabled on Miyoo Flip |
+| Theme switcher | `installTheme.h` | ✅ Script directory path set for Miyoo Flip |
+| Battery debug | `battery.h` | ✅ Debug mock disabled on Miyoo Flip |
+
+### Phase 4: Hardware Integration — REQUIRES HARDWARE
 
 These items require access to actual Miyoo Flip hardware or its BSP/SDK:
 
@@ -363,11 +389,11 @@ These items require access to actual Miyoo Flip hardware or its BSP/SDK:
 | RetroArch build | 🔲 Pending | Must rebuild for AArch64 from `third-party/` |
 | LibRetro cores | 🔲 Pending | Priority: NES, SNES, GBA, MD, PS1 |
 | System utilities | 🔲 Pending | curl, 7z, ffmpeg, jq, sqlite3 |
-| Shell scripts | 🔲 Pending | runtime.sh device detection, library paths |
 | Actual button keycodes | 🔲 Pending | Must dump from actual hardware event device |
 | Vibration GPIO pin | 🔲 Pending | Must identify from device tree / schematic |
+| Integration testing | 🔲 Pending | Full system test on real hardware |
 
-### Phase 4: Optimization — FUTURE
+### Phase 5: Optimization — FUTURE
 
 | Component | Status | Notes |
 |---|---|---|
@@ -394,6 +420,13 @@ enable running more demanding emulators and a smoother user experience.
   display, audio (ALSA), battery (power_supply), brightness (backlight sysfs),
   input (evdev with configurable keymap), rumble (configurable GPIO)
 - ✅ Platform guards extended to enable OSD, direct FB rendering on Miyoo Flip
+- ✅ Runtime shell scripts updated with Miyoo Flip device detection, charging
+  detection, backlight initialization, conditional audio preloading
+- ✅ Installer script updated with Miyoo Flip support
+- ✅ All 11 C source files with `PLATFORM_MIYOOMINI` guards extended to include
+  `PLATFORM_MIYOOFLIP` (chargingState, batmon, prompt, bootScreen, gameSwitcher,
+  packageManager, tweaks, infoPanel, renameRom, themeSwitcher, battery)
+- ✅ System defaults created for Miyoo Flip (`miyoo566_system.json`)
 - ✅ All 1,373 existing unit tests pass with zero regressions
 
 ### What Remains (Requires Hardware)
@@ -407,8 +440,7 @@ BSP/SDK and cannot be completed in a software-only environment:
 4. **System utilities** — cross-compile curl, 7z, ffmpeg, etc.
 5. **Hardware-specific tuning** — actual button keycodes, GPIO pins, display
    resolution from real device
-6. **Shell script adaptation** — runtime.sh for new device detection flow
-7. **Integration testing** — verify on real hardware
+6. **Integration testing** — verify on real hardware
 
 ### Estimated Remaining Effort
 
@@ -416,8 +448,9 @@ BSP/SDK and cannot be completed in a software-only environment:
 |---|---|---|
 | Phase 1: Foundation | 1-2 weeks | ✅ **100% complete** |
 | Phase 2: HAL + SIMD | 1-2 weeks | ✅ **100% complete** |
-| Phase 3: Runtime (needs HW) | 2-3 weeks | 🔲 Pending hardware |
-| Phase 4: Optimization | 1-2 weeks | 🔲 Future |
+| Phase 3: Runtime Scripts | 1 week | ✅ **100% complete** |
+| Phase 4: Hardware (needs HW) | 2-3 weeks | 🔲 Pending hardware |
+| Phase 5: Optimization | 1-2 weeks | 🔲 Future |
 | **Total remaining** | **3-5 weeks** | With hardware access |
 
 The codebase is now **ready for hardware bring-up**. Once a Miyoo Flip device
