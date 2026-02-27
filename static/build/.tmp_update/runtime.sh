@@ -9,12 +9,31 @@ logfile=$(basename "$0" .sh)
 
 MODEL_MM=283
 MODEL_MMP=354
+MODEL_FLIP=566
 screen_resolution="640x480"
+
+detect_device_model() {
+    # Miyoo Flip (RK3566): check for standard Linux power_supply
+    if [ -d /sys/class/power_supply/battery ]; then
+        echo $MODEL_FLIP
+    # Miyoo Mini+ (SSD212): check for AXP power IC
+    elif axp 0 > /dev/null 2>&1; then
+        echo $MODEL_MMP
+    else
+        echo $MODEL_MM
+    fi
+}
+
+# Helper: LD_PRELOAD for audio — libpadsp.so is Miyoo Mini-specific
+get_audio_preload() {
+    if [ $DEVICE_ID -ne $MODEL_FLIP ]; then
+        echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so "
+    fi
+}
 
 main() {
     # Set model ID
-    axp 0 > /dev/null
-    export DEVICE_ID=$([ $? -eq 0 ] && echo $MODEL_MMP || echo $MODEL_MM)
+    export DEVICE_ID=$(detect_device_model)
     echo -n "$DEVICE_ID" > /tmp/deviceModel
 
     SERIAL_NUMBER=$(read_uuid)
@@ -48,6 +67,10 @@ main() {
     elif [ $DEVICE_ID -eq $MODEL_MMP ]; then
         axp_status="0x$(axp 0 | cut -d':' -f2)"
         is_charging=$([ $(($axp_status & 0x4)) -eq 4 ] && echo 1 || echo 0)
+    elif [ $DEVICE_ID -eq $MODEL_FLIP ]; then
+        # RK3566: standard Linux power_supply sysfs
+        charging_status=$(cat /sys/class/power_supply/battery/status 2>/dev/null)
+        is_charging=$([ "$charging_status" = "Charging" ] || [ "$charging_status" = "Full" ] && echo 1 || echo 0)
     fi
 
     # Show charging animation
@@ -103,6 +126,9 @@ main() {
     if [ $DEVICE_ID -eq $MODEL_MMP ] && [ -f /mnt/SDCARD/RetroArch/retroarch_miyoo354 ]; then
         # Mount miyoo354 RA version
         mount -o bind /mnt/SDCARD/RetroArch/retroarch_miyoo354 /mnt/SDCARD/RetroArch/retroarch
+    elif [ $DEVICE_ID -eq $MODEL_FLIP ] && [ -f /mnt/SDCARD/RetroArch/retroarch_miyoo566 ]; then
+        # Mount miyoo566 (AArch64) RA version
+        mount -o bind /mnt/SDCARD/RetroArch/retroarch_miyoo566 /mnt/SDCARD/RetroArch/retroarch
     fi
 
     # Bind arcade name library to customer path
@@ -135,7 +161,7 @@ main() {
             touch $sysdir/.runGameSwitcher
         elif [ $startup_app -eq 2 ]; then
             log "\n\n:: STARTUP APP: RetroArch\n\n"
-            echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so ./retroarch -v" > $sysdir/cmd_to_run.sh
+            echo "$(get_audio_preload)./retroarch -v" > $sysdir/cmd_to_run.sh
             touch /tmp/quick_switch
         elif [ $startup_app -eq 3 ]; then
             log "\n\n:: STARTUP APP: AdvanceMENU\n\n"
@@ -219,10 +245,16 @@ launch_main_ui() {
 
     # MainUI launch
     cd $miyoodir/app
-    PATH="$miyoodir/app:$PATH" \
-        LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" \
-        LD_PRELOAD="$miyoodir/lib/libpadsp.so" \
-        ./MainUI > /dev/null 2>&1
+    if [ $DEVICE_ID -ne $MODEL_FLIP ]; then
+        PATH="$miyoodir/app:$PATH" \
+            LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" \
+            LD_PRELOAD="$miyoodir/lib/libpadsp.so" \
+            ./MainUI > /dev/null 2>&1
+    else
+        PATH="$miyoodir/app:$PATH" \
+            LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" \
+            ./MainUI > /dev/null 2>&1
+    fi
 
     # Merge the last game launched into the recent list
     check_hide_recents
@@ -322,7 +354,7 @@ launch_game() {
         if echo "$rompath" | grep -q ":"; then
             launch_script=$(echo "$rompath" | awk '{split($0,a,":"); print a[1]}')
             rompath=$(echo "$rompath" | awk '{split($0,a,":"); print a[2]}')
-            echo "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"$launch_script\" \"$rompath\"" > $sysdir/cmd_to_run.sh
+            echo "$(get_audio_preload)\"$launch_script\" \"$rompath\"" > $sysdir/cmd_to_run.sh
         fi
 
         orig_path="$rompath"
@@ -486,10 +518,10 @@ override_game_core() {
         if [ -f "/mnt/SDCARD/RetroArch/$corepath" ]; then
             if [ -z "$appendconfig" ]; then
                 # No appendconfig needed
-                echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so ./retroarch -v -L \"$corepath\" \"$rompath\"" > $sysdir/cmd_to_run.sh
+                echo "$(get_audio_preload)./retroarch -v -L \"$corepath\" \"$rompath\"" > $sysdir/cmd_to_run.sh
             else
                 # Inject appendconfig directly into the final runtime command
-                echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so ./retroarch -v --appendconfig \"$appendconfig\" -L \"$corepath\" \"$rompath\"" > $sysdir/cmd_to_run.sh
+                echo "$(get_audio_preload)./retroarch -v --appendconfig \"$appendconfig\" -L \"$corepath\" \"$rompath\"" > $sysdir/cmd_to_run.sh
             fi
             return 0 # Success
         else
@@ -636,7 +668,11 @@ launch_switcher() {
     log "\n:: Launch switcher"
     cd $sysdir
     start_audioserver
-    LD_PRELOAD="$miyoodir/lib/libpadsp.so" gameSwitcher
+    if [ $DEVICE_ID -ne $MODEL_FLIP ]; then
+        LD_PRELOAD="$miyoodir/lib/libpadsp.so" gameSwitcher
+    else
+        gameSwitcher
+    fi
     rm "$sysdir/.runGameSwitcher"
     set_prev_state "switcher"
     sync
@@ -713,6 +749,19 @@ get_screen_resolution() {
     attempt=0
 
     log "get_screen_resolution: start"
+
+    if [ $DEVICE_ID -eq $MODEL_FLIP ]; then
+        # RK3566: use fbset or default to 640x480
+        screen_resolution=$(fbset 2>/dev/null | grep 'geometry' | awk '{print $2 "x" $3}')
+        if [ -z "$screen_resolution" ]; then
+            screen_resolution="640x480"
+        fi
+        log "get_screen_resolution: Miyoo Flip, resolution: $screen_resolution"
+        echo -n "$screen_resolution" > /tmp/screen_resolution
+        return
+    fi
+
+    # Miyoo Mini/Mini+: use mi_fb module
     while [ "$attempt" -lt "$max_attempts" ]; do
         screen_resolution=$(grep 'Current TimingWidth=' /proc/mi_modules/fb/mi_fb0 | sed 's/Current TimingWidth=\([0-9]*\),TimingWidth=\([0-9]*\),.*/\1x\2/')
         if [ -n "$screen_resolution" ]; then
@@ -790,18 +839,28 @@ init_system() {
     brightness_raw=$(awk "BEGIN { print int(3 * exp(0.350656 * $brightness) + 0.5) }")
     log "brightness: $brightness -> $brightness_raw"
 
-    # init backlight
-    echo 0 > /sys/class/pwm/pwmchip0/export
-    pwmfile="$sysdir/config/.pwmfrequency"
-    if [ -s $pwmfile ]; then
-        # 0 - 9 = 100 - 1000 Hz
-        frequency=$((($(cat "$pwmfile") + 1) * 100))
+    if [ $DEVICE_ID -eq $MODEL_FLIP ]; then
+        # RK3566: standard Linux backlight sysfs
+        bl_path="/sys/class/backlight/backlight"
+        if [ -d "$bl_path" ]; then
+            max_br=$(cat "$bl_path/max_brightness" 2>/dev/null || echo 255)
+            scaled_br=$((brightness_raw * max_br / 255))
+            echo "$scaled_br" > "$bl_path/brightness"
+        fi
     else
-        frequency=800
+        # Miyoo Mini/Mini+: PWM backlight
+        echo 0 > /sys/class/pwm/pwmchip0/export
+        pwmfile="$sysdir/config/.pwmfrequency"
+        if [ -s $pwmfile ]; then
+            # 0 - 9 = 100 - 1000 Hz
+            frequency=$((($(cat "$pwmfile") + 1) * 100))
+        else
+            frequency=800
+        fi
+        echo $frequency > /sys/class/pwm/pwmchip0/pwm0/period
+        echo $brightness_raw > /sys/class/pwm/pwmchip0/pwm0/duty_cycle
+        echo 1 > /sys/class/pwm/pwmchip0/pwm0/enable
     fi
-    echo $frequency > /sys/class/pwm/pwmchip0/pwm0/period
-    echo $brightness_raw > /sys/class/pwm/pwmchip0/pwm0/duty_cycle
-    echo 1 > /sys/class/pwm/pwmchip0/pwm0/enable
 
     get_screen_resolution
 }
@@ -843,6 +902,9 @@ load_settings() {
                 /mnt/SDCARD/system.json > temp
             mv -f temp /mnt/SDCARD/system.json
         fi
+    elif [ $DEVICE_ID -eq $MODEL_FLIP ]; then
+        # RK3566: charger status available via power_supply sysfs (no GPIO init needed)
+        :
     fi
 
     default_volume="${sysdir}/config/.defaultVolume-${device_uuid}"

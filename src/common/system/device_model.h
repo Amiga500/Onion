@@ -6,6 +6,7 @@
 
 #define MIYOO283 283
 #define MIYOO354 354
+#define MIYOOFLIP 566
 
 static int DEVICE_ID;
 static char DEVICE_SN[13];

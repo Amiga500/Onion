@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
     bool key_changed = false;
     bool info_showned = false;
 
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
     bool first_draw = true;
     int input_fd;
     input_fd = open("/dev/input/event0", O_RDONLY);
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
         acc_ticks += ticks - last_ticks;
         last_ticks = ticks;
 
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
         if (!first_draw) {
             read(input_fd, &ev, sizeof(ev));
             int val = ev.value;
@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
             battery_changed = false;
             info_showned = false;
 
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
             first_draw = false;
 #endif
 
@@ -350,7 +350,7 @@ int main(int argc, char *argv[])
         free(pargs);
     }
 
-#ifdef PLATFORM_MIYOOMINI
+#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
     close(input_fd);
 #endif
 
@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);
 
-#ifndef PLATFORM_MIYOOMINI
+#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
     msleep(200); // to clear SDL input on quit
 #endif
     SDL_Quit();

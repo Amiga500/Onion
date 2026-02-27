@@ -16,6 +16,7 @@ unset LD_PRELOAD
 
 MODEL_MM=283
 MODEL_MMP=354
+MODEL_FLIP=566
 
 install_ra=1
 
@@ -46,13 +47,23 @@ main() {
             echo "in" > $gpiodir/gpio59/direction
         fi
     fi
+    # Miyoo Flip: charger status via power_supply sysfs (no GPIO init needed)
 
     # init backlight
-    pwmdir=/sys/class/pwm/pwmchip0
-    echo 0 > $pwmdir/export
-    echo 800 > $pwmdir/pwm0/period
-    echo 80 > $pwmdir/pwm0/duty_cycle
-    echo 1 > $pwmdir/pwm0/enable
+    if [ $DEVICE_ID -eq $MODEL_FLIP ]; then
+        # RK3566: standard Linux backlight sysfs
+        bl_path="/sys/class/backlight/backlight"
+        if [ -d "$bl_path" ]; then
+            max_br=$(cat "$bl_path/max_brightness" 2>/dev/null || echo 255)
+            echo $((max_br / 3)) > "$bl_path/brightness"
+        fi
+    else
+        pwmdir=/sys/class/pwm/pwmchip0
+        echo 0 > $pwmdir/export
+        echo 800 > $pwmdir/pwm0/period
+        echo 80 > $pwmdir/pwm0/duty_cycle
+        echo 1 > $pwmdir/pwm0/enable
+    fi
 
     killall keymon
 
@@ -142,7 +153,13 @@ cleanup() {
 DEVICE_ID=0
 
 check_device_model() {
-    DEVICE_ID=$([ -f /customer/app/axp_test ] && echo $MODEL_MMP || echo $MODEL_MM)
+    if [ -d /sys/class/power_supply/battery ]; then
+        DEVICE_ID=$MODEL_FLIP
+    elif [ -f /customer/app/axp_test ]; then
+        DEVICE_ID=$MODEL_MMP
+    else
+        DEVICE_ID=$MODEL_MM
+    fi
     echo -n "$DEVICE_ID" > /tmp/deviceModel
 }
 
@@ -496,7 +513,8 @@ install_configs() {
 
 check_firmware() {
     echo ":: Check firmware"
-    if [ ! -f /customer/lib/libpadsp.so ]; then
+    # libpadsp.so is only required for Miyoo Mini/Mini+ (proprietary audio routing)
+    if [ $DEVICE_ID -ne $MODEL_FLIP ] && [ ! -f /customer/lib/libpadsp.so ]; then
         cd $sysdir
         infoPanel -i "res/firmware.png"
         rm -rf $sysdir
