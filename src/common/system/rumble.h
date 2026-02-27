@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "settings.h"
@@ -21,12 +23,24 @@ static int short_timings[] = {0, 50, 100, 150};
 void rumble(bool enabled)
 {
     static bool gpio_initialized = false;
+#if defined(PLATFORM_MIYOOFLIP)
+    /* RK3566: vibration motor GPIO — adjust pin number for actual hardware */
+    static const char *gpio_num = "48";
+    static const char *gpio_path = "/sys/class/gpio/gpio48/";
+#else
+    static const char *gpio_num = "48";
+    static const char *gpio_path = "/sys/class/gpio/gpio48/";
+#endif
     if (!gpio_initialized) {
-        file_write("/sys/class/gpio/export", "48", 2);
-        file_write("/sys/class/gpio/gpio48/direction", "out", 3);
+        file_write("/sys/class/gpio/export", gpio_num, strlen(gpio_num));
+        char dir_path[64];
+        snprintf(dir_path, sizeof(dir_path), "%sdirection", gpio_path);
+        file_write(dir_path, "out", 3);
         gpio_initialized = true;
     }
-    file_write("/sys/class/gpio/gpio48/value", enabled ? "0" : "1", 1);
+    char val_path[64];
+    snprintf(val_path, sizeof(val_path), "%svalue", gpio_path);
+    file_write(val_path, enabled ? "0" : "1", 1);
 }
 
 /**
