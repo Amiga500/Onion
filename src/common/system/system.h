@@ -10,15 +10,9 @@
 // system directories
 #define GPIO_DIR1 "/sys/class/gpio/"
 
-#if defined(PLATFORM_MIYOOFLIP)
-#define GPIO_DIR2 "/sys/class/gpio/"
-#define PWM_DIR "/sys/class/backlight/backlight/"
-#define CPU_DIR "/sys/devices/system/cpu/cpufreq/policy0/"
-#else
 #define GPIO_DIR2 "/sys/devices/gpiochip0/gpio/"
 #define PWM_DIR "/sys/devices/soc0/soc/1f003400.pwm/pwm/pwmchip0/"
 #define CPU_DIR "/sys/devices/system/cpu/cpufreq/policy0/"
-#endif
 
 #define CPU_SCALING_MIN_FREQ CPU_DIR "scaling_min_freq"
 #define CPU_SCALING_GOVERNOR CPU_DIR "scaling_governor"

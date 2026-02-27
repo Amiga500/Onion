@@ -111,7 +111,7 @@ void action_resetMainUI(void *pt)
     snprintf(src_path, sizeof(src_path), "/mnt/SDCARD/.tmp_update/res/miyoo%d_system.json", DEVICE_ID);
     file_copy(src_path, "/mnt/SDCARD/system.json");
 
-    if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP) {
+    if (DEVICE_ID == MIYOO354) {
         remove("/appconfigs/wpa_supplicant.conf");
         file_copy("/mnt/SDCARD/.tmp_update/res/wpa_supplicant.reset", "/appconfigs/wpa_supplicant.conf");
     }

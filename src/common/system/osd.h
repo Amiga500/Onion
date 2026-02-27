@@ -270,13 +270,13 @@ static volatile long _bar_timer = 0;
 static volatile int _bar_value = 0;
 static volatile int _bar_max = 0;
 static volatile uint32_t _bar_color = 0x00FFFFFF;
-#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
+#ifdef PLATFORM_MIYOOMINI
 static uint32_t *_bar_savebuf;
 #endif
 
 void _print_bar(void)
 {
-#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
+#ifdef PLATFORM_MIYOOMINI
     uint32_t *ofs = g_display.fb_addr;
     const uint32_t height = g_display.height;
     // Snapshot volatile values into locals for consistent use within this frame
@@ -300,7 +300,7 @@ void _print_bar(void)
 
 void _bar_restoreBufferBehind(void)
 {
-#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
+#ifdef PLATFORM_MIYOOMINI
     _bar_value = 0;
     _bar_max = 0;
     _bar_color = 0;
@@ -320,7 +320,7 @@ void _bar_restoreBufferBehind(void)
 
 void _bar_saveBufferBehind(void)
 {
-#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
+#ifdef PLATFORM_MIYOOMINI
     // Compact buffer: only meterWidth * height pixels (was width * height — 160x smaller!)
     if ((_bar_savebuf = (uint32_t *)malloc(meterWidth * g_display.height *
                                            sizeof(uint32_t)))) {

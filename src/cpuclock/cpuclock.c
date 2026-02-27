@@ -102,57 +102,12 @@ void set_cpuclock(int clock)
     }
 }
 
-/*
- * RK3566 (Miyoo Flip): use standard Linux cpufreq sysfs interface.
- * No memory-mapped PLL manipulation needed — the kernel handles frequency
- * scaling via the cpufreq subsystem.
- */
-
 static const char fn_governor[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
 static const char fn_setspeed[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_setspeed";
-static const char fn_cur_freq[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq";
-
-static void print_clock_sysfs(void)
-{
-    FILE *fp = fopen(fn_cur_freq, "r");
-    if (fp == NULL) {
-        perror("open scaling_cur_freq");
-        return;
-    }
-    int freq_khz = 0;
-    if (fscanf(fp, "%d", &freq_khz) == 1)
-        printf("%d\n", freq_khz / 1000);
-    fclose(fp);
-}
-
-static int set_cpuclock_sysfs(int clock_mhz)
-{
-    char clockstr[16];
-    snprintf(clockstr, sizeof(clockstr), "%d", clock_mhz * 1000);
-    writefile(fn_governor, "userspace");
-    writefile(fn_setspeed, clockstr);
-    return 0;
-}
 
 int main(int argc, char *argv[])
 {
     getDeviceModel();
-
-    if (DEVICE_ID == MIYOOFLIP) {
-        /* RK3566: use cpufreq sysfs (no mmap PLL needed) */
-        if (argc == 1) {
-            print_clock_sysfs();
-            return 0;
-        }
-        int clock = (int)strtol(argv[1], NULL, 10);
-        if (clock < 100 || clock > 1800) {
-            puts("usage: cpuclock freq[MHz, 100 - 1800]");
-            return 1;
-        }
-        set_cpuclock_sysfs(clock);
-        print_clock_sysfs();
-        return 0;
-    }
 
     if (DEVICE_ID != MIYOO354 && DEVICE_ID != MIYOO283) {
         puts("This tool is only for Miyoo Mini / Mini+");

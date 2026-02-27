@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
         applyAllChanges(auto_update);
     }
 
-#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
+#ifndef PLATFORM_MIYOOMINI
     msleep(200);
 #endif
 

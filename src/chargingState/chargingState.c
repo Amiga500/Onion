@@ -193,7 +193,7 @@ int main(void)
 
         if (!suspended) {
             if (ticks - display_timer >= DISPLAY_TIMEOUT) {
-                if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP) {
+                if (DEVICE_ID == MIYOO354) {
                     quit = true;
                     turn_off = true;
                     break;
@@ -233,7 +233,7 @@ int main(void)
     SDL_FillRect(video, NULL, 0);
     SDL_Flip(video);
 
-#if !defined(PLATFORM_MIYOOMINI) && !defined(PLATFORM_MIYOOFLIP)
+#ifndef PLATFORM_MIYOOMINI
     msleep(100);
 #endif
 
@@ -246,13 +246,13 @@ int main(void)
     SDL_Quit();
 
     if (turn_off) {
-#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
+#ifdef PLATFORM_MIYOOMINI
         display_setScreen(false);
         system("shutdown; sleep 10");
 #endif
     }
     else {
-#if defined(PLATFORM_MIYOOMINI) || defined(PLATFORM_MIYOOFLIP)
+#ifdef PLATFORM_MIYOOMINI
         display_setScreen(true);
         short_pulse();
 #endif
