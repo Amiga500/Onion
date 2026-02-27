@@ -326,7 +326,7 @@ depending on familiarity with the RK3566 BSP.
 
 ## 6. Implementation Status
 
-The following changes have been implemented in the codebase. All 1,383 existing
+The following changes have been implemented in the codebase. All 1,397 existing
 unit tests pass with zero failures.
 
 ### Phase 1: Foundation ✅ COMPLETE
@@ -383,6 +383,8 @@ unit tests pass with zero failures.
 | Theme switcher | `installTheme.h` | ✅ Script directory path set for Miyoo Flip |
 | Battery debug | `battery.h` | ✅ Debug mock disabled on Miyoo Flip |
 | Key monitor | `keymon.c` | ✅ Brightness shortcut disabled for Flip (has volume buttons) |
+| CPU clock hotkey | `keymon.c` | ✅ MIYOOFLIP case in cpuClockHotkey (max 1800 MHz) |
+| CPU clock tool | `cpuclock.c` | ✅ RK3566 uses cpufreq sysfs instead of memory-mapped PLL registers |
 
 ### Phase 4: Hardware Integration — REQUIRES HARDWARE
 
@@ -432,7 +434,7 @@ enable running more demanding emulators and a smoother user experience.
   `PLATFORM_MIYOOFLIP` (chargingState, batmon, prompt, bootScreen, gameSwitcher,
   packageManager, tweaks, infoPanel, renameRom, themeSwitcher, battery)
 - ✅ System defaults created for Miyoo Flip (`miyoo566_system.json`)
-- ✅ All 1,373 existing unit tests pass with zero regressions
+- ✅ All 1,397 existing unit tests pass with zero regressions
 
 ### What Remains (Requires Hardware)
 

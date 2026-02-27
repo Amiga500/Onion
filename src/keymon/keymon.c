@@ -397,6 +397,9 @@ void cpuClockHotkey(int adjust)
     case MIYOO283:
         max_cpu_clock = 1600;
         break;
+    case MIYOOFLIP:
+        max_cpu_clock = 1800; // RK3566 quad Cortex-A55 @ 1.8 GHz
+        break;
     default:
         // Unknown device
         return;
