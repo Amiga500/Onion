@@ -326,17 +326,18 @@ depending on familiarity with the RK3566 BSP.
 
 ## 6. Implementation Status
 
-The following changes have been implemented in the codebase. All 1,373 existing
+The following changes have been implemented in the codebase. All 1,383 existing
 unit tests pass with zero failures.
 
 ### Phase 1: Foundation ✅ COMPLETE
 
 | Component | File(s) | Status |
 |---|---|---|
-| Build system | `config.mk` | ✅ `PLATFORM=miyooflip` with `-march=armv8-a -mtune=cortex-a55` |
+| Build system | `config.mk` | ✅ `PLATFORM=miyooflip` with `-march=armv8-a -mtune=cortex-a55`, shmvar linking |
 | Device model | `device_model.h` | ✅ `MIYOOFLIP = 566` constant |
 | Display defaults | `display.h` | ✅ 640×480 default, backlight sysfs brightness |
 | Screen on/off | `display.h` | ✅ `/sys/class/backlight/` instead of GPIO4+PWM |
+| Display frame | `display.h` | ✅ `display_drawFrame()` uses dynamic width (was hardcoded 640) |
 | Audio volume | `volume.h` | ✅ ALSA `amixer` control (replaces MI_AO ioctl) |
 | Battery | `battery.h` | ✅ `power_supply` sysfs (replaces AXP I2C + GPIO59) |
 | System paths | `system.h` | ✅ Platform-aware GPIO/PWM/CPU sysfs paths |
@@ -350,7 +351,7 @@ unit tests pass with zero failures.
 | Direct FB rendering | `sdl_direct_fb.h` | ✅ Enabled for Miyoo Flip |
 | Keymap | `keymap_hw.h` | ✅ Platform-specific button mapping structure |
 | Rumble | `rumble.h` | ✅ Configurable GPIO path per platform |
-| Settings sync | `settings_sync.h` | ✅ Verified: shmvar guards are correct (no-op on Flip) |
+| Settings sync | `settings_sync.h` | ✅ shmvar IPC enabled for both MIYOOMINI and MIYOOFLIP |
 | Screenshot | `screenshot.h` | ✅ Uses portable NEON intrinsics (no changes needed) |
 
 ### Phase 3: Runtime Scripts & Platform Guards ✅ COMPLETE
@@ -368,16 +369,20 @@ unit tests pass with zero failures.
 | Networking | `game_list_options.sh` | ✅ `has_networking=1` for model 566 |
 | System defaults | `miyoo566_system.json` | ✅ Created with `audiofix=0` (ALSA, no MI_AO workaround) |
 | chargingState | `chargingState.c` | ✅ Shutdown/display guards extended to Miyoo Flip |
-| Battery monitor | `batmon.c` | ✅ Battery warning OSD enabled on Miyoo Flip |
+| Battery monitor | `batmon.c` | ✅ Battery reading via `/sys/class/power_supply/battery/capacity` |
+| Battery monitor | `batmon.h` | ✅ shmvar include guard extended, `getBatPercFlip()` declared |
 | Prompt dialog | `prompt.c` | ✅ Direct input + shutdown handling on Miyoo Flip |
 | Boot screen | `bootScreen.c` | ✅ Debug sleep skipped on Miyoo Flip |
 | Game switcher | `gameSwitcher.c` | ✅ SDL input delay skipped on Miyoo Flip |
 | Package manager | `packageManager.c` | ✅ SDL input delay skipped on Miyoo Flip |
-| Tweaks UI | `tweaks.c` | ✅ SDL input delay skipped on Miyoo Flip |
+| Tweaks UI | `tweaks.c` | ✅ Date/time display, network save on Miyoo Flip |
+| Tweaks menus | `menus.h` | ✅ Networking, NTP sync, blue light schedule for Miyoo Flip |
+| Tweaks reset | `reset.h` | ✅ wpa_supplicant reset for Miyoo Flip |
 | Info panel | `infoPanel.c` | ✅ SDL input delay skipped on Miyoo Flip |
 | Rename ROM | `renameRom.c` | ✅ File rename enabled on Miyoo Flip |
 | Theme switcher | `installTheme.h` | ✅ Script directory path set for Miyoo Flip |
 | Battery debug | `battery.h` | ✅ Debug mock disabled on Miyoo Flip |
+| Key monitor | `keymon.c` | ✅ Brightness shortcut disabled for Flip (has volume buttons) |
 
 ### Phase 4: Hardware Integration — REQUIRES HARDWARE
 
