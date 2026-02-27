@@ -103,7 +103,7 @@ void menu_datetime(void *_)
 
         network_loadState();
 
-        if (DEVICE_ID == MIYOO354 || network_state.ntp) {
+        if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP || network_state.ntp) {
             list_addItemWithInfoNote(&_menu_date_time,
                                      (ListItem){
                                          .label = "Set automatically via internet",
@@ -113,7 +113,7 @@ void menu_datetime(void *_)
                                      "Use the internet connection to sync\n"
                                      "date and time on startup.");
         }
-        if (DEVICE_ID == MIYOO354) {
+        if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP) {
             list_addItemWithInfoNote(&_menu_date_time,
                                      (ListItem){
                                          .label = "Wait for sync on startup",
@@ -492,7 +492,7 @@ void menu_themeOverrides(void *_)
 
 void menu_blueLight(void *_)
 {
-    bool schedule_show = (DEVICE_ID == MIYOO354 || settings.rtc_available || settings.blue_light_schedule);
+    bool schedule_show = (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP || settings.rtc_available || settings.blue_light_schedule);
     bool schedule_disable = (!settings.rtc_available && !network_state.ntp && !settings.blue_light_schedule);
     if (!_menu_user_blue_light._created) {
         network_loadState();
@@ -966,7 +966,7 @@ void menu_main(void)
                          .description = "Startup, save and exit, vibration",
                          .action = menu_system,
                          .icon_ptr = _get_menu_icon("tweaks_system")});
-        if (DEVICE_ID == MIYOO354) {
+        if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP) {
             list_addItem(&_menu_main,
                          (ListItem){
                              .label = "Network",

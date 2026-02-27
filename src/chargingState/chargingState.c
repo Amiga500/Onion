@@ -193,7 +193,7 @@ int main(void)
 
         if (!suspended) {
             if (ticks - display_timer >= DISPLAY_TIMEOUT) {
-                if (DEVICE_ID == MIYOO354) {
+                if (DEVICE_ID == MIYOO354 || DEVICE_ID == MIYOOFLIP) {
                     quit = true;
                     turn_off = true;
                     break;

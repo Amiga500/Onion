@@ -31,6 +31,7 @@
 
 #define MIYOO283 283
 #define MIYOO354 354
+#define MIYOOFLIP 566
 
 static int DEVICE_ID;
 static char DEVICE_SN[13];
@@ -72,6 +73,13 @@ TEST(device_model_354) {
     DEVICE_ID = 0;
     getDeviceModel();
     ASSERT_EQ(DEVICE_ID, MIYOO354);
+}
+
+TEST(device_model_566) {
+    write_file("/tmp/deviceModel", "566");
+    DEVICE_ID = 0;
+    getDeviceModel();
+    ASSERT_EQ(DEVICE_ID, MIYOOFLIP);
 }
 
 TEST(device_model_arbitrary) {
@@ -138,6 +146,7 @@ TEST(device_serial_with_newline) {
 TEST(device_model_constants) {
     ASSERT_EQ(MIYOO283, 283);
     ASSERT_EQ(MIYOO354, 354);
+    ASSERT_EQ(MIYOOFLIP, 566);
 }
 
 /* ---- main ---- */
@@ -148,6 +157,7 @@ int main(void)
 
     RUN_TEST(device_model_283);
     RUN_TEST(device_model_354);
+    RUN_TEST(device_model_566);
     RUN_TEST(device_model_arbitrary);
     RUN_TEST(device_model_zero);
     RUN_TEST(device_model_missing_file);
