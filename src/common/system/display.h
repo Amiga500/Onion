@@ -14,6 +14,9 @@
 #ifdef PLATFORM_MIYOOMINI
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
+#elif defined(PLATFORM_MIYOOFLIP)
+#define DEFAULT_WIDTH 640
+#define DEFAULT_HEIGHT 480
 #else
 #define DEFAULT_WIDTH 752
 #define DEFAULT_HEIGHT 560
@@ -192,6 +195,10 @@ void display_free(display_t *display)
 //
 void display_setScreen(bool enabled)
 {
+#if defined(PLATFORM_MIYOOFLIP)
+    /* RK3566: use standard backlight sysfs for screen on/off */
+    file_write("/sys/class/backlight/backlight/bl_power", enabled ? "0" : "1", 1);
+#else
     // export gpio4, direction: out
     file_write(GPIO_DIR1 "export", "4", 1);
     file_write(GPIO_DIR2 "gpio4/direction", "out", 3);
@@ -208,6 +215,10 @@ void display_setScreen(bool enabled)
         file_write(PWM_DIR "pwm0/enable", "0", 1);
         file_write(PWM_DIR "pwm0/enable", "1", 1);
         _cached_brightness_raw = UINT32_MAX; // invalidate cache after PWM re-export
+    }
+#endif
+
+    if (enabled) {
         display_restore();
     }
     else {
@@ -223,9 +234,15 @@ uint32_t display_getBrightnessRaw()
     uint32_t duty_cycle = 0;
     FILE *fp;
 
+#if defined(PLATFORM_MIYOOFLIP)
+    if (exists("/sys/class/backlight/backlight/brightness")) {
+        file_get(fp, "/sys/class/backlight/backlight/brightness", "%u", &duty_cycle);
+    }
+#else
     if (exists(PWM_DIR "pwm0/duty_cycle")) {
         file_get(fp, PWM_DIR "pwm0/duty_cycle", "%u", &duty_cycle);
     }
+#endif
     return duty_cycle;
 }
 
@@ -246,7 +263,11 @@ void display_setBrightnessRaw(uint32_t value)
     if (value == _cached_brightness_raw)
         return;
     FILE *fp;
+#if defined(PLATFORM_MIYOOFLIP)
+    file_put_sync(fp, "/sys/class/backlight/backlight/brightness", "%u", value);
+#else
     file_put_sync(fp, PWM_DIR "pwm0/duty_cycle", "%u", value);
+#endif
     _cached_brightness_raw = value;
     printf_debug("Raw brightness: %d\n", value);
 }

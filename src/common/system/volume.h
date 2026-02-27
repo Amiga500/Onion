@@ -18,6 +18,31 @@
 // Set volume output between 0 and 60, use `add` for boosting
 int setVolumeRaw(int value, int add)
 {
+#if defined(PLATFORM_MIYOOFLIP)
+    /* RK3566: use ALSA amixer for volume control */
+    int current = 0;
+    char cmd[128];
+
+    if (add) {
+        /* read current volume percentage from amixer */
+        FILE *fp = popen("amixer sget Master 2>/dev/null | grep -oP '\\d+%' | head -1 | tr -d '%'", "r");
+        if (fp) {
+            if (fscanf(fp, "%d", &current) != 1)
+                current = 0;
+            pclose(fp);
+        }
+        value = current + add;
+    }
+
+    if (value > 100)
+        value = 100;
+    else if (value < 0)
+        value = 0;
+
+    snprintf(cmd, sizeof(cmd), "amixer sset Master %d%% >/dev/null 2>&1", value);
+    system(cmd);
+    return value;
+#else
     int fd;
 
     if ((fd = open("/dev/mi_ao", O_RDWR)) < 0)
@@ -60,6 +85,7 @@ int setVolumeRaw(int value, int add)
 
     close(fd);
     return value;
+#endif
 }
 
 // Increments between 0 and 20
