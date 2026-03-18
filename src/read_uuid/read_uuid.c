@@ -3,6 +3,9 @@
 #include <string.h>
 
 #define MAX_LINE_LENGTH 255
+// Worst-case buffer for three MAX_LINE_LENGTH command outputs plus the
+// terminating null byte.
+#define SERIAL_BUFFER_SIZE (MAX_LINE_LENGTH * 3 + 1)
 
 void remove_0x_and_newline(char *str)
 {
@@ -27,12 +30,15 @@ void remove_0x_and_newline(char *str)
 int append_serial_output(char *serial, size_t serial_size, const char *output)
 {
     size_t serial_len = strlen(serial);
+    if (serial_len >= serial_size) {
+        return -1;
+    }
     size_t output_len = strlen(output);
     size_t remaining = serial_size - serial_len - 1;
     if (output_len > remaining) {
         return -1;
     }
-    strncat(serial, output, remaining);
+    memcpy(serial + serial_len, output, output_len + 1);
     return 0;
 }
 
@@ -64,7 +70,7 @@ char *execute_command(const char *command)
 
 int main()
 {
-    char serial[MAX_LINE_LENGTH * 3 + 1] = "";
+    char serial[SERIAL_BUFFER_SIZE] = "";
     const char *commands[] = {
         "/config/riu_r 20 18 | awk 'NR==2'",
         "/config/riu_r 20 17 | awk 'NR==2'",
@@ -72,18 +78,17 @@ int main()
 
     for (int i = 0; i < 3; i++) {
         char *output = execute_command(commands[i]);
-        if (output != NULL) {
-            if (append_serial_output(serial, sizeof(serial), output) != 0) {
-                fprintf(stderr, "Command output too long: %s\n", commands[i]);
-                free(output);
-                return 1;
-            }
-            free(output);
-        }
-        else {
+        if (output == NULL) {
             fprintf(stderr, "Error executing command: %s\n", commands[i]);
-            exit(1);
+            return 1;
         }
+
+        if (append_serial_output(serial, sizeof(serial), output) != 0) {
+            fprintf(stderr, "Command output too long: %s\n", commands[i]);
+            free(output);
+            return 1;
+        }
+        free(output);
     }
     remove_0x_and_newline(serial);
     printf("%s\n", serial);

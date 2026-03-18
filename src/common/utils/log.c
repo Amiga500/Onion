@@ -6,6 +6,8 @@
 #include "./file.h"
 #include "./str.h"
 
+#define LOG_PATH_PREFIX_MAX 255
+
 static char _log_path[64] = "";
 
 void log_setName(const char *log_name)
@@ -20,10 +22,15 @@ void log_debug(const char *file_path, int line, const char *format_str, ...)
 
     va_list valist;
     va_start(valist, format_str);
-    int prefix_len = snprintf(log_message, sizeof(log_message), "%s:%d>\t", file_path, line);
+    int prefix_len = snprintf(log_message, sizeof(log_message), "%.*s:%d>\t", LOG_PATH_PREFIX_MAX, file_path, line);
     size_t offset = 0;
     if (prefix_len > 0) {
-        offset = (size_t)prefix_len < sizeof(log_message) ? (size_t)prefix_len : sizeof(log_message) - 1;
+        if ((size_t)prefix_len < sizeof(log_message)) {
+            offset = (size_t)prefix_len;
+        }
+        else {
+            offset = sizeof(log_message) - 1;
+        }
     }
     vsnprintf(log_message + offset, sizeof(log_message) - offset, format_str, valist);
     va_end(valist);
