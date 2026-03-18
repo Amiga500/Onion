@@ -7,7 +7,7 @@ TARGET = test
 LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lSDL_rotozoom -lgtest -lgtest_main -lpthread
 
 STR_TEST_TARGET = str_test
-STR_TEST_OFILES = test_str.o ../src/common/utils/str.o
+STR_TEST_OFILES = test_str.o ../src/common/utils/str.o ../src/common/utils/file.o
 
 include ../src/common/commands.mk
 include ../src/common/recipes.mk

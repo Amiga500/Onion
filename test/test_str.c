@@ -1,6 +1,9 @@
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
+#include "../src/common/utils/file.h"
 #include "../src/common/utils/str.h"
 
 int main(void)
@@ -56,6 +59,24 @@ int main(void)
 
     str_serializeTime(out, 3600);
     assert(strcmp(out, "1h 0m") == 0);
+
+    char temp_path[] = "/tmp/onion-file-test-XXXXXX";
+    int temp_fd = mkstemp(temp_path);
+    assert(temp_fd >= 0);
+    close(temp_fd);
+
+    int saved_stdin = dup(STDIN_FILENO);
+    assert(saved_stdin >= 0);
+    assert(close(STDIN_FILENO) == 0);
+    assert(file_write(temp_path, "abc", 3));
+    assert(dup2(saved_stdin, STDIN_FILENO) == STDIN_FILENO);
+    close(saved_stdin);
+
+    char *file_contents = file_read(temp_path);
+    assert(file_contents != NULL);
+    assert(strcmp(file_contents, "abc") == 0);
+    free(file_contents);
+    unlink(temp_path);
 
     return 0;
 }

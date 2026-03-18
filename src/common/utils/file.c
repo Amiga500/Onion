@@ -129,10 +129,18 @@ char *file_read(const char *path)
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
         buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
-            fread(buffer, sizeof(char), length, f);
+        if (!buffer) {
+            fclose(f);
+            return NULL;
+        }
+
+        fread(buffer, sizeof(char), length, f);
         fclose(f);
     }
+    else {
+        return NULL;
+    }
+
     buffer[length] = '\0';
 
     return buffer;
@@ -140,11 +148,18 @@ char *file_read(const char *path)
 
 bool file_write(const char *path, const char *str, uint32_t len)
 {
-    uint32_t fd;
-    if ((fd = open(path, O_WRONLY)) == 0)
+    int fd;
+    ssize_t written;
+
+    if ((fd = open(path, O_WRONLY)) == -1)
         return false;
-    if (write(fd, str, len) == -1)
+
+    written = write(fd, str, len);
+    if (written == -1 || (uint32_t)written != len) {
+        close(fd);
         return false;
+    }
+
     close(fd);
     return true;
 }
