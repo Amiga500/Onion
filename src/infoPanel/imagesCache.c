@@ -112,7 +112,7 @@ char *drawImageByIndex(const int new_image_index, const int image_index,
     DEBUG_PRINT(("image_index: %d, new_image_index: %d\n", image_index,
                  new_image_index));
 
-    if (!images_paths || !cache_used || !screen) {
+    if (!images_paths || images_paths_count <= 0 || !cache_used || !screen) {
         return NULL;
     }
 
