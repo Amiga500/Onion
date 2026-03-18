@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
                 char *directories = argv[++i];
                 char *saveptr;
                 char *token = strtok_r(directories, " ", &saveptr);
-                int count = 0;
+                size_t count = 0;
                 while (token != NULL) {
                     const char **tmp =
                         realloc(excluded_directories, (count + 2) * sizeof(char *));
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
                 char *extensions = argv[++i];
                 char *saveptr;
                 char *token = strtok_r(extensions, " ", &saveptr);
-                int count = 0;
+                size_t count = 0;
                 while (token != NULL) {
                     const char **tmp =
                         realloc(included_extensions, (count + 2) * sizeof(char *));

@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <utils/hash.h>
 
@@ -26,6 +27,11 @@ int main()
 
         // Check if the buffer is full, resize it if needed
         if (total_size == buffer_size) {
+            if (buffer_size > (SIZE_MAX - 9) / 2) {
+                fprintf(stderr, "Input too large\n");
+                free(input_buffer);
+                return 1;
+            }
             buffer_size *= 2;
             char *new_buffer = realloc(input_buffer, buffer_size + 1 + 8); // +1 null terminator, +8 for FNV1A read-ahead
 
