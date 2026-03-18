@@ -177,6 +177,10 @@ void str_removeParentheses(char *str_out, const char *str_in)
 
 void str_serializeTime(char *dest_str, int nTime)
 {
+    if (nTime < 0) {
+        nTime = 0;
+    }
+
     if (nTime >= 60) {
         int h = nTime / 3600;
         int m = (nTime - 3600 * h) / 60;
