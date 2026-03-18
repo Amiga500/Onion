@@ -168,7 +168,8 @@ void str_removeParentheses(char *str_out, const char *str_in)
                 inside = false;
             continue;
         }
-        temp[c++] = str_in[i];
+        if (c < STR_MAX - 1)
+            temp[c++] = str_in[i];
     }
 
     temp[c] = '\0';
