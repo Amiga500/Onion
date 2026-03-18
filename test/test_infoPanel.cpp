@@ -75,4 +75,40 @@ TEST(test_infoPanel, cacheTest)
         delete[] images_paths[i];
     }
     delete[] images_paths;
+    cleanImagesCache();
+    SDL_FreeSurface(screen);
+}
+
+TEST(test_infoPanel, drawImageByIndexRejectsNullInputs)
+{
+    bool cache_used = false;
+    SDL_Surface *screen = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+    ASSERT_NE(screen, (SDL_Surface*)NULL);
+    char image_path[] = "./infoPanel_test_data/page0.png";
+    char *images_paths[] = { image_path };
+
+    EXPECT_EQ(drawImageByIndex(0, 0, NULL, 1, screen, NULL, &cache_used), nullptr);
+    EXPECT_EQ(drawImageByIndex(0, 0, images_paths, 0, screen, NULL, &cache_used), nullptr);
+    EXPECT_EQ(drawImageByIndex(0, 0, images_paths, -1, screen, NULL, &cache_used), nullptr);
+    EXPECT_EQ(drawImageByIndex(0, 0, NULL, 1, screen, NULL, NULL), nullptr);
+    EXPECT_EQ(drawImageByIndex(0, 0, NULL, 1, NULL, NULL, &cache_used), nullptr);
+
+    SDL_FreeSurface(screen);
+}
+
+TEST(test_infoPanel, cleanImagesCacheCanBeCalledTwice)
+{
+    bool cache_used = false;
+    SDL_Surface *screen = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+    ASSERT_NE(screen, (SDL_Surface*)NULL);
+
+    char image_path[] = "./infoPanel_test_data/page0.png";
+    char *images_paths[] = { image_path };
+
+    ASSERT_STREQ(drawImageByIndex(0, 0, images_paths, 1, screen, NULL, &cache_used), image_path);
+
+    cleanImagesCache();
+    cleanImagesCache();
+
+    SDL_FreeSurface(screen);
 }
