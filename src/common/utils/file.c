@@ -155,7 +155,11 @@ bool file_write(const char *path, const char *str, uint32_t len)
         return false;
 
     written = write(fd, str, len);
-    if (written == -1 || (uint32_t)written != len) {
+    if (written == -1) {
+        close(fd);
+        return false;
+    }
+    if ((size_t)written != len) {
         close(fd);
         return false;
     }
@@ -482,8 +486,13 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     char tempPath[STR_MAX];
     char *path = file_dirname(filename);
-    sprintf(tempPath, "%s/temp.txt", path);
+    int written = snprintf(tempPath, sizeof(tempPath), "%s%stemp.txt", path ? path : "", path ? "/" : "");
     free(path);
+    if (written < 0 || (size_t)written >= sizeof(tempPath)) {
+        fclose(file);
+        print_debug("Temporary file path is too long");
+        return;
+    }
 
     FILE *tempFile = fopen(tempPath, "w");
     if (tempFile == NULL) {

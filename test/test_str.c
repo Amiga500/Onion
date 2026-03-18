@@ -78,5 +78,18 @@ int main(void)
     free(file_contents);
     unlink(temp_path);
 
+    char relative_path[] = "onion-relative-XXXXXX";
+    int relative_fd = mkstemp(relative_path);
+    assert(relative_fd >= 0);
+    assert(write(relative_fd, "world\n", 6) == 6);
+    close(relative_fd);
+
+    file_add_line_to_beginning(relative_path, "hello\n");
+    file_contents = file_read(relative_path);
+    assert(file_contents != NULL);
+    assert(strcmp(file_contents, "hello\nworld\n") == 0);
+    free(file_contents);
+    unlink(relative_path);
+
     return 0;
 }
