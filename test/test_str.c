@@ -68,9 +68,10 @@ int main(void)
     int saved_stdin = dup(STDIN_FILENO);
     assert(saved_stdin >= 0);
     assert(close(STDIN_FILENO) == 0);
-    assert(file_write(temp_path, "abc", 3));
+    int write_ok = file_write(temp_path, "abc", 3);
     assert(dup2(saved_stdin, STDIN_FILENO) == STDIN_FILENO);
     close(saved_stdin);
+    assert(write_ok);
 
     char *file_contents = file_read(temp_path);
     assert(file_contents != NULL);
