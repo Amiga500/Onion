@@ -195,7 +195,8 @@ void str_serializeTime(char *dest_str, int nTime)
 int str_count_char(const char *str, char ch)
 {
     int i, count = 0;
-    for (i = 0; i < strlen(str); i++) {
+    int len = strlen(str);
+    for (i = 0; i < len; i++) {
         if (str[i] == ch) {
             count++;
         }
