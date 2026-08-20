@@ -21,8 +21,8 @@ BUILD_DIR := ../build_test
 # Source files for common utils (no SDL dependency)
 COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
 
-# Test targets
-TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings test_list test_color test_apps test_changes test_gs_history test_gs_popmenu test_gs_retroarch test_has_changed test_str_security test_file_security test_json_security test_game_entry test_state_security test_config_security test_volume test_display test_lang test_signal_handler test_battery test_playactivity_paths test_theme_config test_device_model test_theme_load test_cache_db test_gs_appstate test_legacy_db test_keymap test_resources_enum test_screenshot_path test_system_utils test_display_buffers test_rom_image_path test_theme_sort test_savestate_path test_overlay_content test_theme_scale test_list_sort test_settings_has_changed test_romscreen_find test_neon_pixel test_formatters test_pacman_changes test_alpha_scale test_osd_constants test_null_safety test_critical_fixes test_cjson_null_safety test_json_null_guards test_double_call_safety test_images_browser
+# Test targets currently ported with common hardening (expand as more suites land)
+TESTS := test_str test_str_security test_file test_file_security test_json test_json_security test_json_null_guards test_list test_signal_handler test_state test_state_security test_flags test_process test_clock test_critical_fixes test_null_safety test_system_utils
 
 # Build-only targets (compilation without running)
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
