@@ -1,9 +1,9 @@
 #ifndef ROTATE_180_H__
 #define ROTATE_180_H__
 
-#include <SDL/SDL.h>
 #include "SDL/SDL_rotozoom.h"
 #include "neon_pixel.h"
+#include <SDL/SDL.h>
 
 /**
  * Rotate an SDL surface 180 degrees.

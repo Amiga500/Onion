@@ -1,8 +1,8 @@
 #ifndef SAVE_IMAGE_H__
 #define SAVE_IMAGE_H__
 
-#include "png/png.h"
 #include "neon_pixel.h"
+#include "png/png.h"
 #include <SDL/SDL.h>
 #include <stdlib.h>
 
