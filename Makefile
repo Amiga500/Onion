@@ -54,7 +54,7 @@ include ./src/common/commands.mk
 
 ###########################################################
 
-.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test
+.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test
 
 all: dist
 
@@ -268,6 +268,9 @@ patch:
 
 external-libs:
 	@cd $(ROOT_DIR)/include/SDL && make clean && make
+
+unit-test:
+	@cd $(ROOT_DIR)/test && $(MAKE) -f Makefile.unit all
 
 test: external-libs
 	@mkdir -p $(BUILD_TEST_DIR)/infoPanel_test_data && cd $(TEST_SRC_DIR) && BUILD_DIR=$(BUILD_TEST_DIR)/ make dev
