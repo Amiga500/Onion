@@ -11,6 +11,7 @@
 #include "utils/file.h"
 #include "utils/hash.h"
 #include "utils/log.h"
+#include "utils/neon_pixel.h"
 #include "utils/process.h"
 #include "utils/str.h"
 
@@ -73,6 +74,8 @@ uint32_t *__screenshot_buffer(void)
 {
     size_t buffer_size = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint32_t);
     uint32_t *buffer = (uint32_t *)malloc(buffer_size);
+    if (buffer == NULL)
+        return NULL;
 
     ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
     memcpy(buffer, g_display.fb_addr + DISPLAY_WIDTH * g_display.vinfo.yoffset, buffer_size);
@@ -88,10 +91,10 @@ uint32_t *__screenshot_buffer(void)
  * @return true Screenshot was saved
  * @return false Screenshot was not saved
  */
-bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool rotate180)
+bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool do_rotate180)
 {
     uint32_t *src;
-    uint32_t line_buffer[g_display.width], x, y, pix;
+    uint32_t line_buffer[g_display.width], x, y;
 
     FILE *fp;
     png_structp png_ptr;
@@ -105,7 +108,16 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool r
     }
 
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    if (!png_ptr) {
+        fclose(fp);
+        return false;
+    }
     info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        png_destroy_write_struct(&png_ptr, NULL);
+        fclose(fp);
+        return false;
+    }
 
     png_init_io(png_ptr, fp);
     png_set_IHDR(png_ptr, info_ptr, g_display.width, g_display.height, 8,
@@ -114,16 +126,31 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool r
     png_write_info(png_ptr, info_ptr);
 
     src = (uint32_t *)buffer;
-    if (rotate180) {
-        src += g_display.width * g_display.height;
-    }
-
-    for (y = 0; y < g_display.height; y++) {
-        for (x = 0; x < g_display.width; x++) {
-            pix = rotate180 ? *(--src) : *(src++);
-            line_buffer[x] = 0xFF000000 | (pix & 0x0000FF00) | (pix & 0x00FF0000) >> 16 | (pix & 0x000000FF) << 16;
+    if (do_rotate180) {
+        /* Bottom-to-top + reverse each row, then NEON ARGB→RGBA */
+        const uint32_t *end = buffer + g_display.width * g_display.height;
+        for (y = 0; y < g_display.height; y++) {
+            const uint32_t *row_start = end - (y + 1) * g_display.width;
+            for (x = 0; x < g_display.width; x++) {
+                line_buffer[x] = row_start[g_display.width - 1 - x];
+            }
+            neon_swap_rb_inplace(line_buffer, g_display.width);
+            /* Stock Onion forced opaque alpha on screenshots */
+            for (x = 0; x < g_display.width; x++) {
+                line_buffer[x] |= 0xFF000000;
+            }
+            png_write_row(png_ptr, (png_bytep)line_buffer);
         }
-        png_write_row(png_ptr, (png_bytep)line_buffer);
+    }
+    else {
+        for (y = 0; y < g_display.height; y++) {
+            neon_argb_to_rgba(line_buffer, src, g_display.width);
+            for (x = 0; x < g_display.width; x++) {
+                line_buffer[x] |= 0xFF000000;
+            }
+            src += g_display.width;
+            png_write_row(png_ptr, (png_bytep)line_buffer);
+        }
     }
 
     png_write_end(png_ptr, info_ptr);
@@ -152,7 +179,7 @@ bool __screenshot_perform(bool(get_path)(char *), pid_t p_id)
         kill(p_id, SIGCONT);
     }
 
-    if (get_path(path)) {
+    if (buffer != NULL && get_path(path)) {
         retval = screenshot_save(buffer, path, true);
     }
 
