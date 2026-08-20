@@ -8,10 +8,7 @@
 
 #define STR_MAX 256
 #define concat(ptr, str1, str2) \
-    {                           \
-        strcpy(ptr, str1);      \
-        strcat(ptr, str2);      \
-    }
+    snprintf(ptr, STR_MAX, "%s%s", str1, str2)
 
 bool str_getLastNumber(char *str, long *out_val);
 char *str_split(char *str, const char *delim);

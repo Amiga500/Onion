@@ -22,6 +22,8 @@ int axp_write(unsigned char address, unsigned char val)
     unsigned char buf[2];
     int ret;
     int fd = open(AXPDEV, O_RDWR);
+    if (fd < 0)
+        return -1;
     ioctl(fd, I2C_TIMEOUT, 5);
     ioctl(fd, I2C_RETRIES, 1);
 
@@ -49,6 +51,8 @@ int axp_read(unsigned char address)
     unsigned char val;
     int ret;
     int fd = open(AXPDEV, O_RDWR);
+    if (fd < 0)
+        return -1;
     ioctl(fd, I2C_TIMEOUT, 5);
     ioctl(fd, I2C_RETRIES, 1);
 
