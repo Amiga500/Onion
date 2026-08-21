@@ -251,14 +251,14 @@ char *getMiyooRecentFilePath()
 }
 
 //
-//    [onion] get recent rom path from miyoo recent list
+//    [onion] get recent rom path from a recent-list file
 //
-char *history_getRecentPath(char *rom_path)
+char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
 {
     FILE *file;
     char line[STR_MAX * 3];
 
-    file = fopen(getMiyooRecentFilePath(), "r");
+    file = fopen(recent_path, "r");
 
     if (file == NULL) {
         return NULL;
@@ -326,6 +326,11 @@ char *history_getRecentPath(char *rom_path)
 
     fclose(file);
     return NULL;
+}
+
+char *history_getRecentPath(char *rom_path)
+{
+    return history_getRecentPathFromPath(getMiyooRecentFilePath(), rom_path);
 }
 
 bool history_getRomscreenPath(char *path_out)

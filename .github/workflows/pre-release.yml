@@ -1,5 +1,8 @@
 name: Pre-release
 
+# Host unit tests gate PRs in test.yml. This job uses the Miyoo ARM
+# toolchain container and is not wired to make unit-test.
+
 on:
   # push:
   #   branches:

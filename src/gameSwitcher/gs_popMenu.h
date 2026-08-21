@@ -10,6 +10,7 @@
 #include "gs_appState.h"
 #include "gs_model.h"
 #include "gs_retroarch.h"
+#include "gs_savestate_path.h"
 
 #define POP_MENU_ACTION_RESUME 0
 #define POP_MENU_ACTION_SAVE 1
@@ -138,21 +139,7 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
 
 static bool createSaveStatePath(Game_s *game, int slot, char *out_path, size_t out_path_size)
 {
-    if (strlen(game->core_name) == 0) {
-        return false;
-    }
-
-    if (slot == -1) {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state.auto", game->core_name, game->rom_name);
-    }
-    else if (slot == 0) {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state", game->core_name, game->rom_name);
-    }
-    else {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state%d", game->core_name, game->rom_name, slot);
-    }
-
-    return true;
+    return createSaveStatePathFromNames(game->core_name, game->rom_name, slot, out_path, out_path_size);
 }
 
 static void setLoadPreview()

@@ -11,6 +11,7 @@
 #include "onion_test.h"
 #include "../src/common/utils/str.h"
 #include <stdlib.h>
+#include <string.h>
 
 /* ---- str_endsWith ---- */
 
@@ -226,6 +227,27 @@ TEST(includeCJK_no_cjk) {
 
 TEST(includeCJK_empty) {
     ASSERT_FALSE(includeCJK(""));
+}
+
+/* Regression: Latin-1/UTF-8 bytes >= 0x80 must not count as CJK.
+ * The old `c >= 0x80` check treated "café" as CJK. */
+TEST(includeCJK_cafe_not_cjk) {
+    ASSERT_FALSE(includeCJK("café"));
+}
+
+/* concat() is snprintf(ptr, STR_MAX, "%s%s", ...) — dest is truncated to STR_MAX-1. */
+TEST(concat_truncates_to_str_max) {
+    char dest[STR_MAX];
+    char a[STR_MAX];
+    char b[STR_MAX];
+    memset(a, 'A', STR_MAX - 1);
+    a[STR_MAX - 1] = '\0';
+    memset(b, 'B', STR_MAX - 1);
+    b[STR_MAX - 1] = '\0';
+    concat(dest, a, b);
+    ASSERT_EQ((int)strlen(dest), STR_MAX - 1);
+    ASSERT_EQ(dest[STR_MAX - 1], '\0');
+    ASSERT_EQ(dest[0], 'A');
 }
 
 /* ---- str_serializeTime ---- */
@@ -568,6 +590,8 @@ int main(void)
     RUN_TEST(includeCJK_mixed);
     RUN_TEST(includeCJK_no_cjk);
     RUN_TEST(includeCJK_empty);
+    RUN_TEST(includeCJK_cafe_not_cjk);
+    RUN_TEST(concat_truncates_to_str_max);
 
     RUN_TEST(str_serializeTime_seconds_only);
     RUN_TEST(str_serializeTime_zero);

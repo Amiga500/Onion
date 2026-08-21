@@ -11,73 +11,11 @@
  */
 
 #include "onion_test.h"
+#include "../src/common/utils/neon_pixel.h"
 #include <stdint.h>
 #include <string.h>
 
-/* ---- Inline scalar fallback functions from neon_pixel.h ---- */
-/* (On x86 host, __ARM_NEON is not defined so these match the #else paths) */
-
-static inline void neon_swap_rb_inplace(uint32_t *pixels, int count)
-{
-    for (int i = 0; i < count; i++) {
-        uint32_t p = pixels[i];
-        pixels[i] = (p & 0xFF00FF00) | ((p & 0x00FF0000) >> 16) | ((p & 0x000000FF) << 16);
-    }
-}
-
-static inline void neon_argb_to_rgba(uint32_t *dst, const uint32_t *src, int count)
-{
-    for (int i = 0; i < count; i++) {
-        uint32_t p = src[i];
-        dst[i] = (p & 0xFF00FF00) | ((p & 0x00FF0000) >> 16) | ((p & 0x000000FF) << 16);
-    }
-}
-
-static inline void neon_argb_to_rgba_alpha(uint32_t *dst, const uint32_t *src, int count)
-{
-    for (int i = 0; i < count; i++) {
-        uint32_t p = src[i];
-        dst[i] = (p & 0xFF000000)
-                     ? ((p & 0xFF00FF00) | ((p & 0x00FF0000) >> 16) | ((p & 0x000000FF) << 16))
-                     : 0;
-    }
-}
-
-static inline void neon_rgb888_to_argb(uint32_t *dst, const uint8_t *src, int count)
-{
-    for (int i = 0; i < count; i++) {
-        const uint8_t *p = src + i * 3;
-        dst[i] = 0xFF000000 | ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | p[2];
-    }
-}
-
-static inline void neon_gray8_to_argb(uint32_t *dst, const uint8_t *src, int count)
-{
-    for (int i = 0; i < count; i++) {
-        uint32_t g = src[i];
-        dst[i] = 0xFF000000 | (g << 16) | (g << 8) | g;
-    }
-}
-
-static inline void neon_gray8a_to_argb(uint32_t *dst, const uint8_t *src, int count)
-{
-    for (int i = 0; i < count; i++) {
-        uint32_t g = src[i * 2];
-        uint32_t a = src[i * 2 + 1];
-        dst[i] = (a << 24) | (g << 16) | (g << 8) | g;
-    }
-}
-
-static inline void neon_rotate180_inplace(uint32_t *pixels, int count)
-{
-    uint32_t *lo = pixels;
-    uint32_t *hi = pixels + count - 1;
-    while (lo < hi) {
-        uint32_t tmp = *lo;
-        *lo++ = *hi;
-        *hi-- = tmp;
-    }
-}
+/* Extra cases on the production header (test_neon.c already includes it). */
 
 /* ==== Tests: neon_swap_rb_inplace ==== */
 
