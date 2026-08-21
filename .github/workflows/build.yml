@@ -1,4 +1,5 @@
 name: Check build
+# Cross-compile only. Host unit tests gate PRs via test.yml.
 on:
   merge_group:
   pull_request:

@@ -1,21 +1,23 @@
 /**
  * @file test_gs_popmenu.c
- * @brief Unit tests for gs_popMenu.h bounds-check and path logic
+ * @brief Unit tests for gs_popMenu save-state path and slot bounds
  *
- * Tests the slot validation logic used in action_loadGame and
- * popMenu_deleteSaveState, the createSaveStatePath path construction,
- * and the .png extension check safety.
+ * createSaveStatePathFromNames is the production helper in gs_savestate_path.h
+ * (included by gs_popMenu.h). Slot-bounds and .png skip checks remain local
+ * copies of the surrounding control flow (SHADOW for those helpers only).
  *
  * Build and run: make -f Makefile.unit test_gs_popmenu
  */
 
 #include "onion_test.h"
+#include "../src/gameSwitcher/gs_savestate_path.h"
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 #define STR_MAX 256
 
-/* Inline the SaveStateInfo_s struct from gs_popMenu.h */
+/* SHADOW COPY of SaveStateInfo_s / slot check from gs_popMenu.h (not the path builder). */
 typedef struct {
     int slots[10];
     int slot_count;
@@ -32,37 +34,8 @@ static bool slot_is_out_of_range(const SaveStateInfo_s *info)
     return info->selected_slot < 0 || info->selected_slot >= info->slot_count;
 }
 
-/* ---- Inline types needed for createSaveStatePath tests ---- */
-
-#define STATES_DIR "/mnt/SDCARD/Saves/CurrentProfile/states"
-
-typedef struct {
-    char core_name[STR_MAX * 2];
-    char rom_name[STR_MAX * 2];
-} TestGame_s;
-
-/* Replicates createSaveStatePath logic from gs_popMenu.h */
-static bool createSaveStatePath(TestGame_s *game, int slot, char *out_path, size_t out_path_size)
-{
-    if (strlen(game->core_name) == 0) {
-        return false;
-    }
-
-    if (slot == -1) {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state.auto", game->core_name, game->rom_name);
-    }
-    else if (slot == 0) {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state", game->core_name, game->rom_name);
-    }
-    else {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state%d", game->core_name, game->rom_name, slot);
-    }
-
-    return true;
-}
-
 /**
- * Replicates the corrected .png extension check from _hasSaveStates/_scanSaveStates.
+ * SHADOW COPY: .png extension check from _hasSaveStates/_scanSaveStates.
  * Returns true if the slotStr should be SKIPPED (auto save or png preview).
  */
 static bool should_skip_slot_str(const char *slotStr)
@@ -117,45 +90,44 @@ TEST(negative_slot_with_zero_count_rejected) {
     ASSERT_TRUE(slot_is_out_of_range(&info));
 }
 
-/* ---- createSaveStatePath tests ---- */
+/* ---- createSaveStatePathFromNames (production gs_savestate_path.h) ---- */
 
 TEST(path_auto_save) {
-    TestGame_s game;
-    strncpy(game.core_name, "gambatte", sizeof(game.core_name));
-    strncpy(game.rom_name, "tetris", sizeof(game.rom_name));
     char path[2048];
-
-    ASSERT_TRUE(createSaveStatePath(&game, -1, path, sizeof(path)));
+    ASSERT_TRUE(createSaveStatePathFromNames("gambatte", "tetris", -1, path, sizeof(path)));
     ASSERT_STREQ(path, STATES_DIR "/gambatte/tetris.state.auto");
 }
 
 TEST(path_slot_zero) {
-    TestGame_s game;
-    strncpy(game.core_name, "gambatte", sizeof(game.core_name));
-    strncpy(game.rom_name, "tetris", sizeof(game.rom_name));
     char path[2048];
-
-    ASSERT_TRUE(createSaveStatePath(&game, 0, path, sizeof(path)));
+    ASSERT_TRUE(createSaveStatePathFromNames("gambatte", "tetris", 0, path, sizeof(path)));
     ASSERT_STREQ(path, STATES_DIR "/gambatte/tetris.state");
 }
 
 TEST(path_slot_numbered) {
-    TestGame_s game;
-    strncpy(game.core_name, "gambatte", sizeof(game.core_name));
-    strncpy(game.rom_name, "tetris", sizeof(game.rom_name));
     char path[2048];
-
-    ASSERT_TRUE(createSaveStatePath(&game, 3, path, sizeof(path)));
+    ASSERT_TRUE(createSaveStatePathFromNames("gambatte", "tetris", 3, path, sizeof(path)));
     ASSERT_STREQ(path, STATES_DIR "/gambatte/tetris.state3");
 }
 
+/* Empty core_name is the _save_thread gate: false, out_path untouched,
+ * caller must not poll the path or call retroarch_save. */
 TEST(path_empty_core_name_rejected) {
-    TestGame_s game;
-    game.core_name[0] = '\0';
-    strncpy(game.rom_name, "tetris", sizeof(game.rom_name));
-    char path[2048];
+    char path[64];
+    memset(path, 0xAA, sizeof(path));
+    ASSERT_FALSE(createSaveStatePathFromNames("", "tetris", 1, path, sizeof(path)));
+    for (size_t i = 0; i < sizeof(path); i++) {
+        ASSERT_EQ((unsigned char)path[i], 0xAAu);
+    }
+}
 
-    ASSERT_FALSE(createSaveStatePath(&game, 1, path, sizeof(path)));
+TEST(path_null_core_name_rejected) {
+    char path[64];
+    memset(path, 0xAA, sizeof(path));
+    ASSERT_FALSE(createSaveStatePathFromNames(NULL, "tetris", 1, path, sizeof(path)));
+    for (size_t i = 0; i < sizeof(path); i++) {
+        ASSERT_EQ((unsigned char)path[i], 0xAAu);
+    }
 }
 
 /* ---- .png extension check tests (buffer underflow prevention) ---- */
@@ -227,6 +199,7 @@ int main(void)
     RUN_TEST(path_slot_zero);
     RUN_TEST(path_slot_numbered);
     RUN_TEST(path_empty_core_name_rejected);
+    RUN_TEST(path_null_core_name_rejected);
 
     /* .png extension check (buffer underflow prevention) */
     RUN_TEST(skip_auto_save_state);

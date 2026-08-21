@@ -26,6 +26,10 @@
  *   Fix: replace the two "fclose + return NULL" inside the while-loop with
  *   "free(jsonContent) + continue".
  *
+ * SHADOW COPY: history_getRecentPath / state_getAppName below are local
+ * reproductions used to document the old bugs. Production contract tests
+ * live in test_history_recent.c (#include of state.h).
+ *
  * Build and run:
  *   make -f Makefile.unit test_state && ./build_test/test_state
  */

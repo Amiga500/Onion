@@ -9,22 +9,9 @@
  */
 
 #include "onion_test.h"
+#include "../src/common/utils/signal_handler.h"
 #include <signal.h>
 #include <stdbool.h>
-
-/* ---- Inline the function under test ---- */
-
-static inline void signal_handler_quit(volatile bool *quit_flag, int sig)
-{
-    switch (sig) {
-    case SIGINT:
-    case SIGTERM:
-        *quit_flag = true;
-        break;
-    default:
-        break;
-    }
-}
 
 /* ---- Tests ---- */
 

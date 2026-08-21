@@ -22,12 +22,12 @@ BUILD_DIR := ../build_test
 COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
 
 # Test targets (test_images_browser deferred until infoPanel hardening is ported)
-TESTS := test_str test_perf test_file test_hash test_json test_state test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings test_list test_color test_apps test_changes test_gs_history test_gs_popmenu test_gs_retroarch test_has_changed test_str_security test_file_security test_json_security test_game_entry test_state_security test_config_security test_volume test_display test_lang test_signal_handler test_battery test_playactivity_paths test_theme_config test_device_model test_theme_load test_cache_db test_gs_appstate test_legacy_db test_keymap test_resources_enum test_screenshot_path test_system_utils test_display_buffers test_rom_image_path test_theme_sort test_savestate_path test_overlay_content test_theme_scale test_list_sort test_settings_has_changed test_romscreen_find test_neon_pixel test_formatters test_pacman_changes test_alpha_scale test_osd_constants test_null_safety test_critical_fixes test_cjson_null_safety test_json_null_guards test_double_call_safety
+TESTS := test_str test_perf test_file test_hash test_json test_state test_history_recent test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings test_list test_color test_apps test_changes test_gs_history test_gs_popmenu test_gs_retroarch test_has_changed test_str_security test_file_security test_json_security test_game_entry test_state_security test_config_security test_volume test_display test_lang test_signal_handler test_battery test_playactivity_paths test_theme_config test_device_model test_theme_load test_cache_db test_gs_appstate test_legacy_db test_keymap test_resources_enum test_screenshot_path test_system_utils test_display_buffers test_rom_image_path test_theme_sort test_savestate_path test_overlay_content test_theme_scale test_list_sort test_settings_has_changed test_romscreen_find test_neon_pixel test_formatters test_pacman_changes test_alpha_scale test_osd_constants test_null_safety test_critical_fixes test_cjson_null_safety test_json_null_guards test_double_call_safety
 
 # Build-only targets (compilation without running)
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
-.PHONY: all clean $(TESTS) summary
+.PHONY: all clean $(TESTS) summary unit-test-san
 
 all: $(BINARIES)
 	@total_tests=0; total_asserts=0; total_fails=0; suite_fails=0; \
@@ -94,6 +94,10 @@ test_state: $(BUILD_DIR)/test_state
 	@echo ""
 	@$(BUILD_DIR)/test_state
 
+test_history_recent: $(BUILD_DIR)/test_history_recent
+	@echo ""
+	@$(BUILD_DIR)/test_history_recent
+
 $(BUILD_DIR)/test_str: test_str.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_str.c $(COMMON_SRCS) $(LDFLAGS)
@@ -121,6 +125,10 @@ $(BUILD_DIR)/test_json: test_json.c onion_test.h $(COMMON_SRCS)
 $(BUILD_DIR)/test_state: test_state.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_state.c $(COMMON_SRCS) $(LDFLAGS)
+
+$(BUILD_DIR)/test_history_recent: test_history_recent.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_history_recent.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 test_neon: $(BUILD_DIR)/test_neon
 	@echo ""
@@ -214,9 +222,9 @@ test_list: $(BUILD_DIR)/test_list
 	@echo ""
 	@$(BUILD_DIR)/test_list
 
-$(BUILD_DIR)/test_list: test_list.c onion_test.h
+$(BUILD_DIR)/test_list: test_list.c onion_test.h stubs/SDL/SDL.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_list.c $(LDFLAGS)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_list.c $(LDFLAGS)
 
 test_color: $(BUILD_DIR)/test_color
 	@echo ""
@@ -602,5 +610,39 @@ $(BUILD_DIR)/test_double_call_safety: test_double_call_safety.c onion_test.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_double_call_safety.c $(LDFLAGS)
 
+# Host ASan/UBSan on the leaf utils that compile without SDL.
+# Ubuntu CI gcc ships libasan. Fedora hosts may only have clang's compiler-rt;
+# detect a compiler that can actually link the sanitizers.
+SANITIZE_FLAGS := -fsanitize=address,undefined
+
+unit-test-san:
+	@mkdir -p $(BUILD_DIR)
+	@probe="$(BUILD_DIR)/_san_probe"; \
+	if echo 'int main(void){return 0;}' | $(CC) $(SANITIZE_FLAGS) -x c - -o $$probe 2>/dev/null; then \
+		SAN_CC="$(CC)"; \
+	elif echo 'int main(void){return 0;}' | clang $(SANITIZE_FLAGS) -x c - -o $$probe 2>/dev/null; then \
+		SAN_CC="clang"; \
+	else \
+		echo "No compiler with ASan/UBSan (install gcc libasan or clang)"; \
+		exit 1; \
+	fi; \
+	rm -f $$probe; \
+	echo "Sanitizer subset ($$SAN_CC $(SANITIZE_FLAGS)): hash file str json neon"; \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_hash_san test_hash.c $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_file_san test_file.c $(COMMON_SRCS) $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_str_san test_str.c $(COMMON_SRCS) $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_json_san test_json.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_neon_san test_neon.c $(LDFLAGS)
+	@fail=0; \
+	for t in test_hash test_file test_str test_json test_neon; do \
+		printf "\n"; \
+		$(BUILD_DIR)/$${t}_san || fail=1; \
+	done; \
+	[ $$fail -eq 0 ]
+
 clean:
-	rm -rf $(BUILD_DIR)/test_str $(BUILD_DIR)/test_perf $(BUILD_DIR)/test_file $(BUILD_DIR)/test_hash $(BUILD_DIR)/test_json $(BUILD_DIR)/test_state $(BUILD_DIR)/test_neon $(BUILD_DIR)/test_playactivity $(BUILD_DIR)/test_clock $(BUILD_DIR)/test_msleep $(BUILD_DIR)/test_config $(BUILD_DIR)/test_log $(BUILD_DIR)/test_flags $(BUILD_DIR)/test_process $(BUILD_DIR)/test_timer $(BUILD_DIR)/test_apply_icons $(BUILD_DIR)/test_settings $(BUILD_DIR)/test_list $(BUILD_DIR)/test_color $(BUILD_DIR)/test_apps $(BUILD_DIR)/test_changes $(BUILD_DIR)/test_gs_history $(BUILD_DIR)/test_gs_popmenu $(BUILD_DIR)/test_gs_retroarch $(BUILD_DIR)/test_has_changed $(BUILD_DIR)/test_str_security $(BUILD_DIR)/test_file_security $(BUILD_DIR)/test_json_security $(BUILD_DIR)/test_game_entry $(BUILD_DIR)/test_state_security $(BUILD_DIR)/test_config_security $(BUILD_DIR)/test_volume $(BUILD_DIR)/test_display $(BUILD_DIR)/test_lang $(BUILD_DIR)/test_signal_handler $(BUILD_DIR)/test_battery $(BUILD_DIR)/test_playactivity_paths $(BUILD_DIR)/test_theme_config $(BUILD_DIR)/test_device_model $(BUILD_DIR)/test_theme_load $(BUILD_DIR)/test_cache_db $(BUILD_DIR)/test_gs_appstate $(BUILD_DIR)/test_legacy_db $(BUILD_DIR)/test_keymap $(BUILD_DIR)/test_resources_enum $(BUILD_DIR)/test_screenshot_path $(BUILD_DIR)/test_system_utils $(BUILD_DIR)/test_display_buffers $(BUILD_DIR)/test_rom_image_path $(BUILD_DIR)/test_theme_sort $(BUILD_DIR)/test_savestate_path $(BUILD_DIR)/test_overlay_content $(BUILD_DIR)/test_theme_scale $(BUILD_DIR)/test_list_sort $(BUILD_DIR)/test_settings_has_changed $(BUILD_DIR)/test_romscreen_find $(BUILD_DIR)/test_neon_pixel $(BUILD_DIR)/test_formatters $(BUILD_DIR)/test_pacman_changes $(BUILD_DIR)/test_alpha_scale $(BUILD_DIR)/test_osd_constants $(BUILD_DIR)/test_null_safety $(BUILD_DIR)/test_critical_fixes $(BUILD_DIR)/test_cjson_null_safety $(BUILD_DIR)/test_json_null_guards $(BUILD_DIR)/test_double_call_safety
+	rm -f $(addprefix $(BUILD_DIR)/, $(TESTS)) \
+		$(BUILD_DIR)/test_hash_san $(BUILD_DIR)/test_file_san \
+		$(BUILD_DIR)/test_str_san $(BUILD_DIR)/test_json_san \
+		$(BUILD_DIR)/test_neon_san $(BUILD_DIR)/test_images_browser \
+		$(BUILD_DIR)/_san_probe

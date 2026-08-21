@@ -2,39 +2,40 @@
 
 This directory contains tests for the Onion project.
 
-## Running All Tests
+## Running tests
 
-From the **root directory** of the project, run:
+From the **root directory** of the project:
+
+```bash
+make unit-test
+```
+
+Host C unit tests (`onion_test.h`) compile with the system gcc/clang. They do
+**not** need the Miyoo Mini toolchain, SDL, or Google Test.
+
+```bash
+make -C test -f Makefile.unit unit-test-san
+```
+
+Rebuilds a small subset (`hash`, `file`, `str`, `json`, `neon`) with
+`-fsanitize=address,undefined` and runs those binaries.
 
 ```bash
 make test
 ```
 
-This will execute both unit tests and integration tests (if gtest is available).
+Builds and runs the GTest `infoPanel` integration test. That target still
+needs SDL and gtest; it is **not** the suite that GitHub Actions treats as
+required.
 
-## Test Types
+`test_images_browser` is compiled only on request (`make -f Makefile.unit test_images_browser`)
+and is excluded from `TESTS` until infoPanel hardening is in tree.
 
-### Unit Tests
+## Test types
 
-Unit tests use a lightweight custom test framework (`onion_test.h`) and don't require external dependencies:
+### Unit tests
 
-- `test_str.c` - String utility functions
-- `test_file.c` - File utility functions  
-- `test_json.c` - JSON parsing and manipulation
-- `test_hash.c` - Hash functions
-- `test_perf.c` - Performance utilities
-- `test_str_security.c` - String security edge cases (buffer overflow, NULL safety, boundary values)
-- `test_file_security.c` - File security edge cases (path traversal, corrupted data, symlinks)
-- `test_json_security.c` - JSON security edge cases (malformed input, NULL safety, deep nesting)
-- `test_game_entry.c` - JsonGameEntry fromJson/toJson roundtrip, emupath extraction, edge cases
-- `test_state_security.c` - MainUI state JSON formatting, page calculations, state_getAppName edge cases
-- `test_config_security.c` - Config key-value parsing, file line operations, file_cleanName
-- `test_volume.c` - Volume curve calculations (logarithmic mapping, clamping, monotonicity)
-- `test_display.c` - Brightness exponential/logarithmic curve, framebuffer read/write/rotate/mask operations
-- `test_lang.c` - Language lookup with fallback, lang_free NULL/double-free safety, lifecycle
-- `test_signal_handler.c` - Signal handler flag behavior for SIGINT, SIGTERM, and unhandled signals
-- `test_battery.c` - Battery charging cache timing logic (elapsed_ms calculation, cache validity)
-- `test_playactivity_paths.c` - ROM path normalization (__ensure_rel_path with ../../Roms/ and /mnt/SDCARD/Roms/ prefixes)
+Unit tests use a lightweight custom test framework (`onion_test.h`) and don't require external dependencies. See `Makefile.unit` `TESTS` for the current list.
 
 To run only unit tests:
 
@@ -48,7 +49,7 @@ Or from the test directory:
 make -f Makefile.unit
 ```
 
-### Integration Tests (gtest)
+### Integration tests (gtest)
 
 Integration tests use Google Test and require SDL libraries:
 
@@ -71,8 +72,9 @@ make
 ## Requirements
 
 ### For Unit Tests
-- GCC compiler
-- No external dependencies
+- GCC compiler (C99)
+- No SDL / gtest
+- `unit-test-san` needs gcc (or clang) with AddressSanitizer and UBSan
 
 ### For Integration Tests
 - Google Test (libgtest-dev)
@@ -99,7 +101,17 @@ sudo cp lib/*.a /usr/lib  # Output directory may vary
 
 ## CI/CD
 
-The GitHub Actions workflows automatically run all tests:
+`.github/workflows/test.yml` runs on pull requests:
 
-- `.github/workflows/test.yml` - Runs all tests on pull requests
-- Tests are run in a native Ubuntu environment with gtest installed
+- **Host unit tests** (required): `make unit-test`, then
+  `make -C test -f Makefile.unit unit-test-san`. No Miyoo toolchain.
+- **GTest infoPanel** (`make test`): `continue-on-error`. infoPanel is out of
+  scope for the unit-test suite; a failure there does not fail the workflow.
+
+`pre-release.yml` and `build.yml` use the Miyoo ARM toolchain container and
+are not wired to `make unit-test`. Adding host unit tests there would not
+exercise the cross compiler and would lengthen pre-release; the dedicated
+job in `test.yml` is the gate.
+
+The workflow does **not** run every file under `test/` (for example
+`test_images_browser` is excluded from `TESTS`).

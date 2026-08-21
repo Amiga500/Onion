@@ -1,19 +1,10 @@
 /**
  * @file test_list.c
- * @brief Unit tests for src/common/components/list.h
+ * @brief Unit tests for src/common/components/list.h (production header)
  *
- * Tests the pure-logic list/menu functions: _list_modulo,
- * list_countVisible, list_create, list_createWithTitle,
- * list_createWithSticky, list_addItem, list_addItemWithLang,
- * list_currentItem, list_keyUp, list_keyDown, list_keyLeft,
- * list_keyRight, list_activateItem, list_resetCurrentItem,
- * list_getItemValueLabel, list_scrollTo, list_sortByLabel,
- * list_hasInfoNote, _list_did_wraparound, list_updateStickyNote,
- * list_getStickyNote, list_getVisibleItemAt, list_hideAllExcept,
- * _list_scroll, list_scroll, and list_ensureVisible.
- *
- * SDL-dependent functions (list_free with SDL_FreeSurface) are
- * stubbed out to avoid pulling in SDL dependencies.
+ * Includes the real list.h. SDL_FreeSurface is a no-op stub; system/lang.h
+ * is replaced with a local stub so settings/display/cJSON are not pulled in.
+ * Cache TTF fields are not populated by src/ and are not tested as if they were.
  *
  * Build and run: make -f Makefile.unit test_list
  */
@@ -25,455 +16,23 @@
 #include <string.h>
 #include <strings.h>
 
-/* ---- Stub out external dependencies ---- */
+int g_sdl_free_surface_calls = 0;
 
-#define STR_MAX 256
-#define MAX_NUM_VALUES 100
-#define LANG_MAX 400
-
-/* Stub for language list used by list_addItemWithLang */
+/* Skip production system/lang.h (settings/display/cJSON). list.h still
+ * includes it; the include guard makes that a no-op. */
+#define SYSTEM_LANG_H__
 typedef int lang_hash;
 static char **lang_list = NULL;
+#ifndef LANG_MAX
+#define LANG_MAX 400
+#endif
 
-/* ---- Inline the types and pure-logic functions from list.h ---- */
+#include "components/list.h"
 
-typedef enum list_type { LIST_SMALL,
-                         LIST_LARGE } ListType;
-typedef enum item_type { ACTION,
-                         TOGGLE,
-                         MULTIVALUE } ListItemType;
-
-typedef struct ListItem {
-    int _id;
-    ListItemType item_type;
-    bool disabled;
-    bool show_opaque;
-    bool disable_arrows;
-    bool disable_a_btn;
-    bool alternative_arrow_action;
-    char label[STR_MAX];
-    char description[STR_MAX];
-    char payload[STR_MAX];
-    void *payload_ptr;
-    int value;
-    int value_min;
-    int value_max;
-    char value_labels[MAX_NUM_VALUES][STR_MAX];
-    void (*value_formatter)(void *self, char *out_label);
-    void (*action)(void *self);
-    void (*arrow_action)(void *self);
-    int action_id;
-    int _reset_value;
-    void *icon_ptr;
-    void *preview_ptr;
-    char preview_path[4096];
-    char sticky_note[STR_MAX];
-    char info_note[STR_MAX];
-    void *_label_cache;
-    uint32_t _label_hash;
-    void *_value_cache;
-    int _cached_value;
-    void *_scaled_preview;
-    int _scaled_preview_w;
-} ListItem;
-
-typedef struct List {
-    char title[STR_MAX];
-    int _id;
-    int item_count;
-    int max_items;
-    int active_pos;
-    int scroll_pos;
-    int scroll_height;
-    ListType list_type;
-    ListItem *items;
-    bool has_sticky;
-    bool _created;
-} List;
-
-static int list_id_incr = 0;
-
-int _list_modulo(int x, int n) { return (x % n + n) % n; }
-
-int list_countVisible(List *list)
+void SDL_FreeSurface(SDL_Surface *surface)
 {
-    int n = 0, i;
-    for (i = 0; i < list->item_count; i++) {
-        if (!list->items[i].disabled)
-            n++;
-    }
-    return n;
-}
-
-void _list_ensureVisible(List *list, int direction, int items_left)
-{
-    if (list->items[list->active_pos].disabled) {
-        list->active_pos = _list_modulo(list->active_pos + direction, list->item_count);
-        if (items_left > 0) {
-            _list_ensureVisible(list, direction, items_left - 1);
-        }
-    }
-}
-
-void list_ensureVisible(List *list, int direction)
-{
-    _list_ensureVisible(list, direction, list->item_count);
-}
-
-bool _list_did_wraparound(int before, int after, int direction)
-{
-    int offset = after - before;
-    return offset != 0 && (direction > 0) != (offset > 0);
-}
-
-List list_create(int max_items, ListType list_type)
-{
-    return (List){.scroll_height = list_type == LIST_SMALL ? 6 : 4,
-                  .list_type = list_type,
-                  .max_items = max_items,
-                  .items = (ListItem *)calloc(max_items, sizeof(ListItem)),
-                  ._created = true,
-                  ._id = list_id_incr++};
-}
-
-List list_createWithTitle(int max_items, ListType list_type, const char *title)
-{
-    List list = list_create(max_items, list_type);
-    strncpy(list.title, title, STR_MAX - 1);
-    list.title[STR_MAX - 1] = '\0';
-    return list;
-}
-
-List list_createWithSticky(int max_items, const char *title)
-{
-    List list = list_createWithTitle(max_items, LIST_SMALL, title);
-    list.scroll_height = 5;
-    list.has_sticky = true;
-    return list;
-}
-
-ListItem *list_addItem(List *list, ListItem item)
-{
-    if (list->items == NULL || list->item_count >= list->max_items)
-        return NULL;
-    item._reset_value = item.value;
-    item._id = list->item_count;
-    memset(item.info_note, 0, STR_MAX);
-    list->items[item._id] = item;
-    list->item_count++;
-    if (item.disabled && list->active_pos == item._id) {
-        list->active_pos = item._id + 1;
-    }
-    return &(list->items[item._id]);
-}
-
-ListItem *list_addItemWithInfoNote(List *list, ListItem item, const char *info_note)
-{
-    ListItem *_item = list_addItem(list, item);
-    if (_item == NULL)
-        return NULL;
-    strncpy(_item->info_note, info_note, sizeof(_item->info_note) - 1);
-    _item->info_note[sizeof(_item->info_note) - 1] = '\0';
-    return _item;
-}
-
-ListItem *list_addItemWithLang(List *list, ListItem item, const lang_hash key)
-{
-    ListItem *_item = list_addItem(list, item);
-    if (_item == NULL)
-        return NULL;
-    if (lang_list && lang_list[key]) {
-        strncpy(_item->label, lang_list[key], sizeof(_item->label) - 1);
-        _item->label[sizeof(_item->label) - 1] = '\0';
-    }
-    return _item;
-}
-
-ListItem *list_currentItem(List *list)
-{
-    if (list->active_pos >= list->item_count)
-        return NULL;
-    return &list->items[list->active_pos];
-}
-
-void _list_scroll(List *list, int pos)
-{
-    pos = _list_modulo(pos, list->item_count);
-
-    if (pos < list->scroll_pos)
-        list->scroll_pos = pos;
-    else if (pos >= list->scroll_pos + list->scroll_height)
-        list->scroll_pos = pos - list->scroll_height + 1;
-
-    if (list->item_count <= list->scroll_height)
-        list->scroll_pos = 0;
-    else if (list->scroll_pos + list->scroll_height > list->item_count)
-        list->scroll_pos = list->item_count - list->scroll_height;
-}
-
-void list_scroll(List *list)
-{
-    _list_scroll(list, list->active_pos);
-}
-
-bool list_scrollTo(List *list, int active_pos)
-{
-    list->active_pos = _list_modulo(active_pos, list->item_count);
-    list_ensureVisible(list, 1);
-    list_scroll(list);
-    return true;
-}
-
-bool list_keyUp(List *list, bool key_repeat)
-{
-    int old_pos = list->active_pos;
-
-    if (list->active_pos == 0) {
-        if (key_repeat)
-            return false;
-        list->active_pos = list->item_count - 1;
-    }
-    else
-        list->active_pos -= 1;
-
-    list_ensureVisible(list, -1);
-
-    if (_list_did_wraparound(old_pos, list->active_pos, -1)) {
-        if (list->scroll_pos > 0) {
-            _list_scroll(list, list->scroll_pos - 1);
-            list->active_pos = old_pos;
-        }
-        else {
-            _list_scroll(list, list->item_count - 1);
-        }
-    }
-    else {
-        list_scroll(list);
-    }
-
-    return true;
-}
-
-bool list_keyDown(List *list, bool key_repeat)
-{
-    int old_pos = list->active_pos;
-
-    if (list->active_pos == list->item_count - 1) {
-        if (key_repeat)
-            return false;
-        list->active_pos = 0;
-    }
-    else
-        list->active_pos += 1;
-
-    list_ensureVisible(list, 1);
-
-    if (_list_did_wraparound(old_pos, list->active_pos, 1)) {
-        if (list->scroll_pos < list->item_count - list->scroll_height) {
-            _list_scroll(list, list->scroll_pos + list->scroll_height);
-            list->active_pos = old_pos;
-        }
-        else {
-            _list_scroll(list, 0);
-        }
-    }
-    else {
-        list_scroll(list);
-    }
-
-    return true;
-}
-
-bool list_keyLeft(List *list, bool key_repeat)
-{
-    bool apply_action = false;
-    ListItem *item = list_currentItem(list);
-
-    if (item == NULL || item->disable_arrows)
-        return false;
-
-    int old_value = item->value;
-
-    switch (item->item_type) {
-    case TOGGLE:
-        if (item->value != 0) {
-            item->value = 0;
-            apply_action = true;
-        }
-        break;
-    case MULTIVALUE:
-        if (item->value == item->value_min) {
-            if (!key_repeat)
-                item->value = item->value_max;
-        }
-        else
-            item->value--;
-        apply_action = true;
-        break;
-    default:
-        break;
-    }
-
-    if (apply_action) {
-        if (item->alternative_arrow_action)
-            item->arrow_action((void *)item);
-        else if (item->action != NULL)
-            item->action((void *)item);
-    }
-
-    return old_value != item->value;
-}
-
-bool list_keyRight(List *list, bool key_repeat)
-{
-    bool apply_action = false;
-    ListItem *item = list_currentItem(list);
-
-    if (item == NULL || item->disable_arrows)
-        return false;
-
-    int old_value = item->value;
-
-    switch (item->item_type) {
-    case TOGGLE:
-        if (item->value != 1) {
-            item->value = 1;
-            apply_action = true;
-        }
-        break;
-    case MULTIVALUE:
-        if (item->value == item->value_max) {
-            if (!key_repeat)
-                item->value = item->value_min;
-        }
-        else
-            item->value++;
-        apply_action = true;
-        break;
-    default:
-        break;
-    }
-
-    if (apply_action) {
-        if (item->alternative_arrow_action)
-            item->arrow_action((void *)item);
-        else if (item->action != NULL)
-            item->action((void *)item);
-    }
-
-    return old_value != item->value;
-}
-
-bool list_activateItem(List *list)
-{
-    ListItem *item = list_currentItem(list);
-
-    if (item == NULL || item->disable_a_btn)
-        return false;
-
-    int old_value = item->value;
-
-    switch (item->item_type) {
-    case TOGGLE:
-        item->value = !item->value;
-        break;
-    case MULTIVALUE:
-        if (item->value == item->value_max)
-            item->value = item->value_min;
-        else
-            item->value++;
-        break;
-    default:
-        break;
-    }
-
-    if (item->action != NULL)
-        item->action((void *)item);
-
-    return old_value != item->value;
-}
-
-bool list_hasInfoNote(List *list)
-{
-    ListItem *item = list_currentItem(list);
-
-    if (item == NULL || strlen(item->info_note) == 0)
-        return false;
-
-    return true;
-}
-
-bool list_resetCurrentItem(List *list)
-{
-    ListItem *item = list_currentItem(list);
-
-    if (item == NULL || item->value == item->_reset_value)
-        return false;
-
-    item->value = item->_reset_value;
-
-    if (item->action != NULL)
-        item->action((void *)item);
-
-    return true;
-}
-
-void list_getItemValueLabel(ListItem *item, char *out_label)
-{
-    if (item->value_formatter != NULL)
-        item->value_formatter(item, out_label);
-    else if (item->value_labels[0][0] != '\0')
-        snprintf(out_label, STR_MAX, "%s", item->value_labels[item->value]);
-    else
-        snprintf(out_label, STR_MAX, "%d", item->value);
-}
-
-int _list_comp_labels(const void *a, const void *b)
-{
-    return strcasecmp(((ListItem *)a)->label, ((ListItem *)b)->label);
-}
-
-void list_sortByLabel(List *list)
-{
-    qsort(list->items, list->item_count, sizeof(ListItem), _list_comp_labels);
-}
-
-void list_updateStickyNote(ListItem *item, const char *message)
-{
-    strncpy(item->sticky_note, message, STR_MAX - 1);
-    item->sticky_note[STR_MAX - 1] = '\0';
-}
-
-const char *list_getStickyNote(ListItem *item)
-{
-    return item->sticky_note;
-}
-
-ListItem *list_getVisibleItemAt(List *list, int index)
-{
-    while (index < list->item_count && list->items[index].disabled) {
-        index++;
-    }
-    return index < list->item_count ? &list->items[index] : NULL;
-}
-
-void list_hideAllExcept(List *list, ListItem *item, bool disabled)
-{
-    for (int i = 0; i < list->item_count; i++) {
-        if (i == item->_id)
-            continue;
-        list->items[i].disabled = disabled;
-    }
-}
-
-/* Simplified list_free without SDL_FreeSurface calls */
-void list_free(List *list)
-{
-    if (!list->_created)
-        return;
-    if (list->items != NULL)
-        free(list->items);
-    list->_created = false;
+    (void)surface;
+    g_sdl_free_surface_calls++;
 }
 
 /* ---- Helper: create a simple item ---- */
@@ -1447,6 +1006,31 @@ TEST(free_double_free_safe) {
     ASSERT_FALSE(list._created);
 }
 
+/* Production list_free must SDL_FreeSurface every non-NULL cache/preview/icon
+ * pointer. TTF caching is not populated in src/; this only checks the free path. */
+TEST(free_releases_nonnull_cache_pointers) {
+    List list = list_create(2, LIST_SMALL);
+    ListItem *item = list_addItem(&list, _make_item("A", ACTION, 0));
+    ASSERT_NOT_NULL(item);
+    SDL_Surface dummy;
+    item->icon_ptr = &dummy;
+    item->preview_ptr = &dummy;
+    item->_label_cache = &dummy;
+    item->_value_cache = &dummy;
+    item->_scaled_preview = &dummy;
+    g_sdl_free_surface_calls = 0;
+    list_free(&list);
+    ASSERT_EQ(g_sdl_free_surface_calls, 5);
+    ASSERT_FALSE(list._created);
+}
+
+TEST(add_item_at_max_returns_null) {
+    List list = list_create(1, LIST_SMALL);
+    ASSERT_NOT_NULL(list_addItem(&list, _make_item("A", ACTION, 0)));
+    ASSERT_NULL(list_addItem(&list, _make_item("B", ACTION, 0)));
+    list_free(&list);
+}
+
 /* ---- list_addItemWithInfoNote edge cases ---- */
 
 TEST(add_item_with_info_note_null_check) {
@@ -2412,6 +1996,8 @@ int main(void)
     RUN_TEST(free_not_created);
     RUN_TEST(free_sets_created_false);
     RUN_TEST(free_double_free_safe);
+    RUN_TEST(free_releases_nonnull_cache_pointers);
+    RUN_TEST(add_item_at_max_returns_null);
 
     RUN_TEST(add_item_with_info_note_null_check);
     RUN_TEST(add_item_with_info_note_preserves_label);

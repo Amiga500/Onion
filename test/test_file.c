@@ -650,7 +650,14 @@ TEST(file_add_line_to_beginning_prepends_line) {
     unlink(tmpfile);
 }
 
-/* ---- file_isLocked ---- */
+/* ---- file_isLocked ----
+ *
+ * This is NOT a flock/lock-file check. Production opens the path O_RDONLY:
+ *   open succeeds  -> false  (existing readable file)
+ *   open fails     -> true   (missing path, permission, etc.)
+ * gs_popMenu.h polls it after a save; do not treat a passing test here as
+ * proof that another process holds the file.
+ */
 
 TEST(file_isLocked_existing_file) {
     const char *tmpfile = "/tmp/onion_test_locked.txt";
@@ -667,6 +674,10 @@ TEST(file_isLocked_existing_file) {
 TEST(file_isLocked_uncreateable_path) {
     /* A path inside a non-existent directory cannot be opened/created */
     ASSERT_TRUE(file_isLocked("/tmp/nonexistent_dir_xyz/file.txt"));
+}
+
+TEST(file_isLocked_missing_file) {
+    ASSERT_TRUE(file_isLocked("/tmp/onion_test_no_such_locked_file"));
 }
 
 /* ---- file_path_relative_to ---- */
@@ -1107,6 +1118,7 @@ int main(void)
 
     RUN_TEST(file_isLocked_existing_file);
     RUN_TEST(file_isLocked_uncreateable_path);
+    RUN_TEST(file_isLocked_missing_file);
 
     RUN_TEST(file_path_relative_to_same_dir);
     RUN_TEST(file_path_relative_to_subdirectory);
