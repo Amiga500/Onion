@@ -40,3 +40,5 @@ src/sendUDP/sendUDP
 src/tree/tree
 src/pippi/pippi
 src/cpuclock/cpuclock
+src/jpg2png/jpg2png
+src/pngScale/pngScale

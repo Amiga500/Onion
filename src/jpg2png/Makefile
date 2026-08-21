@@ -1,25 +1,11 @@
-CROSS_COMPILE ?= /opt/miyoomini/bin/arm-linux-gnueabihf-
-ARCH = -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve+simd
+include ../common/config.mk
 
+# Same pattern as pngScale. Needs ARM libjpeg in the sysroot (-ljpeg).
+# The stock aemiii91/miyoomini-toolchain image does not ship it; the
+# jpg2png binary must be rebuilt on a sysroot that has libjpeg (or via
+# CI/pre-release once that is available).
 TARGET = jpg2png
+LDFLAGS := $(LDFLAGS) -lmi_sys -lmi_gfx -lpng -Wl,-Bstatic -ljpeg -Wl,-Bdynamic
 
-CC 	= $(CROSS_COMPILE)gcc
-
-SOURCES = . 
-CFILES = $(foreach dir, $(SOURCES), $(wildcard $(dir)/*.c))
-OFILES = $(CFILES:.c=.o)
-
-CFLAGS = -Os $(ARCH) -ffunction-sections -fdata-sections -Wall
-LDFLAGS = $(ARCH) -lmi_sys -lmi_gfx -lpng -Wl,-Bstatic -ljpeg -Wl,-Bdynamic
-
-$(TARGET): $(OFILES)
-	$(CC) $(OFILES) -o $@ $(LDFLAGS)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-clean:
-	rm -f $(TARGET) $(OFILES)
-
-install:
-	echo do nothing for install
+include ../common/commands.mk
+include ../common/recipes.mk

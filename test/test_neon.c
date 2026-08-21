@@ -406,11 +406,150 @@ TEST(rotate180_17px_tail) {
         ASSERT_EQ(buf[i], orig[16 - i]);
 }
 
+TEST(rotate180_zero_count) {
+    uint32_t sentinel = 0xDEADBEEFu;
+    neon_rotate180_inplace(&sentinel, 0);
+    ASSERT_EQ(sentinel, 0xDEADBEEFu);
+    neon_rotate180_inplace_scalar(&sentinel, 0);
+    ASSERT_EQ(sentinel, 0xDEADBEEFu);
+}
+
+/* Public neon_* vs *_scalar oracles. On host this checks fallback == oracle.
+ * Compiled with __ARM_NEON (qemu-arm / unit-test-neon-arm) this is SIMD vs scalar. */
+
+static const int k_conv_counts[] = {0, 1, 7, 8, 15, 16, 17};
+static const int k_rot_counts[] = {0, 1, 8, 9, 16, 17};
+
+static void fill_argb_index_pattern(uint32_t *buf, int n, uint32_t tag)
+{
+    for (int i = 0; i < n; i++) {
+        /* A=tag, R=index, G=0x5A, B=~index — R/B swap is visible in the index. */
+        uint32_t idx = (uint32_t)i & 0xFFu;
+        buf[i] = (tag << 24) | (idx << 16) | (0x5Au << 8) | (idx ^ 0xFFu);
+    }
+}
+
+TEST(swap_rb_inplace_vs_scalar_counts) {
+    uint32_t src[24], got[24], exp[24];
+    for (unsigned c = 0; c < sizeof(k_conv_counts) / sizeof(k_conv_counts[0]); c++) {
+        int n = k_conv_counts[c];
+        fill_argb_index_pattern(src, 24, 0xA1);
+        memcpy(got, src, sizeof(src));
+        memcpy(exp, src, sizeof(src));
+        neon_swap_rb_inplace(got, n);
+        neon_swap_rb_inplace_scalar(exp, n);
+        for (int i = 0; i < 24; i++)
+            ASSERT_EQ(got[i], exp[i]);
+    }
+}
+
+TEST(argb_to_rgba_vs_scalar_counts) {
+    uint32_t src[24], got[24], exp[24];
+    for (unsigned c = 0; c < sizeof(k_conv_counts) / sizeof(k_conv_counts[0]); c++) {
+        int n = k_conv_counts[c];
+        fill_argb_index_pattern(src, 24, 0xB2);
+        memset(got, 0x3C, sizeof(got));
+        memset(exp, 0x3C, sizeof(exp));
+        neon_argb_to_rgba(got, src, n);
+        neon_argb_to_rgba_scalar(exp, src, n);
+        for (int i = 0; i < 24; i++)
+            ASSERT_EQ(got[i], exp[i]);
+    }
+}
+
+TEST(argb_to_rgba_alpha_vs_scalar_counts) {
+    uint32_t src[24], got[24], exp[24];
+    for (unsigned c = 0; c < sizeof(k_conv_counts) / sizeof(k_conv_counts[0]); c++) {
+        int n = k_conv_counts[c];
+        fill_argb_index_pattern(src, 24, 0xC3);
+        src[0] &= 0x00FFFFFFu; /* alpha = 0 */
+        if (n > 3)
+            src[3] &= 0x00FFFFFFu;
+        memset(got, 0x3C, sizeof(got));
+        memset(exp, 0x3C, sizeof(exp));
+        neon_argb_to_rgba_alpha(got, src, n);
+        neon_argb_to_rgba_alpha_scalar(exp, src, n);
+        for (int i = 0; i < 24; i++)
+            ASSERT_EQ(got[i], exp[i]);
+    }
+}
+
+TEST(rgb888_to_argb_vs_scalar_counts) {
+    uint8_t src[24 * 3];
+    uint32_t got[24], exp[24];
+    for (int i = 0; i < 24; i++) {
+        src[i * 3 + 0] = (uint8_t)i;          /* R = index */
+        src[i * 3 + 1] = 0x5A;                /* G */
+        src[i * 3 + 2] = (uint8_t)(i ^ 0xFF); /* B = ~index */
+    }
+    for (unsigned c = 0; c < sizeof(k_conv_counts) / sizeof(k_conv_counts[0]); c++) {
+        int n = k_conv_counts[c];
+        memset(got, 0x3C, sizeof(got));
+        memset(exp, 0x3C, sizeof(exp));
+        neon_rgb888_to_argb(got, src, n);
+        neon_rgb888_to_argb_scalar(exp, src, n);
+        for (int i = 0; i < 24; i++)
+            ASSERT_EQ(got[i], exp[i]);
+    }
+}
+
+TEST(gray8_to_argb_vs_scalar_counts) {
+    uint8_t src[24];
+    uint32_t got[24], exp[24];
+    for (int i = 0; i < 24; i++)
+        src[i] = (uint8_t)(i * 13);
+    for (unsigned c = 0; c < sizeof(k_conv_counts) / sizeof(k_conv_counts[0]); c++) {
+        int n = k_conv_counts[c];
+        memset(got, 0x3C, sizeof(got));
+        memset(exp, 0x3C, sizeof(exp));
+        neon_gray8_to_argb(got, src, n);
+        neon_gray8_to_argb_scalar(exp, src, n);
+        for (int i = 0; i < 24; i++)
+            ASSERT_EQ(got[i], exp[i]);
+    }
+}
+
+TEST(gray8a_to_argb_vs_scalar_counts) {
+    uint8_t src[24 * 2];
+    uint32_t got[24], exp[24];
+    for (int i = 0; i < 24; i++) {
+        src[i * 2 + 0] = (uint8_t)(i * 11);
+        src[i * 2 + 1] = (uint8_t)(255 - i * 7);
+    }
+    for (unsigned c = 0; c < sizeof(k_conv_counts) / sizeof(k_conv_counts[0]); c++) {
+        int n = k_conv_counts[c];
+        memset(got, 0x3C, sizeof(got));
+        memset(exp, 0x3C, sizeof(exp));
+        neon_gray8a_to_argb(got, src, n);
+        neon_gray8a_to_argb_scalar(exp, src, n);
+        for (int i = 0; i < 24; i++)
+            ASSERT_EQ(got[i], exp[i]);
+    }
+}
+
+TEST(rotate180_vs_scalar_counts) {
+    uint32_t src[24], got[24], exp[24];
+    for (unsigned c = 0; c < sizeof(k_rot_counts) / sizeof(k_rot_counts[0]); c++) {
+        int n = k_rot_counts[c];
+        fill_argb_index_pattern(src, 24, 0xD4);
+        memcpy(got, src, sizeof(src));
+        memcpy(exp, src, sizeof(src));
+        neon_rotate180_inplace(got, n);
+        neon_rotate180_inplace_scalar(exp, n);
+        for (int i = 0; i < 24; i++)
+            ASSERT_EQ(got[i], exp[i]);
+    }
+}
+
 /* ---- main ---- */
 
 int main(void)
 {
-    printf("\n=== neon_pixel.h Unit Tests ===\n\n");
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+    printf("\n=== neon_pixel.h Unit Tests (NEON SIMD vs scalar oracle) ===\n\n");
+#else
+    printf("\n=== neon_pixel.h Unit Tests (scalar fallback vs oracle) ===\n\n");
+#endif
 
     RUN_TEST(swap_rb_inplace_single);
     RUN_TEST(swap_rb_inplace_zero_alpha);
@@ -454,6 +593,15 @@ int main(void)
     RUN_TEST(rotate180_involution);
     RUN_TEST(rotate180_16px);
     RUN_TEST(rotate180_17px_tail);
+    RUN_TEST(rotate180_zero_count);
+
+    RUN_TEST(swap_rb_inplace_vs_scalar_counts);
+    RUN_TEST(argb_to_rgba_vs_scalar_counts);
+    RUN_TEST(argb_to_rgba_alpha_vs_scalar_counts);
+    RUN_TEST(rgb888_to_argb_vs_scalar_counts);
+    RUN_TEST(gray8_to_argb_vs_scalar_counts);
+    RUN_TEST(gray8a_to_argb_vs_scalar_counts);
+    RUN_TEST(rotate180_vs_scalar_counts);
 
     TEST_REPORT();
     return test_failures;

@@ -3,7 +3,7 @@
 
 #include <SDL/SDL.h>
 #include <stdint.h>
-#if defined(__ARM_NEON__) || defined(__ARM_NEON)
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
 #include <arm_neon.h>
 #endif
 
@@ -32,7 +32,7 @@ void surfaceSetAlpha(SDL_Surface *surface, Uint8 alpha)
         Uint32 *pixels = (Uint32 *)surface->pixels;
 
         if (surface->pitch == surface->w * (int)fmt->BytesPerPixel) {
-#if defined(__ARM_NEON__) || defined(__ARM_NEON)
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
             /* NEON must use the same alpha_scale as scalar (OniOpus46 bug:
              * multiplying by `alpha` then >>8 breaks alpha=255 and alpha=0). */
             const int a_byte = (int)(a_shift / 8);

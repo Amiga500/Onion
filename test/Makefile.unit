@@ -7,6 +7,10 @@
 #   make -f Makefile.unit          # Build and run all tests
 #   make -f Makefile.unit test_str # Build and run str tests only
 #   make -f Makefile.unit clean    # Remove build artifacts
+#   make -f Makefile.unit unit-test-neon-arm
+#       Cross-compile neon_pixel / surfaceSetAlpha tests with -mfpu=neon
+#       and run them under qemu-arm (needs gcc-arm-linux-gnueabihf and
+#       qemu-user-static). Fails clearly if those tools are missing.
 #
 # From the top-level Makefile:
 #   make unit-test
@@ -27,7 +31,7 @@ TESTS := test_str test_perf test_file test_hash test_json test_state test_histor
 # Build-only targets (compilation without running)
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
-.PHONY: all clean $(TESTS) summary unit-test-san
+.PHONY: all clean $(TESTS) summary unit-test-san unit-test-neon-arm neon-test-arm
 
 all: $(BINARIES)
 	@total_tests=0; total_asserts=0; total_fails=0; suite_fails=0; \
@@ -558,9 +562,9 @@ test_alpha_scale: $(BUILD_DIR)/test_alpha_scale
 	@echo ""
 	@$(BUILD_DIR)/test_alpha_scale
 
-$(BUILD_DIR)/test_alpha_scale: test_alpha_scale.c onion_test.h
+$(BUILD_DIR)/test_alpha_scale: test_alpha_scale.c onion_test.h stubs/SDL/SDL.h ../src/common/utils/surfaceSetAlpha.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_alpha_scale.c $(LDFLAGS)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_alpha_scale.c $(LDFLAGS)
 
 test_osd_constants: $(BUILD_DIR)/test_osd_constants
 	@echo ""
@@ -640,9 +644,41 @@ unit-test-san:
 	done; \
 	[ $$fail -eq 0 ]
 
+# Cross-compile neon_pixel.h / surfaceSetAlpha.h with NEON and run under qemu-arm.
+# Host `make unit-test` stays x86-only. This target is required in CI (job neon-arm).
+ARM_CC   ?= $(shell command -v arm-linux-gnueabihf-gcc 2>/dev/null || command -v arm-linux-gnu-gcc 2>/dev/null)
+QEMU_ARM ?= $(shell command -v qemu-arm-static 2>/dev/null || command -v qemu-arm 2>/dev/null)
+ARM_CFLAGS := $(CFLAGS) -std=gnu99 -static -O1 -marm -mfpu=neon -mfloat-abi=hard \
+              -march=armv7-a -DNEON_TEST_COMPARE
+
+unit-test-neon-arm neon-test-arm:
+	@if [ -z "$(ARM_CC)" ]; then \
+		echo "unit-test-neon-arm: FAIL: no ARM cross compiler."; \
+		echo "  Install gcc-arm-linux-gnueabihf (Debian/Ubuntu) or gcc-arm-linux-gnu (Fedora)."; \
+		exit 1; \
+	fi
+	@if [ -z "$(QEMU_ARM)" ]; then \
+		echo "unit-test-neon-arm: FAIL: qemu-arm / qemu-arm-static not found."; \
+		echo "  Install qemu-user-static."; \
+		exit 1; \
+	fi
+	@mkdir -p $(BUILD_DIR)
+	@echo "NEON ARM tests: $(ARM_CC) + $(QEMU_ARM)"
+	$(ARM_CC) $(ARM_CFLAGS) -o $(BUILD_DIR)/test_neon_arm test_neon.c
+	$(ARM_CC) $(ARM_CFLAGS) -o $(BUILD_DIR)/test_neon_pixel_arm test_neon_pixel.c
+	$(ARM_CC) $(ARM_CFLAGS) -Istubs -o $(BUILD_DIR)/test_alpha_scale_arm test_alpha_scale.c
+	@fail=0; \
+	for t in test_neon_arm test_neon_pixel_arm test_alpha_scale_arm; do \
+		printf "\n--- qemu-arm %s ---\n" "$$t"; \
+		$(QEMU_ARM) $(BUILD_DIR)/$$t || fail=1; \
+	done; \
+	[ $$fail -eq 0 ]
+
 clean:
 	rm -f $(addprefix $(BUILD_DIR)/, $(TESTS)) \
 		$(BUILD_DIR)/test_hash_san $(BUILD_DIR)/test_file_san \
 		$(BUILD_DIR)/test_str_san $(BUILD_DIR)/test_json_san \
 		$(BUILD_DIR)/test_neon_san $(BUILD_DIR)/test_images_browser \
-		$(BUILD_DIR)/_san_probe
+		$(BUILD_DIR)/_san_probe \
+		$(BUILD_DIR)/test_neon_arm $(BUILD_DIR)/test_neon_pixel_arm \
+		$(BUILD_DIR)/test_alpha_scale_arm
