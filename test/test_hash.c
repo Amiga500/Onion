@@ -164,6 +164,99 @@ TEST(hash_different_lengths_differ) {
     free(str2);
 }
 
+/* ---- regression vectors ---- */
+
+/* Hash values end up in on-device file names (romScreens/<hash>.png built by
+ * history_getRomscreenPath) and in the play-activity cache databases, so they
+ * must stay stable forever: changing them orphans every cached file already on
+ * a user's SD card. These vectors were captured from the implementation as it
+ * behaved before the alignment/over-read fix and cover both code paths plus
+ * every length around the wrdlen == 8 boundary. */
+typedef struct {
+    const char *input;
+    uint32_t expected;
+} HashVector;
+
+static const HashVector hash_vectors[] = {
+    {"", 0x590AF0A6u},
+    {"a", 0x2288D439u},
+    {"ab", 0xDA8B5217u},
+    {"abc", 0x87A649B4u},
+    {"abcd", 0x6ED36C75u},
+    {"abcde", 0x93305563u},
+    {"abcdef", 0x52418612u},
+    {"abcdefg", 0x3D1CE94Fu},
+    {"abcdefgh", 0x251CF14Fu},
+    {"abcdefghi", 0x8918A757u},
+    {"abcdefghij", 0x0218FEA7u},
+    {"abcdefghijk", 0x8CEA205Fu},
+    {"abcdefghijkl", 0x96D273D1u},
+    {"abcdefghijklm", 0xF9DBC856u},
+    {"abcdefghijklmn", 0x619369AEu},
+    {"abcdefghijklmno", 0x10D002F1u},
+    {"abcdefghijklmnop", 0xBE8C2CFAu},
+    {"abcdefghijklmnopq", 0x374A2517u},
+    {"abcdefghijklmnopqrstuvwxyz", 0xA0578CFDu},
+    {"hello", 0x4E020623u},
+    {"world", 0x74BFE10Fu},
+    {"Hello", 0xD7455609u},
+    {"test123", 0xBF26FF4Cu},
+    {"test124", 0x4A450A2Fu},
+    {"test_string_123", 0x6E51C414u},
+    {"this is a longer string for testing", 0x8901DFEFu},
+    {"/mnt/SDCARD/Roms/GBA/game.gba", 0x165E4B94u},
+    {"/mnt/SDCARD/Roms/SFC/Super Mario World.sfc", 0xBFDE8CC4u},
+    {"/mnt/SDCARD/Roms/MD/Sonic The Hedgehog 2 (World).md", 0xE18AB410u},
+    {"/mnt/SDCARD/Saves/CurrentProfile/romScreens", 0x3704DB55u},
+    {"0123456789012345678901234567890123456789012345678901234567890123",
+     0x0F0451FCu},
+    {"\x01\x02\x03\x04\x05\x06\x07\x08", 0x87F15125u},
+    {"\xff\xfe\xfd\xfc\xfb\xfa\xf9\xf8\xf7", 0x4ED25776u},
+};
+
+#define HASH_VECTOR_COUNT (sizeof(hash_vectors) / sizeof(hash_vectors[0]))
+
+TEST(hash_regression_vectors) {
+    for (size_t i = 0; i < HASH_VECTOR_COUNT; i++) {
+        size_t len = strlen(hash_vectors[i].input);
+        char *str = (char *)calloc(1, len + 1 + HASH_BUFFER_EXTRA);
+        memcpy(str, hash_vectors[i].input, len);
+        uint32_t hash = FNV1A_Pippip_Yurii(str, len);
+        free(str);
+        ASSERT_EQ(hash, hash_vectors[i].expected);
+    }
+}
+
+TEST(hash_unaligned_start_offsets) {
+    /* ARMv7 LDRD faults on unaligned addresses, so the hash must neither
+     * depend on nor assume the alignment of the string it is given. */
+    for (size_t i = 0; i < HASH_VECTOR_COUNT; i++) {
+        size_t len = strlen(hash_vectors[i].input);
+        for (size_t offset = 0; offset < 8; offset++) {
+            char *buf = (char *)calloc(1, offset + len + 1 + HASH_BUFFER_EXTRA);
+            memcpy(buf + offset, hash_vectors[i].input, len);
+            uint32_t hash = FNV1A_Pippip_Yurii(buf + offset, len);
+            free(buf);
+            ASSERT_EQ(hash, hash_vectors[i].expected);
+        }
+    }
+}
+
+TEST(hash_exact_size_buffer_no_overread) {
+    /* Exact-sized allocation: no terminator and no slack, so a read past
+     * wrdlen is a heap overflow under ASan. */
+    for (size_t i = 0; i < HASH_VECTOR_COUNT; i++) {
+        size_t len = strlen(hash_vectors[i].input);
+        if (len == 0)
+            continue;
+        char *buf = (char *)malloc(len);
+        memcpy(buf, hash_vectors[i].input, len);
+        uint32_t hash = FNV1A_Pippip_Yurii(buf, len);
+        free(buf);
+        ASSERT_EQ(hash, hash_vectors[i].expected);
+    }
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -182,6 +275,9 @@ int main(void)
     RUN_TEST(hash_known_value_world);
     RUN_TEST(hash_known_value_path);
     RUN_TEST(hash_different_lengths_differ);
+    RUN_TEST(hash_regression_vectors);
+    RUN_TEST(hash_unaligned_start_offsets);
+    RUN_TEST(hash_exact_size_buffer_no_overread);
 
     TEST_REPORT();
     return test_failures;

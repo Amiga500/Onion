@@ -2,14 +2,26 @@
 #define UTILS_HASH_H__
 // Dedicated to Pippip, the main character in the 'Das Totenschiff' roman,
 // actually the B.Traven himself, his real name was Hermann Albert Otto
-// Maksymilian Feige. CAUTION: Add 8 more bytes to the buffer being hashed,
-// usually malloc(...+8) - to prevent out of boundary reads! Many thanks go to
-// Yurii 'Hordi' Hordiienko, he lessened with 3 instructions the original
-// 'Pippip', thus:
+// Maksymilian Feige. Many thanks go to Yurii 'Hordi' Hordiienko, he lessened
+// with 3 instructions the original 'Pippip', thus:
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdlib.h>
-#define _PADr_KAZE(x, n) (((x) << (n)) >> (n))
+#include <string.h>
+
+// Zero-extending little-endian load of the first `len` (<= 8) bytes. memcpy
+// keeps the produced hash values bit-identical to a plain 8-byte dereference
+// while never reading past the buffer and never assuming alignment: ARMv7 LDRD
+// traps on unaligned addresses, and compilers fold this back into a single
+// load. The original 'Pippip' relied on the caller over-allocating 8 bytes and
+// masked the surplus away with (x << n) >> n; zeroing them here is equivalent.
+static inline uint64_t _hash_load64le(const char *str, size_t len)
+{
+    uint64_t value = 0;
+    memcpy(&value, str, len);
+    return value;
+}
+
 uint32_t FNV1A_Pippip_Yurii(const char *str, size_t wrdlen)
 {
     const uint32_t PRIME = 591798841;
@@ -21,14 +33,12 @@ uint32_t FNV1A_Pippip_Yurii(const char *str, size_t wrdlen)
         NDhead = wrdlen - (Cycles << 3);
         // #pragma nounroll
         for (; Cycles--; str += 8) {
-            hash64 = (hash64 ^ (*(uint64_t *)(str))) * PRIME;
-            hash64 = (hash64 ^ (*(uint64_t *)(str + NDhead))) * PRIME;
+            hash64 = (hash64 ^ _hash_load64le(str, 8)) * PRIME;
+            hash64 = (hash64 ^ _hash_load64le(str + NDhead, 8)) * PRIME;
         }
     }
     else
-        hash64 =
-            (hash64 ^ _PADr_KAZE(*(uint64_t *)(str + 0), (8 - wrdlen) << 3)) *
-            PRIME;
+        hash64 = (hash64 ^ _hash_load64le(str, wrdlen)) * PRIME;
     hash32 = (uint32_t)(hash64 ^ (hash64 >> 32));
     return hash32 ^ (hash32 >> 16);
 } // Last update: 2019-Oct-30, 14 C lines strong, Kaze.

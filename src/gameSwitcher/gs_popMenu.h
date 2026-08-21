@@ -202,12 +202,17 @@ static void *_save_thread(void *_)
     char stateFilePath[4096];
     time_t saveLastModified = 0;
 
+    // Without a valid path the save cannot be confirmed below, so give up
+    // before asking RetroArch to write anything.
+    if (!createSaveStatePath(game, slot, stateFilePath, sizeof(stateFilePath))) {
+        g_save_thread_running = false;
+        return NULL;
+    }
+
     // Check if save state exists
-    if (createSaveStatePath(game, slot, stateFilePath, sizeof(stateFilePath))) {
-        printf_debug("Checking for save state: %s\n", stateFilePath);
-        if (exists(stateFilePath)) {
-            file_isModified(stateFilePath, &saveLastModified);
-        }
+    printf_debug("Checking for save state: %s\n", stateFilePath);
+    if (exists(stateFilePath)) {
+        file_isModified(stateFilePath, &saveLastModified);
     }
 
     const int start = SDL_GetTicks();
