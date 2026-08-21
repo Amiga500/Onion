@@ -44,12 +44,12 @@ typedef struct ListItem {
     char preview_path[4096];
     char sticky_note[STR_MAX];
     char info_note[STR_MAX];
-    void *_label_cache;      // Cached TTF surface for label (internal)
-    uint32_t _label_hash;    // Hash of label text for cache invalidation
-    void *_value_cache;      // Cached TTF surface for value label (internal)
-    int _cached_value;       // Cached value for value label invalidation
-    void *_scaled_preview;   // Cached scaled preview surface (internal)
-    int _scaled_preview_w;   // Width the preview was scaled to (for invalidation)
+    void *_label_cache;    // Cached TTF surface for label (internal)
+    uint32_t _label_hash;  // Hash of label text for cache invalidation
+    void *_value_cache;    // Cached TTF surface for value label (internal)
+    int _cached_value;     // Cached value for value label invalidation
+    void *_scaled_preview; // Cached scaled preview surface (internal)
+    int _scaled_preview_w; // Width the preview was scaled to (for invalidation)
 } ListItem;
 
 typedef struct List {
