@@ -14,6 +14,11 @@
 static int dialog_progress = 0;
 static int dialog_font_size = 0;
 
+// Cached dialog surfaces to avoid per-call allocation
+static SDL_Surface *_dialog_transparent_bg = NULL;
+static SDL_Surface *_dialog_label_ok = NULL;
+static SDL_Surface *_dialog_label_cancel = NULL;
+
 int __get_font_size()
 {
     if (dialog_font_size == 0) {
@@ -32,10 +37,12 @@ int __get_font_size()
 
 void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *message_str, bool show_hint)
 {
-    SDL_Surface *transparent_bg = SDL_CreateRGBSurface(0, g_display.width, g_display.height, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-    SDL_FillRect(transparent_bg, NULL, /* 33.3% transparent black */ 0x55000000);
-    SDL_BlitSurface(transparent_bg, NULL, screen, NULL);
-    SDL_FreeSurface(transparent_bg);
+    // Cache transparent background — avoids CreateRGBSurface+FillRect+FreeSurface per call
+    if (_dialog_transparent_bg == NULL) {
+        _dialog_transparent_bg = SDL_CreateRGBSurface(0, g_display.width, g_display.height, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+        SDL_FillRect(_dialog_transparent_bg, NULL, /* 33.3% transparent black */ 0x55000000);
+    }
+    SDL_BlitSurface(_dialog_transparent_bg, NULL, screen, NULL);
 
     SDL_Surface *pop_bg = resource_getSurface(POP_BG);
     SDL_Rect center_rect = {(g_display.width - pop_bg->w) / 2, (g_display.height - pop_bg->h) / 2};
@@ -50,7 +57,7 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     }
 
     SDL_Surface *textbox = theme_textboxSurface(message_str, resource_getFont(TITLE), theme()->grid.color, ALIGN_CENTER);
-    if (textbox->w > DIALOG_WIDTH || textbox->h > 6 * (double)DIALOG_LINE_HEIGHT * g_scale) {
+    if (textbox != NULL && (textbox->w > DIALOG_WIDTH || textbox->h > 6 * (double)DIALOG_LINE_HEIGHT * g_scale)) {
         SDL_FreeSurface(textbox);
         TTF_Font *temp_font = theme_loadFont(theme()->path, theme()->title.font, __get_font_size());
         textbox = theme_textboxSurface(message_str, temp_font, theme()->grid.color, ALIGN_CENTER);
@@ -63,19 +70,25 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     }
 
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
-    if (show_hint && button_a->w < g_display.width) {
+    if (show_hint && button_a != NULL && button_a->w < g_display.width) {
         SDL_Rect hint_rect = {center_rect.x + pop_bg->w - 30.0 * g_scale, center_rect.y + pop_bg->h - 60.0 * g_scale};
 
         SDL_Surface *button_b = resource_getSurface(BUTTON_B);
-        SDL_Surface *label_ok = TTF_RenderUTF8_Blended(resource_getFont(HINT), lang_get(LANG_OK, LANG_FALLBACK_OK), theme()->hint.color);
-        SDL_Surface *label_cancel = TTF_RenderUTF8_Blended(resource_getFont(HINT), lang_get(LANG_CANCEL, LANG_FALLBACK_CANCEL), theme()->hint.color);
+        // Cache OK/Cancel labels — they don't change between calls
+        if (_dialog_label_ok == NULL)
+            _dialog_label_ok = TTF_RenderUTF8_Blended(resource_getFont(HINT), lang_get(LANG_OK, LANG_FALLBACK_OK), theme()->hint.color);
+        if (_dialog_label_cancel == NULL)
+            _dialog_label_cancel = TTF_RenderUTF8_Blended(resource_getFont(HINT), lang_get(LANG_CANCEL, LANG_FALLBACK_CANCEL), theme()->hint.color);
+        SDL_Surface *label_ok = _dialog_label_ok;
+        SDL_Surface *label_cancel = _dialog_label_cancel;
 
         hint_rect.x -= button_a->w + 5.0 * g_scale;
         if (label_ok) {
             hint_rect.x -= label_ok->w + 30.0 * g_scale;
         }
 
-        hint_rect.x -= button_b->w + 5.0 * g_scale;
+        if (button_b != NULL)
+            hint_rect.x -= button_b->w + 5.0 * g_scale;
         if (label_cancel) {
             hint_rect.x -= label_cancel->w + 30.0 * g_scale;
         }
@@ -88,10 +101,9 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
             SDL_Rect label_ok_rect = {hint_rect.x, hint_rect.y - label_ok->h / 2};
             hint_rect.x += label_ok->w + 30.0 * g_scale;
             SDL_BlitSurface(label_ok, NULL, screen, &label_ok_rect);
-            SDL_FreeSurface(label_ok);
         }
 
-        if (label_cancel) {
+        if (label_cancel && button_b != NULL) {
             SDL_Rect button_b_rect = {hint_rect.x, hint_rect.y - button_b->h / 2};
             hint_rect.x += button_b->w + 5.0 * g_scale;
             SDL_BlitSurface(button_b, NULL, screen, &button_b_rect);
@@ -99,7 +111,6 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
             SDL_Rect label_cancel_rect = {hint_rect.x, hint_rect.y - label_cancel->h / 2};
             hint_rect.x += label_cancel->w + 30.0 * g_scale;
             SDL_BlitSurface(label_cancel, NULL, screen, &label_cancel_rect);
-            SDL_FreeSurface(label_cancel);
         }
     }
 }
@@ -128,8 +139,8 @@ void theme_clearDialogProgress(void) { dialog_progress = 0; }
 
 void theme_renderInfoPanel(SDL_Surface *screen, const char *title_str, const char *message_str, bool use_dialog)
 {
-    bool has_title = title_str != NULL && strlen(title_str) > 0;
-    bool has_message = message_str != NULL && strlen(message_str) > 0;
+    bool has_title = title_str != NULL && title_str[0] != '\0';
+    bool has_message = message_str != NULL && message_str[0] != '\0';
 
     if (use_dialog) {
         theme_renderDialog(screen, has_title ? title_str : " ", has_message ? message_str : " ", false);
@@ -141,9 +152,10 @@ void theme_renderInfoPanel(SDL_Surface *screen, const char *title_str, const cha
     if (has_message) {
         SDL_Surface *message = NULL;
         char message_newline[4096];
-        strcpy(message_newline, message_str);
+        strncpy(message_newline, message_str, sizeof(message_newline) - 1);
+        message_newline[sizeof(message_newline) - 1] = '\0';
         char *str = str_replace(message_newline, "\\n", "\n");
-        message = theme_textboxSurface(str, resource_getFont(TITLE), theme()->list.color, ALIGN_CENTER);
+        message = theme_textboxSurface(str ? str : message_newline, resource_getFont(TITLE), theme()->list.color, ALIGN_CENTER);
         if (message) {
             SDL_Rect message_rect = {(g_display.width) / 2, (g_display.height) / 2};
             message_rect.x -= message->w / 2;

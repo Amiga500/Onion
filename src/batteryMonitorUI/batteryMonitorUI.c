@@ -33,14 +33,7 @@ graph_spot graphic[GRAPH_MAX_FULL_PAGES * GRAPH_DISPLAY_SIZE_X];
 
 static void sigHandler(int sig)
 {
-    switch (sig) {
-    case SIGINT:
-    case SIGTERM:
-        quit = true;
-        break;
-    default:
-        break;
-    }
+    signal_handler_quit(&quit, sig);
 }
 
 static SDL_Surface *video;

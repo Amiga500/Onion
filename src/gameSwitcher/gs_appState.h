@@ -2,9 +2,8 @@
 #define GAME_SWITCHER_APP_STATE_H__
 
 #include <SDL/SDL.h>
-#include <signal.h>
-
 #include "gs_model.h"
+#include "utils/signal_handler.h"
 
 #define VIEW_NORMAL 0
 #define VIEW_MINIMAL 1
@@ -89,14 +88,10 @@ static AppState appState = {
 
 static void sigHandler(int sig)
 {
-    switch (sig) {
-    case SIGINT:
-    case SIGTERM:
+    /* Custom: gameSwitcher must set both exit_to_menu and quit. */
+    if (sig == SIGINT || sig == SIGTERM) {
         appState.exit_to_menu = true;
         appState.quit = true;
-        break;
-    default:
-        break;
     }
 }
 
@@ -104,6 +99,8 @@ static char sTotalTimePlayed[50] = "";
 
 Game_s *currentGame(void)
 {
+    if (game_list_len == 0)
+        return NULL;
     return &game_list[appState.current_game];
 }
 

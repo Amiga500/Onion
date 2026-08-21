@@ -27,6 +27,7 @@
 #include "utils/str.h"
 
 #include "../playActivity/playActivityDB.h"
+#include "utils/signal_handler.h"
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 

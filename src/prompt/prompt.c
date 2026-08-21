@@ -23,6 +23,7 @@
 #include "utils/keystate.h"
 #include "utils/log.h"
 #include "utils/sdl_init.h"
+#include "utils/signal_handler.h"
 
 #define FRAMES_PER_SECOND 60
 #define SHUTDOWN_TIMEOUT 500
@@ -63,14 +64,7 @@ void showInfoDialog(List *list)
 
 static void sigHandler(int sig)
 {
-    switch (sig) {
-    case SIGINT:
-    case SIGTERM:
-        quit = true;
-        break;
-    default:
-        break;
-    }
+    signal_handler_quit(&quit, sig);
 }
 
 int main(int argc, char *argv[])

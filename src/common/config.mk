@@ -35,10 +35,17 @@ CFLAGS := -I../../include -I../common -DPLATFORM_$(shell echo $(PLATFORM) | tr a
 
 ifeq ($(DEBUG),1)
 CFLAGS := $(CFLAGS) -DLOG_DEBUG -g3
+else
+CFLAGS := $(CFLAGS) -O2 -ffunction-sections -fdata-sections
+LDFLAGS := $(LDFLAGS) -Wl,--gc-sections
 endif
 
 ifeq ($(TEST),1)
 CFLAGS := $(CFLAGS) -I../include -I../src/common -I$(GTEST_INCLUDE_DIR)
+endif
+
+ifeq ($(PERF),1)
+CFLAGS := $(CFLAGS) -DPERF_ENABLED
 endif
 
 ifeq ($(SANITIZE),1)
