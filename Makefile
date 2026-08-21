@@ -54,7 +54,7 @@ include ./src/common/commands.mk
 
 ###########################################################
 
-.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test
+.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test jpg2png
 
 all: dist
 
@@ -111,6 +111,10 @@ $(CACHE)/.setup:
 
 build: core apps external
 	@$(ECHO) $(PRINT_DONE)
+
+# jpg2png is built like pngScale but not part of `core` until the Miyoo sysroot ships libjpeg.
+jpg2png:
+	@cd $(SRC_DIR)/jpg2png && BUILD_DIR=$(BIN_DIR) make
 
 core: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)

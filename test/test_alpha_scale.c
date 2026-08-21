@@ -1,14 +1,11 @@
 /**
  * @file test_alpha_scale.c
- * @brief Unit tests for the per-pixel alpha scaling math from surfaceSetAlpha.h
+ * @brief Unit tests for surfaceSetAlpha.h (production header + scalar math)
  *
- * Tests the scalar fallback path for the alpha blending computation:
- *   alpha_scale = ((uint32_t)alpha * 257 + 1) >> 8
- *   new_alpha = (original_alpha * alpha_scale) >> 8
- *
- * This fixed-point approximation replaces (original * target / 255) without
- * floating-point. The tests verify correct rounding, boundary values,
- * identity properties, and commutativity of consecutive alpha blends.
+ * Compiles the real header with a minimal SDL stub. Verifies:
+ *   - alpha=0 zeros the alpha byte and leaves RGB unchanged (OniOpus46 used scale 1)
+ *   - alpha=255 is identity, not (a*255)>>8 which maps 255→254
+ *   - processed buffers match a scalar oracle byte-for-byte
  *
  * Build and run: make -f Makefile.unit test_alpha_scale
  */
@@ -17,7 +14,33 @@
 #include <stdint.h>
 #include <string.h>
 
-/* ---- Alpha scaling math extracted from surfaceSetAlpha.h ---- */
+#include "utils/surfaceSetAlpha.h"
+
+int SDL_LockSurface(SDL_Surface *surface)
+{
+    (void)surface;
+    return 0;
+}
+
+void SDL_UnlockSurface(SDL_Surface *surface)
+{
+    (void)surface;
+}
+
+int SDL_SetAlpha(SDL_Surface *surface, Uint32 flag, Uint8 alpha)
+{
+    (void)surface;
+    (void)flag;
+    (void)alpha;
+    return 0;
+}
+
+void SDL_FreeSurface(SDL_Surface *surface)
+{
+    (void)surface;
+}
+
+/* ---- Alpha scaling math (same formula as surfaceSetAlpha.h) ---- */
 
 static uint32_t alpha_scale_factor(uint8_t alpha)
 {
@@ -213,11 +236,108 @@ TEST(scale_alpha_exact_255_255) {
     ASSERT_EQ(scale_alpha(255, 255), 255);
 }
 
+/* ---- Production surfaceSetAlpha() on stub SDL surfaces ---- */
+
+static SDL_PixelFormat g_fmt;
+static SDL_Surface g_surf;
+
+static SDL_Surface *make_argb8888_surface(uint32_t *pixels, int w, int h)
+{
+    memset(&g_fmt, 0, sizeof(g_fmt));
+    memset(&g_surf, 0, sizeof(g_surf));
+    g_fmt.Amask = 0xFF000000u;
+    g_fmt.Ashift = 24;
+    g_fmt.BytesPerPixel = 4;
+    g_surf.format = &g_fmt;
+    g_surf.w = w;
+    g_surf.h = h;
+    g_surf.pitch = w * 4;
+    g_surf.pixels = pixels;
+    return &g_surf;
+}
+
+static void scale_argb_oracle(uint32_t *px, int n, uint8_t alpha)
+{
+    uint32_t scale = alpha_scale_factor(alpha);
+    for (int i = 0; i < n; i++) {
+        uint32_t p = px[i];
+        uint32_t a = (p & 0xFF000000u) >> 24;
+        a = (a * scale) >> 8;
+        px[i] = (p & 0x00FFFFFFu) | (a << 24);
+    }
+}
+
+TEST(surface_alpha_zero_rgb_unchanged) {
+    /* 8 pixels: NEON width. alpha=0 must not use scale=1 (OniOpus46). */
+    uint32_t pixels[8];
+    uint32_t orig[8];
+    for (int i = 0; i < 8; i++)
+        pixels[i] = orig[i] = 0xFF000000u | ((uint32_t)i << 16) | (0x22u << 8) | 0x33u;
+    surfaceSetAlpha(make_argb8888_surface(pixels, 8, 1), 0);
+    for (int i = 0; i < 8; i++) {
+        ASSERT_EQ(pixels[i] & 0x00FFFFFFu, orig[i] & 0x00FFFFFFu);
+        ASSERT_EQ(pixels[i] >> 24, 0u);
+    }
+}
+
+TEST(surface_alpha_255_identity_not_254) {
+    /* OniOpus46 multiplied by 255 then >>8: 255→254. Scale 256 is identity. */
+    uint32_t pixels[10];
+    uint32_t orig[10];
+    for (int i = 0; i < 10; i++)
+        pixels[i] = orig[i] = 0xFF112233u + (uint32_t)i;
+    surfaceSetAlpha(make_argb8888_surface(pixels, 10, 1), 255);
+    for (int i = 0; i < 10; i++) {
+        ASSERT_EQ(pixels[i], orig[i]);
+        ASSERT_EQ(pixels[i] >> 24, 0xFFu);
+        ASSERT_NE(pixels[i] >> 24, 0xFEu);
+    }
+}
+
+TEST(surface_alpha_one_pixel_tail) {
+    uint32_t pixel = 0xFFAABBCC;
+    uint32_t oracle = pixel;
+    scale_argb_oracle(&oracle, 1, 128);
+    surfaceSetAlpha(make_argb8888_surface(&pixel, 1, 1), 128);
+    ASSERT_EQ(pixel, oracle);
+}
+
+TEST(surface_alpha_matches_scalar_oracle) {
+    uint32_t pixels[9];
+    uint32_t oracle[9];
+    for (int i = 0; i < 9; i++)
+        pixels[i] = oracle[i] = 0x80000000u | ((uint32_t)(i * 19) << 16)
+                                | ((uint32_t)(i * 7) << 8) | (uint32_t)i;
+    scale_argb_oracle(oracle, 9, 200);
+    surfaceSetAlpha(make_argb8888_surface(pixels, 9, 1), 200);
+    ASSERT_EQ(memcmp(pixels, oracle, sizeof(pixels)), 0);
+}
+
+TEST(surface_alpha_zero_matches_oracle) {
+    uint32_t pixels[8];
+    uint32_t oracle[8];
+    for (int i = 0; i < 8; i++)
+        pixels[i] = oracle[i] = 0xFF112200u + (uint32_t)i;
+    scale_argb_oracle(oracle, 8, 0);
+    surfaceSetAlpha(make_argb8888_surface(pixels, 8, 1), 0);
+    ASSERT_EQ(memcmp(pixels, oracle, sizeof(pixels)), 0);
+}
+
+TEST(surface_alpha_255_matches_oracle) {
+    uint32_t pixels[8];
+    uint32_t oracle[8];
+    for (int i = 0; i < 8; i++)
+        pixels[i] = oracle[i] = 0xFF000000u | ((uint32_t)(i * 3) << 8) | 0x44u;
+    scale_argb_oracle(oracle, 8, 255);
+    surfaceSetAlpha(make_argb8888_surface(pixels, 8, 1), 255);
+    ASSERT_EQ(memcmp(pixels, oracle, sizeof(pixels)), 0);
+}
+
 /* ---- main ---- */
 
 int main(void)
 {
-    printf("\n=== surfaceSetAlpha.h Alpha Scale Math Unit Tests ===\n\n");
+    printf("\n=== surfaceSetAlpha.h Unit Tests ===\n\n");
 
     /* Scale factor */
     RUN_TEST(scale_factor_zero);
@@ -248,6 +368,14 @@ int main(void)
     /* Edge cases */
     RUN_TEST(scale_all_values_in_range);
     RUN_TEST(scale_alpha_exact_255_255);
+
+    /* Production header */
+    RUN_TEST(surface_alpha_zero_rgb_unchanged);
+    RUN_TEST(surface_alpha_255_identity_not_254);
+    RUN_TEST(surface_alpha_one_pixel_tail);
+    RUN_TEST(surface_alpha_matches_scalar_oracle);
+    RUN_TEST(surface_alpha_zero_matches_oracle);
+    RUN_TEST(surface_alpha_255_matches_oracle);
 
     TEST_REPORT();
     return test_failures;

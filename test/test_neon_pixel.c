@@ -318,6 +318,12 @@ TEST(rotate180_larger_buffer) {
         ASSERT_EQ(px[i], (uint32_t)(7 - i));
 }
 
+TEST(rotate180_zero_count) {
+    uint32_t px[] = {0xAABBCCDDu};
+    neon_rotate180_inplace(px, 0);
+    ASSERT_EQ(px[0], 0xAABBCCDDu);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -374,6 +380,7 @@ int main(void)
     RUN_TEST(rotate180_four_pixels);
     RUN_TEST(rotate180_double_is_identity);
     RUN_TEST(rotate180_larger_buffer);
+    RUN_TEST(rotate180_zero_count);
 
     TEST_REPORT();
     return test_failures;

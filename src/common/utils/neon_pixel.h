@@ -11,9 +11,84 @@
  * All functions process 8–16 pixels per iteration using
  * VLD4/VST4 deinterleave with PLD prefetch.
  * Scalar fallback for remaining pixels and non-NEON builds.
+ *
+ * `*_scalar` helpers are the portable oracles: the `#else` path and the
+ * NEON remainder loop both call them. Tests (especially with
+ * `-DNEON_TEST_COMPARE` under qemu-arm) compare public `neon_*`
+ * entry points against these oracles to catch SIMD R/B swaps.
  */
 
 #include <stdint.h>
+
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#define NEON_PIXEL_HAS_NEON 1
+#endif
+
+static inline uint32_t neon_swap_rb_u32(uint32_t px)
+{
+    return (px & 0xFF00FF00) | ((px & 0x00FF0000) >> 16) | ((px & 0x000000FF) << 16);
+}
+
+static inline void neon_swap_rb_inplace_scalar(uint32_t *pixels, int count)
+{
+    for (int i = 0; i < count; i++) {
+        pixels[i] = neon_swap_rb_u32(pixels[i]);
+    }
+}
+
+static inline void neon_argb_to_rgba_scalar(uint32_t *dst, const uint32_t *src, int count)
+{
+    for (int i = 0; i < count; i++) {
+        dst[i] = neon_swap_rb_u32(src[i]);
+    }
+}
+
+static inline void neon_argb_to_rgba_alpha_scalar(uint32_t *dst, const uint32_t *src, int count)
+{
+    for (int i = 0; i < count; i++) {
+        uint32_t px = src[i];
+        dst[i] = (px & 0xFF000000) ? neon_swap_rb_u32(px) : 0;
+    }
+}
+
+static inline void neon_rgb888_to_argb_scalar(uint32_t *dst, const uint8_t *src, int count)
+{
+    for (int i = 0; i < count; i++) {
+        const uint8_t *p = src + i * 3;
+        dst[i] = 0xFF000000 | ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | p[2];
+    }
+}
+
+static inline void neon_gray8_to_argb_scalar(uint32_t *dst, const uint8_t *src, int count)
+{
+    for (int i = 0; i < count; i++) {
+        uint32_t g = src[i];
+        dst[i] = 0xFF000000 | (g << 16) | (g << 8) | g;
+    }
+}
+
+static inline void neon_gray8a_to_argb_scalar(uint32_t *dst, const uint8_t *src, int count)
+{
+    for (int i = 0; i < count; i++) {
+        uint32_t g = src[i * 2];
+        uint32_t a = src[i * 2 + 1];
+        dst[i] = (a << 24) | (g << 16) | (g << 8) | g;
+    }
+}
+
+static inline void neon_rotate180_inplace_scalar(uint32_t *pixels, int count)
+{
+    if (count <= 0) {
+        return;
+    }
+    uint32_t *lo = pixels;
+    uint32_t *hi = pixels + count - 1;
+    while (lo < hi) {
+        uint32_t tmp = *lo;
+        *lo++ = *hi;
+        *hi-- = tmp;
+    }
+}
 
 /**
  * Swap Red and Blue channels in-place for an array of ARGB8888 pixels.
@@ -21,7 +96,7 @@
  */
 static inline void neon_swap_rb_inplace(uint32_t *pixels, int count)
 {
-#ifdef __ARM_NEON
+#ifdef NEON_PIXEL_HAS_NEON
     int neon_count = count & ~15;
     uint32_t *p = pixels;
     if (neon_count > 0) {
@@ -41,15 +116,9 @@ static inline void neon_swap_rb_inplace(uint32_t *pixels, int count)
             :
             : "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "memory", "cc");
     }
-    for (int i = (count & ~15); i < count; i++) {
-        uint32_t px = pixels[i];
-        pixels[i] = (px & 0xFF00FF00) | ((px & 0x00FF0000) >> 16) | ((px & 0x000000FF) << 16);
-    }
+    neon_swap_rb_inplace_scalar(pixels + (count & ~15), count - (count & ~15));
 #else
-    for (int i = 0; i < count; i++) {
-        uint32_t px = pixels[i];
-        pixels[i] = (px & 0xFF00FF00) | ((px & 0x00FF0000) >> 16) | ((px & 0x000000FF) << 16);
-    }
+    neon_swap_rb_inplace_scalar(pixels, count);
 #endif
 }
 
@@ -59,7 +128,7 @@ static inline void neon_swap_rb_inplace(uint32_t *pixels, int count)
  */
 static inline void neon_argb_to_rgba(uint32_t *dst, const uint32_t *src, int count)
 {
-#ifdef __ARM_NEON
+#ifdef NEON_PIXEL_HAS_NEON
     int neon_count = count & ~15;
     const uint32_t *s = src;
     uint32_t *d = dst;
@@ -79,15 +148,10 @@ static inline void neon_argb_to_rgba(uint32_t *dst, const uint32_t *src, int cou
             :
             : "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "memory", "cc");
     }
-    for (int i = (count & ~15); i < count; i++) {
-        uint32_t px = src[i];
-        dst[i] = (px & 0xFF00FF00) | ((px & 0x00FF0000) >> 16) | ((px & 0x000000FF) << 16);
-    }
+    neon_argb_to_rgba_scalar(dst + (count & ~15), src + (count & ~15),
+                             count - (count & ~15));
 #else
-    for (int i = 0; i < count; i++) {
-        uint32_t px = src[i];
-        dst[i] = (px & 0xFF00FF00) | ((px & 0x00FF0000) >> 16) | ((px & 0x000000FF) << 16);
-    }
+    neon_argb_to_rgba_scalar(dst, src, count);
 #endif
 }
 
@@ -97,7 +161,7 @@ static inline void neon_argb_to_rgba(uint32_t *dst, const uint32_t *src, int cou
  */
 static inline void neon_argb_to_rgba_alpha(uint32_t *dst, const uint32_t *src, int count)
 {
-#ifdef __ARM_NEON
+#ifdef NEON_PIXEL_HAS_NEON
     int neon_count = count & ~7;
     const uint32_t *s = src;
     uint32_t *d = dst;
@@ -118,19 +182,10 @@ static inline void neon_argb_to_rgba_alpha(uint32_t *dst, const uint32_t *src, i
             :
             : "d0", "d1", "d2", "d3", "d4", "memory", "cc");
     }
-    for (int i = (count & ~7); i < count; i++) {
-        uint32_t px = src[i];
-        dst[i] = (px & 0xFF000000)
-                     ? ((px & 0xFF00FF00) | ((px & 0x00FF0000) >> 16) | ((px & 0x000000FF) << 16))
-                     : 0;
-    }
+    neon_argb_to_rgba_alpha_scalar(dst + (count & ~7), src + (count & ~7),
+                                   count - (count & ~7));
 #else
-    for (int i = 0; i < count; i++) {
-        uint32_t px = src[i];
-        dst[i] = (px & 0xFF000000)
-                     ? ((px & 0xFF00FF00) | ((px & 0x00FF0000) >> 16) | ((px & 0x000000FF) << 16))
-                     : 0;
-    }
+    neon_argb_to_rgba_alpha_scalar(dst, src, count);
 #endif
 }
 
@@ -140,7 +195,7 @@ static inline void neon_argb_to_rgba_alpha(uint32_t *dst, const uint32_t *src, i
  */
 static inline void neon_rgb888_to_argb(uint32_t *dst, const uint8_t *src, int count)
 {
-#ifdef __ARM_NEON
+#ifdef NEON_PIXEL_HAS_NEON
     int neon_count = count & ~15;
     const uint8_t *s = src;
     uint8_t *d = (uint8_t *)dst;
@@ -162,15 +217,10 @@ static inline void neon_rgb888_to_argb(uint32_t *dst, const uint8_t *src, int co
             :
             : "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "memory", "cc");
     }
-    for (int i = (count & ~15); i < count; i++) {
-        const uint8_t *p = src + i * 3;
-        dst[i] = 0xFF000000 | ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | p[2];
-    }
+    neon_rgb888_to_argb_scalar(dst + (count & ~15), src + (count & ~15) * 3,
+                               count - (count & ~15));
 #else
-    for (int i = 0; i < count; i++) {
-        const uint8_t *p = src + i * 3;
-        dst[i] = 0xFF000000 | ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | p[2];
-    }
+    neon_rgb888_to_argb_scalar(dst, src, count);
 #endif
 }
 
@@ -179,7 +229,7 @@ static inline void neon_rgb888_to_argb(uint32_t *dst, const uint8_t *src, int co
  */
 static inline void neon_gray8_to_argb(uint32_t *dst, const uint8_t *src, int count)
 {
-#ifdef __ARM_NEON
+#ifdef NEON_PIXEL_HAS_NEON
     int neon_count = count & ~15;
     const uint8_t *s = src;
     uint8_t *d = (uint8_t *)dst;
@@ -203,15 +253,10 @@ static inline void neon_gray8_to_argb(uint32_t *dst, const uint8_t *src, int cou
             :
             : "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "memory", "cc");
     }
-    for (int i = (count & ~15); i < count; i++) {
-        uint32_t g = src[i];
-        dst[i] = 0xFF000000 | (g << 16) | (g << 8) | g;
-    }
+    neon_gray8_to_argb_scalar(dst + (count & ~15), src + (count & ~15),
+                              count - (count & ~15));
 #else
-    for (int i = 0; i < count; i++) {
-        uint32_t g = src[i];
-        dst[i] = 0xFF000000 | (g << 16) | (g << 8) | g;
-    }
+    neon_gray8_to_argb_scalar(dst, src, count);
 #endif
 }
 
@@ -221,7 +266,7 @@ static inline void neon_gray8_to_argb(uint32_t *dst, const uint8_t *src, int cou
  */
 static inline void neon_gray8a_to_argb(uint32_t *dst, const uint8_t *src, int count)
 {
-#ifdef __ARM_NEON
+#ifdef NEON_PIXEL_HAS_NEON
     int neon_count = count & ~15;
     const uint8_t *s = src;
     uint8_t *d = (uint8_t *)dst;
@@ -245,29 +290,26 @@ static inline void neon_gray8a_to_argb(uint32_t *dst, const uint8_t *src, int co
             :
             : "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "memory", "cc");
     }
-    for (int i = (count & ~15); i < count; i++) {
-        uint32_t g = src[i * 2];
-        uint32_t a = src[i * 2 + 1];
-        dst[i] = (a << 24) | (g << 16) | (g << 8) | g;
-    }
+    neon_gray8a_to_argb_scalar(dst + (count & ~15), src + (count & ~15) * 2,
+                               count - (count & ~15));
 #else
-    for (int i = 0; i < count; i++) {
-        uint32_t g = src[i * 2];
-        uint32_t a = src[i * 2 + 1];
-        dst[i] = (a << 24) | (g << 16) | (g << 8) | g;
-    }
+    neon_gray8a_to_argb_scalar(dst, src, count);
 #endif
 }
 
 /**
  * Rotate a 32bpp pixel buffer 180° in-place (reverse the pixel array).
  * Caller must ensure the buffer is contiguous (pitch == width * 4).
+ * count <= 0 is a no-op (avoids UB on `pixels + count - 1`).
  */
 static inline void neon_rotate180_inplace(uint32_t *pixels, int count)
 {
+    if (count <= 0) {
+        return;
+    }
     uint32_t *lo = pixels;
     uint32_t *hi = pixels + count - 1;
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#ifdef NEON_PIXEL_HAS_NEON
     while (hi - lo >= 15) {
         uint32_t *hip = hi - 7;
         __asm__ volatile(
