@@ -1,9 +1,9 @@
 #ifndef GAME_SWITCHER_APP_STATE_H__
 #define GAME_SWITCHER_APP_STATE_H__
 
-#include <SDL/SDL.h>
 #include "gs_model.h"
 #include "utils/signal_handler.h"
+#include <SDL/SDL.h>
 
 #define VIEW_NORMAL 0
 #define VIEW_MINIMAL 1
