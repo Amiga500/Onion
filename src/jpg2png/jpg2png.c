@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "../common/utils/neon_pixel.h"
@@ -133,12 +134,18 @@ int main(int argc, char *argv[])
     jpgPa = 0;
     printf("sw:%d sh:%d dw:%d dh:%d\n", sw, sh, dw, dh);
 
-    // Create png
-    strcpy(filename, argv[1]);
-    ptr = strrchr(filename, '.');
-    if (ptr)
-        *ptr = 0;
-    strcat(filename, ".png");
+    // Create png — bound the argv[1] copy; reject paths that do not fit
+    {
+        char stem[256];
+        snprintf(stem, sizeof(stem), "%s", argv[1]);
+        ptr = strrchr(stem, '.');
+        if (ptr)
+            *ptr = '\0';
+        if (snprintf(filename, sizeof(filename), "%s.png", stem) >= (int)sizeof(filename)) {
+            fprintf(stderr, "png path too long\n");
+            goto error;
+        }
+    }
     fp = fopen(filename, "wb");
     if (!fp) {
         fprintf(stderr, "png write error\n");

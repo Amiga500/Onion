@@ -15,13 +15,13 @@
 #include "utils/process.h"
 #include "utils/str.h"
 
+#define SCREENSHOT_PATH_MAX 512
+
 bool __get_path_recent(char *path_out)
 {
-    char *fnptr, *no_extension;
+    char name[STR_MAX] = "";
+    char *no_extension;
     uint32_t i;
-
-    strcpy(path_out, "/mnt/SDCARD/Screenshots/");
-    fnptr = path_out + strlen(path_out);
 
     system_state_update();
 
@@ -29,40 +29,48 @@ bool __get_path_recent(char *path_out)
         char file_path[STR_MAX];
         if (history_getRecentPath(file_path) != NULL) {
             no_extension = file_removeExtension(basename(file_path));
-            strcat(path_out, no_extension);
-            free(no_extension);
+            if (no_extension != NULL) {
+                strncpy(name, no_extension, sizeof(name) - 1);
+                name[sizeof(name) - 1] = '\0';
+                free(no_extension);
+            }
         }
     }
     else if (system_state == MODE_SWITCHER)
-        strcat(path_out, "GameSwitcher");
+        strncpy(name, "GameSwitcher", sizeof(name) - 1);
     else if (system_state == MODE_MAIN_UI)
-        strcat(path_out, "MainUI");
+        strncpy(name, "MainUI", sizeof(name) - 1);
     else if ((system_state == MODE_GAME || system_state == MODE_APPS) && exists(CMD_TO_RUN_PATH)) {
         FILE *fp;
         char cmd[STR_MAX];
         file_get(fp, CMD_TO_RUN_PATH, "%[^\n]", cmd);
         printf_debug("cmd: '%s'\n", cmd);
 
-        char app_name[STR_MAX];
+        char app_name[STR_MAX] = "";
 
         if (strstr(cmd, "; chmod") != NULL)
             state_getAppName(app_name, cmd);
         else {
             no_extension = file_removeExtension(basename(cmd));
-            strcpy(app_name, no_extension);
-            free(no_extension);
+            if (no_extension != NULL) {
+                strncpy(app_name, no_extension, sizeof(app_name) - 1);
+                app_name[sizeof(app_name) - 1] = '\0';
+                free(no_extension);
+            }
         }
         printf_debug("app: '%s'\n", app_name);
-
-        strcat(path_out, app_name);
+        strncpy(name, app_name, sizeof(name) - 1);
+        name[sizeof(name) - 1] = '\0';
     }
 
-    if (!(*fnptr))
-        strcat(path_out, "Screenshot");
+    if (name[0] == '\0')
+        strncpy(name, "Screenshot", sizeof(name) - 1);
 
-    fnptr = path_out + strlen(path_out);
     for (i = 0; i < 1000; i++) {
-        sprintf(fnptr, "_%03d.png", i);
+        int n = snprintf(path_out, SCREENSHOT_PATH_MAX,
+                         "/mnt/SDCARD/Screenshots/%s_%03d.png", name, i);
+        if (n < 0 || (size_t)n >= SCREENSHOT_PATH_MAX)
+            return false;
         if (!exists(path_out))
             break;
     }
@@ -166,7 +174,7 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool d
 bool __screenshot_perform(bool(get_path)(char *), pid_t p_id)
 {
     bool retval = false;
-    char path[512];
+    char path[SCREENSHOT_PATH_MAX];
     uint32_t *buffer;
 
     if (p_id != 0) {
