@@ -1,0 +1,25 @@
+TEST = 1
+INCLUDE_UTILS = 0
+
+# Explicitly list source files — do NOT auto-discover from current directory,
+# because test_str.c/test_perf.c use a different test framework (onion_test.h).
+SOURCES =
+CFILES := ../src/infoPanel/imagesCache.c ../src/common/utils/log.c ../src/common/utils/file.c ../src/common/utils/str.c
+CPPFILES := test_infoPanel.cpp
+include ../src/common/config.mk
+
+# Remove standalone unit test files picked up by the wildcard — they use
+# onion_test.h (not gtest), define their own main(), and are built separately.
+CFILES := $(filter-out $(wildcard ./test_*.c), $(CFILES))
+CPPFILES := $(filter-out $(wildcard ./test_*.cpp), $(CPPFILES))
+
+TARGET = test_infoPanel
+LDFLAGS := $(LDFLAGS) -L../lib -s -lSDL_image -lSDL -lgtest -lgtest_main -lpthread
+
+# Only link SDL_rotozoom if the library exists
+ifneq ($(wildcard ../lib/libSDL_rotozoom.so),)
+LDFLAGS := $(LDFLAGS) -lSDL_rotozoom
+endif
+
+include ../src/common/commands.mk
+include ../src/common/recipes.mk
