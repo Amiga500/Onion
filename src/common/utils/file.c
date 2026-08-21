@@ -61,8 +61,8 @@ bool file_isLocked(const char *path)
 
 const char *file_basename(const char *filename)
 {
-    char *p = strrchr(filename, '/');
-    return p ? p + 1 : (char *)filename;
+    const char *p = strrchr(filename, '/');
+    return p ? p + 1 : filename;
 }
 
 /**
