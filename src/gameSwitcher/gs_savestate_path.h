@@ -2,8 +2,8 @@
 #define GS_SAVESTATE_PATH_H__
 
 #include <stdbool.h>
-#include <stdio.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 /* Same path as gs_model.h; defined here so this header is testable without SDL. */
