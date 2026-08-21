@@ -10,7 +10,7 @@ static char _log_path[64] = "";
 
 void log_setName(const char *log_name)
 {
-    snprintf(_log_path, 63, "/mnt/SDCARD/.tmp_update/logs/%s.log", log_name);
+    snprintf(_log_path, sizeof(_log_path), "/mnt/SDCARD/.tmp_update/logs/%s.log", log_name);
     mkdirs("/mnt/SDCARD/.tmp_update/logs");
 }
 
@@ -20,8 +20,9 @@ void log_debug(const char *file_path, int line, const char *format_str, ...)
 
     va_list valist;
     va_start(valist, format_str);
-    sprintf(log_message, "%s:%d>\t", file_path, line);
-    vsprintf(log_message + strlen(log_message), format_str, valist);
+    int prefix_len = snprintf(log_message, sizeof(log_message), "%s:%d>\t", file_path, line);
+    if (prefix_len > 0 && prefix_len < (int)sizeof(log_message))
+        vsnprintf(log_message + prefix_len, sizeof(log_message) - prefix_len, format_str, valist);
     va_end(valist);
 
     fprintf(stderr, "%s", log_message);

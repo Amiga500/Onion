@@ -27,14 +27,18 @@ pid_t process_searchpid(const char *commname)
     size_t commlen = strlen(commname);
 
     procdp = opendir("/proc");
+    if (procdp == NULL) {
+        return 0;
+    }
     while ((dir = readdir(procdp))) {
         if (dir->d_type == DT_DIR) {
-            pid = atoi(dir->d_name);
+            pid = (int)strtol(dir->d_name, NULL, 10);
             if (pid > 2) {
-                sprintf(fname, "/proc/%d/comm", pid);
+                snprintf(fname, sizeof(fname), "/proc/%d/comm", pid);
                 FILE *fp = fopen(fname, "r");
                 if (fp) {
-                    fscanf(fp, "%127s", comm);
+                    if (fscanf(fp, "%127s", comm) != 1)
+                        comm[0] = '\0';
                     fclose(fp);
                     if (!strncmp(comm, commname, commlen)) {
                         ret = pid;
@@ -60,6 +64,13 @@ void process_kill(const char *commname)
         kill(pid, SIGKILL);
 }
 
+void process_kill_signal(const char *commname, int sig)
+{
+    pid_t pid;
+    if ((pid = process_searchpid(commname)))
+        kill(pid, sig);
+}
+
 void process_killall(const char *commname)
 {
     pid_t pid;
@@ -72,27 +83,27 @@ bool process_start(const char *pname, const char *args, const char *home,
                    bool await)
 {
     char filename[256];
-    sprintf(filename, "%s/bin/%s", home != NULL ? home : ".", pname);
+    snprintf(filename, sizeof(filename), "%s/bin/%s", home != NULL ? home : ".", pname);
     if (!exists(filename))
-        sprintf(filename, "%s/%s", home != NULL ? home : ".", pname);
+        snprintf(filename, sizeof(filename), "%s/%s", home != NULL ? home : ".", pname);
     if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/bin/%s", pname);
+        snprintf(filename, sizeof(filename), "/mnt/SDCARD/.tmp_update/bin/%s", pname);
     if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/%s", pname);
+        snprintf(filename, sizeof(filename), "/mnt/SDCARD/.tmp_update/%s", pname);
     if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/miyoo/app/%s", pname);
+        snprintf(filename, sizeof(filename), "/mnt/SDCARD/miyoo/app/%s", pname);
     if (!exists(filename))
         return false;
 
     char cmd[512];
-    sprintf(cmd, "cd \"%s\"; %s %s %s", home != NULL ? home : ".", filename,
-            args != NULL ? args : "", await ? "" : "&");
+    snprintf(cmd, sizeof(cmd), "cd \"%s\"; %s %s %s", home != NULL ? home : ".", filename,
+             args != NULL ? args : "", await ? "" : "&");
     system(cmd);
 
     return true;
 }
 
-bool process_start_read_return(const char *cmdline, char *out_str)
+int process_start_read_return(const char *cmdline, char *out_str)
 {
     char buffer[255] = "";
     char *result = NULL;
@@ -104,17 +115,21 @@ bool process_start_read_return(const char *cmdline, char *out_str)
     }
 
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        free(result);
         result = strdup(buffer);
     }
 
     pclose(pipe);
     if (result != NULL) {
-        result[strlen(buffer) - 1] = '\0';
-        strcpy(out_str, result);
+        size_t len = strlen(result);
+        if (len > 0 && result[len - 1] == '\n')
+            result[len - 1] = '\0';
+        strncpy(out_str, result, STR_MAX - 1);
+        out_str[STR_MAX - 1] = '\0';
         free(result);
     }
     else {
-        strcpy(out_str, "");
+        out_str[0] = '\0';
     }
     return 0;
 }
