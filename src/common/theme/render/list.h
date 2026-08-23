@@ -12,7 +12,8 @@
 static inline uint32_t _label_hash_fnv1a(const char *str)
 {
     uint32_t hash = 2166136261u;
-    if (str == NULL) return hash;
+    if (str == NULL)
+        return hash;
     for (const char *p = str; *p; p++) {
         hash ^= (uint8_t)*p;
         hash *= 16777619u;
@@ -35,7 +36,8 @@ static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
         item->_label_hash = hash;
     }
     SDL_Surface *item_label = (SDL_Surface *)item->_label_cache;
-    if (item_label == NULL) return;
+    if (item_label == NULL)
+        return;
 
     SDL_Rect item_label_rect = {offset_x, center_y - item_label->h / 2};
     SDL_Rect label_crop = {0, 0, label_end - 30 * g_scale, item_label->h};
@@ -166,7 +168,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             if (item->preview_ptr == NULL && item->preview_path[0] != '\0') {
                 if (is_file(item->preview_path)) {
                     item->preview_ptr = (void *)IMG_Load(item->preview_path);
-                } else {
+                }
+                else {
                     item->preview_path[0] = '\0'; // Cache negative result — stop re-checking
                 }
             }
@@ -224,7 +227,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 item->_cached_color = list_color_key;
             }
             SDL_Surface *value_label = (SDL_Surface *)item->_value_cache;
-            if (value_label == NULL) continue;
+            if (value_label == NULL)
+                continue;
             if (show_disabled) {
                 surfaceSetAlpha(value_label, HIDDEN_ITEM_ALPHA);
             }
@@ -271,7 +275,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 // Use cached scaled preview if available and width matches
                 if (active_preview->_scaled_preview != NULL && active_preview->_scaled_preview_w == preview_width) {
                     preview = (SDL_Surface *)active_preview->_scaled_preview;
-                } else {
+                }
+                else {
                     // Free old cache if width changed
                     if (active_preview->_scaled_preview != NULL)
                         SDL_FreeSurface((SDL_Surface *)active_preview->_scaled_preview);
