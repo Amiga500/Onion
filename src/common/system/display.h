@@ -54,6 +54,8 @@ static display_t g_display = {
     .init_done = false,
 };
 
+static uint32_t _cached_brightness_raw = UINT32_MAX; // UINT32_MAX = no cached value
+
 typedef struct Rect {
     int x;
     int y;
@@ -142,7 +144,9 @@ void display_save(void)
     g_display.fb_ofs = (uint8_t *)g_display.fb_addr + (g_display.vinfo.yoffset * g_display.stride);
 
     // Save display area and clear
-    if ((g_display.savebuf = (uint8_t *)malloc(g_display.width * g_display.bpp * g_display.height))) {
+    size_t save_size = (size_t)g_display.width * (size_t)g_display.bpp * (size_t)g_display.height;
+    if (save_size > 0 && save_size / g_display.width / g_display.bpp == (size_t)g_display.height &&
+        (g_display.savebuf = (uint8_t *)malloc(save_size))) {
         uint32_t i, ofss, ofsd;
         ofss = ofsd = 0;
         for (i = g_display.height; i > 0;
@@ -203,6 +207,7 @@ void display_setScreen(bool enabled)
         file_write(PWM_DIR "export", "0", 1);
         file_write(PWM_DIR "pwm0/enable", "0", 1);
         file_write(PWM_DIR "pwm0/enable", "1", 1);
+        _cached_brightness_raw = UINT32_MAX; // invalidate cache after PWM re-export
         display_restore();
     }
     else {
@@ -228,6 +233,8 @@ uint32_t display_getBrightnessRaw()
 int display_getBrightnessFromRaw()
 {
     int value_raw = display_getBrightnessRaw();
+    if (value_raw <= 0)
+        return 0;
     int value = round((log(value_raw / 3.0) / 0.350656));
     return value;
 }
@@ -236,8 +243,11 @@ int display_getBrightnessFromRaw()
 //
 void display_setBrightnessRaw(uint32_t value)
 {
+    if (value == _cached_brightness_raw)
+        return;
     FILE *fp;
     file_put_sync(fp, PWM_DIR "pwm0/duty_cycle", "%u", value);
+    _cached_brightness_raw = value;
     printf_debug("Raw brightness: %d\n", value);
 }
 
@@ -274,12 +284,23 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
     for (int oy = 0; oy < rect.h; oy++) {
         int y = rect.y + oy;
 
-        if (y < 0 || y >= display->vinfo.yres)
+        if (y < 0 || y >= (int)display->vinfo.yres)
             continue;
 
         int virtualY = bufferPos + (rotate ? (display->vinfo.yres - 1) - y : y);
         long baseOffset = (long)virtualY * display->vinfo.xres;
         int baseIndex = oy * rect.w;
+
+        // Fast path: non-rotated, non-masked, contiguous row — use memcpy
+        if (!rotate && !mask && rect.x >= 0 && rect.x + rect.w <= (int)display->vinfo.xres) {
+            long rowOffset = baseOffset + (long)rect.x;
+            if (write) {
+                memcpy(&display->fb_addr[rowOffset], &pixels[baseIndex], rect.w * sizeof(uint32_t));
+            } else {
+                memcpy(&pixels[baseIndex], &display->fb_addr[rowOffset], rect.w * sizeof(uint32_t));
+            }
+            continue;
+        }
 
         for (int ox = 0; ox < rect.w; ox++) {
             int x = rect.x + ox;
@@ -288,7 +309,7 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
                 x = (display->vinfo.xres - 1) - x;
             }
 
-            if (x < 0 || x >= display->vinfo.xres)
+            if (x < 0 || x >= (int)display->vinfo.xres)
                 continue;
 
             long offset = baseOffset + (long)x;
@@ -329,6 +350,8 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
  */
 void display_readCurrentBuffer(display_t *display, uint32_t *pixels, rect_t rect, bool rotate, bool mask)
 {
+    if (display->vinfo.yres == 0)
+        return;
     int index = display->vinfo.yoffset / display->vinfo.yres;
     display_readOrWriteBuffer(index, display, pixels, rect, rotate, mask, false);
 }
@@ -384,6 +407,8 @@ void display_writeBuffer(int index, display_t *display, uint32_t *pixels, rect_t
  */
 void display_readOrWriteBuffers(display_t *display, uint32_t **pixels, rect_t rect, bool rotate, bool mask, bool write)
 {
+    if (display->vinfo.yres == 0)
+        return;
     int numBuffers = display->vinfo.yres_virtual / display->vinfo.yres;
 
     for (int b = 0; b < numBuffers; b++) {
@@ -432,23 +457,25 @@ void display_drawFrame(uint32_t color)
 {
     uint32_t *ofs = g_display.fb_addr;
     uint32_t i;
-    for (i = 0; i < 640; i++) {
+    int w = g_display.width;
+    int h = g_display.height;
+    for (i = 0; i < (uint32_t)w; i++) {
         ofs[i] = color;
     }
-    ofs += 640 * 479;
-    for (i = 0; i < 640 * 2; i++) {
+    ofs += w * (h - 1);
+    for (i = 0; i < (uint32_t)w * 2; i++) {
         ofs[i] = color;
     }
-    ofs += 640 * 480;
-    for (i = 0; i < 640 * 2; i++) {
+    ofs += w * h;
+    for (i = 0; i < (uint32_t)w * 2; i++) {
         ofs[i] = color;
     }
-    ofs += 640 * 480;
-    for (i = 0; i < 640; i++) {
+    ofs += w * h;
+    for (i = 0; i < (uint32_t)w; i++) {
         ofs[i] = color;
     }
-    ofs = g_display.fb_addr + 639;
-    for (i = 0; i < 480 * 3 - 1; i++, ofs += 640) {
+    ofs = g_display.fb_addr + w - 1;
+    for (i = 0; i < (uint32_t)(h * 3 - 1); i++, ofs += w) {
         ofs[0] = color;
         ofs[1] = color;
     }
@@ -494,7 +521,7 @@ void display_close(void)
     display_reset();
     display_free(&g_display);
 
-    if (fb_fd > 0)
+    if (fb_fd >= 0)
         close(fb_fd);
 }
 
