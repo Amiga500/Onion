@@ -112,6 +112,10 @@ char *drawImageByIndex(const int new_image_index, const int image_index,
     DEBUG_PRINT(("image_index: %d, new_image_index: %d\n", image_index,
                  new_image_index));
 
+    if (!images_paths || images_paths_count <= 0 || !cache_used || !screen) {
+        return NULL;
+    }
+
     if (new_image_index < 0 || new_image_index >= images_paths_count) {
         // out of range, draw nothing
         printf("out of range, draw nothing\n");
@@ -196,10 +200,16 @@ char *drawImageByIndex(const int new_image_index, const int image_index,
 void cleanImagesCache()
 {
     DEBUG_PRINT(("cleaning images cache\n"));
-    if (g_image_cache_prev)
+    if (g_image_cache_prev) {
         SDL_FreeSurface(g_image_cache_prev);
-    if (g_image_cache_current)
+        g_image_cache_prev = NULL;
+    }
+    if (g_image_cache_current) {
         SDL_FreeSurface(g_image_cache_current);
-    if (g_image_cache_next)
+        g_image_cache_current = NULL;
+    }
+    if (g_image_cache_next) {
         SDL_FreeSurface(g_image_cache_next);
+        g_image_cache_next = NULL;
+    }
 }
