@@ -7,11 +7,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "system/battery.h"
 #include "system/screenshot.h"
 #include "utils/msleep.h"
+#include "utils/process.h"
 #include "utils/str.h"
 
 #include "gs_appState.h"
@@ -77,7 +79,16 @@ void overlay_init()
     }
 
     retroarch_pause();
-    system("playActivity stop_all &");
+    // Use fork+exec instead of system() — avoids shell overhead
+    pid_t pid = fork();
+    if (pid == 0) {
+        execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "stop_all", NULL);
+        _exit(127);
+    } else if (pid > 0) {
+        waitpid(pid, NULL, 0);
+    } else {
+        print_debug("fork failed for playActivity stop_all");
+    }
     setFbAsFirstRomScreen();
 
     RetroArchStatus_s status;
@@ -127,7 +138,16 @@ void overlay_resume(void)
         render();
 
         retroarch_unpause();
-        system("playActivity resume &");
+        // Use fork+exec instead of system() — avoids shell overhead
+        pid_t pid = fork();
+        if (pid == 0) {
+            execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "resume", NULL);
+            _exit(127);
+        } else if (pid > 0) {
+            waitpid(pid, NULL, 0);
+        } else {
+            print_debug("fork failed for playActivity resume");
+        }
 
         msleep(200);
 
@@ -146,21 +166,21 @@ void overlay_exit(void)
         }
 
         // try graceful shutdown first
-        system("killall -TERM retroarch");
+        process_kill_signal("retroarch", SIGTERM);
 
         // wait up to 5 seconds for RetroArch to exit
         for (int i = 0; i < 10; i++) {
             msleep(500);  // 0.5s x 10 = 5s
-            if (system("pidof retroarch > /dev/null") != 0) {
+            if (!process_isRunning("retroarch")) {
                 break;  // retroarch is gone
             }
         }
 
         // if still running, force kill
-        if (system("pidof retroarch > /dev/null") == 0) {
+        if (process_isRunning("retroarch")) {
             print_debug("RetroArch still running, force killing...");
             temp_flag_set(".forceKillRetroarch", true);
-            system("killall -9 retroarch");
+            process_kill("retroarch");
         }
     }
 }
