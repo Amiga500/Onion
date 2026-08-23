@@ -21,9 +21,18 @@ static SDL_Surface *_dialog_label_cancel = NULL;
 
 void theme_renderDialog_cleanup(void)
 {
-    if (_dialog_transparent_bg) { SDL_FreeSurface(_dialog_transparent_bg); _dialog_transparent_bg = NULL; }
-    if (_dialog_label_ok) { SDL_FreeSurface(_dialog_label_ok); _dialog_label_ok = NULL; }
-    if (_dialog_label_cancel) { SDL_FreeSurface(_dialog_label_cancel); _dialog_label_cancel = NULL; }
+    if (_dialog_transparent_bg) {
+        SDL_FreeSurface(_dialog_transparent_bg);
+        _dialog_transparent_bg = NULL;
+    }
+    if (_dialog_label_ok) {
+        SDL_FreeSurface(_dialog_label_ok);
+        _dialog_label_ok = NULL;
+    }
+    if (_dialog_label_cancel) {
+        SDL_FreeSurface(_dialog_label_cancel);
+        _dialog_label_cancel = NULL;
+    }
     dialog_font_size = 0;
 }
 
