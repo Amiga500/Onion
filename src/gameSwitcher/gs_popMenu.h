@@ -296,7 +296,7 @@ void action_saveGame(void *_)
 
 void action_loadGame(void *_)
 {
-    if (g_save_state_info.selected_slot < 0 && g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
+    if (g_save_state_info.selected_slot < 0 || g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
         return;
     }
 
