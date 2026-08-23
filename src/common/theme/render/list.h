@@ -212,10 +212,10 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             label_end = arrow_left_pos.x;
 
             // Cache MULTIVALUE label — only re-render when value or color changes
-            const uint32_t list_color_key = ((uint32_t)list_color.r << 24) |
-                                            ((uint32_t)list_color.g << 16) |
-                                            ((uint32_t)list_color.b << 8) |
-                                            (uint32_t)list_color.a;
+            /* Miyoo SDL_Color is RGB-only (no unused/.a field). */
+            const uint32_t list_color_key = ((uint32_t)list_color.r << 16) |
+                                            ((uint32_t)list_color.g << 8) |
+                                            (uint32_t)list_color.b;
             char value_str[STR_MAX];
             list_getItemValueLabel(item, value_str);
             if (item->_value_cache == NULL || item->_cached_value != item->value ||
