@@ -652,11 +652,13 @@ TEST(file_add_line_to_beginning_prepends_line) {
 
 /* ---- file_isLocked ----
  *
- * This is NOT a flock/lock-file check. Production opens the path O_RDONLY:
- *   open succeeds  -> false  (existing readable file)
- *   open fails     -> true   (missing path, permission, etc.)
- * gs_popMenu.h polls it after a save; do not treat a passing test here as
- * proof that another process holds the file.
+ * This is NOT a flock/lock-file check. Production opens the path
+ * O_RDONLY | O_CREAT:
+ *   open succeeds  -> false  (existing file, or missing file now created)
+ *   open fails     -> true   (uncreatable path, permission, etc.)
+ * gs_popMenu.h polls it while waiting for a save-state file to appear;
+ * a missing-but-creatable file must report false so the wait loop
+ * terminates once the file shows up.
  */
 
 TEST(file_isLocked_existing_file) {
@@ -677,7 +679,11 @@ TEST(file_isLocked_uncreateable_path) {
 }
 
 TEST(file_isLocked_missing_file) {
-    ASSERT_TRUE(file_isLocked("/tmp/onion_test_no_such_locked_file"));
+    /* A missing file in a writable dir is created by O_CREAT -> not locked */
+    const char *tmpfile = "/tmp/onion_test_no_such_locked_file";
+    unlink(tmpfile);
+    ASSERT_FALSE(file_isLocked(tmpfile));
+    unlink(tmpfile);
 }
 
 /* ---- file_path_relative_to ---- */
