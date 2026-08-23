@@ -363,13 +363,9 @@ void osd_showBar(int value, int value_max, uint32_t color)
     _bar_color = color;
     osd_bar_activated = true;
 
-    // Cache meterWidth — only read config on first call (atomic for thread safety)
-    static volatile int meterWidth_cached = 0;
-    if (!meterWidth_cached) {
-        config_get("display/meterWidth", CONFIG_INT, &meterWidth);
-        __sync_synchronize();
-        meterWidth_cached = 1;
-    }
+    // Read meterWidth on every activation: a cached value would go stale on
+    // theme change (no invalidation path), and this runs once per keypress.
+    config_get("display/meterWidth", CONFIG_INT, &meterWidth);
 
     if (osd_thread_active)
         return;
