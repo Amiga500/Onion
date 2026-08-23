@@ -147,12 +147,12 @@ static void *_overlay_draw_thread(void *arg)
             display_writeBuffer(b, &data->display, data->surface->pixels, rect, data->rotate, false);
         }
 
-        // TODO: sleep or not? atm i'd say no
-        // usleep(4000);
+        // Throttle the draw loop to avoid a full-throttle busy-wait
+        msleep(2);
     }
 
-    printf("Draw count: %d\n", draw_count);
-    printf("Draw speed: %f\n", (float)draw_count / (float)elapsed_ms * 1000.0f);
+    printf_debug("Draw count: %d\n", draw_count);
+    printf_debug("Draw speed: %f\n", (float)draw_count / (float)elapsed_ms * 1000.0f);
 
     // Restore original framebuffer content after overlay
     // TODO: If the content "behind" the overlay has changed, this will not restore it correctly, causing a 1 frame glitch. How to fix? Only backup if the overlay is (partially) outside the game screen?
