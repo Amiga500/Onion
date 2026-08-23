@@ -237,7 +237,8 @@ static void *_scan_thread(void *_)
 
 static bool _isSaveEnabled(void)
 {
-    return currentGame()->is_running;
+    Game_s *game = currentGame();
+    return game != NULL && game->is_running;
 }
 
 static bool _isLoadEnabled(void)
@@ -301,12 +302,16 @@ void action_loadGame(void *_)
 
     const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
 
-    if (currentGame()->is_running) {
+    Game_s *game = currentGame();
+    if (game == NULL) {
+        return;
+    }
+
+    if (game->is_running) {
         retroarch_load(real_slot);
     }
     else {
         // Copy the save state to the auto state path
-        Game_s *game = &game_list[appState.current_game];
         char stateFilePath[2048];
         char autoStateFilePath[2048];
 

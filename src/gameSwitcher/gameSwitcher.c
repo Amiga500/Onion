@@ -161,6 +161,8 @@ int main(int argc, char *argv[])
         }
     }
 
+    Game_s *current_game = currentGame();
+
     if (appState.exit_to_menu) {
         print_debug("Exiting to menu");
         remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
@@ -169,7 +171,10 @@ int main(int argc, char *argv[])
         SDL_FillRect(screen, NULL, 0);
         render();
     }
-    else if (currentGame()->is_running) {
+    else if (current_game == NULL) {
+        print_debug("No current game; nothing to resume");
+    }
+    else if (current_game->is_running) {
         if (appState.current_bg != NULL) {
             SDL_FillRect(screen, NULL, 0);
             renderCentered(appState.current_bg, VIEW_FULLSCREEN, NULL, NULL);
@@ -177,8 +182,8 @@ int main(int argc, char *argv[])
         overlay_resume();
     }
     else {
-        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, game_list[appState.current_game].index);
-        resumeGame(game_list[appState.current_game].index);
+        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, current_game->index);
+        resumeGame(current_game->index);
         overlay_exit();
         render_showFullscreenMessage("LOADING", true);
     }
