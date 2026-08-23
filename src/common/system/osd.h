@@ -3,6 +3,7 @@
 
 #include <SDL/SDL.h>
 #include <pthread.h>
+#include <string.h>
 
 #include "utils/config.h"
 #include "utils/log.h"
@@ -347,6 +348,9 @@ void osd_showBar(int value, int value_max, uint32_t color)
     osd_bar_activated = true;
 
     config_get("display/meterWidth", CONFIG_INT, &meterWidth);
+    // Harden: keep meterWidth in a sane range
+    if (meterWidth < 1) meterWidth = 1;
+    if (meterWidth > 64) meterWidth = 64;
 
     if (osd_thread_active)
         return;
