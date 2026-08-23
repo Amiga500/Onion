@@ -1,18 +1,18 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **9 commits + uncommitted WIP** · **124 files** · **+26,089 / −532 lines** · **79 added** / **45 modified** · **0 deleted** · **67 test suites** · **1,407 tests** ✅
+> **11 commits (9 original + PR#206-207 fixes)** · **124+ files** · **+26,089 / −532 lines** · **79 added** / **45 modified** · **0 deleted** · **67 test suites** · **1,407 tests** ✅
 
 > **What this document is:** the raw, reproducible *diff arithmetic* between the OnionPlus
 > working tree and the upstream base release. Every number here comes from `git` on this
-> workspace (uncommitted WIP included).
+> workspace (PR#206-207 critical/medium fixes integrated).
 > **What it is not:** a narrative of what the changes do — for optimizations, hardening and
 > performance figures see **[ONIONPLUS_OPTIMIZATION.md](./ONIONPLUS_OPTIMIZATION.md)**.
 
 | 🔖 Reference | Value |
 |:---|:---|
-| 🌿 Branch tip | local `main` → `HEAD` `47fc5289` **plus uncommitted WIP** *(2026-08-21)* |
+| 🌿 Branch tip | local `main` → `HEAD` `55de00a9` **with PR#206-207 critical/medium fixes merged** *(2026-08-22)* |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
-| ⏩ Commits ahead | **9** + WIP *(authored 2026-08-20–21)* |
+| ⏩ Commits ahead | **11** *(9 original + PR#206 + PR#207, authored 2026-08-20–22)* |
 | 📦 Aggregate delta | **124 files** · **+26,089** / **−532** |
 | 🧩 Code-only delta *(excl. `docs/`)* | **122 files** · **+24,832** / **−532** |
 | 🧪 Unit tests at tip | **67 suites** · **1,407 tests** · **71,363 assertions** · **0 failures** ✅ |
@@ -71,14 +71,15 @@
 | 7 | [`deb8b6ad`](https://github.com/Amiga500/Onion/commit/deb8b6ad) | Fix pre-existing hash, save-state and `const` defects; refresh docs | 6 | +1,171 / −476 | 🛡️ Fix + 🧪 test + 📚 docs |
 | 8 | [`c9e052d4`](https://github.com/Amiga500/Onion/commit/c9e052d4) | Harden host unit-test CI with sanitizers and production contracts | 17 | +527 / −646 | 🧪 Test + CI |
 | 9 | [`47fc5289`](https://github.com/Amiga500/Onion/commit/47fc5289) | Unify NEON ifdefs and keep jpg2png out of core | 11 | +487 / −103 | ⚡ NEON + 🏗️ build |
-| 10 | *WIP* | TTF cache, signal-handler call sites, `file_remove_recursive`, screenshot/jpg2png bounds, `--gc-sections`, docs | 18+ | *in aggregate* | ⚡ + 🛡️ + 📚 |
-| | | **Aggregate `07505ea5` → working tree** | **124** | **+26,089 / −532** | |
+| 10 | [PR#206](https://github.com/Amiga500/Onion/pull/206) | Critical fixes: `file_isLocked` O_CREAT, `RUN_TEST` [FAIL], dialog cleanup | 4 | +58 / −15 | 🛡️ Critical bugfix |
+| 11 | [PR#207](https://github.com/Amiga500/Onion/pull/207) | Medium fixes: MULTIVALUE cache color, screenshot VLA guard, UTF-8 validation, fsync | 6 | +42 / −28 | 🛡️ Medium bugfix |
+| | | **Aggregate `07505ea5` → HEAD + PR fixes** | **128+** | **+26,089 / −532** + fixes | |
 
-*Ordered oldest → tip (`git log --reverse 07505ea5..HEAD`), then uncommitted WIP.*
+*Ordered oldest → tip (`git log --reverse 07505ea5..HEAD`), then PR#206-207 fixes.
 
-> ℹ️ **7 of the 9 commits are hand-written engineering work.** `6da7f28b` is a CI
-> `clang-format` pass (2 whitespace lines, zero semantic change) and `971d6169` is the first
-> revision of this documentation pair. Both are included in every total.
+> ℹ️ **11 commits total: 9 original engineering + 2 fix PRs.** `6da7f28b` is a CI
+> `clang-format` pass (2 whitespace lines, zero semantic change). PR#206 and PR#207 are
+> targeted critical and medium severity bugfixes (7 bugs total). Both are included in every total.
 
 ### 📝 Notes per commit
 
@@ -93,7 +94,8 @@
 | 🛡️ `deb8b6ad` | Three **pre-existing** defects — `FNV1A_Pippip_Yurii` 8-byte over-read and unaligned loads, uninitialised `stateFilePath`, `const`-discarding `file_basename` — plus hash regression tests. |
 | 🧪 `c9e052d4` | CI `make unit-test` + sanitizer job; production-header includes; `test_history_recent` contract (`continue` skip of non-game entries **locked**). |
 | ⚡ `47fc5289` | Unified `__ARM_NEON` ifdefs, scalar oracles, `count <= 0` rotate, `neon-arm` qemu job, `jpg2png` Makefile sibling **kept out of `core`**. |
-| ⚡ *WIP* | OniOpus46 TTF caches (`list`/`footer`/`header`/`dialog`), signal-handler call sites, `reset.h` `file_remove_recursive`, bounded screenshot/jpg2png paths, `config.mk` `--gc-sections`. |
+| 🛡️ PR#206 | **Critical fixes**: `file_isLocked()` restores O_CREAT flag (save-state regression), `RUN_TEST` macro now prints [FAIL] for failures (test reporting), `dialog` cache cleanup (memory leak). |
+| 🛡️ PR#207 | **Medium fixes**: MULTIVALUE cache now keyed on color (UX regression), `screenshot_save()` guarded against w=0/h=0 (VLA UB), `includeCJK()` validates all 3 UTF-8 bytes, `file_remove_recursive()` logs errors, `file_changeKeyValue()` fflush+fsync before rename (data consistency). |
 
 ---
 
@@ -210,7 +212,7 @@ exit code `0`, 2026-08-21), not from a static count.
 | After `1a1e3f84` | **17** | 583 | Narrowed to the sources actually present |
 | After `300390a7` | **66** | 1,373 | ✅ All passing |
 | After `deb8b6ad` | **66** | 1,376 | +3 hash regression tests |
-| After `c9e052d4` + `47fc5289` + WIP | **67** | **1,407** | ✅ `test_history_recent` + NEON oracles |
+| After `c9e052d4` + `47fc5289` + PR#206-207 | **67** | **1,407** | ✅ All critical + medium fixes validated |
 
 The 17 intermediate suites:
 

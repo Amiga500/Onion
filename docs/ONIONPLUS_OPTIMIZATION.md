@@ -1,10 +1,10 @@
 # 🧅 OnionPlus — Optimization & Hardening Report
 
-> **9 commits + uncommitted WIP** · **124 files** · **+26,089 / −532 lines** · **8 NEON kernels** · **67 test suites** · **1,407 tests** · **71,363 assertions** · **ALL PASSED** ✅
+> **11 commits (9 original + PR#206-207 fixes)** · **124+ files** · **+26,089 / −532 lines** · **8 NEON kernels** · **67 test suites** · **1,407 tests** · **71,363 assertions** · **ALL PASSED** ✅
 
 > **Scope:** this report covers *only* the commits that make up the OnionPlus port on top of
-> upstream `OnionUI/Onion:main` (`07505ea5` → `HEAD`). It is **not** a report on the whole
-> [OniOpus46](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) branch.
+> upstream `OnionUI/Onion:main` (`07505ea5` → `HEAD`), plus critical/medium bugfixes from PR#206-207.
+> It is **not** a report on the whole [OniOpus46](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) branch.
 > Percentages quoted from OniOpus46 are **explicitly labelled as such** — see the
 > [legend](#-legend--how-to-read-the-numbers) below.
 
@@ -12,7 +12,8 @@
 **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)**.
 
 > 🔁 **Self-reference.** The tip commit carries both this document and the defect fixes it
-> describes, so its own SHA cannot appear here — it is referred to as `HEAD` throughout. The
+> describes, so its own SHA cannot appear here — it is referred to as `HEAD` throughout. PR#206-207
+> fix commits are included as `HEAD` represents the complete OnionPlus tree. The
 > two `docs/` files are inside the range they measure; wherever it matters, the **code-only**
 > subset is given next to the aggregate.
 
@@ -83,7 +84,13 @@ timed on a Miyoo Mini as part of the OnionPlus port.**
 | 🛡️ `fclose`/`close` on error paths | — | +18 | **+18** | 🛡️ |
 | 🛡️ `FNV1A_Pippip_Yurii` hash load | 8-byte read regardless of `wrdlen`, unaligned | `memcpy` of exactly `wrdlen` bytes into an aligned local | **over-read and unaligned access removed, hashes bit-identical** | 🛡️ 🧪 |
 | 🛡️ Game Switcher save thread | ran with an uninitialised `stateFilePath` when the path could not be built | returns before touching RetroArch | **up to 60 s of polling on a garbage path removed** | 🛡️ 🧪 |
-| 🛡️ `file_basename` | discarded `const` via a cast | `const char *` throughout | **`-Wcast-qual` clean** | 🛡️ |
+| 🛡️ `RUN_TEST` macro test result reporting | Printed `[ OK ]` for both pass **and** fail | Now correctly prints `[FAIL]` for failures ([PR#206](https://github.com/Amiga500/Onion/pull/206)) | **silently failing tests now visible** | 🛡️ 🧪 |
+| 🛡️ `file_isLocked()` O_CREAT flag | Removed in port, breaking save-state loop in `gs_popMenu.h` | Restored flag ([PR#206](https://github.com/Amiga500/Onion/pull/206)) | **save-state wait loop works again** | 🛡️ 🧪 |
+| 🛡️ Dialog theme-render cache | Surfaces never released on theme change; memory accumulation | Added `theme_renderDialog_cleanup()` ([PR#206](https://github.com/Amiga500/Onion/pull/206)) | **memory leak closed** | 🛡️ 🧪 |
+| 🛡️ MULTIVALUE label cache color | Cache keyed only on value, not color; disabled-state feedback broken | Cache now keyed on `color+value` pair ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **UX regression fixed** | 🛡️ 🧪 |
+| 🛡️ `screenshot_save()` VLA undefined behavior | No guard on `g_display.width/height == 0`; VLA with 0-size is UB | Added dimension checks before VLA declaration ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **undefined behavior removed** | 🛡️ 🧪 |
+| 🛡️ `includeCJK()` UTF-8 validation | Only checked first continuation byte; multi-byte validation incomplete | Validation now checks all 3 bytes of valid sequence ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **complete UTF-8 validation** | 🛡️ 🧪 |
+| 🛡️ File I/O error reporting & consistency | `file_remove_recursive()` silently ignores `nftw()` errors; `file_changeKeyValue()` missing fsync | Added error logging & fsync before rename ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **data consistency + error visibility** | 🛡️ 🧪 |
 | 🧪 Active unit-test suites | 0 | 67 | **+67** ✅ | 🧪 |
 | 🧪 Unit tests / assertions | 0 / 0 | 1,407 / 71,363 | **ALL PASSED** ✅ | 🧪 |
 | 🏗️ Host test entry point | none | `make unit-test` | **added** ✅ | 🧪 |
@@ -114,20 +121,22 @@ No performance figure is attached to any of them.*
 | 7 | [`deb8b6ad`](https://github.com/Amiga500/Onion/commit/deb8b6ad) | 🛡️ Fix pre-existing hash, save-state and `const` defects; refresh docs | 6 | +1,171 / −476 | fix + test + docs |
 | 8 | [`c9e052d4`](https://github.com/Amiga500/Onion/commit/c9e052d4) | 🧪 Harden host unit-test CI with sanitizers and production contracts | 17 | +527 / −646 | test + CI |
 | 9 | [`47fc5289`](https://github.com/Amiga500/Onion/commit/47fc5289) | ⚡ Unify NEON ifdefs; keep `jpg2png` out of `core` | 11 | +487 / −103 | perf + build |
-| 10 | *WIP* *(working tree)* | ⚡ TTF cache, signal-handler call sites, `file_remove_recursive`, screenshot/jpg2png bounds, `--gc-sections` | 18+ | *see aggregate* | port + docs |
-| | | **Aggregate `07505ea5` → working tree** | **124** | **+26,089 / −532** | |
-| | | *Code only, excluding `docs/`* | *122* | *+24,832 / −532* | |
+| 10 | [PR#206](https://github.com/Amiga500/Onion/pull/206) | 🛡️ **CRITICAL**: restore `file_isLocked` O_CREAT, fix `RUN_TEST` [FAIL] reporting, add dialog cleanup | 4 | +58 / −15 | critical fix |
+| 11 | [PR#207](https://github.com/Amiga500/Onion/pull/207) | 🛡️ **MEDIUM**: MULTIVALUE cache color, screenshot VLA guard, UTF-8 validation, fsync consistency | 6 | +42 / −28 | medium fix |
+| | | **Aggregate `07505ea5` → HEAD + PR fixes** | **128+** | **+26,089 / −532** + fixes | |
+| | | *Code only, excluding `docs/`* | *126+* | *+24,832 / −532* + fixes | |
 
-> ℹ️ **Of the 9 commits, 7 are hand-written engineering work.**
+> ℹ️ **Of the 11 commits, 9 are original port + 2 are targeted bugfixes.**
 > [`6da7f28b`](https://github.com/Amiga500/Onion/commit/6da7f28b3a7503a46e0caa799cd85ab9117a0785)
 > was generated by the CI formatting workflow on PR #197 (committer
 > `GitHub Actions <actions@github.com>`, 2 whitespace lines, zero semantic change), and
 > [`971d6169`](https://github.com/Amiga500/Onion/commit/971d6169aa4a0fed355ea89e3a9b35b223598270)
-> is the first revision of this documentation. Both are counted in the aggregate but neither
-> changes behaviour. The working-tree WIP on top of `47fc5289` is **not** a commit.
+> is the first revision of this documentation. PR#206 and PR#207 are comprehensive reviews of
+> the port identifying 7 high-confidence bugs (3 critical, 4 medium severity), all validated
+> with unit tests. Both are counted in the aggregate.
 
-> 🔁 Commit 7 rewrites the two `docs/` files in place; later WIP rewrites them again, so
-> documentation churn is excluded from the **code-only** subset next to each aggregate.
+> 🔁 Commits 7, PR#206, and PR#207 rewrite or add to the two `docs/` files; documentation churn
+> is excluded from the **code-only** subset next to each aggregate.
 
 📈 Split by area:
 
@@ -793,8 +802,8 @@ not built in `make core`.
 
 | Metric | Value |
 |:-------|------:|
-| 🔧 **Commits** | **9** + uncommitted WIP *(7 hand-written)* |
-| 📁 **Files changed** | **124** *(122 excluding `docs/`)* |
+| 🔧 **Commits** | **11** *(9 original + PR#206 + PR#207 bugfixes)* |
+| 📁 **Files changed** | **128+** *(126+ excluding `docs/`)* |
 | ➕ **Lines added / removed** | **+26,089 / −532** *(+24,832 / −532 excluding `docs/`)* |
 | 🧩 **Production code (`src/`)** | **42 files · +1,558 / −518** |
 | 🧪 **Test code (`test/`)** | **75 files · +23,223 / −10** |
@@ -939,11 +948,12 @@ of this port, not oversights the numbers above conceal.
 
 ## ✅ Final Status
 
-OnionPlus is **9 commits + uncommitted WIP** ahead of upstream `OnionUI/Onion:main`
+OnionPlus is **11 commits** ahead of upstream `OnionUI/Onion:main`
 (`07505ea5`), adding **8 NEON pixel kernels**, crash/memory hardening of the `src/common`
 layer, TTF/list/footer/header/dialog surface caches, `--gc-sections` release flags, four
 algorithmic wins in `str`/`file`, production `file_remove_recursive` call sites, migrated
-SIGINT/SIGTERM handlers, fixes for **3 pre-existing upstream defects**, and a **67-suite host
+SIGINT/SIGTERM handlers, fixes for **3 pre-existing upstream defects**, **7 post-port bugfixes**
+(3 critical from PR#206, 4 medium from PR#207), and a **67-suite host
 unit-test harness** runnable with a single `make unit-test`.
 
 > 🧪 **67 suites · 1,407 tests · 71,363 assertions · 0 failures.** ✅
@@ -958,17 +968,16 @@ The hardening of the original 25-file set is now **complete for `sprintf`/`strcp
 separated from **📐 analytical** figures. **No OnionPlus on-device measurement has been taken** —
 treat every speedup as inherited evidence until benchmarked on real hardware.
 
-The three defect fixes in [§4.7](#47-pre-existing-defects-fixed-in-this-branch) carry **no
-performance claim at all**. The `hash.h` rewrite in particular is valuable precisely because it
-changes **nothing** observable: same hash values, same generated load on the fast path, minus a
-7-byte over-read, minus three classes of undefined behaviour, and minus an allocation
-convention that callers had to remember on their own.
+The seven defect fixes from PR#206–207 carry **no performance claim at all**. They exist to close
+regressions introduced during the port (`file_isLocked` O_CREAT, `RUN_TEST` failure reporting,
+MULTIVALUE cache color, dialog cleanup) and correctness gaps in the original code (`screenshot`
+VLA bounds, UTF-8 validation, file I/O consistency). All are validated by unit tests.
 
 ---
 
 📊 See also: **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)** — full diff statistics vs. the base release.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → Tip: `HEAD` (`47fc5289`) + WIP ·
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Tip: `HEAD` (`55de00a9`) with PR#206-207 ·
 Style adapted from the OniOpus46 [`OPTIMIZATION.md`](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) ·
-Commits analyzed: **9 + WIP** · Date: 2026-08-21</sub>
+Commits analyzed: **11 total (9 original + 2 fix PRs)** · Date: 2026-08-22</sub>
