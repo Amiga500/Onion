@@ -190,8 +190,10 @@ int process_start_read_return(const char *cmdline, char *out_str)
     char buffer[255] = "";
     char *result = NULL;
 
-    if (cmdline == NULL || out_str == NULL)
+    if (cmdline == NULL || out_str == NULL || cmdline[0] == '\0')
         return -1;
+
+    out_str[0] = '\0';  /* always start clean */
 
     FILE *pipe = popen(cmdline, "r");
     if (pipe == NULL) {
@@ -202,6 +204,10 @@ int process_start_read_return(const char *cmdline, char *out_str)
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
         free(result);
         result = strdup(buffer);
+        if (result == NULL) {          /* OOM guard */
+            pclose(pipe);
+            return -1;
+        }
     }
 
     pclose(pipe);
@@ -212,8 +218,6 @@ int process_start_read_return(const char *cmdline, char *out_str)
         strncpy(out_str, result, STR_MAX - 1);
         out_str[STR_MAX - 1] = '\0';
         free(result);
-    } else {
-        out_str[0] = '\0';
     }
     return 0;
 }
