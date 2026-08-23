@@ -48,6 +48,7 @@ typedef struct ListItem {
     uint32_t _label_hash;    // Hash of label text for cache invalidation
     void *_value_cache;      // Cached TTF surface for value label (internal)
     int _cached_value;       // Cached value for value label invalidation
+    uint32_t _cached_color;  // Packed RGBA color for value label invalidation
     void *_scaled_preview;   // Cached scaled preview surface (internal)
     int _scaled_preview_w;   // Width the preview was scaled to (for invalidation)
 } ListItem;

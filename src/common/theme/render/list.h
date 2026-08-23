@@ -208,14 +208,20 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             SDL_BlitSurface(arrow_right, NULL, screen, &arrow_right_pos);
             label_end = arrow_left_pos.x;
 
-            // Cache MULTIVALUE label — only re-render when value changes
+            // Cache MULTIVALUE label — only re-render when value or color changes
+            const uint32_t list_color_key = ((uint32_t)list_color.r << 24) |
+                                            ((uint32_t)list_color.g << 16) |
+                                            ((uint32_t)list_color.b << 8) |
+                                            (uint32_t)list_color.a;
             char value_str[STR_MAX];
             list_getItemValueLabel(item, value_str);
-            if (item->_value_cache == NULL || item->_cached_value != item->value) {
+            if (item->_value_cache == NULL || item->_cached_value != item->value ||
+                item->_cached_color != list_color_key) {
                 if (item->_value_cache != NULL)
                     SDL_FreeSurface((SDL_Surface *)item->_value_cache);
                 item->_value_cache = (void *)TTF_RenderUTF8_Blended(list_font, value_str, list_color);
                 item->_cached_value = item->value;
+                item->_cached_color = list_color_key;
             }
             SDL_Surface *value_label = (SDL_Surface *)item->_value_cache;
             if (value_label == NULL) continue;
