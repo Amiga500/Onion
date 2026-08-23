@@ -1,6 +1,7 @@
 name: Check build
 # Cross-compile only. Host unit tests gate PRs via test.yml.
 on:
+  workflow_dispatch:
   merge_group:
   pull_request:
     paths-ignore:
