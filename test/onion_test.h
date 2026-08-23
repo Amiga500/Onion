@@ -35,9 +35,13 @@ static int test_assertions = 0;
 #define RUN_TEST(name) \
     do { \
         test_count++; \
+        int failures_before_ = test_failures; \
         printf("  [RUN ] %s\n", #name); \
         test_##name(); \
-        printf("  [ OK ] %s\n", #name); \
+        if (test_failures == failures_before_) \
+            printf("  [ OK ] %s\n", #name); \
+        else \
+            printf("  [FAIL] %s\n", #name); \
     } while (0)
 
 #define TEST_REPORT() \
