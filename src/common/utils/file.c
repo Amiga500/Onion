@@ -52,7 +52,7 @@ bool file_isModified(const char *path, time_t *old_mtime)
 
 bool file_isLocked(const char *path)
 {
-    int fd = open(path, O_RDONLY);
+    int fd = open(path, O_RDONLY | O_CREAT, 0666);
     if (fd == -1)
         return true;
     close(fd);
@@ -395,6 +395,9 @@ void file_changeKeyValue(const char *file_path, const char *key,
     }
 
     fclose(fp);
+    // Flush and fsync the temp file so a crash can't leave a truncated config
+    fflush(cp);
+    fsync(fileno(cp));
     fclose(cp);
     if (line)
         free(line);
@@ -670,9 +673,10 @@ static int _remove_cb(const char *fpath, const struct stat *sb, int typeflag, st
 {
     (void)sb;
     (void)ftwbuf;
-    if (typeflag == FTW_DP)
-        return rmdir(fpath);
-    return remove(fpath);
+    int ret = (typeflag == FTW_DP) ? rmdir(fpath) : remove(fpath);
+    if (ret != 0 && errno != ENOENT)
+        printf_debug("file_remove_recursive: failed to remove %s: %s\n", fpath, strerror(errno));
+    return (ret != 0 && errno == ENOENT) ? 0 : ret;
 }
 
 int file_remove_recursive(const char *path)

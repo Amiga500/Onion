@@ -96,6 +96,13 @@ timed on a Miyoo Mini as part of the OnionPlus port.**
 | 🛡️ `FNV1A_Pippip_Yurii` hash load | 8-byte read regardless of `wrdlen`, unaligned | `memcpy` of exactly `wrdlen` bytes into an aligned local | **over-read and unaligned access removed, hashes bit-identical** | 🛡️ 🧪 |
 | 🛡️ Game Switcher save thread | ran with an uninitialised `stateFilePath` when the path could not be built | returns before touching RetroArch | **up to 60 s of polling on a garbage path removed** | 🛡️ 🧪 |
 | 🛡️ `file_basename` | discarded `const` via a cast | `const char *` throughout | **`-Wcast-qual` clean** | 🛡️ |
+| 🛡️ `RUN_TEST` macro test result reporting | Printed `[ OK ]` for both pass **and** fail | Now correctly prints `[FAIL]` for failures ([PR#206](https://github.com/Amiga500/Onion/pull/206)) | **silently failing tests now visible** | 🛡️ 🧪 |
+| 🛡️ `file_isLocked()` O_CREAT flag | Removed in port, breaking save-state loop in `gs_popMenu.h` | Restored flag ([PR#206](https://github.com/Amiga500/Onion/pull/206)) | **save-state wait loop works again** | 🛡️ 🧪 |
+| 🛡️ Dialog theme-render cache | Surfaces never released on theme change; memory accumulation | Added `theme_renderDialog_cleanup()` ([PR#206](https://github.com/Amiga500/Onion/pull/206)) | **memory leak closed** | 🛡️ 🧪 |
+| 🛡️ MULTIVALUE label cache color | Cache keyed only on value, not color; disabled-state feedback broken | Cache now keyed on `color+value` pair ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **UX regression fixed** | 🛡️ 🧪 |
+| 🛡️ `screenshot_save()` VLA undefined behavior | No guard on `g_display.width/height == 0`; VLA with 0-size is UB | Added dimension checks before VLA declaration ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **undefined behavior removed** | 🛡️ 🧪 |
+| 🛡️ `includeCJK()` UTF-8 validation | Only checked first continuation byte; multi-byte validation incomplete | Validation now checks all 3 bytes of valid sequence ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **complete UTF-8 validation** | 🛡️ 🧪 |
+| 🛡️ File I/O error reporting & consistency | `file_remove_recursive()` silently ignores `nftw()` errors; `file_changeKeyValue()` missing fsync | Added error logging & fsync before rename ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **data consistency + error visibility** | 🛡️ 🧪 |
 | 🧪 Active unit-test suites | 0 | 68 | **+68** ✅ | 🧪 |
 | 🧪 Unit tests / assertions | 0 / 0 | 1,410 / 71,385 | **ALL PASSED** ✅ | 🧪 |
 | 🏗️ Host test entry point | none | `make unit-test` | **added** ✅ | 🧪 |
@@ -134,6 +141,9 @@ No performance figure is attached to any of them.*
 | 15 | [`2c5b028a`](https://github.com/Amiga500/Onion/commit/2c5b028a) | 🛡️ Harden `config.h`: direct `mkdirs` and bounded copies | 1 | +4 / −7 | hardening |
 | 16 | [`45d4eec4`](https://github.com/Amiga500/Onion/commit/45d4eec4) | ⚡ Replace GameSwitcher overlay shell-outs with fork+exec and syscalls | 1 | +26 / −6 | perf |
 | 17 | [`bda89b2d`](https://github.com/Amiga500/Onion/commit/bda89b2d) | 🛡️ Port infoPanel hardening and enable `test_images_browser` | 4 | +163 / −54 | hardening + test |
+| 18 | [PR#206](https://github.com/Amiga500/Onion/pull/206) | 🛡️ **CRITICAL**: restore `file_isLocked` O_CREAT, fix `RUN_TEST` [FAIL] reporting, add dialog cleanup | 4 | +58 / −15 | critical fix |
+| 19 | [PR#207](https://github.com/Amiga500/Onion/pull/207) | 🛡️ **MEDIUM**: MULTIVALUE cache color, screenshot VLA guard, UTF-8 validation, fsync consistency | 6 | +42 / −28 | medium fix |
+| 20 | [`2537c94d`](https://github.com/Amiga500/Onion/commit/2537c94d) | 🏗️ No `SDL_Color.a` on Miyoo toolchain (ARM build fix for PR#207 color key) | 1 | +4 / −4 | build fix |
 | | | **Aggregate `07505ea5` → `bda89b2d`** | **139** | **+26,717 / −751** | |
 | | | *Code only, excluding `docs/`* | *137* | *+25,460 / −751* | |
 
@@ -145,6 +155,11 @@ No performance figure is attached to any of them.*
 > is the first revision of this documentation. Both are counted in the aggregate but neither
 > changes behaviour. Commits 11–17 are the power/CPU and hardening batch ported on
 > 2026-08-23; the docs refresh describing them is the unnumbered commit on top of `bda89b2d`.
+> Commits 18–20 were developed on the remote `OnionPlus` branch (PR #206–207 reviews) and
+> merged back on 2026-08-23. A parallel remote experiment (`eea25f88..1e359571`: OSD busy-wait,
+> `meterWidth` cache, `process_start` fork+execv) was **reverted** in
+> [`4f7841e0`](https://github.com/Amiga500/Onion/commit/4f7841e0) — broken argument
+> tokenization and missing theme-change invalidation — and is net zero in the tree.
 
 > 🔁 Commit 7 rewrites the two `docs/` files in place; the docs refresh on top rewrites them
 > again, so documentation churn is excluded from the **code-only** subset next to each aggregate.

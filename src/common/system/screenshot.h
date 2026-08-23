@@ -101,15 +101,19 @@ uint32_t *__screenshot_buffer(void)
  */
 bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool do_rotate180)
 {
+    // make sure render resolution is up to date
+    display_getRenderResolution();
+
+    // Guard against zero dimensions — the VLA below would be UB otherwise
+    if (buffer == NULL || g_display.width == 0 || g_display.height == 0)
+        return false;
+
     uint32_t *src;
     uint32_t line_buffer[g_display.width], x, y;
 
     FILE *fp;
     png_structp png_ptr;
     png_infop info_ptr;
-
-    // make sure render resolution is up to date
-    display_getRenderResolution();
 
     if (!(fp = file_open_ensure_path(screenshot_path, "wb"))) {
         return false;

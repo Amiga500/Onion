@@ -79,6 +79,9 @@
 | 15 | [`2c5b028a`](https://github.com/Amiga500/Onion/commit/2c5b028a) | Harden config.h: direct mkdirs and bounded copies | 1 | +4 / −7 | 🛡️ Hardening |
 | 16 | [`45d4eec4`](https://github.com/Amiga500/Onion/commit/45d4eec4) | Replace GameSwitcher overlay shell-outs with fork+exec and syscalls | 1 | +26 / −6 | ⚡ Perf |
 | 17 | [`bda89b2d`](https://github.com/Amiga500/Onion/commit/bda89b2d) | Port infoPanel hardening and enable test_images_browser | 4 | +163 / −54 | 🛡️ Hardening + 🧪 test |
+| 18 | [PR#206](https://github.com/Amiga500/Onion/pull/206) | CRITICAL: restore `file_isLocked` O_CREAT, fix `RUN_TEST` [FAIL] reporting, add dialog cleanup | 4 | +58 / −15 | 🛡️ Critical fix |
+| 19 | [PR#207](https://github.com/Amiga500/Onion/pull/207) | MEDIUM: MULTIVALUE cache color, screenshot VLA guard, UTF-8 validation, fsync consistency | 6 | +42 / −28 | 🛡️ Medium fix |
+| 20 | [`2537c94d`](https://github.com/Amiga500/Onion/commit/2537c94d) | No `SDL_Color.a` on Miyoo toolchain (ARM build fix) | 1 | +4 / −4 | 🏗️ Build fix |
 | | | **Aggregate `07505ea5` → `bda89b2d`** | **139** | **+26,717 / −751** | |
 
 *Ordered oldest → tip (`git log --reverse 07505ea5..bda89b2d`). The docs refresh describing
