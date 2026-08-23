@@ -43,6 +43,28 @@ void setFbAsFirstRomScreen(void)
     }
 }
 
+// Spawn a detached playActivity process without blocking the UI thread.
+// Double-fork: the first child exits immediately, so the waitpid below
+// returns at once and the grandchild is reparented to init (no zombies).
+static void _playActivityAsync(const char *action)
+{
+    pid_t pid = fork();
+    if (pid == 0) {
+        pid_t child = fork();
+        if (child == 0) {
+            execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", action, NULL);
+            _exit(127);
+        }
+        _exit(child > 0 ? 0 : 127);
+    }
+    else if (pid > 0) {
+        waitpid(pid, NULL, 0);
+    }
+    else {
+        printf_debug("fork failed for playActivity %s\n", action);
+    }
+}
+
 static bool _isContentNameInInfo(const char *content_info, const char *content_name)
 {
     const char *found = strstr(content_info, content_name);
@@ -79,16 +101,7 @@ void overlay_init()
     }
 
     retroarch_pause();
-    // Use fork+exec instead of system() — avoids shell overhead
-    pid_t pid = fork();
-    if (pid == 0) {
-        execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "stop_all", NULL);
-        _exit(127);
-    } else if (pid > 0) {
-        waitpid(pid, NULL, 0);
-    } else {
-        print_debug("fork failed for playActivity stop_all");
-    }
+    _playActivityAsync("stop_all");
     setFbAsFirstRomScreen();
 
     RetroArchStatus_s status;
@@ -138,16 +151,7 @@ void overlay_resume(void)
         render();
 
         retroarch_unpause();
-        // Use fork+exec instead of system() — avoids shell overhead
-        pid_t pid = fork();
-        if (pid == 0) {
-            execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "resume", NULL);
-            _exit(127);
-        } else if (pid > 0) {
-            waitpid(pid, NULL, 0);
-        } else {
-            print_debug("fork failed for playActivity resume");
-        }
+        _playActivityAsync("resume");
 
         msleep(200);
 
