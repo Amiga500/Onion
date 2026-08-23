@@ -1,6 +1,6 @@
 # 🧅 OnionPlus — Optimization & Hardening Report
 
-> **23 commits** · **139 files** · **+26,909 / −753 lines** · **8 NEON kernels** · **68 test suites** · **1,410 tests** · **71,385 assertions** · **ALL PASSED** ✅
+> **48 commits** · **140 files** · **+27,059 / −766 lines** · **8 NEON kernels** · **68 test suites** · **1,410 tests** · **71,385 assertions** · **ALL PASSED** ✅
 
 > **Scope:** this report covers *only* the commits that make up the OnionPlus port on top of
 > upstream `OnionUI/Onion:main` (`07505ea5` → `HEAD`). It is **not** a report on the whole
@@ -12,10 +12,11 @@
 **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)**.
 
 > 🔁 **Self-reference.** The docs-update commit carries both this document and the statistics
-> it describes, so its own SHA cannot appear here — the code tip is `6b7f6357` (version bump,
-> 2026-08-23) on top of merge `e44421e1` (reconciliation with remote PR #206–207) and the
-> docs refresh `55998284`. The two `docs/` files are inside the range they measure; wherever
-> it matters, the **code-only** subset is given next to the aggregate.
+> it describes, so its own SHA cannot appear here — the code tip is `74f0a0af` (four
+> review-pass fixes, 2026-08-23) on top of the CI fix `2ae2e79f`, the docs refresh
+> `03080200`, the version bump `6b7f6357`, merge `e44421e1` (reconciliation with remote
+> PR #206–207) and the docs refresh `55998284`. The two `docs/` files are inside the range
+> they measure; wherever it matters, the **code-only** subset is given next to the aggregate.
 
 ---
 
@@ -84,7 +85,7 @@ timed on a Miyoo Mini as part of the OnionPlus port.**
 | ⚡ batmon main loop | `config_get("battery/warnAt")` every tick | read only at check timeout | **−100 % hot-loop config reads** | 📐 |
 | ⚡ batmon low-battery thread | `usleep(0x4000)` (~16 ms) | `usleep(500000)` (500 ms) | **~−97 % wake-ups on that thread** | 📐 |
 | ⚡ playActivity DB operations | 2 × open/close per operation | 1 × open/exec/close | **−50 % DB I/O** | 📏 |
-| ⚡ GS overlay `playActivity` calls | `system("playActivity … &")` | `fork`+`execl`+`waitpid` | **−80 % process overhead** | 📏 |
+| ⚡ GS overlay `playActivity` calls | `system("playActivity … &")` | double-fork + `execl` (async, no zombies) | **−80 % process overhead** | 📏 |
 | ⚡ GS overlay RetroArch kill/poll | `killall` / `pidof` shell-outs | `process_kill_signal` / `process_isRunning` | **−100 % shell spawns** | 📐 |
 | ⚡ `config.h` `_config_prepare` | `system("mkdir -p …")` | direct `mkdirs()` walk | **−100 % proc spawns** | 📐 🧪 |
 | ⚡ `display_readOrWriteBuffer` | per-pixel loop on every row | `memcpy` fast path for contiguous rows | **row copy vectorised** | 📐 |
@@ -104,6 +105,11 @@ timed on a Miyoo Mini as part of the OnionPlus port.**
 | 🛡️ `screenshot_save()` VLA undefined behavior | No guard on `g_display.width/height == 0`; VLA with 0-size is UB | Added dimension checks before VLA declaration ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **undefined behavior removed** | 🛡️ 🧪 |
 | 🛡️ `includeCJK()` UTF-8 validation | Only checked first continuation byte; multi-byte validation incomplete | Validation now checks all 3 bytes of valid sequence ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **complete UTF-8 validation** | 🛡️ 🧪 |
 | 🛡️ File I/O error reporting & consistency | `file_remove_recursive()` silently ignores `nftw()` errors; `file_changeKeyValue()` missing fsync | Added error logging & fsync before rename ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **data consistency + error visibility** | 🛡️ 🧪 |
+| 🛡️ `currentGame()` NULL dereference sites | 3 callers dereferenced unchecked (`game_list_len == 0` → NULL) | NULL guards at all 3 sites ([`fa888f22`](https://github.com/Amiga500/Onion/commit/fa888f22)) | **crash on empty game list removed** | 🛡️ |
+| 🛡️ `action_loadGame` slot bounds check | `< 0 && >= slot_count` — untriggerable dead code | `||` — out-of-range slots rejected ([`ff012faa`](https://github.com/Amiga500/Onion/commit/ff012faa)) | **dead check revived** | 🛡️ |
+| 🛡️ `_isContentNameInInfo` left-boundary read | `*(found - 1)` read 1 byte before the buffer at position 0 | string start treated as valid left boundary ([`ff012faa`](https://github.com/Amiga500/Onion/commit/ff012faa)) | **OOB read removed** | 🛡️ |
+| 🛡️ playActivity fork+exec | `waitpid()` on the child blocked the UI thread | double-fork, detached grandchild reparented to init ([`d05267ca`](https://github.com/Amiga500/Onion/commit/d05267ca)) | **async semantics restored, no zombies** | 🛡️ |
+| ⚡ OSD overlay draw loop | full-throttle redraw for the overlay's entire duration | 2 ms `msleep` per iteration + stats demoted to `printf_debug` ([`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af)) | **overlay CPU burn capped** | 📐 |
 | 🧪 Active unit-test suites | 0 | 68 | **+68** ✅ | 🧪 |
 | 🧪 Unit tests / assertions | 0 / 0 | 1,410 / 71,385 | **ALL PASSED** ✅ | 🧪 |
 | 🏗️ Host test entry point | none | `make unit-test` | **added** ✅ | 🧪 |
@@ -112,12 +118,17 @@ timed on a Miyoo Mini as part of the OnionPlus port.**
 **original 25** common-layer + image-tool files of the NEON/hardening port, grepped at
 `07505ea5` vs. the working tree. Closing the screenshot/jpg2png residuals brings that set
 to **0** unbounded `sprintf`/`strcpy`/`strcat`. They are **not** codebase-wide claims.
-The full `src/` delta is now **57 files** (TTF cache, signal-handler call sites, `reset.h`,
-`config.mk`, …).*
+The full `src/` delta is now **58 files** (TTF cache, signal-handler call sites, `reset.h`,
+`config.mk`, Game Switcher review-pass call sites, …).*
 
-*The three 🛡️ rows at the bottom of the hardening block fix **pre-existing upstream defects**
-rather than porting anything from OniOpus46 — see [§4.7](#47-pre-existing-defects-fixed-in-this-branch).
-No performance figure is attached to any of them.*
+*The three 🛡️ rows fixing the hash over-read, the uninitialised save-state path and the
+`const` cast address **pre-existing upstream defects** rather than porting anything from
+OniOpus46 — see [§4.7](#47-pre-existing-defects-fixed-in-this-branch). The final five rows
+are the 2026-08-23 review pass at the tip — three more pre-existing upstream defects
+(`currentGame()` NULL derefs, dead slot check, content-match OOB read, all present at
+`07505ea5`), one port-regression fix (blocking `waitpid` from `45d4eec4`) and one perf
+throttle — see [§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa).
+No performance figure is attached to any of the 🛡️ rows.*
 
 ---
 
@@ -146,24 +157,37 @@ No performance figure is attached to any of them.*
 | 19 | [PR#207](https://github.com/Amiga500/Onion/pull/207) | 🛡️ **MEDIUM**: MULTIVALUE cache color, screenshot VLA guard, UTF-8 validation, fsync consistency | 6 | +42 / −28 | medium fix |
 | 20 | [`2537c94d`](https://github.com/Amiga500/Onion/commit/2537c94d) | 🏗️ No `SDL_Color.a` on Miyoo toolchain (ARM build fix for PR#207 color key) | 1 | +4 / −4 | build fix |
 | 21 | [`e44421e1`](https://github.com/Amiga500/Onion/commit/e44421e1) | 🔀 Merge remote OnionPlus (PR #206–207 fixes) into local power/CPU port batch | — | — | reconciliation |
-| 22 | [`6b7f6357`](https://github.com/Amiga500/Onion/commit/6b7f6357) | 🛡️ Fix: drop `meterWidth` config cache in OSD bar (invalidation hazard) | 1 | +3 / −7 | fix |
+| 22 | [`927685e8`](https://github.com/Amiga500/Onion/commit/927685e8) | 🛡️ Fix: drop `meterWidth` config cache in OSD bar (invalidation hazard) | 1 | +3 / −7 | fix |
 | 23 | [`6b7f6357`](https://github.com/Amiga500/Onion/commit/6b7f6357) | 🏗️ build: update version date to 2026-08-23 | 1 | +1 / −1 | release |
-| | | **Aggregate `07505ea5` → `6b7f6357`** | **139** | **+26,909 / −753** | |
+| 24 | [`2ae2e79f`](https://github.com/Amiga500/Onion/commit/2ae2e79f) | 🏗️ CI: pre-release workflow uses `HEAD` SHA instead of `origin/main` | 1 | +1 / −1 | CI fix |
+| 25 | [`fa888f22`](https://github.com/Amiga500/Onion/commit/fa888f22) | 🛡️ Guard `currentGame()` NULL returns at all call sites | 2 | +16 / −6 | fix |
+| 26 | [`d05267ca`](https://github.com/Amiga500/Onion/commit/d05267ca) | 🛡️ Restore async semantics for playActivity fork+exec | 1 | +24 / −20 | fix |
+| 27 | [`ff012faa`](https://github.com/Amiga500/Onion/commit/ff012faa) | 🛡️ Correct dead-code slot check and OOB read in content match | 2 | +4 / −2 | fix |
+| 28 | [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af) | ⚡ Throttle OSD overlay draw loop and demote stats logging | 1 | +4 / −4 | perf |
+| | | **Aggregate `07505ea5` → `74f0a0af` (code tip, excl. `docs/`)** | **138** | **+25,538 / −766** | |
+| | | **Full range `07505ea5` → this docs refresh** | **140** | **+27,059 / −766** | |
 
-> ℹ️ **Of the 23 commits, 20 are hand-written engineering work.**
+> ℹ️ **`git rev-list --count 07505ea5..HEAD` is 48**, not the 28 milestone rows above.
+> The extra 20 are: 3 merge commits (`f9bac9fc`, `55de00a9`, `e44421e1` is listed), 3 CI
+> `clang-format` passes, 6 docs-only refreshes (including `971d6169` listed as #6), a
+> 5-commit remote experiment (`eea25f88`…`4f7841e0`) that is **net zero** in the tree, the
+> individual PR #206/#207 commits grouped as rows 18–19, and the 2026-08-22 version bump.
+> A previous revision of this document advertised **23** commits; that was a curated
+> milestone count, not `rev-list`.
+>
 > [`6da7f28b`](https://github.com/Amiga500/Onion/commit/6da7f28b3a7503a46e0caa799cd85ab9117a0785)
 > was generated by the CI formatting workflow on PR #197 (committer
-> `GitHub Actions <actions@github.com>`, 2 whitespace lines, zero semantic change), and
-> [`971d6169`](https://github.com/Amiga500/Onion/commit/971d6169aa4a0fed355ea89e3a9b35b223598270)
-> is the first revision of this documentation.
+> `GitHub Actions <actions@github.com>`, 2 whitespace lines, zero semantic change).
 >
 > **Timeline:**
 > - **Commits 1–10**: OniOpus46 port foundation (NEON + hardening + test suite).
 > - **Commits 11–17**: Power/CPU optimization batch ported on **2026-08-22** (OSD busy-wait, brightness caching, battery caching, DB optimization, config hardening, GameSwitcher fork+exec, infoPanel hardening).
 > - **Commits 18–20**: Defect fixes from parallel remote work (PR #206–207, merged **2026-08-23**).
 > - **Commit 21**: Merge of remote `OnionPlus` branch containing PR #206–207 into local main (**2026-08-23**).
-> - **Commit 22**: Reconciliation fix — dropped `meterWidth` cache in OSD bar (the same optimization the remote had reverted due to lack of theme-change invalidation).
+> - **Commit 22**: Reconciliation fix — dropped `meterWidth` cache in OSD bar ([`927685e8`](https://github.com/Amiga500/Onion/commit/927685e8); a previous revision mis-attributed this SHA to `6b7f6357`).
 > - **Commit 23**: Version bump to today's date for release packaging (**2026-08-23**).
+> - **Commit 24**: Pre-release CI tags the built `HEAD`, not `origin/main`.
+> - **Commits 25–28**: 2026-08-23 review pass — three upstream NULL/bounds defects, one port-regression (blocking `waitpid`), one overlay-loop throttle. See [§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa).
 >
 > A parallel remote experiment (`eea25f88..1e359571`: OSD busy-wait, `meterWidth` cache, `process_start` fork+execv) was **reverted** in
 > [`4f7841e0`](https://github.com/Amiga500/Onion/commit/4f7841e0) — broken argument
@@ -173,14 +197,15 @@ No performance figure is attached to any of them.*
 
 | Area | Files | +/− | Share of insertions |
 |:-----|------:|----:|--------------------:|
-| 🧪 `test/` | 75 | +23,233 / −10 | **86.3 %** |
-| 🧩 `src/` | 57 | +2,224 / −738 | **8.3 %** |
-| 📚 `docs/` | 2 | +1,397 / −0 | **5.2 %** |
-| 🏗️ `Makefile` + `.github/` + `.gitignore` | 5 | +51 / −4 | **0.2 %** |
+| 🧪 `test/` | 75 | +23,233 / −10 | **85.9 %** |
+| 🧩 `src/` | 58 | +2,252 / −750 | **8.3 %** |
+| 📚 `docs/` | 2 | +1,521 / −0 | **5.6 %** |
+| 🏗️ `Makefile` + `.github/` + `.gitignore` | 5 | +53 / −6 | **0.2 %** |
 
 > 📈 **Result:** the production-code surface of this port is still small —
-> **+2,224 / −738 across 57 `src/` files**, i.e. **8.3 %** of the added lines. Everything else
-> is test scaffolding, CI wiring and documentation.
+> **+2,252 / −750 across 58 `src/` files**, i.e. **8.3 %** of the added lines. Everything else
+> is test scaffolding, CI wiring and documentation. The `docs/` insertion count includes
+> this refresh.
 
 ---
 
@@ -424,8 +449,14 @@ exists; magnitudes are 📏 inherited or 📐 structural.
 `numBuffers` division against `yres == 0`, and closes
 two `free(data)` leaks on `overlay_surface()` error paths. The `meterWidth` config read is
 **not** cached: a cached value would go stale on theme change with no invalidation path
-(the defect behind the remote revert `4f7841e0`), so [`6b7f6357`](https://github.com/Amiga500/Onion/commit/6b7f6357)
+(the defect behind the remote revert `4f7841e0`), so [`927685e8`](https://github.com/Amiga500/Onion/commit/927685e8)
 dropped the cache — `config_get` runs once per bar activation, which is negligible.
+
+The `overlay_surface()` **draw loop** (a different path from the volume/brightness bar
+thread) still spun full-throttle after that port. [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af)
+caps it with `msleep(2)` per iteration and demotes the draw-count/speed lines from
+`printf` to `printf_debug`. 📐 structural — this is an OnionPlus review fix, not an
+OniOpus46 port.
 
 **Brightness sysfs caching** ([`e8143d09`](https://github.com/Amiga500/Onion/commit/e8143d09)) —
 `src/common/system/display.h`. `display_setBrightnessRaw()` now skips the
@@ -460,11 +491,15 @@ cleanup in `play_activity_find_all()`, leak fixes in `free_play_activities()` an
 (📐 −100 % proc spawns on that path), bounds the `dir_path` copy, and
 `config_setString()` takes `const char *`.
 
-**Overlay fork+exec** ([`45d4eec4`](https://github.com/Amiga500/Onion/commit/45d4eec4)) —
+**Overlay fork+exec** ([`45d4eec4`](https://github.com/Amiga500/Onion/commit/45d4eec4),
+fixed by [`d05267ca`](https://github.com/Amiga500/Onion/commit/d05267ca)) —
 `src/gameSwitcher/gs_overlay.h`. Six shell-outs removed: `playActivity stop_all`/`resume`
-now run via `fork`+`execl`+`waitpid` (📏 OniOpus46: **−80 % process overhead**), and the
+now run via double-fork + `execl` (📏 OniOpus46: **−80 % process overhead**), and the
 RetroArch `killall`/`pidof` calls in `overlay_exit()` use the direct
 `process_kill_signal()`/`process_isRunning()` helpers (📐 −100 % shell spawns).
+The first replacement called `waitpid()` on the worker and blocked the UI thread;
+`d05267ca` restores the original `system("… &")` async semantics (intermediate child
+exits immediately, grandchild reparented to init, no zombies). See [§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa).
 
 ---
 
@@ -472,7 +507,7 @@ RetroArch `killall`/`pidof` calls in `overlay_exit()` use the direct
 
 Counts below are over the **original 25 `src/` files** of the NEON/hardening port
 (common utils + `screenshot.h` + `jpg2png.c` + `pngScale.c` + `gs_popMenu.h`), at
-`07505ea5` vs the working tree. The full `src/` delta is 57 files; extra files (theme
+`07505ea5` vs the working tree. The full `src/` delta is 58 files; extra files (theme
 render, signal-handler call sites, `reset.h`, `config.mk`) are **not** in these percentages.
 
 ### 4.1 `sprintf` → `snprintf` — 23 → 0 call sites (**−100 %**) ✅
@@ -734,7 +769,7 @@ if (!createSaveStatePath(game, slot, stateFilePath, sizeof(stateFilePath))) {
 > is a `stat()` on a path made of uninitialised stack bytes and the worst case, if no NUL
 > happens to fall inside the 4 KB array, is a read past the end of it. The UI meanwhile waited
 > on `g_save_thread_running` for a save that could never be confirmed.
-> 🧪 `test_gs_popmenu` (23 tests / 26 assertions) and `test_savestate_path`
+> 🧪 `test_gs_popmenu` (24 tests / 155 assertions) and `test_savestate_path`
 > (13 / 76) cover the path-construction contract this fix relies on.
 
 #### 4.7.3 `file.c` — `const`-correct `file_basename`
@@ -769,6 +804,35 @@ claim.
 | `imagesCache.c` | `cleanImagesCache()` NULLs pointers after `SDL_FreeSurface` (double-free on repeat calls); `drawImageByIndex()` guards NULL `images_paths`/`cache_used`/`screen`. |
 | `infoPanel.c` | `loadImagesPathsFromJson()`: NULL checks for `cJSON_Parse`/array items, malloc-failure cleanup, heap `file_dirname()` instead of unchecked stack `strncpy` + `dirname()`, compacting index replaces the buggy `(*count)--` decrement-while-indexing. |
 | `infoPanel.c` | `main()`: `i + 1 < argc` bounds check before every `argv[++i]`; **`--romscreen` was unreachable** (its flag duplicated `-a`) — now correctly `-r`; `file_basename()` replaces raw `basename()`. |
+
+### 4.9 Game Switcher review-pass fixes (commits fa888f22, d05267ca, ff012faa)
+
+Four commits at the code tip (`74f0a0af`), found by a 2026-08-23 review of Game Switcher
+and the OSD overlay path. Three are **pre-existing upstream defects** present at
+`07505ea5`. One is a **port regression** from `45d4eec4`. The overlay-loop throttle
+(`74f0a0af`) is documented in [§3.7](#37-power--cpu--osd-battery-display-db-overlay-commits-1116).
+All four are 🛡️ / 📐 only — **no on-device measurement**.
+
+#### `currentGame()` NULL dereference — [`fa888f22`](https://github.com/Amiga500/Onion/commit/fa888f22)
+
+`currentGame()` returns `NULL` when `game_list_len == 0`. Three callers dereferenced
+the result unchecked: the resume path in `gameSwitcher.c`, `_isSaveEnabled()`, and
+`action_loadGame()`. Each now returns / disables the action when the list is empty.
+
+#### Blocking `waitpid` on playActivity — [`d05267ca`](https://github.com/Amiga500/Onion/commit/d05267ca)
+
+`45d4eec4` replaced `system("playActivity … &")` with `fork`+`execl`+`waitpid(child)`.
+That waited for playActivity to finish on the UI thread. `_playActivityAsync()` now
+double-forks: the intermediate child exits immediately so the parent's `waitpid` returns
+at once, and the grandchild is reparented to init (no zombies). Async semantics match
+the original `&` backgrounding.
+
+#### Dead slot check + content-match OOB read — [`ff012faa`](https://github.com/Amiga500/Onion/commit/ff012faa)
+
+`action_loadGame` rejected slots with `selected_slot < 0 && selected_slot >= slot_count`
+— a conjunction that can never be true. It is now `||`. `_isContentNameInInfo` treated
+a match at offset 0 as needing `*(found - 1) == ','`, which reads one byte before the
+buffer; the string start is now a valid left boundary (`found == content_info || *(found - 1) == ','`).
 
 ---
 
@@ -907,12 +971,12 @@ not built in `make core`.
 
 | Metric | Value |
 |:-------|------:|
-| 🔧 **Commits** | **17** *(15 hand-written)* |
-| 📁 **Files changed** | **139** *(137 excluding `docs/`)* |
-| ➕ **Lines added / removed** | **+26,906 / −753** *(+25,509 / −753 excluding `docs/`)* |
-| 🧩 **Production code (`src/`)** | **57 files · +2,224 / −738** |
+| 🔧 **Commits** | **48** *(`git rev-list --count 07505ea5..HEAD`)* |
+| 📁 **Files changed** | **140** *(138 excluding `docs/`)* |
+| ➕ **Lines added / removed** | **+27,059 / −766** *(+25,538 / −766 excluding `docs/`)* |
+| 🧩 **Production code (`src/`)** | **58 files · +2,252 / −750** |
 | 🧪 **Test code (`test/`)** | **75 files · +23,233 / −10** |
-| 📚 **Documentation (`docs/`)** | **2 files · +1,397** |
+| 📚 **Documentation (`docs/`)** | **2 files · +1,521** |
 | 🆕 **New test source files** | **68** *(all 68 in `TESTS`)* |
 | 🧪 **Active suites / tests / assertions** | **68 / 1,410 / 71,385** |
 | ✅ **Test result** | **ALL PASSED** *(0 failures)* |
@@ -926,7 +990,8 @@ not built in `make core`.
 | 🚀 **Brightness duplicate sysfs writes** | 📏 **−100 %** *(OniOpus46, same code path)* |
 | 🚀 **`battery_isCharging` subprocess spawns** | 📐 **~−99 %** *(2 s cache, MIYOO354)* |
 | 🚀 **playActivity DB open/close cycles** | 📏 **2 → 1** *(−50 % DB I/O, OniOpus46)* |
-| 🚀 **GS overlay shell-outs** | **6 → 0** *(fork+exec / direct syscalls)* |
+| 🚀 **GS overlay shell-outs** | **6 → 0** *(double-fork + `execl` / direct syscalls)* |
+| 🚀 **OSD overlay draw loop** | 📐 **2 ms `msleep` / iter** *(was full-throttle; `74f0a0af`)* |
 | 🚀 **Shell processes per `mkdirs`/`file_copy`** | 📐 **2 → 0** *(−100 %)* |
 | 🚀 **Release `--gc-sections`** | 📏 **−5–15 %** binary size *(OniOpus46, same flags)* |
 | 🛡️ **`sprintf` call sites** *(25-file set)* | **23 → 0** *(−100 %)* |
@@ -935,7 +1000,7 @@ not built in `make core`.
 | 🛡️ **`system()` call sites** *(25-file set)* | **3 → 1** *(−66.7 % — the 1 left is dead code, [§10](#️-10-known-residuals))* |
 | 🛡️ **NULL-check predicates added** | **57** |
 | 🛡️ **`fclose`/`close` added** | **18** |
-| 🛡️ **Pre-existing upstream defects fixed** | **3** *(hash over-read + unaligned load, uninitialised save-state path, `const` cast — [§4.7](#47-pre-existing-defects-fixed-in-this-branch))* |
+| 🛡️ **Pre-existing upstream defects fixed** | **6** *(§4.7 trio + `currentGame()` NULL, dead slot `&&`, content-match OOB — [§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa))* |
 | 🔐 **Hash values changed** | **0** *(bit-identical, 264 reference vectors at 5 optimization levels)* |
 | 🏗️ **New build target** | **`make unit-test`** |
 | 📉 **Failing tests at tip** | **0 / 1,410** |
@@ -943,9 +1008,10 @@ not built in `make core`.
 Reproduce every figure above with:
 
 ```bash
-git diff --shortstat 07505ea5 6b7f6357            # code tip (docs refresh + version bump excluded)
-git diff --numstat  07505ea5 6b7f6357
-git diff --shortstat 07505ea5 6b7f6357 -- src/ test/ docs/ Makefile
+git rev-list --count 07505ea5..HEAD               # 48
+git diff --shortstat 07505ea5 HEAD                # 140 files, +27,059 / −766
+git diff --shortstat 07505ea5 HEAD -- . ':!docs'  # 138 files, +25,538 / −766
+git diff --shortstat 07505ea5 HEAD -- src/ test/ docs/ Makefile
 make unit-test
 ```
 
@@ -1024,9 +1090,10 @@ independently confirmed them.
   It is a **lower-bound proxy**, not an exact count of distinct guarded conditions.
 - `+/−` totals for a squashed range can differ from the sum of per-commit stats when later
   commits modify lines introduced by earlier ones.
-- **Expect a "23 vs N" discrepancy against GitHub release notes** that compare a tag range
-  missing the earliest NEON commit or the docs commits. This report scopes to the full
-  `07505ea5` → `6b7f6357` delta (the docs refresh, reconciliation, and version bump sit on top).
+- **Expect a "23 vs 48" discrepancy against older revisions of this document.** The
+  headline is `git rev-list --count 07505ea5..HEAD` (**48** at the code tip `74f0a0af`).
+  Milestone tables group PR #206/#207 and omit docs-only refreshes, format passes, and
+  the net-zero reverted experiment.
 - **These two `docs/` files are inside the range they measure.** The **code-only** subset
   (everything except `docs/`) is stated next to each aggregate.
 
@@ -1047,6 +1114,12 @@ of this port, not oversights the numbers above conceal.
 | `batmon` / `keymon` signals | custom handlers | Extra signals (SIGUSR1, SIGSTOP, …) — not the shared SIGINT/SIGTERM helper. |
 | `chargingState.c` `strcpy` | out of 25-file set | Only the signal handler was migrated in that file. |
 
+✅ **Closed this revision:** `overlay_surface()` draw-loop busy-wait — the overlay
+thread spun full-throttle for its entire duration. [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af)
+throttles it with `msleep(2)` per iteration and demotes the draw-count/speed stats to
+`printf_debug`. The volume/brightness **bar** thread was already at `usleep(16000)`
+(`4b851203`); this residual was the other OSD loop.
+
 🎯 Recommended follow-ups, in priority order:
 
 1. 🔵 **Take baseline timings on device** for `jpg2png`, `pngScale`, `rotate180`, screenshot capture, list scrolling **and the new power paths** (OSD bar CPU, brightness writes, `battery_isCharging` forks), so every 📏/📐 in this document can be upgraded to a real OnionPlus measurement.
@@ -1057,14 +1130,15 @@ of this port, not oversights the numbers above conceal.
 
 ## ✅ Final Status
 
-OnionPlus is **20 commits** ahead of upstream `OnionUI/Onion:main`
-(`07505ea5`), adding **8 NEON pixel kernels**, crash/memory hardening of the `src/common`
-layer, TTF/list/footer/header/dialog surface caches, `--gc-sections` release flags, four
-algorithmic wins in `str`/`file`, production `file_remove_recursive` call sites, migrated
-SIGINT/SIGTERM handlers, fixes for **3 pre-existing upstream defects**, the **power/CPU
-batch** (OSD busy-wait, brightness caching, battery-charging cache, batmon fixes, SQLite
-open/close 2 → 1, overlay fork+exec), the `infoPanel` hardening, and a **68-suite host
-unit-test harness** runnable with a single `make unit-test`.
+OnionPlus is **48 commits** ahead of upstream `OnionUI/Onion:main`
+(`07505ea5` → `74f0a0af`, `git rev-list --count`), adding **8 NEON pixel kernels**,
+crash/memory hardening of the `src/common` layer, TTF/list/footer/header/dialog surface
+caches, `--gc-sections` release flags, four algorithmic wins in `str`/`file`, production
+`file_remove_recursive` call sites, migrated SIGINT/SIGTERM handlers, fixes for **6
+pre-existing upstream defects** (§4.7 + §4.9), the **power/CPU batch** (OSD bar busy-wait,
+brightness caching, battery-charging cache, batmon fixes, SQLite open/close 2 → 1, overlay
+double-fork+exec), the `infoPanel` hardening, a throttled `overlay_surface()` draw loop,
+and a **68-suite host unit-test harness** runnable with a single `make unit-test`.
 
 > 🧪 **68 suites · 1,410 tests · 71,385 assertions · 0 failures.** ✅
 >
@@ -1078,7 +1152,8 @@ The hardening of the original 25-file set is now **complete for `sprintf`/`strcp
 separated from **📐 analytical** figures. **No OnionPlus on-device measurement has been taken** —
 treat every speedup as inherited evidence until benchmarked on real hardware.
 
-The three defect fixes in [§4.7](#47-pre-existing-defects-fixed-in-this-branch) carry **no
+The defect fixes in [§4.7](#47-pre-existing-defects-fixed-in-this-branch) and
+[§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa) carry **no
 performance claim at all**. The `hash.h` rewrite in particular is valuable precisely because it
 changes **nothing** observable: same hash values, same generated load on the fast path, minus a
 7-byte over-read, minus three classes of undefined behaviour, and minus an allocation
@@ -1089,6 +1164,6 @@ convention that callers had to remember on their own.
 📊 See also: **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)** — full diff statistics vs. the base release.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → Tip: [`6b7f6357`](https://github.com/Amiga500/Onion/commit/6b7f6357) (23 commits) ·
+Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → Code tip: [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af) (**48** commits, `git rev-list --count`) ·
 Style adapted from the OniOpus46 [`OPTIMIZATION.md`](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) ·
-Commits analyzed: **23** · Date: 2026-08-23</sub>
+Commits analyzed: **48** · Date: 2026-08-23</sub>
