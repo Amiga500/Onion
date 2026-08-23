@@ -1,6 +1,6 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **17 commits** · **139 files** · **+26,717 / −751 lines** · **79 added** / **60 modified** · **0 deleted** · **68 test suites** · **1,410 tests** ✅
+> **20 commits** · **139 files** · **+26,906 / −753 lines** · **79 added** / **60 modified** · **0 deleted** · **68 test suites** · **1,410 tests** ✅
 
 > **What this document is:** the raw, reproducible *diff arithmetic* between the OnionPlus
 > branch tip and the upstream base release. Every number here comes from `git` on this
@@ -10,11 +10,11 @@
 
 | 🔖 Reference | Value |
 |:---|:---|
-| 🌿 Branch tip | local `main` → `bda89b2d` *(code tip, 2026-08-23)* + docs refresh on top |
+| 🌿 Branch tip | local `main` → `927685e8` *(code tip, 2026-08-23; includes merge `e44421e1` of PR #206–207)* + docs refresh on top |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
 | ⏩ Commits ahead | **17** *(authored 2026-08-20–23)* |
-| 📦 Aggregate delta | **139 files** · **+26,717** / **−751** |
-| 🧩 Code-only delta *(excl. `docs/`)* | **137 files** · **+25,460** / **−751** |
+| 📦 Aggregate delta | **139 files** · **+26,906** / **−753** |
+| 🧩 Code-only delta *(excl. `docs/`)* | **137 files** · **+25,509** / **−753** |
 | 🧪 Unit tests at tip | **68 suites** · **1,410 tests** · **71,385 assertions** · **0 failures** ✅ |
 | 🔀 Net line growth | **+25,966** |
 
@@ -27,7 +27,7 @@
 ## 📋 Table of Contents
 
 1. [Headline Ratios](#-1-headline-ratios)
-2. [The 17 Commits](#-2-the-17-commits)
+2. [The 20 Commits](#-2-the-20-commits)
 3. [Breakdown by Directory](#️-3-breakdown-by-directory)
 4. [Breakdown by Functional Category](#️-4-breakdown-by-functional-category)
 5. [Key Files](#-5-key-files)
@@ -38,27 +38,27 @@
 
 ## 📊 1. Headline Ratios
 
-*Shares are of the **aggregate** 26,717 insertions, `docs/` included.*
+*Shares are of the **aggregate** 26,906 insertions, `docs/` included.*
 
 | Metric | Value | Share |
 |:---|---:|---:|
-| 🧪 Insertions that are **test code** | **23,223** | **86.9 %** |
-| 🧩 Insertions that are **production code** (`src/`) | **2,186** | **8.2 %** |
-| 📚 Insertions that are **documentation** | **1,257** | **4.7 %** |
+| 🧪 Insertions that are **test code** | **23,233** | **86.3 %** |
+| 🧩 Insertions that are **production code** (`src/`) | **2,224** | **8.3 %** |
+| 📚 Insertions that are **documentation** | **1,397** | **5.2 %** |
 | 🏗️ Insertions that are **build/CI wiring** | **51** | **0.2 %** |
 | ➕ Files **added** (`A`) | **79** | **56.8 %** |
 | ✏️ Files **modified** (`M`) | **60** | **43.2 %** |
 | 🗑️ Files **deleted** (`D`) | **0** | **0 %** |
 | 🔁 Insertions per deletion | **≈ 36 : 1** | — |
-| 🧪 Test lines per production line | **≈ 11 : 1** | — |
+| 🧪 Test lines per production line | **≈ 10 : 1** | — |
 
 > 📈 **Read this as:** OnionPlus is still a **test-heavy, low-blast-radius** port. Roughly
-> **11 lines of test** landed for every **1 line of production code**. Nothing was deleted
-> outright — the 751 removed lines are in-place rewrites inside modified files.
+> **10 lines of test** landed for every **1 line of production code**. Nothing was deleted
+> outright — the 753 removed lines are in-place rewrites inside modified files.
 
 ---
 
-## 🔀 2. The 17 Commits
+## 🔀 2. The 20 Commits
 
 | # | Hash | Subject | Files | +/− | Category |
 |:-:|:-----|:--------|------:|----:|:---------|
@@ -82,12 +82,12 @@
 | 18 | [PR#206](https://github.com/Amiga500/Onion/pull/206) | CRITICAL: restore `file_isLocked` O_CREAT, fix `RUN_TEST` [FAIL] reporting, add dialog cleanup | 4 | +58 / −15 | 🛡️ Critical fix |
 | 19 | [PR#207](https://github.com/Amiga500/Onion/pull/207) | MEDIUM: MULTIVALUE cache color, screenshot VLA guard, UTF-8 validation, fsync consistency | 6 | +42 / −28 | 🛡️ Medium fix |
 | 20 | [`2537c94d`](https://github.com/Amiga500/Onion/commit/2537c94d) | No `SDL_Color.a` on Miyoo toolchain (ARM build fix) | 1 | +4 / −4 | 🏗️ Build fix |
-| | | **Aggregate `07505ea5` → `bda89b2d`** | **139** | **+26,717 / −751** | |
+| | | **Aggregate `07505ea5` → `927685e8`** | **139** | **+26,906 / −753** | |
 
-*Ordered oldest → tip (`git log --reverse 07505ea5..bda89b2d`). The docs refresh describing
+*Ordered oldest → tip (`git log --reverse 07505ea5..927685e8`). The docs refresh describing
 commits 11–17 sits on top of the code tip and is not numbered.*
 
-> ℹ️ **15 of the 17 commits are hand-written engineering work.** `6da7f28b` is a CI
+> ℹ️ **18 of the 20 commits are hand-written engineering work.** `6da7f28b` is a CI
 > `clang-format` pass (2 whitespace lines, zero semantic change) and `971d6169` is the first
 > revision of this documentation pair. Both are included in every total.
 
@@ -121,11 +121,11 @@ commits 11–17 sits on top of the code tip and is not numbered.*
 
 | 📁 Area | Files | ➕ Insertions | ➖ Deletions | Share of + |
 |:---|---:|---:|---:|---:|
-| 🧪 `test/` *(incl. `test/Makefile*`)* | **75** | **+23,223** | **−10** | 86.9 % |
-| 🧩 `src/` | **57** | **+2,186** | **−737** | 8.2 % |
-| 📚 `docs/` | **2** | **+1,257** | **0** | 4.7 % |
+| 🧪 `test/` *(incl. `test/Makefile*`)* | **75** | **+23,233** | **−10** | 86.3 % |
+| 🧩 `src/` | **57** | **+2,224** | **−738** | 8.3 % |
+| 📚 `docs/` | **2** | **+1,397** | **0** | 5.2 % |
 | 🏗️ `Makefile` + `.github/` + `.gitignore` | **5** | **+51** | **−4** | 0.2 % |
-| | **139** | **+26,717** | **−751** | 100 % |
+| | **139** | **+26,906** | **−753** | 100 % |
 
 ### 🧪 Inside `test/`
 
@@ -134,7 +134,7 @@ commits 11–17 sits on top of the code tip and is not numbered.*
 | `test_*.c` suites *(all new)* | **68** | *(included in test/ total)* |
 | `Makefile.unit` *(new)* | 1 | +684 / −0 |
 | `onion_test.h` — `TEST` / `RUN_TEST` framework *(new)* | 1 | +162 / −0 |
-| **Total `test/`** | **75** | **+23,223 / −10** |
+| **Total `test/`** | **75** | **+23,233 / −10** |
 
 ### 🧩 Inside `src/`
 
@@ -281,20 +281,20 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 cd /path/to/Onion
 
 # Commit list
-git log --oneline --reverse 07505ea5..bda89b2d
+git log --oneline --reverse 07505ea5..927685e8
 
 # Aggregate delta (code tip; the docs refresh on top adds only docs/ lines)
-git diff --shortstat 07505ea5 bda89b2d            # 139 files, +26,717 / −751
-git diff --shortstat 07505ea5 bda89b2d -- src/    #  57 files,  +2,186 / −737
-git diff --shortstat 07505ea5 bda89b2d -- test/   #  75 files, +23,223 / −10
-git diff --shortstat 07505ea5 bda89b2d -- docs/   #   2 files,  (docs line count)
-git diff --shortstat 07505ea5 bda89b2d -- . ':!docs'  # 137 files, +25,460 / −751  (code only)
+git diff --shortstat 07505ea5 927685e8            # 139 files, +26,906 / −753
+git diff --shortstat 07505ea5 927685e8 -- src/    #  57 files,  +2,224 / −738
+git diff --shortstat 07505ea5 927685e8 -- test/   #  75 files, +23,233 / −10
+git diff --shortstat 07505ea5 927685e8 -- docs/   #   2 files,  (docs line count)
+git diff --shortstat 07505ea5 927685e8 -- . ':!docs'  # 137 files, +25,509 / −753  (code only)
 
 # Added vs modified
-git diff --name-status 07505ea5 bda89b2d | awk '{print $1}' | sort | uniq -c
+git diff --name-status 07505ea5 927685e8 | awk '{print $1}' | sort | uniq -c
 
 # Per-file numbers
-git diff --numstat 07505ea5 bda89b2d | sort -k1 -rn
+git diff --numstat 07505ea5 927685e8 | sort -k1 -rn
 
 # Test suite (real run, prints the summary table)
 make unit-test
@@ -306,6 +306,6 @@ make unit-test
 actually do, with before/after code and performance figures.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Tip [`bda89b2d`](https://github.com/Amiga500/Onion/commit/bda89b2d) + docs refresh ·
+Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Tip [`927685e8`](https://github.com/Amiga500/Onion/commit/927685e8) + docs refresh ·
 Commits analyzed: **17** · All figures regenerated from `git` and a real `make unit-test` run
 on 2026-08-23.</sub>
