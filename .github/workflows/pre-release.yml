@@ -32,7 +32,7 @@ jobs:
     - name: Get version
       run: |
         echo "BUILD_VERSION=$(make version)" >> $GITHUB_ENV
-        echo "SHA_SHORT=$(git log -n 1 --pretty=format:"%h" origin/main)" >> $GITHUB_ENV
+        echo "SHA_SHORT=$(git log -n 1 --pretty=format:"%h" HEAD)" >> $GITHUB_ENV
     - name: Print version
       run: |
         echo "Onion-v${{ env.BUILD_VERSION }}-${{ env.SHA_SHORT }}"
