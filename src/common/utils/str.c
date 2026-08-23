@@ -99,6 +99,8 @@ char *str_replace(char *orig, char *rep, char *with)
 // Stores the trimmed input string into the given output buffer, which must be
 // large enough to store the result.  If it is too small, the output is
 // truncated.
+// Returns the number of bytes written (excluding the null terminator);
+// an all-whitespace or empty input yields 0 with *out set to '\0'.
 size_t str_trim(char *out, size_t len, const char *str, bool first)
 {
     if (len == 0)
@@ -227,8 +229,10 @@ bool includeCJK(char *str)
         // Hiragana: U+3040–U+309F (0xE3 0x81 0x80 to 0xE3 0x82 0x9F)
         // Katakana: U+30A0–U+30FF (0xE3 0x82 0xA0 to 0xE3 0x83 0xBF)
         if (c >= 0xE3 && c <= 0xE9) {
-            // Check if this is a valid 3-byte UTF-8 sequence start
-            if (str[1] && ((unsigned char)str[1] & 0xC0) == 0x80) {
+            // Require a complete 3-byte UTF-8 sequence (both continuation bytes)
+            if (str[1] && str[2] &&
+                ((unsigned char)str[1] & 0xC0) == 0x80 &&
+                ((unsigned char)str[2] & 0xC0) == 0x80) {
                 return true;
             }
         }
