@@ -32,7 +32,7 @@ jobs:
         MAKE_VERSION=$(make version)
         BASE_VERSION=$(echo "$MAKE_VERSION" | sed -E 's/-[0-9]{8}$//')
         BUILD_DATE=$(date -u +%Y%m%d)
-        SHA_SHORT=$(git log -n 1 --pretty=format:"%h" HEAD)
+        SHA_SHORT=$(git rev-parse --short=8 HEAD)
         BUILD_VERSION="${BASE_VERSION}-${BUILD_DATE}"
         {
           echo "BUILD_VERSION=${BUILD_VERSION}"
@@ -50,7 +50,21 @@ jobs:
       shell: bash
       run: |
         source /root/.bashrc
-        VERSION_OVERRIDE=${{ env.BUILD_VERSION }}-${{ env.SHA_SHORT }} TARGET=OnionPlus make release
+        # Makefile TARGET=OnionPlus names the zip. Do not pass TARGET= on the
+        # make command line: it leaks into src/*/Makefile via MAKEFLAGS.
+        # VERSION_OVERRIDE as an env var works (Makefile does not assign it).
+        make release VERSION_OVERRIDE="${BUILD_VERSION}-${SHA_SHORT}"
+        echo "Release artifacts:"
+        ls -la release/
+        if [ ! -f "release/${ZIP_NAME}" ]; then
+          actual=$(find release -maxdepth 1 -name '*.zip' -print | head -n 1)
+          if [ -z "$actual" ]; then
+            echo "No zip produced in release/" >&2
+            exit 1
+          fi
+          echo "Renaming ${actual} -> release/${ZIP_NAME}"
+          mv "$actual" "release/${ZIP_NAME}"
+        fi
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
