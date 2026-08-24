@@ -1,6 +1,6 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **52 commits** · **142 files** · **+27,118 / −795 lines** · **79 added** / **63 modified** · **0 deleted** · **68 test suites** · **1,410 tests** ✅
+> **56 commits** · **144 files** · **+27,234 / −811 lines** · **79 added** / **65 modified** · **0 deleted** · **68 test suites** · **1,410 tests** ✅
 
 > **What this document is:** the raw, reproducible *diff arithmetic* between the OnionPlus
 > branch tip and the upstream base release. Every number here comes from `git` on this
@@ -10,26 +10,26 @@
 
 | 🔖 Reference | Value |
 |:---|:---|
-| 🌿 Branch tip | `OnionPlus` → code tip [`ddbb7e14`](https://github.com/Amiga500/Onion/commit/ddbb7e14) *(release/OTA wiring, 2026-08-24)* on top of review-pass `74f0a0af`, CI fix `2ae2e79f`, merge `e44421e1` (PR #206–207) |
+| 🌿 Branch tip | `OnionPlus` → code tip [`82fab865`](https://github.com/Amiga500/Onion/commit/82fab865) *(GameSwitcher preview FB / romscreen stride, 2026-08-24)* on top of release/OTA `ddbb7e14`, review-pass `74f0a0af`, CI fix `2ae2e79f`, merge `e44421e1` (PR #206–207) |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
-| ⏩ Commits ahead | **52** *(`git rev-list --count 07505ea5..HEAD`; authored 2026-08-20–24)* |
-| 📦 Aggregate delta | **142 files** · **+27,118** / **−795** |
-| 🧩 Code-only delta *(excl. `docs/`)* | **140 files** · **+25,597** / **−795** |
+| ⏩ Commits ahead | **56** *(`git rev-list --count 07505ea5..HEAD`; authored 2026-08-20–24)* |
+| 📦 Aggregate delta | **144 files** · **+27,234** / **−811** |
+| 🧩 Code-only delta *(excl. `docs/`)* | **142 files** · **+25,668** / **−811** |
 | 🧪 Unit tests at tip | **68 suites** · **1,410 tests** · **71,385 assertions** · **0 failures** ✅ |
-| 🔀 Net line growth | **+26,323** |
+| 🔀 Net line growth | **+26,423** |
 
 > 🔁 **Self-reference.** The two files in `docs/` are part of the range they measure, so every
 > *aggregate* figure below includes them. Wherever that matters, the **code-only** subset
 > (everything except `docs/`) is given alongside it. Each table states which of the two it uses.
-> A previous revision advertised **23** commits and tip `6b7f6357` / `2ae2e79f`; those were
-> stale. The headline is `git rev-list --count`.
+> A previous revision advertised **52** commits and tip `ddbb7e14`; those were stale after the
+> GameSwitcher stride fixes. The headline is `git rev-list --count`.
 
 ---
 
 ## 📋 Table of Contents
 
 1. [Headline Ratios](#-1-headline-ratios)
-2. [The 52 Commits](#-2-the-52-commits)
+2. [The 56 Commits](#-2-the-56-commits)
 3. [Breakdown by Directory](#️-3-breakdown-by-directory)
 4. [Breakdown by Functional Category](#️-4-breakdown-by-functional-category)
 5. [Key Files](#-5-key-files)
@@ -40,27 +40,27 @@
 
 ## 📊 1. Headline Ratios
 
-*Shares are of the **aggregate** 27,118 insertions, `docs/` included (this refresh).*
+*Shares are of the **aggregate** 27,234 insertions, `docs/` included (this refresh).*
 
 | Metric | Value | Share |
 |:---|---:|---:|
-| 🧪 Insertions that are **test code** | **23,233** | **85.7 %** |
-| 🧩 Insertions that are **production code** (`src/`) | **2,252** | **8.3 %** |
-| 📚 Insertions that are **documentation** | **1,521** | **5.6 %** |
+| 🧪 Insertions that are **test code** | **23,233** | **85.3 %** |
+| 🧩 Insertions that are **production code** (`src/`) | **2,323** | **8.5 %** |
+| 📚 Insertions that are **documentation** | **1,566** | **5.8 %** |
 | 🏗️ Insertions that are **build/CI/OTA wiring** | **112** | **0.4 %** |
-| ➕ Files **added** (`A`) | **79** | **55.6 %** |
-| ✏️ Files **modified** (`M`) | **63** | **44.4 %** |
+| ➕ Files **added** (`A`) | **79** | **54.9 %** |
+| ✏️ Files **modified** (`M`) | **65** | **45.1 %** |
 | 🗑️ Files **deleted** (`D`) | **0** | **0 %** |
-| 🔁 Insertions per deletion | **≈ 35 : 1** | — |
+| 🔁 Insertions per deletion | **≈ 34 : 1** | — |
 | 🧪 Test lines per production line | **≈ 10 : 1** | — |
 
 > 📈 **Read this as:** OnionPlus is still a **test-heavy, low-blast-radius** port. Roughly
 > **10 lines of test** landed for every **1 line of production code**. Nothing was deleted
-> outright — the 766 removed lines are in-place rewrites inside modified files.
+> outright — the 811 removed lines are in-place rewrites inside modified files.
 
 ---
 
-## 🔀 2. The 52 Commits
+## 🔀 2. The 56 Commits
 
 *Ordered oldest → tip (`git log --reverse --oneline 07505ea5..HEAD`). File/+− columns are
 that commit's own `git show --shortstat`, not the running aggregate. Merge commits have
@@ -120,11 +120,16 @@ no tree delta of their own.*
 | 50 | [`a4793fab`](https://github.com/Amiga500/Onion/commit/a4793fab) | ci: publish unique dated OnionPlus GitHub Releases | 1 | +32 / −21 | 🏗️ Release + CI |
 | 51 | [`201bae3d`](https://github.com/Amiga500/Onion/commit/201bae3d) | fix: point Miyoo OTA at Amiga500 OnionPlus releases | 1 | +9 / −5 | 🏗️ OTA |
 | 52 | [`ddbb7e14`](https://github.com/Amiga500/Onion/commit/ddbb7e14) | fix: name release zip OnionPlus-v so gh-release finds it | 3 | +21 / −6 | 🏗️ Release + CI |
-| | | **Aggregate `07505ea5` → this docs refresh** | **142** | **+27,118 / −795** | |
+| 53 | [`69af9a21`](https://github.com/Amiga500/Onion/commit/69af9a21) | docs: refresh OnionPlus stats to tip ddbb7e14 (release/OTA) | 2 | +83 / −52 | 📚 Docs |
+| 54 | [`e17c6a9b`](https://github.com/Amiga500/Onion/commit/e17c6a9b) | fix: correct GameSwitcher romscreen capture stride and blit | 3 | +70 / −17 | 🛡️ Fix |
+| 55 | [`82fab865`](https://github.com/Amiga500/Onion/commit/82fab865) | fix: GameSwitcher preview FB stride and stretch romscreens | 3 | +6 / −4 | 🛡️ Fix |
+| 56 | [`e0b6893c`](https://github.com/Amiga500/Onion/commit/e0b6893c) | docs: keep action_loadGame table row from splitting on GitHub | 1 | +1 / −1 | 📚 Docs |
+| | | **Aggregate `07505ea5` → this docs refresh** | **144** | **+27,234 / −811** | |
 
-> ℹ️ A previous revision of this table had **48 rows** and tip `74f0a0af`.
+> ℹ️ A previous revision of this table had **52 rows** and tip `ddbb7e14`.
 > Rows 25–29 are a remote experiment that was fully reverted — net zero in the tree.
 > Rows 45–48 are the 2026-08-23 review pass. Rows 50–52 are release/OTA wiring (2026-08-24).
+> Rows 54–55 are GameSwitcher framebuffer stride / romscreen stretch fixes (2026-08-24).
 
 ### 📝 Notes per later commit
 
@@ -153,6 +158,8 @@ no tree delta of their own.*
 | 🏗️ `a4793fab` | Pre-release workflow: unique tag + zip per build (`softprops/action-gh-release`), no `latest` overwrite. |
 | 🏗️ `201bae3d` | `ota_update.sh`: repo `Amiga500/Onion`, asset `OnionPlus-v`, bootstrap branch `OnionPlus`. |
 | 🏗️ `ddbb7e14` | `Makefile` `TARGET=OnionPlus`; workflow renames zip if name drifts. |
+| 🛡️ `e17c6a9b` | Romlist / romscreen capture: correct framebuffer stride and blit. |
+| 🛡️ `82fab865` | GameSwitcher preview FB stride + stretch romscreens to fit. |
 
 ---
 
@@ -162,11 +169,11 @@ no tree delta of their own.*
 
 | 📁 Area | Files | ➕ Insertions | ➖ Deletions | Share of + |
 |:---|---:|---:|---:|---:|
-| 🧪 `test/` *(incl. `test/Makefile*`)* | **75** | **+23,233** | **−10** | 85.9 % |
-| 🧩 `src/` | **58** | **+2,252** | **−750** | 8.3 % |
-| 📚 `docs/` | **2** | **+1,521** | **0** | 5.6 % |
+| 🧪 `test/` *(incl. `test/Makefile*`)* | **75** | **+23,233** | **−10** | 85.3 % |
+| 🧩 `src/` | **60** | **+2,323** | **−766** | 8.5 % |
+| 📚 `docs/` | **2** | **+1,566** | **0** | 5.8 % |
 | 🏗️ `Makefile` + `.github/` + `ota_update.sh` + `.gitignore` | **7** | **+112** | **−35** | 0.4 % |
-| | **142** | **+27,118** | **−795** | 100 % |
+| | **144** | **+27,234** | **−811** | 100 % |
 
 ### 🧪 Inside `test/`
 
@@ -179,20 +186,22 @@ no tree delta of their own.*
 
 ### 🧩 Inside `src/`
 
-**54 modified**, **4 added** (`neon_pixel.h`, `perf.h`, `signal_handler.h`, `gs_savestate_path.h`), **0 deleted**.
+**56 modified**, **4 added** (`neon_pixel.h`, `perf.h`, `signal_handler.h`, `gs_savestate_path.h`), **0 deleted**.
 
 The extra files beyond the original 25-file NEON/hardening set are theme-render caches,
 signal-handler call sites, `reset.h`, `config.mk`, `jpg2png/Makefile`,
 `gs_savestate_path.h`, the 2026-08-23 power/hardening batch (`osd.h`, `display.h`,
 `battery.h`, `batmon.c/h`, `config.h`, `gs_overlay.h`, `playActivity/*`,
-`playActivityUI/playActivityUI.c`, `infoPanel/*`), and the review-pass touch-ups in
-`gameSwitcher.c` / `gs_popMenu.h` / `gs_overlay.h` / `osd.h`.
+`playActivityUI/playActivityUI.c`, `infoPanel/*`), the review-pass touch-ups in
+`gameSwitcher.c` / `gs_popMenu.h` / `gs_overlay.h` / `osd.h`, and the GameSwitcher
+framebuffer stride / romscreen stretch fixes (`screenshot.h`, `gs_overlay.h`,
+`gs_render.h`, `gs_romscreen.h`, `display.h`).
 
 ---
 
 ## 🏷️ 4. Breakdown by Functional Category
 
-Categories below are approximate file-level labels for the same 142 files. Prefer the
+Categories below are approximate file-level labels for the same 144 files. Prefer the
 directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff --stat`.
 
 | Category | Role |
@@ -212,7 +221,7 @@ directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff 
 | File | Status | +/− |
 |:---|:---:|---:|
 | `src/common/utils/neon_pixel.h` | 🆕 A | +343 / −0 |
-| `src/common/system/screenshot.h` | ✏️ M | +71 / −32 |
+| `src/common/system/screenshot.h` | ✏️ M | +103 / −38 |
 | `src/pngScale/pngScale.c` | ✏️ M | *(in src/ total)* |
 | `src/jpg2png/jpg2png.c` | ✏️ M | +20 / −17 |
 | `src/common/utils/rotate180.h` | ✏️ M | *(in src/ total)* |
@@ -243,7 +252,7 @@ directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff 
 | 🧪 `test/test_history_recent.c` | 🆕 A | +226 | Production `history_getRecentPath` contract — 10 tests |
 | 🛡️ `src/common/utils/file.c` | ✏️ M | +210 / −70 | Path/IO hardening, `system()` removal, `file_remove_recursive` |
 | 🎨 `src/common/theme/render/list.h` | ✏️ M | +116 / −39 | TTF/preview cache populate path |
-| 🛡️ `src/common/system/screenshot.h` | ✏️ M | +71 / −32 | NEON convert + bounded `snprintf` path |
+| 🛡️ `src/common/system/screenshot.h` | ✏️ M | +103 / −38 | NEON convert + bounded `snprintf` + romscreen stride |
 | 🔧 `src/gameSwitcher/gs_savestate_path.h` | 🆕 A | +45 / −0 | Save-state path helper extracted for tests |
 | 🛡️ `src/common/utils/hash.h` | ✏️ M | +20 / −10 | Bounded, alignment-safe 64-bit load; hashes bit-identical |
 | 🏗️ `src/common/config.mk` | ✏️ M | +7 / −0 | `-O2 -ffunction-sections -Wl,--gc-sections` |
@@ -251,8 +260,8 @@ directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff 
 | 🛡️ `src/infoPanel/infoPanel.c` | ✏️ M | +80 / −34 | JSON/argv hardening, `-r` flag fix |
 | ⚡ `src/common/system/battery.h` | ✏️ M | +55 / −10 | 2 s `battery_isCharging()` cache |
 | ⚡ `src/common/system/osd.h` | ✏️ M | +50 / −33 | Bar busy-wait 100 µs → 16 ms + overlay-loop `msleep(2)` |
-| ⚡ `src/common/system/display.h` | ✏️ M | +40 / −13 | Brightness sysfs cache + memcpy fast path |
-| ⚡ `src/gameSwitcher/gs_overlay.h` | ✏️ M | +33 / −7 | Double-fork playActivity + content-match OOB fix |
+| ⚡ `src/common/system/display.h` | ✏️ M | +44 / −14 | Brightness sysfs cache + memcpy fast path + stride |
+| ⚡ `src/gameSwitcher/gs_overlay.h` | ✏️ M | +53 / −10 | Double-fork playActivity + content-match OOB + FB stride |
 
 ---
 
@@ -283,6 +292,7 @@ exit code `0`, 2026-08-23), not from a static count.
 | After `c9e052d4` + `47fc5289` | **67** | 1,407 | ✅ `test_history_recent` + NEON oracles |
 | After `bda89b2d` | **68** | **1,410** | ✅ `test_images_browser` re-enabled (3 tests / 22 assertions) |
 | After `ddbb7e14` | **68** | **1,410** | Release/OTA wiring; suite counts unchanged |
+| After `82fab865` | **68** | **1,410** | GameSwitcher stride/romscreen fixes; suite counts unchanged |
 
 The 17 intermediate suites:
 
@@ -325,16 +335,16 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 ```bash
 cd /path/to/Onion
 
-# Commit list and count (must be 52 at code tip ddbb7e14)
+# Commit list and count (must be 56 at HEAD / 55 at code tip 82fab865)
 git rev-list --count 07505ea5..HEAD
 git log --oneline --reverse 07505ea5..HEAD
 
-# Aggregate delta (docs refresh on top of ddbb7e14 adds only docs/ lines)
-git diff --shortstat 07505ea5 HEAD            # 142 files, +27,118 / −795
-git diff --shortstat 07505ea5 HEAD -- src/    #  58 files,  +2,252 / −750
+# Aggregate delta (docs refresh may add only docs/ lines on top of 82fab865)
+git diff --shortstat 07505ea5 HEAD            # 144 files, +27,234 / −811
+git diff --shortstat 07505ea5 HEAD -- src/    #  60 files,  +2,323 / −766
 git diff --shortstat 07505ea5 HEAD -- test/   #  75 files, +23,233 / −10
 git diff --shortstat 07505ea5 HEAD -- docs/   #   2 files,  (docs line count)
-git diff --shortstat 07505ea5 HEAD -- . ':!docs'  # 140 files, +25,597 / −795  (code only)
+git diff --shortstat 07505ea5 HEAD -- . ':!docs'  # 142 files, +25,668 / −811  (code only)
 
 # Added vs modified
 git diff --name-status 07505ea5 HEAD | awk '{print $1}' | sort | uniq -c
@@ -352,6 +362,6 @@ make unit-test
 actually do, with before/after code and performance figures.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Code tip [`ddbb7e14`](https://github.com/Amiga500/Onion/commit/ddbb7e14) (**52** commits) ·
-Commits analyzed: **52** · All figures regenerated from `git` and a real `make unit-test` run
+Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Code tip [`82fab865`](https://github.com/Amiga500/Onion/commit/82fab865) (**56** commits at HEAD) ·
+Commits analyzed: **56** · All figures regenerated from `git` and a real `make unit-test` run
 on 2026-08-24.</sub>
