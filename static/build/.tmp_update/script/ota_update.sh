@@ -11,7 +11,7 @@ BLUE='\033[1;34m'
 NC='\033[0m' # No Color
 
 # Repository name :
-GITHUB_REPOSITORY=OnionUI/Onion
+GITHUB_REPOSITORY=Amiga500/Onion
 
 # channel : stable or beta
 channel=$(cat "$sysdir/config/ota_channel" 2> /dev/null)
@@ -99,7 +99,7 @@ check_connection() {
 }
 
 run_bootstrap() {
-	curl -k -s https://raw.githubusercontent.com/OnionUI/Onion/main/static/build/.tmp_update/script/ota_bootstrap.sh | sh
+	curl -k -s https://raw.githubusercontent.com/Amiga500/Onion/OnionPlus/static/build/.tmp_update/script/ota_bootstrap.sh | sh
 }
 
 channel_choice() {
@@ -113,7 +113,11 @@ get_release_info() {
 
 	# Github source api url
 	if [ "$channel" = "beta" ]; then
-		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/latest)
+		# Latest prerelease, then fall back to releases[0] (dated unique tags)
+		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '.[0]' | jq 'select(.prerelease == true)')
+		if [ -z "$Release_assets_info" ] || [ "$Release_assets_info" = "null" ]; then
+			Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '.[0]')
+		fi
 	else
 		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest)
 	fi
@@ -124,10 +128,10 @@ get_release_info() {
 		return 1
 	fi
 
-	Release_asset=$(echo "$Release_assets_info" | jq '.assets[]? | select(.name | contains("Onion-v"))')
+	Release_asset=$(echo "$Release_assets_info" | jq '.assets[]? | select(.name | contains("OnionPlus-v"))')
 
 	Release_url=$(echo $Release_asset | jq '.browser_download_url' | tr -d '"')
-	Release_FullVersion=$(echo $Release_asset | jq '.name' | tr -d "\"" | sed 's/^Onion-v//g' | sed 's/\.zip$//g')
+	Release_FullVersion=$(echo $Release_asset | jq '.name' | tr -d "\"" | sed 's/^OnionPlus-v//g' | sed 's/\.zip$//g')
 	Release_Version=$(echo $Release_FullVersion | sed 's/-.*$//g')
 	Release_size=$(echo $Release_asset | jq -r '.size')
 	Release_size_MB=$(echo "$(($Release_size / 1024 / 1024))MB")
