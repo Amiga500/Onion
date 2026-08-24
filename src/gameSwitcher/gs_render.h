@@ -18,13 +18,22 @@ void renderCentered(SDL_Surface *image, int view_mode, SDL_Rect *overrideSrcRect
     int offSetX = (int)(g_display.width - image->w) / 2;
     int offSetY = (int)(g_display.height - image->h) / 2;
 
-    SDL_Rect image_size = {0, 0, g_display.width, g_display.height};
+    SDL_Rect image_size = {0, 0, image->w, image->h};
     SDL_Rect image_pos = {offSetX, offSetY};
 
     if (view_mode == VIEW_NORMAL) {
-        image_size.x = theme()->frame.border_left;
-        image_size.w -= theme()->frame.border_left + theme()->frame.border_right;
-        image_pos.x += theme()->frame.border_left;
+        int border_left = theme()->frame.border_left;
+        int border_right = theme()->frame.border_right;
+        int content_w = g_display.width - border_left - border_right;
+
+        if (image->w >= content_w) {
+            image_size.x = border_left;
+            image_size.w = content_w;
+            image_pos.x = border_left;
+        }
+        else {
+            image_pos.x = border_left + (content_w - image->w) / 2;
+        }
     }
 
     if (overrideSrcRect != NULL) {

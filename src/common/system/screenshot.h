@@ -4,6 +4,7 @@
 #include <png/png.h>
 #include <signal.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 
 #include "./display.h"
@@ -80,13 +81,30 @@ bool __get_path_recent(char *path_out)
 
 uint32_t *__screenshot_buffer(void)
 {
-    size_t buffer_size = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint32_t);
+    display_getRenderResolution();
+    ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
+    ioctl(fb_fd, FBIOGET_FSCREENINFO, &g_display.finfo);
+
+    int width = g_display.width;
+    int height = g_display.height;
+    if (width <= 0 || height <= 0)
+        return NULL;
+
+    int fb_stride_pixels = (int)(g_display.finfo.line_length / sizeof(uint32_t));
+    if (fb_stride_pixels < width)
+        fb_stride_pixels = width;
+
+    size_t buffer_size = (size_t)width * (size_t)height * sizeof(uint32_t);
     uint32_t *buffer = (uint32_t *)malloc(buffer_size);
     if (buffer == NULL)
         return NULL;
 
-    ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
-    memcpy(buffer, g_display.fb_addr + DISPLAY_WIDTH * g_display.vinfo.yoffset, buffer_size);
+    const uint32_t *fb = g_display.fb_addr + (long)g_display.vinfo.yoffset * fb_stride_pixels;
+    for (int y = 0; y < height; y++) {
+        memcpy(buffer + (size_t)y * (size_t)width,
+               fb + (size_t)y * (size_t)fb_stride_pixels,
+               (size_t)width * sizeof(uint32_t));
+    }
 
     return buffer;
 }
@@ -99,7 +117,8 @@ uint32_t *__screenshot_buffer(void)
  * @return true Screenshot was saved
  * @return false Screenshot was not saved
  */
-bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool do_rotate180)
+bool screenshot_save_stride(const uint32_t *buffer, const char *screenshot_path,
+                            bool do_rotate180, int src_stride_pixels)
 {
     // make sure render resolution is up to date
     display_getRenderResolution();
@@ -108,7 +127,8 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool d
     if (buffer == NULL || g_display.width == 0 || g_display.height == 0)
         return false;
 
-    uint32_t *src;
+    int row_stride = (src_stride_pixels > 0) ? src_stride_pixels : g_display.width;
+
     uint32_t line_buffer[g_display.width], x, y;
 
     FILE *fp;
@@ -137,12 +157,12 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool d
                  PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png_ptr, info_ptr);
 
-    src = (uint32_t *)buffer;
     if (do_rotate180) {
         /* Bottom-to-top + reverse each row, then NEON ARGB→RGBA */
-        const uint32_t *end = buffer + g_display.width * g_display.height;
         for (y = 0; y < g_display.height; y++) {
-            const uint32_t *row_start = end - (y + 1) * g_display.width;
+            const uint32_t *row_start =
+                (const uint32_t *)((const uint8_t *)buffer
+                                   + (size_t)(g_display.height - 1 - y) * (size_t)row_stride * sizeof(uint32_t));
             for (x = 0; x < g_display.width; x++) {
                 line_buffer[x] = row_start[g_display.width - 1 - x];
             }
@@ -156,11 +176,12 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool d
     }
     else {
         for (y = 0; y < g_display.height; y++) {
-            neon_argb_to_rgba(line_buffer, src, g_display.width);
+            const uint32_t *row =
+                (const uint32_t *)((const uint8_t *)buffer + (size_t)y * (size_t)row_stride * sizeof(uint32_t));
+            neon_argb_to_rgba(line_buffer, row, g_display.width);
             for (x = 0; x < g_display.width; x++) {
                 line_buffer[x] |= 0xFF000000;
             }
-            src += g_display.width;
             png_write_row(png_ptr, (png_bytep)line_buffer);
         }
     }
@@ -173,6 +194,11 @@ bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool d
     fclose(fp);
 
     return true;
+}
+
+bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool do_rotate180)
+{
+    return screenshot_save_stride(buffer, screenshot_path, do_rotate180, 0);
 }
 
 bool __screenshot_perform(bool(get_path)(char *), pid_t p_id)

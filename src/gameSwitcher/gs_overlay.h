@@ -36,11 +36,28 @@ void setFbAsFirstRomScreen(void)
     }
 
     game->romScreen = SDL_CreateRGBSurface(SDL_SWSURFACE, g_display.width, g_display.height, 32, 0, 0, 0, 0);
-    display_readCurrentBuffer(&g_display, (uint32_t *)game->romScreen->pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
-
     if (game->romScreen == NULL) {
         print_debug("Error creating fb surface\n");
+        return;
     }
+
+    size_t pixel_count = (size_t)g_display.width * (size_t)g_display.height;
+    uint32_t *fb_pixels = (uint32_t *)malloc(pixel_count * sizeof(uint32_t));
+    if (fb_pixels == NULL) {
+        print_debug("Error allocating fb capture buffer\n");
+        return;
+    }
+
+    display_readCurrentBuffer(&g_display, fb_pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
+
+    int row_pixels = game->romScreen->pitch / (int)sizeof(uint32_t);
+    for (int y = 0; y < g_display.height; y++) {
+        memcpy((uint8_t *)game->romScreen->pixels + (size_t)y * (size_t)game->romScreen->pitch,
+               fb_pixels + (size_t)y * (size_t)g_display.width,
+               (size_t)g_display.width * sizeof(uint32_t));
+    }
+
+    free(fb_pixels);
 }
 
 // Spawn a detached playActivity process without blocking the UI thread.
@@ -85,7 +102,8 @@ static void *_saveRomScreenAndStateThread(void *arg)
         uint32_t hash = FNV1A_Pippip_Yurii(game->recentItem.rompath, strlen(game->recentItem.rompath));
         snprintf(romScreenPath, sizeof(romScreenPath), ROM_SCREENS_DIR "/%" PRIu32 ".png", hash);
 
-        screenshot_save((uint32_t *)game->romScreen->pixels, romScreenPath, false);
+        screenshot_save_stride((uint32_t *)game->romScreen->pixels, romScreenPath, false,
+                               game->romScreen->pitch / (int)sizeof(uint32_t));
 
         printf_debug("Saved rom screen: %s\n", romScreenPath);
     }
