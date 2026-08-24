@@ -50,7 +50,6 @@ void setFbAsFirstRomScreen(void)
 
     display_readCurrentBuffer(&g_display, fb_pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
 
-    int row_pixels = game->romScreen->pitch / (int)sizeof(uint32_t);
     for (int y = 0; y < g_display.height; y++) {
         memcpy((uint8_t *)game->romScreen->pixels + (size_t)y * (size_t)game->romScreen->pitch,
                fb_pixels + (size_t)y * (size_t)g_display.width,

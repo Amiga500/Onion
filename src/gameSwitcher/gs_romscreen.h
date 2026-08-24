@@ -118,8 +118,8 @@ SDL_Surface *loadRomScreen(int index)
             if (game->romScreen == NULL) {
                 printf_debug("Error loading image: %s\n", currPicture);
             }
-            else if (romScreenType == ROM_SCREEN_STATE) {
-                scaleRomScreen(game, getDynamicScalingMode(game));
+            else if (romScreenType == ROM_SCREEN_HASH) {
+                scaleRomScreen(game, (ScalingMode_s){false, false});
             }
             else {
                 scaleRomScreen(game, (ScalingMode_s){true, false});

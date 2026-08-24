@@ -280,6 +280,9 @@ void display_setBrightness(uint32_t value)
 void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, rect_t rect, bool rotate, bool mask, bool write)
 {
     int bufferPos = index * display->vinfo.yres;
+    int fb_stride_pixels = (int)(display->finfo.line_length / (int)sizeof(uint32_t));
+    if (fb_stride_pixels < (int)display->vinfo.xres)
+        fb_stride_pixels = (int)display->vinfo.xres;
 
     for (int oy = 0; oy < rect.h; oy++) {
         int y = rect.y + oy;
@@ -288,7 +291,7 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
             continue;
 
         int virtualY = bufferPos + (rotate ? (display->vinfo.yres - 1) - y : y);
-        long baseOffset = (long)virtualY * display->vinfo.xres;
+        long baseOffset = (long)virtualY * fb_stride_pixels;
         int baseIndex = oy * rect.w;
 
         // Fast path: non-rotated, non-masked, contiguous row — use memcpy
