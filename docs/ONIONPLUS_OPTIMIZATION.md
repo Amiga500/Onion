@@ -1,6 +1,6 @@
 # 🧅 OnionPlus — Optimization & Hardening Report
 
-> **48 commits** · **140 files** · **+27,059 / −766 lines** · **8 NEON kernels** · **68 test suites** · **1,410 tests** · **71,385 assertions** · **ALL PASSED** ✅
+> **52 commits** · **142 files** · **+27,118 / −795 lines** · **8 NEON kernels** · **68 test suites** · **1,410 tests** · **71,385 assertions** · **ALL PASSED** ✅
 
 > **Scope:** this report covers *only* the commits that make up the OnionPlus port on top of
 > upstream `OnionUI/Onion:main` (`07505ea5` → `HEAD`). It is **not** a report on the whole
@@ -12,11 +12,11 @@
 **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)**.
 
 > 🔁 **Self-reference.** The docs-update commit carries both this document and the statistics
-> it describes, so its own SHA cannot appear here — the code tip is `74f0a0af` (four
-> review-pass fixes, 2026-08-23) on top of the CI fix `2ae2e79f`, the docs refresh
-> `03080200`, the version bump `6b7f6357`, merge `e44421e1` (reconciliation with remote
-> PR #206–207) and the docs refresh `55998284`. The two `docs/` files are inside the range
-> they measure; wherever it matters, the **code-only** subset is given next to the aggregate.
+> it describes, so its own SHA cannot appear here — the code tip is `ddbb7e14` (release zip
+> naming + Miyoo OTA + unique dated GitHub Releases, 2026-08-24) on top of the four
+> review-pass fixes `74f0a0af`, the CI fix `2ae2e79f`, merge `e44421e1` (PR #206–207) and
+> the power/CPU port batch. The two `docs/` files are inside the range they measure; wherever
+> it matters, the **code-only** subset is given next to the aggregate.
 
 ---
 
@@ -164,10 +164,13 @@ No performance figure is attached to any of the 🛡️ rows.*
 | 26 | [`d05267ca`](https://github.com/Amiga500/Onion/commit/d05267ca) | 🛡️ Restore async semantics for playActivity fork+exec | 1 | +24 / −20 | fix |
 | 27 | [`ff012faa`](https://github.com/Amiga500/Onion/commit/ff012faa) | 🛡️ Correct dead-code slot check and OOB read in content match | 2 | +4 / −2 | fix |
 | 28 | [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af) | ⚡ Throttle OSD overlay draw loop and demote stats logging | 1 | +4 / −4 | perf |
-| | | **Aggregate `07505ea5` → `74f0a0af` (code tip, excl. `docs/`)** | **138** | **+25,538 / −766** | |
-| | | **Full range `07505ea5` → this docs refresh** | **140** | **+27,059 / −766** | |
+| 29 | [`a4793fab`](https://github.com/Amiga500/Onion/commit/a4793fab) | 🏗️ Publish unique dated OnionPlus GitHub Releases (no `latest` overwrite) | 1 | +32 / −21 | CI + release |
+| 30 | [`201bae3d`](https://github.com/Amiga500/Onion/commit/201bae3d) | 🏗️ Point Miyoo OTA at `Amiga500/Onion` OnionPlus releases | 1 | +9 / −5 | OTA |
+| 31 | [`ddbb7e14`](https://github.com/Amiga500/Onion/commit/ddbb7e14) | 🏗️ Name release zip `OnionPlus-v…`; `TARGET=OnionPlus` in Makefile | 3 | +21 / −6 | CI + release |
+| | | **Aggregate `07505ea5` → `ddbb7e14` (code tip, excl. `docs/`)** | **140** | **+25,597 / −795** | |
+| | | **Full range `07505ea5` → this docs refresh** | **142** | **+27,118 / −795** | |
 
-> ℹ️ **`git rev-list --count 07505ea5..HEAD` is 48**, not the 28 milestone rows above.
+> ℹ️ **`git rev-list --count 07505ea5..HEAD` is 52**, not the 31 milestone rows above.
 > The extra 20 are: 3 merge commits (`f9bac9fc`, `55de00a9`, `e44421e1` is listed), 3 CI
 > `clang-format` passes, 6 docs-only refreshes (including `971d6169` listed as #6), a
 > 5-commit remote experiment (`eea25f88`…`4f7841e0`) that is **net zero** in the tree, the
@@ -188,6 +191,7 @@ No performance figure is attached to any of the 🛡️ rows.*
 > - **Commit 23**: Version bump to today's date for release packaging (**2026-08-23**).
 > - **Commit 24**: Pre-release CI tags the built `HEAD`, not `origin/main`.
 > - **Commits 25–28**: 2026-08-23 review pass — three upstream NULL/bounds defects, one port-regression (blocking `waitpid`), one overlay-loop throttle. See [§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa).
+> - **Commits 29–31**: 2026-08-24 release/OTA — unique dated GitHub Releases (`OnionPlus V4.4.0-beta-YYYYMMDD`, zip `OnionPlus-v…-<sha>.zip`), Miyoo OTA pointed at `Amiga500/Onion` with `OnionPlus-v` asset filter, `TARGET=OnionPlus` in Makefile. See [§6](#️-6-build--tooling).
 >
 > A parallel remote experiment (`eea25f88..1e359571`: OSD busy-wait, `meterWidth` cache, `process_start` fork+execv) was **reverted** in
 > [`4f7841e0`](https://github.com/Amiga500/Onion/commit/4f7841e0) — broken argument
@@ -965,18 +969,39 @@ Host CI (`.github/workflows/test.yml`): `make unit-test`, a sanitizer subset
 (`unit-test-san`), and a `neon-arm` job that runs the NEON tests under qemu. `jpg2png` is
 not built in `make core`.
 
+**Release packaging** (commits [`a4793fab`](https://github.com/Amiga500/Onion/commit/a4793fab),
+[`ddbb7e14`](https://github.com/Amiga500/Onion/commit/ddbb7e14)) — the pre-release workflow
+now publishes a **real GitHub Release** per build (not a rolling `latest` tag that deletes the
+previous asset). Each run creates:
+
+| Field | Pattern |
+|:---|:---|
+| Title | `OnionPlus V4.4.0-beta-YYYYMMDD` *(UTC build date)* |
+| Tag | `OnionPlus-v4.4.0-beta-YYYYMMDD-<8-char-sha>` |
+| Zip | `OnionPlus-v4.4.0-beta-YYYYMMDD-<8-char-sha>.zip` |
+
+`Makefile` sets `TARGET=OnionPlus` so `make release` writes `OnionPlus-v…zip`. `SHA_SHORT`
+comes from `HEAD`, not stale `origin/main`.
+
+**Miyoo OTA** (commit [`201bae3d`](https://github.com/Amiga500/Onion/commit/201bae3d)) —
+`ota_update.sh` now queries `Amiga500/Onion`, filters assets containing `OnionPlus-v`, and
+bootstraps from the `OnionPlus` branch. Stable channel uses `/releases/latest`; beta uses
+`/releases[0]` (OniOpus46 logic). **First flash must still be manual** — the OTA script
+ships inside the zip.
+
 ---
 
 ## 📈 7. Overall Statistics
 
 | Metric | Value |
 |:-------|------:|
-| 🔧 **Commits** | **48** *(`git rev-list --count 07505ea5..HEAD`)* |
-| 📁 **Files changed** | **140** *(138 excluding `docs/`)* |
-| ➕ **Lines added / removed** | **+27,059 / −766** *(+25,538 / −766 excluding `docs/`)* |
+| 🔧 **Commits** | **52** *(`git rev-list --count 07505ea5..HEAD`)* |
+| 📁 **Files changed** | **142** *(140 excluding `docs/`)* |
+| ➕ **Lines added / removed** | **+27,118 / −795** *(+25,597 / −795 excluding `docs/`)* |
 | 🧩 **Production code (`src/`)** | **58 files · +2,252 / −750** |
 | 🧪 **Test code (`test/`)** | **75 files · +23,233 / −10** |
 | 📚 **Documentation (`docs/`)** | **2 files · +1,521** |
+| 🏗️ **Build / CI / OTA** | **7 files · +112 / −35** |
 | 🆕 **New test source files** | **68** *(all 68 in `TESTS`)* |
 | 🧪 **Active suites / tests / assertions** | **68 / 1,410 / 71,385** |
 | ✅ **Test result** | **ALL PASSED** *(0 failures)* |
@@ -1008,9 +1033,9 @@ not built in `make core`.
 Reproduce every figure above with:
 
 ```bash
-git rev-list --count 07505ea5..HEAD               # 48
-git diff --shortstat 07505ea5 HEAD                # 140 files, +27,059 / −766
-git diff --shortstat 07505ea5 HEAD -- . ':!docs'  # 138 files, +25,538 / −766
+git rev-list --count 07505ea5..HEAD               # 52
+git diff --shortstat 07505ea5 HEAD                # 142 files, +27,118 / −795
+git diff --shortstat 07505ea5 HEAD -- . ':!docs'  # 140 files, +25,597 / −795
 git diff --shortstat 07505ea5 HEAD -- src/ test/ docs/ Makefile
 make unit-test
 ```
@@ -1090,8 +1115,8 @@ independently confirmed them.
   It is a **lower-bound proxy**, not an exact count of distinct guarded conditions.
 - `+/−` totals for a squashed range can differ from the sum of per-commit stats when later
   commits modify lines introduced by earlier ones.
-- **Expect a "23 vs 48" discrepancy against older revisions of this document.** The
-  headline is `git rev-list --count 07505ea5..HEAD` (**48** at the code tip `74f0a0af`).
+- **Expect a "23 vs 52" discrepancy against older revisions of this document.** The
+  headline is `git rev-list --count 07505ea5..HEAD` (**52** at the code tip `ddbb7e14`).
   Milestone tables group PR #206/#207 and omit docs-only refreshes, format passes, and
   the net-zero reverted experiment.
 - **These two `docs/` files are inside the range they measure.** The **code-only** subset
@@ -1130,15 +1155,16 @@ throttles it with `msleep(2)` per iteration and demotes the draw-count/speed sta
 
 ## ✅ Final Status
 
-OnionPlus is **48 commits** ahead of upstream `OnionUI/Onion:main`
-(`07505ea5` → `74f0a0af`, `git rev-list --count`), adding **8 NEON pixel kernels**,
+OnionPlus is **52 commits** ahead of upstream `OnionUI/Onion:main`
+(`07505ea5` → `ddbb7e14`, `git rev-list --count`), adding **8 NEON pixel kernels**,
 crash/memory hardening of the `src/common` layer, TTF/list/footer/header/dialog surface
 caches, `--gc-sections` release flags, four algorithmic wins in `str`/`file`, production
 `file_remove_recursive` call sites, migrated SIGINT/SIGTERM handlers, fixes for **6
 pre-existing upstream defects** (§4.7 + §4.9), the **power/CPU batch** (OSD bar busy-wait,
 brightness caching, battery-charging cache, batmon fixes, SQLite open/close 2 → 1, overlay
 double-fork+exec), the `infoPanel` hardening, a throttled `overlay_surface()` draw loop,
-and a **68-suite host unit-test harness** runnable with a single `make unit-test`.
+unique dated GitHub Releases, Miyoo OTA wired to `Amiga500/Onion`, and a **68-suite host
+unit-test harness** runnable with a single `make unit-test`.
 
 > 🧪 **68 suites · 1,410 tests · 71,385 assertions · 0 failures.** ✅
 >
@@ -1164,6 +1190,6 @@ convention that callers had to remember on their own.
 📊 See also: **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)** — full diff statistics vs. the base release.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → Code tip: [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af) (**48** commits, `git rev-list --count`) ·
+Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → Code tip: [`ddbb7e14`](https://github.com/Amiga500/Onion/commit/ddbb7e14) (**52** commits, `git rev-list --count`) ·
 Style adapted from the OniOpus46 [`OPTIMIZATION.md`](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) ·
-Commits analyzed: **48** · Date: 2026-08-23</sub>
+Commits analyzed: **52** · Date: 2026-08-24</sub>

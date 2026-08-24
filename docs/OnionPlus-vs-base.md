@@ -1,6 +1,6 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **48 commits** · **140 files** · **+27,059 / −766 lines** · **79 added** / **61 modified** · **0 deleted** · **68 test suites** · **1,410 tests** ✅
+> **52 commits** · **142 files** · **+27,118 / −795 lines** · **79 added** / **63 modified** · **0 deleted** · **68 test suites** · **1,410 tests** ✅
 
 > **What this document is:** the raw, reproducible *diff arithmetic* between the OnionPlus
 > branch tip and the upstream base release. Every number here comes from `git` on this
@@ -10,13 +10,13 @@
 
 | 🔖 Reference | Value |
 |:---|:---|
-| 🌿 Branch tip | `OnionPlus` → code tip [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af) *(four review-pass fixes, 2026-08-23)* on top of CI fix `2ae2e79f`, version bump `6b7f6357`, merge `e44421e1` (PR #206–207) |
+| 🌿 Branch tip | `OnionPlus` → code tip [`ddbb7e14`](https://github.com/Amiga500/Onion/commit/ddbb7e14) *(release/OTA wiring, 2026-08-24)* on top of review-pass `74f0a0af`, CI fix `2ae2e79f`, merge `e44421e1` (PR #206–207) |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
-| ⏩ Commits ahead | **48** *(`git rev-list --count 07505ea5..HEAD`; authored 2026-08-20–23)* |
-| 📦 Aggregate delta | **140 files** · **+27,059** / **−766** |
-| 🧩 Code-only delta *(excl. `docs/`)* | **138 files** · **+25,538** / **−766** |
+| ⏩ Commits ahead | **52** *(`git rev-list --count 07505ea5..HEAD`; authored 2026-08-20–24)* |
+| 📦 Aggregate delta | **142 files** · **+27,118** / **−795** |
+| 🧩 Code-only delta *(excl. `docs/`)* | **140 files** · **+25,597** / **−795** |
 | 🧪 Unit tests at tip | **68 suites** · **1,410 tests** · **71,385 assertions** · **0 failures** ✅ |
-| 🔀 Net line growth | **+26,293** |
+| 🔀 Net line growth | **+26,323** |
 
 > 🔁 **Self-reference.** The two files in `docs/` are part of the range they measure, so every
 > *aggregate* figure below includes them. Wherever that matters, the **code-only** subset
@@ -29,7 +29,7 @@
 ## 📋 Table of Contents
 
 1. [Headline Ratios](#-1-headline-ratios)
-2. [The 48 Commits](#-2-the-48-commits)
+2. [The 52 Commits](#-2-the-52-commits)
 3. [Breakdown by Directory](#️-3-breakdown-by-directory)
 4. [Breakdown by Functional Category](#️-4-breakdown-by-functional-category)
 5. [Key Files](#-5-key-files)
@@ -40,16 +40,16 @@
 
 ## 📊 1. Headline Ratios
 
-*Shares are of the **aggregate** 27,059 insertions, `docs/` included (this refresh).*
+*Shares are of the **aggregate** 27,118 insertions, `docs/` included (this refresh).*
 
 | Metric | Value | Share |
 |:---|---:|---:|
-| 🧪 Insertions that are **test code** | **23,233** | **85.9 %** |
+| 🧪 Insertions that are **test code** | **23,233** | **85.7 %** |
 | 🧩 Insertions that are **production code** (`src/`) | **2,252** | **8.3 %** |
 | 📚 Insertions that are **documentation** | **1,521** | **5.6 %** |
-| 🏗️ Insertions that are **build/CI wiring** | **53** | **0.2 %** |
-| ➕ Files **added** (`A`) | **79** | **56.4 %** |
-| ✏️ Files **modified** (`M`) | **61** | **43.6 %** |
+| 🏗️ Insertions that are **build/CI/OTA wiring** | **112** | **0.4 %** |
+| ➕ Files **added** (`A`) | **79** | **55.6 %** |
+| ✏️ Files **modified** (`M`) | **63** | **44.4 %** |
 | 🗑️ Files **deleted** (`D`) | **0** | **0 %** |
 | 🔁 Insertions per deletion | **≈ 35 : 1** | — |
 | 🧪 Test lines per production line | **≈ 10 : 1** | — |
@@ -60,7 +60,7 @@
 
 ---
 
-## 🔀 2. The 48 Commits
+## 🔀 2. The 52 Commits
 
 *Ordered oldest → tip (`git log --reverse --oneline 07505ea5..HEAD`). File/+− columns are
 that commit's own `git show --shortstat`, not the running aggregate. Merge commits have
@@ -116,13 +116,15 @@ no tree delta of their own.*
 | 46 | [`d05267ca`](https://github.com/Amiga500/Onion/commit/d05267ca) | fix: restore async semantics for playActivity fork+exec | 1 | +24 / −20 | 🛡️ Fix |
 | 47 | [`ff012faa`](https://github.com/Amiga500/Onion/commit/ff012faa) | fix: correct dead-code slot check and OOB read in content match | 2 | +4 / −2 | 🛡️ Fix |
 | 48 | [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af) | perf: throttle OSD overlay draw loop and demote stats logging | 1 | +4 / −4 | ⚡ Perf |
-| | | **Aggregate `07505ea5` → this docs refresh** | **140** | **+27,059 / −766** | |
+| 49 | [`46f25987`](https://github.com/Amiga500/Onion/commit/46f25987) | docs: refresh OnionPlus stats to tip 74f0a0af (review-pass fixes) | 2 | +259 / −145 | 📚 Docs |
+| 50 | [`a4793fab`](https://github.com/Amiga500/Onion/commit/a4793fab) | ci: publish unique dated OnionPlus GitHub Releases | 1 | +32 / −21 | 🏗️ Release + CI |
+| 51 | [`201bae3d`](https://github.com/Amiga500/Onion/commit/201bae3d) | fix: point Miyoo OTA at Amiga500 OnionPlus releases | 1 | +9 / −5 | 🏗️ OTA |
+| 52 | [`ddbb7e14`](https://github.com/Amiga500/Onion/commit/ddbb7e14) | fix: name release zip OnionPlus-v so gh-release finds it | 3 | +21 / −6 | 🏗️ Release + CI |
+| | | **Aggregate `07505ea5` → this docs refresh** | **142** | **+27,118 / −795** | |
 
-> ℹ️ A previous revision of this table had **23 rows** and listed the meterWidth drop as
-> `6b7f6357`. That SHA is the **version bump** (row 42). The meterWidth drop is
-> [`927685e8`](https://github.com/Amiga500/Onion/commit/927685e8) (row 40).
+> ℹ️ A previous revision of this table had **48 rows** and tip `74f0a0af`.
 > Rows 25–29 are a remote experiment that was fully reverted — net zero in the tree.
-> The four commits at the tip (45–48) are the 2026-08-23 review pass.
+> Rows 45–48 are the 2026-08-23 review pass. Rows 50–52 are release/OTA wiring (2026-08-24).
 
 ### 📝 Notes per later commit
 
@@ -148,6 +150,9 @@ no tree delta of their own.*
 | 🛡️ `d05267ca` | Double-fork playActivity helper — async again, no zombies. |
 | 🛡️ `ff012faa` | Slot check `&&` → `||`; content-match no longer reads before the string. |
 | ⚡ `74f0a0af` | `overlay_surface()` draw loop: `msleep(2)` per iter; stats → `printf_debug`. |
+| 🏗️ `a4793fab` | Pre-release workflow: unique tag + zip per build (`softprops/action-gh-release`), no `latest` overwrite. |
+| 🏗️ `201bae3d` | `ota_update.sh`: repo `Amiga500/Onion`, asset `OnionPlus-v`, bootstrap branch `OnionPlus`. |
+| 🏗️ `ddbb7e14` | `Makefile` `TARGET=OnionPlus`; workflow renames zip if name drifts. |
 
 ---
 
@@ -160,8 +165,8 @@ no tree delta of their own.*
 | 🧪 `test/` *(incl. `test/Makefile*`)* | **75** | **+23,233** | **−10** | 85.9 % |
 | 🧩 `src/` | **58** | **+2,252** | **−750** | 8.3 % |
 | 📚 `docs/` | **2** | **+1,521** | **0** | 5.6 % |
-| 🏗️ `Makefile` + `.github/` + `.gitignore` | **5** | **+53** | **−6** | 0.2 % |
-| | **140** | **+27,059** | **−766** | 100 % |
+| 🏗️ `Makefile` + `.github/` + `ota_update.sh` + `.gitignore` | **7** | **+112** | **−35** | 0.4 % |
+| | **142** | **+27,118** | **−795** | 100 % |
 
 ### 🧪 Inside `test/`
 
@@ -187,7 +192,7 @@ signal-handler call sites, `reset.h`, `config.mk`, `jpg2png/Makefile`,
 
 ## 🏷️ 4. Breakdown by Functional Category
 
-Categories below are approximate file-level labels for the same 140 files. Prefer the
+Categories below are approximate file-level labels for the same 142 files. Prefer the
 directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff --stat`.
 
 | Category | Role |
@@ -200,7 +205,7 @@ directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff 
 | 💾 Database | `playActivity/*` (open/close 2 → 1 + hardening), `playActivityUI/playActivityUI.c` |
 | 🎨 TTF / list caches | `theme/render/{list,footer,header,dialog}.h` |
 | 🔧 Shared infra | `perf.h`, `signal_handler.h`, `config.mk` `--gc-sections`, `config.h` |
-| 🏗️ Makefile / CI | root `Makefile`, `.github/workflows/*` (incl. pre-release `HEAD` SHA), `jpg2png/Makefile` |
+| 🏗️ Makefile / CI / OTA | root `Makefile` (`TARGET=OnionPlus`), `.github/workflows/*` (dated releases, `HEAD` SHA), `ota_update.sh`, `jpg2png/Makefile` |
 
 ### ⚡ NEON / graphics detail *(from `git diff --numstat`)*
 
@@ -277,7 +282,7 @@ exit code `0`, 2026-08-23), not from a static count.
 | After `deb8b6ad` | **66** | 1,376 | +3 hash regression tests |
 | After `c9e052d4` + `47fc5289` | **67** | 1,407 | ✅ `test_history_recent` + NEON oracles |
 | After `bda89b2d` | **68** | **1,410** | ✅ `test_images_browser` re-enabled (3 tests / 22 assertions) |
-| After `74f0a0af` | **68** | **1,410** | Review-pass fixes; suite counts unchanged |
+| After `ddbb7e14` | **68** | **1,410** | Release/OTA wiring; suite counts unchanged |
 
 The 17 intermediate suites:
 
@@ -320,16 +325,16 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 ```bash
 cd /path/to/Onion
 
-# Commit list and count (must be 48 at code tip 74f0a0af)
+# Commit list and count (must be 52 at code tip ddbb7e14)
 git rev-list --count 07505ea5..HEAD
 git log --oneline --reverse 07505ea5..HEAD
 
-# Aggregate delta (docs refresh on top of 74f0a0af adds only docs/ lines)
-git diff --shortstat 07505ea5 HEAD            # 140 files, +27,059 / −766
+# Aggregate delta (docs refresh on top of ddbb7e14 adds only docs/ lines)
+git diff --shortstat 07505ea5 HEAD            # 142 files, +27,118 / −795
 git diff --shortstat 07505ea5 HEAD -- src/    #  58 files,  +2,252 / −750
 git diff --shortstat 07505ea5 HEAD -- test/   #  75 files, +23,233 / −10
 git diff --shortstat 07505ea5 HEAD -- docs/   #   2 files,  (docs line count)
-git diff --shortstat 07505ea5 HEAD -- . ':!docs'  # 138 files, +25,538 / −766  (code only)
+git diff --shortstat 07505ea5 HEAD -- . ':!docs'  # 140 files, +25,597 / −795  (code only)
 
 # Added vs modified
 git diff --name-status 07505ea5 HEAD | awk '{print $1}' | sort | uniq -c
@@ -347,6 +352,6 @@ make unit-test
 actually do, with before/after code and performance figures.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Code tip [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af) (**48** commits) ·
-Commits analyzed: **48** · All figures regenerated from `git` and a real `make unit-test` run
-on 2026-08-23.</sub>
+Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Code tip [`ddbb7e14`](https://github.com/Amiga500/Onion/commit/ddbb7e14) (**52** commits) ·
+Commits analyzed: **52** · All figures regenerated from `git` and a real `make unit-test` run
+on 2026-08-24.</sub>
