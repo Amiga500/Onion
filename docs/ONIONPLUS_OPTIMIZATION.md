@@ -1,5 +1,15 @@
 # 🧅 OnionPlus — Optimization & Hardening Report
 
+[![commits](https://img.shields.io/badge/commits-56-8A2BE2?style=flat-square)](#-1-commit-breakdown)
+[![files](https://img.shields.io/badge/files-144-blue?style=flat-square)](#-7-overall-statistics)
+[![diff](https://img.shields.io/badge/diff-%2B27%2C234%20%2F%20%E2%88%92811-informational?style=flat-square)](./OnionPlus-vs-base.md)
+[![NEON](https://img.shields.io/badge/NEON%20kernels-8-orange?style=flat-square)](#-2-performance--neon-pixel-paths)
+[![suites](https://img.shields.io/badge/test%20suites-68-yellow?style=flat-square)](#-5-testing)
+[![tests](https://img.shields.io/badge/tests-1%2C410-success?style=flat-square)](#-5-testing)
+[![assertions](https://img.shields.io/badge/assertions-71%2C385-success?style=flat-square)](#-5-testing)
+[![status](https://img.shields.io/badge/status-ALL%20PASSED-brightgreen?style=flat-square)](#-final-status)
+[![on-device benchmarks](https://img.shields.io/badge/on--device%20benchmarks-none-red?style=flat-square)](#-9-methodology--limits)
+
 > **56 commits** · **144 files** · **+27,234 / −811 lines** · **8 NEON kernels** · **68 test suites** · **1,410 tests** · **71,385 assertions** · **ALL PASSED** ✅
 
 > **Scope:** this report covers *only* the commits that make up the OnionPlus port on top of
@@ -36,6 +46,17 @@ timed on a Miyoo Mini as part of the OnionPlus port.**
 > ⚠️ A 📏 figure means *"this same code was measured to do this on OniOpus46"*, **not**
 > *"we measured this on OnionPlus"*. Treat every 📏 as inherited evidence, not fresh evidence.
 
+The [Summary Overview](#-summary-overview) additionally carries an **impact heat scale** in its
+first column, used only for ordering:
+
+| 🎚️ | Tier | What lands here |
+|:---:|:---|:---|
+| 🟥 | **Order-of-magnitude** | vectorised pixel paths, busy-wait removal, quadratic → linear, subprocess elimination in a hot loop |
+| 🟧 | **Structural** | syscall / shell-out / scan eliminations with a bounded but repeatable saving |
+| 🟨 | **Incremental** | smaller structural wins — binary size, one fewer copy, capped loops |
+| 🟦 | **Robustness** | correctness, memory-safety and API-contract fixes — **no performance claim** |
+| 🟩 | **Quality floor** | test suites, assertions and build entry points added by the port |
+
 ---
 
 ## 📋 Table of Contents
@@ -63,56 +84,64 @@ timed on a Miyoo Mini as part of the OnionPlus port.**
 > OnionPlus branch. Baseline is `07505ea5`, the tip of `OnionUI/Onion:main`
 > at the time of the port.
 
-| Category | Before | After | Δ | Evidence |
-|:---------|:------:|:-----:|--:|:--------:|
-| ⚡ Image 180° rotation (32bpp) | software rotozoom | in-place NEON `VREV64` | **+5000 %** 🚀 | 📏 |
-| ⚡ ARGB↔RGBA conversion | scalar per-pixel loop | NEON `VLD4`/`VST4` | **~+800 %** 🚀 | 📏 |
-| ⚡ RGB888 → ARGB decode | scalar per-pixel loop | NEON `VLD3`/`VST4` | **~+800 %** 🚀 | 📏 |
-| ⚡ Gray8 → ARGB decode | scalar per-pixel loop | NEON `VLD1`/`VST4` | **~+600 %** 🚀 | 📏 |
-| ⚡ `surfaceSetAlpha` | float mul + `SDL_GetRGBA` | fixed-point + NEON `VMULL` | **~+400 %** 🚀 | 📏 |
-| ⚡ `str_count_char` | O(n²) | O(n) | **−90 %** 🚀 | 📏 🧪 |
-| ⚡ `file_removeExtension` | `strlen` ×2 | `strlen` ×1 + `memcpy` | **−50 % scans** | 📏 🧪 |
-| ⚡ `file_path_relative_to` | O(n²) (`strcat` loop) | O(n) offset walk | **−50 % scans** | 📏 🧪 |
-| ⚡ `mkdirs()` | `system("mkdir -p")` | direct `mkdir()` walk | **−100 % proc spawns** | 📐 🧪 |
-| ⚡ `file_copy()` | `system("cp -f")` | `open`/`read`/`write` loop | **−100 % proc spawns** | 📐 🧪 |
-| ⚡ `file_read()` | `fopen`+`fseek`×2+`ftell` | `stat64`+`read()` loop | **−2 seeks, −1 copy** | 📐 🧪 |
-| ⚡ `file_resolvePath` | O(n²) (`strcat` loop) | O(n) offset walk | **−50 % scans** | 📐 🧪 |
-| ⚡ TTF/list/footer/header/dialog surface cache | `TTF_RenderUTF8_Blended` every frame | hash-invalidated SDL surfaces | **5–15 ms/frame saved** | 📏 |
-| ⚡ Release binary size (`--gc-sections`) | default `-O0` sections kept | `-O2 -ffunction-sections -Wl,--gc-sections` | **−5–15 %** | 📏 |
-| ⚡ OSD bar thread poll | `usleep(100)` busy-wait (~10,000 loops/s) | `usleep(16000)` (~60 fps) | **idle CPU ~10 % → <1 %** | 📏 |
-| ⚡ `display_setBrightnessRaw` | sysfs write on every call | cached, duplicate writes skipped | **−100 % duplicate PWM writes** | 📏 |
-| ⚡ `battery_isCharging` (MIYOO354) | `fork`+`exec` of `axp_test` per call (~5–10 ms) | 2 s cached wrapper | **~−99 % subprocess spawns** | 📐 |
-| ⚡ batmon main loop | `config_get("battery/warnAt")` every tick | read only at check timeout | **−100 % hot-loop config reads** | 📐 |
-| ⚡ batmon low-battery thread | `usleep(0x4000)` (~16 ms) | `usleep(500000)` (500 ms) | **~−97 % wake-ups on that thread** | 📐 |
-| ⚡ playActivity DB operations | 2 × open/close per operation | 1 × open/exec/close | **−50 % DB I/O** | 📏 |
-| ⚡ GS overlay `playActivity` calls | `system("playActivity … &")` | double-fork + `execl` (async, no zombies) | **−80 % process overhead** | 📏 |
-| ⚡ GS overlay RetroArch kill/poll | `killall` / `pidof` shell-outs | `process_kill_signal` / `process_isRunning` | **−100 % shell spawns** | 📐 |
-| ⚡ `config.h` `_config_prepare` | `system("mkdir -p …")` | direct `mkdirs()` walk | **−100 % proc spawns** | 📐 🧪 |
-| ⚡ `display_readOrWriteBuffer` | per-pixel loop on every row | `memcpy` fast path for contiguous rows | **row copy vectorised** | 📐 |
-| 🛡️ Unsafe `sprintf` call sites | 23 | 0 | **−100 %** ✅ | 🛡️ |
-| 🛡️ Unsafe `strcpy`+`strcat` call sites | 37 | 0 | **−100 %** ✅ | 🛡️ |
-| 🛡️ Non-reentrant `strtok` call sites | 4 | 0 | **−100 %** ✅ | 🛡️ |
-| 🛡️ `system()` call sites | 3 | 1 | **−66.7 %** | 🛡️ |
-| 🛡️ NULL-check predicates | — | +57 | **+57** | 🛡️ |
-| 🛡️ `fclose`/`close` on error paths | — | +18 | **+18** | 🛡️ |
-| 🛡️ `FNV1A_Pippip_Yurii` hash load | 8-byte read regardless of `wrdlen`, unaligned | `memcpy` of exactly `wrdlen` bytes into an aligned local | **over-read and unaligned access removed, hashes bit-identical** | 🛡️ 🧪 |
-| 🛡️ Game Switcher save thread | ran with an uninitialised `stateFilePath` when the path could not be built | returns before touching RetroArch | **up to 60 s of polling on a garbage path removed** | 🛡️ 🧪 |
-| 🛡️ `file_basename` | discarded `const` via a cast | `const char *` throughout | **`-Wcast-qual` clean** | 🛡️ |
-| 🛡️ `RUN_TEST` macro test result reporting | Printed `[ OK ]` for both pass **and** fail | Now correctly prints `[FAIL]` for failures ([PR#206](https://github.com/Amiga500/Onion/pull/206)) | **silently failing tests now visible** | 🛡️ 🧪 |
-| 🛡️ `file_isLocked()` O_CREAT flag | Removed in port, breaking save-state loop in `gs_popMenu.h` | Restored flag ([PR#206](https://github.com/Amiga500/Onion/pull/206)) | **save-state wait loop works again** | 🛡️ 🧪 |
-| 🛡️ Dialog theme-render cache | Surfaces never released on theme change; memory accumulation | Added `theme_renderDialog_cleanup()` ([PR#206](https://github.com/Amiga500/Onion/pull/206)) | **memory leak closed** | 🛡️ 🧪 |
-| 🛡️ MULTIVALUE label cache color | Cache keyed only on value, not color; disabled-state feedback broken | Cache now keyed on `color+value` pair ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **UX regression fixed** | 🛡️ 🧪 |
-| 🛡️ `screenshot_save()` VLA undefined behavior | No guard on `g_display.width/height == 0`; VLA with 0-size is UB | Added dimension checks before VLA declaration ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **undefined behavior removed** | 🛡️ 🧪 |
-| 🛡️ `includeCJK()` UTF-8 validation | Only checked first continuation byte; multi-byte validation incomplete | Validation now checks all 3 bytes of valid sequence ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **complete UTF-8 validation** | 🛡️ 🧪 |
-| 🛡️ File I/O error reporting & consistency | `file_remove_recursive()` silently ignores `nftw()` errors; `file_changeKeyValue()` missing fsync | Added error logging & fsync before rename ([PR#207](https://github.com/Amiga500/Onion/pull/207)) | **data consistency + error visibility** | 🛡️ 🧪 |
-| 🛡️ `currentGame()` NULL dereference sites | 3 callers dereferenced unchecked (`game_list_len == 0` → NULL) | NULL guards at all 3 sites ([`fa888f22`](https://github.com/Amiga500/Onion/commit/fa888f22)) | **crash on empty game list removed** | 🛡️ |
-| 🛡️ `action_loadGame` slot bounds check | `< 0 && >= slot_count` — untriggerable dead code | changed to OR ([`ff012faa`](https://github.com/Amiga500/Onion/commit/ff012faa)) | **out-of-range slots rejected** | 🛡️ |
-| 🛡️ `_isContentNameInInfo` left-boundary read | `*(found - 1)` read 1 byte before the buffer at position 0 | string start treated as valid left boundary ([`ff012faa`](https://github.com/Amiga500/Onion/commit/ff012faa)) | **OOB read removed** | 🛡️ |
-| 🛡️ playActivity fork+exec | `waitpid()` on the child blocked the UI thread | double-fork, detached grandchild reparented to init ([`d05267ca`](https://github.com/Amiga500/Onion/commit/d05267ca)) | **async semantics restored, no zombies** | 🛡️ |
-| ⚡ OSD overlay draw loop | full-throttle redraw for the overlay's entire duration | 2 ms `msleep` per iteration + stats demoted to `printf_debug` ([`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af)) | **overlay CPU burn capped** | 📐 |
-| 🧪 Active unit-test suites | 0 | 68 | **+68** ✅ | 🧪 |
-| 🧪 Unit tests / assertions | 0 / 0 | 1,410 / 71,385 | **ALL PASSED** ✅ | 🧪 |
-| 🏗️ Host test entry point | none | `make unit-test` | **added** ✅ | 🧪 |
+**Rows are sorted by impact**, highest first: 🟥 vectorised / order-of-magnitude wins →
+🟧 syscall & scan eliminations → 🟨 smaller structural wins → 🟦 robustness (no perf claim)
+→ 🟩 quality floor. The second column also tags the **domain** touched:
+⚡ CPU/algorithm · 🖼️ rendering · 🔋 power & idle wake-ups · ⚙️ process/syscall · 💾 storage & I/O ·
+🏗️ build · 🛡️ robustness · 🧪 tests.
+Commit SHAs are **not** repeated per row — every change is traceable in
+[§1 Commit Breakdown](#-1-commit-breakdown) and in [§4.7](#47-pre-existing-defects-fixed-in-this-branch) / [§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa).
+
+| 🎚️ | Category | Before | After | Δ | Evidence |
+|:--:|:---------|:------:|:-----:|--:|:--------:|
+| 🟥 | ⚡ Image 180° rotation (32bpp) | software rotozoom | in-place NEON `VREV64` | 🚀 **+5000 %** | 📏 |
+| 🟥 | ⚡ ARGB↔RGBA conversion | scalar per-pixel loop | NEON `VLD4`/`VST4` | 🚀 **~+800 %** | 📏 |
+| 🟥 | ⚡ RGB888 → ARGB decode | scalar per-pixel loop | NEON `VLD3`/`VST4` | 🚀 **~+800 %** | 📏 |
+| 🟥 | ⚡ Gray8 → ARGB decode | scalar per-pixel loop | NEON `VLD1`/`VST4` | 🚀 **~+600 %** | 📏 |
+| 🟥 | ⚡ `surfaceSetAlpha` | float mul + `SDL_GetRGBA` | fixed-point + NEON `VMULL` | 🚀 **~+400 %** | 📏 |
+| 🟥 | 🖼️ TTF/list/footer/header/dialog surface cache | `TTF_RenderUTF8_Blended` every frame | hash-invalidated SDL surfaces | 🚀 **5–15 ms/frame saved** | 📏 |
+| 🟥 | 🔋 OSD bar thread poll | `usleep(100)` busy-wait (~10,000 loops/s) | `usleep(16000)` (~60 fps) | 🚀 **idle CPU ~10 % → <1 %** | 📏 |
+| 🟥 | 🔋 `battery_isCharging` (MIYOO354) | `fork`+`exec` of `axp_test` per call (~5–10 ms) | 2 s cached wrapper | 🚀 **~−99 % subprocess spawns** | 📐 |
+| 🟥 | 🔋 batmon low-battery thread | `usleep(0x4000)` (~16 ms) | `usleep(500000)` (500 ms) | 🚀 **~−97 % wake-ups on that thread** | 📐 |
+| 🟥 | ⚡ `str_count_char` | O(n²) | O(n) | 🚀 **−90 %** | 📏 🧪 |
+| 🟥 | ⚙️ GS overlay `playActivity` calls | `system("playActivity … &")` | double-fork + `execl` (async, no zombies) | 🚀 **−80 % process overhead** | 📏 |
+| 🟧 | ⚙️ `mkdirs()` | `system("mkdir -p")` | direct `mkdir()` walk | **−100 % proc spawns** | 📐 🧪 |
+| 🟧 | ⚙️ `file_copy()` | `system("cp -f")` | `open`/`read`/`write` loop | **−100 % proc spawns** | 📐 🧪 |
+| 🟧 | ⚙️ `config.h` `_config_prepare` | `system("mkdir -p …")` | direct `mkdirs()` walk | **−100 % proc spawns** | 📐 🧪 |
+| 🟧 | ⚙️ GS overlay RetroArch kill/poll | `killall` / `pidof` shell-outs | `process_kill_signal` / `process_isRunning` | **−100 % shell spawns** | 📐 |
+| 🟧 | 🔋 `display_setBrightnessRaw` | sysfs write on every call | cached, duplicate writes skipped | **−100 % duplicate PWM writes** | 📏 |
+| 🟧 | 🔋 batmon main loop | `config_get("battery/warnAt")` every tick | read only at check timeout | **−100 % hot-loop config reads** | 📐 |
+| 🟧 | 💾 playActivity DB operations | 2 × open/close per operation | 1 × open/exec/close | **−50 % DB I/O** | 📏 |
+| 🟧 | ⚡ `file_removeExtension` | `strlen` ×2 | `strlen` ×1 + `memcpy` | **−50 % scans** | 📏 🧪 |
+| 🟧 | ⚡ `file_path_relative_to` | O(n²) (`strcat` loop) | O(n) offset walk | **−50 % scans** | 📏 🧪 |
+| 🟧 | ⚡ `file_resolvePath` | O(n²) (`strcat` loop) | O(n) offset walk | **−50 % scans** | 📐 🧪 |
+| 🟨 | 🏗️ Release binary size (`--gc-sections`) | default `-O0` sections kept | `-O2 -ffunction-sections -Wl,--gc-sections` | **−5–15 %** | 📏 |
+| 🟨 | 💾 `file_read()` | `fopen`+`fseek`×2+`ftell` | `stat64`+`read()` loop | **−2 seeks, −1 copy** | 📐 🧪 |
+| 🟨 | 🖼️ `display_readOrWriteBuffer` | per-pixel loop on every row | `memcpy` fast path for contiguous rows | **row copy vectorised** | 📐 |
+| 🟨 | 🔋 OSD overlay draw loop | full-throttle redraw for the overlay's entire duration | 2 ms `msleep` per iteration + stats demoted to `printf_debug` | **overlay CPU burn capped** | 📐 |
+| 🟦 | 🛡️ `currentGame()` NULL dereference sites | 3 callers dereferenced unchecked (`game_list_len == 0` → NULL) | NULL guards at all 3 sites | **crash on empty game list removed** | 🛡️ |
+| 🟦 | 🛡️ `_isContentNameInInfo` left-boundary read | `*(found - 1)` read 1 byte before the buffer at position 0 | string start treated as valid left boundary | **OOB read removed** | 🛡️ |
+| 🟦 | 🛡️ `screenshot_save()` VLA undefined behaviour | no guard on `g_display.width/height == 0`; a 0-size VLA is UB | dimension checks before the VLA declaration | **undefined behaviour removed** | 🛡️ 🧪 |
+| 🟦 | 🛡️ `FNV1A_Pippip_Yurii` hash load | 8-byte read regardless of `wrdlen`, unaligned | `memcpy` of exactly `wrdlen` bytes into an aligned local | **over-read and unaligned access removed, hashes bit-identical** | 🛡️ 🧪 |
+| 🟦 | 🛡️ `action_loadGame` slot bounds check | `< 0 && >= slot_count` — untriggerable dead code | condition changed to OR | **out-of-range slots rejected** | 🛡️ |
+| 🟦 | 🛡️ `file_isLocked()` O_CREAT flag | dropped during the port, breaking the save-state loop in `gs_popMenu.h` | flag restored | **save-state wait loop works again** | 🛡️ 🧪 |
+| 🟦 | 🛡️ Game Switcher save thread | ran with an uninitialised `stateFilePath` when the path could not be built | returns before touching RetroArch | **up to 60 s of polling on a garbage path removed** | 🛡️ 🧪 |
+| 🟦 | 🛡️ playActivity fork+exec | `waitpid()` on the child blocked the UI thread | double-fork, detached grandchild reparented to init | **async semantics restored, no zombies** | 🛡️ |
+| 🟦 | 🛡️ Dialog theme-render cache | surfaces never released on theme change; memory accumulation | `theme_renderDialog_cleanup()` added | **memory leak closed** | 🛡️ 🧪 |
+| 🟦 | 🛡️ MULTIVALUE label cache color | cache keyed only on value, not color; disabled-state feedback broken | cache keyed on the `color+value` pair | **UX regression fixed** | 🛡️ 🧪 |
+| 🟦 | 🛡️ `includeCJK()` UTF-8 validation | only the first continuation byte was checked | all 3 bytes of the sequence validated | **complete UTF-8 validation** | 🛡️ 🧪 |
+| 🟦 | 🛡️ File I/O error reporting & consistency | `file_remove_recursive()` swallowed `nftw()` errors; `file_changeKeyValue()` had no fsync | errors logged; fsync before rename | **data consistency + error visibility** | 🛡️ 🧪 |
+| 🟦 | 🛡️ `RUN_TEST` macro result reporting | printed `[ OK ]` for both pass **and** fail | prints `[FAIL]` for failures | **silently failing tests now visible** | 🛡️ 🧪 |
+| 🟦 | 🛡️ `file_basename` | discarded `const` via a cast | `const char *` throughout | **`-Wcast-qual` clean** | 🛡️ |
+| 🟦 | 🛡️ Unsafe `sprintf` call sites | 23 | 0 | ✅ **−100 %** | 🛡️ |
+| 🟦 | 🛡️ Unsafe `strcpy`+`strcat` call sites | 37 | 0 | ✅ **−100 %** | 🛡️ |
+| 🟦 | 🛡️ Non-reentrant `strtok` call sites | 4 | 0 | ✅ **−100 %** | 🛡️ |
+| 🟦 | 🛡️ `system()` call sites | 3 | 1 | **−66.7 %** | 🛡️ |
+| 🟦 | 🛡️ NULL-check predicates | — | +57 | **+57** | 🛡️ |
+| 🟦 | 🛡️ `fclose`/`close` on error paths | — | +18 | **+18** | 🛡️ |
+| 🟩 | 🧪 Active unit-test suites | 0 | 68 | ✅ **+68** | 🧪 |
+| 🟩 | 🧪 Unit tests / assertions | 0 / 0 | 1,410 / 71,385 | ✅ **ALL PASSED** | 🧪 |
+| 🟩 | 🏗️ Host test entry point | none | `make unit-test` | ✅ **added** | 🧪 |
 
 *Call-site counts (`sprintf` / `strcpy` / `strcat` / `strtok` / `system`) are scoped to the
 **original 25** common-layer + image-tool files of the NEON/hardening port, grepped at
@@ -121,14 +150,15 @@ to **0** unbounded `sprintf`/`strcpy`/`strcat`. They are **not** codebase-wide c
 The full `src/` delta is now **60 files** (TTF cache, signal-handler call sites, `reset.h`,
 `config.mk`, Game Switcher review-pass and stride/romscreen call sites, …).*
 
-*The three 🛡️ rows fixing the hash over-read, the uninitialised save-state path and the
-`const` cast address **pre-existing upstream defects** rather than porting anything from
-OniOpus46 — see [§4.7](#47-pre-existing-defects-fixed-in-this-branch). The final five rows
-are the 2026-08-23 review pass at the tip — three more pre-existing upstream defects
-(`currentGame()` NULL derefs, dead slot check, content-match OOB read, all present at
-`07505ea5`), one port-regression fix (blocking `waitpid` from `45d4eec4`) and one perf
-throttle — see [§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa).
-No performance figure is attached to any of the 🛡️ rows.*
+*The 🟦 rows carry **no performance claim**. Six of them fix **pre-existing upstream defects**
+rather than porting anything from OniOpus46 — the hash over-read, the uninitialised
+save-state path and the `const` cast ([§4.7](#47-pre-existing-defects-fixed-in-this-branch)),
+plus the `currentGame()` NULL derefs, the dead slot check and the content-match OOB read
+([§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa)). The
+`file_isLocked` / `RUN_TEST` / dialog-cleanup trio and the MULTIVALUE / VLA / UTF-8 / fsync
+set come from [PR #206](https://github.com/Amiga500/Onion/pull/206) and
+[PR #207](https://github.com/Amiga500/Onion/pull/207); the blocking `waitpid` was a port
+regression fixed at the tip.*
 
 ---
 
