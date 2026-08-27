@@ -12,14 +12,18 @@ New-Item -ItemType Directory -Path $notCompatibleDirectory -Force
 
 $xml = [xml](Get-Content $xmlFile)
 
+# Index the machine/rom names declared in the XML once (attribute named "name" on any element)
+$known_roms = @{}
+foreach ($node in $xml.SelectNodes("//*[@name]")) {
+    $known_roms[$node.GetAttribute("name")] = $true
+}
 
 $files = Get-ChildItem $RomsFolder -File -Filter *.zip
 
 foreach ($file in $files) {
     $fileName = $file.BaseName
-	$xmlNode = $xml.SelectSingleNode("//*[@name='$fileName']")
-	
-    if ($xmlNode -eq $null) {
+
+    if (!$known_roms.ContainsKey($fileName)) {
         Write-Host "File $fileName not found in $xmlFile."
 		Move-Item $file.FullName  -Destination $notCompatibleDirectory
     } else {
