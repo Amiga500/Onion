@@ -1,4 +1,4 @@
-# 🧅 OnionPlus — Optimization & Hardening Report
+# <img src="../static/build/Icons/Default/app/advancemenu.png" width="32" align="top" alt="OnionPlus" /> OnionPlus — Optimization & Hardening Report
 
 [![commits](https://img.shields.io/badge/commits-56-8A2BE2?style=flat-square)](#-1-commit-breakdown)
 [![files](https://img.shields.io/badge/files-144-blue?style=flat-square)](#-7-overall-statistics)
