@@ -1,14 +1,4 @@
-# 🧅 OnionPlus — Optimization & Hardening Report
-
-[![commits](https://img.shields.io/badge/commits-56-8A2BE2?style=flat-square)](#-1-commit-breakdown)
-[![files](https://img.shields.io/badge/files-144-blue?style=flat-square)](#-7-overall-statistics)
-[![diff](https://img.shields.io/badge/diff-%2B27%2C234%20%2F%20%E2%88%92811-informational?style=flat-square)](./OnionPlus-vs-base.md)
-[![NEON](https://img.shields.io/badge/NEON%20kernels-8-orange?style=flat-square)](#-2-performance--neon-pixel-paths)
-[![suites](https://img.shields.io/badge/test%20suites-68-yellow?style=flat-square)](#-5-testing)
-[![tests](https://img.shields.io/badge/tests-1%2C410-success?style=flat-square)](#-5-testing)
-[![assertions](https://img.shields.io/badge/assertions-71%2C385-success?style=flat-square)](#-5-testing)
-[![status](https://img.shields.io/badge/status-ALL%20PASSED-brightgreen?style=flat-square)](#-final-status)
-[![on-device benchmarks](https://img.shields.io/badge/on--device%20benchmarks-none-red?style=flat-square)](#-9-methodology--limits)
+# <img src="../static/build/Icons/Default/app/advancemenu.png" width="32" align="top" alt="OnionPlus" /> OnionPlus — Optimization & Hardening Report
 
 > **56 commits** · **144 files** · **+27,234 / −811 lines** · **8 NEON kernels** · **68 test suites** · **1,410 tests** · **71,385 assertions** · **ALL PASSED** ✅
 
