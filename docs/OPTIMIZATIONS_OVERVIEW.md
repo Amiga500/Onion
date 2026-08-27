@@ -76,7 +76,8 @@ commit, so the shape of the work is visible at a glance.
 | Kernel | What it replaced | Speedup | Evidence |
 |:--|:--|--:|:--:|
 | 🔄 `neon_rotate180_inplace` | rotozoom blit + extra surface alloc | 🚀 **+5000 %** | 📏 |
-| 🎨 `neon_swap_rb_inplace` (ARGB↔RGBA) | scalar per-pixel loop | 🚀 **~+800 %** | 📏 |
+| 🎨 `neon_swap_rb_inplace` | scalar per-pixel loop | 🚀 **~+800 %** | 📏 |
+| 🎨 `neon_argb_to_rgba` | scalar per-pixel loop | 🚀 **~+800 %** | 📏 |
 | 🎨 `neon_rgb888_to_argb` | scalar per-pixel loop | 🚀 **~+800 %** | 📏 |
 | ⚪ `neon_gray8_to_argb` | scalar per-pixel loop | 🚀 **~+600 %** | 📏 |
 | ⚪ `neon_gray8a_to_argb` | scalar per-pixel loop | 🚀 **~+500 %** | 📏 |
@@ -194,7 +195,9 @@ commit, so the shape of the work is visible at a glance.
   buffer** as a path when path construction failed; now returns early instead of polling
   a garbage path for up to 30 s.
 - 🎯 **`currentGame()` NULL derefs** — 3 call sites now guard against an empty game list.
-- 🧮 **Dead slot-bounds check** — `< 0 && >= slot_count` (never true) fixed to `||`.
+- 🧮 **Dead slot-bounds check** — the reject condition was
+  `selected_slot < 0 && selected_slot >= slot_count`, which can never be true for a
+  single value, so out-of-range slots were never rejected; changed to `||`.
 - 📖 **`_isContentNameInInfo` OOB read** — a match at offset 0 no longer reads one byte
   before the buffer.
 - 🔠 **`includeCJK()` UTF-8 validation** — all 3 continuation bytes checked, not just the
