@@ -1,12 +1,18 @@
 # 🕹️ OnionPlus — Optimizations at a Glance
 
 [![branch](https://img.shields.io/badge/branch-OnionPlus-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/OnionPlus)
-[![commits](https://img.shields.io/badge/commits-68-blueviolet?style=for-the-badge)](#-11--commit-timeline)
-[![files](https://img.shields.io/badge/files%20changed-155-blue?style=for-the-badge)](#-10--grand-totals)
-[![diff](https://img.shields.io/badge/diff-%2B27%2C504%20%2F%20%E2%88%92866-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
+[![commits](https://img.shields.io/badge/commits-85-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![files](https://img.shields.io/badge/files%20changed-159-blue?style=for-the-badge)](#-10--grand-totals)
+[![diff](https://img.shields.io/badge/diff-%2B27%2C910%20%2F%20%E2%88%92903-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
 [![tests](https://img.shields.io/badge/tests-1%2C410%20%2F%2071%2C385%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
+[![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
+
+> 📡 **OnionPlus ships and updates itself over-the-air** — `ota_update.sh` checks
+> `Amiga500/Onion` releases directly on-device, so every optimization and hardening
+> pass below reaches installs without a manual re-flash. See
+> [§9 · Build, CI & release](#️-9--build-ci--release) for the wiring.
 
 ---
 
@@ -35,10 +41,13 @@
 OnionPlus started as a port of the NEON/hardening work from
 [OniOpus46](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) and has
 since grown its **own** independent optimization and hardening passes — a power/CPU batch,
-a full security review, a second hot-path review pass, and (most recently) an
-**AdvanceMENU** frontend pass (font fallback, PWM handling, script speedups, race-condition
-fixes). This document groups **everything shipped to date** by *category* rather than by
-commit, so the shape of the work is visible at a glance.
+a full security review, a second hot-path review pass, an **AdvanceMENU** frontend pass
+(font fallback, PWM handling, script speedups, race-condition fixes), and (most recently) a
+third hardening review across `randomGamePicker`, `batteryMonitorUI`, `themeSwitcher`,
+`packageManager` and `gs_romscreen`. Every one of these passes reaches existing installs
+through the built-in **OTA updater**, not just fresh flashes. This document groups
+**everything shipped to date** by *category* rather than by commit, so the shape of the
+work is visible at a glance.
 
 ### 🔑 Reading the icons
 
@@ -176,8 +185,9 @@ commit, so the shape of the work is visible at a glance.
 | 🔴 Unbounded `sprintf` | → bounded `snprintf` | **23 → 0** ✅ |
 | 🔴 Unbounded `strcpy` + `strcat` | → bounded copies / `memcpy` | **37 → 0** ✅ |
 | 🔴 Non-reentrant `strtok` | → `strtok_r` with owned save-pointer | **4 → 0** ✅ |
-| 🟢 NULL-pointer / I/O guards added | new `if (!ptr)` / return-value checks | **+57** |
+| 🟢 NULL-pointer / I/O guards added | new `if (!ptr)` / return-value checks | **+63** |
 | 🟢 Leaked descriptors closed | `fclose`/`close` on error paths | **+18** |
+| 🟢 Division-by-zero guards added | early return before `% total_count` | **+2** |
 
 ### 🕵️ Notable defects fixed (pre-existing, not ports)
 
@@ -208,6 +218,21 @@ commit, so the shape of the work is visible at a glance.
 - 🔐 **`mp4_to_mng.ps1`** — restored the official HTTPS ffmpeg download permalink (was an
   insecure/unreliable HTTP mirror), forced TLS 1.2 for old PowerShell, and scoped the
   ffmpeg search to the extraction directory.
+- 🎲 **`randomGamePicker` division-by-zero** — recents/favorites and single-system modes now
+  bail out with `ERROR_CODE_NO_GAME_FOUND` instead of computing `rand() % total_games_count`
+  when the list is empty.
+- 🖼️ **`batteryMonitorUI` missing assets & OOB graph write** — every blit is routed through a
+  `safeBlitSurface()` helper that no-ops on a NULL surface (e.g. a failed `IMG_Load`), and
+  `compute_graph()` now stops processing a record set if a corrupt duration would index
+  outside the `graphic[]` array.
+- 🎨 **`themeSwitcher` NULL assets & theme-count overflow** — the same `safeBlitSurface()`
+  pattern plus `SURF_W`/`SURF_H` macros guard every icon blit against a missing PNG, and
+  `loadThemeDirectory()` now stops scanning once `NUMBER_OF_THEMES` is reached instead of
+  overflowing the theme array.
+- 📦 **`packageManager` loading screen** — `IMG_Load("res/loading.png")` result is now
+  NULL-checked before blitting/flipping/freeing.
+- 🧵 **`gs_romscreen.h` format-string bug** — `sprintf(currPicture, game->recentItem.imgpath)`
+  used the artwork path as a format string; changed to `sprintf(currPicture, "%s", ...)`.
 
 ---
 
@@ -271,13 +296,13 @@ commit, so the shape of the work is visible at a glance.
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..HEAD`) | **68** |
-| 📁 Files changed | **155** |
-| ➕➖ Lines | **+27,504 / −866** |
+| 🔧 Commits (`07505ea5..HEAD`) | **85** |
+| 📁 Files changed | **159** |
+| ➕➖ Lines | **+27,910 / −903** |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
 | 🧪 Test suites / tests / assertions | **68 / 1,410 / 71,385** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
-| 🛡️ NULL-guards / closed descriptors added | **+57 / +18** |
+| 🛡️ NULL-guards / closed descriptors added | **+63 / +18** |
 | 🔐 Pre-existing upstream defects fixed | **6** |
 | 🕹️ AdvanceMENU scripts hardened/optimized | **7 files** |
 
@@ -301,6 +326,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 9. 🎯 **GameSwitcher fixes** — framebuffer stride and romscreen stretch corrections.
 10. 🔎 **Review pass 2** — rumble caching, infoPanel image cache, GS battery-poll throttle, playActivityUI page cache, randomGamePicker dedup.
 11. 🕹️ **AdvanceMENU pass** — fonts, PWM handling, script speedups, race-condition and false-positive fixes ([PR #210](https://github.com/Amiga500/Onion/pull/210)).
+12. 🔎 **Review pass 3** — randomGamePicker division-by-zero guard, batteryMonitorUI/themeSwitcher NULL-asset & bounds hardening, packageManager NULL guard, gs_romscreen format-string fix.
 
 > 🔍 Full SHA-by-SHA detail lives in
 > [§1 of the deep-dive report](./ONIONPLUS_OPTIMIZATION.md#-1-commit-breakdown).
@@ -309,7 +335,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-OnionPlus is **68 commits** ahead of upstream `OnionUI/Onion:main`, spanning **8 vectorized
+OnionPlus is **85 commits** ahead of upstream `OnionUI/Onion:main`, spanning **8 vectorized
 NEON kernels**, a dozen algorithmic O(n²)→O(n) rewrites, five distinct render/UI caches, a
 whole power/battery optimization batch, a syscall diet that removed every avoidable
 `system()` call from the hardened core, **six pre-existing upstream defects** closed, a
@@ -322,7 +348,7 @@ code, and honest limits behind each figure.
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → `HEAD` (**68** commits,
+Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → `HEAD` (**85** commits,
 `git rev-list --count`) · Companion docs:
 [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) ·
 [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)</sub>
