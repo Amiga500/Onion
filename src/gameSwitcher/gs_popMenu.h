@@ -170,6 +170,11 @@ static void setLoadPreview()
             SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
             item->preview_ptr = NULL;
         }
+        if (item->_scaled_preview != NULL) {
+            SDL_FreeSurface((SDL_Surface *)item->_scaled_preview);
+            item->_scaled_preview = NULL;
+            item->_scaled_preview_w = 0;
+        }
     }
 }
 
@@ -237,7 +242,8 @@ static void *_scan_thread(void *_)
 
 static bool _isSaveEnabled(void)
 {
-    return currentGame()->is_running;
+    Game_s *game = currentGame();
+    return game != NULL && game->is_running;
 }
 
 static bool _isLoadEnabled(void)
@@ -295,18 +301,22 @@ void action_saveGame(void *_)
 
 void action_loadGame(void *_)
 {
-    if (g_save_state_info.selected_slot < 0 && g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
+    if (g_save_state_info.selected_slot < 0 || g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
         return;
     }
 
     const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
 
-    if (currentGame()->is_running) {
+    Game_s *game = currentGame();
+    if (game == NULL) {
+        return;
+    }
+
+    if (game->is_running) {
         retroarch_load(real_slot);
     }
     else {
         // Copy the save state to the auto state path
-        Game_s *game = &game_list[appState.current_game];
         char stateFilePath[2048];
         char autoStateFilePath[2048];
 

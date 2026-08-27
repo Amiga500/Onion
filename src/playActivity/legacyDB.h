@@ -23,7 +23,8 @@ int readLegacyDB()
 
     if (is_file(PLAY_ACTIVITY_DB_OLD_PATH)) {
         if ((fp = fopen(PLAY_ACTIVITY_DB_OLD_PATH, "rb")) != NULL) {
-            fread(rom_list, sizeof(rom_list), 1, fp);
+            if (fread(rom_list, sizeof(rom_list), 1, fp) != 1)
+                memset(rom_list, 0, sizeof(rom_list));
             rom_list_len = 0;
 
             for (int i = 0; i < LEGACY_DB_MAX; i++) {
@@ -50,7 +51,7 @@ void displayLegacyDB(void)
         printf("rom_list name: %s\n", rom_list[i].name);
 
         char cPlayTime[15];
-        sprintf(cPlayTime, "%d", rom_list[i].playTime);
+        snprintf(cPlayTime, sizeof(cPlayTime), "%d", rom_list[i].playTime);
         printf("playtime: %s\n", cPlayTime);
     }
 }

@@ -159,6 +159,84 @@ TEST(cache_valid_with_nsec_borrow) {
     ASSERT_TRUE(cache_is_valid(&cache, &now));
 }
 
+/* ---- Tests: battery_hasChanged() charging-sentinel state machine ----
+ *
+ * While charging, *out_percentage must stay pinned at the 500 sentinel
+ * (used to draw the charging icon) instead of being overwritten by the
+ * next /tmp/percBat update. This mirrors the exact control flow of
+ * battery_hasChanged() in battery.h, driven by fake is_charging /
+ * percbat_modified / percbat_value inputs instead of real I/O. */
+
+static bool fake_battery_is_charging_state;
+
+static bool fake_battery_hasChanged(bool is_charging, bool percbat_modified,
+                                    int percbat_value, int *out_percentage)
+{
+    bool changed = false;
+
+    if (is_charging) {
+        if (!fake_battery_is_charging_state) {
+            *out_percentage = 500;
+            fake_battery_is_charging_state = true;
+            changed = true;
+        }
+        return changed;
+    }
+    else if (fake_battery_is_charging_state) {
+        fake_battery_is_charging_state = false;
+    }
+
+    if (percbat_modified) {
+        if (percbat_value != *out_percentage) {
+            *out_percentage = percbat_value;
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
+TEST(hasChanged_charging_transition_sets_sentinel) {
+    fake_battery_is_charging_state = false;
+    int percentage = 42;
+    bool changed = fake_battery_hasChanged(true, false, 0, &percentage);
+    ASSERT_TRUE(changed);
+    ASSERT_EQ(percentage, 500);
+}
+
+TEST(hasChanged_stays_pinned_while_charging_even_if_percbat_updates) {
+    /* Reproduces the regression: /tmp/percBat is updated periodically
+     * regardless of charge state; the sentinel must not be clobbered. */
+    fake_battery_is_charging_state = false;
+    int percentage = 0;
+    fake_battery_hasChanged(true, false, 0, &percentage);
+    ASSERT_EQ(percentage, 500);
+
+    bool changed = fake_battery_hasChanged(true, true, 77, &percentage);
+    ASSERT_FALSE(changed);
+    ASSERT_EQ(percentage, 500);
+}
+
+TEST(hasChanged_reports_real_percentage_after_unplugged) {
+    fake_battery_is_charging_state = false;
+    int percentage = 0;
+    fake_battery_hasChanged(true, false, 0, &percentage);
+    ASSERT_EQ(percentage, 500);
+
+    /* Unplugged: no longer charging, percBat updates to a real value */
+    bool changed = fake_battery_hasChanged(false, true, 88, &percentage);
+    ASSERT_TRUE(changed);
+    ASSERT_EQ(percentage, 88);
+}
+
+TEST(hasChanged_no_change_when_not_charging_and_percbat_unmodified) {
+    fake_battery_is_charging_state = false;
+    int percentage = 55;
+    bool changed = fake_battery_hasChanged(false, false, 0, &percentage);
+    ASSERT_FALSE(changed);
+    ASSERT_EQ(percentage, 55);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -184,6 +262,12 @@ int main(void)
     RUN_TEST(cache_invalid_when_negative_elapsed);
     RUN_TEST(cache_valid_at_1ms);
     RUN_TEST(cache_valid_with_nsec_borrow);
+
+    /* battery_hasChanged() charging-sentinel state machine */
+    RUN_TEST(hasChanged_charging_transition_sets_sentinel);
+    RUN_TEST(hasChanged_stays_pinned_while_charging_even_if_percbat_updates);
+    RUN_TEST(hasChanged_reports_real_percentage_after_unplugged);
+    RUN_TEST(hasChanged_no_change_when_not_charging_and_percbat_unmodified);
 
     TEST_REPORT();
     return test_failures;

@@ -355,6 +355,11 @@ void _menu_temp_action(void *_item)
                 SDL_FreeSurface((SDL_Surface *)temp_action_item->preview_ptr);
                 temp_action_item->preview_ptr = NULL;
             }
+            if (temp_action_item->_scaled_preview != NULL) {
+                SDL_FreeSurface((SDL_Surface *)temp_action_item->_scaled_preview);
+                temp_action_item->_scaled_preview = NULL;
+                temp_action_item->_scaled_preview_w = 0;
+            }
         }
         else {
             if (temp_action_item->icon_ptr != NULL)

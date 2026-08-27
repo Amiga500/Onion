@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
     SDL_FillRect(appState.transparent_bg, NULL, 0xBE000000);
 
     int battery_percentage = battery_getPercentage();
+    uint32_t last_battery_check = 0;
 
     appState.last_ticks = SDL_GetTicks();
     appState.legend_start = appState.last_ticks;
@@ -94,8 +95,13 @@ int main(int argc, char *argv[])
 
         handleKeystate(&appState);
 
-        if (battery_hasChanged(ticks, &battery_percentage))
-            appState.changed = true;
+        // Battery percentage is updated by batmon at most every second;
+        // polling /tmp/percBat once per second is enough (was: every loop iteration).
+        if (ticks - last_battery_check >= 1000) {
+            last_battery_check = ticks;
+            if (battery_hasChanged(ticks, &battery_percentage))
+                appState.changed = true;
+        }
 
         if (appState.acc_ticks >= appState.time_step) {
             appState.acc_ticks -= appState.time_step;
@@ -161,6 +167,8 @@ int main(int argc, char *argv[])
         }
     }
 
+    Game_s *current_game = currentGame();
+
     if (appState.exit_to_menu) {
         print_debug("Exiting to menu");
         remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
@@ -169,7 +177,10 @@ int main(int argc, char *argv[])
         SDL_FillRect(screen, NULL, 0);
         render();
     }
-    else if (currentGame()->is_running) {
+    else if (current_game == NULL) {
+        print_debug("No current game; nothing to resume");
+    }
+    else if (current_game->is_running) {
         if (appState.current_bg != NULL) {
             SDL_FillRect(screen, NULL, 0);
             renderCentered(appState.current_bg, VIEW_FULLSCREEN, NULL, NULL);
@@ -177,8 +188,8 @@ int main(int argc, char *argv[])
         overlay_resume();
     }
     else {
-        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, game_list[appState.current_game].index);
-        resumeGame(game_list[appState.current_game].index);
+        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, current_game->index);
+        resumeGame(current_game->index);
         overlay_exit();
         render_showFullscreenMessage("LOADING", true);
     }

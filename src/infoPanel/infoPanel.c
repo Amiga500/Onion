@@ -34,10 +34,6 @@ static bool loadImagesPathsFromJson(const char *config_path,
 {
     char *json_str = NULL;
 
-    char temp_path[STR_MAX];
-    strncpy(temp_path, config_path, STR_MAX - 1);
-    dirname(temp_path);
-
     if (!(json_str = file_read(config_path))) {
         return false;
     }
@@ -45,39 +41,79 @@ static bool loadImagesPathsFromJson(const char *config_path,
     // Get JSON objects
     cJSON *json_root = cJSON_Parse(json_str);
     free(json_str);
+    if (json_root == NULL) {
+        return false;
+    }
     cJSON *json_images_array = cJSON_GetObjectItem(json_root, "images");
-    *images_paths_count = cJSON_GetArraySize(json_images_array);
-    *images_paths = (char **)malloc(*images_paths_count * sizeof(char *));
-    *images_titles = (char **)malloc(*images_paths_count * sizeof(char *));
-
-    for (int i = 0; i < *images_paths_count; i++) {
-        (*images_paths)[i] = (char *)malloc((STR_MAX * 2 + 2) * sizeof(char));
-        static const int g_title_max_length = 50;
-        (*images_titles)[i] = (char *)malloc(g_title_max_length * sizeof(char));
-
-        const cJSON *json_image_item = cJSON_GetArrayItem(json_images_array, i);
-        if (!json_image_item) {
-            (*images_paths_count)--;
-            continue;
-        }
-        const cJSON *json_image_path =
-            cJSON_GetObjectItem(json_image_item, "path");
-        if (!json_image_path) {
-            (*images_paths_count)--;
-            continue;
-        }
-        const char *image_path = cJSON_GetStringValue(json_image_path);
-        snprintf((*images_paths)[i], STR_MAX * 2 + 1, "%s/%s", temp_path,
-                 image_path);
-
-        cJSON *json_image_title = cJSON_GetObjectItem(json_image_item, "title");
-        if (!json_image_title) {
-            continue;
-        }
-        char *image_title = cJSON_GetStringValue(json_image_title);
-        strncpy((*images_titles)[i], image_title, g_title_max_length);
+    if (json_images_array == NULL) {
+        cJSON_Delete(json_root);
+        return false;
+    }
+    int total = cJSON_GetArraySize(json_images_array);
+    if (total <= 0) {
+        cJSON_Delete(json_root);
+        return false;
+    }
+    *images_paths = NULL;
+    *images_titles = NULL;
+    *images_paths = (char **)malloc(total * sizeof(char *));
+    *images_titles = (char **)malloc(total * sizeof(char *));
+    if (*images_paths == NULL || *images_titles == NULL) {
+        free(*images_paths);
+        free(*images_titles);
+        *images_paths = NULL;
+        *images_titles = NULL;
+        cJSON_Delete(json_root);
+        return false;
     }
 
+    static const int g_title_max_length = 50;
+    char *temp_path = file_dirname(config_path);
+    if (temp_path == NULL) {
+        free(*images_paths);
+        free(*images_titles);
+        *images_paths = NULL;
+        *images_titles = NULL;
+        cJSON_Delete(json_root);
+        return false;
+    }
+    int valid = 0;
+    for (int i = 0; i < total; i++) {
+        const cJSON *json_image_item = cJSON_GetArrayItem(json_images_array, i);
+        if (!json_image_item)
+            continue;
+        const cJSON *json_image_path =
+            cJSON_GetObjectItem(json_image_item, "path");
+        if (!json_image_path)
+            continue;
+
+        (*images_paths)[valid] = (char *)malloc((STR_MAX * 2 + 2) * sizeof(char));
+        (*images_titles)[valid] = (char *)malloc(g_title_max_length * sizeof(char));
+        if ((*images_paths)[valid] == NULL || (*images_titles)[valid] == NULL) {
+            free((*images_paths)[valid]);
+            free((*images_titles)[valid]);
+            (*images_paths)[valid] = NULL;
+            (*images_titles)[valid] = NULL;
+            fprintf(stderr, "loadImagesPathsFromJson: allocation failed at index %d\n", valid);
+            break;
+        }
+
+        const char *image_path = cJSON_GetStringValue(json_image_path);
+        snprintf((*images_paths)[valid], STR_MAX * 2 + 1, "%s/%s", temp_path,
+                 image_path);
+
+        (*images_titles)[valid][0] = '\0';
+        cJSON *json_image_title = cJSON_GetObjectItem(json_image_item, "title");
+        if (json_image_title) {
+            char *image_title = cJSON_GetStringValue(json_image_title);
+            if (image_title)
+                snprintf((*images_titles)[valid], g_title_max_length, "%s", image_title);
+        }
+        valid++;
+    }
+    *images_paths_count = valid;
+
+    free(temp_path);
     cJSON_Delete(json_root);
 
     return true;
@@ -116,21 +152,31 @@ int main(int argc, char *argv[])
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
-            if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0)
-                strncpy(title_str, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--message") == 0)
-                strncpy(message_str, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--image") == 0)
-                strncpy(image_path, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--images-json") == 0)
-                strncpy(images_json_path, argv[++i], STR_MAX - 1);
-            else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--directory") == 0)
-                strncpy(images_dir_path, argv[++i], STR_MAX - 1);
+            if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0) {
+                if (i + 1 < argc)
+                    strncpy(title_str, argv[++i], STR_MAX - 1);
+            }
+            else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--message") == 0) {
+                if (i + 1 < argc)
+                    strncpy(message_str, argv[++i], STR_MAX - 1);
+            }
+            else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--image") == 0) {
+                if (i + 1 < argc)
+                    strncpy(image_path, argv[++i], STR_MAX - 1);
+            }
+            else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--images-json") == 0) {
+                if (i + 1 < argc)
+                    strncpy(images_json_path, argv[++i], STR_MAX - 1);
+            }
+            else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--directory") == 0) {
+                if (i + 1 < argc)
+                    strncpy(images_dir_path, argv[++i], STR_MAX - 1);
+            }
             else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--show-theme-controls") == 0)
                 g_show_theme_controls = true;
             else if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--auto") == 0)
                 wait_confirm = false;
-            else if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--romscreen") == 0) {
+            else if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--romscreen") == 0) {
                 no_footer = true;
                 show_romscreen = true;
             }
@@ -349,7 +395,7 @@ int main(int argc, char *argv[])
                             if (g_images_paths_count > 0 && g_images_paths && g_image_index >= 0) {
                                 current_image_path = g_images_paths[g_image_index];
                             }
-                            char *no_extension = file_removeExtension(basename(current_image_path));
+                            char *no_extension = file_removeExtension(file_basename(current_image_path));
                             theme_renderHeader(screen, no_extension, false);
                             free(no_extension);
                         }
