@@ -150,6 +150,10 @@ bool battery_hasChanged(int ticks, int *out_percentage)
             battery_is_charging = true;
             changed = true;
         }
+        // While charging, keep the sentinel percentage (500) pinned so the
+        // charging icon stays shown instead of flickering to a numeric
+        // percentage whenever /tmp/percBat is next updated.
+        return changed;
     }
     else if (battery_is_charging) {
         battery_is_charging = false;

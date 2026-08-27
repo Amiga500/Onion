@@ -98,6 +98,19 @@ static void freeScaledCache(void)
     g_scaled_cache_h = 0;
 }
 
+/* Frees an image-cache slot surface and invalidates the scaled-preview cache
+ * if it was keyed on that same pointer, avoiding an ABA hazard where a
+ * freshly loaded surface reuses a freed address that the scaled cache still
+ * references. */
+static void freeImageCacheSlot(SDL_Surface *surface)
+{
+    if (surface == NULL)
+        return;
+    if (surface == g_scaled_cache_src)
+        freeScaledCache();
+    SDL_FreeSurface(surface);
+}
+
 void drawImage(SDL_Surface *image, SDL_Surface *screen, const SDL_Rect *frame)
 {
     if (!image)
@@ -186,7 +199,7 @@ char *drawImageByIndex(const int new_image_index, const int image_index,
     if (move_direction > 0) {
         DEBUG_PRINT(("moving forward\n"));
         if (g_image_cache_prev)
-            SDL_FreeSurface(g_image_cache_prev);
+            freeImageCacheSlot(g_image_cache_prev);
         g_image_cache_prev = g_image_cache_current;
         g_image_cache_current = g_image_cache_next;
         if (new_image_index == images_paths_count - 1) {
@@ -205,7 +218,7 @@ char *drawImageByIndex(const int new_image_index, const int image_index,
         DEBUG_PRINT(("moving backward\n"));
 
         if (g_image_cache_next)
-            SDL_FreeSurface(g_image_cache_next);
+            freeImageCacheSlot(g_image_cache_next);
         g_image_cache_next = g_image_cache_current;
         g_image_cache_current = g_image_cache_prev;
         if (new_image_index == 0) {

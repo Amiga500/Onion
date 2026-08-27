@@ -170,6 +170,11 @@ static void setLoadPreview()
             SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
             item->preview_ptr = NULL;
         }
+        if (item->_scaled_preview != NULL) {
+            SDL_FreeSurface((SDL_Surface *)item->_scaled_preview);
+            item->_scaled_preview = NULL;
+            item->_scaled_preview_w = 0;
+        }
     }
 }
 

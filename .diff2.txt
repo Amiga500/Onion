@@ -1,0 +1,426 @@
+diff --git a/src/gameSwitcher/gameSwitcher.c b/src/gameSwitcher/gameSwitcher.c
+index 6de30e1f..7e4e7d0b 100644
+--- a/src/gameSwitcher/gameSwitcher.c
++++ b/src/gameSwitcher/gameSwitcher.c
+@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
+     SDL_FillRect(appState.transparent_bg, NULL, 0xBE000000);
+ 
+     int battery_percentage = battery_getPercentage();
++    uint32_t last_battery_check = 0;
+ 
+     appState.last_ticks = SDL_GetTicks();
+     appState.legend_start = appState.last_ticks;
+@@ -94,8 +95,13 @@ int main(int argc, char *argv[])
+ 
+         handleKeystate(&appState);
+ 
+-        if (battery_hasChanged(ticks, &battery_percentage))
+-            appState.changed = true;
++        // Battery percentage is updated by batmon at most every second;
++        // polling /tmp/percBat once per second is enough (was: every loop iteration).
++        if (ticks - last_battery_check >= 1000) {
++            last_battery_check = ticks;
++            if (battery_hasChanged(ticks, &battery_percentage))
++                appState.changed = true;
++        }
+ 
+         if (appState.acc_ticks >= appState.time_step) {
+             appState.acc_ticks -= appState.time_step;
+@@ -161,6 +167,8 @@ int main(int argc, char *argv[])
+         }
+     }
+ 
++    Game_s *current_game = currentGame();
++
+     if (appState.exit_to_menu) {
+         print_debug("Exiting to menu");
+         remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
+@@ -169,7 +177,10 @@ int main(int argc, char *argv[])
+         SDL_FillRect(screen, NULL, 0);
+         render();
+     }
+-    else if (currentGame()->is_running) {
++    else if (current_game == NULL) {
++        print_debug("No current game; nothing to resume");
++    }
++    else if (current_game->is_running) {
+         if (appState.current_bg != NULL) {
+             SDL_FillRect(screen, NULL, 0);
+             renderCentered(appState.current_bg, VIEW_FULLSCREEN, NULL, NULL);
+@@ -177,8 +188,8 @@ int main(int argc, char *argv[])
+         overlay_resume();
+     }
+     else {
+-        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, game_list[appState.current_game].index);
+-        resumeGame(game_list[appState.current_game].index);
++        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, current_game->index);
++        resumeGame(current_game->index);
+         overlay_exit();
+         render_showFullscreenMessage("LOADING", true);
+     }
+diff --git a/src/gameSwitcher/gs_appState.h b/src/gameSwitcher/gs_appState.h
+index 4ab90ddf..f2f3f344 100644
+--- a/src/gameSwitcher/gs_appState.h
++++ b/src/gameSwitcher/gs_appState.h
+@@ -2,9 +2,8 @@
+ #define GAME_SWITCHER_APP_STATE_H__
+ 
+ #include <SDL/SDL.h>
+-#include <signal.h>
+-
+ #include "gs_model.h"
++#include "utils/signal_handler.h"
+ 
+ #define VIEW_NORMAL 0
+ #define VIEW_MINIMAL 1
+@@ -89,14 +88,10 @@ static AppState appState = {
+ 
+ static void sigHandler(int sig)
+ {
+-    switch (sig) {
+-    case SIGINT:
+-    case SIGTERM:
++    /* Custom: gameSwitcher must set both exit_to_menu and quit. */
++    if (sig == SIGINT || sig == SIGTERM) {
+         appState.exit_to_menu = true;
+         appState.quit = true;
+-        break;
+-    default:
+-        break;
+     }
+ }
+ 
+@@ -104,6 +99,8 @@ static char sTotalTimePlayed[50] = "";
+ 
+ Game_s *currentGame(void)
+ {
++    if (game_list_len == 0)
++        return NULL;
+     return &game_list[appState.current_game];
+ }
+ 
+diff --git a/src/gameSwitcher/gs_overlay.h b/src/gameSwitcher/gs_overlay.h
+index c878ec3d..10f1003c 100644
+--- a/src/gameSwitcher/gs_overlay.h
++++ b/src/gameSwitcher/gs_overlay.h
+@@ -7,11 +7,13 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <sys/wait.h>
+ #include <unistd.h>
+ 
+ #include "system/battery.h"
+ #include "system/screenshot.h"
+ #include "utils/msleep.h"
++#include "utils/process.h"
+ #include "utils/str.h"
+ 
+ #include "gs_appState.h"
+@@ -34,10 +36,48 @@ void setFbAsFirstRomScreen(void)
+     }
+ 
+     game->romScreen = SDL_CreateRGBSurface(SDL_SWSURFACE, g_display.width, g_display.height, 32, 0, 0, 0, 0);
+-    display_readCurrentBuffer(&g_display, (uint32_t *)game->romScreen->pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
+-
+     if (game->romScreen == NULL) {
+         print_debug("Error creating fb surface\n");
++        return;
++    }
++
++    size_t pixel_count = (size_t)g_display.width * (size_t)g_display.height;
++    uint32_t *fb_pixels = (uint32_t *)malloc(pixel_count * sizeof(uint32_t));
++    if (fb_pixels == NULL) {
++        print_debug("Error allocating fb capture buffer\n");
++        return;
++    }
++
++    display_readCurrentBuffer(&g_display, fb_pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
++
++    for (int y = 0; y < g_display.height; y++) {
++        memcpy((uint8_t *)game->romScreen->pixels + (size_t)y * (size_t)game->romScreen->pitch,
++               fb_pixels + (size_t)y * (size_t)g_display.width,
++               (size_t)g_display.width * sizeof(uint32_t));
++    }
++
++    free(fb_pixels);
++}
++
++// Spawn a detached playActivity process without blocking the UI thread.
++// Double-fork: the first child exits immediately, so the waitpid below
++// returns at once and the grandchild is reparented to init (no zombies).
++static void _playActivityAsync(const char *action)
++{
++    pid_t pid = fork();
++    if (pid == 0) {
++        pid_t child = fork();
++        if (child == 0) {
++            execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", action, NULL);
++            _exit(127);
++        }
++        _exit(child > 0 ? 0 : 127);
++    }
++    else if (pid > 0) {
++        waitpid(pid, NULL, 0);
++    }
++    else {
++        printf_debug("fork failed for playActivity %s\n", action);
+     }
+ }
+ 
+@@ -45,7 +85,9 @@ static bool _isContentNameInInfo(const char *content_info, const char *content_n
+ {
+     const char *found = strstr(content_info, content_name);
+     if (found != NULL) {
+-        return *(found - 1) == ',' && *(found + strlen(content_name)) == ',';
++        bool left_ok = found == content_info || *(found - 1) == ',';
++        bool right_ok = *(found + strlen(content_name)) == ',';
++        return left_ok && right_ok;
+     }
+     return false;
+ }
+@@ -59,7 +101,8 @@ static void *_saveRomScreenAndStateThread(void *arg)
+         uint32_t hash = FNV1A_Pippip_Yurii(game->recentItem.rompath, strlen(game->recentItem.rompath));
+         snprintf(romScreenPath, sizeof(romScreenPath), ROM_SCREENS_DIR "/%" PRIu32 ".png", hash);
+ 
+-        screenshot_save((uint32_t *)game->romScreen->pixels, romScreenPath, false);
++        screenshot_save_stride((uint32_t *)game->romScreen->pixels, romScreenPath, false,
++                               game->romScreen->pitch / (int)sizeof(uint32_t));
+ 
+         printf_debug("Saved rom screen: %s\n", romScreenPath);
+     }
+@@ -77,7 +120,7 @@ void overlay_init()
+     }
+ 
+     retroarch_pause();
+-    system("playActivity stop_all &");
++    _playActivityAsync("stop_all");
+     setFbAsFirstRomScreen();
+ 
+     RetroArchStatus_s status;
+@@ -127,7 +170,7 @@ void overlay_resume(void)
+         render();
+ 
+         retroarch_unpause();
+-        system("playActivity resume &");
++        _playActivityAsync("resume");
+ 
+         msleep(200);
+ 
+@@ -146,21 +189,21 @@ void overlay_exit(void)
+         }
+ 
+         // try graceful shutdown first
+-        system("killall -TERM retroarch");
++        process_kill_signal("retroarch", SIGTERM);
+ 
+         // wait up to 5 seconds for RetroArch to exit
+         for (int i = 0; i < 10; i++) {
+             msleep(500);  // 0.5s x 10 = 5s
+-            if (system("pidof retroarch > /dev/null") != 0) {
++            if (!process_isRunning("retroarch")) {
+                 break;  // retroarch is gone
+             }
+         }
+ 
+         // if still running, force kill
+-        if (system("pidof retroarch > /dev/null") == 0) {
++        if (process_isRunning("retroarch")) {
+             print_debug("RetroArch still running, force killing...");
+             temp_flag_set(".forceKillRetroarch", true);
+-            system("killall -9 retroarch");
++            process_kill("retroarch");
+         }
+     }
+ }
+diff --git a/src/gameSwitcher/gs_popMenu.h b/src/gameSwitcher/gs_popMenu.h
+index 2eb58696..63dd4f3a 100644
+--- a/src/gameSwitcher/gs_popMenu.h
++++ b/src/gameSwitcher/gs_popMenu.h
+@@ -10,6 +10,7 @@
+ #include "gs_appState.h"
+ #include "gs_model.h"
+ #include "gs_retroarch.h"
++#include "gs_savestate_path.h"
+ 
+ #define POP_MENU_ACTION_RESUME 0
+ #define POP_MENU_ACTION_SAVE 1
+@@ -138,21 +139,7 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
+ 
+ static bool createSaveStatePath(Game_s *game, int slot, char *out_path, size_t out_path_size)
+ {
+-    if (strlen(game->core_name) == 0) {
+-        return false;
+-    }
+-
+-    if (slot == -1) {
+-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state.auto", game->core_name, game->rom_name);
+-    }
+-    else if (slot == 0) {
+-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state", game->core_name, game->rom_name);
+-    }
+-    else {
+-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state%d", game->core_name, game->rom_name, slot);
+-    }
+-
+-    return true;
++    return createSaveStatePathFromNames(game->core_name, game->rom_name, slot, out_path, out_path_size);
+ }
+ 
+ static void setLoadPreview()
+@@ -202,12 +189,17 @@ static void *_save_thread(void *_)
+     char stateFilePath[4096];
+     time_t saveLastModified = 0;
+ 
++    // Without a valid path the save cannot be confirmed below, so give up
++    // before asking RetroArch to write anything.
++    if (!createSaveStatePath(game, slot, stateFilePath, sizeof(stateFilePath))) {
++        g_save_thread_running = false;
++        return NULL;
++    }
++
+     // Check if save state exists
+-    if (createSaveStatePath(game, slot, stateFilePath, sizeof(stateFilePath))) {
+-        printf_debug("Checking for save state: %s\n", stateFilePath);
+-        if (exists(stateFilePath)) {
+-            file_isModified(stateFilePath, &saveLastModified);
+-        }
++    printf_debug("Checking for save state: %s\n", stateFilePath);
++    if (exists(stateFilePath)) {
++        file_isModified(stateFilePath, &saveLastModified);
+     }
+ 
+     const int start = SDL_GetTicks();
+@@ -245,7 +237,8 @@ static void *_scan_thread(void *_)
+ 
+ static bool _isSaveEnabled(void)
+ {
+-    return currentGame()->is_running;
++    Game_s *game = currentGame();
++    return game != NULL && game->is_running;
+ }
+ 
+ static bool _isLoadEnabled(void)
+@@ -303,18 +296,22 @@ void action_saveGame(void *_)
+ 
+ void action_loadGame(void *_)
+ {
+-    if (g_save_state_info.selected_slot < 0 && g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
++    if (g_save_state_info.selected_slot < 0 || g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
+         return;
+     }
+ 
+     const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
+ 
+-    if (currentGame()->is_running) {
++    Game_s *game = currentGame();
++    if (game == NULL) {
++        return;
++    }
++
++    if (game->is_running) {
+         retroarch_load(real_slot);
+     }
+     else {
+         // Copy the save state to the auto state path
+-        Game_s *game = &game_list[appState.current_game];
+         char stateFilePath[2048];
+         char autoStateFilePath[2048];
+ 
+diff --git a/src/gameSwitcher/gs_render.h b/src/gameSwitcher/gs_render.h
+index 38aa488d..c414cae7 100644
+--- a/src/gameSwitcher/gs_render.h
++++ b/src/gameSwitcher/gs_render.h
+@@ -18,13 +18,22 @@ void renderCentered(SDL_Surface *image, int view_mode, SDL_Rect *overrideSrcRect
+     int offSetX = (int)(g_display.width - image->w) / 2;
+     int offSetY = (int)(g_display.height - image->h) / 2;
+ 
+-    SDL_Rect image_size = {0, 0, g_display.width, g_display.height};
++    SDL_Rect image_size = {0, 0, image->w, image->h};
+     SDL_Rect image_pos = {offSetX, offSetY};
+ 
+     if (view_mode == VIEW_NORMAL) {
+-        image_size.x = theme()->frame.border_left;
+-        image_size.w -= theme()->frame.border_left + theme()->frame.border_right;
+-        image_pos.x += theme()->frame.border_left;
++        int border_left = theme()->frame.border_left;
++        int border_right = theme()->frame.border_right;
++        int content_w = g_display.width - border_left - border_right;
++
++        if (image->w >= content_w) {
++            image_size.x = border_left;
++            image_size.w = content_w;
++            image_pos.x = border_left;
++        }
++        else {
++            image_pos.x = border_left + (content_w - image->w) / 2;
++        }
+     }
+ 
+     if (overrideSrcRect != NULL) {
+diff --git a/src/gameSwitcher/gs_romscreen.h b/src/gameSwitcher/gs_romscreen.h
+index 6d02e4dd..e2a6264a 100644
+--- a/src/gameSwitcher/gs_romscreen.h
++++ b/src/gameSwitcher/gs_romscreen.h
+@@ -118,8 +118,8 @@ SDL_Surface *loadRomScreen(int index)
+             if (game->romScreen == NULL) {
+                 printf_debug("Error loading image: %s\n", currPicture);
+             }
+-            else if (romScreenType == ROM_SCREEN_STATE) {
+-                scaleRomScreen(game, getDynamicScalingMode(game));
++            else if (romScreenType == ROM_SCREEN_HASH) {
++                scaleRomScreen(game, (ScalingMode_s){false, false});
+             }
+             else {
+                 scaleRomScreen(game, (ScalingMode_s){true, false});
+diff --git a/src/gameSwitcher/gs_savestate_path.h b/src/gameSwitcher/gs_savestate_path.h
+new file mode 100644
+index 00000000..ae8df6d5
+--- /dev/null
++++ b/src/gameSwitcher/gs_savestate_path.h
+@@ -0,0 +1,45 @@
++#ifndef GS_SAVESTATE_PATH_H__
++#define GS_SAVESTATE_PATH_H__
++
++#include <stdbool.h>
++#include <stdio.h>
++#include <stddef.h>
++#include <string.h>
++
++/* Same path as gs_model.h; defined here so this header is testable without SDL. */
++#ifndef STATES_DIR
++#define STATES_DIR "/mnt/SDCARD/Saves/CurrentProfile/states"
++#endif
++
++/**
++ * Build a RetroArch save-state path from core/rom names.
++ *
++ * Returns false without writing out_path when core_name is empty.
++ * That is the _save_thread early-return gate: the caller must not inspect
++ * or poll out_path, and must not call retroarch_save.
++ */
++static bool createSaveStatePathFromNames(const char *core_name, const char *rom_name,
++                                         int slot, char *out_path, size_t out_path_size)
++{
++    if (core_name == NULL || core_name[0] == '\0') {
++        return false;
++    }
++
++    if (rom_name == NULL) {
++        rom_name = "";
++    }
++
++    if (slot == -1) {
++        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state.auto", core_name, rom_name);
++    }
++    else if (slot == 0) {
++        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state", core_name, rom_name);
++    }
++    else {
++        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state%d", core_name, rom_name, slot);
++    }
++
++    return true;
++}
++
++#endif /* GS_SAVESTATE_PATH_H__ */

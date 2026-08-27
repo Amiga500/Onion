@@ -1,0 +1,213 @@
+diff --git a/src/batmon/batmon.c b/src/batmon/batmon.c
+index 80cc930b..aabcccf4 100644
+--- a/src/batmon/batmon.c
++++ b/src/batmon/batmon.c
+@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
+                 printf_debug("Charging detected - Previous session duration = %d\n", session_time);
+ 
+                 if (session_time > best_session_time) {
+-                    printf_debug("Best session duration\n", 1);
++                    printf_debug("Best session duration\n");
+                     set_best_session_time(session_time);
+                     best_session_time = session_time;
+                 }
+@@ -80,9 +80,8 @@ int main(int argc, char *argv[])
+         }
+ 
+         if (!is_suspended) {
+-            config_get("battery/warnAt", CONFIG_INT, &warn_at);
+-
+             if (ticks >= CHECK_BATTERY_TIMEOUT_S) {
++                config_get("battery/warnAt", CONFIG_INT, &warn_at);
+                 if (DEVICE_ID == MIYOO283) {
+                     adc_value_g = updateADCValue(adc_value_g);
+                     current_percentage = batteryPercentage(adc_value_g);
+@@ -182,7 +181,8 @@ void cleanup(void)
+ {
+     remove("/tmp/percBat");
+     display_close();
+-    close(sar_fd);
++    if (sar_fd >= 0)
++        close(sar_fd);
+ }
+ 
+ void update_current_duration(void)
+@@ -211,12 +211,15 @@ void update_current_duration(void)
+ 
+                         // Exécuter la mise à jour
+                         rc = sqlite3_step(update_stmt);
++                        if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
++                            fprintf(stderr, "Failed to update duration: %s\n", sqlite3_errmsg(bat_log_db));
++                        }
+ 
+                         battery_current_state_duration = 0;
+-                        sqlite3_finalize(stmt);
+                         sqlite3_finalize(update_stmt);
+                     }
+                 }
++                sqlite3_finalize(stmt);
+             }
+             close_battery_log_db();
+         }
+@@ -247,9 +250,10 @@ void log_new_percentage(int new_bat_value, int is_charging)
+             if (count > FILO_MIN_SIZE) {
+                 // Deletion of the 1st entry
+                 const char *delete_sql = "DELETE FROM bat_activity WHERE id = (SELECT MIN(id) FROM bat_activity);";
+-                sqlite3_prepare_v2(bat_log_db, delete_sql, -1, &stmt, 0);
+-                sqlite3_step(stmt);
+-                sqlite3_finalize(stmt);
++                if (sqlite3_prepare_v2(bat_log_db, delete_sql, -1, &stmt, 0) == SQLITE_OK) {
++                    sqlite3_step(stmt);
++                    sqlite3_finalize(stmt);
++                }
+             }
+         }
+         close_battery_log_db();
+@@ -315,12 +319,15 @@ int set_best_session_time(int best_session)
+ 
+                         // Exécuter la mise à jour
+                         rc = sqlite3_step(update_stmt);
++                        if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
++                            fprintf(stderr, "Failed to update best_session: %s\n", sqlite3_errmsg(bat_log_db));
++                        }
+ 
+-                        sqlite3_finalize(stmt);
+                         sqlite3_finalize(update_stmt);
+                         is_success = 1;
+                     }
+                 }
++                sqlite3_finalize(stmt);
+             }
+             close_battery_log_db();
+         }
+@@ -346,9 +353,10 @@ int updateADCValue(int value)
+     if (battery_isCharging())
+         return 100;
+ 
+-    if (!sar_fd) {
++    if (sar_fd < 0) {
+         sar_fd = open("/dev/sar", O_WRONLY);
+-        ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
++        if (sar_fd >= 0)
++            ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
+     }
+ 
+     static SAR_ADC_CONFIG_READ adcConfig;
+@@ -378,13 +386,25 @@ int updateADCValue(int value)
+ int getBatPercMMP(void)
+ {
+     char buf[100] = "";
+-    int battery_number;
++    int battery_number = -1;
+ 
+-    system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result");
++    FILE *fp = popen("cd /customer/app/ ; ./axp_test", "r");
++    if (fp != NULL) {
++        if (fgets(buf, sizeof(buf), fp) != NULL) {
++            if (sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number) != 1)
++                battery_number = -1;
++        }
++        pclose(fp);
++    }
+ 
+-    FILE *fp;
+-    file_get(fp, "/tmp/.axp_result", CONTENT_STR, buf);
+-    sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
++    /* Also update the cached result file for other consumers */
++    if (buf[0] != '\0') {
++        FILE *fp2;
++        if ((fp2 = fopen("/tmp/.axp_result", "w+"))) {
++            fputs(buf, fp2);
++            fclose(fp2);
++        }
++    }
+ 
+     return battery_number;
+ }
+@@ -486,7 +506,7 @@ static void *batteryWarning_thread(void *param)
+             display_drawBatteryIcon(0x00FF0000, 15, g_display.height - 30, 10,
+                                     0x00FF0000); // draw red battery icon
+         }
+-        usleep(0x4000);
++        usleep(500000); // 500ms — low battery icon doesn't need fast refresh
+     }
+     return 0;
+ }
+diff --git a/src/batmon/batmon.h b/src/batmon/batmon.h
+index c60d0062..ed5a6ca6 100644
+--- a/src/batmon/batmon.h
++++ b/src/batmon/batmon.h
+@@ -46,9 +46,10 @@ typedef struct {
+ 
+ static bool adcthread_active = false;
+ static pthread_t adc_pt;
+-static bool quit = false;
+-static int sar_fd, adc_value_g;
+-static bool is_suspended = false;
++static volatile sig_atomic_t quit = 0;
++static int sar_fd = -1;
++static volatile sig_atomic_t adc_value_g;
++static volatile sig_atomic_t is_suspended = 0;
+ 
+ static void sigHandler(int sig);
+ void cleanup(void);
+diff --git a/src/batteryMonitorUI/batteryMonitorUI.c b/src/batteryMonitorUI/batteryMonitorUI.c
+index 7cc3e231..0a115e6a 100644
+--- a/src/batteryMonitorUI/batteryMonitorUI.c
++++ b/src/batteryMonitorUI/batteryMonitorUI.c
+@@ -33,14 +33,7 @@ graph_spot graphic[GRAPH_MAX_FULL_PAGES * GRAPH_DISPLAY_SIZE_X];
+ 
+ static void sigHandler(int sig)
+ {
+-    switch (sig) {
+-    case SIGINT:
+-    case SIGTERM:
+-        quit = true;
+-        break;
+-    default:
+-        break;
+-    }
++    signal_handler_quit(&quit, sig);
+ }
+ 
+ static SDL_Surface *video;
+diff --git a/src/batteryMonitorUI/batteryMonitorUI.h b/src/batteryMonitorUI/batteryMonitorUI.h
+index 47a71d5e..65a03a93 100644
+--- a/src/batteryMonitorUI/batteryMonitorUI.h
++++ b/src/batteryMonitorUI/batteryMonitorUI.h
+@@ -21,6 +21,7 @@
+ #include "utils/file.h"
+ #include "utils/keystate.h"
+ #include "utils/log.h"
++#include "utils/signal_handler.h"
+ #include "utils/str.h"
+ #include "utils/surfaceSetAlpha.h"
+ 
+diff --git a/src/chargingState/chargingState.c b/src/chargingState/chargingState.c
+index 9a301419..c7a815b5 100644
+--- a/src/chargingState/chargingState.c
++++ b/src/chargingState/chargingState.c
+@@ -26,6 +26,7 @@
+ #include "utils/file.h"
+ #include "utils/log.h"
+ #include "utils/msleep.h"
++#include "utils/signal_handler.h"
+ 
+ #define RELEASED 0
+ #define PRESSED 1
+@@ -70,14 +71,7 @@ void suspend(bool enabled, SDL_Surface *video)
+ 
+ static void sigHandler(int sig)
+ {
+-    switch (sig) {
+-    case SIGINT:
+-    case SIGTERM:
+-        quit = true;
+-        break;
+-    default:
+-        break;
+-    }
++    signal_handler_quit(&quit, sig);
+ }
+ 
+ int main(void)
