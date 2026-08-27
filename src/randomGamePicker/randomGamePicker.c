@@ -385,6 +385,8 @@ int main(int argc, char *argv[])
     case MODE_RECENTS:
         addRandomFromJson(mode == MODE_FAVORITES ? PATH_FAVORITES
                                                  : PATH_RECENTS);
+        if (total_games_count == 0)
+            return ERROR_CODE_NO_GAME_FOUND;
         random_number = rand() % total_games_count;
         break;
     case MODE_SINGLE_SYSTEM:
@@ -409,6 +411,9 @@ int main(int argc, char *argv[])
         else {
             perror("Emu folder does not exists");
         }
+
+        if (total_games_count == 0)
+            return ERROR_CODE_NO_GAME_FOUND;
 
         int random_weighted_index = rand() % total_games_count;
         printf_debug("total: %d\n", total_games_count);
