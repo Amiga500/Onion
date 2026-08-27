@@ -26,6 +26,22 @@ static SDL_Color color_lightgrey = {214, 223, 246};
 
 static bool show_raw_names = false;
 
+// Cache of the 4 ROM images shown on the current page. Reloading + rescaling
+// 4 images on every page change is the most expensive part of renderPage().
+static SDL_Surface *rom_image_cache[4] = {NULL, NULL, NULL, NULL};
+static int rom_image_cache_page = -1;
+
+static void clearRomImageCache(void)
+{
+    for (int i = 0; i < 4; i++) {
+        if (rom_image_cache[i] != NULL) {
+            SDL_FreeSurface(rom_image_cache[i]);
+            rom_image_cache[i] = NULL;
+        }
+    }
+    rom_image_cache_page = -1;
+}
+
 void init(void)
 {
     signal(SIGINT, sigHandler);
@@ -49,6 +65,8 @@ void init(void)
 
 void free_resources(void)
 {
+    clearRomImageCache();
+
     TTF_CloseFont(font40);
     TTF_CloseFont(font30);
     TTF_CloseFont(fontCJKRomName25);
@@ -134,6 +152,17 @@ void renderPage(int current_page)
     if (current_page >= 24)
         num_width += 20;
 
+    if (rom_image_cache_page != current_page) {
+        clearRomImageCache();
+        rom_image_cache_page = current_page;
+        for (int row = 0; row < 4; row++) {
+            int index = current_page * 4 + row;
+            if (index >= play_activities->count)
+                break;
+            rom_image_cache[row] = loadRomImage(play_activities->play_activity[index]->rom->image_path);
+        }
+    }
+
     for (int row = 0; row < 4; row++) {
         int index = current_page * 4 + row;
 
@@ -146,10 +175,11 @@ void renderPage(int current_page)
         snprintf(num_str, sizeof(num_str), "%d", index + 1);
         renderTextAlignRight(num_str, font40, color_purple, &(SDL_Rect){num_width, 80 + 90 * row, 50, 39});
 
-        SDL_Surface *romImage = loadRomImage(rom->image_path);
-        SDL_Rect rectRomImage = {num_width + 10 + (80 - romImage->w) / 2, 70 + 90 * row, 80, 80};
-        SDL_BlitSurface(romImage, NULL, screen, &rectRomImage);
-        SDL_FreeSurface(romImage);
+        SDL_Surface *romImage = rom_image_cache[row];
+        if (romImage != NULL) {
+            SDL_Rect rectRomImage = {num_width + 10 + (80 - romImage->w) / 2, 70 + 90 * row, 80, 80};
+            SDL_BlitSurface(romImage, NULL, screen, &rectRomImage);
+        }
 
         if (show_raw_names) {
             strncpy(rom_name, rom->name, STR_MAX - 1);

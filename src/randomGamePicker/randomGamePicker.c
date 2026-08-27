@@ -1,5 +1,6 @@
 #include <dirent.h>
 #include <libgen.h>
+#include <limits.h>
 #include <sqlite3/sqlite3.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -215,8 +216,10 @@ bool addRandomFromJson(char *json_path)
 
     FILE *fp;
     char line[STR_MAX * 4];
-    char path_a[STR_MAX];
     char path_b[STR_MAX];
+    // Canonicalized paths of already-kept entries, resolved once each so the
+    // duplicate check does not call realpath() again for every comparison.
+    static char kept_paths[MAX_SYSTEMS][PATH_MAX];
     cJSON *json_root;
     JsonEntryType_e type;
 
@@ -224,6 +227,9 @@ bool addRandomFromJson(char *json_path)
         return false;
 
     while (fgets(line, sizeof(line), fp)) {
+        if (count >= MAX_SYSTEMS)
+            break;
+
         json_root = cJSON_Parse(line);
         if(!json_getInt(json_root, "type", (int *)&type)) {
             print_debug("Malformed json; Skipping\n");
@@ -232,10 +238,10 @@ bool addRandomFromJson(char *json_path)
 
         if (type == TYPE_GAME || type == TYPE_EXPERT) {
             GameEntry *game = &random_games[count];
-            memset(game->label, 0, strlen(game->label));
-            memset(game->path, 0, strlen(game->path));
-            memset(game->img_path, 0, strlen(game->img_path));
-            memset(game->launch_path, 0, strlen(game->launch_path));
+            game->label[0] = '\0';
+            game->path[0] = '\0';
+            game->img_path[0] = '\0';
+            game->launch_path[0] = '\0';
 
             game->id = type;
             game->sum = 1;
@@ -251,13 +257,13 @@ bool addRandomFromJson(char *json_path)
             if (strcmp("miyoocmd", file_getExtension(game->path)) == 0)
                 continue;
 
-            realpath(game->path, path_b);
+            if (realpath(game->path, path_b) == NULL)
+                continue;
+
             bool is_duplicate = false;
 
             for (int i = 0; i < count; i++) {
-                GameEntry *other = &random_games[i];
-                realpath(other->path, path_a);
-                if (other->id == game->id && strcmp(path_a, path_b) == 0) {
+                if (random_games[i].id == game->id && strcmp(kept_paths[i], path_b) == 0) {
                     is_duplicate = true;
                     break;
                 }
@@ -287,6 +293,8 @@ bool addRandomFromJson(char *json_path)
                 free(no_extension);
             }
 
+            strncpy(kept_paths[count], path_b, PATH_MAX - 1);
+            kept_paths[count][PATH_MAX - 1] = '\0';
             count++;
         }
 

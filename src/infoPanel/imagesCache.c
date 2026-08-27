@@ -82,6 +82,22 @@ SDL_Rect getCenterPos(SDL_Surface *image, SDL_Rect target)
     return image_pos;
 }
 
+static SDL_Surface *g_scaled_cache_src = NULL;
+static SDL_Surface *g_scaled_cache = NULL;
+static int g_scaled_cache_w = 0;
+static int g_scaled_cache_h = 0;
+
+static void freeScaledCache(void)
+{
+    if (g_scaled_cache) {
+        SDL_FreeSurface(g_scaled_cache);
+        g_scaled_cache = NULL;
+    }
+    g_scaled_cache_src = NULL;
+    g_scaled_cache_w = 0;
+    g_scaled_cache_h = 0;
+}
+
 void drawImage(SDL_Surface *image, SDL_Surface *screen, const SDL_Rect *frame)
 {
     if (!image)
@@ -93,11 +109,29 @@ void drawImage(SDL_Surface *image, SDL_Surface *screen, const SDL_Rect *frame)
         target = *frame;
     }
 
-    SDL_Surface *scaledImage = scaleImageIfNecessary(image, target, false);
+    SDL_Surface *scaledImage = NULL;
+    if (image->w > target.w || image->h > target.h) {
+        // Reuse the cached scaled surface when the same source is drawn to the
+        // same target size (avoids zoomSurface on every redraw).
+        if (g_scaled_cache_src == image && g_scaled_cache_w == target.w &&
+            g_scaled_cache_h == target.h && g_scaled_cache != NULL) {
+            scaledImage = g_scaled_cache;
+        }
+        else {
+            freeScaledCache();
+            scaledImage = scaleImageIfNecessary(image, target, false);
+            if (scaledImage) {
+                g_scaled_cache = scaledImage;
+                g_scaled_cache_src = image;
+                g_scaled_cache_w = target.w;
+                g_scaled_cache_h = target.h;
+            }
+        }
+    }
+
     if (scaledImage) {
         SDL_Rect image_pos = getCenterPos(scaledImage, target);
         SDL_BlitSurface(scaledImage, NULL, screen, &image_pos);
-        SDL_FreeSurface(scaledImage);
         return;
     }
 
@@ -200,6 +234,7 @@ char *drawImageByIndex(const int new_image_index, const int image_index,
 void cleanImagesCache()
 {
     DEBUG_PRINT(("cleaning images cache\n"));
+    freeScaledCache();
     if (g_image_cache_prev) {
         SDL_FreeSurface(g_image_cache_prev);
         g_image_cache_prev = NULL;
