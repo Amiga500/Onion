@@ -42,6 +42,8 @@ void loadThemeDirectory(const char *theme_dir,
 
     if ((dp = opendir(theme_dir)) != NULL) {
         while ((ep = readdir(dp))) {
+            if (*count >= NUMBER_OF_THEMES)
+                break;
             if (ep->d_type != DT_DIR)
                 continue;
             if (ep->d_name[0] == '.')
