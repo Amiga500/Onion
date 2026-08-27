@@ -1,4 +1,4 @@
-# 🌈 OnionPlus — Optimizations at a Glance
+# 🕹️ OnionPlus — Optimizations at a Glance
 
 [![branch](https://img.shields.io/badge/branch-OnionPlus-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/OnionPlus)
 [![commits](https://img.shields.io/badge/commits-68-blueviolet?style=for-the-badge)](#-11--commit-timeline)
