@@ -13,8 +13,14 @@ static char _cached_label_b_str[STR_MAX] = "";
 
 void theme_renderStandardHint_cleanup(void)
 {
-    if (_cached_label_a) { SDL_FreeSurface(_cached_label_a); _cached_label_a = NULL; }
-    if (_cached_label_b) { SDL_FreeSurface(_cached_label_b); _cached_label_b = NULL; }
+    if (_cached_label_a) {
+        SDL_FreeSurface(_cached_label_a);
+        _cached_label_a = NULL;
+    }
+    if (_cached_label_b) {
+        SDL_FreeSurface(_cached_label_b);
+        _cached_label_b = NULL;
+    }
     _cached_label_a_str[0] = '\0';
     _cached_label_b_str[0] = '\0';
 }
@@ -45,7 +51,8 @@ void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
 
     // Cache label_a surface — only re-render when text changes
     if (strcmp(label_a_str, _cached_label_a_str) != 0) {
-        if (_cached_label_a) SDL_FreeSurface(_cached_label_a);
+        if (_cached_label_a)
+            SDL_FreeSurface(_cached_label_a);
         TTF_Font *font_hint = resource_getFont(HINT);
         _cached_label_a = TTF_RenderUTF8_Blended(font_hint, label_a_str, theme()->hint.color);
         strncpy(_cached_label_a_str, label_a_str, STR_MAX - 1);
@@ -67,7 +74,8 @@ void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
 
         // Cache label_b surface — only re-render when text changes
         if (strcmp(label_b_str, _cached_label_b_str) != 0) {
-            if (_cached_label_b) SDL_FreeSurface(_cached_label_b);
+            if (_cached_label_b)
+                SDL_FreeSurface(_cached_label_b);
             TTF_Font *font_hint = resource_getFont(HINT);
             _cached_label_b = TTF_RenderUTF8_Blended(font_hint, label_b_str, theme()->hint.color);
             strncpy(_cached_label_b_str, label_b_str, STR_MAX - 1);

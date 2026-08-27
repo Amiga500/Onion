@@ -68,7 +68,7 @@ static inline void perf_log(const char *label, long start_ms, long end_ms)
  */
 #define _PERF_VAR(prefix, line) prefix##line
 #define _PERF_VAR2(prefix, line) _PERF_VAR(prefix, line)
-#define PERF_START(label) \
+#define PERF_START(label)                                    \
     long _PERF_VAR2(_perf_start_, __LINE__) = perf_get_ms(); \
     const long *_perf_start_ptr_ = &_PERF_VAR2(_perf_start_, __LINE__);
 
@@ -76,16 +76,20 @@ static inline void perf_log(const char *label, long start_ms, long end_ms)
  * PERF_END(label) — End a named timing measurement and log the result.
  * Must be called in the same scope as the matching PERF_START.
  */
-#define PERF_END(label) \
-    do { \
-        long _perf_end_ = perf_get_ms(); \
+#define PERF_END(label)                                 \
+    do {                                                \
+        long _perf_end_ = perf_get_ms();                \
         perf_log(label, *_perf_start_ptr_, _perf_end_); \
     } while (0)
 
 #else /* PERF_ENABLED not defined */
 
-#define PERF_START(label) do {} while (0)
-#define PERF_END(label)   do {} while (0)
+#define PERF_START(label) \
+    do {                  \
+    } while (0)
+#define PERF_END(label) \
+    do {                \
+    } while (0)
 
 #endif /* PERF_ENABLED */
 
