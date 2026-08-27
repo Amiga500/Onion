@@ -36,6 +36,13 @@ static void sigHandler(int sig)
     signal_handler_quit(&quit, sig);
 }
 
+static void safeBlitSurface(SDL_Surface *src, SDL_Rect *srcrect,
+                            SDL_Surface *dst, SDL_Rect *dstrect)
+{
+    if (src != NULL && dst != NULL)
+        SDL_BlitSurface(src, srcrect, dst, dstrect);
+}
+
 static SDL_Surface *video;
 static SDL_Surface *screen;
 static SDL_Surface *background;
@@ -197,7 +204,7 @@ void switch_zoom_profile(int segment_duration)
 
 void render_waiting_screen()
 {
-    SDL_BlitSurface(waiting_screen, NULL, screen, NULL);
+    safeBlitSurface(waiting_screen, NULL, screen, NULL);
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
     sleep(1.5);
@@ -253,6 +260,14 @@ void compute_graph(void)
                     }
 
                     current_index = (graph_max_size - 1) - duration_to_pixel(total_duration);
+
+                    if (current_index < 0 || current_index >= graph_max_size) {
+                        // Corrupt or implausible duration data would write out of the
+                        // graphic[] array bounds; stop processing this record set.
+                        b_quit = true;
+                        break;
+                    }
+
                     graphic[current_index].is_charging = is_charging;
 
                     if (bat_perc > 100)
@@ -334,30 +349,30 @@ void compute_graph(void)
 void renderPage()
 {
     char sub_title[30];
-    SDL_BlitSurface(background, NULL, screen, NULL);
+    safeBlitSurface(background, NULL, screen, NULL);
 
     switch (current_zoom) {
     case 0:
         sprintf(sub_title, "%s", "16 HOURS VIEW");
         segment_duration = 7200;
-        SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        safeBlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 1:
         sprintf(sub_title, "%s", "8 HOURS VIEW");
         segment_duration = 3600;
-        SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
-        SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        safeBlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        safeBlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     case 2:
         sprintf(sub_title, "%s", "4 HOURS VIEW");
         segment_duration = 1800;
-        SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        safeBlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     default:
         sprintf(sub_title, "%s", "8 HOURS VIEW");
         segment_duration = 3600;
-        SDL_BlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
-        SDL_BlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        safeBlitSurface(right_arrow, NULL, screen, &(SDL_Rect){RIGHT_ARROW_X, RIGHT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
+        safeBlitSurface(left_arrow, NULL, screen, &(SDL_Rect){LEFT_ARROW_X, LEFT_ARROW_Y, ARROW_LENGHT, ARROW_WIDTH});
         break;
     }
     if (estimation_line_size == 0)
@@ -441,7 +456,7 @@ void renderPage()
         }
         SDL_UnlockSurface(screen);
         if (x_end != 0)
-            SDL_BlitSurface(end_graph, NULL, screen, &(SDL_Rect){x_end, y_end, 24, 45});
+            safeBlitSurface(end_graph, NULL, screen, &(SDL_Rect){x_end, y_end, 24, 45});
     }
 
     SDL_BlitSurface(screen, NULL, video, NULL);
