@@ -8,13 +8,6 @@
 [![tests](https://img.shields.io/badge/tests-1%2C410%20%2F%2071%2C385%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
-> 🧵 **What this is.** A from-scratch, category-first tour of every optimization and
-> hardening change shipped on **OnionPlus** so far — reviewed directly from the commit
-> history (`07505ea5 → HEAD`, **68 commits**). It complements, and does **not** replace,
-> the deep-dive [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) (evidence,
-> methodology, before/after code) and the raw [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)
-> diff stats. Think of this page as the **poster**, and those two as the **paper trail**.
-
 ---
 
 ## 🗺️ Table of Contents
