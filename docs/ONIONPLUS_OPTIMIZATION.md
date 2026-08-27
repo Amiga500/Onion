@@ -43,7 +43,7 @@ timed on a Miyoo Mini as part of the OnionPlus port.**
 1. [Summary Overview](#-summary-overview)
 2. [Commit Breakdown](#-1-commit-breakdown)
 3. [Performance — NEON Pixel Paths](#-2-performance--neon-pixel-paths)
-4. [Performance — Algorithmic & Syscall Wins](#-3-performance--algorithmic--syscall-wins)
+4. [Performance — Algorithmic & Syscall Wins](#-3-performance--algorithmic--syscall-wins) (incl. [§3.8 second review pass](#38-second-review-pass--further-hot-path-optimizations))
 5. [Security & Hardening](#️-4-security--hardening)
 6. [Testing](#-5-testing)
 7. [Build & Tooling](#️-6-build--tooling)
@@ -507,6 +507,32 @@ RetroArch `killall`/`pidof` calls in `overlay_exit()` use the direct
 The first replacement called `waitpid()` on the worker and blocked the UI thread;
 `d05267ca` restores the original `system("… &")` async semantics (intermediate child
 exits immediately, grandchild reparented to init, no zombies). See [§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa).
+
+### 3.8 Second review pass — further hot-path optimizations
+
+A full re-audit of the branch (all 17 sampled claims re-verified in code, `make unit-test`
+re-run: **68 suites · 1,410 tests · 71,385 assertions · ALL PASSED**) found five more
+worthwhile optimizations. All are OnionPlus review fixes (📐 structural), non-blocking and
+safe; the batmon `axp_test` percentage read was deliberately **not** cached because
+`getBatPercMMP()` has side effects (`/tmp/.axp_result`, `/tmp/percBat`) consumed by
+keymon/GameSwitcher at the current cadence.
+
+| Area | Before | After | Impact |
+|:-----|:-------|:------|:-------|
+| ⚡ `rumble()` GPIO init | `export` + `direction` sysfs writes on **every** vibration | one-time init (`static bool`), value-only writes after | 📐 −2 sysfs writes per pulse; ported from OniOpus46, now byte-identical |
+| 🛡️ `settings.vibration` index | `short_timings[settings.vibration]` unclamped — OOB read if config > 3 | `CLAMP_VIBRATION()` to `VIBRATION_LEVEL_MAX` (3) | 🛡️ out-of-bounds read removed (same OniOpus46 port) |
+| ⚡ infoPanel `drawImage()` | `zoomSurface()` + `SDL_FreeSurface` on **every redraw** of the same image | scaled surface cached per (source, w, h); freed in `cleanImagesCache()` | 📐 O(w·h) scale eliminated on repeat draws |
+| ⚡ GameSwitcher battery poll | `file_isModified("/tmp/percBat")` **stat on every loop iteration** (~1 kHz idle spin) | checked once per second (`ticks - last >= 1000`) — batmon writes at 1 Hz anyway | 📐 ~99.9 % fewer stat calls; no UX change |
+| ⚡ playActivityUI page render | 4 × (`IMG_Load` + `SDL_SoftStretch` + `SDL_CreateRGBSurface` + free) on **every page change** | 4 surfaces cached per page; reloaded only when `current_page` changes; NULL-image no longer dereferenced | 📐 page flips skip all image I/O and scaling |
+| ⚡ randomGamePicker entry init | 4 × `memset(p, 0, strlen(p))` per JSON line (redundant, strlen on garbage) | first-byte `'\0'` clear | 📐 trivial; also semantically safer |
+| ⚡ randomGamePicker dedup | `realpath()` on **every comparison** — O(n²) syscalls for n entries | canonical path stored once per kept entry; `strcmp` only — O(n) total syscalls | 📐 n² → n realpath calls at startup |
+| 🛡️ randomGamePicker bounds | `random_games[count]` / `kept_paths[count]` written with no `MAX_SYSTEMS` check | loop breaks at `count >= MAX_SYSTEMS` (500) | 🛡️ overflow of both arrays closed |
+
+The battery-percentage **throttle** in GameSwitcher relies on the write cadence of batmon
+(`sleep(1)` main loop) — 1 s polling is therefore lossless. The playActivityUI cache is
+invalidated by page number and fully released in `free_resources()`; the infoPanel scaled
+cache is invalidated whenever the source pointer or target size changes and freed together
+with the prev/current/next cache in `cleanImagesCache()`.
 
 ---
 
@@ -1054,6 +1080,7 @@ percentages appear **nowhere** in the tables above.
 |:---|:---|:---|
 | Volume logarithmic curve | perceptual mapping | ❌ Not ported *(`test_volume` runs against unported reference logic)* — deliberately deferred: it changes the perceived UX of the volume keys, so it needs an explicit product decision, not just a port |
 | `str_replace` `strlen` caching | 📏 −50 % scan | ⚠️ Not applicable — the OnionPlus rewrite is 🛡️ overflow hardening; OniOpus46 has no different scan algorithm to port |
+| Rumble GPIO init caching + vibration clamp | 📐 −2 sysfs writes per pulse | ✅ **Ported** (second review pass, [§3.8](#38-second-review-pass--further-hot-path-optimizations)) — `rumble.h` is now byte-identical to OniOpus46 |
 
 Ported since the previous revision of this document (and therefore counted above, not here):
 OSD busy-wait fix + thread hardening (`4b851203`), display brightness sysfs caching +
@@ -1150,9 +1177,17 @@ throttles it with `msleep(2)` per iteration and demotes the draw-count/speed sta
 
 🎯 Recommended follow-ups, in priority order:
 
-1. 🔵 **Take baseline timings on device** for `jpg2png`, `pngScale`, `rotate180`, screenshot capture, list scrolling **and the new power paths** (OSD bar CPU, brightness writes, `battery_isCharging` forks), so every 📏/📐 in this document can be upgraded to a real OnionPlus measurement.
+1. 🔵 **Take baseline timings on device** for `jpg2png`, `pngScale`, `rotate180`, screenshot capture, list scrolling **and the new power paths** (OSD bar CPU, brightness writes, `battery_isCharging` forks, GameSwitcher idle loop), so every 📏/📐 in this document can be upgraded to a real OnionPlus measurement.
 2. 🟢 Decide on the volume logarithmic curve (UX decision, then port).
 3. 🟢 Remove or rewrite the dead `process_start()` (see table above — zero risk either way).
+
+Closed in the second review pass (§3.8): rumble GPIO init caching + vibration clamp
+(ported from OniOpus46), infoPanel scaled-image cache, GameSwitcher battery-poll throttle,
+playActivityUI per-page ROM-image cache, randomGamePicker redundant `memset(strlen())`
+and O(n²) `realpath()` dedup. The batmon `axp_test` percentage read was evaluated and
+**deliberately left uncached**: it feeds `/tmp/.axp_result` and `/tmp/percBat` consumed by
+keymon/GameSwitcher at the current cadence, so caching would silently degrade other
+consumers' freshness.
 
 ---
 
@@ -1167,8 +1202,11 @@ pre-existing upstream defects** (§4.7 + §4.9), the **power/CPU batch** (OSD ba
 brightness caching, battery-charging cache, batmon fixes, SQLite open/close 2 → 1, overlay
 double-fork+exec), the `infoPanel` hardening, a throttled `overlay_surface()` draw loop,
 unique dated GitHub Releases, Miyoo OTA wired to `Amiga500/Onion`, GameSwitcher framebuffer
-stride / romscreen stretch fixes, and a **68-suite host unit-test harness** runnable with a
-single `make unit-test`.
+stride / romscreen stretch fixes, a **second review pass** adding five further hot-path
+optimizations (rumble GPIO caching + vibration clamp, infoPanel scaled-image cache,
+GameSwitcher battery-poll throttle, playActivityUI per-page image cache, randomGamePicker
+dedup/init fixes — [§3.8](#38-second-review-pass--further-hot-path-optimizations)), and a
+**68-suite host unit-test harness** runnable with a single `make unit-test`.
 
 > 🧪 **68 suites · 1,410 tests · 71,385 assertions · 0 failures.** ✅
 >
