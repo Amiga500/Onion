@@ -25,7 +25,7 @@ static bool quit = false;
 static void safeBlitSurface(SDL_Surface *src, SDL_Rect *srcrect,
                             SDL_Surface *dst, SDL_Rect *dstrect)
 {
-    if (src != NULL)
+    if (src != NULL && dst != NULL)
         SDL_BlitSurface(src, srcrect, dst, dstrect);
 }
 
