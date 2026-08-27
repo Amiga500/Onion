@@ -184,7 +184,8 @@ void renderPage(int current_page)
         if (show_raw_names) {
             strncpy(rom_name, rom->name, STR_MAX - 1);
             rom_name[STR_MAX - 1] = '\0';
-        } else
+        }
+        else
             file_cleanName(rom_name, rom->name);
         renderText(rom_name, includeCJK(rom_name) ? fontCJKRomName25 : font30, color_white, &(SDL_Rect){num_width + 100, 75 + 90 * row, 400, 40});
 
