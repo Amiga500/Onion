@@ -7,7 +7,10 @@ touch /tmp/dismiss_info_panel
 sync
 
 # avoid running two advmenu instances at once (SDL limitation on Miyoo Mini)
-if ! pgrep advmenu > /dev/null; then
-    cd $sysdir/bin/adv
-    ./run_advmenu.sh
+if pgrep advmenu > /dev/null; then
+    echo "AdvanceMENU is already running, not starting a second instance"
+    exit 0
 fi
+
+cd $sysdir/bin/adv
+./run_advmenu.sh

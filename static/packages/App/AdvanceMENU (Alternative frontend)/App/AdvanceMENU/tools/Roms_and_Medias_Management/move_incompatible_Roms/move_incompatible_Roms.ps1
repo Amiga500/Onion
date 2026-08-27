@@ -12,9 +12,11 @@ New-Item -ItemType Directory -Path $notCompatibleDirectory -Force
 
 $xml = [xml](Get-Content $xmlFile)
 
-# Index the machine/rom names declared in the XML once (attribute named "name" on any element)
+# Index the machine/rom names declared in the XML once.
+# Scope to <game> elements only: other elements (e.g. <biosset name="...">) also carry a
+# "name" attribute with a different meaning and would falsely mark roms as compatible.
 $known_roms = @{}
-foreach ($node in $xml.SelectNodes("//*[@name]")) {
+foreach ($node in $xml.SelectNodes("//game[@name]")) {
     $known_roms[$node.GetAttribute("name")] = $true
 }
 
