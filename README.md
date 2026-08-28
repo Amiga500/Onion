@@ -46,8 +46,7 @@ were first written elsewhere; every **percentage in this document is OnionPlus v
 
 On top of that base the branch adds its own power/CPU batch, security review, hot-path
 passes, an **AdvanceMENU** frontend pass, a **surgical Miyoo Mini Flip port** from
-`OnionUI/Onion:v4.5-dev` (`921155e8`) that does **not** merge that branch (and does
-**not** take [PR #1868](https://github.com/OnionUI/Onion/pull/1868) zip/7z ROM extract),
+`OnionUI/Onion:v4.5-dev` (`921155e8`) that does **not** merge that branch,
 and an **OnionUI-parity review** (charging-icon sentinel, RetroArch `killall` semantics,
 path bounds, rumble GPIO retry). Every pass reaches installs through the built-in
 **OTA updater** (`Amiga500/Onion`, assets `OnionPlus-v…`). This document groups
@@ -337,7 +336,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 10. 🔎 **Review pass 2** — rumble caching, infoPanel image cache, GS battery-poll throttle, playActivityUI page cache, randomGamePicker dedup.
 11. 🕹️ **AdvanceMENU pass** — fonts, PWM handling, script speedups, race-condition and false-positive fixes ([PR #210](https://github.com/Amiga500/Onion/pull/210)).
 12. 🔎 **Review pass 3** — randomGamePicker division-by-zero guard, batteryMonitorUI/themeSwitcher NULL-asset & bounds hardening, packageManager NULL guard, gs_romscreen format-string fix.
-13. 📱 **Mini Flip port** — surgical carry of Miyoo Mini Flip + MainUI-285 from upstream `v4.5-dev` (`921155e8`); OnionPlus battery cache / `file_copy` reset / settings bounds kept. **PR #1868 not taken.**
+13. 📱 **Mini Flip port** — surgical carry of Miyoo Mini Flip + MainUI-285 from upstream `v4.5-dev` (`921155e8`); OnionPlus battery cache / `file_copy` reset / settings bounds kept.
 14. 🔎 **OnionUI-parity review** — restore `battery_hasChanged` early-return while charging; `process_killall` for RetroArch; `file_read("")` parity; rumble GPIO retry; remaining `sprintf` bounds on GS/chargingState; TTF cache cleanup on exit.
 
 > 🔍 Full SHA-by-SHA detail lives in
@@ -353,7 +352,7 @@ render/UI caches, a power/battery batch, a syscall diet that removed every avoid
 `system()` call from the hardened core, **six pre-existing upstream defects** closed, a
 **68-suite / 1,412-test / 71,393-assertion** host test harness that did not exist before
 this branch, a full **AdvanceMENU** hardening pass, a **Miyoo Mini Flip** port from
-`v4.5-dev` that does **not** merge that branch (and does not take PR #1868), and an
+`v4.5-dev` that does **not** merge that branch, and an
 **OnionUI-parity review** that put the charging-icon sentinel and RetroArch killall
 semantics back in line with upstream. Base remains `4.4.0-beta`. OTA stays on
 `Amiga500/Onion`. See [`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md).

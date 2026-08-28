@@ -24,7 +24,7 @@
 > A previous revision advertised **52** commits and tip `ddbb7e14`, then **56** / `82fab865`.
 > Those described the original port window. The headline is now `git rev-list --count`
 > through Flip `921155e8` plus the OnionUI-parity review (**90**). Section 2 still lists
-> the original 56 SHAs vs `OnionUI/Onion:main`; Flip is row 88. PR #1868 is not in the range.
+> the original 56 SHAs vs `OnionUI/Onion:main`; Flip is row 88.
 
 ---
 

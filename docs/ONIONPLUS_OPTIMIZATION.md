@@ -14,8 +14,6 @@
 
 > **Scope:** every comparison in this report is **OnionPlus vs `OnionUI/Onion:main`**
 > (`07505ea5` → `HEAD`). Every percentage below is **OnionPlus vs that upstream tip**.
-> [PR #1868](https://github.com/OnionUI/Onion/pull/1868) (zip/7z ROM extract on `v4.5-dev`)
-> is **out of scope and not integrated**.
 
 📊 Raw diff statistics vs. the base release live in a companion document:
 **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)**.
@@ -1110,7 +1108,6 @@ remains `OnionUI/Onion:main`.
 | Change not taken | Claim | OnionPlus status |
 |:---|:---|:---|
 | Volume logarithmic curve | perceptual mapping | ❌ Not taken — changes volume-key UX; needs a product decision |
-| [PR #1868](https://github.com/OnionUI/Onion/pull/1868) zip/7z ROM extract | `v4.5-dev` launch/cleanup path | ❌ Not taken — changes how games start and how extracted files are deleted |
 | `str_replace` `strlen` caching | 📏 −50 % scan | ⚠️ Not applicable — OnionPlus rewrite is overflow hardening, not a different scan |
 | Rumble GPIO init caching + vibration clamp | 📐 −2 sysfs writes per pulse | ✅ **In tree** (second review pass + GPIO retry, [§3.8](#38-second-review-pass--further-hot-path-optimizations) / [§4.11](#411-onionui-parity-review)) |
 
@@ -1212,8 +1209,7 @@ Delta of `921155e8`: **19 files · +362 / −37** (16 modified, 3 added, 0 delet
 
 ## 🛡️ 4.11 OnionUI-parity review
 
-> 🟦 Correctness vs `OnionUI/Onion:main`. No extra performance claim. Does **not**
-> include [PR #1868](https://github.com/OnionUI/Onion/pull/1868).
+> 🟦 Correctness vs `OnionUI/Onion:main`. No extra performance claim.
 
 | Item | Before (OnionPlus) | After | Why |
 |:--|:--|:--|:--|
@@ -1283,7 +1279,7 @@ GameSwitcher battery-poll throttle, playActivityUI per-page image cache, randomG
 dedup/init fixes — [§3.8](#38-second-review-pass--further-hot-path-optimizations)), a
 **68-suite host unit-test harness** runnable with a single `make unit-test`, a **Miyoo Mini Flip** port from `v4.5-dev` that preserves the OnionPlus hardening
 ([§4.10](#410-miyoo-mini-flip-port-921155e8)), and an OnionUI-parity review
-([§4.11](#411-onionui-parity-review)). PR #1868 is not in the tree.
+([§4.11](#411-onionui-parity-review)).
 
 > 🧪 **68 suites · 1,412 tests · 71,393 assertions · 0 failures.** ✅
 >

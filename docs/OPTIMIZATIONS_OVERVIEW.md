@@ -41,8 +41,7 @@
 
 Poster-size view of OnionPlus versus **`OnionUI/Onion:main`** (`07505ea5`).
 Same story as the root README, with links that stay inside `docs/`.
-Flip is a surgical port from `v4.5-dev`; [PR #1868](https://github.com/OnionUI/Onion/pull/1868)
-is not included. OTA stays on `Amiga500/Onion`.
+Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
 
 ### 🔑 Reading the icons
 
@@ -304,7 +303,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 10. 🔎 **Review pass 2** — rumble caching, infoPanel image cache, GS battery-poll throttle, playActivityUI page cache, randomGamePicker dedup.
 11. 🕹️ **AdvanceMENU pass** — fonts, PWM handling, script speedups, race-condition and false-positive fixes ([PR #210](https://github.com/Amiga500/Onion/pull/210)).
 12. 🔎 **Review pass 3** — randomGamePicker / theme / packageManager / gs_romscreen bounds.
-13. 📱 **Mini Flip port** — `921155e8` from `OnionUI/Onion:v4.5-dev`, no wholesale merge, no PR #1868.
+13. 📱 **Mini Flip port** — `921155e8` from `OnionUI/Onion:v4.5-dev`, no wholesale merge.
 14. 🔎 **OnionUI-parity review** — charging sentinel, RetroArch killall, `file_read("")`, rumble retry, path bounds.
 
 > 🔍 Full SHA-by-SHA detail lives in
@@ -317,7 +316,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 OnionPlus is **90 commits** ahead of `OnionUI/Onion:main`. Use this page as the poster;
 [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) is the evidence trail and
 [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md) is the raw `git` arithmetic. OTA:
-`Amiga500/Onion`. Not in tree: PR #1868.
+`Amiga500/Onion`.
 
 ---
 
