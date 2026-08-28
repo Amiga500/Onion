@@ -1,16 +1,16 @@
 # <img src="../static/build/Icons/Default/app/advancemenu.png" width="32" align="top" alt="OnionPlus" /> OnionPlus — Optimization & Hardening Report
 
-[![commits](https://img.shields.io/badge/commits-56-8A2BE2?style=flat-square)](#-1-commit-breakdown)
-[![files](https://img.shields.io/badge/files-144-blue?style=flat-square)](#-7-overall-statistics)
-[![diff](https://img.shields.io/badge/diff-%2B27%2C234%20%2F%20%E2%88%92811-informational?style=flat-square)](./OnionPlus-vs-base.md)
+[![commits](https://img.shields.io/badge/commits-88-8A2BE2?style=flat-square)](#-1-commit-breakdown)
+[![files](https://img.shields.io/badge/files-162-blue?style=flat-square)](#-7-overall-statistics)
+[![diff](https://img.shields.io/badge/diff-%2B28%2C272%20%2F%20%E2%88%92940-informational?style=flat-square)](./OnionPlus-vs-base.md)
 [![NEON](https://img.shields.io/badge/NEON%20kernels-8-orange?style=flat-square)](#-2-performance--neon-pixel-paths)
 [![suites](https://img.shields.io/badge/test%20suites-68-yellow?style=flat-square)](#-5-testing)
-[![tests](https://img.shields.io/badge/tests-1%2C410-success?style=flat-square)](#-5-testing)
-[![assertions](https://img.shields.io/badge/assertions-71%2C385-success?style=flat-square)](#-5-testing)
+[![tests](https://img.shields.io/badge/tests-1%2C412-success?style=flat-square)](#-5-testing)
+[![assertions](https://img.shields.io/badge/assertions-71%2C393-success?style=flat-square)](#-5-testing)
 [![status](https://img.shields.io/badge/status-ALL%20PASSED-brightgreen?style=flat-square)](#-final-status)
 [![on-device benchmarks](https://img.shields.io/badge/on--device%20benchmarks-none-red?style=flat-square)](#-9-methodology--limits)
 
-> **56 commits** · **144 files** · **+27,234 / −811 lines** · **8 NEON kernels** · **68 test suites** · **1,410 tests** · **71,385 assertions** · **ALL PASSED** ✅
+> **88 commits** · **162 files** · **+28,272 / −940 lines** · **8 NEON kernels** · **68 test suites** · **1,412 tests** · **71,393 assertions** · **ALL PASSED** ✅
 
 > **Scope:** this report covers *only* the commits that make up the OnionPlus port on top of
 > upstream `OnionUI/Onion:main` (`07505ea5` → `HEAD`). It is **not** a report on the whole
@@ -22,11 +22,16 @@
 **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)**.
 
 > 🔁 **Self-reference.** The docs-update commit carries both this document and the statistics
-> it describes, so its own SHA cannot appear here — the code tip is `82fab865` (GameSwitcher
-> preview FB stride + romscreen stretch, 2026-08-24) on top of release/OTA `ddbb7e14`, the four
-> review-pass fixes `74f0a0af`, the CI fix `2ae2e79f`, merge `e44421e1` (PR #206–207) and
-> the power/CPU port batch. The two `docs/` files are inside the range they measure; wherever
-> it matters, the **code-only** subset is given next to the aggregate.
+> it describes, so its own SHA cannot appear here — the **code tip** is `921155e8`
+> (Miyoo Mini Flip + MainUI-285 surgical port from `v4.5-dev`, 2026-08-28) on top of
+> README/docs tip `d820266`, GameSwitcher stride `82fab865`, release/OTA `ddbb7e14`,
+> review-pass `74f0a0af`, and the power/CPU port batch. The two `docs/` files are inside
+> the range they measure; wherever it matters, the **code-only** subset is given next
+> to the aggregate.
+>
+> 📚 The SHA-by-SHA table in [§1](#-1-commit-breakdown) still documents the original
+> 56-commit port window through `82fab865`. Later waves (AdvanceMENU, review pass 3,
+> Flip) are summarized in the README timeline and in [§4.10](#410-miyoo-mini-flip-port-921155e8) below.
 
 ---
 
@@ -1184,6 +1189,29 @@ independently confirmed them.
 
 ---
 
+
+---
+
+## 📱 4.10 Miyoo Mini Flip port (`921155e8`)
+
+> 🟦 Compatibility port, **no performance claim.** OnionPlus did **not** merge
+> `OnionUI/Onion:v4.5-dev`. That branch is `main` plus Flip + MainUI-285 (4 unique
+> commits, last activity 2026-02-07). The unique Flip surface was lifted onto the
+> already-hardened OnionPlus tree.
+
+| Piece | What landed | What was *not* taken |
+|:--|:--|:--|
+| 📟 Model | `MIYOO285`, `IS_MIYOO_PLUS_OR_FLIP()`, `HAS_AXP()`, `HAS_WIFI()` | Rebase onto `v4.5-dev` |
+| 🔋 Battery | `HAS_AXP()` predicates in `battery.h` / `batmon.c` / `chargingState.c` | Replacing the 2 s charging cache with upstream's uncached `axp_test` path |
+| 🗂️ Settings | `lid_close_action` load/save (`flip/lidCloseAction`) | Struct layout / bounded `strncpy` rewrites already in OnionPlus |
+| 🕹️ Tweaks | Lid close: Suspend / Shutdown / Nothing (Flip only) | clang-format-only commit from `v4.5-dev` |
+| ⌨️ keymon | Hall lid events, `HW_BTN_LID_CLOSE` | OnionPlus had not touched `keymon.c` vs `main`, so the Flip file was taken whole |
+| 🧱 MainUI | `MainUI-285-clean` / `MainUI-285-expert` + `miyoo285_system.json` | Official 4.5 version string |
+| 🧪 Tests | `test_device_model` +2 tests / +8 assertions; `test_settings` field added | A full `make unit-test` re-run of all 68 suites *(the two touched suites were run green)* |
+
+Delta of `921155e8`: **19 files · +362 / −37** (16 modified, 3 added, 0 deleted).
+
+---
 ## ⚠️ 10. Known Residuals
 
 For transparency, these items **remain** at the working tree. They are outside the scope
@@ -1191,10 +1219,11 @@ of this port, not oversights the numbers above conceal.
 
 | Item | Pattern | Note |
 |:-----|:--------|:-----|
-| `src/common/utils/process.h:101` | `system(cmd)` | `process_start()` still shells out — but it is **dead code**: no caller exists in `src/`, and none of the four shipped MainUI binaries (`MainUI-283/354-clean/expert`) contain its format strings (`cd "%s"; %s %s %s`, `%s/bin/%s`) or `process_searchpid`'s `/proc/%d/comm`. Verified 2026-08-23. Left in place as a documented residual; removal or a `fork`/`execv` rewrite are equally safe. |
+| `src/common/utils/process.h:101` | `system(cmd)` | `process_start()` still shells out — but it is **dead code**: no caller exists in `src/`, and none of the six shipped MainUI binaries (`MainUI-283/285/354-clean/expert`) contain its format strings (`cd "%s"; %s %s %s`, `%s/bin/%s`) or `process_searchpid`'s `/proc/%d/comm`. Verified 2026-08-23. Left in place as a documented residual; removal or a `fork`/`execv` rewrite are equally safe. |
 | `src/jpg2png` vs `make core` | build | `jpg2png` stays **out of `core`**: Miyoo sysroot has no libjpeg. Makefile sibling exists; `make -C src/jpg2png` is opt-in. |
 | Host `make unit-test` | SIMD | Scalar fallbacks only on x86-64. The `neon-arm` CI job runs the assembly under qemu. |
-| On-device timings | methodology | Nothing was timed on a Miyoo Mini / Mini+ as part of this port. Every 📏 is inherited. |
+| On-device timings | methodology | Nothing was timed on a Miyoo Mini / Mini+ / Flip as part of this port. Every 📏 is inherited. |
+| Mini Flip lid / Hall | hardware | Ported from `v4.5-dev` (`921155e8`); Hall + `/dev/input/event1` detection is the upstream heuristic and has **not** been validated on a physical Flip in this tree. |
 | Volume logarithmic curve | not ported | UX-affecting change, deferred pending explicit decision — see [§8](#-8-not-ported-from-oniopus46). |
 | `batmon` / `keymon` signals | custom handlers | Extra signals (SIGUSR1, SIGSTOP, …) — not the shared SIGINT/SIGTERM helper. |
 | `chargingState.c` `strcpy` | out of 25-file set | Only the signal handler was migrated in that file. |
@@ -1223,8 +1252,8 @@ consumers' freshness.
 
 ## ✅ Final Status
 
-OnionPlus is **56 commits** ahead of upstream `OnionUI/Onion:main`
-(`07505ea5` → `82fab865` code tip / `HEAD`, `git rev-list --count`), adding **8 NEON pixel kernels**,
+OnionPlus is **88 commits** ahead of upstream `OnionUI/Onion:main`
+(`07505ea5` → `921155e8` code tip / `HEAD`, `git rev-list --count`), adding **8 NEON pixel kernels**,
 crash/memory hardening of the `src/common` layer, TTF/list/footer/header/dialog surface
 caches, `--gc-sections` release flags, four algorithmic wins in `str`/`file`, production
 `file_remove_recursive` call sites, migrated SIGINT/SIGTERM handlers, fixes for **6
@@ -1235,10 +1264,12 @@ unique dated GitHub Releases, Miyoo OTA wired to `Amiga500/Onion`, GameSwitcher 
 stride / romscreen stretch fixes, a **second review pass** adding five further hot-path
 optimizations (rumble GPIO caching + vibration clamp, infoPanel scaled-image cache,
 GameSwitcher battery-poll throttle, playActivityUI per-page image cache, randomGamePicker
-dedup/init fixes — [§3.8](#38-second-review-pass--further-hot-path-optimizations)), and a
-**68-suite host unit-test harness** runnable with a single `make unit-test`.
+dedup/init fixes — [§3.8](#38-second-review-pass--further-hot-path-optimizations)), a
+**68-suite host unit-test harness** runnable with a single `make unit-test`, and a
+**Miyoo Mini Flip** port from `v4.5-dev` that preserves the OnionPlus hardening
+([§4.10](#410-miyoo-mini-flip-port-921155e8)).
 
-> 🧪 **68 suites · 1,410 tests · 71,385 assertions · 0 failures.** ✅
+> 🧪 **68 suites · 1,412 tests · 71,393 assertions · 0 failures.** ✅
 >
 > Note: the baseline `07505ea5` had **no** host test suite, so this is a new quality floor
 > rather than a "no regressions" comparison — there is nothing to compare against upstream.
@@ -1249,6 +1280,7 @@ The hardening of the original 25-file set is now **complete for `sprintf`/`strcp
 **OniOpus46 measurements on identical code**, reproduced here for context and clearly
 separated from **📐 analytical** figures. **No OnionPlus on-device measurement has been taken** —
 treat every speedup as inherited evidence until benchmarked on real hardware.
+Flip lid/Hall behaviour likewise has no on-device confirmation in this tree.
 
 The defect fixes in [§4.7](#47-pre-existing-defects-fixed-in-this-branch) and
 [§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa) carry **no
@@ -1262,6 +1294,6 @@ convention that callers had to remember on their own.
 📊 See also: **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)** — full diff statistics vs. the base release.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → Code tip: [`82fab865`](https://github.com/Amiga500/Onion/commit/82fab865) (**56** commits at HEAD, `git rev-list --count`) ·
+Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → Code tip: [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) (**88** commits at HEAD, `git rev-list --count`) ·
 Style adapted from the OniOpus46 [`OPTIMIZATION.md`](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) ·
-Commits analyzed: **56** · Date: 2026-08-24</sub>
+Headline figures refreshed 2026-08-28 · SHA-by-SHA table in §1 still covers the original 56-commit window through `82fab865`</sub>

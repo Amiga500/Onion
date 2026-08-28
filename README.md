@@ -1,11 +1,11 @@
 # 🕹️ OnionPlus — Optimizations at a Glance
 
 [![branch](https://img.shields.io/badge/branch-OnionPlus-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/OnionPlus)
-[![commits](https://img.shields.io/badge/commits-85-blueviolet?style=for-the-badge)](#-11--commit-timeline)
-[![files](https://img.shields.io/badge/files%20changed-159-blue?style=for-the-badge)](#-10--grand-totals)
-[![diff](https://img.shields.io/badge/diff-%2B27%2C910%20%2F%20%E2%88%92903-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
+[![commits](https://img.shields.io/badge/commits-88-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![files](https://img.shields.io/badge/files%20changed-162-blue?style=for-the-badge)](#-10--grand-totals)
+[![diff](https://img.shields.io/badge/diff-%2B28%2C272%20%2F%20%E2%88%92940-informational?style=for-the-badge)](./docs/OnionPlus-vs-base.md)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
-[![tests](https://img.shields.io/badge/tests-1%2C410%20%2F%2071%2C385%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
+[![tests](https://img.shields.io/badge/tests-1%2C412%20%2F%2071%2C393%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
@@ -44,8 +44,10 @@ since grown its **own** independent optimization and hardening passes — a powe
 a full security review, a second hot-path review pass, an **AdvanceMENU** frontend pass
 (font fallback, PWM handling, script speedups, race-condition fixes), and (most recently) a
 third hardening review across `randomGamePicker`, `batteryMonitorUI`, `themeSwitcher`,
-`packageManager` and `gs_romscreen`. Every one of these passes reaches existing installs
-through the built-in **OTA updater**, not just fresh flashes. This document groups
+`packageManager` and `gs_romscreen`, and a **surgical Miyoo Mini Flip port** from
+upstream `v4.5-dev` (`921155e8`) that keeps the OnionPlus hardening intact. Every one
+of these passes reaches existing installs through the built-in **OTA updater**, not
+just fresh flashes. This document groups
 **everything shipped to date** by *category* rather than by commit, so the shape of the
 work is visible at a glance.
 
@@ -65,7 +67,7 @@ work is visible at a glance.
 
 > ⚠️ No optimization in this document has been benchmarked **on a physical Miyoo Mini**.
 > 📏 entries are inherited from OniOpus46's own measurements of the same code; 📐 entries are
-> analytical. See [§10 of the deep-dive report](./ONIONPLUS_OPTIMIZATION.md#-9-methodology--limits)
+> analytical. See [§10 of the deep-dive report](./docs/ONIONPLUS_OPTIMIZATION.md#-9-methodology--limits)
 > for the full methodology and caveats.
 
 ---
@@ -143,7 +145,7 @@ work is visible at a glance.
 |:--|:--|:--|:--|
 | 🔊 OSD volume/brightness bar thread | `usleep(100)` busy-wait (~10,000 loops/s) | `usleep(16000)` (~60 fps) | 🚀 **idle CPU ~10 % → <1 %** 📏 |
 | 🖼️ OSD overlay draw loop | full-throttle spin for the overlay's duration | `msleep(2)` per iteration + demoted logging | overlay CPU burn capped 📐 |
-| 🔌 `battery_isCharging()` (MIYOO354) | `fork`+`exec` of `axp_test` every call (~5–10 ms) | 2 s cached wrapper | 🚀 **~−99 % subprocess spawns** 📐 |
+| 🔌 `battery_isCharging()` (`HAS_AXP()` — MM+ and Flip) | `fork`+`exec` of `axp_test` every call (~5–10 ms) | 2 s cached wrapper | 🚀 **~−99 % subprocess spawns** 📐 |
 | 🪫 batmon low-battery thread | `usleep(0x4000)` (~16 ms) | `usleep(500000)` (500 ms) | 🚀 **~−97 % wake-ups** 📐 |
 | 💡 `display_setBrightnessRaw` | sysfs write on **every** call | cached, duplicate writes skipped | **−100 % duplicate PWM writes** 📏 |
 | ⏱️ batmon main loop | `config_get("battery/warnAt")` every tick | read only at check timeout | **−100 % hot-loop config reads** 📐 |
@@ -264,8 +266,8 @@ work is visible at a glance.
 | Metric | Value |
 |:--|--:|
 | 🧪 Active test suites | **68** |
-| ✅ Tests | **1,410** |
-| ✅ Assertions | **71,385** |
+| ✅ Tests | **1,412** |
+| ✅ Assertions | **71,393** |
 | ❌ Failures | **0** |
 | ⏱️ Suite runtime (prebuilt) | **~3.3 s** |
 | 🔐 Security-focused suites | 10 suites · 219 tests · 959 assertions (**16 %** of all tests) |
@@ -276,6 +278,8 @@ work is visible at a glance.
   `qemu-user`; a `unit-test-san` job runs a sanitizer subset (ASan/UBSan).
 - 🧯 `test_hash` alone grew from 12 tests/21 assertions to **15 tests / 350 assertions**
   to lock in the hash bit-identity guarantee above.
+- 📟 `test_device_model` now covers `MIYOO285` and the `HAS_AXP()` / `HAS_WIFI()` /
+  `IS_MIYOO_PLUS_OR_FLIP()` macros (**13 tests / 23 assertions**, host-run green).
 
 ---
 
@@ -286,8 +290,9 @@ work is visible at a glance.
 | 📦 Release flags | `-O2 -ffunction-sections -fdata-sections -Wl,--gc-sections` → 🚀 **−5–15 % binary size** 📏 |
 | 🎯 New build target | `make unit-test` — host-only, zero device dependency |
 | 📊 Opt-in profiling | `src/common/utils/perf.h` — `PERF_START`/`PERF_END` compile to nothing unless `-DPERF_ENABLED` |
-| 🏷️ Release naming | `OnionPlus V4.4.0-beta-YYYYMMDD`, zip `OnionPlus-v…-<sha>.zip` — real dated GitHub Releases, no more overwritten `latest` |
+| 🏷️ Release naming | `OnionPlus V4.4.0-beta-YYYYMMDD`, zip `OnionPlus-v…-<sha>.zip` — real dated GitHub Releases, no more overwritten `latest`. Base remains **4.4.0-beta**; Flip support is a port, not a rebase onto official `v4.5-dev`. |
 | 📡 OTA | `ota_update.sh` now points at `Amiga500/Onion`, filters `OnionPlus-v` assets |
+| 📱 Mini Flip | Device id `285`, MainUI-285 binaries, lid-close Tweaks, Hall/`event1` detection — ported from `OnionUI/Onion:v4.5-dev` without merging that branch |
 | 🧵 Signal handling | Shared `signal_handler_quit()` deduplicated across 6 apps; `volatile sig_atomic_t` used correctly for signal-shared state |
 
 ---
@@ -296,18 +301,18 @@ work is visible at a glance.
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..HEAD`) | **85** |
-| 📁 Files changed | **159** |
-| ➕➖ Lines | **+27,910 / −903** |
+| 🔧 Commits (`07505ea5..HEAD`) | **88** |
+| 📁 Files changed | **162** |
+| ➕➖ Lines | **+28,272 / −940** |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
-| 🧪 Test suites / tests / assertions | **68 / 1,410 / 71,385** — **all green** ✅ |
+| 🧪 Test suites / tests / assertions | **68 / 1,412 / 71,393** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
 | 🛡️ NULL-guards / closed descriptors added | **+63 / +18** |
 | 🔐 Pre-existing upstream defects fixed | **6** |
 | 🕹️ AdvanceMENU scripts hardened/optimized | **7 files** |
 
 > 📎 For per-commit line counts, file-level diff stats, and independently reproducible
-> `git` commands, see [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md).
+> `git` commands, see [`OnionPlus-vs-base.md`](./docs/OnionPlus-vs-base.md).
 
 ---
 
@@ -327,28 +332,30 @@ A bird's-eye view of the branch's evolution, oldest first:
 10. 🔎 **Review pass 2** — rumble caching, infoPanel image cache, GS battery-poll throttle, playActivityUI page cache, randomGamePicker dedup.
 11. 🕹️ **AdvanceMENU pass** — fonts, PWM handling, script speedups, race-condition and false-positive fixes ([PR #210](https://github.com/Amiga500/Onion/pull/210)).
 12. 🔎 **Review pass 3** — randomGamePicker division-by-zero guard, batteryMonitorUI/themeSwitcher NULL-asset & bounds hardening, packageManager NULL guard, gs_romscreen format-string fix.
+13. 📱 **Mini Flip port** — surgical carry of Miyoo Mini Flip + MainUI-285 from upstream `v4.5-dev` (`921155e8`); OnionPlus battery cache / `file_copy` reset / settings bounds kept.
 
 > 🔍 Full SHA-by-SHA detail lives in
-> [§1 of the deep-dive report](./ONIONPLUS_OPTIMIZATION.md#-1-commit-breakdown).
+> [§1 of the deep-dive report](./docs/ONIONPLUS_OPTIMIZATION.md#-1-commit-breakdown).
 
 ---
 
 ## ✅ Final word
 
-OnionPlus is **85 commits** ahead of upstream `OnionUI/Onion:main`, spanning **8 vectorized
+OnionPlus is **88 commits** ahead of upstream `OnionUI/Onion:main`, spanning **8 vectorized
 NEON kernels**, a dozen algorithmic O(n²)→O(n) rewrites, five distinct render/UI caches, a
 whole power/battery optimization batch, a syscall diet that removed every avoidable
 `system()` call from the hardened core, **six pre-existing upstream defects** closed, a
-**68-suite / 1,410-test / 71,385-assertion** host test harness that did not exist before
-this branch, and — most recently — a full **AdvanceMENU** hardening pass. Every category
-above is traceable to a real commit; see
-[`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) for the evidence, before/after
+**68-suite / 1,412-test / 71,393-assertion** host test harness that did not exist before
+this branch, a full **AdvanceMENU** hardening pass, and a **Miyoo Mini Flip** port from
+`v4.5-dev` that does **not** merge that branch wholesale. Base remains `4.4.0-beta`
+(`07505ea5`). Every category above is traceable to a real commit; see
+[`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md) for the evidence, before/after
 code, and honest limits behind each figure.
 
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → `HEAD` (**85** commits,
+Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → code tip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) (**88** commits,
 `git rev-list --count`) · Companion docs:
-[`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) ·
-[`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)</sub>
+[`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md) ·
+[`OnionPlus-vs-base.md`](./docs/OnionPlus-vs-base.md)</sub>

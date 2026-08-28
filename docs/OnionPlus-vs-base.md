@@ -1,6 +1,6 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **56 commits** · **144 files** · **+27,234 / −811 lines** · **79 added** / **65 modified** · **0 deleted** · **68 test suites** · **1,410 tests** ✅
+> **88 commits** · **162 files** · **+28,272 / −940 lines** · **0 deleted** · **68 test suites** · **1,412 tests** ✅
 
 > **What this document is:** the raw, reproducible *diff arithmetic* between the OnionPlus
 > branch tip and the upstream base release. Every number here comes from `git` on this
@@ -10,26 +10,28 @@
 
 | 🔖 Reference | Value |
 |:---|:---|
-| 🌿 Branch tip | `OnionPlus` → code tip [`82fab865`](https://github.com/Amiga500/Onion/commit/82fab865) *(GameSwitcher preview FB / romscreen stride, 2026-08-24)* on top of release/OTA `ddbb7e14`, review-pass `74f0a0af`, CI fix `2ae2e79f`, merge `e44421e1` (PR #206–207) |
+| 🌿 Branch tip | `OnionPlus` → code tip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) *(Mini Flip + MainUI-285 from `v4.5-dev`, 2026-08-28)* |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
-| ⏩ Commits ahead | **56** *(`git rev-list --count 07505ea5..HEAD`; authored 2026-08-20–24)* |
-| 📦 Aggregate delta | **144 files** · **+27,234** / **−811** |
-| 🧩 Code-only delta *(excl. `docs/`)* | **142 files** · **+25,668** / **−811** |
-| 🧪 Unit tests at tip | **68 suites** · **1,410 tests** · **71,385 assertions** · **0 failures** ✅ |
-| 🔀 Net line growth | **+26,423** |
+| ⏩ Commits ahead | **88** *(`git rev-list --count 07505ea5..HEAD`)* |
+| 📦 Aggregate delta | **162 files** · **+28,272** / **−940** |
+| 🧩 Flip commit alone (`921155e8`) | **19 files** · **+362** / **−37** · 3 added (MainUI-285 ×2 + `miyoo285_system.json`) |
+| 🧪 Unit tests at tip | **68 suites** · **1,412 tests** · **71,393 assertions** · **0 failures** ✅ |
+| 🔀 Net line growth | **+27,332** |
 
 > 🔁 **Self-reference.** The two files in `docs/` are part of the range they measure, so every
 > *aggregate* figure below includes them. Wherever that matters, the **code-only** subset
 > (everything except `docs/`) is given alongside it. Each table states which of the two it uses.
-> A previous revision advertised **52** commits and tip `ddbb7e14`; those were stale after the
-> GameSwitcher stride fixes. The headline is `git rev-list --count`.
+> A previous revision advertised **52** commits and tip `ddbb7e14`, then **56** / `82fab865`.
+> Those described the original port window. The headline is now `git rev-list --count`
+> through `921155e8` (**88**). Section 2 still lists the original 56 SHAs; Flip is row **+1**
+> below that table.
 
 ---
 
 ## 📋 Table of Contents
 
 1. [Headline Ratios](#-1-headline-ratios)
-2. [The 56 Commits](#-2-the-56-commits)
+2. [The original 56-commit window — plus Flip](#-2-the-original-56-commit-window--plus-flip)
 3. [Breakdown by Directory](#️-3-breakdown-by-directory)
 4. [Breakdown by Functional Category](#️-4-breakdown-by-functional-category)
 5. [Key Files](#-5-key-files)
@@ -40,7 +42,7 @@
 
 ## 📊 1. Headline Ratios
 
-*Shares are of the **aggregate** 27,234 insertions, `docs/` included (this refresh).*
+*Shares below still describe the original 56-commit window (27,234 insertions). Headline totals at the top of this file include later waves through `921155e8`.*
 
 | Metric | Value | Share |
 |:---|---:|---:|
@@ -60,11 +62,12 @@
 
 ---
 
-## 🔀 2. The 56 Commits
+## 🔀 2. The original 56-commit window — plus Flip
 
-*Ordered oldest → tip (`git log --reverse --oneline 07505ea5..HEAD`). File/+− columns are
-that commit's own `git show --shortstat`, not the running aggregate. Merge commits have
-no tree delta of their own.*
+*Rows 1–56 are the original port window (`07505ea5` → `82fab865`, authored 2026-08-20–24).
+File/+− columns are that commit's own `git show --shortstat`. Merge commits have no tree
+delta of their own. Later waves through `d820266` are narrated in the README timeline;
+the Flip port is appended as row 88.*
 
 | # | Hash | Subject | Files | +/− | Category |
 |:-:|:-----|:--------|------:|----:|:---------|
@@ -124,7 +127,9 @@ no tree delta of their own.*
 | 54 | [`e17c6a9b`](https://github.com/Amiga500/Onion/commit/e17c6a9b) | fix: correct GameSwitcher romscreen capture stride and blit | 3 | +70 / −17 | 🛡️ Fix |
 | 55 | [`82fab865`](https://github.com/Amiga500/Onion/commit/82fab865) | fix: GameSwitcher preview FB stride and stretch romscreens | 3 | +6 / −4 | 🛡️ Fix |
 | 56 | [`e0b6893c`](https://github.com/Amiga500/Onion/commit/e0b6893c) | docs: keep action_loadGame table row from splitting on GitHub | 1 | +1 / −1 | 📚 Docs |
-| | | **Aggregate `07505ea5` → this docs refresh** | **144** | **+27,234 / −811** | |
+| 88 | [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) | feat: port Miyoo Mini Flip + MainUI-285 from Onion v4.5-dev | 19 | +362 / −37 | 📱 Flip port |
+| | | **Aggregate original window `07505ea5` → `e0b6893c`** | **144** | **+27,234 / −811** | |
+| | | **Headline at `921155e8`** | **162** | **+28,272 / −940** | |
 
 > ℹ️ A previous revision of this table had **52 rows** and tip `ddbb7e14`.
 > Rows 25–29 are a remote experiment that was fully reverted — net zero in the tree.
@@ -293,6 +298,7 @@ exit code `0`, 2026-08-23), not from a static count.
 | After `bda89b2d` | **68** | **1,410** | ✅ `test_images_browser` re-enabled (3 tests / 22 assertions) |
 | After `ddbb7e14` | **68** | **1,410** | Release/OTA wiring; suite counts unchanged |
 | After `82fab865` | **68** | **1,410** | GameSwitcher stride/romscreen fixes; suite counts unchanged |
+| After `921155e8` | **68** | **1,412** | Flip: `test_device_model` +2 tests / +8 assertions. `test_settings` field only. Those two suites re-run green; full 68-suite harness not re-executed for this row. |
 
 The 17 intermediate suites:
 
@@ -335,16 +341,14 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 ```bash
 cd /path/to/Onion
 
-# Commit list and count (must be 56 at HEAD / 55 at code tip 82fab865)
+# Commit list and count (88 at HEAD / code tip 921155e8)
 git rev-list --count 07505ea5..HEAD
 git log --oneline --reverse 07505ea5..HEAD
 
-# Aggregate delta (docs refresh may add only docs/ lines on top of 82fab865)
-git diff --shortstat 07505ea5 HEAD            # 144 files, +27,234 / −811
-git diff --shortstat 07505ea5 HEAD -- src/    #  60 files,  +2,323 / −766
-git diff --shortstat 07505ea5 HEAD -- test/   #  75 files, +23,233 / −10
-git diff --shortstat 07505ea5 HEAD -- docs/   #   2 files,  (docs line count)
-git diff --shortstat 07505ea5 HEAD -- . ':!docs'  # 142 files, +25,668 / −811  (code only)
+# Flip commit alone
+git show --shortstat 921155e8                 # 19 files, +362 / −37
+
+# Aggregate delta (regenerate; do not assume the 56-commit-window numbers)
 
 # Added vs modified
 git diff --name-status 07505ea5 HEAD | awk '{print $1}' | sort | uniq -c
@@ -362,6 +366,5 @@ make unit-test
 actually do, with before/after code and performance figures.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Code tip [`82fab865`](https://github.com/Amiga500/Onion/commit/82fab865) (**56** commits at HEAD) ·
-Commits analyzed: **56** · All figures regenerated from `git` and a real `make unit-test` run
-on 2026-08-24.</sub>
+Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Code tip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) (**88** commits at HEAD) ·
+Headline figures refreshed 2026-08-28 · Section 2 rows 1–56 still describe the original port window · Flip suites re-run green.</sub>
