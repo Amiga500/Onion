@@ -1,9 +1,9 @@
 # 🕹️ OnionPlus — Optimizations at a Glance
 
 [![branch](https://img.shields.io/badge/branch-OnionPlus-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/OnionPlus)
-[![commits](https://img.shields.io/badge/commits-88-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![commits](https://img.shields.io/badge/commits-90-blueviolet?style=for-the-badge)](#-11--commit-timeline)
 [![files](https://img.shields.io/badge/files%20changed-162-blue?style=for-the-badge)](#-10--grand-totals)
-[![diff](https://img.shields.io/badge/diff-%2B28%2C272%20%2F%20%E2%88%92940-informational?style=for-the-badge)](./docs/OnionPlus-vs-base.md)
+[![diff](https://img.shields.io/badge/diff-%2B28%2C352%20%2F%20%E2%88%92976-informational?style=for-the-badge)](./docs/OnionPlus-vs-base.md)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
 [![tests](https://img.shields.io/badge/tests-1%2C412%20%2F%2071%2C393%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
@@ -38,18 +38,20 @@
 
 ## 🎯 Why this document exists
 
-OnionPlus started as a port of the NEON/hardening work from
-[OniOpus46](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) and has
-since grown its **own** independent optimization and hardening passes — a power/CPU batch,
-a full security review, a second hot-path review pass, an **AdvanceMENU** frontend pass
-(font fallback, PWM handling, script speedups, race-condition fixes), and (most recently) a
-third hardening review across `randomGamePicker`, `batteryMonitorUI`, `themeSwitcher`,
-`packageManager` and `gs_romscreen`, and a **surgical Miyoo Mini Flip port** from
-upstream `v4.5-dev` (`921155e8`) that keeps the OnionPlus hardening intact. Every one
-of these passes reaches existing installs through the built-in **OTA updater**, not
-just fresh flashes. This document groups
-**everything shipped to date** by *category* rather than by commit, so the shape of the
-work is visible at a glance.
+OnionPlus is measured against **[`OnionUI/Onion:main`](https://github.com/OnionUI/Onion/tree/main)**
+at merge-base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`4.4.0-beta`).
+That is the comparison that matters for this fork. Some NEON kernels and early hardening
+were first written elsewhere; every **percentage in this document is OnionPlus vs
+`OnionUI/Onion:main`**, not vs that sibling branch.
+
+On top of that base the branch adds its own power/CPU batch, security review, hot-path
+passes, an **AdvanceMENU** frontend pass, a **surgical Miyoo Mini Flip port** from
+`OnionUI/Onion:v4.5-dev` (`921155e8`) that does **not** merge that branch (and does
+**not** take [PR #1868](https://github.com/OnionUI/Onion/pull/1868) zip/7z ROM extract),
+and an **OnionUI-parity review** (charging-icon sentinel, RetroArch `killall` semantics,
+path bounds, rumble GPIO retry). Every pass reaches installs through the built-in
+**OTA updater** (`Amiga500/Onion`, assets `OnionPlus-v…`). This document groups
+**everything shipped to date** by *category* rather than by commit.
 
 ### 🔑 Reading the icons
 
@@ -60,15 +62,14 @@ work is visible at a glance.
 | 🟨 | **Incremental** win — smaller but still measurable saving |
 | 🟦 | **Robustness** — correctness / memory-safety fix, **no performance claim** |
 | 🟩 | **Quality floor** — tests, CI, tooling |
-| 📏 | Figure **measured on OniOpus46** for the identical code path (inherited evidence) |
+| 📏 | Speedup of the **OnionPlus** path vs the **`OnionUI/Onion:main`** equivalent |
 | 📐 | Figure **estimated analytically** (algorithmic complexity / syscall count) |
 | 🧪 | **Verified by unit test** in this repository |
 | 🛡️ | Correctness/safety fix carrying **no** performance claim |
 
-> ⚠️ No optimization in this document has been benchmarked **on a physical Miyoo Mini**.
-> 📏 entries are inherited from OniOpus46's own measurements of the same code; 📐 entries are
-> analytical. See [§10 of the deep-dive report](./docs/ONIONPLUS_OPTIMIZATION.md#-9-methodology--limits)
-> for the full methodology and caveats.
+> ⚠️ Percentages compare **OnionPlus code vs `OnionUI/Onion:main`** (`07505ea5`). They have
+> not been re-timed on a physical Miyoo as part of this fork. 📐 = analytical
+> (complexity / syscall count). See [methodology](./docs/ONIONPLUS_OPTIMIZATION.md#-9-methodology--limits).
 
 ---
 
@@ -146,10 +147,11 @@ work is visible at a glance.
 | 🔊 OSD volume/brightness bar thread | `usleep(100)` busy-wait (~10,000 loops/s) | `usleep(16000)` (~60 fps) | 🚀 **idle CPU ~10 % → <1 %** 📏 |
 | 🖼️ OSD overlay draw loop | full-throttle spin for the overlay's duration | `msleep(2)` per iteration + demoted logging | overlay CPU burn capped 📐 |
 | 🔌 `battery_isCharging()` (`HAS_AXP()` — MM+ and Flip) | `fork`+`exec` of `axp_test` every call (~5–10 ms) | 2 s cached wrapper | 🚀 **~−99 % subprocess spawns** 📐 |
+| 🔋 `battery_hasChanged` while charging | OnionPlus used to overwrite the `500` charging sentinel from `/tmp/percBat` | early-return like `OnionUI/Onion:main` (`500` stays while plugged in) | charging icon no longer drops after the first percBat tick 🛡️ |
 | 🪫 batmon low-battery thread | `usleep(0x4000)` (~16 ms) | `usleep(500000)` (500 ms) | 🚀 **~−97 % wake-ups** 📐 |
 | 💡 `display_setBrightnessRaw` | sysfs write on **every** call | cached, duplicate writes skipped | **−100 % duplicate PWM writes** 📏 |
 | ⏱️ batmon main loop | `config_get("battery/warnAt")` every tick | read only at check timeout | **−100 % hot-loop config reads** 📐 |
-| 📳 `rumble()` GPIO init | `export`+`direction` sysfs writes on **every** pulse | one-time init, value-only writes after | **−2 sysfs writes/pulse** 📏 |
+| 📳 `rumble()` GPIO init | `export`+`direction` sysfs writes on **every** pulse | one-time init + retry if `gpio48` missing, value-only writes after | **−2 sysfs writes/pulse** 📏 |
 | 🎮 GameSwitcher battery poll | `stat()` on `/tmp/percBat` every loop (~1 kHz) | checked once/second (matches batmon's write rate) | **~99.9 % fewer `stat` calls** 📐 |
 | 🔆 AdvanceMENU quick-switch (PWM) | backlight PWM always re-enabled on exit | re-enabled **only** when returning from a game (`quick_switch`) | fewer redundant PWM writes 📐 |
 
@@ -166,7 +168,7 @@ work is visible at a glance.
 | `file_copy()` | `system("cp -f …")` | `open`/`read`/`write` loop | **2 → 0 processes**, shell-injection surface closed |
 | `config.h` `_config_prepare` | `system("mkdir -p …")` | direct `mkdirs()` | **2 → 0 processes** |
 | GS overlay `playActivity` | `system("… &")` | double-fork + `execl` (async, no zombies) | 🚀 **−80 % process overhead** 📏 |
-| GS overlay RetroArch kill/poll | `killall` / `pidof` shell-outs | `process_kill_signal` / `process_isRunning` | **−100 % shell spawns** |
+| GS overlay RetroArch kill/poll | `killall` / `pidof` shell-outs | `process_killall_signal` / `process_isRunning` (all matching PIDs) | **−100 % shell, killall semantics restored** |
 | playActivity DB ops | 2× open/close per operation | 1× open/exec/close | **−50 % DB I/O** 📏 |
 | Reset paths (tweaks/theme/RA overrides) | `rm -rf` via `system()` | `nftw()`-based `file_remove_recursive()` | shell-free recursive delete |
 | 🕹️ AdvanceMENU romscripts | temp file written **CWD-relative** | temp file next to `advmenu.rc`, PID-suffixed | race condition + read-only-CWD failure fixed |
@@ -214,6 +216,9 @@ work is visible at a glance.
 - 🕹️ **AdvanceMENU biosset false positive** — indexing only `//game[@name]` so BIOS-set
   XML entries (which also carry a `name` attribute) no longer cause incompatible ROMs to
   be kept by mistake.
+- 🔋 **`battery_hasChanged` charging icon** — OnionPlus no longer lets `/tmp/percBat`
+  overwrite the `500` sentinel while the cable is plugged in. Matches
+  `OnionUI/Onion:main` early-return.
 - 🕹️ **AdvanceMENU `advmenu.rc` safety** — the rewrite script only overwrites the live
   config if **both** `grep` and `echo` succeeded; otherwise the partial temp file is
   removed and the original is left untouched.
@@ -301,9 +306,9 @@ work is visible at a glance.
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..HEAD`) | **88** |
+| 🔧 Commits (`07505ea5..HEAD`) | **90** |
 | 📁 Files changed | **162** |
-| ➕➖ Lines | **+28,272 / −940** |
+| ➕➖ Lines | **+28,352 / −976** *(review pass +80/−36 on 14 already-tracked files)* |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
 | 🧪 Test suites / tests / assertions | **68 / 1,412 / 71,393** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
@@ -320,7 +325,7 @@ work is visible at a glance.
 
 A bird's-eye view of the branch's evolution, oldest first:
 
-1. 🖼️ **NEON foundation** — pixel conversion kernels ported from OniOpus46.
+1. 🖼️ **NEON foundation** — vector kernels vs OnionUI scalar pixel loops.
 2. 🛡️ **Hardening wave** — crash/memory-safety port across the common layer.
 3. 🧪 **Test harness** — 68-suite host unit-test scaffold added from scratch.
 4. 📚 **Docs** — first optimization report published.
@@ -332,7 +337,8 @@ A bird's-eye view of the branch's evolution, oldest first:
 10. 🔎 **Review pass 2** — rumble caching, infoPanel image cache, GS battery-poll throttle, playActivityUI page cache, randomGamePicker dedup.
 11. 🕹️ **AdvanceMENU pass** — fonts, PWM handling, script speedups, race-condition and false-positive fixes ([PR #210](https://github.com/Amiga500/Onion/pull/210)).
 12. 🔎 **Review pass 3** — randomGamePicker division-by-zero guard, batteryMonitorUI/themeSwitcher NULL-asset & bounds hardening, packageManager NULL guard, gs_romscreen format-string fix.
-13. 📱 **Mini Flip port** — surgical carry of Miyoo Mini Flip + MainUI-285 from upstream `v4.5-dev` (`921155e8`); OnionPlus battery cache / `file_copy` reset / settings bounds kept.
+13. 📱 **Mini Flip port** — surgical carry of Miyoo Mini Flip + MainUI-285 from upstream `v4.5-dev` (`921155e8`); OnionPlus battery cache / `file_copy` reset / settings bounds kept. **PR #1868 not taken.**
+14. 🔎 **OnionUI-parity review** — restore `battery_hasChanged` early-return while charging; `process_killall` for RetroArch; `file_read("")` parity; rumble GPIO retry; remaining `sprintf` bounds on GS/chargingState; TTF cache cleanup on exit.
 
 > 🔍 Full SHA-by-SHA detail lives in
 > [§1 of the deep-dive report](./docs/ONIONPLUS_OPTIMIZATION.md#-1-commit-breakdown).
@@ -341,21 +347,21 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-OnionPlus is **88 commits** ahead of upstream `OnionUI/Onion:main`, spanning **8 vectorized
-NEON kernels**, a dozen algorithmic O(n²)→O(n) rewrites, five distinct render/UI caches, a
-whole power/battery optimization batch, a syscall diet that removed every avoidable
+OnionPlus is **90 commits** ahead of upstream `OnionUI/Onion:main` (`07505ea5`), spanning
+**8 vectorized NEON kernels**, a dozen algorithmic O(n²)→O(n) rewrites, five distinct
+render/UI caches, a power/battery batch, a syscall diet that removed every avoidable
 `system()` call from the hardened core, **six pre-existing upstream defects** closed, a
 **68-suite / 1,412-test / 71,393-assertion** host test harness that did not exist before
-this branch, a full **AdvanceMENU** hardening pass, and a **Miyoo Mini Flip** port from
-`v4.5-dev` that does **not** merge that branch wholesale. Base remains `4.4.0-beta`
-(`07505ea5`). Every category above is traceable to a real commit; see
-[`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md) for the evidence, before/after
-code, and honest limits behind each figure.
+this branch, a full **AdvanceMENU** hardening pass, a **Miyoo Mini Flip** port from
+`v4.5-dev` that does **not** merge that branch (and does not take PR #1868), and an
+**OnionUI-parity review** that put the charging-icon sentinel and RetroArch killall
+semantics back in line with upstream. Base remains `4.4.0-beta`. OTA stays on
+`Amiga500/Onion`. See [`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md).
 
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → code tip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) (**88** commits,
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → Flip code [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) + OnionUI-parity review (**90** commits,
 `git rev-list --count`) · Companion docs:
 [`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md) ·
 [`OnionPlus-vs-base.md`](./docs/OnionPlus-vs-base.md)</sub>

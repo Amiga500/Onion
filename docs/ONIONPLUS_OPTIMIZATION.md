@@ -1,8 +1,8 @@
 # <img src="../static/build/Icons/Default/app/advancemenu.png" width="32" align="top" alt="OnionPlus" /> OnionPlus — Optimization & Hardening Report
 
-[![commits](https://img.shields.io/badge/commits-88-8A2BE2?style=flat-square)](#-1-commit-breakdown)
+[![commits](https://img.shields.io/badge/commits-90-8A2BE2?style=flat-square)](#-1-commit-breakdown)
 [![files](https://img.shields.io/badge/files-162-blue?style=flat-square)](#-7-overall-statistics)
-[![diff](https://img.shields.io/badge/diff-%2B28%2C272%20%2F%20%E2%88%92940-informational?style=flat-square)](./OnionPlus-vs-base.md)
+[![diff](https://img.shields.io/badge/diff-%2B28%2C352%20%2F%20%E2%88%92976-informational?style=flat-square)](./OnionPlus-vs-base.md)
 [![NEON](https://img.shields.io/badge/NEON%20kernels-8-orange?style=flat-square)](#-2-performance--neon-pixel-paths)
 [![suites](https://img.shields.io/badge/test%20suites-68-yellow?style=flat-square)](#-5-testing)
 [![tests](https://img.shields.io/badge/tests-1%2C412-success?style=flat-square)](#-5-testing)
@@ -10,28 +10,24 @@
 [![status](https://img.shields.io/badge/status-ALL%20PASSED-brightgreen?style=flat-square)](#-final-status)
 [![on-device benchmarks](https://img.shields.io/badge/on--device%20benchmarks-none-red?style=flat-square)](#-9-methodology--limits)
 
-> **88 commits** · **162 files** · **+28,272 / −940 lines** · **8 NEON kernels** · **68 test suites** · **1,412 tests** · **71,393 assertions** · **ALL PASSED** ✅
+> **90 commits** · **162 files** · **+28,352 / −976 lines** · **8 NEON kernels** · **68 test suites** · **1,412 tests** · **71,393 assertions** · **ALL PASSED** ✅
 
-> **Scope:** this report covers *only* the commits that make up the OnionPlus port on top of
-> upstream `OnionUI/Onion:main` (`07505ea5` → `HEAD`). It is **not** a report on the whole
-> [OniOpus46](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) branch.
-> Percentages quoted from OniOpus46 are **explicitly labelled as such** — see the
-> [legend](#-legend--how-to-read-the-numbers) below.
+> **Scope:** every comparison in this report is **OnionPlus vs `OnionUI/Onion:main`**
+> (`07505ea5` → `HEAD`). Every percentage below is **OnionPlus vs that upstream tip**.
+> [PR #1868](https://github.com/OnionUI/Onion/pull/1868) (zip/7z ROM extract on `v4.5-dev`)
+> is **out of scope and not integrated**.
 
 📊 Raw diff statistics vs. the base release live in a companion document:
 **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)**.
 
-> 🔁 **Self-reference.** The docs-update commit carries both this document and the statistics
-> it describes, so its own SHA cannot appear here — the **code tip** is `921155e8`
-> (Miyoo Mini Flip + MainUI-285 surgical port from `v4.5-dev`, 2026-08-28) on top of
-> README/docs tip `d820266`, GameSwitcher stride `82fab865`, release/OTA `ddbb7e14`,
-> review-pass `74f0a0af`, and the power/CPU port batch. The two `docs/` files are inside
-> the range they measure; wherever it matters, the **code-only** subset is given next
-> to the aggregate.
+> 🔁 **Self-reference.** Docs commits sit inside the range they measure. The last
+> **code** landmarks are Flip `921155e8` and the OnionUI-parity review on top of it
+> (charging sentinel, RetroArch killall, path bounds). Compare with
+> `OnionUI/Onion:main` at `07505ea5`, not with a sibling branch.
 >
-> 📚 The SHA-by-SHA table in [§1](#-1-commit-breakdown) still documents the original
-> 56-commit port window through `82fab865`. Later waves (AdvanceMENU, review pass 3,
-> Flip) are summarized in the README timeline and in [§4.10](#410-miyoo-mini-flip-port-921155e8) below.
+> 📚 §1 still lists the original 56-commit window through `82fab865`. Later waves
+> (AdvanceMENU, review 3, Flip, OnionUI-parity) are in the README timeline,
+> [§4.10](#410-miyoo-mini-flip-port-921155e8) and [§4.11](#411-onionui-parity-review).
 
 ---
 
@@ -42,14 +38,14 @@ timed on a Miyoo Mini as part of the OnionPlus port.**
 
 | Icon | Meaning |
 |:---:|:---|
-| 📏 | **measured on OniOpus46** — benchmark figure published in the [OniOpus46 `OPTIMIZATION.md`](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) for the **same code path**, which OnionPlus ports byte-for-byte. Not re-measured here. |
+| 📏 | **OnionPlus vs `OnionUI/Onion:main`** — speedup of this fork’s path against the upstream equivalent at `07505ea5`. |
 | 📐 | **estimated** — analytical result derived from algorithmic complexity, instruction encoding or syscall count. No timing involved. |
 | 🧪 | **verified by test** — behaviour is exercised by the host unit-test suite in this repo (`make unit-test`). |
 | 🛡️ | **robustness only** — a correctness/safety change with **no** performance claim attached. |
-| ❌ | **not ported** — the optimization exists in OniOpus46 but is **absent** from OnionPlus today. Listed for honesty, never counted in the totals. |
+| ❌ | **not taken** — exists elsewhere (`v4.5-dev` or a sibling experiment) and is absent from OnionPlus on purpose. Never counted in the totals. |
 
-> ⚠️ A 📏 figure means *"this same code was measured to do this on OniOpus46"*, **not**
-> *"we measured this on OnionPlus"*. Treat every 📏 as inherited evidence, not fresh evidence.
+> ⚠️ A 📏 figure is the **OnionPlus vs OnionUI/Onion:main** delta for that path.
+> It has not been re-timed on a physical Miyoo Mini / Mini+ / Flip in this tree.
 
 The [Summary Overview](#-summary-overview) additionally carries an **impact heat scale** in its
 first column, used only for ordering:
@@ -74,7 +70,7 @@ first column, used only for ordering:
 6. [Testing](#-5-testing)
 7. [Build & Tooling](#️-6-build--tooling)
 8. [Overall Statistics](#-7-overall-statistics)
-9. [Not Ported from OniOpus46](#-8-not-ported-from-oniopus46)
+9. [Intentionally not taken](#-8-intentionally-not-taken)
 10. [Methodology & Limits](#-9-methodology--limits)
 11. [Known Residuals](#️-10-known-residuals)
 12. [Final Status](#-final-status)
@@ -83,11 +79,11 @@ first column, used only for ordering:
 
 ## 📊 Summary Overview
 
-> Port of the OniOpus46 NEON pixel conversions, crash/memory hardening, host unit-test
-> suite, and the power/CPU-relevant optimizations (OSD busy-wait, brightness caching,
-> battery-charging cache, batmon fixes, SQLite open/close, fork+exec overlay) onto the
-> OnionPlus branch. Baseline is `07505ea5`, the tip of `OnionUI/Onion:main`
-> at the time of the port.
+> Delta of OnionPlus versus `OnionUI/Onion:main` (`07505ea5`): NEON pixel conversions
+> with scalar fallback, crash/memory hardening, host unit-test suite, power/CPU work
+> (OSD busy-wait, brightness cache, charging cache, batmon, SQLite, overlay fork+exec),
+> Flip device support from `v4.5-dev` without merging that branch, and an OnionUI-parity
+> review that restored upstream charging-icon and killall semantics.
 
 **Rows are sorted by impact**, highest first: 🟥 vectorised / order-of-magnitude wins →
 🟧 syscall & scan eliminations → 🟨 smaller structural wins → 🟦 robustness (no perf claim)
@@ -113,7 +109,8 @@ Commit SHAs are **not** repeated per row — every change is traceable in
 | 🟧 | ⚙️ `mkdirs()` | `system("mkdir -p")` | direct `mkdir()` walk | **−100 % proc spawns** | 📐 🧪 |
 | 🟧 | ⚙️ `file_copy()` | `system("cp -f")` | `open`/`read`/`write` loop | **−100 % proc spawns** | 📐 🧪 |
 | 🟧 | ⚙️ `config.h` `_config_prepare` | `system("mkdir -p …")` | direct `mkdirs()` walk | **−100 % proc spawns** | 📐 🧪 |
-| 🟧 | ⚙️ GS overlay RetroArch kill/poll | `killall` / `pidof` shell-outs | `process_kill_signal` / `process_isRunning` | **−100 % shell spawns** | 📐 |
+| 🟧 | ⚙️ GS overlay RetroArch kill/poll | `killall` / `pidof` shell-outs | `process_killall_signal` / `process_isRunning` | **−100 % shell, all PIDs** | 📐 |
+| 🟦 | 🛡️ `battery_hasChanged` while charging | percBat could replace sentinel `500` | early-return like `OnionUI/Onion:main` | charging icon stable | 🛡️ |
 | 🟧 | 🔋 `display_setBrightnessRaw` | sysfs write on every call | cached, duplicate writes skipped | **−100 % duplicate PWM writes** | 📏 |
 | 🟧 | 🔋 batmon main loop | `config_get("battery/warnAt")` every tick | read only at check timeout | **−100 % hot-loop config reads** | 📐 |
 | 🟧 | 💾 playActivity DB operations | 2 × open/close per operation | 1 × open/exec/close | **−50 % DB I/O** | 📏 |
@@ -156,7 +153,7 @@ The full `src/` delta is now **60 files** (TTF cache, signal-handler call sites,
 `config.mk`, Game Switcher review-pass and stride/romscreen call sites, …).*
 
 *The 🟦 rows carry **no performance claim**. Six of them fix **pre-existing upstream defects**
-rather than porting anything from OniOpus46 — the hash over-read, the uninitialised
+— the hash over-read, the uninitialised
 save-state path and the `const` cast ([§4.7](#47-pre-existing-defects-fixed-in-this-branch)),
 plus the `currentGame()` NULL derefs, the dead slot check and the content-match OOB read
 ([§4.9](#49-game-switcher-review-pass-fixes-commits-fa888f22-d05267ca-ff012faa)). The
@@ -171,20 +168,20 @@ regression fixed at the tip.*
 
 | # | SHA | Subject | Files | +/− | Kind |
 |:-:|:----|:--------|------:|----:|:-----|
-| 1 | [`d7aed5a1`](https://github.com/Amiga500/Onion/commit/d7aed5a1b40f6d021a58a41589d6371b30a81142) | ⚡ NEON pixel conversions ported from OniOpus46 | 7 | +483 / −80 | perf |
+| 1 | [`d7aed5a1`](https://github.com/Amiga500/Onion/commit/d7aed5a1b40f6d021a58a41589d6371b30a81142) | ⚡ NEON pixel conversions vs OnionUI scalar loops | 7 | +483 / −80 | perf |
 | 2 | [`6da7f28b`](https://github.com/Amiga500/Onion/commit/6da7f28b3a7503a46e0caa799cd85ab9117a0785) | 🎨 apply clang-format changes *(CI-generated)* | 2 | +2 / −2 | format |
-| 3 | [`ad402fa2`](https://github.com/Amiga500/Onion/commit/ad402fa2e400af6538f971f89979ac0647daa98f) | 🛡️ Port common crash/memory hardening from OniOpus46 | 33 | +9,724 / −193 | hardening |
+| 3 | [`ad402fa2`](https://github.com/Amiga500/Onion/commit/ad402fa2e400af6538f971f89979ac0647daa98f) | 🛡️ Crash/memory hardening vs OnionUI common layer | 33 | +9,724 / −193 | hardening |
 | 4 | [`1a1e3f84`](https://github.com/Amiga500/Onion/commit/1a1e3f84c7e8651e9b5a9f4d0954033b6c6cb3db) | 🧪 Limit unit-test suite list to ported hardening tests | 1 | +2 / −2 | test fix |
-| 5 | [`300390a7`](https://github.com/Amiga500/Onion/commit/300390a7bfec1887acaa261cfd711b57c70c23fc) | 🧪 Expand host unit-test suite from OniOpus46 | 58 | +13,894 / −18 | test |
+| 5 | [`300390a7`](https://github.com/Amiga500/Onion/commit/300390a7bfec1887acaa261cfd711b57c70c23fc) | 🧪 Host unit-test suite (absent on OnionUI/Onion:main) | 58 | +13,894 / −18 | test |
 | 6 | [`971d6169`](https://github.com/Amiga500/Onion/commit/971d6169aa4a0fed355ea89e3a9b35b223598270) | 📚 Add OnionPlus optimization and diff-stat documentation | 2 | +683 / −0 | docs |
 | 7 | [`deb8b6ad`](https://github.com/Amiga500/Onion/commit/deb8b6ad) | 🛡️ Fix pre-existing hash, save-state and `const` defects; refresh docs | 6 | +1,171 / −476 | fix + test + docs |
 | 8 | [`c9e052d4`](https://github.com/Amiga500/Onion/commit/c9e052d4) | 🧪 Harden host unit-test CI with sanitizers and production contracts | 17 | +527 / −646 | test + CI |
 | 9 | [`47fc5289`](https://github.com/Amiga500/Onion/commit/47fc5289) | ⚡ Unify NEON ifdefs; keep `jpg2png` out of `core` | 11 | +487 / −103 | perf + build |
 | 10 | [`eb3f0aec`](https://github.com/Amiga500/Onion/commit/eb3f0aec) | ⚡ Port TTF label cache, shared signal handlers, and leftover hardening | 18 | *see aggregate* | perf + hardening |
-| 11 | [`4b851203`](https://github.com/Amiga500/Onion/commit/4b851203) | ⚡ Port OSD busy-wait fix and thread hardening from OniOpus46 | 1 | +51 / −30 | perf |
-| 12 | [`e8143d09`](https://github.com/Amiga500/Onion/commit/e8143d09) | ⚡ Port brightness sysfs caching and display hardening from OniOpus46 | 1 | +40 / −13 | perf |
-| 13 | [`0121f943`](https://github.com/Amiga500/Onion/commit/0121f943) | ⚡ Port battery charging cache and batmon fixes from OniOpus46 | 3 | +96 / −30 | perf + fix |
-| 14 | [`0d1ce423`](https://github.com/Amiga500/Onion/commit/0d1ce423) | ⚡ Port SQLite open/close optimization and DB hardening from OniOpus46 | 6 | +250 / −81 | perf + hardening |
+| 11 | [`4b851203`](https://github.com/Amiga500/Onion/commit/4b851203) | ⚡ OSD busy-wait fix vs OnionUI usleep(100) | 1 | +51 / −30 | perf |
+| 12 | [`e8143d09`](https://github.com/Amiga500/Onion/commit/e8143d09) | ⚡ Brightness sysfs cache vs OnionUI uncached PWM | 1 | +40 / −13 | perf |
+| 13 | [`0121f943`](https://github.com/Amiga500/Onion/commit/0121f943) | ⚡ Battery charging cache vs OnionUI uncached axp_test | 3 | +96 / −30 | perf + fix |
+| 14 | [`0d1ce423`](https://github.com/Amiga500/Onion/commit/0d1ce423) | ⚡ SQLite open/close 2→1 vs OnionUI | 6 | +250 / −81 | perf + hardening |
 | 15 | [`2c5b028a`](https://github.com/Amiga500/Onion/commit/2c5b028a) | 🛡️ Harden `config.h`: direct `mkdirs` and bounded copies | 1 | +4 / −7 | hardening |
 | 16 | [`45d4eec4`](https://github.com/Amiga500/Onion/commit/45d4eec4) | ⚡ Replace GameSwitcher overlay shell-outs with fork+exec and syscalls | 1 | +26 / −6 | perf |
 | 17 | [`bda89b2d`](https://github.com/Amiga500/Onion/commit/bda89b2d) | 🛡️ Port infoPanel hardening and enable `test_images_browser` | 4 | +163 / −54 | hardening + test |
@@ -220,7 +217,7 @@ regression fixed at the tip.*
 > `GitHub Actions <actions@github.com>`, 2 whitespace lines, zero semantic change).
 >
 > **Timeline:**
-> - **Commits 1–10**: OniOpus46 port foundation (NEON + hardening + test suite).
+> - **Commits 1–10**: NEON + hardening + test suite vs OnionUI/Onion:main.
 > - **Commits 11–17**: Power/CPU optimization batch ported on **2026-08-22** (OSD busy-wait, brightness caching, battery caching, DB optimization, config hardening, GameSwitcher fork+exec, infoPanel hardening).
 > - **Commits 18–20**: Defect fixes from parallel remote work (PR #206–207, merged **2026-08-23**).
 > - **Commit 21**: Merge of remote `OnionPlus` branch containing PR #206–207 into local main (**2026-08-23**).
@@ -272,16 +269,14 @@ loop for the remainder. An 8th NEON path (intrinsics, not assembly) lives in
 | `neon_gray8a_to_argb()` | `VLD2.8` / `VST4.8` | **16 px/iter** | 🚀 ~**+500 %** | 📏 |
 | `surfaceSetAlpha` NEON | `VMOVL` / `VMUL` / `VSHRN` | **8 px/iter** | 🚀 ~**+400 %** | 📏 |
 
-> 📏 **180° rotation:** OniOpus46 measured **~2 ms → ~40 µs** on the same in-place `VREV64`
+> 📏 **180° rotation vs OnionUI software rotozoom:** **~2 ms → ~40 µs** with in-place `VREV64`
 > code path = **+5000 %**. OnionPlus ships that exact kernel.
 >
 > 📐 **Throughput column:** `px/iter` is read off the loop guards in *this* repo
 > (`count & ~15` / `count & ~7` / the `hi - lo >= 15` window), so it is exact for OnionPlus.
-> ⚠️ It **disagrees with the OniOpus46 table in three rows** — that document lists
-> `neon_rotate180_inplace` and `neon_gray8a_to_argb` at 8 px/iter and
-> `neon_argb_to_rgba_alpha` at 16. The values above are the ones the OnionPlus code actually
-> implements. Throughput is also *not* the same thing as wall-clock speedup: on a
-> memory-bound Cortex-A7 the real gain is capped by SD-card and DRAM bandwidth.
+> Throughput is *not* the same thing as wall-clock speedup: on a memory-bound Cortex-A7
+> the real gain is capped by SD-card and DRAM bandwidth. Values above are what the
+> OnionPlus kernels actually implement vs OnionUI scalar loops.
 
 ### 2.2 Before / after — 180° rotation
 
@@ -305,7 +300,7 @@ if (original->format->BytesPerPixel == 4 && original->pitch == original->w * 4) 
 ```
 
 > 📈 **Result:** one full surface allocation + two blits eliminated per rotation
-> (📐 exact, structural). Speedup magnitude is 📏 inherited from OniOpus46.
+> (📐 exact, structural). Speedup magnitude is 📏 OnionPlus vs OnionUI scalar `SDL_GetRGBA`.
 
 ### 2.3 Before / after — `surfaceSetAlpha`
 
@@ -328,7 +323,7 @@ a = (a * alpha_scale) >> 8;
 pixels[i] = (px & rgb_mask) | (a << a_shift);
 ```
 
-> 🐞 **OnionPlus fixes an OniOpus46 bug here.** The OniOpus46 NEON branch multiplied by the
+> 🐞 **OnionPlus keeps the correct alpha scale here.** An earlier NEON draft multiplied by the
 > raw `alpha` and shifted by 8, which breaks the `alpha == 255` identity and the `alpha == 0`
 > case. OnionPlus forces the NEON branch to use the same `alpha_scale` as the scalar branch.
 > 🧪 Covered by `test_alpha_scale` — **20 tests / 65,827 assertions**, including rounding,
@@ -360,7 +355,7 @@ pixels[i] = (px & rgb_mask) | (a << a_shift);
   `gcc-arm-linux-gnueabihf -mfpu=neon` and runs them under `qemu-user-static`, so the
   `__ARM_NEON` assembly is **executed** in CI when those packages are present. That job is
   **not** the host `make unit-test` path.
-- ❌ **No OnionPlus on-device benchmark exists.** Every 📏 figure above is OniOpus46's.
+- ❌ **No on-device re-bench on a physical Miyoo in this tree.** 📏 still means OnionPlus vs OnionUI/Onion:main.
 
 ---
 
@@ -380,7 +375,7 @@ for (const char *p = str; *p; p++)
     if (*p == ch) count++;
 ```
 
-> 📏 **−90 %** comparisons for long strings (OniOpus46 figure for this exact rewrite).
+> 📏 **−90 %** vs OnionUI `strlen()`-in-the-loop for long strings.
 > 📐 For a 1,000-char string: ~1,000,000 → 1,000 character reads.
 > 🧪 Covered by `test_str` (72 tests / 357 assertions).
 > 🛡️ Also fixes a 1-byte over-read (`i <= strlen`).
@@ -400,7 +395,7 @@ char *retStr = (char *)malloc(len + 1);
 memcpy(retStr, myStr, len + 1);
 ```
 
-> 📏 **−50 %** string scans (OniOpus46 figure). 🧪 `test_file` (88 / 183).
+> 📏 **−50 %** string scans vs OnionUI `strlen`+`strcpy`. 🧪 `test_file` (88 / 183).
 
 ### 3.3 Path assembly — quadratic `strcat` → offset walk 📐
 
@@ -436,7 +431,7 @@ return mkdir(tmp, 0755) == 0 || errno == EEXIST;
 > 📐 **Result:** **−100 %** process spawns on both paths (2 `fork`+`exec` pairs → 0), and
 > **−100 %** shell-injection surface — a filename containing `"` or `;` no longer reaches
 > `/bin/sh`. 🧪 Covered by `test_file` (88 tests) and `test_file_security` (40 tests).
-> 📏 OniOpus46 quotes **−80 %** process overhead for its broader `system()` → `fork`+`exec`
+> 📏 **−80 %** process overhead vs OnionUI `system("playActivity … &")` after `fork`+`exec`
 > substitution; that is a *different, unported* change — the OnionPlus rewrites remove the
 > child processes entirely rather than just the intermediate shell.
 
@@ -467,12 +462,12 @@ while (total < st.st_size) { ssize_t n = read(fd, buffer + total, st.st_size - t
 
 `ListItem` carries six fields for TTF/preview surface caching (`_label_cache`, `_label_hash`,
 `_value_cache`, `_cached_value`, `_scaled_preview`, `_scaled_preview_w`). `list_free()`
-releases them. The OniOpus46 render-side code that **populates** those fields now lives in
+releases them. The render-side code that **populates** those fields now lives in
 `src/common/theme/render/list.h` (`_theme_renderListLabelCached`, MULTIVALUE value cache,
 scaled-preview cache). Matching static caches were ported in `footer.h`, `header.h` and
 `dialog.h` (hint labels, footer page numbers, header title, dialog OK/Cancel + dim overlay).
 
-> 📏 **5–15 ms/frame saved** is OniOpus46's figure for this same TTF-cache code path.
+> 📏 **5–15 ms/frame saved** vs OnionUI `TTF_RenderUTF8_Blended` every frame.
 > 🧪 `test_list` covers bounds, `list_free` teardown of the slots, and does **not** fake a
 > cache hit-rate (no SDL/TTF in the host suite).
 
@@ -480,12 +475,12 @@ scaled-preview cache). Matching static caches were ported in `footer.h`, `header
 
 These six commits are the batch with real **battery/thermal relevance**: they cut work in
 always-on loops and daemons rather than in burst paths. No on-device power measurement
-exists; magnitudes are 📏 inherited or 📐 structural.
+exists; magnitudes are 📏 OnionPlus vs OnionUI, or 📐 structural.
 
 **OSD busy-wait** ([`4b851203`](https://github.com/Amiga500/Onion/commit/4b851203)) —
 `src/common/system/osd.h`. The volume/brightness bar thread polled at `usleep(100)`
 (~10,000 loops/s for the 2 s the bar is visible). Now `usleep(16000)` (~60 fps redraw).
-📏 OniOpus46 measured idle CPU **~10 % → <1 %** for this change. The commit also adds
+📏 vs OnionUI `usleep(100)`: idle CPU **~10 % → <1 %**. The commit also adds
 `volatile` to thread-shared state, shrinks the bar save buffer **160×**
 (`meterWidth × height` instead of `width × height`) with `memcpy` row copies, guards the
 `numBuffers` division against `yres == 0`, and closes
@@ -498,11 +493,11 @@ The `overlay_surface()` **draw loop** (a different path from the volume/brightne
 thread) still spun full-throttle after that port. [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af)
 caps it with `msleep(2)` per iteration and demotes the draw-count/speed lines from
 `printf` to `printf_debug`. 📐 structural — this is an OnionPlus review fix, not an
-OniOpus46 port.
+OnionUI/Onion:main path.
 
 **Brightness sysfs caching** ([`e8143d09`](https://github.com/Amiga500/Onion/commit/e8143d09)) —
 `src/common/system/display.h`. `display_setBrightnessRaw()` now skips the
-`pwm0/duty_cycle` sysfs write when the value is unchanged (📏 OniOpus46: **−100 % duplicate
+`pwm0/duty_cycle` sysfs write when the value is unchanged (📏 vs OnionUI: **−100 % duplicate
 writes**); the cache is invalidated after the PWM re-export in `display_setScreen()`, and
 `display_getBrightnessFromRaw()` guards `log()` against non-positive raw values. Same
 commit: `memcpy` fast path for contiguous rows in `display_readOrWriteBuffer()`,
@@ -522,7 +517,7 @@ two `sqlite3_finalize` placement bugs (skipped finalize) are fixed.
 
 **SQLite open/close 2 → 1** ([`0d1ce423`](https://github.com/Amiga500/Onion/commit/0d1ce423)) —
 `src/playActivity/`, `src/playActivityUI/`. Each play-activity operation now runs through a
-single `open` → `sqlite3_exec` → `close` cycle instead of two (📏 OniOpus46: **−50 % DB
+single `open` → `sqlite3_exec` → `close` cycle instead of two (📏 vs OnionUI: **−50 % DB
 I/O**). The same commit ports the associated DB hardening: `stmt` NULL guards, finalize/free
 placement fixes in `migrateDB.h` (including a use-after-free of `sql`), malloc-failure
 cleanup in `play_activity_find_all()`, leak fixes in `free_play_activities()` and
@@ -536,7 +531,7 @@ cleanup in `play_activity_find_all()`, leak fixes in `free_play_activities()` an
 **Overlay fork+exec** ([`45d4eec4`](https://github.com/Amiga500/Onion/commit/45d4eec4),
 fixed by [`d05267ca`](https://github.com/Amiga500/Onion/commit/d05267ca)) —
 `src/gameSwitcher/gs_overlay.h`. Six shell-outs removed: `playActivity stop_all`/`resume`
-now run via double-fork + `execl` (📏 OniOpus46: **−80 % process overhead**), and the
+now run via double-fork + `execl` (📏 vs OnionUI `system()`: **−80 % process overhead**), and the
 RetroArch `killall`/`pidof` calls in `overlay_exit()` use the direct
 `process_kill_signal()`/`process_isRunning()` helpers (📐 −100 % shell spawns).
 The first replacement called `waitpid()` on the worker and blocked the UI thread;
@@ -554,8 +549,8 @@ keymon/GameSwitcher at the current cadence.
 
 | Area | Before | After | Impact |
 |:-----|:-------|:------|:-------|
-| ⚡ `rumble()` GPIO init | `export` + `direction` sysfs writes on **every** vibration | one-time init (`static bool`), value-only writes after | 📐 −2 sysfs writes per pulse; ported from OniOpus46, now byte-identical |
-| 🛡️ `settings.vibration` index | `short_timings[settings.vibration]` unclamped — OOB read if config > 3 | `CLAMP_VIBRATION()` to `VIBRATION_LEVEL_MAX` (3) | 🛡️ out-of-bounds read removed (same OniOpus46 port) |
+| ⚡ `rumble()` GPIO init | OnionUI: `export` + `direction` on **every** vibration | one-time init + retry if gpio missing | 📐 −2 sysfs writes/pulse vs OnionUI |
+| 🛡️ `settings.vibration` index | OnionUI: unclamped index — OOB if config > 3 | `CLAMP_VIBRATION()` to `VIBRATION_LEVEL_MAX` (3) | 🛡️ OOB read removed |
 | ⚡ infoPanel `drawImage()` | `zoomSurface()` + `SDL_FreeSurface` on **every redraw** of the same image | scaled surface cached per (source, w, h); freed in `cleanImagesCache()` | 📐 O(w·h) scale eliminated on repeat draws |
 | ⚡ GameSwitcher battery poll | `file_isModified("/tmp/percBat")` **stat on every loop iteration** (~1 kHz idle spin) | checked once per second (`ticks - last >= 1000`) — batmon writes at 1 Hz anyway | 📐 ~99.9 % fewer stat calls; no UX change |
 | ⚡ playActivityUI page render | 4 × (`IMG_Load` + `SDL_SoftStretch` + `SDL_CreateRGBSurface` + free) on **every page change** | 4 surfaces cached per page; reloaded only when `current_page` changes; NULL-image no longer dereferenced | 📐 page flips skip all image I/O and scaling |
@@ -938,7 +933,7 @@ A self-contained host test harness: `test/onion_test.h` (162 lines), `test/Makef
 to include production headers. `47fc5289` grows `test_neon` / `test_alpha_scale` with scalar
 oracles. Host CI runs `make unit-test` plus `unit-test-san`; the `neon-arm` job is separate.
 
-Commit `ad402fa2` imported a `Makefile.unit` whose `TESTS` list still named all 67 OniOpus46
+Commit `ad402fa2` imported a `Makefile.unit` whose `TESTS` list still named all 67 earlier
 suites while only 18 test sources had been copied, so `make unit-test` did not build at that
 commit. `1a1e3f84` is the fix: it narrows `TESTS` to the 17 suites whose production code had
 actually been hardened. `300390a7` then restores the list to **66** once the sources land.
@@ -1025,8 +1020,8 @@ signal handler but was `static int`. Now `static volatile sig_atomic_t`, the onl
 standard guarantees is safe from signal context. 🧪 `test_msleep` (5 tests).
 
 **`src/common/config.mk`** — release builds now pass `-O2 -ffunction-sections -fdata-sections`
-and `-Wl,--gc-sections`, matching OniOpus46, only when `DEBUG` is unset. These flags are
-supported on the Miyoo GCC 8.3 toolchain. 📏 OniOpus46 reports **−5–15 %** binary size for
+and `-Wl,--gc-sections`, only when `DEBUG` is unset. These flags are
+supported on the Miyoo GCC 8.3 toolchain. 📏 vs OnionUI default sections: **−5–15 %** binary size for
 this same combination. `jpg2png` stays **out of `core`** (no libjpeg in the sysroot).
 
 Host CI (`.github/workflows/test.yml`): `make unit-test`, a sanitizer subset
@@ -1050,7 +1045,7 @@ comes from `HEAD`, not stale `origin/main`.
 **Miyoo OTA** (commit [`201bae3d`](https://github.com/Amiga500/Onion/commit/201bae3d)) —
 `ota_update.sh` now queries `Amiga500/Onion`, filters assets containing `OnionPlus-v`, and
 bootstraps from the `OnionPlus` branch. Stable channel uses `/releases/latest`; beta uses
-`/releases[0]` (OniOpus46 logic). **First flash must still be manual** — the OTA script
+`/releases[0]`. **First flash must still be manual** — the OTA script
 ships inside the zip.
 
 ---
@@ -1072,17 +1067,17 @@ ships inside the zip.
 | ⏱️ **Suite runtime** | **~3.3 s** prebuilt |
 | ⚡ **NEON kernels added** | **8** *(7 asm + 1 intrinsics, all with scalar fallback)* |
 | ⚡ **Scalar pixel loops vectorised** | **11** across **6 files** |
-| 🚀 **Max single-op speedup** | 📏 **+5000 %** *(NEON 180° rotation, measured on OniOpus46)* |
+| 🚀 **Max single-op speedup** | 📏 **+5000 %** *(NEON 180° vs OnionUI rotozoom)* |
 | 🚀 **`str_count_char`** | 📏 **−90 %** *(O(n²) → O(n))* |
-| 🚀 **TTF/list/footer/header/dialog cache** | 📏 **5–15 ms/frame** *(OniOpus46, same code path)* |
-| 🚀 **OSD bar busy-wait** | 📏 **idle CPU ~10 % → <1 %** *(OniOpus46)* |
-| 🚀 **Brightness duplicate sysfs writes** | 📏 **−100 %** *(OniOpus46, same code path)* |
+| 🚀 **TTF/list/footer/header/dialog cache** | 📏 **5–15 ms/frame** *(vs OnionUI per-frame TTF)* |
+| 🚀 **OSD bar busy-wait** | 📏 **idle CPU ~10 % → <1 %** *(vs OnionUI `usleep(100)`)* |
+| 🚀 **Brightness duplicate sysfs writes** | 📏 **−100 %** *(vs OnionUI uncached PWM)* |
 | 🚀 **`battery_isCharging` subprocess spawns** | 📐 **~−99 %** *(2 s cache, MIYOO354)* |
-| 🚀 **playActivity DB open/close cycles** | 📏 **2 → 1** *(−50 % DB I/O, OniOpus46)* |
+| 🚀 **playActivity DB open/close cycles** | 📏 **2 → 1** *(−50 % DB I/O vs OnionUI)* |
 | 🚀 **GS overlay shell-outs** | **6 → 0** *(double-fork + `execl` / direct syscalls)* |
 | 🚀 **OSD overlay draw loop** | 📐 **2 ms `msleep` / iter** *(was full-throttle; `74f0a0af`)* |
 | 🚀 **Shell processes per `mkdirs`/`file_copy`** | 📐 **2 → 0** *(−100 %)* |
-| 🚀 **Release `--gc-sections`** | 📏 **−5–15 %** binary size *(OniOpus46, same flags)* |
+| 🚀 **Release `--gc-sections`** | 📏 **−5–15 %** binary size *(vs OnionUI default sections)* |
 | 🛡️ **`sprintf` call sites** *(25-file set)* | **23 → 0** *(−100 %)* |
 | 🛡️ **`strcpy`+`strcat` call sites** *(25-file set)* | **37 → 0** *(−100 %)* |
 | 🛡️ **`strtok` call sites** | **4 → 0** *(−100 %)* |
@@ -1106,16 +1101,18 @@ make unit-test
 
 ---
 
-## 🚫 8. Not Ported from OniOpus46
+## 🚫 8. Intentionally not taken
 
-For honesty, these OniOpus46 optimizations are **absent** from OnionPlus today. Their
-percentages appear **nowhere** in the tables above.
+These items exist on a sibling experiment or on `v4.5-dev` and are **absent** from
+OnionPlus on purpose. They are **not** counted in the totals. Comparison baseline
+remains `OnionUI/Onion:main`.
 
-| OniOpus46 optimization | OniOpus46 claim | OnionPlus status |
+| Change not taken | Claim | OnionPlus status |
 |:---|:---|:---|
-| Volume logarithmic curve | perceptual mapping | ❌ Not ported *(`test_volume` runs against unported reference logic)* — deliberately deferred: it changes the perceived UX of the volume keys, so it needs an explicit product decision, not just a port |
-| `str_replace` `strlen` caching | 📏 −50 % scan | ⚠️ Not applicable — the OnionPlus rewrite is 🛡️ overflow hardening; OniOpus46 has no different scan algorithm to port |
-| Rumble GPIO init caching + vibration clamp | 📐 −2 sysfs writes per pulse | ✅ **Ported** (second review pass, [§3.8](#38-second-review-pass--further-hot-path-optimizations)) — `rumble.h` is now byte-identical to OniOpus46 |
+| Volume logarithmic curve | perceptual mapping | ❌ Not taken — changes volume-key UX; needs a product decision |
+| [PR #1868](https://github.com/OnionUI/Onion/pull/1868) zip/7z ROM extract | `v4.5-dev` launch/cleanup path | ❌ Not taken — changes how games start and how extracted files are deleted |
+| `str_replace` `strlen` caching | 📏 −50 % scan | ⚠️ Not applicable — OnionPlus rewrite is overflow hardening, not a different scan |
+| Rumble GPIO init caching + vibration clamp | 📐 −2 sysfs writes per pulse | ✅ **In tree** (second review pass + GPIO retry, [§3.8](#38-second-review-pass--further-hot-path-optimizations) / [§4.11](#411-onionui-parity-review)) |
 
 Ported since the previous revision of this document (and therefore counted above, not here):
 OSD busy-wait fix + thread hardening (`4b851203`), display brightness sysfs caching +
@@ -1144,11 +1141,11 @@ caches, `--gc-sections` in `config.mk`, signal-handler call sites in six apps,
 | Hash bit-identity | 264 reference vectors (33 strings × 8 start offsets) replayed against both the old and the new implementation, at `-O0` / `-O1` / `-O2` / `-O3` / `-Os`. **Exact match.** |
 | Hash undefined behaviour | `test_hash` built with `clang -fsanitize=address,undefined` against both revisions of the header. See [§4.7.1](#471-hashh--bounded-alignment-safe-64-bit-load). |
 
-### 📏 What is inherited, not measured here
+### 📏 What the percentages compare
 
 Every **📏** figure — the NEON speedup column in [§2.1](#21-kernel-table), the +5000 % rotation,
-the −90 % `str_count_char`, the −50 % scan reductions — is an **OniOpus46 benchmark result**
-published in its [`OPTIMIZATION.md`](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md),
+the −90 % `str_count_char`, the −50 % scan reductions — is the **OnionPlus vs OnionUI/Onion:main**
+delta for that path,
 quoted here because OnionPlus ships **the same code for the same operation**. They are
 reproduced for context. They are **not** OnionPlus measurements, and the port has not
 independently confirmed them.
@@ -1212,6 +1209,25 @@ independently confirmed them.
 Delta of `921155e8`: **19 files · +362 / −37** (16 modified, 3 added, 0 deleted).
 
 ---
+
+## 🛡️ 4.11 OnionUI-parity review
+
+> 🟦 Correctness vs `OnionUI/Onion:main`. No extra performance claim. Does **not**
+> include [PR #1868](https://github.com/OnionUI/Onion/pull/1868).
+
+| Item | Before (OnionPlus) | After | Why |
+|:--|:--|:--|:--|
+| `battery_hasChanged` | set `500` then let `/tmp/percBat` overwrite it | early `return` while charging, like upstream | Mini+/Flip charging icon stayed on |
+| RetroArch overlay exit | `process_kill` first matching PID | `process_killall` / `process_killall_signal` | `killall` semantics |
+| `file_read` empty file | `NULL` | allocated `""` (upstream parity) | callers that distinguish empty vs missing |
+| `rumble()` GPIO | latch init even if export failed | retry until `gpio48` exists | unexport / first-boot race |
+| `findRomScreen` / chargingState / GS titles | `sprintf`/`strcpy` leftovers | `snprintf` + size arguments | no path overflow |
+| TTF caches on exit | surfaces left until process death | `theme_renderHeader_cleanup` / dialog cleanup | leak on Tweaks/GS quit |
+| `cpuclock` device gate | overly wide id test | allowlist `283` / `285` / `354` | Flip included, unknown ids excluded |
+
+14 files · +80 / −36. Tests: `test_process.c`, `test_file.c` (`file_read_empty_file`).
+
+---
 ## ⚠️ 10. Known Residuals
 
 For transparency, these items **remain** at the working tree. They are outside the scope
@@ -1222,11 +1238,11 @@ of this port, not oversights the numbers above conceal.
 | `src/common/utils/process.h:101` | `system(cmd)` | `process_start()` still shells out — but it is **dead code**: no caller exists in `src/`, and none of the six shipped MainUI binaries (`MainUI-283/285/354-clean/expert`) contain its format strings (`cd "%s"; %s %s %s`, `%s/bin/%s`) or `process_searchpid`'s `/proc/%d/comm`. Verified 2026-08-23. Left in place as a documented residual; removal or a `fork`/`execv` rewrite are equally safe. |
 | `src/jpg2png` vs `make core` | build | `jpg2png` stays **out of `core`**: Miyoo sysroot has no libjpeg. Makefile sibling exists; `make -C src/jpg2png` is opt-in. |
 | Host `make unit-test` | SIMD | Scalar fallbacks only on x86-64. The `neon-arm` CI job runs the assembly under qemu. |
-| On-device timings | methodology | Nothing was timed on a Miyoo Mini / Mini+ / Flip as part of this port. Every 📏 is inherited. |
+| On-device timings | methodology | Nothing re-timed on a physical Miyoo in this tree. 📏 = OnionPlus vs OnionUI/Onion:main. |
 | Mini Flip lid / Hall | hardware | Ported from `v4.5-dev` (`921155e8`); Hall + `/dev/input/event1` detection is the upstream heuristic and has **not** been validated on a physical Flip in this tree. |
-| Volume logarithmic curve | not ported | UX-affecting change, deferred pending explicit decision — see [§8](#-8-not-ported-from-oniopus46). |
+| Volume logarithmic curve | not taken | UX-affecting; deferred — see [§8](#-8-intentionally-not-taken). |
 | `batmon` / `keymon` signals | custom handlers | Extra signals (SIGUSR1, SIGSTOP, …) — not the shared SIGINT/SIGTERM helper. |
-| `chargingState.c` `strcpy` | out of 25-file set | Only the signal handler was migrated in that file. |
+| `chargingState.c` `strcpy` | closed | Bounded `snprintf` + sized `getImageDir` in the OnionUI-parity review. |
 
 ✅ **Closed this revision:** `overlay_surface()` draw-loop busy-wait — the overlay
 thread spun full-throttle for its entire duration. [`74f0a0af`](https://github.com/Amiga500/Onion/commit/74f0a0af)
@@ -1241,7 +1257,7 @@ throttles it with `msleep(2)` per iteration and demotes the draw-count/speed sta
 3. 🟢 Remove or rewrite the dead `process_start()` (see table above — zero risk either way).
 
 Closed in the second review pass (§3.8): rumble GPIO init caching + vibration clamp
-(ported from OniOpus46), infoPanel scaled-image cache, GameSwitcher battery-poll throttle,
+(now in tree), infoPanel scaled-image cache, GameSwitcher battery-poll throttle,
 playActivityUI per-page ROM-image cache, randomGamePicker redundant `memset(strlen())`
 and O(n²) `realpath()` dedup. The batmon `axp_test` percentage read was evaluated and
 **deliberately left uncached**: it feeds `/tmp/.axp_result` and `/tmp/percBat` consumed by
@@ -1252,8 +1268,8 @@ consumers' freshness.
 
 ## ✅ Final Status
 
-OnionPlus is **88 commits** ahead of upstream `OnionUI/Onion:main`
-(`07505ea5` → `921155e8` code tip / `HEAD`, `git rev-list --count`), adding **8 NEON pixel kernels**,
+OnionPlus is **90 commits** ahead of upstream `OnionUI/Onion:main`
+(`07505ea5` → Flip `921155e8` + OnionUI-parity review / `HEAD`, `git rev-list --count`), adding **8 NEON pixel kernels**,
 crash/memory hardening of the `src/common` layer, TTF/list/footer/header/dialog surface
 caches, `--gc-sections` release flags, four algorithmic wins in `str`/`file`, production
 `file_remove_recursive` call sites, migrated SIGINT/SIGTERM handlers, fixes for **6
@@ -1265,9 +1281,9 @@ stride / romscreen stretch fixes, a **second review pass** adding five further h
 optimizations (rumble GPIO caching + vibration clamp, infoPanel scaled-image cache,
 GameSwitcher battery-poll throttle, playActivityUI per-page image cache, randomGamePicker
 dedup/init fixes — [§3.8](#38-second-review-pass--further-hot-path-optimizations)), a
-**68-suite host unit-test harness** runnable with a single `make unit-test`, and a
-**Miyoo Mini Flip** port from `v4.5-dev` that preserves the OnionPlus hardening
-([§4.10](#410-miyoo-mini-flip-port-921155e8)).
+**68-suite host unit-test harness** runnable with a single `make unit-test`, a **Miyoo Mini Flip** port from `v4.5-dev` that preserves the OnionPlus hardening
+([§4.10](#410-miyoo-mini-flip-port-921155e8)), and an OnionUI-parity review
+([§4.11](#411-onionui-parity-review)). PR #1868 is not in the tree.
 
 > 🧪 **68 suites · 1,412 tests · 71,393 assertions · 0 failures.** ✅
 >
@@ -1277,9 +1293,8 @@ dedup/init fixes — [§3.8](#38-second-review-pass--further-hot-path-optimizati
 The hardening of the original 25-file set is now **complete for `sprintf`/`strcpy`/`strcat`/
 `strtok`**. The remaining `system()` in `process.h` is enumerated in
 [§10](#️-10-known-residuals) rather than rounded away. Performance figures marked **📏** are
-**OniOpus46 measurements on identical code**, reproduced here for context and clearly
-separated from **📐 analytical** figures. **No OnionPlus on-device measurement has been taken** —
-treat every speedup as inherited evidence until benchmarked on real hardware.
+**OnionPlus vs `OnionUI/Onion:main`** figures, separated from **📐 analytical** counts.
+They have not been re-timed on a physical Miyoo in this tree.
 Flip lid/Hall behaviour likewise has no on-device confirmation in this tree.
 
 The defect fixes in [§4.7](#47-pre-existing-defects-fixed-in-this-branch) and
@@ -1294,6 +1309,5 @@ convention that callers had to remember on their own.
 📊 See also: **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)** — full diff statistics vs. the base release.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → Code tip: [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) (**88** commits at HEAD, `git rev-list --count`) ·
-Style adapted from the OniOpus46 [`OPTIMIZATION.md`](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) ·
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → Flip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) + OnionUI-parity review (**90** commits) ·
 Headline figures refreshed 2026-08-28 · SHA-by-SHA table in §1 still covers the original 56-commit window through `82fab865`</sub>

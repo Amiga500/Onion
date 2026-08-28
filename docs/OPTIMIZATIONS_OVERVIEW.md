@@ -1,16 +1,16 @@
 # 🕹️ OnionPlus — Optimizations at a Glance
 
 [![branch](https://img.shields.io/badge/branch-OnionPlus-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/OnionPlus)
-[![commits](https://img.shields.io/badge/commits-68-blueviolet?style=for-the-badge)](#-11--commit-timeline)
-[![files](https://img.shields.io/badge/files%20changed-155-blue?style=for-the-badge)](#-10--grand-totals)
-[![diff](https://img.shields.io/badge/diff-%2B27%2C504%20%2F%20%E2%88%92866-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
+[![commits](https://img.shields.io/badge/commits-90-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![files](https://img.shields.io/badge/files%20changed-162-blue?style=for-the-badge)](#-10--grand-totals)
+[![diff](https://img.shields.io/badge/diff-%2B28%2C352%20%2F%20%E2%88%92976-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
-[![tests](https://img.shields.io/badge/tests-1%2C410%20%2F%2071%2C385%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
+[![tests](https://img.shields.io/badge/tests-1%2C412%20%2F%2071%2C393%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
 > 🧵 **What this is.** A from-scratch, category-first tour of every optimization and
 > hardening change shipped on **OnionPlus** so far — reviewed directly from the commit
-> history (`07505ea5 → HEAD`, **68 commits**). It complements, and does **not** replace,
+> history (`07505ea5 → HEAD` vs `OnionUI/Onion:main`, **90 commits**). It complements, and does **not** replace,
 > the deep-dive [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) (evidence,
 > methodology, before/after code) and the raw [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)
 > diff stats. Think of this page as the **poster**, and those two as the **paper trail**.
@@ -39,13 +39,10 @@
 
 ## 🎯 Why this document exists
 
-OnionPlus started as a port of the NEON/hardening work from
-[OniOpus46](https://github.com/Amiga500/Onion/blob/OniOpus46/docs/OPTIMIZATION.md) and has
-since grown its **own** independent optimization and hardening passes — a power/CPU batch,
-a full security review, a second hot-path review pass, and (most recently) an
-**AdvanceMENU** frontend pass (font fallback, PWM handling, script speedups, race-condition
-fixes). This document groups **everything shipped to date** by *category* rather than by
-commit, so the shape of the work is visible at a glance.
+Poster-size view of OnionPlus versus **`OnionUI/Onion:main`** (`07505ea5`).
+Same story as the root README, with links that stay inside `docs/`.
+Flip is a surgical port from `v4.5-dev`; [PR #1868](https://github.com/OnionUI/Onion/pull/1868)
+is not included. OTA stays on `Amiga500/Onion`.
 
 ### 🔑 Reading the icons
 
@@ -56,15 +53,13 @@ commit, so the shape of the work is visible at a glance.
 | 🟨 | **Incremental** win — smaller but still measurable saving |
 | 🟦 | **Robustness** — correctness / memory-safety fix, **no performance claim** |
 | 🟩 | **Quality floor** — tests, CI, tooling |
-| 📏 | Figure **measured on OniOpus46** for the identical code path (inherited evidence) |
+| 📏 | Speedup of the **OnionPlus** path vs the **`OnionUI/Onion:main`** equivalent |
 | 📐 | Figure **estimated analytically** (algorithmic complexity / syscall count) |
 | 🧪 | **Verified by unit test** in this repository |
 | 🛡️ | Correctness/safety fix carrying **no** performance claim |
 
-> ⚠️ No optimization in this document has been benchmarked **on a physical Miyoo Mini**.
-> 📏 entries are inherited from OniOpus46's own measurements of the same code; 📐 entries are
-> analytical. See [§10 of the deep-dive report](./ONIONPLUS_OPTIMIZATION.md#-9-methodology--limits)
-> for the full methodology and caveats.
+> ⚠️ Percentages compare **OnionPlus vs `OnionUI/Onion:main`**. Not re-timed on a physical
+> Miyoo in this fork. 📐 = analytical. See [methodology](./ONIONPLUS_OPTIMIZATION.md#-9-methodology--limits).
 
 ---
 
@@ -297,7 +292,7 @@ commit, so the shape of the work is visible at a glance.
 
 A bird's-eye view of the branch's evolution, oldest first:
 
-1. 🖼️ **NEON foundation** — pixel conversion kernels ported from OniOpus46.
+1. 🖼️ **NEON foundation** — vector kernels vs OnionUI scalar pixel loops.
 2. 🛡️ **Hardening wave** — crash/memory-safety port across the common layer.
 3. 🧪 **Test harness** — 68-suite host unit-test scaffold added from scratch.
 4. 📚 **Docs** — first optimization report published.
@@ -308,6 +303,9 @@ A bird's-eye view of the branch's evolution, oldest first:
 9. 🎯 **GameSwitcher fixes** — framebuffer stride and romscreen stretch corrections.
 10. 🔎 **Review pass 2** — rumble caching, infoPanel image cache, GS battery-poll throttle, playActivityUI page cache, randomGamePicker dedup.
 11. 🕹️ **AdvanceMENU pass** — fonts, PWM handling, script speedups, race-condition and false-positive fixes ([PR #210](https://github.com/Amiga500/Onion/pull/210)).
+12. 🔎 **Review pass 3** — randomGamePicker / theme / packageManager / gs_romscreen bounds.
+13. 📱 **Mini Flip port** — `921155e8` from `OnionUI/Onion:v4.5-dev`, no wholesale merge, no PR #1868.
+14. 🔎 **OnionUI-parity review** — charging sentinel, RetroArch killall, `file_read("")`, rumble retry, path bounds.
 
 > 🔍 Full SHA-by-SHA detail lives in
 > [§1 of the deep-dive report](./ONIONPLUS_OPTIMIZATION.md#-1-commit-breakdown).
@@ -316,20 +314,15 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-OnionPlus is **68 commits** ahead of upstream `OnionUI/Onion:main`, spanning **8 vectorized
-NEON kernels**, a dozen algorithmic O(n²)→O(n) rewrites, five distinct render/UI caches, a
-whole power/battery optimization batch, a syscall diet that removed every avoidable
-`system()` call from the hardened core, **six pre-existing upstream defects** closed, a
-**68-suite / 1,410-test / 71,385-assertion** host test harness that did not exist before
-this branch, and — most recently — a full **AdvanceMENU** hardening pass. Every category
-above is traceable to a real commit; see
-[`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) for the evidence, before/after
-code, and honest limits behind each figure.
+OnionPlus is **90 commits** ahead of `OnionUI/Onion:main`. Use this page as the poster;
+[`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) is the evidence trail and
+[`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md) is the raw `git` arithmetic. OTA:
+`Amiga500/Onion`. Not in tree: PR #1868.
 
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → `HEAD` (**68** commits,
+Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → `HEAD` vs `OnionUI/Onion:main` (**90** commits,
 `git rev-list --count`) · Companion docs:
 [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) ·
 [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)</sub>

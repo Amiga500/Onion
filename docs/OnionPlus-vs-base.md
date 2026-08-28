@@ -1,6 +1,6 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **88 commits** · **162 files** · **+28,272 / −940 lines** · **0 deleted** · **68 test suites** · **1,412 tests** ✅
+> **90 commits** · **162 files** · **+28,352 / −976 lines** · **0 deleted** · **68 test suites** · **1,412 tests** ✅
 
 > **What this document is:** the raw, reproducible *diff arithmetic* between the OnionPlus
 > branch tip and the upstream base release. Every number here comes from `git` on this
@@ -10,21 +10,21 @@
 
 | 🔖 Reference | Value |
 |:---|:---|
-| 🌿 Branch tip | `OnionPlus` → code tip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) *(Mini Flip + MainUI-285 from `v4.5-dev`, 2026-08-28)* |
+| 🌿 Branch tip | `OnionPlus` vs [`OnionUI/Onion:main`](https://github.com/OnionUI/Onion/tree/main) — Flip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) + OnionUI-parity review |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
-| ⏩ Commits ahead | **88** *(`git rev-list --count 07505ea5..HEAD`)* |
-| 📦 Aggregate delta | **162 files** · **+28,272** / **−940** |
+| ⏩ Commits ahead | **90** *(`git rev-list --count 07505ea5..HEAD`)* |
+| 📦 Aggregate delta | **162 files** · **+28,352** / **−976** |
 | 🧩 Flip commit alone (`921155e8`) | **19 files** · **+362** / **−37** · 3 added (MainUI-285 ×2 + `miyoo285_system.json`) |
 | 🧪 Unit tests at tip | **68 suites** · **1,412 tests** · **71,393 assertions** · **0 failures** ✅ |
-| 🔀 Net line growth | **+27,332** |
+| 🔀 Net line growth | **+27,376** |
 
 > 🔁 **Self-reference.** The two files in `docs/` are part of the range they measure, so every
 > *aggregate* figure below includes them. Wherever that matters, the **code-only** subset
 > (everything except `docs/`) is given alongside it. Each table states which of the two it uses.
 > A previous revision advertised **52** commits and tip `ddbb7e14`, then **56** / `82fab865`.
 > Those described the original port window. The headline is now `git rev-list --count`
-> through `921155e8` (**88**). Section 2 still lists the original 56 SHAs; Flip is row **+1**
-> below that table.
+> through Flip `921155e8` plus the OnionUI-parity review (**90**). Section 2 still lists
+> the original 56 SHAs vs `OnionUI/Onion:main`; Flip is row 88. PR #1868 is not in the range.
 
 ---
 
@@ -42,7 +42,7 @@
 
 ## 📊 1. Headline Ratios
 
-*Shares below still describe the original 56-commit window (27,234 insertions). Headline totals at the top of this file include later waves through `921155e8`.*
+*Shares below still describe the original 56-commit window. Headline totals include Flip + OnionUI-parity review vs `OnionUI/Onion:main`.*
 
 | Metric | Value | Share |
 |:---|---:|---:|
@@ -71,11 +71,11 @@ the Flip port is appended as row 88.*
 
 | # | Hash | Subject | Files | +/− | Category |
 |:-:|:-----|:--------|------:|----:|:---------|
-| 1 | [`d7aed5a1`](https://github.com/Amiga500/Onion/commit/d7aed5a1) | OnionPlus: NEON pixel conversions ported from OniOpus46 | 7 | +483 / −80 | ⚡ NEON / perf |
+| 1 | [`d7aed5a1`](https://github.com/Amiga500/Onion/commit/d7aed5a1) | NEON pixel conversions vs OnionUI scalar loops | 7 | +483 / −80 | ⚡ NEON / perf |
 | 2 | [`6da7f28b`](https://github.com/Amiga500/Onion/commit/6da7f28b) | 🎨 apply clang-format changes | 2 | +2 / −2 | 🎨 Formatting *(CI-generated)* |
-| 3 | [`ad402fa2`](https://github.com/Amiga500/Onion/commit/ad402fa2) | OnionPlus: port common crash/memory hardening from OniOpus46 | 33 | +9,724 / −193 | 🛡️ Hardening + 🧪 test |
+| 3 | [`ad402fa2`](https://github.com/Amiga500/Onion/commit/ad402fa2) | Crash/memory hardening vs OnionUI common layer | 33 | +9,724 / −193 | 🛡️ Hardening + 🧪 test |
 | 4 | [`1a1e3f84`](https://github.com/Amiga500/Onion/commit/1a1e3f84) | Limit unit-test suite list to ported hardening tests | 1 | +2 / −2 | 🧪 Test fix |
-| 5 | [`300390a7`](https://github.com/Amiga500/Onion/commit/300390a7) | OnionPlus: expand host unit-test suite from OniOpus46 | 58 | +13,894 / −18 | 🧪 Test + build |
+| 5 | [`300390a7`](https://github.com/Amiga500/Onion/commit/300390a7) | Host unit-test suite (absent on OnionUI/Onion:main) | 58 | +13,894 / −18 | 🧪 Test + build |
 | 6 | [`971d6169`](https://github.com/Amiga500/Onion/commit/971d6169) | Add OnionPlus optimization and diff-stat documentation | 2 | +683 / −0 | 📚 Docs |
 | 7 | [`deb8b6ad`](https://github.com/Amiga500/Onion/commit/deb8b6ad) | Fix pre-existing hash, save-state and `const` defects; refresh docs | 6 | +1,171 / −476 | 🛡️ Fix + 🧪 test + 📚 docs |
 | 8 | [`c9e052d4`](https://github.com/Amiga500/Onion/commit/c9e052d4) | Harden host unit-test CI with sanitizers and production contracts | 17 | +527 / −646 | 🧪 Test + CI |
@@ -101,10 +101,10 @@ the Flip port is appended as row 88.*
 | 28 | [`1e359571`](https://github.com/Amiga500/Onion/commit/1e359571) | perf+hardening: cache meterWidth and harden process_start_read_return | 2 | +15 / −7 | ⚡ *(reverted)* |
 | 29 | [`4f7841e0`](https://github.com/Amiga500/Onion/commit/4f7841e0) | Revert the four commits above | 2 | +35 / −129 | ↩️ Revert *(net zero)* |
 | 30 | [`5992c8b2`](https://github.com/Amiga500/Onion/commit/5992c8b2) | docs: refresh OnionPlus stats to tip 4f7841e0 (post-revert) | 2 | +80 / −59 | 📚 Docs |
-| 31 | [`4b851203`](https://github.com/Amiga500/Onion/commit/4b851203) | Port OSD busy-wait fix and thread hardening from OniOpus46 | 1 | +51 / −30 | ⚡ Perf |
-| 32 | [`e8143d09`](https://github.com/Amiga500/Onion/commit/e8143d09) | Port brightness sysfs caching and display hardening from OniOpus46 | 1 | +40 / −13 | ⚡ Perf |
-| 33 | [`0121f943`](https://github.com/Amiga500/Onion/commit/0121f943) | Port battery charging cache and batmon fixes from OniOpus46 | 3 | +96 / −30 | ⚡ Perf + 🛡️ fix |
-| 34 | [`0d1ce423`](https://github.com/Amiga500/Onion/commit/0d1ce423) | Port SQLite open/close optimization and DB hardening from OniOpus46 | 6 | +250 / −81 | ⚡ Perf + 🛡️ hardening |
+| 31 | [`4b851203`](https://github.com/Amiga500/Onion/commit/4b851203) | OSD busy-wait fix vs OnionUI usleep(100) | 1 | +51 / −30 | ⚡ Perf |
+| 32 | [`e8143d09`](https://github.com/Amiga500/Onion/commit/e8143d09) | Brightness sysfs cache vs OnionUI uncached PWM | 1 | +40 / −13 | ⚡ Perf |
+| 33 | [`0121f943`](https://github.com/Amiga500/Onion/commit/0121f943) | Battery charging cache vs OnionUI uncached axp_test | 3 | +96 / −30 | ⚡ Perf + 🛡️ fix |
+| 34 | [`0d1ce423`](https://github.com/Amiga500/Onion/commit/0d1ce423) | SQLite open/close 2→1 vs OnionUI | 6 | +250 / −81 | ⚡ Perf + 🛡️ hardening |
 | 35 | [`2c5b028a`](https://github.com/Amiga500/Onion/commit/2c5b028a) | Harden config.h: direct mkdirs and bounded copies | 1 | +4 / −7 | 🛡️ Hardening |
 | 36 | [`45d4eec4`](https://github.com/Amiga500/Onion/commit/45d4eec4) | Replace GameSwitcher overlay shell-outs with fork+exec and syscalls | 1 | +26 / −6 | ⚡ Perf |
 | 37 | [`bda89b2d`](https://github.com/Amiga500/Onion/commit/bda89b2d) | Port infoPanel hardening and enable test_images_browser | 4 | +163 / −54 | 🛡️ Hardening + 🧪 test |
@@ -128,8 +128,10 @@ the Flip port is appended as row 88.*
 | 55 | [`82fab865`](https://github.com/Amiga500/Onion/commit/82fab865) | fix: GameSwitcher preview FB stride and stretch romscreens | 3 | +6 / −4 | 🛡️ Fix |
 | 56 | [`e0b6893c`](https://github.com/Amiga500/Onion/commit/e0b6893c) | docs: keep action_loadGame table row from splitting on GitHub | 1 | +1 / −1 | 📚 Docs |
 | 88 | [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) | feat: port Miyoo Mini Flip + MainUI-285 from Onion v4.5-dev | 19 | +362 / −37 | 📱 Flip port |
+| 89 | [`7a9b0a21`](https://github.com/Amiga500/Onion/commit/7a9b0a21) | docs: refresh OnionPlus stats for Flip port 921155e8 | 3 | docs | 📚 Docs |
+| 90 | *(working tree)* | fix: charging icon sentinel, retroarch killall, bound paths | 14 | +80 / −36 | 🛡️ Parity vs OnionUI/Onion |
 | | | **Aggregate original window `07505ea5` → `e0b6893c`** | **144** | **+27,234 / −811** | |
-| | | **Headline at `921155e8`** | **162** | **+28,272 / −940** | |
+| | | **Headline after OnionUI-parity review** | **162** | **+28,352 / −976** | |
 
 > ℹ️ A previous revision of this table had **52 rows** and tip `ddbb7e14`.
 > Rows 25–29 are a remote experiment that was fully reverted — net zero in the tree.
@@ -144,7 +146,7 @@ the Flip port is appended as row 88.*
 | 🛡️ `ad402fa2` | Common-layer hardening and the first host suites. Introduces `signal_handler.h`, hardens `file.c` / `str.c` / `json.h`, adds `test/onion_test.h` and `test/Makefile.unit`. |
 | 🧪 `300390a7` | Ports the remaining host suites; adds `perf.h` and root `Makefile` / `test/Makefile*` wiring. |
 | 🛡️ `deb8b6ad` | Three **pre-existing** defects — `FNV1A_Pippip_Yurii` 8-byte over-read and unaligned loads, uninitialised `stateFilePath`, `const`-discarding `file_basename` — plus hash regression tests. |
-| ⚡ `eb3f0aec` | OniOpus46 TTF caches (`list`/`footer`/`header`/`dialog`), signal-handler call sites, `reset.h` `file_remove_recursive`, bounded screenshot/jpg2png paths, `config.mk` `--gc-sections`. |
+| ⚡ `eb3f0aec` | TTF caches vs OnionUI per-frame render (`list`/`footer`/`header`/`dialog`), signal-handler call sites, `reset.h` `file_remove_recursive`, bounded screenshot/jpg2png paths, `config.mk` `--gc-sections`. |
 | 🛡️ PR #206 | `file_isLocked` O_CREAT restored, `RUN_TEST` prints `[FAIL]`, `theme_renderDialog_cleanup()`. |
 | 🛡️ PR #207 | MULTIVALUE cache keyed on color+value, screenshot VLA guard, complete UTF-8 in `includeCJK`, `file_remove_recursive` errors + fsync. |
 | ⚡ `4b851203` | `osd.h`: bar thread poll 100 µs → 16 ms, `volatile` thread state, 160× smaller bar save buffer with `memcpy` rows, `yres` division guards, 2 overlay leak fixes. `meterWidth` is **not** cached (dropped later in `927685e8`). |
@@ -341,7 +343,7 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 ```bash
 cd /path/to/Onion
 
-# Commit list and count (88 at HEAD / code tip 921155e8)
+# Commit list and count (90 at HEAD vs OnionUI/Onion:main 07505ea5)
 git rev-list --count 07505ea5..HEAD
 git log --oneline --reverse 07505ea5..HEAD
 
@@ -366,5 +368,5 @@ make unit-test
 actually do, with before/after code and performance figures.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → Code tip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) (**88** commits at HEAD) ·
+Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → Flip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) + OnionUI-parity review (**90** commits at HEAD) ·
 Headline figures refreshed 2026-08-28 · Section 2 rows 1–56 still describe the original port window · Flip suites re-run green.</sub>
