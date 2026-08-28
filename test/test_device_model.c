@@ -30,7 +30,13 @@
 /* ---- Inline device_model.h constants and functions ---- */
 
 #define MIYOO283 283
+#define MIYOO285 285
 #define MIYOO354 354
+
+#define IS_MIYOO_PLUS_OR_FLIP() (DEVICE_ID == MIYOO285 || DEVICE_ID == MIYOO354)
+#define HAS_AXP() IS_MIYOO_PLUS_OR_FLIP()
+#define HAS_WIFI() IS_MIYOO_PLUS_OR_FLIP()
+
 static int DEVICE_ID;
 static char DEVICE_SN[13];
 
@@ -71,6 +77,13 @@ TEST(device_model_354) {
     DEVICE_ID = 0;
     getDeviceModel();
     ASSERT_EQ(DEVICE_ID, MIYOO354);
+}
+
+TEST(device_model_285) {
+    write_file("/tmp/deviceModel", "285");
+    DEVICE_ID = 0;
+    getDeviceModel();
+    ASSERT_EQ(DEVICE_ID, MIYOO285);
 }
 
 TEST(device_model_arbitrary) {
@@ -136,7 +149,25 @@ TEST(device_serial_with_newline) {
 
 TEST(device_model_constants) {
     ASSERT_EQ(MIYOO283, 283);
+    ASSERT_EQ(MIYOO285, 285);
     ASSERT_EQ(MIYOO354, 354);
+}
+
+TEST(device_caps_macros) {
+    DEVICE_ID = MIYOO283;
+    ASSERT_FALSE(IS_MIYOO_PLUS_OR_FLIP());
+    ASSERT_FALSE(HAS_AXP());
+    ASSERT_FALSE(HAS_WIFI());
+
+    DEVICE_ID = MIYOO354;
+    ASSERT_TRUE(IS_MIYOO_PLUS_OR_FLIP());
+    ASSERT_TRUE(HAS_AXP());
+    ASSERT_TRUE(HAS_WIFI());
+
+    DEVICE_ID = MIYOO285;
+    ASSERT_TRUE(IS_MIYOO_PLUS_OR_FLIP());
+    ASSERT_TRUE(HAS_AXP());
+    ASSERT_TRUE(HAS_WIFI());
 }
 
 /* ---- main ---- */
@@ -147,6 +178,7 @@ int main(void)
 
     RUN_TEST(device_model_283);
     RUN_TEST(device_model_354);
+    RUN_TEST(device_model_285);
     RUN_TEST(device_model_arbitrary);
     RUN_TEST(device_model_zero);
     RUN_TEST(device_model_missing_file);
@@ -158,6 +190,7 @@ int main(void)
     RUN_TEST(device_serial_with_newline);
 
     RUN_TEST(device_model_constants);
+    RUN_TEST(device_caps_macros);
 
     /* Cleanup */
     unlink("/tmp/deviceModel");

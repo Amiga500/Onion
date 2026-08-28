@@ -14,7 +14,7 @@ static time_t battery_last_modified = 0;
 static bool battery_is_charging = false;
 
 /* Cache for battery_isCharging() to avoid repeated GPIO reads / subprocess spawns.
- * On MIYOO354, each uncached call forks+execs /customer/app/axp_test (~5-10ms).
+ * On HAS_AXP() devices (MM+/Flip), each uncached call forks+execs /customer/app/axp_test (~5-10ms).
  * Caching for 2 seconds eliminates ~99% of subprocess overhead in hot loops.
  * Note: Cache variables are per-translation-unit (static). Thread safety is not
  * required as all callers (batmon main loop, chargingState, keymon) are single-threaded. */
@@ -66,7 +66,7 @@ int battery_getPercentage(void)
 
 /**
  * @brief Uncached implementation of charging state detection.
- * On MIYOO354 this forks /customer/app/axp_test (~5-10ms per call).
+ * On HAS_AXP() devices this forks /customer/app/axp_test (~5-10ms per call).
  */
 static bool _battery_isCharging_impl(void)
 {
@@ -89,7 +89,7 @@ static bool _battery_isCharging_impl(void)
 
         return charging == '1';
     }
-    else if (DEVICE_ID == MIYOO354) {
+    else if (HAS_AXP()) {
         char *cmd = "cd /customer/app/ ; ./axp_test";
         char buf[100];
         int charge_number = 0;
@@ -115,7 +115,7 @@ static bool _battery_isCharging_impl(void)
 /**
  * @brief Cached wrapper for charging state detection.
  * Returns a cached result if called within BATTERY_CHARGING_CACHE_MS (2s),
- * avoiding repeated subprocess spawns on MIYOO354.
+ * avoiding repeated subprocess spawns on HAS_AXP() devices.
  */
 bool battery_isCharging(void)
 {

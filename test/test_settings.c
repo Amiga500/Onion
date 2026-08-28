@@ -85,6 +85,7 @@ typedef struct settings_s {
     char blue_light_time[16];
     char blue_light_time_off[16];
     int rtc_available;
+    int lid_close_action;
     char mainui_button_x[JSON_STRING_LEN];
     char mainui_button_y[JSON_STRING_LEN];
 } settings_s;
@@ -135,6 +136,7 @@ static settings_s __default_settings = {
     .blue_light_time = "20:00",
     .blue_light_time_off = "08:00",
     .pwmfrequency = 7,
+    .lid_close_action = 0,
     .mainui_button_x = "",
     .mainui_button_y = "",
     .rec_countdown = 0,
