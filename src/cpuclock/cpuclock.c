@@ -105,7 +105,7 @@ void set_cpuclock(int clock)
 int main(int argc, char *argv[])
 {
     getDeviceModel();
-    if (!DEVICE_ID) {
+    if (DEVICE_ID != MIYOO283 && DEVICE_ID != MIYOO285 && DEVICE_ID != MIYOO354) {
         puts("This tool is only for Miyoo Mini");
         return 1;
     }

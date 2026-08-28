@@ -991,9 +991,11 @@ TEST(file_read_empty_file) {
     ASSERT_NOT_NULL(fp);
     fclose(fp);
 
-    /* file_read returns NULL for an empty file (st_size == 0 → total <= 0) */
+    /* Empty file matches OnionUI/Onion: allocated empty string, not NULL. */
     char *result = file_read(tmpfile);
-    ASSERT_NULL(result);
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "");
+    free(result);
     unlink(tmpfile);
 }
 

@@ -89,6 +89,18 @@ TEST(process_searchpid_partial_match) {
     }
 }
 
+/* ---- process_killall / process_killall_signal ---- */
+
+TEST(process_killall_signal_missing_is_noop) {
+    process_killall_signal("definitely_not_running_99", SIGTERM);
+    ASSERT_FALSE(process_isRunning("definitely_not_running_99"));
+}
+
+TEST(process_killall_missing_is_noop) {
+    process_killall("definitely_not_running_99");
+    ASSERT_FALSE(process_isRunning("definitely_not_running_99"));
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -101,6 +113,8 @@ int main(void)
     RUN_TEST(process_isRunning_self);
     RUN_TEST(process_isRunning_not_found);
     RUN_TEST(process_searchpid_partial_match);
+    RUN_TEST(process_killall_signal_missing_is_noop);
+    RUN_TEST(process_killall_missing_is_noop);
 
     TEST_REPORT();
     return test_failures;

@@ -207,6 +207,9 @@ int main(int argc, char *argv[])
     if (appState.transparent_bg != NULL)
         SDL_FreeSurface(appState.transparent_bg);
 
+    theme_renderHeader_cleanup();
+    theme_renderStandardHint_cleanup();
+    theme_renderDialog_cleanup();
     resources_free();
 
     freeRomScreens();

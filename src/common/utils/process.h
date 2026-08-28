@@ -71,12 +71,17 @@ void process_kill_signal(const char *commname, int sig)
         kill(pid, sig);
 }
 
-void process_killall(const char *commname)
+void process_killall_signal(const char *commname, int sig)
 {
     pid_t pid;
     int max = 999;
     while ((pid = process_searchpid(commname)) && max-- > 0)
-        kill(pid, SIGKILL);
+        kill(pid, sig);
+}
+
+void process_killall(const char *commname)
+{
+    process_killall_signal(commname, SIGKILL);
 }
 
 bool process_start(const char *pname, const char *args, const char *home,

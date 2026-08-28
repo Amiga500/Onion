@@ -66,7 +66,7 @@ const char *file_basename(const char *filename)
 }
 
 /**
- * @brief Create directories in dir_path using `mkdir -p` command.
+ * @brief Create directories in dir_path (mkdir -p semantics, no shell).
  *
  * @param dir_path The full directory path.
  * @return true If the path didn't exist (dirs were created).
@@ -145,6 +145,15 @@ char *file_read(const char *path)
     // Safety check: limit file size to 100MB to prevent excessive memory allocation
     if (st.st_size > 100 * 1024 * 1024)
         return NULL;
+
+    /* Empty file: match OnionUI/Onion (malloc(1) + NUL), not NULL. */
+    if (st.st_size == 0) {
+        char *empty = (char *)malloc(1);
+        if (empty == NULL)
+            return NULL;
+        empty[0] = '\0';
+        return empty;
+    }
 
     int fd = open(path, O_RDONLY);
     if (fd < 0)

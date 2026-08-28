@@ -145,11 +145,14 @@ bool battery_hasChanged(int ticks, int *out_percentage)
     bool changed = false;
 
     if (battery_isCharging()) {
+        /* Keep the 500 "charging icon" sentinel. Do not let percBat
+         * overwrite it with a raw percentage (OnionUI/Onion:main). */
         if (!battery_is_charging) {
             *out_percentage = 500;
             battery_is_charging = true;
-            changed = true;
+            return true;
         }
+        return false;
     }
     else if (battery_is_charging) {
         battery_is_charging = false;

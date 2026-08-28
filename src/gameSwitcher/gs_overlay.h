@@ -188,8 +188,8 @@ void overlay_exit(void)
             pthread_join(autosave_thread_pt, NULL);
         }
 
-        // try graceful shutdown first
-        process_kill_signal("retroarch", SIGTERM);
+        // Match upstream killall semantics: every matching comm, not just the first PID.
+        process_killall_signal("retroarch", SIGTERM);
 
         // wait up to 5 seconds for RetroArch to exit
         for (int i = 0; i < 10; i++) {
@@ -203,7 +203,7 @@ void overlay_exit(void)
         if (process_isRunning("retroarch")) {
             print_debug("RetroArch still running, force killing...");
             temp_flag_set(".forceKillRetroarch", true);
-            process_kill("retroarch");
+            process_killall("retroarch");
         }
     }
 }

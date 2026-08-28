@@ -22,9 +22,15 @@ void rumble(bool enabled)
 {
     static bool gpio_initialized = false;
     if (!gpio_initialized) {
-        file_write("/sys/class/gpio/export", "48", 2);
-        file_write("/sys/class/gpio/gpio48/direction", "out", 3);
-        gpio_initialized = true;
+        /* Only latch success: a failed export (early boot race) must retry
+         * on the next pulse instead of silently dropping all vibration. */
+        if (access("/sys/class/gpio/gpio48/value", W_OK) != 0) {
+            file_write("/sys/class/gpio/export", "48", 2);
+            file_write("/sys/class/gpio/gpio48/direction", "out", 3);
+        }
+        gpio_initialized = (access("/sys/class/gpio/gpio48/value", W_OK) == 0);
+        if (!gpio_initialized)
+            return;
     }
     file_write("/sys/class/gpio/gpio48/value", enabled ? "0" : "1", 1);
 }

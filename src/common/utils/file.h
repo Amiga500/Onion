@@ -84,7 +84,7 @@ bool file_isLocked(const char *path);
 const char *file_basename(const char *filename);
 
 /**
- * @brief Create directories in dir_path using `mkdir -p` command.
+ * @brief Create directories in dir_path (mkdir -p semantics, no shell).
  *
  * @param dir_path The full directory path.
  * @return true If the path didn't exist (dirs were created).
