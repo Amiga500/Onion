@@ -135,12 +135,13 @@ void drawImage(SDL_Surface *image, SDL_Surface *screen, const SDL_Rect *frame)
         // is drawn to the same target size (avoids zoomSurface on every
         // redraw). Keyed on dimensions + pixel checksum, not on the
         // SDL_Surface pointer: a freed address can be recycled by a
-        // different image.
-        uint32_t checksum = image_checksum(image);
-        if (g_scaled_cache != NULL && g_scaled_cache_w == target.w &&
-            g_scaled_cache_h == target.h && g_scaled_cache_src_w == image->w &&
-            g_scaled_cache_src_h == image->h &&
-            g_scaled_cache_src_checksum == checksum) {
+        // different image. Checksum runs only when the cheap fields match.
+        bool can_hit = g_scaled_cache != NULL && g_scaled_cache_w == target.w &&
+                       g_scaled_cache_h == target.h &&
+                       g_scaled_cache_src_w == image->w &&
+                       g_scaled_cache_src_h == image->h;
+        uint32_t checksum = can_hit ? image_checksum(image) : 0;
+        if (can_hit && g_scaled_cache_src_checksum == checksum) {
             scaledImage = g_scaled_cache;
         }
         else {
@@ -152,7 +153,7 @@ void drawImage(SDL_Surface *image, SDL_Surface *screen, const SDL_Rect *frame)
                 g_scaled_cache_h = target.h;
                 g_scaled_cache_src_w = image->w;
                 g_scaled_cache_src_h = image->h;
-                g_scaled_cache_src_checksum = checksum;
+                g_scaled_cache_src_checksum = image_checksum(image);
             }
         }
     }
