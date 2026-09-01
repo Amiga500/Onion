@@ -13,11 +13,16 @@ MODEL_MMP=354
 screen_resolution="640x480"
 
 main() {
-    # Set model ID based on hardware detection
-    if [ -e /sys/devices/soc0/soc/soc:hall-mh248/hallvalue ] || [ -e /dev/input/event1 ]; then
-        export DEVICE_ID=$MODEL_MMF
-    elif axp 0 > /dev/null 2>&1; then
-        export DEVICE_ID=$MODEL_MMP
+    # Set model ID based on hardware detection.
+    # AXP probe first: the Flip and the Plus share the AXP PMU, so the hall
+    # sensor is the only reliable way to tell the Flip apart. Never use
+    # /dev/input/event* numbering — it depends on enumeration order.
+    if axp 0 > /dev/null 2>&1; then
+        if [ -e /sys/devices/soc0/soc/soc:hall-mh248/hallvalue ]; then
+            export DEVICE_ID=$MODEL_MMF
+        else
+            export DEVICE_ID=$MODEL_MMP
+        fi
     else
         export DEVICE_ID=$MODEL_MM
     fi

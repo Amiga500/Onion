@@ -426,15 +426,17 @@ void suspend_exec(int timeout)
                     print_debug("Lid opened during suspend, waking up");
                     break;
                 }
-                suspend_lid_state = current_lid;
-                if (timeout != -1 &&
+                if (timeout != -1 && current_lid != 0 &&
                     (getMilliseconds() - suspend_start) >= timeout) {
-                    // Timeout elapsed: match non-flip shutdown behavior
+                    // Timeout elapsed with lid open: match non-flip shutdown behavior
                     system_powersave_off();
                     resume();
                     usleep(150000);
                     deepsleep();
                 }
+                suspend_lid_state = current_lid;
+                // Lid closed (or unreadable): never force power-off; stay
+                // suspended until the lid opens or POWER is pressed.
                 continue;
             }
 
