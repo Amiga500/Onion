@@ -243,8 +243,11 @@ int display_getBrightnessFromRaw()
 //
 void display_setBrightnessRaw(uint32_t value)
 {
-    if (value == _cached_brightness_raw)
-        return;
+    // No write-skipping cache: keymon writes duty_cycle from its own process
+    // (display_setBrightnessRaw(0) on screen off), so a per-process cached
+    // value can go stale behind our back and suppress a needed write (either
+    // a screen-off 0 or a restore of the previous level). The sysfs write is
+    // cheap; correctness across processes wins.
     FILE *fp;
     file_put_sync(fp, PWM_DIR "pwm0/duty_cycle", "%u", value);
     _cached_brightness_raw = value;

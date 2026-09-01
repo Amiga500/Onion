@@ -1,4 +1,6 @@
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include <SDL/SDL.h>
 #include <SDL/SDL_image.h>
@@ -82,10 +84,12 @@ SDL_Rect getCenterPos(SDL_Surface *image, SDL_Rect target)
     return image_pos;
 }
 
-static SDL_Surface *g_scaled_cache_src = NULL;
 static SDL_Surface *g_scaled_cache = NULL;
 static int g_scaled_cache_w = 0;
 static int g_scaled_cache_h = 0;
+static int g_scaled_cache_src_w = 0;
+static int g_scaled_cache_src_h = 0;
+static uint32_t g_scaled_cache_src_checksum = 0;
 
 static void freeScaledCache(void)
 {
@@ -93,9 +97,25 @@ static void freeScaledCache(void)
         SDL_FreeSurface(g_scaled_cache);
         g_scaled_cache = NULL;
     }
-    g_scaled_cache_src = NULL;
     g_scaled_cache_w = 0;
     g_scaled_cache_h = 0;
+    g_scaled_cache_src_w = 0;
+    g_scaled_cache_src_h = 0;
+    g_scaled_cache_src_checksum = 0;
+}
+
+// Content fingerprint of the source pixels. Pointer identity is not enough:
+// a freed SDL_Surface address can be recycled for a different image.
+static uint32_t image_checksum(SDL_Surface *image)
+{
+    const uint8_t *bytes = (const uint8_t *)image->pixels;
+    size_t len = (size_t)image->h * (size_t)image->pitch;
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < len; i++) {
+        hash ^= bytes[i];
+        hash *= 16777619u;
+    }
+    return hash;
 }
 
 void drawImage(SDL_Surface *image, SDL_Surface *screen, const SDL_Rect *frame)
@@ -111,10 +131,16 @@ void drawImage(SDL_Surface *image, SDL_Surface *screen, const SDL_Rect *frame)
 
     SDL_Surface *scaledImage = NULL;
     if (image->w > target.w || image->h > target.h) {
-        // Reuse the cached scaled surface when the same source is drawn to the
-        // same target size (avoids zoomSurface on every redraw).
-        if (g_scaled_cache_src == image && g_scaled_cache_w == target.w &&
-            g_scaled_cache_h == target.h && g_scaled_cache != NULL) {
+        // Reuse the cached scaled surface only when the same source content
+        // is drawn to the same target size (avoids zoomSurface on every
+        // redraw). Keyed on dimensions + pixel checksum, not on the
+        // SDL_Surface pointer: a freed address can be recycled by a
+        // different image.
+        uint32_t checksum = image_checksum(image);
+        if (g_scaled_cache != NULL && g_scaled_cache_w == target.w &&
+            g_scaled_cache_h == target.h && g_scaled_cache_src_w == image->w &&
+            g_scaled_cache_src_h == image->h &&
+            g_scaled_cache_src_checksum == checksum) {
             scaledImage = g_scaled_cache;
         }
         else {
@@ -122,9 +148,11 @@ void drawImage(SDL_Surface *image, SDL_Surface *screen, const SDL_Rect *frame)
             scaledImage = scaleImageIfNecessary(image, target, false);
             if (scaledImage) {
                 g_scaled_cache = scaledImage;
-                g_scaled_cache_src = image;
                 g_scaled_cache_w = target.w;
                 g_scaled_cache_h = target.h;
+                g_scaled_cache_src_w = image->w;
+                g_scaled_cache_src_h = image->h;
+                g_scaled_cache_src_checksum = checksum;
             }
         }
     }

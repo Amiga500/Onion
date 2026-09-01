@@ -341,6 +341,9 @@ int main(int argc, char *argv[])
 
     Mix_CloseAudio();
 
+    theme_renderHeader_cleanup();
+    theme_renderStandardHint_cleanup();
+    theme_renderDialog_cleanup();
     resources_free();
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);

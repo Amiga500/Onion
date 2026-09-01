@@ -477,6 +477,9 @@ int main(int argc, char *argv[])
     }
 
     lang_free();
+    theme_renderHeader_cleanup();
+    theme_renderStandardHint_cleanup();
+    theme_renderDialog_cleanup();
     resources_free();
 
 #ifndef PLATFORM_MIYOOMINI
