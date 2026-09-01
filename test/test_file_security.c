@@ -169,13 +169,14 @@ TEST(file_read_empty_file) {
     char path[256];
     snprintf(path, sizeof(path), "%s/empty.txt", TEST_DIR);
 
-    /* Create an empty file */
     FILE *fp = fopen(path, "w");
     fclose(fp);
 
     char *result = file_read(path);
-    /* Empty file: st_size is 0, total will be 0, returns NULL */
-    ASSERT_NULL(result);
+    /* Production short-circuits st_size==0 and returns allocated "" */
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, "");
+    free(result);
 
     cleanup_test_dir();
 }
