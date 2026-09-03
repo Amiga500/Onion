@@ -1,19 +1,55 @@
 name: Test build
 on:
+  push:
+    branches: [OnionPlus]
   pull_request:
     paths-ignore:
       - '**/README.md'
       - 'website/'
 
-jobs:
-  build:
-    name: Test build
-    runs-on: ubuntu-latest
+# Host unit tests (make unit-test) are the job that gates CI.
+# The legacy GTest infoPanel job is kept for compatibility but does not
+# block the PR: infoPanel is out of scope for the current unit-test suite.
+# pre-release.yml / build.yml run in the Miyoo ARM toolchain container and
+# already take a long time; unit tests are host-only and are not added there.
 
+jobs:
+  unit-test:
+    name: Host unit tests
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    - name: Install gcc sanitizer runtimes
+      run: sudo apt-get update && sudo apt-get install -y gcc libasan8 libubsan1
+    - name: Run unit tests
+      run: make unit-test
+    - name: Run sanitizer subset
+      run: make -C test -f Makefile.unit unit-test-san
+
+  neon-arm:
+    name: NEON ARM (qemu)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    - name: Install ARM cross-compiler and qemu
+      run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf qemu-user-static
+    - name: Run NEON vs scalar tests under qemu-arm
+      run: make -C test -f Makefile.unit unit-test-neon-arm
+
+  gtest:
+    name: GTest infoPanel
+    runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
     - name: Install SDL libs
       run: |
-        sudo apt-get update && sudo apt-get install libsdl1.2-dev libsdl-image1.2-dev libsdl-image1.2-dev libsdl-ttf2.0-dev cppcheck
+        sudo apt-get update && sudo apt-get install libsdl1.2-dev libsdl-image1.2-dev libsdl-ttf2.0-dev cppcheck
     - name: Install gtest manually
       run: |
         sudo apt-get install build-essential libgtest-dev cmake

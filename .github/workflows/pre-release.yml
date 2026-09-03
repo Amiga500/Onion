@@ -1,18 +1,19 @@
-name: Pre-release
+name: OnionPlus release
+
+# Host unit tests gate PRs in test.yml. This job uses the Miyoo ARM
+# toolchain container and is not wired to make unit-test.
+# Each dispatch creates a unique dated GitHub Release. Previous
+# releases are kept (no latest-tag overwrite).
 
 on:
-  # push:
-  #   branches:
-  #     - main
-  #   paths-ignore:
-  #     - '.github/**'
-  #     - 'test/**'
-  #     - '**/README.md'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  pre-release:
-    name: Pre-release
+  release:
+    name: Release
     runs-on: ubuntu-latest
     container:
       image: aemiii91/miyoomini-toolchain:latest
@@ -28,21 +29,48 @@ jobs:
         git config --global --add safe.directory /__w/Onion/Onion
     - name: Get version
       run: |
-        echo "BUILD_VERSION=$(make version)" >> $GITHUB_ENV
-        echo "SHA_SHORT=$(git log -n 1 --pretty=format:"%h" origin/main)" >> $GITHUB_ENV
+        MAKE_VERSION=$(make version)
+        BASE_VERSION=$(echo "$MAKE_VERSION" | sed -E 's/-[0-9]{8}$//')
+        BUILD_DATE=$(date -u +%Y%m%d)
+        SHA_SHORT=$(git rev-parse --short=8 HEAD)
+        BUILD_VERSION="${BASE_VERSION}-${BUILD_DATE}"
+        {
+          echo "BUILD_VERSION=${BUILD_VERSION}"
+          echo "SHA_SHORT=${SHA_SHORT}"
+          echo "RELEASE_TAG=OnionPlus-v${BUILD_VERSION}-${SHA_SHORT}"
+          echo "RELEASE_TITLE=OnionPlus V${BUILD_VERSION}"
+          echo "ZIP_NAME=OnionPlus-v${BUILD_VERSION}-${SHA_SHORT}.zip"
+        } >> "$GITHUB_ENV"
     - name: Print version
       run: |
-        echo "Onion-v${{ env.BUILD_VERSION }}-${{ env.SHA_SHORT }}"
+        echo "title: ${{ env.RELEASE_TITLE }}"
+        echo "tag: ${{ env.RELEASE_TAG }}"
+        echo "zip: ${{ env.ZIP_NAME }}"
     - name: Build release
       shell: bash
       run: |
         source /root/.bashrc
-        VERSION_OVERRIDE=${{ env.BUILD_VERSION }}-${{ env.SHA_SHORT }} make release
-    - uses: marvinpinto/action-automatic-releases@latest
+        # Makefile TARGET=OnionPlus names the zip. Do not pass TARGET= on the
+        # make command line: it leaks into src/*/Makefile via MAKEFLAGS.
+        # VERSION_OVERRIDE as an env var works (Makefile does not assign it).
+        make release VERSION_OVERRIDE="${BUILD_VERSION}-${SHA_SHORT}"
+        echo "Release artifacts:"
+        ls -la release/
+        if [ ! -f "release/${ZIP_NAME}" ]; then
+          actual=$(find release -maxdepth 1 -name '*.zip' -print | head -n 1)
+          if [ -z "$actual" ]; then
+            echo "No zip produced in release/" >&2
+            exit 1
+          fi
+          echo "Renaming ${actual} -> release/${ZIP_NAME}"
+          mv "$actual" "release/${ZIP_NAME}"
+        fi
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        automatic_release_tag: latest
-        prerelease: true
-        title: "Onion V${{ env.BUILD_VERSION }}"
-        files: |
-          release/Onion-v${{ env.BUILD_VERSION }}-${{ env.SHA_SHORT }}.zip
+        tag_name: ${{ env.RELEASE_TAG }}
+        name: ${{ env.RELEASE_TITLE }}
+        target_commitish: ${{ github.sha }}
+        prerelease: false
+        files: release/${{ env.ZIP_NAME }}
+        fail_on_unmatched_files: true

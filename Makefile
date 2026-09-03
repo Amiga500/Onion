@@ -1,7 +1,7 @@
 ###########################################################
 
-TARGET=Onion
-VERSION=4.4.0-beta-20260120
+TARGET=OnionPlus
+VERSION=4.4.0-beta-20260823
 RA_SUBVERSION=1.22.2-1
 
 ###########################################################
@@ -54,14 +54,14 @@ include ./src/common/commands.mk
 
 ###########################################################
 
-.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test
+.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test jpg2png
 
 all: dist
 
 version: # used by workflow
 	@echo $(VERSION)
 print-version:
-	@echo Onion v$(VERSION)
+	@echo $(TARGET) v$(VERSION)
 	@echo RetroArch sub-v$(RA_SUBVERSION)
 
 $(CACHE)/.setup:
@@ -111,6 +111,10 @@ $(CACHE)/.setup:
 
 build: core apps external
 	@$(ECHO) $(PRINT_DONE)
+
+# jpg2png is built like pngScale but not part of `core` until the Miyoo sysroot ships libjpeg.
+jpg2png:
+	@cd $(SRC_DIR)/jpg2png && BUILD_DIR=$(BIN_DIR) make
 
 core: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)
@@ -222,6 +226,7 @@ release: dist
 	@$(ECHO) $(PRINT_RECIPE)
 	@rm -f $(RELEASE_DIR)/$(RELEASE_NAME).zip
 	@cd $(DIST_DIR) && 7z a -mtc=off $(RELEASE_DIR)/$(RELEASE_NAME).zip . -bsp1 -bso0
+	@$(ECHO) "Release zip: $(RELEASE_DIR)/$(RELEASE_NAME).zip"
 	@$(ECHO) $(PRINT_DONE)
 
 clean:
@@ -268,6 +273,9 @@ patch:
 
 external-libs:
 	@cd $(ROOT_DIR)/include/SDL && make clean && make
+
+unit-test:
+	@cd $(ROOT_DIR)/test && $(MAKE) -f Makefile.unit all
 
 test: external-libs
 	@mkdir -p $(BUILD_TEST_DIR)/infoPanel_test_data && cd $(TEST_SRC_DIR) && BUILD_DIR=$(BUILD_TEST_DIR)/ make dev
