@@ -10,6 +10,7 @@
 #include "gs_appState.h"
 #include "gs_model.h"
 #include "gs_retroarch.h"
+#include "gs_savestate_path.h"
 
 #define POP_MENU_ACTION_RESUME 0
 #define POP_MENU_ACTION_SAVE 1
@@ -138,21 +139,7 @@ static bool _scanSaveStates(Game_s *game, SaveStateInfo_s *info)
 
 static bool createSaveStatePath(Game_s *game, int slot, char *out_path, size_t out_path_size)
 {
-    if (strlen(game->core_name) == 0) {
-        return false;
-    }
-
-    if (slot == -1) {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state.auto", game->core_name, game->rom_name);
-    }
-    else if (slot == 0) {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state", game->core_name, game->rom_name);
-    }
-    else {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state%d", game->core_name, game->rom_name, slot);
-    }
-
-    return true;
+    return createSaveStatePathFromNames(game->core_name, game->rom_name, slot, out_path, out_path_size);
 }
 
 static void setLoadPreview()
@@ -202,12 +189,17 @@ static void *_save_thread(void *_)
     char stateFilePath[4096];
     time_t saveLastModified = 0;
 
+    // Without a valid path the save cannot be confirmed below, so give up
+    // before asking RetroArch to write anything.
+    if (!createSaveStatePath(game, slot, stateFilePath, sizeof(stateFilePath))) {
+        g_save_thread_running = false;
+        return NULL;
+    }
+
     // Check if save state exists
-    if (createSaveStatePath(game, slot, stateFilePath, sizeof(stateFilePath))) {
-        printf_debug("Checking for save state: %s\n", stateFilePath);
-        if (exists(stateFilePath)) {
-            file_isModified(stateFilePath, &saveLastModified);
-        }
+    printf_debug("Checking for save state: %s\n", stateFilePath);
+    if (exists(stateFilePath)) {
+        file_isModified(stateFilePath, &saveLastModified);
     }
 
     const int start = SDL_GetTicks();
@@ -245,7 +237,8 @@ static void *_scan_thread(void *_)
 
 static bool _isSaveEnabled(void)
 {
-    return currentGame()->is_running;
+    Game_s *game = currentGame();
+    return game != NULL && game->is_running;
 }
 
 static bool _isLoadEnabled(void)
@@ -303,18 +296,22 @@ void action_saveGame(void *_)
 
 void action_loadGame(void *_)
 {
-    if (g_save_state_info.selected_slot < 0 && g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
+    if (g_save_state_info.selected_slot < 0 || g_save_state_info.selected_slot >= g_save_state_info.slot_count) {
         return;
     }
 
     const int real_slot = g_save_state_info.slots[g_save_state_info.selected_slot];
 
-    if (currentGame()->is_running) {
+    Game_s *game = currentGame();
+    if (game == NULL) {
+        return;
+    }
+
+    if (game->is_running) {
         retroarch_load(real_slot);
     }
     else {
         // Copy the save state to the auto state path
-        Game_s *game = &game_list[appState.current_game];
         char stateFilePath[2048];
         char autoStateFilePath[2048];
 

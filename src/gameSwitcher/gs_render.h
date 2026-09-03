@@ -18,13 +18,22 @@ void renderCentered(SDL_Surface *image, int view_mode, SDL_Rect *overrideSrcRect
     int offSetX = (int)(g_display.width - image->w) / 2;
     int offSetY = (int)(g_display.height - image->h) / 2;
 
-    SDL_Rect image_size = {0, 0, g_display.width, g_display.height};
+    SDL_Rect image_size = {0, 0, image->w, image->h};
     SDL_Rect image_pos = {offSetX, offSetY};
 
     if (view_mode == VIEW_NORMAL) {
-        image_size.x = theme()->frame.border_left;
-        image_size.w -= theme()->frame.border_left + theme()->frame.border_right;
-        image_pos.x += theme()->frame.border_left;
+        int border_left = theme()->frame.border_left;
+        int border_right = theme()->frame.border_right;
+        int content_w = g_display.width - border_left - border_right;
+
+        if (image->w >= content_w) {
+            image_size.x = border_left;
+            image_size.w = content_w;
+            image_pos.x = border_left;
+        }
+        else {
+            image_pos.x = border_left + (content_w - image->w) / 2;
+        }
     }
 
     if (overrideSrcRect != NULL) {
@@ -114,7 +123,7 @@ void renderGameName(AppState *state)
     }
 
     char game_name_str[STR_MAX * 2 + 4];
-    strcpy(game_name_str, game->shortname);
+    snprintf(game_name_str, sizeof(game_name_str), "%s", game->shortname);
 
     if (state->current_game_changed) {
         if (state->surfaceGameName != NULL)
@@ -159,13 +168,15 @@ void renderHeader(AppState *state, int battery_percentage)
         if (strlen(game->totalTime) == 0) {
             str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
         }
-        strcpy(title_str, game->totalTime);
+        snprintf(title_str, sizeof(title_str), "%s", game->totalTime);
 
         if (state->show_total) {
             if (strlen(sTotalTimePlayed) == 0) {
                 str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
             }
-            sprintf(title_str + strlen(title_str), " / %s", sTotalTimePlayed);
+            size_t used = strlen(title_str);
+            if (used < sizeof(title_str))
+                snprintf(title_str + used, sizeof(title_str) - used, " / %s", sTotalTimePlayed);
         }
     }
 

@@ -2,6 +2,8 @@
 #define GAME_SWITCHER_ROMSCREEN_H
 
 #include <SDL/SDL_image.h>
+#include <stddef.h>
+#include <stdio.h>
 
 #include "system/screenshot.h"
 
@@ -31,27 +33,21 @@ typedef enum {
     ROM_SCREEN_ARTWORK
 } RomScreenType_e;
 
-RomScreenType_e findRomScreen(const Game_s *game, char *currPicture)
+RomScreenType_e findRomScreen(const Game_s *game, char *currPicture, size_t currPicture_size)
 {
-    // Check if save state image exists
-    // if (strlen(game->core_name) != 0) {
-    //     sprintf(currPicture, STATES_DIR "/%s/%s.state.auto.png", game->core_name, game->rom_name);
-    //     printf_debug("Checking for save state image: %s\n", currPicture);
-    //     if (exists(currPicture)) {
-    //         return ROM_SCREEN_STATE;
-    //     }
-    // }
+    if (currPicture == NULL || currPicture_size == 0)
+        return ROM_SCREEN_NONE;
 
     // Check if hashed rom screen exists
     uint32_t hash = FNV1A_Pippip_Yurii(game->recentItem.rompath, strlen(game->recentItem.rompath));
-    sprintf(currPicture, ROM_SCREENS_DIR "/%" PRIu32 ".png", hash);
+    snprintf(currPicture, currPicture_size, ROM_SCREENS_DIR "/%" PRIu32 ".png", hash);
     printf_debug("Checking for hashed rom screen: %s\n", currPicture);
     if (exists(currPicture)) {
         return ROM_SCREEN_HASH;
     }
 
     // Check if artwork exists
-    sprintf(currPicture, game->recentItem.imgpath);
+    snprintf(currPicture, currPicture_size, "%s", game->recentItem.imgpath);
     printf_debug("Checking for artwork: %s\n", currPicture);
     if (exists(currPicture)) {
         return ROM_SCREEN_ARTWORK;
@@ -111,15 +107,15 @@ SDL_Surface *loadRomScreen(int index)
 
     if (game->romScreen == NULL && game->processed) {
         char currPicture[STR_MAX * 2];
-        RomScreenType_e romScreenType = findRomScreen(game, currPicture);
+        RomScreenType_e romScreenType = findRomScreen(game, currPicture, sizeof(currPicture));
         if (romScreenType != ROM_SCREEN_NONE) {
             game->romScreen = IMG_Load(currPicture);
 
             if (game->romScreen == NULL) {
                 printf_debug("Error loading image: %s\n", currPicture);
             }
-            else if (romScreenType == ROM_SCREEN_STATE) {
-                scaleRomScreen(game, getDynamicScalingMode(game));
+            else if (romScreenType == ROM_SCREEN_HASH) {
+                scaleRomScreen(game, (ScalingMode_s){false, false});
             }
             else {
                 scaleRomScreen(game, (ScalingMode_s){true, false});
