@@ -1,6 +1,6 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **90 commits** · **162 files** · **+28,352 / −976 lines** · **0 deleted** · **68 test suites** · **1,412 tests** ✅
+> **97 commits** · **172 files** · **+28,786 / −977 lines** · **0 deleted** · **68 test suites** · **1,414 tests** ✅
 
 > **What this document is:** the raw, reproducible *diff arithmetic* between the OnionPlus
 > branch tip and the upstream base release. Every number here comes from `git` on this
@@ -10,21 +10,22 @@
 
 | 🔖 Reference | Value |
 |:---|:---|
-| 🌿 Branch tip | `OnionPlus` vs [`OnionUI/Onion:main`](https://github.com/OnionUI/Onion/tree/main) — Flip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) + OnionUI-parity review |
+| 🌿 Branch tip | `OnionPlus` [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) vs [`OnionUI/Onion:main`](https://github.com/OnionUI/Onion/tree/main) — Flip + parity + A–G review |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
-| ⏩ Commits ahead | **90** *(`git rev-list --count 07505ea5..HEAD`)* |
-| 📦 Aggregate delta | **162 files** · **+28,352** / **−976** |
+| ⏩ Commits ahead | **97** *(`git rev-list --count 07505ea5..HEAD`)* |
+| 📦 Aggregate delta | **172 files** · **+28,786** / **−977** |
 | 🧩 Flip commit alone (`921155e8`) | **19 files** · **+362** / **−37** · 3 added (MainUI-285 ×2 + `miyoo285_system.json`) |
-| 🧪 Unit tests at tip | **68 suites** · **1,412 tests** · **71,393 assertions** · **0 failures** ✅ |
-| 🔀 Net line growth | **+27,376** |
+| 🧪 Unit tests at tip | **68 suites** · **1,414 tests** · **71,393 assertions** · **0 failures** ✅ |
+| 🔀 Net line growth | **+27,809** |
 
 > 🔁 **Self-reference.** The two files in `docs/` are part of the range they measure, so every
 > *aggregate* figure below includes them. Wherever that matters, the **code-only** subset
 > (everything except `docs/`) is given alongside it. Each table states which of the two it uses.
 > A previous revision advertised **52** commits and tip `ddbb7e14`, then **56** / `82fab865`.
 > Those described the original port window. The headline is now `git rev-list --count`
-> through Flip `921155e8` plus the OnionUI-parity review (**90**). Section 2 still lists
-> the original 56 SHAs vs `OnionUI/Onion:main`; Flip is row 88.
+> through tip `fa5bb007` (**97**). Section 2 still lists
+> the original 56 SHAs vs `OnionUI/Onion:main`; Flip is row 88; A–G is §4.12 of the
+> optimization report, not duplicated SHA-by-SHA here.
 
 ---
 
@@ -46,19 +47,21 @@
 
 | Metric | Value | Share |
 |:---|---:|---:|
-| 🧪 Insertions that are **test code** | **23,233** | **85.3 %** |
-| 🧩 Insertions that are **production code** (`src/`) | **2,323** | **8.5 %** |
-| 📚 Insertions that are **documentation** | **1,566** | **5.8 %** |
-| 🏗️ Insertions that are **build/CI/OTA wiring** | **112** | **0.4 %** |
-| ➕ Files **added** (`A`) | **79** | **54.9 %** |
-| ✏️ Files **modified** (`M`) | **65** | **45.1 %** |
+| 🧪 Insertions that are **test code** (`test/`) | **23,285** | **80.9 %** |
+| 🧩 Insertions that are **production code** (`src/`) | **2,876** | **10.0 %** |
+| 📚 Insertions that are **documentation** (`docs/` + README) | **2,365** | **8.2 %** |
+| 🏗️ Insertions that are **build/CI/static/Makefile** | **225** | **0.8 %** |
+| ➕ Files **added** (`A`) | **84** | **48.8 %** |
+| ✏️ Files **modified** (`M`) | **88** | **51.2 %** |
 | 🗑️ Files **deleted** (`D`) | **0** | **0 %** |
-| 🔁 Insertions per deletion | **≈ 34 : 1** | — |
-| 🧪 Test lines per production line | **≈ 10 : 1** | — |
+| 🔁 Insertions per deletion | **≈ 29 : 1** | — |
+| 🧪 Test lines per production `src/` line | **≈ 8 : 1** | — |
 
 > 📈 **Read this as:** OnionPlus is still a **test-heavy, low-blast-radius** port. Roughly
-> **10 lines of test** landed for every **1 line of production code**. Nothing was deleted
-> outright — the 811 removed lines are in-place rewrites inside modified files.
+> **8 lines of test** landed for every **1 line of `src/`**. Nothing was deleted
+> outright — the 977 removed lines are in-place rewrites inside modified files.
+> Production in the broader sense (`src/` + `static/` + CI/Makefile) is
+> **91 files · +3,101 / −951**.
 
 ---
 
@@ -129,9 +132,13 @@ the Flip port is appended as row 88.*
 | 56 | [`e0b6893c`](https://github.com/Amiga500/Onion/commit/e0b6893c) | docs: keep action_loadGame table row from splitting on GitHub | 1 | +1 / −1 | 📚 Docs |
 | 88 | [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) | feat: port Miyoo Mini Flip + MainUI-285 from Onion v4.5-dev | 19 | +362 / −37 | 📱 Flip port |
 | 89 | [`7a9b0a21`](https://github.com/Amiga500/Onion/commit/7a9b0a21) | docs: refresh OnionPlus stats for Flip port 921155e8 | 3 | docs | 📚 Docs |
-| 90 | *(working tree)* | fix: charging icon sentinel, retroarch killall, bound paths | 14 | +80 / −36 | 🛡️ Parity vs OnionUI/Onion |
+| 90 | [`64a0e42`](https://github.com/Amiga500/Onion/commit/64a0e42) | fix: charging icon sentinel, retroarch killall, bound paths | 14 | +80 / −36 | 🛡️ Parity vs OnionUI/Onion |
+| 94 | [`c8445ae`](https://github.com/Amiga500/Onion/commit/c8445ae) | test: align file_read empty-file contract with production | — | A | 🧪 Finding A |
+| 95 | [`5659de2`](https://github.com/Amiga500/Onion/commit/5659de2) | fix: Flip suspend lid, runtime device detect, OTA beta channel | — | B C D | 🛡️ Finding B–D |
+| 96 | [`9ab47af`](https://github.com/Amiga500/Onion/commit/9ab47af) / [`2f90bbe`](https://github.com/Amiga500/Onion/commit/2f90bbe) | fix: brightness cache, infoPanel scale identity, theme cleanup | — | E F G | 🛡️ Finding E–G *(duplicate tree)* |
+| 97 | [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) | ci: Add push trigger for OnionPlus branch | 1 | CI | 🏗️ CI |
 | | | **Aggregate original window `07505ea5` → `e0b6893c`** | **144** | **+27,234 / −811** | |
-| | | **Headline after OnionUI-parity review** | **162** | **+28,352 / −976** | |
+| | | **Headline at tip `fa5bb007` (2026-09-03)** | **172** | **+28,786 / −977** | |
 
 > ℹ️ A previous revision of this table had **52 rows** and tip `ddbb7e14`.
 > Rows 25–29 are a remote experiment that was fully reverted — net zero in the tree.
@@ -343,7 +350,7 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 ```bash
 cd /path/to/Onion
 
-# Commit list and count (90 at HEAD vs OnionUI/Onion:main 07505ea5)
+# Commit list and count (97 at HEAD fa5bb007 vs OnionUI/Onion:main 07505ea5)
 git rev-list --count 07505ea5..HEAD
 git log --oneline --reverse 07505ea5..HEAD
 
@@ -368,5 +375,5 @@ make unit-test
 actually do, with before/after code and performance figures.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → Flip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) + OnionUI-parity review (**90** commits at HEAD) ·
-Headline figures refreshed 2026-08-28 · Section 2 rows 1–56 still describe the original port window · Flip suites re-run green.</sub>
+Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → tip [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) (**97** commits at HEAD) ·
+Headline figures refreshed **2026-09-03** · Section 2 rows 1–56 still describe the original port window · Flip suites re-run green.</sub>

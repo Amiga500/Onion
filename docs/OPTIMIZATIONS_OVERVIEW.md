@@ -1,16 +1,16 @@
 # 🕹️ OnionPlus — Optimizations at a Glance
 
 [![branch](https://img.shields.io/badge/branch-OnionPlus-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/OnionPlus)
-[![commits](https://img.shields.io/badge/commits-90-blueviolet?style=for-the-badge)](#-11--commit-timeline)
-[![files](https://img.shields.io/badge/files%20changed-162-blue?style=for-the-badge)](#-10--grand-totals)
-[![diff](https://img.shields.io/badge/diff-%2B28%2C352%20%2F%20%E2%88%92976-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
+[![commits](https://img.shields.io/badge/commits-97-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![files](https://img.shields.io/badge/files%20changed-172-blue?style=for-the-badge)](#-10--grand-totals)
+[![diff](https://img.shields.io/badge/diff-%2B28%2C786%20%2F%20%E2%88%92977-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
-[![tests](https://img.shields.io/badge/tests-1%2C412%20%2F%2071%2C393%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
+[![tests](https://img.shields.io/badge/tests-1%2C414%20%2F%2071%2C393%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
 > 🧵 **What this is.** A from-scratch, category-first tour of every optimization and
 > hardening change shipped on **OnionPlus** so far — reviewed directly from the commit
-> history (`07505ea5 → HEAD` vs `OnionUI/Onion:main`, **90 commits**). It complements, and does **not** replace,
+> history (`07505ea5 → fa5bb007` vs `OnionUI/Onion:main`, **97 commits**). It complements, and does **not** replace,
 > the deep-dive [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) (evidence,
 > methodology, before/after code) and the raw [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)
 > diff stats. Think of this page as the **poster**, and those two as the **paper trail**.
@@ -263,7 +263,7 @@ Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
 | 🎯 New build target | `make unit-test` — host-only, zero device dependency |
 | 📊 Opt-in profiling | `src/common/utils/perf.h` — `PERF_START`/`PERF_END` compile to nothing unless `-DPERF_ENABLED` |
 | 🏷️ Release naming | `OnionPlus V4.4.0-beta-YYYYMMDD`, zip `OnionPlus-v…-<sha>.zip` — real dated GitHub Releases, no more overwritten `latest` |
-| 📡 OTA | `ota_update.sh` now points at `Amiga500/Onion`, filters `OnionPlus-v` assets |
+| 📡 OTA | `ota_update.sh` points at `Amiga500/Onion`, filters `OnionPlus-v` assets. Beta = prereleases only (no `releases[0]` fallback). |
 | 🧵 Signal handling | Shared `signal_handler_quit()` deduplicated across 6 apps; `volatile sig_atomic_t` used correctly for signal-shared state |
 
 ---
@@ -272,11 +272,11 @@ Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..HEAD`) | **68** |
-| 📁 Files changed | **155** |
-| ➕➖ Lines | **+27,504 / −866** |
+| 🔧 Commits (`07505ea5..HEAD`) | **97** *(`fa5bb007`)* |
+| 📁 Files changed | **172** *(84 A / 88 M / 0 D)* |
+| ➕➖ Lines | **+28,786 / −977** |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
-| 🧪 Test suites / tests / assertions | **68 / 1,410 / 71,385** — **all green** ✅ |
+| 🧪 Test suites / tests / assertions | **68 / 1,414 / 71,393** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
 | 🛡️ NULL-guards / closed descriptors added | **+57 / +18** |
 | 🔐 Pre-existing upstream defects fixed | **6** |
@@ -305,6 +305,8 @@ A bird's-eye view of the branch's evolution, oldest first:
 12. 🔎 **Review pass 3** — randomGamePicker / theme / packageManager / gs_romscreen bounds.
 13. 📱 **Mini Flip port** — `921155e8` from `OnionUI/Onion:v4.5-dev`, no wholesale merge.
 14. 🔎 **OnionUI-parity review** — charging sentinel, RetroArch killall, `file_read("")`, rumble retry, path bounds.
+15. 🩹 **2026-09-01 A–G review** — empty-file contract, Flip lid-already-closed, AXP-then-hall detect, OTA beta, brightness write-through, infoPanel scale key, theme cleanup.
+16. 📦 **Release tip** — `OnionPlus V4.4.0-beta-20260901` (`fa5bb007`).
 
 > 🔍 Full SHA-by-SHA detail lives in
 > [§1 of the deep-dive report](./ONIONPLUS_OPTIMIZATION.md#-1-commit-breakdown).
@@ -313,7 +315,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-OnionPlus is **90 commits** ahead of `OnionUI/Onion:main`. Use this page as the poster;
+OnionPlus is **97 commits** ahead of `OnionUI/Onion:main` (tip `fa5bb007`). Use this page as the poster;
 [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) is the evidence trail and
 [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md) is the raw `git` arithmetic. OTA:
 `Amiga500/Onion`.
@@ -321,7 +323,7 @@ OnionPlus is **90 commits** ahead of `OnionUI/Onion:main`. Use this page as the 
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/Amiga500/Onion/commit/07505ea5) → `HEAD` vs `OnionUI/Onion:main` (**90** commits,
-`git rev-list --count`) · Companion docs:
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → tip [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) vs `OnionUI/Onion:main` (**97** commits,
+`git rev-list --count`) · Headline figures refreshed **2026-09-03** · Companion docs:
 [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) ·
 [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)</sub>

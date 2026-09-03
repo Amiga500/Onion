@@ -1,16 +1,18 @@
 # <img src="../static/build/Icons/Default/app/advancemenu.png" width="32" align="top" alt="OnionPlus" /> OnionPlus — Optimization & Hardening Report
 
-[![commits](https://img.shields.io/badge/commits-90-8A2BE2?style=flat-square)](#-1-commit-breakdown)
-[![files](https://img.shields.io/badge/files-162-blue?style=flat-square)](#-7-overall-statistics)
-[![diff](https://img.shields.io/badge/diff-%2B28%2C352%20%2F%20%E2%88%92976-informational?style=flat-square)](./OnionPlus-vs-base.md)
+[![commits](https://img.shields.io/badge/commits-97-8A2BE2?style=flat-square)](#-1-commit-breakdown)
+[![files](https://img.shields.io/badge/files-172-blue?style=flat-square)](#-7-overall-statistics)
+[![diff](https://img.shields.io/badge/diff-%2B28%2C786%20%2F%20%E2%88%92977-informational?style=flat-square)](./OnionPlus-vs-base.md)
 [![NEON](https://img.shields.io/badge/NEON%20kernels-8-orange?style=flat-square)](#-2-performance--neon-pixel-paths)
 [![suites](https://img.shields.io/badge/test%20suites-68-yellow?style=flat-square)](#-5-testing)
-[![tests](https://img.shields.io/badge/tests-1%2C412-success?style=flat-square)](#-5-testing)
+[![tests](https://img.shields.io/badge/tests-1%2C414-success?style=flat-square)](#-5-testing)
 [![assertions](https://img.shields.io/badge/assertions-71%2C393-success?style=flat-square)](#-5-testing)
 [![status](https://img.shields.io/badge/status-ALL%20PASSED-brightgreen?style=flat-square)](#-final-status)
 [![on-device benchmarks](https://img.shields.io/badge/on--device%20benchmarks-none-red?style=flat-square)](#-9-methodology--limits)
 
-> **90 commits** · **162 files** · **+28,352 / −976 lines** · **8 NEON kernels** · **68 test suites** · **1,412 tests** · **71,393 assertions** · **ALL PASSED** ✅
+> **97 commits** · **172 files** · **+28,786 / −977 lines** · **8 NEON kernels** · **68 test suites** · **1,414 tests** · **71,393 assertions** · **ALL PASSED** ✅
+>
+> Tip [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) · release **OnionPlus V4.4.0-beta-20260901** · figures refreshed **2026-09-03**.
 
 > **Scope:** every comparison in this report is **OnionPlus vs `OnionUI/Onion:main`**
 > (`07505ea5` → `HEAD`). Every percentage below is **OnionPlus vs that upstream tip**.
@@ -64,7 +66,7 @@ first column, used only for ordering:
 2. [Commit Breakdown](#-1-commit-breakdown)
 3. [Performance — NEON Pixel Paths](#-2-performance--neon-pixel-paths)
 4. [Performance — Algorithmic & Syscall Wins](#-3-performance--algorithmic--syscall-wins) (incl. [§3.8 second review pass](#38-second-review-pass--further-hot-path-optimizations))
-5. [Security & Hardening](#️-4-security--hardening)
+5. [Security & Hardening](#️-4-security--hardening) (incl. [§4.10 Flip](#410-miyoo-mini-flip-port-921155e8), [§4.11 parity](#411-onionui-parity-review), [§4.12 A–G](#412-independent-review-2026-09-01-findings-ag))
 6. [Testing](#-5-testing)
 7. [Build & Tooling](#️-6-build--tooling)
 8. [Overall Statistics](#-7-overall-statistics)
@@ -1042,9 +1044,12 @@ comes from `HEAD`, not stale `origin/main`.
 
 **Miyoo OTA** (commit [`201bae3d`](https://github.com/Amiga500/Onion/commit/201bae3d)) —
 `ota_update.sh` now queries `Amiga500/Onion`, filters assets containing `OnionPlus-v`, and
-bootstraps from the `OnionPlus` branch. Stable channel uses `/releases/latest`; beta uses
-`/releases[0]`. **First flash must still be manual** — the OTA script
-ships inside the zip.
+bootstraps from the `OnionPlus` branch. Stable channel uses `/releases/latest`. Beta
+installs **only GitHub prereleases**; if none exist it reports “no update” instead of
+falling back to `releases[0]` (finding D, `5659de2c`). **First flash must still be
+manual** — the OTA script ships inside the zip. The 2026-09-01 build is
+`prerelease: false` and `latest`, so that night pre-007 firmware saw the same zip on
+both channels.
 
 ---
 
@@ -1052,15 +1057,15 @@ ships inside the zip.
 
 | Metric | Value |
 |:-------|------:|
-| 🔧 **Commits** | **56** *(`git rev-list --count 07505ea5..HEAD`)* |
-| 📁 **Files changed** | **144** *(142 excluding `docs/`)* |
-| ➕ **Lines added / removed** | **+27,234 / −811** *(+25,668 / −811 excluding `docs/`)* |
-| 🧩 **Production code (`src/`)** | **60 files · +2,323 / −766** |
-| 🧪 **Test code (`test/`)** | **75 files · +23,233 / −10** |
-| 📚 **Documentation (`docs/`)** | **2 files · +1,566** |
-| 🏗️ **Build / CI / OTA** | **7 files · +112 / −35** |
+| 🔧 **Commits** | **97** *(`git rev-list --count 07505ea5..HEAD`, tip `fa5bb007`)* |
+| 📁 **Files changed** | **172** *(84 added, 88 modified, 0 deleted)* |
+| ➕ **Lines added / removed** | **+28,786 / −977** |
+| 🧩 **Production code (`src/`)** | **72 files · +2,876 / −876** |
+| 🧪 **Test code (`test/`)** | **75 files · +23,285 / −10** |
+| 📚 **Documentation (`docs/` + README)** | **4 files · +2,365 / −16** |
+| 🏗️ **Build / CI / static / Makefile** | **19 files · +225 / −75** |
 | 🆕 **New test source files** | **68** *(all 68 in `TESTS`)* |
-| 🧪 **Active suites / tests / assertions** | **68 / 1,410 / 71,385** |
+| 🧪 **Active suites / tests / assertions** | **68 / 1,414 / 71,393** |
 | ✅ **Test result** | **ALL PASSED** *(0 failures)* |
 | ⏱️ **Suite runtime** | **~3.3 s** prebuilt |
 | ⚡ **NEON kernels added** | **8** *(7 asm + 1 intrinsics, all with scalar fallback)* |
@@ -1224,6 +1229,28 @@ Delta of `921155e8`: **19 files · +362 / −37** (16 modified, 3 added, 0 delet
 14 files · +80 / −36. Tests: `test_process.c`, `test_file.c` (`file_read_empty_file`).
 
 ---
+
+## 🩹 4.12 Independent review 2026-09-01 (findings A–G)
+
+> Build [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) /
+> release **OnionPlus V4.4.0-beta-20260901**. Only confirmed findings were patched.
+
+| Id | Area | What changed |
+|:--|:--|:--|
+| A | CI / `file_read` | Empty file returns `""`. `test/test_file_security.c` matches that contract (`c8445ae`). |
+| B | Flip suspend | In `suspend_exec`, a lid already closed on entry no longer forces `deepsleep()` when the timeout expires. Wake-on-lid-open unchanged. Needs a real Mini Flip. |
+| C | Detection | `runtime.sh` probes AXP first (354 Mini+), then the `hall-mh248` sysfs node (285 Flip). `/dev/input/event1` is no longer a Flip signal. |
+| D | OTA beta | No fallback to `releases[0]`. Beta installs only GitHub prereleases; otherwise “no update”. |
+| E | Backlight | `display_setBrightnessRaw` always writes `pwm0/duty_cycle` (no per-process cache that can ignore `keymon`’s 0). |
+| F | infoPanel | Scaled-image cache is no longer keyed on `SDL_Surface*` identity. Key is source/target size plus a pixel checksum. |
+| G | Theme | `prompt` and `infoPanel` call TTF header/footer/dialog cleanups before `resources_free`. |
+
+CI: `test.yml` runs on push to `OnionPlus`. Host `make unit-test`: **1,414 tests**.
+`9ab47af` / `2f90bbe` carry the same E–G tree; `fa5bb007` only adds the push trigger.
+
+Not covered by that review: `docs/`, `website/`, `third-party/`, Flip lid/Hall on hardware, OTA mid-`install.sh` power cut.
+
+---
 ## ⚠️ 10. Known Residuals
 
 For transparency, these items **remain** at the working tree. They are outside the scope
@@ -1235,7 +1262,7 @@ of this port, not oversights the numbers above conceal.
 | `src/jpg2png` vs `make core` | build | `jpg2png` stays **out of `core`**: Miyoo sysroot has no libjpeg. Makefile sibling exists; `make -C src/jpg2png` is opt-in. |
 | Host `make unit-test` | SIMD | Scalar fallbacks only on x86-64. The `neon-arm` CI job runs the assembly under qemu. |
 | On-device timings | methodology | Nothing re-timed on a physical Miyoo in this tree. 📏 = OnionPlus vs OnionUI/Onion:main. |
-| Mini Flip lid / Hall | hardware | Ported from `v4.5-dev` (`921155e8`); Hall + `/dev/input/event1` detection is the upstream heuristic and has **not** been validated on a physical Flip in this tree. |
+| Mini Flip lid / Hall | hardware | Ported from `v4.5-dev` (`921155e8`), then finding C switched detect to AXP then `hall-mh248` (not `/dev/input/event1`). Lid-already-closed no longer forces `deepsleep()` (finding B). **Still unvalidated on a physical Flip.** |
 | Volume logarithmic curve | not taken | UX-affecting; deferred — see [§8](#-8-intentionally-not-taken). |
 | `batmon` / `keymon` signals | custom handlers | Extra signals (SIGUSR1, SIGSTOP, …) — not the shared SIGINT/SIGTERM helper. |
 | `chargingState.c` `strcpy` | closed | Bounded `snprintf` + sized `getImageDir` in the OnionUI-parity review. |
@@ -1264,8 +1291,8 @@ consumers' freshness.
 
 ## ✅ Final Status
 
-OnionPlus is **90 commits** ahead of upstream `OnionUI/Onion:main`
-(`07505ea5` → Flip `921155e8` + OnionUI-parity review / `HEAD`, `git rev-list --count`), adding **8 NEON pixel kernels**,
+OnionPlus is **97 commits** ahead of upstream `OnionUI/Onion:main`
+(`07505ea5` → tip `fa5bb007`, `git rev-list --count`), adding **8 NEON pixel kernels**,
 crash/memory hardening of the `src/common` layer, TTF/list/footer/header/dialog surface
 caches, `--gc-sections` release flags, four algorithmic wins in `str`/`file`, production
 `file_remove_recursive` call sites, migrated SIGINT/SIGTERM handlers, fixes for **6
@@ -1278,10 +1305,11 @@ optimizations (rumble GPIO caching + vibration clamp, infoPanel scaled-image cac
 GameSwitcher battery-poll throttle, playActivityUI per-page image cache, randomGamePicker
 dedup/init fixes — [§3.8](#38-second-review-pass--further-hot-path-optimizations)), a
 **68-suite host unit-test harness** runnable with a single `make unit-test`, a **Miyoo Mini Flip** port from `v4.5-dev` that preserves the OnionPlus hardening
-([§4.10](#410-miyoo-mini-flip-port-921155e8)), and an OnionUI-parity review
-([§4.11](#411-onionui-parity-review)).
+([§4.10](#410-miyoo-mini-flip-port-921155e8)), an OnionUI-parity review
+([§4.11](#411-onionui-parity-review)), and the 2026-09-01 A–G review
+([§4.12](#412-independent-review-2026-09-01-findings-ag)).
 
-> 🧪 **68 suites · 1,412 tests · 71,393 assertions · 0 failures.** ✅
+> 🧪 **68 suites · 1,414 tests · 71,393 assertions · 0 failures.** ✅
 >
 > Note: the baseline `07505ea5` had **no** host test suite, so this is a new quality floor
 > rather than a "no regressions" comparison — there is nothing to compare against upstream.
@@ -1305,5 +1333,5 @@ convention that callers had to remember on their own.
 📊 See also: **[OnionPlus-vs-base.md](./OnionPlus-vs-base.md)** — full diff statistics vs. the base release.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → Flip [`921155e8`](https://github.com/Amiga500/Onion/commit/921155e8) + OnionUI-parity review (**90** commits) ·
-Headline figures refreshed 2026-08-28 · SHA-by-SHA table in §1 still covers the original 56-commit window through `82fab865`</sub>
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → tip [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) (**97** commits) ·
+Headline figures refreshed **2026-09-03** · SHA-by-SHA table in §1 still covers the original 56-commit window through `82fab865`</sub>
