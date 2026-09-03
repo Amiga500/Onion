@@ -21,6 +21,7 @@
 #include "utils/file.h"
 #include "utils/keystate.h"
 #include "utils/log.h"
+#include "utils/signal_handler.h"
 #include "utils/str.h"
 #include "utils/surfaceSetAlpha.h"
 

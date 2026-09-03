@@ -19,6 +19,16 @@
 
 static bool quit = false;
 
+#define SURF_W(s) ((s) != NULL ? (s)->w : 0)
+#define SURF_H(s) ((s) != NULL ? (s)->h : 0)
+
+static void safeBlitSurface(SDL_Surface *src, SDL_Rect *srcrect,
+                            SDL_Surface *dst, SDL_Rect *dstrect)
+{
+    if (src != NULL && dst != NULL)
+        SDL_BlitSurface(src, srcrect, dst, dstrect);
+}
+
 void showCenteredMessage(SDL_Surface *video, SDL_Surface *screen,
                          const char *message_str, TTF_Font *font,
                          SDL_Color color)
@@ -42,9 +52,9 @@ SDL_Surface *createBottomBar(TTF_Font *font)
 
     SDL_FillRect(surface, NULL, 0);
 
-    SDL_Rect pos = {20, 35 - surfaceButtonA->h / 2};
-    SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
-    pos.x += surfaceButtonA->w + 10;
+    SDL_Rect pos = {20, 35 - SURF_H(surfaceButtonA) / 2};
+    safeBlitSurface(surfaceButtonA, NULL, surface, &pos);
+    pos.x += SURF_W(surfaceButtonA) + 10;
 
     SDL_Surface *text =
         TTF_RenderUTF8_Blended(font, "INSTALL", (SDL_Color){255, 255, 255});
@@ -53,9 +63,9 @@ SDL_Surface *createBottomBar(TTF_Font *font)
     pos.x += text->w + 20;
     SDL_FreeSurface(text);
 
-    pos.y = 35 - surfaceButtonB->h / 2;
-    SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
-    pos.x += surfaceButtonB->w + 10;
+    pos.y = 35 - SURF_H(surfaceButtonB) / 2;
+    safeBlitSurface(surfaceButtonB, NULL, surface, &pos);
+    pos.x += SURF_W(surfaceButtonB) + 10;
 
     text = TTF_RenderUTF8_Blended(font, "CANCEL", (SDL_Color){255, 255, 255});
     pos.y = 35 - text->h / 2 - 3;
@@ -63,9 +73,9 @@ SDL_Surface *createBottomBar(TTF_Font *font)
     pos.x += text->w + 20;
     SDL_FreeSurface(text);
 
-    pos.y = 35 - surfaceButtonX->h / 2;
-    SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
-    pos.x += surfaceButtonX->w + 10;
+    pos.y = 35 - SURF_H(surfaceButtonX) / 2;
+    safeBlitSurface(surfaceButtonX, NULL, surface, &pos);
+    pos.x += SURF_W(surfaceButtonX) + 10;
 
     text = TTF_RenderUTF8_Blended(font, "TOGGLE ICONS",
                                   (SDL_Color){255, 255, 255});
@@ -162,15 +172,15 @@ int main(int argc, char *argv[])
     SDL_Surface *surfaceFileZIP = IMG_Load("res/file_zip.png");
     SDL_Surface *surfaceFile7Z = IMG_Load("res/file_7z.png");
     SDL_Surface *surfaceFileRAR = IMG_Load("res/file_rar.png");
-    SDL_Rect rectPreviewIcon = {560 - surfaceFileZIP->w,
-                                21 - surfaceFileZIP->h / 2};
+    SDL_Rect rectPreviewIcon = {560 - SURF_W(surfaceFileZIP),
+                                21 - SURF_H(surfaceFileZIP) / 2};
 
     SDL_Surface *surfaceHasIcons = IMG_Load("res/themes_has_icons.png");
-    SDL_Rect rectHasIcons = {560 - surfaceHasIcons->w,
-                             21 - surfaceHasIcons->h / 2};
-    SDL_Rect rectHasIconsPreviewIcon = {560 - surfaceFileZIP->w -
-                                            surfaceHasIcons->w - 10,
-                                        21 - surfaceFileZIP->h / 2};
+    SDL_Rect rectHasIcons = {560 - SURF_W(surfaceHasIcons),
+                             21 - SURF_H(surfaceHasIcons) / 2};
+    SDL_Rect rectHasIconsPreviewIcon = {560 - SURF_W(surfaceFileZIP) -
+                                            SURF_W(surfaceHasIcons) - 10,
+                                        21 - SURF_H(surfaceFileZIP) / 2};
 
     SDL_Rect preview_src_rect = {0, 0, 480, 360};
     SDL_Rect rectArrowLeft = {24, 210, 28, 32};
@@ -327,17 +337,17 @@ int main(int argc, char *argv[])
 
         if (levelPage == 0) {
             if (previews[current_page] == NULL) {
-                SDL_BlitSurface(noPreview, NULL, screen, &rectThemePreview);
+                safeBlitSurface(noPreview, NULL, screen, &rectThemePreview);
             }
             else {
                 SDL_BlitSurface(previews[current_page], &preview_src_rect, screen, &rectThemePreview);
             }
-            SDL_BlitSurface(background_page0, NULL, screen, NULL);
+            safeBlitSurface(background_page0, NULL, screen, NULL);
 
             if (current_page != 0)
-                SDL_BlitSurface(surfaceArrowLeft, NULL, screen, &rectArrowLeft);
+                safeBlitSurface(surfaceArrowLeft, NULL, screen, &rectArrowLeft);
             if (current_page != themes_count - 1)
-                SDL_BlitSurface(surfaceArrowRight, NULL, screen, &rectArrowRight);
+                safeBlitSurface(surfaceArrowRight, NULL, screen, &rectArrowRight);
 
             snprintf(cPages, sizeof(cPages) - 1, "%d/%d", current_page + 1, themes_count);
             imagePages = TTF_RenderUTF8_Blended(font30, cPages, color_white);
@@ -357,11 +367,11 @@ int main(int argc, char *argv[])
             SDL_FreeSurface(imageThemeNom);
 
             if (has_icons) {
-                SDL_BlitSurface(surfaceHasIcons, NULL, screen, &rectHasIcons);
+                safeBlitSurface(surfaceHasIcons, NULL, screen, &rectHasIcons);
             }
 
             if (is_preview) {
-                SDL_BlitSurface(previewIcon, NULL, screen, has_icons ? &rectHasIconsPreviewIcon : &rectPreviewIcon);
+                safeBlitSurface(previewIcon, NULL, screen, has_icons ? &rectHasIconsPreviewIcon : &rectPreviewIcon);
             }
 
             SDL_BlitSurface(screen, NULL, background_cache, NULL);
@@ -386,7 +396,7 @@ int main(int argc, char *argv[])
                 rectThemeName.y += 70;
             }
 
-            SDL_BlitSurface(apply_icons ? surfaceToggleON : surfaceToggleOFF, NULL, screen, &rectThemeName);
+            safeBlitSurface(apply_icons ? surfaceToggleON : surfaceToggleOFF, NULL, screen, &rectThemeName);
 
             rectThemeName.x = 60;
             char msg[STR_MAX];

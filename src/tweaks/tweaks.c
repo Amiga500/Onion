@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
                         list_changed = true;
                     }
                 }
-                if (DEVICE_ID == MIYOO354) {
+                if (IS_MIYOO_PLUS_OR_FLIP()) {
                     if (isMenu(&_menu_user_blue_light)) {
                         if (_writeDateString(_menu_user_blue_light.items[0].label)) {
                             list_changed = true;
@@ -274,6 +274,8 @@ int main(int argc, char *argv[])
 
     if (DEVICE_ID == MIYOO354) {
         value_setLcdVoltage();
+    }
+    if (HAS_WIFI()) {
         check_networkChanged();
     }
 
@@ -286,6 +288,9 @@ int main(int argc, char *argv[])
 
     lang_free();
     menu_free_all();
+    theme_renderHeader_cleanup();
+    theme_renderStandardHint_cleanup();
+    theme_renderDialog_cleanup();
     resources_free();
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);
