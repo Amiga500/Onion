@@ -1,10 +1,12 @@
 #define _LARGEFILE64_SOURCE
+#define _XOPEN_SOURCE 700
 
 #include "file.h"
 
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <ftw.h>
 #include <limits.h>
 #include <regex.h>
 #include <stdbool.h>
@@ -59,12 +61,12 @@ bool file_isLocked(const char *path)
 
 const char *file_basename(const char *filename)
 {
-    char *p = strrchr(filename, '/');
-    return p ? p + 1 : (char *)filename;
+    const char *p = strrchr(filename, '/');
+    return p ? p + 1 : filename;
 }
 
 /**
- * @brief Create directories in dir_path using `mkdir -p` command.
+ * @brief Create directories in dir_path (mkdir -p semantics, no shell).
  *
  * @param dir_path The full directory path.
  * @return true If the path didn't exist (dirs were created).
@@ -72,13 +74,23 @@ const char *file_basename(const char *filename)
  */
 bool mkdirs(const char *dir_path)
 {
-    if (!exists(dir_path)) {
-        char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
-        system(dir_cmd);
-        return true;
+    if (exists(dir_path))
+        return false;
+
+    char tmp[PATH_MAX];
+    size_t len = strlen(dir_path);
+    if (len == 0 || len >= sizeof(tmp))
+        return false;
+    memcpy(tmp, dir_path, len + 1);
+
+    for (char *p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(tmp, 0755);
+            *p = '/';
+        }
     }
-    return false;
+    return mkdir(tmp, 0755) == 0 || errno == EEXIST;
 }
 
 void file_readLastLine(const char *filename, char *out_str)
@@ -95,77 +107,144 @@ void file_readLastLine(const char *filename, char *out_str)
         fseek(fd, 0L, SEEK_SET);
 
         int max_len = size < 255 ? size + 1 : 255;
-        if (max_len <= 1)
+        if (max_len <= 1) {
+            fclose(fd);
             return;
+        }
 
-        // get the last line
-        fseek(fd, -max_len, SEEK_END);
-        fread(buff, max_len - 1, 1, fd);
+        // get the last line (avoid seeking before file start)
+        if (max_len > size)
+            fseek(fd, 0L, SEEK_SET);
+        else
+            fseek(fd, -max_len, SEEK_END);
+        if (fread(buff, max_len - 1, 1, fd) != 1) {
+            fclose(fd);
+            return;
+        }
 
         // cleanup
         fclose(fd);
         buff[max_len - 1] = '\0';
 
-        token = strtok(buff, "\n");
+        char *saveptr;
+        token = strtok_r(buff, "\n", &saveptr);
         while (token != NULL) {
             if (strlen(token) > 0)
                 snprintf(out_str, 255, "%s", token);
-            token = strtok(NULL, "\n");
+            token = strtok_r(NULL, "\n", &saveptr);
         }
     }
 }
 
 char *file_read(const char *path)
 {
-    FILE *f = NULL;
-    char *buffer = NULL;
-    long length = 0;
-
-    if (!exists(path))
+    struct stat64 st;
+    if (stat64(path, &st) != 0 || st.st_size < 0)
         return NULL;
 
-    if ((f = fopen(path, "rb"))) {
-        fseek(f, 0, SEEK_END);
-        length = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
-            fread(buffer, sizeof(char), length, f);
-        fclose(f);
-    }
-    buffer[length] = '\0';
+    // Safety check: limit file size to 100MB to prevent excessive memory allocation
+    if (st.st_size > 100 * 1024 * 1024)
+        return NULL;
 
+    /* Empty file: match OnionUI/Onion (malloc(1) + NUL), not NULL. */
+    if (st.st_size == 0) {
+        char *empty = (char *)malloc(1);
+        if (empty == NULL)
+            return NULL;
+        empty[0] = '\0';
+        return empty;
+    }
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0)
+        return NULL;
+
+    char *buffer = (char *)malloc(st.st_size + 1);
+    if (buffer == NULL) {
+        close(fd);
+        return NULL;
+    }
+
+    ssize_t total = 0;
+    while (total < st.st_size) {
+        ssize_t nread = read(fd, buffer + total, st.st_size - total);
+        if (nread <= 0)
+            break;
+        total += nread;
+    }
+    close(fd);
+
+    if (total <= 0) {
+        free(buffer);
+        return NULL;
+    }
+
+    buffer[total] = '\0';
     return buffer;
 }
 
 bool file_write(const char *path, const char *str, uint32_t len)
 {
-    uint32_t fd;
-    if ((fd = open(path, O_WRONLY)) == 0)
+    int fd;
+    if ((fd = open(path, O_WRONLY)) < 0)
         return false;
-    if (write(fd, str, len) == -1)
+    if (write(fd, str, len) == -1) {
+        close(fd);
         return false;
+    }
     close(fd);
     return true;
 }
 
 void file_copy(const char *src_path, const char *dest_path)
 {
-    char system_cmd[4128];
-    snprintf(system_cmd, sizeof(system_cmd), "cp -f \"%s\" \"%s\"", src_path, dest_path);
-    system(system_cmd);
+    int src_fd = open(src_path, O_RDONLY);
+    if (src_fd < 0)
+        return;
+
+    struct stat st;
+    if (fstat(src_fd, &st) < 0) {
+        close(src_fd);
+        return;
+    }
+
+    int dst_fd = open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, st.st_mode);
+    if (dst_fd < 0) {
+        close(src_fd);
+        return;
+    }
+
+    char buf[4096];
+    ssize_t nread;
+    while ((nread = read(src_fd, buf, sizeof(buf))) > 0) {
+        const char *p = buf;
+        while (nread > 0) {
+            ssize_t nwritten = write(dst_fd, p, nread);
+            if (nwritten < 0) {
+                close(src_fd);
+                close(dst_fd);
+                return;
+            }
+            nread -= nwritten;
+            p += nwritten;
+        }
+    }
+
+    close(src_fd);
+    close(dst_fd);
 }
 
 char *file_removeExtension(const char *myStr)
 {
     if (myStr == NULL)
         return NULL;
-    char *retStr = (char *)malloc(strlen(myStr) + 1);
+    size_t len = strlen(myStr);
+    char *retStr = (char *)malloc(len + 1);
     char *lastExt;
     if (retStr == NULL)
         return NULL;
-    strcpy(retStr, myStr);
-    if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 2) != '\0')
+    memcpy(retStr, myStr, len + 1);
+    if ((lastExt = strrchr(retStr, '.')) != NULL && *(lastExt + 1) != ' ' && *(lastExt + 1) != '\0' && *(lastExt + 2) != '\0')
         *lastExt = '\0';
     return retStr;
 }
@@ -190,6 +269,18 @@ void file_cleanName(char *name_out, const char *file_name)
 {
     char *name_without_ext = file_removeExtension(file_name);
     char *no_underscores = str_replace(name_without_ext, "_", " ");
+    if (no_underscores == NULL) {
+        // Handle allocation failure
+        if (name_without_ext != NULL) {
+            strncpy(name_out, name_without_ext, STR_MAX - 1);
+            name_out[STR_MAX - 1] = '\0';
+            free(name_without_ext);
+        }
+        else {
+            name_out[0] = '\0';
+        }
+        return;
+    }
     char *dot_ptr = strstr(no_underscores, ".");
     if (dot_ptr != NULL) {
         char *s = no_underscores;
@@ -213,6 +304,8 @@ void file_cleanName(char *name_out, const char *file_name)
 
 const char *file_getExtension(const char *filename)
 {
+    if (filename == NULL)
+        return "";
     const char *dot = strrchr(filename, '.');
     if (!dot || dot == filename)
         return "";
@@ -230,7 +323,7 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
     char key[256], val[256];
     char key_search[STR_MAX];
     char search_str[STR_MAX];
-    sprintf(search_str, "%%255[^%c]%c%%255[^\n]\n", divider, divider);
+    snprintf(search_str, sizeof(search_str), "%%255[^%c]%c%%255[^\n]\n", divider, divider);
     int match_index = 0;
 
     *value_out = 0;
@@ -238,12 +331,8 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
         key[0] = 0;
         val[0] = 0;
         while ((read = getline(&line, &len, fp)) != -1) {
-            if (!(f = sscanf(line, search_str, key, val))) {
-                if (fscanf(fp, "%*[^\n]\n") == EOF)
-                    break;
-                else
-                    continue;
-            }
+            if (!(f = sscanf(line, search_str, key, val)))
+                continue;
             if (str_trim(key_search, 256, key, true)) {
                 if (strcmp(key_search, key_in) == 0) {
                     str_trim(value_out, 256, val, false);
@@ -271,10 +360,18 @@ void file_changeKeyValue(const char *file_path, const char *key,
     size_t len = 0;
     ssize_t read;
 
+    char temp_path[PATH_MAX];
+    snprintf(temp_path, sizeof(temp_path), "%s.tmp", file_path);
+
     fp = fopen(file_path, "r");
-    cp = fopen("temp", "w+");
-    if (fp == NULL)
-        exit(EXIT_FAILURE);
+    cp = fopen(temp_path, "w+");
+    if (fp == NULL || cp == NULL) {
+        if (fp != NULL)
+            fclose(fp);
+        if (cp != NULL)
+            fclose(cp);
+        return;
+    }
 
     int key_len = strlen(key);
     int line_idx = 0, line_len;
@@ -296,11 +393,9 @@ void file_changeKeyValue(const char *file_path, const char *key,
         }
 
         line_len = strlen(line);
-        if (line[line_len - 1] != '\n') {
-            line[line_len - 1] = '\n';
-            line[line_len] = '\0';
-        }
         fprintf(cp, "%s", line);
+        if (line_len > 0 && line[line_len - 1] != '\n')
+            fputc('\n', cp);
     }
 
     if (!found) {
@@ -309,12 +404,15 @@ void file_changeKeyValue(const char *file_path, const char *key,
     }
 
     fclose(fp);
+    // Flush and fsync the temp file so a crash can't leave a truncated config
+    fflush(cp);
+    fsync(fileno(cp));
     fclose(cp);
     if (line)
         free(line);
 
     remove(file_path);
-    rename("temp", file_path);
+    rename(temp_path, file_path);
 }
 
 bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
@@ -333,17 +431,39 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
         ++p1, ++p2;
     }
 
+    // Ensure we're at a directory boundary.
+    // Back up to the last '/' if the match ended mid-component.
+    if (*p1 != '\0' || (*p2 != '\0' && *p2 != '/')) {
+        while (p1 > abs_from && *(p1 - 1) != '/') {
+            --p1;
+            --p2;
+        }
+    }
+
     if (*p2 == '/') {
         ++p2;
     }
 
-    if (strlen(p1) > 0) {
-        int num_parens = str_count_char(p1, '/') + 1;
-        for (int i = 0; i < num_parens; i++) {
-            strcat(path_out, "../");
+    size_t offset = 0;
+    if (*p1 != '\0') {
+        int up_levels = 0;
+        for (const char *cursor = p1; *cursor; cursor++) {
+            if (*cursor == '/') {
+                up_levels++;
+            }
+        }
+        up_levels++;
+        for (int i = 0; i < up_levels && offset + 3 < PATH_MAX; i++) {
+            memcpy(path_out + offset, "../", 3);
+            offset += 3;
         }
     }
-    strcat(path_out, p2);
+    size_t p2_len = strlen(p2);
+    if (offset + p2_len + 1 < PATH_MAX) {
+        memcpy(path_out + offset, p2, p2_len);
+        offset += p2_len;
+    }
+    path_out[offset] = '\0';
 
     return true;
 }
@@ -351,8 +471,10 @@ bool file_path_relative_to(char *path_out, const char *dir_from, const char *fil
 FILE *file_open_ensure_path(const char *path, const char *mode)
 {
     char *_path = strdup(path);
-    mkdirs(dirname(_path));
-    free(_path);
+    if (_path != NULL) {
+        mkdirs(dirname(_path));
+        free(_path);
+    }
     return fopen(path, mode);
 }
 
@@ -406,7 +528,7 @@ char *file_read_lineN(const char *filename, int n)
                 print_debug("Memory allocation error");
                 return NULL;
             }
-            strcpy(lineN, line);
+            memcpy(lineN, line, strlen(line) + 1);
             return lineN;
         }
         lineNumber++;
@@ -425,7 +547,9 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    FILE *tempFile = fopen("temp.txt", "w");
+    char temp_path[PATH_MAX];
+    snprintf(temp_path, sizeof(temp_path), "%s.tmp", fileName);
+    FILE *tempFile = fopen(temp_path, "w");
     if (tempFile == NULL) {
         fclose(file);
         print_debug("Error creating temporary file");
@@ -450,7 +574,7 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    if (rename("temp.txt", fileName) != 0) {
+    if (rename(temp_path, fileName) != 0) {
         print_debug("Error renaming temporary file");
         return;
     }
@@ -465,10 +589,8 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
         print_debug("Error opening the file");
         return;
     }
-    char tempPath[STR_MAX];
-    char *path = file_dirname(filename);
-    sprintf(tempPath, "%s/temp.txt", path);
-    free(path);
+    char tempPath[PATH_MAX];
+    snprintf(tempPath, sizeof(tempPath), "%s.tmp", filename);
 
     FILE *tempFile = fopen(tempPath, "w");
     if (tempFile == NULL) {
@@ -518,7 +640,8 @@ char *file_resolvePath(const char *path)
     int componentCount = 0;
 
     // Split the path into components
-    char *token = strtok(tempPath, "/");
+    char *saveptr;
+    char *token = strtok_r(tempPath, "/", &saveptr);
     while (token != NULL) {
         if (strcmp(token, "..") == 0) {
             // Handle ".." by removing the last component if there is one
@@ -530,20 +653,46 @@ char *file_resolvePath(const char *path)
             // Ignore "." and add other components to the array
             components[componentCount++] = token;
         }
-        token = strtok(NULL, "/");
+        token = strtok_r(NULL, "/", &saveptr);
     }
 
     // Reconstruct the resolved path
+    size_t offset = 0;
     resolvedPath[0] = '\0';
     for (int i = 0; i < componentCount; i++) {
-        strcat(resolvedPath, "/");
-        strcat(resolvedPath, components[i]);
+        size_t comp_len = strlen(components[i]);
+        if (offset + 1 + comp_len >= PATH_MAX)
+            break;
+        resolvedPath[offset++] = '/';
+        memcpy(resolvedPath + offset, components[i], comp_len);
+        offset += comp_len;
     }
+    resolvedPath[offset] = '\0';
 
     // Handle the case where the path is empty
     if (resolvedPath[0] == '\0') {
-        strcpy(resolvedPath, "/");
+        resolvedPath[0] = '/';
+        resolvedPath[1] = '\0';
     }
 
     return resolvedPath;
+}
+
+static int _remove_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+{
+    (void)sb;
+    (void)ftwbuf;
+    int ret = (typeflag == FTW_DP) ? rmdir(fpath) : remove(fpath);
+    if (ret != 0 && errno != ENOENT)
+        printf_debug("file_remove_recursive: failed to remove %s: %s\n", fpath, strerror(errno));
+    return (ret != 0 && errno == ENOENT) ? 0 : ret;
+}
+
+int file_remove_recursive(const char *path)
+{
+    if (path == NULL)
+        return -1;
+    if (!exists(path))
+        return 0;
+    return nftw(path, _remove_cb, 64, FTW_DEPTH | FTW_PHYS);
 }

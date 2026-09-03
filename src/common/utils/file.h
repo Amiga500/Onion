@@ -84,7 +84,7 @@ bool file_isLocked(const char *path);
 const char *file_basename(const char *filename);
 
 /**
- * @brief Create directories in dir_path using `mkdir -p` command.
+ * @brief Create directories in dir_path (mkdir -p semantics, no shell).
  *
  * @param dir_path The full directory path.
  * @return true If the path didn't exist (dirs were created).
@@ -125,6 +125,14 @@ char *file_read_lineN(const char *filename, int n) __attribute__((malloc));
 void file_delete_line(const char *fileName, int n);
 
 void file_add_line_to_beginning(const char *filename, const char *lineToAdd);
+
+/**
+ * @brief Recursively remove a directory and all its contents.
+ *
+ * @param path The directory to remove.
+ * @return 0 on success, -1 on error.
+ */
+int file_remove_recursive(const char *path);
 
 /**
  * @brief Resolve a path to an absolute path

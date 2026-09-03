@@ -23,7 +23,11 @@ bool json_getString(cJSON *object, const char *key, char *dest)
 {
     cJSON *json_object = cJSON_GetObjectItem(object, key);
     if (json_object) {
-        strncpy(dest, cJSON_GetStringValue(json_object), JSON_STRING_LEN - 1);
+        const char *val = cJSON_GetStringValue(json_object);
+        if (val == NULL)
+            return false;
+        strncpy(dest, val, JSON_STRING_LEN - 1);
+        dest[JSON_STRING_LEN - 1] = '\0';
         return true;
     }
     return false;
@@ -71,6 +75,8 @@ bool json_setString(cJSON *object, const char *key, const char *value)
 
 bool json_forceSetString(cJSON *object, const char *key, const char *value)
 {
+    if (object == NULL)
+        return false;
     cJSON *json_object = cJSON_GetObjectItem(object, key);
 
     if (json_object) {
@@ -90,17 +96,21 @@ bool json_forceSetString(cJSON *object, const char *key, const char *value)
 cJSON *json_load(const char *file_path)
 {
     char *file_contents = file_read(file_path);
+    if (file_contents == NULL)
+        return NULL;
     cJSON *json_contents = cJSON_Parse(file_contents);
     free(file_contents);
     return json_contents;
 }
 
-void json_save(cJSON *object, char *file_path)
+void json_save(cJSON *object, const char *file_path)
 {
     if (object == NULL || file_path == NULL)
         return;
 
     char *output = cJSON_Print(object);
+    if (output == NULL)
+        return;
 
     FILE *fp = NULL;
     if ((fp = fopen(file_path, "w+")) != NULL) {
@@ -108,8 +118,7 @@ void json_save(cJSON *object, char *file_path)
         fclose(fp);
     }
 
-    if (output != NULL)
-        cJSON_free(output);
+    cJSON_free(output);
 }
 
 #endif // JSON_H__
