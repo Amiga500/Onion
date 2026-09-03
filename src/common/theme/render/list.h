@@ -1,13 +1,57 @@
 #ifndef RENDER_MENU_H__
 #define RENDER_MENU_H__
 
+#include <stdint.h>
+
 #include "components/list.h"
 #include "theme/background.h"
 #include "theme/config.h"
 #include "theme/resources.h"
 
-// static SDL_Color color_black = {0, 0, 0};
+// Fast FNV-1a hash for cache invalidation
+static inline uint32_t _label_hash_fnv1a(const char *str)
+{
+    uint32_t hash = 2166136261u;
+    if (str == NULL)
+        return hash;
+    for (const char *p = str; *p; p++) {
+        hash ^= (uint8_t)*p;
+        hash *= 16777619u;
+    }
+    return hash;
+}
 
+// Render a list label with per-item TTF surface caching
+// Caches the TTF render in item->_label_cache; only re-renders when label changes
+static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
+                                         SDL_Color fg, int offset_x, int center_y,
+                                         int label_end, bool disabled)
+{
+    uint32_t hash = _label_hash_fnv1a(item->label);
+    if (item->_label_cache == NULL || item->_label_hash != hash) {
+        if (item->_label_cache != NULL)
+            SDL_FreeSurface((SDL_Surface *)item->_label_cache);
+        item->_label_cache = (void *)TTF_RenderUTF8_Blended(
+            resource_getFont(LIST), item->label, fg);
+        item->_label_hash = hash;
+    }
+    SDL_Surface *item_label = (SDL_Surface *)item->_label_cache;
+    if (item_label == NULL)
+        return;
+
+    SDL_Rect item_label_rect = {offset_x, center_y - item_label->h / 2};
+    SDL_Rect label_crop = {0, 0, label_end - 30 * g_scale, item_label->h};
+
+    if (disabled)
+        surfaceSetAlpha(item_label, HIDDEN_ITEM_ALPHA);
+
+    SDL_BlitSurface(item_label, &label_crop, screen, &item_label_rect);
+
+    if (disabled)
+        surfaceSetAlpha(item_label, 255);
+}
+
+// Uncached version for one-off labels (descriptions, sticky notes)
 void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
                            int offset_x, int center_y, bool is_active,
                            int label_end, bool disabled)
@@ -15,19 +59,11 @@ void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
     TTF_Font *list_font = resource_getFont(LIST);
 
     SDL_Surface *item_label = TTF_RenderUTF8_Blended(list_font, label, fg);
+    if (item_label == NULL)
+        return;
     SDL_Rect item_label_rect = {offset_x, center_y - item_label->h / 2};
 
     SDL_Rect label_crop = {0, 0, label_end - 30 * g_scale, item_label->h};
-
-    /* Maybe shadows will be an option in the future
-    SDL_Rect item_shadow_rect = {item_label_rect.x + 1, item_label_rect.y + 2};
-
-    if (is_active) {
-        SDL_Surface *item_shadow =
-            TTF_RenderUTF8_Blended(list_font, label, color_black);
-        SDL_BlitSurface(item_shadow, &label_crop, screen, &item_shadow_rect);
-        SDL_FreeSurface(item_shadow);
-    }*/
 
     if (disabled) {
         surfaceSetAlpha(item_label, HIDDEN_ITEM_ALPHA);
@@ -99,6 +135,19 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         theme_renderListLabel(screen, active_item->sticky_note, theme()->list.color, 20 * g_scale, item_bg_rect.y + label_y, false, 640 * g_scale, true);
     }
 
+    // Pre-compute scaled constants used in the loop
+    const int scaled_640 = 640 * g_scale;
+    const int scaled_620 = 620 * g_scale;
+    const int scaled_60 = 60 * g_scale;
+    const int scaled_20 = 20 * g_scale;
+    const int scaled_17 = 17 * g_scale;
+    const int scaled_62 = 62 * g_scale;
+    const int scaled_226 = 226 * g_scale;
+
+    // Hoist theme colors out of per-item loop
+    const SDL_Color list_color = theme()->list.color;
+    const SDL_Color grid_color = theme()->grid.color;
+
     for (int i = list->scroll_pos; i < last_item; i++) {
         ListItem *item = &list->items[i];
         bool show_disabled = item->disabled && !item->show_opaque;
@@ -116,8 +165,13 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         if (i == list->active_pos) {
             SDL_BlitSurface(item_bg, &item_bg_size, screen, &item_bg_rect);
 
-            if (item->preview_ptr == NULL && strlen(item->preview_path) > 0 && is_file(item->preview_path)) {
-                item->preview_ptr = (void *)IMG_Load(item->preview_path);
+            if (item->preview_ptr == NULL && item->preview_path[0] != '\0') {
+                if (is_file(item->preview_path)) {
+                    item->preview_ptr = (void *)IMG_Load(item->preview_path);
+                }
+                else {
+                    item->preview_path[0] = '\0'; // Cache negative result — stop re-checking
+                }
             }
 
             if (item->preview_ptr != NULL)
@@ -125,22 +179,21 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         }
 
         const int item_center_y = item_bg_rect.y + item_bg_size.h / 2;
-        const int multivalue_width = 226 * g_scale;
-        int label_end = 640 * g_scale;
-        int offset_x = 20 * g_scale;
+        int label_end = scaled_640;
+        int offset_x = scaled_20;
 
         if (item->icon_ptr != NULL) {
             SDL_Surface *icon = (SDL_Surface *)item->icon_ptr;
             if (icon->w > 1) {
                 SDL_Rect icon_rect = {offset_x, item_center_y - icon->h / 2};
                 SDL_BlitSurface(icon, NULL, screen, &icon_rect);
-                offset_x += icon->w + 17 * g_scale;
+                offset_x += icon->w + scaled_17;
             }
         }
 
         if (item->item_type == TOGGLE) {
             SDL_Surface *toggle = show_disabled ? (item->value == 1 ? g_hidden_items.toggle_on : g_hidden_items.toggle_off) : (resource_getSurface(item->value == 1 ? TOGGLE_ON : TOGGLE_OFF));
-            toggle_rect.x = 620 * g_scale - toggle->w;
+            toggle_rect.x = scaled_620 - toggle->w;
             toggle_rect.y = item_center_y - toggle->h / 2;
             label_end = toggle_rect.x;
             SDL_BlitSurface(toggle, NULL, screen, &toggle_rect);
@@ -149,47 +202,66 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             SDL_Surface *arrow_left = show_disabled ? g_hidden_items.arrow_left : resource_getSurface(LEFT_ARROW);
             SDL_Surface *arrow_right = show_disabled ? g_hidden_items.arrow_right : resource_getSurface(RIGHT_ARROW);
             SDL_Rect arrow_left_pos = {
-                640 * g_scale - 20 * g_scale - arrow_right->w - multivalue_width - arrow_left->w,
+                scaled_640 - scaled_20 - arrow_right->w - scaled_226 - arrow_left->w,
                 item_center_y - arrow_left->h / 2};
             SDL_Rect arrow_right_pos = {
-                640 * g_scale - 20 * g_scale - arrow_right->w,
+                scaled_640 - scaled_20 - arrow_right->w,
                 item_center_y - arrow_right->h / 2};
             SDL_BlitSurface(arrow_left, NULL, screen, &arrow_left_pos);
             SDL_BlitSurface(arrow_right, NULL, screen, &arrow_right_pos);
             label_end = arrow_left_pos.x;
 
+            // Cache MULTIVALUE label — only re-render when value or color changes
+            /* Miyoo SDL_Color is RGB-only (no unused/.a field). */
+            const uint32_t list_color_key = ((uint32_t)list_color.r << 16) |
+                                            ((uint32_t)list_color.g << 8) |
+                                            (uint32_t)list_color.b;
             char value_str[STR_MAX];
             list_getItemValueLabel(item, value_str);
-            SDL_Surface *value_label = TTF_RenderUTF8_Blended(list_font, value_str, theme()->list.color);
+            if (item->_value_cache == NULL || item->_cached_value != item->value ||
+                item->_cached_color != list_color_key) {
+                if (item->_value_cache != NULL)
+                    SDL_FreeSurface((SDL_Surface *)item->_value_cache);
+                item->_value_cache = (void *)TTF_RenderUTF8_Blended(list_font, value_str, list_color);
+                item->_cached_value = item->value;
+                item->_cached_color = list_color_key;
+            }
+            SDL_Surface *value_label = (SDL_Surface *)item->_value_cache;
+            if (value_label == NULL)
+                continue;
             if (show_disabled) {
                 surfaceSetAlpha(value_label, HIDDEN_ITEM_ALPHA);
             }
-            SDL_Rect value_size = {0, 0, multivalue_width, value_label->h};
+            SDL_Rect value_size = {0, 0, scaled_226, value_label->h};
             int label_width = value_label->w > value_size.w ? value_size.w : value_label->w;
             SDL_Rect value_pos = {
-                640 * g_scale - 20 * g_scale - arrow_right->w - multivalue_width / 2 - label_width / 2,
+                scaled_640 - scaled_20 - arrow_right->w - scaled_226 / 2 - label_width / 2,
                 item_center_y - value_size.h / 2};
             SDL_BlitSurface(value_label, &value_size, screen, &value_pos);
+            if (show_disabled) {
+                surfaceSetAlpha(value_label, 255);
+            }
         }
 
-        theme_renderListLabel(screen, item->label, theme()->list.color,
-                              offset_x, item_bg_rect.y + label_y,
-                              list->active_pos == i, label_end, show_disabled);
+        // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)
+        _theme_renderListLabelCached(screen, item, list_color,
+                                     offset_x, item_bg_rect.y + label_y,
+                                     label_end, show_disabled);
 
-        if (!list_small && strlen(item->description)) {
+        if (!list_small && item->description[0] != '\0') {
             theme_renderListLabel(
-                screen, item->description, theme()->grid.color, offset_x,
-                item_bg_rect.y + 62 * g_scale, list->active_pos == i, label_end, show_disabled);
+                screen, item->description, grid_color, offset_x,
+                item_bg_rect.y + scaled_62, list->active_pos == i, label_end, show_disabled);
         }
     }
 
     if (active_preview != NULL) {
         int preview_width = (double)params.preview_width * g_scale;
-        int preview_x = 640.0 * g_scale;
+        int preview_x = scaled_640;
 
         if (params.preview_bg) {
             SDL_Surface *preview_bg = resource_getSurface(PREVIEW_BG);
-            SDL_Rect preview_bg_rect = {640 * g_scale - preview_bg->w, 60 * g_scale};
+            SDL_Rect preview_bg_rect = {scaled_640 - preview_bg->w, scaled_60};
             SDL_BlitSurface(preview_bg, NULL, screen, &preview_bg_rect);
             preview_x -= preview_bg->w;
         }
@@ -199,20 +271,25 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
 
         SDL_Surface *preview = (SDL_Surface *)active_preview->preview_ptr;
         if (preview) {
-            bool free_after = false;
-
             if (preview->w > preview_width || (params.preview_stretch && preview->w < preview_width)) {
-                double scale = (double)preview_width / (double)preview->w;
-                preview = zoomSurface(preview, scale, scale, params.preview_smoothing ? SMOOTHING_ON : SMOOTHING_OFF);
-                free_after = true;
+                // Use cached scaled preview if available and width matches
+                if (active_preview->_scaled_preview != NULL && active_preview->_scaled_preview_w == preview_width) {
+                    preview = (SDL_Surface *)active_preview->_scaled_preview;
+                }
+                else {
+                    // Free old cache if width changed
+                    if (active_preview->_scaled_preview != NULL)
+                        SDL_FreeSurface((SDL_Surface *)active_preview->_scaled_preview);
+                    double scale = (double)preview_width / (double)preview->w;
+                    preview = zoomSurface(preview, scale, scale, params.preview_smoothing ? SMOOTHING_ON : SMOOTHING_OFF);
+                    active_preview->_scaled_preview = (void *)preview;
+                    active_preview->_scaled_preview_w = preview_width;
+                }
             }
 
             SDL_Rect preview_rect = {preview_x + (preview_width - preview->w) / 2,
                                      240 * g_scale - preview->h / 2};
             SDL_BlitSurface(preview, NULL, screen, &preview_rect);
-
-            if (free_after)
-                SDL_FreeSurface(preview);
         }
     }
 }
