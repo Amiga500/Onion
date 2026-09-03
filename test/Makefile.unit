@@ -1,0 +1,684 @@
+# Makefile.unit - Standalone C unit tests for Onion OS
+#
+# These tests run on the host machine (x86/arm64) without needing
+# the Miyoo Mini cross-compiler, SDL, or Google Test.
+#
+# Usage:
+#   make -f Makefile.unit          # Build and run all tests
+#   make -f Makefile.unit test_str # Build and run str tests only
+#   make -f Makefile.unit clean    # Remove build artifacts
+#   make -f Makefile.unit unit-test-neon-arm
+#       Cross-compile neon_pixel / surfaceSetAlpha tests with -mfpu=neon
+#       and run them under qemu-arm (needs gcc-arm-linux-gnueabihf and
+#       qemu-user-static). Fails clearly if those tools are missing.
+#
+# From the top-level Makefile:
+#   make unit-test
+
+CC      ?= gcc
+CFLAGS  := -Wall -Wextra -std=c99 -g -I../include -I../src/common \
+           -DPLATFORM_LINUX -DONION_VERSION="\"test\"" -D_GNU_SOURCE
+LDFLAGS :=
+
+BUILD_DIR := ../build_test
+
+# Source files for common utils (no SDL dependency)
+COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
+
+# Test targets
+TESTS := test_str test_perf test_file test_images_browser test_hash test_json test_state test_history_recent test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings test_list test_color test_apps test_changes test_gs_history test_gs_popmenu test_gs_retroarch test_has_changed test_str_security test_file_security test_json_security test_game_entry test_state_security test_config_security test_volume test_display test_lang test_signal_handler test_battery test_playactivity_paths test_theme_config test_device_model test_theme_load test_cache_db test_gs_appstate test_legacy_db test_keymap test_resources_enum test_screenshot_path test_system_utils test_display_buffers test_rom_image_path test_theme_sort test_savestate_path test_overlay_content test_theme_scale test_list_sort test_settings_has_changed test_romscreen_find test_neon_pixel test_formatters test_pacman_changes test_alpha_scale test_osd_constants test_null_safety test_critical_fixes test_cjson_null_safety test_json_null_guards test_double_call_safety
+
+# Build-only targets (compilation without running)
+BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
+
+.PHONY: all clean $(TESTS) summary unit-test-san unit-test-neon-arm neon-test-arm
+
+all: $(BINARIES)
+	@total_tests=0; total_asserts=0; total_fails=0; suite_fails=0; \
+	summary=""; \
+	for t in $(TESTS); do \
+		printf "\n"; \
+		output=$$($(BUILD_DIR)/$$t 2>&1) && status="PASSED" || status="FAILED"; \
+		printf "%s\n" "$$output"; \
+		tc=$$(printf "%s\n" "$$output" | grep "Tests:" | head -1 | sed 's/.*Tests: *\([0-9]*\).*/\1/'); \
+		ac=$$(printf "%s\n" "$$output" | grep "Assertions:" | head -1 | sed 's/.*Assertions: *\([0-9]*\).*/\1/'); \
+		fc=$$(printf "%s\n" "$$output" | grep "Failures:" | head -1 | sed 's/.*Failures: *\([0-9]*\).*/\1/'); \
+		total_tests=$$((total_tests + $${tc:-0})); \
+		total_asserts=$$((total_asserts + $${ac:-0})); \
+		total_fails=$$((total_fails + $${fc:-0})); \
+		if [ "$$status" = "FAILED" ]; then \
+			suite_fails=$$((suite_fails + 1)); \
+			if [ "$${fc:-0}" -eq 0 ]; then total_fails=$$((total_fails + 1)); fi; \
+		fi; \
+		summary="$$summary$$(printf '  %-34s %6s %11s  %s' "$$t" "$${tc:-0}" "$${ac:-0}" "$$status")\n"; \
+	done; \
+	printf "\n"; \
+	printf "===============================================================\n"; \
+	printf "                       UNIT TEST SUMMARY\n"; \
+	printf "===============================================================\n"; \
+	printf "  %-34s %6s %11s  %s\n" "Suite" "Tests" "Assertions" "Result"; \
+	printf "  %-34s %6s %11s  %s\n" "----------------------------------" "------" "-----------" "------"; \
+	printf "%b" "$$summary"; \
+	printf "  %-34s %6s %11s  %s\n" "----------------------------------" "------" "-----------" "------"; \
+	printf "  %-34s %6d %11d\n" "Total" $$total_tests $$total_asserts; \
+	printf "\n"; \
+	if [ $$total_fails -eq 0 ] && [ $$suite_fails -eq 0 ]; then \
+		printf "                      Result: ALL PASSED\n"; \
+	else \
+		printf "                      Result: SOME TESTS FAILED ($$total_fails failures, $$suite_fails suites)\n"; \
+	fi; \
+	printf "===============================================================\n"; \
+	[ $$total_fails -eq 0 ] && [ $$suite_fails -eq 0 ]
+
+test_str: $(BUILD_DIR)/test_str
+	@echo ""
+	@$(BUILD_DIR)/test_str
+
+test_perf: $(BUILD_DIR)/test_perf
+	@echo ""
+	@$(BUILD_DIR)/test_perf
+
+test_file: $(BUILD_DIR)/test_file
+	@echo ""
+	@$(BUILD_DIR)/test_file
+
+test_images_browser: $(BUILD_DIR)/test_images_browser
+	@echo ""
+	@$(BUILD_DIR)/test_images_browser
+
+test_hash: $(BUILD_DIR)/test_hash
+	@echo ""
+	@$(BUILD_DIR)/test_hash
+
+test_json: $(BUILD_DIR)/test_json
+	@echo ""
+	@$(BUILD_DIR)/test_json
+
+test_state: $(BUILD_DIR)/test_state
+	@echo ""
+	@$(BUILD_DIR)/test_state
+
+test_history_recent: $(BUILD_DIR)/test_history_recent
+	@echo ""
+	@$(BUILD_DIR)/test_history_recent
+
+$(BUILD_DIR)/test_str: test_str.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_str.c $(COMMON_SRCS) $(LDFLAGS)
+
+$(BUILD_DIR)/test_perf: test_perf.c onion_test.h ../src/common/utils/perf.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DPERF_ENABLED -o $@ test_perf.c $(LDFLAGS)
+
+$(BUILD_DIR)/test_file: test_file.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_file.c $(COMMON_SRCS) $(LDFLAGS)
+
+$(BUILD_DIR)/test_images_browser: test_images_browser.c onion_test.h ../src/infoPanel/imagesBrowser.c $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_images_browser.c ../src/infoPanel/imagesBrowser.c $(COMMON_SRCS) $(LDFLAGS)
+
+$(BUILD_DIR)/test_hash: test_hash.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_hash.c $(LDFLAGS)
+
+$(BUILD_DIR)/test_json: test_json.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_json.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS)
+
+$(BUILD_DIR)/test_state: test_state.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_state.c $(COMMON_SRCS) $(LDFLAGS)
+
+$(BUILD_DIR)/test_history_recent: test_history_recent.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_history_recent.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
+
+test_neon: $(BUILD_DIR)/test_neon
+	@echo ""
+	@$(BUILD_DIR)/test_neon
+
+$(BUILD_DIR)/test_neon: test_neon.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_neon.c $(LDFLAGS)
+
+test_playactivity: $(BUILD_DIR)/test_playactivity
+	@echo ""
+	@$(BUILD_DIR)/test_playactivity
+
+$(BUILD_DIR)/test_playactivity: test_playactivity.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_playactivity.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_clock: $(BUILD_DIR)/test_clock
+	@echo ""
+	@$(BUILD_DIR)/test_clock
+
+$(BUILD_DIR)/test_clock: test_clock.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_clock.c $(LDFLAGS) -lrt
+
+test_msleep: $(BUILD_DIR)/test_msleep
+	@echo ""
+	@$(BUILD_DIR)/test_msleep
+
+$(BUILD_DIR)/test_msleep: test_msleep.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_msleep.c $(LDFLAGS)
+
+test_config: $(BUILD_DIR)/test_config
+	@echo ""
+	@$(BUILD_DIR)/test_config
+
+$(BUILD_DIR)/test_config: test_config.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_config.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_log: $(BUILD_DIR)/test_log
+	@echo ""
+	@$(BUILD_DIR)/test_log
+
+$(BUILD_DIR)/test_log: test_log.c onion_test.h ../src/common/utils/log.c $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DLOG_DEBUG -o $@ test_log.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_flags: $(BUILD_DIR)/test_flags
+	@echo ""
+	@$(BUILD_DIR)/test_flags
+
+$(BUILD_DIR)/test_flags: test_flags.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_flags.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_process: $(BUILD_DIR)/test_process
+	@echo ""
+	@$(BUILD_DIR)/test_process
+
+$(BUILD_DIR)/test_process: test_process.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_process.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_timer: $(BUILD_DIR)/test_timer
+	@echo ""
+	@$(BUILD_DIR)/test_timer
+
+$(BUILD_DIR)/test_timer: test_timer.c onion_test.h ../src/common/utils/timer.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_timer.c $(LDFLAGS)
+
+test_apply_icons: $(BUILD_DIR)/test_apply_icons
+	@echo ""
+	@$(BUILD_DIR)/test_apply_icons
+
+$(BUILD_DIR)/test_apply_icons: test_apply_icons.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_apply_icons.c $(LDFLAGS)
+
+test_settings: $(BUILD_DIR)/test_settings
+	@echo ""
+	@$(BUILD_DIR)/test_settings
+
+$(BUILD_DIR)/test_settings: test_settings.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_settings.c $(LDFLAGS)
+
+test_list: $(BUILD_DIR)/test_list
+	@echo ""
+	@$(BUILD_DIR)/test_list
+
+$(BUILD_DIR)/test_list: test_list.c onion_test.h stubs/SDL/SDL.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_list.c $(LDFLAGS)
+
+test_color: $(BUILD_DIR)/test_color
+	@echo ""
+	@$(BUILD_DIR)/test_color
+
+$(BUILD_DIR)/test_color: test_color.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_color.c $(LDFLAGS)
+
+test_apps: $(BUILD_DIR)/test_apps
+	@echo ""
+	@$(BUILD_DIR)/test_apps
+
+$(BUILD_DIR)/test_apps: test_apps.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_apps.c $(LDFLAGS)
+
+test_changes: $(BUILD_DIR)/test_changes
+	@echo ""
+	@$(BUILD_DIR)/test_changes
+
+$(BUILD_DIR)/test_changes: test_changes.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_changes.c $(LDFLAGS)
+
+test_gs_history: $(BUILD_DIR)/test_gs_history
+	@echo ""
+	@$(BUILD_DIR)/test_gs_history
+
+$(BUILD_DIR)/test_gs_history: test_gs_history.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_gs_history.c ../include/cjson/cJSON.c $(LDFLAGS)
+
+test_gs_popmenu: $(BUILD_DIR)/test_gs_popmenu
+	@echo ""
+	@$(BUILD_DIR)/test_gs_popmenu
+
+$(BUILD_DIR)/test_gs_popmenu: test_gs_popmenu.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_gs_popmenu.c $(LDFLAGS)
+
+test_gs_retroarch: $(BUILD_DIR)/test_gs_retroarch
+	@echo ""
+	@$(BUILD_DIR)/test_gs_retroarch
+
+$(BUILD_DIR)/test_gs_retroarch: test_gs_retroarch.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_gs_retroarch.c $(LDFLAGS)
+
+test_has_changed: $(BUILD_DIR)/test_has_changed
+	@echo ""
+	@$(BUILD_DIR)/test_has_changed
+
+$(BUILD_DIR)/test_has_changed: test_has_changed.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_has_changed.c $(LDFLAGS)
+
+test_str_security: $(BUILD_DIR)/test_str_security
+	@echo ""
+	@$(BUILD_DIR)/test_str_security
+
+$(BUILD_DIR)/test_str_security: test_str_security.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_str_security.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_file_security: $(BUILD_DIR)/test_file_security
+	@echo ""
+	@$(BUILD_DIR)/test_file_security
+
+$(BUILD_DIR)/test_file_security: test_file_security.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_file_security.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_json_security: $(BUILD_DIR)/test_json_security
+	@echo ""
+	@$(BUILD_DIR)/test_json_security
+
+$(BUILD_DIR)/test_json_security: test_json_security.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_json_security.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS)
+
+test_game_entry: $(BUILD_DIR)/test_game_entry
+	@echo ""
+	@$(BUILD_DIR)/test_game_entry
+
+$(BUILD_DIR)/test_game_entry: test_game_entry.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_game_entry.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS)
+
+test_state_security: $(BUILD_DIR)/test_state_security
+	@echo ""
+	@$(BUILD_DIR)/test_state_security
+
+$(BUILD_DIR)/test_state_security: test_state_security.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_state_security.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_config_security: $(BUILD_DIR)/test_config_security
+	@echo ""
+	@$(BUILD_DIR)/test_config_security
+
+$(BUILD_DIR)/test_config_security: test_config_security.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_config_security.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_volume: $(BUILD_DIR)/test_volume
+	@echo ""
+	@$(BUILD_DIR)/test_volume
+
+$(BUILD_DIR)/test_volume: test_volume.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_volume.c $(LDFLAGS) -lm
+
+test_display: $(BUILD_DIR)/test_display
+	@echo ""
+	@$(BUILD_DIR)/test_display
+
+$(BUILD_DIR)/test_display: test_display.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_display.c $(LDFLAGS) -lm
+
+test_lang: $(BUILD_DIR)/test_lang
+	@echo ""
+	@$(BUILD_DIR)/test_lang
+
+$(BUILD_DIR)/test_lang: test_lang.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_lang.c $(LDFLAGS)
+
+test_signal_handler: $(BUILD_DIR)/test_signal_handler
+	@echo ""
+	@$(BUILD_DIR)/test_signal_handler
+
+$(BUILD_DIR)/test_signal_handler: test_signal_handler.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_signal_handler.c $(LDFLAGS)
+
+test_battery: $(BUILD_DIR)/test_battery
+	@echo ""
+	@$(BUILD_DIR)/test_battery
+
+$(BUILD_DIR)/test_battery: test_battery.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_battery.c $(LDFLAGS)
+
+test_playactivity_paths: $(BUILD_DIR)/test_playactivity_paths
+	@echo ""
+	@$(BUILD_DIR)/test_playactivity_paths
+
+$(BUILD_DIR)/test_playactivity_paths: test_playactivity_paths.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_playactivity_paths.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_theme_config: $(BUILD_DIR)/test_theme_config
+	@echo ""
+	@$(BUILD_DIR)/test_theme_config
+
+$(BUILD_DIR)/test_theme_config: test_theme_config.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_theme_config.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS)
+
+test_device_model: $(BUILD_DIR)/test_device_model
+	@echo ""
+	@$(BUILD_DIR)/test_device_model
+
+$(BUILD_DIR)/test_device_model: test_device_model.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_device_model.c $(LDFLAGS)
+
+test_theme_load: $(BUILD_DIR)/test_theme_load
+	@echo ""
+	@$(BUILD_DIR)/test_theme_load
+
+$(BUILD_DIR)/test_theme_load: test_theme_load.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_theme_load.c $(LDFLAGS)
+
+test_cache_db: $(BUILD_DIR)/test_cache_db
+	@echo ""
+	@$(BUILD_DIR)/test_cache_db
+
+$(BUILD_DIR)/test_cache_db: test_cache_db.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_cache_db.c $(LDFLAGS)
+
+test_gs_appstate: $(BUILD_DIR)/test_gs_appstate
+	@echo ""
+	@$(BUILD_DIR)/test_gs_appstate
+
+$(BUILD_DIR)/test_gs_appstate: test_gs_appstate.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_gs_appstate.c $(LDFLAGS)
+
+test_legacy_db: $(BUILD_DIR)/test_legacy_db
+	@echo ""
+	@$(BUILD_DIR)/test_legacy_db
+
+$(BUILD_DIR)/test_legacy_db: test_legacy_db.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_legacy_db.c $(LDFLAGS)
+
+test_keymap: $(BUILD_DIR)/test_keymap
+	@echo ""
+	@$(BUILD_DIR)/test_keymap
+
+$(BUILD_DIR)/test_keymap: test_keymap.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_keymap.c $(LDFLAGS)
+
+test_resources_enum: $(BUILD_DIR)/test_resources_enum
+	@echo ""
+	@$(BUILD_DIR)/test_resources_enum
+
+$(BUILD_DIR)/test_resources_enum: test_resources_enum.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_resources_enum.c $(LDFLAGS)
+
+test_screenshot_path: $(BUILD_DIR)/test_screenshot_path
+	@echo ""
+	@$(BUILD_DIR)/test_screenshot_path
+
+$(BUILD_DIR)/test_screenshot_path: test_screenshot_path.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_screenshot_path.c $(LDFLAGS)
+
+test_system_utils: $(BUILD_DIR)/test_system_utils
+	@echo ""
+	@$(BUILD_DIR)/test_system_utils
+
+$(BUILD_DIR)/test_system_utils: test_system_utils.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_system_utils.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_display_buffers: $(BUILD_DIR)/test_display_buffers
+	@echo ""
+	@$(BUILD_DIR)/test_display_buffers
+
+$(BUILD_DIR)/test_display_buffers: test_display_buffers.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_display_buffers.c $(LDFLAGS)
+
+test_rom_image_path: $(BUILD_DIR)/test_rom_image_path
+	@echo ""
+	@$(BUILD_DIR)/test_rom_image_path
+
+$(BUILD_DIR)/test_rom_image_path: test_rom_image_path.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_rom_image_path.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_theme_sort: $(BUILD_DIR)/test_theme_sort
+	@echo ""
+	@$(BUILD_DIR)/test_theme_sort
+
+$(BUILD_DIR)/test_theme_sort: test_theme_sort.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_theme_sort.c $(LDFLAGS)
+
+test_savestate_path: $(BUILD_DIR)/test_savestate_path
+	@echo ""
+	@$(BUILD_DIR)/test_savestate_path
+
+$(BUILD_DIR)/test_savestate_path: test_savestate_path.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_savestate_path.c $(LDFLAGS)
+
+test_overlay_content: $(BUILD_DIR)/test_overlay_content
+	@echo ""
+	@$(BUILD_DIR)/test_overlay_content
+
+$(BUILD_DIR)/test_overlay_content: test_overlay_content.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_overlay_content.c $(LDFLAGS)
+
+test_theme_scale: $(BUILD_DIR)/test_theme_scale
+	@echo ""
+	@$(BUILD_DIR)/test_theme_scale
+
+$(BUILD_DIR)/test_theme_scale: test_theme_scale.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_theme_scale.c $(LDFLAGS) -lm
+
+test_list_sort: $(BUILD_DIR)/test_list_sort
+	@echo ""
+	@$(BUILD_DIR)/test_list_sort
+
+$(BUILD_DIR)/test_list_sort: test_list_sort.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_list_sort.c $(LDFLAGS)
+
+test_settings_has_changed: $(BUILD_DIR)/test_settings_has_changed
+	@echo ""
+	@$(BUILD_DIR)/test_settings_has_changed
+
+$(BUILD_DIR)/test_settings_has_changed: test_settings_has_changed.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_settings_has_changed.c $(LDFLAGS)
+
+test_romscreen_find: $(BUILD_DIR)/test_romscreen_find
+	@echo ""
+	@$(BUILD_DIR)/test_romscreen_find
+
+$(BUILD_DIR)/test_romscreen_find: test_romscreen_find.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_romscreen_find.c $(LDFLAGS)
+
+test_neon_pixel: $(BUILD_DIR)/test_neon_pixel
+	@echo ""
+	@$(BUILD_DIR)/test_neon_pixel
+
+$(BUILD_DIR)/test_neon_pixel: test_neon_pixel.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_neon_pixel.c $(LDFLAGS)
+
+test_formatters: $(BUILD_DIR)/test_formatters
+	@echo ""
+	@$(BUILD_DIR)/test_formatters
+
+$(BUILD_DIR)/test_formatters: test_formatters.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_formatters.c $(LDFLAGS) -lm
+
+test_pacman_changes: $(BUILD_DIR)/test_pacman_changes
+	@echo ""
+	@$(BUILD_DIR)/test_pacman_changes
+
+$(BUILD_DIR)/test_pacman_changes: test_pacman_changes.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_pacman_changes.c $(LDFLAGS)
+
+test_alpha_scale: $(BUILD_DIR)/test_alpha_scale
+	@echo ""
+	@$(BUILD_DIR)/test_alpha_scale
+
+$(BUILD_DIR)/test_alpha_scale: test_alpha_scale.c onion_test.h stubs/SDL/SDL.h ../src/common/utils/surfaceSetAlpha.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_alpha_scale.c $(LDFLAGS)
+
+test_osd_constants: $(BUILD_DIR)/test_osd_constants
+	@echo ""
+	@$(BUILD_DIR)/test_osd_constants
+
+$(BUILD_DIR)/test_osd_constants: test_osd_constants.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_osd_constants.c $(LDFLAGS)
+
+test_null_safety: $(BUILD_DIR)/test_null_safety
+	@echo ""
+	@$(BUILD_DIR)/test_null_safety
+
+$(BUILD_DIR)/test_null_safety: test_null_safety.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_null_safety.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_critical_fixes: $(BUILD_DIR)/test_critical_fixes
+	@echo ""
+	@$(BUILD_DIR)/test_critical_fixes
+
+$(BUILD_DIR)/test_critical_fixes: test_critical_fixes.c onion_test.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_critical_fixes.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_cjson_null_safety: $(BUILD_DIR)/test_cjson_null_safety
+	@echo ""
+	@$(BUILD_DIR)/test_cjson_null_safety
+
+$(BUILD_DIR)/test_cjson_null_safety: test_cjson_null_safety.c onion_test.h $(COMMON_SRCS) ../include/cjson/cJSON.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_cjson_null_safety.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
+
+test_json_null_guards: $(BUILD_DIR)/test_json_null_guards
+	@echo ""
+	@$(BUILD_DIR)/test_json_null_guards
+
+$(BUILD_DIR)/test_json_null_guards: test_json_null_guards.c onion_test.h $(COMMON_SRCS) ../include/cjson/cJSON.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_json_null_guards.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
+
+test_double_call_safety: $(BUILD_DIR)/test_double_call_safety
+	@echo ""
+	@$(BUILD_DIR)/test_double_call_safety
+
+$(BUILD_DIR)/test_double_call_safety: test_double_call_safety.c onion_test.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_double_call_safety.c $(LDFLAGS)
+
+# Host ASan/UBSan on the leaf utils that compile without SDL.
+# Ubuntu CI gcc ships libasan. Fedora hosts may only have clang's compiler-rt;
+# detect a compiler that can actually link the sanitizers.
+SANITIZE_FLAGS := -fsanitize=address,undefined
+
+unit-test-san:
+	@mkdir -p $(BUILD_DIR)
+	@probe="$(BUILD_DIR)/_san_probe"; \
+	if echo 'int main(void){return 0;}' | $(CC) $(SANITIZE_FLAGS) -x c - -o $$probe 2>/dev/null; then \
+		SAN_CC="$(CC)"; \
+	elif echo 'int main(void){return 0;}' | clang $(SANITIZE_FLAGS) -x c - -o $$probe 2>/dev/null; then \
+		SAN_CC="clang"; \
+	else \
+		echo "No compiler with ASan/UBSan (install gcc libasan or clang)"; \
+		exit 1; \
+	fi; \
+	rm -f $$probe; \
+	echo "Sanitizer subset ($$SAN_CC $(SANITIZE_FLAGS)): hash file str json neon"; \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_hash_san test_hash.c $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_file_san test_file.c $(COMMON_SRCS) $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_str_san test_str.c $(COMMON_SRCS) $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_json_san test_json.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_neon_san test_neon.c $(LDFLAGS)
+	@fail=0; \
+	for t in test_hash test_file test_str test_json test_neon; do \
+		printf "\n"; \
+		$(BUILD_DIR)/$${t}_san || fail=1; \
+	done; \
+	[ $$fail -eq 0 ]
+
+# Cross-compile neon_pixel.h / surfaceSetAlpha.h with NEON and run under qemu-arm.
+# Host `make unit-test` stays x86-only. This target is required in CI (job neon-arm).
+ARM_CC   ?= $(shell command -v arm-linux-gnueabihf-gcc 2>/dev/null || command -v arm-linux-gnu-gcc 2>/dev/null)
+QEMU_ARM ?= $(shell command -v qemu-arm-static 2>/dev/null || command -v qemu-arm 2>/dev/null)
+ARM_CFLAGS := $(CFLAGS) -std=gnu99 -static -O1 -marm -mfpu=neon -mfloat-abi=hard \
+              -march=armv7-a -DNEON_TEST_COMPARE
+
+unit-test-neon-arm neon-test-arm:
+	@if [ -z "$(ARM_CC)" ]; then \
+		echo "unit-test-neon-arm: FAIL: no ARM cross compiler."; \
+		echo "  Install gcc-arm-linux-gnueabihf (Debian/Ubuntu) or gcc-arm-linux-gnu (Fedora)."; \
+		exit 1; \
+	fi
+	@if [ -z "$(QEMU_ARM)" ]; then \
+		echo "unit-test-neon-arm: FAIL: qemu-arm / qemu-arm-static not found."; \
+		echo "  Install qemu-user-static."; \
+		exit 1; \
+	fi
+	@mkdir -p $(BUILD_DIR)
+	@echo "NEON ARM tests: $(ARM_CC) + $(QEMU_ARM)"
+	$(ARM_CC) $(ARM_CFLAGS) -o $(BUILD_DIR)/test_neon_arm test_neon.c
+	$(ARM_CC) $(ARM_CFLAGS) -o $(BUILD_DIR)/test_neon_pixel_arm test_neon_pixel.c
+	$(ARM_CC) $(ARM_CFLAGS) -Istubs -o $(BUILD_DIR)/test_alpha_scale_arm test_alpha_scale.c
+	@fail=0; \
+	for t in test_neon_arm test_neon_pixel_arm test_alpha_scale_arm; do \
+		printf "\n--- qemu-arm %s ---\n" "$$t"; \
+		$(QEMU_ARM) $(BUILD_DIR)/$$t || fail=1; \
+	done; \
+	[ $$fail -eq 0 ]
+
+clean:
+	rm -f $(addprefix $(BUILD_DIR)/, $(TESTS)) \
+		$(BUILD_DIR)/test_hash_san $(BUILD_DIR)/test_file_san \
+		$(BUILD_DIR)/test_str_san $(BUILD_DIR)/test_json_san \
+		$(BUILD_DIR)/test_neon_san $(BUILD_DIR)/test_images_browser \
+		$(BUILD_DIR)/_san_probe \
+		$(BUILD_DIR)/test_neon_arm $(BUILD_DIR)/test_neon_pixel_arm \
+		$(BUILD_DIR)/test_alpha_scale_arm
