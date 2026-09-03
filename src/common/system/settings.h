@@ -67,6 +67,7 @@ typedef struct settings_s {
     char blue_light_time[16];
     char blue_light_time_off[16];
     bool rtc_available;
+    int lid_close_action;
 
     char mainui_button_x[JSON_STRING_LEN];
     char mainui_button_y[JSON_STRING_LEN];
@@ -121,6 +122,7 @@ static settings_s __default_settings = (settings_s){
     .blue_light_time = "20:00",
     .blue_light_time_off = "08:00",
     .pwmfrequency = 7,
+    .lid_close_action = 0,
     .mainui_button_x = "",
     .mainui_button_y = "",
     //utility
@@ -131,11 +133,16 @@ static settings_s __default_settings = (settings_s){
 void _settings_clone(settings_s *dst, settings_s *src)
 {
     *dst = *src;
-    strcpy(dst->keymap, src->keymap);
-    strcpy(dst->language, src->language);
-    strcpy(dst->theme, src->theme);
-    strcpy(dst->mainui_button_x, src->mainui_button_x);
-    strcpy(dst->mainui_button_y, src->mainui_button_y);
+    strncpy(dst->keymap, src->keymap, sizeof(dst->keymap) - 1);
+    dst->keymap[sizeof(dst->keymap) - 1] = '\0';
+    strncpy(dst->language, src->language, sizeof(dst->language) - 1);
+    dst->language[sizeof(dst->language) - 1] = '\0';
+    strncpy(dst->theme, src->theme, sizeof(dst->theme) - 1);
+    dst->theme[sizeof(dst->theme) - 1] = '\0';
+    strncpy(dst->mainui_button_x, src->mainui_button_x, sizeof(dst->mainui_button_x) - 1);
+    dst->mainui_button_x[sizeof(dst->mainui_button_x) - 1] = '\0';
+    strncpy(dst->mainui_button_y, src->mainui_button_y, sizeof(dst->mainui_button_y) - 1);
+    dst->mainui_button_y[sizeof(dst->mainui_button_y) - 1] = '\0';
 }
 
 void _settings_reset(settings_s *_settings)
@@ -149,6 +156,8 @@ void _settings_load_keymap(void)
         return;
 
     cJSON *keymap = json_load(CONFIG_PATH "keymap.json");
+    if (keymap == NULL)
+        return;
     json_getInt(keymap, "mainui_single_press", &settings.mainui_single_press);
     json_getInt(keymap, "mainui_long_press", &settings.mainui_long_press);
     json_getInt(keymap, "mainui_double_press", &settings.mainui_double_press);
@@ -169,6 +178,8 @@ void _settings_load_mainui(void)
 
     cJSON *json_root = cJSON_Parse(json_str);
     free(json_str);
+    if (json_root == NULL)
+        return;
 
     json_getInt(json_root, "vol", &settings.volume);
     json_getInt(json_root, "bgmvol", &settings.bgm_volume);
@@ -187,7 +198,8 @@ void _settings_load_mainui(void)
     json_getString(json_root, "theme", settings.theme);
 
     if (strcmp(settings.theme, "./") == 0) {
-        strcpy(settings.theme, DEFAULT_THEME_PATH);
+        strncpy(settings.theme, DEFAULT_THEME_PATH, sizeof(settings.theme) - 1);
+        settings.theme[sizeof(settings.theme) - 1] = '\0';
     }
 
     cJSON_Delete(json_root);
@@ -227,11 +239,21 @@ void settings_load(void)
     config_get("vibration", CONFIG_INT, &settings.vibration);
     config_get("startup/tab", CONFIG_INT, &settings.startup_tab);
     config_get("display/blueLightLevel", CONFIG_INT, &settings.blue_light_level);
-    config_get("display/blueLightTime", CONFIG_STR, &settings.blue_light_time);
-    config_get("display/blueLightTimeOff", CONFIG_STR, &settings.blue_light_time_off);
+    {
+        char _tmp_time[STR_MAX] = "";
+        if (config_get("display/blueLightTime", CONFIG_STR, _tmp_time)) {
+            strncpy(settings.blue_light_time, _tmp_time, sizeof(settings.blue_light_time) - 1);
+            settings.blue_light_time[sizeof(settings.blue_light_time) - 1] = '\0';
+        }
+        if (config_get("display/blueLightTimeOff", CONFIG_STR, _tmp_time)) {
+            strncpy(settings.blue_light_time_off, _tmp_time, sizeof(settings.blue_light_time_off) - 1);
+            settings.blue_light_time_off[sizeof(settings.blue_light_time_off) - 1] = '\0';
+        }
+    }
     config_get("display/blueLightRGB", CONFIG_INT, &settings.blue_light_rgb);
     config_get("pwmfrequency", CONFIG_INT, &settings.pwmfrequency);
     config_get("recCountdown", CONFIG_INT, &settings.rec_countdown);
+    config_get("flip/lidCloseAction", CONFIG_INT, &settings.lid_close_action);
 
     if (config_flag_get(".menuInverted")) { // flag is deprecated, but keep compatibility
         settings.ingame_single_press = 2;
@@ -256,7 +278,7 @@ void _settings_save_keymap(void)
 {
     FILE *fp;
 
-    if ((fp = fopen(CONFIG_PATH "keymap.json", "w+")) == 0)
+    if ((fp = fopen(CONFIG_PATH "keymap.json", "w+")) == NULL)
         return;
 
     fprintf(fp, "{\n");
@@ -362,6 +384,7 @@ void settings_save(void)
     config_setNumber("display/blueLightRGB", settings.blue_light_rgb);
     config_setString("display/blueLightTime", settings.blue_light_time);
     config_setString("display/blueLightTimeOff", settings.blue_light_time_off);
+    config_setNumber("flip/lidCloseAction", settings.lid_close_action);
 
     config_setNumber("pwmfrequency", settings.pwmfrequency);
     // remove deprecated flags
@@ -380,10 +403,18 @@ void settings_save(void)
 bool settings_saveSystemProperty(const char *prop_name, int value)
 {
     cJSON *json_root = json_load(MAIN_UI_SETTINGS);
-    cJSON *prop = cJSON_GetObjectItem(json_root, prop_name);
-
-    if (cJSON_GetNumberValue(prop) == value)
+    if (json_root == NULL)
         return false;
+    cJSON *prop = cJSON_GetObjectItem(json_root, prop_name);
+    if (prop == NULL) {
+        cJSON_Delete(json_root);
+        return false;
+    }
+
+    if (cJSON_GetNumberValue(prop) == value) {
+        cJSON_Delete(json_root);
+        return false;
+    }
 
     cJSON_SetNumberValue(prop, value);
     json_save(json_root, MAIN_UI_SETTINGS);
