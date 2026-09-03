@@ -1,7 +1,7 @@
 name: Test build
 on:
   push:
-    branches: [OnionPlus]
+    branches: [onionplus-compact]
   pull_request:
     paths-ignore:
       - '**/README.md'
