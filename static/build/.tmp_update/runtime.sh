@@ -251,6 +251,34 @@ launch_main_ui() {
 
     mute_theme_bgm
 
+    # Prepare MainUI's three-page 640x480 layout before SDL starts.
+    if [ -x "$sysdir/bin/fbmode" ] && [ -f /tmp/new_res_available ]; then
+        # Skip when already correct: arriving from init_system, or from a
+        # previous MainUI launch, there is nothing to do, and skipping avoids
+        # clearing whatever is on screen. Any real change preclears, so the
+        # pitch never changes with stale pixels still in memory.
+        # --probe: WxH virtual WxH bpp N line_length N pages N
+        probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
+        current_res=$(echo "$probe" | awk '{print $1}')
+        current_virtual=$(echo "$probe" | awk '{print $3}')
+        current_bpp=$(echo "$probe" | awk '{print $5}')
+        current_pages=$(echo "$probe" | awk '{print $NF}')
+
+        if [ "$current_res" = "640x480" ] &&
+           [ "$current_virtual" = "640x1440" ] &&
+           [ "$current_bpp" = "32" ] &&
+           [ "$current_pages" = "3" ]; then
+            log "Framebuffer already 640x480/3, preserving"
+        else
+            if ! $sysdir/bin/fbmode 640x480 --pages 3 --preclear --no-clear \
+                --linger 150 --timeout 500; then
+                log "fbmode failed before MainUI, falling back to fbset"
+                fbset -g 640 480 640 1440 32
+            fi
+            notify_resolution_change
+        fi
+    fi
+
     # MainUI launch
     cd $miyoodir/app
     PATH="$miyoodir/app:$PATH" \
@@ -312,6 +340,11 @@ check_is_game() {
     echo "$1" | grep -q "retroarch/cores" || echo "$1" | grep -q "/../../Roms/" || echo "$1" | grep -q "/mnt/SDCARD/Roms/"
 }
 
+notify_resolution_change() {
+    killall -SIGUSR1 batmon
+    killall -SIGUSR1 keymon
+}
+
 change_resolution() {
     res_x=""
     res_y=""
@@ -325,12 +358,29 @@ change_resolution() {
     fi
     log "Changing resolution to $res_x x $res_y"
 
-    bootScreen clear
+    if [ -x "$sysdir/bin/fbmode" ]; then
+        probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
+        current_res=$(echo "$probe" | cut -d' ' -f1)
+        current_pages=$(echo "$probe" | awk '{print $NF}')
 
-    fbset -g "$res_x" "$res_y" "$res_x" "$((res_y * 2))" 32
-    # inform batmon and keymon of resolution change
-    killall -SIGUSR1 batmon
-    killall -SIGUSR1 keymon
+        # Keep game-side mode changes at the stock two-page layout.
+        if [ "$current_res" = "${res_x}x${res_y}" ] && [ "$current_pages" = "2" ]; then
+            notify_resolution_change
+            return
+        fi
+
+        if ! $sysdir/bin/fbmode "${res_x}x${res_y}" --pages 2 \
+            --preclear --linger 120 --timeout 500; then
+            log "fbmode failed, falling back to fbset"
+            bootScreen clear
+            fbset -g "$res_x" "$res_y" "$res_x" "$((res_y * 2))" 32
+        fi
+    else
+        bootScreen clear
+        fbset -g "$res_x" "$res_y" "$res_x" "$((res_y * 2))" 32
+    fi
+
+    notify_resolution_change
 }
 
 launch_game() {
@@ -464,8 +514,35 @@ launch_game() {
             retval=$?
 
             if [ -f /tmp/new_res_available ]; then
-                # Restore resolution
-                change_resolution "640x480"
+                # infoPanel caches the old geometry and must not survive a mode change.
+                killall infoPanel 2>/dev/null
+                sleep 0.01
+                killall -9 infoPanel 2>/dev/null
+                rm -f /tmp/dismiss_info_panel
+
+                if [ -f /tmp/quick_switch ] || [ -f "$sysdir/.runGameSwitcher" ]; then
+                    # A handoff is pending. Whoever runs next owns the mode, so
+                    # leave the framebuffer alone rather than transitioning to
+                    # 640x480 only for the next step to transition away again.
+                    log "Handoff pending, preserving framebuffer"
+                elif [ -f /tmp/.offOrder ]; then
+                    # Shutting down. Nothing after this renders except the
+                    # shutdown screen, which reads the live geometry, and
+                    # keymon may already have one on screen from deepsleep.
+                    # Changing the mode underneath it shears whatever it is
+                    # still drawing.
+                    log "Shutdown pending, preserving framebuffer"
+                else
+                    if [ -x "$sysdir/bin/fbmode" ]; then
+                        if ! $sysdir/bin/fbmode 640x480 --pages 2 --preclear --no-clear \
+                            --linger 150 --timeout 500; then
+                            log "fbmode failed returning to MainUI, falling back to fbset"
+                            fbset -g 640 480 640 960 32
+                        fi
+                    fi
+
+                    change_resolution "640x480"
+                fi
             fi
 
             if [ $is_game -eq 1 ] && [ ! -f /tmp/.offOrder ] && [ -f /tmp/.displaySavingMessage ]; then
@@ -702,6 +779,32 @@ check_switcher() {
 launch_switcher() {
     log "\n:: Launch switcher"
     cd $sysdir
+
+    # GameSwitcher owns its framebuffer requirement: a game exiting toward it
+    # leaves the mode alone, so this is the only place 752x560 is established.
+    if [ -f /tmp/new_res_available ] && [ -x "$sysdir/bin/fbmode" ]; then
+        # --probe: WxH virtual WxH bpp N line_length N pages N
+        probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
+        current_res=$(echo "$probe" | awk '{print $1}')
+        current_virtual=$(echo "$probe" | awk '{print $3}')
+        current_bpp=$(echo "$probe" | awk '{print $5}')
+        current_pages=$(echo "$probe" | awk '{print $NF}')
+
+        if [ "$current_res" = "752x560" ] &&
+           [ "$current_virtual" = "752x1120" ] &&
+           [ "$current_bpp" = "32" ] &&
+           [ "$current_pages" = "2" ]; then
+            log "Framebuffer already 752x560/2, preserving"
+        else
+            if ! $sysdir/bin/fbmode 752x560 --pages 2 --preclear --no-clear \
+                --linger 150 --timeout 500; then
+                log "fbmode failed before GameSwitcher, falling back to fbset"
+                fbset -g 752 560 752 1120 32
+            fi
+            notify_resolution_change
+        fi
+    fi
+
     start_audioserver
     LD_PRELOAD="$miyoodir/lib/libpadsp.so" gameSwitcher
     rm $sysdir/.runGameSwitcher
@@ -795,28 +898,111 @@ mount_main_ui() {
 #   resolution is stored in /tmp/screen_resolution
 #   times out after 5 seconds, defaults to 640x480
 #
-get_screen_resolution() {
-    max_attempts=10
-    attempt=0
-
-    log "get_screen_resolution: start"
-    while [ "$attempt" -lt "$max_attempts" ]; do
-        screen_resolution=$(grep 'Current TimingWidth=' /proc/mi_modules/fb/mi_fb0 | sed 's/Current TimingWidth=\([0-9]*\),TimingWidth=\([0-9]*\),.*/\1x\2/')
-        if [ -n "$screen_resolution" ]; then
-            log "get_screen_resolution: success, resolution: $screen_resolution"
-            break
+wait_for_fb_driver() {
+    # Detection below can now answer from dmesg without ever reading mi_fb0,
+    # which removes the implicit barrier the old polling provided. A mode change
+    # issued while the LCD driver is still bringing the panel up can be
+    # overwritten by the driver's own late init, leaving the panel scanning at a
+    # pitch that does not match what was drawn. mi_fb0 publishing its timing is
+    # the signal that init finished, so make the barrier explicit and call it
+    # before every boot-time mode change.
+    fb_wait_attempt=0
+    while [ "$fb_wait_attempt" -lt 50 ]; do
+        if grep -q 'Current TimingWidth=' /proc/mi_modules/fb/mi_fb0 2> /dev/null; then
+            return 0
         fi
-        log "get_screen_resolution: attempt $attempt failed"
-        attempt=$((attempt + 1))
-        sleep 0.5
+        fb_wait_attempt=$((fb_wait_attempt + 1))
+        sleep 0.1
     done
+    log "wait_for_fb_driver: timed out waiting for mi_fb0"
+    return 1
+}
+
+read_mi_fb_resolution() {
+    grep 'Current TimingWidth=' /proc/mi_modules/fb/mi_fb0 2> /dev/null | sed 's/Current TimingWidth=\([0-9]*\),TimingWidth=\([0-9]*\),.*/\1x\2/'
+}
+
+read_dmesg_resolution() {
+    # Match the value attached to the key itself. Splitting the line on "="
+    # would pick up any earlier "=" and mis-parse lines carrying both WIDTH
+    # and HEIGHT, or a prefix such as "opt=1".
+    dmesg 2> /dev/null | awk '
+        {
+            if (match($0, /FB_TIMM?ING_WIDTH=[0-9]+/)) {
+                s = substr($0, RSTART, RLENGTH); sub(/.*=/, "", s); w = s
+            }
+            if (match($0, /FB_TIMM?ING_HEIGHT=[0-9]+/)) {
+                s = substr($0, RSTART, RLENGTH); sub(/.*=/, "", s); h = s
+            }
+        }
+        END {
+            if (w != "" && h != "") print w "x" h
+        }
+    '
+}
+
+get_screen_resolution() {
+    log "get_screen_resolution: start"
+
+    # 1. mi_fb0 is authoritative and stays so: if the driver is already up,
+    #    nothing below can override it. Costs a single read.
+    screen_resolution=$(read_mi_fb_resolution)
+    if [ -n "$screen_resolution" ]; then
+        log "get_screen_resolution: mi_fb0 ready, resolution: $screen_resolution"
+    fi
+
+    # 2. Driver not up yet. The kernel log records the timings the framebuffer
+    #    was configured with, which answers the same question without waiting.
+    #    Only consulted when mi_fb0 could not answer, so it can never contradict
+    #    the authoritative source.
+    if [ -z "$screen_resolution" ]; then
+        screen_resolution=$(read_dmesg_resolution)
+        case "$screen_resolution" in
+        640x480 | 752x560)
+            log "get_screen_resolution: from dmesg, resolution: $screen_resolution"
+            ;;
+        *)
+            screen_resolution=""
+            ;;
+        esac
+    fi
+    # 3. Neither answered: poll mi_fb0. Same 5 s ceiling as before, finer
+    #    granularity, so detection lands within 100 ms of the driver coming up.
+    if [ -z "$screen_resolution" ]; then
+        max_attempts=50
+        attempt=0
+
+        log "get_screen_resolution: polling mi_fb0"
+        while [ "$attempt" -lt "$max_attempts" ]; do
+            screen_resolution=$(read_mi_fb_resolution)
+            if [ -n "$screen_resolution" ]; then
+                log "get_screen_resolution: success after $attempt polls, resolution: $screen_resolution"
+                break
+            fi
+            attempt=$((attempt + 1))
+            sleep 0.1
+        done
+    fi
 
     if [ -z "$screen_resolution" ]; then
         log "get_screen_resolution: failed to get screen resolution, fall back to 640x480"
         touch /tmp/get_screen_resolution_failed
     fi
 
-    if [ "$screen_resolution" = "752x560" ] && [ "$(/etc/fw_printenv miyoo_version | cut -d'=' -f2)" -ge "202310271401" ]; then
+    if [ -f "$sysdir/config/.force640Res" ]; then
+        log "get_screen_resolution: .force640Res set, forcing 640x480"
+        rm -f /tmp/new_res_available
+        screen_resolution="640x480"
+
+        if [ -x "$sysdir/bin/fbmode" ]; then
+            wait_for_fb_driver
+            if ! $sysdir/bin/fbmode 640x480 --pages 3 --preclear --no-clear \
+                --linger 150 --timeout 800; then
+                log "fbmode failed in forced 640 mode, falling back to fbset"
+                fbset -g 640 480 640 1440 32
+            fi
+        fi
+    elif [ "$screen_resolution" = "752x560" ] && [ "$(/etc/fw_printenv miyoo_version | cut -d'=' -f2)" -ge "202310271401" ]; then
         touch /tmp/new_res_available
     else
         # can't use 752x560 without appropriate firmware or screen
@@ -891,6 +1077,19 @@ init_system() {
     echo 1 > /sys/class/pwm/pwmchip0/pwm0/enable
 
     get_screen_resolution
+
+    # Establish MainUI's layout before the boot screen is drawn. Doing it here
+    # means the boot screen is painted in the mode MainUI will use, so nothing
+    # has to clear it later and it stays up until MainUI paints over it. On
+    # 640-only devices this is skipped and behaviour is unchanged.
+    if [ -f /tmp/new_res_available ] && [ -x "$sysdir/bin/fbmode" ]; then
+        wait_for_fb_driver
+        if ! $sysdir/bin/fbmode 640x480 --pages 3 --preclear --no-clear \
+            --linger 150 --timeout 500; then
+            log "fbmode failed preparing MainUI layout, falling back to fbset"
+            fbset -g 640 480 640 1440 32
+        fi
+    fi
 }
 
 device_uuid=$(read_uuid)
