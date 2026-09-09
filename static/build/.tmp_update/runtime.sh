@@ -12,6 +12,9 @@ MODEL_MMF=285
 MODEL_MMP=354
 screen_resolution="640x480"
 
+romwinidx_device="/appconfigs/romwinidx.json"
+romwinidx_sd="$sysdir/config/romwinidx.json"
+
 main() {
     # Set model ID based on hardware detection.
     # AXP probe first: the Flip and the Plus share the AXP PMU, so the hall
@@ -42,6 +45,7 @@ main() {
     clear_logs
 
     init_system
+    restore_romwinidx
     update_time
 
     # Remount passwd/group to add our own users
@@ -51,12 +55,22 @@ main() {
     # Start the battery monitor
     batmon &
 
-    # Reapply theme
+    # Reapply theme when this SD is first used on a device.
     system_theme="$(/customer/app/jsonval theme)"
-    active_theme="$(cat $sysdir/config/active_theme)"
+    active_theme="$(cat "$sysdir/config/active_theme" 2>/dev/null)"
+    theme_device_state="$sysdir/config/theme-applied-$SERIAL_NUMBER"
+    applied_theme="$(cat "$theme_device_state" 2>/dev/null)"
 
-    if [ "$system_theme" == "./" ] || [ "$system_theme" != "$active_theme" ] || [ ! -d "$system_theme" ]; then
+    if [ "$system_theme" == "./" ] ||
+        [ "$system_theme" != "$active_theme" ] ||
+        [ ! -d "$system_theme" ] ||
+        [ "$applied_theme" != "$system_theme" ]; then
         themeSwitcher --reapply_icons
+
+        # Re-read: themeSwitcher writes the resolved theme back to settings,
+        # including when it falls back to a different one.
+        system_theme="$(/customer/app/jsonval theme)"
+        echo -n "$system_theme" > "$theme_device_state"
     fi
 
     # Check is charging
@@ -321,6 +335,7 @@ change_resolution() {
 
 launch_game() {
     log "\n:: Launch game"
+    rm -f /tmp/.forceKillRetroarch
     cmd=$(cat $sysdir/cmd_to_run.sh)
     TZ_VALUE=$(cat "$sysdir/config/.tz")
 
@@ -370,6 +385,13 @@ launch_game() {
         fi
     fi
 
+    play_activity_pid=""
+    services_kill_pid=""
+    if [ $is_game -eq 1 ]; then
+        playActivity start "$rompath" &
+        play_activity_pid=$!
+    fi
+
     full_resolution_path="$(get_full_resolution_path)"
 
     if [ -z "$launch_script" ]; then
@@ -388,16 +410,11 @@ launch_game() {
             echo "$temp" | sed 's/\$/\\\$/g' > $sysdir/cmd_to_run.sh
         fi
 
-        # Kill services for maximum performance
+        # Kill services while remaining launch preparation continues.
         if [ ! -f $sysdir/config/.keepServicesAlive ]; then
-            for process in dropbear bftpd filebrowser telnetd smbd; do
-                if is_running $process; then
-                    killall -9 $process
-                fi
-            done
+            killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null &
+            services_kill_pid=$!
         fi
-
-        playActivity start "$rompath"
     fi
 
     # Prevent quick switch loop
@@ -432,6 +449,16 @@ launch_game() {
             cd /mnt/SDCARD/RetroArch
             force_retroarch_cfg
 
+            # Finish launch-side work before emulator handoff.
+            if [ -n "$services_kill_pid" ]; then
+                wait "$services_kill_pid" 2> /dev/null
+                services_kill_pid=""
+            fi
+            if [ -n "$play_activity_pid" ]; then
+                wait "$play_activity_pid"
+                play_activity_pid=""
+            fi
+
             # make the cmd_to_run shell env aware of the new timezone
             TZ="$TZ_VALUE" $sysdir/cmd_to_run.sh
             retval=$?
@@ -449,14 +476,28 @@ launch_game() {
             fi
         fi
     else
+        if [ -n "$services_kill_pid" ]; then
+            wait "$services_kill_pid" 2> /dev/null
+            services_kill_pid=""
+        fi
+        if [ -n "$play_activity_pid" ]; then
+            wait "$play_activity_pid"
+            play_activity_pid=""
+        fi
         retval=404
     fi
 
     log "cmd retval: $retval"
 
+    forced_retroarch_kill=0
+    if [ -f /tmp/.forceKillRetroarch ]; then
+        forced_retroarch_kill=1
+        rm -f /tmp/.forceKillRetroarch
+    fi
+
     if [ $retval -eq 404 ]; then
         infoPanel --title "File not found" --message "The requested file was not found." --auto
-    elif [ $retval -ge 128 ] && [ $retval -ne 143 ] && [ $retval -ne 255 ] && [ ! -f /tmp/.forceKillRetroarch ]; then
+    elif [ $retval -ge 128 ] && [ $retval -ne 143 ] && [ $retval -ne 255 ] && [ $forced_retroarch_kill -eq 0 ]; then
         infoPanel --title "Fatal error occurred" --message "The program exited unexpectedly.\n(Error code: $retval)" --auto
     fi
 
@@ -464,6 +505,11 @@ launch_game() {
 }
 
 force_retroarch_cfg() {
+    ra_cfg=/mnt/SDCARD/RetroArch/.retroarch/retroarch.cfg
+    if grep -q '^[[:space:]]*network_cmd_enable[[:space:]]*=[[:space:]]*"true"[[:space:]]*$' "$ra_cfg" 2> /dev/null; then
+        return
+    fi
+
     # Enable network commands in RetroArch
     cat > /tmp/onion_ra_patch.cfg <<- EOM
 network_cmd_enable = "true"
@@ -663,9 +709,29 @@ launch_switcher() {
     sync
 }
 
+restore_romwinidx() {
+    if [ -f "$romwinidx_sd" ]; then
+        cp -f "$romwinidx_sd" "$romwinidx_device"
+        log "romwinidx: restored from SD"
+    else
+        rm -f "$romwinidx_device"
+    fi
+}
+
+save_romwinidx() {
+    if [ -f "$romwinidx_device" ]; then
+        cp -f "$romwinidx_device" "$romwinidx_sd"
+        log "romwinidx: saved to SD"
+    else
+        rm -f "$romwinidx_sd"
+    fi
+    sync
+}
+
 check_off_order() {
     if [ -f /tmp/.offOrder ]; then
         touch /tmp/shutting_down
+        save_romwinidx
 
         #EmuDeck - CheckOff scripts
         check_off_scripts=$(find "$sysdir/checkoff" -type f -name "*.sh")
@@ -689,14 +755,14 @@ check_hide_recents() {
     if [ ! -f $sysdir/config/.showRecents ]; then
         # Hide recents by removing the json file
         if [ -f $recentlist ]; then
-            cat $recentlist $recentlist_hidden > $recentlist_temp
+            cat $recentlist $recentlist_hidden 2>/dev/null | head -n 200 > $recentlist_temp
             mv -f $recentlist_temp $recentlist_hidden
             rm -f $recentlist
         fi
     else
         # Restore recentlist
         if [ -f $recentlist_hidden ]; then
-            cat $recentlist $recentlist_hidden > $recentlist_temp
+            cat $recentlist $recentlist_hidden 2>/dev/null | head -n 200 > $recentlist_temp
             mv -f $recentlist_temp $recentlist
             rm -f $recentlist_hidden
         fi
