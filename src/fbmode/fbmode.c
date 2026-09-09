@@ -267,7 +267,8 @@ int main(int argc, char *argv[])
             pages = 2;
         if (pages > 3)
             pages = 3;
-    } else if (pages < 2 || pages > 3) {
+    }
+    else if (pages < 2 || pages > 3) {
         lg("invalid page count: %d", pages);
         close(fd);
         return 2;
