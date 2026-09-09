@@ -1,7 +1,9 @@
 #ifndef GAME_SWITCHER_OVERLAY_H
 #define GAME_SWITCHER_OVERLAY_H
 
+#include <errno.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -22,6 +24,7 @@
 
 static pthread_t autosave_thread_pt;
 static bool autosave_thread_running = false;
+static pid_t overlay_retroarch_pid = 0;
 
 void setFbAsFirstRomScreen(void)
 {
@@ -119,6 +122,16 @@ void overlay_init()
         return;
     }
 
+    // Remember the RetroArch instance this overlay belongs to.
+    overlay_retroarch_pid = 0;
+    for (int i = 0; i < 10 && overlay_retroarch_pid <= 0; i++) {
+        overlay_retroarch_pid = process_searchpid("retroarch");
+        if (overlay_retroarch_pid <= 0)
+            msleep(20);
+    }
+    if (overlay_retroarch_pid <= 0)
+        print_debug("Unable to capture RetroArch PID\n");
+
     retroarch_pause();
     _playActivityAsync("stop_all");
     setFbAsFirstRomScreen();
@@ -178,6 +191,17 @@ void overlay_resume(void)
     }
 }
 
+static bool _processPidExists(pid_t pid)
+{
+    if (pid <= 0)
+        return false;
+
+    if (kill(pid, 0) == 0)
+        return true;
+
+    return errno == EPERM;
+}
+
 void overlay_exit(void)
 {
     if (appState.is_overlay) {
@@ -188,22 +212,42 @@ void overlay_exit(void)
             pthread_join(autosave_thread_pt, NULL);
         }
 
-        // Match upstream killall semantics: every matching comm, not just the first PID.
-        process_killall_signal("retroarch", SIGTERM);
+        pid_t retroarch_pid = overlay_retroarch_pid;
+        overlay_retroarch_pid = 0;
 
-        // wait up to 5 seconds for RetroArch to exit
-        for (int i = 0; i < 10; i++) {
-            msleep(500);  // 0.5s x 10 = 5s
-            if (!process_isRunning("retroarch")) {
-                break;  // retroarch is gone
+        if (retroarch_pid <= 0) {
+            // The PID was never captured, so fall back to the old broad kill
+            // rather than leaving RetroArch running.
+            print_debug("No RetroArch PID captured, falling back to killall");
+            process_killall_signal("retroarch", SIGTERM);
+
+            // wait up to 5 seconds for RetroArch to exit
+            for (int i = 0; i < 10; i++) {
+                msleep(500); // 0.5s x 10 = 5s
+                if (!process_isRunning("retroarch")) {
+                    break; // retroarch is gone
+                }
+            }
+
+            if (process_isRunning("retroarch")) {
+                print_debug("RetroArch still running, force killing...");
+                temp_flag_set(".forceKillRetroarch", true);
+                process_killall("retroarch");
             }
         }
+        else if (_processPidExists(retroarch_pid)) {
+            kill(retroarch_pid, SIGTERM);
 
-        // if still running, force kill
-        if (process_isRunning("retroarch")) {
-            print_debug("RetroArch still running, force killing...");
-            temp_flag_set(".forceKillRetroarch", true);
-            process_killall("retroarch");
+            // Wait up to 5 seconds for this specific instance to exit.
+            for (int i = 0; i < 50 && _processPidExists(retroarch_pid); i++)
+                msleep(100);
+
+            if (_processPidExists(retroarch_pid)) {
+                printf_debug("RetroArch PID %d still running, force killing...\n",
+                             retroarch_pid);
+                temp_flag_set(".forceKillRetroarch", true);
+                kill(retroarch_pid, SIGKILL);
+            }
         }
     }
 }
