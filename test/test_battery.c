@@ -159,33 +159,52 @@ TEST(cache_valid_with_nsec_borrow) {
     ASSERT_TRUE(cache_is_valid(&cache, &now));
 }
 
-/* ---- AXP percentage clamp (getBatPercMMP contract) ---- */
+/* ---- AXP percentage (getBatPercMMP contract, batmon.c) ----
+ * Mirror of getBatPercMMP() after parsing. Production cannot run on host:
+ * it popen()s /customer/app/axp_test. Keep in sync with batmon.c:
+ * static last_good starts at -1 (unpublished); only 0-100 is stored. */
 
-static int clamp_axp_percent(int perc, int last_good)
+static int axp_last_good = -1;
+
+static void axp_reset(void)
 {
-    if (perc < 0 || perc > 100)
-        return (last_good >= 0 && last_good <= 100) ? last_good : -1;
-    return perc;
+    axp_last_good = -1;
+}
+
+static int axp_sample(int battery_number)
+{
+    if (battery_number < 0 || battery_number > 100)
+        return axp_last_good;
+    axp_last_good = battery_number;
+    return battery_number;
 }
 
 TEST(axp_percent_keeps_valid) {
-    ASSERT_EQ(clamp_axp_percent(83, 50), 83);
-    ASSERT_EQ(clamp_axp_percent(0, 50), 0);
-    ASSERT_EQ(clamp_axp_percent(100, 50), 100);
+    axp_reset();
+    ASSERT_EQ(axp_sample(83), 83);
+    ASSERT_EQ(axp_sample(0), 0);
+    ASSERT_EQ(axp_sample(100), 100);
 }
 
 TEST(axp_percent_rejects_negative) {
-    ASSERT_EQ(clamp_axp_percent(-1, 64), 64);
+    /* 0% is a sane sample and must be kept, not treated as unpublished */
+    axp_reset();
+    axp_sample(0);
+    ASSERT_EQ(axp_sample(-1), 0);
 }
 
 TEST(axp_percent_rejects_garbage) {
-    ASSERT_EQ(clamp_axp_percent(1735289191, 12), 12);
+    axp_reset();
+    axp_sample(12);
+    ASSERT_EQ(axp_sample(1735289191), 12);
 }
 
 TEST(axp_percent_first_failure_is_unpublished) {
-    ASSERT_EQ(clamp_axp_percent(-1, -1), -1);
-    ASSERT_EQ(clamp_axp_percent(1735289191, -1), -1);
-    ASSERT_EQ(clamp_axp_percent(-1, 0), 0);
+    /* batmon starts current_percentage at -1 and publishes only >= 0 */
+    axp_reset();
+    ASSERT_EQ(axp_sample(-1), -1);
+    ASSERT_EQ(axp_sample(1735289191), -1);
+    ASSERT_EQ(axp_sample(57), 57);
 }
 
 /* ---- main ---- */
