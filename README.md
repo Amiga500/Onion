@@ -1,9 +1,9 @@
 # 🕹️ OnionPlus — Optimizations at a Glance
 
 [![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
-[![commits](https://img.shields.io/badge/commits-19-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![commits](https://img.shields.io/badge/commits-20-blueviolet?style=for-the-badge)](#-11--commit-timeline)
 [![files](https://img.shields.io/badge/files%20changed-182-blue?style=for-the-badge)](#-10--grand-totals)
-[![diff](https://img.shields.io/badge/diff-%2B30%2C479%20%2F%20%E2%88%921%2C106-informational?style=for-the-badge)](./docs/OnionPlus-vs-base.md)
+[![diff](https://img.shields.io/badge/diff-%2B30%2C482%20%2F%20%E2%88%921%2C106-informational?style=for-the-badge)](./docs/OnionPlus-vs-base.md)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
 [![tests](https://img.shields.io/badge/tests-1%2C419%20%2F%2071%2C408%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
@@ -201,7 +201,7 @@ A–G). Every pass reaches installs through the built-in
 | 🔴 Unbounded `sprintf` | → bounded `snprintf` | **23 → 0** ✅ |
 | 🔴 Unbounded `strcpy` + `strcat` | → bounded copies / `memcpy` | **37 → 0** ✅ |
 | 🔴 Non-reentrant `strtok` | → `strtok_r` with owned save-pointer | **4 → 0** ✅ |
-| 🟢 NULL-pointer / I/O guards added | new `if (!ptr)` / return-value checks | **+63** |
+| 🟢 NULL-pointer / I/O guards added | new `if (!ptr)` / return-value checks | **+57** *(25-file set)* |
 | 🟢 Leaked descriptors closed | `fclose`/`close` on error paths | **+18** |
 | 🟢 Division-by-zero guards added | early return before `% total_count` | **+2** |
 
@@ -292,8 +292,8 @@ A–G). Every pass reaches installs through the built-in
 | ✅ Tests | **1,419** |
 | ✅ Assertions | **71,408** |
 | ❌ Failures | **0** |
-| ⏱️ Suite runtime (prebuilt) | **~3.3 s** |
-| 🔐 Security-focused suites | 10 suites · 219 tests · 959 assertions (**16 %** of all tests) |
+| ⏱️ Suite runtime (prebuilt) | **~2.5 s** |
+| 🔐 Security-focused suites | 10 suites · 219 tests · 960 assertions (**15 %** of all tests) |
 
 - 🏗️ Runs entirely on the **host** — no cross-toolchain, no SDL, no device — via a single
   `make unit-test` target, making it usable as a fast CI gate.
@@ -328,16 +328,16 @@ A–G). Every pass reaches installs through the built-in
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..HEAD`) | **19** *(`git rev-list --count` on `onionplus-compact` after this docs refresh; 18 through last code `bf3deb8e`. The long `OnionPlus` branch was 97.)* |
+| 🔧 Commits (`07505ea5..HEAD`) | **20** *(`git rev-list --count` on `onionplus-compact` after this number audit; 18 through last code `bf3deb8e`. The long `OnionPlus` branch was 97.)* |
 | 📁 Files changed | **182** *(88 added, 94 modified, 0 deleted)* |
-| ➕➖ Lines | **+30,479 / −1,106** |
-| 🧩 Production (`src/` + `static/` + CI/Makefile) | **101 files · +4,572 / −1,080** |
+| ➕➖ Lines | **+30,482 / −1,106** |
+| 🧩 Production (`src/` + `static/` + CI/Makefile) | **101 files · +4,572 / −1,080** *(excludes `.gitignore` + `SDL.h`, 2 · +35 / −0)* |
 | 🧪 Tests (`test/`) | **75 files · +23,327 / −10** |
-| 📚 Docs + README | **4 files · +2,545 / −16** |
+| 📚 Docs + README | **4 files · +2,548 / −16** |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
 | 🧪 Test suites / tests / assertions | **68 / 1,419 / 71,408** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
-| 🛡️ NULL-guards / closed descriptors added | **+63 / +18** |
+| 🛡️ NULL-guards / closed descriptors added | **+57 / +18** *(25-file set)* |
 | 🔐 Pre-existing upstream defects fixed | **6** |
 | 🕹️ AdvanceMENU scripts hardened/optimized | **7 files** |
 
@@ -377,8 +377,8 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-`onionplus-compact` is **19 commits** ahead of upstream `OnionUI/Onion:main` (`07505ea5` →
-this docs refresh; last code `bf3deb8e`. The long `OnionPlus` branch was 97). Same tree: **8 vectorized NEON kernels**,
+`onionplus-compact` is **20 commits** ahead of upstream `OnionUI/Onion:main` (`07505ea5` →
+this number audit; last code `bf3deb8e`. The long `OnionPlus` branch was 97). Same tree: **8 vectorized NEON kernels**,
 a dozen algorithmic O(n²)→O(n) rewrites, five distinct render/UI caches (list dimming
 no longer mutates the TTF cache), a power/battery batch (AXP percent clamped), a syscall
 diet that removed every avoidable `system()` call from the hardened core, **six
@@ -394,7 +394,7 @@ See [`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md).
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `onionplus-compact` ·
-Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) (**19** including this docs refresh,
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) (**20** including this number audit,
 `git rev-list --count`) · Headline figures refreshed **2026-09-09** · Companion docs:
 [`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md) ·
 [`OnionPlus-vs-base.md`](./docs/OnionPlus-vs-base.md)</sub>

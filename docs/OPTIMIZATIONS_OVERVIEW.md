@@ -1,16 +1,16 @@
 # 🕹️ OnionPlus — Optimizations at a Glance
 
 [![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
-[![commits](https://img.shields.io/badge/commits-19-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![commits](https://img.shields.io/badge/commits-20-blueviolet?style=for-the-badge)](#-11--commit-timeline)
 [![files](https://img.shields.io/badge/files%20changed-182-blue?style=for-the-badge)](#-10--grand-totals)
-[![diff](https://img.shields.io/badge/diff-%2B30%2C479%20%2F%20%E2%88%921%2C106-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
+[![diff](https://img.shields.io/badge/diff-%2B30%2C482%20%2F%20%E2%88%921%2C106-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
 [![tests](https://img.shields.io/badge/tests-1%2C419%20%2F%2071%2C408%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
 > 🧵 **What this is.** A from-scratch, category-first tour of every optimization and
 > hardening change shipped on **OnionPlus** so far — reviewed on **`onionplus-compact`**
-> (`07505ea5` → last code `bf3deb8e` vs `OnionUI/Onion:main`, **19 commits** including this docs refresh; the long
+> (`07505ea5` → last code `bf3deb8e` vs `OnionUI/Onion:main`, **20 commits** including this number audit; the long
 > `OnionPlus` branch was 97). It complements, and does **not** replace,
 > the deep-dive [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) (evidence,
 > methodology, before/after code) and the raw [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)
@@ -247,8 +247,8 @@ Includes ports of `OnionUI/Onion` PRs **#1936–#1946** (@robcodedev) and the
 | ✅ Tests | **1,419** |
 | ✅ Assertions | **71,408** |
 | ❌ Failures | **0** |
-| ⏱️ Suite runtime (prebuilt) | **~3.3 s** |
-| 🔐 Security-focused suites | 10 suites · 219 tests · 959 assertions (**16 %** of all tests) |
+| ⏱️ Suite runtime (prebuilt) | **~2.5 s** |
+| 🔐 Security-focused suites | 10 suites · 219 tests · 960 assertions (**15 %** of all tests) |
 
 - 🏗️ Runs entirely on the **host** — no cross-toolchain, no SDL, no device — via a single
   `make unit-test` target, making it usable as a fast CI gate.
@@ -277,9 +277,9 @@ Includes ports of `OnionUI/Onion` PRs **#1936–#1946** (@robcodedev) and the
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..HEAD`) | **19** *(`onionplus-compact`, last code `bf3deb8e`; long branch was 97)* |
+| 🔧 Commits (`07505ea5..HEAD`) | **20** *(`onionplus-compact`, last code `bf3deb8e`; long branch was 97)* |
 | 📁 Files changed | **182** *(88 A / 94 M / 0 D)* |
-| ➕➖ Lines | **+30,479 / −1,106** |
+| ➕➖ Lines | **+30,482 / −1,106** |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
 | 🧪 Test suites / tests / assertions | **68 / 1,419 / 71,408** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
@@ -323,7 +323,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-`onionplus-compact` is **19 commits** ahead of `OnionUI/Onion:main` (last code `bf3deb8e`).
+`onionplus-compact` is **20 commits** ahead of `OnionUI/Onion:main` (last code `bf3deb8e`).
 Use this page as the poster; [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md)
 is the evidence trail and [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md) is the raw
 `git` arithmetic. OTA: `Amiga500/Onion`.
@@ -331,7 +331,7 @@ is the evidence trail and [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md) is th
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `onionplus-compact` ·
-Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) vs `OnionUI/Onion:main` (**19** including this docs refresh,
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) vs `OnionUI/Onion:main` (**20** including this number audit,
 `git rev-list --count`) · Headline figures refreshed **2026-09-09** · Companion docs:
 [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) ·
 [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)</sub>

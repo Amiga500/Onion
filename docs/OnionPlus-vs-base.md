@@ -1,6 +1,6 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **19 commits** · **182 files** · **+30,479 / −1,106 lines** · **0 deleted** · **68 test suites** · **1,419 tests** ✅
+> **20 commits** · **182 files** · **+30,482 / −1,106 lines** · **0 deleted** · **68 test suites** · **1,419 tests** ✅
 
 > **What this document is:** the raw, reproducible *diff arithmetic* between the current
 > integration branch **`onionplus-compact`** and the upstream base release. Every number
@@ -12,12 +12,12 @@
 |:---|:---|
 | 🌿 Branch tip | `onionplus-compact` last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) vs [`OnionUI/Onion:main`](https://github.com/OnionUI/Onion/tree/main) — compact history + @robcodedev ports + 2026-09-09 review |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
-| ⏩ Commits ahead | **19** *(`git rev-list --count 07505ea5..HEAD` after this docs refresh. 18 through last code `bf3deb8e`. The long `OnionPlus` branch was **97** to `fa5bb007`.)* |
-| 📦 Aggregate delta | **182 files** · **+30,479** / **−1,106** |
+| ⏩ Commits ahead | **20** *(`git rev-list --count 07505ea5..HEAD` after this number audit. 18 through last code `bf3deb8e`. The long `OnionPlus` branch was **97** to `fa5bb007`.)* |
+| 📦 Aggregate delta | **182 files** · **+30,482** / **−1,106** |
 | 🔀 @robcodedev ports | `c7a1a7e9` + `587c35ec` + merge `f87e7781` — `OnionUI/Onion` PRs **#1936–#1946** via [Amiga500 #217](https://github.com/Amiga500/Onion/pull/217) |
 | 🩹 2026-09-09 review | [`fbd26d06`](https://github.com/Amiga500/Onion/commit/fbd26d06) (3 · +58 / −17) · [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) (3 · +79 / −23) |
 | 🧪 Unit tests at tip | **68 suites** · **1,419 tests** · **71,408 assertions** · **0 failures** ✅ |
-| 🔀 Net line growth | **+29,373** |
+| 🔀 Net line growth | **+29,376** |
 
 > 🔁 **Self-reference.** The two files in `docs/` are part of the range they measure, so every
 > *aggregate* figure below includes them. Wherever that matters, the **code-only** subset
@@ -43,24 +43,24 @@
 
 ## 📊 1. Headline Ratios
 
-*Shares below still describe the original 56-commit window. Headline totals are `onionplus-compact` vs `OnionUI/Onion:main`.*
+*Shares from `git diff --numstat 07505ea5 HEAD` on `onionplus-compact` (`a224508d`).*
 
 | Metric | Value | Share |
 |:---|---:|---:|
-| 🧪 Insertions that are **test code** (`test/`) | **23,285** | **80.9 %** |
-| 🧩 Insertions that are **production code** (`src/`) | **2,876** | **10.0 %** |
-| 📚 Insertions that are **documentation** (`docs/` + README) | **2,365** | **8.2 %** |
-| 🏗️ Insertions that are **build/CI/static/Makefile** | **225** | **0.8 %** |
-| ➕ Files **added** (`A`) | **84** | **48.8 %** |
-| ✏️ Files **modified** (`M`) | **88** | **51.2 %** |
+| 🧪 Insertions that are **test code** (`test/`) | **23,327** | **76.5 %** |
+| 🧩 Insertions that are **production code** (`src/`) | **3,985** | **13.1 %** |
+| 📚 Insertions that are **documentation** (`docs/` + README) | **2,548** | **8.4 %** |
+| 🏗️ Insertions that are **build/CI/static/Makefile** | **622** | **2.0 %** |
+| ➕ Files **added** (`A`) | **88** | **48.4 %** |
+| ✏️ Files **modified** (`M`) | **94** | **51.6 %** |
 | 🗑️ Files **deleted** (`D`) | **0** | **0 %** |
-| 🔁 Insertions per deletion | **≈ 29 : 1** | — |
-| 🧪 Test lines per production `src/` line | **≈ 8 : 1** | — |
+| 🔁 Insertions per deletion | **≈ 28 : 1** | — |
+| 🧪 Test lines per production `src/` line | **≈ 6 : 1** | — |
 
 > 📈 **Read this as:** OnionPlus is still a **test-heavy, low-blast-radius** port. Roughly
-> **8 lines of test** landed for every **1 line of `src/`**. Nothing was deleted
+> **6 lines of test** landed for every **1 line of `src/`**. Nothing was deleted
 > outright — removed lines are in-place rewrites inside modified files.
-> Compact production (`src/` + `static/` + CI/Makefile) is
+> Compact production (`src/` + `static/` + CI/Makefile, excluding `.gitignore` and `SDL.h`) is
 > **101 files · +4,572 / −1,080**.
 
 ---
@@ -139,7 +139,7 @@ Compact SHAs: [§2b](#-2b-onionplus-compact-shas).*
 | 97 | [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) | ci: Add push trigger for OnionPlus branch | 1 | CI | 🏗️ CI |
 | | | **Aggregate original window `07505ea5` → `e0b6893c`** | **144** | **+27,234 / −811** | |
 | | | **Headline at long-branch tip `fa5bb007` (2026-09-03)** | **172** | **+28,786 / −977** | |
-| | | **Headline at `onionplus-compact` after this docs refresh (2026-09-09)** | **182** | **+30,479 / −1,106** | |
+| | | **Headline at `onionplus-compact` after this docs refresh (2026-09-09)** | **182** | **+30,482 / −1,106** | |
 
 > ℹ️ A previous revision of this table had **52 rows** and tip `ddbb7e14`.
 > Rows 25–29 are a remote experiment that was fully reverted — net zero in the tree.
@@ -203,6 +203,7 @@ Merge `f87e7781` has no own tree delta.
 | 16 | [`f87e7781`](https://github.com/Amiga500/Onion/commit/f87e7781) | Merge pull request #217 | — | — | 🔀 Merge |
 | 17 | [`fbd26d06`](https://github.com/Amiga500/Onion/commit/fbd26d06) | fix: list label cache dimming and installer Flip detection | 3 | +58 / −17 | 🛡️ Review |
 | 18 | [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) | fix: Flip 640 lock from early dmesg, fbmode-before-driver, AXP percBat | 3 | +79 / −23 | 🛡️ Review |
+| 19 | [`a224508d`](https://github.com/Amiga500/Onion/commit/a224508d) | docs: compact branch, robcodedev #1936-1946, and 2026-09-09 review | 4 | +284 / −151 | 📚 Docs |
 
 @robcodedev PRs (still open on `OnionUI/Onion` when ported): **#1936** keymon SELECT refresh ·
 **#1937** `lt.lang` JSON · **#1938** ThemeSwitcher on-demand previews · **#1939** GS favorites
@@ -221,11 +222,13 @@ Merge `f87e7781` has no own tree delta.
 
 | 📁 Area | Files | ➕ Insertions | ➖ Deletions | Share of + |
 |:---|---:|---:|---:|---:|
-| 🧪 `test/` *(incl. `test/Makefile*`)* | **75** | **+23,327** | **−10** | 76.9 % |
+| 🧪 `test/` *(incl. `test/Makefile*`)* | **75** | **+23,327** | **−10** | 76.5 % |
 | 🧩 `src/` | **78** | **+3,985** | **−962** | 13.1 % |
-| 📚 `docs/` + README | **4** | **+2,545** | **−16** | 8.3 % |
-| 🏗️ `static/` + `.github/` + Makefile | **25** | **+622** | **−118** | 2.0 % |
-| | **182** | **+30,479** | **−1,106** | 100 % |
+| 📚 `docs/` + README | **4** | **+2,548** | **−16** | 8.4 % |
+| 🏗️ `static/` | **18** | **+483** | **−88** | 1.6 % |
+| 🏗️ `.github/` + Makefile | **5** | **+104** | **−30** | 0.3 % |
+| 📎 `.gitignore` + `SDL.h` | **2** | **+35** | **−0** | 0.1 % |
+| | **182** | **+30,482** | **−1,106** | 100 % |
 
 ### 🧪 Inside `test/`
 
@@ -233,15 +236,14 @@ Merge `f87e7781` has no own tree delta.
 |:---|---:|---:|
 | `test_*.c` suites *(all new)* | **68** | *(included in test/ total)* |
 | `Makefile.unit` *(new)* | 1 | +684 / −0 |
-| `onion_test.h` — `TEST` / `RUN_TEST` framework *(new)* | 1 | +162 / −0 |
+| `onion_test.h` — `TEST` / `RUN_TEST` framework *(new)* | 1 | +166 / −0 |
 | **Total `test/`** | **75** | **+23,327 / −10** |
 
 ### 🧩 Inside `src/`
 
-**78 files** under `src/` at compact HEAD (**0 deleted**). Added helpers include
-`neon_pixel.h`, `perf.h`, `signal_handler.h`, `gs_savestate_path.h`. Later waves also
-touch ThemeSwitcher / GameSwitcher / `fbmode` from the @robcodedev ports and
-`list.h` / `batmon.c` from the 2026-09-09 review.
+**78 files** under `src/` at compact HEAD (**7 added**, **71 modified**, **0 deleted**):
+`neon_pixel.h`, `perf.h`, `signal_handler.h`, `gs_savestate_path.h`, `gs_favorites.h`,
+`fbmode.c`, `fbmode/Makefile`.
 
 The extra files beyond the original 25-file NEON/hardening set are theme-render caches,
 signal-handler call sites, `reset.h`, `config.mk`, `jpg2png/Makefile`,
@@ -277,7 +279,7 @@ directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff 
 |:---|:---:|---:|
 | `src/common/utils/neon_pixel.h` | 🆕 A | +343 / −0 |
 | `src/common/system/screenshot.h` | ✏️ M | +103 / −38 |
-| `src/pngScale/pngScale.c` | ✏️ M | *(in src/ total)* |
+| `src/pngScale/pngScale.c` | ✏️ M | +44 / −29 |
 | `src/jpg2png/jpg2png.c` | ✏️ M | +20 / −17 |
 | `src/common/utils/rotate180.h` | ✏️ M | *(in src/ total)* |
 | `src/common/utils/IMG_Save.h` | ✏️ M | *(in src/ total)* |
@@ -287,7 +289,7 @@ directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff 
 
 | File | Status | +/− |
 |:---|:---:|---:|
-| `src/common/theme/render/list.h` | ✏️ M | +116 / −39 |
+| `src/common/theme/render/list.h` | ✏️ M | +135 / −42 |
 | `src/common/theme/render/footer.h` | ✏️ M | +70 / −35 |
 | `src/common/theme/render/dialog.h` | ✏️ M | +45 / −16 |
 | `src/common/theme/render/header.h` | ✏️ M | +26 / −6 |
@@ -299,41 +301,41 @@ directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff 
 | File | Status | Delta | Role |
 |:---|:---:|---:|:---|
 | 🧪 `test/test_list.c` | 🆕 A | +2,100 | Largest single suite — 156 tests |
-| 🧪 `test/test_file.c` | 🆕 A | +1,161 | File I/O, paths, `mkdirs`, `file_copy` — 89 tests |
+| 🧪 `test/test_file.c` | 🆕 A | +1,169 | File I/O, paths, `mkdirs`, `file_copy` — 89 tests |
 | 🏗️ `test/Makefile.unit` | 🆕 A | +684 | Build + run + summary for 68 suites |
 | 🧪 `test/test_neon.c` | 🆕 A | +608 | Scalar NEON fallbacks + oracles — 44 tests / 1,402 assertions |
 | ⚡ `src/common/utils/neon_pixel.h` | 🆕 A | +343 | 7 ARM NEON pixel kernels + scalar fallbacks |
 | 🧪 `test/test_hash.c` | 🆕 A | +281 | Hash regression vectors — 15 tests / 350 assertions |
 | 🧪 `test/test_history_recent.c` | 🆕 A | +226 | Production `history_getRecentPath` contract — 10 tests |
-| 🛡️ `src/common/utils/file.c` | ✏️ M | +210 / −70 | Path/IO hardening, `system()` removal, `file_remove_recursive` |
-| 🎨 `src/common/theme/render/list.h` | ✏️ M | +116 / −39 | TTF/preview cache populate path |
+| 🛡️ `src/common/utils/file.c` | ✏️ M | +220 / −71 | Path/IO hardening, `system()` removal, `file_remove_recursive` |
+| 🎨 `src/common/theme/render/list.h` | ✏️ M | +135 / −42 | TTF/preview cache populate path; dimming uses a surface copy |
 | 🛡️ `src/common/system/screenshot.h` | ✏️ M | +103 / −38 | NEON convert + bounded `snprintf` + romscreen stride |
 | 🔧 `src/gameSwitcher/gs_savestate_path.h` | 🆕 A | +45 / −0 | Save-state path helper extracted for tests |
 | 🛡️ `src/common/utils/hash.h` | ✏️ M | +20 / −10 | Bounded, alignment-safe 64-bit load; hashes bit-identical |
 | 🏗️ `src/common/config.mk` | ✏️ M | +7 / −0 | `-O2 -ffunction-sections -Wl,--gc-sections` |
 | ⚡ `src/playActivity/playActivityDB.h` | ✏️ M | +143 / −42 | SQLite open/close 2 → 1 + stmt guards |
-| 🛡️ `src/infoPanel/infoPanel.c` | ✏️ M | +80 / −34 | JSON/argv hardening, `-r` flag fix |
-| ⚡ `src/common/system/battery.h` | ✏️ M | +55 / −10 | 2 s `battery_isCharging()` cache |
+| 🛡️ `src/infoPanel/infoPanel.c` | ✏️ M | +83 / −34 | JSON/argv hardening, `-r` flag fix |
+| ⚡ `src/common/system/battery.h` | ✏️ M | +57 / −9 | 2 s `battery_isCharging()` cache |
 | ⚡ `src/common/system/osd.h` | ✏️ M | +50 / −33 | Bar busy-wait 100 µs → 16 ms + overlay-loop `msleep(2)` |
-| ⚡ `src/common/system/display.h` | ✏️ M | +44 / −14 | Brightness sysfs cache + memcpy fast path + stride |
-| ⚡ `src/gameSwitcher/gs_overlay.h` | ✏️ M | +53 / −10 | Double-fork playActivity + content-match OOB + FB stride |
+| ⚡ `src/common/system/display.h` | ✏️ M | +47 / −14 | Brightness sysfs cache + memcpy fast path + stride |
+| ⚡ `src/gameSwitcher/gs_overlay.h` | ✏️ M | +106 / −19 | Double-fork playActivity + content-match OOB + FB stride |
 
 ---
 
 ## ✅ 6. Test Suite Verification
 
 Numbers below come from an **actual `make unit-test` run** on this workspace (x86-64 host,
-exit code `0`, 2026-08-23), not from a static count.
+exit code `0`, 2026-09-09), not from a static count.
 
 | Metric | Value |
 |:---|---:|
 | 🧪 Suites listed in `TESTS` | **68** |
 | 📄 `test_*.c` files present in the tree | **68** *(all active)* |
-| ✅ Tests executed | **1,410** |
-| ✅ Assertions executed | **71,385** |
+| ✅ Tests executed | **1,419** |
+| ✅ Assertions executed | **71,408** |
 | ❌ Failures | **0** |
 | 🎯 Result | **ALL PASSED** ✅ |
-| ⏱️ Run only *(binaries prebuilt)* | **~2.7 s** |
+| ⏱️ Run only *(this host)* | **~2.5 s** |
 
 ### 📈 Suite count across the port
 
@@ -373,12 +375,12 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 | Suite | Tests | Assertions |
 |:---|---:|---:|
 | `test_list` | 156 | 265 |
-| `test_file` | 89 | 184 |
+| `test_file` | 89 | 185 |
 | `test_str` | 74 | 361 |
 | `test_formatters` | 45 | 140 |
 | `test_neon` | 44 | 1,402 |
 | `test_str_security` | 41 | 659 |
-| `test_file_security` | 40 | 58 |
+| `test_file_security` | 40 | 59 |
 | `test_neon_pixel` | 38 | 72 |
 
 > 🔍 `test_alpha_scale` has 27 tests but **65,879 assertions** — most of the suite total —
@@ -394,14 +396,14 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 ```bash
 cd /path/to/Onion
 
-# Commit list and count (19 at HEAD after this docs refresh vs OnionUI/Onion:main 07505ea5)
-git rev-list --count 07505ea5..HEAD
+git rev-list --count 07505ea5..HEAD               # 19 at a224508d; 20 after this number audit
 git log --oneline --reverse 07505ea5..HEAD
+git diff --shortstat 07505ea5 HEAD                # 182 files, +30,482 / −1,106
 
 # @robcodedev ports + 2026-09-09 review
 git show --shortstat c7a1a7e9 587c35ec fbd26d06 bf3deb8e
 
-# Aggregate delta (regenerate; compact tree, not the long OnionPlus 97)
+git diff --shortstat 07505ea5 HEAD -- . ':!docs' ':!README.md'  # 178 files, +27,934 / −1,090
 
 # Added vs modified
 git diff --name-status 07505ea5 HEAD | awk '{print $1}' | sort | uniq -c
@@ -419,5 +421,5 @@ make unit-test
 actually do, with before/after code and performance figures.
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `onionplus-compact` ·
-Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) (**19** including this docs refresh) ·
+Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) (**20** including this number audit) ·
 Headline figures refreshed **2026-09-09** · Section 2 rows 1–56 still describe the original long-branch port window · §2b is the compact SHA list.</sub>
