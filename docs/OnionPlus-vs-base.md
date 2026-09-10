@@ -1,31 +1,30 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **97 commits** · **172 files** · **+28,786 / −977 lines** · **0 deleted** · **68 test suites** · **1,414 tests** ✅
+> **19 commits** · **182 files** · **+30,479 / −1,106 lines** · **0 deleted** · **68 test suites** · **1,419 tests** ✅
 
-> **What this document is:** the raw, reproducible *diff arithmetic* between the OnionPlus
-> branch tip and the upstream base release. Every number here comes from `git` on this
-> workspace.
+> **What this document is:** the raw, reproducible *diff arithmetic* between the current
+> integration branch **`onionplus-compact`** and the upstream base release. Every number
+> here comes from `git` on this workspace.
 > **What it is not:** a narrative of what the changes do — for optimizations, hardening and
 > performance figures see **[ONIONPLUS_OPTIMIZATION.md](./ONIONPLUS_OPTIMIZATION.md)**.
 
 | 🔖 Reference | Value |
 |:---|:---|
-| 🌿 Branch tip | `OnionPlus` [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) vs [`OnionUI/Onion:main`](https://github.com/OnionUI/Onion/tree/main) — Flip + parity + A–G review |
+| 🌿 Branch tip | `onionplus-compact` last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) vs [`OnionUI/Onion:main`](https://github.com/OnionUI/Onion/tree/main) — compact history + @robcodedev ports + 2026-09-09 review |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
-| ⏩ Commits ahead | **97** *(`git rev-list --count 07505ea5..HEAD`)* |
-| 📦 Aggregate delta | **172 files** · **+28,786** / **−977** |
-| 🧩 Flip commit alone (`921155e8`) | **19 files** · **+362** / **−37** · 3 added (MainUI-285 ×2 + `miyoo285_system.json`) |
-| 🧪 Unit tests at tip | **68 suites** · **1,414 tests** · **71,393 assertions** · **0 failures** ✅ |
-| 🔀 Net line growth | **+27,809** |
+| ⏩ Commits ahead | **19** *(`git rev-list --count 07505ea5..HEAD` after this docs refresh. 18 through last code `bf3deb8e`. The long `OnionPlus` branch was **97** to `fa5bb007`.)* |
+| 📦 Aggregate delta | **182 files** · **+30,479** / **−1,106** |
+| 🔀 @robcodedev ports | `c7a1a7e9` + `587c35ec` + merge `f87e7781` — `OnionUI/Onion` PRs **#1936–#1946** via [Amiga500 #217](https://github.com/Amiga500/Onion/pull/217) |
+| 🩹 2026-09-09 review | [`fbd26d06`](https://github.com/Amiga500/Onion/commit/fbd26d06) (3 · +58 / −17) · [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) (3 · +79 / −23) |
+| 🧪 Unit tests at tip | **68 suites** · **1,419 tests** · **71,408 assertions** · **0 failures** ✅ |
+| 🔀 Net line growth | **+29,373** |
 
 > 🔁 **Self-reference.** The two files in `docs/` are part of the range they measure, so every
 > *aggregate* figure below includes them. Wherever that matters, the **code-only** subset
 > (everything except `docs/`) is given alongside it. Each table states which of the two it uses.
-> A previous revision advertised **52** commits and tip `ddbb7e14`, then **56** / `82fab865`.
-> Those described the original port window. The headline is now `git rev-list --count`
-> through tip `fa5bb007` (**97**). Section 2 still lists
-> the original 56 SHAs vs `OnionUI/Onion:main`; Flip is row 88; A–G is §4.12 of the
-> optimization report, not duplicated SHA-by-SHA here.
+> Headline counts are **`onionplus-compact`**, not the long `OnionPlus` branch.
+> Section 2 still lists the original 56 SHAs from that long history (those hashes are **not**
+> on compact). Compact SHAs are in [§2b](#-2b-onionplus-compact-shas).
 
 ---
 
@@ -33,6 +32,7 @@
 
 1. [Headline Ratios](#-1-headline-ratios)
 2. [The original 56-commit window — plus Flip](#-2-the-original-56-commit-window--plus-flip)
+2b. [`onionplus-compact` SHAs](#-2b-onionplus-compact-shas)
 3. [Breakdown by Directory](#️-3-breakdown-by-directory)
 4. [Breakdown by Functional Category](#️-4-breakdown-by-functional-category)
 5. [Key Files](#-5-key-files)
@@ -43,7 +43,7 @@
 
 ## 📊 1. Headline Ratios
 
-*Shares below still describe the original 56-commit window. Headline totals include Flip + OnionUI-parity review vs `OnionUI/Onion:main`.*
+*Shares below still describe the original 56-commit window. Headline totals are `onionplus-compact` vs `OnionUI/Onion:main`.*
 
 | Metric | Value | Share |
 |:---|---:|---:|
@@ -59,18 +59,18 @@
 
 > 📈 **Read this as:** OnionPlus is still a **test-heavy, low-blast-radius** port. Roughly
 > **8 lines of test** landed for every **1 line of `src/`**. Nothing was deleted
-> outright — the 977 removed lines are in-place rewrites inside modified files.
-> Production in the broader sense (`src/` + `static/` + CI/Makefile) is
-> **91 files · +3,101 / −951**.
+> outright — removed lines are in-place rewrites inside modified files.
+> Compact production (`src/` + `static/` + CI/Makefile) is
+> **101 files · +4,572 / −1,080**.
 
 ---
 
 ## 🔀 2. The original 56-commit window — plus Flip
 
-*Rows 1–56 are the original port window (`07505ea5` → `82fab865`, authored 2026-08-20–24).
-File/+− columns are that commit's own `git show --shortstat`. Merge commits have no tree
-delta of their own. Later waves through `d820266` are narrated in the README timeline;
-the Flip port is appended as row 88.*
+*Historical: rows 1–56 are the original port window on the long `OnionPlus` branch
+(`07505ea5` → `82fab865`, authored 2026-08-20–24). Those SHAs are **not** on
+`onionplus-compact`. File/+− columns are that commit's own `git show --shortstat`.
+Compact SHAs: [§2b](#-2b-onionplus-compact-shas).*
 
 | # | Hash | Subject | Files | +/− | Category |
 |:-:|:-----|:--------|------:|----:|:---------|
@@ -138,7 +138,8 @@ the Flip port is appended as row 88.*
 | 96 | [`9ab47af`](https://github.com/Amiga500/Onion/commit/9ab47af) / [`2f90bbe`](https://github.com/Amiga500/Onion/commit/2f90bbe) | fix: brightness cache, infoPanel scale identity, theme cleanup | — | E F G | 🛡️ Finding E–G *(duplicate tree)* |
 | 97 | [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) | ci: Add push trigger for OnionPlus branch | 1 | CI | 🏗️ CI |
 | | | **Aggregate original window `07505ea5` → `e0b6893c`** | **144** | **+27,234 / −811** | |
-| | | **Headline at tip `fa5bb007` (2026-09-03)** | **172** | **+28,786 / −977** | |
+| | | **Headline at long-branch tip `fa5bb007` (2026-09-03)** | **172** | **+28,786 / −977** | |
+| | | **Headline at `onionplus-compact` after this docs refresh (2026-09-09)** | **182** | **+30,479 / −1,106** | |
 
 > ℹ️ A previous revision of this table had **52 rows** and tip `ddbb7e14`.
 > Rows 25–29 are a remote experiment that was fully reverted — net zero in the tree.
@@ -177,17 +178,54 @@ the Flip port is appended as row 88.*
 
 ---
 
+## 🌿 2b. `onionplus-compact` SHAs
+
+`git log --reverse --pretty=format:'%h %s' --shortstat 07505ea5..HEAD` on this branch.
+Merge `f87e7781` has no own tree delta.
+
+| # | Hash | Subject | Files | +/− | Category |
+|:-:|:-----|:--------|------:|----:|:---------|
+| 1 | [`2d2cc64a`](https://github.com/Amiga500/Onion/commit/2d2cc64a) | build: CI, release packaging and OTA wiring | 10 | +143 / −58 | 🏗️ CI |
+| 2 | [`2deac7a2`](https://github.com/Amiga500/Onion/commit/2deac7a2) | fix: harden common file/string/hash/process helpers | 14 | +509 / −153 | 🛡️ Hardening |
+| 3 | [`9c89bd50`](https://github.com/Amiga500/Onion/commit/9c89bd50) | perf: add NEON pixel kernels with scalar oracles | 6 | +591 / −98 | ⚡ NEON |
+| 4 | [`98242ab5`](https://github.com/Amiga500/Onion/commit/98242ab5) | perf: cut OSD/battery/brightness hot-path overhead | 10 | +240 / −107 | ⚡ Power |
+| 5 | [`7bbdb332`](https://github.com/Amiga500/Onion/commit/7bbdb332) | fix: cache theme/infoPanel surfaces and harden image paths | 12 | +587 / −197 | ⚡ + 🛡️ |
+| 6 | [`154c6fb0`](https://github.com/Amiga500/Onion/commit/154c6fb0) | fix: GameSwitcher overlay, savestate paths and playActivity I/O | 14 | +539 / −206 | 🛡️ GS |
+| 7 | [`157ae659`](https://github.com/Amiga500/Onion/commit/157ae659) | fix: bounds and NULL guards in Tweaks and companion apps | 10 | +111 / −69 | 🛡️ |
+| 8 | [`e6bb63a7`](https://github.com/Amiga500/Onion/commit/e6bb63a7) | fix: AdvanceMENU launch, fonts, PWM and ROM scripts | 8 | +56 / −32 | 🕹️ AdvanceMENU |
+| 9 | [`fd18bdd1`](https://github.com/Amiga500/Onion/commit/fd18bdd1) | feat: Miyoo Mini Flip detection and MainUI-285 | 8 | +327 / −31 | 📱 Flip |
+| 10 | [`4c1b65aa`](https://github.com/Amiga500/Onion/commit/4c1b65aa) | test: host unit-test harness (68 suites, 1414 tests) | 76 | +23,318 / −10 | 🧪 Test |
+| 11 | [`3dca44b0`](https://github.com/Amiga500/Onion/commit/3dca44b0) | docs: OnionPlus vs OnionUI/Onion main at 07505ea5 | 4 | +2,412 / −16 | 📚 Docs |
+| 12 | [`22004cce`](https://github.com/Amiga500/Onion/commit/22004cce) | ci: run host tests on onionplus-compact | 1 | +1 / −1 | 🏗️ CI |
+| 13 | [`c7a1a7e9`](https://github.com/Amiga500/Onion/commit/c7a1a7e9) | Port PRs #1936 #1937 #1941 #1942 #1943 #1944 #1945 #1946 | 3 | +88 / −16 | 🔀 @robcodedev |
+| 14 | [`587c35ec`](https://github.com/Amiga500/Onion/commit/587c35ec) | Port PRs #1938 #1939 #1940 (ThemeSwitcher, GS favorites, fbmode) | 15 | +1,326 / −112 | 🔀 @robcodedev |
+| 15 | [`db9b3e81`](https://github.com/Amiga500/Onion/commit/db9b3e81) | 🎨 apply clang-format changes | 2 | +4 / −3 | 🎨 Format |
+| 16 | [`f87e7781`](https://github.com/Amiga500/Onion/commit/f87e7781) | Merge pull request #217 | — | — | 🔀 Merge |
+| 17 | [`fbd26d06`](https://github.com/Amiga500/Onion/commit/fbd26d06) | fix: list label cache dimming and installer Flip detection | 3 | +58 / −17 | 🛡️ Review |
+| 18 | [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) | fix: Flip 640 lock from early dmesg, fbmode-before-driver, AXP percBat | 3 | +79 / −23 | 🛡️ Review |
+
+@robcodedev PRs (still open on `OnionUI/Onion` when ported): **#1936** keymon SELECT refresh ·
+**#1937** `lt.lang` JSON · **#1938** ThemeSwitcher on-demand previews · **#1939** GS favorites
++ crash fixes · **#1940** `fbmode` + FB transitions · **#1941** `.forceKillRetroarch` ·
+**#1942** `romwinidx` on SD · **#1943** theme per `SERIAL_NUMBER` · **#1944** recents cap 200 ·
+**#1945** skip RA cfg patch · **#1946** overlap launch.
+
+`fbd26d06` / `bf3deb8e` are **not** from those PRs. List-cache dimming, installer hall-first
++ FB preclear, Plus/Flip `mi_fb0` poll, `commit_mainui_fbmode` driver wait, AXP `percBat` clamp.
+
+---
+
 ## 🗂️ 3. Breakdown by Directory
 
-*Aggregate range `07505ea5` → working tree, `docs/` included.*
+*Aggregate range `07505ea5` → `onionplus-compact` HEAD (`bf3deb8e`), `docs/` included.*
 
 | 📁 Area | Files | ➕ Insertions | ➖ Deletions | Share of + |
 |:---|---:|---:|---:|---:|
-| 🧪 `test/` *(incl. `test/Makefile*`)* | **75** | **+23,233** | **−10** | 85.3 % |
-| 🧩 `src/` | **60** | **+2,323** | **−766** | 8.5 % |
-| 📚 `docs/` | **2** | **+1,566** | **0** | 5.8 % |
-| 🏗️ `Makefile` + `.github/` + `ota_update.sh` + `.gitignore` | **7** | **+112** | **−35** | 0.4 % |
-| | **144** | **+27,234** | **−811** | 100 % |
+| 🧪 `test/` *(incl. `test/Makefile*`)* | **75** | **+23,327** | **−10** | 76.9 % |
+| 🧩 `src/` | **78** | **+3,985** | **−962** | 13.1 % |
+| 📚 `docs/` + README | **4** | **+2,545** | **−16** | 8.3 % |
+| 🏗️ `static/` + `.github/` + Makefile | **25** | **+622** | **−118** | 2.0 % |
+| | **182** | **+30,479** | **−1,106** | 100 % |
 
 ### 🧪 Inside `test/`
 
@@ -196,11 +234,14 @@ the Flip port is appended as row 88.*
 | `test_*.c` suites *(all new)* | **68** | *(included in test/ total)* |
 | `Makefile.unit` *(new)* | 1 | +684 / −0 |
 | `onion_test.h` — `TEST` / `RUN_TEST` framework *(new)* | 1 | +162 / −0 |
-| **Total `test/`** | **75** | **+23,233 / −10** |
+| **Total `test/`** | **75** | **+23,327 / −10** |
 
 ### 🧩 Inside `src/`
 
-**56 modified**, **4 added** (`neon_pixel.h`, `perf.h`, `signal_handler.h`, `gs_savestate_path.h`), **0 deleted**.
+**78 files** under `src/` at compact HEAD (**0 deleted**). Added helpers include
+`neon_pixel.h`, `perf.h`, `signal_handler.h`, `gs_savestate_path.h`. Later waves also
+touch ThemeSwitcher / GameSwitcher / `fbmode` from the @robcodedev ports and
+`list.h` / `batmon.c` from the 2026-09-09 review.
 
 The extra files beyond the original 25-file NEON/hardening set are theme-render caches,
 signal-handler call sites, `reset.h`, `config.mk`, `jpg2png/Makefile`,
@@ -215,13 +256,13 @@ framebuffer stride / romscreen stretch fixes (`screenshot.h`, `gs_overlay.h`,
 
 ## 🏷️ 4. Breakdown by Functional Category
 
-Categories below are approximate file-level labels for the same 144 files. Prefer the
+Categories below are approximate file-level labels. Prefer the
 directory table in [§3](#️-3-breakdown-by-directory) when checking `git diff --stat`.
 
 | Category | Role |
 |:---|:---|
 | 🧪 Unit test suites + harness | 75 files under `test/` |
-| 📚 Documentation | 2 files under `docs/` |
+| 📚 Documentation | 3 files under `docs/` + root `README.md` |
 | ⚡ NEON / graphics | `neon_pixel.h`, `surfaceSetAlpha.h`, `rotate180.h`, `IMG_Save.h`, `screenshot.h`, `pngScale.c`, `jpg2png.c` |
 | 🛡️ Hardening & correctness | `file.c`, `str.c`, `state.h`, `list.h`, `hash.h`, `gs_popMenu.h`, `reset.h`, `infoPanel/*`, `gameSwitcher.c`, … |
 | 🔋 Power / CPU | `osd.h` (bar busy-wait + overlay-loop throttle), `display.h` (brightness cache), `battery.h` + `batmon/*` (charging cache), `gs_overlay.h` (double-fork+exec) |
@@ -308,6 +349,8 @@ exit code `0`, 2026-08-23), not from a static count.
 | After `ddbb7e14` | **68** | **1,410** | Release/OTA wiring; suite counts unchanged |
 | After `82fab865` | **68** | **1,410** | GameSwitcher stride/romscreen fixes; suite counts unchanged |
 | After `921155e8` | **68** | **1,412** | Flip: `test_device_model` +2 tests / +8 assertions. `test_settings` field only. Those two suites re-run green; full 68-suite harness not re-executed for this row. |
+| After 2026-09-01 A–G | **68** | **1,414** | empty-file contract + Flip macros (long `OnionPlus`) |
+| After `bf3deb8e` | **68** | **1,419** | `test_alpha_scale` +1; `test_battery` +4. Full harness green. |
 
 The 17 intermediate suites:
 
@@ -338,10 +381,11 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 | `test_file_security` | 40 | 58 |
 | `test_neon_pixel` | 38 | 72 |
 
-> 🔍 `test_alpha_scale` has 26 tests but **65,877 assertions** — most of the suite total —
-> because it sweeps the alpha range exhaustively.
+> 🔍 `test_alpha_scale` has 27 tests but **65,879 assertions** — most of the suite total —
+> because it sweeps the alpha range exhaustively (includes `scale_alpha_255_does_not_undo_dim`).
 > `test_hash` remains dense on purpose: **15 tests / 350 assertions**, 264 bit-identity vectors.
 > `test_gs_popmenu` is **24 tests / 155 assertions** at the tip.
+> `test_battery` adds the AXP clamp contract (`axp_percent_*`).
 
 ---
 
@@ -350,14 +394,14 @@ hardening. That port landed in `bda89b2d`; the suite is now in `TESTS` and passe
 ```bash
 cd /path/to/Onion
 
-# Commit list and count (97 at HEAD fa5bb007 vs OnionUI/Onion:main 07505ea5)
+# Commit list and count (19 at HEAD after this docs refresh vs OnionUI/Onion:main 07505ea5)
 git rev-list --count 07505ea5..HEAD
 git log --oneline --reverse 07505ea5..HEAD
 
-# Flip commit alone
-git show --shortstat 921155e8                 # 19 files, +362 / −37
+# @robcodedev ports + 2026-09-09 review
+git show --shortstat c7a1a7e9 587c35ec fbd26d06 bf3deb8e
 
-# Aggregate delta (regenerate; do not assume the 56-commit-window numbers)
+# Aggregate delta (regenerate; compact tree, not the long OnionPlus 97)
 
 # Added vs modified
 git diff --name-status 07505ea5 HEAD | awk '{print $1}' | sort | uniq -c
@@ -374,6 +418,6 @@ make unit-test
 ⚡ See also: **[ONIONPLUS_OPTIMIZATION.md](./ONIONPLUS_OPTIMIZATION.md)** — what these changes
 actually do, with before/after code and performance figures.
 
-<sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → tip [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) (**97** commits at HEAD) ·
-Headline figures refreshed **2026-09-03** · Section 2 rows 1–56 still describe the original port window · Flip suites re-run green.</sub>
+<sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `onionplus-compact` ·
+Base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) (**19** including this docs refresh) ·
+Headline figures refreshed **2026-09-09** · Section 2 rows 1–56 still describe the original long-branch port window · §2b is the compact SHA list.</sub>

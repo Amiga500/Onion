@@ -1,16 +1,17 @@
 # 🕹️ OnionPlus — Optimizations at a Glance
 
-[![branch](https://img.shields.io/badge/branch-OnionPlus-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/OnionPlus)
-[![commits](https://img.shields.io/badge/commits-97-blueviolet?style=for-the-badge)](#-11--commit-timeline)
-[![files](https://img.shields.io/badge/files%20changed-172-blue?style=for-the-badge)](#-10--grand-totals)
-[![diff](https://img.shields.io/badge/diff-%2B28%2C786%20%2F%20%E2%88%92977-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
+[![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
+[![commits](https://img.shields.io/badge/commits-19-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![files](https://img.shields.io/badge/files%20changed-182-blue?style=for-the-badge)](#-10--grand-totals)
+[![diff](https://img.shields.io/badge/diff-%2B30%2C479%20%2F%20%E2%88%921%2C106-informational?style=for-the-badge)](./OnionPlus-vs-base.md)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
-[![tests](https://img.shields.io/badge/tests-1%2C414%20%2F%2071%2C393%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
+[![tests](https://img.shields.io/badge/tests-1%2C419%20%2F%2071%2C408%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
 > 🧵 **What this is.** A from-scratch, category-first tour of every optimization and
-> hardening change shipped on **OnionPlus** so far — reviewed directly from the commit
-> history (`07505ea5 → fa5bb007` vs `OnionUI/Onion:main`, **97 commits**). It complements, and does **not** replace,
+> hardening change shipped on **OnionPlus** so far — reviewed on **`onionplus-compact`**
+> (`07505ea5` → last code `bf3deb8e` vs `OnionUI/Onion:main`, **19 commits** including this docs refresh; the long
+> `OnionPlus` branch was 97). It complements, and does **not** replace,
 > the deep-dive [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) (evidence,
 > methodology, before/after code) and the raw [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)
 > diff stats. Think of this page as the **poster**, and those two as the **paper trail**.
@@ -41,7 +42,9 @@
 
 Poster-size view of OnionPlus versus **`OnionUI/Onion:main`** (`07505ea5`).
 Same story as the root README, with links that stay inside `docs/`.
-Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
+Current branch: **`onionplus-compact`**. Flip is a surgical port from `v4.5-dev`.
+Includes ports of `OnionUI/Onion` PRs **#1936–#1946** (@robcodedev) and the
+2026-09-09 review fixes. OTA stays on `Amiga500/Onion`.
 
 ### 🔑 Reading the icons
 
@@ -80,8 +83,8 @@ Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
 
 - 📦 **8 kernels total** (7 hand-written ARM assembly + 1 NEON intrinsics), all guarded by
   `#ifdef __ARM_NEON` with a correct scalar tail loop for the remainder.
-- 🧪 Backed by `test_neon`, `test_neon_pixel` and `test_alpha_scale` — **108 tests /
-  67,351 assertions** cross-checking NEON output against the scalar oracle.
+- 🧪 Backed by `test_neon`, `test_neon_pixel` and `test_alpha_scale` — **109 tests /
+  67,353 assertions** cross-checking NEON output against the scalar oracle.
 - 🔬 Every scalar fallback is exercised on the x86-64 host CI; a separate `neon-arm` job
   cross-compiles the assembly and runs it under `qemu-user`.
 
@@ -115,7 +118,7 @@ Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
 
 | Cache | Before | After | Impact |
 |:--|:--|:--|:--|
-| 🔤 TTF label / list / footer / header / dialog surfaces | `TTF_RenderUTF8_Blended` on **every frame** | hash-invalidated cached `SDL_Surface` | 🚀 **5–15 ms/frame saved** 📏 |
+| 🔤 TTF label / list / footer / header / dialog surfaces | `TTF_RenderUTF8_Blended` on **every frame** | hash-invalidated cached `SDL_Surface`; hidden-row dim uses a `SDL_ConvertSurface` copy | 🚀 **5–15 ms/frame saved** 📏 |
 | 🖼️ infoPanel `drawImage()` | `zoomSurface()` + free on **every redraw** | scaled surface cached per (source, w, h) | O(w·h) scale eliminated on repeats 📐 |
 | 🎮 playActivityUI page render | 4× `IMG_Load`+`SoftStretch`+alloc **per page flip** | 4 surfaces cached, reloaded only on page change | page flips skip all image I/O 📐 |
 | 🖥️ `display_readOrWriteBuffer` | per-pixel loop on every row | `memcpy` fast path for contiguous rows | row copy vectorized 📐 |
@@ -136,6 +139,7 @@ Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
 | 🔊 OSD volume/brightness bar thread | `usleep(100)` busy-wait (~10,000 loops/s) | `usleep(16000)` (~60 fps) | 🚀 **idle CPU ~10 % → <1 %** 📏 |
 | 🖼️ OSD overlay draw loop | full-throttle spin for the overlay's duration | `msleep(2)` per iteration + demoted logging | overlay CPU burn capped 📐 |
 | 🔌 `battery_isCharging()` (MIYOO354) | `fork`+`exec` of `axp_test` every call (~5–10 ms) | 2 s cached wrapper | 🚀 **~−99 % subprocess spawns** 📐 |
+| 🪫 `getBatPercMMP()` AXP percent | `axp_test` garbage / `-1` written to `/tmp/percBat` | last sane **0–100** kept | GS/keymon never read a bogus percent 🛡️ |
 | 🪫 batmon low-battery thread | `usleep(0x4000)` (~16 ms) | `usleep(500000)` (500 ms) | 🚀 **~−97 % wake-ups** 📐 |
 | 💡 `display_setBrightnessRaw` | sysfs write on **every** call | cached, duplicate writes skipped | **−100 % duplicate PWM writes** 📏 |
 | ⏱️ batmon main loop | `config_get("battery/warnAt")` every tick | read only at check timeout | **−100 % hot-loop config reads** 📐 |
@@ -240,8 +244,8 @@ Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
 | Metric | Value |
 |:--|--:|
 | 🧪 Active test suites | **68** |
-| ✅ Tests | **1,410** |
-| ✅ Assertions | **71,385** |
+| ✅ Tests | **1,419** |
+| ✅ Assertions | **71,408** |
 | ❌ Failures | **0** |
 | ⏱️ Suite runtime (prebuilt) | **~3.3 s** |
 | 🔐 Security-focused suites | 10 suites · 219 tests · 959 assertions (**16 %** of all tests) |
@@ -263,7 +267,8 @@ Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
 | 🎯 New build target | `make unit-test` — host-only, zero device dependency |
 | 📊 Opt-in profiling | `src/common/utils/perf.h` — `PERF_START`/`PERF_END` compile to nothing unless `-DPERF_ENABLED` |
 | 🏷️ Release naming | `OnionPlus V4.4.0-beta-YYYYMMDD`, zip `OnionPlus-v…-<sha>.zip` — real dated GitHub Releases, no more overwritten `latest` |
-| 📡 OTA | `ota_update.sh` points at `Amiga500/Onion`, filters `OnionPlus-v` assets. Beta = prereleases only (no `releases[0]` fallback). |
+| 📡 OTA | `ota_update.sh` points at `Amiga500/Onion`, filters `OnionPlus-v` assets. Beta = prereleases only (no `releases[0]` fallback). Host CI on `onionplus-compact`. |
+| 📱 Mini Flip | Installer: hall-first, never `event*`; framebuffer preclear before device detect. Runtime: Plus/Flip keep polling `mi_fb0` when dmesg says 640; `fbmode` waits for the FB driver. |
 | 🧵 Signal handling | Shared `signal_handler_quit()` deduplicated across 6 apps; `volatile sig_atomic_t` used correctly for signal-shared state |
 
 ---
@@ -272,11 +277,11 @@ Flip is a surgical port from `v4.5-dev`. OTA stays on `Amiga500/Onion`.
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..HEAD`) | **97** *(`fa5bb007`)* |
-| 📁 Files changed | **172** *(84 A / 88 M / 0 D)* |
-| ➕➖ Lines | **+28,786 / −977** |
+| 🔧 Commits (`07505ea5..HEAD`) | **19** *(`onionplus-compact`, last code `bf3deb8e`; long branch was 97)* |
+| 📁 Files changed | **182** *(88 A / 94 M / 0 D)* |
+| ➕➖ Lines | **+30,479 / −1,106** |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
-| 🧪 Test suites / tests / assertions | **68 / 1,414 / 71,393** — **all green** ✅ |
+| 🧪 Test suites / tests / assertions | **68 / 1,419 / 71,408** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
 | 🛡️ NULL-guards / closed descriptors added | **+57 / +18** |
 | 🔐 Pre-existing upstream defects fixed | **6** |
@@ -306,7 +311,10 @@ A bird's-eye view of the branch's evolution, oldest first:
 13. 📱 **Mini Flip port** — `921155e8` from `OnionUI/Onion:v4.5-dev`, no wholesale merge.
 14. 🔎 **OnionUI-parity review** — charging sentinel, RetroArch killall, `file_read("")`, rumble retry, path bounds.
 15. 🩹 **2026-09-01 A–G review** — empty-file contract, Flip lid-already-closed, AXP-then-hall detect, OTA beta, brightness write-through, infoPanel scale key, theme cleanup.
-16. 📦 **Release tip** — `OnionPlus V4.4.0-beta-20260901` (`fa5bb007`).
+16. 📦 **Compact history** — long `OnionPlus` (97 commits to `fa5bb007`) squashed onto `onionplus-compact`.
+17. 🔀 **@robcodedev ports** — `OnionUI/Onion` PRs **#1936–#1946** via Amiga500 #217 (`c7a1a7e9` + `587c35ec` + `f87e7781`).
+18. 🔤 **List cache + installer Flip** — `fbd26d06`.
+19. 🖥️ **Boot FB + AXP percent** — `bf3deb8e`.
 
 > 🔍 Full SHA-by-SHA detail lives in
 > [§1 of the deep-dive report](./ONIONPLUS_OPTIMIZATION.md#-1-commit-breakdown).
@@ -315,15 +323,15 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-OnionPlus is **97 commits** ahead of `OnionUI/Onion:main` (tip `fa5bb007`). Use this page as the poster;
-[`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) is the evidence trail and
-[`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md) is the raw `git` arithmetic. OTA:
-`Amiga500/Onion`.
+`onionplus-compact` is **19 commits** ahead of `OnionUI/Onion:main` (last code `bf3deb8e`).
+Use this page as the poster; [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md)
+is the evidence trail and [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md) is the raw
+`git` arithmetic. OTA: `Amiga500/Onion`.
 
 ---
 
-<sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → tip [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) vs `OnionUI/Onion:main` (**97** commits,
-`git rev-list --count`) · Headline figures refreshed **2026-09-03** · Companion docs:
+<sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `onionplus-compact` ·
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) → last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) vs `OnionUI/Onion:main` (**19** including this docs refresh,
+`git rev-list --count`) · Headline figures refreshed **2026-09-09** · Companion docs:
 [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) ·
 [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)</sub>

@@ -1,11 +1,11 @@
 # 🕹️ OnionPlus — Optimizations at a Glance
 
-[![branch](https://img.shields.io/badge/branch-OnionPlus-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/OnionPlus)
-[![commits](https://img.shields.io/badge/commits-97-blueviolet?style=for-the-badge)](#-11--commit-timeline)
-[![files](https://img.shields.io/badge/files%20changed-172-blue?style=for-the-badge)](#-10--grand-totals)
-[![diff](https://img.shields.io/badge/diff-%2B28%2C786%20%2F%20%E2%88%92977-informational?style=for-the-badge)](./docs/OnionPlus-vs-base.md)
+[![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
+[![commits](https://img.shields.io/badge/commits-19-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![files](https://img.shields.io/badge/files%20changed-182-blue?style=for-the-badge)](#-10--grand-totals)
+[![diff](https://img.shields.io/badge/diff-%2B30%2C479%20%2F%20%E2%88%921%2C106-informational?style=for-the-badge)](./docs/OnionPlus-vs-base.md)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
-[![tests](https://img.shields.io/badge/tests-1%2C414%20%2F%2071%2C393%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
+[![tests](https://img.shields.io/badge/tests-1%2C419%20%2F%2071%2C408%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
@@ -44,17 +44,24 @@ That is the comparison that matters for this fork. Some NEON kernels and early h
 were first written elsewhere; every **percentage in this document is OnionPlus vs
 `OnionUI/Onion:main`**, not vs that sibling branch.
 
-On top of that base the branch adds its own power/CPU batch, security review, hot-path
+The integration branch is **[`onionplus-compact`](https://github.com/Amiga500/Onion/tree/onionplus-compact)**:
+the long `OnionPlus` history (97 commits to [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007))
+squashed into topic commits, then the **@robcodedev** ports of still-open
+[`OnionUI/Onion` PRs #1936–#1946](https://github.com/OnionUI/Onion/pulls?q=1936)
+([Amiga500 #217](https://github.com/Amiga500/Onion/pull/217)), and the **2026-09-09**
+review fixes ([`fbd26d06`](https://github.com/Amiga500/Onion/commit/fbd26d06) list-cache
+dimming + installer Flip detect; [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e)
+Flip 640 lock, `fbmode` before the FB driver, AXP `percBat` clamp).
+`git rev-list --count 07505ea5..HEAD` on this branch is the **compact** count, not 97.
+
+On top of `07505ea5` the tree still carries the power/CPU batch, security review, hot-path
 passes, an **AdvanceMENU** frontend pass, a **surgical Miyoo Mini Flip port** from
-`OnionUI/Onion:v4.5-dev` (`921155e8`) that does **not** merge that branch,
+`OnionUI/Onion:v4.5-dev` that does **not** merge that branch,
 an **OnionUI-parity review** (charging-icon sentinel, RetroArch `killall` semantics,
 path bounds, rumble GPIO retry), and the **2026-09-01 independent review** (findings
-A–G: empty-file test contract, Flip lid-already-closed, AXP-then-hall detect, OTA
-beta without `releases[0]` fallback, brightness sysfs write-through, infoPanel scale
-key, theme TTF cleanup). Every pass reaches installs through the built-in
-**OTA updater** (`Amiga500/Onion`, assets `OnionPlus-v…`). Tip is
-[`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007)
-(`OnionPlus V4.4.0-beta-20260901`). This document groups
+A–G). Every pass reaches installs through the built-in
+**OTA updater** (`Amiga500/Onion`, assets `OnionPlus-v…`). Last **code** tip is
+[`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e). This document groups
 **everything shipped to date** by *category* rather than by commit.
 
 ### 🔑 Reading the icons
@@ -95,8 +102,8 @@ key, theme TTF cleanup). Every pass reaches installs through the built-in
 
 - 📦 **8 kernels total** (7 hand-written ARM assembly + 1 NEON intrinsics), all guarded by
   `#ifdef __ARM_NEON` with a correct scalar tail loop for the remainder.
-- 🧪 Backed by `test_neon`, `test_neon_pixel` and `test_alpha_scale` — **108 tests /
-  67,351 assertions** cross-checking NEON output against the scalar oracle.
+- 🧪 Backed by `test_neon`, `test_neon_pixel` and `test_alpha_scale` — **109 tests /
+  67,353 assertions** cross-checking NEON output against the scalar oracle.
 - 🔬 Every scalar fallback is exercised on the x86-64 host CI; a separate `neon-arm` job
   cross-compiles the assembly and runs it under `qemu-user`.
 
@@ -130,7 +137,7 @@ key, theme TTF cleanup). Every pass reaches installs through the built-in
 
 | Cache | Before | After | Impact |
 |:--|:--|:--|:--|
-| 🔤 TTF label / list / footer / header / dialog surfaces | `TTF_RenderUTF8_Blended` on **every frame** | hash-invalidated cached `SDL_Surface` | 🚀 **5–15 ms/frame saved** 📏 |
+| 🔤 TTF label / list / footer / header / dialog surfaces | `TTF_RenderUTF8_Blended` on **every frame** | hash-invalidated cached `SDL_Surface`; hidden-row dim uses a `SDL_ConvertSurface` copy (`_blit_cached_label`) so `surfaceSetAlpha` never mutates the cache | 🚀 **5–15 ms/frame saved** 📏 |
 | 🖼️ infoPanel `drawImage()` | `zoomSurface()` + free on **every redraw** | scaled surface cached per (source, w, h) | O(w·h) scale eliminated on repeats 📐 |
 | 🎮 playActivityUI page render | 4× `IMG_Load`+`SoftStretch`+alloc **per page flip** | 4 surfaces cached, reloaded only on page change | page flips skip all image I/O 📐 |
 | 🖥️ `display_readOrWriteBuffer` | per-pixel loop on every row | `memcpy` fast path for contiguous rows | row copy vectorized 📐 |
@@ -152,6 +159,7 @@ key, theme TTF cleanup). Every pass reaches installs through the built-in
 | 🖼️ OSD overlay draw loop | full-throttle spin for the overlay's duration | `msleep(2)` per iteration + demoted logging | overlay CPU burn capped 📐 |
 | 🔌 `battery_isCharging()` (`HAS_AXP()` — MM+ and Flip) | `fork`+`exec` of `axp_test` every call (~5–10 ms) | 2 s cached wrapper | 🚀 **~−99 % subprocess spawns** 📐 |
 | 🔋 `battery_hasChanged` while charging | OnionPlus used to overwrite the `500` charging sentinel from `/tmp/percBat` | early-return like `OnionUI/Onion:main` (`500` stays while plugged in) | charging icon no longer drops after the first percBat tick 🛡️ |
+| 🪫 `getBatPercMMP()` AXP percent | `axp_test` garbage (e.g. `1735289191`) and `-1` written to `/tmp/percBat` | last sane **0–100** kept; out-of-range samples dropped | GS/keymon never read a bogus percent 🛡️ |
 | 🪫 batmon low-battery thread | `usleep(0x4000)` (~16 ms) | `usleep(500000)` (500 ms) | 🚀 **~−97 % wake-ups** 📐 |
 | 💡 `display_setBrightnessRaw` | sysfs write on **every** call | cached, duplicate writes skipped | **−100 % duplicate PWM writes** 📏 |
 | ⏱️ batmon main loop | `config_get("battery/warnAt")` every tick | read only at check timeout | **−100 % hot-loop config reads** 📐 |
@@ -244,6 +252,12 @@ key, theme TTF cleanup). Every pass reaches installs through the built-in
   NULL-checked before blitting/flipping/freeing.
 - 🧵 **`gs_romscreen.h` format-string bug** — `sprintf(currPicture, game->recentItem.imgpath)`
   used the artwork path as a format string; changed to `sprintf(currPicture, "%s", ...)`.
+- 🔤 **List TTF cache dimming** — `surfaceSetAlpha` on a cached label mutated the pixels;
+  restoring with alpha 255 is a no-op. Hidden rows now dim a `SDL_ConvertSurface` copy
+  (`_blit_cached_label`, [`fbd26d06`](https://github.com/Amiga500/Onion/commit/fbd26d06)).
+- 🪫 **AXP `percBat` garbage** — `getBatPercMMP()` keeps the last sane 0–100 instead of
+  writing `-1` or timestamps to `/tmp/percBat`
+  ([`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e)).
 
 ---
 
@@ -275,8 +289,8 @@ key, theme TTF cleanup). Every pass reaches installs through the built-in
 | Metric | Value |
 |:--|--:|
 | 🧪 Active test suites | **68** |
-| ✅ Tests | **1,414** |
-| ✅ Assertions | **71,393** *(last full print at 1,412 tests; +2 `TEST()` since, empty-file contract)* |
+| ✅ Tests | **1,419** |
+| ✅ Assertions | **71,408** |
 | ❌ Failures | **0** |
 | ⏱️ Suite runtime (prebuilt) | **~3.3 s** |
 | 🔐 Security-focused suites | 10 suites · 219 tests · 959 assertions (**16 %** of all tests) |
@@ -289,6 +303,9 @@ key, theme TTF cleanup). Every pass reaches installs through the built-in
   to lock in the hash bit-identity guarantee above.
 - 📟 `test_device_model` now covers `MIYOO285` and the `HAS_AXP()` / `HAS_WIFI()` /
   `IS_MIYOO_PLUS_OR_FLIP()` macros (**13 tests / 23 assertions**, host-run green).
+- 🔤 `test_alpha_scale` includes `scale_alpha_255_does_not_undo_dim` (list-cache dimming).
+- 🪫 `test_battery` clamp contract: `axp_percent_keeps_valid` / `rejects_negative` /
+  `rejects_garbage` / `first_failure_is_zero`.
 
 ---
 
@@ -300,8 +317,9 @@ key, theme TTF cleanup). Every pass reaches installs through the built-in
 | 🎯 New build target | `make unit-test` — host-only, zero device dependency |
 | 📊 Opt-in profiling | `src/common/utils/perf.h` — `PERF_START`/`PERF_END` compile to nothing unless `-DPERF_ENABLED` |
 | 🏷️ Release naming | `OnionPlus V4.4.0-beta-YYYYMMDD`, zip `OnionPlus-v…-<sha>.zip` — real dated GitHub Releases, no more overwritten `latest`. Base remains **4.4.0-beta**; Flip support is a port, not a rebase onto official `v4.5-dev`. |
-| 📡 OTA | `ota_update.sh` points at `Amiga500/Onion`, filters `OnionPlus-v` assets. Stable = `/releases/latest`. Beta installs **only GitHub prereleases** — no fallback to `releases[0]` (finding D). |
-| 📱 Mini Flip | Device id `285`, MainUI-285 binaries, lid-close Tweaks. Runtime probes AXP first (354 Mini+), then the `hall-mh248` sysfs node (285 Flip). `/dev/input/event1` is **not** a Flip signal. Ported from `OnionUI/Onion:v4.5-dev` without merging that branch. Lid/Hall **untested** on a physical Flip. |
+| 📡 OTA | `ota_update.sh` points at `Amiga500/Onion`, filters `OnionPlus-v` assets. Stable = `/releases/latest`. Beta installs **only GitHub prereleases** — no fallback to `releases[0]` (finding D). Host CI (`.github/workflows/test.yml`) runs on push to `onionplus-compact`. |
+| 📱 Mini Flip | Device id `285`, MainUI-285 binaries, lid-close Tweaks. Runtime probes AXP first (354 Mini+), then the `hall-mh248` sysfs node (285 Flip). The **installer** probes **hall first** (Flip stays Flip if `axp` is not on PATH yet); `axp` / `axp_test` = Plus. `/dev/input/event*` is **not** a Flip signal. Installer preclears the framebuffer (`fbmode` if present, else `dd` + `fbset 640x480/2`) before `check_device_model`. Ported from `OnionUI/Onion:v4.5-dev` without merging that branch. Lid/Hall **untested** on a physical Flip. |
+| 🖥️ Boot FB | Plus/Flip: a dmesg hint of `640x480` no longer skips the `mi_fb0` poll (avoids locking a 752 panel at 640 for the boot). `commit_mainui_fbmode()` waits for the FB driver; on timeout it uses `fbset`, not `fbmode` with the driver still down. |
 | 🧵 Signal handling | Shared `signal_handler_quit()` deduplicated across 6 apps; `volatile sig_atomic_t` used correctly for signal-shared state |
 
 ---
@@ -310,14 +328,14 @@ key, theme TTF cleanup). Every pass reaches installs through the built-in
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..HEAD`) | **97** *(`git rev-list --count`, tip `fa5bb007`)* |
-| 📁 Files changed | **172** *(84 added, 88 modified, 0 deleted)* |
-| ➕➖ Lines | **+28,786 / −977** |
-| 🧩 Production (`src/` + `static/` + CI/Makefile) | **91 files · +3,101 / −951** |
-| 🧪 Tests (`test/`) | **75 files · +23,285 / −10** |
-| 📚 Docs + README | **4 files · +2,365 / −16** |
+| 🔧 Commits (`07505ea5..HEAD`) | **19** *(`git rev-list --count` on `onionplus-compact` after this docs refresh; 18 through last code `bf3deb8e`. The long `OnionPlus` branch was 97.)* |
+| 📁 Files changed | **182** *(88 added, 94 modified, 0 deleted)* |
+| ➕➖ Lines | **+30,479 / −1,106** |
+| 🧩 Production (`src/` + `static/` + CI/Makefile) | **101 files · +4,572 / −1,080** |
+| 🧪 Tests (`test/`) | **75 files · +23,327 / −10** |
+| 📚 Docs + README | **4 files · +2,545 / −16** |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
-| 🧪 Test suites / tests / assertions | **68 / 1,414 / 71,393** — **all green** ✅ |
+| 🧪 Test suites / tests / assertions | **68 / 1,419 / 71,408** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
 | 🛡️ NULL-guards / closed descriptors added | **+63 / +18** |
 | 🔐 Pre-existing upstream defects fixed | **6** |
@@ -346,8 +364,11 @@ A bird's-eye view of the branch's evolution, oldest first:
 12. 🔎 **Review pass 3** — randomGamePicker division-by-zero guard, batteryMonitorUI/themeSwitcher NULL-asset & bounds hardening, packageManager NULL guard, gs_romscreen format-string fix.
 13. 📱 **Mini Flip port** — surgical carry of Miyoo Mini Flip + MainUI-285 from upstream `v4.5-dev` (`921155e8`); OnionPlus battery cache / `file_copy` reset / settings bounds kept.
 14. 🔎 **OnionUI-parity review** — restore `battery_hasChanged` early-return while charging; `process_killall` for RetroArch; `file_read("")` parity; rumble GPIO retry; remaining `sprintf` bounds on GS/chargingState; TTF cache cleanup on exit.
-15. 🩹 **2026-09-01 review (A–G)** — empty-file test contract; Flip `suspend_exec` lid-already-closed; AXP-then-hall detect; OTA beta without stable fallback; brightness write-through; infoPanel scale identity; theme TTF cleanup-before-free. Duplicate tree fix landed twice (`9ab47af` / `2f90bbe`); CI push trigger for `OnionPlus` (`fa5bb007`).
-16. 📦 **Release tip** — `OnionPlus V4.4.0-beta-20260901` (`fa5bb007`).
+15. 🩹 **2026-09-01 review (A–G)** — empty-file test contract; Flip `suspend_exec` lid-already-closed; AXP-then-hall detect; OTA beta without stable fallback; brightness write-through; infoPanel scale identity; theme TTF cleanup-before-free. On the long branch: duplicate tree (`9ab47af` / `2f90bbe`); CI push trigger (`fa5bb007`). Compact CI is `onionplus-compact` (`22004cce`).
+16. 📦 **Compact history** — long `OnionPlus` (97 commits to `fa5bb007`) squashed onto `onionplus-compact`.
+17. 🔀 **@robcodedev ports** — `OnionUI/Onion` PRs **#1936–#1946** (still open upstream) via [Amiga500 #217](https://github.com/Amiga500/Onion/pull/217) (`c7a1a7e9` + `587c35ec` + merge `f87e7781`): keymon SELECT refresh, `lt.lang` JSON, ThemeSwitcher on-demand previews, GameSwitcher favorites + crash fixes, `fbmode` framebuffer transitions, `.forceKillRetroarch`, `romwinidx` on SD, theme per `SERIAL_NUMBER`, recents cap 200, skip RA cfg patch, overlap launch.
+18. 🔤 **List cache + installer Flip** — `fbd26d06`: dim a copy of cached TTF labels; installer hall-first (never `event*`); framebuffer preclear before device detect.
+19. 🖥️ **Boot FB + AXP percent** — `bf3deb8e`: Plus/Flip keep polling `mi_fb0` when dmesg says 640; `commit_mainui_fbmode` honors `wait_for_fb_driver`; `getBatPercMMP` never writes garbage to `/tmp/percBat`.
 
 > 🔍 Full SHA-by-SHA detail lives in
 > [§1 of the deep-dive report](./docs/ONIONPLUS_OPTIMIZATION.md#-1-commit-breakdown).
@@ -356,21 +377,24 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-OnionPlus is **97 commits** ahead of upstream `OnionUI/Onion:main` (`07505ea5` →
-`fa5bb007`), spanning **8 vectorized NEON kernels**, a dozen algorithmic O(n²)→O(n)
-rewrites, five distinct render/UI caches, a power/battery batch, a syscall diet that
-removed every avoidable `system()` call from the hardened core, **six pre-existing
-upstream defects** closed, a **68-suite / 1,414-test** host test harness that did not
-exist before this branch, a full **AdvanceMENU** hardening pass, a **Miyoo Mini Flip**
-port from `v4.5-dev` that does **not** merge that branch, an **OnionUI-parity review**,
-and the **2026-09-01 A–G fixes**. Base remains `4.4.0-beta`. OTA stays on
-`Amiga500/Onion`. Flip lid/Hall and on-device timings are still unconfirmed.
+`onionplus-compact` is **19 commits** ahead of upstream `OnionUI/Onion:main` (`07505ea5` →
+this docs refresh; last code `bf3deb8e`. The long `OnionPlus` branch was 97). Same tree: **8 vectorized NEON kernels**,
+a dozen algorithmic O(n²)→O(n) rewrites, five distinct render/UI caches (list dimming
+no longer mutates the TTF cache), a power/battery batch (AXP percent clamped), a syscall
+diet that removed every avoidable `system()` call from the hardened core, **six
+pre-existing upstream defects** closed, a **68-suite / 1,419-test** host test harness
+that did not exist before this branch, a full **AdvanceMENU** hardening pass, a
+**Miyoo Mini Flip** port from `v4.5-dev` that does **not** merge that branch, an
+**OnionUI-parity review**, the **2026-09-01 A–G fixes**, the **@robcodedev** ports of
+`OnionUI/Onion` **#1936–#1946**, and the **2026-09-09** installer / boot-FB fixes.
+Base remains `4.4.0-beta`. OTA stays on `Amiga500/Onion`. Flip lid/Hall and on-device
+timings are still unconfirmed.
 See [`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md).
 
 ---
 
-<sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `OnionPlus` ·
-Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → tip [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) (**97** commits,
-`git rev-list --count`) · Headline figures refreshed **2026-09-03** · Companion docs:
+<sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `onionplus-compact` ·
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) (**19** including this docs refresh,
+`git rev-list --count`) · Headline figures refreshed **2026-09-09** · Companion docs:
 [`ONIONPLUS_OPTIMIZATION.md`](./docs/ONIONPLUS_OPTIMIZATION.md) ·
 [`OnionPlus-vs-base.md`](./docs/OnionPlus-vs-base.md)</sub>
