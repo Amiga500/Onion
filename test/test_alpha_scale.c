@@ -111,6 +111,15 @@ TEST(scale_alpha_identity) {
     ASSERT_EQ(scale_alpha(1, 255), 1);
 }
 
+TEST(scale_alpha_255_does_not_undo_dim) {
+    /* list.h used to dim cached TTF pixels then "restore" with 255.
+     * 255 is identity, so disabled rows compounded every frame. */
+    uint8_t dimmed = scale_alpha(255, 60);
+    uint8_t restored = scale_alpha(dimmed, 255);
+    ASSERT_EQ(restored, dimmed);
+    ASSERT_NE(restored, 255);
+}
+
 TEST(scale_alpha_zero_target) {
     /* Applying alpha=0 should zero all original alphas */
     ASSERT_EQ(scale_alpha(255, 0), 0);
@@ -348,6 +357,7 @@ int main(void)
 
     /* Scale alpha */
     RUN_TEST(scale_alpha_identity);
+    RUN_TEST(scale_alpha_255_does_not_undo_dim);
     RUN_TEST(scale_alpha_zero_target);
     RUN_TEST(scale_alpha_zero_original);
     RUN_TEST(scale_alpha_half);

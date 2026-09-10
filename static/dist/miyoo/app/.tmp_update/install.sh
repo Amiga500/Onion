@@ -35,6 +35,18 @@ main() {
         sleep 1
     fi
 
+    # Drop old-stride pixels and park at 640x480/2 before any installer UI.
+    # fbmode is preferred on updates (already on the card); otherwise stock fbset.
+    # Two pages: installer SDL, not MainUI's three-page layout.
+    if [ -x /mnt/SDCARD/.tmp_update/bin/fbmode ]; then
+        /mnt/SDCARD/.tmp_update/bin/fbmode 640x480 --pages 2 --preclear --no-clear \
+            --linger 150 --timeout 500 \
+            || fbset -g 640 480 640 960 32
+    else
+        dd if=/dev/zero of=/dev/fb0 bs=1M 2>/dev/null
+        fbset -g 640 480 640 960 32
+    fi
+
     check_device_model
     check_install_ra
 
@@ -143,10 +155,13 @@ cleanup() {
 DEVICE_ID=0
 
 check_device_model() {
-    # Check for hall sensor (more reliable) OR event1 for Flip detection
-    if [ -e /sys/devices/soc0/soc/soc:hall-mh248/hallvalue ] || [ -e /dev/input/event1 ]; then
+    # Same three-way split as runtime.sh: Flip vs Plus is the hall sensor.
+    # Never use /dev/input/event* — enumeration order is not stable.
+    # Hall first so a Flip is still Flip if the installer PATH lacks `axp`.
+    # `axp_test` covers Plus when the axp helper is not on PATH yet.
+    if [ -e /sys/devices/soc0/soc/soc:hall-mh248/hallvalue ]; then
         DEVICE_ID=$MODEL_MMF
-    elif [ -f /customer/app/axp_test ]; then
+    elif axp 0 > /dev/null 2>&1 || [ -f /customer/app/axp_test ]; then
         DEVICE_ID=$MODEL_MMP
     else
         DEVICE_ID=$MODEL_MM

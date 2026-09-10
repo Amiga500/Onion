@@ -21,6 +21,32 @@ static inline uint32_t _label_hash_fnv1a(const char *str)
     return hash;
 }
 
+// Blit a cached TTF surface. Never call surfaceSetAlpha() on the cache:
+// it multiplies per-pixel alpha, and "restore" with 255 is identity, so
+// disabled rows would dim further every frame.
+static void _blit_cached_label(SDL_Surface *src, SDL_Rect *srcrect,
+                               SDL_Surface *dst, SDL_Rect *dstrect,
+                               bool disabled)
+{
+    if (src == NULL || dst == NULL)
+        return;
+
+    if (!disabled) {
+        SDL_BlitSurface(src, srcrect, dst, dstrect);
+        return;
+    }
+
+    SDL_Surface *dimmed = SDL_ConvertSurface(src, src->format, 0);
+    if (dimmed == NULL) {
+        SDL_BlitSurface(src, srcrect, dst, dstrect);
+        return;
+    }
+
+    surfaceSetAlpha(dimmed, HIDDEN_ITEM_ALPHA);
+    SDL_BlitSurface(dimmed, srcrect, dst, dstrect);
+    SDL_FreeSurface(dimmed);
+}
+
 // Render a list label with per-item TTF surface caching
 // Caches the TTF render in item->_label_cache; only re-renders when label changes
 static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
@@ -42,13 +68,8 @@ static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
     SDL_Rect item_label_rect = {offset_x, center_y - item_label->h / 2};
     SDL_Rect label_crop = {0, 0, label_end - 30 * g_scale, item_label->h};
 
-    if (disabled)
-        surfaceSetAlpha(item_label, HIDDEN_ITEM_ALPHA);
-
-    SDL_BlitSurface(item_label, &label_crop, screen, &item_label_rect);
-
-    if (disabled)
-        surfaceSetAlpha(item_label, 255);
+    _blit_cached_label(item_label, &label_crop, screen, &item_label_rect,
+                       disabled);
 }
 
 // Uncached version for one-off labels (descriptions, sticky notes)
@@ -229,18 +250,13 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             SDL_Surface *value_label = (SDL_Surface *)item->_value_cache;
             if (value_label == NULL)
                 continue;
-            if (show_disabled) {
-                surfaceSetAlpha(value_label, HIDDEN_ITEM_ALPHA);
-            }
             SDL_Rect value_size = {0, 0, scaled_226, value_label->h};
             int label_width = value_label->w > value_size.w ? value_size.w : value_label->w;
             SDL_Rect value_pos = {
                 scaled_640 - scaled_20 - arrow_right->w - scaled_226 / 2 - label_width / 2,
                 item_center_y - value_size.h / 2};
-            SDL_BlitSurface(value_label, &value_size, screen, &value_pos);
-            if (show_disabled) {
-                surfaceSetAlpha(value_label, 255);
-            }
+            _blit_cached_label(value_label, &value_size, screen, &value_pos,
+                               show_disabled);
         }
 
         // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)
