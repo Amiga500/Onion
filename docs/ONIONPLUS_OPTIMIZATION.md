@@ -10,9 +10,9 @@
 [![status](https://img.shields.io/badge/status-ALL%20PASSED-brightgreen?style=flat-square)](#-final-status)
 [![on-device benchmarks](https://img.shields.io/badge/on--device%20benchmarks-none-red?style=flat-square)](#-9-methodology--limits)
 
-> **20 commits** · **182 files** · **+30,482 / −1,106 lines** · **8 NEON kernels** · **68 test suites** · **1,419 tests** · **71,408 assertions** · **ALL PASSED** ✅
+> **21 commits** · **182 files** · **+30,487 / −1,109 lines** · **8 NEON kernels** · **68 test suites** · **1,419 tests** · **71,410 assertions** · **ALL PASSED** ✅
 >
-> Branch [`onionplus-compact`](https://github.com/Amiga500/Onion/tree/onionplus-compact) · last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) · figures refreshed **2026-09-09**. The long `OnionPlus` branch was 97 commits to `fa5bb007`; this count is the squashed history plus later ports/fixes.
+> Branch [`onionplus-compact`](https://github.com/Amiga500/Onion/tree/onionplus-compact) · tip [`bdae99ef`](https://github.com/Amiga500/Onion/commit/bdae99ef) · figures refreshed **2026-09-10**. The long `OnionPlus` branch was 97 commits to `fa5bb007`; this count is the squashed history plus later ports/fixes.
 
 > **Scope:** every comparison in this report is **OnionPlus vs `OnionUI/Onion:main`**
 > (`07505ea5` → `HEAD`). Every percentage below is **OnionPlus vs that upstream tip**.
@@ -146,7 +146,7 @@ Commit SHAs are **not** repeated per row — every change is traceable in
 | 🟦 | 🛡️ NULL-check predicates | — | +57 | **+57** | 🛡️ |
 | 🟦 | 🛡️ `fclose`/`close` on error paths | — | +18 | **+18** | 🛡️ |
 | 🟩 | 🧪 Active unit-test suites | 0 | 68 | ✅ **+68** | 🧪 |
-| 🟩 | 🧪 Unit tests / assertions | 0 / 0 | 1,419 / 71,408 | ✅ **ALL PASSED** | 🧪 |
+| 🟩 | 🧪 Unit tests / assertions | 0 / 0 | 1,419 / 71,410 | ✅ **ALL PASSED** | 🧪 |
 | 🟩 | 🏗️ Host test entry point | none | `make unit-test` | ✅ **added** | 🧪 |
 
 *Call-site counts (`sprintf` / `strcpy` / `strcat` / `strtok` / `system`) are scoped to the
@@ -914,7 +914,7 @@ A self-contained host test harness: `test/onion_test.h` (166 lines), `test/Makef
 |:-------|------:|
 | 🧪 Active suites | **68** |
 | ✅ Tests | **1,419** |
-| ✅ Assertions | **71,408** |
+| ✅ Assertions | **71,410** |
 | ❌ Failures | **0** |
 | 🎯 Result | **ALL PASSED** ✅ |
 | ⏱️ Run only (this host) | **~2.5 s** |
@@ -1066,13 +1066,13 @@ both channels.
 |:-------|------:|
 | 🔧 **Commits** | **20** *(`git rev-list --count 07505ea5..HEAD` on `onionplus-compact` after this number audit; 18 through last code `bf3deb8e`. Long `OnionPlus` was 97.)* |
 | 📁 **Files changed** | **182** *(88 added, 94 modified, 0 deleted)* |
-| ➕ **Lines added / removed** | **+30,482 / −1,106** |
+| ➕ **Lines added / removed** | **+30,487 / −1,109** |
 | 🧩 **Production code (`src/`)** | **78 files · +3,985 / −962** |
 | 🧪 **Test code (`test/`)** | **75 files · +23,327 / −10** |
 | 📚 **Documentation (`docs/` + README)** | **4 files · +2,548 / −16** |
 | 🏗️ **Build / CI / static / Makefile** | **25 files · +622 / −118** *(static 18 · +483 / −88; `.github`+Makefile 5 · +104 / −30; `.gitignore`+`SDL.h` 2 · +35 / −0)* |
 | 🆕 **New test source files** | **68** *(all 68 in `TESTS`)* |
-| 🧪 **Active suites / tests / assertions** | **68 / 1,419 / 71,408** |
+| 🧪 **Active suites / tests / assertions** | **68 / 1,419 / 71,410** |
 | ✅ **Test result** | **ALL PASSED** *(0 failures)* |
 | ⏱️ **Suite runtime** | **~2.5 s** this host |
 | ⚡ **NEON kernels added** | **8** *(7 asm + 1 intrinsics, all with scalar fallback)* |
@@ -1103,7 +1103,7 @@ Reproduce every figure above with:
 
 ```bash
 git rev-list --count 07505ea5..HEAD               # 20 after this number audit
-git diff --shortstat 07505ea5 HEAD                # 182 files, +30,482 / −1,106
+git diff --shortstat 07505ea5 HEAD                # 182 files, +30,487 / −1,109
 git diff --shortstat 07505ea5 HEAD -- . ':!docs' ':!README.md'  # 178 files, +27,934 / −1,090
 git diff --shortstat 07505ea5 HEAD -- src/ test/ docs/ Makefile README.md
 make unit-test
@@ -1142,7 +1142,7 @@ caches, `--gc-sections` in `config.mk`, signal-handler call sites in six apps,
 |:---|:---|
 | Line / file counts | `git diff --stat 07505ea5..HEAD`, working tree included. **Exact.** |
 | Call-site counts | Pattern occurrences in the 25 ported `src/` files at `07505ea5` vs `HEAD`. Both endpoints stated so the delta is checkable. Scoped to ported files only. |
-| Test results | A real `make unit-test` run on this workspace: 68 suites, 1,419 tests, 71,408 assertions, 0 failures, exit `0` (2026-09-09). |
+| Test results | A real `make unit-test` run on this workspace: 68 suites, 1,419 tests, 71,410 assertions, 0 failures, exit `0` (2026-09-09). |
 | Suite runtime | `time make unit-test` — ~2.5 s on this host. Host is x86-64. |
 | Throughput (`px/iter`) | Read off `count & ~15` / `count & ~7` in `neon_pixel.h`. Exact property of the code. |
 | Complexity classes (O(n²) → O(n)) | Read off the rewritten loops. Exact. |
@@ -1266,7 +1266,7 @@ Not covered by that review: `docs/`, `website/`, `third-party/`, Flip lid/Hall o
 > Integration branch **`onionplus-compact`**. Last **code** commits
 > [`fbd26d06`](https://github.com/Amiga500/Onion/commit/fbd26d06) and
 > [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e).
-> Host `make unit-test`: **1,419 tests / 71,408 assertions**.
+> Host `make unit-test`: **1,419 tests / 71,410 assertions**.
 
 ### Ports of `OnionUI/Onion` PRs #1936–#1946
 
@@ -1346,7 +1346,7 @@ consumers' freshness.
 
 ## ✅ Final Status
 
-`onionplus-compact` is **20 commits** ahead of upstream `OnionUI/Onion:main`
+`onionplus-compact` is **21 commits** ahead of upstream `OnionUI/Onion:main`
 (`07505ea5` → this docs refresh, last code `bf3deb8e`, `git rev-list --count`; the long `OnionPlus` branch
 was 97), adding **8 NEON pixel kernels**,
 crash/memory hardening of the `src/common` layer, TTF/list/footer/header/dialog surface
@@ -1367,7 +1367,7 @@ dedup/init fixes — [§3.8](#38-second-review-pass--further-hot-path-optimizati
 PRs **#1936–#1946**, and the 2026-09-09 installer / boot-FB / AXP-percent fixes
 ([§4.13](#413-2026-09-09-robcodedev-ports--review-fixes)).
 
-> 🧪 **68 suites · 1,419 tests · 71,408 assertions · 0 failures.** ✅
+> 🧪 **68 suites · 1,419 tests · 71,410 assertions · 0 failures.** ✅
 >
 > Note: the baseline `07505ea5` had **no** host test suite, so this is a new quality floor
 > rather than a "no regressions" comparison — there is nothing to compare against upstream.

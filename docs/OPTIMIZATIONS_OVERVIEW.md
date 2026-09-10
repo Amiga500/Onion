@@ -10,7 +10,7 @@
 
 > 🧵 **What this is.** A from-scratch, category-first tour of every optimization and
 > hardening change shipped on **OnionPlus** so far — reviewed on **`onionplus-compact`**
-> (`07505ea5` → last code `bf3deb8e` vs `OnionUI/Onion:main`, **20 commits** including this number audit; the long
+> (`07505ea5` → tip `bdae99ef` vs `OnionUI/Onion:main`, **21 commits** including this number audit; the long
 > `OnionPlus` branch was 97). It complements, and does **not** replace,
 > the deep-dive [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md) (evidence,
 > methodology, before/after code) and the raw [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md)
@@ -245,7 +245,7 @@ Includes ports of `OnionUI/Onion` PRs **#1936–#1946** (@robcodedev) and the
 |:--|--:|
 | 🧪 Active test suites | **68** |
 | ✅ Tests | **1,419** |
-| ✅ Assertions | **71,408** |
+| ✅ Assertions | **71,410** |
 | ❌ Failures | **0** |
 | ⏱️ Suite runtime (prebuilt) | **~2.5 s** |
 | 🔐 Security-focused suites | 10 suites · 219 tests · 960 assertions (**15 %** of all tests) |
@@ -279,9 +279,9 @@ Includes ports of `OnionUI/Onion` PRs **#1936–#1946** (@robcodedev) and the
 |:--|--:|
 | 🔧 Commits (`07505ea5..HEAD`) | **20** *(`onionplus-compact`, last code `bf3deb8e`; long branch was 97)* |
 | 📁 Files changed | **182** *(88 A / 94 M / 0 D)* |
-| ➕➖ Lines | **+30,482 / −1,106** |
+| ➕➖ Lines | **+30,487 / −1,109** |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
-| 🧪 Test suites / tests / assertions | **68 / 1,419 / 71,408** — **all green** ✅ |
+| 🧪 Test suites / tests / assertions | **68 / 1,419 / 71,410** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
 | 🛡️ NULL-guards / closed descriptors added | **+57 / +18** |
 | 🔐 Pre-existing upstream defects fixed | **6** |
@@ -323,7 +323,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-`onionplus-compact` is **20 commits** ahead of `OnionUI/Onion:main` (last code `bf3deb8e`).
+`onionplus-compact` is **21 commits** ahead of `OnionUI/Onion:main` (tip `bdae99ef`).
 Use this page as the poster; [`ONIONPLUS_OPTIMIZATION.md`](./ONIONPLUS_OPTIMIZATION.md)
 is the evidence trail and [`OnionPlus-vs-base.md`](./OnionPlus-vs-base.md) is the raw
 `git` arithmetic. OTA: `Amiga500/Onion`.

@@ -1,6 +1,6 @@
 # 📐 OnionPlus vs. base release — Diff Statistics
 
-> **20 commits** · **182 files** · **+30,482 / −1,106 lines** · **0 deleted** · **68 test suites** · **1,419 tests** ✅
+> **21 commits** · **182 files** · **+30,487 / −1,109 lines** · **0 deleted** · **68 test suites** · **1,419 tests** ✅
 
 > **What this document is:** the raw, reproducible *diff arithmetic* between the current
 > integration branch **`onionplus-compact`** and the upstream base release. Every number
@@ -12,11 +12,11 @@
 |:---|:---|
 | 🌿 Branch tip | `onionplus-compact` last code [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) vs [`OnionUI/Onion:main`](https://github.com/OnionUI/Onion/tree/main) — compact history + @robcodedev ports + 2026-09-09 review |
 | 🏁 Base / merge-base | [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) — `OnionUI/Onion:main` *(2026-01-21, Aemiii91)* |
-| ⏩ Commits ahead | **20** *(`git rev-list --count 07505ea5..HEAD` after this number audit. 18 through last code `bf3deb8e`. The long `OnionPlus` branch was **97** to `fa5bb007`.)* |
+| ⏩ Commits ahead | **21** *(`git rev-list --count 07505ea5..HEAD` after this number audit. 18 through last code `bf3deb8e`. The long `OnionPlus` branch was **97** to `fa5bb007`.)* |
 | 📦 Aggregate delta | **182 files** · **+30,482** / **−1,106** |
 | 🔀 @robcodedev ports | `c7a1a7e9` + `587c35ec` + merge `f87e7781` — `OnionUI/Onion` PRs **#1936–#1946** via [Amiga500 #217](https://github.com/Amiga500/Onion/pull/217) |
 | 🩹 2026-09-09 review | [`fbd26d06`](https://github.com/Amiga500/Onion/commit/fbd26d06) (3 · +58 / −17) · [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e) (3 · +79 / −23) |
-| 🧪 Unit tests at tip | **68 suites** · **1,419 tests** · **71,408 assertions** · **0 failures** ✅ |
+| 🧪 Unit tests at tip | **68 suites** · **1,419 tests** · **71,410 assertions** · **0 failures** ✅ |
 | 🔀 Net line growth | **+29,376** |
 
 > 🔁 **Self-reference.** The two files in `docs/` are part of the range they measure, so every
@@ -139,7 +139,7 @@ Compact SHAs: [§2b](#-2b-onionplus-compact-shas).*
 | 97 | [`fa5bb007`](https://github.com/Amiga500/Onion/commit/fa5bb007) | ci: Add push trigger for OnionPlus branch | 1 | CI | 🏗️ CI |
 | | | **Aggregate original window `07505ea5` → `e0b6893c`** | **144** | **+27,234 / −811** | |
 | | | **Headline at long-branch tip `fa5bb007` (2026-09-03)** | **172** | **+28,786 / −977** | |
-| | | **Headline at `onionplus-compact` after this docs refresh (2026-09-09)** | **182** | **+30,482 / −1,106** | |
+| | | **Headline at `onionplus-compact` after this docs refresh (2026-09-09)** | **182** | **+30,487 / −1,109** | |
 
 > ℹ️ A previous revision of this table had **52 rows** and tip `ddbb7e14`.
 > Rows 25–29 are a remote experiment that was fully reverted — net zero in the tree.
@@ -332,7 +332,7 @@ exit code `0`, 2026-09-09), not from a static count.
 | 🧪 Suites listed in `TESTS` | **68** |
 | 📄 `test_*.c` files present in the tree | **68** *(all active)* |
 | ✅ Tests executed | **1,419** |
-| ✅ Assertions executed | **71,408** |
+| ✅ Assertions executed | **71,410** |
 | ❌ Failures | **0** |
 | 🎯 Result | **ALL PASSED** ✅ |
 | ⏱️ Run only *(this host)* | **~2.5 s** |
@@ -398,7 +398,7 @@ cd /path/to/Onion
 
 git rev-list --count 07505ea5..HEAD               # 19 at a224508d; 20 after this number audit
 git log --oneline --reverse 07505ea5..HEAD
-git diff --shortstat 07505ea5 HEAD                # 182 files, +30,482 / −1,106
+git diff --shortstat 07505ea5 HEAD                # 182 files, +30,487 / −1,109
 
 # @robcodedev ports + 2026-09-09 review
 git show --shortstat c7a1a7e9 587c35ec fbd26d06 bf3deb8e

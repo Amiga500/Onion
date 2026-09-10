@@ -290,7 +290,7 @@ A–G). Every pass reaches installs through the built-in
 |:--|--:|
 | 🧪 Active test suites | **68** |
 | ✅ Tests | **1,419** |
-| ✅ Assertions | **71,408** |
+| ✅ Assertions | **71,410** |
 | ❌ Failures | **0** |
 | ⏱️ Suite runtime (prebuilt) | **~2.5 s** |
 | 🔐 Security-focused suites | 10 suites · 219 tests · 960 assertions (**15 %** of all tests) |
@@ -330,12 +330,12 @@ A–G). Every pass reaches installs through the built-in
 |:--|--:|
 | 🔧 Commits (`07505ea5..HEAD`) | **20** *(`git rev-list --count` on `onionplus-compact` after this number audit; 18 through last code `bf3deb8e`. The long `OnionPlus` branch was 97.)* |
 | 📁 Files changed | **182** *(88 added, 94 modified, 0 deleted)* |
-| ➕➖ Lines | **+30,482 / −1,106** |
+| ➕➖ Lines | **+30,487 / −1,109** |
 | 🧩 Production (`src/` + `static/` + CI/Makefile) | **101 files · +4,572 / −1,080** *(excludes `.gitignore` + `SDL.h`, 2 · +35 / −0)* |
 | 🧪 Tests (`test/`) | **75 files · +23,327 / −10** |
 | 📚 Docs + README | **4 files · +2,548 / −16** |
 | ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
-| 🧪 Test suites / tests / assertions | **68 / 1,419 / 71,408** — **all green** ✅ |
+| 🧪 Test suites / tests / assertions | **68 / 1,419 / 71,410** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
 | 🛡️ NULL-guards / closed descriptors added | **+57 / +18** *(25-file set)* |
 | 🔐 Pre-existing upstream defects fixed | **6** |
@@ -377,7 +377,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-`onionplus-compact` is **20 commits** ahead of upstream `OnionUI/Onion:main` (`07505ea5` →
+`onionplus-compact` is **21 commits** ahead of upstream `OnionUI/Onion:main` (`07505ea5` →
 this number audit; last code `bf3deb8e`. The long `OnionPlus` branch was 97). Same tree: **8 vectorized NEON kernels**,
 a dozen algorithmic O(n²)→O(n) rewrites, five distinct render/UI caches (list dimming
 no longer mutates the TTF cache), a power/battery batch (AXP percent clamped), a syscall
