@@ -941,6 +941,25 @@ read_dmesg_resolution() {
     '
 }
 
+# MainUI 640x480/3. Wait for mi_fb0 first: fbmode during late LCD init is
+# overwritten by the driver (the failure wait_for_fb_driver exists to prevent).
+commit_mainui_fbmode() {
+    linger_ms="$1"
+    timeout_ms="$2"
+
+    if ! wait_for_fb_driver; then
+        log "wait_for_fb_driver timed out, falling back to fbset"
+        fbset -g 640 480 640 1440 32
+        return
+    fi
+
+    if ! $sysdir/bin/fbmode 640x480 --pages 3 --preclear --no-clear \
+        --linger "$linger_ms" --timeout "$timeout_ms"; then
+        log "fbmode failed, falling back to fbset"
+        fbset -g 640 480 640 1440 32
+    fi
+}
+
 get_screen_resolution() {
     log "get_screen_resolution: start"
 
@@ -955,18 +974,26 @@ get_screen_resolution() {
     #    was configured with, which answers the same question without waiting.
     #    Only consulted when mi_fb0 could not answer, so it can never contradict
     #    the authoritative source.
+    dmesg_hint=""
     if [ -z "$screen_resolution" ]; then
-        screen_resolution=$(read_dmesg_resolution)
-        case "$screen_resolution" in
-        640x480 | 752x560)
+        dmesg_hint=$(read_dmesg_resolution)
+        case "$dmesg_hint" in
+        752x560)
+            screen_resolution="$dmesg_hint"
             log "get_screen_resolution: from dmesg, resolution: $screen_resolution"
             ;;
-        *)
-            screen_resolution=""
+        640x480)
+            log "get_screen_resolution: from dmesg, resolution: $dmesg_hint"
+            # Early boot can log 640 before the panel's real timing is up.
+            # On Mini, 640 is final. On Plus/Flip, keep polling mi_fb0 so a
+            # 752 panel is not locked to 640 for the whole session.
+            if [ "${HAS_AXP:-0}" -ne 1 ]; then
+                screen_resolution="$dmesg_hint"
+            fi
             ;;
         esac
     fi
-    # 3. Neither answered: poll mi_fb0. Same 5 s ceiling as before, finer
+    # 3. Poll mi_fb0 when still unknown. Same 5 s ceiling as before, finer
     #    granularity, so detection lands within 100 ms of the driver coming up.
     if [ -z "$screen_resolution" ]; then
         max_attempts=50
@@ -982,6 +1009,10 @@ get_screen_resolution() {
             attempt=$((attempt + 1))
             sleep 0.1
         done
+        if [ -z "$screen_resolution" ] && [ "$dmesg_hint" = "640x480" ]; then
+            screen_resolution="$dmesg_hint"
+            log "get_screen_resolution: poll failed, using dmesg 640x480"
+        fi
     fi
 
     if [ -z "$screen_resolution" ]; then
@@ -995,12 +1026,7 @@ get_screen_resolution() {
         screen_resolution="640x480"
 
         if [ -x "$sysdir/bin/fbmode" ]; then
-            wait_for_fb_driver
-            if ! $sysdir/bin/fbmode 640x480 --pages 3 --preclear --no-clear \
-                --linger 150 --timeout 800; then
-                log "fbmode failed in forced 640 mode, falling back to fbset"
-                fbset -g 640 480 640 1440 32
-            fi
+            commit_mainui_fbmode 150 800
         fi
     elif [ "$screen_resolution" = "752x560" ] && [ "$(/etc/fw_printenv miyoo_version | cut -d'=' -f2)" -ge "202310271401" ]; then
         touch /tmp/new_res_available
@@ -1083,12 +1109,7 @@ init_system() {
     # has to clear it later and it stays up until MainUI paints over it. On
     # 640-only devices this is skipped and behaviour is unchanged.
     if [ -f /tmp/new_res_available ] && [ -x "$sysdir/bin/fbmode" ]; then
-        wait_for_fb_driver
-        if ! $sysdir/bin/fbmode 640x480 --pages 3 --preclear --no-clear \
-            --linger 150 --timeout 500; then
-            log "fbmode failed preparing MainUI layout, falling back to fbset"
-            fbset -g 640 480 640 1440 32
-        fi
+        commit_mainui_fbmode 150 500
     fi
 }
 

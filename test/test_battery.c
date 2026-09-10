@@ -159,6 +159,33 @@ TEST(cache_valid_with_nsec_borrow) {
     ASSERT_TRUE(cache_is_valid(&cache, &now));
 }
 
+/* ---- AXP percentage clamp (getBatPercMMP contract) ---- */
+
+static int clamp_axp_percent(int perc, int last_good)
+{
+    if (perc < 0 || perc > 100)
+        return (last_good >= 0 && last_good <= 100) ? last_good : 0;
+    return perc;
+}
+
+TEST(axp_percent_keeps_valid) {
+    ASSERT_EQ(clamp_axp_percent(83, 50), 83);
+    ASSERT_EQ(clamp_axp_percent(0, 50), 0);
+    ASSERT_EQ(clamp_axp_percent(100, 50), 100);
+}
+
+TEST(axp_percent_rejects_negative) {
+    ASSERT_EQ(clamp_axp_percent(-1, 64), 64);
+}
+
+TEST(axp_percent_rejects_garbage) {
+    ASSERT_EQ(clamp_axp_percent(1735289191, 12), 12);
+}
+
+TEST(axp_percent_first_failure_is_zero) {
+    ASSERT_EQ(clamp_axp_percent(-1, 0), 0);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -184,6 +211,11 @@ int main(void)
     RUN_TEST(cache_invalid_when_negative_elapsed);
     RUN_TEST(cache_valid_at_1ms);
     RUN_TEST(cache_valid_with_nsec_borrow);
+
+    RUN_TEST(axp_percent_keeps_valid);
+    RUN_TEST(axp_percent_rejects_negative);
+    RUN_TEST(axp_percent_rejects_garbage);
+    RUN_TEST(axp_percent_first_failure_is_zero);
 
     TEST_REPORT();
     return test_failures;

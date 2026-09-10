@@ -38,8 +38,6 @@ int main(int argc, char *argv[])
                 is_charging = true;
                 if (HAS_AXP()) {
                     current_percentage = getBatPercMMP();
-                    // To solve : Sometimes getBatPercMMP returns 1735289191
-                    current_percentage = (current_percentage > 100) ? old_percentage : current_percentage;
                 }
                 else {
                     current_percentage = 500;
@@ -96,8 +94,6 @@ int main(int argc, char *argv[])
                 }
                 else if (HAS_AXP()) {
                     current_percentage = getBatPercMMP();
-                    // To solve : Sometimes getBatPercMMP returns 1735289191
-                    current_percentage = (current_percentage > 100) ? old_percentage : current_percentage;
                 }
                 printf_debug(
                     "battery check: suspended = %d, perc = %d, warn = %d\n",
@@ -385,6 +381,7 @@ int updateADCValue(int value)
 
 int getBatPercMMP(void)
 {
+    static int last_good = 0;
     char buf[100] = "";
     int battery_number = -1;
 
@@ -397,7 +394,13 @@ int getBatPercMMP(void)
         pclose(fp);
     }
 
-    /* Also update the cached result file for other consumers */
+    /* axp_test has returned garbage (e.g. 1735289191) and -1 on popen/parse
+     * failure. Never publish those to /tmp/percBat; keep the last sane 0–100. */
+    if (battery_number < 0 || battery_number > 100)
+        return last_good;
+
+    last_good = battery_number;
+
     if (buf[0] != '\0') {
         FILE *fp2;
         if ((fp2 = fopen("/tmp/.axp_result", "w+"))) {
