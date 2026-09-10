@@ -164,7 +164,7 @@ TEST(cache_valid_with_nsec_borrow) {
 static int clamp_axp_percent(int perc, int last_good)
 {
     if (perc < 0 || perc > 100)
-        return (last_good >= 0 && last_good <= 100) ? last_good : 0;
+        return (last_good >= 0 && last_good <= 100) ? last_good : -1;
     return perc;
 }
 
@@ -182,7 +182,9 @@ TEST(axp_percent_rejects_garbage) {
     ASSERT_EQ(clamp_axp_percent(1735289191, 12), 12);
 }
 
-TEST(axp_percent_first_failure_is_zero) {
+TEST(axp_percent_first_failure_is_unpublished) {
+    ASSERT_EQ(clamp_axp_percent(-1, -1), -1);
+    ASSERT_EQ(clamp_axp_percent(1735289191, -1), -1);
     ASSERT_EQ(clamp_axp_percent(-1, 0), 0);
 }
 
@@ -215,7 +217,7 @@ int main(void)
     RUN_TEST(axp_percent_keeps_valid);
     RUN_TEST(axp_percent_rejects_negative);
     RUN_TEST(axp_percent_rejects_garbage);
-    RUN_TEST(axp_percent_first_failure_is_zero);
+    RUN_TEST(axp_percent_first_failure_is_unpublished);
 
     TEST_REPORT();
     return test_failures;

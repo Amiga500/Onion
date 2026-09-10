@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     best_session_time = get_best_session_time();
 
     FILE *fp;
-    int old_percentage = -1, current_percentage = 0, warn_at = 15;
+    int old_percentage = -1, current_percentage = -1, warn_at = 15;
     int lowest_percentage_after_charge = 500;
     atexit(cleanup);
     signal(SIGINT, sigHandler);
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
                 ticks = -1;
             }
 
-            if (current_percentage != old_percentage) {
+            if (current_percentage >= 0 && current_percentage != old_percentage) {
                 // This statement is not englobed in the previous one
                 // in order to be launched once when batmon starts
                 printf_debug(
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
         if (is_suspended || current_percentage == 500) {
             batteryWarning_hide();
         }
-        else if (current_percentage < warn_at && !warningDisabled()) {
+        else if (current_percentage >= 0 && current_percentage < warn_at && !warningDisabled()) {
             batteryWarning_show();
         }
         else {
@@ -381,7 +381,7 @@ int updateADCValue(int value)
 
 int getBatPercMMP(void)
 {
-    static int last_good = 0;
+    static int last_good = -1;
     char buf[100] = "";
     int battery_number = -1;
 
@@ -395,7 +395,7 @@ int getBatPercMMP(void)
     }
 
     /* axp_test has returned garbage (e.g. 1735289191) and -1 on popen/parse
-     * failure. Never publish those to /tmp/percBat; keep the last sane 0–100. */
+     * failure. Unpublished (-1) until the first sane 0-100 sample. */
     if (battery_number < 0 || battery_number > 100)
         return last_good;
 
