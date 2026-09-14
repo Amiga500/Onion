@@ -822,11 +822,11 @@ int main(void)
             if (menuAndBPressed && (getMilliseconds() - menuAndBPressedTime >= 2000)) {
                 if (access("/tmp/.blfOn", F_OK) != -1) {
                     system("/mnt/SDCARD/.tmp_update/script/blue_light.sh disable &");
-                    system("touch /tmp/.blfIgnoreSchedule");
+                    temp_flag_set(".blfIgnoreSchedule", true);
                 }
                 else {
                     system("/mnt/SDCARD/.tmp_update/script/blue_light.sh enable &");
-                    system("touch /tmp/.blfIgnoreSchedule");
+                    temp_flag_set(".blfIgnoreSchedule", true);
                 }
 
                 menuAndBPressed = false;
