@@ -3,13 +3,19 @@
 
 UNIT_BUILD ?= $(ROOT_DIR)/build_unit
 CC ?= gcc
-UNIT_CFLAGS = -Wall -Wextra -Wno-unused-parameter -I$(ROOT_DIR)/src/common -I$(ROOT_DIR)/test -DPLATFORM_LINUX -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
+UNIT_CFLAGS = -Wall -Wextra -Wno-unused-parameter -I$(ROOT_DIR)/src/common -I$(ROOT_DIR)/include -I$(ROOT_DIR)/test -DPLATFORM_LINUX -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 
 UNIT_STR_SRC = $(ROOT_DIR)/test/test_str.c $(ROOT_DIR)/src/common/utils/str.c
 UNIT_FILE_SRC = $(ROOT_DIR)/test/test_file.c \
 	$(ROOT_DIR)/src/common/utils/file.c \
 	$(ROOT_DIR)/src/common/utils/str.c \
 	$(ROOT_DIR)/src/common/utils/log.c
+UNIT_HASH_SRC = $(ROOT_DIR)/test/test_hash.c
+UNIT_JSON_SRC = $(ROOT_DIR)/test/test_json.c \
+	$(ROOT_DIR)/src/common/utils/file.c \
+	$(ROOT_DIR)/src/common/utils/str.c \
+	$(ROOT_DIR)/src/common/utils/log.c \
+	$(ROOT_DIR)/include/cjson/cJSON.c
 
 .PHONY: unit-test unit-test-clean
 
@@ -17,9 +23,13 @@ unit-test:
 	@$(makedir) $(UNIT_BUILD)
 	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_str $(UNIT_STR_SRC)
 	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_file $(UNIT_FILE_SRC)
+	$(CC) $(UNIT_CFLAGS) -lm -o $(UNIT_BUILD)/test_hash $(UNIT_HASH_SRC)
+	$(CC) $(UNIT_CFLAGS) -lm -o $(UNIT_BUILD)/test_json $(UNIT_JSON_SRC)
 	@echo
 	@$(UNIT_BUILD)/test_str
 	@$(UNIT_BUILD)/test_file
+	@$(UNIT_BUILD)/test_hash
+	@$(UNIT_BUILD)/test_json
 	@echo
 	@echo "unit-test: all host suites passed"
 

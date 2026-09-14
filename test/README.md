@@ -12,6 +12,8 @@ Suites:
 
 - `test_str.c` — `src/common/utils/str.c`
 - `test_file.c` — `src/common/utils/file.c` (plus `str.c` / `log.c` as dependencies)
+- `test_hash.c` — `src/common/utils/hash.h` (`FNV1A_Pippip_Yurii`, buffers padded +8)
+- `test_json.c` — `src/common/utils/json.h` (cJSON helpers + load/save)
 
 These tests pin **current** behaviour, including quirks (empty `file_read` returns an allocated `""`, not `NULL`). Change production code only after a test fails for the old contract.
 
