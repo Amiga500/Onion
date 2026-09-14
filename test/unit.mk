@@ -16,6 +16,15 @@ UNIT_JSON_SRC = $(ROOT_DIR)/test/test_json.c \
 	$(ROOT_DIR)/src/common/utils/str.c \
 	$(ROOT_DIR)/src/common/utils/log.c \
 	$(ROOT_DIR)/include/cjson/cJSON.c
+UNIT_FLAGS_SRC = $(ROOT_DIR)/test/test_flags.c \
+	$(ROOT_DIR)/src/common/utils/file.c \
+	$(ROOT_DIR)/src/common/utils/str.c \
+	$(ROOT_DIR)/src/common/utils/log.c
+UNIT_PROCESS_SRC = $(ROOT_DIR)/test/test_process.c \
+	$(ROOT_DIR)/src/common/utils/file.c \
+	$(ROOT_DIR)/src/common/utils/str.c \
+	$(ROOT_DIR)/src/common/utils/log.c
+UNIT_STATE_SRC = $(ROOT_DIR)/test/test_state.c
 
 .PHONY: unit-test unit-test-clean
 
@@ -25,11 +34,17 @@ unit-test:
 	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_file $(UNIT_FILE_SRC)
 	$(CC) $(UNIT_CFLAGS) -lm -o $(UNIT_BUILD)/test_hash $(UNIT_HASH_SRC)
 	$(CC) $(UNIT_CFLAGS) -lm -o $(UNIT_BUILD)/test_json $(UNIT_JSON_SRC)
+	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_flags $(UNIT_FLAGS_SRC)
+	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_process $(UNIT_PROCESS_SRC)
+	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_state $(UNIT_STATE_SRC)
 	@echo
 	@$(UNIT_BUILD)/test_str
 	@$(UNIT_BUILD)/test_file
 	@$(UNIT_BUILD)/test_hash
 	@$(UNIT_BUILD)/test_json
+	@$(UNIT_BUILD)/test_flags
+	@$(UNIT_BUILD)/test_process
+	@$(UNIT_BUILD)/test_state
 	@echo
 	@echo "unit-test: all host suites passed"
 
