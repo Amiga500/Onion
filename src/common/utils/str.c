@@ -128,7 +128,10 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
 
     // Set output size to minimum of trimmed string length and buffer size minus
     // 1
-    out_size = (end - str) < len - 1 ? (end - str) : len - 1;
+    {
+        size_t span = (size_t)(end - str);
+        out_size = span < (len - 1) ? span : (len - 1);
+    }
 
     // Copy trimmed string and add null terminator
     memcpy(out, str, out_size);
@@ -194,23 +197,27 @@ void str_serializeTime(char *dest_str, int nTime)
 
 int str_count_char(const char *str, char ch)
 {
-    int i, count = 0;
-    for (i = 0; i <= strlen(str); i++) {
-        if (str[i] == ch) {
+    int count = 0;
+    if (str == NULL)
+        return 0;
+    /* Old loop was i <= strlen(str), so a NUL needle counted once. */
+    for (; *str; str++) {
+        if (*str == ch)
             count++;
-        }
     }
+    if (ch == '\0')
+        count++;
     return count;
 }
 
 bool includeCJK(char *str)
 {
+    if (str == NULL)
+        return false;
     while (*str) {
-        unsigned char c = *str;
-        // normal cjk range
-        if (c >= 0x80 && c <= 0x9FFF) {
+        /* unsigned char cannot exceed 0xFF; old "c <= 0x9FFF" was always true. */
+        if ((unsigned char)*str >= 0x80)
             return true;
-        }
         str++;
     }
     return false;

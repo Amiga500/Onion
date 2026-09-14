@@ -151,6 +151,17 @@ TEST(count_char_none)
     ASSERT_EQ(str_count_char("abc", '/'), 0);
 }
 
+TEST(count_char_nul_needle)
+{
+    ASSERT_EQ(str_count_char("abc", '\0'), 1);
+    ASSERT_EQ(str_count_char(NULL, '/'), 0);
+}
+
+TEST(includeCJK_null)
+{
+    ASSERT_FALSE(includeCJK(NULL));
+}
+
 TEST(includeCJK_ascii)
 {
     char buf[] = "Mario";
@@ -189,7 +200,9 @@ int main(void)
     RUN_TEST(serializeTime_hours);
     RUN_TEST(count_char_plain);
     RUN_TEST(count_char_none);
+    RUN_TEST(count_char_nul_needle);
     RUN_TEST(includeCJK_ascii);
     RUN_TEST(includeCJK_high_bit);
+    RUN_TEST(includeCJK_null);
     return onion_test_report("test_str");
 }
