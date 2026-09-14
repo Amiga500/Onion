@@ -14,8 +14,8 @@ static char g_tmp[256];
 static void setup_tmp(void)
 {
     snprintf(g_tmp, sizeof(g_tmp), "/tmp/onion_unit_file_%d", (int)getpid());
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\" && mkdir -p \"%s\"", g_tmp, g_tmp);
+    char cmd[320];
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s' && mkdir -p '%s'", g_tmp, g_tmp);
     system(cmd);
 }
 
@@ -138,6 +138,13 @@ TEST(file_write_existing)
     free(s);
 }
 
+TEST(file_write_missing_is_false)
+{
+    char path[512];
+    join(path, sizeof(path), "missing_write.txt");
+    ASSERT_FALSE(file_write(path, "ab", 2));
+}
+
 TEST(removeExtension_simple)
 {
     char *s = file_removeExtension("game.gba");
@@ -252,6 +259,7 @@ int main(void)
     RUN_TEST(file_read_content);
     RUN_TEST(file_read_unreadable_is_null);
     RUN_TEST(file_write_existing);
+    RUN_TEST(file_write_missing_is_false);
     RUN_TEST(removeExtension_simple);
     RUN_TEST(removeExtension_no_dot);
     RUN_TEST(dirname_absolute);

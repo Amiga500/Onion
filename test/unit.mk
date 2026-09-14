@@ -3,7 +3,7 @@
 
 UNIT_BUILD ?= $(ROOT_DIR)/build_unit
 CC ?= gcc
-UNIT_CFLAGS = -Wall -Wextra -Wno-unused-parameter -I$(ROOT_DIR)/src/common -I$(ROOT_DIR)/include -I$(ROOT_DIR)/test -DPLATFORM_LINUX -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
+UNIT_CFLAGS = -Wall -Wextra -Wno-unused-parameter -I$(ROOT_DIR)/src/common -I$(ROOT_DIR)/include -I$(ROOT_DIR)/test -DPLATFORM_LINUX -D_FILE_OFFSET_BITS=64
 
 UNIT_STR_SRC = $(ROOT_DIR)/test/test_str.c $(ROOT_DIR)/src/common/utils/str.c
 UNIT_FILE_SRC = $(ROOT_DIR)/test/test_file.c \
