@@ -11,6 +11,7 @@
 #include "system/settings.h"
 #include "theme/theme.h"
 #include "utils/msleep.h"
+#include "utils/process.h"
 
 #include "./appstate.h"
 #include "./tools_defs.h"
@@ -22,8 +23,8 @@ static SDL_Surface *_tool_bg_cache = NULL;
 
 static void *_runCommandThread(void *cmd)
 {
-    int ret = system((char *)cmd);
-    thread_success = WEXITSTATUS(ret) == 0;
+    int ret = process_sh_c((char *)cmd);
+    thread_success = ret == 0;
     thread_active = false;
     return 0;
 }
@@ -169,12 +170,22 @@ void tool_screenRecorder(void *pt)
 
     if (!fileCheck) {
         list_updateStickyNote(item, "Status: Now recording...");
-        system(cmd);
+        {
+            char *argv[] = {"sh",
+                            "/mnt/SDCARD/.tmp_update/script/screen_recorder.sh",
+                            "toggle", NULL};
+            process_exec_path("/bin/sh", argv, false);
+        }
     }
     else {
         if (file_findNewest(RECORDED_DIR, newestFile, sizeof(newestFile))) {
             char note[STR_MAX];
-            system(cmd);
+            {
+                char *argv[] = {"sh",
+                                "/mnt/SDCARD/.tmp_update/script/screen_recorder.sh",
+                                "toggle", NULL};
+                process_exec_path("/bin/sh", argv, false);
+            }
             snprintf(note, sizeof(note), "Stopped, saved as: %s", newestFile);
             list_updateStickyNote(item, note);
         }

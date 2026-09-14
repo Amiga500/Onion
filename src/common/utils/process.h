@@ -161,6 +161,32 @@ bool process_exec_path(const char *path, char *const argv[], bool await)
     return true;
 }
 
+int process_sh_c(const char *cmd)
+{
+    char *argv[4];
+    pid_t pid;
+    int status;
+
+    if (cmd == NULL)
+        return -1;
+    argv[0] = "sh";
+    argv[1] = "-c";
+    argv[2] = (char *)cmd;
+    argv[3] = NULL;
+    pid = fork();
+    if (pid < 0)
+        return -1;
+    if (pid == 0) {
+        execv("/bin/sh", argv);
+        _exit(127);
+    }
+    if (waitpid(pid, &status, 0) < 0)
+        return -1;
+    if (WIFEXITED(status))
+        return WEXITSTATUS(status);
+    return -1;
+}
+
 bool process_start(const char *pname, const char *args, const char *home,
                    bool await)
 {
