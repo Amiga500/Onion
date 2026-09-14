@@ -2,11 +2,13 @@
 #define PACMAN_FILE_ACTIONS_H__
 
 #include <string.h>
+#include <sys/stat.h>
 
 #include "utils/apply_icons.h"
 #include "utils/file.h"
 #include "utils/json.h"
 #include "utils/log.h"
+#include "utils/process.h"
 #include "utils/str.h"
 
 #include "./globals.h"
@@ -297,7 +299,7 @@ bool getPackageMainPath(char *out_path, const char *data_path,
 void callPackageInstaller(const char *data_path, const char *package_name,
                           bool install)
 {
-    char main_path[STR_MAX], cmd[STR_MAX];
+    char main_path[STR_MAX];
 
     if (getPackageMainPath(main_path, data_path, package_name)) {
         char config_path[STR_MAX + 32];
@@ -310,12 +312,9 @@ void callPackageInstaller(const char *data_path, const char *package_name,
         concat_n(installer_path, sizeof(installer_path), main_path,
                  install ? "/install.sh" : "/uninstall.sh");
         if (is_file(installer_path)) {
-            sprintf(cmd,
-                    install
-                        ? "cd \"%s\"; chmod a+x ./install.sh; ./install.sh"
-                        : "cd \"%s\"; chmod a+x ./uninstall.sh; ./uninstall.sh",
-                    main_path);
-            system(cmd);
+            chmod(installer_path, 0755);
+            process_run(install ? "install.sh" : "uninstall.sh", NULL, main_path,
+                        true);
         }
     }
 }

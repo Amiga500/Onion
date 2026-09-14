@@ -3,6 +3,7 @@
 
 #include "utils/file.h"
 #include "utils/log.h"
+#include "utils/process.h"
 
 #include "./fileActions.h"
 #include "./globals.h"
@@ -10,8 +11,6 @@
 void applyAllChanges(bool auto_update)
 {
     // installation
-    char cmd[STR_MAX * 2 + 100];
-
     SDL_Surface *surfaceBackground = IMG_Load("/mnt/SDCARD/.tmp_update/res/waitingBG.png");
     SDL_Surface *surfaceMessage;
 
@@ -48,8 +47,12 @@ void applyAllChanges(bool auto_update)
                 SDL_BlitSurface(screen, NULL, video, NULL);
                 SDL_Flip(video);
 
-                sprintf(cmd, "/mnt/SDCARD/.tmp_update/script/pacman_install.sh \"%s\" \"%s\"", data_path, package->name);
-                system(cmd);
+                {
+                    char *argv[] = {"sh",
+                                    "/mnt/SDCARD/.tmp_update/script/pacman_install.sh",
+                                    (char *)data_path, package->name, NULL};
+                    process_exec_path("/bin/sh", argv, true);
+                }
                 sync();
 
                 callPackageInstaller(data_path, package->name, true);

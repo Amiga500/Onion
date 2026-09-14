@@ -1,9 +1,11 @@
 #include "batmon.h"
 #include "system/device_model.h"
 #include "utils/process.h"
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 int battery_current_state_duration = 0;
 int best_session_time = 0;
@@ -380,7 +382,25 @@ int getBatPercMMP(void)
     char buf[100] = "";
     int battery_number;
 
-    system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result");
+    {
+        pid_t pid = fork();
+        if (pid == 0) {
+            int fd;
+            if (chdir("/customer/app") != 0)
+                _exit(127);
+            fd = open("/tmp/.axp_result", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd >= 0) {
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+            }
+            execl("./axp_test", "axp_test", (char *)NULL);
+            _exit(127);
+        }
+        if (pid > 0) {
+            int st;
+            waitpid(pid, &st, 0);
+        }
+    }
 
     FILE *fp;
     file_get(fp, "/tmp/.axp_result", CONTENT_STR, buf);
