@@ -12,6 +12,7 @@
 #include "system/battery.h"
 #include "system/screenshot.h"
 #include "utils/msleep.h"
+#include "utils/process.h"
 #include "utils/str.h"
 
 #include "gs_appState.h"
@@ -77,7 +78,7 @@ void overlay_init()
     }
 
     retroarch_pause();
-    system("playActivity stop_all &");
+    process_start("playActivity", "stop_all", NULL, false);
     setFbAsFirstRomScreen();
 
     RetroArchStatus_s status;
@@ -127,7 +128,7 @@ void overlay_resume(void)
         render();
 
         retroarch_unpause();
-        system("playActivity resume &");
+        process_start("playActivity", "resume", NULL, false);
 
         msleep(200);
 
@@ -146,21 +147,18 @@ void overlay_exit(void)
         }
 
         // try graceful shutdown first
-        system("killall -TERM retroarch");
+        process_killall_signal("retroarch", SIGTERM);
 
-        // wait up to 5 seconds for RetroArch to exit
         for (int i = 0; i < 10; i++) {
-            msleep(500);  // 0.5s x 10 = 5s
-            if (system("pidof retroarch > /dev/null") != 0) {
-                break;  // retroarch is gone
-            }
+            msleep(500);
+            if (!process_isRunning("retroarch"))
+                break;
         }
 
-        // if still running, force kill
-        if (system("pidof retroarch > /dev/null") == 0) {
+        if (process_isRunning("retroarch")) {
             print_debug("RetroArch still running, force killing...");
             temp_flag_set(".forceKillRetroarch", true);
-            system("killall -9 retroarch");
+            process_killall("retroarch");
         }
     }
 }
