@@ -134,6 +134,33 @@ bool process_run(const char *pname, char *const argv[], const char *home,
     return true;
 }
 
+bool process_exec_path(const char *path, char *const argv[], bool await)
+{
+    char *fallback[2];
+
+    if (path == NULL || path[0] == '\0')
+        return false;
+
+    pid_t pid = fork();
+    if (pid < 0)
+        return false;
+    if (pid == 0) {
+        if (argv != NULL)
+            execv(path, argv);
+        else {
+            fallback[0] = (char *)path;
+            fallback[1] = NULL;
+            execv(path, fallback);
+        }
+        _exit(127);
+    }
+    if (await) {
+        int status;
+        waitpid(pid, &status, 0);
+    }
+    return true;
+}
+
 bool process_start(const char *pname, const char *args, const char *home,
                    bool await)
 {

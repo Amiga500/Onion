@@ -811,7 +811,12 @@ int main(void)
             // start screen recording after holding for >2secs
             if (menuAndAPressed && (getMilliseconds() - menuAndAPressedTime >= 2000)) {
                 if (access("/mnt/SDCARD/.tmp_update/config/.recHotkey", F_OK) != -1) {
-                    system("/mnt/SDCARD/.tmp_update/script/screen_recorder.sh toggle &");
+                    {
+                        char *argv[] = {"sh",
+                                        "/mnt/SDCARD/.tmp_update/script/screen_recorder.sh",
+                                        "toggle", NULL};
+                        process_exec_path("/bin/sh", argv, false);
+                    }
                 }
 
                 menuAndAPressed = false;
@@ -821,11 +826,21 @@ int main(void)
             // toggle blue light filter
             if (menuAndBPressed && (getMilliseconds() - menuAndBPressedTime >= 2000)) {
                 if (access("/tmp/.blfOn", F_OK) != -1) {
-                    system("/mnt/SDCARD/.tmp_update/script/blue_light.sh disable &");
+                    {
+                        char *argv[] = {"sh",
+                                        "/mnt/SDCARD/.tmp_update/script/blue_light.sh",
+                                        "disable", NULL};
+                        process_exec_path("/bin/sh", argv, false);
+                    }
                     temp_flag_set(".blfIgnoreSchedule", true);
                 }
                 else {
-                    system("/mnt/SDCARD/.tmp_update/script/blue_light.sh enable &");
+                    {
+                        char *argv[] = {"sh",
+                                        "/mnt/SDCARD/.tmp_update/script/blue_light.sh",
+                                        "enable", NULL};
+                        process_exec_path("/bin/sh", argv, false);
+                    }
                     temp_flag_set(".blfIgnoreSchedule", true);
                 }
 
@@ -921,7 +936,12 @@ int main(void)
 
         // Check bluelight filter
         if (settings.blue_light_schedule) {
-            system("/mnt/SDCARD/.tmp_update/script/blue_light.sh check");
+            {
+                char *argv[] = {"sh",
+                                "/mnt/SDCARD/.tmp_update/script/blue_light.sh",
+                                "check", NULL};
+                process_exec_path("/bin/sh", argv, true);
+            }
         }
 
         // Quit RetroArch / auto-save when battery too low
