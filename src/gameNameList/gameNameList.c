@@ -63,8 +63,20 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
         path[strcspn(path, "\n")] = '\0'; // Remove trailing newline character
 
         // Check if the file contains the string '"shortname":1'
-        sprintf(command, "grep -q '\"shortname\":[[:space:]]*1' '%s'", path);
-        if (system(command) == 0) {
+        {
+            char *json = file_read(path);
+            int hit = 0;
+            if (json) {
+                char *p = strstr(json, "\"shortname\":");
+                if (p) {
+                    p += strlen("\"shortname\":");
+                    while (*p == ' ' || *p == '\t')
+                        p++;
+                    hit = (*p == '1');
+                }
+                free(json);
+            }
+            if (hit) {
             // Get the folder name (someone could have changed the defaults)
             sprintf(command, "sed -n 's/.*\"rompath\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' '%s'", path);
             sed = popen(command, "r");
@@ -91,6 +103,7 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
             }
             if (i == MAX_MATCHING_FOLDERS) {
                 break; // Maximum number of folders reached
+            }
             }
         }
     }
@@ -257,13 +270,9 @@ int createCopyFile(const char* src_path, const char* dst_path) {
 
     // Create the destination file as a copy of the source file
     char command[1024];
-    snprintf(command, sizeof(command), "cp '%s' '%s'", src_path, dst_path);
-    int result = system(command);
-
-    if (result != 0) {
-        // An error occurred while creating the copy
+    file_copy(src_path, dst_path);
+    if (!is_file(dst_path))
         return -1;
-    }
 
     // Success
     return 1;

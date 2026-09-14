@@ -6,6 +6,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "utils/process.h"
+
 #define KEY_ESC 1
 
 int main(int argc, char *argv[])
@@ -15,16 +17,13 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    char command[256];
-    snprintf(command, sizeof(command), "pkill -9 -f %s", argv[1]);
-
     int input_fd = open("/dev/input/event0", O_RDONLY);
     struct input_event event;
 
     while (read(input_fd, &event, sizeof(event)) == sizeof(event)) {
         if (event.type == EV_KEY && event.value == 1) {
             if (event.code == KEY_ESC) {
-                system(command);
+                process_killall(argv[1]);
                 break;
             }
         }

@@ -22,6 +22,7 @@
 #include "system/rumble.h"
 #include "system/settings.h"
 #include "system/system.h"
+#include "utils/process.h"
 #include "theme/config.h"
 #include "utils/file.h"
 #include "utils/log.h"
@@ -252,7 +253,8 @@ int main(void)
     if (turn_off) {
 #ifdef PLATFORM_MIYOOMINI
         display_setScreen(false);
-        system("shutdown; sleep 10");
+        process_run("shutdown", NULL, NULL, false);
+        sleep(10);
 #endif
     }
     else {
