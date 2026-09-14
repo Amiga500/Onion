@@ -107,10 +107,20 @@ TEST(file_read_content)
     free(s);
 }
 
-TEST(file_read_directory_is_null)
+TEST(file_read_unreadable_is_null)
 {
-    /* exists(dir) is true but fopen fails; must not dereference NULL. */
-    char *s = file_read(g_tmp);
+    /* exists() true + fopen fail (mode 000). Skip if running as root. */
+    if (geteuid() == 0)
+        return;
+    char path[512];
+    join(path, sizeof(path), "noperm.txt");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("secret", fp);
+    fclose(fp);
+    ASSERT_EQ(chmod(path, 0), 0);
+    char *s = file_read(path);
+    chmod(path, 0644);
     ASSERT_NULL(s);
 }
 
@@ -240,7 +250,7 @@ int main(void)
     RUN_TEST(file_read_missing_is_null);
     RUN_TEST(file_read_empty_is_allocated_empty_string);
     RUN_TEST(file_read_content);
-    RUN_TEST(file_read_directory_is_null);
+    RUN_TEST(file_read_unreadable_is_null);
     RUN_TEST(file_write_existing);
     RUN_TEST(removeExtension_simple);
     RUN_TEST(removeExtension_no_dot);
