@@ -205,9 +205,7 @@ void wait(int seconds)
 
 void showBootScreen(const char *type)
 {
-    char cmd[256];
-    sprintf(cmd, "bootScreen \"%s\" &", type);
-    system(cmd);
+    process_start("bootScreen", type, NULL, false);
 }
 
 //
@@ -263,7 +261,7 @@ void suspend_exec(int timeout)
     keyinput_disable();
 
     // pause playActivity
-    system("playActivity stop_all");
+    process_start("playActivity", "stop_all", NULL, true);
 
     if (temp_flag_get("stay_awake")) {
         // stay awake (keep processes running and volume on)
@@ -336,7 +334,7 @@ void suspend_exec(int timeout)
         // resume processes
         resume();
         // resume playActivity
-        system("playActivity resume");
+        process_start("playActivity", "resume", NULL, true);
     }
 
     keyinput_enable();
@@ -538,7 +536,7 @@ int main(void)
             if (system_state == MODE_MAIN_UI && (ev.code == HW_BTN_B || ev.code == HW_BTN_X) && val == RELEASED) {
                 // Check if favorite file changed
                 if (file_isModified(FAVORITES_PATH, &fav_last_modified)) {
-                    system("tools favfix");
+                    process_start("tools", "favfix", NULL, true);
                     sync();
                 }
             }
