@@ -34,11 +34,23 @@ TEST(isRunning_self)
     ASSERT_FALSE(process_isRunning("definitely_not_an_onion_proc_xyz"));
 }
 
+TEST(start_missing_is_false)
+{
+    ASSERT_FALSE(process_start("no_such_onion_bin_xyz", NULL, "/tmp", true));
+}
+
+TEST(start_true_await)
+{
+    ASSERT_TRUE(process_start("true", NULL, "/bin", true));
+}
+
 int main(void)
 {
     printf("\n=== process.h unit tests ===\n\n");
     RUN_TEST(searchpid_self);
     RUN_TEST(searchpid_missing);
     RUN_TEST(isRunning_self);
+    RUN_TEST(start_missing_is_false);
+    RUN_TEST(start_true_await);
     return onion_test_report("test_process");
 }

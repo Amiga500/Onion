@@ -8,6 +8,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include "file.h"
 
 #ifndef DT_DIR
 #define DT_DIR 4
@@ -27,6 +31,8 @@ pid_t process_searchpid(const char *commname)
     size_t commlen = strlen(commname);
 
     procdp = opendir("/proc");
+    if (procdp == NULL)
+        return 0;
     while ((dir = readdir(procdp))) {
         if (dir->d_type == DT_DIR) {
             pid = atoi(dir->d_name);
@@ -84,11 +90,22 @@ bool process_start(const char *pname, const char *args, const char *home,
     if (!exists(filename))
         return false;
 
-    char cmd[512];
-    sprintf(cmd, "cd \"%s\"; %s %s %s", home != NULL ? home : ".", filename,
-            args != NULL ? args : "", await ? "" : "&");
-    system(cmd);
-
+    pid_t pid = fork();
+    if (pid < 0)
+        return false;
+    if (pid == 0) {
+        if (chdir(home != NULL ? home : ".") != 0)
+            _exit(127);
+        if (args != NULL && args[0] != '\0')
+            execl(filename, filename, args, (char *)NULL);
+        else
+            execl(filename, filename, (char *)NULL);
+        _exit(127);
+    }
+    if (await) {
+        int status;
+        waitpid(pid, &status, 0);
+    }
     return true;
 }
 
