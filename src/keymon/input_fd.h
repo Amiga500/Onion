@@ -7,6 +7,7 @@
 #include <sys/poll.h>
 
 #include "utils/msleep.h"
+#include "utils/process.h"
 
 // for ev.value
 #define RELEASED 0
@@ -75,11 +76,17 @@ void keyinput_send(unsigned short code, signed int value)
 {
     if (keyinput_disabled)
         return;
-    char cmd[100];
-    sprintf(cmd, "sendkeys %d %d", code, value);
+    char code_s[16];
+    char value_s[16];
+    char *argv[3];
+    snprintf(code_s, sizeof(code_s), "%d", code);
+    snprintf(value_s, sizeof(value_s), "%d", value);
+    argv[0] = code_s;
+    argv[1] = value_s;
+    argv[2] = NULL;
     printf_debug("Send keys: code=%d, value=%d\n", code, value);
     _ignoreQueue_add(code, value);
-    system(cmd);
+    process_run("sendkeys", argv, NULL, true);
     print_debug("Keys sent");
 }
 
@@ -87,18 +94,26 @@ void keyinput_sendMulti(int n, int code_value_pairs[n][2])
 {
     if (keyinput_disabled)
         return;
-    char cmd[512];
-    strcpy(cmd, "./bin/sendkeys ");
+    char nums[20][16];
+    char *argv[21];
+    int argc_out = 0;
 
+    if (n > 10)
+        n = 10;
     for (int i = 0; i < n; i++) {
         int code = code_value_pairs[i][0];
         int value = code_value_pairs[i][1];
         _ignoreQueue_add(code, value);
-        sprintf(cmd + strlen(cmd), "%d %d ", code, value);
+        snprintf(nums[argc_out], sizeof(nums[argc_out]), "%d", code);
+        argv[argc_out] = nums[argc_out];
+        argc_out++;
+        snprintf(nums[argc_out], sizeof(nums[argc_out]), "%d", value);
+        argv[argc_out] = nums[argc_out];
+        argc_out++;
     }
-
-    printf_debug("Send keys: %s\n", cmd);
-    system(cmd);
+    argv[argc_out] = NULL;
+    printf_debug("Send keys: %d pairs\n", n);
+    process_run("sendkeys", argv, NULL, true);
     print_debug("Keys sent");
 }
 

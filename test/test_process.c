@@ -44,6 +44,11 @@ TEST(start_true_await)
     ASSERT_TRUE(process_start("true", NULL, "/bin", true));
 }
 
+TEST(run_true_argv)
+{
+    ASSERT_TRUE(process_run("true", NULL, "/bin", true));
+}
+
 TEST(start_read_return_echo)
 {
     char out[256];
@@ -65,6 +70,7 @@ int main(void)
     RUN_TEST(isRunning_self);
     RUN_TEST(start_missing_is_false);
     RUN_TEST(start_true_await);
+    RUN_TEST(run_true_argv);
     RUN_TEST(start_read_return_echo);
     RUN_TEST(start_read_return_null);
     return onion_test_report("test_process");

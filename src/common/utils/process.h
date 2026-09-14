@@ -79,21 +79,44 @@ void process_killall(const char *commname)
     process_killall_signal(commname, SIGKILL);
 }
 
-bool process_start(const char *pname, const char *args, const char *home,
-                   bool await)
+static bool process_resolve(char *filename, size_t filename_size, const char *pname,
+                            const char *home)
+{
+    const char *base = home != NULL ? home : ".";
+
+    snprintf(filename, filename_size, "%s/bin/%s", base, pname);
+    if (exists(filename))
+        return true;
+    snprintf(filename, filename_size, "%s/%s", base, pname);
+    if (exists(filename))
+        return true;
+    snprintf(filename, filename_size, "/mnt/SDCARD/.tmp_update/bin/%s", pname);
+    if (exists(filename))
+        return true;
+    snprintf(filename, filename_size, "/mnt/SDCARD/.tmp_update/%s", pname);
+    if (exists(filename))
+        return true;
+    snprintf(filename, filename_size, "/mnt/SDCARD/miyoo/app/%s", pname);
+    return exists(filename);
+}
+
+bool process_run(const char *pname, char *const argv[], const char *home,
+                 bool await)
 {
     char filename[256];
-    sprintf(filename, "%s/bin/%s", home != NULL ? home : ".", pname);
-    if (!exists(filename))
-        sprintf(filename, "%s/%s", home != NULL ? home : ".", pname);
-    if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/bin/%s", pname);
-    if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/.tmp_update/%s", pname);
-    if (!exists(filename))
-        sprintf(filename, "/mnt/SDCARD/miyoo/app/%s", pname);
-    if (!exists(filename))
+    char *child_argv[32];
+    int i = 0;
+
+    if (pname == NULL || !process_resolve(filename, sizeof(filename), pname, home))
         return false;
+
+    child_argv[i++] = filename;
+    if (argv != NULL) {
+        int a = 0;
+        while (argv[a] != NULL && i < 31)
+            child_argv[i++] = argv[a++];
+    }
+    child_argv[i] = NULL;
 
     pid_t pid = fork();
     if (pid < 0)
@@ -101,10 +124,7 @@ bool process_start(const char *pname, const char *args, const char *home,
     if (pid == 0) {
         if (chdir(home != NULL ? home : ".") != 0)
             _exit(127);
-        if (args != NULL && args[0] != '\0')
-            execl(filename, filename, args, (char *)NULL);
-        else
-            execl(filename, filename, (char *)NULL);
+        execv(filename, child_argv);
         _exit(127);
     }
     if (await) {
@@ -112,6 +132,16 @@ bool process_start(const char *pname, const char *args, const char *home,
         waitpid(pid, &status, 0);
     }
     return true;
+}
+
+bool process_start(const char *pname, const char *args, const char *home,
+                   bool await)
+{
+    if (args != NULL && args[0] != '\0') {
+        char *argv[2] = {(char *)args, NULL};
+        return process_run(pname, argv, home, await);
+    }
+    return process_run(pname, NULL, home, await);
 }
 
 int process_start_read_return(const char *cmdline, char *out_str)
