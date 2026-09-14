@@ -27,9 +27,18 @@ UNIT_PROCESS_SRC = $(ROOT_DIR)/test/test_process.c \
 UNIT_STATE_SRC = $(ROOT_DIR)/test/test_state.c
 UNIT_STR_SEC_SRC = $(ROOT_DIR)/test/test_str_security.c $(ROOT_DIR)/src/common/utils/str.c
 
-.PHONY: unit-test unit-test-asan unit-test-clean
+.PHONY: unit-test unit-test-asan unit-test-clean check-no-system
 
-unit-test:
+check-no-system:
+	@hits=$$(grep -RInE '(^|[^[:alnum:]_])system\(' $(ROOT_DIR)/src --include='*.c' --include='*.h' || true); \
+	if [ -n "$$hits" ]; then \
+		echo "$$hits"; \
+		echo "check-no-system: leftover system() in src/"; \
+		exit 1; \
+	fi; \
+	echo "check-no-system: ok"
+
+unit-test: check-no-system
 	@$(makedir) $(UNIT_BUILD)
 	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_str $(UNIT_STR_SRC)
 	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_file $(UNIT_FILE_SRC)

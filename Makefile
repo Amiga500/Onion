@@ -54,7 +54,7 @@ include ./src/common/commands.mk
 
 ###########################################################
 
-.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test unit-test-asan unit-test-clean
+.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test unit-test-asan unit-test-clean check-no-system
 
 include $(ROOT_DIR)/test/unit.mk
 
