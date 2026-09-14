@@ -5,6 +5,7 @@
 /build/
 /build_test/
 /build_unit/
+/build_unit_asan/
 /release/
 /dist/
 temp/

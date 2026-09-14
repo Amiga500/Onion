@@ -14,3 +14,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run host unit tests
         run: make unit-test
+      - name: Run host unit tests with ASan
+        run: make unit-test-asan

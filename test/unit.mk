@@ -27,7 +27,7 @@ UNIT_PROCESS_SRC = $(ROOT_DIR)/test/test_process.c \
 UNIT_STATE_SRC = $(ROOT_DIR)/test/test_state.c
 UNIT_STR_SEC_SRC = $(ROOT_DIR)/test/test_str_security.c $(ROOT_DIR)/src/common/utils/str.c
 
-.PHONY: unit-test unit-test-clean
+.PHONY: unit-test unit-test-asan unit-test-clean
 
 unit-test:
 	@$(makedir) $(UNIT_BUILD)
@@ -51,5 +51,9 @@ unit-test:
 	@echo
 	@echo "unit-test: all host suites passed"
 
+unit-test-asan:
+	$(MAKE) unit-test UNIT_BUILD=$(ROOT_DIR)/build_unit_asan \
+		UNIT_CFLAGS="$(UNIT_CFLAGS) -fsanitize=address -fno-omit-frame-pointer"
+
 unit-test-clean:
-	@rm -rf $(UNIT_BUILD)
+	@rm -rf $(UNIT_BUILD) $(ROOT_DIR)/build_unit_asan

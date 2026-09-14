@@ -297,6 +297,20 @@ TEST(delete_line_uses_sidecar_tmp)
     ASSERT_FALSE(exists("temp.txt"));
 }
 
+TEST(add_line_to_beginning)
+{
+    char path[512];
+    join(path, sizeof(path), "head.txt");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("a\nb\n", fp);
+    fclose(fp);
+    file_add_line_to_beginning(path, "Z\n");
+    char *s = file_read(path);
+    ASSERT_STREQ(s, "Z\na\nb\n");
+    free(s);
+}
+
 int main(void)
 {
     printf("\n=== file.c unit tests ===\n\n");
@@ -326,6 +340,7 @@ int main(void)
     RUN_TEST(copy_path_with_spaces);
     RUN_TEST(changeKeyValue_uses_sidecar_tmp);
     RUN_TEST(delete_line_uses_sidecar_tmp);
+    RUN_TEST(add_line_to_beginning);
 
     teardown_tmp();
     return onion_test_report("test_file");

@@ -6,6 +6,7 @@ No device, SDL, gtest, or Docker toolchain required:
 
 ```bash
 make unit-test
+make unit-test-asan   # same suites with AddressSanitizer
 ```
 
 Suites:
