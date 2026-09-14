@@ -74,8 +74,7 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
     if (!remove_icon_labels || !remove_hints) {
         // restore original lang files
         if (exists(LANG_DIR_BACKUP)) {
-            system("mv -f " LANG_DIR_BACKUP "/* " LANG_DIR "");
-            remove(LANG_DIR_BACKUP);
+            file_move_children(LANG_DIR_BACKUP, LANG_DIR);
         }
     }
 
@@ -86,7 +85,7 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
 
     // backup lang files
     if (!exists(LANG_DIR_BACKUP))
-        system("cp -R " LANG_DIR " " LANG_DIR_BACKUP "");
+        file_copy_tree(LANG_DIR, LANG_DIR_BACKUP);
 
     while ((ep = readdir(dp))) {
         if (ep->d_type != DT_REG)

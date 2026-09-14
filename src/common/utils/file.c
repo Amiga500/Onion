@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -201,6 +202,68 @@ void file_copy(const char *src_path, const char *dest_path)
     }
     fclose(out);
     fclose(in);
+}
+
+void file_copy_tree(const char *src_path, const char *dest_path)
+{
+    struct stat st;
+    DIR *dp;
+    struct dirent *ep;
+    char src_child[PATH_MAX];
+    char dst_child[PATH_MAX];
+
+    if (src_path == NULL || dest_path == NULL)
+        return;
+    if (stat(src_path, &st) != 0)
+        return;
+
+    if (S_ISDIR(st.st_mode)) {
+        mkdir(dest_path, 0755);
+        dp = opendir(src_path);
+        if (!dp)
+            return;
+        while ((ep = readdir(dp))) {
+            if (strcmp(ep->d_name, ".") == 0 || strcmp(ep->d_name, "..") == 0)
+                continue;
+            snprintf(src_child, sizeof(src_child), "%s/%s", src_path, ep->d_name);
+            snprintf(dst_child, sizeof(dst_child), "%s/%s", dest_path, ep->d_name);
+            file_copy_tree(src_child, dst_child);
+        }
+        closedir(dp);
+        return;
+    }
+
+    file_copy(src_path, dest_path);
+}
+
+void file_move_children(const char *src_dir, const char *dest_dir)
+{
+    DIR *dp;
+    struct dirent *ep;
+    char src_child[PATH_MAX];
+    char dst_child[PATH_MAX];
+
+    if (src_dir == NULL || dest_dir == NULL)
+        return;
+    mkdirs(dest_dir);
+    dp = opendir(src_dir);
+    if (!dp)
+        return;
+    while ((ep = readdir(dp))) {
+        if (strcmp(ep->d_name, ".") == 0 || strcmp(ep->d_name, "..") == 0)
+            continue;
+        snprintf(src_child, sizeof(src_child), "%s/%s", src_dir, ep->d_name);
+        snprintf(dst_child, sizeof(dst_child), "%s/%s", dest_dir, ep->d_name);
+        if (rename(src_child, dst_child) != 0) {
+            file_copy_tree(src_child, dst_child);
+            if (is_dir(src_child))
+                rmdir(src_child);
+            else
+                remove(src_child);
+        }
+    }
+    closedir(dp);
+    rmdir(src_dir);
 }
 
 char *file_removeExtension(const char *myStr)

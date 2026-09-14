@@ -327,6 +327,36 @@ TEST(add_line_to_beginning)
     free(s);
 }
 
+TEST(copy_tree_and_move_children)
+{
+    char src[512], dst[512], nested[512], leaf[512];
+    join(src, sizeof(src), "tree_src");
+    join(dst, sizeof(dst), "tree_dst");
+    join(nested, sizeof(nested), "tree_src/sub");
+    ASSERT_TRUE(mkdirs(nested));
+    join(leaf, sizeof(leaf), "tree_src/sub/a.txt");
+    FILE *fp = fopen(leaf, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("L", fp);
+    fclose(fp);
+
+    file_copy_tree(src, dst);
+    char copied[512];
+    join(copied, sizeof(copied), "tree_dst/sub/a.txt");
+    char *s = file_read(copied);
+    ASSERT_STREQ(s, "L");
+    free(s);
+
+    char moved_root[512], moved[512];
+    join(moved_root, sizeof(moved_root), "tree_moved");
+    file_move_children(dst, moved_root);
+    join(moved, sizeof(moved), "tree_moved/sub/a.txt");
+    s = file_read(moved);
+    ASSERT_STREQ(s, "L");
+    free(s);
+    ASSERT_FALSE(is_dir(dst));
+}
+
 int main(void)
 {
     printf("\n=== file.c unit tests ===\n\n");
@@ -358,6 +388,7 @@ int main(void)
     RUN_TEST(changeKeyValue_uses_sidecar_tmp);
     RUN_TEST(delete_line_uses_sidecar_tmp);
     RUN_TEST(add_line_to_beginning);
+    RUN_TEST(copy_tree_and_move_children);
 
     teardown_tmp();
     return onion_test_report("test_file");
