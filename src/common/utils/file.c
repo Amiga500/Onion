@@ -266,6 +266,54 @@ void file_move_children(const char *src_dir, const char *dest_dir)
     rmdir(src_dir);
 }
 
+void file_remove_tree(const char *path)
+{
+    struct stat st;
+    DIR *dp;
+    struct dirent *ep;
+    char child[PATH_MAX];
+
+    if (path == NULL || path[0] == '\0')
+        return;
+    if (stat(path, &st) != 0)
+        return;
+    if (S_ISDIR(st.st_mode)) {
+        dp = opendir(path);
+        if (dp) {
+            while ((ep = readdir(dp))) {
+                if (strcmp(ep->d_name, ".") == 0 || strcmp(ep->d_name, "..") == 0)
+                    continue;
+                snprintf(child, sizeof(child), "%s/%s", path, ep->d_name);
+                file_remove_tree(child);
+            }
+            closedir(dp);
+        }
+        rmdir(path);
+        return;
+    }
+    remove(path);
+}
+
+void file_remove_children(const char *dir)
+{
+    DIR *dp;
+    struct dirent *ep;
+    char child[PATH_MAX];
+
+    if (dir == NULL)
+        return;
+    dp = opendir(dir);
+    if (!dp)
+        return;
+    while ((ep = readdir(dp))) {
+        if (strcmp(ep->d_name, ".") == 0 || strcmp(ep->d_name, "..") == 0)
+            continue;
+        snprintf(child, sizeof(child), "%s/%s", dir, ep->d_name);
+        file_remove_tree(child);
+    }
+    closedir(dp);
+}
+
 char *file_removeExtension(const char *myStr)
 {
     if (myStr == NULL)

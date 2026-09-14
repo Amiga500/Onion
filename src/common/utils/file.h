@@ -101,6 +101,8 @@ bool file_write(const char *path, const char *str, uint32_t len);
 void file_copy(const char *src_path, const char *dest_path);
 void file_copy_tree(const char *src_path, const char *dest_path);
 void file_move_children(const char *src_dir, const char *dest_dir);
+void file_remove_tree(const char *path);
+void file_remove_children(const char *dir);
 
 char *file_removeExtension(const char *myStr) __attribute__((malloc));
 

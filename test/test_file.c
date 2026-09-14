@@ -357,6 +357,23 @@ TEST(copy_tree_and_move_children)
     ASSERT_FALSE(is_dir(dst));
 }
 
+TEST(remove_tree_and_children)
+{
+    char root[512], child[512];
+    join(root, sizeof(root), "rm_tree");
+    join(child, sizeof(child), "rm_tree/x.txt");
+    ASSERT_TRUE(mkdirs(root));
+    FILE *fp = fopen(child, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("z", fp);
+    fclose(fp);
+    file_remove_children(root);
+    ASSERT_TRUE(is_dir(root));
+    ASSERT_FALSE(exists(child));
+    file_remove_tree(root);
+    ASSERT_FALSE(is_dir(root));
+}
+
 int main(void)
 {
     printf("\n=== file.c unit tests ===\n\n");
@@ -389,6 +406,7 @@ int main(void)
     RUN_TEST(delete_line_uses_sidecar_tmp);
     RUN_TEST(add_line_to_beginning);
     RUN_TEST(copy_tree_and_move_children);
+    RUN_TEST(remove_tree_and_children);
 
     teardown_tmp();
     return onion_test_report("test_file");
