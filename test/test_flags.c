@@ -40,7 +40,7 @@ TEST(config_style_hidden_inverse)
 {
     /* config_flag_set(key, value) writes key and key_ inverted. */
     char hidden[STR_MAX];
-    concat(hidden, "mute", "_");
+    concat_n(hidden, sizeof(hidden), "mute", "_");
     flag_set(g_dir, "mute", true);
     flag_set(g_dir, hidden, false);
     ASSERT_TRUE(flag_get(g_dir, "mute"));

@@ -20,7 +20,7 @@ bool config_flag_get(const char *key) { return flag_get(CONFIG_PATH, key); }
 void config_flag_set(const char *key, bool value)
 {
     char hidden_flag[STR_MAX];
-    concat(hidden_flag, key, "_");
+    concat_n(hidden_flag, sizeof(hidden_flag), key, "_");
     flag_set(CONFIG_PATH, key, value);
     flag_set(CONFIG_PATH, hidden_flag, !value);
 }
