@@ -17,6 +17,8 @@ Suites:
 - `test_flags.c` — `src/common/utils/flags.h` (config flags are this + a fixed path)
 - `test_process.c` — `src/common/utils/process.h` (`searchpid` / `isRunning`)
 - `test_state.c` — `state_getAppName` contract (`cd /mnt/SDCARD/App/` + name until `;`)
+- `test_str_security.c` — NULL / empty-delim edges for `str_*`
+- `test_file.c` also covers `file_read` on a directory (exists but `fopen` fails → `NULL`)
 
 These tests pin **current** behaviour, including quirks (empty `file_read` returns an allocated `""`, not `NULL`). Change production code only after a test fails for the old contract.
 

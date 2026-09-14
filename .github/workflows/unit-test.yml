@@ -1,0 +1,16 @@
+name: Host unit tests
+
+on:
+  push:
+    branches: [OnionRefactor]
+  pull_request:
+    branches: [OnionRefactor]
+
+jobs:
+  unit-test:
+    name: make unit-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run host unit tests
+        run: make unit-test

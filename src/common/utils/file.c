@@ -129,13 +129,15 @@ char *file_read(const char *path)
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
         buffer = (char *)malloc((length + 1) * sizeof(char));
-        if (buffer)
+        if (buffer) {
             fread(buffer, sizeof(char), length, f);
+            buffer[length] = '\0';
+        }
         fclose(f);
+        return buffer;
     }
-    buffer[length] = '\0';
 
-    return buffer;
+    return NULL;
 }
 
 bool file_write(const char *path, const char *str, uint32_t len)

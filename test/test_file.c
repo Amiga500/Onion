@@ -107,6 +107,13 @@ TEST(file_read_content)
     free(s);
 }
 
+TEST(file_read_directory_is_null)
+{
+    /* exists(dir) is true but fopen fails; must not dereference NULL. */
+    char *s = file_read(g_tmp);
+    ASSERT_NULL(s);
+}
+
 TEST(file_write_existing)
 {
     char path[512];
@@ -233,6 +240,7 @@ int main(void)
     RUN_TEST(file_read_missing_is_null);
     RUN_TEST(file_read_empty_is_allocated_empty_string);
     RUN_TEST(file_read_content);
+    RUN_TEST(file_read_directory_is_null);
     RUN_TEST(file_write_existing);
     RUN_TEST(removeExtension_simple);
     RUN_TEST(removeExtension_no_dot);
