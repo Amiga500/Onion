@@ -44,72 +44,88 @@ void removeExtension(char *file_name)
     }
 }
 
-int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int i) {
-    char command[STR_MAX*5];
-    char path[STR_MAX*3];
-    char folder[STR_MAX];
-    FILE *find, *sed;
+static int add_shortname_folder(const char *config_path, char matching_folders[][256], int i)
+{
+    char *json = file_read(config_path);
+    char folder[STR_MAX] = "";
+    char *p;
+    char *sysname;
+    int x, cmp = -1;
 
-    // Use the 'find' command to search for 'config.json' files in subdirectories of the disk path
-    sprintf(command, "find %s -name 'config.json' -type f", disk_path);
-    find = popen(command, "r");
-    if (find == NULL) {
-        perror("Error executing find command");
-        exit(EXIT_FAILURE);
+    if (!json)
+        return i;
+    p = strstr(json, "\"shortname\":");
+    if (!p) {
+        free(json);
+        return i;
     }
-
-    // Read the output of the find command and extract matching folder names
-    while (fgets(path, sizeof(path), find) != NULL) {
-        path[strcspn(path, "\n")] = '\0'; // Remove trailing newline character
-
-        // Check if the file contains the string '"shortname":1'
-        {
-            char *json = file_read(path);
-            int hit = 0;
-            if (json) {
-                char *p = strstr(json, "\"shortname\":");
-                if (p) {
-                    p += strlen("\"shortname\":");
-                    while (*p == ' ' || *p == '\t')
-                        p++;
-                    hit = (*p == '1');
-                }
-                free(json);
-            }
-            if (hit) {
-            // Get the folder name (someone could have changed the defaults)
-            sprintf(command, "sed -n 's/.*\"rompath\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' '%s'", path);
-            sed = popen(command, "r");
-            if (sed == NULL) {
-                perror("Error executing sed command");
-                exit(EXIT_FAILURE);
-            }
-            fgets(folder, sizeof(folder), sed);
-            folder[strcspn(folder, "\n")] = '\0'; // Remove trailing newline character
-            pclose(sed);
-            char * system = basename(folder);
-            int cmp = -1;
-            //check if we already added this folder/system
-            for (int x = 0; x < i; x ++){
-                cmp = strcmp(matching_folders[x], system);
-                if ( cmp == 0){
-                    break;
-                }
-            }
-            if( cmp != 0){
-                // Extract the folder name and add it to the matching_folders array
-                sprintf(matching_folders[i], "%s", system);
-                i++;
-            }
-            if (i == MAX_MATCHING_FOLDERS) {
-                break; // Maximum number of folders reached
-            }
+    p += strlen("\"shortname\":");
+    while (*p == ' ' || *p == '\t')
+        p++;
+    if (*p != '1') {
+        free(json);
+        return i;
+    }
+    p = strstr(json, "\"rompath\":");
+    if (p) {
+        p += strlen("\"rompath\":");
+        while (*p == ' ' || *p == '\t')
+            p++;
+        if (*p == '"') {
+            char *end;
+            p++;
+            end = strchr(p, '"');
+            if (end && (size_t)(end - p) < sizeof(folder)) {
+                memcpy(folder, p, (size_t)(end - p));
+                folder[end - p] = '\0';
             }
         }
     }
-
-    pclose(find);
+    free(json);
+    if (folder[0] == '\0')
+        return i;
+    sysname = basename(folder);
+    for (x = 0; x < i; x++) {
+        cmp = strcmp(matching_folders[x], sysname);
+        if (cmp == 0)
+            break;
+    }
+    if (cmp != 0 && i < MAX_MATCHING_FOLDERS) {
+        snprintf(matching_folders[i], 256, "%s", sysname);
+        i++;
+    }
     return i;
+}
+
+static int walk_config_json(const char *dir, char matching_folders[][256], int i)
+{
+    DIR *dp;
+    struct dirent *ep;
+    char child[STR_MAX * 3];
+
+    if (i >= MAX_MATCHING_FOLDERS)
+        return i;
+    dp = opendir(dir);
+    if (!dp)
+        return i;
+    while ((ep = readdir(dp))) {
+        if (ep->d_name[0] == '.')
+            continue;
+        snprintf(child, sizeof(child), "%s/%s", dir, ep->d_name);
+        if (is_dir(child))
+            i = walk_config_json(child, matching_folders, i);
+        else if (strcmp(ep->d_name, "config.json") == 0)
+            i = add_shortname_folder(child, matching_folders, i);
+        if (i >= MAX_MATCHING_FOLDERS)
+            break;
+    }
+    closedir(dp);
+    return i;
+}
+
+int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int i)
+{
+    return walk_config_json(disk_path, matching_folders, i);
 }
 
 
