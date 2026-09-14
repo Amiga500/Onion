@@ -11,6 +11,7 @@
 #include "utils/file.h"
 #include "utils/json.h"
 #include "utils/log.h"
+#include "utils/process.h"
 #include "utils/str.h"
 
 #ifdef PLATFORM_MIYOOMINI
@@ -72,7 +73,12 @@ void loadThemeDirectory(const char *theme_dir,
 
 void updatePreviews()
 {
-    system(SCRIPT_DIR "/themes_extract_previews.sh");
+    {
+        char script[512];
+        snprintf(script, sizeof(script), "%s/themes_extract_previews.sh", SCRIPT_DIR);
+        char *argv[] = {"sh", script, NULL};
+        process_exec_path("/bin/sh", argv, true);
+    }
     sync();
 }
 
@@ -173,16 +179,22 @@ void installNonDynamicElement(const char *theme_path, const char *image_name)
 
 void installTheme(char *theme_path, bool apply_icons)
 {
-    system("/mnt/SDCARD/.tmp_update/bin/mainUiBatPerc --restore");
+    {
+        char *argv[] = {"--restore", NULL};
+        process_run("mainUiBatPerc", argv, NULL, true);
+    }
 
     if (strstr(theme_path, "/.previews/") != NULL) {
-        char cmd[STR_MAX * 2];
-        snprintf(cmd, STR_MAX * 2 - 1,
-                 SCRIPT_DIR "/themes_extract_theme.sh \"%s\"", theme_path);
-
-        sprintf(theme_path, THEMES_DIR "/%s/", basename(theme_path));
-
-        system(cmd);
+        char script[512];
+        char src[STR_MAX];
+        snprintf(script, sizeof(script), "%s/themes_extract_theme.sh", SCRIPT_DIR);
+        strncpy(src, theme_path, sizeof(src) - 1);
+        src[sizeof(src) - 1] = '\0';
+        sprintf(theme_path, THEMES_DIR "/%s/", basename(src));
+        {
+            char *argv[] = {"sh", script, src, NULL};
+            process_exec_path("/bin/sh", argv, true);
+        }
         sync();
     }
 
