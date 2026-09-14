@@ -151,7 +151,8 @@ void displaySavingMessage(void)
 {
     if (temp_flag_get(".displaySavingMessage")) {
         temp_flag_set(".displaySavingMessage", false);
-        system("infoPanel --message \"SAVING\" --persistent --romscreen &");
+        char *argv[] = {"--message", "SAVING", "--persistent", "--romscreen", NULL};
+        process_run("infoPanel", argv, NULL, false);
         temp_flag_set("dismiss_info_panel", true);
     }
 }
@@ -198,7 +199,15 @@ void action_RA_gameSwitcher(void)
         return;
     set_gameSwitcher();
     retroarch_pause();
-    system("(gameSwitcher --overlay && touch /tmp/state_changed) &");
+    {
+        pid_t bg = fork();
+        if (bg == 0) {
+            char *argv[] = {"--overlay", NULL};
+            process_run("gameSwitcher", argv, NULL, true);
+            temp_flag_set("state_changed", true);
+            _exit(0);
+        }
+    }
     system_state_update();
 }
 
