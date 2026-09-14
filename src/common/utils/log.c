@@ -2,6 +2,8 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "./file.h"
 #include "./str.h"
@@ -14,14 +16,29 @@ void log_setName(const char *log_name)
     mkdirs("/mnt/SDCARD/.tmp_update/logs");
 }
 
+void log_setPath(const char *full_path)
+{
+    if (full_path == NULL) {
+        _log_path[0] = '\0';
+        return;
+    }
+    snprintf(_log_path, sizeof(_log_path), "%s", full_path);
+}
+
 void log_debug(const char *file_path, int line, const char *format_str, ...)
 {
     char log_message[1024];
+    int n;
 
     va_list valist;
     va_start(valist, format_str);
-    sprintf(log_message, "%s:%d>\t", file_path, line);
-    vsprintf(log_message + strlen(log_message), format_str, valist);
+    n = snprintf(log_message, sizeof(log_message), "%s:%d>\t",
+                 file_path ? file_path : "?", line);
+    if (n < 0)
+        n = 0;
+    if ((size_t)n < sizeof(log_message))
+        vsnprintf(log_message + n, sizeof(log_message) - (size_t)n, format_str,
+                  valist);
     va_end(valist);
 
     fprintf(stderr, "%s", log_message);

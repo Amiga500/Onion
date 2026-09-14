@@ -26,6 +26,15 @@ UNIT_PROCESS_SRC = $(ROOT_DIR)/test/test_process.c \
 	$(ROOT_DIR)/src/common/utils/log.c
 UNIT_STATE_SRC = $(ROOT_DIR)/test/test_state.c
 UNIT_STR_SEC_SRC = $(ROOT_DIR)/test/test_str_security.c $(ROOT_DIR)/src/common/utils/str.c
+UNIT_LOG_SRC = $(ROOT_DIR)/test/test_log.c \
+	$(ROOT_DIR)/src/common/utils/log.c \
+	$(ROOT_DIR)/src/common/utils/file.c \
+	$(ROOT_DIR)/src/common/utils/str.c
+UNIT_CONFIG_SRC = $(ROOT_DIR)/test/test_config.c \
+	$(ROOT_DIR)/src/common/utils/file.c \
+	$(ROOT_DIR)/src/common/utils/str.c \
+	$(ROOT_DIR)/src/common/utils/log.c
+UNIT_CONFIG_CFLAGS = $(UNIT_CFLAGS) -DCONFIG_PATH=\"/tmp/onion_unit_config/\"
 
 .PHONY: unit-test unit-test-asan unit-test-clean check-no-system
 
@@ -48,6 +57,8 @@ unit-test: check-no-system
 	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_process $(UNIT_PROCESS_SRC)
 	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_state $(UNIT_STATE_SRC)
 	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_str_security $(UNIT_STR_SEC_SRC)
+	$(CC) $(UNIT_CFLAGS) -o $(UNIT_BUILD)/test_log $(UNIT_LOG_SRC)
+	$(CC) $(UNIT_CONFIG_CFLAGS) -o $(UNIT_BUILD)/test_config $(UNIT_CONFIG_SRC)
 	@echo
 	@$(UNIT_BUILD)/test_str
 	@$(UNIT_BUILD)/test_file
@@ -57,6 +68,8 @@ unit-test: check-no-system
 	@$(UNIT_BUILD)/test_process
 	@$(UNIT_BUILD)/test_state
 	@$(UNIT_BUILD)/test_str_security
+	@$(UNIT_BUILD)/test_log
+	@$(UNIT_BUILD)/test_config
 	@echo
 	@echo "unit-test: all host suites passed"
 

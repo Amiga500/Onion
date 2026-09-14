@@ -16,6 +16,7 @@
 #endif
 
 void log_setName(const char *log_name);
+void log_setPath(const char *full_path);
 void log_debug(const char *filename, int line, const char *format_str, ...);
 
 #endif // LOG_H__
