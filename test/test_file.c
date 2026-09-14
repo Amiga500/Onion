@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 static char g_tmp[256];
@@ -374,6 +375,44 @@ TEST(remove_tree_and_children)
     ASSERT_FALSE(is_dir(root));
 }
 
+TEST(isModified_updates_mtime)
+{
+    char path[512];
+    time_t mt = 0;
+    join(path, sizeof(path), "mtime.txt");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("a", fp);
+    fclose(fp);
+    ASSERT_TRUE(file_isModified(path, &mt));
+    ASSERT_TRUE(mt > 0);
+    ASSERT_FALSE(file_isModified(path, &mt));
+}
+
+TEST(readLastLine_picks_last_nonempty)
+{
+    char path[512], out[256];
+    join(path, sizeof(path), "last.txt");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("one\ntwo\nthree\n", fp);
+    fclose(fp);
+    out[0] = '\0';
+    file_readLastLine(path, out);
+    ASSERT_STREQ(out, "three");
+}
+
+TEST(open_ensure_path_creates_parents)
+{
+    char path[512];
+    join(path, sizeof(path), "ens/ured/f.txt");
+    FILE *fp = file_open_ensure_path(path, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("ok", fp);
+    fclose(fp);
+    ASSERT_TRUE(is_file(path));
+}
+
 int main(void)
 {
     printf("\n=== file.c unit tests ===\n\n");
@@ -407,6 +446,9 @@ int main(void)
     RUN_TEST(add_line_to_beginning);
     RUN_TEST(copy_tree_and_move_children);
     RUN_TEST(remove_tree_and_children);
+    RUN_TEST(isModified_updates_mtime);
+    RUN_TEST(readLastLine_picks_last_nonempty);
+    RUN_TEST(open_ensure_path_creates_parents);
 
     teardown_tmp();
     return onion_test_report("test_file");
