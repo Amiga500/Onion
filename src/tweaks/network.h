@@ -209,15 +209,15 @@ void network_setState(bool *state_ptr, const char *flag_name, bool value)
 void network_execServiceState(const char *service_name, bool background)
 {
     char state[256];
-    char command[512];
 
     sync();
 
     sprintf(state, NET_SCRIPT_PATH "/update_networking.sh %s toggle", service_name);
-    sprintf(command, "%s 2>&1", state);
-    if (background)
-        strcat(command, " &");
-    system(command);
+    {
+        char script[] = NET_SCRIPT_PATH "/update_networking.sh";
+        char *argv[] = {"sh", script, (char *)service_name, "toggle", NULL};
+        process_exec_path("/bin/sh", argv, !background);
+    }
 
     printf_debug("network_execServiceState: %s\n", state);
 }
@@ -225,14 +225,15 @@ void network_execServiceState(const char *service_name, bool background)
 void network_execServiceAuth(const char *service_name)
 {
     char authed[256];
-    char command[512];
 
     sync();
 
     sprintf(authed, NET_SCRIPT_PATH "/update_networking.sh %s authed", service_name);
-    sprintf(command, "%s 2>&1", authed);
-
-    system(command);
+    {
+        char script[] = NET_SCRIPT_PATH "/update_networking.sh";
+        char *argv[] = {"sh", script, (char *)service_name, "authed", NULL};
+        process_exec_path("/bin/sh", argv, true);
+    }
 
     printf_debug("network_execServiceAuth: %s\n", authed);
 }
@@ -331,7 +332,11 @@ void network_setSshAuthState(void *pt)
 
 void network_wpsConnect(void *pt)
 {
-    system("sh " NET_SCRIPT_PATH "/wpsclient.sh");
+    {
+        char script[] = NET_SCRIPT_PATH "/wpsclient.sh";
+        char *argv[] = {"sh", script, NULL};
+        process_exec_path("/bin/sh", argv, true);
+    }
 }
 
 void network_setTzManualState(void *pt)
@@ -377,20 +382,17 @@ void network_setTzSelectState(void *pt)
 
 void network_toggleVNC(void *pt)
 {
-    char command_start[STR_MAX];
-    char command_stop[STR_MAX];
-
     int new_fps = (int)network_state.vncfps;
-
-    sprintf(command_start, "/mnt/SDCARD/.tmp_update/bin/vncserver -k /dev/input/event0 -F %d -r 180 > /dev/null 2>&1 &", new_fps);
-    sprintf(command_stop, "killall -9 vncserver");
 
     if (!network_state.vncserv) {
         network_state.vncserv = true;
         network_setState(&network_state.vncserv, ".vncServer", true);
         reset_menus = true;
         if (!process_isRunning("vncserver")) {
-            system(command_start);
+            char fps[16];
+            char *argv[] = {"-k", "/dev/input/event0", "-F", fps, "-r", "180", NULL};
+            snprintf(fps, sizeof(fps), "%d", new_fps);
+            process_run("vncserver", argv, NULL, false);
         }
     }
     else {
@@ -398,7 +400,7 @@ void network_toggleVNC(void *pt)
         network_setState(&network_state.vncserv, ".vncServer", false);
         reset_menus = true;
         if (process_isRunning("vncserver")) {
-            system(command_stop);
+            process_killall("vncserver");
         }
     }
 }
