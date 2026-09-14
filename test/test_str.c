@@ -91,6 +91,18 @@ TEST(trim_already_clean)
     ASSERT_EQ(n, 5);
 }
 
+TEST(trim_whitespace_only)
+{
+    char in[8];
+    char out[8];
+    memset(in, 0, sizeof(in));
+    memcpy(in, "   ", 3);
+    out[0] = 'x';
+    size_t n = str_trim(out, sizeof(out), in, false);
+    ASSERT_STREQ(out, "");
+    ASSERT_EQ(n, 1);
+}
+
 TEST(trim_zero_len)
 {
     char out[8] = "keep";
@@ -190,6 +202,7 @@ int main(void)
     RUN_TEST(replace_null_with_is_empty);
     RUN_TEST(trim_spaces_first_false);
     RUN_TEST(trim_already_clean);
+    RUN_TEST(trim_whitespace_only);
     RUN_TEST(trim_zero_len);
     RUN_TEST(endsWith_true);
     RUN_TEST(endsWith_false);

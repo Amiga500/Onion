@@ -93,8 +93,8 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
     size_t out_size;
     bool is_string = false;
 
-    // Trim leading space
-    while (strchr("\r\n\t {},", (unsigned char)*str) != NULL)
+    // Trim leading space (stop at NUL: strchr(set, 0) is non-NULL)
+    while (*str && strchr("\r\n\t {},", (unsigned char)*str) != NULL)
         str++;
 
     end = str + 1;
@@ -102,7 +102,7 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
     if ((unsigned char)*str == '"') {
         is_string = true;
         str++;
-        while (strchr("\r\n\"", (unsigned char)*end) == NULL)
+        while (*end && strchr("\r\n\"", (unsigned char)*end) == NULL)
             end++;
     }
 
@@ -114,7 +114,7 @@ size_t str_trim(char *out, size_t len, const char *str, bool first)
 
     // Trim trailing space
     if (first)
-        while (strchr("\r\n\t {},", (unsigned char)*end) == NULL)
+        while (*end && strchr("\r\n\t {},", (unsigned char)*end) == NULL)
             end++;
     else {
         end = str + strlen(str) - 1;

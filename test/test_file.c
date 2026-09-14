@@ -267,6 +267,36 @@ TEST(copy_path_with_spaces)
     free(s);
 }
 
+TEST(changeKeyValue_uses_sidecar_tmp)
+{
+    char path[512];
+    join(path, sizeof(path), "kv.txt");
+    FILE *fp = fopen(path, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("name=old\n", fp);
+    fclose(fp);
+    file_changeKeyValue(path, "name", "name=new");
+    char *s = file_read(path);
+    ASSERT_NOT_NULL(s);
+    ASSERT_TRUE(strstr(s, "name=new") != NULL);
+    free(s);
+    ASSERT_FALSE(exists("temp"));
+}
+
+TEST(delete_line_uses_sidecar_tmp)
+{
+    char path[512];
+    join(path, sizeof(path), "lines2.txt");
+    FILE *fp = fopen(path, "w");
+    fputs("a\nb\nc\n", fp);
+    fclose(fp);
+    file_delete_line(path, 2);
+    char *s = file_read(path);
+    ASSERT_STREQ(s, "a\nc\n");
+    free(s);
+    ASSERT_FALSE(exists("temp.txt"));
+}
+
 int main(void)
 {
     printf("\n=== file.c unit tests ===\n\n");
@@ -294,6 +324,8 @@ int main(void)
     RUN_TEST(read_lineN);
     RUN_TEST(copy_and_findNewest);
     RUN_TEST(copy_path_with_spaces);
+    RUN_TEST(changeKeyValue_uses_sidecar_tmp);
+    RUN_TEST(delete_line_uses_sidecar_tmp);
 
     teardown_tmp();
     return onion_test_report("test_file");

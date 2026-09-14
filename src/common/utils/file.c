@@ -318,10 +318,17 @@ void file_changeKeyValue(const char *file_path, const char *key,
     size_t len = 0;
     ssize_t read;
 
+    char tmp_path[PATH_MAX];
+
     fp = fopen(file_path, "r");
-    cp = fopen("temp", "w+");
     if (fp == NULL)
-        exit(EXIT_FAILURE);
+        return;
+    snprintf(tmp_path, sizeof(tmp_path), "%s.onion.tmp", file_path);
+    cp = fopen(tmp_path, "w+");
+    if (cp == NULL) {
+        fclose(fp);
+        return;
+    }
 
     int key_len = strlen(key);
     int line_idx = 0, line_len;
@@ -361,7 +368,7 @@ void file_changeKeyValue(const char *file_path, const char *key,
         free(line);
 
     remove(file_path);
-    rename("temp", file_path);
+    rename(tmp_path, file_path);
 }
 
 bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
@@ -472,7 +479,9 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    FILE *tempFile = fopen("temp.txt", "w");
+    char tmp_path[PATH_MAX];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.onion.tmp", fileName);
+    FILE *tempFile = fopen(tmp_path, "w");
     if (tempFile == NULL) {
         fclose(file);
         print_debug("Error creating temporary file");
@@ -497,7 +506,7 @@ void file_delete_line(const char *fileName, int n)
         return;
     }
 
-    if (rename("temp.txt", fileName) != 0) {
+    if (rename(tmp_path, fileName) != 0) {
         print_debug("Error renaming temporary file");
         return;
     }
@@ -512,10 +521,8 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
         print_debug("Error opening the file");
         return;
     }
-    char tempPath[STR_MAX];
-    char *path = file_dirname(filename);
-    sprintf(tempPath, "%s/temp.txt", path);
-    free(path);
+    char tempPath[PATH_MAX];
+    snprintf(tempPath, sizeof(tempPath), "%s.onion.tmp", filename);
 
     FILE *tempFile = fopen(tempPath, "w");
     if (tempFile == NULL) {
