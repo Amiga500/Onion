@@ -64,21 +64,45 @@ const char *file_basename(const char *filename)
 }
 
 /**
- * @brief Create directories in dir_path using `mkdir -p` command.
+ * @brief Create directories in dir_path (mkdir -p, no shell).
  *
- * @param dir_path The full directory path.
- * @return true If the path didn't exist (dirs were created).
- * @return false If the path exists (no dirs were created).
+ * @return true If the path didn't exist and was created.
+ * @return false If the path already existed, or creation failed.
  */
 bool mkdirs(const char *dir_path)
 {
-    if (!exists(dir_path)) {
-        char dir_cmd[512];
-        sprintf(dir_cmd, "mkdir -p \"%s\"", dir_path);
-        system(dir_cmd);
-        return true;
+    char tmp[PATH_MAX];
+    size_t len;
+    size_t i;
+
+    if (dir_path == NULL || dir_path[0] == '\0')
+        return false;
+    if (exists(dir_path))
+        return false;
+
+    len = strlen(dir_path);
+    if (len >= sizeof(tmp))
+        return false;
+    memcpy(tmp, dir_path, len + 1);
+    if (tmp[len - 1] == '/')
+        tmp[len - 1] = '\0';
+
+    for (i = 1; tmp[i]; i++) {
+        if (tmp[i] != '/')
+            continue;
+        tmp[i] = '\0';
+        if (!exists(tmp)) {
+            if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
+                tmp[i] = '/';
+                return false;
+            }
+        }
+        tmp[i] = '/';
     }
-    return false;
+
+    if (mkdir(tmp, 0755) != 0 && errno != EEXIST)
+        return false;
+    return is_dir(dir_path);
 }
 
 void file_readLastLine(const char *filename, char *out_str)
@@ -155,9 +179,28 @@ bool file_write(const char *path, const char *str, uint32_t len)
 
 void file_copy(const char *src_path, const char *dest_path)
 {
-    char system_cmd[4128];
-    snprintf(system_cmd, sizeof(system_cmd), "cp -f \"%s\" \"%s\"", src_path, dest_path);
-    system(system_cmd);
+    FILE *in;
+    FILE *out;
+    char buf[8192];
+    size_t n;
+
+    if (src_path == NULL || dest_path == NULL)
+        return;
+
+    in = fopen(src_path, "rb");
+    if (!in)
+        return;
+    out = fopen(dest_path, "wb");
+    if (!out) {
+        fclose(in);
+        return;
+    }
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+        if (fwrite(buf, 1, n, out) != n)
+            break;
+    }
+    fclose(out);
+    fclose(in);
 }
 
 char *file_removeExtension(const char *myStr)

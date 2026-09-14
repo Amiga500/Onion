@@ -70,6 +70,12 @@ TEST(mkdirs_creates_then_false)
     ASSERT_FALSE(mkdirs(dir));
 }
 
+TEST(mkdirs_null_or_empty)
+{
+    ASSERT_FALSE(mkdirs(NULL));
+    ASSERT_FALSE(mkdirs(""));
+}
+
 TEST(file_read_missing_is_null)
 {
     char path[512];
@@ -246,6 +252,21 @@ TEST(copy_and_findNewest)
     ASSERT_STREQ(newest, "second.bin");
 }
 
+TEST(copy_path_with_spaces)
+{
+    char src[512], dst[512];
+    join(src, sizeof(src), "my file.bin");
+    join(dst, sizeof(dst), "copy of file.bin");
+    FILE *fp = fopen(src, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("xyz", fp);
+    fclose(fp);
+    file_copy(src, dst);
+    char *s = file_read(dst);
+    ASSERT_STREQ(s, "xyz");
+    free(s);
+}
+
 int main(void)
 {
     printf("\n=== file.c unit tests ===\n\n");
@@ -254,6 +275,7 @@ int main(void)
     RUN_TEST(exists_and_types);
     RUN_TEST(basename_gnu_style);
     RUN_TEST(mkdirs_creates_then_false);
+    RUN_TEST(mkdirs_null_or_empty);
     RUN_TEST(file_read_missing_is_null);
     RUN_TEST(file_read_empty_is_allocated_empty_string);
     RUN_TEST(file_read_content);
@@ -271,6 +293,7 @@ int main(void)
     RUN_TEST(resolvePath_null);
     RUN_TEST(read_lineN);
     RUN_TEST(copy_and_findNewest);
+    RUN_TEST(copy_path_with_spaces);
 
     teardown_tmp();
     return onion_test_report("test_file");
