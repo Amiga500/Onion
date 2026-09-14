@@ -130,10 +130,91 @@ int findFoldersWithShortname(char *disk_path, char matching_folders[][256], int 
 
 
 
-int sortFileLines(const char* filename) {
-    char cmd[STR_MAX];
-    snprintf(cmd, STR_MAX, "awk '$1' %s | sort -uk 1 -o %s", filename, filename);
-    return system(cmd);
+static int first_field_cmp(const void *a, const void *b)
+{
+    const char *sa = *(char *const *)a;
+    const char *sb = *(char *const *)b;
+    while (*sa && *sb && *sa != ' ' && *sa != '\t' && *sa != '\n' &&
+           *sb != ' ' && *sb != '\t' && *sb != '\n' && *sa == *sb) {
+        sa++;
+        sb++;
+    }
+    {
+        char ca = (*sa && *sa != ' ' && *sa != '\t' && *sa != '\n') ? *sa : '\0';
+        char cb = (*sb && *sb != ' ' && *sb != '\t' && *sb != '\n') ? *sb : '\0';
+        return (unsigned char)ca - (unsigned char)cb;
+    }
+}
+
+int sortFileLines(const char *filename)
+{
+    FILE *fp;
+    char **lines = NULL;
+    size_t n = 0, cap = 0, i;
+    char buf[MAX_LINE_LEN];
+    char tmp[STR_MAX + 16];
+
+    fp = fopen(filename, "r");
+    if (!fp)
+        return -1;
+    while (fgets(buf, sizeof(buf), fp)) {
+        char *p = buf;
+        while (*p == ' ' || *p == '\t')
+            p++;
+        if (*p == '\0' || *p == '\n')
+            continue;
+        if (n == cap) {
+            size_t ncap = cap ? cap * 2 : 256;
+            char **nl = realloc(lines, ncap * sizeof(*lines));
+            if (!nl) {
+                fclose(fp);
+                while (n--)
+                    free(lines[n]);
+                free(lines);
+                return -1;
+            }
+            lines = nl;
+            cap = ncap;
+        }
+        lines[n] = strdup(buf);
+        if (!lines[n]) {
+            fclose(fp);
+            while (n--)
+                free(lines[n]);
+            free(lines);
+            return -1;
+        }
+        n++;
+    }
+    fclose(fp);
+
+    qsort(lines, n, sizeof(*lines), first_field_cmp);
+
+    snprintf(tmp, sizeof(tmp), "%s.onion.tmp", filename);
+    fp = fopen(tmp, "w");
+    if (!fp) {
+        for (i = 0; i < n; i++)
+            free(lines[i]);
+        free(lines);
+        return -1;
+    }
+    for (i = 0; i < n; i++) {
+        if (i > 0 && first_field_cmp(&lines[i], &lines[i - 1]) == 0) {
+            free(lines[i]);
+            continue;
+        }
+        fputs(lines[i], fp);
+        free(lines[i]);
+    }
+    free(lines);
+    fclose(fp);
+    if (remove(filename) != 0) {
+        remove(tmp);
+        return -1;
+    }
+    if (rename(tmp, filename) != 0)
+        return -1;
+    return 0;
 }
 
 int endsWith(const char *str, const char *suffix) {
