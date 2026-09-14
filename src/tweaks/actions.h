@@ -1,6 +1,9 @@
 #ifndef TWEAKS_ACTIONS_H__
 #define TWEAKS_ACTIONS_H__
 
+#include <dirent.h>
+#include <string.h>
+
 #include "components/list.h"
 #include "system/axp.h"
 #include "system/osd.h"
@@ -12,11 +15,20 @@
 #include "utils/config.h"
 #include "utils/file.h"
 #include "utils/msleep.h"
+#include "utils/process.h"
 
 #include "./appstate.h"
 #include "./diags.h"
 #include "./reset.h"
 #include "./values.h"
+
+static bool tweaks_run_script(const char *script, const char *arg, bool await)
+{
+    char path[256];
+    snprintf(path, sizeof(path), "/mnt/SDCARD/.tmp_update/script/%s", script);
+    char *argv[] = {"sh", path, (char *)arg, NULL};
+    return process_exec_path("/bin/sh", argv, await);
+}
 
 void action_setAppShortcut(void *pt)
 {
@@ -63,11 +75,11 @@ void action_blueLight(void *pt)
     blf_changing = true;
 
     if (settings.blue_light_state || exists("/tmp/.blfOn")) {
-        system("/mnt/SDCARD/.tmp_update/script/blue_light.sh set_default &");
+        tweaks_run_script("blue_light.sh", "set_default", false);
         remove("/tmp/.blfOn");
     }
     else {
-        system("/mnt/SDCARD/.tmp_update/script/blue_light.sh enable &");
+        tweaks_run_script("blue_light.sh", "enable", false);
     }
 
     settings.blue_light_state = ((ListItem *)pt)->value;
@@ -89,7 +101,7 @@ void action_blueLightLevel(void *pt)
     config_setNumber("display/blueLightLevel", item->value);
 
     if (settings.blue_light_state || exists("/tmp/.blfOn")) {
-        system("/mnt/SDCARD/.tmp_update/script/blue_light.sh set_intensity &");
+        tweaks_run_script("blue_light.sh", "set_intensity", false);
     }
 }
 
@@ -103,12 +115,12 @@ void action_blueLightSchedule(void *pt)
     config_flag_set(".blf", settings.blue_light_schedule);
 
     if (item->value == 0) {
-        system("/mnt/SDCARD/.tmp_update/script/blue_light.sh set_default &");
+        tweaks_run_script("blue_light.sh", "set_default", false);
         settings.blue_light_state = 0;
         remove("/tmp/.blfOn");
     }
     else {
-        system("/mnt/SDCARD/.tmp_update/script/blue_light.sh check &"); // check if we're within the time values and start now
+        tweaks_run_script("blue_light.sh", "check", false);
         remove("/tmp/.blfIgnoreSchedule");
     }
 
@@ -413,8 +425,8 @@ void action_toggleScreenRecHotkey(void *pt)
 void action_hardKillFFmpeg(void *pt)
 {
     ListItem *item = (ListItem *)pt;
-    int status = system("/mnt/SDCARD/.tmp_update/script/screen_recorder.sh hardkill");
-    if (status != 0) {
+    bool status = tweaks_run_script("screen_recorder.sh", "hardkill", true);
+    if (!status) {
         list_updateStickyNote(item, "Status: Error occurred.");
     }
     else {
@@ -434,7 +446,7 @@ void action_deleteAllRecordings(void *pt)
             return;
         }
         else {
-            system("/mnt/SDCARD/.tmp_update/script/screen_recorder.sh hardkill &");
+            tweaks_run_script("screen_recorder.sh", "hardkill", false);
             strncpy(_menu_screen_recorder.items[0].sticky_note, "Status: Idle.", sizeof(_menu_screen_recorder.items[0].sticky_note) - 1);
             _menu_screen_recorder.items[0].sticky_note[sizeof(_menu_screen_recorder.items[0].sticky_note) - 1] = '\0';
         }
@@ -446,7 +458,22 @@ void action_deleteAllRecordings(void *pt)
         }
     }
 
-    system("rm -f /mnt/SDCARD/Media/Videos/Recorded/*.mp4");
+    {
+        DIR *dp = opendir("/mnt/SDCARD/Media/Videos/Recorded");
+        if (dp) {
+            struct dirent *ep;
+            while ((ep = readdir(dp))) {
+                size_t n = strlen(ep->d_name);
+                if (n > 4 && strcmp(ep->d_name + n - 4, ".mp4") == 0) {
+                    char p[512];
+                    snprintf(p, sizeof(p), "/mnt/SDCARD/Media/Videos/Recorded/%s",
+                             ep->d_name);
+                    remove(p);
+                }
+            }
+            closedir(dp);
+        }
+    }
     list_updateStickyNote(item, "Recorded directory emptied!");
     if (!_disable_confirm)
         _notifyResetDone("Deleted!");
