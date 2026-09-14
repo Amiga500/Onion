@@ -13,6 +13,14 @@
         strcat(ptr, str2);      \
     }
 
+static inline void concat_n(char *dst, size_t dst_size, const char *a,
+                            const char *b)
+{
+    if (dst == NULL || dst_size == 0)
+        return;
+    snprintf(dst, dst_size, "%s%s", a ? a : "", b ? b : "");
+}
+
 bool str_getLastNumber(char *str, long *out_val);
 char *str_split(char *str, const char *delim);
 char *str_replace(char *orig, char *rep, char *with);

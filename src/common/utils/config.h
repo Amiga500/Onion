@@ -30,7 +30,7 @@ bool config_get(const char *key, const char *format, void *dest)
     FILE *fp;
 
     char filename[STR_MAX];
-    concat(filename, CONFIG_PATH, key);
+    concat_n(filename, sizeof(filename), CONFIG_PATH, key);
 
     if (exists(filename)) {
         file_get(fp, filename, format, dest);
@@ -42,7 +42,7 @@ bool config_get(const char *key, const char *format, void *dest)
 
 void _config_prepare(const char *key, char *filename)
 {
-    concat(filename, CONFIG_PATH, key);
+    concat_n(filename, STR_MAX, CONFIG_PATH, key);
 
     char dir_path[STR_MAX];
     strcpy(dir_path, filename);

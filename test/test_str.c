@@ -174,6 +174,27 @@ TEST(includeCJK_null)
     ASSERT_FALSE(includeCJK(NULL));
 }
 
+TEST(concat_n_joins)
+{
+    char buf[16];
+    concat_n(buf, sizeof(buf), "foo", "bar");
+    ASSERT_STREQ(buf, "foobar");
+}
+
+TEST(concat_n_truncates)
+{
+    char buf[5];
+    concat_n(buf, sizeof(buf), "foo", "bar");
+    ASSERT_STREQ(buf, "foob");
+}
+
+TEST(concat_n_null_parts)
+{
+    char buf[8];
+    concat_n(buf, sizeof(buf), NULL, "x");
+    ASSERT_STREQ(buf, "x");
+}
+
 TEST(includeCJK_ascii)
 {
     char buf[] = "Mario";
@@ -217,5 +238,8 @@ int main(void)
     RUN_TEST(includeCJK_ascii);
     RUN_TEST(includeCJK_high_bit);
     RUN_TEST(includeCJK_null);
+    RUN_TEST(concat_n_joins);
+    RUN_TEST(concat_n_truncates);
+    RUN_TEST(concat_n_null_parts);
     return onion_test_report("test_str");
 }
