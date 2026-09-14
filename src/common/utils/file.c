@@ -280,6 +280,9 @@ char *file_parseKeyValue(const char *file_path, const char *key_in,
     sprintf(search_str, "%%255[^%c]%c%%255[^\n]\n", divider, divider);
     int match_index = 0;
 
+    if (file_path == NULL || key_in == NULL || value_out == NULL)
+        return NULL;
+
     *value_out = 0;
     if ((fp = fopen(file_path, "r"))) {
         key[0] = 0;

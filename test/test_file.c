@@ -206,6 +206,22 @@ TEST(parseKeyValue)
     ASSERT_STREQ(val, "gpsp");
 }
 
+TEST(parseKeyValue_missing_and_null)
+{
+    char path[512];
+    join(path, sizeof(path), "cfg2.txt");
+    FILE *fp = fopen(path, "w");
+    fputs("a=1\na=2\n", fp);
+    fclose(fp);
+    char val[256];
+    val[0] = 'x';
+    ASSERT_NULL(file_parseKeyValue(path, "nope", val, '=', 0));
+    ASSERT_NULL(file_parseKeyValue(NULL, "a", val, '=', 0));
+    char *second = file_parseKeyValue(path, "a", val, '=', 1);
+    ASSERT_NOT_NULL(second);
+    ASSERT_STREQ(val, "2");
+}
+
 TEST(resolvePath_dotdot)
 {
     char *s = file_resolvePath("/mnt/SDCARD/Emu/GBA/../../Roms/GBA/game.gba");
@@ -333,6 +349,7 @@ int main(void)
     RUN_TEST(getExtension);
     RUN_TEST(cleanName_strips_region);
     RUN_TEST(parseKeyValue);
+    RUN_TEST(parseKeyValue_missing_and_null);
     RUN_TEST(resolvePath_dotdot);
     RUN_TEST(resolvePath_null);
     RUN_TEST(read_lineN);

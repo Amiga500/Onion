@@ -109,29 +109,36 @@ bool process_start(const char *pname, const char *args, const char *home,
     return true;
 }
 
-bool process_start_read_return(const char *cmdline, char *out_str)
+int process_start_read_return(const char *cmdline, char *out_str)
 {
     char buffer[255] = "";
     char *result = NULL;
 
+    if (cmdline == NULL || out_str == NULL)
+        return -1;
+
     FILE *pipe = popen(cmdline, "r");
     if (pipe == NULL) {
         fprintf(stderr, "Error executing command: %s\n", cmdline);
+        out_str[0] = '\0';
         return -1;
     }
 
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        free(result);
         result = strdup(buffer);
     }
 
     pclose(pipe);
     if (result != NULL) {
-        result[strlen(buffer) - 1] = '\0';
+        size_t n = strlen(result);
+        if (n > 0 && result[n - 1] == '\n')
+            result[n - 1] = '\0';
         strcpy(out_str, result);
         free(result);
     }
     else {
-        strcpy(out_str, "");
+        out_str[0] = '\0';
     }
     return 0;
 }
