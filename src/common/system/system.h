@@ -3,9 +3,13 @@
 
 #include <fcntl.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "clock.h"
 #include "utils/flags.h"
+#include "utils/process.h"
 
 // system directories
 #define GPIO_DIR1 "/sys/class/gpio/"
@@ -44,28 +48,18 @@ void system_powersave(bool enabled)
     FILE *fp;
 
     if (enabled) {
-        char buffer[128];
-        FILE *pipe = popen("cpuclock", "r");
+        char buffer[128] = "";
+        process_start_read_return("cpuclock", buffer);
+        saved_min_freq = (uint32_t)atoi(buffer);
 
-        if (pipe) {
-            while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-                saved_min_freq = atoi(buffer);
-            }
-        }
-
-        pclose(pipe);
-
-        // save values for restoring later
         file_get(fp, CPU_SCALING_GOVERNOR, "%15s", saved_governor);
-        // set powersaving values
         file_put(fp, CPU_SCALING_MIN_FREQ, "%u", 0);
         file_put(fp, CPU_SCALING_GOVERNOR, "%s", "powersave");
     }
     else {
-        // restore
-        char sCommand[15];
-        sprintf(sCommand, "cpuclock %u", saved_min_freq);
-        system(sCommand);
+        char arg[16];
+        snprintf(arg, sizeof(arg), "%u", saved_min_freq);
+        process_start("cpuclock", arg, NULL, true);
         file_put(fp, CPU_SCALING_GOVERNOR, "%s", saved_governor);
     }
 }
