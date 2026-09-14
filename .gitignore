@@ -4,6 +4,7 @@
 /src/**/*.log
 /build/
 /build_test/
+/build_unit/
 /release/
 /dist/
 temp/
