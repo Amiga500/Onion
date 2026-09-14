@@ -8,6 +8,7 @@
 #include "theme/render/dialog.h"
 #include "theme/sound.h"
 #include "utils/file.h"
+#include "utils/process.h"
 
 #include "./appstate.h"
 
@@ -79,7 +80,11 @@ void action_resetTweaks(void *pt)
     rename(RESET_CONFIGS_PAK, "/mnt/SDCARD/.tmp_update/temp");
     file_remove_tree("/mnt/SDCARD/.tmp_update/config");
     mkdirs("/mnt/SDCARD/.tmp_update/config");
-    system("7z x /mnt/SDCARD/.tmp_update/temp -o/mnt/SDCARD/ -ir!.tmp_update/config/*");
+    {
+        char *argv[] = {"x", "/mnt/SDCARD/.tmp_update/temp",
+                        "-o/mnt/SDCARD/", "-ir!.tmp_update/config/*", NULL};
+        process_run("7z", argv, NULL, true);
+    }
     rename("/mnt/SDCARD/.tmp_update/temp", RESET_CONFIGS_PAK);
     reset_menus = true;
     settings_load();
@@ -129,7 +134,11 @@ void action_resetRAMain(void *pt)
     const char title_str[] = "Reset RetroArch configuration";
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to reset\nRetroArch main configuration?"))
         return;
-    system("7z x -aoa " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!RetroArch/*");
+    {
+        char *argv[] = {"x", "-aoa", RESET_CONFIGS_PAK, "-o/mnt/SDCARD/",
+                        "-ir!RetroArch/*", NULL};
+        process_run("7z", argv, NULL, true);
+    }
     reset_menus = true;
     if (!_disable_confirm)
         _notifyResetDone(title_str);
@@ -141,7 +150,11 @@ void action_resetRACores(void *pt)
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to reset\nall RetroArch core overrides?"))
         return;
     file_remove_children("/mnt/SDCARD/Saves/CurrentProfile/config");
-    system("7z x " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!Saves/CurrentProfile/config/*");
+    {
+        char *argv[] = {"x", RESET_CONFIGS_PAK, "-o/mnt/SDCARD/",
+                        "-ir!Saves/CurrentProfile/config/*", NULL};
+        process_run("7z", argv, NULL, true);
+    }
     reset_menus = true;
     if (!_disable_confirm)
         _notifyResetDone(title_str);
@@ -152,7 +165,11 @@ void action_resetAdvanceMENU(void *pt)
     const char title_str[] = "Reset AdvanceMENU/MAME/MESS";
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset AdvanceMENU/MAME/MESS?"))
         return;
-    system("7z x -aoa " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!BIOS/.advance/*");
+    {
+        char *argv[] = {"x", "-aoa", RESET_CONFIGS_PAK, "-o/mnt/SDCARD/",
+                        "-ir!BIOS/.advance/*", NULL};
+        process_run("7z", argv, NULL, true);
+    }
     reset_menus = true;
     if (!_disable_confirm)
         _notifyResetDone(title_str);

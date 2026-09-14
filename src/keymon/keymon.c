@@ -189,7 +189,7 @@ void force_shutdown(void)
     system_clock_get();
     system_clock_save();
     sync();
-    system("shutdown");
+    process_run("shutdown", NULL, NULL, false);
     while (1)
         pause();
     exit(0);
