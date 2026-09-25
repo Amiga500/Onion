@@ -1,4 +1,11 @@
-# 🕹️ OnionPlus — Optimizations at a Glance
+# 🧅⚡ OnionPlus
+
+### The same Onion you know — with its hot paths rebuilt.
+
+OnionPlus is a fork of [OnionUI/Onion](https://github.com/OnionUI/Onion) (`4.4.0-beta`) for the
+Miyoo Mini, Mini+ and Mini Flip. It keeps Onion's look, menus, emulators and file layout,
+and reworks what runs underneath: **what happens every time you press a key, launch a
+game, go back to the menu, put the device to sleep, or change the volume.**
 
 [![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
 [![commits](https://img.shields.io/badge/commits-30-blueviolet?style=for-the-badge)](#-11--commit-timeline)
@@ -7,6 +14,7 @@
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
 [![tests](https://img.shields.io/badge/tests-1%2C423%20%2F%2071%2C436%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
+[![defects](https://img.shields.io/badge/upstream%20defects%20fixed-21-critical?style=for-the-badge)](#️-6--security--memory-hardening)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
 > 📡 **OnionPlus ships and updates itself over-the-air** — `ota_update.sh` checks
@@ -18,11 +26,25 @@
 
 ## 🗺️ Table of Contents
 
+**Why OnionPlus**
+
+| | Section |
+|:--|:--|
+| 📊 | [At a glance](#-at-a-glance) |
+| ✨ | [What you'll notice](#-what-youll-notice) |
+| 📱 | [Measured on a Miyoo Mini+](#-measured-on-a-miyoo-mini) |
+| ⏱️ | [Every action, before and after](#️-every-action-before-and-after) |
+| 🔌 | [Your settings survive power cuts](#-your-settings-survive-power-cuts) |
+| 🧠 | [Memory that stays free](#-memory-that-stays-free) |
+| 🔬 | [How these numbers were obtained](#-how-these-numbers-were-obtained) |
+
+**Technical reference**
+
 | | Section |
 |:--|:--|
 | 🎯 | [Why this document exists](#-why-this-document-exists) |
 | 🖼️ | [1 · Vectorized pixel paths (NEON)](#️-1--vectorized-pixel-paths-neon) |
-| ⚡ | [2 · Algorithmic wins (O(n²) → O(n))](#-2--algorithmic-wins-on--on) |
+| ⚡ | [2 · Algorithmic wins (O(n²) → O(n))](#-2--algorithmic-wins-on²--on) |
 | 🎨 | [3 · Rendering & UI caches](#-3--rendering--ui-caches) |
 | 🔋 | [4 · Power, battery & idle CPU](#-4--power-battery--idle-cpu) |
 | ⚙️ | [5 · Process & syscall diet](#️-5--process--syscall-diet) |
@@ -35,6 +57,241 @@
 | ✅ | [Final word](#-final-word) |
 
 ---
+
+## 📊 At a glance
+
+> 🟥🟧🟩 Counted from the code of both projects or measured — never estimated.
+
+Every number below is either **counted from the source code of both projects** or
+**measured** (on a Miyoo Mini+ or on a host machine), and says so. Nothing here is an estimate dressed up as a
+benchmark.
+
+| | ⚪ OnionUI/Onion | 🟢 **OnionPlus** | |
+|:--|--:|--:|:--|
+| 🧪 Automated tests | **1** | **1,423** (71,436 assertions) | 🚀 ×1,400 |
+| 🐛 Known upstream defects fixed | — | **21** | ✅ |
+| 🖼️ NEON (SIMD) pixel kernels | **0** | **8** | 🆕 |
+| 💾 Files written to the SD card per volume step | **~14** (13 `fsync`) | **1** | 🚀 **−93 %** |
+| 🧠 Memory leaked per MainUI-cache lookup (5,000-game cache) | **~570 KB + 1 file descriptor** | **0** | 📏 |
+| 🎮 Menu CPU while idle (GameSwitcher, Tweaks, Play Activity…) | **one core at 100 %** (busy loop) | **sleeps between frames** | 🚀 |
+| 🌙 Scheduled blue-light filter, every 15 s | **~20 processes + 2 global syncs** | **0** | 🚀 |
+| 🚀 Helper processes to parse a game launch | **~25** | **~2** | 🚀 **−90 %** |
+| 🔁 Global SD-card flushes per return to the menu | **2** | **1** | ⬇️ **−50 %** |
+| 📊 Opening Play Activity (60,000 sessions) | **66 ms** | **34 ms** | 📏 ⬇️ **−48 %** |
+| 🐚 `system()` calls in the C code | **73** | **46** | ⬇️ **−37 %** |
+| ⚠️ Unbounded string calls (`sprintf`/`strcpy`/`strcat`/`strtok`) | **347** | **235** | ⬇️ **−32 %** |
+| ⏱️ Onion's own work around one game (launch + exit + back to menu) | not instrumented | **~0.5 s** | 📱 |
+| ⚡ Onion's own settings files that survive a power cut mid-write | **none** | **all** (`system.json`, key map, config values, JSON, recents) | ✅ |
+
+> 📱 measured on a Miyoo Mini+ · 📏 measured on a host machine · everything else counted
+> from the code of both projects (see [how these numbers were obtained](#-how-these-numbers-were-obtained)).
+
+---
+
+## ✨ What you'll notice
+
+> 🟩 Things you see and feel on the device. Nothing to configure.
+
+- 🌡️ **Menus stop heating the device.** In stock Onion, the GameSwitcher, Tweaks, Play
+  Activity, Themes, Package Manager and Battery Monitor keep one CPU core at 100 % even
+  when you are just looking at them. OnionPlus sleeps until the next frame.
+- 💾 **Volume and brightness don't hammer the SD card.** One step used to rewrite about
+  fourteen files, each flushed to the card. Now it is one file, written 0.5 s after your
+  last press, safely.
+- 🔊 **Your volume is actually remembered.** In stock Onion a change is saved only on the
+  first key press after the next 15-second tick; switch off before that and it's gone.
+- 🧠 **The GameSwitcher doesn't eat memory.** Every recent game triggered a lookup that
+  leaked about half a megabyte on large collections. Fixed, and screenshots are now
+  decoded in the background with the neighbours preloaded.
+- 🌙 **No more freezes when the blue-light schedule kicks in.** Keymon used to run a script
+  every 15 seconds and ignore your keys while it ran — up to ~4 s during a transition.
+- 🔌 **Settings survive a dead battery.** `system.json`, the key map and every config file
+  are now written to a temporary file, flushed, and swapped in atomically.
+- 📋 **Your recent games list stays correct.** Stock Onion can delete the wrong entry from
+  the recents; with recents hidden, OnionPlus keeps your full GameSwitcher history.
+- 🚀 **Faster launches, faster returns.** Dozens of helper processes removed from the path
+  between pressing A and seeing the game, and between quitting and seeing the menu.
+
+---
+
+## 📱 Measured on a Miyoo Mini+
+
+> 🟦 Real numbers from a real device, taken with the built-in timing log.
+
+First on-device numbers from the built-in [timing log](#️-measuring-on-the-device):
+Miyoo Mini+ (640×480 panel), `runtime.sh` from `1592866e` on a `747d102a` build, logging on,
+NTP on. Three games (PlayStation, BS-X, Super Nintendo) launched from MainUI and quit from
+the RetroArch menu, then the GameSwitcher opened once.
+
+| Phase | Measured | What it covers |
+|:--|--:|:--|
+| 🐧 Kernel → Onion | 3 s | firmware and kernel, before any Onion code |
+| ⚙️ `boot_init` | 1.53 s | swap, settings, backlight, audio server, framebuffer |
+| 📶 `boot_network` | 3.34 s | Wi-Fi power-on (includes a fixed 2 s wait), services |
+| 🏁 `boot` | 5.51 s | Onion start → first menu |
+| 🎮 `game_prepare` | **0.17–0.18 s** | from pressing A to the emulator starting |
+| 🚪 `game_exit` | **0.12–0.27 s** | from quitting the emulator to the post-processing done |
+| 🏠 `mainui_prepare` | **0.04–0.18 s** | before MainUI starts (0.18 s only on the first return: battery icon drawn once per boot) |
+| ↩️ `mainui_return` | **0.06–0.10 s** | after MainUI exits |
+| 🔀 `switcher_prepare` | **0.02 s** | before the GameSwitcher starts |
+
+- ⏱️ **Onion's own work around a game is about half a second in total.** The rest of the wait is
+  RetroArch and the core loading the game, and MainUI starting, which is a closed binary.
+- 🔋 **The battery-icon cache works:** the icon is rendered on the first return after boot
+  (0.18 s) and skipped afterwards (0.11–0.13 s).
+- 📶 **The network was 61 % of Onion's boot**, almost entirely waiting for Wi-Fi, which nothing
+  at boot needs unless "Wait for sync on startup" is on. Moving it to the background is the
+  next change; this table will be updated with the new boot figure.
+- 🙋 Only one device and one session so far: **post your `timing.log`** (Mini, Mini v4, Flip
+  especially) in an issue to extend this table.
+
+---
+
+## ⏱️ Every action, before and after
+
+> 🟧 What the system does behind the scenes for each thing you do.
+
+What the system does behind the scenes, counted from the code of both projects.
+
+### 🔊 Pressing volume or brightness
+
+| | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| 📄 Files written | ~14 (12 config values + key map + `system.json`) | ✅ **1** (`system.json`, only fields that changed) |
+| 💾 `fsync` to the SD card | 13 | ✅ **1** |
+| 🗂️ Extra FAT metadata operations | 12 flags × create + delete, 5 deletes | ✅ **0** |
+| ⏲️ When it is saved | on the first key press **after** the next 15 s tick | ✅ **0.5 s after your last press** |
+| 🔁 After saving | keymon re-reads all its own settings, then flushes every filesystem | ✅ nothing |
+
+### ⌨️ Every key press (keymon)
+
+| | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| 💾 Global `sync()` after touching flags in `/tmp` (RAM) | yes | ✅ **no** |
+| 🔎 Config flags checked on the SD card | up to 3 `stat` calls | ✅ **0** (cached) |
+| ⚡ CPU-clock hotkey | spawns `cpuclock` twice, overflows a 5-byte buffer | ✅ **once, no overflow** |
+| 🐚 Shell spawns (`touch`, scripts, `playActivity`) | via `system()` | ✅ **direct `fork`/`exec`** |
+
+### 🌙 Every 15 seconds, with the blue-light schedule on
+
+| | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| ⚙️ Work done | runs `blue_light.sh check`: 2 global syncs, ~20 processes | ✅ **compares two times in C** |
+| ⌨️ Keys ignored while it runs | yes, up to ~4 s on a transition | ✅ **never** |
+
+### 🎮 Launching a game
+
+| | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| 🐚 Helper processes to parse the launch command | ~25 (`echo`, `grep`, `awk`, `sed`, `cut`, `basename`, `dirname`, `cat`) | ✅ **~2** |
+| 💾 `cmd_to_run.sh` rewritten on the SD card | **every launch** (a check that is always true) | ✅ only when the path contains `$` |
+| 🔊 Audio-server volume computed | every launch (3 processes) | ✅ only if the server isn't running |
+| 🗃️ Play-history cache query | full scan of the MainUI cache, every launch | ✅ **only for games never seen before** |
+| 📂 Play-history database opened | twice | ✅ **once**, indexed by path |
+| 🖥️ Mini+/Flip 560p check | 4–5 processes, command file read 2–3× | ✅ **0** |
+| 🔁 Global syncs in the main loop | 4 per loop | ✅ **1**, when a game or app exits |
+
+### 🏠 Returning to the menu
+
+| | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| 🔋 Battery icon | theme background decoded, icon rendered, PNG encoded and **written to the SD card, every time** | ✅ **skipped unless the theme or percentage changed** |
+| 💾 Global SD flushes | 2 | ✅ **1** |
+| 🔎 Checking which MainUI is mounted | ~6 processes | ✅ **0** |
+| 📄 Reading `system.json` (Wi-Fi ×2, theme) | 3 `jsonval` processes | ✅ **0** |
+| 🖥️ Mini+/Flip framebuffer probe parsing | 8 processes | ✅ **0** |
+
+### 😴 Sleep and wake
+
+| | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| 📊 Closing the play session | shell + full scan of the play history (one row per launch **and** per wake) | ✅ **no shell, indexed lookup, one transaction** |
+| ⏱️ Host timing at 60,000 sessions | 10.8 ms | ✅ **5.0 ms** 📏 |
+| 🧾 Process list parsing | breaks on names with spaces; one slot past the array | ✅ **robust parsing, bounded** |
+
+### 🌐 Leaving a game with SSH / FTP / Samba / HTTP / Telnet enabled
+
+| | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| 💾 Global syncs when services restart | up to 5 | ✅ **0** |
+| 📶 `jsonval` processes to read the Wi-Fi setting | 8–10 | ✅ **1** |
+
+### 🔁 Recent games list
+
+| | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| 🧹 Removing duplicates when the GameSwitcher opens | one full file rewrite **per duplicate** | ✅ **one rewrite total** |
+| ⚡ Quick switch (move a game to the top) | two full rewrites, a moment with no file at all | ✅ **one atomic rewrite** |
+| 🔢 Line numbering | three functions counting lines three different ways | ✅ **one way everywhere** |
+
+---
+
+## 🔌 Your settings survive power cuts
+
+> 🟥 A flat battery at the wrong moment used to cost you your settings.
+
+The Miyoo Mini has no battery-backed shutdown: a flat battery or a yanked cable can stop
+the system in the middle of a write. In stock Onion, these files are truncated first and
+rewritten afterwards — a cut in between leaves them **empty**.
+
+| File | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| ⚙️ `system.json` (volume, brightness, theme, Wi-Fi…) | truncated, then rewritten | ✅ **temp file → `fsync` → atomic rename** |
+| 🥾 `system.json` at every boot | rewritten in place; an empty per-device file **wipes it** | ✅ **only replaced by a complete, non-empty file** |
+| 🎮 `keymap.json` | truncated, then rewritten | ✅ **atomic** |
+| 🔧 Every `config/` value | truncated, then rewritten | ✅ **atomic** |
+| 🧾 Every JSON written by the system (`json_save`) | truncated, then rewritten | ✅ **atomic** |
+| 📋 Recent games list | deleted, then renamed | ✅ **atomic** |
+
+Symlinked files are resolved first, so the link itself is never replaced.
+
+---
+
+## 🧠 Memory that stays free
+
+> 🟥 Leaks that grew with your collection, on a device with 128 MB of RAM.
+
+| Leak | ⚪ OnionUI/Onion | 🟢 OnionPlus |
+|:--|:--|:--|
+| 🗃️ MainUI cache lookup (GameSwitcher names, new games) | SQLite connection leaked **every lookup** — ~570 KB + 1 descriptor on a 5,000-game cache 📏 | ✅ **0** |
+| 🗃️ Cache lookup with no cache database | name buffer leaked | ✅ **0** |
+| 📦 Package Manager, per emulator package | whole parsed config leaked (`free` instead of `cJSON_Delete`) | ✅ **0** |
+| ⚙️ System property save | JSON tree leaked when the value was unchanged | ✅ **0** |
+| 🖼️ GameSwitcher screenshots | loader thread never joined; surfaces freed from two threads | ✅ **single owner, joined at exit** |
+
+On a 128 MB device with the GameSwitcher showing up to 100 recent games, the first leak
+alone could grow to tens of megabytes.
+
+---
+
+## 🔬 How these numbers were obtained
+
+> 🟩 Every figure can be checked by anyone with a checkout of both projects.
+
+| Mark | Meaning |
+|:--|:--|
+| *(none)* | Counted directly from the source code of `OnionUI/Onion:main` and of this branch |
+| 📱 | Measured on a Miyoo Mini+ with the built-in timing log |
+| 📏 | Measured on a host machine (x86 Linux, real SQLite, same C code) |
+
+Reproduce the static counts from a checkout of each project:
+
+```sh
+# system() calls in C code (comments excluded)
+find src -name '*.[ch]' | xargs sed 's#//.*##' | grep -cE '(^|[^_a-zA-Z])system\('
+# unbounded string calls
+find src -name '*.[ch]' | xargs sed 's#//.*##' | grep -cE '(^|[^_a-zA-Z])(sprintf|strcpy|strcat|strtok)\('
+# host test suite
+make unit-test
+```
+
+**Not claimed here:** frame rates or battery life. The changes remove work from the paths
+that decide them, but this page only publishes numbers that were counted or measured.
+
+---
+
+> 📚 **Technical reference.** Everything below documents each change by category, with
+> commit links, for reviewers and maintainers.
 
 ## 🎯 Why this document exists
 
@@ -432,9 +689,8 @@ previous session is kept as `timing.prev.log`):
 | `mainui_prepare` / `mainui_session` / `mainui_return` | before, during and after MainUI |
 | `switcher_prepare` / `switcher_session` | the same for the GameSwitcher |
 
-> 📏 No on-device figures are published yet: the numbers in this README remain analytical
-> (📐) or host-measured (📏 on host) until `timing.log` samples from a Mini, Mini+ and Flip
-> are collected.
+> 📱 First results from a Miyoo Mini+ are in [Measured on a Miyoo Mini+](#-measured-on-a-miyoo-mini).
+> Samples from a Mini, Mini v4 and Flip are still welcome.
 
 ---
 
