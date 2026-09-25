@@ -621,6 +621,15 @@ void play_activity_resume(void)
     play_activity_db_close();
 }
 
+// A single session only spans continuous play: stop_all closes it before
+// every suspend. Anything longer than a day (or negative) comes from a clock
+// jump during the session (e.g. the time being set from 1970 by network
+// time sync) and would add decades to the play time: such sessions are
+// discarded, like negative ones already were.
+#define PLAY_ACTIVITY_MAX_SESSION_S 86400
+#define _PA_STR2(x) #x
+#define _PA_STR(x) _PA_STR2(x)
+
 void play_activity_stop(char *rom_file_path)
 {
     printf_debug("\n:: play_activity_stop(%s)\n", rom_file_path);
@@ -630,7 +639,12 @@ void play_activity_stop(char *rom_file_path)
         play_activity_db_close();
         exit(1);
     }
-    char *sql = sqlite3_mprintf("UPDATE play_activity SET play_time = (strftime('%%s', 'now')) - created_at, updated_at = (strftime('%%s', 'now')) WHERE rom_id = %d AND play_time IS NULL;", rom_id);
+    char *sql = sqlite3_mprintf(
+        "BEGIN;"
+        "UPDATE play_activity SET play_time = (strftime('%%s', 'now')) - created_at, updated_at = (strftime('%%s', 'now')) WHERE rom_id = %d AND play_time IS NULL;"
+        "DELETE FROM play_activity WHERE rom_id = %d AND (play_time < 0 OR play_time > %d);"
+        "COMMIT;",
+        rom_id, rom_id, PLAY_ACTIVITY_MAX_SESSION_S);
     sqlite3_exec(play_activity_db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
     play_activity_db_close();
@@ -645,7 +659,7 @@ void play_activity_stop_all(void)
     sqlite3_exec(play_activity_db,
         "BEGIN;"
         "UPDATE play_activity SET play_time = (strftime('%s', 'now')) - created_at, updated_at = (strftime('%s', 'now')) WHERE play_time IS NULL;"
-        "DELETE FROM play_activity WHERE play_time < 0;"
+        "DELETE FROM play_activity WHERE play_time < 0 OR play_time > " _PA_STR(PLAY_ACTIVITY_MAX_SESSION_S) ";"
         "COMMIT;",
         NULL, NULL, NULL);
     play_activity_db_close();

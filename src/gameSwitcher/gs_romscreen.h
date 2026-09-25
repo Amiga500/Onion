@@ -145,8 +145,10 @@ static SDL_Surface *_decodeRomScreen(const Game_s *game)
         return NULL;
     }
 
-    if (romScreenType == ROM_SCREEN_STATE)
-        return scaleRomScreenSurface(surface, getDynamicScalingMode(game));
+    // Same rule as before the preload worker (romscreen stretch fix):
+    // GameSwitcher captures (hash) fill the screen, artwork keeps its aspect.
+    if (romScreenType == ROM_SCREEN_HASH)
+        return scaleRomScreenSurface(surface, (ScalingMode_s){false, false});
     return scaleRomScreenSurface(surface, (ScalingMode_s){true, false});
 }
 

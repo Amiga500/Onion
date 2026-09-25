@@ -82,6 +82,21 @@ check() {
     local force_wifi_on_startup=$([ -f /customer/app/axp_test ] && [ -f $sysdir/config/.ntpForce ] && echo 1 || echo 0)
     local has_wifi=$(wifi_enabled && echo 1 || echo 0)
 
+    # At boot, nothing waits for the network unless "Wait for sync on
+    # startup" (ntpWait) or forced Wi-Fi is on. Bringing Wi-Fi up takes
+    # seconds (wifi_on alone sleeps 2 s after powering the chip), so in that
+    # case do it in the background and let the boot continue to the menu.
+    # Measured on device: boot_network 3.34 s of a 5.51 s runtime boot.
+    if [ "$is_booting" -eq 1 ] && [ "$force_wifi_on_startup" -eq 0 ] &&
+        ! { [ "$has_wifi" -eq 1 ] && flag_enabled ntpWait; }; then
+        if [ -f "$sysdir/.updateAvailable" ]; then
+            bootScreen Boot "Update available!"
+            sleep 1
+        fi
+        check_boot_background "$has_wifi" &
+        return
+    fi
+
     check_wifi
     check_ftpstate &
     check_sshstate &
@@ -142,6 +157,29 @@ disable_all_services() {
 }
 
 # Core function
+# Boot-time network bring-up, run in the background by check(). Same steps
+# and order as the synchronous path, without the boot-screen messages (the
+# menu may already be on screen).
+check_boot_background() {
+    local has_wifi=$1
+
+    check_wifi
+    check_ftpstate &
+    check_sshstate &
+    check_telnetstate &
+    check_httpstate &
+    check_smbdstate &
+
+    if wifi_enabled; then
+        check_ntpstate &
+    fi
+
+    if [ "$has_wifi" -eq 1 ] && [ ! -f "$sysdir/.updateAvailable" ] && [ ! -f /tmp/update_checked ]; then
+        touch /tmp/update_checked
+        $sysdir/script/ota_update.sh check &
+    fi
+}
+
 check_wifi() {
     # Fixes lockups entering some apps after enabling wifi (because wpa_supp/udhcpc are preloaded with libpadsp.so)
     libpadspblocker &
@@ -582,8 +620,14 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
     log "NTP: Failed to get time via timeapi.io as well, falling back to NTP."
     rm $sysdir/config/.tz_sync 2> /dev/null
 
+    # Close open play sessions around the clock change, like the API path
+    # above: a session started at the old time and closed at the new one
+    # would otherwise last decades (e.g. from 1970 on first sync).
+    playActivity stop_all
     ntpdate -t 3 -u time.google.com
-    if [ $? -eq 0 ]; then
+    ntp_ret=$?
+    playActivity resume
+    if [ $ntp_ret -eq 0 ]; then
         log "NTP: Time successfully aquired using NTP"
         return 0
     fi
