@@ -42,12 +42,16 @@ bool checkAppInstalled(const char *basePath, int base_len, int level, bool compl
         if (exists(path)) {
             sprintf(pathInstalledApp, "/mnt/SDCARD%s", path + base_len);
 
-            if (!exists(pathInstalledApp))
+            // Checked once per entry (was up to twice): this walks every
+            // file of every package when the package manager opens.
+            bool installed_exists = exists(pathInstalledApp);
+
+            if (!installed_exists)
                 is_installed = false;
             else if (dp->d_type == DT_DIR)
                 is_installed = checkAppInstalled(path, base_len, level + 1, complete);
 
-            if (!complete && level >= 2 && exists(pathInstalledApp)) {
+            if (!complete && level >= 2 && installed_exists) {
                 closedir(dir);
                 return true;
             }
@@ -171,14 +175,16 @@ bool checkRoms(const char *data_path)
     char roms_rel_path[STR_MAX];
     char extlist[STR_MAX] = {0};
 
+    // cJSON_Delete, not free(): free() released only the root node and
+    // leaked the rest of the parsed config for every package.
     if (!json_getString(config, "rompath", roms_rel_path)) {
-        free(config);
+        cJSON_Delete(config);
         return false;
     }
 
     json_getString(config, "extlist", extlist);
 
-    free(config);
+    cJSON_Delete(config);
 
     if (strncmp(roms_rel_path, "../../", 6) != 0)
         return false;

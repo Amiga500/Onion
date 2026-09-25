@@ -204,34 +204,34 @@ PlayActivities *play_activity_find_all(void)
 
     stmt = play_activity_db_prepare(sql);
 
-    int play_activity_count = 0;
-    while (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
-        play_activity_count++;
-    }
-    if (stmt != NULL)
-        sqlite3_reset(stmt);
-
+    // One pass over the results. The aggregate query (a GROUP BY over the
+    // whole play history) used to run twice: once to count the rows, then
+    // again after sqlite3_reset() to read them.
     play_activities = (PlayActivities *)malloc(sizeof(PlayActivities));
     if (play_activities == NULL) {
         sqlite3_finalize(stmt);
         play_activity_db_close();
         return NULL;
     }
-    play_activities->count = play_activity_count;
+    play_activities->count = 0;
     play_activities->play_time_total = 0;
-    play_activities->play_activity = (PlayActivity **)malloc(sizeof(PlayActivity *) * play_activities->count);
-    if (play_activities->play_activity == NULL) {
-        free(play_activities);
-        sqlite3_finalize(stmt);
-        play_activity_db_close();
-        return NULL;
-    }
+    play_activities->play_activity = NULL;
+    int capacity = 0;
 
-    for (int i = 0; i < play_activities->count; i++) {
-        if (sqlite3_step(stmt) != SQLITE_ROW) {
-            play_activities->count = i;
+    for (int i = 0; stmt != NULL; i++) {
+        if (sqlite3_step(stmt) != SQLITE_ROW)
             break;
+
+        if (i == capacity) {
+            int new_capacity = capacity == 0 ? 64 : capacity * 2;
+            PlayActivity **grown = (PlayActivity **)realloc(
+                play_activities->play_activity, sizeof(PlayActivity *) * new_capacity);
+            if (grown == NULL)
+                break;
+            play_activities->play_activity = grown;
+            capacity = new_capacity;
         }
+        play_activities->count = i; // entries [0, i) are complete
 
         PlayActivity *entry = play_activities->play_activity[i] = (PlayActivity *)malloc(sizeof(PlayActivity));
         if (entry == NULL) {
@@ -284,6 +284,7 @@ PlayActivities *play_activity_find_all(void)
         }
 
         play_activities->play_time_total += entry->play_time_total;
+        play_activities->count = i + 1;
     }
 
     sqlite3_finalize(stmt);

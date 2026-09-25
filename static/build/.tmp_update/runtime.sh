@@ -15,6 +15,38 @@ screen_resolution="640x480"
 romwinidx_device="/appconfigs/romwinidx.json"
 romwinidx_sd="$sysdir/config/romwinidx.json"
 
+# ---------------------------------------------------------------------------
+# Timing marks, written to logs/timing.log only when logging is enabled
+# (config/.logging). They cost one `test` per mark when logging is off, and
+# use /proc/uptime (10 ms resolution) with shell builtins only.
+#   perf_begin NAME         start a named interval
+#   perf_end NAME [INFO]    log "NAME <seconds> s [INFO]"
+# ---------------------------------------------------------------------------
+perf_now() {
+    read -r _perf_up _perf_idle < /proc/uptime
+    _perf_s=${_perf_up%.*}
+    _perf_c=${_perf_up#*.}
+    # "1${_perf_c}" avoids octal parsing of values like "08"
+    perf_cs=$((_perf_s * 100 + 1${_perf_c} - 100))
+}
+
+perf_begin() {
+    [ -f $sysdir/config/.logging ] || return 0
+    perf_now
+    eval "perf_t_$1=$perf_cs"
+}
+
+perf_end() {
+    [ -f $sysdir/config/.logging ] || return 0
+    perf_now
+    eval "_perf_t0=\${perf_t_$1:-}"
+    [ -n "$_perf_t0" ] || return 0
+    _perf_d=$((perf_cs - _perf_t0))
+    _perf_r=$((_perf_d % 100))
+    [ $_perf_r -lt 10 ] && _perf_r="0$_perf_r"
+    echo "$1 $((_perf_d / 100)).$_perf_r s $2" >> $sysdir/logs/timing.log
+}
+
 main() {
     # Set model ID based on hardware detection.
     # AXP probe first: the Flip and the Plus share the AXP PMU, so the hall
@@ -44,7 +76,14 @@ main() {
     check_installer
     clear_logs
 
+    if [ -f $sysdir/config/.logging ]; then
+        perf_now
+        echo "boot: runtime.sh started $((perf_cs / 100)) s after kernel start" >> $sysdir/logs/timing.log
+    fi
+    perf_begin boot
+    perf_begin boot_init
     init_system
+    perf_end boot_init
     restore_romwinidx
     update_time
 
@@ -109,7 +148,9 @@ main() {
     fi
 
     # Start networking (Checks networking, checks timezone)
+    perf_begin boot_network
     start_networking
+    perf_end boot_network
 
     # Start the key monitor
     keymon &
@@ -177,6 +218,7 @@ main() {
         fi
     fi
 
+    perf_end boot "(until the first menu/game)"
     state_change check_switcher
     set_startup_tab
     # Main runtime loop
@@ -220,6 +262,8 @@ clear_logs() {
     mkdir -p $sysdir/logs
 
     cd $sysdir/logs
+    # Keep the previous session's timings for comparison
+    [ -f ./timing.log ] && mv -f ./timing.log ./timing.prev.log
     rm -f \
         ./MainUI.log \
         ./gameSwitcher.log \
@@ -248,6 +292,7 @@ check_main_ui() {
 
 launch_main_ui() {
     log "\n:: Launch MainUI"
+    perf_begin mainui_prepare
 
     cd $sysdir
 
@@ -261,7 +306,7 @@ launch_main_ui() {
     mount_main_ui
 
     # Wifi state before
-    wifi_setting=$(/customer/app/jsonval wifi)
+    wifi_setting=$(sysjson_get wifi)
 
     start_audioserver
 
@@ -297,11 +342,15 @@ launch_main_ui() {
     fi
 
     # MainUI launch
+    perf_end mainui_prepare
+    perf_begin mainui_session
     cd $miyoodir/app
     PATH="$miyoodir/app:$PATH" \
         LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" \
         LD_PRELOAD="$miyoodir/lib/libpadsp.so" \
         ./MainUI 2>&1 > /dev/null
+    perf_end mainui_session
+    perf_begin mainui_return
 
     # Merge the last game launched into the recent list
     check_hide_recents
@@ -311,7 +360,7 @@ launch_main_ui() {
     sync
 
     # Check if wifi setting changed
-    if [ $(/customer/app/jsonval wifi) -ne $wifi_setting ]; then
+    if [ $(sysjson_get wifi) -ne $wifi_setting ]; then
         touch /tmp/network_changed
         rm /tmp/ntp_synced 2> /dev/null
         sync
@@ -321,6 +370,7 @@ launch_main_ui() {
     mv -f /tmp/cmd_to_run.sh $sysdir/cmd_to_run.sh
 
     set_prev_state "mainui"
+    perf_end mainui_return
 }
 
 check_game_menu() {
@@ -409,6 +459,7 @@ change_resolution() {
 }
 
 launch_game() {
+    perf_begin game_prepare
     log "\n:: Launch game"
     rm -f /tmp/.forceKillRetroarch
     cmd=$(cat $sysdir/cmd_to_run.sh)
@@ -570,9 +621,15 @@ launch_game() {
                 play_activity_pid=""
             fi
 
+            perf_end game_prepare "${rompath##*/}"
+            perf_begin game_run
+
             # make the cmd_to_run shell env aware of the new timezone
             TZ="$TZ_VALUE" $sysdir/cmd_to_run.sh
             retval=$?
+
+            perf_end game_run "${rompath##*/}"
+            perf_begin game_exit
 
             if [ -f /tmp/new_res_available ]; then
                 # infoPanel caches the old geometry and must not survive a mode change.
@@ -782,6 +839,7 @@ launch_game_postprocess() {
         fi
 
         set_prev_state "game"
+        perf_end game_exit "${rompath##*/}"
         check_off_order "End_Save"
     else
         set_prev_state "app"
@@ -790,6 +848,72 @@ launch_game_postprocess() {
 }
 
 get_full_resolution_path() {
+    [ -f /tmp/new_res_available ] || return 0
+
+    # Read cmd_to_run.sh with builtins (it may have been rewritten since
+    # launch_game read it). For a single-line command, answer with parameter
+    # expansion; otherwise use the original grep/cut/sed code below.
+    _frp_cmd=""
+    _frp_lines=0
+    while IFS= read -r _frp_line || [ -n "$_frp_line" ]; do
+        _frp_lines=$((_frp_lines + 1))
+        _frp_cmd=$_frp_line
+    done < $sysdir/cmd_to_run.sh
+
+    if [ $_frp_lines -eq 1 ]; then
+        case "$_frp_cmd" in
+            */mnt/SDCARD/App/*)
+                # ----- App launch: 2nd space-separated field, first ';'
+                # replaced by /full_resolution (was cut -d' ' -f2 | sed)
+                case "$_frp_cmd" in
+                    *" "*) _frp_f=${_frp_cmd#* }; _frp_f=${_frp_f%% *} ;;
+                    *) _frp_f=$_frp_cmd ;;
+                esac
+                case "$_frp_f" in
+                    *";"*) _frp_f="${_frp_f%%;*}/full_resolution${_frp_f#*;}" ;;
+                esac
+                echo "$_frp_f"
+                ;;
+            */mnt/SDCARD/Roms/PORTS/*)
+                # ----- Port launch: from the first PORTS path to the last
+                # ".port" (greedy, like grep -o)
+                _frp_f=${_frp_cmd#*/mnt/SDCARD/Roms/PORTS}
+                case "$_frp_f" in
+                    *.port*)
+                        _frp_f="/mnt/SDCARD/Roms/PORTS${_frp_f%.port*}.port"
+                        if grep -qF "FullResolution=1" "$_frp_f"; then
+                            echo "/tmp/new_res_available"
+                        fi
+                        ;;
+                esac
+                ;;
+            *)
+                # ----- Everything else: from the first '"' to the last
+                # 'launch.sh"', quotes removed, first launch.sh replaced
+                _frp_f=""
+                case "$_frp_cmd" in
+                    *\"*)
+                        _frp_m=${_frp_cmd#*\"}
+                        case "$_frp_m" in
+                            *'launch.sh"'*)
+                                _frp_f="${_frp_m%'launch.sh"'*}launch.sh"
+                                while :; do
+                                    case "$_frp_f" in
+                                        *\"*) _frp_f="${_frp_f%%\"*}${_frp_f#*\"}" ;;
+                                        *) break ;;
+                                    esac
+                                done
+                                _frp_f="${_frp_f%%launch.sh*}full_resolution${_frp_f#*launch.sh}"
+                                ;;
+                        esac
+                        ;;
+                esac
+                echo "$_frp_f"
+                ;;
+        esac
+        return 0
+    fi
+
     if [ -f /tmp/new_res_available ]; then
         # Check if the program to be launched supports 560p
         # Different programs need different checks (Apps vs Ports vs the rest)
@@ -822,7 +946,42 @@ is_running() {
 }
 
 get_info_value() {
-    echo "$1" | grep "$2\b" | awk '{split($0,a,"="); print a[2]}' | awk -F'"' '{print $2}' | tr -d '\n'
+    # Same result as the former echo | grep "$2\b" | awk | awk | tr pipeline:
+    # for each line containing KEY at a word boundary, the text between the
+    # first two double quotes of the part between the first and second '=',
+    # all concatenated. Shell builtins only.
+    _giv_out=""
+    while IFS= read -r _giv_line || [ -n "$_giv_line" ]; do
+        _giv_rest=$_giv_line
+        _giv_match=0
+        while :; do
+            case "$_giv_rest" in
+                *"$2"*) ;;
+                *) break ;;
+            esac
+            _giv_rest=${_giv_rest#*"$2"}
+            case "$_giv_rest" in
+                [A-Za-z0-9_]*) ;;
+                *) _giv_match=1; break ;;
+            esac
+        done
+        [ $_giv_match -eq 1 ] || continue
+        case "$_giv_line" in
+            *=*) ;;
+            *) continue ;;
+        esac
+        _giv_f=${_giv_line#*=}
+        _giv_f=${_giv_f%%=*}
+        case "$_giv_f" in
+            *\"*)
+                _giv_f=${_giv_f#*\"}
+                _giv_out="$_giv_out${_giv_f%%\"*}"
+                ;;
+        esac
+    done << EOF_GIV
+$1
+EOF_GIV
+    echo -n "$_giv_out"
 }
 
 check_switcher() {
@@ -842,6 +1001,7 @@ check_switcher() {
 
 launch_switcher() {
     log "\n:: Launch switcher"
+    perf_begin switcher_prepare
     cd $sysdir
 
     # GameSwitcher owns its framebuffer requirement: a game exiting toward it
@@ -871,7 +1031,10 @@ launch_switcher() {
     fi
 
     start_audioserver
+    perf_end switcher_prepare
+    perf_begin switcher_session
     LD_PRELOAD="$miyoodir/lib/libpadsp.so" gameSwitcher
+    perf_end switcher_session
     rm $sysdir/.runGameSwitcher
     set_prev_state "switcher"
     sync
@@ -942,6 +1105,43 @@ check_hide_recents() {
 }
 
 mainui_target=$miyoodir/app/MainUI
+
+# Read one top-level value from system.json with shell builtins (jsonval is a
+# separate process per call). system.json keeps one key per line, as the sed
+# edits in load_settings already assume. Falls back to jsonval whenever the
+# line is not a plain `"key": value`, e.g. escaped characters.
+sysjson_get() {
+    _sj_val=""
+    _sj_found=0
+    if [ -f /appconfigs/system.json ]; then
+        while IFS= read -r _sj_line || [ -n "$_sj_line" ]; do
+            # trim leading blanks
+            _sj_line=${_sj_line#"${_sj_line%%[!	 ]*}"}
+            case "$_sj_line" in
+                \"$1\":*)
+                    _sj_val=${_sj_line#*:}
+                    _sj_val=${_sj_val#"${_sj_val%%[!	 ]*}"}
+                    _sj_val=${_sj_val%"${_sj_val##*[!	 ]}"}
+                    _sj_val=${_sj_val%,}
+                    _sj_val=${_sj_val%"${_sj_val##*[!	 ]}"}
+                    case "$_sj_val" in
+                        \"*\") _sj_val=${_sj_val#\"}; _sj_val=${_sj_val%\"} ;;
+                    esac
+                    _sj_found=1
+                    break
+                    ;;
+            esac
+        done < /appconfigs/system.json
+    fi
+    case "$_sj_val" in
+        *\\* | *\"* | *[{}[]*) _sj_found=0 ;;
+    esac
+    if [ $_sj_found -eq 1 ] && [ -n "$_sj_val" ]; then
+        echo "$_sj_val"
+    else
+        /customer/app/jsonval "$1"
+    fi
+}
 
 # Split `fbmode --probe` output ("WxH virtual WxH bpp N line_length N pages N")
 # into fb_f1, fb_f3, fb_f5 and fb_flast without forking (was 2-4 echo|awk
@@ -1139,7 +1339,7 @@ get_screen_resolution() {
 }
 
 mute_theme_bgm() {
-    system_theme="$(/customer/app/jsonval theme)"
+    system_theme="$(sysjson_get theme)"
     bgm_file="${system_theme}sound/bgm.mp3"
     muted_bgm_file="${system_theme}sound/bgm_muted.mp3"
 
@@ -1216,9 +1416,24 @@ init_system() {
 device_uuid=$(read_uuid)
 device_settings="/mnt/SDCARD/.tmp_update/config/system/$device_uuid.json"
 
+# Replace a file crash-safely: write a sibling, flush it, then rename over the
+# target (rename is atomic on the same filesystem). An empty or failed copy
+# never replaces the original. Used for system.json at boot, where a power cut
+# used to be able to leave an empty file.
+replace_file_safely() {
+    # $1 = new content file, $2 = target
+    if [ -s "$1" ]; then
+        sync
+        mv -f "$1" "$2"
+    else
+        rm -f "$1"
+    fi
+}
+
 load_settings() {
     if [ -f "$device_settings" ]; then
-        cp -f "$device_settings" /mnt/SDCARD/system.json
+        cp -f "$device_settings" /mnt/SDCARD/system.json.tmp &&
+            replace_file_safely /mnt/SDCARD/system.json.tmp /mnt/SDCARD/system.json
     fi
 
     # make sure MainUI settings exist
@@ -1245,11 +1460,10 @@ load_settings() {
 
         if [ $(/customer/app/jsonval vol) -ne 20 ] || [ $(/customer/app/jsonval mute) -ne 0 ]; then
             # Force volume and mute settings
-            cat /mnt/SDCARD/system.json |
-                sed 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t20/g' |
-                sed 's/^\s*"mute":\s*[0-9][0-9]*/\t"mute":\t0/g' \
-                    > temp
-            mv -f temp /mnt/SDCARD/system.json
+            sed -e 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t20/g' \
+                -e 's/^\s*"mute":\s*[0-9][0-9]*/\t"mute":\t0/g' \
+                /mnt/SDCARD/system.json > /mnt/SDCARD/system.json.tmp &&
+                replace_file_safely /mnt/SDCARD/system.json.tmp /mnt/SDCARD/system.json
         fi
     fi
 
@@ -1257,9 +1471,9 @@ load_settings() {
     if [ -f "$default_volume" ]; then
         volume=$(printf '%d' "$(cat "$default_volume")")
         if [ $? -eq 0 ]; then
-            cat /mnt/SDCARD/system.json |
-                sed 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t'$volume'/g' > temp
-            mv -f temp /mnt/SDCARD/system.json
+            sed 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t'$volume'/g' \
+                /mnt/SDCARD/system.json > /mnt/SDCARD/system.json.tmp &&
+                replace_file_safely /mnt/SDCARD/system.json.tmp /mnt/SDCARD/system.json
         fi
     fi
 }
