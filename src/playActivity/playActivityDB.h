@@ -72,7 +72,9 @@ void get_rom_image_path(char *rom_file, char *out_image_path)
 
 void play_activity_db_close()
 {
-    sqlite3_close(play_activity_db);
+    // _v2: if a statement were still alive, close once it is finalized
+    // instead of failing with SQLITE_BUSY and leaking the connection.
+    sqlite3_close_v2(play_activity_db);
     play_activity_db = NULL;
 }
 
@@ -117,6 +119,14 @@ void play_activity_db_open(void)
     // scan of the rom table. No-op once the index exists.
     sqlite3_exec(play_activity_db,
                  "CREATE INDEX IF NOT EXISTS rom_file_path_index ON rom(file_path);",
+                 NULL, NULL, NULL);
+
+    // play_activity gains a row on every game start and every resume from
+    // sleep. stop_all (run synchronously before each suspend) looks up
+    // open sessions (play_time IS NULL) and invalid ones (play_time < 0):
+    // with this index both are lookups instead of full table scans.
+    sqlite3_exec(play_activity_db,
+                 "CREATE INDEX IF NOT EXISTS play_activity_play_time_index ON play_activity(play_time);",
                  NULL, NULL, NULL);
 }
 
@@ -629,9 +639,13 @@ void play_activity_stop_all(void)
 {
     print_debug("\n:: play_activity_stop_all()");
     play_activity_db_open();
+    // One transaction for both statements: one journal/fsync cycle instead
+    // of two, on the path that runs before every suspend.
     sqlite3_exec(play_activity_db,
+        "BEGIN;"
         "UPDATE play_activity SET play_time = (strftime('%s', 'now')) - created_at, updated_at = (strftime('%s', 'now')) WHERE play_time IS NULL;"
-        "DELETE FROM play_activity WHERE play_time < 0;",
+        "DELETE FROM play_activity WHERE play_time < 0;"
+        "COMMIT;",
         NULL, NULL, NULL);
     play_activity_db_close();
 }

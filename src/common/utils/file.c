@@ -512,7 +512,7 @@ bool file_findNewest(const char *dir_path, char *newest_file, size_t buffer_size
 }
 char *file_read_lineN(const char *filename, int n)
 {
-    char line[STR_MAX * 4];
+    // Real line numbers (getline), consistent with file_delete_line().
     int lineNumber = 1;
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
@@ -520,66 +520,77 @@ char *file_read_lineN(const char *filename, int n)
         return NULL;
     }
 
-    while (fgets(line, sizeof(line), file) != NULL) {
+    char *line = NULL;
+    size_t cap = 0;
+    while (getline(&line, &cap, file) != -1) {
         if (lineNumber == n) {
             fclose(file);
-            char *lineN = malloc(strlen(line) + 1);
-            if (lineN == NULL) {
-                print_debug("Memory allocation error");
-                return NULL;
-            }
-            memcpy(lineN, line, strlen(line) + 1);
-            return lineN;
+            return line; // caller frees
         }
         lineNumber++;
     }
 
+    free(line);
     fclose(file);
     return NULL;
 }
 
-void file_delete_line(const char *fileName, int n)
+// Delete several lines (1-based numbers in the ORIGINAL file, ascending)
+// in a single rewrite. getline() counts real lines of any length; the old
+// fixed 1 KB fgets() buffer counted a longer line twice and could delete the
+// wrong entry. The file is replaced atomically.
+bool file_delete_lines(const char *fileName, const int *lines, int count)
 {
+    if (fileName == NULL || lines == NULL || count <= 0)
+        return false;
 
     FILE *file = fopen(fileName, "r");
     if (file == NULL) {
         print_debug("Error opening file");
-        return;
+        return false;
     }
 
-    char temp_path[PATH_MAX];
-    snprintf(temp_path, sizeof(temp_path), "%s.tmp", fileName);
-    FILE *tempFile = fopen(temp_path, "w");
+    char tmp_path[PATH_MAX];
+    char final_path[PATH_MAX];
+    FILE *tempFile = file_atomic_begin(fileName, tmp_path, sizeof(tmp_path),
+                                       final_path, sizeof(final_path));
     if (tempFile == NULL) {
         fclose(file);
         print_debug("Error creating temporary file");
-        return;
+        return false;
     }
 
-    char line[STR_MAX * 4];
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t len;
     int lineNumber = 1;
+    int next = 0;
 
-    while (fgets(line, sizeof(line), file) != NULL) {
-        if (lineNumber != n) {
-            fputs(line, tempFile);
-        }
+    while ((len = getline(&line, &cap, file)) != -1) {
+        while (next < count && lines[next] < lineNumber)
+            next++; // tolerate unsorted/duplicate input
+        if (next < count && lines[next] == lineNumber)
+            next++;
+        else
+            fwrite(line, 1, (size_t)len, tempFile);
         lineNumber++;
     }
 
+    free(line);
     fclose(file);
-    fclose(tempFile);
 
-    if (remove(fileName) != 0) {
-        print_debug("Error deleting original file");
-        return;
+    if (!file_atomic_commit(tempFile, tmp_path, final_path)) {
+        print_debug("Error replacing file");
+        return false;
     }
 
-    if (rename(temp_path, fileName) != 0) {
-        print_debug("Error renaming temporary file");
-        return;
-    }
+    printf_debug("%d line(s) deleted from %s\n", count, fileName);
+    return true;
+}
 
-    printf_debug("Line %d has been successfully deleted.\n", n);
+void file_delete_line(const char *fileName, int n)
+{
+    file_delete_lines(fileName, &n, 1);
 }
 
 void file_add_line_to_beginning(const char *filename, const char *lineToAdd)

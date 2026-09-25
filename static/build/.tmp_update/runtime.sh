@@ -353,7 +353,12 @@ check_game() {
 }
 
 check_is_game() {
-    echo "$1" | grep -q "retroarch/cores" || echo "$1" | grep -q "/../../Roms/" || echo "$1" | grep -q "/mnt/SDCARD/Roms/"
+    # Same matches as the former three `echo | grep -q` pipelines (up to 6
+    # processes), without forking. `?` mirrors grep's `.` in "/../../Roms/".
+    case "$1" in
+        *retroarch/cores* | */??/??/Roms/* | */mnt/SDCARD/Roms/*) return 0 ;;
+    esac
+    return 1
 }
 
 notify_resolution_change() {
@@ -365,13 +370,11 @@ change_resolution() {
     res_x=""
     res_y=""
 
-    if [ -n "$1" ]; then
-        res_x=$(echo "$1" | cut -d 'x' -f 1)
-        res_y=$(echo "$1" | cut -d 'x' -f 2)
-    else
-        res_x=$(echo "$screen_resolution" | cut -d 'x' -f 1)
-        res_y=$(echo "$screen_resolution" | cut -d 'x' -f 2)
-    fi
+    # Same fields as `cut -d x -f 1` / `-f 2`, without forking
+    _res=${1:-$screen_resolution}
+    res_x=${_res%%x*}
+    _after=${_res#*x}
+    res_y=${_after%%x*}
     log "Changing resolution to $res_x x $res_y"
 
     if [ -x "$sysdir/bin/fbmode" ]; then
@@ -416,19 +419,37 @@ launch_game() {
     start_audioserver
     save_settings
 
-    if check_is_game "$cmd"; then
-        # Extract rom path
-        rompath=$(echo "$cmd" | awk '{ st = index($0,"\" \""); print substr($0,st+3,length($0)-st-3)}')
+    # Single-line command (the normal case): parse with parameter expansion
+    # instead of echo|awk/grep pipelines. Multi-line input keeps the old
+    # awk-based parsing, whose per-line output the expansions do not mimic.
+    cmd_single_line=1
+    case "$cmd" in *"
+"*) cmd_single_line=0 ;; esac
 
-        # Check for custom launch script
-        if echo "$rompath" | grep -q ":"; then
-            launch_script=$(echo "$rompath" | awk '{split($0,a,":"); print a[1]}')
-            rompath=$(echo "$rompath" | awk '{split($0,a,":"); print a[2]}')
-            echo "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"$launch_script\" \"$rompath\"" > $sysdir/cmd_to_run.sh
+    if check_is_game "$cmd"; then
+        # Extract rom path: text after the first `" "`, minus the last char
+        _after=${cmd#*\"\ \"}
+        if [ $cmd_single_line -eq 1 ] && [ "$_after" != "$cmd" ]; then
+            rompath=${_after%?}
+        else
+            rompath=$(echo "$cmd" | awk '{ st = index($0,"\" \""); print substr($0,st+3,length($0)-st-3)}')
         fi
 
+        # Check for custom launch script ("script:rom")
+        case "$rompath" in
+            *:*)
+                launch_script=${rompath%%:*}
+                _after=${rompath#*:}
+                rompath=${_after%%:*}
+                echo "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"$launch_script\" \"$rompath\"" > $sysdir/cmd_to_run.sh
+                ;;
+        esac
+
         orig_path="$rompath"
-        romext=$(echo "$(basename "$rompath")" | awk -F. '{print tolower($NF)}')
+        # Extension of the file name, lowercased (tr only if needed)
+        _base=${rompath##*/}
+        romext=${_base##*.}
+        case "$romext" in *[A-Z]*) romext=$(echo "$romext" | tr 'A-Z' 'a-z') ;; esac
 
         if [ "$romext" != "miyoocmd" ]; then
             # Resolve real path
@@ -443,8 +464,15 @@ launch_game() {
                 echo "$cmd_replaced" > $sysdir/cmd_to_run.sh
             fi
 
-            # Game config path
-            romcfgpath="$(dirname "$rompath")/.game_config/$(basename "$rompath" ".$romext").cfg"
+            # Game config path (dirname / basename without forking)
+            case "$rompath" in
+                */*) _dir=${rompath%/*}; [ -z "$_dir" ] && _dir=/ ;;
+                *) _dir=. ;;
+            esac
+            _base=${rompath##*/}
+            _name=${_base%".$romext"}
+            [ -z "$_name" ] && _name=$_base
+            romcfgpath="$_dir/.game_config/$_name.cfg"
             log "rompath: $rompath (ext: $romext)"
             log "romcfgpath: $romcfgpath"
             is_game=1
@@ -461,17 +489,26 @@ launch_game() {
     full_resolution_path="$(get_full_resolution_path)"
 
     if [ -z "$launch_script" ]; then
-        launch_script=$(echo "$cmd" | awk -F'"' '{print $2}')
+        # First double-quoted field of the command
+        if [ $cmd_single_line -eq 0 ]; then
+            launch_script=$(echo "$cmd" | awk -F'"' '{print $2}')
+        else
+            case "$cmd" in
+                *\"*) _after=${cmd#*\"}; launch_script=${_after%%\"*} ;;
+                *) launch_script="" ;;
+            esac
+        fi
     fi
 
     if [ $is_game -eq 1 ]; then
-        if [ -f "$launch_script" ] && cat "$launch_script" | grep -q '.retroarch/cores'; then
+        if [ -f "$launch_script" ] && grep -q '.retroarch/cores' "$launch_script"; then
             # Override core if needed
             override_game_core "$romcfgpath" "$launch_script"
         fi
 
-        # Handle dollar sign
-        if echo "$rompath" | grep -q "\$"; then
+        # Handle dollar sign. The former `grep -q "\$"` matched every line
+        # (regex end-of-line), so cmd_to_run.sh was rewritten on each launch.
+        if case "$rompath" in *'$'*) true ;; *) false ;; esac; then
             temp=$(cat $sysdir/cmd_to_run.sh)
             echo "$temp" | sed 's/\$/\\\$/g' > $sysdir/cmd_to_run.sh
         fi
@@ -487,8 +524,10 @@ launch_game() {
     rm -f /tmp/quick_switch 2> /dev/null
     rm -f /tmp/force_auto_load_state 2> /dev/null
 
-    log "----- COMMAND:"
-    log "$(cat $sysdir/cmd_to_run.sh)"
+    if [ -f $sysdir/config/.logging ]; then
+        log "----- COMMAND:"
+        log "$(cat $sysdir/cmd_to_run.sh)"
+    fi
 
     if [ $is_game -eq 0 ] || [ -f "$rompath" ]; then
         if [ "$romext" == "miyoocmd" ]; then
@@ -1237,6 +1276,11 @@ set_startup_tab() {
 }
 
 start_audioserver() {
+    # Already running (the usual case on every game launch): skip computing
+    # the start volume, which cost jsonval + awk + a subshell each time.
+    if pgrep audioserver > /dev/null; then
+        return
+    fi
     defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%.0f\n", 48 * (log(1 + $1) / log(10)) - 60 }')
     runifnecessary "audioserver" $miyoodir/app/audioserver $defvol
 }

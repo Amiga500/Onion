@@ -33,6 +33,8 @@ static int romscreen_request_center = 0; // -1 = initial fill from the top
 static bool romscreen_request = false;
 static bool romscreen_quit = false;
 static int romscreen_inflight = 0; // worker jobs touching a game_list entry
+// Also fetch the play time during name/core lookup (mirrors show_time)
+static bool romscreen_prefetch_play_time = false;
 
 // Defined in gs_history.h
 void processItemMetaWork(Game_s *game);

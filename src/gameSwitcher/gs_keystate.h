@@ -127,6 +127,9 @@ void action_toggleHeader(AppState *state)
         state->show_time = false, state->show_total = false;
 
     config_flag_set("gameSwitcher/showTime", state->show_time);
+    pthread_mutex_lock(&meta_mutex); // read by the prefetch worker
+    romscreen_prefetch_play_time = state->show_time;
+    pthread_mutex_unlock(&meta_mutex);
     config_flag_set("gameSwitcher/hideTotal", !state->show_total);
 
     state->changed = true;

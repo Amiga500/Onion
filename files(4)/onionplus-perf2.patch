@@ -1,0 +1,494 @@
+--- a/src/common/system/state.h
++++ b/src/common/system/state.h
+@@ -397,11 +397,15 @@
+         return;
+     }
+ 
+-    char jsonContent[STR_MAX * 4];
++    // getline(): count real lines, like file_read_lineN()/file_delete_line()
++    // (a fixed 1 KB fgets() buffer counted a longer line twice, and the
++    // quick-switch move-to-top could then delete the wrong entry).
++    char *jsonContent = NULL;
++    size_t jsonContent_cap = 0;
+     int validGameCount = -1;
+     int lineCount = 0;
+ 
+-    while (fgets(jsonContent, sizeof(jsonContent), file) != NULL) {
++    while (getline(&jsonContent, &jsonContent_cap, file) != -1) {
+         char label[256] = "";
+         char rompath[256] = "";
+         char imgpath[256] = "";
+@@ -528,6 +532,7 @@
+     if (file != NULL) {
+         fclose(file);
+     }
++    free(jsonContent);
+ }
+ 
+ void set_resumeGame(void)
+--- a/src/common/utils/file.c
++++ b/src/common/utils/file.c
+@@ -512,7 +512,7 @@
+ }
+ char *file_read_lineN(const char *filename, int n)
+ {
+-    char line[STR_MAX * 4];
++    // Real line numbers (getline), consistent with file_delete_line().
+     int lineNumber = 1;
+     FILE *file = fopen(filename, "r");
+     if (file == NULL) {
+@@ -520,66 +520,77 @@
+         return NULL;
+     }
+ 
+-    while (fgets(line, sizeof(line), file) != NULL) {
++    char *line = NULL;
++    size_t cap = 0;
++    while (getline(&line, &cap, file) != -1) {
+         if (lineNumber == n) {
+             fclose(file);
+-            char *lineN = malloc(strlen(line) + 1);
+-            if (lineN == NULL) {
+-                print_debug("Memory allocation error");
+-                return NULL;
+-            }
+-            memcpy(lineN, line, strlen(line) + 1);
+-            return lineN;
++            return line; // caller frees
+         }
+         lineNumber++;
+     }
+ 
++    free(line);
+     fclose(file);
+     return NULL;
+ }
+ 
+-void file_delete_line(const char *fileName, int n)
++// Delete several lines (1-based numbers in the ORIGINAL file, ascending)
++// in a single rewrite. getline() counts real lines of any length; the old
++// fixed 1 KB fgets() buffer counted a longer line twice and could delete the
++// wrong entry. The file is replaced atomically.
++bool file_delete_lines(const char *fileName, const int *lines, int count)
+ {
++    if (fileName == NULL || lines == NULL || count <= 0)
++        return false;
+ 
+     FILE *file = fopen(fileName, "r");
+     if (file == NULL) {
+         print_debug("Error opening file");
+-        return;
++        return false;
+     }
+ 
+-    char temp_path[PATH_MAX];
+-    snprintf(temp_path, sizeof(temp_path), "%s.tmp", fileName);
+-    FILE *tempFile = fopen(temp_path, "w");
++    char tmp_path[PATH_MAX];
++    char final_path[PATH_MAX];
++    FILE *tempFile = file_atomic_begin(fileName, tmp_path, sizeof(tmp_path),
++                                       final_path, sizeof(final_path));
+     if (tempFile == NULL) {
+         fclose(file);
+         print_debug("Error creating temporary file");
+-        return;
++        return false;
+     }
+ 
+-    char line[STR_MAX * 4];
++    char *line = NULL;
++    size_t cap = 0;
++    ssize_t len;
+     int lineNumber = 1;
++    int next = 0;
+ 
+-    while (fgets(line, sizeof(line), file) != NULL) {
+-        if (lineNumber != n) {
+-            fputs(line, tempFile);
+-        }
++    while ((len = getline(&line, &cap, file)) != -1) {
++        while (next < count && lines[next] < lineNumber)
++            next++; // tolerate unsorted/duplicate input
++        if (next < count && lines[next] == lineNumber)
++            next++;
++        else
++            fwrite(line, 1, (size_t)len, tempFile);
+         lineNumber++;
+     }
+ 
++    free(line);
+     fclose(file);
+-    fclose(tempFile);
+ 
+-    if (remove(fileName) != 0) {
+-        print_debug("Error deleting original file");
+-        return;
++    if (!file_atomic_commit(tempFile, tmp_path, final_path)) {
++        print_debug("Error replacing file");
++        return false;
+     }
+ 
+-    if (rename(temp_path, fileName) != 0) {
+-        print_debug("Error renaming temporary file");
+-        return;
+-    }
++    printf_debug("%d line(s) deleted from %s\n", count, fileName);
++    return true;
++}
+ 
+-    printf_debug("Line %d has been successfully deleted.\n", n);
++void file_delete_line(const char *fileName, int n)
++{
++    file_delete_lines(fileName, &n, 1);
+ }
+ 
+ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
+--- a/src/common/utils/file.h
++++ b/src/common/utils/file.h
+@@ -124,6 +124,8 @@
+ 
+ void file_delete_line(const char *fileName, int n);
+ 
++bool file_delete_lines(const char *fileName, const int *lines, int count);
++
+ void file_add_line_to_beginning(const char *filename, const char *lineToAdd);
+ 
+ /**
+--- a/src/gameSwitcher/gameSwitcher.c
++++ b/src/gameSwitcher/gameSwitcher.c
+@@ -56,6 +56,7 @@
+     mkdirs("/mnt/SDCARD/.tmp_update/config/gameSwitcher");
+ 
+     appState.show_time = config_flag_get("gameSwitcher/showTime");
++    romscreen_prefetch_play_time = appState.show_time;
+     appState.show_total = !config_flag_get("gameSwitcher/hideTotal");
+     appState.show_legend = !config_flag_get("gameSwitcher/hideLegend");
+     appState.view_mode = appState.view_restore = config_flag_get("gameSwitcher/minimal") ? VIEW_MINIMAL : VIEW_NORMAL;
+--- a/src/gameSwitcher/gs_history.h
++++ b/src/gameSwitcher/gs_history.h
+@@ -15,6 +15,7 @@
+ #include "utils/str.h"
+ 
+ #include "../playActivity/cacheDB.h"
++#include "../playActivity/playActivityDB.h"
+ 
+ #include "gs_model.h"
+ #include "gs_retroarch.h"
+@@ -97,7 +98,6 @@
+ void readHistory()
+ {
+     FILE *file;
+-    char line[STR_MAX * 6];
+     int numRecents = 0;
+ 
+     const char *recentFilePath = getMiyooRecentFilePath();
+@@ -108,10 +108,19 @@
+         return;
+     }
+ 
+-    int lineNo = 0;
+-
+-    while ((fgets(line, sizeof(line), file) != NULL) && (numRecents < MAX_HISTORY)) {
+-        ++lineNo;
++    // Duplicates are collected and removed in ONE rewrite after the scan
++    // (was: a full rewrite of the recent list per duplicate). Line numbers
++    // stored in each entry already account for the lines deleted before it.
++    int dup_lines[MAX_HISTORY * 2];
++    int dup_count = 0;
++    int orig_line_no = 0;
++
++    char *line = NULL;
++    size_t line_cap = 0;
++
++    while (numRecents < MAX_HISTORY && getline(&line, &line_cap, file) != -1) {
++        ++orig_line_no;
++        int lineNo = orig_line_no - dup_count;
+ 
+         if (!parseJsonToRecentItem(line, &game_list[numRecents].recentItem, lineNo)) {
+             continue;
+@@ -127,8 +136,10 @@
+         }
+ 
+         if (isDuplicate) {
+-            file_delete_line(recentFilePath, lineNo);
+-            lineNo--;
++            // Only count it as deleted if it will really be deleted, so the
++            // numbering of the following entries stays correct.
++            if (dup_count < (int)(sizeof(dup_lines) / sizeof(dup_lines[0])))
++                dup_lines[dup_count++] = orig_line_no;
+             continue;
+         }
+ 
+@@ -143,7 +154,12 @@
+         numRecents++;
+     }
+ 
++    free(line);
+     fclose(file);
++
++    if (dup_count > 0)
++        file_delete_lines(recentFilePath, dup_lines, dup_count);
++
+     game_list_len = numRecents;
+ }
+ 
+@@ -180,6 +196,13 @@
+     if (ra_findItemInRetroArchHistory(game)) {
+         ra_getCoreNameFromInfo(game);
+     }
++
++    // Play time shown in the header: computed here (prefetch worker, under
++    // meta_mutex) so the UI thread does not open the database on the SD card
++    // the first time each game is shown. renderHeader() still computes it if
++    // it is missing (e.g. the time display was switched on later).
++    if (romscreen_prefetch_play_time && game->totalTime[0] == '\0')
++        str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
+ }
+ 
+ void processItem(Game_s *game)
+--- a/src/gameSwitcher/gs_keystate.h
++++ b/src/gameSwitcher/gs_keystate.h
+@@ -127,6 +127,9 @@
+         state->show_time = false, state->show_total = false;
+ 
+     config_flag_set("gameSwitcher/showTime", state->show_time);
++    pthread_mutex_lock(&meta_mutex); // read by the prefetch worker
++    romscreen_prefetch_play_time = state->show_time;
++    pthread_mutex_unlock(&meta_mutex);
+     config_flag_set("gameSwitcher/hideTotal", !state->show_total);
+ 
+     state->changed = true;
+--- a/src/gameSwitcher/gs_romscreen.h
++++ b/src/gameSwitcher/gs_romscreen.h
+@@ -33,6 +33,8 @@
+ static bool romscreen_request = false;
+ static bool romscreen_quit = false;
+ static int romscreen_inflight = 0; // worker jobs touching a game_list entry
++// Also fetch the play time during name/core lookup (mirrors show_time)
++static bool romscreen_prefetch_play_time = false;
+ 
+ // Defined in gs_history.h
+ void processItemMetaWork(Game_s *game);
+--- a/src/playActivity/cacheDB.h
++++ b/src/playActivity/cacheDB.h
+@@ -23,7 +23,12 @@
+ 
+ void cache_db_close(void)
+ {
+-    sqlite3_close(cache_db);
++    // cache_db_prepare() closes the connection while the statement it
++    // returns is still alive. sqlite3_close() then fails with SQLITE_BUSY
++    // and, with the handle dropped, the connection (fd + page cache, about
++    // 0.5 MB after a scan of a large cache) was leaked on every lookup.
++    // sqlite3_close_v2() defers the close until that statement is finalized.
++    sqlite3_close_v2(cache_db);
+     cache_db = NULL;
+ }
+ 
+@@ -140,6 +145,7 @@
+     }
+     else {
+         printf("No cache db found\n");
++        free(game_name);
+         return NULL;
+     }
+     free(game_name);
+--- a/src/playActivity/playActivityDB.h
++++ b/src/playActivity/playActivityDB.h
+@@ -72,7 +72,9 @@
+ 
+ void play_activity_db_close()
+ {
+-    sqlite3_close(play_activity_db);
++    // _v2: if a statement were still alive, close once it is finalized
++    // instead of failing with SQLITE_BUSY and leaking the connection.
++    sqlite3_close_v2(play_activity_db);
+     play_activity_db = NULL;
+ }
+ 
+@@ -118,6 +120,14 @@
+     sqlite3_exec(play_activity_db,
+                  "CREATE INDEX IF NOT EXISTS rom_file_path_index ON rom(file_path);",
+                  NULL, NULL, NULL);
++
++    // play_activity gains a row on every game start and every resume from
++    // sleep. stop_all (run synchronously before each suspend) looks up
++    // open sessions (play_time IS NULL) and invalid ones (play_time < 0):
++    // with this index both are lookups instead of full table scans.
++    sqlite3_exec(play_activity_db,
++                 "CREATE INDEX IF NOT EXISTS play_activity_play_time_index ON play_activity(play_time);",
++                 NULL, NULL, NULL);
+ }
+ 
+ int play_activity_db_transaction(int (*exec_transaction)(void))
+@@ -629,9 +639,13 @@
+ {
+     print_debug("\n:: play_activity_stop_all()");
+     play_activity_db_open();
++    // One transaction for both statements: one journal/fsync cycle instead
++    // of two, on the path that runs before every suspend.
+     sqlite3_exec(play_activity_db,
++        "BEGIN;"
+         "UPDATE play_activity SET play_time = (strftime('%s', 'now')) - created_at, updated_at = (strftime('%s', 'now')) WHERE play_time IS NULL;"
+-        "DELETE FROM play_activity WHERE play_time < 0;",
++        "DELETE FROM play_activity WHERE play_time < 0;"
++        "COMMIT;",
+         NULL, NULL, NULL);
+     play_activity_db_close();
+ }
+--- a/static/build/.tmp_update/runtime.sh
++++ b/static/build/.tmp_update/runtime.sh
+@@ -353,7 +353,12 @@
+ }
+ 
+ check_is_game() {
+-    echo "$1" | grep -q "retroarch/cores" || echo "$1" | grep -q "/../../Roms/" || echo "$1" | grep -q "/mnt/SDCARD/Roms/"
++    # Same matches as the former three `echo | grep -q` pipelines (up to 6
++    # processes), without forking. `?` mirrors grep's `.` in "/../../Roms/".
++    case "$1" in
++        *retroarch/cores* | */??/??/Roms/* | */mnt/SDCARD/Roms/*) return 0 ;;
++    esac
++    return 1
+ }
+ 
+ notify_resolution_change() {
+@@ -365,13 +370,11 @@
+     res_x=""
+     res_y=""
+ 
+-    if [ -n "$1" ]; then
+-        res_x=$(echo "$1" | cut -d 'x' -f 1)
+-        res_y=$(echo "$1" | cut -d 'x' -f 2)
+-    else
+-        res_x=$(echo "$screen_resolution" | cut -d 'x' -f 1)
+-        res_y=$(echo "$screen_resolution" | cut -d 'x' -f 2)
+-    fi
++    # Same fields as `cut -d x -f 1` / `-f 2`, without forking
++    _res=${1:-$screen_resolution}
++    res_x=${_res%%x*}
++    _after=${_res#*x}
++    res_y=${_after%%x*}
+     log "Changing resolution to $res_x x $res_y"
+ 
+     if [ -x "$sysdir/bin/fbmode" ]; then
+@@ -416,19 +419,37 @@
+     start_audioserver
+     save_settings
+ 
+-    if check_is_game "$cmd"; then
+-        # Extract rom path
+-        rompath=$(echo "$cmd" | awk '{ st = index($0,"\" \""); print substr($0,st+3,length($0)-st-3)}')
++    # Single-line command (the normal case): parse with parameter expansion
++    # instead of echo|awk/grep pipelines. Multi-line input keeps the old
++    # awk-based parsing, whose per-line output the expansions do not mimic.
++    cmd_single_line=1
++    case "$cmd" in *"
++"*) cmd_single_line=0 ;; esac
+ 
+-        # Check for custom launch script
+-        if echo "$rompath" | grep -q ":"; then
+-            launch_script=$(echo "$rompath" | awk '{split($0,a,":"); print a[1]}')
+-            rompath=$(echo "$rompath" | awk '{split($0,a,":"); print a[2]}')
+-            echo "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"$launch_script\" \"$rompath\"" > $sysdir/cmd_to_run.sh
++    if check_is_game "$cmd"; then
++        # Extract rom path: text after the first `" "`, minus the last char
++        _after=${cmd#*\"\ \"}
++        if [ $cmd_single_line -eq 1 ] && [ "$_after" != "$cmd" ]; then
++            rompath=${_after%?}
++        else
++            rompath=$(echo "$cmd" | awk '{ st = index($0,"\" \""); print substr($0,st+3,length($0)-st-3)}')
+         fi
+ 
++        # Check for custom launch script ("script:rom")
++        case "$rompath" in
++            *:*)
++                launch_script=${rompath%%:*}
++                _after=${rompath#*:}
++                rompath=${_after%%:*}
++                echo "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"$launch_script\" \"$rompath\"" > $sysdir/cmd_to_run.sh
++                ;;
++        esac
++
+         orig_path="$rompath"
+-        romext=$(echo "$(basename "$rompath")" | awk -F. '{print tolower($NF)}')
++        # Extension of the file name, lowercased (tr only if needed)
++        _base=${rompath##*/}
++        romext=${_base##*.}
++        case "$romext" in *[A-Z]*) romext=$(echo "$romext" | tr 'A-Z' 'a-z') ;; esac
+ 
+         if [ "$romext" != "miyoocmd" ]; then
+             # Resolve real path
+@@ -443,8 +464,15 @@
+                 echo "$cmd_replaced" > $sysdir/cmd_to_run.sh
+             fi
+ 
+-            # Game config path
+-            romcfgpath="$(dirname "$rompath")/.game_config/$(basename "$rompath" ".$romext").cfg"
++            # Game config path (dirname / basename without forking)
++            case "$rompath" in
++                */*) _dir=${rompath%/*}; [ -z "$_dir" ] && _dir=/ ;;
++                *) _dir=. ;;
++            esac
++            _base=${rompath##*/}
++            _name=${_base%".$romext"}
++            [ -z "$_name" ] && _name=$_base
++            romcfgpath="$_dir/.game_config/$_name.cfg"
+             log "rompath: $rompath (ext: $romext)"
+             log "romcfgpath: $romcfgpath"
+             is_game=1
+@@ -461,17 +489,26 @@
+     full_resolution_path="$(get_full_resolution_path)"
+ 
+     if [ -z "$launch_script" ]; then
+-        launch_script=$(echo "$cmd" | awk -F'"' '{print $2}')
++        # First double-quoted field of the command
++        if [ $cmd_single_line -eq 0 ]; then
++            launch_script=$(echo "$cmd" | awk -F'"' '{print $2}')
++        else
++            case "$cmd" in
++                *\"*) _after=${cmd#*\"}; launch_script=${_after%%\"*} ;;
++                *) launch_script="" ;;
++            esac
++        fi
+     fi
+ 
+     if [ $is_game -eq 1 ]; then
+-        if [ -f "$launch_script" ] && cat "$launch_script" | grep -q '.retroarch/cores'; then
++        if [ -f "$launch_script" ] && grep -q '.retroarch/cores' "$launch_script"; then
+             # Override core if needed
+             override_game_core "$romcfgpath" "$launch_script"
+         fi
+ 
+-        # Handle dollar sign
+-        if echo "$rompath" | grep -q "\$"; then
++        # Handle dollar sign. The former `grep -q "\$"` matched every line
++        # (regex end-of-line), so cmd_to_run.sh was rewritten on each launch.
++        if case "$rompath" in *'$'*) true ;; *) false ;; esac; then
+             temp=$(cat $sysdir/cmd_to_run.sh)
+             echo "$temp" | sed 's/\$/\\\$/g' > $sysdir/cmd_to_run.sh
+         fi
+@@ -487,8 +524,10 @@
+     rm -f /tmp/quick_switch 2> /dev/null
+     rm -f /tmp/force_auto_load_state 2> /dev/null
+ 
+-    log "----- COMMAND:"
+-    log "$(cat $sysdir/cmd_to_run.sh)"
++    if [ -f $sysdir/config/.logging ]; then
++        log "----- COMMAND:"
++        log "$(cat $sysdir/cmd_to_run.sh)"
++    fi
+ 
+     if [ $is_game -eq 0 ] || [ -f "$rompath" ]; then
+         if [ "$romext" == "miyoocmd" ]; then
+@@ -1237,6 +1276,11 @@
+ }
+ 
+ start_audioserver() {
++    # Already running (the usual case on every game launch): skip computing
++    # the start volume, which cost jsonval + awk + a subshell each time.
++    if pgrep audioserver > /dev/null; then
++        return
++    fi
+     defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%.0f\n", 48 * (log(1 + $1) / log(10)) - 60 }')
+     runifnecessary "audioserver" $miyoodir/app/audioserver $defvol
+ }

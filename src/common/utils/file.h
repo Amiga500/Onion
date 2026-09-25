@@ -124,6 +124,8 @@ char *file_read_lineN(const char *filename, int n) __attribute__((malloc));
 
 void file_delete_line(const char *fileName, int n);
 
+bool file_delete_lines(const char *fileName, const int *lines, int count);
+
 void file_add_line_to_beginning(const char *filename, const char *lineToAdd);
 
 /**

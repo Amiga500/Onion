@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
     mkdirs("/mnt/SDCARD/.tmp_update/config/gameSwitcher");
 
     appState.show_time = config_flag_get("gameSwitcher/showTime");
+    romscreen_prefetch_play_time = appState.show_time;
     appState.show_total = !config_flag_get("gameSwitcher/hideTotal");
     appState.show_legend = !config_flag_get("gameSwitcher/hideLegend");
     appState.view_mode = appState.view_restore = config_flag_get("gameSwitcher/minimal") ? VIEW_MINIMAL : VIEW_NORMAL;

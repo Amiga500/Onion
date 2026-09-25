@@ -397,11 +397,15 @@ void resumeGame(int index)
         return;
     }
 
-    char jsonContent[STR_MAX * 4];
+    // getline(): count real lines, like file_read_lineN()/file_delete_line()
+    // (a fixed 1 KB fgets() buffer counted a longer line twice, and the
+    // quick-switch move-to-top could then delete the wrong entry).
+    char *jsonContent = NULL;
+    size_t jsonContent_cap = 0;
     int validGameCount = -1;
     int lineCount = 0;
 
-    while (fgets(jsonContent, sizeof(jsonContent), file) != NULL) {
+    while (getline(&jsonContent, &jsonContent_cap, file) != -1) {
         char label[256] = "";
         char rompath[256] = "";
         char imgpath[256] = "";
@@ -528,6 +532,7 @@ void resumeGame(int index)
     if (file != NULL) {
         fclose(file);
     }
+    free(jsonContent);
 }
 
 void set_resumeGame(void)

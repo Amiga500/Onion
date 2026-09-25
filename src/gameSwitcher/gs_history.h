@@ -15,6 +15,7 @@
 #include "utils/str.h"
 
 #include "../playActivity/cacheDB.h"
+#include "../playActivity/playActivityDB.h"
 
 #include "gs_model.h"
 #include "gs_retroarch.h"
@@ -97,7 +98,6 @@ void setEntryDefaultValues(Game_s *game, int index)
 void readHistory()
 {
     FILE *file;
-    char line[STR_MAX * 6];
     int numRecents = 0;
 
     const char *recentFilePath = getMiyooRecentFilePath();
@@ -108,10 +108,19 @@ void readHistory()
         return;
     }
 
-    int lineNo = 0;
+    // Duplicates are collected and removed in ONE rewrite after the scan
+    // (was: a full rewrite of the recent list per duplicate). Line numbers
+    // stored in each entry already account for the lines deleted before it.
+    int dup_lines[MAX_HISTORY * 2];
+    int dup_count = 0;
+    int orig_line_no = 0;
 
-    while ((fgets(line, sizeof(line), file) != NULL) && (numRecents < MAX_HISTORY)) {
-        ++lineNo;
+    char *line = NULL;
+    size_t line_cap = 0;
+
+    while (numRecents < MAX_HISTORY && getline(&line, &line_cap, file) != -1) {
+        ++orig_line_no;
+        int lineNo = orig_line_no - dup_count;
 
         if (!parseJsonToRecentItem(line, &game_list[numRecents].recentItem, lineNo)) {
             continue;
@@ -127,8 +136,10 @@ void readHistory()
         }
 
         if (isDuplicate) {
-            file_delete_line(recentFilePath, lineNo);
-            lineNo--;
+            // Only count it as deleted if it will really be deleted, so the
+            // numbering of the following entries stays correct.
+            if (dup_count < (int)(sizeof(dup_lines) / sizeof(dup_lines[0])))
+                dup_lines[dup_count++] = orig_line_no;
             continue;
         }
 
@@ -143,7 +154,12 @@ void readHistory()
         numRecents++;
     }
 
+    free(line);
     fclose(file);
+
+    if (dup_count > 0)
+        file_delete_lines(recentFilePath, dup_lines, dup_count);
+
     game_list_len = numRecents;
 }
 
@@ -180,6 +196,13 @@ void processItemMetaWork(Game_s *game)
     if (ra_findItemInRetroArchHistory(game)) {
         ra_getCoreNameFromInfo(game);
     }
+
+    // Play time shown in the header: computed here (prefetch worker, under
+    // meta_mutex) so the UI thread does not open the database on the SD card
+    // the first time each game is shown. renderHeader() still computes it if
+    // it is missing (e.g. the time display was switched on later).
+    if (romscreen_prefetch_play_time && game->totalTime[0] == '\0')
+        str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
 }
 
 void processItem(Game_s *game)
