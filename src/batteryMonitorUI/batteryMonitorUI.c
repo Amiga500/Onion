@@ -1,4 +1,5 @@
 #include "./batteryMonitorUI.h"
+#include "./graph_clamp.h"
 #include "system/device_model.h"
 
 #include "../batmon/batmonDB.h"
@@ -270,8 +271,7 @@ void compute_graph(void)
 
                     graphic[current_index].is_charging = is_charging;
 
-                    if (bat_perc > 100)
-                        bat_perc = 100;
+                    bat_perc = graph_clampPercent(bat_perc);
 
                     int current_value = battery_to_pixel(bat_perc);
 
