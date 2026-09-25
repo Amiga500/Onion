@@ -110,7 +110,10 @@ int main(int argc, char *argv[])
                     is_suspended, current_percentage, warn_at);
                 old_percentage = current_percentage;
                 // Save battery percentage to file
-                file_put_sync(fp, "/tmp/percBat", "%d", current_percentage);
+                // /tmp is tmpfs: fsync is useless there. Write a sibling and
+                // rename it so readers never see a truncated/empty file.
+                file_put(fp, "/tmp/percBat.tmp", "%d", current_percentage);
+                rename("/tmp/percBat.tmp", "/tmp/percBat");
                 // Current battery state duration addition
                 update_current_duration();
                 // New battery percentage entry

@@ -419,6 +419,7 @@ void popMenu_deleteSaveState(void)
                     break;
                 }
             }
+            SDL_Delay(15); // wait for input without spinning
         }
 
         appState.changed = true;

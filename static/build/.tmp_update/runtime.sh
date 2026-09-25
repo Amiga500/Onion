@@ -113,6 +113,7 @@ main() {
 
     # Start the key monitor
     keymon &
+    keymon_pid=$!
 
     # Init
     rm /tmp/.offOrder 2> /dev/null
@@ -189,11 +190,26 @@ main() {
 
 state_change() {
     log "state change: $1"
-    runifnecessary "keymon" keymon
+    ensure_keymon
     check_networking
-    touch /tmp/state_changed
-    sync
+    # Shell builtin instead of `touch` (no fork). /tmp is tmpfs, so the
+    # global sync that used to follow flushed only the SD card, four times
+    # per loop; data written by games/apps is now synced once when they
+    # exit (launch_game_postprocess).
+    : > /tmp/state_changed
     eval "$1"
+}
+
+# Cheap liveness check for keymon: /proc lookup of the pid we started
+# (no fork); pgrep only when it is gone.
+ensure_keymon() {
+    if [ -n "$keymon_pid" ] && [ -r "/proc/$keymon_pid/comm" ]; then
+        read -r _keymon_comm < "/proc/$keymon_pid/comm"
+        [ "$_keymon_comm" = "keymon" ] && return
+    fi
+    runifnecessary "keymon" keymon
+    set -- $(pgrep keymon)
+    keymon_pid=$1
 }
 
 set_prev_state() {
@@ -686,6 +702,9 @@ launch_game_postprocess() {
     is_game=$1
     launch_path="$2"
     rompath="$3"
+
+    # Flush what the game/app wrote (saves, configs) once, now that it exited
+    sync
 
     # Reset CPU frequency
     echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor

@@ -12,6 +12,7 @@
 #include "gs_appState.h"
 #include "gs_model.h"
 #include "gs_popMenu.h"
+#include "gs_romscreen.h"
 
 void renderCentered(SDL_Surface *image, int view_mode, SDL_Rect *overrideSrcRect, SDL_Rect *overrideDestRect)
 {
@@ -166,13 +167,21 @@ void renderHeader(AppState *state, int battery_percentage)
 
     if (state->show_time && game_list_len > 0) {
         if (strlen(game->totalTime) == 0) {
-            str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
+            // play_activity may query the MainUI cache DB (a process-wide
+            // global also used by the romscreen prefetch worker)
+            pthread_mutex_lock(&meta_mutex);
+            int play_time = play_activity_get_play_time(game->recentItem.rompath);
+            pthread_mutex_unlock(&meta_mutex);
+            str_serializeTime(game->totalTime, play_time);
         }
         snprintf(title_str, sizeof(title_str), "%s", game->totalTime);
 
         if (state->show_total) {
             if (strlen(sTotalTimePlayed) == 0) {
-                str_serializeTime(sTotalTimePlayed, play_activity_get_total_play_time());
+                pthread_mutex_lock(&meta_mutex);
+                int total_time = play_activity_get_total_play_time();
+                pthread_mutex_unlock(&meta_mutex);
+                str_serializeTime(sTotalTimePlayed, total_time);
             }
             size_t used = strlen(title_str);
             if (used < sizeof(title_str))

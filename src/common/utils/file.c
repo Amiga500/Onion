@@ -696,3 +696,85 @@ int file_remove_recursive(const char *path)
         return 0;
     return nftw(path, _remove_cb, 64, FTW_DEPTH | FTW_PHYS);
 }
+
+FILE *file_atomic_begin(const char *path, char *tmp_path, size_t tmp_size,
+                        char *final_path, size_t final_size)
+{
+    if (path == NULL || tmp_path == NULL || final_path == NULL ||
+        tmp_size == 0 || final_size == 0)
+        return NULL;
+
+    // Resolve symlinks so that rename() replaces the real file, not the link.
+    char resolved[PATH_MAX];
+    const char *target = path;
+    if (realpath(path, resolved) != NULL)
+        target = resolved;
+
+    int n = snprintf(final_path, final_size, "%s", target);
+    if (n < 0 || (size_t)n >= final_size)
+        return NULL;
+
+    n = snprintf(tmp_path, tmp_size, "%s.tmp", final_path);
+    if (n < 0 || (size_t)n >= tmp_size)
+        return NULL;
+
+    return fopen(tmp_path, "w");
+}
+
+bool file_atomic_commit(FILE *fp, const char *tmp_path, const char *final_path)
+{
+    if (fp == NULL)
+        return false;
+
+    bool ok = !ferror(fp);
+    if (fflush(fp) != 0)
+        ok = false;
+    if (ok && fsync(fileno(fp)) != 0)
+        ok = false;
+    if (fclose(fp) != 0)
+        ok = false;
+
+    if (ok && rename(tmp_path, final_path) != 0)
+        ok = false;
+
+    if (!ok) {
+        remove(tmp_path);
+        return false;
+    }
+
+    // Best effort: persist the directory entry as well.
+    char dir_path[PATH_MAX];
+    int n = snprintf(dir_path, sizeof(dir_path), "%s", final_path);
+    if (n > 0 && (size_t)n < sizeof(dir_path)) {
+        char *slash = strrchr(dir_path, '/');
+        if (slash != NULL && slash != dir_path) {
+            *slash = '\0';
+            int dfd = open(dir_path, O_RDONLY);
+            if (dfd >= 0) {
+                fsync(dfd);
+                close(dfd);
+            }
+        }
+    }
+
+    return true;
+}
+
+bool file_atomic_write(const char *path, const char *data, size_t len)
+{
+    char tmp_path[PATH_MAX];
+    char final_path[PATH_MAX];
+
+    FILE *fp = file_atomic_begin(path, tmp_path, sizeof(tmp_path),
+                                 final_path, sizeof(final_path));
+    if (fp == NULL)
+        return false;
+
+    if (len > 0 && fwrite(data, 1, len, fp) != len) {
+        fclose(fp);
+        remove(tmp_path);
+        return false;
+    }
+
+    return file_atomic_commit(fp, tmp_path, final_path);
+}

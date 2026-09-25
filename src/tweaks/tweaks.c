@@ -262,6 +262,10 @@ int main(int argc, char *argv[])
 
             acc_ticks -= time_step;
         }
+
+        // Idle until the next frame instead of spinning on a CPU core
+        if (acc_ticks < time_step)
+            SDL_Delay(time_step - acc_ticks);
     }
 
     // Clear the screen when exiting

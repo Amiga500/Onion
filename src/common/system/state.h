@@ -90,16 +90,50 @@ bool check_isDrastic(void)
 
 void system_state_update(void)
 {
-    if (check_isGameSwitcher())
+    // Same decision order as the check_is*() helpers above, but /proc is
+    // scanned once for all candidates instead of once per candidate
+    // (up to 5 full scans before), and cmd_to_run.sh is read at most once.
+    enum { P_SWITCHER, P_RETROARCH, P_RA32, P_MAINUI, P_ADVMENU, P_DRASTIC, P_COUNT };
+    static const char *const names[P_COUNT] = {
+        "gameSwitcher", "retroarch", "ra32", "MainUI", "advmenu", "drastic"};
+    pid_t pids[P_COUNT];
+
+    bool switcher_flag = exists("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
+    bool has_cmd = exists(CMD_TO_RUN_PATH);
+    bool ra_cmd = false;
+
+    if (has_cmd) {
+        char *cmd = file_read(CMD_TO_RUN_PATH);
+        if (cmd != NULL) {
+            ra_cmd = strstr(cmd, "retroarch") != NULL ||
+                     strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
+                     strstr(cmd, "/mnt/SDCARD/RApp/") != NULL;
+            free(cmd);
+        }
+    }
+
+    process_searchpids(names, pids, P_COUNT);
+
+    if (switcher_flag && pids[P_SWITCHER]) {
         system_state = MODE_SWITCHER;
-    else if (check_isRetroArch())
+        system_state_pid = pids[P_SWITCHER];
+    }
+    else if (ra_cmd && (pids[P_RETROARCH] || pids[P_RA32])) {
         system_state = MODE_GAME;
-    else if (check_isMainUI())
+        system_state_pid = pids[P_RETROARCH] ? pids[P_RETROARCH] : pids[P_RA32];
+    }
+    else if (!has_cmd && pids[P_MAINUI]) {
         system_state = MODE_MAIN_UI;
-    else if (check_isAdvMenu())
+        system_state_pid = pids[P_MAINUI];
+    }
+    else if (!has_cmd && pids[P_ADVMENU]) {
         system_state = MODE_ADVMENU;
-    else if (check_isDrastic())
+        system_state_pid = pids[P_ADVMENU];
+    }
+    else if (has_cmd && pids[P_DRASTIC]) {
         system_state = MODE_DRASTIC;
+        system_state_pid = pids[P_DRASTIC];
+    }
     else
         system_state = MODE_APPS;
 

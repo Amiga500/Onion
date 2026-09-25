@@ -76,6 +76,8 @@ typedef struct settings_s {
 static bool settings_loaded = false;
 static settings_s settings;
 static settings_s __settings;
+// true when __settings mirrors what is on disk (after a load or a save)
+static bool __settings_snapshot_valid = false;
 static settings_s __default_settings = (settings_s){
     // MainUI settings
     .volume = 20,
@@ -270,15 +272,31 @@ void settings_load(void)
     _settings_load_mainui();
 
     _settings_clone(&__settings, &settings);
+    __settings_snapshot_valid = true;
 
     settings_loaded = true;
+}
+
+bool _settings_dirty_keymap(void)
+{
+    return settings.mainui_single_press != __settings.mainui_single_press ||
+           settings.mainui_long_press != __settings.mainui_long_press ||
+           settings.mainui_double_press != __settings.mainui_double_press ||
+           settings.ingame_single_press != __settings.ingame_single_press ||
+           settings.ingame_long_press != __settings.ingame_long_press ||
+           settings.ingame_double_press != __settings.ingame_double_press ||
+           strcmp(settings.mainui_button_x, __settings.mainui_button_x) != 0 ||
+           strcmp(settings.mainui_button_y, __settings.mainui_button_y) != 0;
 }
 
 void _settings_save_keymap(void)
 {
     FILE *fp;
+    char tmp_path[PATH_MAX];
+    char final_path[PATH_MAX];
 
-    if ((fp = fopen(CONFIG_PATH "keymap.json", "w+")) == NULL)
+    if ((fp = file_atomic_begin(CONFIG_PATH "keymap.json", tmp_path, sizeof(tmp_path),
+                                final_path, sizeof(final_path))) == NULL)
         return;
 
     fprintf(fp, "{\n");
@@ -300,9 +318,7 @@ void _settings_save_keymap(void)
             settings.mainui_button_y);
     fprintf(fp, "}\n");
 
-    fflush(fp);
-    fsync(fileno(fp));
-    fclose(fp);
+    file_atomic_commit(fp, tmp_path, final_path);
 }
 
 bool _settings_dirty_mainui(void)
@@ -324,16 +340,14 @@ bool _settings_dirty_mainui(void)
            settings.wifi_on != __settings.wifi_on;
 }
 
-void _settings_save_mainui(void)
+void _settings_save_mainui_force(void)
 {
-    if (!_settings_dirty_mainui()) {
-        print_debug("Skipped saving system.json (not dirty)");
-        return;
-    }
-
     FILE *fp;
+    char tmp_path[PATH_MAX];
+    char final_path[PATH_MAX];
 
-    if ((fp = fopen(MAIN_UI_SETTINGS, "w+")) == NULL)
+    if ((fp = file_atomic_begin(MAIN_UI_SETTINGS, tmp_path, sizeof(tmp_path),
+                                final_path, sizeof(final_path))) == NULL)
         return;
 
     fprintf(fp, "{\n");
@@ -354,50 +368,156 @@ void _settings_save_mainui(void)
     fprintf(fp, JSON_FORMAT_TAB_NUMBER_NC, "wifi", settings.wifi_on);
     fprintf(fp, "}");
 
-    fflush(fp);
-    fsync(fileno(fp));
-    fclose(fp);
+    if (!file_atomic_commit(fp, tmp_path, final_path))
+        return;
+
+    // system.json on disk now matches these fields: keep the snapshot in
+    // sync so the dirty check compares against what is really stored.
+    __settings.volume = settings.volume;
+    __settings.mute = settings.mute;
+    __settings.bgm_volume = settings.bgm_volume;
+    __settings.brightness = settings.brightness;
+    __settings.sleep_timer = settings.sleep_timer;
+    __settings.lumination = settings.lumination;
+    __settings.hue = settings.hue;
+    __settings.saturation = settings.saturation;
+    __settings.contrast = settings.contrast;
+    __settings.fontsize = settings.fontsize;
+    __settings.audiofix = settings.audiofix;
+    __settings.wifi_on = settings.wifi_on;
+    snprintf(__settings.keymap, sizeof(__settings.keymap), "%s", settings.keymap);
+    snprintf(__settings.language, sizeof(__settings.language), "%s", settings.language);
+    snprintf(__settings.theme, sizeof(__settings.theme), "%s", settings.theme);
 }
 
+void _settings_save_mainui(void)
+{
+    if (!_settings_dirty_mainui()) {
+        print_debug("Skipped saving system.json (not dirty)");
+        return;
+    }
+    _settings_save_mainui_force();
+}
+
+// Write a flag only when it changed since the last load/save, or when the
+// file that should represent it on disk is missing.
+static void _settings_save_flag(const char *key, bool value, bool old_value, bool force)
+{
+    if (!force && value == old_value) {
+        char path[STR_MAX];
+        snprintf(path, sizeof(path), "%s%s%s", CONFIG_PATH, key, value ? "" : "_");
+        if (exists(path))
+            return;
+    }
+    config_flag_set(key, value);
+}
+
+static void _settings_save_number(const char *key, int value, int old_value, bool force)
+{
+    if (!force && value == old_value) {
+        char path[STR_MAX];
+        concat(path, CONFIG_PATH, key);
+        if (exists(path))
+            return;
+    }
+    config_setNumber(key, value);
+}
+
+static void _settings_save_string(const char *key, const char *value, const char *old_value, bool force)
+{
+    if (!force && strcmp(value, old_value) == 0) {
+        char path[STR_MAX];
+        concat(path, CONFIG_PATH, key);
+        if (exists(path))
+            return;
+    }
+    config_setString(key, value);
+}
+
+static bool _settings_deprecated_cleaned = false;
+
+// Selective save: only what differs from the on-disk snapshot is written.
+// A volume step used to rewrite ~30 files with 13 fsyncs; now it touches
+// system.json only.
+void _settings_save_impl(bool notify)
+{
+    const settings_s *old = &__settings;
+    bool force = !__settings_snapshot_valid;
+
+    // Deprecated flags are folded into the current values at load time.
+    // If any is still on disk, write everything once before deleting them,
+    // otherwise the migrated values would be lost on the next load.
+    if (!_settings_deprecated_cleaned &&
+        (exists(CONFIG_PATH ".noLowBatteryAutoSave") ||
+         exists(CONFIG_PATH ".noBatteryWarning") ||
+         exists(CONFIG_PATH ".noVibration") ||
+         exists(CONFIG_PATH ".menuInverted") ||
+         exists(CONFIG_PATH ".noGameSwitcher")))
+        force = true;
+
+    _settings_save_flag(".noAutoStart", !settings.startup_auto_resume, !old->startup_auto_resume, force);
+    _settings_save_flag(".noMenuHaptics", !settings.menu_button_haptics, !old->menu_button_haptics, force);
+    _settings_save_flag(".bgmMute", settings.bgm_mute, old->bgm_mute, force);
+    _settings_save_flag(".showRecents", settings.show_recents, old->show_recents, force);
+    _settings_save_flag(".showExpert", settings.show_expert, old->show_expert, force);
+    _settings_save_flag(".muteVolume", settings.mute, old->mute, force);
+    _settings_save_flag(".disableStandby", settings.disable_standby, old->disable_standby, force);
+    _settings_save_flag(".logging", settings.enable_logging, old->enable_logging, force);
+    _settings_save_flag(".blfOn", settings.blue_light_state, old->blue_light_state, force);
+    _settings_save_flag(".blf", settings.blue_light_schedule, old->blue_light_schedule, force);
+    _settings_save_flag(".recIndicator", settings.rec_indicator, old->rec_indicator, force);
+    _settings_save_flag(".recHotkey", settings.rec_hotkey, old->rec_hotkey, force);
+    _settings_save_number("battery/warnAt", settings.low_battery_warn_at, old->low_battery_warn_at, force);
+    _settings_save_number("battery/exitAt", settings.low_battery_autosave_at, old->low_battery_autosave_at, force);
+    _settings_save_number("startup/app", settings.startup_application, old->startup_application, force);
+    _settings_save_number("startup/addHours", settings.time_skip, old->time_skip, force);
+    _settings_save_number("vibration", settings.vibration, old->vibration, force);
+    _settings_save_number("startup/tab", settings.startup_tab, old->startup_tab, force);
+    _settings_save_number("recCountdown", settings.rec_countdown, old->rec_countdown, force);
+    _settings_save_number("display/blueLightLevel", settings.blue_light_level, old->blue_light_level, force);
+    _settings_save_number("display/blueLightRGB", settings.blue_light_rgb, old->blue_light_rgb, force);
+    _settings_save_string("display/blueLightTime", settings.blue_light_time, old->blue_light_time, force);
+    _settings_save_string("display/blueLightTimeOff", settings.blue_light_time_off, old->blue_light_time_off, force);
+    _settings_save_number("flip/lidCloseAction", settings.lid_close_action, old->lid_close_action, force);
+    _settings_save_number("pwmfrequency", settings.pwmfrequency, old->pwmfrequency, force);
+
+    // remove deprecated flags (once per process is enough)
+    if (!_settings_deprecated_cleaned) {
+        remove(CONFIG_PATH ".noLowBatteryAutoSave");
+        remove(CONFIG_PATH ".noBatteryWarning");
+        remove(CONFIG_PATH ".noVibration");
+        remove(CONFIG_PATH ".menuInverted");
+        remove(CONFIG_PATH ".noGameSwitcher");
+        _settings_deprecated_cleaned = true;
+    }
+
+    if (force || _settings_dirty_keymap() || !exists(CONFIG_PATH "keymap.json"))
+        _settings_save_keymap();
+
+    if (force || !exists(MAIN_UI_SETTINGS))
+        _settings_save_mainui_force();
+    else
+        _settings_save_mainui();
+
+    // Disk now matches memory: later saves only write what changes next.
+    _settings_clone(&__settings, &settings);
+    __settings_snapshot_valid = true;
+
+    if (notify)
+        temp_flag_set("settings_changed", true);
+}
+
+// Save and notify keymon (it reloads settings when it sees the flag).
 void settings_save(void)
 {
-    config_flag_set(".noAutoStart", !settings.startup_auto_resume);
-    config_flag_set(".noMenuHaptics", !settings.menu_button_haptics);
-    config_flag_set(".bgmMute", settings.bgm_mute);
-    config_flag_set(".showRecents", settings.show_recents);
-    config_flag_set(".showExpert", settings.show_expert);
-    config_flag_set(".muteVolume", settings.mute);
-    config_flag_set(".disableStandby", settings.disable_standby);
-    config_flag_set(".logging", settings.enable_logging);
-    config_flag_set(".blfOn", settings.blue_light_state);
-    config_flag_set(".blf", settings.blue_light_schedule);
-    config_flag_set(".recIndicator", settings.rec_indicator);
-    config_flag_set(".recHotkey", settings.rec_hotkey);
-    config_setNumber("battery/warnAt", settings.low_battery_warn_at);
-    config_setNumber("battery/exitAt", settings.low_battery_autosave_at);
-    config_setNumber("startup/app", settings.startup_application);
-    config_setNumber("startup/addHours", settings.time_skip);
-    config_setNumber("vibration", settings.vibration);
-    config_setNumber("startup/tab", settings.startup_tab);
-    config_setNumber("recCountdown", settings.rec_countdown);
-    config_setNumber("display/blueLightLevel", settings.blue_light_level);
-    config_setNumber("display/blueLightRGB", settings.blue_light_rgb);
-    config_setString("display/blueLightTime", settings.blue_light_time);
-    config_setString("display/blueLightTimeOff", settings.blue_light_time_off);
-    config_setNumber("flip/lidCloseAction", settings.lid_close_action);
+    _settings_save_impl(true);
+}
 
-    config_setNumber("pwmfrequency", settings.pwmfrequency);
-    // remove deprecated flags
-    remove(CONFIG_PATH ".noLowBatteryAutoSave");
-    remove(CONFIG_PATH ".noBatteryWarning");
-    remove(CONFIG_PATH ".noVibration");
-    remove(CONFIG_PATH ".menuInverted");
-    remove(CONFIG_PATH ".noGameSwitcher");
-
-    _settings_save_keymap();
-    _settings_save_mainui();
-
-    temp_flag_set("settings_changed", true);
+// Save without notifying: for keymon itself, which already holds the
+// current values and would otherwise reload its own write from disk.
+void settings_save_local(void)
+{
+    _settings_save_impl(false);
 }
 
 bool settings_saveSystemProperty(const char *prop_name, int value)

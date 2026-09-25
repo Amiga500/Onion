@@ -64,6 +64,21 @@ print-version:
 	@echo $(TARGET) v$(VERSION)
 	@echo RetroArch sub-v$(RA_SUBVERSION)
 
+# Setup copies static/, lib/ and the res/ + script/ folders of src/ into
+# build/. It used to run only once (stamp file without prerequisites), so
+# edits there were ignored until `make clean`. Now it re-runs whenever one
+# of those inputs is newer than the stamp. (A find is used because many
+# paths contain spaces, which make prerequisites cannot express.)
+SETUP_INPUTS := $(STATIC_BUILD) $(STATIC_DIST) $(STATIC_CONFIGS) $(STATIC_PACKAGES) $(ROOT_DIR)/lib
+ifeq ($(filter clean deepclean git-clean git-submodules version print-version pwd toolchain format,$(MAKECMDGOALS)),)
+SETUP_STALE := $(shell [ -f $(CACHE)/.setup ] && { \
+	find $(SETUP_INPUTS) -newer $(CACHE)/.setup -print -quit 2> /dev/null; \
+	find $(SRC_DIR) \( -path '*/res/*' -o -path '*/script/*' \) -newer $(CACHE)/.setup -print -quit 2> /dev/null; } | head -n 1)
+ifneq ($(SETUP_STALE),)
+.PHONY: $(CACHE)/.setup
+endif
+endif
+
 $(CACHE)/.setup:
 	@$(ECHO) $(PRINT_RECIPE)
 	@mkdir -p $(BUILD_DIR) $(DIST_DIR) $(RELEASE_DIR)
@@ -116,37 +131,53 @@ build: core apps external
 jpg2png:
 	@cd $(SRC_DIR)/jpg2png && BUILD_DIR=$(BIN_DIR) make
 
-core: $(CACHE)/.setup
+# Onion binaries. The two "prime" modules are built first, one after the
+# other: between them they compile every object shared through ../common
+# (str/log/file, cJSON, udp, retroarch_cmd) in the same order as before, so
+# the remaining modules never compile the same shared .o concurrently and
+# can be built in parallel with `make -j`. $(MAKE) (not `make`) passes the
+# jobserver down to the sub-makes.
+CORE_PRIME := bootScreen gameSwitcher
+CORE_MODULES := chargingState \
+	mainUiBatPerc \
+	keymon \
+	playActivity \
+	themeSwitcher \
+	tweaks \
+	packageManager \
+	sendkeys \
+	setState \
+	renameRom \
+	infoPanel \
+	prompt \
+	batmon \
+	easter \
+	read_uuid \
+	detectKey \
+	axp \
+	pressMenu2Kill \
+	pngScale \
+	libgamename \
+	gameNameList \
+	sendUDP \
+	tree \
+	pippi \
+	cpuclock \
+	fbmode
+CORE_MODULE_TARGETS := $(addprefix core-mod-,$(CORE_MODULES))
+
+.PHONY: core-prime core-modules $(CORE_MODULE_TARGETS)
+
+core-prime: $(CACHE)/.setup
+	@set -e; for m in $(CORE_PRIME); do (cd $(SRC_DIR)/$$m && BUILD_DIR=$(BIN_DIR) $(MAKE)); done
+
+$(CORE_MODULE_TARGETS): core-mod-%: core-prime
+	@cd $(SRC_DIR)/$* && BUILD_DIR=$(BIN_DIR) $(MAKE)
+
+core-modules: $(CORE_MODULE_TARGETS)
+
+core: core-modules
 	@$(ECHO) $(PRINT_RECIPE)
-# Build Onion binaries
-	@cd $(SRC_DIR)/bootScreen && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/chargingState && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/gameSwitcher && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/mainUiBatPerc && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/keymon && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/playActivity && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/themeSwitcher && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/tweaks && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/packageManager && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/sendkeys && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/setState && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/renameRom && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/infoPanel && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/prompt && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/batmon && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/easter && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/read_uuid && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/detectKey && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/axp && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/pressMenu2Kill && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/pngScale && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/libgamename && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/gameNameList && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/sendUDP && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/tree && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/pippi && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/cpuclock && BUILD_DIR=$(BIN_DIR) make
-	@cd $(SRC_DIR)/fbmode && BUILD_DIR=$(BIN_DIR) make
 
 # Build dependencies for installer
 	@mkdir -p $(INSTALLER_DIR)/bin
@@ -211,11 +242,24 @@ dist: build
 	@rm -rf $(TEMP_DIR)/configs
 	@rmdir $(TEMP_DIR)
 # Package RetroArch separately
+# Recompressing RetroArch is the slowest packaging step and its content
+# rarely changes: reuse the cached archive while a content hash (paths,
+# modes, symlink targets, file data; mtimes are not archived) is identical.
 	@echo -n "Packaging RetroArch..."
-	@cd $(BUILD_DIR) && 7z a -mtm=off retroarch.pak ./RetroArch -bsp1 -bso0
+	@mkdir -p $(CACHE) $(DIST_DIR)/RetroArch
+	@ra_hash=$$(cd $(BUILD_DIR) && { \
+		find ./RetroArch \( -type f -o -type l \) -printf '%p %m %l\n' | LC_ALL=C sort; \
+		find ./RetroArch -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha1sum; \
+	} | sha1sum | cut -d' ' -f1); \
+	if [ -f $(CACHE)/retroarch.pak ] && [ "$$(cat $(CACHE)/retroarch.pak.sha1 2> /dev/null)" = "$$ra_hash" ]; then \
+		echo -n " unchanged, cached archive reused."; \
+	else \
+		rm -f $(CACHE)/retroarch.pak $(CACHE)/retroarch.pak.sha1; \
+		(cd $(BUILD_DIR) && 7z a -mtm=off $(CACHE)/retroarch.pak ./RetroArch -bsp1 -bso0) || exit 1; \
+		echo "$$ra_hash" > $(CACHE)/retroarch.pak.sha1; \
+	fi
 	@echo " DONE"
-	@mkdir -p $(DIST_DIR)/RetroArch
-	@mv $(BUILD_DIR)/retroarch.pak $(DIST_DIR)/RetroArch/
+	@cp $(CACHE)/retroarch.pak $(DIST_DIR)/RetroArch/
 	@echo $(RA_SUBVERSION) > $(DIST_DIR)/RetroArch/ra_package_version.txt
 # Package Onion core
 	@echo -n "Packaging Onion..."
@@ -234,7 +278,7 @@ clean:
 	@$(ECHO) $(PRINT_RECIPE)
 	@rm -rf $(BUILD_DIR) $(BUILD_TEST_DIR) $(ROOT_DIR)/dist $(TEMP_DIR)/configs
 	@rm -f $(CACHE)/.setup
-	@find include src -type f -name *.o -exec rm -f {} \;
+	@find include src -type f -name '*.o' -exec rm -f {} +
 
 deepclean: clean
 	@rm -rf $(CACHE)

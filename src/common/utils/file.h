@@ -142,4 +142,33 @@ int file_remove_recursive(const char *path);
  */
 char *file_resolvePath(const char *path) __attribute__((malloc));
 
+/**
+ * @brief Begin an atomic (crash-safe) rewrite of a file.
+ *
+ * Opens a temporary sibling of the target for writing. When the target is a
+ * symlink it is resolved first, so the link itself is never replaced.
+ * Finish with file_atomic_commit(); on any error the original file is left
+ * untouched.
+ *
+ * @param path Target file.
+ * @param tmp_path Out: temporary path (buffer of tmp_size bytes).
+ * @param final_path Out: resolved target path (buffer of final_size bytes).
+ * @return Open FILE* on success, NULL on failure.
+ */
+FILE *file_atomic_begin(const char *path, char *tmp_path, size_t tmp_size,
+                        char *final_path, size_t final_size);
+
+/**
+ * @brief Flush, fsync and rename the temporary file over the target.
+ *
+ * Always closes fp. On failure the temporary file is removed and the
+ * original file is left untouched.
+ */
+bool file_atomic_commit(FILE *fp, const char *tmp_path, const char *final_path);
+
+/**
+ * @brief Atomically replace a file with the given buffer.
+ */
+bool file_atomic_write(const char *path, const char *data, size_t len);
+
 #endif // UTILS_FILE_H__

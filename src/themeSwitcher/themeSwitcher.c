@@ -335,8 +335,10 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (!changed)
+        if (!changed) {
+            SDL_Delay(15); // wait for input without spinning
             continue;
+        }
 
         if (keystate[SW_BTN_B]) {
             if (levelPage == 0)

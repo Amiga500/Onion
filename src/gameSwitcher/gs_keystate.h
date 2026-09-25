@@ -41,6 +41,9 @@ void removeCurrentItem()
     // entries below the current one are shifted up.
     popMenu_finishScan(false);
 
+    // Same for the romscreen prefetch worker (released at the end).
+    romscreen_lockForUpdate();
+
     Game_s *game = &game_list[appState.current_game];
 
     printf_debug("removing: %s\n", game->name);
@@ -67,6 +70,8 @@ void removeCurrentItem()
     }
 
     game_list_len--;
+
+    romscreen_unlock();
 }
 
 int checkQuitAction(void)
@@ -105,6 +110,7 @@ void action_confirmRemove(AppState *state)
                 break;
             }
         }
+        SDL_Delay(15); // wait for input without spinning
     }
 }
 

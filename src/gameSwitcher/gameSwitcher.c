@@ -47,7 +47,8 @@ int main(int argc, char *argv[])
 
     readFirstEntry();
     overlay_init();
-    loadRomScreens();
+    // The prefetch worker starts after readHistory() (first render), so it
+    // never races with the list being (re)built.
 
     settings_load();
     lang_load();
@@ -103,6 +104,13 @@ int main(int argc, char *argv[])
                 appState.changed = true;
         }
 
+        // Idle until the next frame instead of spinning on a CPU core
+        // (input latency stays below one frame, ~33 ms)
+        if (appState.acc_ticks < appState.time_step) {
+            SDL_Delay(appState.time_step - appState.acc_ticks);
+            continue;
+        }
+
         if (appState.acc_ticks >= appState.time_step) {
             appState.acc_ticks -= appState.time_step;
 
@@ -123,6 +131,7 @@ int main(int argc, char *argv[])
                 }
                 else {
                     appState.current_bg = loadRomScreen(appState.current_game);
+                    romscreen_prefetch(appState.current_game);
 
                     if (appState.current_bg != NULL) {
                         renderCentered(appState.current_bg, appState.view_mode, NULL, NULL);

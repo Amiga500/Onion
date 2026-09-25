@@ -187,6 +187,7 @@ bool confirmDoNothing(KeyState *keystate)
             else if (keystate[SW_BTN_B] == PRESSED)
                 quit = true;
         }
+        SDL_Delay(15); // wait for input without spinning
     }
 
     SDL_FreeSurface(image);
