@@ -128,6 +128,8 @@ bool file_delete_lines(const char *fileName, const int *lines, int count);
 
 void file_add_line_to_beginning(const char *filename, const char *lineToAdd);
 
+bool file_move_line_to_top(const char *fileName, int n);
+
 /**
  * @brief Recursively remove a directory and all its contents.
  *

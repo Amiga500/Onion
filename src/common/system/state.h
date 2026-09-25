@@ -511,12 +511,8 @@ void resumeGame(int index)
             if (lineCount > 1) {
                 temp_flag_set("quick_switch", true);
 
-                char *line_n = file_read_lineN(recentPath, lineCount);
-                if (line_n != NULL) {
-                    file_add_line_to_beginning(recentPath, line_n);
-                    file_delete_line(recentPath, lineCount + 1);
-                    free(line_n);
-                }
+                // one atomic rewrite (was: two full rewrites)
+                file_move_line_to_top(recentPath, lineCount);
             }
 
             file_put_sync(fp, CMD_TO_RUN_PATH, "%s", LaunchCommand);

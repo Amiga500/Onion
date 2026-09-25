@@ -73,6 +73,12 @@ main() {
 # Standard check from runtime for startup.
 check() {
     log "Network Checker: Update networking"
+
+    # Read the Wi-Fi setting once for this run. Nothing below changes it in
+    # system.json, and every wifi_enabled/wifi_disabled call used to start a
+    # jsonval process (8-10 per run, after every game when a service is on).
+    # The background service checks inherit the value.
+    WIFI_STATE_CACHED=$(/customer/app/jsonval wifi)
     local force_wifi_on_startup=$([ -f /customer/app/axp_test ] && [ -f $sysdir/config/.ntpForce ] && echo 1 || echo 0)
     local has_wifi=$(wifi_enabled && echo 1 || echo 0)
 
@@ -190,7 +196,8 @@ check_smbdstate() {
             fi
         else
             if wifi_enabled; then
-                sync
+                # (no global sync here: files are already visible to the service
+                # through the page cache; services restart after every game)
 
                 mkdir -p \
                     /var/lib/samba \
@@ -234,7 +241,8 @@ check_ftpstate() {
         else
             if wifi_enabled; then
                 log "FTP: Starting bftpd"
-                sync
+                # (no global sync here: files are already visible to the service
+                # through the page cache; services restart after every game)
                 if flag_enabled authftpState; then
                     ftp_authed
                 else
@@ -278,8 +286,12 @@ check_sshstate() {
             fi
         else
             if wifi_enabled; then
-                mkdir -p $sysdir/etc/dropbear
-                sync
+                # Global sync only when the key folder is actually created
+                # (this runs after every game while SSH is enabled).
+                if [ ! -d $sysdir/etc/dropbear ]; then
+                    mkdir -p $sysdir/etc/dropbear
+                    sync
+                fi
                 if flag_enabled authsshState; then
                     ssh_authed
                 else
@@ -331,7 +343,8 @@ check_telnetstate() {
             fi
         else
             if wifi_enabled; then
-                sync
+                # (no global sync here: files are already visible to the service
+                # through the page cache; services restart after every game)
                 log "Telnet: Starting telnet"
                 telnetd -l $netscript/telnetenv.sh
             else
@@ -359,7 +372,8 @@ check_httpstate() {
             # Checks if the toggle for WIFI is turned on.
             if wifi_enabled; then
                 # Check if authhttpState is enabled/set to json, if not set noauth
-                sync
+                # (no global sync here: files are already visible to the service
+                # through the page cache; services restart after every game)
                 if flag_enabled authhttpState; then
                     http_authed
                 else
@@ -700,11 +714,19 @@ print_usage() {
 }
 
 wifi_enabled() {
-    [ $(/customer/app/jsonval wifi) -eq 1 ]
+    if [ -n "$WIFI_STATE_CACHED" ]; then
+        [ "$WIFI_STATE_CACHED" -eq 1 ] 2> /dev/null
+    else
+        [ $(/customer/app/jsonval wifi) -eq 1 ]
+    fi
 }
 
 wifi_disabled() {
-    [ $(/customer/app/jsonval wifi) -eq 0 ]
+    if [ -n "$WIFI_STATE_CACHED" ]; then
+        [ "$WIFI_STATE_CACHED" -eq 0 ] 2> /dev/null
+    else
+        [ $(/customer/app/jsonval wifi) -eq 0 ]
+    fi
 }
 
 flag_enabled() {

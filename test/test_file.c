@@ -650,6 +650,98 @@ TEST(file_add_line_to_beginning_prepends_line) {
     unlink(tmpfile);
 }
 
+/* ---- file_move_line_to_top ----
+ * Quick-switch move-to-top: one atomic rewrite (was add-to-top + delete). */
+
+TEST(file_move_line_to_top_moves_line) {
+    const char *tmpfile = "/tmp/onion_test_moveline.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "line1\nline2\nline3\n");
+    fclose(fp);
+
+    ASSERT_TRUE(file_move_line_to_top(tmpfile, 3));
+
+    char *l1 = file_read_lineN(tmpfile, 1);
+    char *l2 = file_read_lineN(tmpfile, 2);
+    char *l3 = file_read_lineN(tmpfile, 3);
+    ASSERT_NOT_NULL(l1);
+    ASSERT_TRUE(strncmp(l1, "line3", 5) == 0);
+    ASSERT_NOT_NULL(l2);
+    ASSERT_TRUE(strncmp(l2, "line1", 5) == 0);
+    ASSERT_NOT_NULL(l3);
+    ASSERT_TRUE(strncmp(l3, "line2", 5) == 0);
+    free(l1);
+    free(l2);
+    free(l3);
+
+    unlink(tmpfile);
+}
+
+TEST(file_move_line_to_top_first_line_is_noop) {
+    const char *tmpfile = "/tmp/onion_test_moveline_first.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "line1\nline2\n");
+    fclose(fp);
+
+    ASSERT_TRUE(file_move_line_to_top(tmpfile, 1));
+
+    char *l1 = file_read_lineN(tmpfile, 1);
+    char *l2 = file_read_lineN(tmpfile, 2);
+    ASSERT_NOT_NULL(l1);
+    ASSERT_TRUE(strncmp(l1, "line1", 5) == 0);
+    ASSERT_NOT_NULL(l2);
+    ASSERT_TRUE(strncmp(l2, "line2", 5) == 0);
+    free(l1);
+    free(l2);
+
+    unlink(tmpfile);
+}
+
+TEST(file_move_line_to_top_out_of_range_keeps_file) {
+    const char *tmpfile = "/tmp/onion_test_moveline_oob.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "line1\nline2\n");
+    fclose(fp);
+
+    ASSERT_FALSE(file_move_line_to_top(tmpfile, 5));
+
+    /* The file must be unchanged */
+    char *l1 = file_read_lineN(tmpfile, 1);
+    char *l2 = file_read_lineN(tmpfile, 2);
+    ASSERT_NOT_NULL(l1);
+    ASSERT_TRUE(strncmp(l1, "line1", 5) == 0);
+    ASSERT_NOT_NULL(l2);
+    ASSERT_TRUE(strncmp(l2, "line2", 5) == 0);
+    free(l1);
+    free(l2);
+
+    unlink(tmpfile);
+}
+
+TEST(file_move_line_to_top_handles_missing_trailing_newline) {
+    const char *tmpfile = "/tmp/onion_test_moveline_noeol.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    fprintf(fp, "line1\nline2"); /* no trailing newline */
+    fclose(fp);
+
+    ASSERT_TRUE(file_move_line_to_top(tmpfile, 2));
+
+    char *l1 = file_read_lineN(tmpfile, 1);
+    char *l2 = file_read_lineN(tmpfile, 2);
+    ASSERT_NOT_NULL(l1);
+    ASSERT_TRUE(strncmp(l1, "line2", 5) == 0);
+    ASSERT_NOT_NULL(l2);
+    ASSERT_TRUE(strncmp(l2, "line1", 5) == 0);
+    free(l1);
+    free(l2);
+
+    unlink(tmpfile);
+}
+
 /* ---- file_isLocked ----
  *
  * This is NOT a flock/lock-file check. Production opens the path
@@ -1123,6 +1215,11 @@ int main(void)
     RUN_TEST(file_delete_line_removes_correct_line);
 
     RUN_TEST(file_add_line_to_beginning_prepends_line);
+
+    RUN_TEST(file_move_line_to_top_moves_line);
+    RUN_TEST(file_move_line_to_top_first_line_is_noop);
+    RUN_TEST(file_move_line_to_top_out_of_range_keeps_file);
+    RUN_TEST(file_move_line_to_top_handles_missing_trailing_newline);
 
     RUN_TEST(file_isLocked_existing_file);
     RUN_TEST(file_isLocked_uncreateable_path);

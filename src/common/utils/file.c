@@ -600,10 +600,13 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
         print_debug("Error opening the file");
         return;
     }
-    char tempPath[PATH_MAX];
-    snprintf(tempPath, sizeof(tempPath), "%s.tmp", filename);
 
-    FILE *tempFile = fopen(tempPath, "w");
+    // Atomic replace (was: remove + rename, which left a moment with no
+    // file at all).
+    char tmp_path[PATH_MAX];
+    char final_path[PATH_MAX];
+    FILE *tempFile = file_atomic_begin(filename, tmp_path, sizeof(tmp_path),
+                                       final_path, sizeof(final_path));
     if (tempFile == NULL) {
         fclose(file);
         print_debug("Error creating the temporary file");
@@ -611,21 +614,70 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd)
     }
     fputs(lineToAdd, tempFile);
 
-    char line[STR_MAX * 4];
-    while (fgets(line, sizeof(line), file) != NULL) {
-        fputs(line, tempFile);
-    }
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t len;
+    while ((len = getline(&line, &cap, file)) != -1)
+        fwrite(line, 1, (size_t)len, tempFile);
+    free(line);
     fclose(file);
-    fclose(tempFile);
-    if (remove(filename) != 0) {
-        print_debug("Error removing the original file");
-        return;
-    }
-    if (rename(tempPath, filename) != 0) {
-        print_debug("Error renaming the temporary file");
+
+    if (!file_atomic_commit(tempFile, tmp_path, final_path)) {
+        print_debug("Error replacing the file");
         return;
     }
     print_debug("Line added to the beginning of the file successfully.\n");
+}
+
+// Move line n (1-based) to the top of the file in ONE atomic rewrite
+// (was: add-to-top rewrite + delete-line rewrite). A moved last line
+// without a trailing newline gets one, so it cannot merge with the next.
+bool file_move_line_to_top(const char *fileName, int n)
+{
+    if (fileName == NULL || n < 1)
+        return false;
+    if (n == 1)
+        return true;
+
+    char *moved = file_read_lineN(fileName, n);
+    if (moved == NULL)
+        return false;
+
+    FILE *file = fopen(fileName, "r");
+    if (file == NULL) {
+        free(moved);
+        return false;
+    }
+
+    char tmp_path[PATH_MAX];
+    char final_path[PATH_MAX];
+    FILE *tempFile = file_atomic_begin(fileName, tmp_path, sizeof(tmp_path),
+                                       final_path, sizeof(final_path));
+    if (tempFile == NULL) {
+        fclose(file);
+        free(moved);
+        return false;
+    }
+
+    size_t moved_len = strlen(moved);
+    fwrite(moved, 1, moved_len, tempFile);
+    if (moved_len == 0 || moved[moved_len - 1] != '\n')
+        fputc('\n', tempFile);
+    free(moved);
+
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t len;
+    int lineNumber = 1;
+    while ((len = getline(&line, &cap, file)) != -1) {
+        if (lineNumber != n)
+            fwrite(line, 1, (size_t)len, tempFile);
+        lineNumber++;
+    }
+    free(line);
+    fclose(file);
+
+    return file_atomic_commit(tempFile, tmp_path, final_path);
 }
 
 char *file_resolvePath(const char *path)

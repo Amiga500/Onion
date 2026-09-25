@@ -275,10 +275,11 @@ launch_main_ui() {
         # pitch never changes with stale pixels still in memory.
         # --probe: WxH virtual WxH bpp N line_length N pages N
         probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
-        current_res=$(echo "$probe" | awk '{print $1}')
-        current_virtual=$(echo "$probe" | awk '{print $3}')
-        current_bpp=$(echo "$probe" | awk '{print $5}')
-        current_pages=$(echo "$probe" | awk '{print $NF}')
+        fb_probe_fields "$probe"
+        current_res=$fb_f1
+        current_virtual=$fb_f3
+        current_bpp=$fb_f5
+        current_pages=$fb_flast
 
         if [ "$current_res" = "640x480" ] &&
            [ "$current_virtual" = "640x1440" ] &&
@@ -304,6 +305,10 @@ launch_main_ui() {
 
     # Merge the last game launched into the recent list
     check_hide_recents
+
+    # Flush what MainUI wrote (recents, favourites, system.json). This is the
+    # one sync per cycle that check_hide_recents used to provide implicitly.
+    sync
 
     # Check if wifi setting changed
     if [ $(/customer/app/jsonval wifi) -ne $wifi_setting ]; then
@@ -379,8 +384,9 @@ change_resolution() {
 
     if [ -x "$sysdir/bin/fbmode" ]; then
         probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
-        current_res=$(echo "$probe" | cut -d' ' -f1)
-        current_pages=$(echo "$probe" | awk '{print $NF}')
+        fb_probe_fields "$probe"
+        current_res=$fb_f1
+        current_pages=$fb_flast
 
         # Keep game-side mode changes at the stock two-page layout.
         if [ "$current_res" = "${res_x}x${res_y}" ] && [ "$current_pages" = "2" ]; then
@@ -843,10 +849,11 @@ launch_switcher() {
     if [ -f /tmp/new_res_available ] && [ -x "$sysdir/bin/fbmode" ]; then
         # --probe: WxH virtual WxH bpp N line_length N pages N
         probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
-        current_res=$(echo "$probe" | awk '{print $1}')
-        current_virtual=$(echo "$probe" | awk '{print $3}')
-        current_bpp=$(echo "$probe" | awk '{print $5}')
-        current_pages=$(echo "$probe" | awk '{print $NF}')
+        fb_probe_fields "$probe"
+        current_res=$fb_f1
+        current_virtual=$fb_f3
+        current_bpp=$fb_f5
+        current_pages=$fb_flast
 
         if [ "$current_res" = "752x560" ] &&
            [ "$current_virtual" = "752x1120" ] &&
@@ -912,6 +919,8 @@ recentlist_hidden=/mnt/SDCARD/Roms/recentlist-hidden.json
 recentlist_temp=/tmp/recentlist-temp.json
 
 check_hide_recents() {
+    # Global sync only when a list was actually moved (it used to run
+    # unconditionally, twice per MainUI cycle).
     # Hide recents on
     if [ ! -f $sysdir/config/.showRecents ]; then
         # Hide recents by removing the json file
@@ -919,6 +928,7 @@ check_hide_recents() {
             cat $recentlist $recentlist_hidden 2>/dev/null | head -n 200 > $recentlist_temp
             mv -f $recentlist_temp $recentlist_hidden
             rm -f $recentlist
+            sync
         fi
     else
         # Restore recentlist
@@ -926,17 +936,49 @@ check_hide_recents() {
             cat $recentlist $recentlist_hidden 2>/dev/null | head -n 200 > $recentlist_temp
             mv -f $recentlist_temp $recentlist
             rm -f $recentlist_hidden
+            sync
         fi
     fi
-    sync
 }
 
 mainui_target=$miyoodir/app/MainUI
 
+# Split `fbmode --probe` output ("WxH virtual WxH bpp N line_length N pages N")
+# into fb_f1, fb_f3, fb_f5 and fb_flast without forking (was 2-4 echo|awk
+# or echo|cut pipelines per call). Word splitting only; globbing is disabled
+# while the fields are assigned.
+fb_probe_fields() {
+    fb_f1=""
+    fb_f3=""
+    fb_f5=""
+    fb_flast=""
+    set -f
+    # shellcheck disable=SC2086
+    set -- $1
+    set +f
+    [ $# -ge 1 ] && fb_f1=$1
+    [ $# -ge 3 ] && fb_f3=$3
+    [ $# -ge 5 ] && fb_f5=$5
+    [ $# -ge 1 ] && eval "fb_flast=\${$#}"
+}
+
 mount_main_ui() {
-    mainui_mode=$([ -f $sysdir/config/.showExpert ] && echo "expert" || echo "clean")
+    if [ -f $sysdir/config/.showExpert ]; then
+        mainui_mode="expert"
+    else
+        mainui_mode="clean"
+    fi
     mainui_srcname="MainUI-$DEVICE_ID-$mainui_mode"
-    mainui_mount=$(basename "$(cat /proc/self/mountinfo | grep $mainui_target | cut -d' ' -f4)")
+
+    # Mount root (field 4) of the last mountinfo line mentioning the MainUI
+    # path, basename only: same result as the former
+    # cat | grep | cut | basename pipeline, read with shell builtins.
+    mainui_mount=""
+    while read -r _mi_id _mi_parent _mi_dev _mi_root _mi_rest; do
+        case "$_mi_id $_mi_parent $_mi_dev $_mi_root $_mi_rest" in
+            *"$mainui_target"*) mainui_mount=${_mi_root##*/} ;;
+        esac
+    done < /proc/self/mountinfo
 
     if [ "$mainui_mount" != "$mainui_srcname" ]; then
         if mount | grep -q "$mainui_target"; then
