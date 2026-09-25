@@ -37,6 +37,7 @@ bool _confirmReset(const char *title_str, const char *message_str)
                 confirm_quit = true;
             }
         }
+        SDL_Delay(15); // wait for input without spinning
     }
 
     if (changed_key != SDLK_UNKNOWN)

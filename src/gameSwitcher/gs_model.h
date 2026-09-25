@@ -43,7 +43,13 @@ typedef struct {
     int index;
     bool processed;
     bool is_running;
+    int meta_state;      // GAME_META_*: name/core lookup, guarded by thread_mutex
+    bool romscreen_busy; // a thread is decoding this romscreen right now
 } Game_s;
+
+#define GAME_META_NEW 0
+#define GAME_META_BUSY 1
+#define GAME_META_READY 2
 
 static Game_s game_list[MAX_HISTORY];
 static int game_list_len = 0;

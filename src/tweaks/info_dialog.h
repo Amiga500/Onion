@@ -28,6 +28,7 @@ void __showInfoDialog(const char *title, const char *message)
                 sound_change();
             }
         }
+        SDL_Delay(15); // wait for input without spinning
     }
 
     keys_enabled = true;

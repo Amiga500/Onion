@@ -112,11 +112,8 @@ void json_save(cJSON *object, const char *file_path)
     if (output == NULL)
         return;
 
-    FILE *fp = NULL;
-    if ((fp = fopen(file_path, "w+")) != NULL) {
-        fwrite(output, strlen(output), 1, fp);
-        fclose(fp);
-    }
+    // Crash-safe replace: a power loss mid-write keeps the previous file.
+    file_atomic_write(file_path, output, strlen(output));
 
     cJSON_free(output);
 }

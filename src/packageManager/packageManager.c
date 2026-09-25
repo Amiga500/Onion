@@ -66,6 +66,9 @@ int main(int argc, char *argv[])
             renderApplication();
             state_changed = false;
         }
+        else {
+            SDL_Delay(15); // wait for input without spinning
+        }
     }
 
     if (apply_changes) {

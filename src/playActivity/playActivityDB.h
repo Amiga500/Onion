@@ -103,6 +103,21 @@ void play_activity_db_open(void)
                      "CREATE INDEX play_activity_rom_id_index ON play_activity(rom_id);",
                      NULL, NULL, NULL);
     }
+
+    // Wait instead of failing with SQLITE_BUSY when keymon, the game
+    // switcher and runtime.sh touch the database at the same time.
+    sqlite3_busy_timeout(play_activity_db, 2000);
+
+    // TRUNCATE keeps the rollback journal file between transactions instead
+    // of creating and deleting it every time (two FAT directory updates per
+    // write saved). Durability is unchanged (synchronous stays FULL).
+    sqlite3_exec(play_activity_db, "PRAGMA journal_mode=TRUNCATE;", NULL, NULL, NULL);
+
+    // Every lookup is by file_path; without this index each one is a full
+    // scan of the rom table. No-op once the index exists.
+    sqlite3_exec(play_activity_db,
+                 "CREATE INDEX IF NOT EXISTS rom_file_path_index ON rom(file_path);",
+                 NULL, NULL, NULL);
 }
 
 int play_activity_db_transaction(int (*exec_transaction)(void))
@@ -409,6 +424,27 @@ int __db_get_rom_id_by_path(const char *rom_path)
     return rom_id;
 }
 
+// A row created while the MainUI cache was unavailable has an empty type
+// and/or name. Only those rows need a refresh from the cache database.
+bool __db_rom_needs_cache_refresh(int rom_id)
+{
+    bool needs_refresh = true;
+
+    char *sql = sqlite3_mprintf("SELECT type, name FROM rom WHERE id = %d LIMIT 1;", rom_id);
+    sqlite3_stmt *stmt = play_activity_db_prepare(sql);
+    sqlite3_free(sql);
+
+    if (stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW) {
+        const unsigned char *type = sqlite3_column_text(stmt, 0);
+        const unsigned char *name = sqlite3_column_text(stmt, 1);
+        needs_refresh = type == NULL || type[0] == '\0' ||
+                        name == NULL || name[0] == '\0';
+    }
+
+    sqlite3_finalize(stmt);
+    return needs_refresh;
+}
+
 int __db_rom_find_by_file_path(const char *rom_path, bool create_or_update)
 {
     printf_debug("rom_find_by_file_path('%s')\n", rom_path);
@@ -422,7 +458,9 @@ int __db_rom_find_by_file_path(const char *rom_path, bool create_or_update)
             update_orphan = true;
         }
     }
-    else if (create_or_update) {
+    else if (create_or_update && __db_rom_needs_cache_refresh(rom_id)) {
+        // Known ROMs already carry the cache metadata: skip the cache query
+        // (a LIKE '%...' full scan of the MainUI cache) on every launch.
         CacheDBItem *cache_db_item = cache_db_find(rom_path);
         if (cache_db_item != NULL) {
             __db_update_rom_from_cache(rom_id, cache_db_item);

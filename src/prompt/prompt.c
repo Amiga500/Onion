@@ -52,6 +52,7 @@ void __showInfoDialog(const char *title, const char *message)
                 sound_change();
             }
         }
+        SDL_Delay(15); // wait for input without spinning
     }
     SDL_FreeSurface(background_surface);
 }
@@ -313,6 +314,10 @@ int main(int argc, char *argv[])
 
             acc_ticks -= time_step;
         }
+
+        // Idle until the next frame instead of spinning on a CPU core
+        if (acc_ticks < time_step)
+            SDL_Delay(time_step - acc_ticks);
     }
 
     // Clear the screen when exiting

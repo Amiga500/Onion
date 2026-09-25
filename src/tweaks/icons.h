@@ -166,6 +166,7 @@ void _action_apply_icon_pack(void *_item)
                 confirm_quit = true;
             }
         }
+        SDL_Delay(15); // wait for input without spinning
     }
 
     if (changed_key != SDLK_UNKNOWN) {

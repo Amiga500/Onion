@@ -80,6 +80,8 @@ void setEntryDefaultValues(Game_s *game, int index)
     game->totalTime[0] = '\0';
     game->processed = false;
     game->is_running = false;
+    game->meta_state = GAME_META_NEW;
+    game->romscreen_busy = false;
 
     strcpy(game->name, "");
     strcpy(game->shortname, "");
@@ -156,20 +158,21 @@ bool getGameName(char *name_out, const char *rom_path)
     return false;
 }
 
-void processItem(Game_s *game)
+// Name/core lookup for one entry. Runs under meta_mutex (see
+// gs_romscreen.h), either on the UI thread or on the prefetch worker.
+void processItemMetaWork(Game_s *game)
 {
-    if (game->processed) {
-        return;
+    char *rom_name = file_removeExtension(file_basename(game->recentItem.rompath));
+    if (rom_name != NULL) {
+        snprintf(game->rom_name, sizeof(game->rom_name), "%s", rom_name);
+        free(rom_name);
+    }
+    else {
+        game->rom_name[0] = '\0';
     }
 
-    game->processed = true;
-
-    char *rom_name = file_removeExtension(file_basename(game->recentItem.rompath));
-    strcpy(game->rom_name, rom_name);
-    free(rom_name);
-
     if (!getGameName(game->name, game->recentItem.rompath)) {
-        strcpy(game->name, game->rom_name);
+        snprintf(game->name, sizeof(game->name), "%s", game->rom_name);
     }
 
     file_cleanName(game->shortname, game->name);
@@ -177,9 +180,15 @@ void processItem(Game_s *game)
     if (ra_findItemInRetroArchHistory(game)) {
         ra_getCoreNameFromInfo(game);
     }
+}
+
+void processItem(Game_s *game)
+{
+    // Usually already done by the prefetch worker; otherwise done here.
+    romscreen_ensureMeta(game);
 
     if (game->romScreen == NULL) {
-        game->romScreen = loadRomScreen(game->index);
+        loadRomScreen(game->index);
     }
 }
 
