@@ -165,6 +165,21 @@ SDLKey _translate_input(int key)
     }
 }
 
+/**
+ * @brief Block until input is readable or timeout_ms elapses.
+ *
+ * Lets idle loops sleep instead of spinning on the zero-timeout poll in
+ * _updateKeystate(). Events are not consumed here. Signals interrupt the
+ * poll, so quit flags set by a handler are seen on the next iteration.
+ * No-op on the SDL input path or when timeout_ms <= 0.
+ */
+void input_waitFor(int timeout_ms)
+{
+    if (!_render_direct_to_fb || _input_fd == -1 || timeout_ms <= 0)
+        return;
+    poll(_fds, 1, timeout_ms);
+}
+
 bool _updateKeystate(KeyState keystate[320], bool *quit_flag, bool enabled, SDLKey *changed_key)
 {
     if (!_render_direct_to_fb) {

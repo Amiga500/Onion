@@ -396,6 +396,7 @@ void popMenu_deleteSaveState(void)
         KeyState keystate[320] = {0};
 
         while (!appState.quit) {
+            input_waitFor(100);
             if (_updateKeystate(keystate, &appState.quit, true, NULL)) {
                 if (keystate[SW_BTN_B] == PRESSED) {
                     break;

@@ -9,6 +9,7 @@
 #include "utils/keystate.h"
 
 #include "gs_appState.h"
+#include "gs_hold.h"
 #include "gs_model.h"
 #include "gs_popMenu.h"
 #include "gs_romscreen.h"
@@ -21,7 +22,8 @@ typedef struct {
     bool select_pressed;
     bool select_combo_key;
     SDLKey changed_key;
-    int button_y_repeat;
+    bool button_y_held;
+    uint32_t button_y_down_ticks;
 } AppKeyState_s;
 
 static AppKeyState_s _gs_keystate = {
@@ -32,7 +34,8 @@ static AppKeyState_s _gs_keystate = {
     .select_pressed = false,
     .select_combo_key = false,
     .changed_key = SDLK_UNKNOWN,
-    .button_y_repeat = 0,
+    .button_y_held = false,
+    .button_y_down_ticks = 0,
 };
 
 void removeCurrentItem()
@@ -90,6 +93,7 @@ void action_confirmRemove(AppState *state)
     KeyState *keystate = _gs_keystate.keystate;
 
     while (!state->quit) {
+        input_waitFor(100);
         if (_updateKeystate(keystate, &state->quit, true, NULL)) {
             if (keystate[SW_BTN_A] == PRESSED) {
                 removeCurrentItem();
@@ -195,12 +199,13 @@ void handleUpdateKeystateMain(AppState *state)
     }
 
     if (_gs_keystate.changed_key == SW_BTN_Y && keystate[SW_BTN_Y] == RELEASED) {
-        if (_gs_keystate.button_y_repeat < 75) {
+        if (!gs_holdReached(_gs_keystate.button_y_held, _gs_keystate.button_y_down_ticks,
+                            state->last_ticks, GS_Y_HOLD_FULLSCREEN_MS)) {
             state->view_mode = state->view_mode == VIEW_FULLSCREEN ? state->view_restore : !state->view_mode;
             config_flag_set("gameSwitcher/minimal", state->view_mode == VIEW_MINIMAL);
             state->changed = true;
         }
-        _gs_keystate.button_y_repeat = 0;
+        _gs_keystate.button_y_held = false;
     }
 
     if (keystate[SW_BTN_X] == PRESSED) {
@@ -325,8 +330,12 @@ void handleKeystate(AppState *state)
     }
 
     if (keystate[SW_BTN_Y] == PRESSED && state->view_mode != VIEW_FULLSCREEN && !state->pop_menu_open) {
-        _gs_keystate.button_y_repeat++;
-        if (_gs_keystate.button_y_repeat >= 75) {
+        if (!_gs_keystate.button_y_held) {
+            _gs_keystate.button_y_held = true;
+            _gs_keystate.button_y_down_ticks = state->last_ticks;
+        }
+        if (gs_holdReached(_gs_keystate.button_y_held, _gs_keystate.button_y_down_ticks,
+                           state->last_ticks, GS_Y_HOLD_FULLSCREEN_MS)) {
             state->view_restore = state->view_mode;
             state->view_mode = VIEW_FULLSCREEN;
             state->changed = true;

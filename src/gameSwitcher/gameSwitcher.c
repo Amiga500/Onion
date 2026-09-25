@@ -29,6 +29,7 @@
 
 #include "gs_appState.h"
 #include "gs_history.h"
+#include "gs_idle.h"
 #include "gs_keystate.h"
 #include "gs_overlay.h"
 #include "gs_render.h"
@@ -78,6 +79,9 @@ int main(int argc, char *argv[])
     print_debug("gameSwitcher started\n");
 
     while (!appState.quit) {
+        // Sleep until the next render step or input instead of spinning.
+        input_waitFor(gs_idleWaitMs(appState.acc_ticks, appState.time_step));
+
         uint32_t ticks = SDL_GetTicks();
         appState.acc_ticks += ticks - appState.last_ticks;
         appState.last_ticks = ticks;
