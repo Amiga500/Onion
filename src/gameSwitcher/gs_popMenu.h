@@ -11,6 +11,7 @@
 #include "gs_favorites.h"
 #include "gs_model.h"
 #include "gs_retroarch.h"
+#include "gs_save_wait.h"
 #include "gs_savestate_path.h"
 
 #define POP_MENU_ACTION_RESUME 0
@@ -236,10 +237,10 @@ static void *_save_thread(void *_)
         msleep(100);
     }
 
-    // Check if any process is using the save state file
-    while (file_isLocked(stateFilePath) && SDL_GetTicks() - start < 30000) {
-        msleep(100);
-    }
+    // Check if any process is using the save state file. Skipped entirely
+    // when the save was not confirmed: file_isLocked() would otherwise
+    // create an empty state file that shows up as a loadable slot.
+    gs_waitStateFileRelease(stateFilePath, saved, (uint32_t)start, 30000, SDL_GetTicks, msleep);
 
     g_save_thread_running = false;
     return NULL;
