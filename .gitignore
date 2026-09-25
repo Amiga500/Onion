@@ -1,6 +1,12 @@
 .DS_Store
 .vscode/
 *.o
+
+# Working artifacts from external optimization passes (patches, bundles, notes)
+/MODIFICHE.md
+/*.zip
+/*.patch
+/files*/
 /src/**/*.log
 /build/
 /build_test/
