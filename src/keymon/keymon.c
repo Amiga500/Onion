@@ -40,6 +40,7 @@
 #include "./flip_suspend.h"
 #include "./input_fd.h"
 #include "./menuButtonAction.h"
+#include "./state_scan.h"
 
 #define FAVORITES_PATH "/mnt/SDCARD/Roms/favourite.json"
 
@@ -836,6 +837,8 @@ int main(void)
     }
 
     bool delete_flag = false;
+    struct timespec state_flag_mtime = {0, 0};
+    uint32_t last_state_scan = 0;
     bool settings_changed = false;
 
     int save_settings_timestamp = 0;
@@ -886,8 +889,17 @@ int main(void)
                 refresh_cached_flags();
             }
 
-            if (exists("/tmp/state_changed")) {
-                system_state_update();
+            struct stat state_flag;
+            if (stat("/tmp/state_changed", &state_flag) == 0) {
+                // The flag's mtime changes each time runtime.sh touches it.
+                bool touched = state_flag.st_mtim.tv_sec != state_flag_mtime.tv_sec ||
+                               state_flag.st_mtim.tv_nsec != state_flag_mtime.tv_nsec;
+                uint32_t now = (uint32_t)getMilliseconds();
+                if (stateScan_due(touched, delete_flag, now, last_state_scan)) {
+                    state_flag_mtime = state_flag.st_mtim;
+                    last_state_scan = now;
+                    system_state_update();
+                }
                 cached_cpu_clock = 0; // launches/exits change the CPU clock
 
                 if (delete_flag) {
