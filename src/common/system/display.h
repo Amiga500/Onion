@@ -90,6 +90,11 @@ void display_getRenderResolution()
         g_display.width = g_display.vinfo.xres;
         g_display.height = g_display.vinfo.yres;
     }
+    // Row pitch belongs to the current mode: display_readOrWriteBuffer()
+    // uses finfo.line_length, so a process that initialised in one mode
+    // (e.g. 752x560) and is told of a change (SIGUSR1) must not keep the
+    // old pitch.
+    ioctl(fb_fd, FBIOGET_FSCREENINFO, &g_display.finfo);
     printf_debug("Render resolution: %dx%d\n", g_display.width, g_display.height);
 }
 
