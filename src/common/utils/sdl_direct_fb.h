@@ -60,6 +60,34 @@ void init(int flags)
     }
 }
 
+void render(void);
+
+// Present only rows [y, y + h) of `screen`, e.g. the GameSwitcher's
+// scrolling game name, instead of the whole screen. Direct framebuffer
+// only (every page is updated, as render() does); otherwise render().
+void render_rows(int y, int h)
+{
+    if (y < 0) {
+        h += y;
+        y = 0;
+    }
+    if (y + h > screen->h)
+        h = screen->h - y;
+    if (h <= 0)
+        return;
+
+    if (!_render_direct_to_fb || screen->pitch != screen->w * (int)sizeof(uint32_t)) {
+        render();
+        return;
+    }
+
+    uint32_t *rows = (uint32_t *)screen->pixels + (size_t)y * (size_t)screen->w;
+    int numBuffers = g_display.vinfo.yres_virtual / g_display.vinfo.yres;
+    for (int b = 0; b < numBuffers; b++) {
+        display_writeBuffer(b, &g_display, rows, (rect_t){0, y, screen->w, h}, true, false);
+    }
+}
+
 void render(void)
 {
     if (_render_direct_to_fb) {

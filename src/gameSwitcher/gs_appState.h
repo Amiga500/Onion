@@ -41,6 +41,7 @@ typedef struct {
     int current_game;
     SDL_Surface *surfaceGameName;
     SDL_Rect game_name_size;
+    SDL_Rect game_name_bar; // last drawn name bar, for name-only frames
     int game_name_max_width;
     int gameNameScrollX;
     int gameNameScrollSpeed;
@@ -80,6 +81,7 @@ static AppState appState = {
     .current_game = 0,
     .surfaceGameName = NULL,
     .game_name_size = {0, 0},
+    .game_name_bar = {0, 0, 0, 0},
     .game_name_max_width = 0,
     .gameNameScrollX = 0,
     .gameNameScrollSpeed = 10,

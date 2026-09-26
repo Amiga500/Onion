@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
             if (frame == GS_FRAME_NAME_ONLY) {
                 // The vertical brightness slider can overlap the name bar.
                 renderBrightness(&appState);
-                render();
+                render_rows(appState.game_name_bar.y, appState.game_name_bar.h);
                 continue;
             }
 

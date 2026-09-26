@@ -101,6 +101,7 @@ void renderGameName(AppState *state)
     game_name_bg_pos.w = game_name_bg_size.w;
     game_name_bg_pos.h = game_name_bg_size.h;
 
+    state->game_name_bar = game_name_bg_pos;
     SDL_FillRect(screen, &game_name_bg_pos, 0);
 
     if (state->current_bg != NULL) {
