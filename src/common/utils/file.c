@@ -96,7 +96,7 @@ bool mkdirs(const char *dir_path)
 void file_readLastLine(const char *filename, char *out_str)
 {
     FILE *fd;
-    int size;
+    long size;
     char buff[256];
     char *token = NULL;
 
@@ -104,27 +104,26 @@ void file_readLastLine(const char *filename, char *out_str)
         // get file size
         fseek(fd, 0L, SEEK_END);
         size = ftell(fd);
-        fseek(fd, 0L, SEEK_SET);
 
-        int max_len = size < 255 ? size + 1 : 255;
-        if (max_len <= 1) {
+        // Read the last (up to) 255 bytes. This used to read 254 bytes
+        // starting 255 bytes from the end, dropping the final byte of any
+        // file of 255 bytes or more (the last character of a line without
+        // a trailing newline).
+        long max_len = size < (long)sizeof(buff) - 1 ? size : (long)sizeof(buff) - 1;
+        if (max_len <= 0) {
             fclose(fd);
             return;
         }
 
-        // get the last line (avoid seeking before file start)
-        if (max_len > size)
-            fseek(fd, 0L, SEEK_SET);
-        else
-            fseek(fd, -max_len, SEEK_END);
-        if (fread(buff, max_len - 1, 1, fd) != 1) {
+        if (fseek(fd, -max_len, SEEK_END) != 0 ||
+            fread(buff, (size_t)max_len, 1, fd) != 1) {
             fclose(fd);
             return;
         }
 
         // cleanup
         fclose(fd);
-        buff[max_len - 1] = '\0';
+        buff[max_len] = '\0';
 
         char *saveptr;
         token = strtok_r(buff, "\n", &saveptr);

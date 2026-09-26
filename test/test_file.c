@@ -339,6 +339,43 @@ TEST(file_readLastLine_empty_file) {
     unlink(tmpfile);
 }
 
+/* A file of 255+ bytes used to lose its final byte (254 bytes were read
+ * starting 255 from the end), truncating a last line without '\n'. */
+TEST(file_readLastLine_long_file_keeps_last_char) {
+    const char *tmpfile = "/tmp/onion_test_readlast_long.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    for (int i = 0; i < 40; i++)
+        fprintf(fp, "progress line %02d\n", i);
+    fprintf(fp, "Update complete");
+    fclose(fp);
+
+    char result[256] = {0};
+    file_readLastLine(tmpfile, result);
+    ASSERT_STREQ(result, "Update complete");
+
+    unlink(tmpfile);
+}
+
+TEST(file_readLastLine_exactly_255_bytes) {
+    const char *tmpfile = "/tmp/onion_test_readlast_255.txt";
+    FILE *fp = fopen(tmpfile, "w");
+    ASSERT_NOT_NULL(fp);
+    char line[256];
+    memset(line, 'x', 254);
+    line[254] = 'Z';
+    line[255] = '\0';
+    fputs(line, fp);
+    fclose(fp);
+
+    char result[256] = {0};
+    file_readLastLine(tmpfile, result);
+    ASSERT_EQ(strlen(result), 254u); /* out_str holds at most 254 chars */
+    ASSERT_EQ(result[0], 'x');
+
+    unlink(tmpfile);
+}
+
 TEST(file_readLastLine_with_trailing_newline) {
     const char *tmpfile = "/tmp/onion_test_readlast4.txt";
     FILE *fp = fopen(tmpfile, "w");
@@ -1189,6 +1226,8 @@ int main(void)
     RUN_TEST(file_readLastLine_multiple_lines);
     RUN_TEST(file_readLastLine_empty_file);
     RUN_TEST(file_readLastLine_with_trailing_newline);
+    RUN_TEST(file_readLastLine_long_file_keeps_last_char);
+    RUN_TEST(file_readLastLine_exactly_255_bytes);
     RUN_TEST(file_readLastLine_tiny_file);
     RUN_TEST(file_readLastLine_one_byte);
     RUN_TEST(file_readLastLine_exact_254_bytes);
