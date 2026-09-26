@@ -410,9 +410,9 @@ test_cache_db: $(BUILD_DIR)/test_cache_db
 	@echo ""
 	@$(BUILD_DIR)/test_cache_db
 
-$(BUILD_DIR)/test_cache_db: test_cache_db.c onion_test.h
+$(BUILD_DIR)/test_cache_db: test_cache_db.c onion_test.h stubs/sqlite3_stub.c ../src/playActivity/cacheDB.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_cache_db.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_cache_db.c stubs/sqlite3_stub.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_gs_appstate: $(BUILD_DIR)/test_gs_appstate
 	@echo ""
@@ -631,14 +631,15 @@ unit-test-san:
 		exit 1; \
 	fi; \
 	rm -f $$probe; \
-	echo "Sanitizer subset ($$SAN_CC $(SANITIZE_FLAGS)): hash file str json neon"; \
+	echo "Sanitizer subset ($$SAN_CC $(SANITIZE_FLAGS)): hash file str json neon cache_db"; \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_hash_san test_hash.c $(LDFLAGS) && \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_file_san test_file.c $(COMMON_SRCS) $(LDFLAGS) && \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_str_san test_str.c $(COMMON_SRCS) $(LDFLAGS) && \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_json_san test_json.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) && \
-	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_neon_san test_neon.c $(LDFLAGS)
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_neon_san test_neon.c $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_cache_db_san test_cache_db.c stubs/sqlite3_stub.c $(COMMON_SRCS) $(LDFLAGS)
 	@fail=0; \
-	for t in test_hash test_file test_str test_json test_neon; do \
+	for t in test_hash test_file test_str test_json test_neon test_cache_db; do \
 		printf "\n"; \
 		$(BUILD_DIR)/$${t}_san || fail=1; \
 	done; \

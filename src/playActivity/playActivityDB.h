@@ -684,7 +684,7 @@ void play_activity_fix_paths(void)
 
         char cache_path[PATH_MAX];
         char cache_name[STR_MAX];
-        int cache_version = cache_get_path(cache_path, cache_name, file_path);
+        int cache_version = cache_get_path(cache_path, sizeof(cache_path), cache_name, file_path);
 
         char rel_path[PATH_MAX];
         __ensure_rel_path(rel_path, file_path);
