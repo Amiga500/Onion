@@ -45,6 +45,15 @@ void setFbAsFirstRomScreen(void)
         return;
     }
 
+    rect_t full = {0, 0, g_display.width, g_display.height};
+
+    // A 32 bpp software surface has rows of exactly width pixels: read the
+    // framebuffer straight into it (no 1.2 MB staging buffer and copy).
+    if ((size_t)game->romScreen->pitch == (size_t)g_display.width * sizeof(uint32_t)) {
+        display_readCurrentBuffer(&g_display, (uint32_t *)game->romScreen->pixels, full, true, false);
+        return;
+    }
+
     size_t pixel_count = (size_t)g_display.width * (size_t)g_display.height;
     uint32_t *fb_pixels = (uint32_t *)malloc(pixel_count * sizeof(uint32_t));
     if (fb_pixels == NULL) {
@@ -52,7 +61,7 @@ void setFbAsFirstRomScreen(void)
         return;
     }
 
-    display_readCurrentBuffer(&g_display, fb_pixels, (rect_t){0, 0, g_display.width, g_display.height}, true, false);
+    display_readCurrentBuffer(&g_display, fb_pixels, full, true, false);
 
     for (int y = 0; y < g_display.height; y++) {
         memcpy((uint8_t *)game->romScreen->pixels + (size_t)y * (size_t)game->romScreen->pitch,
