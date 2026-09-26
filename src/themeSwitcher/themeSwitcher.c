@@ -407,8 +407,13 @@ int main(int argc, char *argv[])
             render_dirty = true;
         }
 
-        if (!render_dirty)
+        if (!render_dirty) {
+            // Nothing to draw for this input (e.g. a key release): clear
+            // `changed` too, or the loop skips the idle delay above and
+            // spins at 100% CPU until the next redraw.
+            changed = false;
             continue;
+        }
 
         if (levelPage == 0) {
             SDL_Surface *preview = previewCacheGet(
