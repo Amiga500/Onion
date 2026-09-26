@@ -1,6 +1,6 @@
 ###########################################################
 
-TARGET=OnionPlus
+TARGET=OnionPlusOMTest
 VERSION=4.4.0-beta-20260823
 RA_SUBVERSION=1.22.2-1
 
@@ -332,3 +332,6 @@ static-analysis: external-libs
 
 format:
 	@find ./src -regex '.*\.\(c\|h\|cpp\|hpp\)' -exec clang-format -style=file -i {} \;
+
+# Open MainUI test integration (branch test/open-mainui only)
+-include $(ROOT_DIR)/src/openMainUI/openMainUI.mk

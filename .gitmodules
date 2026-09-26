@@ -10,3 +10,7 @@
 [submodule "third-party/RetroArch-patch"]
 	path = third-party/RetroArch-patch
 	url = https://github.com/OnionUI/RetroArch-patch
+[submodule "third-party/open-mainui"]
+	path = third-party/open-mainui
+	url = https://github.com/Amiga500/onionos-mainui-opensource.git
+	branch = onionplus-test
