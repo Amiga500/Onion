@@ -341,7 +341,12 @@ static void *_osd_thread(void *_)
 {
     while (getMilliseconds() - _bar_timer < 2000) {
         _print_bar();
-        usleep(16000); // ~60fps (was 100µs = 10,000 loops/sec busy-wait!)
+        // The game redraws the framebuffer every frame and the bar is drawn
+        // over it, unsynchronised with the game's page flips. Redrawing once
+        // per frame (16 ms) left it missing from many frames, so it
+        // flickered; Onion's 100 us keeps it on screen. The loop only runs
+        // for the 2 s after a volume or brightness key.
+        usleep(100);
     }
     _bar_restoreBufferBehind();
     osd_thread_active = false;
