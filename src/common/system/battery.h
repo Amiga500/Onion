@@ -90,19 +90,15 @@ static bool _battery_isCharging_impl(void)
         return charging == '1';
     }
     else if (HAS_AXP()) {
-        char *cmd = "cd /customer/app/ ; ./axp_test";
         char buf[100];
         int charge_number = 0;
 
-        FILE *fp;
-        fp = popen(cmd, "r");
-        if (fp != NULL) {
-            if (fgets(buf, sizeof(buf), fp) != NULL) {
-                if (sscanf(buf, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}",
-                           &charge_number) != 1)
-                    charge_number = 0;
-            }
-            pclose(fp);
+        // Run axp_test directly (was popen("cd /customer/app/ ; ./axp_test"):
+        // a shell more per call, every 2 s in batmon on the Mini+ and Flip).
+        if (process_readFirstLine("/customer/app/", "./axp_test", buf, sizeof(buf))) {
+            if (sscanf(buf, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}",
+                       &charge_number) != 1)
+                charge_number = 0;
         }
         return charge_number == 3;
     }

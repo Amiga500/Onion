@@ -9,6 +9,7 @@
 
 #include "onion_test.h"
 #include <signal.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -130,10 +131,82 @@ TEST(process_spawn_detached_runs_program) {
     unlink(marker);
 }
 
+/* ---- process_readFirstLine (axp_test without popen) ---- */
+
+static char rfl_dir[] = "/tmp/onion_rfl_XXXXXX";
+
+static void rfl_tool(const char *body)
+{
+    char path[64];
+    snprintf(path, sizeof(path), "%s/tool", rfl_dir);
+    FILE *fp = fopen(path, "w");
+    fprintf(fp, "#!/bin/sh\n%s\n", body);
+    fclose(fp);
+    chmod(path, 0755);
+}
+
+TEST(read_first_line_like_fgets) {
+    char buf[100];
+    rfl_tool("echo '{\"battery\":87, \"voltage\":4011, \"charging\":3}'; echo second");
+    ASSERT_TRUE(process_readFirstLine(rfl_dir, "./tool", buf, sizeof(buf)));
+    ASSERT_STREQ("{\"battery\":87, \"voltage\":4011, \"charging\":3}\n", buf);
+}
+
+/* The tool runs in dir (axp_test is started as ./axp_test from
+ * /customer/app). */
+TEST(read_first_line_runs_in_dir) {
+    char buf[256];
+    rfl_tool("pwd");
+    ASSERT_TRUE(process_readFirstLine(rfl_dir, "./tool", buf, sizeof(buf)));
+    char expected[256];
+    snprintf(expected, sizeof(expected), "%s\n", rfl_dir);
+    ASSERT_STREQ(expected, buf);
+}
+
+TEST(read_first_line_truncates_like_fgets) {
+    char buf[6];
+    rfl_tool("echo 0123456789");
+    ASSERT_TRUE(process_readFirstLine(rfl_dir, "./tool", buf, sizeof(buf)));
+    ASSERT_STREQ("01234", buf);
+}
+
+TEST(read_first_line_no_newline_and_empty) {
+    char buf[32];
+    rfl_tool("printf abc");
+    ASSERT_TRUE(process_readFirstLine(rfl_dir, "./tool", buf, sizeof(buf)));
+    ASSERT_STREQ("abc", buf);
+    rfl_tool("true");
+    ASSERT_FALSE(process_readFirstLine(rfl_dir, "./tool", buf, sizeof(buf)));
+    ASSERT_STREQ("", buf);
+}
+
+TEST(read_first_line_missing_program) {
+    char buf[32] = "junk";
+    ASSERT_FALSE(process_readFirstLine(rfl_dir, "./missing", buf, sizeof(buf)));
+    ASSERT_STREQ("", buf);
+    ASSERT_FALSE(process_readFirstLine("/nonexistent_dir", "./tool", buf, sizeof(buf)));
+}
+
+/* A long output: the child must not block (the rest is drained). */
+TEST(read_first_line_long_output) {
+    char buf[16];
+    rfl_tool("echo first; i=0; while [ $i -lt 4000 ]; do echo 0123456789012345678901234567890; i=$((i+1)); done");
+    ASSERT_TRUE(process_readFirstLine(rfl_dir, "./tool", buf, sizeof(buf)));
+    ASSERT_STREQ("first\n", buf);
+}
+
 int main(void)
 {
     printf("\n=== process.h Unit Tests ===\n\n");
 
+    if (mkdtemp(rfl_dir) == NULL)
+        return 1;
+    RUN_TEST(read_first_line_like_fgets);
+    RUN_TEST(read_first_line_runs_in_dir);
+    RUN_TEST(read_first_line_truncates_like_fgets);
+    RUN_TEST(read_first_line_no_newline_and_empty);
+    RUN_TEST(read_first_line_missing_program);
+    RUN_TEST(read_first_line_long_output);
     RUN_TEST(process_searchpid_finds_self);
     RUN_TEST(process_searchpid_not_found);
     RUN_TEST(process_searchpid_empty_name);
@@ -145,6 +218,12 @@ int main(void)
     RUN_TEST(process_spawn_detached_with_sigchld_ignored);
     RUN_TEST(process_spawn_detached_runs_program);
 
+    {
+        char tool[64];
+        snprintf(tool, sizeof(tool), "%s/tool", rfl_dir);
+        remove(tool);
+        rmdir(rfl_dir);
+    }
     TEST_REPORT();
     return test_failures;
 }

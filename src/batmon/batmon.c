@@ -388,13 +388,10 @@ int getBatPercMMP(void)
     char buf[100] = "";
     int battery_number = -1;
 
-    FILE *fp = popen("cd /customer/app/ ; ./axp_test", "r");
-    if (fp != NULL) {
-        if (fgets(buf, sizeof(buf), fp) != NULL) {
-            if (sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number) != 1)
-                battery_number = -1;
-        }
-        pclose(fp);
+    // axp_test run directly, without the shell popen() added.
+    if (process_readFirstLine("/customer/app/", "./axp_test", buf, sizeof(buf))) {
+        if (sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number) != 1)
+            battery_number = -1;
     }
 
     /* axp_test has returned garbage (e.g. 1735289191) and -1 on popen/parse

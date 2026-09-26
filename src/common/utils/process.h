@@ -155,6 +155,79 @@ int process_run_wait(char *const argv[])
     return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
+//
+//    Run `path` (no shell, no PATH lookup) in directory `dir` and read the
+//    first line of its standard output into buf (at most size - 1 bytes,
+//    newline kept, NUL-terminated), like fgets() on popen("cd dir; path").
+//    Returns false if it could not be started or printed nothing.
+//
+bool process_readFirstLine(const char *dir, const char *path, char *buf, size_t size)
+{
+    if (buf == NULL || size == 0)
+        return false;
+    buf[0] = '\0';
+
+    int fds[2];
+    if (pipe(fds) != 0)
+        return false;
+    // Close-on-exec, so a program started meanwhile by another thread does
+    // not inherit the write end and keep the read below waiting (dup2 to
+    // stdout in the child clears the flag there).
+    fcntl(fds[0], F_SETFD, FD_CLOEXEC);
+    fcntl(fds[1], F_SETFD, FD_CLOEXEC);
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(fds[0]);
+        close(fds[1]);
+        return false;
+    }
+
+    if (pid == 0) {
+        close(fds[0]);
+        if (dup2(fds[1], STDOUT_FILENO) < 0)
+            _exit(127);
+        if (fds[1] != STDOUT_FILENO)
+            close(fds[1]);
+        if (dir != NULL && chdir(dir) != 0)
+            _exit(127);
+        execl(path, path, (char *)NULL);
+        _exit(127);
+    }
+
+    close(fds[1]);
+    size_t len = 0;
+    while (len < size - 1) {
+        ssize_t n = read(fds[0], buf + len, size - 1 - len);
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0)
+            break;
+        char *newline = memchr(buf + len, '\n', (size_t)n);
+        len += (size_t)n;
+        if (newline != NULL) {
+            len = (size_t)(newline - buf) + 1; // first line only, as fgets
+            break;
+        }
+    }
+    buf[len] = '\0';
+
+    // Drain the rest, as pclose() lets the child finish writing.
+    char drain[64];
+    for (;;) {
+        ssize_t n = read(fds[0], drain, sizeof(drain));
+        if (n > 0 || (n < 0 && errno == EINTR))
+            continue;
+        break;
+    }
+    close(fds[0]);
+
+    int status;
+    while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
+    }
+    return len > 0;
+}
+
 bool process_isRunning(const char *commname)
 {
     return process_searchpid(commname) != 0;
