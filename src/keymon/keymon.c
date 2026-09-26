@@ -1073,7 +1073,11 @@ int main(void)
             case HW_BTN_MENU:
 
                 if (!temp_flag_get("disable_menu_button")) {
-                    system_state_update();
+                    // Key repeats outside a combo only compare timestamps
+                    // with the state saved on the press: no need to rescan
+                    // /proc about 20 times a second while MENU is held.
+                    if (val != REPEAT || comboKey_menu)
+                        system_state_update();
                     comboKey_menu = menuButtonAction(val, comboKey_menu);
                 }
 
