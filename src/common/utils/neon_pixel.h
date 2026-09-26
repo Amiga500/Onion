@@ -22,6 +22,7 @@
 
 #if defined(__ARM_NEON) || defined(__ARM_NEON__)
 #define NEON_PIXEL_HAS_NEON 1
+#include <arm_neon.h>
 #endif
 
 static inline uint32_t neon_swap_rb_u32(uint32_t px)
@@ -338,6 +339,40 @@ static inline void neon_rotate180_inplace(uint32_t *pixels, int count)
         *lo++ = *hi;
         *hi-- = tmp;
     }
+}
+
+static inline void neon_reverse_copy_u32_scalar(uint32_t *dst, const uint32_t *src, int count)
+{
+    for (int i = 0; i < count; i++) {
+        dst[i] = src[count - 1 - i];
+    }
+}
+
+/**
+ * Copy count 32-bit pixels in reverse order: dst[i] = src[count - 1 - i].
+ * One row of a 180° rotation (e.g. a frame written to or read from the
+ * rotated Miyoo framebuffer). dst and src must not overlap.
+ */
+static inline void neon_reverse_copy_u32(uint32_t *dst, const uint32_t *src, int count)
+{
+    if (count <= 0) {
+        return;
+    }
+    int i = 0;
+#ifdef NEON_PIXEL_HAS_NEON
+    for (; i + 8 <= count; i += 8) {
+        const uint32_t *s = src + count - i - 8;
+        uint32x4_t lo = vld1q_u32(s);     /* s0 s1 s2 s3 */
+        uint32x4_t hi = vld1q_u32(s + 4); /* s4 s5 s6 s7 */
+        lo = vrev64q_u32(lo);             /* s1 s0 s3 s2 */
+        hi = vrev64q_u32(hi);
+        lo = vcombine_u32(vget_high_u32(lo), vget_low_u32(lo)); /* s3 s2 s1 s0 */
+        hi = vcombine_u32(vget_high_u32(hi), vget_low_u32(hi)); /* s7 s6 s5 s4 */
+        vst1q_u32(dst + i, hi);
+        vst1q_u32(dst + i + 4, lo);
+    }
+#endif
+    neon_reverse_copy_u32_scalar(dst + i, src, count - i);
 }
 
 #endif /* NEON_PIXEL_H__ */

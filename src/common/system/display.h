@@ -10,6 +10,7 @@
 #include "system.h"
 #include "utils/file.h"
 #include "utils/log.h"
+#include "utils/neon_pixel.h"
 
 #ifdef PLATFORM_MIYOOMINI
 #define DEFAULT_WIDTH 640
@@ -310,6 +311,21 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
             }
             else {
                 memcpy(&pixels[baseIndex], &display->fb_addr[rowOffset], rect.w * sizeof(uint32_t));
+            }
+            continue;
+        }
+
+        // Fast path: rotated (180°), non-masked, row fully on screen. The
+        // framebuffer row is the source row reversed; this is the path of
+        // every GameSwitcher frame (all buffers), so do it with NEON rather
+        // than pixel by pixel with per-pixel bounds checks.
+        if (rotate && !mask && rect.x >= 0 && rect.x + rect.w <= (int)display->vinfo.xres) {
+            long rowOffset = baseOffset + (long)display->vinfo.xres - rect.x - rect.w;
+            if (write) {
+                neon_reverse_copy_u32(&display->fb_addr[rowOffset], &pixels[baseIndex], rect.w);
+            }
+            else {
+                neon_reverse_copy_u32(&pixels[baseIndex], &display->fb_addr[rowOffset], rect.w);
             }
             continue;
         }

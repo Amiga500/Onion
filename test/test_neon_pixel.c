@@ -326,9 +326,25 @@ TEST(rotate180_zero_count) {
 
 /* ---- main ---- */
 
+/* neon_reverse_copy_u32: every length around the 8-pixel NEON block,
+ * against the scalar oracle (runs natively under qemu-arm in CI). */
+TEST(reverse_copy_matches_oracle) {
+    uint32_t src[40], dst[40], ref[40];
+    for (int i = 0; i < 40; i++)
+        src[i] = 0x11000000u + (uint32_t)i * 0x00010203u;
+    for (int n = 0; n <= 40; n++) {
+        memset(dst, 0xCD, sizeof(dst));
+        memset(ref, 0xCD, sizeof(ref));
+        neon_reverse_copy_u32(dst, src, n);
+        neon_reverse_copy_u32_scalar(ref, src, n);
+        ASSERT_EQ(0, memcmp(dst, ref, sizeof(dst)));
+    }
+}
+
 int main(void)
 {
     printf("\n=== neon_pixel.h Scalar Fallback Unit Tests ===\n\n");
+    RUN_TEST(reverse_copy_matches_oracle);
 
     /* swap R↔B */
     RUN_TEST(swap_rb_red_to_blue);
