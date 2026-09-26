@@ -487,8 +487,8 @@ launch_game() {
     perf_begin game_prepare
     log "\n:: Launch game"
     rm -f /tmp/.forceKillRetroarch
-    cmd=$(cat $sysdir/cmd_to_run.sh)
-    TZ_VALUE=$(cat "$sysdir/config/.tz")
+    read_file_to cmd $sysdir/cmd_to_run.sh
+    read_file_to TZ_VALUE "$sysdir/config/.tz"
 
     is_game=0
     rompath=""
@@ -887,6 +887,29 @@ launch_game_postprocess() {
         set_prev_state "app"
         check_off_order "End"
     fi
+}
+
+# `read_file_to var file`: var=$(cat file) with shell builtins (no fork):
+# lines joined with newlines, trailing newlines removed, empty when the
+# file cannot be read. Used twice before every game launch.
+read_file_to() {
+    _rft_val=""
+    _rft_nl=""
+    if [ -r "$2" ]; then
+        while IFS= read -r _rft_line || [ -n "$_rft_line" ]; do
+            _rft_val="$_rft_val$_rft_nl$_rft_line"
+            _rft_nl="
+"
+        done < "$2"
+    fi
+    while :; do
+        case "$_rft_val" in
+            *"
+") _rft_val=${_rft_val%?} ;;
+            *) break ;;
+        esac
+    done
+    eval "$1=\$_rft_val"
 }
 
 # Single-line launch command with its trailing quoted field (the ROM path)

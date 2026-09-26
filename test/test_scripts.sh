@@ -290,6 +290,29 @@ check "started once" test $started -eq 1
 unset -f pgrep pgrep_calls runifnecessary
 end
 
+# ---- runtime.sh: read_file_to (vs $(cat)) ----
+
+eval "$(extract_fn "$RUNTIME" read_file_to)"
+
+same_as_cat() { # printf format for the file content
+    printf "$1" > "$TMP/f"
+    read_file_to got "$TMP/f"
+    [ "$got" = "$(cat "$TMP/f")" ]
+}
+
+begin read_file_to_matches_cat
+check "single line" same_as_cat 'LD_PRELOAD=x "a b" "c"\n'
+check "no final newline" same_as_cat 'abc'
+check "empty file" same_as_cat ''
+check "trailing blank lines" same_as_cat 'a\n\n\n'
+check "blank lines inside" same_as_cat 'a\n\nb\n'
+check "leading and trailing spaces" same_as_cat '  a b  \n  c\t\n'
+check "backslashes and quotes" same_as_cat 'a\\\\n "b\\\\" $x `y`\n'
+check "CRLF" same_as_cat 'a\r\nb\r\n'
+read_file_to got "$TMP/missing"
+check "missing file is empty" test -z "$got"
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283
