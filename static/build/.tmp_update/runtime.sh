@@ -1361,14 +1361,18 @@ create_swap() {
         dd if=/dev/zero of="$swapfile" bs=1M count=128
         mkswap "$swapfile"
     fi
-    log "Enabling swap"
-    swapon "$swapfile"
+    # Nothing in the first seconds of boot needs swap: enable it in the
+    # background instead of waiting for swapon to map the 128 MB file.
+    log "Enabling swap (background)"
+    swapon "$swapfile" &
 }
 
 init_system() {
     log "\n:: Init system"
 
+    perf_begin boot_swap
     create_swap
+    perf_end boot_swap
     load_settings
 
     # init_lcd
@@ -1383,9 +1387,11 @@ init_system() {
         $sysdir/script/lcdvolt.sh 2> /dev/null
     fi
 
+    perf_begin boot_audio
     start_audioserver
+    perf_end boot_audio
 
-    brightness=$(/customer/app/jsonval brightness)
+    brightness=$(sysjson_get brightness)
     brightness_raw=$(awk "BEGIN { print int(3 * exp(0.350656 * $brightness) + 0.5) }")
     log "brightness: $brightness -> $brightness_raw"
 
@@ -1402,7 +1408,9 @@ init_system() {
     echo $brightness_raw > /sys/class/pwm/pwmchip0/pwm0/duty_cycle
     echo 1 > /sys/class/pwm/pwmchip0/pwm0/enable
 
+    perf_begin boot_display
     get_screen_resolution
+    perf_end boot_display
 
     # Establish MainUI's layout before the boot screen is drawn. Doing it here
     # means the boot screen is painted in the mode MainUI will use, so nothing
@@ -1548,9 +1556,16 @@ runifnecessary() {
     while [ "$a" == "" ] && [ $cnt -lt 8 ]; do
         log "try to run: $2"
         $2 $3 &
-        sleep 0.5
+        # Was a fixed 0.5 s before every check; the process is usually up in
+        # a few ms. Poll every 50 ms with the same 0.5 s ceiling per attempt.
+        wait_polls=0
+        a=""
+        while [ -z "$a" ] && [ $wait_polls -lt 10 ]; do
+            sleep 0.05
+            a=$(pgrep $1)
+            wait_polls=$((wait_polls + 1))
+        done
         cnt=$(expr $cnt + 1)
-        a=$(pgrep $1)
     done
 }
 
