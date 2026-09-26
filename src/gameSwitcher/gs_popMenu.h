@@ -310,18 +310,27 @@ void action_saveGame(void *_)
     g_save_thread_running = true;
     g_save_thread_success = false;
 
-    pthread_create(&save_thread, NULL, _save_thread, NULL);
+    if (pthread_create(&save_thread, NULL, _save_thread, NULL) != 0) {
+        g_save_thread_running = false;
+        return;
+    }
 
     SDL_Surface *bg = SDL_CreateRGBSurface(SDL_SWSURFACE, g_display.width, g_display.height, 32, 0, 0, 0, 0);
     SDL_BlitSurface(screen, NULL, bg, NULL);
 
     theme_clearDialogProgress();
 
+    // Redraw the progress dots a few times a second, as Tweaks does. This
+    // loop used to redraw the whole screen without pausing for as long as
+    // RetroArch took to write the state (up to 30 s), competing with it
+    // for the CPU and the dots advanced too fast to read.
     while (g_save_thread_running) {
         SDL_BlitSurface(bg, NULL, screen, NULL);
         theme_renderDialogProgress(screen, "Saving", " ", false);
         render();
+        msleep(300);
     }
+    pthread_join(save_thread, NULL);
 
     SDL_BlitSurface(bg, NULL, screen, NULL);
     theme_renderDialog(screen, "Saving", g_save_thread_success ? "State saved" : "Save failed", false);
