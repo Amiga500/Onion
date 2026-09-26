@@ -83,18 +83,26 @@ check() {
     local has_wifi=$(wifi_enabled && echo 1 || echo 0)
 
     # At boot, nothing waits for the network unless "Wait for sync on
-    # startup" (ntpWait) or forced Wi-Fi is on. Bringing Wi-Fi up takes
-    # seconds (wifi_on alone sleeps 2 s after powering the chip), so in that
-    # case do it in the background and let the boot continue to the menu.
+    # startup" (ntpWait) is on, or Wi-Fi is off and forced on temporarily for
+    # the time sync (ntpForce). Bringing Wi-Fi up takes seconds (wifi_on alone
+    # sleeps 2 s after powering the chip), so otherwise do it in the
+    # background and let the boot continue to the menu. ntpForce with Wi-Fi
+    # already on changes nothing below, so it no longer forces a wait.
     # Measured on device: boot_network 3.34 s of a 5.51 s runtime boot.
-    if [ "$is_booting" -eq 1 ] && [ "$force_wifi_on_startup" -eq 0 ] &&
-        ! { [ "$has_wifi" -eq 1 ] && flag_enabled ntpWait; }; then
+    if [ "$is_booting" -eq 1 ] &&
+        ! { [ "$has_wifi" -eq 1 ] && flag_enabled ntpWait; } &&
+        ! { [ "$force_wifi_on_startup" -eq 1 ] && [ "$has_wifi" -eq 0 ]; }; then
+        log "Network Checker: boot bring-up continues in the background"
         if [ -f "$sysdir/.updateAvailable" ]; then
             bootScreen Boot "Update available!"
             sleep 1
         fi
         check_boot_background "$has_wifi" &
         return
+    fi
+
+    if [ "$is_booting" -eq 1 ]; then
+        log "Network Checker: boot waits for the network (ntpWait=$(flag_enabled ntpWait && echo 1 || echo 0), forced Wi-Fi=$force_wifi_on_startup, Wi-Fi=$has_wifi)"
     fi
 
     check_wifi
@@ -580,10 +588,15 @@ check_ntpstate() {
 get_time() { # handles 2 types of network time, instant from an API or longer from an NTP server, if the instant API checks fails it will fallback to the longer ntp
     log "NTP: started time update"
 
+    # The time zone is only rewritten when a lookup really returned an offset.
+    # A failed lookup used to produce "UTC" and silently replace the user's
+    # time zone (seen on device: local time shifted by the zone's offset).
+    utc_offset=""
     response=$(curl -s -m 3 http://worldtimeapi.org/api/ip.txt)
     utc_datetime=$(echo "$response" | grep -o 'utc_datetime: [^.]*' | cut -d ' ' -f2 | sed "s/T/ /")
     if ! flag_enabled "manual_tz"; then
-        utc_offset="UTC$(echo "$response" | grep -o 'utc_offset: [^.]*' | cut -d ' ' -f2)"
+        _wt_offset=$(echo "$response" | grep -o 'utc_offset: [^.]*' | cut -d ' ' -f2)
+        [ -n "$_wt_offset" ] && utc_offset="UTC$_wt_offset"
     fi
 
     if [ -z "$utc_datetime" ]; then
@@ -591,8 +604,17 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
         utc_datetime=$(curl -s -k -m 5 https://timeapi.io/api/Time/current/zone?timeZone=UTC | grep -o '"dateTime":"[^.]*' | cut -d '"' -f4 | sed 's/T/ /')
         if ! flag_enabled "manual_tz"; then
             ip_address=$(curl -s -k -m 5 https://api.ipify.org)
-            utc_offset_seconds=$(curl -s -k -m 5 https://timeapi.io/api/TimeZone/ip?ipAddress=$ip_address | jq '.currentUtcOffset.seconds')
-            utc_offset="$(convert_seconds_to_utc_offset $utc_offset_seconds)"
+            utc_offset_seconds=""
+            [ -n "$ip_address" ] &&
+                utc_offset_seconds=$(curl -s -k -m 5 https://timeapi.io/api/TimeZone/ip?ipAddress=$ip_address | jq '.currentUtcOffset.seconds')
+            case "$utc_offset_seconds" in
+                "" | null | -| *[!0-9-]* | ?*-*)
+                    log "NTP: Time zone lookup failed, keeping the current time zone"
+                    ;;
+                *)
+                    utc_offset="$(convert_seconds_to_utc_offset $utc_offset_seconds)"
+                    ;;
+            esac
         fi
     fi
 
@@ -629,6 +651,9 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
     playActivity resume
     if [ $ntp_ret -eq 0 ]; then
         log "NTP: Time successfully aquired using NTP"
+        # Mark the sync as done, like the API path: without it every later
+        # network check (after each game) synced again.
+        touch /tmp/ntp_synced
         return 0
     fi
 
