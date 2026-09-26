@@ -9,6 +9,7 @@
 #include "utils/keystate.h"
 
 #include "gs_appState.h"
+#include "gs_longpress.h"
 #include "gs_model.h"
 #include "gs_popMenu.h"
 #include "gs_romscreen.h"
@@ -21,7 +22,7 @@ typedef struct {
     bool select_pressed;
     bool select_combo_key;
     SDLKey changed_key;
-    int button_y_repeat;
+    LongPress_s button_y;
 } AppKeyState_s;
 
 static AppKeyState_s _gs_keystate = {
@@ -32,7 +33,7 @@ static AppKeyState_s _gs_keystate = {
     .select_pressed = false,
     .select_combo_key = false,
     .changed_key = SDLK_UNKNOWN,
-    .button_y_repeat = 0,
+    .button_y = {false, false, 0},
 };
 
 void removeCurrentItem()
@@ -204,12 +205,11 @@ void handleUpdateKeystateMain(AppState *state)
     }
 
     if (_gs_keystate.changed_key == SW_BTN_Y && keystate[SW_BTN_Y] == RELEASED) {
-        if (_gs_keystate.button_y_repeat < 75) {
+        if (longPress_release(&_gs_keystate.button_y)) {
             state->view_mode = state->view_mode == VIEW_FULLSCREEN ? state->view_restore : !state->view_mode;
             config_flag_set("gameSwitcher/minimal", state->view_mode == VIEW_MINIMAL);
             state->changed = true;
         }
-        _gs_keystate.button_y_repeat = 0;
     }
 
     if (keystate[SW_BTN_X] == PRESSED) {
@@ -333,9 +333,14 @@ void handleKeystate(AppState *state)
         }
     }
 
+    // A release handled elsewhere (pop menu, confirmation dialog) never
+    // reaches the release check in handleUpdateKeystateMain: reset the long
+    // press here, or the next tap would count from the old press time.
+    if (keystate[SW_BTN_Y] == RELEASED)
+        longPress_release(&_gs_keystate.button_y);
+
     if (keystate[SW_BTN_Y] == PRESSED && state->view_mode != VIEW_FULLSCREEN && !state->pop_menu_open) {
-        _gs_keystate.button_y_repeat++;
-        if (_gs_keystate.button_y_repeat >= 75) {
+        if (longPress_held(&_gs_keystate.button_y, SDL_GetTicks(), GS_LONG_PRESS_MS)) {
             state->view_restore = state->view_mode;
             state->view_mode = VIEW_FULLSCREEN;
             state->changed = true;
