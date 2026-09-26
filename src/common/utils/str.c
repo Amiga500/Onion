@@ -220,23 +220,65 @@ int str_count_char(const char *str, char ch)
     return count;
 }
 
+// True for code points the CJK font (wqy-microhei) is needed for: Hangul,
+// CJK radicals/symbols/punctuation, kana, CJK ideographs (incl. Ext A and
+// the supplementary planes), compatibility ideographs and full-width forms.
+static bool _isCJKCodePoint(uint32_t cp)
+{
+    return (cp >= 0x1100 && cp <= 0x11FF) || // Hangul Jamo
+           (cp >= 0x2E80 && cp <= 0x9FFF) || // radicals .. unified ideographs
+           (cp >= 0xA960 && cp <= 0xA97F) || // Hangul Jamo Extended-A
+           (cp >= 0xAC00 && cp <= 0xD7FF) || // Hangul syllables, Jamo Ext-B
+           (cp >= 0xF900 && cp <= 0xFAFF) || // CJK compatibility ideographs
+           (cp >= 0xFE30 && cp <= 0xFE4F) || // CJK compatibility forms
+           (cp >= 0xFF00 && cp <= 0xFFEF) || // half-width / full-width forms
+           (cp >= 0x20000 && cp <= 0x3FFFF); // CJK Ext B.. (planes 2-3)
+}
+
+// Latin, Greek, Cyrillic etc. are not CJK ("café" stays on the theme font).
+// The previous lead-byte test (0xE3-0xE9, i.e. U+3000-U+9FFF only) missed
+// Hangul and full-width forms, so Korean names in Play Activity were drawn
+// with the theme font. Only complete UTF-8 sequences are decoded.
 bool includeCJK(char *str)
 {
-    while (*str) {
-        unsigned char c = (unsigned char)*str;
-        // Check for CJK UTF-8 sequences
-        // CJK Unified Ideographs: U+4E00–U+9FFF (0xE4 0xB8 0x80 to 0xE9 0xBF 0xBF)
-        // Hiragana: U+3040–U+309F (0xE3 0x81 0x80 to 0xE3 0x82 0x9F)
-        // Katakana: U+30A0–U+30FF (0xE3 0x82 0xA0 to 0xE3 0x83 0xBF)
-        if (c >= 0xE3 && c <= 0xE9) {
-            // Require a complete 3-byte UTF-8 sequence (both continuation bytes)
-            if (str[1] && str[2] &&
-                ((unsigned char)str[1] & 0xC0) == 0x80 &&
-                ((unsigned char)str[2] & 0xC0) == 0x80) {
-                return true;
-            }
+    const unsigned char *p = (const unsigned char *)str;
+    while (*p) {
+        uint32_t cp;
+        int len;
+        if (p[0] < 0x80) {
+            p++;
+            continue;
         }
-        str++;
+        else if ((p[0] & 0xE0) == 0xC0) {
+            cp = p[0] & 0x1F;
+            len = 2;
+        }
+        else if ((p[0] & 0xF0) == 0xE0) {
+            cp = p[0] & 0x0F;
+            len = 3;
+        }
+        else if ((p[0] & 0xF8) == 0xF0) {
+            cp = p[0] & 0x07;
+            len = 4;
+        }
+        else {
+            p++; // stray continuation or invalid lead byte
+            continue;
+        }
+
+        int i;
+        for (i = 1; i < len; i++) {
+            if ((p[i] & 0xC0) != 0x80)
+                break;
+            cp = (cp << 6) | (p[i] & 0x3F);
+        }
+        if (i < len) {
+            p++; // truncated sequence: resync on the next byte
+            continue;
+        }
+        if (_isCJKCodePoint(cp))
+            return true;
+        p += len;
     }
     return false;
 }

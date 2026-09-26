@@ -235,6 +235,35 @@ TEST(includeCJK_cafe_not_cjk) {
     ASSERT_FALSE(includeCJK("café"));
 }
 
+/* Korean (Hangul) and full-width names need the CJK font too. */
+TEST(includeCJK_korean_hangul) {
+    ASSERT_TRUE(includeCJK("\xEC\x8A\x88\xED\x8D\xBC \xEB\xA7\x88\xEB\xA6\xAC\xEC\x98\xA4")); /* Super Mario in Hangul */
+}
+
+TEST(includeCJK_fullwidth_forms) {
+    ASSERT_TRUE(includeCJK("\xEF\xBC\xA6\xEF\xBC\xA6")); /* full-width FF, U+FF26 */
+}
+
+TEST(includeCJK_cjk_symbols_punctuation) {
+    ASSERT_TRUE(includeCJK("A\xE3\x80\x82")); /* ideographic full stop U+3002 */
+}
+
+TEST(includeCJK_supplementary_ideograph) {
+    ASSERT_TRUE(includeCJK("\xF0\xA0\x80\x80")); /* U+20000 */
+}
+
+TEST(includeCJK_latin_greek_cyrillic_not_cjk) {
+    ASSERT_FALSE(includeCJK("Pok\xC3\xA9mon"));
+    ASSERT_FALSE(includeCJK("\xCE\xB1\xCE\xB2"));
+    ASSERT_FALSE(includeCJK("\xD0\xA2\xD0\xB5\xD1\x82\xD1\x80\xD0\xB8\xD1\x81"));
+    ASSERT_FALSE(includeCJK("\xE2\x84\xA2")); /* trade mark U+2122 */
+}
+
+TEST(includeCJK_truncated_sequence_is_not_cjk) {
+    ASSERT_FALSE(includeCJK("\xE4\xB8"));
+    ASSERT_FALSE(includeCJK("\xEC"));
+}
+
 /* concat() is snprintf(ptr, STR_MAX, "%s%s", ...) — dest is truncated to STR_MAX-1. */
 TEST(concat_truncates_to_str_max) {
     char dest[STR_MAX];
@@ -591,6 +620,12 @@ int main(void)
     RUN_TEST(includeCJK_no_cjk);
     RUN_TEST(includeCJK_empty);
     RUN_TEST(includeCJK_cafe_not_cjk);
+    RUN_TEST(includeCJK_korean_hangul);
+    RUN_TEST(includeCJK_fullwidth_forms);
+    RUN_TEST(includeCJK_cjk_symbols_punctuation);
+    RUN_TEST(includeCJK_supplementary_ideograph);
+    RUN_TEST(includeCJK_latin_greek_cyrillic_not_cjk);
+    RUN_TEST(includeCJK_truncated_sequence_is_not_cjk);
     RUN_TEST(concat_truncates_to_str_max);
 
     RUN_TEST(str_serializeTime_seconds_only);
