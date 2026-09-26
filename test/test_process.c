@@ -8,6 +8,7 @@
  */
 
 #include "onion_test.h"
+#include <signal.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -103,6 +104,32 @@ TEST(process_killall_missing_is_noop) {
 
 /* ---- main ---- */
 
+/* With SIGCHLD ignored, waitpid() fails with ECHILD and status was read
+ * uninitialised. The spawn itself still happens. */
+TEST(process_spawn_detached_with_sigchld_ignored) {
+    const char *marker = "/tmp/onion_test_spawn_marker";
+    unlink(marker);
+    void (*old)(int) = signal(SIGCHLD, SIG_IGN);
+    char *const argv[] = {"touch", (char *)marker, NULL};
+    ASSERT_TRUE(process_spawn_detached(argv));
+    signal(SIGCHLD, old);
+    for (int i = 0; i < 100 && access(marker, F_OK) != 0; i++)
+        usleep(10000);
+    ASSERT_EQ(access(marker, F_OK), 0);
+    unlink(marker);
+}
+
+TEST(process_spawn_detached_runs_program) {
+    const char *marker = "/tmp/onion_test_spawn_marker2";
+    unlink(marker);
+    char *const argv[] = {"touch", (char *)marker, NULL};
+    ASSERT_TRUE(process_spawn_detached(argv));
+    for (int i = 0; i < 100 && access(marker, F_OK) != 0; i++)
+        usleep(10000);
+    ASSERT_EQ(access(marker, F_OK), 0);
+    unlink(marker);
+}
+
 int main(void)
 {
     printf("\n=== process.h Unit Tests ===\n\n");
@@ -115,6 +142,8 @@ int main(void)
     RUN_TEST(process_searchpid_partial_match);
     RUN_TEST(process_killall_signal_missing_is_noop);
     RUN_TEST(process_killall_missing_is_noop);
+    RUN_TEST(process_spawn_detached_with_sigchld_ignored);
+    RUN_TEST(process_spawn_detached_runs_program);
 
     TEST_REPORT();
     return test_failures;

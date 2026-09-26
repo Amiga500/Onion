@@ -121,9 +121,14 @@ bool process_spawn_detached(char *const argv[])
         _exit(worker < 0 ? 1 : 0);
     }
 
-    int status;
-    while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
-        ;
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0) {
+        // ECHILD (e.g. SIGCHLD ignored): the intermediate child was reaped
+        // already, so status was never filled in. It exits at once after
+        // forking the worker, so report the spawn as done.
+        if (errno != EINTR)
+            return errno == ECHILD;
+    }
     return WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
