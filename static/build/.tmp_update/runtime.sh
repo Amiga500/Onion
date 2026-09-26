@@ -541,8 +541,15 @@ launch_game() {
 
             # Update cmd_to_run with resolved path
             if [ "$rompath" != "$orig_path" ]; then
-                temp=$(cat $sysdir/cmd_to_run.sh)
-                cmd_replaced=$(echo "$temp" | rev | sed 's/^"[^"]*"//g' | rev)"\"$rompath\""
+                temp=""
+                if [ $cmd_single_line -eq 1 ] &&
+                    { IFS= read -r temp < $sysdir/cmd_to_run.sh || [ -n "$temp" ]; }; then
+                    cmd_with_rom_path "$temp" "$rompath"
+                    cmd_replaced=$cmd_with_rom
+                else
+                    temp=$(cat $sysdir/cmd_to_run.sh)
+                    cmd_replaced=$(echo "$temp" | rev | sed 's/^"[^"]*"//g' | rev)"\"$rompath\""
+                fi
                 echo "$cmd_replaced" > $sysdir/cmd_to_run.sh
             fi
 
@@ -874,6 +881,22 @@ launch_game_postprocess() {
         set_prev_state "app"
         check_off_order "End"
     fi
+}
+
+# Single-line launch command with its trailing quoted field (the ROM path)
+# replaced by "$2", in cmd_with_rom. Same result as the multi-line
+# fallback `echo "$1" | rev | sed 's/^"[^"]*"//g' | rev` plus "\"$2\"",
+# without its four processes on every launch whose path realpath changes
+# (MainUI paths contain ../../Roms).
+cmd_with_rom_path() {
+    _cwr=$1
+    case "$_cwr" in
+        *\")
+            _cwr_open=${_cwr%\"}
+            case "$_cwr_open" in *\"*) _cwr=${_cwr_open%\"*} ;; esac
+            ;;
+    esac
+    cmd_with_rom=$_cwr"\"$2\""
 }
 
 get_full_resolution_path() {

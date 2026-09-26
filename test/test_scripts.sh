@@ -203,6 +203,31 @@ fn=$(extract_fn "$RUNTIME" launch_main_ui)
 check "one global sync per MainUI cycle" test "$(printf '%s\n' "$fn" | grep -c '^ *sync$')" -eq 1
 end
 
+# ---- runtime.sh: cmd_with_rom_path (vs the rev|sed pipeline) ----
+
+eval "$(extract_fn "$RUNTIME" cmd_with_rom_path)"
+
+pipeline_rom_path() { # the multi-line fallback, as in launch_game
+    _prp=$(echo "$1" | rev | sed 's/^"[^"]*"//g' | rev)"\"$2\""
+    printf '%s\n' "$_prp"
+}
+
+same_as_pipeline() { # command, new path
+    cmd_with_rom_path "$1" "$2"
+    [ "$cmd_with_rom" = "$(pipeline_rom_path "$1" "$2")" ]
+}
+
+begin cmd_with_rom_path_matches_pipeline
+R=/mnt/SDCARD/Roms/GBA/Game.gba
+check "RetroArch command" same_as_pipeline 'LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so "/mnt/SDCARD/Emu/GBA/../../.tmp_update/proxy.sh" "/mnt/SDCARD/Emu/GBA/../../Roms/GBA/Game.gba"' "$R"
+check "custom launch script" same_as_pipeline 'LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so "/mnt/SDCARD/Emu/X/launch.sh" "/mnt/SDCARD/Roms/X/a b (c).zip"' "$R"
+check "empty last field" same_as_pipeline 'run "a" ""' "$R"
+check "no closing quote at the end" same_as_pipeline 'run "a" b' "$R"
+check "single quote only" same_as_pipeline 'run b"' "$R"
+check "no quotes" same_as_pipeline 'run b' "$R"
+check "path with \$ and spaces" same_as_pipeline 'run "x" "/mnt/SDCARD/Roms/A/\$weird name.zip"' '/mnt/SDCARD/Roms/A/$weird name.zip'
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283
