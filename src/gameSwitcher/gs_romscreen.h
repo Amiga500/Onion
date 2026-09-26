@@ -117,9 +117,43 @@ SDL_Surface *scaleRomScreenSurface(SDL_Surface *src, ScalingMode_s mode)
             zx = zy;
     }
 
+    // Already screen-sized 32-bit image: zoomSurface would only copy it
+    // (same pixels and format). Other depths still go through it, which
+    // converts them to RGBA as before.
+    if (zx == 1.0 && zy == 1.0 && src->format->BitsPerPixel == 32)
+        return src;
+
     SDL_Surface *zoomed = zoomSurface(src, zx, zy, SMOOTHING_OFF);
     SDL_FreeSurface(src);
     return zoomed;
+}
+
+// zoomSurface() returns 32-bit RGBA with SDL_SRCALPHA, a format that differs
+// from the screen's, so every blit of a romscreen (each scroll, each step
+// of a scrolling name) went through SDL's generic per-pixel alpha blitter.
+// Convert once, in the background, to an opaque surface in the screen's
+// format. Every place that draws a romscreen fills the target with black
+// first (the whole screen, or the name bar), so blending the image onto
+// black here gives the same pixels.
+static SDL_Surface *_romScreenToScreenFormat(SDL_Surface *src)
+{
+    if (src == NULL || screen == NULL)
+        return src;
+    const SDL_PixelFormat *f = screen->format;
+    if (f->BitsPerPixel != 32)
+        return src;
+
+    SDL_Surface *dst = SDL_CreateRGBSurface(SDL_SWSURFACE, src->w, src->h, 32,
+                                            f->Rmask, f->Gmask, f->Bmask, 0);
+    if (dst == NULL)
+        return src;
+    SDL_FillRect(dst, NULL, 0);
+    if (SDL_BlitSurface(src, NULL, dst, NULL) != 0) {
+        SDL_FreeSurface(dst);
+        return src;
+    }
+    SDL_FreeSurface(src);
+    return dst;
 }
 
 void scaleRomScreen(Game_s *game, ScalingMode_s mode)
@@ -153,8 +187,8 @@ static SDL_Surface *_decodeRomScreen(const Game_s *game)
     // Same rule as before the preload worker (romscreen stretch fix):
     // GameSwitcher captures (hash) fill the screen, artwork keeps its aspect.
     if (romScreenType == ROM_SCREEN_HASH)
-        return scaleRomScreenSurface(surface, (ScalingMode_s){false, false});
-    return scaleRomScreenSurface(surface, (ScalingMode_s){true, false});
+        return _romScreenToScreenFormat(scaleRomScreenSurface(surface, (ScalingMode_s){false, false}));
+    return _romScreenToScreenFormat(scaleRomScreenSurface(surface, (ScalingMode_s){true, false}));
 }
 
 static bool _isRomScreenUiThread(void)
