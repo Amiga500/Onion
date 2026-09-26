@@ -290,13 +290,18 @@ wifi_off() {
     /customer/app/axp_test wifioff
 }
 
+# Without Wi-Fi the service checkers below stop the service but keep its
+# toggle, as in Onion (whose disable_flag never matched a file): the
+# service starts again by itself when Wi-Fi comes back. Nothing restores
+# toggles switched off here (restore_state cannot parse store_state's
+# one-line JSON), so switching them off lost them for good.
+
 # Starts the samba daemon if the toggle is set to on
 check_smbdstate() {
     if flag_enabled smbdState; then
         if is_running smbd; then
             if wifi_disabled; then
-                log "Samba: Wifi is turned off, disabling the toggle for smbd and killing the process"
-                disable_flag smbdState
+                log "Samba: Wifi is turned off, stopping smbd (toggle kept)"
                 killall -9 smbd
             fi
         else
@@ -312,8 +317,6 @@ check_smbdstate() {
 
                 $netscript/start_smbd.sh $PASS &
                 log "Samba: Starting smbd.."
-            else
-                disable_flag smbdState
             fi
         fi
     else
@@ -339,8 +342,7 @@ check_ftpstate() {
     if flag_enabled ftpState; then
         if is_running bftpd; then
             if wifi_disabled; then
-                log "FTP: Wifi is turned off, disabling the toggle for FTP and killing the process"
-                disable_flag ftpState
+                log "FTP: Wifi is turned off, stopping FTP (toggle kept)"
                 killall -9 bftpd
             fi
         else
@@ -354,8 +356,6 @@ check_ftpstate() {
                     bftpd -d -c /mnt/SDCARD/.tmp_update/config/bftpd.conf
                     log "FTP: Starting bftpd without auth"
                 fi
-            else
-                disable_flag ftpState
             fi
         fi
     else
@@ -385,8 +385,7 @@ check_sshstate() {
     if flag_enabled sshState; then
         if is_running dropbear; then
             if wifi_disabled; then
-                log "SSH: Wifi is turned off, disabling the toggle for dropbear and killing the process"
-                disable_flag sshState
+                log "SSH: Wifi is turned off, stopping dropbear (toggle kept)"
                 killall -9 dropbear
             fi
         else
@@ -403,8 +402,6 @@ check_sshstate() {
                     log "SSH: Starting dropbear without auth"
                     dropbear -R -B
                 fi
-            else
-                disable_flag sshState
             fi
         fi
     else
@@ -442,8 +439,7 @@ check_telnetstate() {
     if flag_enabled telnetState; then
         if is_running telnetd; then
             if wifi_disabled; then
-                log "Telnet: Wifi is turned off, disabling the toggle for Telnet and killing the process"
-                disable_flag telnetState
+                log "Telnet: Wifi is turned off, stopping Telnet (toggle kept)"
                 killall -9 telnetd
             fi
         else
@@ -452,8 +448,6 @@ check_telnetstate() {
                 # through the page cache; services restart after every game)
                 log "Telnet: Starting telnet"
                 telnetd -l $netscript/telnetenv.sh
-            else
-                disable_flag telnetState
             fi
         fi
     else
@@ -469,8 +463,7 @@ check_httpstate() {
     if flag_enabled httpState && [ -f $filebrowserbin ]; then
         if is_running_exact "$filebrowserbin -p 80 -a 0.0.0.0 -r /mnt/SDCARD -d $filebrowserdb"; then
             if wifi_disabled; then
-                log "Filebrowser(HTTP server): Wifi is turned off, disabling the toggle for HTTP FS and killing the process"
-                disable_flag httpState
+                log "Filebrowser(HTTP server): Wifi is turned off, stopping HTTP FS (toggle kept)"
                 pkill -9 filebrowser
             fi
         else
@@ -485,8 +478,6 @@ check_httpstate() {
                     $filebrowserbin -p 80 -a 0.0.0.0 -r /mnt/SDCARD -d $filebrowserdb >> /dev/null 2>&1 &
                     log "Filebrowser(HTTP server): Starting filebrowser listening on 0.0.0.0"
                 fi
-            else
-                disable_flag httpState
             fi
         fi
     else

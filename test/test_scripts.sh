@@ -123,6 +123,65 @@ check "launch_game creates it" grep -q ": > $flag_path" "$RUNTIME"
 check "launch_game_postprocess removes it" grep -q "rm -f $flag_path" "$RUNTIME"
 end
 
+# ---- update_networking.sh: service toggles without Wi-Fi ----
+
+for fn in flag_enabled check_smbdstate check_ftpstate check_sshstate check_telnetstate check_httpstate; do
+    eval "$(extract_fn "$NETWORK" $fn)"
+done
+
+net_env() { # running (1/0): service processes reported as running
+    sysdir=$TMP
+    mkdir -p "$sysdir/config"
+    filebrowserbin="$TMP/filebrowser"
+    filebrowserdb="$TMP/fb.db"
+    touch "$filebrowserbin"
+    WIFI_STATE_CACHED=0
+    wifi_enabled() { [ "$WIFI_STATE_CACHED" -eq 1 ]; }
+    wifi_disabled() { [ "$WIFI_STATE_CACHED" -eq 0 ]; }
+    log() { :; }
+    sleep() { :; }
+    if [ "$1" -eq 1 ]; then
+        is_running() { true; }
+        is_running_exact() { case "$1" in *telnetd*) false ;; *) true ;; esac; }
+    else
+        is_running() { false; }
+        is_running_exact() { false; }
+    fi
+    killall() { echo "$*" >> "$TMP/killed"; }
+    pkill() { echo "$*" >> "$TMP/killed"; }
+    for f in smbdState ftpState sshState telnetState httpState; do
+        touch "$sysdir/config/.$f"
+    done
+}
+
+toggles_kept() {
+    for f in smbdState ftpState sshState telnetState httpState; do
+        [ -f "$sysdir/config/.$f" ] || return 1
+    done
+}
+
+run_checkers() {
+    check_smbdstate
+    check_ftpstate
+    check_sshstate
+    check_telnetstate
+    check_httpstate
+}
+
+begin wifi_off_stops_services_keeps_toggles
+net_env 1
+run_checkers
+check "all five toggles still on" toggles_kept
+check "running services stopped" test "$(wc -l < "$TMP/killed")" -ge 5
+end
+
+begin wifi_off_not_running_keeps_toggles
+net_env 0
+run_checkers
+check "all five toggles still on" toggles_kept
+check "nothing killed" test ! -e "$TMP/killed"
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283
