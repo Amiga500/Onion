@@ -13,9 +13,6 @@
 
 #include "../src/common/system/clock.h"
 
-/* Maximum allowed drift between CLOCK_MONOTONIC_COARSE and CLOCK_MONOTONIC_RAW */
-#define MAX_CLOCK_DRIFT_SECONDS 5
-
 /* ---- getMilliseconds ---- */
 
 TEST(getMilliseconds_positive) {
@@ -49,13 +46,27 @@ TEST(getSeconds_monotonic) {
     ASSERT_GE(b, a);
 }
 
-TEST(getSeconds_consistent_with_millis) {
-    /* getSeconds() and getMilliseconds() use different clocks
-     * (COARSE vs RAW) but should agree within a few seconds. */
+/* getSeconds() reads CLOCK_MONOTONIC_COARSE and getMilliseconds()
+ * CLOCK_MONOTONIC_RAW. Comparing the two with each other is unreliable on
+ * a host: CLOCK_MONOTONIC is slewed by NTP and RAW is not, so on a PC with
+ * a long uptime they drift apart by more than any fixed margin. Compare
+ * each helper with its own clock instead. */
+TEST(getSeconds_matches_monotonic_coarse) {
+    struct timespec before, after;
+    clock_gettime(CLOCK_MONOTONIC_COARSE, &before);
     int sec = getSeconds();
+    clock_gettime(CLOCK_MONOTONIC_COARSE, &after);
+    ASSERT_TRUE(sec >= (int)before.tv_sec && sec <= (int)after.tv_sec);
+}
+
+TEST(getMilliseconds_matches_monotonic_raw) {
+    struct timespec before, after;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &before);
     long ms = getMilliseconds();
-    long diff = (ms / 1000) - (long)sec;
-    ASSERT_TRUE(diff >= -MAX_CLOCK_DRIFT_SECONDS && diff <= MAX_CLOCK_DRIFT_SECONDS);
+    clock_gettime(CLOCK_MONOTONIC_RAW, &after);
+    long lo = (long)before.tv_sec * 1000L + before.tv_nsec / 1000000L;
+    long hi = (long)after.tv_sec * 1000L + after.tv_nsec / 1000000L;
+    ASSERT_TRUE(ms >= lo && ms <= hi);
 }
 
 /* ---- main ---- */
@@ -70,7 +81,8 @@ int main(void)
 
     RUN_TEST(getSeconds_positive);
     RUN_TEST(getSeconds_monotonic);
-    RUN_TEST(getSeconds_consistent_with_millis);
+    RUN_TEST(getSeconds_matches_monotonic_coarse);
+    RUN_TEST(getMilliseconds_matches_monotonic_raw);
 
     TEST_REPORT();
     return test_failures;
