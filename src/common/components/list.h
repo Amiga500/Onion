@@ -44,13 +44,14 @@ typedef struct ListItem {
     char preview_path[4096];
     char sticky_note[STR_MAX];
     char info_note[STR_MAX];
-    void *_label_cache;     // Cached TTF surface for label (internal)
-    uint32_t _label_hash;   // Hash of label text for cache invalidation
-    void *_value_cache;     // Cached TTF surface for value label (internal)
-    int _cached_value;      // Cached value for value label invalidation
-    uint32_t _cached_color; // Packed RGBA color for value label invalidation
-    void *_scaled_preview;  // Cached scaled preview surface (internal)
-    int _scaled_preview_w;  // Width the preview was scaled to (for invalidation)
+    void *_label_cache;          // Cached TTF surface for label (internal)
+    uint32_t _label_hash;        // Hash of label text for cache invalidation
+    void *_value_cache;          // Cached TTF surface for value label (internal)
+    uint32_t _cached_value_hash; // Hash of the rendered value label (invalidation)
+    uint32_t _cached_color;      // Packed RGBA color for value label invalidation
+    void *_scaled_preview;       // Cached scaled preview surface (internal)
+    int _scaled_preview_w;       // Width the preview was scaled to (for invalidation)
+    bool _preview_missing;       // preview_path did not exist at last render (internal)
 } ListItem;
 
 typedef struct List {
@@ -440,6 +441,60 @@ void list_getItemValueLabel(ListItem *item, char *out_label)
         snprintf(out_label, STR_MAX, "%d", item->value);
 }
 
+// Release a preview image together with its cached scaled copy, and forget
+// that the file was missing. Call it whenever preview_path or preview_ptr is
+// replaced: the scaled copy is keyed on width only, so leaving it behind makes
+// the renderer show the previous image again (GameSwitcher load-state popup,
+// which stretches every slot's preview to the same width).
+void list_item_clearPreview(ListItem *item)
+{
+    if (item == NULL)
+        return;
+    if (item->preview_ptr != NULL) {
+        SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
+        item->preview_ptr = NULL;
+    }
+    if (item->_scaled_preview != NULL) {
+        SDL_FreeSurface((SDL_Surface *)item->_scaled_preview);
+        item->_scaled_preview = NULL;
+    }
+    item->_scaled_preview_w = 0;
+    item->_preview_missing = false;
+}
+
+// True when the renderer may reuse the cached scaled preview at this width.
+bool list_item_hasScaledPreview(const ListItem *item, int width)
+{
+    return item != NULL && item->_scaled_preview != NULL &&
+           item->_scaled_preview_w == width;
+}
+
+// True when the renderer should try to load preview_path: there is a path,
+// nothing is loaded yet, and the file was not already found missing. The
+// "missing" mark is cleared by list_item_clearPreview(), so a preview file
+// that appears later (e.g. a state PNG written after the save) is picked up
+// once the owner points the item at it again.
+bool list_item_wantsPreviewLoad(const ListItem *item)
+{
+    return item != NULL && item->preview_ptr == NULL &&
+           item->preview_path[0] != '\0' && !item->_preview_missing;
+}
+
+// FNV-1a over a rendered label: cache key for the MULTIVALUE value surface.
+// Keyed on the text itself, not on item->value, because a formatter can
+// render a different string for the same value.
+uint32_t list_labelHash(const char *str)
+{
+    uint32_t hash = 2166136261u;
+    if (str == NULL)
+        return hash;
+    for (const unsigned char *p = (const unsigned char *)str; *p; p++) {
+        hash ^= *p;
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
 void list_free(List *list)
 {
     if (!list->_created)
@@ -449,14 +504,11 @@ void list_free(List *list)
             ListItem *item = &list->items[i];
             if (item->icon_ptr != NULL)
                 SDL_FreeSurface((SDL_Surface *)item->icon_ptr);
-            if (item->preview_ptr != NULL)
-                SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
+            list_item_clearPreview(item);
             if (item->_label_cache != NULL)
                 SDL_FreeSurface((SDL_Surface *)item->_label_cache);
             if (item->_value_cache != NULL)
                 SDL_FreeSurface((SDL_Surface *)item->_value_cache);
-            if (item->_scaled_preview != NULL)
-                SDL_FreeSurface((SDL_Surface *)item->_scaled_preview);
         }
         free(list->items);
     }

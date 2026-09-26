@@ -186,13 +186,11 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         if (i == list->active_pos) {
             SDL_BlitSurface(item_bg, &item_bg_size, screen, &item_bg_rect);
 
-            if (item->preview_ptr == NULL && item->preview_path[0] != '\0') {
-                if (is_file(item->preview_path)) {
+            if (list_item_wantsPreviewLoad(item)) {
+                if (is_file(item->preview_path))
                     item->preview_ptr = (void *)IMG_Load(item->preview_path);
-                }
-                else {
-                    item->preview_path[0] = '\0'; // Cache negative result — stop re-checking
-                }
+                if (item->preview_ptr == NULL)
+                    item->_preview_missing = true; // stop re-checking until the path is reset
             }
 
             if (item->preview_ptr != NULL)
@@ -239,12 +237,13 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                                             (uint32_t)list_color.b;
             char value_str[STR_MAX];
             list_getItemValueLabel(item, value_str);
-            if (item->_value_cache == NULL || item->_cached_value != item->value ||
+            const uint32_t value_hash = list_labelHash(value_str);
+            if (item->_value_cache == NULL || item->_cached_value_hash != value_hash ||
                 item->_cached_color != list_color_key) {
                 if (item->_value_cache != NULL)
                     SDL_FreeSurface((SDL_Surface *)item->_value_cache);
                 item->_value_cache = (void *)TTF_RenderUTF8_Blended(list_font, value_str, list_color);
-                item->_cached_value = item->value;
+                item->_cached_value_hash = value_hash;
                 item->_cached_color = list_color_key;
             }
             SDL_Surface *value_label = (SDL_Surface *)item->_value_cache;
@@ -289,7 +288,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         if (preview) {
             if (preview->w > preview_width || (params.preview_stretch && preview->w < preview_width)) {
                 // Use cached scaled preview if available and width matches
-                if (active_preview->_scaled_preview != NULL && active_preview->_scaled_preview_w == preview_width) {
+                if (list_item_hasScaledPreview(active_preview, preview_width)) {
                     preview = (SDL_Surface *)active_preview->_scaled_preview;
                 }
                 else {

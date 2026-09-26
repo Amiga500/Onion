@@ -352,10 +352,7 @@ void _menu_temp_action(void *_item)
 
         if (mode != ICON_MODE_APP) {
             strcpy(temp_action_item->preview_path, item->preview_path);
-            if (temp_action_item->preview_ptr != NULL) {
-                SDL_FreeSurface((SDL_Surface *)temp_action_item->preview_ptr);
-                temp_action_item->preview_ptr = NULL;
-            }
+            list_item_clearPreview(temp_action_item); // image and scaled copy
         }
         else {
             if (temp_action_item->icon_ptr != NULL)
