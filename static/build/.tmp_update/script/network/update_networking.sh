@@ -82,22 +82,31 @@ check() {
     local force_wifi_on_startup=$([ -f /customer/app/axp_test ] && [ -f $sysdir/config/.ntpForce ] && echo 1 || echo 0)
     local has_wifi=$(wifi_enabled && echo 1 || echo 0)
 
-    # At boot, nothing waits for the network unless "Wait for sync on
-    # startup" (ntpWait) is on, or Wi-Fi is off and forced on temporarily for
-    # the time sync (ntpForce). Bringing Wi-Fi up takes seconds (wifi_on alone
-    # sleeps 2 s after powering the chip), so otherwise do it in the
-    # background and let the boot continue to the menu. ntpForce with Wi-Fi
-    # already on changes nothing below, so it no longer forces a wait.
-    # Measured on device: boot_network 3.34 s of a 5.51 s runtime boot.
-    if [ "$is_booting" -eq 1 ] &&
-        ! { [ "$has_wifi" -eq 1 ] && flag_enabled ntpWait; } &&
-        ! { [ "$force_wifi_on_startup" -eq 1 ] && [ "$has_wifi" -eq 0 ]; }; then
-        log "Network Checker: boot bring-up continues in the background"
+    # At boot, the network only holds the boot when "Wait for sync on
+    # startup" (ntpWait) applies: Wi-Fi enabled, or Wi-Fi forced on for the
+    # sync. Otherwise Wi-Fi, services and time sync run in the background and
+    # the boot continues to the menu (wifi_on alone sleeps 2 s after powering
+    # the chip). Measured on device: boot_network 3.34 s of a 5.51 s boot.
+    local wait_for_network=0
+    if flag_enabled ntpWait && { [ "$has_wifi" -eq 1 ] || [ "$force_wifi_on_startup" -eq 1 ]; }; then
+        wait_for_network=1
+    fi
+
+    if [ "$is_booting" -eq 1 ] && [ "$wait_for_network" -eq 0 ]; then
         if [ -f "$sysdir/.updateAvailable" ]; then
             bootScreen Boot "Update available!"
             sleep 1
         fi
-        check_boot_background "$has_wifi" &
+        if [ "$force_wifi_on_startup" -eq 1 ] && [ "$has_wifi" -eq 0 ]; then
+            # "Enable Wi-Fi temporarily" with Wi-Fi off: used to turn Wi-Fi on
+            # and straight off again at boot without syncing (sync only ran
+            # with ntpWait), costing ~3.4 s for nothing.
+            log "Network Checker: boot bring-up continues in the background (temporary Wi-Fi for the time sync)"
+            check_boot_temporary_wifi &
+        else
+            log "Network Checker: boot bring-up continues in the background"
+            check_boot_background "$has_wifi" &
+        fi
         return
     fi
 
@@ -170,6 +179,7 @@ disable_all_services() {
 # menu may already be on screen).
 check_boot_background() {
     local has_wifi=$1
+    NTP_MAX_WAIT_IP=30
 
     check_wifi
     check_ftpstate &
@@ -185,6 +195,33 @@ check_boot_background() {
     if [ "$has_wifi" -eq 1 ] && [ ! -f "$sysdir/.updateAvailable" ] && [ ! -f /tmp/update_checked ]; then
         touch /tmp/update_checked
         $sysdir/script/ota_update.sh check &
+    fi
+}
+
+# "Enable Wi-Fi temporarily" with Wi-Fi off, run in the background at boot:
+# turn Wi-Fi on, sync the time, check for updates, turn Wi-Fi off again.
+check_boot_temporary_wifi() {
+    NTP_MAX_WAIT_IP=30
+
+    check_wifi
+    check_ftpstate &
+    check_sshstate &
+    check_telnetstate &
+    check_httpstate &
+    check_smbdstate &
+
+    wifi_on
+    check_ntpstate
+
+    if [ ! -f "$sysdir/.updateAvailable" ] && [ ! -f /tmp/update_checked ]; then
+        touch /tmp/update_checked
+        $sysdir/script/ota_update.sh check
+    fi
+
+    # Re-read the setting: the user may have enabled Wi-Fi meanwhile.
+    WIFI_STATE_CACHED=""
+    if wifi_disabled; then
+        wifi_off
     fi
 }
 
@@ -536,7 +573,9 @@ check_ntpstate() {
         fi
 
         attempts=0
-        max_wait_ip=10
+        # 10 s when something waits for it; the background boot paths allow
+        # more (NTP_MAX_WAIT_IP) since a slow DHCP no longer delays anything.
+        max_wait_ip=${NTP_MAX_WAIT_IP:-10}
         max_attempts=3
         ret_val=1
         got_ip=0
