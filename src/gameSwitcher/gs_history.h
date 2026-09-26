@@ -83,6 +83,7 @@ void setEntryDefaultValues(Game_s *game, int index)
     game->is_running = false;
     game->meta_state = GAME_META_NEW;
     game->romscreen_busy = false;
+    game->romscreen_missing = false;
 
     strcpy(game->name, "");
     strcpy(game->shortname, "");

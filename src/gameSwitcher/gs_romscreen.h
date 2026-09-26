@@ -220,7 +220,7 @@ SDL_Surface *loadRomScreen(int index)
     while (game->romscreen_busy)
         pthread_cond_wait(&romscreen_cond, &thread_mutex);
 
-    if (game->romScreen == NULL && game->processed) {
+    if (game->romScreen == NULL && game->processed && !game->romscreen_missing) {
         game->romscreen_busy = true;
         pthread_mutex_unlock(&thread_mutex);
 
@@ -228,6 +228,10 @@ SDL_Surface *loadRomScreen(int index)
 
         pthread_mutex_lock(&thread_mutex);
         game->romscreen_busy = false;
+        // Not for the running game: its capture is saved while the
+        // overlay is open and may appear later.
+        if (surface == NULL && !game->is_running)
+            game->romscreen_missing = true;
         if (game->romScreen == NULL)
             game->romScreen = surface;
         else if (surface != NULL)
@@ -327,7 +331,8 @@ static void *_romScreenWorker(void *_)
             if (romscreen_quit || romscreen_request)
                 break;
 
-            if (game->romScreen == NULL && game->processed && !game->romscreen_busy) {
+            if (game->romScreen == NULL && game->processed && !game->romscreen_busy &&
+                !game->romscreen_missing) {
                 game->romscreen_busy = true;
                 romscreen_inflight++;
                 pthread_mutex_unlock(&thread_mutex);
@@ -337,6 +342,8 @@ static void *_romScreenWorker(void *_)
                 pthread_mutex_lock(&thread_mutex);
                 game->romscreen_busy = false;
                 romscreen_inflight--;
+                if (surface == NULL && !game->is_running)
+                    game->romscreen_missing = true;
                 bool in_window = idx >= romscreen_center - ROMSCREEN_WINDOW &&
                                  idx <= romscreen_center + ROMSCREEN_WINDOW;
                 if (game->romScreen == NULL && in_window)

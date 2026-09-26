@@ -43,8 +43,9 @@ typedef struct {
     int index;
     bool processed;
     bool is_running;
-    int meta_state;      // GAME_META_*: name/core lookup, guarded by thread_mutex
-    bool romscreen_busy; // a thread is decoding this romscreen right now
+    int meta_state;         // GAME_META_*: name/core lookup, guarded by thread_mutex
+    bool romscreen_busy;    // a thread is decoding this romscreen right now
+    bool romscreen_missing; // no capture/artwork (or it failed to load): don't retry
 } Game_s;
 
 #define GAME_META_NEW 0
