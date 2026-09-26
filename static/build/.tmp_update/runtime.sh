@@ -382,11 +382,11 @@ launch_main_ui() {
     sync
     perf_end mr_sync "$perf_dirty_kb"
 
-    # Check if wifi setting changed
+    # Check if wifi setting changed. Only /tmp (tmpfs) changes here: no
+    # second sync (the one above already flushed what MainUI wrote).
     if [ $(sysjson_get wifi) -ne $wifi_setting ]; then
-        touch /tmp/network_changed
-        rm /tmp/ntp_synced 2> /dev/null
-        sync
+        : > /tmp/network_changed
+        rm -f /tmp/ntp_synced
     fi
 
     perf_begin mr_freemma

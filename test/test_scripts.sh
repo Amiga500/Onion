@@ -198,6 +198,11 @@ case "$perf_dirty_kb" in *Dirty=*kB*Writeback=*kB*) ok=0 ;; *) ok=1 ;; esac
 check "Dirty and Writeback with logging" test $ok -eq 0
 end
 
+begin mainui_return_single_sync
+fn=$(extract_fn "$RUNTIME" launch_main_ui)
+check "one global sync per MainUI cycle" test "$(printf '%s\n' "$fn" | grep -c '^ *sync$')" -eq 1
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283
