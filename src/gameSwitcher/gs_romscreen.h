@@ -9,6 +9,7 @@
 
 #include "gs_model.h"
 #include "gs_retroarch.h"
+#include "gs_romscreen_window.h"
 
 // Romscreens are decoded outside the lock by a persistent worker that
 // prefetches the entries next to the current one, so scrolling no longer
@@ -35,6 +36,10 @@ static bool romscreen_quit = false;
 static int romscreen_inflight = 0; // worker jobs touching a game_list entry
 // Also fetch the play time during name/core lookup (mirrors show_time)
 static bool romscreen_prefetch_play_time = false;
+// Entry whose surface another thread is reading (overlay autosave encodes
+// game_list[0].romScreen to PNG): never freed, and game_list is not
+// reordered, until romscreen_unpin(). -1 = none.
+static int romscreen_pinned = -1;
 
 // Defined in gs_history.h
 void processItemMetaWork(Game_s *game);
@@ -45,7 +50,7 @@ void unloadRomScreen(int index)
         return;
     Game_s *game = &game_list[index];
 
-    if (game->romScreen != NULL && !game->romscreen_busy) {
+    if (game->romScreen != NULL && !game->romscreen_busy && index != romscreen_pinned) {
         SDL_FreeSurface(game->romScreen);
         game->romScreen = NULL;
     }
@@ -161,7 +166,7 @@ static bool _isRomScreenUiThread(void)
 static void _evictRomScreens(int center)
 {
     for (int i = 0; i < game_list_len; i++) {
-        if (i < center - ROMSCREEN_WINDOW || i > center + ROMSCREEN_WINDOW)
+        if (romscreen_shouldEvict(i, center, ROMSCREEN_WINDOW, romscreen_pinned))
             unloadRomScreen(i);
     }
 }
@@ -330,8 +335,25 @@ void romscreen_prefetch(int center)
 void romscreen_lockForUpdate(void)
 {
     pthread_mutex_lock(&thread_mutex);
-    while (romscreen_inflight > 0)
+    while (romscreen_inflight > 0 || romscreen_pinned >= 0)
         pthread_cond_wait(&romscreen_cond, &thread_mutex);
+}
+
+// Keep game_list[index].romScreen alive (and the list order fixed) while
+// another thread reads it. Pair with romscreen_unpin().
+void romscreen_pin(int index)
+{
+    pthread_mutex_lock(&thread_mutex);
+    romscreen_pinned = index;
+    pthread_mutex_unlock(&thread_mutex);
+}
+
+void romscreen_unpin(void)
+{
+    pthread_mutex_lock(&thread_mutex);
+    romscreen_pinned = -1;
+    pthread_cond_broadcast(&romscreen_cond);
+    pthread_mutex_unlock(&thread_mutex);
 }
 
 void romscreen_unlock(void)

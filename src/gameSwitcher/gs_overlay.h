@@ -21,6 +21,7 @@
 #include "gs_appState.h"
 #include "gs_model.h"
 #include "gs_render.h"
+#include "gs_romscreen.h"
 
 static pthread_t autosave_thread_pt;
 static bool autosave_thread_running = false;
@@ -109,6 +110,8 @@ static void *_saveRomScreenAndStateThread(void *arg)
 
         printf_debug("Saved rom screen: %s\n", romScreenPath);
     }
+    // The PNG is written: the UI may free or move entry 0 again.
+    romscreen_unpin();
 
     retroarch_autosave();
 
@@ -158,9 +161,15 @@ void overlay_init()
     game->is_running = _isContentNameInInfo(status.content_info, game->rom_name);
     printf_debug("Game is running: %d\n", game->is_running);
 
-    // start autosave thread
+    // start autosave thread. Entry 0 stays pinned until its romscreen is
+    // encoded: scrolling 6+ entries away used to let the UI thread free the
+    // surface the thread was still reading.
+    romscreen_pin(0);
     autosave_thread_running = true;
-    pthread_create(&autosave_thread_pt, NULL, _saveRomScreenAndStateThread, NULL);
+    if (pthread_create(&autosave_thread_pt, NULL, _saveRomScreenAndStateThread, NULL) != 0) {
+        autosave_thread_running = false;
+        romscreen_unpin();
+    }
 }
 
 void overlay_resume(void)
