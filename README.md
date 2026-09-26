@@ -82,7 +82,7 @@ rank the two.
 
 | | ⚪ OnionUI | 🟢 OnionPlus | 💬 What it means |
 |:--|:-:|:-:|:--|
-| 🔌 Onion boot to the menu (Mini+) | 3 blocking waits | **1.74 s** | 📱 **3.2× faster** than the first measured build with Wi-Fi on (5.51 s); 1.78 s with temporary Wi-Fi (5.16 s) |
+| 🔌 Boot to the menu, Onion's part (Mini+, Wi-Fi on) | 3 blocking waits | **1.74 s** | 📱 **3.2× faster** than the first measured build with Wi-Fi on (5.51 s); 1.78 s with temporary Wi-Fi (5.16 s) |
 | ⏱️ Onion's own work around a game | — | **~0.5 s** | 📱 launch 0.16 s · exit 0.1 s · back to the menu 0.1 s |
 | 🎮 Menu CPU while idle | 100% of a core | **sleeps** | 🔋 GameSwitcher, Tweaks, Play Activity & co. stop heating the device |
 | 🌙 Blue-light schedule, every 15 s | ~20 processes | **0** | ⌨️ checked in-process: no more key freezes of up to 4 s |
@@ -165,16 +165,16 @@ and quit from the RetroArch menu, GameSwitcher opened once. Numbers come from th
 | 🏁 **`boot` — Onion start → menu** | **5.51 s** | **2.28 s** | **1.74 s** |
 
 ```
-Onion boot to the menu, Miyoo Mini+
+Onion boot to the menu, Miyoo Mini+, Wi-Fi on
 
 first measurement        ██████████████████████████████████████  5.51 s
 Wi-Fi off the boot path  ████████████████                        2.28 s
 faster boot_init         ████████████                            1.74 s   (3.2× faster)
 ```
 
-Where the remaining `boot_init` goes: swap **0.01 s** (now in the background), audio server
-**0.29 s**, display detection **0.39 s**, the rest **~0.36 s** (of which 0.25 s is a fixed
-wait after display init, kept on purpose).
+Where the remaining `boot_init` goes: swap **0.00–0.01 s** (now in the background), audio
+server **0.27–0.29 s**, display detection **0.37–0.41 s**, the rest **~0.36 s** (of which 0.25 s
+is a fixed wait after display init, kept on purpose).
 
 ### 📴 Boot with Wi-Fi off and "Enable Wi-Fi temporarily" on
 
@@ -193,7 +193,7 @@ already usable.
 
 | Phase | Measured (all sessions) | What it covers |
 |:--|--:|:--|
-| 🎮 `game_prepare` | **0.15–0.18 s** | from pressing A to the emulator starting |
+| 🎮 `game_prepare` | **0.15–0.20 s** | from pressing A to the emulator or app starting |
 | 🚪 `game_exit` | **0.09–0.27 s** | from quitting the emulator to the post-processing done |
 | 🏠 `mainui_prepare` | **0.04–0.20 s** | before MainUI starts (battery icon drawn only when it changed) |
 | ↩️ `mainui_return` | **0.06–0.10 s** | after MainUI exits (2.2 s when Wi-Fi was just turned on from the menu — under investigation) |
@@ -201,8 +201,9 @@ already usable.
 
 - ⏱️ **Onion's own work around a game is about half a second in total.** The rest of the wait is
   RetroArch and the core loading the game, and MainUI starting, which is a closed binary.
-- 📶 **Network in the background:** Wi-Fi, SSH/FTP/HTTP/Samba/Telnet and time sync arrive about
-  three seconds after the menu is on screen; nothing waits for them.
+- 📶 **Network in the background:** Wi-Fi and SSH/FTP/HTTP/Samba/Telnet come up about three
+  seconds after the menu is on screen; the time sync follows as soon as the router hands out
+  an address (up to 29 s on the test router). Nothing waits for them.
 - 🙋 **One device so far.** Post your `timing.log` (Mini, Mini v4, Mini Flip especially) in an issue
   to extend these tables.
 
@@ -363,8 +364,9 @@ alone could grow to tens of megabytes.
 
 - 🌐 **Network service toggles are never switched off by the network script** (an OnionUI
   defect: `disable_flag` builds the wrong file name). Services still come back after games
-  and Wi-Fi changes; a fix is ready to be tested on a device.
-- 🔌 **Boot:** display detection (0.39 s) and audio-server start (0.29 s) are the largest
+  and Wi-Fi changes; the fix is simple but changes a behaviour nobody has relied on yet, so
+  it will only ship after a test on a device.
+- 🔌 **Boot:** display detection (~0.4 s) and audio-server start (~0.3 s) are the largest
   parts left of the ~1.7 s Onion boot; the ~2 s before Onion starts belong to the firmware.
 - 🕒 **Time sync:** on networks where the web time services fail, the time comes from
   `ntpdate` a few seconds later. It no longer blocks anything.
