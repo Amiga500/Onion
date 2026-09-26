@@ -173,7 +173,7 @@ wait after display init, kept on purpose).
   RetroArch and the core loading the game, and MainUI starting, which is a closed binary.
 - 📶 **Network in the background:** Wi-Fi, SSH/FTP/HTTP/Samba/Telnet and time sync arrive about
   three seconds after the menu is on screen; nothing waits for them.
-- 🙋 **One device so far.** Post your `timing.log` (Mini, Mini v4, Flip especially) in an issue
+- 🙋 **One device so far.** Post your `timing.log` (Mini, Mini v4, Mini Flip especially) in an issue
   to extend these tables.
 
 ---
@@ -237,7 +237,7 @@ What the system does behind the scenes, counted from the code of both projects.
 | 🔊 Audio-server volume computed | every launch (3 processes) | ✅ only if the server isn't running |
 | 🗃️ Play-history cache query | full scan of the MainUI cache, every launch | ✅ **only for games never seen before** |
 | 📂 Play-history database opened | twice | ✅ **once**, indexed by path |
-| 🖥️ Mini+/Flip 560p check | 4–5 processes, command file read 2–3× | ✅ **0** |
+| 🖥️ Mini+/Mini Flip 560p check | 4–5 processes, command file read 2–3× | ✅ **0** |
 | 🔁 Global syncs in the main loop | 4 per loop | ✅ **1**, when a game or app exits |
 
 ### 🏠 Returning to the menu
@@ -248,7 +248,7 @@ What the system does behind the scenes, counted from the code of both projects.
 | 💾 Global SD flushes | 2 | ✅ **1** |
 | 🔎 Checking which MainUI is mounted | ~6 processes | ✅ **0** |
 | 📄 Reading `system.json` (Wi-Fi ×2, theme) | 3 `jsonval` processes | ✅ **0** |
-| 🖥️ Mini+/Flip framebuffer probe parsing | 8 processes | ✅ **0** |
+| 🖥️ Mini+/Mini Flip framebuffer probe parsing | 8 processes | ✅ **0** |
 
 ### 😴 Sleep and wake
 
@@ -383,8 +383,8 @@ squashed into topic commits, then the **@robcodedev** ports of still-open
 [`OnionUI/Onion` PRs #1936–#1946](https://github.com/OnionUI/Onion/pulls?q=1936)
 ([Amiga500 #217](https://github.com/Amiga500/Onion/pull/217)), and the **2026-09-09**
 review fixes ([`fbd26d06`](https://github.com/Amiga500/Onion/commit/fbd26d06) list-cache
-dimming + installer Flip detect; [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e)
-Flip 640 lock, `fbmode` before the FB driver, AXP `percBat` clamp).
+dimming + installer Mini Flip detect; [`bf3deb8e`](https://github.com/Amiga500/Onion/commit/bf3deb8e)
+Mini Flip 640 lock, `fbmode` before the FB driver, AXP `percBat` clamp).
 `git rev-list --count 07505ea5..HEAD` on this branch is the **compact** count, not 97.
 
 On top of `07505ea5` the tree still carries the power/CPU batch, security review, hot-path
@@ -509,7 +509,7 @@ rather than by commit.
 |:--|:--|:--|:--|
 | 🔊 OSD volume/brightness bar thread | `usleep(100)` busy-wait (~10,000 loops/s) | `usleep(16000)` (~60 fps) | 🚀 **idle CPU ~10 % → <1 %** 📏 |
 | 🖼️ OSD overlay draw loop | full-throttle spin for the overlay's duration | `msleep(2)` per iteration + demoted logging | overlay CPU burn capped 📐 |
-| 🔌 `battery_isCharging()` (`HAS_AXP()` — MM+ and Flip) | `fork`+`exec` of `axp_test` every call (~5–10 ms) | 2 s cached wrapper | 🚀 **~−99 % subprocess spawns** 📐 |
+| 🔌 `battery_isCharging()` (`HAS_AXP()` — MM+ and Mini Flip) | `fork`+`exec` of `axp_test` every call (~5–10 ms) | 2 s cached wrapper | 🚀 **~−99 % subprocess spawns** 📐 |
 | 🔋 `battery_hasChanged` while charging | OnionPlus used to overwrite the `500` charging sentinel from `/tmp/percBat` | early-return like `OnionUI/Onion:main` (`500` stays while plugged in) | charging icon no longer drops after the first percBat tick 🛡️ |
 | 🪫 `getBatPercMMP()` AXP percent | `axp_test` garbage (e.g. `1735289191`) and `-1` written to `/tmp/percBat` | last sane **0–100** kept; out-of-range samples dropped | GS/keymon never read a bogus percent 🛡️ |
 | 🪫 batmon low-battery thread | `usleep(0x4000)` (~16 ms) | `usleep(500000)` (500 ms) | 🚀 **~−97 % wake-ups** 📐 |
@@ -554,7 +554,7 @@ rather than by commit.
 | `fbmode --probe` parsing (return to MainUI, `change_resolution`, GameSwitcher) | 2–4 `echo \| awk` / `echo \| cut` pipelines | `fb_probe_fields` (builtins, globbing off) | **4–8 → 0 processes** 🧪* ([`747d102a`](https://github.com/Amiga500/Onion/commit/747d102a53affd8cd2c5bf250d8b7d54ac7982e8)) |
 | `mount_main_ui` | `cat \| grep \| cut` + `basename` + subshell | `read` loop over `/proc/self/mountinfo` | **~6 → 0 processes per return** 🧪* ([`747d102a`](https://github.com/Amiga500/Onion/commit/747d102a53affd8cd2c5bf250d8b7d54ac7982e8)) |
 | `update_networking.sh` Wi-Fi checks | `jsonval` on **every** `wifi_enabled`/`wifi_disabled` (8–10 per run) | read once per `check` run | **8–10 → 1 process** 🧪* ([`747d102a`](https://github.com/Amiga500/Onion/commit/747d102a53affd8cd2c5bf250d8b7d54ac7982e8)) |
-| `get_full_resolution_path` (Mini+/Flip, every launch) | `cmd_to_run.sh` re-read 2–3× with `grep`/`cut`/`sed` | one builtin read + parameter expansion | **4–5 → 0 processes** (1 `grep` for ports) 🧪* ([`1592866e`](https://github.com/Amiga500/Onion/commit/1592866e)) |
+| `get_full_resolution_path` (Mini+/Mini Flip, every launch) | `cmd_to_run.sh` re-read 2–3× with `grep`/`cut`/`sed` | one builtin read + parameter expansion | **4–5 → 0 processes** (1 `grep` for ports) 🧪* ([`1592866e`](https://github.com/Amiga500/Onion/commit/1592866e)) |
 | `get_info_value` (game with a custom core) | `echo \| grep \| awk \| awk \| tr` | builtin loop, same word-boundary match | **5 → 0 processes** 🧪* ([`1592866e`](https://github.com/Amiga500/Onion/commit/1592866e)) |
 | `system.json` reads around MainUI (`wifi` ×2, `theme`) | `jsonval` process per read | `sysjson_get` (builtins; `jsonval` fallback for escapes/missing keys) | **3 → 0 processes per MainUI cycle** 🧪* ([`1592866e`](https://github.com/Amiga500/Onion/commit/1592866e)) |
 | 🕹️ AdvanceMENU romscripts | temp file written **CWD-relative** | temp file next to `advmenu.rc`, PID-suffixed | race condition + read-only-CWD failure fixed |
@@ -788,7 +788,7 @@ previous session is kept as `timing.prev.log`):
 | `switcher_prepare` / `switcher_session` | the same for the GameSwitcher |
 
 > 📱 First results from a Miyoo Mini+ are in [Measured on a Miyoo Mini+](#-measured-on-a-miyoo-mini).
-> Samples from a Mini, Mini v4 and Flip are still welcome.
+> Samples from a Mini, Mini v4 and Mini Flip are still welcome.
 
 ---
 
@@ -802,10 +802,10 @@ previous session is kept as `timing.prev.log`):
 | ♻️ Setup stamp | `cache/.setup` re-runs when `static/`, `lib/` or any `src/*/res`/`script` file is newer (was: only after `make clean`) ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
 | 🗜️ RetroArch package | `retroarch.pak` reused from `cache/` while a content hash (paths, modes, symlinks, data) is unchanged — skips the slowest `7z` step ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
 | 📊 Opt-in profiling | `src/common/utils/perf.h` — `PERF_START`/`PERF_END` compile to nothing unless `-DPERF_ENABLED` |
-| 🏷️ Release naming | `OnionPlus V4.4.0-beta-YYYYMMDD`, zip `OnionPlus-v…-<sha>.zip` — real dated GitHub Releases, no more overwritten `latest`. Base remains **4.4.0-beta**; Flip support is a port, not a rebase onto official `v4.5-dev`. |
+| 🏷️ Release naming | `OnionPlus V4.4.0-beta-YYYYMMDD`, zip `OnionPlus-v…-<sha>.zip` — real dated GitHub Releases, no more overwritten `latest`. Base remains **4.4.0-beta**; Mini Flip support is a port, not a rebase onto official `v4.5-dev`. |
 | 📡 OTA | `ota_update.sh` points at `Amiga500/Onion`, filters `OnionPlus-v` assets. Stable = `/releases/latest`. Beta installs **only GitHub prereleases** — no fallback to `releases[0]` (finding D). Host CI (`.github/workflows/test.yml`) runs on push to `onionplus-compact`. |
-| 📱 Mini Flip | Device id `285`, MainUI-285 binaries, lid-close Tweaks. Runtime probes AXP first (354 Mini+), then the `hall-mh248` sysfs node (285 Flip). The **installer** probes **hall first** (Flip stays Flip if `axp` is not on PATH yet); `axp` / `axp_test` = Plus. `/dev/input/event*` is **not** a Flip signal. Installer preclears the framebuffer (`fbmode` if present, else `dd` + `fbset 640x480/2`) before `check_device_model`. Ported from `OnionUI/Onion:v4.5-dev` without merging that branch. Lid/Hall **untested** on a physical Flip. |
-| 🖥️ Boot FB | Plus/Flip: a dmesg hint of `640x480` no longer skips the `mi_fb0` poll (avoids locking a 752 panel at 640 for the boot). `commit_mainui_fbmode()` waits for the FB driver; on timeout it uses `fbset`, not `fbmode` with the driver still down. |
+| 📱 Mini Flip | Device id `285`, MainUI-285 binaries, lid-close Tweaks. Runtime probes AXP first (354 Mini+), then the `hall-mh248` sysfs node (285 Mini Flip). The **installer** probes **hall first** (Mini Flip stays Mini Flip if `axp` is not on PATH yet); `axp` / `axp_test` = Plus. `/dev/input/event*` is **not** a Mini Flip signal. Installer preclears the framebuffer (`fbmode` if present, else `dd` + `fbset 640x480/2`) before `check_device_model`. Ported from `OnionUI/Onion:v4.5-dev` without merging that branch. Lid/Hall **untested** on a physical Mini Flip. |
+| 🖥️ Boot FB | Plus/Mini Flip: a dmesg hint of `640x480` no longer skips the `mi_fb0` poll (avoids locking a 752 panel at 640 for the boot). `commit_mainui_fbmode()` waits for the FB driver; on timeout it uses `fbset`, not `fbmode` with the driver still down. |
 | 🧵 Signal handling | Shared `signal_handler_quit()` deduplicated across 6 apps; `volatile sig_atomic_t` used correctly for signal-shared state |
 
 ---
@@ -850,11 +850,11 @@ A bird's-eye view of the branch's evolution, oldest first:
 12. 🔎 **Review pass 3** — randomGamePicker division-by-zero guard, batteryMonitorUI/themeSwitcher NULL-asset & bounds hardening, packageManager NULL guard, gs_romscreen format-string fix.
 13. 📱 **Mini Flip port** — surgical carry of Miyoo Mini Flip + MainUI-285 from upstream `v4.5-dev` (`921155e8`); OnionPlus battery cache / `file_copy` reset / settings bounds kept.
 14. 🔎 **OnionUI-parity review** — restore `battery_hasChanged` early-return while charging; `process_killall` for RetroArch; `file_read("")` parity; rumble GPIO retry; remaining `sprintf` bounds on GS/chargingState; TTF cache cleanup on exit.
-15. 🩹 **2026-09-01 review (A–G)** — empty-file test contract; Flip `suspend_exec` lid-already-closed; AXP-then-hall detect; OTA beta without stable fallback; brightness write-through; infoPanel scale identity; theme TTF cleanup-before-free. On the long branch: duplicate tree (`9ab47af` / `2f90bbe`); CI push trigger (`fa5bb007`). Compact CI is `onionplus-compact` (`22004cce`).
+15. 🩹 **2026-09-01 review (A–G)** — empty-file test contract; Mini Flip `suspend_exec` lid-already-closed; AXP-then-hall detect; OTA beta without stable fallback; brightness write-through; infoPanel scale identity; theme TTF cleanup-before-free. On the long branch: duplicate tree (`9ab47af` / `2f90bbe`); CI push trigger (`fa5bb007`). Compact CI is `onionplus-compact` (`22004cce`).
 16. 📦 **Compact history** — long `OnionPlus` (97 commits to `fa5bb007`) squashed onto `onionplus-compact`.
 17. 🔀 **@robcodedev ports** — `OnionUI/Onion` PRs **#1936–#1946** (still open upstream) via [Amiga500 #217](https://github.com/Amiga500/Onion/pull/217) (`c7a1a7e9` + `587c35ec` + merge `f87e7781`): keymon SELECT refresh, `lt.lang` JSON, ThemeSwitcher on-demand previews, GameSwitcher favorites + crash fixes, `fbmode` framebuffer transitions, `.forceKillRetroarch`, `romwinidx` on SD, theme per `SERIAL_NUMBER`, recents cap 200, skip RA cfg patch, overlap launch.
-18. 🔤 **List cache + installer Flip** — `fbd26d06`: dim a copy of cached TTF labels; installer hall-first (never `event*`); framebuffer preclear before device detect.
-19. 🖥️ **Boot FB + AXP percent** — `bf3deb8e`: Plus/Flip keep polling `mi_fb0` when dmesg says 640; `commit_mainui_fbmode` honors `wait_for_fb_driver`; `getBatPercMMP` never writes garbage to `/tmp/percBat`.
+18. 🔤 **List cache + installer Mini Flip** — `fbd26d06`: dim a copy of cached TTF labels; installer hall-first (never `event*`); framebuffer preclear before device detect.
+19. 🖥️ **Boot FB + AXP percent** — `bf3deb8e`: Plus/Mini Flip keep polling `mi_fb0` when dmesg says 640; `commit_mainui_fbmode` honors `wait_for_fb_driver`; `getBatPercMMP` never writes garbage to `/tmp/percBat`.
 
 20. ⚡ **Performance pass** — [`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804): atomic settings/JSON/config I/O and selective save; in-process blue-light schedule; keymon without `sync`/shell on key paths; single `/proc` pass; playActivity `file_path` index + `TRUNCATE` journal + busy timeout; GameSwitcher romscreen preload worker; idle sleep in every SDL UI loop; `runtime.sh` sync diet; parallel `make`, setup stamp, cached `retroarch.pak`; 7 upstream defects (CPU-clock stack overflow, `suspendpid` overflow, `/proc` parsing, debounce, dirty snapshot, non-atomic writes, BLF lock).
 21. 📚 **Docs retired** — `docs/` (`ONIONPLUS_OPTIMIZATION.md`, `OPTIMIZATIONS_OVERVIEW.md`, `OnionPlus-vs-base.md`) removed; this README is the single reference.
@@ -893,7 +893,7 @@ defects** closed), followed by fixes found **on the device itself**: network off
 path, a faster `boot_init`, and three time-sync defects. Measured on a Miyoo Mini+, Onion
 now boots to the menu in **1.74 s** (5.51 s at the first measurement) and spends about
 **half a second** of its own work around each game. Base remains `4.4.0-beta`. OTA stays
-on `Amiga500/Onion`. Still open: Flip lid/Hall confirmation on hardware, the network
+on `Amiga500/Onion`. Still open: Mini Flip lid/Hall confirmation on hardware, the network
 script's `disable_flag` defect, and on-device samples from more models (see
 [Known issues & next steps](#-known-issues--next-steps)).
 
