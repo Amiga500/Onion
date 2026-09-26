@@ -2,14 +2,17 @@
 
 ### The same Onion you know — with its hot paths rebuilt.
 
-OnionPlus is a fork of [OnionUI/Onion](https://github.com/OnionUI/Onion) (`4.4.0-beta`) for the
-Miyoo Mini, Mini+ and Mini Flip. It keeps Onion's look, menus, emulators and file layout,
-and reworks what runs underneath: **what happens every time you press a key, launch a
-game, go back to the menu, put the device to sleep, or change the volume.**
+**OnionPlus is a personal, independent build of [Onion](https://github.com/OnionUI/Onion)
+(`4.4.0-beta`)** for the Miyoo Mini, Mini+, Mini v4 and Mini Flip. It is not a replacement
+for Onion and not an official release: it is an experiment in how far Onion's everyday
+paths can be optimized — **what happens every time you press a key, launch a game, go back
+to the menu, put the device to sleep, or change the volume** — shared in the hope that some
+of it is useful to the Onion team. It keeps Onion's look, menus, emulators and file layout.
+Everything here is built on their work; any change they find worthwhile is theirs to take.
 
-> 🚀 **Onion boots to the menu in 1.74 s** on a Miyoo Mini+ (5.51 s at the first measurement,
-> **3.2× faster**) · ⏱️ **~0.5 s** of Onion's own work around each game · 🐛 **24** OnionUI
-> defects fixed · 🧪 **1,423** host tests · 📡 delivered over the air.
+> 🚀 **This build boots to the menu in 1.74 s** on a Miyoo Mini+ (5.51 s at the first
+> measurement, **3.2× faster**) · ⏱️ **~0.5 s** of its own work around each game · 🐛 **24**
+> issues found in the shared codebase, with fixes ready for Onion · 🧪 **1,423** host tests.
 
 [![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
 [![commits](https://img.shields.io/badge/commits-35-blueviolet?style=for-the-badge)](#-11--commit-timeline)
@@ -17,7 +20,7 @@ game, go back to the menu, put the device to sleep, or change the volume.**
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
 [![tests](https://img.shields.io/badge/tests-1%2C423%20%2F%2071%2C436%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
-[![defects](https://img.shields.io/badge/upstream%20defects%20fixed-24-critical?style=for-the-badge)](#️-6--security--memory-hardening)
+[![fixes](https://img.shields.io/badge/fixes%20ready%20for%20Onion-24-critical?style=for-the-badge)](#️-6--security--memory-hardening)
 [![boot](https://img.shields.io/badge/boot%20to%20menu-1.74%20s%20(Mini%2B)-brightgreen?style=for-the-badge)](#-measured-on-a-miyoo-mini)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
@@ -42,6 +45,7 @@ game, go back to the menu, put the device to sleep, or change the volume.**
 | 🧠 | [Memory that stays free](#-memory-that-stays-free) |
 | 📦 | [Install & update](#-install--update) |
 | 🧭 | [Known issues & next steps](#-known-issues--next-steps) |
+| 🤝 | [Credits & giving back](#-credits--giving-back) |
 | 🔬 | [How these numbers were obtained](#-how-these-numbers-were-obtained) |
 
 **Technical reference**
@@ -70,7 +74,8 @@ game, go back to the menu, put the device to sleep, or change the volume.**
 
 Every number below is either **counted from the source code of both projects** or
 **measured** (on a Miyoo Mini+ or on a host machine), and says so. Nothing here is an estimate dressed up as a
-benchmark.
+benchmark. The comparisons are here to show **what could be brought back to Onion**, not to
+rank the two.
 
 ### 🚀 Speed
 
@@ -89,7 +94,7 @@ benchmark.
 
 | | ⚪ OnionUI | 🟢 OnionPlus | 💬 What it means |
 |:--|:-:|:-:|:--|
-| 🐛 Upstream defects fixed | — | **24** | ✅ crashes, leaks, lost settings, a wrong clock: [listed in §6](#️-6--security--memory-hardening) |
+| 🐛 Issues found in the shared code | — | **24 fixed** | ✅ crashes, leaks, lost settings, a wrong clock — fixes available for Onion, [listed in §6](#️-6--security--memory-hardening) |
 | ⚡ Settings that survive a power cut mid-write | none | **all** | ✅ `system.json`, key map, config values, JSON, recent games |
 | 🧠 Memory leaked per MainUI-cache lookup | ~570 KB | **0** | 📏 was tens of MB with a large GameSwitcher history, on a 128 MB device |
 | 🧪 Automated tests | 1 | **1,423** | 🚀 **×1,400**: 71,436 assertions, run on any PC in ~2.5 s |
@@ -346,6 +351,20 @@ alone could grow to tens of megabytes.
 - 🔋 **Mini Flip:** lid/Hall-sensor handling is unchanged and still to be confirmed on hardware.
 - 📏 **Measurements:** on-device numbers come from one Mini+ so far.
 
+## 🤝 Credits & giving back
+
+> 🟩 Built on Onion, offered back to Onion.
+
+- 🧅 **OnionPlus exists because of [Onion](https://github.com/OnionUI/Onion)** and the
+  OnionUI team and contributors: the menus, the emulator setup, the themes and almost all of
+  the code are theirs. This build is not affiliated with or endorsed by the Onion team.
+- 🙏 Thanks to **@robcodedev**, whose still-open Onion pull requests #1936–#1946 are carried here.
+- 📬 **For the Onion team:** if any of these changes would be useful as pull requests, I'm
+  happy to split them out and adapt them to Onion's own branches. The fixes that apply to
+  Onion as it is today — the MainUI-cache memory leak, the time zone and play time after a
+  clock change, Wi-Fi no longer holding the boot, the recent-list line numbering — are the
+  first candidates.
+
 ## 🔬 How these numbers were obtained
 
 > 🟩 Every figure can be checked by anyone with a checkout of both projects.
@@ -379,7 +398,7 @@ that decide them, but this page only publishes numbers that were counted or meas
 
 OnionPlus is measured against **[`OnionUI/Onion:main`](https://github.com/OnionUI/Onion/tree/main)**
 at merge-base [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`4.4.0-beta`).
-That is the comparison that matters for this fork. Some NEON kernels and early hardening
+That is the comparison that matters for this build. Some NEON kernels and early hardening
 were first written elsewhere; code-level **percentages in this document are OnionPlus vs
 `OnionUI/Onion:main`**, not vs that sibling branch (on-device timings compare OnionPlus
 builds, see the icon legend below).
@@ -761,7 +780,7 @@ Present in `OnionUI/Onion:main` unless noted:
 - 🔁 **Time re-synced after every game** — only the web path marked the sync as done;
   a successful `ntpdate` now does too.
 - 🖼️ *(OnionPlus regression, not upstream)* GameSwitcher captures kept their aspect ratio
-  on 752×560 panels since `fee6c4b`; the fork's fill-the-screen rule is restored.
+  on 752×560 panels since `fee6c4b`; OnionPlus's fill-the-screen rule is restored.
 - 📶 **Boot waited for Wi-Fi with "Enable Wi-Fi temporarily" set** even with Wi-Fi on
   (OnionPlus background bring-up refined); boot waits only when something needs the network.
 
@@ -886,7 +905,7 @@ previous session is kept as `timing.prev.log`):
 | 🧪 Test suites / tests / assertions | **68 / 1,423 / 71,436** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
 | 🛡️ NULL-guards / closed descriptors added | **+57 / +18** *(25-file set)* |
-| 🔐 Pre-existing upstream defects fixed | **24** *(6 + 7 in `fee6c4b` + 8 in `85bc9f21` / `747d102a` / `1592866e` + 3 time-sync defects after the on-device tests)* |
+| 🔐 Issues fixed in code shared with Onion | **24** *(6 + 7 in `fee6c4b` + 8 in `85bc9f21` / `747d102a` / `1592866e` + 3 time-sync defects after the on-device tests)* |
 | 🕹️ AdvanceMENU scripts hardened/optimized | **7 files** |
 
 > 📎 Everything here is reproducible from git: `git rev-list --count 07505ea5..HEAD`,
@@ -943,7 +962,8 @@ branch was 97). In one tree:
 - 🖼️ **8 vectorized NEON kernels**, a dozen O(n²)→O(n) rewrites and five render/UI caches;
 - 🔋 a power/battery batch and a syscall diet that removed every avoidable `system()` call
   from the hardened core and from keymon;
-- 🛡️ **24 pre-existing OnionUI defects** closed, plus the fork's own regressions caught by review;
+- 🛡️ **24 issues in the code shared with Onion** fixed, with the fixes available to the Onion team,
+  plus OnionPlus's own regressions caught by review;
 - 🧪 a **68-suite / 1,423-test** host test harness that did not exist before this branch;
 - 🕹️ an **AdvanceMENU** pass, a **Miyoo Mini Flip** port from `v4.5-dev` (not a merge), the
   OnionUI-parity and A–G reviews, and the **@robcodedev** ports of `OnionUI/Onion` **#1936–#1946**;
