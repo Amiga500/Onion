@@ -13,6 +13,8 @@
 #include "utils/log.h"
 #include "utils/str.h"
 
+#include "themeMarker.h"
+
 #ifdef PLATFORM_MIYOOMINI
 #define SCRIPT_DIR "/mnt/SDCARD/.tmp_update/script"
 #else
@@ -201,6 +203,7 @@ void installTheme(char *theme_path, bool apply_icons)
 
     FILE *fp;
     file_put_sync(fp, ACTIVE_THEME, "%s", theme_path);
+    theme_markApplied(theme_path, THEME_MARKER_SN_FILE, THEME_MARKER_DIR);
 
     Theme_s with_overrides = theme_loadFromPath(theme_path, true);
 
