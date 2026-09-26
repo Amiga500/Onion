@@ -37,6 +37,7 @@
 #include "utils/process.h"
 #include "utils/str.h"
 
+#include "./flip_suspend.h"
 #include "./input_fd.h"
 #include "./menuButtonAction.h"
 
@@ -570,10 +571,18 @@ void suspend_exec(int timeout)
                 }
             }
         }
-        else if (!ready && !battery_isCharging()) {
+        else if (!ready) {
             // Check lid state on flip devices before shutdown
             if (DEVICE_ID == MIYOO285) {
                 int current_lid = read_lid_state();
+                bool timed_out = timeout != -1 &&
+                                 (getMilliseconds() - suspend_start) >= timeout;
+                // Same outcome as before in every case, without spawning
+                // axp_test every 2 s for the whole suspend.
+                if (flipSuspend_nothingToDo(current_lid, suspend_lid_state,
+                                            timed_out) ||
+                    battery_isCharging())
+                    continue;
                 if (current_lid == 1 && suspend_lid_state == 0) {
                     print_debug("Lid opened during suspend, waking up");
                     break;
@@ -585,8 +594,7 @@ void suspend_exec(int timeout)
                 // lid was closed, letting a closed Flip drain its battery,
                 // and its comment disagreed with the code on an unreadable
                 // lid. Flip behavior is not changed here without hardware.)
-                if (timeout != -1 &&
-                    (getMilliseconds() - suspend_start) >= timeout) {
+                if (timed_out) {
                     system_powersave_off();
                     resume();
                     usleep(150000);
@@ -594,6 +602,9 @@ void suspend_exec(int timeout)
                 }
                 continue;
             }
+
+            if (battery_isCharging())
+                continue;
 
             // Original timeout shutdown behavior (non-flip devices)
             system_powersave_off();
