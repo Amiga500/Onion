@@ -93,7 +93,13 @@ void system_state_update(void)
     // Same decision order as the check_is*() helpers above, but /proc is
     // scanned once for all candidates instead of once per candidate
     // (up to 5 full scans before), and cmd_to_run.sh is read at most once.
-    enum { P_SWITCHER, P_RETROARCH, P_RA32, P_MAINUI, P_ADVMENU, P_DRASTIC, P_COUNT };
+    enum { P_SWITCHER,
+           P_RETROARCH,
+           P_RA32,
+           P_MAINUI,
+           P_ADVMENU,
+           P_DRASTIC,
+           P_COUNT };
     static const char *const names[P_COUNT] = {
         "gameSwitcher", "retroarch", "ra32", "MainUI", "advmenu", "drastic"};
     pid_t pids[P_COUNT];
@@ -259,11 +265,11 @@ void write_mainui_state(MainUIState state, int currpos, int total)
     page_end = page_start + page_size - 1;
 
     snprintf(state_str, sizeof(state_str),
-            "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
-            "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
-            "\"pagestart\":%d,\"pageend\":%d}]}",
-            main_currpos, main_page_start, main_page_end, title_num, page_type,
-            currpos, page_start, page_end);
+             "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
+             "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
+             "\"pagestart\":%d,\"pageend\":%d}]}",
+             main_currpos, main_page_start, main_page_end, title_num, page_type,
+             currpos, page_start, page_end);
 
     file_put_sync(fp, "/tmp/state.json", "%s", state_str);
 }
@@ -457,7 +463,8 @@ void resumeGame(int index)
             const char *labelEnd = strchr(labelStart, '\"');
             if (labelEnd != NULL) {
                 size_t len = (size_t)(labelEnd - labelStart);
-                if (len >= sizeof(label)) len = sizeof(label) - 1;
+                if (len >= sizeof(label))
+                    len = sizeof(label) - 1;
                 memcpy(label, labelStart, len);
                 label[len] = '\0';
             }
@@ -469,7 +476,8 @@ void resumeGame(int index)
             const char *rompathEnd = strchr(rompathStart, '\"');
             if (rompathEnd != NULL) {
                 size_t len = (size_t)(rompathEnd - rompathStart);
-                if (len >= sizeof(rompath)) len = sizeof(rompath) - 1;
+                if (len >= sizeof(rompath))
+                    len = sizeof(rompath) - 1;
                 memcpy(rompath, rompathStart, len);
                 rompath[len] = '\0';
             }
@@ -481,7 +489,8 @@ void resumeGame(int index)
             const char *imgpathEnd = strchr(imgpathStart, '\"');
             if (imgpathEnd != NULL) {
                 size_t len = (size_t)(imgpathEnd - imgpathStart);
-                if (len >= sizeof(imgpath)) len = sizeof(imgpath) - 1;
+                if (len >= sizeof(imgpath))
+                    len = sizeof(imgpath) - 1;
                 memcpy(imgpath, imgpathStart, len);
                 imgpath[len] = '\0';
             }
@@ -516,7 +525,8 @@ void resumeGame(int index)
                 const char *launchEnd = strchr(launchStart, '\"');
                 if (launchEnd != NULL) {
                     size_t len = (size_t)(launchEnd - launchStart);
-                    if (len >= sizeof(launch)) len = sizeof(launch) - 1;
+                    if (len >= sizeof(launch))
+                        len = sizeof(launch) - 1;
                     memcpy(launch, launchStart, len);
                     launch[len] = '\0';
                 }

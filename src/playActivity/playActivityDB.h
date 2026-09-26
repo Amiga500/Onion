@@ -657,11 +657,11 @@ void play_activity_stop_all(void)
     // One transaction for both statements: one journal/fsync cycle instead
     // of two, on the path that runs before every suspend.
     sqlite3_exec(play_activity_db,
-        "BEGIN;"
-        "UPDATE play_activity SET play_time = (strftime('%s', 'now')) - created_at, updated_at = (strftime('%s', 'now')) WHERE play_time IS NULL;"
-        "DELETE FROM play_activity WHERE play_time < 0 OR play_time > " _PA_STR(PLAY_ACTIVITY_MAX_SESSION_S) ";"
-        "COMMIT;",
-        NULL, NULL, NULL);
+                 "BEGIN;"
+                 "UPDATE play_activity SET play_time = (strftime('%s', 'now')) - created_at, updated_at = (strftime('%s', 'now')) WHERE play_time IS NULL;"
+                 "DELETE FROM play_activity WHERE play_time < 0 OR play_time > " _PA_STR(PLAY_ACTIVITY_MAX_SESSION_S) ";"
+                                                                                                                      "COMMIT;",
+                 NULL, NULL, NULL);
     play_activity_db_close();
 }
 

@@ -2,13 +2,13 @@
 #define PROCESS_H__
 
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
