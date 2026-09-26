@@ -17,7 +17,9 @@
 #include "./cacheDB.h"
 
 #define PLAY_ACTIVITY_DB_NEW_FILE "/mnt/SDCARD/Saves/CurrentProfile/play_activity/play_activity_db.sqlite"
+#ifndef ROMS_FOLDER // host tests point it at a temporary folder
 #define ROMS_FOLDER "/mnt/SDCARD/Roms"
+#endif
 #define CMD_TO_RUN "/mnt/SDCARD/.tmp_update/cmd_to_run.sh"
 #define ROM_NOT_FOUND -1
 
@@ -50,9 +52,20 @@ sqlite3 *play_activity_db = NULL;
 
 void get_rom_image_path(char *rom_file, char *out_image_path)
 {
-    if (str_endsWith(rom_file, ".p8") || str_endsWith(rom_file, ".png")) {
-        snprintf(out_image_path, STR_MAX, "/mnt/SDCARD/Roms/%s", rom_file);
+    // A PICO-8 cart saved as .p8.png is its own picture.
+    if (str_endsWith(rom_file, ".png")) {
+        snprintf(out_image_path, STR_MAX, ROMS_FOLDER "/%s", rom_file);
         return;
+    }
+
+    // A plain .p8 cart is text. The PICO-8 emulators set MainUI's imgpath
+    // to the ROM folder, so its picture is <cart>.png next to it; without
+    // one, fall back to the Imgs folder like any other ROM (Onion's path).
+    if (str_endsWith(rom_file, ".p8")) {
+        snprintf(out_image_path, STR_MAX, ROMS_FOLDER "/%.*s.png",
+                 (int)(strlen(rom_file) - strlen(".p8")), rom_file);
+        if (is_file(out_image_path))
+            return;
     }
 
     char *clean_rom_name = file_removeExtension(file_basename(rom_file));
@@ -66,7 +79,7 @@ void get_rom_image_path(char *rom_file, char *out_image_path)
     if (rom_folder == NULL)
         rom_folder = rom_file_copy;
 
-    snprintf(out_image_path, STR_MAX, "/mnt/SDCARD/Roms/%s/Imgs/%s.png", rom_folder, clean_rom_name);
+    snprintf(out_image_path, STR_MAX, ROMS_FOLDER "/%s/Imgs/%s.png", rom_folder, clean_rom_name);
     free(clean_rom_name);
 }
 

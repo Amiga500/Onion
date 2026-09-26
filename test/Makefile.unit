@@ -501,9 +501,9 @@ test_rom_image_path: $(BUILD_DIR)/test_rom_image_path
 	@echo ""
 	@$(BUILD_DIR)/test_rom_image_path
 
-$(BUILD_DIR)/test_rom_image_path: test_rom_image_path.c onion_test.h $(COMMON_SRCS)
+$(BUILD_DIR)/test_rom_image_path: test_rom_image_path.c onion_test.h stubs/sqlite3_stub.c ../src/playActivity/playActivityDB.h ../src/playActivity/cacheDB.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_rom_image_path.c $(COMMON_SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_rom_image_path.c stubs/sqlite3_stub.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_theme_sort: $(BUILD_DIR)/test_theme_sort
 	@echo ""

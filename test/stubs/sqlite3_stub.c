@@ -42,3 +42,12 @@ char *sqlite3_mprintf(const char *fmt, ...)
     return s;
 }
 void sqlite3_free(void *p) { free(p); }
+int sqlite3_exec(sqlite3 *db, const char *sql, int (*cb)(void *, int, char **, char **), void *arg, char **errmsg)
+{
+    (void)db; (void)sql; (void)cb; (void)arg;
+    if (errmsg != NULL)
+        *errmsg = NULL;
+    return SQLITE_ERROR;
+}
+int sqlite3_busy_timeout(sqlite3 *db, int ms) { (void)db; (void)ms; return SQLITE_OK; }
+int sqlite3_column_int(sqlite3_stmt *stmt, int col) { (void)stmt; (void)col; return 0; }
