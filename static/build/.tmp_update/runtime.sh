@@ -36,6 +36,17 @@ perf_begin() {
     eval "perf_t_$1=$perf_cs"
 }
 
+# Dirty and under-writeback page cache before a sync, for the timing log
+# (logging on only): shows whether a slow sync had much to write.
+perf_dirty() {
+    perf_dirty_kb=""
+    [ -f $sysdir/config/.logging ] || return 0
+    while read -r _pd_key _pd_val _pd_unit; do
+        case "$_pd_key" in
+            Dirty: | Writeback:) perf_dirty_kb="$perf_dirty_kb${_pd_key%:}=${_pd_val}kB " ;;
+        esac
+    done < /proc/meminfo
+}
 perf_end() {
     [ -f $sysdir/config/.logging ] || return 0
     perf_now
@@ -360,11 +371,16 @@ launch_main_ui() {
     perf_begin mainui_return
 
     # Merge the last game launched into the recent list
+    perf_begin mr_recents
     check_hide_recents
+    perf_end mr_recents
 
     # Flush what MainUI wrote (recents, favourites, system.json). This is the
     # one sync per cycle that check_hide_recents used to provide implicitly.
+    perf_dirty
+    perf_begin mr_sync
     sync
+    perf_end mr_sync "$perf_dirty_kb"
 
     # Check if wifi setting changed
     if [ $(sysjson_get wifi) -ne $wifi_setting ]; then
@@ -373,7 +389,9 @@ launch_main_ui() {
         sync
     fi
 
+    perf_begin mr_freemma
     $sysdir/bin/freemma
+    perf_end mr_freemma
     mv -f /tmp/cmd_to_run.sh $sysdir/cmd_to_run.sh
 
     set_prev_state "mainui"
@@ -1598,7 +1616,9 @@ check_networking() {
         log "update_networking already running"
     else
         rm /tmp/network_changed
+        perf_begin net_check
         $sysdir/script/network/update_networking.sh check
+        perf_end net_check
     fi
 }
 

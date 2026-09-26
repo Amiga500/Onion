@@ -183,6 +183,21 @@ check "all five toggles still on" toggles_kept
 check "nothing killed" test ! -e "$TMP/killed"
 end
 
+# ---- runtime.sh: MainUI return path ----
+
+eval "$(extract_fn "$RUNTIME" perf_dirty)"
+
+begin perf_dirty_only_with_logging
+sysdir=$TMP
+mkdir -p "$sysdir/config"
+perf_dirty
+check "empty without logging" test -z "$perf_dirty_kb"
+touch "$sysdir/config/.logging"
+perf_dirty
+case "$perf_dirty_kb" in *Dirty=*kB*Writeback=*kB*) ok=0 ;; *) ok=1 ;; esac
+check "Dirty and Writeback with logging" test $ok -eq 0
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283
