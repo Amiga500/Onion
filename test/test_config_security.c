@@ -19,6 +19,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <signal.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 static const char *TEST_DIR = "/tmp/onion_test_config_sec";
@@ -210,6 +213,83 @@ TEST(changeKV_empty_file) {
     cleanup_test_dir();
 }
 
+static long _file_size(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 ? (long)st.st_size : -1;
+}
+
+/* No temp file may survive a successful change. */
+TEST(changeKV_leaves_no_temp_file) {
+    setup_test_dir();
+    char path[256], tmp[300];
+    snprintf(path, sizeof(path), "%s/retroarch.cfg", TEST_DIR);
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+
+    FILE *fp = fopen(path, "w");
+    fprintf(fp, "a = \"1\"\nb = \"2\"\n");
+    fclose(fp);
+
+    file_changeKeyValue(path, "b =", "b = \"3\"");
+    ASSERT_FALSE(exists(tmp));
+    char val[256] = {0};
+    file_parseKeyValue(path, "b", val, '=', 0);
+    ASSERT_STREQ(val, "3"); /* parseKeyValue strips quotes */
+
+    cleanup_test_dir();
+}
+
+/* Missing target: nothing is created (same as before). */
+TEST(changeKV_missing_file_creates_nothing) {
+    setup_test_dir();
+    char path[256], tmp[300];
+    snprintf(path, sizeof(path), "%s/missing.cfg", TEST_DIR);
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+
+    file_changeKeyValue(path, "k =", "k = \"v\"");
+    ASSERT_FALSE(exists(path));
+    ASSERT_FALSE(exists(tmp));
+
+    cleanup_test_dir();
+}
+
+/* Write failure (file size limit hit mid-copy, as on a full card): the
+ * original must stay byte-for-byte intact and the temp file must go. Run
+ * in a child so the rlimit does not leak into the other tests. */
+TEST(changeKV_write_error_keeps_original) {
+    setup_test_dir();
+    char path[256], tmp[300];
+    snprintf(path, sizeof(path), "%s/big.cfg", TEST_DIR);
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+
+    FILE *fp = fopen(path, "w");
+    for (int i = 0; i < 2000; i++)
+        fprintf(fp, "key_%04d = \"value\"\n", i);
+    fclose(fp);
+    long before = _file_size(path);
+    ASSERT_TRUE(before > 16384);
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        signal(SIGXFSZ, SIG_IGN);
+        struct rlimit lim = {4096, 4096};
+        setrlimit(RLIMIT_FSIZE, &lim);
+        file_changeKeyValue(path, "key_1999 =", "key_1999 = \"changed\"");
+        _exit(0);
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    ASSERT_TRUE(WIFEXITED(status));
+
+    ASSERT_EQ(_file_size(path), before);
+    ASSERT_FALSE(exists(tmp));
+    char val[256] = {0};
+    file_parseKeyValue(path, "key_1999", val, '=', 0);
+    ASSERT_STREQ(val, "value");
+
+    cleanup_test_dir();
+}
+
 /* ---- Tests: file_delete_line edge cases ---- */
 
 TEST(delete_line_first) {
@@ -351,6 +431,9 @@ int main(void)
     RUN_TEST(changeKV_update_existing);
     RUN_TEST(changeKV_append_new_key);
     RUN_TEST(changeKV_empty_file);
+    RUN_TEST(changeKV_leaves_no_temp_file);
+    RUN_TEST(changeKV_missing_file_creates_nothing);
+    RUN_TEST(changeKV_write_error_keeps_original);
 
     /* file_delete_line */
     RUN_TEST(delete_line_first);
