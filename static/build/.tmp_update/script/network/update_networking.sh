@@ -173,6 +173,36 @@ disable_all_services() {
     done
 }
 
+# runtime.sh::launch_game creates this flag when it kills the network
+# services for a game ("Disable services in game"), and removes it when the
+# game exits.
+services_paused_flag=/tmp/services_paused_in_game
+
+# Boot-time service start, run in the background after the Wi-Fi bring-up.
+# The boot no longer waits for it, so a game resumed at boot is usually
+# running (its launch already killed the services) by the time this starts
+# them. Skip them while that game runs: launch_game_postprocess marks the
+# network as changed and they start once it exits. The second check closes
+# the window where the game starts while the services are being started.
+boot_start_services() {
+    if [ -f "$services_paused_flag" ]; then
+        log "Network Checker: services start after the running game"
+        return
+    fi
+
+    check_ftpstate &
+    check_sshstate &
+    check_telnetstate &
+    check_httpstate &
+    check_smbdstate &
+    wait
+
+    if [ -f "$services_paused_flag" ]; then
+        log "Network Checker: a game started meanwhile, stopping services"
+        killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null
+    fi
+}
+
 # Core function
 # Boot-time network bring-up, run in the background by check(). Same steps
 # and order as the synchronous path, without the boot-screen messages (the
@@ -182,11 +212,7 @@ check_boot_background() {
     NTP_MAX_WAIT_IP=30
 
     check_wifi
-    check_ftpstate &
-    check_sshstate &
-    check_telnetstate &
-    check_httpstate &
-    check_smbdstate &
+    boot_start_services &
 
     if wifi_enabled; then
         check_ntpstate &
@@ -204,11 +230,7 @@ check_boot_temporary_wifi() {
     NTP_MAX_WAIT_IP=30
 
     check_wifi
-    check_ftpstate &
-    check_sshstate &
-    check_telnetstate &
-    check_httpstate &
-    check_smbdstate &
+    boot_start_services &
 
     wifi_on
     check_ntpstate

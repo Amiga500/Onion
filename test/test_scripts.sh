@@ -79,6 +79,50 @@ check ".httpState removed" test ! -e "$sysdir/config/.httpState"
 check ".httpState_ kept" test -e "$sysdir/config/.httpState_"
 end
 
+# ---- update_networking.sh: boot_start_services ----
+
+eval "$(extract_fn "$NETWORK" boot_start_services)"
+
+stub_services() { # records which checkers ran; killall records its args
+    log() { :; }
+    for svc in ftp ssh telnet http smbd; do
+        eval "check_${svc}state() { echo $svc >> \"\$TMP/started\"; }"
+    done
+    killall() { echo "$*" >> "$TMP/killed"; }
+}
+
+begin boot_services_start_without_game
+stub_services
+services_paused_flag="$TMP/paused"
+boot_start_services
+check "all five checkers ran" test "$(wc -l < "$TMP/started")" -eq 5
+check "nothing killed" test ! -e "$TMP/killed"
+end
+
+begin boot_services_skipped_while_game_runs
+stub_services
+services_paused_flag="$TMP/paused"
+: > "$services_paused_flag"
+boot_start_services
+check "no checker ran" test ! -e "$TMP/started"
+end
+
+begin boot_services_stopped_when_game_starts_meanwhile
+stub_services
+services_paused_flag="$TMP/paused"
+check_smbdstate() { : > "$services_paused_flag"; } # the game launches here
+boot_start_services
+check "services killed after the game started" grep -q dropbear "$TMP/killed"
+end
+
+begin boot_services_flag_path_matches_runtime
+flag_line=$(grep '^services_paused_flag=' "$NETWORK")
+flag_path=${flag_line#services_paused_flag=}
+check "update_networking.sh defines the flag" test -n "$flag_path"
+check "launch_game creates it" grep -q ": > $flag_path" "$RUNTIME"
+check "launch_game_postprocess removes it" grep -q "rm -f $flag_path" "$RUNTIME"
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283

@@ -579,6 +579,9 @@ launch_game() {
 
         # Kill services while remaining launch preparation continues.
         if [ ! -f $sysdir/config/.keepServicesAlive ]; then
+            # Tells the boot-time network bring-up (still running in the
+            # background when a game resumes at boot) not to start them.
+            : > /tmp/services_paused_in_game
             killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null &
             services_kill_pid=$!
         fi
@@ -836,6 +839,7 @@ launch_game_postprocess() {
         fi
 
         # Reset networking if needed
+        rm -f /tmp/services_paused_in_game
         if [ ! -f "$sysdir/config/.keepServicesAlive" ]; then
             for service in smbd http ssh ftp telnet; do
                 if [ -f "$sysdir/config/.${service}State" ]; then
