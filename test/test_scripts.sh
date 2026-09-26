@@ -311,6 +311,7 @@ check "backslashes and quotes" same_as_cat 'a\\\\n "b\\\\" $x `y`\n'
 check "CRLF" same_as_cat 'a\r\nb\r\n'
 read_file_to got "$TMP/missing"
 check "missing file is empty" test -z "$got"
+check "update_networking.sh has the same helper" test "$(extract_fn "$NETWORK" read_file_to)" = "$(extract_fn "$RUNTIME" read_file_to)"
 end
 
 # ---- runtime.sh: detect_device_model ----

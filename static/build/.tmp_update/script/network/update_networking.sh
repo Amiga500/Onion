@@ -8,12 +8,14 @@ filebrowserdb=$sysdir/config/filebrowser/filebrowser.db
 netscript=/mnt/SDCARD/.tmp_update/script/network
 export LD_LIBRARY_PATH="/lib:/config/lib:$miyoodir/lib:$sysdir/lib:$sysdir/lib/parasyte"
 export PATH="$sysdir/bin:$PATH"
-is_booting=$([ -f /tmp/is_booting ] && echo 1 || echo 0)
+is_booting=0
+[ -f /tmp/is_booting ] && is_booting=1
 
 # add service flags here to be remembered when wifi change is detected
 services="httpState ftpState smbdState sshState authsshState authftpState authhttpState"
 
-logfile=$(basename "$0" .sh)
+logfile=${0##*/}
+logfile=${logfile%.sh}
 . $sysdir/script/log.sh
 
 main() {
@@ -79,8 +81,14 @@ check() {
     # jsonval process (8-10 per run, after every game when a service is on).
     # The background service checks inherit the value.
     WIFI_STATE_CACHED=$(/customer/app/jsonval wifi)
-    local force_wifi_on_startup=$([ -f /customer/app/axp_test ] && [ -f $sysdir/config/.ntpForce ] && echo 1 || echo 0)
-    local has_wifi=$(wifi_enabled && echo 1 || echo 0)
+    local force_wifi_on_startup=0
+    if [ -f /customer/app/axp_test ] && [ -f $sysdir/config/.ntpForce ]; then
+        force_wifi_on_startup=1
+    fi
+    local has_wifi=0
+    if wifi_enabled; then
+        has_wifi=1
+    fi
 
     # At boot, the network only holds the boot when "Wait for sync on
     # startup" (ntpWait) applies: Wi-Fi enabled, or Wi-Fi forced on for the
@@ -807,7 +815,31 @@ abs() {
 }
 
 set_tzid() {
-    export TZ=$(cat "$sysdir/config/.tz")
+    read_file_to TZ "$sysdir/config/.tz"
+    export TZ
+}
+
+# `read_file_to var file`: var=$(cat file) with shell builtins (same as in
+# runtime.sh). set_tzid and get_password run on every invocation of this
+# script, which runs after every game while a network service is enabled.
+read_file_to() {
+    _rft_val=""
+    _rft_nl=""
+    if [ -r "$2" ]; then
+        while IFS= read -r _rft_line || [ -n "$_rft_line" ]; do
+            _rft_val="$_rft_val$_rft_nl$_rft_line"
+            _rft_nl="
+"
+        done < "$2"
+    fi
+    while :; do
+        case "$_rft_val" in
+            *"
+") _rft_val=${_rft_val%?} ;;
+            *) break ;;
+        esac
+    done
+    eval "$1=\$_rft_val"
 }
 
 is_noauth_enabled() { # Used to check authMethod val for HTTPFS
@@ -880,7 +912,7 @@ is_running_exact() {
 
 get_password() {
     # Get password from file for use with network services authentication
-    PASS=$(cat "$sysdir/config/.password.txt")
+    read_file_to PASS "$sysdir/config/.password.txt"
 }
 
 if [ -f $sysdir/config/.logging ]; then
