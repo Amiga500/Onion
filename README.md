@@ -199,7 +199,7 @@ already usable.
 
 </details>
 
-<details>
+<details open>
 <summary><b>🕒 Setting the clock from the network</b></summary>
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
@@ -211,7 +211,7 @@ already usable.
 
 </details>
 
-<details>
+<details open>
 <summary><b>🔊 Pressing volume or brightness</b></summary>
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
@@ -224,7 +224,7 @@ already usable.
 
 </details>
 
-<details>
+<details open>
 <summary><b>⌨️ Every key press (keymon)</b></summary>
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
@@ -236,7 +236,7 @@ already usable.
 
 </details>
 
-<details>
+<details open>
 <summary><b>🌙 Every 15 seconds, with the blue-light schedule on</b></summary>
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
@@ -246,7 +246,7 @@ already usable.
 
 </details>
 
-<details>
+<details open>
 <summary><b>🎮 Launching a game</b></summary>
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
@@ -261,7 +261,7 @@ already usable.
 
 </details>
 
-<details>
+<details open>
 <summary><b>🏠 Returning to the menu</b></summary>
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
@@ -274,7 +274,7 @@ already usable.
 
 </details>
 
-<details>
+<details open>
 <summary><b>😴 Sleep and wake</b></summary>
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
@@ -285,7 +285,7 @@ already usable.
 
 </details>
 
-<details>
+<details open>
 <summary><b>🌐 Leaving a game with SSH / FTP / Samba / HTTP / Telnet enabled</b></summary>
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
@@ -296,7 +296,7 @@ already usable.
 
 </details>
 
-<details>
+<details open>
 <summary><b>🔁 Recent games list</b></summary>
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
@@ -486,7 +486,7 @@ Every pass reaches installs through the built-in **OTA updater**. This README is
 reference for the branch and groups everything shipped to date by *category* rather than by
 commit.
 
-<details>
+<details open>
 <summary><b>🔑 Reading the icons</b></summary>
 
 | Icon | Meaning |
@@ -701,7 +701,7 @@ Across the 25-file hardening core, `system()` call sites went **3 → 1** (the s
 review. The lists below also include OnionPlus's own regressions caught by review, marked as
 such.
 
-<details>
+<details open>
 <summary><b>🩺 Pass 1 correctness review — <a href="https://github.com/Amiga500/Onion/pull/221">PR #221</a> (2026-09-26)</b></summary>
 
 Present in `OnionUI/Onion:main`:
@@ -739,7 +739,7 @@ OnionPlus regressions and port issues:
 
 </details>
 
-<details>
+<details open>
 <summary><b>📱 Fixed after the first on-device tests</b> — <code>874ea325</code>, <code>10f2369e</code>, <code>9768ae02</code></summary>
 
 Present in `OnionUI/Onion:main` unless noted:
@@ -762,7 +762,7 @@ Present in `OnionUI/Onion:main` unless noted:
 
 </details>
 
-<details>
+<details open>
 <summary><b>⚡ Fixed in the performance passes</b> — <code>fee6c4b</code>, <code>85bc9f21</code>, <code>747d102a</code>, <code>1592866e</code></summary>
 
 All present in `OnionUI/Onion:main`:
@@ -797,7 +797,7 @@ All present in `OnionUI/Onion:main`:
 
 </details>
 
-<details>
+<details open>
 <summary><b>🕵️ Early hardening passes</b></summary>
 
 - 🔓 **`hash.h` FNV1A load** — removed a 7-byte out-of-bounds read, an unaligned 64-bit load
@@ -926,7 +926,7 @@ Reproducible from git: `git rev-list --count 07505ea5..HEAD`, `git diff --shorts
 
 ## 🔀 11 · Commit timeline
 
-<details>
+<details open>
 <summary><b>🗓️ Oldest first — 34 steps</b></summary>
 
 1. 🖼️ **NEON foundation** — vector kernels vs OnionUI scalar pixel loops.
