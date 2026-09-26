@@ -10,18 +10,19 @@ to the menu, put the device to sleep, or change the volume** — shared in the h
 of it is useful to the Onion team. It keeps Onion's look, menus, emulators and file layout.
 Everything here is built on their work; any change they find worthwhile is theirs to take.
 
-> 🚀 **This build boots to the menu in 1.74 s** on a Miyoo Mini+ (5.51 s at the first
-> measurement, **3.2× faster**) · ⏱️ **~0.5 s** of its own work around each game · 🐛 **24**
-> issues found in the shared codebase, with fixes ready for Onion · 🧪 **1,423** host tests.
+> 🚀 **This build boots to the menu in ~1.7 s** on a Miyoo Mini+ — with Wi-Fi on (5.51 s at the
+> first measurement, **3.2× faster**) and with Wi-Fi off + "Enable Wi-Fi temporarily" (5.16 s
+> before) · ⏱️ **~0.5 s** of its own work around each game · 🐛 **25** issues found in the
+> shared codebase, with fixes ready for Onion · 🧪 **1,423** host tests.
 
 [![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
-[![commits](https://img.shields.io/badge/commits-35-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![commits](https://img.shields.io/badge/commits-41-blueviolet?style=for-the-badge)](#-11--commit-timeline)
 [![files](https://img.shields.io/badge/files%20changed-188-blue?style=for-the-badge)](#-10--grand-totals)
 [![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
 [![tests](https://img.shields.io/badge/tests-1%2C423%20%2F%2071%2C436%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
-[![fixes](https://img.shields.io/badge/fixes%20ready%20for%20Onion-24-critical?style=for-the-badge)](#️-6--security--memory-hardening)
-[![boot](https://img.shields.io/badge/boot%20to%20menu-1.74%20s%20(Mini%2B)-brightgreen?style=for-the-badge)](#-measured-on-a-miyoo-mini)
+[![fixes](https://img.shields.io/badge/fixes%20ready%20for%20Onion-25-critical?style=for-the-badge)](#️-6--security--memory-hardening)
+[![boot](https://img.shields.io/badge/boot%20to%20menu-~1.7%20s%20(Mini%2B)-brightgreen?style=for-the-badge)](#-measured-on-a-miyoo-mini)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
 > 📡 **OnionPlus ships and updates itself over-the-air** — `ota_update.sh` checks
@@ -81,7 +82,7 @@ rank the two.
 
 | | ⚪ OnionUI | 🟢 OnionPlus | 💬 What it means |
 |:--|:-:|:-:|:--|
-| 🔌 Onion boot to the menu (Mini+) | 3 blocking waits | **1.74 s** | 📱 **3.2× faster** than the first measured build (5.51 s); Wi-Fi now comes up after the menu |
+| 🔌 Onion boot to the menu (Mini+) | 3 blocking waits | **1.74 s** | 📱 **3.2× faster** than the first measured build with Wi-Fi on (5.51 s); 1.78 s with temporary Wi-Fi (5.16 s) |
 | ⏱️ Onion's own work around a game | — | **~0.5 s** | 📱 launch 0.16 s · exit 0.1 s · back to the menu 0.1 s |
 | 🎮 Menu CPU while idle | 100% of a core | **sleeps** | 🔋 GameSwitcher, Tweaks, Play Activity & co. stop heating the device |
 | 🌙 Blue-light schedule, every 15 s | ~20 processes | **0** | ⌨️ checked in-process: no more key freezes of up to 4 s |
@@ -94,7 +95,7 @@ rank the two.
 
 | | ⚪ OnionUI | 🟢 OnionPlus | 💬 What it means |
 |:--|:-:|:-:|:--|
-| 🐛 Issues found in the shared code | — | **24 fixed** | ✅ crashes, leaks, lost settings, a wrong clock — fixes available for Onion, [listed in §6](#️-6--security--memory-hardening) |
+| 🐛 Issues found in the shared code | — | **25 fixed** | ✅ crashes, leaks, lost settings, a wrong clock — fixes available for Onion, [listed in §6](#️-6--security--memory-hardening) |
 | ⚡ Settings that survive a power cut mid-write | none | **all** | ✅ `system.json`, key map, config values, JSON, recent games |
 | 🧠 Memory leaked per MainUI-cache lookup | ~570 KB | **0** | 📏 was tens of MB with a large GameSwitcher history, on a 128 MB device |
 | 🧪 Automated tests | 1 | **1,423** | 🚀 **×1,400**: 71,436 assertions, run on any PC in ~2.5 s |
@@ -111,9 +112,12 @@ rank the two.
 
 > 🟩 Things you see and feel on the device. Nothing to configure.
 
-- ⚡ **It boots to the menu in under two seconds of Onion time.** Wi-Fi, network services and
-  time sync now come up in the background a few seconds after the menu, instead of holding
-  the boot (unless you ask for **Wait for sync on startup**).
+- ⚡ **It boots to the menu in under two seconds of Onion time**, with Wi-Fi on or off. Wi-Fi,
+  network services and time sync now come up in the background a few seconds after the
+  menu, instead of holding the boot (unless you ask for **Wait for sync on startup**).
+- 📶 **"Enable Wi-Fi temporarily" now really sets the clock.** With Wi-Fi off it used to turn
+  Wi-Fi on and off at boot without syncing anything; now it turns Wi-Fi on in the
+  background, syncs the time, and turns it off again.
 - 🌡️ **Menus stop heating the device.** In stock Onion, the GameSwitcher, Tweaks, Play
   Activity, Themes, Package Manager and Battery Monitor keep one CPU core at 100% even
   when you are just looking at them. OnionPlus sleeps until the next frame.
@@ -145,12 +149,13 @@ rank the two.
 
 > 🟦 Real numbers from a real device, taken with the built-in timing log.
 
-Miyoo Mini+ (640×480 panel), logging on, network time on, "Disable services in game" on.
+Miyoo Mini+ (640×480 panel), logging on, network time on, "Enable Wi-Fi temporarily" on,
+"Disable services in game" on.
 Each session: boot, three games launched from MainUI (PlayStation, NES, SNES, BS-X, …)
 and quit from the RetroArch menu, GameSwitcher opened once. Numbers come from the
 [timing log](#️-measuring-on-the-device).
 
-### 🔌 Boot, step by step
+### 🔌 Boot with Wi-Fi on, step by step
 
 | Phase | First measurement<br>`1592866e` | Wi-Fi off the boot<br>`10f2369e` | **Faster `boot_init`**<br>**`29791efc`** |
 |:--|--:|--:|--:|
@@ -171,6 +176,19 @@ Where the remaining `boot_init` goes: swap **0.01 s** (now in the background), a
 **0.29 s**, display detection **0.39 s**, the rest **~0.36 s** (of which 0.25 s is a fixed
 wait after display init, kept on purpose).
 
+### 📴 Boot with Wi-Fi off and "Enable Wi-Fi temporarily" on
+
+| Phase | Before<br>`29791efc` | **After**<br>**`9768ae02`** |
+|:--|--:|--:|
+| 📶 `boot_network` | 3.50 s | **0.12 s** |
+| 🏁 **`boot` — Onion start → menu** | **5.16 s** | **1.78 s** |
+| 🕒 Time synced at boot? | **no** (Wi-Fi on and off again, nothing synced) | **yes**, in the background |
+
+On the device, Wi-Fi came on right after the menu, the router took **29 s** to hand out an
+address (within the new 30 s background limit; the old 10 s limit would have failed), the
+time was synced through `ntpdate`, and Wi-Fi was turned off again — all while the menu was
+already usable.
+
 ### 🎮 Around every game
 
 | Phase | Measured (all sessions) | What it covers |
@@ -178,7 +196,7 @@ wait after display init, kept on purpose).
 | 🎮 `game_prepare` | **0.15–0.18 s** | from pressing A to the emulator starting |
 | 🚪 `game_exit` | **0.09–0.27 s** | from quitting the emulator to the post-processing done |
 | 🏠 `mainui_prepare` | **0.04–0.20 s** | before MainUI starts (battery icon drawn only when it changed) |
-| ↩️ `mainui_return` | **0.06–0.10 s** | after MainUI exits |
+| ↩️ `mainui_return` | **0.06–0.10 s** | after MainUI exits (2.2 s when Wi-Fi was just turned on from the menu — under investigation) |
 | 🔀 `switcher_prepare` | **0.01–0.02 s** | before the GameSwitcher starts |
 
 - ⏱️ **Onion's own work around a game is about half a second in total.** The rest of the wait is
@@ -200,6 +218,7 @@ wait after display init, kept on purpose).
 | | ⚪ OnionUI | 🟢 OnionPlus |
 |:--|:--|:--|
 | 📶 Wi-Fi and network services | brought up **inside** the boot (fixed 2 s wait) | ✅ **in the background** (unless Wait for sync is on) |
+| 📴 "Enable Wi-Fi temporarily", Wi-Fi off | Wi-Fi on and off at boot, **no time sync** (3.4 s lost) | ✅ **background: on → sync → off** |
 | 💾 128 MB swap file | `swapon` before the boot continues | ✅ **in the background** |
 | 🔊 Audio server | fixed 0.5 s wait after starting it | ✅ **checked every 50 ms** (512 → 61 ms 📏) |
 | ☀️ Brightness setting | `jsonval` process | ✅ **shell built-ins** |
@@ -212,6 +231,7 @@ wait after display init, kept on purpose).
 | 🎮 Game being played during the change | `ntpdate` adds the whole jump to it (decades from 1970) | ✅ **session closed and reopened**; >24 h discarded |
 | 🌍 Time-zone lookup fails | zone rewritten as **UTC** | ✅ **your zone is kept** |
 | 🔁 After a successful `ntpdate` | synced again after every game | ✅ **marked as done** |
+| ⏳ Waiting for an IP address at boot | 10 s, then the sync is skipped | ✅ **30 s in the background** (a router took 29 s 📱) |
 
 ### 🔊 Pressing volume or brightness
 
@@ -334,7 +354,8 @@ alone could grow to tens of megabytes.
 | 🧅 Base | OnionUI `4.4.0-beta` — themes, emulators, ROM folders and saves stay where Onion keeps them |
 | 📡 Updates | built-in OTA from [`Amiga500/Onion` releases](https://github.com/Amiga500/Onion/releases) (`OnionPlus-v…` assets); **stable** follows the latest release, **beta** installs prereleases only |
 | 🏷️ Releases | `OnionPlus-v4.4.0-beta-YYYYMMDD-<commit>`, built by GitHub Actions |
-| ⏱️ Timing log | Tweaks → Advanced → Diagnostics → **Enable logging** → `.tmp_update/logs/timing.log` |
+| ⏱️ Timing log | Tweaks → Advanced → Diagnostics → **Enable logging** → `.tmp_update/logs/timing.log`; **Util: System log snapshot** packs all logs into `SD:/log_export.7z` for sharing |
+| 📖 Settings reference | Onion's own documentation: [Tweaks](https://onionui.github.io/docs/apps/tweaks) |
 
 ## 🧭 Known issues & next steps
 
@@ -344,10 +365,11 @@ alone could grow to tens of megabytes.
   defect: `disable_flag` builds the wrong file name). Services still come back after games
   and Wi-Fi changes; a fix is ready to be tested on a device.
 - 🔌 **Boot:** display detection (0.39 s) and audio-server start (0.29 s) are the largest
-  parts left of the 1.74 s Onion boot; the ~2 s before Onion starts belong to the firmware.
+  parts left of the ~1.7 s Onion boot; the ~2 s before Onion starts belong to the firmware.
 - 🕒 **Time sync:** on networks where the web time services fail, the time comes from
-  `ntpdate` a little later. It no longer blocks anything; the IP wait at boot could be longer
-  now that it runs in the background.
+  `ntpdate` a few seconds later. It no longer blocks anything.
+- ↩️ **Return to the menu after turning Wi-Fi on from MainUI** takes ~2.2 s instead of ~0.1 s
+  (seen twice); a global `sync` or `freemma` is the suspect, finer timing marks will tell.
 - 🔋 **Mini Flip:** lid/Hall-sensor handling is unchanged and still to be confirmed on hardware.
 - 📏 **Measurements:** on-device numbers come from one Mini+ so far.
 
@@ -357,7 +379,8 @@ alone could grow to tens of megabytes.
 
 - 🧅 **OnionPlus exists because of [Onion](https://github.com/OnionUI/Onion)** and the
   OnionUI team and contributors: the menus, the emulator setup, the themes and almost all of
-  the code are theirs. This build is not affiliated with or endorsed by the Onion team.
+  the code are theirs. This build is not affiliated with or endorsed by the Onion team. For
+  what each setting does, see [Onion's documentation](https://onionui.github.io/docs).
 - 🙏 Thanks to **@robcodedev**, whose still-open Onion pull requests #1936–#1946 are carried here.
 - 📬 **For the Onion team:** if any of these changes would be useful as pull requests, I'm
   happy to split them out and adapt them to Onion's own branches. The fixes that apply to
@@ -426,11 +449,11 @@ On top of `07505ea5` the branch carries, oldest first:
   parsing), [`747d102a`](https://github.com/Amiga500/Onion/commit/747d102a53affd8cd2c5bf250d8b7d54ac7982e8) (return to MainUI, battery icon, quick switch, networking check)
   and [`1592866e`](https://github.com/Amiga500/Onion/commit/1592866e) (on-device timing log, fork-free launch helpers, crash-safe
   `system.json` at boot, Play Activity / Package Manager fixes);
-- 📱 three rounds of fixes driven by the on-device timing log: [`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325),
-  [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e), [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc).
+- 📱 four rounds of fixes driven by the on-device timing log: [`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325),
+  [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e), [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc), [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02).
 
 Every pass reaches installs through the built-in **OTA updater** (`Amiga500/Onion`, assets
-`OnionPlus-v…`). The last **code** commit is [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc). This README is the **single
+`OnionPlus-v…`). The last **code** commit is [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02). This README is the **single
 reference** for the branch (the former `docs/` reports were retired with it) and groups
 **everything shipped to date** by *category* rather than by commit.
 
@@ -554,6 +577,7 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 |:--|:--|:--|:--|
 | 📶 Wi-Fi at boot | `update_networking.sh check` brought Wi-Fi up **inside** the boot (a fixed 2 s `sleep` after powering the chip) | background, unless **Wait for sync on startup** is on (or Wi-Fi is off and forced on) | 📱 **`boot_network` 3.34 s → 0.09 s** ([`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325), [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e)) |
 | 🔊 Audio server start (`runifnecessary`) | fixed `sleep 0.5` after starting, before checking | checked every 50 ms, same 0.5 s ceiling and 8 retries | 📏 **512 → 61 ms** · 📱 `boot_init` 1.59 → 1.05 s ([`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc)) |
+| 📴 "Enable Wi-Fi temporarily", Wi-Fi off | Wi-Fi turned on and off **inside** the boot, time never synced unless Wait for sync was on | Wi-Fi on → sync → update check → off, **in the background**; IP wait 30 s | 📱 **`boot` 5.16 s → 1.78 s**, time synced ([`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02)) |
 | 💾 128 MB swap file | `swapon` before the boot continues | `swapon` in the background | 📱 `boot_swap` **0.01 s** ([`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc)) |
 
 ### 🌀 CPU & wake-ups
@@ -766,7 +790,7 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 > only, cutting the GameSwitcher history to the last game on every return to MainUI. Its
 > unit tests for the recent-list move were kept.
 
-#### 🆕 Fixed after the first on-device tests ([`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325), [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e))
+#### 🆕 Fixed after the first on-device tests ([`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325), [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e), [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02))
 
 Present in `OnionUI/Onion:main` unless noted:
 
@@ -783,6 +807,10 @@ Present in `OnionUI/Onion:main` unless noted:
   on 752×560 panels since `fee6c4b`; OnionPlus's fill-the-screen rule is restored.
 - 📶 **Boot waited for Wi-Fi with "Enable Wi-Fi temporarily" set** even with Wi-Fi on
   (OnionPlus background bring-up refined); boot waits only when something needs the network.
+- 📴 **"Enable Wi-Fi temporarily" never synced the time** without "Wait for sync on startup"
+  (OnionUI defect): with Wi-Fi off it turned Wi-Fi on at boot, checked the Wi-Fi *setting*
+  (off) before syncing, and turned Wi-Fi off again — 3.4 s of boot for nothing, and the
+  clock left where it was. Now it syncs in the background ([`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02)).
 
 ---
 
@@ -845,9 +873,10 @@ Present in `OnionUI/Onion:main` unless noted:
   of every rewritten `runtime.sh` helper under dash and bash `--posix` (launch parsing,
   `fbmode` probe, `mountinfo`, `get_full_resolution_path`, `get_info_value`, `sysjson_get`,
   `load_settings`), and `play_activity_find_all()` under ASan/UBSan.
-- 📱 [`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325), [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e) and [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc) add host checks for time sync
+- 📱 [`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325), [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e), [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc) and [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02) add host checks for time sync
   (failed zone lookup, `ntpdate` marker), boot network paths (forced Wi-Fi, Wait for sync,
-  after a game), `runifnecessary`, play sessions across a clock jump and GameSwitcher
+  after a game, temporary Wi-Fi with and without Wait for sync, user enabling Wi-Fi
+  meanwhile), `runifnecessary`, play sessions across a clock jump and GameSwitcher
   capture scaling — and the shell changes have since **run on a Miyoo Mini+** (busybox),
   with the timings in [Measured on a Miyoo Mini+](#-measured-on-a-miyoo-mini).
 
@@ -895,9 +924,9 @@ previous session is kept as `timing.prev.log`):
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..29791efc`) | **35** *(through the last code commit [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc), including the #220 artifact clean-up and its merge; README-only commits after it are not counted. The long `OnionPlus` branch was 97.)* |
+| 🔧 Commits (`07505ea5..9768ae02`) | **41** *(through the last code commit [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02), including the #220 artifact clean-up and its merge; README-only commits after it are not counted. The long `OnionPlus` branch was 97.)* |
 | 📁 Files changed | **188** *(182 at `bf3deb8e`; `fee6c4b` +6 and `747d102a`/`1592866e` +3 files that were still identical to upstream; the 3 `docs/` reports are removed)* |
-| ➕➖ Lines | **+30,487 / −1,109** at `bf3deb8e`, then `fee6c4b` **+1,164 / −226**, the `docs/` removal **−2,157**, `85bc9f21` **+176 / −65**, `747d102a` **+311 / −43**, `1592866e` **+256 / −35**, `874ea325` **+65 / −5**, `10f2369e` **+33 / −8**, `29791efc` **+20 / −5** *(net figure: `git diff --shortstat 07505ea5..HEAD`)* |
+| ➕➖ Lines | **+30,487 / −1,109** at `bf3deb8e`, then `fee6c4b` **+1,164 / −226**, the `docs/` removal **−2,157**, `85bc9f21` **+176 / −65**, `747d102a` **+311 / −43**, `1592866e` **+256 / −35**, `874ea325` **+65 / −5**, `10f2369e` **+33 / −8**, `29791efc` **+20 / −5**, `9768ae02` **+52 / −13** *(net figure: `git diff --shortstat 07505ea5..HEAD`)* |
 | 🧩 Production (`src/` + `static/` + CI/Makefile) at `bf3deb8e` | **101 files · +4,572 / −1,080** *(excludes `.gitignore` + `SDL.h`, 2 · +35 / −0; later passes in the Lines row)* |
 | 🧪 Tests (`test/`) | **75 files · +23,424 / −10** *(`747d102a`: +97 in `test_file.c`)* |
 | 📚 README | **1 file** *(the three `docs/` reports are retired; this README is the reference)* |
@@ -905,7 +934,7 @@ previous session is kept as `timing.prev.log`):
 | 🧪 Test suites / tests / assertions | **68 / 1,423 / 71,436** — **all green** ✅ |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
 | 🛡️ NULL-guards / closed descriptors added | **+57 / +18** *(25-file set)* |
-| 🔐 Issues fixed in code shared with Onion | **24** *(6 + 7 in `fee6c4b` + 8 in `85bc9f21` / `747d102a` / `1592866e` + 3 time-sync defects after the on-device tests)* |
+| 🔐 Issues fixed in code shared with Onion | **25** *(6 + 7 in `fee6c4b` + 8 in `85bc9f21` / `747d102a` / `1592866e` + 4 found with the on-device tests)* |
 | 🕹️ AdvanceMENU scripts hardened/optimized | **7 files** |
 
 > 📎 Everything here is reproducible from git: `git rev-list --count 07505ea5..HEAD`,
@@ -948,6 +977,8 @@ A bird's-eye view of the branch's evolution, oldest first:
 28. 🩹 **On-device fixes 1** — [`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325): Wi-Fi bring-up off the boot path, play time after clock jumps (`ntpdate` path + 24 h guard), GameSwitcher capture scaling regression.
 29. 🕒 **On-device fixes 2** — [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e): boot no longer waits with "Enable Wi-Fi temporarily" set, time zone kept on failed lookups, `ntpdate` sync marked. Boot 5.51 s → **2.28 s**.
 30. 🔌 **Faster `boot_init`** — [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc): audio server polled every 50 ms, swap in the background, finer boot timing marks. Boot → **1.74 s**.
+31. 📚 **README polish** — Mini Flip naming, grouped at-a-glance tables, full review, OnionPlus presented as an independent build offered back to Onion.
+32. 📴 **Temporary Wi-Fi at boot** — [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02): "Enable Wi-Fi temporarily" syncs the time in the background (on → sync → update check → off), 30 s IP wait in the background paths. Boot with Wi-Fi off 5.16 s → **1.78 s**, time synced.
 
 > 🔍 Per-commit detail: `git log --stat 07505ea5..HEAD` on `onionplus-compact`.
 
@@ -955,22 +986,23 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-`onionplus-compact` is **35 commits** ahead of upstream `OnionUI/Onion:main` through the last
-code commit (`07505ea5` → `29791efc`; README-only commits not counted; the long `OnionPlus`
+`onionplus-compact` is **41 commits** ahead of upstream `OnionUI/Onion:main` through the last
+code commit (`07505ea5` → `9768ae02`; README-only commits not counted; the long `OnionPlus`
 branch was 97). In one tree:
 
 - 🖼️ **8 vectorized NEON kernels**, a dozen O(n²)→O(n) rewrites and five render/UI caches;
 - 🔋 a power/battery batch and a syscall diet that removed every avoidable `system()` call
   from the hardened core and from keymon;
-- 🛡️ **24 issues in the code shared with Onion** fixed, with the fixes available to the Onion team,
+- 🛡️ **25 issues in the code shared with Onion** fixed, with the fixes available to the Onion team,
   plus OnionPlus's own regressions caught by review;
 - 🧪 a **68-suite / 1,423-test** host test harness that did not exist before this branch;
 - 🕹️ an **AdvanceMENU** pass, a **Miyoo Mini Flip** port from `v4.5-dev` (not a merge), the
   OnionUI-parity and A–G reviews, and the **@robcodedev** ports of `OnionUI/Onion` **#1936–#1946**;
 - ⚡ the **2026-09-25** performance passes and the fixes found **on the device itself**.
 
-Measured on a Miyoo Mini+, Onion now boots to the menu in **1.74 s** (5.51 s at the first
-measurement) and spends about **half a second** of its own work around each game. Base
+Measured on a Miyoo Mini+, this build boots to the menu in **~1.7 s** with Wi-Fi on or off
+(5.51 s and 5.16 s before) and spends about **half a second** of its own work around each
+game. Base
 remains `4.4.0-beta`; OTA stays on `Amiga500/Onion`. Still open: Mini Flip lid/Hall
 confirmation on hardware, the network script's `disable_flag` defect, and on-device samples
 from more models (see [Known issues & next steps](#-known-issues--next-steps)).
@@ -978,5 +1010,5 @@ from more models (see [Known issues & next steps](#-known-issues--next-steps)).
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `onionplus-compact` ·
-Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc) (**35**,
-`git rev-list --count 07505ea5..29791efc`) · On-device figures: Miyoo Mini+ · Refreshed **2026-09-25**</sub>
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02) (**41**,
+`git rev-list --count 07505ea5..9768ae02`) · On-device figures: Miyoo Mini+ · Refreshed **2026-09-26**</sub>
