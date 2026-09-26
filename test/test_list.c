@@ -1024,6 +1024,81 @@ TEST(free_releases_nonnull_cache_pointers) {
     ASSERT_FALSE(list._created);
 }
 
+/* ---- Preview / value cache keys (used by theme/render/list.h) ---- */
+
+/* F1: the GameSwitcher load-state popup swaps preview images at one fixed
+ * width. After list_item_clearPreview() the scaled copy must be gone, or
+ * the renderer shows the previous slot's image again. */
+TEST(clear_preview_drops_image_and_scaled_copy) {
+    ListItem item = _make_item("Load", ACTION, 0);
+    SDL_Surface image_a, scaled_a;
+    item.preview_ptr = &image_a;
+    item._scaled_preview = &scaled_a;
+    item._scaled_preview_w = 320;
+    ASSERT_TRUE(list_item_hasScaledPreview(&item, 320));
+
+    g_sdl_free_surface_calls = 0;
+    list_item_clearPreview(&item);
+    ASSERT_EQ(g_sdl_free_surface_calls, 2);
+    ASSERT_NULL(item.preview_ptr);
+    ASSERT_NULL(item._scaled_preview);
+
+    /* New slot's image at the same width: the cache must miss. */
+    SDL_Surface image_b;
+    item.preview_ptr = &image_b;
+    ASSERT_FALSE(list_item_hasScaledPreview(&item, 320));
+}
+
+TEST(scaled_preview_hit_requires_same_width) {
+    ListItem item = _make_item("Load", ACTION, 0);
+    SDL_Surface scaled;
+    item._scaled_preview = &scaled;
+    item._scaled_preview_w = 320;
+    ASSERT_TRUE(list_item_hasScaledPreview(&item, 320));
+    ASSERT_FALSE(list_item_hasScaledPreview(&item, 376));
+    ASSERT_FALSE(list_item_hasScaledPreview(NULL, 320));
+}
+
+TEST(clear_preview_null_and_empty_are_safe) {
+    ListItem item = _make_item("A", ACTION, 0);
+    g_sdl_free_surface_calls = 0;
+    list_item_clearPreview(&item);
+    list_item_clearPreview(NULL);
+    ASSERT_EQ(g_sdl_free_surface_calls, 0);
+}
+
+/* F11: a missing preview file is remembered with a flag, never by blanking
+ * preview_path, and clearing the preview makes the item try again. */
+TEST(missing_preview_is_retried_after_clear) {
+    ListItem item = _make_item("Load", ACTION, 0);
+    strcpy(item.preview_path, "/mnt/SDCARD/Saves/states/game.state1.png");
+    ASSERT_TRUE(list_item_wantsPreviewLoad(&item));
+
+    item._preview_missing = true; /* what the renderer does on a miss */
+    ASSERT_FALSE(list_item_wantsPreviewLoad(&item));
+    ASSERT_STREQ(item.preview_path, "/mnt/SDCARD/Saves/states/game.state1.png");
+
+    list_item_clearPreview(&item);
+    ASSERT_TRUE(list_item_wantsPreviewLoad(&item));
+}
+
+TEST(preview_load_not_wanted_without_path_or_when_loaded) {
+    ListItem item = _make_item("A", ACTION, 0);
+    ASSERT_FALSE(list_item_wantsPreviewLoad(&item));
+    strcpy(item.preview_path, "/x.png");
+    SDL_Surface image;
+    item.preview_ptr = &image;
+    ASSERT_FALSE(list_item_wantsPreviewLoad(&item));
+}
+
+/* F10: the value surface is keyed on the rendered text, so a formatter that
+ * renders a new string for the same value invalidates the cache. */
+TEST(label_hash_tracks_text_not_value) {
+    ASSERT_TRUE(list_labelHash("UTC+01:00") != list_labelHash("UTC+02:00"));
+    ASSERT_EQ(list_labelHash("Off"), list_labelHash("Off"));
+    ASSERT_EQ(list_labelHash(NULL), list_labelHash(""));
+}
+
 TEST(add_item_at_max_returns_null) {
     List list = list_create(1, LIST_SMALL);
     ASSERT_NOT_NULL(list_addItem(&list, _make_item("A", ACTION, 0)));
@@ -1997,6 +2072,12 @@ int main(void)
     RUN_TEST(free_sets_created_false);
     RUN_TEST(free_double_free_safe);
     RUN_TEST(free_releases_nonnull_cache_pointers);
+    RUN_TEST(clear_preview_drops_image_and_scaled_copy);
+    RUN_TEST(scaled_preview_hit_requires_same_width);
+    RUN_TEST(clear_preview_null_and_empty_are_safe);
+    RUN_TEST(missing_preview_is_retried_after_clear);
+    RUN_TEST(preview_load_not_wanted_without_path_or_when_loaded);
+    RUN_TEST(label_hash_tracks_text_not_value);
     RUN_TEST(add_item_at_max_returns_null);
 
     RUN_TEST(add_item_with_info_note_null_check);

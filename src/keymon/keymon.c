@@ -578,17 +578,20 @@ void suspend_exec(int timeout)
                     print_debug("Lid opened during suspend, waking up");
                     break;
                 }
-                if (timeout != -1 && current_lid != 0 &&
+                suspend_lid_state = current_lid;
+                // Same as OnionUI v4.5-dev: once the suspend timeout has
+                // elapsed, power off whatever the lid state, like the other
+                // models. (A local variant skipped the power-off while the
+                // lid was closed, letting a closed Flip drain its battery,
+                // and its comment disagreed with the code on an unreadable
+                // lid. Flip behavior is not changed here without hardware.)
+                if (timeout != -1 &&
                     (getMilliseconds() - suspend_start) >= timeout) {
-                    // Timeout elapsed with lid open: match non-flip shutdown behavior
                     system_powersave_off();
                     resume();
                     usleep(150000);
                     deepsleep();
                 }
-                suspend_lid_state = current_lid;
-                // Lid closed (or unreadable): never force power-off; stay
-                // suspended until the lid opens or POWER is pressed.
                 continue;
             }
 

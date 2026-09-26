@@ -199,6 +199,51 @@ TEST(prod_empty_recent_file) {
     unlink(kRecent);
 }
 
+/* ---- Strict (top entry only) lookup, used for romscreens ---- */
+
+/* An app on top means the running program is not that game: no romscreen
+ * path, so the older game's GameSwitcher image is not overwritten. */
+TEST(prod_top_only_app_on_top_returns_null) {
+    char line_app[256];
+    char line_game[512];
+    write_file(kRomA, "rom");
+    write_ndjson(kRecent, app_line(line_app, sizeof(line_app)),
+                 game_line(line_game, sizeof(line_game), 5, kRomA));
+
+    char rom_path[STR_MAX] = {0};
+    ASSERT_NULL(history_getTopRecentPathFromPath(kRecent, rom_path));
+    /* The lenient lookup (screenshot names) still finds the game. */
+    ASSERT_NOT_NULL(history_getRecentPathFromPath(kRecent, rom_path));
+    cleanup_fixtures();
+}
+
+TEST(prod_top_only_missing_rom_on_top_returns_null) {
+    char line_missing[512];
+    char line_ok[512];
+    write_file(kRomB, "rom");
+    write_ndjson(kRecent,
+                 game_line(line_missing, sizeof(line_missing), 5, "/tmp/onion_no_such_rom.gba"),
+                 game_line(line_ok, sizeof(line_ok), 5, kRomB));
+
+    char rom_path[STR_MAX] = {0};
+    ASSERT_NULL(history_getTopRecentPathFromPath(kRecent, rom_path));
+    cleanup_fixtures();
+}
+
+TEST(prod_top_only_game_on_top) {
+    char line_game[512];
+    char line_app[256];
+    write_file(kRomA, "rom");
+    write_ndjson(kRecent, game_line(line_game, sizeof(line_game), 17, kRomA),
+                 app_line(line_app, sizeof(line_app)));
+
+    char rom_path[STR_MAX] = {0};
+    char *result = history_getTopRecentPathFromPath(kRecent, rom_path);
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, kRomA);
+    cleanup_fixtures();
+}
+
 TEST(prod_state_getAppName_standard_prefix) {
     char cmd[STR_MAX] = "HOME=/mnt/SDCARD ./Tweaks; chmod 777 Tweaks";
     char out[STR_MAX] = {0};
@@ -219,6 +264,9 @@ int main(void)
     RUN_TEST(prod_malloc_failure_continues);
     RUN_TEST(prod_missing_recent_file);
     RUN_TEST(prod_empty_recent_file);
+    RUN_TEST(prod_top_only_app_on_top_returns_null);
+    RUN_TEST(prod_top_only_missing_rom_on_top_returns_null);
+    RUN_TEST(prod_top_only_game_on_top);
     RUN_TEST(prod_state_getAppName_standard_prefix);
 
     TEST_REPORT();

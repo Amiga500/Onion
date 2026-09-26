@@ -16,7 +16,7 @@
 #   make unit-test
 
 CC      ?= gcc
-CFLAGS  := -Wall -Wextra -std=c99 -g -I../include -I../src/common \
+CFLAGS  := -Wall -Wextra -Werror=implicit-function-declaration -std=c99 -g -I../include -I../src/common \
            -DPLATFORM_LINUX -DONION_VERSION="\"test\"" -D_GNU_SOURCE
 LDFLAGS :=
 
@@ -26,7 +26,7 @@ BUILD_DIR := ../build_test
 COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common/utils/file.c
 
 # Test targets
-TESTS := test_str test_perf test_file test_images_browser test_hash test_json test_state test_history_recent test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings test_list test_color test_apps test_changes test_gs_history test_gs_popmenu test_gs_retroarch test_has_changed test_str_security test_file_security test_json_security test_game_entry test_state_security test_config_security test_volume test_display test_lang test_signal_handler test_battery test_playactivity_paths test_theme_config test_device_model test_theme_load test_cache_db test_gs_appstate test_legacy_db test_keymap test_resources_enum test_screenshot_path test_system_utils test_display_buffers test_rom_image_path test_theme_sort test_savestate_path test_overlay_content test_theme_scale test_list_sort test_settings_has_changed test_romscreen_find test_neon_pixel test_formatters test_pacman_changes test_alpha_scale test_osd_constants test_null_safety test_critical_fixes test_cjson_null_safety test_json_null_guards test_double_call_safety
+TESTS := test_str test_perf test_file test_images_browser test_hash test_json test_state test_history_recent test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings test_list test_color test_apps test_changes test_gs_history test_gs_popmenu test_gs_retroarch test_has_changed test_str_security test_file_security test_json_security test_game_entry test_state_security test_config_security test_volume test_display test_lang test_signal_handler test_battery test_playactivity_paths test_theme_config test_device_model test_theme_load test_cache_db test_gs_appstate test_legacy_db test_keymap test_resources_enum test_screenshot_path test_system_utils test_display_buffers test_rom_image_path test_theme_sort test_savestate_path test_overlay_content test_theme_scale test_list_sort test_settings_has_changed test_romscreen_find test_neon_pixel test_formatters test_pacman_changes test_alpha_scale test_osd_constants test_null_safety test_critical_fixes test_cjson_null_safety test_json_null_guards test_double_call_safety test_scripts test_romscreen_window
 
 # Build-only targets (compilation without running)
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
@@ -406,13 +406,32 @@ $(BUILD_DIR)/test_theme_load: test_theme_load.c onion_test.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_theme_load.c $(LDFLAGS)
 
+test_romscreen_window: $(BUILD_DIR)/test_romscreen_window
+	@echo ""
+	@$(BUILD_DIR)/test_romscreen_window
+
+$(BUILD_DIR)/test_romscreen_window: test_romscreen_window.c onion_test.h ../src/gameSwitcher/gs_romscreen_window.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_romscreen_window.c $(LDFLAGS)
+
+test_scripts: $(BUILD_DIR)/test_scripts
+	@echo ""
+	@$(BUILD_DIR)/test_scripts
+
+# Shell-function tests: the "binary" is the script itself (it locates the
+# repository from its own path and extracts functions from the real scripts).
+$(BUILD_DIR)/test_scripts: test_scripts.sh ../static/build/.tmp_update/runtime.sh ../static/build/.tmp_update/script/network/update_networking.sh
+	@mkdir -p $(BUILD_DIR)
+	cp test_scripts.sh $@
+	chmod +x $@
+
 test_cache_db: $(BUILD_DIR)/test_cache_db
 	@echo ""
 	@$(BUILD_DIR)/test_cache_db
 
-$(BUILD_DIR)/test_cache_db: test_cache_db.c onion_test.h
+$(BUILD_DIR)/test_cache_db: test_cache_db.c onion_test.h stubs/sqlite3_stub.c ../src/playActivity/cacheDB.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_cache_db.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_cache_db.c stubs/sqlite3_stub.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_gs_appstate: $(BUILD_DIR)/test_gs_appstate
 	@echo ""
@@ -631,14 +650,15 @@ unit-test-san:
 		exit 1; \
 	fi; \
 	rm -f $$probe; \
-	echo "Sanitizer subset ($$SAN_CC $(SANITIZE_FLAGS)): hash file str json neon"; \
+	echo "Sanitizer subset ($$SAN_CC $(SANITIZE_FLAGS)): hash file str json neon cache_db"; \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_hash_san test_hash.c $(LDFLAGS) && \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_file_san test_file.c $(COMMON_SRCS) $(LDFLAGS) && \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_str_san test_str.c $(COMMON_SRCS) $(LDFLAGS) && \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_json_san test_json.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) && \
-	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_neon_san test_neon.c $(LDFLAGS)
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_neon_san test_neon.c $(LDFLAGS) && \
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_cache_db_san test_cache_db.c stubs/sqlite3_stub.c $(COMMON_SRCS) $(LDFLAGS)
 	@fail=0; \
-	for t in test_hash test_file test_str test_json test_neon; do \
+	for t in test_hash test_file test_str test_json test_neon test_cache_db; do \
 		printf "\n"; \
 		$(BUILD_DIR)/$${t}_san || fail=1; \
 	done; \

@@ -183,10 +183,10 @@ static void setLoadPreview(void)
             }
         }
 
-        if (item->preview_ptr != NULL) {
-            SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
-            item->preview_ptr = NULL;
-        }
+        // Also drops the cached scaled copy: this menu stretches every slot's
+        // preview to the same width, so it would be shown again for the new
+        // slot otherwise.
+        list_item_clearPreview(item);
     }
 }
 

@@ -93,7 +93,13 @@ void system_state_update(void)
     // Same decision order as the check_is*() helpers above, but /proc is
     // scanned once for all candidates instead of once per candidate
     // (up to 5 full scans before), and cmd_to_run.sh is read at most once.
-    enum { P_SWITCHER, P_RETROARCH, P_RA32, P_MAINUI, P_ADVMENU, P_DRASTIC, P_COUNT };
+    enum { P_SWITCHER,
+           P_RETROARCH,
+           P_RA32,
+           P_MAINUI,
+           P_ADVMENU,
+           P_DRASTIC,
+           P_COUNT };
     static const char *const names[P_COUNT] = {
         "gameSwitcher", "retroarch", "ra32", "MainUI", "advmenu", "drastic"};
     pid_t pids[P_COUNT];
@@ -259,11 +265,11 @@ void write_mainui_state(MainUIState state, int currpos, int total)
     page_end = page_start + page_size - 1;
 
     snprintf(state_str, sizeof(state_str),
-            "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
-            "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
-            "\"pagestart\":%d,\"pageend\":%d}]}",
-            main_currpos, main_page_start, main_page_end, title_num, page_type,
-            currpos, page_start, page_end);
+             "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
+             "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
+             "\"pagestart\":%d,\"pageend\":%d}]}",
+             main_currpos, main_page_start, main_page_end, title_num, page_type,
+             currpos, page_start, page_end);
 
     file_put_sync(fp, "/tmp/state.json", "%s", state_str);
 }
@@ -287,7 +293,15 @@ char *getMiyooRecentFilePath()
 //
 //    [onion] get recent rom path from a recent-list file
 //
-char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
+//    top_only = false: first game entry whose ROM exists (skips apps and
+//      missing ROMs). Used to name screenshots.
+//    top_only = true: the most recent entry only, NULL if it is not a game
+//      or its ROM is missing (upstream behavior). Used for the romscreen,
+//      which must belong to the game that is running: falling through to an
+//      older entry overwrote that game's GameSwitcher image with the screen
+//      of whatever was running (e.g. the RetroArch app).
+//
+static char *_history_getRecentPath(const char *recent_path, char *rom_path, bool top_only)
 {
     FILE *file;
     char line[STR_MAX * 3];
@@ -316,18 +330,24 @@ char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
 
         if ((type != 5) && (type != 17)) {
             free(jsonContent);
+            if (top_only)
+                break;
             continue;
         }
 
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
         if (rompathStart == NULL) {
             free(jsonContent);
+            if (top_only)
+                break;
             continue;
         }
         rompathStart += 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
         if (rompathEnd == NULL) {
             free(jsonContent);
+            if (top_only)
+                break;
             continue;
         }
 
@@ -348,6 +368,8 @@ char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
         printf_debug("romPathSearch : %s\n", romPathSearch);
 
         if (!exists(romPathSearch)) {
+            if (top_only)
+                break;
             continue;
         }
 
@@ -362,9 +384,24 @@ char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
     return NULL;
 }
 
+char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
+{
+    return _history_getRecentPath(recent_path, rom_path, false);
+}
+
+char *history_getTopRecentPathFromPath(const char *recent_path, char *rom_path)
+{
+    return _history_getRecentPath(recent_path, rom_path, true);
+}
+
 char *history_getRecentPath(char *rom_path)
 {
     return history_getRecentPathFromPath(getMiyooRecentFilePath(), rom_path);
+}
+
+char *history_getTopRecentPath(char *rom_path)
+{
+    return history_getTopRecentPathFromPath(getMiyooRecentFilePath(), rom_path);
 }
 
 bool history_getRomscreenPath(char *path_out)
@@ -373,7 +410,8 @@ bool history_getRomscreenPath(char *path_out)
     char file_path[STR_MAX] = "";
 
     filename[0] = '\0';
-    if (history_getRecentPath(file_path) != NULL) {
+    // Only the most recent entry: see _history_getRecentPath().
+    if (history_getTopRecentPath(file_path) != NULL) {
         snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
     }
     print_debug(file_path);
@@ -425,7 +463,8 @@ void resumeGame(int index)
             const char *labelEnd = strchr(labelStart, '\"');
             if (labelEnd != NULL) {
                 size_t len = (size_t)(labelEnd - labelStart);
-                if (len >= sizeof(label)) len = sizeof(label) - 1;
+                if (len >= sizeof(label))
+                    len = sizeof(label) - 1;
                 memcpy(label, labelStart, len);
                 label[len] = '\0';
             }
@@ -437,7 +476,8 @@ void resumeGame(int index)
             const char *rompathEnd = strchr(rompathStart, '\"');
             if (rompathEnd != NULL) {
                 size_t len = (size_t)(rompathEnd - rompathStart);
-                if (len >= sizeof(rompath)) len = sizeof(rompath) - 1;
+                if (len >= sizeof(rompath))
+                    len = sizeof(rompath) - 1;
                 memcpy(rompath, rompathStart, len);
                 rompath[len] = '\0';
             }
@@ -449,7 +489,8 @@ void resumeGame(int index)
             const char *imgpathEnd = strchr(imgpathStart, '\"');
             if (imgpathEnd != NULL) {
                 size_t len = (size_t)(imgpathEnd - imgpathStart);
-                if (len >= sizeof(imgpath)) len = sizeof(imgpath) - 1;
+                if (len >= sizeof(imgpath))
+                    len = sizeof(imgpath) - 1;
                 memcpy(imgpath, imgpathStart, len);
                 imgpath[len] = '\0';
             }
@@ -484,7 +525,8 @@ void resumeGame(int index)
                 const char *launchEnd = strchr(launchStart, '\"');
                 if (launchEnd != NULL) {
                     size_t len = (size_t)(launchEnd - launchStart);
-                    if (len >= sizeof(launch)) len = sizeof(launch) - 1;
+                    if (len >= sizeof(launch))
+                        len = sizeof(launch) - 1;
                     memcpy(launch, launchStart, len);
                     launch[len] = '\0';
                 }

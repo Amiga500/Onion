@@ -11,11 +11,13 @@
  *
  * Uses temp directories and files to simulate the filesystem.
  *
+ * Tests the production header (not a copy). Also built under ASan by
+ * unit-test-san.
+ *
  * Build and run: make -f Makefile.unit test_cache_db
  */
 
 #include "onion_test.h"
-#include <libgen.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -24,78 +26,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* ---- Provide STR_MAX ---- */
-#define STR_MAX 256
-
-/* ---- Stub out log macros ---- */
-#define print_debug(...)
-#define printf_debug(...)
-
-/* ---- Stub is_file ---- */
-static bool is_file(const char *path)
-{
-    return access(path, F_OK) == 0;
-}
-
-/* ---- Stub file_basename (from file.h) ---- */
-static const char *file_basename(const char *filename)
-{
-    const char *p = strrchr(filename, '/');
-    return p ? p + 1 : filename;
-}
-
-/* ---- Constants from cacheDB.h ---- */
-#define CACHE_NOT_FOUND -1
-
-/* ---- Inline cache_get_path_and_version from cacheDB.h ---- */
-
-static int cache_get_path_and_version(char *cache_db_file_path, const char *cache_dir, const char *dir_name)
-{
-    snprintf(cache_db_file_path, PATH_MAX - 1, "%s/%s_cache6.db", cache_dir, dir_name);
-    if (is_file(cache_db_file_path) == 1) {
-        return 6;
-    }
-
-    snprintf(cache_db_file_path, PATH_MAX - 1, "%s/%s_cache2.db", cache_dir, dir_name);
-    if (is_file(cache_db_file_path) == 1) {
-        return 2;
-    }
-
-    printf_debug("No cache found at: '%s'\n", cache_db_file_path);
-    return CACHE_NOT_FOUND;
-}
-
-/* ---- Inline cache_get_path from cacheDB.h ---- */
-
-static int cache_get_path(char *cache_path_out, char *cache_name_out, const char *rom_path)
-{
-    cache_path_out[0] = '\0';
-
-    int cache_version = CACHE_NOT_FOUND;
-    char *rom_path_dup = strdup((char *)rom_path);
-    if (rom_path_dup == NULL)
-        return CACHE_NOT_FOUND;
-    char *cache_dir = dirname(rom_path_dup);
-
-    while (cache_dir[0] != '\0' && strnlen(cache_dir, 17) > 16) {
-        strncpy(cache_name_out, file_basename(cache_dir), STR_MAX - 1);
-        cache_name_out[STR_MAX - 1] = '\0';
-        cache_version = cache_get_path_and_version(cache_path_out, cache_dir, cache_name_out);
-
-        if (cache_version != CACHE_NOT_FOUND) {
-            break;
-        }
-
-        cache_dir = dirname(cache_dir);
-
-        if (strcmp("Roms", file_basename(cache_dir)) == 0) {
-            break;
-        }
-    }
-
-    free(rom_path_dup);
-    return cache_version;
-}
+/* Production code: cacheDB.h needs is_file/file_basename (file.h) and the
+ * log macros (log.h) from its includer. sqlite3 calls link against
+ * stubs/sqlite3_stub.c, which always fails to open a database. */
+#include "utils/file.h"
+#include "utils/log.h"
+#include "../src/playActivity/cacheDB.h"
 
 /* ---- Helpers ---- */
 
@@ -143,7 +79,7 @@ TEST(cache_version_6_found) {
     touch_file("/tmp/test_cache_db/Roms/GBA/GBA_cache6.db");
 
     char path[PATH_MAX];
-    int version = cache_get_path_and_version(path, "/tmp/test_cache_db/Roms/GBA", "GBA");
+    int version = cache_get_path_and_version(path, sizeof(path), "/tmp/test_cache_db/Roms/GBA", "GBA");
     ASSERT_EQ(version, 6);
     ASSERT_STREQ(path, "/tmp/test_cache_db/Roms/GBA/GBA_cache6.db");
 }
@@ -153,7 +89,7 @@ TEST(cache_version_2_found) {
     touch_file("/tmp/test_cache_db/Roms/SNES/SNES_cache2.db");
 
     char path[PATH_MAX];
-    int version = cache_get_path_and_version(path, "/tmp/test_cache_db/Roms/SNES", "SNES");
+    int version = cache_get_path_and_version(path, sizeof(path), "/tmp/test_cache_db/Roms/SNES", "SNES");
     ASSERT_EQ(version, 2);
     ASSERT_STREQ(path, "/tmp/test_cache_db/Roms/SNES/SNES_cache2.db");
 }
@@ -165,7 +101,7 @@ TEST(cache_version_6_preferred_over_2) {
     touch_file("/tmp/test_cache_db/Roms/GBA/GBA_cache2.db");
 
     char path[PATH_MAX];
-    int version = cache_get_path_and_version(path, "/tmp/test_cache_db/Roms/GBA", "GBA");
+    int version = cache_get_path_and_version(path, sizeof(path), "/tmp/test_cache_db/Roms/GBA", "GBA");
     ASSERT_EQ(version, 6);
 }
 
@@ -174,7 +110,7 @@ TEST(cache_version_not_found) {
     /* No cache files at all */
 
     char path[PATH_MAX];
-    int version = cache_get_path_and_version(path, "/tmp/test_cache_db/Roms/GBA", "GBA");
+    int version = cache_get_path_and_version(path, sizeof(path), "/tmp/test_cache_db/Roms/GBA", "GBA");
     ASSERT_EQ(version, CACHE_NOT_FOUND);
 }
 
@@ -184,7 +120,7 @@ TEST(cache_version_wrong_name) {
     touch_file("/tmp/test_cache_db/Roms/GBA/SNES_cache6.db");
 
     char path[PATH_MAX];
-    int version = cache_get_path_and_version(path, "/tmp/test_cache_db/Roms/GBA", "GBA");
+    int version = cache_get_path_and_version(path, sizeof(path), "/tmp/test_cache_db/Roms/GBA", "GBA");
     ASSERT_EQ(version, CACHE_NOT_FOUND);
 }
 
@@ -192,7 +128,7 @@ TEST(cache_version_nonexistent_dir) {
     setup();
 
     char path[PATH_MAX];
-    int version = cache_get_path_and_version(path, "/tmp/test_cache_db/Roms/NONEXISTENT", "NONEXISTENT");
+    int version = cache_get_path_and_version(path, sizeof(path), "/tmp/test_cache_db/Roms/NONEXISTENT", "NONEXISTENT");
     ASSERT_EQ(version, CACHE_NOT_FOUND);
 }
 
@@ -204,7 +140,7 @@ TEST(cache_get_path_finds_in_rom_dir) {
 
     char cache_path[PATH_MAX];
     char cache_name[STR_MAX];
-    int version = cache_get_path(cache_path, cache_name, "/tmp/test_cache_db/Roms/GBA/game.gba");
+    int version = cache_get_path(cache_path, sizeof(cache_path), cache_name, "/tmp/test_cache_db/Roms/GBA/game.gba");
     ASSERT_EQ(version, 6);
     ASSERT_STREQ(cache_name, "GBA");
 }
@@ -216,7 +152,7 @@ TEST(cache_get_path_finds_in_parent_dir) {
 
     char cache_path[PATH_MAX];
     char cache_name[STR_MAX];
-    int version = cache_get_path(cache_path, cache_name, "/tmp/test_cache_db/Roms/PS/subfolder/game.bin");
+    int version = cache_get_path(cache_path, sizeof(cache_path), cache_name, "/tmp/test_cache_db/Roms/PS/subfolder/game.bin");
     ASSERT_EQ(version, 2);
     ASSERT_STREQ(cache_name, "PS");
 }
@@ -227,8 +163,69 @@ TEST(cache_get_path_not_found) {
 
     char cache_path[PATH_MAX];
     char cache_name[STR_MAX];
-    int version = cache_get_path(cache_path, cache_name, "/tmp/test_cache_db/Roms/GBA/game.gba");
+    int version = cache_get_path(cache_path, sizeof(cache_path), cache_name, "/tmp/test_cache_db/Roms/GBA/game.gba");
     ASSERT_EQ(version, CACHE_NOT_FOUND);
+}
+
+/* ==== Buffer bounds (F2: stack overflow with long folder names) ==== */
+
+/* 150-character folder: "<dir>/<name>_cache6.db" is ~330 bytes. */
+static void long_name(char *out, size_t size)
+{
+    size_t n = size - 1 < 150 ? size - 1 : 150;
+    memset(out, 'A', n);
+    out[n] = '\0';
+}
+
+TEST(cache_version_small_buffer_is_not_overrun) {
+    setup();
+    char name[151], dir[512];
+    long_name(name, sizeof(name));
+    snprintf(dir, sizeof(dir), "/tmp/test_cache_db/Roms/%s", name);
+
+    char path[64]; /* far too small: must truncate, not overflow */
+    int version = cache_get_path_and_version(path, sizeof(path), dir, name);
+    ASSERT_EQ(version, CACHE_NOT_FOUND);
+    ASSERT_EQ(path[0], '\0');
+}
+
+TEST(cache_version_truncated_path_is_never_probed) {
+    setup();
+    /* A file whose name equals the truncated prefix must not be matched. */
+    char path[32];
+    int version = cache_get_path_and_version(path, sizeof(path), "/tmp/test_cache_db/Roms/GBA", "GBA");
+    ASSERT_EQ(version, CACHE_NOT_FOUND);
+}
+
+TEST(cache_version_long_folder_found_with_path_max) {
+    setup();
+    char name[151], dir[512], file[1024];
+    long_name(name, sizeof(name));
+    snprintf(dir, sizeof(dir), "/tmp/test_cache_db/Roms/%s", name);
+    mkdir_p(dir);
+    snprintf(file, sizeof(file), "%s/%s_cache6.db", dir, name);
+    touch_file(file);
+
+    char path[PATH_MAX];
+    ASSERT_EQ(cache_get_path_and_version(path, sizeof(path), dir, name), 6);
+    ASSERT_STREQ(path, file);
+}
+
+/* The original crash: cache_db_find() on a ROM under a long folder with a
+ * cache DB present wrote ~330 bytes into a 256-byte stack buffer. */
+TEST(cache_db_find_long_folder_does_not_overflow) {
+    setup();
+    char name[151], dir[512], file[1024], rom[1024];
+    long_name(name, sizeof(name));
+    snprintf(dir, sizeof(dir), "/tmp/test_cache_db/Roms/%s", name);
+    mkdir_p(dir);
+    snprintf(file, sizeof(file), "%s/%s_cache6.db", dir, name);
+    touch_file(file);
+    snprintf(rom, sizeof(rom), "%s/game.gba", dir);
+
+    /* sqlite stub cannot open the DB, so no item: only the path matters. */
+    CacheDBItem *item = cache_db_find(rom);
+    ASSERT_NULL(item);
 }
 
 /* ---- main ---- */
@@ -249,6 +246,12 @@ int main(void)
     RUN_TEST(cache_get_path_finds_in_rom_dir);
     RUN_TEST(cache_get_path_finds_in_parent_dir);
     RUN_TEST(cache_get_path_not_found);
+
+    /* buffer bounds */
+    RUN_TEST(cache_version_small_buffer_is_not_overrun);
+    RUN_TEST(cache_version_truncated_path_is_never_probed);
+    RUN_TEST(cache_version_long_folder_found_with_path_max);
+    RUN_TEST(cache_db_find_long_folder_does_not_overflow);
 
     /* Cleanup */
     system("rm -rf /tmp/test_cache_db");

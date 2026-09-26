@@ -38,8 +38,9 @@ void _migrate_loadCacheDBs(void)
                 char romFolder[PATH_MAX];
                 snprintf(romFolder, sizeof(romFolder), ROMS_FOLDER "/%s", entry->d_name);
 
-                char cache_db_file_path[STR_MAX];
-                int cache_version = cache_get_path_and_version(cache_db_file_path, romFolder, entry->d_name);
+                char cache_db_file_path[PATH_MAX];
+                int cache_version = cache_get_path_and_version(cache_db_file_path, sizeof(cache_db_file_path),
+                                                               romFolder, entry->d_name);
 
                 if (cache_version != -1) {
                     printf("Cache found : %s\n", cache_db_file_path);
