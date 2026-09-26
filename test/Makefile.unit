@@ -16,7 +16,7 @@
 #   make unit-test
 
 CC      ?= gcc
-CFLAGS  := -Wall -Wextra -std=c99 -g -I../include -I../src/common \
+CFLAGS  := -Wall -Wextra -Werror=implicit-function-declaration -std=c99 -g -I../include -I../src/common \
            -DPLATFORM_LINUX -DONION_VERSION="\"test\"" -D_GNU_SOURCE
 LDFLAGS :=
 
