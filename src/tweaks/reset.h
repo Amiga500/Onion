@@ -50,6 +50,9 @@ bool _confirmReset(const char *title_str, const char *message_str)
         SDL_Flip(video);
     }
     else {
+        // Cancelled: _notifyResetDone() (which frees it) will not run.
+        SDL_FreeSurface(background_cache);
+        background_cache = NULL;
         keys_enabled = true;
         all_changed = true;
     }
@@ -66,6 +69,7 @@ void _notifyResetDone(const char *title_str)
     msleep(300);
 
     SDL_FreeSurface(background_cache);
+    background_cache = NULL;
     keys_enabled = true;
     all_changed = true;
 
