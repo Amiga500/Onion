@@ -287,7 +287,15 @@ char *getMiyooRecentFilePath()
 //
 //    [onion] get recent rom path from a recent-list file
 //
-char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
+//    top_only = false: first game entry whose ROM exists (skips apps and
+//      missing ROMs). Used to name screenshots.
+//    top_only = true: the most recent entry only, NULL if it is not a game
+//      or its ROM is missing (upstream behavior). Used for the romscreen,
+//      which must belong to the game that is running: falling through to an
+//      older entry overwrote that game's GameSwitcher image with the screen
+//      of whatever was running (e.g. the RetroArch app).
+//
+static char *_history_getRecentPath(const char *recent_path, char *rom_path, bool top_only)
 {
     FILE *file;
     char line[STR_MAX * 3];
@@ -316,18 +324,24 @@ char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
 
         if ((type != 5) && (type != 17)) {
             free(jsonContent);
+            if (top_only)
+                break;
             continue;
         }
 
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
         if (rompathStart == NULL) {
             free(jsonContent);
+            if (top_only)
+                break;
             continue;
         }
         rompathStart += 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
         if (rompathEnd == NULL) {
             free(jsonContent);
+            if (top_only)
+                break;
             continue;
         }
 
@@ -348,6 +362,8 @@ char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
         printf_debug("romPathSearch : %s\n", romPathSearch);
 
         if (!exists(romPathSearch)) {
+            if (top_only)
+                break;
             continue;
         }
 
@@ -362,9 +378,24 @@ char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
     return NULL;
 }
 
+char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
+{
+    return _history_getRecentPath(recent_path, rom_path, false);
+}
+
+char *history_getTopRecentPathFromPath(const char *recent_path, char *rom_path)
+{
+    return _history_getRecentPath(recent_path, rom_path, true);
+}
+
 char *history_getRecentPath(char *rom_path)
 {
     return history_getRecentPathFromPath(getMiyooRecentFilePath(), rom_path);
+}
+
+char *history_getTopRecentPath(char *rom_path)
+{
+    return history_getTopRecentPathFromPath(getMiyooRecentFilePath(), rom_path);
 }
 
 bool history_getRomscreenPath(char *path_out)
@@ -373,7 +404,8 @@ bool history_getRomscreenPath(char *path_out)
     char file_path[STR_MAX] = "";
 
     filename[0] = '\0';
-    if (history_getRecentPath(file_path) != NULL) {
+    // Only the most recent entry: see _history_getRecentPath().
+    if (history_getTopRecentPath(file_path) != NULL) {
         snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
     }
     print_debug(file_path);
