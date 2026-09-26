@@ -1600,9 +1600,19 @@ set_startup_tab() {
 start_audioserver() {
     # Already running (the usual case on every game launch): skip computing
     # the start volume, which cost jsonval + awk + a subshell each time.
-    if pgrep audioserver > /dev/null; then
+    # Check the pid found last time through /proc first (no fork, like
+    # ensure_keymon); pgrep, a full /proc scan, only when it is gone. This
+    # runs before every MainUI, game and GameSwitcher start.
+    if [ -n "$audioserver_pid" ] && [ -r "/proc/$audioserver_pid/comm" ]; then
+        read -r _as_comm < "/proc/$audioserver_pid/comm"
+        case "$_as_comm" in *audioserver*) return ;; esac
+    fi
+    set -- $(pgrep audioserver)
+    if [ -n "$1" ]; then
+        audioserver_pid=$1
         return
     fi
+    audioserver_pid=""
     defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%.0f\n", 48 * (log(1 + $1) / log(10)) - 60 }')
     runifnecessary "audioserver" $miyoodir/app/audioserver $defvol
 }

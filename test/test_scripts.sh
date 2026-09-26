@@ -260,6 +260,36 @@ check "cmd unchanged" test "$(cat "$sysdir/cmd_to_run.sh")" = 'run "core" "rom"'
 check "launch.sh unchanged" test "$(cat "$TMP/launch.sh")" = './retroarch "$1"'
 end
 
+# ---- runtime.sh: start_audioserver (cached pid) ----
+
+eval "$(extract_fn "$RUNTIME" start_audioserver)"
+
+begin audioserver_cached_pid_skips_pgrep
+for _sl in /bin/sleep /usr/bin/sleep; do [ -x "$_sl" ] && break; done
+cp "$_sl" "$TMP/audioserver"
+"$TMP/audioserver" 30 &
+as_pid=$!
+started=0
+runifnecessary() { started=$((started + 1)); }
+audioserver_pid=""
+real_pgrep=$(command -v pgrep)
+# runs in a $(...) subshell: count in a file
+pgrep() { echo >> "$TMP/pgrep_calls"; "$real_pgrep" -x audioserver; }
+pgrep_calls() { wc -l < "$TMP/pgrep_calls"; }
+start_audioserver
+check "found by pgrep the first time" test "$audioserver_pid" = "$as_pid"
+start_audioserver
+start_audioserver
+check "later calls use /proc, not pgrep" test "$(pgrep_calls)" -eq 1
+check "never started a second server" test $started -eq 0
+kill $as_pid 2> /dev/null
+wait $as_pid 2> /dev/null
+start_audioserver 2> /dev/null # starting path: no jsonval on the host
+check "gone: pgrep again, then started" test "$(pgrep_calls)" -eq 2
+check "started once" test $started -eq 1
+unset -f pgrep pgrep_calls runifnecessary
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283
