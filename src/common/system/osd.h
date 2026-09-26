@@ -368,12 +368,14 @@ void osd_showBar(int value, int value_max, uint32_t color)
     _bar_color = color;
     osd_bar_activated = true;
 
-    // Read meterWidth on every activation: a cached value would go stale on
-    // theme change (no invalidation path), and this runs once per keypress.
-    config_get("display/meterWidth", CONFIG_INT, &meterWidth);
-
     if (osd_thread_active)
         return;
+
+    // Read meterWidth when the bar appears, not on every step: a cached
+    // value would go stale on theme change, but it must not change while
+    // the bar is on screen either, since the saved strip behind the bar
+    // (_bar_savebuf) is meterWidth pixels wide and is restored with it.
+    config_get("display/meterWidth", CONFIG_INT, &meterWidth);
 
     _bar_saveBufferBehind();
     pthread_create(&osd_pt, NULL, _osd_thread, _print_bar);
