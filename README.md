@@ -73,23 +73,30 @@ Every number below is either **counted from the source code of both projects** o
 **measured** (on a Miyoo Mini+ or on a host machine), and says so. Nothing here is an estimate dressed up as a
 benchmark.
 
-| | ⚪ OnionUI/Onion | 🟢 **OnionPlus** | |
-|:--|--:|--:|:--|
-| 🧪 Automated tests | **1** | **1,423** (71,436 assertions) | 🚀 ×1,400 |
-| 🐛 Known upstream defects fixed | — | **24** | ✅ |
-| 🖼️ NEON (SIMD) pixel kernels | **0** | **8** | 🆕 |
-| 💾 Files written to the SD card per volume step | **~14** (13 `fsync`) | **1** | 🚀 **−93 %** |
-| 🧠 Memory leaked per MainUI-cache lookup (5,000-game cache) | **~570 KB + 1 file descriptor** | **0** | 📏 |
-| 🎮 Menu CPU while idle (GameSwitcher, Tweaks, Play Activity…) | **one core at 100 %** (busy loop) | **sleeps between frames** | 🚀 |
-| 🌙 Scheduled blue-light filter, every 15 s | **~20 processes + 2 global syncs** | **0** | 🚀 |
-| 🚀 Helper processes to parse a game launch | **~25** | **~2** | 🚀 **−90 %** |
-| 🔁 Global SD-card flushes per return to the menu | **2** | **1** | ⬇️ **−50 %** |
-| 📊 Opening Play Activity (60,000 sessions) | **66 ms** | **34 ms** | 📏 ⬇️ **−48 %** |
-| 🐚 `system()` calls in the C code | **73** | **46** | ⬇️ **−37 %** |
-| ⚠️ Unbounded string calls (`sprintf`/`strcpy`/`strcat`/`strtok`) | **347** | **235** | ⬇️ **−32 %** |
-| 🔌 Onion boot to the menu (Mini+) | Wi-Fi bring-up (fixed 2 s wait), swap and audio-server waits in the boot path | **1.74 s** (5.51 s at the first measurement) | 📱 🚀 **×3.2** |
-| ⏱️ Onion's own work around one game (launch + exit + back to menu) | not instrumented | **~0.5 s** | 📱 |
-| ⚡ Onion's own settings files that survive a power cut mid-write | **none** | **all** (`system.json`, key map, config values, JSON, recents) | ✅ |
+### 🚀 Speed
+
+| | ⚪ OnionUI | 🟢 OnionPlus | 💬 What it means |
+|:--|:-:|:-:|:--|
+| 🔌 Onion boot to the menu (Mini+) | 3 blocking waits | **1.74 s** | 📱 **3.2× faster** than the first measured build (5.51 s); Wi-Fi now comes up after the menu |
+| ⏱️ Onion's own work around a game | — | **~0.5 s** | 📱 launch 0.16 s · exit 0.1 s · back to the menu 0.1 s |
+| 🎮 Menu CPU while idle | 100% of a core | **sleeps** | 🔋 GameSwitcher, Tweaks, Play Activity & co. stop heating the device |
+| 🌙 Blue-light schedule, every 15 s | ~20 processes | **0** | ⌨️ checked in-process: no more key freezes of up to 4 s |
+| 🧩 Processes to parse a game launch | ~25 | **~2** | 🚀 **−90%** between pressing A and the emulator starting |
+| 💾 SD-card writes per volume step | ~14 | **1** | 🚀 **−93%**: 12 fewer flushes to the card on every press |
+| 🔁 SD-card flushes per return to the menu | 2 | **1** | ⬇️ **−50%** after every game |
+| 📊 Opening Play Activity (60,000 sessions) | 66 ms | **34 ms** | 📏 **2× faster**, identical results |
+
+### 🛡️ Reliability & quality
+
+| | ⚪ OnionUI | 🟢 OnionPlus | 💬 What it means |
+|:--|:-:|:-:|:--|
+| 🐛 Upstream defects fixed | — | **24** | ✅ crashes, leaks, lost settings, a wrong clock: [listed in §6](#️-6--security--memory-hardening) |
+| ⚡ Settings that survive a power cut mid-write | none | **all** | ✅ `system.json`, key map, config values, JSON, recent games |
+| 🧠 Memory leaked per MainUI-cache lookup | ~570 KB | **0** | 📏 was tens of MB with a large GameSwitcher history, on a 128 MB device |
+| 🧪 Automated tests | 1 | **1,423** | 🚀 **×1,400**: 71,436 assertions, run on any PC in ~2.5 s |
+| 🖼️ NEON (SIMD) pixel kernels | 0 | **8** | 🆕 vectorized pixel conversion, rotation and alpha |
+| 🐚 `system()` calls in the C code | 73 | **46** | ⬇️ **−37%** shells spawned |
+| ⚠️ Unbounded string calls | 347 | **235** | ⬇️ **−32%**; none left in the hardened core |
 
 > 📱 measured on a Miyoo Mini+ · 📏 measured on a host machine · everything else counted
 > from the code of both projects (see [how these numbers were obtained](#-how-these-numbers-were-obtained)).
