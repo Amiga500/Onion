@@ -958,7 +958,11 @@ int main(void)
                 repeat_power = 0;
                 break;
             case HW_BTN_SELECT:
-                if (!comboKey_select && val == RELEASED) {
+                // MainUI only runs while cmd_to_run.sh is absent: with it
+                // present (a game or an app is running) SELECT cannot be
+                // meant for MainUI, so skip the /proc scan (games use
+                // SELECT a lot).
+                if (!comboKey_select && val == RELEASED && !exists(CMD_TO_RUN_PATH)) {
                     // The cached state is only refreshed on /tmp/state_changed,
                     // a MENU press or deepsleep(), so it can still be
                     // MODE_UNKNOWN after boot or stale after returning from a
