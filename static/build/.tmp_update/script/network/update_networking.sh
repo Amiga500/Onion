@@ -847,9 +847,15 @@ enable_flag() {
     touch "$sysdir/config/.$flag"
 }
 
+# Turn a service flag off the way Tweaks does: .<flag> becomes .<flag>_
+# (the "explicitly off" marker). "$flag_" used to expand the unset variable
+# flag_, so the move failed and the flag was never cleared: services came
+# back after every game / Wi-Fi change.
 disable_flag() {
     flag="$1"
-    mv "$sysdir/config/.$flag" "$sysdir/config/.$flag_"
+    if [ -f "$sysdir/config/.$flag" ]; then
+        mv -f "$sysdir/config/.$flag" "$sysdir/config/.${flag}_"
+    fi
 }
 
 is_running() {
