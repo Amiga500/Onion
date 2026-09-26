@@ -730,8 +730,14 @@ init_json() {
 
 # unhook libpadsp.so on the wifi servs
 libpadspblocker() {
-    wpa_pid=$(ps -e | grep "[w]pa_supplicant" | awk 'NR==1{print $1}')
-    udhcpc_pid=$(ps -e | grep "[u]dhcpc" | awk 'NR==1{print $1}')
+    # First pid of each daemon by exact process name: two pgreps instead
+    # of two ps|grep|awk pipelines (six processes), on every check. The
+    # pipelines also matched any command line containing the name, such as
+    # udhcpc.script run by a lease event.
+    set -- $(pgrep -x wpa_supplicant)
+    wpa_pid=$1
+    set -- $(pgrep -x udhcpc)
+    udhcpc_pid=$1
     if [ -n "$wpa_pid" ] && [ -n "$udhcpc_pid" ]; then
         if grep -q "libpadsp.so" /proc/$wpa_pid/maps || grep -q "libpadsp.so" /proc/$udhcpc_pid/maps; then
             echo "Network Checker: $wpa_pid(WPA) and $udhcpc_pid(UDHCPC) found preloaded with libpadsp.so"

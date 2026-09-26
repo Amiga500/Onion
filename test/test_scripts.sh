@@ -341,6 +341,32 @@ unset -f sync syncs
 unset TZ
 end
 
+# ---- update_networking.sh: libpadspblocker pid lookup ----
+
+eval "$(extract_fn "$NETWORK" libpadspblocker)"
+
+begin libpadspblocker_pid_lookup
+pgrep() { # pgrep -x NAME
+    case "$2" in
+        wpa_supplicant) printf '812\n905\n' ;;
+        udhcpc) echo 830 ;;
+    esac
+}
+grep() { echo "$*" >> "$TMP/greps"; return 1; } # maps checked, no preload
+killall() { echo "$*" >> "$TMP/killed"; }
+libpadspblocker
+check "first wpa_supplicant pid" test "$wpa_pid" = 812
+check "udhcpc pid" test "$udhcpc_pid" = 830
+check "maps of both checked" test "$(cat "$TMP/greps")" = "-q libpadsp.so /proc/812/maps
+-q libpadsp.so /proc/830/maps"
+check "nothing killed without the preload" test ! -e "$TMP/killed"
+pgrep() { :; }
+wpa_pid=x
+libpadspblocker
+check "no daemon: empty pid, nothing done" test -z "$wpa_pid"
+unset -f pgrep grep killall
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283
