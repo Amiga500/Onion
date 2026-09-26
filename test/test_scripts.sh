@@ -314,6 +314,33 @@ check "missing file is empty" test -z "$got"
 check "update_networking.sh has the same helper" test "$(extract_fn "$NETWORK" read_file_to)" = "$(extract_fn "$RUNTIME" read_file_to)"
 end
 
+# ---- update_networking.sh: store_tz ----
+
+eval "$(extract_fn "$NETWORK" store_tz)"
+eval "$(extract_fn "$NETWORK" set_tzid)"
+
+begin store_tz_writes_only_changes
+sysdir=$TMP
+mkdir -p "$sysdir/config"
+sync() { echo >> "$TMP/syncs"; }
+syncs() { [ -f "$TMP/syncs" ] && wc -l < "$TMP/syncs" || echo 0; }
+store_tz "UTC-02:00"
+check ".tz written" test "$(cat "$sysdir/config/.tz")" = "UTC-02:00"
+check ".tz_sync written" test "$(cat "$sysdir/config/.tz_sync")" = "UTC-02:00"
+check "TZ applied" test "$TZ" = "UTC-02:00"
+check "one sync" test "$(syncs)" -eq 1
+store_tz "UTC-02:00"
+check "same zone: no write, no sync" test "$(syncs)" -eq 1
+rm "$sysdir/config/.tz_sync"
+store_tz "UTC-02:00"
+check "missing .tz_sync: written again" test "$(syncs)" -eq 2
+store_tz "UTC+05:30"
+check "new zone: written" test "$(cat "$sysdir/config/.tz")" = "UTC+05:30"
+check "new zone: synced" test "$(syncs)" -eq 3
+unset -f sync syncs
+unset TZ
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283

@@ -679,10 +679,7 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
         playActivity stop_all
 
         if [ -n "$utc_offset" ]; then
-            echo "$utc_offset" | sed 's/\+/_/' | sed 's/-/+/' | sed 's/_/-/' > $sysdir/config/.tz
-            cp $sysdir/config/.tz $sysdir/config/.tz_sync
-            sync
-            set_tzid
+            store_tz "$(echo "$utc_offset" | sed 's/\+/_/;s/-/+/;s/_/-/')"
         fi
 
         if date -u -s "$utc_datetime" > /dev/null 2>&1; then
@@ -812,6 +809,23 @@ convert_seconds_to_utc_offset() {
 
 abs() {
     [[ $(($@)) -lt 0 ]] && echo "$((($@) * -1))" || echo "$(($@))"
+}
+
+# Save the time zone found by the time sync (TZ format, sign inverted) to
+# config/.tz and config/.tz_sync, and apply it. Every API time sync (each
+# boot, each time Wi-Fi comes on) rewrote both files on the SD card and ran
+# a global sync, although the zone rarely changes: skip that when both
+# files already hold it.
+store_tz() {
+    read_file_to _st_old "$sysdir/config/.tz"
+    read_file_to _st_sync "$sysdir/config/.tz_sync"
+    if [ "$_st_old" = "$1" ] && [ "$_st_sync" = "$1" ] && [ -f "$sysdir/config/.tz_sync" ]; then
+        return 0
+    fi
+    echo "$1" > $sysdir/config/.tz
+    cp $sysdir/config/.tz $sysdir/config/.tz_sync
+    sync
+    set_tzid
 }
 
 set_tzid() {
