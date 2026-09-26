@@ -79,9 +79,9 @@ check ".httpState removed" test ! -e "$sysdir/config/.httpState"
 check ".httpState_ kept" test -e "$sysdir/config/.httpState_"
 end
 
-# ---- update_networking.sh: boot_start_services ----
+# ---- update_networking.sh: start_services_outside_game ----
 
-eval "$(extract_fn "$NETWORK" boot_start_services)"
+eval "$(extract_fn "$NETWORK" start_services_outside_game)"
 
 stub_services() { # records which checkers ran; killall records its args
     log() { :; }
@@ -94,7 +94,7 @@ stub_services() { # records which checkers ran; killall records its args
 begin boot_services_start_without_game
 stub_services
 services_paused_flag="$TMP/paused"
-boot_start_services
+start_services_outside_game
 check "all five checkers ran" test "$(wc -l < "$TMP/started")" -eq 5
 check "nothing killed" test ! -e "$TMP/killed"
 end
@@ -103,7 +103,7 @@ begin boot_services_skipped_while_game_runs
 stub_services
 services_paused_flag="$TMP/paused"
 : > "$services_paused_flag"
-boot_start_services
+start_services_outside_game
 check "no checker ran" test ! -e "$TMP/started"
 end
 
@@ -111,7 +111,7 @@ begin boot_services_stopped_when_game_starts_meanwhile
 stub_services
 services_paused_flag="$TMP/paused"
 check_smbdstate() { : > "$services_paused_flag"; } # the game launches here
-boot_start_services
+start_services_outside_game
 check "services killed after the game started" grep -q dropbear "$TMP/killed"
 end
 
@@ -121,6 +121,7 @@ flag_path=${flag_line#services_paused_flag=}
 check "update_networking.sh defines the flag" test -n "$flag_path"
 check "launch_game creates it" grep -q ": > $flag_path" "$RUNTIME"
 check "launch_game_postprocess removes it" grep -q "rm -f $flag_path" "$RUNTIME"
+check "services only start through the guard" test "$(grep -c '^ *check_sshstate &' "$NETWORK")" -eq 1
 end
 
 # ---- update_networking.sh: service toggles without Wi-Fi ----

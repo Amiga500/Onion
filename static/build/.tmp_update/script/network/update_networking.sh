@@ -115,11 +115,7 @@ check() {
     fi
 
     check_wifi
-    check_ftpstate &
-    check_sshstate &
-    check_telnetstate &
-    check_httpstate &
-    check_smbdstate &
+    start_services_outside_game &
 
     if [ "$is_booting" -eq 1 ]; then
         if [ "$has_wifi" -eq 0 ]; then
@@ -178,13 +174,14 @@ disable_all_services() {
 # game exits.
 services_paused_flag=/tmp/services_paused_in_game
 
-# Boot-time service start, run in the background after the Wi-Fi bring-up.
-# The boot no longer waits for it, so a game resumed at boot is usually
-# running (its launch already killed the services) by the time this starts
-# them. Skip them while that game runs: launch_game_postprocess marks the
-# network as changed and they start once it exits. The second check closes
-# the window where the game starts while the services are being started.
-boot_start_services() {
+# Service start, run in the background. Nothing waits for it, so a game
+# may be launched (and its launch may already have killed the services)
+# while it runs: at boot (a game resumed at boot), and after a Wi-Fi or
+# service change followed straight away by a game. Skip them while that
+# game runs: launch_game_postprocess marks the network as changed and they
+# start once it exits. The second check closes the window where the game
+# starts while the services are being started.
+start_services_outside_game() {
     if [ -f "$services_paused_flag" ]; then
         log "Network Checker: services start after the running game"
         return
@@ -212,7 +209,7 @@ check_boot_background() {
     NTP_MAX_WAIT_IP=30
 
     check_wifi
-    boot_start_services &
+    start_services_outside_game &
 
     if wifi_enabled; then
         check_ntpstate &
@@ -230,7 +227,7 @@ check_boot_temporary_wifi() {
     NTP_MAX_WAIT_IP=30
 
     check_wifi
-    boot_start_services &
+    start_services_outside_game &
 
     wifi_on
     check_ntpstate
