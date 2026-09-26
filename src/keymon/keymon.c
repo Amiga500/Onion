@@ -1186,7 +1186,10 @@ int main(void)
 
             // start screen recording after holding for >2secs
             if (menuAndAPressed && (getMilliseconds() - menuAndAPressedTime >= 2000)) {
-                if (settings.rec_hotkey) {
+                // Read the flag itself, as Onion does: Tweaks writes it at
+                // once, while settings.rec_hotkey is only reloaded when
+                // Tweaks exits. One stat() on a 2 s key hold.
+                if (config_flag_get(".recHotkey")) {
                     run_script_detached(SCREEN_RECORDER_SCRIPT, "toggle");
                 }
 
