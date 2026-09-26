@@ -28,6 +28,7 @@
 #include "utils/surfaceSetAlpha.h"
 
 #include "gs_appState.h"
+#include "gs_frame.h"
 #include "gs_history.h"
 #include "gs_keystate.h"
 #include "gs_overlay.h"
@@ -115,7 +116,10 @@ int main(int argc, char *argv[])
         if (appState.acc_ticks >= appState.time_step) {
             appState.acc_ticks -= appState.time_step;
 
-            if (!appState.changed && !appState.brightness_changed && (appState.surfaceGameName == NULL || appState.surfaceGameName->w <= appState.game_name_max_width))
+            bool name_shown = appState.view_mode != VIEW_FULLSCREEN && game_list_len > 0 && !appState.pop_menu_open;
+            bool name_scrolls = appState.surfaceGameName != NULL && appState.surfaceGameName->w > appState.game_name_max_width;
+            GsFrame_e frame = gs_frameKind(appState.changed, name_shown, name_scrolls);
+            if (frame == GS_FRAME_SKIP)
                 continue;
 
             Game_s *game = &game_list[appState.current_game];
@@ -140,11 +144,13 @@ int main(int argc, char *argv[])
                 }
             }
 
-            if (appState.view_mode != VIEW_FULLSCREEN && game_list_len > 0 && !appState.pop_menu_open) {
+            if (name_shown) {
                 renderGameName(&appState);
             }
 
-            if (!appState.changed && !appState.brightness_changed) {
+            if (frame == GS_FRAME_NAME_ONLY) {
+                // The vertical brightness slider can overlap the name bar.
+                renderBrightness(&appState);
                 render();
                 continue;
             }
