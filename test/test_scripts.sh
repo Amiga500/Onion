@@ -228,6 +228,38 @@ check "no quotes" same_as_pipeline 'run b' "$R"
 check "path with \$ and spaces" same_as_pipeline 'run "x" "/mnt/SDCARD/Roms/A/\$weird name.zip"' '/mnt/SDCARD/Roms/A/$weird name.zip'
 end
 
+# ---- runtime.sh: cleanup_appendconfig ----
+
+eval "$(extract_fn "$RUNTIME" cleanup_appendconfig)"
+
+appendconfig_env() {
+    sysdir=$TMP
+    log() { :; }
+    printf '%s\n' "$1" > "$sysdir/cmd_to_run.sh"
+    printf '%s\n' "$2" > "$TMP/launch.sh"
+}
+
+begin cleanup_appendconfig_reset
+appendconfig_env 'run "core" --appendconfig "/tmp/reset.cfg" "rom"' './retroarch -L core --appendconfig "/tmp/reset.cfg" "$1"'
+cleanup_appendconfig "$TMP/launch.sh"
+check "cmd cleaned" test "$(cat "$sysdir/cmd_to_run.sh")" = 'run "core" "rom"'
+check "launch.sh cleaned" test "$(cat "$TMP/launch.sh")" = './retroarch -L core "$1"'
+end
+
+begin cleanup_appendconfig_auto_load
+appendconfig_env 'run "core" --appendconfig "/tmp/auto_load_state.cfg" "rom"' 'x --appendconfig "/tmp/auto_load_state.cfg" y'
+cleanup_appendconfig "$TMP/launch.sh"
+check "cmd cleaned" test "$(cat "$sysdir/cmd_to_run.sh")" = 'run "core" "rom"'
+check "launch.sh cleaned" test "$(cat "$TMP/launch.sh")" = 'x y'
+end
+
+begin cleanup_appendconfig_nothing_to_do
+appendconfig_env 'run "core" "rom"' './retroarch "$1"'
+cleanup_appendconfig "$TMP/launch.sh"
+check "cmd unchanged" test "$(cat "$sysdir/cmd_to_run.sh")" = 'run "core" "rom"'
+check "launch.sh unchanged" test "$(cat "$TMP/launch.sh")" = './retroarch "$1"'
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283

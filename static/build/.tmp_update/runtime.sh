@@ -815,16 +815,22 @@ cleanup_appendconfig() {
         # Cleanup `cmd_to_run.sh` by removing any existing appendconfig
         if [ -f "$sysdir/cmd_to_run.sh" ]; then
             cmd=$(cat $sysdir/cmd_to_run.sh)
-            if echo "$cmd" | grep -q "/tmp/reset.cfg"; then
-                echo "$cmd" | sed 's/ --appendconfig \"\/tmp\/reset.cfg\"//g' > $sysdir/cmd_to_run.sh
-            elif echo "$cmd" | grep -q "/tmp/auto_load_state.cfg"; then
-                echo "$cmd" | sed 's/ --appendconfig \"\/tmp\/auto_load_state.cfg\"//g' > $sysdir/cmd_to_run.sh
-            fi
+            # Pattern match instead of two echo|grep pipelines on every game
+            # exit (`?` stands for grep's `.`).
+            case "$cmd" in
+                */tmp/reset?cfg*)
+                    echo "$cmd" | sed 's/ --appendconfig \"\/tmp\/reset.cfg\"//g' > $sysdir/cmd_to_run.sh
+                    ;;
+                */tmp/auto_load_state?cfg*)
+                    echo "$cmd" | sed 's/ --appendconfig \"\/tmp\/auto_load_state.cfg\"//g' > $sysdir/cmd_to_run.sh
+                    ;;
+            esac
         fi
     fi
 
     # Clean up launch_path: Remove explicit appendconfig paths
-    if [ -w "$launch_path" ]; then
+    # One grep for the usual case, neither file mentioned (was two).
+    if [ -w "$launch_path" ] && grep -qE '/tmp/(reset|auto_load_state).cfg' "$launch_path"; then
         if grep -q '/tmp/reset.cfg' "$launch_path"; then
             sed -i 's| --appendconfig "/tmp/reset.cfg"||g' "$launch_path"
             log "Removed /tmp/reset.cfg from $launch_path"
