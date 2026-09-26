@@ -47,20 +47,27 @@ perf_end() {
     echo "$1 $((_perf_d / 100)).$_perf_r s $2" >> $sysdir/logs/timing.log
 }
 
-main() {
-    # Set model ID based on hardware detection.
-    # AXP probe first: the Flip and the Plus share the AXP PMU, so the hall
-    # sensor is the only reliable way to tell the Flip apart. Never use
-    # /dev/input/event* numbering — it depends on enumeration order.
-    if axp 0 > /dev/null 2>&1; then
-        if [ -e /sys/devices/soc0/soc/soc:hall-mh248/hallvalue ]; then
-            export DEVICE_ID=$MODEL_MMF
-        else
-            export DEVICE_ID=$MODEL_MMP
-        fi
+# Device model, same order as the installer (install.sh check_device_model)
+# and OnionUI v4.5-dev: the Hall sensor identifies the Mini Flip on its own,
+# then the AXP PMU tells the Mini+ from the Mini. Checking the Hall sensor
+# only after a successful AXP probe made a Flip whose probe failed boot as a
+# Mini (wrong MainUI, no lid handling) while the installer said Flip.
+# Never use /dev/input/event* numbering: it depends on enumeration order.
+hall_sensor=/sys/devices/soc0/soc/soc:hall-mh248/hallvalue
+
+detect_device_model() {
+    if [ -e "$hall_sensor" ]; then
+        echo $MODEL_MMF
+    elif axp 0 > /dev/null 2>&1; then
+        echo $MODEL_MMP
     else
-        export DEVICE_ID=$MODEL_MM
+        echo $MODEL_MM
     fi
+}
+
+main() {
+    DEVICE_ID=$(detect_device_model)
+    export DEVICE_ID
     echo -n "$DEVICE_ID" > /tmp/deviceModel
 
     # HW capability flags

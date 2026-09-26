@@ -412,7 +412,7 @@ test_scripts: $(BUILD_DIR)/test_scripts
 
 # Shell-function tests: the "binary" is the script itself (it locates the
 # repository from its own path and extracts functions from the real scripts).
-$(BUILD_DIR)/test_scripts: test_scripts.sh ../static/build/.tmp_update/script/network/update_networking.sh
+$(BUILD_DIR)/test_scripts: test_scripts.sh ../static/build/.tmp_update/runtime.sh ../static/build/.tmp_update/script/network/update_networking.sh
 	@mkdir -p $(BUILD_DIR)
 	cp test_scripts.sh $@
 	chmod +x $@

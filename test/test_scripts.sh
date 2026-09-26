@@ -79,6 +79,46 @@ check ".httpState removed" test ! -e "$sysdir/config/.httpState"
 check ".httpState_ kept" test -e "$sysdir/config/.httpState_"
 end
 
+# ---- runtime.sh: detect_device_model ----
+
+MODEL_MM=283
+MODEL_MMF=285
+MODEL_MMP=354
+eval "$(extract_fn "$RUNTIME" detect_device_model)"
+
+stub_axp() { # exit code of `axp 0`
+    mkdir -p "$TMP/bin"
+    printf '#!/bin/sh\nexit %s\n' "$1" > "$TMP/bin/axp"
+    chmod +x "$TMP/bin/axp"
+}
+
+probe() { # hall present (1/0), axp exit code
+    stub_axp "$2"
+    if [ "$1" -eq 1 ]; then
+        hall_sensor="$TMP/hallvalue"
+        echo 1 > "$hall_sensor"
+    else
+        hall_sensor="$TMP/missing/hallvalue"
+    fi
+    PATH="$TMP/bin:$PATH" detect_device_model
+}
+
+begin detect_flip_with_axp
+check "hall + axp -> 285" test "$(probe 1 0)" = 285
+end
+
+begin detect_flip_when_axp_probe_fails
+check "hall, axp fails -> 285 (was 283)" test "$(probe 1 1)" = 285
+end
+
+begin detect_plus
+check "no hall + axp -> 354" test "$(probe 0 0)" = 354
+end
+
+begin detect_mini
+check "no hall, no axp -> 283" test "$(probe 0 1)" = 283
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
