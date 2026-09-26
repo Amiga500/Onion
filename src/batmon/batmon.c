@@ -512,7 +512,10 @@ static void *batteryWarning_thread(void *param)
             display_drawBatteryIcon(0x00FF0000, 15, g_display.height - 30, 10,
                                     0x00FF0000); // draw red battery icon
         }
-        usleep(500000); // 500ms — low battery icon doesn't need fast refresh
+        // Drawn straight into the framebuffer, which the game redraws every
+        // frame: the icon is only visible if it is redrawn about once per
+        // frame (16 ms, as in Onion). At 500 ms it showed for one frame in 30.
+        usleep(0x4000);
     }
     return 0;
 }
