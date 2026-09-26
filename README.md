@@ -14,11 +14,9 @@ for the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 [![tests](https://img.shields.io/badge/tests-1%2C459%20%2F%2071%2C522%20assertions-success?style=for-the-badge)](#-8--testing)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#-install--update)
 [![fixes](https://img.shields.io/badge/fixes%20ready%20for%20Onion-29-critical?style=for-the-badge)](#%EF%B8%8F-6--security--memory-hardening)
-[![boot](https://img.shields.io/badge/boot%20to%20menu-~1.7%20s%20(Mini%2B)-brightgreen?style=for-the-badge)](#-measured-on-a-miyoo-mini)
 
 ✨ [Highlights](#-highlights) ·
 🎮 [What you'll notice](#-what-youll-notice) ·
-📱 [Measured](#-measured-on-a-miyoo-mini) ·
 📦 [Install](#-install--update) ·
 🧭 [Known issues](#-known-issues--next-steps) ·
 📚 [Technical reference](#-technical-reference)
@@ -39,25 +37,22 @@ for the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 
 <table>
 <tr>
-<td align="center" width="25%"><h3>🚀 ~1.7 s</h3>boot to the menu<br><sub>Mini+, Wi-Fi on or off<br>(5.5 s at first measurement)</sub></td>
-<td align="center" width="25%"><h3>⏱️ ~0.5 s</h3>Onion's own work<br>around each game<br><sub>launch · exit · menu</sub></td>
+<td align="center" width="25%"><h3>🌡️ idle</h3>menus sleep<br>between frames<br><sub>no CPU core stuck at 100%</sub></td>
+<td align="center" width="25%"><h3>💾 1 write</h3>per volume step<br><sub>was ~14 files<br>and 13 flushes to the card</sub></td>
 <td align="center" width="25%"><h3>🐛 29</h3>defects fixed in code<br>shared with Onion<br><sub>fixes ready for upstream</sub></td>
 <td align="center" width="25%"><h3>🧪 1,459</h3>host tests<br><sub>71,522 assertions<br>(1 at the base)</sub></td>
 </tr>
 </table>
 
-### 🚀 Speed
+### 🚀 Less work on every action
 
 | | ⚪ OnionUI | 🟢 OnionPlus | 💬 What it means |
 |:--|:-:|:-:|:--|
-| 🔌 Boot to the menu, Onion's part (Mini+, Wi-Fi on) | 3 blocking waits | **1.74 s** 📱 | 3.2× faster than the first measured build (5.51 s); 1.78 s with temporary Wi-Fi (5.16 s) |
-| ⏱️ Onion's own work around a game | — | **~0.5 s** 📱 | launch 0.16 s · exit 0.1 s · back to the menu 0.1 s |
 | 🎮 Menu CPU while idle | 100% of a core | **sleeps** | GameSwitcher, Tweaks, Play Activity & co. stop heating the device |
 | 🌙 Blue-light schedule, every 15 s | ~20 processes | **0** | checked in-process: no more key freezes of up to 4 s |
 | 🧩 Processes to parse a game launch | ~25 | **~2** | −90% between pressing A and the emulator starting |
 | 💾 SD-card writes per volume step | ~14 | **1** | −93%: 12 fewer flushes to the card on every press |
 | 🔁 SD-card flushes per return to the menu | 2 | **1** | −50% after every game |
-| 📊 Opening Play Activity (60,000 sessions) | 66 ms | **34 ms** 📏 | 2× faster, identical results |
 
 ### 🛡️ Reliability & quality
 
@@ -80,9 +75,9 @@ from the code of both projects — see [how these numbers were obtained](#-how-t
 
 > 🟩 Things you see and feel on the device. Nothing to configure.
 
-- ⚡ **It boots to the menu in under two seconds of Onion time**, with Wi-Fi on or off. Wi-Fi,
-  network services and time sync come up in the background a few seconds after the menu,
-  instead of holding the boot (unless you ask for **Wait for sync on startup**).
+- ⚡ **Wi-Fi no longer holds the boot.** Wi-Fi, network services and the time sync come up in
+  the background once the menu is on screen, instead of during the boot (unless you ask for
+  **Wait for sync on startup**), so the Wi-Fi icon can appear a little after the menu.
 - 📶 **"Enable Wi-Fi temporarily" really sets the clock.** With Wi-Fi off it used to turn Wi-Fi
   on and off at boot without syncing anything; now it turns Wi-Fi on in the background,
   syncs the time, and turns it off again.
@@ -111,71 +106,6 @@ from the code of both projects — see [how these numbers were obtained](#-how-t
 - 🔤 **Korean and full-width game names** use the CJK font in Play Activity.
 - 🚀 **Faster launches, faster returns.** Dozens of helper processes removed from the path
   between pressing A and seeing the game, and between quitting and seeing the menu.
-
----
-
-## 📱 Measured on a Miyoo Mini+
-
-> 🟦 Real numbers from a real device, taken with the built-in timing log.
-
-Miyoo Mini+ (640×480 panel), logging on, network time on, "Enable Wi-Fi temporarily" on,
-"Disable services in game" on. Each session: boot, three games launched from MainUI
-(PlayStation, NES, SNES, BS-X, …) and quit from the RetroArch menu, GameSwitcher opened
-once. Numbers come from the [timing log](#%EF%B8%8F-measuring-on-the-device).
-
-### 🔌 Boot with Wi-Fi on, step by step
-
-| Phase | First measurement<br>`1592866e` | Wi-Fi off the boot<br>`10f2369e` | **Faster `boot_init`**<br>**`29791efc`** |
-|:--|--:|--:|--:|
-| 🐧 Kernel → Onion *(firmware, not Onion)* | 3 s | 2 s | 2 s |
-| ⚙️ `boot_init` | 1.53 s | 1.59 s | **1.05 s** |
-| 📶 `boot_network` | 3.34 s | **0.09 s** | 0.09 s |
-| 🏁 **`boot` — Onion start → menu** | **5.51 s** | **2.28 s** | **1.74 s** |
-
-```
-Onion boot to the menu, Miyoo Mini+, Wi-Fi on
-
-first measurement        ██████████████████████████████████████  5.51 s
-Wi-Fi off the boot path  ████████████████                        2.28 s
-faster boot_init         ████████████                            1.74 s   (3.2× faster)
-```
-
-Where the remaining `boot_init` goes: swap **0.00–0.01 s** (now in the background), audio
-server **0.27–0.29 s**, display detection **0.37–0.41 s**, the rest **~0.36 s** (of which
-0.25 s is a fixed wait after display init, kept on purpose).
-
-### 📴 Boot with Wi-Fi off and "Enable Wi-Fi temporarily" on
-
-| Phase | Before<br>`29791efc` | **After**<br>**`9768ae02`** |
-|:--|--:|--:|
-| 📶 `boot_network` | 3.50 s | **0.12 s** |
-| 🏁 **`boot` — Onion start → menu** | **5.16 s** | **1.78 s** |
-| 🕒 Time synced at boot? | **no** (Wi-Fi on and off again, nothing synced) | **yes**, in the background |
-
-On the device, Wi-Fi came on right after the menu, the router took **29 s** to hand out an
-address (within the new 30 s background limit; the old 10 s limit would have failed), the
-time was synced through `ntpdate`, and Wi-Fi was turned off again — all while the menu was
-already usable.
-
-### 🎮 Around every game
-
-| Phase | Measured (all sessions) | What it covers |
-|:--|--:|:--|
-| 🎮 `game_prepare` | **0.15–0.20 s** | from pressing A to the emulator or app starting |
-| 🚪 `game_exit` | **0.09–0.27 s** | from quitting the emulator to the post-processing done |
-| 🏠 `mainui_prepare` | **0.04–0.20 s** | before MainUI starts (battery icon drawn only when it changed) |
-| ↩️ `mainui_return` | **0.06–0.10 s** | after MainUI exits (2.2 s when Wi-Fi was just turned on from the menu — [under investigation](#-known-issues--next-steps)) |
-| 🔀 `switcher_prepare` | **0.01–0.02 s** | before the GameSwitcher starts |
-
-- ⏱️ **Onion's own work around a game is about half a second in total.** The rest of the wait is
-  RetroArch and the core loading the game, and MainUI starting, which is a closed binary.
-- 📶 **Network in the background:** Wi-Fi and SSH/FTP/HTTP/Samba/Telnet come up about three
-  seconds after the menu is on screen; the time sync follows as soon as the router hands out
-  an address. Nothing waits for them.
-
-> [!TIP]
-> **One device so far.** Post your `timing.log` (Mini, Mini v4, Mini Flip especially) in an
-> issue to extend these tables — see [Install & update](#-install--update) for how to enable it.
 
 ---
 
@@ -377,7 +307,7 @@ could grow to tens of megabytes.
 - ↩️ **Return to the menu after turning Wi-Fi on from MainUI** takes ~2.2 s instead of ~0.1 s
   (seen twice); a global `sync` or freeing memory is the suspect, finer timing marks will tell.
 - 🔌 **Boot:** display detection (~0.4 s) and audio-server start (~0.3 s) are the largest parts
-  left of the ~1.7 s Onion boot; the ~2 s before Onion starts belong to the firmware.
+  left in Onion's part of the boot; the ~2 s before Onion starts belong to the firmware.
 - 🕒 **Time sync:** on networks where the web time services fail, the time comes from `ntpdate`
   a few seconds later. It no longer blocks anything.
 - 🔋 **Mini Flip:** lid/Hall-sensor handling follows `OnionUI/Onion:v4.5-dev` and is still to be
@@ -451,6 +381,7 @@ maintainers.
 | 🏗️ | [9 · Build, CI & release](#%EF%B8%8F-9--build-ci--release) |
 | 📊 | [10 · Grand totals](#-10--grand-totals) |
 | 🔀 | [11 · Commit timeline](#-11--commit-timeline) |
+| 📏 | [Appendix · Development timings](#-appendix--development-timings-miyoo-mini) |
 
 ## 🎯 Scope and baseline
 
@@ -957,16 +888,87 @@ Reproducible from git: `git rev-list --count 07505ea5..HEAD`, `git diff --shorts
 26. 📚 **README refresh** — passes 2–4 folded into the categories.
 27. 🧅 **README front page** — at-a-glance comparison, before/after tables, first on-device timings.
 28. 🩹 **On-device fixes 1** — [`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325): Wi-Fi off the boot path, play time after clock jumps, GameSwitcher capture scaling.
-29. 🕒 **On-device fixes 2** — [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e): boot no longer waits with temporary Wi-Fi set, time zone kept on failed lookups, `ntpdate` sync marked. Boot 5.51 s → **2.28 s**.
-30. 🔌 **Faster `boot_init`** — [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc): audio server polled every 50 ms, swap in the background. Boot → **1.74 s**.
+29. 🕒 **On-device fixes 2** — [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e): boot no longer waits with temporary Wi-Fi set, time zone kept on failed lookups, `ntpdate` sync marked.
+30. 🔌 **Faster `boot_init`** — [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc): audio server polled every 50 ms, swap in the background.
 31. 📚 **README polish** — Mini Flip naming, grouped tables, OnionPlus presented as an independent build.
-32. 📴 **Temporary Wi-Fi at boot** — [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02): on → sync → update check → off in the background. Boot with Wi-Fi off 5.16 s → **1.78 s**, time synced.
+32. 📴 **Temporary Wi-Fi at boot** — [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02): on → sync → update check → off in the background. Time synced at boot.
 33. 🩺 **Pass 1 correctness review** — [PR #221](https://github.com/Amiga500/Onion/pull/221), 14 commits: F1–F14 (Load preview cache, cache-DB stack overflow, atomic `retroarch.cfg` edits, `disable_flag`, Hall-first detection, Mini Flip suspend timeout, top-entry romscreen, overlay autosave pin, CJK ranges, framebuffer pitch, `readLastLine`, `spawn_detached`), stricter host build, `test_scripts.sh`, `test_romscreen_window`, production `test_cache_db` under ASan.
-34. 🎨 **README redesign** — this page: centered header, highlight cards, collapsible reference sections, GitHub alerts, numbers refreshed.
+34. 🎨 **README redesign** — this page: centered header, highlight cards, collapsible reference sections, GitHub alerts, numbers refreshed; device timings moved to an appendix, since they compare OnionPlus builds rather than OnionPlus with Onion.
 
 Per-commit detail: `git log --stat 07505ea5..HEAD` on `onionplus-compact`.
 
 </details>
+
+
+---
+
+## 📏 Appendix · Development timings (Miyoo Mini+)
+
+> 🟦 Measured with the built-in timing log to track progress **between OnionPlus builds**.
+
+> [!NOTE]
+> These tables compare OnionPlus builds with each other on one Mini+. They are **not** a
+> comparison with stock Onion: against Onion with the same settings the difference is
+> smaller, and depends mostly on the Wi-Fi and time-sync settings.
+
+Miyoo Mini+ (640×480 panel), logging on, network time on, "Enable Wi-Fi temporarily" on,
+"Disable services in game" on. Each session: boot, three games launched from MainUI
+(PlayStation, NES, SNES, BS-X, …) and quit from the RetroArch menu, GameSwitcher opened
+once. Numbers come from the [timing log](#%EF%B8%8F-measuring-on-the-device).
+
+### 🔌 Boot with Wi-Fi on, step by step
+
+| Phase | First measurement<br>`1592866e` | Wi-Fi off the boot<br>`10f2369e` | **Faster `boot_init`**<br>**`29791efc`** |
+|:--|--:|--:|--:|
+| 🐧 Kernel → Onion *(firmware, not Onion)* | 3 s | 2 s | 2 s |
+| ⚙️ `boot_init` | 1.53 s | 1.59 s | **1.05 s** |
+| 📶 `boot_network` | 3.34 s | **0.09 s** | 0.09 s |
+| 🏁 **`boot` — Onion start → menu** | **5.51 s** | **2.28 s** | **1.74 s** |
+
+```
+Onion boot to the menu, Miyoo Mini+, Wi-Fi on
+
+first measurement        ██████████████████████████████████████  5.51 s
+Wi-Fi off the boot path  ████████████████                        2.28 s
+faster boot_init         ████████████                            1.74 s   (3.2× faster)
+```
+
+Where the remaining `boot_init` goes: swap **0.00–0.01 s** (now in the background), audio
+server **0.27–0.29 s**, display detection **0.37–0.41 s**, the rest **~0.36 s** (of which
+0.25 s is a fixed wait after display init, kept on purpose).
+
+### 📴 Boot with Wi-Fi off and "Enable Wi-Fi temporarily" on
+
+| Phase | Before<br>`29791efc` | **After**<br>**`9768ae02`** |
+|:--|--:|--:|
+| 📶 `boot_network` | 3.50 s | **0.12 s** |
+| 🏁 **`boot` — Onion start → menu** | **5.16 s** | **1.78 s** |
+| 🕒 Time synced at boot? | **no** (Wi-Fi on and off again, nothing synced) | **yes**, in the background |
+
+On the device, Wi-Fi came on right after the menu, the router took **29 s** to hand out an
+address (within the new 30 s background limit; the old 10 s limit would have failed), the
+time was synced through `ntpdate`, and Wi-Fi was turned off again — all while the menu was
+already usable.
+
+### 🎮 Around every game
+
+| Phase | Measured (all sessions) | What it covers |
+|:--|--:|:--|
+| 🎮 `game_prepare` | **0.15–0.20 s** | from pressing A to the emulator or app starting |
+| 🚪 `game_exit` | **0.09–0.27 s** | from quitting the emulator to the post-processing done |
+| 🏠 `mainui_prepare` | **0.04–0.20 s** | before MainUI starts (battery icon drawn only when it changed) |
+| ↩️ `mainui_return` | **0.06–0.10 s** | after MainUI exits (2.2 s when Wi-Fi was just turned on from the menu — [under investigation](#-known-issues--next-steps)) |
+| 🔀 `switcher_prepare` | **0.01–0.02 s** | before the GameSwitcher starts |
+
+- ⏱️ **Onion's own work around a game is about half a second in total.** The rest of the wait is
+  RetroArch and the core loading the game, and MainUI starting, which is a closed binary.
+- 📶 **Network in the background:** Wi-Fi and SSH/FTP/HTTP/Samba/Telnet come up about three
+  seconds after the menu is on screen; the time sync follows as soon as the router hands out
+  an address. Nothing waits for them.
+
+> [!TIP]
+> **One device so far.** Timing logs from a Mini, Mini v4 or Mini Flip are welcome in an issue —
+> see [Install & update](#-install--update) for how to enable the log.
 
 ---
 
