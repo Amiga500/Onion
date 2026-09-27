@@ -137,12 +137,17 @@ int main(int argc, char *argv[])
                 }
             }
             else if (keystate[SW_BTN_A] == PRESSED) {
-                if (list_currentItem(menu_stack[menu_level])->action != NULL) {
+                bool has_action = list_currentItem(menu_stack[menu_level])->action != NULL;
+                if (has_action) {
                     sound_change();
                     skip_next_change = true;
-                    keystate[SW_BTN_A] = RELEASED;
                 }
                 key_changed = list_activateItem(menu_stack[menu_level]) || header_changed;
+                // The action may have read the release itself (a dialog). A
+                // plain RELEASED here turned every key repeat of a held A
+                // into a new press, running the action again and again.
+                if (has_action)
+                    keystate[SW_BTN_A] = keystate_resync(SW_BTN_A);
             }
             else if (changed_key == SW_BTN_MENU && keystate[SW_BTN_MENU] == RELEASED) {
                 if (!menu_combo_pressed)

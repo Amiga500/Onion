@@ -39,6 +39,25 @@ typedef struct SDL_Surface {
     SDL_PixelFormat *format;
 } SDL_Surface;
 
+/* Keyboard events, for utils/keystate.h (tests provide the functions). */
+typedef int SDLKey;
+#define SDLK_UNKNOWN 0
+#define SDLK_SPACE 32
+enum { SDL_KEYDOWN = 2, SDL_KEYUP = 3, SDL_QUIT = 12 };
+typedef struct SDL_keysym {
+    SDLKey sym;
+} SDL_keysym;
+typedef struct SDL_KeyboardEvent {
+    Uint8 type;
+    SDL_keysym keysym;
+} SDL_KeyboardEvent;
+typedef union SDL_Event {
+    Uint8 type;
+    SDL_KeyboardEvent key;
+} SDL_Event;
+int SDL_PollEvent(SDL_Event *event);
+Uint8 *SDL_GetKeyState(int *numkeys);
+
 void SDL_FreeSurface(SDL_Surface *surface);
 int SDL_LockSurface(SDL_Surface *surface);
 void SDL_UnlockSurface(SDL_Surface *surface);
