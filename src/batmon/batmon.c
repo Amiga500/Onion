@@ -1,4 +1,5 @@
 #include "batmon.h"
+#include "./warn_reload.h"
 #include "system/device_model.h"
 #include "utils/process.h"
 #include <stdio.h>
@@ -17,6 +18,7 @@ int main(int argc, char *argv[])
 
     FILE *fp;
     int old_percentage = -1, current_percentage = -1, warn_at = 15;
+    time_t warn_at_mtime = 0;
     int lowest_percentage_after_charge = 500;
     atexit(cleanup);
     signal(SIGINT, sigHandler);
@@ -78,6 +80,11 @@ int main(int argc, char *argv[])
         }
 
         if (!is_suspended) {
+            // A new threshold from Tweaks applies at once, not at the
+            // next 15 s check (one stat() per second).
+            if (warnReload_changed(CONFIG_PATH "battery/warnAt", &warn_at_mtime))
+                config_get("battery/warnAt", CONFIG_INT, &warn_at);
+
             if (ticks >= CHECK_BATTERY_TIMEOUT_S) {
                 config_get("battery/warnAt", CONFIG_INT, &warn_at);
                 if (DEVICE_ID == MIYOO283) {
