@@ -14,52 +14,9 @@
 #include <string.h>
 #include <stdio.h>
 
-/* ---- Constants from lang.h ---- */
-#define LANG_MAX 400
-#define LANG_DEFAULT "en.lang"
-
-typedef enum {
-    LANG_EXPERT_TAB = 0,
-    LANG_FAVORITES_TAB = 1,
-    LANG_GAMES_TAB = 2,
-    LANG_SETTINGS_TAB = 15,
-    LANG_RECENTS_TAB = 18,
-    LANG_CHARGING = 40,
-    LANG_CANCEL = 45,
-    LANG_OK = 46,
-    LANG_SELECT = 88,
-    LANG_BACK = 89,
-    LANG_MENU = 91,
-    LANG_RESUME = 92,
-    LANG_APPS_TAB = 107,
-    LANG_EXIT = 111,
-    LANG_NEXT = 300,
-    LANG_RESUME_UC = 301
-} lang_hash;
-
-/* ---- Inline the pure-logic functions from lang.h ---- */
-
-static char **lang_list = NULL;
-
-static const char *lang_get(lang_hash key, const char *fallback)
-{
-    if (lang_list && lang_list[key])
-        return lang_list[key];
-    return fallback;
-}
-
-static void lang_free(void)
-{
-    if (lang_list == NULL)
-        return;
-    for (int i = 0; i < LANG_MAX; i++) {
-        if (lang_list[i] == NULL)
-            continue;
-        free(lang_list[i]);
-    }
-    free(lang_list);
-    lang_list = NULL;
-}
+/* Production code: lang_get() and lang_free() from system/lang.h; the
+ * tests fill its lang_list directly instead of loading a language file. */
+#include "system/lang.h"
 
 /* ---- Helper to populate lang_list for testing ---- */
 

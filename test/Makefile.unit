@@ -354,9 +354,9 @@ test_lang: $(BUILD_DIR)/test_lang
 	@echo ""
 	@$(BUILD_DIR)/test_lang
 
-$(BUILD_DIR)/test_lang: test_lang.c onion_test.h
+$(BUILD_DIR)/test_lang: test_lang.c onion_test.h ../src/common/system/lang.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_lang.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_lang.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 test_signal_handler: $(BUILD_DIR)/test_signal_handler
 	@echo ""
