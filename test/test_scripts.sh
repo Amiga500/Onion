@@ -378,6 +378,11 @@ unset -f grep killall
 unset proc_dir
 end
 
+begin no_pgrep_x_in_shipped_scripts
+# The firmware's BusyBox 1.20.2 pgrep -x never matches anything.
+check "no pgrep -x under static/" test -z "$(command grep -rlE '^[^#]*pgrep +-[a-z]*x' "$ROOT/static")"
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283
