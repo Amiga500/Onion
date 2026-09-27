@@ -445,9 +445,9 @@ test_legacy_db: $(BUILD_DIR)/test_legacy_db
 	@echo ""
 	@$(BUILD_DIR)/test_legacy_db
 
-$(BUILD_DIR)/test_legacy_db: test_legacy_db.c onion_test.h
+$(BUILD_DIR)/test_legacy_db: test_legacy_db.c onion_test.h ../src/playActivity/legacyDB.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_legacy_db.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_legacy_db.c $(COMMON_SRCS) $(LDFLAGS) 
 
 test_keymap: $(BUILD_DIR)/test_keymap
 	@echo ""

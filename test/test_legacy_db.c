@@ -16,56 +16,20 @@
 #include <string.h>
 #include <unistd.h>
 
-/* ---- Provide STR_MAX ---- */
-#define STR_MAX 256
+/* Production code: readLegacyDB() from playActivity/legacyDB.h, with the
+ * database path redirected to the file each test writes. */
+static const char *legacy_db_test_path = "";
+#define PLAY_ACTIVITY_DB_OLD_PATH legacy_db_test_path
+#define PLAY_ACTIVITY_DB_OLD_PATH_TMP "/tmp/test_legacy_db_tmp.db"
 
-/* ---- Stub log macros ---- */
-#define print_debug(...)
-#define printf_debug(...)
-
-/* ---- Stub is_file ---- */
-static bool is_file(const char *path)
-{
-    return access(path, F_OK) == 0;
-}
-
-/* ---- Inline types and constants from legacyDB.h ---- */
-
-#define LEGACY_DB_MAX 1000
-
-typedef struct structRom {
-    char name[100];
-    int playTime;
-} rom_list_s;
-
-static rom_list_s rom_list[LEGACY_DB_MAX];
-static int rom_list_len = 0;
-
-/* ---- Inline readLegacyDB (parameterized for testing) ---- */
+#include "utils/file.h"
+#include "utils/log.h"
+#include "../src/playActivity/legacyDB.h"
 
 static int readLegacyDB_path(const char *db_path)
 {
-    FILE *fp;
-
-    if (is_file(db_path)) {
-        if ((fp = fopen(db_path, "rb")) != NULL) {
-            if (fread(rom_list, sizeof(rom_list), 1, fp) != 1)
-                memset(rom_list, 0, sizeof(rom_list));
-            rom_list_len = 0;
-
-            for (int i = 0; i < LEGACY_DB_MAX; i++) {
-                if ((strlen(rom_list[i].name) != 0) && (rom_list[i].playTime) != 0)
-                    rom_list_len++;
-            }
-
-            fclose(fp);
-        }
-        else {
-            return -1;
-        }
-    }
-
-    return 1;
+    legacy_db_test_path = db_path;
+    return readLegacyDB();
 }
 
 /* ---- Helper to write binary DB ---- */

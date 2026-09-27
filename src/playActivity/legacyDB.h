@@ -4,8 +4,10 @@
 #include "utils/file.h"
 #include "utils/str.h"
 
+#ifndef PLAY_ACTIVITY_DB_OLD_PATH // host tests point it at a temporary file
 #define PLAY_ACTIVITY_DB_OLD_PATH "/mnt/SDCARD/Saves/CurrentProfile/saves/playActivity.db"
 #define PLAY_ACTIVITY_DB_OLD_PATH_TMP "/mnt/SDCARD/Saves/CurrentProfile/saves/playActivity_tmp.db"
+#endif
 
 #define LEGACY_DB_MAX 1000
 
