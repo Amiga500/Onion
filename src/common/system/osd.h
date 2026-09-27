@@ -31,6 +31,8 @@
 
 static volatile bool osd_thread_active = false;
 static pthread_t osd_pt;
+// osd_pt was created and not joined yet (it may have finished on its own)
+static bool osd_thread_joinable = false;
 
 typedef struct {
     SDL_Surface *surface;
@@ -377,8 +379,20 @@ void osd_showBar(int value, int value_max, uint32_t color)
     // (_bar_savebuf) is meterWidth pixels wide and is restored with it.
     config_get("display/meterWidth", CONFIG_INT, &meterWidth);
 
+    // The previous bar's thread ends on its own after 2 s and nobody joined
+    // it: every bar leaked a thread (stack and descriptor) in keymon until
+    // pthread_create failed and the bar never showed again. Join it here.
+    if (osd_thread_joinable) {
+        pthread_join(osd_pt, NULL);
+        osd_thread_joinable = false;
+    }
+
     _bar_saveBufferBehind();
-    pthread_create(&osd_pt, NULL, _osd_thread, _print_bar);
+    if (pthread_create(&osd_pt, NULL, _osd_thread, _print_bar) != 0) {
+        _bar_restoreBufferBehind();
+        return;
+    }
+    osd_thread_joinable = true;
     osd_thread_active = true;
 }
 
@@ -389,6 +403,7 @@ void osd_hideBar(void)
         return;
     pthread_cancel(osd_pt);
     pthread_join(osd_pt, NULL);
+    osd_thread_joinable = false;
     _bar_restoreBufferBehind();
     osd_thread_active = false;
 }
