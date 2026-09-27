@@ -6,72 +6,17 @@
  * icons_getIconNameFormat, icons_getIconPathFormat, and
  * icons_getSelectedIconPathFormat.
  *
+ * Tests the production header (no local copy).
+ *
  * Build and run: make -f Makefile.unit test_apply_icons
  */
 
 #include "onion_test.h"
 #include <string.h>
 
-/* We only need the enums and pure-logic functions from apply_icons.h.
- * Re-declare them here to avoid pulling in file I/O and JSON deps. */
-
-#define CONFIG_EMU_PATH "/mnt/SDCARD/Emu"
-#define CONFIG_APP_PATH "/mnt/SDCARD/App"
-#define CONFIG_RAPP_PATH "/mnt/SDCARD/RApp"
-
-typedef enum IconMode {
-    ICON_MODE_EMU,
-    ICON_MODE_APP,
-    ICON_MODE_RAPP
-} IconMode_e;
-
-static IconMode_e icons_getIconMode(const char *config_path)
-{
-    if (strncmp(CONFIG_APP_PATH, config_path, strlen(CONFIG_APP_PATH)) == 0)
-        return ICON_MODE_APP;
-    if (strncmp(CONFIG_RAPP_PATH, config_path, strlen(CONFIG_RAPP_PATH)) == 0)
-        return ICON_MODE_RAPP;
-    return ICON_MODE_EMU;
-}
-
-static const char *icons_getIconNameFormat(IconMode_e mode)
-{
-    switch (mode) {
-    case ICON_MODE_APP:
-        return "app/%s";
-    case ICON_MODE_RAPP:
-        return "rapp/%s";
-    default:
-        break;
-    }
-    return "%s";
-}
-
-static const char *icons_getIconPathFormat(IconMode_e mode)
-{
-    switch (mode) {
-    case ICON_MODE_APP:
-        return "%s/app/%s.png";
-    case ICON_MODE_RAPP:
-        return "%s/rapp/%s.png";
-    default:
-        break;
-    }
-    return "%s/%s.png";
-}
-
-static const char *icons_getSelectedIconPathFormat(IconMode_e mode)
-{
-    switch (mode) {
-    case ICON_MODE_APP:
-        return "%s/app/sel/%s.png";
-    case ICON_MODE_RAPP:
-        return "%s/rapp/sel/%s.png";
-    default:
-        break;
-    }
-    return "%s/sel/%s.png";
-}
+/* Production code: the icon helpers from utils/apply_icons.h (links file.c,
+ * str.c, log.c and cJSON for the JSON-based helpers it also defines). */
+#include "utils/apply_icons.h"
 
 /* ---- icons_getIconMode ---- */
 

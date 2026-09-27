@@ -210,9 +210,9 @@ test_apply_icons: $(BUILD_DIR)/test_apply_icons
 	@echo ""
 	@$(BUILD_DIR)/test_apply_icons
 
-$(BUILD_DIR)/test_apply_icons: test_apply_icons.c onion_test.h
+$(BUILD_DIR)/test_apply_icons: test_apply_icons.c onion_test.h ../src/common/utils/apply_icons.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_apply_icons.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_apply_icons.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 test_settings: $(BUILD_DIR)/test_settings
 	@echo ""
