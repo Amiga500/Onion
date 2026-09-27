@@ -23,7 +23,7 @@ void formatter_timezone(void *pt, char *out_label)
         strcpy(out_label, "UTC");
     }
     else {
-        sprintf(out_label, utc_value > 0.0 ? "UTC+%02d:%02d" : "UTC-%02d:%02d", (int)floor(abs(utc_value)), half_past ? 30 : 0);
+        sprintf(out_label, utc_value > 0.0 ? "UTC+%02d:%02d" : "UTC-%02d:%02d", (int)floor(fabs(utc_value)), half_past ? 30 : 0);
     }
 }
 
