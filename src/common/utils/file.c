@@ -138,7 +138,7 @@ void file_readLastLine(const char *filename, char *out_str)
 char *file_read(const char *path)
 {
     struct stat64 st;
-    if (stat64(path, &st) != 0 || st.st_size < 0)
+    if (path == NULL || stat64(path, &st) != 0 || st.st_size < 0)
         return NULL;
 
     // Safety check: limit file size to 100MB to prevent excessive memory allocation
