@@ -106,6 +106,16 @@ TEST(device_serial_missing_file) {
     ASSERT_STREQ(DEVICE_SN, "old");
 }
 
+/* A line longer than DEVICE_SN holds is truncated, not written past the
+ * array (ASan in unit-test-san would also catch the overflow). */
+TEST(device_serial_too_long_is_bounded) {
+    write_file("/tmp/deviceSN", "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    memset(DEVICE_SN, 0, sizeof(DEVICE_SN));
+    getDeviceSerial();
+    ASSERT_EQ((int)strlen(DEVICE_SN), (int)sizeof(DEVICE_SN) - 1);
+    ASSERT_STREQ(DEVICE_SN, "0123456789AB");
+}
+
 TEST(device_serial_with_newline) {
     write_file("/tmp/deviceSN", "SN123\nextra");
     memset(DEVICE_SN, 0, sizeof(DEVICE_SN));
@@ -154,6 +164,7 @@ int main(void)
     RUN_TEST(device_serial_short);
     RUN_TEST(device_serial_empty);
     RUN_TEST(device_serial_missing_file);
+    RUN_TEST(device_serial_too_long_is_bounded);
     RUN_TEST(device_serial_with_newline);
 
     RUN_TEST(device_model_constants);

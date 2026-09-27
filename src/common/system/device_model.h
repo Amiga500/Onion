@@ -31,7 +31,9 @@ void getDeviceModel(void)
 void getDeviceSerial(void)
 {
     FILE *fp;
-    file_get(fp, "/tmp/deviceSN", "%[^\n]", DEVICE_SN);
+    // Bounded to DEVICE_SN (12 characters + NUL): read_uuid prints 12 hex
+    // digits, but a longer line used to overflow the array.
+    file_get(fp, "/tmp/deviceSN", "%12[^\n]", DEVICE_SN);
 }
 
 #endif // DEVICE_MODEL_H__
