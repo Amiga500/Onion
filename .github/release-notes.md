@@ -23,7 +23,7 @@ layout. **Not an official Onion release.**
   theme icons chosen in the Themes app survive a reboot.
 - 📱 **Mini Flip support**, ported from OnionUI `v4.5-dev`.
 - 🐛 **40 defects fixed in code shared with Onion**, with fixes available to the Onion team.
-- 🧪 **1,453 host tests**, every suite on the production code.
+- 🧪 **1,454 host tests**, every suite on the production code.
 
 ### 📦 Install & update
 
