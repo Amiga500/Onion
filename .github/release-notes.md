@@ -20,8 +20,8 @@ layout. **Not an official Onion release.**
   background, add/remove favorites from its menu; it draws only when something on screen
   changes.
 - 📱 **Mini Flip support**, ported from OnionUI `v4.5-dev`.
-- 🐛 **42 defects fixed in code shared with Onion**, with fixes available to the Onion team.
-- 🧪 **1,459 host tests**, every suite on the production code.
+- 🐛 **44 defects fixed in code shared with Onion**, with fixes available to the Onion team.
+- 🧪 **1,471 host tests**, every suite on the production code.
 
 ### 📦 Install & update
 
