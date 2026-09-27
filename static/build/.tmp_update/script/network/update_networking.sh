@@ -728,16 +728,31 @@ init_json() {
     fi
 }
 
+# Lowest pid whose process name (/proc/<pid>/comm) is exactly $1, in
+# found_pid (empty if none). Shell builtins only: the firmware's BusyBox
+# 1.20 pgrep -x never matches anything.
+lowest_pid_named() {
+    found_pid=
+    for _pd in "${proc_dir:-/proc}"/[0-9]*; do
+        read -r _pc < "$_pd/comm" 2> /dev/null || continue
+        [ "$_pc" = "$1" ] || continue
+        _pp=${_pd##*/}
+        if [ -z "$found_pid" ] || [ "$_pp" -lt "$found_pid" ]; then
+            found_pid=$_pp
+        fi
+    done
+}
+
 # unhook libpadsp.so on the wifi servs
 libpadspblocker() {
-    # First pid of each daemon by exact process name: two pgreps instead
-    # of two ps|grep|awk pipelines (six processes), on every check. The
+    # Lowest pid of each daemon by exact process name, without the two
+    # ps|grep|awk pipelines (six processes) run on every check. The
     # pipelines also matched any command line containing the name, such as
     # udhcpc.script run by a lease event.
-    set -- $(pgrep -x wpa_supplicant)
-    wpa_pid=$1
-    set -- $(pgrep -x udhcpc)
-    udhcpc_pid=$1
+    lowest_pid_named wpa_supplicant
+    wpa_pid=$found_pid
+    lowest_pid_named udhcpc
+    udhcpc_pid=$found_pid
     if [ -n "$wpa_pid" ] && [ -n "$udhcpc_pid" ]; then
         if grep -q "libpadsp.so" /proc/$wpa_pid/maps || grep -q "libpadsp.so" /proc/$udhcpc_pid/maps; then
             echo "Network Checker: $wpa_pid(WPA) and $udhcpc_pid(UDHCPC) found preloaded with libpadsp.so"
