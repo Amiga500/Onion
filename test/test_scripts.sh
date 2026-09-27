@@ -343,28 +343,39 @@ end
 
 # ---- update_networking.sh: libpadspblocker pid lookup ----
 
+eval "$(extract_fn "$NETWORK" lowest_pid_named)"
 eval "$(extract_fn "$NETWORK" libpadspblocker)"
 
-begin libpadspblocker_pid_lookup
-pgrep() { # pgrep -x NAME
-    case "$2" in
-        wpa_supplicant) printf '812\n905\n' ;;
-        udhcpc) echo 830 ;;
-    esac
+fake_proc() { # pid name
+    mkdir -p "$proc_dir/$1"
+    echo "$2" > "$proc_dir/$1/comm"
 }
+
+begin libpadspblocker_pid_lookup
+proc_dir="$TMP/proc"
+fake_proc 905 wpa_supplicant
+fake_proc 1203 wpa_supplicant # sorts before 905 as text
+fake_proc 812 wpa_supplicant
+fake_proc 830 udhcpc
+fake_proc 840 udhcpc.script # longer name: not the daemon
+fake_proc 850 sh
+mkdir -p "$proc_dir/860" # process gone: no comm
 grep() { echo "$*" >> "$TMP/greps"; return 1; } # maps checked, no preload
 killall() { echo "$*" >> "$TMP/killed"; }
 libpadspblocker
-check "first wpa_supplicant pid" test "$wpa_pid" = 812
-check "udhcpc pid" test "$udhcpc_pid" = 830
+check "lowest wpa_supplicant pid" test "$wpa_pid" = 812
+check "udhcpc pid, exact name" test "$udhcpc_pid" = 830
 check "maps of both checked" test "$(cat "$TMP/greps")" = "-q libpadsp.so /proc/812/maps
 -q libpadsp.so /proc/830/maps"
 check "nothing killed without the preload" test ! -e "$TMP/killed"
-pgrep() { :; }
+rm -rf "$proc_dir"
+mkdir -p "$proc_dir"
+fake_proc 812 wpa_supplicant
 wpa_pid=x
 libpadspblocker
-check "no daemon: empty pid, nothing done" test -z "$wpa_pid"
-unset -f pgrep grep killall
+check "no udhcpc: empty pid, nothing done" test -z "$udhcpc_pid" -a ! -e "$TMP/killed"
+unset -f grep killall
+unset proc_dir
 end
 
 # ---- runtime.sh: detect_device_model ----
