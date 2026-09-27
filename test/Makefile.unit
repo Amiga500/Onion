@@ -589,9 +589,9 @@ test_osd_constants: $(BUILD_DIR)/test_osd_constants
 	@echo ""
 	@$(BUILD_DIR)/test_osd_constants
 
-$(BUILD_DIR)/test_osd_constants: test_osd_constants.c onion_test.h
+$(BUILD_DIR)/test_osd_constants: test_osd_constants.c onion_test.h ../src/common/system/osd.h ../src/common/theme/color.h stubs/SDL/SDL.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_osd_constants.c $(LDFLAGS)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_osd_constants.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm -lpthread
 
 test_null_safety: $(BUILD_DIR)/test_null_safety
 	@echo ""

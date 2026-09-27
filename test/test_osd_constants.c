@@ -12,50 +12,13 @@
 #include "onion_test.h"
 #include <stdint.h>
 
-/* ---- Stub SDL types ---- */
+/* Production code: the OSD constants from system/osd.h and the color
+ * helpers from theme/color.h. osd.h compiles against the test SDL stub;
+ * its drawing code only needs SDL_FreeSurface to link. */
+#include "system/osd.h"
+#include "theme/color.h"
 
-typedef struct {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char unused;
-} SDL_Color;
-
-typedef unsigned int Uint32;
-
-/* ---- Inline from color.h ---- */
-
-static Uint32 colorToUint(SDL_Color color)
-{
-    return (Uint32)((color.r << 16) + (color.g << 8) + (color.b << 0));
-}
-
-static SDL_Color uintToColor(Uint32 color)
-{
-    SDL_Color sdl_color;
-    sdl_color.unused = 255;
-    sdl_color.r = (color >> 16) & 0xFF;
-    sdl_color.g = (color >> 8) & 0xFF;
-    sdl_color.b = color & 0xFF;
-    return sdl_color;
-}
-
-/* ---- OSD constants from osd.h ---- */
-/* Cannot #include osd.h directly (SDL/pthread/hardware dependencies).
-   Values are duplicated here intentionally to validate correctness. */
-
-#define CHR_WIDTH (3 * 4 + 4)
-#define CHR_HEIGHT (5 * 4)
-
-#define OSD_COLOR_WHITE 0x00FFFFFF
-#define OSD_COLOR_RED 0x00F80355
-#define OSD_COLOR_GREEN 0x001CD577
-#define OSD_COLOR_CYAN 0x0000FFD7
-#define OSD_COLOR_YELLOW 0x00DCFF62
-
-#define OSD_BRIGHTNESS_COLOR OSD_COLOR_WHITE
-#define OSD_VOLUME_COLOR OSD_COLOR_GREEN
-#define OSD_MUTE_ON_COLOR OSD_COLOR_RED
+void SDL_FreeSurface(SDL_Surface *surface) { (void)surface; }
 
 /* ==== Tests: OSD character dimensions ==== */
 
