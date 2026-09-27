@@ -12,104 +12,13 @@
 #include "onion_test.h"
 #include <stdbool.h>
 
-/* ---- Inline enum definitions from resources.h ---- */
+/* Production code: the theme image/font ids and the pop menu and
+ * brightness mappings from theme/resource_ids.h (used by
+ * resource_getPopMenuBg() and resource_getBrightness()). */
+#include "theme/resource_ids.h"
 
-typedef enum theme_images {
-    NULL_IMAGE,
-    BG_TITLE,
-    LOGO,
-    BATTERY_0,
-    BATTERY_20,
-    BATTERY_50,
-    BATTERY_80,
-    BATTERY_100,
-    BATTERY_CHARGING,
-    BG_LIST_S,
-    BG_LIST_L,
-    HORIZONTAL_DIVIDER,
-    PROGRESS_DOT,
-    TOGGLE_ON,
-    TOGGLE_OFF,
-    BG_FOOTER,
-    BUTTON_A,
-    BUTTON_B,
-    LEFT_ARROW,
-    RIGHT_ARROW,
-    LEFT_ARROW_WB,
-    RIGHT_ARROW_WB,
-    POP_BG,
-    EMPTY_BG,
-    PREVIEW_BG,
-    BRIGHTNESS_0,
-    BRIGHTNESS_1,
-    BRIGHTNESS_2,
-    BRIGHTNESS_3,
-    BRIGHTNESS_4,
-    BRIGHTNESS_5,
-    BRIGHTNESS_6,
-    BRIGHTNESS_7,
-    BRIGHTNESS_8,
-    BRIGHTNESS_9,
-    BRIGHTNESS_10,
-    LEGEND_GAMESWITCHER,
-    BG_POP_MENU_1,
-    BG_POP_MENU_2,
-    BG_POP_MENU_3,
-    BG_POP_MENU_4,
-    DOT_ACTIVE,
-    DOT_NEUTRAL,
-    BOOT_SCREEN,
-    SCREEN_OFF,
-    SCREEN_OFF_SAVE,
-    LOW_BAT,
-    images_count
-} ThemeImages;
-
-typedef enum theme_fonts {
-    NULL_FONT,
-    TITLE,
-    HINT,
-    GRID1x4,
-    GRID3x4,
-    LIST,
-    BATTERY,
-    fonts_count
-} ThemeFonts;
-
-#define HIDDEN_ITEM_ALPHA 60
-
-/* ---- Inline mapping logic (returns enum index instead of SDL_Surface*) ---- */
-
-static ThemeImages popMenuBgImage(int size)
-{
-    switch (size) {
-    case 1: return BG_POP_MENU_1;
-    case 2: return BG_POP_MENU_2;
-    case 3: return BG_POP_MENU_3;
-    case 4: return BG_POP_MENU_4;
-    default: break;
-    }
-    return NULL_IMAGE;
-}
-
-static ThemeImages brightnessImage(int brightness)
-{
-    switch (brightness) {
-    case 0:  return BRIGHTNESS_0;
-    case 1:  return BRIGHTNESS_1;
-    case 2:  return BRIGHTNESS_2;
-    case 3:  return BRIGHTNESS_3;
-    case 4:  return BRIGHTNESS_4;
-    case 5:  return BRIGHTNESS_5;
-    case 6:  return BRIGHTNESS_6;
-    case 7:  return BRIGHTNESS_7;
-    case 8:  return BRIGHTNESS_8;
-    case 9:  return BRIGHTNESS_9;
-    case 10: return BRIGHTNESS_10;
-    default: break;
-    }
-    return NULL_IMAGE;
-}
+#define popMenuBgImage resource_popMenuBgId
+#define brightnessImage resource_brightnessId
 
 /* ==== ThemeImages enum ordering tests ==== */
 

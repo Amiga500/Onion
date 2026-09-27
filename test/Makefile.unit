@@ -461,9 +461,9 @@ test_resources_enum: $(BUILD_DIR)/test_resources_enum
 	@echo ""
 	@$(BUILD_DIR)/test_resources_enum
 
-$(BUILD_DIR)/test_resources_enum: test_resources_enum.c onion_test.h
+$(BUILD_DIR)/test_resources_enum: test_resources_enum.c onion_test.h ../src/common/theme/resource_ids.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_resources_enum.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_resources_enum.c $(LDFLAGS) 
 
 test_screenshot_path: $(BUILD_DIR)/test_screenshot_path
 	@echo ""
