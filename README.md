@@ -15,7 +15,7 @@ Everything here is built on their work; any change they find worthwhile is their
 > the production code.
 
 [![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
-[![commits](https://img.shields.io/badge/commits-136-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![commits](https://img.shields.io/badge/commits-139-blueviolet?style=for-the-badge)](#-11--commit-timeline)
 [![files](https://img.shields.io/badge/files%20changed-220-blue?style=for-the-badge)](#-10--grand-totals)
 [![neon](https://img.shields.io/badge/NEON%20kernels-9-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
 [![tests](https://img.shields.io/badge/tests-1%2C453%20%2F%2071%2C913%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
@@ -281,7 +281,7 @@ off again — all while the menu was already usable.
 | 💾 Global syncs when services restart | up to 5 | ✅ **0** |
 | 📶 `jsonval` processes to read the Wi-Fi setting | 8–10 | ✅ **1** |
 | 🕒 Time zone after each API sync | `.tz` + `.tz_sync` rewritten, global `sync` | ✅ **only when the zone changed** |
-| 🔎 Finding `wpa_supplicant` / `udhcpc` | `ps \| grep \| awk` ×2 (6 processes) | ✅ **`pgrep -x`** (2) |
+| 🔎 Finding `wpa_supplicant` / `udhcpc` | `ps \| grep \| awk` ×2 (6 processes) | ✅ **shell built-ins** (0) |
 
 ### 🔁 Recent games list
 
@@ -462,7 +462,7 @@ On top of `07505ea5` the branch carries, oldest first:
   moved onto the production code (to [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb)).
 
 Every pass reaches installs through the built-in **OTA updater** (`Amiga500/Onion`, assets
-`OnionPlus-v…`). The last **code** commit is [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb). This README is the **single
+`OnionPlus-v…`). The last **code** commit is [`7790ecb2`](https://github.com/Amiga500/Onion/commit/7790ecb2). This README is the **single
 reference** for the branch (the former `docs/` reports were retired with it) and groups
 **everything shipped to date** by *category* rather than by commit.
 
@@ -681,7 +681,7 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 | `cleanup_appendconfig` (after every game) | 2 `echo \| grep` pipelines + 2 `grep` | `case` patterns + 1 `grep` | **2 pipelines + 2 `grep` → 1 `grep`** 🧪 ([`cdc7db58`](https://github.com/Amiga500/Onion/commit/cdc7db58)) |
 | `start_audioserver` (before every menu, game, GameSwitcher) | `pgrep audioserver` | cached pid checked in `/proc`; `pgrep` only when gone | **1 → 0 processes** 🧪 ([`f40567dc`](https://github.com/Amiga500/Onion/commit/f40567dc)) |
 | `update_networking.sh` start-up | command substitutions, `basename`, `cat` | `if`/`test`, parameter expansion, `read_file_to` | **fewer forks** each run 🧪 ([`d1819995`](https://github.com/Amiga500/Onion/commit/d1819995)) |
-| `libpadspblocker` daemon lookup | `ps -e \| grep \| awk` ×2 | `pgrep -x` | **6 → 2 processes**, exact name 🧪 ([`92e6bf73`](https://github.com/Amiga500/Onion/commit/92e6bf73)) |
+| `libpadspblocker` daemon lookup | `ps -e \| grep \| awk` ×2 | `/proc/<pid>/comm` read with builtins (the firmware's BusyBox 1.20 `pgrep -x` never matches) | **6 → 0 processes**, exact name 🧪📱 ([`92e6bf73`](https://github.com/Amiga500/Onion/commit/92e6bf73), fixed on the device in [`7790ecb2`](https://github.com/Amiga500/Onion/commit/7790ecb2)) |
 
 ### 🕹️ AdvanceMENU
 
@@ -941,6 +941,11 @@ Moving the tests onto the real headers exposed bugs their local copies had hidde
 Also: `file_read(NULL)` now returns NULL without calling `stat` (undefined behaviour, reported
 by UBSan when every suite was run under ASan/UBSan) ([`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb)).
 
+Found by the first device check (OnionPlus regression from Pass 3): the firmware's BusyBox
+1.20.2 lists `pgrep -x` but never matches with it, so `libpadspblocker` found no Wi-Fi daemon
+and stopped removing the `libpadsp.so` preload. It now reads `/proc/<pid>/comm` with shell
+builtins ([`7790ecb2`](https://github.com/Amiga500/Onion/commit/7790ecb2)).
+
 ---
 
 ## 🕹️ 7 · AdvanceMENU frontend
@@ -1074,11 +1079,11 @@ previous session is kept as `timing.prev.log`):
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..ca59befb`) | **136** *(132 without merges; through the last code commit [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb), README commits included. 41 at `9768ae02`; the review added 14 in Pass 1, 8 in Pass 2, 29 in Pass 3 and 32 in Pass 4; the rest are README commits and merges. The long `OnionPlus` branch was 97.)* |
-| 📁 Files changed | **220** *(`git diff --shortstat 07505ea5..ca59befb`)* |
-| ➕➖ Lines | **+31,560 / −2,063** |
-| 🧩 Production (everything outside `test/` and the README) | **139 files · +8,321 / −2,037** |
-| 🧪 Tests (`test/`) | **80 files · +22,266 / −10** |
+| 🔧 Commits (`07505ea5..7790ecb2`) | **139** *(135 without merges; through the last code commit [`7790ecb2`](https://github.com/Amiga500/Onion/commit/7790ecb2), README commits included. 41 at `9768ae02`; the review added 14 in Pass 1, 8 in Pass 2, 29 in Pass 3, 32 in Pass 4 and 1 fix found by the device checks; the rest are README commits and merges. The long `OnionPlus` branch was 97.)* |
+| 📁 Files changed | **220** *(`git diff --shortstat 07505ea5..7790ecb2`)* |
+| ➕➖ Lines | **+31,763 / −2,063** *(README included)* |
+| 🧩 Production (everything outside `test/` and the README) | **139 files · +8,325 / −2,037** |
+| 🧪 Tests (`test/`) | **80 files · +22,277 / −10** |
 | 📚 README | **1 file** *(the three `docs/` reports are retired; this README is the reference)* |
 | ⚡ NEON kernels | **9** (7 asm + 2 intrinsics) |
 | 🧪 Test suites / tests / assertions | **72 / 1,453 / 71,913** — **all green** ✅, all on the production code |
@@ -1134,6 +1139,7 @@ A bird's-eye view of the branch's evolution, oldest first:
 35. ↩️ **Review, Pass 2 (regressions)** — to [`4220e727`](https://github.com/Amiga500/Onion/commit/4220e727): theme marker (R1), services in a game resumed at boot (R2), low-battery icon and OSD bar redraw rates (R3, R4), service toggles with Wi-Fi off (R5), PICO-8 pictures (R6), recording hotkey (R7); `test_clock` per-clock comparison.
 36. ⚡ **Review, Pass 3 (optimization)** — to [`5a57e4e9`](https://github.com/Amiga500/Onion/commit/5a57e4e9), 29 commits: GameSwitcher frames, name bar, romscreen format and misses, NEON rotated rows, overlay capture; keymon key injection, SELECT/MENU scans, state-scan throttle, Mini Flip suspend; `runtime.sh` / `update_networking.sh` fork diet; `axp_test` without a shell; five leaks and loops shared with Onion; finer timing marks for the slow return to the menu.
 37. 🎯 **Review, Pass 4 (tests)** — to [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb), 32 commits: the 31 suites that tested local copies moved onto the production code (four removed), six defects shared with Onion fixed on the way, every suite run under ASan/UBSan.
+38. 📱 **First device check** — [`7790ecb2`](https://github.com/Amiga500/Onion/commit/7790ecb2): the firmware's BusyBox `pgrep -x` never matches; the Wi-Fi daemon lookup now reads `/proc` with shell builtins.
 
 > 🔍 Per-commit detail: `git log --stat 07505ea5..HEAD` on `onionplus-compact`.
 
@@ -1141,8 +1147,8 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-`onionplus-compact` is **136 commits** ahead of upstream `OnionUI/Onion:main` through the last
-code commit (`07505ea5` → `ca59befb`, README commits and merges included; the long `OnionPlus`
+`onionplus-compact` is **139 commits** ahead of upstream `OnionUI/Onion:main` through the last
+code commit (`07505ea5` → `7790ecb2`, README commits and merges included; the long `OnionPlus`
 branch was 97). In one tree:
 
 - 🖼️ **9 vectorized NEON kernels**, a dozen O(n²)→O(n) rewrites and five render/UI caches;
@@ -1166,5 +1172,5 @@ and on-device samples from more models (see [Known issues & next steps](#-known-
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `onionplus-compact` ·
-Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb) (**136**,
-`git rev-list --count 07505ea5..ca59befb`) · On-device figures: Miyoo Mini+ · Refreshed **2026-09-27**</sub>
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`7790ecb2`](https://github.com/Amiga500/Onion/commit/7790ecb2) (**139**,
+`git rev-list --count 07505ea5..7790ecb2`) · On-device figures: Miyoo Mini+ · Refreshed **2026-09-27**</sub>
