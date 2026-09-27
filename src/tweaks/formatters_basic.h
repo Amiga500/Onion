@@ -38,8 +38,11 @@ void formatter_Time(void *pt, char *out_label)
 
 int formatter_timeStringToID(const char *time_str)
 {
-    int hours, minutes;
-    sscanf(time_str, "%02d:%02d", &hours, &minutes);
+    // A malformed time (edited or corrupt config) left hours and minutes
+    // uninitialised: the list index was garbage. Treat it as 00:00.
+    int hours = 0, minutes = 0;
+    if (time_str == NULL || sscanf(time_str, "%02d:%02d", &hours, &minutes) != 2)
+        return 0;
     int intervalsFromHours = hours * 4;
     int intervalsFromMinutes = minutes / 15;
     return intervalsFromHours + intervalsFromMinutes;

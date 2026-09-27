@@ -175,6 +175,14 @@ TEST(time_str_2345) {
     ASSERT_EQ(formatter_timeStringToID("23:45"), 95);
 }
 
+/* Malformed times read uninitialised variables before the fix. */
+TEST(time_str_invalid) {
+    ASSERT_EQ(formatter_timeStringToID("invalid"), 0);
+    ASSERT_EQ(formatter_timeStringToID(""), 0);
+    ASSERT_EQ(formatter_timeStringToID("12"), 0);
+    ASSERT_EQ(formatter_timeStringToID(NULL), 0);
+}
+
 TEST(time_str_roundtrip) {
     /* Format then parse should give back the same ID */
     for (int id = 0; id < 96; id++) {
@@ -403,6 +411,7 @@ int main(void)
     RUN_TEST(time_str_0130);
     RUN_TEST(time_str_0145);
     RUN_TEST(time_str_2345);
+    RUN_TEST(time_str_invalid);
     RUN_TEST(time_str_roundtrip);
 
     /* Battery warn/exit */
