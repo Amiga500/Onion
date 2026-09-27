@@ -6,6 +6,7 @@
 #include <sys/ioctl.h>
 
 #include "utils/file.h"
+#include "utils/log.h"
 
 #define MAX_VOLUME 20
 #define MIN_RAW_VALUE -60
@@ -62,18 +63,31 @@ int setVolumeRaw(int value, int add)
     return value;
 }
 
+// Volume steps go from 0 to 20.
+static inline int volume_clamp(int volume)
+{
+    if (volume > 20)
+        return 20;
+    if (volume < 0)
+        return 0;
+    return volume;
+}
+
+// Volume step (0 - 20) to the raw value added to MIN_RAW_VALUE (see the
+// volume curve below).
+static inline int volume_toRaw(int volume)
+{
+    volume = volume_clamp(volume);
+    if (volume == 0)
+        return 0;
+    return round(48 * log10(1 + volume));
+}
+
 // Increments between 0 and 20
 int setVolume(int volume)
 {
-    int volume_raw = 0;
-
-    if (volume > 20)
-        volume = 20;
-    else if (volume < 0)
-        volume = 0;
-
-    if (volume != 0)
-        volume_raw = round(48 * log10(1 + volume)); // see volume curve below
+    volume = volume_clamp(volume);
+    int volume_raw = volume_toRaw(volume);
 
     printf_debug("set volume: %d -> %d\n", volume, volume_raw);
 

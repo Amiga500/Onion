@@ -338,9 +338,9 @@ test_volume: $(BUILD_DIR)/test_volume
 	@echo ""
 	@$(BUILD_DIR)/test_volume
 
-$(BUILD_DIR)/test_volume: test_volume.c onion_test.h
+$(BUILD_DIR)/test_volume: test_volume.c onion_test.h ../src/common/system/volume.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_volume.c $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) -o $@ test_volume.c $(COMMON_SRCS) $(LDFLAGS) -lm
 
 test_display: $(BUILD_DIR)/test_display
 	@echo ""

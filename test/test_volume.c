@@ -17,47 +17,11 @@
 #include "onion_test.h"
 #include <math.h>
 
-/* ---- Constants from volume.h ---- */
-#define MAX_VOLUME 20
-#define MIN_RAW_VALUE -60
-#define MAX_RAW_VALUE 30
+/* Production code: the volume clamp and curve from system/volume.h (the
+ * ioctl part, setVolumeRaw, is not called). */
+#include "system/volume.h"
 
-/* ---- Inline the pure-logic calculation from setVolume ---- */
-
-/**
- * Compute the raw volume value for a given user volume level.
- * This is the pure calculation extracted from setVolume() in volume.h.
- *
- * @param volume User volume level (0–20)
- * @return Raw volume value for hardware
- */
-static int volume_to_raw(int volume)
-{
-    int volume_raw = 0;
-
-    if (volume > 20)
-        volume = 20;
-    else if (volume < 0)
-        volume = 0;
-
-    if (volume != 0)
-        volume_raw = round(48 * log10(1 + volume));
-
-    return volume_raw;
-}
-
-/**
- * Clamp a volume level to the valid range.
- * Extracted from setVolume() in volume.h.
- */
-static int volume_clamp(int volume)
-{
-    if (volume > 20)
-        return 20;
-    else if (volume < 0)
-        return 0;
-    return volume;
-}
+#define volume_to_raw volume_toRaw
 
 /* ---- Tests: volume clamping ---- */
 
