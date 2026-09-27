@@ -6,7 +6,7 @@
  * (scaling math) and theme_getImagePath (path resolution with
  * override/theme/fallback priority).
  *
- * SDL types are stubbed to avoid pulling in the SDL dependency.
+ * Includes the production header (SDL_Rect from test/stubs/SDL).
  *
  * Build and run: make -f Makefile.unit test_theme_load
  */
@@ -19,81 +19,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* ---- Stub SDL types ---- */
-
-typedef struct {
-    short x, y;
-    unsigned short w, h;
-} SDL_Rect;
-
-/* Stub the SDL headers away */
-#define _SDL_H
-#define _SDL_image_h
-#define _SDL_TTF_H
-#define SDL_SWSURFACE 0
-typedef void SDL_Surface;
-
-/* ---- Provide STR_MAX ---- */
-#define STR_MAX 256
-
-/* Provide stubs for file functions */
-static bool exists(const char *path)
-{
-    return access(path, F_OK) == 0;
-}
-
-/* ---- Provide constants from load.h ---- */
+/* Production code: theme_scaleRect() and theme_getImagePath() from
+ * theme/image_path.h (included by theme/load.h), with SDL_Rect from the
+ * test SDL stub and the three lookup folders redirected to /tmp. */
 #define FALLBACK_PATH "/tmp/test_theme_load/fallback/"
 #define SYSTEM_RESOURCES "/tmp/test_theme_load/res/"
 #define THEME_OVERRIDES "/tmp/test_theme_load/overrides"
 
-/* ---- Inline the scale state ---- */
-static double g_scale = 1.0;
-
-/* ---- Inline theme_scaleRect ---- */
-static SDL_Rect theme_scaleRect(SDL_Rect rect)
-{
-    if (g_scale == 1.0)
-        return rect;
-    rect.x = (double)rect.x * g_scale;
-    rect.y = (double)rect.y * g_scale;
-    rect.w = (double)rect.w * g_scale;
-    rect.h = (double)rect.h * g_scale;
-    return rect;
-}
-
-/* ---- Inline theme_getImagePath ---- */
-static int theme_getImagePath(const char *theme_path, const char *name, char *out_path)
-{
-    int load_mode = 2;
-    char rel_path[STR_MAX], image_path[STR_MAX * 2];
-    snprintf(rel_path, sizeof(rel_path), "skin/%s.png", name);
-
-    snprintf(image_path, sizeof(image_path), THEME_OVERRIDES "/%s", rel_path);
-    bool override_exists = exists(image_path);
-
-    if (!override_exists) {
-        load_mode = 1;
-        snprintf(image_path, sizeof(image_path), "%s%s", theme_path, rel_path);
-        bool theme_exists = exists(image_path);
-
-        if (!theme_exists) {
-            load_mode = 0;
-            if (strncmp(name, "extra/", 6) == 0) {
-                snprintf(rel_path, sizeof(rel_path), "%s.png", name + 6);
-                snprintf(image_path, sizeof(image_path), "%s%s", SYSTEM_RESOURCES, rel_path);
-            }
-            else {
-                snprintf(image_path, sizeof(image_path), "%s%s", FALLBACK_PATH, rel_path);
-            }
-        }
-    }
-
-    if (out_path)
-        snprintf(out_path, STR_MAX * 2, "%s", image_path);
-
-    return load_mode;
-}
+#include "theme/image_path.h"
 
 /* ---- Helpers ---- */
 
@@ -185,6 +118,17 @@ TEST(scaleRect_identity_when_exactly_1) {
     ASSERT_EQ(out.y, 44);
     ASSERT_EQ(out.w, 55);
     ASSERT_EQ(out.h, 66);
+}
+
+TEST(scaleRect_negative_coords) {
+    g_scale = 2.0;
+    SDL_Rect r = {-5, -10, 100, 50};
+    SDL_Rect out = theme_scaleRect(r);
+    ASSERT_EQ(out.x, -10);
+    ASSERT_EQ(out.y, -20);
+    ASSERT_EQ(out.w, 200);
+    ASSERT_EQ(out.h, 100);
+    g_scale = 1.0;
 }
 
 /* ==== theme_getImagePath tests ==== */
@@ -280,6 +224,7 @@ int main(void)
     RUN_TEST(scaleRect_zero_rect);
     RUN_TEST(scaleRect_fractional_scale);
     RUN_TEST(scaleRect_identity_when_exactly_1);
+    RUN_TEST(scaleRect_negative_coords);
 
     /* theme_getImagePath */
     RUN_TEST(getImagePath_fallback_when_no_files);

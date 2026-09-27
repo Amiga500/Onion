@@ -18,6 +18,13 @@ typedef struct SDL_Color {
     Uint8 unused;
 } SDL_Color;
 
+typedef int16_t Sint16;
+
+typedef struct SDL_Rect {
+    Sint16 x, y;
+    Uint16 w, h;
+} SDL_Rect;
+
 typedef struct SDL_PixelFormat {
     Uint32 Amask;
     Uint8 Ashift;
