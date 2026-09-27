@@ -13,26 +13,8 @@
 #include <stdbool.h>
 #include <linux/input.h>
 
-/* ---- Inline constants from keymap_hw.h ---- */
-
-#define HW_BTN_UP       KEY_UP
-#define HW_BTN_DOWN     KEY_DOWN
-#define HW_BTN_LEFT     KEY_LEFT
-#define HW_BTN_RIGHT    KEY_RIGHT
-#define HW_BTN_A        KEY_SPACE
-#define HW_BTN_B        KEY_LEFTCTRL
-#define HW_BTN_X        KEY_LEFTSHIFT
-#define HW_BTN_Y        KEY_LEFTALT
-#define HW_BTN_L1       KEY_E
-#define HW_BTN_R1       KEY_T
-#define HW_BTN_L2       KEY_TAB
-#define HW_BTN_R2       KEY_BACKSPACE
-#define HW_BTN_SELECT   KEY_RIGHTCTRL
-#define HW_BTN_START    KEY_ENTER
-#define HW_BTN_MENU     KEY_ESC
-#define HW_BTN_POWER    KEY_POWER
-#define HW_BTN_VOLUME_UP   KEY_VOLUMEUP
-#define HW_BTN_VOLUME_DOWN KEY_VOLUMEDOWN
+/* Production code: the hardware key codes from system/keymap_hw.h. */
+#include "system/keymap_hw.h"
 
 /* ==== Individual constant value tests ==== */
 
@@ -177,6 +159,22 @@ TEST(hw_all_buttons_nonnegative) {
     ASSERT_GE(HW_BTN_VOLUME_DOWN, 0);
 }
 
+/* ==== Every key code is distinct, the lid switch included ==== */
+
+TEST(hw_all_buttons_unique) {
+    int codes[] = {HW_BTN_UP, HW_BTN_DOWN, HW_BTN_LEFT, HW_BTN_RIGHT,
+                   HW_BTN_A, HW_BTN_B, HW_BTN_X, HW_BTN_Y,
+                   HW_BTN_L1, HW_BTN_R1, HW_BTN_L2, HW_BTN_R2,
+                   HW_BTN_SELECT, HW_BTN_START, HW_BTN_MENU, HW_BTN_POWER,
+                   HW_BTN_VOLUME_UP, HW_BTN_VOLUME_DOWN, HW_BTN_LID_CLOSE};
+    int n = sizeof(codes) / sizeof(codes[0]);
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            ASSERT_NE(codes[i], codes[j]);
+        }
+    }
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -207,6 +205,7 @@ int main(void)
     RUN_TEST(hw_shoulder_buttons_unique);
     RUN_TEST(hw_system_buttons_unique);
     RUN_TEST(hw_volume_buttons_unique);
+    RUN_TEST(hw_all_buttons_unique);
 
     RUN_TEST(hw_all_buttons_nonnegative);
 

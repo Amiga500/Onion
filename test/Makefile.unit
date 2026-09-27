@@ -461,9 +461,9 @@ test_keymap: $(BUILD_DIR)/test_keymap
 	@echo ""
 	@$(BUILD_DIR)/test_keymap
 
-$(BUILD_DIR)/test_keymap: test_keymap.c onion_test.h
+$(BUILD_DIR)/test_keymap: test_keymap.c onion_test.h ../src/common/system/keymap_hw.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_keymap.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_keymap.c $(LDFLAGS) 
 
 test_resources_enum: $(BUILD_DIR)/test_resources_enum
 	@echo ""
