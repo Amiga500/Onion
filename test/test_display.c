@@ -21,114 +21,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- Inline brightness calculations from display.h ---- */
+/* Production code: the brightness curve and display_readOrWriteBuffer from
+ * system/display.h, under the names the tests use. Displays are
+ * zero-filled, so finfo.line_length is 0 and the stride falls back to xres. */
+#include "system/display.h"
 
-/**
- * Convert brightness level (0–10) to raw PWM duty cycle.
- * Exponential curve: raw = round(3.0 * exp(0.350656 * level))
- */
-static int brightness_to_raw(int level)
-{
-    return round(3.0 * exp(0.350656 * level));
-}
+#define brightness_to_raw display_brightnessToRaw
+#define brightness_from_raw display_brightnessFromRaw
 
-/**
- * Convert raw PWM duty cycle back to brightness level (0–10).
- * Logarithmic inverse: level = round(log(raw / 3.0) / 0.350656)
- */
-static int brightness_from_raw(int value_raw)
-{
-    if (value_raw <= 0)
-        return 0;
-    return round(log(value_raw / 3.0) / 0.350656);
-}
-
-/* ---- Minimal display_t for buffer tests ---- */
-
-typedef struct {
-    uint32_t xres;
-    uint32_t yres;
-    uint32_t yres_virtual;
-    uint32_t yoffset;
-} test_vinfo_t;
-
-typedef struct {
-    uint32_t *fb_addr;
-    test_vinfo_t vinfo;
-} test_display_t;
-
-typedef struct {
-    int x, y, w, h;
-} test_rect_t;
-
-/**
- * Simplified version of display_readOrWriteBuffer from display.h.
- * Tests pixel read/write operations with rotation and masking.
- */
-static void test_readOrWriteBuffer(int index, test_display_t *display,
-                                   uint32_t *pixels, test_rect_t rect,
-                                   bool rotate, bool mask, bool write)
-{
-    int bufferPos = index * (int)display->vinfo.yres;
-
-    for (int oy = 0; oy < rect.h; oy++) {
-        int y = rect.y + oy;
-
-        if (y < 0 || y >= (int)display->vinfo.yres)
-            continue;
-
-        int virtualY = bufferPos + (rotate ? (int)(display->vinfo.yres - 1) - y : y);
-        long baseOffset = (long)virtualY * (long)display->vinfo.xres;
-        int baseIndex = oy * rect.w;
-
-        /* Fast path: non-rotated, non-masked, contiguous row */
-        if (!rotate && !mask && rect.x >= 0 &&
-            rect.x + rect.w <= (int)display->vinfo.xres) {
-            long rowOffset = baseOffset + (long)rect.x;
-            if (write) {
-                memcpy(&display->fb_addr[rowOffset], &pixels[baseIndex],
-                       rect.w * sizeof(uint32_t));
-            }
-            else {
-                memcpy(&pixels[baseIndex], &display->fb_addr[rowOffset],
-                       rect.w * sizeof(uint32_t));
-            }
-            continue;
-        }
-
-        for (int ox = 0; ox < rect.w; ox++) {
-            int x = rect.x + ox;
-
-            if (rotate) {
-                x = (int)(display->vinfo.xres - 1) - x;
-            }
-
-            if (x < 0 || x >= (int)display->vinfo.xres)
-                continue;
-
-            long offset = baseOffset + (long)x;
-            int idx = baseIndex + ox;
-            if (write) {
-                if (mask) {
-                    if (pixels[idx] != 0) {
-                        display->fb_addr[offset] = 0;
-                    }
-                }
-                else {
-                    display->fb_addr[offset] = pixels[idx];
-                }
-            }
-            else {
-                if (mask) {
-                    pixels[idx] = display->fb_addr[offset] == 0 ? 1 : 0;
-                }
-                else {
-                    pixels[idx] = display->fb_addr[offset];
-                }
-            }
-        }
-    }
-}
+typedef display_t test_display_t;
+typedef rect_t test_rect_t;
+#define test_readOrWriteBuffer display_readOrWriteBuffer
 
 /* ---- Tests: brightness curve boundaries ---- */
 
@@ -218,6 +121,7 @@ TEST(brightness_curve_all_values) {
 static test_display_t create_test_display(int w, int h)
 {
     test_display_t d;
+    memset(&d, 0, sizeof(d));
     d.vinfo.xres = w;
     d.vinfo.yres = h;
     d.vinfo.yres_virtual = h;

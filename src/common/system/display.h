@@ -235,14 +235,24 @@ uint32_t display_getBrightnessRaw()
     return duty_cycle;
 }
 
+// Brightness level (0 - 10) to PWM duty cycle: exponential curve.
+static inline int display_brightnessToRaw(uint32_t value)
+{
+    return round(3.0 * exp(0.350656 * value));
+}
+
+// PWM duty cycle to brightness level (0 - 10), the inverse of the curve.
+static inline int display_brightnessFromRaw(int value_raw)
+{
+    if (value_raw <= 0)
+        return 0;
+    return round((log(value_raw / 3.0) / 0.350656));
+}
+
 // Get display brightness from raw (0 - 10)
 int display_getBrightnessFromRaw()
 {
-    int value_raw = display_getBrightnessRaw();
-    if (value_raw <= 0)
-        return 0;
-    int value = round((log(value_raw / 3.0) / 0.350656));
-    return value;
+    return display_brightnessFromRaw(display_getBrightnessRaw());
 }
 //
 //    Set Brightness (Raw)
@@ -267,9 +277,7 @@ void display_setBrightness(uint32_t value)
     // int value_raw = (value == 0) ? 3 : (value * 10);
 
     // Exponential curve
-    int value_raw = round(3.0 * exp(0.350656 * value));
-
-    display_setBrightnessRaw(value_raw);
+    display_setBrightnessRaw(display_brightnessToRaw(value));
 }
 
 /**

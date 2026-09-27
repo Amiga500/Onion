@@ -346,9 +346,9 @@ test_display: $(BUILD_DIR)/test_display
 	@echo ""
 	@$(BUILD_DIR)/test_display
 
-$(BUILD_DIR)/test_display: test_display.c onion_test.h
+$(BUILD_DIR)/test_display: test_display.c onion_test.h ../src/common/system/display.h ../src/common/utils/neon_pixel.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_display.c $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) -o $@ test_display.c $(COMMON_SRCS) $(LDFLAGS) -lm
 
 test_lang: $(BUILD_DIR)/test_lang
 	@echo ""
