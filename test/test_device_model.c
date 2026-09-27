@@ -15,42 +15,9 @@
 #include <string.h>
 #include <unistd.h>
 
-/* ---- Provide STR_MAX used by file.h ---- */
-#define STR_MAX 256
-
-/* ---- Inline the file_get macro from file.h ---- */
-#define file_get(fp, path, format, dest) \
-    {                                    \
-        if ((fp = fopen(path, "r"))) {   \
-            fscanf(fp, format, dest);    \
-            fclose(fp);                  \
-        }                                \
-    }
-
-/* ---- Inline device_model.h constants and functions ---- */
-
-#define MIYOO283 283
-#define MIYOO285 285
-#define MIYOO354 354
-
-#define IS_MIYOO_PLUS_OR_FLIP() (DEVICE_ID == MIYOO285 || DEVICE_ID == MIYOO354)
-#define HAS_AXP() IS_MIYOO_PLUS_OR_FLIP()
-#define HAS_WIFI() IS_MIYOO_PLUS_OR_FLIP()
-
-static int DEVICE_ID;
-static char DEVICE_SN[13];
-
-static void getDeviceModel(void)
-{
-    FILE *fp;
-    file_get(fp, "/tmp/deviceModel", "%d", &DEVICE_ID);
-}
-
-static void getDeviceSerial(void)
-{
-    FILE *fp;
-    file_get(fp, "/tmp/deviceSN", "%[^\n]", DEVICE_SN);
-}
+/* Production code: system/device_model.h (reads /tmp/deviceModel and
+ * /tmp/deviceSN through file_get from utils/file.h). */
+#include "system/device_model.h"
 
 /* ---- Helpers ---- */
 

@@ -394,9 +394,9 @@ test_device_model: $(BUILD_DIR)/test_device_model
 	@echo ""
 	@$(BUILD_DIR)/test_device_model
 
-$(BUILD_DIR)/test_device_model: test_device_model.c onion_test.h
+$(BUILD_DIR)/test_device_model: test_device_model.c onion_test.h ../src/common/system/device_model.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_device_model.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_device_model.c $(COMMON_SRCS) $(LDFLAGS) 
 
 test_theme_load: $(BUILD_DIR)/test_theme_load
 	@echo ""
