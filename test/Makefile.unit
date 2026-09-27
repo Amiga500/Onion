@@ -274,9 +274,9 @@ test_gs_retroarch: $(BUILD_DIR)/test_gs_retroarch
 	@echo ""
 	@$(BUILD_DIR)/test_gs_retroarch
 
-$(BUILD_DIR)/test_gs_retroarch: test_gs_retroarch.c onion_test.h
+$(BUILD_DIR)/test_gs_retroarch: test_gs_retroarch.c onion_test.h ../src/gameSwitcher/gs_ra_files.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_gs_retroarch.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_gs_retroarch.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 test_has_changed: $(BUILD_DIR)/test_has_changed
 	@echo ""
