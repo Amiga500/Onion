@@ -517,9 +517,9 @@ test_savestate_path: $(BUILD_DIR)/test_savestate_path
 	@echo ""
 	@$(BUILD_DIR)/test_savestate_path
 
-$(BUILD_DIR)/test_savestate_path: test_savestate_path.c onion_test.h
+$(BUILD_DIR)/test_savestate_path: test_savestate_path.c onion_test.h ../src/gameSwitcher/gs_savestate_path.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_savestate_path.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_savestate_path.c $(LDFLAGS) 
 
 test_overlay_content: $(BUILD_DIR)/test_overlay_content
 	@echo ""

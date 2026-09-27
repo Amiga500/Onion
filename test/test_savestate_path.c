@@ -17,37 +17,20 @@
 #include <string.h>
 
 #define STR_MAX 256
-#define STATES_DIR "/mnt/SDCARD/Saves/CurrentProfile/states"
 
-/* ---- Minimal Game_s for tests ---- */
+/* Production code: createSaveStatePathFromNames() from
+ * gameSwitcher/gs_savestate_path.h (what gs_popMenu.h calls). */
+#include "../src/gameSwitcher/gs_savestate_path.h"
 
 typedef struct {
     char core_name[STR_MAX * 2];
     char rom_name[STR_MAX * 2];
 } TestGame;
 
-/* ---- Inline the function under test ---- */
-
 static bool createSaveStatePath(TestGame *game, int slot, char *out_path, size_t out_path_size)
 {
-    if (strlen(game->core_name) == 0) {
-        return false;
-    }
-
-    if (slot == -1) {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state.auto",
-                 game->core_name, game->rom_name);
-    }
-    else if (slot == 0) {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state",
-                 game->core_name, game->rom_name);
-    }
-    else {
-        snprintf(out_path, out_path_size, STATES_DIR "/%s/%s.state%d",
-                 game->core_name, game->rom_name, slot);
-    }
-
-    return true;
+    return createSaveStatePathFromNames(game->core_name, game->rom_name, slot,
+                                        out_path, out_path_size);
 }
 
 /* ---- Helpers ---- */
@@ -154,6 +137,20 @@ TEST(savestate_rom_with_brackets) {
     ASSERT_STREQ(path, STATES_DIR "/fceumm/[BIOS] NES.state");
 }
 
+/* ==== Tests: NULL names (guards in the production helper) ==== */
+
+TEST(savestate_null_core_returns_false) {
+    char path[512] = "unchanged";
+    ASSERT_FALSE(createSaveStatePathFromNames(NULL, "rom", 0, path, sizeof(path)));
+    ASSERT_STREQ(path, "unchanged");
+}
+
+TEST(savestate_null_rom_is_empty_name) {
+    char path[512];
+    ASSERT_TRUE(createSaveStatePathFromNames("mGBA", NULL, 2, path, sizeof(path)));
+    ASSERT_STREQ(path, STATES_DIR "/mGBA/.state2");
+}
+
 /* ==== Tests: all slots produce unique paths ==== */
 
 TEST(savestate_all_slots_unique) {
@@ -180,6 +177,8 @@ int main(void)
     printf("\n=== gs_popMenu.h createSaveStatePath Unit Tests ===\n\n");
 
     /* Auto save state */
+    RUN_TEST(savestate_null_core_returns_false);
+    RUN_TEST(savestate_null_rom_is_empty_name);
     RUN_TEST(savestate_auto_slot);
     RUN_TEST(savestate_auto_slot_different_core);
 
