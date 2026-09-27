@@ -218,9 +218,9 @@ test_settings: $(BUILD_DIR)/test_settings
 	@echo ""
 	@$(BUILD_DIR)/test_settings
 
-$(BUILD_DIR)/test_settings: test_settings.c onion_test.h
+$(BUILD_DIR)/test_settings: test_settings.c onion_test.h ../src/common/system/settings.h ../src/common/system/display.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_settings.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_settings.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 test_list: $(BUILD_DIR)/test_list
 	@echo ""
