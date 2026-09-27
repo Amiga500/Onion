@@ -341,6 +341,54 @@ unset -f sync syncs
 unset TZ
 end
 
+# ---- ota_update.sh: which release each channel installs ----
+
+OTA="$ROOT/static/build/.tmp_update/script/ota_update.sh"
+if command -v jq > /dev/null; then
+    eval "$(extract_fn "$OTA" get_release_info)"
+    eval "$(grep '^get_version()' "$OTA")"
+
+    ota_asset() { # tag, prerelease (true/false)
+        printf '{"tag_name":"%s","prerelease":%s,"draft":false,"body":"","assets":[{"name":"OnionPlus-v%s.zip","browser_download_url":"https://x/%s.zip","size":1048576,"created_at":"2026-09-27T00:00:00Z"}]}' "$1" "$2" "$1" "$1"
+    }
+    curl() { # the last argument is the URL
+        for _u; do :; done
+        case "$_u" in
+            */releases/latest) cat "$TMP/latest.json" ;;
+            */releases) cat "$TMP/list.json" ;;
+        esac
+    }
+    installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
+    GITHUB_REPOSITORY=Amiga500/Onion
+
+    begin ota_beta_takes_newest_build
+    printf '[%s,%s]' "$(ota_asset 4.4.0-beta-20260927-bbbbbbbb false)" "$(ota_asset 4.4.0-beta-20260920-cccccccc true)" > "$TMP/list.json"
+    channel=beta
+    get_release_info > /dev/null
+    check "no prerelease newer: newest release offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.4.0-beta-20260927-bbbbbbbb
+    printf '[%s,%s]' "$(ota_asset 4.4.0-beta-20260928-dddddddd true)" "$(ota_asset 4.4.0-beta-20260927-bbbbbbbb false)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "newer prerelease offered" test "$Release_FullVersion" = 4.4.0-beta-20260928-dddddddd
+    echo '[]' > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "no release at all: nothing offered" test "$?" -eq 1
+    end
+
+    begin ota_stable_takes_latest_release
+    ota_asset 4.4.0-beta-20260927-bbbbbbbb false > "$TMP/latest.json"
+    echo '[]' > "$TMP/list.json"
+    channel=stable
+    get_release_info > /dev/null
+    check "latest release offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.4.0-beta-20260927-bbbbbbbb
+    ota_asset 4.4.0-beta-20260926-aaaaaaaa false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "installed build: up to date" test "$?" -eq 1
+    end
+    unset -f curl installUI ota_asset
+else
+    echo "  [SKIP] ota_update.sh tests (jq not installed)"
+fi
+
 # ---- update_networking.sh: libpadspblocker pid lookup ----
 
 eval "$(extract_fn "$NETWORK" lowest_pid_named)"

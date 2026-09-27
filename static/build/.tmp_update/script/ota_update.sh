@@ -113,11 +113,10 @@ get_release_info() {
 
 	# Github source api url
 	if [ "$channel" = "beta" ]; then
-		# Latest prerelease only. pre-release.yml publishes dated OnionPlus
-		# tags with prerelease:false, so there is no "latest" tag to follow —
-		# but falling back to releases[0] could install a non-beta build.
-		# If nothing is marked as a prerelease, stay on the current version.
-		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '[.[] | select(.prerelease == true)] | .[0]')
+		# The newest published build, prerelease or not: beta is never behind
+		# stable. Taking prereleases only left beta with nothing at all, since
+		# pre-release.yml publishes every build with prerelease:false.
+		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '[.[] | select(.draft != true)] | .[0]')
 		if [ -z "$Release_assets_info" ] || [ "$Release_assets_info" = "null" ]; then
 			echo -e "${GREEN}DONE${NC}\n\n" \
 				"No update available for $channel channel\n"
