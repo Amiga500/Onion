@@ -10,16 +10,17 @@ to the menu, put the device to sleep, or change the volume** — shared in the h
 of it is useful to the Onion team. It keeps Onion's look, menus, emulators and file layout.
 Everything here is built on their work; any change they find worthwhile is theirs to take.
 
-> ⏱️ **~0.5 s** of its own work around each game, measured on a Miyoo Mini+ · 🐛 **25** issues
-> found in the shared codebase, with fixes ready for Onion · 🧪 **1,423** host tests.
+> ⏱️ **~0.5 s** of its own work around each game, measured on a Miyoo Mini+ · 🐛 **40** issues
+> found in the shared codebase, with fixes ready for Onion · 🧪 **1,453** host tests, all on
+> the production code.
 
 [![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
-[![commits](https://img.shields.io/badge/commits-41-blueviolet?style=for-the-badge)](#-11--commit-timeline)
-[![files](https://img.shields.io/badge/files%20changed-188-blue?style=for-the-badge)](#-10--grand-totals)
-[![neon](https://img.shields.io/badge/NEON%20kernels-8-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
-[![tests](https://img.shields.io/badge/tests-1%2C423%20%2F%2071%2C436%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
+[![commits](https://img.shields.io/badge/commits-136-blueviolet?style=for-the-badge)](#-11--commit-timeline)
+[![files](https://img.shields.io/badge/files%20changed-220-blue?style=for-the-badge)](#-10--grand-totals)
+[![neon](https://img.shields.io/badge/NEON%20kernels-9-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
+[![tests](https://img.shields.io/badge/tests-1%2C453%20%2F%2071%2C913%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
-[![fixes](https://img.shields.io/badge/fixes%20ready%20for%20Onion-25-critical?style=for-the-badge)](#️-6--security--memory-hardening)
+[![fixes](https://img.shields.io/badge/fixes%20ready%20for%20Onion-40-critical?style=for-the-badge)](#️-6--security--memory-hardening)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
 
 > 📡 **OnionPlus ships and updates itself over-the-air** — `ota_update.sh` checks
@@ -91,13 +92,13 @@ rank the two.
 
 | | ⚪ OnionUI | 🟢 OnionPlus | 💬 What it means |
 |:--|:-:|:-:|:--|
-| 🐛 Issues found in the shared code | — | **25 fixed** | ✅ crashes, leaks, lost settings, a wrong clock — fixes available for Onion, [listed in §6](#️-6--security--memory-hardening) |
+| 🐛 Issues found in the shared code | — | **40 fixed** | ✅ crashes, leaks, lost settings, a wrong clock — fixes available for Onion, [listed in §6](#️-6--security--memory-hardening) |
 | ⚡ Settings that survive a power cut mid-write | none | **all** | ✅ `system.json`, key map, config values, JSON, recent games |
 | 🧠 Memory leaked per MainUI-cache lookup | ~570 KB | **0** | 📏 was tens of MB with a large GameSwitcher history, on a 128 MB device |
-| 🧪 Automated tests | 1 | **1,423** | 🚀 **×1,400**: 71,436 assertions, run on any PC in ~2.5 s |
-| 🖼️ NEON (SIMD) pixel kernels | 0 | **8** | 🆕 vectorized pixel conversion, rotation and alpha |
+| 🧪 Automated tests | 1 | **1,453** | 🚀 **×1,400**: 72 suites, 71,913 assertions, all on the production code, run on any PC in ~3 s |
+| 🖼️ NEON (SIMD) pixel kernels | 0 | **9** | 🆕 vectorized pixel conversion, rotation, rotated row copy and alpha |
 | 🐚 `system()` calls in the C code | 73 | **46** | ⬇️ **−37%** shells spawned |
-| ⚠️ Unbounded string calls | 347 | **235** | ⬇️ **−32%**; none left in the hardened core |
+| ⚠️ Unbounded string calls | 347 | **234** | ⬇️ **−33%**; none left in the hardened core |
 
 > 📱 measured on a Miyoo Mini+ · 📏 measured on a host machine · everything else counted
 > from the code of both projects (see [how these numbers were obtained](#-how-these-numbers-were-obtained)).
@@ -138,6 +139,15 @@ rank the two.
   whole jump (from 1970, on a fresh device) to the game being played; it can't anymore.
 - 🚀 **Faster launches, faster returns.** Dozens of helper processes removed from the path
   between pressing A and seeing the game, and between quitting and seeing the menu.
+- 🎨 **Your icon choice survives a reboot.** A theme changed in the Themes app with "Apply
+  icons" off, or an icon pack picked afterwards, is no longer undone at the next boot.
+- 🔒 **"Disable services in game" holds everywhere.** SSH, FTP, Samba, HTTP and Telnet no
+  longer come up during a game resumed at boot or started right after a Wi-Fi change.
+- 🕹️ **A lighter GameSwitcher.** It draws only when something on screen changes, updates
+  just the name bar while a long name scrolls, and the Y long press opens the full-screen
+  view after 0.3 s again.
+- ⌨️ **keymon stays out of the way.** No process scans on SELECT in a game or on every MENU
+  repeat, and keys sent to MainUI no longer start a helper program that flushes the SD card.
 
 ---
 
@@ -221,6 +231,9 @@ off again — all while the menu was already usable.
 | 🔎 Config flags checked on the SD card | up to 3 `stat` calls | ✅ **0** (cached) |
 | ⚡ CPU-clock hotkey | spawns `cpuclock` twice, overflows a 5-byte buffer | ✅ **once, no overflow** |
 | 🐚 Shell spawns (`touch`, scripts, `playActivity`) | via `system()` | ✅ **direct `fork`/`exec`** |
+| ⌨️ Key sent to MainUI (SELECT tap, MENU combos) | `sendkeys` via `system()`: shell + tool + global `sync` | ✅ **written to the input device by keymon** |
+| 🔎 Process scan (`/proc`) on SELECT in a game / each MENU repeat | yes / yes | ✅ **no / no** |
+| 🔁 Process scans after each launch or exit | one per key event until the next 15 s tick | ✅ **at most one every 0.5 s** |
 
 ### 🌙 Every 15 seconds, with the blue-light schedule on
 
@@ -240,13 +253,15 @@ off again — all while the menu was already usable.
 | 📂 Play-history database opened | twice | ✅ **once**, indexed by path |
 | 🖥️ Mini+/Mini Flip 560p check | 4–5 processes, command file read 2–3× | ✅ **0** |
 | 🔁 Global syncs in the main loop | 4 per loop | ✅ **1**, when a game or app exits |
+| ✏️ Resolved ROM path written back | `cat` + `echo \| rev \| sed \| rev` (~6 forks) | ✅ **shell built-ins** |
+| 🔊 Audio server running? | `pgrep` (scans every process) | ✅ **its pid checked**, `pgrep` only if gone |
 
 ### 🏠 Returning to the menu
 
 | | ⚪ OnionUI | 🟢 OnionPlus |
 |:--|:--|:--|
 | 🔋 Battery icon | decoded, rendered and **written to the SD card every time** | ✅ **only when the theme or percentage changed** |
-| 💾 Global SD flushes | 2 | ✅ **1** |
+| 💾 Global SD flushes | 2 (3 after a Wi-Fi change) | ✅ **1** |
 | 🔎 Checking which MainUI is mounted | ~6 processes | ✅ **0** |
 | 📄 Reading `system.json` (Wi-Fi ×2, theme) | 3 `jsonval` processes | ✅ **0** |
 | 🖥️ Mini+/Mini Flip framebuffer probe parsing | 8 processes | ✅ **0** |
@@ -265,6 +280,8 @@ off again — all while the menu was already usable.
 |:--|:--|:--|
 | 💾 Global syncs when services restart | up to 5 | ✅ **0** |
 | 📶 `jsonval` processes to read the Wi-Fi setting | 8–10 | ✅ **1** |
+| 🕒 Time zone after each API sync | `.tz` + `.tz_sync` rewritten, global `sync` | ✅ **only when the zone changed** |
+| 🔎 Finding `wpa_supplicant` / `udhcpc` | `ps \| grep \| awk` ×2 (6 processes) | ✅ **`pgrep -x`** (2) |
 
 ### 🔁 Recent games list
 
@@ -308,6 +325,9 @@ Symlinked files are resolved first, so the link itself is never replaced.
 | 📦 Package Manager, per emulator package | whole parsed config leaked (`free` instead of `cJSON_Delete`) | ✅ **0** |
 | ⚙️ System property save | JSON tree leaked when the value was unchanged | ✅ **0** |
 | 🖼️ GameSwitcher screenshots | loader thread never joined; surfaces freed from two threads | ✅ **single owner, joined at exit** |
+| 💬 Tweaks tooltip / cancelled reset | a 1.2 MB copy of the screen per tooltip, never freed | ✅ **0** |
+| 🔊 Volume/brightness bar | one unjoined thread per bar left in keymon; the bar stopped appearing once threads ran out | ✅ **joined before the next bar** |
+| 💾 GameSwitcher save state | save thread never joined | ✅ **joined** |
 
 On a 128 MB device with the GameSwitcher showing up to 100 recent games, the first leak
 alone could grow to tens of megabytes.
@@ -331,16 +351,30 @@ alone could grow to tens of megabytes.
 
 > 🟧 What is known, and what comes next.
 
-- 🌐 **Network service toggles are never switched off by the network script** (an OnionUI
-  defect: `disable_flag` builds the wrong file name). Services still come back after games
-  and Wi-Fi changes; the fix is simple but changes a behaviour nobody has relied on yet, so
-  it will only ship after a test on a device.
+- 📱 **Waiting for a test on a device.** The fixes below pass every host test but need a real
+  console:
+  - Themes app with **Apply icons** off, then reboot: the icons stay as chosen.
+  - **Disable services in game** on, with SSH (or another service) on: no service while a game
+    resumed at boot runs, nor in a game started right after a Wi-Fi change.
+  - **Low-battery icon** and the **volume/brightness bar** during a game: visible, no flicker.
+  - A service toggle on, then **Wi-Fi off and on again**: the toggle stays on and the service
+    comes back.
+  - **SELECT and MENU in MainUI** (keys now sent directly by keymon), the recording hotkey
+    toggled in Tweaks (applies without leaving Tweaks).
+  - GameSwitcher: a long **scrolling name**, the **Y long press**, **Load** with two or more
+    save slots, **Save** from the in-game menu.
+  - **Mini Flip:** suspend with the lid closed (powers off at the timeout, as in `v4.5-dev`),
+    model detection, and the lid/Hall sensor in general.
+  - A **Korean ROM name** in Play Activity, a **PICO-8 `.p8`** cart's picture.
+- ↩️ **Return to the menu after turning Wi-Fi on from MainUI** takes ~2.2 s instead of ~0.1 s
+  (seen twice). New timing marks (`mr_sync`, `mr_freemma`, `net_check`) split that phase: a
+  `log_export.7z` taken with logging on will show which step it is.
 - 🕒 **Time sync:** on networks where the web time services fail, the time comes from
   `ntpdate` a few seconds later. It no longer blocks anything.
-- ↩️ **Return to the menu after turning Wi-Fi on from MainUI** takes ~2.2 s instead of ~0.1 s
-  (seen twice); a global `sync` or `freemma` is the suspect, finer timing marks will tell.
-- 🔋 **Mini Flip:** lid/Hall-sensor handling is unchanged and still to be confirmed on hardware.
 - 📏 **Measurements:** on-device numbers come from one Mini+ so far.
+- 🧪 **Tests:** every suite now builds against the production code. `test_state` and
+  `test_gs_popmenu` still keep a small local copy next to it (a before/after pair and a
+  bounds check).
 
 ## 🤝 Credits & giving back
 
@@ -354,7 +388,8 @@ alone could grow to tens of megabytes.
 - 📬 **For the Onion team:** if any of these changes would be useful as pull requests, I'm
   happy to split them out and adapt them to Onion's own branches. The fixes that apply to
   Onion as it is today — the MainUI-cache memory leak, the time zone and play time after a
-  clock change, Wi-Fi no longer holding the boot, the recent-list line numbering — are the
+  clock change, Wi-Fi no longer holding the boot, the recent-list line numbering, the
+  cache-DB stack overflow, the `DEVICE_SN` overflow and the Tweaks and OSD leaks — are the
   first candidates.
 
 ## 🔬 How these numbers were obtained
@@ -374,8 +409,9 @@ Reproduce the static counts from a checkout of each project:
 find src -name '*.[ch]' | xargs sed 's#//.*##' | grep -cE '(^|[^_a-zA-Z])system\('
 # unbounded string calls
 find src -name '*.[ch]' | xargs sed 's#//.*##' | grep -cE '(^|[^_a-zA-Z])(sprintf|strcpy|strcat|strtok)\('
-# host test suite
+# host test suite, and the ASan/UBSan subset
 make unit-test
+make -C test -f Makefile.unit unit-test-san
 ```
 
 **Not claimed here:** frame rates or battery life. The changes remove work from the paths
@@ -419,10 +455,14 @@ On top of `07505ea5` the branch carries, oldest first:
   and [`1592866e`](https://github.com/Amiga500/Onion/commit/1592866e) (on-device timing log, fork-free launch helpers, crash-safe
   `system.json` at boot, Play Activity / Package Manager fixes);
 - 📱 four rounds of fixes driven by the on-device timing log: [`874ea325`](https://github.com/Amiga500/Onion/releases/tag/OnionPlus-v4.4.0-beta-20260925-874ea325),
-  [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e), [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc), [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02).
+  [`10f2369e`](https://github.com/Amiga500/Onion/commit/10f2369e), [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc), [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02);
+- 🔎 the **2026-09-26 review**, in four passes: **Pass 1** correctness ([PR #221](https://github.com/Amiga500/Onion/pull/221),
+  findings F1–F14), **Pass 2** regressions against Onion (R1–R7, to [`4220e727`](https://github.com/Amiga500/Onion/commit/4220e727)),
+  **Pass 3** optimization (to [`5a57e4e9`](https://github.com/Amiga500/Onion/commit/5a57e4e9)) and **Pass 4** tests: every suite
+  moved onto the production code (to [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb)).
 
 Every pass reaches installs through the built-in **OTA updater** (`Amiga500/Onion`, assets
-`OnionPlus-v…`). The last **code** commit is [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02). This README is the **single
+`OnionPlus-v…`). The last **code** commit is [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb). This README is the **single
 reference** for the branch (the former `docs/` reports were retired with it) and groups
 **everything shipped to date** by *category* rather than by commit.
 
@@ -464,11 +504,13 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 | ⚪ `neon_gray8a_to_argb` | scalar per-pixel loop | 🚀 **~+500%** | 📏 |
 | 🎨 `neon_argb_to_rgba_alpha` | scalar per-pixel + branch | 🚀 **~+600%** | 📏 |
 | 🌫️ `surfaceSetAlpha` (NEON intrinsics) | float mul + `SDL_GetRGBA` | 🚀 **~+400%** | 📏 |
+| 🔁 `neon_reverse_copy_u32` (NEON intrinsics) | per-pixel loop with bounds checks for every rotated framebuffer row (GameSwitcher frames, overlay capture) | 8 pixels per step | 📐🧪 |
 
-- 📦 **8 kernels total** (7 hand-written ARM assembly + 1 NEON intrinsics), all guarded by
+- 📦 **9 kernels total** (7 hand-written ARM assembly + 2 NEON intrinsics), all guarded by
   `#ifdef __ARM_NEON` with a correct scalar tail loop for the remainder.
-- 🧪 Backed by `test_neon`, `test_neon_pixel` and `test_alpha_scale` — **109 tests /
-  67,353 assertions** cross-checking NEON output against the scalar oracle.
+- 🧪 Backed by `test_neon`, `test_neon_pixel`, `test_alpha_scale` and `test_display_rotate` —
+  **115 tests / 67,489 assertions** cross-checking NEON output against the scalar oracle
+  (the intrinsics were also checked out of tree on x86 through SIMDe).
 - 🔬 Every scalar fallback is exercised on the x86-64 host CI; a separate `neon-arm` job
   cross-compiles the assembly and runs it under `qemu-user`.
 
@@ -528,6 +570,10 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 | 🎮 GameSwitcher play time | Play Activity DB opened **on the UI thread** the first time each game is shown | computed by the preload worker with name and core (UI fallback kept) | no DB open on the UI thread for prefetched games 📐🧪* ([`85bc9f21`](https://github.com/Amiga500/Onion/commit/85bc9f21)) |
 | 🎮 GameSwitcher romscreens | PNG decode + scale **on the UI thread**, under the same mutex as a one-shot loader | persistent worker decodes outside the lock and prefetches **±2** entries; only the UI thread frees surfaces (±5 window) | scrolling no longer waits for decoding 📐🧪* ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
 
+| 🎮 GameSwitcher frames ([`8fd83adf`](https://github.com/Amiga500/Onion/commit/8fd83adf), [`3e58e7bf`](https://github.com/Amiga500/Onion/commit/3e58e7bf)) | whole screen redrawn and written to every framebuffer page each frame while a name scrolls (even when hidden) and for 2 s after a brightness change | full redraw only on a change; a scrolling name presents just its 60 px bar | ~1.2 MB → ~154 KB per page per step 📐🧪 |
+| 🎮 GameSwitcher romscreens ([`ab4357cb`](https://github.com/Amiga500/Onion/commit/ab4357cb), [`92a78138`](https://github.com/Amiga500/Onion/commit/92a78138)) | RGBA surfaces blitted through SDL's per-pixel alpha path; a missing picture looked up (hash + 2 `stat`) every frame | converted once to the screen format by the worker; a missing picture is remembered until the history reloads | plain copy blits, no SD lookups per frame 📐 |
+| 🎮 In-game menu capture ([`91cd59d3`](https://github.com/Amiga500/Onion/commit/91cd59d3)) | framebuffer read into a 1.2 MB staging buffer, then copied row by row | read straight into the surface | one 1.2 MB copy less 📐 |
+
 > 🧹 Every cache above ships with its own teardown: `list_free()` releases the TTF slots,
 > `cleanImagesCache()` frees the infoPanel scaled cache, and `free_resources()` releases
 > the playActivityUI page cache — so this is a speed win **without** a new leak. The
@@ -553,13 +599,17 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 
 | Subsystem | Before | After | Impact |
 |:--|:--|:--|:--|
-| 🔊 OSD volume/brightness bar thread | `usleep(100)` busy-wait (~10,000 loops/s) | `usleep(16000)` (~60 fps) | 🚀 **idle CPU ~10% → <1%** 📏 |
+| 🔊 OSD volume/brightness bar thread | `usleep(100)`, for the 2 s after a key | unchanged: a 16 ms interval made the bar flicker in games, so Onion's value is back ([`bad01676`](https://github.com/Amiga500/Onion/commit/bad01676)); the bar width is now read once per bar, not on every step ([`1e6865b1`](https://github.com/Amiga500/Onion/commit/1e6865b1)) | 🛡️ |
 | 🖼️ OSD overlay draw loop | full-throttle spin for the overlay's duration | `msleep(2)` per iteration + demoted logging | overlay CPU burn capped 📐 |
 | 🌀 SDL UI loops (GameSwitcher, Tweaks, prompt, playActivityUI, themeSwitcher, packageManager, batteryMonitorUI + dialogs) | non-blocking poll with **no sleep**: one core at 100% while a menu just sits there | sleep until the next frame (or 15 ms) when idle | 🚀 **idle UI CPU ~100% of a core → near 0** 📐 ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
 | 🌙 keymon blue-light schedule | `blue_light.sh check` **every 15 s**, synchronous: 2 global `sync`, ~20 `fork`/`exec`, keymon deaf to keys for up to ~4 s on a transition | evaluated in-process (same `.tz`, same window logic); script started in background **only on a transition** | **~20 spawns/15 s → 0** 📐 ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
-| 🪫 batmon low-battery thread | `usleep(0x4000)` (~16 ms) | `usleep(500000)` (500 ms) | 🚀 **~−97% wake-ups** 📐 |
+| 🪫 batmon low-battery thread | `usleep(0x4000)` (~16 ms), only below the warning level | unchanged: a 500 ms interval hid the icon in games, so Onion's value is back ([`4b29af90`](https://github.com/Amiga500/Onion/commit/4b29af90)) | 🛡️ |
 | ⏱️ batmon main loop | `config_get("battery/warnAt")` every tick | read only at check timeout | **−100% hot-loop config reads** 📐 |
 | 🎮 GameSwitcher battery poll | `stat()` on `/tmp/percBat` every loop (~1 kHz) | checked once/second (matches batmon's write rate) | **~99.9% fewer `stat` calls** 📐 |
+| 🔎 keymon system-state scans after a launch or exit | a full `/proc` scan on every key event while `/tmp/state_changed` exists (up to 15 s) | rescanned when the flag is touched again, before it is removed, otherwise at most every 500 ms | tens to hundreds → a few scans per launch 📐🧪 ([`243f42b5`](https://github.com/Amiga500/Onion/commit/243f42b5)) |
+| 😴 Mini Flip suspended | `axp_test` (shell + tool) every 2 s for the whole suspend | charger checked only when the lid or the timeout needs it | **0 spawns** while nothing happens 📐🧪 ([`31a189b6`](https://github.com/Amiga500/Onion/commit/31a189b6)) |
+| 🎨 Themes app after a key release | spun at 100% of a core until the next redraw (OnionPlus idle-sleep regression) | idles | 🛡️ ([`79431b28`](https://github.com/Amiga500/Onion/commit/79431b28)) |
+| 💾 GameSwitcher "Saving" dialog | whole screen redrawn without a pause for up to 30 s, competing with RetroArch | redrawn every 300 ms | a core left to RetroArch while it saves 📐 ([`14f8c909`](https://github.com/Amiga500/Onion/commit/14f8c909)) |
 
 ### 💾 SD-card writes & syncs
 
@@ -569,6 +619,8 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 | 💾 keymon key handling | global `sync()` after deleting flags in `/tmp` (tmpfs) — flushed the SD card on a key press | no sync for tmpfs flags | **−1 global sync per flagged key** 📐 ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
 | 🔁 `runtime.sh` main loop | `pgrep keymon` + `touch` + global `sync`, **4× per loop** | `/proc/<pid>` check, shell builtin, one `sync` when a game/app exits | **4 syncs → 1**, `pgrep` only if keymon died 📐 ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
 | 🔁 Return to MainUI (`check_hide_recents`) | runs twice per cycle, each ending in a global `sync` | `sync` only when a list is moved, plus one explicit `sync` after MainUI exits | **2 syncs → 1 per cycle** 📐🧪* ([`747d102a`](https://github.com/Amiga500/Onion/commit/747d102a53affd8cd2c5bf250d8b7d54ac7982e8)) |
+| 📶 Return to MainUI after a Wi-Fi change | a second global `sync` for two files in `/tmp` | none | **−1 global sync** 📐🧪 ([`57217a38`](https://github.com/Amiga500/Onion/commit/57217a38)) |
+| 🕒 Time zone after each API time sync | `.tz` + `.tz_sync` rewritten on the SD card + global `sync` | only when the zone changed | **−2 writes, −1 sync** per sync 📐🧪 ([`e3c61e0c`](https://github.com/Amiga500/Onion/commit/e3c61e0c)) |
 | 🌐 `update_networking.sh check` (after every game while a service is on) | global `sync` before starting each of Samba/FTP/Telnet/HTTP; SSH key-folder `sync` every run | no sync for service starts (page cache already serves the files); SSH `sync` only when the folder is created | **up to 5 → 0 global syncs per game exit** 📐 ([`747d102a`](https://github.com/Amiga500/Onion/commit/747d102a53affd8cd2c5bf250d8b7d54ac7982e8)) |
 | 🗂️ Quick switch (move game to top of recents) | two full rewrites (add to top, then delete) | one atomic rewrite (`file_move_line_to_top`) | **2 → 1 SD rewrites** 🧪 ([`747d102a`](https://github.com/Amiga500/Onion/commit/747d102a53affd8cd2c5bf250d8b7d54ac7982e8)) |
 | 🗄️ Play Activity DB | journal file created/deleted per transaction; `SQLITE_BUSY` on concurrent access | `journal_mode=TRUNCATE`, 2 s `busy_timeout` (set in [`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)), plus `sqlite3_close_v2` | fewer FAT directory updates, no lost writes on contention 📐 |
@@ -579,6 +631,7 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 | Subsystem | Before | After | Impact |
 |:--|:--|:--|:--|
 | 🔌 `battery_isCharging()` (`HAS_AXP()` — MM+ and Mini Flip) | `fork`+`exec` of `axp_test` every call (~5–10 ms) | 2 s cached wrapper | 🚀 **~−99% subprocess spawns** 📐 |
+| 🔌 `axp_test` itself (batmon every ~2 s, keymon every 15 s) | `popen("cd …; ./axp_test")`: a shell plus the tool | `process_readFirstLine()`: fork + exec, no shell | **−1 shell per read** (~2,000 an hour) 📐🧪 ([`0d0a386e`](https://github.com/Amiga500/Onion/commit/0d0a386e)) |
 | 🔋 `battery_hasChanged` while charging | OnionPlus used to overwrite the `500` charging sentinel from `/tmp/percBat` | early-return like `OnionUI/Onion:main` (`500` stays while plugged in) | charging icon no longer drops after the first percBat tick 🛡️ |
 | 🪫 `getBatPercMMP()` AXP percent | `axp_test` garbage (e.g. `1735289191`) and `-1` written to `/tmp/percBat` | last sane **0–100** kept; out-of-range samples dropped | GS/keymon never read a bogus percent 🛡️ |
 | 💡 `display_setBrightnessRaw` | sysfs write on **every** call | cached, duplicate writes skipped | **−100% duplicate PWM writes** 📏 |
@@ -605,7 +658,9 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 | Reset paths (tweaks/theme/RA overrides) | `rm -rf` via `system()` | `nftw()`-based `file_remove_recursive()` | shell-free recursive delete |
 | keymon `touch`, `tools favfix`, `playActivity stop_all/resume`, `bootScreen`, recorder / blue-light scripts | `system("… &")` / `system("touch …")` | `process_run_wait()` / double-fork `process_spawn_detached()` / `creat()` | **one shell less per call** ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
 | keymon CPU-clock hotkey | `cpuclock` spawned **twice** per press | last value cached (reset on every state change) | **2 → 1 spawns** ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
-| keymon config flags (`.altBrightness`, `.cpuClockHotkey`, `.recHotkey`) | `stat()` on the SD card on every key | cached, refreshed on settings change + every 15 s | **−1 SD `stat` per key** ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)) |
+| keymon config flags (`.altBrightness`, `.cpuClockHotkey`) | `stat()` on the SD card on every key | cached, refreshed on settings change + every 15 s | **−1 SD `stat` per key** ([`fee6c4b`](https://github.com/Amiga500/Onion/commit/fee6c4b9236eaec7435288e6691f08c7f2e4b804)); `.recHotkey` is read again at the 2 s MENU+A hold, as in Onion, so Tweaks changes apply at once ([`814fd85e`](https://github.com/Amiga500/Onion/commit/814fd85e)) |
+| keymon keys sent to MainUI (`keyinput_send`) | `system("sendkeys …")`: fork, shell, tool, and the tool's global `sync` | `EV_KEY` written to `/dev/input/event0` (opened once); `sendkeys` only as a fallback | **shell + tool + global `sync` → 0** per event 🧪 ([`7cee8489`](https://github.com/Amiga500/Onion/commit/7cee8489)) |
+| keymon SELECT (in a game) / MENU repeat | full `/proc` scan on every release / repeat | scan only when MainUI can be running / on presses, releases and combos | **−1 scan per key** 🧪 ([`b2d0ec83`](https://github.com/Amiga500/Onion/commit/b2d0ec83), [`331197c7`](https://github.com/Amiga500/Onion/commit/331197c7)) |
 
 ### 🐚 Shell scripts
 
@@ -621,6 +676,12 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 | `get_info_value` (game with a custom core) | `echo \| grep \| awk \| awk \| tr` | builtin loop, same word-boundary match | **5 → 0 processes** 🧪* ([`1592866e`](https://github.com/Amiga500/Onion/commit/1592866e)) |
 | `system.json` reads around MainUI (`wifi` ×2, `theme`) | `jsonval` process per read | `sysjson_get` (builtins; `jsonval` fallback for escapes/missing keys) | **3 → 0 processes per MainUI cycle** 🧪* ([`1592866e`](https://github.com/Amiga500/Onion/commit/1592866e)) |
 | Brightness at boot (`init_system`) | `jsonval brightness` process | `sysjson_get` | **1 → 0 processes** ([`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc)) |
+| Resolved ROM path in `cmd_to_run.sh` (every MainUI launch) | `$(cat)` + `echo \| rev \| sed \| rev` | `read` + parameter expansion (`cmd_with_rom_path`; multi-line commands keep the pipeline) | **~6 forks → 0** 🧪 ([`c334bf8f`](https://github.com/Amiga500/Onion/commit/c334bf8f)) |
+| Launch command and time zone in `launch_game` | `$(cat …)` ×2 | `read_file_to` (builtins, same value as `$(cat)`) | **2 → 0 processes** 🧪 ([`b56fe4bc`](https://github.com/Amiga500/Onion/commit/b56fe4bc)) |
+| `cleanup_appendconfig` (after every game) | 2 `echo \| grep` pipelines + 2 `grep` | `case` patterns + 1 `grep` | **2 pipelines + 2 `grep` → 1 `grep`** 🧪 ([`cdc7db58`](https://github.com/Amiga500/Onion/commit/cdc7db58)) |
+| `start_audioserver` (before every menu, game, GameSwitcher) | `pgrep audioserver` | cached pid checked in `/proc`; `pgrep` only when gone | **1 → 0 processes** 🧪 ([`f40567dc`](https://github.com/Amiga500/Onion/commit/f40567dc)) |
+| `update_networking.sh` start-up | command substitutions, `basename`, `cat` | `if`/`test`, parameter expansion, `read_file_to` | **fewer forks** each run 🧪 ([`d1819995`](https://github.com/Amiga500/Onion/commit/d1819995)) |
+| `libpadspblocker` daemon lookup | `ps -e \| grep \| awk` ×2 | `pgrep -x` | **6 → 2 processes**, exact name 🧪 ([`92e6bf73`](https://github.com/Amiga500/Onion/commit/92e6bf73)) |
 
 ### 🕹️ AdvanceMENU
 
@@ -649,6 +710,11 @@ reference** for the branch (the former `docs/` reports were retired with it) and
 | 🟢 NULL-pointer / I/O guards added | new `if (!ptr)` / return-value checks | **+57** *(25-file set)* |
 | 🟢 Leaked descriptors closed | `fclose`/`close` on error paths | **+18** |
 | 🟢 Division-by-zero guards added | early return before `% total_count` | **+2** |
+
+**40 defects fixed in code shared with Onion:** 6 in the early passes, 7 in `fee6c4b`, 8 in
+`85bc9f21` / `747d102a` / `1592866e`, 4 found with the on-device tests, and 15 in the
+2026-09-26 review (4 in Pass 1, 5 in Pass 3, 6 in Pass 4). The review's lists below also
+include OnionPlus's own regressions, marked as such.
 
 ### 🕵️ Notable defects fixed (pre-existing, not ports)
 
@@ -781,6 +847,100 @@ Present in `OnionUI/Onion:main` unless noted:
   (off) before syncing, and turned Wi-Fi off again — the boot waited for nothing, and the
   clock was left where it was. Now it syncs in the background ([`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02)).
 
+#### 🆕 2026-09-26 review, Pass 1 — correctness ([PR #221](https://github.com/Amiga500/Onion/pull/221))
+
+Present in `OnionUI/Onion:main`:
+
+- 💥 **Stack overflow building cache-DB paths** — `cache_get_path_and_version()` passed
+  `PATH_MAX` to `snprintf` into 256-byte buffers; a ROM under a long folder name wrote past the
+  caller's stack (ASan: 326 bytes into 256). Runs on every launch and GameSwitcher name lookup.
+  Buffer size now passed through, truncated paths never probed ([`939c1983`](https://github.com/Amiga500/Onion/commit/939c1983)).
+- ⚡ **`retroarch.cfg` could be lost or truncated** — `file_changeKeyValue()` deleted the file
+  before renaming the new one, and ignored write errors (a full card cut a 38 KB file to
+  4 KB in the test). Now `file_atomic_begin/commit`; on any error the original is kept
+  ([`d45cdd5b`](https://github.com/Amiga500/Onion/commit/d45cdd5b)).
+- 🌐 **Network service toggles never switched off** — `disable_flag` built `".$flag_"` (an
+  unset variable), so the move always failed ([`5def2330`](https://github.com/Amiga500/Onion/commit/5def2330); see Pass 2, R5, for the toggles
+  with Wi-Fi off).
+- ✂️ **`file_readLastLine` dropped the final byte** of files of 255 bytes or more ([`e43b025b`](https://github.com/Amiga500/Onion/commit/e43b025b)).
+
+OnionPlus regressions and port issues:
+
+- 🖼️ **GameSwitcher Load preview stuck on the first slot** — the scaled preview was cached on
+  width alone and survived a slot change ([`f778946f`](https://github.com/Amiga500/Onion/commit/f778946f)).
+- 🖼️ **Wrong game's GameSwitcher picture overwritten** — the recent-list lookup fell through to
+  an older game when the top entry was an app; the romscreen now uses the top entry only
+  ([`6702b433`](https://github.com/Amiga500/Onion/commit/6702b433)).
+- 🧵 **Use-after-free in the overlay autosave** — scrolling 6+ entries during the save freed the
+  surface being encoded ([`a979fc30`](https://github.com/Amiga500/Onion/commit/a979fc30)).
+- 📱 **Mini Flip detected as a Mini** when the AXP probe failed — the Hall sensor is now checked
+  first, as in the installer and `v4.5-dev` ([`4c2f330d`](https://github.com/Amiga500/Onion/commit/4c2f330d)).
+- 😴 **Closed Mini Flip never powered off** at the suspend timeout — `v4.5-dev`'s logic restored
+  ([`bd7d9eb4`](https://github.com/Amiga500/Onion/commit/bd7d9eb4)).
+- 🔠 **Korean names on the wrong font** — `includeCJK()` now decodes UTF-8 and covers Hangul
+  and full-width forms ([`59a53a15`](https://github.com/Amiga500/Onion/commit/59a53a15)).
+- 🖥️ **Stale framebuffer pitch** after a resolution change ([`6dcc91a4`](https://github.com/Amiga500/Onion/commit/6dcc91a4)), **uninitialised
+  status** in `process_spawn_detached` ([`ad9c8078`](https://github.com/Amiga500/Onion/commit/ad9c8078)).
+
+#### 🆕 2026-09-26 review, Pass 2 — regressions against Onion
+
+OnionPlus changes that had altered what Onion users see, found by comparing the two:
+
+- 🎨 **R1 · Theme icons reset at boot** — only `runtime.sh` wrote the per-device theme marker,
+  so after a change in the Themes app the next boot re-applied the theme's icons ("Apply
+  icons" off, or a later icon pack, lost). The Themes app now writes the marker ([`673c0657`](https://github.com/Amiga500/Onion/commit/673c0657)).
+- 🔒 **R2 · Services during a game resumed at boot** — the network now starts after the boot
+  has launched the game and run its "Disable services in game" kill; a flag set at launch
+  keeps the background start away ([`72abc6ca`](https://github.com/Amiga500/Onion/commit/72abc6ca), extended to every background start in Pass 3,
+  [`5b17239e`](https://github.com/Amiga500/Onion/commit/5b17239e)).
+- 🪫 **R3 · Low-battery icon invisible in games** and 🔊 **R4 · volume/brightness bar
+  flickering** — both are drawn over the game's framebuffer and need Onion's redraw rate; the
+  slower intervals are reverted ([`4b29af90`](https://github.com/Amiga500/Onion/commit/4b29af90), [`bad01676`](https://github.com/Amiga500/Onion/commit/bad01676)).
+- 🎮 **R6 · PICO-8 `.p8` carts without a picture** in Play Activity ([`d5e4f9f8`](https://github.com/Amiga500/Onion/commit/d5e4f9f8)).
+- ⏺️ **R7 · Recording hotkey** toggled in Tweaks applied only after leaving Tweaks
+  ([`814fd85e`](https://github.com/Amiga500/Onion/commit/814fd85e)).
+- 🌐 **R5 · Service toggles lost with Wi-Fi off** — once Pass 1 made `disable_flag` work, each
+  checker switched its toggle off when Wi-Fi was off and nothing turned it back on. The
+  checkers now stop the service and keep the toggle, as Onion users have it ([`021feeae`](https://github.com/Amiga500/Onion/commit/021feeae)).
+
+#### 🆕 2026-09-26 review, Pass 3 — found while optimizing
+
+Present in `OnionUI/Onion:main`:
+
+- 💬 **Tweaks leaked a 1.2 MB screen copy** per tooltip and per cancelled reset or delete
+  ([`7ee0a4fe`](https://github.com/Amiga500/Onion/commit/7ee0a4fe)).
+- 🌐 **Tweaks → Network showed stack garbage** as the IP address with Wi-Fi off: the
+  `struct ifreq` was uninitialised and the `ioctl` result ignored; now `0.0.0.0` ([`0c1a7b40`](https://github.com/Amiga500/Onion/commit/0c1a7b40)).
+- 🔊 **Volume/brightness bar threads never joined** — one per bar was left in keymon, and once
+  `pthread_create` failed the bar never appeared again ([`5a57e4e9`](https://github.com/Amiga500/Onion/commit/5a57e4e9)).
+- 📏 **Bar width re-read on every step** — a width changed while the bar was on screen read and
+  wrote past the saved strip ([`1e6865b1`](https://github.com/Amiga500/Onion/commit/1e6865b1)).
+- 💾 **"Saving" dialog busy loop** — redrawn without a pause for up to 30 s while RetroArch
+  saves, and the save thread never joined ([`14f8c909`](https://github.com/Amiga500/Onion/commit/14f8c909)).
+
+OnionPlus regressions: the GameSwitcher **Y long press** took ~2.5 s instead of 0.3 s after the
+idle-sleep change ([`f73e7656`](https://github.com/Amiga500/Onion/commit/f73e7656)); the **Themes** app spun after a key release ([`79431b28`](https://github.com/Amiga500/Onion/commit/79431b28)).
+
+#### 🆕 2026-09-26 review, Pass 4 — found by testing the production code
+
+Moving the tests onto the real headers exposed bugs their local copies had hidden. Present in
+`OnionUI/Onion:main`:
+
+- 💥 **`DEVICE_SN` overflow** — `/tmp/deviceSN` was read with an unbounded `%[^\n]` into 13
+  bytes; now at most 12 characters ([`bc00efa9`](https://github.com/Amiga500/Onion/commit/bc00efa9)).
+- 💥 **`lang_free()` crash on exit** when no language file could be loaded (Tweaks, prompt,
+  infoPanel) ([`3d73c6f0`](https://github.com/Amiga500/Onion/commit/3d73c6f0)).
+- ➗ **Division by zero (SIGFPE)** counting framebuffer pages when the framebuffer size is
+  unknown, on the GameSwitcher's first frame ([`da74ed42`](https://github.com/Amiga500/Onion/commit/da74ed42)).
+- 🎮 **Running game not recognised by the in-game menu** when its name also appeared in an
+  earlier field of RetroArch's status; an empty name matched anything ([`8a1a41d6`](https://github.com/Amiga500/Onion/commit/8a1a41d6)).
+- 🌙 **Garbage blue-light schedule index** from a malformed time in the config ([`1ffb6f79`](https://github.com/Amiga500/Onion/commit/1ffb6f79)).
+- 📋 **RetroArch history loader** — `ftell`, `malloc` and `fread` results unchecked (a write
+  through NULL, or parsing uninitialised bytes) ([`ac1d8109`](https://github.com/Amiga500/Onion/commit/ac1d8109)).
+
+Also: `file_read(NULL)` now returns NULL without calling `stat` (undefined behaviour, reported
+by UBSan when every suite was run under ASan/UBSan) ([`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb)).
+
 ---
 
 ## 🕹️ 7 · AdvanceMENU frontend
@@ -810,15 +970,30 @@ Present in `OnionUI/Onion:main` unless noted:
 
 | Metric | Value |
 |:--|--:|
-| 🧪 Active test suites | **68** |
-| ✅ Tests | **1,423** |
-| ✅ Assertions | **71,436** |
+| 🧪 Active test suites | **72** (+ `test_scripts.sh` for the shell scripts) |
+| ✅ Tests | **1,453** |
+| ✅ Assertions | **71,913** |
 | ❌ Failures | **0** |
-| ⏱️ Suite runtime (prebuilt) | **~2.5 s** |
-| 🔐 Security-focused suites | 10 suites · 219 tests · 960 assertions (**15%** of all tests) |
+| 🎯 Suites testing a local copy instead of the production code | **0** *(31 at the start of the review)* |
+| ⏱️ Suite runtime (prebuilt) | **~3 s** |
+| 🧼 Sanitizer subset (ASan + UBSan) | **6 suites** in `unit-test-san`; all 72 were also run under ASan/UBSan once |
 
 - 🏗️ Runs entirely on the **host** — no cross-toolchain, no SDL, no device — via a single
   `make unit-test` target, making it usable as a fast CI gate.
+- 🎯 **Every suite tests the production code** (Pass 4). 31 suites used to test a local copy
+  of the function they covered, so a change to the real code could pass them unnoticed. They
+  now include the real headers; where a header pulled in SDL or the device, the pure logic
+  moved into a small SDL-free header that production includes too (`screenshot_path.h`,
+  `resource_ids.h`, `gs_recent_item.h`, `formatters_basic.h`, `image_path.h`, …), and path
+  macros can be pointed at a temporary folder. Four suites that only tested their own code
+  were removed. Doing so found **six defects** the copies had hidden (§6, Pass 4).
+- 🚫 **Fails on implicit function declarations**, as clang and the device toolchain do, so a
+  header that uses a function before declaring it cannot pass on the host and break the
+  console build.
+- 🐚 **`test_scripts.sh`** extracts functions from the shipped shell scripts (`disable_flag`,
+  `detect_device_model`, `cmd_with_rom_path`, `read_file_to`, `store_tz`,
+  `cleanup_appendconfig`, `start_audioserver`, …) and runs them against stubs — the real
+  text, not a copy.
 - 🧬 A separate `neon-arm` CI job cross-compiles the NEON assembly and runs it under
   `qemu-user`; a `unit-test-san` job runs a sanitizer subset (ASan/UBSan).
 - 🧯 `test_hash` alone grew from 12 tests/21 assertions to **15 tests / 350 assertions**
@@ -848,6 +1023,10 @@ Present in `OnionUI/Onion:main` unless noted:
   meanwhile), `runifnecessary`, play sessions across a clock jump and GameSwitcher
   capture scaling — and the shell changes have since **run on a Miyoo Mini+** (busybox),
   with the timings in [Measured on a Miyoo Mini+](#-measured-on-a-miyoo-mini).
+- 🔎 The 2026-09-26 review adds suites for its own helpers (`test_gs_longpress`,
+  `test_gs_frame`, `test_state_scan`, `test_input_inject`, `test_flip_suspend`,
+  `test_display_rotate`, `test_netinfo`, `test_theme_marker`, `test_romscreen_window`) and
+  rewrote `test_clock` to compare each helper with its own clock.
 
 ### ⏱️ Measuring on the device
 
@@ -864,6 +1043,8 @@ previous session is kept as `timing.prev.log`):
 | `boot_swap` / `boot_audio` / `boot_display` | inside `boot_init`: swap start, audio server, screen detection (added in [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc)) |
 | `game_prepare` / `game_run` / `game_exit` | launch preparation, the session itself, post-processing (with the ROM name) |
 | `mainui_prepare` / `mainui_session` / `mainui_return` | before, during and after MainUI |
+| `mr_recents` / `mr_sync` / `mr_freemma` | inside `mainui_return`; `mr_sync` also logs the dirty and writeback page cache before the sync ([`0144f925`](https://github.com/Amiga500/Onion/commit/0144f925)) |
+| `net_check` | the foreground `update_networking.sh check` before the next menu or game ([`0144f925`](https://github.com/Amiga500/Onion/commit/0144f925)) |
 | `switcher_prepare` / `switcher_session` | the same for the GameSwitcher |
 
 > 📱 First results from a Miyoo Mini+ are in [Measured on a Miyoo Mini+](#-measured-on-a-miyoo-mini).
@@ -893,17 +1074,17 @@ previous session is kept as `timing.prev.log`):
 
 | Metric | Value |
 |:--|--:|
-| 🔧 Commits (`07505ea5..9768ae02`) | **41** *(through the last code commit [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02), including the #220 artifact clean-up and its merge; README-only commits after it are not counted. The long `OnionPlus` branch was 97.)* |
-| 📁 Files changed | **188** *(182 at `bf3deb8e`; `fee6c4b` +6 and `747d102a`/`1592866e` +3 files that were still identical to upstream; the 3 `docs/` reports are removed)* |
-| ➕➖ Lines | **+30,487 / −1,109** at `bf3deb8e`, then `fee6c4b` **+1,164 / −226**, the `docs/` removal **−2,157**, `85bc9f21` **+176 / −65**, `747d102a` **+311 / −43**, `1592866e` **+256 / −35**, `874ea325` **+65 / −5**, `10f2369e` **+33 / −8**, `29791efc` **+20 / −5**, `9768ae02` **+52 / −13** *(net figure: `git diff --shortstat 07505ea5..HEAD`)* |
-| 🧩 Production (`src/` + `static/` + CI/Makefile) at `bf3deb8e` | **101 files · +4,572 / −1,080** *(excludes `.gitignore` + `SDL.h`, 2 · +35 / −0; later passes in the Lines row)* |
-| 🧪 Tests (`test/`) | **75 files · +23,424 / −10** *(`747d102a`: +97 in `test_file.c`)* |
+| 🔧 Commits (`07505ea5..ca59befb`) | **136** *(132 without merges; through the last code commit [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb), README commits included. 41 at `9768ae02`; the review added 14 in Pass 1, 8 in Pass 2, 29 in Pass 3 and 32 in Pass 4; the rest are README commits and merges. The long `OnionPlus` branch was 97.)* |
+| 📁 Files changed | **220** *(`git diff --shortstat 07505ea5..ca59befb`)* |
+| ➕➖ Lines | **+31,560 / −2,063** |
+| 🧩 Production (everything outside `test/` and the README) | **139 files · +8,321 / −2,037** |
+| 🧪 Tests (`test/`) | **80 files · +22,266 / −10** |
 | 📚 README | **1 file** *(the three `docs/` reports are retired; this README is the reference)* |
-| ⚡ NEON kernels | **8** (7 asm + 1 intrinsics) |
-| 🧪 Test suites / tests / assertions | **68 / 1,423 / 71,436** — **all green** ✅ |
+| ⚡ NEON kernels | **9** (7 asm + 2 intrinsics) |
+| 🧪 Test suites / tests / assertions | **72 / 1,453 / 71,913** — **all green** ✅, all on the production code |
 | 🛡️ Unsafe `sprintf`/`strcpy`+`strcat`/`strtok` remaining (hardened set) | **0 / 0 / 0** |
 | 🛡️ NULL-guards / closed descriptors added | **+57 / +18** *(25-file set)* |
-| 🔐 Issues fixed in code shared with Onion | **25** *(6 + 7 in `fee6c4b` + 8 in `85bc9f21` / `747d102a` / `1592866e` + 4 found with the on-device tests)* |
+| 🔐 Issues fixed in code shared with Onion | **40** *(6 + 7 in `fee6c4b` + 8 in `85bc9f21` / `747d102a` / `1592866e` + 4 found with the on-device tests + 15 in the 2026-09-26 review)* |
 | 🕹️ AdvanceMENU scripts hardened/optimized | **7 files** |
 
 > 📎 Everything here is reproducible from git: `git rev-list --count 07505ea5..HEAD`,
@@ -948,6 +1129,11 @@ A bird's-eye view of the branch's evolution, oldest first:
 30. 🔌 **Faster `boot_init`** — [`29791efc`](https://github.com/Amiga500/Onion/commit/29791efc): audio server polled every 50 ms, swap in the background, finer boot timing marks.
 31. 📚 **README polish** — Mini Flip naming, grouped at-a-glance tables, full review, OnionPlus presented as an independent build offered back to Onion.
 32. 📴 **Temporary Wi-Fi at boot** — [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02): "Enable Wi-Fi temporarily" syncs the time in the background (on → sync → update check → off), 30 s IP wait in the background paths; the time is now synced with Wi-Fi off.
+33. 🔎 **Review, Pass 1 (correctness)** — [PR #221](https://github.com/Amiga500/Onion/pull/221), 14 commits: F1–F14 (Load preview cache, cache-DB stack overflow, atomic `retroarch.cfg` edits, `disable_flag`, Hall-first detection, Mini Flip suspend timeout, top-entry romscreen, overlay autosave pin, CJK ranges, framebuffer pitch, `readLastLine`, `spawn_detached`), stricter host build, `test_scripts.sh`, production `test_cache_db` under ASan.
+34. 📚 **README** — redesign, then device timings taken out of the highlights and boot-time comparisons dropped ([`69cd4b91`](https://github.com/Amiga500/Onion/commit/69cd4b91)); release notes from a template, without timing claims.
+35. ↩️ **Review, Pass 2 (regressions)** — to [`4220e727`](https://github.com/Amiga500/Onion/commit/4220e727): theme marker (R1), services in a game resumed at boot (R2), low-battery icon and OSD bar redraw rates (R3, R4), service toggles with Wi-Fi off (R5), PICO-8 pictures (R6), recording hotkey (R7); `test_clock` per-clock comparison.
+36. ⚡ **Review, Pass 3 (optimization)** — to [`5a57e4e9`](https://github.com/Amiga500/Onion/commit/5a57e4e9), 29 commits: GameSwitcher frames, name bar, romscreen format and misses, NEON rotated rows, overlay capture; keymon key injection, SELECT/MENU scans, state-scan throttle, Mini Flip suspend; `runtime.sh` / `update_networking.sh` fork diet; `axp_test` without a shell; five leaks and loops shared with Onion; finer timing marks for the slow return to the menu.
+37. 🎯 **Review, Pass 4 (tests)** — to [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb), 32 commits: the 31 suites that tested local copies moved onto the production code (four removed), six defects shared with Onion fixed on the way, every suite run under ASan/UBSan.
 
 > 🔍 Per-commit detail: `git log --stat 07505ea5..HEAD` on `onionplus-compact`.
 
@@ -955,28 +1141,30 @@ A bird's-eye view of the branch's evolution, oldest first:
 
 ## ✅ Final word
 
-`onionplus-compact` is **41 commits** ahead of upstream `OnionUI/Onion:main` through the last
-code commit (`07505ea5` → `9768ae02`; README-only commits not counted; the long `OnionPlus`
+`onionplus-compact` is **136 commits** ahead of upstream `OnionUI/Onion:main` through the last
+code commit (`07505ea5` → `ca59befb`, README commits and merges included; the long `OnionPlus`
 branch was 97). In one tree:
 
-- 🖼️ **8 vectorized NEON kernels**, a dozen O(n²)→O(n) rewrites and five render/UI caches;
+- 🖼️ **9 vectorized NEON kernels**, a dozen O(n²)→O(n) rewrites and five render/UI caches;
 - 🔋 a power/battery batch and a syscall diet that removed every avoidable `system()` call
   from the hardened core and from keymon;
-- 🛡️ **25 issues in the code shared with Onion** fixed, with the fixes available to the Onion team,
+- 🛡️ **40 issues in the code shared with Onion** fixed, with the fixes available to the Onion team,
   plus OnionPlus's own regressions caught by review;
-- 🧪 a **68-suite / 1,423-test** host test harness that did not exist before this branch;
+- 🧪 a **72-suite / 1,453-test** host test harness that did not exist before this branch, every
+  suite on the production code;
 - 🕹️ an **AdvanceMENU** pass, a **Miyoo Mini Flip** port from `v4.5-dev` (not a merge), the
   OnionUI-parity and A–G reviews, and the **@robcodedev** ports of `OnionUI/Onion` **#1936–#1946**;
-- ⚡ the **2026-09-25** performance passes and the fixes found **on the device itself**.
+- ⚡ the **2026-09-25** performance passes, the fixes found **on the device itself**, and the
+  four-pass **2026-09-26 review**.
 
 Measured on a Miyoo Mini+, this build spends about **half a second** of its own work around
 each game. Base
-remains `4.4.0-beta`; OTA stays on `Amiga500/Onion`. Still open: Mini Flip lid/Hall
-confirmation on hardware, the network script's `disable_flag` defect, and on-device samples
-from more models (see [Known issues & next steps](#-known-issues--next-steps)).
+remains `4.4.0-beta`; OTA stays on `Amiga500/Onion`. Still open: the review's device checks,
+Mini Flip lid/Hall confirmation on hardware, the slow return to the menu after a Wi-Fi change,
+and on-device samples from more models (see [Known issues & next steps](#-known-issues--next-steps)).
 
 ---
 
 <sub>Repository: [Amiga500/Onion](https://github.com/Amiga500/Onion) · Branch: `onionplus-compact` ·
-Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`9768ae02`](https://github.com/Amiga500/Onion/commit/9768ae02) (**41**,
-`git rev-list --count 07505ea5..9768ae02`) · On-device figures: Miyoo Mini+ · Refreshed **2026-09-26**</sub>
+Base: [`07505ea5`](https://github.com/OnionUI/Onion/commit/07505ea5) (`OnionUI/Onion:main`) → last code [`ca59befb`](https://github.com/Amiga500/Onion/commit/ca59befb) (**136**,
+`git rev-list --count 07505ea5..ca59befb`) · On-device figures: Miyoo Mini+ · Refreshed **2026-09-27**</sub>
