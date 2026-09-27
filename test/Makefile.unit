@@ -370,9 +370,9 @@ test_battery: $(BUILD_DIR)/test_battery
 	@echo ""
 	@$(BUILD_DIR)/test_battery
 
-$(BUILD_DIR)/test_battery: test_battery.c onion_test.h
+$(BUILD_DIR)/test_battery: test_battery.c onion_test.h ../src/common/system/battery.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_battery.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_battery.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_playactivity_paths: $(BUILD_DIR)/test_playactivity_paths
 	@echo ""

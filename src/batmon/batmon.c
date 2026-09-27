@@ -396,10 +396,8 @@ int getBatPercMMP(void)
 
     /* axp_test has returned garbage (e.g. 1735289191) and -1 on popen/parse
      * failure. Unpublished (-1) until the first sane 0-100 sample. */
-    if (battery_number < 0 || battery_number > 100)
+    if (!battery_acceptAxpPercent(battery_number, &last_good))
         return last_good;
-
-    last_good = battery_number;
 
     if (buf[0] != '\0') {
         FILE *fp2;

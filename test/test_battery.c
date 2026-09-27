@@ -14,36 +14,19 @@
 #include <time.h>
 #include <stdbool.h>
 
-/* ---- Constants from battery.h ---- */
-#define BATTERY_CHARGING_CACHE_MS 2000
+/* Production code: the charging-state cache helpers and the axp_test
+ * percentage filter from system/battery.h (getBatPercMMP in batmon.c uses
+ * the filter; axp_test itself cannot run on the host). */
+#include "system/battery.h"
 
-/* ---- Extract the pure elapsed_ms calculation from battery_isCharging() ---- */
-
-/**
- * Compute elapsed milliseconds between two timespec values.
- * This is the exact logic from battery_isCharging() in battery.h.
- *
- * Returns: elapsed time in ms, or -1 if cache is invalid.
- */
 static long compute_elapsed_ms(struct timespec *cache_ts, struct timespec *now)
 {
-    long elapsed_ms = (now->tv_sec - cache_ts->tv_sec) * 1000L;
-    long ns_diff = now->tv_nsec - cache_ts->tv_nsec;
-    if (ns_diff < 0) {
-        elapsed_ms -= 1000L;
-        ns_diff += 1000000000L;
-    }
-    elapsed_ms += ns_diff / 1000000L;
-    return elapsed_ms;
+    return battery_elapsedMs(cache_ts, now);
 }
 
-/**
- * Determine if the cache is still valid (elapsed < BATTERY_CHARGING_CACHE_MS).
- */
 static bool cache_is_valid(struct timespec *cache_ts, struct timespec *now)
 {
-    long elapsed_ms = compute_elapsed_ms(cache_ts, now);
-    return (elapsed_ms >= 0 && elapsed_ms < BATTERY_CHARGING_CACHE_MS);
+    return battery_cacheFresh(cache_ts, now);
 }
 
 /* ---- Tests: elapsed_ms calculation ---- */
@@ -159,10 +142,8 @@ TEST(cache_valid_with_nsec_borrow) {
     ASSERT_TRUE(cache_is_valid(&cache, &now));
 }
 
-/* ---- AXP percentage (getBatPercMMP contract, batmon.c) ----
- * Mirror of getBatPercMMP() after parsing. Production cannot run on host:
- * it popen()s /customer/app/axp_test. Keep in sync with batmon.c:
- * static last_good starts at -1 (unpublished); only 0-100 is stored. */
+/* ---- AXP percentage (getBatPercMMP in batmon.c) ----
+ * last_good starts at -1 (unpublished); only 0-100 is stored. */
 
 static int axp_last_good = -1;
 
@@ -173,9 +154,8 @@ static void axp_reset(void)
 
 static int axp_sample(int battery_number)
 {
-    if (battery_number < 0 || battery_number > 100)
+    if (!battery_acceptAxpPercent(battery_number, &axp_last_good))
         return axp_last_good;
-    axp_last_good = battery_number;
     return battery_number;
 }
 
