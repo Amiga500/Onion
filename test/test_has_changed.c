@@ -12,17 +12,9 @@
 #include <limits.h>
 #include <stdbool.h>
 
-/* ---- Inline the pure-logic function from settings_sync.h ---- */
-
-static bool _has_changed(int new_value, int *old_value)
-{
-    if (new_value != *old_value) {
-        *old_value = new_value;
-        return true;
-    }
-
-    return false;
-}
+/* Production code: _has_changed() from system/settings_sync.h (the shared
+ * memory part is compiled only for the device). */
+#include "system/settings_sync.h"
 
 /* ---- Tests ---- */
 
