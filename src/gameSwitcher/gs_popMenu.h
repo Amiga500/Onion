@@ -37,6 +37,12 @@ static void popMenu_finishScan(bool update_preview);
 static bool g_save_thread_running = false;
 static bool g_save_thread_success = false;
 
+// Set by a menu action that needs the menu rebuilt (Save adds Load).
+// The action runs inside list_activateItem(), which still reads the item
+// after the action returns, so the list is freed only afterwards
+// (popMenu_rebuildIfRequested()).
+static bool g_pop_menu_rebuild = false;
+
 void popMenu_destroy(void)
 {
     // The scan must be joined before the list can be freed. Older code let
@@ -45,6 +51,17 @@ void popMenu_destroy(void)
     popMenu_finishScan(false);
     list_free(&appState.pop_menu_list);
     appState.pop_menu_list = (List){0};
+}
+
+// Frees the menu if an action asked for a rebuild; it is created again on
+// the next frame. Returns true if it did.
+bool popMenu_rebuildIfRequested(void)
+{
+    if (!g_pop_menu_rebuild)
+        return false;
+    g_pop_menu_rebuild = false;
+    popMenu_destroy();
+    return true;
 }
 
 static bool _hasSaveStates(Game_s *game)
@@ -339,7 +356,11 @@ void action_saveGame(void *_)
     SDL_FreeSurface(bg);
     msleep(1000);
 
-    popMenu_destroy();
+    // Not popMenu_destroy() here: this runs inside list_activateItem(),
+    // which reads the activated item after we return. Freeing the list now
+    // was a use-after-free that crashed the GameSwitcher on the device,
+    // leaving RetroArch paused under the last "State saved" frame.
+    g_pop_menu_rebuild = true;
 
     appState.changed = true;
 }

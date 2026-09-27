@@ -244,6 +244,13 @@ void handleUpdateKeystatePopMenu(AppState *state)
         _gs_keystate.btn_a_pressed = false;
         list_activateItem(&state->pop_menu_list);
 
+        // Actions that need a new menu (Save) only ask for it; free it now
+        // that list_activateItem() is done with the item.
+        if (popMenu_rebuildIfRequested()) {
+            state->changed = true;
+            return;
+        }
+
         // An action may close or destroy the popup. Do not keep using the
         // ListItem pointer or list storage after the callback returns.
         if (state->quit || !state->pop_menu_open || !state->pop_menu_list._created) {
