@@ -10,11 +10,18 @@
 // a comma after it). SDL-free so host tests include it.
 static bool _isContentNameInInfo(const char *content_info, const char *content_name)
 {
-    const char *found = strstr(content_info, content_name);
-    if (found != NULL) {
+    if (content_info == NULL || content_name == NULL || content_name[0] == '\0')
+        return false;
+
+    // Check every occurrence: the first one may be part of a longer field
+    // (e.g. "Super Mario" inside "Super Mario World" before "Super Mario").
+    size_t name_len = strlen(content_name);
+    for (const char *found = strstr(content_info, content_name); found != NULL;
+         found = strstr(found + 1, content_name)) {
         bool left_ok = found == content_info || *(found - 1) == ',';
-        bool right_ok = *(found + strlen(content_name)) == ',';
-        return left_ok && right_ok;
+        bool right_ok = found[name_len] == ',';
+        if (left_ok && right_ok)
+            return true;
     }
     return false;
 }

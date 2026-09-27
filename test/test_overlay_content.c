@@ -67,6 +67,23 @@ TEST(content_name_empty_info) {
 }
 
 
+/* An empty name matched any info starting with a comma. */
+TEST(content_name_empty_name) {
+    ASSERT_FALSE(_isContentNameInInfo(",game,", ""));
+}
+
+/* The first occurrence is inside a longer field; a later one is exact. */
+TEST(content_name_later_exact_field) {
+    ASSERT_TRUE(_isContentNameInInfo("snes9x,Super Mario World,Super Mario,crc32=1", "Super Mario"));
+    ASSERT_TRUE(_isContentNameInInfo("mgba,Tetris DX,Tetris,", "Tetris"));
+    ASSERT_FALSE(_isContentNameInInfo("mgba,Tetris DX,Tetris 2,", "Tetris"));
+}
+
+TEST(content_name_null_args) {
+    ASSERT_FALSE(_isContentNameInInfo(NULL, "game"));
+    ASSERT_FALSE(_isContentNameInInfo(",game,", NULL));
+}
+
 /* ==== Tests: edge cases with similar names ==== */
 
 TEST(content_name_exact_match_not_partial) {
@@ -97,6 +114,9 @@ int main(void)
     printf("\n=== gs_overlay.h _isContentNameInInfo Unit Tests ===\n\n");
 
     /* Basic matching */
+    RUN_TEST(content_name_empty_name);
+    RUN_TEST(content_name_later_exact_field);
+    RUN_TEST(content_name_null_args);
     RUN_TEST(content_name_found_in_middle);
     RUN_TEST(content_name_found_at_start_after_comma);
     RUN_TEST(content_name_found_at_end_before_comma);
