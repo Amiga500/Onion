@@ -353,10 +353,12 @@ alone could grow to tens of megabytes.
   services back with Wi-Fi (R5), time sync in the background with the right time zone and no
   play-time jump, GameSwitcher views and Y long press, scrolling name, GameSwitcher Save and
   Load with Supafaust and the menu after "State saved" (after two fixes), a PICO-8 `.p8` picture, the recording hotkey in a game.
-- 📱 **Still to check on a device:** the last four fixes (beta OTA channel, holding A in
-  Tweaks, low-battery threshold applied at once, network check retried; all host-tested), and
-  everything Mini Flip (suspend with the lid closed, model detection, lid/Hall sensor) and Mini
-  (installer).
+- ✅ **Confirmed on a Mini+ (2026-09-27):** holding A in Tweaks runs the action once per press,
+  the network check is retried after a Wi-Fi change (SSH came back on its own), and a low-battery
+  threshold raised on the device showed the warning within a couple of seconds.
+- 📱 **Still to check on a device:** the **beta OTA channel** (needs a build set to the beta
+  channel), and everything Mini Flip (suspend with the lid closed, model detection, lid/Hall
+  sensor) and Mini (installer).
 - ↩️ **Return to the menu after turning Wi-Fi on from MainUI** takes ~2.2 s instead of ~0.1 s.
   The timing marks show where: `freemma` (the firmware tool that frees video memory when
   MainUI exits, called by Onion at the same point) takes 2.1 s that one time. Same in Onion.

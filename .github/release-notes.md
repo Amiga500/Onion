@@ -4,6 +4,18 @@ A personal, independent build of [Onion](https://github.com/OnionUI/Onion) `4.4.
 Miyoo Mini, Mini+, Mini v4 and Mini Flip. It keeps Onion's look, menus, emulators and file
 layout. **Not an official Onion release.**
 
+<!-- Update this section for every release: list what changed since the previous build. -->
+### 🆕 New in this build
+
+- 🎛️ **Tweaks:** holding **A** no longer repeats the action — "Start/stop recorder" and the
+  other one-shot tools now run once per press instead of toggling in a loop.
+- 📶 **Wi-Fi:** after you turn Wi-Fi off and on, the network services (SSH, FTP, …) come back on
+  their own within about a minute, without waiting for you to change screen.
+- 🪫 **Low-battery warning:** a new threshold set in Tweaks now takes effect within a couple of
+  seconds, instead of up to fifteen.
+- 📥 **Beta updates:** the beta channel now installs the newest build, so beta users are never
+  left behind stable.
+
 ### ✨ What's in it
 
 - 🌡️ **Menus stop heating the device** — GameSwitcher, Tweaks, Play Activity, Themes, Package
