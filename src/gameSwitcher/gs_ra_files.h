@@ -30,13 +30,25 @@ bool ra_loadHistory(const char *jsonFilePath)
         return false;
     }
 
-    fseek(file, 0, SEEK_END);
-    long fileSize = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    // An unseekable or empty file, a failed allocation or a short read
+    // used to go unnoticed: malloc(0 or -1 + 1), a NULL write, or parsing
+    // uninitialised bytes.
+    long fileSize = -1;
+    if (fseek(file, 0, SEEK_END) == 0)
+        fileSize = ftell(file);
+    if (fileSize <= 0 || fseek(file, 0, SEEK_SET) != 0) {
+        print_debug("Error reading JSON file size");
+        fclose(file);
+        return false;
+    }
 
-    char *fileContent = (char *)malloc(fileSize + 1);
-    fread(fileContent, 1, fileSize, file);
-    fileContent[fileSize] = '\0';
+    char *fileContent = (char *)malloc((size_t)fileSize + 1);
+    if (fileContent == NULL) {
+        fclose(file);
+        return false;
+    }
+    size_t readSize = fread(fileContent, 1, (size_t)fileSize, file);
+    fileContent[readSize] = '\0';
     fclose(file);
 
     g_cachedRetroArchHistory = cJSON_Parse(fileContent);

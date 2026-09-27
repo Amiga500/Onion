@@ -107,6 +107,43 @@ TEST(bool_config_multiple_keys) {
     cleanup_temp_cfg();
 }
 
+/* ---- Tests for ra_loadHistory ---- */
+
+TEST(history_missing_file) {
+    ASSERT_FALSE(ra_loadHistory("/tmp/nonexistent_ra_history_xyz.lpl"));
+    ASSERT_NULL(g_cachedRetroArchHistory);
+}
+
+TEST(history_empty_file) {
+    const char *path = create_temp_cfg("");
+    ASSERT_FALSE(ra_loadHistory(path));
+    ASSERT_NULL(g_cachedRetroArchHistory);
+    cleanup_temp_cfg();
+}
+
+TEST(history_valid_file) {
+    const char *path = create_temp_cfg("{\"items\":[{\"path\":\"/a.gba\"}]}");
+    ASSERT_TRUE(ra_loadHistory(path));
+    ASSERT_NOT_NULL(g_cachedRetroArchHistory);
+    ASSERT_TRUE(cJSON_IsArray(cJSON_GetObjectItemCaseSensitive(g_cachedRetroArchHistory, "items")));
+    ra_freeHistory();
+    ASSERT_NULL(g_cachedRetroArchHistory);
+    cleanup_temp_cfg();
+}
+
+TEST(history_invalid_json) {
+    const char *path = create_temp_cfg("{not json");
+    ASSERT_FALSE(ra_loadHistory(path));
+    ASSERT_NULL(g_cachedRetroArchHistory);
+    cleanup_temp_cfg();
+}
+
+/* A directory opens but has no readable size. */
+TEST(history_directory) {
+    ASSERT_FALSE(ra_loadHistory("/tmp"));
+    ASSERT_NULL(g_cachedRetroArchHistory);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -124,6 +161,12 @@ int main(void)
     RUN_TEST(bool_config_multiple_keys);
 
     /* ftell validation */
+
+    RUN_TEST(history_missing_file);
+    RUN_TEST(history_empty_file);
+    RUN_TEST(history_valid_file);
+    RUN_TEST(history_invalid_json);
+    RUN_TEST(history_directory);
 
     TEST_REPORT();
     return test_failures;
