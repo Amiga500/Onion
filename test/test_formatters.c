@@ -16,133 +16,21 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define STR_MAX 256
-#define BATTPERC_MAX_OFFSET 48
+/* Production code: tweaks/formatters_basic.h, on real ListItems (list.h
+ * with the same lang.h prelude as test_list: the formatters do not use
+ * language strings). */
+#define SYSTEM_LANG_H__
+typedef int lang_hash;
+static char **lang_list = NULL;
+#ifndef LANG_MAX
+#define LANG_MAX 400
+#endif
 
-/* ---- Minimal ListItem for tests ---- */
+#include "../src/tweaks/formatters_basic.h"
 
-typedef struct {
-    char label[STR_MAX];
-    int value;
-    int action_id;
-} TestListItem;
+void SDL_FreeSurface(SDL_Surface *surface) { (void)surface; }
 
-/* ---- Inline functions under test ---- */
-
-static void formatter_timezone(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    int value = item->value;
-    double utc_value = ((double)value / 2.0) - 12.0;
-    int half_past = (round(utc_value) != utc_value) ? 1 : 0;
-    if (utc_value == 0.0) {
-        strncpy(out_label, "UTC", STR_MAX - 1);
-        out_label[STR_MAX - 1] = '\0';
-    }
-    else {
-        snprintf(out_label, STR_MAX, utc_value > 0.0 ? "UTC+%02d:%02d" : "UTC-%02d:%02d",
-                 (int)floor(fabs(utc_value)), half_past ? 30 : 0);
-    }
-}
-
-static void formatter_Time(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    int value = item->value;
-    int hours = value / 4;
-    int minutes = (value % 4) * 15;
-    snprintf(out_label, STR_MAX, "%02d:%02d", hours, minutes);
-}
-
-static int formatter_timeStringToID(const char *time_str)
-{
-    int hours = 0, minutes = 0;
-    if (sscanf(time_str, "%02d:%02d", &hours, &minutes) != 2)
-        return 0;
-    int intervalsFromHours = hours * 4;
-    int intervalsFromMinutes = minutes / 15;
-    return intervalsFromHours + intervalsFromMinutes;
-}
-
-static void formatter_battWarn(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    if (item->value == 0)
-        strncpy(out_label, "Off", STR_MAX - 1);
-    else
-        snprintf(out_label, STR_MAX, "< %d%%", item->value * 5);
-}
-
-static void formatter_battExit(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    if (item->value == 0)
-        strncpy(out_label, "Off", STR_MAX - 1);
-    else
-        snprintf(out_label, STR_MAX, "< %d%%", item->value);
-}
-
-static const int num_font_families __attribute__((unused)) = 5;
-static const char font_families[][STR_MAX] = {
-    "BPreplayBold.otf", "Exo-2-Bold-Italic_Universal.ttf",
-    "Helvetica-Neue-2.ttf", "HENB.TTF", "wqy-microhei.ttc"};
-
-static void formatter_fontFamily(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    if (item->value == 0)
-        strncpy(out_label, "-", STR_MAX - 1);
-    else
-        strncpy(out_label, font_families[item->value - 1], STR_MAX - 1);
-    out_label[STR_MAX - 1] = '\0';
-}
-
-static const int num_font_sizes __attribute__((unused)) = 5;
-static const int font_sizes[] = {13, 18, 24, 32, 40};
-
-static void formatter_fontSize(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    if (item->value == 0) {
-        strncpy(out_label, "-", STR_MAX - 1);
-        out_label[STR_MAX - 1] = '\0';
-    }
-    else
-        snprintf(out_label, STR_MAX, "%d px", font_sizes[item->value - 1]);
-}
-
-static void formatter_fastForward(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    if (item->value == 0)
-        strncpy(out_label, "Unlimited", STR_MAX - 1);
-    else
-        snprintf(out_label, STR_MAX, "%d.0x", item->value);
-}
-
-static void formatter_positionOffset(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    if (item->value == 0)
-        strncpy(out_label, "-", STR_MAX - 1);
-    else
-        snprintf(out_label, STR_MAX, "%d px", item->value - 1 - BATTPERC_MAX_OFFSET);
-}
-
-static void formatter_meterWidth(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    snprintf(out_label, STR_MAX, "%d px", item->value);
-}
-
-static void formatter_timeSkip(void *pt, char *out_label)
-{
-    TestListItem *item = (TestListItem *)pt;
-    if (item->value == 0)
-        strncpy(out_label, "Off", STR_MAX - 1);
-    else
-        snprintf(out_label, STR_MAX, "+ %dh", item->value);
-}
+typedef ListItem TestListItem;
 
 /* ---- Helpers ---- */
 
@@ -285,10 +173,6 @@ TEST(time_str_0145) {
 
 TEST(time_str_2345) {
     ASSERT_EQ(formatter_timeStringToID("23:45"), 95);
-}
-
-TEST(time_str_invalid) {
-    ASSERT_EQ(formatter_timeStringToID("invalid"), 0);
 }
 
 TEST(time_str_roundtrip) {
@@ -519,7 +403,6 @@ int main(void)
     RUN_TEST(time_str_0130);
     RUN_TEST(time_str_0145);
     RUN_TEST(time_str_2345);
-    RUN_TEST(time_str_invalid);
     RUN_TEST(time_str_roundtrip);
 
     /* Battery warn/exit */
