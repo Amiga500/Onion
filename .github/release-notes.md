@@ -22,8 +22,8 @@ layout. **Not an official Onion release.**
 - 🔒 **"Disable services in game" holds everywhere**, including a game resumed at boot, and
   theme icons chosen in the Themes app survive a reboot.
 - 📱 **Mini Flip support**, ported from OnionUI `v4.5-dev`.
-- 🐛 **40 defects fixed in code shared with Onion**, with fixes available to the Onion team.
-- 🧪 **1,454 host tests**, every suite on the production code.
+- 🐛 **41 defects fixed in code shared with Onion**, with fixes available to the Onion team.
+- 🧪 **1,459 host tests**, every suite on the production code.
 
 ### 📦 Install & update
 
