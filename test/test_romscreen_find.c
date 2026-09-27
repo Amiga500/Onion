@@ -1,271 +1,130 @@
 /**
  * @file test_romscreen_find.c
- * @brief Unit tests for findRomScreen() path logic and RomScreenType_e
- *        from gs_romscreen.h
+ * @brief Tests for findRomScreenPaths() from
+ *        src/gameSwitcher/gs_romscreen_find.h (production header)
  *
- * Tests the path construction and return type selection for ROM
- * screen lookups. The function checks hashed romscreen → artwork
- * paths in order. We stub exists() and use a mock hash to isolate
- * the path selection logic.
+ * The GameSwitcher shows a game's own capture, ROM_SCREENS_DIR/<FNV hash
+ * of the ROM path>.png, first, then its artwork, else nothing.
  *
  * Build and run: make -f Makefile.unit test_romscreen_find
  */
 
+#define ROM_SCREENS_DIR "/tmp/onion_test_romscreens"
+
+#include "../src/gameSwitcher/gs_romscreen_find.h"
 #include "onion_test.h"
-#include <stdbool.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <string.h>
-#include <stdio.h>
 
-#define STR_MAX 256
-#define ROM_SCREENS_DIR "/mnt/SDCARD/Saves/CurrentProfile/romScreens"
+#include <sys/stat.h>
+#include <unistd.h>
 
-/* ---- Mock hash: returns a fixed value for testing ---- */
+#define ART_DIR "/tmp/onion_test_romscreens_art"
 
-static uint32_t _mock_hash_value = 12345;
-
-static uint32_t mock_hash(const char *str, size_t wrdlen)
+static void touch(const char *path)
 {
-    (void)str;
-    (void)wrdlen;
-    return _mock_hash_value;
+    FILE *fp = fopen(path, "w");
+    if (fp != NULL)
+        fclose(fp);
 }
 
-/* ---- RomScreenType_e from gs_romscreen.h ---- */
-
-typedef enum {
-    ROM_SCREEN_NONE = 0,
-    ROM_SCREEN_STATE,
-    ROM_SCREEN_HASH,
-    ROM_SCREEN_ARTWORK
-} RomScreenType_e;
-
-/* ---- Minimal Game_s for tests ---- */
-
-typedef struct {
-    struct {
-        char rompath[STR_MAX * 2];
-        char imgpath[STR_MAX * 2];
-    } recentItem;
-    char rom_name[STR_MAX * 2];
-    char core_name[STR_MAX * 2];
-} TestGame;
-
-/* ---- Stub for exists() ---- */
-
-static char _existing_paths[10][STR_MAX * 2];
-static int _existing_count = 0;
-
-static bool stub_exists(const char *path)
+static void capture_path(const char *rompath, char *out, size_t size)
 {
-    for (int i = 0; i < _existing_count; i++) {
-        if (strcmp(_existing_paths[i], path) == 0)
-            return true;
-    }
-    return false;
+    snprintf(out, size, ROM_SCREENS_DIR "/%" PRIu32 ".png",
+             FNV1A_Pippip_Yurii(rompath, strlen(rompath)));
 }
 
-static void stub_reset(void)
+TEST(romscreen_enum_values)
 {
-    _existing_count = 0;
-}
-
-static void stub_add_path(const char *path)
-{
-    if (_existing_count < 10) {
-        strncpy(_existing_paths[_existing_count], path, STR_MAX * 2 - 1);
-        _existing_paths[_existing_count][STR_MAX * 2 - 1] = '\0';
-        _existing_count++;
-    }
-}
-
-/* ---- Inline the function under test (using mock_hash) ---- */
-
-static RomScreenType_e findRomScreen(const TestGame *game, char *currPicture)
-{
-    /* Check if hashed rom screen exists */
-    uint32_t hash = mock_hash(game->recentItem.rompath,
-                              strlen(game->recentItem.rompath));
-    snprintf(currPicture, STR_MAX * 2, ROM_SCREENS_DIR "/%" PRIu32 ".png", hash);
-    if (stub_exists(currPicture)) {
-        return ROM_SCREEN_HASH;
-    }
-
-    /* Check if artwork exists */
-    snprintf(currPicture, STR_MAX * 2, "%s", game->recentItem.imgpath);
-    if (stub_exists(currPicture)) {
-        return ROM_SCREEN_ARTWORK;
-    }
-
-    return ROM_SCREEN_NONE;
-}
-
-/* ---- Helpers ---- */
-
-static TestGame make_game(const char *rompath, const char *imgpath)
-{
-    TestGame g;
-    memset(&g, 0, sizeof(g));
-    strncpy(g.recentItem.rompath, rompath, sizeof(g.recentItem.rompath) - 1);
-    strncpy(g.recentItem.imgpath, imgpath, sizeof(g.recentItem.imgpath) - 1);
-    return g;
-}
-
-/* ==== Tests: enum values ==== */
-
-TEST(romscreen_enum_values) {
     ASSERT_EQ(ROM_SCREEN_NONE, 0);
     ASSERT_EQ(ROM_SCREEN_STATE, 1);
     ASSERT_EQ(ROM_SCREEN_HASH, 2);
     ASSERT_EQ(ROM_SCREEN_ARTWORK, 3);
 }
 
-TEST(romscreen_enum_contiguous) {
-    ASSERT_EQ(ROM_SCREEN_STATE, ROM_SCREEN_NONE + 1);
-    ASSERT_EQ(ROM_SCREEN_HASH, ROM_SCREEN_STATE + 1);
-    ASSERT_EQ(ROM_SCREEN_ARTWORK, ROM_SCREEN_HASH + 1);
+TEST(romscreen_hash_found)
+{
+    const char *rom = "/mnt/SDCARD/Roms/GBA/Pokemon.gba";
+    char expected[512], picture[512];
+    capture_path(rom, expected, sizeof(expected));
+    touch(expected);
+    ASSERT_EQ(ROM_SCREEN_HASH, findRomScreenPaths(rom, ART_DIR "/Pokemon.png", picture, sizeof(picture)));
+    ASSERT_STREQ(expected, picture);
+    remove(expected);
 }
 
-/* ==== Tests: hash-based romscreen found ==== */
-
-TEST(romscreen_hash_found) {
-    _mock_hash_value = 99999;
-    TestGame g = make_game("/mnt/SDCARD/Roms/GBA/Pokemon.gba",
-                           "/mnt/SDCARD/Roms/GBA/Imgs/Pokemon.png");
-
-    stub_reset();
-    stub_add_path(ROM_SCREENS_DIR "/99999.png");
-
-    char picture[STR_MAX * 2];
-    RomScreenType_e result = findRomScreen(&g, picture);
-
-    ASSERT_EQ(result, ROM_SCREEN_HASH);
-    ASSERT_STREQ(picture, ROM_SCREENS_DIR "/99999.png");
+TEST(romscreen_artwork_found)
+{
+    char picture[512];
+    touch(ART_DIR "/Zelda.png");
+    ASSERT_EQ(ROM_SCREEN_ARTWORK,
+              findRomScreenPaths("/mnt/SDCARD/Roms/SNES/Zelda.sfc", ART_DIR "/Zelda.png", picture, sizeof(picture)));
+    ASSERT_STREQ(ART_DIR "/Zelda.png", picture);
+    remove(ART_DIR "/Zelda.png");
 }
 
-TEST(romscreen_hash_path_format) {
-    _mock_hash_value = 42;
-    TestGame g = make_game("/some/path", "/img/path");
-
-    stub_reset();
-    /* Don't add the path — just check the format */
-    char picture[STR_MAX * 2];
-    findRomScreen(&g, picture);
-
-    /* picture should end with the imgpath since hash wasn't found */
-    /* But the hash path was tried as: ROM_SCREENS_DIR "/42.png" */
-    /* Since nothing matched, picture = imgpath */
-    ASSERT_STREQ(picture, "/img/path");
+TEST(romscreen_none_found)
+{
+    char picture[512];
+    ASSERT_EQ(ROM_SCREEN_NONE,
+              findRomScreenPaths("/mnt/SDCARD/Roms/GBA/Unknown.gba", ART_DIR "/Unknown.png", picture, sizeof(picture)));
+    /* The last path tried is left in the buffer */
+    ASSERT_STREQ(ART_DIR "/Unknown.png", picture);
 }
 
-/* ==== Tests: artwork fallback ==== */
-
-TEST(romscreen_artwork_found) {
-    _mock_hash_value = 11111;
-    TestGame g = make_game("/mnt/SDCARD/Roms/SNES/Zelda.sfc",
-                           "/mnt/SDCARD/Roms/SNES/Imgs/Zelda.png");
-
-    stub_reset();
-    /* Hash path doesn't exist, but artwork does */
-    stub_add_path("/mnt/SDCARD/Roms/SNES/Imgs/Zelda.png");
-
-    char picture[STR_MAX * 2];
-    RomScreenType_e result = findRomScreen(&g, picture);
-
-    ASSERT_EQ(result, ROM_SCREEN_ARTWORK);
-    ASSERT_STREQ(picture, "/mnt/SDCARD/Roms/SNES/Imgs/Zelda.png");
+TEST(romscreen_hash_takes_priority_over_artwork)
+{
+    const char *rom = "/mnt/SDCARD/Roms/GBA/Game.gba";
+    char capture[512], picture[512];
+    capture_path(rom, capture, sizeof(capture));
+    touch(capture);
+    touch(ART_DIR "/Game.png");
+    ASSERT_EQ(ROM_SCREEN_HASH, findRomScreenPaths(rom, ART_DIR "/Game.png", picture, sizeof(picture)));
+    ASSERT_STREQ(capture, picture);
+    remove(capture);
+    remove(ART_DIR "/Game.png");
 }
 
-/* ==== Tests: nothing found ==== */
-
-TEST(romscreen_none_found) {
-    _mock_hash_value = 77777;
-    TestGame g = make_game("/mnt/SDCARD/Roms/GBA/Unknown.gba",
-                           "/mnt/SDCARD/Roms/GBA/Imgs/Unknown.png");
-
-    stub_reset();
-
-    char picture[STR_MAX * 2];
-    RomScreenType_e result = findRomScreen(&g, picture);
-
-    ASSERT_EQ(result, ROM_SCREEN_NONE);
+/* The capture name depends on the ROM path only. */
+TEST(romscreen_different_roms_different_captures)
+{
+    char a[512], b[512];
+    capture_path("/mnt/SDCARD/Roms/GBA/A.gba", a, sizeof(a));
+    capture_path("/mnt/SDCARD/Roms/GBA/B.gba", b, sizeof(b));
+    ASSERT_STRNE(a, b);
 }
 
-/* ==== Tests: priority (hash > artwork) ==== */
-
-TEST(romscreen_hash_takes_priority_over_artwork) {
-    _mock_hash_value = 55555;
-    TestGame g = make_game("/mnt/SDCARD/Roms/GBA/Game.gba",
-                           "/mnt/SDCARD/Roms/GBA/Imgs/Game.png");
-
-    stub_reset();
-    stub_add_path(ROM_SCREENS_DIR "/55555.png");
-    stub_add_path("/mnt/SDCARD/Roms/GBA/Imgs/Game.png");
-
-    char picture[STR_MAX * 2];
-    RomScreenType_e result = findRomScreen(&g, picture);
-
-    ASSERT_EQ(result, ROM_SCREEN_HASH);
-    ASSERT_STREQ(picture, ROM_SCREENS_DIR "/55555.png");
+TEST(romscreen_no_output_buffer)
+{
+    char picture[4] = "abc";
+    ASSERT_EQ(ROM_SCREEN_NONE, findRomScreenPaths("/r", "/i", NULL, 16));
+    ASSERT_EQ(ROM_SCREEN_NONE, findRomScreenPaths("/r", "/i", picture, 0));
+    ASSERT_STREQ("abc", picture);
 }
 
-/* ==== Tests: empty imgpath ==== */
-
-TEST(romscreen_empty_imgpath) {
-    _mock_hash_value = 33333;
-    TestGame g = make_game("/mnt/SDCARD/Roms/GBA/Game.gba", "");
-
-    stub_reset();
-
-    char picture[STR_MAX * 2];
-    RomScreenType_e result = findRomScreen(&g, picture);
-
-    /* Empty imgpath won't match any file */
-    ASSERT_EQ(result, ROM_SCREEN_NONE);
+/* A small buffer truncates instead of overflowing. */
+TEST(romscreen_small_buffer_truncates)
+{
+    char picture[8];
+    findRomScreenPaths("/mnt/SDCARD/Roms/GBA/Game.gba", "/a/very/long/artwork/path.png", picture, sizeof(picture));
+    ASSERT_EQ(7, (int)strlen(picture));
 }
-
-TEST(romscreen_artwork_with_special_chars) {
-    _mock_hash_value = 44444;
-    TestGame g = make_game("/mnt/SDCARD/Roms/GBA/Game (USA) [BIOS].gba",
-                           "/mnt/SDCARD/Roms/GBA/Imgs/Game (USA) [BIOS].png");
-
-    stub_reset();
-    stub_add_path("/mnt/SDCARD/Roms/GBA/Imgs/Game (USA) [BIOS].png");
-
-    char picture[STR_MAX * 2];
-    RomScreenType_e result = findRomScreen(&g, picture);
-
-    ASSERT_EQ(result, ROM_SCREEN_ARTWORK);
-}
-
-/* ---- main ---- */
 
 int main(void)
 {
-    printf("\n=== gs_romscreen.h findRomScreen Unit Tests ===\n\n");
+    printf("\n=== gs_romscreen_find.h Unit Tests ===\n\n");
+    mkdir(ROM_SCREENS_DIR, 0755);
+    mkdir(ART_DIR, 0755);
 
-    /* Enum values */
     RUN_TEST(romscreen_enum_values);
-    RUN_TEST(romscreen_enum_contiguous);
-
-    /* Hash-based */
     RUN_TEST(romscreen_hash_found);
-    RUN_TEST(romscreen_hash_path_format);
-
-    /* Artwork fallback */
     RUN_TEST(romscreen_artwork_found);
-
-    /* Nothing found */
     RUN_TEST(romscreen_none_found);
-
-    /* Priority */
     RUN_TEST(romscreen_hash_takes_priority_over_artwork);
+    RUN_TEST(romscreen_different_roms_different_captures);
+    RUN_TEST(romscreen_no_output_buffer);
+    RUN_TEST(romscreen_small_buffer_truncates);
 
-    /* Edge cases */
-    RUN_TEST(romscreen_empty_imgpath);
-    RUN_TEST(romscreen_artwork_with_special_chars);
-
+    rmdir(ROM_SCREENS_DIR);
+    rmdir(ART_DIR);
     TEST_REPORT();
     return test_failures;
 }

@@ -9,6 +9,7 @@
 
 #include "gs_model.h"
 #include "gs_retroarch.h"
+#include "gs_romscreen_find.h"
 #include "gs_romscreen_window.h"
 
 // Romscreens are decoded outside the lock by a persistent worker that
@@ -56,34 +57,10 @@ void unloadRomScreen(int index)
     }
 }
 
-typedef enum {
-    ROM_SCREEN_NONE = 0,
-    ROM_SCREEN_STATE,
-    ROM_SCREEN_HASH,
-    ROM_SCREEN_ARTWORK
-} RomScreenType_e;
-
 RomScreenType_e findRomScreen(const Game_s *game, char *currPicture, size_t currPicture_size)
 {
-    if (currPicture == NULL || currPicture_size == 0)
-        return ROM_SCREEN_NONE;
-
-    // Check if hashed rom screen exists
-    uint32_t hash = FNV1A_Pippip_Yurii(game->recentItem.rompath, strlen(game->recentItem.rompath));
-    snprintf(currPicture, currPicture_size, ROM_SCREENS_DIR "/%" PRIu32 ".png", hash);
-    printf_debug("Checking for hashed rom screen: %s\n", currPicture);
-    if (exists(currPicture)) {
-        return ROM_SCREEN_HASH;
-    }
-
-    // Check if artwork exists
-    snprintf(currPicture, currPicture_size, "%s", game->recentItem.imgpath);
-    printf_debug("Checking for artwork: %s\n", currPicture);
-    if (exists(currPicture)) {
-        return ROM_SCREEN_ARTWORK;
-    }
-
-    return ROM_SCREEN_NONE;
+    return findRomScreenPaths(game->recentItem.rompath, game->recentItem.imgpath,
+                              currPicture, currPicture_size);
 }
 
 typedef struct {

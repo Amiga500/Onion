@@ -517,9 +517,9 @@ test_romscreen_find: $(BUILD_DIR)/test_romscreen_find
 	@echo ""
 	@$(BUILD_DIR)/test_romscreen_find
 
-$(BUILD_DIR)/test_romscreen_find: test_romscreen_find.c onion_test.h
+$(BUILD_DIR)/test_romscreen_find: test_romscreen_find.c onion_test.h ../src/gameSwitcher/gs_romscreen_find.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_romscreen_find.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_romscreen_find.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_neon_pixel: $(BUILD_DIR)/test_neon_pixel
 	@echo ""
