@@ -1676,12 +1676,38 @@ check_networking() {
 
     if pgrep -f update_networking.sh; then
         log "update_networking already running"
+        queue_network_check
     else
-        rm /tmp/network_changed
-        perf_begin net_check
-        $sysdir/script/network/update_networking.sh check
-        perf_end net_check
+        run_network_check
     fi
+}
+
+# Runs the pending network check. Only one caller takes it (this state
+# change or a queued retry): the flag is moved away atomically first.
+run_network_check() {
+    mv /tmp/network_changed /tmp/network_changed.taken 2> /dev/null || return 0
+    rm -f /tmp/network_changed.taken
+    perf_begin net_check
+    $sysdir/script/network/update_networking.sh check
+    perf_end net_check
+}
+
+# A check skipped because update_networking.sh was still running (e.g. a
+# time sync after Wi-Fi came on) used to wait for the next state change:
+# services such as SSH stayed off while the user sat in a menu. Retry in
+# the background once that run ends (at most 2 min; one waiter at a time).
+# Services still skip a running game (start_services_outside_game).
+queue_network_check() {
+    mkdir /tmp/network_check_queued 2> /dev/null || return 0
+    (
+        _qn_waited=0
+        while pgrep -f update_networking.sh > /dev/null && [ $_qn_waited -lt 120 ]; do
+            sleep 1
+            _qn_waited=$((_qn_waited + 1))
+        done
+        rmdir /tmp/network_check_queued
+        [ -f /tmp/network_changed ] && run_network_check
+    ) &
 }
 
 check_installer() {

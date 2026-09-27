@@ -389,6 +389,62 @@ else
     echo "  [SKIP] ota_update.sh tests (jq not installed)"
 fi
 
+# ---- runtime.sh: network check skipped while update_networking.sh runs ----
+
+eval "$(extract_fn "$RUNTIME" check_networking)"
+eval "$(extract_fn "$RUNTIME" run_network_check)"
+eval "$(extract_fn "$RUNTIME" queue_network_check)"
+
+net_setup() {
+    sysdir=$TMP
+    mkdir -p "$sysdir/script/network"
+    printf '#!/bin/sh\necho "$1" >> "%s/net_runs"\n' "$TMP" > "$sysdir/script/network/update_networking.sh"
+    chmod +x "$sysdir/script/network/update_networking.sh"
+    rm -rf /tmp/network_changed /tmp/network_changed.taken /tmp/network_check_queued
+}
+unset -f sleep # the waiter really waits (an earlier section stubs it)
+pgrep() { [ -f "$TMP/running" ]; } # pgrep -f update_networking.sh
+log() { :; }
+perf_begin() { :; }
+perf_end() { :; }
+net_runs() { [ -f "$TMP/net_runs" ] && wc -l < "$TMP/net_runs" | tr -d ' ' || echo 0; }
+
+begin network_check_runs_when_idle
+net_setup
+: > /tmp/network_changed
+check_networking > /dev/null
+check "check ran once" test "$(net_runs)" = 1
+check "change consumed" test ! -e /tmp/network_changed
+end
+
+begin network_check_queued_while_running
+net_setup
+: > /tmp/network_changed
+: > "$TMP/running"
+check_networking > /dev/null
+check_networking > /dev/null # a second state change: still one waiter
+check "not run while the other check runs" test "$(net_runs)" = 0
+check "one waiter queued" test -d /tmp/network_check_queued
+rm -f "$TMP/running" # the running check ends
+i=0
+while [ -d /tmp/network_check_queued ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+sleep 0.3
+check "run once after it ended" test "$(net_runs)" = 1
+check "change consumed" test ! -e /tmp/network_changed
+end
+
+begin network_check_taken_once
+net_setup
+run_network_check
+check "nothing pending: no run" test "$(net_runs)" = 0
+: > /tmp/network_changed
+run_network_check
+run_network_check
+check "a pending change runs once" test "$(net_runs)" = 1
+end
+unset -f pgrep log perf_begin perf_end net_runs net_setup
+rm -rf /tmp/network_changed /tmp/network_changed.taken /tmp/network_check_queued
+
 # ---- update_networking.sh: libpadspblocker pid lookup ----
 
 eval "$(extract_fn "$NETWORK" lowest_pid_named)"
