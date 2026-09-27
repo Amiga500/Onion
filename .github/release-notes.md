@@ -17,9 +17,13 @@ layout. **Not an official Onion release.**
 - 🕒 **Clock fixes** — a failed time-zone lookup keeps your zone, and play time can no longer
   jump by decades when the clock is set from the network.
 - 🧠 **GameSwitcher** — no memory leak on large histories, screenshots preloaded in the
-  background, add/remove favorites from its menu.
+  background, add/remove favorites from its menu; it draws only when something on screen
+  changes.
+- 🔒 **"Disable services in game" holds everywhere**, including a game resumed at boot, and
+  theme icons chosen in the Themes app survive a reboot.
 - 📱 **Mini Flip support**, ported from OnionUI `v4.5-dev`.
-- 🐛 **29 defects fixed in code shared with Onion**, with fixes available to the Onion team.
+- 🐛 **40 defects fixed in code shared with Onion**, with fixes available to the Onion team.
+- 🧪 **1,453 host tests**, every suite on the production code.
 
 ### 📦 Install & update
 
