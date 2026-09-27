@@ -469,9 +469,9 @@ test_screenshot_path: $(BUILD_DIR)/test_screenshot_path
 	@echo ""
 	@$(BUILD_DIR)/test_screenshot_path
 
-$(BUILD_DIR)/test_screenshot_path: test_screenshot_path.c onion_test.h
+$(BUILD_DIR)/test_screenshot_path: test_screenshot_path.c onion_test.h ../src/common/system/screenshot_path.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_screenshot_path.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_screenshot_path.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_system_utils: $(BUILD_DIR)/test_system_utils
 	@echo ""

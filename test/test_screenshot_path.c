@@ -21,17 +21,9 @@
 #include <stdint.h>
 #include <sys/stat.h>
 
-#define STR_MAX 256
-
-/* ---- Stub log macros ---- */
-#define print_debug(...)
-#define printf_debug(...)
-
-/* ---- Stub exists() ---- */
-static bool stub_exists(const char *path)
-{
-    return access(path, F_OK) == 0;
-}
+/* Production code: screenshot_numberedPath() from system/screenshot_path.h
+ * (what __get_path_recent() in screenshot.h calls). */
+#include "system/screenshot_path.h"
 
 /* ---- Helper: create empty file ---- */
 static void touch_file(const char *path)
@@ -58,45 +50,25 @@ static void mkdir_p(const char *path)
     mkdir(tmp, 0755);
 }
 
-/* ---- Inlined numbering logic from __get_path_recent ---- */
+/* ---- Wrappers over the production helper ---- */
 
-/**
- * Given a base path like "/tmp/test_ss/Screenshots/GameName",
- * appends _NNN.png where NNN is the first available number 0-999.
- * Returns true if a free slot was found, false if all 1000 are taken.
- */
+/* "<dir>/<name>" split at the last '/' into the helper's two arguments. */
 static bool find_numbered_path(char *path_out, const char *base_path)
 {
-    const size_t path_size = 512;
-    strncpy(path_out, base_path, path_size - 1);
-    path_out[path_size - 1] = '\0';
-
-    char *fnptr = path_out + strlen(path_out);
-    uint32_t i;
-    for (i = 0; i < 1000; i++) {
-        snprintf(fnptr, path_size - (fnptr - path_out), "_%03d.png", i);
-        if (!stub_exists(path_out))
-            break;
-    }
-    return i <= 999;
+    char dir[512];
+    snprintf(dir, sizeof(dir), "%s", base_path);
+    char *slash = strrchr(dir, '/');
+    if (slash == NULL)
+        return false;
+    *slash = '\0';
+    return screenshot_numberedPath(path_out, 512, dir, slash + 1);
 }
 
-/**
- * Test the fallback name logic: if no app/game name is set,
- * "Screenshot" is used as the default.
- */
+/* The name part: the helper falls back to "Screenshot". Only the first
+ * slot is expected, since these folders do not exist on the host. */
 static void build_screenshot_path(char *path_out, const char *dir, const char *name)
 {
-    const size_t path_size = 512;
-    strncpy(path_out, dir, path_size - 1);
-    path_out[path_size - 1] = '\0';
-
-    if (name != NULL && name[0] != '\0') {
-        strncat(path_out, name, path_size - strlen(path_out) - 1);
-    }
-    else {
-        strncat(path_out, "Screenshot", path_size - strlen(path_out) - 1);
-    }
+    screenshot_numberedPath(path_out, 512, dir, name);
 }
 
 /* ==== Numbered path tests ==== */
@@ -169,35 +141,42 @@ TEST(numbered_path_png_extension) {
 
 TEST(build_path_with_game_name) {
     char path[512];
-    build_screenshot_path(path, "/mnt/SDCARD/Screenshots/", "SuperMario");
-    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/SuperMario");
+    build_screenshot_path(path, "/mnt/SDCARD/Screenshots","SuperMario");
+    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/SuperMario_000.png");
 }
 
 TEST(build_path_with_gameswitcher) {
     char path[512];
-    build_screenshot_path(path, "/mnt/SDCARD/Screenshots/", "GameSwitcher");
-    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/GameSwitcher");
+    build_screenshot_path(path, "/mnt/SDCARD/Screenshots","GameSwitcher");
+    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/GameSwitcher_000.png");
 }
 
 TEST(build_path_with_mainui) {
     char path[512];
-    build_screenshot_path(path, "/mnt/SDCARD/Screenshots/", "MainUI");
-    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/MainUI");
+    build_screenshot_path(path, "/mnt/SDCARD/Screenshots","MainUI");
+    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/MainUI_000.png");
 }
 
 TEST(build_path_default_when_empty) {
     char path[512];
-    build_screenshot_path(path, "/mnt/SDCARD/Screenshots/", "");
-    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/Screenshot");
+    build_screenshot_path(path, "/mnt/SDCARD/Screenshots","");
+    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/Screenshot_000.png");
 }
 
 TEST(build_path_default_when_null) {
     char path[512];
-    build_screenshot_path(path, "/mnt/SDCARD/Screenshots/", NULL);
-    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/Screenshot");
+    build_screenshot_path(path, "/mnt/SDCARD/Screenshots",NULL);
+    ASSERT_STREQ(path, "/mnt/SDCARD/Screenshots/Screenshot_000.png");
 }
 
 /* ==== Edge cases ==== */
+
+/* A path that does not fit is refused, not truncated. */
+TEST(numbered_path_too_long_is_refused) {
+    char path[32];
+    ASSERT_FALSE(screenshot_numberedPath(path, sizeof(path), "/mnt/SDCARD/Screenshots",
+                                         "A very long game name that cannot fit"));
+}
 
 TEST(numbered_path_empty_base) {
     system("rm -rf /tmp/test_ss");
@@ -240,6 +219,7 @@ int main(void)
     RUN_TEST(build_path_default_when_null);
 
     /* Edge cases */
+    RUN_TEST(numbered_path_too_long_is_refused);
     RUN_TEST(numbered_path_empty_base);
     RUN_TEST(numbered_path_with_spaces);
 

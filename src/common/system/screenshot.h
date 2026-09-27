@@ -8,6 +8,7 @@
 #include <sys/types.h>
 
 #include "./display.h"
+#include "./screenshot_path.h"
 #include "./state.h"
 #include "utils/file.h"
 #include "utils/hash.h"
@@ -22,7 +23,6 @@ bool __get_path_recent(char *path_out)
 {
     char name[STR_MAX] = "";
     char *no_extension;
-    uint32_t i;
 
     system_state_update();
 
@@ -64,19 +64,7 @@ bool __get_path_recent(char *path_out)
         name[sizeof(name) - 1] = '\0';
     }
 
-    if (name[0] == '\0')
-        strncpy(name, "Screenshot", sizeof(name) - 1);
-
-    for (i = 0; i < 1000; i++) {
-        int n = snprintf(path_out, SCREENSHOT_PATH_MAX,
-                         "/mnt/SDCARD/Screenshots/%s_%03d.png", name, i);
-        if (n < 0 || (size_t)n >= SCREENSHOT_PATH_MAX)
-            return false;
-        if (!exists(path_out))
-            break;
-    }
-
-    return i <= 999;
+    return screenshot_numberedPath(path_out, SCREENSHOT_PATH_MAX, SCREENSHOTS_DIR, name);
 }
 
 uint32_t *__screenshot_buffer(void)
