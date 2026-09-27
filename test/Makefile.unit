@@ -242,9 +242,9 @@ test_apps: $(BUILD_DIR)/test_apps
 	@echo ""
 	@$(BUILD_DIR)/test_apps
 
-$(BUILD_DIR)/test_apps: test_apps.c onion_test.h
+$(BUILD_DIR)/test_apps: test_apps.c onion_test.h ../src/common/utils/apps.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_apps.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_apps.c $(COMMON_SRCS) $(LDFLAGS) 
 
 test_changes: $(BUILD_DIR)/test_changes
 	@echo ""

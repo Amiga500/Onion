@@ -18,21 +18,8 @@
 #include <string.h>
 #include <strings.h>
 
-#define STR_MAX 256
-
-/* ---- Inline the pure-logic types and functions from apps.h ---- */
-
-typedef struct {
-    char dirName[STR_MAX];
-    char label[STR_MAX];
-    bool is_duplicate;
-    int dup_id;
-} InstalledApp;
-
-static int _comp_installed_apps(const void *a, const void *b)
-{
-    return strcasecmp(((InstalledApp *)a)->label, ((InstalledApp *)b)->label);
-}
+/* Production code: InstalledApp and the label comparator from utils/apps.h. */
+#include "utils/apps.h"
 
 /* ---- Helper ---- */
 
