@@ -250,9 +250,9 @@ test_changes: $(BUILD_DIR)/test_changes
 	@echo ""
 	@$(BUILD_DIR)/test_changes
 
-$(BUILD_DIR)/test_changes: test_changes.c onion_test.h
+$(BUILD_DIR)/test_changes: test_changes.c onion_test.h ../src/packageManager/listActions.h ../src/packageManager/changes.h ../src/packageManager/pacman_state.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_changes.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_changes.c $(LDFLAGS) 
 
 test_gs_history: $(BUILD_DIR)/test_gs_history
 	@echo ""
@@ -541,9 +541,9 @@ test_pacman_changes: $(BUILD_DIR)/test_pacman_changes
 	@echo ""
 	@$(BUILD_DIR)/test_pacman_changes
 
-$(BUILD_DIR)/test_pacman_changes: test_pacman_changes.c onion_test.h
+$(BUILD_DIR)/test_pacman_changes: test_pacman_changes.c onion_test.h ../src/packageManager/changes.h ../src/packageManager/pacman_state.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_pacman_changes.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_pacman_changes.c $(LDFLAGS) 
 
 test_alpha_scale: $(BUILD_DIR)/test_alpha_scale
 	@echo ""

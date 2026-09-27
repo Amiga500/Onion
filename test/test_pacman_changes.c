@@ -14,76 +14,9 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define STR_MAX 256
-#define LAYER_ITEM_COUNT 200
-
-/* ---- Minimal Package struct from globals.h ---- */
-
-typedef struct package_s {
-    char name[STR_MAX];
-    bool installed;
-    bool changed;
-    bool complete;
-    bool has_roms;
-} Package;
-
-/* ---- Simulated globals ---- */
-
-static const int tab_count = 4;
-static Package packages[4][LAYER_ITEM_COUNT];
-static int package_count[] = {0, 0, 0, 0};
-static int package_installed_count[] = {0, 0, 0, 0};
-static int changes_installs[] = {0, 0, 0, 0};
-static int changes_removals[] = {0, 0, 0, 0};
-
-/* ---- Inline functions under test from changes.h ---- */
-
-static int changesInstalls(void)
-{
-    int total = 0;
-    for (int i = 0; i < tab_count; i++)
-        total += changes_installs[i];
-    return total;
-}
-
-static int changesRemovals(void)
-{
-    int total = 0;
-    for (int i = 0; i < tab_count; i++)
-        total += changes_removals[i];
-    return total;
-}
-
-static int changesTotal(void) { return changesInstalls() + changesRemovals(); }
-
-static int totalInstalls(void)
-{
-    int total = 0;
-    for (int i = 0; i < tab_count; i++)
-        total += package_installed_count[i];
-    return total;
-}
-
-static void setItemsInstallValue(int mode, int layer)
-{
-    for (int i = 0; i < package_count[layer]; i++) {
-        Package *package = &packages[layer][i];
-        bool is_active = mode == 2 ? package->has_roms : mode;
-        bool new_value = is_active != package->installed;
-
-        if (package->changed != new_value) {
-            package->changed = new_value;
-
-            if (package->installed) {
-                changes_removals[layer] += new_value ? 1 : -1;
-                if (!package->complete)
-                    changes_installs[layer] += new_value ? -1 : 1;
-            }
-            else
-                changes_installs[layer] += new_value ? 1 : -1;
-        }
-    }
-}
+/* Production code: the package state and change counters of the Package
+ * Manager (pacman_state.h, changes.h). */
+#include "../src/packageManager/changes.h"
 
 /* ---- Helpers ---- */
 

@@ -1,7 +1,7 @@
 #ifndef PACMAN_CHANGES_H__
 #define PACMAN_CHANGES_H__
 
-#include "./globals.h"
+#include "./pacman_state.h"
 
 int changesInstalls(void)
 {
