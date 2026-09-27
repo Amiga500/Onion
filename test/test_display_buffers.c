@@ -19,121 +19,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- Minimal display_t for buffer tests ---- */
+/* Production code: the multi-buffer framebuffer helpers of system/display.h.
+ * The test names map onto the production types and functions. Displays are
+ * zero-filled, so finfo.line_length is 0 and the stride falls back to xres. */
+#include "system/display.h"
 
-typedef struct {
-    uint32_t xres;
-    uint32_t yres;
-    uint32_t yres_virtual;
-    uint32_t yoffset;
-} test_vinfo_t;
-
-typedef struct {
-    uint32_t *fb_addr;
-    test_vinfo_t vinfo;
-} test_display_t;
-
-typedef struct {
-    int x, y, w, h;
-} test_rect_t;
-
-/* ---- Single-buffer read/write (same logic as test_display.c) ---- */
-
-static void test_readOrWriteBuffer(int index, test_display_t *display,
-                                   uint32_t *pixels, test_rect_t rect,
-                                   bool rotate, bool mask, bool write)
-{
-    int bufferPos = index * (int)display->vinfo.yres;
-
-    for (int oy = 0; oy < rect.h; oy++) {
-        int y = rect.y + oy;
-
-        if (y < 0 || y >= (int)display->vinfo.yres)
-            continue;
-
-        int virtualY = bufferPos + (rotate ? (int)(display->vinfo.yres - 1) - y : y);
-        long baseOffset = (long)virtualY * (long)display->vinfo.xres;
-        int baseIndex = oy * rect.w;
-
-        if (!rotate && !mask && rect.x >= 0 &&
-            rect.x + rect.w <= (int)display->vinfo.xres) {
-            long rowOffset = baseOffset + (long)rect.x;
-            if (write) {
-                memcpy(&display->fb_addr[rowOffset], &pixels[baseIndex],
-                       rect.w * sizeof(uint32_t));
-            }
-            else {
-                memcpy(&pixels[baseIndex], &display->fb_addr[rowOffset],
-                       rect.w * sizeof(uint32_t));
-            }
-            continue;
-        }
-
-        for (int ox = 0; ox < rect.w; ox++) {
-            int x = rect.x + ox;
-
-            if (rotate) {
-                x = (int)(display->vinfo.xres - 1) - x;
-            }
-
-            if (x < 0 || x >= (int)display->vinfo.xres)
-                continue;
-
-            long offset = baseOffset + (long)x;
-            int idx = baseIndex + ox;
-            if (write) {
-                if (mask) {
-                    if (pixels[idx] != 0) {
-                        display->fb_addr[offset] = 0;
-                    }
-                }
-                else {
-                    display->fb_addr[offset] = pixels[idx];
-                }
-            }
-            else {
-                if (mask) {
-                    pixels[idx] = display->fb_addr[offset] == 0 ? 1 : 0;
-                }
-                else {
-                    pixels[idx] = display->fb_addr[offset];
-                }
-            }
-        }
-    }
-}
-
-/* ---- Multi-buffer functions under test ---- */
-
-static void test_readOrWriteBuffers(test_display_t *display, uint32_t **pixels,
-                                    test_rect_t rect, bool rotate, bool mask, bool write)
-{
-    if (display->vinfo.yres == 0)
-        return;
-    int numBuffers = (int)(display->vinfo.yres_virtual / display->vinfo.yres);
-
-    for (int b = 0; b < numBuffers; b++) {
-        test_readOrWriteBuffer(b, display, pixels[b], rect, rotate, mask, write);
-    }
-}
-
-static void test_readBuffers(test_display_t *display, uint32_t **pixels,
-                             test_rect_t rect, bool rotate, bool mask)
-{
-    test_readOrWriteBuffers(display, pixels, rect, rotate, mask, false);
-}
-
-static void test_writeBuffers(test_display_t *display, uint32_t **pixels,
-                              test_rect_t rect, bool rotate, bool mask)
-{
-    test_readOrWriteBuffers(display, pixels, rect, rotate, mask, true);
-}
+typedef display_t test_display_t;
+typedef rect_t test_rect_t;
+#define test_readOrWriteBuffers display_readOrWriteBuffers
+#define test_readBuffers display_readBuffers
+#define test_writeBuffers display_writeBuffers
 
 /* ---- Helper: create display with double-buffer ---- */
 
 static test_display_t create_double_buffered_display(int w, int h)
 {
     test_display_t d;
+    memset(&d, 0, sizeof(d));
     d.vinfo.xres = (uint32_t)w;
     d.vinfo.yres = (uint32_t)h;
     d.vinfo.yres_virtual = (uint32_t)(h * 2); /* double buffer */
@@ -145,6 +47,7 @@ static test_display_t create_double_buffered_display(int w, int h)
 static test_display_t create_triple_buffered_display(int w, int h)
 {
     test_display_t d;
+    memset(&d, 0, sizeof(d));
     d.vinfo.xres = (uint32_t)w;
     d.vinfo.yres = (uint32_t)h;
     d.vinfo.yres_virtual = (uint32_t)(h * 3); /* triple buffer */
@@ -284,6 +187,7 @@ TEST(double_buffer_masked_write) {
 TEST(zero_yres_skips_all) {
     /* When yres is 0, the function should return immediately */
     test_display_t d;
+    memset(&d, 0, sizeof(d));
     d.vinfo.xres = 4;
     d.vinfo.yres = 0;
     d.vinfo.yres_virtual = 0;
@@ -301,6 +205,7 @@ TEST(zero_yres_skips_all) {
 TEST(single_buffer_as_special_case) {
     /* yres_virtual == yres → 1 buffer */
     test_display_t d;
+    memset(&d, 0, sizeof(d));
     d.vinfo.xres = 4;
     d.vinfo.yres = 2;
     d.vinfo.yres_virtual = 2;
@@ -350,6 +255,7 @@ TEST(partial_rect_on_multi_buffer) {
 TEST(num_buffers_calculation) {
     /* Verify numBuffers = yres_virtual / yres */
     test_display_t d;
+    memset(&d, 0, sizeof(d));
     d.vinfo.yres = 480;
     d.vinfo.yres_virtual = 960;
     int numBuffers = (int)(d.vinfo.yres_virtual / d.vinfo.yres);

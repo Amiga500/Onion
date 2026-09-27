@@ -493,9 +493,9 @@ test_display_buffers: $(BUILD_DIR)/test_display_buffers
 	@echo ""
 	@$(BUILD_DIR)/test_display_buffers
 
-$(BUILD_DIR)/test_display_buffers: test_display_buffers.c onion_test.h
+$(BUILD_DIR)/test_display_buffers: test_display_buffers.c onion_test.h ../src/common/system/display.h ../src/common/utils/neon_pixel.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_display_buffers.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_display_buffers.c $(COMMON_SRCS) $(LDFLAGS) -lm
 
 test_rom_image_path: $(BUILD_DIR)/test_rom_image_path
 	@echo ""
