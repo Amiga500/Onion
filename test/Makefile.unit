@@ -509,9 +509,9 @@ test_overlay_content: $(BUILD_DIR)/test_overlay_content
 	@echo ""
 	@$(BUILD_DIR)/test_overlay_content
 
-$(BUILD_DIR)/test_overlay_content: test_overlay_content.c onion_test.h
+$(BUILD_DIR)/test_overlay_content: test_overlay_content.c onion_test.h ../src/gameSwitcher/gs_content_match.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_overlay_content.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_overlay_content.c $(LDFLAGS) 
 
 test_romscreen_find: $(BUILD_DIR)/test_romscreen_find
 	@echo ""

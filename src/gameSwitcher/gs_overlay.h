@@ -19,6 +19,7 @@
 #include "utils/str.h"
 
 #include "gs_appState.h"
+#include "gs_content_match.h"
 #include "gs_model.h"
 #include "gs_render.h"
 #include "gs_romscreen.h"
@@ -92,17 +93,6 @@ static void _playActivityAsync(const char *action)
     else {
         printf_debug("fork failed for playActivity %s\n", action);
     }
-}
-
-static bool _isContentNameInInfo(const char *content_info, const char *content_name)
-{
-    const char *found = strstr(content_info, content_name);
-    if (found != NULL) {
-        bool left_ok = found == content_info || *(found - 1) == ',';
-        bool right_ok = *(found + strlen(content_name)) == ',';
-        return left_ok && right_ok;
-    }
-    return false;
 }
 
 static void *_saveRomScreenAndStateThread(void *arg)

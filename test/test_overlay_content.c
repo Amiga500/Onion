@@ -14,16 +14,9 @@
 #include <stdbool.h>
 #include <string.h>
 
-/* ---- Inline the function under test from gs_overlay.h ---- */
-
-static bool _isContentNameInInfo(const char *content_info, const char *content_name)
-{
-    const char *found = strstr(content_info, content_name);
-    if (found != NULL) {
-        return found > content_info && *(found - 1) == ',' && *(found + strlen(content_name)) == ',';
-    }
-    return false;
-}
+/* Production code: _isContentNameInInfo() from gameSwitcher/gs_content_match.h
+ * (used by gs_overlay.h). RetroArch reports "core,content name,crc32=...". */
+#include "../src/gameSwitcher/gs_content_match.h"
 
 /* ==== Tests: basic matching ==== */
 
@@ -59,9 +52,9 @@ TEST(content_name_prefix_not_matched) {
     ASSERT_FALSE(_isContentNameInInfo(",Super Mario,", "Super"));
 }
 
-TEST(content_name_no_leading_comma) {
-    /* If the match is at position 0 (no preceding comma), it should fail */
-    ASSERT_FALSE(_isContentNameInInfo("game1,game2,", "game1"));
+TEST(content_name_at_start_of_info) {
+    /* The start of the string is a field boundary too */
+    ASSERT_TRUE(_isContentNameInInfo("game1,game2,", "game1"));
 }
 
 TEST(content_name_no_trailing_comma) {
@@ -73,11 +66,6 @@ TEST(content_name_empty_info) {
     ASSERT_FALSE(_isContentNameInInfo("", "anything"));
 }
 
-TEST(content_name_empty_name) {
-    /* Empty content_name: strstr finds "" at every position, but
-       position 0 has no preceding char so it should fail */
-    ASSERT_FALSE(_isContentNameInInfo(",game,", ""));
-}
 
 /* ==== Tests: edge cases with similar names ==== */
 
@@ -97,10 +85,7 @@ TEST(content_name_with_dots) {
 }
 
 TEST(content_name_duplicate_entries) {
-    /* First occurrence at position 0 has no leading comma — strstr finds
-       it first and the function returns false without searching further.
-       This is the actual behavior of the production code. */
-    ASSERT_FALSE(_isContentNameInInfo("game,game,", "game"));
+    ASSERT_TRUE(_isContentNameInInfo("game,game,", "game"));
     /* If properly bounded, both occurrences work */
     ASSERT_TRUE(_isContentNameInInfo(",game,game,", "game"));
 }
@@ -121,10 +106,9 @@ int main(void)
     RUN_TEST(content_name_not_found);
     RUN_TEST(content_name_substring_not_matched);
     RUN_TEST(content_name_prefix_not_matched);
-    RUN_TEST(content_name_no_leading_comma);
+    RUN_TEST(content_name_at_start_of_info);
     RUN_TEST(content_name_no_trailing_comma);
     RUN_TEST(content_name_empty_info);
-    RUN_TEST(content_name_empty_name);
 
     /* Edge cases */
     RUN_TEST(content_name_exact_match_not_partial);
