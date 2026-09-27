@@ -234,9 +234,9 @@ test_color: $(BUILD_DIR)/test_color
 	@echo ""
 	@$(BUILD_DIR)/test_color
 
-$(BUILD_DIR)/test_color: test_color.c onion_test.h
+$(BUILD_DIR)/test_color: test_color.c onion_test.h ../src/common/theme/color.h stubs/SDL/SDL.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_color.c $(LDFLAGS)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_color.c $(LDFLAGS)
 
 test_apps: $(BUILD_DIR)/test_apps
 	@echo ""

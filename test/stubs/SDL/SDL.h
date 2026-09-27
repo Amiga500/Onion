@@ -1,8 +1,8 @@
 #ifndef ONION_TEST_STUB_SDL_H
 #define ONION_TEST_STUB_SDL_H
 
-/* Minimal SDL 1.2 stub so production headers (list.h, surfaceSetAlpha.h)
- * can be included from host unit tests without libSDL. */
+/* Minimal SDL 1.2 stub so production headers (list.h, surfaceSetAlpha.h,
+ * theme/color.h) can be included from host unit tests without libSDL. */
 #include <stdint.h>
 
 typedef uint8_t Uint8;
@@ -10,6 +10,13 @@ typedef uint16_t Uint16;
 typedef uint32_t Uint32;
 
 #define SDL_SRCALPHA 0x00010000
+
+typedef struct SDL_Color {
+    Uint8 r;
+    Uint8 g;
+    Uint8 b;
+    Uint8 unused;
+} SDL_Color;
 
 typedef struct SDL_PixelFormat {
     Uint32 Amask;

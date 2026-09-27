@@ -14,44 +14,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- Stub SDL types ---- */
-
-typedef struct {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char unused;
-} SDL_Color;
-
-typedef unsigned int Uint32;
-
-/* ---- Inline the pure-logic functions from color.h ---- */
-
-static SDL_Color hex2sdl(char *input)
-{
-    char *ptr;
-    if (input[0] == '#')
-        input++;
-    unsigned long value = strtoul(input, &ptr, 16);
-    SDL_Color color = {(value >> 16) & 0xff, (value >> 8) & 0xff,
-                       (value >> 0) & 0xff};
-    return color;
-}
-
-static Uint32 colorToUint(SDL_Color color)
-{
-    return (Uint32)((color.r << 16) + (color.g << 8) + (color.b << 0));
-}
-
-static SDL_Color uintToColor(Uint32 color)
-{
-    SDL_Color sdl_color;
-    sdl_color.unused = 255;
-    sdl_color.r = (color >> 16) & 0xFF;
-    sdl_color.g = (color >> 8) & 0xFF;
-    sdl_color.b = color & 0xFF;
-    return sdl_color;
-}
+/* Production code: theme/color.h, with SDL_Color from the SDL stub
+ * (test/stubs/SDL/SDL.h, same layout as SDL 1.2). */
+#include "theme/color.h"
 
 /* ---- Tests ---- */
 
