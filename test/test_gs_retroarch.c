@@ -144,6 +144,86 @@ TEST(history_directory) {
     ASSERT_NULL(g_cachedRetroArchHistory);
 }
 
+/* ---- ra_resolveCoreDirName ---- */
+
+static char states_root[128];
+
+static void make_states(void)
+{
+    char cmd[640];
+    snprintf(states_root, sizeof(states_root), "/tmp/test_gs_states_%d", (int)getpid());
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s' && mkdir -p '%s/Supafaust' '%s/Snes9x' '%s/Gambatte'",
+             states_root, states_root, states_root, states_root);
+    ASSERT_EQ(system(cmd), 0);
+}
+
+static void touch_state(const char *core_dir, const char *file)
+{
+    char path[512];
+    snprintf(path, sizeof(path), "%s/%s/%s", states_root, core_dir, file);
+    FILE *f = fopen(path, "w");
+    if (f)
+        fclose(f);
+}
+
+static void drop_states(void)
+{
+    char cmd[640];
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", states_root);
+    system(cmd);
+}
+
+/* The .info name is a folder: kept as it is. */
+TEST(core_dir_info_name_exists) {
+    make_states();
+    char core[64] = "Snes9x";
+    ASSERT_TRUE(ra_resolveCoreDirName(states_root, "Mario", core, sizeof(core)));
+    ASSERT_STREQ(core, "Snes9x");
+    drop_states();
+}
+
+/* Supafaust: .info says "Beetle Supafaust", RetroArch writes to Supafaust/. */
+TEST(core_dir_found_by_auto_state) {
+    make_states();
+    touch_state("Supafaust", "Donkey Kong Country 3 - Dixie Kong's Double Trouble!.state.auto");
+    char core[64] = "Beetle Supafaust";
+    ASSERT_TRUE(ra_resolveCoreDirName(states_root, "Donkey Kong Country 3 - Dixie Kong's Double Trouble!",
+                                      core, sizeof(core)));
+    ASSERT_STREQ(core, "Supafaust");
+    drop_states();
+}
+
+/* Only the auto state counts, and only for this exact ROM name. */
+TEST(core_dir_needs_this_roms_auto_state) {
+    make_states();
+    touch_state("Supafaust", "Other Game.state.auto");
+    touch_state("Gambatte", "Mario.state1");
+    char core[64] = "Beetle Supafaust";
+    ASSERT_FALSE(ra_resolveCoreDirName(states_root, "Mario", core, sizeof(core)));
+    ASSERT_STREQ(core, "Beetle Supafaust");
+    drop_states();
+}
+
+/* No ROM name or no states folder: nothing changes. */
+TEST(core_dir_missing_inputs) {
+    make_states();
+    char core[64] = "Beetle Supafaust";
+    ASSERT_FALSE(ra_resolveCoreDirName(states_root, "", core, sizeof(core)));
+    ASSERT_FALSE(ra_resolveCoreDirName("/tmp/no_such_states_dir_xyz", "Mario", core, sizeof(core)));
+    ASSERT_STREQ(core, "Beetle Supafaust");
+    drop_states();
+}
+
+/* A folder name that does not fit the buffer is not used. */
+TEST(core_dir_name_too_long) {
+    make_states();
+    touch_state("Supafaust", "Mario.state.auto");
+    char core[8] = "Beetle";
+    ASSERT_FALSE(ra_resolveCoreDirName(states_root, "Mario", core, sizeof(core)));
+    ASSERT_STREQ(core, "Beetle");
+    drop_states();
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -167,6 +247,13 @@ int main(void)
     RUN_TEST(history_valid_file);
     RUN_TEST(history_invalid_json);
     RUN_TEST(history_directory);
+
+    /* core folder name for states and configs */
+    RUN_TEST(core_dir_info_name_exists);
+    RUN_TEST(core_dir_found_by_auto_state);
+    RUN_TEST(core_dir_needs_this_roms_auto_state);
+    RUN_TEST(core_dir_missing_inputs);
+    RUN_TEST(core_dir_name_too_long);
 
     TEST_REPORT();
     return test_failures;

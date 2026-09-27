@@ -63,6 +63,9 @@ void ra_getCoreNameFromInfo(Game_s *game)
             char infoPath[STR_MAX * 2];
             snprintf(infoPath, sizeof(infoPath), "%s.info", basePath);
             file_parseKeyValue(infoPath, "corename", game->core_name, '=', 0);
+            // The .info name is not always RetroArch's folder name for
+            // this core's states and configs (Supafaust).
+            ra_resolveCoreDirName(STATES_DIR, game->rom_name, game->core_name, sizeof(game->core_name));
             printf_debug("Core name: %s\n", game->core_name);
             free(basePath);
         }

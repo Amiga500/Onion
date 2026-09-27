@@ -5,10 +5,12 @@
 // overrides), without SDL, so host tests include it. gs_retroarch.h
 // includes it.
 
+#include <dirent.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "cjson/cJSON.h"
 #include "utils/file.h"
@@ -83,6 +85,49 @@ bool ra_getBoolFromConfig(const char *cfg_path, bool *out_value, const char *key
         return true;
     }
     return false;
+}
+
+// RetroArch names a core's save-state (and config) folder after the core's
+// library name, which is not always the "corename" of its .info file:
+// Supafaust is "Beetle Supafaust" in the .info but writes to states/Supafaust/.
+// When states_dir/<core_name> is not a folder, use the folder that holds this
+// ROM's auto save state (every GameSwitcher game has one). Returns true when
+// core_name names an existing folder of states_dir afterwards.
+static bool ra_resolveCoreDirName(const char *states_dir, const char *rom_name,
+                                  char *core_name, size_t core_name_size)
+{
+    char path[STR_MAX * 4];
+    struct stat st;
+
+    if (core_name[0] != '\0') {
+        int n = snprintf(path, sizeof(path), "%s/%s", states_dir, core_name);
+        if (n > 0 && (size_t)n < sizeof(path) && stat(path, &st) == 0 && S_ISDIR(st.st_mode))
+            return true;
+    }
+
+    if (rom_name == NULL || rom_name[0] == '\0')
+        return false;
+
+    DIR *dir = opendir(states_dir);
+    if (dir == NULL)
+        return false;
+
+    bool found = false;
+    struct dirent *entry;
+    while (!found && (entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.' || strlen(entry->d_name) >= core_name_size)
+            continue;
+        int n = snprintf(path, sizeof(path), "%s/%s/%s.state.auto", states_dir, entry->d_name, rom_name);
+        if (n < 0 || (size_t)n >= sizeof(path))
+            continue;
+        if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            snprintf(core_name, core_name_size, "%s", entry->d_name);
+            found = true;
+        }
+    }
+
+    closedir(dir);
+    return found;
 }
 
 #endif // GAME_SWITCHER_RA_FILES_H
