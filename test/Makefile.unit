@@ -258,9 +258,9 @@ test_gs_history: $(BUILD_DIR)/test_gs_history
 	@echo ""
 	@$(BUILD_DIR)/test_gs_history
 
-$(BUILD_DIR)/test_gs_history: test_gs_history.c onion_test.h
+$(BUILD_DIR)/test_gs_history: test_gs_history.c onion_test.h ../src/gameSwitcher/gs_recent_item.h stubs/SDL/SDL.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_gs_history.c ../include/cjson/cJSON.c $(LDFLAGS)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_gs_history.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 test_gs_popmenu: $(BUILD_DIR)/test_gs_popmenu
 	@echo ""
