@@ -31,6 +31,6 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         prerelease: false
         draft: true
-        title: "Onion V${{ env.BUILD_VERSION }}"
+        title: "OnionPlus V${{ env.BUILD_VERSION }}"
         files: |
-          release/Onion-v${{ env.BUILD_VERSION }}.zip
+          release/OnionPlus-v${{ env.BUILD_VERSION }}.zip
