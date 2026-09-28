@@ -37,8 +37,10 @@
 #include "utils/process.h"
 #include "utils/str.h"
 
+#include "./flip_suspend.h"
 #include "./input_fd.h"
 #include "./menuButtonAction.h"
+#include "./state_scan.h"
 
 #define FAVORITES_PATH "/mnt/SDCARD/Roms/favourite.json"
 
@@ -51,12 +53,242 @@
 #define REPEAT_SEC(val) ((val * 1000 - 250) / 50)
 #define PIDMAX 32
 
+// MMF headphone jack GPIO detection
+// Credit to Tenlevels for original patch, minor modifications made for device model check.
+#define HEADPHONE_DETECT_GPIO "/sys/class/gpio/gpio45/value"
+#define AUDIO_SWITCH_GPIO "/sys/class/gpio/gpio44/value"
+#define GPIO_EXPORT_PATH "/sys/class/gpio/export"
+#define GPIO45_DIRECTION "/sys/class/gpio/gpio45/direction"
+#define GPIO44_DIRECTION "/sys/class/gpio/gpio44/direction"
+
+static bool headphone_jack_available = false;
+static int last_jack_state = -1;
+
+static void gpioWriteInt(const char *path, int value)
+{
+    FILE *f = fopen(path, "w");
+    if (f) {
+        fprintf(f, "%d", value);
+        fclose(f);
+    }
+}
+
+static void gpioWriteStr(const char *path, const char *str)
+{
+    FILE *f = fopen(path, "w");
+    if (f) {
+        fprintf(f, "%s", str);
+        fclose(f);
+    }
+}
+
+static int gpioReadInt(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    if (!f)
+        return -1;
+    int val = -1;
+    if (fscanf(f, "%d", &val) != 1)
+        val = -1;
+    fclose(f);
+    return val;
+}
+
+static void initHeadphoneJack(void)
+{
+    if (DEVICE_ID != MIYOO285) {
+        headphone_jack_available = false;
+        return;
+    }
+
+    // Export GPIO 45 (headphone detect) if not already exported
+    if (access(HEADPHONE_DETECT_GPIO, F_OK) != 0) {
+        gpioWriteInt(GPIO_EXPORT_PATH, 45);
+        usleep(50000);
+    }
+
+    // Export GPIO 44 (audio switch) if not already exported
+    if (access(AUDIO_SWITCH_GPIO, F_OK) != 0) {
+        gpioWriteInt(GPIO_EXPORT_PATH, 44);
+        usleep(50000);
+    }
+
+    // Set GPIO 45 as input (headphone detect)
+    if (access(GPIO45_DIRECTION, F_OK) == 0)
+        gpioWriteStr(GPIO45_DIRECTION, "in");
+
+    // Set GPIO 44 as output (audio switch)
+    if (access(GPIO44_DIRECTION, F_OK) == 0)
+        gpioWriteStr(GPIO44_DIRECTION, "out");
+
+    headphone_jack_available = (access(HEADPHONE_DETECT_GPIO, F_OK) == 0);
+
+    // Initialize audio routing based on current jack state
+    if (headphone_jack_available) {
+        last_jack_state = gpioReadInt(HEADPHONE_DETECT_GPIO);
+        if (last_jack_state != -1)
+            gpioWriteInt(AUDIO_SWITCH_GPIO, last_jack_state);
+    }
+}
+
+static void checkHeadphoneJack(void)
+{
+    if (!headphone_jack_available)
+        return;
+
+    int current_state = gpioReadInt(HEADPHONE_DETECT_GPIO);
+    if (current_state == -1)
+        return;
+
+    if (current_state != last_jack_state) {
+        last_jack_state = current_state;
+        // Switch audio routing: 1 = headphones, 0 = speaker
+        gpioWriteInt(AUDIO_SWITCH_GPIO, current_state);
+
+        // Restore volume when headphones connected
+        if (current_state == 1)
+            setVolume(settings.mute ? 0 : settings.volume);
+    }
+}
+
 uint32_t suspendpid[PIDMAX];
 
 const int KONAMI_CODE[] = {HW_BTN_UP, HW_BTN_UP, HW_BTN_DOWN, HW_BTN_DOWN,
                            HW_BTN_LEFT, HW_BTN_RIGHT, HW_BTN_LEFT, HW_BTN_RIGHT,
                            HW_BTN_B, HW_BTN_A};
 const int KONAMI_CODE_LENGTH = sizeof(KONAMI_CODE) / sizeof(KONAMI_CODE[0]);
+
+// Forward declarations
+int read_lid_state(void);
+
+#define BLUE_LIGHT_SCRIPT "/mnt/SDCARD/.tmp_update/script/blue_light.sh"
+#define SCREEN_RECORDER_SCRIPT "/mnt/SDCARD/.tmp_update/script/screen_recorder.sh"
+#define SETTINGS_SAVE_DELAY_MS 500 // coalesce bursts of volume/brightness steps
+
+// Config flags read on hot paths, cached in memory instead of a stat() on
+// the SD card for every key press. Refreshed on settings change and on the
+// periodic tick.
+static bool flag_alt_brightness = false;
+static bool flag_cpu_clock_hotkey = false;
+
+static void refresh_cached_flags(void)
+{
+    flag_alt_brightness = config_flag_get(".altBrightness");
+    flag_cpu_clock_hotkey = config_flag_get(".cpuClockHotkey");
+}
+
+// Last CPU clock read from / set by the cpuclock tool (0 = unknown).
+// Invalidated on every system state change, since game launches change it.
+static int cached_cpu_clock = 0;
+
+static void run_script_detached(const char *script, const char *arg)
+{
+    char *const argv[] = {"sh", (char *)script, (char *)arg, NULL};
+    process_spawn_detached(argv);
+}
+
+//
+//    Blue light filter schedule, evaluated in-process.
+//    Replaces running blue_light.sh check every 15 s (2 global syncs and
+//    ~20 fork/exec per run, synchronous, so keymon ignored keys meanwhile).
+//    The script is now started, in background, only on a transition.
+//
+
+// "HH:MM" -> minutes since midnight (same fallback to 0 as the script)
+static int blf_parse_minutes(const char *hhmm)
+{
+    int h = 0, m = 0;
+    if (hhmm == NULL || sscanf(hhmm, " %d : %d", &h, &m) < 1)
+        return 0;
+    if (h < 0 || h > 23)
+        h = 0;
+    if (m < 0 || m > 59)
+        m = 0;
+    return h * 60 + m;
+}
+
+// Local time in minutes, using the same TZ as the script (config/.tz).
+// keymon itself runs without TZ, so it is applied only for this call.
+static int blf_current_minutes(void)
+{
+    static char tz_value[64] = "";
+    static time_t tz_mtime = 0;
+    struct stat st;
+
+    if (stat(CONFIG_PATH ".tz", &st) == 0) {
+        if (st.st_mtime != tz_mtime) {
+            tz_mtime = st.st_mtime;
+            tz_value[0] = '\0';
+            FILE *fp = fopen(CONFIG_PATH ".tz", "r");
+            if (fp) {
+                if (fscanf(fp, "%63[^\n]", tz_value) != 1)
+                    tz_value[0] = '\0';
+                fclose(fp);
+            }
+        }
+    }
+    else {
+        tz_value[0] = '\0';
+        tz_mtime = 0;
+    }
+
+    char old_tz[64] = "";
+    const char *env_tz = getenv("TZ");
+    bool had_tz = env_tz != NULL;
+    if (had_tz)
+        snprintf(old_tz, sizeof(old_tz), "%s", env_tz);
+
+    if (tz_value[0] != '\0')
+        setenv("TZ", tz_value, 1);
+    tzset();
+
+    time_t now = time(NULL);
+    struct tm local;
+    int minutes = 0;
+    if (localtime_r(&now, &local) != NULL)
+        minutes = local.tm_hour * 60 + local.tm_min;
+
+    if (had_tz)
+        setenv("TZ", old_tz, 1);
+    else
+        unsetenv("TZ");
+    tzset();
+
+    return minutes;
+}
+
+// Mirrors check_blf() in blue_light.sh
+static void blue_light_schedule_check(void)
+{
+    if (!config_flag_get(".blf") || temp_flag_get(".blfIgnoreSchedule"))
+        return;
+
+    bool active = temp_flag_get(".blfOn");
+
+    if (!active && config_flag_get(".blfOn"))
+        remove(CONFIG_PATH ".blfOn");
+
+    char time_on[STR_MAX] = "";
+    char time_off[STR_MAX] = "";
+    if (!config_get("display/blueLightTime", CONFIG_STR, time_on) ||
+        !config_get("display/blueLightTimeOff", CONFIG_STR, time_off))
+        return;
+
+    int on = blf_parse_minutes(time_on);
+    int off = blf_parse_minutes(time_off);
+    int now = blf_current_minutes();
+
+    bool inside;
+    if (off < on)
+        inside = now >= on || now < off; // window crosses midnight
+    else
+        inside = now >= on && now < off;
+
+    if (inside && !active)
+        run_script_detached(BLUE_LIGHT_SCRIPT, "enable");
+    else if (!inside && active)
+        run_script_detached(BLUE_LIGHT_SCRIPT, "disable");
+}
 
 void takeScreenshot(void)
 {
@@ -83,6 +315,7 @@ int suspend(uint32_t mode)
     char state;
     uint32_t flags;
     char comm[128];
+    char line[512];
     int ret = 0;
 
     // terminate retroarch before kill
@@ -109,13 +342,31 @@ int suspend(uint32_t mode)
         if (dir->d_type == DT_DIR) {
             pid = atoi(dir->d_name);
             if ((pid > 2) && (pid != suspend_pid)) {
-                sprintf(fname, "/proc/%d/stat", pid);
+                snprintf(fname, sizeof(fname), "/proc/%d/stat", pid);
                 FILE *fp = fopen(fname, "r");
-                if (fp) {
-                    fscanf(fp, "%*d %127s %c %d %*d %*d %*d %*d %u",
-                           (char *)&comm, &state, &ppid, &flags);
-                    fclose(fp);
-                }
+                if (fp == NULL)
+                    continue; // process already gone
+                bool parsed = fgets(line, sizeof(line), fp) != NULL;
+                fclose(fp);
+                if (!parsed)
+                    continue;
+
+                // comm is enclosed in parentheses and may contain spaces or
+                // ')' itself: the fields after it start at the LAST ')'.
+                char *open_paren = strchr(line, '(');
+                char *close_paren = strrchr(line, ')');
+                if (open_paren == NULL || close_paren == NULL || close_paren < open_paren)
+                    continue;
+                size_t comm_len = (size_t)(close_paren - open_paren) + 1;
+                if (comm_len >= sizeof(comm))
+                    comm_len = sizeof(comm) - 1;
+                memcpy(comm, open_paren, comm_len); // keep "(name)" format
+                comm[comm_len] = '\0';
+
+                if (sscanf(close_paren + 1, " %c %d %*d %*d %*d %*d %u",
+                           &state, &ppid, &flags) != 3)
+                    continue;
+
                 if ((ppid > 2) &&
                     ((state == 'R') || (state == 'S') || (state == 'D')) &&
                     (strcmp(comm, "(sh)")) && (!(flags & PF_KTHREAD))) {
@@ -131,7 +382,8 @@ int suspend(uint32_t mode)
                         }
                     }
                     else {
-                        if (suspendpid[0] < PIDMAX) {
+                        // suspendpid[0] is the counter: entries are 1..PIDMAX-1
+                        if (suspendpid[0] < PIDMAX - 1) {
                             suspendpid[++suspendpid[0]] = pid;
                             kill(pid, SIGSTOP);
                             ret++;
@@ -195,7 +447,7 @@ void force_shutdown(void)
     exit(0);
 }
 
-void wait(int seconds)
+void wait_seconds(int seconds)
 {
     time_t t = time(NULL);
     while ((time(NULL) - t) < seconds) {
@@ -205,9 +457,8 @@ void wait(int seconds)
 
 void showBootScreen(const char *type)
 {
-    char cmd[256];
-    sprintf(cmd, "bootScreen \"%s\" &", type);
-    system(cmd);
+    char *const argv[] = {"bootScreen", (char *)type, NULL};
+    process_spawn_detached(argv);
 }
 
 //
@@ -249,7 +500,7 @@ void deepsleep(void)
     }
 
     // Wait 30s before forcing a shutdown
-    wait(30);
+    wait_seconds(30);
     if (!temp_flag_get("shutting_down")) {
         force_shutdown();
     }
@@ -262,8 +513,12 @@ void suspend_exec(int timeout)
 {
     keyinput_disable();
 
-    // pause playActivity
-    system("playActivity stop_all");
+    // pause playActivity (synchronous: the session must be closed before
+    // processes are stopped; no shell needed)
+    {
+        char *const argv[] = {"playActivity", "stop_all", NULL};
+        process_run_wait(argv);
+    }
 
     if (temp_flag_get("stay_awake")) {
         // stay awake (keep processes running and volume on)
@@ -281,9 +536,14 @@ void suspend_exec(int timeout)
 
     uint32_t repeat_power = 0;
     uint32_t killexit = 0;
+    int suspend_lid_state = read_lid_state(); // Store initial lid state
+    int suspend_start = getMilliseconds();
+
+    // Use shorter poll timeout for lid detection on flip devices
+    int poll_timeout = (DEVICE_ID == MIYOO285) ? 500 : ((timeout == -1) ? -1 : timeout);
 
     while (1) {
-        int ready = poll(fds, 1, timeout);
+        int ready = poll(fds, 1, poll_timeout);
 
         if (ready > 0) {
             read(input_fd, &ev, sizeof(ev));
@@ -312,8 +572,42 @@ void suspend_exec(int timeout)
                 }
             }
         }
-        else if (!ready && !battery_isCharging()) {
-            // shutdown
+        else if (!ready) {
+            // Check lid state on flip devices before shutdown
+            if (DEVICE_ID == MIYOO285) {
+                int current_lid = read_lid_state();
+                bool timed_out = timeout != -1 &&
+                                 (getMilliseconds() - suspend_start) >= timeout;
+                // Same outcome as before in every case, without spawning
+                // axp_test every 2 s for the whole suspend.
+                if (flipSuspend_nothingToDo(current_lid, suspend_lid_state,
+                                            timed_out) ||
+                    battery_isCharging())
+                    continue;
+                if (current_lid == 1 && suspend_lid_state == 0) {
+                    print_debug("Lid opened during suspend, waking up");
+                    break;
+                }
+                suspend_lid_state = current_lid;
+                // Same as OnionUI v4.5-dev: once the suspend timeout has
+                // elapsed, power off whatever the lid state, like the other
+                // models. (A local variant skipped the power-off while the
+                // lid was closed, letting a closed Flip drain its battery,
+                // and its comment disagreed with the code on an unreadable
+                // lid. Flip behavior is not changed here without hardware.)
+                if (timed_out) {
+                    system_powersave_off();
+                    resume();
+                    usleep(150000);
+                    deepsleep();
+                }
+                continue;
+            }
+
+            if (battery_isCharging())
+                continue;
+
+            // Original timeout shutdown behavior (non-flip devices)
             system_powersave_off();
             resume();
             usleep(150000);
@@ -323,6 +617,7 @@ void suspend_exec(int timeout)
 
     // resume
     system_powersave_off();
+
     if (killexit) {
         resume();
         usleep(150000);
@@ -333,10 +628,10 @@ void suspend_exec(int timeout)
     display_setBrightness(settings.brightness);
     setVolume(settings.mute ? 0 : settings.volume);
     if (!killexit) {
-        // resume processes
         resume();
-        // resume playActivity
-        system("playActivity resume");
+        // nobody waits for this: run it in background
+        char *const argv[] = {"playActivity", "resume", NULL};
+        process_spawn_detached(argv);
     }
 
     keyinput_enable();
@@ -368,13 +663,14 @@ void turnOffScreen(void)
  */
 void cpuClockHotkey(int adjust)
 {
-    if (config_flag_get(".cpuClockHotkey") == 0) {
+    if (!flag_cpu_clock_hotkey) {
         return;
     }
     printf_debug("cpuClockHotkey: %d\n", adjust);
     int min_cpu_clock = 500; // ?
     int max_cpu_clock;
     switch (DEVICE_ID) {
+    case MIYOO285:
     case MIYOO354:
         max_cpu_clock = 1800;
         break;
@@ -385,11 +681,18 @@ void cpuClockHotkey(int adjust)
         // Unknown device
         return;
     }
-    char cpuclockstr[5];
+    // process_start_read_return() copies up to STR_MAX bytes: the buffer
+    // must be STR_MAX (it was 5 bytes, i.e. a stack overflow on every use).
+    char cpuclockstr[STR_MAX];
+    int ret;
 
-    // Read current CPU clock
-    int ret = process_start_read_return("cpuclock", cpuclockstr);
-    int cpuclock = atoi(cpuclockstr);
+    // Read current CPU clock (only when unknown: saves one process spawn)
+    if (cached_cpu_clock <= 0) {
+        cpuclockstr[0] = '\0';
+        process_start_read_return("cpuclock", cpuclockstr);
+        cached_cpu_clock = atoi(cpuclockstr);
+    }
+    int cpuclock = cached_cpu_clock;
     printf_debug("Current CPU clock: %d\n", cpuclock);
     cpuclock += adjust;
     printf_debug("Desired CPU clock: %d\n", cpuclock);
@@ -408,6 +711,7 @@ void cpuClockHotkey(int adjust)
     char cmd[STR_MAX];
     snprintf(cmd, STR_MAX, "cpuclock %d", cpuclock);
     ret = process_start_read_return(cmd, cpuclockstr);
+    cached_cpu_clock = (ret == 0) ? atoi(cpuclockstr) : 0;
     if (ret == 0) {
         printf_debug("Updated CPU clock: %s\n", cpuclockstr);
         char osd_txt[STR_MAX];
@@ -425,6 +729,32 @@ static void signal_refresh(int sig)
 }
 
 //
+//    Read lid state for Miyoo Mini Flip
+//    Returns: 1 if lid is open, 0 if lid is closed, -1 on error
+//
+int read_lid_state(void)
+{
+    if (DEVICE_ID != MIYOO285) {
+        return -1; // Not a flip
+    }
+
+    FILE *fp = fopen("/sys/devices/soc0/soc/soc:hall-mh248/hallvalue", "r");
+    if (!fp) {
+        return -1; // Error reading lid state
+    }
+
+    char buf[2];
+    size_t read_bytes = fread(buf, 1, 1, fp);
+    fclose(fp);
+
+    if (read_bytes != 1) {
+        return -1;
+    }
+
+    return (buf[0] == '1') ? 1 : 0; // '1' = open, '0' = closed
+}
+
+//
 //    Main
 //
 int main(void)
@@ -437,12 +767,16 @@ int main(void)
 
     getDeviceModel();
 
-    if (DEVICE_ID == MIYOO354) {
+    printf_debug("Device detected: DEVICE_ID=%d (283=MM, 285=Flip, 354=Plus)", DEVICE_ID);
+
+    if (HAS_AXP()) {
         // set hardware poweroff time to 10s
         axp_write(0x36, axp_read(0x36) | 3);
     }
 
     settings_init();
+    refresh_cached_flags();
+    initHeadphoneJack();
 
     // Set Initial Volume / Brightness
     setVolume(settings.mute ? 0 : settings.volume);
@@ -484,7 +818,27 @@ int main(void)
     int hibernate_time;
     int elapsed_sec = 0;
 
+    // Lid state tracking for Miyoo Mini Flip
+    int last_lid_state = -1;
+    int current_lid_state = -1;
+
+    if (DEVICE_ID == MIYOO285) {
+        last_lid_state = read_lid_state();
+        current_lid_state = last_lid_state;
+        if (last_lid_state == -1) {
+            // Fallback: assume open if read fails
+            print_debug("Warning: Unable to read lid state, assuming open");
+            last_lid_state = 1;
+            current_lid_state = 1;
+        }
+        else {
+            printf_debug("Initial lid state: %s", last_lid_state == 1 ? "open" : "closed");
+        }
+    }
+
     bool delete_flag = false;
+    struct timespec state_flag_mtime = {0, 0};
+    uint32_t last_state_scan = 0;
     bool settings_changed = false;
 
     int save_settings_timestamp = 0;
@@ -493,7 +847,28 @@ int main(void)
     time_t fav_last_modified = time(NULL);
 
     while (1) {
-        if (poll(fds, 1, (CHECK_SEC - elapsed_sec) * 1000) > 0) {
+        // Debounced settings save. Runs whether or not a key arrives, so the
+        // last change of a burst is written SETTINGS_SAVE_DELAY_MS after it
+        // (before: only on the first key press after the next 15 s tick).
+        if (needWriteSettings &&
+            getMilliseconds() - save_settings_timestamp >= SETTINGS_SAVE_DELAY_MS) {
+            settings_save_local();
+            needWriteSettings = false;
+        }
+
+        int poll_timeout_ms = (DEVICE_ID == MIYOO285) ? 500 : ((CHECK_SEC - elapsed_sec) * 1000);
+        if (poll_timeout_ms < 0)
+            poll_timeout_ms = 0;
+        if (needWriteSettings) {
+            int save_wait = SETTINGS_SAVE_DELAY_MS - (int)(getMilliseconds() - save_settings_timestamp);
+            if (save_wait < 0)
+                save_wait = 0;
+            if (save_wait < poll_timeout_ms)
+                poll_timeout_ms = save_wait;
+        }
+        int poll_result = poll(fds, 1, poll_timeout_ms);
+
+        if (poll_result > 0) {
             if (!keyinput_isValid())
                 continue;
             val = ev.value;
@@ -501,19 +876,34 @@ int main(void)
             printf_debug("Keymon input: code=%d, value=%d\n", ev.code,
                          ev.value);
 
+            // /tmp is tmpfs: removing a flag there needs no sync() (which
+            // flushed every filesystem, SD card included, on a key press).
             if (exists("/tmp/settings_changed")) {
-                settings_load();
                 remove("/tmp/settings_changed");
-                sync();
+                if (needWriteSettings) {
+                    // write our pending change first so it is not lost
+                    settings_save_local();
+                    needWriteSettings = false;
+                }
+                settings_load();
+                refresh_cached_flags();
             }
 
-            if (exists("/tmp/state_changed")) {
-                system_state_update();
+            struct stat state_flag;
+            if (stat("/tmp/state_changed", &state_flag) == 0) {
+                // The flag's mtime changes each time runtime.sh touches it.
+                bool touched = state_flag.st_mtim.tv_sec != state_flag_mtime.tv_sec ||
+                               state_flag.st_mtim.tv_nsec != state_flag_mtime.tv_nsec;
+                uint32_t now = (uint32_t)getMilliseconds();
+                if (stateScan_due(touched, delete_flag, now, last_state_scan)) {
+                    state_flag_mtime = state_flag.st_mtim;
+                    last_state_scan = now;
+                    system_state_update();
+                }
+                cached_cpu_clock = 0; // launches/exits change the CPU clock
 
                 if (delete_flag) {
-                    system_state_update();
                     remove("/tmp/state_changed");
-                    sync();
                     delete_flag = false;
                 }
 
@@ -538,8 +928,9 @@ int main(void)
             if (system_state == MODE_MAIN_UI && (ev.code == HW_BTN_B || ev.code == HW_BTN_X) && val == RELEASED) {
                 // Check if favorite file changed
                 if (file_isModified(FAVORITES_PATH, &fav_last_modified)) {
-                    system("tools favfix");
-                    sync();
+                    char *const argv[] = {"tools", "favfix", NULL};
+                    process_run_wait(argv);
+                    sync(); // favfix rewrote a file on the SD card
                 }
             }
 
@@ -579,7 +970,17 @@ int main(void)
                 repeat_power = 0;
                 break;
             case HW_BTN_SELECT:
-                if (!comboKey_select && val == RELEASED) {
+                // MainUI only runs while cmd_to_run.sh is absent: with it
+                // present (a game or an app is running) SELECT cannot be
+                // meant for MainUI, so skip the /proc scan (games use
+                // SELECT a lot).
+                if (!comboKey_select && val == RELEASED && !exists(CMD_TO_RUN_PATH)) {
+                    // The cached state is only refreshed on /tmp/state_changed,
+                    // a MENU press or deepsleep(), so it can still be
+                    // MODE_UNKNOWN after boot or stale after returning from a
+                    // game. Re-read it here; this fires once per SELECT tap.
+                    system_state_update();
+
                     if (system_state == MODE_MAIN_UI) {
                         keyinput_send(HW_BTN_MENU, PRESSED);
                         keyinput_send(HW_BTN_MENU, RELEASED);
@@ -625,10 +1026,10 @@ int main(void)
                             setVolumeRaw(0, -3);
                         break;
                     case SELECT:
-                        if (DEVICE_ID == MIYOO354)
-                            break; // disable this shortcut for MMP
+                        if (IS_MIYOO_PLUS_OR_FLIP())
+                            break; // disable this shortcut for MMP/MMF
                         // SELECT + L2 : brightness down
-                        if (config_flag_get(".altBrightness"))
+                        if (flag_alt_brightness)
                             break;
                         if (settings.brightness > 0) {
                             settings_setBrightness(settings.brightness - 1,
@@ -663,10 +1064,10 @@ int main(void)
                             setVolumeRaw(0, +3);
                         break;
                     case SELECT:
-                        if (DEVICE_ID == MIYOO354)
-                            break; // disable this shortcut for MMP
+                        if (IS_MIYOO_PLUS_OR_FLIP())
+                            break; // disable this shortcut for MMP/MMF
                         // SELECT + R2 : brightness up
-                        if (config_flag_get(".altBrightness"))
+                        if (flag_alt_brightness)
                             break;
                         if (settings.brightness < MAX_BRIGHTNESS) {
                             settings_setBrightness(settings.brightness + 1,
@@ -684,7 +1085,11 @@ int main(void)
             case HW_BTN_MENU:
 
                 if (!temp_flag_get("disable_menu_button")) {
-                    system_state_update();
+                    // Key repeats outside a combo only compare timestamps
+                    // with the state saved on the press: no need to rescan
+                    // /proc about 20 times a second while MENU is held.
+                    if (val != REPEAT || comboKey_menu)
+                        system_state_update();
                     comboKey_menu = menuButtonAction(val, comboKey_menu);
                 }
 
@@ -750,7 +1155,7 @@ int main(void)
             case HW_BTN_DOWN:
                 if (DEVICE_ID == MIYOO283) {
                     if (comboKey_menu) {
-                        if (config_flag_get(".altBrightness")) {
+                        if (flag_alt_brightness) {
                             // MENU + BTN DOWN : brightness down
                             if (val != RELEASED && settings.brightness > 0) {
                                 settings_setBrightness(settings.brightness - 1, true,
@@ -793,7 +1198,7 @@ int main(void)
             case HW_BTN_UP:
                 if (DEVICE_ID == MIYOO283) {
                     if (comboKey_menu) {
-                        if (config_flag_get(".altBrightness")) {
+                        if (flag_alt_brightness) {
                             // MENU + BTN UP : brightness up
                             if (val != RELEASED &&
                                 settings.brightness < MAX_BRIGHTNESS) {
@@ -812,8 +1217,11 @@ int main(void)
 
             // start screen recording after holding for >2secs
             if (menuAndAPressed && (getMilliseconds() - menuAndAPressedTime >= 2000)) {
-                if (access("/mnt/SDCARD/.tmp_update/config/.recHotkey", F_OK) != -1) {
-                    system("/mnt/SDCARD/.tmp_update/script/screen_recorder.sh toggle &");
+                // Read the flag itself, as Onion does: Tweaks writes it at
+                // once, while settings.rec_hotkey is only reloaded when
+                // Tweaks exits. One stat() on a 2 s key hold.
+                if (config_flag_get(".recHotkey")) {
+                    run_script_detached(SCREEN_RECORDER_SCRIPT, "toggle");
                 }
 
                 menuAndAPressed = false;
@@ -822,14 +1230,13 @@ int main(void)
 
             // toggle blue light filter
             if (menuAndBPressed && (getMilliseconds() - menuAndBPressedTime >= 2000)) {
-                if (access("/tmp/.blfOn", F_OK) != -1) {
-                    system("/mnt/SDCARD/.tmp_update/script/blue_light.sh disable &");
-                    system("touch /tmp/.blfIgnoreSchedule");
+                if (temp_flag_get(".blfOn")) {
+                    run_script_detached(BLUE_LIGHT_SCRIPT, "disable");
                 }
                 else {
-                    system("/mnt/SDCARD/.tmp_update/script/blue_light.sh enable &");
-                    system("touch /tmp/.blfIgnoreSchedule");
+                    run_script_detached(BLUE_LIGHT_SCRIPT, "enable");
                 }
+                temp_flag_set(".blfIgnoreSchedule", true);
 
                 menuAndBPressed = false;
                 menuAndBPressedTime = 0;
@@ -853,12 +1260,9 @@ int main(void)
             if (settings_changed) {
                 settings_shm_write();
                 needWriteSettings = true;
-                save_settings_timestamp = ticks;
-            }
-
-            if (needWriteSettings && (ticks - save_settings_timestamp) > 150) {
-                settings_save();
-                needWriteSettings = false;
+                // was `ticks`, which only advances every 15 s: the save
+                // then waited for an unrelated later key press
+                save_settings_timestamp = getMilliseconds();
             }
 
             if ((val == PRESSED) && (system_state == MODE_MAIN_UI)) {
@@ -887,17 +1291,62 @@ int main(void)
             }
 
             hibernate_start = getMilliseconds();
-            elapsed_sec = (hibernate_start - ticks) / 1000;
-            if (elapsed_sec < CHECK_SEC)
-                continue;
         }
 
-        // Comes here every CHECK_SEC(def:15) seconds interval
+        // Check lid state for Miyoo Mini Flip - poll every iteration (500ms)
+        if (DEVICE_ID == MIYOO285) {
+            current_lid_state = read_lid_state();
+
+            if (current_lid_state != -1 && last_lid_state != -1 &&
+                current_lid_state != last_lid_state) {
+
+                printf_debug("Lid state change: %d -> %d", last_lid_state, current_lid_state);
+
+                if (current_lid_state == 0) {
+                    printf_debug("Lid closed detected, action: %d", settings.lid_close_action);
+
+                    switch (settings.lid_close_action) {
+                    case 0: // Suspend
+                        if (settings.disable_standby) {
+                            deepsleep();
+                        }
+                        else {
+                            turnOffScreen();
+                            hibernate_start = getMilliseconds();
+                        }
+                        break;
+                    case 1: // Shutdown
+                        print_debug("Shutting down due to lid close");
+                        deepsleep();
+                        break;
+                    case 2: // Nothing
+                        print_debug("Lid close action: Nothing");
+                        break;
+                    }
+                }
+                else {
+                    print_debug("Lid opened detected");
+                }
+
+                last_lid_state = current_lid_state;
+            }
+            // Update last_lid_state even if it hasn't changed to handle initial -1 case
+            else if (current_lid_state != -1 && last_lid_state == -1) {
+                last_lid_state = current_lid_state;
+            }
+        }
+
+        checkHeadphoneJack();
+
+        elapsed_sec = (getMilliseconds() - ticks) / 1000;
+        if (elapsed_sec < CHECK_SEC)
+            continue;
+
         if (delete_flag) {
             if (exists("/tmp/state_changed")) {
                 system_state_update();
+                cached_cpu_clock = 0;
                 remove("/tmp/state_changed");
-                sync();
             }
             delete_flag = false;
         }
@@ -921,9 +1370,13 @@ int main(void)
             }
         }
 
-        // Check bluelight filter
+        // Safety net for flags changed without a settings_changed notice
+        refresh_cached_flags();
+
+        // Check bluelight filter (in-process; the script only runs on a
+        // transition, in background)
         if (settings.blue_light_schedule) {
-            system("/mnt/SDCARD/.tmp_update/script/blue_light.sh check");
+            blue_light_schedule_check();
         }
 
         // Quit RetroArch / auto-save when battery too low

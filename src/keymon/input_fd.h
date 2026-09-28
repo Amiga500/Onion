@@ -6,7 +6,11 @@
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 
+#include <fcntl.h>
+
 #include "utils/msleep.h"
+
+#include "./input_inject.h"
 
 // for ev.value
 #define RELEASED 0
@@ -71,15 +75,43 @@ bool keyinput_isValid(void)
     return true;
 }
 
+// Write end of the input device, opened on first use.
+static int _inject_fd = -1;
+
+static bool _keyinput_inject(unsigned short code, signed int value)
+{
+    if (_inject_fd < 0)
+        _inject_fd = open("/dev/input/event0", O_WRONLY | O_CLOEXEC);
+    if (input_injectKey(_inject_fd, code, value))
+        return true;
+    if (_inject_fd >= 0) {
+        close(_inject_fd);
+        _inject_fd = -1;
+    }
+    return false;
+}
+
 void keyinput_send(unsigned short code, signed int value)
 {
     if (keyinput_disabled)
         return;
-    char cmd[100];
-    sprintf(cmd, "sendkeys %d %d", code, value);
     printf_debug("Send keys: code=%d, value=%d\n", code, value);
     _ignoreQueue_add(code, value);
-    system(cmd);
+
+    // Write the event ourselves: running the sendkeys tool cost a shell,
+    // the tool, and the global sync() it ends with, for every event (two
+    // per SELECT tap in MainUI, and on every MENU repeat during a combo).
+    if (_keyinput_inject(code, value)) {
+        // Keep a gap after a press, as the tool's start-up used to give,
+        // so MainUI sees the key down before it goes up.
+        if (value == PRESSED)
+            usleep(20000);
+    }
+    else {
+        char cmd[100];
+        snprintf(cmd, sizeof(cmd), "sendkeys %d %d", code, value);
+        system(cmd);
+    }
     print_debug("Keys sent");
 }
 
