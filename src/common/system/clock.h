@@ -35,7 +35,7 @@ void system_clock_get(void)
 void system_rtc_get(void)
 {
     int cfd;
-    if ((cfd = open("/dev/rtc0", O_RDONLY)) > 0) {
+    if ((cfd = open("/dev/rtc0", O_RDONLY)) >= 0) {
         ioctl(cfd, RTC_RD_TIME, &clk);
         close(cfd);
     }
@@ -109,14 +109,13 @@ void system_clock_pause(bool enabled)
 /**
  * @brief Get current time in milliseconds (uses CLOCK_MONOTONIC_RAW)
  *
- * @return int Milliseconds
+ * @return long Milliseconds
  */
-int getMilliseconds(void)
+long getMilliseconds(void)
 {
     struct timespec te;
     clock_gettime(CLOCK_MONOTONIC_RAW, &te);
-    int ms = (int)(te.tv_sec * 1000 + te.tv_nsec / 1000000);
-    return ms;
+    return (long)te.tv_sec * 1000L + te.tv_nsec / 1000000L;
 }
 
 /**
