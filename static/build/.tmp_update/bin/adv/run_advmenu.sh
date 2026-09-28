@@ -11,8 +11,8 @@ cd $progdir
 
 HOME=$homedir ./advmenu
 
-(sleep 0.5 && echo 1 > /sys/class/pwm/pwmchip0/pwm0/enable) &
-
 if [ -f /tmp/quick_switch ]; then
+    # coming back from a game: the backlight pwm was disabled when launching it
+    (sleep 0.5 && echo 1 > /sys/class/pwm/pwmchip0/pwm0/enable) &
     touch /tmp/run_advmenu
 fi

@@ -8,12 +8,14 @@ filebrowserdb=$sysdir/config/filebrowser/filebrowser.db
 netscript=/mnt/SDCARD/.tmp_update/script/network
 export LD_LIBRARY_PATH="/lib:/config/lib:$miyoodir/lib:$sysdir/lib:$sysdir/lib/parasyte"
 export PATH="$sysdir/bin:$PATH"
-is_booting=$([ -f /tmp/is_booting ] && echo 1 || echo 0)
+is_booting=0
+[ -f /tmp/is_booting ] && is_booting=1
 
 # add service flags here to be remembered when wifi change is detected
 services="httpState ftpState smbdState sshState authsshState authftpState authhttpState"
 
-logfile=$(basename "$0" .sh)
+logfile=${0##*/}
+logfile=${logfile%.sh}
 . $sysdir/script/log.sh
 
 main() {
@@ -73,15 +75,55 @@ main() {
 # Standard check from runtime for startup.
 check() {
     log "Network Checker: Update networking"
-    local force_wifi_on_startup=$([ -f /customer/app/axp_test ] && [ -f $sysdir/config/.ntpForce ] && echo 1 || echo 0)
-    local has_wifi=$(wifi_enabled && echo 1 || echo 0)
+
+    # Read the Wi-Fi setting once for this run. Nothing below changes it in
+    # system.json, and every wifi_enabled/wifi_disabled call used to start a
+    # jsonval process (8-10 per run, after every game when a service is on).
+    # The background service checks inherit the value.
+    WIFI_STATE_CACHED=$(/customer/app/jsonval wifi)
+    local force_wifi_on_startup=0
+    if [ -f /customer/app/axp_test ] && [ -f $sysdir/config/.ntpForce ]; then
+        force_wifi_on_startup=1
+    fi
+    local has_wifi=0
+    if wifi_enabled; then
+        has_wifi=1
+    fi
+
+    # At boot, the network only holds the boot when "Wait for sync on
+    # startup" (ntpWait) applies: Wi-Fi enabled, or Wi-Fi forced on for the
+    # sync. Otherwise Wi-Fi, services and time sync run in the background and
+    # the boot continues to the menu (wifi_on alone sleeps 2 s after powering
+    # the chip). Measured on device: boot_network 3.34 s of a 5.51 s boot.
+    local wait_for_network=0
+    if flag_enabled ntpWait && { [ "$has_wifi" -eq 1 ] || [ "$force_wifi_on_startup" -eq 1 ]; }; then
+        wait_for_network=1
+    fi
+
+    if [ "$is_booting" -eq 1 ] && [ "$wait_for_network" -eq 0 ]; then
+        if [ -f "$sysdir/.updateAvailable" ]; then
+            bootScreen Boot "Update available!"
+            sleep 1
+        fi
+        if [ "$force_wifi_on_startup" -eq 1 ] && [ "$has_wifi" -eq 0 ]; then
+            # "Enable Wi-Fi temporarily" with Wi-Fi off: used to turn Wi-Fi on
+            # and straight off again at boot without syncing (sync only ran
+            # with ntpWait), costing ~3.4 s for nothing.
+            log "Network Checker: boot bring-up continues in the background (temporary Wi-Fi for the time sync)"
+            check_boot_temporary_wifi &
+        else
+            log "Network Checker: boot bring-up continues in the background"
+            check_boot_background "$has_wifi" &
+        fi
+        return
+    fi
+
+    if [ "$is_booting" -eq 1 ]; then
+        log "Network Checker: boot waits for the network (ntpWait=$(flag_enabled ntpWait && echo 1 || echo 0), forced Wi-Fi=$force_wifi_on_startup, Wi-Fi=$has_wifi)"
+    fi
 
     check_wifi
-    check_ftpstate &
-    check_sshstate &
-    check_telnetstate &
-    check_httpstate &
-    check_smbdstate &
+    start_services_outside_game &
 
     if [ "$is_booting" -eq 1 ]; then
         if [ "$has_wifi" -eq 0 ]; then
@@ -135,7 +177,81 @@ disable_all_services() {
     done
 }
 
+# runtime.sh::launch_game creates this flag when it kills the network
+# services for a game ("Disable services in game"), and removes it when the
+# game exits.
+services_paused_flag=/tmp/services_paused_in_game
+
+# Service start, run in the background. Nothing waits for it, so a game
+# may be launched (and its launch may already have killed the services)
+# while it runs: at boot (a game resumed at boot), and after a Wi-Fi or
+# service change followed straight away by a game. Skip them while that
+# game runs: launch_game_postprocess marks the network as changed and they
+# start once it exits. The second check closes the window where the game
+# starts while the services are being started.
+start_services_outside_game() {
+    if [ -f "$services_paused_flag" ]; then
+        log "Network Checker: services start after the running game"
+        return
+    fi
+
+    check_ftpstate &
+    check_sshstate &
+    check_telnetstate &
+    check_httpstate &
+    check_smbdstate &
+    wait
+
+    if [ -f "$services_paused_flag" ]; then
+        log "Network Checker: a game started meanwhile, stopping services"
+        killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null
+    fi
+}
+
 # Core function
+# Boot-time network bring-up, run in the background by check(). Same steps
+# and order as the synchronous path, without the boot-screen messages (the
+# menu may already be on screen).
+check_boot_background() {
+    local has_wifi=$1
+    NTP_MAX_WAIT_IP=30
+
+    check_wifi
+    start_services_outside_game &
+
+    if wifi_enabled; then
+        check_ntpstate &
+    fi
+
+    if [ "$has_wifi" -eq 1 ] && [ ! -f "$sysdir/.updateAvailable" ] && [ ! -f /tmp/update_checked ]; then
+        touch /tmp/update_checked
+        $sysdir/script/ota_update.sh check &
+    fi
+}
+
+# "Enable Wi-Fi temporarily" with Wi-Fi off, run in the background at boot:
+# turn Wi-Fi on, sync the time, check for updates, turn Wi-Fi off again.
+check_boot_temporary_wifi() {
+    NTP_MAX_WAIT_IP=30
+
+    check_wifi
+    start_services_outside_game &
+
+    wifi_on
+    check_ntpstate
+
+    if [ ! -f "$sysdir/.updateAvailable" ] && [ ! -f /tmp/update_checked ]; then
+        touch /tmp/update_checked
+        $sysdir/script/ota_update.sh check
+    fi
+
+    # Re-read the setting: the user may have enabled Wi-Fi meanwhile.
+    WIFI_STATE_CACHED=""
+    if wifi_disabled; then
+        wifi_off
+    fi
+}
+
 check_wifi() {
     # Fixes lockups entering some apps after enabling wifi (because wpa_supp/udhcpc are preloaded with libpadsp.so)
     libpadspblocker &
@@ -179,18 +295,24 @@ wifi_off() {
     /customer/app/axp_test wifioff
 }
 
+# Without Wi-Fi the service checkers below stop the service but keep its
+# toggle, as in Onion (whose disable_flag never matched a file): the
+# service starts again by itself when Wi-Fi comes back. Nothing restores
+# toggles switched off here (restore_state cannot parse store_state's
+# one-line JSON), so switching them off lost them for good.
+
 # Starts the samba daemon if the toggle is set to on
 check_smbdstate() {
     if flag_enabled smbdState; then
         if is_running smbd; then
             if wifi_disabled; then
-                log "Samba: Wifi is turned off, disabling the toggle for smbd and killing the process"
-                disable_flag smbdState
+                log "Samba: Wifi is turned off, stopping smbd (toggle kept)"
                 killall -9 smbd
             fi
         else
             if wifi_enabled; then
-                sync
+                # (no global sync here: files are already visible to the service
+                # through the page cache; services restart after every game)
 
                 mkdir -p \
                     /var/lib/samba \
@@ -200,8 +322,6 @@ check_smbdstate() {
 
                 $netscript/start_smbd.sh $PASS &
                 log "Samba: Starting smbd.."
-            else
-                disable_flag smbdState
             fi
         fi
     else
@@ -227,22 +347,20 @@ check_ftpstate() {
     if flag_enabled ftpState; then
         if is_running bftpd; then
             if wifi_disabled; then
-                log "FTP: Wifi is turned off, disabling the toggle for FTP and killing the process"
-                disable_flag ftpState
+                log "FTP: Wifi is turned off, stopping FTP (toggle kept)"
                 killall -9 bftpd
             fi
         else
             if wifi_enabled; then
                 log "FTP: Starting bftpd"
-                sync
+                # (no global sync here: files are already visible to the service
+                # through the page cache; services restart after every game)
                 if flag_enabled authftpState; then
                     ftp_authed
                 else
                     bftpd -d -c /mnt/SDCARD/.tmp_update/config/bftpd.conf
                     log "FTP: Starting bftpd without auth"
                 fi
-            else
-                disable_flag ftpState
             fi
         fi
     else
@@ -272,22 +390,23 @@ check_sshstate() {
     if flag_enabled sshState; then
         if is_running dropbear; then
             if wifi_disabled; then
-                log "SSH: Wifi is turned off, disabling the toggle for dropbear and killing the process"
-                disable_flag sshState
+                log "SSH: Wifi is turned off, stopping dropbear (toggle kept)"
                 killall -9 dropbear
             fi
         else
             if wifi_enabled; then
-                mkdir -p $sysdir/etc/dropbear
-                sync
+                # Global sync only when the key folder is actually created
+                # (this runs after every game while SSH is enabled).
+                if [ ! -d $sysdir/etc/dropbear ]; then
+                    mkdir -p $sysdir/etc/dropbear
+                    sync
+                fi
                 if flag_enabled authsshState; then
                     ssh_authed
                 else
                     log "SSH: Starting dropbear without auth"
                     dropbear -R -B
                 fi
-            else
-                disable_flag sshState
             fi
         fi
     else
@@ -325,17 +444,15 @@ check_telnetstate() {
     if flag_enabled telnetState; then
         if is_running telnetd; then
             if wifi_disabled; then
-                log "Telnet: Wifi is turned off, disabling the toggle for Telnet and killing the process"
-                disable_flag telnetState
+                log "Telnet: Wifi is turned off, stopping Telnet (toggle kept)"
                 killall -9 telnetd
             fi
         else
             if wifi_enabled; then
-                sync
+                # (no global sync here: files are already visible to the service
+                # through the page cache; services restart after every game)
                 log "Telnet: Starting telnet"
                 telnetd -l $netscript/telnetenv.sh
-            else
-                disable_flag telnetState
             fi
         fi
     else
@@ -351,23 +468,21 @@ check_httpstate() {
     if flag_enabled httpState && [ -f $filebrowserbin ]; then
         if is_running_exact "$filebrowserbin -p 80 -a 0.0.0.0 -r /mnt/SDCARD -d $filebrowserdb"; then
             if wifi_disabled; then
-                log "Filebrowser(HTTP server): Wifi is turned off, disabling the toggle for HTTP FS and killing the process"
-                disable_flag httpState
+                log "Filebrowser(HTTP server): Wifi is turned off, stopping HTTP FS (toggle kept)"
                 pkill -9 filebrowser
             fi
         else
             # Checks if the toggle for WIFI is turned on.
             if wifi_enabled; then
                 # Check if authhttpState is enabled/set to json, if not set noauth
-                sync
+                # (no global sync here: files are already visible to the service
+                # through the page cache; services restart after every game)
                 if flag_enabled authhttpState; then
                     http_authed
                 else
                     $filebrowserbin -p 80 -a 0.0.0.0 -r /mnt/SDCARD -d $filebrowserdb >> /dev/null 2>&1 &
                     log "Filebrowser(HTTP server): Starting filebrowser listening on 0.0.0.0"
                 fi
-            else
-                disable_flag httpState
             fi
         fi
     else
@@ -476,7 +591,9 @@ check_ntpstate() {
         fi
 
         attempts=0
-        max_wait_ip=10
+        # 10 s when something waits for it; the background boot paths allow
+        # more (NTP_MAX_WAIT_IP) since a slow DHCP no longer delays anything.
+        max_wait_ip=${NTP_MAX_WAIT_IP:-10}
         max_attempts=3
         ret_val=1
         got_ip=0
@@ -528,10 +645,15 @@ check_ntpstate() {
 get_time() { # handles 2 types of network time, instant from an API or longer from an NTP server, if the instant API checks fails it will fallback to the longer ntp
     log "NTP: started time update"
 
+    # The time zone is only rewritten when a lookup really returned an offset.
+    # A failed lookup used to produce "UTC" and silently replace the user's
+    # time zone (seen on device: local time shifted by the zone's offset).
+    utc_offset=""
     response=$(curl -s -m 3 http://worldtimeapi.org/api/ip.txt)
     utc_datetime=$(echo "$response" | grep -o 'utc_datetime: [^.]*' | cut -d ' ' -f2 | sed "s/T/ /")
     if ! flag_enabled "manual_tz"; then
-        utc_offset="UTC$(echo "$response" | grep -o 'utc_offset: [^.]*' | cut -d ' ' -f2)"
+        _wt_offset=$(echo "$response" | grep -o 'utc_offset: [^.]*' | cut -d ' ' -f2)
+        [ -n "$_wt_offset" ] && utc_offset="UTC$_wt_offset"
     fi
 
     if [ -z "$utc_datetime" ]; then
@@ -539,8 +661,17 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
         utc_datetime=$(curl -s -k -m 5 https://timeapi.io/api/Time/current/zone?timeZone=UTC | grep -o '"dateTime":"[^.]*' | cut -d '"' -f4 | sed 's/T/ /')
         if ! flag_enabled "manual_tz"; then
             ip_address=$(curl -s -k -m 5 https://api.ipify.org)
-            utc_offset_seconds=$(curl -s -k -m 5 https://timeapi.io/api/TimeZone/ip?ipAddress=$ip_address | jq '.currentUtcOffset.seconds')
-            utc_offset="$(convert_seconds_to_utc_offset $utc_offset_seconds)"
+            utc_offset_seconds=""
+            [ -n "$ip_address" ] &&
+                utc_offset_seconds=$(curl -s -k -m 5 https://timeapi.io/api/TimeZone/ip?ipAddress=$ip_address | jq '.currentUtcOffset.seconds')
+            case "$utc_offset_seconds" in
+                "" | null | -| *[!0-9-]* | ?*-*)
+                    log "NTP: Time zone lookup failed, keeping the current time zone"
+                    ;;
+                *)
+                    utc_offset="$(convert_seconds_to_utc_offset $utc_offset_seconds)"
+                    ;;
+            esac
         fi
     fi
 
@@ -548,10 +679,7 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
         playActivity stop_all
 
         if [ -n "$utc_offset" ]; then
-            echo "$utc_offset" | sed 's/\+/_/' | sed 's/-/+/' | sed 's/_/-/' > $sysdir/config/.tz
-            cp $sysdir/config/.tz $sysdir/config/.tz_sync
-            sync
-            set_tzid
+            store_tz "$(echo "$utc_offset" | sed 's/\+/_/;s/-/+/;s/_/-/')"
         fi
 
         if date -u -s "$utc_datetime" > /dev/null 2>&1; then
@@ -568,9 +696,18 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
     log "NTP: Failed to get time via timeapi.io as well, falling back to NTP."
     rm $sysdir/config/.tz_sync 2> /dev/null
 
+    # Close open play sessions around the clock change, like the API path
+    # above: a session started at the old time and closed at the new one
+    # would otherwise last decades (e.g. from 1970 on first sync).
+    playActivity stop_all
     ntpdate -t 3 -u time.google.com
-    if [ $? -eq 0 ]; then
+    ntp_ret=$?
+    playActivity resume
+    if [ $ntp_ret -eq 0 ]; then
         log "NTP: Time successfully aquired using NTP"
+        # Mark the sync as done, like the API path: without it every later
+        # network check (after each game) synced again.
+        touch /tmp/ntp_synced
         return 0
     fi
 
@@ -591,10 +728,31 @@ init_json() {
     fi
 }
 
+# Lowest pid whose process name (/proc/<pid>/comm) is exactly $1, in
+# found_pid (empty if none). Shell builtins only: the firmware's BusyBox
+# 1.20 pgrep -x never matches anything.
+lowest_pid_named() {
+    found_pid=
+    for _pd in "${proc_dir:-/proc}"/[0-9]*; do
+        read -r _pc < "$_pd/comm" 2> /dev/null || continue
+        [ "$_pc" = "$1" ] || continue
+        _pp=${_pd##*/}
+        if [ -z "$found_pid" ] || [ "$_pp" -lt "$found_pid" ]; then
+            found_pid=$_pp
+        fi
+    done
+}
+
 # unhook libpadsp.so on the wifi servs
 libpadspblocker() {
-    wpa_pid=$(ps -e | grep "[w]pa_supplicant" | awk 'NR==1{print $1}')
-    udhcpc_pid=$(ps -e | grep "[u]dhcpc" | awk 'NR==1{print $1}')
+    # Lowest pid of each daemon by exact process name, without the two
+    # ps|grep|awk pipelines (six processes) run on every check. The
+    # pipelines also matched any command line containing the name, such as
+    # udhcpc.script run by a lease event.
+    lowest_pid_named wpa_supplicant
+    wpa_pid=$found_pid
+    lowest_pid_named udhcpc
+    udhcpc_pid=$found_pid
     if [ -n "$wpa_pid" ] && [ -n "$udhcpc_pid" ]; then
         if grep -q "libpadsp.so" /proc/$wpa_pid/maps || grep -q "libpadsp.so" /proc/$udhcpc_pid/maps; then
             echo "Network Checker: $wpa_pid(WPA) and $udhcpc_pid(UDHCPC) found preloaded with libpadsp.so"
@@ -674,8 +832,49 @@ abs() {
     [[ $(($@)) -lt 0 ]] && echo "$((($@) * -1))" || echo "$(($@))"
 }
 
+# Save the time zone found by the time sync (TZ format, sign inverted) to
+# config/.tz and config/.tz_sync, and apply it. Every API time sync (each
+# boot, each time Wi-Fi comes on) rewrote both files on the SD card and ran
+# a global sync, although the zone rarely changes: skip that when both
+# files already hold it.
+store_tz() {
+    read_file_to _st_old "$sysdir/config/.tz"
+    read_file_to _st_sync "$sysdir/config/.tz_sync"
+    if [ "$_st_old" = "$1" ] && [ "$_st_sync" = "$1" ] && [ -f "$sysdir/config/.tz_sync" ]; then
+        return 0
+    fi
+    echo "$1" > $sysdir/config/.tz
+    cp $sysdir/config/.tz $sysdir/config/.tz_sync
+    sync
+    set_tzid
+}
+
 set_tzid() {
-    export TZ=$(cat "$sysdir/config/.tz")
+    read_file_to TZ "$sysdir/config/.tz"
+    export TZ
+}
+
+# `read_file_to var file`: var=$(cat file) with shell builtins (same as in
+# runtime.sh). set_tzid and get_password run on every invocation of this
+# script, which runs after every game while a network service is enabled.
+read_file_to() {
+    _rft_val=""
+    _rft_nl=""
+    if [ -r "$2" ]; then
+        while IFS= read -r _rft_line || [ -n "$_rft_line" ]; do
+            _rft_val="$_rft_val$_rft_nl$_rft_line"
+            _rft_nl="
+"
+        done < "$2"
+    fi
+    while :; do
+        case "$_rft_val" in
+            *"
+") _rft_val=${_rft_val%?} ;;
+            *) break ;;
+        esac
+    done
+    eval "$1=\$_rft_val"
 }
 
 is_noauth_enabled() { # Used to check authMethod val for HTTPFS
@@ -700,11 +899,19 @@ print_usage() {
 }
 
 wifi_enabled() {
-    [ $(/customer/app/jsonval wifi) -eq 1 ]
+    if [ -n "$WIFI_STATE_CACHED" ]; then
+        [ "$WIFI_STATE_CACHED" -eq 1 ] 2> /dev/null
+    else
+        [ $(/customer/app/jsonval wifi) -eq 1 ]
+    fi
 }
 
 wifi_disabled() {
-    [ $(/customer/app/jsonval wifi) -eq 0 ]
+    if [ -n "$WIFI_STATE_CACHED" ]; then
+        [ "$WIFI_STATE_CACHED" -eq 0 ] 2> /dev/null
+    else
+        [ $(/customer/app/jsonval wifi) -eq 0 ]
+    fi
 }
 
 flag_enabled() {
@@ -717,9 +924,15 @@ enable_flag() {
     touch "$sysdir/config/.$flag"
 }
 
+# Turn a service flag off the way Tweaks does: .<flag> becomes .<flag>_
+# (the "explicitly off" marker). "$flag_" used to expand the unset variable
+# flag_, so the move failed and the flag was never cleared: services came
+# back after every game / Wi-Fi change.
 disable_flag() {
     flag="$1"
-    mv "$sysdir/config/.$flag" "$sysdir/config/.$flag_"
+    if [ -f "$sysdir/config/.$flag" ]; then
+        mv -f "$sysdir/config/.$flag" "$sysdir/config/.${flag}_"
+    fi
 }
 
 is_running() {
@@ -734,7 +947,7 @@ is_running_exact() {
 
 get_password() {
     # Get password from file for use with network services authentication
-    PASS=$(cat "$sysdir/config/.password.txt")
+    read_file_to PASS "$sysdir/config/.password.txt"
 }
 
 if [ -f $sysdir/config/.logging ]; then

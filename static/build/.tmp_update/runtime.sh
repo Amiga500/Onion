@@ -8,14 +8,84 @@ logfile=$(basename "$0" .sh)
 . $sysdir/script/log.sh
 
 MODEL_MM=283
+MODEL_MMF=285
 MODEL_MMP=354
 screen_resolution="640x480"
 
+romwinidx_device="/appconfigs/romwinidx.json"
+romwinidx_sd="$sysdir/config/romwinidx.json"
+
+# ---------------------------------------------------------------------------
+# Timing marks, written to logs/timing.log only when logging is enabled
+# (config/.logging). They cost one `test` per mark when logging is off, and
+# use /proc/uptime (10 ms resolution) with shell builtins only.
+#   perf_begin NAME         start a named interval
+#   perf_end NAME [INFO]    log "NAME <seconds> s [INFO]"
+# ---------------------------------------------------------------------------
+perf_now() {
+    read -r _perf_up _perf_idle < /proc/uptime
+    _perf_s=${_perf_up%.*}
+    _perf_c=${_perf_up#*.}
+    # "1${_perf_c}" avoids octal parsing of values like "08"
+    perf_cs=$((_perf_s * 100 + 1${_perf_c} - 100))
+}
+
+perf_begin() {
+    [ -f $sysdir/config/.logging ] || return 0
+    perf_now
+    eval "perf_t_$1=$perf_cs"
+}
+
+# Dirty and under-writeback page cache before a sync, for the timing log
+# (logging on only): shows whether a slow sync had much to write.
+perf_dirty() {
+    perf_dirty_kb=""
+    [ -f $sysdir/config/.logging ] || return 0
+    while read -r _pd_key _pd_val _pd_unit; do
+        case "$_pd_key" in
+            Dirty: | Writeback:) perf_dirty_kb="$perf_dirty_kb${_pd_key%:}=${_pd_val}kB " ;;
+        esac
+    done < /proc/meminfo
+}
+perf_end() {
+    [ -f $sysdir/config/.logging ] || return 0
+    perf_now
+    eval "_perf_t0=\${perf_t_$1:-}"
+    [ -n "$_perf_t0" ] || return 0
+    _perf_d=$((perf_cs - _perf_t0))
+    _perf_r=$((_perf_d % 100))
+    [ $_perf_r -lt 10 ] && _perf_r="0$_perf_r"
+    echo "$1 $((_perf_d / 100)).$_perf_r s $2" >> $sysdir/logs/timing.log
+}
+
+# Device model, same order as the installer (install.sh check_device_model)
+# and OnionUI v4.5-dev: the Hall sensor identifies the Mini Flip on its own,
+# then the AXP PMU tells the Mini+ from the Mini. Checking the Hall sensor
+# only after a successful AXP probe made a Flip whose probe failed boot as a
+# Mini (wrong MainUI, no lid handling) while the installer said Flip.
+# Never use /dev/input/event* numbering: it depends on enumeration order.
+hall_sensor=/sys/devices/soc0/soc/soc:hall-mh248/hallvalue
+
+detect_device_model() {
+    if [ -e "$hall_sensor" ]; then
+        echo $MODEL_MMF
+    elif axp 0 > /dev/null 2>&1; then
+        echo $MODEL_MMP
+    else
+        echo $MODEL_MM
+    fi
+}
+
 main() {
-    # Set model ID
-    axp 0 > /dev/null
-    export DEVICE_ID=$([ $? -eq 0 ] && echo $MODEL_MMP || echo $MODEL_MM)
+    DEVICE_ID=$(detect_device_model)
+    export DEVICE_ID
     echo -n "$DEVICE_ID" > /tmp/deviceModel
+
+    # HW capability flags
+    HAS_AXP=0
+    if [ $DEVICE_ID -eq $MODEL_MMF ] || [ $DEVICE_ID -eq $MODEL_MMP ]; then
+        HAS_AXP=1
+    fi
 
     SERIAL_NUMBER=$(read_uuid)
     echo -n "$SERIAL_NUMBER" > /tmp/deviceSN
@@ -24,7 +94,15 @@ main() {
     check_installer
     clear_logs
 
+    if [ -f $sysdir/config/.logging ]; then
+        perf_now
+        echo "boot: runtime.sh started $((perf_cs / 100)) s after kernel start" >> $sysdir/logs/timing.log
+    fi
+    perf_begin boot
+    perf_begin boot_init
     init_system
+    perf_end boot_init
+    restore_romwinidx
     update_time
 
     # Remount passwd/group to add our own users
@@ -34,18 +112,28 @@ main() {
     # Start the battery monitor
     batmon &
 
-    # Reapply theme
+    # Reapply theme when this SD is first used on a device.
     system_theme="$(/customer/app/jsonval theme)"
-    active_theme="$(cat $sysdir/config/active_theme)"
+    active_theme="$(cat "$sysdir/config/active_theme" 2>/dev/null)"
+    theme_device_state="$sysdir/config/theme-applied-$SERIAL_NUMBER"
+    applied_theme="$(cat "$theme_device_state" 2>/dev/null)"
 
-    if [ "$system_theme" == "./" ] || [ "$system_theme" != "$active_theme" ] || [ ! -d "$system_theme" ]; then
+    if [ "$system_theme" == "./" ] ||
+        [ "$system_theme" != "$active_theme" ] ||
+        [ ! -d "$system_theme" ] ||
+        [ "$applied_theme" != "$system_theme" ]; then
         themeSwitcher --reapply_icons
+
+        # Re-read: themeSwitcher writes the resolved theme back to settings,
+        # including when it falls back to a different one.
+        system_theme="$(/customer/app/jsonval theme)"
+        echo -n "$system_theme" > "$theme_device_state"
     fi
 
     # Check is charging
     if [ $DEVICE_ID -eq $MODEL_MM ]; then
         is_charging=$(cat /sys/devices/gpiochip0/gpio/gpio59/value)
-    elif [ $DEVICE_ID -eq $MODEL_MMP ]; then
+    elif [ $HAS_AXP -eq 1 ]; then
         axp_status="0x$(axp 0 | cut -d':' -f2)"
         is_charging=$([ $(($axp_status & 0x4)) -eq 4 ] && echo 1 || echo 0)
     fi
@@ -78,10 +166,13 @@ main() {
     fi
 
     # Start networking (Checks networking, checks timezone)
+    perf_begin boot_network
     start_networking
+    perf_end boot_network
 
     # Start the key monitor
     keymon &
+    keymon_pid=$!
 
     # Init
     rm /tmp/.offOrder 2> /dev/null
@@ -100,9 +191,11 @@ main() {
         rm -f "$sysdir/cmd_to_run.sh" 2> /dev/null
     fi
 
-    if [ $DEVICE_ID -eq $MODEL_MMP ] && [ -f /mnt/SDCARD/RetroArch/retroarch_miyoo354 ]; then
-        # Mount miyoo354 RA version
-        mount -o bind /mnt/SDCARD/RetroArch/retroarch_miyoo354 /mnt/SDCARD/RetroArch/retroarch
+    if [ $DEVICE_ID -eq $MODEL_MMF ] || [ $DEVICE_ID -eq $MODEL_MMP ]; then
+        if [ -f /mnt/SDCARD/RetroArch/retroarch_miyoo354 ]; then
+            # Mount miyoo354 RA version
+            mount -o bind /mnt/SDCARD/RetroArch/retroarch_miyoo354 /mnt/SDCARD/RetroArch/retroarch
+        fi
     fi
 
     # Bind arcade name library to customer path
@@ -143,6 +236,7 @@ main() {
         fi
     fi
 
+    perf_end boot "(until the first menu/game)"
     state_change check_switcher
     set_startup_tab
     # Main runtime loop
@@ -156,11 +250,26 @@ main() {
 
 state_change() {
     log "state change: $1"
-    runifnecessary "keymon" keymon
+    ensure_keymon
     check_networking
-    touch /tmp/state_changed
-    sync
+    # Shell builtin instead of `touch` (no fork). /tmp is tmpfs, so the
+    # global sync that used to follow flushed only the SD card, four times
+    # per loop; data written by games/apps is now synced once when they
+    # exit (launch_game_postprocess).
+    : > /tmp/state_changed
     eval "$1"
+}
+
+# Cheap liveness check for keymon: /proc lookup of the pid we started
+# (no fork); pgrep only when it is gone.
+ensure_keymon() {
+    if [ -n "$keymon_pid" ] && [ -r "/proc/$keymon_pid/comm" ]; then
+        read -r _keymon_comm < "/proc/$keymon_pid/comm"
+        [ "$_keymon_comm" = "keymon" ] && return
+    fi
+    runifnecessary "keymon" keymon
+    set -- $(pgrep keymon)
+    keymon_pid=$1
 }
 
 set_prev_state() {
@@ -171,6 +280,8 @@ clear_logs() {
     mkdir -p $sysdir/logs
 
     cd $sysdir/logs
+    # Keep the previous session's timings for comparison
+    [ -f ./timing.log ] && mv -f ./timing.log ./timing.prev.log
     rm -f \
         ./MainUI.log \
         ./gameSwitcher.log \
@@ -199,6 +310,7 @@ check_main_ui() {
 
 launch_main_ui() {
     log "\n:: Launch MainUI"
+    perf_begin mainui_prepare
 
     cd $sysdir
 
@@ -212,33 +324,78 @@ launch_main_ui() {
     mount_main_ui
 
     # Wifi state before
-    wifi_setting=$(/customer/app/jsonval wifi)
+    wifi_setting=$(sysjson_get wifi)
 
     start_audioserver
 
     mute_theme_bgm
 
+    # Prepare MainUI's three-page 640x480 layout before SDL starts.
+    if [ -x "$sysdir/bin/fbmode" ] && [ -f /tmp/new_res_available ]; then
+        # Skip when already correct: arriving from init_system, or from a
+        # previous MainUI launch, there is nothing to do, and skipping avoids
+        # clearing whatever is on screen. Any real change preclears, so the
+        # pitch never changes with stale pixels still in memory.
+        # --probe: WxH virtual WxH bpp N line_length N pages N
+        probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
+        fb_probe_fields "$probe"
+        current_res=$fb_f1
+        current_virtual=$fb_f3
+        current_bpp=$fb_f5
+        current_pages=$fb_flast
+
+        if [ "$current_res" = "640x480" ] &&
+           [ "$current_virtual" = "640x1440" ] &&
+           [ "$current_bpp" = "32" ] &&
+           [ "$current_pages" = "3" ]; then
+            log "Framebuffer already 640x480/3, preserving"
+        else
+            if ! $sysdir/bin/fbmode 640x480 --pages 3 --preclear --no-clear \
+                --linger 150 --timeout 500; then
+                log "fbmode failed before MainUI, falling back to fbset"
+                fbset -g 640 480 640 1440 32
+            fi
+            notify_resolution_change
+        fi
+    fi
+
     # MainUI launch
+    perf_end mainui_prepare
+    perf_begin mainui_session
     cd $miyoodir/app
     PATH="$miyoodir/app:$PATH" \
         LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" \
         LD_PRELOAD="$miyoodir/lib/libpadsp.so" \
         ./MainUI 2>&1 > /dev/null
+    perf_end mainui_session
+    perf_begin mainui_return
 
     # Merge the last game launched into the recent list
+    perf_begin mr_recents
     check_hide_recents
+    perf_end mr_recents
 
-    # Check if wifi setting changed
-    if [ $(/customer/app/jsonval wifi) -ne $wifi_setting ]; then
-        touch /tmp/network_changed
-        rm /tmp/ntp_synced 2> /dev/null
-        sync
+    # Flush what MainUI wrote (recents, favourites, system.json). This is the
+    # one sync per cycle that check_hide_recents used to provide implicitly.
+    perf_dirty
+    perf_begin mr_sync
+    sync
+    perf_end mr_sync "$perf_dirty_kb"
+
+    # Check if wifi setting changed. Only /tmp (tmpfs) changes here: no
+    # second sync (the one above already flushed what MainUI wrote).
+    if [ $(sysjson_get wifi) -ne $wifi_setting ]; then
+        : > /tmp/network_changed
+        rm -f /tmp/ntp_synced
     fi
 
+    perf_begin mr_freemma
     $sysdir/bin/freemma
+    perf_end mr_freemma
     mv -f /tmp/cmd_to_run.sh $sysdir/cmd_to_run.sh
 
     set_prev_state "mainui"
+    perf_end mainui_return
 }
 
 check_game_menu() {
@@ -276,34 +433,62 @@ check_game() {
 }
 
 check_is_game() {
-    echo "$1" | grep -q "retroarch/cores" || echo "$1" | grep -q "/../../Roms/" || echo "$1" | grep -q "/mnt/SDCARD/Roms/"
+    # Same matches as the former three `echo | grep -q` pipelines (up to 6
+    # processes), without forking. `?` mirrors grep's `.` in "/../../Roms/".
+    case "$1" in
+        *retroarch/cores* | */??/??/Roms/* | */mnt/SDCARD/Roms/*) return 0 ;;
+    esac
+    return 1
+}
+
+notify_resolution_change() {
+    killall -SIGUSR1 batmon
+    killall -SIGUSR1 keymon
 }
 
 change_resolution() {
     res_x=""
     res_y=""
 
-    if [ -n "$1" ]; then
-        res_x=$(echo "$1" | cut -d 'x' -f 1)
-        res_y=$(echo "$1" | cut -d 'x' -f 2)
-    else
-        res_x=$(echo "$screen_resolution" | cut -d 'x' -f 1)
-        res_y=$(echo "$screen_resolution" | cut -d 'x' -f 2)
-    fi
+    # Same fields as `cut -d x -f 1` / `-f 2`, without forking
+    _res=${1:-$screen_resolution}
+    res_x=${_res%%x*}
+    _after=${_res#*x}
+    res_y=${_after%%x*}
     log "Changing resolution to $res_x x $res_y"
 
-    bootScreen clear
+    if [ -x "$sysdir/bin/fbmode" ]; then
+        probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
+        fb_probe_fields "$probe"
+        current_res=$fb_f1
+        current_pages=$fb_flast
 
-    fbset -g "$res_x" "$res_y" "$res_x" "$((res_y * 2))" 32
-    # inform batmon and keymon of resolution change
-    killall -SIGUSR1 batmon
-    killall -SIGUSR1 keymon
+        # Keep game-side mode changes at the stock two-page layout.
+        if [ "$current_res" = "${res_x}x${res_y}" ] && [ "$current_pages" = "2" ]; then
+            notify_resolution_change
+            return
+        fi
+
+        if ! $sysdir/bin/fbmode "${res_x}x${res_y}" --pages 2 \
+            --preclear --linger 120 --timeout 500; then
+            log "fbmode failed, falling back to fbset"
+            bootScreen clear
+            fbset -g "$res_x" "$res_y" "$res_x" "$((res_y * 2))" 32
+        fi
+    else
+        bootScreen clear
+        fbset -g "$res_x" "$res_y" "$res_x" "$((res_y * 2))" 32
+    fi
+
+    notify_resolution_change
 }
 
 launch_game() {
+    perf_begin game_prepare
     log "\n:: Launch game"
-    cmd=$(cat $sysdir/cmd_to_run.sh)
-    TZ_VALUE=$(cat "$sysdir/config/.tz")
+    rm -f /tmp/.forceKillRetroarch
+    read_file_to cmd $sysdir/cmd_to_run.sh
+    read_file_to TZ_VALUE "$sysdir/config/.tz"
 
     is_game=0
     rompath=""
@@ -316,19 +501,37 @@ launch_game() {
     start_audioserver
     save_settings
 
-    if check_is_game "$cmd"; then
-        # Extract rom path
-        rompath=$(echo "$cmd" | awk '{ st = index($0,"\" \""); print substr($0,st+3,length($0)-st-3)}')
+    # Single-line command (the normal case): parse with parameter expansion
+    # instead of echo|awk/grep pipelines. Multi-line input keeps the old
+    # awk-based parsing, whose per-line output the expansions do not mimic.
+    cmd_single_line=1
+    case "$cmd" in *"
+"*) cmd_single_line=0 ;; esac
 
-        # Check for custom launch script
-        if echo "$rompath" | grep -q ":"; then
-            launch_script=$(echo "$rompath" | awk '{split($0,a,":"); print a[1]}')
-            rompath=$(echo "$rompath" | awk '{split($0,a,":"); print a[2]}')
-            echo "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"$launch_script\" \"$rompath\"" > $sysdir/cmd_to_run.sh
+    if check_is_game "$cmd"; then
+        # Extract rom path: text after the first `" "`, minus the last char
+        _after=${cmd#*\"\ \"}
+        if [ $cmd_single_line -eq 1 ] && [ "$_after" != "$cmd" ]; then
+            rompath=${_after%?}
+        else
+            rompath=$(echo "$cmd" | awk '{ st = index($0,"\" \""); print substr($0,st+3,length($0)-st-3)}')
         fi
 
+        # Check for custom launch script ("script:rom")
+        case "$rompath" in
+            *:*)
+                launch_script=${rompath%%:*}
+                _after=${rompath#*:}
+                rompath=${_after%%:*}
+                echo "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"$launch_script\" \"$rompath\"" > $sysdir/cmd_to_run.sh
+                ;;
+        esac
+
         orig_path="$rompath"
-        romext=$(echo "$(basename "$rompath")" | awk -F. '{print tolower($NF)}')
+        # Extension of the file name, lowercased (tr only if needed)
+        _base=${rompath##*/}
+        romext=${_base##*.}
+        case "$romext" in *[A-Z]*) romext=$(echo "$romext" | tr 'A-Z' 'a-z') ;; esac
 
         if [ "$romext" != "miyoocmd" ]; then
             # Resolve real path
@@ -338,55 +541,85 @@ launch_game() {
 
             # Update cmd_to_run with resolved path
             if [ "$rompath" != "$orig_path" ]; then
-                temp=$(cat $sysdir/cmd_to_run.sh)
-                cmd_replaced=$(echo "$temp" | rev | sed 's/^"[^"]*"//g' | rev)"\"$rompath\""
+                temp=""
+                if [ $cmd_single_line -eq 1 ] &&
+                    { IFS= read -r temp < $sysdir/cmd_to_run.sh || [ -n "$temp" ]; }; then
+                    cmd_with_rom_path "$temp" "$rompath"
+                    cmd_replaced=$cmd_with_rom
+                else
+                    temp=$(cat $sysdir/cmd_to_run.sh)
+                    cmd_replaced=$(echo "$temp" | rev | sed 's/^"[^"]*"//g' | rev)"\"$rompath\""
+                fi
                 echo "$cmd_replaced" > $sysdir/cmd_to_run.sh
             fi
 
-            # Game config path
-            romcfgpath="$(dirname "$rompath")/.game_config/$(basename "$rompath" ".$romext").cfg"
+            # Game config path (dirname / basename without forking)
+            case "$rompath" in
+                */*) _dir=${rompath%/*}; [ -z "$_dir" ] && _dir=/ ;;
+                *) _dir=. ;;
+            esac
+            _base=${rompath##*/}
+            _name=${_base%".$romext"}
+            [ -z "$_name" ] && _name=$_base
+            romcfgpath="$_dir/.game_config/$_name.cfg"
             log "rompath: $rompath (ext: $romext)"
             log "romcfgpath: $romcfgpath"
             is_game=1
         fi
     fi
 
+    play_activity_pid=""
+    services_kill_pid=""
+    if [ $is_game -eq 1 ]; then
+        playActivity start "$rompath" &
+        play_activity_pid=$!
+    fi
+
     full_resolution_path="$(get_full_resolution_path)"
 
     if [ -z "$launch_script" ]; then
-        launch_script=$(echo "$cmd" | awk -F'"' '{print $2}')
+        # First double-quoted field of the command
+        if [ $cmd_single_line -eq 0 ]; then
+            launch_script=$(echo "$cmd" | awk -F'"' '{print $2}')
+        else
+            case "$cmd" in
+                *\"*) _after=${cmd#*\"}; launch_script=${_after%%\"*} ;;
+                *) launch_script="" ;;
+            esac
+        fi
     fi
 
     if [ $is_game -eq 1 ]; then
-        if [ -f "$launch_script" ] && cat "$launch_script" | grep -q '.retroarch/cores'; then
+        if [ -f "$launch_script" ] && grep -q '.retroarch/cores' "$launch_script"; then
             # Override core if needed
             override_game_core "$romcfgpath" "$launch_script"
         fi
 
-        # Handle dollar sign
-        if echo "$rompath" | grep -q "\$"; then
+        # Handle dollar sign. The former `grep -q "\$"` matched every line
+        # (regex end-of-line), so cmd_to_run.sh was rewritten on each launch.
+        if case "$rompath" in *'$'*) true ;; *) false ;; esac; then
             temp=$(cat $sysdir/cmd_to_run.sh)
             echo "$temp" | sed 's/\$/\\\$/g' > $sysdir/cmd_to_run.sh
         fi
 
-        # Kill services for maximum performance
+        # Kill services while remaining launch preparation continues.
         if [ ! -f $sysdir/config/.keepServicesAlive ]; then
-            for process in dropbear bftpd filebrowser telnetd smbd; do
-                if is_running $process; then
-                    killall -9 $process
-                fi
-            done
+            # Tells the boot-time network bring-up (still running in the
+            # background when a game resumes at boot) not to start them.
+            : > /tmp/services_paused_in_game
+            killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null &
+            services_kill_pid=$!
         fi
-
-        playActivity start "$rompath"
     fi
 
     # Prevent quick switch loop
     rm -f /tmp/quick_switch 2> /dev/null
     rm -f /tmp/force_auto_load_state 2> /dev/null
 
-    log "----- COMMAND:"
-    log "$(cat $sysdir/cmd_to_run.sh)"
+    if [ -f $sysdir/config/.logging ]; then
+        log "----- COMMAND:"
+        log "$(cat $sysdir/cmd_to_run.sh)"
+    fi
 
     if [ $is_game -eq 0 ] || [ -f "$rompath" ]; then
         if [ "$romext" == "miyoocmd" ]; then
@@ -413,13 +646,56 @@ launch_game() {
             cd /mnt/SDCARD/RetroArch
             force_retroarch_cfg
 
+            # Finish launch-side work before emulator handoff.
+            if [ -n "$services_kill_pid" ]; then
+                wait "$services_kill_pid" 2> /dev/null
+                services_kill_pid=""
+            fi
+            if [ -n "$play_activity_pid" ]; then
+                wait "$play_activity_pid"
+                play_activity_pid=""
+            fi
+
+            perf_end game_prepare "${rompath##*/}"
+            perf_begin game_run
+
             # make the cmd_to_run shell env aware of the new timezone
             TZ="$TZ_VALUE" $sysdir/cmd_to_run.sh
             retval=$?
 
+            perf_end game_run "${rompath##*/}"
+            perf_begin game_exit
+
             if [ -f /tmp/new_res_available ]; then
-                # Restore resolution
-                change_resolution "640x480"
+                # infoPanel caches the old geometry and must not survive a mode change.
+                killall infoPanel 2>/dev/null
+                sleep 0.01
+                killall -9 infoPanel 2>/dev/null
+                rm -f /tmp/dismiss_info_panel
+
+                if [ -f /tmp/quick_switch ] || [ -f "$sysdir/.runGameSwitcher" ]; then
+                    # A handoff is pending. Whoever runs next owns the mode, so
+                    # leave the framebuffer alone rather than transitioning to
+                    # 640x480 only for the next step to transition away again.
+                    log "Handoff pending, preserving framebuffer"
+                elif [ -f /tmp/.offOrder ]; then
+                    # Shutting down. Nothing after this renders except the
+                    # shutdown screen, which reads the live geometry, and
+                    # keymon may already have one on screen from deepsleep.
+                    # Changing the mode underneath it shears whatever it is
+                    # still drawing.
+                    log "Shutdown pending, preserving framebuffer"
+                else
+                    if [ -x "$sysdir/bin/fbmode" ]; then
+                        if ! $sysdir/bin/fbmode 640x480 --pages 2 --preclear --no-clear \
+                            --linger 150 --timeout 500; then
+                            log "fbmode failed returning to MainUI, falling back to fbset"
+                            fbset -g 640 480 640 960 32
+                        fi
+                    fi
+
+                    change_resolution "640x480"
+                fi
             fi
 
             if [ $is_game -eq 1 ] && [ ! -f /tmp/.offOrder ] && [ -f /tmp/.displaySavingMessage ]; then
@@ -430,14 +706,28 @@ launch_game() {
             fi
         fi
     else
+        if [ -n "$services_kill_pid" ]; then
+            wait "$services_kill_pid" 2> /dev/null
+            services_kill_pid=""
+        fi
+        if [ -n "$play_activity_pid" ]; then
+            wait "$play_activity_pid"
+            play_activity_pid=""
+        fi
         retval=404
     fi
 
     log "cmd retval: $retval"
 
+    forced_retroarch_kill=0
+    if [ -f /tmp/.forceKillRetroarch ]; then
+        forced_retroarch_kill=1
+        rm -f /tmp/.forceKillRetroarch
+    fi
+
     if [ $retval -eq 404 ]; then
         infoPanel --title "File not found" --message "The requested file was not found." --auto
-    elif [ $retval -ge 128 ] && [ $retval -ne 143 ] && [ $retval -ne 255 ] && [ ! -f /tmp/.forceKillRetroarch ]; then
+    elif [ $retval -ge 128 ] && [ $retval -ne 143 ] && [ $retval -ne 255 ] && [ $forced_retroarch_kill -eq 0 ]; then
         infoPanel --title "Fatal error occurred" --message "The program exited unexpectedly.\n(Error code: $retval)" --auto
     fi
 
@@ -445,6 +735,11 @@ launch_game() {
 }
 
 force_retroarch_cfg() {
+    ra_cfg=/mnt/SDCARD/RetroArch/.retroarch/retroarch.cfg
+    if grep -q '^[[:space:]]*network_cmd_enable[[:space:]]*=[[:space:]]*"true"[[:space:]]*$' "$ra_cfg" 2> /dev/null; then
+        return
+    fi
+
     # Enable network commands in RetroArch
     cat > /tmp/onion_ra_patch.cfg <<- EOM
 network_cmd_enable = "true"
@@ -520,16 +815,22 @@ cleanup_appendconfig() {
         # Cleanup `cmd_to_run.sh` by removing any existing appendconfig
         if [ -f "$sysdir/cmd_to_run.sh" ]; then
             cmd=$(cat $sysdir/cmd_to_run.sh)
-            if echo "$cmd" | grep -q "/tmp/reset.cfg"; then
-                echo "$cmd" | sed 's/ --appendconfig \"\/tmp\/reset.cfg\"//g' > $sysdir/cmd_to_run.sh
-            elif echo "$cmd" | grep -q "/tmp/auto_load_state.cfg"; then
-                echo "$cmd" | sed 's/ --appendconfig \"\/tmp\/auto_load_state.cfg\"//g' > $sysdir/cmd_to_run.sh
-            fi
+            # Pattern match instead of two echo|grep pipelines on every game
+            # exit (`?` stands for grep's `.`).
+            case "$cmd" in
+                */tmp/reset?cfg*)
+                    echo "$cmd" | sed 's/ --appendconfig \"\/tmp\/reset.cfg\"//g' > $sysdir/cmd_to_run.sh
+                    ;;
+                */tmp/auto_load_state?cfg*)
+                    echo "$cmd" | sed 's/ --appendconfig \"\/tmp\/auto_load_state.cfg\"//g' > $sysdir/cmd_to_run.sh
+                    ;;
+            esac
         fi
     fi
 
     # Clean up launch_path: Remove explicit appendconfig paths
-    if [ -w "$launch_path" ]; then
+    # One grep for the usual case, neither file mentioned (was two).
+    if [ -w "$launch_path" ] && grep -qE '/tmp/(reset|auto_load_state).cfg' "$launch_path"; then
         if grep -q '/tmp/reset.cfg' "$launch_path"; then
             sed -i 's| --appendconfig "/tmp/reset.cfg"||g' "$launch_path"
             log "Removed /tmp/reset.cfg from $launch_path"
@@ -544,6 +845,9 @@ launch_game_postprocess() {
     is_game=$1
     launch_path="$2"
     rompath="$3"
+
+    # Flush what the game/app wrote (saves, configs) once, now that it exited
+    sync
 
     # Reset CPU frequency
     echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
@@ -566,6 +870,7 @@ launch_game_postprocess() {
         fi
 
         # Reset networking if needed
+        rm -f /tmp/services_paused_in_game
         if [ ! -f "$sysdir/config/.keepServicesAlive" ]; then
             for service in smbd http ssh ftp telnet; do
                 if [ -f "$sysdir/config/.${service}State" ]; then
@@ -576,6 +881,7 @@ launch_game_postprocess() {
         fi
 
         set_prev_state "game"
+        perf_end game_exit "${rompath##*/}"
         check_off_order "End_Save"
     else
         set_prev_state "app"
@@ -583,7 +889,112 @@ launch_game_postprocess() {
     fi
 }
 
+# `read_file_to var file`: var=$(cat file) with shell builtins (no fork):
+# lines joined with newlines, trailing newlines removed, empty when the
+# file cannot be read. Used twice before every game launch.
+read_file_to() {
+    _rft_val=""
+    _rft_nl=""
+    if [ -r "$2" ]; then
+        while IFS= read -r _rft_line || [ -n "$_rft_line" ]; do
+            _rft_val="$_rft_val$_rft_nl$_rft_line"
+            _rft_nl="
+"
+        done < "$2"
+    fi
+    while :; do
+        case "$_rft_val" in
+            *"
+") _rft_val=${_rft_val%?} ;;
+            *) break ;;
+        esac
+    done
+    eval "$1=\$_rft_val"
+}
+
+# Single-line launch command with its trailing quoted field (the ROM path)
+# replaced by "$2", in cmd_with_rom. Same result as the multi-line
+# fallback `echo "$1" | rev | sed 's/^"[^"]*"//g' | rev` plus "\"$2\"",
+# without its four processes on every launch whose path realpath changes
+# (MainUI paths contain ../../Roms).
+cmd_with_rom_path() {
+    _cwr=$1
+    case "$_cwr" in
+        *\")
+            _cwr_open=${_cwr%\"}
+            case "$_cwr_open" in *\"*) _cwr=${_cwr_open%\"*} ;; esac
+            ;;
+    esac
+    cmd_with_rom=$_cwr"\"$2\""
+}
+
 get_full_resolution_path() {
+    [ -f /tmp/new_res_available ] || return 0
+
+    # Read cmd_to_run.sh with builtins (it may have been rewritten since
+    # launch_game read it). For a single-line command, answer with parameter
+    # expansion; otherwise use the original grep/cut/sed code below.
+    _frp_cmd=""
+    _frp_lines=0
+    while IFS= read -r _frp_line || [ -n "$_frp_line" ]; do
+        _frp_lines=$((_frp_lines + 1))
+        _frp_cmd=$_frp_line
+    done < $sysdir/cmd_to_run.sh
+
+    if [ $_frp_lines -eq 1 ]; then
+        case "$_frp_cmd" in
+            */mnt/SDCARD/App/*)
+                # ----- App launch: 2nd space-separated field, first ';'
+                # replaced by /full_resolution (was cut -d' ' -f2 | sed)
+                case "$_frp_cmd" in
+                    *" "*) _frp_f=${_frp_cmd#* }; _frp_f=${_frp_f%% *} ;;
+                    *) _frp_f=$_frp_cmd ;;
+                esac
+                case "$_frp_f" in
+                    *";"*) _frp_f="${_frp_f%%;*}/full_resolution${_frp_f#*;}" ;;
+                esac
+                echo "$_frp_f"
+                ;;
+            */mnt/SDCARD/Roms/PORTS/*)
+                # ----- Port launch: from the first PORTS path to the last
+                # ".port" (greedy, like grep -o)
+                _frp_f=${_frp_cmd#*/mnt/SDCARD/Roms/PORTS}
+                case "$_frp_f" in
+                    *.port*)
+                        _frp_f="/mnt/SDCARD/Roms/PORTS${_frp_f%.port*}.port"
+                        if grep -qF "FullResolution=1" "$_frp_f"; then
+                            echo "/tmp/new_res_available"
+                        fi
+                        ;;
+                esac
+                ;;
+            *)
+                # ----- Everything else: from the first '"' to the last
+                # 'launch.sh"', quotes removed, first launch.sh replaced
+                _frp_f=""
+                case "$_frp_cmd" in
+                    *\"*)
+                        _frp_m=${_frp_cmd#*\"}
+                        case "$_frp_m" in
+                            *'launch.sh"'*)
+                                _frp_f="${_frp_m%'launch.sh"'*}launch.sh"
+                                while :; do
+                                    case "$_frp_f" in
+                                        *\"*) _frp_f="${_frp_f%%\"*}${_frp_f#*\"}" ;;
+                                        *) break ;;
+                                    esac
+                                done
+                                _frp_f="${_frp_f%%launch.sh*}full_resolution${_frp_f#*launch.sh}"
+                                ;;
+                        esac
+                        ;;
+                esac
+                echo "$_frp_f"
+                ;;
+        esac
+        return 0
+    fi
+
     if [ -f /tmp/new_res_available ]; then
         # Check if the program to be launched supports 560p
         # Different programs need different checks (Apps vs Ports vs the rest)
@@ -616,7 +1027,42 @@ is_running() {
 }
 
 get_info_value() {
-    echo "$1" | grep "$2\b" | awk '{split($0,a,"="); print a[2]}' | awk -F'"' '{print $2}' | tr -d '\n'
+    # Same result as the former echo | grep "$2\b" | awk | awk | tr pipeline:
+    # for each line containing KEY at a word boundary, the text between the
+    # first two double quotes of the part between the first and second '=',
+    # all concatenated. Shell builtins only.
+    _giv_out=""
+    while IFS= read -r _giv_line || [ -n "$_giv_line" ]; do
+        _giv_rest=$_giv_line
+        _giv_match=0
+        while :; do
+            case "$_giv_rest" in
+                *"$2"*) ;;
+                *) break ;;
+            esac
+            _giv_rest=${_giv_rest#*"$2"}
+            case "$_giv_rest" in
+                [A-Za-z0-9_]*) ;;
+                *) _giv_match=1; break ;;
+            esac
+        done
+        [ $_giv_match -eq 1 ] || continue
+        case "$_giv_line" in
+            *=*) ;;
+            *) continue ;;
+        esac
+        _giv_f=${_giv_line#*=}
+        _giv_f=${_giv_f%%=*}
+        case "$_giv_f" in
+            *\"*)
+                _giv_f=${_giv_f#*\"}
+                _giv_out="$_giv_out${_giv_f%%\"*}"
+                ;;
+        esac
+    done << EOF_GIV
+$1
+EOF_GIV
+    echo -n "$_giv_out"
 }
 
 check_switcher() {
@@ -636,17 +1082,68 @@ check_switcher() {
 
 launch_switcher() {
     log "\n:: Launch switcher"
+    perf_begin switcher_prepare
     cd $sysdir
+
+    # GameSwitcher owns its framebuffer requirement: a game exiting toward it
+    # leaves the mode alone, so this is the only place 752x560 is established.
+    if [ -f /tmp/new_res_available ] && [ -x "$sysdir/bin/fbmode" ]; then
+        # --probe: WxH virtual WxH bpp N line_length N pages N
+        probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
+        fb_probe_fields "$probe"
+        current_res=$fb_f1
+        current_virtual=$fb_f3
+        current_bpp=$fb_f5
+        current_pages=$fb_flast
+
+        if [ "$current_res" = "752x560" ] &&
+           [ "$current_virtual" = "752x1120" ] &&
+           [ "$current_bpp" = "32" ] &&
+           [ "$current_pages" = "2" ]; then
+            log "Framebuffer already 752x560/2, preserving"
+        else
+            if ! $sysdir/bin/fbmode 752x560 --pages 2 --preclear --no-clear \
+                --linger 150 --timeout 500; then
+                log "fbmode failed before GameSwitcher, falling back to fbset"
+                fbset -g 752 560 752 1120 32
+            fi
+            notify_resolution_change
+        fi
+    fi
+
     start_audioserver
+    perf_end switcher_prepare
+    perf_begin switcher_session
     LD_PRELOAD="$miyoodir/lib/libpadsp.so" gameSwitcher
+    perf_end switcher_session
     rm $sysdir/.runGameSwitcher
     set_prev_state "switcher"
+    sync
+}
+
+restore_romwinidx() {
+    if [ -f "$romwinidx_sd" ]; then
+        cp -f "$romwinidx_sd" "$romwinidx_device"
+        log "romwinidx: restored from SD"
+    else
+        rm -f "$romwinidx_device"
+    fi
+}
+
+save_romwinidx() {
+    if [ -f "$romwinidx_device" ]; then
+        cp -f "$romwinidx_device" "$romwinidx_sd"
+        log "romwinidx: saved to SD"
+    else
+        rm -f "$romwinidx_sd"
+    fi
     sync
 }
 
 check_off_order() {
     if [ -f /tmp/.offOrder ]; then
         touch /tmp/shutting_down
+        save_romwinidx
 
         #EmuDeck - CheckOff scripts
         check_off_scripts=$(find "$sysdir/checkoff" -type f -name "*.sh")
@@ -666,31 +1163,103 @@ recentlist_hidden=/mnt/SDCARD/Roms/recentlist-hidden.json
 recentlist_temp=/tmp/recentlist-temp.json
 
 check_hide_recents() {
+    # Global sync only when a list was actually moved (it used to run
+    # unconditionally, twice per MainUI cycle).
     # Hide recents on
     if [ ! -f $sysdir/config/.showRecents ]; then
         # Hide recents by removing the json file
         if [ -f $recentlist ]; then
-            cat $recentlist $recentlist_hidden > $recentlist_temp
+            cat $recentlist $recentlist_hidden 2>/dev/null | head -n 200 > $recentlist_temp
             mv -f $recentlist_temp $recentlist_hidden
             rm -f $recentlist
+            sync
         fi
     else
         # Restore recentlist
         if [ -f $recentlist_hidden ]; then
-            cat $recentlist $recentlist_hidden > $recentlist_temp
+            cat $recentlist $recentlist_hidden 2>/dev/null | head -n 200 > $recentlist_temp
             mv -f $recentlist_temp $recentlist
             rm -f $recentlist_hidden
+            sync
         fi
     fi
-    sync
 }
 
 mainui_target=$miyoodir/app/MainUI
 
+# Read one top-level value from system.json with shell builtins (jsonval is a
+# separate process per call). system.json keeps one key per line, as the sed
+# edits in load_settings already assume. Falls back to jsonval whenever the
+# line is not a plain `"key": value`, e.g. escaped characters.
+sysjson_get() {
+    _sj_val=""
+    _sj_found=0
+    if [ -f /appconfigs/system.json ]; then
+        while IFS= read -r _sj_line || [ -n "$_sj_line" ]; do
+            # trim leading blanks
+            _sj_line=${_sj_line#"${_sj_line%%[!	 ]*}"}
+            case "$_sj_line" in
+                \"$1\":*)
+                    _sj_val=${_sj_line#*:}
+                    _sj_val=${_sj_val#"${_sj_val%%[!	 ]*}"}
+                    _sj_val=${_sj_val%"${_sj_val##*[!	 ]}"}
+                    _sj_val=${_sj_val%,}
+                    _sj_val=${_sj_val%"${_sj_val##*[!	 ]}"}
+                    case "$_sj_val" in
+                        \"*\") _sj_val=${_sj_val#\"}; _sj_val=${_sj_val%\"} ;;
+                    esac
+                    _sj_found=1
+                    break
+                    ;;
+            esac
+        done < /appconfigs/system.json
+    fi
+    case "$_sj_val" in
+        *\\* | *\"* | *[{}[]*) _sj_found=0 ;;
+    esac
+    if [ $_sj_found -eq 1 ] && [ -n "$_sj_val" ]; then
+        echo "$_sj_val"
+    else
+        /customer/app/jsonval "$1"
+    fi
+}
+
+# Split `fbmode --probe` output ("WxH virtual WxH bpp N line_length N pages N")
+# into fb_f1, fb_f3, fb_f5 and fb_flast without forking (was 2-4 echo|awk
+# or echo|cut pipelines per call). Word splitting only; globbing is disabled
+# while the fields are assigned.
+fb_probe_fields() {
+    fb_f1=""
+    fb_f3=""
+    fb_f5=""
+    fb_flast=""
+    set -f
+    # shellcheck disable=SC2086
+    set -- $1
+    set +f
+    [ $# -ge 1 ] && fb_f1=$1
+    [ $# -ge 3 ] && fb_f3=$3
+    [ $# -ge 5 ] && fb_f5=$5
+    [ $# -ge 1 ] && eval "fb_flast=\${$#}"
+}
+
 mount_main_ui() {
-    mainui_mode=$([ -f $sysdir/config/.showExpert ] && echo "expert" || echo "clean")
+    if [ -f $sysdir/config/.showExpert ]; then
+        mainui_mode="expert"
+    else
+        mainui_mode="clean"
+    fi
     mainui_srcname="MainUI-$DEVICE_ID-$mainui_mode"
-    mainui_mount=$(basename "$(cat /proc/self/mountinfo | grep $mainui_target | cut -d' ' -f4)")
+
+    # Mount root (field 4) of the last mountinfo line mentioning the MainUI
+    # path, basename only: same result as the former
+    # cat | grep | cut | basename pipeline, read with shell builtins.
+    mainui_mount=""
+    while read -r _mi_id _mi_parent _mi_dev _mi_root _mi_rest; do
+        case "$_mi_id $_mi_parent $_mi_dev $_mi_root $_mi_rest" in
+            *"$mainui_target"*) mainui_mount=${_mi_root##*/} ;;
+        esac
+    done < /proc/self/mountinfo
 
     if [ "$mainui_mount" != "$mainui_srcname" ]; then
         if mount | grep -q "$mainui_target"; then
@@ -710,28 +1279,137 @@ mount_main_ui() {
 #   resolution is stored in /tmp/screen_resolution
 #   times out after 5 seconds, defaults to 640x480
 #
-get_screen_resolution() {
-    max_attempts=10
-    attempt=0
-
-    log "get_screen_resolution: start"
-    while [ "$attempt" -lt "$max_attempts" ]; do
-        screen_resolution=$(grep 'Current TimingWidth=' /proc/mi_modules/fb/mi_fb0 | sed 's/Current TimingWidth=\([0-9]*\),TimingWidth=\([0-9]*\),.*/\1x\2/')
-        if [ -n "$screen_resolution" ]; then
-            log "get_screen_resolution: success, resolution: $screen_resolution"
-            break
+wait_for_fb_driver() {
+    # Detection below can now answer from dmesg without ever reading mi_fb0,
+    # which removes the implicit barrier the old polling provided. A mode change
+    # issued while the LCD driver is still bringing the panel up can be
+    # overwritten by the driver's own late init, leaving the panel scanning at a
+    # pitch that does not match what was drawn. mi_fb0 publishing its timing is
+    # the signal that init finished, so make the barrier explicit and call it
+    # before every boot-time mode change.
+    fb_wait_attempt=0
+    while [ "$fb_wait_attempt" -lt 50 ]; do
+        if grep -q 'Current TimingWidth=' /proc/mi_modules/fb/mi_fb0 2> /dev/null; then
+            return 0
         fi
-        log "get_screen_resolution: attempt $attempt failed"
-        attempt=$((attempt + 1))
-        sleep 0.5
+        fb_wait_attempt=$((fb_wait_attempt + 1))
+        sleep 0.1
     done
+    log "wait_for_fb_driver: timed out waiting for mi_fb0"
+    return 1
+}
+
+read_mi_fb_resolution() {
+    grep 'Current TimingWidth=' /proc/mi_modules/fb/mi_fb0 2> /dev/null | sed 's/Current TimingWidth=\([0-9]*\),TimingWidth=\([0-9]*\),.*/\1x\2/'
+}
+
+read_dmesg_resolution() {
+    # Match the value attached to the key itself. Splitting the line on "="
+    # would pick up any earlier "=" and mis-parse lines carrying both WIDTH
+    # and HEIGHT, or a prefix such as "opt=1".
+    dmesg 2> /dev/null | awk '
+        {
+            if (match($0, /FB_TIMM?ING_WIDTH=[0-9]+/)) {
+                s = substr($0, RSTART, RLENGTH); sub(/.*=/, "", s); w = s
+            }
+            if (match($0, /FB_TIMM?ING_HEIGHT=[0-9]+/)) {
+                s = substr($0, RSTART, RLENGTH); sub(/.*=/, "", s); h = s
+            }
+        }
+        END {
+            if (w != "" && h != "") print w "x" h
+        }
+    '
+}
+
+# MainUI 640x480/3. Wait for mi_fb0 first: fbmode during late LCD init is
+# overwritten by the driver (the failure wait_for_fb_driver exists to prevent).
+commit_mainui_fbmode() {
+    linger_ms="$1"
+    timeout_ms="$2"
+
+    if ! wait_for_fb_driver; then
+        log "wait_for_fb_driver timed out, falling back to fbset"
+        fbset -g 640 480 640 1440 32
+        return
+    fi
+
+    if ! $sysdir/bin/fbmode 640x480 --pages 3 --preclear --no-clear \
+        --linger "$linger_ms" --timeout "$timeout_ms"; then
+        log "fbmode failed, falling back to fbset"
+        fbset -g 640 480 640 1440 32
+    fi
+}
+
+get_screen_resolution() {
+    log "get_screen_resolution: start"
+
+    # 1. mi_fb0 is authoritative and stays so: if the driver is already up,
+    #    nothing below can override it. Costs a single read.
+    screen_resolution=$(read_mi_fb_resolution)
+    if [ -n "$screen_resolution" ]; then
+        log "get_screen_resolution: mi_fb0 ready, resolution: $screen_resolution"
+    fi
+
+    # 2. Driver not up yet. The kernel log records the timings the framebuffer
+    #    was configured with, which answers the same question without waiting.
+    #    Only consulted when mi_fb0 could not answer, so it can never contradict
+    #    the authoritative source.
+    dmesg_hint=""
+    if [ -z "$screen_resolution" ]; then
+        dmesg_hint=$(read_dmesg_resolution)
+        case "$dmesg_hint" in
+        752x560)
+            screen_resolution="$dmesg_hint"
+            log "get_screen_resolution: from dmesg, resolution: $screen_resolution"
+            ;;
+        640x480)
+            log "get_screen_resolution: from dmesg, resolution: $dmesg_hint"
+            # Early boot can log 640 before the panel's real timing is up.
+            # On Mini, 640 is final. On Plus/Flip, keep polling mi_fb0 so a
+            # 752 panel is not locked to 640 for the whole session.
+            if [ "${HAS_AXP:-0}" -ne 1 ]; then
+                screen_resolution="$dmesg_hint"
+            fi
+            ;;
+        esac
+    fi
+    # 3. Poll mi_fb0 when still unknown. Same 5 s ceiling as before, finer
+    #    granularity, so detection lands within 100 ms of the driver coming up.
+    if [ -z "$screen_resolution" ]; then
+        max_attempts=50
+        attempt=0
+
+        log "get_screen_resolution: polling mi_fb0"
+        while [ "$attempt" -lt "$max_attempts" ]; do
+            screen_resolution=$(read_mi_fb_resolution)
+            if [ -n "$screen_resolution" ]; then
+                log "get_screen_resolution: success after $attempt polls, resolution: $screen_resolution"
+                break
+            fi
+            attempt=$((attempt + 1))
+            sleep 0.1
+        done
+        if [ -z "$screen_resolution" ] && [ "$dmesg_hint" = "640x480" ]; then
+            screen_resolution="$dmesg_hint"
+            log "get_screen_resolution: poll failed, using dmesg 640x480"
+        fi
+    fi
 
     if [ -z "$screen_resolution" ]; then
         log "get_screen_resolution: failed to get screen resolution, fall back to 640x480"
         touch /tmp/get_screen_resolution_failed
     fi
 
-    if [ "$screen_resolution" = "752x560" ] && [ "$(/etc/fw_printenv miyoo_version | cut -d'=' -f2)" -ge "202310271401" ]; then
+    if [ -f "$sysdir/config/.force640Res" ]; then
+        log "get_screen_resolution: .force640Res set, forcing 640x480"
+        rm -f /tmp/new_res_available
+        screen_resolution="640x480"
+
+        if [ -x "$sysdir/bin/fbmode" ]; then
+            commit_mainui_fbmode 150 800
+        fi
+    elif [ "$screen_resolution" = "752x560" ] && [ "$(/etc/fw_printenv miyoo_version | cut -d'=' -f2)" -ge "202310271401" ]; then
         touch /tmp/new_res_available
     else
         # can't use 752x560 without appropriate firmware or screen
@@ -742,7 +1420,7 @@ get_screen_resolution() {
 }
 
 mute_theme_bgm() {
-    system_theme="$(/customer/app/jsonval theme)"
+    system_theme="$(sysjson_get theme)"
     bgm_file="${system_theme}sound/bgm.mp3"
     muted_bgm_file="${system_theme}sound/bgm_muted.mp3"
 
@@ -764,14 +1442,18 @@ create_swap() {
         dd if=/dev/zero of="$swapfile" bs=1M count=128
         mkswap "$swapfile"
     fi
-    log "Enabling swap"
-    swapon "$swapfile"
+    # Nothing in the first seconds of boot needs swap: enable it in the
+    # background instead of waiting for swapon to map the 128 MB file.
+    log "Enabling swap (background)"
+    swapon "$swapfile" &
 }
 
 init_system() {
     log "\n:: Init system"
 
+    perf_begin boot_swap
     create_swap
+    perf_end boot_swap
     load_settings
 
     # init_lcd
@@ -786,9 +1468,11 @@ init_system() {
         $sysdir/script/lcdvolt.sh 2> /dev/null
     fi
 
+    perf_begin boot_audio
     start_audioserver
+    perf_end boot_audio
 
-    brightness=$(/customer/app/jsonval brightness)
+    brightness=$(sysjson_get brightness)
     brightness_raw=$(awk "BEGIN { print int(3 * exp(0.350656 * $brightness) + 0.5) }")
     log "brightness: $brightness -> $brightness_raw"
 
@@ -805,15 +1489,40 @@ init_system() {
     echo $brightness_raw > /sys/class/pwm/pwmchip0/pwm0/duty_cycle
     echo 1 > /sys/class/pwm/pwmchip0/pwm0/enable
 
+    perf_begin boot_display
     get_screen_resolution
+    perf_end boot_display
+
+    # Establish MainUI's layout before the boot screen is drawn. Doing it here
+    # means the boot screen is painted in the mode MainUI will use, so nothing
+    # has to clear it later and it stays up until MainUI paints over it. On
+    # 640-only devices this is skipped and behaviour is unchanged.
+    if [ -f /tmp/new_res_available ] && [ -x "$sysdir/bin/fbmode" ]; then
+        commit_mainui_fbmode 150 500
+    fi
 }
 
 device_uuid=$(read_uuid)
 device_settings="/mnt/SDCARD/.tmp_update/config/system/$device_uuid.json"
 
+# Replace a file crash-safely: write a sibling, flush it, then rename over the
+# target (rename is atomic on the same filesystem). An empty or failed copy
+# never replaces the original. Used for system.json at boot, where a power cut
+# used to be able to leave an empty file.
+replace_file_safely() {
+    # $1 = new content file, $2 = target
+    if [ -s "$1" ]; then
+        sync
+        mv -f "$1" "$2"
+    else
+        rm -f "$1"
+    fi
+}
+
 load_settings() {
     if [ -f "$device_settings" ]; then
-        cp -f "$device_settings" /mnt/SDCARD/system.json
+        cp -f "$device_settings" /mnt/SDCARD/system.json.tmp &&
+            replace_file_safely /mnt/SDCARD/system.json.tmp /mnt/SDCARD/system.json
     fi
 
     # make sure MainUI settings exist
@@ -840,11 +1549,10 @@ load_settings() {
 
         if [ $(/customer/app/jsonval vol) -ne 20 ] || [ $(/customer/app/jsonval mute) -ne 0 ]; then
             # Force volume and mute settings
-            cat /mnt/SDCARD/system.json |
-                sed 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t20/g' |
-                sed 's/^\s*"mute":\s*[0-9][0-9]*/\t"mute":\t0/g' \
-                    > temp
-            mv -f temp /mnt/SDCARD/system.json
+            sed -e 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t20/g' \
+                -e 's/^\s*"mute":\s*[0-9][0-9]*/\t"mute":\t0/g' \
+                /mnt/SDCARD/system.json > /mnt/SDCARD/system.json.tmp &&
+                replace_file_safely /mnt/SDCARD/system.json.tmp /mnt/SDCARD/system.json
         fi
     fi
 
@@ -852,9 +1560,9 @@ load_settings() {
     if [ -f "$default_volume" ]; then
         volume=$(printf '%d' "$(cat "$default_volume")")
         if [ $? -eq 0 ]; then
-            cat /mnt/SDCARD/system.json |
-                sed 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t'$volume'/g' > temp
-            mv -f temp /mnt/SDCARD/system.json
+            sed 's/^\s*"vol":\s*[0-9][0-9]*/\t"vol":\t'$volume'/g' \
+                /mnt/SDCARD/system.json > /mnt/SDCARD/system.json.tmp &&
+                replace_file_safely /mnt/SDCARD/system.json.tmp /mnt/SDCARD/system.json
         fi
     fi
 }
@@ -913,6 +1621,21 @@ set_startup_tab() {
 }
 
 start_audioserver() {
+    # Already running (the usual case on every game launch): skip computing
+    # the start volume, which cost jsonval + awk + a subshell each time.
+    # Check the pid found last time through /proc first (no fork, like
+    # ensure_keymon); pgrep, a full /proc scan, only when it is gone. This
+    # runs before every MainUI, game and GameSwitcher start.
+    if [ -n "$audioserver_pid" ] && [ -r "/proc/$audioserver_pid/comm" ]; then
+        read -r _as_comm < "/proc/$audioserver_pid/comm"
+        case "$_as_comm" in *audioserver*) return ;; esac
+    fi
+    set -- $(pgrep audioserver)
+    if [ -n "$1" ]; then
+        audioserver_pid=$1
+        return
+    fi
+    audioserver_pid=""
     defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%.0f\n", 48 * (log(1 + $1) / log(10)) - 60 }')
     runifnecessary "audioserver" $miyoodir/app/audioserver $defvol
 }
@@ -924,9 +1647,16 @@ runifnecessary() {
     while [ "$a" == "" ] && [ $cnt -lt 8 ]; do
         log "try to run: $2"
         $2 $3 &
-        sleep 0.5
+        # Was a fixed 0.5 s before every check; the process is usually up in
+        # a few ms. Poll every 50 ms with the same 0.5 s ceiling per attempt.
+        wait_polls=0
+        a=""
+        while [ -z "$a" ] && [ $wait_polls -lt 10 ]; do
+            sleep 0.05
+            a=$(pgrep $1)
+            wait_polls=$((wait_polls + 1))
+        done
         cnt=$(expr $cnt + 1)
-        a=$(pgrep $1)
     done
 }
 
@@ -946,10 +1676,38 @@ check_networking() {
 
     if pgrep -f update_networking.sh; then
         log "update_networking already running"
+        queue_network_check
     else
-        rm /tmp/network_changed
-        $sysdir/script/network/update_networking.sh check
+        run_network_check
     fi
+}
+
+# Runs the pending network check. Only one caller takes it (this state
+# change or a queued retry): the flag is moved away atomically first.
+run_network_check() {
+    mv /tmp/network_changed /tmp/network_changed.taken 2> /dev/null || return 0
+    rm -f /tmp/network_changed.taken
+    perf_begin net_check
+    $sysdir/script/network/update_networking.sh check
+    perf_end net_check
+}
+
+# A check skipped because update_networking.sh was still running (e.g. a
+# time sync after Wi-Fi came on) used to wait for the next state change:
+# services such as SSH stayed off while the user sat in a menu. Retry in
+# the background once that run ends (at most 2 min; one waiter at a time).
+# Services still skip a running game (start_services_outside_game).
+queue_network_check() {
+    mkdir /tmp/network_check_queued 2> /dev/null || return 0
+    (
+        _qn_waited=0
+        while pgrep -f update_networking.sh > /dev/null && [ $_qn_waited -lt 120 ]; do
+            sleep 1
+            _qn_waited=$((_qn_waited + 1))
+        done
+        rmdir /tmp/network_check_queued
+        [ -f /tmp/network_changed ] && run_network_check
+    ) &
 }
 
 check_installer() {

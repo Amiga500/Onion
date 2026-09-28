@@ -6,17 +6,25 @@ blf_key_on_user=$sysdir/config/.blfOn
 blf_key_on=/tmp/.blfOn
 ignore_schedule=/tmp/.blfIgnoreSchedule
 
-sync
+# Atomic lock: mkdir fails if another instance holds it (the old
+# test-then-touch left a window where two instances could both start).
+# Lives in /tmp, so a stale lock never survives a reboot.
 lockfile="/tmp/blue_light_script.lock"
 
-if [ -f "$lockfile" ]; then
+# A plain-file lock left by the previous version of this script (same boot,
+# before a reboot) would block mkdir forever: drop it.
+[ -f "$lockfile" ] && rm -f "$lockfile"
+
+if ! mkdir "$lockfile" 2> /dev/null; then
     exit 1
 fi
+trap 'rmdir "$lockfile" 2> /dev/null' EXIT
+trap 'exit 1' INT TERM
 
-export TZ=$(cat "$sysdir/config/.tz")
-
-touch "$lockfile"
-trap 'rm -f "$lockfile"; exit' INT TERM EXIT
+if [ -f "$sysdir/config/.tz" ]; then
+    read -r TZ < "$sysdir/config/.tz"
+    export TZ
+fi
 
 setRGBValues() {
     value=$1
@@ -38,7 +46,6 @@ setRGBValues() {
 
 set_intensity() {
     reset_to_default=${1:-1}
-    sync
 
     value=$(cat $sysdir/config/display/blueLightLevel)
 
@@ -65,7 +72,6 @@ set_intensity() {
         touch /tmp/blueLightIntensityChange
         blueLightStart
     fi
-    rm $lockfile
 }
 
 check_disp_init() {
@@ -81,7 +87,6 @@ check_disp_init() {
 }
 
 blueLightStart() {
-    sync
     value=$(cat $sysdir/config/display/blueLightLevel)
 
     if [ -f $blf_key_on ]; then
@@ -119,17 +124,22 @@ blueLightStart() {
 }
 
 
+# "HH:MM" -> minutes since midnight, without forking (was echo|cut|xargs x2 +
+# awk for every call). Leading zeros are stripped so "08" is not octal.
 to_minutes_since_midnight() {
-    hour=$(echo "$1" | cut -d: -f1 | xargs)
-    minute=$(echo "$1" | cut -d: -f2 | xargs)
-    hour=${hour:-0}
-    minute=${minute:-0}
-    echo "$hour $minute" | awk '{print $1 * 60 + $2}'
+    _t=$1
+    _h=${_t%%:*}
+    _m=${_t#*:}
+    [ "$_m" = "$_t" ] && _m=0
+    _h=${_h# }; _h=${_h% }; _m=${_m# }; _m=${_m% }
+    _h=${_h#0}; _m=${_m#0}
+    case "$_h" in ''|*[!0-9]*) _h=0 ;; esac
+    case "$_m" in ''|*[!0-9]*) _m=0 ;; esac
+    echo $((_h * 60 + _m))
 }
 
-enable_blue_light_filter() {   
+enable_blue_light_filter() {
     check_disp_init
-    sync
     blueLightStart
     
     echo ":: Blue Light Filter: Enabled"
@@ -138,9 +148,8 @@ enable_blue_light_filter() {
     sync
 }
 
-disable_blue_light_filter() {    
+disable_blue_light_filter() {
     check_disp_init
-    sync
     
     combinedBGR=$(cat $sysdir/config/display/blueLightRGB)
     combinedBGR=$(echo "$combinedBGR" | tr -d '[:space:]/#')
@@ -167,7 +176,6 @@ disable_blue_light_filter() {
 }
 
 check_blf() {
-    sync
     if [ -f "$blf_key" ] && [ ! -f "$ignore_schedule" ]; then
 
         if [ ! -f "$blf_key_on" ] && [ -f "$blf_key_on_user" ]; then
@@ -178,7 +186,6 @@ check_blf() {
         blueLightTimeOffFile="$sysdir/config/display/blueLightTimeOff"
 
         if [ ! -f "$blueLightTimeOnFile" ] || [ ! -f "$blueLightTimeOffFile" ]; then
-            rm -f "$lockfile"
             return
         fi
 
@@ -212,7 +219,6 @@ check_blf() {
             fi
         fi
     fi
-    rm -f "$lockfile"
 }
 
 set_default() {
