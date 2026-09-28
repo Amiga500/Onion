@@ -1,0 +1,141 @@
+/**
+ * @file test_overlay_content.c
+ * @brief Unit tests for _isContentNameInInfo() from gs_overlay.h
+ *
+ * Tests the pure string matching function used by the game switcher
+ * overlay to detect whether a RetroArch content name appears in the
+ * status content_info field. The function checks that the match is
+ * bounded by commas: ",<name>,".
+ *
+ * Build and run: make -f Makefile.unit test_overlay_content
+ */
+
+#include "onion_test.h"
+#include <stdbool.h>
+#include <string.h>
+
+/* Production code: _isContentNameInInfo() from gameSwitcher/gs_content_match.h
+ * (used by gs_overlay.h). RetroArch reports "core,content name,crc32=...". */
+#include "../src/gameSwitcher/gs_content_match.h"
+
+/* ==== Tests: basic matching ==== */
+
+TEST(content_name_found_in_middle) {
+    /* Typical RetroArch content_info format: ",name1,name2,name3," */
+    ASSERT_TRUE(_isContentNameInInfo(",game1,Super Mario,game3,", "Super Mario"));
+}
+
+TEST(content_name_found_at_start_after_comma) {
+    ASSERT_TRUE(_isContentNameInInfo(",Pokemon Red,other,", "Pokemon Red"));
+}
+
+TEST(content_name_found_at_end_before_comma) {
+    ASSERT_TRUE(_isContentNameInInfo(",other,Zelda,", "Zelda"));
+}
+
+TEST(content_name_single_entry) {
+    ASSERT_TRUE(_isContentNameInInfo(",MyGame,", "MyGame"));
+}
+
+/* ==== Tests: non-matching cases ==== */
+
+TEST(content_name_not_found) {
+    ASSERT_FALSE(_isContentNameInInfo(",game1,game2,game3,", "NotHere"));
+}
+
+TEST(content_name_substring_not_matched) {
+    /* "Mario" is a substring of "Super Mario" but not comma-bounded */
+    ASSERT_FALSE(_isContentNameInInfo(",Super Mario,", "Mario"));
+}
+
+TEST(content_name_prefix_not_matched) {
+    ASSERT_FALSE(_isContentNameInInfo(",Super Mario,", "Super"));
+}
+
+TEST(content_name_at_start_of_info) {
+    /* The start of the string is a field boundary too */
+    ASSERT_TRUE(_isContentNameInInfo("game1,game2,", "game1"));
+}
+
+TEST(content_name_no_trailing_comma) {
+    /* If the match has no trailing comma, it should fail */
+    ASSERT_FALSE(_isContentNameInInfo(",game1", "game1"));
+}
+
+TEST(content_name_empty_info) {
+    ASSERT_FALSE(_isContentNameInInfo("", "anything"));
+}
+
+
+/* An empty name matched any info starting with a comma. */
+TEST(content_name_empty_name) {
+    ASSERT_FALSE(_isContentNameInInfo(",game,", ""));
+}
+
+/* The first occurrence is inside a longer field; a later one is exact. */
+TEST(content_name_later_exact_field) {
+    ASSERT_TRUE(_isContentNameInInfo("snes9x,Super Mario World,Super Mario,crc32=1", "Super Mario"));
+    ASSERT_TRUE(_isContentNameInInfo("mgba,Tetris DX,Tetris,", "Tetris"));
+    ASSERT_FALSE(_isContentNameInInfo("mgba,Tetris DX,Tetris 2,", "Tetris"));
+}
+
+TEST(content_name_null_args) {
+    ASSERT_FALSE(_isContentNameInInfo(NULL, "game"));
+    ASSERT_FALSE(_isContentNameInInfo(",game,", NULL));
+}
+
+/* ==== Tests: edge cases with similar names ==== */
+
+TEST(content_name_exact_match_not_partial) {
+    ASSERT_TRUE(_isContentNameInInfo(",Sonic,Sonic 2,Sonic 3,", "Sonic"));
+    ASSERT_TRUE(_isContentNameInInfo(",Sonic,Sonic 2,Sonic 3,", "Sonic 2"));
+    ASSERT_TRUE(_isContentNameInInfo(",Sonic,Sonic 2,Sonic 3,", "Sonic 3"));
+}
+
+TEST(content_name_with_special_chars) {
+    ASSERT_TRUE(_isContentNameInInfo(",Game (USA),", "Game (USA)"));
+    ASSERT_TRUE(_isContentNameInInfo(",Game [BIOS],", "Game [BIOS]"));
+}
+
+TEST(content_name_with_dots) {
+    ASSERT_TRUE(_isContentNameInInfo(",game.v1.2,", "game.v1.2"));
+}
+
+TEST(content_name_duplicate_entries) {
+    ASSERT_TRUE(_isContentNameInInfo("game,game,", "game"));
+    /* If properly bounded, both occurrences work */
+    ASSERT_TRUE(_isContentNameInInfo(",game,game,", "game"));
+}
+
+/* ---- main ---- */
+
+int main(void)
+{
+    printf("\n=== gs_overlay.h _isContentNameInInfo Unit Tests ===\n\n");
+
+    /* Basic matching */
+    RUN_TEST(content_name_empty_name);
+    RUN_TEST(content_name_later_exact_field);
+    RUN_TEST(content_name_null_args);
+    RUN_TEST(content_name_found_in_middle);
+    RUN_TEST(content_name_found_at_start_after_comma);
+    RUN_TEST(content_name_found_at_end_before_comma);
+    RUN_TEST(content_name_single_entry);
+
+    /* Non-matching */
+    RUN_TEST(content_name_not_found);
+    RUN_TEST(content_name_substring_not_matched);
+    RUN_TEST(content_name_prefix_not_matched);
+    RUN_TEST(content_name_at_start_of_info);
+    RUN_TEST(content_name_no_trailing_comma);
+    RUN_TEST(content_name_empty_info);
+
+    /* Edge cases */
+    RUN_TEST(content_name_exact_match_not_partial);
+    RUN_TEST(content_name_with_special_chars);
+    RUN_TEST(content_name_with_dots);
+    RUN_TEST(content_name_duplicate_entries);
+
+    TEST_REPORT();
+    return test_failures;
+}

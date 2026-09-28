@@ -15,78 +15,11 @@
 #include "utils/str.h"
 
 #include "../playActivity/cacheDB.h"
+#include "../playActivity/playActivityDB.h"
 
 #include "gs_model.h"
 #include "gs_retroarch.h"
 #include "gs_romscreen.h"
-
-bool parseJsonToRecentItem(const char *jsonStr, RecentItem *recentItem, int lineNo)
-{
-    cJSON *json = cJSON_Parse(jsonStr);
-    if (json == NULL) {
-        print_debug("Error parsing JSON");
-        return false;
-    }
-
-    cJSON *type = cJSON_GetObjectItemCaseSensitive(json, "type");
-    if (!cJSON_IsNumber(type) || (type->valueint != 5 && type->valueint != 17)) {
-        cJSON_Delete(json);
-        return false;
-    }
-
-    cJSON *label = cJSON_GetObjectItemCaseSensitive(json, "label");
-    cJSON *rompath = cJSON_GetObjectItemCaseSensitive(json, "rompath");
-    cJSON *imgpath = cJSON_GetObjectItemCaseSensitive(json, "imgpath");
-    cJSON *launch = cJSON_GetObjectItemCaseSensitive(json, "launch");
-
-    if (cJSON_IsString(label) && (label->valuestring != NULL)) {
-        strncpy(recentItem->label, label->valuestring, sizeof(recentItem->label) - 1);
-    }
-    if (cJSON_IsString(rompath) && (rompath->valuestring != NULL)) {
-        strncpy(recentItem->rompath, rompath->valuestring, sizeof(recentItem->rompath) - 1);
-    }
-    if (cJSON_IsString(imgpath) && (imgpath->valuestring != NULL)) {
-        strncpy(recentItem->imgpath, imgpath->valuestring, sizeof(recentItem->imgpath) - 1);
-    }
-    if (cJSON_IsString(launch) && (launch->valuestring != NULL)) {
-        strncpy(recentItem->launch, launch->valuestring, sizeof(recentItem->launch) - 1);
-    }
-    recentItem->type = type->valueint;
-    recentItem->lineNo = lineNo;
-
-    // Check if rompath contains a colon (':') and split it into launch and rompath
-    char *colonPosition = strchr(recentItem->rompath, ':');
-    if (colonPosition != NULL) {
-        int position = (int)(colonPosition - recentItem->rompath);
-
-        char firstPart[position + 1];
-        strncpy(firstPart, recentItem->rompath, position);
-        firstPart[position] = '\0';
-
-        char secondPart[strlen(recentItem->rompath) - position];
-        strcpy(secondPart, colonPosition + 1);
-
-        strcpy(recentItem->launch, firstPart);
-        strcpy(recentItem->rompath, secondPart);
-    }
-
-    cJSON_Delete(json);
-    return true;
-}
-
-void setEntryDefaultValues(Game_s *game, int index)
-{
-    game->romScreen = NULL;
-    game->totalTime[0] = '\0';
-    game->processed = false;
-    game->is_running = false;
-
-    strcpy(game->name, "");
-    strcpy(game->shortname, "");
-    strcpy(game->core_name, "");
-    strcpy(game->core_path, "");
-    game->index = index;
-}
 
 /**
  * @brief History extraction
@@ -95,7 +28,6 @@ void setEntryDefaultValues(Game_s *game, int index)
 void readHistory()
 {
     FILE *file;
-    char line[STR_MAX * 6];
     int numRecents = 0;
 
     const char *recentFilePath = getMiyooRecentFilePath();
@@ -106,10 +38,19 @@ void readHistory()
         return;
     }
 
-    int lineNo = 0;
+    // Duplicates are collected and removed in ONE rewrite after the scan
+    // (was: a full rewrite of the recent list per duplicate). Line numbers
+    // stored in each entry already account for the lines deleted before it.
+    int dup_lines[MAX_HISTORY * 2];
+    int dup_count = 0;
+    int orig_line_no = 0;
 
-    while ((fgets(line, sizeof(line), file) != NULL) && (numRecents < MAX_HISTORY)) {
-        ++lineNo;
+    char *line = NULL;
+    size_t line_cap = 0;
+
+    while (numRecents < MAX_HISTORY && getline(&line, &line_cap, file) != -1) {
+        ++orig_line_no;
+        int lineNo = orig_line_no - dup_count;
 
         if (!parseJsonToRecentItem(line, &game_list[numRecents].recentItem, lineNo)) {
             continue;
@@ -125,8 +66,10 @@ void readHistory()
         }
 
         if (isDuplicate) {
-            file_delete_line(recentFilePath, lineNo);
-            lineNo--;
+            // Only count it as deleted if it will really be deleted, so the
+            // numbering of the following entries stays correct.
+            if (dup_count < (int)(sizeof(dup_lines) / sizeof(dup_lines[0])))
+                dup_lines[dup_count++] = orig_line_no;
             continue;
         }
 
@@ -141,7 +84,12 @@ void readHistory()
         numRecents++;
     }
 
+    free(line);
     fclose(file);
+
+    if (dup_count > 0)
+        file_delete_lines(recentFilePath, dup_lines, dup_count);
+
     game_list_len = numRecents;
 }
 
@@ -156,20 +104,21 @@ bool getGameName(char *name_out, const char *rom_path)
     return false;
 }
 
-void processItem(Game_s *game)
+// Name/core lookup for one entry. Runs under meta_mutex (see
+// gs_romscreen.h), either on the UI thread or on the prefetch worker.
+void processItemMetaWork(Game_s *game)
 {
-    if (game->processed) {
-        return;
+    char *rom_name = file_removeExtension(file_basename(game->recentItem.rompath));
+    if (rom_name != NULL) {
+        snprintf(game->rom_name, sizeof(game->rom_name), "%s", rom_name);
+        free(rom_name);
+    }
+    else {
+        game->rom_name[0] = '\0';
     }
 
-    game->processed = true;
-
-    char *rom_name = file_removeExtension(file_basename(game->recentItem.rompath));
-    strcpy(game->rom_name, rom_name);
-    free(rom_name);
-
     if (!getGameName(game->name, game->recentItem.rompath)) {
-        strcpy(game->name, game->rom_name);
+        snprintf(game->name, sizeof(game->name), "%s", game->rom_name);
     }
 
     file_cleanName(game->shortname, game->name);
@@ -178,8 +127,21 @@ void processItem(Game_s *game)
         ra_getCoreNameFromInfo(game);
     }
 
+    // Play time shown in the header: computed here (prefetch worker, under
+    // meta_mutex) so the UI thread does not open the database on the SD card
+    // the first time each game is shown. renderHeader() still computes it if
+    // it is missing (e.g. the time display was switched on later).
+    if (romscreen_prefetch_play_time && game->totalTime[0] == '\0')
+        str_serializeTime(game->totalTime, play_activity_get_play_time(game->recentItem.rompath));
+}
+
+void processItem(Game_s *game)
+{
+    // Usually already done by the prefetch worker; otherwise done here.
+    romscreen_ensureMeta(game);
+
     if (game->romScreen == NULL) {
-        game->romScreen = loadRomScreen(game->index);
+        loadRomScreen(game->index);
     }
 }
 

@@ -2,9 +2,8 @@
 #define GAME_SWITCHER_APP_STATE_H__
 
 #include <SDL/SDL.h>
-#include <signal.h>
-
 #include "gs_model.h"
+#include "utils/signal_handler.h"
 
 #define VIEW_NORMAL 0
 #define VIEW_MINIMAL 1
@@ -42,6 +41,7 @@ typedef struct {
     int current_game;
     SDL_Surface *surfaceGameName;
     SDL_Rect game_name_size;
+    SDL_Rect game_name_bar; // last drawn name bar, for name-only frames
     int game_name_max_width;
     int gameNameScrollX;
     int gameNameScrollSpeed;
@@ -81,6 +81,7 @@ static AppState appState = {
     .current_game = 0,
     .surfaceGameName = NULL,
     .game_name_size = {0, 0},
+    .game_name_bar = {0, 0, 0, 0},
     .game_name_max_width = 0,
     .gameNameScrollX = 0,
     .gameNameScrollSpeed = 10,
@@ -89,14 +90,10 @@ static AppState appState = {
 
 static void sigHandler(int sig)
 {
-    switch (sig) {
-    case SIGINT:
-    case SIGTERM:
+    /* Custom: gameSwitcher must set both exit_to_menu and quit. */
+    if (sig == SIGINT || sig == SIGTERM) {
         appState.exit_to_menu = true;
         appState.quit = true;
-        break;
-    default:
-        break;
     }
 }
 
@@ -104,6 +101,8 @@ static char sTotalTimePlayed[50] = "";
 
 Game_s *currentGame(void)
 {
+    if (game_list_len == 0)
+        return NULL;
     return &game_list[appState.current_game];
 }
 

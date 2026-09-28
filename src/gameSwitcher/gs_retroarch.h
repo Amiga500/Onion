@@ -4,49 +4,7 @@
 #include "cjson/cJSON.h"
 
 #include "gs_model.h"
-
-static cJSON *g_cachedRetroArchHistory = NULL;
-
-bool ra_loadHistory(const char *jsonFilePath)
-{
-    if (g_cachedRetroArchHistory != NULL) {
-        cJSON_Delete(g_cachedRetroArchHistory);
-        g_cachedRetroArchHistory = NULL;
-    }
-
-    FILE *file = fopen(jsonFilePath, "r");
-    if (file == NULL) {
-        print_debug("Error opening JSON file");
-        return false;
-    }
-
-    fseek(file, 0, SEEK_END);
-    long fileSize = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    char *fileContent = (char *)malloc(fileSize + 1);
-    fread(fileContent, 1, fileSize, file);
-    fileContent[fileSize] = '\0';
-    fclose(file);
-
-    g_cachedRetroArchHistory = cJSON_Parse(fileContent);
-    free(fileContent);
-
-    if (g_cachedRetroArchHistory == NULL) {
-        print_debug("Error parsing JSON");
-        return false;
-    }
-
-    return true;
-}
-
-void ra_freeHistory()
-{
-    if (g_cachedRetroArchHistory != NULL) {
-        cJSON_Delete(g_cachedRetroArchHistory);
-        g_cachedRetroArchHistory = NULL;
-    }
-}
+#include "gs_ra_files.h"
 
 bool ra_findItemInRetroArchHistory(Game_s *game)
 {
@@ -105,26 +63,14 @@ void ra_getCoreNameFromInfo(Game_s *game)
             char infoPath[STR_MAX * 2];
             snprintf(infoPath, sizeof(infoPath), "%s.info", basePath);
             file_parseKeyValue(infoPath, "corename", game->core_name, '=', 0);
+            // The .info name is not always RetroArch's folder name for
+            // this core's states and configs (Supafaust).
+            ra_resolveCoreDirName(STATES_DIR, game->rom_name, game->core_name, sizeof(game->core_name));
             printf_debug("Core name: %s\n", game->core_name);
             free(basePath);
         }
     }
 }
-bool ra_getBoolFromConfig(const char *cfg_path, bool *out_value, const char *key)
-{
-    char value[STR_MAX * 2];
-    file_parseKeyValue(cfg_path, key, value, '=', 0);
-    if (strcmp(value, "true") == 0) {
-        *out_value = true;
-        return true;
-    }
-    else if (strcmp(value, "false") == 0) {
-        *out_value = false;
-        return true;
-    }
-    return false;
-}
-
 bool ra_getConfigOverrideOption(const Game_s *game, const char *key, bool defaultValue)
 {
     bool result = false;

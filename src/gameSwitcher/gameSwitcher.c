@@ -28,6 +28,7 @@
 #include "utils/surfaceSetAlpha.h"
 
 #include "gs_appState.h"
+#include "gs_frame.h"
 #include "gs_history.h"
 #include "gs_keystate.h"
 #include "gs_overlay.h"
@@ -47,7 +48,8 @@ int main(int argc, char *argv[])
 
     readFirstEntry();
     overlay_init();
-    loadRomScreens();
+    // The prefetch worker starts after readHistory() (first render), so it
+    // never races with the list being (re)built.
 
     settings_load();
     lang_load();
@@ -55,6 +57,7 @@ int main(int argc, char *argv[])
     mkdirs("/mnt/SDCARD/.tmp_update/config/gameSwitcher");
 
     appState.show_time = config_flag_get("gameSwitcher/showTime");
+    romscreen_prefetch_play_time = appState.show_time;
     appState.show_total = !config_flag_get("gameSwitcher/hideTotal");
     appState.show_legend = !config_flag_get("gameSwitcher/hideLegend");
     appState.view_mode = appState.view_restore = config_flag_get("gameSwitcher/minimal") ? VIEW_MINIMAL : VIEW_NORMAL;
@@ -63,6 +66,7 @@ int main(int argc, char *argv[])
     SDL_FillRect(appState.transparent_bg, NULL, 0xBE000000);
 
     int battery_percentage = battery_getPercentage();
+    uint32_t last_battery_check = 0;
 
     appState.last_ticks = SDL_GetTicks();
     appState.legend_start = appState.last_ticks;
@@ -94,13 +98,28 @@ int main(int argc, char *argv[])
 
         handleKeystate(&appState);
 
-        if (battery_hasChanged(ticks, &battery_percentage))
-            appState.changed = true;
+        // Battery percentage is updated by batmon at most every second;
+        // polling /tmp/percBat once per second is enough (was: every loop iteration).
+        if (ticks - last_battery_check >= 1000) {
+            last_battery_check = ticks;
+            if (battery_hasChanged(ticks, &battery_percentage))
+                appState.changed = true;
+        }
+
+        // Idle until the next frame instead of spinning on a CPU core
+        // (input latency stays below one frame, ~33 ms)
+        if (appState.acc_ticks < appState.time_step) {
+            SDL_Delay(appState.time_step - appState.acc_ticks);
+            continue;
+        }
 
         if (appState.acc_ticks >= appState.time_step) {
             appState.acc_ticks -= appState.time_step;
 
-            if (!appState.changed && !appState.brightness_changed && (appState.surfaceGameName == NULL || appState.surfaceGameName->w <= appState.game_name_max_width))
+            bool name_shown = appState.view_mode != VIEW_FULLSCREEN && game_list_len > 0 && !appState.pop_menu_open;
+            bool name_scrolls = appState.surfaceGameName != NULL && appState.surfaceGameName->w > appState.game_name_max_width;
+            GsFrame_e frame = gs_frameKind(appState.changed, name_shown, name_scrolls);
+            if (frame == GS_FRAME_SKIP)
                 continue;
 
             Game_s *game = &game_list[appState.current_game];
@@ -117,6 +136,7 @@ int main(int argc, char *argv[])
                 }
                 else {
                     appState.current_bg = loadRomScreen(appState.current_game);
+                    romscreen_prefetch(appState.current_game);
 
                     if (appState.current_bg != NULL) {
                         renderCentered(appState.current_bg, appState.view_mode, NULL, NULL);
@@ -124,12 +144,14 @@ int main(int argc, char *argv[])
                 }
             }
 
-            if (appState.view_mode != VIEW_FULLSCREEN && game_list_len > 0 && !appState.pop_menu_open) {
+            if (name_shown) {
                 renderGameName(&appState);
             }
 
-            if (!appState.changed && !appState.brightness_changed) {
-                render();
+            if (frame == GS_FRAME_NAME_ONLY) {
+                // The vertical brightness slider can overlap the name bar.
+                renderBrightness(&appState);
+                render_rows(appState.game_name_bar.y, appState.game_name_bar.h);
                 continue;
             }
 
@@ -161,6 +183,8 @@ int main(int argc, char *argv[])
         }
     }
 
+    Game_s *current_game = currentGame();
+
     if (appState.exit_to_menu) {
         print_debug("Exiting to menu");
         remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
@@ -169,7 +193,10 @@ int main(int argc, char *argv[])
         SDL_FillRect(screen, NULL, 0);
         render();
     }
-    else if (currentGame()->is_running) {
+    else if (current_game == NULL) {
+        print_debug("No current game; nothing to resume");
+    }
+    else if (current_game->is_running) {
         if (appState.current_bg != NULL) {
             SDL_FillRect(screen, NULL, 0);
             renderCentered(appState.current_bg, VIEW_FULLSCREEN, NULL, NULL);
@@ -177,8 +204,8 @@ int main(int argc, char *argv[])
         overlay_resume();
     }
     else {
-        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, game_list[appState.current_game].index);
-        resumeGame(game_list[appState.current_game].index);
+        printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, current_game->index);
+        resumeGame(current_game->index);
         overlay_exit();
         render_showFullscreenMessage("LOADING", true);
     }
@@ -196,6 +223,9 @@ int main(int argc, char *argv[])
     if (appState.transparent_bg != NULL)
         SDL_FreeSurface(appState.transparent_bg);
 
+    theme_renderHeader_cleanup();
+    theme_renderStandardHint_cleanup();
+    theme_renderDialog_cleanup();
     resources_free();
 
     freeRomScreens();

@@ -9,6 +9,7 @@
 #include "utils/keystate.h"
 
 #include "gs_appState.h"
+#include "gs_longpress.h"
 #include "gs_model.h"
 #include "gs_popMenu.h"
 #include "gs_romscreen.h"
@@ -21,7 +22,7 @@ typedef struct {
     bool select_pressed;
     bool select_combo_key;
     SDLKey changed_key;
-    int button_y_repeat;
+    LongPress_s button_y;
 } AppKeyState_s;
 
 static AppKeyState_s _gs_keystate = {
@@ -32,11 +33,18 @@ static AppKeyState_s _gs_keystate = {
     .select_pressed = false,
     .select_combo_key = false,
     .changed_key = SDLK_UNKNOWN,
-    .button_y_repeat = 0,
+    .button_y = {false, false, 0},
 };
 
 void removeCurrentItem()
 {
+    // The save state scan reads game_list, so let it finish before the
+    // entries below the current one are shifted up.
+    popMenu_finishScan(false);
+
+    // Same for the romscreen prefetch worker (released at the end).
+    romscreen_lockForUpdate();
+
     Game_s *game = &game_list[appState.current_game];
 
     printf_debug("removing: %s\n", game->name);
@@ -63,6 +71,8 @@ void removeCurrentItem()
     }
 
     game_list_len--;
+
+    romscreen_unlock();
 }
 
 int checkQuitAction(void)
@@ -101,6 +111,7 @@ void action_confirmRemove(AppState *state)
                 break;
             }
         }
+        SDL_Delay(15); // wait for input without spinning
     }
 }
 
@@ -117,6 +128,9 @@ void action_toggleHeader(AppState *state)
         state->show_time = false, state->show_total = false;
 
     config_flag_set("gameSwitcher/showTime", state->show_time);
+    pthread_mutex_lock(&meta_mutex); // read by the prefetch worker
+    romscreen_prefetch_play_time = state->show_time;
+    pthread_mutex_unlock(&meta_mutex);
     config_flag_set("gameSwitcher/hideTotal", !state->show_total);
 
     state->changed = true;
@@ -191,12 +205,11 @@ void handleUpdateKeystateMain(AppState *state)
     }
 
     if (_gs_keystate.changed_key == SW_BTN_Y && keystate[SW_BTN_Y] == RELEASED) {
-        if (_gs_keystate.button_y_repeat < 75) {
+        if (longPress_release(&_gs_keystate.button_y)) {
             state->view_mode = state->view_mode == VIEW_FULLSCREEN ? state->view_restore : !state->view_mode;
             config_flag_set("gameSwitcher/minimal", state->view_mode == VIEW_MINIMAL);
             state->changed = true;
         }
-        _gs_keystate.button_y_repeat = 0;
     }
 
     if (keystate[SW_BTN_X] == PRESSED) {
@@ -213,11 +226,15 @@ void handleUpdateKeystateMain(AppState *state)
 void handleUpdateKeystatePopMenu(AppState *state)
 {
     KeyState *keystate = _gs_keystate.keystate;
-    ListItem *item = list_currentItem(&state->pop_menu_list);
+
+    if (!state->pop_menu_list._created) {
+        return;
+    }
 
     if (keystate[SW_BTN_B] == PRESSED) {
         state->pop_menu_open = false;
         state->changed = true;
+        return;
     }
 
     if (keystate[SW_BTN_A] == PRESSED) {
@@ -226,6 +243,19 @@ void handleUpdateKeystatePopMenu(AppState *state)
     else if (keystate[SW_BTN_A] == RELEASED && _gs_keystate.btn_a_pressed) {
         _gs_keystate.btn_a_pressed = false;
         list_activateItem(&state->pop_menu_list);
+
+        // Actions that need a new menu (Save) only ask for it; free it now
+        // that list_activateItem() is done with the item.
+        if (popMenu_rebuildIfRequested()) {
+            state->changed = true;
+            return;
+        }
+
+        // An action may close or destroy the popup. Do not keep using the
+        // ListItem pointer or list storage after the callback returns.
+        if (state->quit || !state->pop_menu_open || !state->pop_menu_list._created) {
+            return;
+        }
     }
 
     if (keystate[SW_BTN_DOWN] >= PRESSED) {
@@ -237,7 +267,11 @@ void handleUpdateKeystatePopMenu(AppState *state)
             state->changed = true;
     }
 
+    // Navigation or an action can change the active item, so reacquire it.
+    ListItem *item = list_currentItem(&state->pop_menu_list);
     if (item != NULL && item->action_id == POP_MENU_ACTION_LOAD) {
+        popMenu_finishScan(true);
+
         if (keystate[SW_BTN_LEFT] >= PRESSED) {
             if (g_save_state_info.selected_slot > 0) {
                 g_save_state_info.selected_slot--;
@@ -306,9 +340,14 @@ void handleKeystate(AppState *state)
         }
     }
 
+    // A release handled elsewhere (pop menu, confirmation dialog) never
+    // reaches the release check in handleUpdateKeystateMain: reset the long
+    // press here, or the next tap would count from the old press time.
+    if (keystate[SW_BTN_Y] == RELEASED)
+        longPress_release(&_gs_keystate.button_y);
+
     if (keystate[SW_BTN_Y] == PRESSED && state->view_mode != VIEW_FULLSCREEN && !state->pop_menu_open) {
-        _gs_keystate.button_y_repeat++;
-        if (_gs_keystate.button_y_repeat >= 75) {
+        if (longPress_held(&_gs_keystate.button_y, SDL_GetTicks(), GS_LONG_PRESS_MS)) {
             state->view_restore = state->view_mode;
             state->view_mode = VIEW_FULLSCREEN;
             state->changed = true;
