@@ -14,6 +14,7 @@
 #include "utils/str.h"
 
 #include "themeMarker.h"
+#include "themePreview.h"
 
 #ifdef PLATFORM_MIYOOMINI
 #define SCRIPT_DIR "/mnt/SDCARD/.tmp_update/script"
@@ -40,7 +41,7 @@ void loadThemeDirectory(const char *theme_dir,
     DIR *dp;
     struct dirent *ep;
     char config_path[STR_MAX * 2];
-    char preview_path[STR_MAX * 2];
+    char preview_dir[STR_MAX * 2];
 
     if ((dp = opendir(theme_dir)) != NULL) {
         while ((ep = readdir(dp))) {
@@ -55,10 +56,22 @@ void loadThemeDirectory(const char *theme_dir,
                      theme_dir, ep->d_name);
 
             if (check_preview) {
-                snprintf(preview_path, STR_MAX * 2 - 1,
-                         THEMES_DIR "/.previews/%s/config.json", ep->d_name);
-
-                if (is_file(preview_path))
+                // Scanning the extracted Themes/: defer to the previews pass
+                // only when a usable compact preview exists. An orphaned
+                // preview (its archive was deleted) must not hide the
+                // extracted theme, so it is not treated as superseding.
+                snprintf(preview_dir, STR_MAX * 2 - 1,
+                         THEMES_DIR "/.previews/%s/", ep->d_name);
+                if (themePreview_hasArchive(preview_dir))
+                    continue;
+            }
+            else {
+                // Scanning Themes/.previews/ directly: skip an entry whose
+                // source archive is gone, otherwise a deleted compact theme
+                // stays listed but can no longer be loaded.
+                snprintf(preview_dir, STR_MAX * 2 - 1, "%s/%s/",
+                         theme_dir, ep->d_name);
+                if (!themePreview_hasArchive(preview_dir))
                     continue;
             }
 
@@ -110,23 +123,8 @@ int listAllThemes(char themes_out[NUMBER_OF_THEMES][STR_MAX], const char *instal
 
 bool checkPreview(const char *preview_path)
 {
-    if (!is_dir(preview_path))
-        return false;
-
-    char source_path[STR_MAX * 2];
-    snprintf(source_path, STR_MAX * 2 - 1, "%s/source", preview_path);
-
-    if (!is_file(source_path))
-        return false;
-
-    FILE *fp;
-    char archive_path[STR_MAX * 2];
-    file_get(fp, source_path, "%[^\n]", archive_path);
-
-    if (!is_file(archive_path))
-        return false;
-
-    return true;
+    // A preview is usable only while its source archive still exists.
+    return themePreview_hasArchive(preview_path);
 }
 
 bool getThemePath(const char *theme_name, char *theme_path_out)
