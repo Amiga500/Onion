@@ -55,4 +55,14 @@ bool updateKeystate(KeyState keystate[320], bool *quit_flag, bool enabled,
     return retval;
 }
 
+// State of `key` for a keystate array after code that may have read the
+// input events itself (an action, a dialog): PRESSED while SDL still sees
+// the key down, so its key repeats arrive as REPEATING and are not taken
+// for a new press; RELEASED once the key is up.
+static inline KeyState keystate_resync(SDLKey key)
+{
+    Uint8 *keys = SDL_GetKeyState(NULL);
+    return keys != NULL && keys[key] ? PRESSED : RELEASED;
+}
+
 #endif

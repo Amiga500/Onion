@@ -2,9 +2,10 @@
 #define MSLEEP_H__
 
 #include <errno.h>
+#include <signal.h>
 #include <time.h>
 
-static int msleep_interrupt = 0;
+static volatile sig_atomic_t msleep_interrupt = 0;
 
 /* msleep(): Sleep for the requested number of milliseconds. */
 int msleep(long msec)

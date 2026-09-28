@@ -21,16 +21,24 @@
 bool netinfo_getIpAddress(char *label_out, const char *interface)
 {
     char ip_address[STR_MAX];
-    int n = socket(AF_INET, SOCK_DGRAM, 0);
     struct ifreq ifr;
+
+    // Zeroed: with no address (Wi-Fi off, interface down) the ioctl fails
+    // and the label used to show whatever was left on the stack.
+    memset(&ifr, 0, sizeof(ifr));
 
     // Type of address to retrieve - IPv4 IP address
     ifr.ifr_addr.sa_family = AF_INET;
 
     // Copy the interface name in the ifreq structure
     strncpy(ifr.ifr_name, interface, IFNAMSIZ - 1);
-    ioctl(n, SIOCGIFADDR, &ifr);
-    close(n);
+    int n = socket(AF_INET, SOCK_DGRAM, 0);
+    if (n < 0 || ioctl(n, SIOCGIFADDR, &ifr) != 0) {
+        memset(&ifr.ifr_addr, 0, sizeof(ifr.ifr_addr)); // 0.0.0.0
+        ifr.ifr_addr.sa_family = AF_INET;
+    }
+    if (n >= 0)
+        close(n);
 
     snprintf(ip_address, STR_MAX - 1, "IP address: %s (%s)", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr), interface);
 

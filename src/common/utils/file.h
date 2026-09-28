@@ -84,7 +84,7 @@ bool file_isLocked(const char *path);
 const char *file_basename(const char *filename);
 
 /**
- * @brief Create directories in dir_path using `mkdir -p` command.
+ * @brief Create directories in dir_path (mkdir -p semantics, no shell).
  *
  * @param dir_path The full directory path.
  * @return true If the path didn't exist (dirs were created).
@@ -124,7 +124,19 @@ char *file_read_lineN(const char *filename, int n) __attribute__((malloc));
 
 void file_delete_line(const char *fileName, int n);
 
+bool file_delete_lines(const char *fileName, const int *lines, int count);
+
 void file_add_line_to_beginning(const char *filename, const char *lineToAdd);
+
+bool file_move_line_to_top(const char *fileName, int n);
+
+/**
+ * @brief Recursively remove a directory and all its contents.
+ *
+ * @param path The directory to remove.
+ * @return 0 on success, -1 on error.
+ */
+int file_remove_recursive(const char *path);
 
 /**
  * @brief Resolve a path to an absolute path
@@ -133,5 +145,34 @@ void file_add_line_to_beginning(const char *filename, const char *lineToAdd);
  *
  */
 char *file_resolvePath(const char *path) __attribute__((malloc));
+
+/**
+ * @brief Begin an atomic (crash-safe) rewrite of a file.
+ *
+ * Opens a temporary sibling of the target for writing. When the target is a
+ * symlink it is resolved first, so the link itself is never replaced.
+ * Finish with file_atomic_commit(); on any error the original file is left
+ * untouched.
+ *
+ * @param path Target file.
+ * @param tmp_path Out: temporary path (buffer of tmp_size bytes).
+ * @param final_path Out: resolved target path (buffer of final_size bytes).
+ * @return Open FILE* on success, NULL on failure.
+ */
+FILE *file_atomic_begin(const char *path, char *tmp_path, size_t tmp_size,
+                        char *final_path, size_t final_size);
+
+/**
+ * @brief Flush, fsync and rename the temporary file over the target.
+ *
+ * Always closes fp. On failure the temporary file is removed and the
+ * original file is left untouched.
+ */
+bool file_atomic_commit(FILE *fp, const char *tmp_path, const char *final_path);
+
+/**
+ * @brief Atomically replace a file with the given buffer.
+ */
+bool file_atomic_write(const char *path, const char *data, size_t len);
 
 #endif // UTILS_FILE_H__
