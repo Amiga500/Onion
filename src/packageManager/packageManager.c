@@ -32,10 +32,12 @@ int main(int argc, char *argv[])
 
     if (!auto_update) {
         SDL_Surface *loadingScreen = IMG_Load("res/loading.png");
-        SDL_BlitSurface(loadingScreen, NULL, screen, NULL);
-        SDL_BlitSurface(screen, NULL, video, NULL);
-        SDL_Flip(video);
-        SDL_FreeSurface(loadingScreen);
+        if (loadingScreen != NULL) {
+            SDL_BlitSurface(loadingScreen, NULL, screen, NULL);
+            SDL_BlitSurface(screen, NULL, video, NULL);
+            SDL_Flip(video);
+            SDL_FreeSurface(loadingScreen);
+        }
     }
 
     loadPackages(auto_update);
@@ -63,6 +65,9 @@ int main(int argc, char *argv[])
         if (state_changed) {
             renderApplication();
             state_changed = false;
+        }
+        else {
+            SDL_Delay(15); // wait for input without spinning
         }
     }
 

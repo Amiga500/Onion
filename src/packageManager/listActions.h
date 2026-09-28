@@ -2,7 +2,7 @@
 #define PACMAN_LIST_ACTIONS_H__
 
 #include "./changes.h"
-#include "./globals.h"
+#include "./pacman_state.h"
 
 void layerToggleAll(int layer, bool only_when_all_off_and_has_roms)
 {
