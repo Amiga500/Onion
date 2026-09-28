@@ -44,12 +44,21 @@ typedef struct ListItem {
     char preview_path[4096];
     char sticky_note[STR_MAX];
     char info_note[STR_MAX];
+    void *_label_cache;          // Cached TTF surface for label (internal)
+    uint32_t _label_hash;        // Hash of label text for cache invalidation
+    void *_value_cache;          // Cached TTF surface for value label (internal)
+    uint32_t _cached_value_hash; // Hash of the rendered value label (invalidation)
+    uint32_t _cached_color;      // Packed RGBA color for value label invalidation
+    void *_scaled_preview;       // Cached scaled preview surface (internal)
+    int _scaled_preview_w;       // Width the preview was scaled to (for invalidation)
+    bool _preview_missing;       // preview_path did not exist at last render (internal)
 } ListItem;
 
 typedef struct List {
     char title[STR_MAX];
     int _id;
     int item_count;
+    int max_items;
     int active_pos;
     int scroll_pos;
     int scroll_height;
@@ -96,8 +105,7 @@ bool _list_did_wraparound(int before, int after, int direction)
 
 ListItem *list_getVisibleItemAt(List *list, int index)
 {
-    int items_left = list->item_count - index;
-    while (list->items[index].disabled && items_left-- > 0) {
+    while (index < list->item_count && list->items[index].disabled) {
         index++;
     }
     return index < list->item_count ? &list->items[index] : NULL;
@@ -116,6 +124,7 @@ List list_create(int max_items, ListType list_type)
 {
     return (List){.scroll_height = list_type == LIST_SMALL ? 6 : 4,
                   .list_type = list_type,
+                  .max_items = max_items,
                   .items = (ListItem *)calloc(max_items, sizeof(ListItem)),
                   ._created = true,
                   ._id = list_id_incr++};
@@ -125,6 +134,7 @@ List list_createWithTitle(int max_items, ListType list_type, const char *title)
 {
     List list = list_create(max_items, list_type);
     strncpy(list.title, title, STR_MAX - 1);
+    list.title[STR_MAX - 1] = '\0';
     return list;
 }
 
@@ -138,6 +148,8 @@ List list_createWithSticky(int max_items, const char *title)
 
 ListItem *list_addItem(List *list, ListItem item)
 {
+    if (list->items == NULL || list->item_count >= list->max_items)
+        return NULL;
     item._reset_value = item.value;
     item._id = list->item_count;
     memset(item.info_note, 0, STR_MAX);
@@ -152,15 +164,22 @@ ListItem *list_addItem(List *list, ListItem item)
 ListItem *list_addItemWithInfoNote(List *list, ListItem item, const char *info_note)
 {
     ListItem *_item = list_addItem(list, item);
-    strcpy(_item->info_note, info_note);
+    if (_item == NULL)
+        return NULL;
+    strncpy(_item->info_note, info_note, sizeof(_item->info_note) - 1);
+    _item->info_note[sizeof(_item->info_note) - 1] = '\0';
     return _item;
 }
 
 ListItem *list_addItemWithLang(List *list, ListItem item, const lang_hash key)
 {
     ListItem *_item = list_addItem(list, item);
-    if (lang_list && lang_list[key])
-        strcpy(_item->label, lang_list[key]);
+    if (_item == NULL)
+        return NULL;
+    if (lang_list && lang_list[key]) {
+        strncpy(_item->label, lang_list[key], sizeof(_item->label) - 1);
+        _item->label[sizeof(_item->label) - 1] = '\0';
+    }
     return _item;
 }
 
@@ -174,6 +193,7 @@ ListItem *list_currentItem(List *list)
 void list_updateStickyNote(ListItem *item, const char *message)
 {
     strncpy(item->sticky_note, message, STR_MAX - 1);
+    item->sticky_note[STR_MAX - 1] = '\0';
 }
 
 const char *list_getStickyNote(ListItem *item)
@@ -416,23 +436,82 @@ void list_getItemValueLabel(ListItem *item, char *out_label)
     if (item->value_formatter != NULL)
         item->value_formatter(item, out_label);
     else if (item->value_labels[0][0] != '\0')
-        sprintf(out_label, "%s", item->value_labels[item->value]);
+        snprintf(out_label, STR_MAX, "%s", item->value_labels[item->value]);
     else
-        sprintf(out_label, "%d", item->value);
+        snprintf(out_label, STR_MAX, "%d", item->value);
+}
+
+// Release a preview image together with its cached scaled copy, and forget
+// that the file was missing. Call it whenever preview_path or preview_ptr is
+// replaced: the scaled copy is keyed on width only, so leaving it behind makes
+// the renderer show the previous image again (GameSwitcher load-state popup,
+// which stretches every slot's preview to the same width).
+void list_item_clearPreview(ListItem *item)
+{
+    if (item == NULL)
+        return;
+    if (item->preview_ptr != NULL) {
+        SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
+        item->preview_ptr = NULL;
+    }
+    if (item->_scaled_preview != NULL) {
+        SDL_FreeSurface((SDL_Surface *)item->_scaled_preview);
+        item->_scaled_preview = NULL;
+    }
+    item->_scaled_preview_w = 0;
+    item->_preview_missing = false;
+}
+
+// True when the renderer may reuse the cached scaled preview at this width.
+bool list_item_hasScaledPreview(const ListItem *item, int width)
+{
+    return item != NULL && item->_scaled_preview != NULL &&
+           item->_scaled_preview_w == width;
+}
+
+// True when the renderer should try to load preview_path: there is a path,
+// nothing is loaded yet, and the file was not already found missing. The
+// "missing" mark is cleared by list_item_clearPreview(), so a preview file
+// that appears later (e.g. a state PNG written after the save) is picked up
+// once the owner points the item at it again.
+bool list_item_wantsPreviewLoad(const ListItem *item)
+{
+    return item != NULL && item->preview_ptr == NULL &&
+           item->preview_path[0] != '\0' && !item->_preview_missing;
+}
+
+// FNV-1a over a rendered label: cache key for the MULTIVALUE value surface.
+// Keyed on the text itself, not on item->value, because a formatter can
+// render a different string for the same value.
+uint32_t list_labelHash(const char *str)
+{
+    uint32_t hash = 2166136261u;
+    if (str == NULL)
+        return hash;
+    for (const unsigned char *p = (const unsigned char *)str; *p; p++) {
+        hash ^= *p;
+        hash *= 16777619u;
+    }
+    return hash;
 }
 
 void list_free(List *list)
 {
     if (!list->_created)
         return;
-    for (int i = 0; i < list->item_count; i++) {
-        ListItem *item = &list->items[i];
-        if (item->icon_ptr != NULL)
-            SDL_FreeSurface((SDL_Surface *)item->icon_ptr);
-        if (item->preview_ptr != NULL)
-            SDL_FreeSurface((SDL_Surface *)item->preview_ptr);
+    if (list->items != NULL) {
+        for (int i = 0; i < list->item_count; i++) {
+            ListItem *item = &list->items[i];
+            if (item->icon_ptr != NULL)
+                SDL_FreeSurface((SDL_Surface *)item->icon_ptr);
+            list_item_clearPreview(item);
+            if (item->_label_cache != NULL)
+                SDL_FreeSurface((SDL_Surface *)item->_label_cache);
+            if (item->_value_cache != NULL)
+                SDL_FreeSurface((SDL_Surface *)item->_value_cache);
+        }
+        free(list->items);
     }
-    free(list->items);
     list->_created = false;
 }
 

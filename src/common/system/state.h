@@ -31,6 +31,8 @@ bool check_isRetroArch(void)
     if (!exists(CMD_TO_RUN_PATH))
         return false;
     char *cmd = file_read(CMD_TO_RUN_PATH);
+    if (cmd == NULL)
+        return false;
     if (strstr(cmd, "retroarch") != NULL ||
         strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
         strstr(cmd, "/mnt/SDCARD/RApp/") != NULL) {
@@ -88,16 +90,56 @@ bool check_isDrastic(void)
 
 void system_state_update(void)
 {
-    if (check_isGameSwitcher())
+    // Same decision order as the check_is*() helpers above, but /proc is
+    // scanned once for all candidates instead of once per candidate
+    // (up to 5 full scans before), and cmd_to_run.sh is read at most once.
+    enum { P_SWITCHER,
+           P_RETROARCH,
+           P_RA32,
+           P_MAINUI,
+           P_ADVMENU,
+           P_DRASTIC,
+           P_COUNT };
+    static const char *const names[P_COUNT] = {
+        "gameSwitcher", "retroarch", "ra32", "MainUI", "advmenu", "drastic"};
+    pid_t pids[P_COUNT];
+
+    bool switcher_flag = exists("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
+    bool has_cmd = exists(CMD_TO_RUN_PATH);
+    bool ra_cmd = false;
+
+    if (has_cmd) {
+        char *cmd = file_read(CMD_TO_RUN_PATH);
+        if (cmd != NULL) {
+            ra_cmd = strstr(cmd, "retroarch") != NULL ||
+                     strstr(cmd, "/mnt/SDCARD/Emu/") != NULL ||
+                     strstr(cmd, "/mnt/SDCARD/RApp/") != NULL;
+            free(cmd);
+        }
+    }
+
+    process_searchpids(names, pids, P_COUNT);
+
+    if (switcher_flag && pids[P_SWITCHER]) {
         system_state = MODE_SWITCHER;
-    else if (check_isRetroArch())
+        system_state_pid = pids[P_SWITCHER];
+    }
+    else if (ra_cmd && (pids[P_RETROARCH] || pids[P_RA32])) {
         system_state = MODE_GAME;
-    else if (check_isMainUI())
+        system_state_pid = pids[P_RETROARCH] ? pids[P_RETROARCH] : pids[P_RA32];
+    }
+    else if (!has_cmd && pids[P_MAINUI]) {
         system_state = MODE_MAIN_UI;
-    else if (check_isAdvMenu())
+        system_state_pid = pids[P_MAINUI];
+    }
+    else if (!has_cmd && pids[P_ADVMENU]) {
         system_state = MODE_ADVMENU;
-    else if (check_isDrastic())
+        system_state_pid = pids[P_ADVMENU];
+    }
+    else if (has_cmd && pids[P_DRASTIC]) {
         system_state = MODE_DRASTIC;
+        system_state_pid = pids[P_DRASTIC];
+    }
     else
         system_state = MODE_APPS;
 
@@ -127,8 +169,19 @@ size_t state_getAppName(char *out, const char *str)
     char *end;
     size_t out_size;
 
-    str += 19;
+    /* Skip the "HOME=<path> ./" prefix to reach the app name.
+     * Using a dynamic search instead of a hardcoded offset avoids
+     * mis-parsing when HOME is not exactly "/mnt/SDCARD". */
+    const char *prefix_end = strstr(str, " ./");
+    if (prefix_end == NULL) {
+        *out = '\0';
+        return 0;
+    }
+    str = prefix_end + 3; /* skip " ./" */
+
     end = (char *)strchr(str, ';');
+    if (end == NULL)
+        end = (char *)(str + strlen(str));
 
     out_size = (end - str) < STR_MAX - 1 ? (end - str) : STR_MAX - 1;
     memcpy(out, str, out_size);
@@ -202,21 +255,21 @@ void write_mainui_state(MainUIState state, int currpos, int total)
     }
 
     if (main_currpos + 4 > main_total)
-        main_page_start = main_total - 4;
+        main_page_start = (main_total >= 4) ? main_total - 4 : 0;
     main_page_end = main_page_start + 3;
 
     if (currpos + page_size > total)
-        page_start = total - page_size;
+        page_start = (total >= page_size) ? total - page_size : 0;
     else
         page_start = currpos;
     page_end = page_start + page_size - 1;
 
-    sprintf(state_str,
-            "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
-            "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
-            "\"pagestart\":%d,\"pageend\":%d}]}",
-            main_currpos, main_page_start, main_page_end, title_num, page_type,
-            currpos, page_start, page_end);
+    snprintf(state_str, sizeof(state_str),
+             "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
+             "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
+             "\"pagestart\":%d,\"pageend\":%d}]}",
+             main_currpos, main_page_start, main_page_end, title_num, page_type,
+             currpos, page_start, page_end);
 
     file_put_sync(fp, "/tmp/state.json", "%s", state_str);
 }
@@ -230,67 +283,98 @@ char *getMiyooRecentFilePath()
     static char filename[STR_MAX];
 
     if (exists(RECENTLIST_HIDDEN_PATH))
-        sprintf(filename, "%s", RECENTLIST_HIDDEN_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_HIDDEN_PATH);
     else
-        sprintf(filename, "%s", RECENTLIST_PATH);
+        snprintf(filename, sizeof(filename), "%s", RECENTLIST_PATH);
 
     return filename;
 }
 
 //
-//    [onion] get recent rom path from miyoo recent list
+//    [onion] get recent rom path from a recent-list file
 //
-char *history_getRecentPath(char *rom_path)
+//    top_only = false: first game entry whose ROM exists (skips apps and
+//      missing ROMs). Used to name screenshots.
+//    top_only = true: the most recent entry only, NULL if it is not a game
+//      or its ROM is missing (upstream behavior). Used for the romscreen,
+//      which must belong to the game that is running: falling through to an
+//      older entry overwrote that game's GameSwitcher image with the screen
+//      of whatever was running (e.g. the RetroArch app).
+//
+static char *_history_getRecentPath(const char *recent_path, char *rom_path, bool top_only)
 {
     FILE *file;
     char line[STR_MAX * 3];
 
-    file = fopen(getMiyooRecentFilePath(), "r");
+    file = fopen(recent_path, "r");
 
     if (file == NULL) {
         return NULL;
     }
 
     while (fgets(line, STR_MAX * 3, file) != NULL) {
-        char *jsonContent = (char *)malloc(strlen(line) + 1);
+        size_t line_len = strlen(line);
+        char *jsonContent = (char *)malloc(line_len + 1);
+        if (jsonContent == NULL) {
+            continue;
+        }
         char romPathSearch[STR_MAX];
         int type;
 
-        strcpy(jsonContent, line);
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        memcpy(jsonContent, line, line_len + 1);
+        const char *typeStr = strstr(jsonContent, "\"type\":");
+        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1) {
+            free(jsonContent);
+            continue;
+        }
 
         if ((type != 5) && (type != 17)) {
             free(jsonContent);
-            fclose(file);
-            return NULL;
+            if (top_only)
+                break;
+            continue;
         }
 
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"") + 11;
+        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
+        if (rompathStart == NULL) {
+            free(jsonContent);
+            if (top_only)
+                break;
+            continue;
+        }
+        rompathStart += 11;
         const char *rompathEnd = strchr(rompathStart, '\"');
+        if (rompathEnd == NULL) {
+            free(jsonContent);
+            if (top_only)
+                break;
+            continue;
+        }
 
-        strncpy(romPathSearch, rompathStart, rompathEnd - rompathStart);
-        romPathSearch[rompathEnd - rompathStart] = '\0';
+        size_t romPathLen = (size_t)(rompathEnd - rompathStart);
+        if (romPathLen >= STR_MAX)
+            romPathLen = STR_MAX - 1;
+        strncpy(romPathSearch, rompathStart, romPathLen);
+        romPathSearch[romPathLen] = '\0';
 
         free(jsonContent);
 
         // Game launched with the search panel
         char *colonPosition = strchr(romPathSearch, ':');
         if (colonPosition != NULL) {
-
-            int position = (int)(colonPosition - romPathSearch);
-            char secondPart[strlen(romPathSearch) - position];
-            strcpy(secondPart, colonPosition + 1);
-            strcpy(romPathSearch, secondPart);
+            memmove(romPathSearch, colonPosition + 1, strlen(colonPosition + 1) + 1);
         }
 
         printf_debug("romPathSearch : %s\n", romPathSearch);
 
         if (!exists(romPathSearch)) {
-            fclose(file);
-            return NULL;
+            if (top_only)
+                break;
+            continue;
         }
 
-        strcpy(rom_path, romPathSearch);
+        strncpy(rom_path, romPathSearch, STR_MAX - 1);
+        rom_path[STR_MAX - 1] = '\0';
 
         fclose(file);
         return rom_path;
@@ -300,17 +384,39 @@ char *history_getRecentPath(char *rom_path)
     return NULL;
 }
 
+char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
+{
+    return _history_getRecentPath(recent_path, rom_path, false);
+}
+
+char *history_getTopRecentPathFromPath(const char *recent_path, char *rom_path)
+{
+    return _history_getRecentPath(recent_path, rom_path, true);
+}
+
+char *history_getRecentPath(char *rom_path)
+{
+    return history_getRecentPathFromPath(getMiyooRecentFilePath(), rom_path);
+}
+
+char *history_getTopRecentPath(char *rom_path)
+{
+    return history_getTopRecentPathFromPath(getMiyooRecentFilePath(), rom_path);
+}
+
 bool history_getRomscreenPath(char *path_out)
 {
-    char filename[STR_MAX];
-    char file_path[STR_MAX];
+    char filename[32];
+    char file_path[STR_MAX] = "";
 
-    if (history_getRecentPath(file_path) != NULL) {
-        sprintf(filename, "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
+    filename[0] = '\0';
+    // Only the most recent entry: see _history_getRecentPath().
+    if (history_getTopRecentPath(file_path) != NULL) {
+        snprintf(filename, sizeof(filename), "%" PRIu32, FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
     }
     print_debug(file_path);
     if (strlen(filename) > 0) {
-        sprintf(path_out, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
+        snprintf(path_out, STR_MAX, "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
         return true;
     }
 
@@ -329,18 +435,24 @@ void resumeGame(int index)
         return;
     }
 
-    char jsonContent[STR_MAX * 4];
+    // getline(): count real lines, like file_read_lineN()/file_delete_line()
+    // (a fixed 1 KB fgets() buffer counted a longer line twice, and the
+    // quick-switch move-to-top could then delete the wrong entry).
+    char *jsonContent = NULL;
+    size_t jsonContent_cap = 0;
     int validGameCount = -1;
     int lineCount = 0;
 
-    while (fgets(jsonContent, sizeof(jsonContent), file) != NULL) {
-        char label[256];
-        char rompath[256];
-        char imgpath[256];
-        char launch[256];
+    while (getline(&jsonContent, &jsonContent_cap, file) != -1) {
+        char label[256] = "";
+        char rompath[256] = "";
+        char imgpath[256] = "";
+        char launch[256] = "";
         lineCount++;
 
-        sscanf(strstr(jsonContent, "\"type\":") + 7, "%d", &type);
+        const char *typeStr = strstr(jsonContent, "\"type\":");
+        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1)
+            continue;
 
         if ((type != 5) && (type != 17))
             continue;
@@ -349,24 +461,39 @@ void resumeGame(int index)
         if (labelStart != NULL) {
             labelStart += 9;
             const char *labelEnd = strchr(labelStart, '\"');
-            strncpy(label, labelStart, labelEnd - labelStart);
-            label[labelEnd - labelStart] = '\0';
+            if (labelEnd != NULL) {
+                size_t len = (size_t)(labelEnd - labelStart);
+                if (len >= sizeof(label))
+                    len = sizeof(label) - 1;
+                memcpy(label, labelStart, len);
+                label[len] = '\0';
+            }
         }
         printf_debug("label: %s\n", label);
         const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
         if (rompathStart != NULL) {
             rompathStart += 11;
             const char *rompathEnd = strchr(rompathStart, '\"');
-            strncpy(rompath, rompathStart, rompathEnd - rompathStart);
-            rompath[rompathEnd - rompathStart] = '\0';
+            if (rompathEnd != NULL) {
+                size_t len = (size_t)(rompathEnd - rompathStart);
+                if (len >= sizeof(rompath))
+                    len = sizeof(rompath) - 1;
+                memcpy(rompath, rompathStart, len);
+                rompath[len] = '\0';
+            }
         }
         printf_debug("rompath: %s\n", rompath);
         const char *imgpathStart = strstr(jsonContent, "\"imgpath\":\"");
         if (imgpathStart != NULL) {
             imgpathStart += 11;
             const char *imgpathEnd = strchr(imgpathStart, '\"');
-            strncpy(imgpath, imgpathStart, imgpathEnd - imgpathStart);
-            imgpath[imgpathEnd - imgpathStart] = '\0';
+            if (imgpathEnd != NULL) {
+                size_t len = (size_t)(imgpathEnd - imgpathStart);
+                if (len >= sizeof(imgpath))
+                    len = sizeof(imgpath) - 1;
+                memcpy(imgpath, imgpathStart, len);
+                imgpath[len] = '\0';
+            }
         }
 
         char *colonPosition = strchr(rompath, ':');
@@ -374,15 +501,20 @@ void resumeGame(int index)
 
             int position = (int)(colonPosition - rompath);
 
-            char firstPart[position + 1];
+            char firstPart[256];
+            if (position > (int)sizeof(firstPart) - 1)
+                position = (int)sizeof(firstPart) - 1;
             strncpy(firstPart, rompath, position);
             firstPart[position] = '\0';
 
-            char secondPart[strlen(rompath) - position];
-            strcpy(secondPart, colonPosition + 1);
+            char secondPart[256];
+            strncpy(secondPart, colonPosition + 1, sizeof(secondPart) - 1);
+            secondPart[sizeof(secondPart) - 1] = '\0';
 
-            strcpy(launch, firstPart);
-            strcpy(rompath, secondPart);
+            strncpy(launch, firstPart, sizeof(launch) - 1);
+            launch[sizeof(launch) - 1] = '\0';
+            strncpy(rompath, secondPart, sizeof(rompath) - 1);
+            rompath[sizeof(rompath) - 1] = '\0';
             printf_debug("launch cutted: %s\n", launch);
             printf_debug("rompath cutted: %s\n", rompath);
         }
@@ -391,8 +523,13 @@ void resumeGame(int index)
             if (launchStart != NULL) {
                 launchStart += 10;
                 const char *launchEnd = strchr(launchStart, '\"');
-                strncpy(launch, launchStart, launchEnd - launchStart);
-                launch[launchEnd - launchStart] = '\0';
+                if (launchEnd != NULL) {
+                    size_t len = (size_t)(launchEnd - launchStart);
+                    if (len >= sizeof(launch))
+                        len = sizeof(launch) - 1;
+                    memcpy(launch, launchStart, len);
+                    launch[len] = '\0';
+                }
             }
         }
 
@@ -408,7 +545,7 @@ void resumeGame(int index)
 
             fclose(file);
             file = NULL;
-            sprintf(LaunchCommand, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
+            snprintf(LaunchCommand, sizeof(LaunchCommand), "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", launch, rompath);
 
             remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
 
@@ -416,10 +553,8 @@ void resumeGame(int index)
             if (lineCount > 1) {
                 temp_flag_set("quick_switch", true);
 
-                char *line_n = file_read_lineN(recentPath, lineCount);
-                file_add_line_to_beginning(recentPath, line_n);
-                file_delete_line(recentPath, lineCount + 1);
-                free(line_n);
+                // one atomic rewrite (was: two full rewrites)
+                file_move_line_to_top(recentPath, lineCount);
             }
 
             file_put_sync(fp, CMD_TO_RUN_PATH, "%s", LaunchCommand);
@@ -435,6 +570,7 @@ void resumeGame(int index)
     if (file != NULL) {
         fclose(file);
     }
+    free(jsonContent);
 }
 
 void set_resumeGame(void)

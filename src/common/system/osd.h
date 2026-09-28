@@ -29,8 +29,10 @@
 #define CLOCK_MONOTONIC 1
 #endif
 
-static bool osd_thread_active = false;
+static volatile bool osd_thread_active = false;
 static pthread_t osd_pt;
+// osd_pt was created and not joined yet (it may have finished on its own)
+static bool osd_thread_joinable = false;
 
 typedef struct {
     SDL_Surface *surface;
@@ -90,7 +92,9 @@ static void *_overlay_draw_thread(void *arg)
 
     // Backup original fb content
     START_TIMER(framebuffer_backup);
-    int numBuffers = data->display.vinfo.yres_virtual / data->display.vinfo.yres;
+    int numBuffers = data->display.vinfo.yres > 0
+        ? data->display.vinfo.yres_virtual / data->display.vinfo.yres
+        : 1;
     unsigned int **originalPixels = malloc(numBuffers * sizeof(unsigned int *));
     if (!originalPixels) {
         return NULL;
@@ -137,18 +141,20 @@ static void *_overlay_draw_thread(void *arg)
             break;
 
         // Draw to each buffer
-        numBuffers = data->display.vinfo.yres_virtual / data->display.vinfo.yres;
+        numBuffers = data->display.vinfo.yres > 0
+            ? data->display.vinfo.yres_virtual / data->display.vinfo.yres
+            : 1;
         for (int b = 0; b < numBuffers; b++) {
             draw_count++;
             display_writeBuffer(b, &data->display, data->surface->pixels, rect, data->rotate, false);
         }
 
-        // TODO: sleep or not? atm i'd say no
-        // usleep(4000);
+        // Throttle the draw loop to avoid a full-throttle busy-wait
+        msleep(2);
     }
 
-    printf("Draw count: %d\n", draw_count);
-    printf("Draw speed: %f\n", (float)draw_count / (float)elapsed_ms * 1000.0f);
+    printf_debug("Draw count: %d\n", draw_count);
+    printf_debug("Draw speed: %f\n", (float)draw_count / (float)elapsed_ms * 1000.0f);
 
     // Restore original framebuffer content after overlay
     // TODO: If the content "behind" the overlay has changed, this will not restore it correctly, causing a 1 frame glitch. How to fix? Only backup if the overlay is (partially) outside the game screen?
@@ -158,7 +164,9 @@ static void *_overlay_draw_thread(void *arg)
     display_writeBuffers(&data->display, originalPixels, rect, data->rotate, data->useMask);
 
     // Free buffer backups
-    numBuffers = data->display.vinfo.yres_virtual / data->display.vinfo.yres;
+    numBuffers = data->display.vinfo.yres > 0
+        ? data->display.vinfo.yres_virtual / data->display.vinfo.yres
+        : 1;
     for (int b = 0; b < numBuffers; b++) {
         free(originalPixels[b]);
     }
@@ -214,11 +222,13 @@ int overlay_surface(SDL_Surface *surface, int destX, int destY, int duration_ms,
     // Query FB info
     if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &display->vinfo) == -1) {
         perror("Error reading variable screen info");
+        free(data);
         return -1;
     }
 
     if (display->vinfo.bits_per_pixel != 32) {
         perror("Only 32bpp is supported for now\n");
+        free(data);
         return -1;
     }
 
@@ -257,11 +267,11 @@ int overlay_surface(SDL_Surface *surface, int destX, int destY, int duration_ms,
 }
 
 static int meterWidth = 4;
-static bool osd_bar_activated = false;
-static int _bar_timer = 0;
-static int _bar_value = 0;
-static int _bar_max = 0;
-static uint32_t _bar_color = 0x00FFFFFF;
+static volatile bool osd_bar_activated = false;
+static volatile long _bar_timer = 0;
+static volatile int _bar_value = 0;
+static volatile int _bar_max = 0;
+static volatile uint32_t _bar_color = 0x00FFFFFF;
 #ifdef PLATFORM_MIYOOMINI
 static uint32_t *_bar_savebuf;
 #endif
@@ -270,13 +280,22 @@ void _print_bar(void)
 {
 #ifdef PLATFORM_MIYOOMINI
     uint32_t *ofs = g_display.fb_addr;
-    uint32_t i, j, curr, percentage = _bar_max > 0 ? _bar_value * g_display.height / _bar_max : 0;
+    const uint32_t height = g_display.height;
+    // Snapshot volatile values into locals for consistent use within this frame
+    const int bar_max = _bar_max;
+    const int bar_value = _bar_value;
+    const uint32_t percentage = bar_max > 0 ? (uint32_t)bar_value * height / (uint32_t)bar_max : 0;
+    const uint32_t active_color = _bar_color;
 
     ofs += g_display.width - meterWidth;
-    for (i = 0; i < g_display.height * 3; i++, ofs += g_display.width) {
-        curr = (i % g_display.height) < percentage ? _bar_color : 0;
-        for (j = 0; j < meterWidth; j++)
-            ofs[j] = curr;
+    // Triple-buffer: write same pattern to 3 consecutive framebuffers
+    for (uint32_t buf = 0; buf < 3; buf++) {
+        uint32_t *row = ofs + buf * height * g_display.width;
+        for (uint32_t i = 0; i < height; i++, row += g_display.width) {
+            const uint32_t curr = i < percentage ? active_color : 0;
+            for (uint32_t j = 0; j < (uint32_t)meterWidth; j++)
+                row[j] = curr;
+        }
     }
 #endif
 }
@@ -289,12 +308,11 @@ void _bar_restoreBufferBehind(void)
     _bar_color = 0;
     _print_bar();
     if (_bar_savebuf) {
-        uint32_t i, j, *ofs = g_display.fb_addr, *ofss = _bar_savebuf;
-        ofs += g_display.width - meterWidth;
-        ofss += g_display.width - meterWidth;
-        for (i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += g_display.width) {
-            for (j = 0; j < meterWidth; j++)
-                ofs[j] = ofss[j];
+        uint32_t *ofs = g_display.fb_addr + g_display.width - meterWidth;
+        const uint32_t *ofss = _bar_savebuf;
+        const size_t row_bytes = meterWidth * sizeof(uint32_t);
+        for (uint32_t i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += meterWidth) {
+            memcpy(ofs, ofss, row_bytes);
         }
         free(_bar_savebuf);
         _bar_savebuf = NULL;
@@ -305,15 +323,14 @@ void _bar_restoreBufferBehind(void)
 void _bar_saveBufferBehind(void)
 {
 #ifdef PLATFORM_MIYOOMINI
-    // Save display area and clear
-    if ((_bar_savebuf = (uint32_t *)malloc(g_display.width * g_display.height *
+    // Compact buffer: only meterWidth * height pixels (was width * height — 160x smaller!)
+    if ((_bar_savebuf = (uint32_t *)malloc(meterWidth * g_display.height *
                                            sizeof(uint32_t)))) {
-        uint32_t i, j, *ofs = g_display.fb_addr, *ofss = _bar_savebuf;
-        ofs += g_display.width - meterWidth;
-        ofss += g_display.width - meterWidth;
-        for (i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += g_display.width) {
-            for (j = 0; j < meterWidth; j++)
-                ofss[j] = ofs[j];
+        const uint32_t *ofs = g_display.fb_addr + g_display.width - meterWidth;
+        uint32_t *ofss = _bar_savebuf;
+        const size_t row_bytes = meterWidth * sizeof(uint32_t);
+        for (uint32_t i = 0; i < g_display.height; i++, ofs += g_display.width, ofss += meterWidth) {
+            memcpy(ofss, ofs, row_bytes);
         }
     }
 #endif
@@ -326,6 +343,11 @@ static void *_osd_thread(void *_)
 {
     while (getMilliseconds() - _bar_timer < 2000) {
         _print_bar();
+        // The game redraws the framebuffer every frame and the bar is drawn
+        // over it, unsynchronised with the game's page flips. Redrawing once
+        // per frame (16 ms) left it missing from many frames, so it
+        // flickered; Onion's 100 us keeps it on screen. The loop only runs
+        // for the 2 s after a volume or brightness key.
         usleep(100);
     }
     _bar_restoreBufferBehind();
@@ -348,13 +370,29 @@ void osd_showBar(int value, int value_max, uint32_t color)
     _bar_color = color;
     osd_bar_activated = true;
 
-    config_get("display/meterWidth", CONFIG_INT, &meterWidth);
-
     if (osd_thread_active)
         return;
 
+    // Read meterWidth when the bar appears, not on every step: a cached
+    // value would go stale on theme change, but it must not change while
+    // the bar is on screen either, since the saved strip behind the bar
+    // (_bar_savebuf) is meterWidth pixels wide and is restored with it.
+    config_get("display/meterWidth", CONFIG_INT, &meterWidth);
+
+    // The previous bar's thread ends on its own after 2 s and nobody joined
+    // it: every bar leaked a thread (stack and descriptor) in keymon until
+    // pthread_create failed and the bar never showed again. Join it here.
+    if (osd_thread_joinable) {
+        pthread_join(osd_pt, NULL);
+        osd_thread_joinable = false;
+    }
+
     _bar_saveBufferBehind();
-    pthread_create(&osd_pt, NULL, _osd_thread, _print_bar);
+    if (pthread_create(&osd_pt, NULL, _osd_thread, _print_bar) != 0) {
+        _bar_restoreBufferBehind();
+        return;
+    }
+    osd_thread_joinable = true;
     osd_thread_active = true;
 }
 
@@ -365,6 +403,7 @@ void osd_hideBar(void)
         return;
     pthread_cancel(osd_pt);
     pthread_join(osd_pt, NULL);
+    osd_thread_joinable = false;
     _bar_restoreBufferBehind();
     osd_thread_active = false;
 }

@@ -9,65 +9,20 @@
 #include "utils/json.h"
 #include "utils/str.h"
 
+#include "./image_path.h"
+
 #define SYSTEM_CONFIG "/mnt/SDCARD/system.json"
 #define FALLBACK_FONT "/customer/app/Exo-2-Bold-Italic.ttf"
-#define FALLBACK_PATH "/mnt/SDCARD/miyoo/app/"
-#define SYSTEM_RESOURCES "/mnt/SDCARD/.tmp_update/res/"
-#define THEME_OVERRIDES "/mnt/SDCARD/Saves/CurrentProfile/theme"
 #define FALLBACK_THEME_PATH "/mnt/SDCARD/miyoo/app/"
 
 typedef SDL_Surface *(*ScaleSurfaceFunc)(SDL_Surface *surface, double xScale, double yScale, int smoothing);
 
 static ScaleSurfaceFunc scaleSurfaceFunc = NULL;
-static double g_scale = 1.0;
 
 void theme_initScaling(double scale, ScaleSurfaceFunc scaleSurface)
 {
     g_scale = scale;
     scaleSurfaceFunc = scaleSurface;
-}
-
-SDL_Rect theme_scaleRect(SDL_Rect rect)
-{
-    if (g_scale == 1.0)
-        return rect;
-    rect.x = (double)rect.x * g_scale;
-    rect.y = (double)rect.y * g_scale;
-    rect.w = (double)rect.w * g_scale;
-    rect.h = (double)rect.h * g_scale;
-    return rect;
-}
-
-int theme_getImagePath(const char *theme_path, const char *name, char *out_path)
-{
-    int load_mode = 2;
-    char rel_path[STR_MAX], image_path[STR_MAX * 2];
-    sprintf(rel_path, "skin/%s.png", name);
-
-    sprintf(image_path, THEME_OVERRIDES "/%s", rel_path);
-    bool override_exists = exists(image_path);
-
-    if (!override_exists) {
-        load_mode = 1;
-        sprintf(image_path, "%s%s", theme_path, rel_path);
-        bool theme_exists = exists(image_path);
-
-        if (!theme_exists) {
-            load_mode = 0;
-            if (strncmp(name, "extra/", 6) == 0) {
-                sprintf(rel_path, "%s.png", name + 6);
-                sprintf(image_path, "%s%s", SYSTEM_RESOURCES, rel_path);
-            }
-            else {
-                sprintf(image_path, "%s%s", FALLBACK_PATH, rel_path);
-            }
-        }
-    }
-
-    if (out_path)
-        sprintf(out_path, "%s", image_path);
-
-    return load_mode;
 }
 
 SDL_Surface *theme_loadImage(const char *theme_path, const char *name)

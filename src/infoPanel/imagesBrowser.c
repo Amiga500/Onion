@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <stdint.h>
 #include <linux/limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,16 +33,17 @@ static bool getImagePath(const char *dir_path, const struct dirent *ent,
     const int ext_size = 50;
     char ext[ext_size];
     const char *filename = ent->d_name;
-    if (filename[0] == '.' || S_ISDIR(ent->d_type & DT_DIR)) {
+    if (filename[0] == '.' || ent->d_type == DT_DIR) {
         return false;
     }
-    strncpy(ext, getFilenameExt(filename), ext_size);
+    snprintf(ext, ext_size, "%s", getFilenameExt(filename));
     const char *fileExt = toLower(ext);
     if (strcmp(fileExt, "png") == 0 || strcmp(fileExt, "jpg") == 0 ||
         strcmp(fileExt, "jpeg") == 0) {
         char full_path[PATH_MAX];
-        sprintf(full_path, "%s%s", dir_path, filename);
-        strcpy(image_path, full_path);
+        snprintf(full_path, sizeof(full_path), "%s%s", dir_path, filename);
+        strncpy(image_path, full_path, PATH_MAX - 1);
+        image_path[PATH_MAX - 1] = '\0';
         return true;
     }
     return false;
@@ -78,19 +80,36 @@ int compare_strings(const void *a, const void *b)
     return strcmp(aa, bb);
 }
 
+static void freeImagePaths(char **images_paths, int images_paths_count)
+{
+    if (!images_paths) {
+        return;
+    }
+
+    for (int i = 0; i < images_paths_count; i++) {
+        free(images_paths[i]);
+    }
+    free(images_paths);
+}
+
 bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
                             int *images_paths_count)
 {
+    if (!dir_path || !images_paths || !images_paths_count) {
+        return false;
+    }
+
     char normalized_dir_path[PATH_MAX];
     const int dir_path_length = strlen(dir_path);
     if (dir_path_length == 0) {
         return false;
     }
     if (dir_path[dir_path_length - 1] != '/') {
-        sprintf(normalized_dir_path, "%s/", dir_path);
+        snprintf(normalized_dir_path, sizeof(normalized_dir_path), "%s/", dir_path);
     }
     else {
-        strcpy(normalized_dir_path, dir_path);
+        strncpy(normalized_dir_path, dir_path, sizeof(normalized_dir_path) - 1);
+        normalized_dir_path[sizeof(normalized_dir_path) - 1] = '\0';
     }
 
     const int images_count = getImagesCount(normalized_dir_path);
@@ -104,7 +123,15 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
     struct dirent *ent;
 
     *images_paths_count = 0;
-    *images_paths = (char **)malloc(images_count * sizeof(char *));
+    *images_paths = NULL;
+    size_t capacity = images_count > 0 ? (size_t)images_count : 0;
+    if (capacity > 0) {
+        *images_paths = (char **)malloc(capacity * sizeof(char *));
+        if (*images_paths == NULL) {
+            closedir(dir);
+            return false;
+        }
+    }
 
     while ((ent = readdir(dir)) != NULL) {
         char image_path[PATH_MAX];
@@ -115,21 +142,47 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
             continue;
         }
 
+        if ((size_t)(*images_paths_count) >= capacity) {
+            if (capacity > SIZE_MAX / 2 / sizeof(char *)) {
+                freeImagePaths(*images_paths, *images_paths_count);
+                *images_paths = NULL;
+                *images_paths_count = 0;
+                closedir(dir);
+                return false;
+            }
+            size_t new_capacity = capacity == 0 ? 4 : capacity * 2;
+            char **resized_paths =
+                (char **)realloc(*images_paths, new_capacity * sizeof(char *));
+            if (resized_paths == NULL) {
+                freeImagePaths(*images_paths, *images_paths_count);
+                *images_paths = NULL;
+                *images_paths_count = 0;
+                closedir(dir);
+                return false;
+            }
+            *images_paths = resized_paths;
+            capacity = new_capacity;
+        }
+
         (*images_paths)[*images_paths_count] =
             (char *)malloc(PATH_MAX * sizeof(char));
-        strcpy((*images_paths)[*images_paths_count], image_path);
-        (*images_paths_count)++;
-
-        if ((*images_paths_count) >= images_count) {
-            // we found more images than allocated memory
-            // TODO: handle this
-            break;
+        if ((*images_paths)[*images_paths_count] == NULL) {
+            freeImagePaths(*images_paths, *images_paths_count);
+            *images_paths = NULL;
+            *images_paths_count = 0;
+            closedir(dir);
+            return false;
         }
+        strncpy((*images_paths)[*images_paths_count], image_path, PATH_MAX - 1);
+        (*images_paths)[*images_paths_count][PATH_MAX - 1] = '\0';
+        (*images_paths_count)++;
     }
 
     closedir(dir);
 
-    qsort(*images_paths, *images_paths_count, sizeof(char *), compare_strings);
+    if (*images_paths_count > 1) {
+        qsort(*images_paths, *images_paths_count, sizeof(char *), compare_strings);
+    }
 
     return true;
 }

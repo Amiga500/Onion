@@ -34,6 +34,8 @@
 #define LANG_FALLBACK_LOAD "Load"
 #define LANG_FALLBACK_EXIT_TO_MENU "Exit to menu"
 #define LANG_FALLBACK_ADVANCED "Advanced"
+#define LANG_FALLBACK_REMOVE_FAVORITE "Remove favorite"
+#define LANG_FALLBACK_ADD_FAVORITE "Add favorite"
 
 static char **lang_list = NULL;
 
@@ -60,7 +62,9 @@ typedef enum {
     LANG_EXIT = 111,
     LANG_SAVE_EXIT = 112,
     LANG_NEXT = 300,
-    LANG_RESUME_UC = 301
+    LANG_RESUME_UC = 301,
+    LANG_REMOVE_FAVORITE = 302,
+    LANG_ADD_FAVORITE = 303
 } lang_hash;
 
 void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
@@ -178,12 +182,17 @@ bool lang_load(void)
 
 void lang_free(void)
 {
+    // Tweaks, prompt and infoPanel call this at exit even when lang_load()
+    // failed (no language file) and left lang_list NULL: that crashed.
+    if (lang_list == NULL)
+        return;
     for (int i = 0; i < LANG_MAX; i++) {
         if (lang_list[i] == NULL)
             continue;
         free(lang_list[i]);
     }
     free(lang_list);
+    lang_list = NULL; // lang_get() falls back, a second call is a no-op
 }
 
 const char *lang_get(lang_hash key, const char *fallback)

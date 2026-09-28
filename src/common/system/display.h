@@ -10,6 +10,7 @@
 #include "system.h"
 #include "utils/file.h"
 #include "utils/log.h"
+#include "utils/neon_pixel.h"
 
 #ifdef PLATFORM_MIYOOMINI
 #define DEFAULT_WIDTH 640
@@ -54,6 +55,8 @@ static display_t g_display = {
     .init_done = false,
 };
 
+static uint32_t _cached_brightness_raw = UINT32_MAX; // UINT32_MAX = no cached value
+
 typedef struct Rect {
     int x;
     int y;
@@ -88,6 +91,11 @@ void display_getRenderResolution()
         g_display.width = g_display.vinfo.xres;
         g_display.height = g_display.vinfo.yres;
     }
+    // Row pitch belongs to the current mode: display_readOrWriteBuffer()
+    // uses finfo.line_length, so a process that initialised in one mode
+    // (e.g. 752x560) and is told of a change (SIGUSR1) must not keep the
+    // old pitch.
+    ioctl(fb_fd, FBIOGET_FSCREENINFO, &g_display.finfo);
     printf_debug("Render resolution: %dx%d\n", g_display.width, g_display.height);
 }
 
@@ -142,7 +150,9 @@ void display_save(void)
     g_display.fb_ofs = (uint8_t *)g_display.fb_addr + (g_display.vinfo.yoffset * g_display.stride);
 
     // Save display area and clear
-    if ((g_display.savebuf = (uint8_t *)malloc(g_display.width * g_display.bpp * g_display.height))) {
+    size_t save_size = (size_t)g_display.width * (size_t)g_display.bpp * (size_t)g_display.height;
+    if (save_size > 0 && save_size / g_display.width / g_display.bpp == (size_t)g_display.height &&
+        (g_display.savebuf = (uint8_t *)malloc(save_size))) {
         uint32_t i, ofss, ofsd;
         ofss = ofsd = 0;
         for (i = g_display.height; i > 0;
@@ -203,6 +213,7 @@ void display_setScreen(bool enabled)
         file_write(PWM_DIR "export", "0", 1);
         file_write(PWM_DIR "pwm0/enable", "0", 1);
         file_write(PWM_DIR "pwm0/enable", "1", 1);
+        _cached_brightness_raw = UINT32_MAX; // invalidate cache after PWM re-export
         display_restore();
     }
     else {
@@ -224,20 +235,38 @@ uint32_t display_getBrightnessRaw()
     return duty_cycle;
 }
 
+// Brightness level (0 - 10) to PWM duty cycle: exponential curve.
+static inline int display_brightnessToRaw(uint32_t value)
+{
+    return round(3.0 * exp(0.350656 * value));
+}
+
+// PWM duty cycle to brightness level (0 - 10), the inverse of the curve.
+static inline int display_brightnessFromRaw(int value_raw)
+{
+    if (value_raw <= 0)
+        return 0;
+    return round((log(value_raw / 3.0) / 0.350656));
+}
+
 // Get display brightness from raw (0 - 10)
 int display_getBrightnessFromRaw()
 {
-    int value_raw = display_getBrightnessRaw();
-    int value = round((log(value_raw / 3.0) / 0.350656));
-    return value;
+    return display_brightnessFromRaw(display_getBrightnessRaw());
 }
 //
 //    Set Brightness (Raw)
 //
 void display_setBrightnessRaw(uint32_t value)
 {
+    // No write-skipping cache: keymon writes duty_cycle from its own process
+    // (display_setBrightnessRaw(0) on screen off), so a per-process cached
+    // value can go stale behind our back and suppress a needed write (either
+    // a screen-off 0 or a restore of the previous level). The sysfs write is
+    // cheap; correctness across processes wins.
     FILE *fp;
     file_put_sync(fp, PWM_DIR "pwm0/duty_cycle", "%u", value);
+    _cached_brightness_raw = value;
     printf_debug("Raw brightness: %d\n", value);
 }
 
@@ -248,9 +277,7 @@ void display_setBrightness(uint32_t value)
     // int value_raw = (value == 0) ? 3 : (value * 10);
 
     // Exponential curve
-    int value_raw = round(3.0 * exp(0.350656 * value));
-
-    display_setBrightnessRaw(value_raw);
+    display_setBrightnessRaw(display_brightnessToRaw(value));
 }
 
 /**
@@ -270,16 +297,46 @@ void display_setBrightness(uint32_t value)
 void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, rect_t rect, bool rotate, bool mask, bool write)
 {
     int bufferPos = index * display->vinfo.yres;
+    int fb_stride_pixels = (int)(display->finfo.line_length / (int)sizeof(uint32_t));
+    if (fb_stride_pixels < (int)display->vinfo.xres)
+        fb_stride_pixels = (int)display->vinfo.xres;
 
     for (int oy = 0; oy < rect.h; oy++) {
         int y = rect.y + oy;
 
-        if (y < 0 || y >= display->vinfo.yres)
+        if (y < 0 || y >= (int)display->vinfo.yres)
             continue;
 
         int virtualY = bufferPos + (rotate ? (display->vinfo.yres - 1) - y : y);
-        long baseOffset = (long)virtualY * display->vinfo.xres;
+        long baseOffset = (long)virtualY * fb_stride_pixels;
         int baseIndex = oy * rect.w;
+
+        // Fast path: non-rotated, non-masked, contiguous row — use memcpy
+        if (!rotate && !mask && rect.x >= 0 && rect.x + rect.w <= (int)display->vinfo.xres) {
+            long rowOffset = baseOffset + (long)rect.x;
+            if (write) {
+                memcpy(&display->fb_addr[rowOffset], &pixels[baseIndex], rect.w * sizeof(uint32_t));
+            }
+            else {
+                memcpy(&pixels[baseIndex], &display->fb_addr[rowOffset], rect.w * sizeof(uint32_t));
+            }
+            continue;
+        }
+
+        // Fast path: rotated (180°), non-masked, row fully on screen. The
+        // framebuffer row is the source row reversed; this is the path of
+        // every GameSwitcher frame (all buffers), so do it with NEON rather
+        // than pixel by pixel with per-pixel bounds checks.
+        if (rotate && !mask && rect.x >= 0 && rect.x + rect.w <= (int)display->vinfo.xres) {
+            long rowOffset = baseOffset + (long)display->vinfo.xres - rect.x - rect.w;
+            if (write) {
+                neon_reverse_copy_u32(&display->fb_addr[rowOffset], &pixels[baseIndex], rect.w);
+            }
+            else {
+                neon_reverse_copy_u32(&pixels[baseIndex], &display->fb_addr[rowOffset], rect.w);
+            }
+            continue;
+        }
 
         for (int ox = 0; ox < rect.w; ox++) {
             int x = rect.x + ox;
@@ -288,7 +345,7 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
                 x = (display->vinfo.xres - 1) - x;
             }
 
-            if (x < 0 || x >= display->vinfo.xres)
+            if (x < 0 || x >= (int)display->vinfo.xres)
                 continue;
 
             long offset = baseOffset + (long)x;
@@ -329,6 +386,8 @@ void display_readOrWriteBuffer(int index, display_t *display, uint32_t *pixels, 
  */
 void display_readCurrentBuffer(display_t *display, uint32_t *pixels, rect_t rect, bool rotate, bool mask)
 {
+    if (display->vinfo.yres == 0)
+        return;
     int index = display->vinfo.yoffset / display->vinfo.yres;
     display_readOrWriteBuffer(index, display, pixels, rect, rotate, mask, false);
 }
@@ -384,6 +443,8 @@ void display_writeBuffer(int index, display_t *display, uint32_t *pixels, rect_t
  */
 void display_readOrWriteBuffers(display_t *display, uint32_t **pixels, rect_t rect, bool rotate, bool mask, bool write)
 {
+    if (display->vinfo.yres == 0)
+        return;
     int numBuffers = display->vinfo.yres_virtual / display->vinfo.yres;
 
     for (int b = 0; b < numBuffers; b++) {
@@ -432,23 +493,25 @@ void display_drawFrame(uint32_t color)
 {
     uint32_t *ofs = g_display.fb_addr;
     uint32_t i;
-    for (i = 0; i < 640; i++) {
+    int w = g_display.width;
+    int h = g_display.height;
+    for (i = 0; i < (uint32_t)w; i++) {
         ofs[i] = color;
     }
-    ofs += 640 * 479;
-    for (i = 0; i < 640 * 2; i++) {
+    ofs += w * (h - 1);
+    for (i = 0; i < (uint32_t)w * 2; i++) {
         ofs[i] = color;
     }
-    ofs += 640 * 480;
-    for (i = 0; i < 640 * 2; i++) {
+    ofs += w * h;
+    for (i = 0; i < (uint32_t)w * 2; i++) {
         ofs[i] = color;
     }
-    ofs += 640 * 480;
-    for (i = 0; i < 640; i++) {
+    ofs += w * h;
+    for (i = 0; i < (uint32_t)w; i++) {
         ofs[i] = color;
     }
-    ofs = g_display.fb_addr + 639;
-    for (i = 0; i < 480 * 3 - 1; i++, ofs += 640) {
+    ofs = g_display.fb_addr + w - 1;
+    for (i = 0; i < (uint32_t)(h * 3 - 1); i++, ofs += w) {
         ofs[0] = color;
         ofs[1] = color;
     }
@@ -494,7 +557,7 @@ void display_close(void)
     display_reset();
     display_free(&g_display);
 
-    if (fb_fd > 0)
+    if (fb_fd >= 0)
         close(fb_fd);
 }
 
