@@ -23,6 +23,7 @@
 #include "utils/keystate.h"
 #include "utils/log.h"
 #include "utils/sdl_init.h"
+#include "utils/signal_handler.h"
 
 #define FRAMES_PER_SECOND 60
 #define SHUTDOWN_TIMEOUT 500
@@ -51,6 +52,7 @@ void __showInfoDialog(const char *title, const char *message)
                 sound_change();
             }
         }
+        SDL_Delay(15); // wait for input without spinning
     }
     SDL_FreeSurface(background_surface);
 }
@@ -63,14 +65,7 @@ void showInfoDialog(List *list)
 
 static void sigHandler(int sig)
 {
-    switch (sig) {
-    case SIGINT:
-    case SIGTERM:
-        quit = true;
-        break;
-    default:
-        break;
-    }
+    signal_handler_quit(&quit, sig);
 }
 
 int main(int argc, char *argv[])
@@ -319,6 +314,10 @@ int main(int argc, char *argv[])
 
             acc_ticks -= time_step;
         }
+
+        // Idle until the next frame instead of spinning on a CPU core
+        if (acc_ticks < time_step)
+            SDL_Delay(time_step - acc_ticks);
     }
 
     // Clear the screen when exiting
@@ -347,6 +346,9 @@ int main(int argc, char *argv[])
 
     Mix_CloseAudio();
 
+    theme_renderHeader_cleanup();
+    theme_renderStandardHint_cleanup();
+    theme_renderDialog_cleanup();
     resources_free();
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);
