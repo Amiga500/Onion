@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
             play_activity_list_all();
         }
         else {
-            printf("Error: Invalid argument '%s'\n", argv[1]);
+            printf("Error: Invalid argument '%s'\n", argv[i]);
             printUsage();
             return EXIT_FAILURE;
         }
