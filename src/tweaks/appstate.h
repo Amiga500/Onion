@@ -1,11 +1,10 @@
 #ifndef TWEAKS_APPSTATE_H__
 #define TWEAKS_APPSTATE_H__
 
-#include <signal.h>
-
 #include "components/list.h"
 #include "utils/keystate.h"
 #include "utils/sdl_init.h"
+#include "utils/signal_handler.h"
 
 static int menu_level = 0;
 static List *menu_stack[5];
@@ -120,14 +119,7 @@ static char ip_address_label[STR_MAX];
 
 static void sigHandler(int sig)
 {
-    switch (sig) {
-    case SIGINT:
-    case SIGTERM:
-        quit = true;
-        break;
-    default:
-        break;
-    }
+    signal_handler_quit(&quit, sig);
 }
 
 #endif // TWEAKS_APPSTATE_H__

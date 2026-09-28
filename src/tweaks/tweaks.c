@@ -137,12 +137,17 @@ int main(int argc, char *argv[])
                 }
             }
             else if (keystate[SW_BTN_A] == PRESSED) {
-                if (list_currentItem(menu_stack[menu_level])->action != NULL) {
+                bool has_action = list_currentItem(menu_stack[menu_level])->action != NULL;
+                if (has_action) {
                     sound_change();
                     skip_next_change = true;
-                    keystate[SW_BTN_A] = RELEASED;
                 }
                 key_changed = list_activateItem(menu_stack[menu_level]) || header_changed;
+                // The action may have read the release itself (a dialog). A
+                // plain RELEASED here turned every key repeat of a held A
+                // into a new press, running the action again and again.
+                if (has_action)
+                    keystate[SW_BTN_A] = keystate_resync(SW_BTN_A);
             }
             else if (changed_key == SW_BTN_MENU && keystate[SW_BTN_MENU] == RELEASED) {
                 if (!menu_combo_pressed)
@@ -208,7 +213,7 @@ int main(int argc, char *argv[])
                         list_changed = true;
                     }
                 }
-                if (DEVICE_ID == MIYOO354) {
+                if (IS_MIYOO_PLUS_OR_FLIP()) {
                     if (isMenu(&_menu_user_blue_light)) {
                         if (_writeDateString(_menu_user_blue_light.items[0].label)) {
                             list_changed = true;
@@ -262,6 +267,10 @@ int main(int argc, char *argv[])
 
             acc_ticks -= time_step;
         }
+
+        // Idle until the next frame instead of spinning on a CPU core
+        if (acc_ticks < time_step)
+            SDL_Delay(time_step - acc_ticks);
     }
 
     // Clear the screen when exiting
@@ -274,6 +283,8 @@ int main(int argc, char *argv[])
 
     if (DEVICE_ID == MIYOO354) {
         value_setLcdVoltage();
+    }
+    if (HAS_WIFI()) {
         check_networkChanged();
     }
 
@@ -286,6 +297,9 @@ int main(int argc, char *argv[])
 
     lang_free();
     menu_free_all();
+    theme_renderHeader_cleanup();
+    theme_renderStandardHint_cleanup();
+    theme_renderDialog_cleanup();
     resources_free();
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);
