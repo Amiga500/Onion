@@ -1,4 +1,5 @@
 #include "batmon.h"
+#include "./warn_reload.h"
 #include "system/device_model.h"
 #include "utils/process.h"
 #include <stdio.h>
@@ -16,7 +17,8 @@ int main(int argc, char *argv[])
     best_session_time = get_best_session_time();
 
     FILE *fp;
-    int old_percentage = -1, current_percentage = 0, warn_at = 15;
+    int old_percentage = -1, current_percentage = -1, warn_at = 15;
+    time_t warn_at_mtime = 0;
     int lowest_percentage_after_charge = 500;
     atexit(cleanup);
     signal(SIGINT, sigHandler);
@@ -36,10 +38,8 @@ int main(int argc, char *argv[])
                 // Charging just started
                 lowest_percentage_after_charge = 500; // Reset lowest percentage before charge
                 is_charging = true;
-                if (DEVICE_ID == MIYOO354) {
+                if (HAS_AXP()) {
                     current_percentage = getBatPercMMP();
-                    // To solve : Sometimes getBatPercMMP returns 1735289191
-                    current_percentage = (current_percentage > 100) ? old_percentage : current_percentage;
                 }
                 else {
                     current_percentage = 500;
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
                 printf_debug("Charging detected - Previous session duration = %d\n", session_time);
 
                 if (session_time > best_session_time) {
-                    printf_debug("Best session duration\n", 1);
+                    printf_debug("Best session duration\n");
                     set_best_session_time(session_time);
                     best_session_time = session_time;
                 }
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
                 current_percentage = batteryPercentage(adc_value_g);
                 saveFakeAxpResult(current_percentage);
             }
-            else if (DEVICE_ID == MIYOO354) {
+            else if (HAS_AXP()) {
                 current_percentage = getBatPercMMP();
             }
             update_current_duration();
@@ -80,9 +80,13 @@ int main(int argc, char *argv[])
         }
 
         if (!is_suspended) {
-            config_get("battery/warnAt", CONFIG_INT, &warn_at);
+            // A new threshold from Tweaks applies at once, not at the
+            // next 15 s check (one stat() per second).
+            if (warnReload_changed(CONFIG_PATH "battery/warnAt", &warn_at_mtime))
+                config_get("battery/warnAt", CONFIG_INT, &warn_at);
 
             if (ticks >= CHECK_BATTERY_TIMEOUT_S) {
+                config_get("battery/warnAt", CONFIG_INT, &warn_at);
                 if (DEVICE_ID == MIYOO283) {
                     adc_value_g = updateADCValue(adc_value_g);
                     current_percentage = batteryPercentage(adc_value_g);
@@ -95,10 +99,8 @@ int main(int argc, char *argv[])
                         current_percentage = lowest_percentage_after_charge;
                     }
                 }
-                else if (DEVICE_ID == MIYOO354) {
+                else if (HAS_AXP()) {
                     current_percentage = getBatPercMMP();
-                    // To solve : Sometimes getBatPercMMP returns 1735289191
-                    current_percentage = (current_percentage > 100) ? old_percentage : current_percentage;
                 }
                 printf_debug(
                     "battery check: suspended = %d, perc = %d, warn = %d\n",
@@ -107,7 +109,7 @@ int main(int argc, char *argv[])
                 ticks = -1;
             }
 
-            if (current_percentage != old_percentage) {
+            if (current_percentage >= 0 && current_percentage != old_percentage) {
                 // This statement is not englobed in the previous one
                 // in order to be launched once when batmon starts
                 printf_debug(
@@ -115,7 +117,10 @@ int main(int argc, char *argv[])
                     is_suspended, current_percentage, warn_at);
                 old_percentage = current_percentage;
                 // Save battery percentage to file
-                file_put_sync(fp, "/tmp/percBat", "%d", current_percentage);
+                // /tmp is tmpfs: fsync is useless there. Write a sibling and
+                // rename it so readers never see a truncated/empty file.
+                file_put(fp, "/tmp/percBat.tmp", "%d", current_percentage);
+                rename("/tmp/percBat.tmp", "/tmp/percBat");
                 // Current battery state duration addition
                 update_current_duration();
                 // New battery percentage entry
@@ -133,7 +138,7 @@ int main(int argc, char *argv[])
         if (is_suspended || current_percentage == 500) {
             batteryWarning_hide();
         }
-        else if (current_percentage < warn_at && !warningDisabled()) {
+        else if (current_percentage >= 0 && current_percentage < warn_at && !warningDisabled()) {
             batteryWarning_show();
         }
         else {
@@ -182,7 +187,8 @@ void cleanup(void)
 {
     remove("/tmp/percBat");
     display_close();
-    close(sar_fd);
+    if (sar_fd >= 0)
+        close(sar_fd);
 }
 
 void update_current_duration(void)
@@ -211,12 +217,15 @@ void update_current_duration(void)
 
                         // Exécuter la mise à jour
                         rc = sqlite3_step(update_stmt);
+                        if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
+                            fprintf(stderr, "Failed to update duration: %s\n", sqlite3_errmsg(bat_log_db));
+                        }
 
                         battery_current_state_duration = 0;
-                        sqlite3_finalize(stmt);
                         sqlite3_finalize(update_stmt);
                     }
                 }
+                sqlite3_finalize(stmt);
             }
             close_battery_log_db();
         }
@@ -247,9 +256,10 @@ void log_new_percentage(int new_bat_value, int is_charging)
             if (count > FILO_MIN_SIZE) {
                 // Deletion of the 1st entry
                 const char *delete_sql = "DELETE FROM bat_activity WHERE id = (SELECT MIN(id) FROM bat_activity);";
-                sqlite3_prepare_v2(bat_log_db, delete_sql, -1, &stmt, 0);
-                sqlite3_step(stmt);
-                sqlite3_finalize(stmt);
+                if (sqlite3_prepare_v2(bat_log_db, delete_sql, -1, &stmt, 0) == SQLITE_OK) {
+                    sqlite3_step(stmt);
+                    sqlite3_finalize(stmt);
+                }
             }
         }
         close_battery_log_db();
@@ -315,12 +325,15 @@ int set_best_session_time(int best_session)
 
                         // Exécuter la mise à jour
                         rc = sqlite3_step(update_stmt);
+                        if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
+                            fprintf(stderr, "Failed to update best_session: %s\n", sqlite3_errmsg(bat_log_db));
+                        }
 
-                        sqlite3_finalize(stmt);
                         sqlite3_finalize(update_stmt);
                         is_success = 1;
                     }
                 }
+                sqlite3_finalize(stmt);
             }
             close_battery_log_db();
         }
@@ -346,9 +359,10 @@ int updateADCValue(int value)
     if (battery_isCharging())
         return 100;
 
-    if (!sar_fd) {
+    if (sar_fd < 0) {
         sar_fd = open("/dev/sar", O_WRONLY);
-        ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
+        if (sar_fd >= 0)
+            ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
     }
 
     static SAR_ADC_CONFIG_READ adcConfig;
@@ -377,14 +391,28 @@ int updateADCValue(int value)
 
 int getBatPercMMP(void)
 {
+    static int last_good = -1;
     char buf[100] = "";
-    int battery_number;
+    int battery_number = -1;
 
-    system("cd /customer/app/ ; ./axp_test > /tmp/.axp_result");
+    // axp_test run directly, without the shell popen() added.
+    if (process_readFirstLine("/customer/app/", "./axp_test", buf, sizeof(buf))) {
+        if (sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number) != 1)
+            battery_number = -1;
+    }
 
-    FILE *fp;
-    file_get(fp, "/tmp/.axp_result", CONTENT_STR, buf);
-    sscanf(buf, "{\"battery\":%d, \"voltage\":%*d, \"charging\":%*d}", &battery_number);
+    /* axp_test has returned garbage (e.g. 1735289191) and -1 on popen/parse
+     * failure. Unpublished (-1) until the first sane 0-100 sample. */
+    if (!battery_acceptAxpPercent(battery_number, &last_good))
+        return last_good;
+
+    if (buf[0] != '\0') {
+        FILE *fp2;
+        if ((fp2 = fopen("/tmp/.axp_result", "w+"))) {
+            fputs(buf, fp2);
+            fclose(fp2);
+        }
+    }
 
     return battery_number;
 }
@@ -486,6 +514,9 @@ static void *batteryWarning_thread(void *param)
             display_drawBatteryIcon(0x00FF0000, 15, g_display.height - 30, 10,
                                     0x00FF0000); // draw red battery icon
         }
+        // Drawn straight into the framebuffer, which the game redraws every
+        // frame: the icon is only visible if it is redrawn about once per
+        // frame (16 ms, as in Onion). At 500 ms it showed for one frame in 30.
         usleep(0x4000);
     }
     return 0;

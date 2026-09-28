@@ -1,0 +1,223 @@
+/**
+ * @file test_battery.c
+ * @brief Unit tests for the battery_isCharging() cache timing logic.
+ *
+ * The charging cache avoids repeated GPIO reads / subprocess spawns
+ * by caching the result for BATTERY_CHARGING_CACHE_MS (2 seconds).
+ * This test validates the elapsed_ms calculation used to decide
+ * whether to return the cached value or refresh it.
+ *
+ * Build and run: make -f Makefile.unit test_battery
+ */
+
+#include "onion_test.h"
+#include <time.h>
+#include <stdbool.h>
+
+/* Production code: the charging-state cache helpers and the axp_test
+ * percentage filter from system/battery.h (getBatPercMMP in batmon.c uses
+ * the filter; axp_test itself cannot run on the host). */
+#include "system/battery.h"
+
+static long compute_elapsed_ms(struct timespec *cache_ts, struct timespec *now)
+{
+    return battery_elapsedMs(cache_ts, now);
+}
+
+static bool cache_is_valid(struct timespec *cache_ts, struct timespec *now)
+{
+    return battery_cacheFresh(cache_ts, now);
+}
+
+/* ---- Tests: elapsed_ms calculation ---- */
+
+TEST(elapsed_zero_when_same_time) {
+    struct timespec ts = {100, 500000000L};
+    long elapsed = compute_elapsed_ms(&ts, &ts);
+    ASSERT_EQ(elapsed, 0);
+}
+
+TEST(elapsed_1000ms_for_1_second) {
+    struct timespec cache = {100, 0};
+    struct timespec now = {101, 0};
+    long elapsed = compute_elapsed_ms(&cache, &now);
+    ASSERT_EQ(elapsed, 1000);
+}
+
+TEST(elapsed_500ms) {
+    struct timespec cache = {100, 0};
+    struct timespec now = {100, 500000000L};
+    long elapsed = compute_elapsed_ms(&cache, &now);
+    ASSERT_EQ(elapsed, 500);
+}
+
+TEST(elapsed_handles_nsec_borrow) {
+    /* now.tv_nsec < cache.tv_nsec — requires nsec borrow */
+    struct timespec cache = {100, 800000000L}; /* 100.8s */
+    struct timespec now = {101, 200000000L};   /* 101.2s → 0.4s elapsed */
+    long elapsed = compute_elapsed_ms(&cache, &now);
+    ASSERT_EQ(elapsed, 400);
+}
+
+TEST(elapsed_handles_nsec_borrow_exact) {
+    /* 1 nanosecond past the second boundary */
+    struct timespec cache = {100, 999999999L};
+    struct timespec now = {101, 0};
+    long elapsed = compute_elapsed_ms(&cache, &now);
+    /* 1 nanosecond = 0ms when truncated */
+    ASSERT_EQ(elapsed, 0);
+}
+
+TEST(elapsed_2000ms_exactly) {
+    struct timespec cache = {100, 0};
+    struct timespec now = {102, 0};
+    long elapsed = compute_elapsed_ms(&cache, &now);
+    ASSERT_EQ(elapsed, 2000);
+}
+
+TEST(elapsed_1999ms) {
+    struct timespec cache = {100, 0};
+    struct timespec now = {101, 999000000L};
+    long elapsed = compute_elapsed_ms(&cache, &now);
+    ASSERT_EQ(elapsed, 1999);
+}
+
+TEST(elapsed_large_gap) {
+    struct timespec cache = {0, 0};
+    struct timespec now = {3600, 0}; /* 1 hour */
+    long elapsed = compute_elapsed_ms(&cache, &now);
+    ASSERT_EQ(elapsed, 3600000L);
+}
+
+TEST(elapsed_negative_when_clock_wraps) {
+    /* If 'now' is before 'cache', elapsed is negative */
+    struct timespec cache = {200, 0};
+    struct timespec now = {100, 0};
+    long elapsed = compute_elapsed_ms(&cache, &now);
+    ASSERT_TRUE(elapsed < 0);
+}
+
+/* ---- Tests: cache_is_valid ---- */
+
+TEST(cache_valid_at_0ms) {
+    struct timespec cache = {100, 0};
+    struct timespec now = {100, 0};
+    ASSERT_TRUE(cache_is_valid(&cache, &now));
+}
+
+TEST(cache_valid_at_1999ms) {
+    struct timespec cache = {100, 0};
+    struct timespec now = {101, 999000000L};
+    ASSERT_TRUE(cache_is_valid(&cache, &now));
+}
+
+TEST(cache_expired_at_2000ms) {
+    struct timespec cache = {100, 0};
+    struct timespec now = {102, 0};
+    ASSERT_FALSE(cache_is_valid(&cache, &now));
+}
+
+TEST(cache_expired_at_2001ms) {
+    struct timespec cache = {100, 0};
+    struct timespec now = {102, 1000000L};
+    ASSERT_FALSE(cache_is_valid(&cache, &now));
+}
+
+TEST(cache_invalid_when_negative_elapsed) {
+    /* Clock went backward — cache should not be considered valid */
+    struct timespec cache = {200, 0};
+    struct timespec now = {100, 0};
+    ASSERT_FALSE(cache_is_valid(&cache, &now));
+}
+
+TEST(cache_valid_at_1ms) {
+    struct timespec cache = {100, 0};
+    struct timespec now = {100, 1000000L};
+    ASSERT_TRUE(cache_is_valid(&cache, &now));
+}
+
+TEST(cache_valid_with_nsec_borrow) {
+    struct timespec cache = {100, 900000000L};
+    struct timespec now = {101, 100000000L}; /* 200ms elapsed */
+    ASSERT_TRUE(cache_is_valid(&cache, &now));
+}
+
+/* ---- AXP percentage (getBatPercMMP in batmon.c) ----
+ * last_good starts at -1 (unpublished); only 0-100 is stored. */
+
+static int axp_last_good = -1;
+
+static void axp_reset(void)
+{
+    axp_last_good = -1;
+}
+
+static int axp_sample(int battery_number)
+{
+    if (!battery_acceptAxpPercent(battery_number, &axp_last_good))
+        return axp_last_good;
+    return battery_number;
+}
+
+TEST(axp_percent_keeps_valid) {
+    axp_reset();
+    ASSERT_EQ(axp_sample(83), 83);
+    ASSERT_EQ(axp_sample(0), 0);
+    ASSERT_EQ(axp_sample(100), 100);
+}
+
+TEST(axp_percent_rejects_negative) {
+    /* 0% is a sane sample and must be kept, not treated as unpublished */
+    axp_reset();
+    axp_sample(0);
+    ASSERT_EQ(axp_sample(-1), 0);
+}
+
+TEST(axp_percent_rejects_garbage) {
+    axp_reset();
+    axp_sample(12);
+    ASSERT_EQ(axp_sample(1735289191), 12);
+}
+
+TEST(axp_percent_first_failure_is_unpublished) {
+    /* batmon starts current_percentage at -1 and publishes only >= 0 */
+    axp_reset();
+    ASSERT_EQ(axp_sample(-1), -1);
+    ASSERT_EQ(axp_sample(1735289191), -1);
+    ASSERT_EQ(axp_sample(57), 57);
+}
+
+/* ---- main ---- */
+
+int main(void)
+{
+    printf("\n=== battery.h Cache Timing Unit Tests ===\n\n");
+
+    /* elapsed_ms calculation */
+    RUN_TEST(elapsed_zero_when_same_time);
+    RUN_TEST(elapsed_1000ms_for_1_second);
+    RUN_TEST(elapsed_500ms);
+    RUN_TEST(elapsed_handles_nsec_borrow);
+    RUN_TEST(elapsed_handles_nsec_borrow_exact);
+    RUN_TEST(elapsed_2000ms_exactly);
+    RUN_TEST(elapsed_1999ms);
+    RUN_TEST(elapsed_large_gap);
+    RUN_TEST(elapsed_negative_when_clock_wraps);
+
+    /* cache validity */
+    RUN_TEST(cache_valid_at_0ms);
+    RUN_TEST(cache_valid_at_1999ms);
+    RUN_TEST(cache_expired_at_2000ms);
+    RUN_TEST(cache_expired_at_2001ms);
+    RUN_TEST(cache_invalid_when_negative_elapsed);
+    RUN_TEST(cache_valid_at_1ms);
+    RUN_TEST(cache_valid_with_nsec_borrow);
+
+    RUN_TEST(axp_percent_keeps_valid);
+    RUN_TEST(axp_percent_rejects_negative);
+    RUN_TEST(axp_percent_rejects_garbage);
+    RUN_TEST(axp_percent_first_failure_is_unpublished);
+
+    TEST_REPORT();
+    return test_failures;
+}

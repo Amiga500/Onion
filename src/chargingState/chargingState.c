@@ -26,6 +26,7 @@
 #include "utils/file.h"
 #include "utils/log.h"
 #include "utils/msleep.h"
+#include "utils/signal_handler.h"
 
 #define RELEASED 0
 #define PRESSED 1
@@ -39,22 +40,23 @@ static int input_fd;
 static struct input_event ev;
 static struct pollfd fds[1];
 
-void getImageDir(const char *theme_path, char *image_dir)
+void getImageDir(const char *theme_path, char *image_dir, size_t image_dir_size)
 {
     char image0_path[STR_MAX * 2];
-    sprintf(image0_path, "%s/skin/extra/chargingState0.png", THEME_OVERRIDES);
+
+    snprintf(image0_path, sizeof(image0_path), "%s/skin/extra/chargingState0.png", THEME_OVERRIDES);
     if (exists(image0_path)) {
-        sprintf(image_dir, "%s/skin/extra", THEME_OVERRIDES);
+        snprintf(image_dir, image_dir_size, "%s/skin/extra", THEME_OVERRIDES);
         return;
     }
 
-    sprintf(image0_path, "%sskin/extra/chargingState0.png", theme_path);
+    snprintf(image0_path, sizeof(image0_path), "%sskin/extra/chargingState0.png", theme_path);
     if (exists(image0_path)) {
-        sprintf(image_dir, "%sskin/extra", theme_path);
+        snprintf(image_dir, image_dir_size, "%sskin/extra", theme_path);
         return;
     }
 
-    strcpy(image_dir, "res");
+    snprintf(image_dir, image_dir_size, "%s", "res");
 }
 
 void suspend(bool enabled, SDL_Surface *video)
@@ -70,14 +72,7 @@ void suspend(bool enabled, SDL_Surface *video)
 
 static void sigHandler(int sig)
 {
-    switch (sig) {
-    case SIGINT:
-    case SIGTERM:
-        quit = true;
-        break;
-    default:
-        break;
-    }
+    signal_handler_quit(&quit, sig);
 }
 
 int main(void)
@@ -91,7 +86,7 @@ int main(void)
     display_setBrightness(settings.brightness);
 
     char image_dir[STR_MAX];
-    getImageDir(settings.theme, image_dir);
+    getImageDir(settings.theme, image_dir, sizeof(image_dir));
 
     getDeviceModel();
 
@@ -199,7 +194,7 @@ int main(void)
 
         if (!suspended) {
             if (ticks - display_timer >= DISPLAY_TIMEOUT) {
-                if (DEVICE_ID == MIYOO354) {
+                if (HAS_AXP()) {
                     quit = true;
                     turn_off = true;
                     break;
