@@ -72,6 +72,8 @@ jobs:
         name: ${{ env.RELEASE_TITLE }}
         target_commitish: ${{ github.sha }}
         prerelease: false
+        draft: true
+        make_latest: false
         body_path: .github/release-notes.md
         generate_release_notes: true
         files: release/${{ env.ZIP_NAME }}
