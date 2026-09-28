@@ -4,7 +4,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+
+#include "../common/utils/neon_pixel.h"
 
 #define ALIGN4K(val) ((val + 4095) & (~4095))
 #define ERROR(str)                 \
@@ -12,6 +15,34 @@
         fprintf(stderr, str "\n"); \
         goto error;                \
     }
+
+//
+//	Swap R and B channels: ABGR8888 <-> ARGB8888
+//
+static inline void swap_rb_channels(const uint32_t *src, uint32_t *dst, uint32_t count)
+{
+    if (src == dst) {
+        neon_swap_rb_inplace(dst, (int)count);
+    }
+    else {
+        neon_argb_to_rgba(dst, src, (int)count);
+    }
+}
+
+static inline void rgb_to_argb(const uint8_t *src_rgb, uint32_t *dst_argb, uint32_t count)
+{
+    neon_rgb888_to_argb(dst_argb, src_rgb, (int)count);
+}
+
+static inline void gray8_to_argb(const uint8_t *src_gray, uint32_t *dst_argb, uint32_t count)
+{
+    neon_gray8_to_argb(dst_argb, src_gray, (int)count);
+}
+
+static inline void gray8a_to_argb(const uint8_t *src_ga, uint32_t *dst_argb, uint32_t count)
+{
+    neon_gray8a_to_argb(dst_argb, src_ga, (int)count);
+}
 
 //
 //	GFX BlitSurface with scale
@@ -68,9 +99,9 @@ int main(int argc, char *argv[])
     FILE *fp;
     MI_PHY srcPa = 0, dstPa = 0;
     void *tmp, *srcVa = NULL, *dstVa = NULL;
-    uint8_t *src8;
-    uint32_t *src, *dst, pix, x, y, sw, sh, dw, dh, ss = 0, ds = 0, mw = 250,
-                                                    mh = 360;
+    uint32_t *src, *dst;
+    uint32_t y, sw, sh, dw, dh;
+    uint32_t ss = 0, ds = 0, mw = 250, mh = 360;
 
     // Read commandline and open src
     if (argc < 3)
@@ -117,38 +148,26 @@ int main(int argc, char *argv[])
     switch (ch) {
     case 1:
         for (y = 0; y < sh; y++) {
-            src8 = rows[y];
-            for (x = 0; x < sw; x++, src8++) {
-                *dst++ =
-                    0xFF000000 | (src8[0] << 16) | (src8[0] << 8) | src8[0];
-            }
+            gray8_to_argb(rows[y], dst, sw);
+            dst += sw;
         }
         break;
     case 2:
         for (y = 0; y < sh; y++) {
-            src8 = rows[y];
-            for (x = 0; x < sw; x++, src8 += 2) {
-                *dst++ = (src8[1] << 24) | (src8[0] << 16) | (src8[0] << 8) |
-                         src8[0];
-            }
+            gray8a_to_argb(rows[y], dst, sw);
+            dst += sw;
         }
         break;
     case 3:
         for (y = 0; y < sh; y++) {
-            src8 = rows[y];
-            for (x = 0; x < sw; x++, src8 += 3) {
-                *dst++ = 0xFF000000 | src8[0] << 16 | (src8[1] << 8) | src8[2];
-            }
+            rgb_to_argb(rows[y], dst, sw);
+            dst += sw;
         }
         break;
     case 4:
         for (y = 0; y < sh; y++) {
-            src = (uint32_t *)rows[y];
-            for (x = 0; x < sw; x++) {
-                pix = *src++;
-                *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                         (pix & 0x000000FF) << 16;
-            }
+            swap_rb_channels((const uint32_t *)rows[y], dst, sw);
+            dst += sw;
         }
         break;
     }
@@ -192,12 +211,8 @@ int main(int argc, char *argv[])
     src = dstVa;
     tmp = malloc(dw * 4);
     for (y = 0; y < dh; y++) {
-        dst = tmp;
-        for (x = 0; x < dw; x++) {
-            pix = *src++;
-            *dst++ = (pix & 0xFF00FF00) | (pix & 0x00FF0000) >> 16 |
-                     (pix & 0x000000FF) << 16;
-        }
+        swap_rb_channels(src, tmp, dw);
+        src += dw;
         png_write_row(png_ptr, (png_bytep)tmp);
     }
     png_write_end(png_ptr, info_ptr);
