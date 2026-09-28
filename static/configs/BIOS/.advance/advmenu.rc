@@ -52,7 +52,8 @@ sound_foreground_start none
 sound_foreground_stop none
 sound_volume -26
 preview_default "preview.png"
-ui_bar_font "/mnt/SDCARD/miyoo/app/Exo-2-Bold-Italic_Universal.ttf"
+# use fonts bundled in BIOS/.advance: always available, even if Onion core fonts change
+ui_bar_font "font.ttf"
 #ui_clip none
 ui_color help ffffff 000000
 ui_color help_tag 00ff00 000000
@@ -80,9 +81,9 @@ ui_menukey no
 ui_game snap
 ui_gamemsg "LOADING"
 ui_background bg.png
-ui_menu_font "/mnt/SDCARD/miyoo/app/Exo-2-Bold-Italic_Universal.ttf"
+ui_menu_font "font.ttf"
 ui_menu_size 20
-ui_text_font "/mnt/SDCARD/miyoo/app/wqy-microhei.ttc"
+ui_text_font "BinggraeMelona.ttf"
 ui_text_size 24
 
 #emulator "advmess" advmess "/mnt/SDCARD/App/advmenu/advmess.sh" "%p"

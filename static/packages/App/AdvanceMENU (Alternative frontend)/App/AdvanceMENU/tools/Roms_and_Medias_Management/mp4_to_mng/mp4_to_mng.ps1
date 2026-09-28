@@ -16,14 +16,15 @@ New-Item -ItemType Directory -Path mng -Force
 # Downloading ffmpeg if necessary 
 
 if (-not (Test-Path -Path "ffmpeg.exe")) {
-	# $ffmpeg_url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2021-02-28-12-32/ffmpeg-n4.3.2-160-gfbb9368226-win64-lgpl-4.3.zip"
-	$ffmpeg_url = "http://alecsis.free.fr/tools/ffmpeg.zip"
+	$ffmpeg_url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2021-02-28-12-32/ffmpeg-n4.3.2-160-gfbb9368226-win64-lgpl-4.3.zip"
+	# old PowerShell versions default to TLS 1.0, which GitHub rejects
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 	$ffmpeg_path = $PSScriptRoot + "\ffmpeg"
-    New-Item -ItemType Directory -Path $ffmpeg_path
+    New-Item -ItemType Directory -Path $ffmpeg_path -Force
     $ffmpeg_zip = "$($ffmpeg_path)\ffmpeg.zip"
     Invoke-WebRequest -Uri $ffmpeg_url -OutFile $ffmpeg_zip
     Expand-Archive -Path $ffmpeg_zip -DestinationPath $ffmpeg_path
-	$cmdOutput = (Get-ChildItem -Path . -Filter ffmpeg.exe -Recurse -ErrorAction SilentlyContinue -Force).FullName | Select -First 1
+	$cmdOutput = (Get-ChildItem -Path $ffmpeg_path -Filter ffmpeg.exe -Recurse -ErrorAction SilentlyContinue -Force).FullName | Select -First 1
 	Move-Item -Path $cmdOutput -Destination .
     Remove-Item -Path $ffmpeg_zip
 	Remove-Item -Path "$($ffmpeg_path)" -Recurse -Force -Confirm:$false
@@ -40,9 +41,9 @@ foreach ($video in $videos) {
     Write-Host "`n=================== Converting $video ===================`n"
 	$video_name = $video.BaseName
     $output_folder = "PNG_" + $video_name
-	# creating a temparaty folder for png files extracted from the video
-    New-Item -ItemType Directory -Path $output_folder
-    .\ffmpeg -i $video.FullName -vf fps=15 -s 128x120 "$($output_folder)\frame%03d.png"
+	# creating a temporary folder for png files extracted from the video
+    New-Item -ItemType Directory -Path $output_folder -Force
+    .\ffmpeg -y -i $video.FullName -vf fps=15 -s 128x120 "$($output_folder)\frame%03d.png"
 	# creating mng files from png files
 	.\advmng -a 15 "mng\$($video_name).mng" "$($output_folder)\frame*.png"
 	Remove-Item -Path "$($output_folder)" -Recurse -Force -Confirm:$false

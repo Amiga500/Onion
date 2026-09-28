@@ -12,22 +12,18 @@ New-Item -ItemType Directory -Path $MovedFolder -Force
 # Retrieve files in RomsFolder
 $RomsFolder_files = Get-ChildItem $RomsFolder -Filter *.zip
 
+# Read the Snaps folder only once, into a lookup set of preview names (without extension)
+$preview_names = @{}
+foreach ($file2 in (Get-ChildItem $SnapFolder)) {
+    $preview_names[[System.IO.Path]::GetFileNameWithoutExtension($file2.Name)] = $true
+}
+
 # Loop for each zip file in rom folder
 foreach ($file in $RomsFolder_files) {
     # Retrieve preview file name without extension
     $file_name_without_ext = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
 
-    # Loop for each file in Snaps folder 
-    $SnapFolder_files = Get-ChildItem $SnapFolder
-    $file_found = $false
-    foreach ($file2 in $SnapFolder_files) {
-        $file2_name_without_ext = [System.IO.Path]::GetFileNameWithoutExtension($file2.Name)
-        if ($file_name_without_ext -eq $file2_name_without_ext) {
-            $file_found = $true
-            break
-        }
-    }
-    if (!$file_found) {
+    if (!$preview_names.ContainsKey($file_name_without_ext)) {
         Write-Host "Moving $file"
         Move-Item "$RomsFolder\$($file.Name)" -Destination $MovedFolder
     }
