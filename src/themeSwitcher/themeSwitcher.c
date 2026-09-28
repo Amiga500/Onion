@@ -19,6 +19,104 @@
 
 static bool quit = false;
 
+#define PREVIEW_CACHE_SIZE 5
+
+typedef struct {
+    int theme_index;
+    unsigned long last_used;
+    SDL_Surface *surface;
+} PreviewCacheEntry;
+
+static unsigned long preview_cache_clock = 0;
+
+static bool resolvePreviewPath(const char *theme_name, char *path,
+                               size_t path_size)
+{
+    snprintf(path, path_size, THEMES_DIR "/%s/preview.png", theme_name);
+    if (is_file(path))
+        return true;
+
+    snprintf(path, path_size, THEMES_DIR "/.previews/%s/preview.png",
+             theme_name);
+    return is_file(path);
+}
+
+static SDL_Surface *loadPreviewSurface(const char *theme_name)
+{
+    char path[STR_MAX * 2];
+    if (!resolvePreviewPath(theme_name, path, sizeof(path)))
+        return NULL;
+
+    SDL_Surface *preview = IMG_Load(path);
+    if (preview == NULL) {
+        printf_debug("Could not load theme preview: %s (%s)\n", path,
+                     IMG_GetError());
+    }
+
+    // Keep the IMG_Load software surface. Converting it with
+    // SDL_DisplayFormat[Alpha]() flips previews on the Miyoo framebuffer.
+    return preview;
+}
+
+static void previewCacheInit(PreviewCacheEntry cache[PREVIEW_CACHE_SIZE])
+{
+    for (int i = 0; i < PREVIEW_CACHE_SIZE; i++) {
+        cache[i].theme_index = -1;
+        cache[i].last_used = 0;
+        cache[i].surface = NULL;
+    }
+}
+
+static SDL_Surface *previewCacheGet(
+    PreviewCacheEntry cache[PREVIEW_CACHE_SIZE],
+    const char themes[NUMBER_OF_THEMES][STR_MAX], int theme_index)
+{
+    preview_cache_clock++;
+
+    for (int i = 0; i < PREVIEW_CACHE_SIZE; i++) {
+        if (cache[i].theme_index == theme_index) {
+            cache[i].last_used = preview_cache_clock;
+            return cache[i].surface;
+        }
+    }
+
+    int slot = 0;
+    for (int i = 0; i < PREVIEW_CACHE_SIZE; i++) {
+        if (cache[i].theme_index < 0) {
+            slot = i;
+            break;
+        }
+        if (cache[i].last_used < cache[slot].last_used)
+            slot = i;
+    }
+
+    if (cache[slot].surface != NULL)
+        SDL_FreeSurface(cache[slot].surface);
+
+    cache[slot].theme_index = theme_index;
+    cache[slot].last_used = preview_cache_clock;
+    cache[slot].surface = loadPreviewSurface(themes[theme_index]);
+    return cache[slot].surface;
+}
+
+static void previewCacheFree(PreviewCacheEntry cache[PREVIEW_CACHE_SIZE])
+{
+    for (int i = 0; i < PREVIEW_CACHE_SIZE; i++) {
+        if (cache[i].surface != NULL)
+            SDL_FreeSurface(cache[i].surface);
+    }
+}
+
+#define SURF_W(s) ((s) != NULL ? (s)->w : 0)
+#define SURF_H(s) ((s) != NULL ? (s)->h : 0)
+
+static void safeBlitSurface(SDL_Surface *src, SDL_Rect *srcrect,
+                            SDL_Surface *dst, SDL_Rect *dstrect)
+{
+    if (src != NULL && dst != NULL)
+        SDL_BlitSurface(src, srcrect, dst, dstrect);
+}
+
 void showCenteredMessage(SDL_Surface *video, SDL_Surface *screen,
                          const char *message_str, TTF_Font *font,
                          SDL_Color color)
@@ -42,9 +140,9 @@ SDL_Surface *createBottomBar(TTF_Font *font)
 
     SDL_FillRect(surface, NULL, 0);
 
-    SDL_Rect pos = {20, 35 - surfaceButtonA->h / 2};
-    SDL_BlitSurface(surfaceButtonA, NULL, surface, &pos);
-    pos.x += surfaceButtonA->w + 10;
+    SDL_Rect pos = {20, 35 - SURF_H(surfaceButtonA) / 2};
+    safeBlitSurface(surfaceButtonA, NULL, surface, &pos);
+    pos.x += SURF_W(surfaceButtonA) + 10;
 
     SDL_Surface *text =
         TTF_RenderUTF8_Blended(font, "INSTALL", (SDL_Color){255, 255, 255});
@@ -53,9 +151,9 @@ SDL_Surface *createBottomBar(TTF_Font *font)
     pos.x += text->w + 20;
     SDL_FreeSurface(text);
 
-    pos.y = 35 - surfaceButtonB->h / 2;
-    SDL_BlitSurface(surfaceButtonB, NULL, surface, &pos);
-    pos.x += surfaceButtonB->w + 10;
+    pos.y = 35 - SURF_H(surfaceButtonB) / 2;
+    safeBlitSurface(surfaceButtonB, NULL, surface, &pos);
+    pos.x += SURF_W(surfaceButtonB) + 10;
 
     text = TTF_RenderUTF8_Blended(font, "CANCEL", (SDL_Color){255, 255, 255});
     pos.y = 35 - text->h / 2 - 3;
@@ -63,9 +161,9 @@ SDL_Surface *createBottomBar(TTF_Font *font)
     pos.x += text->w + 20;
     SDL_FreeSurface(text);
 
-    pos.y = 35 - surfaceButtonX->h / 2;
-    SDL_BlitSurface(surfaceButtonX, NULL, surface, &pos);
-    pos.x += surfaceButtonX->w + 10;
+    pos.y = 35 - SURF_H(surfaceButtonX) / 2;
+    safeBlitSurface(surfaceButtonX, NULL, surface, &pos);
+    pos.x += SURF_W(surfaceButtonX) + 10;
 
     text = TTF_RenderUTF8_Blended(font, "TOGGLE ICONS",
                                   (SDL_Color){255, 255, 255});
@@ -162,15 +260,15 @@ int main(int argc, char *argv[])
     SDL_Surface *surfaceFileZIP = IMG_Load("res/file_zip.png");
     SDL_Surface *surfaceFile7Z = IMG_Load("res/file_7z.png");
     SDL_Surface *surfaceFileRAR = IMG_Load("res/file_rar.png");
-    SDL_Rect rectPreviewIcon = {560 - surfaceFileZIP->w,
-                                21 - surfaceFileZIP->h / 2};
+    SDL_Rect rectPreviewIcon = {560 - SURF_W(surfaceFileZIP),
+                                21 - SURF_H(surfaceFileZIP) / 2};
 
     SDL_Surface *surfaceHasIcons = IMG_Load("res/themes_has_icons.png");
-    SDL_Rect rectHasIcons = {560 - surfaceHasIcons->w,
-                             21 - surfaceHasIcons->h / 2};
-    SDL_Rect rectHasIconsPreviewIcon = {560 - surfaceFileZIP->w -
-                                            surfaceHasIcons->w - 10,
-                                        21 - surfaceFileZIP->h / 2};
+    SDL_Rect rectHasIcons = {560 - SURF_W(surfaceHasIcons),
+                             21 - SURF_H(surfaceHasIcons) / 2};
+    SDL_Rect rectHasIconsPreviewIcon = {560 - SURF_W(surfaceFileZIP) -
+                                            SURF_W(surfaceHasIcons) - 10,
+                                        21 - SURF_H(surfaceFileZIP) / 2};
 
     SDL_Rect preview_src_rect = {0, 0, 480, 360};
     SDL_Rect rectArrowLeft = {24, 210, 28, 32};
@@ -197,24 +295,9 @@ int main(int argc, char *argv[])
     int themes_count = listAllThemes(themes, installed_theme, &installed_page);
     int current_page = installed_page;
 
-    showCenteredMessage(video, screen, "Loading previews...", font30, color_white);
-
-    char preview_path[STR_MAX * 2];
-    SDL_Surface *previews[themes_count];
+    PreviewCacheEntry preview_cache[PREVIEW_CACHE_SIZE];
+    previewCacheInit(preview_cache);
     SDL_Surface *noPreview = IMG_Load("res/noThemePreview.png");
-
-    for (int i = 0; i < themes_count; i++) {
-        snprintf(preview_path, STR_MAX * 2 - 1, THEMES_DIR "/%s/preview.png", themes[i]);
-
-        if (!is_file(preview_path))
-            snprintf(preview_path, STR_MAX * 2 - 1, THEMES_DIR "/.previews/%s/preview.png", themes[i]);
-
-        previews[i] = is_file(preview_path) ? IMG_Load(preview_path) : NULL;
-
-        char loading_msg[STR_MAX];
-        snprintf(loading_msg, STR_MAX - 1, "Loading previews... %d/%d", i + 1, themes_count);
-        showCenteredMessage(video, screen, loading_msg, font30, color_white);
-    }
 
     char cPages[25];
 
@@ -252,8 +335,10 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (!changed)
+        if (!changed) {
+            SDL_Delay(15); // wait for input without spinning
             continue;
+        }
 
         if (keystate[SW_BTN_B]) {
             if (levelPage == 0)
@@ -322,22 +407,29 @@ int main(int argc, char *argv[])
             render_dirty = true;
         }
 
-        if (!render_dirty)
+        if (!render_dirty) {
+            // Nothing to draw for this input (e.g. a key release): clear
+            // `changed` too, or the loop skips the idle delay above and
+            // spins at 100% CPU until the next redraw.
+            changed = false;
             continue;
+        }
 
         if (levelPage == 0) {
-            if (previews[current_page] == NULL) {
-                SDL_BlitSurface(noPreview, NULL, screen, &rectThemePreview);
+            SDL_Surface *preview = previewCacheGet(
+                preview_cache, themes, current_page);
+            if (preview == NULL) {
+                safeBlitSurface(noPreview, NULL, screen, &rectThemePreview);
             }
             else {
-                SDL_BlitSurface(previews[current_page], &preview_src_rect, screen, &rectThemePreview);
+                SDL_BlitSurface(preview, &preview_src_rect, screen, &rectThemePreview);
             }
-            SDL_BlitSurface(background_page0, NULL, screen, NULL);
+            safeBlitSurface(background_page0, NULL, screen, NULL);
 
             if (current_page != 0)
-                SDL_BlitSurface(surfaceArrowLeft, NULL, screen, &rectArrowLeft);
+                safeBlitSurface(surfaceArrowLeft, NULL, screen, &rectArrowLeft);
             if (current_page != themes_count - 1)
-                SDL_BlitSurface(surfaceArrowRight, NULL, screen, &rectArrowRight);
+                safeBlitSurface(surfaceArrowRight, NULL, screen, &rectArrowRight);
 
             snprintf(cPages, sizeof(cPages) - 1, "%d/%d", current_page + 1, themes_count);
             imagePages = TTF_RenderUTF8_Blended(font30, cPages, color_white);
@@ -357,11 +449,11 @@ int main(int argc, char *argv[])
             SDL_FreeSurface(imageThemeNom);
 
             if (has_icons) {
-                SDL_BlitSurface(surfaceHasIcons, NULL, screen, &rectHasIcons);
+                safeBlitSurface(surfaceHasIcons, NULL, screen, &rectHasIcons);
             }
 
             if (is_preview) {
-                SDL_BlitSurface(previewIcon, NULL, screen, has_icons ? &rectHasIconsPreviewIcon : &rectPreviewIcon);
+                safeBlitSurface(previewIcon, NULL, screen, has_icons ? &rectHasIconsPreviewIcon : &rectPreviewIcon);
             }
 
             SDL_BlitSurface(screen, NULL, background_cache, NULL);
@@ -386,7 +478,7 @@ int main(int argc, char *argv[])
                 rectThemeName.y += 70;
             }
 
-            SDL_BlitSurface(apply_icons ? surfaceToggleON : surfaceToggleOFF, NULL, screen, &rectThemeName);
+            safeBlitSurface(apply_icons ? surfaceToggleON : surfaceToggleOFF, NULL, screen, &rectThemeName);
 
             rectThemeName.x = 60;
             char msg[STR_MAX];
@@ -407,9 +499,7 @@ int main(int argc, char *argv[])
 
     msleep(100);
 
-    for (int i = 0; i < themes_count; i++) {
-        SDL_FreeSurface(previews[i]);
-    }
+    previewCacheFree(preview_cache);
     SDL_FreeSurface(noPreview);
     SDL_FreeSurface(surfaceArrowLeft);
     SDL_FreeSurface(surfaceArrowRight);

@@ -13,6 +13,9 @@
 #include "utils/log.h"
 #include "utils/str.h"
 
+#include "themeMarker.h"
+#include "themePreview.h"
+
 #ifdef PLATFORM_MIYOOMINI
 #define SCRIPT_DIR "/mnt/SDCARD/.tmp_update/script"
 #else
@@ -38,10 +41,12 @@ void loadThemeDirectory(const char *theme_dir,
     DIR *dp;
     struct dirent *ep;
     char config_path[STR_MAX * 2];
-    char preview_path[STR_MAX * 2];
+    char preview_dir[STR_MAX * 2];
 
     if ((dp = opendir(theme_dir)) != NULL) {
         while ((ep = readdir(dp))) {
+            if (*count >= NUMBER_OF_THEMES)
+                break;
             if (ep->d_type != DT_DIR)
                 continue;
             if (ep->d_name[0] == '.')
@@ -51,16 +56,34 @@ void loadThemeDirectory(const char *theme_dir,
                      theme_dir, ep->d_name);
 
             if (check_preview) {
-                snprintf(preview_path, STR_MAX * 2 - 1,
-                         THEMES_DIR "/.previews/%s/config.json", ep->d_name);
-
-                if (is_file(preview_path))
+                // Scanning the extracted Themes/: defer to the previews pass
+                // only when a usable compact preview exists. An orphaned
+                // preview (its archive was deleted) must not hide the
+                // extracted theme, so it is not treated as superseding.
+                snprintf(preview_dir, STR_MAX * 2 - 1,
+                         THEMES_DIR "/.previews/%s/", ep->d_name);
+                if (themePreview_hasArchive(preview_dir))
+                    continue;
+            }
+            else {
+                // Scanning Themes/.previews/ directly: skip an entry whose
+                // source archive is gone, otherwise a deleted compact theme
+                // stays listed but can no longer be loaded.
+                snprintf(preview_dir, STR_MAX * 2 - 1, "%s/%s/",
+                         theme_dir, ep->d_name);
+                if (!themePreview_hasArchive(preview_dir))
                     continue;
             }
 
             if (is_file(config_path)) {
-                strcpy(themes_out[*count], ep->d_name);
-                *count += 1;
+                if (*count >= NUMBER_OF_THEMES) {
+                    printf_debug("Theme limit reached (%d); ignoring remaining entries in %s\n",
+                                 NUMBER_OF_THEMES, theme_dir);
+                    break;
+                }
+
+                snprintf(themes_out[*count], STR_MAX, "%s", ep->d_name);
+                (*count)++;
             }
         }
         closedir(dp);
@@ -72,8 +95,9 @@ void loadThemeDirectory(const char *theme_dir,
 
 void updatePreviews()
 {
-    system(SCRIPT_DIR "/themes_extract_previews.sh");
-    sync();
+    int result = system(SCRIPT_DIR "/themes_extract_previews.sh");
+    if (result != 0)
+        printf_debug("Theme preview update script failed: %d\n", result);
 }
 
 int listAllThemes(char themes_out[NUMBER_OF_THEMES][STR_MAX], const char *installed_theme, int *installed_page)
@@ -99,23 +123,8 @@ int listAllThemes(char themes_out[NUMBER_OF_THEMES][STR_MAX], const char *instal
 
 bool checkPreview(const char *preview_path)
 {
-    if (!is_dir(preview_path))
-        return false;
-
-    char source_path[STR_MAX * 2];
-    snprintf(source_path, STR_MAX * 2 - 1, "%s/source", preview_path);
-
-    if (!is_file(source_path))
-        return false;
-
-    FILE *fp;
-    char archive_path[STR_MAX * 2];
-    file_get(fp, source_path, "%[^\n]", archive_path);
-
-    if (!is_file(archive_path))
-        return false;
-
-    return true;
+    // A preview is usable only while its source archive still exists.
+    return themePreview_hasArchive(preview_path);
 }
 
 bool getThemePath(const char *theme_name, char *theme_path_out)
@@ -192,6 +201,7 @@ void installTheme(char *theme_path, bool apply_icons)
 
     FILE *fp;
     file_put_sync(fp, ACTIVE_THEME, "%s", theme_path);
+    theme_markApplied(theme_path, THEME_MARKER_SN_FILE, THEME_MARKER_DIR);
 
     Theme_s with_overrides = theme_loadFromPath(theme_path, true);
 
