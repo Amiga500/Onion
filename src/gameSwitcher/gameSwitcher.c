@@ -206,6 +206,12 @@ int main(int argc, char *argv[])
     else {
         printf_debug("Resuming game - current_game : %i - index: %i\n", appState.current_game, current_game->index);
         resumeGame(current_game->index);
+        // resumeGame() only flags a quick switch when the game is not
+        // already on the first line. After removing the running entry
+        // (#233) it is, so without the flag runtime.sh deleted
+        // cmd_to_run.sh on RetroArch exit and returned to MainUI.
+        if (appState.is_overlay)
+            temp_flag_set("quick_switch", true);
         overlay_exit();
         render_showFullscreenMessage("LOADING", true);
     }
