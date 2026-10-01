@@ -1307,13 +1307,10 @@ int main(void)
 
                     switch (settings.lid_close_action) {
                     case 0: // Suspend
-                        if (settings.disable_standby) {
-                            deepsleep();
-                        }
-                        else {
-                            turnOffScreen();
-                            hibernate_start = getMilliseconds();
-                        }
+                        /* Lid suspend must not inherit Power-button disable_standby
+                         * (#228). That flag is Power-only. */
+                        turnOffScreen();
+                        hibernate_start = getMilliseconds();
                         break;
                     case 1: // Shutdown
                         print_debug("Shutting down due to lid close");
