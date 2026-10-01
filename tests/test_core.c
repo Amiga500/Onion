@@ -1,0 +1,110 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+#include "core/core.h"
+#include "platform/device_adapter.h"
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#define CHECK(x)                                                                                   \
+    do {                                                                                           \
+        if (!(x)) {                                                                                \
+            fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #x);                                \
+            return 1;                                                                              \
+        }                                                                                          \
+    } while (0)
+
+int mainui_suite_core(void)
+{
+    const int signal_dbm[] = {INT_MIN, -127, -126, -81, -80, -71, -70, 127, 128, INT_MAX};
+    const int signal_levels[] = {0, 0, 1, 1, 2, 2, 3, 3, 0, 0};
+    for (size_t i = 0; i < sizeof signal_dbm / sizeof *signal_dbm; ++i) {
+        CHECK(mainui_wifi_signal_level(signal_dbm[i]) == signal_levels[i]);
+    }
+    MainUIConfig c;
+    mainui_config_parse(&c, NULL, NULL, NULL, NULL);
+    CHECK(c.rows == 6 && c.row_height == 60 && c.font_size == 0 && c.repeat_delay == 500 &&
+          c.scroll_status == 1);
+    mainui_config_parse(&c, " 14junk", "61", "50 10", "0,1");
+    CHECK(c.rows == 14 && c.row_height == 25 && c.font_size == 60);
+    CHECK(c.repeat_delay == 100 && c.repeat_interval == 30 && c.scroll_delay == 10 &&
+          c.scroll_speed == 5);
+    mainui_config_parse(&c, "999999999999999999999999999", NULL, NULL, NULL);
+    CHECK(c.rows == 20);
+    CHECK(mainui_device(285).lid && !mainui_device(354).lid && !mainui_device(999).axp);
+    MainUIViewport v;
+    mainui_viewport_restore(&v, 0, 10, 30, 20, 29);
+    CHECK(v.selected == -1 && v.end == -1);
+    mainui_viewport_restore(&v, 50, 10, 49, 10, 19);
+    CHECK(v.selected == 49 && v.start == 49 && v.end == 49);
+    mainui_viewport_move(&v, 10, 1, true);
+    CHECK(v.selected == 0 && v.start == 0 && v.end == 9);
+    mainui_viewport_move(&v, 10, INT_MAX, false);
+    CHECK(v.selected == 49 && v.start == 40 && v.end == 49);
+    /* Exercise invariants across row counts, empty/small lists and repeated
+     * navigation; fixed expected positions alone miss range/overflow failures.
+     */
+    for (int rows = 6; rows <= 20; rows++) {
+        for (int total = 0; total < 80; total++) {
+            mainui_viewport_restore(&v, total, rows, INT_MAX, INT_MAX, INT_MIN);
+            for (int action = 0; action < 160; action++) {
+                mainui_viewport_move(&v, rows, action % 2 ? -1 : rows, true);
+                CHECK(v.total == total);
+                if (total) {
+                    CHECK(v.start >= 0 && v.start <= v.selected && v.selected <= v.end &&
+                          v.end < total && v.end - v.start < rows);
+                }
+            }
+        }
+    }
+    MainUIBlit blits[2];
+    CHECK(mainui_marquee(0, 120, 100, 200, blits) == 0);
+    CHECK(mainui_marquee(0, 120, 400, 200, blits) == 1 && blits[0].source_x == 0 &&
+          blits[0].width == 200);
+    /* Every emitted blit must remain inside both the title and destination.
+     * Cover the wrap gap and second-segment region at non-frame-aligned times.
+     */
+    for (uint64_t t = 0; t < 10000; t += 13) {
+        int n = mainui_marquee(t, 120, 401, 250, blits);
+        CHECK(n >= 0 && n <= 2);
+        for (int b = 0; b < n; b++) {
+            CHECK(blits[b].source_x >= 0 && blits[b].source_x + blits[b].width <= 401 &&
+                  blits[b].width > 0 && blits[b].destination_x >= 0 &&
+                  blits[b].destination_x + blits[b].width <= 250);
+        }
+    }
+    /* Marquee offsets advance by a constant whole-pixel step per 40 ms frame. */
+    CHECK(mainui_marquee_pixels(0, 40) == 0 && mainui_marquee_pixels(39, 40) == 0);
+    CHECK(mainui_marquee_pixels(40, 40) == 2 && mainui_marquee_pixels(79, 40) == 2);
+    CHECK(mainui_marquee_pixels(1000, 40) == 50);
+    CHECK(mainui_marquee_pixels(1000, 25) == 25 && mainui_marquee_pixels(1000, 400) == 400);
+    /* Slow speeds move one pixel every k frames: 5 px/s is one pixel per 200 ms. */
+    CHECK(mainui_marquee_pixels(199, 5) == 0 && mainui_marquee_pixels(200, 5) == 1);
+    CHECK(mainui_marquee_pixels(1000, 5) == 5 && mainui_marquee_pixels(1000, 0) == 0);
+    for (int speed = 5; speed <= 400; ++speed) {
+        uint64_t step = mainui_marquee_pixels(MAINUI_MARQUEE_FRAME_MS, speed);
+        for (uint64_t frame = 1; frame < 200; ++frame) {
+            uint64_t before = mainui_marquee_pixels((frame - 1) * MAINUI_MARQUEE_FRAME_MS, speed),
+                     now = mainui_marquee_pixels(frame * MAINUI_MARQUEE_FRAME_MS, speed);
+            /* Never backwards, and fast speeds never vary their step. */
+            CHECK(now >= before && (step == 0 || now - before == step));
+        }
+    }
+    CHECK(mainui_marquee_pixels(UINT32_MAX, 400) == (uint64_t)(UINT32_MAX / 40) * 16);
+    /* Failed parsing must leave the caller's prior state byte-for-byte intact. */
+    MainUIStack state = {.count = 1}, before = state;
+    CHECK(!mainui_state_parse("{\"list\":[{\"title\":1}]}", &state));
+    CHECK(!memcmp(&state, &before, sizeof state));
+    CHECK(!mainui_state_parse("{\"list\":[]}garbage", &state));
+    CHECK(mainui_state_parse(
+        "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":2,\"pagestart\":0,\"pageend\":3}]}",
+        &state));
+    CHECK(state.count == 1 && state.frames[0].selected == 2);
+    char *json = mainui_state_json(&state);
+    CHECK(json != NULL);
+    MainUIStack again;
+    CHECK(mainui_state_parse(json, &again) && again.count == 1 && again.frames[0].title == 157);
+    free(json);
+    puts("core tests passed (configuration, devices, viewport properties, marquee bounds, state "
+         "codec)");
+    return 0;
+}

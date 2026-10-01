@@ -1,0 +1,224 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+#include "ui/menu_view.h"
+#include "ui/panels.h"
+#include <stdio.h>
+#include <string.h>
+
+static void blit(SDL_Surface *screen, SDL_Surface *image, int x, int y)
+{
+    SDL_Rect destination = {(Sint16)x, (Sint16)y, 0, 0};
+    if (image) {
+        SDL_BlitSurface(image, NULL, screen, &destination);
+    }
+}
+
+static void text(MainUITheme *theme, SDL_Surface *screen, TTF_Font *font, SDL_Color color,
+                 const char *label, int x, int y, int width, int height)
+{
+    SDL_Surface *image = mainui_theme_text(theme, font, label, color);
+    SDL_Rect clip = {(Sint16)x, (Sint16)y, (Uint16)width, (Uint16)height};
+    SDL_SetClipRect(screen, &clip);
+    if (image) {
+        blit(screen, image, x + (width - image->w) / 2, y + (height - image->h) / 2);
+    }
+    SDL_SetClipRect(screen, NULL);
+}
+
+static void frame(MainUITheme *theme, SDL_Surface *screen, const char *title, int page, int pages)
+{
+    SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 24, 24, 24));
+    blit(screen, theme->background, 0, 0);
+    mainui_draw_header(screen, theme, title);
+    mainui_draw_footer(screen, theme, page, pages);
+}
+
+static void clear_consoles(MainUIMenuView *view)
+{
+    for (int i = 0; i < 9; i++) {
+        for (int selected = 0; selected < 2; selected++) {
+            if (view->console_icons[i][selected]) {
+                SDL_FreeSurface(view->console_icons[i][selected]);
+            }
+            if (view->console_labels[i][selected]) {
+                SDL_FreeSurface(view->console_labels[i][selected]);
+            }
+            view->console_icons[i][selected] = NULL;
+            view->console_labels[i][selected] = NULL;
+        }
+    }
+}
+
+void mainui_menu_view_open(MainUIMenuView *view, MainUITheme *theme)
+{
+    *view = (MainUIMenuView){.theme = theme, .cached_start = -1};
+    for (int i = 0; i < MAINUI_MENU_SECTIONS; i++) {
+        for (int selected = 0; selected < 2; selected++) {
+            char name[80];
+            snprintf(name, sizeof name, "skin/ic-%s-%c.png", mainui_menu_icon(i),
+                     selected ? 'f' : 'n');
+            view->home_icons[i][selected] = mainui_theme_image(theme, name);
+        }
+    }
+}
+
+void mainui_menu_view_close(MainUIMenuView *view)
+{
+    clear_consoles(view);
+    for (int i = 0; i < MAINUI_MENU_SECTIONS; i++) {
+        for (int selected = 0; selected < 2; selected++) {
+            if (view->home_icons[i][selected]) {
+                SDL_FreeSurface(view->home_icons[i][selected]);
+            }
+        }
+    }
+    *view = (MainUIMenuView){0};
+}
+
+/* The patch constrains home labels to a 136px lane, including when fewer
+ * cards are visible. Keep two lines centered around the original label slot. */
+static void home_label(MainUITheme *theme, SDL_Surface *screen, const char *label, SDL_Color color,
+                       int x, int width)
+{
+    int measured = 0;
+    TTF_SizeUTF8(theme->grid_font, label, &measured, NULL);
+    int lane = (width < 156 ? width : 156) - 20;
+    x += (width - lane) / 2;
+    if (measured <= lane) {
+        text(theme, screen, theme->grid_font, color, label, x, 260, lane, 50);
+        return;
+    }
+    char first[256], second[256];
+    snprintf(first, sizeof first, "%s", label);
+    size_t split = strlen(first);
+    while (split > 0) {
+        split--;
+        if (((unsigned char)first[split] & 0xc0) == 0x80) {
+            continue;
+        }
+        char saved = first[split];
+        first[split] = 0;
+        TTF_SizeUTF8(theme->grid_font, first, &measured, NULL);
+        first[split] = saved;
+        if (measured <= lane) {
+            break;
+        }
+    }
+    for (size_t word = split; word > 0; word--) {
+        if (first[word] == ' ') {
+            split = word;
+            break;
+        }
+    }
+    snprintf(second, sizeof second, "%s", label + split + (label[split] == ' '));
+    first[split] = 0;
+    int height = TTF_FontHeight(theme->grid_font);
+    int spacing = (3 * height + 3) / 4;
+    text(theme, screen, theme->grid_font, color, first, x, 285 - spacing / 2 - height / 2, lane,
+         height);
+    text(theme, screen, theme->grid_font, color, second, x, 285 + spacing / 2 - height / 2, lane,
+         height);
+}
+
+void mainui_menu_draw_home(MainUIMenuView *view, SDL_Surface *screen, const MainUIMenu *menu,
+                           const MainUIViewport *position)
+{
+    MainUITheme *theme = view->theme;
+    frame(theme, screen, "MIYOO", 0, -1);
+    int columns = menu->count < 4 ? menu->count : 4;
+    if (!columns) {
+        return;
+    }
+    int width = 620 / columns;
+    for (int i = position->start; i <= position->end; i++) {
+        int selected = i == position->selected;
+        int x = 10 + (i - position->start) * width;
+        SDL_Surface *icon = view->home_icons[menu->sections[i]][selected];
+        if (icon) {
+            blit(screen, icon, x + (width - icon->w) / 2, 60 + (360 - icon->h) / 2 - 10);
+        }
+        if (!theme->hide_icons) {
+            home_label(theme, screen, mainui_menu_label(menu->sections[i]),
+                       theme->grid_color[selected], x, width);
+        }
+    }
+    if (theme->dots[0]) {
+        int stride = theme->dots[0]->w + 5;
+        int x = (640 - menu->count * stride) / 2;
+        for (int i = 0; i < menu->count; i++) {
+            blit(screen, theme->dots[i == position->selected], x + i * stride, 390);
+        }
+    }
+}
+
+void mainui_menu_draw_systems(MainUIMenuView *view, SDL_Surface *screen, MainUICatalog *catalog,
+                              const MainUIViewport *position)
+{
+    MainUITheme *theme = view->theme;
+    bool expert = !strcmp(catalog->pages[0].title, "Expert");
+    int columns = expert ? 3 : 4, capacity = expert ? 9 : 8;
+    int width = expert ? 213 : 155, height = expert ? 120 : 170;
+    int label_offset = expert ? 28 : 45;
+    frame(theme, screen,
+          !strcmp(catalog->pages[0].title, "Expert") ? mainui_menu_label(MAINUI_MENU_EXPERT)
+                                                     : mainui_menu_label(MAINUI_MENU_GAMES),
+          position->total ? position->start / capacity + 1 : 0,
+          (position->total + capacity - 1) / capacity);
+    if (view->cached_start != position->start) {
+        clear_consoles(view);
+        for (int i = 0; i < capacity && position->start + i < position->total; i++) {
+            MainUIEntry *entry = mainui_catalog_entry(catalog, position->start + i);
+            if (!entry) {
+                continue;
+            }
+            for (int selected = 0; selected < 2; selected++) {
+                const char *path =
+                    selected && entry->icon_selected ? entry->icon_selected : entry->icon;
+                view->console_icons[i][selected] = mainui_theme_console_icon(theme, path);
+                if (!view->console_icons[i][selected] && selected) {
+                    view->console_icons[i][selected] =
+                        mainui_theme_console_icon(theme, entry->icon);
+                }
+                view->console_labels[i][selected] = TTF_RenderUTF8_Blended(
+                    expert && theme->expert_font ? theme->expert_font : theme->grid_font,
+                    entry->label, theme->grid_color[selected]);
+            }
+        }
+        view->cached_start = position->start;
+    }
+    /* Stock Games: 4x2, margins 10, 155x170 cells. Expert: 3x3, no margins,
+     * 213x120 cells, centered 192x72 icon crop, label bottom offset 28. */
+    for (int i = 0; i < capacity && position->start + i < position->total; i++) {
+        int selected = position->start + i == position->selected;
+        int x = (expert ? 0 : 10) + (i % columns) * width;
+        int y = (expert ? 60 : 75) + (i / columns) * height;
+        SDL_Surface *tile = theme->tiles[selected], *icon = view->console_icons[i][selected];
+        if (tile) {
+            blit(screen, tile, x + (width - tile->w) / 2 + 2, y + (height - tile->h) / 2 + 2);
+        }
+        if (icon) {
+            if (expert) {
+                int w = icon->w < 192 ? icon->w : 192, h = icon->h < 72 ? icon->h : 72;
+                SDL_Rect source = {(Sint16)((icon->w - w) / 2), (Sint16)((icon->h - h) / 2),
+                                   (Uint16)w, (Uint16)h};
+                SDL_Rect dest = {(Sint16)(x + (width - w) / 2), (Sint16)(y + (height - h) / 2 - 10),
+                                 0, 0};
+                SDL_BlitSurface(icon, &source, screen, &dest);
+            }
+            else {
+                blit(screen, icon, x + (width - icon->w) / 2, y + (height - icon->h) / 2 - 10);
+            }
+        }
+        SDL_Surface *label = view->console_labels[i][selected];
+        if (label) {
+            SDL_Rect clip = {(Sint16)x, (Sint16)(y + height - label_offset - 15), (Uint16)width,
+                             50};
+            SDL_SetClipRect(screen, &clip);
+            blit(screen, label, x + (width - label->w) / 2,
+                 y + height - label_offset + (18 - label->h) / 2);
+            SDL_SetClipRect(screen, NULL);
+        }
+    }
+    if (!position->total) {
+        mainui_draw_empty(screen, theme);
+    }
+}

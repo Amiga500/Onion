@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    # Branches only: a release tag points at a commit already checked on main.
+    branches: ['**']
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Integration cases need Onion's theme tree. Pinned to a v4.5-dev commit,
+      # the branch this project targets, so an upstream push cannot turn CI red
+      # or green without a change here. Bump it when rebasing onto v4.5-dev.
+      - name: Check out Onion theme tree
+        uses: actions/checkout@v5
+        with:
+          repository: OnionUI/Onion
+          ref: 2bab767e4a17b1b489f02c9fb6af8dde310d4c3e  # v4.5-dev, 2026-02-07
+          path: onion
+          sparse-checkout: static/build/miyoo/app
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential dosfstools libsqlite3-dev \
+            libsdl1.2-dev libsdl-image1.2-dev libsdl-ttf2.0-dev
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      # setup-python brings its own interpreter, which cannot see apt's
+      # python3-pil, so install the Python tools the tests need with pip.
+      - name: Install Python tools
+        run: python -m pip install "clang-format==14.*" pillow
+
+      - name: Formatting
+        run: python3 tools/format.py --check
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Unit suites
+        run: make check-unit
+
+      # Strict: a missing Onion theme tree fails instead of skipping. The three
+      # cases needing the private fixture SD tree still skip (see env.py).
+      - name: Integration cases
+        env:
+          MAINUI_STRICT: 1
+          ONION_ROOT: ${{ github.workspace }}/onion
+        run: make check-integration
+
+      # Onion SD cards are FAT32, which has no hard links. Run the delete and
+      # persistence cases with link() disabled, then on a real vfat image.
+      - name: No-hard-link cases
+        run: make check-no-hardlinks
+
+      - name: Real vfat cases
+        run: make check-vfat

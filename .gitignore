@@ -1,0 +1,8 @@
+build/
+config.mk
+__pycache__/
+docs/internal/
+*.pyc
+# Local, non-redistributable test inputs
+reference-projects/
+tests/fixtures/
