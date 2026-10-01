@@ -642,6 +642,12 @@ launch_game() {
                 sync
             fi
 
+            # Apps expect stock's two-page 640x480 layout; MainUI's three
+            # pages are only for MainUI (DinguxCommander on v4/Flip).
+            if [ $is_game -eq 0 ] && [ -f /tmp/new_res_available ]; then
+                change_resolution "640x480"
+            fi
+
             # GAME LAUNCH
             cd /mnt/SDCARD/RetroArch
             force_retroarch_cfg
