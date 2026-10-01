@@ -15,4 +15,28 @@ static bool flipSuspend_nothingToDo(int current_lid, int saved_lid,
     return current_lid == saved_lid && !timed_out;
 }
 
+// Lid close action from Tweaks (flip/lidCloseAction).
+typedef enum {
+    FLIP_LID_SUSPEND = 0,
+    FLIP_LID_SHUTDOWN = 1,
+    FLIP_LID_NOTHING = 2
+} FlipLidAction;
+
+// What keymon does when the Mini Flip lid closes. disable_standby is the
+// Power-button "single press: Shutdown" flag and must not affect the lid
+// (#228); it is passed only so tests can prove that. Unknown values from a
+// hand-edited config do nothing, as the original switch did.
+static FlipLidAction flipLid_onClose(int lid_close_action, bool disable_standby)
+{
+    (void)disable_standby;
+    switch (lid_close_action) {
+    case FLIP_LID_SUSPEND:
+        return FLIP_LID_SUSPEND;
+    case FLIP_LID_SHUTDOWN:
+        return FLIP_LID_SHUTDOWN;
+    default:
+        return FLIP_LID_NOTHING;
+    }
+}
+
 #endif // KEYMON_FLIP_SUSPEND_H__

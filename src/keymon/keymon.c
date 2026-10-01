@@ -1305,18 +1305,18 @@ int main(void)
                 if (current_lid_state == 0) {
                     printf_debug("Lid closed detected, action: %d", settings.lid_close_action);
 
-                    switch (settings.lid_close_action) {
-                    case 0: // Suspend
+                    switch (flipLid_onClose(settings.lid_close_action, settings.disable_standby)) {
+                    case FLIP_LID_SUSPEND:
                         /* Lid suspend must not inherit Power-button disable_standby
                          * (#228). That flag is Power-only. */
                         turnOffScreen();
                         hibernate_start = getMilliseconds();
                         break;
-                    case 1: // Shutdown
+                    case FLIP_LID_SHUTDOWN:
                         print_debug("Shutting down due to lid close");
                         deepsleep();
                         break;
-                    case 2: // Nothing
+                    case FLIP_LID_NOTHING:
                         print_debug("Lid close action: Nothing");
                         break;
                     }
