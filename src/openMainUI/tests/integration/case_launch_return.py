@@ -1,0 +1,238 @@
+# SPDX-License-Identifier: GPL-3.0-only
+"""Exercise command-file handoff through a fake shell launcher and reopen the UI."""
+import json
+import os
+from pathlib import Path
+import sqlite3
+import struct
+import shutil
+import subprocess
+import tempfile
+from env import unlink_if_exists, BUILD, ONION_THEME, require_onion_theme  # noqa: E402
+
+require_onion_theme()
+
+ROOT = Path(__file__).resolve().parents[2]
+SD = Path(tempfile.mkdtemp(prefix="launch-return-", dir=BUILD))
+THEME = ONION_THEME
+EXE = str(BUILD / "MainUI-dev")
+SHELL = Path(shutil.which("bash") or "/bin/sh")
+HANDOFF = SD / "handoff"
+HANDOFF.mkdir()
+
+
+def write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as stream:
+        stream.write(text)
+
+
+def config(directory, label, rom=None):
+    value = dict(label=label, launch="launch.sh")
+    if rom:
+        value.update(rompath=rom, extlist="nes")
+    write(SD / directory / "config.json", json.dumps(value))
+    script = SD / directory / "launch.sh"
+    write(script, '#!/bin/sh\nprintf "%s\\0" "$@" > "$MAINUI_FAKE_LOG"\n')
+    script.chmod(0o755)
+
+
+def capture(name, actions="", *options, handoff=False):
+    unlink_if_exists((SD / "appconfigs/romwinidx.json"))
+    target = SD / (name + ".bmp")
+    args = [EXE, "--sd-root", str(SD), "--theme", str(THEME), "--input", actions,
+            "--snapshot", str(target), *options]
+    if handoff:
+        args += ["--handoff-dir", str(HANDOFF)]
+    subprocess.run(args, cwd=ROOT, check=True, timeout=30)
+    return target.read_bytes()
+
+
+def consume(expected_rom=None):
+    command_path = HANDOFF / "cmd_to_run.sh"
+    command = command_path.read_text(encoding="utf-8")
+    state = json.loads((HANDOFF / "state.json").read_text())
+    assert state["list"][0]["title"] == 157
+    assert len(state["list"]) == 2
+    if expected_rom:
+        # Exact ROM extraction expression from Onion's runtime.sh.
+        parser = r'''echo "$cmd" | awk '{ st = index($0,"\" \""); print substr($0,st+3,length($0)-st-3)}' '''
+        result = subprocess.run([str(SHELL), "-c", parser], env=dict(os.environ, cmd=command.rstrip("\n")),
+                                capture_output=True, check=True)
+        assert result.stdout.decode().strip() == expected_rom, result.stdout
+    # Only the fake launch.sh files created above are executed.
+    runnable = command.replace("LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so ", "")
+    runnable = runnable.replace("/mnt/SDCARD", SD.as_posix())
+    log = SD / "fake-argv.bin"
+    subprocess.run([str(SHELL), "-c", runnable], cwd=ROOT,
+                   env=dict(os.environ, MAINUI_FAKE_LOG=log.as_posix()), check=True)
+    assert log.exists()
+    if expected_rom:
+        assert log.read_bytes() == expected_rom.replace("/mnt/SDCARD", SD.as_posix()).encode() + b"\0"
+    command_path.unlink()
+
+
+assert SHELL.is_file(), f"POSIX shell required at {SHELL}"
+config("Emu/FC", "Host", "../../Roms/FC")
+config("RApp/Core", "Expert core", "../../Roms/Expert")
+config("App/Test", "Fake App")
+write(SD / "Roms/FC/Collection/It's first.nes", "")
+write(SD / "Roms/FC/Collection/Two.nes", "")
+write(SD / "Roms/Expert/expert.nes", "")
+write(SD / ".tmp_update/config/main-menu.json", '{"menu":{"games":true,"expert":true,"favorites":true,"apps":true}}')
+home = capture("home")
+normal = capture("nested", "EDD", "--system", "Host")
+capture("launch", "EDDE", "--system", "Host", handoff=True)
+assert (HANDOFF / "cmd_to_run.sh").exists()
+before = {name: (HANDOFF / name).read_bytes() for name in ("cmd_to_run.sh", "state.json", "mainui-return.json")}
+capture("pending-kept", "EDDE", "--system", "Host", handoff=True)
+assert all((HANDOFF / name).read_bytes() == data for name, data in before.items())
+consume("/mnt/SDCARD/Emu/FC/../../Roms/FC/Collection/Two.nes")
+assert normal == capture("returned", handoff=True)
+assert not (HANDOFF / "mainui-return.json").exists()
+assert home == capture("one-shot", handoff=True)
+# Stable identity survives insertion ahead of the game between launch and return.
+capture("launch-reorder", "EDDE", "--system", "Host", handoff=True)
+consume("/mnt/SDCARD/Emu/FC/../../Roms/FC/Collection/Two.nes")
+with sqlite3.connect(SD / "Roms/FC/FC_cache6.db") as database:
+    database.execute("insert into FC_roms(disp,path,imgpath,type,ppath,pinyin,cpinyin) values(?,?,?,?,?,?,?)",
+                     ("Before", "/mnt/SDCARD/Emu/FC/../../Roms/FC/Collection/Before.nes", "", 0, "Collection", "Before", "Before"))
+assert capture("reordered-direct", "EDDD", "--system", "Host") == capture("reordered-return", handoff=True)
+# Apostrophes/spaces stay one argument through the consumer and shell.
+capture("launch-quoted", "EDDE", "--system", "Host", handoff=True)
+consume("/mnt/SDCARD/Emu/FC/../../Roms/FC/Collection/It's first.nes")
+capture("quoted-return", handoff=True)
+# Existing saved records and Search retain their original spelling, even when
+# it differs from the stock form generated by normal catalog launches above.
+record = dict(label="Saved Two", rompath="/mnt/SDCARD/Roms/FC/Collection/Two.nes",
+              launch="/mnt/SDCARD/Emu/FC/launch.sh", type=5)
+write(SD / "Roms/favourite.json", json.dumps(record) + "\n")
+sidecar = [dict(schema=1, generation=1), dict(kind="folder", id="f", parent="", name="Faves", order=0),
+           dict(kind="item", key=record["rompath"], type=5, folder="f", order=0)]
+write(SD / "Roms/favourite-folders.json", "".join(json.dumps(row) + "\n" for row in sidecar))
+favorite = capture("favorite", "RREED")
+capture("favorite-launch", "RREEDE", handoff=True)
+binary = (HANDOFF / "mainui-favourite-folder-return").read_bytes()
+assert len(binary) == 1932 and struct.unpack_from("<III", binary) == (0x43424631, 1, 5)
+assert binary[12:268].split(b"\0")[0] == b"/Faves"
+consume(record["rompath"])
+assert favorite == capture("favorite-return", handoff=True)
+assert not (HANDOFF / "mainui-favourite-folder-return").exists()
+expert = capture("expert", "REE")
+capture("expert-launch", "REEE", handoff=True)
+consume("/mnt/SDCARD/RApp/Core/../../Roms/Expert/expert.nes")
+assert expert == capture("expert-return", handoff=True)
+apps = capture("apps", "RRRE")
+capture("apps-launch", "RRREE", handoff=True)
+consume()
+assert apps == capture("apps-return", handoff=True)
+# Contextual Search starts at the first result and returns through its source.
+source = capture("search-source", "EDD", "--system", "Host")
+capture("search-highlight", "EDDXT", "--system", "Host", "--text", "o")
+results = capture("search-results", "EDDXTDD", "--system", "Host")
+assert source == capture("search-cancel", "EDDXTBB", "--system", "Host")
+capture("search-launch", "EDDXTDDE", "--system", "Host", handoff=True)
+assert (HANDOFF / "mainui-context-search-postgame").exists()
+consume(record["rompath"])
+assert results == capture("search-return", handoff=True)
+assert (HANDOFF / "mainui-context-search-postgame").exists()
+# Relaunch preserves the active results and the source context.
+capture("search-launch-again", "EDDXTDDE", "--system", "Host", handoff=True)
+consume(record["rompath"])
+assert source == capture("search-return-back", "B", handoff=True)
+assert not (HANDOFF / "mainui-context-search-postgame").exists()
+# Remaining Settings pages, external tools and registered context launchers.
+for name in ("ThemeSwitcher", "Tweaks", "Search", "Custom"):
+    config("App/" + name, name)
+write(SD / ".tmp_update/onionVersion/version.txt", "4.5-fixture\n")
+write(HANDOFF / "deviceModel", "354\n")
+write(HANDOFF / "firmware-version.txt", "fixture-firmware\n")
+menu = {"menu": {"settings": True, "games": True},
+        "settings": ["display", "wifi", "about", "themes", "tweaks", "shutdown"],
+        "context": {"themes": True, "tweaks": True, "search": True, "custom1": True},
+        "custom": {"custom1": {"label": "Custom tool", "launch": "/mnt/SDCARD/App/Custom/launch.sh", "type": 9}}}
+write(SD / ".tmp_update/config/main-menu.json", json.dumps(menu))
+settings = capture("settings", "E")
+display = capture("display", "EE")
+assert settings == capture("display-back", "EEB")
+capture("display-save", "EERRDRE")
+values = json.loads((SD / "system.json").read_text())
+assert (values["lumination"], values["hue"], values["saturation"], values["contrast"]) == (9, 11, 10, 10)
+original_system = (SD / "system.json").read_bytes()
+capture("display-cancel", "EELB")
+assert json.loads((SD / "system.json").read_text())["lumination"] == 8
+original_system = (SD / "system.json").read_bytes()
+write(SD / "system.json.writing", "foreign")
+capture("display-save-failure", "EERE")
+assert (SD / "system.json").read_bytes() == original_system
+assert (SD / "system.json.writing").read_text() == "foreign"
+(SD / "system.json.writing").unlink()
+assert capture("about", "EDDE", handoff=True) != settings
+# Wi-Fi scan fixture follows wpa_cli scan_results' tab-separated format.
+write(HANDOFF / "wifi-scan.txt", "bssid / frequency / signal level / flags / ssid\n"
+      "00:11:22:33:44:55\t2412\t-40\t[WPA2-PSK-CCMP][ESS]\tFixture AP\n")
+# The stock UI exposes scanned SSIDs, not manual SSID/connect fields.
+values = json.loads((SD / "system.json").read_text())
+values["wifi"] = 1
+write(SD / "system.json", json.dumps(values))
+networks = capture("wifi-networks", "EDED", handoff=True)
+password = capture("wifi-password", "EDEDE", handoff=True)
+assert networks != password
+assert networks == capture("wifi-password-back", "EDEDEB", handoff=True)
+for index in (3, 4):
+    direct = capture("tool-source-" + str(index), "E" + "D"*index)
+    capture("tool-launch-" + str(index), "E" + "D"*index + "E", handoff=True)
+    state = json.loads((HANDOFF / "state.json").read_text())
+    assert state["list"][1]["title"] == 15 and state["list"][1]["type"] == 7
+    consume()
+    assert direct == capture("tool-return-" + str(index), handoff=True)
+new_home = capture("new-home")
+for index in range(4):
+    capture("context-tool-" + str(index), "S" + "D"*index + "E", handoff=True)
+    consume()
+    assert new_home == capture("context-return-" + str(index), handoff=True)
+capture("shutdown-cancel", "EDDDDDEB", handoff=True)
+assert not (HANDOFF / ".offOrder").exists()
+capture("shutdown-confirm", "EDDDDDEE", handoff=True)
+assert (HANDOFF / ".offOrder").read_bytes() == b""
+(HANDOFF / ".offOrder").unlink()
+# Delete confirmation removes the selected ROM and derived cache row only.
+two = SD / "Roms/FC/Collection/Two.nes"
+capture("delete-cancel", "EDDDSDDEB", "--system", "Host")
+assert two.exists()
+capture("delete-confirm", "EDDDSDDEE", "--system", "Host")
+assert not two.exists() and not list(two.parent.glob(two.name + ".mainui-delete*"))
+with sqlite3.connect(SD / "Roms/FC/FC_cache6.db") as database:
+    assert database.execute("select count(*) from FC_roms where disp='Two'").fetchone()[0] == 0
+first = SD / "Roms/FC/Collection/It's first.nes"
+write(Path(str(first) + ".mainui-delete"), "foreign")
+write(SD / "Roms/FC/FC_cache6.db.delete.json", "{")
+# An unreadable journal preserves recovery files without blocking browsing.
+cache_file = SD / "Roms/FC/FC_cache6.db"
+cache_before = cache_file.read_bytes()
+rom_before = first.read_bytes()
+result = subprocess.run(
+    [EXE, "--sd-root", str(SD), "--theme", str(THEME), "--system", "Host",
+     "--snapshot", str(SD / "delete-reserved.bmp")],
+    cwd=ROOT, capture_output=True, text=True, timeout=30)
+assert result.returncode == 0, (result.returncode, result.stderr)
+assert "ROM recovery refused" in result.stderr
+assert str(first) + ".mainui-delete" in result.stderr
+assert first.read_bytes() == rom_before and cache_file.read_bytes() == cache_before
+assert Path(str(first) + ".mainui-delete").read_text() == "foreign"
+assert (SD / "Roms/FC/FC_cache6.db.delete.json").read_text() == "{"
+(SD / "Roms/FC/FC_cache6.db.delete.json").unlink()
+Path(str(first) + ".mainui-delete").unlink()
+# Restore original menu for one-shot malformed-state comparison.
+write(SD / ".tmp_update/config/main-menu.json", '{"menu":{"games":true,"expert":true,"favorites":true,"apps":true}}')
+# Foreign reservations survive without a runnable half-request.
+write(HANDOFF / "cmd_to_run.sh.writing", "foreign")
+capture("failed-publication", "EDDE", "--system", "Host", handoff=True)
+assert (HANDOFF / "cmd_to_run.sh.writing").read_text() == "foreign"
+assert not (HANDOFF / "cmd_to_run.sh").exists()
+assert not (HANDOFF / "mainui-return.json").exists()
+(HANDOFF / "cmd_to_run.sh.writing").unlink()
+write(HANDOFF / "mainui-return.json", '{"schema":1,"record":{},"resume":{"section":2,"view":{"currpos":1.5}}}')
+assert home == capture("malformed-return", handoff=True)
+assert home == capture("malformed-consumed", handoff=True)
+print("Launch/return fake-consumer tests passed:", SD)
