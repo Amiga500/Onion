@@ -54,7 +54,7 @@ include ./src/common/commands.mk
 
 ###########################################################
 
-.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test jpg2png
+.PHONY: all version core apps external openmainui release clean deepclean git-clean with-toolchain patch lib test unit-test jpg2png
 
 all: dist
 
@@ -124,7 +124,7 @@ $(CACHE)/.setup:
 # Set flag: finished setup
 	@touch $(CACHE)/.setup
 
-build: core apps external
+build: core apps external openmainui
 	@$(ECHO) $(PRINT_DONE)
 
 # jpg2png is built like pngScale but not part of `core` until the Miyoo sysroot ships libjpeg.
@@ -191,6 +191,18 @@ core: core-modules
 	@cp $(BIN_DIR)/7z $(INSTALLER_DIR)/bin/
 # Overrider miyoo libraries
 	@cp $(BIN_DIR)/libgamename.so $(BUILD_DIR)/miyoo/lib/
+
+OPENMAINUI_DIR := $(SRC_DIR)/openMainUI
+OPENMAINUI_VARIANTS := 283 354 285
+
+openmainui: core
+	@$(ECHO) $(PRINT_RECIPE)
+	@cd $(OPENMAINUI_DIR) && env -u VERSION -u BUILD_DIR $(MAKE) device ONION_ROOT=$(ROOT_DIR)
+	@for d in $(OPENMAINUI_VARIANTS); do for m in clean expert; do \
+		f=$(BIN_DIR)/MainUI-$$d-$$m; \
+		[ -f $$f ] || { echo "Manca $$f"; exit 1; }; \
+		cp $(OPENMAINUI_DIR)/build/onion/MainUI $$f; \
+	done; done
 
 apps: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)
@@ -279,6 +291,7 @@ clean:
 	@rm -rf $(BUILD_DIR) $(BUILD_TEST_DIR) $(ROOT_DIR)/dist $(TEMP_DIR)/configs
 	@rm -f $(CACHE)/.setup
 	@find include src -type f -name '*.o' -exec rm -f {} +
+	@$(MAKE) -C $(SRC_DIR)/openMainUI clean
 
 deepclean: clean
 	@rm -rf $(CACHE)
