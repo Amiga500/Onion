@@ -2,7 +2,7 @@
 
 TARGET=OnionPlus
 VERSION=4.4.0-beta-20260823
-RA_SUBVERSION=1.22.2-1
+RA_SUBVERSION=1.22.2-2
 
 ###########################################################
 
