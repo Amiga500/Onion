@@ -7,6 +7,11 @@ name: OnionPlus release
 
 on:
   workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Publish as a pre-release (beta OTA channel only)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -71,7 +76,7 @@ jobs:
         tag_name: ${{ env.RELEASE_TAG }}
         name: ${{ env.RELEASE_TITLE }}
         target_commitish: ${{ github.sha }}
-        prerelease: false
+        prerelease: ${{ inputs.prerelease }}
         body_path: .github/release-notes.md
         generate_release_notes: true
         files: release/${{ env.ZIP_NAME }}
