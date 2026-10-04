@@ -1365,12 +1365,9 @@ get_screen_resolution() {
             ;;
         640x480)
             log "get_screen_resolution: from dmesg, resolution: $dmesg_hint"
-            # Early boot can log 640 before the panel's real timing is up.
-            # On Mini, 640 is final. On Plus/Flip, keep polling mi_fb0 so a
-            # 752 panel is not locked to 640 for the whole session.
-            if [ "${HAS_AXP:-0}" -ne 1 ]; then
-                screen_resolution="$dmesg_hint"
-            fi
+            # Early boot can log 640 before the panel's real timing is up,
+            # and the Mini v4 (752x560) has no AXP, so keep polling mi_fb0
+            # on every model. dmesg's 640x480 is still used if polling times out.
             ;;
         esac
     fi
