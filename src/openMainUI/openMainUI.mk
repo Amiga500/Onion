@@ -18,7 +18,7 @@ OPEN_MAINUI_BIN := $(OPEN_MAINUI_DIR)/build/onion/MainUI
 open-mainui: build
 	@$(ECHO) $(PRINT_RECIPE)
 	@test -f $(OPEN_MAINUI_DIR)/Makefile || { \
-		echo "third-party/open-mainui is empty: run 'git submodule update --init third-party/open-mainui'"; \
+		echo "third-party/open-mainui is empty: the Open MainUI subtree is missing"; \
 		exit 1; }
 	@cd $(OPEN_MAINUI_DIR) && env -u MAKEFLAGS -u MFLAGS -u MAKELEVEL -u MAKEOVERRIDES \
 		-u CFLAGS -u CPPFLAGS -u LDFLAGS -u LDLIBS -u CC -u AR \

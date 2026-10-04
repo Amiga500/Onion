@@ -332,3 +332,6 @@ static-analysis: external-libs
 
 format:
 	@find ./src -regex '.*\.\(c\|h\|cpp\|hpp\)' -exec clang-format -style=file -i {} \;
+
+# Open MainUI integration
+-include $(ROOT_DIR)/src/openMainUI/openMainUI.mk
