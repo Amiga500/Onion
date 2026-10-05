@@ -1,4 +1,4 @@
-# 🧅⚡ OnionPlus beta 2: Open MainUI 1.0.4, plus bug fixes
+# 🧅⚡ OnionPlus beta 3: Open MainUI 1.0.4, plus bug fixes
 
 > 🧪 **Beta.** This build is published as a pre-release: only devices on the
 > **beta** OTA channel receive it. Stable installs stay on V4.4.0-beta-20260928
@@ -32,6 +32,9 @@ three models (Mini `283`, Mini+ `354`, Flip `285`), in both Expert and normal mo
   XML (Onion's own gamelist generator writes such files) open again instead of
   showing "Catalog unavailable"; a console with a damaged cache row is repaired
   once instead of being rescanned on every entry (#238).
+- 🎛️ **Tweaks › Appearance › Game list...:** rows per page, text size, title
+  scrolling speed and delay, case-sensitive sort and the dynamic favorite star,
+  without editing files by hand (#238).
 - ⚡ **~270 KB** launcher instead of ~1.4 MB, idle CPU in menus **~5% → ~1%** (Mini+),
   scrolling long titles **~35% → ~6%**, box art scaled in the background.
 - 🎮 Letter jump, configurable row count, auto-scrolling titles, gamelist details,
@@ -72,7 +75,7 @@ created a `DISABLED` file, delete it to use Open MainUI.
 
 All three confirmed fixed on the Mini v4, Mini+ and Mini Flip.
 
-New in this beta:
+Since the first beta:
 
 - **Mini v4 resolution:** a boot-time shortcut could keep the Mini v4 at 640x480
   for the whole session. It now waits for the display driver, as official Onion does.
@@ -89,9 +92,8 @@ New in this beta:
 
 ## 💡 Tips
 
-- **Scrolling titles:** long titles scroll after one second. To change the delay
-  and speed, edit `.tmp_update/config/.romListTitleScroll` (for example `1000,50`
-  = 1000 ms delay, 50 px/s); delete the file to turn scrolling off.
+- **Scrolling titles:** long titles scroll after one second. Change the speed and
+  delay, or turn it off, in **Tweaks › Appearance › Game list...**.
 - **GameSwitcher shows the box art:** the GameSwitcher saves a screenshot of a game
   the first time you open it while that game is running. Until then, opening it
   from the menu shows the game's box art, which for some systems is portrait.
