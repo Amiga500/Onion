@@ -60,12 +60,11 @@ void action_meterWidth(void *pt)
 
 static void romlist_writeScroll(int speed)
 {
-    if (speed <= 0) {
-        remove(CONFIG_PATH ".romListTitleScroll");
-        return;
-    }
+    /* Off keeps the file with speed 0, which Open MainUI reads as disabled.
+     * Updates add a missing .romListTitleScroll back with its default
+     * value, so removing the file would turn scrolling on again. */
     char text[32];
-    snprintf(text, sizeof(text), "%d,%d", romlist_scroll_delay_ms, speed);
+    snprintf(text, sizeof(text), "%d,%d", romlist_scroll_delay_ms, speed > 0 ? speed : 0);
     config_setString(".romListTitleScroll", text);
 }
 
