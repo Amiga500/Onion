@@ -11,10 +11,12 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 static bool search_database(const MainUICatalog *, const char *);
@@ -836,7 +838,14 @@ static bool rom_root_ready(MainUICatalog *catalog, const char *root)
     return false;
 }
 
-static bool build_cache_locked(MainUICatalog *catalog, int system, bool replace, bool abandon)
+/* What a build did, for its log line. */
+typedef struct {
+    bool built, from_xml;
+    long long rows;
+} BuildResult;
+
+static bool build_cache_locked(MainUICatalog *catalog, int system, bool replace, bool abandon,
+                               BuildResult *result)
 {
     if (mainui_cancelled(catalog->cancel) || system < 0 || system >= catalog->pages[0].count) {
         return false;
@@ -914,14 +923,14 @@ static bool build_cache_locked(MainUICatalog *catalog, int system, bool replace,
     }
     sqlite3_free(sql);
     int count = 0;
-    bool imported = false, import_failed = false;
+    bool imported = false;
     char rom_prefix[MAINUI_PATH_MAX], image_prefix[MAINUI_PATH_MAX];
     ok = ok && saved_prefix(rom_prefix, catalog, entry, entry->raw_rompath) &&
          saved_prefix(image_prefix, catalog, entry, entry->raw_imgpath);
     if (ok) {
+        /* An unusable gamelist is not imported: its ROM files are listed. */
         ok = mainui_gamelist_import_control(database, insert, catalog->sd, entry->path, rom_prefix,
                                             &imported, catalog->cancel);
-        import_failed = !ok;
     }
     if (ok && !imported) {
         char(*scratch)[MAINUI_PATH_MAX] = malloc(4 * sizeof *scratch);
@@ -931,6 +940,8 @@ static bool build_cache_locked(MainUICatalog *catalog, int system, bool replace,
         free(scratch);
     }
     sqlite3_finalize(insert);
+    /* Ids count up from 1 in a new table: the last one is the row count. */
+    long long rows = ok ? sqlite3_last_insert_rowid(database) : 0;
 #ifdef MAINUI_TEST_FAULTS
     if (ok) {
         mainui_test_fault("cache-populated");
@@ -980,14 +991,16 @@ static bool build_cache_locked(MainUICatalog *catalog, int system, bool replace,
     }
     if (!ok) {
         snprintf(catalog->error, sizeof catalog->error, "%s",
-                 import_failed
-                     ? "Cannot import miyoogamelist.xml; check for empty, invalid or unreadable XML"
-                     : "ROM cache build failed; previous database retained");
+                 "ROM cache build failed; previous database retained");
+    }
+    else {
+        *result = (BuildResult){true, imported, rows};
     }
     return ok;
 }
 
-static bool build_cache(MainUICatalog *catalog, int system, bool replace, bool abandon)
+static bool build_cache_unlogged(MainUICatalog *catalog, int system, bool replace, bool abandon,
+                                 BuildResult *result)
 {
     if (!catalog || system < 0 || system >= catalog->pages[0].count) {
         return false;
@@ -1017,9 +1030,46 @@ static bool build_cache(MainUICatalog *catalog, int system, bool replace, bool a
         return false;
     }
     struct timespec start = mainui_timing_start();
-    bool ok = build_cache_locked(catalog, system, replace, abandon);
+    bool ok = build_cache_locked(catalog, system, replace, abandon, result);
     mainui_timing_finish("cache-build-ms", start);
     mainui_file_unlock(lock);
+    return ok;
+}
+
+/* One log line per build that ran or failed, with why it was asked for:
+ * the cache was missing, it was damaged, or Refresh roms. A cache that was
+ * already there when only a missing one was to be built logs nothing. */
+static bool build_cache(MainUICatalog *catalog, int system, bool replace, bool abandon)
+{
+    if (!catalog || system < 0 || system >= catalog->pages[0].count) {
+        return false;
+    }
+    const char *reason = !replace ? "missing" : abandon ? "Refresh roms" : "damaged";
+    char previous[sizeof catalog->error];
+    strcpy(previous, catalog->error);
+    catalog->error[0] = 0;
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    BuildResult result = {0};
+    bool ok = build_cache_unlogged(catalog, system, replace, abandon, &result);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    long long ms =
+        (long long)(end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000;
+    const char *path = catalog->pages[0].entries[system].path;
+    if (!ok) {
+        fprintf(stderr, "[cache] %s: build failed (%s), reason %s\n", path,
+                mainui_cancelled(catalog->cancel) ? "cancelled"
+                : *catalog->error                 ? catalog->error
+                                                  : "no detail",
+                reason);
+    }
+    else if (result.built) {
+        fprintf(stderr, "[cache] %s: built from %s (%lld rows, %lld ms), reason %s\n", path,
+                result.from_xml ? "miyoogamelist.xml" : "the ROM files", result.rows, ms, reason);
+    }
+    if (!*catalog->error) {
+        strcpy(catalog->error, previous);
+    }
     return ok;
 }
 
@@ -1098,6 +1148,10 @@ bool mainui_catalog_remove_cache(MainUICatalog *catalog, int system)
     mainui_file_unlock(lock);
     if (!ok) {
         snprintf(catalog->error, sizeof catalog->error, "Could not remove ROM cache: %.190s", file);
+        fprintf(stderr, "[cache] %s: removal failed, reason Refresh roms\n", root);
+    }
+    else {
+        fprintf(stderr, "[cache] %s: removed, reason Refresh roms\n", root);
     }
     return ok;
 }
@@ -1156,37 +1210,64 @@ bool mainui_catalog_search_system(const MainUICatalog *catalog, int index)
            mainui_search_root(catalog->sd, catalog->pages[0].entries[index].path);
 }
 
-/* Console roots browsed by scanning for the rest of the session. Changed on
- * the UI thread only while no catalog worker runs; workers started later read
- * it. Kept until exit, so it stays reachable. */
+/* Console roots to browse by scanning on their next entry only: each mark is
+ * taken by that entry, so the entry after it tries the cache again and one
+ * transient failure never turns the cache off for the session. Marked on the
+ * UI thread, taken by the worker that restores the list; the lock keeps the
+ * two apart. */
+static pthread_mutex_t scan_lock = PTHREAD_MUTEX_INITIALIZER;
 static char **scan_roots;
 static int scan_root_count;
 
-static bool scanned_only(const char *root)
+static int scan_mark(const char *root)
 {
     for (int i = 0; i < scan_root_count; i++) {
         if (!strcmp(scan_roots[i], root)) {
-            return true;
+            return i;
         }
     }
-    return false;
+    return -1;
+}
+
+/* True if root was marked; the mark is removed. */
+static bool take_scan_only(const char *root)
+{
+    pthread_mutex_lock(&scan_lock);
+    int i = scan_mark(root);
+    if (i >= 0) {
+        free(scan_roots[i]);
+        scan_roots[i] = scan_roots[--scan_root_count];
+    }
+    pthread_mutex_unlock(&scan_lock);
+    return i >= 0;
+}
+
+bool mainui_catalog_keep_scanning(const char *root)
+{
+    pthread_mutex_lock(&scan_lock);
+    bool ok = scan_mark(root) >= 0;
+    if (!ok) {
+        char **grown = realloc(scan_roots, (size_t)(scan_root_count + 1) * sizeof *grown);
+        if (grown) {
+            scan_roots = grown;
+            ok = (scan_roots[scan_root_count] = strdup(root)) != NULL;
+            scan_root_count += ok;
+        }
+    }
+    pthread_mutex_unlock(&scan_lock);
+    return ok;
 }
 
 bool mainui_catalog_scan_only(const char *root)
 {
-    if (scanned_only(root)) {
-        return true;
+    bool ok = mainui_catalog_keep_scanning(root);
+    if (ok) {
+        fprintf(stderr,
+                "[scan] %s: its cache is still unreadable after a rebuild; scanning its folder "
+                "for this visit\n",
+                root);
     }
-    char **grown = realloc(scan_roots, (size_t)(scan_root_count + 1) * sizeof *grown);
-    if (!grown) {
-        return false;
-    }
-    scan_roots = grown;
-    if (!(scan_roots[scan_root_count] = strdup(root))) {
-        return false;
-    }
-    scan_root_count++;
-    return true;
+    return ok;
 }
 
 bool mainui_catalog_search_results(const MainUICatalog *catalog)
@@ -1254,11 +1335,12 @@ bool mainui_catalog_enter(MainUICatalog *catalog, int index)
             pending_delete = mainui_delete_journal_present(next->cache_file);
         }
     }
-    /* Its cache could not be read even after a rebuild: scan the folder. A
-     * scanned page's children are scanned too, so this covers the console. */
-    bool forced_scan = !catalog->depth && scanned_only(next->path);
+    /* Its cache could not be read even after a rebuild: scan the folder for
+     * this visit. A scanned page's children are scanned too, so this covers
+     * the console until it is left; the next entry tries the cache again. */
+    bool forced_scan = !catalog->depth && take_scan_only(next->path);
     if (forced_scan) {
-        next->cache_fallback = true;
+        next->cache_fallback = next->scan_visit = true;
     }
     if (!forced_scan && !pending_delete && !catalog->depth && !path_exists(next->cache_file) &&
         !search_database(catalog, next->path)) {
@@ -1277,7 +1359,8 @@ bool mainui_catalog_enter(MainUICatalog *catalog, int index)
                 close_page(next);
                 return false;
             }
-            fprintf(stderr, "%s; scanning %s without a cache\n", catalog->error, next->path);
+            fprintf(stderr, "[scan] %s: listed by scanning its folder (cache not built: %s)\n",
+                    next->path, catalog->error);
             next->cache_fallback = true;
         }
     }
@@ -1300,16 +1383,28 @@ bool mainui_catalog_enter(MainUICatalog *catalog, int index)
                 catalog->depth++;
                 return true;
             }
+            /* The database opened but its first page did not load. Only
+             * damaged content (a row the reader rejects, or SQLite corruption)
+             * is repaired, as when it does not open; a busy, I/O or memory
+             * failure never replaces the cache. */
+            bool damaged = next->entries && mainui_cache_damaged(next->cache);
             free(next->entries);
             next->entries = NULL;
             mainui_cache_close(next->cache);
             next->cache = NULL;
+            if (damaged && !pending_delete && !catalog->depth && !rebuilt &&
+                !search_database(catalog, next->path) && !mainui_cancelled(catalog->cancel)) {
+                rebuilt = true;
+                if (mainui_catalog_repair_cache(catalog, index)) {
+                    goto retry_cache;
+                }
+            }
         }
         else if (!pending_delete && !catalog->depth && !rebuilt &&
                  !search_database(catalog, next->path) && !mainui_cancelled(catalog->cancel) &&
                  cache_needs_repair(next->cache_file, next->cache_table)) {
             rebuilt = true;
-            if (mainui_catalog_build_cache(catalog, index, true)) {
+            if (mainui_catalog_repair_cache(catalog, index)) {
                 goto retry_cache;
             }
         }
@@ -1321,7 +1416,8 @@ bool mainui_catalog_enter(MainUICatalog *catalog, int index)
         }
         next->count = next->loaded = next->folder_count = 0;
         next->cache_fallback = true;
-        fprintf(stderr, "Cache unavailable or invalid; scanning %s\n", next->path);
+        fprintf(stderr, "[scan] %s: listed by scanning its folder (cache unreadable)\n",
+                next->path);
     }
     if (!scan(next, catalog->sd, false, catalog->case_sensitive, catalog->cancel)) {
         close_page(next);
