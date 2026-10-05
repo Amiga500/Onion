@@ -114,6 +114,94 @@ void formatter_meterWidth(void *pt, char *out_label)
     sprintf(out_label, "%d px", item->value);
 }
 
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* Open MainUI game list settings (.romListRows, .romListFontSize and
+ * .romListTitleScroll in the config folder). The speeds are multiples of
+ * 25 px/s, which Open MainUI renders exactly (its docs/TIMING.md); index 0
+ * of the speeds is Off. */
+static const int romlist_scroll_speeds[] = {0, 25, 50, 75, 100, 150, 200};
+static const int romlist_scroll_delays[] = {500, 1000, 2000, 3000};
+#define ROMLIST_SCROLL_SPEED_MAX 6
+#define ROMLIST_SCROLL_DELAY_MAX 3
+#define ROMLIST_FONT_SIZE_MAX 13
+
+/* Index of the value closest to value (the first one on a tie). */
+int romlist_nearestIndex(const int *values, int count, int value)
+{
+    int best = 0;
+    for (int i = 1; i < count; i++) {
+        if (abs(values[i] - value) < abs(values[best] - value))
+            best = i;
+    }
+    return best;
+}
+
+/* "delay,speed" as Open MainUI reads an enabled setting: two integers
+ * separated by commas or spaces, delay >= 0 ms, speed > 0 px/s. */
+bool romlist_parseScroll(const char *text, int *delay_ms, int *speed)
+{
+    int d, s;
+    if (!text || sscanf(text, "%d%*[, ]%d", &d, &s) != 2 || d < 0 || s <= 0)
+        return false;
+    *delay_ms = d;
+    *speed = s;
+    return true;
+}
+
+/* Font size for a menu index: 0 = the theme's size, 1..13 = 16..40. */
+int romlist_fontSizeForIndex(int index)
+{
+    return index <= 0 ? 0 : 14 + 2 * (index > ROMLIST_FONT_SIZE_MAX ? ROMLIST_FONT_SIZE_MAX : index);
+}
+
+int romlist_indexForFontSize(int size)
+{
+    if (size <= 0)
+        return 0;
+    int index = (size - 13) / 2;
+    return index < 1 ? 1 : index > ROMLIST_FONT_SIZE_MAX ? ROMLIST_FONT_SIZE_MAX
+                                                         : index;
+}
+
+void formatter_romListRows(void *pt, char *out_label)
+{
+    sprintf(out_label, "%d", ((ListItem *)pt)->value);
+}
+
+void formatter_romListFontSize(void *pt, char *out_label)
+{
+    int size = romlist_fontSizeForIndex(((ListItem *)pt)->value);
+    if (size == 0)
+        strcpy(out_label, "Theme");
+    else
+        sprintf(out_label, "%d", size);
+}
+
+void formatter_romListScrollSpeed(void *pt, char *out_label)
+{
+    int index = ((ListItem *)pt)->value;
+    int speed = romlist_scroll_speeds[index < 0 ? 0 : index > ROMLIST_SCROLL_SPEED_MAX ? ROMLIST_SCROLL_SPEED_MAX
+                                                                                       : index];
+    if (speed == 0)
+        strcpy(out_label, "Off");
+    else
+        sprintf(out_label, "%d px/s", speed);
+}
+
+void formatter_romListScrollDelay(void *pt, char *out_label)
+{
+    int index = ((ListItem *)pt)->value;
+    int ms = romlist_scroll_delays[index < 0 ? 0 : index > ROMLIST_SCROLL_DELAY_MAX ? ROMLIST_SCROLL_DELAY_MAX
+                                                                                    : index];
+    if (ms % 1000)
+        sprintf(out_label, "%d.%d s", ms / 1000, ms % 1000 / 100);
+    else
+        sprintf(out_label, "%d s", ms / 1000);
+}
+
 void formatter_timeSkip(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
