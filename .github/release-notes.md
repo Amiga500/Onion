@@ -1,4 +1,4 @@
-# 🧅⚡ OnionPlus beta: Open MainUI 1.0.4 instead of stock MainUI, plus bug fixes
+# 🧅⚡ OnionPlus beta 2: Open MainUI 1.0.4 instead of stock MainUI, plus bug fixes
 
 > 🧪 **Beta.** This build is published as a pre-release: only devices on the
 > **beta** OTA channel receive it. Stable installs stay on V4.4.0-beta-20260928
