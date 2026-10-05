@@ -1,10 +1,10 @@
-# 🧅⚡ OnionPlus beta: Open MainUI 1.0.3 instead of stock MainUI, plus bug fixes
+# 🧅⚡ OnionPlus beta: Open MainUI 1.0.4 instead of stock MainUI, plus bug fixes
 
 > 🧪 **Beta.** This build is published as a pre-release: only devices on the
 > **beta** OTA channel receive it. Stable installs stay on V4.4.0-beta-20260928
 > until it is promoted.
 
-This build replaces the stock MainUI with **Open MainUI 1.0.3** by @robcodedev.
+This build replaces the stock MainUI with **Open MainUI 1.0.4** by @robcodedev.
 Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
 
 OnionPlus is still a personal-use build. It is **not** a replacement for Onion and
@@ -28,7 +28,11 @@ of sitting unreleased.
 An open-source (GPL-3.0) rewrite of Miyoo's closed-source MainUI, installed on all
 three models (Mini `283`, Mini+ `354`, Flip `285`), in both Expert and normal mode.
 
-- ⚡ **~250 KB** launcher instead of ~1.4 MB, idle CPU in menus **~5% → ~1%** (Mini+),
+- 📋 **Game lists (1.0.4):** consoles whose `miyoogamelist.xml` isn't strictly valid
+  XML (Onion's own gamelist generator writes such files) open again instead of
+  showing "Catalog unavailable"; a console with a damaged cache row is repaired
+  once instead of being rescanned on every entry (#238).
+- ⚡ **~270 KB** launcher instead of ~1.4 MB, idle CPU in menus **~5% → ~1%** (Mini+),
   scrolling long titles **~35% → ~6%**, box art scaled in the background.
 - 🎮 Letter jump, configurable row count, auto-scrolling titles, gamelist details,
   custom context menus, configurable main menu, safe ROM deletion on FAT32 with
@@ -68,6 +72,14 @@ created a `DISABLED` file, delete it to use Open MainUI.
 
 All three confirmed fixed on the Mini v4, Mini+ and Mini Flip.
 
+New in this beta:
+
+- **Mini v4 resolution:** a boot-time shortcut could keep the Mini v4 at 640x480
+  for the whole session. It now waits for the display driver, as official Onion does.
+- **OTA updates:** the updater no longer runs a file system repair on the SD card
+  while it is in use, which could damage files. If you see `FSCK0000.REC`-style
+  files in the root of your card, check the card on a PC.
+
 ## 🧪 CI
 
 - Every combination of lid close action and Power single press is now covered by
@@ -93,7 +105,7 @@ All three confirmed fixed on the Mini v4, Mini+ and Mini Flip.
 ## ⚠️ Known limitations
 
 - Some new Open MainUI labels are English-only for now.
-- Open MainUI 1.0.3 is tested on the Mini Plus, Mini v4 and Mini Flip. On the
+- Open MainUI 1.0.4 is tested on the Mini Plus, Mini v4 and Mini Flip. On the
   Mini v4 and Mini Flip, switching between MainUI and a game's own resolution relies
   on Onion 4.5-dev fixes not yet merged in official Onion; OnionPlus already
   includes them.
@@ -130,7 +142,7 @@ helped me confirm the fixes, especially @Zazzago and @Ziko577.
 The **$20 bounty** is still open through **31 October 2026**. It goes to whoever
 reports the most verified bugs in that window.
 
-Right now **Zazzago** is ahead: 3 bugs that actually exist, all patched in this
+Right now **Zazzago** is ahead: 4 bugs that actually exist, all patched in this
 release.
 
 ## 🔗 Links
