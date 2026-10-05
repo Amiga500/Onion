@@ -112,6 +112,42 @@ int value_meterWidth(void)
     return meterWidth;
 }
 
+int value_romListRows(void)
+{
+    int rows = 6;
+    config_get(".romListRows", CONFIG_INT, &rows);
+    return rows < 6 ? 6 : rows > 20 ? 20
+                                    : rows;
+}
+
+int value_romListFontSize(void)
+{
+    int size = 0;
+    config_get(".romListFontSize", CONFIG_INT, &size);
+    return romlist_indexForFontSize(size);
+}
+
+/* Delay kept for the next save of .romListTitleScroll. */
+static int romlist_scroll_delay_ms = 1000;
+
+int value_romListScrollSpeed(void)
+{
+    char text[STR_MAX] = "";
+    int delay, speed;
+    if (config_get(".romListTitleScroll", CONFIG_STR, text) &&
+        romlist_parseScroll(text, &delay, &speed)) {
+        romlist_scroll_delay_ms = delay;
+        return 1 + romlist_nearestIndex(romlist_scroll_speeds + 1, ROMLIST_SCROLL_SPEED_MAX, speed);
+    }
+    return 0;
+}
+
+int value_romListScrollDelay(void)
+{
+    value_romListScrollSpeed();
+    return romlist_nearestIndex(romlist_scroll_delays, ROMLIST_SCROLL_DELAY_MAX + 1, romlist_scroll_delay_ms);
+}
+
 int value_batteryPercentageVisible(void)
 {
     bool override_value = false;
