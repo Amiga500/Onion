@@ -425,8 +425,8 @@ static void present(MainUIApp *ui, const SDL_Rect *area)
 /* A list page could not be read. Each step runs once, in the background,
  * keeping the selected row and window: reload the list (it may have changed
  * outside MainUI); if the cache content itself is damaged, rebuild it as
- * Refresh roms does; then browse the console by scanning its folder for the
- * session. Search results get only the reload: nothing else reproduces them. A busy, I/O or memory failure never replaces the cache. Only if
+ * Refresh roms does; then browse the console by scanning its folder for this
+ * visit (the next entry reads the cache again). Search results get only the reload: nothing else reproduces them. A busy, I/O or memory failure never replaces the cache. Only if
  * the scan fails too, leave the list with a message: then the folder itself
  * cannot be read. True when it left. */
 static bool recover_page(MainUIApp *ui, const MainUILaunchSource *source)
@@ -629,7 +629,17 @@ static bool compose_full_frame(MainUIApp *ui)
         mainui_name_input_draw(&ui->name_input, ui->screen, &ui->theme);
     }
     if (*ui->message_title) {
+        /* Log each message once as it appears: many are only shown. */
+        char shown[sizeof ui->logged_message];
+        snprintf(shown, sizeof shown, "%s: %s", ui->message_title, ui->message_body);
+        if (strcmp(shown, ui->logged_message)) {
+            fprintf(stderr, "[message] %s\n", shown);
+            strcpy(ui->logged_message, shown);
+        }
         mainui_draw_message(ui->screen, &ui->theme, ui->message_title, ui->message_body);
+    }
+    else {
+        ui->logged_message[0] = 0;
     }
     if (ui->catalog_job.thread && !atomic_load(&ui->catalog_job.done) &&
         (SDL_GetTicks() - ui->catalog_job.started_at >= 500 ||

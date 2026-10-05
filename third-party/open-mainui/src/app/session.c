@@ -152,6 +152,11 @@ cJSON *mainui_session_snapshot(MainUIMenuSection section, MainUICatalog *catalog
                 }
             }
         }
+        /* A console scanned for this visit stays scanned in the catalog
+         * rebuilt from this snapshot (folder entry, reload, return). */
+        if (ok && catalog->depth && catalog->pages[1].scan_visit) {
+            ok = cJSON_AddBoolToObject(root, "scan_visit", true) != NULL;
+        }
         if (ok && catalog->depth) {
             int selected = catalog->pages[0].view.selected;
             char path[4096];
@@ -242,6 +247,9 @@ bool mainui_session_restore_control(MainUISession *out, const char *sd, bool sen
                     break;
                 }
             }
+            if (folder < 0) {
+                fprintf(stderr, "[restore] the Favorites folder is gone; reopening the top\n");
+            }
             while (folder >= 0 && count < 4) {
                 chain[count++] = folder;
                 folder = pending.library->folders[folder].parent;
@@ -267,6 +275,9 @@ bool mainui_session_restore_control(MainUISession *out, const char *sd, bool sen
             if (row >= 0) {
                 mainui_viewport_move(&pending.view, rows, row - pending.view.selected, false);
             }
+            /* The list may have shrunk while away: no gap below its end. */
+            mainui_viewport_refit(&pending.view, pending.library->visible_count, rows,
+                                  pending.view.selected);
         }
     }
     else if (section == MAINUI_MENU_GAMES || section == MAINUI_MENU_EXPERT ||
@@ -320,6 +331,8 @@ bool mainui_session_restore_control(MainUISession *out, const char *sd, bool sen
                 }
             }
             if (found < 0) {
+                /* Opens the deepest level that is still there. */
+                fprintf(stderr, "[restore] %s is gone; reopening its parent instead\n", target);
                 break;
             }
             mainui_viewport_move(&pending.view,
@@ -327,6 +340,15 @@ bool mainui_session_restore_control(MainUISession *out, const char *sd, bool sen
                                  found - pending.view.selected, false);
             if (level == 1 && section != MAINUI_MENU_APPS) {
                 mainui_browser_grid_restore(pending.catalog, &pending.view, pending.view.selected);
+            }
+            if (level == 1 &&
+                cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(resume, "scan_visit"))) {
+                MainUIEntry *console = mainui_catalog_entry(
+                    pending.catalog, mainui_browser_index(pending.catalog, found));
+                if (!console || !mainui_catalog_keep_scanning(console->path)) {
+                    ok = false;
+                    break;
+                }
             }
             if (!mainui_browser_enter(pending.catalog, &pending.view, rows)) {
                 ok = false;
@@ -356,6 +378,12 @@ bool mainui_session_restore_control(MainUISession *out, const char *sd, bool sen
                         break;
                     }
                 }
+            }
+            /* A ROM or app list may have shrunk while away; the console grid
+             * is aligned by mainui_browser_grid_restore() below instead. */
+            if (pending.catalog->depth || section == MAINUI_MENU_APPS) {
+                mainui_viewport_refit(&pending.view, mainui_browser_count(pending.catalog),
+                                      visible_rows, pending.view.selected);
             }
         }
     }
