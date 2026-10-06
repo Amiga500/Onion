@@ -32,3 +32,20 @@ open-mainui-clean:
 ifeq ($(OPEN_MAINUI),1)
 dist: open-mainui
 endif
+
+# Tweaks > Appearance > Game list writes the files Open MainUI reads in
+# src/core/config.c. Stop when that file (or docs/TIMING.md, which lists the
+# exact scroll speeds) changed since the menu was last checked. After review,
+# refresh the fingerprint with: make open-mainui-config-accept
+OPEN_MAINUI_CONFIG_SHA := $(ROOT_DIR)/src/openMainUI/config.sha256
+.PHONY: open-mainui-config-check open-mainui-config-accept
+open-mainui-config-check:
+	@cd $(OPEN_MAINUI_DIR) && sha256sum -c --status $(OPEN_MAINUI_CONFIG_SHA) || { \
+		echo "Open MainUI src/core/config.c or docs/TIMING.md changed since the"; \
+		echo "Tweaks > Game list menu was checked. Review the diff, adapt the menu"; \
+		echo "if needed, then run: make open-mainui-config-accept"; \
+		exit 1; }
+open-mainui-config-accept:
+	@cd $(OPEN_MAINUI_DIR) && sha256sum src/core/config.c docs/TIMING.md > $(OPEN_MAINUI_CONFIG_SHA)
+	@echo "Open MainUI config fingerprint updated."
+open-mainui: open-mainui-config-check
