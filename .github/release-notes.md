@@ -56,6 +56,7 @@ Since the first beta:
 - **Scrolling titles:** long titles scroll after one second. Change the speed and delay, or turn it off, in **Tweaks › Appearance › Game list...**.
 - **GameSwitcher shows the box art:** the GameSwitcher saves a screenshot of a game the first time you open it while that game is running. Until then, opening it from the menu shows the game's box art, which for some systems is portrait.
 - **RetroArch settings that don't stick (#224):** RetroArch doesn't save settings on exit, and cores like gpSP ship a core override with Keep Aspect Ratio on. Use **Quick Menu > Overrides > Save Core Overrides** to change it for good.
+- **RetroArch global settings** (such as the language): change them from the **RetroArch** app in Apps, not while a game is running. During a game RetroArch uses a combined configuration that Onion restores on exit.
 - **Switching from another build (#231):** format the card, or replace the `App` folder too, then bring back only Roms, Saves, BIOS and Screenshots. Leftover app files from other builds can stop apps from starting.
 
 ## ⚠️ Known limitations
@@ -63,6 +64,7 @@ Since the first beta:
 - Some new Open MainUI labels are English-only for now.
 - **GLO (Game List Options):** press **Y**, then **A**. Open MainUI doesn't open it with Y alone yet (robcodedev/onionos-mainui-opensource#14).
 - **Theme overrides** from Tweaks (for example the battery percentage size) are not applied by Open MainUI yet (robcodedev/onionos-mainui-opensource#15).
+- **Menu long press set to Context menu** (the default) does nothing in Open MainUI yet: open the context menu with **Select** (robcodedev/onionos-mainui-opensource#17).
 - Open MainUI 1.0.4 is tested on the Mini Plus, Mini v4 and Mini Flip. On the Mini v4 and Mini Flip, switching between MainUI and a game's own resolution relies on Onion 4.5-dev fixes not yet merged in official Onion; OnionPlus already includes them.
 
 ## 🧪 If you'd like to try it
@@ -93,7 +95,7 @@ The **$20 bounty** is still open through **31 October 2026**. It goes to whoever
 Verified reports so far (OnionPlus and Open MainUI, bugs and improvements):
 
 - **Zazzago:** 4 (#228, #233, #235, #238)
-- **Veuks:** 3 (robcodedev/onionos-mainui-opensource#14, robcodedev/onionos-mainui-opensource#15, robcodedev/onionos-mainui-opensource#16)
+- **Veuks:** 4 (robcodedev/onionos-mainui-opensource#14, robcodedev/onionos-mainui-opensource#15, robcodedev/onionos-mainui-opensource#16, robcodedev/onionos-mainui-opensource#17)
 
 ## 🔗 Links
 
