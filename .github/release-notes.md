@@ -107,6 +107,10 @@ Since the first beta:
 ## ⚠️ Known limitations
 
 - Some new Open MainUI labels are English-only for now.
+- **GLO (Game List Options):** press **Y**, then **A**. Open MainUI doesn't open
+  it with Y alone yet (robcodedev/onionos-mainui-opensource#14).
+- **Theme overrides** from Tweaks (for example the battery percentage size) are
+  not applied by Open MainUI yet (robcodedev/onionos-mainui-opensource#15).
 - Open MainUI 1.0.4 is tested on the Mini Plus, Mini v4 and Mini Flip. On the
   Mini v4 and Mini Flip, switching between MainUI and a game's own resolution relies
   on Onion 4.5-dev fixes not yet merged in official Onion; OnionPlus already
@@ -137,15 +141,18 @@ Thanks first to the Onion team and to the community. OnionPlus sits on their wor
 the OS and the years of fixes already in the tree. None of this exists without that.
 
 Thanks to @robcodedev for Open MainUI, and to the testers who sent new reports and
-helped me confirm the fixes, especially @Zazzago and @Ziko577.
+helped me confirm the fixes, especially @Zazzago, @Ziko577 and Veuks.
 
 ## 💰 Bounty
 
 The **$20 bounty** is still open through **31 October 2026**. It goes to whoever
-reports the most verified bugs in that window.
+reports the most verified bugs and improvements in that window.
 
-Right now **Zazzago** is ahead: 4 bugs that actually exist, all patched in this
-release.
+Verified reports so far (OnionPlus and Open MainUI, bugs and improvements):
+
+- **Zazzago:** 4 (#228, #233, #235, #238)
+- **Veuks:** 3 (robcodedev/onionos-mainui-opensource#14,
+  robcodedev/onionos-mainui-opensource#15, robcodedev/onionos-mainui-opensource#16)
 
 ## 🔗 Links
 
