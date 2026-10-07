@@ -20,7 +20,9 @@
 #include "./appstate.h"
 #include "./diags.h"
 #include "./formatters.h"
+#include "./game_lists.h"
 #include "./icons.h"
+#include "./main_menu.h"
 #include "./network.h"
 #include "./reset.h"
 #include "./tools.h"
@@ -580,99 +582,20 @@ void menu_blueLight(void *_)
     header_changed = true;
 }
 
-static List _menu_game_list;
-
-void menu_gameList(void *_)
-{
-    if (!_menu_game_list._created) {
-        _menu_game_list = list_createWithTitle(6, LIST_SMALL, "Game list");
-        list_addItemWithInfoNote(&_menu_game_list,
-                                 (ListItem){
-                                     .label = "Rows per page",
-                                     .item_type = MULTIVALUE,
-                                     .value_min = 6,
-                                     .value_max = 20,
-                                     .value_formatter = formatter_romListRows,
-                                     .value = value_romListRows(),
-                                     .action = action_romListRows},
-                                 "Number of rows shown in game lists.");
-        list_addItemWithInfoNote(&_menu_game_list,
-                                 (ListItem){
-                                     .label = "Text size",
-                                     .item_type = MULTIVALUE,
-                                     .value_max = ROMLIST_FONT_SIZE_MAX,
-                                     .value_formatter = formatter_romListFontSize,
-                                     .value = value_romListFontSize(),
-                                     .action = action_romListFontSize},
-                                 "Text size in game lists.\n"
-                                 "'Theme' uses the size set by the theme.");
-        list_addItemWithInfoNote(&_menu_game_list,
-                                 (ListItem){
-                                     .label = "Title scrolling",
-                                     .item_type = MULTIVALUE,
-                                     .value_max = ROMLIST_SCROLL_SPEED_MAX,
-                                     .value_formatter = formatter_romListScrollSpeed,
-                                     .value = value_romListScrollSpeed(),
-                                     .action = action_romListScrollSpeed},
-                                 "Scroll long game titles in lists,\n"
-                                 "at this speed (pixels per second).");
-        list_addItemWithInfoNote(&_menu_game_list,
-                                 (ListItem){
-                                     .label = "Scroll delay",
-                                     .item_type = MULTIVALUE,
-                                     .value_max = ROMLIST_SCROLL_DELAY_MAX,
-                                     .value_formatter = formatter_romListScrollDelay,
-                                     .value = value_romListScrollDelay(),
-                                     .action = action_romListScrollDelay},
-                                 "How long a long title waits\n"
-                                 "before it starts to scroll.");
-        list_addItemWithInfoNote(&_menu_game_list,
-                                 (ListItem){
-                                     .label = "Case-sensitive sort",
-                                     .item_type = TOGGLE,
-                                     .value = config_flag_get(".romListCaseSensitiveSort"),
-                                     .action = action_romListCaseSensitiveSort},
-                                 "Sort game names case-sensitively\n"
-                                 "(uppercase names first).");
-        list_addItemWithInfoNote(&_menu_game_list,
-                                 (ListItem){
-                                     .label = "Dynamic favorite star",
-                                     .item_type = TOGGLE,
-                                     .value = config_flag_get(".romListDynamicFavPos"),
-                                     .action = action_romListDynamicFavPos},
-                                 "Show the favorite star at the right\n"
-                                 "edge when no box art is shown.");
-    }
-    menu_stack[++menu_level] = &_menu_game_list;
-    header_changed = true;
-}
-
 void menu_userInterface(void *_)
 {
     settings.blue_light_state = config_flag_get(".blfOn");
     all_changed = true;
     if (!_menu_user_interface._created) {
-        _menu_user_interface = list_createWithTitle(7, LIST_SMALL, "Appearance");
+        _menu_user_interface = list_createWithTitle(6, LIST_SMALL, "Appearance");
         list_addItemWithInfoNote(&_menu_user_interface,
-                                 (ListItem){
-                                     .label = "Show recents",
-                                     .item_type = TOGGLE,
-                                     .value = settings.show_recents,
-                                     .action = action_setShowRecents},
-                                 "Toggle the visibility of the recents tab\n"
-                                 "in the main menu.");
+                                 (ListItem){.label = "Game lists...", .action = menu_gameLists},
+                                 "Rows, text size, title scrolling,\n"
+                                 "button repeat and sorting in game lists.");
         list_addItemWithInfoNote(&_menu_user_interface,
-                                 (ListItem){
-                                     .label = "Show expert mode",
-                                     .item_type = TOGGLE,
-                                     .value = settings.show_expert,
-                                     .action = action_setShowExpert},
-                                 "Toggle the visibility of the expert tab\n"
-                                 "in the main menu.");
-        list_addItem(&_menu_user_interface,
-                     (ListItem){
-                         .label = "Game list...",
-                         .action = menu_gameList});
+                                 (ListItem){.label = "Main menu...", .action = menu_mainMenu},
+                                 "Sections of the main menu (Recents,\n"
+                                 "Expert...) and the context menu entries.");
         display_init(true);
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
@@ -1062,7 +985,7 @@ void menu_main(void)
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Appearance",
-                         .description = "Menu visibility, theme overrides",
+                         .description = "Lists, main menu, theme overrides",
                          .action = menu_userInterface,
                          .icon_ptr = _get_menu_icon("tweaks_user_interface")});
         list_addItem(&_menu_main,

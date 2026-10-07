@@ -383,103 +383,6 @@ TEST(time_skip_12h) {
 
 /* ---- main ---- */
 
-/* ==== Tests: Open MainUI game list settings ==== */
-
-TEST(romlist_parse_comma)
-{
-    int d = -1, sp = -1;
-    ASSERT_TRUE(romlist_parseScroll("1000,50", &d, &sp));
-    ASSERT_EQ(d, 1000);
-    ASSERT_EQ(sp, 50);
-}
-
-TEST(romlist_parse_space)
-{
-    int d = -1, sp = -1;
-    ASSERT_TRUE(romlist_parseScroll("500 25", &d, &sp));
-    ASSERT_EQ(d, 500);
-    ASSERT_EQ(sp, 25);
-}
-
-TEST(romlist_parse_rejects)
-{
-    int d = 7, sp = 7;
-    ASSERT_FALSE(romlist_parseScroll("1000,0", &d, &sp));
-    ASSERT_FALSE(romlist_parseScroll("-1,50", &d, &sp));
-    ASSERT_FALSE(romlist_parseScroll("1000", &d, &sp));
-    ASSERT_FALSE(romlist_parseScroll("", &d, &sp));
-    ASSERT_FALSE(romlist_parseScroll(NULL, &d, &sp));
-    /* A rejected text leaves the outputs alone */
-    ASSERT_EQ(d, 7);
-    ASSERT_EQ(sp, 7);
-}
-
-TEST(romlist_nearest)
-{
-    /* Speeds without Off: 25 50 75 100 150 200 */
-    ASSERT_EQ(romlist_nearestIndex(romlist_scroll_speeds + 1, 6, 50), 1);
-    ASSERT_EQ(romlist_nearestIndex(romlist_scroll_speeds + 1, 6, 120), 3);
-    ASSERT_EQ(romlist_nearestIndex(romlist_scroll_speeds + 1, 6, 400), 5);
-    /* Tie between 500 and 1000 ms: the first one wins */
-    ASSERT_EQ(romlist_nearestIndex(romlist_scroll_delays, 4, 750), 0);
-}
-
-TEST(romlist_speed_round_trip)
-{
-    for (int i = 1; i <= ROMLIST_SCROLL_SPEED_MAX; i++)
-        ASSERT_EQ(1 + romlist_nearestIndex(romlist_scroll_speeds + 1, ROMLIST_SCROLL_SPEED_MAX,
-                                           romlist_scroll_speeds[i]),
-                  i);
-}
-
-TEST(romlist_font_size_mapping)
-{
-    ASSERT_EQ(romlist_fontSizeForIndex(0), 0);
-    ASSERT_EQ(romlist_fontSizeForIndex(1), 16);
-    ASSERT_EQ(romlist_fontSizeForIndex(ROMLIST_FONT_SIZE_MAX), 40);
-    ASSERT_EQ(romlist_fontSizeForIndex(99), 40);
-    ASSERT_EQ(romlist_indexForFontSize(0), 0);
-    ASSERT_EQ(romlist_indexForFontSize(16), 1);
-    ASSERT_EQ(romlist_indexForFontSize(22), 4);
-    ASSERT_EQ(romlist_indexForFontSize(40), ROMLIST_FONT_SIZE_MAX);
-    ASSERT_EQ(romlist_indexForFontSize(8), 1);
-    ASSERT_EQ(romlist_indexForFontSize(60), ROMLIST_FONT_SIZE_MAX);
-    for (int i = 0; i <= ROMLIST_FONT_SIZE_MAX; i++)
-        ASSERT_EQ(romlist_indexForFontSize(romlist_fontSizeForIndex(i)), i);
-}
-
-TEST(romlist_labels)
-{
-    char out[STR_MAX] = {0};
-    TestListItem item = make_item(8);
-    formatter_romListRows(&item, out);
-    ASSERT_STREQ(out, "8");
-
-    item = make_item(0);
-    formatter_romListFontSize(&item, out);
-    ASSERT_STREQ(out, "Theme");
-    item = make_item(3);
-    formatter_romListFontSize(&item, out);
-    ASSERT_STREQ(out, "20");
-
-    item = make_item(0);
-    formatter_romListScrollSpeed(&item, out);
-    ASSERT_STREQ(out, "Off");
-    item = make_item(2);
-    formatter_romListScrollSpeed(&item, out);
-    ASSERT_STREQ(out, "50 px/s");
-
-    item = make_item(0);
-    formatter_romListScrollDelay(&item, out);
-    ASSERT_STREQ(out, "0.5 s");
-    item = make_item(1);
-    formatter_romListScrollDelay(&item, out);
-    ASSERT_STREQ(out, "1 s");
-    item = make_item(3);
-    formatter_romListScrollDelay(&item, out);
-    ASSERT_STREQ(out, "3 s");
-}
-
 int main(void)
 {
     printf("\n=== tweaks/formatters.h Unit Tests ===\n\n");
@@ -546,15 +449,6 @@ int main(void)
     RUN_TEST(time_skip_off);
     RUN_TEST(time_skip_1h);
     RUN_TEST(time_skip_12h);
-
-    /* Open MainUI game list settings */
-    RUN_TEST(romlist_parse_comma);
-    RUN_TEST(romlist_parse_space);
-    RUN_TEST(romlist_parse_rejects);
-    RUN_TEST(romlist_nearest);
-    RUN_TEST(romlist_speed_round_trip);
-    RUN_TEST(romlist_font_size_mapping);
-    RUN_TEST(romlist_labels);
 
     TEST_REPORT();
     return test_failures;

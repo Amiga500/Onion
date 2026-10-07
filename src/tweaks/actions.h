@@ -58,62 +58,6 @@ void action_meterWidth(void *pt)
     osd_showBrightnessBar(settings.brightness);
 }
 
-static void romlist_writeScroll(int speed)
-{
-    /* Off keeps the file with speed 0, which Open MainUI reads as disabled.
-     * Updates add a missing .romListTitleScroll back with its default
-     * value, so removing the file would turn scrolling on again. */
-    char text[32];
-    snprintf(text, sizeof(text), "%d,%d", romlist_scroll_delay_ms, speed > 0 ? speed : 0);
-    config_setString(".romListTitleScroll", text);
-}
-
-void action_romListRows(void *pt)
-{
-    int rows = ((ListItem *)pt)->value;
-    if (rows == 6)
-        remove(CONFIG_PATH ".romListRows");
-    else
-        config_setNumber(".romListRows", rows);
-}
-
-void action_romListFontSize(void *pt)
-{
-    int size = romlist_fontSizeForIndex(((ListItem *)pt)->value);
-    if (size == 0)
-        remove(CONFIG_PATH ".romListFontSize");
-    else
-        config_setNumber(".romListFontSize", size);
-}
-
-void action_romListScrollSpeed(void *pt)
-{
-    int index = ((ListItem *)pt)->value;
-    romlist_writeScroll(romlist_scroll_speeds[index < 0 ? 0 : index > ROMLIST_SCROLL_SPEED_MAX ? ROMLIST_SCROLL_SPEED_MAX
-                                                                                               : index]);
-}
-
-void action_romListScrollDelay(void *pt)
-{
-    int index = ((ListItem *)pt)->value;
-    romlist_scroll_delay_ms = romlist_scroll_delays[index < 0 ? 0 : index > ROMLIST_SCROLL_DELAY_MAX ? ROMLIST_SCROLL_DELAY_MAX
-                                                                                                     : index];
-    char text[STR_MAX] = "";
-    int delay, speed;
-    if (config_get(".romListTitleScroll", CONFIG_STR, text) && romlist_parseScroll(text, &delay, &speed))
-        romlist_writeScroll(speed);
-}
-
-void action_romListCaseSensitiveSort(void *pt)
-{
-    config_flag_set(".romListCaseSensitiveSort", ((ListItem *)pt)->value);
-}
-
-void action_romListDynamicFavPos(void *pt)
-{
-    config_flag_set(".romListDynamicFavPos", ((ListItem *)pt)->value);
-}
-
 void action_blueLight(void *pt)
 {
     blf_changing = true;
