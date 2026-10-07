@@ -11,8 +11,8 @@ of it is useful to the Onion team. It keeps Onion's look, menus, emulators and f
 Everything here is built on their work; any change they find worthwhile is theirs to take.
 
 > ⏱️ **~0.5 s** of its own work around each game, measured on a Miyoo Mini+ · 🐛 **44** issues
-> found in the shared codebase, with fixes ready for Onion · 🧪 **1,471** host tests, all on
-> the production code.
+> found in the shared codebase, with fixes ready for Onion · 🧪 **1,487** host tests; 71 of 75 suites
+> run the production code.
 
 [![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
 [![commits](https://img.shields.io/badge/commits-152-blueviolet?style=for-the-badge)](#-11--commit-timeline)
@@ -95,7 +95,7 @@ rank the two.
 | 🐛 Issues found in the shared code | — | **44 fixed** | ✅ crashes, leaks, lost settings, a wrong clock — fixes available for Onion, [listed in §6](#️-6--security--memory-hardening) |
 | ⚡ Settings that survive a power cut mid-write | none | **all** | ✅ `system.json`, key map, config values, JSON, recent games |
 | 🧠 Memory leaked per MainUI-cache lookup | ~570 KB | **0** | 📏 was tens of MB with a large GameSwitcher history, on a 128 MB device |
-| 🧪 Automated tests | 1 | **1,471** | 🚀 **×1,400**: 74 suites, 71,957 assertions, all on the production code, run on any PC in ~3 s |
+| 🧪 Automated tests | 1 | **1,487** | 🚀 **×1,400**: 75 suites, 71,986 assertions, 71 of them on the production code, run on any PC in ~3 s |
 | 🖼️ NEON (SIMD) pixel kernels | 0 | **9** | 🆕 vectorized pixel conversion, rotation, rotated row copy and alpha |
 | 🐚 `system()` calls in the C code | 73 | **46** | ⬇️ **−37%** shells spawned |
 | ⚠️ Unbounded string calls | 347 | **234** | ⬇️ **−33%**; none left in the hardened core |
@@ -365,7 +365,7 @@ alone could grow to tens of megabytes.
 - 🕒 **Time sync:** on networks where the web time services fail, the time comes from
   `ntpdate` a few seconds later. It no longer blocks anything.
 - 📏 **Measurements:** on-device numbers come from one Mini+ so far.
-- 🧪 **Tests:** every suite now builds against the production code. `test_state` and
+- 🧪 **Tests:** the suites were moved to the production code (4 were missed, see the correction below). `test_state` and
   `test_gs_popmenu` still keep a small local copy next to it (a before/after pair and a
   bounds check).
 
@@ -992,16 +992,16 @@ builtins ([`7790ecb2`](https://github.com/Amiga500/Onion/commit/7790ecb2); the s
 | Metric | Value |
 |:--|--:|
 | 🧪 Active test suites | **74** (one of them, `test_scripts`, runs the shell scripts) |
-| ✅ Tests | **1,471** |
+| ✅ Tests | **1,487** |
 | ✅ Assertions | **71,957** |
 | ❌ Failures | **0** |
-| 🎯 Suites testing a local copy instead of the production code | **0** *(31 at the start of the review)* |
+| 🎯 Suites testing a local copy instead of the production code | **4** *(31 at the start of the review; the README said 0 until an October 2026 review found these 4)* |
 | ⏱️ Suite runtime (prebuilt) | **~3 s** |
 | 🧼 Sanitizer subset (ASan + UBSan) | **6 suites** in `unit-test-san`; all 72 were also run under ASan/UBSan once |
 
 - 🏗️ Runs entirely on the **host** — no cross-toolchain, no SDL, no device — via a single
   `make unit-test` target, making it usable as a fast CI gate.
-- 🎯 **Every suite tests the production code** (Pass 4). 31 suites used to test a local copy
+- 🎯 **Most suites test the production code** (Pass 4; 4 still test a local copy: config, theme config, play activity paths and savestate paths, being moved). 31 suites used to test a local copy
   of the function they covered, so a change to the real code could pass them unnoticed. They
   now include the real headers; where a header pulled in SDL or the device, the pure logic
   moved into a small SDL-free header that production includes too (`screenshot_path.h`,
