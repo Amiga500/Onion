@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "ui/menu_view.h"
+#include "platform/timing.h"
 #include "ui/panels.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static void blit(SDL_Surface *screen, SDL_Surface *image, int x, int y)
@@ -43,6 +45,8 @@ static void clear_consoles(MainUIMenuView *view)
         if (normal) {
             SDL_FreeSurface(normal);
         }
+        free(view->pending_selected[i]);
+        view->pending_selected[i] = NULL;
         for (int state = 0; state < 2; state++) {
             if (view->console_labels[i][state]) {
                 SDL_FreeSurface(view->console_labels[i][state]);
@@ -115,10 +119,33 @@ static SDL_Surface *crop(SDL_Surface *image, int width, int height)
     return out;
 }
 
+/* Icons dropped for the budget, with the bytes they needed, for the session:
+ * a page change does not decode one again while it still cannot fit. A full
+ * table only means an icon may be decoded once more before it is dropped. */
+static struct {
+    char *path;
+    int width, height; /* the crop it was dropped with: Expert's or none */
+    size_t bytes;
+} dropped[32];
+
+static bool over_budget(size_t retained, size_t needed)
+{
+    return retained > MENU_ICON_BUDGET || needed > MENU_ICON_BUDGET - retained;
+}
+
+static void report_budget(const char *path)
+{
+    static bool reported;
+    if (!reported) {
+        fprintf(stderr, "Menu icon budget exceeded by %s; showing no icon\n", path);
+        reported = true;
+    }
+}
+
 /* Cropped to width x height when they are set (Expert), or dropped (no icon)
  * over the budget. Other icons are kept whole: a large one is drawn clipped
  * by the screen, which no centered crop reproduces. */
-static SDL_Surface *keep_icon(const MainUIMenuView *view, SDL_Surface *icon, int width, int height,
+static SDL_Surface *keep_icon(size_t retained, SDL_Surface *icon, int width, int height,
                               const char *path)
 {
     if (!icon) {
@@ -127,17 +154,45 @@ static SDL_Surface *keep_icon(const MainUIMenuView *view, SDL_Surface *icon, int
     if (width > 0) {
         icon = crop(icon, width, height);
     }
-    size_t retained = mainui_menu_view_bytes(view), needed = surface_bytes(icon);
-    if (retained > MENU_ICON_BUDGET || needed > MENU_ICON_BUDGET - retained) {
-        static bool reported;
-        if (!reported) {
-            fprintf(stderr, "Menu icon budget exceeded by %s; showing no icon\n", path);
-            reported = true;
+    size_t needed = surface_bytes(icon);
+    if (over_budget(retained, needed)) {
+        report_budget(path);
+        for (size_t i = 0; path && i < sizeof dropped / sizeof *dropped; i++) {
+            if (!dropped[i].path && (dropped[i].path = strdup(path))) {
+                dropped[i].width = width;
+                dropped[i].height = height;
+                dropped[i].bytes = needed;
+                break;
+            }
+            if (dropped[i].path && !strcmp(dropped[i].path, path) && dropped[i].width == width &&
+                dropped[i].height == height) {
+                dropped[i].bytes = needed;
+                break;
+            }
         }
         SDL_FreeSurface(icon);
         return NULL;
     }
     return icon;
+}
+
+SDL_Surface *mainui_menu_view_icon(MainUITheme *theme, const char *path, size_t retained, int width,
+                                   int height)
+{
+    if (!path || !*path) {
+        return NULL;
+    }
+    for (size_t i = 0; i < sizeof dropped / sizeof *dropped && dropped[i].path; i++) {
+        if (!strcmp(dropped[i].path, path) && dropped[i].width == width &&
+            dropped[i].height == height && over_budget(retained, dropped[i].bytes)) {
+            report_budget(path);
+            return NULL;
+        }
+    }
+    struct timespec start = mainui_timing_start();
+    SDL_Surface *icon = mainui_theme_console_icon(theme, path);
+    mainui_timing_finish("icon-ms", start);
+    return keep_icon(retained, icon, width, height, path);
 }
 
 void mainui_menu_view_open(MainUIMenuView *view, MainUITheme *theme)
@@ -148,8 +203,8 @@ void mainui_menu_view_open(MainUIMenuView *view, MainUITheme *theme)
             char name[80];
             snprintf(name, sizeof name, "skin/ic-%s-%c.png", mainui_menu_icon(i),
                      selected ? 'f' : 'n');
-            view->home_icons[i][selected] =
-                keep_icon(view, mainui_theme_image(theme, name), 0, 0, name);
+            view->home_icons[i][selected] = keep_icon(mainui_menu_view_bytes(view),
+                                                      mainui_theme_image(theme, name), 0, 0, name);
         }
     }
 }
@@ -255,20 +310,28 @@ void mainui_menu_view_page(MainUIMenuView *view, MainUICatalog *catalog,
     /* Expert draws the centered 192x72 of an icon. */
     int width = expert ? 192 : 0, height = expert ? 72 : 0;
     clear_consoles(view);
+    view->crop_width = width;
+    view->crop_height = height;
     for (int i = 0; i < capacity && position->start + i < position->total; i++) {
         MainUIEntry *entry = mainui_catalog_entry(catalog, position->start + i);
         if (!entry) {
             continue;
         }
-        view->console_icons[i][0] = keep_icon(view, mainui_theme_console_icon(theme, entry->icon),
-                                              width, height, entry->icon);
+        view->console_icons[i][0] =
+            mainui_menu_view_icon(theme, entry->icon, mainui_menu_view_bytes(view), width, height);
         /* One file for both states is decoded once. */
         bool same =
             !entry->icon_selected || (entry->icon && !strcmp(entry->icon_selected, entry->icon));
+        /* Until it is decoded, a selected icon left for later shows as the
+         * normal one; the shared surface is freed once, as for one file. */
+        if (!same && view->defer_selected && position->start + i != position->selected) {
+            view->pending_selected[i] = strdup(entry->icon_selected);
+            same = view->pending_selected[i] != NULL;
+        }
         view->console_icons[i][1] =
             same ? view->console_icons[i][0]
-                 : keep_icon(view, mainui_theme_console_icon(theme, entry->icon_selected), width,
-                             height, entry->icon_selected);
+                 : mainui_menu_view_icon(theme, entry->icon_selected, mainui_menu_view_bytes(view),
+                                         width, height);
         if (!view->console_icons[i][1]) {
             view->console_icons[i][1] = view->console_icons[i][0];
         }
@@ -282,6 +345,37 @@ void mainui_menu_view_page(MainUIMenuView *view, MainUICatalog *catalog,
         }
     }
     view->cached_start = position->start;
+}
+
+bool mainui_menu_view_load_pending(MainUIMenuView *view, const MainUIViewport *position,
+                                   bool *shown)
+{
+    *shown = false;
+    if (view->cached_start < 0 || view->cached_start != position->start) {
+        return false;
+    }
+    int slot = position->selected - position->start;
+    if (slot < 0 || slot >= 9 || !view->pending_selected[slot]) {
+        slot = -1;
+        for (int i = 0; i < 9 && slot < 0; i++) {
+            if (view->pending_selected[i]) {
+                slot = i;
+            }
+        }
+    }
+    if (slot < 0) {
+        return false;
+    }
+    char *path = view->pending_selected[slot];
+    view->pending_selected[slot] = NULL;
+    SDL_Surface *icon = mainui_menu_view_icon(view->theme, path, mainui_menu_view_bytes(view),
+                                              view->crop_width, view->crop_height);
+    free(path);
+    if (icon) {
+        view->console_icons[slot][1] = icon;
+        *shown = position->start + slot == position->selected;
+    }
+    return true;
 }
 
 void mainui_menu_draw_systems(MainUIMenuView *view, SDL_Surface *screen, MainUICatalog *catalog,
@@ -304,8 +398,15 @@ void mainui_menu_draw_systems(MainUIMenuView *view, SDL_Surface *screen, MainUIC
         int selected = position->start + i == position->selected;
         int x = (expert ? 0 : 10) + (i % columns) * width;
         int y = (expert ? 60 : 75) + (i / columns) * height;
-        SDL_Surface *tile = theme->tiles[selected], *icon = view->console_icons[i][selected];
-        if (tile) {
+        SDL_Surface *icon = view->console_icons[i][selected];
+        if (expert) {
+            SDL_Surface *mark = selected ? theme->expert_selection : NULL;
+            if (mark) {
+                blit(screen, mark, x + (width - mark->w) / 2, y + (height - mark->h) / 2);
+            }
+        }
+        else if (theme->tiles[selected]) {
+            SDL_Surface *tile = theme->tiles[selected];
             blit(screen, tile, x + (width - tile->w) / 2 + 2, y + (height - tile->h) / 2 + 2);
         }
         if (icon) {

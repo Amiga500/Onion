@@ -41,7 +41,8 @@ int main(int argc, char **argv)
     assert(mainui_search_open(&search, catalog, &view, "nested", 6));
     assert(search.results->count == 70 && search.view.selected == 0 && search.view.start == 0);
     assert(!strcmp(search.results->items[0].label, "nested00"));
-    assert(!strcmp(search.results->items[69].rom, "/mnt/SDCARD/Roms/Normal/Folder/nested69.nes"));
+    assert(!strcmp(search.results->items[69].rom,
+                   "/mnt/SDCARD/Emu/Normal/../../Roms/Normal/Folder/nested69.nes"));
     assert(!memcmp(&view, &original, sizeof view) && catalog->depth == 1);
     cJSON *search_view = cJSON_Parse("{\"currpos\":44,\"pagestart\":42,\"pageend\":47}");
     assert(mainui_search_restore_view(&search, search_view, search.results->items[44].json, 6));
@@ -103,9 +104,10 @@ int main(int argc, char **argv)
     assert(mainui_browser_enter(catalog, &view, 6));
     assert(mainui_browser_back(catalog, &view));
     assert(!memcmp(&saved, &view, sizeof view));
-    view.selected = find(catalog, "Empty");
+    view.selected = find(catalog, "Disc");
     assert(mainui_browser_enter(catalog, &view, 6));
-    assert(view.total == 1 && !strcmp(mainui_browser_label(catalog, 0), ".."));
+    assert(view.total == 2 && !strcmp(mainui_browser_label(catalog, 0), "..") &&
+           !strcmp(mainui_browser_label(catalog, 1), "Sub"));
     assert(mainui_browser_enter(catalog, &view, 6));
     mainui_catalog_close(catalog);
     memset(catalog, 0, sizeof *catalog);
