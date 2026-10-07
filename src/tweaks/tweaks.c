@@ -158,6 +158,8 @@ int main(int argc, char *argv[])
                 if (menu_level == 0)
                     quit = true;
                 else {
+                    if (menu_stack[menu_level] == &_menu_game_lists)
+                        gamelists_on_menu_exit();
                     menu_stack[menu_level] = NULL;
                     menu_level--;
                     header_changed = true;

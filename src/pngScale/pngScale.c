@@ -176,13 +176,22 @@ int main(int argc, char *argv[])
     png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
     fclose(fp);
 
-    // Calculate dst size
-    dw = mw;
-    dh = sh * dw / sw;
-    if (dh > mh) {
+    // Calculate dst size: fit within mw x mh keeping the aspect ratio, or
+    // exactly mw x mh with a fifth argument "stretch".
+    if (argc > 5 && strcmp(argv[5], "stretch") == 0) {
+        dw = mw;
         dh = mh;
-        dw = sw * dh / sh;
     }
+    else {
+        dw = mw;
+        dh = sh * dw / sw;
+        if (dh > mh) {
+            dh = mh;
+            dw = sw * dh / sh;
+        }
+    }
+    if (!dw || !dh)
+        ERROR("invalid size");
     ds = ALIGN4K(dw * dh * 4);
 
     // Allocate dst png mem and scale
@@ -233,7 +242,7 @@ int main(int argc, char *argv[])
 
 usage:
     printf(
-        "usage: %s src.png dst.png [max_width:def=250] [max_height:def=360]\n",
+        "usage: %s src.png dst.png [max_width:def=250] [max_height:def=360] [stretch]\n",
         argv[0]);
 error:
     if (srcVa)
