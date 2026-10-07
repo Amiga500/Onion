@@ -187,6 +187,42 @@ int main(int argc, char **argv)
     for (int i = 0; i < 9; ++i) {
         assert(view.console_icons[i][0]->w == 192 && view.console_icons[i][0]->h == 72);
     }
+    /* Deferred, a page decodes every normal icon and only the selected
+     * console's selected icon; the others show the normal one until they are
+     * decoded, the selected console's first, cropped as the page's are. */
+    view.defer_selected = true;
+    for (int i = 0; i < 3; ++i) {
+        consoles[i].icon_selected = mid;
+    }
+    page.selected = 1;
+    view.cached_start = -1;
+    mainui_menu_view_page(&view, grid, &page);
+    for (int i = 0; i < 9; ++i) {
+        assert(view.console_icons[i][0] &&
+               (i == 1) == (view.console_icons[i][1] != view.console_icons[i][0]));
+        assert((i == 0 || i == 2) == (view.pending_selected[i] != NULL));
+    }
+    assert(view.console_icons[1][1]->w == 192 && view.console_icons[1][1]->h == 72);
+    bool shown;
+    page.selected = 2;
+    assert(mainui_menu_view_load_pending(&view, &page, &shown) && shown);
+    assert(!view.pending_selected[2] && view.console_icons[2][1] != view.console_icons[2][0]);
+    assert(view.console_icons[2][1]->w == 192 && view.console_icons[2][1]->h == 72);
+    assert(mainui_menu_view_load_pending(&view, &page, &shown) && !shown);
+    assert(!view.pending_selected[0] && view.console_icons[0][1] != view.console_icons[0][0]);
+    assert(!mainui_menu_view_load_pending(&view, &page, &shown) && !shown);
+    /* Another page, or none loaded: nothing is decoded for the old one. */
+    view.cached_start = -1;
+    mainui_menu_view_page(&view, grid, &page);
+    assert(view.pending_selected[0] && view.pending_selected[1] && !view.pending_selected[2]);
+    MainUIViewport other_page = page;
+    other_page.start = 9;
+    assert(!mainui_menu_view_load_pending(&view, &other_page, &shown));
+    view.defer_selected = false;
+    for (int i = 0; i < 3; ++i) {
+        consoles[i].icon_selected = NULL;
+    }
+    page.selected = 0;
     /* With the budget taken (here by home icons), icons are left out. */
     for (int i = 0; i < 2; ++i) {
         view.home_icons[0][i] =
@@ -209,6 +245,48 @@ int main(int argc, char **argv)
     mainui_menu_view_close(&view);
     assert(shared->refcount == 1);
     SDL_FreeSurface(shared);
+    /* An icon dropped for the budget is remembered with its size: while it
+     * still cannot fit it is not decoded again (here it was replaced by a
+     * 1x1 image that would fit), and once there is room it is loaded. */
+    char drop[4096], small[4096];
+    snprintf(drop, sizeof drop, "%s/icon-drop.png", argv[1]);
+    snprintf(small, sizeof small, "%s/small.png", argv[1]);
+    for (int i = 0; i < 9; ++i) {
+        consoles[i] = (MainUIEntry){.label = "Console", .icon = i ? NULL : drop};
+    }
+    snprintf(grid->pages[0].title, sizeof grid->pages[0].title, "Games");
+    grid->pages[0].count = grid->pages[0].loaded = 1;
+    page = (MainUIViewport){.total = 1, .selected = 0, .start = 0, .end = 0};
+    mainui_menu_view_open(&view, &theme);
+    for (int i = 0; i < MAINUI_MENU_SECTIONS; ++i) {
+        for (int state = 0; state < 2; ++state) {
+            SDL_FreeSurface(view.home_icons[i][state]);
+            view.home_icons[i][state] = NULL;
+        }
+    }
+    /* About 13 MiB held leaves less than the 2000x2000 icon's 11.4 MiB. */
+    view.home_icons[0][0] =
+        SDL_CreateRGBSurface(SDL_SWSURFACE, 2000, 1700, 32, 0xff0000, 0xff00, 0xff, 0xff000000);
+    assert(view.home_icons[0][0]);
+    mainui_menu_view_page(&view, grid, &page);
+    assert(!view.console_icons[0][0]);
+    FILE *in = fopen(small, "rb"), *out = fopen(drop, "wb");
+    assert(in && out);
+    char bytes[4096];
+    size_t n;
+    while ((n = fread(bytes, 1, sizeof bytes, in)) > 0) {
+        assert(fwrite(bytes, 1, n, out) == n);
+    }
+    assert(fclose(in) == 0 && fclose(out) == 0);
+    view.cached_start = -1;
+    mainui_menu_view_page(&view, grid, &page);
+    assert(!view.console_icons[0][0]);
+    SDL_FreeSurface(view.home_icons[0][0]);
+    view.home_icons[0][0] = NULL;
+    view.cached_start = -1;
+    mainui_menu_view_page(&view, grid, &page);
+    assert(view.console_icons[0][0] && view.console_icons[0][0]->w == 1);
+    mainui_menu_view_close(&view);
     free(grid);
     mainui_theme_close(&theme);
 

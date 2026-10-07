@@ -46,6 +46,14 @@ typedef struct {
     const char *input_script;
     const char *input_text;
     bool real_device;
+    /* Keymon answers a Select release in MainUI with a Menu press and
+     * release; that release must not open the context menu again. */
+    bool select_menu_pending;
+    Uint32 select_menu_until;
+    /* Keymon's L1 after its Menu release: the Menu releases already matched
+     * or passed over, and whether that L1 is down now. */
+    int menu_events_seen;
+    bool quiet_l1_armed, quiet_l1_held;
     bool battery_override;
     bool start_systems;
     bool refresh_caches;
@@ -125,6 +133,8 @@ typedef struct {
     bool marquee_paced;
     Uint32 marquee_due, marquee_origin, marquee_steps;
     bool presented_animating;
+    /* The last full frame drew the Games or Expert console grid. */
+    bool systems_drawn;
     Uint32 active_at, presented_at;
     int presented_battery, presented_wifi_signal;
     bool presented_wifi_online;
