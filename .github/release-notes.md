@@ -1,9 +1,9 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅⚡ OnionPlus beta 4: Open MainUI 1.0.4, plus bug fixes
+# 🧅⚡ OnionPlus beta 5: Open MainUI 1.0.5, plus bug fixes
 
 > 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on the stable release of 7 October (`9e96c27c`) until this beta is promoted.
 
-This build replaces the stock MainUI with **Open MainUI 1.0.4** by @robcodedev. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
+This build replaces the stock MainUI with **Open MainUI 1.0.5** by @robcodedev. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
 
 OnionPlus is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. I use it on my own Miyoo Mini Plus. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 
@@ -21,6 +21,9 @@ Beta 3 and earlier, like the stable release of 28 September, could **delete play
 
 An open-source (GPL-3.0) rewrite of Miyoo's closed-source MainUI, installed on all three models (Mini `283`, Mini+ `354`, Flip `285`), in both Expert and normal mode.
 
+- 🎮 **Buttons (1.0.5):** Y opens Game List Options again, and the Menu long press (Onion's default Context menu) opens the context menu (robcodedev/onionos-mainui-opensource#14, robcodedev/onionos-mainui-opensource#17; reported by Veuks).
+- 🎨 **Theme overrides (1.0.5):** Tweaks › Appearance › Theme overrides, such as the battery percentage size or hidden labels, are applied again (robcodedev/onionos-mainui-opensource#15; reported by Veuks).
+- 📂 **Lists (1.0.5):** `Manuals`, empty folders and ScummVM data folders no longer show up as ROM folders (#243); run Refresh roms on affected consoles. Mute background music in Tweaks now silences MainUI.
 - 📋 **Game lists (1.0.4):** consoles whose `miyoogamelist.xml` isn't strictly valid XML (Onion's own gamelist generator writes such files) open again instead of showing "Catalog unavailable"; a console with a damaged cache row is repaired once instead of being rescanned on every entry (#238).
 - 🎛️ **Tweaks › Appearance › Game list...:** rows per page, text size, title scrolling speed and delay, case-sensitive sort and the dynamic favorite star, without editing files by hand (#238).
 - ⚡ **~270 KB** launcher instead of ~1.4 MB, idle CPU in menus **~5% → ~1%** (Mini+), scrolling long titles **~35% → ~6%**, box art scaled in the background.
@@ -66,12 +69,9 @@ Since the first beta:
 ## ⚠️ Known limitations
 
 - Some new Open MainUI labels are English-only for now.
-- **GLO (Game List Options):** press **Y**, then **A**. Open MainUI doesn't open it with Y alone yet (robcodedev/onionos-mainui-opensource#14).
-- **Theme overrides** from Tweaks (for example the battery percentage size) are not applied by Open MainUI yet (robcodedev/onionos-mainui-opensource#15).
-- **Menu long press set to Context menu** (the default) does nothing in Open MainUI yet: open the context menu with **Select** (robcodedev/onionos-mainui-opensource#17).
 - **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
 - **Settings:** two programs saving settings at the same moment can corrupt the settings file, and a settings save that fails is not retried.
-- Open MainUI 1.0.4 is tested on the Mini Plus, Mini v4 and Mini Flip. On the Mini v4 and Mini Flip, switching between MainUI and a game's own resolution relies on Onion 4.5-dev fixes not yet merged in official Onion; OnionPlus already includes them.
+- Open MainUI 1.0.5 is tested on the Mini Plus, Mini v4 and Mini Flip. On the Mini v4 and Mini Flip, switching between MainUI and a game's own resolution relies on Onion 4.5-dev fixes not yet merged in official Onion; OnionPlus already includes them.
 
 ## 🧪 If you'd like to try it
 
