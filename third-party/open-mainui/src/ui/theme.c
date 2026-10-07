@@ -6,6 +6,7 @@
 #include "platform/system_config.h"
 #include "ui/artwork.h"
 #include "ui/drawing.h"
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,6 +62,7 @@ static size_t image_bytes(const MainUITheme *t)
         bytes +=
             surface_bytes(t->tiles[i]) + surface_bytes(t->dots[i]) + surface_bytes(t->buttons[i]);
     }
+    bytes += surface_bytes(t->expert_selection) + surface_bytes(t->popup_dim);
     for (int i = 0; i < SET_COUNT; ++i) {
         bytes += surface_bytes(t->settings_artwork.icons[i]);
     }
@@ -526,6 +528,82 @@ static SDL_Color theme_color(const cJSON *object, const char *key, SDL_Color fal
     return fallback;
 }
 
+/* Onion's Tweaks (Appearance > Theme overrides) saves overrides in the
+ * profile's theme/config.json, and Onion applies that file over the theme's
+ * config field by field (theme_loadFromPath() -> theme_applyConfig()). Merge
+ * it the same way: each field in an object of the overrides replaces the
+ * theme's, other fields of that object stay; a top-level value replaces the
+ * theme's. A missing file changes nothing; an unusable one is logged. */
+static void apply_overrides(const MainUITheme *t, cJSON **root)
+{
+    char path[4096];
+    if (!*t->profile || !join(path, t->profile, "config.json")) {
+        return;
+    }
+    errno = 0;
+    char *text = mainui_read_text(path, 1024 * 1024);
+    if (!text) {
+        if (errno != ENOENT) {
+            fprintf(stderr, "[theme] overrides in %s not used: %s\n", path,
+                    errno ? strerror(errno) : "unreadable");
+        }
+        return;
+    }
+    cJSON *overrides = cJSON_ParseWithOpts(text, NULL, true);
+    free(text);
+    if (!cJSON_IsObject(overrides)) {
+        fprintf(stderr, "[theme] overrides in %s not used: not a JSON object\n", path);
+        cJSON_Delete(overrides);
+        return;
+    }
+    if (!cJSON_IsObject(*root)) {
+        cJSON_Delete(*root);
+        *root = cJSON_CreateObject();
+    }
+    /* Onion reads the theme's hideIconTitle into both labels before the
+     * overrides; set hideLabels from it so an override of one label keeps
+     * the other as the theme had it. */
+    const cJSON *legacy = cJSON_GetObjectItemCaseSensitive(*root, "hideIconTitle");
+    if (cJSON_GetObjectItemCaseSensitive(overrides, "hideLabels") &&
+        !cJSON_IsObject(cJSON_GetObjectItemCaseSensitive(*root, "hideLabels")) &&
+        cJSON_IsBool(legacy)) {
+        cJSON *labels = cJSON_CreateObject();
+        cJSON_AddBoolToObject(labels, "icons", cJSON_IsTrue(legacy));
+        cJSON_AddBoolToObject(labels, "hints", cJSON_IsTrue(legacy));
+        cJSON_DeleteItemFromObjectCaseSensitive(*root, "hideLabels");
+        if (labels && !cJSON_AddItemToObject(*root, "hideLabels", labels)) {
+            cJSON_Delete(labels);
+        }
+    }
+    for (cJSON *item = overrides->child; item; item = item->next) {
+        if (!item->string) {
+            continue;
+        }
+        cJSON *target = cJSON_GetObjectItemCaseSensitive(*root, item->string);
+        if (cJSON_IsObject(item) && cJSON_IsObject(target)) {
+            for (cJSON *field = item->child; field; field = field->next) {
+                cJSON *copy = field->string ? cJSON_Duplicate(field, true) : NULL;
+                if (copy) {
+                    cJSON_DeleteItemFromObjectCaseSensitive(target, field->string);
+                    if (!cJSON_AddItemToObject(target, field->string, copy)) {
+                        cJSON_Delete(copy);
+                    }
+                }
+            }
+        }
+        else {
+            cJSON *copy = cJSON_Duplicate(item, true);
+            if (copy) {
+                cJSON_DeleteItemFromObjectCaseSensitive(*root, item->string);
+                if (!cJSON_AddItemToObject(*root, item->string, copy)) {
+                    cJSON_Delete(copy);
+                }
+            }
+        }
+    }
+    cJSON_Delete(overrides);
+}
+
 bool mainui_theme_open(MainUITheme *t, const char *dir, const char *base,
                        const MainUIConfig *config)
 {
@@ -562,6 +640,7 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
     }
     cJSON *root = text ? cJSON_ParseWithOpts(text, NULL, true) : NULL;
     free(text);
+    apply_overrides(t, &root);
     const cJSON *list = cJSON_GetObjectItemCaseSensitive(root, "list");
     const cJSON *title = cJSON_GetObjectItemCaseSensitive(root, "title");
     const cJSON *gamelist = cJSON_GetObjectItemCaseSensitive(root, "gamelist");
@@ -644,10 +723,11 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
     if (t->expert_font) {
         TTF_SetFontStyle(t->expert_font, TTF_STYLE_BOLD);
     }
+    /* Hint text (footer hints, counter, dialog actions) has its own font, as
+     * stock's label font: hint.font, or without one the default font
+     * (Exo 2 Bold Italic, or the language font), never the title's. Its
+     * style is the font file's own. */
     const char *hint_face = json_string(hint, "font");
-    if (!hint_face) {
-        hint_face = json_string(title, "font");
-    }
     t->hint_font = font_open(t, hint_face, hint_size);
     if (t->grid_font) {
         TTF_SetFontStyle(t->grid_font, TTF_STYLE_BOLD);
@@ -664,7 +744,7 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
     const cJSON *battery = cJSON_GetObjectItemCaseSensitive(root, "batteryPercentage");
     const char *battery_face = json_string(battery, "font");
     if (!battery_face) {
-        battery_face = hint_face;
+        battery_face = hint_face ? hint_face : json_string(title, "font");
     }
     int battery_size = json_int(battery, "size", 24);
     if (battery_size < 1 || battery_size > 120) {
@@ -686,6 +766,8 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
     cJSON_Delete(root);
     t->tiles[0] = mainui_theme_image(t, "skin/bg-game-item-n.png");
     t->tiles[1] = mainui_theme_image(t, "skin/bg-game-item-f.png");
+    /* Expert marks only its selected cell, with its own 214x120 artwork. */
+    t->expert_selection = mainui_theme_image(t, "skin/bg-ra-list-item.png");
     t->dots[0] = mainui_theme_image(t, "skin/dot-n.png");
     t->dots[1] = mainui_theme_image(t, "skin/dot-a.png");
     t->buttons[0] = mainui_theme_image(t, "skin/icon-A-54.png");
@@ -770,6 +852,10 @@ void mainui_theme_close(MainUITheme *t)
     SDL_FreeSurface(t->popup_selection);
     SDL_FreeSurface(t->loading_background);
     SDL_FreeSurface(t->apps_selection);
+    for (int i = 0; i < 4; ++i) {
+        SDL_FreeSurface(t->app_icons[i]);
+        free(t->app_icon_paths[i]);
+    }
     for (int i = 0; i < 32; ++i) {
         SDL_FreeSurface(t->text_cache[i].surface);
     }
@@ -787,6 +873,12 @@ void mainui_theme_close(MainUITheme *t)
         if (t->battery_icons[i]) {
             SDL_FreeSurface(t->battery_icons[i]);
         }
+    }
+    if (t->expert_selection) {
+        SDL_FreeSurface(t->expert_selection);
+    }
+    if (t->popup_dim) {
+        SDL_FreeSurface(t->popup_dim);
     }
     for (int i = 0; i < 2; i++) {
         if (t->tiles[i]) {

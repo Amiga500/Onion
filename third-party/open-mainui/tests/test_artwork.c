@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "support.h"
+#include "ui/panels.h"
 #include "ui/theme.h"
 #ifdef NDEBUG
 #undef NDEBUG
@@ -95,7 +96,7 @@ int main(int argc, char **argv)
     initialize(&theme, active, fallback);
     assert(mainui_theme_popup_background(&theme, 6)->w == 111);
     mainui_theme_close(&theme);
-    /* Profile overrides affect skin images, not theme configuration or fonts. */
+    /* Profile skin images override the theme's, and are cached per open. */
     const char *parts[] = {"Saves", "Saves/CurrentProfile", "Saves/CurrentProfile/theme",
                            "Saves/CurrentProfile/theme/skin"};
     for (size_t i = 0; i < sizeof parts / sizeof *parts; i++) {
@@ -140,6 +141,29 @@ int main(int argc, char **argv)
     file = fopen(path, "wb");
     assert(file && fputs("{\"list\":{\"size\":99}}", file) >= 0 && fclose(file) == 0);
     assert(mainui_theme_open_sd(&theme, active, builtin, root, &config));
+    {
+        /* Without hint.font, hints use the default font (Exo 2 Bold Italic,
+         * italic by its own face), not the title's; with one, that font. */
+        char fonts[1024], title_font[4096], name[2][4096], fonts_config[4096];
+        snprintf(fonts, sizeof fonts, "%s/fonts", root);
+        assert(mkdir_0755(fonts) == 0);
+        TEST_PATH(title_font, "%s/BPreplayBold.otf", builtin);
+        const char *configs[] = {"{\"title\":{\"font\":\"%s\"}}",
+                                 "{\"title\":{\"font\":\"%s\"},\"hint\":{\"font\":\"%s\"}}"};
+        for (int i = 0; i < 2; i++) {
+            TEST_PATH(fonts_config, "%s/config.json", fonts);
+            file = fopen(fonts_config, "wb");
+            assert(file && fprintf(file, configs[i], title_font, title_font) > 0 &&
+                   fclose(file) == 0);
+            MainUITheme fonted = {0};
+            assert(mainui_theme_open_sd(&fonted, fonts, builtin, root, &config));
+            snprintf(name[0], sizeof name[0], "%s", TTF_FontFaceFamilyName(fonted.hint_font));
+            snprintf(name[1], sizeof name[1], "%s", TTF_FontFaceFamilyName(fonted.title_font));
+            assert(i ? !strcmp(name[0], name[1]) : strcmp(name[0], name[1]) != 0);
+            assert(i || strstr(name[0], "Exo"));
+            mainui_theme_close(&fonted);
+        }
+    }
     int font_height = TTF_FontHeight(theme.font);
     /* Labels beyond the old 511-byte cache key render in full when they fit,
      * and distinct tails cannot reuse the wrong cached surface. */
@@ -191,7 +215,8 @@ int main(int argc, char **argv)
     mainui_theme_close(&theme);
     assert(remove(path) == 0);
     assert(mainui_theme_open_sd(&theme, active, builtin, root, &config));
-    assert(TTF_FontHeight(theme.font) == font_height);
+    /* The profile's config.json (Tweaks' theme overrides) applied list.size 99. */
+    assert(TTF_FontHeight(theme.font) < font_height);
     mainui_theme_close(&theme);
     snprintf(path, sizeof path, "%s/config.json", active);
     file = fopen(path, "wb");
@@ -200,8 +225,89 @@ int main(int argc, char **argv)
     assert(mainui_theme_open_sd(&theme, active, builtin, root, &config));
     assert(theme.font && TTF_FontFaceFamilyName(theme.font));
     mainui_theme_close(&theme);
+    /* Tweaks' overrides apply field by field, as Onion's theme_applyConfig():
+     * the battery size changes, its alignment and colour stay the theme's, and
+     * a hideLabels override of icons keeps hints from hideIconTitle. */
+    file = fopen(path, "wb");
+    assert(file &&
+           fputs("{\"hideIconTitle\":true,\"batteryPercentage\":{\"visible\":true,"
+                 "\"size\":20,\"textAlign\":\"right\",\"color\":\"#102030\"}}",
+                 file) >= 0 &&
+           fclose(file) == 0);
+    assert(mainui_theme_open_sd(&theme, active, builtin, root, &config));
+    int theme_battery = TTF_FontHeight(theme.battery_font);
+    assert(theme.hide_icons && theme.hide_hints);
+    mainui_theme_close(&theme);
+    char overrides[1024];
+    TEST_PATH(overrides, "%s/config.json", profile);
+    file = fopen(overrides, "wb");
+    assert(file &&
+           fputs("{\"batteryPercentage\":{\"size\":40},\"hideLabels\":{\"icons\":false}}", file) >=
+               0 &&
+           fclose(file) == 0);
+    assert(mainui_theme_open_sd(&theme, active, builtin, root, &config));
+    assert(TTF_FontHeight(theme.battery_font) > theme_battery);
+    assert(theme.battery_visible && theme.battery_align == 2 && theme.battery_color.r == 0x10);
+    assert(!theme.hide_icons && theme.hide_hints);
+    mainui_theme_close(&theme);
+    /* An override file that is not a JSON object is ignored. */
+    file = fopen(overrides, "wb");
+    assert(file && fputs("not json", file) >= 0 && fclose(file) == 0);
+    assert(mainui_theme_open_sd(&theme, active, builtin, root, &config));
+    assert(TTF_FontHeight(theme.battery_font) == theme_battery && theme.hide_icons);
+    mainui_theme_close(&theme);
+    assert(remove(overrides) == 0);
+    /* The Apps list keeps the decoded icons of its visible rows: a redraw
+     * reuses them, and an icon is freed once its row is no longer shown. */
+    assert(mainui_theme_open_sd(&theme, active, builtin, root, &config));
+    char app_icons[3][1024];
+    MainUIEntry apps_entries[3];
+    for (int i = 0; i < 3; i++) {
+        char name[32];
+        snprintf(name, sizeof name, "app-%d.png", i);
+        picture(active, name, 60, 60, (Uint8)(10 + i));
+        TEST_PATH(app_icons[i], "%s/%s", active, name);
+        apps_entries[i] = (MainUIEntry){.label = "App", .icon = app_icons[i]};
+    }
+    MainUICatalog *apps = calloc(1, sizeof *apps);
+    assert(apps);
+    apps->pages[0].entries = apps_entries;
+    apps->pages[0].count = apps->pages[0].loaded = 3;
+    SDL_Surface *screen =
+        SDL_CreateRGBSurface(SDL_SWSURFACE, 640, 480, 32, 0xff0000, 0xff00, 0xff, 0);
+    assert(screen);
+    MainUIViewport apps_view = {.total = 3, .selected = 0, .start = 0, .end = 1};
+    mainui_draw_apps(screen, &theme, apps, &apps_view);
+    SDL_Surface *kept = NULL;
+    for (int i = 0; i < 4; i++) {
+        if (theme.app_icon_paths[i] && !strcmp(theme.app_icon_paths[i], app_icons[0])) {
+            kept = theme.app_icons[i];
+        }
+    }
+    assert(kept && kept->w == 60);
+    kept->refcount++;
+    mainui_draw_apps(screen, &theme, apps, &apps_view);
+    int holders = 0;
+    for (int i = 0; i < 4; i++) {
+        holders += theme.app_icons[i] == kept;
+    }
+    assert(holders == 1 && kept->refcount == 2);
+    apps_view = (MainUIViewport){.total = 3, .selected = 2, .start = 1, .end = 2};
+    mainui_draw_apps(screen, &theme, apps, &apps_view);
+    assert(kept->refcount == 1);
+    SDL_FreeSurface(kept);
+    int shown = 0;
+    for (int i = 0; i < 4; i++) {
+        assert(!theme.app_icon_paths[i] || strcmp(theme.app_icon_paths[i], app_icons[0]));
+        shown += theme.app_icons[i] != NULL;
+    }
+    assert(shown == 2);
+    mainui_theme_close(&theme);
+    SDL_FreeSurface(screen);
+    free(apps);
     TTF_Quit();
     SDL_Quit();
-    puts("Artwork reuse, cached misses, theme invalidation and popup fallback passed");
+    puts("Artwork reuse, cached misses, theme invalidation, popup fallback and theme overrides "
+         "passed");
     return 0;
 }
