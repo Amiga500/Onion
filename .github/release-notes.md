@@ -1,49 +1,44 @@
-## 🧅⚡ OnionPlus
+<!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
+# 🧅⚡ OnionPlus stable update: play history fix and more
 
-A personal, independent build of [Onion](https://github.com/OnionUI/Onion) `4.4.0-beta` for the
-Miyoo Mini, Mini+, Mini v4 and Mini Flip. It keeps Onion's look, menus, emulators and file
-layout. **Not an official Onion release.**
+OnionPlus is a personal-use build based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`. It is **not** an official Onion release and isn't affiliated with the Onion team. It runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 
-<!-- Update this section for every release: list what changed since the previous build. -->
-### 🆕 New in this build
+## ⚠️ Play history fix (please update)
 
-- 🎛️ **Tweaks:** holding **A** no longer repeats the action — "Start/stop recorder" and the
-  other one-shot tools now run once per press instead of toggling in a loop.
-- 📶 **Wi-Fi:** after you turn Wi-Fi off and on, the network services (SSH, FTP, …) come back on
-  their own within about a minute, without waiting for you to change screen.
-- 🪫 **Low-battery warning:** a new threshold set in Tweaks now takes effect within a couple of
-  seconds, instead of up to fifteen.
-- 📥 **Beta updates:** the beta channel now installs the newest build, so beta users are never
-  left behind stable.
+The previous stable release (V4.4.0-beta-20260928) could **delete play history**. When a game ended, and before every suspend, it removed every Play Activity entry longer than 24 hours. Play times imported from older Onion versions are stored as one entry per game with its total, so games with more than 24 hours of imported play time could lose it. Sessions recorded normally were not affected.
 
-### ✨ What's in it
+This release only checks the session being closed, so stored play time is never removed for its length. Opening the database also never drops its tables anymore, so not even a transient SD error can wipe the history. Time already removed can't be recovered from the database; if you have a backup of `Saves/CurrentProfile/play_activity/` from before updating to OnionPlus, you can restore it.
 
-- 🌡️ **Menus stop heating the device** — GameSwitcher, Tweaks, Play Activity, Themes, Package
-  Manager and Battery Monitor sleep between frames instead of keeping a CPU core at 100%.
-- 💾 **Gentler on the SD card** — a volume or brightness step writes one file instead of about
-  fourteen, and needless flushes to the card after keys, games and menus are gone.
-- 🔌 **Settings survive power cuts** — `system.json`, the key map, every config value, the
-  recent games list and the RetroArch options changed from Tweaks are replaced atomically.
-- 📶 **Wi-Fi no longer holds the boot** — Wi-Fi, network services and the time sync come up in
-  the background after the menu appears; "Enable Wi-Fi temporarily" now really syncs the clock.
-- 🕒 **Clock fixes** — a failed time-zone lookup keeps your zone, and play time can no longer
-  jump by decades when the clock is set from the network.
-- 🧠 **GameSwitcher** — no memory leak on large histories, screenshots preloaded in the
-  background, add/remove favorites from its menu; it draws only when something on screen
-  changes.
-- 📱 **Mini Flip support**, ported from OnionUI `v4.5-dev`.
-- 🐛 **44 defects fixed in code shared with Onion**, with fixes available to the Onion team.
-- 🧪 **1,471 host tests**, every suite on the production code.
+Thanks to LincolnWinston for sharing the Codex review that found it.
 
-### 📦 Install & update
+## 🔧 Other fixes
 
-Same as Onion: see the [installation guide](https://onionui.github.io/docs/installation).
-Installed builds update over the air from [`Amiga500/Onion` releases](https://github.com/Amiga500/Onion/releases).
+- **Mini Flip lid (#228):** with the lid set to Suspend, closing it could shut the device down instead.
+- **GameSwitcher (#233):** removing the running game and starting the one that takes its place went back to the main menu instead of launching it. A long-standing bug, also in official Onion.
+- **RetroArch menu on vertical games (#235):** the RetroArch menu was drawn with the game's rotation. It's now always upright, and the game keeps its rotation. RetroArch is updated to `1.22.2-2`.
+- **OTA updates:** the updater no longer runs a file system repair on the SD card while it's in use, which could damage files. If you see `FSCK0000.REC`-style files in the root of your card, check the card on a PC.
+- **Mini v4 resolution:** a boot-time shortcut could keep the Mini v4 at 640x480 for the whole session. It now waits for the display driver, as official Onion does.
 
-### 🧭 Known issues
+## 🧪 Tests
 
-- Mini Flip lid and Hall-sensor handling is not yet confirmed on hardware.
-- Some recent fixes still need a check on a real device — see
-  [Known issues](https://github.com/Amiga500/Onion/tree/onionplus-compact#-known-issues--next-steps).
+- A new test runs the Play Activity SQL on a real in-memory SQLite database and checks that stored play time survives; it fails with the old code. 1487 host tests pass in CI.
+- **CI:** the infoPanel GTest suite never ran, because `make test` called the wrong binary name. It runs and passes now.
+- Not every test suite exercises the production code: 4 suites (config, theme config, play activity paths, savestate paths) still test a local copy of the function, and those can stay green if the real code regresses. The README claimed none did; it's corrected, and those suites are being moved to the production code.
 
-📖 Full details: [README](https://github.com/Amiga500/Onion/tree/onionplus-compact#readme)
+## 🚧 Known issues, fix in progress
+
+- **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
+- **Settings:** two programs saving settings at the same moment can corrupt the settings file, and a settings save that fails is not retried.
+- **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package. Verifying certificates and the package's SHA-256 is planned.
+
+## 🆕 Open MainUI
+
+The open-source MainUI replacement is still in **beta**: set the OTA updater to the beta channel to try it. See the pre-releases on the releases page.
+
+## 🔗 Links
+
+- Repo: https://github.com/Amiga500/Onion
+- Issues: https://github.com/Amiga500/Onion/issues
+- Discussions: https://github.com/Amiga500/Onion/discussions
+
+> ⚠️ **Back up your SD card before updating**, at least `Roms`, `Saves`, `BIOS` and `Screenshots`.
