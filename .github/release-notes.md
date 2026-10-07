@@ -25,7 +25,7 @@ An open-source (GPL-3.0) rewrite of Miyoo's closed-source MainUI, installed on a
 - 🎨 **Theme overrides (1.0.5):** Tweaks › Appearance › Theme overrides, such as the battery percentage size or hidden labels, are applied again (robcodedev/onionos-mainui-opensource#15; reported by Veuks).
 - 📂 **Lists (1.0.5):** `Manuals`, empty folders and ScummVM data folders no longer show up as ROM folders (#243); run Refresh roms on affected consoles. Mute background music in Tweaks now silences MainUI.
 - 📋 **Game lists (1.0.4):** consoles whose `miyoogamelist.xml` isn't strictly valid XML (Onion's own gamelist generator writes such files) open again instead of showing "Catalog unavailable"; a console with a damaged cache row is repaired once instead of being rescanned on every entry (#238).
-- 🎛️ **Tweaks › Appearance › Game list...:** rows per page, text size, title scrolling speed and delay, case-sensitive sort and the dynamic favorite star, without editing files by hand (#238).
+- 🎛️ **Tweaks › Appearance › Game lists... and Main menu...:** rows (with theme list icons resized to fit), text size, title scrolling, button repeat speed, sorting and the favorite star; which sections the main menu shows (Show recents and Show expert move here) and which entries the Select menu has. From @robcodedev's MainUI patcher, adapted for OnionPlus.
 - ⚡ **~270 KB** launcher instead of ~1.4 MB, idle CPU in menus **~5% → ~1%** (Mini+), scrolling long titles **~35% → ~6%**, box art scaled in the background.
 - 🎮 Letter jump, configurable row count, auto-scrolling titles, gamelist details, custom context menus, configurable main menu, safe ROM deletion on FAT32 with recovery after a power cut, new **About device** screen.
 - 🔍 **Search with X** opens Games → Search with the results, as stock does.
@@ -60,7 +60,7 @@ Since the first beta:
 
 ## 💡 Tips
 
-- **Scrolling titles:** long titles scroll after one second. Change the speed and delay, or turn it off, in **Tweaks › Appearance › Game list...**.
+- **Scrolling titles:** long titles scroll after one second. Change the speed and delay, or turn it off, in **Tweaks › Appearance › Game lists...**.
 - **GameSwitcher shows the box art:** the GameSwitcher saves a screenshot of a game the first time you open it while that game is running. Until then, opening it from the menu shows the game's box art, which for some systems is portrait.
 - **RetroArch settings that don't stick (#224):** RetroArch doesn't save settings on exit, and cores like gpSP ship a core override with Keep Aspect Ratio on. Use **Quick Menu > Overrides > Save Core Overrides** to change it for good.
 - **RetroArch global settings** (such as the language): change them from the **RetroArch** app in Apps, not while a game is running. During a game RetroArch uses a combined configuration that Onion restores on exit.
