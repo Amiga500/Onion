@@ -106,16 +106,16 @@ void play_activity_db_open(void)
         return;
     }
 
+    // IF NOT EXISTS: never drop tables, so even a failed existence check
+    // (a transient SD error) can't wipe the play history.
     if (!play_activity_db_created) {
         sqlite3_exec(play_activity_db,
-                     "DROP TABLE IF EXISTS rom;"
-                     "CREATE TABLE rom(id INTEGER PRIMARY KEY, type TEXT, name TEXT, file_path TEXT, image_path TEXT, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
-                     "CREATE UNIQUE INDEX rom_id_index ON rom(id);",
+                     "CREATE TABLE IF NOT EXISTS rom(id INTEGER PRIMARY KEY, type TEXT, name TEXT, file_path TEXT, image_path TEXT, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
+                     "CREATE UNIQUE INDEX IF NOT EXISTS rom_id_index ON rom(id);",
                      NULL, NULL, NULL);
         sqlite3_exec(play_activity_db,
-                     "DROP TABLE IF EXISTS play_activity;"
-                     "CREATE TABLE play_activity(rom_id INTEGER, play_time INTEGER, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
-                     "CREATE INDEX play_activity_rom_id_index ON play_activity(rom_id);",
+                     "CREATE TABLE IF NOT EXISTS play_activity(rom_id INTEGER, play_time INTEGER, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
+                     "CREATE INDEX IF NOT EXISTS play_activity_rom_id_index ON play_activity(rom_id);",
                      NULL, NULL, NULL);
     }
 
@@ -638,10 +638,10 @@ void play_activity_resume(void)
 // every suspend. Anything longer than a day (or negative) comes from a clock
 // jump during the session (e.g. the time being set from 1970 by network
 // time sync) and would add decades to the play time: such sessions are
-// discarded, like negative ones already were.
-#define PLAY_ACTIVITY_MAX_SESSION_S 86400
-#define _PA_STR2(x) #x
-#define _PA_STR(x) _PA_STR2(x)
+// discarded, like negative ones already were. Only the session being closed
+// is checked: stored rows, such as play times imported from the old format
+// (one row per game with its total), are never removed for their length.
+#include "./playActivitySql.h"
 
 void play_activity_stop(char *rom_file_path)
 {
@@ -652,12 +652,7 @@ void play_activity_stop(char *rom_file_path)
         play_activity_db_close();
         exit(1);
     }
-    char *sql = sqlite3_mprintf(
-        "BEGIN;"
-        "UPDATE play_activity SET play_time = (strftime('%%s', 'now')) - created_at, updated_at = (strftime('%%s', 'now')) WHERE rom_id = %d AND play_time IS NULL;"
-        "DELETE FROM play_activity WHERE rom_id = %d AND (play_time < 0 OR play_time > %d);"
-        "COMMIT;",
-        rom_id, rom_id, PLAY_ACTIVITY_MAX_SESSION_S);
+    char *sql = sqlite3_mprintf(PLAY_ACTIVITY_CLOSE_ROM_FMT, rom_id, rom_id, rom_id);
     sqlite3_exec(play_activity_db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
     play_activity_db_close();
@@ -670,10 +665,7 @@ void play_activity_stop_all(void)
     // One transaction for both statements: one journal/fsync cycle instead
     // of two, on the path that runs before every suspend.
     sqlite3_exec(play_activity_db,
-                 "BEGIN;"
-                 "UPDATE play_activity SET play_time = (strftime('%s', 'now')) - created_at, updated_at = (strftime('%s', 'now')) WHERE play_time IS NULL;"
-                 "DELETE FROM play_activity WHERE play_time < 0 OR play_time > " _PA_STR(PLAY_ACTIVITY_MAX_SESSION_S) ";"
-                                                                                                                      "COMMIT;",
+                 PLAY_ACTIVITY_CLOSE_ALL_SQL,
                  NULL, NULL, NULL);
     play_activity_db_close();
 }
