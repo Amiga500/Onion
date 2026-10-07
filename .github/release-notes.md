@@ -1,7 +1,7 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
 # 🧅⚡ OnionPlus beta 4: Open MainUI 1.0.4, plus bug fixes
 
-> 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on V4.4.0-beta-20260928 until it is promoted.
+> 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on the stable release of 7 October (`9e96c27c`) until this beta is promoted.
 
 This build replaces the stock MainUI with **Open MainUI 1.0.4** by @robcodedev. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
 
