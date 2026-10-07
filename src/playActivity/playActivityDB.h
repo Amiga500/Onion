@@ -106,16 +106,16 @@ void play_activity_db_open(void)
         return;
     }
 
+    // IF NOT EXISTS: never drop tables, so even a failed existence check
+    // (a transient SD error) can't wipe the play history.
     if (!play_activity_db_created) {
         sqlite3_exec(play_activity_db,
-                     "DROP TABLE IF EXISTS rom;"
-                     "CREATE TABLE rom(id INTEGER PRIMARY KEY, type TEXT, name TEXT, file_path TEXT, image_path TEXT, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
-                     "CREATE UNIQUE INDEX rom_id_index ON rom(id);",
+                     "CREATE TABLE IF NOT EXISTS rom(id INTEGER PRIMARY KEY, type TEXT, name TEXT, file_path TEXT, image_path TEXT, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
+                     "CREATE UNIQUE INDEX IF NOT EXISTS rom_id_index ON rom(id);",
                      NULL, NULL, NULL);
         sqlite3_exec(play_activity_db,
-                     "DROP TABLE IF EXISTS play_activity;"
-                     "CREATE TABLE play_activity(rom_id INTEGER, play_time INTEGER, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
-                     "CREATE INDEX play_activity_rom_id_index ON play_activity(rom_id);",
+                     "CREATE TABLE IF NOT EXISTS play_activity(rom_id INTEGER, play_time INTEGER, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
+                     "CREATE INDEX IF NOT EXISTS play_activity_rom_id_index ON play_activity(rom_id);",
                      NULL, NULL, NULL);
     }
 
