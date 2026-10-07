@@ -1,22 +1,26 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "ui/panels.h"
 #include "ui/drawing.h"
+#include "ui/menu_view.h"
 #include <SDL_image.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static void list_frame(SDL_Surface *screen, MainUITheme *theme, const char *title)
+/* current/total is the footer counter; total -1 shows none. */
+static void list_frame(SDL_Surface *screen, MainUITheme *theme, const char *title, int current,
+                       int total)
 {
     SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 24, 24, 24));
     mainui_blit(screen, theme->background, 0, 0);
     mainui_draw_header(screen, theme, title);
-    mainui_draw_footer(screen, theme, 0, -1);
+    mainui_draw_footer(screen, theme, current, total);
 }
 
 void mainui_draw_settings(SDL_Surface *screen, MainUITheme *theme,
                           const MainUIStockSettings *settings)
 {
-    list_frame(screen, theme, mainui_translate(15, "Settings"));
+    list_frame(screen, theme, mainui_translate(15, "Settings"), 0, -1);
     const MainUISettingsArtwork *art = mainui_theme_settings_artwork(theme);
     SDL_Surface *selection = art->selection;
     int start = settings->start;
@@ -78,10 +82,59 @@ void mainui_draw_settings(SDL_Surface *screen, MainUITheme *theme,
     SDL_SetClipRect(screen, NULL);
 }
 
+/* The decoded icon for path, kept in the theme's Apps slots so a redraw
+ * reuses it; *borrowed is false when the caller must free the surface (no
+ * slot was free). Slots not marked `used` by this draw are freed after it. */
+static SDL_Surface *app_icon(MainUITheme *theme, const char *path, bool used[4], bool *borrowed)
+{
+    *borrowed = true;
+    if (!path || !*path) {
+        return NULL;
+    }
+    size_t retained = 0;
+    for (int i = 0; i < 4; i++) {
+        if (theme->app_icon_paths[i] && !strcmp(theme->app_icon_paths[i], path)) {
+            used[i] = true;
+            return theme->app_icons[i];
+        }
+        if (theme->app_icons[i]) {
+            retained += (size_t)theme->app_icons[i]->pitch * (size_t)theme->app_icons[i]->h;
+        }
+    }
+    /* The icon this one replaces, off screen, is freed before the decode, so
+     * it does not count against the budget. */
+    int slot = -1;
+    for (int i = 0; i < 4 && slot < 0; i++) {
+        if (!used[i]) {
+            slot = i;
+        }
+    }
+    if (slot >= 0) {
+        if (theme->app_icons[slot]) {
+            retained -= (size_t)theme->app_icons[slot]->pitch * (size_t)theme->app_icons[slot]->h;
+            SDL_FreeSurface(theme->app_icons[slot]);
+        }
+        free(theme->app_icon_paths[slot]);
+        theme->app_icons[slot] = NULL;
+        theme->app_icon_paths[slot] = NULL;
+    }
+    SDL_Surface *icon = mainui_menu_view_icon(theme, path, retained, 0, 0);
+    if (slot >= 0 && (theme->app_icon_paths[slot] = strdup(path))) {
+        theme->app_icons[slot] = icon;
+        used[slot] = true;
+        return icon;
+    }
+    *borrowed = false;
+    return icon;
+}
+
 void mainui_draw_apps(SDL_Surface *screen, MainUITheme *theme, MainUICatalog *apps,
                       const MainUIViewport *view)
 {
-    list_frame(screen, theme, mainui_translate(107, "Apps"));
+    bool used[4] = {false};
+    /* Stock counts Apps rows as it counts games: 10/15 on row 10 of 15. */
+    list_frame(screen, theme, mainui_translate(107, "Apps"), view->total ? view->selected + 1 : 0,
+               view->total ? view->total : -1);
     if (!view->total) {
         mainui_draw_empty(screen, theme);
         return;
@@ -99,19 +152,31 @@ void mainui_draw_apps(SDL_Surface *screen, MainUITheme *theme, MainUICatalog *ap
     for (int i = 1; i < 4; i++) {
         mainui_blit(screen, theme->divider, 0, 60 + i * 90);
     }
+    /* Mark the icons this draw shows first, so a new one never takes the
+     * slot of another visible row. */
+    for (int i = view->start; i <= view->end; i++) {
+        MainUIEntry *app = mainui_catalog_entry(apps, i);
+        for (int slot = 0; app && app->icon && slot < 4; slot++) {
+            if (theme->app_icon_paths[slot] && !strcmp(theme->app_icon_paths[slot], app->icon)) {
+                used[slot] = true;
+            }
+        }
+    }
     for (int i = view->start; i <= view->end; i++) {
         MainUIEntry *app = mainui_catalog_entry(apps, i);
         if (!app) {
             continue;
         }
-        int y = 62 + (i - view->start) * 90;
+        /* Four 90px rows fill the content area, 60..419, as stock. */
+        int y = 60 + (i - view->start) * 90;
         SDL_Rect clip = {0, (Sint16)y, 640, (Uint16)(y + 90 > 420 ? 420 - y : 90)};
         SDL_SetClipRect(screen, &clip);
         if (i == view->selected) {
             mainui_blit(screen, selection, 0,
                         y + (selection && selection->h < 90 ? (90 - selection->h) / 2 : 0));
         }
-        SDL_Surface *icon = mainui_theme_console_icon(theme, app->icon);
+        bool borrowed;
+        SDL_Surface *icon = app_icon(theme, app->icon, used, &borrowed);
         int x = 20;
         if (icon) {
             /* Stock 0x20090..0x201e8 reserves a fixed 71px icon lane.
@@ -126,7 +191,9 @@ void mainui_draw_apps(SDL_Surface *screen, MainUITheme *theme, MainUICatalog *ap
                 mainui_blit(screen, icon, 20, y + (90 - icon->h) / 2);
             }
             x = 111;
-            SDL_FreeSurface(icon);
+            if (!borrowed) {
+                SDL_FreeSurface(icon);
+            }
         }
         bool description = app->description && *app->description;
         mainui_label(screen, theme->menu_font, theme->color, app->label, x,
@@ -138,6 +205,15 @@ void mainui_draw_apps(SDL_Surface *screen, MainUITheme *theme, MainUICatalog *ap
     }
 
     SDL_SetClipRect(screen, NULL);
+    /* Icons of rows no longer shown are freed; the shown ones stay. */
+    for (int slot = 0; slot < 4; slot++) {
+        if (!used[slot]) {
+            SDL_FreeSurface(theme->app_icons[slot]);
+            free(theme->app_icon_paths[slot]);
+            theme->app_icons[slot] = NULL;
+            theme->app_icon_paths[slot] = NULL;
+        }
+    }
 }
 
 /* Length of the longest prefix of text, ending at a character boundary, that
@@ -251,7 +327,7 @@ void mainui_draw_message(SDL_Surface *screen, MainUITheme *theme, const char *ti
 
 void mainui_draw_languages(SDL_Surface *screen, MainUITheme *theme, const MainUILanguages *list)
 {
-    list_frame(screen, theme, mainui_translate(23, "Change language"));
+    list_frame(screen, theme, mainui_translate(23, "Change language"), 0, -1);
     SDL_Surface *selection = mainui_theme_image(theme, "skin/bg-list-s.png");
     int start = list->start;
     for (int i = start; i < list->count && i < start + 6; i++) {

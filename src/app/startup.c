@@ -7,6 +7,7 @@
 #include "localization/language.h"
 #include "platform/audio.h"
 #include "platform/launch.h"
+#include "platform/menu_button.h"
 #include "platform/system_config.h"
 #include "platform/timing.h"
 #include <stdio.h>
@@ -427,6 +428,8 @@ void mainui_restore_session(MainUIApp *ui)
     }
     ui->theme.battery_percent = ui->battery_percent;
     mainui_menu_view_open(&ui->menu_view, &ui->theme);
+    /* Snapshots and scripted input draw at once, with every icon in place. */
+    ui->menu_view.defer_selected = !ui->snapshot && !ui->input_script;
     if (ui->handoff_dir && !ui->system_name && !ui->start_systems) {
         cJSON *returned = mainui_launch_take_return(ui->handoff_dir);
         /* A restored catalog is read fresh from the SD card, so it already has
@@ -593,6 +596,12 @@ void mainui_setup_render(MainUIApp *ui)
                                          ui->heading_color);
     ui->timer = NULL;
     ui->selected_at = SDL_GetTicks();
+    /* Keymon's long press of Menu arrives as a lone release, which SDL drops;
+     * read Menu releases from the input device itself (platform/menu_button.h). */
+    if (ui->real_device && !ui->snapshot && !mainui_menu_button_open("/dev/input/event0")) {
+        fprintf(stderr, "Cannot read Menu releases from /dev/input/event0; Menu opens no "
+                        "context menu\n");
+    }
     /* Snapshot tests stay silent. Playback is optional on the host. */
     if (!ui->snapshot) {
         cJSON *system_config = mainui_system_read(ui->sd ? ui->sd : ".");
@@ -616,6 +625,7 @@ void mainui_setup_render(MainUIApp *ui)
 
 int mainui_teardown(MainUIApp *ui)
 {
+    mainui_menu_button_close();
     if (ui->catalog && !ui->library && !ui->home && !ui->snapshot &&
         !mainui_positions_save(ui->catalog, &ui->view)) {
         fprintf(stderr, "Could not save ROM-list position on exit.\n");
