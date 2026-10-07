@@ -181,15 +181,11 @@ download_update() {
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
 
-		echo -ne "\n${BLUE}================== CHECKDISK ==================${NC}\n"
-		/mnt/SDCARD/.tmp_update/script/stop_audioserver.sh > nul 2> nul # we need a maximum of memory available to run fsck.fat
-		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
-		echo -ne "\n" \
-			"Please wait during FAT file system integrity check.\n" \
-			"Issues should be fixed automatically.\n" \
-			"The process can be long:\n" \
-			"about 2 minutes for 128GB SD card\n\n\n"
-		fsck.fat -a $mount_point
+		# No file system repair here: fsck.fat -a on the mounted SD card (the
+		# system runs from it) can turn clusters of open or unsynced files into
+		# FSCKxxxx.REC fragments. Flush pending writes instead; damaged cards are
+		# better repaired on a PC.
+		sync
 
 		mkdir -p $sysdir/download/
 		echo -ne "\n\n" \
