@@ -16,25 +16,24 @@
 #define _PA_NOW "(strftime('%s', 'now'))"
 
 // Every open session (runs before each suspend).
-#define PLAY_ACTIVITY_CLOSE_ALL_SQL                                                    \
-    "BEGIN;"                                                                           \
-    "DELETE FROM play_activity WHERE play_time IS NULL AND (" _PA_NOW " - created_at < 0 OR " \
-    _PA_NOW " - created_at > " _PA_STR(PLAY_ACTIVITY_MAX_SESSION_S) ");"               \
-    "UPDATE play_activity SET play_time = " _PA_NOW " - created_at, updated_at = " _PA_NOW \
-    " WHERE play_time IS NULL;"                                                        \
-    "DELETE FROM play_activity WHERE play_time < 0;"                                   \
-    "COMMIT;"
+#define PLAY_ACTIVITY_CLOSE_ALL_SQL                                                                                                                                                                                                                  \
+    "BEGIN;"                                                                                                                                                                                                                                         \
+    "DELETE FROM play_activity WHERE play_time IS NULL AND (" _PA_NOW " - created_at < 0 OR " _PA_NOW " - created_at > " _PA_STR(PLAY_ACTIVITY_MAX_SESSION_S) ");"                                                                                   \
+                                                                                                                                                              "UPDATE play_activity SET play_time = " _PA_NOW " - created_at, updated_at = " _PA_NOW \
+                                                                                                                                                              " WHERE play_time IS NULL;"                                                            \
+                                                                                                                                                              "DELETE FROM play_activity WHERE play_time < 0;"                                       \
+                                                                                                                                                              "COMMIT;"
 
 // One game's open session: a sqlite3_mprintf() format taking the rom id three
 // times ('%' is doubled because it is a format string).
 #define _PA_NOW_FMT "(strftime('%%s', 'now'))"
-#define PLAY_ACTIVITY_CLOSE_ROM_FMT                                                    \
-    "BEGIN;"                                                                           \
-    "DELETE FROM play_activity WHERE rom_id = %d AND play_time IS NULL AND (" _PA_NOW_FMT \
-    " - created_at < 0 OR " _PA_NOW_FMT " - created_at > " _PA_STR(PLAY_ACTIVITY_MAX_SESSION_S) ");" \
-    "UPDATE play_activity SET play_time = " _PA_NOW_FMT " - created_at, updated_at = " _PA_NOW_FMT \
-    " WHERE rom_id = %d AND play_time IS NULL;"                                        \
-    "DELETE FROM play_activity WHERE rom_id = %d AND play_time < 0;"                   \
-    "COMMIT;"
+#define PLAY_ACTIVITY_CLOSE_ROM_FMT                                                                                                                                                            \
+    "BEGIN;"                                                                                                                                                                                   \
+    "DELETE FROM play_activity WHERE rom_id = %d AND play_time IS NULL AND (" _PA_NOW_FMT                                                                                                      \
+    " - created_at < 0 OR " _PA_NOW_FMT " - created_at > " _PA_STR(PLAY_ACTIVITY_MAX_SESSION_S) ");"                                                                                           \
+                                                                                                "UPDATE play_activity SET play_time = " _PA_NOW_FMT " - created_at, updated_at = " _PA_NOW_FMT \
+                                                                                                " WHERE rom_id = %d AND play_time IS NULL;"                                                    \
+                                                                                                "DELETE FROM play_activity WHERE rom_id = %d AND play_time < 0;"                               \
+                                                                                                "COMMIT;"
 
 #endif // PLAY_ACTIVITY_SQL_H__
