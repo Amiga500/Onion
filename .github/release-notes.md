@@ -1,5 +1,5 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅⚡ OnionPlus beta 3: Open MainUI 1.0.4, plus bug fixes
+# 🧅⚡ OnionPlus beta 4: Open MainUI 1.0.4, plus bug fixes
 
 > 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on V4.4.0-beta-20260928 until it is promoted.
 
@@ -12,6 +12,10 @@ OnionPlus is still a personal-use build. It is **not** a replacement for Onion a
 Several of these bugs are also in official Onion. Fixes for them have sat around for a long time without being merged, and no official corrective build has shipped for them. OnionPlus is where I apply and test those corrections for personal use. Reports, patches and concrete proposals stay public, so the Onion team can take them if they want. The point is that the work is visible instead of sitting unreleased.
 
 ---
+
+## ⚠️ Play history fix (please update)
+
+Beta 3 and earlier, like the stable release of 28 September, could **delete play history**: before every suspend, they removed every Play Activity entry longer than 24 hours, including play times imported from older Onion versions (one entry per game with its total). This beta only checks the session being closed, and opening the database never drops its tables anymore. Thanks to LincolnWinston for sharing the Codex review that found it.
 
 ## 🆕 Open MainUI replaces the stock MainUI
 
@@ -65,6 +69,8 @@ Since the first beta:
 - **GLO (Game List Options):** press **Y**, then **A**. Open MainUI doesn't open it with Y alone yet (robcodedev/onionos-mainui-opensource#14).
 - **Theme overrides** from Tweaks (for example the battery percentage size) are not applied by Open MainUI yet (robcodedev/onionos-mainui-opensource#15).
 - **Menu long press set to Context menu** (the default) does nothing in Open MainUI yet: open the context menu with **Select** (robcodedev/onionos-mainui-opensource#17).
+- **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
+- **Settings:** two programs saving settings at the same moment can corrupt the settings file, and a settings save that fails is not retried.
 - Open MainUI 1.0.4 is tested on the Mini Plus, Mini v4 and Mini Flip. On the Mini v4 and Mini Flip, switching between MainUI and a game's own resolution relies on Onion 4.5-dev fixes not yet merged in official Onion; OnionPlus already includes them.
 
 ## 🧪 If you'd like to try it
