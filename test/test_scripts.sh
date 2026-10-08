@@ -538,6 +538,18 @@ begin detect_mini
 check "no hall, no axp -> 283" test "$(probe 0 1)" = 283
 end
 
+# ---- game_list_options.sh: network scripts on WiFi devices ----
+
+GLO="$ROOT/static/build/.tmp_update/script/game_list_options.sh"
+eval "$(extract_fn "$GLO" device_has_networking)"
+
+begin glo_networking_on_wifi_devices
+check "Mini Plus (354) has networking" test "$(device_has_networking 354)" = 1
+check "Mini Flip (285) has networking" test "$(device_has_networking 285)" = 1
+check "Mini (283) has none" test "$(device_has_networking 283)" = 0
+check "unknown model has none" test "$(device_has_networking "")" = 0
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
