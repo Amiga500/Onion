@@ -19,8 +19,16 @@ logfile=$(basename "$0" .sh)
 
 cd $sysdir
 
+# The Mini Plus (354) and the Mini Flip (285) have WiFi.
+device_has_networking() {
+    case "$1" in
+        354 | 285) echo 1 ;;
+        *) echo 0 ;;
+    esac
+}
+
 device_model=$(cat /tmp/deviceModel)
-has_networking=$([ $device_model -eq 354 ] && echo 1 || echo 0)
+has_networking=$(device_has_networking "$device_model")
 
 ROM_TYPE_UNKNOWN=0
 ROM_TYPE_GAME=1
