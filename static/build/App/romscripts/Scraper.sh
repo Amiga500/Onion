@@ -7,7 +7,10 @@ echo $0 $*
 sysdir=/mnt/SDCARD/.tmp_update
 rm -f /tmp/scraper_script.sh
 
-pressMenu2Kill st &
+# MENU closes the terminal. pressMenu2Kill runs "pkill -f", so the pattern
+# must match the terminal only: "st" alone also matched
+# game_list_options.sh ("list") and killed the GLO with it.
+pressMenu2Kill bin/st &
 
 cd $sysdir
 #./bin/st -q -e 	"/mnt/SDCARD/scrap_screenscraper.sh" "MD"   # quick alternative
@@ -22,3 +25,5 @@ if [ -f /tmp/scraper_script.sh ]; then
     sh /tmp/scraper_script.sh &
 fi
 
+# Non-zero: GLO goes back to the game list. Zero would start the game.
+exit 1

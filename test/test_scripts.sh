@@ -550,6 +550,29 @@ check "Mini (283) has none" test "$(device_has_networking 283)" = 0
 check "unknown model has none" test "$(device_has_networking "")" = 0
 end
 
+# ---- romscripts: Scraper.sh hands control back to the game list ----
+
+SCRAPER="$ROOT/static/build/App/romscripts/Scraper.sh"
+
+begin scraper_returns_to_game_list
+check "last command is exit 1 (0 makes GLO start the game)" \
+    test "$(grep -v '^[[:space:]]*$' "$SCRAPER" | tail -n 1)" = "exit 1"
+end
+
+begin press_menu_to_kill_spares_glo
+# pressMenu2Kill runs "pkill -9 -f PATTERN": a literal pattern must not
+# also match the GLO script that launched it.
+bad=""
+for f in $(grep -rl "pressMenu2Kill" "$ROOT/static" --include=*.sh); do
+    for pat in $(sed -n 's/^[[:space:]]*pressMenu2Kill \([^ $&]*\) &.*/\1/p' "$f"); do
+        if echo "/bin/sh ./script/game_list_options.sh" | grep -q -- "$pat"; then
+            bad="$bad ${f#$ROOT/}:$pat"
+        fi
+    done
+done
+check "no pattern matches game_list_options.sh:$bad" test -z "$bad"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
