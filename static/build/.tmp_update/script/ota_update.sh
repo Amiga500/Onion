@@ -116,7 +116,9 @@ get_release_info() {
 		# The newest published build, prerelease or not: beta is never behind
 		# stable. Taking prereleases only left beta with nothing at all, since
 		# pre-release.yml publishes every build with prerelease:false.
-		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '[.[] | select(.draft != true)] | .[0]')
+		# Picked by publish time: GitHub doesn't list releases newest first
+		# (a stable release can come before a newer beta).
+		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '[.[] | select(.draft != true)] | sort_by(.published_at) | last')
 		if [ -z "$Release_assets_info" ] || [ "$Release_assets_info" = "null" ]; then
 			echo -e "${GREEN}DONE${NC}\n\n" \
 				"No update available for $channel channel\n"
