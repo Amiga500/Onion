@@ -2,6 +2,14 @@
 
 How the cursor and the visible window move in Open MainUI. Where this differs from stock MainUI, it is on purpose: the aim is a UI that behaves predictably, not a copy of every stock quirk.
 
+## Button mapping
+
+At start, as stock does, MainUI hands the `keymap` in `system.json` (default `L2,L,R2,R,X,A,B,Y`) to the device's button driver, which remaps the physical buttons for MainUI and every other program. A remapped button, such as X set to act as B, then does on every screen what the button it is mapped to does. A missing `keymap`, or one that is not eight comma-separated names from the default (`L2`, `L`, `R2`, `R`, `X`, `A`, `B`, `Y`, repeats allowed), hands over the default. Stock hands over any string, which could leave the buttons unusable everywhere until MainUI starts again. The tables below name the buttons after mapping.
+
+## X
+
+X acts as B (back, close, cancel) on every screen, as stock does; in the on-screen keyboard it types a space. Search in a ROM list is in the context menu (Select or Menu). A shortcut set for X in Tweaks (Button shortcuts > MainUI: X button) is run by Onion's keymon instead.
+
 ## Console grids
 
 The Games grid shows 4 columns by 2 rows per page, the Expert grid 3 by 3.
@@ -25,6 +33,8 @@ This applies to ROM lists, Favorites, Recents, Apps and Search results.
 | Right | Opens the details of the selected game in game lists. |
 | Y | Launches the selected game as A does, in ROM lists, Favorites, Recents and Search results, as stock does. With Onion's default keymap (`mainui_button_y` set to `glo`), Onion then opens Game List Options for that game instead of starting it. Y on a folder or `..` does nothing. Game List Options removes the first line of `recentlist.json`, taken to be this launch, so Y puts the game's line first and leaves the other lines as they are: backing out leaves Recents unchanged. That line is written before the launch: if it cannot be, nothing is launched (A still is). When a Y launch fails, keymon's Y flag is cleared, and every other launch clears it too: keymon sets it on any Y press, also one MainUI ignores (on a folder, say), and only B or X clear it, so A starts the game instead of opening Game List Options. |
 | Menu | Opens the context menu, as Select does, when Menu is released. With Onion's default "Context menu" long press (Tweaks > Button shortcuts), keymon sends MainUI only that release, as for stock. A second release, such as the physical one after keymon's, does not close the menu; B or Select does. Keymon also sends an L1 press after its release, after each repeat of Menu while it is held and after the physical release. Every L1 within 3 s of a Menu event, with no other key between, is ignored with its repeats, so holding Menu does not move the selection in a list. |
+
+Apps are listed in the order the SD card lists their folders, as in stock, not by name: on FAT that is usually the order the folders were created in, so Quick Guide may come first. An empty file named `.appsort` in `.tmp_update/config` sorts them by name instead, with the same case rule as the other lists. Consoles and ROMs are sorted by name (see [CATALOG_CACHE.md](CATALOG_CACHE.md#differences-from-stock)).
 
 The window scrolls only as far as needed to keep the selected row on screen. A row that is already visible never moves the window.
 

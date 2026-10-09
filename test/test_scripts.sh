@@ -652,6 +652,15 @@ check "Refresh list drops active_filter" test ! -e "$emupath/active_filter"
 unset -f sqlite3 filter log
 end
 
+# ---- migration 00021: Apps sorted by name once, as before Open MainUI 1.0.6 ----
+
+begin migration_sorts_apps_by_name
+sysdir=$TMP sh "$ROOT/static/build/.tmp_update/script/migration/00021_sort_apps_by_name.sh"
+check ".appsort created" test -f "$TMP/config/.appsort"
+check "not shipped in the default configs (an update would bring it back)" \
+    test ! -e "$ROOT/static/configs/.tmp_update/config/.appsort"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
