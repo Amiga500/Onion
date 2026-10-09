@@ -348,8 +348,9 @@ if command -v jq > /dev/null; then
     eval "$(extract_fn "$OTA" get_release_info)"
     eval "$(grep '^get_version()' "$OTA")"
 
-    ota_asset() { # tag, prerelease (true/false)
-        printf '{"tag_name":"%s","prerelease":%s,"draft":false,"body":"","assets":[{"name":"OnionPlus-v%s.zip","browser_download_url":"https://x/%s.zip","size":1048576,"created_at":"2026-09-27T00:00:00Z"}]}' "$1" "$2" "$1" "$1"
+    ota_asset() { # tag, prerelease (true/false), published_at (default: from the tag date)
+        _pub=${3:-$(echo "$1" | sed 's/^.*-\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)-.*$/\1-\2-\3T12:00:00Z/')}
+        printf '{"tag_name":"%s","prerelease":%s,"draft":false,"published_at":"%s","body":"","assets":[{"name":"OnionPlus-v%s.zip","browser_download_url":"https://x/%s.zip","size":1048576,"created_at":"2026-09-27T00:00:00Z"}]}' "$1" "$2" "$_pub" "$1" "$1"
     }
     curl() { # the last argument is the URL
         for _u; do :; done
@@ -369,6 +370,16 @@ if command -v jq > /dev/null; then
     printf '[%s,%s]' "$(ota_asset 4.4.0-beta-20260928-dddddddd true)" "$(ota_asset 4.4.0-beta-20260927-bbbbbbbb false)" > "$TMP/list.json"
     get_release_info > /dev/null
     check "newer prerelease offered" test "$Release_FullVersion" = 4.4.0-beta-20260928-dddddddd
+    # GitHub's order on 8 Oct 2026: the stable release listed before a beta
+    # published 22 hours later.
+    printf '[%s,%s,%s]' "$(ota_asset 4.4.0-beta-20261007-9e96c27c false 2026-10-07T02:47:19Z)" \
+        "$(ota_asset 4.4.0-beta-20261008-1168b7bf true 2026-10-08T00:17:19Z)" \
+        "$(ota_asset 4.4.0-beta-20261007-06ffca3f true 2026-10-07T03:18:18Z)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "newest published offered, whatever GitHub lists first" test "$Release_FullVersion" = 4.4.0-beta-20261008-1168b7bf
+    printf '[%s]' "$(ota_asset 4.4.0-beta-20261007-9e96c27c false)" | sed 's/"draft":false/"draft":true/' > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "draft only: nothing offered" test "$?" -eq 1
     echo '[]' > "$TMP/list.json"
     get_release_info > /dev/null
     check "no release at all: nothing offered" test "$?" -eq 1

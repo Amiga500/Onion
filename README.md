@@ -11,14 +11,14 @@ of it is useful to the Onion team. It keeps Onion's look, menus, emulators and f
 Everything here is built on their work; any change they find worthwhile is theirs to take.
 
 > ⏱️ **~0.5 s** of its own work around each game, measured on a Miyoo Mini+ · 🐛 **44** issues
-> found in the shared codebase, with fixes ready for Onion · 🧪 **1,487** host tests; 71 of 75 suites
+> found in the shared codebase, with fixes ready for Onion · 🧪 **1,507** host tests; 73 of 77 suites
 > run the production code.
 
 [![branch](https://img.shields.io/badge/branch-onionplus--compact-8A2BE2?style=for-the-badge&logo=git)](https://github.com/Amiga500/Onion/tree/onionplus-compact)
 [![commits](https://img.shields.io/badge/commits-152-blueviolet?style=for-the-badge)](#-11--commit-timeline)
 [![files](https://img.shields.io/badge/files%20changed-224-blue?style=for-the-badge)](#-10--grand-totals)
 [![neon](https://img.shields.io/badge/NEON%20kernels-9-orange?style=for-the-badge)](#️-1--vectorized-pixel-paths-neon)
-[![tests](https://img.shields.io/badge/tests-1%2C471%20%2F%2071%2C957%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
+[![tests](https://img.shields.io/badge/tests-1%2C507%20%2F%2072%2C083%20assertions-success?style=for-the-badge)](#-8--testing--the-safety-net)
 [![ota](https://img.shields.io/badge/updates-OTA%20enabled-2ea44f?style=for-the-badge)](#️-9--build-ci--release)
 [![fixes](https://img.shields.io/badge/fixes%20ready%20for%20Onion-44-critical?style=for-the-badge)](#️-6--security--memory-hardening)
 [![status](https://img.shields.io/badge/status-ALL%20GREEN-brightgreen?style=for-the-badge)](#-final-word)
@@ -95,7 +95,7 @@ rank the two.
 | 🐛 Issues found in the shared code | — | **44 fixed** | ✅ crashes, leaks, lost settings, a wrong clock — fixes available for Onion, [listed in §6](#️-6--security--memory-hardening) |
 | ⚡ Settings that survive a power cut mid-write | none | **all** | ✅ `system.json`, key map, config values, JSON, recent games |
 | 🧠 Memory leaked per MainUI-cache lookup | ~570 KB | **0** | 📏 was tens of MB with a large GameSwitcher history, on a 128 MB device |
-| 🧪 Automated tests | 1 | **1,487** | 🚀 **×1,400**: 75 suites, 71,986 assertions, 71 of them on the production code, run on any PC in ~3 s |
+| 🧪 Automated tests | 1 | **1,507** | 🚀 **×1,500**: 77 suites, 72,083 assertions, 73 of them on the production code, run on any PC in ~3 s |
 | 🖼️ NEON (SIMD) pixel kernels | 0 | **9** | 🆕 vectorized pixel conversion, rotation, rotated row copy and alpha |
 | 🐚 `system()` calls in the C code | 73 | **46** | ⬇️ **−37%** shells spawned |
 | ⚠️ Unbounded string calls | 347 | **234** | ⬇️ **−33%**; none left in the hardened core |
@@ -338,7 +338,7 @@ alone could grow to tens of megabytes.
 |:--|:--|
 | 🎮 Devices | Miyoo Mini, Mini+ (measured above), Mini v4 and Mini Flip |
 | 🧅 Base | OnionUI `4.4.0-beta` — themes, emulators, ROM folders and saves stay where Onion keeps them |
-| 📡 Updates | built-in OTA from [`Amiga500/Onion` releases](https://github.com/Amiga500/Onion/releases) (`OnionPlus-v…` assets); **stable** follows the latest release, **beta** installs prereleases only |
+| 📡 Updates | built-in OTA from [`Amiga500/Onion` releases](https://github.com/Amiga500/Onion/releases) (`OnionPlus-v…` assets); **stable** follows the latest release, **beta** takes the newest published build, beta or stable |
 | 🏷️ Releases | `OnionPlus-v4.4.0-beta-YYYYMMDD-<commit>`, built by GitHub Actions |
 | ⏱️ Timing log | Tweaks → Advanced → Diagnostics → **Enable logging** → `.tmp_update/logs/timing.log`; **Util: System log snapshot** packs all logs into `SD:/log_export.7z` for sharing |
 | 📖 Settings reference | Onion's own documentation: [Tweaks](https://onionui.github.io/docs/apps/tweaks) |
@@ -377,7 +377,10 @@ alone could grow to tens of megabytes.
   OnionUI team and contributors: the menus, the emulator setup, the themes and almost all of
   the code are theirs. This build is not affiliated with or endorsed by the Onion team. For
   what each setting does, see [Onion's documentation](https://onionui.github.io/docs).
-- 🙏 Thanks to **@robcodedev**, whose still-open Onion pull requests #1936–#1946 are carried here.
+- 🙏 Thanks to **@robcodedev**, whose still-open Onion pull requests #1936–#1946 are carried here,
+  and whose [Open MainUI](https://github.com/robcodedev/onionos-mainui-opensource) (GPL-3.0)
+  replaces the stock MainUI. The stock MainUI stays on the card: an empty
+  `.tmp_update/mainui-test/DISABLED` file switches back to it.
 - 📬 **For the Onion team:** if any of these changes would be useful as pull requests, I'm
   happy to split them out and adapt them to Onion's own branches. The fixes that apply to
   Onion as it is today — the MainUI-cache memory leak, the time zone and play time after a
@@ -991,9 +994,9 @@ builtins ([`7790ecb2`](https://github.com/Amiga500/Onion/commit/7790ecb2); the s
 
 | Metric | Value |
 |:--|--:|
-| 🧪 Active test suites | **74** (one of them, `test_scripts`, runs the shell scripts) |
-| ✅ Tests | **1,487** |
-| ✅ Assertions | **71,957** |
+| 🧪 Active test suites | **77** (one of them, `test_scripts`, runs the shell scripts) |
+| ✅ Tests | **1,507** |
+| ✅ Assertions | **72,083** |
 | ❌ Failures | **0** |
 | 🎯 Suites testing a local copy instead of the production code | **4** *(31 at the start of the review; the README said 0 until an October 2026 review found these 4)* |
 | ⏱️ Suite runtime (prebuilt) | **~3 s** |
