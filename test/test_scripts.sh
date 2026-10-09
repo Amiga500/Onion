@@ -652,6 +652,34 @@ check "Refresh list drops active_filter" test ! -e "$emupath/active_filter"
 unset -f sqlite3 filter log
 end
 
+# ---- cue_gen.sh: one CUE per game, next to its files (#264) ----
+
+CUEGEN="$ROOT/static/build/.tmp_update/script/cue_gen.sh"
+
+begin cue_gen_writes_valid_cues
+mkdir -p "$TMP/PS/Alpha Game" "$TMP/PS/Beta Game" "$TMP/SEGACD"
+for f in "PS/Flat Game (Track 1).bin" "PS/Flat Game (Track 2).bin" "PS/Flat Game (Track 10).bin" \
+    "PS/Alpha Game/Alpha Game.bin" "PS/Beta Game/Beta Game (Track 01).bin" \
+    "PS/Beta Game/Beta Game (Track 02).bin" "PS/Hack [T-En] (Track 1).bin" \
+    "PS/Hack [T-En] (Track 2).bin" "PS/Novastorm (USA) (Disc 1).bin" \
+    "PS/Novastorm (USA) (Disc 2).bin" "SEGACD/Kept (USA) (Track 1).bin"; do
+    : > "$TMP/$f"
+done
+echo ORIGINAL > "$TMP/SEGACD/Kept (USA).cue"
+rootdir=$TMP sh "$CUEGEN" "PS SEGACD" > "$TMP/cue_gen.log" 2>&1
+cues=$(cd "$TMP" && find PS SEGACD -name '*.cue' | sort | tr '\n' '|')
+check "one CUE per game, in the game's folder" test "$cues" = \
+    "PS/Alpha Game/Alpha Game.cue|PS/Beta Game/Beta Game.cue|PS/Flat Game.cue|PS/Hack [T-En].cue|PS/Novastorm (USA) (Disc 1).cue|PS/Novastorm (USA) (Disc 2).cue|SEGACD/Kept (USA).cue|"
+check "FILE is the bare file name" grep -q '^FILE "Beta Game (Track 02).bin" BINARY$' "$TMP/PS/Beta Game/Beta Game.cue"
+check "no folder in any FILE" test -z "$(grep -h '^FILE "[^"]*/' "$TMP"/PS/*.cue "$TMP"/PS/*/*.cue)"
+check "tracks in numeric order (10 after 2)" test "$(grep -o 'TRACK [0-9]*' "$TMP/PS/Flat Game.cue" | tr '\n' ' ')" = "TRACK 01 TRACK 02 TRACK 10 "
+check "square brackets keep track 1" grep -q '^FILE "Hack \[T-En\] (Track 1).bin" BINARY$' "$TMP/PS/Hack [T-En].cue"
+check "each disc gets its own CUE" test "$(grep -c '^FILE' "$TMP/PS/Novastorm (USA) (Disc 2).cue")" -eq 1
+check "existing CUE left untouched" test "$(cat "$TMP/SEGACD/Kept (USA).cue")" = ORIGINAL
+check "no CUE without a name" test -z "$(find "$TMP" -name '.cue')"
+check "totals reported" grep -q '^6 cue files created$' "$TMP/cue_gen.log"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
