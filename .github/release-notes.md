@@ -28,7 +28,7 @@ OnionPlus is still a personal-use build. It is **not** a replacement for Onion a
 
 ### 📂 Lists
 
-- **Apps** are listed in the order of their folders on the SD card, as in stock, so Quick Guide may come first. To sort them by name, create an empty file named `.appsort` in `.tmp_update/config`.
+- **Apps order:** Apps stay in alphabetical order, as in earlier betas. To list them in the order of their folders on the SD card, as the stock MainUI does, delete the file `.appsort` in `.tmp_update/config`; updates don't create it again.
 - A `.bin` file is no longer listed beside the `.cue` of the same name; the `.cue` starts the game. Run **Refresh roms** on consoles that show both.
 - Consoles with an empty `extlist` no longer list files without an extension, such as `README`. Run **Refresh roms** on those consoles.
 
@@ -59,7 +59,7 @@ Switch the OTA updater to the **beta** channel to receive this build. Useful thi
 - Themes with full-screen popup backgrounds, pixel fonts, wide Wi-Fi icons or a tall header logo
 - Theme music speed with your usual themes
 - X as back in menus, and X opening Search from a game list
-- The Apps order, and `.appsort`
+- The Apps list in alphabetical order
 - Consoles with `.cue` and `.bin` games after Refresh roms
 
 Please report OnionPlus issues on the [OnionPlus tracker](https://github.com/Amiga500/Onion/issues), with your model, the version (from `.tmp_update/onionVersion/version.txt`) and the steps to reproduce.
