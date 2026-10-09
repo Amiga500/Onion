@@ -214,7 +214,8 @@ main() {
         fi
     fi
 
-    if [ $current_tab -eq $TAB_GAMES ] || [ $current_tab -eq $TAB_EXPERT ]; then
+    # Open MainUI has its own "Refresh roms" in its menu.
+    if { [ $current_tab -eq $TAB_GAMES ] || [ $current_tab -eq $TAB_EXPERT ]; } && ! open_mainui_active; then
         add_menu_option refresh_roms "Refresh list" "Refresh the rom list\n(re-scan for new games)"
     fi
 
@@ -594,6 +595,12 @@ filter_roms() {
     log ":: filter_roms $*"
     log "./bin/filter filter \"$emupath\""
     filter filter "$emupath"
+}
+
+# Open MainUI runs in the MainUI slot unless mainui-test/DISABLED brings the
+# stock launcher back (see src/openMainUI/MainUI-wrapper.sh.in).
+open_mainui_active() {
+    [ -x "$sysdir/mainui-test/MainUI" ] && [ ! -f "$sysdir/mainui-test/DISABLED" ]
 }
 
 # A filter is kept in two places: the keyword in $emupath/active_filter and

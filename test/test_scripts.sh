@@ -620,6 +620,21 @@ check "Refresh list drops active_filter" test ! -e "$emupath/active_filter"
 unset -f sqlite3 filter log
 end
 
+eval "$(extract_fn "$GLO" open_mainui_active)"
+
+begin glo_refresh_list_left_to_open_mainui
+sysdir=$TMP
+check "no Open MainUI binary: stock launcher" test "$(open_mainui_active && echo yes)" = ""
+mkdir -p "$sysdir/mainui-test"
+printf '#!/bin/sh\n' > "$sysdir/mainui-test/MainUI"
+chmod +x "$sysdir/mainui-test/MainUI"
+check "Open MainUI installed: active" open_mainui_active
+touch "$sysdir/mainui-test/DISABLED"
+check "DISABLED: stock launcher" test "$(open_mainui_active && echo yes)" = ""
+check "Refresh list hidden only when Open MainUI is active" \
+    grep -q 'TAB_EXPERT ]; } && ! open_mainui_active; then' "$GLO"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
