@@ -5,6 +5,7 @@
 #include "theme/resources.h"
 
 #include "header.h"
+#include "textbox_fit.h"
 
 typedef enum { ALIGN_LEFT,
                ALIGN_CENTER,
@@ -126,6 +127,40 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
     free(lines);
     free(line_widths);
 
+    return textbox;
+}
+
+/**
+ * @brief Like theme_textboxSurface with the theme's title font, but shrinks
+ *        the font until the text fits in max_w x max_h pixels.
+ *
+ * Message screens (prompt, infoPanel, dialogs) used the title font at its
+ * full size, so with a large theme font a long line was cut off by the
+ * screen edge. Lines are not wrapped: the font gets smaller instead, down to
+ * TEXTBOX_FIT_MIN_SIZE.
+ */
+SDL_Surface *theme_textboxSurfaceFit(const char *message, SDL_Color fg,
+                                     text_alignment_e align, int max_w, int max_h)
+{
+    SDL_Surface *textbox = theme_textboxSurface(message, resource_getFont(TITLE), fg, align);
+    int size = theme()->title.size;
+
+    for (int tries = 0; textbox != NULL && tries < 8; tries++) {
+        int next = textbox_fit_size(size, textbox->w, textbox->h, max_w, max_h,
+                                    TEXTBOX_FIT_MIN_SIZE);
+        if (next == size)
+            break;
+        TTF_Font *font = theme_loadFont(theme()->path, theme()->title.font, next);
+        if (font == NULL)
+            break;
+        SDL_Surface *smaller = theme_textboxSurface(message, font, fg, align);
+        TTF_CloseFont(font);
+        if (smaller == NULL)
+            break;
+        SDL_FreeSurface(textbox);
+        textbox = smaller;
+        size = next;
+    }
     return textbox;
 }
 

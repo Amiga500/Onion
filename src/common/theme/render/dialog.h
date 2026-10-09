@@ -9,10 +9,8 @@
 
 #define DIALOG_WIDTH 450
 #define DIALOG_LINE_HEIGHT 30
-#define DIALOG_LINE_BENCHMARK "access, and modify files as if they were stored"
 
 static int dialog_progress = 0;
-static int dialog_font_size = 0;
 
 // Cached dialog surfaces to avoid per-call allocation
 static SDL_Surface *_dialog_transparent_bg = NULL;
@@ -33,23 +31,6 @@ void theme_renderDialog_cleanup(void)
         SDL_FreeSurface(_dialog_label_cancel);
         _dialog_label_cancel = NULL;
     }
-    dialog_font_size = 0;
-}
-
-int __get_font_size()
-{
-    if (dialog_font_size == 0) {
-        int w = 0, h = 0;
-        if (TTF_SizeUTF8(resource_getFont(TITLE), DIALOG_LINE_BENCHMARK, &w, &h) == 0) {
-            double scale_x = (double)DIALOG_WIDTH * g_scale / w;
-            double scale_y = (double)DIALOG_LINE_HEIGHT * g_scale / h;
-            dialog_font_size = (int)((scale_x > scale_y ? scale_y : scale_x) * theme()->title.size);
-        }
-        else {
-            dialog_font_size = theme()->title.size;
-        }
-    }
-    return dialog_font_size;
 }
 
 void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *message_str, bool show_hint)
@@ -73,13 +54,10 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
         SDL_FreeSurface(title);
     }
 
-    SDL_Surface *textbox = theme_textboxSurface(message_str, resource_getFont(TITLE), theme()->grid.color, ALIGN_CENTER);
-    if (textbox != NULL && (textbox->w > DIALOG_WIDTH || textbox->h > 6 * (double)DIALOG_LINE_HEIGHT * g_scale)) {
-        SDL_FreeSurface(textbox);
-        TTF_Font *temp_font = theme_loadFont(theme()->path, theme()->title.font, __get_font_size());
-        textbox = theme_textboxSurface(message_str, temp_font, theme()->grid.color, ALIGN_CENTER);
-        TTF_CloseFont(temp_font);
-    }
+    // Shrink the font until every line fits the popup (6 lines of 30 px).
+    SDL_Surface *textbox = theme_textboxSurfaceFit(message_str, theme()->grid.color, ALIGN_CENTER,
+                                                   (int)(DIALOG_WIDTH * g_scale),
+                                                   (int)(6 * DIALOG_LINE_HEIGHT * g_scale));
     if (textbox) {
         SDL_Rect textbox_rect = {(g_display.width - textbox->w) / 2, center_rect.y + 160.0 * g_scale - textbox->h / 2};
         SDL_BlitSurface(textbox, NULL, screen, &textbox_rect);
@@ -172,7 +150,10 @@ void theme_renderInfoPanel(SDL_Surface *screen, const char *title_str, const cha
         strncpy(message_newline, message_str, sizeof(message_newline) - 1);
         message_newline[sizeof(message_newline) - 1] = '\0';
         char *str = str_replace(message_newline, "\\n", "\n");
-        message = theme_textboxSurface(str ? str : message_newline, resource_getFont(TITLE), theme()->list.color, ALIGN_CENTER);
+        // Between the header and the bottom margin, 20 px from each side.
+        message = theme_textboxSurfaceFit(str ? str : message_newline, theme()->list.color, ALIGN_CENTER,
+                                          g_display.width - (int)(40.0 * g_scale),
+                                          g_display.height - (int)(120.0 * g_scale));
         if (message) {
             SDL_Rect message_rect = {(g_display.width) / 2, (g_display.height) / 2};
             message_rect.x -= message->w / 2;
