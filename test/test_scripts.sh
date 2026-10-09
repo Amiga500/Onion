@@ -400,6 +400,38 @@ else
     echo "  [SKIP] ota_update.sh tests (jq not installed)"
 fi
 
+# ---- ota_update.sh: Wi-Fi off must not leave the updater hanging ----
+
+eval "$(extract_fn "$OTA" enable_wifi)"
+
+begin ota_wifi_off_does_not_hang
+# No network ever comes up: udhcpc keeps retrying, as the real one does.
+ip() { :; }
+sleep() { :; }
+insmod() { :; }
+ifconfig() { :; }
+pkill() { :; }
+clear() { :; }
+udhcpc() {
+    echo "$*" > "$TMP/udhcpc_args"
+    while [ ! -f "$TMP/stop" ]; do command sleep 0.1; done
+}
+(enable_wifi > /dev/null 2>&1; touch "$TMP/returned") &
+n=0
+while [ ! -f "$TMP/returned" ] && [ $n -lt 50 ]; do
+    command sleep 0.1
+    n=$((n + 1))
+done
+touch "$TMP/stop"
+check "enable_wifi returns without a network" test -f "$TMP/returned"
+check "udhcpc started on wlan0" grep -q -- '-i wlan0' "$TMP/udhcpc_args"
+check "wpa_supplicant called by its full path" \
+    grep -q '/mnt/SDCARD/miyoo/app/wpa_supplicant -B' "$OTA"
+check "connection check has a timeout" grep -q 'wget -q -T [0-9]' "$OTA"
+wait
+unset -f ip sleep insmod ifconfig pkill clear udhcpc
+end
+
 # ---- runtime.sh: network check skipped while update_networking.sh runs ----
 
 eval "$(extract_fn "$RUNTIME" check_networking)"
