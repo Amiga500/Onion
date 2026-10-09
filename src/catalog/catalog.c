@@ -251,15 +251,15 @@ static bool contains_text(const char *name, const char *part)
     return false;
 }
 
-/* An empty extlist lists every file, as a console with no extlist can only
- * mean, except the files MainUI and Onion keep beside the ROMs: the game
- * lists, the ROM list caches with their build, journal and deletion files,
- * and the copy of a ROM held while it is deleted. */
+/* An empty extlist lists every file with an extension, as in stock, except
+ * the files MainUI and Onion keep beside the ROMs: the game lists, the ROM
+ * list caches with their build, journal and deletion files, and the copy of
+ * a ROM held while it is deleted. */
 static bool allowed(const char *name, const char *extensions)
 {
     const char *ext = strrchr(name, '.');
     if (!*extensions) {
-        return compare_text(name, "miyoogamelist.xml", false) &&
+        return ext && compare_text(name, "miyoogamelist.xml", false) &&
                compare_text(name, "gamelist.xml", false) &&
                !(contains_text(name, "_cache") && contains_text(name, ".db")) &&
                !contains_text(name, ".mainui-delete");
@@ -287,6 +287,23 @@ static bool allowed(const char *name, const char *extensions)
         extensions = end + 1;
     }
     return false;
+}
+
+/* As stock: a ROM ending in .bin is hidden when the .cue of the same name is
+ * beside it, as the cue is what starts the game. Spelled as stock checks it,
+ * with a lowercase .bin and .cue. Unlike stock, only when the extlist lists
+ * that .cue: with extlist "bin" stock hides the .bin and lists no .cue, so
+ * the game disappears. `cue` receives the cue's path. */
+static bool cue_beside(const char *path, const char *extensions, char cue[MAINUI_PATH_MAX])
+{
+    size_t length = strlen(path);
+    if (length < 4 || length >= MAINUI_PATH_MAX || strcmp(path + length - 4, ".bin") ||
+        !allowed("game.cue", extensions)) {
+        return false;
+    }
+    memcpy(cue, path, length - 4);
+    memcpy(cue + length - 4, ".cue", 5);
+    return access(cue, F_OK) == 0;
 }
 
 typedef struct {
@@ -406,7 +423,8 @@ static bool visit(MainUICatalogPage *page, const char *sd, const char *name, boo
                       !compare_text(scratch->path, page->images, false))) {
         return true;
     }
-    if (!directory && !allowed(name, page->extensions)) {
+    if (!directory && (!allowed(name, page->extensions) ||
+                       cue_beside(scratch->path, page->extensions, scratch->resolved))) {
         return true;
     }
     snprintf(scratch->label, sizeof scratch->label, "%s", name);
@@ -535,7 +553,9 @@ static bool scan_directory(MainUICatalogPage *page, const char *sd, int mode, bo
         }
     }
     closedir(dir);
-    if (ok && page->count > 1) {
+    /* Apps keep the order the card lists their folders in, as stock does:
+     * it appends each app as readdir() returns it and never sorts them. */
+    if (ok && page->count > 1 && mode != 2) {
         qsort(page->entries, (size_t)page->count, sizeof *page->entries,
               sensitive ? order_case : order_nocase);
     }
@@ -661,9 +681,21 @@ static bool optional_catalog(MainUICatalog *catalog, const char *sd, bool sensit
     return ok;
 }
 
+/* Apps keep the card's folder order, as in stock; the flag file
+ * .tmp_update/config/.appsort sorts them A-Z, as the other lists are. */
 bool mainui_catalog_apps(MainUICatalog *catalog, const char *sd, bool sensitive)
 {
-    return optional_catalog(catalog, sd, sensitive, "App", "Apps", 2);
+    if (!optional_catalog(catalog, sd, sensitive, "App", "Apps", 2)) {
+        return false;
+    }
+    MainUICatalogPage *page = &catalog->pages[0];
+    char flag[MAINUI_PATH_MAX];
+    if (page->count > 1 && mainui_catalog_path(flag, sd, sd, ".tmp_update/config/.appsort") &&
+        access(flag, F_OK) == 0) {
+        qsort(page->entries, (size_t)page->count, sizeof *page->entries,
+              sensitive ? order_case : order_nocase);
+    }
+    return true;
 }
 
 bool mainui_catalog_expert(MainUICatalog *catalog, const char *sd, bool sensitive)
