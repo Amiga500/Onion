@@ -20,7 +20,9 @@
 #include "./appstate.h"
 #include "./diags.h"
 #include "./formatters.h"
+#include "./game_lists.h"
 #include "./icons.h"
+#include "./main_menu.h"
 #include "./network.h"
 #include "./reset.h"
 #include "./tools.h"
@@ -587,21 +589,13 @@ void menu_userInterface(void *_)
     if (!_menu_user_interface._created) {
         _menu_user_interface = list_createWithTitle(6, LIST_SMALL, "Appearance");
         list_addItemWithInfoNote(&_menu_user_interface,
-                                 (ListItem){
-                                     .label = "Show recents",
-                                     .item_type = TOGGLE,
-                                     .value = settings.show_recents,
-                                     .action = action_setShowRecents},
-                                 "Toggle the visibility of the recents tab\n"
-                                 "in the main menu.");
+                                 (ListItem){.label = "Game lists...", .action = menu_gameLists},
+                                 "Rows, text size, title scrolling,\n"
+                                 "button repeat and sorting in game lists.");
         list_addItemWithInfoNote(&_menu_user_interface,
-                                 (ListItem){
-                                     .label = "Show expert mode",
-                                     .item_type = TOGGLE,
-                                     .value = settings.show_expert,
-                                     .action = action_setShowExpert},
-                                 "Toggle the visibility of the expert tab\n"
-                                 "in the main menu.");
+                                 (ListItem){.label = "Main menu...", .action = menu_mainMenu},
+                                 "Sections of the main menu (Recents,\n"
+                                 "Expert...) and the context menu entries.");
         display_init(true);
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
@@ -991,7 +985,7 @@ void menu_main(void)
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Appearance",
-                         .description = "Menu visibility, theme overrides",
+                         .description = "Lists, main menu, theme overrides",
                          .action = menu_userInterface,
                          .icon_ptr = _get_menu_icon("tweaks_user_interface")});
         list_addItem(&_menu_main,

@@ -1,44 +1,72 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅⚡ OnionPlus stable update: play history fix and more
+# 🧅⚡ OnionPlus stable: Open MainUI 1.0.5
 
-OnionPlus is a personal-use build based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`. It is **not** an official Onion release and isn't affiliated with the Onion team. It runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
+This stable release promotes beta 5. It replaces the stock MainUI with **Open MainUI 1.0.5** by @robcodedev, and adds the fixes made since the stable release of 7 October (`9e96c27c`). Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
 
-## ⚠️ Play history fix (please update)
+OnionPlus is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 
-The previous stable release (V4.4.0-beta-20260928) could **delete play history**. When a game ended, and before every suspend, it removed every Play Activity entry longer than 24 hours. Play times imported from older Onion versions are stored as one entry per game with its total, so games with more than 24 hours of imported play time could lose it. Sessions recorded normally were not affected.
+> ⚠️ **Back up your SD card before updating.** At least copy `Roms`, `Saves`, `BIOS` and `Screenshots` to your PC. This release replaces the main launcher, and a backup is the quickest way back if anything goes wrong.
 
-This release only checks the session being closed, so stored play time is never removed for its length. Opening the database also never drops its tables anymore, so not even a transient SD error can wipe the history. Time already removed can't be recovered from the database; if you have a backup of `Saves/CurrentProfile/play_activity/` from before updating to OnionPlus, you can restore it.
+## 🆕 Open MainUI replaces the stock MainUI
 
-Thanks to LincolnWinston for sharing the Codex review that found it.
+An open-source (GPL-3.0) rewrite of Miyoo's closed-source MainUI, installed on all three models (Mini `283`, Mini+ `354`, Flip `285`), in both Expert and normal mode. It was tested through five betas on the Mini+, Mini v4 and Mini Flip.
 
-## 🔧 Other fixes
+- ⚡ **~270 KB** launcher instead of ~1.4 MB, idle CPU in menus **~5% → ~1%** (Mini+), scrolling long titles **~35% → ~6%**, box art scaled in the background.
+- 🎮 Letter jump, configurable row count, auto-scrolling titles, gamelist details, custom context menus, configurable main menu, safe ROM deletion on FAT32 with recovery after a power cut, new **About device** screen.
+- 🎛️ **Tweaks › Appearance › Game lists... and Main menu...:** rows (with theme list icons resized to fit), text size, title scrolling, button repeat speed, sorting and the favorite star; which sections the main menu shows (Show recents and Show expert move here) and which entries the Select menu has. From @robcodedev's MainUI patcher, adapted for OnionPlus.
+- 🎮 **Buttons:** Y opens Game List Options, and the Menu long press (Onion's default Context menu) opens the context menu.
+- 🔍 **Search with X** opens Games → Search with the results, as stock does.
+- 🔒 **Delete ROM, Clear Recents and Shutdown** need a separate press of A to confirm, so a long press can no longer delete a ROM by accident.
+- 📋 **Game lists:** consoles whose `miyoogamelist.xml` isn't strictly valid XML open normally; `Manuals`, empty folders and ScummVM data folders no longer show up as ROM folders (run Refresh roms on affected consoles).
+- 🎨 Theme overrides from Tweaks are applied, and theme text with a font size of 0 is hidden, as in stock.
+- 📂 Many fixes for Favorites, Recents and Favorites folders, including games listed twice and recovery from damaged files.
+- 📶 Wi-Fi networks with spaces or special characters in the name or password.
+- 🔁 ROM caches, Recents and Favorites are used as they are, and stay compatible with the stock MainUI.
 
-- **Mini Flip lid (#228):** with the lid set to Suspend, closing it could shut the device down instead.
-- **GameSwitcher (#233):** removing the running game and starting the one that takes its place went back to the main menu instead of launching it. A long-standing bug, also in official Onion.
-- **RetroArch menu on vertical games (#235):** the RetroArch menu was drawn with the game's rotation. It's now always upright, and the game keeps its rotation. RetroArch is updated to `1.22.2-2`.
-- **OTA updates:** the updater no longer runs a file system repair on the SD card while it's in use, which could damage files. If you see `FSCK0000.REC`-style files in the root of your card, check the card on a PC.
-- **Mini v4 resolution:** a boot-time shortcut could keep the Mini v4 at 640x480 for the whole session. It now waits for the display driver, as official Onion does.
+### ↩️ Going back to the stock MainUI
 
-## 🧪 Tests
+The stock MainUI is kept on the card. To switch back without reinstalling, create an empty file named `DISABLED` in `.tmp_update/mainui-test/` on the SD card and restart. Delete it to switch back to Open MainUI. If the Open MainUI binary is missing, the stock MainUI starts on its own.
 
-- A new test runs the Play Activity SQL on a real in-memory SQLite database and checks that stored play time survives; it fails with the old code. 1487 host tests pass in CI.
-- **CI:** the infoPanel GTest suite never ran, because `make test` called the wrong binary name. It runs and passes now.
-- Not every test suite exercises the production code: 4 suites (config, theme config, play activity paths, savestate paths) still test a local copy of the function, and those can stay green if the real code regresses. The README claimed none did; it's corrected, and those suites are being moved to the production code.
+## 🔧 Fixes since the last stable release
 
-## 🚧 Known issues, fix in progress
+- **Game List Options on the Mini Flip:** the network scripts (Netplay, Scraper) were hidden on the Flip, as if it had no Wi-Fi. They show on the Mini+ and the Flip now.
+- **Scraper:** leaving the scraper started the selected game instead of going back to the game list, and MENU could close Game List Options together with the scraper's terminal. Both fixed.
+- **Rom list filter:** after Refresh list, Game List Options kept showing "Clear filter" for a filter that was gone. It now shows "Filter list" again.
+- **OTA beta channel:** the beta channel takes the newest published build. It could offer an older one, because GitHub doesn't always list releases newest first.
 
+## 💡 Tips
+
+- **Scrolling titles:** long titles scroll after one second. Change the speed and delay, or turn it off, in **Tweaks › Appearance › Game lists...**.
+- **GameSwitcher shows the box art:** the GameSwitcher saves a screenshot of a game the first time you open it while that game is running. Until then, opening it from the menu shows the game's box art, which for some systems is portrait.
+- **RetroArch settings that don't stick (#224):** RetroArch doesn't save settings on exit, and cores like gpSP ship a core override with Keep Aspect Ratio on. Use **Quick Menu > Overrides > Save Core Overrides** to change it for good.
+- **RetroArch global settings** (such as the language): change them from the **RetroArch** app in Apps, not while a game is running. During a game RetroArch uses a combined configuration that Onion restores on exit.
+- **Switching from another build (#231):** format the card, or replace the `App` folder too, then bring back only Roms, Saves, BIOS and Screenshots. Leftover app files from other builds can stop apps from starting.
+
+## ⚠️ Known issues
+
+- **Themes (#255, #256):** with some themes the popup background images are drawn twice, and the music of some older themes plays slowed down. Both are reported to @robcodedev; switching to the stock MainUI (see above) avoids them in the meantime.
+- **Refresh list** appears both in Game List Options and in the Select menu; the Game List Options entry will be removed.
+- Some new Open MainUI labels are English-only for now.
 - **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
 - **Settings:** two programs saving settings at the same moment can corrupt the settings file, and a settings save that fails is not retried.
 - **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package. Verifying certificates and the package's SHA-256 is planned.
 
-## 🆕 Open MainUI
+Please report OnionPlus issues on the [OnionPlus tracker](https://github.com/Amiga500/Onion/issues), with your model, the version (from `.tmp_update/onionVersion/version.txt`) and the steps to reproduce. If a bug turns out to be in official Onion too, I'll pass it on with the fix.
 
-The open-source MainUI replacement is still in **beta**: set the OTA updater to the beta channel to try it. See the pre-releases on the releases page.
+---
+
+## 🙏 Thanks
+
+Thanks first to the Onion team and to the community. OnionPlus sits on their work: the OS and the years of fixes already in the tree. None of this exists without that.
+
+Thanks to @robcodedev for Open MainUI, and to the testers who sent reports and helped confirm the fixes, especially @Zazzago, @Ziko577 and Veuks.
+
+## 💰 Bounty
+
+The **$20 bounty** is still open through **31 October 2026**. It goes to whoever reports the most verified bugs and improvements in that window.
 
 ## 🔗 Links
 
 - Repo: https://github.com/Amiga500/Onion
 - Issues: https://github.com/Amiga500/Onion/issues
-- Discussions: https://github.com/Amiga500/Onion/discussions
-
-> ⚠️ **Back up your SD card before updating**, at least `Roms`, `Saves`, `BIOS` and `Screenshots`.
+- Expected behaviour is still the official guide: https://onionui.github.io/docs
