@@ -562,6 +562,53 @@ done
 check "no pattern matches game_list_options.sh:$bad" test -z "$bad"
 end
 
+# ---- game_list_options.sh: a filter dropped with the rom list cache ----
+
+eval "$(extract_fn "$GLO" filter_is_applied)"
+eval "$(extract_fn "$GLO" refresh_roms)"
+
+glo_filter_env() { # rows in the cache matching '~Filter: %' (none: no cache)
+    emupath=$TMP/Emu/GBA
+    romroot=$emupath/../../Roms/GBA
+    mkdir -p "$emupath" "$TMP/Roms/GBA"
+    echo zelda > "$emupath/active_filter"
+    rm -f "$TMP/Roms/GBA/GBA_cache6.db"
+    if [ -n "$1" ]; then
+        echo "$1" > "$TMP/Roms/GBA/GBA_cache6.db"
+    fi
+}
+sqlite3() { # db, query: the db file holds the count the query would return
+    case "$2" in
+        *'FROM "GBA_roms" WHERE disp LIKE '"'~Filter: %'"*) ;;
+        *) return 1 ;;
+    esac
+    [ "$(cat "$1")" = error ] && return 1
+    cat "$1"
+}
+
+begin glo_filter_dropped_with_cache
+glo_filter_env 1
+check "filter row in the cache: applied" filter_is_applied
+glo_filter_env 0
+check "cache rebuilt without the filter row: not applied" test "$(filter_is_applied && echo yes)" = ""
+glo_filter_env ""
+check "no cache at all: not applied" test "$(filter_is_applied && echo yes)" = ""
+glo_filter_env error
+check "sqlite3 error: filter kept" filter_is_applied
+romroot=""
+check "unknown rom folder: filter kept" filter_is_applied
+glo_filter_env 1
+log() { :; }
+filter() { echo "$*" > "$TMP/filter_args"; }
+mkdir -p "$TMP/script"
+printf '#!/bin/sh\n' > "$TMP/script/reset_list.sh"
+chmod +x "$TMP/script/reset_list.sh"
+(cd "$TMP" && refresh_roms)
+check "Refresh list runs the filter refresh" test "$(cat "$TMP/filter_args")" = "refresh $emupath"
+check "Refresh list drops active_filter" test ! -e "$emupath/active_filter"
+unset -f sqlite3 filter log
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
