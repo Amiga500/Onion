@@ -39,14 +39,15 @@ static void footer(SDL_Surface *screen, MainUITheme *theme, int page, int total,
         SDL_Surface *last = mainui_theme_text(theme, theme->hint_font, text, theme->total_color);
         snprintf(text, sizeof text, "%d/", total ? page : 0);
         SDL_Surface *current = mainui_theme_text(theme, theme->hint_font, text, theme->page_color);
-        /* Stock 0x31268 reserves another 20px for totals above 99. */
+        /* Stock 0x31268 reserves another 20px for totals above 99. The
+         * counter shares the hints' line, y=449, as Onion's footer draws it. */
         int edge = total > 99 ? 600 : 620;
         if (last) {
             edge -= last->w;
-            mainui_blit(screen, last, edge, 450 - last->h / 2);
+            mainui_blit(screen, last, edge, 449 - last->h / 2);
         }
         if (current) {
-            mainui_blit(screen, current, edge - current->w, 450 - current->h / 2);
+            mainui_blit(screen, current, edge - current->w, 449 - current->h / 2);
         }
     }
     SDL_SetClipRect(screen, NULL);
@@ -106,14 +107,29 @@ static void header_battery(SDL_Surface *screen, MainUITheme *theme)
     int origin = 596 - width / 2;
     int level = theme->wifi_signal_level;
     SDL_Surface *wifi = theme->wifi_signal[level >= 2 && level <= 3 ? level : 1];
+    /* Stock (0x16980, 0x1622c) gives each status icon a 48x48 slot from the
+     * right, 620 - (68 * slot + 48), y 6, and centers the image in it. The
+     * battery holds slot 0, so Wi-Fi is slot 1 at x 504, whatever the
+     * battery's width; a wider image, as some themes ship, spreads from it. */
     if (theme->wifi_online && wifi) {
-        int edge = origin + icon_x;
-        if (text && origin + text_x + theme->battery_offset_x < edge) {
-            edge = origin + text_x + theme->battery_offset_x;
-        }
-        mainui_blit(screen, wifi, edge - 8 - wifi->w, 30 - wifi->h / 2);
+        mainui_blit(screen, wifi, 504 + (48 - wifi->w) / 2, 6 + (48 - wifi->h) / 2);
     }
-    mainui_blit(screen, icon, origin + icon_x, 30 - icon->h / 2);
+    /* As Onion's battery surface: an even height of at least 48 (its
+     * icon->w is Onion's own, kept for the same pixels), centered at y=30,
+     * with the icon and text centered in it. Rounds odd heights up, where
+     * centering each at 30 would round them down. */
+    int height = text && text->h > icon->h ? text->h : icon->w;
+    if (!text) {
+        height = icon->h;
+    }
+    if (height % 2) {
+        height++;
+    }
+    if (height < 48) {
+        height = 48;
+    }
+    int top = 30 - height / 2;
+    mainui_blit(screen, icon, origin + icon_x, top + (height - icon->h) / 2);
     if (text) {
         int offset = theme->battery_offset_y;
         const char *family = TTF_FontFaceFamilyName(theme->battery_font);
@@ -121,7 +137,7 @@ static void header_battery(SDL_Surface *screen, MainUITheme *theme)
             offset -= (int)(0.075 * TTF_FontHeight(theme->battery_font));
         }
         mainui_blit(screen, text, origin + text_x + theme->battery_offset_x,
-                    30 - text->h / 2 + offset);
+                    top + (height - text->h) / 2 + offset);
     }
 }
 
@@ -148,6 +164,10 @@ static void draw_header_image(SDL_Surface *screen, MainUITheme *theme, SDL_Surfa
         }
     }
     else if (theme->logo) {
+        /* Stock (0x170a0) blits miyoo-topbar.png unclipped: themes draw past
+         * the header with a tall image (Super Onion Entertainment System's
+         * page dots), as the home screen's later drawing goes on top. */
+        SDL_SetClipRect(screen, NULL);
         mainui_blit(screen, theme->logo, 20, (60 - theme->logo->h) / 2);
     }
     clip.x = 0;
