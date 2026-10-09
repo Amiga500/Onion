@@ -201,6 +201,10 @@ main() {
     fi # skip_game_options
 
     if [ $current_tab -eq $TAB_GAMES ]; then
+        if [ -f "$emupath/active_filter" ] && ! filter_is_applied; then
+            log "rom list cache rebuilt since the filter was set: dropping active_filter"
+            rm -f "$emupath/active_filter"
+        fi
         if [ -f "$emupath/active_filter" ]; then
             filter_kw=$(cat "$emupath/active_filter")
             add_menu_option clear_filter "Clear filter" "Clear the current rom list filter"
@@ -592,10 +596,29 @@ filter_roms() {
     filter filter "$emupath"
 }
 
+# A filter is kept in two places: the keyword in $emupath/active_filter and
+# the hidden rows in the rom list cache, which also gets a "~Filter: keyword"
+# entry. Rebuilding the cache (Refresh list, or the launcher's own refresh)
+# shows every game again but leaves active_filter behind, and the menu kept
+# offering "Clear filter" for a filter that was gone.
+filter_is_applied() {
+    [ -n "$romroot" ] || return 0
+    cache_name=$(basename "$romroot")
+    cache_db="$romroot/${cache_name}_cache6.db"
+    [ -f "$cache_db" ] || return 1
+    cache_table=$(echo "${cache_name}_roms" | sed 's/"/""/g')
+    # On any sqlite3 error the filter is kept: better a stale entry than
+    # forgetting one that still hides games.
+    filter_rows=$(sqlite3 "$cache_db" "SELECT count(*) FROM \"$cache_table\" WHERE disp LIKE '~Filter: %';" 2> /dev/null) || return 0
+    [ "$filter_rows" != "0" ]
+}
+
 refresh_roms() {
     log ":: refresh_roms $*"
     log "./bin/filter refresh \"$emupath\""
     filter refresh "$emupath"
+    # The rebuilt list shows every game: the filter is gone with the cache.
+    rm -f "$emupath/active_filter"
     ./script/reset_list.sh "$romroot"
 }
 
