@@ -32,6 +32,7 @@ The stock MainUI is kept on the card. To switch back without reinstalling, creat
 - **Game List Options on the Mini Flip:** the network scripts (Netplay, Scraper) were hidden on the Flip, as if it had no Wi-Fi. They show on the Mini+ and the Flip now.
 - **Scraper:** leaving the scraper started the selected game instead of going back to the game list, and MENU could close Game List Options together with the scraper's terminal. Both fixed.
 - **Rom list filter:** after Refresh list, Game List Options kept showing "Clear filter" for a filter that was gone. It now shows "Filter list" again.
+- **OTA with Wi-Fi off:** the updater stayed on a black screen when Wi-Fi was off. It now turns Wi-Fi on, waits up to 20 seconds, and otherwise asks you to turn it on in Settings.
 - **OTA beta channel:** the beta channel takes the newest published build. It could offer an older one, because GitHub doesn't always list releases newest first.
 
 ## 💡 Tips

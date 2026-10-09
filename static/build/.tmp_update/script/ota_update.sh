@@ -71,27 +71,38 @@ check_available_space() {
 
 enable_wifi() {
 	# Enable wifi if necessary
-	IP=$(ip route get 1 | awk '{print $NF;exit}')
+	IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
 	if [ "$IP" = "" ]; then
 		echo "Wifi is disabled - trying to enable it..."
-		insmod /mnt/SDCARD/8188fu.ko
+		insmod /mnt/SDCARD/8188fu.ko 2> /dev/null
 		ifconfig lo up
 		/customer/app/axp_test wifion
 		sleep 2
 		ifconfig wlan0 up
-		wpa_supplicant -B -D nl80211 -iwlan0 -c /appconfigs/wpa_supplicant.conf
-		udhcpc -i wlan0 -s /etc/init.d/udhcpc.script
-		sleep 3
+		# Same commands as wifi_on in update_networking.sh. wpa_supplicant is
+		# not on the PATH of apps, and udhcpc in the foreground never returns
+		# without a network: the updater stayed on a black screen.
+		/mnt/SDCARD/miyoo/app/wpa_supplicant -B -D nl80211 -iwlan0 -c /appconfigs/wpa_supplicant.conf
+		pkill -9 udhcpc 2> /dev/null
+		udhcpc -i wlan0 -s /etc/init.d/udhcpc.script > /dev/null 2>&1 &
+		# Up to 20 s for an address; check_connection reports a failure.
+		i=0
+		while [ $i -lt 20 ]; do
+			sleep 1
+			IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
+			[ -n "$IP" ] && break
+			i=$((i + 1))
+		done
 		clear
 	fi
 }
 
 check_connection() {
 	echo -n "Checking internet connection... "
-	if wget -q --spider https://github.com > /dev/null; then
+	if wget -q -T 15 --spider https://github.com > /dev/null 2>&1; then
 		echo -e "${GREEN}OK${NC}"
 	else
-		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable. Check your wifi connection."
+		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable.\nTurn on Wi-Fi in Settings and check that it connects."
 		echo -ne "${YELLOW}"
 		read -n 1 -s -r -p "Press A to exit"
 		exit 2
