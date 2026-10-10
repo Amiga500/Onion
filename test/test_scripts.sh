@@ -498,6 +498,26 @@ check "address found" test -n "$IP"
 unset -f ip sleep clear pkill udhcpc wifi_setting_on
 end
 
+begin ota_waits_for_boot_network
+eval "$(extract_fn "$OTA" wait_boot_network)"
+sleep() { echo x >> "$TMP/slept"; }
+clear() { :; }
+# update_networking.sh still running for three more looks.
+pgrep() { echo x >> "$TMP/pgrep"; [ "$(wc -l < "$TMP/pgrep")" -le 3 ]; }
+wait_boot_network > /dev/null
+check "waits while the start-up runs" test "$(wc -l < "$TMP/slept")" -eq 2
+check "then goes on" test "$(wc -l < "$TMP/pgrep")" -eq 4
+rm -f "$TMP/slept"
+pgrep() { return 1; }
+wait_boot_network > /dev/null
+check "nothing running: no wait" test ! -e "$TMP/slept"
+pgrep() { return 0; }
+wait_boot_network > /dev/null
+check "gives up after 45 s" test "$(wc -l < "$TMP/slept")" -eq 45
+check "before Wi-Fi is touched" sh -c "sed -n '/^main() {/,/^}/p' \"$OTA\" | grep -A1 '^	wait_boot_network' | grep -q '^	enable_wifi'"
+unset -f sleep clear pgrep wait_boot_network
+end
+
 begin ota_channel_cancel_keeps_channel
 mkdir -p "$TMP/script" "$TMP/config"
 sysdir=$TMP

@@ -47,6 +47,7 @@ main() {
 
 	check_available_space
 	check_wifi_hardware
+	wait_boot_network
 	enable_wifi
 	check_connection
 	run_bootstrap
@@ -115,6 +116,22 @@ wait_for_ip() { # seconds
 		i=$((i + 1))
 	done
 	return 1
+}
+
+# Just after start-up the network comes up in the background
+# (update_networking.sh: Wi-Fi, time sync, "Enable Wi-Fi temporarily" that
+# turns Wi-Fi off again at the end). Wait for it to finish before touching
+# Wi-Fi: started meanwhile, the updater ran a second wpa_supplicant, and the
+# temporary Wi-Fi could be switched off in the middle of the download.
+wait_boot_network() {
+	pgrep -f update_networking.sh > /dev/null 2>&1 || return 0
+	echo "Waiting for the network start-up..."
+	i=0
+	while [ $i -lt 45 ] && pgrep -f update_networking.sh > /dev/null 2>&1; do
+		sleep 1
+		i=$((i + 1))
+	done
+	clear
 }
 
 # Turns Wi-Fi off again when the updater turned it on and it is still off in
