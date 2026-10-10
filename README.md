@@ -4,16 +4,19 @@
 
 ### Onion, the way you know it. Faster, sturdier, and still growing.
 
-RedOnion (formerly OnionPlus) is an independent build of [Onion](https://github.com/OnionUI/Onion) for the Miyoo Mini, Mini+, Mini v4 and Mini Flip. Same menus, same themes, same emulators, same folders. What changes is everything underneath.
+**Miyoo Mini, Mini v4, Mini Plus and Mini Flip supported**
+
+RedOnion (formerly OnionPlus) is an independent build of [Onion](https://github.com/OnionUI/Onion) for the Miyoo Mini family. Same menus, same themes, same emulators, same folders. What changes is everything underneath.
 
 ## Why it exists
 
-Onion is one of the best things that ever happened to the Miyoo Mini. But in the last years many fixes have stayed in pull requests and branches, and no corrective release has reached the people who use it every day.
+Onion is one of the best things that ever happened to the Miyoo Mini, and RedOnion is built on it. It is meant for those who want a build that keeps being looked after over time: regular updates, bugs fixed quickly, and requests and pull requests taken on whenever they are feasible.
 
-RedOnion started as my personal build to apply those fixes, find more, and test them on real devices. It grew into a build that others now use too. Every change stays public, so the Onion team can take whatever they find useful.
+RedOnion started as my personal build to test fixes on real devices, and grew into a build that others now use too. Every change stays public, so the Onion team can take whatever they find useful.
 
 ## What you get
 
+- 🐞 **Quick to respond.** Reported bugs are fixed quickly, and feature requests and pull requests are welcome: if they are feasible, they get in.
 - ⚡ **A faster everyday.** Game launches, menus, sleep, volume and the GameSwitcher were all rebuilt for speed, and the launcher idles at a fraction of the CPU.
 - 🆕 **Open MainUI.** An open-source launcher by [@robcodedev](https://github.com/robcodedev/onionos-mainui-opensource) replaces Miyoo's closed one: about 270 KB instead of 1.4 MB, menus at about 1% CPU instead of 5%, scrolling titles, letter jump, configurable rows and main menu, safer ROM deletion. The stock MainUI stays on the card, one file away.
 - 🛡️ **Fixes for issues still present in Onion.** 44 bugs fixed in the shared code: crashes, memory leaks, lost settings, a wrong clock, play history that could be deleted.
