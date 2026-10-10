@@ -662,14 +662,16 @@ for f in "PS/Flat Game (Track 1).bin" "PS/Flat Game (Track 2).bin" "PS/Flat Game
     "PS/Alpha Game/Alpha Game.bin" "PS/Beta Game/Beta Game (Track 01).bin" \
     "PS/Beta Game/Beta Game (Track 02).bin" "PS/Hack [T-En] (Track 1).bin" \
     "PS/Hack [T-En] (Track 2).bin" "PS/Novastorm (USA) (Disc 1).bin" \
-    "PS/Novastorm (USA) (Disc 2).bin" "SEGACD/Kept (USA) (Track 1).bin"; do
+    "PS/Novastorm (USA) (Disc 2).bin" "SEGACD/Kept (USA) (Track 1).bin" \
+    "PS/Region (Track 01) (Japan).bin" "PS/Region (Track 02) (Japan).bin" \
+    "PS/Region (Track 01) (USA).bin" "PS/Region (Track 02) (USA).bin"; do
     : > "$TMP/$f"
 done
 echo ORIGINAL > "$TMP/SEGACD/Kept (USA).cue"
 rootdir=$TMP sh "$CUEGEN" "PS SEGACD" > "$TMP/cue_gen.log" 2>&1
 cues=$(cd "$TMP" && find PS SEGACD -name '*.cue' | sort | tr '\n' '|')
 check "one CUE per game, in the game's folder" test "$cues" = \
-    "PS/Alpha Game/Alpha Game.cue|PS/Beta Game/Beta Game.cue|PS/Flat Game.cue|PS/Hack [T-En].cue|PS/Novastorm (USA) (Disc 1).cue|PS/Novastorm (USA) (Disc 2).cue|SEGACD/Kept (USA).cue|"
+    "PS/Alpha Game/Alpha Game.cue|PS/Beta Game/Beta Game.cue|PS/Flat Game.cue|PS/Hack [T-En].cue|PS/Novastorm (USA) (Disc 1).cue|PS/Novastorm (USA) (Disc 2).cue|PS/Region (Japan).cue|PS/Region (USA).cue|SEGACD/Kept (USA).cue|"
 check "FILE is the bare file name" grep -q '^FILE "Beta Game (Track 02).bin" BINARY$' "$TMP/PS/Beta Game/Beta Game.cue"
 check "no folder in any FILE" test -z "$(grep -h '^FILE "[^"]*/' "$TMP"/PS/*.cue "$TMP"/PS/*/*.cue)"
 check "tracks in numeric order (10 after 2)" test "$(grep -o 'TRACK [0-9]*' "$TMP/PS/Flat Game.cue" | tr '\n' ' ')" = "TRACK 01 TRACK 02 TRACK 10 "
@@ -677,7 +679,12 @@ check "square brackets keep track 1" grep -q '^FILE "Hack \[T-En\] (Track 1).bin
 check "each disc gets its own CUE" test "$(grep -c '^FILE' "$TMP/PS/Novastorm (USA) (Disc 2).cue")" -eq 1
 check "existing CUE left untouched" test "$(cat "$TMP/SEGACD/Kept (USA).cue")" = ORIGINAL
 check "no CUE without a name" test -z "$(find "$TMP" -name '.cue')"
-check "totals reported" grep -q '^6 cue files created$' "$TMP/cue_gen.log"
+# Region after the track: the four files sort Japan 1, USA 1, Japan 2,
+# USA 2 (review of #270 by @yuruyang).
+check "region after the track: both tracks in each CUE" test \
+    "$(grep -c '^FILE "Region (Track 0[12]) (Japan).bin"' "$TMP/PS/Region (Japan).cue")-$(grep -c '^FILE "Region (Track 0[12]) (USA).bin"' "$TMP/PS/Region (USA).cue")" = 2-2
+check "region after the track: nothing skipped" test -z "$(grep '^SKIP' "$TMP/cue_gen.log" | grep -v 'Kept (USA)')"
+check "totals reported" grep -q '^8 cue files created$' "$TMP/cue_gen.log"
 end
 
 echo ""

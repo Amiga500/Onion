@@ -28,12 +28,29 @@ cue_sheet() {
     done
 }
 
-find $targets -maxdepth 3 -name "*.bin" -type f 2> /dev/null | sort | (
+tab="$(printf '\t')"
+
+# One "game<TAB>track<TAB>file name" line per .bin, sorted by game: the
+# tracks of a game are then next to each other even when the file names
+# aren't, as with "Game (Track 01) (Japan).bin" sorting before
+# "Game (Track 01) (USA).bin" and both before the two Track 02 files.
+find $targets -maxdepth 3 -name "*.bin" -type f 2> /dev/null | while IFS= read -r target; do
+    dir_path=$(dirname "$target")
+    target_name=$(basename "$target")
+    target_base="${target_name%.*}"
+
+    # "(Track N)" or "Track N" picks the track; the rest of the name is the game.
+    track_number=$(echo "$target_base" | sed -n -E 's/.*[Tt]rack[[:space:]]*0*([0-9]+).*/\1/p')
+    game_base=$(echo "$target_base" | sed -E 's/[[:space:]]*[(]?[Tt]rack[[:space:]]*[0-9]+[)]?//' | sed 's/[[:space:]]*$//')
+    [ -n "$track_number" ] || track_number=1
+    [ -n "$game_base" ] || game_base="$target_base"
+
+    printf '%s\t%s\t%s\n' "$dir_path/$game_base" "$track_number" "$target_name"
+done | sort -t "$tab" -k1,1 -k2,2n | (
     count=0
     skipped=0
     group=""
     tracks=""
-    tab="$(printf '\t')"
 
     # Writes the CUE of the game collected so far, unless one already exists.
     flush() {
@@ -50,22 +67,12 @@ find $targets -maxdepth 3 -name "*.bin" -type f 2> /dev/null | sort | (
         count=$((count + 1))
     }
 
-    while IFS= read -r target; do
-        dir_path=$(dirname "$target")
-        target_name=$(basename "$target")
-        target_base="${target_name%.*}"
-
-        # "(Track N)" or "Track N" picks the track; the rest of the name is the game.
-        track_number=$(echo "$target_base" | sed -n -E 's/.*[Tt]rack[[:space:]]*0*([0-9]+).*/\1/p')
-        game_base=$(echo "$target_base" | sed -E 's/[[:space:]]*[(]?[Tt]rack[[:space:]]*[0-9]+[)]?//' | sed 's/[[:space:]]*$//')
-        [ -n "$track_number" ] || track_number=1
-        [ -n "$game_base" ] || game_base="$target_base"
-
+    while IFS="$tab" read -r game track_number target_name; do
         # Compared as plain strings: names with [ ] or other pattern
         # characters are matched literally.
-        if [ "$dir_path/$game_base" != "$group" ]; then
+        if [ "$game" != "$group" ]; then
             flush
-            group="$dir_path/$game_base"
+            group="$game"
             tracks=""
         fi
 
