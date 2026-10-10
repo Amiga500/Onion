@@ -15,28 +15,38 @@ GITHUB_REPOSITORY=Amiga500/Onion
 
 # channel : stable or beta
 channel=$(cat "$sysdir/config/ota_channel" 2> /dev/null)
-if [ "$channel" == "" ]; then
+if [ "$channel" = "" ]; then
 	channel="stable"
 fi
 
 main() {
-	if [ "$cmd" == "check" ]; then
+	if [ "$cmd" = "check" ]; then
 		IP=$(ip route get 1 | awk '{print $NF;exit}')
 		if [ "$IP" != "" ]; then
 			get_release_info
-			if [ $? -eq 0 ]; then
-				touch "$sysdir/.updateAvailable"
-				exit 0
-			fi
-			# Up to date: drop a flag left from an update since installed.
-			rm -f "$sysdir/.updateAvailable"
+			case $? in
+				0)
+					touch "$sysdir/.updateAvailable"
+					exit 0
+					;;
+				1)
+					# Up to date: drop a flag left from an update since installed.
+					rm -f "$sysdir/.updateAvailable"
+					;;
+			esac
+			# 2: GitHub didn't answer, the flag stays as it was.
 		fi
 		exit 1
 	fi
 
 	rm $sysdir/cmd_to_run.sh 2> /dev/null
 
+	# Wi-Fi turned on here goes off again however the updater ends.
+	trap restore_wifi EXIT
+	trap 'exit 130' INT TERM HUP
+
 	check_available_space
+	check_wifi_hardware
 	enable_wifi
 	check_connection
 	run_bootstrap
@@ -45,14 +55,22 @@ main() {
 	channel_choice
 
 	get_release_info
-	if [ $? -eq 1 ]; then
-		rm -f "$sysdir/.updateAvailable"
-		echo -ne "${YELLOW}"
-		read -n 1 -s -r -p "Press A to exit"
-		exit 3
-	else
-		touch "$sysdir/.updateAvailable"
-	fi
+	case $? in
+		0)
+			touch "$sysdir/.updateAvailable"
+			;;
+		1)
+			rm -f "$sysdir/.updateAvailable"
+			echo -ne "${YELLOW}"
+			read -n 1 -s -r -p "Press A to exit"
+			exit 3
+			;;
+		*)
+			echo -ne "${YELLOW}"
+			read -n 1 -s -r -p "Press A to exit"
+			exit 8
+			;;
+	esac
 
 	download_update
 	apply_update
@@ -72,11 +90,57 @@ check_available_space() {
 	fi
 }
 
+# The Miyoo Mini (283) has no Wi-Fi: say so instead of waiting for a
+# network that can't come.
+check_wifi_hardware() {
+	if [ "$(cat /tmp/deviceModel 2> /dev/null)" = "283" ]; then
+		echo -e "${RED}This device has no Wi-Fi.${NC}\nTo update, copy the release to the SD card from a PC."
+		echo -ne "${YELLOW}"
+		read -n 1 -s -r -p "Press A to exit"
+		exit 9
+	fi
+}
+
+wifi_setting_on() {
+	[ "$(/customer/app/jsonval wifi 2> /dev/null)" = "1" ]
+}
+
+wait_for_ip() { # seconds
+	i=0
+	while [ $i -lt "$1" ]; do
+		IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
+		[ -n "$IP" ] && return 0
+		sleep 1
+		i=$((i + 1))
+	done
+	return 1
+}
+
+# Turns Wi-Fi off again when the updater turned it on and it is still off in
+# Settings. Nothing else does: the network check only runs after a Wi-Fi
+# change, so the radio stayed on (and connected) until the next restart.
+restore_wifi() {
+	[ "$wifi_started_here" = "1" ] || return 0
+	wifi_started_here=0
+	wifi_setting_on && return 0
+	pkill -9 wpa_supplicant 2> /dev/null
+	pkill -9 udhcpc 2> /dev/null
+	/customer/app/axp_test wifioff > /dev/null 2>&1
+}
+
 enable_wifi() {
 	# Enable wifi if necessary
 	IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
-	if [ "$IP" = "" ]; then
+	if [ "$IP" = "" ] && wifi_setting_on; then
+		# On in Settings but not connected yet (just after start-up, or
+		# reconnecting): wait for it instead of starting a second
+		# wpa_supplicant and killing the system's udhcpc.
+		echo "Waiting for Wi-Fi..."
+		wait_for_ip 20
+		clear
+	elif [ "$IP" = "" ]; then
 		echo "Wifi is disabled - trying to enable it..."
+		wifi_started_here=1
 		insmod /mnt/SDCARD/8188fu.ko 2> /dev/null
 		ifconfig lo up
 		/customer/app/axp_test wifion
@@ -89,13 +153,7 @@ enable_wifi() {
 		pkill -9 udhcpc 2> /dev/null
 		udhcpc -i wlan0 -s /etc/init.d/udhcpc.script > /dev/null 2>&1 &
 		# Up to 20 s for an address; check_connection reports a failure.
-		i=0
-		while [ $i -lt 20 ]; do
-			sleep 1
-			IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
-			[ -n "$IP" ] && break
-			i=$((i + 1))
-		done
+		wait_for_ip 20
 		clear
 	fi
 }
@@ -119,9 +177,16 @@ run_bootstrap() {
 channel_choice() {
 	channel=$(echo -e "stable\nbeta" | $sysdir/script/shellect.sh -t "Select distribution channel:" -b "Press A to validate your choice.")
 	clear
+	# Nothing chosen (B): leave, keeping the saved channel. An empty
+	# ota_channel used to be saved and read as stable.
+	if [ "$channel" != "stable" ] && [ "$channel" != "beta" ]; then
+		exit 0
+	fi
 	echo "$channel" > "$sysdir/config/ota_channel"
 }
 
+# Returns 0 when an update is available, 1 when there is none, 2 when GitHub
+# didn't answer (no network, rate limit): that used to read as "up to date".
 get_release_info() {
 	echo -n "Retrieving release information... "
 
@@ -132,7 +197,12 @@ get_release_info() {
 		# pre-release.yml publishes every build with prerelease:false.
 		# Picked by publish time: GitHub doesn't list releases newest first
 		# (a stable release can come before a newer beta).
-		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '[.[] | select(.draft != true)] | sort_by(.published_at) | last')
+		Release_list=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases)
+		if ! echo "$Release_list" | jq -e 'type == "array"' > /dev/null 2>&1; then
+			release_info_error "$Release_list"
+			return 2
+		fi
+		Release_assets_info=$(echo "$Release_list" | jq '[.[] | select(.draft != true)] | sort_by(.published_at) | last')
 		if [ -z "$Release_assets_info" ] || [ "$Release_assets_info" = "null" ]; then
 			echo -e "${GREEN}DONE${NC}\n\n" \
 				"No update available for $channel channel\n"
@@ -142,13 +212,22 @@ get_release_info() {
 		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest)
 	fi
 
-	if echo "$Release_assets_info" | grep -q '"message": "Not Found"'; then
+	if echo "$Release_assets_info" | grep -q '"message": *"Not Found"'; then
 		echo -e "${GREEN}DONE${NC}\n\n" \
 			"No update available for $channel channel\n"
 		return 1
 	fi
+	if ! echo "$Release_assets_info" | jq -e '.assets' > /dev/null 2>&1; then
+		release_info_error "$Release_assets_info"
+		return 2
+	fi
 
 	Release_asset=$(echo "$Release_assets_info" | jq '.assets[]? | select(.name | contains("OnionPlus-v"))')
+
+	if [ -z "$Release_asset" ]; then
+		release_info_error "no OnionPlus package in the release"
+		return 2
+	fi
 
 	Release_url=$(echo $Release_asset | jq '.browser_download_url' | tr -d '"')
 	Release_FullVersion=$(echo $Release_asset | jq '.name' | tr -d "\"" | sed 's/^OnionPlus-v//g' | sed 's/\.zip$//g')
@@ -199,6 +278,15 @@ get_release_info() {
 	return 0
 }
 
+release_info_error() { # response or reason
+	_msg=$(echo "$1" | jq -r '.message? // empty' 2> /dev/null)
+	[ -n "$_msg" ] || _msg=$(echo "$1" | tr '\n' ' ' | head -c 80)
+	[ -n "$_msg" ] || _msg="no answer"
+	echo -e "${RED}FAIL${NC}\n\n" \
+		"Error: GitHub didn't answer ($_msg).\n" \
+		"Try again in a few minutes.\n"
+}
+
 download_update() {
 	echo -ne "${YELLOW}"
 	read -n 1 -s -r -p "Press A to continue"
@@ -235,6 +323,7 @@ download_update() {
 	else
 		echo -ne "\n\n" \
 			"${RED}Error: Wrong download size${NC} ($Downloaded_size instead of $Release_size)\n"
+		rm -f "$sysdir/download/$Release_Version.zip"
 		echo -ne "${YELLOW}"
 		read -n 1 -s -r -p "Press A to exit"
 		exit 5
@@ -255,6 +344,9 @@ apply_update() {
 
 		if [ $? -eq 0 ]; then
 			echo -e "${GREEN}Decompression successful.${NC}"
+			# Extracted: the package (hundreds of MB) is no longer needed and
+			# used to stay on the card.
+			rm -f "$sysdir/download/$Release_Version.zip"
 			sync
 			sleep 3
 			echo -ne "\n\n" \
