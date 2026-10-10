@@ -157,5 +157,18 @@
 	"154": "Error al connectar-se\nRevisa la contrasenya\nO reinicia el router.",
 	"155": "Lloc web",
 	"300": "SEGÜENT",
-	"301": "CONTINUA"
+	"301": "CONTINUA",
+	"302": "Treure de favorits",
+	"303": "Afegir a favorits",
+	"400": "Crear carpeta",
+	"401": "Moure la selecció",
+	"402": "Moure aquí",
+	"403": "Reanomenar carpeta",
+	"404": "Eliminar carpeta",
+	"405": "Treure de favorits",
+	"406": "Ordenar A-Z",
+	"407": "Tweaks",
+	"408": "Nom del model",
+	"409": "Resolució màxima",
+	"410": "Versió d'Onion"
 }

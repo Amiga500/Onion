@@ -157,5 +157,18 @@
 	"154": "Misslyckades att ansluta\nKontrollera lösenordet\neller starta om routern",
 	"155": "Webbplats",
 	"300": "NÄSTA",
-	"301": "FORTSÄTT"
+	"301": "FORTSÄTT",
+	"302": "Ta bort favorit",
+	"303": "Lägg till favorit",
+	"400": "Skapa mapp",
+	"401": "Flytta markerad",
+	"402": "Flytta hit",
+	"403": "Byt namn på mapp",
+	"404": "Ta bort mapp",
+	"405": "Ta bort från favoriter",
+	"406": "Sortera A-Z",
+	"407": "Tweaks",
+	"408": "Modellnamn",
+	"409": "Max upplösning",
+	"410": "Onion-version"
 }

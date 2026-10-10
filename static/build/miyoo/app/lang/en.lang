@@ -159,5 +159,16 @@
 	"300": "NEXT",
 	"301": "RESUME",
 	"302": "Remove favorite",
-	"303": "Add favorite"
+	"303": "Add favorite",
+	"400": "Create folder",
+	"401": "Move selected",
+	"402": "Move here",
+	"403": "Rename folder",
+	"404": "Delete folder",
+	"405": "Remove Favorite",
+	"406": "Sort A-Z",
+	"407": "Tweaks",
+	"408": "Model name",
+	"409": "Max resolution",
+	"410": "Onion version"
 }

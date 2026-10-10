@@ -157,5 +157,18 @@
 	"154": "Échec de la connexion.\nVérifiez le mot de passe\nou redémarrez le routeur",
 	"155": "Website",
 	"300": "Suivant",
-	"301": "Reprendre"
+	"301": "Reprendre",
+	"302": "Retirer des favoris",
+	"303": "Ajouter aux favoris",
+	"400": "Créer un dossier",
+	"401": "Déplacer la sélection",
+	"402": "Déplacer ici",
+	"403": "Renommer le dossier",
+	"404": "Supprimer le dossier",
+	"405": "Retirer des favoris",
+	"406": "Trier de A à Z",
+	"407": "Tweaks",
+	"408": "Nom du modèle",
+	"409": "Résolution max.",
+	"410": "Version d'Onion"
 }

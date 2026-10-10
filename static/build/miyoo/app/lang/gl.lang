@@ -157,5 +157,18 @@
 	"154": "Erro ao conectarse\nComproba o teu contrasinal\nOu reinicia o router",
 	"155": "Sitio web",
 	"300": "Próximo",
-	"301": "Reanudar"
+	"301": "Reanudar",
+	"302": "Quitar favorito",
+	"303": "Engadir favorito",
+	"400": "Crear cartafol",
+	"401": "Mover selección",
+	"402": "Mover aquí",
+	"403": "Renomear cartafol",
+	"404": "Eliminar cartafol",
+	"405": "Quitar de favoritos",
+	"406": "Ordenar A-Z",
+	"407": "Tweaks",
+	"408": "Nome do modelo",
+	"409": "Resolución máx.",
+	"410": "Versión de Onion"
 }

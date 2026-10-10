@@ -157,5 +157,18 @@
 	"154": "Nem sikerült kapcsolódni\nEllenőrizd a jelszót\nVagy indítsd újra a routert",
 	"155": "Weboldal",
 	"300": "KÖVETKEZŐ",
-	"301": "FOLYTATÁS"
+	"301": "FOLYTATÁS",
+	"302": "Kedvenc eltávolítása",
+	"303": "Kedvenc hozzáadása",
+	"400": "Mappa létrehozása",
+	"401": "Kijelölt áthelyezése",
+	"402": "Áthelyezés ide",
+	"403": "Mappa átnevezése",
+	"404": "Mappa törlése",
+	"405": "Kedvenc eltávolítása",
+	"406": "Rendezés A-Z",
+	"407": "Tweaks",
+	"408": "Modellnév",
+	"409": "Max. felbontás",
+	"410": "Onion verzió"
 }

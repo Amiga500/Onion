@@ -157,5 +157,18 @@
 	"154": "Impossibile connettersi\nControlla la tua password\noppure riavvia il router",
 	"155": "Sito web",
 	"300": "Prossimo",
-	"301": "Riprendere"
+	"301": "Riprendere",
+	"302": "Rimuovi preferito",
+	"303": "Aggiungi preferito",
+	"400": "Crea cartella",
+	"401": "Sposta selezionato",
+	"402": "Sposta qui",
+	"403": "Rinomina cartella",
+	"404": "Elimina cartella",
+	"405": "Rimuovi dai preferiti",
+	"406": "Ordina A-Z",
+	"407": "Tweaks",
+	"408": "Nome modello",
+	"409": "Risoluzione max",
+	"410": "Versione Onion"
 }

@@ -157,5 +157,18 @@
 	"154": "Gagal sambung\nPeriksa sandi\nAtau hidupkan ulang router",
 	"155": "Situs Web",
 	"300": "LANJUT",
-	"301": "ULANG"
+	"301": "ULANG",
+	"302": "Hapus favorit",
+	"303": "Tambah favorit",
+	"400": "Buat folder",
+	"401": "Pindahkan pilihan",
+	"402": "Pindahkan ke sini",
+	"403": "Ganti nama folder",
+	"404": "Hapus folder",
+	"405": "Hapus dari favorit",
+	"406": "Urutkan A-Z",
+	"407": "Tweaks",
+	"408": "Nama model",
+	"409": "Resolusi maks.",
+	"410": "Versi Onion"
 }
