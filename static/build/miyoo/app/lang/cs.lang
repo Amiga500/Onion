@@ -157,5 +157,18 @@
 	"154": "Připojení selhalo\nZkontrolujte údaje\nNebo restartujte router",
 	"155": "Web",
 	"300": "DALŠÍ",
-	"301": "POKRAČOVAT"
+	"301": "POKRAČOVAT",
+	"302": "Odebrat oblíbené",
+	"303": "Přidat do oblíbených",
+	"400": "Vytvořit složku",
+	"401": "Přesunout vybrané",
+	"402": "Přesunout sem",
+	"403": "Přejmenovat složku",
+	"404": "Smazat složku",
+	"405": "Odebrat oblíbené",
+	"406": "Seřadit A-Z",
+	"407": "Tweaks",
+	"408": "Název modelu",
+	"409": "Max. rozlišení",
+	"410": "Verze Onion"
 }

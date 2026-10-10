@@ -157,5 +157,18 @@
 	"154": "Eșec la conectare\nVerificați parola\nSau reporniți routerul",
 	"155": "Website",
 	"300": "URMĂTORUL",
-	"301": "REIA"
+	"301": "REIA",
+	"302": "Scoate din favorite",
+	"303": "Adaugă la favorite",
+	"400": "Creează dosar",
+	"401": "Mută selecția",
+	"402": "Mută aici",
+	"403": "Redenumire dosar",
+	"404": "Șterge dosarul",
+	"405": "Scoate din favorite",
+	"406": "Sortează A-Z",
+	"407": "Tweaks",
+	"408": "Nume model",
+	"409": "Rezoluție max.",
+	"410": "Versiune Onion"
 }

@@ -157,5 +157,18 @@
 	"154": "Falha a ligar à rede\nVerifique a palavra-passe\nOu reinicie o router",
 	"155": "Website",
 	"300": "PRÓXIMO",
-	"301": "CONTINUAR"
+	"301": "CONTINUAR",
+	"302": "Remover favorito",
+	"303": "Adicionar favorito",
+	"400": "Criar pasta",
+	"401": "Mover selecionado",
+	"402": "Mover para aqui",
+	"403": "Renomear pasta",
+	"404": "Eliminar pasta",
+	"405": "Remover favorito",
+	"406": "Ordenar A-Z",
+	"407": "Tweaks",
+	"408": "Nome do modelo",
+	"409": "Resolução máx.",
+	"410": "Versão do Onion"
 }
