@@ -157,5 +157,18 @@
 	"154": "Tilkobling mislyktes\nSjekk passordet\neller restart routeren din",
 	"155": "Nettside",
 	"300": "NESTE",
-	"301": "FORTSETT"
+	"301": "FORTSETT",
+	"302": "Fjern favoritt",
+	"303": "Legg til favoritt",
+	"400": "Opprett mappe",
+	"401": "Flytt valgt",
+	"402": "Flytt hit",
+	"403": "Gi mappen nytt navn",
+	"404": "Slett mappe",
+	"405": "Fjern fra favoritter",
+	"406": "Sorter A-Z",
+	"407": "Tweaks",
+	"408": "Modellnavn",
+	"409": "Maks. oppløsning",
+	"410": "Onion-versjon"
 }

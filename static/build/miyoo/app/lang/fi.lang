@@ -157,5 +157,18 @@
   "154": "Yhteyden muodostaminen epäonnistui\nTarkista salasana\nTai uudelleenkäynnistä reititin",
   "155": "Nettisivu",
   "300": "SEURAAVA",
-  "301": "JATKA"
+  "301": "JATKA",
+  "302": "Poista suosikki",
+  "303": "Lisää suosikki",
+  "400": "Luo kansio",
+  "401": "Siirrä valittu",
+  "402": "Siirrä tähän",
+  "403": "Nimeä kansio",
+  "404": "Poista kansio",
+  "405": "Poista suosikeista",
+  "406": "Lajittele A-Z",
+  "407": "Tweaks",
+  "408": "Mallin nimi",
+  "409": "Suurin resoluutio",
+  "410": "Onion-versio"
 }

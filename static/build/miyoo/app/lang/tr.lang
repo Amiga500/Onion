@@ -157,5 +157,18 @@
 	"154": "Bağlanamadı\nŞifrenizi Kontrol ediniz\nveya Modeminizi kapatıp açınız",
 	"155": "Website",
 	"300": "İLERİ",
-	"301": "Sürdürmek"
+	"301": "Sürdürmek",
+	"302": "Favoriden kaldır",
+	"303": "Favoriye ekle",
+	"400": "Klasör oluştur",
+	"401": "Seçileni taşı",
+	"402": "Buraya taşı",
+	"403": "Yeniden adlandır",
+	"404": "Klasörü sil",
+	"405": "Favorilerden kaldır",
+	"406": "A-Z sırala",
+	"407": "Tweaks",
+	"408": "Model adı",
+	"409": "Maks. çözünürlük",
+	"410": "Onion sürümü"
 }

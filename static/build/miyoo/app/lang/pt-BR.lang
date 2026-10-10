@@ -157,5 +157,18 @@
     "154": "Erro ao conectar\nVerifique sua senha\nOu reinicie seu roteador",
     "155": "Site",
     "300": "PRÓXIMO",
-    "301": "CONTINUAR"
+    "301": "CONTINUAR",
+    "302": "Remover favorito",
+    "303": "Adicionar favorito",
+    "400": "Criar pasta",
+    "401": "Mover selecionado",
+    "402": "Mover para cá",
+    "403": "Renomear pasta",
+    "404": "Excluir pasta",
+    "405": "Remover favorito",
+    "406": "Ordenar A-Z",
+    "407": "Tweaks",
+    "408": "Nome do modelo",
+    "409": "Resolução máx.",
+    "410": "Versão do Onion"
 }
