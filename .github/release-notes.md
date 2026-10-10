@@ -44,6 +44,11 @@ The stock MainUI is kept on the card. To switch back without reinstalling, creat
 - **OTA with Wi-Fi off:** the updater stayed on a black screen when Wi-Fi was off. It now turns Wi-Fi on, waits up to 20 seconds, and otherwise asks you to turn it on in Settings.
 - **OTA beta channel:** the beta channel takes the newest published build. It could offer an older one, because GitHub doesn't always list releases newest first.
 
+## 🔧 New in beta 6
+
+- **"Update available!" at every start (inherited from Onion):** the message stayed after the update was installed, and while it was shown the start-up check didn't run again. The installer now clears it, and so does the check when you're up to date.
+- **OTA offering an older build:** with the same version number (4.4.0), any different build counted as an update, even an older one, so a beta could be offered the stable release. Builds of the same version are now compared by date, and an older one is never offered.
+
 ## ⚠️ Known issues
 
 - **Refresh list** appears both in Game List Options and in the Select menu; the Game List Options entry will be removed.

@@ -304,6 +304,11 @@ run_installation() {
 
     run_migration_scripts
 
+    # The update this flag announced is the one just installed. Nothing else
+    # removed it, and the boot check skips while it exists, so "Update
+    # available!" stayed on every boot after an update.
+    rm -f /mnt/SDCARD/.tmp_update/.updateAvailable
+
     if [ -d "/mnt/SDCARD/Emu/drastic" ]; then
         echo "Migrating drastic ..."
         cd /mnt/SDCARD/.tmp_update/script
