@@ -157,5 +157,18 @@
 	"154": "Błąd połączenia\nSprawdź swoje hasło\nLub zrestartuj router",
 	"155": "Strona internetowa",
 	"300": "DALEJ",
-	"301": "WZNÓW"
+	"301": "WZNÓW",
+	"302": "Usuń z ulubionych",
+	"303": "Dodaj do ulubionych",
+	"400": "Utwórz folder",
+	"401": "Przenieś zaznaczone",
+	"402": "Przenieś tutaj",
+	"403": "Zmień nazwę folderu",
+	"404": "Usuń folder",
+	"405": "Usuń z ulubionych",
+	"406": "Sortuj A-Z",
+	"407": "Tweaks",
+	"408": "Nazwa modelu",
+	"409": "Maks. rozdzielczość",
+	"410": "Wersja Onion"
 }

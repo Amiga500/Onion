@@ -157,5 +157,18 @@
 	"154": "Verbindung fehlgeschlagen\nÜberprüfe das Passwort\nOder starte Router neu",
 	"155": "Webseite",
 	"300": "Nächste",
-	"301": "Fortsetzen"
+	"301": "Fortsetzen",
+	"302": "Favorit entfernen",
+	"303": "Favorit hinzufügen",
+	"400": "Ordner erstellen",
+	"401": "Auswahl verschieben",
+	"402": "Hierher verschieben",
+	"403": "Ordner umbenennen",
+	"404": "Ordner löschen",
+	"405": "Favorit entfernen",
+	"406": "A-Z sortieren",
+	"407": "Tweaks",
+	"408": "Modellname",
+	"409": "Max. Auflösung",
+	"410": "Onion-Version"
 }

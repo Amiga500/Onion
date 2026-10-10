@@ -157,5 +157,18 @@
 	"154": "Kan geen verbinding maken\nControleer uw wachtwoord\nHerstart de router",
 	"155": "Website",
 	"300": "VOLGENDE",
-	"301": "DOORGAAN"
+	"301": "DOORGAAN",
+	"302": "Favoriet verwijderen",
+	"303": "Favoriet toevoegen",
+	"400": "Map maken",
+	"401": "Selectie verplaatsen",
+	"402": "Hierheen verplaatsen",
+	"403": "Map hernoemen",
+	"404": "Map verwijderen",
+	"405": "Favoriet verwijderen",
+	"406": "Sorteren A-Z",
+	"407": "Tweaks",
+	"408": "Modelnaam",
+	"409": "Max. resolutie",
+	"410": "Onion-versie"
 }
