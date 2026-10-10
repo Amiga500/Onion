@@ -347,6 +347,7 @@ OTA="$ROOT/static/build/.tmp_update/script/ota_update.sh"
 if command -v jq > /dev/null; then
     eval "$(extract_fn "$OTA" get_release_info)"
     eval "$(grep '^get_version()' "$OTA")"
+    eval "$(grep '^build_date()' "$OTA")"
 
     ota_asset() { # tag, prerelease (true/false), published_at (default: from the tag date)
         _pub=${3:-$(echo "$1" | sed 's/^.*-\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)-.*$/\1-\2-\3T12:00:00Z/')}
@@ -394,6 +395,25 @@ if command -v jq > /dev/null; then
     ota_asset 4.4.0-beta-20260926-aaaaaaaa false > "$TMP/latest.json"
     get_release_info > /dev/null
     check "installed build: up to date" test "$?" -eq 1
+    end
+
+    begin ota_never_offers_an_older_build
+    # A device on beta 6 (10 Oct) must not be offered the stable of 9 Oct.
+    installUI() { echo "4.4.0-beta-20261010-f7c522a5"; }
+    channel=stable
+    ota_asset 4.4.0-beta-20261009-8c2d8c75 false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "older stable: not offered" test "$?" -eq 1
+    ota_asset 4.4.0-beta-20261010-0badc0de false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "same-day build: offered" test "$?" -eq 0
+    ota_asset 4.4.0-beta-20261011-1234abcd false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "newer build: offered" test "$?" -eq 0
+    check "build date parsed" test "$(build_date 4.4.0-beta-20261010-f7c522a5)" = 20261010
+    check "date only: parsed" test "$(build_date 4.4.0-beta-20261010)" = 20261010
+    check "no date: empty" test -z "$(build_date 4.4.0)"
+    installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
     unset -f curl installUI ota_asset
 else
@@ -650,6 +670,29 @@ chmod +x "$TMP/script/reset_list.sh"
 check "Refresh list runs the filter refresh" test "$(cat "$TMP/filter_args")" = "refresh $emupath"
 check "Refresh list drops active_filter" test ! -e "$emupath/active_filter"
 unset -f sqlite3 filter log
+end
+
+# ---- "Update available!" goes away once the update is installed ----
+
+INSTALLER="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
+
+begin update_flag_cleared_after_update
+check "installer removes .updateAvailable" \
+    sh -c "sed -n '/^run_installation() {/,/^}/p' \"$INSTALLER\" | grep -q 'rm -f /mnt/SDCARD/.tmp_update/.updateAvailable'"
+check "OTA check removes it when up to date" \
+    sh -c "sed -n '/^main() {/,/^}/p' \"$OTA\" | grep -c 'rm -f \"\$sysdir/.updateAvailable\"' | grep -qx 2"
+# Run the real check mode: up to date drops the flag, newer release sets it.
+eval "$(extract_fn "$OTA" main)"
+ip() { echo "1.0.0.0 via 10.0.0.1 dev wlan0 src 10.0.0.2"; }
+sysdir=$TMP
+touch "$TMP/.updateAvailable"
+get_release_info() { return 1; }
+(cmd=check; main) > /dev/null 2>&1
+check "boot check, up to date: flag removed" test ! -e "$TMP/.updateAvailable"
+get_release_info() { return 0; }
+(cmd=check; main) > /dev/null 2>&1
+check "boot check, newer release: flag set" test -e "$TMP/.updateAvailable"
+unset -f ip get_release_info main
 end
 
 echo ""
