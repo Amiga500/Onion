@@ -28,6 +28,8 @@ main() {
 				touch "$sysdir/.updateAvailable"
 				exit 0
 			fi
+			# Up to date: drop a flag left from an update since installed.
+			rm -f "$sysdir/.updateAvailable"
 		fi
 		exit 1
 	fi
@@ -44,6 +46,7 @@ main() {
 
 	get_release_info
 	if [ $? -eq 1 ]; then
+		rm -f "$sysdir/.updateAvailable"
 		echo -ne "${YELLOW}"
 		read -n 1 -s -r -p "Press A to exit"
 		exit 3
@@ -181,6 +184,17 @@ get_release_info() {
 		return 1
 	fi
 
+	# Same version number: builds differ by date (4.4.0-beta-YYYYMMDD-<commit>).
+	# An older build, such as the stable release offered to a device on a
+	# newer beta, is not an update. Same-day builds are still offered.
+	current_date=$(build_date "$Current_FullVersion")
+	release_date=$(build_date "$Release_FullVersion")
+	if [ $v1 -eq $v2 ] && [ -n "$current_date" ] && [ -n "$release_date" ] &&
+		[ "$release_date" -lt "$current_date" ]; then
+		echo -e "Installed build is newer ($current_date)\n"
+		return 1
+	fi
+
 	echo -e "${GREEN}Update available!${NC}\n"
 	return 0
 }
@@ -262,6 +276,9 @@ apply_update() {
 		exit 7
 	fi
 }
+
+# Build date (YYYYMMDD) of a version such as 4.4.0-beta-20261010-f7c522a5.
+build_date() { echo "$1" | sed -n -e 's/^.*-\([0-9]\{8\}\)-[0-9a-f]\{7,\}$/\1/p' -e 's/^.*-\([0-9]\{8\}\)$/\1/p' | head -n 1; }
 
 get_version() { echo "$@" | tr -d [:alpha:] | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
 
