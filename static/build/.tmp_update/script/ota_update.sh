@@ -102,7 +102,8 @@ check_wifi_hardware() {
 }
 
 wifi_setting_on() {
-	[ "$(/customer/app/jsonval wifi 2> /dev/null)" = "1" ]
+	# Same test as wifi_enabled in update_networking.sh.
+	[ "$(/customer/app/jsonval wifi 2> /dev/null)" -eq 1 ] 2> /dev/null
 }
 
 wait_for_ip() { # seconds
