@@ -48,8 +48,6 @@ The stock MainUI is kept on the card. To switch back without reinstalling, creat
 
 - **"Update available!" at every start (inherited from Onion):** the message stayed after the update was installed, and while it was shown the start-up check didn't run again. The installer now clears it, and so does the check when you're up to date.
 - **OTA offering an older build:** with the same version number (4.4.0), any different build counted as an update, even an older one, so a beta could be offered the stable release. Builds of the same version are now compared by date, and an older one is never offered.
-- **OTA and Wi-Fi:** with Wi-Fi off in Settings, the updater turns it on for the update and now turns it off again when it closes; it used to stay on until the next restart. Opened just after start-up, while the network is still coming up in the background, it waits for that to finish first. With Wi-Fi on but still connecting, the updater waits for it instead of restarting it.
-- **OTA errors:** when GitHub doesn't answer (no connection, or too many checks in an hour), the updater says so instead of "Version is up to date", and the "Update available!" notice is kept. B on the channel choice closes the updater and keeps the saved channel. The downloaded package is deleted once extracted, instead of staying on the card. On the Mini, which has no Wi-Fi, the updater says so instead of waiting.
 
 ## 🆕 New in beta 7
 
@@ -71,6 +69,12 @@ Tweaks › Tools › Generate CUE files, which the M3U generator also uses, wrot
 > If you used Generate CUE files before, delete the CUE files it made and run it again: it no longer replaces them. You can recognise them by a folder name in their `FILE` lines (for example `FILE "PS/...`). Don't delete CUE files that came with your games.
 
 Thanks to @yuruyang for the report and the review.
+
+### 🔧 Fixes
+
+- **Brightness:** a brightness set in the GameSwitcher went back to the old value in the main menu, also when going back to the menu from the game. Fixed, together with the display settings (contrast, hue, saturation, luminance) changed in Tweaks, which could be undone the same way.
+- **OTA and Wi-Fi:** with Wi-Fi off in Settings, the updater turns it on for the update and now turns it off again when it closes; it used to stay on until the next restart. Opened just after start-up, while the network is still coming up in the background, it waits for that to finish first. With Wi-Fi on but still connecting, the updater waits for it instead of restarting it.
+- **OTA errors:** when GitHub doesn't answer (no connection, or too many checks in an hour), the updater says so instead of "Version is up to date", and the "Update available!" notice is kept. B on the channel choice closes the updater and keeps the saved channel. The downloaded package is deleted once extracted, instead of staying on the card. On the Mini, which has no Wi-Fi, the updater says so instead of waiting.
 
 ## ⚠️ Known issues
 
