@@ -164,13 +164,18 @@ int main(int argc, char *argv[])
     if (has_message) {
         char *str = str_replace(message_str, "\\n", "\n");
         printf_debug("Message: %s\n", str);
-        message = theme_textboxSurface(str, resource_getFont(TITLE),
-                                       theme()->grid.color, ALIGN_CENTER);
+        // The message fits the screen width, 20 px from each side, and
+        // leaves room for at least one choice below it. Positions are for
+        // 640x480 and scaled, as the list below it is.
+        message = theme_textboxSurfaceFit(
+            str ? str : message_str, theme()->grid.color, ALIGN_CENTER,
+            g_display.width - (int)(40.0 * g_scale), (int)(280.0 * g_scale));
         free(str);
 
         if (message) {
-            int max_scroll_height = (360 - (message->h + 20)) / 60;
-            if (max_scroll_height == 0)
+            int max_scroll_height =
+                (int)((360.0 * g_scale - (message->h + 20.0 * g_scale)) / (60.0 * g_scale));
+            if (max_scroll_height < 1)
                 max_scroll_height = 1;
             else if (max_scroll_height > 6)
                 max_scroll_height = 6;
@@ -178,9 +183,9 @@ int main(int argc, char *argv[])
                 list.scroll_height = list.item_count;
             else
                 list.scroll_height = max_scroll_height;
-            message_rect.x = 320 - message->w / 2;
-            message_rect.y =
-                60 + (6 - list.scroll_height) * 30 - message->h / 2;
+            message_rect.x = g_display.width / 2 - message->w / 2;
+            message_rect.y = (int)((60 + (6 - list.scroll_height) * 30) * g_scale) -
+                             message->h / 2;
         }
         else {
             has_message = false;
