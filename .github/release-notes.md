@@ -74,6 +74,7 @@ Thanks to @yuruyang for the report and the review.
 
 - **Brightness:** a brightness set in the GameSwitcher went back to the old value in the main menu, also when going back to the menu from the game. Fixed, together with the display settings (contrast, hue, saturation, luminance) changed in Tweaks, which could be undone the same way.
 - **OTA and Wi-Fi:** with Wi-Fi off in Settings, the updater turns it on for the update and now turns it off again when it closes; it used to stay on until the next restart. Opened just after start-up, while the network is still coming up in the background, it waits for that to finish first. With Wi-Fi on but still connecting, the updater waits for it instead of restarting it. Turning Wi-Fi on now waits for the Wi-Fi chip and for the network, up to about a minute: the 20 seconds it allowed before were often too short on the Mini Plus, and the updater then reported github.com unreachable.
+- **Long messages cut off (robcodedev/onionos-mainui-opensource#21):** with a theme that uses a large font, long lines in message screens and popups (the gpSP save transfer question, a port's first-run notice) ran off the edge of the screen. The text now shrinks to fit. On the Mini v4 and Mini Flip the gpSP question is also centred. Thanks to QuackWalks.
 - **OTA errors:** when GitHub doesn't answer (no connection, or too many checks in an hour), the updater says so instead of "Version is up to date", and the "Update available!" notice is kept. The downloaded package is deleted once extracted, instead of staying on the card. On the Mini, which has no Wi-Fi, the updater says so instead of waiting.
 
 ## ⚠️ Known issues
@@ -96,6 +97,7 @@ Switch the OTA updater to the **beta** channel to receive this build. Useful thi
 - Tweaks › Tools › Generate CUE files on a multi-track or multi-disc game
 - The Apps list in alphabetical order
 - Consoles with `.cue` and `.bin` games after Refresh roms
+- Message screens with a theme that uses a large font, such as the gpSP save transfer question
 
 Please report OnionPlus issues on the [OnionPlus tracker](https://github.com/Amiga500/Onion/issues), with your model, the version (from `.tmp_update/onionVersion/version.txt`) and the steps to reproduce.
 
