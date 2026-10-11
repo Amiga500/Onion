@@ -131,6 +131,22 @@ wait_for_wlan0() { # seconds
 	wlan0_present
 }
 
+wlan0_linked() {
+	[ "$(cat /sys/class/net/wlan0/operstate 2> /dev/null)" = "up" ]
+}
+
+# udhcpc started before wpa_supplicant has joined the network sends its
+# first requests into the void and then pauses 20 s before trying again:
+# with a 20 s limit no address ever came. Start it once the link is up.
+wait_for_link() { # seconds
+	i=0
+	while ! wlan0_linked && [ $i -lt $(($1 * 2)) ]; do
+		sleep 0.5
+		i=$((i + 1))
+	done
+	wlan0_linked
+}
+
 wait_for_ip() { # seconds
 	i=0
 	while [ $i -lt "$1" ]; do
@@ -203,10 +219,12 @@ enable_wifi() {
 		# not on the PATH of apps, and udhcpc in the foreground never returns
 		# without a network: the updater stayed on a black screen.
 		/mnt/SDCARD/miyoo/app/wpa_supplicant -B -D nl80211 -iwlan0 -c /appconfigs/wpa_supplicant.conf
+		wait_for_link 20
 		pkill -9 udhcpc 2> /dev/null
 		udhcpc -i wlan0 -s /etc/init.d/udhcpc.script > /dev/null 2>&1 &
-		# Up to 20 s for an address; check_connection reports a failure.
-		wait_for_ip 20
+		# Up to 30 s for an address (udhcpc retries after a 20 s pause);
+		# check_connection reports a failure.
+		wait_for_ip 30
 		clear
 	fi
 }

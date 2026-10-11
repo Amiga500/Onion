@@ -558,6 +558,21 @@ check "bring-up waits for wlan0, not a fixed 2 s" sh -c "sed -n '/^enable_wifi()
 unset -f wlan0_present sleep wait_for_wlan0
 end
 
+begin ota_dhcp_after_link_up
+eval "$(extract_fn "$OTA" wait_for_link)"
+wlan0_linked() { echo x >> "$TMP/looks"; [ "$(wc -l < "$TMP/looks")" -ge 5 ]; }
+sleep() { echo "$1" >> "$TMP/slept"; }
+wait_for_link 20
+check "waits for the network to be joined" test $? -eq 0 -a "$(wc -l < "$TMP/slept")" -eq 4
+rm -f "$TMP/slept"
+wlan0_linked() { return 1; }
+wait_for_link 20
+check "never joined: goes on after 20 s" test $? -eq 1 -a "$(wc -l < "$TMP/slept")" -eq 40
+check "udhcpc started after the link is up" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A3 'wpa_supplicant -B' | grep -q 'wait_for_link'"
+check "address awaited past udhcpc's 20 s pause" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -q 'wait_for_ip 30'"
+unset -f wlan0_linked sleep wait_for_link
+end
+
 begin ota_channel_cancel_keeps_channel
 mkdir -p "$TMP/script" "$TMP/config"
 sysdir=$TMP
