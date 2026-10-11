@@ -56,6 +56,7 @@ typedef struct settings_s {
     int ingame_double_press;
     bool disable_standby;
     int pwmfrequency;
+    int launch_screen; // LOADING/SAVING screen: 0 popup, 1 full screen, 2 black
     bool enable_logging;
     bool rec_indicator;
     bool rec_hotkey;
@@ -124,6 +125,7 @@ static settings_s __default_settings = (settings_s){
     .blue_light_time = "20:00",
     .blue_light_time_off = "08:00",
     .pwmfrequency = 7,
+    .launch_screen = 0,
     .lid_close_action = 0,
     .mainui_button_x = "",
     .mainui_button_y = "",
@@ -254,6 +256,7 @@ void settings_load(void)
     }
     config_get("display/blueLightRGB", CONFIG_INT, &settings.blue_light_rgb);
     config_get("pwmfrequency", CONFIG_INT, &settings.pwmfrequency);
+    config_get("display/launchScreen", CONFIG_INT, &settings.launch_screen);
     config_get("recCountdown", CONFIG_INT, &settings.rec_countdown);
     config_get("flip/lidCloseAction", CONFIG_INT, &settings.lid_close_action);
 
@@ -480,6 +483,7 @@ void _settings_save_impl(bool notify)
     _settings_save_string("display/blueLightTimeOff", settings.blue_light_time_off, old->blue_light_time_off, force);
     _settings_save_number("flip/lidCloseAction", settings.lid_close_action, old->lid_close_action, force);
     _settings_save_number("pwmfrequency", settings.pwmfrequency, old->pwmfrequency, force);
+    _settings_save_number("display/launchScreen", settings.launch_screen, old->launch_screen, force);
 
     // remove deprecated flags (once per process is enough)
     if (!_settings_deprecated_cleaned) {

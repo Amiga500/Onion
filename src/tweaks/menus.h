@@ -587,7 +587,7 @@ void menu_userInterface(void *_)
     settings.blue_light_state = config_flag_get(".blfOn");
     all_changed = true;
     if (!_menu_user_interface._created) {
-        _menu_user_interface = list_createWithTitle(6, LIST_SMALL, "Appearance");
+        _menu_user_interface = list_createWithTitle(7, LIST_SMALL, "Appearance");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){.label = "Game lists...", .action = menu_gameLists},
                                  "Rows, text size, title scrolling,\n"
@@ -596,6 +596,17 @@ void menu_userInterface(void *_)
                                  (ListItem){.label = "Main menu...", .action = menu_mainMenu},
                                  "Sections of the main menu (Recents,\n"
                                  "Expert...) and the context menu entries.");
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Loading/saving screen",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 2,
+                                     .value_labels = {"Popup", "Full screen", "Black"},
+                                     .value = settings.launch_screen,
+                                     .action = action_setLaunchScreen},
+                                 "Shown while a game starts or saves:\n"
+                                 "the game screenshot with a popup,\n"
+                                 "the screenshot alone, or black.");
         display_init(true);
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){

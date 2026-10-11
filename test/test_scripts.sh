@@ -958,6 +958,32 @@ check "region after the track: nothing skipped" test -z "$(grep '^SKIP' "$TMP/cu
 check "totals reported" grep -q '^8 cue files created$' "$TMP/cue_gen.log"
 end
 
+# ---- runtime.sh: LOADING/SAVING screen per Tweaks setting ----
+
+eval "$(extract_fn "$RUNTIME" show_launch_screen)"
+
+begin launch_screen_follows_tweaks_setting
+sysdir=$TMP
+mkdir -p "$TMP/config/display"
+infoPanel() { echo "infoPanel $*" >> "$TMP/calls"; }
+bootScreen() { echo "bootScreen $*" >> "$TMP/calls"; }
+touch() { echo "touch $*" >> "$TMP/calls"; }
+show_launch_screen LOADING; wait
+check "no setting: popup with the message, as in Onion" grep -qx 'infoPanel --message LOADING --persistent --romscreen' "$TMP/calls"
+rm -f "$TMP/calls"
+echo 1 > "$TMP/config/display/launchScreen"
+show_launch_screen SAVING; wait
+check "full screen: screenshot without message" grep -qx 'infoPanel --persistent --romscreen' "$TMP/calls"
+check "full screen: dismissed like the popup" grep -qx 'touch /tmp/dismiss_info_panel' "$TMP/calls"
+rm -f "$TMP/calls"
+echo 2 > "$TMP/config/display/launchScreen"
+show_launch_screen LOADING; wait
+check "black: screen cleared, no infoPanel" test "$(cat "$TMP/calls")" = "bootScreen clear"
+check "both screens use it" test "$(grep -c 'show_launch_screen "\(LOADING\|SAVING\)"' "$RUNTIME")" -eq 2
+check "no direct LOADING/SAVING infoPanel left" sh -c "! grep -q 'infoPanel --message \"\(LOADING\|SAVING\)\"' \"$RUNTIME\""
+unset -f infoPanel bootScreen touch show_launch_screen
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
