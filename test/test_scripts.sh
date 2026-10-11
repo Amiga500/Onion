@@ -604,8 +604,13 @@ start_wpa_supplicant() { echo wpa >> "$TMP/steps"; }
 wait_for_link() { echo "link $1" >> "$TMP/steps"; }
 wait_for_ip() { echo "ip $1" >> "$TMP/steps"; }
 enable_wifi > /dev/null 2>&1
-wait
-# udhcpc runs in the background: its line may come after "ip 20".
+# udhcpc runs in the background: its line may come after "ip 20". Poll
+# for it (a bare `wait` would also wait for any job left by other tests).
+n=0
+while ! grep -qx udhcpc "$TMP/steps" && [ $n -lt 50 ]; do
+    command sleep 0.1
+    n=$((n + 1))
+done
 check "wpa_supplicant, up to 50 s for the link, then udhcpc" test "$(grep -v '^udhcpc$' "$TMP/steps" | tr '\n' ' ')" = "pkill -9 wpa_supplicant wpa link 50 pkill -9 udhcpc ip 20 "
 check "udhcpc started" grep -qx udhcpc "$TMP/steps"
 unset -f ip sleep clear insmod ifconfig iw pkill udhcpc wifi_radio_running wait_for_wlan0 start_wpa_supplicant wait_for_link wait_for_ip
