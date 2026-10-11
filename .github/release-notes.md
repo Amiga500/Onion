@@ -1,13 +1,38 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅⚡ OnionPlus beta 7: Open MainUI 1.0.6, every label translated, CUE generator fixed
+# 🧅⚡ OnionPlus beta 7: Open MainUI 1.0.7, every label translated, CUE generator fixed
 
 > 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on the stable release of 9 October (`8c2d8c75`), which already has Open MainUI 1.0.5, until this beta is promoted.
 
-This beta is the current stable release with **Open MainUI 1.0.6** by @robcodedev, its labels translated in every language, and a CUE generator that writes working files. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
+This beta is the current stable release with **Open MainUI 1.0.7** by @robcodedev, its labels translated in every language, and a CUE generator that writes working files. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
 
 OnionPlus is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 
-## 🆕 Open MainUI 1.0.6
+## 🆕 Open MainUI 1.0.7 (new in beta 7)
+
+### 🎮 Buttons
+
+- **Expert shortcut (robcodedev/onionos-mainui-opensource#22):** Onion's Expert app opens Expert, also when Expert is hidden on the main menu. Set as the X or Y shortcut in Tweaks, it only made the screen flash; started from Apps, it went back to Apps. Thanks to @fengfrw.
+- **Y on a game** opens Game List Options every time when that is the Y shortcut in Tweaks (Onion's default). Shortly after boot or a game, the press could be missed and the game started instead. Y now acts when it is released, so an app set as the Y shortcut is no longer launched or added to Recents by mistake. With no Y shortcut, Y starts the game as A does.
+- **Select and Start** act when they are released, as in stock, and not after a combo: while one of them is held, the other buttons are Onion's shortcuts (brightness, volume boost, CPU clock), and the context menu no longer stays open or a list reloads after them.
+- On the Mini, a Menu long press just after Select with L2 or R2 opens the context menu again.
+
+### 🎨 Screens
+
+- **Startup tab:** the tab chosen in Tweaks (Recents, Favorites, Games, Expert or Apps) opens at boot, as with stock. Open MainUI always started on the main menu.
+- **Hotspot:** while Onion's Wi-Fi hotspot runs, its icon takes the Wi-Fi slot in the header, as in stock.
+- **Settings at start:** Open MainUI loads the settings in `system.json` (brightness, volumes, sleep timer, display colours) into Onion's live settings at start, as stock does. A setting missing from `system.json` takes stock's default: menu music 8 and sleep timer off.
+
+### 📂 Lists
+
+- A game's details from Favorites or Recents show its genre and description also when its system is not in the open grid, and line breaks in a genre no longer split the summary line.
+- A `.bin` file is hidden beside its `.cue` only when that `.cue` is a real file. Run **Refresh roms** on a console where a `.bin` game had disappeared.
+
+### 📶 Wi-Fi
+
+- After turning Wi-Fi on in Settings, the network address comes within about a second of joining the network, instead of 10-20 seconds later when the join was slow. Open MainUI also waits for the Wi-Fi chip after powering it on and starts Wi-Fi in stock's order, which joins faster on a busy channel.
+- **Tip:** if Wi-Fi often takes long to connect, set your router's 2.4 GHz network to channel 1, 6 or 11 with a 20 MHz width. The Miyoo's Wi-Fi only uses 2.4 GHz and WPA2.
+
+## 🆕 Open MainUI 1.0.6 (since beta 6)
 
 ### 🎨 Themes and screens
 
@@ -72,7 +97,7 @@ Thanks to @yuruyang for the report and the review.
 
 ### 🔧 Fixes
 
-- **Brightness:** a brightness set in the GameSwitcher went back to the old value in the main menu, also when going back to the menu from the game. Fixed, together with the display settings (contrast, hue, saturation, luminance) changed in Tweaks, which could be undone the same way.
+- **Brightness:** a brightness set in the GameSwitcher went back to the old value with the first button press in the main menu, also after exiting a game started from the GameSwitcher. Fixed in both places that kept the old value: keymon now takes the new settings as soon as the GameSwitcher or Tweaks save them, also during a game, and Open MainUI 1.0.7 loads them at start, as stock does. The display settings changed in Tweaks (contrast, hue, saturation, luminance), which could be undone the same way, are fixed too. Thanks to Zombiediplomat for the report.
 - **OTA and Wi-Fi:** with Wi-Fi off in Settings, the updater turns it on for the update and now turns it off again when it closes; it used to stay on until the next restart. Opened just after start-up, while the network is still coming up in the background, it waits for that to finish first. With Wi-Fi on but still connecting, the updater waits for it instead of restarting it. Turning Wi-Fi on now waits for the Wi-Fi chip and for the network, up to about a minute: the 20 seconds it allowed before were often too short on the Mini Plus, and the updater then reported github.com unreachable.
 - **Long messages cut off (robcodedev/onionos-mainui-opensource#21):** with a theme that uses a large font, long lines in message screens and popups (the gpSP save transfer question, a port's first-run notice) ran off the edge of the screen. The text now shrinks to fit. On the Mini v4 and Mini Flip the gpSP question is also centred. Thanks to QuackWalks.
 - **OTA errors:** when GitHub doesn't answer (no connection, or too many checks in an hour), the updater says so instead of "Version is up to date", and the "Update available!" notice is kept. The downloaded package is deleted once extracted, instead of staying on the card. On the Mini, which has no Wi-Fi, the updater says so instead of waiting.
@@ -80,7 +105,6 @@ Thanks to @yuruyang for the report and the review.
 ## ⚠️ Known issues
 
 - **Refresh list** appears both in Game List Options and in the Select menu; the Game List Options entry will be removed.
-- **X shortcut to Expert:** with Tweaks › Button shortcuts › MainUI: X button set to the Expert shortcut, X only flashes the screen and MainUI stays on Home (robcodedev/onionos-mainui-opensource#22). The stock MainUI (see above) isn't affected.
 - **Arabic and Bengali** labels show as boxes: no font Onion ships has their letters.
 - **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
 - **Settings:** two programs saving settings at the same moment can corrupt the settings file, and a settings save that fails is not retried.
@@ -93,6 +117,8 @@ Switch the OTA updater to the **beta** channel to receive this build. Useful thi
 - Themes with full-screen popup backgrounds, pixel fonts, wide Wi-Fi icons or a tall header logo
 - Theme music speed with your usual themes
 - X as back in menus, and X opening Search from a game list
+- The X and Y shortcuts from Tweaks (Expert, Game List Options, apps) and the startup tab
+- Turning Wi-Fi off and on in Settings: how long it takes to connect
 - The labels in your language: the Select menu on a Favorites folder, Settings › About device and the GameSwitcher menu
 - Tweaks › Tools › Generate CUE files on a multi-track or multi-disc game
 - The Apps list in alphabetical order
@@ -107,7 +133,7 @@ Please report OnionPlus issues on the [OnionPlus tracker](https://github.com/Ami
 
 Thanks first to the Onion team and to the community. OnionPlus sits on their work: the OS and the years of fixes already in the tree. None of this exists without that.
 
-Thanks to @robcodedev for Open MainUI, and to the testers who sent reports and helped confirm the fixes, especially QuackWalks, @Zazzago, @Ziko577 and Veuks. Thanks to @fengfrw for the Chinese translations and to @yuruyang for the CUE generator report and review.
+Thanks to @robcodedev for Open MainUI, and to the testers who sent reports and helped confirm the fixes, especially QuackWalks, @Zazzago, @Ziko577, Veuks and Zombiediplomat. Thanks to @fengfrw for the Chinese translations and the Expert shortcut report and to @yuruyang for the CUE generator report and review.
 
 ## 💰 Bounty
 
