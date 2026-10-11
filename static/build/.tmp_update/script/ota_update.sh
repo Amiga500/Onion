@@ -111,8 +111,11 @@ wifi_setting_on() {
 # the setting in system.json: that can say on while Wi-Fi is off (a stale
 # copy saved back by another program), and the updater then waited for a
 # connection that never came instead of turning Wi-Fi on.
+# wlan0 must exist too: just after the temporary Wi-Fi of the time sync is
+# turned off, the killed wpa_supplicant can still be listed for a moment
+# (as "[wpa_supplicant]", without a command line).
 wifi_radio_running() {
-	pgrep wpa_supplicant > /dev/null 2>&1
+	wlan0_present && pgrep -f "wpa_supplicant.*wlan0" > /dev/null 2>&1
 }
 
 wlan0_present() {
@@ -228,6 +231,7 @@ enable_wifi() {
 		# not on the PATH of apps, and udhcpc in the foreground never returns
 		# without a network: the updater stayed on a black screen.
 		echo "Connecting (this can take up to a minute)..."
+		pkill -9 wpa_supplicant 2> /dev/null
 		start_wpa_supplicant
 		# Joining took 30-60 s on a Mini Plus 3 m from the router: the
 		# driver scans for a while before it associates.

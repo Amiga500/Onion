@@ -572,6 +572,22 @@ check "udhcpc started after the link is up" sh -c "sed -n '/^enable_wifi() {/,/^
 unset -f wlan0_linked sleep wait_for_link
 end
 
+begin ota_wifi_running_needs_wlan0
+eval "$(extract_fn "$OTA" wifi_radio_running)"
+pgrep() { echo "$*" > "$TMP/pgrep_args"; return 0; }
+wlan0_present() { return 1; }
+wifi_radio_running
+check "wpa_supplicant listed but no wlan0: Wi-Fi off" test $? -eq 1
+wlan0_present() { return 0; }
+wifi_radio_running
+check "wpa_supplicant and wlan0: Wi-Fi on" test $? -eq 0
+check "matched by command line (a killed one has none)" grep -q -- '-f' "$TMP/pgrep_args"
+pgrep() { return 1; }
+wifi_radio_running
+check "no wpa_supplicant: Wi-Fi off" test $? -eq 1
+unset -f pgrep wlan0_present wifi_radio_running
+end
+
 begin ota_dhcp_started_once_joined
 # Wi-Fi off: wpa_supplicant once, then the wait for the link, then udhcpc.
 ip() { :; }
@@ -590,7 +606,7 @@ wait_for_ip() { echo "ip $1" >> "$TMP/steps"; }
 enable_wifi > /dev/null 2>&1
 wait
 # udhcpc runs in the background: its line may come after "ip 20".
-check "wpa_supplicant, up to 50 s for the link, then udhcpc" test "$(grep -v '^udhcpc$' "$TMP/steps" | tr '\n' ' ')" = "wpa link 50 pkill -9 udhcpc ip 20 "
+check "wpa_supplicant, up to 50 s for the link, then udhcpc" test "$(grep -v '^udhcpc$' "$TMP/steps" | tr '\n' ' ')" = "pkill -9 wpa_supplicant wpa link 50 pkill -9 udhcpc ip 20 "
 check "udhcpc started" grep -qx udhcpc "$TMP/steps"
 unset -f ip sleep clear insmod ifconfig iw pkill udhcpc wifi_radio_running wait_for_wlan0 start_wpa_supplicant wait_for_link wait_for_ip
 end
