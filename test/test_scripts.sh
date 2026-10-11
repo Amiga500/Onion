@@ -510,8 +510,11 @@ end
 
 begin ota_waits_for_boot_network
 eval "$(extract_fn "$OTA" wait_boot_network)"
+eval "$(extract_fn "$OTA" network_ready)"
 sleep() { echo x >> "$TMP/slept"; }
 clear() { :; }
+ip() { :; }
+wifi_setting_on() { return 1; }
 # update_networking.sh still running for three more looks.
 pgrep() { echo x >> "$TMP/pgrep"; [ "$(wc -l < "$TMP/pgrep")" -le 3 ]; }
 wait_boot_network > /dev/null
@@ -524,8 +527,18 @@ check "nothing running: no wait" test ! -e "$TMP/slept"
 pgrep() { return 0; }
 wait_boot_network > /dev/null
 check "gives up after 45 s" test "$(wc -l < "$TMP/slept")" -eq 45
+# Connected with Wi-Fi on: no wait for the time sync still running.
+rm -f "$TMP/slept"
+ip() { echo "1.0.0.0 via 10.0.0.1 dev wlan0 src 10.0.0.2"; }
+wifi_setting_on() { return 0; }
+wait_boot_network > /dev/null
+check "connected, Wi-Fi on: no wait" test ! -e "$TMP/slept"
+# Connected with Wi-Fi off: the temporary Wi-Fi of the time sync, waited for.
+wifi_setting_on() { return 1; }
+wait_boot_network > /dev/null
+check "temporary Wi-Fi: waited for" test "$(wc -l < "$TMP/slept")" -eq 45
 check "before Wi-Fi is touched" sh -c "sed -n '/^main() {/,/^}/p' \"$OTA\" | grep -A1 '^	wait_boot_network' | grep -q '^	enable_wifi'"
-unset -f sleep clear pgrep wait_boot_network
+unset -f sleep clear pgrep wait_boot_network network_ready ip wifi_setting_on
 end
 
 begin ota_waits_for_wlan0_after_power_on

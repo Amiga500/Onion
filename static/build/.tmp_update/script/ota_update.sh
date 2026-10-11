@@ -149,13 +149,24 @@ wait_for_ip() { # seconds
 # temporary Wi-Fi could be switched off in the middle of the download.
 wait_boot_network() {
 	pgrep -f update_networking.sh > /dev/null 2>&1 || return 0
+	network_ready && return 0
 	echo "Waiting for the network start-up..."
 	i=0
-	while [ $i -lt 45 ] && pgrep -f update_networking.sh > /dev/null 2>&1; do
+	while [ $i -lt 45 ] && pgrep -f update_networking.sh > /dev/null 2>&1 &&
+		! network_ready; do
 		sleep 1
 		i=$((i + 1))
 	done
 	clear
+}
+
+# Connected, with Wi-Fi on in Settings: nothing left to wait for, even if
+# update_networking.sh still runs (the time sync after Wi-Fi came on).
+# Connected with Wi-Fi off in Settings is the temporary Wi-Fi of the time
+# sync, which update_networking.sh turns off again: that one is waited for.
+network_ready() {
+	IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
+	[ -n "$IP" ] && wifi_setting_on
 }
 
 # Turns Wi-Fi off again when the updater turned it on and it is still off in
