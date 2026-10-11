@@ -568,9 +568,31 @@ rm -f "$TMP/slept"
 wlan0_linked() { return 1; }
 wait_for_link 20
 check "never joined: goes on after 20 s" test $? -eq 1 -a "$(wc -l < "$TMP/slept")" -eq 40
-check "udhcpc started after the link is up" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A3 'wpa_supplicant -B' | grep -q 'wait_for_link'"
-check "address awaited past udhcpc's 20 s pause" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -q 'wait_for_ip 30'"
+check "udhcpc started after the link is up" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A4 'start_wpa_supplicant' | grep -q 'wait_for_link'"
 unset -f wlan0_linked sleep wait_for_link
+end
+
+begin ota_dhcp_started_once_joined
+# Wi-Fi off: wpa_supplicant once, then the wait for the link, then udhcpc.
+ip() { :; }
+sleep() { :; }
+clear() { :; }
+insmod() { :; }
+ifconfig() { :; }
+iw() { :; }
+pkill() { echo "pkill $*" >> "$TMP/steps"; }
+udhcpc() { echo udhcpc >> "$TMP/steps"; }
+wifi_radio_running() { return 1; }
+wait_for_wlan0() { return 0; }
+start_wpa_supplicant() { echo wpa >> "$TMP/steps"; }
+wait_for_link() { echo "link $1" >> "$TMP/steps"; }
+wait_for_ip() { echo "ip $1" >> "$TMP/steps"; }
+enable_wifi > /dev/null 2>&1
+wait
+# udhcpc runs in the background: its line may come after "ip 20".
+check "wpa_supplicant, up to 50 s for the link, then udhcpc" test "$(grep -v '^udhcpc$' "$TMP/steps" | tr '\n' ' ')" = "wpa link 50 pkill -9 udhcpc ip 20 "
+check "udhcpc started" grep -qx udhcpc "$TMP/steps"
+unset -f ip sleep clear insmod ifconfig iw pkill udhcpc wifi_radio_running wait_for_wlan0 start_wpa_supplicant wait_for_link wait_for_ip
 end
 
 begin ota_channel_cancel_keeps_channel

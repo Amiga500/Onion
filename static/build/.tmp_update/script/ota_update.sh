@@ -131,13 +131,17 @@ wait_for_wlan0() { # seconds
 	wlan0_present
 }
 
+start_wpa_supplicant() {
+	/mnt/SDCARD/miyoo/app/wpa_supplicant -B -D nl80211 -iwlan0 -c /appconfigs/wpa_supplicant.conf
+}
+
 wlan0_linked() {
 	[ "$(cat /sys/class/net/wlan0/operstate 2> /dev/null)" = "up" ]
 }
 
 # udhcpc started before wpa_supplicant has joined the network sends its
-# first requests into the void and then pauses 20 s before trying again:
-# with a 20 s limit no address ever came. Start it once the link is up.
+# first requests into the void and then pauses 20 s before trying again.
+# Start it once the link is up.
 wait_for_link() { # seconds
 	i=0
 	while ! wlan0_linked && [ $i -lt $(($1 * 2)) ]; do
@@ -214,17 +218,25 @@ enable_wifi() {
 		ifconfig lo up
 		/customer/app/axp_test wifion
 		wait_for_wlan0 10
+		# wlan0 appears before the driver is ready: wpa_supplicant started
+		# straight away ran but never joined the network. The system waits
+		# 2 s after the power-on (wifi_on in update_networking.sh).
+		sleep 2
 		ifconfig wlan0 up
+		iw dev wlan0 set power_save off 2> /dev/null
 		# Same commands as wifi_on in update_networking.sh. wpa_supplicant is
 		# not on the PATH of apps, and udhcpc in the foreground never returns
 		# without a network: the updater stayed on a black screen.
-		/mnt/SDCARD/miyoo/app/wpa_supplicant -B -D nl80211 -iwlan0 -c /appconfigs/wpa_supplicant.conf
-		wait_for_link 20
+		echo "Connecting (this can take up to a minute)..."
+		start_wpa_supplicant
+		# Joining took 30-60 s on a Mini Plus 3 m from the router: the
+		# driver scans for a while before it associates.
+		wait_for_link 50
 		pkill -9 udhcpc 2> /dev/null
 		udhcpc -i wlan0 -s /etc/init.d/udhcpc.script > /dev/null 2>&1 &
-		# Up to 30 s for an address (udhcpc retries after a 20 s pause);
-		# check_connection reports a failure.
-		wait_for_ip 30
+		# Once joined the address comes in a few seconds; up to 20 s,
+		# then check_connection reports a failure.
+		wait_for_ip 20
 		clear
 	fi
 }
