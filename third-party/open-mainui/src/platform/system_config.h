@@ -7,6 +7,19 @@
 /* Caller owns the object. A missing file yields an empty object; malformed or
  * unreadable input returns NULL, so it cannot be overwritten as an empty file. */
 cJSON *mainui_system_read(const char *sd);
+
+/* What Y on a game does, from the Y shortcut in .tmp_update/config/
+ * keymap.json, which keymon reads (Tweaks: Button shortcuts > MainUI: Y
+ * button). */
+typedef enum {
+    MAINUI_Y_AS_A,         /* no shortcut ("A button"): no file, no text value */
+    MAINUI_Y_GAME_OPTIONS, /* "glo": Onion's Game List Options */
+    MAINUI_Y_NOTHING       /* keymon's (an app or tool) or unknown: the file
+                            * cannot be read or parsed, or another value */
+} MainUIYShortcut;
+
+/* `why` (when not NULL) says why for MAINUI_Y_NOTHING. */
+MainUIYShortcut mainui_y_shortcut(const char *sd, char why[160]);
 bool mainui_system_write(const char *sd, const char *key, const cJSON *value);
 /* Numeric values also go to the live copy keymon keeps (the monitor), before
  * the file, since keymon writes that copy back to the file. When the file
@@ -51,6 +64,12 @@ const char *mainui_keymap_value(const cJSON *settings);
 /* Write that value for the system.json of `sd` to `target`, the driver's
  * button_config parameter on the device. False when it cannot be written. */
 bool mainui_keymap_apply(const char *sd, const char *target);
+/* Stock MainUI fills keymon's live copy from system.json on every start
+ * (mainui_device_settings_load): the value it writes for `key` (vol,
+ * brightness, mute, bgmvol, hibernate, lumination, hue, saturation,
+ * contrast, audiofix). A number is taken as it is, except that lumination,
+ * hue, saturation and contrast must be 0 to 20; otherwise stock's default. */
+int mainui_system_monitor_value(const cJSON *settings, const char *key);
 /* system.json exists but its content cannot be used (not a JSON object, NUL
  * bytes, too large), as opposed to missing, blank or an I/O error. Nothing
  * resets or rewrites it: it holds settings other programs share. */

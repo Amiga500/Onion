@@ -6,7 +6,7 @@ Written in C11 against SDL 1.2, the same libraries Onion already ships.
 
 Based on functionality from the [patched MainUI project](https://github.com/robcodedev/onionos-mainui-patcher).
 
-**Version 1.0.6.** It runs on hardware and is usable, but keep a copy of your original SD card.
+**Version 1.0.7.** It runs on hardware and is usable, but keep a copy of your original SD card.
 
 ## Why
 
@@ -14,7 +14,7 @@ MainUI ships as a closed-source binary, so every improvement has to be made by p
 
 An open implementation removes that ceiling. Anyone can read it, fix it, extend it, and check what it does on their own device.
 
-It also turns out to be smaller and quicker. Early hardware testing shows faster startup and faster launching and returning from games. The device binary is around 200 KB against the original's 1.4 MB - the original statically linked SQLite, while this build links the copy Onion already ships.
+It also turns out to be smaller and quicker. Early hardware testing shows faster startup and faster launching and returning from games. The device binary is around 300 KB against the original's 1.4 MB - the original statically linked SQLite, while this build links the copy Onion already ships.
 
 ## Status
 

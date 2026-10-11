@@ -50,6 +50,15 @@ typedef struct {
      * release; that release must not open the context menu again. */
     bool select_menu_pending;
     Uint32 select_menu_until;
+    /* L2 or R2 went down while Select was held and Start was not. */
+    bool select_brightness;
+    /* Y, Select and Start act when released, as in stock, so a keymon
+     * shortcut on Y has killed MainUI before it acts: whether the press is
+     * still to act. A keymon combo (another button while Select or Start
+     * is down) cancels Select and Start. */
+    bool y_armed, select_armed, start_armed;
+    /* The release of a scripted Y, Select or Start tap, still to send. */
+    SDLKey script_release;
     /* Keymon's L1 after its Menu release: the Menu releases already matched
      * or passed over, and whether that L1 is down now. */
     int menu_events_seen;
@@ -137,7 +146,7 @@ typedef struct {
     bool systems_drawn;
     Uint32 active_at, presented_at;
     int presented_battery, presented_wifi_signal;
-    bool presented_wifi_online;
+    bool presented_wifi_online, presented_hotspot;
     char presented_wifi_address[64];
     Uint32 selected_at;
     char selected_identity[MAINUI_PATH_MAX * 3];

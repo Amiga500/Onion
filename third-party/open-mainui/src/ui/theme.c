@@ -58,6 +58,7 @@ static size_t image_bytes(const MainUITheme *t)
     for (int i = 0; i < 4; ++i) {
         bytes += surface_bytes(t->wifi_signal[i]);
     }
+    bytes += surface_bytes(t->wifi_hotspot);
     for (int i = 0; i < 2; ++i) {
         bytes +=
             surface_bytes(t->tiles[i]) + surface_bytes(t->dots[i]) + surface_bytes(t->buttons[i]);
@@ -801,6 +802,7 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
         snprintf(name, sizeof name, "skin/icon-wifi-signal-%02d.png", i + 1);
         t->wifi_signal[i] = mainui_theme_image(t, name);
     }
+    t->wifi_hotspot = mainui_theme_image(t, "skin/icon-hotspot-wifi.png");
     if (!t->battery_icons[4]) {
         t->battery_icons[4] = mainui_theme_image(t, "skin/power-full-icon_back.png");
     }
@@ -852,6 +854,7 @@ void mainui_theme_close(MainUITheme *t)
     for (int i = 0; i < 4; ++i) {
         SDL_FreeSurface(t->wifi_signal[i]);
     }
+    SDL_FreeSurface(t->wifi_hotspot);
     SDL_FreeSurface(t->settings_artwork.selection);
     SDL_FreeSurface(t->settings_artwork.left);
     SDL_FreeSurface(t->settings_artwork.right);

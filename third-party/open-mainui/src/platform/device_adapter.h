@@ -13,6 +13,7 @@ typedef struct {
     int wifi_signal;         /* Stock level: 0 unknown, 1 weak, 2 medium, 3 strong. */
     int battery;             /* -1 unavailable, 0..100 percent, 500 charging */
     int wifi, lid, sleeping; /* -1 unknown; otherwise 0/1 */
+    int hotspot;             /* 1 when Onion's hotspot (hostapd) runs, else 0 */
     char address[64], ssid[33];
 } MainUIDeviceStatus;
 
@@ -43,6 +44,12 @@ bool mainui_device_setting_sync(const MainUIDeviceAdapter *, const char *key, in
 /* keymon's current value of `key`; false when it keeps none or is unavailable. */
 bool mainui_device_setting_value(const MainUIDeviceAdapter *, const char *key, int *value);
 bool mainui_device_brightness(const MainUIDeviceAdapter *, int value);
+/* As stock does on every start: fill keymon's live copy of the settings from
+ * system.json, then set the display to its brightness. Without it a value
+ * another program saved to the file only (GameSwitcher's brightness) is put
+ * back to the old one by keymon. Not with a damaged system.json, whose
+ * defaults keymon could save over the user's settings. */
+bool mainui_device_settings_load(const MainUIDeviceAdapter *, const char *sd);
 /* Preferences are consumed by keymon; there is no guessed direct suspend IPC. */
 bool mainui_device_settings_changed(const MainUIDeviceAdapter *);
 /* Real runtime only. Signal handlers just set flags; UI consumes them. */

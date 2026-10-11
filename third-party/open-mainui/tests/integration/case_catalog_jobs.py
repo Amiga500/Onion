@@ -2,6 +2,7 @@
 """Qualify cancellable catalog jobs and coherent external edits on isolated data."""
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 import subprocess
@@ -60,4 +61,25 @@ assert capture("home", "") == capture("home-start", "T")
 assert capture("home", "") == capture("home-menu", "M")
 assert capture("systems", "E") == capture("cancelled-enter", "EEC")
 assert capture("games", "EE") == capture("reload", "EET")
+
+
+def cache_hits(name, actions):
+    """ROM lists read from their caches, a reload included (docs/TIMING.md)."""
+    result = subprocess.run([EXE, "--sd-root", str(SD), "--theme", str(THEME), "--input", actions,
+                             "--snapshot", str(SD / (name + ".bmp"))],
+                            check=True, timeout=30, capture_output=True, text=True)
+    return int(re.search(r"cache-hits (\d+)", result.stdout).group(1))
+
+
+# Start acts when released, as in stock. While Select or Start is held the
+# other buttons are keymon's (brightness, volume, CPU clock): in a ROM list
+# R2 does not page, and Start reloads nothing.
+games = capture("games", "EE")
+assert capture("page", "EE4") != games
+base = cache_hits("games", "EE")
+assert cache_hits("start-held", "EE+T") == base
+assert cache_hits("start-released", "EE+T-T") == base + 1
+for keys in ("+T4-T", "+T3-T", "+S4-S", "+S3-S", "+S+T2-T-S", "+S+T1-S-T", "+T+S2-S-T"):
+    assert cache_hits("combo", "EE" + keys) == base, keys
+    assert (SD / "combo.bmp").read_bytes() == games, keys
 print("Catalog job fixtures passed:", SD)

@@ -138,6 +138,7 @@ bool mainui_poll_jobs(MainUIApp *ui)
             }
         }
         ui->theme.wifi_online = ui->device_status.wifi == 1;
+        ui->theme.hotspot_on = ui->device_status.hotspot == 1;
         ui->theme.wifi_signal_level = ui->device_status.wifi_signal;
         snprintf(ui->theme.wifi_address, sizeof ui->theme.wifi_address, "%s",
                  ui->device_status.wifi == 1 ? ui->device_status.address : "");
@@ -445,17 +446,34 @@ bool mainui_wait_event(MainUIApp *ui, SDL_Event *event)
     else if (ui->input_script && ui->letter_jump.active) {
         event->type = SDL_USEREVENT;
     }
+    else if (ui->input_script && ui->script_release) {
+        scripted_event = true;
+        event->type = SDL_KEYUP;
+        event->key.keysym.sym = ui->script_release;
+        ui->script_release = SDLK_UNKNOWN;
+    }
     else if (ui->input_script && *ui->input_script) {
         scripted_event = true;
         event->type = SDL_KEYDOWN;
+        /* Y, Select and Start act on release: alone they are a tap (press
+         * and release); + presses them only, - releases any key. */
+        bool hold = *ui->input_script == '+';
         if (*ui->input_script == '-') {
             event->type = SDL_KEYUP;
+            ui->input_script++;
+        }
+        else if (hold) {
             ui->input_script++;
         }
         event->key.keysym.sym =
             *ui->input_script == 'C' ? SDLK_ESCAPE : mainui_input_script(*ui->input_script);
         if (*ui->input_script) {
             ui->input_script++;
+        }
+        if (event->type == SDL_KEYDOWN && !hold &&
+            (event->key.keysym.sym == SDLK_LALT || event->key.keysym.sym == SDLK_RCTRL ||
+             event->key.keysym.sym == SDLK_F2)) {
+            ui->script_release = event->key.keysym.sym;
         }
         if (event->key.keysym.sym == SDLK_UNKNOWN) {
             fprintf(stderr, "Invalid --input action\n");
