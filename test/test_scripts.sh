@@ -528,6 +528,23 @@ check "before Wi-Fi is touched" sh -c "sed -n '/^main() {/,/^}/p' \"$OTA\" | gre
 unset -f sleep clear pgrep wait_boot_network
 end
 
+begin ota_waits_for_wlan0_after_power_on
+eval "$(extract_fn "$OTA" wait_for_wlan0)"
+# The chip shows up at the fourth look, after the power-on.
+wlan0_present() { echo x >> "$TMP/looks"; [ "$(wc -l < "$TMP/looks")" -ge 4 ]; }
+sleep() { echo "$1" >> "$TMP/slept"; }
+wait_for_wlan0 10
+check "waits for wlan0" test $? -eq 0
+check "in half-second steps until it appears" test "$(cat "$TMP/slept" | tr '\n' ' ')" = "0.5 0.5 0.5 "
+rm -f "$TMP/slept"
+wlan0_present() { return 1; }
+wait_for_wlan0 10
+check "never appears: gives up" test $? -eq 1
+check "after 10 s" test "$(wc -l < "$TMP/slept")" -eq 20
+check "bring-up waits for wlan0, not a fixed 2 s" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A1 'axp_test wifion' | grep -q 'wait_for_wlan0'"
+unset -f wlan0_present sleep wait_for_wlan0
+end
+
 begin ota_channel_cancel_keeps_channel
 mkdir -p "$TMP/script" "$TMP/config"
 sysdir=$TMP

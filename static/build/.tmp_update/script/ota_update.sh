@@ -115,6 +115,22 @@ wifi_radio_running() {
 	pgrep wpa_supplicant > /dev/null 2>&1
 }
 
+wlan0_present() {
+	[ -e /sys/class/net/wlan0 ]
+}
+
+# After "axp_test wifion" the Wi-Fi chip appears on USB after a variable
+# delay. A fixed 2 s was sometimes too short on the Mini Plus: wlan0 did not
+# exist yet, wpa_supplicant failed ("No such device") and no address came.
+wait_for_wlan0() { # seconds
+	i=0
+	while ! wlan0_present && [ $i -lt $(($1 * 2)) ]; do
+		sleep 0.5
+		i=$((i + 1))
+	done
+	wlan0_present
+}
+
 wait_for_ip() { # seconds
 	i=0
 	while [ $i -lt "$1" ]; do
@@ -170,7 +186,7 @@ enable_wifi() {
 		insmod /mnt/SDCARD/8188fu.ko 2> /dev/null
 		ifconfig lo up
 		/customer/app/axp_test wifion
-		sleep 2
+		wait_for_wlan0 10
 		ifconfig wlan0 up
 		# Same commands as wifi_on in update_networking.sh. wpa_supplicant is
 		# not on the PATH of apps, and udhcpc in the foreground never returns
