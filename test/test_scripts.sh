@@ -452,6 +452,127 @@ wait
 unset -f ip sleep insmod ifconfig pkill clear udhcpc
 end
 
+# ---- ota_update.sh: Wi-Fi turned on by the updater goes off again ----
+
+eval "$(extract_fn "$OTA" restore_wifi)"
+eval "$(extract_fn "$OTA" wait_for_ip)"
+
+begin ota_restores_wifi_it_turned_on
+pkill() { echo "$*" >> "$TMP/pkill"; }
+wifi_setting_on() { return 1; }
+wifi_started_here=1
+restore_wifi
+check "off in Settings: wpa_supplicant stopped" grep -q 'wpa_supplicant' "$TMP/pkill"
+check "off in Settings: udhcpc stopped" grep -q 'udhcpc' "$TMP/pkill"
+rm -f "$TMP/pkill"
+restore_wifi
+check "runs once" test ! -e "$TMP/pkill"
+wifi_started_here=1
+wifi_setting_on() { return 0; }
+restore_wifi
+check "turned on in Settings meanwhile: left on" test ! -e "$TMP/pkill"
+wifi_started_here=0
+wifi_setting_on() { return 1; }
+restore_wifi
+check "already on before the updater: left on" test ! -e "$TMP/pkill"
+check "restored on every exit" grep -q '^	trap restore_wifi EXIT' "$OTA"
+unset -f pkill wifi_setting_on
+end
+
+begin ota_waits_for_wifi_on_in_settings
+# On in Settings but not connected yet: no second wpa_supplicant, and the
+# system's udhcpc is not killed.
+# Connected at the third look (ip runs in a subshell: count in a file).
+ip() { echo x >> "$TMP/ip_calls"; [ "$(wc -l < "$TMP/ip_calls")" -ge 3 ] && echo "1.0.0.0 via 10.0.0.1 dev wlan0 src 10.0.0.2"; }
+sleep() { :; }
+clear() { :; }
+pkill() { echo "$*" >> "$TMP/pkill"; }
+udhcpc() { touch "$TMP/udhcpc"; }
+wifi_setting_on() { return 0; }
+wifi_started_here=0
+enable_wifi > /dev/null 2>&1
+check "udhcpc not restarted" test ! -e "$TMP/udhcpc"
+check "nothing killed" test ! -e "$TMP/pkill"
+check "not marked as turned on here" test "$wifi_started_here" = 0
+check "address found" test -n "$IP"
+unset -f ip sleep clear pkill udhcpc wifi_setting_on
+end
+
+begin ota_waits_for_boot_network
+eval "$(extract_fn "$OTA" wait_boot_network)"
+sleep() { echo x >> "$TMP/slept"; }
+clear() { :; }
+# update_networking.sh still running for three more looks.
+pgrep() { echo x >> "$TMP/pgrep"; [ "$(wc -l < "$TMP/pgrep")" -le 3 ]; }
+wait_boot_network > /dev/null
+check "waits while the start-up runs" test "$(wc -l < "$TMP/slept")" -eq 2
+check "then goes on" test "$(wc -l < "$TMP/pgrep")" -eq 4
+rm -f "$TMP/slept"
+pgrep() { return 1; }
+wait_boot_network > /dev/null
+check "nothing running: no wait" test ! -e "$TMP/slept"
+pgrep() { return 0; }
+wait_boot_network > /dev/null
+check "gives up after 45 s" test "$(wc -l < "$TMP/slept")" -eq 45
+check "before Wi-Fi is touched" sh -c "sed -n '/^main() {/,/^}/p' \"$OTA\" | grep -A1 '^	wait_boot_network' | grep -q '^	enable_wifi'"
+unset -f sleep clear pgrep wait_boot_network
+end
+
+begin ota_channel_cancel_keeps_channel
+mkdir -p "$TMP/script" "$TMP/config"
+sysdir=$TMP
+echo beta > "$TMP/config/ota_channel"
+clear() { :; }
+eval "$(extract_fn "$OTA" channel_choice)"
+printf '#!/bin/sh\ncat > /dev/null\nexit 1\n' > "$TMP/script/shellect.sh"
+chmod +x "$TMP/script/shellect.sh"
+(channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
+check "B leaves the updater" test ! -e "$TMP/went_on"
+check "saved channel kept" test "$(cat "$TMP/config/ota_channel")" = beta
+printf '#!/bin/sh\ncat > /dev/null\necho stable\n' > "$TMP/script/shellect.sh"
+(channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
+check "choice saved" test "$(cat "$TMP/config/ota_channel")" = stable
+check "choice goes on" test -e "$TMP/went_on"
+check "Mini without Wi-Fi is told so" grep -q 'This device has no Wi-Fi' "$OTA"
+unset -f clear channel_choice
+end
+
+if command -v jq > /dev/null; then
+    begin ota_github_error_is_not_up_to_date
+    # Rate limit (60 requests an hour per address), no answer, or no
+    # package: an error, not "Version is up to date".
+    eval "$(extract_fn "$OTA" get_release_info)"
+    eval "$(extract_fn "$OTA" release_info_error)"
+    installUI() { echo "4.4.0-beta-20261010-5a3b4ac9"; }
+    for ch in stable beta; do
+        channel=$ch
+        curl() { echo '{"message":"API rate limit exceeded for 1.2.3.4.","documentation_url":"x"}'; }
+        out=$(get_release_info 2>&1)
+        check "$ch, rate limit: error" test $? -eq 2
+        check "$ch, rate limit: reason shown" sh -c 'echo "$1" | grep -q "API rate limit exceeded"' _ "$out"
+        curl() { :; }
+        get_release_info > /dev/null 2>&1
+        check "$ch, no answer: error" test $? -eq 2
+    done
+    channel=stable
+    curl() { echo '{"message": "Not Found","documentation_url":"x"}'; }
+    get_release_info > /dev/null 2>&1
+    check "no release: nothing to install" test $? -eq 1
+    curl() { echo '{"tag_name":"x","assets":[{"name":"other.zip","size":1}]}'; }
+    get_release_info > /dev/null 2>&1
+    check "no OnionPlus package: error" test $? -eq 2
+    # The boot check keeps the flag when GitHub doesn't answer.
+    eval "$(extract_fn "$OTA" main)"
+    ip() { echo "1.0.0.0 via 10.0.0.1 dev wlan0 src 10.0.0.2"; }
+    sysdir=$TMP
+    touch "$TMP/.updateAvailable"
+    get_release_info() { return 2; }
+    (cmd=check; main) > /dev/null 2>&1
+    check "boot check, GitHub error: flag kept" test -e "$TMP/.updateAvailable"
+    unset -f curl installUI ip get_release_info main release_info_error
+    end
+fi
+
 # ---- runtime.sh: network check skipped while update_networking.sh runs ----
 
 eval "$(extract_fn "$RUNTIME" check_networking)"
