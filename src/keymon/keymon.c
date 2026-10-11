@@ -885,7 +885,7 @@ int main(void)
                     settings_save_local();
                     needWriteSettings = false;
                 }
-                settings_load();
+                settings_reload();
                 refresh_cached_flags();
             }
 
