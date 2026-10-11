@@ -16,6 +16,10 @@ SD = OUT / "sd"
 HANDOFF = OUT / "handoff"
 HANDOFF.mkdir()
 (SD / ".tmp_update/config").mkdir(parents=True)
+# Onion's default: Game List Options as the Y shortcut (Tweaks).
+KEYMAP = SD / ".tmp_update/config/keymap.json"
+KEYMAP.write_text(json.dumps({"mainui_button_y": "glo"}))
+FLAG = HANDOFF / "launch_alt"
 (SD / ".tmp_update/config/main-menu.json").write_text(
     json.dumps({"menu": dict(favorites=True, games=True)}))
 (SD / "Emu/C").mkdir(parents=True)
@@ -35,6 +39,7 @@ def launched(actions):
     """The command the actions left for runtime.sh, or None."""
     unlink_if_exists(COMMAND)
     unlink_if_exists(HANDOFF / "mainui-return.json")
+    unlink_if_exists(HANDOFF / "state.json")  # MainUI removes it on a return
     subprocess.run([str(BUILD / "MainUI-dev"), "--sd-root", str(SD), "--theme", str(ONION_THEME),
                     "--input", actions, "--snapshot", str(OUT / "shot.bmp"),
                     "--handoff-dir", str(HANDOFF)],
@@ -47,11 +52,14 @@ def launched(actions):
 by_a = launched("REEDA")
 assert by_a and b"G00.nes" in by_a, by_a
 assert launched("REEDY") == by_a
+# MainUI sets keymon's Y flag itself: keymon skips it while its cached state
+# does not say MainUI is running, and the game would start instead.
+unlink_if_exists(FLAG)
+assert launched("REEDY") == by_a and FLAG.exists()
 assert launched("REEY") is None, "Y on a folder launched something"
 # keymon arms its Y flag on every Y press and clears it only on B or X. Y on
 # the folder is ignored; A on the game below must then start the game, not
 # open Game List Options, which would also remove its Recent.
-FLAG = HANDOFF / "launch_alt"
 FLAG.write_text("")
 assert launched("REEYDA") == by_a and not FLAG.exists()
 assert json.loads((SD / "Roms/recentlist.json").read_text().splitlines()[0])["label"] == "G00"
@@ -82,6 +90,9 @@ original = "".join(json.dumps(dict(
     label=f"G{i:02}", rompath=f"/mnt/SDCARD/Roms/C/G{i:02}.nes",
     launch="/mnt/SDCARD/Emu/C/launch.sh", type=5)) + "\n" for i in range(3))
 RECENT.write_text(original)
+# Y acts when released, as stock does: keymon runs a Y shortcut as Y goes
+# down by killing MainUI, which must not launch the game or touch Recents.
+assert launched("ED+Y") is None and RECENT.read_text() == original
 command = launched("EDY")
 assert command and b"G01.nes" in command, command
 first, rest = RECENT.read_text().split("\n", 1)
@@ -114,4 +125,29 @@ RECENT.rmdir()
 RECENT.write_text(original)
 launched("EDA")
 assert [json.loads(line)["label"] for line in RECENT.read_text().splitlines()] == ["G01", "G00", "G02"]
+# Without a Y shortcut (Tweaks shows "A button") Y is A: no Game List
+# Options follows, so the game moves to the top of Recents once.
+for keymap in ('{"mainui_button_y": ""}', None):
+    if keymap:
+        KEYMAP.write_text(keymap)
+    else:
+        KEYMAP.unlink()
+    RECENT.write_text(original)
+    FLAG.write_text("")
+    assert launched("EDY") == command and not FLAG.exists(), keymap
+    assert [json.loads(line)["label"] for line in RECENT.read_text().splitlines()] == \
+        ["G01", "G00", "G02"], keymap
+# A keymap.json that cannot be read, or an app or tool as the Y shortcut
+# (keymon's, which it missed): Y launches nothing and leaves Recents alone.
+for name, keymap in (("broken", "{broken"), ("folder", None),
+                     ("app", '{"mainui_button_y": "app:Search"}')):
+    unlink_if_exists(KEYMAP)
+    if keymap:
+        KEYMAP.write_text(keymap)
+    else:
+        KEYMAP.mkdir()
+    RECENT.write_text(original)
+    assert launched("EDY") is None and RECENT.read_text() == original, name
+    if not keymap:
+        KEYMAP.rmdir()
 print("Y launches the selected game as A does, nothing on a folder, and keeps Recents")

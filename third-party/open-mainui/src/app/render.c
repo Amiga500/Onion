@@ -246,6 +246,7 @@ static bool idle_unchanged(const MainUIApp *ui, Uint32 now, Uint32 repaint_ms)
            !*ui->message_title && !ui->launch_pending && now - ui->presented_at < repaint_ms &&
            ui->presented_battery == ui->theme.battery_percent &&
            ui->presented_wifi_online == ui->theme.wifi_online &&
+           ui->presented_hotspot == ui->theme.hotspot_on &&
            ui->presented_wifi_signal == ui->theme.wifi_signal_level &&
            !strcmp(ui->presented_wifi_address, ui->theme.wifi_address);
 }
@@ -672,8 +673,8 @@ static bool compose_full_frame(MainUIApp *ui)
     }
     if (ui->snapshot && !ui->catalog_job.thread && !ui->device_job.thread &&
         !(ui->about_visible && ui->about_job.thread) &&
-        (ui->launch_pending ||
-         (!ui->letter_jump.active && (!ui->input_script || !*ui->input_script)))) {
+        (ui->launch_pending || (!ui->letter_jump.active && !ui->script_release &&
+                                (!ui->input_script || !*ui->input_script)))) {
         if (SDL_SaveBMP(ui->screen, ui->snapshot) < 0) {
             fprintf(stderr, "Snapshot: %s\n", SDL_GetError());
             ui->status = 4;
@@ -692,6 +693,7 @@ static bool draw_full_frame(MainUIApp *ui)
     ui->presented_at = SDL_GetTicks();
     ui->presented_battery = ui->theme.battery_percent;
     ui->presented_wifi_online = ui->theme.wifi_online;
+    ui->presented_hotspot = ui->theme.hotspot_on;
     ui->presented_wifi_signal = ui->theme.wifi_signal_level;
     snprintf(ui->presented_wifi_address, sizeof ui->presented_wifi_address, "%s",
              ui->theme.wifi_address);

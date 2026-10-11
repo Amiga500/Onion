@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.0.7 - 2026-10-11
+
+### Buttons
+
+* Onion's Expert app opens Expert, as with stock, also when Expert is hidden on the main menu. Set as the X or Y shortcut in Tweaks, it only made the screen flash; started from Apps, it went back to Apps. Thanks to [@fengfrw](https://github.com/fengfrw) for the report.
+* Y acts when it is released, as stock does. With an app or tool set as the Y shortcut in Tweaks, Y on a game could also launch it, or put it first in Recents, before Onion ran the shortcut.
+* Y on a game opens Game List Options every time when that is the Y shortcut in Tweaks (Onion's default). Shortly after boot or a game, Onion could miss the Y press and start the game instead. With no Y shortcut ("A button"), Y launches the game as A does, and Recents lists it once. If the Y setting cannot be read, Y does nothing.
+* Select opens the context menu, and Start reloads a list, when released, as in stock, and not after a combo: while Select or Start is held, the other buttons are Onion's (brightness, volume boost, CPU clock) and MainUI ignores them. Select with L2 or R2 or with Start and L1 or R1 no longer leaves the menu open, and those combos no longer reload, page or jump in a list.
+* A Menu long press shortly after Select with L2 or R2 on the Mini opens the context menu. Up to 1.5 seconds after, it was taken for the Menu press Onion sends after a plain Select and ignored.
+
+### Themes and screens
+
+* A brightness changed in GameSwitcher stays when you go back to the main menu, also after exiting a game started from GameSwitcher. Onion put the old brightness back with the first button press. As stock does on every start, MainUI now loads the settings in `system.json` (brightness, volumes, sleep timer, display colours) into Onion's live settings and sets the screen's brightness from them. A setting missing from `system.json` takes stock's default: menu music starts at 8 (it started at 20), and Settings shows Menu sound 8 and Sleep timer off (it showed 20 and 5 minutes). Thanks to Zombiediplomat for the report.
+* While Onion's Wi-Fi hotspot runs, the hotspot icon (`icon-hotspot-wifi.png`) takes the Wi-Fi slot in the header, as in stock.
+* The startup tab set in Tweaks (Recents, Favorites, Games, Expert or Apps) opens at boot, as with stock; MainUI always started on the main menu.
+
+### Lists
+
+* A game's details from Favorites or Recents show its genre and description also when its system is not in the open grid (an Expert emulator while Games is shown, say).
+* Line breaks and runs of spaces in a game's genre are collapsed, as in its description and in stock, so they no longer split the details' summary line.
+* A `.bin` file is hidden beside its `.cue` only when that `.cue` is a file. A folder or link named like it hid the `.bin` and listed nothing in its place. Run Refresh roms for a console where this happened.
+
+### Speed and memory
+
+* After Wi-Fi is turned on, the network address comes within about a second of joining the network. MainUI's DHCP client tried three times, 3 s apart, starting before the join, then paused 20 s, so a join slower than about 9 s left Wi-Fi without an address for 10-20 s more. MainUI also waits for the Wi-Fi interface to appear after powering the chip on (up to 10 s), then starts Wi-Fi as stock does: 1 s later instead of 2 s, with no pause when the chip is on already, and letting `wpa_supplicant` bring the interface up, which joined faster on a noisy channel. Thanks to [@Amiga500](https://github.com/Amiga500) for the report.
+
+### Documentation and tests
+
+* [docs/CATALOG_CACHE.md](docs/CATALOG_CACHE.md) lists how Refresh all roms and game details differ from stock, and [docs/THEMES.md](docs/THEMES.md) which `fontascii` key is read.
+
 ## 1.0.6 - 2026-10-09
 
 ### Buttons

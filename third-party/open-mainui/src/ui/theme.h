@@ -45,7 +45,8 @@ typedef struct {
     TTF_Font *battery_font;
     SDL_Surface *battery_icons[6];
     SDL_Surface *wifi_connected, *wifi_locked, *wifi_signal[4];
-    bool wifi_online;
+    SDL_Surface *wifi_hotspot;
+    bool wifi_online, hotspot_on;
     int wifi_signal_level;
     char wifi_address[64];
     int battery_percent, battery_align, battery_offset_x, battery_offset_y;

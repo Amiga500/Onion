@@ -37,6 +37,16 @@ assert capture("override", ["--device-dir", str(RUNTIME), "--battery", "25"]) ==
 connected = capture("wifi-connected", ["--device-dir", str(RUNTIME), "--input", "EE"])
 (RUNTIME / "wifi-status.txt").write_text("wpa_state=DISCONNECTED\n")
 assert connected != capture("wifi-disconnected", ["--device-dir", str(RUNTIME), "--input", "EE"])
+# Onion's hotspot (hostapd) without a Wi-Fi connection shows stock's
+# icon-hotspot-wifi.png in the Wi-Fi slot; a connection's signal icon wins.
+no_hotspot = capture("hotspot-off", ["--device-dir", str(RUNTIME)])
+(RUNTIME / "hotspot").write_text("1")
+assert capture("hotspot-on", ["--device-dir", str(RUNTIME)]) != no_hotspot
+(RUNTIME / "wifi-status.txt").write_text("wpa_state=COMPLETED\nssid=Host Wi-Fi\n")
+online_hotspot = capture("online-hotspot", ["--device-dir", str(RUNTIME)])
+(RUNTIME / "hotspot").unlink()
+assert online_hotspot == capture("online", ["--device-dir", str(RUNTIME)])
+(RUNTIME / "wifi-status.txt").write_text("wpa_state=DISCONNECTED\n")
 capture("about", ["--device-dir", str(RUNTIME), "--input", "EDE"])
 capture("scan-request", ["--device-dir", str(RUNTIME), "--input", "EEDDDDE"])
 assert (RUNTIME / "mainui-wifi-request.sh").read_text() == "wpa_cli scan\nwpa_cli scan_results\n"

@@ -23,7 +23,8 @@ The first line of each start names the build: `[startup] Open MainUI <version>, 
 * `[menu]`: an L1 press from keymon ignored after a Menu press or release, at most 20 lines a session. If holding Menu still moves the selection and no such line appears, MainUI did not see the Menu button.
 * `[return]` and `[restore]`: why the screen left for a game or app could not be shown again on return.
 * `[write]`: a file that could not be saved, with the reason.
-* `[settings]`: a setting that could not be saved to `system.json`.
+* `[settings]`: a setting that could not be saved to `system.json`, or, at start, a `system.json` too damaged to load into keymon's live settings (as stock does on every start); those are then left as they were.
+* `[launch]`: a Y press ignored because the Y shortcut is an app or tool (keymon's) or `keymap.json` cannot be read.
 * `[delete]`: an interrupted ROM deletion resolved automatically.
 * `[timing]`: timing counters; see [TIMING.md](TIMING.md).
 

@@ -112,7 +112,11 @@ void mainui_device_job_close(MainUIDeviceJob *job)
     Uint32 started = SDL_GetTicks();
     Uint32 deadline = started + DEVICE_CLOSE_BUDGET_MS;
     if (job->thread) {
-        if (job->operation != 5 && job->operation != 6) {
+        /* An enable followed by a queued Off would only be undone: stop it
+         * now, so the Off runs within the budget. A disable cleans up
+         * whatever a cancelled enable started. */
+        if ((job->operation != 5 && job->operation != 6) ||
+            (job->operation == 5 && job->queued_operation == 6)) {
             atomic_store(&job->cancel, true);
         }
         /* Let a power transition finish, but not indefinitely. */

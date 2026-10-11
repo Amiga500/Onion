@@ -98,14 +98,19 @@ for name in ('Disc.bin', 'Disc.cue', 'Lone.bin', 'Upper.BIN', 'Upper.cue', 'Set/
     file = cue_sd / 'Roms/PS' / name
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_bytes(b'')
+# A folder or a link named like the .cue is no .cue: the .bin stays listed.
+(cue_sd / 'Roms/PS/Folder.bin').write_bytes(b'')
+(cue_sd / 'Roms/PS/Folder.cue').mkdir()
+(cue_sd / 'Roms/PS/Link.bin').write_bytes(b'')
+(cue_sd / 'Roms/PS/Link.cue').symlink_to('Disc.cue')
 subprocess.run([str(BUILD / 'MainUI-dev'), '--sd-root', str(cue_sd), '--theme', str(ONION_THEME),
                 '--refresh-caches', '--system', 'PlayStation', '--snapshot', str(cue_sd / 'shot.bmp')],
                cwd=ROOT, check=True, timeout=30, capture_output=True)
 with sqlite3.connect(cue_sd / 'Roms/PS/PS_cache6.db') as c:
     files = sorted(path.rsplit('/Roms/PS/', 1)[1]
                    for (path,) in c.execute('select path from PS_roms where type=0'))
-assert files == ['Disc.cue', 'Lone.bin', 'Other/Inner.bin', 'Set/Inner.cue', 'Upper.BIN',
-                 'Upper.cue'], files
+assert files == ['Disc.cue', 'Folder.bin', 'Link.bin', 'Lone.bin', 'Other/Inner.bin',
+                 'Set/Inner.cue', 'Upper.BIN', 'Upper.cue'], files
 # Unlike stock, a .bin stays listed when the extlist does not list the .cue:
 # with extlist "bin" stock would list neither file.
 (cue_sd / 'Emu/PS/config.json').write_text(json.dumps(dict(
@@ -117,5 +122,7 @@ subprocess.run([str(BUILD / 'MainUI-dev'), '--sd-root', str(cue_sd), '--theme', 
 with sqlite3.connect(cue_sd / 'Roms/PS/PS_cache6.db') as c:
     files = sorted(path.rsplit('/Roms/PS/', 1)[1]
                    for (path,) in c.execute('select path from PS_roms where type=0'))
-assert files == ['Disc.bin', 'Lone.bin', 'Other/Inner.bin', 'Set/Inner.bin', 'Upper.BIN'], files
-print('A .bin beside its listed .cue is hidden; a lone .bin, or one whose .cue is not listed, stays')
+assert files == ['Disc.bin', 'Folder.bin', 'Link.bin', 'Lone.bin', 'Other/Inner.bin',
+                 'Set/Inner.bin', 'Upper.BIN'], files
+print('A .bin beside its listed .cue is hidden; a lone .bin, or one whose .cue is not listed, '
+      'or one beside a folder or link named .cue, stays')

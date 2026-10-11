@@ -29,6 +29,18 @@ static int finish_power_transition(void *context)
     return 0;
 }
 
+/* A slow enable: runs until cancelled, at most 3 s. */
+static int slow_enable(void *context)
+{
+    MainUIDeviceJob *job = context;
+    for (int i = 0; i < 3000 && !atomic_load(&job->cancel); ++i) {
+        SDL_Delay(1);
+    }
+    job->success = !atomic_load(&job->cancel);
+    atomic_store_explicit(&job->done, true, memory_order_release);
+    return 0;
+}
+
 static bool transport(void *context, const char *command, char *reply, size_t size,
                       MainUICancel cancel)
 {
@@ -359,6 +371,19 @@ int main(int argc, char **argv)
         mainui_device_job_close(&job);
         assert(!job.thread);
     }
+    /* On, then Off, then launch: the enable is stopped at once and the Off
+     * runs, instead of waiting out the close budget and skipping the Off. */
+    job = (MainUIDeviceJob){.adapter = adapter, .operation = 5};
+    atomic_init(&job.cancel, false);
+    atomic_init(&job.done, false);
+    job.thread = SDL_CreateThread(slow_enable, &job);
+    assert(job.thread);
+    SDL_Delay(10);
+    assert(mainui_device_job_start(&job, &adapter, 6, NULL, NULL));
+    assert(job.queued_operation == 6 && !atomic_load(&job.cancel));
+    started = SDL_GetTicks();
+    mainui_device_job_close(&job);
+    assert(SDL_GetTicks() - started < 500 && !job.thread && !job.queued_operation);
     SDL_Quit();
     puts("Device status, Wi-Fi failure, cancellation and power contracts passed");
     return 0;
