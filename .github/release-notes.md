@@ -73,7 +73,7 @@ Thanks to @yuruyang for the report and the review.
 ### 🔧 Fixes
 
 - **Brightness:** a brightness set in the GameSwitcher went back to the old value in the main menu, also when going back to the menu from the game. Fixed, together with the display settings (contrast, hue, saturation, luminance) changed in Tweaks, which could be undone the same way.
-- **OTA and Wi-Fi:** with Wi-Fi off in Settings, the updater turns it on for the update and now turns it off again when it closes; it used to stay on until the next restart. Opened just after start-up, while the network is still coming up in the background, it waits for that to finish first. With Wi-Fi on but still connecting, the updater waits for it instead of restarting it.
+- **OTA and Wi-Fi:** with Wi-Fi off in Settings, the updater turns it on for the update and now turns it off again when it closes; it used to stay on until the next restart. Opened just after start-up, while the network is still coming up in the background, it waits for that to finish first. With Wi-Fi on but still connecting, the updater waits for it instead of restarting it. Turning Wi-Fi on now waits for the Wi-Fi chip and for the network, up to about a minute: the 20 seconds it allowed before were often too short on the Mini Plus, and the updater then reported github.com unreachable.
 - **OTA errors:** when GitHub doesn't answer (no connection, or too many checks in an hour), the updater says so instead of "Version is up to date", and the "Update available!" notice is kept. The downloaded package is deleted once extracted, instead of staying on the card. On the Mini, which has no Wi-Fi, the updater says so instead of waiting.
 
 ## ⚠️ Known issues

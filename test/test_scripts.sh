@@ -480,7 +480,7 @@ unset -f pkill wifi_setting_on
 end
 
 begin ota_waits_for_wifi_on_in_settings
-# On in Settings but not connected yet: no second wpa_supplicant, and the
+# Wi-Fi up but not connected yet: no second wpa_supplicant, and the
 # system's udhcpc is not killed.
 # Connected at the third look (ip runs in a subshell: count in a file).
 ip() { echo x >> "$TMP/ip_calls"; [ "$(wc -l < "$TMP/ip_calls")" -ge 3 ] && echo "1.0.0.0 via 10.0.0.1 dev wlan0 src 10.0.0.2"; }
@@ -488,20 +488,33 @@ sleep() { :; }
 clear() { :; }
 pkill() { echo "$*" >> "$TMP/pkill"; }
 udhcpc() { touch "$TMP/udhcpc"; }
-wifi_setting_on() { return 0; }
+wifi_radio_running() { return 0; }
 wifi_started_here=0
 enable_wifi > /dev/null 2>&1
 check "udhcpc not restarted" test ! -e "$TMP/udhcpc"
 check "nothing killed" test ! -e "$TMP/pkill"
 check "not marked as turned on here" test "$wifi_started_here" = 0
 check "address found" test -n "$IP"
-unset -f ip sleep clear pkill udhcpc wifi_setting_on
+# Wi-Fi off, whatever system.json says: the updater turns it on.
+rm -f "$TMP/ip_calls" "$TMP/udhcpc"
+wifi_started_here=0
+ip() { :; }
+wifi_radio_running() { return 1; }
+wifi_setting_on() { return 0; }
+(enable_wifi > /dev/null 2>&1; echo "$wifi_started_here" > "$TMP/started")
+check "off but on in system.json: turned on" test -e "$TMP/udhcpc"
+check "off but on in system.json: marked as turned on here" test "$(cat "$TMP/started")" = 1
+check "decided by the process, not the setting" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -q 'wifi_radio_running' && ! sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -q 'wifi_setting_on'"
+unset -f ip sleep clear pkill udhcpc wifi_setting_on wifi_radio_running
 end
 
 begin ota_waits_for_boot_network
 eval "$(extract_fn "$OTA" wait_boot_network)"
+eval "$(extract_fn "$OTA" network_ready)"
 sleep() { echo x >> "$TMP/slept"; }
 clear() { :; }
+ip() { :; }
+wifi_setting_on() { return 1; }
 # update_networking.sh still running for three more looks.
 pgrep() { echo x >> "$TMP/pgrep"; [ "$(wc -l < "$TMP/pgrep")" -le 3 ]; }
 wait_boot_network > /dev/null
@@ -514,8 +527,93 @@ check "nothing running: no wait" test ! -e "$TMP/slept"
 pgrep() { return 0; }
 wait_boot_network > /dev/null
 check "gives up after 45 s" test "$(wc -l < "$TMP/slept")" -eq 45
+# Connected with Wi-Fi on: no wait for the time sync still running.
+rm -f "$TMP/slept"
+ip() { echo "1.0.0.0 via 10.0.0.1 dev wlan0 src 10.0.0.2"; }
+wifi_setting_on() { return 0; }
+wait_boot_network > /dev/null
+check "connected, Wi-Fi on: no wait" test ! -e "$TMP/slept"
+# Connected with Wi-Fi off: the temporary Wi-Fi of the time sync, waited for.
+wifi_setting_on() { return 1; }
+wait_boot_network > /dev/null
+check "temporary Wi-Fi: waited for" test "$(wc -l < "$TMP/slept")" -eq 45
 check "before Wi-Fi is touched" sh -c "sed -n '/^main() {/,/^}/p' \"$OTA\" | grep -A1 '^	wait_boot_network' | grep -q '^	enable_wifi'"
-unset -f sleep clear pgrep wait_boot_network
+unset -f sleep clear pgrep wait_boot_network network_ready ip wifi_setting_on
+end
+
+begin ota_waits_for_wlan0_after_power_on
+eval "$(extract_fn "$OTA" wait_for_wlan0)"
+# The chip shows up at the fourth look, after the power-on.
+wlan0_present() { echo x >> "$TMP/looks"; [ "$(wc -l < "$TMP/looks")" -ge 4 ]; }
+sleep() { echo "$1" >> "$TMP/slept"; }
+wait_for_wlan0 10
+check "waits for wlan0" test $? -eq 0
+check "in half-second steps until it appears" test "$(cat "$TMP/slept" | tr '\n' ' ')" = "0.5 0.5 0.5 "
+rm -f "$TMP/slept"
+wlan0_present() { return 1; }
+wait_for_wlan0 10
+check "never appears: gives up" test $? -eq 1
+check "after 10 s" test "$(wc -l < "$TMP/slept")" -eq 20
+check "bring-up waits for wlan0, not a fixed 2 s" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A1 'axp_test wifion' | grep -q 'wait_for_wlan0'"
+unset -f wlan0_present sleep wait_for_wlan0
+end
+
+begin ota_dhcp_after_link_up
+eval "$(extract_fn "$OTA" wait_for_link)"
+wlan0_linked() { echo x >> "$TMP/looks"; [ "$(wc -l < "$TMP/looks")" -ge 5 ]; }
+sleep() { echo "$1" >> "$TMP/slept"; }
+wait_for_link 20
+check "waits for the network to be joined" test $? -eq 0 -a "$(wc -l < "$TMP/slept")" -eq 4
+rm -f "$TMP/slept"
+wlan0_linked() { return 1; }
+wait_for_link 20
+check "never joined: goes on after 20 s" test $? -eq 1 -a "$(wc -l < "$TMP/slept")" -eq 40
+check "udhcpc started after the link is up" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A4 'start_wpa_supplicant' | grep -q 'wait_for_link'"
+unset -f wlan0_linked sleep wait_for_link
+end
+
+begin ota_wifi_running_needs_wlan0
+eval "$(extract_fn "$OTA" wifi_radio_running)"
+pgrep() { echo "$*" > "$TMP/pgrep_args"; return 0; }
+wlan0_present() { return 1; }
+wifi_radio_running
+check "wpa_supplicant listed but no wlan0: Wi-Fi off" test $? -eq 1
+wlan0_present() { return 0; }
+wifi_radio_running
+check "wpa_supplicant and wlan0: Wi-Fi on" test $? -eq 0
+check "matched by command line (a killed one has none)" grep -q -- '-f' "$TMP/pgrep_args"
+pgrep() { return 1; }
+wifi_radio_running
+check "no wpa_supplicant: Wi-Fi off" test $? -eq 1
+unset -f pgrep wlan0_present wifi_radio_running
+end
+
+begin ota_dhcp_started_once_joined
+# Wi-Fi off: wpa_supplicant once, then the wait for the link, then udhcpc.
+ip() { :; }
+sleep() { :; }
+clear() { :; }
+insmod() { :; }
+ifconfig() { :; }
+iw() { :; }
+pkill() { echo "pkill $*" >> "$TMP/steps"; }
+udhcpc() { echo udhcpc >> "$TMP/steps"; }
+wifi_radio_running() { return 1; }
+wait_for_wlan0() { return 0; }
+start_wpa_supplicant() { echo wpa >> "$TMP/steps"; }
+wait_for_link() { echo "link $1" >> "$TMP/steps"; }
+wait_for_ip() { echo "ip $1" >> "$TMP/steps"; }
+enable_wifi > /dev/null 2>&1
+# udhcpc runs in the background: its line may come after "ip 20". Poll
+# for it (a bare `wait` would also wait for any job left by other tests).
+n=0
+while ! grep -qx udhcpc "$TMP/steps" && [ $n -lt 50 ]; do
+    command sleep 0.1
+    n=$((n + 1))
+done
+check "wpa_supplicant, up to 50 s for the link, then udhcpc" test "$(grep -v '^udhcpc$' "$TMP/steps" | tr '\n' ' ')" = "pkill -9 wpa_supplicant wpa link 50 pkill -9 udhcpc ip 20 "
+check "udhcpc started" grep -qx udhcpc "$TMP/steps"
+unset -f ip sleep clear insmod ifconfig iw pkill udhcpc wifi_radio_running wait_for_wlan0 start_wpa_supplicant wait_for_link wait_for_ip
 end
 
 begin ota_channel_cancel_keeps_channel
