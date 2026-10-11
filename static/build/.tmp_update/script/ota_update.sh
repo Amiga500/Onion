@@ -107,6 +107,14 @@ wifi_setting_on() {
 	[ "$(/customer/app/jsonval wifi 2> /dev/null)" -eq 1 ] 2> /dev/null
 }
 
+# The system's Wi-Fi is up or connecting. Decided by the process, not by
+# the setting in system.json: that can say on while Wi-Fi is off (a stale
+# copy saved back by another program), and the updater then waited for a
+# connection that never came instead of turning Wi-Fi on.
+wifi_radio_running() {
+	pgrep wpa_supplicant > /dev/null 2>&1
+}
+
 wait_for_ip() { # seconds
 	i=0
 	while [ $i -lt "$1" ]; do
@@ -149,10 +157,10 @@ restore_wifi() {
 enable_wifi() {
 	# Enable wifi if necessary
 	IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
-	if [ "$IP" = "" ] && wifi_setting_on; then
-		# On in Settings but not connected yet (just after start-up, or
-		# reconnecting): wait for it instead of starting a second
-		# wpa_supplicant and killing the system's udhcpc.
+	if [ "$IP" = "" ] && wifi_radio_running; then
+		# On but not connected yet (just after start-up, or reconnecting):
+		# wait for it instead of starting a second wpa_supplicant and
+		# killing the system's udhcpc.
 		echo "Waiting for Wi-Fi..."
 		wait_for_ip 20
 		clear

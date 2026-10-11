@@ -480,7 +480,7 @@ unset -f pkill wifi_setting_on
 end
 
 begin ota_waits_for_wifi_on_in_settings
-# On in Settings but not connected yet: no second wpa_supplicant, and the
+# Wi-Fi up but not connected yet: no second wpa_supplicant, and the
 # system's udhcpc is not killed.
 # Connected at the third look (ip runs in a subshell: count in a file).
 ip() { echo x >> "$TMP/ip_calls"; [ "$(wc -l < "$TMP/ip_calls")" -ge 3 ] && echo "1.0.0.0 via 10.0.0.1 dev wlan0 src 10.0.0.2"; }
@@ -488,14 +488,24 @@ sleep() { :; }
 clear() { :; }
 pkill() { echo "$*" >> "$TMP/pkill"; }
 udhcpc() { touch "$TMP/udhcpc"; }
-wifi_setting_on() { return 0; }
+wifi_radio_running() { return 0; }
 wifi_started_here=0
 enable_wifi > /dev/null 2>&1
 check "udhcpc not restarted" test ! -e "$TMP/udhcpc"
 check "nothing killed" test ! -e "$TMP/pkill"
 check "not marked as turned on here" test "$wifi_started_here" = 0
 check "address found" test -n "$IP"
-unset -f ip sleep clear pkill udhcpc wifi_setting_on
+# Wi-Fi off, whatever system.json says: the updater turns it on.
+rm -f "$TMP/ip_calls" "$TMP/udhcpc"
+wifi_started_here=0
+ip() { :; }
+wifi_radio_running() { return 1; }
+wifi_setting_on() { return 0; }
+(enable_wifi > /dev/null 2>&1; echo "$wifi_started_here" > "$TMP/started")
+check "off but on in system.json: turned on" test -e "$TMP/udhcpc"
+check "off but on in system.json: marked as turned on here" test "$(cat "$TMP/started")" = 1
+check "decided by the process, not the setting" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -q 'wifi_radio_running' && ! sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -q 'wifi_setting_on'"
+unset -f ip sleep clear pkill udhcpc wifi_setting_on wifi_radio_running
 end
 
 begin ota_waits_for_boot_network
