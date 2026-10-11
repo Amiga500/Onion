@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 bool mainui_launch_tool(const char *directory, const char *sd, const MainUILaunchSource *source,
                         const char *label, const char *launch, int type, char error[256])
@@ -1122,10 +1123,15 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
         ui->letter_jump.active = false;
         return;
     }
-    /* Y on a game launches it as A does, as in stock: Onion's keymon sets
-     * /tmp/launch_alt on Y, and runtime.sh then opens Game List Options for
-     * the launched game instead of starting it (#14). On a folder or ".."
-     * Y does nothing. */
+    /* Y on a game launches it as A does, as in stock: with Game List Options
+     * set as the Y shortcut, Onion's keymon sets /tmp/launch_alt on Y, and
+     * runtime.sh then opens Game List Options for the launched game instead
+     * of starting it (#14). MainUI sets that flag too, as keymon skips it
+     * while its cached state does not say MainUI is running (after boot, or
+     * just after a game). With no Y shortcut, Y is A. With any other, or a
+     * keymap.json that cannot be read, Y does nothing (logged, no message):
+     * keymon runs an app or tool shortcut, and a game it did not mean to
+     * start must not. On a folder or ".." Y does nothing. */
     if (game_list && key == SDLK_LALT) {
         bool game = ui->view.selected >= 0 &&
                     (ui->library ? ui->view.selected < ui->library->visible_count &&
@@ -1133,8 +1139,14 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
                                  : ui->catalog && ui->catalog->depth && !*ui->catalog->error &&
                                        mainui_browser_index(ui->catalog, ui->view.selected) >= 0 &&
                                        !mainui_browser_folder(ui->catalog, ui->view.selected));
-        if (game && !was_held && ui->handoff_dir) {
-            ui->launch_source.alternate = true;
+        char why[160];
+        MainUIYShortcut shortcut =
+            game && !was_held && ui->handoff_dir ? mainui_y_shortcut(ui->sd, why) : MAINUI_Y_AS_A;
+        if (shortcut == MAINUI_Y_NOTHING) {
+            fprintf(stderr, "[launch] Y ignored: %s\n", why);
+        }
+        else if (game && !was_held && ui->handoff_dir) {
+            ui->launch_source.alternate = shortcut == MAINUI_Y_GAME_OPTIONS;
             ui->launch_pending =
                 mainui_session_launch(ui->handoff_dir, &ui->launch_source, NULL, ui->message_body);
             ui->launch_source.alternate = false;
@@ -1212,6 +1224,21 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
         return;
     }
     mainui_screen_list_key(ui, key);
+}
+
+/* Keymon sends no Menu after Select with L2 or R2 (Start not held) where
+ * that is its brightness combo: on any model but the Plus (354) and Flip
+ * (285), as keymon tells them apart, unless .altBrightness moves brightness
+ * to Menu with Up or Down. Everywhere else it does. */
+static bool keymon_brightness_combo(const MainUIApp *ui)
+{
+    char flag[MAINUI_PATH_MAX + 16];
+    int model = ui->device_status.model.id;
+    return model != 285 && model != 354 &&
+           (!*ui->default_config ||
+            snprintf(flag, sizeof flag, "%s/.altBrightness", ui->default_config) >=
+                (int)sizeof flag ||
+            access(flag, F_OK) != 0);
 }
 
 /* A release of Menu opens the context menu, as Select does and as stock does
@@ -1298,6 +1325,9 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
         /* Lost keyup events must not leave a modifier/chord stuck after Alt-Tab.
          * A pending confirmation is cancelled: its key state is unknown now. */
         memset(ui->held, 0, sizeof ui->held);
+        /* Their releases would be taken for presses. */
+        ui->y_armed = ui->select_armed = ui->start_armed = false;
+        ui->select_brightness = false;
         ui->letter_jump.active = false;
         ui->confirmation = -1;
         ui->return_latched = false;
@@ -1307,9 +1337,14 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
         if (released >= 0 && released < SDLK_LAST) {
             ui->held[released] = false;
         }
+        /* Keymon's Menu after a Select release is ignored, but only when it
+         * sends one: else a real Menu shortly after would be. */
         if (released == SDLK_RCTRL && ui->real_device) {
-            ui->select_menu_pending = true;
+            ui->select_menu_pending = !(ui->select_brightness && keymon_brightness_combo(ui));
             ui->select_menu_until = SDL_GetTicks() + 1500;
+        }
+        if (released == SDLK_RCTRL) {
+            ui->select_brightness = false;
         }
         /* On the device Menu releases come from platform/menu_button.c,
          * which also sees the lone release SDL drops. */
@@ -1327,6 +1362,7 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
         return true;
     }
     if (ui->catalog_job.thread) {
+        ui->y_armed = ui->select_armed = ui->start_armed = false;
         if (event->type == SDL_KEYUP && mainui_input_key(event->key.keysym.sym) == SDLK_RETURN) {
             ui->search_confirm_held = false;
         }
@@ -1344,6 +1380,49 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
     if (event->type == SDL_KEYUP && ui->search.release_pending &&
         mainui_input_key(event->key.keysym.sym) == SDLK_RETURN) {
         ui->search.release_pending = false;
+        return true;
+    }
+    /* Y, Select and Start act when released, as stock acts on A, B, X, Y,
+     * Select, Start and Menu. Keymon runs a Tweaks shortcut on Y by killing
+     * MainUI as Y goes down; acting on the press as well could launch the
+     * game Y is on, or at least put it first in Recents. While Select or
+     * Start is held the other buttons are keymon's: Select with L2 or R2 is
+     * brightness, Start with L2 or R2 volume, Select, Start and L1 or R1 the
+     * CPU clock. MainUI ignores them, and they cancel Select and Start, so
+     * no combo opens the context menu or reloads a list. */
+    SDLKey key = mainui_input_key(event->key.keysym.sym);
+    bool *armed = key == SDLK_LALT    ? &ui->y_armed
+                  : key == SDLK_RCTRL ? &ui->select_armed
+                  : key == SDLK_F2    ? &ui->start_armed
+                                      : NULL;
+    if (event->type == SDL_KEYUP && armed && *armed) {
+        *armed = false;
+        SDL_Event press = *event;
+        press.type = SDL_KEYDOWN;
+        press.key.state = SDL_PRESSED;
+        dispatch_key(ui, &press);
+        ui->held[key] = false;
+        return true;
+    }
+    bool combo =
+        (ui->held[SDLK_RCTRL] && key != SDLK_RCTRL) || (ui->held[SDLK_F2] && key != SDLK_F2);
+    if (event->type == SDL_KEYDOWN && combo) {
+        ui->select_armed = ui->start_armed = false;
+        if (ui->held[SDLK_RCTRL] && !ui->held[SDLK_F2] && (key == SDLK_HOME || key == SDLK_END)) {
+            ui->select_brightness = true;
+        }
+        /* Held as keymon sees it: Start pressed during Select makes L2 or
+         * R2 its volume, not brightness. */
+        if (key > 0 && key < SDLK_LAST) {
+            ui->held[key] = true;
+        }
+        return true;
+    }
+    if (event->type == SDL_KEYDOWN && armed) {
+        if (!ui->held[key]) {
+            *armed = true;
+        }
+        ui->held[key] = true;
         return true;
     }
     if (event->type == SDL_KEYDOWN) {

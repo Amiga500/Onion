@@ -238,10 +238,14 @@ static bool publish_unlocked(const char *directory, const cJSON *record, const M
             ok = mainui_write_bytes_new_status(scratch->search_path, "", 0, &search_owned);
         }
     }
+    bool state_written = false;
     if (ok) {
         /* The handoff is all-or-nothing with rollback, so it requires durability. */
-        ok = mainui_write_text_atomic_result(scratch->state_path, state_text) ==
-             MAINUI_WRITE_DURABLE;
+        MainUIWriteResult written =
+            mainui_write_text_atomic_result(scratch->state_path, state_text);
+        /* Visible even when its folder flush failed: then rolled back too. */
+        state_written = written != MAINUI_WRITE_UNCHANGED;
+        ok = written == MAINUI_WRITE_DURABLE;
     }
     bool command_owned = false;
     if (ok) {
@@ -272,6 +276,15 @@ static bool publish_unlocked(const char *directory, const cJSON *record, const M
         }
         if (favorite_owned) {
             mainui_remove_file(scratch->favorite_path);
+        }
+        /* A start without a return follows a state.json: the one for a
+         * launch that never happened must not stay. */
+        if (state_written) {
+            char *current = mainui_read_text(scratch->state_path, 64 * 1024);
+            if (current && !strcmp(current, state_text)) {
+                mainui_remove_file(scratch->state_path);
+            }
+            free(current);
         }
         if (!*error) {
             snprintf(error, 256,

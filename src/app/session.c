@@ -460,6 +460,14 @@ bool mainui_session_launch(const char *directory, const MainUILaunchSource *sour
         ok = false;
         snprintf(error, 256, "Cannot clear the Y launch flag.");
     }
+    /* A Y launch sets it as keymon would, in case keymon did not. */
+    if (ok && source->alternate) {
+        FILE *set = flag_path ? fopen(flag, "a") : NULL;
+        if (!set || fclose(set) != 0) {
+            ok = false;
+            snprintf(error, 256, "Cannot set the Y launch flag.");
+        }
+    }
     /* After a Y launch Onion's Game List Options removes the first line of
      * Recents, taken to be this launch: it must be there before the launch is
      * published, or GLO would remove another game. If the launch then fails,

@@ -7,8 +7,10 @@
 #undef NDEBUG
 #endif
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static void reset(MainUIApp *ui)
 {
@@ -30,6 +32,12 @@ static bool key_event(MainUIApp *ui, Uint8 type, SDLKey key, Uint16 unicode)
     return mainui_dispatch_event(ui, &event);
 }
 
+/* Select and Start act when released. */
+static bool tap(MainUIApp *ui, SDLKey key)
+{
+    return key_event(ui, SDL_KEYDOWN, key, 0) && key_event(ui, SDL_KEYUP, key, 0);
+}
+
 static void home_and_popups(MainUIApp *ui)
 {
     reset(ui);
@@ -46,9 +54,20 @@ static void home_and_popups(MainUIApp *ui)
     ui->context = ui->home_context;
     ui->context_open = true;
     assert(key_event(ui, SDL_KEYDOWN, SDLK_RCTRL, 0));
+    assert(ui->context_open); /* not before the release */
+    assert(key_event(ui, SDL_KEYUP, SDLK_RCTRL, 0));
     assert(!ui->context_open && ui->confirmation == -1);
     assert(ui->home_view.selected == 2 && ui->running);
+    /* A release after focus was lost is no press: SDL may have lost
+     * either event. */
     assert(key_event(ui, SDL_KEYDOWN, SDLK_RCTRL, 0));
+    SDL_Event lost = {0};
+    lost.type = SDL_ACTIVEEVENT;
+    lost.active.state = SDL_APPINPUTFOCUS;
+    assert(mainui_dispatch_event(ui, &lost));
+    assert(key_event(ui, SDL_KEYUP, SDLK_RCTRL, 0));
+    assert(!ui->context_open);
+    assert(tap(ui, SDLK_RCTRL));
     assert(ui->context_open);
     assert(key_event(ui, SDL_KEYDOWN, SDLK_RETURN, 0));
     assert(!ui->context_open && ui->confirmation == CONTEXT_SHUTDOWN);
@@ -89,7 +108,7 @@ static void start_is_consumed(MainUIApp *ui)
         default:
             break;
         }
-        assert(key_event(ui, SDL_KEYDOWN, SDLK_F2, 0));
+        assert(tap(ui, SDLK_F2));
         assert(ui->running && !ui->launch_pending && !ui->catalog_job.thread);
         assert(ui->home_view.selected == 1 && ui->view.selected == 1);
         assert(ui->context_open == (screen == 3));
@@ -143,6 +162,51 @@ static void keyboard_priority(MainUIApp *ui)
     ui->device_enabled = false;
     assert(key_event(ui, SDL_KEYDOWN, SDLK_ESCAPE, 0));
     assert(!ui->name_input.open && !ui->settings_keyboard);
+}
+
+/* On the device keymon answers a Select release with a Menu press, which
+ * is ignored, except after Select with L2 or R2 where that is its
+ * brightness combo (not the Plus or Flip, and not with .altBrightness; an
+ * unknown model counts as a Mini, as in keymon): there it sends none, and a
+ * real Menu soon after must open the menu. */
+static void select_menu_after_combo(MainUIApp *ui)
+{
+    char config[] = "/tmp/mainui-alt-brightness-XXXXXX", flag[64];
+    assert(mkdtemp(config));
+    snprintf(flag, sizeof flag, "%s/.altBrightness", config);
+    const int models[] = {283, 0, 354, 285};
+    for (int alt = 0; alt < 2; ++alt) {
+        if (alt) {
+            FILE *file = fopen(flag, "w");
+            assert(file && !fclose(file));
+        }
+        for (int model = 0; model < 4; ++model) {
+            /* Select alone, with R2, with Start and R2, with L2. */
+            for (int combo = 0; combo < 4; ++combo) {
+                reset(ui);
+                ui->real_device = true;
+                ui->device_status.model.id = models[model];
+                snprintf(ui->default_config, sizeof ui->default_config, "%s", config);
+                SDLKey shoulder = combo == 3 ? SDLK_HOME : SDLK_END;
+                assert(key_event(ui, SDL_KEYDOWN, SDLK_RCTRL, 0));
+                if (combo == 2) { /* Start makes R2 keymon's volume */
+                    assert(key_event(ui, SDL_KEYDOWN, SDLK_F2, 0));
+                }
+                if (combo) {
+                    assert(key_event(ui, SDL_KEYDOWN, shoulder, 0));
+                    assert(key_event(ui, SDL_KEYUP, shoulder, 0));
+                }
+                if (combo == 2) {
+                    assert(key_event(ui, SDL_KEYUP, SDLK_F2, 0));
+                }
+                assert(key_event(ui, SDL_KEYUP, SDLK_RCTRL, 0));
+                bool brightness = model < 2 && !alt && (combo == 1 || combo == 3);
+                assert(ui->select_menu_pending == !brightness);
+                assert(!ui->select_brightness);
+            }
+        }
+    }
+    assert(!unlink(flag) && !rmdir(config));
 }
 
 /* Holding A after it opened a confirmation never confirms: only a release
@@ -513,6 +577,7 @@ int mainui_suite_screen_events(void)
     start_is_consumed(ui);
     keyboard_priority(ui);
     held_confirmation(ui);
+    select_menu_after_combo(ui);
     message_over_details(ui);
     releases_and_focus(ui);
     keymon_quiet_l1(ui);

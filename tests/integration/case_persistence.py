@@ -31,9 +31,12 @@ if "no-hardlinks" not in os.environ.get("LD_PRELOAD", "") and not os.environ.get
         result = run("launch", sync_failure=failed_file)
         assert result.returncode == 3, (failed_file, result.stderr)
         assert not any((SD / name).exists() for name in handoff), failed_file
+        # Nor a state.json: a start without a return follows it. Also when
+        # its own folder flush failed and the file is visible.
+        assert not (SD / "state.json").exists(), failed_file
         # No orphaned publication can block the next attempt.
         assert run("launch").returncode == 0
-        for name in handoff:
+        for name in (*handoff, "state.json"):
             (SD / name).unlink()
     # A return file that is removed but whose folder flush fails is still
     # consumed: the parsed state is the only copy left.

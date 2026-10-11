@@ -173,7 +173,28 @@ int mainui_suite_core(void)
         cJSON_Delete(settings);
     }
     CHECK(!strcmp(mainui_keymap_value(NULL), MAINUI_DEFAULT_KEYMAP));
+    /* Stock's values for keymon's live copy: its defaults when a key is
+     * missing or not a number, and lumination, hue, saturation and contrast
+     * only from 0 to 20; the other values unchecked. */
+    const char *names[] = {"vol",        "brightness", "mute",       "bgmvol",   "hibernate",
+                           "lumination", "hue",        "saturation", "contrast", "audiofix"};
+    const int defaults[] = {20, 7, 0, 8, 0, 7, 10, 10, 10, 1};
+    cJSON *empty = cJSON_Parse("{\"vol\":\"5\",\"brightness\":true}");
+    for (size_t i = 0; i < sizeof names / sizeof *names; ++i) {
+        CHECK(mainui_system_monitor_value(empty, names[i]) == defaults[i]);
+        CHECK(mainui_system_monitor_value(NULL, names[i]) == defaults[i]);
+    }
+    cJSON_Delete(empty);
+    cJSON *set = cJSON_Parse("{\"vol\":25,\"brightness\":3,\"mute\":1,\"bgmvol\":-2,"
+                             "\"hibernate\":5,\"lumination\":21,\"hue\":0,\"saturation\":20,"
+                             "\"contrast\":-1,\"audiofix\":0}");
+    const int expected[] = {25, 3, 1, -2, 5, 7, 0, 20, 10, 0};
+    for (size_t i = 0; i < sizeof names / sizeof *names; ++i) {
+        CHECK(mainui_system_monitor_value(set, names[i]) == expected[i]);
+    }
+    CHECK(mainui_system_monitor_value(set, "keymap") == 0);
+    cJSON_Delete(set);
     puts("core tests passed (configuration, devices, viewport properties, marquee bounds, state "
-         "codec, button mapping)");
+         "codec, button mapping, live settings)");
     return 0;
 }

@@ -293,7 +293,9 @@ static bool allowed(const char *name, const char *extensions)
  * beside it, as the cue is what starts the game. Spelled as stock checks it,
  * with a lowercase .bin and .cue. Unlike stock, only when the extlist lists
  * that .cue: with extlist "bin" stock hides the .bin and lists no .cue, so
- * the game disappears. `cue` receives the cue's path. */
+ * the game disappears. Only a regular file counts, as the scan lists only
+ * those: a folder or link named X.cue would hide the .bin and list nothing.
+ * `cue` receives the cue's path. */
 static bool cue_beside(const char *path, const char *extensions, char cue[MAINUI_PATH_MAX])
 {
     size_t length = strlen(path);
@@ -303,7 +305,8 @@ static bool cue_beside(const char *path, const char *extensions, char cue[MAINUI
     }
     memcpy(cue, path, length - 4);
     memcpy(cue + length - 4, ".cue", 5);
-    return access(cue, F_OK) == 0;
+    struct stat info;
+    return lstat(cue, &info) == 0 && S_ISREG(info.st_mode);
 }
 
 typedef struct {

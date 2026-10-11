@@ -315,6 +315,25 @@ static int monitor(const char *config, const char *sd)
     return 0;
 }
 
+/* A value missing from system.json, or not a number, shows stock's default:
+ * brightness 7, Menu sound 8, no sleep. */
+static int defaults(const char *config, const char *sd)
+{
+    char path[4096];
+    snprintf(path, sizeof path, "%s/system.json", sd);
+    const char *files[] = {"{}\n", "{\"brightness\":\"9\",\"bgmvol\":\"x\",\"hibernate\":null}\n"};
+    for (int i = 0; i < 2; i++) {
+        FILE *file = fopen(path, "wb");
+        assert(file && fputs(files[i], file) >= 0 && fclose(file) == 0);
+        MainUIStockSettings settings;
+        mainui_stock_settings_load(&settings, config, sd, 0);
+        assert(settings.values[SET_BRIGHTNESS] == 7 && settings.values[SET_SOUND] == 8 &&
+               settings.values[SET_SLEEP] == 0);
+    }
+    puts("Missing Settings values show stock's defaults");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 3 || argc == 4);
@@ -326,6 +345,9 @@ int main(int argc, char **argv)
     }
     if (argc == 4 && !strcmp(argv[3], "damaged")) {
         return damaged(argv[2]);
+    }
+    if (argc == 4 && !strcmp(argv[3], "defaults")) {
+        return defaults(argv[1], argv[2]);
     }
     if (argc == 4 && !strcmp(argv[3], "monitor")) {
         return monitor(argv[1], argv[2]);

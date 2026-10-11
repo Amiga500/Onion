@@ -111,7 +111,11 @@ static void header_battery(SDL_Surface *screen, MainUITheme *theme)
      * right, 620 - (68 * slot + 48), y 6, and centers the image in it. The
      * battery holds slot 0, so Wi-Fi is slot 1 at x 504, whatever the
      * battery's width; a wider image, as some themes ship, spreads from it. */
-    if (theme->wifi_online && wifi) {
+    /* Stock's state 3: a running hotspot and no Wi-Fi connection. */
+    if (!theme->wifi_online && theme->hotspot_on) {
+        wifi = theme->wifi_hotspot;
+    }
+    if ((theme->wifi_online || theme->hotspot_on) && wifi) {
         mainui_blit(screen, wifi, 504 + (48 - wifi->w) / 2, 6 + (48 - wifi->h) / 2);
     }
     /* As Onion's battery surface: an even height of at least 48 (its
