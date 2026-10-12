@@ -56,7 +56,7 @@ typedef struct settings_s {
     int ingame_double_press;
     bool disable_standby;
     int pwmfrequency;
-    int launch_screen; // LOADING/SAVING screen: 0 popup, 1 full screen, 2 black
+    int launch_screen; // LOADING/SAVING screen: 0 popup, 1 full screen, 2 black, 3 full popup
     bool enable_logging;
     bool rec_indicator;
     bool rec_hotkey;

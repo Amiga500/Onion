@@ -144,8 +144,9 @@ void enableSavingMessage(void)
 
 // Screen shown while the game saves on exit, per Tweaks > Appearance >
 // Loading/saving screen (settings.launch_screen): 0 the game screenshot with
-// a "SAVING" popup, 1 the screenshot alone, 2 black. runtime.sh does the
-// same for "LOADING" (show_launch_screen).
+// a "SAVING" popup, 1 the screenshot alone, 2 black, 3 "SAVING" on the
+// theme's full-screen panel. runtime.sh does the same for "LOADING"
+// (show_launch_screen).
 void displaySavingMessage(void)
 {
     if (temp_flag_get(".displaySavingMessage")) {
@@ -157,6 +158,10 @@ void displaySavingMessage(void)
             break;
         case 2:
             display_clear();
+            break;
+        case 3:
+            system("infoPanel --message \"SAVING\" --persistent &");
+            temp_flag_set("dismiss_info_panel", true);
             break;
         default:
             system("infoPanel --message \"SAVING\" --persistent --romscreen &");

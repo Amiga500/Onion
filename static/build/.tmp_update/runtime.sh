@@ -1666,7 +1666,8 @@ start_networking() {
 
 # Screen shown while a game starts ("LOADING") or saves on exit ("SAVING"),
 # per Tweaks > Appearance > Loading/saving screen: 0 the game screenshot
-# with a popup (as in Onion), 1 the screenshot alone, 2 black.
+# with a popup (as in Onion), 1 the screenshot alone, 2 black, 3 the message
+# on the theme's full-screen panel (no screenshot).
 show_launch_screen() {
     case "$(cat "$sysdir/config/display/launchScreen" 2> /dev/null)" in
         1)
@@ -1675,6 +1676,10 @@ show_launch_screen() {
             ;;
         2)
             bootScreen clear
+            ;;
+        3)
+            infoPanel --message "$1" --persistent &
+            touch /tmp/dismiss_info_panel
             ;;
         *)
             infoPanel --message "$1" --persistent --romscreen &

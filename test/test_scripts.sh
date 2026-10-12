@@ -979,6 +979,11 @@ rm -f "$TMP/calls"
 echo 2 > "$TMP/config/display/launchScreen"
 show_launch_screen LOADING; wait
 check "black: screen cleared, no infoPanel" test "$(cat "$TMP/calls")" = "bootScreen clear"
+rm -f "$TMP/calls"
+echo 3 > "$TMP/config/display/launchScreen"
+show_launch_screen SAVING; wait
+check "full popup: message without screenshot" grep -qx 'infoPanel --message SAVING --persistent' "$TMP/calls"
+check "full popup: dismissed like the popup" grep -qx 'touch /tmp/dismiss_info_panel' "$TMP/calls"
 check "both screens use it" test "$(grep -c 'show_launch_screen "\(LOADING\|SAVING\)"' "$RUNTIME")" -eq 2
 check "no direct LOADING/SAVING infoPanel left" sh -c "! grep -q 'infoPanel --message \"\(LOADING\|SAVING\)\"' \"$RUNTIME\""
 unset -f infoPanel bootScreen touch show_launch_screen

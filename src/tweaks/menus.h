@@ -600,13 +600,14 @@ void menu_userInterface(void *_)
                                  (ListItem){
                                      .label = "Loading/saving screen",
                                      .item_type = MULTIVALUE,
-                                     .value_max = 2,
-                                     .value_labels = {"Popup", "Full screen", "Black"},
+                                     .value_max = 3,
+                                     .value_labels = {"Popup", "Full screen", "Black", "Full popup"},
                                      .value = settings.launch_screen,
                                      .action = action_setLaunchScreen},
                                  "Shown while a game starts or saves:\n"
                                  "the game screenshot with a popup,\n"
-                                 "the screenshot alone, or black.");
+                                 "the screenshot alone, black, or the\n"
+                                 "message on the theme's full screen.");
         display_init(true);
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
