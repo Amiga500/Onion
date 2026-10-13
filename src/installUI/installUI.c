@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
     SDL_Rect rect_version = {10, 10};
 
     Uint32 progress_bg = SDL_MapRGB(video->format, 29, 30, 37);
-    Uint32 progress_color = SDL_MapRGB(video->format, 114, 71, 194);
+    Uint32 progress_color = SDL_MapRGB(video->format, 158, 44, 69);
     Uint32 failed_color = SDL_MapRGB(video->format, 194, 71, 71);
 
     SDL_Rect rectMessage = {10, 414};

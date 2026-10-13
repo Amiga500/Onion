@@ -20,7 +20,7 @@ static TTF_Font *font18;
 static PlayActivities *play_activities;
 
 static SDL_Color color_white = {255, 255, 255};
-static SDL_Color color_purple = {136, 97, 252};
+static SDL_Color color_accent = {196, 59, 89};
 static SDL_Color color_grey = {117, 123, 156};
 static SDL_Color color_lightgrey = {214, 223, 246};
 
@@ -173,7 +173,7 @@ void renderPage(int current_page)
         ROM *rom = entry->rom;
 
         snprintf(num_str, sizeof(num_str), "%d", index + 1);
-        renderTextAlignRight(num_str, font40, color_purple, &(SDL_Rect){num_width, 80 + 90 * row, 50, 39});
+        renderTextAlignRight(num_str, font40, color_accent, &(SDL_Rect){num_width, 80 + 90 * row, 50, 39});
 
         SDL_Surface *romImage = rom_image_cache[row];
         if (romImage != NULL) {

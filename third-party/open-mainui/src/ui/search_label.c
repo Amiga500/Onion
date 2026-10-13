@@ -18,7 +18,7 @@ SDL_Surface *mainui_search_label(MainUITheme *theme, const char *label, const ch
         return NULL;
     }
     SDL_Color color = theme->color.r + 2 * theme->color.g + theme->color.b < 512
-                          ? (SDL_Color){123, 44, 191, 0}
+                          ? (SDL_Color){158, 44, 69, 0}
                           : (SDL_Color){255, 255, 0, 0};
     char prefix[4096], match[128];
     if (count >= sizeof match) {
