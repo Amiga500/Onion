@@ -36,5 +36,8 @@
         "font": "/mnt/SDCARD/miyoo/app/wqy-microhei.ttc",
         "size": 25,
         "color": "#FFFFFF"
+    },
+    "gamelist": {
+        "searchColor": "#9E2C45"
     }
 }
