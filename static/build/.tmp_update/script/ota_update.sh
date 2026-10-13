@@ -391,7 +391,7 @@ download_update() {
 
 		mkdir -p $sysdir/download/
 		echo -ne "\n\n" \
-			"${BLUE}== Downloading Onion $Release_Version ($channel channel) ==${NC}\n"
+			"${BLUE}== Downloading RedOnion $Release_Version ($channel channel) ==${NC}\n"
 		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
 		sync
 		wget --no-check-certificate $Release_url -O "$sysdir/download/$Release_Version.zip"

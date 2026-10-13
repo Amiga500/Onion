@@ -1,5 +1,5 @@
 {
-	"label": "Onion OTA update",
+	"label": "RedOnion OTA update",
 	"icon": "/mnt/SDCARD/Icons/Default/app/pacman.png",
 	"launch": "launch.sh",
 	"description": "Update Onion over internet"

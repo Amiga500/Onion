@@ -633,7 +633,7 @@ void menu_resetSettings(void *_)
                                  (ListItem){
                                      .label = "Reset system tweaks",
                                      .action = action_resetTweaks},
-                                 "Reset all Onion system tweaks,\n"
+                                 "Reset all RedOnion system tweaks,\n"
                                  "including network setup.");
         list_addItem(&_menu_reset_settings,
                      (ListItem){
