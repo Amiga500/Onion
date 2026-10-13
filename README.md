@@ -10,7 +10,7 @@ RedOnion (formerly OnionPlus) is an independent build of [Onion](https://github.
 
 ## Why RedOnion?
 
-Onion is one of the best things that ever happened to the Miyoo Mini, and RedOnion is built on it. It is a diagonal step to keep updating Onion, fixing bugs and adding features.
+Onion is one of the best things that ever happened to the Miyoo Mini, and RedOnion is built on it. Its goal is to make Onion as optimized as possible, with as few bugs as possible, and to keep it moving: bugs get fixed quickly and new features keep coming.
 
 RedOnion started as my personal build to test fixes on real devices, and has become a build others can use too. Every change stays public, so the Onion team can take anything they want from it if they wish to continue the original project.
 
