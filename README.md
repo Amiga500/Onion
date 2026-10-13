@@ -2,21 +2,21 @@
 
 # RedOnion
 
-### Onion, the way you know it. Faster, sturdier, and still growing.
+### Onion, the same you know but still growing to bring you more.
 
-**Miyoo Mini, Mini v4, Mini Plus and Mini Flip supported**
+**Supported devices: Miyoo Mini, Mini v4, Mini Plus and Mini Flip.**
 
-RedOnion (formerly OnionPlus) is an independent build of [Onion](https://github.com/OnionUI/Onion) for the Miyoo Mini family. Same menus, same themes, same emulators, same folders. What changes is everything underneath.
+RedOnion (formerly OnionPlus) is an independent build of [Onion](https://github.com/OnionUI/Onion) for the Miyoo Mini family. Same menus, same themes, same emulators, same folders, while changing things underneath.
 
-## Why it exists
+## Why RedOnion?
 
-Onion is one of the best things that ever happened to the Miyoo Mini, and RedOnion is built on it. It is meant for those who want a build that keeps being looked after over time: regular updates, bugs fixed quickly, and requests and pull requests taken on whenever they are feasible.
+Onion is one of the best things that ever happened to the Miyoo Mini, and RedOnion is built on it. It is a diagonal step to keep updating Onion, fixing bugs and adding features.
 
-RedOnion started as my personal build to test fixes on real devices, and grew into a build that others now use too. Every change stays public, so the Onion team can take whatever they find useful.
+RedOnion started as my personal build to test fixes on real devices, and has become a build others can use too. Every change stays public, so the Onion team can take anything they want from it if they wish to continue the original project.
 
-## What you get
+## Why make the switch?
 
-- 🐞 **Quick to respond.** Reported bugs are fixed quickly, and feature requests and pull requests are welcome: if they are feasible, they get in.
+- 🐞 **Quick fixes.** Bug reports are looked at and fixed ASAP, and feature requests and pull requests are welcome: if they are feasible, they get in.
 - ⚡ **A faster everyday.** Game launches, menus, sleep, volume and the GameSwitcher were all rebuilt for speed, and the launcher idles at a fraction of the CPU.
 - 🆕 **Open MainUI.** An open-source launcher by [@robcodedev](https://github.com/robcodedev/onionos-mainui-opensource) replaces Miyoo's closed one: about 270 KB instead of 1.4 MB, menus at about 1% CPU instead of 5%, scrolling titles, letter jump, configurable rows and main menu, safer ROM deletion. The stock MainUI stays on the card, one file away.
 - 🛡️ **Fixes for issues still present in Onion.** 44 bugs fixed in the shared code: crashes, memory leaks, lost settings, a wrong clock, play history that could be deleted.
@@ -34,7 +34,7 @@ Your games, saves and BIOS files carry over. RedOnion keeps Onion's file layout.
 3. For the cleanest start, format the card, copy the release onto it, then copy back `Roms`, `Saves`, `BIOS` and `Screenshots`.
 4. Insert the card and power on. Later updates arrive through the OTA app.
 
-## Good to know
+## Disclaimer
 
 - RedOnion is not an official Onion release and is not affiliated with the Onion team. Onion's [documentation](https://onionui.github.io/docs) still describes how everything works.
 - Found a bug? [Open an issue](https://github.com/Amiga500/Onion/issues) with your model, version and steps. Verified reports count for the bounty.
@@ -42,4 +42,4 @@ Your games, saves and BIOS files carry over. RedOnion keeps Onion's file layout.
 
 ## Thanks
 
-RedOnion exists because of the Onion team and its contributors: the menus, emulators, themes and almost all of the code are theirs. Thanks to @robcodedev for Open MainUI, and to the testers who sent reports and helped confirm the fixes, especially @Zazzago.
+RedOnion exists because of the [Onion team](https://github.com/OnionUI/Onion) and its contributors: the menus, emulators, themes and almost all of the code are theirs. All the credit goes to them. Also huge thanks to those who are putting in the work to make this build possible, like [@robcodedev](https://github.com/robcodedev) for Open MainUI, and to the testers who sent reports and helped confirm the fixes, especially [@Zazzago](https://github.com/Zazzago).
