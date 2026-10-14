@@ -1088,6 +1088,27 @@ check "MENU (a lone Esc) leaves like START" grep -q 'stty min 0 time 1' "$SHELLE
 check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 3
 end
 
+# ---- ota_update.sh: "Press A to continue, MENU to exit" ----
+
+OTA_SCRIPT="$ROOT/static/build/.tmp_update/script/ota_update.sh"
+
+begin ota_info_screen_menu_exits
+eval "$(extract_fn "$OTA_SCRIPT" wait_key)"
+printf ' ' > "$TMP/a"
+wait_key "x" < "$TMP/a" > /dev/null
+check "A continues" test $? -eq 0
+printf '\033[B' > "$TMP/dpad"
+wait_key "x" < "$TMP/dpad" > /dev/null
+check "a D-pad key continues (Esc [ B is not MENU)" test $? -eq 0
+printf '\033' > "$TMP/menu"
+wait_key "x" < "$TMP/menu" > /dev/null
+check "MENU (a lone Esc) leaves" test $? -eq 1
+wait_key "x" < /dev/null > /dev/null
+check "no input (terminal gone) leaves" test $? -eq 1
+check "the version screen offers MENU to exit" grep -q 'wait_key "Press A to continue, MENU to exit" || exit 0' "$OTA_SCRIPT"
+unset -f wait_key
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

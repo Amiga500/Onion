@@ -374,9 +374,30 @@ release_info_error() { # response or reason
 		"Try again in a few minutes.\n"
 }
 
+# Show a prompt and wait for a key. MENU reaches the terminal as a lone Esc
+# and returns 1; any other key returns 0. The D-pad sends Esc [ A..D in
+# one go, so a byte following within 0.1 s means it was not MENU. No key
+# at all (the terminal is gone) counts as MENU.
+wait_key() { # prompt
+	printf '%s' "$1"
+	_stty=$(stty -g 2> /dev/null)
+	stty -icanon -echo min 1 time 0 2> /dev/null
+	_key=$(dd ibs=1 count=1 2> /dev/null; echo .)
+	_key=${_key%.}
+	_ret=0
+	if [ -z "$_key" ]; then
+		_ret=1
+	elif [ "$_key" = "$(printf '\033')" ]; then
+		stty min 0 time 1 2> /dev/null
+		[ -n "$(dd ibs=1 count=4 2> /dev/null)" ] || _ret=1
+	fi
+	[ -n "$_stty" ] && stty "$_stty" 2> /dev/null
+	return $_ret
+}
+
 download_update() {
 	echo -ne "${YELLOW}"
-	read -n 1 -s -r -p "Press A to continue"
+	wait_key "Press A to continue, MENU to exit" || exit 0
 	echo -ne "${NC}"
 
 	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -m -t "Download $Release_Version ($Release_size_MB) ?" -b "Press A to validate, MENU to exit.")
