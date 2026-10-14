@@ -454,7 +454,8 @@ key() {
 	# MENU sends a lone Esc; the D-pad sends Esc [ A..D in one go. Wait
 	# 0.1 s for a following byte: none means MENU, which leaves the app
 	# like START does.
-	if [ "$key" = "$esc_c" ] && [ "${esc:-0}" = 0 ]; then
+	# (Any Esc: after a D-pad key the sequence state is not reset.)
+	if [ "$key" = "$esc_c" ]; then
 	    stty min 0 time 1
 	    pending=$(dd ibs=1 count=1 2>/dev/null; echo .)
 	    pending=${pending%.}
