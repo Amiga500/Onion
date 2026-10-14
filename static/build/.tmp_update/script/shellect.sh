@@ -462,6 +462,16 @@ key() {
 	    [ -n "$pending" ] || quit_terminal
 	fi
 
+	# -m (OTA): only Up/Down, A and MENU do anything. Right no longer
+	# confirms, and Left, START, R2 and keys typed on the on-screen
+	# keyboard (q, /, ?...) are ignored.
+	if [ -n "$menu_only_exit" ]; then
+	    case $key${esc:-0} in
+		"$esc_c"?|'[1'|A2|B2|"$space"?) ;; # Esc [ A / Esc [ B, A
+		*) esc=0; continue ;;
+	    esac
+	fi
+
 	
 
 	case $key${esc:=0} in
@@ -602,8 +612,7 @@ key() {
 		esac
 	    ;;
 
-	    "$nl"?) # Enter (START): leave the app, unless -m (MENU only)
-		[ -n "$menu_only_exit" ] && continue
+	    "$nl"?) # Enter (START): leave the app (ignored with -m, see above)
 		quit_terminal
 	    ;;
 		
@@ -935,7 +944,7 @@ while getopts "t:b:n:d:c:f:hilm" result; do
         f) format=${OPTARG} ;;
 	i) case_insense=1 ;;
 	l) live_search=1 ;;
-	m) menu_only_exit=1 ;; # START does nothing, only MENU leaves
+	m) menu_only_exit=1 ;; # Up/Down, A and MENU only: MENU leaves
 	t) msg="${OPTARG}" ;;
 	b) ltype="${OPTARG}" ;;
 	h) usage && exit 0 ;;

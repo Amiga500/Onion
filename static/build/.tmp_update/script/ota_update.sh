@@ -374,23 +374,29 @@ release_info_error() { # response or reason
 		"Try again in a few minutes.\n"
 }
 
-# Show a prompt and wait for a key. MENU reaches the terminal as a lone Esc
-# and returns 1; any other key returns 0. The D-pad sends Esc [ A..D in
-# one go, so a byte following within 0.1 s means it was not MENU. No key
-# at all (the terminal is gone) counts as MENU.
+# Show a prompt and wait for A (continue, returns 0) or MENU (leave,
+# returns 1); other buttons are ignored. MENU reaches the terminal as a
+# lone Esc, the D-pad as Esc [ A..D in one go, so a byte following within
+# 0.1 s means it was not MENU. No input at all (the terminal is gone)
+# counts as MENU.
 wait_key() { # prompt
 	printf '%s' "$1"
 	_stty=$(stty -g 2> /dev/null)
 	stty -icanon -echo min 1 time 0 2> /dev/null
-	_key=$(dd ibs=1 count=1 2> /dev/null; echo .)
-	_key=${_key%.}
-	_ret=0
-	if [ -z "$_key" ]; then
-		_ret=1
-	elif [ "$_key" = "$(printf '\033')" ]; then
-		stty min 0 time 1 2> /dev/null
-		[ -n "$(dd ibs=1 count=4 2> /dev/null)" ] || _ret=1
-	fi
+	_ret=
+	while [ -z "$_ret" ]; do
+		_key=$(dd ibs=1 count=1 2> /dev/null; echo .)
+		_key=${_key%.}
+		if [ -z "$_key" ]; then
+			_ret=1
+		elif [ "$_key" = " " ]; then
+			_ret=0
+		elif [ "$_key" = "$(printf '\033')" ]; then
+			stty min 0 time 1 2> /dev/null
+			[ -n "$(dd ibs=1 count=4 2> /dev/null)" ] || _ret=1
+			stty min 1 time 0 2> /dev/null
+		fi
+	done
 	[ -n "$_stty" ] && stty "$_stty" 2> /dev/null
 	return $_ret
 }

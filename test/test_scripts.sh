@@ -1085,6 +1085,7 @@ check "no terminal above: the menu just leaves" test $? -eq 1
 check "no name-based kill left (it hit Open MainUI in mainui-test)" sh -c "! grep -v '^[[:space:]]*#' '$SHELLECT' | grep -q pkill"
 check "end of input leaves the key loop" grep -q '\[ -n "\$key" \] || exit 1' "$SHELLECT"
 check "MENU (a lone Esc) leaves like START" grep -q 'stty min 0 time 1' "$SHELLECT"
+check "with -m only Up/Down, A and MENU are accepted" grep -q "A2|B2|\"\$space\"?) ;;" "$SHELLECT"
 check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 3
 end
 
@@ -1097,9 +1098,9 @@ eval "$(extract_fn "$OTA_SCRIPT" wait_key)"
 printf ' ' > "$TMP/a"
 wait_key "x" < "$TMP/a" > /dev/null
 check "A continues" test $? -eq 0
-printf '\033[B' > "$TMP/dpad"
-wait_key "x" < "$TMP/dpad" > /dev/null
-check "a D-pad key continues (Esc [ B is not MENU)" test $? -eq 0
+printf 'x\n ' > "$TMP/other"
+wait_key "x" < "$TMP/other" > /dev/null
+check "other buttons (START...) are ignored until A" test $? -eq 0
 printf '\033' > "$TMP/menu"
 wait_key "x" < "$TMP/menu" > /dev/null
 check "MENU (a lone Esc) leaves" test $? -eq 1
