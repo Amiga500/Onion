@@ -1068,6 +1068,26 @@ check "originals match the shipped files" test $mismatch -eq 0
 check "themeSwitcher runs the script" grep -q 'system_skin.sh' "$ROOT/src/themeSwitcher/installTheme.h"
 end
 
+# ---- script/shellect.sh: START leaves the app without SIGKILL ----
+
+SHELLECT="$ROOT/static/build/.tmp_update/script/shellect.sh"
+
+begin shellect_start_quits_own_terminal_only
+extract_fn "$SHELLECT" quit_terminal > "$TMP/quit.sh"
+cp "$(command -v sh)" "$TMP/st"
+# st -e sh script.sh: the menu runs in a shell under the terminal.
+"$TMP/st" -c "sh -c 'term_reset() { :; }; . \"$TMP/quit.sh\"; quit_terminal'; echo still-open" > "$TMP/out" 2>&1
+rc=$?
+check "the menu's own terminal is asked to quit (SIGTERM, 143)" test $rc -eq 143
+check "nothing runs after the terminal quits" sh -c "! grep -q still-open '$TMP/out'"
+sh -c "term_reset() { :; }; . '$TMP/quit.sh'; quit_terminal"
+check "no terminal above: the menu just leaves" test $? -eq 1
+check "no name-based kill left (it hit Open MainUI in mainui-test)" sh -c "! grep -v '^[[:space:]]*#' '$SHELLECT' | grep -q pkill"
+check "end of input leaves the key loop" grep -q '\[ -n "\$key" \] || exit 1' "$SHELLECT"
+check "MENU (a lone Esc) leaves like START" grep -q 'stty min 0 time 1' "$SHELLECT"
+check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 3
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

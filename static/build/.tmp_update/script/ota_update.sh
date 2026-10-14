@@ -262,7 +262,7 @@ run_bootstrap() {
 }
 
 channel_choice() {
-	channel=$(echo -e "stable\nbeta" | $sysdir/script/shellect.sh -t "Select distribution channel:" -b "Press A to validate your choice.")
+	channel=$(echo -e "stable\nbeta" | $sysdir/script/shellect.sh -m -t "Select distribution channel:" -b "Press A to validate, MENU to exit.")
 	clear
 	# Nothing chosen (B): leave, keeping the saved channel. An empty
 	# ota_channel used to be saved and read as stable.
@@ -379,7 +379,7 @@ download_update() {
 	read -n 1 -s -r -p "Press A to continue"
 	echo -ne "${NC}"
 
-	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -t "Download $Release_Version ($Release_size_MB) ?" -b "Press A to validate your choice.")
+	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -m -t "Download $Release_Version ($Release_size_MB) ?" -b "Press A to validate, MENU to exit.")
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
 
@@ -418,7 +418,7 @@ download_update() {
 }
 
 apply_update() {
-	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -t "Apply update $Release_Version ?" -b "Press A to validate your choice.")
+	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -m -t "Apply update $Release_Version ?" -b "Press A to validate, MENU to exit.")
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
 		echo "Applying update... "
