@@ -1110,6 +1110,23 @@ check "the version screen offers MENU to exit" grep -q 'wait_key "Press A to con
 unset -f wait_key
 end
 
+# ---- migration 00022: RetroArch menu Border Filler OFF ----
+
+begin migration_disables_rgui_border_filler
+MIG="$ROOT/static/build/.tmp_update/script/migration/00022_disable_rgui_border_filler.sh"
+printf 'menu_driver = "rgui"\nrgui_border_filler_enable = "true"\nrgui_border_filler_thickness_enable = "true"\n' > "$TMP/ra.cfg"
+RA_CFG="$TMP/ra.cfg" sh "$MIG"
+check "existing setting turned off" grep -qx 'rgui_border_filler_enable = "false"' "$TMP/ra.cfg"
+check "other settings untouched" grep -qx 'rgui_border_filler_thickness_enable = "true"' "$TMP/ra.cfg"
+check "only one line for the setting" test "$(grep -c '^rgui_border_filler_enable' "$TMP/ra.cfg")" -eq 1
+printf 'menu_driver = "rgui"\n' > "$TMP/ra2.cfg"
+RA_CFG="$TMP/ra2.cfg" sh "$MIG"
+check "missing setting added as off" grep -qx 'rgui_border_filler_enable = "false"' "$TMP/ra2.cfg"
+RA_CFG="$TMP/none.cfg" sh "$MIG"
+check "no RetroArch config: nothing created" test ! -e "$TMP/none.cfg"
+check "new installs default to off" grep -qx 'rgui_border_filler_enable = "false"' "$ROOT/static/configs/RetroArch/.retroarch/retroarch.cfg"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
