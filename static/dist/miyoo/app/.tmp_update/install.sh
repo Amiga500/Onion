@@ -321,6 +321,13 @@ run_installation() {
         refresh_roms
     fi
 
+    # The new files put Onion's original system artwork back. A full update
+    # reapplies the theme below (themeSwitcher), a system-only one does not:
+    # give the active theme its system skin again (script/system_skin.sh).
+    if [ $system_only -eq 1 ] && [ -f /mnt/SDCARD/.tmp_update/config/.systemSkin ]; then
+        sh /mnt/SDCARD/.tmp_update/script/system_skin.sh "$(cat /mnt/SDCARD/.tmp_update/config/active_theme)"
+    fi
+
     #########################################################################################
     #                                  Installation is done                                 #
     #                           Show quick guide and package manager                        #

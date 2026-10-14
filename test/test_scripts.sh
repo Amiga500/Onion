@@ -989,6 +989,85 @@ check "no direct LOADING/SAVING infoPanel left" sh -c "! grep -q 'infoPanel --me
 unset -f infoPanel bootScreen touch show_launch_screen
 end
 
+# ---- script/system_skin.sh: system artwork follows the theme ----
+
+SKIN_SCRIPT="$ROOT/static/build/.tmp_update/script/system_skin.sh"
+
+begin system_skin_follows_theme
+SDROOT="$TMP/sd"
+. "$SKIN_SCRIPT"
+sd=$SDROOT
+def="$sd/.tmp_update/res/system-skin-default"
+red="$sd/Themes/Red/system"
+qg="App/PackageManager/data/App/Quick Guide/App/Onion_Manual/page1.png"
+fe="App/PackageManager/data/App/File Explorer (DinguxCommander)/App/Commander_Italic/res/up.png"
+pcsx_pkg="App/PackageManager/data/RApp/Sony - PlayStation (PCSX standalone)/RApp/PCSX-ReARMed/skin/skin.txt"
+for f in "App/PackageManager/res/bgApp.png" "$qg" "$fe"; do
+    mkdir -p "$(dirname "$def/$f")" "$(dirname "$red/$f")" "$(dirname "$sd/$f")"
+    echo onion > "$def/$f"
+    echo onion > "$sd/$f"
+    echo red > "$red/$f"
+done
+mkdir -p "$sd/App/Onion_Manual" "$sd/Themes/DiMo" "$sd/BIOS/.advance" "$sd/RetroArch/.retroarch/assets/rgui" "$sd/RApp/PCSX-ReARMed/skin"
+echo onion > "$sd/App/Onion_Manual/page1.png"
+printf 'ui_color menu_item ffffff 000000\nui_color menu_item_select ffffff 7247c2\nui_color backdrop 7247c2 000000\nui_mode custom 7247c2\n' > "$sd/BIOS/.advance/advmenu.rc"
+printf 'rgui_entry_normal_color = "0xFF565a68"\nrgui_title_color = "0xFF9160fd"\n' > "$sd/RetroArch/.retroarch/assets/rgui/Onion.cfg"
+mkdir -p "$(dirname "$sd/$pcsx_pkg")"
+printf 'font=x.ttf\nselection_color=8526eb\n' > "$sd/$pcsx_pkg"
+printf 'font=x.ttf\nselection_color=8526eb\n' > "$sd/RApp/PCSX-ReARMed/skin/skin.txt"
+
+apply_system_skin "$sd/Themes/Red/"
+check "red: Package Manager artwork replaced" test "$(cat "$sd/App/PackageManager/res/bgApp.png")" = red
+check "red: package source replaced" test "$(cat "$sd/$qg")" = red
+check "red: installed Quick Guide follows its package" test "$(cat "$sd/App/Onion_Manual/page1.png")" = red
+check "red: app that is not installed is not created" test ! -e "$sd/App/Commander_Italic"
+check "red: RetroArch title colour" grep -qx 'rgui_title_color = "0xFFc43b59"' "$sd/RetroArch/.retroarch/assets/rgui/Onion.cfg"
+check "red: AdvanceMENU accents" test "$(grep -c 9e2c45 "$sd/BIOS/.advance/advmenu.rc")" -eq 2
+check "red: other AdvanceMENU settings untouched" grep -qx 'ui_mode custom 7247c2' "$sd/BIOS/.advance/advmenu.rc"
+check "red: PCSX package and installed menu colour" test "$(grep -c '^selection_color=9e2c45$' "$sd/$pcsx_pkg" "$sd/RApp/PCSX-ReARMed/skin/skin.txt" | grep -c ':1$')" -eq 2
+check "red: state remembers the theme" test "$(cat "$sd/.tmp_update/config/.systemSkin")" = "$sd/Themes/Red"
+
+apply_system_skin "$sd/Themes/DiMo/"
+check "onion: Package Manager artwork restored" test "$(cat "$sd/App/PackageManager/res/bgApp.png")" = onion
+check "onion: installed Quick Guide restored" test "$(cat "$sd/App/Onion_Manual/page1.png")" = onion
+check "onion: RetroArch title colour restored" grep -qx 'rgui_title_color = "0xFF9160fd"' "$sd/RetroArch/.retroarch/assets/rgui/Onion.cfg"
+check "onion: AdvanceMENU accents restored" test "$(grep -c 7247c2 "$sd/BIOS/.advance/advmenu.rc")" -eq 3
+check "onion: PCSX colour restored" grep -qx 'selection_color=8526eb' "$sd/RApp/PCSX-ReARMed/skin/skin.txt"
+check "onion: state cleared" test ! -e "$sd/.tmp_update/config/.systemSkin"
+
+echo custom > "$sd/App/PackageManager/res/bgApp.png"
+apply_system_skin "$sd/Themes/DiMo/"
+check "no skin applied: switching between plain themes copies nothing" test "$(cat "$sd/App/PackageManager/res/bgApp.png")" = custom
+unset SDROOT
+end
+
+begin system_skin_sets_match
+theme_system="$ROOT/static/build/Themes/Silky RedOnion/system"
+defaults="$ROOT/static/build/.tmp_update/res/system-skin-default"
+(cd "$theme_system" && find . -type f | sort) > "$TMP/theme"
+(cd "$defaults" && find . -type f | sort) > "$TMP/defaults"
+check "every crimson file has an Onion original" cmp -s "$TMP/theme" "$TMP/defaults"
+check "the set is not empty" test "$(wc -l < "$TMP/theme")" -gt 30
+# The originals must be the files the build ships in those places.
+source_of() { # path on the SD card -> source file in this repository
+    case "$1" in
+    App/PackageManager/res/*) echo "$ROOT/src/packageManager/res/${1##*/}" ;;
+    "App/PackageManager/data/App/Activity Tracker/App/PlayActivity/res/"*) echo "$ROOT/src/playActivityUI/res/${1##*/}" ;;
+    App/PackageManager/data/*) p=${1#App/PackageManager/data/} && echo "$ROOT/static/packages/$p" ;;
+    .tmp_update/res/themes_has_icons.png) echo "$ROOT/src/themeSwitcher/res/themes_has_icons.png" ;;
+    esac
+}
+mismatch=0
+while IFS= read -r rel; do
+    rel=${rel#./}
+    src=$(source_of "$rel")
+    [ -n "$src" ] && [ -f "$src" ] || continue # SearchFilter: submodule
+    cmp -s "$src" "$defaults/$rel" || { echo "    differs: $rel"; mismatch=1; }
+done < "$TMP/defaults"
+check "originals match the shipped files" test $mismatch -eq 0
+check "themeSwitcher runs the script" grep -q 'system_skin.sh' "$ROOT/src/themeSwitcher/installTheme.h"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
