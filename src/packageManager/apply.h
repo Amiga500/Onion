@@ -12,7 +12,11 @@ void applyAllChanges(bool auto_update)
     // installation
     char cmd[STR_MAX * 2 + 100];
 
-    SDL_Surface *surfaceBackground = IMG_Load("/mnt/SDCARD/.tmp_update/res/waitingBG.png");
+    // Package Manager's own copy follows the theme (script/system_skin.sh);
+    // the one in .tmp_update/res belongs to the installer.
+    SDL_Surface *surfaceBackground = IMG_Load("/mnt/SDCARD/App/PackageManager/res/waitingBG.png");
+    if (!surfaceBackground)
+        surfaceBackground = IMG_Load("/mnt/SDCARD/.tmp_update/res/waitingBG.png");
     SDL_Surface *surfaceMessage;
 
     for (int nT = 0; nT < tab_count; nT++) {
