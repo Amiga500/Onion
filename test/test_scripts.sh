@@ -228,6 +228,36 @@ check "no quotes" same_as_pipeline 'run b' "$R"
 check "path with \$ and spaces" same_as_pipeline 'run "x" "/mnt/SDCARD/Roms/A/\$weird name.zip"' '/mnt/SDCARD/Roms/A/$weird name.zip'
 end
 
+# ---- runtime.sh: Mini Flip LCD colours at boot ----
+
+eval "$(extract_fn "$RUNTIME" apply_lcd_colors)"
+
+begin flip_lcd_colours_applied_at_boot
+sysdir=$TMP
+MODEL_MMF=285
+mkdir -p "$TMP/bin"
+printf '#!/bin/sh\necho "$@" > "%s/lcd_args"\n' "$TMP" > "$TMP/bin/lcdColors"
+chmod +x "$TMP/bin/lcdColors"
+sysjson_get() { case "$1" in lumination) echo 3 ;; hue) echo 15 ;; saturation) echo 18 ;; contrast) echo 5 ;; esac; }
+log() { :; }
+DEVICE_ID=285
+apply_lcd_colors
+wait
+check "Flip: saved values handed over in order" test "$(cat "$TMP/lcd_args")" = "3 15 18 5"
+rm -f "$TMP/lcd_args"
+for DEVICE_ID in 283 354; do
+    apply_lcd_colors
+    wait
+done
+check "Mini and Mini Plus: not run" test ! -e "$TMP/lcd_args"
+rm "$TMP/bin/lcdColors"
+DEVICE_ID=285
+check "Flip without the tool: nothing fails" apply_lcd_colors
+check "run at the end of init_system" sh -c "sed -n '/^init_system() {/,/^}/p' \"$RUNTIME\" | grep -q '^    apply_lcd_colors$'"
+check "in the background" sh -c "sed -n '/^apply_lcd_colors() {/,/^}/p' \"$RUNTIME\" | grep -q '&$'"
+unset -f sysjson_get log
+end
+
 # ---- runtime.sh: cleanup_appendconfig ----
 
 eval "$(extract_fn "$RUNTIME" cleanup_appendconfig)"

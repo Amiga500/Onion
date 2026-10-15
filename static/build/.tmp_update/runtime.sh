@@ -1495,6 +1495,21 @@ init_system() {
     if [ -f /tmp/new_res_available ] && [ -x "$sysdir/bin/fbmode" ]; then
         commit_mainui_fbmode 150 500
     fi
+
+    apply_lcd_colors
+}
+
+# Mini Flip: the LCD comes up with default Luminance, Hue, Saturation and
+# Contrast, and the launcher sets the saved ones only when they are changed
+# in Settings > Display. Put them back once the display is set up. In the
+# background: lcdColors starts MI_SYS on its own, which takes from a quarter
+# of a second to over a second, and nothing has to wait for it.
+apply_lcd_colors() {
+    [ "$DEVICE_ID" = "$MODEL_MMF" ] || return 0
+    [ -x "$sysdir/bin/lcdColors" ] || return 0
+    log "LCD colours (Flip)"
+    "$sysdir/bin/lcdColors" "$(sysjson_get lumination)" "$(sysjson_get hue)" \
+        "$(sysjson_get saturation)" "$(sysjson_get contrast)" > /dev/null 2>&1 &
 }
 
 device_uuid=$(read_uuid)

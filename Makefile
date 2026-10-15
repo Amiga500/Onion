@@ -163,7 +163,8 @@ CORE_MODULES := chargingState \
 	tree \
 	pippi \
 	cpuclock \
-	fbmode
+	fbmode \
+	lcdColors
 CORE_MODULE_TARGETS := $(addprefix core-mod-,$(CORE_MODULES))
 
 .PHONY: core-prime core-modules $(CORE_MODULE_TARGETS)
