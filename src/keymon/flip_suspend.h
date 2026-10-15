@@ -15,6 +15,32 @@ static bool flipSuspend_nothingToDo(int current_lid, int saved_lid,
     return current_lid == saved_lid && !timed_out;
 }
 
+typedef enum {
+    FLIP_SUSPEND_STAY = 0,     // keep sleeping
+    FLIP_SUSPEND_WAKE = 1,     // the lid was opened: resume
+    FLIP_SUSPEND_POWER_OFF = 2 // suspend timeout elapsed off the charger
+} FlipSuspendStep;
+
+// One 500 ms iteration of the Mini Flip suspend loop with no key event.
+// Opening the lid wakes the device whether or not it is charging (the
+// charger used to be checked first, so a charging Flip ignored the lid and
+// only the power button woke it). The charger only holds off the timeout
+// power-off, so is_charging is called only when the timeout has elapsed.
+// *saved_lid follows every lid change, charging or not.
+static FlipSuspendStep flipSuspend_step(int current_lid, int *saved_lid,
+                                        bool timed_out,
+                                        bool (*is_charging)(void))
+{
+    if (flipSuspend_nothingToDo(current_lid, *saved_lid, timed_out))
+        return FLIP_SUSPEND_STAY;
+    if (current_lid == 1 && *saved_lid == 0)
+        return FLIP_SUSPEND_WAKE;
+    *saved_lid = current_lid;
+    if (timed_out && !is_charging())
+        return FLIP_SUSPEND_POWER_OFF;
+    return FLIP_SUSPEND_STAY;
+}
+
 // Lid close action from Tweaks (flip/lidCloseAction).
 typedef enum {
     FLIP_LID_SUSPEND = 0,
