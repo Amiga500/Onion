@@ -847,7 +847,6 @@ end
 # ---- game_list_options.sh: a filter dropped with the rom list cache ----
 
 eval "$(extract_fn "$GLO" filter_is_applied)"
-eval "$(extract_fn "$GLO" refresh_roms)"
 
 glo_filter_env() { # rows in the cache matching '~Filter: %' (none: no cache)
     emupath=$TMP/Emu/GBA
@@ -879,16 +878,9 @@ glo_filter_env error
 check "sqlite3 error: filter kept" filter_is_applied
 romroot=""
 check "unknown rom folder: filter kept" filter_is_applied
-glo_filter_env 1
-log() { :; }
-filter() { echo "$*" > "$TMP/filter_args"; }
-mkdir -p "$TMP/script"
-printf '#!/bin/sh\n' > "$TMP/script/reset_list.sh"
-chmod +x "$TMP/script/reset_list.sh"
-(cd "$TMP" && refresh_roms)
-check "Refresh list runs the filter refresh" test "$(cat "$TMP/filter_args")" = "refresh $emupath"
-check "Refresh list drops active_filter" test ! -e "$emupath/active_filter"
-unset -f sqlite3 filter log
+check "no Refresh list entry: the Select menu has Refresh roms" \
+    test -z "$(grep -n 'add_menu_option refresh_roms\|^refresh_roms()' "$GLO")"
+unset -f sqlite3
 end
 
 # ---- migration 00021: Apps sorted by name once, as before Open MainUI 1.0.6 ----
