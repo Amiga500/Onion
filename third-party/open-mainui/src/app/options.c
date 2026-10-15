@@ -39,7 +39,8 @@ int mainui_options_parse(MainUIOptions *options, int argc, char **argv)
                  "+ presses them only) before a snapshot. --text NAME seeds the next "
                  "name field. --battery 0..100 / 500 / -1 "
                  "sets simulated header "
-                 "status. --device-dir DIR reads simulated device status. --device real uses "
+                 "status; --charging adds the charging icon to that level. --device-dir DIR reads "
+                 "simulated device status. --device real uses "
                  "Onion /tmp status, wpa_supplicant control and keymon signals (Linux only).\n"
                  "--refresh-caches rebuilds every console's ROM cache before the first frame "
                  "(exit status 4 if a rebuild fails). --version prints the version. --help "
@@ -53,6 +54,10 @@ int mainui_options_parse(MainUIOptions *options, int argc, char **argv)
         }
         if (!strcmp(argv[i], "--systems")) {
             options->start_systems = true;
+            continue;
+        }
+        if (!strcmp(argv[i], "--charging")) {
+            options->battery_charging = options->battery_override = true;
             continue;
         }
         if (i + 1 >= argc) {

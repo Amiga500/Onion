@@ -102,7 +102,10 @@ static SDL_Surface *scale_image(SDL_Surface *image)
     if (!image) {
         return NULL;
     }
+    /* Opaque cover art is drawn as a plain copy, not blended: it is drawn
+     * again on every frame of a scrolling title. */
     if (image->w <= 250 && image->h <= 360) {
+        mainui_artwork_blend(image);
         return image;
     }
     /* Normalize indexed artwork before stretching: a new paletted surface would
@@ -130,6 +133,7 @@ static SDL_Surface *scale_image(SDL_Surface *image)
         image->format->Gmask, image->format->Bmask, image->format->Amask);
     if (scaled && SDL_SoftStretch(image, NULL, scaled, NULL) == 0) {
         SDL_FreeSurface(image);
+        mainui_artwork_blend(scaled);
         return scaled;
     }
     else if (scaled) {

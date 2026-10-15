@@ -108,6 +108,7 @@ int mainui_setup_session(MainUIApp *ui, int argc, char **argv)
     ui->input_text = options.input_text;
     ui->real_device = options.real_device;
     ui->battery_override = options.battery_override;
+    ui->battery_charging = options.battery_charging;
     ui->start_systems = options.start_systems;
     ui->refresh_caches = options.refresh_caches;
     ui->snapshot_elapsed = options.snapshot_elapsed;
@@ -443,6 +444,8 @@ void mainui_restore_session(MainUIApp *ui)
         mainui_grid_restore(&ui->view, ui->view.total, 0, 4, 2);
     }
     ui->theme.battery_percent = ui->battery_percent;
+    ui->theme.battery_charging =
+        ui->battery_override ? ui->battery_charging : ui->device_status.charging;
     mainui_menu_view_open(&ui->menu_view, &ui->theme);
     /* Snapshots and scripted input draw at once, with every icon in place. */
     ui->menu_view.defer_selected = !ui->snapshot && !ui->input_script;
@@ -659,6 +662,19 @@ void mainui_setup_render(MainUIApp *ui)
         fprintf(stderr, "Cannot read Menu releases from /dev/input/event0; Menu opens no "
                         "context menu\n");
     }
+    /* Stock reads keymon's audiofix before loading system.json over it, and
+     * opens the mixer with 4096 sample frames with Onion's audio fix (its
+     * audioserver) off, as here, and 128 with it on. Here it is 1024 with it
+     * on, on purpose: 128 wakes the audio callback eight times as often and
+     * raised MainUI's idle CPU use (1.6 % against 0.9 % with 1.0.7's 1024,
+     * which played without problems). The latency stays about 21 ms at
+     * 48 kHz, unnoticeable for theme sounds and music. Read like stock, from
+     * the value keymon already has; the host keeps 1024. */
+    int audiofix = -1;
+    if (ui->real_device && !ui->snapshot &&
+        !mainui_device_setting_value(&ui->device_adapter, "audiofix", &audiofix)) {
+        audiofix = -1;
+    }
     /* As stock at start: the button mapping in system.json goes to the button
      * driver, which remaps the buttons (X as B, say) for every program. Nothing
      * else in Onion writes it. */
@@ -677,8 +693,12 @@ void mainui_setup_render(MainUIApp *ui)
         cJSON *system_config = mainui_system_read(ui->sd ? ui->sd : ".");
         /* Stock's 8 when the value is missing or not a number. */
         int level = mainui_system_monitor_value(system_config, "bgmvol");
+        if (ui->real_device && audiofix < 0) {
+            audiofix = mainui_system_monitor_value(system_config, "audiofix");
+        }
+        int chunk = audiofix == 0 ? 4096 : 1024;
         /* mainui_audio_open() logs the specific reason. */
-        mainui_audio_open(ui->theme.directory, ui->theme.fallback, level);
+        mainui_audio_open(ui->theme.directory, ui->theme.fallback, level, chunk);
         cJSON_Delete(system_config);
     }
     mainui_audio_pause(ui->device_enabled && ui->device_status.sleeping == 1);
@@ -691,12 +711,22 @@ void mainui_setup_render(MainUIApp *ui)
     if (ui->device_enabled) {
         mainui_about_start(&ui->about_job, &ui->device_adapter, ui->sd);
     }
+    /* Stock's start-up line, printed before its first frame. Onion's clock
+     * overlay (libmainuihooks.so, preloaded) waits for this printf format
+     * before it draws the time on each SDL_Flip. Called through a pointer:
+     * a fortified build would call __printf_chk, which it does not see. */
+    if (ui->real_device && !ui->snapshot) {
+        int (*volatile print)(const char *, ...) = printf;
+        print("%d run windows\n", 1);
+        fflush(stdout);
+    }
 }
 
 int mainui_teardown(MainUIApp *ui)
 {
     mainui_menu_button_close();
-    if (ui->catalog && !ui->library && !ui->home && !ui->snapshot &&
+    /* A launch saved it already, for the same view: no input came since. */
+    if (ui->catalog && !ui->library && !ui->home && !ui->snapshot && !ui->launch_pending &&
         !mainui_positions_save(ui->catalog, &ui->view)) {
         fprintf(stderr, "Could not save ROM-list position on exit.\n");
     }

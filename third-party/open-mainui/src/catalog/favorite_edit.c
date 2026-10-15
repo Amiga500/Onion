@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "catalog/favorite_edit.h"
 #include "catalog/favorite_store.h"
+#include "catalog/saved_actions.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -164,11 +165,6 @@ static bool normalize_name(const char *input, char output[FOLDER_NAME_LIMIT + 1]
     memcpy(output, input, length);
     output[length] = 0;
     return true;
-}
-
-static const char *parent_id(const MainUILibrary *library, int parent)
-{
-    return parent < 0 ? "" : library->folders[parent].id;
 }
 
 static int compare_names(const char *a, const char *b)
@@ -360,25 +356,6 @@ static bool name_folder(MainUILibrary *library, int row, const char *input, bool
     return *affected != NULL && folder_paths_fit(library, index);
 }
 
-/* Removing a folder moves its subfolders up a level. Like create, rename and
- * move, that must not leave two folders of the same name side by side. */
-static bool promotion_fits(const MainUILibrary *library, int index)
-{
-    int parent = library->folders[index].parent;
-    for (int child = 0; child < library->folder_count; child++) {
-        if (library->folders[child].parent != index) {
-            continue;
-        }
-        for (int i = 0; i < library->folder_count; i++) {
-            if (i != index && library->folders[i].parent == parent &&
-                !strcmp(library->folders[i].name, library->folders[child].name)) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
 static bool delete_folder(MainUILibrary *library, int row)
 {
     if (row == INT_MIN || row >= 0) {
@@ -439,6 +416,7 @@ bool mainui_favorite_edit(MainUIFavoriteEditor *editor, MainUILibrary *library, 
     bool opened = mainui_favorite_store_open(&store, sd);
     cJSON *records = store.records;
     char *affected = NULL;
+    cJSON *removed = NULL; /* Favorites a deleted folder held */
     MainUILibrary *fresh = calloc(1, sizeof *fresh);
     bool ok = opened && fresh && mainui_library_open(fresh, sd, false);
     if (!ok) {
@@ -470,25 +448,55 @@ bool mainui_favorite_edit(MainUIFavoriteEditor *editor, MainUILibrary *library, 
         selected_folder = true;
     }
     else if (action == CONTEXT_FAVORITE_DELETE) {
-        if (row != INT_MIN && row < 0 && !promotion_fits(fresh, -row - 1)) {
-            ok = fail(editor, "A folder inside has the same name as one beside it. "
-                              "Rename it first.");
-            goto cleanup;
-        }
-        if (row != INT_MIN && row < 0) {
-            MainUILibraryFolder *deleted = &fresh->folders[-row - 1];
-            cJSON *record;
-            cJSON_ArrayForEach(record, records)
-            {
-                if (!strcmp(string(record, "kind"), "item") &&
-                    !strcmp(string(record, "folder"), deleted->id) &&
-                    !put(record, "folder", cJSON_CreateString(parent_id(fresh, deleted->parent)))) {
-                    ok = fail(editor, "Not enough memory.");
-                    goto cleanup;
+        /* A folder goes with all it holds (the caller asked first): its
+         * folders at any depth, their assignments, and their Favorites,
+         * which leave favourite.json once the folders are saved. */
+        ok = row != INT_MIN && row < 0 && (removed = cJSON_CreateArray()) != NULL;
+        bool gone[MAINUI_FOLDER_LIMIT] = {false};
+        if (ok) {
+            gone[-row - 1] = true;
+            for (bool grew = true; grew;) {
+                grew = false;
+                for (int i = 0; i < fresh->folder_count; i++) {
+                    int parent = fresh->folders[i].parent;
+                    if (!gone[i] && parent >= 0 && gone[parent]) {
+                        gone[i] = grew = true;
+                    }
+                }
+            }
+            for (cJSON *record = records->child, *next; record; record = next) {
+                next = record->next;
+                int folder = !strcmp(string(record, "kind"), "item")
+                                 ? find_row(fresh, string(record, "folder"), true, 0)
+                                 : INT_MIN;
+                if (folder != INT_MIN && gone[-folder - 1]) {
+                    cJSON_Delete(cJSON_DetachItemViaPointer(records, record));
                 }
             }
         }
-        ok = delete_folder(fresh, row);
+        for (int i = 0; ok && i < fresh->count;) {
+            MainUILibraryItem *item = &fresh->items[i];
+            if (item->folder < 0 || !gone[item->folder]) {
+                i++;
+                continue;
+            }
+            cJSON *game = cJSON_Duplicate(item->json, true);
+            ok = game && cJSON_AddItemToArray(removed, game);
+            if (!ok) {
+                cJSON_Delete(game);
+                break;
+            }
+            cJSON_Delete(item->json);
+            free(item->identity);
+            memmove(item, item + 1, (size_t)(fresh->count - i - 1) * sizeof *item);
+            fresh->count--;
+        }
+        /* From the last: removing a folder renumbers only those after it. */
+        for (int i = fresh->folder_count - 1; ok && i >= 0; i--) {
+            if (gone[i]) {
+                ok = delete_folder(fresh, -i - 1);
+            }
+        }
     }
     else if (action == CONTEXT_FAVORITE_SORT) {
         ok = row >= 0 && reorder(fresh, INT_MIN, INT_MIN, true);
@@ -505,13 +513,18 @@ bool mainui_favorite_edit(MainUIFavoriteEditor *editor, MainUILibrary *library, 
             goto cleanup;
         }
         /* A game pasted on a folder goes into it, after its games; the
-         * cursor stays on the folder. Pasted anywhere else (a folder on a
+         * cursor stays on the folder. Pasted on the folder it was cut from,
+         * where it would change nothing, it moves up into the open folder,
+         * after its games: the only way to take a game out of a folder that
+         * is all the open folder holds. Pasted anywhere else (a folder on a
          * folder, or on "..") it takes that place in the open folder. */
-        bool into = moving >= 0 && row != INT_MIN && row < 0;
+        bool source =
+            moving >= 0 && row != INT_MIN && row < 0 && fresh->items[moving].folder == -row - 1;
+        bool into = moving >= 0 && row != INT_MIN && row < 0 && !source;
         if (into) {
             fresh->current = -row - 1;
         }
-        ok = moving != INT_MIN && reorder(fresh, moving, into ? INT_MIN : row, false);
+        ok = moving != INT_MIN && reorder(fresh, moving, into || source ? INT_MIN : row, false);
         if (ok) {
             affected = copy(into ? fresh->folders[-row - 1].id : editor->key);
             ok = affected != NULL;
@@ -536,6 +549,9 @@ bool mainui_favorite_edit(MainUIFavoriteEditor *editor, MainUILibrary *library, 
         fail(editor, "Could not save Favorite folders; check file access or another writer.");
         goto cleanup;
     }
+    /* Under the store's library lock. Should it fail, the games stay
+     * Favorites, without a folder: listed at the top. */
+    bool games_kept = removed && !mainui_favorites_remove_rows_locked(sd, removed);
     ok = mainui_library_reload(library, sd);
     if (!ok) {
         fail(editor, "Saved successfully, but could not reload. Reopen Favorites.");
@@ -554,6 +570,10 @@ bool mainui_favorite_edit(MainUIFavoriteEditor *editor, MainUILibrary *library, 
         action == CONTEXT_FAVORITE_DELETE) {
         mainui_favorite_editor_close(editor);
     }
+    if (games_kept) {
+        ok = fail(editor, "Folder deleted, but its games could not be removed from Favorites; "
+                          "they are listed at the top.");
+    }
 cleanup:
     if (fresh) {
         mainui_library_close(fresh);
@@ -561,5 +581,6 @@ cleanup:
     free(fresh);
     mainui_favorite_store_close(&store);
     free(affected);
+    cJSON_Delete(removed);
     return ok;
 }

@@ -63,6 +63,28 @@ term_setup() {
     esc DECSTBM "$top" "$fin"
 }
 
+# START closes the app this menu runs in. It used to "pkill -9 st": the
+# SIGKILL showed as error 137, and the name match also killed any process
+# with "st" in its path (Open MainUI runs from .tmp_update/mainui-test).
+# Ask only our own terminal to quit (SIGTERM, exit code 143).
+quit_terminal() {
+    term_reset
+    pid=$$
+    while [ "$pid" -gt 1 ] 2> /dev/null; do
+        stat=$(cat "/proc/$pid/stat" 2> /dev/null) || break
+        comm=${stat#*\(}
+        comm=${comm%%)*}
+        if [ "$comm" = st ]; then
+            kill -TERM "$pid"
+            break
+        fi
+        # Fields after the name: state, then the parent's pid.
+        set -- ${stat##*) }
+        pid=$2
+    done
+    exit 1
+}
+
 term_getsize() {
     # false-positive, behavior intentional, globbing is disabled.
     # shellcheck disable=2046
@@ -416,7 +438,40 @@ key() {
     set -- $list
     unset IFS
 
-    while key=$(dd ibs=1 count=1 2>/dev/null); do
+    pending=
+    while :; do
+	if [ -n "$pending" ]; then
+	    key=$pending pending=
+	else
+	    # The "." keeps a typed newline (START) from being stripped like
+	    # the end of input. Nothing at all means the terminal is gone
+	    # (closed or killed): leave instead of spinning on empty reads.
+	    key=$(dd ibs=1 count=1 2>/dev/null; echo .)
+	    key=${key%.}
+	    [ -n "$key" ] || exit 1
+	fi
+
+	# MENU sends a lone Esc; the D-pad sends Esc [ A..D in one go. Wait
+	# 0.1 s for a following byte: none means MENU, which leaves the app
+	# like START does.
+	# (Any Esc: after a D-pad key the sequence state is not reset.)
+	if [ "$key" = "$esc_c" ]; then
+	    stty min 0 time 1
+	    pending=$(dd ibs=1 count=1 2>/dev/null; echo .)
+	    pending=${pending%.}
+	    stty min 1 time 0
+	    [ -n "$pending" ] || quit_terminal
+	fi
+
+	# -m (OTA): only Up/Down, A and MENU do anything. Right no longer
+	# confirms, and Left, START, R2 and keys typed on the on-screen
+	# keyboard (q, /, ?...) are ignored.
+	if [ -n "$menu_only_exit" ]; then
+	    case $key${esc:-0} in
+		"$esc_c"?|'[1'|A2|B2|"$space"?) ;; # Esc [ A / Esc [ B, A
+		*) esc=0; continue ;;
+	    esac
+	fi
 
 	
 
@@ -558,8 +613,8 @@ key() {
 		esac
 	    ;;
 
-	    "$esc") # l / Arrow Right / Esc
-		 	pkill -9 st
+	    "$nl"?) # Enter (START): leave the app (ignored with -m, see above)
+		quit_terminal
 	    ;;
 		
 	    h?|D2|"$bs_char"?) # h / Arrow Left / Backspace
@@ -882,7 +937,7 @@ ctrl_e=$(printf '\005')
 space=$(printf '\040')
 escape=$(printf '\033')
 
-while getopts "t:b:n:d:c:f:hil" result; do
+while getopts "t:b:n:d:c:f:hilm" result; do
     case "${result}" in
         n) num=${OPTARG} ;;
         d) ifs=${OPTARG} ;;
@@ -890,6 +945,7 @@ while getopts "t:b:n:d:c:f:hil" result; do
         f) format=${OPTARG} ;;
 	i) case_insense=1 ;;
 	l) live_search=1 ;;
+	m) menu_only_exit=1 ;; # Up/Down, A and MENU only: MENU leaves
 	t) msg="${OPTARG}" ;;
 	b) ltype="${OPTARG}" ;;
 	h) usage && exit 0 ;;

@@ -2,7 +2,7 @@
 
 json_file="/mnt/SDCARD/system.json"
 currentThemefile="/mnt/SDCARD/Saves/CurrentProfile/theme/currentTheme"
-defautTheme="/mnt/SDCARD/Themes/Silky by DiMo/"
+defautTheme="/mnt/SDCARD/Themes/Silky RedOnion/"
 
 progdir=`cd -- "$(dirname "$0")" >/dev/null 2>&1; pwd -P`
 cd $progdir

@@ -218,6 +218,13 @@ void installTheme(char *theme_path, bool apply_icons)
         apply_iconPack(
             is_dir(icon_pack_path) ? icon_pack_path : ICON_PACK_DEFAULT, true);
     }
+
+    // Apps that load fixed files instead of theme images (Package Manager,
+    // Search, Quick Guide, ...) follow the theme through its "system" folder.
+    char skin_cmd[STR_MAX * 2 + 64];
+    snprintf(skin_cmd, sizeof(skin_cmd), "sh " SCRIPT_DIR "/system_skin.sh \"%s\"",
+             theme_path);
+    system(skin_cmd);
 }
 
 bool checkAndSetDir(char *dest, const char *dir_path)

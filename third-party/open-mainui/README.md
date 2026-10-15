@@ -6,7 +6,7 @@ Written in C11 against SDL 1.2, the same libraries Onion already ships.
 
 Based on functionality from the [patched MainUI project](https://github.com/robcodedev/onionos-mainui-patcher).
 
-**Version 1.0.7.** It runs on hardware and is usable, but keep a copy of your original SD card.
+**Version 1.0.8.** It runs on hardware and is usable, but keep a copy of your original SD card.
 
 ## Why
 
@@ -59,7 +59,7 @@ To install on a device, follow the [SD-card installation instructions](docs/BUIL
 
 ![New About device screen](./docs/screen-about.png)
 
-New "About device" screen with model name, max resolution and Onion version now visible.
+New "About device" screen with model name, max resolution and OS version now visible. Its Website row shows the first line of `.tmp_update/onionVersion/website.txt`, so a build can name its own site, or `www.lomiyoo.com` without that file.
 
 ## Licence
 

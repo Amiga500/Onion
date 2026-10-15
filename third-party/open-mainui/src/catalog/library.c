@@ -672,11 +672,14 @@ bool mainui_library_reload(MainUILibrary *library, const char *sd)
 
 bool mainui_library_contains(const MainUILibrary *library, const char *rom)
 {
-    if (!library || !rom || !*rom) {
+    /* As mainui_same_rom(), with the ROM's key made once, not per Favorite. */
+    char key[MAINUI_PATH_MAX], other[MAINUI_PATH_MAX];
+    if (!library || !library->count || !rom || !*rom || !mainui_rom_key(key, rom)) {
         return false;
     }
     for (int i = 0; i < library->count; i++) {
-        if (mainui_same_rom(library->items[i].rom, rom)) {
+        const char *candidate = library->items[i].rom;
+        if (*candidate && mainui_rom_key(other, candidate) && !strcmp(key, other)) {
             return true;
         }
     }

@@ -282,9 +282,83 @@ static int wrap_text(TTF_Font *font, const char *text, int width, char lines[][2
     return count;
 }
 
+static void centered_label(SDL_Surface *screen, TTF_Font *font, SDL_Color color, const char *text,
+                           int x, int width, int y)
+{
+    int w = 0;
+    TTF_SizeUTF8(font, text, &w, NULL);
+    mainui_label(screen, font, color, text, x + (width - w) / 2, y);
+}
+
+/* Stock's NotifyWindow (0x33bac) draws skin/pop-bg.png centred on the
+ * screen, as the confirmation dialog does here, in that dialog's colours:
+ * the title in the theme's total colour, the text and hint in grid.color. False, drawing nothing, without the
+ * image or when the body does not fit it: the plain panel then shows it all. */
+static bool draw_message_popup(SDL_Surface *screen, MainUITheme *theme, const char *title,
+                               const char *body)
+{
+    if (!theme->loading_background_loaded) {
+        theme->loading_background = mainui_theme_image(theme, "skin/pop-bg.png");
+        theme->loading_background_loaded = true;
+    }
+    SDL_Surface *pop = theme->loading_background;
+    if (!pop || pop->w < 200 || pop->h < 150 || pop->w > 640 || pop->h > 480) {
+        return false;
+    }
+    int skip = TTF_FontLineSkip(theme->title_font);
+    if (skip < 1) {
+        skip = 1;
+    }
+
+    /* Title, body and hint as one block, centred in the art between 30 px
+     * from its top and 45 px from its bottom, where art often has a frame or
+     * a band (Super Onion Entertainment System's red one). Popup art is
+     * usually as wide as the screen with a panel inset inside it, so the
+     * body keeps 50 px off each side. */
+    enum {
+        TOP = 30,
+        BOTTOM = 45,
+        GAP = 20
+    };
+
+    int room = pop->h - TOP - BOTTOM - 2 * skip - 2 * GAP;
+    int most = room / skip;
+    if (most < 1) {
+        return false;
+    }
+    if (most > 8) {
+        most = 8;
+    }
+    char lines[9][256];
+    int count = wrap_text(theme->title_font, body ? body : "", pop->w - 100, lines, most + 1);
+    if (count > most) {
+        return false;
+    }
+    int x = (640 - pop->w) / 2, y = (480 - pop->h) / 2;
+    mainui_blit(screen, pop, x, y);
+    SDL_Rect clip = {(Sint16)x, (Sint16)y, (Uint16)pop->w, (Uint16)pop->h};
+    SDL_SetClipRect(screen, &clip);
+    TTF_Font *font = theme->title_font;
+    int block = skip + GAP + count * skip + GAP + skip;
+    int top = y + TOP + (pop->h - TOP - BOTTOM - block) / 2;
+    centered_label(screen, font, theme->total_color, title ? title : "", x, pop->w, top);
+    top += skip + GAP;
+    for (int i = 0; i < count; i++) {
+        centered_label(screen, font, theme->grid_color[0], lines[i], x, pop->w, top);
+        top += skip;
+    }
+    centered_label(screen, font, theme->grid_color[0], "A / B: close", x, pop->w, top + GAP);
+    SDL_SetClipRect(screen, NULL);
+    return true;
+}
+
 void mainui_draw_message(SDL_Surface *screen, MainUITheme *theme, const char *title,
                          const char *body)
 {
+    if (draw_message_popup(screen, theme, title, body)) {
+        return;
+    }
+
     /* The body wraps to as many lines as it needs; the panel grows down for
      * more than one line, up to the bottom of the screen. Messages are
      * deliberately bounded; no path is ever interpreted as a format string or
@@ -330,7 +404,8 @@ void mainui_draw_message(SDL_Surface *screen, MainUITheme *theme, const char *ti
 void mainui_draw_languages(SDL_Surface *screen, MainUITheme *theme, const MainUILanguages *list)
 {
     list_frame(screen, theme, mainui_translate(23, "Change language"), 0, -1);
-    SDL_Surface *selection = mainui_theme_image(theme, "skin/bg-list-s.png");
+    /* Settings' selection art, loaded once. */
+    SDL_Surface *selection = mainui_theme_settings_artwork(theme)->selection;
     int start = list->start;
     for (int i = start; i < list->count && i < start + 6; i++) {
         int y = 60 + (i - start) * 60;
@@ -341,9 +416,6 @@ void mainui_draw_languages(SDL_Surface *screen, MainUITheme *theme, const MainUI
         }
         mainui_label(screen, theme->menu_font, theme->color, list->entries[i].name, 20,
                      y + (60 - TTF_FontHeight(theme->menu_font)) / 2);
-    }
-    if (selection) {
-        SDL_FreeSurface(selection);
     }
     SDL_SetClipRect(screen, NULL);
 }

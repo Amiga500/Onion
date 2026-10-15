@@ -637,8 +637,7 @@ launch_game() {
             fi
 
             if [ $is_game -eq 1 ] && [ ! -f /tmp/new_res_available ]; then
-                infoPanel --message "LOADING" --persistent --romscreen &
-                touch /tmp/dismiss_info_panel
+                show_launch_screen "LOADING"
                 sync
             fi
 
@@ -700,8 +699,7 @@ launch_game() {
 
             if [ $is_game -eq 1 ] && [ ! -f /tmp/.offOrder ] && [ -f /tmp/.displaySavingMessage ]; then
                 rm /tmp/.displaySavingMessage
-                infoPanel --message "SAVING" --persistent --romscreen &
-                touch /tmp/dismiss_info_panel
+                show_launch_screen "SAVING"
                 sync
             fi
         fi
@@ -1664,6 +1662,30 @@ start_networking() {
     sync
 
     check_networking
+}
+
+# Screen shown while a game starts ("LOADING") or saves on exit ("SAVING"),
+# per Tweaks > Appearance > Loading/saving screen: 0 the game screenshot
+# with a popup (as in Onion), 1 the screenshot alone, 2 black, 3 the message
+# on the theme's full-screen panel (no screenshot).
+show_launch_screen() {
+    case "$(cat "$sysdir/config/display/launchScreen" 2> /dev/null)" in
+        1)
+            infoPanel --persistent --romscreen &
+            touch /tmp/dismiss_info_panel
+            ;;
+        2)
+            bootScreen clear
+            ;;
+        3)
+            infoPanel --message "$1" --persistent &
+            touch /tmp/dismiss_info_panel
+            ;;
+        *)
+            infoPanel --message "$1" --persistent --romscreen &
+            touch /tmp/dismiss_info_panel
+            ;;
+    esac
 }
 
 check_networking() {

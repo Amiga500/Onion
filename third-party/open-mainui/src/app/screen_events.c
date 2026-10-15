@@ -225,7 +225,8 @@ bool mainui_screen_apps(MainUIApp *ui, SDLKey key)
         ui->apps = NULL;
         ui->menu_view.cached_start = -1;
     }
-    else if (key == SDLK_RETURN && ui->apps_view.selected >= 0) {
+    else if (key == SDLK_RETURN && ui->apps_view.selected >= 0 &&
+             ui->apps_view.selected < ui->apps->pages[0].count) {
         if (ui->handoff_dir) {
             ui->launch_pending =
                 mainui_session_launch(ui->handoff_dir, &ui->launch_source, NULL, ui->message_body);
@@ -287,6 +288,8 @@ bool mainui_screen_name_input_key(MainUIApp *ui, const SDL_keysym *key)
                         return true;
                     }
                     ui->settings_page.message[0] = 0;
+                    /* A new attempt ends the watch on an earlier one. */
+                    ui->wifi_join_watch = false;
                     memset(ui->settings_page.password, 0, sizeof ui->settings_page.password);
                 }
                 ui->settings_page.connect_after_password = false;
@@ -404,9 +407,35 @@ static bool screen_confirmation_key(MainUIApp *ui, SDLKey key)
         /* One press acts once: its repeat must not dismiss what follows. */
         ui->return_latched = ui->held[SDLK_RETURN];
         bool ok = false;
+        if (ui->confirmation == CONTEXT_FAVORITE_DELETE) {
+            ui->confirmation = -1;
+            bool deleted = ui->library &&
+                           mainui_favorite_edit(&ui->favorite_editor, ui->library, ui->sd,
+                                                CONTEXT_FAVORITE_DELETE, NULL, &ui->view.selected);
+            /* Also after a partial failure (folders saved and the list
+             * reloaded, its games kept): the window fits the list shown. */
+            if (ui->library) {
+                mainui_viewport_refit(&ui->view, ui->library->visible_count, ui->config.rows,
+                                      ui->view.selected);
+                ui->library->views[ui->library->current + 1] = ui->view;
+                ui->selected_at = SDL_GetTicks();
+            }
+            if (!deleted) {
+                snprintf(ui->message_title, sizeof ui->message_title, "%s",
+                         mainui_translate(404, "Delete folder"));
+                snprintf(ui->message_body, sizeof ui->message_body, "%s",
+                         ui->favorite_editor.error);
+            }
+            /* The Favorite marks in game lists, as after Remove. */
+            mainui_markers_refresh(ui, true);
+            ui->cached_start = -1;
+            return true;
+        }
         if (ui->confirmation == CONTEXT_DELETE_ROM) {
             ok = !ui->library && mainui_browser_delete(ui->catalog, &ui->view, ui->config.rows);
-            ui->cached_start = -1;
+            /* A list that cannot be reopened after the deletion leaves the
+             * console grid on screen. */
+            ui->cached_start = ui->menu_view.cached_start = -1;
             mainui_preview_close(&ui->preview);
             if (ui->heading) {
                 SDL_FreeSurface(ui->heading);
@@ -472,6 +501,9 @@ bool mainui_screen_settings_page_key(MainUIApp *ui, SDLKey key)
                 : "");
         if (started) {
             memset(ui->settings_page.password, 0, sizeof ui->settings_page.password);
+        }
+        if (started && ui->settings_keyboard == 3) {
+            ui->wifi_join_watch = false;
         }
         ui->settings_keyboard = 0;
     }
@@ -550,6 +582,11 @@ bool mainui_screen_context_menu_key(MainUIApp *ui, SDLKey key, int *requested_se
         }
         return true;
     }
+    if (entry->action == CONTEXT_FAVORITE_DELETE) {
+        /* It removes the Favorites inside too: asked first. */
+        open_confirmation(ui, CONTEXT_FAVORITE_DELETE);
+        return true;
+    }
     if (entry->action >= CONTEXT_FAVORITE_MOVE && entry->action <= CONTEXT_FAVORITE_SORT) {
         if (entry->action == CONTEXT_FAVORITE_CREATE || entry->action == CONTEXT_FAVORITE_RENAME) {
             ui->name_action = entry->action;
@@ -600,22 +637,24 @@ bool mainui_screen_context_menu_key(MainUIApp *ui, SDLKey key, int *requested_se
         return true;
     }
     if (entry->action == CONTEXT_REFRESH) {
-        /* Release inactive console readers too before deleting shared caches. */
+        /* Release inactive console readers too before deleting shared caches.
+         * The grid's position is in pages[0] only for a catalog left inside a
+         * console; on the grid it is the view, which stays. */
         MainUICatalog *opened[] = {ui->games, ui->expert};
+        MainUIViewport *saved[] = {&ui->games_view, &ui->expert_view};
         for (int i = 0; i < 2; ++i) {
+            if (opened[i] && opened[i]->depth) {
+                *saved[i] = opened[i]->pages[0].view;
+                if (opened[i] == ui->catalog && !ui->home && !ui->library) {
+                    ui->view = opened[i]->pages[0].view;
+                }
+            }
             if (opened[i]) {
                 while (mainui_catalog_back(opened[i])) {
                 }
             }
         }
-        if (ui->games) {
-            ui->games_view = ui->games->pages[0].view;
-        }
-        if (ui->expert) {
-            ui->expert_view = ui->expert->pages[0].view;
-        }
         if (ui->catalog && !ui->home && !ui->library) {
-            ui->view = ui->catalog->pages[0].view;
             mainui_browser_grid_restore(ui->catalog, &ui->view, ui->view.selected);
         }
         ui->cached_start = ui->menu_view.cached_start = -1;
@@ -696,7 +735,9 @@ static bool screen_context_open_key(MainUIApp *ui, SDLKey key)
         mainui_context_rows(&ui->context, app_actions, ui->context_record ? 2 : 0);
     }
     else if (ui->library) {
-        if (ui->view.selected >= 0 && !mainui_library_is_folder(ui->library, ui->view.selected)) {
+        /* An empty list has no row 0: its slot may hold a removed row. */
+        if (ui->view.selected >= 0 && ui->view.selected < ui->library->visible_count &&
+            !mainui_library_is_folder(ui->library, ui->view.selected)) {
             ui->context_record = cJSON_Duplicate(
                 ui->library->items[ui->library->visible[ui->view.selected]].json, true);
         }
@@ -879,6 +920,7 @@ bool mainui_screen_list_key(MainUIApp *ui, SDLKey key)
             ui->library->views[ui->library->current + 1] = ui->view;
             changed = mainui_library_enter(ui->library, ui->view.selected);
             if (!changed && key == SDLK_RETURN && ui->handoff_dir && ui->view.selected >= 0 &&
+                ui->view.selected < ui->library->visible_count &&
                 !mainui_library_is_folder(ui->library, ui->view.selected)) {
                 ui->launch_pending = mainui_session_launch(ui->handoff_dir, &ui->launch_source,
                                                            NULL, ui->message_body);
@@ -934,7 +976,9 @@ bool mainui_screen_list_key(MainUIApp *ui, SDLKey key)
         }
         break;
     case SDLK_RETURN:
-        if (ui->catalog && ui->view.selected >= 0) {
+        /* An empty list or grid has nothing to open or launch. */
+        if (ui->catalog && ui->view.selected >= 0 &&
+            ui->view.selected < mainui_browser_count(ui->catalog)) {
             if (mainui_browser_folder(ui->catalog, ui->view.selected) &&
                 mainui_browser_index(ui->catalog, ui->view.selected) >= 0) {
                 if (!mainui_positions_save(ui->catalog, &ui->view)) {
@@ -950,6 +994,7 @@ bool mainui_screen_list_key(MainUIApp *ui, SDLKey key)
             }
             else if (mainui_browser_index(ui->catalog, ui->view.selected) < 0 &&
                      mainui_browser_back(ui->catalog, &ui->view)) {
+                ui->preview_sync_once = true;
                 ui->cached_start = ui->menu_view.cached_start = -1;
             }
             else if (key == SDLK_RETURN && ui->handoff_dir &&

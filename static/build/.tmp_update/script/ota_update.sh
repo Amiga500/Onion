@@ -262,7 +262,7 @@ run_bootstrap() {
 }
 
 channel_choice() {
-	channel=$(echo -e "stable\nbeta" | $sysdir/script/shellect.sh -t "Select distribution channel:" -b "Press A to validate your choice.")
+	channel=$(echo -e "stable\nbeta" | $sysdir/script/shellect.sh -m -t "Select distribution channel:" -b "Press A to validate, MENU to exit.")
 	clear
 	# Nothing chosen (B): leave, keeping the saved channel. An empty
 	# ota_channel used to be saved and read as stable.
@@ -374,12 +374,39 @@ release_info_error() { # response or reason
 		"Try again in a few minutes.\n"
 }
 
+# Show a prompt and wait for A (continue, returns 0) or MENU (leave,
+# returns 1); other buttons are ignored. MENU reaches the terminal as a
+# lone Esc, the D-pad as Esc [ A..D in one go, so a byte following within
+# 0.1 s means it was not MENU. No input at all (the terminal is gone)
+# counts as MENU.
+wait_key() { # prompt
+	printf '%s' "$1"
+	_stty=$(stty -g 2> /dev/null)
+	stty -icanon -echo min 1 time 0 2> /dev/null
+	_ret=
+	while [ -z "$_ret" ]; do
+		_key=$(dd ibs=1 count=1 2> /dev/null; echo .)
+		_key=${_key%.}
+		if [ -z "$_key" ]; then
+			_ret=1
+		elif [ "$_key" = " " ]; then
+			_ret=0
+		elif [ "$_key" = "$(printf '\033')" ]; then
+			stty min 0 time 1 2> /dev/null
+			[ -n "$(dd ibs=1 count=4 2> /dev/null)" ] || _ret=1
+			stty min 1 time 0 2> /dev/null
+		fi
+	done
+	[ -n "$_stty" ] && stty "$_stty" 2> /dev/null
+	return $_ret
+}
+
 download_update() {
 	echo -ne "${YELLOW}"
-	read -n 1 -s -r -p "Press A to continue"
+	wait_key "Press A to continue, MENU to exit" || exit 0
 	echo -ne "${NC}"
 
-	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -t "Download $Release_Version ($Release_size_MB) ?" -b "Press A to validate your choice.")
+	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -m -t "Download $Release_Version ($Release_size_MB) ?" -b "Press A to validate, MENU to exit.")
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
 
@@ -391,7 +418,7 @@ download_update() {
 
 		mkdir -p $sysdir/download/
 		echo -ne "\n\n" \
-			"${BLUE}== Downloading Onion $Release_Version ($channel channel) ==${NC}\n"
+			"${BLUE}== Downloading RedOnion $Release_Version ($channel channel) ==${NC}\n"
 		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
 		sync
 		wget --no-check-certificate $Release_url -O "$sysdir/download/$Release_Version.zip"
@@ -418,7 +445,7 @@ download_update() {
 }
 
 apply_update() {
-	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -t "Apply update $Release_Version ?" -b "Press A to validate your choice.")
+	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -m -t "Apply update $Release_Version ?" -b "Press A to validate, MENU to exit.")
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
 		echo "Applying update... "

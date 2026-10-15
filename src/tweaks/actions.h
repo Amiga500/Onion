@@ -155,6 +155,11 @@ void action_setLowBatteryAutoSave(void *pt)
     settings.low_battery_autosave_at = ((ListItem *)pt)->value;
 }
 
+void action_setLaunchScreen(void *pt)
+{
+    settings.launch_screen = ((ListItem *)pt)->value;
+}
+
 void action_setLidCloseAction(void *pt)
 {
     settings.lid_close_action = ((ListItem *)pt)->value;

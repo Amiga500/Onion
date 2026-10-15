@@ -20,11 +20,26 @@ static TTF_Font *font18;
 static PlayActivities *play_activities;
 
 static SDL_Color color_white = {255, 255, 255};
-static SDL_Color color_purple = {136, 97, 252};
+// Ranking numbers. The default is Onion's purple; a theme can change it
+// through res/accent.txt ("R G B"), which system_skin.sh swaps with the
+// rest of the Activity Tracker artwork when the theme changes.
+static SDL_Color color_accent = {136, 97, 252};
 static SDL_Color color_grey = {117, 123, 156};
 static SDL_Color color_lightgrey = {214, 223, 246};
 
 static bool show_raw_names = false;
+
+static void loadAccentColor(void)
+{
+    FILE *fp = fopen("./res/accent.txt", "r");
+    if (fp == NULL)
+        return;
+    int r, g, b;
+    if (fscanf(fp, "%d %d %d", &r, &g, &b) == 3 && r >= 0 && r <= 255 &&
+        g >= 0 && g <= 255 && b >= 0 && b <= 255)
+        color_accent = (SDL_Color){r, g, b};
+    fclose(fp);
+}
 
 // Cache of the 4 ROM images shown on the current page. Reloading + rescaling
 // 4 images on every page change is the most expensive part of renderPage().
@@ -56,6 +71,7 @@ void init(void)
     screen = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
 
     background = IMG_Load("./res/background.png");
+    loadAccentColor();
 
     font40 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 40);
     font30 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 30);
@@ -173,7 +189,7 @@ void renderPage(int current_page)
         ROM *rom = entry->rom;
 
         snprintf(num_str, sizeof(num_str), "%d", index + 1);
-        renderTextAlignRight(num_str, font40, color_purple, &(SDL_Rect){num_width, 80 + 90 * row, 50, 39});
+        renderTextAlignRight(num_str, font40, color_accent, &(SDL_Rect){num_width, 80 + 90 * row, 50, 39});
 
         SDL_Surface *romImage = rom_image_cache[row];
         if (romImage != NULL) {

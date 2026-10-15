@@ -17,6 +17,12 @@ bool mainui_saved_action(const char *sd, bool recent, MainUISavedAction action,
 /* The same with Roms/.mainui-library already held by the caller. */
 bool mainui_saved_action_locked(const char *sd, bool recent, MainUISavedAction action,
                                 const cJSON *record);
+/* Remove the Favorite rows `records` (an array) describe exactly, one row
+ * each, in one rewrite of favourite.json; the caller holds the library lock
+ * (Roms/.mainui-library). Rows no longer listed are skipped; other lines stay
+ * byte for byte. False, writing nothing, if the list cannot be read or
+ * written. */
+bool mainui_favorites_remove_rows_locked(const char *sd, const cJSON *records);
 /* Prepend a committed game launch, promote duplicates, retain at most 50. */
 bool mainui_recent_add(const char *sd, const cJSON *record);
 /* For a Y launch: Onion's Game List Options removes the first line of the
