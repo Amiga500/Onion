@@ -1126,6 +1126,29 @@ check "no RetroArch config: nothing created" test ! -e "$TMP/none.cfg"
 check "new installs default to off" grep -qx 'rgui_border_filler_enable = "false"' "$ROOT/static/configs/RetroArch/.retroarch/retroarch.cfg"
 end
 
+# ---- migration 00023: devices on the old default theme get Silky RedOnion ----
+
+begin migration_moves_old_default_theme_to_redonion
+MIG="$ROOT/static/build/.tmp_update/script/migration/00023_default_theme_redonion.sh"
+sd=$TMP/sd
+mkdir -p "$sd/Themes/Silky RedOnion" "$sd/.tmp_update/config/system"
+echo '{}' > "$sd/Themes/Silky RedOnion/config.json"
+printf '{\n\t"vol":\t20,\n\t"theme":\t"%s/Themes/Silky by DiMo/",\n\t"wifi":\t0\n}\n' "$sd" > "$sd/system.json"
+printf '{\n\t"theme":\t"%s/Themes/Silky by DiMo",\n\t"wifi":\t1\n}\n' "$sd" > "$sd/.tmp_update/config/system/A.json"
+printf '{\n\t"theme":\t"%s/Themes/Other/",\n\t"wifi":\t1\n}\n' "$sd" > "$sd/.tmp_update/config/system/B.json"
+SDCARD=$sd sh "$MIG"
+check "system.json moved to Silky RedOnion" grep -qF "\"theme\":	\"$sd/Themes/Silky RedOnion/\"," "$sd/system.json"
+check "other keys untouched" grep -qF '"vol":	20,' "$sd/system.json"
+check "device copy moved too (no trailing slash)" grep -qF "\"$sd/Themes/Silky RedOnion/\"" "$sd/.tmp_update/config/system/A.json"
+check "another theme left alone" grep -qF "\"$sd/Themes/Other/\"" "$sd/.tmp_update/config/system/B.json"
+check "no temp files left" test -z "$(find "$sd" -name '*.tmp')"
+rm -rf "$sd/Themes/Silky RedOnion"
+printf '{\n\t"theme":\t"%s/Themes/Silky by DiMo/"\n}\n' "$sd" > "$sd/system.json"
+SDCARD=$sd sh "$MIG"
+check "without Silky RedOnion on the card: unchanged" grep -qF "Silky by DiMo/" "$sd/system.json"
+check "new installs default to Silky RedOnion" grep -qF '"/mnt/SDCARD/Themes/Silky RedOnion/"' "$ROOT/static/build/.tmp_update/res/miyoo285_system.json"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

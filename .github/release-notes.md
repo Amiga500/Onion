@@ -11,7 +11,7 @@ OnionPlus is still a personal-use build. It is **not** a replacement for Onion a
 
 ### 🎨 The RedOnion look
 
-- **Silky RedOnion**, a crimson version of the Silky theme (original design by DiMo + fireball33x), is the default theme on new installs. Updates keep the theme you use: pick Silky RedOnion in Themes, with "Apply icons" on.
+- **Silky RedOnion**, a crimson version of the Silky theme (original design by DiMo + fireball33x), is the default theme. New installs start with it, and an update moves a device still on the old default, Silky by DiMo, to it once; any other theme is kept. To go back, pick Silky by DiMo in Themes.
 - **The look follows the theme:** with Silky RedOnion, the system screens and apps are crimson too: Package Manager, Quick Guide, Activity Tracker, the Search/Filter tools, the File Explorer icons, Tweaks' icons, the charging, brightness, boot, shutdown and saving screens, and the RetroArch, AdvanceMENU and PCSX menus. With Silky by DiMo or any other theme, they are Onion's purple as before. The colours change when you apply a theme; AdvanceMENU and RetroArch keep your other settings.
 - **The installer** uses the RedOnion look with every theme. The File Explorer selection bar stays purple with every theme.
 - **Search:** the matched letters in a game list search are crimson with Silky RedOnion and purple with other themes (Open MainUI 1.0.8, `gamelist.searchColor`).
