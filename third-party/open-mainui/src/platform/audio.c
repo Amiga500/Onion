@@ -114,7 +114,7 @@ static bool audio_failed(const char *step)
     return false;
 }
 
-bool mainui_audio_open(const char *theme, const char *fallback, int volume)
+bool mainui_audio_open(const char *theme, const char *fallback, int volume, int chunk)
 {
     mainui_audio_close();
     const char *library = "libSDL_mixer-1.2.so.0";
@@ -147,7 +147,7 @@ bool mainui_audio_open(const char *theme, const char *fallback, int volume)
      * 44100 played 48 kHz bgm.mp3 about 8% slow and low; 48000 plays it at its
      * own speed. A 44.1 kHz bgm.mp3 now plays slightly fast, as with stock.
      * WAV sounds are converted on load and are unaffected. */
-    if (audio.open(48000, AUDIO_S16SYS, 2, 1024) != 0) {
+    if (audio.open(48000, AUDIO_S16SYS, 2, chunk) != 0) {
         audio_failed("Mix_OpenAudio failed");
         SDL_QuitSubSystem(SDL_INIT_AUDIO);
         mainui_audio_close();

@@ -77,6 +77,12 @@ void mainui_context_parse(MainUIContext *context, const char *text, bool search,
             int action = action_for(cJSON_IsObject(object) ? item->string
                                     : cJSON_IsString(item) ? item->valuestring
                                                            : NULL);
+            /* Search and Tweaks need their app, also when named here: left
+             * out entirely, as Settings leaves out Tweaks, so revealing the
+             * hidden entries cannot show them either. */
+            if ((action == CONTEXT_SEARCH && !search) || (action == CONTEXT_TWEAKS && !tweaks)) {
+                continue;
+            }
             if (action >= 0) {
                 add(context, action, cJSON_IsArray(object) || cJSON_IsTrue(item));
             }

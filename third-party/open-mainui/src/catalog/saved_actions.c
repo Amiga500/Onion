@@ -193,6 +193,61 @@ bool mainui_saved_action_locked(const char *sd, bool recent, MainUISavedAction a
     return ok;
 }
 
+bool mainui_favorites_remove_rows_locked(const char *sd, const cJSON *records)
+{
+    char path[4096];
+    int n = snprintf(path, sizeof path, "%s/Roms/favourite.json", sd);
+    int count = cJSON_GetArraySize(records);
+    if (n < 0 || n >= (int)sizeof path || !cJSON_IsArray(records)) {
+        return false;
+    }
+    if (!count) {
+        return true;
+    }
+    char *input = mainui_read_text(path, 8 * 1024 * 1024);
+    char *output = input ? malloc(strlen(input) + 1) : NULL;
+    bool *used = output ? calloc((size_t)count, sizeof *used) : NULL;
+    bool ok = used != NULL, removed = false;
+    size_t written = 0;
+    for (char *line = ok ? input : ""; *line;) {
+        char *newline = strchr(line, '\n');
+        size_t size = newline ? (size_t)(newline - line) : strlen(line);
+        size_t bytes = size + (newline ? 1 : 0);
+        cJSON *item = cJSON_ParseWithLength(line, size);
+        bool keep = true;
+        if (cJSON_IsObject(item)) {
+            int i = 0;
+            const cJSON *record;
+            cJSON_ArrayForEach(record, records)
+            {
+                if (!used[i] && exact(item, record)) {
+                    used[i] = removed = true;
+                    keep = false;
+                    break;
+                }
+                i++;
+            }
+        }
+        cJSON_Delete(item);
+        if (keep) {
+            memcpy(output + written, line, bytes);
+            written += bytes;
+        }
+        if (!newline) {
+            break;
+        }
+        line = newline + 1;
+    }
+    if (ok) {
+        output[written] = 0;
+        ok = !removed || mainui_write_text_atomic(path, output);
+    }
+    free(used);
+    free(output);
+    free(input);
+    return ok;
+}
+
 bool mainui_saved_action(const char *sd, bool recent, MainUISavedAction action, const cJSON *record)
 {
     char path[4096];

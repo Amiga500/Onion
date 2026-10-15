@@ -12,7 +12,10 @@ int mainui_suite_options(void)
     char *valid[] = {"MainUI", "--sd-root", "fixture", "--systems", "--battery", "500"};
     assert(mainui_options_parse(&options, 6, valid) == -1);
     assert(!strcmp(options.sd, "fixture") && options.start_systems);
-    assert(options.battery_override && options.battery_percent == 500);
+    assert(options.battery_override && options.battery_percent == 500 && !options.battery_charging);
+    char *charging[] = {"MainUI", "--sd-root", "fixture", "--battery", "63", "--charging"};
+    assert(mainui_options_parse(&options, 6, charging) == -1);
+    assert(options.battery_override && options.battery_charging && options.battery_percent == 63);
     assert(!options.informational);
     char *help[] = {"MainUI", "--help"};
     assert(mainui_options_parse(&options, 2, help) == 0 && options.informational);

@@ -245,6 +245,7 @@ static bool idle_unchanged(const MainUIApp *ui, Uint32 now, Uint32 repaint_ms)
            !ui->search_keyboard && !ui->context_open && ui->confirmation < 0 &&
            !*ui->message_title && !ui->launch_pending && now - ui->presented_at < repaint_ms &&
            ui->presented_battery == ui->theme.battery_percent &&
+           ui->presented_charging == ui->theme.battery_charging &&
            ui->presented_wifi_online == ui->theme.wifi_online &&
            ui->presented_hotspot == ui->theme.hotspot_on &&
            ui->presented_wifi_signal == ui->theme.wifi_signal_level &&
@@ -569,7 +570,7 @@ static bool compose_full_frame(MainUIApp *ui)
                         ui->favorites,
                         ui->library->items[ui->library->visible[ui->view.start + i]].rom);
                 }
-                else if (ui->catalog && !ui->library) {
+                else if (ui->catalog && !ui->library && ui->favorites && ui->favorites->count) {
                     cJSON *record = mainui_catalog_record(
                         ui->catalog, mainui_browser_index(ui->catalog, ui->view.start + i));
                     const cJSON *rom = cJSON_GetObjectItemCaseSensitive(record, "rompath");
@@ -643,12 +644,14 @@ static bool compose_full_frame(MainUIApp *ui)
     }
     if (ui->confirmation >= 0) {
         mainui_draw_confirmation(ui->screen, &ui->theme,
-                                 ui->confirmation == CONTEXT_CLEAR_RECENT ? 77
-                                 : ui->confirmation == CONTEXT_DELETE_ROM ? 116
-                                                                          : 86,
-                                 ui->confirmation == CONTEXT_CLEAR_RECENT ? 78
-                                 : ui->confirmation == CONTEXT_DELETE_ROM ? 117
-                                                                          : 108);
+                                 ui->confirmation == CONTEXT_CLEAR_RECENT      ? 77
+                                 : ui->confirmation == CONTEXT_DELETE_ROM      ? 116
+                                 : ui->confirmation == CONTEXT_FAVORITE_DELETE ? 404
+                                                                               : 86,
+                                 ui->confirmation == CONTEXT_CLEAR_RECENT      ? 78
+                                 : ui->confirmation == CONTEXT_DELETE_ROM      ? 117
+                                 : ui->confirmation == CONTEXT_FAVORITE_DELETE ? 81
+                                                                               : 108);
     }
     if (ui->name_input.open) {
         mainui_name_input_draw(&ui->name_input, ui->screen, &ui->theme);
@@ -692,6 +695,7 @@ static bool draw_full_frame(MainUIApp *ui)
     }
     ui->presented_at = SDL_GetTicks();
     ui->presented_battery = ui->theme.battery_percent;
+    ui->presented_charging = ui->theme.battery_charging;
     ui->presented_wifi_online = ui->theme.wifi_online;
     ui->presented_hotspot = ui->theme.hotspot_on;
     ui->presented_wifi_signal = ui->theme.wifi_signal_level;

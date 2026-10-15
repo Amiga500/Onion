@@ -11,7 +11,8 @@ typedef enum {
 typedef struct {
     MainUIDevice model;
     int wifi_signal;         /* Stock level: 0 unknown, 1 weak, 2 medium, 3 strong. */
-    int battery;             /* -1 unavailable, 0..100 percent, 500 charging */
+    int battery;             /* -1 unavailable, 0..100 percent, 500 charging at an unknown level */
+    bool charging;           /* also with a known level (Mini Plus and Flip) */
     int wifi, lid, sleeping; /* -1 unknown; otherwise 0/1 */
     int hotspot;             /* 1 when Onion's hotspot (hostapd) runs, else 0 */
     char address[64], ssid[33];
@@ -30,10 +31,19 @@ typedef struct {
 } MainUIDeviceAdapter;
 
 bool mainui_device_adapter_open(MainUIDeviceAdapter *, MainUIDeviceBackend, const char *runtime);
+/* Only the battery level and charging state of `status`, for its model: as
+ * Onion's battery_hasChanged(), cheap enough to check every second. On the
+ * Mini Plus and Flip charging comes from axp_test, run off this thread and
+ * cached for 2 s. */
+void mainui_device_battery(const MainUIDeviceAdapter *, MainUIDeviceStatus *status);
 MainUIDeviceStatus mainui_device_status(const MainUIDeviceAdapter *);
 bool mainui_device_connect(MainUIDeviceAdapter *, const char *ssid, const char *password,
                            MainUICancel);
 int mainui_wifi_signal_level(int dbm);
+/* A line /customer/app/axp_test prints says the battery is charging: its
+ * "charging" field is 2 or 3, as stock MainUI reads it (Onion's battery.h
+ * takes only 3). */
+bool mainui_axp_charging(const char *line);
 bool mainui_device_refresh(MainUIDeviceAdapter *, MainUICancel);
 bool mainui_device_wifi_enable(MainUIDeviceAdapter *, bool enabled, MainUICancel);
 bool mainui_device_scan(MainUIDeviceAdapter *, MainUICancel);
