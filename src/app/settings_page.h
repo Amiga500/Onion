@@ -12,12 +12,14 @@ typedef struct {
     MainUISettingKind kind;
     int selected, start, values[4], wifi, network_count;
     char ssid[33], password[64], version[128], firmware[128], model[64];
-    char device_name[64], max_resolution[32];
+    char device_name[64], max_resolution[32], website[128];
     /* Fresh native or simulated readings; missing fields remain unavailable. */
     char serial[128], cpu[64], memory[64], storage[128];
     char networks[32][33], message[256];
     int network_signal[32];
     bool network_secure[32], connect_after_password;
+    /* A Wi-Fi failure in message stays until the next button press. */
+    bool message_held;
 } MainUISettingsPage;
 
 typedef struct {

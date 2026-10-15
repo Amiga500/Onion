@@ -122,24 +122,7 @@ static SDL_Surface *load_image(const MainUITheme *theme, const char *path)
         SDL_FreeSurface(image);
         image = converted;
     }
-    if (image->format->BytesPerPixel == 4 && image->format->Amask && !SDL_MUSTLOCK(image)) {
-        bool opaque = true;
-        for (int y = 0; opaque && y < image->h; ++y) {
-            const Uint32 *row = (const Uint32 *)((const Uint8 *)image->pixels + y * image->pitch);
-            for (int x = 0; x < image->w; ++x) {
-                if ((row[x] & image->format->Amask) != image->format->Amask) {
-                    opaque = false;
-                    break;
-                }
-            }
-        }
-        if (opaque) {
-            SDL_SetAlpha(image, 0, SDL_ALPHA_OPAQUE);
-        }
-        else {
-            SDL_SetAlpha(image, SDL_SRCALPHA | SDL_RLEACCEL, SDL_ALPHA_OPAQUE);
-        }
-    }
+    mainui_artwork_blend(image);
     return image;
 }
 
@@ -682,6 +665,9 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
     if (color && strlen(color) == 7 && sscanf(color, "#%2x%2x%2x", &r, &g, &b) == 3) {
         t->color = (SDL_Color){(Uint8)r, (Uint8)g, (Uint8)b, 0};
     }
+    /* A sentinel fallback tells a valid colour from a missing or bad one. */
+    t->search_color = theme_color(gamelist, "searchColor", (SDL_Color){0, 0, 0, 1});
+    t->search_color_set = t->search_color.unused == 0;
     int margin = json_int(gamelist, "iconLeftMargin", -1);
     if (margin >= 0) {
         t->icon_margin = margin > 300 ? 300 : margin;
@@ -735,10 +721,14 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
                                expert_size >= 1 && expert_size <= 120 ? expert_size : 18);
     /* Hint text (footer hints, counter, dialog actions) has its own font, as
      * stock's label font: hint.font, or without one the default font
-     * (Exo 2 Bold Italic, or the language font), never the title's. Its
-     * style is the font file's own. */
+     * (Exo 2 Bold Italic, or the language font), never the title's. Stock
+     * (0x12a850) always gives it SDL_ttf's italic style, which slants an
+     * upright font and leaves one that is italic already as it is. */
     const char *hint_face = json_string(hint, "font");
     t->hint_font = font_open(t, hint_face, hint_size);
+    if (t->hint_font) {
+        TTF_SetFontStyle(t->hint_font, TTF_STYLE_ITALIC);
+    }
     if (t->grid_font && !grid_face) {
         TTF_SetFontStyle(t->grid_font, TTF_STYLE_BOLD);
     }

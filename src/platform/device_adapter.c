@@ -15,6 +15,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
 #include <sys/resource.h>
@@ -22,6 +23,7 @@
 #include <sys/syscall.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 static bool path(char out[4096], const MainUIDeviceAdapter *adapter, const char *name)
@@ -409,20 +411,193 @@ int mainui_wifi_signal_level(int dbm)
     return dbm < -126 || dbm > 127 ? 0 : dbm >= -70 ? 3 : dbm >= -80 ? 2 : 1;
 }
 
+bool mainui_axp_charging(const char *line)
+{
+    int charging = 0;
+    return line &&
+           sscanf(line, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}", &charging) == 1 &&
+           (charging == 2 || charging == 3);
+}
+
+/* The first line /customer/app/axp_test prints, run from its folder as Onion
+ * does (battery.h). It normally takes 5-10 ms; one that takes over half a
+ * second is killed and counts as no answer (*stalled). */
+static bool axp_line(char *out, size_t size, bool *stalled)
+{
+    *stalled = false;
+    const char *program = "/customer/app/axp_test";
+    int pipe_fds[2];
+    if (size < 2 || access(program, X_OK) != 0 || pipe2(pipe_fds, O_CLOEXEC) != 0) {
+        return false;
+    }
+    int null = open("/dev/null", O_RDWR | O_CLOEXEC);
+    if (null < 0) {
+        close(pipe_fds[0]);
+        close(pipe_fds[1]);
+        return false;
+    }
+    struct sigaction reset = {.sa_handler = SIG_DFL};
+    sigset_t empty;
+    sigemptyset(&reset.sa_mask);
+    sigemptyset(&empty);
+    char *const arguments[] = {"./axp_test", NULL};
+    int close_limit = SPAWN_CLOSE_LIMIT;
+    struct rlimit limit;
+    if (!getrlimit(RLIMIT_NOFILE, &limit) && limit.rlim_cur != RLIM_INFINITY &&
+        limit.rlim_cur < SPAWN_CLOSE_LIMIT) {
+        close_limit = (int)limit.rlim_cur;
+    }
+    pid_t child = fork();
+    if (child == 0) {
+        for (size_t i = 0; i < sizeof spawn_signals / sizeof spawn_signals[0]; ++i) {
+            sigaction(spawn_signals[i], &reset, NULL);
+        }
+        sigprocmask(SIG_SETMASK, &empty, NULL);
+        if (chdir("/customer/app") != 0 || dup2(null, STDIN_FILENO) < 0 ||
+            dup2(pipe_fds[1], STDOUT_FILENO) < 0 || dup2(null, STDERR_FILENO) < 0) {
+            _exit(127);
+        }
+#ifdef SYS_close_range
+        if (syscall(SYS_close_range, 3u, ~0u, 0u) != 0)
+#endif
+        {
+            for (int fd = 3; fd < close_limit; ++fd) {
+                close(fd);
+            }
+        }
+        execve(program, arguments, environ);
+        _exit(127);
+    }
+    close(null);
+    close(pipe_fds[1]);
+    size_t used = 0;
+    bool ok = child > 0;
+    int waits = 0;
+    while (ok && waits < 10 && used < size - 1) {
+        struct pollfd ready = {.fd = pipe_fds[0], .events = POLLIN};
+        int result = poll(&ready, 1, 50);
+        if (result < 0 && errno == EINTR) {
+            continue;
+        }
+        if (result == 0) {
+            ++waits;
+            continue;
+        }
+        ssize_t n = result > 0 ? read(pipe_fds[0], out + used, size - 1 - used) : -1;
+        if (n <= 0) {
+            break;
+        }
+        used += (size_t)n;
+        if (memchr(out, '\n', used)) {
+            break;
+        }
+    }
+    close(pipe_fds[0]);
+    out[used] = 0;
+    out[strcspn(out, "\r\n")] = 0;
+    /* Never block on it for long: a child stuck in the kernel ignores even
+     * SIGKILL, and is then left to init when MainUI exits. */
+    *stalled = waits == 10;
+    if (child > 0 && *stalled) {
+        kill(child, SIGKILL);
+    }
+    for (int i = 0; child > 0 && i < 5; ++i) {
+        int status;
+        pid_t done = waitpid(child, &status, WNOHANG);
+        if (done == child || (done < 0 && errno != EINTR)) {
+            break;
+        }
+        if (i == 2) {
+            kill(child, SIGKILL);
+        }
+        poll(NULL, 0, 10);
+    }
+    return ok && used > 0 && !*stalled;
+}
+
+/* The Mini Plus and Flip charge through their AXP power chip; batmon writes
+ * the battery percentage to percBat also while charging. As stock and Onion
+ * (battery.h), ask the chip, at most every 2 s, as batmon does; after a stalled
+ * axp_test, not for a minute. Asked on a detached thread: a status read only
+ * takes the last answer, so a slow axp_test never pauses the menu. */
+static atomic_int axp_cached = -1, axp_hold_ms = 2000;
+static atomic_llong axp_checked_ms;
+static atomic_bool axp_running;
+
+static long long monotonic_ms(void)
+{
+    struct timespec now;
+    return clock_gettime(CLOCK_MONOTONIC, &now) == 0
+               ? (long long)now.tv_sec * 1000 + now.tv_nsec / 1000000
+               : 0;
+}
+
+static void *axp_check(void *unused)
+{
+    (void)unused;
+    char line[128];
+    bool stalled;
+    int value = axp_line(line, sizeof line, &stalled) && mainui_axp_charging(line);
+    if (stalled) {
+        fprintf(stderr, "[battery] axp_test did not answer; charging not checked for 60 s\n");
+    }
+    atomic_store(&axp_hold_ms, stalled ? 60000 : 2000);
+    atomic_store(&axp_cached, value);
+    atomic_store(&axp_checked_ms, monotonic_ms());
+    atomic_store(&axp_running, false);
+    return NULL;
+}
+
+/* 1 charging, 0 not or not known yet (until the first answer). */
+static int axp_charging(void)
+{
+    long long ms = monotonic_ms();
+    int value = atomic_load(&axp_cached);
+    bool stale = value < 0 || ms - atomic_load(&axp_checked_ms) >= atomic_load(&axp_hold_ms);
+    if (stale && !atomic_exchange(&axp_running, true)) {
+        pthread_attr_t attr;
+        pthread_t thread;
+        bool started = false;
+        if (pthread_attr_init(&attr) == 0) {
+            started = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) == 0 &&
+                      pthread_attr_setstacksize(&attr, 64 * 1024) == 0 &&
+                      pthread_create(&thread, &attr, axp_check, NULL) == 0;
+            pthread_attr_destroy(&attr);
+        }
+        if (!started) {
+            /* Try again in 2 s rather than on every status read. */
+            atomic_store(&axp_checked_ms, ms);
+            atomic_store(&axp_cached, value > 0);
+            atomic_store(&axp_running, false);
+        }
+    }
+    return value > 0;
+}
+
+void mainui_device_battery(const MainUIDeviceAdapter *adapter, MainUIDeviceStatus *status)
+{
+    status->battery = -1;
+    int battery = runtime_number(adapter, "percBat");
+    if ((battery >= 0 && battery <= 100) || battery == 500) {
+        status->battery = battery;
+    }
+    int charging = adapter->backend == DEVICE_SIMULATED ? runtime_number(adapter, "charging")
+                   : status->model.id == 283            ? number("/sys/class/gpio/gpio59/value")
+                   : status->model.id == 285 || status->model.id == 354 ? axp_charging()
+                                                                        : -1;
+    /* On the Mini, Onion writes 500 for the level while charging; the Mini
+     * Plus and Flip keep the level, which is shown beside the charging icon. */
+    status->charging = charging == 1 || status->battery == 500;
+    if (status->charging && (status->battery < 0 || status->battery > 100)) {
+        status->battery = 500;
+    }
+}
+
 MainUIDeviceStatus mainui_device_status(const MainUIDeviceAdapter *adapter)
 {
     MainUIDeviceStatus status = {.battery = -1, .wifi = -1, .lid = -1, .sleeping = -1};
     status.model = mainui_device(runtime_number(adapter, "deviceModel"));
-    int battery = runtime_number(adapter, "percBat");
-    if ((battery >= 0 && battery <= 100) || battery == 500) {
-        status.battery = battery;
-    }
-    int charging = adapter->backend == DEVICE_SIMULATED ? runtime_number(adapter, "charging")
-                   : status.model.id == 283             ? number("/sys/class/gpio/gpio59/value")
-                                                        : -1;
-    if (charging == 1) {
-        status.battery = 500;
-    }
+    mainui_device_battery(adapter, &status);
     if (status.model.lid) {
         int lid = adapter->backend == DEVICE_SIMULATED
                       ? runtime_number(adapter, "lid")
@@ -523,6 +698,15 @@ bool mainui_device_wifi_enable(MainUIDeviceAdapter *adapter, bool enabled, MainU
         bool ok = wifi_program(down, cancel);
         char *power[] = {"/customer/app/axp_test", "wifioff", NULL};
         wifi_program(power, cancel);
+        /* wlan0 outlives the power-off briefly while the chip detaches. An
+         * On in that window took it for a chip still on and started
+         * wpa_supplicant on the departing interface, which then never
+         * attached to the new one: Wi-Fi stayed on "Scanning...". Wait
+         * (at most 3 s) for it to go, so the next enable starts cold. */
+        for (int i = 0;
+             i < 60 && !mainui_cancelled(cancel) && !access("/sys/class/net/wlan0", F_OK); ++i) {
+            poll(NULL, 0, 50);
+        }
         return ok;
     }
     char reply[64];
@@ -862,8 +1046,11 @@ bool mainui_device_refresh(MainUIDeviceAdapter *adapter, MainUICancel cancel)
             }
             ok = !mainui_cancelled(cancel) && mainui_write_text_atomic(file, reply);
         }
-        else {
-            mainui_remove_file(file); /* A lost daemon must not leave a stale Connected status. */
+        else if (!mainui_cancelled(cancel)) {
+            /* A lost daemon must not leave a stale Connected status. A
+             * cancelled refresh (for a connection, Wi-Fi Off or On, or a
+             * launch) says nothing about it: keep the last status. */
+            mainui_remove_file(file);
         }
     }
     return ok;

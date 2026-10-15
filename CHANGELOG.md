@@ -1,5 +1,61 @@
 # Changelog
 
+## 1.0.8 - 2026-10-15
+
+### Buttons
+
+* Y, Select or Start held while the device goes to sleep no longer acts when it is released after waking. Y could launch the selected game, Select open the context menu and Start reload a list.
+* A on an empty ROM folder, Favorites, Recents, Search results or Apps does nothing; it said "Launch unavailable". Menu on an empty Favorites, Recents or Search list no longer reads an entry removed from it, which could crash.
+
+### Status bar
+
+* The battery level and charging state are checked every second, as Onion's own screens do, instead of every 5 seconds with the other device status, so the charging icon appears or goes within about 3 seconds of plugging the charger in or out; it could take 5 to 10. Only a change redraws the screen. Thanks to [@Veuks](https://github.com/Veuks) for the suggestion.
+* The Wi-Fi icon moves left beside the battery when the battery percentage would cover it, instead of being hidden behind it. It stays in stock's place otherwise, and Wi-Fi artwork wider than stock's slot, such as Super Onion Entertainment System Remix's, stays where stock puts it. Thanks to [@Ziko577](https://github.com/Ziko577) for the report.
+* On the Mini Plus and Mini Flip, the battery icon changes to the charging one while the charger is plugged in, as on the Mini. MainUI waited for a charging mark Onion writes only on the Mini; it now asks the power chip, as stock MainUI does. Thanks to [@Zazzago](https://github.com/Zazzago) for the report.
+* On the Mini Plus and Mini Flip, the battery percentage shows beside the charging icon while charging; stock MainUI hides it. On the Mini, Onion does not know the level while charging, so only the icon shows there, as before. Thanks to [@Veuks](https://github.com/Veuks) for the suggestion.
+* The battery icon changes at the same levels as in stock MainUI (above 69, 44, 14 and 4 %); it used the levels of Onion's own screens (90, 60, 30 and 5 %).
+* The Wi-Fi icon shows also when the battery icon cannot be drawn, such as before Onion has written the battery level; it was hidden with it.
+* Onion's clock overlay (the theme's `time` settings, drawn by `libmainuihooks.so`) should show the time in MainUI, as with stock MainUI: it waits for a line stock MainUI prints at start, which MainUI now prints too. This is not yet confirmed on a device. Thanks to [@fengfrw](https://github.com/fengfrw) for the report.
+
+### Favorites and menus
+
+* Deleting a Favorites folder removes all it holds, the folders inside it and their Favorites, after asking first ("Delete folder", "Remove from favorites list?"). It moved them up a level. The games stay on the SD card. Thanks to [@Veuks](https://github.com/Veuks) for the suggestion.
+* A game pasted on the folder it was moved out of moves up into the open folder. Before, a game could not be taken out of a folder that was all Favorites held, as there was no other row to paste it on. ([#30](https://github.com/robcodedev/onionos-mainui-opensource/issues/30)) Thanks to [@Veuks](https://github.com/Veuks) for the report.
+* Search and Tweaks set to show in the main menu's context menu (`main-menu.json`) are left out while their app is not installed, as Settings already left out Tweaks; selecting them said the launcher was unavailable. Thanks to [@Veuks](https://github.com/Veuks) for the report.
+
+### Themes and screens
+
+* Confirmations (Shut down, Clear Recents, Delete ROM) and messages draw their title in the theme's `total` colour and their text in `grid.color`, as stock's dialogs do. They were always white and grey. Thanks to [@Zazzago](https://github.com/Zazzago) for the report.
+* A theme can colour the part of a title that matches an in-list search with `gamelist.searchColor`. Without it, the match is purple or yellow as before.
+* The About page's "Onion version" row is named "OS version".
+* The About page's Website row shows the first line of `.tmp_update/onionVersion/website.txt` when that file exists; otherwise www.lomiyoo.com, as before.
+* Messages such as "Launch unavailable" or "Catalog unavailable" are drawn on the theme's popup art (`skin/pop-bg.png`), as stock draws its notices and as confirmations already were. A message too long for it, or a theme without it, keeps the plain dark panel.
+* Footer hints, the page counter and dialog buttons lean in a theme whose `hint.font` is upright, as in stock MainUI, which draws them in italic style. A hint font that is italic already looks as before.
+* Refresh all roms keeps the console grid's cursor where it is; it jumped to the console last opened, or the first.
+* Leaving a folder with A on ".." shows the selected game's artwork at once, as B does.
+* When Delete ROM cannot reopen the list, the console grid it leaves on screen is drawn afresh.
+
+### Sound
+
+* With Onion's audio fix off, the menu's audio buffer is 4096 sample frames, as in stock MainUI. With it on, it stays 1024 as before; stock uses 128 there, which raised MainUI's idle CPU use from 0.9 to 1.6 % in testing, for a latency gain (about 21 ms down to 3 ms) that theme sounds and music do not need.
+
+### Wi-Fi
+
+* Turning Wi-Fi off and quickly on again no longer leaves it on "Scanning..." with no networks. MainUI started Wi-Fi again before the chip had finished switching off. Thanks to [@Amiga500](https://github.com/Amiga500) for the report.
+* Settings › Wi-Fi says when a connection fails, with stock's notice ("Fail to connect / Check your password / Or reboot router"), also when the network is not joined within 30 seconds, which is how a wrong password shows. When Wi-Fi cannot be turned on, it says why. Its other notices, such as Wi-Fi being busy, show too; only "Scanning..." did.
+* The Wi-Fi icon and the connected network's mark no longer go for a moment when connecting, turning Wi-Fi off or on, or launching a game: an interrupted status check removed the saved Wi-Fi status.
+
+### Speed and memory
+
+* Launching a game from a ROM list saves its position once instead of twice.
+* Cover art without transparent pixels is drawn as a plain copy instead of being blended, as theme images already were. It is drawn again on every frame of a scrolling title.
+* The Shut down, Clear Recents and Delete ROM question and the language list no longer read and decode their artwork from the SD card on every frame.
+* Scrolling a ROM list checks its rows against Favorites with less work, and not at all when there are none.
+
+### Documentation and tests
+
+* [docs/NAVIGATION.md](docs/NAVIGATION.md) explains how the `state.json` MainUI writes differs from stock's, and what that means for Onion's list reset; [docs/THEMES.md](docs/THEMES.md) which battery icon shows at which level, where the Wi-Fi icon goes when the battery percentage would cover it, that Onion's clock overlay should work, how long the charging icon can take to change, and how messages use the popup art and which colours dialogs use, the `gamelist.searchColor` key, that the hint font is drawn in italic style and the headphone icon is not drawn; [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) what the Wi-Fi failure notice means, and why the Mini Flip's display colours (Luminance, Hue, Saturation, Contrast) can be back at their defaults after a reboot: MainUI sets them only from Settings › Display, as stock does, and leaves setting them at boot to the OS (thanks to [@QuackWalks](https://github.com/QuackWalks) for the report, and to [@Zazzago](https://github.com/Zazzago) for finding the problem on RedOnion); [docs/NAVIGATION.md](docs/NAVIGATION.md) that A, B and X act when pressed (stock acts on release), and that Y does nothing outside game lists for now.
+
 ## 1.0.7 - 2026-10-11
 
 ### Buttons

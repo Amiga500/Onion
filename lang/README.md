@@ -22,7 +22,7 @@ The eleven IDs below are used by `src/menus/context.c`, `src/menus/stock_setting
 | 407 | Tweaks |
 | 408 | Model name |
 | 409 | Max resolution |
-| 410 | Onion version |
+| 410 | OS version |
 
 The fix is upstream: these keys need to be added to Onion's language files, not installed from here. Copying this file onto a card would only cover English and would overwrite a file Onion owns.
 

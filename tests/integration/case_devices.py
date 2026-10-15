@@ -70,4 +70,39 @@ with Image.open(shot) as image:
     header = image.convert("RGB")
 assert header.getpixel((428, 10)) == WIFI and header.getpixel((427, 10)) != WIFI
 assert header.getpixel((500, 4)) == WIFI and header.getpixel((500, 3)) != WIFI
+# An icon that fits the slot keeps it while nothing overlaps, and moves left
+# to 8 px from a battery percentage that would cover it (stock leaves it
+# behind the battery). Wider artwork, as above, stays where stock puts it.
+for level in ("02", "03", "04"):
+    Image.new("RGB", (40, 30), WIFI).save(wifi_theme / f"skin/icon-wifi-signal-{level}.png")
+config = json.loads((ONION_THEME / "config.json").read_text())
+
+
+def wifi_header(percentage, battery="100"):
+    config["batteryPercentage"] = {"visible": percentage, "onleft": True, "size": 24}
+    (wifi_theme / "config.json").write_text(json.dumps(config))
+    result = subprocess.run([EXE, "--sd-root", str(SD), "--theme", str(wifi_theme), "--fallback",
+                             str(ONION_THEME), "--device-dir", str(RUNTIME), "--battery", battery,
+                             "--snapshot", str(shot)], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    with Image.open(shot) as image:
+        return image.convert("RGB")
+
+
+def wifi_span(image):
+    xs = [x for x in range(640) if image.getpixel((x, 30)) == WIFI]
+    return xs[0], xs[-1]
+
+
+plain = wifi_header(False)
+assert wifi_span(plain) == (508, 547)
+# Without a battery to draw (level unknown), Wi-Fi keeps its slot.
+assert wifi_span(wifi_header(False, "-1")) == (508, 547)
+covered = wifi_header(True)
+left, right = wifi_span(covered)
+assert right - left == 39 and right < 508
+# The 8 px to its right hold only the header, as without a percentage.
+for x in range(right + 1, right + 9):
+    for y in range(6, 54):
+        assert covered.getpixel((x, y)) == plain.getpixel((x, y)), (x, y)
 print("Device adapter fixtures passed:", ROOT_TEST)

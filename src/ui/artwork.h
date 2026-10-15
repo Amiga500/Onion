@@ -8,4 +8,7 @@ SDL_Surface *mainui_artwork_load(const char *path);
 /* New owned software RGBA copy, preserving alpha/color-key transparency.
  * Does not free the source; independent of the current video surface. */
 SDL_Surface *mainui_artwork_software(SDL_Surface *image);
+/* For 32-bit art with an alpha channel: drawn as a plain copy when every
+ * pixel is opaque, else blended (run-length accelerated). */
+void mainui_artwork_blend(SDL_Surface *image);
 #endif

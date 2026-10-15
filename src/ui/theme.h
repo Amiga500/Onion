@@ -50,7 +50,7 @@ typedef struct {
     int wifi_signal_level;
     char wifi_address[64];
     int battery_percent, battery_align, battery_offset_x, battery_offset_y;
-    bool battery_visible, battery_fixed;
+    bool battery_visible, battery_fixed, battery_charging;
     SDL_Color battery_color;
     TTF_Font *font, *title_font, *grid_font, *hint_font, *menu_font, *description_font,
         *detail_font;
@@ -59,6 +59,11 @@ typedef struct {
     TTF_Font *expert_font;         /* Expert labels: grid.fontascii or list.font */
     SDL_Surface *popup_dim;        /* black at 0xAA alpha over 640x420 */
     SDL_Color grid_color[2], hint_color, title_color, page_color, total_color;
+    /* gamelist.searchColor for the matched part of a title in an in-list
+     * search; without it (search_color_set false) a colour that stands out
+     * from list.color is chosen. */
+    SDL_Color search_color;
+    bool search_color_set;
     bool hide_icons, hide_hints;
     /* Font size 0 in config.json: stock draws no text in that role. The font
      * itself still opens at the default size for dialogs and other screens. */

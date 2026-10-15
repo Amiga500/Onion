@@ -16,7 +16,7 @@ typedef struct {
     const char *input_script;
     const char *input_text;
     bool real_device;
-    bool battery_override;
+    bool battery_override, battery_charging;
     bool start_systems;
     bool refresh_caches;
     /* --help or --version: printed text only, no session and no timing report. */

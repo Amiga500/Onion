@@ -92,6 +92,22 @@ int mainui_suite_context(void)
     assert(c.count == 2 && c.entries[0].type == 3);
     assert(!strcmp(mainui_context_label(&c.entries[0]), "Literal %s"));
     assert(mainui_context_section(c.entries[1].action) == MAINUI_MENU_GAMES);
-    puts("Context defaults, order, aliases, reveal and bounded custom action checks passed");
+    /* Search and Tweaks named in main-menu.json need their app installed:
+     * without it they are left out, shown or hidden, and reveal cannot
+     * expose them; reinstalled, the same configuration shows them again. */
+    const char *apps = "{\"context\":{\"tweaks\":true,\"search\":false,\"games\":true}}";
+    mainui_context_parse(&c, apps, false, false);
+    assert(c.count == 1 && c.entries[0].action == CONTEXT_GAMES);
+    mainui_context_reveal(&c);
+    assert(c.count == 1 && c.visible_count == 1);
+    mainui_context_parse(&c, "{\"context\":[\"search\",\"tweaks\"]}", false, false);
+    assert(c.count == 0 && c.visible_count == 0);
+    mainui_context_parse(&c, apps, true, true);
+    assert(c.count == 3 && c.visible_count == 2 && c.entries[0].action == CONTEXT_TWEAKS);
+    assert(c.entries[1].action == CONTEXT_SEARCH && !c.entries[1].enabled);
+    mainui_context_reveal(&c);
+    assert(c.visible_count == 3);
+    puts("Context defaults, order, aliases, reveal, missing apps and bounded custom action "
+         "checks passed");
     return 0;
 }

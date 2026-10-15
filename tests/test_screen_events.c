@@ -294,6 +294,38 @@ static void releases_and_focus(MainUIApp *ui)
     assert(!ui->running);
 }
 
+/* Sleep forgets Y, Select and Start held before it: a release after waking
+ * acts as nothing, as after focus loss. */
+static void releases_after_sleep(MainUIApp *ui)
+{
+    char runtime[] = "/tmp/mainui-sleep-XXXXXX", file[64];
+    assert(mkdtemp(runtime));
+    snprintf(file, sizeof file, "%s/sleeping", runtime);
+    FILE *sleeping = fopen(file, "w");
+    assert(sleeping && fputs("1\n", sleeping) >= 0 && !fclose(sleeping));
+    reset(ui);
+    const MainUIContextAction actions[] = {CONTEXT_SHUTDOWN};
+    mainui_context_rows(&ui->home_context, actions, 1);
+    assert(mainui_device_adapter_open(&ui->device_adapter, DEVICE_SIMULATED, runtime));
+    ui->device_enabled = true;
+    /* Select armed by its press; Y and Start set directly, as pressing them
+     * with Select held would be a keymon combo that clears Select. */
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_RCTRL, 0));
+    ui->y_armed = ui->start_armed = ui->select_brightness = true;
+    assert(ui->select_armed && ui->y_armed && ui->start_armed);
+    assert(mainui_poll_jobs(ui) && ui->device_status.sleeping == 1);
+    assert(!ui->y_armed && !ui->select_armed && !ui->start_armed && !ui->select_brightness);
+    /* Wake, then release. */
+    sleeping = fopen(file, "w");
+    assert(sleeping && fputs("0\n", sleeping) >= 0 && !fclose(sleeping));
+    ui->next_device_check = SDL_GetTicks();
+    assert(mainui_poll_jobs(ui) && ui->device_status.sleeping == 0);
+    assert(key_event(ui, SDL_KEYUP, SDLK_RCTRL, 0));
+    assert(!ui->context_open && ui->running);
+    unlink(file);
+    rmdir(runtime);
+}
+
 static void wake_intervals(MainUIApp *ui)
 {
     reset(ui);
@@ -580,6 +612,7 @@ int mainui_suite_screen_events(void)
     select_menu_after_combo(ui);
     message_over_details(ui);
     releases_and_focus(ui);
+    releases_after_sleep(ui);
     keymon_quiet_l1(ui);
     free(ui);
     return 0;
