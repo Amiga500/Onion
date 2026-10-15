@@ -769,6 +769,13 @@ begin no_pgrep_x_in_shipped_scripts
 check "no pgrep -x under static/" test -z "$(command grep -rlE '^[^#]*pgrep +-[a-z]*x' "$ROOT/static")"
 end
 
+# ---- runtime.sh: temporaries of interrupted saves removed at boot ----
+
+begin boot_removes_interrupted_save_temporaries
+check "load_settings removes system.json and config temporaries" sh -c "sed -n '/^load_settings() {/,/^}/p' \"$RUNTIME\" | grep -q 'rm -f /mnt/SDCARD/system.json.tmp.\* /mnt/SDCARD/.tmp_update/config/\*.tmp.\*'"
+check "before batmon or keymon can save" sh -c "grep -n '^    init_system\|^    batmon &' \"$RUNTIME\" | head -1 | grep -q init_system"
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283

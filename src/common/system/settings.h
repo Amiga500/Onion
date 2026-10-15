@@ -2,6 +2,7 @@
 #define SETTINGS_H__
 
 #include <stdbool.h>
+#include <unistd.h>
 
 #include "display.h"
 #include "system/volume.h"
@@ -343,7 +344,7 @@ bool _settings_dirty_mainui(void)
            settings.wifi_on != __settings.wifi_on;
 }
 
-void _settings_save_mainui_force(void)
+static bool _settings_write_mainui(void)
 {
     FILE *fp;
     char tmp_path[PATH_MAX];
@@ -351,7 +352,7 @@ void _settings_save_mainui_force(void)
 
     if ((fp = file_atomic_begin(MAIN_UI_SETTINGS, tmp_path, sizeof(tmp_path),
                                 final_path, sizeof(final_path))) == NULL)
-        return;
+        return false;
 
     fprintf(fp, "{\n");
     fprintf(fp, JSON_FORMAT_TAB_NUMBER, "vol", settings.volume);
@@ -371,8 +372,27 @@ void _settings_save_mainui_force(void)
     fprintf(fp, JSON_FORMAT_TAB_NUMBER_NC, "wifi", settings.wifi_on);
     fprintf(fp, "}");
 
-    if (!file_atomic_commit(fp, tmp_path, final_path))
+    return file_atomic_commit(fp, tmp_path, final_path);
+}
+
+void _settings_save_mainui_force(void)
+{
+    // Open MainUI and other Onion programs save system.json too: take turns
+    // (the lock they share), and try a failed save again before giving up.
+    int lock = file_lock(MAIN_UI_SETTINGS, 1000);
+    if (lock < 0)
+        print_debug("system.json lock busy, saving anyway");
+    bool saved = false;
+    for (int attempt = 0; !saved && attempt < FILE_ATOMIC_ATTEMPTS; attempt++) {
+        if (attempt > 0)
+            usleep(attempt * 50000);
+        saved = _settings_write_mainui();
+    }
+    file_unlock(lock);
+    if (!saved) {
+        print_debug("Could not save system.json");
         return;
+    }
 
     // system.json on disk now matches these fields: keep the snapshot in
     // sync so the dirty check compares against what is really stored.
@@ -526,23 +546,25 @@ void settings_save_local(void)
 
 bool settings_saveSystemProperty(const char *prop_name, int value)
 {
+    // Read, change and write under the lock, so a save by another program in
+    // between is not overwritten with the old values.
+    int lock = file_lock(MAIN_UI_SETTINGS, 1000);
     cJSON *json_root = json_load(MAIN_UI_SETTINGS);
-    if (json_root == NULL)
-        return false;
-    cJSON *prop = cJSON_GetObjectItem(json_root, prop_name);
-    if (prop == NULL) {
-        cJSON_Delete(json_root);
+    if (json_root == NULL) {
+        file_unlock(lock);
         return false;
     }
-
-    if (cJSON_GetNumberValue(prop) == value) {
+    cJSON *prop = cJSON_GetObjectItem(json_root, prop_name);
+    if (prop == NULL || cJSON_GetNumberValue(prop) == value) {
         cJSON_Delete(json_root);
+        file_unlock(lock);
         return false;
     }
 
     cJSON_SetNumberValue(prop, value);
     json_save(json_root, MAIN_UI_SETTINGS);
     cJSON_Delete(json_root);
+    file_unlock(lock);
     temp_flag_set("settings_changed", true);
 
     return true;

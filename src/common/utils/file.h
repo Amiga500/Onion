@@ -170,9 +170,24 @@ FILE *file_atomic_begin(const char *path, char *tmp_path, size_t tmp_size,
  */
 bool file_atomic_commit(FILE *fp, const char *tmp_path, const char *final_path);
 
+#define FILE_ATOMIC_ATTEMPTS 3
+
 /**
  * @brief Atomically replace a file with the given buffer.
+ *
+ * Tried up to FILE_ATOMIC_ATTEMPTS times, with a short pause between tries.
  */
 bool file_atomic_write(const char *path, const char *data, size_t len);
+
+/**
+ * @brief Take the exclusive lock Onion and Open MainUI share for a file.
+ *
+ * Use it around a read-modify-write of a file other programs also save
+ * (system.json). Waits up to timeout_ms.
+ *
+ * @return Lock handle for file_unlock(), or -1 when it was not obtained.
+ */
+int file_lock(const char *path, int timeout_ms);
+void file_unlock(int fd);
 
 #endif // UTILS_FILE_H__

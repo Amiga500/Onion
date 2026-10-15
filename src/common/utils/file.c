@@ -1,4 +1,5 @@
 #define _LARGEFILE64_SOURCE
+#define _DEFAULT_SOURCE // flock()
 #define _XOPEN_SOURCE 700
 
 #include "file.h"
@@ -14,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -785,11 +787,30 @@ FILE *file_atomic_begin(const char *path, char *tmp_path, size_t tmp_size,
     if (n < 0 || (size_t)n >= final_size)
         return NULL;
 
-    n = snprintf(tmp_path, tmp_size, "%s.tmp", final_path);
-    if (n < 0 || (size_t)n >= tmp_size)
-        return NULL;
-
-    return fopen(tmp_path, "w");
+    // A temporary name of its own, created exclusively: two programs saving
+    // the same file at once used to write into the same "<file>.tmp", one
+    // truncating the other's half-written copy, and the rename then
+    // published a mix of both.
+    static unsigned serial;
+    for (int attempt = 0; attempt < 16; attempt++) {
+        n = snprintf(tmp_path, tmp_size, "%s.tmp.%ld.%u", final_path,
+                     (long)getpid(), serial++);
+        if (n < 0 || (size_t)n >= tmp_size)
+            return NULL;
+        int fd = open(tmp_path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0666);
+        if (fd < 0) {
+            if (errno == EEXIST)
+                continue; // left behind by an earlier process with this pid
+            return NULL;
+        }
+        FILE *fp = fdopen(fd, "w");
+        if (fp == NULL) {
+            close(fd);
+            remove(tmp_path);
+        }
+        return fp;
+    }
+    return NULL;
 }
 
 bool file_atomic_commit(FILE *fp, const char *tmp_path, const char *final_path)
@@ -831,7 +852,8 @@ bool file_atomic_commit(FILE *fp, const char *tmp_path, const char *final_path)
     return true;
 }
 
-bool file_atomic_write(const char *path, const char *data, size_t len)
+static bool _file_atomic_write_once(const char *path, const char *data,
+                                    size_t len)
 {
     char tmp_path[PATH_MAX];
     char final_path[PATH_MAX];
@@ -848,4 +870,57 @@ bool file_atomic_write(const char *path, const char *data, size_t len)
     }
 
     return file_atomic_commit(fp, tmp_path, final_path);
+}
+
+bool file_atomic_write(const char *path, const char *data, size_t len)
+{
+    // A failed save is tried again: the data is still in memory, and a
+    // passing error (a busy card) should not lose the change.
+    for (int attempt = 0; attempt < FILE_ATOMIC_ATTEMPTS; attempt++) {
+        if (attempt > 0)
+            usleep(attempt * 50000);
+        if (_file_atomic_write_once(path, data, len))
+            return true;
+    }
+    print_debug("file_atomic_write: giving up");
+    return false;
+}
+
+// Same lock file as Open MainUI's mainui_file_lock() for the same path:
+// /tmp/mainui-locks/<FNV-1a 64 of the path>.lock, so Onion programs and the
+// launcher take turns on system.json.
+int file_lock(const char *path, int timeout_ms)
+{
+    if (path == NULL)
+        return -1;
+    char resolved[PATH_MAX];
+    const char *target = realpath(path, resolved) != NULL ? resolved : path;
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for (const unsigned char *p = (const unsigned char *)target; *p; ++p)
+        hash = (hash ^ *p) * UINT64_C(1099511628211);
+    if (mkdir("/tmp/mainui-locks", 0700) != 0 && errno != EEXIST)
+        return -1;
+    char lock_path[64];
+    snprintf(lock_path, sizeof(lock_path), "/tmp/mainui-locks/%016llx.lock",
+             (unsigned long long)hash);
+    int fd = open(lock_path, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    if (fd < 0)
+        return -1;
+    for (int waited = 0;; waited += 20) {
+        if (flock(fd, LOCK_EX | LOCK_NB) == 0)
+            return fd;
+        if (errno != EWOULDBLOCK && errno != EINTR)
+            break;
+        if (waited >= timeout_ms)
+            break;
+        usleep(20000);
+    }
+    close(fd);
+    return -1;
+}
+
+void file_unlock(int fd)
+{
+    if (fd >= 0)
+        close(fd); // releases the flock
 }
