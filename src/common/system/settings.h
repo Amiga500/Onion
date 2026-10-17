@@ -11,7 +11,9 @@
 #include "utils/json.h"
 
 #define MAX_BRIGHTNESS 10
+#ifndef MAIN_UI_SETTINGS /* tests point it at a file of their own */
 #define MAIN_UI_SETTINGS "/mnt/SDCARD/system.json"
+#endif
 #define CMD_TO_RUN_PATH "/mnt/SDCARD/.tmp_update/cmd_to_run.sh"
 #define RETROARCH_CONFIG "/mnt/SDCARD/RetroArch/.retroarch/retroarch.cfg"
 #define HISTORY_PATH \
@@ -344,6 +346,42 @@ bool _settings_dirty_mainui(void)
            settings.wifi_on != __settings.wifi_on;
 }
 
+// Another program may have saved system.json since this one loaded it. Open
+// MainUI saves the language without telling keymon, which kept the old one in
+// memory and wrote it back with its next brightness or volume save: the
+// GameSwitcher then came up in the old language. Before writing, take from
+// the file every value this program has not changed since it loaded or last
+// saved it. Values keymon mirrors in shared memory (brightness, menu sound,
+// sleep timer, display colours, volume) are left out: keymon is the one that
+// owns them, and taking them from the file would make it read its shared
+// memory as a change and write the old value back.
+static void _settings_merge_from_disk(void)
+{
+    if (!__settings_snapshot_valid)
+        return;
+    cJSON *disk = json_load(MAIN_UI_SETTINGS);
+    if (disk == NULL)
+        return;
+    if (strcmp(settings.language, __settings.language) == 0)
+        json_getString(disk, "language", settings.language);
+    if (strcmp(settings.theme, __settings.theme) == 0) {
+        json_getString(disk, "theme", settings.theme);
+        if (strcmp(settings.theme, "./") == 0) {
+            strncpy(settings.theme, DEFAULT_THEME_PATH, sizeof(settings.theme) - 1);
+            settings.theme[sizeof(settings.theme) - 1] = '\0';
+        }
+    }
+    if (strcmp(settings.keymap, __settings.keymap) == 0)
+        json_getString(disk, "keymap", settings.keymap);
+    if (settings.fontsize == __settings.fontsize)
+        json_getInt(disk, "fontsize", &settings.fontsize);
+    if (settings.audiofix == __settings.audiofix)
+        json_getInt(disk, "audiofix", &settings.audiofix);
+    if (settings.wifi_on == __settings.wifi_on)
+        json_getInt(disk, "wifi", &settings.wifi_on);
+    cJSON_Delete(disk);
+}
+
 static bool _settings_write_mainui(void)
 {
     FILE *fp;
@@ -382,6 +420,7 @@ void _settings_save_mainui_force(void)
     int lock = file_lock(MAIN_UI_SETTINGS, 1000);
     if (lock < 0)
         print_debug("system.json lock busy, saving anyway");
+    _settings_merge_from_disk();
     bool saved = false;
     for (int attempt = 0; !saved && attempt < FILE_ATOMIC_ATTEMPTS; attempt++) {
         if (attempt > 0)
