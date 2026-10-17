@@ -75,7 +75,7 @@ Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHA
 
 - **Mini Flip display colours** (Luminance, Hue, Saturation, Contrast) can be back at their defaults after a reboot: Open MainUI sets them only from Settings › Display, as stock does, and OnionPlus doesn't apply them at boot yet.
 - **Refresh list** appears both in Game List Options and in the Select menu; the Game List Options entry will be removed.
-- **Arabic and Bengali** labels show as boxes: no font Onion ships has their letters.
+- **Arabic and Bengali** are readable in the launcher and in Onion's apps, with every theme (SDL_ttf with HarfBuzz and the Noto Sans Arabic UI and Bengali UI fonts). Arabic lines stay left-aligned like every other language, and text drawn one letter at a time (the on-screen keyboard) still shows Arabic letters unjoined.
 - **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
 - **Settings:** two programs saving settings at the same moment can corrupt the settings file, and a settings save that fails is not retried.
 - **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package. Verifying certificates and the package's SHA-256 is planned.
