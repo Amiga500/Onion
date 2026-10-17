@@ -35,6 +35,8 @@ INSTALLER_DIR       := $(DIST_DIR)/miyoo/app/.tmp_update
 RELEASE_DIR         := $(ROOT_DIR)/release
 STATIC_BUILD        := $(ROOT_DIR)/static/build
 STATIC_DIST         := $(ROOT_DIR)/static/dist
+# Binaries supplied ready-built, copied over the ones built from src/.
+STATIC_PREBUILT     := $(ROOT_DIR)/static/prebuilt
 STATIC_CONFIGS      := $(ROOT_DIR)/static/configs
 CACHE               := $(ROOT_DIR)/cache
 STATIC_PACKAGES     := $(ROOT_DIR)/static/packages
@@ -178,6 +180,10 @@ core-modules: $(CORE_MODULE_TARGETS)
 
 core: core-modules
 	@$(ECHO) $(PRINT_RECIPE)
+# gameSwitcher: robcodedev's build replaces the one compiled from source
+	@if [ -f $(STATIC_PREBUILT)/gameSwitcher ]; then \
+		cp -f $(STATIC_PREBUILT)/gameSwitcher $(BIN_DIR)/gameSwitcher && \
+		chmod 755 $(BIN_DIR)/gameSwitcher; fi
 
 # Build dependencies for installer
 	@mkdir -p $(INSTALLER_DIR)/bin
