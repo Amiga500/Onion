@@ -20,7 +20,11 @@ jobs:
     - name: Get version
       run: |
         TAG="${{ github.ref_name }}"
-        echo "BUILD_VERSION=${TAG#v}" >> $GITHUB_ENV
+        BUILD_VERSION="${TAG#v}"
+        # Every version ends with its build date, as Settings > About shows it.
+        echo "$BUILD_VERSION" | grep -Eq -- '-[0-9]{8}$' ||
+            BUILD_VERSION="${BUILD_VERSION}-$(date -u +%Y%m%d)"
+        echo "BUILD_VERSION=${BUILD_VERSION}" >> $GITHUB_ENV
     - name: Build release
       shell: bash
       run: |

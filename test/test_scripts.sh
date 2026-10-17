@@ -1149,6 +1149,64 @@ check "without Silky RedOnion on the card: unchanged" grep -qF "Silky by DiMo/" 
 check "new installs default to Silky RedOnion" grep -qF '"/mnt/SDCARD/Themes/Silky RedOnion/"' "$ROOT/static/build/.tmp_update/res/miyoo285_system.json"
 end
 
+# ---- Settings > About: the build date and the RedOnion version row ----
+#
+# Open MainUI shows the first characters of .tmp_update/onionVersion/version.txt
+# under the label of string 410. These fail when a change would hide part of the
+# build date there, or lose "RedOnion" from the label: in OnionPlus (Makefile,
+# workflows, language files) or in an Open MainUI update (its limit or its ids).
+
+OMUI_ABOUT="$ROOT/third-party/open-mainui/src/app/settings_page.c"
+
+# A make run of its own: the variables of the make running these tests must
+# not reach it.
+onion_make_version() {
+    env -u MAKEFLAGS -u MFLAGS -u MAKELEVEL -u MAKEOVERRIDES -u VERSION_DATE \
+        -u VERSION_OVERRIDE "$@" make -s -C "$ROOT" version 2> /dev/null
+}
+
+begin about_shows_the_whole_build_date
+limit=$(sed -n 's/.*if (version_end > \([0-9][0-9]*\)) {.*/\1/p' "$OMUI_ABOUT" | head -n 1)
+check "Open MainUI's version length limit found (if this fails, Open MainUI changed how it cuts the version: review this test)" test -n "$limit"
+check "Open MainUI reads .tmp_update/onionVersion/version.txt" grep -q '".tmp_update/onionVersion/version.txt"' "$OMUI_ABOUT"
+check "the build writes v\$(VERSION) to version.txt" grep -qF 'echo -n "v$(VERSION)" > $(BUILD_DIR)/.tmp_update/onionVersion/version.txt' "$ROOT/Makefile"
+base=$(sed -n 's/^VERSION_BASE=//p' "$ROOT/Makefile")
+check "the Makefile sets VERSION_BASE" test -n "$base"
+# What a release writes, before the commit hash: v<base>-<YYYYMMDD>.
+shown="v$base-YYYYMMDD"
+check "Settings > About shows v$base and the whole date (${#shown} characters, at most ${limit:-?})" test "${#shown}" -le "${limit:-0}"
+check "a build made by hand is dated today (UTC)" test "$(onion_make_version)" = "$base-$(date -u +%Y%m%d)"
+check "a release's VERSION_OVERRIDE is used as it is" test "$(onion_make_version VERSION_OVERRIDE=9.9.9-test-20260101)" = "9.9.9-test-20260101"
+check "pre-releases are dated with the build day (UTC)" grep -qF 'BUILD_DATE=$(date -u +%Y%m%d)' "$ROOT/.github/workflows/pre-release.yml"
+check "pre-releases put the date before the commit hash" grep -qF 'make release VERSION_OVERRIDE="${BUILD_VERSION}-${SHA_SHORT}"' "$ROOT/.github/workflows/pre-release.yml"
+check "tagged releases add the date when the tag has none" grep -qF 'BUILD_VERSION="${BUILD_VERSION}-$(date -u +%Y%m%d)"' "$ROOT/.github/workflows/tagged-release.yml"
+end
+
+begin about_labels_the_version_redonion
+missing=""
+count=0
+for lang_file in "$ROOT"/static/build/miyoo/app/lang/*.lang; do
+    count=$((count + 1))
+    grep -q '"410":[[:space:]]*"[^"]*RedOnion' "$lang_file" || missing="$missing $(basename "$lang_file")"
+done
+check "language files found" test "$count" -gt 0
+check "every language names string 410 with RedOnion (missing in:${missing:- none})" test -z "$missing"
+# The About row showing version.txt is labelled with string 410: same position
+# in draw_about's ids[] and values[].
+about_row=$(python3 - "$OMUI_ABOUT" << 'PYEOF'
+import re, sys
+src = open(sys.argv[1]).read()
+body = src[src.index("static void draw_about("):]
+ids = [int(x) for x in re.search(r"const int ids\[\] = \{([^}]*)\}", body).group(1).split(",")]
+values = [v.strip() for v in re.search(r"const char \*values\[\] = \{([^}]*)\}", body).group(1).split(",")]
+print(ids[values.index("page->version")] if "page->version" in values and len(ids) == len(values) else "")
+PYEOF
+)
+check "Open MainUI labels the version.txt row with string 410 (found: ${about_row:-none})" test "$about_row" = "410"
+check "Open MainUI reads the website from .tmp_update/onionVersion/website.txt" grep -q '".tmp_update/onionVersion/website.txt"' "$OMUI_ABOUT"
+check "website.txt names the project" grep -q 'github.com/Amiga500/Onion' "$ROOT/static/build/.tmp_update/onionVersion/website.txt"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
