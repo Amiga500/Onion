@@ -158,6 +158,7 @@ CORE_MODULES := chargingState \
 	pressMenu2Kill \
 	pngScale \
 	pngresize \
+	warmup \
 	libgamename \
 	gameNameList \
 	sendUDP \
