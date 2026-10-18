@@ -1255,6 +1255,30 @@ EOF
 check "\"Refresh roms\" and \"Refresh all roms\" differ (same in: ${same_refresh:-none})" test -z "$same_refresh"
 end
 
+begin refresh_labels_fit_the_select_menu
+# Silky RedOnion: a 320 px popup, text from x 20, list font wqy-microhei at
+# 25 px (Noto for Arabic and Bengali). Needs Pillow; skipped without it.
+too_wide=$(python3 - "$ROOT/static/build/miyoo/app" << 'EOF'
+import json, pathlib, sys
+try:
+    from PIL import ImageFont
+except ImportError:
+    sys.exit(0)
+app = pathlib.Path(sys.argv[1])
+fonts = {name: ImageFont.truetype(str(app / name), 25) for name in
+         ("wqy-microhei.ttc", "NotoSansArabicUI-Regular.ttf", "NotoSansBengaliUI-Regular.ttf")}
+for p in sorted((app / "lang").glob("*.lang")):
+    d = json.loads(p.read_text(encoding="utf-8-sig"))
+    font = fonts["NotoSansArabicUI-Regular.ttf" if p.name == "ar.lang" else
+                 "NotoSansBengaliUI-Regular.ttf" if p.name == "bn.lang" else "wqy-microhei.ttc"]
+    for key in ("27", "54"):
+        if font.getlength(d.get(key, "")) > 300:
+            print(f"{p.name}:{key}")
+EOF
+)
+check "Refresh labels fit 300 px (too wide: ${too_wide:-none})" test -z "$too_wide"
+end
+
 # ---- rescale_theme_list_icons.sh: wide spacer rule ----
 
 begin rescale_keeps_only_wide_game_icon
