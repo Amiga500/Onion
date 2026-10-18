@@ -43,7 +43,6 @@ INSTALLER_DIR       := $(DIST_DIR)/miyoo/app/.tmp_update
 RELEASE_DIR         := $(ROOT_DIR)/release
 STATIC_BUILD        := $(ROOT_DIR)/static/build
 STATIC_DIST         := $(ROOT_DIR)/static/dist
-# Binaries supplied ready-built, copied over the ones built from src/.
 STATIC_CONFIGS      := $(ROOT_DIR)/static/configs
 CACHE               := $(ROOT_DIR)/cache
 STATIC_PACKAGES     := $(ROOT_DIR)/static/packages
