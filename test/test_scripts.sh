@@ -1207,6 +1207,20 @@ check "Open MainUI reads the website from .tmp_update/onionVersion/website.txt" 
 check "website.txt names the project" grep -q 'github.com/Amiga500/Onion' "$ROOT/static/build/.tmp_update/onionVersion/website.txt"
 end
 
+# ---- language list: "Native name (English name)" ----
+
+begin language_names_give_the_english_name
+unnamed=$(python3 - "$ROOT/static/build/miyoo/app/lang" << 'EOF'
+import json, pathlib, sys
+for p in sorted(pathlib.Path(sys.argv[1]).glob("*.lang")):
+    name = json.loads(p.read_text(encoding="utf-8-sig")).get("lang", "")
+    if p.name != "en.lang" and not (name.endswith(")") or name.endswith("）")):
+        print(f"{p.name}={name}")
+EOF
+)
+check "every language but English ends with its English name in brackets (missing: ${unnamed:-none})" test -z "$unnamed"
+end
+
 # ---- runtime.sh: start_warmup (MI video setup paid during boot) ----
 
 eval "$(extract_fn "$RUNTIME" perf_now)"
