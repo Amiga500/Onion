@@ -175,4 +175,12 @@ bool file_atomic_commit(FILE *fp, const char *tmp_path, const char *final_path);
  */
 bool file_atomic_write(const char *path, const char *data, size_t len);
 
+/**
+ * @brief fsync a directory so entry changes in it (create, remove, rename)
+ *        survive power loss. Much cheaper than a global sync(), which also
+ *        flushes every unrelated dirty page on the SD card.
+ * @return true on success.
+ */
+bool file_sync_dir(const char *dir_path);
+
 #endif // UTILS_FILE_H__

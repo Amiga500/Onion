@@ -2,8 +2,10 @@
 #define SCREENSHOT_H__
 
 #include <png/png.h>
+#include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 
@@ -187,6 +189,70 @@ bool screenshot_save_stride(const uint32_t *buffer, const char *screenshot_path,
 bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool do_rotate180)
 {
     return screenshot_save_stride(buffer, screenshot_path, do_rotate180, 0);
+}
+
+/**
+ * @brief Save a tightly packed ARGB8888 buffer (width * height pixels) as PNG,
+ *        atomically: the PNG is written to "<path>.tmp", fsynced, then renamed
+ *        over <path> and the directory fsynced. An interrupted write never
+ *        leaves a truncated PNG at <path>.
+ *
+ * Safe to call from a worker thread: unlike screenshot_save_stride() it does
+ * not read or update g_display, so the caller's buffer size and the encoded
+ * size can never disagree.
+ */
+bool screenshot_save_buffer_atomic(const uint32_t *buffer, const char *path,
+                                   uint32_t width, uint32_t height)
+{
+    if (buffer == NULL || path == NULL || width == 0 || height == 0)
+        return false;
+
+    char tmp_path[PATH_MAX];
+    int n = snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+    if (n < 0 || (size_t)n >= sizeof(tmp_path))
+        return false;
+
+    uint32_t *line_buffer = (uint32_t *)malloc((size_t)width * sizeof(uint32_t));
+    if (line_buffer == NULL)
+        return false;
+
+    FILE *fp = file_open_ensure_path(tmp_path, "wb");
+    if (fp == NULL) {
+        free(line_buffer);
+        return false;
+    }
+
+    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    png_infop info_ptr = png_ptr ? png_create_info_struct(png_ptr) : NULL;
+    if (png_ptr == NULL || info_ptr == NULL || setjmp(png_jmpbuf(png_ptr))) {
+        // libpng error (e.g. SD write failure): drop the temp file and keep
+        // whatever PNG was there before.
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        remove(tmp_path);
+        free(line_buffer);
+        return false;
+    }
+
+    png_init_io(png_ptr, fp);
+    png_set_IHDR(png_ptr, info_ptr, width, height, 8,
+                 PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png_ptr, info_ptr);
+
+    for (uint32_t y = 0; y < height; y++) {
+        neon_argb_to_rgba(line_buffer, buffer + (size_t)y * width, width);
+        for (uint32_t x = 0; x < width; x++)
+            line_buffer[x] |= 0xFF000000; // stock Onion forced opaque alpha
+        png_write_row(png_ptr, (png_bytep)line_buffer);
+    }
+
+    png_write_end(png_ptr, info_ptr);
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+    free(line_buffer);
+
+    // fflush + fsync + rename + directory fsync; removes tmp on failure.
+    return file_atomic_commit(fp, tmp_path, path);
 }
 
 bool __screenshot_perform(bool(get_path)(char *), pid_t p_id)
