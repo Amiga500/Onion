@@ -13,6 +13,12 @@ NC='\033[0m' # No Color
 # Repository name :
 GITHUB_REPOSITORY=Amiga500/Onion
 
+# Packages are named <project>-v<version>.zip. The project is becoming
+# RedOnion; earlier releases are OnionPlus, and releases will carry both for a
+# while, since updaters before this one look for OnionPlus-v only. Prefixes in
+# order of preference.
+PACKAGE_PREFIXES="RedOnion-v OnionPlus-v"
+
 # channel : stable or beta
 channel=$(cat "$sysdir/config/ota_channel" 2> /dev/null)
 if [ "$channel" = "" ]; then
@@ -257,8 +263,14 @@ check_connection() {
 	fi
 }
 
+# The bootstrap is read from the OnionPlus branch, which every updater uses:
+# keep that branch and file. Run only if a script came back: an error page
+# (a renamed repository without -L, a missing file) used to be run by sh.
 run_bootstrap() {
-	curl -k -s https://raw.githubusercontent.com/Amiga500/Onion/OnionPlus/static/build/.tmp_update/script/ota_bootstrap.sh | sh
+	_bootstrap=$(curl -k -s -L -f "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/OnionPlus/static/build/.tmp_update/script/ota_bootstrap.sh")
+	case "$_bootstrap" in
+		'#!/bin/sh'*) echo "$_bootstrap" | sh ;;
+	esac
 }
 
 channel_choice() {
@@ -284,7 +296,8 @@ get_release_info() {
 		# pre-release.yml publishes every build with prerelease:false.
 		# Picked by publish time: GitHub doesn't list releases newest first
 		# (a stable release can come before a newer beta).
-		Release_list=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases)
+		# -L: a renamed repository answers with a redirect.
+		Release_list=$(curl -k -s -L https://api.github.com/repos/$GITHUB_REPOSITORY/releases)
 		if ! echo "$Release_list" | jq -e 'type == "array"' > /dev/null 2>&1; then
 			release_info_error "$Release_list"
 			return 2
@@ -296,7 +309,7 @@ get_release_info() {
 			return 1
 		fi
 	else
-		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest)
+		Release_assets_info=$(curl -k -s -L https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest)
 	fi
 
 	if echo "$Release_assets_info" | grep -q '"message": *"Not Found"'; then
@@ -309,15 +322,21 @@ get_release_info() {
 		return 2
 	fi
 
-	Release_asset=$(echo "$Release_assets_info" | jq '.assets[]? | select(.name | contains("OnionPlus-v"))')
+	# The first prefix the release has a package for (jq 1.6 on the device:
+	# no regular expressions needed).
+	Release_asset=
+	for _prefix in $PACKAGE_PREFIXES; do
+		Release_asset=$(echo "$Release_assets_info" | jq --arg p "$_prefix" '[.assets[]? | select(.name | startswith($p) and endswith(".zip"))] | .[0] // empty')
+		[ -n "$Release_asset" ] && break
+	done
 
 	if [ -z "$Release_asset" ]; then
-		release_info_error "no OnionPlus package in the release"
+		release_info_error "no RedOnion package in the release"
 		return 2
 	fi
 
 	Release_url=$(echo $Release_asset | jq '.browser_download_url' | tr -d '"')
-	Release_FullVersion=$(echo $Release_asset | jq '.name' | tr -d "\"" | sed 's/^OnionPlus-v//g' | sed 's/\.zip$//g')
+	Release_FullVersion=$(echo $Release_asset | jq -r '.name' | sed -e "s/^$_prefix//" -e 's/\.zip$//')
 	Release_Version=$(echo $Release_FullVersion | sed 's/-.*$//g')
 	Release_size=$(echo $Release_asset | jq -r '.size')
 	Release_size_MB=$(echo "$(($Release_size / 1024 / 1024))MB")
