@@ -58,8 +58,9 @@ png_size() {
     echo "$(($1 * 16777216 + $2 * 65536 + $3 * 256 + $4)) $(($5 * 16777216 + $6 * 65536 + $7 * 256 + $8))"
 }
 
-# A deliberate wide spacer icon (at least 120 px and 3:1) keeps its geometry,
-# as Open MainUI expects (docs/THEMES.md).
+# A deliberate wide spacer game icon (at least 120 px and 3:1) keeps its
+# geometry, as Open MainUI expects (docs/THEMES.md). The rule is for
+# skin/icon-game.png only: a wide folder icon or favorite mark is resized.
 is_wide_icon() {
     size=$(png_size "$1") || return 1
     set -- $size
@@ -74,7 +75,7 @@ resize_icon() {
         cp "$file" "$backup" || return 1
     fi
 
-    if is_wide_icon "$backup"; then
+    if [ "$1" = "skin/icon-game.png" ] && is_wide_icon "$backup"; then
         cp "$backup" "$file"
         return
     fi

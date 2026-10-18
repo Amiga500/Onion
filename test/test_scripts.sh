@@ -1241,6 +1241,32 @@ EOF
 check "Search, Info and Website translated (untranslated: ${untranslated:-none})" test -z "$untranslated"
 end
 
+# ---- rescale_theme_list_icons.sh: wide spacer rule ----
+
+begin rescale_keeps_only_wide_game_icon
+RESCALE="$ROOT/static/build/.tmp_update/script/rescale_theme_list_icons.sh"
+theme="$TMP/theme"
+mkdir -p "$theme/skin"
+# PNG signature and IHDR with the size: all the script reads.
+fake_png() { # file width height
+    python3 -c "import struct,sys; open(sys.argv[1],'wb').write(b'\x89PNG\r\n\x1a\n'+struct.pack('>I',13)+b'IHDR'+struct.pack('>II',int(sys.argv[2]),int(sys.argv[3]))+bytes(5))" "$1" "$2" "$3"
+}
+fake_png "$theme/skin/icon-game.png" 240 40
+fake_png "$theme/skin/icon-folder.png" 240 40
+fake_png "$theme/skin/ic-favorite-mark.png" 40 40
+cat > "$TMP/pngScale" << EOF
+#!/bin/sh
+echo "\${1##*/}" >> "$TMP/scaled"
+cp "\$1" "\$2"
+EOF
+chmod +x "$TMP/pngScale"
+PNGSCALE="$TMP/pngScale" sh "$RESCALE" "$theme" 30 12 > /dev/null 2>&1
+check "script succeeds" test $? -eq 0
+check "wide icon-game.png kept as is" test "$(grep -c '^icon-game.png.bak$' "$TMP/scaled")" -eq 0
+check "wide icon-folder.png resized" grep -q '^icon-folder.png.bak$' "$TMP/scaled"
+check "favorite mark resized" grep -q '^ic-favorite-mark.png.bak$' "$TMP/scaled"
+end
+
 # ---- Tweaks: a pending icon resize also runs when Tweaks exits ----
 
 begin tweaks_exit_runs_pending_icon_resize
