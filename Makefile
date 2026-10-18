@@ -157,6 +157,7 @@ CORE_MODULES := chargingState \
 	axp \
 	pressMenu2Kill \
 	pngScale \
+	pngresize \
 	libgamename \
 	gameNameList \
 	sendUDP \
