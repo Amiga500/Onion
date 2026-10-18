@@ -1193,6 +1193,14 @@ static int count_entries(const char *dir)
 
 /* Two programs saving system.json at the same moment: each copy must be
  * whole, never a mix, and no temporary file may be left behind. */
+/* ---- file_sync_dir (PR #288: GameSwitcher's cheaper sync) ---- */
+
+TEST(file_sync_dir_existing_and_missing) {
+    ASSERT_TRUE(file_sync_dir("/tmp"));
+    ASSERT_FALSE(file_sync_dir("/tmp/onion_test_no_such_dir_288"));
+    ASSERT_FALSE(file_sync_dir(NULL));
+}
+
 TEST(file_atomic_write_concurrent_writers_never_mix) {
     char dir[] = "/tmp/onion_atomic_XXXXXX";
     ASSERT_TRUE(mkdtemp(dir) != NULL);
@@ -1307,6 +1315,7 @@ int main(void)
     RUN_TEST(file_readLastLine_one_byte);
     RUN_TEST(file_readLastLine_exact_254_bytes);
 
+    RUN_TEST(file_sync_dir_existing_and_missing);
     RUN_TEST(file_atomic_write_concurrent_writers_never_mix);
     RUN_TEST(file_lock_is_exclusive);
 
