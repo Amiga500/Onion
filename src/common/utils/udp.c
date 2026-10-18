@@ -156,3 +156,44 @@ int udp_send_receive(const char *ipAddress, int port, const char *message, char 
     }
     return -1; // Failed after retries
 }
+
+// Avoid an extra VERSION round trip for commands sent after initial handshake.
+// GET_STATUS gets a short bounded timeout; callers can retry the normal path.
+int udp_send_no_probe(const char *ipAddress, int port, const char *message)
+{
+    int fd;
+    struct sockaddr_in addr;
+    if (_init_socket(ipAddress, port, &fd, &addr) != 0)
+        return -1;
+    int rc = sendto(fd, message, strlen(message), 0,
+                    (struct sockaddr *)&addr, sizeof(addr));
+    close(fd);
+    return rc < 0 ? -1 : 0;
+}
+
+int udp_send_receive_no_probe(const char *ipAddress, int port, const char *message,
+                              char *response, size_t response_size)
+{
+    if (response == NULL || response_size < 2)
+        return -1;
+    int fd;
+    struct sockaddr_in addr;
+    if (_init_socket(ipAddress, port, &fd, &addr) != 0)
+        return -1;
+    struct timeval timeout = {.tv_sec = 0, .tv_usec = 250000};
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0) {
+        close(fd);
+        return -1;
+    }
+    if (sendto(fd, message, strlen(message), 0,
+               (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(fd);
+        return -1;
+    }
+    ssize_t n = recvfrom(fd, response, response_size - 1, 0, NULL, NULL);
+    close(fd);
+    if (n < 0)
+        return -1;
+    response[n] = '\0';
+    return 0;
+}

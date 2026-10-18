@@ -1488,6 +1488,13 @@ init_system() {
     get_screen_resolution
     perf_end boot_display
 
+    # The first process to call SDL_Init(SDL_INIT_VIDEO) after a cold boot
+    # pays a one-time MI setup cost of about 2 s. Pay it here in the
+    # background, as soon as the fb driver is up, so MainUI does not.
+    # Started this early because the rest of boot is shorter than that cost.
+    # Realistic gain is about 1 second.
+    start_warmup
+
     # Establish MainUI's layout before the boot screen is drawn. Doing it here
     # means the boot screen is painted in the mode MainUI will use, so nothing
     # has to clear it later and it stays up until MainUI paints over it. On
@@ -1495,6 +1502,18 @@ init_system() {
     if [ -f /tmp/new_res_available ] && [ -x "$sysdir/bin/fbmode" ]; then
         commit_mainui_fbmode 150 500
     fi
+}
+
+# Runs warmup in the background. With logging on, timing.log records how long
+# it took; a working warmup takes about 2 s on a cold boot, and finishing in a
+# few ms means it warmed nothing.
+start_warmup() {
+    [ -x $sysdir/bin/warmup ] || return 0
+    (
+        perf_begin warmup
+        LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" $sysdir/bin/warmup > /dev/null 2>&1
+        perf_end warmup "(exit $?)"
+    ) &
 }
 
 device_uuid=$(read_uuid)
