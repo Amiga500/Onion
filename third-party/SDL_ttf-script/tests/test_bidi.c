@@ -107,6 +107,18 @@ int main(void)
     layout("\xd9\x84\xd8\xb9\xd8\xa8\xd8\xa9 (Zelda) \xd8\xac\xd8\xaf\xd9\x8a\xd8\xaf\xd8\xa9",
            BOTH, out, sizeof out);
     assert(!strcmp(out, "1:1:aaaaa|1:0:) |2:0:Zelda|1:0: (|1:1:aaaa"));
+    /* A ROM name with a Latin title and a region tag inside it (robcodedev):
+     * the outer brackets go with the Arabic, the square ones with the Latin
+     * title, which keeps its own order. Shown: الجديد (Mario [USA]) العربية */
+    layout("\xd8\xa7\xd9\x84\xd8\xb9\xd8\xb1\xd8\xa8\xd9\x8a\xd8\xa9 (Mario [USA]) "
+           "\xd8\xa7\xd9\x84\xd8\xac\xd8\xaf\xd9\x8a\xd8\xaf",
+           BOTH, out, sizeof out);
+    assert(!strcmp(out, "1:1:aaaaaa|1:0:) |2:0:Mario [USA]|1:0: (|1:1:aaaaaaa"));
+    /* Nested brackets, and an Arabic name in a Latin title. */
+    layout("\xd9\x84\xd8\xb9\xd8\xa8\xd8\xa9 (Mario (USA)) \xd9\xa2", BOTH, out, sizeof out);
+    assert(!strcmp(out, "2:1:a|1:0:) |2:0:Mario (USA)|1:0: (|1:1:aaaa"));
+    layout("Mario [USA] (\xd8\xb9\xd8\xb1\xd8\xa8\xd9\x8a)", BOTH, out, sizeof out);
+    assert(!strcmp(out, "0:0:Mario [USA] (|1:1:aaaa|0:0:)"));
     /* Unmatched or crossed brackets stay ordinary neutrals. */
     layout("\xd9\x85 (x", BOTH, out, sizeof out);
     assert(!strcmp(out, "2:0:x|1:0: (|1:1:a"));
