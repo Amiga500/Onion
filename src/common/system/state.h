@@ -562,7 +562,12 @@ void resumeGame(int index)
 
             temp_flag_set("force_auto_load_state", true);
 
-            sync();
+            // Was a global sync(). Everything durable here is covered more
+            // cheaply: the history move is an fsynced atomic rename (file
+            // and directory), cmd_to_run.sh is fsynced by file_put_sync and
+            // flags live in /tmp. What remains is the directory entries for
+            // the new cmd_to_run.sh and the removed .runGameSwitcher.
+            file_sync_dir("/mnt/SDCARD/.tmp_update");
             break;
         }
     }

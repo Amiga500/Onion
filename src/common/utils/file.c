@@ -852,6 +852,18 @@ bool file_atomic_commit(FILE *fp, const char *tmp_path, const char *final_path)
     return true;
 }
 
+bool file_sync_dir(const char *dir_path)
+{
+    if (dir_path == NULL)
+        return false;
+    int dfd = open(dir_path, O_RDONLY);
+    if (dfd < 0)
+        return false;
+    bool ok = fsync(dfd) == 0;
+    close(dfd);
+    return ok;
+}
+
 static bool _file_atomic_write_once(const char *path, const char *data,
                                     size_t len)
 {

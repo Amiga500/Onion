@@ -1492,6 +1492,7 @@ init_system() {
     # pays a one-time MI setup cost of about 2 s. Pay it here in the
     # background, as soon as the fb driver is up, so MainUI does not.
     # Started this early because the rest of boot is shorter than that cost.
+    # Realistic gain is about 1 second.
     start_warmup
 
     # Establish MainUI's layout before the boot screen is drawn. Doing it here
