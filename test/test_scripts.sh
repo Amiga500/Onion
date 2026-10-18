@@ -1214,11 +1214,11 @@ unnamed=$(python3 - "$ROOT/static/build/miyoo/app/lang" << 'EOF'
 import json, pathlib, sys
 for p in sorted(pathlib.Path(sys.argv[1]).glob("*.lang")):
     name = json.loads(p.read_text(encoding="utf-8-sig")).get("lang", "")
-    if p.name != "en.lang" and not (name.endswith(")") or name.endswith("）")):
+    if p.name != "en.lang" and not (name.endswith(")") and " (" in name):
         print(f"{p.name}={name}")
 EOF
 )
-check "every language but English ends with its English name in brackets (missing: ${unnamed:-none})" test -z "$unnamed"
+check "every language but English ends with \" (English name)\" in ASCII brackets (missing: ${unnamed:-none})" test -z "$unnamed"
 end
 
 # ---- runtime.sh: start_warmup (MI video setup paid during boot) ----
