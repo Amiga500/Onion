@@ -1241,6 +1241,19 @@ EOF
 check "Search, Info and Website translated (untranslated: ${untranslated:-none})" test -z "$untranslated"
 end
 
+# ---- Tweaks: a pending icon resize also runs when Tweaks exits ----
+
+begin tweaks_exit_runs_pending_icon_resize
+TWEAKS_C="$ROOT/src/tweaks/tweaks.c"
+# Leaving Game lists with B, and once more after the main loop (MENU closes
+# Tweaks from any menu). The function returns at once when nothing is pending.
+calls=$(grep -c 'gamelists_on_menu_exit();' "$TWEAKS_C")
+after_loop=$(sed -n '/Clear the screen when exiting/,/settings_save();/p' "$TWEAKS_C" | grep -c 'gamelists_on_menu_exit();')
+check "called on B and on exit ($calls calls)" test "$calls" -eq 2
+check "called after the main loop, before settings are saved" test "$after_loop" -eq 1
+check "does nothing without a pending resize" grep -q 'if (!gamelists_rescale_pending)' "$ROOT/src/tweaks/game_lists.h"
+end
+
 # ---- runtime.sh: start_warmup (MI video setup paid during boot) ----
 
 eval "$(extract_fn "$RUNTIME" perf_now)"

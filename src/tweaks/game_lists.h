@@ -175,8 +175,9 @@ static void gamelists_action_fixed_favorite_position(void *pt)
         gamelists_write_text(GAMELISTS_DYNAMIC_FAV_PATH, "");
 }
 
-// Called when leaving the menu: resize the theme's list icons once, after
-// any number of Rows changes.
+// Called when leaving the menu with B and when Tweaks exits (MENU closes it
+// from any menu): resize the theme's list icons once, after any number of
+// Rows changes.
 static void gamelists_on_menu_exit(void)
 {
     if (!gamelists_rescale_pending)
