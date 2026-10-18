@@ -1298,11 +1298,44 @@ echo "\${1##*/}" >> "$TMP/scaled"
 cp "\$1" "\$2"
 EOF
 chmod +x "$TMP/pngScale"
-PNGSCALE="$TMP/pngScale" sh "$RESCALE" "$theme" 30 12 > /dev/null 2>&1
+PNGRESIZE="$TMP/none" PNGSCALE="$TMP/pngScale" sh "$RESCALE" "$theme" 30 12 > /dev/null 2>&1
 check "script succeeds" test $? -eq 0
 check "wide icon-game.png kept as is" test "$(grep -c '^icon-game.png.bak$' "$TMP/scaled")" -eq 0
 check "wide icon-folder.png resized" grep -q '^icon-folder.png.bak$' "$TMP/scaled"
 check "favorite mark resized" grep -q '^ic-favorite-mark.png.bak$' "$TMP/scaled"
+end
+
+begin rescale_uses_pngresize
+# The real pngresize, built for the host, on real PNGs.
+theme="$TMP/theme"
+mkdir -p "$theme/skin"
+real_png() { # file width height: an opaque disc on transparency, RGBA
+    python3 -c "
+import struct, sys, zlib
+w, h = int(sys.argv[2]), int(sys.argv[3])
+rows = b''.join(b'\0' + b''.join(
+    (b'\xff\0\0\xff' if (x - w / 2) ** 2 + (y - h / 2) ** 2 < (min(w, h) / 2.5) ** 2 else b'\0\0\0\0')
+    for x in range(w)) for y in range(h))
+chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
+open(sys.argv[1], 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0))
+    + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))" "$1" "$2" "$3"
+}
+png_wh() { python3 -c "import struct,sys; print('%dx%d' % struct.unpack('>II', open(sys.argv[1],'rb').read()[16:24]))" "$1"; }
+real_png "$theme/skin/icon-game.png" 47 45
+real_png "$theme/skin/icon-folder.png" 40 40
+real_png "$theme/skin/ic-favorite-mark.png" 24 24
+real_png "$theme/skin/bg-list-s.png" 640 60
+if cc -O1 -w -o "$TMP/pngresize" "$ROOT/src/pngresize/pngresize.c" -lm 2> /dev/null; then
+    PNGRESIZE="$TMP/pngresize" PNGSCALE="$TMP/none" sh "$RESCALE" "$theme" 30 12 > /dev/null 2>&1
+    check "script succeeds with pngresize only" test $? -eq 0
+    check "game icon fits, size rounded (47x45 -> $(png_wh "$theme/skin/icon-game.png"))" test "$(png_wh "$theme/skin/icon-game.png")" = "31x30"
+    check "folder icon fits ($(png_wh "$theme/skin/icon-folder.png"))" test "$(png_wh "$theme/skin/icon-folder.png")" = "30x30"
+    check "favorite mark already fits, kept ($(png_wh "$theme/skin/ic-favorite-mark.png"))" test "$(png_wh "$theme/skin/ic-favorite-mark.png")" = "24x24"
+    check "row background stretched ($(png_wh "$theme/skin/bg-list-s_12.png"))" test "$(png_wh "$theme/skin/bg-list-s_12.png")" = "640x30"
+    check "originals kept as .bak" test "$(png_wh "$theme/skin/icon-game.png.bak")" = "47x45"
+else
+    check "host C compiler for pngresize" false
+fi
 end
 
 # ---- Tweaks: a pending icon resize also runs when Tweaks exits ----
