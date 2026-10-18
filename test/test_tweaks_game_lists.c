@@ -9,7 +9,9 @@
  *  - the scroll speeds offered are the ones Open MainUI renders exactly;
  *  - key repeat at the stock values removes its file;
  *  - Main menu defaults show Apps (not Expert) and follow .showRecents and
- *    .showExpert, as Open MainUI reads them, and a first change keeps Apps.
+ *    .showExpert, as Open MainUI reads them, and a first change keeps Apps;
+ *  - Search shows off while its app is missing, as Open MainUI hides it,
+ *    and main-menu.json still enables it for when the app is installed.
  *
  * Build and run: make -f Makefile.unit test_tweaks_game_lists
  */
@@ -23,6 +25,7 @@
 #define TEST_DIR "/tmp/onion_test_tweaks_game_lists"
 #define GAMELISTS_CONFIG_DIR TEST_DIR
 #define MAINMENU_CONFIG_DIR TEST_DIR
+#define MAINMENU_SD_DIR TEST_DIR "/sd"
 
 #include "../src/tweaks/game_lists_core.h"
 
@@ -254,6 +257,67 @@ TEST(main_menu_explicit_false_beats_marker)
     ASSERT_FALSE(menu[3]);
 }
 
+static void install_app(const char *name)
+{
+    char command[256];
+    snprintf(command, sizeof(command), "mkdir -p " TEST_DIR "/sd/App/%s && touch " TEST_DIR
+             "/sd/App/%s/launch.sh", name, name);
+    (void)!system(command);
+}
+
+TEST(search_without_app_shows_off)
+{
+    reset_dir();
+    install_app("Tweaks");
+    bool menu[MAINMENU_MENU_COUNT], shown[MAINMENU_CONTEXT_COUNT], stored[MAINMENU_CONTEXT_COUNT];
+    mainmenu_load_shown_states(menu, shown);
+    ASSERT_FALSE(shown[2]); /* Search: no App/Search/launch.sh */
+    ASSERT_TRUE(shown[1]);  /* Refresh all roms */
+    ASSERT_TRUE(shown[10]); /* Tweaks */
+    mainmenu_load_states(menu, stored);
+    ASSERT_TRUE(stored[2]); /* the default itself is unchanged */
+
+    install_app("Search");
+    mainmenu_load_shown_states(menu, shown);
+    ASSERT_TRUE(shown[2]);
+}
+
+TEST(search_named_in_file_without_app_shows_off)
+{
+    reset_dir();
+    gamelists_write_text(TEST_DIR "/main-menu.json", "{\"context\": {\"search\": true}}");
+    bool menu[MAINMENU_MENU_COUNT], shown[MAINMENU_CONTEXT_COUNT];
+    mainmenu_load_shown_states(menu, shown);
+    ASSERT_FALSE(shown[2]);
+    install_app("Search");
+    mainmenu_load_shown_states(menu, shown);
+    ASSERT_TRUE(shown[2]);
+}
+
+TEST(other_change_keeps_search_for_later_install)
+{
+    reset_dir();
+    ListItem item = {.item_type = TOGGLE, .value = 1, .action_id = 0}; /* Shutdown */
+    mainmenu_action_context_item(&item);
+    ASSERT_EQ(item.value, 1);
+
+    char text[2048];
+    read_file(TEST_DIR "/main-menu.json", text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"search\":\ttrue") != NULL);
+    install_app("Search");
+    bool menu[MAINMENU_MENU_COUNT], shown[MAINMENU_CONTEXT_COUNT];
+    mainmenu_load_shown_states(menu, shown);
+    ASSERT_TRUE(shown[2]);
+}
+
+TEST(search_toggle_without_app_stays_off)
+{
+    reset_dir();
+    ListItem item = {.item_type = TOGGLE, .value = 1, .action_id = 2};
+    mainmenu_action_context_item(&item);
+    ASSERT_EQ(item.value, 0);
+}
+
 int main(void)
 {
     RUN_TEST(scroll_off_keeps_the_file);
@@ -272,6 +336,10 @@ int main(void)
     RUN_TEST(main_menu_first_change_keeps_apps);
     RUN_TEST(main_menu_unnamed_section_follows_marker);
     RUN_TEST(main_menu_explicit_false_beats_marker);
+    RUN_TEST(search_without_app_shows_off);
+    RUN_TEST(search_named_in_file_without_app_shows_off);
+    RUN_TEST(other_change_keeps_search_for_later_install);
+    RUN_TEST(search_toggle_without_app_stays_off);
 
     (void)!system("rm -rf " TEST_DIR);
     TEST_REPORT();
