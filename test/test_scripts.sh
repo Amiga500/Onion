@@ -348,6 +348,7 @@ if command -v jq > /dev/null; then
     eval "$(extract_fn "$OTA" get_release_info)"
     eval "$(grep '^get_version()' "$OTA")"
     eval "$(grep '^build_date()' "$OTA")"
+    eval "$(grep '^PACKAGE_PREFIXES=' "$OTA")"
 
     ota_asset() { # tag, prerelease (true/false), published_at (default: from the tag date)
         _pub=${3:-$(echo "$1" | sed 's/^.*-\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)-.*$/\1-\2-\3T12:00:00Z/')}
@@ -415,10 +416,72 @@ if command -v jq > /dev/null; then
     check "no date: empty" test -z "$(build_date 4.4.0)"
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
-    unset -f curl installUI ota_asset
+
+    begin ota_finds_redonion_and_onionplus_packages
+    # The rename: releases carry RedOnion-v, OnionPlus-v or both.
+    ota_release() { # version, then package names
+        _v=$1
+        shift
+        _assets=
+        for _n; do
+            _assets="$_assets${_assets:+,}{\"name\":\"$_n\",\"browser_download_url\":\"https://x/$_n\",\"size\":1048576,\"created_at\":\"2026-10-20T00:00:00Z\"}"
+        done
+        printf '{"tag_name":"%s","prerelease":false,"draft":false,"published_at":"2026-10-20T12:00:00Z","body":"","assets":[%s]}' "$_v" "$_assets"
+    }
+    channel=stable
+    v=4.4.0-beta-20261020-abcdef12
+    ota_release $v "OnionPlus-v$v.zip" > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "OnionPlus only: offered" test "$?" -eq 0 -a "$Release_FullVersion" = "$v"
+    ota_release $v "RedOnion-v$v.zip" > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "RedOnion only: offered" test "$?" -eq 0 -a "$Release_FullVersion" = "$v"
+    ota_release $v "OnionPlus-v$v.zip" "RedOnion-v$v.zip" > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "both: RedOnion downloaded ($Release_url)" test "$Release_url" = "https://x/RedOnion-v$v.zip"
+    check "both: same version" test "$Release_FullVersion" = "$v"
+    ota_release $v "RedOnion-v$v.zip.sha256" "OnionPlus-v$v.zip" > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "only a .zip is a package" test "$Release_url" = "https://x/OnionPlus-v$v.zip"
+    ota_release $v "Onion-v$v.zip" > "$TMP/latest.json"
+    get_release_info > /dev/null 2>&1
+    check "another project's package: error" test "$?" -eq 2
+    # What updaters before the rename select (contains "OnionPlus-v"): a
+    # release with both packages still gives them one.
+    ota_release $v "OnionPlus-v$v.zip" "RedOnion-v$v.zip" > "$TMP/latest.json"
+    check "old updaters still find OnionPlus-v" test "$(jq '[.assets[]? | select(.name | contains("OnionPlus-v"))] | length' "$TMP/latest.json")" -eq 1
+    end
+    unset -f curl installUI ota_asset ota_release
 else
     echo "  [SKIP] ota_update.sh tests (jq not installed)"
 fi
+
+# ---- ota_update.sh: the bootstrap runs only a script ----
+
+begin ota_bootstrap_runs_only_a_script
+eval "$(extract_fn "$OTA" run_bootstrap)"
+GITHUB_REPOSITORY=Amiga500/Onion
+curl() { for _u; do :; done; echo "$*" > "$TMP/curl_args"; printf '%s' "$BOOTSTRAP_BODY"; }
+BOOTSTRAP_BODY='#!/bin/sh
+echo ran > "$BOOTSTRAP_MARK"'
+BOOTSTRAP_MARK="$TMP/ran"
+export BOOTSTRAP_MARK
+run_bootstrap
+check "script: run" test -f "$TMP/ran"
+check "follows redirects (-L)" grep -q -- ' -L ' "$TMP/curl_args"
+check "fails on HTTP errors (-f)" grep -q -- ' -f ' "$TMP/curl_args"
+check "read from the OnionPlus branch of the repository" grep -q 'raw.githubusercontent.com/Amiga500/Onion/OnionPlus/' "$TMP/curl_args"
+rm -f "$TMP/ran"
+BOOTSTRAP_BODY='404: Not Found'
+out=$(run_bootstrap 2>&1)
+check "error page: not run" test -z "$out"
+BOOTSTRAP_BODY=
+out=$(run_bootstrap 2>&1)
+check "nothing: not run" test -z "$out"
+check "release lists read with -L" test "$(grep -c 'curl -k -s -L https://api.github.com' "$OTA")" -eq 2
+unset -f curl run_bootstrap
+unset BOOTSTRAP_BODY BOOTSTRAP_MARK
+end
 
 # ---- ota_update.sh: Wi-Fi off must not leave the updater hanging ----
 
