@@ -192,6 +192,10 @@ core: core-modules
 	@if [ -f $(STATIC_PREBUILT)/gameSwitcher ]; then \
 		cp -f $(STATIC_PREBUILT)/gameSwitcher $(BIN_DIR)/gameSwitcher && \
 		chmod 755 $(BIN_DIR)/gameSwitcher; fi
+# warmup: robcodedev's boot warmup, started by runtime.sh (start_warmup)
+	@if [ -f $(STATIC_PREBUILT)/warmup ]; then \
+		cp -f $(STATIC_PREBUILT)/warmup $(BIN_DIR)/warmup && \
+		chmod 755 $(BIN_DIR)/warmup; fi
 
 # Build dependencies for installer
 	@mkdir -p $(INSTALLER_DIR)/bin
