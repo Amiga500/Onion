@@ -1,95 +1,77 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅⚡ OnionPlus beta 8: the RedOnion look, Open MainUI 1.0.8, OTA fixes
+# 🧅⚡ OnionPlus beta 9: Arabic and Bengali, a faster start, settings and GameSwitcher fixes
 
-> 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on the stable release of 9 October (`8c2d8c75`) until this beta is promoted.
+> 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on the current stable release until this beta is promoted.
 
-This beta brings the new **RedOnion** look, **Open MainUI 1.0.8** by @robcodedev, a choice of loading/saving screens and a round of OTA fixes. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
+This beta makes **Arabic and Bengali** readable everywhere, starts about **1 second faster**, brings @robcodedev's faster **GameSwitcher**, and fixes settings that two programs saved at the same time. It also gets the updater ready for the project's new name, **RedOnion**.
 
-OnionPlus is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
+OnionPlus is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip. Open MainUI is still **1.0.8**: https://github.com/robcodedev/onionos-mainui-opensource
 
-## 🆕 New in beta 8
+## 🆕 New in beta 9
 
-### 🎨 The RedOnion look
+### 🌍 Arabic and Bengali
 
-- **Silky RedOnion**, a crimson version of the Silky theme (original design by DiMo + fireball33x), is the default theme. New installs start with it, and an update moves a device still on the old default, Silky by DiMo, to it once; any other theme is kept. To go back, pick Silky by DiMo in Themes.
-- **The look follows the theme:** with Silky RedOnion, the system screens and apps are crimson too: Package Manager, Quick Guide, Activity Tracker, the Search/Filter tools, the File Explorer icons, Tweaks' icons, the charging, brightness, boot, shutdown and saving screens, and the RetroArch, AdvanceMENU and PCSX menus. With Silky by DiMo or any other theme, they are Onion's purple as before. The colours change when you apply a theme; AdvanceMENU and RetroArch keep your other settings.
-- **The installer** uses the RedOnion look with every theme. The File Explorer selection bar stays purple with every theme.
-- **Search:** the matched letters in a game list search are crimson with Silky RedOnion and purple with other themes (Open MainUI 1.0.8, `gamelist.searchColor`).
-- **Battery icon:** with Silky RedOnion the status bar battery is white; the empty and charging icons stay crimson.
-- **Texts:** Settings › About shows "RedOnion version", in every language, and the Website row links to the project on GitHub. The OTA app is called "RedOnion OTA update".
+- **Readable in every program:** the launcher, Settings, the GameSwitcher, Tweaks and Onion's apps now join Arabic letters and put them right to left, and draw Bengali vowel signs and conjuncts in place, with the Noto Sans Arabic UI and Bengali UI fonts. Before, both languages showed boxes or loose letters.
+- Text without Arabic or Bengali is drawn exactly as before. Game names in Arabic work too, also mixed with Latin titles and brackets, such as `العربية (Mario [USA])`.
+- Arabic and Bengali now translate Search, Info and Website too.
 
-### ⏳ Loading and saving screens
+### ⚡ Faster start
 
-- **Tweaks › Appearance › Loading/saving screen** chooses what shows while a game loads or saves: **Popup** (the message over the game's screenshot, as before), **Full screen** (the screenshot without a message), **Black** or **Full popup** (the message on the theme's full-screen background). It applies when starting a game from the menu, when leaving with MENU and when resuming from the GameSwitcher.
+- **About 1 second less to the menu:** the slow first set-up of the display (about 2 seconds after power-on) now runs in the background while the rest of the start continues, instead of inside the launcher. By @robcodedev.
 
-### 🔄 OTA updater
+### 🔀 GameSwitcher
 
-- **Error 137 and black screen (inherited from Onion):** leaving the updater with START, or with a combo that includes it, killed it ("Error code: 137"), and a process left behind kept closing Open MainUI, leaving a black screen until a restart. Fixed: the updater closes cleanly.
-- **Buttons:** every updater screen now uses Up/Down to move, **A** to confirm and **MENU** to exit, also right after moving the cursor. Right no longer confirms like A, and the other buttons do nothing. The version screen says "Press A to continue, MENU to exit".
-- **File selector** (Video Player, PDF Reader): START closes it without an error, as before but cleanly.
+- **Faster:** quicker to open over a game and quicker to resume. By @robcodedev.
+- **Switching to another game:** the running game's state is saved first ("SAVING", then "LOADING"), and the game's picture is written safely, so a power cut can't leave a broken one.
+- The GameSwitcher now also has the settings fixes below.
 
-### 🔧 Fixes
+### ⚙️ Settings
 
-- **DraStic (Mini v4, Mini Flip):** leaving a DS game no longer shows a garbled screen for a moment.
-- **RetroArch:** Settings › User Interface › Appearance › Border Filler is off, so no frame flashes around the menu when RetroArch opens. Set once on existing installs; you can turn it on again.
-- **Package Manager:** the "applying changes" screen follows the theme like the rest of Package Manager.
+- **Saved at the same time:** two programs saving the settings at the same moment could lose one of the saves or damage the file. Fixed: each save uses its own temporary file and takes the same lock Open MainUI uses, and a failed save is tried again.
+- **Language:** the language chosen in Settings could go back to the previous one after changing the brightness or volume with the buttons. Fixed.
+- **Settings › About** always shows the build date and "RedOnion version".
 
-## 🆕 Open MainUI 1.0.8
+### 🔤 Languages
 
-Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHANGELOG.md
+- **Language list:** Bahasa Indonesia (Indonesian), Lietuvių (Lithuanian) and Lenga d'òc (Occitan) show their English name in brackets like the others, and Japanese and Uchinaguchi use normal brackets.
+- **"Refresh roms" and "Refresh all roms"** had the same text in Italian, German, French, Brazilian Portuguese, Russian and Traditional Chinese: in the Select menu of the console grid you couldn't tell them apart. Now they differ in every language; Turkish said "clean all roms" and Romanian was too long for the menu.
 
-### 🔋 Status bar
+### 🛠️ Tweaks
 
-- **Charging on the Mini+ and Mini Flip:** the battery icon changes to the charging one while the charger is plugged in, and the percentage shows beside it. On the Mini only the icon shows, as Onion doesn't know the level while charging. The icon now changes within about 3 seconds of plugging in or out.
-- The Wi-Fi icon moves beside the battery when the percentage would cover it, and the battery icon changes at the same levels as in stock.
+- **Appearance › Main menu › Context menu items:** Search shows off when the Search app isn't installed, and Custom 1–3 when they aren't defined, as the menu itself hides them.
+- **Appearance › Game lists:** after changing Rows, the theme's list icons are resized also when you leave Tweaks with MENU. Resized icons keep clean transparent edges (new pngresize tool by @robcodedev), and a wide folder icon or favourite mark is resized too.
 
-### 🎮 Buttons and menus
+### 🔧 Other fixes
 
-- Y, Select or Start held while the device goes to sleep no longer act when released after waking.
-- A on an empty list does nothing instead of "Launch unavailable", and Menu on an empty Favorites, Recents or Search list no longer reads a removed entry, which could crash.
-- **Favorites:** deleting a folder removes everything in it, after asking first; a game can be moved out of a folder again by pasting it on the folder it came from.
+- **Game List Options** no longer shows "Refresh list": the Select menu has it.
+- **Update from beta 7 or older:** a device still on the old default theme, Silky by DiMo, moves to Silky RedOnion once; any other theme is kept.
+- **Updater:** ready for the RedOnion name (it will find packages called RedOnion or OnionPlus) and safer when GitHub answers with an error page.
 
-### 🎨 Themes and screens
+## 🔧 In beta 8
 
-- Confirmations and messages use the theme's colours and popup art, as stock does.
-- Settings › About names the version row "OS version" (shown as "RedOnion version" in OnionPlus) and can show a Website row.
-
-### 📶 Wi-Fi
-
-- Turning Wi-Fi off and quickly on again no longer leaves it on "Scanning..." with no networks.
-- Settings › Wi-Fi says when a connection fails (for example a wrong password) and why Wi-Fi can't be turned on.
-
-### ⚡ Speed
-
-- Less work when scrolling lists and drawing dialogs and cover art, and the menu's audio buffer matches stock's with Onion's audio fix off.
-
-## 🔧 In beta 7
-
-- **Open MainUI 1.0.7:** startup tab, Expert shortcut, Y/Select/Start on release, hotspot icon, faster Wi-Fi address.
-- **Translations:** every label in all 33 languages, Chinese updated by @fengfrw.
-- **Generate CUE files** writes working CUE files and never overwrites existing ones.
-- **Brightness:** a brightness set in the GameSwitcher went back to the old value with the first button press in the main menu. Fixed: keymon takes the new settings as soon as the GameSwitcher or Tweaks save them, and Open MainUI loads them at start.
-- **OTA:** turns Wi-Fi off again when it closes, waits for the network, and reports GitHub errors instead of "Version is up to date".
+- **The RedOnion look:** Silky RedOnion is the default theme, and system screens and apps follow the theme's colours.
+- **Loading/saving screen** choice in Tweaks › Appearance.
+- **Open MainUI 1.0.8.**
+- **OTA:** no more error 137 and black screen when leaving; Up/Down, A and MENU on every screen.
 
 ## ⚠️ Known issues
 
 - **Mini Flip display colours** (Luminance, Hue, Saturation, Contrast) can be back at their defaults after a reboot: Open MainUI sets them only from Settings › Display, as stock does, and OnionPlus doesn't apply them at boot yet.
-- **Refresh list** appears both in Game List Options and in the Select menu; the Game List Options entry will be removed.
-- **Arabic and Bengali** are readable in the launcher and in Onion's apps, with every theme (SDL_ttf with HarfBuzz and the Noto Sans Arabic UI and Bengali UI fonts). Arabic lines stay left-aligned like every other language, and text drawn one letter at a time (the on-screen keyboard) still shows Arabic letters unjoined.
 - **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
-- **Settings:** two programs saving settings at the same moment can corrupt the settings file, and a settings save that fails is not retried.
+- **Arabic:** lines stay left-aligned like every other language, and text drawn one letter at a time (the on-screen keyboard) shows Arabic letters unjoined.
+- **Tweaks** is in English in every language.
 - **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package. Verifying certificates and the package's SHA-256 is planned.
 
 ## 🧪 If you'd like to try it
 
 Switch the OTA updater to the **beta** channel to receive this build. Useful things to check:
 
-- Silky RedOnion and Silky by DiMo, switching between them: Package Manager, Quick Guide, Activity Tracker, Search tools, Tweaks icons, charging and brightness screens
-- Tweaks › Appearance › Loading/saving screen, each option: starting a game, leaving with MENU, resuming from the GameSwitcher
-- The OTA updater: every screen with Up/Down, A and MENU
-- Charging on the Mini+ and Mini Flip: icon and percentage
-- Leaving a DS game on the Mini v4 and Mini Flip
-- Opening RetroArch from Apps: no frame around the menu
+- Arabic or Bengali: the menus, Settings › About, the GameSwitcher, Tweaks, a game named in Arabic
+- Start-up time: with logging on (Tweaks › Advanced), the `warmup` line in `.tmp_update/logs/timing.log` should say about 2 s
+- GameSwitcher: open it over a game, go back to it, switch to another game, leave with MENU while it saves
+- Change the language, then the brightness or volume with the buttons, and restart: the language should stay
+- Tweaks › Appearance › Game lists: change Rows and leave with MENU, then look at the list icons
+- The updater on the beta channel, after installing this build: it should find the next build
 
 Please report OnionPlus issues on the [OnionPlus tracker](https://github.com/Amiga500/Onion/issues), with your model, the version (from `.tmp_update/onionVersion/version.txt`) and the steps to reproduce.
 
@@ -99,7 +81,7 @@ Please report OnionPlus issues on the [OnionPlus tracker](https://github.com/Ami
 
 Thanks first to the Onion team and to the community. OnionPlus sits on their work: the OS and the years of fixes already in the tree. None of this exists without that.
 
-Thanks to @robcodedev for Open MainUI, to the contributor of the RedOnion artwork and to DiMo + fireball33x for the original Silky theme, and to the testers who sent reports and helped confirm the fixes, especially QuackWalks, @Zazzago, @Ziko577, Veuks and Zombiediplomat. Thanks to @fengfrw for the Chinese translations and to @yuruyang for the CUE generator report and review.
+Thanks to @robcodedev for Open MainUI, the faster GameSwitcher, pngresize and the boot warmup, to the contributor of the RedOnion artwork and to DiMo + fireball33x for the original Silky theme, and to the testers who sent reports and helped confirm the fixes, especially QuackWalks, @Zazzago, @Ziko577, Veuks and Zombiediplomat. Thanks to @fengfrw for the Chinese translations and to @yuruyang for the CUE generator report and review.
 
 ## 💰 Bounty
 
