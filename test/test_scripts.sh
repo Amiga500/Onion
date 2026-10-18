@@ -1207,6 +1207,58 @@ check "Open MainUI reads the website from .tmp_update/onionVersion/website.txt" 
 check "website.txt names the project" grep -q 'github.com/Amiga500/Onion' "$ROOT/static/build/.tmp_update/onionVersion/website.txt"
 end
 
+# ---- runtime.sh: start_warmup (MI video setup paid during boot) ----
+
+eval "$(extract_fn "$RUNTIME" perf_now)"
+eval "$(extract_fn "$RUNTIME" perf_begin)"
+eval "$(extract_fn "$RUNTIME" perf_end)"
+eval "$(extract_fn "$RUNTIME" start_warmup)"
+
+warmup_env() {
+    sysdir="$TMP/sys"
+    miyoodir="$TMP/miyoo"
+    mkdir -p "$sysdir/bin" "$sysdir/config" "$sysdir/logs"
+    touch "$sysdir/config/.logging"
+}
+
+begin warmup_without_binary_does_nothing
+warmup_env
+start_warmup
+check "returns success" test $? -eq 0
+wait
+check "nothing logged" test ! -s "$sysdir/logs/timing.log"
+end
+
+begin warmup_runs_in_background_with_miyoo_libs_first
+warmup_env
+cat > "$sysdir/bin/warmup" << 'EOF'
+#!/bin/sh
+echo "$LD_LIBRARY_PATH" > "${0%/bin/warmup}/ld_path"
+sleep 1
+EOF
+chmod +x "$sysdir/bin/warmup"
+perf_now
+before=$perf_cs
+start_warmup
+perf_now
+check "boot does not wait for it (took $((perf_cs - before)) cs)" test $((perf_cs - before)) -lt 50
+wait
+check "SDL from miyoo/lib, as MainUI loads it" test "$(cat "$sysdir/ld_path")" = "$miyoodir/lib:/config/lib:/lib"
+check "timing.log records its time and exit code" grep -Eq '^warmup [0-9]+\.[0-9]+ s \(exit 0\)$' "$sysdir/logs/timing.log"
+end
+
+begin warmup_starts_after_display_before_mainui_layout
+boot_fn=$(extract_fn "$RUNTIME" init_system)
+line_of() { printf '%s\n' "$boot_fn" | grep -n "^ *$1" | head -1 | cut -d: -f1; }
+res=$(line_of get_screen_resolution)
+warm=$(line_of start_warmup)
+layout=$(line_of "commit_mainui_fbmode")
+check "after the fb driver is up (lines $res < $warm)" test "${res:-0}" -gt 0 -a "${warm:-0}" -gt "${res:-0}"
+check "before MainUI's layout is set (lines $warm < $layout)" test "${layout:-0}" -gt "${warm:-0}"
+check "no sleep left between them" test -z "$(printf '%s\n' "$boot_fn" | sed -n "${warm:-1},${layout:-1}p" | grep -E '^ *sleep')"
+unset -f line_of
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
