@@ -1221,6 +1221,26 @@ EOF
 check "every language but English ends with \" (English name)\" in ASCII brackets (missing: ${unnamed:-none})" test -z "$unnamed"
 end
 
+begin search_info_website_translated
+untranslated=$(python3 - "$ROOT/static/build/miyoo/app/lang" << 'EOF'
+import json, pathlib, sys
+def letters(text, lo, hi):
+    return any(lo <= ord(c) <= hi for c in text)
+for p in sorted(pathlib.Path(sys.argv[1]).glob("*.lang")):
+    d = json.loads(p.read_text(encoding="utf-8-sig"))
+    # "Search" (main menu): every language but English translates it.
+    if p.name != "en.lang" and d.get("153") == "Search":
+        print(f"{p.name}:153")
+    # Arabic and Bengali: Info, Search and Website in their own script.
+    script = {"ar.lang": (0x0600, 0x06FF), "bn.lang": (0x0980, 0x09FF)}.get(p.name)
+    for key in ("150", "153", "155") if script else ():
+        if not letters(d.get(key, ""), *script):
+            print(f"{p.name}:{key}")
+EOF
+)
+check "Search, Info and Website translated (untranslated: ${untranslated:-none})" test -z "$untranslated"
+end
+
 # ---- runtime.sh: start_warmup (MI video setup paid during boot) ----
 
 eval "$(extract_fn "$RUNTIME" perf_now)"
