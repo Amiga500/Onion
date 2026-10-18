@@ -11,7 +11,8 @@
  *  - Main menu defaults show Apps (not Expert) and follow .showRecents and
  *    .showExpert, as Open MainUI reads them, and a first change keeps Apps;
  *  - Search shows off while its app is missing, as Open MainUI hides it,
- *    and main-menu.json still enables it for when the app is installed.
+ *    and main-menu.json still enables it for when the app is installed;
+ *    the same for a custom action without its label and launch.
  *
  * Build and run: make -f Makefile.unit test_tweaks_game_lists
  */
@@ -318,6 +319,35 @@ TEST(search_toggle_without_app_stays_off)
     ASSERT_EQ(item.value, 0);
 }
 
+TEST(custom_action_without_definition_shows_off)
+{
+    reset_dir();
+    gamelists_write_text(TEST_DIR "/main-menu.json",
+                         "{\"context\": {\"custom1\": true, \"custom2\": true},"
+                         " \"custom\": {\"custom2\": {\"label\": \"Wi-Fi\","
+                         " \"launch\": \"/mnt/SDCARD/App/wifi.sh\"}}}");
+    bool menu[MAINMENU_MENU_COUNT], shown[MAINMENU_CONTEXT_COUNT];
+    mainmenu_load_shown_states(menu, shown);
+    ASSERT_FALSE(shown[11]); /* custom1: enabled, not defined */
+    ASSERT_TRUE(shown[12]);  /* custom2: enabled and defined */
+    ASSERT_FALSE(shown[13]); /* custom3: neither */
+
+    ListItem item = {.item_type = TOGGLE, .value = 1, .action_id = 13};
+    mainmenu_action_context_item(&item);
+    ASSERT_EQ(item.value, 0);
+}
+
+TEST(custom_action_needs_label_and_launch)
+{
+    reset_dir();
+    gamelists_write_text(TEST_DIR "/main-menu.json",
+                         "{\"context\": {\"custom1\": true},"
+                         " \"custom\": {\"custom1\": {\"label\": \"\", \"launch\": \"x.sh\"}}}");
+    bool menu[MAINMENU_MENU_COUNT], shown[MAINMENU_CONTEXT_COUNT];
+    mainmenu_load_shown_states(menu, shown);
+    ASSERT_FALSE(shown[11]);
+}
+
 int main(void)
 {
     RUN_TEST(scroll_off_keeps_the_file);
@@ -340,6 +370,8 @@ int main(void)
     RUN_TEST(search_named_in_file_without_app_shows_off);
     RUN_TEST(other_change_keeps_search_for_later_install);
     RUN_TEST(search_toggle_without_app_stays_off);
+    RUN_TEST(custom_action_without_definition_shows_off);
+    RUN_TEST(custom_action_needs_label_and_launch);
 
     (void)!system("rm -rf " TEST_DIR);
     TEST_REPORT();
