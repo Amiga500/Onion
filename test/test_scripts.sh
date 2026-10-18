@@ -1241,6 +1241,20 @@ EOF
 check "Search, Info and Website translated (untranslated: ${untranslated:-none})" test -z "$untranslated"
 end
 
+begin refresh_one_and_refresh_all_differ
+same_refresh=$(python3 - "$ROOT/static/build/miyoo/app/lang" << 'EOF'
+import json, pathlib, sys
+# Open MainUI shows both in one SELECT menu on the console grid:
+# 27 "Refresh roms" (this console) and 54 "Refresh all roms".
+for p in sorted(pathlib.Path(sys.argv[1]).glob("*.lang")):
+    d = json.loads(p.read_text(encoding="utf-8-sig"))
+    if d.get("27") == d.get("54"):
+        print(p.name)
+EOF
+)
+check "\"Refresh roms\" and \"Refresh all roms\" differ (same in: ${same_refresh:-none})" test -z "$same_refresh"
+end
+
 # ---- rescale_theme_list_icons.sh: wide spacer rule ----
 
 begin rescale_keeps_only_wide_game_icon
