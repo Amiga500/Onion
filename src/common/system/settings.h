@@ -2,6 +2,7 @@
 #define SETTINGS_H__
 
 #include <stdbool.h>
+#include <unistd.h>
 
 #include "display.h"
 #include "system/volume.h"
@@ -10,7 +11,9 @@
 #include "utils/json.h"
 
 #define MAX_BRIGHTNESS 10
+#ifndef MAIN_UI_SETTINGS /* tests point it at a file of their own */
 #define MAIN_UI_SETTINGS "/mnt/SDCARD/system.json"
+#endif
 #define CMD_TO_RUN_PATH "/mnt/SDCARD/.tmp_update/cmd_to_run.sh"
 #define RETROARCH_CONFIG "/mnt/SDCARD/RetroArch/.retroarch/retroarch.cfg"
 #define HISTORY_PATH \
@@ -343,7 +346,43 @@ bool _settings_dirty_mainui(void)
            settings.wifi_on != __settings.wifi_on;
 }
 
-void _settings_save_mainui_force(void)
+// Another program may have saved system.json since this one loaded it. Open
+// MainUI saves the language without telling keymon, which kept the old one in
+// memory and wrote it back with its next brightness or volume save: the
+// GameSwitcher then came up in the old language. Before writing, take from
+// the file every value this program has not changed since it loaded or last
+// saved it. Values keymon mirrors in shared memory (brightness, menu sound,
+// sleep timer, display colours, volume) are left out: keymon is the one that
+// owns them, and taking them from the file would make it read its shared
+// memory as a change and write the old value back.
+static void _settings_merge_from_disk(void)
+{
+    if (!__settings_snapshot_valid)
+        return;
+    cJSON *disk = json_load(MAIN_UI_SETTINGS);
+    if (disk == NULL)
+        return;
+    if (strcmp(settings.language, __settings.language) == 0)
+        json_getString(disk, "language", settings.language);
+    if (strcmp(settings.theme, __settings.theme) == 0) {
+        json_getString(disk, "theme", settings.theme);
+        if (strcmp(settings.theme, "./") == 0) {
+            strncpy(settings.theme, DEFAULT_THEME_PATH, sizeof(settings.theme) - 1);
+            settings.theme[sizeof(settings.theme) - 1] = '\0';
+        }
+    }
+    if (strcmp(settings.keymap, __settings.keymap) == 0)
+        json_getString(disk, "keymap", settings.keymap);
+    if (settings.fontsize == __settings.fontsize)
+        json_getInt(disk, "fontsize", &settings.fontsize);
+    if (settings.audiofix == __settings.audiofix)
+        json_getInt(disk, "audiofix", &settings.audiofix);
+    if (settings.wifi_on == __settings.wifi_on)
+        json_getInt(disk, "wifi", &settings.wifi_on);
+    cJSON_Delete(disk);
+}
+
+static bool _settings_write_mainui(void)
 {
     FILE *fp;
     char tmp_path[PATH_MAX];
@@ -351,7 +390,7 @@ void _settings_save_mainui_force(void)
 
     if ((fp = file_atomic_begin(MAIN_UI_SETTINGS, tmp_path, sizeof(tmp_path),
                                 final_path, sizeof(final_path))) == NULL)
-        return;
+        return false;
 
     fprintf(fp, "{\n");
     fprintf(fp, JSON_FORMAT_TAB_NUMBER, "vol", settings.volume);
@@ -371,8 +410,28 @@ void _settings_save_mainui_force(void)
     fprintf(fp, JSON_FORMAT_TAB_NUMBER_NC, "wifi", settings.wifi_on);
     fprintf(fp, "}");
 
-    if (!file_atomic_commit(fp, tmp_path, final_path))
+    return file_atomic_commit(fp, tmp_path, final_path);
+}
+
+void _settings_save_mainui_force(void)
+{
+    // Open MainUI and other Onion programs save system.json too: take turns
+    // (the lock they share), and try a failed save again before giving up.
+    int lock = file_lock(MAIN_UI_SETTINGS, 1000);
+    if (lock < 0)
+        print_debug("system.json lock busy, saving anyway");
+    _settings_merge_from_disk();
+    bool saved = false;
+    for (int attempt = 0; !saved && attempt < FILE_ATOMIC_ATTEMPTS; attempt++) {
+        if (attempt > 0)
+            usleep(attempt * 50000);
+        saved = _settings_write_mainui();
+    }
+    file_unlock(lock);
+    if (!saved) {
+        print_debug("Could not save system.json");
         return;
+    }
 
     // system.json on disk now matches these fields: keep the snapshot in
     // sync so the dirty check compares against what is really stored.
@@ -526,23 +585,25 @@ void settings_save_local(void)
 
 bool settings_saveSystemProperty(const char *prop_name, int value)
 {
+    // Read, change and write under the lock, so a save by another program in
+    // between is not overwritten with the old values.
+    int lock = file_lock(MAIN_UI_SETTINGS, 1000);
     cJSON *json_root = json_load(MAIN_UI_SETTINGS);
-    if (json_root == NULL)
-        return false;
-    cJSON *prop = cJSON_GetObjectItem(json_root, prop_name);
-    if (prop == NULL) {
-        cJSON_Delete(json_root);
+    if (json_root == NULL) {
+        file_unlock(lock);
         return false;
     }
-
-    if (cJSON_GetNumberValue(prop) == value) {
+    cJSON *prop = cJSON_GetObjectItem(json_root, prop_name);
+    if (prop == NULL || cJSON_GetNumberValue(prop) == value) {
         cJSON_Delete(json_root);
+        file_unlock(lock);
         return false;
     }
 
     cJSON_SetNumberValue(prop, value);
     json_save(json_root, MAIN_UI_SETTINGS);
     cJSON_Delete(json_root);
+    file_unlock(lock);
     temp_flag_set("settings_changed", true);
 
     return true;

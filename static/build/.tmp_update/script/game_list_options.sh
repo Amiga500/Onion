@@ -214,9 +214,8 @@ main() {
         fi
     fi
 
-    if [ $current_tab -eq $TAB_GAMES ] || [ $current_tab -eq $TAB_EXPERT ]; then
-        add_menu_option refresh_roms "Refresh list" "Refresh the rom list\n(re-scan for new games)"
-    fi
+    # No "Refresh list" here: Open MainUI's Select menu has "Refresh roms" for
+    # the same list, and a filter it drops with the cache is noticed above.
 
     add_script_files "$globalscriptdir"
 
@@ -598,7 +597,7 @@ filter_roms() {
 
 # A filter is kept in two places: the keyword in $emupath/active_filter and
 # the hidden rows in the rom list cache, which also gets a "~Filter: keyword"
-# entry. Rebuilding the cache (Refresh list, or the launcher's own refresh)
+# entry. Rebuilding the cache (Refresh roms in the launcher's Select menu)
 # shows every game again but leaves active_filter behind, and the menu kept
 # offering "Clear filter" for a filter that was gone.
 filter_is_applied() {
@@ -611,15 +610,6 @@ filter_is_applied() {
     # forgetting one that still hides games.
     filter_rows=$(sqlite3 "$cache_db" "SELECT count(*) FROM \"$cache_table\" WHERE disp LIKE '~Filter: %';" 2> /dev/null) || return 0
     [ "$filter_rows" != "0" ]
-}
-
-refresh_roms() {
-    log ":: refresh_roms $*"
-    log "./bin/filter refresh \"$emupath\""
-    filter refresh "$emupath"
-    # The rebuilt list shows every game: the filter is gone with the cache.
-    rm -f "$emupath/active_filter"
-    ./script/reset_list.sh "$romroot"
 }
 
 run_script() {

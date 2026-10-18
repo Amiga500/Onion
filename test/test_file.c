@@ -1173,6 +1173,89 @@ TEST(flag_set_clear_nonexistent_is_safe) {
 
 /* ---- main ---- */
 
+/* ---- file_atomic_write / file_lock: concurrent saves ---- */
+
+#include <dirent.h>
+#include <sys/wait.h>
+
+static int count_entries(const char *dir)
+{
+    int count = 0;
+    DIR *d = opendir(dir);
+    struct dirent *e;
+    while (d && (e = readdir(d)))
+        if (strcmp(e->d_name, ".") && strcmp(e->d_name, ".."))
+            count++;
+    if (d)
+        closedir(d);
+    return count;
+}
+
+/* Two programs saving system.json at the same moment: each copy must be
+ * whole, never a mix, and no temporary file may be left behind. */
+/* ---- file_sync_dir (PR #288: GameSwitcher's cheaper sync) ---- */
+
+TEST(file_sync_dir_existing_and_missing) {
+    ASSERT_TRUE(file_sync_dir("/tmp"));
+    ASSERT_FALSE(file_sync_dir("/tmp/onion_test_no_such_dir_288"));
+    ASSERT_FALSE(file_sync_dir(NULL));
+}
+
+TEST(file_atomic_write_concurrent_writers_never_mix) {
+    char dir[] = "/tmp/onion_atomic_XXXXXX";
+    ASSERT_TRUE(mkdtemp(dir) != NULL);
+    char path[256];
+    snprintf(path, sizeof(path), "%s/system.json", dir);
+    static char content[2][8192];
+    memset(content[0], 'a', sizeof(content[0]) - 1);
+    memset(content[1], 'b', sizeof(content[1]) - 1);
+    pid_t pids[4];
+    for (int i = 0; i < 4; i++) {
+        pids[i] = fork();
+        if (pids[i] == 0) {
+            for (int n = 0; n < 200; n++)
+                if (!file_atomic_write(path, content[i % 2], sizeof(content[0]) - 1))
+                    _exit(1);
+            _exit(0);
+        }
+    }
+    bool children_ok = true;
+    for (int i = 0; i < 4; i++) {
+        int status = 0;
+        waitpid(pids[i], &status, 0);
+        children_ok = children_ok && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+    ASSERT_TRUE(children_ok);
+    static char result[8192];
+    FILE *fp = fopen(path, "r");
+    ASSERT_TRUE(fp != NULL);
+    size_t read = fread(result, 1, sizeof(result), fp);
+    fclose(fp);
+    ASSERT_EQ((int)read, (int)sizeof(content[0]) - 1);
+    result[read] = 0;
+    ASSERT_TRUE(strcmp(result, content[0]) == 0 || strcmp(result, content[1]) == 0);
+    ASSERT_EQ(count_entries(dir), 1); /* no temporary left */
+    remove(path);
+    rmdir(dir);
+}
+
+/* The lock is exclusive between holders and comes back once released; it
+ * is the one Open MainUI takes for the same path. */
+TEST(file_lock_is_exclusive) {
+    char dir[] = "/tmp/onion_lock_XXXXXX";
+    ASSERT_TRUE(mkdtemp(dir) != NULL);
+    char path[256];
+    snprintf(path, sizeof(path), "%s/system.json", dir);
+    int first = file_lock(path, 0);
+    ASSERT_TRUE(first >= 0);
+    ASSERT_EQ(file_lock(path, 50), -1);
+    file_unlock(first);
+    int again = file_lock(path, 0);
+    ASSERT_TRUE(again >= 0);
+    file_unlock(again);
+    rmdir(dir);
+}
+
 int main(void)
 {
     printf("\n=== file.c Unit Tests ===\n\n");
@@ -1231,6 +1314,10 @@ int main(void)
     RUN_TEST(file_readLastLine_tiny_file);
     RUN_TEST(file_readLastLine_one_byte);
     RUN_TEST(file_readLastLine_exact_254_bytes);
+
+    RUN_TEST(file_sync_dir_existing_and_missing);
+    RUN_TEST(file_atomic_write_concurrent_writers_never_mix);
+    RUN_TEST(file_lock_is_exclusive);
 
     RUN_TEST(file_write_basic);
     RUN_TEST(file_write_overwrite);

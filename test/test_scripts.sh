@@ -769,6 +769,13 @@ begin no_pgrep_x_in_shipped_scripts
 check "no pgrep -x under static/" test -z "$(command grep -rlE '^[^#]*pgrep +-[a-z]*x' "$ROOT/static")"
 end
 
+# ---- runtime.sh: temporaries of interrupted saves removed at boot ----
+
+begin boot_removes_interrupted_save_temporaries
+check "load_settings removes system.json and config temporaries" sh -c "sed -n '/^load_settings() {/,/^}/p' \"$RUNTIME\" | grep -q 'rm -f /mnt/SDCARD/system.json.tmp.\* /mnt/SDCARD/.tmp_update/config/\*.tmp.\*'"
+check "before batmon or keymon can save" sh -c "grep -n '^    init_system\|^    batmon &' \"$RUNTIME\" | head -1 | grep -q init_system"
+end
+
 # ---- runtime.sh: detect_device_model ----
 
 MODEL_MM=283
@@ -847,7 +854,6 @@ end
 # ---- game_list_options.sh: a filter dropped with the rom list cache ----
 
 eval "$(extract_fn "$GLO" filter_is_applied)"
-eval "$(extract_fn "$GLO" refresh_roms)"
 
 glo_filter_env() { # rows in the cache matching '~Filter: %' (none: no cache)
     emupath=$TMP/Emu/GBA
@@ -879,16 +885,9 @@ glo_filter_env error
 check "sqlite3 error: filter kept" filter_is_applied
 romroot=""
 check "unknown rom folder: filter kept" filter_is_applied
-glo_filter_env 1
-log() { :; }
-filter() { echo "$*" > "$TMP/filter_args"; }
-mkdir -p "$TMP/script"
-printf '#!/bin/sh\n' > "$TMP/script/reset_list.sh"
-chmod +x "$TMP/script/reset_list.sh"
-(cd "$TMP" && refresh_roms)
-check "Refresh list runs the filter refresh" test "$(cat "$TMP/filter_args")" = "refresh $emupath"
-check "Refresh list drops active_filter" test ! -e "$emupath/active_filter"
-unset -f sqlite3 filter log
+check "no Refresh list entry: the Select menu has Refresh roms" \
+    test -z "$(grep -n 'add_menu_option refresh_roms\|^refresh_roms()' "$GLO")"
+unset -f sqlite3
 end
 
 # ---- migration 00021: Apps sorted by name once, as before Open MainUI 1.0.6 ----
@@ -1125,6 +1124,283 @@ check "missing setting added as off" grep -qx 'rgui_border_filler_enable = "fals
 RA_CFG="$TMP/none.cfg" sh "$MIG"
 check "no RetroArch config: nothing created" test ! -e "$TMP/none.cfg"
 check "new installs default to off" grep -qx 'rgui_border_filler_enable = "false"' "$ROOT/static/configs/RetroArch/.retroarch/retroarch.cfg"
+end
+
+# ---- migration 00023: devices on the old default theme get Silky RedOnion ----
+
+begin migration_moves_old_default_theme_to_redonion
+MIG="$ROOT/static/build/.tmp_update/script/migration/00023_default_theme_redonion.sh"
+sd=$TMP/sd
+mkdir -p "$sd/Themes/Silky RedOnion" "$sd/.tmp_update/config/system"
+echo '{}' > "$sd/Themes/Silky RedOnion/config.json"
+printf '{\n\t"vol":\t20,\n\t"theme":\t"%s/Themes/Silky by DiMo/",\n\t"wifi":\t0\n}\n' "$sd" > "$sd/system.json"
+printf '{\n\t"theme":\t"%s/Themes/Silky by DiMo",\n\t"wifi":\t1\n}\n' "$sd" > "$sd/.tmp_update/config/system/A.json"
+printf '{\n\t"theme":\t"%s/Themes/Other/",\n\t"wifi":\t1\n}\n' "$sd" > "$sd/.tmp_update/config/system/B.json"
+SDCARD=$sd sh "$MIG"
+check "system.json moved to Silky RedOnion" grep -qF "\"theme\":	\"$sd/Themes/Silky RedOnion/\"," "$sd/system.json"
+check "other keys untouched" grep -qF '"vol":	20,' "$sd/system.json"
+check "device copy moved too (no trailing slash)" grep -qF "\"$sd/Themes/Silky RedOnion/\"" "$sd/.tmp_update/config/system/A.json"
+check "another theme left alone" grep -qF "\"$sd/Themes/Other/\"" "$sd/.tmp_update/config/system/B.json"
+check "no temp files left" test -z "$(find "$sd" -name '*.tmp')"
+rm -rf "$sd/Themes/Silky RedOnion"
+printf '{\n\t"theme":\t"%s/Themes/Silky by DiMo/"\n}\n' "$sd" > "$sd/system.json"
+SDCARD=$sd sh "$MIG"
+check "without Silky RedOnion on the card: unchanged" grep -qF "Silky by DiMo/" "$sd/system.json"
+check "new installs default to Silky RedOnion" grep -qF '"/mnt/SDCARD/Themes/Silky RedOnion/"' "$ROOT/static/build/.tmp_update/res/miyoo285_system.json"
+end
+
+# ---- Settings > About: the build date and the RedOnion version row ----
+#
+# Open MainUI shows the first characters of .tmp_update/onionVersion/version.txt
+# under the label of string 410. These fail when a change would hide part of the
+# build date there, or lose "RedOnion" from the label: in OnionPlus (Makefile,
+# workflows, language files) or in an Open MainUI update (its limit or its ids).
+
+OMUI_ABOUT="$ROOT/third-party/open-mainui/src/app/settings_page.c"
+
+# A make run of its own: the variables of the make running these tests must
+# not reach it.
+onion_make_version() {
+    env -u MAKEFLAGS -u MFLAGS -u MAKELEVEL -u MAKEOVERRIDES -u VERSION_DATE \
+        -u VERSION_OVERRIDE "$@" make -s -C "$ROOT" version 2> /dev/null
+}
+
+begin about_shows_the_whole_build_date
+limit=$(sed -n 's/.*if (version_end > \([0-9][0-9]*\)) {.*/\1/p' "$OMUI_ABOUT" | head -n 1)
+check "Open MainUI's version length limit found (if this fails, Open MainUI changed how it cuts the version: review this test)" test -n "$limit"
+check "Open MainUI reads .tmp_update/onionVersion/version.txt" grep -q '".tmp_update/onionVersion/version.txt"' "$OMUI_ABOUT"
+check "the build writes v\$(VERSION) to version.txt" grep -qF 'echo -n "v$(VERSION)" > $(BUILD_DIR)/.tmp_update/onionVersion/version.txt' "$ROOT/Makefile"
+base=$(sed -n 's/^VERSION_BASE=//p' "$ROOT/Makefile")
+check "the Makefile sets VERSION_BASE" test -n "$base"
+# What a release writes, before the commit hash: v<base>-<YYYYMMDD>.
+shown="v$base-YYYYMMDD"
+check "Settings > About shows v$base and the whole date (${#shown} characters, at most ${limit:-?})" test "${#shown}" -le "${limit:-0}"
+check "a build made by hand is dated today (UTC)" test "$(onion_make_version)" = "$base-$(date -u +%Y%m%d)"
+check "a release's VERSION_OVERRIDE is used as it is" test "$(onion_make_version VERSION_OVERRIDE=9.9.9-test-20260101)" = "9.9.9-test-20260101"
+check "pre-releases are dated with the build day (UTC)" grep -qF 'BUILD_DATE=$(date -u +%Y%m%d)' "$ROOT/.github/workflows/pre-release.yml"
+check "pre-releases put the date before the commit hash" grep -qF 'make release VERSION_OVERRIDE="${BUILD_VERSION}-${SHA_SHORT}"' "$ROOT/.github/workflows/pre-release.yml"
+check "tagged releases add the date when the tag has none" grep -qF 'BUILD_VERSION="${BUILD_VERSION}-$(date -u +%Y%m%d)"' "$ROOT/.github/workflows/tagged-release.yml"
+end
+
+begin about_labels_the_version_redonion
+missing=""
+count=0
+for lang_file in "$ROOT"/static/build/miyoo/app/lang/*.lang; do
+    count=$((count + 1))
+    grep -q '"410":[[:space:]]*"[^"]*RedOnion' "$lang_file" || missing="$missing $(basename "$lang_file")"
+done
+check "language files found" test "$count" -gt 0
+check "every language names string 410 with RedOnion (missing in:${missing:- none})" test -z "$missing"
+# The About row showing version.txt is labelled with string 410: same position
+# in draw_about's ids[] and values[].
+about_row=$(python3 - "$OMUI_ABOUT" << 'PYEOF'
+import re, sys
+src = open(sys.argv[1]).read()
+body = src[src.index("static void draw_about("):]
+ids = [int(x) for x in re.search(r"const int ids\[\] = \{([^}]*)\}", body).group(1).split(",")]
+values = [v.strip() for v in re.search(r"const char \*values\[\] = \{([^}]*)\}", body).group(1).split(",")]
+print(ids[values.index("page->version")] if "page->version" in values and len(ids) == len(values) else "")
+PYEOF
+)
+check "Open MainUI labels the version.txt row with string 410 (found: ${about_row:-none})" test "$about_row" = "410"
+check "Open MainUI reads the website from .tmp_update/onionVersion/website.txt" grep -q '".tmp_update/onionVersion/website.txt"' "$OMUI_ABOUT"
+check "website.txt names the project" grep -q 'github.com/Amiga500/Onion' "$ROOT/static/build/.tmp_update/onionVersion/website.txt"
+end
+
+# ---- language list: "Native name (English name)" ----
+
+begin language_names_give_the_english_name
+unnamed=$(python3 - "$ROOT/static/build/miyoo/app/lang" << 'EOF'
+import json, pathlib, sys
+for p in sorted(pathlib.Path(sys.argv[1]).glob("*.lang")):
+    name = json.loads(p.read_text(encoding="utf-8-sig")).get("lang", "")
+    if p.name != "en.lang" and not (name.endswith(")") and " (" in name):
+        print(f"{p.name}={name}")
+EOF
+)
+check "every language but English ends with \" (English name)\" in ASCII brackets (missing: ${unnamed:-none})" test -z "$unnamed"
+end
+
+begin search_info_website_translated
+untranslated=$(python3 - "$ROOT/static/build/miyoo/app/lang" << 'EOF'
+import json, pathlib, sys
+def letters(text, lo, hi):
+    return any(lo <= ord(c) <= hi for c in text)
+for p in sorted(pathlib.Path(sys.argv[1]).glob("*.lang")):
+    d = json.loads(p.read_text(encoding="utf-8-sig"))
+    # "Search" (main menu): every language but English translates it.
+    if p.name != "en.lang" and d.get("153") == "Search":
+        print(f"{p.name}:153")
+    # Arabic and Bengali: Info, Search and Website in their own script.
+    script = {"ar.lang": (0x0600, 0x06FF), "bn.lang": (0x0980, 0x09FF)}.get(p.name)
+    for key in ("150", "153", "155") if script else ():
+        if not letters(d.get(key, ""), *script):
+            print(f"{p.name}:{key}")
+EOF
+)
+check "Search, Info and Website translated (untranslated: ${untranslated:-none})" test -z "$untranslated"
+end
+
+begin refresh_one_and_refresh_all_differ
+same_refresh=$(python3 - "$ROOT/static/build/miyoo/app/lang" << 'EOF'
+import json, pathlib, sys
+# Open MainUI shows both in one SELECT menu on the console grid:
+# 27 "Refresh roms" (this console) and 54 "Refresh all roms".
+for p in sorted(pathlib.Path(sys.argv[1]).glob("*.lang")):
+    d = json.loads(p.read_text(encoding="utf-8-sig"))
+    if d.get("27") == d.get("54"):
+        print(p.name)
+EOF
+)
+check "\"Refresh roms\" and \"Refresh all roms\" differ (same in: ${same_refresh:-none})" test -z "$same_refresh"
+end
+
+begin refresh_labels_fit_the_select_menu
+# Silky RedOnion: a 320 px popup, text from x 20, list font wqy-microhei at
+# 25 px (Noto for Arabic and Bengali). Needs Pillow; skipped without it.
+too_wide=$(python3 - "$ROOT/static/build/miyoo/app" << 'EOF'
+import json, pathlib, sys
+try:
+    from PIL import ImageFont
+except ImportError:
+    sys.exit(0)
+app = pathlib.Path(sys.argv[1])
+fonts = {name: ImageFont.truetype(str(app / name), 25) for name in
+         ("wqy-microhei.ttc", "NotoSansArabicUI-Regular.ttf", "NotoSansBengaliUI-Regular.ttf")}
+for p in sorted((app / "lang").glob("*.lang")):
+    d = json.loads(p.read_text(encoding="utf-8-sig"))
+    font = fonts["NotoSansArabicUI-Regular.ttf" if p.name == "ar.lang" else
+                 "NotoSansBengaliUI-Regular.ttf" if p.name == "bn.lang" else "wqy-microhei.ttc"]
+    for key in ("27", "54"):
+        if font.getlength(d.get(key, "")) > 300:
+            print(f"{p.name}:{key}")
+EOF
+)
+check "Refresh labels fit 300 px (too wide: ${too_wide:-none})" test -z "$too_wide"
+end
+
+# ---- rescale_theme_list_icons.sh: wide spacer rule ----
+
+begin rescale_keeps_only_wide_game_icon
+RESCALE="$ROOT/static/build/.tmp_update/script/rescale_theme_list_icons.sh"
+theme="$TMP/theme"
+mkdir -p "$theme/skin"
+# PNG signature and IHDR with the size: all the script reads.
+fake_png() { # file width height
+    python3 -c "import struct,sys; open(sys.argv[1],'wb').write(b'\x89PNG\r\n\x1a\n'+struct.pack('>I',13)+b'IHDR'+struct.pack('>II',int(sys.argv[2]),int(sys.argv[3]))+bytes(5))" "$1" "$2" "$3"
+}
+fake_png "$theme/skin/icon-game.png" 240 40
+fake_png "$theme/skin/icon-folder.png" 240 40
+fake_png "$theme/skin/ic-favorite-mark.png" 40 40
+cat > "$TMP/pngScale" << EOF
+#!/bin/sh
+echo "\${1##*/}" >> "$TMP/scaled"
+cp "\$1" "\$2"
+EOF
+chmod +x "$TMP/pngScale"
+PNGRESIZE="$TMP/none" PNGSCALE="$TMP/pngScale" sh "$RESCALE" "$theme" 30 12 > /dev/null 2>&1
+check "script succeeds" test $? -eq 0
+check "wide icon-game.png kept as is" test "$(grep -c '^icon-game.png.bak$' "$TMP/scaled")" -eq 0
+check "wide icon-folder.png resized" grep -q '^icon-folder.png.bak$' "$TMP/scaled"
+check "favorite mark resized" grep -q '^ic-favorite-mark.png.bak$' "$TMP/scaled"
+end
+
+begin rescale_uses_pngresize
+# The real pngresize, built for the host, on real PNGs.
+theme="$TMP/theme"
+mkdir -p "$theme/skin"
+real_png() { # file width height: an opaque disc on transparency, RGBA
+    python3 -c "
+import struct, sys, zlib
+w, h = int(sys.argv[2]), int(sys.argv[3])
+rows = b''.join(b'\0' + b''.join(
+    (b'\xff\0\0\xff' if (x - w / 2) ** 2 + (y - h / 2) ** 2 < (min(w, h) / 2.5) ** 2 else b'\0\0\0\0')
+    for x in range(w)) for y in range(h))
+chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
+open(sys.argv[1], 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0))
+    + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))" "$1" "$2" "$3"
+}
+png_wh() { python3 -c "import struct,sys; print('%dx%d' % struct.unpack('>II', open(sys.argv[1],'rb').read()[16:24]))" "$1"; }
+real_png "$theme/skin/icon-game.png" 47 45
+real_png "$theme/skin/icon-folder.png" 40 40
+real_png "$theme/skin/ic-favorite-mark.png" 24 24
+real_png "$theme/skin/bg-list-s.png" 640 60
+if cc -O1 -w -o "$TMP/pngresize" "$ROOT/src/pngresize/pngresize.c" -lm 2> /dev/null; then
+    PNGRESIZE="$TMP/pngresize" PNGSCALE="$TMP/none" sh "$RESCALE" "$theme" 30 12 > /dev/null 2>&1
+    check "script succeeds with pngresize only" test $? -eq 0
+    check "game icon fits, size rounded (47x45 -> $(png_wh "$theme/skin/icon-game.png"))" test "$(png_wh "$theme/skin/icon-game.png")" = "31x30"
+    check "folder icon fits ($(png_wh "$theme/skin/icon-folder.png"))" test "$(png_wh "$theme/skin/icon-folder.png")" = "30x30"
+    check "favorite mark already fits, kept ($(png_wh "$theme/skin/ic-favorite-mark.png"))" test "$(png_wh "$theme/skin/ic-favorite-mark.png")" = "24x24"
+    check "row background stretched ($(png_wh "$theme/skin/bg-list-s_12.png"))" test "$(png_wh "$theme/skin/bg-list-s_12.png")" = "640x30"
+    check "originals kept as .bak" test "$(png_wh "$theme/skin/icon-game.png.bak")" = "47x45"
+else
+    check "host C compiler for pngresize" false
+fi
+end
+
+# ---- Tweaks: a pending icon resize also runs when Tweaks exits ----
+
+begin tweaks_exit_runs_pending_icon_resize
+TWEAKS_C="$ROOT/src/tweaks/tweaks.c"
+# Leaving Game lists with B, and once more after the main loop (MENU closes
+# Tweaks from any menu). The function returns at once when nothing is pending.
+calls=$(grep -c 'gamelists_on_menu_exit();' "$TWEAKS_C")
+after_loop=$(sed -n '/Clear the screen when exiting/,/settings_save();/p' "$TWEAKS_C" | grep -c 'gamelists_on_menu_exit();')
+check "called on B and on exit ($calls calls)" test "$calls" -eq 2
+check "called after the main loop, before settings are saved" test "$after_loop" -eq 1
+check "does nothing without a pending resize" grep -q 'if (!gamelists_rescale_pending)' "$ROOT/src/tweaks/game_lists.h"
+end
+
+# ---- runtime.sh: start_warmup (MI video setup paid during boot) ----
+
+eval "$(extract_fn "$RUNTIME" perf_now)"
+eval "$(extract_fn "$RUNTIME" perf_begin)"
+eval "$(extract_fn "$RUNTIME" perf_end)"
+eval "$(extract_fn "$RUNTIME" start_warmup)"
+
+warmup_env() {
+    sysdir="$TMP/sys"
+    miyoodir="$TMP/miyoo"
+    mkdir -p "$sysdir/bin" "$sysdir/config" "$sysdir/logs"
+    touch "$sysdir/config/.logging"
+}
+
+begin warmup_without_binary_does_nothing
+warmup_env
+start_warmup
+check "returns success" test $? -eq 0
+wait
+check "nothing logged" test ! -s "$sysdir/logs/timing.log"
+end
+
+begin warmup_runs_in_background_with_miyoo_libs_first
+warmup_env
+cat > "$sysdir/bin/warmup" << 'EOF'
+#!/bin/sh
+echo "$LD_LIBRARY_PATH" > "${0%/bin/warmup}/ld_path"
+sleep 1
+EOF
+chmod +x "$sysdir/bin/warmup"
+perf_now
+before=$perf_cs
+start_warmup
+perf_now
+check "boot does not wait for it (took $((perf_cs - before)) cs)" test $((perf_cs - before)) -lt 50
+wait
+check "SDL from miyoo/lib, as MainUI loads it" test "$(cat "$sysdir/ld_path")" = "$miyoodir/lib:/config/lib:/lib"
+check "timing.log records its time and exit code" grep -Eq '^warmup [0-9]+\.[0-9]+ s \(exit 0\)$' "$sysdir/logs/timing.log"
+end
+
+begin warmup_starts_after_display_before_mainui_layout
+boot_fn=$(extract_fn "$RUNTIME" init_system)
+line_of() { printf '%s\n' "$boot_fn" | grep -n "^ *$1" | head -1 | cut -d: -f1; }
+res=$(line_of get_screen_resolution)
+warm=$(line_of start_warmup)
+layout=$(line_of "commit_mainui_fbmode")
+check "after the fb driver is up (lines $res < $warm)" test "${res:-0}" -gt 0 -a "${warm:-0}" -gt "${res:-0}"
+check "before MainUI's layout is set (lines $warm < $layout)" test "${layout:-0}" -gt "${warm:-0}"
+check "no sleep left between them" test -z "$(printf '%s\n' "$boot_fn" | sed -n "${warm:-1},${layout:-1}p" | grep -E '^ *sleep')"
+unset -f line_of
 end
 
 echo ""

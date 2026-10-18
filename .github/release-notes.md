@@ -11,7 +11,7 @@ OnionPlus is still a personal-use build. It is **not** a replacement for Onion a
 
 ### 🎨 The RedOnion look
 
-- **Silky RedOnion**, a crimson version of the Silky theme (original design by DiMo + fireball33x), is the default theme on new installs. Updates keep the theme you use: pick Silky RedOnion in Themes, with "Apply icons" on.
+- **Silky RedOnion**, a crimson version of the Silky theme (original design by DiMo + fireball33x), is the default theme. New installs start with it, and an update moves a device still on the old default, Silky by DiMo, to it once; any other theme is kept. To go back, pick Silky by DiMo in Themes.
 - **The look follows the theme:** with Silky RedOnion, the system screens and apps are crimson too: Package Manager, Quick Guide, Activity Tracker, the Search/Filter tools, the File Explorer icons, Tweaks' icons, the charging, brightness, boot, shutdown and saving screens, and the RetroArch, AdvanceMENU and PCSX menus. With Silky by DiMo or any other theme, they are Onion's purple as before. The colours change when you apply a theme; AdvanceMENU and RetroArch keep your other settings.
 - **The installer** uses the RedOnion look with every theme. The File Explorer selection bar stays purple with every theme.
 - **Search:** the matched letters in a game list search are crimson with Silky RedOnion and purple with other themes (Open MainUI 1.0.8, `gamelist.searchColor`).
@@ -75,7 +75,7 @@ Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHA
 
 - **Mini Flip display colours** (Luminance, Hue, Saturation, Contrast) can be back at their defaults after a reboot: Open MainUI sets them only from Settings › Display, as stock does, and OnionPlus doesn't apply them at boot yet.
 - **Refresh list** appears both in Game List Options and in the Select menu; the Game List Options entry will be removed.
-- **Arabic and Bengali** labels show as boxes: no font Onion ships has their letters.
+- **Arabic and Bengali** are readable in the launcher and in Onion's apps, with every theme (SDL_ttf with HarfBuzz and the Noto Sans Arabic UI and Bengali UI fonts). Arabic lines stay left-aligned like every other language, and text drawn one letter at a time (the on-screen keyboard) still shows Arabic letters unjoined.
 - **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
 - **Settings:** two programs saving settings at the same moment can corrupt the settings file, and a settings save that fails is not retried.
 - **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package. Verifying certificates and the package's SHA-256 is planned.

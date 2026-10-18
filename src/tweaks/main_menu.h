@@ -32,6 +32,9 @@
 #define MAINMENU_CONFIG_DIR "/mnt/SDCARD/.tmp_update/config"
 #endif
 #define MAINMENU_CONFIG_PATH MAINMENU_CONFIG_DIR "/main-menu.json"
+#ifndef MAINMENU_SD_DIR
+#define MAINMENU_SD_DIR "/mnt/SDCARD"
+#endif
 #define MAINMENU_CONFIG_MAX_SIZE (128 * 1024)
 
 #define MAINMENU_MENU_COUNT 6
@@ -62,6 +65,42 @@ static bool mainmenu_legacy_marker(int index)
     if (index == 3)
         return access(MAINMENU_CONFIG_DIR "/.showExpert", F_OK) == 0;
     return false;
+}
+
+static cJSON *mainmenu_load_root(bool *exists_out, bool *valid_out);
+
+// A custom action Open MainUI can show: main-menu.json "custom" gives it a
+// label (under 128 bytes) and a launch command (under 512), as Open MainUI
+// requires (src/menus/context.c); without them it drops the entry.
+static bool mainmenu_custom_defined(int index)
+{
+    bool exists = false, valid = false;
+    cJSON *root = mainmenu_load_root(&exists, &valid);
+    cJSON *custom = valid ? cJSON_GetObjectItemCaseSensitive(root, "custom") : NULL;
+    cJSON *spec = cJSON_GetObjectItemCaseSensitive(custom, mainmenu_context_keys[index]);
+    cJSON *label = cJSON_GetObjectItemCaseSensitive(spec, "label");
+    cJSON *launch = cJSON_GetObjectItemCaseSensitive(spec, "launch");
+    bool defined = cJSON_IsString(label) && label->valuestring[0] &&
+                   strlen(label->valuestring) < 128 && cJSON_IsString(launch) &&
+                   launch->valuestring[0] && strlen(launch->valuestring) < 512;
+    cJSON_Delete(root);
+    return defined;
+}
+
+// Open MainUI leaves Search and Tweaks out of the context menu when their
+// app is missing (App/<name>/launch.sh), and a custom action without its
+// definition, whatever main-menu.json enables, so Tweaks shows them off
+// then. main-menu.json keeps what it says: once the app is installed or the
+// action defined, the entry shows as the file has it.
+static bool mainmenu_context_available(int index)
+{
+    if (index == 2)
+        return access(MAINMENU_SD_DIR "/App/Search/launch.sh", F_OK) == 0;
+    if (index == 10)
+        return access(MAINMENU_SD_DIR "/App/Tweaks/launch.sh", F_OK) == 0;
+    if (index >= 11 && index <= 13)
+        return mainmenu_custom_defined(index);
+    return true;
 }
 
 static void mainmenu_set_default_menu(bool states[MAINMENU_MENU_COUNT])
@@ -393,6 +432,15 @@ static void mainmenu_load_states(bool menu_states[MAINMENU_MENU_COUNT],
     cJSON_Delete(root);
 }
 
+// What Open MainUI shows: the stored states, without an app that is missing.
+static void mainmenu_load_shown_states(bool menu_states[MAINMENU_MENU_COUNT],
+                                       bool context_states[MAINMENU_CONTEXT_COUNT])
+{
+    mainmenu_load_states(menu_states, context_states);
+    for (int i = 0; i < MAINMENU_CONTEXT_COUNT; i++)
+        context_states[i] = context_states[i] && mainmenu_context_available(i);
+}
+
 static bool mainmenu_write_root(cJSON *root)
 {
     if (root == NULL || !mainmenu_ensure_config_dir())
@@ -721,10 +769,11 @@ static void mainmenu_action_context_item(void *pt)
     int index = item->action_id;
     if (index < 0 || index >= MAINMENU_CONTEXT_COUNT)
         return;
-    if (!mainmenu_store_context_item(index, item->value != 0)) {
+    if (!mainmenu_store_context_item(index, item->value != 0) ||
+        !mainmenu_context_available(index)) {
         bool menu_states[MAINMENU_MENU_COUNT];
         bool context_states[MAINMENU_CONTEXT_COUNT];
-        mainmenu_load_states(menu_states, context_states);
+        mainmenu_load_shown_states(menu_states, context_states);
         item->value = context_states[index];
     }
 }
@@ -759,17 +808,27 @@ void menu_mainContextItems(void *_)
     if (!_menu_main_context_items._created) {
         bool menu_states[MAINMENU_MENU_COUNT];
         bool context_states[MAINMENU_CONTEXT_COUNT];
-        mainmenu_load_states(menu_states, context_states);
+        mainmenu_load_shown_states(menu_states, context_states);
         _menu_main_context_items = list_createWithTitle(
             MAINMENU_CONTEXT_LIST_COUNT, LIST_SMALL, "Context menu items");
         for (int i = 0; i < MAINMENU_CONTEXT_COUNT; i++) {
-            list_addItem(&_menu_main_context_items,
-                         (ListItem){
-                             .label = "",
+            ListItem item = {.label = "",
                              .item_type = TOGGLE,
                              .value = context_states[i],
                              .action_id = i,
-                             .action = mainmenu_action_context_item});
+                             .action = mainmenu_action_context_item};
+            if (i == 2 && !mainmenu_context_available(i))
+                list_addItemWithInfoNote(&_menu_main_context_items, item,
+                                         "Search is not installed. Install it\n"
+                                         "from the Package Manager (Apps) to\n"
+                                         "show it in the context menu.");
+            else if (i >= 11 && !mainmenu_context_available(i))
+                list_addItemWithInfoNote(&_menu_main_context_items, item,
+                                         "Not defined: give it a label and a\n"
+                                         "launch command under \"custom\" in\n"
+                                         "config/main-menu.json to show it.");
+            else
+                list_addItem(&_menu_main_context_items, item);
             strcpy(_menu_main_context_items.items[i].label,
                    mainmenu_context_labels[i]);
         }

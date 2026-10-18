@@ -279,6 +279,11 @@ int main(int argc, char *argv[])
     SDL_FillRect(video, NULL, 0);
     SDL_Flip(video);
 
+    // Rows changed and Tweaks closed with MENU, without going back from
+    // Game lists with B: resize the theme's list icons now. Does nothing
+    // when no resize is pending.
+    gamelists_on_menu_exit();
+
     settings_save();
     value_setFrameThrottle();
     value_setSwapTriggers();

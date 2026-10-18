@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Resize the current theme's list assets to fit a game-list row count
 # (Tweaks > Appearance > Game lists > Rescale theme list icons to fit).
-# Adapted from robcodedev/onionos-mainui-patcher; uses Onion's pngScale.
+# Adapted from robcodedev/onionos-mainui-patcher. Scales with pngresize
+# (alpha-aware, rounded sizes); Onion's pngScale if pngresize is missing.
 #
 # Usage: rescale_theme_list_icons.sh THEME_PATH MAX_HEIGHT ROW_COUNT
 #
@@ -13,6 +14,7 @@
 
 set -u
 
+PNGRESIZE="${PNGRESIZE:-/mnt/SDCARD/.tmp_update/bin/pngresize}"
 PNGSCALE="${PNGSCALE:-/mnt/SDCARD/.tmp_update/bin/pngScale}"
 
 theme_path=${1:-}
@@ -46,10 +48,24 @@ if [ "$row_count" -eq 6 ]; then
     exit "$status"
 fi
 
-if [ ! -x "$PNGSCALE" ]; then
-    echo "pngScale not found: $PNGSCALE" >&2
+if [ ! -x "$PNGRESIZE" ] && [ ! -x "$PNGSCALE" ]; then
+    echo "pngresize and pngScale not found: $PNGRESIZE, $PNGSCALE" >&2
     exit 3
 fi
+
+# scale SRC DST WIDTH HEIGHT [stretch]: fit inside WIDTH x HEIGHT keeping the
+# aspect ratio, or exactly WIDTH x HEIGHT with "stretch".
+scale() {
+    if [ -x "$PNGRESIZE" ]; then
+        if [ "${5:-}" = "stretch" ]; then
+            "$PNGRESIZE" --quiet --overwrite --stretch "$1" "$2" "$3" "$4"
+        else
+            "$PNGRESIZE" --quiet --overwrite "$1" "$2" "$3" "$4"
+        fi
+    else
+        "$PNGSCALE" "$1" "$2" "$3" "$4" ${5:+"$5"}
+    fi
+}
 
 # PNG IHDR: big-endian width at offset 16, height at offset 20.
 png_size() {
@@ -58,8 +74,9 @@ png_size() {
     echo "$(($1 * 16777216 + $2 * 65536 + $3 * 256 + $4)) $(($5 * 16777216 + $6 * 65536 + $7 * 256 + $8))"
 }
 
-# A deliberate wide spacer icon (at least 120 px and 3:1) keeps its geometry,
-# as Open MainUI expects (docs/THEMES.md).
+# A deliberate wide spacer game icon (at least 120 px and 3:1) keeps its
+# geometry, as Open MainUI expects (docs/THEMES.md). The rule is for
+# skin/icon-game.png only: a wide folder icon or favorite mark is resized.
 is_wide_icon() {
     size=$(png_size "$1") || return 1
     set -- $size
@@ -74,7 +91,7 @@ resize_icon() {
         cp "$file" "$backup" || return 1
     fi
 
-    if is_wide_icon "$backup"; then
+    if [ "$1" = "skin/icon-game.png" ] && is_wide_icon "$backup"; then
         cp "$backup" "$file"
         return
     fi
@@ -90,7 +107,7 @@ resize_icon() {
     fi
 
     tmp="$file.tmp.$$"
-    if "$PNGSCALE" "$backup" "$tmp" "$width" "$max_height" > /dev/null 2>&1 && [ -s "$tmp" ]; then
+    if scale "$backup" "$tmp" "$width" "$max_height" > /dev/null 2>&1 && [ -s "$tmp" ]; then
         mv -f "$tmp" "$file"
     else
         rm -f "$tmp"
@@ -112,7 +129,7 @@ resize_row_background() {
 
     # Same width, row height: stretched, as the row is.
     tmp="$target.tmp.$$"
-    if "$PNGSCALE" "$source" "$tmp" "$width" "$max_height" stretch > /dev/null 2>&1 && [ -s "$tmp" ]; then
+    if scale "$source" "$tmp" "$width" "$max_height" stretch > /dev/null 2>&1 && [ -s "$tmp" ]; then
         mv -f "$tmp" "$target"
     else
         rm -f "$tmp"

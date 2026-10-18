@@ -1534,6 +1534,11 @@ replace_file_safely() {
 }
 
 load_settings() {
+    # Temporary copies a save cut short by a power loss left behind (Onion
+    # programs save through "<file>.tmp.<pid>.<n>"). Nothing else saves
+    # settings this early in the boot.
+    rm -f /mnt/SDCARD/system.json.tmp.* /mnt/SDCARD/.tmp_update/config/*.tmp.* 2> /dev/null
+
     if [ -f "$device_settings" ]; then
         cp -f "$device_settings" /mnt/SDCARD/system.json.tmp &&
             replace_file_safely /mnt/SDCARD/system.json.tmp /mnt/SDCARD/system.json
