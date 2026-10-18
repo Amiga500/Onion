@@ -578,18 +578,24 @@ void suspend_exec(int timeout)
                 int current_lid = read_lid_state();
                 bool timed_out = timeout != -1 &&
                                  (getMilliseconds() - suspend_start) >= timeout;
-                // Opening the lid wakes the Flip also while it charges; the
-                // charger only holds off the timeout power-off, checked
-                // (axp_test) only once the timeout has elapsed. Same as
-                // OnionUI v4.5-dev: once it has elapsed off the charger,
-                // power off whatever the lid state, like the other models.
-                FlipSuspendStep step = flipSuspend_step(
-                    current_lid, &suspend_lid_state, timed_out, battery_isCharging);
-                if (step == FLIP_SUSPEND_WAKE) {
+                // Same outcome as before in every case, without spawning
+                // axp_test every 2 s for the whole suspend.
+                if (flipSuspend_nothingToDo(current_lid, suspend_lid_state,
+                                            timed_out) ||
+                    battery_isCharging())
+                    continue;
+                if (current_lid == 1 && suspend_lid_state == 0) {
                     print_debug("Lid opened during suspend, waking up");
                     break;
                 }
-                if (step == FLIP_SUSPEND_POWER_OFF) {
+                suspend_lid_state = current_lid;
+                // Same as OnionUI v4.5-dev: once the suspend timeout has
+                // elapsed, power off whatever the lid state, like the other
+                // models. (A local variant skipped the power-off while the
+                // lid was closed, letting a closed Flip drain its battery,
+                // and its comment disagreed with the code on an unreadable
+                // lid. Flip behavior is not changed here without hardware.)
+                if (timed_out) {
                     system_powersave_off();
                     resume();
                     usleep(150000);
