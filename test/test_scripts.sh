@@ -1466,6 +1466,23 @@ check "no sleep left between them" test -z "$(printf '%s\n' "$boot_fn" | sed -n 
 unset -f line_of
 end
 
+begin arcade_cores_ignore_power_as_r3
+# The power button reaches RetroArch as R3, which the FB Alpha / FinalBurn
+# cores use for Diagnostic: turning the console off during a game opened the
+# test menu, still on screen after power on. Every core of the family ships
+# a remap that unbinds R3, as CPS-2 has since Onion 4.1.
+remaps="$ROOT/static/configs/Saves/CurrentProfile/config/remaps"
+for core in "FB Alpha 2012" "FB Alpha 2012 CPS-1" "FB Alpha 2012 CPS-2" \
+    "FB Alpha 2012 CPS-3" "FB Alpha 2012 Neo Geo" "FinalBurn Neo"; do
+    check "$core: R3 unbound" grep -qx 'input_player1_btn_r3 = "-1"' "$remaps/$core/$core.rmp"
+done
+cores="$ROOT/static/build/RetroArch/.retroarch/cores"
+for info in "$cores"/fbalpha2012*_libretro.info "$cores"/fbneo_libretro.info; do
+    name=$(sed -n 's/^corename = "\(.*\)"$/\1/p' "$info")
+    check "remap folder matches the core name: $name" test -f "$remaps/$name/$name.rmp"
+done
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
