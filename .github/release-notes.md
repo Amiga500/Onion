@@ -1,13 +1,24 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅⚡ OnionPlus beta 10: longer battery with Wi-Fi, theme icons, arcade power button, RedOnion boot screen
+# 🧅⚡ OnionPlus beta 10: Open MainUI 1.0.9, longer battery with Wi-Fi, theme icons, arcade power button
 
 > 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on the current stable release until this beta is promoted.
 
-This beta fixes the **battery drain and warm device with Wi-Fi connected** that users reported, resizes list icons when you **install a theme**, stops the **power button** from opening the diagnostic menu in arcade games, and adds the **RedOnion boot screen** to Silky RedOnion.
+This beta brings **Open MainUI 1.0.9**, fixes the **battery drain and warm device with Wi-Fi connected** that users reported, resizes list icons when you **install a theme**, stops the **power button** from opening the diagnostic menu in arcade games, and adds the **RedOnion boot screen** to Silky RedOnion.
 
-OnionPlus is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip. Open MainUI is still **1.0.8**: https://github.com/robcodedev/onionos-mainui-opensource
+OnionPlus is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip. Open MainUI is now **1.0.9**: https://github.com/robcodedev/onionos-mainui-opensource
 
 ## 🆕 New in beta 10
+
+### 🖥️ Open MainUI 1.0.9 by @robcodedev
+
+- **Saved Wi-Fi networks:** every network you have joined stays saved. Choosing one in Settings › Wi-Fi connects without asking for the password again, and the device joins whichever saved network is in reach, at home or somewhere else.
+- **Right-to-left titles:** a Hebrew or Arabic title that doesn't fit its row shows its beginning and scrolls the way it reads.
+- **Arabic and Bengali:** switching to or from them restarts the menu and reopens Settings.
+- **Game Info** is faster: titles and descriptions are wrapped once instead of on every frame.
+- **Themes** is left out of the SELECT menu when the Themes app isn't installed, as Search and Tweaks already were.
+- Wi-Fi problems are written to the log, when logging is on.
+
+Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHANGELOG.md
 
 ### 🔋 Battery and heat with Wi-Fi
 
@@ -19,6 +30,10 @@ OnionPlus is still a personal-use build. It is **not** a replacement for Onion a
 
 - **List icons fit after installing a theme:** with Tweaks › Appearance › Game lists › "Rescale theme list icons to fit" on, the Themes app now resizes the new theme's list icons for your row count right away. Before, you had to turn the option off and on again. Based on @robcodedev's themeSwitcher patch.
 - **Boot screen:** Silky RedOnion shows the RedOnion logo at start-up.
+
+### 🌍 Languages
+
+- **Hungarian and Lithuanian:** "Add to favorites" was cut off in the SELECT menu. It now uses the same wording as "Remove Favorite" and fits.
 
 ### 🕹️ Arcade
 
@@ -37,6 +52,7 @@ OnionPlus is still a personal-use build. It is **not** a replacement for Onion a
 - **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
 - **Arabic:** lines stay left-aligned like every other language, and text drawn one letter at a time (the on-screen keyboard) shows Arabic letters unjoined.
 - **Tweaks** is in English in every language.
+- **SELECT menu labels:** in 14 languages a few labels ("Refresh all roms", "Add to favorites", "Refresh roms") are still too long and get cut off at the right edge. Shorter translations are welcome.
 - **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package. Verifying certificates and the package's SHA-256 is planned.
 
 ## 🧪 If you'd like to try it
@@ -49,6 +65,8 @@ Switch the OTA updater to the **beta** channel to receive this build. Useful thi
 - Tweaks › Appearance › Game lists: set Rows to 10, then install another theme in Themes: its list icons should fit
 - A CPS-1, CPS-3 or Neo Geo game: turn the console off with the power button, then on again: no diagnostic menu
 - The boot screen with Silky RedOnion
+- Settings › Wi-Fi: join a second network, then choose the first again: it should connect without asking for the password
+- Hungarian or Lithuanian: SELECT on a game, "Add to favorites" should be readable in full
 
 Please report OnionPlus issues on the [OnionPlus tracker](https://github.com/Amiga500/Onion/issues), with your model, the version (from `.tmp_update/onionVersion/version.txt`) and the steps to reproduce.
 
