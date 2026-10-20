@@ -5,7 +5,7 @@
 
 This beta brings **Open MainUI 1.0.9**, fixes the **battery drain and warm device with Wi-Fi connected** that users reported, resizes list icons when you **install a theme**, stops the **power button** from opening the diagnostic menu in arcade games, and adds the **RedOnion boot screen** to Silky RedOnion.
 
-**OnionPlus is now RedOnion**, a name by dred. Same project, same updates: devices on OnionPlus keep receiving updates as before, and nothing needs to be reinstalled. The release carries the same package twice, `RedOnion-v…zip` and `OnionPlus-v…zip`, so that older updaters still find it. Download either one.
+**OnionPlus is now RedOnion**, a name by @dredvm. Same project, same updates: devices on OnionPlus keep receiving updates as before, and nothing needs to be reinstalled. The release carries the same package twice, `RedOnion-v…zip` and `OnionPlus-v…zip`, so that older updaters still find it. Download either one.
 
 RedOnion is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip. Open MainUI is now **1.0.9**: https://github.com/robcodedev/onionos-mainui-opensource
 
@@ -31,7 +31,7 @@ Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHA
 ### 🎨 Themes
 
 - **List icons fit after installing a theme:** with Tweaks › Appearance › Game lists › "Rescale theme list icons to fit" on, the Themes app now resizes the new theme's list icons for your row count right away. Before, you had to turn the option off and on again. Based on @robcodedev's themeSwitcher patch.
-- **Boot screen:** Silky RedOnion shows dred's RedOnion logo at start-up.
+- **Boot screen:** Silky RedOnion shows @dredvm's RedOnion logo at start-up.
 
 ### 🌍 Languages
 
@@ -78,7 +78,7 @@ Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga
 
 Thanks first to the Onion team and to the community. RedOnion sits on their work: the OS and the years of fixes already in the tree. None of this exists without that.
 
-Thanks to @robcodedev for Open MainUI, the faster GameSwitcher, pngresize, the boot warmup and the Wi-Fi power save lead, to dred for the RedOnion name, the Silky RedOnion theme artwork and the boot logo, to DiMo + fireball33x for the original Silky theme, and to the testers who sent reports and helped confirm the fixes, especially QuackWalks, @Zazzago, @Ziko577, Veuks and Zombiediplomat. Thanks to @fengfrw for the Chinese translations and to @yuruyang for the CUE generator report and review. Thanks also to the Reddit users who reported the battery drain and the warmer Mini Plus.
+Thanks to @robcodedev for Open MainUI, the faster GameSwitcher, pngresize, the boot warmup and the Wi-Fi power save lead, to @dredvm for the RedOnion name, the Silky RedOnion theme artwork and the boot logo, to DiMo + fireball33x for the original Silky theme, and to the testers who sent reports and helped confirm the fixes, especially QuackWalks, @Zazzago, @Ziko577, Veuks and Zombiediplomat. Thanks to @fengfrw for the Chinese translations and to @yuruyang for the CUE generator report and review. Thanks also to the Reddit users who reported the battery drain and the warmer Mini Plus.
 
 ## 💰 Bounty
 
