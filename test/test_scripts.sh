@@ -1499,9 +1499,59 @@ chmod +x "$TMP/app/wpa_supplicant"
 wifi_on > /dev/null 2>&1
 check "wifi_on turns power save on" grep -qx "dev wlan0 set power_save on" "$TMP/iw"
 check "the OTA's Wi-Fi start turns it on too" grep -q "iw dev wlan0 set power_save on" "$OTA"
-check "no script turns power save off" sh -c "! grep -rq 'power_save off' \"$ROOT/static/build\""
+check "no script hardcodes power save off" sh -c "! grep -rq 'power_save off' \"$ROOT/static/build\""
 miyoodir=$miyoodir_saved
 unset -f log sleep ifconfig udhcpc iw wifi_on
+end
+
+begin netplay_runs_with_power_save_off
+# With power save on, a ping to an idle Mini Plus averaged 40 ms with peaks
+# of 220 ms (3.5 ms, max 15 with it off). Netplay turns it off right before
+# each RetroArch launch (after any Wi-Fi restart, which resets it to on) and
+# Netplay.sh turns it on again when the session ends.
+PS="$ROOT/static/build/.tmp_update/script/network/wifi_power_save.sh"
+NETPLAY_DIR="$ROOT/static/build/.tmp_update/script/netplay"
+NETPLAY="$ROOT/static/build/App/romscripts/Netplay.sh"
+launches=0
+unguarded=0
+for f in "$NETPLAY_DIR"/*.sh; do
+    n=$(grep -c '^[[:space:]]*HOME=/mnt/SDCARD/RetroArch \./retroarch ' "$f")
+    launches=$((launches + n))
+    bad=$(awk '
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        /^[[:space:]]*HOME=\/mnt\/SDCARD\/RetroArch \.\/retroarch / {
+            if (prev !~ /wifi_power_save\.sh" off$/) n++
+        }
+        { prev = $0 }
+        END { print n + 0 }' "$f")
+    unguarded=$((unguarded + bad))
+done
+check "every netplay script launches RetroArch (8 launches)" [ "$launches" -eq 8 ]
+check "each launch turns power save off first" [ "$unguarded" -eq 0 ]
+check "Netplay.sh turns power save on at the end" sh -c \
+    "grep -v '^[[:space:]]*\$' \"$NETPLAY\" | tail -n 1 | grep -qx '\"\\\$sysdir/script/network/wifi_power_save.sh\" on'"
+check "only netplay turns power save off" sh -c \
+    "! grep -rl 'wifi_power_save.sh\" off' \"$ROOT/static/build\" | grep -v '/script/netplay/'"
+check "the helper is executable" [ -x "$PS" ]
+
+mkdir -p "$TMP/sys/bin" "$TMP/net/wlan0"
+printf '#!/bin/sh\necho "$*" >> "%s/iw"\necho "$LD_LIBRARY_PATH" > "%s/ld"\n' "$TMP" "$TMP" > "$TMP/sys/bin/iw"
+chmod +x "$TMP/sys/bin/iw"
+sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" off
+check "off: iw sets wlan0 power save off" grep -qx "dev wlan0 set power_save off" "$TMP/iw"
+check "iw finds its libraries" grep -q "$TMP/sys/lib/parasyte" "$TMP/ld"
+rm -f "$TMP/iw"
+sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" on
+check "on: iw sets wlan0 power save on" grep -qx "dev wlan0 set power_save on" "$TMP/iw"
+check "an absent wlan1 is left alone" sh -c "! grep -q wlan1 \"$TMP/iw\""
+rm -f "$TMP/iw"
+sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" maybe 2> /dev/null
+check "a wrong argument fails" [ $? -eq 2 ]
+check "and runs nothing" [ ! -e "$TMP/iw" ]
+rmdir "$TMP/net/wlan0"
+sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" off
+check "Wi-Fi off: nothing to do, no error" [ $? -eq 0 ]
+check "and iw is not called" [ ! -e "$TMP/iw" ]
 end
 
 echo ""

@@ -12,6 +12,7 @@ OnionPlus is still a personal-use build. It is **not** a replacement for Onion a
 ### 🔋 Battery and heat with Wi-Fi
 
 - **Wi-Fi power save is on:** OnionPlus, like Onion, turned the Wi-Fi chip's power saving off whenever Wi-Fi started, so the radio never rested. On a Mini Plus idling in the menu with Wi-Fi connected, that used about 20% more battery (0.75 against 0.62 %/min in our tests) and made the device warmer. Wi-Fi now starts with power saving on, the driver's own default. Onion's stock launcher restarted Wi-Fi and ran this way already, which is why the drain showed up only with Open MainUI.
+- **Netplay keeps a quick connection:** power saving delays packets that arrive while the radio rests (a ping to an idle Mini Plus averaged 40 ms with peaks of 220 ms, against 3.5 ms with it off). Netplay turns it off when the game starts and back on when the session ends.
 - With Wi-Fi off nothing changes. Turning Wi-Fi off when you don't need it still gives the longest battery life.
 
 ### 🎨 Themes
@@ -43,7 +44,8 @@ OnionPlus is still a personal-use build. It is **not** a replacement for Onion a
 Switch the OTA updater to the **beta** channel to receive this build. Useful things to check:
 
 - Battery with Wi-Fi connected, idle in the menu: it should last longer than in beta 9
-- Anything that uses Wi-Fi with power save on: FTP or the web file manager with a large file, SSH, netplay
+- Anything that uses Wi-Fi with power save on: FTP or the web file manager with a large file, SSH
+- Netplay (Standard and Easy, host and join): smooth as in beta 9, and after the session Wi-Fi still works
 - Tweaks › Appearance › Game lists: set Rows to 10, then install another theme in Themes: its list icons should fit
 - A CPS-1, CPS-3 or Neo Geo game: turn the console off with the power button, then on again: no diagnostic menu
 - The boot screen with Silky RedOnion

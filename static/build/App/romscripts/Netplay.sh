@@ -136,3 +136,6 @@ echo "##########################################################################
 if [ -f "/tmp/old_ipv4.txt" ]; then
 	"$sysdir/script/network/hotspot_cleanup.sh"
 fi
+
+# Back to power save on, as Wi-Fi normally runs (netplay turned it off).
+"$sysdir/script/network/wifi_power_save.sh" on
