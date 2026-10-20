@@ -285,7 +285,12 @@ wifi_on() {
     ifconfig wlan0 up
     $miyoodir/app/wpa_supplicant -B -D nl80211 -iwlan0 -c /appconfigs/wpa_supplicant.conf
     udhcpc -i wlan0 -s /etc/init.d/udhcpc.script &
-    iw dev wlan0 set power_save off
+    # Power save on, the driver's own default: Onion set it off here, which
+    # kept the radio awake while idle. On a Mini Plus idling in the menu with
+    # Wi-Fi connected that drained the battery about 20% faster (0.75 vs
+    # 0.62 %/min) and made the device warm. Onion's stock MainUI restarts
+    # Wi-Fi and so ran with power save on; Open MainUI keeps this Wi-Fi.
+    iw dev wlan0 set power_save on
 }
 
 wifi_off() {

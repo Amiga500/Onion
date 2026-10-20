@@ -1481,6 +1481,27 @@ for info in "$cores"/fbalpha2012*_libretro.info "$cores"/fbneo_libretro.info; do
     name=$(sed -n 's/^corename = "\(.*\)"$/\1/p' "$info")
     check "remap folder matches the core name: $name" test -f "$remaps/$name/$name.rmp"
 done
+begin wifi_starts_with_power_save_on
+# Power save off kept the radio awake while idle: a Mini Plus in the menu
+# with Wi-Fi connected drained about 20% faster and ran warm. Wi-Fi now
+# starts with power save on, as Onion's stock MainUI ran with it.
+eval "$(extract_fn "$NETWORK" wifi_on)"
+log() { :; }
+sleep() { :; }
+ifconfig() { :; }
+udhcpc() { :; }
+iw() { echo "$*" >> "$TMP/iw"; }
+miyoodir_saved=${miyoodir-}
+miyoodir=$TMP
+mkdir -p "$TMP/app"
+printf '#!/bin/sh\n' > "$TMP/app/wpa_supplicant"
+chmod +x "$TMP/app/wpa_supplicant"
+wifi_on > /dev/null 2>&1
+check "wifi_on turns power save on" grep -qx "dev wlan0 set power_save on" "$TMP/iw"
+check "the OTA's Wi-Fi start turns it on too" grep -q "iw dev wlan0 set power_save on" "$OTA"
+check "no script turns power save off" sh -c "! grep -rq 'power_save off' \"$ROOT/static/build\""
+miyoodir=$miyoodir_saved
+unset -f log sleep ifconfig udhcpc iw wifi_on
 end
 
 echo ""
