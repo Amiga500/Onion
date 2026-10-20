@@ -30,11 +30,14 @@ jobs:
       run: |
         source /root/.bashrc
         VERSION_OVERRIDE=${{ env.BUILD_VERSION }} make release
+        # The same zip under the old name, for updaters before the rename.
+        cp "release/RedOnion-v${{ env.BUILD_VERSION }}.zip" "release/OnionPlus-v${{ env.BUILD_VERSION }}.zip"
     - uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         prerelease: false
         draft: true
-        title: "OnionPlus V${{ env.BUILD_VERSION }}"
+        title: "RedOnion V${{ env.BUILD_VERSION }}"
         files: |
+          release/RedOnion-v${{ env.BUILD_VERSION }}.zip
           release/OnionPlus-v${{ env.BUILD_VERSION }}.zip

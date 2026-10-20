@@ -6,7 +6,7 @@ Written in C11 against SDL 1.2, the same libraries Onion already ships.
 
 Based on functionality from the [patched MainUI project](https://github.com/robcodedev/onionos-mainui-patcher).
 
-**Version 1.0.8.** It runs on hardware and is usable, but keep a copy of your original SD card.
+**Version 1.0.9.** It runs on hardware and is usable, but keep a copy of your original SD card.
 
 ## Why
 
@@ -29,6 +29,7 @@ If something goes wrong, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md),
 How the cursor and the list window move, including where this differs from stock on purpose, is described in [docs/NAVIGATION.md](docs/NAVIGATION.md).
 
 Some newer labels (folder actions, Tweaks, the About device rows) appear in English regardless of the selected language, because their translation IDs do not exist in Onion's language files yet. See [lang/README.md](lang/README.md).
+Arabic and Bengali need a font and a text-shaping library that Open MainUI does not include; see [docs/THEMES.md](docs/THEMES.md#fonts-and-languages).
 
 ## Themes
 

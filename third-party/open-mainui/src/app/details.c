@@ -201,36 +201,73 @@ void mainui_details_key(MainUIDetails *details, MainUICatalog *catalog,
 }
 
 /* Font-measured wrapping never splits a UTF-8 continuation byte. Return the
- * next input byte, preserving explicit newlines and making progress on wide glyphs. */
+ * next input byte, preserving explicit newlines and making progress on wide
+ * glyphs. Whole words are measured first; only the word that crosses the
+ * width is measured a character at a time. */
+static const char *next_character(const char *p)
+{
+    const char *next = p + 1;
+    while (((unsigned char)*next & 0xc0) == 0x80) {
+        next++;
+    }
+    return next;
+}
+
+static bool prefix_fits(TTF_Font *font, const char *start, const char *end, char out[4096],
+                        int width)
+{
+    size_t size = (size_t)(end - start);
+    if (size >= 4096) {
+        return false;
+    }
+    memcpy(out, start, size);
+    out[size] = 0;
+    int measured = 0;
+    return TTF_SizeUTF8(font, out, &measured, NULL) >= 0 && measured <= width;
+}
+
 static const char *line(TTF_Font *font, const char *text, char out[4096], int width)
 {
     const char *p = text, *fit = text, *space = NULL;
     while (*p && *p != '\n') {
-        const char *next = p + 1;
-        while (((unsigned char)*next & 0xc0) == 0x80) {
-            next++;
+        /* A space is a word of its own: wrapping prefers the last space. */
+        const char *end = p;
+        if (*end == ' ') {
+            end++;
         }
-        size_t size = (size_t)(next - text);
-        if (size >= 4096) {
+        else {
+            while (*end && *end != ' ' && *end != '\n' && (size_t)(end - text) < 4095) {
+                end = next_character(end);
+            }
+        }
+        if (end == p) {
             break;
         }
-        memcpy(out, text, size);
-        out[size] = 0;
-        int measured = 0;
-        if (TTF_SizeUTF8(font, out, &measured, NULL) < 0 || measured > width) {
+        if (prefix_fits(font, text, end, out, width)) {
+            if (*p == ' ') {
+                space = p;
+            }
+            p = fit = end;
+            continue;
+        }
+        while (p < end) {
+            const char *next = next_character(p);
+            if (!prefix_fits(font, text, next, out, width)) {
+                break;
+            }
+            fit = next;
+            if (*p == ' ') {
+                space = p;
+            }
+            p = next;
+        }
+        /* Shaping can make a word narrower than one of its prefixes. */
+        if (p < end) {
             break;
         }
-        fit = next;
-        if (*p == ' ') {
-            space = p;
-        }
-        p = next;
     }
     if (p == text && *p && *p != '\n') {
-        fit = p + 1;
-        while (((unsigned char)*fit & 0xc0) == 0x80) {
-            fit++;
-        }
+        fit = next_character(p);
     }
     else if (*p && *p != '\n' && space) {
         fit = space;
@@ -242,6 +279,46 @@ static const char *line(TTF_Font *font, const char *text, char out[4096], int wi
         fit++;
     }
     return fit;
+}
+
+/* The title's line breaks, from the theme's layouts of the last 5 titles,
+ * or worked out and kept in the least recently used one. NULL for a title
+ * too long to keep (over 4095 bytes or 256 lines): it is wrapped each time. */
+static const MainUITitleLayout *title_lines(MainUITheme *theme, const char *title, int width)
+{
+    MainUITitleLayout *layout = &theme->title_layouts[0];
+    for (int i = 0; i < 5; i++) {
+        MainUITitleLayout *kept = &theme->title_layouts[i];
+        if (kept->used && kept->font == theme->title_font && kept->width == width &&
+            !strcmp(kept->title, title)) {
+            kept->used = ++theme->title_layout_clock;
+            return kept;
+        }
+        if (kept->used < layout->used) {
+            layout = kept;
+        }
+    }
+    size_t bytes = strlen(title);
+    if (bytes >= sizeof layout->title) {
+        return NULL;
+    }
+    layout->used = 0;
+    layout->count = 0;
+    char wrapped[4096];
+    for (const char *p = title; *p;) {
+        if (layout->count >= sizeof layout->lines / sizeof layout->lines[0]) {
+            return NULL;
+        }
+        const char *start = p;
+        p = line(theme->title_font, p, wrapped, width);
+        layout->lines[layout->count].start = (unsigned short)(start - title);
+        layout->lines[layout->count++].length = (unsigned short)strlen(wrapped);
+    }
+    memcpy(layout->title, title, bytes + 1);
+    layout->font = theme->title_font;
+    layout->width = width;
+    layout->used = ++theme->title_layout_clock;
+    return layout;
 }
 
 void mainui_details_draw(MainUIDetails *details, MainUITheme *theme, SDL_Surface *screen)
@@ -282,7 +359,17 @@ void mainui_details_draw(MainUIDetails *details, MainUITheme *theme, SDL_Surface
     if (height > 40) {
         height = 40;
     }
-    while (*text) {
+    /* The title is the same on every frame: its line breaks and the lines'
+     * surfaces are kept rather than measured and rendered again. */
+    const MainUITitleLayout *layout = title_lines(theme, text, 360);
+    for (unsigned i = 0; layout && i < layout->count; i++) {
+        memcpy(wrapped, text + layout->lines[i].start, layout->lines[i].length);
+        wrapped[layout->lines[i].length] = 0;
+        SDL_Surface *surface = mainui_theme_text(theme, theme->title_font, wrapped, theme->color);
+        mainui_blit(screen, surface, 274, y);
+        y += height;
+    }
+    while (!layout && *text) {
         text = line(theme->title_font, text, wrapped, 360);
         mainui_label(screen, theme->title_font, theme->color, wrapped, 274, y);
         y += height;

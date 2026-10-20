@@ -136,6 +136,9 @@ typedef struct {
     MainUIViewport home_view;
     MainUIMenuView menu_view;
     SDL_Surface *labels[20];
+    /* The row's title reads right to left: it is shown and scrolled from its
+     * right end, where it begins. Set with labels. */
+    bool label_rtl[20];
     SDL_Surface *highlighted[20];
     int cached_start;
     int status;

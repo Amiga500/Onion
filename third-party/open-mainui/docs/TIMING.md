@@ -1,8 +1,11 @@
 # Timing diagnostics
 
-Keep the installed wrapper's existing Onion logging switch: `.tmp_update/config/.logging`. When it exists, the wrapper appends stdout and stderr to `.tmp_update/logs/MainUI.log`. The wrapper was not changed for timing support. Without that marker stdout is /dev/null: startup detects this once and subsequent marks/counters return without reading the clock or updating counters. The one-time detection still has a cost; no fixed nanosecond claim is made.
+Keep the installed wrapper's existing Onion logging switch: `.tmp_update/config/.logging`. When it exists, the wrapper appends stdout and stderr to `.tmp_update/logs/MainUI.log`. The wrapper was not changed for timing support.
+Without that marker stdout is /dev/null: startup detects this once and subsequent marks/counters return without reading the clock or updating counters. The one-time detection still has a cost; no fixed nanosecond claim is made.
 
-Marks use CLOCK_MONOTONIC and integer timespec arithmetic. Only the UI thread records timestamps. Catalog counters use atomic longs, since scans can run on a worker. While the UI runs, at most one interim line per minute is written, and only when counters changed: `[timing] interim uptime-ms N` followed by the same counters as the final report. Onion stops MainUI with SIGKILL when the Menu button opens the game switcher, so that session never reaches teardown; its last interim line is then the figure to use. After workers stop, teardown emits one block to stdout, including peak RSS from /proc/self/status (VmHWM, in KiB). A direct host run also reports when stdout is a terminal or captured file.
+Marks use CLOCK_MONOTONIC and integer timespec arithmetic. Only the UI thread records timestamps. Catalog counters use atomic longs, since scans can run on a worker.
+While the UI runs, at most one interim line per minute is written, and only when counters changed: `[timing] interim uptime-ms N` followed by the same counters as the final report. Onion stops MainUI with SIGKILL when the Menu button opens the game switcher, so that session never reaches teardown; its last interim line is then the figure to use.
+After workers stop, teardown emits one block to stdout, including peak RSS from /proc/self/status (VmHWM, in KiB). A direct host run also reports when stdout is a terminal or captured file.
 
 ## Reading the report
 
@@ -14,7 +17,8 @@ Marks use CLOCK_MONOTONIC and integer timespec arithmetic. Only the UI thread re
 - launch-ms: latest dispatched key-down to launch handoff, handoff to exit mark, and their sum. Timer/decoder/key-up events cannot replace the key mark. Input queue delay before dispatch is not included.
 - peak-rss: the process's peak resident memory; it includes earlier decode spikes.
 - frames: successful UI frame flips.
-- draw-ms: accumulated wall-clock milliseconds around mainui_draw_frame, including drawing, rotation, blitting and SDL_Flip. Uses the existing timing helper, which calls mainui_count_add and skips clock reads when logging is disabled. Each draw duration is truncated to integer milliseconds. For ordinary runs with successful flips, draw-ms / frames gives average measured milliseconds per frame; skip the division when frames is zero. Snapshot saves and failed presentations also contribute draw time but do not increment frames.
+- draw-ms: accumulated wall-clock milliseconds around mainui_draw_frame, including drawing, rotation, blitting and SDL_Flip. Uses the existing timing helper, which calls mainui_count_add and skips clock reads when logging is disabled. Each draw duration is truncated to integer milliseconds.
+  For ordinary runs with successful flips, draw-ms / frames gives average measured milliseconds per frame; skip the division when frames is zero. Snapshot saves and failed presentations also contribute draw time but do not increment frames.
 - gap-under35, gap-40, gap-50-60, gap-over65: spacing between consecutive animation frames (marquee and letter jump), in buckets of under 35, 35-45, 46-65 and over 65 ms. A scrolling title should land almost entirely in gap-40; letter jump counts under gap-under35. A few entries at startup or around the scroll delay are normal.
 - roms: games in the most recently entered catalog folder, excluding folders; zero if no ROM folder has been entered. It is not a whole-card count.
 - cache: most recent successful catalog entry: 1 for database, 0 for scan, -1 if no catalog folder has been entered.
@@ -63,7 +67,8 @@ session, including navigation, so use the same entry and exit steps. Compare
 cache-build-ms and scan-ms for Refresh roms too; if it takes longer than 60 seconds,
 let it finish and record the actual session duration.
 
-While a title scrolls, frames are paced on fixed 40 ms deadlines (four 10 ms kernel ticks) and the title moves one whole-pixel step per frame. This departs from exact `.romListTitleScroll` speed parity on purpose: an averaging step would keep the exact speed but bring back uneven motion. From 25 px/s up, the configured speed is rounded to a whole number of pixels per frame, that is to a multiple of 25 px/s (120 px/s scrolls at 125 px/s). Below that, the title moves one pixel every 2, 3, 4 or 5 frames, so only five slow speeds exist. Of the 396 accepted speeds (5 to 400 px/s), the 17 exact ones are 5 px/s and the multiples of 25.
+While a title scrolls, frames are paced on fixed 40 ms deadlines (four 10 ms kernel ticks) and the title moves one whole-pixel step per frame. This departs from exact `.romListTitleScroll` speed parity on purpose: an averaging step would keep the exact speed but bring back uneven motion.
+From 25 px/s up, the configured speed is rounded to a whole number of pixels per frame, that is to a multiple of 25 px/s (120 px/s scrolls at 125 px/s). Below that, the title moves one pixel every 2, 3, 4 or 5 frames, so only five slow speeds exist. Of the 396 accepted speeds (5 to 400 px/s), the 17 exact ones are 5 px/s and the multiples of 25.
 
 | Configured px/s | Actual px/s | Motion |
 | --- | --- | --- |

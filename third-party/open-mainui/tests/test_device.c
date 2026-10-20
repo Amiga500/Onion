@@ -16,6 +16,7 @@ typedef struct {
     int calls, fail_at;
     bool block, block_scan;
     int ignore_cancel_ms; /* non-cooperating backend: finish late regardless */
+    const char *list;     /* LIST_NETWORKS reply, else none saved */
     char commands[32][256];
 } Fake;
 
@@ -63,6 +64,8 @@ static bool transport(void *context, const char *command, char *reply, size_t si
     const char *text =
         fake->calls == fake->fail_at      ? "FAIL\n"
         : !strcmp(command, "ADD_NETWORK") ? "7\n"
+        : !strcmp(command, "LIST_NETWORKS")
+            ? (fake->list ? fake->list : "network id / ssid / bssid / flags\n")
         : !strcmp(command, "SCAN_RESULTS")
             ? "bssid / frequency / signal level / flags / ssid\naa\t2412\t-50\t[WPA2]\tHost Wi-Fi\n"
         : !strcmp(command, "SIGNAL_POLL") ? "RSSI=-81\nLINKSPEED=54\n"
@@ -233,25 +236,123 @@ int main(int argc, char **argv)
     adapter.transport = transport;
     adapter.transport_context = &fake;
     assert(mainui_device_connect(&adapter, "Bob's $Wi-Fi", "pass'word", (MainUICancel){0}));
-    assert(fake.calls == 6);
+    assert(fake.calls == 7);
     assert(!strcmp(fake.commands[1], "SET_NETWORK 7 ssid \"Bob's $Wi-Fi\""));
     assert(!strcmp(fake.commands[2], "SET_NETWORK 7 psk \"pass'word\""));
-    assert(!strcmp(fake.commands[5], "SAVE_CONFIG"));
+    assert(!strcmp(fake.commands[4], "SELECT_NETWORK 7"));
+    assert(!strcmp(fake.commands[5], "LIST_NETWORKS"));
+    assert(!strcmp(fake.commands[6], "SAVE_CONFIG"));
+    /* SELECT_NETWORK disabled the other saved networks: they are enabled
+     * again, without connecting, before the configuration is saved. */
+    fake = (Fake){.list = "network id / ssid / bssid / flags\n"
+                          "0\tHome\tany\t[DISABLED]\n1\tWork\tany\t[TEMP-DISABLED]\n"
+                          "2\tCafe\tany\t[DISABLED]\n7\tNew\tany\t[CURRENT]\n"};
+    assert(mainui_device_connect(&adapter, "New", "password", (MainUICancel){0}));
+    assert(fake.calls == 9 && !strcmp(fake.commands[6], "ENABLE_NETWORK 0 no-connect") &&
+           !strcmp(fake.commands[7], "ENABLE_NETWORK 2 no-connect") &&
+           !strcmp(fake.commands[8], "SAVE_CONFIG"));
     fake = (Fake){0};
     assert(mainui_device_connect(&adapter, "Open", "", (MainUICancel){0}));
     assert(!strcmp(fake.commands[2], "SET_NETWORK 7 key_mgmt NONE"));
-    for (int failure = 1; failure <= 6; ++failure) {
+    for (int failure = 1; failure <= 7; ++failure) {
         fake = (Fake){.fail_at = failure};
-        assert(!mainui_device_connect(&adapter, "Host", "password", (MainUICancel){0}));
-        if (failure > 1) {
+        /* Enabling the other networks again is best effort. */
+        assert(mainui_device_connect(&adapter, "Host", "password", (MainUICancel){0}) ==
+               (failure == 6));
+        if (failure > 1 && failure != 6) {
             assert(!strcmp(fake.commands[fake.calls - 1], "REMOVE_NETWORK 7"));
         }
     }
+    /* A saved network connects with its saved entry: nothing is added or
+     * saved. Of duplicates, the newest (a password entered again) is used. */
+    const char *saved = "network id / ssid / bssid / flags\n"
+                        "3\tHome\tany\t[DISABLED]\n4\tWork\tany\t[DISABLED]\n"
+                        "5\tWork\tany\t[DISABLED]\n6\tWork 2\tany\t\n";
+    fake = (Fake){.list = saved};
+    assert(mainui_device_connect_saved(&adapter, "Work", (MainUICancel){0}));
+    assert(fake.calls == 5 && !strcmp(fake.commands[0], "LIST_NETWORKS") &&
+           !strcmp(fake.commands[1], "SELECT_NETWORK 5") &&
+           !strcmp(fake.commands[3], "ENABLE_NETWORK 3 no-connect") &&
+           !strcmp(fake.commands[4], "ENABLE_NETWORK 4 no-connect"));
+    for (int i = 0; i < fake.calls; ++i) {
+        assert(strncmp(fake.commands[i], "ADD_NETWORK", 11) &&
+               strncmp(fake.commands[i], "SET_NETWORK", 11) &&
+               strcmp(fake.commands[i], "SAVE_CONFIG") &&
+               strncmp(fake.commands[i], "REMOVE_NETWORK", 14));
+    }
+    /* The one in use wins over a newer one. */
+    fake = (Fake){.list = "network id / ssid / bssid / flags\n"
+                          "3\tWork\tany\t[CURRENT]\n4\tWork\tany\t[DISABLED]\n"};
+    assert(mainui_device_connect_saved(&adapter, "Work", (MainUICancel){0}));
+    assert(!strcmp(fake.commands[1], "SELECT_NETWORK 3"));
+    fake = (Fake){.list = saved};
+    assert(!mainui_device_connect_saved(&adapter, "Wor", (MainUICancel){0}));
+    assert(fake.calls == 1 && *adapter.error);
+    fake = (Fake){.list = saved, .fail_at = 2};
+    assert(!mainui_device_connect_saved(&adapter, "Home", (MainUICancel){0}));
+    assert(fake.calls == 2);
+    fake = (Fake){.list = saved};
+    assert(!mainui_device_connect_saved(&adapter, "bad\"SSID", (MainUICancel){0}));
+    assert(!fake.calls);
     fake = (Fake){0};
     assert(!mainui_device_connect(&adapter, "bad\"SSID", "password", (MainUICancel){0}));
     assert(
         !mainui_device_connect(&adapter, "Host", "password", (MainUICancel){always_cancel, NULL}));
     assert(!fake.calls);
+    /* A scan keeps the saved list for the Wi-Fi page. The first status
+     * refresh after Wi-Fi starts enables saved networks an earlier
+     * SELECT_NETWORK left disabled, without connecting; later ones do not. */
+    assert(mainui_device_wifi_enable(&adapter, false, (MainUICancel){0}));
+    fake = (Fake){.list = saved};
+    assert(mainui_device_scan(&adapter, (MainUICancel){0}));
+    assert(fake.calls == 9 && !strcmp(fake.commands[2], "LIST_NETWORKS") &&
+           !strcmp(fake.commands[5], "LIST_NETWORKS") &&
+           !strcmp(fake.commands[6], "ENABLE_NETWORK 3 no-connect") &&
+           !strcmp(fake.commands[8], "ENABLE_NETWORK 5 no-connect"));
+    char saved_file[4096];
+    snprintf(saved_file, sizeof saved_file, "%s/wifi-saved.txt", root);
+    char *kept = mainui_read_text(saved_file, 16384);
+    assert(kept && !strcmp(kept, saved));
+    free(kept);
+    fake = (Fake){.list = saved};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 2);
+    /* Enabling that fails (no list, or a refused network) is tried again
+     * with the next refresh, until it works. */
+    assert(mainui_device_wifi_enable(&adapter, false, (MainUICancel){0}));
+    fake = (Fake){.list = saved, .fail_at = 3};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 3);
+    fake = (Fake){.list = saved, .fail_at = 5};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 6);
+    fake = (Fake){.list = saved};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 6);
+    fake = (Fake){.list = saved};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 2);
+    /* So is enabling that fails after a later SELECT_NETWORK, whether a
+     * network was chosen with a password or as a saved one, and when the
+     * selection's answer is lost. */
+    fake = (Fake){.list = saved, .fail_at = 6};
+    assert(mainui_device_connect(&adapter, "Host", "password", (MainUICancel){0}));
+    fake = (Fake){.list = saved};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 6);
+    fake = (Fake){.list = saved};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 2);
+    fake = (Fake){.list = saved, .fail_at = 4};
+    assert(mainui_device_connect_saved(&adapter, "Work", (MainUICancel){0}));
+    fake = (Fake){.list = saved};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 6);
+    fake = (Fake){.list = saved};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 2);
+    fake = (Fake){.list = saved, .fail_at = 2};
+    assert(!mainui_device_connect_saved(&adapter, "Work", (MainUICancel){0}));
+    fake = (Fake){.list = saved};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 6);
+    fake = (Fake){.list = saved};
+    assert(mainui_device_refresh(&adapter, (MainUICancel){0}) && fake.calls == 2);
+    /* No saved list: the file goes, so no network is taken for saved. */
+    fake = (Fake){.fail_at = 3};
+    assert(mainui_device_scan(&adapter, (MainUICancel){0}));
+    assert(!mainui_file_stamp(saved_file).exists);
+    fake = (Fake){0};
     assert(mainui_device_scan(&adapter, (MainUICancel){0}));
     state = mainui_device_status(&adapter);
     assert(state.wifi == 1 && !strcmp(state.ssid, "Host Wi-Fi") &&
@@ -272,6 +373,31 @@ int main(int argc, char **argv)
     put(root, "wifi-status.txt", "wpa_state=COMPLETED\nRSSI=bad\n");
     assert(mainui_device_status(&adapter).wifi_signal == 0);
     MainUISettingsPage page = {0};
+    /* A saved secure network connects without a password (7); one whose
+     * saved attempt failed, or one not saved, asks for it (2). */
+    put(root, "wifi-scan.txt",
+        "bssid / frequency / signal level / flags / ssid\n"
+        "aa\t2412\t-50\t[WPA2]\tWork\n"
+        "bb\t2412\t-50\t[WPA2]\tWork 2 x\n"
+        "cc\t2412\t-50\t[ESS]\tOpen\n");
+    put(root, "wifi-saved.txt", saved);
+    mainui_settings_page_scan_results(&page, root);
+    assert(page.network_count == 3 && page.network_saved[0] && !page.network_saved[1] &&
+           !page.network_saved[2]);
+    page.kind = SET_WIFI;
+    page.open = page.managed_device = true;
+    page.wifi = 1;
+    page.selected = 1;
+    assert(mainui_settings_page_key(&page, SDLK_RETURN, NULL, NULL) == 7 &&
+           !strcmp(page.ssid, "Work"));
+    snprintf(page.retry_ssid, sizeof page.retry_ssid, "Work");
+    assert(mainui_settings_page_key(&page, SDLK_RETURN, NULL, NULL) == 2);
+    page.selected = 2;
+    assert(mainui_settings_page_key(&page, SDLK_RETURN, NULL, NULL) == 2);
+    page.selected = 3;
+    assert(mainui_settings_page_key(&page, SDLK_RETURN, NULL, NULL) == 3);
+    mainui_remove_file(saved_file);
+    page = (MainUISettingsPage){0};
     put(root, "wifi-scan.txt",
         "bssid / frequency / signal level / flags / ssid\n"
         "aa\t2412\t-81\t[WPA2]\tWeak\n"

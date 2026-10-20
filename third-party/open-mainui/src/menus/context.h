@@ -50,7 +50,10 @@ typedef struct {
 /* Ordered SELECT menu, including hidden registered entries and bounded custom
  * actions. Parsing never executes a launcher or reads a language file. */
 void mainui_context_load(MainUIContext *context, const char *directory, const char *sd);
-void mainui_context_parse(MainUIContext *context, const char *text, bool search, bool tweaks);
+/* search, tweaks and themes: App/Search, App/Tweaks and App/ThemeSwitcher are
+ * installed. Without its app an entry is left out. */
+void mainui_context_parse(MainUIContext *context, const char *text, bool search, bool tweaks,
+                          bool themes);
 /* Construct a stock list popup; caller supplies the section-specific inventory. */
 void mainui_context_rows(MainUIContext *context, const MainUIContextAction *actions, int count);
 void mainui_context_reveal(MainUIContext *context);

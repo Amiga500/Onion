@@ -112,6 +112,15 @@ int mainui_suite_core(void)
                   blits[b].destination_x + blits[b].width <= 250);
         }
     }
+    /* Titles whose first strong character is Hebrew or Arabic scroll right. */
+    CHECK(mainui_text_rtl("\u0627\u0644\u0639\u0631\u0628\u064a\u0629 (Mario [USA]) "
+                          "\u0627\u0644\u062c\u062f\u064a\u062f.nes"));
+    CHECK(mainui_text_rtl("[!] 1-2 \u05e9\u05dc\u05d5\u05dd"));
+    CHECK(mainui_text_rtl("\u00ab\ufefb"));
+    CHECK(!mainui_text_rtl("Mario (\u0627\u0644\u0639\u0631\u0628\u064a\u0629).nes"));
+    CHECK(!mainui_text_rtl("Pok\u00e9mon") && !mainui_text_rtl("\u00c9t\u00e9"));
+    CHECK(!mainui_text_rtl("\u30de\u30ea\u30aa \u0627") && !mainui_text_rtl("123 [!]"));
+    CHECK(!mainui_text_rtl("") && !mainui_text_rtl(NULL) && !mainui_text_rtl("\xd8"));
     /* Marquee offsets advance by a constant whole-pixel step per 40 ms frame. */
     CHECK(mainui_marquee_pixels(0, 40) == 0 && mainui_marquee_pixels(39, 40) == 0);
     CHECK(mainui_marquee_pixels(40, 40) == 2 && mainui_marquee_pixels(79, 40) == 2);

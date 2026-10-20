@@ -13,6 +13,7 @@
 #include "utils/log.h"
 #include "utils/str.h"
 
+#include "themeListRescale.h"
 #include "themeMarker.h"
 #include "themePreview.h"
 
@@ -225,6 +226,10 @@ void installTheme(char *theme_path, bool apply_icons)
     snprintf(skin_cmd, sizeof(skin_cmd), "sh " SCRIPT_DIR "/system_skin.sh \"%s\"",
              theme_path);
     system(skin_cmd);
+
+    // List icons sized for the game-list row count, as Tweaks > Appearance >
+    // Game lists does when its rows or rescale option change.
+    theme_listRescale(theme_path, THEME_LIST_CONFIG_DIR, THEME_LIST_RESCALE_SCRIPT);
 }
 
 bool checkAndSetDir(char *dest, const char *dir_path)

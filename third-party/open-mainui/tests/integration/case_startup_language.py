@@ -112,4 +112,38 @@ assert Image.open(OUT / "resumed.bmp").tobytes() == Image.open(OUT / "settings-d
 result = run("RRREDDDDEDE", "no-restart", ONION_THEME)
 assert result.returncode == 0, result.stderr
 assert not (handoff / "mainui-return.json").exists()
+
+# A change to or from Arabic or Bengali restarts MainUI with any theme, so
+# runtime.sh can preload a shaping library as it starts MainUI again. Only
+# these four languages are listed: English, Svenska, Arabic, Bengali.
+shaped = OUT / "shaped-fallback"
+(shaped / "lang").mkdir(parents=True)
+for entry in ONION_THEME.iterdir():
+    if entry.name != "lang":
+        (shaped / entry.name).symlink_to(entry)
+for name in ["en", "sv", "ar", "bn"]:
+    shutil.copy(ONION_THEME / "lang" / (name + ".lang"), shaped / "lang")
+
+
+def change(previous):
+    """Choose the language after previous (Down once): True when it restarted."""
+    (restart_sd / "system.json").write_text(json.dumps({"language": previous}))
+    result = subprocess.run(
+        [str(BUILD / "MainUI-dev"), "--sd-root", str(restart_sd), "--theme", str(ONION_THEME),
+         "--fallback", str(shaped), "--handoff-dir", str(handoff), "--input", "RRREDDDDEDE",
+         "--snapshot", str(OUT / ("shaped-" + previous + ".bmp"))],
+        cwd=ROOT, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    returned = handoff / "mainui-return.json"
+    restarted = returned.exists()
+    if restarted:
+        assert json.loads(returned.read_text())["resume"]["section"] == 5
+        returned.unlink()
+    return json.loads((restart_sd / "system.json").read_text())["language"], restarted
+
+
+assert change("sv.lang") == ("ar.lang", True)
+assert change("ar.lang") == ("bn.lang", True)
+assert change("bn.lang") == ("en.lang", True)
+assert change("en.lang") == ("sv.lang", False)
 print("startup_language: ok")

@@ -18,6 +18,10 @@ typedef struct {
     char networks[32][33], message[256];
     int network_signal[32];
     bool network_secure[32], connect_after_password;
+    /* wpa_supplicant has the network saved: choosing it connects without a
+     * password, unless it is retry_ssid, whose last attempt failed. */
+    bool network_saved[32];
+    char retry_ssid[33];
     /* A Wi-Fi failure in message stays until the next button press. */
     bool message_held;
 } MainUISettingsPage;
@@ -41,7 +45,8 @@ void mainui_settings_page_open(MainUISettingsPage *page, MainUISettingKind kind,
 void mainui_settings_page_device_info(MainUISettingsPage *, const MainUIDeviceAdapter *,
                                       const char *sd);
 void mainui_settings_page_scan_results(MainUISettingsPage *, const char *runtime);
-/* Managed adapters return 3=connect, 4=scan to the asynchronous dispatcher.
+/* Managed adapters return 3=connect, 4=scan, 7=connect to a saved network to
+ * the asynchronous dispatcher.
  * 1 requests the SSID keyboard; 2 requests the password keyboard. */
 int mainui_settings_page_key(MainUISettingsPage *page, SDLKey key, const char *sd,
                              const char *runtime);

@@ -1,6 +1,9 @@
 ###########################################################
 
-TARGET=OnionPlus
+# The project is RedOnion (earlier releases: OnionPlus). TARGET names the
+# release zip, RedOnion-v<version>.zip; the release workflows also attach a
+# copy named OnionPlus-v<version>.zip for updaters from before the rename.
+TARGET=RedOnion
 # The version is the base plus the day of the build (UTC), for example
 # 4.4.0-beta-20261017: every build is dated, also one made by hand. Settings >
 # About in Open MainUI shows only the first characters of the version; the

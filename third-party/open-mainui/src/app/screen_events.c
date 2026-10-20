@@ -37,6 +37,15 @@ bool mainui_launch_tool(const char *directory, const char *sd, const MainUILaunc
     return ok;
 }
 
+/* Arabic and Bengali need their letters joined and reordered, which the
+ * SDL_ttf Onion uses cannot do. A library preloaded by Onion's runtime.sh can,
+ * and it decides that when it starts MainUI: a change to or from these
+ * languages restarts MainUI. */
+static bool shaped_language(const char *filename)
+{
+    return !strcmp(filename, "ar.lang") || !strcmp(filename, "bn.lang");
+}
+
 bool mainui_screen_language_open(MainUIApp *ui, SDLKey key)
 {
     if (!ui->language_open) {
@@ -63,6 +72,12 @@ bool mainui_screen_language_open(MainUIApp *ui, SDLKey key)
                 ? ui->languages.entries[ui->languages.selected].filename
                 : "en.lang";
         bool language_font = strncmp(chosen, "en.lang", 7) != 0;
+        cJSON *system = mainui_system_read(ui->sd);
+        const cJSON *current = cJSON_GetObjectItemCaseSensitive(system, "language");
+        const char *previous = cJSON_IsString(current) ? current->valuestring : "en.lang";
+        bool shaping =
+            strcmp(previous, chosen) && (shaped_language(previous) || shaped_language(chosen));
+        cJSON_Delete(system);
         if (mainui_language_select(&ui->languages, ui->sd)) {
             ui->language_open = false;
             mainui_languages_close(&ui->languages);
@@ -70,8 +85,8 @@ bool mainui_screen_language_open(MainUIApp *ui, SDLKey key)
             /* Stock reloads its fonts on a language change. The built-in
              * fallback differs by language, so when the theme relies on it,
              * restart MainUI (Onion starts it again) and resume Settings. */
-            if (ui->theme.fallback_font_used && language_font != ui->theme.language_font &&
-                ui->handoff_dir) {
+            bool fonts = ui->theme.fallback_font_used && language_font != ui->theme.language_font;
+            if ((fonts || shaping) && ui->handoff_dir) {
                 MainUIStack legacy;
                 cJSON *resume = mainui_session_snapshot(
                     MAINUI_MENU_SETTINGS, NULL, NULL, &ui->settings_view, &ui->home_view, &legacy);
@@ -80,7 +95,7 @@ bool mainui_screen_language_open(MainUIApp *ui, SDLKey key)
                     ui->running = false;
                 }
                 else {
-                    fprintf(stderr, "Language changed; fonts update at the next start: %s\n",
+                    fprintf(stderr, "Language changed; it applies fully at the next start: %s\n",
                             error);
                 }
                 cJSON_Delete(resume);
@@ -496,13 +511,14 @@ bool mainui_screen_settings_page_key(MainUIApp *ui, SDLKey key)
         snprintf(
             ui->settings_page.message, sizeof ui->settings_page.message, "%s",
             started && (ui->settings_keyboard == 4 || ui->settings_keyboard == 5) ? "Scanning..."
-            : !started && ui->settings_keyboard == 3 && ui->settings_page.wifi
+            : !started && (ui->settings_keyboard == 3 || ui->settings_keyboard == 7) &&
+                    ui->settings_page.wifi
                 ? (busy ? "Wi-Fi is busy. Try again when it finishes." : "Cannot start connecting.")
                 : "");
         if (started) {
             memset(ui->settings_page.password, 0, sizeof ui->settings_page.password);
         }
-        if (started && ui->settings_keyboard == 3) {
+        if (started && (ui->settings_keyboard == 3 || ui->settings_keyboard == 7)) {
             ui->wifi_join_watch = false;
         }
         ui->settings_keyboard = 0;

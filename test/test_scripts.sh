@@ -1318,28 +1318,46 @@ EOF
 check "\"Refresh roms\" and \"Refresh all roms\" differ (same in: ${same_refresh:-none})" test -z "$same_refresh"
 end
 
-begin refresh_labels_fit_the_select_menu
-# Silky RedOnion: a 320 px popup, text from x 20, list font wqy-microhei at
-# 25 px (Noto for Arabic and Bengali). Needs Pillow; skipped without it.
-too_wide=$(python3 - "$ROOT/static/build/miyoo/app" << 'EOF'
+begin select_menu_labels_fit
+# Open MainUI's SELECT menu with Silky RedOnion: a 320 px popup, text from
+# x 20, so 300 px for a label. The list font is wqy-microhei at 25 px in
+# bold: SDL_ttf's bold adds 2 px (25 / 10) to every glyph, so a label is its
+# Pillow width plus 2 px a character (within 3 px of SDL_ttf for these
+# labels). Arabic and Bengali are drawn in the bold Noto fonts. Keys: 27
+# Refresh roms, 54 Refresh all roms, 55 Add to favorites. Needs Pillow;
+# skipped without it.
+# Still too wide, waiting for shorter translations (remove a line once its
+# label fits; the test fails while a listed label already fits):
+known_wide="ca:54 de:54 de:55 es:54 fr:54 gl:54 gr:54 gr:55 id:54 ja-ryu:55
+nl:55 oc:54 pl:54 pt-BR:54 pt-BR:55 pt:27 pt:54 pt:55 ro:54 ru:55"
+result=$(python3 - "$ROOT/static/build/miyoo/app" "$known_wide" << 'EOF'
 import json, pathlib, sys
 try:
     from PIL import ImageFont
 except ImportError:
     sys.exit(0)
 app = pathlib.Path(sys.argv[1])
-fonts = {name: ImageFont.truetype(str(app / name), 25) for name in
-         ("wqy-microhei.ttc", "NotoSansArabicUI-Regular.ttf", "NotoSansBengaliUI-Regular.ttf")}
+known = set(sys.argv[2].split())
+wqy = ImageFont.truetype(str(app / "wqy-microhei.ttc"), 25)
+noto = {"ar": ImageFont.truetype(str(app / "NotoSansArabicUI-Bold.ttf"), 25),
+        "bn": ImageFont.truetype(str(app / "NotoSansBengaliUI-Bold.ttf"), 25)}
+wide = set()
 for p in sorted((app / "lang").glob("*.lang")):
     d = json.loads(p.read_text(encoding="utf-8-sig"))
-    font = fonts["NotoSansArabicUI-Regular.ttf" if p.name == "ar.lang" else
-                 "NotoSansBengaliUI-Regular.ttf" if p.name == "bn.lang" else "wqy-microhei.ttc"]
-    for key in ("27", "54"):
-        if font.getlength(d.get(key, "")) > 300:
-            print(f"{p.name}:{key}")
+    for key in ("27", "54", "55"):
+        text = d.get(key, "")
+        width = (noto[p.stem].getlength(text) if p.stem in noto
+                 else wqy.getlength(text) + 2 * len(text))
+        if width > 300:
+            wide.add(f"{p.stem}:{key}")
+print("new=" + ",".join(sorted(wide - known)))
+print("fixed=" + ",".join(sorted(known - wide)))
 EOF
 )
-check "Refresh labels fit 300 px (too wide: ${too_wide:-none})" test -z "$too_wide"
+new=$(echo "$result" | sed -n 's/^new=//p')
+fixed=$(echo "$result" | sed -n 's/^fixed=//p')
+check "SELECT menu labels fit 300 px (too wide: ${new:-none})" test -z "$new"
+check "the known-wide list is current (now fit: ${fixed:-none})" test -z "$fixed"
 end
 
 # ---- rescale_theme_list_icons.sh: wide spacer rule ----
@@ -1464,6 +1482,110 @@ check "after the fb driver is up (lines $res < $warm)" test "${res:-0}" -gt 0 -a
 check "before MainUI's layout is set (lines $warm < $layout)" test "${layout:-0}" -gt "${warm:-0}"
 check "no sleep left between them" test -z "$(printf '%s\n' "$boot_fn" | sed -n "${warm:-1},${layout:-1}p" | grep -E '^ *sleep')"
 unset -f line_of
+end
+
+begin arcade_cores_ignore_power_as_r3
+# The power button reaches RetroArch as R3, which the FB Alpha / FinalBurn
+# cores use for Diagnostic: turning the console off during a game opened the
+# test menu, still on screen after power on. Every core of the family ships
+# a remap that unbinds R3, as CPS-2 has since Onion 4.1.
+remaps="$ROOT/static/configs/Saves/CurrentProfile/config/remaps"
+for core in "FB Alpha 2012" "FB Alpha 2012 CPS-1" "FB Alpha 2012 CPS-2" \
+    "FB Alpha 2012 CPS-3" "FB Alpha 2012 Neo Geo" "FinalBurn Neo"; do
+    check "$core: R3 unbound" grep -qx 'input_player1_btn_r3 = "-1"' "$remaps/$core/$core.rmp"
+done
+cores="$ROOT/static/build/RetroArch/.retroarch/cores"
+for info in "$cores"/fbalpha2012*_libretro.info "$cores"/fbneo_libretro.info; do
+    name=$(sed -n 's/^corename = "\(.*\)"$/\1/p' "$info")
+    check "remap folder matches the core name: $name" test -f "$remaps/$name/$name.rmp"
+done
+begin wifi_starts_with_power_save_on
+# Power save off kept the radio awake while idle: a Mini Plus in the menu
+# with Wi-Fi connected drained about 20% faster and ran warm. Wi-Fi now
+# starts with power save on, as Onion's stock MainUI ran with it.
+eval "$(extract_fn "$NETWORK" wifi_on)"
+log() { :; }
+sleep() { :; }
+ifconfig() { :; }
+udhcpc() { :; }
+iw() { echo "$*" >> "$TMP/iw"; }
+miyoodir_saved=${miyoodir-}
+miyoodir=$TMP
+mkdir -p "$TMP/app"
+printf '#!/bin/sh\n' > "$TMP/app/wpa_supplicant"
+chmod +x "$TMP/app/wpa_supplicant"
+wifi_on > /dev/null 2>&1
+check "wifi_on turns power save on" grep -qx "dev wlan0 set power_save on" "$TMP/iw"
+check "the OTA's Wi-Fi start turns it on too" grep -q "iw dev wlan0 set power_save on" "$OTA"
+check "no script hardcodes power save off" sh -c "! grep -rq 'power_save off' \"$ROOT/static/build\""
+miyoodir=$miyoodir_saved
+unset -f log sleep ifconfig udhcpc iw wifi_on
+end
+
+begin release_named_redonion_with_onionplus_copy
+# The project is RedOnion. Updaters before the rename (beta 8 and earlier)
+# select an asset containing "OnionPlus-v", so every release also carries
+# the same zip under that name; ota_update.sh takes either.
+PRE="$ROOT/.github/workflows/pre-release.yml"
+TAGGED="$ROOT/.github/workflows/tagged-release.yml"
+check "the Makefile names the zip RedOnion" grep -qx "TARGET=RedOnion" "$ROOT/Makefile"
+check "release tag and title are RedOnion" sh -c "grep -qF 'RELEASE_TAG=RedOnion-v' '$PRE' && grep -qF 'RELEASE_TITLE=RedOnion V' '$PRE'"
+check "the release zip is RedOnion-v" grep -qF 'ZIP_NAME=RedOnion-v${BUILD_VERSION}-${SHA_SHORT}.zip' "$PRE"
+check "an OnionPlus-v copy is made" grep -qF 'cp "release/${ZIP_NAME}" "release/${LEGACY_ZIP_NAME}"' "$PRE"
+check "the copy keeps the same version" grep -qF 'LEGACY_ZIP_NAME=OnionPlus-v${BUILD_VERSION}-${SHA_SHORT}.zip' "$PRE"
+check "both zips are published" sh -c "grep -qF 'release/\${{ env.ZIP_NAME }}' '$PRE' && grep -qF 'release/\${{ env.LEGACY_ZIP_NAME }}' '$PRE'"
+check "tagged releases carry both too" sh -c "grep -qF 'release/RedOnion-v' '$TAGGED' && grep -qF 'release/OnionPlus-v' '$TAGGED'"
+check "the updater takes both names" grep -qx 'PACKAGE_PREFIXES="RedOnion-v OnionPlus-v"' "$OTA"
+end
+
+begin netplay_runs_with_power_save_off
+# With power save on, a ping to an idle Mini Plus averaged 40 ms with peaks
+# of 220 ms (3.5 ms, max 15 with it off). Netplay turns it off right before
+# each RetroArch launch (after any Wi-Fi restart, which resets it to on) and
+# Netplay.sh turns it on again when the session ends.
+PS="$ROOT/static/build/.tmp_update/script/network/wifi_power_save.sh"
+NETPLAY_DIR="$ROOT/static/build/.tmp_update/script/netplay"
+NETPLAY="$ROOT/static/build/App/romscripts/Netplay.sh"
+launches=0
+unguarded=0
+for f in "$NETPLAY_DIR"/*.sh; do
+    n=$(grep -c '^[[:space:]]*HOME=/mnt/SDCARD/RetroArch \./retroarch ' "$f")
+    launches=$((launches + n))
+    bad=$(awk '
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        /^[[:space:]]*HOME=\/mnt\/SDCARD\/RetroArch \.\/retroarch / {
+            if (prev !~ /wifi_power_save\.sh" off$/) n++
+        }
+        { prev = $0 }
+        END { print n + 0 }' "$f")
+    unguarded=$((unguarded + bad))
+done
+check "every netplay script launches RetroArch (8 launches)" [ "$launches" -eq 8 ]
+check "each launch turns power save off first" [ "$unguarded" -eq 0 ]
+check "Netplay.sh turns power save on at the end" sh -c \
+    "grep -v '^[[:space:]]*\$' \"$NETPLAY\" | tail -n 1 | grep -qx '\"\\\$sysdir/script/network/wifi_power_save.sh\" on'"
+check "only netplay turns power save off" sh -c \
+    "! grep -rl 'wifi_power_save.sh\" off' \"$ROOT/static/build\" | grep -v '/script/netplay/'"
+check "the helper is executable" [ -x "$PS" ]
+
+mkdir -p "$TMP/sys/bin" "$TMP/net/wlan0"
+printf '#!/bin/sh\necho "$*" >> "%s/iw"\necho "$LD_LIBRARY_PATH" > "%s/ld"\n' "$TMP" "$TMP" > "$TMP/sys/bin/iw"
+chmod +x "$TMP/sys/bin/iw"
+sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" off
+check "off: iw sets wlan0 power save off" grep -qx "dev wlan0 set power_save off" "$TMP/iw"
+check "iw finds its libraries" grep -q "$TMP/sys/lib/parasyte" "$TMP/ld"
+rm -f "$TMP/iw"
+sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" on
+check "on: iw sets wlan0 power save on" grep -qx "dev wlan0 set power_save on" "$TMP/iw"
+check "an absent wlan1 is left alone" sh -c "! grep -q wlan1 \"$TMP/iw\""
+rm -f "$TMP/iw"
+sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" maybe 2> /dev/null
+check "a wrong argument fails" [ $? -eq 2 ]
+check "and runs nothing" [ ! -e "$TMP/iw" ]
+rmdir "$TMP/net/wlan0"
+sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" off
+check "Wi-Fi off: nothing to do, no error" [ $? -eq 0 ]
+check "and iw is not called" [ ! -e "$TMP/iw" ]
 end
 
 echo ""
