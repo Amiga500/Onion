@@ -1,11 +1,13 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅⚡ OnionPlus beta 10: Open MainUI 1.0.9, longer battery with Wi-Fi, theme icons, arcade power button
+# 🧅🔴 RedOnion beta 10: Open MainUI 1.0.9, longer battery with Wi-Fi, theme icons, arcade power button
 
 > 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on the current stable release until this beta is promoted.
 
 This beta brings **Open MainUI 1.0.9**, fixes the **battery drain and warm device with Wi-Fi connected** that users reported, resizes list icons when you **install a theme**, stops the **power button** from opening the diagnostic menu in arcade games, and adds the **RedOnion boot screen** to Silky RedOnion.
 
-OnionPlus is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip. Open MainUI is now **1.0.9**: https://github.com/robcodedev/onionos-mainui-opensource
+**OnionPlus is now RedOnion.** Same project, same updates: devices on OnionPlus keep receiving updates as before, and nothing needs to be reinstalled. The release carries the same package twice, `RedOnion-v…zip` and `OnionPlus-v…zip`, so that older updaters still find it. Download either one.
+
+RedOnion is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip. Open MainUI is now **1.0.9**: https://github.com/robcodedev/onionos-mainui-opensource
 
 ## 🆕 New in beta 10
 
@@ -48,7 +50,7 @@ Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHA
 
 ## ⚠️ Known issues
 
-- **Mini Flip display colours** (Luminance, Hue, Saturation, Contrast) can be back at their defaults after a reboot: Open MainUI sets them only from Settings › Display, as stock does, and OnionPlus doesn't apply them at boot yet.
+- **Mini Flip display colours** (Luminance, Hue, Saturation, Contrast) can be back at their defaults after a reboot: Open MainUI sets them only from Settings › Display, as stock does, and RedOnion doesn't apply them at boot yet.
 - **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
 - **Arabic:** lines stay left-aligned like every other language, and text drawn one letter at a time (the on-screen keyboard) shows Arabic letters unjoined.
 - **Tweaks** is in English in every language.
@@ -68,13 +70,13 @@ Switch the OTA updater to the **beta** channel to receive this build. Useful thi
 - Settings › Wi-Fi: join a second network, then choose the first again: it should connect without asking for the password
 - Hungarian or Lithuanian: SELECT on a game, "Add to favorites" should be readable in full
 
-Please report OnionPlus issues on the [OnionPlus tracker](https://github.com/Amiga500/Onion/issues), with your model, the version (from `.tmp_update/onionVersion/version.txt`) and the steps to reproduce.
+Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga500/Onion/issues), with your model, the version (from `.tmp_update/onionVersion/version.txt`) and the steps to reproduce.
 
 ---
 
 ## 🙏 Thanks
 
-Thanks first to the Onion team and to the community. OnionPlus sits on their work: the OS and the years of fixes already in the tree. None of this exists without that.
+Thanks first to the Onion team and to the community. RedOnion sits on their work: the OS and the years of fixes already in the tree. None of this exists without that.
 
 Thanks to @robcodedev for Open MainUI, the faster GameSwitcher, pngresize, the boot warmup and the Wi-Fi power save lead, to the contributor of the RedOnion artwork and to DiMo + fireball33x for the original Silky theme, and to the testers who sent reports and helped confirm the fixes, especially QuackWalks, @Zazzago, @Ziko577, Veuks and Zombiediplomat. Thanks to @fengfrw for the Chinese translations and to @yuruyang for the CUE generator report and review. Thanks also to the Reddit users who reported the battery drain and the warmer Mini Plus.
 
@@ -82,7 +84,7 @@ Thanks to @robcodedev for Open MainUI, the faster GameSwitcher, pngresize, the b
 
 The **$20 bounty** is still open through **31 October 2026**. It goes to whoever reports the most verified bugs and improvements in that window.
 
-The score is the sum of integrated bug reports and pull requests on both OnionPlus and Open MainUI: issues closed as fixed and pull requests merged, on [Amiga500/Onion](https://github.com/Amiga500/Onion) and [robcodedev/onionos-mainui-opensource](https://github.com/robcodedev/onionos-mainui-opensource). Reports that are still open or were not accepted don't count yet. Reports opened by the maintainers on someone's behalf count for the person credited in them.
+The score is the sum of integrated bug reports and pull requests on both RedOnion and Open MainUI: issues closed as fixed and pull requests merged, on [Amiga500/Onion](https://github.com/Amiga500/Onion) and [robcodedev/onionos-mainui-opensource](https://github.com/robcodedev/onionos-mainui-opensource). Reports that are still open or were not accepted don't count yet. Reports opened by the maintainers on someone's behalf count for the person credited in them.
 
 ## 🔗 Links
 

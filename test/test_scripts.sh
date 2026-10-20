@@ -1522,6 +1522,22 @@ miyoodir=$miyoodir_saved
 unset -f log sleep ifconfig udhcpc iw wifi_on
 end
 
+begin release_named_redonion_with_onionplus_copy
+# The project is RedOnion. Updaters before the rename (beta 8 and earlier)
+# select an asset containing "OnionPlus-v", so every release also carries
+# the same zip under that name; ota_update.sh takes either.
+PRE="$ROOT/.github/workflows/pre-release.yml"
+TAGGED="$ROOT/.github/workflows/tagged-release.yml"
+check "the Makefile names the zip RedOnion" grep -qx "TARGET=RedOnion" "$ROOT/Makefile"
+check "release tag and title are RedOnion" sh -c "grep -qF 'RELEASE_TAG=RedOnion-v' '$PRE' && grep -qF 'RELEASE_TITLE=RedOnion V' '$PRE'"
+check "the release zip is RedOnion-v" grep -qF 'ZIP_NAME=RedOnion-v${BUILD_VERSION}-${SHA_SHORT}.zip' "$PRE"
+check "an OnionPlus-v copy is made" grep -qF 'cp "release/${ZIP_NAME}" "release/${LEGACY_ZIP_NAME}"' "$PRE"
+check "the copy keeps the same version" grep -qF 'LEGACY_ZIP_NAME=OnionPlus-v${BUILD_VERSION}-${SHA_SHORT}.zip' "$PRE"
+check "both zips are published" sh -c "grep -qF 'release/\${{ env.ZIP_NAME }}' '$PRE' && grep -qF 'release/\${{ env.LEGACY_ZIP_NAME }}' '$PRE'"
+check "tagged releases carry both too" sh -c "grep -qF 'release/RedOnion-v' '$TAGGED' && grep -qF 'release/OnionPlus-v' '$TAGGED'"
+check "the updater takes both names" grep -qx 'PACKAGE_PREFIXES="RedOnion-v OnionPlus-v"' "$OTA"
+end
+
 begin netplay_runs_with_power_save_off
 # With power save on, a ping to an idle Mini Plus averaged 40 ms with peaks
 # of 220 ms (3.5 ms, max 15 with it off). Netplay turns it off right before
