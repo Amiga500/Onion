@@ -12,6 +12,19 @@ typedef struct {
     SDL_Surface *icons[SET_COUNT], *selection, *left, *right;
 } MainUISettingsArtwork;
 
+/* A title's line breaks, as offsets into it; the lines' surfaces are kept in
+ * the theme's text cache. used is 0 for an empty slot. */
+typedef struct {
+    TTF_Font *font;
+    int width;
+    unsigned used, count;
+    char title[4096];
+
+    struct {
+        unsigned short start, length;
+    } lines[256];
+} MainUITitleLayout;
+
 /* Owns all loaded surfaces and fonts. Initialize with mainui_theme_open and
  * release exactly once with mainui_theme_close; both operate on the UI thread.
  * This initial preview loader does not yet implement the full theme contract.
@@ -40,6 +53,11 @@ typedef struct {
     } text_cache[32];
 
     unsigned text_clock;
+
+    /* Game Info title line breaks for the last 5 titles shown, kept while
+     * moving between games and leaving Game Info, cleared with the theme. */
+    MainUITitleLayout title_layouts[5];
+    unsigned title_layout_clock;
     SDL_Surface *detail_default;
     bool detail_default_loaded;
     TTF_Font *battery_font;

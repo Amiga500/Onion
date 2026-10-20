@@ -348,16 +348,17 @@ static bool wifi_dhcp(MainUICancel cancel, bool restart)
         return false;
     }
     if (restart) {
+        /* Once the old client is told to stop, the new one is always
+         * started (within about 2 s): a cancel, such as a launch, would
+         * otherwise hand the next program Wi-Fi without a lease. */
         wifi_process("udhcpc", true);
         for (int i = 0; i < 40 && wifi_process("udhcpc", false); ++i) {
-            if (mainui_cancelled(cancel)) {
-                return false;
-            }
             poll(NULL, 0, 50);
         }
         if (wifi_process("udhcpc", false)) {
             return false;
         }
+        cancel = (MainUICancel){0};
     }
     /* Also reached by scans: intentionally self-heal a missing DHCP client. */
     else if (wifi_process("udhcpc", false)) {
@@ -672,9 +673,122 @@ static bool exchange(MainUIDeviceAdapter *adapter, const char *command, const ch
            !strcmp(reply, expected);
 }
 
+/* A wpa_supplicant command that must answer OK; a refusal is logged by its
+ * name only (never with an SSID's password). */
+static bool command_ok(MainUIDeviceAdapter *adapter, const char *command, const char *name,
+                       MainUICancel cancel)
+{
+    bool ok = exchange(adapter, command, "OK\n", cancel);
+    if (!ok && !mainui_cancelled(cancel)) {
+        fprintf(stderr, "[wifi] wpa_supplicant refused %s\n", name);
+    }
+    return ok;
+}
+
+/* The SSID the DHCP client was last started for, so a status refresh can
+ * tell when wpa_supplicant joined another saved network on its own. Device
+ * work runs one job at a time. */
+static char dhcp_ssid[33];
+/* Saved networks were made eligible since this process started; a failure
+ * to do so was logged (once, until it works). The last connection state
+ * logged: "" before the first, else "connected <ssid>" or "disconnected". */
+static bool saved_enabled, enable_failure_logged;
+static char logged_state[48];
+
+/* The saved networks, as wpa_supplicant lists them: "network id / ssid /
+ * bssid / flags", then one tab-separated line per network. */
+static bool saved_networks(MainUIDeviceAdapter *adapter, char *reply, size_t size,
+                           MainUICancel cancel)
+{
+    return adapter->transport &&
+           adapter->transport(adapter->transport_context, "LIST_NETWORKS", reply, size, cancel) &&
+           !strncmp(reply, "network id", 10) && !mainui_cancelled(cancel);
+}
+
+/* The ID of the saved network to use for this SSID, or -1: the one in use
+ * ([CURRENT]), else the last one listed. A password entered again is added
+ * after the old entry, and SAVE_CONFIG keeps that order, so the newest
+ * password wins, also after a restart. */
+static long saved_network(const char *list, const char *ssid)
+{
+    long found = -1;
+    size_t length = strlen(ssid);
+    const char *line = strchr(list, '\n');
+    while (line && *++line) {
+        char *end = NULL;
+        errno = 0;
+        long id = strtol(line, &end, 10);
+        const char *next = strchr(line, '\n');
+        if (!errno && end != line && *end == '\t' && id >= 0 && id <= INT_MAX &&
+            !strncmp(end + 1, ssid, length) && end[1 + length] == '\t') {
+            const char *current = strstr(end + 1 + length, "[CURRENT]");
+            if (current && (!next || current < next)) {
+                return id;
+            }
+            found = id;
+        }
+        line = next;
+    }
+    return found;
+}
+
+/* SELECT_NETWORK disables every other saved network, and SAVE_CONFIG would
+ * keep them so: stock and 1.0.8 left only the last network chosen able to
+ * connect. Enable those again (all but keep, which stays as it is), without
+ * a new connection attempt, so wpa_supplicant can join any of them when the
+ * current one is out of reach, or at the next start. True when the list was
+ * read and each one was enabled. */
+static bool enable_saved(MainUIDeviceAdapter *adapter, long keep, MainUICancel cancel)
+{
+    char list[16384], command[64];
+    if (!saved_networks(adapter, list, sizeof list, cancel)) {
+        if (!mainui_cancelled(cancel) && !enable_failure_logged) {
+            fprintf(stderr, "[wifi] saved networks could not be listed; trying again\n");
+            enable_failure_logged = true;
+        }
+        return false;
+    }
+    bool ok = true;
+    int enabled = 0;
+    const char *line = strchr(list, '\n');
+    while (line && *++line && !mainui_cancelled(cancel)) {
+        const char *next = strchr(line, '\n');
+        char *end = NULL;
+        errno = 0;
+        long id = strtol(line, &end, 10);
+        const char *flags = strstr(line, "[DISABLED]");
+        if (!errno && end != line && *end == '\t' && id >= 0 && id <= INT_MAX && id != keep &&
+            flags && (!next || flags < next)) {
+            snprintf(command, sizeof command, "ENABLE_NETWORK %ld no-connect", id);
+            bool done = exchange(adapter, command, "OK\n", cancel);
+            enabled += done;
+            if (!done && !mainui_cancelled(cancel) && !enable_failure_logged) {
+                fprintf(stderr, "[wifi] saved network %ld could not be enabled; trying again\n",
+                        id);
+                enable_failure_logged = true;
+            }
+            ok = done && ok;
+        }
+        line = next;
+    }
+    if (enabled) {
+        fprintf(stderr, "[wifi] %d saved network%s enabled again\n", enabled,
+                enabled == 1 ? "" : "s");
+    }
+    if (ok && !mainui_cancelled(cancel)) {
+        enable_failure_logged = false;
+    }
+    return ok && !mainui_cancelled(cancel);
+}
+
 bool mainui_device_wifi_enable(MainUIDeviceAdapter *adapter, bool enabled, MainUICancel cancel)
 {
     *adapter->error = 0;
+    /* A new supplicant reads the saved networks again. */
+    if (!enabled) {
+        *dhcp_ssid = 0;
+        saved_enabled = false;
+    }
     if (adapter->backend == DEVICE_SIMULATED) {
         return !mainui_cancelled(cancel);
     }
@@ -790,25 +904,38 @@ bool mainui_device_connect(MainUIDeviceAdapter *adapter, const char *ssid, const
     char reply[64], command[256], *end = NULL;
     if (!adapter->transport || !adapter->transport(adapter->transport_context, "ADD_NETWORK", reply,
                                                    sizeof reply, cancel)) {
+        if (!mainui_cancelled(cancel)) {
+            fprintf(stderr, "[wifi] wpa_supplicant did not answer ADD_NETWORK\n");
+        }
         return false;
     }
     errno = 0;
     long id = strtol(reply, &end, 10);
     if (errno || end == reply || strcmp(end, "\n") || id < 0 || id > INT_MAX) {
+        fprintf(stderr, "[wifi] wpa_supplicant refused ADD_NETWORK\n");
         return false;
     }
     snprintf(command, sizeof command, "SET_NETWORK %ld ssid \"%s\"", id, ssid);
-    bool ok = exchange(adapter, command, "OK\n", cancel);
+    bool ok = command_ok(adapter, command, "SET_NETWORK ssid", cancel);
     snprintf(command, sizeof command,
              *password ? "SET_NETWORK %ld psk \"%s\"" : "SET_NETWORK %ld key_mgmt NONE", id,
              password);
-    ok = ok && exchange(adapter, command, "OK\n", cancel);
+    ok = ok && command_ok(adapter, command, *password ? "SET_NETWORK psk" : "SET_NETWORK key_mgmt",
+                          cancel);
     memset(command, 0, sizeof command);
     snprintf(command, sizeof command, "ENABLE_NETWORK %ld", id);
-    ok = ok && exchange(adapter, command, "OK\n", cancel);
+    ok = ok && command_ok(adapter, command, "ENABLE_NETWORK", cancel);
     snprintf(command, sizeof command, "SELECT_NETWORK %ld", id);
-    ok = ok && exchange(adapter, command, "OK\n", cancel);
-    ok = ok && exchange(adapter, "SAVE_CONFIG", "OK\n", cancel);
+    /* It disables the other saved networks, even if its answer is lost: until
+     * they are enabled again, each refresh tries. */
+    if (ok) {
+        saved_enabled = false;
+    }
+    ok = ok && command_ok(adapter, command, "SELECT_NETWORK", cancel);
+    if (ok) {
+        saved_enabled = enable_saved(adapter, id, cancel);
+    }
+    ok = ok && command_ok(adapter, "SAVE_CONFIG", "SAVE_CONFIG", cancel);
     if (!ok) {
         snprintf(command, sizeof command, "REMOVE_NETWORK %ld", id);
         exchange(adapter, command, "OK\n", (MainUICancel){0});
@@ -818,7 +945,44 @@ bool mainui_device_connect(MainUIDeviceAdapter *adapter, const char *ssid, const
                  "Connection selected, but DHCP could not start.");
         return false;
     }
+    if (ok) {
+        snprintf(dhcp_ssid, sizeof dhcp_ssid, "%s", ssid);
+    }
     return ok;
+}
+
+bool mainui_device_connect_saved(MainUIDeviceAdapter *adapter, const char *ssid,
+                                 MainUICancel cancel)
+{
+    char *validated = mainui_device_wifi_command(ssid, "");
+    bool valid = validated != NULL;
+    free(validated);
+    if (!valid || mainui_cancelled(cancel) || !mainui_device_status(adapter).model.wifi ||
+        (adapter->backend == DEVICE_ONION && !mainui_device_wifi_enable(adapter, true, cancel))) {
+        return false;
+    }
+    /* Its saved entry, credentials included, is used as it is: nothing is
+     * added or written (saved_network() picks among duplicates). */
+    char list[16384], command[64];
+    long id = saved_networks(adapter, list, sizeof list, cancel) ? saved_network(list, ssid) : -1;
+    if (id < 0) {
+        snprintf(adapter->error, sizeof adapter->error, "The network is not saved.");
+        return false;
+    }
+    snprintf(command, sizeof command, "SELECT_NETWORK %ld", id);
+    saved_enabled = false;
+    if (!command_ok(adapter, command, "SELECT_NETWORK", cancel)) {
+        return false;
+    }
+    fprintf(stderr, "[wifi] connecting to saved network %ld\n", id);
+    saved_enabled = enable_saved(adapter, id, cancel);
+    if (adapter->backend == DEVICE_ONION && !wifi_dhcp(cancel, true)) {
+        snprintf(adapter->error, sizeof adapter->error,
+                 "Connection selected, but DHCP could not start.");
+        return false;
+    }
+    snprintf(dhcp_ssid, sizeof dhcp_ssid, "%s", ssid);
+    return true;
 }
 
 bool mainui_device_scan(MainUIDeviceAdapter *adapter, MainUICancel cancel)
@@ -853,6 +1017,16 @@ bool mainui_device_scan(MainUIDeviceAdapter *adapter, MainUICancel cancel)
         adapter->transport(adapter->transport_context, "SCAN_RESULTS", reply, sizeof reply, cancel);
     ok = ok && !mainui_cancelled(cancel) && !strncmp(reply, "bssid /", 7) &&
          path(file, adapter, "wifi-scan.txt") && mainui_write_text_atomic(file, reply);
+    /* The saved networks, so the Wi-Fi page can connect to them without a
+     * password. None known is the same as none saved. */
+    if (ok && path(file, adapter, "wifi-saved.txt")) {
+        if (saved_networks(adapter, reply, sizeof reply, cancel)) {
+            mainui_write_text_atomic(file, reply);
+        }
+        else {
+            mainui_remove_file(file);
+        }
+    }
     if (ok) {
         mainui_device_refresh(adapter, cancel);
     }
@@ -1051,6 +1225,53 @@ bool mainui_device_refresh(MainUIDeviceAdapter *adapter, MainUICancel cancel)
              * cancelled refresh (for a connection, Wi-Fi Off or On, or a
              * launch) says nothing about it: keep the last status. */
             mainui_remove_file(file);
+            if (strcmp(logged_state, "no answer")) {
+                fprintf(stderr, "[wifi] wpa_supplicant does not answer\n");
+                snprintf(logged_state, sizeof logged_state, "no answer");
+            }
+        }
+    }
+    if (ok && !saved_enabled) {
+        /* Once per start: saved networks left disabled by an earlier
+         * SELECT_NETWORK become eligible, so a saved network in reach is
+         * joined wherever the device starts. Tried again with the next
+         * refresh until it works. */
+        saved_enabled = enable_saved(adapter, -1, cancel);
+    }
+    char state[32] = "", ssid[33] = "";
+    if (ok) {
+        field(state, sizeof state, reply, "wpa_state=");
+        field(ssid, sizeof ssid, reply, "ssid=");
+    }
+    /* wpa_supplicant joined another saved network by itself (the last one
+     * went out of reach): the DHCP client still holds the old lease, so
+     * start it again for an address on this one. */
+    if (!strcmp(state, "COMPLETED") && *ssid && strcmp(ssid, dhcp_ssid)) {
+        bool restart = *dhcp_ssid && adapter->backend == DEVICE_ONION;
+        if (!restart || wifi_dhcp(cancel, true)) {
+            if (restart) {
+                fprintf(stderr, "[wifi] joined %s by itself; DHCP started again\n", ssid);
+            }
+            snprintf(dhcp_ssid, sizeof dhcp_ssid, "%s", ssid);
+        }
+        else if (!mainui_cancelled(cancel)) {
+            fprintf(stderr, "[wifi] joined %s by itself; DHCP could not start again\n", ssid);
+        }
+    }
+    /* Connected and not connected, each logged when it changes. */
+    if (*state) {
+        bool connected = !strcmp(state, "COMPLETED");
+        char now[48];
+        snprintf(now, sizeof now, "%s%s", connected ? "connected " : "not connected",
+                 connected ? ssid : "");
+        if (strcmp(now, logged_state)) {
+            if (connected) {
+                fprintf(stderr, "[wifi] connected to %s\n", ssid);
+            }
+            else {
+                fprintf(stderr, "[wifi] not connected (%s)\n", state);
+            }
+            snprintf(logged_state, sizeof logged_state, "%s", now);
         }
     }
     return ok;

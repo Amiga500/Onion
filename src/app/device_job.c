@@ -16,6 +16,8 @@ static int perform(void *context)
                        ? mainui_device_wifi_enable(&job->adapter, job->operation == 5, cancel)
                    : job->operation == 3
                        ? mainui_device_connect(&job->adapter, job->ssid, job->password, cancel)
+                   : job->operation == 7
+                       ? mainui_device_connect_saved(&job->adapter, job->ssid, cancel)
                    : job->operation == 4 ? mainui_device_scan(&job->adapter, cancel)
                                          : mainui_device_refresh(&job->adapter, cancel);
     memset(job->password, 0, sizeof job->password);
@@ -30,13 +32,14 @@ static int perform(void *context)
 bool mainui_device_job_start(MainUIDeviceJob *job, const MainUIDeviceAdapter *adapter,
                              int operation, const char *ssid, const char *password)
 {
-    if ((operation != 0 && operation != 3 && operation != 4 && operation != 5 && operation != 6) ||
+    if ((operation != 0 && operation != 3 && operation != 4 && operation != 5 && operation != 6 &&
+         operation != 7) ||
         (ssid && strlen(ssid) > 32) || (password && strlen(password) > 63)) {
         return false;
     }
     if (job->thread) {
         bool toggle = operation == 5 || operation == 6;
-        bool connect_after_scan = operation == 3 && job->operation == 4;
+        bool connect_after_scan = (operation == 3 || operation == 7) && job->operation == 4;
         if (!toggle &&
             ((!connect_after_scan && job->operation != 0) || !operation || job->queued_operation)) {
             return false;

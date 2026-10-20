@@ -89,6 +89,10 @@ uint64_t mainui_marquee_pixels(uint64_t moving_ms, int speed);
 uint64_t mainui_marquee_step_pixels(uint64_t frames, int speed);
 int mainui_marquee_stream(uint64_t elapsed_ms, int speed, int title_width, int draw_width,
                           MainUIBlit out[2]);
+/* True when the first strong character of a UTF-8 title is Hebrew or Arabic:
+ * its scrolling title moves the other way. Digits, spaces and ASCII
+ * punctuation are skipped; any other letter or symbol reads left to right. */
+bool mainui_text_rtl(const char *text);
 
 typedef struct {
     int title, type, selected, start, end;

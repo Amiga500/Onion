@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.0.9 - 2026-10-20
+
+### Context menu
+
+* Themes set to show in the main menu's context menu (`main-menu.json`) is left out while ThemeSwitcher is not installed, as Settings already left it out and as Search and Tweaks are; selecting it said the launcher was unavailable. Thanks to [@Amiga500](https://github.com/Amiga500) for the suggestion.
+
+### Languages
+
+* Changing the language to or from Arabic or Bengali restarts MainUI and reopens Settings, with any theme, so Onion starts it again and can preload a library that joins and orders their letters. Only a change between English and another language restarted it, and only with a theme that used a built-in font.
+* A title that starts with Hebrew or Arabic and does not fit its row shows its right end, where it begins, and scrolls right from there, the way it reads, stopping at the cover rather than running under it. It showed its left end and moved left, like any other title. Thanks to [@Amiga500](https://github.com/Amiga500) for the suggestion.
+
+### Wi-Fi
+
+* Networks you have joined stay saved and can connect again: choosing one in Settings › Wi-Fi connects with its saved password, without asking. If that fails, choosing it again asks for the password; the old entry is kept and the new one is used from then on. Only the last network chosen could connect, as with stock MainUI.
+* When MainUI starts and after a network is chosen, every saved network can connect, so the device joins whichever saved network is in reach, somewhere else or when the current one goes away. MainUI then starts the DHCP client again for an address on it.
+* [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#wi-fi-does-not-connect) explains how saved networks are used.
+* The log's `[wifi]` lines say why a Wi-Fi action failed, also with Settings closed: the command wpa_supplicant refused, or a network not joined within 30 seconds. They also note the connection coming and going and to which network, a saved network joined by itself with its DHCP restart, and saved networks enabled again. Passwords are never logged. Only a failed action with Settings › Wi-Fi open was logged, as a `Wi-Fi:` line.
+
+### Speed and memory
+
+* Game Info wraps its title, genre and description by whole words, measuring a word letter by letter only where it crosses the line, with the same line breaks as before and about a third fewer measurements. It keeps the line breaks of the last 5 titles shown (about 26 KiB) and draws their lines from the theme's text cache, so a title is not measured or rendered again while it is on screen or when Game Info comes back to it; it was wrapped and drawn again on every frame.
+
+### Documentation
+
+* [docs/THEMES.md](docs/THEMES.md#fonts-and-languages) explains what Arabic and Bengali need, neither of which Onion or Open MainUI includes: a font with their letters, and a preloaded library that shapes the text and orders right-to-left text for display. The README points there.
+* [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#battery-drains-faster-with-wi-fi-connected) explains why connected Wi-Fi can drain the battery faster: MainUI keeps Wi-Fi power save as it was when Wi-Fi was started, and Onion starts Wi-Fi with it off. MainUI never changes it.
+* The longest lines in the documentation are split where the topic changes, so changing a sentence no longer rewrites a whole paragraph in the diff; the pages read the same. [docs/THEMES.md](docs/THEMES.md) explains the restart for Arabic and Bengali and how right-to-left titles are shown and scrolled.
+
 ## 1.0.8 - 2026-10-15
 
 ### Buttons
