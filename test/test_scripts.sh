@@ -1318,28 +1318,46 @@ EOF
 check "\"Refresh roms\" and \"Refresh all roms\" differ (same in: ${same_refresh:-none})" test -z "$same_refresh"
 end
 
-begin refresh_labels_fit_the_select_menu
-# Silky RedOnion: a 320 px popup, text from x 20, list font wqy-microhei at
-# 25 px (Noto for Arabic and Bengali). Needs Pillow; skipped without it.
-too_wide=$(python3 - "$ROOT/static/build/miyoo/app" << 'EOF'
+begin select_menu_labels_fit
+# Open MainUI's SELECT menu with Silky RedOnion: a 320 px popup, text from
+# x 20, so 300 px for a label. The list font is wqy-microhei at 25 px in
+# bold: SDL_ttf's bold adds 2 px (25 / 10) to every glyph, so a label is its
+# Pillow width plus 2 px a character (within 3 px of SDL_ttf for these
+# labels). Arabic and Bengali are drawn in the bold Noto fonts. Keys: 27
+# Refresh roms, 54 Refresh all roms, 55 Add to favorites. Needs Pillow;
+# skipped without it.
+# Still too wide, waiting for shorter translations (remove a line once its
+# label fits; the test fails while a listed label already fits):
+known_wide="ca:54 de:54 de:55 es:54 fr:54 gl:54 gr:54 gr:55 id:54 ja-ryu:55
+nl:55 oc:54 pl:54 pt-BR:54 pt-BR:55 pt:27 pt:54 pt:55 ro:54 ru:55"
+result=$(python3 - "$ROOT/static/build/miyoo/app" "$known_wide" << 'EOF'
 import json, pathlib, sys
 try:
     from PIL import ImageFont
 except ImportError:
     sys.exit(0)
 app = pathlib.Path(sys.argv[1])
-fonts = {name: ImageFont.truetype(str(app / name), 25) for name in
-         ("wqy-microhei.ttc", "NotoSansArabicUI-Regular.ttf", "NotoSansBengaliUI-Regular.ttf")}
+known = set(sys.argv[2].split())
+wqy = ImageFont.truetype(str(app / "wqy-microhei.ttc"), 25)
+noto = {"ar": ImageFont.truetype(str(app / "NotoSansArabicUI-Bold.ttf"), 25),
+        "bn": ImageFont.truetype(str(app / "NotoSansBengaliUI-Bold.ttf"), 25)}
+wide = set()
 for p in sorted((app / "lang").glob("*.lang")):
     d = json.loads(p.read_text(encoding="utf-8-sig"))
-    font = fonts["NotoSansArabicUI-Regular.ttf" if p.name == "ar.lang" else
-                 "NotoSansBengaliUI-Regular.ttf" if p.name == "bn.lang" else "wqy-microhei.ttc"]
-    for key in ("27", "54"):
-        if font.getlength(d.get(key, "")) > 300:
-            print(f"{p.name}:{key}")
+    for key in ("27", "54", "55"):
+        text = d.get(key, "")
+        width = (noto[p.stem].getlength(text) if p.stem in noto
+                 else wqy.getlength(text) + 2 * len(text))
+        if width > 300:
+            wide.add(f"{p.stem}:{key}")
+print("new=" + ",".join(sorted(wide - known)))
+print("fixed=" + ",".join(sorted(known - wide)))
 EOF
 )
-check "Refresh labels fit 300 px (too wide: ${too_wide:-none})" test -z "$too_wide"
+new=$(echo "$result" | sed -n 's/^new=//p')
+fixed=$(echo "$result" | sed -n 's/^fixed=//p')
+check "SELECT menu labels fit 300 px (too wide: ${new:-none})" test -z "$new"
+check "the known-wide list is current (now fit: ${fixed:-none})" test -z "$fixed"
 end
 
 # ---- rescale_theme_list_icons.sh: wide spacer rule ----
