@@ -1,5 +1,5 @@
 #!/bin/sh
-# Wi-Fi power save on the interfaces that are up: wifi_power_save.sh on|off
+# Wi-Fi power save on the Wi-Fi interfaces present: wifi_power_save.sh on|off
 #
 # Wi-Fi starts with power save on (wifi_on in update_networking.sh): idle
 # with Wi-Fi connected, a Mini Plus drained 0.62 %/min instead of 0.75. It
@@ -19,6 +19,7 @@ esac
 
 # iw needs libnl (lib) and libatomic (lib/parasyte), whoever calls this.
 export LD_LIBRARY_PATH="$sysdir/lib:$sysdir/lib/parasyte:${LD_LIBRARY_PATH:-/lib}"
+# wlan0 is the station, wlan1 the Easy Netplay hotspot (hotspot_create.sh).
 for dev in wlan0 wlan1; do
     [ -e "$net/$dev" ] && "$sysdir/bin/iw" dev "$dev" set power_save "$1" 2> /dev/null
 done
