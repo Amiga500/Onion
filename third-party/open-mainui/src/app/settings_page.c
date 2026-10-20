@@ -83,6 +83,27 @@ static bool scan(MainUISettingsPage *page, const char *runtime)
         line = next;
     }
     free(text);
+    /* wpa_supplicant's saved networks, as the scan listed them: "id\tssid\t...". */
+    n = snprintf(path, sizeof path, "%s/wifi-saved.txt", runtime);
+    char *saved = n > 0 && n < (int)sizeof path ? mainui_read_text(path, 16384) : NULL;
+    for (int i = 0; i < page->network_count; i++) {
+        page->network_saved[i] = false;
+        size_t length = strlen(page->networks[i]);
+        for (const char *row = saved ? strchr(saved, '\n') : NULL; row && *++row;
+             row = strchr(row, '\n')) {
+            const char *name = strchr(row, '\t');
+            const char *next = strchr(row, '\n');
+            if (name && (!next || name < next) && !strncmp(name + 1, page->networks[i], length) &&
+                name[1 + length] == '\t') {
+                page->network_saved[i] = true;
+                break;
+            }
+            if (!next) {
+                break;
+            }
+        }
+    }
+    free(saved);
     return true;
 }
 
@@ -403,6 +424,10 @@ int mainui_settings_page_key(MainUISettingsPage *page, SDLKey key, const char *s
                  control - 5 < page->network_count) {
             strcpy(page->ssid, page->networks[control - 5]);
             memset(page->password, 0, sizeof page->password);
+            if (page->network_secure[control - 5] && page->network_saved[control - 5] &&
+                page->managed_device && strcmp(page->ssid, page->retry_ssid)) {
+                return 7;
+            }
             if (!page->network_secure[control - 5]) {
                 if (page->managed_device) {
                     return 3;

@@ -170,3 +170,34 @@ int mainui_marquee_stream(uint64_t elapsed, int speed, int title, int visible, M
     }
     return count;
 }
+
+bool mainui_text_rtl(const char *text)
+{
+    const unsigned char *p = (const unsigned char *)(text ? text : "");
+    while (*p) {
+        if (*p < 0x80) {
+            if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {
+                return false;
+            }
+            p++;
+            continue;
+        }
+        unsigned code = 0;
+        int length = *p >= 0xf0 ? 4 : *p >= 0xe0 ? 3 : *p >= 0xc0 ? 2 : 1;
+        code = length == 1 ? *p : *p & (0x7f >> length);
+        for (int i = 1; i < length; i++) {
+            if ((p[i] & 0xc0) != 0x80) {
+                return false;
+            }
+            code = code << 6 | (p[i] & 0x3f);
+        }
+        /* Latin-1 punctuation and signs are neutral too. */
+        if (code >= 0x80 && code < 0xc0) {
+            p += length;
+            continue;
+        }
+        return (code >= 0x0590 && code <= 0x08ff) || (code >= 0xfb1d && code <= 0xfdff) ||
+               (code >= 0xfe70 && code <= 0xfefc);
+    }
+    return false;
+}

@@ -59,26 +59,26 @@ int mainui_suite_context(void)
 {
     favorite_popups();
     MainUIContext c;
-    mainui_context_parse(&c, NULL, false, false);
+    mainui_context_parse(&c, NULL, false, false, false);
     assert(c.visible_count == 1 && c.entries[0].action == CONTEXT_REFRESH && c.hotkey);
-    mainui_context_parse(&c, "{}", true, true);
+    mainui_context_parse(&c, "{}", true, true, true);
     assert(c.visible_count == 3 && c.entries[2].action == CONTEXT_TWEAKS && c.hotkey);
     /* Root hotkey: omitted or literal true enables; any other present value disables. */
-    mainui_context_parse(&c, "{\"hotkey\":true}", false, false);
+    mainui_context_parse(&c, "{\"hotkey\":true}", false, false, false);
     assert(c.hotkey);
     static const char *const disabled[] = {"{\"hotkey\":false}",    "{\"hotkey\":null}",
                                            "{\"hotkey\":0}",        "{\"hotkey\":1}",
                                            "{\"hotkey\":\"true\"}", "{\"hotkey\":\"false\"}"};
     for (size_t i = 0; i < sizeof disabled / sizeof *disabled; ++i) {
-        mainui_context_parse(&c, disabled[i], false, false);
+        mainui_context_parse(&c, disabled[i], false, false, false);
         assert(!c.hotkey);
     }
-    mainui_context_parse(&c, "{\"context\":[]}", true, true);
+    mainui_context_parse(&c, "{\"context\":[]}", true, true, true);
     assert(c.count == 0);
     mainui_context_parse(&c,
                          "{\"context\":{\"settings\":false,\"favs\":true,\"settings\":true,"
                          "\"recent\":1},\"hotkey\":false}",
-                         false, false);
+                         false, false, false);
     assert(!c.hotkey && c.count == 3 && c.visible_count == 2);
     assert(c.entries[0].action == CONTEXT_SETTINGS && c.entries[0].enabled);
     assert(c.entries[1].action == CONTEXT_FAVORITES && !c.entries[2].enabled);
@@ -88,7 +88,7 @@ int mainui_suite_context(void)
         &c,
         "{\"context\":[\"custom1\",\"custom2\",\"games\",\"games\"],\"custom\":{\"custom1\":{"
         "\"label\":\"Literal %s\",\"launch\":\"/mnt/SDCARD/tool.sh\",\"type\":3.5}}}",
-        false, false);
+        false, false, false);
     assert(c.count == 2 && c.entries[0].type == 3);
     assert(!strcmp(mainui_context_label(&c.entries[0]), "Literal %s"));
     assert(mainui_context_section(c.entries[1].action) == MAINUI_MENU_GAMES);
@@ -96,17 +96,27 @@ int mainui_suite_context(void)
      * without it they are left out, shown or hidden, and reveal cannot
      * expose them; reinstalled, the same configuration shows them again. */
     const char *apps = "{\"context\":{\"tweaks\":true,\"search\":false,\"games\":true}}";
-    mainui_context_parse(&c, apps, false, false);
+    mainui_context_parse(&c, apps, false, false, false);
     assert(c.count == 1 && c.entries[0].action == CONTEXT_GAMES);
     mainui_context_reveal(&c);
     assert(c.count == 1 && c.visible_count == 1);
-    mainui_context_parse(&c, "{\"context\":[\"search\",\"tweaks\"]}", false, false);
+    mainui_context_parse(&c, "{\"context\":[\"search\",\"tweaks\"]}", false, false, false);
     assert(c.count == 0 && c.visible_count == 0);
-    mainui_context_parse(&c, apps, true, true);
+    mainui_context_parse(&c, apps, true, true, true);
     assert(c.count == 3 && c.visible_count == 2 && c.entries[0].action == CONTEXT_TWEAKS);
     assert(c.entries[1].action == CONTEXT_SEARCH && !c.entries[1].enabled);
     mainui_context_reveal(&c);
     assert(c.visible_count == 3);
+    /* Themes needs App/ThemeSwitcher in the same way. */
+    const char *themes = "{\"context\":{\"themes\":false,\"games\":true}}";
+    mainui_context_parse(&c, themes, true, true, false);
+    assert(c.count == 1 && c.entries[0].action == CONTEXT_GAMES);
+    mainui_context_reveal(&c);
+    assert(c.count == 1 && c.visible_count == 1);
+    mainui_context_parse(&c, themes, false, false, true);
+    assert(c.count == 2 && c.visible_count == 1 && c.entries[0].action == CONTEXT_THEMES);
+    mainui_context_reveal(&c);
+    assert(c.visible_count == 2);
     puts("Context defaults, order, aliases, reveal, missing apps and bounded custom action "
          "checks passed");
     return 0;

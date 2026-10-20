@@ -39,6 +39,9 @@ void mainui_device_battery(const MainUIDeviceAdapter *, MainUIDeviceStatus *stat
 MainUIDeviceStatus mainui_device_status(const MainUIDeviceAdapter *);
 bool mainui_device_connect(MainUIDeviceAdapter *, const char *ssid, const char *password,
                            MainUICancel);
+/* Connect to a network wpa_supplicant has saved, with its saved credentials.
+ * False when the SSID is not saved or cannot be selected. */
+bool mainui_device_connect_saved(MainUIDeviceAdapter *, const char *ssid, MainUICancel);
 int mainui_wifi_signal_level(int dbm);
 /* A line /customer/app/axp_test prints says the battery is charging: its
  * "charging" field is 2 or 3, as stock MainUI reads it (Onion's battery.h

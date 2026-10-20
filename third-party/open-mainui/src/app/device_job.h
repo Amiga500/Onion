@@ -12,7 +12,7 @@ typedef struct {
     SDL_Thread *thread;
     atomic_bool cancel, done;
     MainUIDeviceAdapter adapter;
-    int operation; /* 0 status, 3 connect, 4 scan, 5 enable, 6 disable */
+    int operation; /* 0 status, 3 connect, 4 scan, 5 enable, 6 disable, 7 connect saved */
     int queued_operation;
     char queued_ssid[33], queued_password[64];
     bool success;

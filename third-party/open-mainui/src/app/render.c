@@ -353,6 +353,11 @@ static void draw_list_row(MainUIApp *ui, int i, Uint32 elapsed)
     if (ui->preview.image && pane_width > 0 && pane_width < activation_width) {
         activation_width = pane_width;
     }
+    /* A right-to-left title shows its right end, where it begins: with a
+     * cover shown it stops at the pane, as a Favorite marker makes it. */
+    if (ui->label_rtl[i]) {
+        available = activation_width;
+    }
     if (row_icon) {
         SDL_Rect source = {0, 0, (Uint16)icon_width, (Uint16)ui->config.row_height};
         if (source.w > row_icon->w) {
@@ -371,6 +376,7 @@ static void draw_list_row(MainUIApp *ui, int i, Uint32 elapsed)
         return;
     }
     int label_y = y + (ui->config.row_height - label->h) / 2;
+    int rtl_start = ui->label_rtl[i] && label->w > available ? label->w - available : 0;
     ui->animate =
         ui->animate || (selected && label->w > activation_width && ui->config.scroll_status == 2);
     if (selected && ui->config.scroll_status == 2 && elapsed >= (unsigned)ui->config.scroll_delay &&
@@ -383,6 +389,12 @@ static void draw_list_row(MainUIApp *ui, int i, Uint32 elapsed)
                 ? mainui_marquee_pixels(elapsed - (unsigned)ui->config.scroll_delay,
                                         ui->config.scroll_speed)
                 : mainui_marquee_step_pixels(ui->marquee_steps, ui->config.scroll_speed);
+        /* A right-to-left title starts from its right end, where it begins,
+         * and moves right: the same strip of title and gap, walked back. */
+        if (ui->label_rtl[i]) {
+            uint64_t cycle = (uint64_t)label->w + 60;
+            offset = (rtl_start + cycle - offset % cycle) % cycle;
+        }
         int n = mainui_marquee_stream(offset, 1000, label->w, available, segments);
         for (int part = 0; part < n; part++) {
             SDL_Rect source = {(Sint16)segments[part].source_x, 0, (Uint16)segments[part].width,
@@ -393,7 +405,8 @@ static void draw_list_row(MainUIApp *ui, int i, Uint32 elapsed)
         }
     }
     else {
-        SDL_Rect source = {0, 0, (Uint16)available, (Uint16)label->h};
+        /* A right-to-left title too long for the row shows its right end. */
+        SDL_Rect source = {(Sint16)rtl_start, 0, (Uint16)available, (Uint16)label->h};
         SDL_Rect dest = {(Sint16)text_x, (Sint16)label_y, 0, 0};
         SDL_BlitSurface(label, &source, ui->screen, &dest);
     }
@@ -588,6 +601,7 @@ static bool compose_full_frame(MainUIApp *ui)
                 }
                 ui->labels[i] = TTF_RenderUTF8_Blended(ui->theme.font, marked ? marked : label,
                                                        ui->theme.color);
+                ui->label_rtl[i] = mainui_text_rtl(label);
                 if (ui->search.results) {
                     ui->highlighted[i] = mainui_search_label(&ui->theme, label, ui->search.query);
                 }

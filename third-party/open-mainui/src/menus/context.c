@@ -54,7 +54,8 @@ static void add(MainUIContext *context, int action, bool enabled)
     }
 }
 
-void mainui_context_parse(MainUIContext *context, const char *text, bool search, bool tweaks)
+void mainui_context_parse(MainUIContext *context, const char *text, bool search, bool tweaks,
+                          bool themes)
 {
     *context = (MainUIContext){.hotkey = true};
     cJSON *root = mainui_menu_json(text);
@@ -77,10 +78,11 @@ void mainui_context_parse(MainUIContext *context, const char *text, bool search,
             int action = action_for(cJSON_IsObject(object) ? item->string
                                     : cJSON_IsString(item) ? item->valuestring
                                                            : NULL);
-            /* Search and Tweaks need their app, also when named here: left
-             * out entirely, as Settings leaves out Tweaks, so revealing the
-             * hidden entries cannot show them either. */
-            if ((action == CONTEXT_SEARCH && !search) || (action == CONTEXT_TWEAKS && !tweaks)) {
+            /* Search, Tweaks and Themes need their app, also when named here:
+             * left out entirely, as Settings leaves out Tweaks and Themes, so
+             * revealing the hidden entries cannot show them either. */
+            if ((action == CONTEXT_SEARCH && !search) || (action == CONTEXT_TWEAKS && !tweaks) ||
+                (action == CONTEXT_THEMES && !themes)) {
                 continue;
             }
             if (action >= 0) {
@@ -137,7 +139,8 @@ void mainui_context_load(MainUIContext *context, const char *directory, const ch
     char path[4096];
     int n = directory ? snprintf(path, sizeof path, "%s/main-menu.json", directory) : -1;
     char *text = n > 0 && n < (int)sizeof path ? mainui_read_text(path, 128 * 1024) : NULL;
-    mainui_context_parse(context, text, launcher(sd, "Search"), launcher(sd, "Tweaks"));
+    mainui_context_parse(context, text, launcher(sd, "Search"), launcher(sd, "Tweaks"),
+                         launcher(sd, "ThemeSwitcher"));
     free(text);
 }
 

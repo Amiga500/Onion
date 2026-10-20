@@ -12,7 +12,13 @@ ROOT = Path(__file__).resolve().parents[2]
 ROOT_TEST = Path(tempfile.mkdtemp(prefix="devices-", dir=BUILD))
 RUNTIME = ROOT_TEST / "runtime"
 RUNTIME.mkdir()
-subprocess.run([str(BUILD / "fixture-device"), str(RUNTIME)], check=True, timeout=30)
+result = subprocess.run([str(BUILD / "fixture-device"), str(RUNTIME)], check=True, timeout=30,
+                        capture_output=True, text=True)
+# Wi-Fi failures and changes are logged, but never a password the fixture used.
+log = result.stdout + result.stderr
+assert "[wifi] wpa_supplicant refused SET_NETWORK psk" in log, log
+assert "[wifi] connected to Host Wi-Fi" in log and "saved networks enabled again" in log, log
+assert "pass'word" not in log and "password" not in log, log
 SD = ROOT_TEST / "sd"
 (SD / "Emu").mkdir(parents=True)
 THEME = ONION_THEME
