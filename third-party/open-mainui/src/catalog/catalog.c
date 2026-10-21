@@ -1194,6 +1194,12 @@ bool mainui_catalog_remove_cache(MainUICatalog *catalog, int system)
         return true; /* A standalone Expert launcher has no ROM cache. */
     }
     const char *root = catalog->pages[0].entries[system].path;
+    /* A console whose ROM folder does not exist has no cache to remove:
+     * Refresh all roms goes on with the others, as in stock. */
+    errno = 0;
+    if (!mainui_directory_within(root, catalog->sd) && errno == ENOENT) {
+        return true;
+    }
     if (!rom_root_ready(catalog, root)) {
         return false;
     }
