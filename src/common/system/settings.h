@@ -82,6 +82,9 @@ static settings_s settings;
 static settings_s __settings;
 // true when __settings mirrors what is on disk (after a load or a save)
 static bool __settings_snapshot_valid = false;
+// true in keymon (settings_init): it owns the values it mirrors in shared
+// memory, and a save never takes them from the file
+static bool __settings_owns_shm = false;
 static settings_s __default_settings = (settings_s){
     // MainUI settings
     .volume = 20,
@@ -352,9 +355,11 @@ bool _settings_dirty_mainui(void)
 // GameSwitcher then came up in the old language. Before writing, take from
 // the file every value this program has not changed since it loaded or last
 // saved it. Values keymon mirrors in shared memory (brightness, menu sound,
-// sleep timer, display colours, volume) are left out: keymon is the one that
-// owns them, and taking them from the file would make it read its shared
-// memory as a change and write the old value back.
+// sleep timer, display colours, volume) are left out in keymon: it is the
+// one that owns them, and taking them from the file would make it read its
+// shared memory as a change and write the old value back. Every other
+// program takes them too: the Themes app kept the brightness it loaded at
+// start, and applying a theme wrote it over the one set with the keys since.
 static void _settings_merge_from_disk(void)
 {
     if (!__settings_snapshot_valid)
@@ -379,6 +384,24 @@ static void _settings_merge_from_disk(void)
         json_getInt(disk, "audiofix", &settings.audiofix);
     if (settings.wifi_on == __settings.wifi_on)
         json_getInt(disk, "wifi", &settings.wifi_on);
+    if (!__settings_owns_shm) {
+        if (settings.volume == __settings.volume)
+            json_getInt(disk, "vol", &settings.volume);
+        if (settings.bgm_volume == __settings.bgm_volume)
+            json_getInt(disk, "bgmvol", &settings.bgm_volume);
+        if (settings.brightness == __settings.brightness)
+            json_getInt(disk, "brightness", &settings.brightness);
+        if (settings.sleep_timer == __settings.sleep_timer)
+            json_getInt(disk, "hibernate", &settings.sleep_timer);
+        if (settings.lumination == __settings.lumination)
+            json_getInt(disk, "lumination", &settings.lumination);
+        if (settings.hue == __settings.hue)
+            json_getInt(disk, "hue", &settings.hue);
+        if (settings.saturation == __settings.saturation)
+            json_getInt(disk, "saturation", &settings.saturation);
+        if (settings.contrast == __settings.contrast)
+            json_getInt(disk, "contrast", &settings.contrast);
+    }
     cJSON_Delete(disk);
 }
 
@@ -516,6 +539,13 @@ void _settings_save_impl(bool notify)
          exists(CONFIG_PATH ".menuInverted") ||
          exists(CONFIG_PATH ".noGameSwitcher")))
         force = true;
+
+    // keymon saves the mute flag when the volume keys toggle it. A program
+    // that has not changed mute itself takes the flag as it is now, instead
+    // of writing back the one it loaded (unmuting what keymon muted).
+    if (!__settings_owns_shm && __settings_snapshot_valid &&
+        settings.mute == old->mute)
+        settings.mute = __settings.mute = config_flag_get(".muteVolume");
 
     _settings_save_flag(".noAutoStart", !settings.startup_auto_resume, !old->startup_auto_resume, force);
     _settings_save_flag(".noMenuHaptics", !settings.menu_button_haptics, !old->menu_button_haptics, force);
