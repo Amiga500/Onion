@@ -1530,6 +1530,25 @@ miyoodir=$miyoodir_saved
 unset -f log sleep ifconfig udhcpc iw wifi_on
 end
 
+begin pdf_reader_hint_says_menu_closes_a_pdf
+# The list's "START to exit" made people think START also closes a PDF, but
+# inside the Green reader MENU does (START toggles a view option), and some
+# forced a shutdown. The PDF Reader passes its own hint; other callers (the
+# video player) keep the default.
+SEL="$ROOT/static/build/.tmp_update/script/file_selector.sh"
+mkdir -p "$TMP/media"
+: > "$TMP/media/a.pdf"
+printf '#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = -b ] && printf %%s "$2" > "%s/hint"; shift; done\necho "[ ] a.pdf"\n' "$TMP" > "$TMP/shellect"
+chmod +x "$TMP/shellect"
+sed "s#/mnt/SDCARD/.tmp_update/script/shellect.sh#$TMP/shellect#" "$SEL" > "$TMP/sel.sh"
+sh "$TMP/sel.sh" "Videos" "$TMP/media" "pdf" > /dev/null 2>&1
+check "default hint kept" grep -qx "Press A to open, START to exit." "$TMP/hint"
+check "the choice is written" grep -q "/a.pdf" "$TMP/media/.selected.pls"
+sh "$TMP/sel.sh" "PDF Reader" "$TMP/media" "pdf" "A: open, START: exit, MENU: close a PDF." > /dev/null 2>&1
+check "a caller's hint is shown" grep -qx "A: open, START: exit, MENU: close a PDF." "$TMP/hint"
+check "the PDF Reader passes the MENU hint" grep -qF '"pdf" "A: open, START: exit, MENU: close a PDF."' "$ROOT/static/packages/App/PDF Reader (Green)/App/Green/launch.sh"
+end
+
 begin release_named_redonion_with_onionplus_copy
 # The project is RedOnion. Updaters before the rename (beta 8 and earlier)
 # select an asset containing "OnionPlus-v", so every release also carries
