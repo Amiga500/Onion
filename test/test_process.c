@@ -9,6 +9,9 @@
 
 #include "onion_test.h"
 #include <signal.h>
+#include <sys/prctl.h>
+#include <sys/wait.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
@@ -96,6 +99,59 @@ TEST(process_searchpid_partial_match) {
 TEST(process_killall_signal_missing_is_noop) {
     process_killall_signal("definitely_not_running_99", SIGTERM);
     ASSERT_FALSE(process_isRunning("definitely_not_running_99"));
+}
+
+static volatile sig_atomic_t signals_received;
+
+static void count_signal(int sig)
+{
+    (void)sig;
+    signals_received++;
+}
+
+/* A child named comm that counts SIGUSR1 for 300 ms, then reports the count. */
+static pid_t spawn_signal_counter(const char *comm, int report_fd, int ready_fd)
+{
+    pid_t pid = fork();
+    if (pid != 0)
+        return pid;
+    prctl(PR_SET_NAME, comm);
+    signal(SIGUSR1, count_signal);
+    char ready = 1;
+    if (write(ready_fd, &ready, 1) != 1)
+        _exit(1);
+    struct timespec rest = {0, 300 * 1000 * 1000};
+    while (nanosleep(&rest, &rest) != 0)
+        ;
+    int count = signals_received;
+    if (write(report_fd, &count, sizeof(count)) != sizeof(count))
+        _exit(1);
+    _exit(0);
+}
+
+TEST(process_killall_signal_sends_once_to_each_match) {
+    int report[2], ready[2];
+    ASSERT_EQ(pipe(report), 0);
+    ASSERT_EQ(pipe(ready), 0);
+    pid_t a = spawn_signal_counter("onion_sigcnt_a", report[1], ready[1]);
+    pid_t b = spawn_signal_counter("onion_sigcnt_b", report[1], ready[1]);
+    char byte;
+    ASSERT_EQ(read(ready[0], &byte, 1), 1);
+    ASSERT_EQ(read(ready[0], &byte, 1), 1);
+
+    process_killall_signal("onion_sigcnt", SIGUSR1);
+
+    int first = -1, second = -1;
+    ASSERT_EQ(read(report[0], &first, sizeof(first)), (ssize_t)sizeof(first));
+    ASSERT_EQ(read(report[0], &second, sizeof(second)), (ssize_t)sizeof(second));
+    waitpid(a, NULL, 0);
+    waitpid(b, NULL, 0);
+    close(report[0]);
+    close(report[1]);
+    close(ready[0]);
+    close(ready[1]);
+    ASSERT_EQ(first, 1);
+    ASSERT_EQ(second, 1);
 }
 
 TEST(process_killall_missing_is_noop) {
@@ -215,6 +271,7 @@ int main(void)
     RUN_TEST(process_searchpid_partial_match);
     RUN_TEST(process_killall_signal_missing_is_noop);
     RUN_TEST(process_killall_missing_is_noop);
+    RUN_TEST(process_killall_signal_sends_once_to_each_match);
     RUN_TEST(process_spawn_detached_with_sigchld_ignored);
     RUN_TEST(process_spawn_detached_runs_program);
 
