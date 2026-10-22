@@ -1655,7 +1655,12 @@ start_audioserver() {
         return
     fi
     audioserver_pid=""
-    defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%.0f\n", 48 * (log(1 + $1) / log(10)) - 60 }')
+    if [ "$DEVICE_ID" = "285" ]; then
+        # the Mini Flip's stock curve, see volume_toRaw in common/system/volume.h
+        defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%d\n", int(57 * $1 / 20) - 60 }')
+    else
+        defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%.0f\n", 48 * (log(1 + $1) / log(10)) - 60 }')
+    fi
     runifnecessary "audioserver" $miyoodir/app/audioserver $defvol
 }
 
