@@ -27,7 +27,7 @@ fi
 
 main() {
 	if [ "$cmd" = "check" ]; then
-		IP=$(ip route get 1 | awk '{print $NF;exit}')
+		IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
 		if [ "$IP" != "" ]; then
 			get_release_info
 			case $? in
@@ -439,7 +439,7 @@ download_update() {
 		mkdir -p $sysdir/download/
 		echo -ne "\n\n" \
 			"${BLUE}== Downloading RedOnion $Release_Version ($channel channel) ==${NC}\n"
-		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
+		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 		sync
 		wget --no-check-certificate $Release_url -O "$sysdir/download/$Release_Version.zip"
 		echo -ne "\n\n" \
@@ -471,7 +471,7 @@ apply_update() {
 		echo "Applying update... "
 
 		umount /mnt/SDCARD/miyoo/app/MainUI 2> /dev/null
-		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
+		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 
 		# unzip -o "$sysdir/download/$Release_Version.zip" -d "/mnt/SDCARD"
 		7z x -aoa -o"/mnt/SDCARD" "$sysdir/download/$Release_Version.zip"
@@ -506,6 +506,6 @@ apply_update() {
 # Build date (YYYYMMDD) of a version such as 4.4.0-beta-20261010-f7c522a5.
 build_date() { echo "$1" | sed -n -e 's/^.*-\([0-9]\{8\}\)-[0-9a-f]\{7,\}$/\1/p' -e 's/^.*-\([0-9]\{8\}\)$/\1/p' | head -n 1; }
 
-get_version() { echo "$@" | tr -d [:alpha:] | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
+get_version() { echo "$@" | tr -d '[:alpha:]' | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
 
 main
