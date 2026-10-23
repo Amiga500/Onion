@@ -5,13 +5,18 @@ appdir=/mnt/SDCARD/App/FFplay
 
 while :
 do
+	# The list writes the file chosen with A. START or MENU leaves the list
+	# without writing one, so a choice left from the last run must not count:
+	# the terminal now ends with 143 (SIGTERM), not 137, and the old test
+	# reopened the last file instead of leaving.
+	rm -f "$mediadir/.selected.pls"
 	cd $sysdir
 	./bin/st -q -e "$sysdir/script/file_selector.sh" "Video Player" "$mediadir" "3g2 3gp asf avi flv h264 m2t m2ts m4v mkv mod mov mp4 mpg tod vob webm wmv"
 	retVal=$?
 	
-	# if we catch that terminal app has been killed then we exit
+	# No file chosen (START, MENU, or the terminal was killed): leave.
 	echo "=================" "$retVal"
-	if [ $retVal -eq 137 ] || [ ! -f "$mediadir/.selected.pls" ]; then
+	if [ ! -f "$mediadir/.selected.pls" ]; then
 		exit
 	fi
 
