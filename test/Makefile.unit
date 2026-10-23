@@ -30,7 +30,7 @@ TESTS := test_str test_perf test_file test_images_browser test_hash test_json te
 
 # Build-only targets (compilation without running)
 # Suites for Tweaks > Appearance > Footer layout and the GameSwitcher bar
-TESTS += test_mainui_flags test_footer_layout
+TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -456,6 +456,14 @@ test_footer_layout: $(BUILD_DIR)/test_footer_layout
 $(BUILD_DIR)/test_footer_layout: test_footer_layout.c onion_test.h ../src/common/theme/render/footer.h stubs/SDL/SDL.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) -Istubs $(CFLAGS) -o $@ test_footer_layout.c $(LDFLAGS)
+
+test_gs_bottom_bar: $(BUILD_DIR)/test_gs_bottom_bar
+	@echo ""
+	@$(BUILD_DIR)/test_gs_bottom_bar
+
+$(BUILD_DIR)/test_gs_bottom_bar: test_gs_bottom_bar.c onion_test.h ../src/gameSwitcher/gs_bottom_bar.h ../src/gameSwitcher/gameSwitcher.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_gs_bottom_bar.c $(LDFLAGS)
 
 test_theme_list_rescale: $(BUILD_DIR)/test_theme_list_rescale
 	@echo ""
