@@ -456,6 +456,14 @@ else
     echo "  [SKIP] ota_update.sh tests (jq not installed)"
 fi
 
+# ---- ota_update.sh: get_version ignores the files around it ----
+
+eval "$(grep '^get_version()' "$OTA")"
+begin ota_get_version_ignores_files
+touch "$TMP/a"
+check "letters dropped with a file named a in the directory" test "$(cd "$TMP" && get_version v4.4.0)" = 4004000000
+end
+
 # ---- ota_update.sh: the bootstrap runs only a script ----
 
 begin ota_bootstrap_runs_only_a_script
