@@ -1635,6 +1635,15 @@ check "a core with a systemid is left alone" test "$(cat "$TMP/cores/gpsp_libret
 check "the core info cache is removed" test ! -e "$TMP/cores/core_info.cache"
 end
 
+begin installer_version_ignores_files
+# Like get_version in ota_update.sh (#297): unquoted, [:alpha:] matched a file
+# named a, l, p, h or : in the current directory and v4.4.0 read as 0004000000.
+eval "$(extract_fn "$INSTALLER" version)"
+mkdir -p "$TMP/glob" && touch "$TMP/glob/a"
+check "letters dropped with a file named a in the directory" test "$(cd "$TMP/glob" && version v4.4.0)" = 4004000000
+unset -f version
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

@@ -21,7 +21,7 @@ MODEL_MMP=354
 install_ra=1
 
 version() {
-    echo "$@" | tr -d [:alpha:] | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'
+    echo "$@" | tr -d '[:alpha:]' | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'
 }
 
 # globals
