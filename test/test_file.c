@@ -1256,6 +1256,77 @@ TEST(file_lock_is_exclusive) {
     rmdir(dir);
 }
 
+/* ---- file_read_line ---- */
+
+#define READ_LINE_PATH "/tmp/onion_test_read_line.txt"
+
+static void put_read_line_file(const char *content)
+{
+    FILE *fp = fopen(READ_LINE_PATH, "wb");
+    if (fp) {
+        fputs(content, fp);
+        fclose(fp);
+    }
+}
+
+TEST(file_read_line_missing) {
+    char buf[8] = "junk";
+    remove(READ_LINE_PATH);
+    ASSERT_FALSE(file_read_line(READ_LINE_PATH, buf, sizeof(buf)));
+    ASSERT_STREQ(buf, "");
+}
+
+TEST(file_read_line_empty) {
+    char buf[8] = "junk";
+    put_read_line_file("");
+    ASSERT_FALSE(file_read_line(READ_LINE_PATH, buf, sizeof(buf)));
+    ASSERT_STREQ(buf, "");
+}
+
+TEST(file_read_line_first_line_only) {
+    char buf[16];
+    put_read_line_file("abc\nnext\n");
+    ASSERT_TRUE(file_read_line(READ_LINE_PATH, buf, sizeof(buf)));
+    ASSERT_STREQ(buf, "abc");
+}
+
+TEST(file_read_line_crlf_and_no_newline) {
+    char buf[16];
+    put_read_line_file("abc\r\n");
+    ASSERT_TRUE(file_read_line(READ_LINE_PATH, buf, sizeof(buf)));
+    ASSERT_STREQ(buf, "abc");
+    put_read_line_file("abc");
+    ASSERT_TRUE(file_read_line(READ_LINE_PATH, buf, sizeof(buf)));
+    ASSERT_STREQ(buf, "abc");
+}
+
+TEST(file_read_line_exact_fit) {
+    char buf[4];
+    put_read_line_file("abc\n");
+    ASSERT_TRUE(file_read_line(READ_LINE_PATH, buf, sizeof(buf)));
+    ASSERT_STREQ(buf, "abc");
+    put_read_line_file("abc\r\n");
+    ASSERT_TRUE(file_read_line(READ_LINE_PATH, buf, sizeof(buf)));
+    ASSERT_STREQ(buf, "abc");
+}
+
+TEST(file_read_line_too_long_stays_in_bounds) {
+    char buf[8];
+    memset(buf, 'x', sizeof(buf));
+    put_read_line_file("abcdefghijklmnop\n");
+    ASSERT_FALSE(file_read_line(READ_LINE_PATH, buf, 4));
+    ASSERT_STREQ(buf, "abc");
+    ASSERT_TRUE(buf[4] == 'x' && buf[7] == 'x');
+}
+
+TEST(file_read_line_same_buffer) {
+    char path[64] = READ_LINE_PATH;
+    put_read_line_file("theme.zip\n");
+    ASSERT_TRUE(file_read_line(path, path, sizeof(path)));
+    ASSERT_STREQ(path, "theme.zip");
+    remove(READ_LINE_PATH);
+}
+
 int main(void)
 {
     printf("\n=== file.c Unit Tests ===\n\n");
@@ -1387,6 +1458,13 @@ int main(void)
     RUN_TEST(flag_set_creates_file_with_correct_permissions);
     RUN_TEST(flag_set_clear_nonexistent_is_safe);
 
+    RUN_TEST(file_read_line_missing);
+    RUN_TEST(file_read_line_empty);
+    RUN_TEST(file_read_line_first_line_only);
+    RUN_TEST(file_read_line_crlf_and_no_newline);
+    RUN_TEST(file_read_line_exact_fit);
+    RUN_TEST(file_read_line_too_long_stays_in_bounds);
+    RUN_TEST(file_read_line_same_buffer);
     TEST_REPORT();
     return test_failures;
 }

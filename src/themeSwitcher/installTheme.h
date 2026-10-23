@@ -243,9 +243,9 @@ bool checkActiveTheme(char *theme_path_out)
     if (!is_file(ACTIVE_THEME))
         return false;
 
-    FILE *fp;
     char active_theme_path[STR_MAX];
-    file_get(fp, ACTIVE_THEME, "%[^\n]", active_theme_path);
+    if (!file_read_line(ACTIVE_THEME, active_theme_path, sizeof(active_theme_path)))
+        return false;
 
     printf_debug("active theme: %s\n", active_theme_path);
 

@@ -936,3 +936,24 @@ void file_unlock(int fd)
     if (fd >= 0)
         close(fd); // releases the flock
 }
+
+bool file_read_line(const char *path, char *buf, size_t size)
+{
+    if (buf == NULL || size == 0)
+        return false;
+
+    char *line = file_read_lineN(path, 1);
+    if (line == NULL) {
+        buf[0] = '\0';
+        return false;
+    }
+
+    line[strcspn(line, "\r\n")] = '\0';
+    size_t len = strlen(line);
+    size_t copy = len < size ? len : size - 1;
+    memcpy(buf, line, copy);
+    buf[copy] = '\0';
+    free(line);
+
+    return len > 0 && len < size;
+}
