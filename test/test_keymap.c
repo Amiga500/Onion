@@ -76,6 +76,22 @@ TEST(hw_all_buttons_unique) {
     }
 }
 
+/* ==== Physical layout: a swap here passes every uniqueness test ==== */
+
+TEST(hw_buttons_match_device_layout) {
+    ASSERT_EQ(HW_BTN_A, KEY_SPACE);
+    ASSERT_EQ(HW_BTN_B, KEY_LEFTCTRL);
+    ASSERT_EQ(HW_BTN_X, KEY_LEFTSHIFT);
+    ASSERT_EQ(HW_BTN_Y, KEY_LEFTALT);
+    ASSERT_EQ(HW_BTN_L1, KEY_E);
+    ASSERT_EQ(HW_BTN_R1, KEY_T);
+    ASSERT_EQ(HW_BTN_L2, KEY_TAB);
+    ASSERT_EQ(HW_BTN_R2, KEY_BACKSPACE);
+    ASSERT_EQ(HW_BTN_SELECT, KEY_RIGHTCTRL);
+    ASSERT_EQ(HW_BTN_START, KEY_ENTER);
+    ASSERT_EQ(HW_BTN_MENU, KEY_ESC);
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -88,6 +104,7 @@ int main(void)
     RUN_TEST(hw_system_buttons_unique);
     RUN_TEST(hw_volume_buttons_unique);
     RUN_TEST(hw_all_buttons_unique);
+    RUN_TEST(hw_buttons_match_device_layout);
 
     TEST_REPORT();
     return test_failures;
