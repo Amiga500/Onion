@@ -1365,6 +1365,47 @@ EOF
 check "SELECT menu labels fit Silky RedOnion's popup (too wide: $(echo $too_wide))" test -z "$too_wide"
 end
 
+begin select_menu_labels_fit_320px_themes
+# The same labels in a theme with the stock 320 px popup art (300 px for a
+# label): Open MainUI 1.0.10 shortens the ones that do not fit with "...".
+# "Add to favorites" uses each language's own "Add favorite" (303), which
+# also matches "Remove Favorite" in the same menu. Still too wide, kept as
+# translated until a native speaker offers a shorter one (remove a line once
+# its label fits; the test fails while a listed label already fits):
+known_wide="ca:54 de:54 es:54 fr:54 gl:54 gr:52 gr:54 id:54 oc:54 pl:54
+pt-BR:54 pt:54 ro:54"
+result=$(python3 - "$ROOT/static/build/miyoo/app" "$known_wide" << 'EOF'
+import json, pathlib, sys
+try:
+    from PIL import ImageFont
+except ImportError:
+    sys.exit(0)
+app = pathlib.Path(sys.argv[1])
+known = set(sys.argv[2].split())
+ids = (51, 55, 52, 50, 405, 128, 27, 401, 402, 400, 403, 404, 406,
+       54, 153, 18, 1, 2, 107, 15, 125, 407, 86)
+wqy = ImageFont.truetype(str(app / "wqy-microhei.ttc"), 25)
+noto = {"ar": ImageFont.truetype(str(app / "NotoSansArabicUI-Bold.ttf"), 25),
+        "bn": ImageFont.truetype(str(app / "NotoSansBengaliUI-Bold.ttf"), 25)}
+wide = set()
+for p in sorted((app / "lang").glob("*.lang")):
+    d = json.loads(p.read_text(encoding="utf-8-sig"))
+    for key in ids:
+        text = d.get(str(key), "")
+        width = (noto[p.stem].getlength(text) if p.stem in noto
+                 else wqy.getlength(text) + 2 * len(text))
+        if width > 300:
+            wide.add(f"{p.stem}:{key}")
+print("new=" + ",".join(sorted(wide - known)))
+print("fixed=" + ",".join(sorted(known - wide)))
+EOF
+)
+new=$(echo "$result" | sed -n 's/^new=//p')
+fixed=$(echo "$result" | sed -n 's/^fixed=//p')
+check "SELECT menu labels fit a 320 px popup (too wide: ${new:-none})" test -z "$new"
+check "the known-wide list is current (now fit: ${fixed:-none})" test -z "$fixed"
+end
+
 # ---- rescale_theme_list_icons.sh: wide spacer rule ----
 
 begin rescale_keeps_only_wide_game_icon
