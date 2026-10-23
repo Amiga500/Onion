@@ -151,8 +151,7 @@ bool screenshot_save_stride(const uint32_t *buffer, const char *screenshot_path,
         /* Bottom-to-top + reverse each row, then NEON ARGB→RGBA */
         for (y = 0; y < g_display.height; y++) {
             const uint32_t *row_start =
-                (const uint32_t *)((const uint8_t *)buffer
-                                   + (size_t)(g_display.height - 1 - y) * (size_t)row_stride * sizeof(uint32_t));
+                (const uint32_t *)((const uint8_t *)buffer + (size_t)(g_display.height - 1 - y) * (size_t)row_stride * sizeof(uint32_t));
             for (x = 0; x < g_display.width; x++) {
                 line_buffer[x] = row_start[g_display.width - 1 - x];
             }
