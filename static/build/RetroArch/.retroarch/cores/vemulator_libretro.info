@@ -27,3 +27,4 @@ disk_control = "false"
 is_experimental = "false"
 
 description = "A port of VeMUlator, a SEGA Dreamcast VMU emulator originally developed for Android, to libretro."
+systemid = "dreamcast_vmu"
