@@ -1327,45 +1327,42 @@ check "\"Refresh roms\" and \"Refresh all roms\" differ (same in: ${same_refresh
 end
 
 begin select_menu_labels_fit
-# Open MainUI's SELECT menu with Silky RedOnion: a 320 px popup, text from
-# x 20, so 300 px for a label. The list font is wqy-microhei at 25 px in
-# bold: SDL_ttf's bold adds 2 px (25 / 10) to every glyph, so a label is its
-# Pillow width plus 2 px a character (within 3 px of SDL_ttf for these
-# labels). Arabic and Bengali are drawn in the bold Noto fonts. Keys: 27
-# Refresh roms, 54 Refresh all roms, 55 Add to favorites. Needs Pillow;
+# Open MainUI's SELECT menu with Silky RedOnion: text from x 20 of the
+# popup art (bg-pop-menu-N.png; 4 to 6 rows repeat the 3-row one), so a
+# label has the art's width less 20. The list font is wqy-microhei at 25 px
+# in bold: SDL_ttf's bold adds 2 px (25 / 10) to every glyph, so a label is
+# its Pillow width plus 2 px a character (within 3 px of SDL_ttf for these
+# labels). Arabic and Bengali are drawn in the bold Noto fonts. Every label
+# the menu can show (src/menus/context.c) in every language. Needs Pillow;
 # skipped without it.
-# Still too wide, waiting for shorter translations (remove a line once its
-# label fits; the test fails while a listed label already fits):
-known_wide="ca:54 de:54 de:55 es:54 fr:54 gl:54 gr:54 gr:55 id:54 ja-ryu:55
-nl:55 oc:54 pl:54 pt-BR:54 pt-BR:55 pt:27 pt:54 pt:55 ro:54 ru:55"
-result=$(python3 - "$ROOT/static/build/miyoo/app" "$known_wide" << 'EOF'
+too_wide=$(python3 - "$ROOT/static/build/miyoo/app" "$ROOT/static/build/Themes/Silky RedOnion/skin" << 'EOF'
 import json, pathlib, sys
 try:
-    from PIL import ImageFont
+    from PIL import Image, ImageFont
 except ImportError:
     sys.exit(0)
-app = pathlib.Path(sys.argv[1])
-known = set(sys.argv[2].split())
+app, skin = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+widths = {Image.open(skin / f"bg-pop-menu-{n}.png").width for n in (1, 2, 3)}
+if len(widths) != 1:
+    print(f"popup art widths differ: {sorted(widths)}")
+    sys.exit(0)
+room = widths.pop() - 20
+ids = (51, 55, 52, 50, 405, 128, 27, 401, 402, 400, 403, 404, 406,
+       54, 153, 18, 1, 2, 107, 15, 125, 407, 86)
 wqy = ImageFont.truetype(str(app / "wqy-microhei.ttc"), 25)
 noto = {"ar": ImageFont.truetype(str(app / "NotoSansArabicUI-Bold.ttf"), 25),
         "bn": ImageFont.truetype(str(app / "NotoSansBengaliUI-Bold.ttf"), 25)}
-wide = set()
 for p in sorted((app / "lang").glob("*.lang")):
     d = json.loads(p.read_text(encoding="utf-8-sig"))
-    for key in ("27", "54", "55"):
-        text = d.get(key, "")
+    for key in ids:
+        text = d.get(str(key), "")
         width = (noto[p.stem].getlength(text) if p.stem in noto
                  else wqy.getlength(text) + 2 * len(text))
-        if width > 300:
-            wide.add(f"{p.stem}:{key}")
-print("new=" + ",".join(sorted(wide - known)))
-print("fixed=" + ",".join(sorted(known - wide)))
+        if width > room:
+            print(f"{p.stem}:{key}")
 EOF
 )
-new=$(echo "$result" | sed -n 's/^new=//p')
-fixed=$(echo "$result" | sed -n 's/^fixed=//p')
-check "SELECT menu labels fit 300 px (too wide: ${new:-none})" test -z "$new"
-check "the known-wide list is current (now fit: ${fixed:-none})" test -z "$fixed"
+check "SELECT menu labels fit Silky RedOnion's popup (too wide: $(echo $too_wide))" test -z "$too_wide"
 end
 
 # ---- rescale_theme_list_icons.sh: wide spacer rule ----
@@ -1528,6 +1525,25 @@ check "the OTA's Wi-Fi start turns it on too" grep -q "iw dev wlan0 set power_sa
 check "no script hardcodes power save off" sh -c "! grep -rq 'power_save off' \"$ROOT/static/build\""
 miyoodir=$miyoodir_saved
 unset -f log sleep ifconfig udhcpc iw wifi_on
+end
+
+begin pdf_reader_hint_says_menu_closes_a_pdf
+# The list's "START to exit" made people think START also closes a PDF, but
+# inside the Green reader MENU does (START toggles a view option), and some
+# forced a shutdown. The PDF Reader passes its own hint; other callers (the
+# video player) keep the default.
+SEL="$ROOT/static/build/.tmp_update/script/file_selector.sh"
+mkdir -p "$TMP/media"
+: > "$TMP/media/a.pdf"
+printf '#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = -b ] && printf %%s "$2" > "%s/hint"; shift; done\necho "[ ] a.pdf"\n' "$TMP" > "$TMP/shellect"
+chmod +x "$TMP/shellect"
+sed "s#/mnt/SDCARD/.tmp_update/script/shellect.sh#$TMP/shellect#" "$SEL" > "$TMP/sel.sh"
+sh "$TMP/sel.sh" "Videos" "$TMP/media" "pdf" > /dev/null 2>&1
+check "default hint kept" grep -qx "Press A to open, START to exit." "$TMP/hint"
+check "the choice is written" grep -q "/a.pdf" "$TMP/media/.selected.pls"
+sh "$TMP/sel.sh" "PDF Reader" "$TMP/media" "pdf" "A: open, START: exit, MENU: close a PDF." > /dev/null 2>&1
+check "a caller's hint is shown" grep -qx "A: open, START: exit, MENU: close a PDF." "$TMP/hint"
+check "the PDF Reader passes the MENU hint" grep -qF '"pdf" "A: open, START: exit, MENU: close a PDF."' "$ROOT/static/packages/App/PDF Reader (Green)/App/Green/launch.sh"
 end
 
 begin release_named_redonion_with_onionplus_copy

@@ -32,6 +32,7 @@ Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHA
 
 - **List icons fit after installing a theme:** with Tweaks › Appearance › Game lists › "Rescale theme list icons to fit" on, the Themes app now resizes the new theme's list icons for your row count right away. Before, you had to turn the option off and on again. Based on @robcodedev's themeSwitcher patch.
 - **Boot screen:** Silky RedOnion shows @dredvm's RedOnion logo at start-up.
+- **SELECT menu in Silky RedOnion** is wider (385 px instead of 320), so every label fits in every language. Long translations of "Refresh all roms" and "Add to favorites" were cut off in 14 languages.
 
 ### 🌍 Languages
 
@@ -54,7 +55,7 @@ Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHA
 - **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
 - **Arabic:** lines stay left-aligned like every other language, and text drawn one letter at a time (the on-screen keyboard) shows Arabic letters unjoined.
 - **Tweaks** is in English in every language.
-- **SELECT menu labels:** in 14 languages a few labels ("Refresh all roms", "Add to favorites", "Refresh roms") are still too long and get cut off at the right edge. Shorter translations are welcome.
+- **SELECT menu labels with other themes:** themes whose SELECT menu art is 320 px wide still cut a few labels in 14 languages ("Refresh all roms", "Add to favorites", "Refresh roms"). Silky RedOnion fits them all.
 - **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package. Verifying certificates and the package's SHA-256 is planned.
 
 ## 🧪 If you'd like to try it

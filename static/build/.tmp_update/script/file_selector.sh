@@ -2,6 +2,9 @@
 prompt_title="$1"
 home_dir="$2"
 file_extensions="$3"
+# Optional footer hint: the PDF Reader adds how to close a PDF (MENU), since
+# START, which closes this list, does something else inside a PDF.
+hint="${4:-Press A to open, START to exit.}"
 current_dir=`cd -- "$home_dir" >/dev/null 2>&1; pwd -P`
 selected_file=""
 
@@ -32,7 +35,7 @@ while [ $exit -eq 0 ]; do
 $file_list_filtered"
 	fi
 
-	selected_file=`echo "$file_list_filtered" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "$dir_short - $prompt_title" -b "Press A to open, START to exit."`
+	selected_file=`echo "$file_list_filtered" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "$dir_short - $prompt_title" -b "$hint"`
 
 	if [ -d "$current_dir/$selected_file" ]; then
 		current_dir=`cd -- "$current_dir/$selected_file" >/dev/null 2>&1; pwd -P`
