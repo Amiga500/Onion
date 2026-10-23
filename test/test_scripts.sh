@@ -497,7 +497,7 @@ pkill() { :; }
 clear() { :; }
 udhcpc() {
     echo "$*" > "$TMP/udhcpc_args"
-    while [ ! -f "$TMP/stop" ]; do command sleep 0.1; done
+    while [ -d "$TMP" ] && [ ! -f "$TMP/stop" ]; do command sleep 0.1; done
 }
 (enable_wifi > /dev/null 2>&1; touch "$TMP/returned") &
 n=0
