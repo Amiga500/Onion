@@ -160,6 +160,16 @@ void action_setLaunchScreen(void *pt)
     settings.launch_screen = ((ListItem *)pt)->value;
 }
 
+void action_setFooterLayout(void *pt)
+{
+    settings.mainui_footer_alt = ((ListItem *)pt)->value == 1;
+}
+
+void action_setLongMenuLabels(void *pt)
+{
+    settings.mainui_menu_no_ellipsis = ((ListItem *)pt)->value == 1;
+}
+
 void action_setLidCloseAction(void *pt)
 {
     settings.lid_close_action = ((ListItem *)pt)->value;

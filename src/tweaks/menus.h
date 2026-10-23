@@ -587,7 +587,7 @@ void menu_userInterface(void *_)
     settings.blue_light_state = config_flag_get(".blfOn");
     all_changed = true;
     if (!_menu_user_interface._created) {
-        _menu_user_interface = list_createWithTitle(7, LIST_SMALL, "Appearance");
+        _menu_user_interface = list_createWithTitle(9, LIST_SMALL, "Appearance");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){.label = "Game lists...", .action = menu_gameLists},
                                  "Rows, text size, title scrolling,\n"
@@ -608,6 +608,28 @@ void menu_userInterface(void *_)
                                  "the game screenshot with a popup,\n"
                                  "the screenshot alone, black, or the\n"
                                  "message on the theme's full screen.");
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Footer layout",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 1,
+                                     .value_labels = {"Classic", "B A, page left"},
+                                     .value = settings.mainui_footer_alt,
+                                     .action = action_setFooterLayout},
+                                 "Bottom of the game lists: Classic, as\n"
+                                 "stock, or the page number on the left\n"
+                                 "and the hints in button order, B then A.");
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Long menu labels",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 1,
+                                     .value_labels = {"Shorten with ...", "Cut"},
+                                     .value = settings.mainui_menu_no_ellipsis,
+                                     .action = action_setLongMenuLabels},
+                                 "SELECT menu labels too long for the\n"
+                                 "theme: shortened with ... or cut at\n"
+                                 "the edge. Silky RedOnion fits them all.");
         display_init(true);
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
