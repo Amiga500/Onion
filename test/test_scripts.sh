@@ -1601,6 +1601,32 @@ check "config and onionVersion survive" test -d "$TMP/sys/config" -a -d "$TMP/sy
 check "old system files are removed" test ! -e "$TMP/sys/bin"
 end
 
+begin cores_have_systemid
+# The GameSwitcher sends RetroArch GET_STATUS, answered with the core's
+# systemid: a core whose .info had none crashed RetroArch with error 139 (#283).
+cores="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/static/build/RetroArch/.retroarch/cores"
+missing=""
+for so in "$cores"/*_libretro.so; do
+    grep -q '^systemid = "..*"' "${so%.so}.info" 2> /dev/null || missing="$missing ${so##*/}"
+done
+check "every core shipped has a systemid${missing:+:$missing}" test -z "$missing"
+end
+
+begin migration_adds_core_systemid
+mig="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/static/build/.tmp_update/script/migration/00024_core_info_systemid.sh"
+mkdir -p "$TMP/cores"
+printf 'corename = "GW"\nsystemname = "Handheld Electronic"' > "$TMP/cores/gw_libretro.info"
+printf 'systemid = "game_boy_advance"\n' > "$TMP/cores/gpsp_libretro.info"
+touch "$TMP/cores/core_info.cache"
+CORES_DIR="$TMP/cores" sh "$mig"
+CORES_DIR="$TMP/cores" sh "$mig"
+check "gw gets a systemid" grep -qx 'systemid = "handheld_electronic"' "$TMP/cores/gw_libretro.info"
+check "added once" test "$(grep -c systemid "$TMP/cores/gw_libretro.info")" = 1
+check "the last line stays intact" grep -qx 'systemname = "Handheld Electronic"' "$TMP/cores/gw_libretro.info"
+check "a core with a systemid is left alone" test "$(cat "$TMP/cores/gpsp_libretro.info")" = 'systemid = "game_boy_advance"'
+check "the core info cache is removed" test ! -e "$TMP/cores/core_info.cache"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
