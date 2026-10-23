@@ -11,6 +11,7 @@ static const int PING_TIMEOUT_MS = 100;
 static const int MAX_RETRIES = 3;
 static const int RETRY_DELAY_MS = 500;
 static const int RECV_TIMEOUT_MS = 60000;
+#define UDP_WAIT_SLICE_MS 250
 
 static int _init_socket(const char *ipAddress, int port, int *socket_fd, struct sockaddr_in *server_address)
 {
@@ -171,16 +172,22 @@ int udp_send_no_probe(const char *ipAddress, int port, const char *message)
     return rc < 0 ? -1 : 0;
 }
 
-int udp_send_receive_no_probe(const char *ipAddress, int port, const char *message,
-                              char *response, size_t response_size)
+// Send one request and wait up to timeout_ms for its reply on the same
+// socket, in short slices. Between slices keep_waiting (when given) can stop
+// the wait early, e.g. once the receiving process is gone.
+int udp_send_receive_wait(const char *ipAddress, int port, const char *message,
+                          char *response, size_t response_size, int timeout_ms,
+                          udp_keep_waiting_fn keep_waiting, void *ctx)
 {
-    if (response == NULL || response_size < 2)
+    if (response == NULL || response_size < 2 || timeout_ms <= 0)
         return -1;
     int fd;
     struct sockaddr_in addr;
     if (_init_socket(ipAddress, port, &fd, &addr) != 0)
         return -1;
-    struct timeval timeout = {.tv_sec = 0, .tv_usec = 250000};
+    int slice_ms = timeout_ms < UDP_WAIT_SLICE_MS ? timeout_ms : UDP_WAIT_SLICE_MS;
+    struct timeval timeout = {.tv_sec = slice_ms / 1000,
+                              .tv_usec = (slice_ms % 1000) * 1000};
     if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0) {
         close(fd);
         return -1;
@@ -190,10 +197,28 @@ int udp_send_receive_no_probe(const char *ipAddress, int port, const char *messa
         close(fd);
         return -1;
     }
-    ssize_t n = recvfrom(fd, response, response_size - 1, 0, NULL, NULL);
+    for (int waited_ms = 0;;) {
+        ssize_t n = recvfrom(fd, response, response_size - 1, 0, NULL, NULL);
+        if (n >= 0) {
+            close(fd);
+            response[n] = '\0';
+            return 0;
+        }
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+            break;
+        waited_ms += slice_ms;
+        if (waited_ms >= timeout_ms)
+            break;
+        if (keep_waiting != NULL && !keep_waiting(ctx))
+            break;
+    }
     close(fd);
-    if (n < 0)
-        return -1;
-    response[n] = '\0';
-    return 0;
+    return -1;
+}
+
+int udp_send_receive_no_probe(const char *ipAddress, int port, const char *message,
+                              char *response, size_t response_size)
+{
+    return udp_send_receive_wait(ipAddress, port, message, response, response_size,
+                                 UDP_WAIT_SLICE_MS, NULL, NULL);
 }

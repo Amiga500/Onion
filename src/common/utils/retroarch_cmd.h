@@ -40,4 +40,11 @@ int retroarch_getStatus(RetroArchStatus_s *status); // Get RetroArch status
 int retroarch_getStatusNoProbe(RetroArchStatus_s *status);
 int retroarch_getInfo(RetroArchInfo_s *info);       // Get RetroArch info
 
+// GET_STATUS without a probe, waiting up to timeout_ms for the reply while
+// keep_waiting (optional) returns true. RetroArch answers the first
+// GET_STATUS for an arcade zip only after reading the whole file for its
+// CRC32, which can take seconds.
+int retroarch_getStatusWait(RetroArchStatus_s *status, int timeout_ms,
+                            bool (*keep_waiting)(void *ctx), void *ctx);
+
 #endif // UTILS_RETROARCH_CMD_H__

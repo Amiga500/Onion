@@ -122,6 +122,17 @@ int retroarch_getStatusNoProbe(RetroArchStatus_s *status)
     return _parseRetroArchStatus(response, status);
 }
 
+int retroarch_getStatusWait(RetroArchStatus_s *status, int timeout_ms,
+                            bool (*keep_waiting)(void *ctx), void *ctx)
+{
+    char response[512];
+    if (udp_send_receive_wait(LOCALHOST_IP, RETROARCH_CMD_UDP_PORT, "GET_STATUS",
+                              response, sizeof(response), timeout_ms,
+                              keep_waiting, ctx) == -1)
+        return -1;
+    return _parseRetroArchStatus(response, status);
+}
+
 int retroarch_getInfo(RetroArchInfo_s *info)
 {
     char response[128];
