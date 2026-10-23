@@ -48,9 +48,10 @@ void action_setAppShortcut(void *pt)
         return;
     }
 
-    if (item->action_id == 1) {
-        strcpy(sett_pt, "glo");
-    }
+    value -= NUM_TOOLS;
+
+    if (value < MAINUI_SHORTCUT_EXTRA_COUNT)
+        strcpy(sett_pt, mainui_shortcut_extra_values[value]);
 }
 
 void action_meterWidth(void *pt)

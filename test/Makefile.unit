@@ -30,7 +30,7 @@ TESTS := test_str test_perf test_file test_images_browser test_hash test_json te
 
 # Build-only targets (compilation without running)
 # Suites for Tweaks > Appearance > Footer layout and the GameSwitcher bar
-TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar
+TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar test_mainui_shortcut
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -464,6 +464,21 @@ test_gs_bottom_bar: $(BUILD_DIR)/test_gs_bottom_bar
 $(BUILD_DIR)/test_gs_bottom_bar: test_gs_bottom_bar.c onion_test.h ../src/gameSwitcher/gs_bottom_bar.h ../src/gameSwitcher/gameSwitcher.c
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_gs_bottom_bar.c $(LDFLAGS)
+
+test_mainui_shortcut: $(BUILD_DIR)/test_mainui_shortcut
+	@echo ""
+	@$(BUILD_DIR)/test_mainui_shortcut
+
+# The three Tweaks functions, cut from the real sources.
+$(BUILD_DIR)/mainui_shortcut_fns.c: ../src/tweaks/formatters.h ../src/tweaks/values.h ../src/tweaks/actions.h
+	@mkdir -p $(BUILD_DIR)
+	sed -n '/^void formatter_appShortcut(/,/^}/p' ../src/tweaks/formatters.h > $@
+	sed -n '/^int value_appShortcut(/,/^}/p' ../src/tweaks/values.h >> $@
+	sed -n '/^void action_setAppShortcut(/,/^}/p' ../src/tweaks/actions.h >> $@
+
+$(BUILD_DIR)/test_mainui_shortcut: test_mainui_shortcut.c onion_test.h ../src/common/utils/mainui_shortcut.h ../src/tweaks/tools_defs.h ../src/keymon/menuButtonAction.h ../src/tweaks/menus.h $(BUILD_DIR)/mainui_shortcut_fns.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DSHORTCUT_FNS='"$(abspath $(BUILD_DIR))/mainui_shortcut_fns.c"' -o $@ test_mainui_shortcut.c $(LDFLAGS)
 
 test_theme_list_rescale: $(BUILD_DIR)/test_theme_list_rescale
 	@echo ""

@@ -357,22 +357,28 @@ void menu_buttonAction(void *_)
                                  (ListItem){
                                      .label = "MainUI: X button",
                                      .item_type = MULTIVALUE,
-                                     .value_max = installed_apps_count + NUM_TOOLS,
+                                     .value_max = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT,
                                      .value = value_appShortcut(0),
                                      .value_formatter = formatter_appShortcut,
                                      .action_id = 0,
                                      .action = action_setAppShortcut},
-                                 "Set the X button action in MainUI.");
+                                 "Set the X button action in MainUI:\n"
+                                 "an app, a tool, GLO (the game's options)\n"
+                                 "or Toggle favorite (add or remove the\n"
+                                 "selected game from Favorites).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "MainUI: Y button",
                                      .item_type = MULTIVALUE,
-                                     .value_max = installed_apps_count + NUM_TOOLS + 1,
+                                     .value_max = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT,
                                      .value = value_appShortcut(1),
                                      .value_formatter = formatter_appShortcut,
                                      .action_id = 1,
                                      .action = action_setAppShortcut},
-                                 "Set the Y button action in MainUI.");
+                                 "Set the Y button action in MainUI:\n"
+                                 "an app, a tool, GLO (the game's options)\n"
+                                 "or Toggle favorite (add or remove the\n"
+                                 "selected game from Favorites).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "Power single press",
