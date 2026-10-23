@@ -3,6 +3,7 @@
 
 #include <dirent.h>
 #include <libgen.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -95,6 +96,17 @@ bool mkdirs(const char *dir_path);
 void file_readLastLine(const char *filename, char *out_str);
 
 char *file_read(const char *path) __attribute__((malloc));
+
+/**
+ * Read the first line of a file into buf, without its line end ("\n" or
+ * "\r\n"), writing at most size bytes including the terminating NUL.
+ * buf is "" when the file is missing or empty. path and buf may be the
+ * same buffer: the line is read before buf is written.
+ * Returns true only for a whole, non-empty line: false when the file is
+ * missing or empty, or when its first line does not fit (buf then holds
+ * its start).
+ */
+bool file_read_line(const char *path, char *buf, size_t size);
 
 bool file_write(const char *path, const char *str, uint32_t len);
 

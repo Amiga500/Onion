@@ -44,9 +44,9 @@ bool __get_path_recent(char *path_out)
     else if (system_state == MODE_MAIN_UI)
         strncpy(name, "MainUI", sizeof(name) - 1);
     else if ((system_state == MODE_GAME || system_state == MODE_APPS) && exists(CMD_TO_RUN_PATH)) {
-        FILE *fp;
-        char cmd[STR_MAX];
-        file_get(fp, CMD_TO_RUN_PATH, "%[^\n]", cmd);
+        char cmd[PATH_MAX + STR_MAX];
+        if (!file_read_line(CMD_TO_RUN_PATH, cmd, sizeof(cmd)))
+            return screenshot_numberedPath(path_out, SCREENSHOT_PATH_MAX, SCREENSHOTS_DIR, name);
         printf_debug("cmd: '%s'\n", cmd);
 
         char app_name[STR_MAX] = "";
@@ -151,8 +151,7 @@ bool screenshot_save_stride(const uint32_t *buffer, const char *screenshot_path,
         /* Bottom-to-top + reverse each row, then NEON ARGB→RGBA */
         for (y = 0; y < g_display.height; y++) {
             const uint32_t *row_start =
-                (const uint32_t *)((const uint8_t *)buffer
-                                   + (size_t)(g_display.height - 1 - y) * (size_t)row_stride * sizeof(uint32_t));
+                (const uint32_t *)((const uint8_t *)buffer + (size_t)(g_display.height - 1 - y) * (size_t)row_stride * sizeof(uint32_t));
             for (x = 0; x < g_display.width; x++) {
                 line_buffer[x] = row_start[g_display.width - 1 - x];
             }

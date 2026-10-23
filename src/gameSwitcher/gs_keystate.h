@@ -78,8 +78,8 @@ void removeCurrentItem()
 int checkQuitAction(void)
 {
     FILE *fp;
-    char prev_state[10];
-    file_get(fp, "/tmp/prev_state", "%s", prev_state);
+    char prev_state[10] = "";
+    file_get(fp, "/tmp/prev_state", "%9s", prev_state);
     if (strncmp(prev_state, "mainui", 6) == 0)
         return 1;
     return 0;
