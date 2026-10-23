@@ -40,6 +40,19 @@ static uint32_t romscreen_save_height = 0;
 static char romscreen_save_path[STR_MAX] = {0};
 static pid_t overlay_retroarch_pid = 0;
 
+// RetroArch computes the CRC32 of content that the core opens itself (arcade
+// zips such as Neo Geo sets) on the first GET_STATUS, reading the whole file
+// before it answers: seconds for a large set. Waiting for that one reply
+// keeps a slow answer from looking like a missing RetroArch.
+#define OVERLAY_STATUS_TIMEOUT_MS 15000
+
+static bool _processPidExists(pid_t pid);
+static bool _overlayRetroArchAlive(void *ctx)
+{
+    (void)ctx;
+    return overlay_retroarch_pid <= 0 || _processPidExists(overlay_retroarch_pid);
+}
+
 void setFbAsFirstRomScreen(void)
 {
     if (game_list_len == 0)
@@ -244,7 +257,10 @@ void overlay_init()
     _playActivityAsync("stop_all");
     setFbAsFirstRomScreen();
     RetroArchStatus_s status;
-    int status_result = retroarch_cmd_ready ? retroarch_getStatusNoProbe(&status) : -1;
+    int status_result = retroarch_cmd_ready
+                            ? retroarch_getStatusWait(&status, OVERLAY_STATUS_TIMEOUT_MS,
+                                                      _overlayRetroArchAlive, NULL)
+                            : -1;
     if (status_result == -1)
         status_result = retroarch_getStatus(&status);
     if (status_result == -1) {
