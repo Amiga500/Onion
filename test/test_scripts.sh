@@ -1546,6 +1546,113 @@ check "a caller's hint is shown" grep -qx "A: open, START: exit, MENU: close a P
 check "the PDF Reader passes the MENU hint" grep -qF '"pdf" "A: open, START: exit, MENU: close a PDF."' "$ROOT/static/packages/App/PDF Reader (Green)/App/Green/launch.sh"
 end
 
+begin media_apps_keys_do_what_the_list_says
+# PDF Reader and Video Player end to end, with the real launch.sh,
+# file_selector.sh and shellect.sh in a pseudo terminal. A fake "st" types
+# the keys the device's terminal sends: A is a space, START a newline, MENU a
+# lone Esc, the D-pad Esc [ A..D. The PDF reader and the player are stubs
+# that note the file and return at once, like MENU closing a PDF.
+# The hint says "A: open, START: exit": START used to reopen the last file,
+# because the terminal now ends with 143, not 137, and the last choice was
+# still on disk, so the only way out was to power off.
+if command -v python3 > /dev/null 2>&1; then
+    SD="$TMP/sd"
+    mkdir -p "$SD/.tmp_update/script" "$SD/.tmp_update/bin/green" "$SD/Media/PDF" "$SD/Media/Videos" "$TMP/sys"
+    sed "s#/mnt/SDCARD#$SD#g" "$ROOT/static/build/.tmp_update/script/file_selector.sh" > "$SD/.tmp_update/script/file_selector.sh"
+    cp "$ROOT/static/build/.tmp_update/script/shellect.sh" "$SD/.tmp_update/script/shellect.sh"
+    chmod +x "$SD/.tmp_update/script/file_selector.sh" "$SD/.tmp_update/script/shellect.sh"
+    : > "$SD/Media/PDF/a.pdf"
+    : > "$SD/Media/PDF/b.pdf"
+    : > "$SD/Media/Videos/a.mp4"
+    # The interpreter in the #! line itself (not env): quit_terminal looks for
+    # a parent process named "st", and env would leave it named python3.
+    {
+        printf '#!%s\n' "$(command -v python3)"
+        cat << 'EOF'
+# st -q -e command...: run it in a pty and type the next scene's keys.
+import fcntl, os, pty, select, struct, sys, termios, time
+args = sys.argv[1:]
+while args and args[0] in ("-q", "-e"):
+    args = args[1:]
+d = os.environ["FAKE_ST"]
+n = int(open(d + "/scene").read()) + 1 if os.path.exists(d + "/scene") else 1
+open(d + "/scene", "w").write(str(n))
+if not os.path.exists(f"{d}/keys.{n}"):
+    sys.exit(137)  # out of scenes: stop a launcher that would loop
+keys = open(f"{d}/keys.{n}").read().split()
+send = {"A": b" ", "START": b"\n", "MENU": b"\x1b", "UP": b"\x1b[A", "DOWN": b"\x1b[B"}
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(args[0], args)
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+def pump(t):
+    end = time.time() + t
+    while time.time() < end:
+        r, _, _ = select.select([fd], [], [], 0.05)
+        if r:
+            try:
+                os.read(fd, 4096)
+            except OSError:
+                return
+pump(1.0)
+for k in keys:
+    os.write(fd, send[k])
+    pump(0.6)
+while True:
+    done, status = os.waitpid(pid, os.WNOHANG)
+    if done:
+        break
+    pump(0.1)
+sys.exit(os.waitstatus_to_exitcode(status) & 0xFF)
+EOF
+    } > "$SD/.tmp_update/bin/st"
+    chmod +x "$SD/.tmp_update/bin/st"
+    printf '#!/bin/sh\necho "$1" >> "%s/opened"\n' "$TMP" > "$SD/.tmp_update/bin/green/green"
+    printf '#!/bin/sh\nfor a; do last=$a; done\necho "$last" >> "%s/played"\n' "$TMP" > "$SD/.tmp_update/bin/ffplay"
+    chmod +x "$SD/.tmp_update/bin/green/green" "$SD/.tmp_update/bin/ffplay"
+    PDF_LAUNCH="$ROOT/static/packages/App/PDF Reader (Green)/App/Green/launch.sh"
+    VID_LAUNCH="$ROOT/static/packages/App/Video Player (FFplay)/App/FFplay/launch.sh"
+    sed -e "s#/mnt/SDCARD#$SD#g" "$PDF_LAUNCH" > "$TMP/pdf.sh"
+    sed -e "s#/mnt/SDCARD#$SD#g" -e "s#/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor#$TMP/sys/governor#g" -e "s#/tmp/stay_awake#$TMP/stay_awake#g" "$VID_LAUNCH" > "$TMP/video.sh"
+    export FAKE_ST="$TMP/st"
+    scenes() { # keys for each time the list opens
+        rm -rf "$FAKE_ST" "$TMP/opened" "$TMP/played"
+        mkdir -p "$FAKE_ST"
+        i=0
+        for s; do
+            i=$((i + 1))
+            echo "$s" > "$FAKE_ST/keys.$i"
+        done
+    }
+    lists_shown() { cat "$FAKE_ST/scene"; }
+
+    # Open a.pdf (the list starts with ../), close it, then START.
+    scenes "DOWN A" "START"
+    timeout 30 sh "$TMP/pdf.sh" > /dev/null 2>&1
+    check "PDF: A opens the file under the cursor" test "$(cat "$TMP/opened" 2> /dev/null)" = "$SD/Media/PDF/a.pdf"
+    check "PDF: START in the list leaves the app (no reopening)" test "$(lists_shown)" = 2
+
+    # MENU in the list leaves too.
+    scenes "MENU"
+    timeout 30 sh "$TMP/pdf.sh" > /dev/null 2>&1
+    check "PDF: MENU in the list leaves the app" sh -c "test ! -f '$TMP/opened' && test \"\$(cat '$FAKE_ST/scene')\" = 1"
+
+    # Two PDFs in a row, then START.
+    scenes "DOWN A" "DOWN DOWN A" "START"
+    timeout 30 sh "$TMP/pdf.sh" > /dev/null 2>&1
+    check "PDF: the second choice opens the second file" test "$(sed -n 2p "$TMP/opened")" = "$SD/Media/PDF/b.pdf"
+    check "PDF: then START leaves" test "$(lists_shown)" = 3
+
+    # Video Player: same list, same keys.
+    scenes "DOWN A" "START"
+    timeout 30 sh "$TMP/video.sh" > /dev/null 2>&1
+    check "Video: A plays the file under the cursor" test "$(cat "$TMP/played" 2> /dev/null)" = "$SD/Media/Videos/a.mp4"
+    check "Video: START in the list leaves the app" test "$(lists_shown)" = 2
+    unset FAKE_ST
+    unset -f scenes lists_shown
+fi
+end
+
 begin release_named_redonion_with_onionplus_copy
 # The project is RedOnion. Updaters before the rename (beta 8 and earlier)
 # select an asset containing "OnionPlus-v", so every release also carries
