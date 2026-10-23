@@ -1588,6 +1588,19 @@ check "Wi-Fi off: nothing to do, no error" [ $? -eq 0 ]
 check "and iw is not called" [ ! -e "$TMP/iw" ]
 end
 
+begin update_cleanup_keeps_ssh_host_key
+# The update cleanup in miyoo/app/MainUI removed .tmp_update/etc, so dropbear
+# generated a new host key on every update and SSH/SFTP clients warned (#292).
+mainui="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/static/dist/miyoo/app/MainUI"
+cleanup=$(grep -e '-maxdepth 0' "$mainui")
+mkdir -p "$TMP/sys/etc/dropbear" "$TMP/sys/bin" "$TMP/sys/config" "$TMP/sys/onionVersion"
+echo key > "$TMP/sys/etc/dropbear/dropbear_ed25519_host_key"
+(cd "$TMP/sys" && eval "$cleanup")
+check "the SSH host key survives" test -f "$TMP/sys/etc/dropbear/dropbear_ed25519_host_key"
+check "config and onionVersion survive" test -d "$TMP/sys/config" -a -d "$TMP/sys/onionVersion"
+check "old system files are removed" test ! -e "$TMP/sys/bin"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
