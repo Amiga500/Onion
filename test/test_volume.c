@@ -141,8 +141,6 @@ TEST(volume_over_max_treated_as_max) {
     ASSERT_EQ(volume_to_raw(100), volume_to_raw(20));
 }
 
-/* ---- main ---- */
-
 /* ---- Tests: Mini Flip curve (the stock firmware's: linear, at most -3 dB) ---- */
 
 TEST(volume_flip_matches_stock_formula) {
@@ -167,14 +165,13 @@ TEST(volume_mini_plus_keeps_its_curve) {
     DEVICE_ID = 0;
 }
 
+/* ---- main ---- */
+
 int main(void)
 {
     printf("\n=== Volume Curve Unit Tests ===\n\n");
 
     /* Clamping */
-    RUN_TEST(volume_flip_matches_stock_formula);
-    RUN_TEST(volume_flip_never_above_minus_3_db);
-    RUN_TEST(volume_mini_plus_keeps_its_curve);
     RUN_TEST(volume_clamp_normal_range);
     RUN_TEST(volume_clamp_negative);
     RUN_TEST(volume_clamp_above_max);
@@ -194,6 +191,11 @@ int main(void)
     /* Edge cases */
     RUN_TEST(volume_negative_treated_as_zero);
     RUN_TEST(volume_over_max_treated_as_max);
+
+    /* Mini Flip curve: last, as they set DEVICE_ID */
+    RUN_TEST(volume_flip_matches_stock_formula);
+    RUN_TEST(volume_flip_never_above_minus_3_db);
+    RUN_TEST(volume_mini_plus_keeps_its_curve);
 
     TEST_REPORT();
     return test_failures;

@@ -1655,7 +1655,7 @@ start_audioserver() {
         return
     fi
     audioserver_pid=""
-    if [ "$DEVICE_ID" = "285" ]; then
+    if [ "$DEVICE_ID" = "$MODEL_MMF" ]; then
         # the Mini Flip's stock curve, see volume_toRaw in common/system/volume.h
         defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%d\n", int(57 * $1 / 20) - 60 }')
     else

@@ -81,9 +81,10 @@ static inline int volume_toRaw(int volume)
     volume = volume_clamp(volume);
     if (volume == 0)
         return 0;
-    // The Mini Flip's amplifier is hotter than the Mini Plus one: its stock
-    // firmware maps the steps linearly and stops at -3 dB, while the curve
-    // below reaches +3 dB and distorts the loudest steps.
+    // The curve below reaches +3 dB, which the Mini Flip's amplifier distorts
+    // at the loudest steps. The stock firmware (on the Mini+ as well, see
+    // /customer/main) maps the steps linearly and stops at -3 dB: the Flip
+    // uses that curve.
     if (DEVICE_ID == MIYOO285)
         return 57 * volume / 20;
     return round(48 * log10(1 + volume));
