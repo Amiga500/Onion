@@ -616,9 +616,10 @@ void menu_userInterface(void *_)
                                      .value_labels = {"Classic", "B A, page left"},
                                      .value = settings.mainui_footer_alt,
                                      .action = action_setFooterLayout},
-                                 "Bottom of the game lists: Classic, as\n"
-                                 "stock, or the page number on the left\n"
-                                 "and the hints in button order, B then A.");
+                                 "Bottom bar of the menus, lists, Tweaks\n"
+                                 "and the GameSwitcher: Classic, as stock,\n"
+                                 "or the page number on the left and the\n"
+                                 "hints in button order, B then A.");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
                                      .label = "Long menu labels",

@@ -39,11 +39,13 @@ typedef struct {
 static void action_setFooterLayout(void *pt)
 {
     settings.mainui_footer_alt = ((ListItemStub *)pt)->value == 1;
+    config_flag_set(".mainuiFooterAltLayout", settings.mainui_footer_alt);
 }
 
 static void action_setLongMenuLabels(void *pt)
 {
     settings.mainui_menu_no_ellipsis = ((ListItemStub *)pt)->value == 1;
+    config_flag_set(".noContextMenuEllipsis", settings.mainui_menu_no_ellipsis);
 }
 
 static void reset_dir(void)
@@ -138,6 +140,32 @@ TEST(hand_made_files_show_as_on)
     ASSERT_TRUE(flag_file(".noContextMenuEllipsis"));
 }
 
+/* A choice is on the card at once, before Tweaks closes, so the footer of
+ * Tweaks and the other programs can follow it. */
+TEST(choice_is_written_at_once)
+{
+    reset_dir();
+    settings_load();
+    ListItemStub item = {.value = 1};
+    action_setFooterLayout(&item);
+    action_setLongMenuLabels(&item);
+    ASSERT_TRUE(flag_file(".mainuiFooterAltLayout"));
+    ASSERT_TRUE(flag_file(".noContextMenuEllipsis"));
+
+    item.value = 0;
+    action_setFooterLayout(&item);
+    action_setLongMenuLabels(&item);
+    ASSERT_FALSE(flag_file(".mainuiFooterAltLayout"));
+    ASSERT_FALSE(flag_file(".noContextMenuEllipsis"));
+
+    /* Closing Tweaks keeps the last choice. */
+    item.value = 1;
+    action_setFooterLayout(&item);
+    settings_save();
+    ASSERT_TRUE(flag_file(".mainuiFooterAltLayout"));
+    ASSERT_FALSE(flag_file(".noContextMenuEllipsis"));
+}
+
 /* The real Tweaks code: the actions above match it, and the menu offers
  * the two choices in the order of the flag (0 = no file). */
 TEST(tweaks_sources_match)
@@ -146,6 +174,14 @@ TEST(tweaks_sources_match)
                               "settings.mainui_footer_alt = ((ListItem *)pt)->value == 1;"));
     ASSERT_TRUE(file_contains("../src/tweaks/actions.h",
                               "settings.mainui_menu_no_ellipsis = ((ListItem *)pt)->value == 1;"));
+    ASSERT_TRUE(file_contains("../src/tweaks/actions.h",
+                              "config_flag_set(\".mainuiFooterAltLayout\", settings.mainui_footer_alt);"));
+    ASSERT_TRUE(file_contains("../src/tweaks/actions.h",
+                              "config_flag_set(\".noContextMenuEllipsis\", settings.mainui_menu_no_ellipsis);"));
+    /* Tweaks redraws its own footer in the new layout right away. */
+    ASSERT_TRUE(file_contains("../src/tweaks/actions.h",
+                              "theme_footerSetAltLayout(settings.mainui_footer_alt);\n"
+                              "    footer_changed = true;"));
     ASSERT_TRUE(file_contains("../src/tweaks/menus.h",
                               ".value_labels = {\"Classic\", \"B A, page left\"},"));
     ASSERT_TRUE(file_contains("../src/tweaks/menus.h",
@@ -190,6 +226,7 @@ int main(void)
     RUN_TEST(footer_b_a_writes_the_flag_and_classic_removes_it);
     RUN_TEST(cut_labels_writes_the_flag_and_shorten_removes_it);
     RUN_TEST(hand_made_files_show_as_on);
+    RUN_TEST(choice_is_written_at_once);
     RUN_TEST(tweaks_sources_match);
     RUN_TEST(appearance_menu_has_room_for_every_item);
 
