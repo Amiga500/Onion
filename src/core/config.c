@@ -61,7 +61,8 @@ void mainui_config_parse(MainUIConfig *out, const char *rows, const char *font, 
                           .row_height = 60,
                           .repeat_delay = 500,
                           .repeat_interval = 100,
-                          .scroll_status = 1};
+                          .scroll_status = 1,
+                          .context_ellipsis = true};
     if (rows) {
         out->rows = clamp(integer(rows, bounded_length(rows, 12), NULL, NULL), 6, 20);
     }
@@ -154,4 +155,6 @@ void mainui_config_load(MainUIConfig *out, const char *directory)
         config_read(directory, ".romListDynamicFavPos", flag, sizeof flag);
     out->show_recents = config_read(directory, ".showRecents", flag, sizeof flag);
     out->show_expert = config_read(directory, ".showExpert", flag, sizeof flag);
+    out->context_ellipsis = !config_read(directory, ".noContextMenuEllipsis", flag, sizeof flag);
+    out->footer_alt = config_read(directory, ".mainuiFooterAltLayout", flag, sizeof flag);
 }

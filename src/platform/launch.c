@@ -14,15 +14,20 @@ static const char *string(const cJSON *object, const char *key)
     return cJSON_IsString(value) ? value->valuestring : "";
 }
 
-static bool protocol_path(const char *path)
+/* runtime.sh splits literal quotes and colons, so those are refused. It
+ * escapes every $ in the command before running it, but only for a game: a
+ * command containing /mnt/SDCARD/Roms/ or /../../Roms/ (check_is_game). So a
+ * ROM path there may hold $, written raw as stock MainUI and GameSwitcher
+ * write it (escaping here too would change the path runtime.sh decodes);
+ * anywhere else, and in launch scripts, $ is refused. */
+static bool protocol_path(const char *path, bool rom)
 {
     if (strncmp(path, "/mnt/SDCARD/", 12) || strlen(path) >= 4096) {
         return false;
     }
-    /* runtime.sh splits literal quotes/colons and later escapes dollar signs.
-     * Escaping only this producer would silently change its decoded ROM path. */
+    bool dollar = rom && (strstr(path, "/mnt/SDCARD/Roms/") || strstr(path, "/../../Roms/"));
     for (const unsigned char *p = (const unsigned char *)path; *p; p++) {
-        if (*p < 32 || *p == 127 || strchr("\"$`\\:", *p)) {
+        if (*p < 32 || *p == 127 || strchr("\"`\\:", *p) || (*p == '$' && !dollar)) {
             return false;
         }
     }
@@ -69,11 +74,11 @@ char *mainui_launch_command(const cJSON *record, char error[256])
         launch = source;
         rom += length + 1;
     }
-    if ((type < 0 || (!app && type != 5 && type != 17)) || !protocol_path(launch) ||
-        (!app && !protocol_path(rom) && !search_argument(launch, rom))) {
+    if ((type < 0 || (!app && type != 5 && type != 17)) || !protocol_path(launch, false) ||
+        (!app && !protocol_path(rom, true) && !search_argument(launch, rom))) {
         snprintf(error, 256,
-                 "Unsupported launch path or action type (quotes, dollars, backticks, colons and "
-                 "control bytes cannot use the unchanged Onion protocol).");
+                 "Unsupported launch path or action type (quotes, backticks, backslashes, colons, "
+                 "control bytes, and dollars outside Roms cannot use the Onion protocol).");
         return NULL;
     }
     char *command = malloc(16384);

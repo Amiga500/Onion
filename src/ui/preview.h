@@ -19,6 +19,15 @@ typedef struct {
         uint64_t used;
     } cache[MAINUI_THUMBNAIL_CACHE_SIZE];
 
+    /* The consoles of the last 6 saved games whose saved imgpath could not
+     * be used (mainui_catalog_source()), by a hash of catalog, launcher and
+     * ROM, so a list redraw reads no launcher's config.json again. */
+    struct {
+        uint64_t hash, used;
+        bool found;
+        MainUISource source;
+    } sources[6];
+
     uint64_t clock;
     char key[MAINUI_PATH_MAX];
     SDL_Thread *thread;

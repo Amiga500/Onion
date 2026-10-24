@@ -49,6 +49,28 @@ assert not cache.exists()
 capture('rebuild-on-entry', 'EE')
 with closing(sqlite3.connect(cache)) as db: assert db.execute('select count(*) from FC_roms').fetchone()[0]==2
 assert (SD/'Roms/FC/one.nes').read_bytes()==b'fixture'
+# A console without its ROM folder, in Games or in Expert, has no cache to
+# remove: Refresh roms on it does nothing, and Refresh all roms goes on with
+# the other consoles, as in stock. Both said "ROM folder is missing", and
+# Refresh all roms refreshed nothing after it.
+for folder in ('Emu/A26', 'RApp/A26'):
+    (SD/folder).mkdir(parents=True)
+    (SD/folder/'config.json').write_text(json.dumps(dict(label='Atari',rompath='../../Roms/A26',extlist='a26')))
+(SD/'RApp/RFC').mkdir(parents=True)
+(SD/'RApp/RFC/config.json').write_text(json.dumps(dict(label='NES',rompath='../../Roms/RFC',extlist='nes')))
+(SD/'Roms/RFC').mkdir()
+(SD/'Roms/RFC/one.nes').write_bytes(b'fixture')
+expert_cache=SD/'Roms/RFC/RFC_cache6.db'
+expert_cache.write_bytes(b'')
+grid=capture('missing-folder-grid','E')
+# Atari, first in the grid, is selected.
+assert capture('missing-folder-refresh-one','ESDE').tobytes()==grid.tobytes()
+assert cache.exists() and expert_cache.exists()
+assert capture('missing-folder-refresh-all','ESE').tobytes()==grid.tobytes()
+assert not cache.exists() and not expert_cache.exists()
+for folder in ('Emu/A26', 'RApp', 'Roms/RFC'): shutil.rmtree(SD/folder)
+capture('rebuild-after-missing-folder', 'EE')
+assert cache.exists()
 settings=capture('settings-direct','RRE')
 menu['settings']=False
 setup(['settings','games'])

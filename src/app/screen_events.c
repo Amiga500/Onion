@@ -532,6 +532,38 @@ bool mainui_screen_settings_page_key(MainUIApp *ui, SDLKey key)
     return true;
 }
 
+/* Add the game `record` to Favorites, or remove it from Favorites or
+ * Recents (entry->action), as the context menu and the X and Y Favorite
+ * shortcut do; the list shown and its markers follow. */
+static void saved_list_update(MainUIApp *ui, const MainUIContextEntry *entry, const cJSON *record)
+{
+    bool recent = entry->action == CONTEXT_REMOVE_RECENT;
+    MainUISavedAction action = entry->action == CONTEXT_ADD_FAVORITE ? SAVED_ADD : SAVED_REMOVE;
+    bool ok = entry->action == CONTEXT_REMOVE_FAVORITE
+                  ? mainui_favorite_remove(ui->sd, record)
+                  : mainui_saved_action(ui->sd, recent, action, record);
+    if (ok && entry->action == CONTEXT_REMOVE_FAVORITE) {
+        mainui_favorite_editor_close(&ui->favorite_editor);
+    }
+    if (ok) {
+        mainui_markers_refresh(ui, true);
+    }
+    if (ok && ui->library && !ui->search.results) {
+        ok = mainui_library_reload(ui->library, ui->sd);
+        if (ok) {
+            /* One row fewer: the next row takes the selection, and a gap
+             * left below the last row closes. */
+            mainui_viewport_refit(&ui->view, ui->library->visible_count, ui->config.rows,
+                                  ui->view.selected);
+            ui->cached_start = -1;
+        }
+    }
+    if (!ok) {
+        snprintf(ui->message_title, sizeof ui->message_title, "%s", mainui_context_label(entry));
+        snprintf(ui->message_body, sizeof ui->message_body, "Could not update the saved list.");
+    }
+}
+
 bool mainui_screen_context_menu_key(MainUIApp *ui, SDLKey key, int *requested_section)
 {
     if (!ui->context_open) {
@@ -570,32 +602,7 @@ bool mainui_screen_context_menu_key(MainUIApp *ui, SDLKey key, int *requested_se
     }
     if (entry->action == CONTEXT_ADD_FAVORITE || entry->action == CONTEXT_REMOVE_RECENT ||
         entry->action == CONTEXT_REMOVE_FAVORITE) {
-        bool recent = entry->action == CONTEXT_REMOVE_RECENT;
-        MainUISavedAction action = entry->action == CONTEXT_ADD_FAVORITE ? SAVED_ADD : SAVED_REMOVE;
-        bool ok = entry->action == CONTEXT_REMOVE_FAVORITE
-                      ? mainui_favorite_remove(ui->sd, ui->context_record)
-                      : mainui_saved_action(ui->sd, recent, action, ui->context_record);
-        if (ok && entry->action == CONTEXT_REMOVE_FAVORITE) {
-            mainui_favorite_editor_close(&ui->favorite_editor);
-        }
-        if (ok) {
-            mainui_markers_refresh(ui, true);
-        }
-        if (ok && ui->library && !ui->search.results) {
-            ok = mainui_library_reload(ui->library, ui->sd);
-            if (ok) {
-                /* One row fewer: the next row takes the selection, and a gap
-                 * left below the last row closes. */
-                mainui_viewport_refit(&ui->view, ui->library->visible_count, ui->config.rows,
-                                      ui->view.selected);
-                ui->cached_start = -1;
-            }
-        }
-        if (!ok) {
-            snprintf(ui->message_title, sizeof ui->message_title, "%s",
-                     mainui_context_label(entry));
-            snprintf(ui->message_body, sizeof ui->message_body, "Could not update the saved list.");
-        }
+        saved_list_update(ui, entry, ui->context_record);
         return true;
     }
     if (entry->action == CONTEXT_FAVORITE_DELETE) {
@@ -1088,6 +1095,155 @@ bool mainui_screen_search_key(MainUIApp *ui, SDLKey key)
     return false;
 }
 
+/* A game list (Games, Expert, Favorites, Recents, Search) with nothing open
+ * over it. */
+static bool game_list_open(const MainUIApp *ui)
+{
+    return !ui->home && !ui->apps && !ui->settings_open && !ui->language_open &&
+           !ui->context_open && ui->confirmation < 0 && !*ui->message_title && !ui->details.open &&
+           !ui->name_input.open && (ui->library || !ui->catalog || ui->catalog->depth);
+}
+
+/* Game Info with nothing over it. */
+static bool game_info_open(const MainUIApp *ui)
+{
+    return ui->details.open && !*ui->message_title && !ui->name_input.open && !ui->context_open &&
+           ui->confirmation < 0;
+}
+
+/* The selected row is a game, not a folder or "..". */
+static bool game_selected(MainUIApp *ui)
+{
+    return ui->view.selected >= 0 &&
+           (ui->library ? ui->view.selected < ui->library->visible_count &&
+                              !mainui_library_is_folder(ui->library, ui->view.selected)
+                        : ui->catalog && ui->catalog->depth && !*ui->catalog->error &&
+                              mainui_browser_index(ui->catalog, ui->view.selected) >= 0 &&
+                              !mainui_browser_folder(ui->catalog, ui->view.selected));
+}
+
+/* The Favorite shortcut: the selected game is added to Favorites, or removed
+ * when it is one, as the context menu's Add to favorites and Remove
+ * Favorite do. */
+static void toggle_favorite(MainUIApp *ui)
+{
+    cJSON *record =
+        ui->library ? cJSON_Duplicate(
+                          ui->library->items[ui->library->visible[ui->view.selected]].json, true)
+                    : mainui_catalog_record(ui->catalog,
+                                            mainui_browser_index(ui->catalog, ui->view.selected));
+    if (!record) {
+        return;
+    }
+    mainui_markers_refresh(ui, false);
+    const cJSON *rom = cJSON_GetObjectItemCaseSensitive(record, "rompath");
+    MainUIContextEntry entry = {
+        .action = cJSON_IsString(rom) && mainui_library_contains(ui->favorites, rom->valuestring)
+                      ? CONTEXT_REMOVE_FAVORITE
+                      : CONTEXT_ADD_FAVORITE};
+    saved_list_update(ui, &entry, record);
+    cJSON_Delete(record);
+}
+
+/* What a launch from the screen in front would be: the screen, its list and
+ * selection. Every key sets it before acting (dispatch_key()), and so does
+ * the X shortcut, which acts from its release without one: after a start,
+ * a list reload or entering Favorites it would otherwise describe a screen
+ * no longer shown, or a list already freed. */
+static void prepare_launch(MainUIApp *ui)
+{
+    ui->search.view = ui->view;
+    ui->settings_view = (MainUIViewport){ui->settings.count, ui->settings.selected,
+                                         ui->settings.start, ui->settings.start + 5};
+    ui->launch_source = (MainUILaunchSource){
+        .sd = ui->sd,
+        .section = ui->settings_open ? MAINUI_MENU_SETTINGS
+                   : ui->apps        ? MAINUI_MENU_APPS
+                   : ui->library && !ui->search.results
+                       ? (ui->library->recent ? MAINUI_MENU_RECENTS : MAINUI_MENU_FAVORITES)
+                   : ui->catalog == ui->expert ? MAINUI_MENU_EXPERT
+                                               : MAINUI_MENU_GAMES,
+        .catalog = ui->settings_open ? NULL
+                   : ui->apps        ? ui->apps
+                                     : ui->catalog,
+        .library = ui->search.results ? NULL : ui->library,
+        .view = ui->settings_open    ? &ui->settings_view
+                : ui->search.results ? &ui->search.source_view
+                : ui->apps           ? &ui->apps_view
+                                     : &ui->view,
+        .home = &ui->home_view,
+        .search = ui->search.results ? &ui->search : NULL,
+        .home_only = ui->home && !ui->settings_open && !ui->apps};
+}
+
+/* X or Y on a game, as its shortcut in keymap.json says (Y here from
+ * dispatch_key, X from mainui_dispatch_event, both when released):
+ *  - none: Y launches the game as A does, as in stock (X is B and never
+ *    comes here);
+ *  - Game List Options: the game is launched with keymon's /tmp/launch_alt
+ *    set, so runtime.sh opens Game List Options for it instead of starting
+ *    it (#14). keymon sets the flag itself for Y only, and skips it while
+ *    its cached state does not say MainUI is running (after boot, or just
+ *    after a game), so MainUI sets it for either button;
+ *  - Favorite: the game is added to Favorites or removed;
+ *  - anything else, or a keymap.json that cannot be read: nothing (logged,
+ *    no message), for keymon runs an app or tool shortcut, and a game it did
+ *    not mean to start must not.
+ * On a folder or ".." nothing happens. */
+static void button_shortcut(MainUIApp *ui, char button)
+{
+    if (!game_selected(ui) || !ui->sd) {
+        return;
+    }
+    char why[160];
+    MainUIShortcut shortcut = mainui_button_shortcut(ui->sd, button, why);
+    if (shortcut == MAINUI_SHORTCUT_KEYMON) {
+        fprintf(stderr, "[launch] %c ignored: %s\n", button, why);
+        return;
+    }
+    if (shortcut == MAINUI_SHORTCUT_FAVORITE) {
+        toggle_favorite(ui);
+        /* Game Info's star follows (mainui_markers_refresh()). Removed from
+         * the Favorites list it is shown from, the game's row is gone:
+         * Game Info closes on the list. */
+        if (ui->details.open && ui->library && !ui->library->recent && !ui->search.results &&
+            !ui->details.favorite) {
+            mainui_details_close(&ui->details);
+            ui->cached_start = -1;
+        }
+        return;
+    }
+    /* Game Info takes only the Favorite shortcut. */
+    if (ui->details.open) {
+        return;
+    }
+    if (!ui->handoff_dir || (button == 'X' && shortcut != MAINUI_SHORTCUT_GAME_OPTIONS)) {
+        return;
+    }
+    prepare_launch(ui);
+    ui->launch_source.alternate = shortcut == MAINUI_SHORTCUT_GAME_OPTIONS;
+    ui->launch_pending =
+        mainui_session_launch(ui->handoff_dir, &ui->launch_source, NULL, ui->message_body);
+    ui->launch_source.alternate = false;
+    if (!ui->launch_pending) {
+        snprintf(ui->message_title, sizeof ui->message_title, "Launch unavailable");
+    }
+}
+
+/* X has a shortcut MainUI runs (Favorite or Game List Options): X is no
+ * longer B anywhere. On a game in a game list it acts when released, as Y
+ * does (keymon clears its Game List Options flag as X goes down, so a
+ * launch on the press could lose it). Anywhere else (folders, grids,
+ * menus, dialogs, Game Info, a loading list) it does nothing, as Y with a
+ * shortcut does nothing but its shortcut. The on-screen keyboard, read
+ * before this, still types a space. */
+static bool x_bound(const MainUIApp *ui)
+{
+    MainUIShortcut shortcut =
+        ui->sd ? mainui_button_shortcut(ui->sd, 'X', NULL) : MAINUI_SHORTCUT_NONE;
+    return shortcut == MAINUI_SHORTCUT_FAVORITE || shortcut == MAINUI_SHORTCUT_GAME_OPTIONS;
+}
+
 static void dispatch_key(MainUIApp *ui, SDL_Event *event)
 {
     SDLKey pressed = mainui_input_key(event->key.keysym.sym);
@@ -1115,33 +1271,12 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
         }
         ui->search.release_pending = false;
     }
-    ui->search.view = ui->view;
     bool was_held = pressed >= 0 && pressed < SDLK_LAST && ui->held[pressed];
 
     if (pressed >= 0 && pressed < SDLK_LAST) {
         ui->held[pressed] = true;
     }
-    ui->settings_view = (MainUIViewport){ui->settings.count, ui->settings.selected,
-                                         ui->settings.start, ui->settings.start + 5};
-    ui->launch_source = (MainUILaunchSource){
-        .sd = ui->sd,
-        .section = ui->settings_open ? MAINUI_MENU_SETTINGS
-                   : ui->apps        ? MAINUI_MENU_APPS
-                   : ui->library && !ui->search.results
-                       ? (ui->library->recent ? MAINUI_MENU_RECENTS : MAINUI_MENU_FAVORITES)
-                   : ui->catalog == ui->expert ? MAINUI_MENU_EXPERT
-                                               : MAINUI_MENU_GAMES,
-        .catalog = ui->settings_open ? NULL
-                   : ui->apps        ? ui->apps
-                                     : ui->catalog,
-        .library = ui->search.results ? NULL : ui->library,
-        .view = ui->settings_open    ? &ui->settings_view
-                : ui->search.results ? &ui->search.source_view
-                : ui->apps           ? &ui->apps_view
-                                     : &ui->view,
-        .home = &ui->home_view,
-        .search = ui->search.results ? &ui->search : NULL,
-        .home_only = ui->home && !ui->settings_open && !ui->apps};
+    prepare_launch(ui);
     /* A message is drawn over Details, so it takes the keys first. */
     if (ui->details.open && screen_message_key(ui, key)) {
         return;
@@ -1152,6 +1287,12 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
         if (!ui->launch_pending) {
             snprintf(ui->message_title, sizeof ui->message_title, "Launch unavailable");
             mainui_details_close(&ui->details);
+        }
+        return;
+    }
+    if (ui->details.open && key == SDLK_LALT) {
+        if (!was_held) {
+            button_shortcut(ui, 'Y');
         }
         return;
     }
@@ -1184,36 +1325,10 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
         ui->letter_jump.active = false;
         return;
     }
-    /* Y on a game launches it as A does, as in stock: with Game List Options
-     * set as the Y shortcut, Onion's keymon sets /tmp/launch_alt on Y, and
-     * runtime.sh then opens Game List Options for the launched game instead
-     * of starting it (#14). MainUI sets that flag too, as keymon skips it
-     * while its cached state does not say MainUI is running (after boot, or
-     * just after a game). With no Y shortcut, Y is A. With any other, or a
-     * keymap.json that cannot be read, Y does nothing (logged, no message):
-     * keymon runs an app or tool shortcut, and a game it did not mean to
-     * start must not. On a folder or ".." Y does nothing. */
+    /* Y on a game: its shortcut (button_shortcut()), once per press. */
     if (game_list && key == SDLK_LALT) {
-        bool game = ui->view.selected >= 0 &&
-                    (ui->library ? ui->view.selected < ui->library->visible_count &&
-                                       !mainui_library_is_folder(ui->library, ui->view.selected)
-                                 : ui->catalog && ui->catalog->depth && !*ui->catalog->error &&
-                                       mainui_browser_index(ui->catalog, ui->view.selected) >= 0 &&
-                                       !mainui_browser_folder(ui->catalog, ui->view.selected));
-        char why[160];
-        MainUIYShortcut shortcut =
-            game && !was_held && ui->handoff_dir ? mainui_y_shortcut(ui->sd, why) : MAINUI_Y_AS_A;
-        if (shortcut == MAINUI_Y_NOTHING) {
-            fprintf(stderr, "[launch] Y ignored: %s\n", why);
-        }
-        else if (game && !was_held && ui->handoff_dir) {
-            ui->launch_source.alternate = shortcut == MAINUI_Y_GAME_OPTIONS;
-            ui->launch_pending =
-                mainui_session_launch(ui->handoff_dir, &ui->launch_source, NULL, ui->message_body);
-            ui->launch_source.alternate = false;
-            if (!ui->launch_pending) {
-                snprintf(ui->message_title, sizeof ui->message_title, "Launch unavailable");
-            }
+        if (!was_held) {
+            button_shortcut(ui, 'Y');
         }
         return;
     }
@@ -1387,7 +1502,7 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
          * A pending confirmation is cancelled: its key state is unknown now. */
         memset(ui->held, 0, sizeof ui->held);
         /* Their releases would be taken for presses. */
-        ui->y_armed = ui->select_armed = ui->start_armed = false;
+        ui->x_armed = ui->y_armed = ui->select_armed = ui->start_armed = false;
         ui->select_brightness = false;
         ui->letter_jump.active = false;
         ui->confirmation = -1;
@@ -1423,12 +1538,13 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
         return true;
     }
     if (ui->catalog_job.thread) {
-        ui->y_armed = ui->select_armed = ui->start_armed = false;
+        ui->x_armed = ui->y_armed = ui->select_armed = ui->start_armed = false;
         if (event->type == SDL_KEYUP && mainui_input_key(event->key.keysym.sym) == SDLK_RETURN) {
             ui->search_confirm_held = false;
         }
         SDLKey cancel = mainui_input_key(event->key.keysym.sym);
-        if (event->type == SDL_KEYDOWN && (cancel == SDLK_ESCAPE || cancel == SDLK_LSHIFT)) {
+        if (event->type == SDL_KEYDOWN &&
+            (cancel == SDLK_ESCAPE || (cancel == SDLK_LSHIFT && !x_bound(ui)))) {
             mainui_catalog_job_cancel(&ui->catalog_job);
             ui->catalog_generation++;
         }
@@ -1456,6 +1572,16 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
                   : key == SDLK_RCTRL ? &ui->select_armed
                   : key == SDLK_F2    ? &ui->start_armed
                                       : NULL;
+    /* Only if the game list or Game Info is still in front: a menu,
+     * dialog, message or keyboard opened while X was held owns the keys. */
+    if (event->type == SDL_KEYUP && key == SDLK_LSHIFT && ui->x_armed) {
+        ui->x_armed = false;
+        if ((game_list_open(ui) || game_info_open(ui)) &&
+            !(ui->device_enabled && ui->device_status.sleeping == 1)) {
+            button_shortcut(ui, 'X');
+        }
+        return true;
+    }
     if (event->type == SDL_KEYUP && armed && *armed) {
         *armed = false;
         SDL_Event press = *event;
@@ -1477,6 +1603,14 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
         if (key > 0 && key < SDLK_LAST) {
             ui->held[key] = true;
         }
+        return true;
+    }
+    if (event->type == SDL_KEYDOWN && key == SDLK_LSHIFT && (ui->x_armed || x_bound(ui))) {
+        if (!ui->held[key] && (game_list_open(ui) || game_info_open(ui)) && game_selected(ui) &&
+            !(ui->device_enabled && ui->device_status.sleeping == 1)) {
+            ui->x_armed = true;
+        }
+        ui->held[key] = true;
         return true;
     }
     if (event->type == SDL_KEYDOWN && armed) {

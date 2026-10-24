@@ -57,6 +57,12 @@ A 1.0.8 test build also set them on the screen at start: on RedOnion Beta 6 and 
 When a console's `miyoogamelist.xml` cannot be used at all (for example an empty file, or one with no `<gameList>`), the log says `miyoogamelist.xml is unusable (<reason>); listing the ROM files instead`, and the list is built from the file names. The XML is never changed.
 A file that cannot be read because of a card or permission error is different: the log says `could not be read`, and the previous list is kept. Most sloppy files are read as they are: unescaped `&` or `<` in titles and Windows-1252 accents work. Once the file is fixed, run **Refresh roms** for that console. See [CATALOG_CACHE.md](CATALOG_CACHE.md#xml-import-checkpoint).
 
+## A game does not start: "Unsupported launch path"
+
+MainUI hands a game to Onion's runtime.sh as a command line with the launch script and the ROM path in double quotes, written as they are, as stock MainUI and GameSwitcher write them.
+Some characters cannot pass through that: double quotes, backticks, backslashes, colons and control characters in either path, and a `$` in a launch script's path. MainUI refuses those launches with this message rather than run a different path. FAT cannot store most of them in a file name anyway.
+A `$` in a ROM name works, as in `Super Game$ Collection (USA).zip`: runtime.sh escapes every `$` of a game's command before running it, so the name is used literally. It does that only when the ROM is under `Roms`, so a `$` in a ROM path outside `Roms` is refused too. Renaming the file or folder is the fix.
+
 ## Resolving an interrupted ROM deletion
 
 Deleting a ROM first renames it to a staged name, `<rom>.mainui-delete.<16 hex digits>`, and records this in a journal next to the console's cache (`<cache>.delete.json`). If the deletion is interrupted, for example by a power cut, Open MainUI finishes or undoes it automatically the next time you enter that console.
