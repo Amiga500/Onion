@@ -9,12 +9,24 @@
 OPEN_MAINUI ?= 1
 OPEN_MAINUI_DIR := $(THIRD_PARTY_DIR)/open-mainui
 OPEN_MAINUI_BIN := $(OPEN_MAINUI_DIR)/build/onion/MainUI
+# Test builds: a binary given before its source is out, installed instead of
+# compiling the subtree when it exists (third-party/open-mainui-prebuilt/README.md).
+OPEN_MAINUI_PREBUILT_DIR := $(THIRD_PARTY_DIR)/open-mainui-prebuilt
+OPEN_MAINUI_PREBUILT := $(wildcard $(OPEN_MAINUI_PREBUILT_DIR)/MainUI)
 
 .PHONY: open-mainui open-mainui-clean
 
 # After `build`, so every MainUI-* variant is already in BIN_DIR.
 # The sub-make gets a clean environment: Onion's flags and command-line
 # variables (VERSION, CFLAGS, ...) must not leak into Open MainUI's build.
+ifneq ($(OPEN_MAINUI_PREBUILT),)
+open-mainui: build
+	@$(ECHO) $(PRINT_RECIPE)
+	@echo "Open MainUI: prebuilt $(OPEN_MAINUI_PREBUILT) (not built from source)"
+	@cd $(OPEN_MAINUI_PREBUILT_DIR) && md5sum -c MainUI.md5
+	@sh $(SRC_DIR)/openMainUI/install.sh "$(BIN_DIR)" "$(BUILD_DIR)" \
+		"$(OPEN_MAINUI_PREBUILT)" "$(SRC_DIR)/openMainUI/MainUI-wrapper.sh.in"
+else
 open-mainui: build
 	@$(ECHO) $(PRINT_RECIPE)
 	@test -f $(OPEN_MAINUI_DIR)/Makefile || { \
@@ -25,6 +37,7 @@ open-mainui: build
 		make device ONION_ROOT=$(ROOT_DIR)
 	@sh $(SRC_DIR)/openMainUI/install.sh "$(BIN_DIR)" "$(BUILD_DIR)" \
 		"$(OPEN_MAINUI_BIN)" "$(SRC_DIR)/openMainUI/MainUI-wrapper.sh.in"
+endif
 
 open-mainui-clean:
 	@cd $(OPEN_MAINUI_DIR) && make clean
