@@ -36,7 +36,7 @@ Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHA
 ### 🕹️ GameSwitcher
 
 - **Pictures and save states for Neo Geo, arcade, PS1 and big GBA games:** the first time the GameSwitcher opens in a game, RetroArch reads the whole ROM before it answers, which takes a few seconds for a big zip. Since beta 9 the GameSwitcher stopped waiting after about 2 seconds: no picture of the game, its box art stretched instead, no Save in its menu and a Load that only went back to the game. It now waits for the answer (thanks u/dgruetter for the PS1 report).
-- **No more crash in Game & Watch** and 11 other cores (error 139, #283): BK (Elektronika BK), Cannonball (OutRun), EasyRPG (RPG Maker), FreeChaF (Fairchild Channel F), Lutro, Mu (Palm OS), NeoCD (Neo Geo CD), REminiscence (Flashback), Theodore (Thomson), VeMUlator (Dreamcast VMU) and X1 (Sharp X1). Their core info had no system id, and RetroArch crashed when the GameSwitcher asked what was running. Existing installs get the fix during the update.
+- **No more crash in Game & Watch** and 11 other cores (error 139, #283): BK (Elektronika BK), Cannonball (OutRun), EasyRPG (RPG Maker), FreeChaF (Fairchild Channel F), Lutro, Mu (Palm OS), NeoCD (Neo Geo CD), REminiscence (Flashback), Theodore (Thomson), VeMUlator (Dreamcast VMU) and X1 (Sharp X1). Their core info had no system id, and RetroArch crashed when the GameSwitcher asked what was running. Existing installs get the fix during the update (thanks @quackwalks for reporting it).
 - **Cleaner RetroArch shutdown** when the GameSwitcher doesn't know its process: one signal instead of up to 999 (#295, thanks @coorasse for the pull request).
 
 ### 📄 PDF Reader and Video Player
@@ -47,7 +47,7 @@ Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHA
 ### 📶 Wi-Fi and updates
 
 - **Fast file transfers with Wi-Fi power save:** since beta 10 power saving was on all the time, and FTP transfers stuttered and new files took a minute to show on the other side. It now turns off while FTP, SSH/SFTP, the HTTP file server, Samba or Telnet is on in Tweaks › Network, and back on when you turn them all off, or while a game pauses them ("Disable services in game") (thanks u/Professional-Gold217 for reporting it).
-- **The updater's internet check no longer depends on the clock:** it checked github.com's certificate, and on a device whose clock was wrong (no clock battery, or before the time sync) it stopped with "https://github.com not reachable" on a working network. It now skips the certificate, as the download already did, and when it still fails it says why.
+- **The updater's internet check no longer depends on the clock:** it checked github.com's certificate, and on a device whose clock was wrong (no clock battery, or before the time sync) it stopped with "https://github.com not reachable" on a working network. It now skips the certificate, as the download already did, and when it still fails it says why (thanks u/Professional-Gold217 for the report).
 
 ### 🔐 SSH
 
@@ -107,9 +107,9 @@ Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga
 
 Thanks first to the Onion team and to the community. RedOnion sits on their work: the OS and the years of fixes already in the tree. None of this exists without that.
 
-Thanks to @robcodedev for Open MainUI 1.0.10 and the footer layout, X and Y and long label options in it, to @dredvm for the RedOnion name, the Silky RedOnion theme artwork and the boot logo, to @coorasse for the pull requests (the Mini Flip volume curve, the GameSwitcher shutdown fix and the test cleanup), to @Ziko577 for the SSH host key report, to @nukefrenzy for the hidebios report and the testing, to @fengfrw for the folder covers idea, and to DiMo + fireball33x for the original Silky theme.
+Thanks to @robcodedev for Open MainUI 1.0.10 and the footer layout, X and Y and long label options in it, to @dredvm for the RedOnion name, the Silky RedOnion theme artwork and the boot logo, to @coorasse for the pull requests (the Mini Flip volume curve, the GameSwitcher shutdown fix and the test cleanup), to @quackwalks for the Game & Watch crash report, to @Ziko577 for the SSH host key report, to @nukefrenzy for the hidebios report and the testing, to @fengfrw for the folder covers idea, and to DiMo + fireball33x for the original Silky theme.
 
-Thanks to the Reddit users who found bugs and asked for improvements: u/Ok_Maintenance_6978 (PDF Reader exit), u/Kylie_Ray (Refresh all roms), u/back-in-flac (footer layout), u/SpeeDy_GjiZa (`$` in ROM names), u/Professional-Gold217 (FTP with Wi-Fi power save, the updater check) and u/dgruetter (GameSwitcher save states in PS1 games). And thanks to u/Mugen42, u/BetterLink1328, u/Old-Macaroon-4563, u/icystandards, u/Kooky-Minimum-2009, u/mariusmym, u/Smb158 and u/expera for testing, feedback and support.
+Thanks to the Reddit users who found bugs and asked for improvements: u/Ok_Maintenance_6978 (PDF Reader exit), u/Kylie_Ray (Refresh all roms), u/back-in-flac (footer layout), u/SpeeDy_GjiZa (`$` in ROM names), u/Professional-Gold217 (FTP stutter with Wi-Fi power save, the updater check) and u/dgruetter (GameSwitcher save states in PS1 games). And thanks to u/Mugen42, u/BetterLink1328, u/Old-Macaroon-4563, u/icystandards, u/Kooky-Minimum-2009, u/mariusmym, u/Smb158 and u/expera for testing, feedback and support.
 
 ## 💰 Bounty
 
