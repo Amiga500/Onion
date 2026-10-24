@@ -72,6 +72,9 @@ typedef struct settings_s {
     char blue_light_time_off[16];
     bool rtc_available;
     int lid_close_action;
+    // Open MainUI 1.0.10 reads these flags (Tweaks > Appearance)
+    bool mainui_footer_alt;       // .mainuiFooterAltLayout: page number left, hints B then A
+    bool mainui_menu_no_ellipsis; // .noContextMenuEllipsis: cut long SELECT menu labels, no …
 
     char mainui_button_x[JSON_STRING_LEN];
     char mainui_button_y[JSON_STRING_LEN];
@@ -130,6 +133,8 @@ static settings_s __default_settings = (settings_s){
     .pwmfrequency = 7,
     .launch_screen = 0,
     .lid_close_action = 0,
+    .mainui_footer_alt = false,
+    .mainui_menu_no_ellipsis = false,
     .mainui_button_x = "",
     .mainui_button_y = "",
     //utility
@@ -228,6 +233,8 @@ void settings_load(void)
     settings.blue_light_schedule = config_flag_get(".blf");
     settings.rec_indicator = config_flag_get(".recIndicator");
     settings.rec_hotkey = config_flag_get(".recHotkey");
+    settings.mainui_footer_alt = config_flag_get(".mainuiFooterAltLayout");
+    settings.mainui_menu_no_ellipsis = config_flag_get(".noContextMenuEllipsis");
     settings.rtc_available = temp_flag_get("rtc_available");
 
     if (config_flag_get(".noLowBatteryAutoSave")) // flag is deprecated, but keep compatibility
@@ -529,6 +536,8 @@ void _settings_save_impl(bool notify)
     _settings_save_flag(".blf", settings.blue_light_schedule, old->blue_light_schedule, force);
     _settings_save_flag(".recIndicator", settings.rec_indicator, old->rec_indicator, force);
     _settings_save_flag(".recHotkey", settings.rec_hotkey, old->rec_hotkey, force);
+    _settings_save_flag(".mainuiFooterAltLayout", settings.mainui_footer_alt, old->mainui_footer_alt, force);
+    _settings_save_flag(".noContextMenuEllipsis", settings.mainui_menu_no_ellipsis, old->mainui_menu_no_ellipsis, force);
     _settings_save_number("battery/warnAt", settings.low_battery_warn_at, old->low_battery_warn_at, force);
     _settings_save_number("battery/exitAt", settings.low_battery_autosave_at, old->low_battery_autosave_at, force);
     _settings_save_number("startup/app", settings.startup_application, old->startup_application, force);

@@ -6,6 +6,7 @@
 #include "system/osd.h"
 #include "system/rumble.h"
 #include "system/settings.h"
+#include "theme/render/footer.h"
 #include "theme/resources.h"
 #include "theme/sound.h"
 #include "utils/apps.h"
@@ -47,9 +48,10 @@ void action_setAppShortcut(void *pt)
         return;
     }
 
-    if (item->action_id == 1) {
-        strcpy(sett_pt, "glo");
-    }
+    value -= NUM_TOOLS;
+
+    if (value < MAINUI_SHORTCUT_EXTRA_COUNT)
+        strcpy(sett_pt, mainui_shortcut_extra_values[value]);
 }
 
 void action_meterWidth(void *pt)
@@ -158,6 +160,22 @@ void action_setLowBatteryAutoSave(void *pt)
 void action_setLaunchScreen(void *pt)
 {
     settings.launch_screen = ((ListItem *)pt)->value;
+}
+
+// Written at once, not only when Tweaks closes: the footer of Tweaks and of
+// the other RedOnion programs follows the same flag as Open MainUI.
+void action_setFooterLayout(void *pt)
+{
+    settings.mainui_footer_alt = ((ListItem *)pt)->value == 1;
+    config_flag_set(".mainuiFooterAltLayout", settings.mainui_footer_alt);
+    theme_footerSetAltLayout(settings.mainui_footer_alt);
+    footer_changed = true;
+}
+
+void action_setLongMenuLabels(void *pt)
+{
+    settings.mainui_menu_no_ellipsis = ((ListItem *)pt)->value == 1;
+    config_flag_set(".noContextMenuEllipsis", settings.mainui_menu_no_ellipsis);
 }
 
 void action_setLidCloseAction(void *pt)

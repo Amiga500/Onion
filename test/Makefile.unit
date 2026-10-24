@@ -29,6 +29,9 @@ COMMON_SRCS := ../src/common/utils/str.c ../src/common/utils/log.c ../src/common
 TESTS := test_str test_perf test_file test_images_browser test_hash test_json test_state test_history_recent test_neon test_playactivity test_clock test_msleep test_config test_log test_flags test_process test_timer test_apply_icons test_settings test_list test_color test_apps test_changes test_gs_history test_gs_popmenu test_gs_retroarch test_has_changed test_settings_reload test_settings_merge test_str_security test_file_security test_json_security test_game_entry test_state_security test_config_security test_volume test_display test_lang test_signal_handler test_battery test_playactivity_paths test_theme_config test_device_model test_theme_load test_cache_db test_legacy_db test_keymap test_resources_enum test_screenshot_path test_system_utils test_display_buffers test_rom_image_path test_savestate_path test_overlay_content test_romscreen_find test_neon_pixel test_formatters test_pacman_changes test_alpha_scale test_osd_constants test_null_safety test_critical_fixes test_cjson_null_safety test_json_null_guards test_scripts test_romscreen_window test_theme_marker test_gs_longpress test_netinfo test_flip_suspend test_display_rotate test_gs_frame test_input_inject test_state_scan test_keystate test_warn_reload test_theme_previews test_playactivity_close test_textbox_fit test_tweaks_game_lists test_theme_list_rescale test_udp_wait
 
 # Build-only targets (compilation without running)
+# Suites for Tweaks > Appearance > Footer layout and the GameSwitcher bar
+TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar test_mainui_shortcut
+
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
 .PHONY: all clean $(TESTS) summary unit-test-san unit-test-neon-arm neon-test-arm
@@ -437,6 +440,45 @@ test_theme_marker: $(BUILD_DIR)/test_theme_marker
 $(BUILD_DIR)/test_theme_marker: test_theme_marker.c onion_test.h ../src/themeSwitcher/themeMarker.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_theme_marker.c $(LDFLAGS)
+
+test_mainui_flags: $(BUILD_DIR)/test_mainui_flags
+	@echo ""
+	@$(BUILD_DIR)/test_mainui_flags
+
+$(BUILD_DIR)/test_mainui_flags: test_mainui_flags.c onion_test.h ../src/common/system/settings.h ../src/common/utils/config.h ../src/tweaks/actions.h ../src/tweaks/menus.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_mainui_flags.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
+
+test_footer_layout: $(BUILD_DIR)/test_footer_layout
+	@echo ""
+	@$(BUILD_DIR)/test_footer_layout
+
+$(BUILD_DIR)/test_footer_layout: test_footer_layout.c onion_test.h ../src/common/theme/render/footer.h stubs/SDL/SDL.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_footer_layout.c $(LDFLAGS)
+
+test_gs_bottom_bar: $(BUILD_DIR)/test_gs_bottom_bar
+	@echo ""
+	@$(BUILD_DIR)/test_gs_bottom_bar
+
+$(BUILD_DIR)/test_gs_bottom_bar: test_gs_bottom_bar.c onion_test.h ../src/gameSwitcher/gs_bottom_bar.h ../src/gameSwitcher/gameSwitcher.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_gs_bottom_bar.c $(LDFLAGS)
+
+test_mainui_shortcut: $(BUILD_DIR)/test_mainui_shortcut
+	@echo ""
+	@$(BUILD_DIR)/test_mainui_shortcut
+
+# The three Tweaks functions, cut from the real sources.
+$(BUILD_DIR)/mainui_shortcut_fns.c: ../src/tweaks/formatters.h ../src/tweaks/values.h ../src/tweaks/actions.h
+	@mkdir -p $(BUILD_DIR)
+	sed -n '/^void formatter_appShortcut(/,/^}/p' ../src/tweaks/formatters.h > $@
+	sed -n '/^int value_appShortcut(/,/^}/p' ../src/tweaks/values.h >> $@
+	sed -n '/^void action_setAppShortcut(/,/^}/p' ../src/tweaks/actions.h >> $@
+
+$(BUILD_DIR)/test_mainui_shortcut: test_mainui_shortcut.c onion_test.h ../src/common/utils/mainui_shortcut.h ../src/tweaks/tools_defs.h ../src/keymon/menuButtonAction.h ../src/tweaks/menus.h $(BUILD_DIR)/mainui_shortcut_fns.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DSHORTCUT_FNS='"$(abspath $(BUILD_DIR))/mainui_shortcut_fns.c"' -o $@ test_mainui_shortcut.c $(LDFLAGS)
 
 test_theme_list_rescale: $(BUILD_DIR)/test_theme_list_rescale
 	@echo ""

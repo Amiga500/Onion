@@ -12,6 +12,7 @@
 #include "system/system_utils.h"
 #include "utils/apps.h"
 #include "utils/flags.h"
+#include "utils/mainui_shortcut.h"
 
 #include "../tweaks/tools_defs.h"
 #include "./input_fd.h"
@@ -50,7 +51,8 @@ void applyExtraButtonShortcut(int button)
         button == 0 ? settings.mainui_button_x : settings.mainui_button_y;
     InstalledApp *apps = getInstalledApps(false);
 
-    if (button == 1 && strcmp(action, "glo") == 0) {
+    // "fav" is Open MainUI's own (toggle favorite): nothing to do here.
+    if (mainui_shortcut_launchesGlo(action)) {
         temp_flag_set("launch_alt", true);
     }
     else if (strncmp(action, "app:", 4) == 0) {
