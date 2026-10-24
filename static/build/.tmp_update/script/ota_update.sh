@@ -504,7 +504,9 @@ apply_update() {
 }
 
 # Build date (YYYYMMDD) of a version such as 4.4.0-beta-20261010-f7c522a5.
-build_date() { echo "$1" | sed -n -e 's/^.*-\([0-9]\{8\}\)-[0-9a-f]\{7,\}$/\1/p' -e 's/^.*-\([0-9]\{8\}\)$/\1/p' | head -n 1; }
+# A build made by hand can add a word after the commit (…-a6a42951-readline):
+# without its date the check below let an older stable look like an update.
+build_date() { echo "$1" | sed -n -e 's/^.*-\([0-9]\{8\}\)-[0-9a-f]\{7,\}$/\1/p' -e 's/^.*-\([0-9]\{8\}\)-[0-9a-f]\{7,\}-[A-Za-z0-9._]*$/\1/p' -e 's/^.*-\([0-9]\{8\}\)$/\1/p' | head -n 1; }
 
 get_version() { echo "$@" | tr -d '[:alpha:]' | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
 

@@ -414,6 +414,15 @@ if command -v jq > /dev/null; then
     check "build date parsed" test "$(build_date 4.4.0-beta-20261010-f7c522a5)" = 20261010
     check "date only: parsed" test "$(build_date 4.4.0-beta-20261010)" = 20261010
     check "no date: empty" test -z "$(build_date 4.4.0)"
+    # A build made by hand with a word after the commit keeps its date.
+    check "suffix: date parsed" test "$(build_date 4.4.0-beta-20261023-a6a42951-readline)" = 20261023
+    installUI() { echo "4.4.0-beta-20261023-a6a42951-readline"; }
+    ota_asset 4.4.0-beta-20261007-9e96c27c false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "suffix: older stable not offered" test "$?" -eq 1
+    ota_asset 4.4.0-beta-20261025-0123abcd false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "suffix: newer build offered" test "$?" -eq 0
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
