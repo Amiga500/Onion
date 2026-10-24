@@ -1189,6 +1189,31 @@ check "the version screen offers MENU to exit" grep -q 'wait_key "Press A to con
 unset -f wait_key
 end
 
+begin ota_connection_check_ignores_the_clock
+# A device with its clock wrong (no clock battery, no time sync yet) failed
+# the check on a working network: the certificate looked not yet valid.
+# The check skips the certificate, like the list and the download, and
+# says why it failed.
+eval "$(extract_fn "$OTA_SCRIPT" check_connection)"
+wget() {
+    echo "$*" > "$TMP/wget_args"
+    case " $* " in
+        *" --no-check-certificate "*) [ -f "$TMP/offline" ] && { echo "Failed to resolve host: github.com" >&2; return 4; }; return 0 ;;
+        *) echo "Connection error: Invalid SSL certificate" >&2; return 5 ;;
+    esac
+}
+read() { :; }
+out=$( (check_connection) 2>&1); rc=$?
+check "wrong clock: connection OK" test $rc -eq 0
+check "the certificate is not checked" grep -q -- "--no-check-certificate" "$TMP/wget_args"
+check "still a 15 s timeout" grep -q -- "-T 15" "$TMP/wget_args"
+touch "$TMP/offline"
+out=$( (check_connection) 2>&1); rc=$?
+check "offline: exits 2" test $rc -eq 2
+check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (Failed to resolve host: github.com)'" _ "$out"
+unset -f wget read check_connection
+end
+
 # ---- migration 00022: RetroArch menu Border Filler OFF ----
 
 begin migration_disables_rgui_border_filler
