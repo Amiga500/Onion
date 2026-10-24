@@ -32,6 +32,8 @@ main() {
                 toggle)
                     check_${service}state &
                     store_state & # if anything is toggled, store the state
+                    # Tweaks sets the flag first: power save follows it
+                    $netscript/wifi_power_save.sh auto &
                     ;;
                 authed)
                     ${service}_authed &
@@ -175,6 +177,8 @@ disable_all_services() {
             killall -9 $process
         fi
     done
+
+    $netscript/wifi_power_save.sh auto
 }
 
 # runtime.sh::launch_game creates this flag when it kills the network
@@ -206,6 +210,9 @@ start_services_outside_game() {
         log "Network Checker: a game started meanwhile, stopping services"
         killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null
     fi
+
+    # Off while services run, on again if a game paused them meanwhile
+    $netscript/wifi_power_save.sh auto
 }
 
 # Core function
@@ -290,7 +297,9 @@ wifi_on() {
     # Wi-Fi connected that drained the battery about 20% faster (0.75 vs
     # 0.62 %/min) and made the device warm. Onion's stock MainUI restarts
     # Wi-Fi and so ran with power save on; Open MainUI keeps this Wi-Fi.
-    iw dev wlan0 set power_save on
+    # Off while a file-transfer service is on: with it, FTP transfers
+    # stuttered and new files took a minute to show on the phone.
+    $netscript/wifi_power_save.sh auto
 }
 
 wifi_off() {
