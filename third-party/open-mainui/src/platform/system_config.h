@@ -8,18 +8,20 @@
  * unreadable input returns NULL, so it cannot be overwritten as an empty file. */
 cJSON *mainui_system_read(const char *sd);
 
-/* What Y on a game does, from the Y shortcut in .tmp_update/config/
- * keymap.json, which keymon reads (Tweaks: Button shortcuts > MainUI: Y
- * button). */
+/* What X or Y on a game does, from its shortcut in .tmp_update/config/
+ * keymap.json (mainui_button_x, mainui_button_y), which keymon reads too
+ * (Tweaks: Button shortcuts > MainUI: X button, Y button). */
 typedef enum {
-    MAINUI_Y_AS_A,         /* no shortcut ("A button"): no file, no text value */
-    MAINUI_Y_GAME_OPTIONS, /* "glo": Onion's Game List Options */
-    MAINUI_Y_NOTHING       /* keymon's (an app or tool) or unknown: the file
-                            * cannot be read or parsed, or another value */
-} MainUIYShortcut;
+    MAINUI_SHORTCUT_NONE,         /* no shortcut: no file, no text value; X is B, Y is A */
+    MAINUI_SHORTCUT_GAME_OPTIONS, /* "glo": Onion's Game List Options */
+    MAINUI_SHORTCUT_FAVORITE,     /* "fav": add the game to Favorites or remove it */
+    MAINUI_SHORTCUT_KEYMON        /* keymon's (an app or tool) or unknown: the file
+                                   * cannot be read or parsed, or another value */
+} MainUIShortcut;
 
-/* `why` (when not NULL) says why for MAINUI_Y_NOTHING. */
-MainUIYShortcut mainui_y_shortcut(const char *sd, char why[160]);
+/* button is 'X' or 'Y'. `why` (when not NULL) says why for
+ * MAINUI_SHORTCUT_KEYMON. */
+MainUIShortcut mainui_button_shortcut(const char *sd, char button, char why[160]);
 bool mainui_system_write(const char *sd, const char *key, const cJSON *value);
 /* Numeric values also go to the live copy keymon keeps (the monitor), before
  * the file, since keymon writes that copy back to the file. When the file

@@ -21,7 +21,80 @@ void mainui_dim_popup_background(SDL_Surface *screen, MainUITheme *theme)
     SDL_BlitSurface(theme->popup_dim, NULL, screen, &destination);
 }
 
-void mainui_draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUIContext *context)
+/* A label that fits in room, the popup width right of the 20 px inset, is
+ * shown whole: v1.0.9 showed it to the popup's right edge. A wider one, cut
+ * off there mid-letter, is shortened to end in "..." 5 px clear of the edge,
+ * at a character boundary. Cutting the logical end also suits right-to-left
+ * text: a bidi library puts the trailing dots on its visual left. False for
+ * a label shown whole, which leaves shown as it was. */
+static bool fit_label(TTF_Font *font, const char *label, int room, char shown[512])
+{
+    int width = 0, height = 0;
+    if (TTF_SizeUTF8(font, label, &width, &height) || width <= room) {
+        return false;
+    }
+    size_t length = strlen(label);
+    if (length > 508) {
+        length = 508;
+    }
+    size_t low = 0, high = length, best = 0;
+    while (low < high) {
+        size_t middle = low + (high - low + 1) / 2;
+        size_t end = middle;
+        while (end && ((unsigned char)label[end] & 0xc0) == 0x80) {
+            --end;
+        }
+        memcpy(shown, label, end);
+        memcpy(shown + end, "...", 4);
+        if (end && !TTF_SizeUTF8(font, shown, &width, &height) && width <= room - 5) {
+            best = end;
+            low = middle;
+        }
+        else {
+            high = middle - 1;
+        }
+    }
+    while (best && label[best - 1] == ' ') {
+        --best;
+    }
+    memcpy(shown, label, best);
+    memcpy(shown + best, "...", 4);
+    return true;
+}
+
+/* The label as shown, from the theme's last 6, or fitted and kept in the
+ * least recently used one, so a redraw measures nothing again. */
+static const char *context_label(MainUITheme *theme, const char *label, int room, char scratch[512])
+{
+    TTF_Font *font = theme->menu_font;
+    size_t length = strlen(label);
+    if (length >= sizeof theme->context_labels[0].label) {
+        return fit_label(font, label, room, scratch) ? scratch : label;
+    }
+    int slot = 0;
+    for (int i = 0; i < 6; i++) {
+        if (theme->context_labels[i].used && theme->context_labels[i].font == font &&
+            theme->context_labels[i].room == room &&
+            !strcmp(theme->context_labels[i].label, label)) {
+            theme->context_labels[i].used = ++theme->context_label_clock;
+            return theme->context_labels[i].shown;
+        }
+        if (theme->context_labels[i].used < theme->context_labels[slot].used) {
+            slot = i;
+        }
+    }
+    memcpy(theme->context_labels[slot].label, label, length + 1);
+    if (!fit_label(font, label, room, theme->context_labels[slot].shown)) {
+        memcpy(theme->context_labels[slot].shown, label, length + 1);
+    }
+    theme->context_labels[slot].font = font;
+    theme->context_labels[slot].room = room;
+    theme->context_labels[slot].used = ++theme->context_label_clock;
+    return theme->context_labels[slot].shown;
+}
+
+void mainui_draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUIContext *context,
+                         bool ellipsis)
 {
     if (!context->visible_count) {
         return;
@@ -50,7 +123,12 @@ void mainui_draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUICo
             mainui_blit(screen, selection, x, top);
         }
         const MainUIContextEntry *entry = &context->entries[context->visible[i]];
-        mainui_label(screen, theme->menu_font, theme->color, mainui_context_label(entry), x + 20,
+        char scratch[512];
+        const char *label = mainui_context_label(entry);
+        if (ellipsis) {
+            label = context_label(theme, label, width - 20, scratch);
+        }
+        mainui_label(screen, theme->menu_font, theme->color, label, x + 20,
                      top + (60 - TTF_FontHeight(theme->menu_font)) / 2);
     }
     SDL_SetClipRect(screen, NULL);

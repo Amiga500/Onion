@@ -14,7 +14,10 @@ void mainui_draw_confirmation(SDL_Surface *screen, MainUITheme *theme, int title
 /* Darken everything but the footer (0,0)-(640,420) with black at 0xAA alpha,
  * as stock does before it draws a popup. */
 void mainui_dim_popup_background(SDL_Surface *screen, MainUITheme *theme);
-void mainui_draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUIContext *context);
+/* ellipsis: shorten a label too wide for the popup to end in "...";
+ * without it a label is cut off at the popup's edge, as in v1.0.9. */
+void mainui_draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUIContext *context,
+                         bool ellipsis);
 void mainui_draw_languages(SDL_Surface *screen, MainUITheme *theme, const MainUILanguages *list);
 void mainui_draw_footer(SDL_Surface *screen, MainUITheme *theme, int page, int total);
 void mainui_draw_settings(SDL_Surface *screen, MainUITheme *theme,

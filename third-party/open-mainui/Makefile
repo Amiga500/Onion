@@ -25,7 +25,7 @@ OPT        ?= -O1 -g
 STD        ?= -std=c11
 WARN       ?= -Wall -Wextra -Wshadow -Wredundant-decls -Werror
 PYTHON     ?= python3
-VERSION    ?= 1.0.9
+VERSION    ?= 1.0.10
 
 SDL_CFLAGS ?= $(shell sdl-config --cflags 2>/dev/null)
 SDL_LIBS   ?= $(shell sdl-config --libs 2>/dev/null) -lSDL_image -lSDL_ttf
@@ -62,7 +62,7 @@ UNIT_OBJ   := $(UNIT_SRC:%.c=$(O)/obj/%.o)
 # Harnesses driven by tests/integration/*.py, which build an SD tree first and
 # pass its path in. One binary each; add a name and the file is picked up.
 FIXTURES   := allocation_bounds artwork boundaries cache catalog catalog_job desktop device \
-              favorite_edit language library recent stock_settings
+              dialogs favorite_edit frame language library recent sources stock_settings
 FIXTURE_BIN := $(FIXTURES:%=$(O)/fixture-%)
 
 HOST_BIN   := $(O)/MainUI-dev $(O)/unit-tests $(O)/core-probe \

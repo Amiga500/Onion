@@ -107,18 +107,29 @@ bool mainui_search_open(MainUISearch *search, MainUICatalog *catalog, const Main
     bool chinese = catalog->pages[0].entries[system].shortname && cJSON_IsString(language) &&
                    !strcmp(language->valuestring, "ch.lang");
     cJSON_Delete(settings);
-    char *sql =
-        sqlite3_mprintf("SELECT disp,path,imgpath FROM \"%w\" WHERE type=0 AND %s LIKE ?1 "
-                        "ORDER BY disp COLLATE %s,path COLLATE %s,path LIMIT %d",
-                        root->cache_table, chinese ? "cpinyin" : "pinyin",
-                        catalog->case_sensitive ? "BINARY" : "NOCASE",
-                        catalog->case_sensitive ? "BINARY" : "NOCASE", MAINUI_LIBRARY_LIMIT + 1);
+    char *sql = sqlite3_mprintf(
+        "SELECT disp,path,imgpath FROM \"%w\" WHERE type=0 AND %s LIKE ?1 ESCAPE '!' "
+        "ORDER BY disp COLLATE %s,path COLLATE %s,path LIMIT %d",
+        root->cache_table, chinese ? "cpinyin" : "pinyin",
+        catalog->case_sensitive ? "BINARY" : "NOCASE",
+        catalog->case_sensitive ? "BINARY" : "NOCASE", MAINUI_LIBRARY_LIMIT + 1);
     if (ok) {
         ok = sql && sqlite3_prepare_v2(database, sql, -1, &statement, NULL) == SQLITE_OK;
     }
     sqlite3_free(sql);
-    char pattern[132];
-    snprintf(pattern, sizeof pattern, "%%%s%%", query);
+    /* The query is found as typed: % and _, LIKE's wildcards, and !, its
+     * escape here, match only themselves. The query is under 128 bytes. */
+    char pattern[2 * 128 + 3];
+    size_t length = 0;
+    pattern[length++] = '%';
+    for (const char *p = query; *p; ++p) {
+        if (*p == '%' || *p == '_' || *p == '!') {
+            pattern[length++] = '!';
+        }
+        pattern[length++] = *p;
+    }
+    pattern[length++] = '%';
+    pattern[length] = 0;
     if (ok) {
         ok = sqlite3_bind_text(statement, 1, pattern, -1, SQLITE_TRANSIENT) == SQLITE_OK;
     }

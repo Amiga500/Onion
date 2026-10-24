@@ -654,7 +654,7 @@ static bool compose_full_frame(MainUIApp *ui)
         mainui_dim_popup_background(ui->screen, &ui->theme);
     }
     if (ui->context_open) {
-        mainui_draw_context(ui->screen, &ui->theme, &ui->context);
+        mainui_draw_context(ui->screen, &ui->theme, &ui->context, ui->config.context_ellipsis);
     }
     if (ui->confirmation >= 0) {
         mainui_draw_confirmation(ui->screen, &ui->theme,
