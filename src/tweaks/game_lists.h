@@ -143,6 +143,12 @@ static void gamelists_action_scroll_speed(void *pt)
     gamelists_store_scroll(delay, speed);
 }
 
+static void gamelists_action_scroll_style(void *pt)
+{
+    gamelists_set_scroll_style(((ListItem *)pt)->value == 1 ? GAMELISTS_SCROLL_BOUNCE
+                                                            : GAMELISTS_SCROLL_ROLLING);
+}
+
 static void gamelists_action_repeat_delay(void *pt)
 {
     int delay, interval;
@@ -190,7 +196,7 @@ void menu_gameLists(void *_)
 {
     (void)_;
     if (!_menu_game_lists._created) {
-        _menu_game_lists = list_createWithTitle(9, LIST_SMALL, "Game lists");
+        _menu_game_lists = list_createWithTitle(10, LIST_SMALL, "Game lists");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,
@@ -250,6 +256,19 @@ void menu_gameLists(void *_)
                 .action = gamelists_action_scroll_speed},
             "How fast long titles scroll, in pixels\n"
             "per second.");
+
+        list_addItemWithInfoNote(
+            &_menu_game_lists,
+            (ListItem){
+                .label = "Title scroll style",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"Rolling", "Bounce"},
+                .value = gamelists_scroll_style() == GAMELISTS_SCROLL_BOUNCE,
+                .action = gamelists_action_scroll_style},
+            "Rolling: a long title goes round and\n"
+            "starts again. Bounce: it goes to its end\n"
+            "and back. Bounce needs Open MainUI 1.1.0.");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,
