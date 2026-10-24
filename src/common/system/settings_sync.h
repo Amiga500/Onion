@@ -118,6 +118,7 @@ void settings_init(void)
     SetKeyShm(&shminfo, MONITOR_ADC_VALUE, 640);
 #endif
 
+    __settings_owns_shm = true;
     settings_load();
     settings_shm_write();
 }

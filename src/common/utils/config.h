@@ -12,7 +12,9 @@
 #include "log.h"
 #include "str.h"
 
+#ifndef CONFIG_PATH /* tests point it at a folder of their own */
 #define CONFIG_PATH "/mnt/SDCARD/.tmp_update/config/"
+#endif
 #define CONFIG_INT "%d"
 #define CONFIG_STR "%[^\n]"
 
