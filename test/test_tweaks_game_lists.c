@@ -124,6 +124,67 @@ TEST(scroll_default_file_maps_to_menu)
     ASSERT_STREQ(label, "50 px/s");
 }
 
+/* Open MainUI 1.1.0: "<delay>,<speed>,bounce". Rolling stays two values. */
+TEST(scroll_style_bounce_is_read)
+{
+    reset_dir();
+    gamelists_write_text(GAMELISTS_SCROLL_PATH, "700,125,bounce\n");
+    ASSERT_EQ(gamelists_scroll_style(), GAMELISTS_SCROLL_BOUNCE);
+    int delay, speed;
+    gamelists_load_scroll(&delay, &speed);
+    ASSERT_EQ(delay, 700);
+    ASSERT_EQ(speed, 125);
+    gamelists_write_text(GAMELISTS_SCROLL_PATH, "700,125,rolling\n");
+    ASSERT_EQ(gamelists_scroll_style(), GAMELISTS_SCROLL_ROLLING);
+    gamelists_load_scroll(&delay, &speed);
+    ASSERT_EQ(delay, 700);
+    gamelists_write_text(GAMELISTS_SCROLL_PATH, "700,125\n");
+    ASSERT_EQ(gamelists_scroll_style(), GAMELISTS_SCROLL_ROLLING);
+    gamelists_write_text(GAMELISTS_SCROLL_PATH, "700, 125 , bounce \n");
+    ASSERT_EQ(gamelists_scroll_style(), GAMELISTS_SCROLL_BOUNCE);
+    gamelists_load_scroll(&delay, &speed);
+    ASSERT_EQ(speed, 125);
+    gamelists_write_text(GAMELISTS_SCROLL_PATH, "700,125,bouncy\n");
+    ASSERT_EQ(gamelists_scroll_style(), GAMELISTS_SCROLL_ROLLING);
+}
+
+TEST(scroll_style_written_and_kept)
+{
+    reset_dir();
+    char text[64];
+    gamelists_store_scroll(1000, 50);
+    ASSERT_TRUE(gamelists_set_scroll_style(GAMELISTS_SCROLL_BOUNCE));
+    read_file(GAMELISTS_SCROLL_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "1000,50,bounce\n");
+    /* A new delay or speed keeps Bounce, Off too. */
+    gamelists_store_scroll(500, 50);
+    gamelists_store_scroll(500, 150);
+    read_file(GAMELISTS_SCROLL_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "500,150,bounce\n");
+    gamelists_store_scroll(GAMELISTS_SCROLL_OFF, 150);
+    read_file(GAMELISTS_SCROLL_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "-1,150,bounce\n");
+    int delay, speed;
+    gamelists_load_scroll(&delay, &speed);
+    ASSERT_EQ(delay, GAMELISTS_SCROLL_OFF);
+    ASSERT_EQ(speed, 150);
+    /* Rolling goes back to two values, as older launchers read them. */
+    gamelists_store_scroll(500, 150);
+    ASSERT_TRUE(gamelists_set_scroll_style(GAMELISTS_SCROLL_ROLLING));
+    read_file(GAMELISTS_SCROLL_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "500,150\n");
+}
+
+TEST(scroll_style_without_file)
+{
+    reset_dir();
+    ASSERT_EQ(gamelists_scroll_style(), GAMELISTS_SCROLL_ROLLING);
+    ASSERT_TRUE(gamelists_set_scroll_style(GAMELISTS_SCROLL_BOUNCE));
+    char text[64];
+    read_file(GAMELISTS_SCROLL_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "-1,50,bounce\n");
+}
+
 TEST(scroll_speeds_are_rendered_exactly)
 {
     /* Open MainUI moves a whole number of pixels per 40 ms frame. */
@@ -357,6 +418,9 @@ int main(void)
     RUN_TEST(scroll_default_file_maps_to_menu);
     RUN_TEST(scroll_speeds_are_rendered_exactly);
     RUN_TEST(scroll_speed_snaps_to_offered_value);
+    RUN_TEST(scroll_style_bounce_is_read);
+    RUN_TEST(scroll_style_written_and_kept);
+    RUN_TEST(scroll_style_without_file);
     RUN_TEST(pair_parser_accepts_open_mainui_forms);
     RUN_TEST(repeat_stock_values_remove_the_file);
     RUN_TEST(rows_and_font_menu_values);

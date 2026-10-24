@@ -13,6 +13,9 @@
 //  - Scroll speeds are the ones Open MainUI renders exactly (see its
 //    docs/TIMING.md): 5 px/s, then multiples of 25 px/s.
 //  - Each write uses its own temporary file, so two writers never share one.
+//  - Open MainUI 1.1.0 reads an optional scroll style after the speed:
+//    "<delay>,<speed>,bounce" bounces long titles back and forth; without
+//    it ("<delay>,<speed>", or ",rolling") they roll round as before.
 
 #include <ctype.h>
 #include <errno.h>
@@ -41,6 +44,8 @@
 #define GAMELISTS_FONT_MAX 60
 #define GAMELISTS_SCROLL_OFF (-1)
 #define GAMELISTS_SCROLL_DEFAULT_SPEED 50
+#define GAMELISTS_SCROLL_ROLLING 0
+#define GAMELISTS_SCROLL_BOUNCE 1
 #define GAMELISTS_REPEAT_STOCK_DELAY 500
 #define GAMELISTS_REPEAT_STOCK_INTERVAL 100
 
@@ -234,14 +239,46 @@ static bool gamelists_remove_file(const char *path)
     return remove(path) == 0 || errno == ENOENT;
 }
 
-/* ---- Title scrolling: .romListTitleScroll = "<delay ms>,<speed px/s>" ---- */
+/* ---- Title scrolling: .romListTitleScroll = "<delay ms>,<speed px/s>[,<style>]" ---- */
+
+// Reads the file's delay and speed, and its style: "bounce" after a second
+// comma, anything else (nothing, "rolling") is the rolling scroll.
+static bool gamelists_read_scroll(int *delay_out, int *speed_out, int *style_out)
+{
+    char buffer[96];
+    *style_out = GAMELISTS_SCROLL_ROLLING;
+    if (!gamelists_read_line(GAMELISTS_SCROLL_PATH, buffer, sizeof(buffer)))
+        return false;
+    char *first_comma = strchr(buffer, ',');
+    char *second_comma = first_comma ? strchr(first_comma + 1, ',') : NULL;
+    if (second_comma != NULL) {
+        *second_comma = '\0';
+        char *style = second_comma + 1;
+        while (isspace((unsigned char)*style))
+            style++;
+        size_t length = strcspn(style, " \t\r\n");
+        if (length == 6 && strncmp(style, "bounce", 6) == 0)
+            *style_out = GAMELISTS_SCROLL_BOUNCE;
+    }
+    return gamelists_parse_pair(buffer, delay_out, speed_out);
+}
+
+// The style saved in the file: rolling when there is none.
+static int gamelists_scroll_style(void)
+{
+    int delay, speed, style;
+    if (!gamelists_read_scroll(&delay, &speed, &style))
+        return GAMELISTS_SCROLL_ROLLING;
+    return style;
+}
 
 // A missing file, a negative delay or a speed of 0 is Off for Open MainUI.
 static void gamelists_load_scroll(int *delay_out, int *speed_out)
 {
     int delay = GAMELISTS_SCROLL_OFF;
     int speed = GAMELISTS_SCROLL_DEFAULT_SPEED;
-    if (gamelists_read_pair(GAMELISTS_SCROLL_PATH, &delay, &speed)) {
+    int style;
+    if (gamelists_read_scroll(&delay, &speed, &style)) {
         if (delay < 0 || speed <= 0) {
             delay = GAMELISTS_SCROLL_OFF;
             speed = speed > 0 ? gamelists_clamp(speed, 5, 400) : GAMELISTS_SCROLL_DEFAULT_SPEED;
@@ -261,11 +298,31 @@ static void gamelists_load_scroll(int *delay_out, int *speed_out)
 
 // Always keeps the file, also for Off ("-1,<speed>"), so an update can't
 // bring the default back and the chosen speed survives Off and On again.
-static bool gamelists_store_scroll(int delay, int speed)
+// Rolling is written without a style, as before, so launchers older than
+// 1.1.0 read the file as they always did.
+static bool gamelists_store_scroll_style(int delay, int speed, int style)
 {
     speed = gamelists_clamp(speed, 5, 400);
     delay = delay < 0 ? GAMELISTS_SCROLL_OFF : gamelists_clamp(delay, 0, 30000);
-    return gamelists_write_pair(GAMELISTS_SCROLL_PATH, delay, speed);
+    if (style != GAMELISTS_SCROLL_BOUNCE)
+        return gamelists_write_pair(GAMELISTS_SCROLL_PATH, delay, speed);
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%d,%d,bounce\n", delay, speed);
+    return gamelists_write_text(GAMELISTS_SCROLL_PATH, buffer);
+}
+
+// A new delay or speed keeps the style already chosen.
+static bool gamelists_store_scroll(int delay, int speed)
+{
+    return gamelists_store_scroll_style(delay, speed, gamelists_scroll_style());
+}
+
+// A new style keeps the delay and speed.
+static bool gamelists_set_scroll_style(int style)
+{
+    int delay, speed;
+    gamelists_load_scroll(&delay, &speed);
+    return gamelists_store_scroll_style(delay, speed, style);
 }
 
 /* ---- Key repeat: .mainUIKeyRepeat = "<delay ms>,<interval ms>" ---- */
