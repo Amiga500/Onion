@@ -159,6 +159,12 @@ static void gamelists_action_video_preview(void *pt)
     gamelists_store_video_preview(gamelists_video_delays[((ListItem *)pt)->value]);
 }
 
+static void gamelists_action_video_size(void *pt)
+{
+    gamelists_set_video_size(((ListItem *)pt)->value == 1 ? GAMELISTS_VIDEO_FULLSCREEN
+                                                          : GAMELISTS_VIDEO_COVER);
+}
+
 static void gamelists_action_repeat_delay(void *pt)
 {
     int delay, interval;
@@ -206,7 +212,7 @@ void menu_gameLists(void *_)
 {
     (void)_;
     if (!_menu_game_lists._created) {
-        _menu_game_lists = list_createWithTitle(11, LIST_SMALL, "Game lists");
+        _menu_game_lists = list_createWithTitle(12, LIST_SMALL, "Game lists");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,
@@ -292,6 +298,19 @@ void menu_gameLists(void *_)
             "Play the selected game's video in the\n"
             "list (media/videos), after this wait.\n"
             "Needs Open MainUI 1.1.0.");
+
+        list_addItemWithInfoNote(
+            &_menu_game_lists,
+            (ListItem){
+                .label = "Video preview size",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"Cover", "Full screen"},
+                .value = gamelists_video_size() == GAMELISTS_VIDEO_FULLSCREEN,
+                .action = gamelists_action_video_size},
+            "Cover: the video plays where the cover\n"
+            "is. Full screen: over the whole screen.\n"
+            "Full screen needs Open MainUI 1.1.0 rc4.");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,

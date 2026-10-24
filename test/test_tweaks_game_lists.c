@@ -225,6 +225,97 @@ TEST(video_preview_empty_file_is_1000ms)
     ASSERT_STREQ(label, "After 1000 ms"); /* nearest offered */
 }
 
+/* Open MainUI 1.1.0 rc4: "<delay>,fullscreen" plays the video full screen,
+ * "<delay>" or "<delay>,cover" where the cover is. */
+TEST(video_preview_size_read)
+{
+    reset_dir();
+    gamelists_video_size_pending = GAMELISTS_VIDEO_COVER;
+    int size;
+    gamelists_write_text(GAMELISTS_VIDEO_PREVIEW_PATH, "1000,fullscreen\n");
+    ASSERT_EQ(gamelists_read_video_preview(&size), 1000);
+    ASSERT_EQ(size, GAMELISTS_VIDEO_FULLSCREEN);
+    gamelists_write_text(GAMELISTS_VIDEO_PREVIEW_PATH, "500,cover\n");
+    ASSERT_EQ(gamelists_read_video_preview(&size), 500);
+    ASSERT_EQ(size, GAMELISTS_VIDEO_COVER);
+    gamelists_write_text(GAMELISTS_VIDEO_PREVIEW_PATH, "750, fullscreen \n");
+    ASSERT_EQ(gamelists_read_video_preview(&size), 750);
+    ASSERT_EQ(size, GAMELISTS_VIDEO_FULLSCREEN);
+    gamelists_write_text(GAMELISTS_VIDEO_PREVIEW_PATH, ",fullscreen\n");
+    ASSERT_EQ(gamelists_read_video_preview(&size), 1000); /* no delay: 1000 ms */
+    ASSERT_EQ(size, GAMELISTS_VIDEO_FULLSCREEN);
+    gamelists_write_text(GAMELISTS_VIDEO_PREVIEW_PATH, "250,fullscreenx\n");
+    ASSERT_EQ(gamelists_read_video_preview(&size), 250);
+    ASSERT_EQ(size, GAMELISTS_VIDEO_COVER); /* only the exact word */
+    gamelists_write_text(GAMELISTS_VIDEO_PREVIEW_PATH, "250\n");
+    ASSERT_EQ(gamelists_read_video_preview(&size), 250);
+    ASSERT_EQ(size, GAMELISTS_VIDEO_COVER);
+}
+
+TEST(video_preview_size_and_delay_keep_each_other)
+{
+    reset_dir();
+    gamelists_video_size_pending = GAMELISTS_VIDEO_COVER;
+    char text[32];
+    ASSERT_TRUE(gamelists_store_video_preview(500));
+    ASSERT_TRUE(gamelists_set_video_size(GAMELISTS_VIDEO_FULLSCREEN));
+    read_file(GAMELISTS_VIDEO_PREVIEW_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "500,fullscreen\n");
+    ASSERT_TRUE(gamelists_store_video_preview(2000));
+    read_file(GAMELISTS_VIDEO_PREVIEW_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "2000,fullscreen\n");
+    ASSERT_TRUE(gamelists_set_video_size(GAMELISTS_VIDEO_COVER));
+    read_file(GAMELISTS_VIDEO_PREVIEW_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "2000\n"); /* cover as the delay alone, read by every rc */
+    ASSERT_EQ(gamelists_video_size(), GAMELISTS_VIDEO_COVER);
+}
+
+TEST(video_preview_size_waits_while_off)
+{
+    reset_dir();
+    gamelists_video_size_pending = GAMELISTS_VIDEO_COVER;
+    char text[32];
+    /* Off, then Full screen: no file appears, the size waits for a delay. */
+    ASSERT_TRUE(gamelists_set_video_size(GAMELISTS_VIDEO_FULLSCREEN));
+    ASSERT_EQ(access(GAMELISTS_VIDEO_PREVIEW_PATH, F_OK), -1);
+    ASSERT_EQ(gamelists_video_size(), GAMELISTS_VIDEO_FULLSCREEN);
+    ASSERT_TRUE(gamelists_store_video_preview(1000));
+    read_file(GAMELISTS_VIDEO_PREVIEW_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "1000,fullscreen\n");
+    /* Off and on again keeps Full screen. */
+    ASSERT_TRUE(gamelists_store_video_preview(GAMELISTS_VIDEO_OFF));
+    ASSERT_EQ(access(GAMELISTS_VIDEO_PREVIEW_PATH, F_OK), -1);
+    ASSERT_EQ(gamelists_video_size(), GAMELISTS_VIDEO_FULLSCREEN);
+    ASSERT_TRUE(gamelists_store_video_preview(250));
+    read_file(GAMELISTS_VIDEO_PREVIEW_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "250,fullscreen\n");
+}
+
+TEST(game_lists_menu_has_room_for_every_item)
+{
+    /* list_addItem drops an item past the capacity without a word. */
+    FILE *fp = fopen("../src/tweaks/game_lists.h", "r");
+    ASSERT_TRUE(fp != NULL);
+    char line[512];
+    int capacity = -1, items = 0;
+    bool inside = false;
+    while (fgets(line, sizeof(line), fp)) {
+        const char *create = strstr(line, "_menu_game_lists = list_createWithTitle(");
+        if (create) {
+            capacity = atoi(create + strlen("_menu_game_lists = list_createWithTitle("));
+            inside = true;
+            continue;
+        }
+        if (inside && strstr(line, "menu_stack[++menu_level]"))
+            break;
+        if (inside && strstr(line, "list_addItem"))
+            items++;
+    }
+    fclose(fp);
+    ASSERT_EQ(items, 12);
+    ASSERT_TRUE(items <= capacity);
+}
+
 TEST(scroll_speeds_are_rendered_exactly)
 {
     /* Open MainUI moves a whole number of pixels per 40 ms frame. */
@@ -362,8 +453,7 @@ TEST(main_menu_explicit_false_beats_marker)
 static void install_app(const char *name)
 {
     char command[256];
-    snprintf(command, sizeof(command), "mkdir -p " TEST_DIR "/sd/App/%s && touch " TEST_DIR
-             "/sd/App/%s/launch.sh", name, name);
+    snprintf(command, sizeof(command), "mkdir -p " TEST_DIR "/sd/App/%s && touch " TEST_DIR "/sd/App/%s/launch.sh", name, name);
     (void)!system(command);
 }
 
@@ -464,6 +554,10 @@ int main(void)
     RUN_TEST(video_preview_off_without_file);
     RUN_TEST(video_preview_written_and_read);
     RUN_TEST(video_preview_empty_file_is_1000ms);
+    RUN_TEST(video_preview_size_read);
+    RUN_TEST(video_preview_size_and_delay_keep_each_other);
+    RUN_TEST(video_preview_size_waits_while_off);
+    RUN_TEST(game_lists_menu_has_room_for_every_item);
     RUN_TEST(pair_parser_accepts_open_mainui_forms);
     RUN_TEST(repeat_stock_values_remove_the_file);
     RUN_TEST(rows_and_font_menu_values);
