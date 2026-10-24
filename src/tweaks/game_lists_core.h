@@ -18,7 +18,9 @@
 //    it ("<delay>,<speed>", or ",rolling") they roll round as before.
 //  - Open MainUI 1.1.0 plays a game's video in the game list when
 //    .romListVideoPreview exists, after the delay it holds (1000 ms when
-//    empty). No file is no video.
+//    empty). No file is no video. From rc4 a size can follow the delay:
+//    "<delay>,fullscreen" plays it over the whole screen; without it (or
+//    ",cover") it plays where the cover is.
 
 #include <ctype.h>
 #include <errno.h>
@@ -70,6 +72,11 @@ static const int gamelists_scroll_speeds[] = {
 #define GAMELISTS_VIDEO_DEFAULT_DELAY 1000
 static const int gamelists_video_delays[] = {
     GAMELISTS_VIDEO_OFF, 0, 250, 500, 750, 1000, 1500, 2000, 3000, 5000};
+#define GAMELISTS_VIDEO_COVER 0
+#define GAMELISTS_VIDEO_FULLSCREEN 1
+// The size chosen while the preview is Off: there is no file to keep it
+// in, so it is used when a delay is chosen next.
+static int gamelists_video_size_pending = GAMELISTS_VIDEO_COVER;
 
 static const int gamelists_repeat_intervals[] = {
     30, 40, 50, 60, 70, 80, 90, 100, 120, 150, 175, 200, 250, 300, 400, 500};
@@ -335,24 +342,79 @@ static bool gamelists_set_scroll_style(int style)
     return gamelists_store_scroll_style(delay, speed, style);
 }
 
-/* ---- Video preview: .romListVideoPreview = "<delay ms>" ---- */
+/* ---- Video preview: .romListVideoPreview = "<delay ms>[,fullscreen]" ---- */
 
-// No file is Off; an empty or unreadable one is Open MainUI's 1000 ms.
-static int gamelists_load_video_preview(void)
+// No file is Off; an empty or unreadable delay is Open MainUI's 1000 ms.
+static int gamelists_read_video_preview(int *size_out)
 {
+    *size_out = GAMELISTS_VIDEO_COVER;
     if (access(GAMELISTS_VIDEO_PREVIEW_PATH, F_OK) != 0)
         return GAMELISTS_VIDEO_OFF;
+    char buffer[64];
+    if (!gamelists_read_line(GAMELISTS_VIDEO_PREVIEW_PATH, buffer, sizeof(buffer)))
+        return GAMELISTS_VIDEO_DEFAULT_DELAY;
+    char *comma = strchr(buffer, ',');
+    if (comma != NULL) {
+        *comma = '\0';
+        char *size = comma + 1;
+        while (isspace((unsigned char)*size))
+            size++;
+        size_t length = strcspn(size, " \t\r\n");
+        if (length == 10 && strncmp(size, "fullscreen", 10) == 0)
+            *size_out = GAMELISTS_VIDEO_FULLSCREEN;
+    }
     int delay;
-    if (!gamelists_read_int(GAMELISTS_VIDEO_PREVIEW_PATH, &delay) || delay < 0)
+    if (!gamelists_parse_int(buffer, &delay) || delay < 0)
         return GAMELISTS_VIDEO_DEFAULT_DELAY;
     return gamelists_clamp(delay, 0, 30000);
 }
 
-static bool gamelists_store_video_preview(int delay)
+static int gamelists_load_video_preview(void)
+{
+    int size;
+    return gamelists_read_video_preview(&size);
+}
+
+static int gamelists_video_size(void)
+{
+    int size;
+    if (gamelists_read_video_preview(&size) == GAMELISTS_VIDEO_OFF)
+        return gamelists_video_size_pending;
+    return size;
+}
+
+// The cover size is written as the delay alone, which every 1.1.0 rc reads.
+static bool gamelists_store_video_preview_size(int delay, int size)
 {
     if (delay < 0)
         return gamelists_remove_file(GAMELISTS_VIDEO_PREVIEW_PATH);
-    return gamelists_write_int(GAMELISTS_VIDEO_PREVIEW_PATH, gamelists_clamp(delay, 0, 30000));
+    char buffer[32];
+    delay = gamelists_clamp(delay, 0, 30000);
+    if (size == GAMELISTS_VIDEO_FULLSCREEN)
+        snprintf(buffer, sizeof(buffer), "%d,fullscreen\n", delay);
+    else
+        snprintf(buffer, sizeof(buffer), "%d\n", delay);
+    return gamelists_write_text(GAMELISTS_VIDEO_PREVIEW_PATH, buffer);
+}
+
+// A new delay keeps the size; Off forgets the file, not the size.
+static bool gamelists_store_video_preview(int delay)
+{
+    int size = gamelists_video_size();
+    if (delay < 0)
+        gamelists_video_size_pending = size;
+    return gamelists_store_video_preview_size(delay, size);
+}
+
+// A new size keeps the delay. While the preview is Off it waits for one.
+static bool gamelists_set_video_size(int size)
+{
+    size = size == GAMELISTS_VIDEO_FULLSCREEN ? GAMELISTS_VIDEO_FULLSCREEN : GAMELISTS_VIDEO_COVER;
+    gamelists_video_size_pending = size;
+    int delay = gamelists_load_video_preview();
+    if (delay == GAMELISTS_VIDEO_OFF)
+        return true;
+    return gamelists_store_video_preview_size(delay, size);
 }
 
 /* ---- Key repeat: .mainUIKeyRepeat = "<delay ms>,<interval ms>" ---- */
