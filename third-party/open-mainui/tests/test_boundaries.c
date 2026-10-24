@@ -56,6 +56,38 @@ int main(int argc, char **argv)
     assert(search.results->count == 1 && !strcmp(search.results->items[0].label, "Alpha final"));
     assert(mainui_search_open(&search, catalog, &view, "' OR 1=1 --", 6));
     assert(search.results->count == 0 && search.view.selected == -1);
+    /* The query is found as typed: LIKE's % and _, and its escape ! here,
+     * match only themselves. "%" and "_" matched every game. */
+    {
+        sqlite3 *names = NULL;
+        assert(sqlite3_open(catalog->pages[1].cache_file, &names) == SQLITE_OK);
+        const char *rows[] = {"100% Hits", "100 Hits", "a_b", "axb", "Wow!", "Wow"};
+        for (size_t i = 0; i < sizeof rows / sizeof *rows; i++) {
+            char *sql = sqlite3_mprintf(
+                "INSERT INTO Normal_roms (disp,path,imgpath,type,ppath,pinyin,cpinyin) VALUES "
+                "(%Q,'/mnt/SDCARD/Emu/Normal/../../Roms/Normal/literal%d.nes','',0,'.',%Q,%Q)",
+                rows[i], (int)i, rows[i], rows[i]);
+            assert(sql && sqlite3_exec(names, sql, NULL, NULL, NULL) == SQLITE_OK);
+            sqlite3_free(sql);
+        }
+
+        const struct {
+            const char *query, *found;
+        } literal[] = {{"%", "100% Hits"}, {"0%", "100% Hits"}, {"_", "a_b"},
+                       {"a_b", "a_b"},     {"!", "Wow!"},       {"w!", "Wow!"}};
+
+        for (size_t i = 0; i < sizeof literal / sizeof *literal; i++) {
+            assert(mainui_search_open(&search, catalog, &view, literal[i].query, 6));
+            assert(search.results->count == 1 &&
+                   !strcmp(search.results->items[0].label, literal[i].found));
+        }
+        assert(mainui_search_open(&search, catalog, &view, "Wow", 6));
+        assert(search.results->count == 2);
+        assert(sqlite3_exec(names, "DELETE FROM Normal_roms WHERE path LIKE '%/literal_.nes'", NULL,
+                            NULL, NULL) == SQLITE_OK &&
+               sqlite3_changes(names) == 6);
+        sqlite3_close(names);
+    }
     /* Cached pinyin/cpinyin may differ on existing SD cards. */
     sqlite3 *db = NULL;
     assert(sqlite3_open(catalog->pages[1].cache_file, &db) == SQLITE_OK);

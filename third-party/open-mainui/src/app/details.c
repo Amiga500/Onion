@@ -59,7 +59,7 @@ bool mainui_details_open(MainUIDetails *details, MainUICatalog *catalog,
     if (!preview || !catalog || row < 0 || folder(catalog, library, row)) {
         return false;
     }
-    const char *label = NULL, *rom = NULL;
+    const char *label = NULL, *rom = NULL, *launch = NULL;
     int index = library ? row : mainui_browser_index(catalog, row);
     if (library) {
         if (row >= library->visible_count) {
@@ -71,6 +71,7 @@ bool mainui_details_open(MainUIDetails *details, MainUICatalog *catalog,
         }
         label = item->label;
         rom = item->rom;
+        launch = item->launch;
     }
     else {
         if (!catalog->depth) {
@@ -82,6 +83,13 @@ bool mainui_details_open(MainUIDetails *details, MainUICatalog *catalog,
         }
         label = entry->label;
         rom = entry->path;
+        /* A Search result names its source console; other rows are the
+         * open console's. */
+        int system = catalog->pages[0].view.selected;
+        launch = entry->launch ? entry->launch
+                 : system >= 0 && system < catalog->pages[0].count
+                     ? catalog->pages[0].entries[system].launch
+                     : NULL;
     }
     char host[MAINUI_PATH_MAX];
     if (!mainui_catalog_path(host, catalog->sd, catalog->sd, rom) ||
@@ -91,50 +99,15 @@ bool mainui_details_open(MainUIDetails *details, MainUICatalog *catalog,
     mainui_details_close(details);
     details->preview = preview;
     strcpy(details->title, label);
-    const char *root = catalog->depth ? catalog->pages[1].path : NULL;
-    for (int i = 0; i < catalog->pages[0].count; i++) {
-        const MainUIEntry *system = &catalog->pages[0].entries[i];
-        size_t length = strlen(system->path);
-        if (!strncmp(host, system->path, length) && host[length] == '/') {
-            snprintf(details->system, sizeof details->system, "%s", system->label);
-            root = system->path;
-            break;
-        }
-    }
-    /* Saved games can belong to a system outside the currently active catalog
-     * (an Expert emulator while Games is open): its launcher's config.json
-     * names the system and, by its rompath, the folder its gamelist.xml may
-     * be in, as for a system in the catalog. */
-    char saved_root[MAINUI_PATH_MAX];
-    if (library && !*details->system) {
-        root = NULL;
-        const MainUILibraryItem *item = &library->items[library->visible[row]];
-        char launcher[MAINUI_PATH_MAX], config[MAINUI_PATH_MAX];
-        if (item->launch && mainui_catalog_path(launcher, catalog->sd, catalog->sd, item->launch)) {
-            char *slash = strrchr(launcher, '/');
-            if (slash) {
-                *slash = 0;
-                if (mainui_catalog_path(config, catalog->sd, launcher, "config.json")) {
-                    char *text = mainui_read_text(config, 1024 * 1024);
-                    cJSON *json = text ? cJSON_Parse(text) : NULL;
-                    const cJSON *system_label = cJSON_GetObjectItemCaseSensitive(json, "label");
-                    if (cJSON_IsString(system_label)) {
-                        snprintf(details->system, sizeof details->system, "%s",
-                                 system_label->valuestring);
-                    }
-                    const cJSON *roms = cJSON_GetObjectItemCaseSensitive(json, "rompath");
-                    size_t length = 0;
-                    if (cJSON_IsString(roms) && *roms->valuestring &&
-                        mainui_catalog_path(saved_root, catalog->sd, launcher, roms->valuestring) &&
-                        (length = strlen(saved_root)) > 0 && !strncmp(host, saved_root, length) &&
-                        host[length] == '/') {
-                        root = saved_root;
-                    }
-                    cJSON_Delete(json);
-                    free(text);
-                }
-            }
-        }
+    /* The game's console by its launcher: consoles can share a ROM folder,
+     * and a saved game's may be outside the catalog (an Expert console while
+     * Games is open), named by its config.json with the ROM folder its
+     * gamelist.xml may be in. */
+    const char *root = library ? NULL : catalog->pages[1].path;
+    MainUISource source;
+    if (mainui_catalog_source(catalog, rom, launch, &source)) {
+        snprintf(details->system, sizeof details->system, "%s", source.label);
+        root = source.rom_root;
     }
     cJSON *record = library ? NULL : mainui_catalog_record(catalog, index);
     const cJSON *saved_rom = cJSON_GetObjectItemCaseSensitive(record, "rompath");

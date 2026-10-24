@@ -357,22 +357,28 @@ void menu_buttonAction(void *_)
                                  (ListItem){
                                      .label = "MainUI: X button",
                                      .item_type = MULTIVALUE,
-                                     .value_max = installed_apps_count + NUM_TOOLS,
+                                     .value_max = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT,
                                      .value = value_appShortcut(0),
                                      .value_formatter = formatter_appShortcut,
                                      .action_id = 0,
                                      .action = action_setAppShortcut},
-                                 "Set the X button action in MainUI.");
+                                 "Set the X button action in MainUI:\n"
+                                 "an app, a tool, GLO (the game's options)\n"
+                                 "or Toggle favorite (add or remove the\n"
+                                 "selected game from Favorites).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "MainUI: Y button",
                                      .item_type = MULTIVALUE,
-                                     .value_max = installed_apps_count + NUM_TOOLS + 1,
+                                     .value_max = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT,
                                      .value = value_appShortcut(1),
                                      .value_formatter = formatter_appShortcut,
                                      .action_id = 1,
                                      .action = action_setAppShortcut},
-                                 "Set the Y button action in MainUI.");
+                                 "Set the Y button action in MainUI:\n"
+                                 "an app, a tool, GLO (the game's options)\n"
+                                 "or Toggle favorite (add or remove the\n"
+                                 "selected game from Favorites).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "Power single press",
@@ -587,7 +593,7 @@ void menu_userInterface(void *_)
     settings.blue_light_state = config_flag_get(".blfOn");
     all_changed = true;
     if (!_menu_user_interface._created) {
-        _menu_user_interface = list_createWithTitle(7, LIST_SMALL, "Appearance");
+        _menu_user_interface = list_createWithTitle(9, LIST_SMALL, "Appearance");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){.label = "Game lists...", .action = menu_gameLists},
                                  "Rows, text size, title scrolling,\n"
@@ -608,6 +614,29 @@ void menu_userInterface(void *_)
                                  "the game screenshot with a popup,\n"
                                  "the screenshot alone, black, or the\n"
                                  "message on the theme's full screen.");
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Footer layout",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 1,
+                                     .value_labels = {"Classic", "B A, page left"},
+                                     .value = settings.mainui_footer_alt,
+                                     .action = action_setFooterLayout},
+                                 "Bottom bar of the menus, lists, Tweaks\n"
+                                 "and the GameSwitcher: Classic, as stock,\n"
+                                 "or the page number on the left and the\n"
+                                 "hints in button order, B then A.");
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Long menu labels",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 1,
+                                     .value_labels = {"Shorten with ...", "Cut"},
+                                     .value = settings.mainui_menu_no_ellipsis,
+                                     .action = action_setLongMenuLabels},
+                                 "SELECT menu labels too long for the\n"
+                                 "theme: shortened with ... or cut at\n"
+                                 "the edge. Silky RedOnion fits them all.");
         display_init(true);
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){

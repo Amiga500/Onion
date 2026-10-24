@@ -57,6 +57,9 @@ typedef struct {
      * still to act. A keymon combo (another button while Select or Start
      * is down) cancels Select and Start. */
     bool y_armed, select_armed, start_armed;
+    /* X with a Favorite or Game List Options shortcut on a game acts when
+     * released too: whether the press is still to act. */
+    bool x_armed;
     /* The release of a scripted Y, Select or Start tap, still to send. */
     SDLKey script_release;
     /* Keymon's L1 after its Menu release: the Menu releases already matched

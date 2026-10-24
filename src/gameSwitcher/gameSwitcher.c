@@ -28,6 +28,7 @@
 #include "utils/surfaceSetAlpha.h"
 
 #include "gs_appState.h"
+#include "gs_bottom_bar.h"
 #include "gs_frame.h"
 #include "gs_history.h"
 #include "gs_keystate.h"
@@ -75,7 +76,12 @@ int main(int argc, char *argv[])
     appState.brightness_start = appState.last_ticks;
 
     appState.custom_header = loadOptionalImage("extra/gs-top-bar");
-    appState.custom_footer = loadOptionalImage("extra/gs-bottom-bar");
+    // An alternative bar exists only in the theme or its overrides; the
+    // system resources have none.
+    appState.custom_footer = loadOptionalImage(gs_bottomBarName(
+        theme_footerAltLayout(),
+        theme_getImagePath(theme()->path, "extra/gs-bottom-bar-alt", NULL),
+        theme_getImagePath(theme()->path, "extra/gs-bottom-bar", NULL)));
 
     appState.header_height = getHeightOrDefault(appState.custom_header, 60.0 * g_scale);
     appState.footer_height = getHeightOrDefault(appState.custom_footer, 60.0 * g_scale);

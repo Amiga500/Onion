@@ -15,7 +15,7 @@ static bool path_for(char path[4096], const char *sd, const char *suffix)
     return n > 0 && n < 4096;
 }
 
-MainUIYShortcut mainui_y_shortcut(const char *sd, char why[160])
+MainUIShortcut mainui_button_shortcut(const char *sd, char button, char why[160])
 {
     char path[4096], scratch[160];
     why = why ? why : scratch;
@@ -23,43 +23,48 @@ MainUIYShortcut mainui_y_shortcut(const char *sd, char why[160])
     if (!sd ||
         snprintf(path, sizeof path, "%s/.tmp_update/config/keymap.json", sd) >= (int)sizeof path) {
         snprintf(why, 160, "the keymap path is too long");
-        return MAINUI_Y_NOTHING;
+        return MAINUI_SHORTCUT_KEYMON;
     }
     struct stat info;
     if (stat(path, &info) != 0 && errno == ENOENT) {
-        return MAINUI_Y_AS_A; /* as keymon without the file */
+        return MAINUI_SHORTCUT_NONE; /* as keymon without the file */
     }
     if (stat(path, &info) == 0 && !S_ISREG(info.st_mode)) {
         snprintf(why, 160, "keymap.json is not a file");
-        return MAINUI_Y_NOTHING;
+        return MAINUI_SHORTCUT_KEYMON;
     }
     errno = 0;
     char *text = mainui_read_text(path, 64 * 1024);
     if (!text) {
         snprintf(why, 160, "keymap.json cannot be read: %s",
                  errno ? strerror(errno) : "unreadable");
-        return MAINUI_Y_NOTHING;
+        return MAINUI_SHORTCUT_KEYMON;
     }
     cJSON *root = cJSON_Parse(text);
     free(text);
     if (!cJSON_IsObject(root)) {
         cJSON_Delete(root);
         snprintf(why, 160, "keymap.json is not a JSON object");
-        return MAINUI_Y_NOTHING;
+        return MAINUI_SHORTCUT_KEYMON;
     }
-    const cJSON *y = cJSON_GetObjectItemCaseSensitive(root, "mainui_button_y");
-    MainUIYShortcut result = MAINUI_Y_NOTHING;
+    const cJSON *value = cJSON_GetObjectItemCaseSensitive(root, button == 'X' ? "mainui_button_x"
+                                                                              : "mainui_button_y");
+    MainUIShortcut result = MAINUI_SHORTCUT_KEYMON;
     /* keymon keeps its empty default unless the value is text. */
-    if (!cJSON_IsString(y) || !*y->valuestring) {
-        result = MAINUI_Y_AS_A;
+    if (!cJSON_IsString(value) || !*value->valuestring) {
+        result = MAINUI_SHORTCUT_NONE;
     }
-    else if (cJSON_IsString(y) && !strcmp(y->valuestring, "glo")) {
-        result = MAINUI_Y_GAME_OPTIONS;
+    else if (!strcmp(value->valuestring, "glo")) {
+        result = MAINUI_SHORTCUT_GAME_OPTIONS;
+    }
+    else if (!strcmp(value->valuestring, "fav")) {
+        result = MAINUI_SHORTCUT_FAVORITE;
     }
     else {
-        /* An app or tool, which keymon runs (it missed this Y), or a value
-         * keymon does not know: starting the game would surprise. */
-        snprintf(why, 160, "the Y shortcut is %.60s, which keymon runs", y->valuestring);
+        /* An app or tool, which keymon runs (it missed this press), or a
+         * value keymon does not know: starting the game would surprise. */
+        snprintf(why, 160, "the %c shortcut is %.60s, which keymon runs", button,
+                 value->valuestring);
     }
     cJSON_Delete(root);
     return result;

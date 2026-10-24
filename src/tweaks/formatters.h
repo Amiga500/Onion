@@ -5,6 +5,7 @@
 
 #include "components/list.h"
 #include "utils/apps.h"
+#include "utils/mainui_shortcut.h"
 #include "utils/str.h"
 
 #include "./formatters_basic.h"
@@ -39,7 +40,7 @@ void formatter_appShortcut(void *pt, char *out_label)
     ListItem *item = (ListItem *)pt;
     int value = item->value;
     InstalledApp *apps = getInstalledApps(true);
-    int max_value = installed_apps_count + NUM_TOOLS + item->action_id;
+    int max_value = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT;
 
     if (value <= 0 || value > max_value) {
         strcpy(out_label, item->action_id == 0 ? "B button" : "A button");
@@ -61,9 +62,9 @@ void formatter_appShortcut(void *pt, char *out_label)
         return;
     }
 
-    if (item->action_id == 1) {
-        strcpy(out_label, "GLO");
-    }
+    // GLO, Toggle favorite
+    value -= NUM_TOOLS;
+    strcpy(out_label, mainui_shortcut_extra_labels[value]);
 }
 
 void formatter_startupTab(void *pt, char *out_label)

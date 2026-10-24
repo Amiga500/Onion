@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.0.10 - 2026-10-24
+
+This version is considered stable.
+
+### Context menu
+
+* A label too long for the context menu, such as a long translation, ends in `...` before the popup's right edge; it was cut off at the edge, mid-letter. A label that fits is shown as before. An empty `.tmp_update/config/.noContextMenuEllipsis` turns this off. Thanks to [@Amiga500](https://github.com/Amiga500) for the report.
+* Refresh all roms refreshes every console when one, in Games or Expert, has no ROM folder, as stock does. It stopped at that console with "ROM folder is missing" and refreshed none after it. Refresh roms on such a console no longer shows the error either. Thanks to [@Amiga500](https://github.com/Amiga500) for the report.
+
+### Themes and screens
+
+* A folder in a ROM list shows a cover, `<image folder>/<folder name>.png`, at any depth, with the folder's whole name; folders showed none. Favorites folders still show none, and ROM list caches stay as stock writes them, so nothing needs refreshing. Thanks to [@fengfrw](https://github.com/fengfrw) for the suggestion.
+* An optional footer layout: with an empty `.tmp_update/config/.mainuiFooterAltLayout`, the page counter is on the left and the button hints on the right, B before A, also for OK and CANCEL. Without the file the footer is stock's, as before.
+
+### Favorites and menus
+
+* Fixed incorrect console names in Game Info and missing cover art for Favorites and Recents, in rare cases like when multiple emulators share a ROM folder.
+
+### Buttons
+
+* X and Y shortcuts in `.tmp_update/config/keymap.json`: `fav` on either button adds the selected game to Favorites, or removes it when it is one, and `glo` opens Game List Options from X as it does from Y. They act on games in ROM lists, Favorites, Recents and Search results, and `fav` also in Game Info, when the button is released, and a button with one of them does nothing else. Without them X is B and Y works as before. Tweaks does not offer these choices yet.
+
+### Games
+
+* A ROM with `$` in its name, such as `Super Game$ Collection (USA)`, starts. MainUI refused it with "Unsupported launch path", although Onion's runtime.sh runs such names literally. A `$` outside `Roms`, where runtime.sh does not handle it, is still refused. Thanks to SpeeDy_GjiZafor for the report.
+* A console with `"hidebios": 1` in its `config.json`, as many of Onion's have, leaves files whose names start with `[BIOS]` out of its ROM list, as stock does. They were listed. An existing list changes after Refresh roms. Thanks to [@nukefrenzy](https://github.com/nukefrenzy) for the report, from his mainui-decomp project.
+* Search finds `%` and `_` as typed. They matched any text and any character, so a search for `100%` or `a_b` found other games, and `%` or `_` alone found every game.
+
+### Documentation
+
+* [docs/THEMES.md](docs/THEMES.md) says where context menu labels start and how a long one is shortened, and describes the alternative footer layout.
+* [docs/CATALOG_CACHE.md](docs/CATALOG_CACHE.md) explains folder covers, including that a folder and a ROM of the same name share one image, how a saved game's console is found, and that covers are read once per run: a cover file changed while MainUI runs shows from its next start.
+* [docs/NAVIGATION.md](docs/NAVIGATION.md) describes the X and Y shortcuts, and how a game is launched: with the command Onion's own launchers use, not stock's `noaudiofix`, `autoflip` or `useswap` variants. Thanks to [@nukefrenzy](https://github.com/nukefrenzy) for the report, from his mainui-decomp project.
+* [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#a-game-does-not-start-unsupported-launch-path) explains which characters a launch path cannot hold, and why `$` works below `Roms`.
+
 ## 1.0.9 - 2026-10-20
 
 ### Context menu
