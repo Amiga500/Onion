@@ -185,6 +185,46 @@ TEST(scroll_style_without_file)
     ASSERT_STREQ(text, "-1,50,bounce\n");
 }
 
+/* Open MainUI 1.1.0: .romListVideoPreview, a delay in ms, 1000 when empty. */
+TEST(video_preview_off_without_file)
+{
+    reset_dir();
+    ASSERT_EQ(gamelists_load_video_preview(), GAMELISTS_VIDEO_OFF);
+    char label[64];
+    gamelists_label_video_preview(gamelists_value_video_preview(), label, sizeof(label));
+    ASSERT_STREQ(label, "Off");
+}
+
+TEST(video_preview_written_and_read)
+{
+    reset_dir();
+    char text[32], label[64];
+    ASSERT_TRUE(gamelists_store_video_preview(1500));
+    read_file(GAMELISTS_VIDEO_PREVIEW_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "1500\n");
+    ASSERT_EQ(gamelists_load_video_preview(), 1500);
+    gamelists_label_video_preview(gamelists_value_video_preview(), label, sizeof(label));
+    ASSERT_STREQ(label, "After 1500 ms");
+    ASSERT_TRUE(gamelists_store_video_preview(0));
+    gamelists_label_video_preview(gamelists_value_video_preview(), label, sizeof(label));
+    ASSERT_STREQ(label, "Immediate");
+    ASSERT_TRUE(gamelists_store_video_preview(GAMELISTS_VIDEO_OFF));
+    ASSERT_EQ(access(GAMELISTS_VIDEO_PREVIEW_PATH, F_OK), -1);
+}
+
+TEST(video_preview_empty_file_is_1000ms)
+{
+    reset_dir();
+    touch(GAMELISTS_VIDEO_PREVIEW_PATH);
+    ASSERT_EQ(gamelists_load_video_preview(), 1000);
+    gamelists_write_text(GAMELISTS_VIDEO_PREVIEW_PATH, "abc\n");
+    ASSERT_EQ(gamelists_load_video_preview(), 1000);
+    gamelists_write_text(GAMELISTS_VIDEO_PREVIEW_PATH, "1200\n");
+    char label[64];
+    gamelists_label_video_preview(gamelists_value_video_preview(), label, sizeof(label));
+    ASSERT_STREQ(label, "After 1000 ms"); /* nearest offered */
+}
+
 TEST(scroll_speeds_are_rendered_exactly)
 {
     /* Open MainUI moves a whole number of pixels per 40 ms frame. */
@@ -421,6 +461,9 @@ int main(void)
     RUN_TEST(scroll_style_bounce_is_read);
     RUN_TEST(scroll_style_written_and_kept);
     RUN_TEST(scroll_style_without_file);
+    RUN_TEST(video_preview_off_without_file);
+    RUN_TEST(video_preview_written_and_read);
+    RUN_TEST(video_preview_empty_file_is_1000ms);
     RUN_TEST(pair_parser_accepts_open_mainui_forms);
     RUN_TEST(repeat_stock_values_remove_the_file);
     RUN_TEST(rows_and_font_menu_values);

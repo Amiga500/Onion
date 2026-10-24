@@ -16,6 +16,9 @@
 //  - Open MainUI 1.1.0 reads an optional scroll style after the speed:
 //    "<delay>,<speed>,bounce" bounces long titles back and forth; without
 //    it ("<delay>,<speed>", or ",rolling") they roll round as before.
+//  - Open MainUI 1.1.0 plays a game's video in the game list when
+//    .romListVideoPreview exists, after the delay it holds (1000 ms when
+//    empty). No file is no video.
 
 #include <ctype.h>
 #include <errno.h>
@@ -37,6 +40,7 @@
 #define GAMELISTS_REPEAT_PATH GAMELISTS_CONFIG_DIR "/.mainUIKeyRepeat"
 #define GAMELISTS_SORT_PATH GAMELISTS_CONFIG_DIR "/.romListCaseSensitiveSort"
 #define GAMELISTS_DYNAMIC_FAV_PATH GAMELISTS_CONFIG_DIR "/.romListDynamicFavPos"
+#define GAMELISTS_VIDEO_PREVIEW_PATH GAMELISTS_CONFIG_DIR "/.romListVideoPreview"
 
 #define GAMELISTS_ROWS_MIN 6
 #define GAMELISTS_ROWS_MAX 20
@@ -60,6 +64,12 @@ static const int gamelists_scroll_delays[] = {
 static const int gamelists_scroll_speeds[] = {
     5, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350,
     375, 400};
+
+// Video preview: Off (no file), then the wait before the video starts.
+#define GAMELISTS_VIDEO_OFF (-1)
+#define GAMELISTS_VIDEO_DEFAULT_DELAY 1000
+static const int gamelists_video_delays[] = {
+    GAMELISTS_VIDEO_OFF, 0, 250, 500, 750, 1000, 1500, 2000, 3000, 5000};
 
 static const int gamelists_repeat_intervals[] = {
     30, 40, 50, 60, 70, 80, 90, 100, 120, 150, 175, 200, 250, 300, 400, 500};
@@ -325,6 +335,26 @@ static bool gamelists_set_scroll_style(int style)
     return gamelists_store_scroll_style(delay, speed, style);
 }
 
+/* ---- Video preview: .romListVideoPreview = "<delay ms>" ---- */
+
+// No file is Off; an empty or unreadable one is Open MainUI's 1000 ms.
+static int gamelists_load_video_preview(void)
+{
+    if (access(GAMELISTS_VIDEO_PREVIEW_PATH, F_OK) != 0)
+        return GAMELISTS_VIDEO_OFF;
+    int delay;
+    if (!gamelists_read_int(GAMELISTS_VIDEO_PREVIEW_PATH, &delay) || delay < 0)
+        return GAMELISTS_VIDEO_DEFAULT_DELAY;
+    return gamelists_clamp(delay, 0, 30000);
+}
+
+static bool gamelists_store_video_preview(int delay)
+{
+    if (delay < 0)
+        return gamelists_remove_file(GAMELISTS_VIDEO_PREVIEW_PATH);
+    return gamelists_write_int(GAMELISTS_VIDEO_PREVIEW_PATH, gamelists_clamp(delay, 0, 30000));
+}
+
 /* ---- Key repeat: .mainUIKeyRepeat = "<delay ms>,<interval ms>" ---- */
 
 static void gamelists_load_repeat(int *delay_out, int *interval_out)
@@ -387,6 +417,13 @@ static int gamelists_value_scroll_speed(void)
                                    GAMELISTS_ARRAY_COUNT(gamelists_scroll_speeds), speed);
 }
 
+static int gamelists_value_video_preview(void)
+{
+    return gamelists_nearest_index(gamelists_video_delays,
+                                   GAMELISTS_ARRAY_COUNT(gamelists_video_delays),
+                                   gamelists_load_video_preview());
+}
+
 static int gamelists_value_repeat_delay(void)
 {
     int delay, interval;
@@ -443,6 +480,17 @@ static void gamelists_label_scroll_speed(int value, char *out, size_t size)
 {
     snprintf(out, size, "%d px/s",
              gamelists_scroll_speeds[gamelists_clamp(value, 0, GAMELISTS_ARRAY_COUNT(gamelists_scroll_speeds) - 1)]);
+}
+
+static void gamelists_label_video_preview(int value, char *out, size_t size)
+{
+    int delay = gamelists_video_delays[gamelists_clamp(value, 0, GAMELISTS_ARRAY_COUNT(gamelists_video_delays) - 1)];
+    if (delay < 0)
+        snprintf(out, size, "Off");
+    else if (delay == 0)
+        snprintf(out, size, "Immediate");
+    else
+        snprintf(out, size, "After %d ms", delay);
 }
 
 static void gamelists_label_repeat_delay(int value, char *out, size_t size)

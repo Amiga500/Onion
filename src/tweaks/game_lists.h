@@ -80,6 +80,11 @@ static void gamelists_formatter_scroll_delay(void *pt, char *out_label)
     gamelists_label_scroll_delay(((ListItem *)pt)->value, out_label, STR_MAX);
 }
 
+static void gamelists_formatter_video_preview(void *pt, char *out_label)
+{
+    gamelists_label_video_preview(((ListItem *)pt)->value, out_label, STR_MAX);
+}
+
 static void gamelists_formatter_scroll_speed(void *pt, char *out_label)
 {
     gamelists_label_scroll_speed(((ListItem *)pt)->value, out_label, STR_MAX);
@@ -149,6 +154,11 @@ static void gamelists_action_scroll_style(void *pt)
                                                             : GAMELISTS_SCROLL_ROLLING);
 }
 
+static void gamelists_action_video_preview(void *pt)
+{
+    gamelists_store_video_preview(gamelists_video_delays[((ListItem *)pt)->value]);
+}
+
 static void gamelists_action_repeat_delay(void *pt)
 {
     int delay, interval;
@@ -196,7 +206,7 @@ void menu_gameLists(void *_)
 {
     (void)_;
     if (!_menu_game_lists._created) {
-        _menu_game_lists = list_createWithTitle(10, LIST_SMALL, "Game lists");
+        _menu_game_lists = list_createWithTitle(11, LIST_SMALL, "Game lists");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,
@@ -269,6 +279,19 @@ void menu_gameLists(void *_)
             "Rolling: a long title goes round and\n"
             "starts again. Bounce: it goes to its end\n"
             "and back. Bounce needs Open MainUI 1.1.0.");
+
+        list_addItemWithInfoNote(
+            &_menu_game_lists,
+            (ListItem){
+                .label = "Video preview",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_video_delays) - 1,
+                .value = gamelists_value_video_preview(),
+                .value_formatter = gamelists_formatter_video_preview,
+                .action = gamelists_action_video_preview},
+            "Play the selected game's video in the\n"
+            "list (media/videos), after this wait.\n"
+            "Needs Open MainUI 1.1.0.");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,
