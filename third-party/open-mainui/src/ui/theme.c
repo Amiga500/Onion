@@ -606,6 +606,7 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
     }
     strcpy(t->directory, dir);
     strcpy(t->fallback, base);
+    t->footer_alt = config && config->footer_alt;
     if (sd && *sd) {
         if (strlen(sd) >= sizeof t->sd || !join(t->profile, sd, "Saves/CurrentProfile/theme")) {
             return false;

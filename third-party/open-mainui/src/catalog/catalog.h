@@ -21,6 +21,9 @@ typedef struct {
     char *stored_path, *stored_image;
     char *icon, *icon_selected, *description, *launch;
     bool directory, shortname;
+    /* hidebios in the console's config.json: its scanned ROM lists leave out
+     * files whose names start with "[BIOS]", as stock does. */
+    bool hide_bios;
     /* Raw config spelling is part of stock saved-record identity. */
     char *raw_rompath, *raw_imgpath;
     char *config;
@@ -40,6 +43,7 @@ typedef struct {
     char cache_file[MAINUI_PATH_MAX], cache_table[512];
     char title[256];
     char path[MAINUI_PATH_MAX], extensions[1024], images[MAINUI_PATH_MAX];
+    bool hide_bios; /* the console's hidebios, for scans of this page */
     MainUIViewport view;
 } MainUICatalogPage;
 
@@ -56,6 +60,19 @@ typedef struct {
      * Systems page; startup may continue with it. Not set for other failures. */
     bool unreadable;
 } MainUICatalog;
+
+/* The console a game belongs to: its label, ROM folder and image folder. */
+typedef struct {
+    char label[256], rom_root[MAINUI_PATH_MAX], images[MAINUI_PATH_MAX];
+} MainUISource;
+
+/* The console of a game by its launcher, as saved with a Favorite or Recent,
+ * or as the open console's: one of the catalog's consoles with that launcher,
+ * else the launcher's own config.json (an Expert console while Games is
+ * open). The ROM must lie in that console's ROM folder. Without a usable
+ * launcher, the first console whose ROM folder holds the ROM, as before. */
+bool mainui_catalog_source(const MainUICatalog *catalog, const char *rom, const char *launch,
+                           MainUISource *out);
 
 /* Release all owned fields and clear the entry; entry must be non-NULL. */
 void mainui_entry_close(MainUIEntry *entry);

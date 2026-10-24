@@ -15,23 +15,34 @@ static void footer(SDL_Surface *screen, MainUITheme *theme, int page, int total,
         SDL_BlitSurface(theme->background, &clip, screen, &destination);
     }
     mainui_blit(screen, theme->footer, 0, 420);
-    int x = 20;
     const char *hints[] = {theme->hide_hints ? " " : open, theme->hide_hints ? " " : back};
+    /* Each hint is its button, 5 px, then its text; hints are 30 px apart.
+     * Stock's layout starts A's at x 20. The alternative ends B's then A's
+     * at x 620, so each button keeps its own action. */
+    SDL_Surface *label[2] = {NULL, NULL};
+    int width[2] = {0, 0};
     for (int i = 0; i < 2; i++) {
-        SDL_Surface *button = theme->buttons[i];
-        if (button) {
-            mainui_blit(screen, button, x, 450 - button->h / 2);
-            x += button->w + 5;
+        if (theme->buttons[i]) {
+            width[i] = theme->buttons[i]->w + 5;
         }
         if (!theme->hide_hint_text) {
-            SDL_Surface *hint =
-                mainui_theme_text(theme, theme->hint_font, hints[i], theme->hint_color);
-            if (hint) {
-                mainui_blit(screen, hint, x, 449 - hint->h / 2);
-                x += hint->w;
-            }
+            label[i] = mainui_theme_text(theme, theme->hint_font, hints[i], theme->hint_color);
+            width[i] += label[i] ? label[i]->w : 0;
         }
-        x += 30;
+    }
+    int x = theme->footer_alt ? 620 - width[1] - 30 - width[0] : 20;
+    for (int n = 0; n < 2; n++) {
+        int i = theme->footer_alt ? 1 - n : n;
+        SDL_Surface *button = theme->buttons[i];
+        int left = x;
+        if (button) {
+            mainui_blit(screen, button, left, 450 - button->h / 2);
+            left += button->w + 5;
+        }
+        if (label[i]) {
+            mainui_blit(screen, label[i], left, 449 - label[i]->h / 2);
+        }
+        x += width[i] + 30;
     }
     if (total >= 0 && !theme->hide_hint_text) {
         char text[48];
@@ -40,8 +51,12 @@ static void footer(SDL_Surface *screen, MainUITheme *theme, int page, int total,
         snprintf(text, sizeof text, "%d/", total ? page : 0);
         SDL_Surface *current = mainui_theme_text(theme, theme->hint_font, text, theme->page_color);
         /* Stock 0x31268 reserves another 20px for totals above 99. The
-         * counter shares the hints' line, y=449, as Onion's footer draws it. */
+         * counter shares the hints' line, y=449, as Onion's footer draws it.
+         * The alternative layout starts it at x 20. */
         int edge = total > 99 ? 600 : 620;
+        if (theme->footer_alt) {
+            edge = 20 + (current ? current->w : 0) + (last ? last->w : 0);
+        }
         if (last) {
             edge -= last->w;
             mainui_blit(screen, last, edge, 449 - last->h / 2);
@@ -251,7 +266,8 @@ void mainui_draw_folder_footer(SDL_Surface *screen, MainUITheme *theme, int coun
     snprintf(value, sizeof value, "(%d)", count);
     SDL_Surface *text = mainui_theme_text(theme, theme->hint_font, value, theme->total_color);
     if (text) {
-        mainui_blit(screen, text, (count > 99 ? 600 : 620) - text->w, 450 - text->h / 2);
+        int left = theme->footer_alt ? 20 : (count > 99 ? 600 : 620) - text->w;
+        mainui_blit(screen, text, left, 450 - text->h / 2);
     }
 }
 

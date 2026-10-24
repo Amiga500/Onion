@@ -11,6 +11,11 @@ The reader selects `disp,path,imgpath,type`, filters by a bound `ppath`, and ord
 Identifiers are double-quoted and escaped; values are bound, including folder keys containing apostrophes. No SQL is assembled from an unescaped filename or value.
 
 ROM/art paths beginning `/mnt/SDCARD/` map to the chosen host SD root. Relative cached paths resolve from the system ROM root, including in nested folders. The original folder key is kept separately from the resolved host path. Empty image paths fall back to the configured image directory and ROM basename for thumbnails.
+A folder's cover is `<image directory>/<folder name>.png` at any depth, with its whole name, dots included. Its row keeps stock's imgpath, the folder's own path, so caches stay as stock writes them and the cover is worked out when it is shown.
+A folder and a ROM with the same name without its extension, such as `Zelda` and `Zelda.nes`, show the same `Zelda.png`, anywhere in the console: folders and ROMs in subfolders all use the one image directory, as two ROMs of the same name in different subfolders already share an image. Favorites folders show no cover.
+A Favorite or Recent whose saved imgpath is not an absolute PNG path looks for its cover in its console's image folder.
+Its console, as Game Info names it, is the one with its saved launcher, since consoles can share a ROM folder, or for an Expert console while Games is open, the one its launcher's `config.json` describes. Without a usable launcher it is the first console whose ROM folder holds the game, as before.
+Covers are read once per run, by design: MainUI keeps the last 32 covers it decoded and the covers it found missing, and the console found for the last 6 saved games, for as long as it runs. Cover files and console configurations are not expected to change while MainUI runs, so a PNG added, replaced or removed meanwhile shows from the next start. This is not a bug.
 
 ## Ownership, paging and failures
 
@@ -50,7 +55,7 @@ Existing caches are preserved unless `--refresh-caches` is explicitly requested.
 Without XML, only names and directory metadata are scanned, and folders named `Imgs` or `Manuals` (in any case) or the console's image folder are never listed, and a folder is listed only when a file matching the console's `extlist` lies somewhere below it, so empty folders and game data folders (a ScummVM game's `AUDIO` or `DRIVERS`, a port's data) are left out; ROM contents are not read and `disp` strips the extension.
 An empty or missing `extlist` matches every file with an extension, as in stock, except `miyoogamelist.xml`, `gamelist.xml`, ROM list caches (`*_cache*.db` and their build, journal and deletion files) and the copy of a ROM held while it is deleted.
 As in stock, a file ending in `.bin` is left out when a `.cue` file of the same name is in the same folder (a folder or link named so does not count), but only when the `extlist` lists `.cue` files too (or is empty): stock also hides it when the `.cue` is not listed, which leaves no entry for the game.
-With XML, `disp` comes from `<name>`. Shortname filesystem rebuilds now resolve Arcade labels from the Onion name file. Both pinyin fields now store [reference-style initials](SEARCH_METADATA_THEME.md).
+With XML, `disp` comes from `<name>`. Shortname filesystem rebuilds now resolve Arcade labels from the Onion name file. Both pinyin fields store the same initials, which Search matches. Stock can fill `cpinyin` from a Chinese name instead; Onion's arcade name list has no Chinese names, so with Onion both fields would hold the same text.
 `tools/test_cache_build.py` verifies nested paths, quoted system names, integrity, explicit refresh and failed publication.
 
 
@@ -59,7 +64,8 @@ With XML, `disp` comes from `<name>`. Shortname filesystem rebuilds now resolve 
 How a ROM list built from the files differs from stock MainUI's, and what is the same.
 
 - **Same as stock:** hidden files and folders (a name starting with `.`) are never listed. With an empty or missing `extlist`, only files with an extension are listed. A `.bin` is left out when the `.cue` of the same name is beside it and listed. A folder is listed only when a ROM lies somewhere below it.
-- **Not skipped here:** stock always leaves out `[BIOS]` files, `neogeo.zip`, `gngeo_data.zip`, `COPYING`, `LICENSE`, and `.db`, `.sav`, `.svs`, `.gz` and `.gqs` files. Open MainUI does not skip them by name: the `extlist` alone decides, so they are listed only when it names their extension, or when it is empty.
+  With `"hidebios": 1` in the console's `config.json`, a file whose name starts with `[BIOS]` (as spelled) is left out; a folder of that name is not.
+- **Not skipped here:** stock always leaves out `neogeo.zip`, `gngeo_data.zip`, `COPYING`, `LICENSE`, and `.db`, `.sav`, `.svs`, `.gz` and `.gqs` files. Open MainUI does not skip them by name: the `extlist` alone decides, so they are listed only when it names their extension, or when it is empty.
 - **Listed here, not in stock:** a `.bin` whose `.cue` is beside it but not in the `extlist` (`extlist` `bin`, say). Stock hides it anyway, leaving no entry for the game.
 - **Skipped here, not in stock:** with an empty or missing `extlist`, `miyoogamelist.xml`, `gamelist.xml`, ROM list caches (`*_cache*.db` and their build, journal and deletion files) and the copy of a ROM held while it is deleted. Folders named `Imgs` or `Manuals`, in any case, and the console's image folder are never listed, whatever the `extlist`.
 - **Order:** folders first, then by name. Unpatched stock compares names case-sensitively (`Zebra` before `alpha`); Open MainUI ignores case unless `.romListCaseSensitiveSort` is set, as the patched MainUI allows. Neither sorts numbers naturally (`10` comes before `2`). The same holds for the Games and Expert console grids: stock shows Expert's `fMSX` before `fbneo`, Open MainUI `fbneo` first.

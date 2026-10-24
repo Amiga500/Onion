@@ -89,6 +89,10 @@ stub_services() { # records which checkers ran; killall records its args
         eval "check_${svc}state() { echo $svc >> \"\$TMP/started\"; }"
     done
     killall() { echo "$*" >> "$TMP/killed"; }
+    netscript=$TMP/netscript # wifi_power_save.sh records its argument
+    mkdir -p "$netscript"
+    printf '#!/bin/sh\necho "$*" >> "%s/power_save"\n' "$TMP" > "$netscript/wifi_power_save.sh"
+    chmod +x "$netscript/wifi_power_save.sh"
 }
 
 begin boot_services_start_without_game
@@ -97,6 +101,7 @@ services_paused_flag="$TMP/paused"
 start_services_outside_game
 check "all five checkers ran" test "$(wc -l < "$TMP/started")" -eq 5
 check "nothing killed" test ! -e "$TMP/killed"
+check "then Wi-Fi power save follows the services" test "$(cat "$TMP/power_save")" = auto
 end
 
 begin boot_services_skipped_while_game_runs
@@ -113,6 +118,7 @@ services_paused_flag="$TMP/paused"
 check_smbdstate() { : > "$services_paused_flag"; } # the game launches here
 start_services_outside_game
 check "services killed after the game started" grep -q dropbear "$TMP/killed"
+check "and power save set for the paused services" test "$(cat "$TMP/power_save")" = auto
 end
 
 begin boot_services_flag_path_matches_runtime
@@ -1189,6 +1195,31 @@ check "the version screen offers MENU to exit" grep -q 'wait_key "Press A to con
 unset -f wait_key
 end
 
+begin ota_connection_check_ignores_the_clock
+# A device with its clock wrong (no clock battery, no time sync yet) failed
+# the check on a working network: the certificate looked not yet valid.
+# The check skips the certificate, like the list and the download, and
+# says why it failed.
+eval "$(extract_fn "$OTA_SCRIPT" check_connection)"
+wget() {
+    echo "$*" > "$TMP/wget_args"
+    case " $* " in
+        *" --no-check-certificate "*) [ -f "$TMP/offline" ] && { echo "Failed to resolve host: github.com" >&2; return 4; }; return 0 ;;
+        *) echo "Connection error: Invalid SSL certificate" >&2; return 5 ;;
+    esac
+}
+read() { :; }
+out=$( (check_connection) 2>&1); rc=$?
+check "wrong clock: connection OK" test $rc -eq 0
+check "the certificate is not checked" grep -q -- "--no-check-certificate" "$TMP/wget_args"
+check "still a 15 s timeout" grep -q -- "-T 15" "$TMP/wget_args"
+touch "$TMP/offline"
+out=$( (check_connection) 2>&1); rc=$?
+check "offline: exits 2" test $rc -eq 2
+check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (Failed to resolve host: github.com)'" _ "$out"
+unset -f wget read check_connection
+end
+
 # ---- migration 00022: RetroArch menu Border Filler OFF ----
 
 begin migration_disables_rgui_border_filler
@@ -1557,24 +1588,28 @@ done
 begin wifi_starts_with_power_save_on
 # Power save off kept the radio awake while idle: a Mini Plus in the menu
 # with Wi-Fi connected drained about 20% faster and ran warm. Wi-Fi now
-# starts with power save on, as Onion's stock MainUI ran with it.
+# starts with power save on, as Onion's stock MainUI ran with it, unless a
+# file-transfer service is on (wifi_power_save_follows_transfer_services).
 eval "$(extract_fn "$NETWORK" wifi_on)"
 log() { :; }
 sleep() { :; }
 ifconfig() { :; }
 udhcpc() { :; }
-iw() { echo "$*" >> "$TMP/iw"; }
 miyoodir_saved=${miyoodir-}
+netscript_saved=${netscript-}
 miyoodir=$TMP
-mkdir -p "$TMP/app"
+netscript=$TMP/netscript
+mkdir -p "$TMP/app" "$netscript"
 printf '#!/bin/sh\n' > "$TMP/app/wpa_supplicant"
-chmod +x "$TMP/app/wpa_supplicant"
+printf '#!/bin/sh\necho "$*" >> "%s/ps"\n' "$TMP" > "$netscript/wifi_power_save.sh"
+chmod +x "$TMP/app/wpa_supplicant" "$netscript/wifi_power_save.sh"
 wifi_on > /dev/null 2>&1
-check "wifi_on turns power save on" grep -qx "dev wlan0 set power_save on" "$TMP/iw"
-check "the OTA's Wi-Fi start turns it on too" grep -q "iw dev wlan0 set power_save on" "$OTA"
-check "no script hardcodes power save off" sh -c "! grep -rq 'power_save off' \"$ROOT/static/build\""
+check "wifi_on sets power save by the services" grep -qx "auto" "$TMP/ps"
+check "the OTA's Wi-Fi start does the same" grep -qF 'wifi_power_save.sh auto' "$OTA"
+check "no script hardcodes power save" sh -c "! grep -rq 'set power_save o' \"$ROOT/static/build\" --exclude=wifi_power_save.sh"
 miyoodir=$miyoodir_saved
-unset -f log sleep ifconfig udhcpc iw wifi_on
+netscript=$netscript_saved
+unset -f log sleep ifconfig udhcpc wifi_on
 end
 
 begin pdf_reader_hint_says_menu_closes_a_pdf
@@ -1743,8 +1778,8 @@ for f in "$NETPLAY_DIR"/*.sh; do
 done
 check "every netplay script launches RetroArch (8 launches)" [ "$launches" -eq 8 ]
 check "each launch turns power save off first" [ "$unguarded" -eq 0 ]
-check "Netplay.sh turns power save on at the end" sh -c \
-    "grep -v '^[[:space:]]*\$' \"$NETPLAY\" | tail -n 1 | grep -qx '\"\\\$sysdir/script/network/wifi_power_save.sh\" on'"
+check "Netplay.sh hands power save back to the services at the end" sh -c \
+    "grep -v '^[[:space:]]*\$' \"$NETPLAY\" | tail -n 1 | grep -qx '\"\\\$sysdir/script/network/wifi_power_save.sh\" auto'"
 check "only netplay turns power save off" sh -c \
     "! grep -rl 'wifi_power_save.sh\" off' \"$ROOT/static/build\" | grep -v '/script/netplay/'"
 check "the helper is executable" [ -x "$PS" ]
@@ -1767,6 +1802,48 @@ rmdir "$TMP/net/wlan0"
 sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" off
 check "Wi-Fi off: nothing to do, no error" [ $? -eq 0 ]
 check "and iw is not called" [ ! -e "$TMP/iw" ]
+end
+
+begin wifi_power_save_follows_transfer_services
+# With power save on, FTP transfers from a phone stuttered and new files
+# took about a minute to show (Reddit, beta 10). Power save is now off while
+# a file-transfer service is on in Tweaks > Network, on once they are all
+# off or paused for a game.
+PS="$ROOT/static/build/.tmp_update/script/network/wifi_power_save.sh"
+mkdir -p "$TMP/ps/bin" "$TMP/ps/config" "$TMP/ps/net/wlan0"
+printf '#!/bin/sh\necho "$*" > "%s/ps/iw"\n' "$TMP" > "$TMP/ps/bin/iw"
+chmod +x "$TMP/ps/bin/iw"
+ps_auto() {
+    rm -f "$TMP/ps/iw"
+    sysdir="$TMP/ps" WIFI_NET_DIR="$TMP/ps/net" SERVICES_PAUSED_FLAG="$TMP/ps/paused" sh "$PS" auto
+    cat "$TMP/ps/iw" 2> /dev/null
+}
+check "no service on: power save on" [ "$(ps_auto)" = "dev wlan0 set power_save on" ]
+for service in ftp ssh http smbd telnet; do
+    : > "$TMP/ps/config/.${service}State"
+    check "$service on: power save off" [ "$(ps_auto)" = "dev wlan0 set power_save off" ]
+    mv "$TMP/ps/config/.${service}State" "$TMP/ps/config/.${service}State_"
+    check "$service switched off in Tweaks (.${service}State_): on again" [ "$(ps_auto)" = "dev wlan0 set power_save on" ]
+done
+: > "$TMP/ps/config/.ntpState"
+: > "$TMP/ps/config/.authftpState"
+check "time sync and service passwords do not count" [ "$(ps_auto)" = "dev wlan0 set power_save on" ]
+: > "$TMP/ps/config/.ftpState"
+: > "$TMP/ps/paused"
+check "services paused for a game: on" [ "$(ps_auto)" = "dev wlan0 set power_save on" ]
+rm -f "$TMP/ps/paused"
+check "game over, FTP back: off" [ "$(ps_auto)" = "dev wlan0 set power_save off" ]
+rmdir "$TMP/ps/net/wlan0"
+check "Wi-Fi off: iw is not called" [ -z "$(ps_auto)" ]
+
+# Where it is called
+check "a service toggled in Tweaks sets it" sh -c \
+    "sed -n '/^        ftp | telnet | http | ssh | smbd)/,/^            ;;/p' \"$NETWORK\" | sed -n '/toggle)/,/;;/p' | grep -qF 'wifi_power_save.sh auto'"
+check "disableall sets it" sh -c "extract_fn() { sed -n \"/^\$2() {/,/^}/p\" \"\$1\"; }; extract_fn \"$NETWORK\" disable_all_services | grep -qF 'wifi_power_save.sh auto'"
+check "services started after Wi-Fi or a game set it" sh -c "sed -n '/^start_services_outside_game() {/,/^}/p' \"$NETWORK\" | grep -qF 'wifi_power_save.sh auto'"
+check "a game that pauses the services sets it" sh -c "grep -A6 ': > /tmp/services_paused_in_game' \"$RUNTIME\" | grep -qF 'wifi_power_save.sh auto'"
+
+unset -f ps_auto
 end
 
 begin update_cleanup_keeps_ssh_host_key

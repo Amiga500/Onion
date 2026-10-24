@@ -232,8 +232,8 @@ enable_wifi() {
 		# 2 s after the power-on (wifi_on in update_networking.sh).
 		sleep 2
 		ifconfig wlan0 up
-		# Power save on, as wifi_on in update_networking.sh sets it.
-		iw dev wlan0 set power_save on 2> /dev/null
+		# Power save as wifi_on in update_networking.sh sets it.
+		$sysdir/script/network/wifi_power_save.sh auto
 		# Same commands as wifi_on in update_networking.sh. wpa_supplicant is
 		# not on the PATH of apps, and udhcpc in the foreground never returns
 		# without a network: the updater stayed on a black screen.
@@ -252,12 +252,19 @@ enable_wifi() {
 	fi
 }
 
+# The certificate is not checked here, as it is not for the release list
+# (curl -k) or the download (wget --no-check-certificate). Checked, it failed
+# on a working network when the clock was wrong (a device without a clock
+# battery, before the time sync): "not reachable" stopped the update.
+# The reason wget gives is shown with the error.
 check_connection() {
 	echo -n "Checking internet connection... "
-	if wget -q -T 15 --spider https://github.com > /dev/null 2>&1; then
+	_why=$(wget -q -T 15 --no-check-certificate --spider https://github.com 2>&1 > /dev/null)
+	if [ $? -eq 0 ]; then
 		echo -e "${GREEN}OK${NC}"
 	else
-		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable.\nTurn on Wi-Fi in Settings and check that it connects."
+		_why=$(echo "$_why" | grep -v '^[[:space:]]*$' | head -n 1 | cut -c 1-60)
+		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable${_why:+ ($_why)}.\nTurn on Wi-Fi in Settings and check that it connects."
 		echo -ne "${YELLOW}"
 		read -n 1 -s -r -p "Press A to exit"
 		exit 2

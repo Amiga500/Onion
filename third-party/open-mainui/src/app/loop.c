@@ -186,7 +186,7 @@ bool mainui_poll_jobs(MainUIApp *ui)
                 mainui_audio_pause(!resumed && ui->device_status.sleeping == 1);
                 memset(ui->held, 0, sizeof ui->held);
                 /* As on focus loss: a release after sleep is no press. */
-                ui->y_armed = ui->select_armed = ui->start_armed = false;
+                ui->x_armed = ui->y_armed = ui->select_armed = ui->start_armed = false;
                 ui->select_brightness = false;
                 SDL_EnableKeyRepeat(0, 0);
                 SDL_Event stale[16];
@@ -547,8 +547,8 @@ bool mainui_wait_event(MainUIApp *ui, SDL_Event *event)
     else if (ui->input_script && *ui->input_script) {
         scripted_event = true;
         event->type = SDL_KEYDOWN;
-        /* Y, Select and Start act on release: alone they are a tap (press
-         * and release); + presses them only, - releases any key. */
+        /* X, Y, Select and Start can act on release: alone they are a tap
+         * (press and release); + presses them only, - releases any key. */
         bool hold = *ui->input_script == '+';
         if (*ui->input_script == '-') {
             event->type = SDL_KEYUP;
@@ -563,8 +563,8 @@ bool mainui_wait_event(MainUIApp *ui, SDL_Event *event)
             ui->input_script++;
         }
         if (event->type == SDL_KEYDOWN && !hold &&
-            (event->key.keysym.sym == SDLK_LALT || event->key.keysym.sym == SDLK_RCTRL ||
-             event->key.keysym.sym == SDLK_F2)) {
+            (event->key.keysym.sym == SDLK_LALT || event->key.keysym.sym == SDLK_LSHIFT ||
+             event->key.keysym.sym == SDLK_RCTRL || event->key.keysym.sym == SDLK_F2)) {
             ui->script_release = event->key.keysym.sym;
         }
         if (event->key.keysym.sym == SDLK_UNKNOWN) {

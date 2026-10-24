@@ -609,6 +609,9 @@ launch_game() {
             : > /tmp/services_paused_in_game
             killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null &
             services_kill_pid=$!
+            # Services stopped: Wi-Fi power save back on for the game
+            # (start_services_outside_game sets it again afterwards).
+            $sysdir/script/network/wifi_power_save.sh auto &
         fi
     fi
 

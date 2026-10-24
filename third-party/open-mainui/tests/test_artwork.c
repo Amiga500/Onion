@@ -154,11 +154,14 @@ int main(int argc, char **argv)
         /* Without hint.font, hints use the default font (Exo 2 Bold Italic,
          * italic by its own face), not the title's; with one, that font.
          * Console labels are made bold only in the default font: a theme's
-         * grid.font keeps its own weight (stock would make it bold). */
+         * grid.font keeps its own weight (stock would make it bold).
+         * SDL_ttf reports a face's own bold and italic as style too, so the
+         * theme's font here is a regular one, Helvetica Neue, which makes
+         * any style MainUI adds visible. */
         char fonts[1024], title_font[4096], name[2][4096], fonts_config[4096];
         snprintf(fonts, sizeof fonts, "%s/fonts", root);
         assert(mkdir_0755(fonts) == 0);
-        TEST_PATH(title_font, "%s/BPreplayBold.otf", builtin);
+        TEST_PATH(title_font, "%s/Helvetica-Neue-2.ttf", builtin);
         const char *configs[] = {"{\"title\":{\"font\":\"%s\"}}",
                                  "{\"title\":{\"font\":\"%s\"},\"hint\":{\"font\":\"%s\"},"
                                  "\"grid\":{\"font\":\"%s\"}}"};
@@ -173,8 +176,8 @@ int main(int argc, char **argv)
             snprintf(name[1], sizeof name[1], "%s", TTF_FontFaceFamilyName(fonted.title_font));
             assert(i ? !strcmp(name[0], name[1]) : strcmp(name[0], name[1]) != 0);
             assert(i || strstr(name[0], "Exo"));
-            int label_style = i ? TTF_STYLE_NORMAL : TTF_STYLE_BOLD;
-            assert(TTF_GetFontStyle(fonted.grid_font) == label_style);
+            int label_style = TTF_GetFontStyle(fonted.grid_font);
+            assert(i ? label_style == TTF_STYLE_NORMAL : (label_style & TTF_STYLE_BOLD) != 0);
             /* Expert labels: the list font (here the title's, as no list.font
              * is set), never bold, whatever grid.font is. */
             assert(TTF_GetFontStyle(fonted.expert_font) == TTF_STYLE_NORMAL);
