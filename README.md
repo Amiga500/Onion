@@ -18,12 +18,15 @@ RedOnion started as my personal build to test fixes on real devices, and has bec
 
 - 🐞 **Quick fixes.** Bug reports are looked at and fixed ASAP, and feature requests and pull requests are welcome: if they are feasible, they get in.
 - ⚡ **A faster everyday.** Game launches, menus, sleep, volume and the GameSwitcher were all rebuilt for speed, and the launcher idles at a fraction of the CPU.
-- 🆕 **Open MainUI.** An open-source launcher by [@robcodedev](https://github.com/robcodedev/onionos-mainui-opensource) replaces Miyoo's closed one: about 270 KB instead of 1.4 MB, menus at about 1% CPU instead of 5%, scrolling titles, letter jump, configurable rows and main menu, safer ROM deletion. The stock MainUI stays on the card, one file away.
-- 🛡️ **Fixes for issues still present in Onion.** 44 bugs fixed in the shared code: crashes, memory leaks, lost settings, a wrong clock, play history that could be deleted.
+- 🆕 **Open MainUI.** An open-source launcher by [@robcodedev](https://github.com/robcodedev/onionos-mainui-opensource) replaces Miyoo's closed one: about 300 KB instead of 1.4 MB, menus at about 1% CPU instead of 5%, scrolling titles, letter jump, configurable rows and main menu, safer ROM deletion. The stock MainUI stays on the card, one file away.
+- 🛡️ **Fixes for issues still present in Onion.** Dozens of bugs fixed in the shared code: crashes, memory leaks, lost settings, a wrong clock, play history that could be deleted.
 - 🔌 **Settings that survive a power cut.** Settings, key map, recents and play history are written safely, even if the battery dies mid-save.
+- 🎨 **Your layout, your buttons.** A footer with the hints in button order (B then A) that the whole system follows, X and Y shortcuts for a game's options or Favorites, and SELECT menu labels that fit in every language.
+- 🕹️ **A GameSwitcher that knows big games.** Pictures, Save and Load work for Neo Geo, arcade, PS1 and large GBA games, and no more crash in Game & Watch and 11 other cores.
+- 🔋 **Longer battery with Wi-Fi.** Wi-Fi power saving is on by default, and turns off by itself during netplay and while a file-transfer service (FTP, SSH, Samba, the web file manager) is on, so those stay fast.
 - 🎮 **Mini Flip support** ported from Onion's development branch, with lid and suspend fixes.
 - 📡 **Updates over Wi-Fi.** A stable channel for everyone and a beta channel for early testers, straight from the device.
-- 🧪 **Tested on every change.** More than 1,500 automated tests run on each update before it ships.
+- 🧪 **Tested on every change.** More than 1,600 automated tests run on each update before it ships.
 
 ## Switching from Onion
 
@@ -36,10 +39,14 @@ Your games, saves and BIOS files carry over. RedOnion keeps Onion's file layout.
 
 ## Disclaimer
 
-- RedOnion is not an official Onion release and is not affiliated with the Onion team. Onion's [documentation](https://onionui.github.io/docs) still describes how everything works.
-- Found a bug? [Open an issue](https://github.com/Amiga500/Onion/issues) with your model, version and steps. Verified reports count for the bounty.
-- Want the details? The [technical reference](docs/TECHNICAL.md) lists every change, measurement and test.
+- **Use at your own risk.** RedOnion is provided "as is", without any warranty, as stated in sections 15 and 16 of the [GPL-3.0 license](LICENSE). The authors and contributors are not responsible for any damage to your device, SD card, battery or data, or for any other loss, however it happens.
+- **Overclocking, undervolting and similar settings** (CPU clock changes, LCD undervolt, display or power tweaks, custom cores and scripts) run the hardware outside its default limits. They can cause instability, data corruption, overheating, faster battery wear or permanent damage. If you change them, you do so entirely at your own risk.
+- **Always back up your SD card** before installing or updating, at least `Roms`, `Saves`, `BIOS` and `Screenshots`. An update, a power cut or a faulty card can lose data.
+- **No games or BIOS files are included.** You are responsible for the content you put on your device and for following the laws of your country.
+- **Not an official Onion release.** RedOnion is not affiliated with the Onion team, with Miyoo, or with the authors of the emulators and apps it includes. Onion's [documentation](https://onionui.github.io/docs) still describes how everything works.
+- **Found a bug?** [Open an issue](https://github.com/Amiga500/Onion/issues) with your model, version and steps to reproduce.
+- **Want the details?** The [technical reference](docs/TECHNICAL.md) lists every change, measurement and test.
 
 ## Thanks
 
-RedOnion exists because of the [Onion team](https://github.com/OnionUI/Onion) and its contributors: the menus, emulators, themes and almost all of the code are theirs. All the credit goes to them. Also huge thanks to those who are putting in the work to make this build possible, like [@robcodedev](https://github.com/robcodedev) for Open MainUI, and to the testers who sent reports and helped confirm the fixes, especially [@Zazzago](https://github.com/Zazzago).
+RedOnion exists because of the [Onion team](https://github.com/OnionUI/Onion) and its contributors: the menus, emulators, themes and almost all of the code are theirs. All the credit goes to them. Also huge thanks to those who are putting in the work to make this build possible: [@robcodedev](https://github.com/robcodedev) for Open MainUI, [@dredvm](https://github.com/dredvm) for the RedOnion name, the Silky RedOnion theme and the logo, [@coorasse](https://github.com/coorasse) for his pull requests, and [@quackwalks](https://github.com/quackwalks), [@Ziko577](https://github.com/Ziko577), [@nukefrenzy](https://github.com/nukefrenzy) and [@fengfrw](https://github.com/fengfrw) for their reports and ideas. And to the testers who sent reports and helped confirm the fixes, especially [@Zazzago](https://github.com/Zazzago), and to everyone on Reddit and Discord who tried the betas.
