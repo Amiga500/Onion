@@ -923,6 +923,59 @@ check "last command is exit 1 (0 makes GLO start the game)" \
     test "$(grep -v '^[[:space:]]*$' "$SCRAPER" | tail -n 1)" = "exit 1"
 end
 
+begin glo_maintenance_scripts_return_to_the_list
+# Repair favorites, Sort favorites (A-Z, by system) and Clean recents ended
+# with the tools command, status 0, which GLO takes as "start the game": the
+# selected game launched, and since GLO had already taken it out of Recents,
+# the GameSwitcher showed its picture under the previous game's title.
+mkdir -p "$TMP/bin"
+printf '#!/bin/sh\necho "$*" >> "%s/tools.log"\nexit 0\n' "$TMP" > "$TMP/bin/tools"
+chmod +x "$TMP/bin/tools"
+for script in favorites/favfix.sh:favfix favorites/favsort.sh:favsort \
+    favorites/favsort2.sh:favsort2 "recents/clean_recents.sh:recents --clean_all"; do
+    file="$ROOT/static/build/App/romscripts/${script%%:*}"
+    args=${script#*:}
+    rm -f "$TMP/tools.log"
+    PATH="$TMP/bin:$PATH" sh "$file" > /dev/null 2>&1
+    status=$?
+    check "${script%%:*}: back to the list (status 1, was 0)" test "$status" -eq 1
+    check "${script%%:*}: still runs tools $args" test "$(cat "$TMP/tools.log" 2> /dev/null)" = "$args"
+done
+end
+
+begin glo_script_that_starts_the_game_keeps_recents
+# GLO takes the selected game out of Recents when it opens. A script that
+# returns 0 starts that game (Set time, Netplay): the entry goes back, as
+# Reset game does, so the GameSwitcher title matches the game. A script that
+# returns 1 leaves it out; one that wrote another command (Random game)
+# handles its own entry.
+glo_run() { # script body
+    (
+        eval "$(extract_fn "$GLO" run_script)"
+        eval "$(extract_fn "$GLO" add_game_to_recent_list)"
+        log() { :; }
+        sysdir=$TMP/sys emupath=$TMP rompath=$TMP/rom.gb
+        currentrecentlist=$TMP/recent.json recentlist_temp=$TMP/recent.tmp
+        firstrecententry='{"label":"Mario"}'
+        printf '{"label":"Zelda"}\n' > "$currentrecentlist"
+        mkdir -p "$TMP/sys"
+        echo 'launch mario' > "$TMP/sys/cmd_to_run.sh"
+        printf '#!/bin/sh\n%s\n' "$1" > "$TMP/script.sh"
+        run_script "$TMP/script.sh"
+    )
+}
+glo_run 'exit 0'
+check "status 0 is passed on (start the game)" test $? -eq 0
+check "and the game is first in Recents again" test "$(head -n 1 "$TMP/recent.json")" = '{"label":"Mario"}'
+glo_run 'exit 1'
+check "status 1 is passed on (back to the list)" test $? -eq 1
+check "and Recents is left as it was" test "$(cat "$TMP/recent.json")" = '{"label":"Zelda"}'
+glo_run 'echo "launch random" > "$(dirname "$0")/sys/cmd_to_run.sh"; exit 0'
+check "another game chosen: started" test $? -eq 0
+check "and its entry is the script's business" test "$(cat "$TMP/recent.json")" = '{"label":"Zelda"}'
+unset -f glo_run
+end
+
 begin press_menu_to_kill_spares_glo
 # pressMenu2Kill runs "pkill -9 -f PATTERN": a literal pattern must not
 # also match the GLO script that launched it.

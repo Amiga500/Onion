@@ -3,3 +3,6 @@ scriptlabel="Sort favorites (by system)"
 scriptinfo="Sorts the favorites\nfile by game system."
 
 tools favsort2
+
+# Non-zero: GLO goes back to the list. Zero would start the selected game.
+exit 1
