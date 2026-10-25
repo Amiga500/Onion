@@ -28,3 +28,4 @@ disk_control = "false"
 is_experimental = "false"
 
 description = "A port of the REminiscence engine, a reimplementation of the engine used by Delphine Software's Flashback, to libretro. The core requires data files from the game and is compatible with the Steam/GOG, DOS, PC-CD, Amiga and Macintosh releases. The core does not support regular saves, only savestates."
+systemid = "reminiscence"

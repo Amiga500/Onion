@@ -153,10 +153,10 @@ void mainui_stock_settings_load(MainUIStockSettings *settings, const char *direc
     cJSON *system = mainui_system_read(sd);
     const MainUISettingKind numeric[] = {SET_BRIGHTNESS, SET_SOUND, SET_SLEEP};
     const char *names[] = {"brightness", "bgmvol", "hibernate"};
-    const int defaults[] = {7, 20, 5}, maximum[] = {10, 20, 30};
+    /* Stock's defaults for a missing value: 7, 8 and 0 (no sleep). */
+    const int defaults[] = {7, 8, 0}, maximum[] = {10, 20, 30};
     for (int i = 0; i < 3; i++) {
-        const cJSON *value = cJSON_GetObjectItemCaseSensitive(system, names[i]);
-        int number = cJSON_IsNumber(value) ? value->valueint : defaults[i];
+        int number = mainui_system_monitor_value(system, names[i]);
         /* keymon's live value is the one in effect, also when a failed save
          * could not put it back; the file's is the fallback. */
         int live = 0;

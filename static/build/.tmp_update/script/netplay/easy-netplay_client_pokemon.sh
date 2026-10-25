@@ -168,6 +168,8 @@ start_retroarch() {
     wait_for_host # we wait a second flag triggered from the host once RA is running
     cd /mnt/SDCARD/RetroArch
     log "Starting RetroArch loaded with $rom and $client_rom"
+    # Netplay needs a quick radio: power save off while it runs.
+    "$sysdir/script/network/wifi_power_save.sh" off
     HOME=/mnt/SDCARD/RetroArch ./retroarch --appendconfig=./.retroarch/easynetplay_override.cfg -C $hostip -L "$core" --subsystem "gb_link_2p" "$rom" "$client_rom"
 
     if [ -n "$PreviousCPUspeed" ]; then

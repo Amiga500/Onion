@@ -10,11 +10,12 @@
 #include "platform/menu_button.h"
 #include "platform/system_config.h"
 #include "platform/timing.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #ifdef MAINUI_ONION
-#include <errno.h>
 #include <fcntl.h>
 #include <linux/fb.h>
 #include <sys/ioctl.h>
@@ -107,6 +108,7 @@ int mainui_setup_session(MainUIApp *ui, int argc, char **argv)
     ui->input_text = options.input_text;
     ui->real_device = options.real_device;
     ui->battery_override = options.battery_override;
+    ui->battery_charging = options.battery_charging;
     ui->start_systems = options.start_systems;
     ui->refresh_caches = options.refresh_caches;
     ui->snapshot_elapsed = options.snapshot_elapsed;
@@ -335,29 +337,44 @@ static bool search_tool_return(const cJSON *record)
             cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(record, "app_action")));
 }
 
-/* Onion's X-button shortcut (keymon) starts Search by killing MainUI, so no
- * return envelope exists; Search then leaves Games -> Search in the stock
- * state.json, which stock MainUI follows. That state names the console only by
- * its label: copy it out for comparing with the Search system found by its
- * data folder. Empty when the state does not end in a console list. */
-static void stock_state_console(const char *directory, char label[256])
+/* The stock state.json, which stock MainUI follows when it starts. Onion's
+ * X-button shortcut (keymon) starts Search by killing MainUI, so no return
+ * envelope exists; Search then leaves Games -> Search there. That state names
+ * the console only by its label: copy it out for comparing with the Search
+ * system found by its data folder (empty unless the last screen is a console
+ * list). Onion's setState, run at boot for the startup tab and by its Expert
+ * app, leaves the main menu and one tab. Returns that tab, or -1. */
+static int stock_state_read(const char *directory, char label[256])
 {
     label[0] = 0;
     char path[4096];
     if (snprintf(path, sizeof path, "%s/state.json", directory) >= (int)sizeof path) {
-        return;
+        return -1;
     }
     char *text = mainui_read_text(path, 64 * 1024);
     cJSON *root = text ? cJSON_Parse(text) : NULL;
     const cJSON *list = cJSON_GetObjectItemCaseSensitive(root, "list");
-    const cJSON *last = cJSON_GetArrayItem(list, cJSON_GetArraySize(list) - 1);
+    int count = cJSON_GetArraySize(list);
+    const cJSON *last = cJSON_GetArrayItem(list, count - 1);
     const cJSON *type = cJSON_GetObjectItemCaseSensitive(last, "type");
     const cJSON *name = cJSON_GetObjectItemCaseSensitive(last, "emuname");
     if (cJSON_IsNumber(type) && type->valueint == 5 && cJSON_IsString(name)) {
         snprintf(label, 256, "%s", name->valuestring);
     }
+    /* setState's page types, in stock's numbering. */
+    static const int types[] = {10, 2, 1, 16, 3};
+    static const MainUIMenuSection tabs[] = {MAINUI_MENU_RECENTS, MAINUI_MENU_FAVORITES,
+                                             MAINUI_MENU_GAMES, MAINUI_MENU_EXPERT,
+                                             MAINUI_MENU_APPS};
+    int tab = -1;
+    for (int i = 0; count == 2 && cJSON_IsNumber(type) && i < 5; ++i) {
+        if (type->valueint == types[i]) {
+            tab = tabs[i];
+        }
+    }
     cJSON_Delete(root);
     free(text);
+    return tab;
 }
 
 /* Labels as stock pads them (" Search "), compared without the padding. */
@@ -427,6 +444,8 @@ void mainui_restore_session(MainUIApp *ui)
         mainui_grid_restore(&ui->view, ui->view.total, 0, 4, 2);
     }
     ui->theme.battery_percent = ui->battery_percent;
+    ui->theme.battery_charging =
+        ui->battery_override ? ui->battery_charging : ui->device_status.charging;
     mainui_menu_view_open(&ui->menu_view, &ui->theme);
     /* Snapshots and scripted input draw at once, with every icon in place. */
     ui->menu_view.defer_selected = !ui->snapshot && !ui->input_script;
@@ -437,8 +456,18 @@ void mainui_restore_session(MainUIApp *ui)
         bool from_search = search_tool_return(cJSON_GetObjectItemCaseSensitive(returned, "record"));
         /* No envelope: MainUI was killed, not left through its own launch. */
         char stock_label[256] = "";
-        if (!returned) {
-            stock_state_console(ui->handoff_dir, stock_label);
+        /* A launch still pending owns the state.json written for it: it is
+         * neither followed nor removed. */
+        char state_path[4096], pending_path[4096];
+        struct stat pending;
+        bool paths = snprintf(state_path, sizeof state_path, "%s/state.json", ui->handoff_dir) <
+                         (int)sizeof state_path &&
+                     snprintf(pending_path, sizeof pending_path, "%s/cmd_to_run.sh",
+                              ui->handoff_dir) < (int)sizeof pending_path;
+        bool idle = paths && lstat(pending_path, &pending) != 0 && errno == ENOENT;
+        int stock_tab = idle ? stock_state_read(ui->handoff_dir, stock_label) : -1;
+        if (returned) {
+            stock_label[0] = 0;
         }
         MainUISession restored = {0};
         bool resumed =
@@ -576,6 +605,33 @@ void mainui_restore_session(MainUIApp *ui)
                 fprintf(stderr, "Search returned; Games has no Search entry\n");
             }
         }
+        /* A tab left by setState opens, as in stock: at boot the startup tab
+         * set in Tweaks, after keymon killed MainUI for a shortcut to Onion's
+         * Expert app, or on return from that app started from Apps (MainUI's
+         * own launch from Apps left Apps there). */
+        bool from_apps = resumed && restored.section == MAINUI_MENU_APPS;
+        if (stock_tab >= 0 && (!returned || (from_apps && stock_tab != MAINUI_MENU_APPS)) &&
+            !from_search && !stock_search && ui->home && !ui->settings_open) {
+            fprintf(stderr, "[return] following the stock state.json to %s\n",
+                    mainui_menu_label(stock_tab));
+            if (ui->apps) {
+                mainui_catalog_close(ui->apps);
+                free(ui->apps);
+                ui->apps = NULL;
+            }
+            for (int i = 0; i < ui->menu.count; ++i) {
+                if (ui->menu.sections[i] == (MainUIMenuSection)stock_tab) {
+                    mainui_viewport_move(&ui->home_view, 4, i - ui->home_view.selected, false);
+                    break;
+                }
+            }
+            mainui_screen_home_key(ui, SDLK_RETURN, stock_tab);
+        }
+        /* Read once, as stock unlinks it after restoring: a later start
+         * without a new state (after keymon's GameSwitcher, say) is on Home. */
+        if (idle) {
+            mainui_remove_file(state_path);
+        }
         mainui_session_close(&restored);
         cJSON_Delete(returned);
     }
@@ -588,6 +644,10 @@ void mainui_setup_render(MainUIApp *ui)
     ui->cached_start = -1;
     ui->status = 0;
     ui->heading_color = ui->theme.title_color;
+    /* Opening a startup tab (Recents, Favorites) may have drawn one already. */
+    if (ui->heading) {
+        SDL_FreeSurface(ui->heading);
+    }
     ui->heading = TTF_RenderUTF8_Blended(ui->theme.title_font,
                                          ui->search.results ? ui->search.title
                                          : ui->library      ? mainui_library_heading(ui->library)
@@ -602,13 +662,43 @@ void mainui_setup_render(MainUIApp *ui)
         fprintf(stderr, "Cannot read Menu releases from /dev/input/event0; Menu opens no "
                         "context menu\n");
     }
+    /* Stock reads keymon's audiofix before loading system.json over it, and
+     * opens the mixer with 4096 sample frames with Onion's audio fix (its
+     * audioserver) off, as here, and 128 with it on. Here it is 1024 with it
+     * on, on purpose: 128 wakes the audio callback eight times as often and
+     * raised MainUI's idle CPU use (1.6 % against 0.9 % with 1.0.7's 1024,
+     * which played without problems). The latency stays about 21 ms at
+     * 48 kHz, unnoticeable for theme sounds and music. Read like stock, from
+     * the value keymon already has; the host keeps 1024. */
+    int audiofix = -1;
+    if (ui->real_device && !ui->snapshot &&
+        !mainui_device_setting_value(&ui->device_adapter, "audiofix", &audiofix)) {
+        audiofix = -1;
+    }
+    /* As stock at start: the button mapping in system.json goes to the button
+     * driver, which remaps the buttons (X as B, say) for every program. Nothing
+     * else in Onion writes it. */
+    /* As stock at every start: keymon's live settings from system.json, and
+     * the display brightness from them. */
+    if (ui->real_device && !ui->snapshot && ui->sd &&
+        !mainui_device_settings_load(&ui->device_adapter, ui->sd)) {
+        fprintf(stderr, "Cannot load the live settings from system.json\n");
+    }
+    if (ui->real_device && !ui->snapshot && ui->sd &&
+        !mainui_keymap_apply(ui->sd, "/sys/module/gpio_keys_polled/parameters/button_config")) {
+        fprintf(stderr, "Cannot hand the button mapping to the button driver\n");
+    }
     /* Snapshot tests stay silent. Playback is optional on the host. */
     if (!ui->snapshot) {
         cJSON *system_config = mainui_system_read(ui->sd ? ui->sd : ".");
-        const cJSON *volume = cJSON_GetObjectItemCaseSensitive(system_config, "bgmvol");
-        int level = cJSON_IsNumber(volume) ? volume->valueint : 20;
+        /* Stock's 8 when the value is missing or not a number. */
+        int level = mainui_system_monitor_value(system_config, "bgmvol");
+        if (ui->real_device && audiofix < 0) {
+            audiofix = mainui_system_monitor_value(system_config, "audiofix");
+        }
+        int chunk = audiofix == 0 ? 4096 : 1024;
         /* mainui_audio_open() logs the specific reason. */
-        mainui_audio_open(ui->theme.directory, ui->theme.fallback, level);
+        mainui_audio_open(ui->theme.directory, ui->theme.fallback, level, chunk);
         cJSON_Delete(system_config);
     }
     mainui_audio_pause(ui->device_enabled && ui->device_status.sleeping == 1);
@@ -621,12 +711,22 @@ void mainui_setup_render(MainUIApp *ui)
     if (ui->device_enabled) {
         mainui_about_start(&ui->about_job, &ui->device_adapter, ui->sd);
     }
+    /* Stock's start-up line, printed before its first frame. Onion's clock
+     * overlay (libmainuihooks.so, preloaded) waits for this printf format
+     * before it draws the time on each SDL_Flip. Called through a pointer:
+     * a fortified build would call __printf_chk, which it does not see. */
+    if (ui->real_device && !ui->snapshot) {
+        int (*volatile print)(const char *, ...) = printf;
+        print("%d run windows\n", 1);
+        fflush(stdout);
+    }
 }
 
 int mainui_teardown(MainUIApp *ui)
 {
     mainui_menu_button_close();
-    if (ui->catalog && !ui->library && !ui->home && !ui->snapshot &&
+    /* A launch saved it already, for the same view: no input came since. */
+    if (ui->catalog && !ui->library && !ui->home && !ui->snapshot && !ui->launch_pending &&
         !mainui_positions_save(ui->catalog, &ui->view)) {
         fprintf(stderr, "Could not save ROM-list position on exit.\n");
     }

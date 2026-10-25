@@ -52,6 +52,6 @@ sync
 
 echo $sv >/proc/sys/vm/swappiness
 
-if [ "$USE_752x560_RES" == "1" ]; then
-    fbset -g 640 480 640 960 32
-fi
+# The Mini v4 and Flip go back to 640x480 in runtime.sh (fbmode --preclear),
+# which clears the screen first. An fbset here switched the mode before that
+# and showed DraStic's last 752x560 frame garbled on exit.

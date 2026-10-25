@@ -96,6 +96,19 @@ void settings_shm_read(void)
         _settings_save_mainui();
 }
 
+// Reloads what another program saved (it touched /tmp/settings_changed:
+// GameSwitcher, Tweaks, MainUI) and publishes it to the shared memory.
+// settings_shm_read() takes every value there that differs as a change
+// made in MainUI, on each MainUI input: left stale, the shared memory put
+// back the old value, so a brightness set in GameSwitcher reverted in the
+// main menu. The stock MainUI refreshed the shared memory when it started;
+// Open MainUI only writes the values it changes itself.
+void settings_reload(void)
+{
+    settings_load();
+    settings_shm_write();
+}
+
 void settings_init(void)
 {
 #ifdef PLATFORM_MIYOOMINI

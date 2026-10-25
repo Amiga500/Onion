@@ -17,7 +17,8 @@ void mainui_favorite_editor_close(MainUIFavoriteEditor *editor);
 bool mainui_favorite_is_cut(const MainUIFavoriteEditor *editor, const MainUILibrary *library,
                             int selected);
 /* Apply an action to a freshly loaded model, then publish the sidecar atomically.
- * Folder operations never touch favourite.json or ROM contents. On failure the
+ * Folder operations never touch ROM contents, and favourite.json only to
+ * remove the Favorites a deleted folder held, after the sidecar is saved. On failure the
  * caller's model/selection remain unchanged until publication succeeds. A reload
  * failure after publication is reported separately: data is saved, but the caller
  * must reopen Favorites. name is required only for naming. On full success the

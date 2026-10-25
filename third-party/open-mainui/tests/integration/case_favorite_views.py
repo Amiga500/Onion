@@ -71,7 +71,8 @@ OPEN = "E" + "D" * 10 + "E"  # rows inside: "..", Kid, Game 00, Game 01
 EDITS = {
     "create": ("SET", "New", lambda rows: any(r.get("name") == "New" for r in rows)),
     "rename": ("DSDDET", "Renamed", lambda rows: any(r.get("name") == "Renamed" for r in rows)),
-    "delete": ("DSDDDE", None, lambda rows: not any(r.get("id") == "kid" for r in rows)),
+    # Delete asks first: release A and press it again to confirm.
+    "delete": ("DSDDDE-EE", None, lambda rows: not any(r.get("id") == "kid" for r in rows)),
     "sort": ("DDDSDDE", None, lambda rows: True),
     "remove": ("DDDSDDDE", None, lambda rows: True),
 }

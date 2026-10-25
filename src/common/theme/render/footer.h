@@ -1,9 +1,35 @@
 #ifndef RENDER_FOOTER_H__
 #define RENDER_FOOTER_H__
 
+#include <stdbool.h>
+#include <unistd.h>
+
 #include "theme/background.h"
 #include "theme/config.h"
 #include "theme/resources.h"
+
+// Footer layout, shared with Open MainUI 1.0.10 (Tweaks > Appearance >
+// Footer layout). Classic: hints A then B from the left, page number on the
+// right. Alternative, when this flag exists: page number on the left, hints
+// in button order, B then A, ending on the right.
+#ifndef FOOTER_ALT_LAYOUT_FLAG
+#define FOOTER_ALT_LAYOUT_FLAG "/mnt/SDCARD/.tmp_update/config/.mainuiFooterAltLayout"
+#endif
+
+// -1: not read yet. Read once per process; Tweaks sets it when it changes.
+static int _footer_alt_layout = -1;
+
+bool theme_footerAltLayout(void)
+{
+    if (_footer_alt_layout < 0)
+        _footer_alt_layout = access(FOOTER_ALT_LAYOUT_FLAG, F_OK) == 0;
+    return _footer_alt_layout == 1;
+}
+
+void theme_footerSetAltLayout(bool alt)
+{
+    _footer_alt_layout = alt ? 1 : 0;
+}
 
 // Cached hint label surfaces to avoid TTF_RenderUTF8_Blended every frame
 static SDL_Surface *_cached_label_a = NULL;
@@ -13,16 +39,55 @@ static char _cached_label_b_str[STR_MAX] = "";
 
 void theme_renderStandardHint_cleanup(void)
 {
-    if (_cached_label_a) { SDL_FreeSurface(_cached_label_a); _cached_label_a = NULL; }
-    if (_cached_label_b) { SDL_FreeSurface(_cached_label_b); _cached_label_b = NULL; }
+    if (_cached_label_a) {
+        SDL_FreeSurface(_cached_label_a);
+        _cached_label_a = NULL;
+    }
+    if (_cached_label_b) {
+        SDL_FreeSurface(_cached_label_b);
+        _cached_label_b = NULL;
+    }
     _cached_label_a_str[0] = '\0';
     _cached_label_b_str[0] = '\0';
+}
+
+static SDL_Surface *_footer_hintLabel(SDL_Surface **cache, char *cache_str,
+                                      const char *str)
+{
+    if (strcmp(str, cache_str) != 0) {
+        if (*cache)
+            SDL_FreeSurface(*cache);
+        TTF_Font *font_hint = resource_getFont(HINT);
+        *cache = TTF_RenderUTF8_Blended(font_hint, str, theme()->hint.color);
+        strncpy(cache_str, str, STR_MAX - 1);
+        cache_str[STR_MAX - 1] = '\0';
+    }
+    return *cache;
+}
+
+// Button icon, 5 px, label: the width _footer_drawHint draws.
+static int _footer_hintWidth(SDL_Surface *button, SDL_Surface *label)
+{
+    return (button ? button->w + 5 : 0) + (label ? label->w : 0);
+}
+
+static void _footer_drawHint(SDL_Surface *screen, SDL_Surface *button,
+                             SDL_Surface *label, int x)
+{
+    if (button) {
+        SDL_Rect button_rect = {x, 450.0 * g_scale - button->h / 2, 0, 0};
+        SDL_BlitSurface(button, NULL, screen, &button_rect);
+        x += button->w + 5;
+    }
+    if (label) {
+        SDL_Rect label_rect = {x, 449.0 * g_scale - label->h / 2, 0, 0};
+        SDL_BlitSurface(label, NULL, screen, &label_rect);
+    }
 }
 
 void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
                               const char *btn_b_str)
 {
-    int offsetX = 20.0 * g_scale;
     char label_a_str[STR_MAX] = " ", label_b_str[STR_MAX] = " ";
 
     if (!theme()->hideLabels.hints) {
@@ -32,53 +97,30 @@ void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
             strncpy(label_b_str, btn_b_str, STR_MAX - 1);
     }
 
-    SDL_Rect btn_a_rect = {offsetX, 450.0 * g_scale};
-    SDL_Rect label_open_rect = {0, 449.0 * g_scale};
+    bool show_b = btn_b_str != NULL && label_b_str[0] != '\0';
 
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
+    SDL_Surface *label_a = _footer_hintLabel(&_cached_label_a, _cached_label_a_str, label_a_str);
+    SDL_Surface *button_b = show_b ? resource_getSurface(BUTTON_B) : NULL;
+    SDL_Surface *label_b = show_b ? _footer_hintLabel(&_cached_label_b, _cached_label_b_str, label_b_str) : NULL;
 
-    if (button_a) {
-        btn_a_rect.y -= button_a->h / 2;
-        SDL_BlitSurface(button_a, NULL, screen, &btn_a_rect);
-        offsetX += button_a->w + 5;
+    int gap = 30.0 * g_scale; // between the A and B hints
+    int width_a = _footer_hintWidth(button_a, label_a);
+
+    if (theme_footerAltLayout()) {
+        int x_a = 620.0 * g_scale - width_a;
+        _footer_drawHint(screen, button_a, label_a, x_a);
+        if (show_b)
+            _footer_drawHint(screen, button_b, label_b,
+                             x_a - gap - _footer_hintWidth(button_b, label_b));
+        return;
     }
 
-    // Cache label_a surface — only re-render when text changes
-    if (strcmp(label_a_str, _cached_label_a_str) != 0) {
-        if (_cached_label_a) SDL_FreeSurface(_cached_label_a);
-        TTF_Font *font_hint = resource_getFont(HINT);
-        _cached_label_a = TTF_RenderUTF8_Blended(font_hint, label_a_str, theme()->hint.color);
-        strncpy(_cached_label_a_str, label_a_str, STR_MAX - 1);
-        _cached_label_a_str[STR_MAX - 1] = '\0';
-    }
-
-    if (_cached_label_a) {
-        label_open_rect.x = offsetX;
-        label_open_rect.y -= _cached_label_a->h / 2;
-        SDL_BlitSurface(_cached_label_a, NULL, screen, &label_open_rect);
-        offsetX += _cached_label_a->w + 30.0 * g_scale;
-    }
-
-    if (btn_b_str != NULL && label_b_str[0] != '\0') {
-        SDL_Surface *button_b = resource_getSurface(BUTTON_B);
-        SDL_Rect btn_b_rect = {offsetX, 450.0 * g_scale - button_b->h / 2};
-        SDL_BlitSurface(button_b, NULL, screen, &btn_b_rect);
-        offsetX += button_b->w + 5;
-
-        // Cache label_b surface — only re-render when text changes
-        if (strcmp(label_b_str, _cached_label_b_str) != 0) {
-            if (_cached_label_b) SDL_FreeSurface(_cached_label_b);
-            TTF_Font *font_hint = resource_getFont(HINT);
-            _cached_label_b = TTF_RenderUTF8_Blended(font_hint, label_b_str, theme()->hint.color);
-            strncpy(_cached_label_b_str, label_b_str, STR_MAX - 1);
-            _cached_label_b_str[STR_MAX - 1] = '\0';
-        }
-
-        if (_cached_label_b) {
-            SDL_Rect label_back_rect = {offsetX, 449.0 * g_scale - _cached_label_b->h / 2};
-            SDL_BlitSurface(_cached_label_b, NULL, screen, &label_back_rect);
-        }
-    }
+    int x_a = 20.0 * g_scale;
+    _footer_drawHint(screen, button_a, label_a, x_a);
+    if (show_b)
+        _footer_drawHint(screen, button_b, label_b,
+                         x_a + width_a + (label_a ? gap : 0));
 }
 
 void theme_renderFooter(SDL_Surface *screen)
@@ -90,6 +132,8 @@ void theme_renderFooter(SDL_Surface *screen)
 }
 
 static int old_status_width = -1;
+static int old_status_x = 0;
+static bool old_status_alt = false;
 
 static SDL_Surface *_footer_current_cache = NULL;
 static SDL_Surface *_footer_total_cache = NULL;
@@ -99,9 +143,14 @@ static int _footer_total_num = -1;
 void theme_renderFooterStatus(SDL_Surface *screen, int current_num,
                               int total_num)
 {
-    if (old_status_width != -1) {
-        SDL_Rect status_pos = theme_scaleRect((SDL_Rect){620, 420, 0, 60});
-        status_pos.x -= old_status_width;
+    bool alt = theme_footerAltLayout();
+
+    // Clear the previous number, only where it was drawn in this layout: after
+    // a layout change the whole footer has been redrawn, and the old place now
+    // holds hints.
+    if (old_status_width != -1 && old_status_alt == alt) {
+        SDL_Rect status_pos = theme_scaleRect((SDL_Rect){0, 420, 0, 60});
+        status_pos.x = old_status_x;
         status_pos.w = old_status_width;
 
         SDL_Rect status_size = {status_pos.x, 0, old_status_width, 60.0 * g_scale};
@@ -136,14 +185,17 @@ void theme_renderFooterStatus(SDL_Surface *screen, int current_num,
     }
 
     if (_footer_total_cache) {
-        SDL_Rect current_rect = {0, 0};
-        SDL_Rect total_rect = {(int)(620.0 * g_scale) - _footer_total_cache->w, (int)(449.0 * g_scale) - _footer_total_cache->h / 2};
+        int current_w = _footer_current_cache ? _footer_current_cache->w : 0;
+        int current_x = alt ? (int)(20.0 * g_scale)
+                            : (int)(620.0 * g_scale) - _footer_total_cache->w - current_w;
+        SDL_Rect total_rect = {current_x + current_w, (int)(449.0 * g_scale) - _footer_total_cache->h / 2, 0, 0};
 
         SDL_BlitSurface(_footer_total_cache, NULL, screen, &total_rect);
         if (_footer_current_cache) {
-            current_rect.x = total_rect.x - _footer_current_cache->w;
-            current_rect.y = (int)(449.0 * g_scale) - _footer_current_cache->h / 2;
-            old_status_width = _footer_total_cache->w + _footer_current_cache->w;
+            SDL_Rect current_rect = {current_x, (int)(449.0 * g_scale) - _footer_current_cache->h / 2, 0, 0};
+            old_status_width = _footer_total_cache->w + current_w;
+            old_status_x = current_x;
+            old_status_alt = alt;
             SDL_BlitSurface(_footer_current_cache, NULL, screen, &current_rect);
         }
     }

@@ -1,7 +1,18 @@
 ###########################################################
 
-TARGET=OnionPlus
-VERSION=4.4.0-beta-20260823
+# The project is RedOnion (earlier releases: OnionPlus). TARGET names the
+# release zip, RedOnion-v<version>.zip; the release workflows also attach a
+# copy named OnionPlus-v<version>.zip for updaters from before the rename.
+TARGET=RedOnion
+# The version is the base plus the day of the build (UTC), for example
+# 4.4.0-beta-20261017: every build is dated, also one made by hand. Settings >
+# About in Open MainUI shows only the first characters of the version; the
+# script tests check the base leaves room for the whole date there. Computed
+# once and passed to sub-makes, so a build running past midnight keeps one date.
+VERSION_BASE=4.4.0-beta
+VERSION_DATE ?= $(shell date -u +%Y%m%d)
+export VERSION_DATE
+VERSION=$(VERSION_BASE)-$(VERSION_DATE)
 RA_SUBVERSION=1.22.2-2
 
 ###########################################################
@@ -157,6 +168,8 @@ CORE_MODULES := chargingState \
 	axp \
 	pressMenu2Kill \
 	pngScale \
+	pngresize \
+	warmup \
 	libgamename \
 	gameNameList \
 	sendUDP \

@@ -406,6 +406,8 @@ start_retroarch() {
 	fi
 
 	cd /mnt/SDCARD/RetroArch
+	# Netplay needs a quick radio: power save off while it runs.
+	"$sysdir/script/network/wifi_power_save.sh" off
 	HOME=/mnt/SDCARD/RetroArch ./retroarch --appendconfig=./.retroarch/easynetplay_override.cfg -C $hostip -L "$core" "$rom"
 
 	if [ -n "$PreviousCPUspeed" ]; then

@@ -22,8 +22,8 @@ if [ -d $sysdir ]; then
         ./bin/installUI --version > ./onionVersion/previous_version.txt
     fi
 
-    # Remove old system files, except dotfiles and onionVersion
-    find * -maxdepth 0 -not -name "onionVersion" -not -name "config" -exec rm -rf {} \;
+    # Remove old system files, except onionVersion, config and etc (SSH host keys)
+    find * -maxdepth 0 -not -name "onionVersion" -not -name "config" -not -name "etc" -exec rm -rf {} \;
 
     # Move dotfiles to new location
     mkdir -p config

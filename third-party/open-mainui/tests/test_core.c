@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "core/core.h"
 #include "platform/device_adapter.h"
+#include "platform/system_config.h"
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -111,6 +112,15 @@ int mainui_suite_core(void)
                   blits[b].destination_x + blits[b].width <= 250);
         }
     }
+    /* Titles whose first strong character is Hebrew or Arabic scroll right. */
+    CHECK(mainui_text_rtl("\u0627\u0644\u0639\u0631\u0628\u064a\u0629 (Mario [USA]) "
+                          "\u0627\u0644\u062c\u062f\u064a\u062f.nes"));
+    CHECK(mainui_text_rtl("[!] 1-2 \u05e9\u05dc\u05d5\u05dd"));
+    CHECK(mainui_text_rtl("\u00ab\ufefb"));
+    CHECK(!mainui_text_rtl("Mario (\u0627\u0644\u0639\u0631\u0628\u064a\u0629).nes"));
+    CHECK(!mainui_text_rtl("Pok\u00e9mon") && !mainui_text_rtl("\u00c9t\u00e9"));
+    CHECK(!mainui_text_rtl("\u30de\u30ea\u30aa \u0627") && !mainui_text_rtl("123 [!]"));
+    CHECK(!mainui_text_rtl("") && !mainui_text_rtl(NULL) && !mainui_text_rtl("\xd8"));
     /* Marquee offsets advance by a constant whole-pixel step per 40 ms frame. */
     CHECK(mainui_marquee_pixels(0, 40) == 0 && mainui_marquee_pixels(39, 40) == 0);
     CHECK(mainui_marquee_pixels(40, 40) == 2 && mainui_marquee_pixels(79, 40) == 2);
@@ -152,7 +162,48 @@ int mainui_suite_core(void)
     MainUIStack again;
     CHECK(mainui_state_parse(json, &again) && again.count == 1 && again.frames[0].title == 157);
     free(json);
+    /* The button mapping handed to the driver: as configured, else stock's. */
+    const char *keymaps[][2] = {
+        {"{\"keymap\":\"L2,L,R2,R,B,A,B,Y\"}", "L2,L,R2,R,B,A,B,Y"},
+        {"{}", MAINUI_DEFAULT_KEYMAP},
+        {"{\"keymap\":\"\"}", MAINUI_DEFAULT_KEYMAP},
+        {"{\"keymap\":8}", MAINUI_DEFAULT_KEYMAP},
+        {"{\"keymap\":\"L2,L,R2,R,X,A,B\"}", MAINUI_DEFAULT_KEYMAP},
+        {"{\"keymap\":\"L2,L,R2,R,X,A,B,Y,Y\"}", MAINUI_DEFAULT_KEYMAP},
+        {"{\"keymap\":\"L2,L,R2,R,X,A,B,Z\"}", MAINUI_DEFAULT_KEYMAP},
+        {"{\"keymap\":\"L2,L,R2,R,,A,B,Y\"}", MAINUI_DEFAULT_KEYMAP},
+        {"{\"keymap\":\"L2,L,R2,R,X,A,B,Y,\"}", MAINUI_DEFAULT_KEYMAP},
+        {"{\"keymap\":\"l2,l,r2,r,x,a,b,y\"}", MAINUI_DEFAULT_KEYMAP},
+        {"{\"keymap\":\"Y,Y,Y,Y,Y,Y,Y,Y\"}", "Y,Y,Y,Y,Y,Y,Y,Y"},
+    };
+    for (size_t i = 0; i < sizeof keymaps / sizeof *keymaps; ++i) {
+        cJSON *settings = cJSON_Parse(keymaps[i][0]);
+        CHECK(settings && !strcmp(mainui_keymap_value(settings), keymaps[i][1]));
+        cJSON_Delete(settings);
+    }
+    CHECK(!strcmp(mainui_keymap_value(NULL), MAINUI_DEFAULT_KEYMAP));
+    /* Stock's values for keymon's live copy: its defaults when a key is
+     * missing or not a number, and lumination, hue, saturation and contrast
+     * only from 0 to 20; the other values unchecked. */
+    const char *names[] = {"vol",        "brightness", "mute",       "bgmvol",   "hibernate",
+                           "lumination", "hue",        "saturation", "contrast", "audiofix"};
+    const int defaults[] = {20, 7, 0, 8, 0, 7, 10, 10, 10, 1};
+    cJSON *empty = cJSON_Parse("{\"vol\":\"5\",\"brightness\":true}");
+    for (size_t i = 0; i < sizeof names / sizeof *names; ++i) {
+        CHECK(mainui_system_monitor_value(empty, names[i]) == defaults[i]);
+        CHECK(mainui_system_monitor_value(NULL, names[i]) == defaults[i]);
+    }
+    cJSON_Delete(empty);
+    cJSON *set = cJSON_Parse("{\"vol\":25,\"brightness\":3,\"mute\":1,\"bgmvol\":-2,"
+                             "\"hibernate\":5,\"lumination\":21,\"hue\":0,\"saturation\":20,"
+                             "\"contrast\":-1,\"audiofix\":0}");
+    const int expected[] = {25, 3, 1, -2, 5, 7, 0, 20, 10, 0};
+    for (size_t i = 0; i < sizeof names / sizeof *names; ++i) {
+        CHECK(mainui_system_monitor_value(set, names[i]) == expected[i]);
+    }
+    CHECK(mainui_system_monitor_value(set, "keymap") == 0);
+    cJSON_Delete(set);
     puts("core tests passed (configuration, devices, viewport properties, marquee bounds, state "
-         "codec)");
+         "codec, button mapping, live settings)");
     return 0;
 }

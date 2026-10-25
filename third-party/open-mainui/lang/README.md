@@ -4,7 +4,9 @@
 
 ## Where strings actually come from
 
-At runtime the launcher reads `.lang` files from the card, looking in `miyoo/app/lang`, then `miyoo/app/lang_backup`, then the fallback theme folder's `lang`; for a file name found in several places, the first wins. Startup and the Settings language list use the same order. `miyoo/app/lang` comes first because it is the folder stock MainUI reads: when labels are hidden by the theme or a Tweaks override, Onion blanks those strings there and keeps the originals in `lang_backup` for its own apps. Those are Onion's files, not this repository's. `mainui_translate(id, fallback)` returns the English literal compiled into the binary when an ID is missing, so a missing translation shows English rather than failing.
+At runtime the launcher reads `.lang` files from the card, looking in `miyoo/app/lang`, then `miyoo/app/lang_backup`, then the fallback theme folder's `lang`; for a file name found in several places, the first wins. Startup and the Settings language list use the same order.
+`miyoo/app/lang` comes first because it is the folder stock MainUI reads: when labels are hidden by the theme or a Tweaks override, Onion blanks those strings there and keeps the originals in `lang_backup` for its own apps. Those are Onion's files, not this repository's.
+`mainui_translate(id, fallback)` returns the English literal compiled into the binary when an ID is missing, so a missing translation shows English rather than failing.
 
 ## Current gap
 
@@ -22,7 +24,7 @@ The eleven IDs below are used by `src/menus/context.c`, `src/menus/stock_setting
 | 407 | Tweaks |
 | 408 | Model name |
 | 409 | Max resolution |
-| 410 | Onion version |
+| 410 | OS version |
 
 The fix is upstream: these keys need to be added to Onion's language files, not installed from here. Copying this file onto a card would only cover English and would overwrite a file Onion owns.
 

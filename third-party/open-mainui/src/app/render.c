@@ -245,7 +245,9 @@ static bool idle_unchanged(const MainUIApp *ui, Uint32 now, Uint32 repaint_ms)
            !ui->search_keyboard && !ui->context_open && ui->confirmation < 0 &&
            !*ui->message_title && !ui->launch_pending && now - ui->presented_at < repaint_ms &&
            ui->presented_battery == ui->theme.battery_percent &&
+           ui->presented_charging == ui->theme.battery_charging &&
            ui->presented_wifi_online == ui->theme.wifi_online &&
+           ui->presented_hotspot == ui->theme.hotspot_on &&
            ui->presented_wifi_signal == ui->theme.wifi_signal_level &&
            !strcmp(ui->presented_wifi_address, ui->theme.wifi_address);
 }
@@ -351,6 +353,11 @@ static void draw_list_row(MainUIApp *ui, int i, Uint32 elapsed)
     if (ui->preview.image && pane_width > 0 && pane_width < activation_width) {
         activation_width = pane_width;
     }
+    /* A right-to-left title shows its right end, where it begins: with a
+     * cover shown it stops at the pane, as a Favorite marker makes it. */
+    if (ui->label_rtl[i]) {
+        available = activation_width;
+    }
     if (row_icon) {
         SDL_Rect source = {0, 0, (Uint16)icon_width, (Uint16)ui->config.row_height};
         if (source.w > row_icon->w) {
@@ -369,6 +376,7 @@ static void draw_list_row(MainUIApp *ui, int i, Uint32 elapsed)
         return;
     }
     int label_y = y + (ui->config.row_height - label->h) / 2;
+    int rtl_start = ui->label_rtl[i] && label->w > available ? label->w - available : 0;
     ui->animate =
         ui->animate || (selected && label->w > activation_width && ui->config.scroll_status == 2);
     if (selected && ui->config.scroll_status == 2 && elapsed >= (unsigned)ui->config.scroll_delay &&
@@ -381,6 +389,12 @@ static void draw_list_row(MainUIApp *ui, int i, Uint32 elapsed)
                 ? mainui_marquee_pixels(elapsed - (unsigned)ui->config.scroll_delay,
                                         ui->config.scroll_speed)
                 : mainui_marquee_step_pixels(ui->marquee_steps, ui->config.scroll_speed);
+        /* A right-to-left title starts from its right end, where it begins,
+         * and moves right: the same strip of title and gap, walked back. */
+        if (ui->label_rtl[i]) {
+            uint64_t cycle = (uint64_t)label->w + 60;
+            offset = (rtl_start + cycle - offset % cycle) % cycle;
+        }
         int n = mainui_marquee_stream(offset, 1000, label->w, available, segments);
         for (int part = 0; part < n; part++) {
             SDL_Rect source = {(Sint16)segments[part].source_x, 0, (Uint16)segments[part].width,
@@ -391,7 +405,8 @@ static void draw_list_row(MainUIApp *ui, int i, Uint32 elapsed)
         }
     }
     else {
-        SDL_Rect source = {0, 0, (Uint16)available, (Uint16)label->h};
+        /* A right-to-left title too long for the row shows its right end. */
+        SDL_Rect source = {(Sint16)rtl_start, 0, (Uint16)available, (Uint16)label->h};
         SDL_Rect dest = {(Sint16)text_x, (Sint16)label_y, 0, 0};
         SDL_BlitSurface(label, &source, ui->screen, &dest);
     }
@@ -568,7 +583,7 @@ static bool compose_full_frame(MainUIApp *ui)
                         ui->favorites,
                         ui->library->items[ui->library->visible[ui->view.start + i]].rom);
                 }
-                else if (ui->catalog && !ui->library) {
+                else if (ui->catalog && !ui->library && ui->favorites && ui->favorites->count) {
                     cJSON *record = mainui_catalog_record(
                         ui->catalog, mainui_browser_index(ui->catalog, ui->view.start + i));
                     const cJSON *rom = cJSON_GetObjectItemCaseSensitive(record, "rompath");
@@ -586,6 +601,7 @@ static bool compose_full_frame(MainUIApp *ui)
                 }
                 ui->labels[i] = TTF_RenderUTF8_Blended(ui->theme.font, marked ? marked : label,
                                                        ui->theme.color);
+                ui->label_rtl[i] = mainui_text_rtl(label);
                 if (ui->search.results) {
                     ui->highlighted[i] = mainui_search_label(&ui->theme, label, ui->search.query);
                 }
@@ -630,17 +646,26 @@ static bool compose_full_frame(MainUIApp *ui)
         }
         draw_list_counter(ui->screen, &ui->theme, ui->library, ui->catalog, &ui->view);
     }
+    /* Stock's popup, message and dialog windows darken the screen above the
+     * footer before drawing, once however many are open. A frame kept while a
+     * catalog job runs is already darkened, so it is not darkened again. */
+    if (!ui->catalog_job.thread && ((ui->context_open && ui->context.visible_count) ||
+                                    ui->confirmation >= 0 || *ui->message_title)) {
+        mainui_dim_popup_background(ui->screen, &ui->theme);
+    }
     if (ui->context_open) {
-        mainui_draw_context(ui->screen, &ui->theme, &ui->context);
+        mainui_draw_context(ui->screen, &ui->theme, &ui->context, ui->config.context_ellipsis);
     }
     if (ui->confirmation >= 0) {
         mainui_draw_confirmation(ui->screen, &ui->theme,
-                                 ui->confirmation == CONTEXT_CLEAR_RECENT ? 77
-                                 : ui->confirmation == CONTEXT_DELETE_ROM ? 116
-                                                                          : 86,
-                                 ui->confirmation == CONTEXT_CLEAR_RECENT ? 78
-                                 : ui->confirmation == CONTEXT_DELETE_ROM ? 117
-                                                                          : 108);
+                                 ui->confirmation == CONTEXT_CLEAR_RECENT      ? 77
+                                 : ui->confirmation == CONTEXT_DELETE_ROM      ? 116
+                                 : ui->confirmation == CONTEXT_FAVORITE_DELETE ? 404
+                                                                               : 86,
+                                 ui->confirmation == CONTEXT_CLEAR_RECENT      ? 78
+                                 : ui->confirmation == CONTEXT_DELETE_ROM      ? 117
+                                 : ui->confirmation == CONTEXT_FAVORITE_DELETE ? 81
+                                                                               : 108);
     }
     if (ui->name_input.open) {
         mainui_name_input_draw(&ui->name_input, ui->screen, &ui->theme);
@@ -665,8 +690,8 @@ static bool compose_full_frame(MainUIApp *ui)
     }
     if (ui->snapshot && !ui->catalog_job.thread && !ui->device_job.thread &&
         !(ui->about_visible && ui->about_job.thread) &&
-        (ui->launch_pending ||
-         (!ui->letter_jump.active && (!ui->input_script || !*ui->input_script)))) {
+        (ui->launch_pending || (!ui->letter_jump.active && !ui->script_release &&
+                                (!ui->input_script || !*ui->input_script)))) {
         if (SDL_SaveBMP(ui->screen, ui->snapshot) < 0) {
             fprintf(stderr, "Snapshot: %s\n", SDL_GetError());
             ui->status = 4;
@@ -684,7 +709,9 @@ static bool draw_full_frame(MainUIApp *ui)
     }
     ui->presented_at = SDL_GetTicks();
     ui->presented_battery = ui->theme.battery_percent;
+    ui->presented_charging = ui->theme.battery_charging;
     ui->presented_wifi_online = ui->theme.wifi_online;
+    ui->presented_hotspot = ui->theme.hotspot_on;
     ui->presented_wifi_signal = ui->theme.wifi_signal_level;
     snprintf(ui->presented_wifi_address, sizeof ui->presented_wifi_address, "%s",
              ui->theme.wifi_address);

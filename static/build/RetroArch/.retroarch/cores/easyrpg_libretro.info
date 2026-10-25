@@ -30,3 +30,4 @@ needs_kbd_mouse_focus = "true"
 is_experimental = "false"
 
 description = "EasyRPG Player is a game interpreter to play RPG Maker 2000, 2003 and EasyRPG games."
+systemid = "rpg_maker"

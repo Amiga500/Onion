@@ -1,5 +1,187 @@
 # Changelog
 
+## 1.0.10 - 2026-10-24
+
+This version is considered stable.
+
+### Context menu
+
+* A label too long for the context menu, such as a long translation, ends in `...` before the popup's right edge; it was cut off at the edge, mid-letter. A label that fits is shown as before. An empty `.tmp_update/config/.noContextMenuEllipsis` turns this off. Thanks to [@Amiga500](https://github.com/Amiga500) for the report.
+* Refresh all roms refreshes every console when one, in Games or Expert, has no ROM folder, as stock does. It stopped at that console with "ROM folder is missing" and refreshed none after it. Refresh roms on such a console no longer shows the error either. Thanks to [@Amiga500](https://github.com/Amiga500) for the report.
+
+### Themes and screens
+
+* A folder in a ROM list shows a cover, `<image folder>/<folder name>.png`, at any depth, with the folder's whole name; folders showed none. Favorites folders still show none, and ROM list caches stay as stock writes them, so nothing needs refreshing. Thanks to [@fengfrw](https://github.com/fengfrw) for the suggestion.
+* An optional footer layout: with an empty `.tmp_update/config/.mainuiFooterAltLayout`, the page counter is on the left and the button hints on the right, B before A, also for OK and CANCEL. Without the file the footer is stock's, as before.
+
+### Favorites and menus
+
+* Fixed incorrect console names in Game Info and missing cover art for Favorites and Recents, in rare cases like when multiple emulators share a ROM folder.
+
+### Buttons
+
+* X and Y shortcuts in `.tmp_update/config/keymap.json`: `fav` on either button adds the selected game to Favorites, or removes it when it is one, and `glo` opens Game List Options from X as it does from Y. They act on games in ROM lists, Favorites, Recents and Search results, and `fav` also in Game Info, when the button is released, and a button with one of them does nothing else. Without them X is B and Y works as before. Tweaks does not offer these choices yet.
+
+### Games
+
+* A ROM with `$` in its name, such as `Super Game$ Collection (USA)`, starts. MainUI refused it with "Unsupported launch path", although Onion's runtime.sh runs such names literally. A `$` outside `Roms`, where runtime.sh does not handle it, is still refused. Thanks to SpeeDy_GjiZafor for the report.
+* A console with `"hidebios": 1` in its `config.json`, as many of Onion's have, leaves files whose names start with `[BIOS]` out of its ROM list, as stock does. They were listed. An existing list changes after Refresh roms. Thanks to [@nukefrenzy](https://github.com/nukefrenzy) for the report, from his mainui-decomp project.
+* Search finds `%` and `_` as typed. They matched any text and any character, so a search for `100%` or `a_b` found other games, and `%` or `_` alone found every game.
+
+### Documentation
+
+* [docs/THEMES.md](docs/THEMES.md) says where context menu labels start and how a long one is shortened, and describes the alternative footer layout.
+* [docs/CATALOG_CACHE.md](docs/CATALOG_CACHE.md) explains folder covers, including that a folder and a ROM of the same name share one image, how a saved game's console is found, and that covers are read once per run: a cover file changed while MainUI runs shows from its next start.
+* [docs/NAVIGATION.md](docs/NAVIGATION.md) describes the X and Y shortcuts, and how a game is launched: with the command Onion's own launchers use, not stock's `noaudiofix`, `autoflip` or `useswap` variants. Thanks to [@nukefrenzy](https://github.com/nukefrenzy) for the report, from his mainui-decomp project.
+* [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#a-game-does-not-start-unsupported-launch-path) explains which characters a launch path cannot hold, and why `$` works below `Roms`.
+
+## 1.0.9 - 2026-10-20
+
+### Context menu
+
+* Themes set to show in the main menu's context menu (`main-menu.json`) is left out while ThemeSwitcher is not installed, as Settings already left it out and as Search and Tweaks are; selecting it said the launcher was unavailable. Thanks to [@Amiga500](https://github.com/Amiga500) for the suggestion.
+
+### Languages
+
+* Changing the language to or from Arabic or Bengali restarts MainUI and reopens Settings, with any theme, so Onion starts it again and can preload a library that joins and orders their letters. Only a change between English and another language restarted it, and only with a theme that used a built-in font.
+* A title that starts with Hebrew or Arabic and does not fit its row shows its right end, where it begins, and scrolls right from there, the way it reads, stopping at the cover rather than running under it. It showed its left end and moved left, like any other title. Thanks to [@Amiga500](https://github.com/Amiga500) for the suggestion.
+
+### Wi-Fi
+
+* Networks you have joined stay saved and can connect again: choosing one in Settings › Wi-Fi connects with its saved password, without asking. If that fails, choosing it again asks for the password; the old entry is kept and the new one is used from then on. Only the last network chosen could connect, as with stock MainUI.
+* When MainUI starts and after a network is chosen, every saved network can connect, so the device joins whichever saved network is in reach, somewhere else or when the current one goes away. MainUI then starts the DHCP client again for an address on it.
+* [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#wi-fi-does-not-connect) explains how saved networks are used.
+* The log's `[wifi]` lines say why a Wi-Fi action failed, also with Settings closed: the command wpa_supplicant refused, or a network not joined within 30 seconds. They also note the connection coming and going and to which network, a saved network joined by itself with its DHCP restart, and saved networks enabled again. Passwords are never logged. Only a failed action with Settings › Wi-Fi open was logged, as a `Wi-Fi:` line.
+
+### Speed and memory
+
+* Game Info wraps its title, genre and description by whole words, measuring a word letter by letter only where it crosses the line, with the same line breaks as before and about a third fewer measurements. It keeps the line breaks of the last 5 titles shown (about 26 KiB) and draws their lines from the theme's text cache, so a title is not measured or rendered again while it is on screen or when Game Info comes back to it; it was wrapped and drawn again on every frame.
+
+### Documentation
+
+* [docs/THEMES.md](docs/THEMES.md#fonts-and-languages) explains what Arabic and Bengali need, neither of which Onion or Open MainUI includes: a font with their letters, and a preloaded library that shapes the text and orders right-to-left text for display. The README points there.
+* [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#battery-drains-faster-with-wi-fi-connected) explains why connected Wi-Fi can drain the battery faster: MainUI keeps Wi-Fi power save as it was when Wi-Fi was started, and Onion starts Wi-Fi with it off. MainUI never changes it.
+* The longest lines in the documentation are split where the topic changes, so changing a sentence no longer rewrites a whole paragraph in the diff; the pages read the same. [docs/THEMES.md](docs/THEMES.md) explains the restart for Arabic and Bengali and how right-to-left titles are shown and scrolled.
+
+## 1.0.8 - 2026-10-15
+
+### Buttons
+
+* Y, Select or Start held while the device goes to sleep no longer acts when it is released after waking. Y could launch the selected game, Select open the context menu and Start reload a list.
+* A on an empty ROM folder, Favorites, Recents, Search results or Apps does nothing; it said "Launch unavailable". Menu on an empty Favorites, Recents or Search list no longer reads an entry removed from it, which could crash.
+
+### Status bar
+
+* The battery level and charging state are checked every second, as Onion's own screens do, instead of every 5 seconds with the other device status, so the charging icon appears or goes within about 3 seconds of plugging the charger in or out; it could take 5 to 10. Only a change redraws the screen. Thanks to [@Veuks](https://github.com/Veuks) for the suggestion.
+* The Wi-Fi icon moves left beside the battery when the battery percentage would cover it, instead of being hidden behind it. It stays in stock's place otherwise, and Wi-Fi artwork wider than stock's slot, such as Super Onion Entertainment System Remix's, stays where stock puts it. Thanks to [@Ziko577](https://github.com/Ziko577) for the report.
+* On the Mini Plus and Mini Flip, the battery icon changes to the charging one while the charger is plugged in, as on the Mini. MainUI waited for a charging mark Onion writes only on the Mini; it now asks the power chip, as stock MainUI does. Thanks to [@Zazzago](https://github.com/Zazzago) for the report.
+* On the Mini Plus and Mini Flip, the battery percentage shows beside the charging icon while charging; stock MainUI hides it. On the Mini, Onion does not know the level while charging, so only the icon shows there, as before. Thanks to [@Veuks](https://github.com/Veuks) for the suggestion.
+* The battery icon changes at the same levels as in stock MainUI (above 69, 44, 14 and 4 %); it used the levels of Onion's own screens (90, 60, 30 and 5 %).
+* The Wi-Fi icon shows also when the battery icon cannot be drawn, such as before Onion has written the battery level; it was hidden with it.
+* Onion's clock overlay (the theme's `time` settings, drawn by `libmainuihooks.so`) should show the time in MainUI, as with stock MainUI: it waits for a line stock MainUI prints at start, which MainUI now prints too. This is not yet confirmed on a device. Thanks to [@fengfrw](https://github.com/fengfrw) for the report.
+
+### Favorites and menus
+
+* Deleting a Favorites folder removes all it holds, the folders inside it and their Favorites, after asking first ("Delete folder", "Remove from favorites list?"). It moved them up a level. The games stay on the SD card. Thanks to [@Veuks](https://github.com/Veuks) for the suggestion.
+* A game pasted on the folder it was moved out of moves up into the open folder. Before, a game could not be taken out of a folder that was all Favorites held, as there was no other row to paste it on. ([#30](https://github.com/robcodedev/onionos-mainui-opensource/issues/30)) Thanks to [@Veuks](https://github.com/Veuks) for the report.
+* Search and Tweaks set to show in the main menu's context menu (`main-menu.json`) are left out while their app is not installed, as Settings already left out Tweaks; selecting them said the launcher was unavailable. Thanks to [@Veuks](https://github.com/Veuks) for the report.
+
+### Themes and screens
+
+* Confirmations (Shut down, Clear Recents, Delete ROM) and messages draw their title in the theme's `total` colour and their text in `grid.color`, as stock's dialogs do. They were always white and grey. Thanks to [@Zazzago](https://github.com/Zazzago) for the report.
+* A theme can colour the part of a title that matches an in-list search with `gamelist.searchColor`. Without it, the match is purple or yellow as before.
+* The About page's "Onion version" row is named "OS version".
+* The About page's Website row shows the first line of `.tmp_update/onionVersion/website.txt` when that file exists; otherwise www.lomiyoo.com, as before.
+* Messages such as "Launch unavailable" or "Catalog unavailable" are drawn on the theme's popup art (`skin/pop-bg.png`), as stock draws its notices and as confirmations already were. A message too long for it, or a theme without it, keeps the plain dark panel.
+* Footer hints, the page counter and dialog buttons lean in a theme whose `hint.font` is upright, as in stock MainUI, which draws them in italic style. A hint font that is italic already looks as before.
+* Refresh all roms keeps the console grid's cursor where it is; it jumped to the console last opened, or the first.
+* Leaving a folder with A on ".." shows the selected game's artwork at once, as B does.
+* When Delete ROM cannot reopen the list, the console grid it leaves on screen is drawn afresh.
+
+### Sound
+
+* With Onion's audio fix off, the menu's audio buffer is 4096 sample frames, as in stock MainUI. With it on, it stays 1024 as before; stock uses 128 there, which raised MainUI's idle CPU use from 0.9 to 1.6 % in testing, for a latency gain (about 21 ms down to 3 ms) that theme sounds and music do not need.
+
+### Wi-Fi
+
+* Turning Wi-Fi off and quickly on again no longer leaves it on "Scanning..." with no networks. MainUI started Wi-Fi again before the chip had finished switching off. Thanks to [@Amiga500](https://github.com/Amiga500) for the report.
+* Settings › Wi-Fi says when a connection fails, with stock's notice ("Fail to connect / Check your password / Or reboot router"), also when the network is not joined within 30 seconds, which is how a wrong password shows. When Wi-Fi cannot be turned on, it says why. Its other notices, such as Wi-Fi being busy, show too; only "Scanning..." did.
+* The Wi-Fi icon and the connected network's mark no longer go for a moment when connecting, turning Wi-Fi off or on, or launching a game: an interrupted status check removed the saved Wi-Fi status.
+
+### Speed and memory
+
+* Launching a game from a ROM list saves its position once instead of twice.
+* Cover art without transparent pixels is drawn as a plain copy instead of being blended, as theme images already were. It is drawn again on every frame of a scrolling title.
+* The Shut down, Clear Recents and Delete ROM question and the language list no longer read and decode their artwork from the SD card on every frame.
+* Scrolling a ROM list checks its rows against Favorites with less work, and not at all when there are none.
+
+### Documentation and tests
+
+* [docs/NAVIGATION.md](docs/NAVIGATION.md) explains how the `state.json` MainUI writes differs from stock's, and what that means for Onion's list reset; [docs/THEMES.md](docs/THEMES.md) which battery icon shows at which level, where the Wi-Fi icon goes when the battery percentage would cover it, that Onion's clock overlay should work, how long the charging icon can take to change, and how messages use the popup art and which colours dialogs use, the `gamelist.searchColor` key, that the hint font is drawn in italic style and the headphone icon is not drawn; [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) what the Wi-Fi failure notice means, and why the Mini Flip's display colours (Luminance, Hue, Saturation, Contrast) can be back at their defaults after a reboot: MainUI sets them only from Settings › Display, as stock does, and leaves setting them at boot to the OS (thanks to [@QuackWalks](https://github.com/QuackWalks) for the report, and to [@Zazzago](https://github.com/Zazzago) for finding the problem on RedOnion); [docs/NAVIGATION.md](docs/NAVIGATION.md) that A, B and X act when pressed (stock acts on release), and that Y does nothing outside game lists for now.
+
+## 1.0.7 - 2026-10-11
+
+### Buttons
+
+* Onion's Expert app opens Expert, as with stock, also when Expert is hidden on the main menu. Set as the X or Y shortcut in Tweaks, it only made the screen flash; started from Apps, it went back to Apps. Thanks to [@fengfrw](https://github.com/fengfrw) for the report.
+* Y acts when it is released, as stock does. With an app or tool set as the Y shortcut in Tweaks, Y on a game could also launch it, or put it first in Recents, before Onion ran the shortcut.
+* Y on a game opens Game List Options every time when that is the Y shortcut in Tweaks (Onion's default). Shortly after boot or a game, Onion could miss the Y press and start the game instead. With no Y shortcut ("A button"), Y launches the game as A does, and Recents lists it once. If the Y setting cannot be read, Y does nothing.
+* Select opens the context menu, and Start reloads a list, when released, as in stock, and not after a combo: while Select or Start is held, the other buttons are Onion's (brightness, volume boost, CPU clock) and MainUI ignores them. Select with L2 or R2 or with Start and L1 or R1 no longer leaves the menu open, and those combos no longer reload, page or jump in a list.
+* A Menu long press shortly after Select with L2 or R2 on the Mini opens the context menu. Up to 1.5 seconds after, it was taken for the Menu press Onion sends after a plain Select and ignored.
+
+### Themes and screens
+
+* A brightness changed in GameSwitcher stays when you go back to the main menu, also after exiting a game started from GameSwitcher. Onion put the old brightness back with the first button press. As stock does on every start, MainUI now loads the settings in `system.json` (brightness, volumes, sleep timer, display colours) into Onion's live settings and sets the screen's brightness from them. A setting missing from `system.json` takes stock's default: menu music starts at 8 (it started at 20), and Settings shows Menu sound 8 and Sleep timer off (it showed 20 and 5 minutes). Thanks to Zombiediplomat for the report.
+* While Onion's Wi-Fi hotspot runs, the hotspot icon (`icon-hotspot-wifi.png`) takes the Wi-Fi slot in the header, as in stock.
+* The startup tab set in Tweaks (Recents, Favorites, Games, Expert or Apps) opens at boot, as with stock; MainUI always started on the main menu.
+
+### Lists
+
+* A game's details from Favorites or Recents show its genre and description also when its system is not in the open grid (an Expert emulator while Games is shown, say).
+* Line breaks and runs of spaces in a game's genre are collapsed, as in its description and in stock, so they no longer split the details' summary line.
+* A `.bin` file is hidden beside its `.cue` only when that `.cue` is a file. A folder or link named like it hid the `.bin` and listed nothing in its place. Run Refresh roms for a console where this happened.
+
+### Speed and memory
+
+* After Wi-Fi is turned on, the network address comes within about a second of joining the network. MainUI's DHCP client tried three times, 3 s apart, starting before the join, then paused 20 s, so a join slower than about 9 s left Wi-Fi without an address for 10-20 s more. MainUI also waits for the Wi-Fi interface to appear after powering the chip on (up to 10 s), then starts Wi-Fi as stock does: 1 s later instead of 2 s, with no pause when the chip is on already, and letting `wpa_supplicant` bring the interface up, which joined faster on a noisy channel. Thanks to [@Amiga500](https://github.com/Amiga500) for the report.
+
+### Documentation and tests
+
+* [docs/CATALOG_CACHE.md](docs/CATALOG_CACHE.md) lists how Refresh all roms and game details differ from stock, and [docs/THEMES.md](docs/THEMES.md) which `fontascii` key is read.
+
+## 1.0.6 - 2026-10-09
+
+### Buttons
+
+* X acts as B (back, close, cancel) on every screen, as stock does; it did nothing on most screens and opened search in a ROM list. Search there stays in the context menu (Select or Menu), and in the on-screen keyboard X still types a space. Thanks to [@Veuks](https://github.com/Veuks) for the report.
+* The button mapping in `system.json` (`keymap`) is handed to the device's button driver at start, as stock does; before, it was ignored. A `keymap` that is not eight button names (`L2`, `L`, `R2`, `R`, `X`, `A`, `B`, `Y`) is ignored and the default is used, so a typo cannot leave the buttons unusable.
+
+### Themes and screens
+
+* A theme whose context-menu background is a full-screen image (Super Onion Entertainment System Remix, RetroRama and others) shows it as it is. A 5- or 6-row menu built it from the 4-row image by repeating its top band, which pushed the rest of the picture down. Thanks to [@QuackWalks](https://github.com/QuackWalks) for the report.
+* The screen behind messages and confirmations is darkened, as behind the context menu and as in stock.
+* Console and main-menu labels drawn in a theme's own font (`grid.font`) keep that font's weight. Before, MainUI made them bold, as stock does, which thickened pixel fonts such as Super Onion Entertainment System Remix's. Labels in the default font stay bold. Thanks to [@QuackWalks](https://github.com/QuackWalks) for the report.
+* Expert console labels use stock's font for them: `grid.fontascii`, or without it the list font, at the `grid.grid3x4` size, in the font's own style. A theme that hides its Games labels with a blank `grid.font`, such as ONION PS, now shows its Expert labels, as stock does. `grid.grid3x4` set to 0 still hides them. A theme without `grid.grid1x4` gets stock's 25 for the Games labels, instead of 24. Thanks to [@Zazzago](https://github.com/Zazzago) for the report.
+* Expert draws its selection mark 2 px further right and down, and its icons and labels 1 px lower, so the grid matches stock's pixel for pixel.
+* The battery percentage and the page counter sit where stock puts them. Both were 1 px too low with some themes.
+* The home screen's header logo (`miyoo-topbar.png`) is no longer cut off at the header. A theme can draw below it with a tall image, as stock allows; Super Onion Entertainment System shows its row of dots under the home icons again.
+* The Wi-Fi icon is centered in stock's status slot left of the battery (x 504), so a theme's wide Wi-Fi image lands where the theme expects it. Super Onion Entertainment System Remix's cloud covered the end of the title, and the icon of themes with very wide images, such as BMO, was drawn off-screen. Thanks to [@QuackWalks](https://github.com/QuackWalks) for the report.
+* The Apps list's rows start at y=62 again, as a stock screenshot shows they do. The fourth row is drawn in full, its highlight reaching 2 px over the footer as in stock, so a framed highlight is no longer cut off at the bottom; 1.0.5 moved the rows up 2 px instead.
+
+### Lists
+
+* The Apps list keeps the order the SD card lists the app folders in, as stock does, instead of sorting them by name. On FAT that is usually the order they were copied in, so Quick Guide may come first. An empty file named `.appsort` in `.tmp_update/config` sorts them by name instead.
+* A `.bin` file is no longer listed beside the `.cue` of the same name, as in stock; the `.cue` starts the game. Unlike stock, the `.bin` stays when the `extlist` does not list `.cue` files, so the game is never left without an entry. Run Refresh roms for a console whose cache lists both.
+* A console with an empty or no `extlist` leaves out files without an extension, such as `README`, as stock does. Run Refresh roms for such a console.
+
+### Sound
+
+* Theme music recorded at 48 kHz, as in most themes, plays at its proper speed and pitch instead of about 8% slow and low. Music recorded at 44.1 kHz now plays slightly fast, as with stock. Thanks to [@QuackWalks](https://github.com/QuackWalks) for the report.
+
+### Documentation and tests
+
+* [docs/CATALOG_CACHE.md](docs/CATALOG_CACHE.md) lists how ROM lists differ from stock: which files each leaves out, and the sort order, which also applies to the Games and Expert grids.
+
 ## 1.0.5 - 2026-10-07
 
 ### Buttons

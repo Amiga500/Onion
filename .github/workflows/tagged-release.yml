@@ -20,17 +20,24 @@ jobs:
     - name: Get version
       run: |
         TAG="${{ github.ref_name }}"
-        echo "BUILD_VERSION=${TAG#v}" >> $GITHUB_ENV
+        BUILD_VERSION="${TAG#v}"
+        # Every version ends with its build date, as Settings > About shows it.
+        echo "$BUILD_VERSION" | grep -Eq -- '-[0-9]{8}$' ||
+            BUILD_VERSION="${BUILD_VERSION}-$(date -u +%Y%m%d)"
+        echo "BUILD_VERSION=${BUILD_VERSION}" >> $GITHUB_ENV
     - name: Build release
       shell: bash
       run: |
         source /root/.bashrc
         VERSION_OVERRIDE=${{ env.BUILD_VERSION }} make release
+        # The same zip under the old name, for updaters before the rename.
+        cp "release/RedOnion-v${{ env.BUILD_VERSION }}.zip" "release/OnionPlus-v${{ env.BUILD_VERSION }}.zip"
     - uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         prerelease: false
         draft: true
-        title: "OnionPlus V${{ env.BUILD_VERSION }}"
+        title: "RedOnion V${{ env.BUILD_VERSION }}"
         files: |
+          release/RedOnion-v${{ env.BUILD_VERSION }}.zip
           release/OnionPlus-v${{ env.BUILD_VERSION }}.zip

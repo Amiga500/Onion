@@ -3,14 +3,71 @@
 #include "platform/device_adapter.h"
 #include "platform/files.h"
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 static bool path_for(char path[4096], const char *sd, const char *suffix)
 {
     int n = snprintf(path, 4096, "%s/system.json%s", sd, suffix);
     return n > 0 && n < 4096;
+}
+
+MainUIShortcut mainui_button_shortcut(const char *sd, char button, char why[160])
+{
+    char path[4096], scratch[160];
+    why = why ? why : scratch;
+    *why = 0;
+    if (!sd ||
+        snprintf(path, sizeof path, "%s/.tmp_update/config/keymap.json", sd) >= (int)sizeof path) {
+        snprintf(why, 160, "the keymap path is too long");
+        return MAINUI_SHORTCUT_KEYMON;
+    }
+    struct stat info;
+    if (stat(path, &info) != 0 && errno == ENOENT) {
+        return MAINUI_SHORTCUT_NONE; /* as keymon without the file */
+    }
+    if (stat(path, &info) == 0 && !S_ISREG(info.st_mode)) {
+        snprintf(why, 160, "keymap.json is not a file");
+        return MAINUI_SHORTCUT_KEYMON;
+    }
+    errno = 0;
+    char *text = mainui_read_text(path, 64 * 1024);
+    if (!text) {
+        snprintf(why, 160, "keymap.json cannot be read: %s",
+                 errno ? strerror(errno) : "unreadable");
+        return MAINUI_SHORTCUT_KEYMON;
+    }
+    cJSON *root = cJSON_Parse(text);
+    free(text);
+    if (!cJSON_IsObject(root)) {
+        cJSON_Delete(root);
+        snprintf(why, 160, "keymap.json is not a JSON object");
+        return MAINUI_SHORTCUT_KEYMON;
+    }
+    const cJSON *value = cJSON_GetObjectItemCaseSensitive(root, button == 'X' ? "mainui_button_x"
+                                                                              : "mainui_button_y");
+    MainUIShortcut result = MAINUI_SHORTCUT_KEYMON;
+    /* keymon keeps its empty default unless the value is text. */
+    if (!cJSON_IsString(value) || !*value->valuestring) {
+        result = MAINUI_SHORTCUT_NONE;
+    }
+    else if (!strcmp(value->valuestring, "glo")) {
+        result = MAINUI_SHORTCUT_GAME_OPTIONS;
+    }
+    else if (!strcmp(value->valuestring, "fav")) {
+        result = MAINUI_SHORTCUT_FAVORITE;
+    }
+    else {
+        /* An app or tool, which keymon runs (it missed this press), or a
+         * value keymon does not know: starting the game would surprise. */
+        snprintf(why, 160, "the %c shortcut is %.60s, which keymon runs", button,
+                 value->valuestring);
+    }
+    cJSON_Delete(root);
+    return result;
 }
 
 cJSON *mainui_system_read(const char *sd)
@@ -36,6 +93,51 @@ cJSON *mainui_system_read(const char *sd)
         return NULL;
     }
     return root;
+}
+
+/* Exactly eight comma-separated names, each one the default names. */
+static bool keymap_valid(const char *value)
+{
+    static const char *const names[] = {"L2", "L", "R2", "R", "X", "A", "B", "Y"};
+    int count = 0;
+    for (const char *part = value;;) {
+        const char *end = strchr(part, ',');
+        size_t length = end ? (size_t)(end - part) : strlen(part);
+        bool known = false;
+        for (size_t i = 0; i < sizeof names / sizeof *names && !known; i++) {
+            known = strlen(names[i]) == length && !strncmp(part, names[i], length);
+        }
+        if (!known || ++count > 8) {
+            return false;
+        }
+        if (!end) {
+            return count == 8;
+        }
+        part = end + 1;
+    }
+}
+
+const char *mainui_keymap_value(const cJSON *settings)
+{
+    const cJSON *keymap = cJSON_GetObjectItemCaseSensitive(settings, "keymap");
+    const char *value = cJSON_IsString(keymap) ? keymap->valuestring : NULL;
+    return value && keymap_valid(value) ? value : MAINUI_DEFAULT_KEYMAP;
+}
+
+bool mainui_keymap_apply(const char *sd, const char *target)
+{
+    cJSON *settings = mainui_system_read(sd);
+    const cJSON *keymap = cJSON_GetObjectItemCaseSensitive(settings, "keymap");
+    if (cJSON_IsString(keymap) && *keymap->valuestring && !keymap_valid(keymap->valuestring)) {
+        fprintf(stderr, "Ignoring unusable keymap in system.json: %.80s\n", keymap->valuestring);
+    }
+    FILE *file = fopen(target, "w");
+    bool ok = file && fputs(mainui_keymap_value(settings), file) >= 0;
+    if (file && fclose(file) != 0) {
+        ok = false;
+    }
+    cJSON_Delete(settings);
+    return ok;
 }
 
 static const MainUISettingsMonitor *installed_monitor;
@@ -193,6 +295,32 @@ static MainUISettingsResult patch_unlocked(const char *sd, const cJSON *values)
                                       : MAINUI_SETTINGS_PARTLY;
     log_not_saved(path, values, result);
     return result;
+}
+
+int mainui_system_monitor_value(const cJSON *settings, const char *key)
+{
+    static const struct {
+        const char *key;
+        int fallback;
+        bool ranged; /* 0 to 20 */
+    } stock[] = {{"vol", 20, false},    {"brightness", 7, false}, {"mute", 0, false},
+                 {"bgmvol", 8, false},  {"hibernate", 0, false},  {"lumination", 7, true},
+                 {"hue", 10, true},     {"saturation", 10, true}, {"contrast", 10, true},
+                 {"audiofix", 1, false}};
+
+    for (size_t i = 0; i < sizeof stock / sizeof *stock; ++i) {
+        if (strcmp(key, stock[i].key)) {
+            continue;
+        }
+        const cJSON *value = cJSON_GetObjectItemCaseSensitive(settings, key);
+        if (!cJSON_IsNumber(value) || value->valuedouble < INT_MIN ||
+            value->valuedouble > INT_MAX) {
+            return stock[i].fallback;
+        }
+        int number = (int)value->valuedouble;
+        return stock[i].ranged && (number < 0 || number > 20) ? stock[i].fallback : number;
+    }
+    return 0;
 }
 
 bool mainui_system_damaged(const char *sd)

@@ -83,6 +83,27 @@ static bool scan(MainUISettingsPage *page, const char *runtime)
         line = next;
     }
     free(text);
+    /* wpa_supplicant's saved networks, as the scan listed them: "id\tssid\t...". */
+    n = snprintf(path, sizeof path, "%s/wifi-saved.txt", runtime);
+    char *saved = n > 0 && n < (int)sizeof path ? mainui_read_text(path, 16384) : NULL;
+    for (int i = 0; i < page->network_count; i++) {
+        page->network_saved[i] = false;
+        size_t length = strlen(page->networks[i]);
+        for (const char *row = saved ? strchr(saved, '\n') : NULL; row && *++row;
+             row = strchr(row, '\n')) {
+            const char *name = strchr(row, '\t');
+            const char *next = strchr(row, '\n');
+            if (name && (!next || name < next) && !strncmp(name + 1, page->networks[i], length) &&
+                name[1 + length] == '\t') {
+                page->network_saved[i] = true;
+                break;
+            }
+            if (!next) {
+                break;
+            }
+        }
+    }
+    free(saved);
     return true;
 }
 
@@ -117,6 +138,11 @@ void mainui_settings_page_open(MainUISettingsPage *page, MainUISettingKind kind,
             }
         }
         page->version[version_end] = 0;
+        /* A build can name its own site; stock's otherwise. */
+        read_line(page->website, sizeof page->website, sd, ".tmp_update/onionVersion/website.txt");
+        if (!strcmp(page->website, "Unknown")) {
+            snprintf(page->website, sizeof page->website, "www.lomiyoo.com");
+        }
         snprintf(page->max_resolution, sizeof page->max_resolution, "Unknown");
         read_line(page->firmware, sizeof page->firmware, runtime, "firmware-version.txt");
         char model[24];
@@ -314,6 +340,10 @@ int mainui_settings_page_key(MainUISettingsPage *page, SDLKey key, const char *s
         memset(page, 0, sizeof *page);
         return 0;
     }
+    if (page->message_held) {
+        page->message[0] = 0;
+        page->message_held = false;
+    }
     int count = page->kind == SET_DISPLAY ? 4
                 : page->kind == SET_WIFI  ? (page->wifi ? 1 + page->network_count : 1)
                 : page->kind == SET_ABOUT ? 10
@@ -394,6 +424,10 @@ int mainui_settings_page_key(MainUISettingsPage *page, SDLKey key, const char *s
                  control - 5 < page->network_count) {
             strcpy(page->ssid, page->networks[control - 5]);
             memset(page->password, 0, sizeof page->password);
+            if (page->network_secure[control - 5] && page->network_saved[control - 5] &&
+                page->managed_device && strcmp(page->ssid, page->retry_ssid)) {
+                return 7;
+            }
             if (!page->network_secure[control - 5]) {
                 if (page->managed_device) {
                     return 3;
@@ -461,13 +495,12 @@ static void draw_status(SDL_Surface *screen, MainUITheme *theme, const char *tex
 static void draw_about(const MainUISettingsPage *page, SDL_Surface *screen, MainUITheme *theme)
 {
     const int ids[] = {59, 408, 409, 60, 61, 410, 62, 64, 66, 155};
-    const char *labels[] = {"Model number",  "Model name",       "Max resolution",
-                            "Serial number", "Firmware version", "Onion version",
-                            "CPU frequency", "Memory size",      "Used/total storage",
-                            "Website"};
+    const char *labels[] = {"Model number",       "Model name", "Max resolution", "Serial number",
+                            "Firmware version",   "OS version", "CPU frequency",  "Memory size",
+                            "Used/total storage", "Website"};
     const char *values[] = {
         page->model,   page->device_name, page->max_resolution, page->serial,  page->firmware,
-        page->version, page->cpu,         page->memory,         page->storage, "www.lomiyoo.com"};
+        page->version, page->cpu,         page->memory,         page->storage, page->website};
     const MainUISettingsArtwork *art = mainui_theme_settings_artwork(theme);
     /* DeviceInfoMenu 0x2ac38 uses the same div-line-h asset (0x1821c8). */
     SDL_Rect content = {0, 60, 640, 360};
@@ -490,30 +523,7 @@ static void draw_about(const MainUISettingsPage *page, SDL_Surface *screen, Main
             !strcmp(values[i], "Unknown") ? mainui_translate(74, "unknown") : values[i];
         TTF_SizeUTF8(theme->menu_font, value, &value_width, NULL);
         int text_y = y + (60 - TTF_FontHeight(theme->menu_font)) / 2;
-        if (page->kind == SET_WIFI && i > 0) {
-            SDL_Rect label_clip = {20, (Sint16)y, 430, 60};
-            SDL_SetClipRect(screen, &label_clip);
-            mainui_label(screen, theme->menu_font, theme->color, label, 20, text_y);
-            SDL_SetClipRect(screen, &clip);
-            /* Stock thresholds, but fix stock's weak-signal full-bars list bug. */
-            int level = page->network_signal[i - 1];
-            SDL_Surface *signal = theme->wifi_signal[level >= 2 && level <= 3 ? level : 1];
-            if (page->wifi_connection == 1 &&
-                !strcmp(page->connected_ssid, page->networks[i - 1]) && theme->wifi_connected) {
-                mainui_blit(screen, theme->wifi_connected, 470 - theme->wifi_connected->w / 2,
-                            y + (60 - theme->wifi_connected->h) / 2);
-            }
-            if (page->network_secure[i - 1] && theme->wifi_locked) {
-                mainui_blit(screen, theme->wifi_locked, 520 - theme->wifi_locked->w / 2,
-                            y + (60 - theme->wifi_locked->h) / 2);
-            }
-            if (signal) {
-                mainui_blit(screen, signal, 580 - signal->w / 2, y + (60 - signal->h) / 2);
-            }
-        }
-        else {
-            mainui_label(screen, theme->menu_font, theme->color, label, 20, text_y);
-        }
+        mainui_label(screen, theme->menu_font, theme->color, label, 20, text_y);
         int left = 20 + label_width;
         if (left < 620) {
             clip.x = (Sint16)left;
@@ -628,11 +638,11 @@ void mainui_settings_page_draw(const MainUISettingsPage *page, SDL_Surface *scre
     SDL_Rect message_clip = {20, 352, 600, 64};
     SDL_SetClipRect(screen, &message_clip);
     if (page->kind != SET_WIFI || page->wifi) {
-        draw_status(
-            screen, theme,
-            page->kind == SET_WIFI
-                ? (!strcmp(page->message, "Scanning...") ? mainui_translate(83, "Scanning...") : "")
-                : page->message);
+        draw_status(screen, theme,
+                    page->kind == SET_WIFI ? (!strcmp(page->message, "Scanning...")
+                                                  ? mainui_translate(83, "Scanning...")
+                                                  : page->message)
+                                           : page->message);
     }
     SDL_SetClipRect(screen, NULL);
 }

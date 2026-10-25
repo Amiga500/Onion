@@ -25,8 +25,33 @@
 #include "gs_romscreen.h"
 
 static pthread_t autosave_thread_pt;
-static bool autosave_thread_running = false;
+static pthread_t romscreen_save_thread_pt;
+// Thread-start flags belong to the main thread; never use a worker's
+// completion flag as a substitute for pthread_join().
+static bool autosave_thread_started = false;
+static bool romscreen_save_thread_started = false;
+static pthread_mutex_t autosave_status_mutex = PTHREAD_MUTEX_INITIALIZER;
+static bool autosave_done = false;
+// Owned by the snapshot: dimensions are captured with the pixels so the PNG
+// writer never consults g_display (which other code may update).
+static uint32_t *romscreen_save_pixels = NULL;
+static uint32_t romscreen_save_width = 0;
+static uint32_t romscreen_save_height = 0;
+static char romscreen_save_path[STR_MAX] = {0};
 static pid_t overlay_retroarch_pid = 0;
+
+// RetroArch computes the CRC32 of content that the core opens itself (arcade
+// zips such as Neo Geo sets) on the first GET_STATUS, reading the whole file
+// before it answers: seconds for a large set. Waiting for that one reply
+// keeps a slow answer from looking like a missing RetroArch.
+#define OVERLAY_STATUS_TIMEOUT_MS 15000
+
+static bool _processPidExists(pid_t pid);
+static bool _overlayRetroArchAlive(void *ctx)
+{
+    (void)ctx;
+    return overlay_retroarch_pid <= 0 || _processPidExists(overlay_retroarch_pid);
+}
 
 void setFbAsFirstRomScreen(void)
 {
@@ -95,27 +120,121 @@ static void _playActivityAsync(const char *action)
     }
 }
 
-static void *_saveRomScreenAndStateThread(void *arg)
+static bool _autosavePending(void)
 {
-    Game_s *game = &game_list[0];
+    pthread_mutex_lock(&autosave_status_mutex);
+    bool pending = !autosave_done;
+    pthread_mutex_unlock(&autosave_status_mutex);
+    return pending;
+}
 
-    if (game->romScreen != NULL && game->is_running) {
-        char romScreenPath[STR_MAX];
-        uint32_t hash = FNV1A_Pippip_Yurii(game->recentItem.rompath, strlen(game->recentItem.rompath));
-        snprintf(romScreenPath, sizeof(romScreenPath), ROM_SCREENS_DIR "/%" PRIu32 ".png", hash);
-
-        screenshot_save_stride((uint32_t *)game->romScreen->pixels, romScreenPath, false,
-                               game->romScreen->pitch / (int)sizeof(uint32_t));
-
-        printf_debug("Saved rom screen: %s\n", romScreenPath);
+static void *_writeRomScreenThread(void *arg)
+{
+    (void)arg;
+    if (romscreen_save_pixels != NULL && romscreen_save_path[0] != '\0') {
+        if (screenshot_save_buffer_atomic(romscreen_save_pixels, romscreen_save_path,
+                                          romscreen_save_width, romscreen_save_height))
+            printf_debug("Saved rom screen: %s\n", romscreen_save_path);
+        else
+            printf_debug("Failed to save rom screen: %s\n", romscreen_save_path);
     }
-    // The PNG is written: the UI may free or move entry 0 again.
-    romscreen_unpin();
-
-    retroarch_autosave();
-
-    autosave_thread_running = false;
+    free(romscreen_save_pixels);
+    romscreen_save_pixels = NULL;
+    romscreen_save_width = romscreen_save_height = 0;
+    romscreen_save_path[0] = '\0';
     return NULL;
+}
+
+static void *_autosaveFirstThread(void *arg)
+{
+    (void)arg;
+    retroarch_autosave();
+    pthread_mutex_lock(&autosave_status_mutex);
+    autosave_done = true;
+    pthread_mutex_unlock(&autosave_status_mutex);
+
+    // PNG compression and fsync proceed independently of RetroArch shutdown.
+    // Publication of thread_started is synchronized by joining this thread.
+    if (romscreen_save_pixels != NULL) {
+        if (pthread_create(&romscreen_save_thread_pt, NULL,
+                           _writeRomScreenThread, NULL) == 0)
+            romscreen_save_thread_started = true;
+        else
+            _writeRomScreenThread(NULL); // low-memory fallback
+    }
+    return NULL;
+}
+
+static void _finishAutosave(bool show_saving)
+{
+    if (!autosave_thread_started)
+        return;
+    bool pending = _autosavePending();
+    if (pending && show_saving)
+        render_showFullscreenMessage("SAVING", false);
+    pthread_join(autosave_thread_pt, NULL);
+    autosave_thread_started = false;
+}
+
+// ORDERING INVARIANT: romscreen_save_thread_started is written by the
+// autosave worker, so only read it after _finishAutosave() has joined that
+// worker. Use overlay_finishWorkers() rather than calling this directly.
+static void _finishRomScreen(void)
+{
+    if (autosave_thread_started)
+        _finishAutosave(false); // enforce the invariant above
+    if (romscreen_save_thread_started) {
+        pthread_join(romscreen_save_thread_pt, NULL);
+        romscreen_save_thread_started = false;
+    }
+}
+
+static void _snapshotRomScreen(Game_s *game)
+{
+    if (game == NULL || !game->is_running || game->romScreen == NULL)
+        return;
+    SDL_Surface *src = game->romScreen;
+    size_t width = (size_t)g_display.width;
+    size_t height = (size_t)g_display.height;
+    if (!width || !height || src->format->BitsPerPixel != 32 ||
+        src->w < (int)width || src->h < (int)height ||
+        (size_t)src->pitch < width * sizeof(uint32_t))
+        return;
+    if (width > SIZE_MAX / sizeof(uint32_t) / height)
+        return;
+
+    uint32_t *copy = (uint32_t *)malloc(width * height * sizeof(uint32_t));
+    if (copy == NULL) {
+        print_debug("Not enough memory for romscreen snapshot");
+        return; // State save still proceeds; don't dereference a freed surface.
+    }
+    for (size_t y = 0; y < height; y++) {
+        memcpy(copy + y * width,
+               (const uint8_t *)src->pixels + y * (size_t)src->pitch,
+               width * sizeof(uint32_t));
+    }
+    uint32_t hash = FNV1A_Pippip_Yurii(game->recentItem.rompath,
+                                       strlen(game->recentItem.rompath));
+    snprintf(romscreen_save_path, sizeof(romscreen_save_path),
+             ROM_SCREENS_DIR "/%" PRIu32 ".png", hash);
+    romscreen_save_width = (uint32_t)width;
+    romscreen_save_height = (uint32_t)height;
+    romscreen_save_pixels = copy;
+}
+
+// Block until the RetroArch state save has finished (shows SAVING if it has
+// not). Idempotent; a no-op when no autosave is running.
+void overlay_waitForAutosave(void)
+{
+    _finishAutosave(true);
+}
+
+// Join every worker this file started. Idempotent; call on any path that
+// leaves main() so a PNG or state save is never cut off by process exit.
+void overlay_finishWorkers(void)
+{
+    _finishAutosave(false);
+    _finishRomScreen();
 }
 
 void overlay_init()
@@ -134,12 +253,17 @@ void overlay_init()
     if (overlay_retroarch_pid <= 0)
         print_debug("Unable to capture RetroArch PID\n");
 
-    retroarch_pause();
+    bool retroarch_cmd_ready = retroarch_pause() == 0;
     _playActivityAsync("stop_all");
     setFbAsFirstRomScreen();
-
     RetroArchStatus_s status;
-    if (retroarch_getStatus(&status) == -1) {
+    int status_result = retroarch_cmd_ready
+                            ? retroarch_getStatusWait(&status, OVERLAY_STATUS_TIMEOUT_MS,
+                                                      _overlayRetroArchAlive, NULL)
+                            : -1;
+    if (status_result == -1)
+        status_result = retroarch_getStatus(&status);
+    if (status_result == -1) {
         print_debug("Error getting RetroArch status");
         return;
     }
@@ -153,46 +277,48 @@ void overlay_init()
     }
 
     if (status.state == RETROARCH_STATE_PLAYING) {
-        retroarch_pause();
+        // Listener responded successfully: avoid another VERSION handshake.
+        if (retroarch_pauseNoProbe() != 0)
+            retroarch_pause();
     }
 
     Game_s *game = &game_list[0];
     game->is_running = _isContentNameInInfo(status.content_info, game->rom_name);
     printf_debug("Game is running: %d\n", game->is_running);
 
-    // start autosave thread. Entry 0 stays pinned until its romscreen is
-    // encoded: scrolling 6+ entries away used to let the UI thread free the
-    // surface the thread was still reading.
-    romscreen_pin(0);
-    autosave_thread_running = true;
-    if (pthread_create(&autosave_thread_pt, NULL, _saveRomScreenAndStateThread, NULL) != 0) {
-        autosave_thread_running = false;
-        romscreen_unpin();
-    }
+    // Keep a private pixel copy before any history update/eviction. The PNG
+    // worker never accesses game_list or an SDL_Surface afterwards.
+    _snapshotRomScreen(game);
+    pthread_mutex_lock(&autosave_status_mutex);
+    autosave_done = false;
+    pthread_mutex_unlock(&autosave_status_mutex);
+    if (pthread_create(&autosave_thread_pt, NULL, _autosaveFirstThread, NULL) == 0)
+        autosave_thread_started = true;
+    else
+        _autosaveFirstThread(NULL); // still save on low-memory/thread failure
 }
 
 void overlay_resume(void)
 {
     if (appState.is_overlay) {
-        if (autosave_thread_running) {
-            // backup screen SDL_Surface
-            SDL_Surface *screen_backup = SDL_CreateRGBSurface(SDL_SWSURFACE, screen->w, screen->h, 32, 0, 0, 0, 0);
-            SDL_BlitSurface(screen, NULL, screen_backup, NULL);
-
-            render_showFullscreenMessage("SAVING", false);
-
-            // wait for autosave thread to finish
-            pthread_join(autosave_thread_pt, NULL);
-
+        // Wait only for state safety. The screenshot may still be writing.
+        SDL_Surface *screen_backup = NULL;
+        if (autosave_thread_started && _autosavePending()) {
+            screen_backup = SDL_CreateRGBSurface(SDL_SWSURFACE, screen->w, screen->h,
+                                                 32, 0, 0, 0, 0);
+            if (screen_backup != NULL)
+                SDL_BlitSurface(screen, NULL, screen_backup, NULL);
+        }
+        _finishAutosave(true);
+        if (screen_backup != NULL) {
             SDL_BlitSurface(screen_backup, NULL, screen, NULL);
             SDL_FreeSurface(screen_backup);
         }
 
         render();
-
         retroarch_unpause();
         _playActivityAsync("resume");
-
+        _finishRomScreen();
         msleep(200);
 
         remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
@@ -213,12 +339,7 @@ static bool _processPidExists(pid_t pid)
 void overlay_exit(void)
 {
     if (appState.is_overlay) {
-        if (autosave_thread_running) {
-            render_showFullscreenMessage("SAVING", false);
-
-            // wait for autosave thread to finish
-            pthread_join(autosave_thread_pt, NULL);
-        }
+        _finishAutosave(true);
 
         pid_t retroarch_pid = overlay_retroarch_pid;
         overlay_retroarch_pid = 0;
@@ -246,8 +367,10 @@ void overlay_exit(void)
         else if (_processPidExists(retroarch_pid)) {
             kill(retroarch_pid, SIGTERM);
 
-            // Wait up to 5 seconds for this specific instance to exit.
-            for (int i = 0; i < 50 && _processPidExists(retroarch_pid); i++)
+            // Preserve the five-second grace period; detect normal exit sooner.
+            for (int i = 0; i < 25 && _processPidExists(retroarch_pid); i++)
+                msleep(20);
+            for (int i = 0; i < 45 && _processPidExists(retroarch_pid); i++)
                 msleep(100);
 
             if (_processPidExists(retroarch_pid)) {
@@ -257,7 +380,8 @@ void overlay_exit(void)
                 kill(retroarch_pid, SIGKILL);
             }
         }
+        // Do not hold RetroArch shutdown behind PNG encoding / SD fsync.
+        _finishRomScreen();
     }
 }
-
 #endif // GAME_SWITCHER_OVERLAY_H

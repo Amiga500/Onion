@@ -37,14 +37,47 @@ int mainui_suite_launch(void)
                    "\"/mnt/SDCARD/Emu/FC/launch.sh\" \"/mnt/SDCARD/Roms/FC/It's a game.nes\"\n"));
     free(command);
     cJSON_Delete(item);
-    const char *invalid[] = {"/mnt/SDCARD/Roms/quote\".nes", "/mnt/SDCARD/Roms/$HOME.nes",
-                             "/mnt/SDCARD/Roms/`cmd`.nes",   "/mnt/SDCARD/Roms/new\nline.nes",
-                             "/mnt/SDCARD/Roms/a:b.nes",     "C:/host.nes"};
+    /* A $ in a ROM path below Roms is written raw: runtime.sh escapes every $
+     * of a game's command (one containing /mnt/SDCARD/Roms/ or /../../Roms/)
+     * before running it, so $HOME runs as a literal $HOME. */
+    const char *dollars[] = {"/mnt/SDCARD/Roms/GBA/Super Game$ Collection (USA).zip",
+                             "/mnt/SDCARD/Emu/FC/../../Roms/FC/$HOME $(reboot).nes",
+                             "/mnt/SDCARD/Roms/$HOME.nes"};
+    for (size_t i = 0; i < sizeof dollars / sizeof dollars[0]; i++) {
+        item = record(dollars[i], 5);
+        command = mainui_launch_command(item, error);
+        char expected[512];
+        snprintf(expected, sizeof expected,
+                 "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so "
+                 "\"/mnt/SDCARD/Emu/FC/launch.sh\" \"%s\"\n",
+                 dollars[i]);
+        assert(command && !strcmp(command, expected) && !*error);
+        free(command);
+        cJSON_Delete(item);
+    }
+    /* Elsewhere runtime.sh does not escape it, so it stays refused, as do
+     * quotes, backticks, backslashes, colons and control bytes anywhere. */
+    const char *invalid[] = {"/mnt/SDCARD/Roms/quote\".nes",    "/mnt/SDCARD/Media/$HOME.nes",
+                             "/mnt/SDCARD/Roms/`cmd`.nes",      "/mnt/SDCARD/Roms/new\nline.nes",
+                             "/mnt/SDCARD/Roms/a:b.nes",        "C:/host.nes",
+                             "/mnt/SDCARD/Roms/back\\slash.nes"};
     for (size_t i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
         item = record(invalid[i], 5);
         assert(!mainui_launch_command(item, error) && *error);
         cJSON_Delete(item);
     }
+    /* A launch script with a $ is refused, even beside a ROM below Roms. */
+    item = record("/mnt/SDCARD/Roms/GBA/game$.zip", 5);
+    cJSON_ReplaceItemInObjectCaseSensitive(item, "launch",
+                                           cJSON_CreateString("/mnt/SDCARD/Emu/$GBA/launch.sh"));
+    assert(!mainui_launch_command(item, error) && *error);
+    cJSON_Delete(item);
+    item = record("/mnt/SDCARD/RApp/Test/launch.sh:/mnt/SDCARD/Roms/Test/game$.nes", 17);
+    command = mainui_launch_command(item, error);
+    assert(command && strstr(command, "\"/mnt/SDCARD/RApp/Test/launch.sh\" "
+                                      "\"/mnt/SDCARD/Roms/Test/game$.nes\""));
+    free(command);
+    cJSON_Delete(item);
     item = record("/mnt/SDCARD/RApp/Test/launch.sh:/mnt/SDCARD/Roms/Test/game.nes", 17);
     command = mainui_launch_command(item, error);
     assert(

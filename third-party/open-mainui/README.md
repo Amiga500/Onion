@@ -6,7 +6,7 @@ Written in C11 against SDL 1.2, the same libraries Onion already ships.
 
 Based on functionality from the [patched MainUI project](https://github.com/robcodedev/onionos-mainui-patcher).
 
-**Version 1.0.5.** It runs on hardware and is usable, but keep a copy of your original SD card.
+**Version 1.0.10.** It is considered stable, but keep a copy of your original SD card.
 
 ## Why
 
@@ -14,7 +14,7 @@ MainUI ships as a closed-source binary, so every improvement has to be made by p
 
 An open implementation removes that ceiling. Anyone can read it, fix it, extend it, and check what it does on their own device.
 
-It also turns out to be smaller and quicker. Early hardware testing shows faster startup and faster launching and returning from games. The device binary is around 200 KB against the original's 1.4 MB - the original statically linked SQLite, while this build links the copy Onion already ships.
+It also turns out to be smaller and quicker. Early hardware testing shows faster startup and faster launching and returning from games. The device binary is around 300 KB against the original's 1.4 MB - the original statically linked SQLite, while this build links the copy Onion already ships.
 
 ## Status
 
@@ -29,6 +29,7 @@ If something goes wrong, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md),
 How the cursor and the list window move, including where this differs from stock on purpose, is described in [docs/NAVIGATION.md](docs/NAVIGATION.md).
 
 Some newer labels (folder actions, Tweaks, the About device rows) appear in English regardless of the selected language, because their translation IDs do not exist in Onion's language files yet. See [lang/README.md](lang/README.md).
+Arabic and Bengali need a font and a text-shaping library that Open MainUI does not include; see [docs/THEMES.md](docs/THEMES.md#fonts-and-languages).
 
 ## Themes
 
@@ -59,7 +60,7 @@ To install on a device, follow the [SD-card installation instructions](docs/BUIL
 
 ![New About device screen](./docs/screen-about.png)
 
-New "About device" screen with model name, max resolution and Onion version now visible.
+New "About device" screen with model name, max resolution and OS version now visible. Its Website row shows the first line of `.tmp_update/onionVersion/website.txt`, so a build can name its own site, or `www.lomiyoo.com` without that file.
 
 ## Licence
 

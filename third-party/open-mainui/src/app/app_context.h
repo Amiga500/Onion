@@ -50,11 +50,23 @@ typedef struct {
      * release; that release must not open the context menu again. */
     bool select_menu_pending;
     Uint32 select_menu_until;
+    /* L2 or R2 went down while Select was held and Start was not. */
+    bool select_brightness;
+    /* Y, Select and Start act when released, as in stock, so a keymon
+     * shortcut on Y has killed MainUI before it acts: whether the press is
+     * still to act. A keymon combo (another button while Select or Start
+     * is down) cancels Select and Start. */
+    bool y_armed, select_armed, start_armed;
+    /* X with a Favorite or Game List Options shortcut on a game acts when
+     * released too: whether the press is still to act. */
+    bool x_armed;
+    /* The release of a scripted Y, Select or Start tap, still to send. */
+    SDLKey script_release;
     /* Keymon's L1 after its Menu release: the Menu releases already matched
      * or passed over, and whether that L1 is down now. */
     int menu_events_seen;
     bool quiet_l1_armed, quiet_l1_held;
-    bool battery_override;
+    bool battery_override, battery_charging;
     bool start_systems;
     bool refresh_caches;
     bool informational;
@@ -62,7 +74,7 @@ typedef struct {
     int battery_percent;
     MainUIDeviceAdapter device_adapter;
     MainUIDeviceStatus device_status;
-    Uint32 next_device_check, next_wifi_scan;
+    Uint32 next_device_check, next_wifi_scan, next_battery_check;
     bool device_enabled;
     char resolved_theme[MAINUI_PATH_MAX];
     char fallback_path[MAINUI_PATH_MAX];
@@ -98,6 +110,13 @@ typedef struct {
     bool timer_failure_logged;
     bool search_keyboard;
     bool wifi_was_visible;
+    /* A connection was made to wifi_join_ssid: if it is not joined by
+     * wifi_join_until, the Wi-Fi page says so, until it is. Joined counts
+     * only once the status was refreshed after the connection (fresh): the
+     * one saved before can still name that network. */
+    bool wifi_join_watch, wifi_join_failed, wifi_join_fresh;
+    char wifi_join_ssid[33];
+    Uint32 wifi_join_until;
     MainUICatalog *apps;
     MainUICatalog *games;
     MainUICatalog *expert;
@@ -120,6 +139,9 @@ typedef struct {
     MainUIViewport home_view;
     MainUIMenuView menu_view;
     SDL_Surface *labels[20];
+    /* The row's title reads right to left: it is shown and scrolled from its
+     * right end, where it begins. Set with labels. */
+    bool label_rtl[20];
     SDL_Surface *highlighted[20];
     int cached_start;
     int status;
@@ -137,7 +159,8 @@ typedef struct {
     bool systems_drawn;
     Uint32 active_at, presented_at;
     int presented_battery, presented_wifi_signal;
-    bool presented_wifi_online;
+    bool presented_charging;
+    bool presented_wifi_online, presented_hotspot;
     char presented_wifi_address[64];
     Uint32 selected_at;
     char selected_identity[MAINUI_PATH_MAX * 3];

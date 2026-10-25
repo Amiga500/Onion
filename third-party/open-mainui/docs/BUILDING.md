@@ -96,7 +96,8 @@ cd /root/development/dev-miyoomini-toolchain/workspace/onionos-mainui-opensource
 make check ONION_ROOT=/root/development/dev-miyoomini-toolchain/workspace/Onion
 ```
 
-This derives the theme path as `/root/development/dev-miyoomini-toolchain/workspace/Onion/static/build/miyoo/app`. The default `/root/workspace/Onion/static/build/miyoo/app` is a container path and is wrong for this host layout. Set `ONION_ROOT` to the checkout root, not its `static/build/miyoo/app` subdirectory. If you previously exported `ONION_THEME`, unset it to let the tests derive the path from `ONION_ROOT`.
+This derives the theme path as `/root/development/dev-miyoomini-toolchain/workspace/Onion/static/build/miyoo/app`. The default `/root/workspace/Onion/static/build/miyoo/app` is a container path and is wrong for this host layout.
+Set `ONION_ROOT` to the checkout root, not its `static/build/miyoo/app` subdirectory. If you previously exported `ONION_THEME`, unset it to let the tests derive the path from `ONION_ROOT`.
 
 To run the suites separately:
 
@@ -114,7 +115,8 @@ MAINUI_FIXTURE_SD=/root/development/dev-miyoomini-toolchain/SDCARD \
   make check ONION_ROOT=/root/development/dev-miyoomini-toolchain/workspace/Onion
 ```
 
-Cases missing an Onion theme tree or fixture SD tree report a skip. Set `MAINUI_STRICT=1` to make missing prerequisites fail instead. The fixture SD tree is not in the repository, so under `MAINUI_STRICT=1` its absence fails only when `MAINUI_FIXTURE_SD` is set; otherwise those three cases (`browser`, `list_parity`, `ui_adjustments`) still skip. CI runs strict against a pinned Onion `v4.5-dev` commit (see `.github/workflows/ci.yml`). A successful run with skipped cases does not mean those cases were tested.
+Cases missing an Onion theme tree or fixture SD tree report a skip. Set `MAINUI_STRICT=1` to make missing prerequisites fail instead. The fixture SD tree is not in the repository, so under `MAINUI_STRICT=1` its absence fails only when `MAINUI_FIXTURE_SD` is set; otherwise those three cases (`browser`, `list_parity`, `ui_adjustments`) still skip.
+CI runs strict against a pinned Onion `v4.5-dev` commit (see `.github/workflows/ci.yml`). A successful run with skipped cases does not mean those cases were tested.
 
 ## Running the preview on a host
 
@@ -222,7 +224,9 @@ Otherwise it sets the library search path, changes to `/mnt/SDCARD/miyoo/app`, a
 --sd-root /mnt/SDCARD --device real --handoff-dir /tmp
 ```
 
-It uses `exec` and keeps the binary named `MainUI` so Onion's key monitor sees the expected process name. Output is silent unless `.tmp_update/config/.logging` exists. When enabled, stdout and stderr append to `.tmp_update/logs/MainUI.log`, including the exit-only [timing report](TIMING.md). Before a launch, a log of at least 1 MiB is moved to `MainUI.log.1`, replacing the previous rotated log. A single running session can exceed that size. Logging is best effort: if the log cannot be written (full or read-only card), MainUI starts without one.
+It uses `exec` and keeps the binary named `MainUI` so Onion's key monitor sees the expected process name.
+Output is silent unless `.tmp_update/config/.logging` exists. When enabled, stdout and stderr append to `.tmp_update/logs/MainUI.log`, including the exit-only [timing report](TIMING.md).
+Before a launch, a log of at least 1 MiB is moved to `MainUI.log.1`, replacing the previous rotated log. A single running session can exceed that size. Logging is best effort: if the log cannot be written (full or read-only card), MainUI starts without one.
 
 **This is a manual fallback, not crash recovery.** The wrapper does not catch crashes, hangs, invalid executables or missing shared libraries. The stock backup must also exist and be executable for the fallback to be used.
 

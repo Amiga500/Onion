@@ -85,8 +85,12 @@ start_retroarch() {
 	cd /mnt/SDCARD/RetroArch
 
 	if [ "$NetplayAction" = "host" ]; then
+		# Netplay needs a quick radio: power save off while it runs.
+		"$sysdir/script/network/wifi_power_save.sh" off
 		HOME=/mnt/SDCARD/RetroArch ./retroarch --appendconfig=./.retroarch/netplay_override.cfg -H -L "$netplaycore" "$romfullpath"
 	else
+		# Netplay needs a quick radio: power save off while it runs.
+		"$sysdir/script/network/wifi_power_save.sh" off
 		HOME=/mnt/SDCARD/RetroArch ./retroarch --appendconfig=./.retroarch/netplay_override.cfg -L "$netplaycore" "$romfullpath"
 
 		# cp "./.retroarch/retroarch.cfg" "./.retroarch/netplay_alternative.cfg"

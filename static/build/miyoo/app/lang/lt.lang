@@ -1,5 +1,5 @@
 {
-	"lang": "Lithuanian",
+	"lang": "Lietuvių (Lithuanian)",
 	"0": "Ekspertas",
 	"1": "Mėgstamiausi",
 	"2": "Žaidimai",
@@ -55,7 +55,7 @@
 	"52": "Pašalinti iš sąrašo",
 	"53": "Išvalomi visi žaidimų podėliai",
 	"54": "Atnaujinti visus ROM",
-	"55": "Pridėti prie mėgstamiausių",
+	"55": "Pridėti mėgstamą",
 	"56": "Atnaujinti",
 	"57": "Atnaujinti sistemą?",
 	"58": "Mažai vietos SD kortelėje\nliko %dM",
@@ -157,5 +157,18 @@
 	"154": "Nepavyko prisijungti\nPatikrinkite slaptažodį\nArba paleiskite maršrutizatorių iš naujo",
 	"155": "Svetainė",
 	"300": "KITAS",
-	"301": "TĘSTI"
+	"301": "TĘSTI",
+	"302": "Pašalinti mėgstamą",
+	"303": "Pridėti mėgstamą",
+	"400": "Sukurti aplanką",
+	"401": "Perkelti pažymėtą",
+	"402": "Perkelti čia",
+	"403": "Pervadinti aplanką",
+	"404": "Ištrinti aplanką",
+	"405": "Pašalinti mėgstamą",
+	"406": "Rikiuoti A-Z",
+	"407": "Tweaks",
+	"408": "Modelio pavadinimas",
+	"409": "Didž. raiška",
+	"410": "RedOnion versija"
 }

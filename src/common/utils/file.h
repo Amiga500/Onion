@@ -3,6 +3,7 @@
 
 #include <dirent.h>
 #include <libgen.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -96,6 +97,17 @@ void file_readLastLine(const char *filename, char *out_str);
 
 char *file_read(const char *path) __attribute__((malloc));
 
+/**
+ * Read the first line of a file into buf, without its line end ("\n" or
+ * "\r\n"), writing at most size bytes including the terminating NUL.
+ * buf is "" when the file is missing or empty. path and buf may be the
+ * same buffer: the line is read before buf is written.
+ * Returns true only for a whole, non-empty line: false when the file is
+ * missing or empty, or when its first line does not fit (buf then holds
+ * its start).
+ */
+bool file_read_line(const char *path, char *buf, size_t size);
+
 bool file_write(const char *path, const char *str, uint32_t len);
 
 void file_copy(const char *src_path, const char *dest_path);
@@ -170,9 +182,32 @@ FILE *file_atomic_begin(const char *path, char *tmp_path, size_t tmp_size,
  */
 bool file_atomic_commit(FILE *fp, const char *tmp_path, const char *final_path);
 
+#define FILE_ATOMIC_ATTEMPTS 3
+
 /**
  * @brief Atomically replace a file with the given buffer.
+ *
+ * Tried up to FILE_ATOMIC_ATTEMPTS times, with a short pause between tries.
  */
 bool file_atomic_write(const char *path, const char *data, size_t len);
+
+/**
+ * @brief Take the exclusive lock Onion and Open MainUI share for a file.
+ *
+ * Use it around a read-modify-write of a file other programs also save
+ * (system.json). Waits up to timeout_ms.
+ *
+ * @return Lock handle for file_unlock(), or -1 when it was not obtained.
+ */
+int file_lock(const char *path, int timeout_ms);
+void file_unlock(int fd);
+
+/**
+ * @brief fsync a directory so entry changes in it (create, remove, rename)
+ *        survive power loss. Much cheaper than a global sync(), which also
+ *        flushes every unrelated dirty page on the SD card.
+ * @return true on success.
+ */
+bool file_sync_dir(const char *dir_path);
 
 #endif // UTILS_FILE_H__

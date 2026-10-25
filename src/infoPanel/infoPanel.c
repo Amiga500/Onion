@@ -137,6 +137,26 @@ void drawBackground(void)
     }
 }
 
+// The last game screenshot, scaled to the screen; false when there is none.
+static bool drawRomscreen(SDL_Surface **out)
+{
+    char romscreen_path[STR_MAX];
+    *out = NULL;
+    if (!history_getRomscreenPath(romscreen_path))
+        return false;
+    SDL_Surface *romscreen = IMG_Load(romscreen_path);
+    if (!romscreen)
+        return false;
+    SDL_Surface *scaled_romscreen = scaleImageIfNecessary(romscreen, screen->clip_rect, true);
+    if (scaled_romscreen) {
+        SDL_FreeSurface(romscreen);
+        romscreen = scaled_romscreen;
+    }
+    drawImage(romscreen, screen, NULL);
+    *out = romscreen;
+    return true;
+}
+
 int main(int argc, char *argv[])
 {
     char title_str[STR_MAX] = "";
@@ -252,6 +272,16 @@ int main(int argc, char *argv[])
         g_show_theme_controls = true;
     }
     else if (is_persistent) {
+        // --romscreen without a message: the screenshot alone, full screen
+        // (Tweaks > Appearance > Loading/saving screen: Full screen).
+        if (show_romscreen) {
+            SDL_Surface *romscreen = NULL;
+            SDL_FillRect(screen, NULL, 0);
+            drawRomscreen(&romscreen);
+            render();
+            if (romscreen)
+                SDL_FreeSurface(romscreen);
+        }
         while (!temp_flag_get("dismiss_info_panel")) {
             msleep(15);
         }
@@ -265,21 +295,8 @@ int main(int argc, char *argv[])
     }
 
     SDL_Surface *romscreen = NULL;
-    if (show_romscreen) {
-        char romscreen_path[STR_MAX];
-        if (history_getRomscreenPath(romscreen_path)) {
-            romscreen = IMG_Load(romscreen_path);
-            if (romscreen) {
-                SDL_Surface *scaled_romscreen = scaleImageIfNecessary(romscreen, screen->clip_rect, true);
-                if (scaled_romscreen) {
-                    SDL_FreeSurface(romscreen);
-                    romscreen = scaled_romscreen;
-                }
-
-                drawImage(romscreen, screen, NULL);
-            }
-        }
-    }
+    if (show_romscreen)
+        drawRomscreen(&romscreen);
 
     KeyState keystate[320] = {(KeyState)0};
     bool canceled = false;

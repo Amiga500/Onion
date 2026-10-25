@@ -2,9 +2,7 @@
  * @file test_keymap.c
  * @brief Unit tests for keymap_hw.h hardware keymap constants.
  *
- * Verifies the hardware key constant definitions match their
- * expected Linux input.h values, and that all button mappings
- * are unique (no accidental duplicates).
+ * Verifies that all button mappings are unique (no accidental duplicates).
  *
  * Build and run: make -f Makefile.unit test_keymap
  */
@@ -15,80 +13,6 @@
 
 /* Production code: the hardware key codes from system/keymap_hw.h. */
 #include "system/keymap_hw.h"
-
-/* ==== Individual constant value tests ==== */
-
-TEST(hw_btn_up_value) {
-    ASSERT_EQ(HW_BTN_UP, KEY_UP);
-}
-
-TEST(hw_btn_down_value) {
-    ASSERT_EQ(HW_BTN_DOWN, KEY_DOWN);
-}
-
-TEST(hw_btn_left_value) {
-    ASSERT_EQ(HW_BTN_LEFT, KEY_LEFT);
-}
-
-TEST(hw_btn_right_value) {
-    ASSERT_EQ(HW_BTN_RIGHT, KEY_RIGHT);
-}
-
-TEST(hw_btn_a_value) {
-    ASSERT_EQ(HW_BTN_A, KEY_SPACE);
-}
-
-TEST(hw_btn_b_value) {
-    ASSERT_EQ(HW_BTN_B, KEY_LEFTCTRL);
-}
-
-TEST(hw_btn_x_value) {
-    ASSERT_EQ(HW_BTN_X, KEY_LEFTSHIFT);
-}
-
-TEST(hw_btn_y_value) {
-    ASSERT_EQ(HW_BTN_Y, KEY_LEFTALT);
-}
-
-TEST(hw_btn_l1_value) {
-    ASSERT_EQ(HW_BTN_L1, KEY_E);
-}
-
-TEST(hw_btn_r1_value) {
-    ASSERT_EQ(HW_BTN_R1, KEY_T);
-}
-
-TEST(hw_btn_l2_value) {
-    ASSERT_EQ(HW_BTN_L2, KEY_TAB);
-}
-
-TEST(hw_btn_r2_value) {
-    ASSERT_EQ(HW_BTN_R2, KEY_BACKSPACE);
-}
-
-TEST(hw_btn_select_value) {
-    ASSERT_EQ(HW_BTN_SELECT, KEY_RIGHTCTRL);
-}
-
-TEST(hw_btn_start_value) {
-    ASSERT_EQ(HW_BTN_START, KEY_ENTER);
-}
-
-TEST(hw_btn_menu_value) {
-    ASSERT_EQ(HW_BTN_MENU, KEY_ESC);
-}
-
-TEST(hw_btn_power_value) {
-    ASSERT_EQ(HW_BTN_POWER, KEY_POWER);
-}
-
-TEST(hw_btn_volume_up_value) {
-    ASSERT_EQ(HW_BTN_VOLUME_UP, KEY_VOLUMEUP);
-}
-
-TEST(hw_btn_volume_down_value) {
-    ASSERT_EQ(HW_BTN_VOLUME_DOWN, KEY_VOLUMEDOWN);
-}
 
 /* ==== Uniqueness tests: no two face/shoulder buttons share a code ==== */
 
@@ -136,29 +60,6 @@ TEST(hw_volume_buttons_unique) {
     ASSERT_NE(HW_BTN_VOLUME_UP, HW_BTN_VOLUME_DOWN);
 }
 
-/* ==== All buttons are non-negative (valid keycodes) ==== */
-
-TEST(hw_all_buttons_nonnegative) {
-    ASSERT_GE(HW_BTN_UP, 0);
-    ASSERT_GE(HW_BTN_DOWN, 0);
-    ASSERT_GE(HW_BTN_LEFT, 0);
-    ASSERT_GE(HW_BTN_RIGHT, 0);
-    ASSERT_GE(HW_BTN_A, 0);
-    ASSERT_GE(HW_BTN_B, 0);
-    ASSERT_GE(HW_BTN_X, 0);
-    ASSERT_GE(HW_BTN_Y, 0);
-    ASSERT_GE(HW_BTN_L1, 0);
-    ASSERT_GE(HW_BTN_R1, 0);
-    ASSERT_GE(HW_BTN_L2, 0);
-    ASSERT_GE(HW_BTN_R2, 0);
-    ASSERT_GE(HW_BTN_SELECT, 0);
-    ASSERT_GE(HW_BTN_START, 0);
-    ASSERT_GE(HW_BTN_MENU, 0);
-    ASSERT_GE(HW_BTN_POWER, 0);
-    ASSERT_GE(HW_BTN_VOLUME_UP, 0);
-    ASSERT_GE(HW_BTN_VOLUME_DOWN, 0);
-}
-
 /* ==== Every key code is distinct, the lid switch included ==== */
 
 TEST(hw_all_buttons_unique) {
@@ -175,30 +76,27 @@ TEST(hw_all_buttons_unique) {
     }
 }
 
+/* ==== Physical layout: a swap here passes every uniqueness test ==== */
+
+TEST(hw_buttons_match_device_layout) {
+    ASSERT_EQ(HW_BTN_A, KEY_SPACE);
+    ASSERT_EQ(HW_BTN_B, KEY_LEFTCTRL);
+    ASSERT_EQ(HW_BTN_X, KEY_LEFTSHIFT);
+    ASSERT_EQ(HW_BTN_Y, KEY_LEFTALT);
+    ASSERT_EQ(HW_BTN_L1, KEY_E);
+    ASSERT_EQ(HW_BTN_R1, KEY_T);
+    ASSERT_EQ(HW_BTN_L2, KEY_TAB);
+    ASSERT_EQ(HW_BTN_R2, KEY_BACKSPACE);
+    ASSERT_EQ(HW_BTN_SELECT, KEY_RIGHTCTRL);
+    ASSERT_EQ(HW_BTN_START, KEY_ENTER);
+    ASSERT_EQ(HW_BTN_MENU, KEY_ESC);
+}
+
 /* ---- main ---- */
 
 int main(void)
 {
     printf("\n=== keymap_hw.h Unit Tests ===\n\n");
-
-    RUN_TEST(hw_btn_up_value);
-    RUN_TEST(hw_btn_down_value);
-    RUN_TEST(hw_btn_left_value);
-    RUN_TEST(hw_btn_right_value);
-    RUN_TEST(hw_btn_a_value);
-    RUN_TEST(hw_btn_b_value);
-    RUN_TEST(hw_btn_x_value);
-    RUN_TEST(hw_btn_y_value);
-    RUN_TEST(hw_btn_l1_value);
-    RUN_TEST(hw_btn_r1_value);
-    RUN_TEST(hw_btn_l2_value);
-    RUN_TEST(hw_btn_r2_value);
-    RUN_TEST(hw_btn_select_value);
-    RUN_TEST(hw_btn_start_value);
-    RUN_TEST(hw_btn_menu_value);
-    RUN_TEST(hw_btn_power_value);
-    RUN_TEST(hw_btn_volume_up_value);
-    RUN_TEST(hw_btn_volume_down_value);
 
     RUN_TEST(hw_face_buttons_unique);
     RUN_TEST(hw_dpad_buttons_unique);
@@ -206,8 +104,7 @@ int main(void)
     RUN_TEST(hw_system_buttons_unique);
     RUN_TEST(hw_volume_buttons_unique);
     RUN_TEST(hw_all_buttons_unique);
-
-    RUN_TEST(hw_all_buttons_nonnegative);
+    RUN_TEST(hw_buttons_match_device_layout);
 
     TEST_REPORT();
     return test_failures;

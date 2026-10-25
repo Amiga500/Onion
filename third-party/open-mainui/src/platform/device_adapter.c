@@ -3,6 +3,7 @@
 #include "platform/device_adapter.h"
 #include "platform/device_request.h"
 #include "platform/files.h"
+#include "platform/system_config.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -14,6 +15,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
 #include <sys/resource.h>
@@ -21,6 +23,7 @@
 #include <sys/syscall.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 static bool path(char out[4096], const MainUIDeviceAdapter *adapter, const char *name)
@@ -345,27 +348,36 @@ static bool wifi_dhcp(MainUICancel cancel, bool restart)
         return false;
     }
     if (restart) {
+        /* Once the old client is told to stop, the new one is always
+         * started (within about 2 s): a cancel, such as a launch, would
+         * otherwise hand the next program Wi-Fi without a lease. */
         wifi_process("udhcpc", true);
         for (int i = 0; i < 40 && wifi_process("udhcpc", false); ++i) {
-            if (mainui_cancelled(cancel)) {
-                return false;
-            }
             poll(NULL, 0, 50);
         }
         if (wifi_process("udhcpc", false)) {
             return false;
         }
+        cancel = (MainUICancel){0};
     }
     /* Also reached by scans: intentionally self-heal a missing DHCP client. */
     else if (wifi_process("udhcpc", false)) {
         return true;
     }
-    /* Stock starts DHCP asynchronously with the default three 3-second tries.
-     * A fixed shell command keeps lease acquisition out of the status worker. */
-    char *arguments[] = {"/bin/sh", "-c",
-                         "command -v udhcpc >/dev/null || exit 1; "
-                         "udhcpc -i wlan0 -s /etc/init.d/udhcpc.script &",
-                         NULL};
+    /* Started with wpa_supplicant, before the network is joined, so the first
+     * requests go nowhere. BusyBox's defaults (three tries 3 s apart, then a
+     * 20 s pause) left a join slower than about 9 s without an address for
+     * 10-20 s more; a request every second for 10 s, then a 3 s pause, gets
+     * the lease within about a second of the join, where the udhcpc accepts
+     * these options (it lists them in its help); otherwise it starts as
+     * before. A fixed shell command keeps lease acquisition out of the
+     * status worker. */
+    char *arguments[] = {
+        "/bin/sh", "-c",
+        "command -v udhcpc >/dev/null || exit 1; "
+        "if udhcpc --help 2>&1 | grep -q -- '-A'; then set -- -T 1 -t 10 -A 3; fi; "
+        "udhcpc -i wlan0 -s /etc/init.d/udhcpc.script \"$@\" &",
+        NULL};
     return wifi_program(arguments, cancel);
 }
 
@@ -400,20 +412,193 @@ int mainui_wifi_signal_level(int dbm)
     return dbm < -126 || dbm > 127 ? 0 : dbm >= -70 ? 3 : dbm >= -80 ? 2 : 1;
 }
 
+bool mainui_axp_charging(const char *line)
+{
+    int charging = 0;
+    return line &&
+           sscanf(line, "{\"battery\":%*d, \"voltage\":%*d, \"charging\":%d}", &charging) == 1 &&
+           (charging == 2 || charging == 3);
+}
+
+/* The first line /customer/app/axp_test prints, run from its folder as Onion
+ * does (battery.h). It normally takes 5-10 ms; one that takes over half a
+ * second is killed and counts as no answer (*stalled). */
+static bool axp_line(char *out, size_t size, bool *stalled)
+{
+    *stalled = false;
+    const char *program = "/customer/app/axp_test";
+    int pipe_fds[2];
+    if (size < 2 || access(program, X_OK) != 0 || pipe2(pipe_fds, O_CLOEXEC) != 0) {
+        return false;
+    }
+    int null = open("/dev/null", O_RDWR | O_CLOEXEC);
+    if (null < 0) {
+        close(pipe_fds[0]);
+        close(pipe_fds[1]);
+        return false;
+    }
+    struct sigaction reset = {.sa_handler = SIG_DFL};
+    sigset_t empty;
+    sigemptyset(&reset.sa_mask);
+    sigemptyset(&empty);
+    char *const arguments[] = {"./axp_test", NULL};
+    int close_limit = SPAWN_CLOSE_LIMIT;
+    struct rlimit limit;
+    if (!getrlimit(RLIMIT_NOFILE, &limit) && limit.rlim_cur != RLIM_INFINITY &&
+        limit.rlim_cur < SPAWN_CLOSE_LIMIT) {
+        close_limit = (int)limit.rlim_cur;
+    }
+    pid_t child = fork();
+    if (child == 0) {
+        for (size_t i = 0; i < sizeof spawn_signals / sizeof spawn_signals[0]; ++i) {
+            sigaction(spawn_signals[i], &reset, NULL);
+        }
+        sigprocmask(SIG_SETMASK, &empty, NULL);
+        if (chdir("/customer/app") != 0 || dup2(null, STDIN_FILENO) < 0 ||
+            dup2(pipe_fds[1], STDOUT_FILENO) < 0 || dup2(null, STDERR_FILENO) < 0) {
+            _exit(127);
+        }
+#ifdef SYS_close_range
+        if (syscall(SYS_close_range, 3u, ~0u, 0u) != 0)
+#endif
+        {
+            for (int fd = 3; fd < close_limit; ++fd) {
+                close(fd);
+            }
+        }
+        execve(program, arguments, environ);
+        _exit(127);
+    }
+    close(null);
+    close(pipe_fds[1]);
+    size_t used = 0;
+    bool ok = child > 0;
+    int waits = 0;
+    while (ok && waits < 10 && used < size - 1) {
+        struct pollfd ready = {.fd = pipe_fds[0], .events = POLLIN};
+        int result = poll(&ready, 1, 50);
+        if (result < 0 && errno == EINTR) {
+            continue;
+        }
+        if (result == 0) {
+            ++waits;
+            continue;
+        }
+        ssize_t n = result > 0 ? read(pipe_fds[0], out + used, size - 1 - used) : -1;
+        if (n <= 0) {
+            break;
+        }
+        used += (size_t)n;
+        if (memchr(out, '\n', used)) {
+            break;
+        }
+    }
+    close(pipe_fds[0]);
+    out[used] = 0;
+    out[strcspn(out, "\r\n")] = 0;
+    /* Never block on it for long: a child stuck in the kernel ignores even
+     * SIGKILL, and is then left to init when MainUI exits. */
+    *stalled = waits == 10;
+    if (child > 0 && *stalled) {
+        kill(child, SIGKILL);
+    }
+    for (int i = 0; child > 0 && i < 5; ++i) {
+        int status;
+        pid_t done = waitpid(child, &status, WNOHANG);
+        if (done == child || (done < 0 && errno != EINTR)) {
+            break;
+        }
+        if (i == 2) {
+            kill(child, SIGKILL);
+        }
+        poll(NULL, 0, 10);
+    }
+    return ok && used > 0 && !*stalled;
+}
+
+/* The Mini Plus and Flip charge through their AXP power chip; batmon writes
+ * the battery percentage to percBat also while charging. As stock and Onion
+ * (battery.h), ask the chip, at most every 2 s, as batmon does; after a stalled
+ * axp_test, not for a minute. Asked on a detached thread: a status read only
+ * takes the last answer, so a slow axp_test never pauses the menu. */
+static atomic_int axp_cached = -1, axp_hold_ms = 2000;
+static atomic_llong axp_checked_ms;
+static atomic_bool axp_running;
+
+static long long monotonic_ms(void)
+{
+    struct timespec now;
+    return clock_gettime(CLOCK_MONOTONIC, &now) == 0
+               ? (long long)now.tv_sec * 1000 + now.tv_nsec / 1000000
+               : 0;
+}
+
+static void *axp_check(void *unused)
+{
+    (void)unused;
+    char line[128];
+    bool stalled;
+    int value = axp_line(line, sizeof line, &stalled) && mainui_axp_charging(line);
+    if (stalled) {
+        fprintf(stderr, "[battery] axp_test did not answer; charging not checked for 60 s\n");
+    }
+    atomic_store(&axp_hold_ms, stalled ? 60000 : 2000);
+    atomic_store(&axp_cached, value);
+    atomic_store(&axp_checked_ms, monotonic_ms());
+    atomic_store(&axp_running, false);
+    return NULL;
+}
+
+/* 1 charging, 0 not or not known yet (until the first answer). */
+static int axp_charging(void)
+{
+    long long ms = monotonic_ms();
+    int value = atomic_load(&axp_cached);
+    bool stale = value < 0 || ms - atomic_load(&axp_checked_ms) >= atomic_load(&axp_hold_ms);
+    if (stale && !atomic_exchange(&axp_running, true)) {
+        pthread_attr_t attr;
+        pthread_t thread;
+        bool started = false;
+        if (pthread_attr_init(&attr) == 0) {
+            started = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) == 0 &&
+                      pthread_attr_setstacksize(&attr, 64 * 1024) == 0 &&
+                      pthread_create(&thread, &attr, axp_check, NULL) == 0;
+            pthread_attr_destroy(&attr);
+        }
+        if (!started) {
+            /* Try again in 2 s rather than on every status read. */
+            atomic_store(&axp_checked_ms, ms);
+            atomic_store(&axp_cached, value > 0);
+            atomic_store(&axp_running, false);
+        }
+    }
+    return value > 0;
+}
+
+void mainui_device_battery(const MainUIDeviceAdapter *adapter, MainUIDeviceStatus *status)
+{
+    status->battery = -1;
+    int battery = runtime_number(adapter, "percBat");
+    if ((battery >= 0 && battery <= 100) || battery == 500) {
+        status->battery = battery;
+    }
+    int charging = adapter->backend == DEVICE_SIMULATED ? runtime_number(adapter, "charging")
+                   : status->model.id == 283            ? number("/sys/class/gpio/gpio59/value")
+                   : status->model.id == 285 || status->model.id == 354 ? axp_charging()
+                                                                        : -1;
+    /* On the Mini, Onion writes 500 for the level while charging; the Mini
+     * Plus and Flip keep the level, which is shown beside the charging icon. */
+    status->charging = charging == 1 || status->battery == 500;
+    if (status->charging && (status->battery < 0 || status->battery > 100)) {
+        status->battery = 500;
+    }
+}
+
 MainUIDeviceStatus mainui_device_status(const MainUIDeviceAdapter *adapter)
 {
     MainUIDeviceStatus status = {.battery = -1, .wifi = -1, .lid = -1, .sleeping = -1};
     status.model = mainui_device(runtime_number(adapter, "deviceModel"));
-    int battery = runtime_number(adapter, "percBat");
-    if ((battery >= 0 && battery <= 100) || battery == 500) {
-        status.battery = battery;
-    }
-    int charging = adapter->backend == DEVICE_SIMULATED ? runtime_number(adapter, "charging")
-                   : status.model.id == 283             ? number("/sys/class/gpio/gpio59/value")
-                                                        : -1;
-    if (charging == 1) {
-        status.battery = 500;
-    }
+    mainui_device_battery(adapter, &status);
     if (status.model.lid) {
         int lid = adapter->backend == DEVICE_SIMULATED
                       ? runtime_number(adapter, "lid")
@@ -426,6 +611,26 @@ MainUIDeviceStatus mainui_device_status(const MainUIDeviceAdapter *adapter)
         int sleeping = runtime_number(adapter, "sleeping");
         if (sleeping == 0 || sleeping == 1) {
             status.sleeping = sleeping;
+        }
+    }
+    /* Onion's hotspot runs hostapd with -P /var/run/hostapd.pid; stock tells
+     * it by the hostapd process and shows skin/icon-hotspot-wifi.png. */
+    if (status.model.wifi) {
+        if (adapter->backend == DEVICE_SIMULATED) {
+            status.hotspot = runtime_number(adapter, "hotspot") == 1;
+        }
+        else {
+            int pid = number("/var/run/hostapd.pid");
+            char comm[64], name[32] = "";
+            snprintf(comm, sizeof comm, "/proc/%d/comm", pid);
+            FILE *file = pid > 1 ? fopen(comm, "r") : NULL;
+            if (file) {
+                if (fgets(name, sizeof name, file)) {
+                    name[strcspn(name, "\r\n")] = 0;
+                }
+                fclose(file);
+            }
+            status.hotspot = !strcmp(name, "hostapd");
         }
     }
     if (status.model.wifi) {
@@ -468,9 +673,122 @@ static bool exchange(MainUIDeviceAdapter *adapter, const char *command, const ch
            !strcmp(reply, expected);
 }
 
+/* A wpa_supplicant command that must answer OK; a refusal is logged by its
+ * name only (never with an SSID's password). */
+static bool command_ok(MainUIDeviceAdapter *adapter, const char *command, const char *name,
+                       MainUICancel cancel)
+{
+    bool ok = exchange(adapter, command, "OK\n", cancel);
+    if (!ok && !mainui_cancelled(cancel)) {
+        fprintf(stderr, "[wifi] wpa_supplicant refused %s\n", name);
+    }
+    return ok;
+}
+
+/* The SSID the DHCP client was last started for, so a status refresh can
+ * tell when wpa_supplicant joined another saved network on its own. Device
+ * work runs one job at a time. */
+static char dhcp_ssid[33];
+/* Saved networks were made eligible since this process started; a failure
+ * to do so was logged (once, until it works). The last connection state
+ * logged: "" before the first, else "connected <ssid>" or "disconnected". */
+static bool saved_enabled, enable_failure_logged;
+static char logged_state[48];
+
+/* The saved networks, as wpa_supplicant lists them: "network id / ssid /
+ * bssid / flags", then one tab-separated line per network. */
+static bool saved_networks(MainUIDeviceAdapter *adapter, char *reply, size_t size,
+                           MainUICancel cancel)
+{
+    return adapter->transport &&
+           adapter->transport(adapter->transport_context, "LIST_NETWORKS", reply, size, cancel) &&
+           !strncmp(reply, "network id", 10) && !mainui_cancelled(cancel);
+}
+
+/* The ID of the saved network to use for this SSID, or -1: the one in use
+ * ([CURRENT]), else the last one listed. A password entered again is added
+ * after the old entry, and SAVE_CONFIG keeps that order, so the newest
+ * password wins, also after a restart. */
+static long saved_network(const char *list, const char *ssid)
+{
+    long found = -1;
+    size_t length = strlen(ssid);
+    const char *line = strchr(list, '\n');
+    while (line && *++line) {
+        char *end = NULL;
+        errno = 0;
+        long id = strtol(line, &end, 10);
+        const char *next = strchr(line, '\n');
+        if (!errno && end != line && *end == '\t' && id >= 0 && id <= INT_MAX &&
+            !strncmp(end + 1, ssid, length) && end[1 + length] == '\t') {
+            const char *current = strstr(end + 1 + length, "[CURRENT]");
+            if (current && (!next || current < next)) {
+                return id;
+            }
+            found = id;
+        }
+        line = next;
+    }
+    return found;
+}
+
+/* SELECT_NETWORK disables every other saved network, and SAVE_CONFIG would
+ * keep them so: stock and 1.0.8 left only the last network chosen able to
+ * connect. Enable those again (all but keep, which stays as it is), without
+ * a new connection attempt, so wpa_supplicant can join any of them when the
+ * current one is out of reach, or at the next start. True when the list was
+ * read and each one was enabled. */
+static bool enable_saved(MainUIDeviceAdapter *adapter, long keep, MainUICancel cancel)
+{
+    char list[16384], command[64];
+    if (!saved_networks(adapter, list, sizeof list, cancel)) {
+        if (!mainui_cancelled(cancel) && !enable_failure_logged) {
+            fprintf(stderr, "[wifi] saved networks could not be listed; trying again\n");
+            enable_failure_logged = true;
+        }
+        return false;
+    }
+    bool ok = true;
+    int enabled = 0;
+    const char *line = strchr(list, '\n');
+    while (line && *++line && !mainui_cancelled(cancel)) {
+        const char *next = strchr(line, '\n');
+        char *end = NULL;
+        errno = 0;
+        long id = strtol(line, &end, 10);
+        const char *flags = strstr(line, "[DISABLED]");
+        if (!errno && end != line && *end == '\t' && id >= 0 && id <= INT_MAX && id != keep &&
+            flags && (!next || flags < next)) {
+            snprintf(command, sizeof command, "ENABLE_NETWORK %ld no-connect", id);
+            bool done = exchange(adapter, command, "OK\n", cancel);
+            enabled += done;
+            if (!done && !mainui_cancelled(cancel) && !enable_failure_logged) {
+                fprintf(stderr, "[wifi] saved network %ld could not be enabled; trying again\n",
+                        id);
+                enable_failure_logged = true;
+            }
+            ok = done && ok;
+        }
+        line = next;
+    }
+    if (enabled) {
+        fprintf(stderr, "[wifi] %d saved network%s enabled again\n", enabled,
+                enabled == 1 ? "" : "s");
+    }
+    if (ok && !mainui_cancelled(cancel)) {
+        enable_failure_logged = false;
+    }
+    return ok && !mainui_cancelled(cancel);
+}
+
 bool mainui_device_wifi_enable(MainUIDeviceAdapter *adapter, bool enabled, MainUICancel cancel)
 {
     *adapter->error = 0;
+    /* A new supplicant reads the saved networks again. */
+    if (!enabled) {
+        *dhcp_ssid = 0;
+        saved_enabled = false;
+    }
     if (adapter->backend == DEVICE_SIMULATED) {
         return !mainui_cancelled(cancel);
     }
@@ -494,6 +812,15 @@ bool mainui_device_wifi_enable(MainUIDeviceAdapter *adapter, bool enabled, MainU
         bool ok = wifi_program(down, cancel);
         char *power[] = {"/customer/app/axp_test", "wifioff", NULL};
         wifi_program(power, cancel);
+        /* wlan0 outlives the power-off briefly while the chip detaches. An
+         * On in that window took it for a chip still on and started
+         * wpa_supplicant on the departing interface, which then never
+         * attached to the new one: Wi-Fi stayed on "Scanning...". Wait
+         * (at most 3 s) for it to go, so the next enable starts cold. */
+        for (int i = 0;
+             i < 60 && !mainui_cancelled(cancel) && !access("/sys/class/net/wlan0", F_OK); ++i) {
+            poll(NULL, 0, 50);
+        }
         return ok;
     }
     char reply[64];
@@ -506,21 +833,26 @@ bool mainui_device_wifi_enable(MainUIDeviceAdapter *adapter, bool enabled, MainU
         snprintf(adapter->error, sizeof adapter->error, "Cannot prepare Wi-Fi configuration.");
         return false;
     }
+    /* wlan0 already there: the chip is on and its driver loaded. */
+    bool powered = access("/sys/class/net/wlan0", F_OK) == 0;
     char *power[] = {"/customer/app/axp_test", "wifion", NULL};
     if (!wifi_program(power, cancel)) {
         snprintf(adapter->error, sizeof adapter->error, "Could not power on Wi-Fi.");
         return false;
     }
-    /* Onion wifi_on waits two seconds for the radio/driver before ifconfig. */
-    for (int i = 0; i < 40 && !mainui_cancelled(cancel); ++i) {
+    /* wlan0 can take longer than Onion's two seconds to appear after a cold
+     * start: wait for it (at most 10 s), then one second, as stock does,
+     * unless the chip was on already. Like stock, wpa_supplicant brings
+     * wlan0 up itself; that joined faster on a noisy channel than Onion's
+     * wifi_on order (2 s, ifconfig up, wpa_supplicant). */
+    for (int i = 0; i < 200 && !mainui_cancelled(cancel) && access("/sys/class/net/wlan0", F_OK);
+         ++i) {
+        poll(NULL, 0, 50);
+    }
+    for (int i = 0; i < 20 && !powered && !mainui_cancelled(cancel); ++i) {
         poll(NULL, 0, 50);
     }
     if (mainui_cancelled(cancel)) {
-        return false;
-    }
-    char *up[] = {"ifconfig", "wlan0", "up", NULL};
-    if (!wifi_program(up, cancel)) {
-        snprintf(adapter->error, sizeof adapter->error, "Cannot bring wlan0 up.");
         return false;
     }
     if (!wifi_process("wpa_supplicant", false)) {
@@ -572,25 +904,38 @@ bool mainui_device_connect(MainUIDeviceAdapter *adapter, const char *ssid, const
     char reply[64], command[256], *end = NULL;
     if (!adapter->transport || !adapter->transport(adapter->transport_context, "ADD_NETWORK", reply,
                                                    sizeof reply, cancel)) {
+        if (!mainui_cancelled(cancel)) {
+            fprintf(stderr, "[wifi] wpa_supplicant did not answer ADD_NETWORK\n");
+        }
         return false;
     }
     errno = 0;
     long id = strtol(reply, &end, 10);
     if (errno || end == reply || strcmp(end, "\n") || id < 0 || id > INT_MAX) {
+        fprintf(stderr, "[wifi] wpa_supplicant refused ADD_NETWORK\n");
         return false;
     }
     snprintf(command, sizeof command, "SET_NETWORK %ld ssid \"%s\"", id, ssid);
-    bool ok = exchange(adapter, command, "OK\n", cancel);
+    bool ok = command_ok(adapter, command, "SET_NETWORK ssid", cancel);
     snprintf(command, sizeof command,
              *password ? "SET_NETWORK %ld psk \"%s\"" : "SET_NETWORK %ld key_mgmt NONE", id,
              password);
-    ok = ok && exchange(adapter, command, "OK\n", cancel);
+    ok = ok && command_ok(adapter, command, *password ? "SET_NETWORK psk" : "SET_NETWORK key_mgmt",
+                          cancel);
     memset(command, 0, sizeof command);
     snprintf(command, sizeof command, "ENABLE_NETWORK %ld", id);
-    ok = ok && exchange(adapter, command, "OK\n", cancel);
+    ok = ok && command_ok(adapter, command, "ENABLE_NETWORK", cancel);
     snprintf(command, sizeof command, "SELECT_NETWORK %ld", id);
-    ok = ok && exchange(adapter, command, "OK\n", cancel);
-    ok = ok && exchange(adapter, "SAVE_CONFIG", "OK\n", cancel);
+    /* It disables the other saved networks, even if its answer is lost: until
+     * they are enabled again, each refresh tries. */
+    if (ok) {
+        saved_enabled = false;
+    }
+    ok = ok && command_ok(adapter, command, "SELECT_NETWORK", cancel);
+    if (ok) {
+        saved_enabled = enable_saved(adapter, id, cancel);
+    }
+    ok = ok && command_ok(adapter, "SAVE_CONFIG", "SAVE_CONFIG", cancel);
     if (!ok) {
         snprintf(command, sizeof command, "REMOVE_NETWORK %ld", id);
         exchange(adapter, command, "OK\n", (MainUICancel){0});
@@ -600,7 +945,44 @@ bool mainui_device_connect(MainUIDeviceAdapter *adapter, const char *ssid, const
                  "Connection selected, but DHCP could not start.");
         return false;
     }
+    if (ok) {
+        snprintf(dhcp_ssid, sizeof dhcp_ssid, "%s", ssid);
+    }
     return ok;
+}
+
+bool mainui_device_connect_saved(MainUIDeviceAdapter *adapter, const char *ssid,
+                                 MainUICancel cancel)
+{
+    char *validated = mainui_device_wifi_command(ssid, "");
+    bool valid = validated != NULL;
+    free(validated);
+    if (!valid || mainui_cancelled(cancel) || !mainui_device_status(adapter).model.wifi ||
+        (adapter->backend == DEVICE_ONION && !mainui_device_wifi_enable(adapter, true, cancel))) {
+        return false;
+    }
+    /* Its saved entry, credentials included, is used as it is: nothing is
+     * added or written (saved_network() picks among duplicates). */
+    char list[16384], command[64];
+    long id = saved_networks(adapter, list, sizeof list, cancel) ? saved_network(list, ssid) : -1;
+    if (id < 0) {
+        snprintf(adapter->error, sizeof adapter->error, "The network is not saved.");
+        return false;
+    }
+    snprintf(command, sizeof command, "SELECT_NETWORK %ld", id);
+    saved_enabled = false;
+    if (!command_ok(adapter, command, "SELECT_NETWORK", cancel)) {
+        return false;
+    }
+    fprintf(stderr, "[wifi] connecting to saved network %ld\n", id);
+    saved_enabled = enable_saved(adapter, id, cancel);
+    if (adapter->backend == DEVICE_ONION && !wifi_dhcp(cancel, true)) {
+        snprintf(adapter->error, sizeof adapter->error,
+                 "Connection selected, but DHCP could not start.");
+        return false;
+    }
+    snprintf(dhcp_ssid, sizeof dhcp_ssid, "%s", ssid);
+    return true;
 }
 
 bool mainui_device_scan(MainUIDeviceAdapter *adapter, MainUICancel cancel)
@@ -635,6 +1017,16 @@ bool mainui_device_scan(MainUIDeviceAdapter *adapter, MainUICancel cancel)
         adapter->transport(adapter->transport_context, "SCAN_RESULTS", reply, sizeof reply, cancel);
     ok = ok && !mainui_cancelled(cancel) && !strncmp(reply, "bssid /", 7) &&
          path(file, adapter, "wifi-scan.txt") && mainui_write_text_atomic(file, reply);
+    /* The saved networks, so the Wi-Fi page can connect to them without a
+     * password. None known is the same as none saved. */
+    if (ok && path(file, adapter, "wifi-saved.txt")) {
+        if (saved_networks(adapter, reply, sizeof reply, cancel)) {
+            mainui_write_text_atomic(file, reply);
+        }
+        else {
+            mainui_remove_file(file);
+        }
+    }
     if (ok) {
         mainui_device_refresh(adapter, cancel);
     }
@@ -653,12 +1045,14 @@ bool mainui_device_power_off(const MainUIDeviceAdapter *adapter)
  * `key` is not one of them; *info is NULL when the memory is unavailable. */
 static const MonitorValue *monitor_slot(const char *key, KeyShmInfo **info)
 {
-    static const char *const keys[] = {"vol", "brightness", "bgmvol",   "hibernate", "lumination",
-                                       "hue", "saturation", "contrast", "audiofix"};
+    /* "volume_changed" is no system.json key: stock clears it at start. */
+    static const char *const keys[] = {"vol",        "brightness", "bgmvol",        "hibernate",
+                                       "lumination", "hue",        "saturation",    "contrast",
+                                       "audiofix",   "mute",       "volume_changed"};
     static const MonitorValue slots[] = {
-        MONITOR_VOLUME,          MONITOR_BRIGHTNESS, MONITOR_BGM_VOLUME,
-        MONITOR_HIBERNATE_DELAY, MONITOR_LUMINATION, MONITOR_HUE,
-        MONITOR_SATURATION,      MONITOR_CONTRAST,   MONITOR_AUDIOFIX};
+        MONITOR_VOLUME,     MONITOR_BRIGHTNESS, MONITOR_BGM_VOLUME,    MONITOR_HIBERNATE_DELAY,
+        MONITOR_LUMINATION, MONITOR_HUE,        MONITOR_SATURATION,    MONITOR_CONTRAST,
+        MONITOR_AUDIOFIX,   MONITOR_MUTE,       MONITOR_VOLUME_CHANGED};
     static KeyShmInfo shared = {.id = -1, .addr = NULL};
     for (size_t i = 0; i < sizeof slots / sizeof *slots; ++i) {
         if (!strcmp(key, keys[i])) {
@@ -712,6 +1106,39 @@ bool mainui_device_setting_value(const MainUIDeviceAdapter *adapter, const char 
     (void)value;
 #endif
     return false;
+}
+
+bool mainui_device_settings_load(const MainUIDeviceAdapter *adapter, const char *sd)
+{
+    if (adapter->backend == DEVICE_SIMULATED) {
+        return true;
+    }
+    if (mainui_system_damaged(sd)) {
+        fprintf(stderr, "[settings] system.json is damaged; keymon's live settings kept\n");
+        return false;
+    }
+    cJSON *settings = mainui_system_read(sd); /* an empty object when missing */
+    if (!settings) {
+        fprintf(stderr, "[settings] system.json cannot be read; keymon's live settings kept\n");
+        return false;
+    }
+    static const char *const keys[] = {"vol",       "brightness", "mute", "bgmvol",
+                                       "hibernate", "lumination", "hue",  "saturation",
+                                       "contrast",  "audiofix"};
+    bool ok = mainui_device_setting_sync(adapter, "volume_changed", 0);
+    for (size_t i = 0; i < sizeof keys / sizeof *keys; ++i) {
+        ok = mainui_device_setting_sync(adapter, keys[i],
+                                        mainui_system_monitor_value(settings, keys[i])) &&
+             ok;
+    }
+    cJSON_Delete(settings);
+    /* Stock then sets the display from the live copy, limited to 0 to 10. */
+    int brightness = 7;
+    if (!mainui_device_setting_value(adapter, "brightness", &brightness)) {
+        return false;
+    }
+    brightness = brightness < 0 ? 0 : brightness > 10 ? 10 : brightness;
+    return mainui_device_brightness(adapter, brightness) && ok;
 }
 
 bool mainui_device_brightness(const MainUIDeviceAdapter *adapter, int value)
@@ -793,8 +1220,58 @@ bool mainui_device_refresh(MainUIDeviceAdapter *adapter, MainUICancel cancel)
             }
             ok = !mainui_cancelled(cancel) && mainui_write_text_atomic(file, reply);
         }
-        else {
-            mainui_remove_file(file); /* A lost daemon must not leave a stale Connected status. */
+        else if (!mainui_cancelled(cancel)) {
+            /* A lost daemon must not leave a stale Connected status. A
+             * cancelled refresh (for a connection, Wi-Fi Off or On, or a
+             * launch) says nothing about it: keep the last status. */
+            mainui_remove_file(file);
+            if (strcmp(logged_state, "no answer")) {
+                fprintf(stderr, "[wifi] wpa_supplicant does not answer\n");
+                snprintf(logged_state, sizeof logged_state, "no answer");
+            }
+        }
+    }
+    if (ok && !saved_enabled) {
+        /* Once per start: saved networks left disabled by an earlier
+         * SELECT_NETWORK become eligible, so a saved network in reach is
+         * joined wherever the device starts. Tried again with the next
+         * refresh until it works. */
+        saved_enabled = enable_saved(adapter, -1, cancel);
+    }
+    char state[32] = "", ssid[33] = "";
+    if (ok) {
+        field(state, sizeof state, reply, "wpa_state=");
+        field(ssid, sizeof ssid, reply, "ssid=");
+    }
+    /* wpa_supplicant joined another saved network by itself (the last one
+     * went out of reach): the DHCP client still holds the old lease, so
+     * start it again for an address on this one. */
+    if (!strcmp(state, "COMPLETED") && *ssid && strcmp(ssid, dhcp_ssid)) {
+        bool restart = *dhcp_ssid && adapter->backend == DEVICE_ONION;
+        if (!restart || wifi_dhcp(cancel, true)) {
+            if (restart) {
+                fprintf(stderr, "[wifi] joined %s by itself; DHCP started again\n", ssid);
+            }
+            snprintf(dhcp_ssid, sizeof dhcp_ssid, "%s", ssid);
+        }
+        else if (!mainui_cancelled(cancel)) {
+            fprintf(stderr, "[wifi] joined %s by itself; DHCP could not start again\n", ssid);
+        }
+    }
+    /* Connected and not connected, each logged when it changes. */
+    if (*state) {
+        bool connected = !strcmp(state, "COMPLETED");
+        char now[48];
+        snprintf(now, sizeof now, "%s%s", connected ? "connected " : "not connected",
+                 connected ? ssid : "");
+        if (strcmp(now, logged_state)) {
+            if (connected) {
+                fprintf(stderr, "[wifi] connected to %s\n", ssid);
+            }
+            else {
+                fprintf(stderr, "[wifi] not connected (%s)\n", state);
+            }
+            snprintf(logged_state, sizeof logged_state, "%s", now);
         }
     }
     return ok;

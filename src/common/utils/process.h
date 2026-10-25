@@ -247,17 +247,47 @@ void process_kill_signal(const char *commname, int sig)
         kill(pid, sig);
 }
 
+//
+//    Send sig once to every process whose comm starts with commname. A signal
+//    that does not end the process at once (SIGTERM) must not be repeated
+//    while the process is still shutting down.
+//
 void process_killall_signal(const char *commname, int sig)
 {
-    pid_t pid;
-    int max = 999;
-    while ((pid = process_searchpid(commname)) && max-- > 0)
-        kill(pid, sig);
+    DIR *procdp;
+    struct dirent *dir;
+    char fname[24];
+    char comm[128];
+    size_t commlen = strlen(commname);
+
+    procdp = opendir("/proc");
+    if (procdp == NULL)
+        return;
+    while ((dir = readdir(procdp))) {
+        if (dir->d_type != DT_DIR)
+            continue;
+        pid_t pid = (int)strtol(dir->d_name, NULL, 10);
+        if (pid <= 2)
+            continue;
+        snprintf(fname, sizeof(fname), "/proc/%d/comm", pid);
+        FILE *fp = fopen(fname, "r");
+        if (fp == NULL)
+            continue;
+        if (fscanf(fp, "%127s", comm) != 1)
+            comm[0] = '\0';
+        fclose(fp);
+        if (!strncmp(comm, commname, commlen))
+            kill(pid, sig);
+    }
+    closedir(procdp);
 }
 
 void process_killall(const char *commname)
 {
-    process_killall_signal(commname, SIGKILL);
+    pid_t pid;
+    int max = 999;
+    while ((pid = process_searchpid(commname)) && max-- > 0)
+        kill(pid, SIGKILL);
 }
 
 bool process_start(const char *pname, const char *args, const char *home,

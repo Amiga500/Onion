@@ -552,12 +552,9 @@ int play_activity_get_play_time(const char *rom_path)
 bool _get_active_rom_path(char *rom_path_out)
 {
     char *ptr;
-    char cmd[STR_MAX] = "";
+    char cmd[PATH_MAX + STR_MAX];
 
-    FILE *fp;
-    file_get(fp, CMD_TO_RUN, CONTENT_STR, cmd);
-
-    if (strlen(cmd) == 0) {
+    if (!file_read_line(CMD_TO_RUN, cmd, sizeof(cmd))) {
         return false;
     }
 

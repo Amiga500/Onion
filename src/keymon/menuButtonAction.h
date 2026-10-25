@@ -12,6 +12,7 @@
 #include "system/system_utils.h"
 #include "utils/apps.h"
 #include "utils/flags.h"
+#include "utils/mainui_shortcut.h"
 
 #include "../tweaks/tools_defs.h"
 #include "./input_fd.h"
@@ -50,7 +51,8 @@ void applyExtraButtonShortcut(int button)
         button == 0 ? settings.mainui_button_x : settings.mainui_button_y;
     InstalledApp *apps = getInstalledApps(false);
 
-    if (button == 1 && strcmp(action, "glo") == 0) {
+    // "fav" is Open MainUI's own (toggle favorite): nothing to do here.
+    if (mainui_shortcut_launchesGlo(action)) {
         temp_flag_set("launch_alt", true);
     }
     else if (strncmp(action, "app:", 4) == 0) {
@@ -142,12 +144,32 @@ void enableSavingMessage(void)
     temp_flag_set(".displaySavingMessage", true);
 }
 
+// Screen shown while the game saves on exit, per Tweaks > Appearance >
+// Loading/saving screen (settings.launch_screen): 0 the game screenshot with
+// a "SAVING" popup, 1 the screenshot alone, 2 black, 3 "SAVING" on the
+// theme's full-screen panel. runtime.sh does the same for "LOADING"
+// (show_launch_screen).
 void displaySavingMessage(void)
 {
     if (temp_flag_get(".displaySavingMessage")) {
         temp_flag_set(".displaySavingMessage", false);
-        system("infoPanel --message \"SAVING\" --persistent --romscreen &");
-        temp_flag_set("dismiss_info_panel", true);
+        switch (settings.launch_screen) {
+        case 1:
+            system("infoPanel --persistent --romscreen &");
+            temp_flag_set("dismiss_info_panel", true);
+            break;
+        case 2:
+            display_clear();
+            break;
+        case 3:
+            system("infoPanel --message \"SAVING\" --persistent &");
+            temp_flag_set("dismiss_info_panel", true);
+            break;
+        default:
+            system("infoPanel --message \"SAVING\" --persistent --romscreen &");
+            temp_flag_set("dismiss_info_panel", true);
+            break;
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "app/loop.h"
 #include "app/render.h"
+#include "localization/language.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "platform/launch.h"
@@ -27,6 +28,46 @@ static Uint32 timer_tick(Uint32 interval, void *unused)
         SDL_PushEvent(&event);
     }
     return interval;
+}
+
+/* Stock's text for a Wi-Fi connection that failed (its translation 154). */
+#define WIFI_FAILED "Fail to connect\nCheck your password\nOr reboot router"
+/* Joins took up to about 30 s on a noisy channel in testing. */
+#define WIFI_JOIN_MS 30000u
+
+/* After a connection is made: a wrong password shows only as a network that
+ * is never joined. Say so on the Wi-Fi page once the join is overdue, and
+ * take it back if the network is joined after all. */
+static void wifi_join_check(MainUIApp *ui)
+{
+    MainUISettingsPage *page = &ui->settings_page;
+    if (!ui->wifi_join_watch) {
+        return;
+    }
+    if (!page->open || page->kind != SET_WIFI || !page->wifi) {
+        ui->wifi_join_watch = false;
+        return;
+    }
+    if (ui->wifi_join_fresh && ui->device_status.wifi == 1 &&
+        !strcmp(ui->device_status.ssid, ui->wifi_join_ssid)) {
+        if (ui->wifi_join_failed && page->message_held) {
+            page->message[0] = 0;
+            page->message_held = false;
+        }
+        if (!strcmp(page->retry_ssid, ui->wifi_join_ssid)) {
+            page->retry_ssid[0] = 0;
+        }
+        ui->wifi_join_watch = false;
+    }
+    else if (!ui->wifi_join_failed && (Sint32)(SDL_GetTicks() - ui->wifi_join_until) >= 0) {
+        snprintf(page->message, sizeof page->message, "%s", mainui_translate(154, WIFI_FAILED));
+        page->message_held = true;
+        ui->wifi_join_failed = true;
+        fprintf(stderr, "[wifi] %s not joined within %u s\n", ui->wifi_join_ssid,
+                WIFI_JOIN_MS / 1000);
+        /* Its saved password may be wrong: choosing it again asks for one. */
+        snprintf(page->retry_ssid, sizeof page->retry_ssid, "%s", ui->wifi_join_ssid);
+    }
 }
 
 bool mainui_poll_jobs(MainUIApp *ui)
@@ -57,15 +98,50 @@ bool mainui_poll_jobs(MainUIApp *ui)
             int operation = ui->device_job.operation;
             if (completed >= 0) {
                 status_ready = true;
-                if (operation == 3 || operation == 4) {
+                if (operation == 3 || operation == 4 || operation == 7) {
                     ui->next_wifi_scan = SDL_GetTicks() + 3000;
                 }
+                /* Jobs run one at a time: a status refresh done after a
+                 * connection saved the status after it. A scan is no proof:
+                 * it succeeds also when its own refresh could not be saved. */
+                if (completed > 0 && operation == 0) {
+                    ui->wifi_join_fresh = true;
+                }
+            }
+            /* Why a Wi-Fi action failed, also with the Wi-Fi page closed. */
+            if (!completed && operation && *ui->device_job.adapter.error) {
+                fprintf(stderr, "[wifi] %s\n", ui->device_job.adapter.error);
             }
             if (completed >= 0 && operation && ui->settings_page.open &&
                 ui->settings_page.kind == SET_WIFI) {
-                ui->settings_page.message[0] = 0;
-                if (!completed && *ui->device_job.adapter.error) {
-                    fprintf(stderr, "Wi-Fi: %s\n", ui->device_job.adapter.error);
+                if (!ui->settings_page.message_held) {
+                    ui->settings_page.message[0] = 0;
+                }
+                /* Stock's notice for a connection that failed; turning Wi-Fi
+                 * on says why it could not. Both stay until a button press. */
+                if (!completed && (operation == 3 || operation == 7)) {
+                    ui->wifi_join_watch = false;
+                }
+                /* A saved network that could not be selected asks for its
+                 * password when it is chosen again. */
+                if (!completed && operation == 7) {
+                    snprintf(ui->settings_page.retry_ssid, sizeof ui->settings_page.retry_ssid,
+                             "%s", ui->device_job.ssid);
+                }
+                if (!completed && (operation == 3 || operation == 5 || operation == 7)) {
+                    snprintf(ui->settings_page.message, sizeof ui->settings_page.message, "%s",
+                             operation == 5 && *ui->device_job.adapter.error
+                                 ? ui->device_job.adapter.error
+                                 : mainui_translate(154, WIFI_FAILED));
+                    ui->settings_page.message_held = true;
+                }
+                /* The password is only checked as the network is joined. */
+                if (completed && (operation == 3 || operation == 7)) {
+                    snprintf(ui->wifi_join_ssid, sizeof ui->wifi_join_ssid, "%s",
+                             ui->device_job.ssid);
+                    ui->wifi_join_until = SDL_GetTicks() + WIFI_JOIN_MS;
+                    ui->wifi_join_watch = true;
+                    ui->wifi_join_failed = ui->wifi_join_fresh = false;
                 }
                 if (completed && operation == 4) {
                     mainui_settings_page_scan_results(&ui->settings_page,
@@ -80,7 +156,7 @@ bool mainui_poll_jobs(MainUIApp *ui)
             (Sint32)(SDL_GetTicks() - ui->next_wifi_scan) >= 0) {
             if (mainui_device_job_start(&ui->device_job, &ui->device_adapter, 4, NULL, NULL)) {
                 ui->next_wifi_scan = SDL_GetTicks() + 5500;
-                if (!ui->settings_page.network_count) {
+                if (!ui->settings_page.network_count && !ui->settings_page.message_held) {
                     snprintf(ui->settings_page.message, sizeof ui->settings_page.message,
                              "Scanning...");
                 }
@@ -100,13 +176,18 @@ bool mainui_poll_jobs(MainUIApp *ui)
             }
             int previous_sleep = ui->device_status.sleeping;
             ui->device_status = mainui_device_status(&ui->device_adapter);
+            ui->next_battery_check = now + 1000;
             if (!ui->battery_override) {
                 ui->theme.battery_percent = ui->device_status.battery;
+                ui->theme.battery_charging = ui->device_status.charging;
             }
             if (resumed || previous_sleep != ui->device_status.sleeping) {
                 ui->active_at = now;
                 mainui_audio_pause(!resumed && ui->device_status.sleeping == 1);
                 memset(ui->held, 0, sizeof ui->held);
+                /* As on focus loss: a release after sleep is no press. */
+                ui->x_armed = ui->y_armed = ui->select_armed = ui->start_armed = false;
+                ui->select_brightness = false;
                 SDL_EnableKeyRepeat(0, 0);
                 SDL_Event stale[16];
                 for (int drained = 0; drained < 256; drained += 16) {
@@ -137,7 +218,18 @@ bool mainui_poll_jobs(MainUIApp *ui)
                 }
             }
         }
+        /* The battery and charging state every second, as Onion's own screens
+         * check them (battery_hasChanged()), not only with the status poll:
+         * the charging icon comes and goes within about 2 s. A frame is drawn
+         * only when either changed. */
+        else if (!ui->battery_override && (Sint32)(now - ui->next_battery_check) >= 0) {
+            ui->next_battery_check = now + 1000;
+            mainui_device_battery(&ui->device_adapter, &ui->device_status);
+            ui->theme.battery_percent = ui->device_status.battery;
+            ui->theme.battery_charging = ui->device_status.charging;
+        }
         ui->theme.wifi_online = ui->device_status.wifi == 1;
+        ui->theme.hotspot_on = ui->device_status.hotspot == 1;
         ui->theme.wifi_signal_level = ui->device_status.wifi_signal;
         snprintf(ui->theme.wifi_address, sizeof ui->theme.wifi_address, "%s",
                  ui->device_status.wifi == 1 ? ui->device_status.address : "");
@@ -154,6 +246,7 @@ bool mainui_poll_jobs(MainUIApp *ui)
             ui->settings_page.audio_available = mainui_audio_available();
             ui->settings_page.sleeping = ui->device_status.sleeping;
         }
+        wifi_join_check(ui);
     }
     return true;
 }
@@ -445,17 +538,34 @@ bool mainui_wait_event(MainUIApp *ui, SDL_Event *event)
     else if (ui->input_script && ui->letter_jump.active) {
         event->type = SDL_USEREVENT;
     }
+    else if (ui->input_script && ui->script_release) {
+        scripted_event = true;
+        event->type = SDL_KEYUP;
+        event->key.keysym.sym = ui->script_release;
+        ui->script_release = SDLK_UNKNOWN;
+    }
     else if (ui->input_script && *ui->input_script) {
         scripted_event = true;
         event->type = SDL_KEYDOWN;
+        /* X, Y, Select and Start can act on release: alone they are a tap
+         * (press and release); + presses them only, - releases any key. */
+        bool hold = *ui->input_script == '+';
         if (*ui->input_script == '-') {
             event->type = SDL_KEYUP;
+            ui->input_script++;
+        }
+        else if (hold) {
             ui->input_script++;
         }
         event->key.keysym.sym =
             *ui->input_script == 'C' ? SDLK_ESCAPE : mainui_input_script(*ui->input_script);
         if (*ui->input_script) {
             ui->input_script++;
+        }
+        if (event->type == SDL_KEYDOWN && !hold &&
+            (event->key.keysym.sym == SDLK_LALT || event->key.keysym.sym == SDLK_LSHIFT ||
+             event->key.keysym.sym == SDLK_RCTRL || event->key.keysym.sym == SDLK_F2)) {
+            ui->script_release = event->key.keysym.sym;
         }
         if (event->key.keysym.sym == SDLK_UNKNOWN) {
             fprintf(stderr, "Invalid --input action\n");

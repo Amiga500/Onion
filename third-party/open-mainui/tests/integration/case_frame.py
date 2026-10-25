@@ -26,19 +26,37 @@ Image.new('RGBA',(640,60),(255,0,0,128)).save(THEME/'skin/tips-bar-bg.png')
 Image.new('RGB',(20,20),(255,0,0)).save(THEME/'skin/miyoo-topbar.png')
 for name,color in [('power-full-icon',(0,255,0)),('power-20%-icon',(0,0,255)),('ic-power-charge-100%',(255,255,0))]:
     Image.new('RGB',(48,48),color).save(THEME/'skin'/(name+'.png'))
-def capture(name,battery='100',system=False):
+def capture(name,battery='100',system=False,charging=False):
     output=OUT/(name+'.bmp')
     args=[os.environ.get('MAINUI_TEST_EXE',str(BUILD / "MainUI-dev")),'--sd-root',str(SD),'--theme',str(THEME),
           '--fallback',str(FALLBACK),'--battery',battery,'--snapshot',str(output)]
     if system: args += ['--system','NES']
+    if charging: args += ['--charging']
     subprocess.run(args,cwd=ROOT,check=True,timeout=20)
     return Image.open(output).convert('RGB')
 home=capture('home')
 assert home.getpixel((25,25))==(255,0,0)
 assert home.getpixel((596,30))==(0,255,0)
-assert capture('low','20').getpixel((596,30))==(0,0,255)
+# power-20%-icon.png is drawn up to 14 %, as in stock.
+assert capture('low','14').getpixel((596,30))==(0,0,255)
 assert capture('charging','500').getpixel((596,30))==(255,255,0)
+# While charging, a known level is shown beside the charging icon (the Mini
+# Plus and Flip); 500, a level Onion does not know (the Mini), is not.
+def header_text(image):
+    return sum(1 for y in range(60) for x in range(440,640)
+               if min(image.getpixel((x,y)))>200)
+known=capture('charging-known','63',charging=True)
+assert known.getpixel((596,30))==(255,255,0) and header_text(known)>20
+assert header_text(capture('charging-unknown','500'))==0
 assert capture('hidden','-1').getpixel((596,30))==(10,20,30)
+# miyoo-topbar.png is drawn unclipped at (20, (60-h)/2), as stock does: a tall
+# logo shows below the header too (Super Onion Entertainment System's dots).
+tall=Image.new('RGBA',(640,781),(0,0,0,0))
+tall.paste((200,100,0,255),(100,750,111,759))
+tall.save(THEME/'skin/miyoo-topbar.png')
+dots=capture('tall-logo')
+assert dots.getpixel((125,395))==(200,100,0) and dots.getpixel((125,399))!=(200,100,0)
+Image.new('RGB',(20,20),(255,0,0)).save(THEME/'skin/miyoo-topbar.png')
 list_image=capture('list',system=True)
 # NES title is centered independently of the left logo slot and battery.
 points=[(x,y) for y in range(60) for x in range(200,440) if min(list_image.getpixel((x,y)))>200]

@@ -609,6 +609,9 @@ launch_game() {
             : > /tmp/services_paused_in_game
             killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null &
             services_kill_pid=$!
+            # Services stopped: Wi-Fi power save back on for the game
+            # (start_services_outside_game sets it again afterwards).
+            $sysdir/script/network/wifi_power_save.sh auto &
         fi
     fi
 
@@ -637,8 +640,7 @@ launch_game() {
             fi
 
             if [ $is_game -eq 1 ] && [ ! -f /tmp/new_res_available ]; then
-                infoPanel --message "LOADING" --persistent --romscreen &
-                touch /tmp/dismiss_info_panel
+                show_launch_screen "LOADING"
                 sync
             fi
 
@@ -700,8 +702,7 @@ launch_game() {
 
             if [ $is_game -eq 1 ] && [ ! -f /tmp/.offOrder ] && [ -f /tmp/.displaySavingMessage ]; then
                 rm /tmp/.displaySavingMessage
-                infoPanel --message "SAVING" --persistent --romscreen &
-                touch /tmp/dismiss_info_panel
+                show_launch_screen "SAVING"
                 sync
             fi
         fi
@@ -1490,6 +1491,13 @@ init_system() {
     get_screen_resolution
     perf_end boot_display
 
+    # The first process to call SDL_Init(SDL_INIT_VIDEO) after a cold boot
+    # pays a one-time MI setup cost of about 2 s. Pay it here in the
+    # background, as soon as the fb driver is up, so MainUI does not.
+    # Started this early because the rest of boot is shorter than that cost.
+    # Realistic gain is about 1 second.
+    start_warmup
+
     # Establish MainUI's layout before the boot screen is drawn. Doing it here
     # means the boot screen is painted in the mode MainUI will use, so nothing
     # has to clear it later and it stays up until MainUI paints over it. On
@@ -1497,6 +1505,18 @@ init_system() {
     if [ -f /tmp/new_res_available ] && [ -x "$sysdir/bin/fbmode" ]; then
         commit_mainui_fbmode 150 500
     fi
+}
+
+# Runs warmup in the background. With logging on, timing.log records how long
+# it took; a working warmup takes about 2 s on a cold boot, and finishing in a
+# few ms means it warmed nothing.
+start_warmup() {
+    [ -x $sysdir/bin/warmup ] || return 0
+    (
+        perf_begin warmup
+        LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" $sysdir/bin/warmup > /dev/null 2>&1
+        perf_end warmup "(exit $?)"
+    ) &
 }
 
 device_uuid=$(read_uuid)
@@ -1517,6 +1537,11 @@ replace_file_safely() {
 }
 
 load_settings() {
+    # Temporary copies a save cut short by a power loss left behind (Onion
+    # programs save through "<file>.tmp.<pid>.<n>"). Nothing else saves
+    # settings this early in the boot.
+    rm -f /mnt/SDCARD/system.json.tmp.* /mnt/SDCARD/.tmp_update/config/*.tmp.* 2> /dev/null
+
     if [ -f "$device_settings" ]; then
         cp -f "$device_settings" /mnt/SDCARD/system.json.tmp &&
             replace_file_safely /mnt/SDCARD/system.json.tmp /mnt/SDCARD/system.json
@@ -1633,7 +1658,12 @@ start_audioserver() {
         return
     fi
     audioserver_pid=""
-    defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%.0f\n", 48 * (log(1 + $1) / log(10)) - 60 }')
+    if [ "$DEVICE_ID" = "$MODEL_MMF" ]; then
+        # the Mini Flip's stock curve, see volume_toRaw in common/system/volume.h
+        defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%d\n", int(57 * $1 / 20) - 60 }')
+    else
+        defvol=$(echo $(/customer/app/jsonval vol) | awk '{ printf "%.0f\n", 48 * (log(1 + $1) / log(10)) - 60 }')
+    fi
     runifnecessary "audioserver" $miyoodir/app/audioserver $defvol
 }
 
@@ -1664,6 +1694,30 @@ start_networking() {
     sync
 
     check_networking
+}
+
+# Screen shown while a game starts ("LOADING") or saves on exit ("SAVING"),
+# per Tweaks > Appearance > Loading/saving screen: 0 the game screenshot
+# with a popup (as in Onion), 1 the screenshot alone, 2 black, 3 the message
+# on the theme's full-screen panel (no screenshot).
+show_launch_screen() {
+    case "$(cat "$sysdir/config/display/launchScreen" 2> /dev/null)" in
+        1)
+            infoPanel --persistent --romscreen &
+            touch /tmp/dismiss_info_panel
+            ;;
+        2)
+            bootScreen clear
+            ;;
+        3)
+            infoPanel --message "$1" --persistent &
+            touch /tmp/dismiss_info_panel
+            ;;
+        *)
+            infoPanel --message "$1" --persistent --romscreen &
+            touch /tmp/dismiss_info_panel
+            ;;
+    esac
 }
 
 check_networking() {

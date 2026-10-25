@@ -58,6 +58,7 @@ static size_t image_bytes(const MainUITheme *t)
     for (int i = 0; i < 4; ++i) {
         bytes += surface_bytes(t->wifi_signal[i]);
     }
+    bytes += surface_bytes(t->wifi_hotspot);
     for (int i = 0; i < 2; ++i) {
         bytes +=
             surface_bytes(t->tiles[i]) + surface_bytes(t->dots[i]) + surface_bytes(t->buttons[i]);
@@ -121,24 +122,7 @@ static SDL_Surface *load_image(const MainUITheme *theme, const char *path)
         SDL_FreeSurface(image);
         image = converted;
     }
-    if (image->format->BytesPerPixel == 4 && image->format->Amask && !SDL_MUSTLOCK(image)) {
-        bool opaque = true;
-        for (int y = 0; opaque && y < image->h; ++y) {
-            const Uint32 *row = (const Uint32 *)((const Uint8 *)image->pixels + y * image->pitch);
-            for (int x = 0; x < image->w; ++x) {
-                if ((row[x] & image->format->Amask) != image->format->Amask) {
-                    opaque = false;
-                    break;
-                }
-            }
-        }
-        if (opaque) {
-            SDL_SetAlpha(image, 0, SDL_ALPHA_OPAQUE);
-        }
-        else {
-            SDL_SetAlpha(image, SDL_SRCALPHA | SDL_RLEACCEL, SDL_ALPHA_OPAQUE);
-        }
-    }
+    mainui_artwork_blend(image);
     return image;
 }
 
@@ -307,7 +291,10 @@ static SDL_Surface *popup_background(MainUITheme *theme, int rows)
             }
         }
     }
-    if (!source || source_rows == rows || source->h < source_rows * 60) {
+    /* An image already tall enough for every row, such as a full-screen
+     * background, is drawn as it is: repeating its top band would push the
+     * rest of the picture down. */
+    if (!source || source_rows == rows || source->h < source_rows * 60 || source->h >= rows * 60) {
         return source;
     }
     int trim = source->h - source_rows * 60;
@@ -619,6 +606,7 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
     }
     strcpy(t->directory, dir);
     strcpy(t->fallback, base);
+    t->footer_alt = config && config->footer_alt;
     if (sd && *sd) {
         if (strlen(sd) >= sizeof t->sd || !join(t->profile, sd, "Saves/CurrentProfile/theme")) {
             return false;
@@ -678,6 +666,9 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
     if (color && strlen(color) == 7 && sscanf(color, "#%2x%2x%2x", &r, &g, &b) == 3) {
         t->color = (SDL_Color){(Uint8)r, (Uint8)g, (Uint8)b, 0};
     }
+    /* A sentinel fallback tells a valid colour from a missing or bad one. */
+    t->search_color = theme_color(gamelist, "searchColor", (SDL_Color){0, 0, 0, 1});
+    t->search_color_set = t->search_color.unused == 0;
     int margin = json_int(gamelist, "iconLeftMargin", -1);
     if (margin >= 0) {
         t->icon_margin = margin > 300 ? 300 : margin;
@@ -709,27 +700,37 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
     t->hide_hint_text = zero_size(hint, "size");
     t->hide_grid_text = zero_size(grid, "grid1x4");
     t->hide_expert_text = zero_size(grid, "grid3x4");
-    int grid_size = json_int(grid, "grid1x4", 24), hint_size = json_int(hint, "size", title_size);
+    int grid_size = json_int(grid, "grid1x4", 25), hint_size = json_int(hint, "size", title_size);
     if (grid_size < 1 || grid_size > 120) {
-        grid_size = 24;
+        grid_size = 25;
     }
     if (hint_size < 1 || hint_size > 120) {
         hint_size = 40;
     }
-    t->grid_font = font_open(t, json_string(grid, "font"), grid_size);
-    int expert_size = json_int(grid, "grid3x4", grid_size);
-    t->expert_font = font_open(t, json_string(grid, "font"),
-                               expert_size > 0 && expert_size <= 120 ? expert_size : grid_size);
-    if (t->expert_font) {
-        TTF_SetFontStyle(t->expert_font, TTF_STYLE_BOLD);
-    }
+    /* Differs from stock on purpose: stock makes console labels bold in any
+     * font, which thickens a theme's own grid.font (a pixel font, say). Here
+     * only the built-in font is made bold; a theme's font keeps its weight. */
+    const char *grid_face = json_string(grid, "font");
+    t->grid_font = font_open(t, grid_face, grid_size);
+    /* Expert labels, as stock's small grid font: grid.fontascii, or without
+     * it the list font, at the grid3x4 size (18 by default), in the font
+     * file's own style. A theme hiding its console labels with a blank
+     * grid.font (AdobeBlank) still shows them in Expert, as in stock. */
+    const char *expert_face = json_string(grid, "fontascii");
+    int expert_size = json_int(grid, "grid3x4", 18);
+    t->expert_font = font_open(t, expert_face ? expert_face : list_face,
+                               expert_size >= 1 && expert_size <= 120 ? expert_size : 18);
     /* Hint text (footer hints, counter, dialog actions) has its own font, as
      * stock's label font: hint.font, or without one the default font
-     * (Exo 2 Bold Italic, or the language font), never the title's. Its
-     * style is the font file's own. */
+     * (Exo 2 Bold Italic, or the language font), never the title's. Stock
+     * (0x12a850) always gives it SDL_ttf's italic style, which slants an
+     * upright font and leaves one that is italic already as it is. */
     const char *hint_face = json_string(hint, "font");
     t->hint_font = font_open(t, hint_face, hint_size);
-    if (t->grid_font) {
+    if (t->hint_font) {
+        TTF_SetFontStyle(t->hint_font, TTF_STYLE_ITALIC);
+    }
+    if (t->grid_font && !grid_face) {
         TTF_SetFontStyle(t->grid_font, TTF_STYLE_BOLD);
     }
     t->grid_color[0] = theme_color(grid, "color", (SDL_Color){104, 104, 104, 0});
@@ -792,6 +793,7 @@ bool mainui_theme_open_sd(MainUITheme *t, const char *dir, const char *base, con
         snprintf(name, sizeof name, "skin/icon-wifi-signal-%02d.png", i + 1);
         t->wifi_signal[i] = mainui_theme_image(t, name);
     }
+    t->wifi_hotspot = mainui_theme_image(t, "skin/icon-hotspot-wifi.png");
     if (!t->battery_icons[4]) {
         t->battery_icons[4] = mainui_theme_image(t, "skin/power-full-icon_back.png");
     }
@@ -843,6 +845,7 @@ void mainui_theme_close(MainUITheme *t)
     for (int i = 0; i < 4; ++i) {
         SDL_FreeSurface(t->wifi_signal[i]);
     }
+    SDL_FreeSurface(t->wifi_hotspot);
     SDL_FreeSurface(t->settings_artwork.selection);
     SDL_FreeSurface(t->settings_artwork.left);
     SDL_FreeSurface(t->settings_artwork.right);
@@ -891,11 +894,11 @@ void mainui_theme_close(MainUITheme *t)
             SDL_FreeSurface(t->buttons[i]);
         }
     }
-    if (t->expert_font) {
-        TTF_CloseFont(t->expert_font);
-    }
     if (t->grid_font) {
         TTF_CloseFont(t->grid_font);
+    }
+    if (t->expert_font) {
+        TTF_CloseFont(t->expert_font);
     }
     if (t->hint_font) {
         TTF_CloseFont(t->hint_font);

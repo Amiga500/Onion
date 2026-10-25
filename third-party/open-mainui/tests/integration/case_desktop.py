@@ -37,12 +37,20 @@ def capture(name, actions):
                     '--snapshot',str(path),'--input',actions],cwd=ROOT,check=True,timeout=20)
     return path.read_bytes()
 home = capture('home','')
-# SELECT retains its context menu; unassigned X/Y/START/MENU are silent.
+# SELECT retains its context menu; X acts as B, which does nothing here, and
+# unassigned Y/START/MENU are silent.
 assert capture('button-S', 'S') != home
 for key in 'XYTM':
     assert capture('button-' + key, key) == home
 assert capture('popup-start', 'ST') == capture('button-S', 'S')
 assert capture('popup-select-close', 'SS') == home
+# Select opens it when released, as with stock and keymon, and not when
+# another key went down meanwhile: Select with L2 or R2 is brightness,
+# Select, Start and L1 or R1 the CPU clock.
+assert capture('select-held', '+S') == home
+assert capture('select-released', '+S-S') == capture('button-S', 'S')
+assert capture('select-r2', '+S4-S') == capture('r2', '4')
+assert capture('select-start-r1', '+S+T2-S') == capture('start-r1', 'T2')
 for key in 'SXYTM': assert home == capture('button-return-'+key,key+'B')
 apps = capture('apps','RE')
 assert apps != home
@@ -67,6 +75,9 @@ subprocess.run([str(BUILD / "fixture-stock_settings"),str(CONFIG),str(DUPLICATES
 DAMAGED = OUT/'damaged-sd'
 DAMAGED.mkdir(exist_ok=True)
 subprocess.run([str(BUILD / "fixture-stock_settings"),str(CONFIG),str(DAMAGED),'damaged'],cwd=ROOT,check=True,timeout=20)
+DEFAULTS = OUT/'defaults-sd'
+DEFAULTS.mkdir(exist_ok=True)
+subprocess.run([str(BUILD / "fixture-stock_settings"),str(CONFIG),str(DEFAULTS),'defaults'],cwd=ROOT,check=True,timeout=20)
 MONITOR = OUT/'monitor-sd'
 shutil.rmtree(OUT/'monitor-sd.away', ignore_errors=True)  # left by an interrupted run
 MONITOR.mkdir(exist_ok=True)

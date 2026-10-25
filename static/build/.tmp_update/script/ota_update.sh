@@ -13,28 +13,47 @@ NC='\033[0m' # No Color
 # Repository name :
 GITHUB_REPOSITORY=Amiga500/Onion
 
+# Packages are named <project>-v<version>.zip. The project is becoming
+# RedOnion; earlier releases are OnionPlus, and releases will carry both for a
+# while, since updaters before this one look for OnionPlus-v only. Prefixes in
+# order of preference.
+PACKAGE_PREFIXES="RedOnion-v OnionPlus-v"
+
 # channel : stable or beta
 channel=$(cat "$sysdir/config/ota_channel" 2> /dev/null)
-if [ "$channel" == "" ]; then
+if [ "$channel" = "" ]; then
 	channel="stable"
 fi
 
 main() {
-	if [ "$cmd" == "check" ]; then
-		IP=$(ip route get 1 | awk '{print $NF;exit}')
+	if [ "$cmd" = "check" ]; then
+		IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
 		if [ "$IP" != "" ]; then
 			get_release_info
-			if [ $? -eq 0 ]; then
-				touch "$sysdir/.updateAvailable"
-				exit 0
-			fi
+			case $? in
+				0)
+					touch "$sysdir/.updateAvailable"
+					exit 0
+					;;
+				1)
+					# Up to date: drop a flag left from an update since installed.
+					rm -f "$sysdir/.updateAvailable"
+					;;
+			esac
+			# 2: GitHub didn't answer, the flag stays as it was.
 		fi
 		exit 1
 	fi
 
 	rm $sysdir/cmd_to_run.sh 2> /dev/null
 
+	# Wi-Fi turned on here goes off again however the updater ends.
+	trap restore_wifi EXIT
+	trap 'exit 130' INT TERM HUP
+
 	check_available_space
+	check_wifi_hardware
+	wait_boot_network
 	enable_wifi
 	check_connection
 	run_bootstrap
@@ -43,13 +62,22 @@ main() {
 	channel_choice
 
 	get_release_info
-	if [ $? -eq 1 ]; then
-		echo -ne "${YELLOW}"
-		read -n 1 -s -r -p "Press A to exit"
-		exit 3
-	else
-		touch "$sysdir/.updateAvailable"
-	fi
+	case $? in
+		0)
+			touch "$sysdir/.updateAvailable"
+			;;
+		1)
+			rm -f "$sysdir/.updateAvailable"
+			echo -ne "${YELLOW}"
+			read -n 1 -s -r -p "Press A to exit"
+			exit 3
+			;;
+		*)
+			echo -ne "${YELLOW}"
+			read -n 1 -s -r -p "Press A to exit"
+			exit 8
+			;;
+	esac
 
 	download_update
 	apply_update
@@ -69,56 +97,203 @@ check_available_space() {
 	fi
 }
 
+# The Miyoo Mini (283) has no Wi-Fi: say so instead of waiting for a
+# network that can't come.
+check_wifi_hardware() {
+	if [ "$(cat /tmp/deviceModel 2> /dev/null)" = "283" ]; then
+		echo -e "${RED}This device has no Wi-Fi.${NC}\nTo update, copy the release to the SD card from a PC."
+		echo -ne "${YELLOW}"
+		read -n 1 -s -r -p "Press A to exit"
+		exit 9
+	fi
+}
+
+wifi_setting_on() {
+	# Same test as wifi_enabled in update_networking.sh.
+	[ "$(/customer/app/jsonval wifi 2> /dev/null)" -eq 1 ] 2> /dev/null
+}
+
+# The system's Wi-Fi is up or connecting. Decided by the process, not by
+# the setting in system.json: that can say on while Wi-Fi is off (a stale
+# copy saved back by another program), and the updater then waited for a
+# connection that never came instead of turning Wi-Fi on.
+# wlan0 must exist too: just after the temporary Wi-Fi of the time sync is
+# turned off, the killed wpa_supplicant can still be listed for a moment
+# (as "[wpa_supplicant]", without a command line).
+wifi_radio_running() {
+	wlan0_present && pgrep -f "wpa_supplicant.*wlan0" > /dev/null 2>&1
+}
+
+wlan0_present() {
+	[ -e /sys/class/net/wlan0 ]
+}
+
+# After "axp_test wifion" the Wi-Fi chip appears on USB after a variable
+# delay. A fixed 2 s was sometimes too short on the Mini Plus: wlan0 did not
+# exist yet, wpa_supplicant failed ("No such device") and no address came.
+wait_for_wlan0() { # seconds
+	i=0
+	while ! wlan0_present && [ $i -lt $(($1 * 2)) ]; do
+		sleep 0.5
+		i=$((i + 1))
+	done
+	wlan0_present
+}
+
+start_wpa_supplicant() {
+	/mnt/SDCARD/miyoo/app/wpa_supplicant -B -D nl80211 -iwlan0 -c /appconfigs/wpa_supplicant.conf
+}
+
+wlan0_linked() {
+	[ "$(cat /sys/class/net/wlan0/operstate 2> /dev/null)" = "up" ]
+}
+
+# udhcpc started before wpa_supplicant has joined the network sends its
+# first requests into the void and then pauses 20 s before trying again.
+# Start it once the link is up.
+wait_for_link() { # seconds
+	i=0
+	while ! wlan0_linked && [ $i -lt $(($1 * 2)) ]; do
+		sleep 0.5
+		i=$((i + 1))
+	done
+	wlan0_linked
+}
+
+wait_for_ip() { # seconds
+	i=0
+	while [ $i -lt "$1" ]; do
+		IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
+		[ -n "$IP" ] && return 0
+		sleep 1
+		i=$((i + 1))
+	done
+	return 1
+}
+
+# Just after start-up the network comes up in the background
+# (update_networking.sh: Wi-Fi, time sync, "Enable Wi-Fi temporarily" that
+# turns Wi-Fi off again at the end). Wait for it to finish before touching
+# Wi-Fi: started meanwhile, the updater ran a second wpa_supplicant, and the
+# temporary Wi-Fi could be switched off in the middle of the download.
+wait_boot_network() {
+	pgrep -f update_networking.sh > /dev/null 2>&1 || return 0
+	network_ready && return 0
+	echo "Waiting for the network start-up..."
+	i=0
+	while [ $i -lt 45 ] && pgrep -f update_networking.sh > /dev/null 2>&1 &&
+		! network_ready; do
+		sleep 1
+		i=$((i + 1))
+	done
+	clear
+}
+
+# Connected, with Wi-Fi on in Settings: nothing left to wait for, even if
+# update_networking.sh still runs (the time sync after Wi-Fi came on).
+# Connected with Wi-Fi off in Settings is the temporary Wi-Fi of the time
+# sync, which update_networking.sh turns off again: that one is waited for.
+network_ready() {
+	IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
+	[ -n "$IP" ] && wifi_setting_on
+}
+
+# Turns Wi-Fi off again when the updater turned it on and it is still off in
+# Settings. Nothing else does: the network check only runs after a Wi-Fi
+# change, so the radio stayed on (and connected) until the next restart.
+restore_wifi() {
+	[ "$wifi_started_here" = "1" ] || return 0
+	wifi_started_here=0
+	wifi_setting_on && return 0
+	pkill -9 wpa_supplicant 2> /dev/null
+	pkill -9 udhcpc 2> /dev/null
+	/customer/app/axp_test wifioff > /dev/null 2>&1
+}
+
 enable_wifi() {
 	# Enable wifi if necessary
 	IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
-	if [ "$IP" = "" ]; then
+	if [ "$IP" = "" ] && wifi_radio_running; then
+		# On but not connected yet (just after start-up, or reconnecting):
+		# wait for it instead of starting a second wpa_supplicant and
+		# killing the system's udhcpc.
+		echo "Waiting for Wi-Fi..."
+		wait_for_ip 20
+		clear
+	elif [ "$IP" = "" ]; then
 		echo "Wifi is disabled - trying to enable it..."
+		wifi_started_here=1
 		insmod /mnt/SDCARD/8188fu.ko 2> /dev/null
 		ifconfig lo up
 		/customer/app/axp_test wifion
+		wait_for_wlan0 10
+		# wlan0 appears before the driver is ready: wpa_supplicant started
+		# straight away ran but never joined the network. The system waits
+		# 2 s after the power-on (wifi_on in update_networking.sh).
 		sleep 2
 		ifconfig wlan0 up
+		# Power save as wifi_on in update_networking.sh sets it.
+		$sysdir/script/network/wifi_power_save.sh auto
 		# Same commands as wifi_on in update_networking.sh. wpa_supplicant is
 		# not on the PATH of apps, and udhcpc in the foreground never returns
 		# without a network: the updater stayed on a black screen.
-		/mnt/SDCARD/miyoo/app/wpa_supplicant -B -D nl80211 -iwlan0 -c /appconfigs/wpa_supplicant.conf
+		echo "Connecting (this can take up to a minute)..."
+		pkill -9 wpa_supplicant 2> /dev/null
+		start_wpa_supplicant
+		# Joining took 30-60 s on a Mini Plus 3 m from the router: the
+		# driver scans for a while before it associates.
+		wait_for_link 50
 		pkill -9 udhcpc 2> /dev/null
 		udhcpc -i wlan0 -s /etc/init.d/udhcpc.script > /dev/null 2>&1 &
-		# Up to 20 s for an address; check_connection reports a failure.
-		i=0
-		while [ $i -lt 20 ]; do
-			sleep 1
-			IP=$(ip route get 1 2> /dev/null | awk '{print $NF;exit}')
-			[ -n "$IP" ] && break
-			i=$((i + 1))
-		done
+		# Once joined the address comes in a few seconds; up to 20 s,
+		# then check_connection reports a failure.
+		wait_for_ip 20
 		clear
 	fi
 }
 
+# The certificate is not checked here, as it is not for the release list
+# (curl -k) or the download (wget --no-check-certificate). Checked, it failed
+# on a working network when the clock was wrong (a device without a clock
+# battery, before the time sync): "not reachable" stopped the update.
+# The reason wget gives is shown with the error.
 check_connection() {
 	echo -n "Checking internet connection... "
-	if wget -q -T 15 --spider https://github.com > /dev/null 2>&1; then
+	_why=$(wget -q -T 15 --no-check-certificate --spider https://github.com 2>&1 > /dev/null)
+	if [ $? -eq 0 ]; then
 		echo -e "${GREEN}OK${NC}"
 	else
-		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable.\nTurn on Wi-Fi in Settings and check that it connects."
+		_why=$(echo "$_why" | grep -v '^[[:space:]]*$' | head -n 1 | cut -c 1-60)
+		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable${_why:+ ($_why)}.\nTurn on Wi-Fi in Settings and check that it connects."
 		echo -ne "${YELLOW}"
 		read -n 1 -s -r -p "Press A to exit"
 		exit 2
 	fi
 }
 
+# The bootstrap is read from the OnionPlus branch, which every updater uses:
+# keep that branch and file. Run only if a script came back: an error page
+# (a renamed repository without -L, a missing file) used to be run by sh.
 run_bootstrap() {
-	curl -k -s https://raw.githubusercontent.com/Amiga500/Onion/OnionPlus/static/build/.tmp_update/script/ota_bootstrap.sh | sh
+	_bootstrap=$(curl -k -s -L -f "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/OnionPlus/static/build/.tmp_update/script/ota_bootstrap.sh")
+	case "$_bootstrap" in
+		'#!/bin/sh'*) echo "$_bootstrap" | sh ;;
+	esac
 }
 
 channel_choice() {
-	channel=$(echo -e "stable\nbeta" | $sysdir/script/shellect.sh -t "Select distribution channel:" -b "Press A to validate your choice.")
+	channel=$(echo -e "stable\nbeta" | $sysdir/script/shellect.sh -m -t "Select distribution channel:" -b "Press A to validate, MENU to exit.")
 	clear
+	# Nothing chosen (B): leave, keeping the saved channel. An empty
+	# ota_channel used to be saved and read as stable.
+	if [ "$channel" != "stable" ] && [ "$channel" != "beta" ]; then
+		exit 0
+	fi
 	echo "$channel" > "$sysdir/config/ota_channel"
 }
 
+# Returns 0 when an update is available, 1 when there is none, 2 when GitHub
+# didn't answer (no network, rate limit): that used to read as "up to date".
 get_release_info() {
 	echo -n "Retrieving release information... "
 
@@ -129,26 +304,47 @@ get_release_info() {
 		# pre-release.yml publishes every build with prerelease:false.
 		# Picked by publish time: GitHub doesn't list releases newest first
 		# (a stable release can come before a newer beta).
-		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq '[.[] | select(.draft != true)] | sort_by(.published_at) | last')
+		# -L: a renamed repository answers with a redirect.
+		Release_list=$(curl -k -s -L https://api.github.com/repos/$GITHUB_REPOSITORY/releases)
+		if ! echo "$Release_list" | jq -e 'type == "array"' > /dev/null 2>&1; then
+			release_info_error "$Release_list"
+			return 2
+		fi
+		Release_assets_info=$(echo "$Release_list" | jq '[.[] | select(.draft != true)] | sort_by(.published_at) | last')
 		if [ -z "$Release_assets_info" ] || [ "$Release_assets_info" = "null" ]; then
 			echo -e "${GREEN}DONE${NC}\n\n" \
 				"No update available for $channel channel\n"
 			return 1
 		fi
 	else
-		Release_assets_info=$(curl -k -s https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest)
+		Release_assets_info=$(curl -k -s -L https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest)
 	fi
 
-	if echo "$Release_assets_info" | grep -q '"message": "Not Found"'; then
+	if echo "$Release_assets_info" | grep -q '"message": *"Not Found"'; then
 		echo -e "${GREEN}DONE${NC}\n\n" \
 			"No update available for $channel channel\n"
 		return 1
 	fi
+	if ! echo "$Release_assets_info" | jq -e '.assets' > /dev/null 2>&1; then
+		release_info_error "$Release_assets_info"
+		return 2
+	fi
 
-	Release_asset=$(echo "$Release_assets_info" | jq '.assets[]? | select(.name | contains("OnionPlus-v"))')
+	# The first prefix the release has a package for (jq 1.6 on the device:
+	# no regular expressions needed).
+	Release_asset=
+	for _prefix in $PACKAGE_PREFIXES; do
+		Release_asset=$(echo "$Release_assets_info" | jq --arg p "$_prefix" '[.assets[]? | select(.name | startswith($p) and endswith(".zip"))] | .[0] // empty')
+		[ -n "$Release_asset" ] && break
+	done
+
+	if [ -z "$Release_asset" ]; then
+		release_info_error "no RedOnion package in the release"
+		return 2
+	fi
 
 	Release_url=$(echo $Release_asset | jq '.browser_download_url' | tr -d '"')
-	Release_FullVersion=$(echo $Release_asset | jq '.name' | tr -d "\"" | sed 's/^OnionPlus-v//g' | sed 's/\.zip$//g')
+	Release_FullVersion=$(echo $Release_asset | jq -r '.name' | sed -e "s/^$_prefix//" -e 's/\.zip$//')
 	Release_Version=$(echo $Release_FullVersion | sed 's/-.*$//g')
 	Release_size=$(echo $Release_asset | jq -r '.size')
 	Release_size_MB=$(echo "$(($Release_size / 1024 / 1024))MB")
@@ -181,16 +377,63 @@ get_release_info() {
 		return 1
 	fi
 
+	# Same version number: builds differ by date (4.4.0-beta-YYYYMMDD-<commit>).
+	# An older build, such as the stable release offered to a device on a
+	# newer beta, is not an update. Same-day builds are still offered.
+	current_date=$(build_date "$Current_FullVersion")
+	release_date=$(build_date "$Release_FullVersion")
+	if [ $v1 -eq $v2 ] && [ -n "$current_date" ] && [ -n "$release_date" ] &&
+		[ "$release_date" -lt "$current_date" ]; then
+		echo -e "Installed build is newer ($current_date)\n"
+		return 1
+	fi
+
 	echo -e "${GREEN}Update available!${NC}\n"
 	return 0
 }
 
+release_info_error() { # response or reason
+	_msg=$(echo "$1" | jq -r '.message? // empty' 2> /dev/null)
+	[ -n "$_msg" ] || _msg=$(echo "$1" | tr '\n' ' ' | head -c 80)
+	[ -n "$_msg" ] || _msg="no answer"
+	echo -e "${RED}FAIL${NC}\n\n" \
+		"Error: GitHub didn't answer ($_msg).\n" \
+		"Try again in a few minutes.\n"
+}
+
+# Show a prompt and wait for A (continue, returns 0) or MENU (leave,
+# returns 1); other buttons are ignored. MENU reaches the terminal as a
+# lone Esc, the D-pad as Esc [ A..D in one go, so a byte following within
+# 0.1 s means it was not MENU. No input at all (the terminal is gone)
+# counts as MENU.
+wait_key() { # prompt
+	printf '%s' "$1"
+	_stty=$(stty -g 2> /dev/null)
+	stty -icanon -echo min 1 time 0 2> /dev/null
+	_ret=
+	while [ -z "$_ret" ]; do
+		_key=$(dd ibs=1 count=1 2> /dev/null; echo .)
+		_key=${_key%.}
+		if [ -z "$_key" ]; then
+			_ret=1
+		elif [ "$_key" = " " ]; then
+			_ret=0
+		elif [ "$_key" = "$(printf '\033')" ]; then
+			stty min 0 time 1 2> /dev/null
+			[ -n "$(dd ibs=1 count=4 2> /dev/null)" ] || _ret=1
+			stty min 1 time 0 2> /dev/null
+		fi
+	done
+	[ -n "$_stty" ] && stty "$_stty" 2> /dev/null
+	return $_ret
+}
+
 download_update() {
 	echo -ne "${YELLOW}"
-	read -n 1 -s -r -p "Press A to continue"
+	wait_key "Press A to continue, MENU to exit" || exit 0
 	echo -ne "${NC}"
 
-	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -t "Download $Release_Version ($Release_size_MB) ?" -b "Press A to validate your choice.")
+	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -m -t "Download $Release_Version ($Release_size_MB) ?" -b "Press A to validate, MENU to exit.")
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
 
@@ -202,8 +445,8 @@ download_update() {
 
 		mkdir -p $sysdir/download/
 		echo -ne "\n\n" \
-			"${BLUE}== Downloading Onion $Release_Version ($channel channel) ==${NC}\n"
-		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
+			"${BLUE}== Downloading RedOnion $Release_Version ($channel channel) ==${NC}\n"
+		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 		sync
 		wget --no-check-certificate $Release_url -O "$sysdir/download/$Release_Version.zip"
 		echo -ne "\n\n" \
@@ -221,6 +464,7 @@ download_update() {
 	else
 		echo -ne "\n\n" \
 			"${RED}Error: Wrong download size${NC} ($Downloaded_size instead of $Release_size)\n"
+		rm -f "$sysdir/download/$Release_Version.zip"
 		echo -ne "${YELLOW}"
 		read -n 1 -s -r -p "Press A to exit"
 		exit 5
@@ -228,19 +472,22 @@ download_update() {
 }
 
 apply_update() {
-	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -t "Apply update $Release_Version ?" -b "Press A to validate your choice.")
+	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -m -t "Apply update $Release_Version ?" -b "Press A to validate, MENU to exit.")
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
 		echo "Applying update... "
 
 		umount /mnt/SDCARD/miyoo/app/MainUI 2> /dev/null
-		/mnt/SDCARD/.tmp_update/bin/freemma > NUL
+		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 
 		# unzip -o "$sysdir/download/$Release_Version.zip" -d "/mnt/SDCARD"
 		7z x -aoa -o"/mnt/SDCARD" "$sysdir/download/$Release_Version.zip"
 
 		if [ $? -eq 0 ]; then
 			echo -e "${GREEN}Decompression successful.${NC}"
+			# Extracted: the package (hundreds of MB) is no longer needed and
+			# used to stay on the card.
+			rm -f "$sysdir/download/$Release_Version.zip"
 			sync
 			sleep 3
 			echo -ne "\n\n" \
@@ -263,6 +510,11 @@ apply_update() {
 	fi
 }
 
-get_version() { echo "$@" | tr -d [:alpha:] | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
+# Build date (YYYYMMDD) of a version such as 4.4.0-beta-20261010-f7c522a5.
+# A build made by hand can add a word after the commit (…-a6a42951-readline):
+# without its date the check below let an older stable look like an update.
+build_date() { echo "$1" | sed -n -e 's/^.*-\([0-9]\{8\}\)-[0-9a-f]\{7,\}$/\1/p' -e 's/^.*-\([0-9]\{8\}\)-[0-9a-f]\{7,\}-[A-Za-z0-9._]*$/\1/p' -e 's/^.*-\([0-9]\{8\}\)$/\1/p' | head -n 1; }
+
+get_version() { echo "$@" | tr -d '[:alpha:]' | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
 
 main

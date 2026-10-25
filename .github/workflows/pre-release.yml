@@ -1,4 +1,4 @@
-name: OnionPlus release
+name: RedOnion release
 
 # Host unit tests gate PRs in test.yml. This job uses the Miyoo ARM
 # toolchain container and is not wired to make unit-test.
@@ -42,20 +42,23 @@ jobs:
         {
           echo "BUILD_VERSION=${BUILD_VERSION}"
           echo "SHA_SHORT=${SHA_SHORT}"
-          echo "RELEASE_TAG=OnionPlus-v${BUILD_VERSION}-${SHA_SHORT}"
-          echo "RELEASE_TITLE=OnionPlus V${BUILD_VERSION}"
-          echo "ZIP_NAME=OnionPlus-v${BUILD_VERSION}-${SHA_SHORT}.zip"
+          echo "RELEASE_TAG=RedOnion-v${BUILD_VERSION}-${SHA_SHORT}"
+          echo "RELEASE_TITLE=RedOnion V${BUILD_VERSION}"
+          echo "ZIP_NAME=RedOnion-v${BUILD_VERSION}-${SHA_SHORT}.zip"
+          # The same zip under the old name: updaters before the rename
+          # (beta 8 and earlier) look only for an asset containing OnionPlus-v.
+          echo "LEGACY_ZIP_NAME=OnionPlus-v${BUILD_VERSION}-${SHA_SHORT}.zip"
         } >> "$GITHUB_ENV"
     - name: Print version
       run: |
         echo "title: ${{ env.RELEASE_TITLE }}"
         echo "tag: ${{ env.RELEASE_TAG }}"
-        echo "zip: ${{ env.ZIP_NAME }}"
+        echo "zip: ${{ env.ZIP_NAME }} (also ${{ env.LEGACY_ZIP_NAME }})"
     - name: Build release
       shell: bash
       run: |
         source /root/.bashrc
-        # Makefile TARGET=OnionPlus names the zip. Do not pass TARGET= on the
+        # Makefile TARGET=RedOnion names the zip. Do not pass TARGET= on the
         # make command line: it leaks into src/*/Makefile via MAKEFLAGS.
         # VERSION_OVERRIDE as an env var works (Makefile does not assign it).
         make release VERSION_OVERRIDE="${BUILD_VERSION}-${SHA_SHORT}"
@@ -70,6 +73,7 @@ jobs:
           echo "Renaming ${actual} -> release/${ZIP_NAME}"
           mv "$actual" "release/${ZIP_NAME}"
         fi
+        cp "release/${ZIP_NAME}" "release/${LEGACY_ZIP_NAME}"
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
@@ -79,5 +83,7 @@ jobs:
         prerelease: ${{ inputs.prerelease }}
         body_path: .github/release-notes.md
         generate_release_notes: true
-        files: release/${{ env.ZIP_NAME }}
+        files: |
+          release/${{ env.ZIP_NAME }}
+          release/${{ env.LEGACY_ZIP_NAME }}
         fail_on_unmatched_files: true

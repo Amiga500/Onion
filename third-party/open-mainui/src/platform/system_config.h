@@ -7,6 +7,21 @@
 /* Caller owns the object. A missing file yields an empty object; malformed or
  * unreadable input returns NULL, so it cannot be overwritten as an empty file. */
 cJSON *mainui_system_read(const char *sd);
+
+/* What X or Y on a game does, from its shortcut in .tmp_update/config/
+ * keymap.json (mainui_button_x, mainui_button_y), which keymon reads too
+ * (Tweaks: Button shortcuts > MainUI: X button, Y button). */
+typedef enum {
+    MAINUI_SHORTCUT_NONE,         /* no shortcut: no file, no text value; X is B, Y is A */
+    MAINUI_SHORTCUT_GAME_OPTIONS, /* "glo": Onion's Game List Options */
+    MAINUI_SHORTCUT_FAVORITE,     /* "fav": add the game to Favorites or remove it */
+    MAINUI_SHORTCUT_KEYMON        /* keymon's (an app or tool) or unknown: the file
+                                   * cannot be read or parsed, or another value */
+} MainUIShortcut;
+
+/* button is 'X' or 'Y'. `why` (when not NULL) says why for
+ * MAINUI_SHORTCUT_KEYMON. */
+MainUIShortcut mainui_button_shortcut(const char *sd, char button, char why[160]);
 bool mainui_system_write(const char *sd, const char *key, const cJSON *value);
 /* Numeric values also go to the live copy keymon keeps (the monitor), before
  * the file, since keymon writes that copy back to the file. When the file
@@ -40,6 +55,23 @@ typedef struct {
 } MainUISettingsMonitor;
 
 void mainui_system_set_monitor(const MainUISettingsMonitor *monitor);
+/* Stock hands system.json's "keymap" to the button driver when it starts
+ * (mainui_keymap_apply); the driver then remaps the buttons for every
+ * program reading them. The value to hand over: the configured string when
+ * it is eight comma-separated names from the default, otherwise stock's
+ * default "L2,L,R2,R,X,A,B,Y". Stock writes any string unchecked; a bad one
+ * could leave the buttons unusable until MainUI starts again. */
+#define MAINUI_DEFAULT_KEYMAP "L2,L,R2,R,X,A,B,Y"
+const char *mainui_keymap_value(const cJSON *settings);
+/* Write that value for the system.json of `sd` to `target`, the driver's
+ * button_config parameter on the device. False when it cannot be written. */
+bool mainui_keymap_apply(const char *sd, const char *target);
+/* Stock MainUI fills keymon's live copy from system.json on every start
+ * (mainui_device_settings_load): the value it writes for `key` (vol,
+ * brightness, mute, bgmvol, hibernate, lumination, hue, saturation,
+ * contrast, audiofix). A number is taken as it is, except that lumination,
+ * hue, saturation and contrast must be 0 to 20; otherwise stock's default. */
+int mainui_system_monitor_value(const cJSON *settings, const char *key);
 /* system.json exists but its content cannot be used (not a JSON object, NUL
  * bytes, too large), as opposed to missing, blank or an I/O error. Nothing
  * resets or rewrites it: it holds settings other programs share. */

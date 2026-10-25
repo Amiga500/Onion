@@ -251,15 +251,15 @@ static bool contains_text(const char *name, const char *part)
     return false;
 }
 
-/* An empty extlist lists every file, as a console with no extlist can only
- * mean, except the files MainUI and Onion keep beside the ROMs: the game
- * lists, the ROM list caches with their build, journal and deletion files,
- * and the copy of a ROM held while it is deleted. */
+/* An empty extlist lists every file with an extension, as in stock, except
+ * the files MainUI and Onion keep beside the ROMs: the game lists, the ROM
+ * list caches with their build, journal and deletion files, and the copy of
+ * a ROM held while it is deleted. */
 static bool allowed(const char *name, const char *extensions)
 {
     const char *ext = strrchr(name, '.');
     if (!*extensions) {
-        return compare_text(name, "miyoogamelist.xml", false) &&
+        return ext && compare_text(name, "miyoogamelist.xml", false) &&
                compare_text(name, "gamelist.xml", false) &&
                !(contains_text(name, "_cache") && contains_text(name, ".db")) &&
                !contains_text(name, ".mainui-delete");
@@ -287,6 +287,26 @@ static bool allowed(const char *name, const char *extensions)
         extensions = end + 1;
     }
     return false;
+}
+
+/* As stock: a ROM ending in .bin is hidden when the .cue of the same name is
+ * beside it, as the cue is what starts the game. Spelled as stock checks it,
+ * with a lowercase .bin and .cue. Unlike stock, only when the extlist lists
+ * that .cue: with extlist "bin" stock hides the .bin and lists no .cue, so
+ * the game disappears. Only a regular file counts, as the scan lists only
+ * those: a folder or link named X.cue would hide the .bin and list nothing.
+ * `cue` receives the cue's path. */
+static bool cue_beside(const char *path, const char *extensions, char cue[MAINUI_PATH_MAX])
+{
+    size_t length = strlen(path);
+    if (length < 4 || length >= MAINUI_PATH_MAX || strcmp(path + length - 4, ".bin") ||
+        !allowed("game.cue", extensions)) {
+        return false;
+    }
+    memcpy(cue, path, length - 4);
+    memcpy(cue + length - 4, ".cue", 5);
+    struct stat info;
+    return lstat(cue, &info) == 0 && S_ISREG(info.st_mode);
 }
 
 typedef struct {
@@ -377,6 +397,8 @@ static bool visit(MainUICatalogPage *page, const char *sd, const char *name, boo
             entry->raw_imgpath = duplicate_text(string(json, "imgpath", "Imgs"));
             entry->config = duplicate_text(scratch->config);
             entry->shortname = cJSON_IsNumber(shortname) && shortname->valueint != 0;
+            const cJSON *hidebios = cJSON_GetObjectItemCaseSensitive(json, "hidebios");
+            entry->hide_bios = cJSON_IsNumber(hidebios) && hidebios->valueint != 0;
             entry->launch = duplicate_text(scratch->launch);
             if (!entry->config || !entry->raw_rompath || !entry->raw_imgpath || !entry->launch) {
                 ok = false;
@@ -406,7 +428,11 @@ static bool visit(MainUICatalogPage *page, const char *sd, const char *name, boo
                       !compare_text(scratch->path, page->images, false))) {
         return true;
     }
-    if (!directory && !allowed(name, page->extensions)) {
+    /* As stock: with hidebios, a file whose name starts with "[BIOS]" (as
+     * spelled, in any extension) is no game. */
+    if (!directory &&
+        ((page->hide_bios && !strncmp(name, "[BIOS]", 6)) || !allowed(name, page->extensions) ||
+         cue_beside(scratch->path, page->extensions, scratch->resolved))) {
         return true;
     }
     snprintf(scratch->label, sizeof scratch->label, "%s", name);
@@ -535,7 +561,9 @@ static bool scan_directory(MainUICatalogPage *page, const char *sd, int mode, bo
         }
     }
     closedir(dir);
-    if (ok && page->count > 1) {
+    /* Apps keep the order the card lists their folders in, as stock does:
+     * it appends each app as readdir() returns it and never sorts them. */
+    if (ok && page->count > 1 && mode != 2) {
         qsort(page->entries, (size_t)page->count, sizeof *page->entries,
               sensitive ? order_case : order_nocase);
     }
@@ -661,9 +689,21 @@ static bool optional_catalog(MainUICatalog *catalog, const char *sd, bool sensit
     return ok;
 }
 
+/* Apps keep the card's folder order, as in stock; the flag file
+ * .tmp_update/config/.appsort sorts them A-Z, as the other lists are. */
 bool mainui_catalog_apps(MainUICatalog *catalog, const char *sd, bool sensitive)
 {
-    return optional_catalog(catalog, sd, sensitive, "App", "Apps", 2);
+    if (!optional_catalog(catalog, sd, sensitive, "App", "Apps", 2)) {
+        return false;
+    }
+    MainUICatalogPage *page = &catalog->pages[0];
+    char flag[MAINUI_PATH_MAX];
+    if (page->count > 1 && mainui_catalog_path(flag, sd, sd, ".tmp_update/config/.appsort") &&
+        access(flag, F_OK) == 0) {
+        qsort(page->entries, (size_t)page->count, sizeof *page->entries,
+              sensitive ? order_case : order_nocase);
+    }
+    return true;
 }
 
 bool mainui_catalog_expert(MainUICatalog *catalog, const char *sd, bool sensitive)
@@ -746,8 +786,8 @@ static bool saved_prefix(char out[MAINUI_PATH_MAX], const MainUICatalog *catalog
  * DRIVERS, a port's data) and empty folders are not listed; *found counts
  * the ROMs added below path. Its row is added after its subtree. */
 static bool cache_scan(sqlite3_stmt *insert, MainUICatalog *catalog, const char *root,
-                       const char *path, const char *extensions, const char *images, int depth,
-                       int *count, int *found, bool shortname, const char *rom_prefix,
+                       const char *path, const char *extensions, const char *images, bool hide_bios,
+                       int depth, int *count, int *found, bool shortname, const char *rom_prefix,
                        const char *image_prefix, char scratch[4][MAINUI_PATH_MAX])
 {
     if (depth >= MAINUI_STACK_MAX || mainui_cancelled(catalog->cancel)) {
@@ -760,6 +800,7 @@ static bool cache_scan(sqlite3_stmt *insert, MainUICatalog *catalog, const char 
     snprintf(page->path, sizeof page->path, "%s", path);
     snprintf(page->extensions, sizeof page->extensions, "%s", extensions);
     snprintf(page->images, sizeof page->images, "%s", images);
+    page->hide_bios = hide_bios;
     bool ok = scan(page, catalog->sd, 0, catalog->case_sensitive, catalog->cancel);
     mainui_count_add("scan-entries", page->count);
     char *parent = scratch[0], *relative = scratch[1], *pinyin = scratch[2], *image = scratch[3];
@@ -771,8 +812,8 @@ static bool cache_scan(sqlite3_stmt *insert, MainUICatalog *catalog, const char 
         MainUIEntry *entry = &page->entries[i];
         if (entry->directory) {
             int below = 0;
-            ok = cache_scan(insert, catalog, root, entry->path, extensions, images, depth + 1,
-                            count, &below, shortname, rom_prefix, image_prefix, scratch);
+            ok = cache_scan(insert, catalog, root, entry->path, extensions, images, hide_bios,
+                            depth + 1, count, &below, shortname, rom_prefix, image_prefix, scratch);
             if (!ok || !below) {
                 continue;
             }
@@ -995,9 +1036,9 @@ static bool build_cache_locked(MainUICatalog *catalog, int system, bool replace,
     if (ok && !imported) {
         char(*scratch)[MAINUI_PATH_MAX] = malloc(4 * sizeof *scratch);
         int found = 0;
-        ok = scratch &&
-             cache_scan(insert, catalog, entry->path, entry->path, entry->extensions, entry->images,
-                        0, &count, &found, entry->shortname, rom_prefix, image_prefix, scratch);
+        ok = scratch && cache_scan(insert, catalog, entry->path, entry->path, entry->extensions,
+                                   entry->images, entry->hide_bios, 0, &count, &found,
+                                   entry->shortname, rom_prefix, image_prefix, scratch);
         free(scratch);
     }
     sqlite3_finalize(insert);
@@ -1159,8 +1200,14 @@ bool mainui_catalog_remove_cache(MainUICatalog *catalog, int system)
         return true; /* A standalone Expert launcher has no ROM cache. */
     }
     const char *root = catalog->pages[0].entries[system].path;
-    if (!rom_root_ready(catalog, root)) {
-        return false;
+    errno = 0;
+    if (!mainui_directory_within(root, catalog->sd)) {
+        /* A console whose ROM folder does not exist has no cache to remove:
+         * Refresh all roms goes on with the others, as in stock. */
+        if (errno == ENOENT) {
+            return true;
+        }
+        return rom_root_ready(catalog, root);
     }
     if (search_database(catalog, root)) {
         return true; /* Search owns these results. */
@@ -1362,6 +1409,7 @@ bool mainui_catalog_enter(MainUICatalog *catalog, int index)
     snprintf(next->extensions, sizeof next->extensions, "%s",
              catalog->depth ? page->extensions : e->extensions);
     snprintf(next->images, sizeof next->images, "%s", catalog->depth ? page->images : e->images);
+    next->hide_bios = catalog->depth ? page->hide_bios : e->hide_bios;
     /* Onion src/randomGamePicker/randomGamePicker.c derives both names from
      * the ROM root basename, which can differ from the emulator label.
      */
@@ -1608,4 +1656,84 @@ cJSON *mainui_catalog_record(MainUICatalog *catalog, int index)
         return NULL;
     }
     return record;
+}
+
+static bool within_root(const char *path, const char *root)
+{
+    size_t length = strlen(root);
+    return length && !strncmp(path, root, length) && path[length] == '/';
+}
+
+static void set_source(MainUISource *out, const char *label, const char *root, const char *images)
+{
+    snprintf(out->label, sizeof out->label, "%s", label ? label : "");
+    snprintf(out->rom_root, sizeof out->rom_root, "%s", root);
+    snprintf(out->images, sizeof out->images, "%s", images ? images : "");
+}
+
+/* A launcher outside the catalog: its folder's config.json, read as a
+ * console's (label, else the folder's name; rompath; imgpath, else Imgs). */
+static bool launcher_source(const MainUICatalog *catalog, const char *launcher, const char *rom,
+                            MainUISource *out)
+{
+    char folder[MAINUI_PATH_MAX], config[MAINUI_PATH_MAX], root[MAINUI_PATH_MAX],
+        images[MAINUI_PATH_MAX];
+    snprintf(folder, sizeof folder, "%s", launcher);
+    char *slash = strrchr(folder, '/');
+    if (!slash || !mainui_path_within(launcher, catalog->sd)) {
+        return false;
+    }
+    *slash = 0;
+    if (!mainui_catalog_path(config, catalog->sd, folder, "config.json")) {
+        return false;
+    }
+    char *text = mainui_read_text(config, 1024 * 1024);
+    cJSON *json = text ? cJSON_Parse(text) : NULL;
+    free(text);
+    const cJSON *label = cJSON_GetObjectItemCaseSensitive(json, "label");
+    const cJSON *roms = cJSON_GetObjectItemCaseSensitive(json, "rompath");
+    const cJSON *art = cJSON_GetObjectItemCaseSensitive(json, "imgpath");
+    bool ok = cJSON_IsString(roms) && *roms->valuestring &&
+              mainui_catalog_path(root, catalog->sd, folder, roms->valuestring) &&
+              mainui_path_within(root, catalog->sd) && within_root(rom, root) &&
+              mainui_catalog_path(images, catalog->sd, folder,
+                                  cJSON_IsString(art) ? art->valuestring : "Imgs");
+    if (ok) {
+        set_source(out, cJSON_IsString(label) ? label->valuestring : strrchr(folder, '/') + 1, root,
+                   images);
+    }
+    cJSON_Delete(json);
+    return ok;
+}
+
+bool mainui_catalog_source(const MainUICatalog *catalog, const char *rom, const char *launch,
+                           MainUISource *out)
+{
+    char host[MAINUI_PATH_MAX], launcher[MAINUI_PATH_MAX];
+    if (!catalog || !rom || !out || !mainui_catalog_path(host, catalog->sd, catalog->sd, rom)) {
+        return false;
+    }
+    memset(out, 0, sizeof *out);
+    if (launch && *launch && mainui_catalog_path(launcher, catalog->sd, catalog->sd, launch)) {
+        /* Consoles can share a ROM folder: the launcher tells them apart. */
+        for (int i = 0; i < catalog->pages[0].count; ++i) {
+            const MainUIEntry *system = &catalog->pages[0].entries[i];
+            if (system->launch && !strcmp(system->launch, launcher) &&
+                within_root(host, system->path)) {
+                set_source(out, system->label, system->path, system->images);
+                return true;
+            }
+        }
+        if (launcher_source(catalog, launcher, host, out)) {
+            return true;
+        }
+    }
+    for (int i = 0; i < catalog->pages[0].count; ++i) {
+        const MainUIEntry *system = &catalog->pages[0].entries[i];
+        if (within_root(host, system->path)) {
+            set_source(out, system->label, system->path, system->images);
+            return true;
+        }
+    }
+    return false;
 }

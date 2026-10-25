@@ -21,7 +21,7 @@ MODEL_MMP=354
 install_ra=1
 
 version() {
-    echo "$@" | tr -d [:alpha:] | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'
+    echo "$@" | tr -d '[:alpha:]' | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'
 }
 
 # globals
@@ -304,6 +304,11 @@ run_installation() {
 
     run_migration_scripts
 
+    # The update this flag announced is the one just installed. Nothing else
+    # removed it, and the boot check skips while it exists, so "Update
+    # available!" stayed on every boot after an update.
+    rm -f /mnt/SDCARD/.tmp_update/.updateAvailable
+
     if [ -d "/mnt/SDCARD/Emu/drastic" ]; then
         echo "Migrating drastic ..."
         cd /mnt/SDCARD/.tmp_update/script
@@ -314,6 +319,13 @@ run_installation() {
 
     if [ $reset_configs -eq 1 ]; then
         refresh_roms
+    fi
+
+    # The new files put Onion's original system artwork back. A full update
+    # reapplies the theme below (themeSwitcher), a system-only one does not:
+    # give the active theme its system skin again (script/system_skin.sh).
+    if [ $system_only -eq 1 ] && [ -f /mnt/SDCARD/.tmp_update/config/.systemSkin ]; then
+        sh /mnt/SDCARD/.tmp_update/script/system_skin.sh "$(cat /mnt/SDCARD/.tmp_update/config/active_theme)"
     fi
 
     #########################################################################################

@@ -153,16 +153,15 @@ int main(int argc, char **argv)
     free(before);
     free(after);
     assert(mainui_library_back(library) && mainui_library_back(library));
+    /* Deleting a folder removes all it holds: Nested inside it, and the
+     * Favorites Inside and Zebra (moved in above), from favourite.json too. */
     row = selected(library, "Container");
     assert(mainui_favorite_edit(&editor, library, argv[1], CONTEXT_FAVORITE_DELETE, NULL, &row));
     reopen(library, argv[1]);
-    for (int i = 0; i < library->visible_count; i++) {
-        assert(strcmp(mainui_library_label(library, i), "Container"));
-    }
-    selected(library, "Nested");
-    selected(library, "Zebra");
-    selected(library, "Inside");
-    assert(library->count == 4);
+    assert(library->folder_count == 1 && !strcmp(library->folders[0].name, "Renamed"));
+    assert(library->count == 2);
+    selected(library, "apple");
+    selected(library, "Apple");
     /* Same-row paste cancels without even advancing the sidecar generation. */
     row = selected(library, "Apple");
     before = mainui_read_text(path, 8 * 1024 * 1024);
@@ -186,6 +185,9 @@ int main(int argc, char **argv)
     assert(mainui_favorite_edit(&editor, library, argv[1], CONTEXT_FAVORITE_PASTE, NULL, &row));
     assert(row == destination && !strcmp(mainui_library_label(library, row), "Apple"));
 
+    row = 0;
+    assert(
+        mainui_favorite_edit(&editor, library, argv[1], CONTEXT_FAVORITE_CREATE, "Nested", &row));
     assert(mainui_library_enter(library, selected(library, "Nested")));
     row = 0;
     assert(mainui_favorite_edit(&editor, library, argv[1], CONTEXT_FAVORITE_CREATE, "Level two",

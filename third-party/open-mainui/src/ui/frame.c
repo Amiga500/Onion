@@ -15,23 +15,34 @@ static void footer(SDL_Surface *screen, MainUITheme *theme, int page, int total,
         SDL_BlitSurface(theme->background, &clip, screen, &destination);
     }
     mainui_blit(screen, theme->footer, 0, 420);
-    int x = 20;
     const char *hints[] = {theme->hide_hints ? " " : open, theme->hide_hints ? " " : back};
+    /* Each hint is its button, 5 px, then its text; hints are 30 px apart.
+     * Stock's layout starts A's at x 20. The alternative ends B's then A's
+     * at x 620, so each button keeps its own action. */
+    SDL_Surface *label[2] = {NULL, NULL};
+    int width[2] = {0, 0};
     for (int i = 0; i < 2; i++) {
-        SDL_Surface *button = theme->buttons[i];
-        if (button) {
-            mainui_blit(screen, button, x, 450 - button->h / 2);
-            x += button->w + 5;
+        if (theme->buttons[i]) {
+            width[i] = theme->buttons[i]->w + 5;
         }
         if (!theme->hide_hint_text) {
-            SDL_Surface *hint =
-                mainui_theme_text(theme, theme->hint_font, hints[i], theme->hint_color);
-            if (hint) {
-                mainui_blit(screen, hint, x, 449 - hint->h / 2);
-                x += hint->w;
-            }
+            label[i] = mainui_theme_text(theme, theme->hint_font, hints[i], theme->hint_color);
+            width[i] += label[i] ? label[i]->w : 0;
         }
-        x += 30;
+    }
+    int x = theme->footer_alt ? 620 - width[1] - 30 - width[0] : 20;
+    for (int n = 0; n < 2; n++) {
+        int i = theme->footer_alt ? 1 - n : n;
+        SDL_Surface *button = theme->buttons[i];
+        int left = x;
+        if (button) {
+            mainui_blit(screen, button, left, 450 - button->h / 2);
+            left += button->w + 5;
+        }
+        if (label[i]) {
+            mainui_blit(screen, label[i], left, 449 - label[i]->h / 2);
+        }
+        x += width[i] + 30;
     }
     if (total >= 0 && !theme->hide_hint_text) {
         char text[48];
@@ -39,14 +50,19 @@ static void footer(SDL_Surface *screen, MainUITheme *theme, int page, int total,
         SDL_Surface *last = mainui_theme_text(theme, theme->hint_font, text, theme->total_color);
         snprintf(text, sizeof text, "%d/", total ? page : 0);
         SDL_Surface *current = mainui_theme_text(theme, theme->hint_font, text, theme->page_color);
-        /* Stock 0x31268 reserves another 20px for totals above 99. */
+        /* Stock 0x31268 reserves another 20px for totals above 99. The
+         * counter shares the hints' line, y=449, as Onion's footer draws it.
+         * The alternative layout starts it at x 20. */
         int edge = total > 99 ? 600 : 620;
+        if (theme->footer_alt) {
+            edge = 20 + (current ? current->w : 0) + (last ? last->w : 0);
+        }
         if (last) {
             edge -= last->w;
-            mainui_blit(screen, last, edge, 450 - last->h / 2);
+            mainui_blit(screen, last, edge, 449 - last->h / 2);
         }
         if (current) {
-            mainui_blit(screen, current, edge - current->w, 450 - current->h / 2);
+            mainui_blit(screen, current, edge - current->w, 449 - current->h / 2);
         }
     }
     SDL_SetClipRect(screen, NULL);
@@ -58,20 +74,56 @@ void mainui_draw_footer(SDL_Surface *screen, MainUITheme *theme, int page, int t
            mainui_translate(89, "BACK"));
 }
 
+/* The Wi-Fi (or hotspot) icon. `left` is the battery's leftmost pixel, icon
+ * or percentage (640 without a battery). */
+static void header_wifi(SDL_Surface *screen, MainUITheme *theme, int left)
+{
+    int level = theme->wifi_signal_level;
+    SDL_Surface *wifi = theme->wifi_signal[level >= 2 && level <= 3 ? level : 1];
+    /* Stock (0x16980, 0x1622c) gives each status icon a 48x48 slot from the
+     * right, 620 - (68 * slot + 48), y 6, and centers the image in it. The
+     * battery holds slot 0, so Wi-Fi is slot 1 at x 504; a wider image, as
+     * some themes ship, spreads from it. */
+    /* Stock's state 3: a running hotspot and no Wi-Fi connection. */
+    if (!theme->wifi_online && theme->hotspot_on) {
+        wifi = theme->wifi_hotspot;
+    }
+    if ((theme->wifi_online || theme->hotspot_on) && wifi) {
+        /* A battery percentage can widen the battery past its slot, over
+         * this one, where stock leaves the two overlapping. Keep stock's
+         * slot unless they would overlap; then sit 8 px left of the
+         * battery's leftmost pixel (icon or percentage), as before 1.0.6.
+         * Artwork wider than the slot is drawn to spread from it (Super
+         * Onion Entertainment System Remix's cloud) and stays as in stock. */
+        int x = 504 + (48 - wifi->w) / 2;
+        if (wifi->w <= 48 && x + wifi->w > left) {
+            x = left - 8 - wifi->w;
+        }
+        mainui_blit(screen, wifi, x, 6 + (48 - wifi->h) / 2);
+    }
+}
+
 static void header_battery(SDL_Surface *screen, MainUITheme *theme)
 {
     int percent = theme->battery_percent;
-    int index = percent == 500 ? 5
-                : percent < 5  ? 0
-                : percent < 30 ? 1
-                : percent < 60 ? 2
-                : percent < 90 ? 3
-                               : 4;
+    bool charging = theme->battery_charging || percent == 500;
+    /* Stock MainUI's levels (0x16ddc): above 69, 44, 14 and 4 %. Onion's
+     * own screens use 90, 60, 30 and 5. */
+    int index = charging        ? 5
+                : percent <= 4  ? 0
+                : percent <= 14 ? 1
+                : percent <= 44 ? 2
+                : percent <= 69 ? 3
+                                : 4;
     SDL_Surface *icon = theme->battery_icons[index];
     if (percent < 0 || !icon) {
+        /* No battery to draw (level unknown, or no image): Wi-Fi still is,
+         * in its own slot, as in stock. */
+        header_wifi(screen, theme, 640);
         return;
     }
-    bool visible = theme->battery_visible && percent != 500 && icon->w <= 640;
+    /* Stock hides the percentage while charging; it is shown when known. */
+    bool visible = theme->battery_visible && percent <= 100 && icon->w <= 640;
     char value[32];
     snprintf(value, sizeof value, "%d%%", percent);
     SDL_Surface *text =
@@ -104,16 +156,27 @@ static void header_battery(SDL_Surface *screen, MainUITheme *theme)
     }
     /* Onion theme/render/header.h centers the battery surface at (596,30). */
     int origin = 596 - width / 2;
-    int level = theme->wifi_signal_level;
-    SDL_Surface *wifi = theme->wifi_signal[level >= 2 && level <= 3 ? level : 1];
-    if (theme->wifi_online && wifi) {
-        int edge = origin + icon_x;
-        if (text && origin + text_x + theme->battery_offset_x < edge) {
-            edge = origin + text_x + theme->battery_offset_x;
-        }
-        mainui_blit(screen, wifi, edge - 8 - wifi->w, 30 - wifi->h / 2);
+    int left = origin + icon_x;
+    if (text && origin + text_x + theme->battery_offset_x < left) {
+        left = origin + text_x + theme->battery_offset_x;
     }
-    mainui_blit(screen, icon, origin + icon_x, 30 - icon->h / 2);
+    header_wifi(screen, theme, left);
+    /* As Onion's battery surface: an even height of at least 48 (its
+     * icon->w is Onion's own, kept for the same pixels), centered at y=30,
+     * with the icon and text centered in it. Rounds odd heights up, where
+     * centering each at 30 would round them down. */
+    int height = text && text->h > icon->h ? text->h : icon->w;
+    if (!text) {
+        height = icon->h;
+    }
+    if (height % 2) {
+        height++;
+    }
+    if (height < 48) {
+        height = 48;
+    }
+    int top = 30 - height / 2;
+    mainui_blit(screen, icon, origin + icon_x, top + (height - icon->h) / 2);
     if (text) {
         int offset = theme->battery_offset_y;
         const char *family = TTF_FontFaceFamilyName(theme->battery_font);
@@ -121,7 +184,7 @@ static void header_battery(SDL_Surface *screen, MainUITheme *theme)
             offset -= (int)(0.075 * TTF_FontHeight(theme->battery_font));
         }
         mainui_blit(screen, text, origin + text_x + theme->battery_offset_x,
-                    30 - text->h / 2 + offset);
+                    top + (height - text->h) / 2 + offset);
     }
 }
 
@@ -148,6 +211,10 @@ static void draw_header_image(SDL_Surface *screen, MainUITheme *theme, SDL_Surfa
         }
     }
     else if (theme->logo) {
+        /* Stock (0x170a0) blits miyoo-topbar.png unclipped: themes draw past
+         * the header with a tall image (Super Onion Entertainment System's
+         * page dots), as the home screen's later drawing goes on top. */
+        SDL_SetClipRect(screen, NULL);
         mainui_blit(screen, theme->logo, 20, (60 - theme->logo->h) / 2);
     }
     clip.x = 0;
@@ -199,7 +266,8 @@ void mainui_draw_folder_footer(SDL_Surface *screen, MainUITheme *theme, int coun
     snprintf(value, sizeof value, "(%d)", count);
     SDL_Surface *text = mainui_theme_text(theme, theme->hint_font, value, theme->total_color);
     if (text) {
-        mainui_blit(screen, text, (count > 99 ? 600 : 620) - text->w, 450 - text->h / 2);
+        int left = theme->footer_alt ? 20 : (count > 99 ? 600 : 620) - text->w;
+        mainui_blit(screen, text, left, 450 - text->h / 2);
     }
 }
 

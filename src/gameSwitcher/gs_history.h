@@ -187,4 +187,52 @@ void getLaunchCommand(Game_s *game, char *launchCommand)
     snprintf(launchCommand, 4096, "LD_PRELOAD=/mnt/SDCARD/miyoo/app/../lib/libpadsp.so \"%s\" \"%s\"", game->recentItem.launch, game->recentItem.rompath);
 }
 
+// Fast handoff: GameSwitcher already has the launch paths and physical line
+// number. Check the line still matches before moving it: history may have
+// been edited while the overlay was open.
+static bool resumeGameItem(Game_s *game)
+{
+    if (game == NULL || game->recentItem.lineNo < 1 ||
+        !exists(game->recentItem.rompath) || !exists(game->recentItem.launch))
+        return false;
+
+    const char *recentPath = getMiyooRecentFilePath();
+    char *line = file_read_lineN(recentPath, game->recentItem.lineNo);
+    if (line == NULL)
+        return false;
+
+    RecentItem verified = {0};
+    bool same = parseJsonToRecentItem(line, &verified, game->recentItem.lineNo) &&
+                strcmp(verified.rompath, game->recentItem.rompath) == 0 &&
+                strcmp(verified.launch, game->recentItem.launch) == 0;
+    free(line);
+    if (!same)
+        return false;
+
+    // Write the launch command first, atomically (temp + fsync + rename +
+    // directory fsync). If it fails nothing has been changed yet, so the
+    // caller's resumeGame() fallback starts from a clean state.
+    char launchCommand[4096];
+    getLaunchCommand(game, launchCommand);
+    if (!file_atomic_write(CMD_TO_RUN_PATH, launchCommand, strlen(launchCommand))) {
+        print_debug("resumeGameItem: could not write cmd_to_run.sh");
+        return false;
+    }
+
+    // Reuse OnionPlus' atomic one-pass mover; don't reimplement history I/O.
+    // The game is already set to launch, so a failed move only costs the
+    // history order: log it rather than undo the launch.
+    if (game->recentItem.lineNo > 1) {
+        temp_flag_set("quick_switch", true);
+        if (!file_move_line_to_top(recentPath, game->recentItem.lineNo))
+            print_debug("resumeGameItem: could not move history entry to top");
+    }
+
+    remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
+    file_sync_dir("/mnt/SDCARD/.tmp_update"); // persist the removal
+    printf_debug("resume game (direct): %s\n", launchCommand);
+    temp_flag_set("force_auto_load_state", true);
+    return true;
+}
+
 #endif // GAME_SWITCHER_HISTORY_H

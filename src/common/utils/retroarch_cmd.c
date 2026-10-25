@@ -38,6 +38,11 @@ int retroarch_unpause(void)
     return retroarch_cmd("UNPAUSE");
 }
 
+int retroarch_pauseNoProbe(void)
+{
+    return udp_send_no_probe(LOCALHOST_IP, RETROARCH_CMD_UDP_PORT, "PAUSE");
+}
+
 int retroarch_getStateSlot(int *slot)
 {
     char response[128];
@@ -76,13 +81,8 @@ int retroarch_load(int slot)
     return retroarch_cmd(cmd);
 }
 
-int retroarch_getStatus(RetroArchStatus_s *status)
+static int _parseRetroArchStatus(const char *response, RetroArchStatus_s *status)
 {
-    char response[512];
-    if (retroarch_get("GET_STATUS", response, sizeof(response)) == -1) {
-        return -1;
-    }
-
     char status_str[32];
 
     // Parse response "GET_STATUS PAUSED game_boy_advance,Advance Wars (U) (V1.1) [!],crc32=26fd0fc9"
@@ -103,6 +103,34 @@ int retroarch_getStatus(RetroArchStatus_s *status)
         status->state = RETROARCH_STATE_UNKNOWN;
 
     return 0;
+}
+
+int retroarch_getStatus(RetroArchStatus_s *status)
+{
+    char response[512];
+    if (retroarch_get("GET_STATUS", response, sizeof(response)) == -1)
+        return -1;
+    return _parseRetroArchStatus(response, status);
+}
+
+int retroarch_getStatusNoProbe(RetroArchStatus_s *status)
+{
+    char response[512];
+    if (udp_send_receive_no_probe(LOCALHOST_IP, RETROARCH_CMD_UDP_PORT,
+                                  "GET_STATUS", response, sizeof(response)) == -1)
+        return -1;
+    return _parseRetroArchStatus(response, status);
+}
+
+int retroarch_getStatusWait(RetroArchStatus_s *status, int timeout_ms,
+                            bool (*keep_waiting)(void *ctx), void *ctx)
+{
+    char response[512];
+    if (udp_send_receive_wait(LOCALHOST_IP, RETROARCH_CMD_UDP_PORT, "GET_STATUS",
+                              response, sizeof(response), timeout_ms,
+                              keep_waiting, ctx) == -1)
+        return -1;
+    return _parseRetroArchStatus(response, status);
 }
 
 int retroarch_getInfo(RetroArchInfo_s *info)

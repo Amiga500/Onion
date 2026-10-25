@@ -26,3 +26,4 @@ hw_render = "false"
 disk_control = "false"
 
 description = "An experimental Lua game framework for libretro, based on a subset of the LOVE API. Games' source directories can be loaded like a game/ROM, or you can load a compressed 'lutro' archive."
+systemid = "lutro"

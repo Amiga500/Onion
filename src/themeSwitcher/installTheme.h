@@ -13,6 +13,7 @@
 #include "utils/log.h"
 #include "utils/str.h"
 
+#include "themeListRescale.h"
 #include "themeMarker.h"
 #include "themePreview.h"
 
@@ -218,6 +219,17 @@ void installTheme(char *theme_path, bool apply_icons)
         apply_iconPack(
             is_dir(icon_pack_path) ? icon_pack_path : ICON_PACK_DEFAULT, true);
     }
+
+    // Apps that load fixed files instead of theme images (Package Manager,
+    // Search, Quick Guide, ...) follow the theme through its "system" folder.
+    char skin_cmd[STR_MAX * 2 + 64];
+    snprintf(skin_cmd, sizeof(skin_cmd), "sh " SCRIPT_DIR "/system_skin.sh \"%s\"",
+             theme_path);
+    system(skin_cmd);
+
+    // List icons sized for the game-list row count, as Tweaks > Appearance >
+    // Game lists does when its rows or rescale option change.
+    theme_listRescale(theme_path, THEME_LIST_CONFIG_DIR, THEME_LIST_RESCALE_SCRIPT);
 }
 
 bool checkAndSetDir(char *dest, const char *dir_path)
@@ -231,9 +243,9 @@ bool checkActiveTheme(char *theme_path_out)
     if (!is_file(ACTIVE_THEME))
         return false;
 
-    FILE *fp;
     char active_theme_path[STR_MAX];
-    file_get(fp, ACTIVE_THEME, "%[^\n]", active_theme_path);
+    if (!file_read_line(ACTIVE_THEME, active_theme_path, sizeof(active_theme_path)))
+        return false;
 
     printf_debug("active theme: %s\n", active_theme_path);
 

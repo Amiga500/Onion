@@ -12,6 +12,19 @@ typedef struct {
     SDL_Surface *icons[SET_COUNT], *selection, *left, *right;
 } MainUISettingsArtwork;
 
+/* A title's line breaks, as offsets into it; the lines' surfaces are kept in
+ * the theme's text cache. used is 0 for an empty slot. */
+typedef struct {
+    TTF_Font *font;
+    int width;
+    unsigned used, count;
+    char title[4096];
+
+    struct {
+        unsigned short start, length;
+    } lines[256];
+} MainUITitleLayout;
+
 /* Owns all loaded surfaces and fonts. Initialize with mainui_theme_open and
  * release exactly once with mainui_theme_close; both operate on the UI thread.
  * This initial preview loader does not yet implement the full theme contract.
@@ -40,25 +53,50 @@ typedef struct {
     } text_cache[32];
 
     unsigned text_clock;
+
+    /* Game Info title line breaks for the last 5 titles shown, kept while
+     * moving between games and leaving Game Info, cleared with the theme. */
+    MainUITitleLayout title_layouts[5];
+    unsigned title_layout_clock;
+
+    /* Context menu labels as shown, shortened with "..." when too wide for
+     * the popup, for the last 6 drawn, cleared with the theme (dialogs.c). */
+    struct {
+        TTF_Font *font;
+        int room;
+        char label[512], shown[512];
+        unsigned used;
+    } context_labels[6];
+
+    unsigned context_label_clock;
     SDL_Surface *detail_default;
     bool detail_default_loaded;
-    TTF_Font *expert_font;
     TTF_Font *battery_font;
     SDL_Surface *battery_icons[6];
     SDL_Surface *wifi_connected, *wifi_locked, *wifi_signal[4];
-    bool wifi_online;
+    SDL_Surface *wifi_hotspot;
+    bool wifi_online, hotspot_on;
     int wifi_signal_level;
     char wifi_address[64];
     int battery_percent, battery_align, battery_offset_x, battery_offset_y;
-    bool battery_visible, battery_fixed;
+    bool battery_visible, battery_fixed, battery_charging;
     SDL_Color battery_color;
     TTF_Font *font, *title_font, *grid_font, *hint_font, *menu_font, *description_font,
         *detail_font;
     SDL_Surface *tiles[2], *dots[2], *buttons[2];
     SDL_Surface *expert_selection; /* skin/bg-ra-list-item.png */
+    TTF_Font *expert_font;         /* Expert labels: grid.fontascii or list.font */
     SDL_Surface *popup_dim;        /* black at 0xAA alpha over 640x420 */
     SDL_Color grid_color[2], hint_color, title_color, page_color, total_color;
+    /* gamelist.searchColor for the matched part of a title in an in-list
+     * search; without it (search_color_set false) a colour that stands out
+     * from list.color is chosen. */
+    SDL_Color search_color;
+    bool search_color_set;
     bool hide_icons, hide_hints;
+    /* The footer's alternative layout, from the configuration it was opened
+     * with (MainUIConfig.footer_alt): counter left, hints right, B first. */
+    bool footer_alt;
     /* Font size 0 in config.json: stock draws no text in that role. The font
      * itself still opens at the default size for dialogs and other screens. */
     bool hide_title_text, hide_hint_text, hide_grid_text, hide_expert_text;

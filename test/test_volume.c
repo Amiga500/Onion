@@ -141,6 +141,30 @@ TEST(volume_over_max_treated_as_max) {
     ASSERT_EQ(volume_to_raw(100), volume_to_raw(20));
 }
 
+/* ---- Tests: Mini Flip curve (the stock firmware's: linear, at most -3 dB) ---- */
+
+TEST(volume_flip_matches_stock_formula) {
+    DEVICE_ID = MIYOO285;
+    ASSERT_EQ(volume_to_raw(0), 0);
+    ASSERT_EQ(volume_to_raw(10), 28);
+    ASSERT_EQ(volume_to_raw(20), 57);
+    DEVICE_ID = 0;
+}
+
+TEST(volume_flip_never_above_minus_3_db) {
+    DEVICE_ID = MIYOO285;
+    for (int v = 0; v <= 20; v++) {
+        ASSERT_TRUE(volume_to_raw(v) + MIN_RAW_VALUE <= -3);
+    }
+    DEVICE_ID = 0;
+}
+
+TEST(volume_mini_plus_keeps_its_curve) {
+    DEVICE_ID = MIYOO354;
+    ASSERT_EQ(volume_to_raw(20), 63);
+    DEVICE_ID = 0;
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -167,6 +191,11 @@ int main(void)
     /* Edge cases */
     RUN_TEST(volume_negative_treated_as_zero);
     RUN_TEST(volume_over_max_treated_as_max);
+
+    /* Mini Flip curve: last, as they set DEVICE_ID */
+    RUN_TEST(volume_flip_matches_stock_formula);
+    RUN_TEST(volume_flip_never_above_minus_3_db);
+    RUN_TEST(volume_mini_plus_keeps_its_curve);
 
     TEST_REPORT();
     return test_failures;
