@@ -4,9 +4,9 @@
  *        (src/gameSwitcher/gs_bottom_bar.h, gameSwitcher.c, Silky RedOnion)
  *
  * The bar is theme art. Silky RedOnion has a second one, with SELECT and
- * START on the left and the face buttons on the right, Y X B A, in the order
- * they have on the device. It is used only with the B A layout, and only
- * when it comes from the same place as the normal bar or a closer one.
+ * START on the left, Y and X in the middle and B then A on the right. It is
+ * used only with the B A layout, and only when it comes from the same place
+ * as the normal bar or a closer one.
  *
  * Build and run: make -f Makefile.unit test_gs_bottom_bar
  */
