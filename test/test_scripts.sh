@@ -432,6 +432,30 @@ if command -v jq > /dev/null; then
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
+    begin ota_stable_without_beta_in_the_name
+    # The stable is named 4.4.0-<date>-<commit>, without "beta". A device on
+    # beta 10.1 gets it once (newer date), then it is up to date; a newer
+    # beta after it is offered on the beta channel and not on stable.
+    channel=stable
+    installUI() { echo "4.4.0-beta-20261024-50860077"; }
+    ota_asset 4.4.0-20261025-0a1b2c3d false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "beta 10.1 is offered the stable" test "$?" -eq 0 -a "$Release_FullVersion" = 4.4.0-20261025-0a1b2c3d
+    check "stable: date parsed" test "$(build_date 4.4.0-20261025-0a1b2c3d)" = 20261025
+    installUI() { echo "4.4.0-20261025-0a1b2c3d"; }
+    get_release_info > /dev/null
+    check "stable installed: up to date" test "$?" -eq 1
+    ota_asset 4.4.0-beta-20261024-50860077 false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable installed: the older beta is not offered" test "$?" -eq 1
+    channel=beta
+    printf '[%s,%s]' "$(ota_asset 4.4.0-20261025-0a1b2c3d false)" "$(ota_asset 4.4.0-beta-20261026-4e5f6a7b true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel: a newer beta is offered over the stable" test "$?" -eq 0 -a "$Release_FullVersion" = 4.4.0-beta-20261026-4e5f6a7b
+    channel=stable
+    installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
+    end
+
     begin ota_finds_redonion_and_onionplus_packages
     # The rename: releases carry RedOnion-v, OnionPlus-v or both.
     ota_release() { # version, then package names

@@ -1,13 +1,15 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅🔴 RedOnion beta 10.1: Open MainUI 1.0.10, footer layout, GameSwitcher pictures for big games, PDF Reader exit
+# 🧅🔴 RedOnion 4.4.0 stable: Open MainUI 1.0.10, footer layout, GameSwitcher pictures for big games, PDF Reader exit
 
-> 🧪 **Beta.** This build is published as a pre-release: only devices on the **beta** OTA channel receive it. Stable installs stay on the current stable release until this beta is promoted.
+> ⚠️ **Always back up your SD card before updating!** At least copy `Roms`, `Saves`, `BIOS` and `Screenshots` to your PC.
 
-This beta brings **Open MainUI 1.0.10**, a **footer layout** with the hints in button order (B then A) that the whole system follows, **GameSwitcher pictures and save states for Neo Geo and other big games** (broken since beta 9), a **PDF Reader and Video Player that let you leave the file list again**, and the end of the **GameSwitcher crash in Game & Watch**.
+> ✅ **Stable.** This is the stable release, offered to devices on both the **stable** and the **beta** OTA channel. It is the code of beta 10.1, tested by the beta channel, built again with the stable version name (`4.4.0-<date>-<commit>`, no "beta"). If you are on beta 10.1, the update has the same content: you can install it or skip it.
+
+This release brings **Open MainUI 1.0.10**, a **footer layout** with the hints in button order (B then A) that the whole system follows, **GameSwitcher pictures and save states for Neo Geo and other big games** (broken since beta 9), a **PDF Reader and Video Player that let you leave the file list again**, and the end of the **GameSwitcher crash in Game & Watch**.
 
 RedOnion is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It is based on Onion `4.4.0-beta`, with Miyoo Mini Flip support ported from `4.5-dev`, and runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip. Open MainUI is now **1.0.10**: https://github.com/robcodedev/onionos-mainui-opensource
 
-## 🆕 New in beta 10.1
+## 🆕 New since beta 10
 
 ### 🖥️ Open MainUI 1.0.10 by @robcodedev
 
@@ -84,9 +86,9 @@ Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHA
 - **"Refresh all roms" with other themes:** in 12 languages it is longer than a 320 px SELECT menu, and ends with "...". Silky RedOnion fits it.
 - **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package. Verifying certificates and the package's SHA-256 is planned.
 
-## 🧪 If you'd like to try it
+## ✅ Worth a look after updating
 
-Switch the OTA updater to the **beta** channel to receive this build. Useful things to check:
+Update with the OTA updater, on either channel. Things worth trying:
 
 - Metal Slug X or another big arcade zip, or a PS1 game: press MENU in game, and the GameSwitcher should show the game's own picture and offer Save
 - A Game & Watch game: press MENU, and RetroArch should not close
