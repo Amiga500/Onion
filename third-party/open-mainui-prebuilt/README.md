@@ -1,7 +1,7 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.0 rc5** (video previews in game lists, at the
+GitHub: **Open MainUI 1.1.0 rc6** (video previews in game lists, at the
 cover or full screen, an early beta).
 `MainUI.md5` is its checksum, checked by the build.
 
