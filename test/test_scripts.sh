@@ -941,6 +941,14 @@ for script in favorites/favfix.sh:favfix favorites/favsort.sh:favsort \
     check "${script%%:*}: back to the list (status 1, was 0)" test "$status" -eq 1
     check "${script%%:*}: still runs tools $args" test "$(cat "$TMP/tools.log" 2> /dev/null)" = "$args"
 done
+# The import and rename scripts of the Ports and ScummVM packages too.
+for file in "$ROOT/static/packages/Emu/Ports Collection/Emu/PORTS/romscripts/Import games (Ports).sh" \
+    "$ROOT/static/packages/Emu/SCUMM (ScummVM)/Emu/SCUMMVM/romscripts/Import games (ScummVM).sh" \
+    "$ROOT/static/packages/Emu/SCUMM (ScummVM)/Emu/SCUMMVM/romscripts/Change names (ScummVM).sh" \
+    "$ROOT/static/packages/RApp/SCUMM (ScummVM standalone)/RApp/scummvm/scripts/romscripts/Import games (ScummVM).sh" \
+    "$ROOT/static/packages/RApp/SCUMM (ScummVM standalone)/RApp/scummvm/scripts/romscripts/Change names (ScummVM).sh"; do
+    check "${file##*/}: ends with exit 1" test "$(grep -v '^[[:space:]]*$' "$file" | tail -n 1)" = "exit 1"
+done
 end
 
 begin glo_script_that_starts_the_game_keeps_recents
