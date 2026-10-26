@@ -49,4 +49,10 @@ Your games, saves and BIOS files carry over. RedOnion keeps Onion's file layout.
 
 ## Thanks
 
-RedOnion exists because of the [Onion team](https://github.com/OnionUI/Onion) and its contributors: the menus, emulators, themes and almost all of the code are theirs. All the credit goes to them. Also huge thanks to those who are putting in the work to make this build possible: [@robcodedev](https://github.com/robcodedev) for Open MainUI, [@dredvm](https://github.com/dredvm) for the RedOnion name, the Silky RedOnion theme and the logo, [@coorasse](https://github.com/coorasse) for his pull requests, and [@quackwalks](https://github.com/quackwalks), [@Ziko577](https://github.com/Ziko577), [@nukefrenzy](https://github.com/nukefrenzy) and [@fengfrw](https://github.com/fengfrw) for their reports and ideas. And to the testers who sent reports and helped confirm the fixes, especially [@Zazzago](https://github.com/Zazzago), and to everyone on Reddit and Discord who tried the betas.
+Thanks to the Discord team: [@robcodedev](https://github.com/robcodedev) for Open MainUI, zazzagone, Veuks and lordelan.
+
+Thanks to [@dredvm](https://github.com/dredvm) for the RedOnion logo, the Silky RedOnion theme and the name of the project.
+
+Thanks to the [Onion team](https://github.com/OnionUI/Onion): without their work this project would never have been born. The menus, emulators, themes and almost all of the code are theirs.
+
+And thanks to the whole community: everyone who supports this project, reports bugs, opens pull requests and tests RedOnion in depth.
