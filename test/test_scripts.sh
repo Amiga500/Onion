@@ -1006,6 +1006,76 @@ check "and its entry is the script's business" test "$(cat "$TMP/recent.json")" 
 unset -f glo_run
 end
 
+begin system_default_core
+# GLO > Game core > "All <system> games" makes a core the default of every
+# game of that system (asked on Reddit: mGBA for all GBA games). It is kept
+# in .tmp_update/config/system_cores, which updates leave alone (they
+# reinstall Emu/<system>/launch.sh), and a core set for one game still wins.
+for fn in system_core_file system_default_core; do
+    check "runtime.sh and GLO share $fn" test "$(extract_fn "$GLO" $fn)" = "$(extract_fn "$RUNTIME" $fn)"
+done
+sysdir_saved=${sysdir-}
+    eval "$(extract_fn "$GLO" system_core_file)"
+    eval "$(extract_fn "$GLO" system_default_core)"
+    eval "$(extract_fn "$GLO" set_system_default_core)"
+    sysdir=$TMP/sys
+    check "the file is named after the emulator folder" \
+        test "$(system_core_file /mnt/SDCARD/Emu/GBA)" = "$TMP/sys/config/system_cores/Emu-GBA"
+    check "a trailing slash is the same folder" \
+        test "$(system_core_file /mnt/SDCARD/Emu/GBA/)" = "$TMP/sys/config/system_cores/Emu-GBA"
+    check "no file: no system core" test -z "$(system_default_core /mnt/SDCARD/Emu/GBA)"
+    set_system_default_core /mnt/SDCARD/Emu/GBA mgba_libretro gpsp_libretro
+    check "All games: the core is saved" test "$(system_default_core /mnt/SDCARD/Emu/GBA)" = mgba_libretro
+    check "other systems are not touched" test -z "$(system_default_core /mnt/SDCARD/Emu/GB)"
+    set_system_default_core /mnt/SDCARD/Emu/GBA gpsp_libretro gpsp_libretro
+    check "back to the launcher's core: the file goes" test ! -e "$TMP/sys/config/system_cores/Emu-GBA"
+check "change_core asks for the scope and saves All games" sh -c \
+    "sed -n '/^change_core() {/,/^}/p' '$GLO' | grep -q 'Only this game' && sed -n '/^change_core() {/,/^}/p' '$GLO' | grep -q 'set_system_default_core \"\$emupath\" \"\$new_core\" \"\$launcher_core\"'"
+
+# GLO shows the system core as the default (get_core_info uses ash's "==":
+# only default_core and launcher_core are checked under this shell)
+    eval "$(extract_fn "$GLO" get_core_info)"
+    eval "$(extract_fn "$GLO" get_info_value)"
+    eval "$(extract_fn "$GLO" system_core_file)"
+    eval "$(extract_fn "$GLO" system_default_core)"
+    log() { :; }
+    sysdir=$TMP/sys radir=$TMP/ra emupath=/mnt/SDCARD/Emu/GBA romext=gba
+    rompath=$TMP/Roms/GBA/Game.gba launch_path=$TMP/launch.sh
+    mkdir -p "$TMP/ra/cores" "$TMP/Roms/GBA" "$TMP/sys/config/system_cores"
+    : > "$TMP/ra/cores/mgba_libretro.so"
+    echo 'default_core=gpsp' > "$launch_path"
+    get_core_info
+    check "no system core: the launcher's" test "$default_core" = gpsp_libretro
+    echo mgba_libretro > "$TMP/sys/config/system_cores/Emu-GBA"
+    get_core_info
+    check "system core: the default" test "$default_core:$launcher_core" = mgba_libretro:gpsp_libretro
+    rm -f "$TMP/ra/cores/mgba_libretro.so"
+    get_core_info
+    check "system core not installed: the launcher's" test "$default_core" = gpsp_libretro
+
+# runtime.sh starts the game with it
+    eval "$(extract_fn "$RUNTIME" override_game_core)"
+    eval "$(extract_fn "$RUNTIME" launcher_emu_dir)"
+    eval "$(extract_fn "$RUNTIME" system_core_file)"
+    eval "$(extract_fn "$RUNTIME" system_default_core)"
+    eval "$(extract_fn "$RUNTIME" get_info_value)" 2> /dev/null
+    get_info_value() { echo "$1" | grep "$2\b" | awk '{split($0,a,/\s*=\s*/); print a[2]}' | tr -d '"'; }
+    log() { :; }
+    sysdir=$TMP/sys2 miyoodir=/mnt/SDCARD/miyoo rompath=/mnt/SDCARD/Roms/GBA/Game.gba
+    mkdir -p "$TMP/sys2/config/system_cores" "$TMP/rapp"
+    check "launcher folder of launch.sh" test "$(launcher_emu_dir /mnt/SDCARD/Emu/GBA/launch.sh)" = /mnt/SDCARD/Emu/GBA
+    check "launcher folder of a proxy" test "$(launcher_emu_dir /mnt/SDCARD/Emu/GBA/../../.tmp_update/proxy.sh)" = /mnt/SDCARD/Emu/GBA
+    echo mgba_libretro > "$TMP/sys2/config/system_cores/Emu-GBA"
+    : > "$TMP/launch.sh"
+    # the core must exist under /mnt/SDCARD/RetroArch: fake it with a missing one
+    override_game_core "$TMP/none.cfg" /mnt/SDCARD/Emu/GBA/launch.sh
+    check "core file missing on this PC: falls back, no command written" test ! -e "$TMP/sys2/cmd_to_run.sh"
+    check "it looked for the system core" sh -c "sed -n '/^override_game_core() {/,/^}/p' '$RUNTIME' | grep -q 'system_default_core \"\$(launcher_emu_dir \"\$launch_path\")\"'"
+    check "a game's own core is read first" sh -c "sed -n '/^override_game_core() {/,/^}/p' '$RUNTIME' | awk '/get_info_value \"\\\$romcfg\" core/{a=NR} /system_default_core/{b=NR} END{exit !(a && b && a < b)}'"
+sysdir=$sysdir_saved
+unset -f get_core_info get_info_value system_core_file system_default_core set_system_default_core override_game_core launcher_emu_dir log
+end
+
 begin press_menu_to_kill_spares_glo
 # pressMenu2Kill runs "pkill -9 -f PATTERN": a literal pattern must not
 # also match the GLO script that launched it.
