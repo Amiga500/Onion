@@ -1076,6 +1076,39 @@ sysdir=$sysdir_saved
 unset -f get_core_info get_info_value system_core_file system_default_core set_system_default_core override_game_core launcher_emu_dir log
 end
 
+begin m3u_gen_lists_only_discs_and_bracketed_titles
+# #310: the extension filter was a character class ("*[cue|gdi|...]"), so
+# "(Disc 1).png" box art was taken for discs, and a title with [ ] (such as
+# "[T-En]") was a glob class too: its discs were never moved or listed.
+M3U="$ROOT/static/build/.tmp_update/script/m3u_gen.sh"
+m3u_run() { # mode (-sd / -md)
+    M3U_ROMS_ROOT="$TMP/Roms" M3U_CUE_GEN=true sh "$M3U" "$1" > /dev/null 2>&1
+}
+mkdir -p "$TMP/Roms/PS"
+cd "$TMP/Roms/PS"
+: > "Example (Disc 1).chd"; : > "Example (Disc 2).chd"
+: > "Picture (Disc 1).png"; : > "Picture (Disc 2).png"
+: > "Example [T-En] (Disc 1).chd"; : > "Example [T-En] (Disc 2).chd"
+: > "Other (Disc 1) (Rev 1).cue"; : > "Other (Disc 1) (Rev 1).bin"
+: > "Other (Disc 2) (Rev 1).cue"; : > "Other (Disc 2) (Rev 1).bin"
+cd "$ROOT"
+m3u_run -sd
+P=$TMP/Roms/PS
+check "plain title: two discs listed" test "$(cat "$P/Example.m3u" 2> /dev/null)" = "$(printf '.multi-disc/Example (Disc 1).chd\n.multi-disc/Example (Disc 2).chd')"
+check "pictures are not discs: no playlist" test ! -e "$P/Picture.m3u"
+check "and they stay where they are" test -f "$P/Picture (Disc 1).png" -a -f "$P/Picture (Disc 2).png"
+check "bracketed title: discs moved" test -f "$P/.multi-disc/Example [T-En] (Disc 1).chd" -a -f "$P/.multi-disc/Example [T-En] (Disc 2).chd"
+check "bracketed title: both listed" test "$(cat "$P/Example [T-En].m3u" 2> /dev/null)" = "$(printf '.multi-disc/Example [T-En] (Disc 1).chd\n.multi-disc/Example [T-En] (Disc 2).chd')"
+check "type 2: the .cue files listed, not the .bin" test "$(cat "$P/Other (Rev 1).m3u" 2> /dev/null)" = "$(printf '.multi-disc/Other (Disc 1) (Rev 1).cue\n.multi-disc/Other (Disc 2) (Rev 1).cue')"
+check "and the .bin moved with them" test -f "$P/.multi-disc/Other (Disc 2) (Rev 1).bin"
+# One folder per game (-md)
+rm -rf "$TMP/Roms"; mkdir -p "$TMP/Roms/PS"
+: > "$TMP/Roms/PS/Game [!] (Disc 1).chd"; : > "$TMP/Roms/PS/Game [!] (Disc 2).chd"
+m3u_run -md
+check "-md: bracketed title in its own folder" test "$(cat "$TMP/Roms/PS/Game [!].m3u" 2> /dev/null)" = "$(printf '.Game [!]/Game [!] (Disc 1).chd\n.Game [!]/Game [!] (Disc 2).chd')"
+unset -f m3u_run
+end
+
 begin press_menu_to_kill_spares_glo
 # pressMenu2Kill runs "pkill -9 -f PATTERN": a literal pattern must not
 # also match the GLO script that launched it.
