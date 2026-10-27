@@ -595,7 +595,8 @@ void menu_userInterface(void *_)
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){.label = "Main menu...", .action = menu_mainMenu},
                                  "Sections of the main menu (Recents,\n"
-                                 "Expert...) and the context menu entries.");
+                                 "Expert...), the context menu entries\n"
+                                 "and the Games and Expert views.");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
                                      .label = "Loading/saving screen",
