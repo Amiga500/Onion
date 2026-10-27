@@ -1159,6 +1159,64 @@ sqlite3() { # db, query: the db file holds the count the query would return
     cat "$1"
 }
 
+begin glo_hide_game_and_bring_it_back
+# Hide game moves the game, with the tracks of a .cue, into
+# <folder>/.hidden/<rom name>/ (dot names are not listed); Hidden games puts
+# exactly those files back. The rom list cache is dropped both times.
+for fn in glo_game_files count_hidden_games drop_rom_list_cache hide_game show_hidden_games unhide_game; do
+    eval "$(extract_fn "$GLO" $fn)"
+done
+log() { :; }
+infoPanel() { echo "$*" >> "$TMP/info"; }
+R="$TMP/Roms/PS"
+mkdir -p "$R" "$TMP/bin"
+printf '#!/bin/sh\nexit $(cat "%s/answer")\n' "$TMP" > "$TMP/bin/prompt"
+chmod +x "$TMP/bin/prompt"
+: > "$R/PS_cache6.db"
+printf 'FILE "Game (Track 1).bin" BINARY\r\nFILE "Game (Track 2).bin" BINARY\r\n' > "$R/Game.cue"
+: > "$R/Game (Track 1).bin"; : > "$R/Game (Track 2).bin"; : > "$R/Game 2.cue"; : > "$R/Other.chd"
+romroot="$R"
+cd "$TMP"
+rompath="$R/Game.cue"
+echo 1 > "$TMP/answer"
+( hide_game ); rc=$?
+check "cancel: nothing moves" test -f "$R/Game.cue" -a ! -d "$R/.hidden"
+check "cancel: back to the list" test $rc -eq 1
+echo 0 > "$TMP/answer"
+( hide_game )
+check "the cue and its tracks are hidden" test -f "$R/.hidden/Game/Game.cue" -a -f "$R/.hidden/Game/Game (Track 1).bin" -a -f "$R/.hidden/Game/Game (Track 2).bin"
+check "nothing of them stays in the list" test ! -e "$R/Game.cue" -a ! -e "$R/Game (Track 1).bin"
+check "another game with a longer name stays" test -f "$R/Game 2.cue"
+check "the list cache is dropped" test ! -e "$R/PS_cache6.db"
+check "one hidden game" test "$(count_hidden_games "$R/.hidden")" -eq 1
+rompath="$R/Other.chd"
+( hide_game )
+check "a single-file game is hidden" test -f "$R/.hidden/Other/Other.chd"
+check "two hidden games" test "$(count_hidden_games "$R/.hidden")" -eq 2
+: > "$R/PS_cache6.db"
+rompath="$R/Game 2.cue"
+echo 0 > "$TMP/answer"   # the first in the list: Game
+( show_hidden_games )
+check "Game is back with its tracks" test -f "$R/Game.cue" -a -f "$R/Game (Track 2).bin"
+check "its hidden folder is gone" test ! -d "$R/.hidden/Game"
+check "the other stays hidden" test -f "$R/.hidden/Other/Other.chd"
+check "the list cache is dropped again" test ! -e "$R/PS_cache6.db"
+echo 0 > "$TMP/answer"
+( show_hidden_games )
+check "the last one back removes .hidden" test -f "$R/Other.chd" -a ! -d "$R/.hidden"
+echo 0 > "$TMP/answer"
+( show_hidden_games ); rc=$?
+check "no hidden game: back to the list" test $rc -eq 1
+# A name already taken is not overwritten
+rompath="$R/Other.chd"; ( hide_game ); : > "$R/Other.chd"
+( show_hidden_games )
+check "taken name: the hidden copy stays" test -f "$R/.hidden/Other/Other.chd"
+check "and it says why" grep -q "already in the list folder" "$TMP/info"
+cd "$ROOT"
+unset -f glo_game_files count_hidden_games drop_rom_list_cache hide_game show_hidden_games unhide_game log infoPanel
+check "offered in Games and Expert" sh -c "grep -q 'add_menu_option hide_game \"Hide game\"' '$GLO' && grep -q 'add_menu_option show_hidden_games' '$GLO'"
+end
+
 begin glo_filter_dropped_with_cache
 glo_filter_env 1
 check "filter row in the cache: applied" filter_is_applied
