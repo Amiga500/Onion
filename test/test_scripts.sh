@@ -1106,6 +1106,19 @@ rm -rf "$TMP/Roms"; mkdir -p "$TMP/Roms/PS"
 : > "$TMP/Roms/PS/Game [!] (Disc 1).chd"; : > "$TMP/Roms/PS/Game [!] (Disc 2).chd"
 m3u_run -md
 check "-md: bracketed title in its own folder" test "$(cat "$TMP/Roms/PS/Game [!].m3u" 2> /dev/null)" = "$(printf '.Game [!]/Game [!] (Disc 1).chd\n.Game [!]/Game [!] (Disc 2).chd')"
+# Type 3, "(Disc 1 of 2)": the playlist name has no space at the end...
+rm -rf "$TMP/Roms"; mkdir -p "$TMP/Roms/SEGACD"
+: > "$TMP/Roms/SEGACD/Lunar (Disc 1 of 2).iso"; : > "$TMP/Roms/SEGACD/Lunar (Disc 2 of 2).iso"
+m3u_run -sd
+check "type 3: playlist named without the space" test "$(cat "$TMP/Roms/SEGACD/Lunar.m3u" 2> /dev/null)" = "$(printf '.multi-disc/Lunar (Disc 1 of 2).iso\n.multi-disc/Lunar (Disc 2 of 2).iso')"
+check "and no \"Lunar .m3u\"" test ! -e "$TMP/Roms/SEGACD/Lunar .m3u"
+# ...but one made before keeps its name (its saves follow it)
+rm -rf "$TMP/Roms"; mkdir -p "$TMP/Roms/SEGACD"
+: > "$TMP/Roms/SEGACD/Lunar (Disc 1 of 2).iso"; : > "$TMP/Roms/SEGACD/Lunar (Disc 2 of 2).iso"
+: > "$TMP/Roms/SEGACD/Lunar .m3u"
+m3u_run -sd
+check "type 3: an old \"Lunar .m3u\" is kept and filled" test -s "$TMP/Roms/SEGACD/Lunar .m3u"
+check "and no second playlist" test ! -e "$TMP/Roms/SEGACD/Lunar.m3u"
 unset -f m3u_run
 end
 

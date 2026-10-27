@@ -162,6 +162,11 @@ for dir in $DIR_LIST; do
     find_discs . "*([Dd][Ii][Ss][KkCc] 1 of ?).*" | while read line; do
       # searching for a "Disc 1" file.
       FILE_NAME="$(echo "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1 of .*)@@g')"
+      # "Game (Disc 1 of 2)" left "Game " with a space at the end. A playlist
+      # already made with that name keeps it: its saves follow the name.
+      if [ ! -f "$FILE_NAME.m3u" ]; then
+        FILE_NAME="${FILE_NAME%"${FILE_NAME##*[![:space:]]}"}" # remove spaces at the end
+      fi
       if [ "$TARGETFOLDER" = -md ]; then
         DIR_NAME=".$(echo "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1 of .*)@@g')"
         DIR_NAME="${DIR_NAME%"${DIR_NAME##*[![:space:]]}"}" # remove spaces at the end
