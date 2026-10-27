@@ -555,7 +555,7 @@ check "enable_wifi returns without a network" test -f "$TMP/returned"
 check "udhcpc started on wlan0" grep -q -- '-i wlan0' "$TMP/udhcpc_args"
 check "wpa_supplicant called by its full path" \
     grep -q '/mnt/SDCARD/miyoo/app/wpa_supplicant -B' "$OTA"
-check "connection check has a timeout" grep -q 'wget -q -T [0-9]' "$OTA"
+check "connection check has a timeout" grep -q 'curl -k -sS -L -f --connect-timeout [0-9]* --max-time [0-9]' "$OTA"
 wait
 unset -f ip sleep insmod ifconfig pkill clear udhcpc
 end
@@ -1400,23 +1400,28 @@ begin ota_connection_check_ignores_the_clock
 # The check skips the certificate, like the list and the download, and
 # says why it failed.
 eval "$(extract_fn "$OTA_SCRIPT" check_connection)"
-wget() {
-    echo "$*" > "$TMP/wget_args"
+curl() {
+    echo "$*" > "$TMP/curl_args"
     case " $* " in
-        *" --no-check-certificate "*) [ -f "$TMP/offline" ] && { echo "Failed to resolve host: github.com" >&2; return 4; }; return 0 ;;
-        *) echo "Connection error: Invalid SSL certificate" >&2; return 5 ;;
+        *" -k "*) [ -f "$TMP/offline" ] && { echo "curl: (6) Could not resolve host: github.com" >&2; return 6; }; return 0 ;;
+        *) echo "curl: (60) SSL certificate problem: certificate is not yet valid" >&2; return 60 ;;
     esac
 }
+wget() { echo "wget used" > "$TMP/wget_used"; return 4; }
 read() { :; }
 out=$( (check_connection) 2>&1); rc=$?
 check "wrong clock: connection OK" test $rc -eq 0
-check "the certificate is not checked" grep -q -- "--no-check-certificate" "$TMP/wget_args"
-check "still a 15 s timeout" grep -q -- "-T 15" "$TMP/wget_args"
+check "the certificate is not checked" grep -q -- "-k" "$TMP/curl_args"
+check "still a 15 s connect timeout" grep -q -- "--connect-timeout 15" "$TMP/curl_args"
+check "and an end to it" grep -q -- "--max-time 30" "$TMP/curl_args"
+# The bundled wget (mbed TLS 2.2.1) timed out on github.com: curl checks.
+check "wget not used for the check" test ! -e "$TMP/wget_used"
 touch "$TMP/offline"
 out=$( (check_connection) 2>&1); rc=$?
 check "offline: exits 2" test $rc -eq 2
-check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (Failed to resolve host: github.com)'" _ "$out"
-unset -f wget read check_connection
+check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (curl: (6) Could not resolve host: github.com)'" _ "$out"
+check "the download uses curl too" grep -q 'curl -k -L -f --connect-timeout 15 --retry 3' "$OTA_SCRIPT"
+unset -f curl wget read check_connection
 end
 
 # ---- migration 00022: RetroArch menu Border Filler OFF ----
