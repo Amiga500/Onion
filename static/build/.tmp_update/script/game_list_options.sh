@@ -677,6 +677,27 @@ count_hidden_games() { # .hidden folder
     echo $_ch_n
 }
 
+# A hidden game leaves Recents (both lists): its entry would start a file
+# that is no longer there. Matched by its path as given and as resolved
+# (Recents may hold either form). Favorites keep it: it works again once the
+# game is back, at the same path.
+drop_from_recents() { # rom path
+    _dr_real="$(cd "$(dirname "$1")" 2> /dev/null && pwd -P)/$(basename "$1")"
+    for _dr_list in "$recentlist" "$recentlist_hidden"; do
+        [ -f "$_dr_list" ] || continue
+        awk -v a="$1" -v b="$_dr_real" '{
+            v = $0
+            if (match(v, /"rompath"[ \t]*:[ \t]*"[^"]*"/)) {
+                v = substr(v, RSTART, RLENGTH)
+                sub(/^"rompath"[ \t]*:[ \t]*"/, "", v)
+                sub(/"$/, "", v)
+                if (v == a || v == b) next
+            }
+            print
+        }' "$_dr_list" > "$recentlist_temp" && mv "$recentlist_temp" "$_dr_list"
+    done
+}
+
 # The rom list is rebuilt the next time it is opened.
 drop_rom_list_cache() {
     [ -n "$romroot" ] || return 0
@@ -703,6 +724,7 @@ hide_game() {
     echo "$_hg_files" | while IFS= read -r _hg_file; do
         [ -n "$_hg_file" ] && mv -n -- "$_hg_file" "$_hg_dir/"
     done
+    drop_from_recents "$rompath"
     sync
     log "hidden in $_hg_dir: $(ls "$_hg_dir" | tr '\n' '|')"
     drop_rom_list_cache

@@ -1163,7 +1163,7 @@ begin glo_hide_game_and_bring_it_back
 # Hide game moves the game, with the tracks of a .cue, into
 # <folder>/.hidden/<rom name>/ (dot names are not listed); Hidden games puts
 # exactly those files back. The rom list cache is dropped both times.
-for fn in glo_game_files count_hidden_games drop_rom_list_cache hide_game show_hidden_games unhide_game; do
+for fn in glo_game_files count_hidden_games drop_from_recents drop_rom_list_cache hide_game show_hidden_games unhide_game; do
     eval "$(extract_fn "$GLO" $fn)"
 done
 log() { :; }
@@ -1176,6 +1176,9 @@ chmod +x "$TMP/bin/prompt"
 printf 'FILE "Game (Track 1).bin" BINARY\r\nFILE "Game (Track 2).bin" BINARY\r\n' > "$R/Game.cue"
 : > "$R/Game (Track 1).bin"; : > "$R/Game (Track 2).bin"; : > "$R/Game 2.cue"; : > "$R/Other.chd"
 romroot="$R"
+recentlist="$TMP/recentlist.json"; recentlist_hidden="$TMP/recentlist-hidden.json"; recentlist_temp="$TMP/recent.tmp"
+printf '{"label":"Other","rompath":"%s/Other.chd","type":5}\n{"label":"Game 2","rompath":"%s/Game 2.cue","type":5}\n' "$R" "$R" > "$recentlist"
+printf '{"label":"Other","rompath": "%s/Other.chd","type":5}\n' "$(cd "$R" && pwd -P)" > "$recentlist_hidden"
 cd "$TMP"
 rompath="$R/Game.cue"
 echo 1 > "$TMP/answer"
@@ -1192,6 +1195,9 @@ check "one hidden game" test "$(count_hidden_games "$R/.hidden")" -eq 1
 rompath="$R/Other.chd"
 ( hide_game )
 check "a single-file game is hidden" test -f "$R/.hidden/Other/Other.chd"
+check "it leaves Recents" sh -c '! grep -q "Other.chd" "$1"' _ "$recentlist"
+check "and the other entries stay" grep -q 'Game 2.cue' "$recentlist"
+check "also from the hidden Recents (resolved path, spaces)" sh -c '! grep -q "Other.chd" "$1"' _ "$recentlist_hidden"
 check "two hidden games" test "$(count_hidden_games "$R/.hidden")" -eq 2
 : > "$R/PS_cache6.db"
 rompath="$R/Game 2.cue"
@@ -1213,7 +1219,7 @@ rompath="$R/Other.chd"; ( hide_game ); : > "$R/Other.chd"
 check "taken name: the hidden copy stays" test -f "$R/.hidden/Other/Other.chd"
 check "and it says why" grep -q "already in the list folder" "$TMP/info"
 cd "$ROOT"
-unset -f glo_game_files count_hidden_games drop_rom_list_cache hide_game show_hidden_games unhide_game log infoPanel
+unset -f glo_game_files count_hidden_games drop_from_recents drop_rom_list_cache hide_game show_hidden_games unhide_game log infoPanel
 check "offered in Games and Expert" sh -c "grep -q 'add_menu_option hide_game \"Hide game\"' '$GLO' && grep -q 'add_menu_option show_hidden_games' '$GLO'"
 end
 
