@@ -169,19 +169,19 @@ static bool mainmenu_ensure_config_dir(void)
     return stat(MAINMENU_CONFIG_DIR, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
-static char *mainmenu_read_config(bool *exists_out)
+static char *mainmenu_read_config_file(const char *path, bool *exists_out)
 {
     *exists_out = false;
 
     struct stat st;
-    if (stat(MAINMENU_CONFIG_PATH, &st) != 0)
+    if (stat(path, &st) != 0)
         return NULL;
     *exists_out = true;
     if (!S_ISREG(st.st_mode) || st.st_size < 0 ||
         st.st_size > MAINMENU_CONFIG_MAX_SIZE)
         return NULL;
 
-    FILE *fp = fopen(MAINMENU_CONFIG_PATH, "rb");
+    FILE *fp = fopen(path, "rb");
     if (fp == NULL)
         return NULL;
 
@@ -294,9 +294,9 @@ static void mainmenu_relax_json(char *text)
     }
 }
 
-static cJSON *mainmenu_load_root(bool *exists_out, bool *valid_out)
+static cJSON *mainmenu_load_root_file(const char *path, bool *exists_out, bool *valid_out)
 {
-    char *text = mainmenu_read_config(exists_out);
+    char *text = mainmenu_read_config_file(path, exists_out);
     if (!*exists_out) {
         *valid_out = true;
         return cJSON_CreateObject();
@@ -317,6 +317,11 @@ static cJSON *mainmenu_load_root(bool *exists_out, bool *valid_out)
 
     *valid_out = true;
     return root;
+}
+
+static cJSON *mainmenu_load_root(bool *exists_out, bool *valid_out)
+{
+    return mainmenu_load_root_file(MAINMENU_CONFIG_PATH, exists_out, valid_out);
 }
 
 static void mainmenu_read_menu_states(cJSON *root,
@@ -441,7 +446,7 @@ static void mainmenu_load_shown_states(bool menu_states[MAINMENU_MENU_COUNT],
         context_states[i] = context_states[i] && mainmenu_context_available(i);
 }
 
-static bool mainmenu_write_root(cJSON *root)
+static bool mainmenu_write_root_file(const char *path, cJSON *root)
 {
     if (root == NULL || !mainmenu_ensure_config_dir())
         return false;
@@ -457,7 +462,7 @@ static bool mainmenu_write_root(cJSON *root)
     }
 
     char temporary[256];
-    if (snprintf(temporary, sizeof(temporary), "%s.tmp", MAINMENU_CONFIG_PATH) >=
+    if (snprintf(temporary, sizeof(temporary), "%s.tmp", path) >=
         (int)sizeof(temporary)) {
         cJSON_free(output);
         return false;
@@ -484,11 +489,16 @@ static bool mainmenu_write_root(cJSON *root)
         remove(temporary);
         return false;
     }
-    if (rename(temporary, MAINMENU_CONFIG_PATH) != 0) {
+    if (rename(temporary, path) != 0) {
         remove(temporary);
         return false;
     }
     return true;
+}
+
+static bool mainmenu_write_root(cJSON *root)
+{
+    return mainmenu_write_root_file(MAINMENU_CONFIG_PATH, root);
 }
 
 static bool mainmenu_replace_root_section(cJSON *root, const char *name,
@@ -847,11 +857,110 @@ void menu_mainContextItems(void *_)
     header_changed = true;
 }
 
+/* ---- Console view: console-view.json (Open MainUI 1.1.0 rc7) ----
+ *
+ * "games" and "expert" pick how those screens show the consoles: "grid"
+ * (the stock grid, also when the file or the key is missing), "carousel"
+ * or "list". Every other key (thumbs, count, menu, carousel, list...) is
+ * kept as written. A file that can't be read is left alone.
+ */
+#define CONSOLEVIEW_CONFIG_PATH MAINMENU_CONFIG_DIR "/console-view.json"
+#define CONSOLEVIEW_GAMES 0
+#define CONSOLEVIEW_EXPERT 1
+#define CONSOLEVIEW_GRID 0
+#define CONSOLEVIEW_CAROUSEL 1
+#define CONSOLEVIEW_LIST 2
+#define CONSOLEVIEW_LAYOUT_COUNT 3
+
+static const char *consoleview_screen_keys[2] = {"games", "expert"};
+static const char *consoleview_layout_keys[CONSOLEVIEW_LAYOUT_COUNT] = {
+    "grid", "carousel", "list"};
+
+static int consoleview_layout_of(cJSON *root, int screen)
+{
+    cJSON *value = cJSON_GetObjectItemCaseSensitive(root, consoleview_screen_keys[screen]);
+    if (!cJSON_IsString(value))
+        return CONSOLEVIEW_GRID;
+    for (int i = 0; i < CONSOLEVIEW_LAYOUT_COUNT; i++)
+        if (strcmp(value->valuestring, consoleview_layout_keys[i]) == 0)
+            return i;
+    return CONSOLEVIEW_GRID;
+}
+
+static int consoleview_layout(int screen)
+{
+    if (screen != CONSOLEVIEW_GAMES && screen != CONSOLEVIEW_EXPERT)
+        return CONSOLEVIEW_GRID;
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(CONSOLEVIEW_CONFIG_PATH, &exists, &valid);
+    int layout = valid && root != NULL ? consoleview_layout_of(root, screen) : CONSOLEVIEW_GRID;
+    cJSON_Delete(root);
+    return layout;
+}
+
+// True when the file holds nothing but the grid for both screens.
+static bool consoleview_is_stock(cJSON *root)
+{
+    for (cJSON *item = root->child; item != NULL; item = item->next) {
+        if (item->string == NULL)
+            return false;
+        int screen = strcmp(item->string, "games") == 0    ? CONSOLEVIEW_GAMES
+                     : strcmp(item->string, "expert") == 0 ? CONSOLEVIEW_EXPERT
+                                                           : -1;
+        if (screen < 0 || !cJSON_IsString(item) ||
+            strcmp(item->valuestring, "grid") != 0)
+            return false;
+    }
+    return true;
+}
+
+static bool consoleview_store_layout(int screen, int layout)
+{
+    if ((screen != CONSOLEVIEW_GAMES && screen != CONSOLEVIEW_EXPERT) ||
+        layout < 0 || layout >= CONSOLEVIEW_LAYOUT_COUNT)
+        return false;
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(CONSOLEVIEW_CONFIG_PATH, &exists, &valid);
+    if (!valid || root == NULL) {
+        cJSON_Delete(root);
+        return false;
+    }
+
+    const char *key = consoleview_screen_keys[screen];
+    cJSON *value = cJSON_CreateString(consoleview_layout_keys[layout]);
+    bool ok = value != NULL;
+    if (ok) {
+        ok = cJSON_GetObjectItemCaseSensitive(root, key) != NULL
+                 ? cJSON_ReplaceItemInObjectCaseSensitive(root, key, value)
+                 : cJSON_AddItemToObject(root, key, value);
+        if (!ok)
+            cJSON_Delete(value);
+    }
+    if (ok) {
+        if (consoleview_is_stock(root))
+            ok = remove(CONSOLEVIEW_CONFIG_PATH) == 0 || errno == ENOENT;
+        else
+            ok = mainmenu_write_root_file(CONSOLEVIEW_CONFIG_PATH, root);
+    }
+    cJSON_Delete(root);
+    return ok;
+}
+
+static void consoleview_action_layout(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    int screen = item->action_id;
+    if (!consoleview_store_layout(screen, item->value))
+        item->value = consoleview_layout(screen);
+}
+
 void menu_mainMenu(void *_)
 {
     (void)_;
     if (!_menu_main_menu._created) {
-        _menu_main_menu = list_createWithTitle(2, LIST_SMALL, "Main menu");
+        _menu_main_menu = list_createWithTitle(4, LIST_SMALL, "Main menu");
         list_addItemWithInfoNote(
             &_menu_main_menu,
             (ListItem){.label = "Main menu items...", .action = menu_mainMenuItems},
@@ -863,6 +972,32 @@ void menu_mainMenu(void *_)
             "Choose which SELECT-menu entries are visible\n"
             "and whether its activation hotkey is enabled.\n"
             "Existing custom definitions are preserved.");
+        list_addItemWithInfoNote(
+            &_menu_main_menu,
+            (ListItem){
+                .label = "Games view",
+                .item_type = MULTIVALUE,
+                .value_max = CONSOLEVIEW_LAYOUT_COUNT - 1,
+                .value_labels = {"Grid", "Carousel", "List"},
+                .value = consoleview_layout(CONSOLEVIEW_GAMES),
+                .action_id = CONSOLEVIEW_GAMES,
+                .action = consoleview_action_layout},
+            "How Games shows the consoles: the grid,\n"
+            "a carousel or a list.\n"
+            "Needs Open MainUI 1.1.0 rc7.");
+        list_addItemWithInfoNote(
+            &_menu_main_menu,
+            (ListItem){
+                .label = "Expert view",
+                .item_type = MULTIVALUE,
+                .value_max = CONSOLEVIEW_LAYOUT_COUNT - 1,
+                .value_labels = {"Grid", "Carousel", "List"},
+                .value = consoleview_layout(CONSOLEVIEW_EXPERT),
+                .action_id = CONSOLEVIEW_EXPERT,
+                .action = consoleview_action_layout},
+            "How Expert shows the consoles: the grid,\n"
+            "a carousel or a list.\n"
+            "Needs Open MainUI 1.1.0 rc7.");
     }
     menu_stack[++menu_level] = &_menu_main_menu;
     header_changed = true;

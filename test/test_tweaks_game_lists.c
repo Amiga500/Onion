@@ -7,6 +7,10 @@
  *  - title scrolling Off keeps .romListTitleScroll ("-1,<speed>"), so an
  *    update can't add the default back and turn scrolling on again;
  *  - the scroll speeds offered are the ones Open MainUI renders exactly;
+ *  - Game Info auto scroll: no file is Off (and keeps the speed for later),
+ *    an empty file is 1500 ms at 40 px/s;
+ *  - console-view.json: Games and Expert views, other keys kept, the grid
+ *    for both removes the file, a damaged file is not overwritten;
  *  - key repeat at the stock values removes its file;
  *  - Main menu defaults show Apps (not Expert) and follow .showRecents and
  *    .showExpert, as Open MainUI reads them, and a first change keeps Apps;
@@ -312,7 +316,7 @@ TEST(game_lists_menu_has_room_for_every_item)
             items++;
     }
     fclose(fp);
-    ASSERT_EQ(items, 12);
+    ASSERT_EQ(items, 14);
     ASSERT_TRUE(items <= capacity);
 }
 
@@ -539,6 +543,162 @@ TEST(custom_action_needs_label_and_launch)
     ASSERT_FALSE(shown[11]);
 }
 
+/* ---- Game Info auto scroll ---- */
+
+TEST(info_scroll_off_without_file)
+{
+    reset_dir();
+    int delay, speed;
+    gamelists_load_info_scroll(&delay, &speed);
+    ASSERT_EQ(delay, GAMELISTS_INFO_SCROLL_OFF);
+    ASSERT_EQ(gamelists_value_info_scroll_delay(), 0);
+    char label[64];
+    gamelists_label_info_scroll_delay(0, label, sizeof(label));
+    ASSERT_STREQ(label, "Off");
+}
+
+TEST(info_scroll_empty_file_is_1500ms_40px)
+{
+    reset_dir();
+    touch(GAMELISTS_INFO_SCROLL_PATH);
+    int delay, speed;
+    gamelists_load_info_scroll(&delay, &speed);
+    ASSERT_EQ(delay, 1500);
+    ASSERT_EQ(speed, 40);
+}
+
+TEST(info_scroll_written_and_read)
+{
+    reset_dir();
+    ASSERT_TRUE(gamelists_store_info_scroll(2000, 30));
+    char text[64];
+    read_file(GAMELISTS_INFO_SCROLL_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "2000,30\n");
+    int delay, speed;
+    gamelists_load_info_scroll(&delay, &speed);
+    ASSERT_EQ(delay, 2000);
+    ASSERT_EQ(speed, 30);
+    gamelists_write_text(GAMELISTS_INFO_SCROLL_PATH, "99999,500\n");
+    gamelists_load_info_scroll(&delay, &speed);
+    ASSERT_EQ(delay, 30000);
+    ASSERT_EQ(speed, 150);
+    gamelists_write_text(GAMELISTS_INFO_SCROLL_PATH, "800\n");
+    gamelists_load_info_scroll(&delay, &speed);
+    ASSERT_EQ(delay, 800);
+    ASSERT_EQ(speed, 40);
+}
+
+TEST(info_scroll_off_removes_the_file_and_keeps_the_speed)
+{
+    reset_dir();
+    gamelists_store_info_scroll(1000, 75);
+    ASSERT_TRUE(gamelists_store_info_scroll(GAMELISTS_INFO_SCROLL_OFF, 75));
+    ASSERT_TRUE(access(GAMELISTS_INFO_SCROLL_PATH, F_OK) != 0);
+    int delay, speed;
+    gamelists_load_info_scroll(&delay, &speed);
+    ASSERT_EQ(delay, GAMELISTS_INFO_SCROLL_OFF);
+    ASSERT_EQ(speed, 75);
+    gamelists_store_info_scroll(500, speed);
+    char text[64];
+    read_file(GAMELISTS_INFO_SCROLL_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "500,75\n");
+}
+
+/* ---- Console view ---- */
+
+TEST(console_view_missing_file_is_grid)
+{
+    reset_dir();
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_GAMES), CONSOLEVIEW_GRID);
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_EXPERT), CONSOLEVIEW_GRID);
+}
+
+TEST(console_view_written_and_read)
+{
+    reset_dir();
+    ASSERT_TRUE(consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_CAROUSEL));
+    ASSERT_TRUE(consoleview_store_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_LIST));
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_GAMES), CONSOLEVIEW_CAROUSEL);
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_EXPERT), CONSOLEVIEW_LIST);
+    char text[256];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"games\":\t\"carousel\"") != NULL);
+    ASSERT_TRUE(strstr(text, "\"expert\":\t\"list\"") != NULL);
+}
+
+TEST(console_view_keeps_the_other_keys)
+{
+    reset_dir();
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH,
+                         "{\n  // mine\n  \"thumbs\": \"/mnt/SDCARD/miyoo/app/consoles\",\n"
+                         "  \"count\": false,\n  \"carousel\": {\"labels\": true},\n}\n");
+    ASSERT_TRUE(consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_CAROUSEL));
+    char text[512];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "/mnt/SDCARD/miyoo/app/consoles") != NULL);
+    ASSERT_TRUE(strstr(text, "\"count\":\tfalse") != NULL);
+    ASSERT_TRUE(strstr(text, "\"labels\":\ttrue") != NULL);
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_GAMES), CONSOLEVIEW_CAROUSEL);
+    /* Back to the grid keeps the file, as it has other keys. */
+    ASSERT_TRUE(consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_GRID));
+    ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) == 0);
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_GAMES), CONSOLEVIEW_GRID);
+}
+
+TEST(console_view_grid_for_both_removes_the_file)
+{
+    reset_dir();
+    consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_LIST);
+    consoleview_store_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_CAROUSEL);
+    consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_GRID);
+    ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) == 0);
+    consoleview_store_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_GRID);
+    ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
+}
+
+TEST(console_view_damaged_file_is_left_alone)
+{
+    reset_dir();
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"games\": \"list\"");
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_GAMES), CONSOLEVIEW_GRID);
+    ASSERT_FALSE(consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_CAROUSEL));
+    char text[64];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "{\"games\": \"list\"");
+}
+
+TEST(console_view_unknown_value_is_grid)
+{
+    reset_dir();
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"games\": \"Carousel\", \"expert\": 1}");
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_GAMES), CONSOLEVIEW_GRID);
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_EXPERT), CONSOLEVIEW_GRID);
+}
+
+TEST(main_menu_submenu_has_room_for_every_item)
+{
+    FILE *fp = fopen("../src/tweaks/main_menu.h", "r");
+    ASSERT_TRUE(fp != NULL);
+    char line[512];
+    int capacity = -1, items = 0;
+    bool inside = false;
+    while (fgets(line, sizeof(line), fp)) {
+        const char *create = strstr(line, "_menu_main_menu = list_createWithTitle(");
+        if (create) {
+            capacity = atoi(create + strlen("_menu_main_menu = list_createWithTitle("));
+            inside = true;
+            continue;
+        }
+        if (inside && strstr(line, "menu_stack[++menu_level]"))
+            break;
+        if (inside && strstr(line, "list_addItem"))
+            items++;
+    }
+    fclose(fp);
+    ASSERT_EQ(items, 4);
+    ASSERT_TRUE(capacity >= items);
+}
+
 int main(void)
 {
     RUN_TEST(scroll_off_keeps_the_file);
@@ -557,7 +717,18 @@ int main(void)
     RUN_TEST(video_preview_size_read);
     RUN_TEST(video_preview_size_and_delay_keep_each_other);
     RUN_TEST(video_preview_size_waits_while_off);
+    RUN_TEST(info_scroll_off_without_file);
+    RUN_TEST(info_scroll_empty_file_is_1500ms_40px);
+    RUN_TEST(info_scroll_written_and_read);
+    RUN_TEST(info_scroll_off_removes_the_file_and_keeps_the_speed);
+    RUN_TEST(console_view_missing_file_is_grid);
+    RUN_TEST(console_view_written_and_read);
+    RUN_TEST(console_view_keeps_the_other_keys);
+    RUN_TEST(console_view_grid_for_both_removes_the_file);
+    RUN_TEST(console_view_damaged_file_is_left_alone);
+    RUN_TEST(console_view_unknown_value_is_grid);
     RUN_TEST(game_lists_menu_has_room_for_every_item);
+    RUN_TEST(main_menu_submenu_has_room_for_every_item);
     RUN_TEST(pair_parser_accepts_open_mainui_forms);
     RUN_TEST(repeat_stock_values_remove_the_file);
     RUN_TEST(rows_and_font_menu_values);

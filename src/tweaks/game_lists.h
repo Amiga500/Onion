@@ -90,6 +90,16 @@ static void gamelists_formatter_scroll_speed(void *pt, char *out_label)
     gamelists_label_scroll_speed(((ListItem *)pt)->value, out_label, STR_MAX);
 }
 
+static void gamelists_formatter_info_scroll_delay(void *pt, char *out_label)
+{
+    gamelists_label_info_scroll_delay(((ListItem *)pt)->value, out_label, STR_MAX);
+}
+
+static void gamelists_formatter_info_scroll_speed(void *pt, char *out_label)
+{
+    gamelists_label_info_scroll_speed(((ListItem *)pt)->value, out_label, STR_MAX);
+}
+
 static void gamelists_formatter_repeat_delay(void *pt, char *out_label)
 {
     gamelists_label_repeat_delay(((ListItem *)pt)->value, out_label, STR_MAX);
@@ -165,6 +175,22 @@ static void gamelists_action_video_size(void *pt)
                                                           : GAMELISTS_VIDEO_COVER);
 }
 
+static void gamelists_action_info_scroll_delay(void *pt)
+{
+    int delay, speed;
+    gamelists_load_info_scroll(&delay, &speed);
+    delay = gamelists_info_scroll_delays[((ListItem *)pt)->value];
+    gamelists_store_info_scroll(delay, speed);
+}
+
+static void gamelists_action_info_scroll_speed(void *pt)
+{
+    int delay, speed;
+    gamelists_load_info_scroll(&delay, &speed);
+    speed = gamelists_info_scroll_speeds[((ListItem *)pt)->value];
+    gamelists_store_info_scroll(delay, speed);
+}
+
 static void gamelists_action_repeat_delay(void *pt)
 {
     int delay, interval;
@@ -212,7 +238,7 @@ void menu_gameLists(void *_)
 {
     (void)_;
     if (!_menu_game_lists._created) {
-        _menu_game_lists = list_createWithTitle(12, LIST_SMALL, "Game lists");
+        _menu_game_lists = list_createWithTitle(14, LIST_SMALL, "Game lists");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,
@@ -311,6 +337,31 @@ void menu_gameLists(void *_)
             "Cover: the video plays where the cover\n"
             "is. Full screen: over the whole screen.\n"
             "Full screen needs Open MainUI 1.1.0 rc4.");
+
+        list_addItemWithInfoNote(
+            &_menu_game_lists,
+            (ListItem){
+                .label = "Game info auto scroll",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_info_scroll_delays) - 1,
+                .value = gamelists_value_info_scroll_delay(),
+                .value_formatter = gamelists_formatter_info_scroll_delay,
+                .action = gamelists_action_info_scroll_delay},
+            "Scroll a long description in Game Info\n"
+            "by itself, after this wait. L2/R2 pause it.\n"
+            "Needs Open MainUI 1.1.0 rc7.");
+
+        list_addItemWithInfoNote(
+            &_menu_game_lists,
+            (ListItem){
+                .label = "Game info scroll speed",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_info_scroll_speeds) - 1,
+                .value = gamelists_value_info_scroll_speed(),
+                .value_formatter = gamelists_formatter_info_scroll_speed,
+                .action = gamelists_action_info_scroll_speed},
+            "How fast the Game Info description\n"
+            "scrolls, in pixels per second.");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,
