@@ -1,8 +1,9 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.0 rc6** (video previews in game lists, at the
-cover or full screen, an early beta).
+GitHub: **Open MainUI 1.1.0 rc7** (video previews in game lists, media
+gallery in Game Info, Games/Expert as grid, carousel or list, Game Info
+auto scroll; a release candidate).
 `MainUI.md5` is its checksum, checked by the build.
 
 When this folder has a `MainUI`, `make dist` / `make release` install it
