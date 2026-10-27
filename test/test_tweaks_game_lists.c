@@ -11,6 +11,7 @@
  *    an empty file is 1500 ms at 40 px/s;
  *  - console-view.json: Games and Expert views, other keys kept, the grid
  *    for both removes the file, a damaged file is not overwritten;
+ *    Console pictures writes "thumbs" (and makes the folder);
  *  - key repeat at the stock values removes its file;
  *  - Main menu defaults show Apps (not Expert) and follow .showRecents and
  *    .showExpert, as Open MainUI reads them, and a first change keeps Apps;
@@ -31,6 +32,7 @@
 #define GAMELISTS_CONFIG_DIR TEST_DIR
 #define MAINMENU_CONFIG_DIR TEST_DIR
 #define MAINMENU_SD_DIR TEST_DIR "/sd"
+#define CONSOLEVIEW_THUMBS_PARENT TEST_DIR "/app"
 
 #include "../src/tweaks/game_lists_core.h"
 
@@ -675,6 +677,46 @@ TEST(console_view_unknown_value_is_grid)
     ASSERT_EQ(consoleview_layout(CONSOLEVIEW_EXPERT), CONSOLEVIEW_GRID);
 }
 
+TEST(console_pictures_on_writes_the_folder_and_creates_it)
+{
+    reset_dir();
+    ASSERT_FALSE(consoleview_has_thumbs());
+    ASSERT_TRUE(consoleview_store_thumbs(true));
+    ASSERT_TRUE(consoleview_has_thumbs());
+    char text[256];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"thumbs\":\t\"" CONSOLEVIEW_THUMBS_DIR "\"") != NULL);
+    struct stat st;
+    ASSERT_TRUE(stat(CONSOLEVIEW_THUMBS_DIR, &st) == 0 && S_ISDIR(st.st_mode));
+    /* The views keep it. */
+    ASSERT_TRUE(consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_CAROUSEL));
+    ASSERT_TRUE(consoleview_has_thumbs());
+}
+
+TEST(console_pictures_keep_a_folder_already_named)
+{
+    reset_dir();
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"thumbs\": \"/mnt/SDCARD/Mine\"}");
+    ASSERT_TRUE(consoleview_has_thumbs());
+    ASSERT_TRUE(consoleview_store_thumbs(true));
+    char text[256];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "/mnt/SDCARD/Mine") != NULL);
+}
+
+TEST(console_pictures_off_removes_the_key)
+{
+    reset_dir();
+    consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_LIST);
+    consoleview_store_thumbs(true);
+    ASSERT_TRUE(consoleview_store_thumbs(false));
+    ASSERT_FALSE(consoleview_has_thumbs());
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_GAMES), CONSOLEVIEW_LIST);
+    /* Grid and no pictures is stock: no file. */
+    consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_GRID);
+    ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
+}
+
 TEST(main_menu_submenu_has_room_for_every_item)
 {
     FILE *fp = fopen("../src/tweaks/main_menu.h", "r");
@@ -695,7 +737,7 @@ TEST(main_menu_submenu_has_room_for_every_item)
             items++;
     }
     fclose(fp);
-    ASSERT_EQ(items, 4);
+    ASSERT_EQ(items, 5);
     ASSERT_TRUE(capacity >= items);
 }
 
@@ -727,6 +769,9 @@ int main(void)
     RUN_TEST(console_view_grid_for_both_removes_the_file);
     RUN_TEST(console_view_damaged_file_is_left_alone);
     RUN_TEST(console_view_unknown_value_is_grid);
+    RUN_TEST(console_pictures_on_writes_the_folder_and_creates_it);
+    RUN_TEST(console_pictures_keep_a_folder_already_named);
+    RUN_TEST(console_pictures_off_removes_the_key);
     RUN_TEST(game_lists_menu_has_room_for_every_item);
     RUN_TEST(main_menu_submenu_has_room_for_every_item);
     RUN_TEST(pair_parser_accepts_open_mainui_forms);

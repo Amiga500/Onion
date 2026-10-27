@@ -861,8 +861,10 @@ void menu_mainContextItems(void *_)
  *
  * "games" and "expert" pick how those screens show the consoles: "grid"
  * (the stock grid, also when the file or the key is missing), "carousel"
- * or "list". Every other key (thumbs, count, menu, carousel, list...) is
- * kept as written. A file that can't be read is left alone.
+ * or "list". "thumbs" names the folder of the console pictures used by the
+ * carousel and the list; without it they show the theme's pictures. Every
+ * other key (count, menu, carousel, list...) is kept as written. A file
+ * that can't be read is left alone.
  */
 #define CONSOLEVIEW_CONFIG_PATH MAINMENU_CONFIG_DIR "/console-view.json"
 #define CONSOLEVIEW_GAMES 0
@@ -871,6 +873,10 @@ void menu_mainContextItems(void *_)
 #define CONSOLEVIEW_CAROUSEL 1
 #define CONSOLEVIEW_LIST 2
 #define CONSOLEVIEW_LAYOUT_COUNT 3
+#ifndef CONSOLEVIEW_THUMBS_PARENT
+#define CONSOLEVIEW_THUMBS_PARENT "/mnt/SDCARD/miyoo/app"
+#endif
+#define CONSOLEVIEW_THUMBS_DIR CONSOLEVIEW_THUMBS_PARENT "/consoles"
 
 static const char *consoleview_screen_keys[2] = {"games", "expert"};
 static const char *consoleview_layout_keys[CONSOLEVIEW_LAYOUT_COUNT] = {
@@ -899,6 +905,23 @@ static int consoleview_layout(int screen)
     return layout;
 }
 
+static bool consoleview_has_thumbs_in(cJSON *root)
+{
+    cJSON *thumbs = cJSON_GetObjectItemCaseSensitive(root, "thumbs");
+    return cJSON_IsString(thumbs) && thumbs->valuestring[0] != '\0';
+}
+
+// On when the file names a folder of console pictures (ours or another).
+static bool consoleview_has_thumbs(void)
+{
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(CONSOLEVIEW_CONFIG_PATH, &exists, &valid);
+    bool on = valid && root != NULL && consoleview_has_thumbs_in(root);
+    cJSON_Delete(root);
+    return on;
+}
+
 // True when the file holds nothing but the grid for both screens.
 static bool consoleview_is_stock(cJSON *root)
 {
@@ -913,6 +936,49 @@ static bool consoleview_is_stock(cJSON *root)
             return false;
     }
     return true;
+}
+
+// Writes the root back, or removes the file when it is only the stock grid.
+static bool consoleview_save(cJSON *root)
+{
+    if (consoleview_is_stock(root))
+        return remove(CONSOLEVIEW_CONFIG_PATH) == 0 || errno == ENOENT;
+    return mainmenu_write_root_file(CONSOLEVIEW_CONFIG_PATH, root);
+}
+
+// On: "thumbs" is our folder (created for the pictures), unless the file
+// already names one. Off: "thumbs" is removed.
+static bool consoleview_store_thumbs(bool enabled)
+{
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(CONSOLEVIEW_CONFIG_PATH, &exists, &valid);
+    if (!valid || root == NULL) {
+        cJSON_Delete(root);
+        return false;
+    }
+
+    bool ok = true;
+    if (!enabled) {
+        cJSON_DeleteItemFromObjectCaseSensitive(root, "thumbs");
+    }
+    else if (!consoleview_has_thumbs_in(root)) {
+        mkdir(CONSOLEVIEW_THUMBS_PARENT, 0755);
+        mkdir(CONSOLEVIEW_THUMBS_DIR, 0755);
+        cJSON *value = cJSON_CreateString(CONSOLEVIEW_THUMBS_DIR);
+        ok = value != NULL;
+        if (ok) {
+            ok = cJSON_GetObjectItemCaseSensitive(root, "thumbs") != NULL
+                     ? cJSON_ReplaceItemInObjectCaseSensitive(root, "thumbs", value)
+                     : cJSON_AddItemToObject(root, "thumbs", value);
+            if (!ok)
+                cJSON_Delete(value);
+        }
+    }
+    if (ok)
+        ok = consoleview_save(root);
+    cJSON_Delete(root);
+    return ok;
 }
 
 static bool consoleview_store_layout(int screen, int layout)
@@ -938,14 +1004,17 @@ static bool consoleview_store_layout(int screen, int layout)
         if (!ok)
             cJSON_Delete(value);
     }
-    if (ok) {
-        if (consoleview_is_stock(root))
-            ok = remove(CONSOLEVIEW_CONFIG_PATH) == 0 || errno == ENOENT;
-        else
-            ok = mainmenu_write_root_file(CONSOLEVIEW_CONFIG_PATH, root);
-    }
+    if (ok)
+        ok = consoleview_save(root);
     cJSON_Delete(root);
     return ok;
+}
+
+static void consoleview_action_thumbs(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!consoleview_store_thumbs(item->value != 0))
+        item->value = consoleview_has_thumbs();
 }
 
 static void consoleview_action_layout(void *pt)
@@ -960,7 +1029,7 @@ void menu_mainMenu(void *_)
 {
     (void)_;
     if (!_menu_main_menu._created) {
-        _menu_main_menu = list_createWithTitle(4, LIST_SMALL, "Main menu");
+        _menu_main_menu = list_createWithTitle(5, LIST_SMALL, "Main menu");
         list_addItemWithInfoNote(
             &_menu_main_menu,
             (ListItem){.label = "Main menu items...", .action = menu_mainMenuItems},
@@ -997,6 +1066,17 @@ void menu_mainMenu(void *_)
                 .action = consoleview_action_layout},
             "How Expert shows the consoles: the grid,\n"
             "a carousel or a list.\n"
+            "Needs Open MainUI 1.1.0 rc7.");
+        list_addItemWithInfoNote(
+            &_menu_main_menu,
+            (ListItem){
+                .label = "Console pictures",
+                .item_type = TOGGLE,
+                .value = consoleview_has_thumbs(),
+                .action = consoleview_action_thumbs},
+            "Carousel and List show the pictures in\n"
+            "miyoo/app/consoles (gba.png, ps.png...);\n"
+            "without them, the theme's.\n"
             "Needs Open MainUI 1.1.0 rc7.");
     }
     menu_stack[++menu_level] = &_menu_main_menu;
