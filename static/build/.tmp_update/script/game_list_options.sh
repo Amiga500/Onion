@@ -616,10 +616,20 @@ run_script() {
     log ":: run_script $*"
     scriptpath="$1"
     if [ -f "$scriptpath" ]; then
+        cmd_before=$(cat "$sysdir/cmd_to_run.sh" 2> /dev/null)
         cd "$emupath"
         chmod a+x "$scriptpath"
         LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so "$scriptpath" "$rompath" "$emupath"
-        exit $?
+        retcode=$?
+        # Status 0 starts the selected game, as Reset game does: put back the
+        # Recents entry taken out above, or the GameSwitcher shows this game's
+        # picture under the previous game's title. A script that chose another
+        # game (Random game) wrote its own command and its own entry.
+        if [ $retcode -eq 0 ] && [ -n "$firstrecententry" ] &&
+            [ "$(cat "$sysdir/cmd_to_run.sh" 2> /dev/null)" = "$cmd_before" ]; then
+            add_game_to_recent_list
+        fi
+        exit $retcode
     else
         infoPanel --title "SCRIPT NOT FOUND" --message "$(basename "$scriptpath")" --auto
     fi

@@ -432,6 +432,28 @@ if command -v jq > /dev/null; then
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
+    begin ota_4_4_1_betas_after_the_4_4_0_stable
+    # The betas after the 4.4.0 stable are 4.4.1-b1, -b2...: a higher version
+    # number, so the beta channel offers them over the stable, while the
+    # stable is not offered back to a device on a 4.4.1 beta.
+    check "4.4.1 is newer than 4.4.0" test "$(get_version 4.4.1)" -gt "$(get_version 4.4.0)"
+    channel=beta
+    installUI() { echo "4.4.0-20261025-e894906a"; }
+    printf '[%s,%s]' "$(ota_asset 4.4.0-20261025-e894906a false)" "$(ota_asset 4.4.1-b1-20261027-1a2b3c4d true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel: 4.4.1-b1 offered over the 4.4.0 stable" test "$?" -eq 0 -a "$Release_FullVersion" = 4.4.1-b1-20261027-1a2b3c4d
+    channel=stable
+    installUI() { echo "4.4.1-b1-20261027-1a2b3c4d"; }
+    ota_asset 4.4.0-20261025-e894906a false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable channel on 4.4.1-b1: 4.4.0 not offered" test "$?" -eq 1
+    ota_asset 4.4.1-20261101-5e6f7a8b false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable channel on 4.4.1-b1: the 4.4.1 stable offered" test "$?" -eq 0
+    check "4.4.1-b1: date parsed" test "$(build_date 4.4.1-b1-20261027-1a2b3c4d)" = 20261027
+    installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
+    end
+
     begin ota_finds_redonion_and_onionplus_packages
     # The rename: releases carry RedOnion-v, OnionPlus-v or both.
     ota_release() { # version, then package names
@@ -921,6 +943,67 @@ SCRAPER="$ROOT/static/build/App/romscripts/Scraper.sh"
 begin scraper_returns_to_game_list
 check "last command is exit 1 (0 makes GLO start the game)" \
     test "$(grep -v '^[[:space:]]*$' "$SCRAPER" | tail -n 1)" = "exit 1"
+end
+
+begin glo_maintenance_scripts_return_to_the_list
+# Repair favorites, Sort favorites (A-Z, by system) and Clean recents ended
+# with the tools command, status 0, which GLO takes as "start the game": the
+# selected game launched, and since GLO had already taken it out of Recents,
+# the GameSwitcher showed its picture under the previous game's title.
+mkdir -p "$TMP/bin"
+printf '#!/bin/sh\necho "$*" >> "%s/tools.log"\nexit 0\n' "$TMP" > "$TMP/bin/tools"
+chmod +x "$TMP/bin/tools"
+for script in favorites/favfix.sh:favfix favorites/favsort.sh:favsort \
+    favorites/favsort2.sh:favsort2 "recents/clean_recents.sh:recents --clean_all"; do
+    file="$ROOT/static/build/App/romscripts/${script%%:*}"
+    args=${script#*:}
+    rm -f "$TMP/tools.log"
+    PATH="$TMP/bin:$PATH" sh "$file" > /dev/null 2>&1
+    status=$?
+    check "${script%%:*}: back to the list (status 1, was 0)" test "$status" -eq 1
+    check "${script%%:*}: still runs tools $args" test "$(cat "$TMP/tools.log" 2> /dev/null)" = "$args"
+done
+# The import and rename scripts of the Ports and ScummVM packages too.
+for file in "$ROOT/static/packages/Emu/Ports Collection/Emu/PORTS/romscripts/Import games (Ports).sh" \
+    "$ROOT/static/packages/Emu/SCUMM (ScummVM)/Emu/SCUMMVM/romscripts/Import games (ScummVM).sh" \
+    "$ROOT/static/packages/Emu/SCUMM (ScummVM)/Emu/SCUMMVM/romscripts/Change names (ScummVM).sh" \
+    "$ROOT/static/packages/RApp/SCUMM (ScummVM standalone)/RApp/scummvm/scripts/romscripts/Import games (ScummVM).sh" \
+    "$ROOT/static/packages/RApp/SCUMM (ScummVM standalone)/RApp/scummvm/scripts/romscripts/Change names (ScummVM).sh"; do
+    check "${file##*/}: ends with exit 1" test "$(grep -v '^[[:space:]]*$' "$file" | tail -n 1)" = "exit 1"
+done
+end
+
+begin glo_script_that_starts_the_game_keeps_recents
+# GLO takes the selected game out of Recents when it opens. A script that
+# returns 0 starts that game (Set time, Netplay): the entry goes back, as
+# Reset game does, so the GameSwitcher title matches the game. A script that
+# returns 1 leaves it out; one that wrote another command (Random game)
+# handles its own entry.
+glo_run() { # script body
+    (
+        eval "$(extract_fn "$GLO" run_script)"
+        eval "$(extract_fn "$GLO" add_game_to_recent_list)"
+        log() { :; }
+        sysdir=$TMP/sys emupath=$TMP rompath=$TMP/rom.gb
+        currentrecentlist=$TMP/recent.json recentlist_temp=$TMP/recent.tmp
+        firstrecententry='{"label":"Mario"}'
+        printf '{"label":"Zelda"}\n' > "$currentrecentlist"
+        mkdir -p "$TMP/sys"
+        echo 'launch mario' > "$TMP/sys/cmd_to_run.sh"
+        printf '#!/bin/sh\n%s\n' "$1" > "$TMP/script.sh"
+        run_script "$TMP/script.sh"
+    )
+}
+glo_run 'exit 0'
+check "status 0 is passed on (start the game)" test $? -eq 0
+check "and the game is first in Recents again" test "$(head -n 1 "$TMP/recent.json")" = '{"label":"Mario"}'
+glo_run 'exit 1'
+check "status 1 is passed on (back to the list)" test $? -eq 1
+check "and Recents is left as it was" test "$(cat "$TMP/recent.json")" = '{"label":"Zelda"}'
+glo_run 'echo "launch random" > "$(dirname "$0")/sys/cmd_to_run.sh"; exit 0'
+check "another game chosen: started" test $? -eq 0
+check "and its entry is the script's business" test "$(cat "$TMP/recent.json")" = '{"label":"Zelda"}'
+unset -f glo_run
 end
 
 begin press_menu_to_kill_spares_glo
