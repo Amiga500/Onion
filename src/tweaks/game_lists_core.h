@@ -21,9 +21,9 @@
 //    empty). No file is no video. From rc4 a size can follow the delay:
 //    "<delay>,fullscreen" plays it over the whole screen; without it (or
 //    ",cover") it plays where the cover is.
-//  - Open MainUI 1.1.0 rc7 scrolls the Game Info description by itself when
-//    .gameInfoAutoScroll exists: "<delay ms>,<speed px/s>", 1500,40 when
-//    empty. No file is no scrolling.
+//  - Open MainUI 1.1.0 scrolls the Game Info description by itself when
+//    .gameInfoAutoScroll exists: "<delay ms>,<speed px/s>", 2000,20 when
+//    empty (rc8; rc7 used 1500,40). No file is no scrolling.
 
 #include <ctype.h>
 #include <errno.h>
@@ -85,8 +85,8 @@ static int gamelists_video_size_pending = GAMELISTS_VIDEO_COVER;
 // Game Info auto scroll: Off (no file), then the wait before it moves.
 // Open MainUI keeps the delay in 0..30000 ms and the speed in 5..150 px/s.
 #define GAMELISTS_INFO_SCROLL_OFF (-1)
-#define GAMELISTS_INFO_SCROLL_DEFAULT_DELAY 1500
-#define GAMELISTS_INFO_SCROLL_DEFAULT_SPEED 40
+#define GAMELISTS_INFO_SCROLL_DEFAULT_DELAY 2000
+#define GAMELISTS_INFO_SCROLL_DEFAULT_SPEED 20
 static const int gamelists_info_scroll_delays[] = {
     GAMELISTS_INFO_SCROLL_OFF, 0, 500, 1000, 1500, 2000, 3000, 5000, 7500, 10000};
 static const int gamelists_info_scroll_speeds[] = {
@@ -435,7 +435,7 @@ static bool gamelists_set_video_size(int size)
 
 /* ---- Game Info auto scroll: .gameInfoAutoScroll = "<delay ms>,<speed px/s>" ---- */
 
-// No file is Off. An empty file is Open MainUI's 1500 ms at 40 px/s, and a
+// No file is Off. An empty file is Open MainUI's 2000 ms at 20 px/s, and a
 // delay alone keeps the default speed.
 static void gamelists_load_info_scroll(int *delay_out, int *speed_out)
 {

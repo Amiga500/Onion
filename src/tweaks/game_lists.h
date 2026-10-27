@@ -336,7 +336,7 @@ void menu_gameLists(void *_)
                 .action = gamelists_action_video_size},
             "Cover: the video plays where the cover\n"
             "is. Full screen: over the whole screen.\n"
-            "Full screen needs Open MainUI 1.1.0 rc4.");
+            "Needs Open MainUI 1.1.0.");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,
@@ -349,7 +349,7 @@ void menu_gameLists(void *_)
                 .action = gamelists_action_info_scroll_delay},
             "Scroll a long description in Game Info\n"
             "by itself, after this wait. L2/R2 pause it.\n"
-            "Needs Open MainUI 1.1.0 rc7.");
+            "Needs Open MainUI 1.1.0.");
 
         list_addItemWithInfoNote(
             &_menu_game_lists,

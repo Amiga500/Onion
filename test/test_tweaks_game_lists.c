@@ -47,7 +47,7 @@ static char **lang_list = NULL;
 static List *menu_stack[5];
 static int menu_level = 0;
 static bool header_changed = false;
-static List _menu_main_menu, _menu_main_menu_items, _menu_main_context_items;
+static List _menu_main_menu, _menu_main_menu_items, _menu_main_context_items, _menu_console_view;
 #include "../src/tweaks/main_menu.h"
 
 void SDL_FreeSurface(SDL_Surface *surface) { (void)surface; }
@@ -559,14 +559,14 @@ TEST(info_scroll_off_without_file)
     ASSERT_STREQ(label, "Off");
 }
 
-TEST(info_scroll_empty_file_is_1500ms_40px)
+TEST(info_scroll_empty_file_is_2000ms_20px)
 {
     reset_dir();
     touch(GAMELISTS_INFO_SCROLL_PATH);
     int delay, speed;
     gamelists_load_info_scroll(&delay, &speed);
-    ASSERT_EQ(delay, 1500);
-    ASSERT_EQ(speed, 40);
+    ASSERT_EQ(delay, 2000);
+    ASSERT_EQ(speed, 20);
 }
 
 TEST(info_scroll_written_and_read)
@@ -587,7 +587,7 @@ TEST(info_scroll_written_and_read)
     gamelists_write_text(GAMELISTS_INFO_SCROLL_PATH, "800\n");
     gamelists_load_info_scroll(&delay, &speed);
     ASSERT_EQ(delay, 800);
-    ASSERT_EQ(speed, 40);
+    ASSERT_EQ(speed, 20);
 }
 
 TEST(info_scroll_off_removes_the_file_and_keeps_the_speed)
@@ -737,8 +737,106 @@ TEST(main_menu_submenu_has_room_for_every_item)
             items++;
     }
     fclose(fp);
-    ASSERT_EQ(items, 5);
+    ASSERT_EQ(items, 3);
     ASSERT_TRUE(capacity >= items);
+}
+
+TEST(console_view_submenu_has_room_for_every_item)
+{
+    FILE *fp = fopen("../src/tweaks/main_menu.h", "r");
+    ASSERT_TRUE(fp != NULL);
+    char line[512];
+    int capacity = -1, items = 0;
+    bool inside = false;
+    while (fgets(line, sizeof(line), fp)) {
+        const char *create = strstr(line, "_menu_console_view = list_createWithTitle(");
+        if (create) {
+            capacity = atoi(create + strlen("_menu_console_view = list_createWithTitle("));
+            inside = true;
+            continue;
+        }
+        if (inside && strstr(line, "menu_stack[++menu_level]"))
+            break;
+        if (inside && strstr(line, "list_addItem"))
+            items++;
+    }
+    fclose(fp);
+    ASSERT_EQ(items, 9);
+    ASSERT_TRUE(capacity >= items);
+}
+
+TEST(console_view_options_written_and_read)
+{
+    reset_dir();
+    for (int i = 0; i < CONSOLEVIEW_OPTION_COUNT; i++)
+        ASSERT_EQ(consoleview_option(i), 0);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_ANIMATION, 2));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_OPACITY, 2));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_SELECTION, 1));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_COUNT, 1));
+    char text[512];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"animation\":\t\"slide\"") != NULL);
+    ASSERT_TRUE(strstr(text, "\"opacity_unselected\":\t0.5") != NULL);
+    ASSERT_TRUE(strstr(text, "\"selection\":\tfalse") != NULL);
+    ASSERT_TRUE(strstr(text, "\"count\":\tfalse") != NULL);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_ANIMATION), 2);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OPACITY), 2);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_SELECTION), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_COUNT), 1);
+    /* "None" is written as such: Open MainUI's default changes later. */
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_ANIMATION, 1));
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"animation\":\t\"none\"") != NULL);
+}
+
+TEST(console_view_wrap_sets_carousel_and_grid)
+{
+    reset_dir();
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_WRAP, 1));
+    char text[512];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"grid\":") != NULL);
+    ASSERT_TRUE(strstr(text, "\"carousel\":") != NULL);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_WRAP), 1);
+    /* Back to On: both keys and the empty sections go, and so does the file. */
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_WRAP, 0));
+    ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
+}
+
+TEST(console_view_defaults_remove_only_their_key)
+{
+    reset_dir();
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH,
+                         "{\"games\": \"carousel\", \"carousel\": {\"gap\": 32, \"animation\": \"slide\"}}");
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_ANIMATION, 0));
+    char text[512];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "animation") == NULL);
+    ASSERT_TRUE(strstr(text, "\"gap\":\t32") != NULL);
+    ASSERT_EQ(consoleview_layout(CONSOLEVIEW_GAMES), CONSOLEVIEW_CAROUSEL);
+}
+
+TEST(console_view_value_not_offered_shows_first)
+{
+    reset_dir();
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"opacity_unselected\": 0.7}}");
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OPACITY), 0);
+    char text[128];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "0.7") != NULL);
+}
+
+TEST(console_view_option_damaged_file_left_alone)
+{
+    reset_dir();
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": ");
+    ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_ANIMATION, 2));
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": 5}");
+    ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_ANIMATION, 2));
+    char text[64];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "{\"carousel\": 5}");
 }
 
 int main(void)
@@ -760,7 +858,7 @@ int main(void)
     RUN_TEST(video_preview_size_and_delay_keep_each_other);
     RUN_TEST(video_preview_size_waits_while_off);
     RUN_TEST(info_scroll_off_without_file);
-    RUN_TEST(info_scroll_empty_file_is_1500ms_40px);
+    RUN_TEST(info_scroll_empty_file_is_2000ms_20px);
     RUN_TEST(info_scroll_written_and_read);
     RUN_TEST(info_scroll_off_removes_the_file_and_keeps_the_speed);
     RUN_TEST(console_view_missing_file_is_grid);
@@ -774,6 +872,12 @@ int main(void)
     RUN_TEST(console_pictures_off_removes_the_key);
     RUN_TEST(game_lists_menu_has_room_for_every_item);
     RUN_TEST(main_menu_submenu_has_room_for_every_item);
+    RUN_TEST(console_view_submenu_has_room_for_every_item);
+    RUN_TEST(console_view_options_written_and_read);
+    RUN_TEST(console_view_wrap_sets_carousel_and_grid);
+    RUN_TEST(console_view_defaults_remove_only_their_key);
+    RUN_TEST(console_view_value_not_offered_shows_first);
+    RUN_TEST(console_view_option_damaged_file_left_alone);
     RUN_TEST(pair_parser_accepts_open_mainui_forms);
     RUN_TEST(repeat_stock_values_remove_the_file);
     RUN_TEST(rows_and_font_menu_values);
