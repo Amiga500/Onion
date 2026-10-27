@@ -2074,6 +2074,21 @@ done
 check "every core shipped has a systemid${missing:+:$missing}" test -z "$missing"
 end
 
+begin migration_renames_the_old_ota_app_label
+# A package update keeps the label already installed: "Onion OTA update"
+# stayed in Apps on installs from before the rename. Only that is changed.
+MIG25="$ROOT/static/build/.tmp_update/script/migration/00025_ota_app_redonion_label.sh"
+printf '{\n\t"label": "Onion OTA update",\n\t"launch": "launch.sh"\n}\n' > "$TMP/old.json"
+OTA_APP_CONFIG="$TMP/old.json" sh "$MIG25"
+check "old default renamed" grep -q '"label": "RedOnion OTA update"' "$TMP/old.json"
+check "the rest kept" grep -q '"launch": "launch.sh"' "$TMP/old.json"
+printf '{\n\t"label": "My updater",\n\t"launch": "launch.sh"\n}\n' > "$TMP/mine.json"
+OTA_APP_CONFIG="$TMP/mine.json" sh "$MIG25"
+check "a name the user chose is kept" grep -q '"label": "My updater"' "$TMP/mine.json"
+OTA_APP_CONFIG="$TMP/none.json" sh "$MIG25"; rc=$?
+check "no app: nothing to do" test $rc -eq 0 -a ! -e "$TMP/none.json"
+end
+
 begin migration_adds_core_systemid
 mig="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/static/build/.tmp_update/script/migration/00024_core_info_systemid.sh"
 mkdir -p "$TMP/cores"
