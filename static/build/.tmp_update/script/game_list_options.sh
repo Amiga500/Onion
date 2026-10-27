@@ -45,6 +45,8 @@ cmd=$(cat ./cmd_to_run.sh 2> /dev/null)
 rompath=""
 emupath=""
 emulabel=""
+system_label=""
+launcher_core=""
 launch_path=""
 romtype=$ROM_TYPE_UNKNOWN
 romext=""
@@ -119,6 +121,7 @@ main() {
         emu_config_json=$(cat "$emupath/config.json")
         romroot="$emupath/$(get_json_value "$emu_config_json" "rompath")"
         emulabel="$(get_json_value "$emu_config_json" "label" | sed -e 's/^\s*//g' -e 's/\s*$//g')"
+        system_label=$emulabel
         launch_path="$emupath/launch.sh"
     fi
 
@@ -385,10 +388,19 @@ get_core_info() {
         default_core=$(cat "$launch_path" | grep ".retroarch/cores/" | awk '{st = index($0,".retroarch/cores/"); s = substr($0,st+17); st2 = index(s,".so"); print substr(s,0,st2-1)}' | xargs)
     fi
 
+    # The core chosen for all games of this system (Game core > All games),
+    # in place of the launcher's own, while it is installed.
+    launcher_core=$default_core
+    system_core=$(system_default_core "$emupath")
+    if [ -n "$system_core" ] && [ -f "$radir/cores/$system_core.so" ]; then
+        default_core=$system_core
+    fi
+
     if [ "$retroarch_core" == "" ]; then
         retroarch_core="$default_core"
     fi
 
+    log "launcher_core: $launcher_core"
     log "default_core: $default_core"
     log "retroarch_core: $retroarch_core"
 
@@ -529,6 +541,19 @@ change_core() {
 
     log "new default core: $new_core"
 
+    # For this game only, or as the default of every game of the system.
+    # A core chosen for a single game keeps winning over the system one.
+    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "GAME CORE" \
+        "Only this game" "All ${system_label:-these} games"
+    scope=$?
+    if [ $scope -eq 1 ]; then
+        set_system_default_core "$emupath" "$new_core" "$launcher_core"
+        reset_core # this game follows the system default
+        return
+    elif [ $scope -ne 0 ]; then
+        exit 1
+    fi
+
     if [ "$new_core" == "$default_core" ]; then
         reset_core
     else
@@ -539,6 +564,31 @@ change_core() {
         fi
 
         echo "core = \"$new_core\"" >> "$romcfgpath"
+    fi
+}
+
+# File holding the core chosen for all games of a system, kept in the config
+# folder so updates (which reinstall the emulator packages) leave it alone.
+# Same helper in runtime.sh, which reads it at launch.
+system_core_file() { # emulator folder (/mnt/SDCARD/Emu/GBA)
+    _sc_key=${1#/mnt/SDCARD/}
+    _sc_key=$(echo "${_sc_key%/}" | tr '/' '-')
+    echo "$sysdir/config/system_cores/$_sc_key"
+}
+
+system_default_core() { # emulator folder: the core, or nothing
+    _sc_file=$(system_core_file "$1")
+    [ -f "$_sc_file" ] || return 0
+    head -n 1 "$_sc_file" | tr -d ' \r\n'
+}
+
+set_system_default_core() { # emulator folder, core, the launcher's own core
+    _sc_file=$(system_core_file "$1")
+    if [ -z "$2" ] || [ "$2" = "$3" ]; then
+        rm -f "$_sc_file" # back to the launcher's default
+    else
+        mkdir -p "$(dirname "$_sc_file")"
+        echo "$2" > "$_sc_file"
     fi
 }
 

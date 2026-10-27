@@ -252,14 +252,15 @@ enable_wifi() {
 	fi
 }
 
-# The certificate is not checked here, as it is not for the release list
-# (curl -k) or the download (wget --no-check-certificate). Checked, it failed
-# on a working network when the clock was wrong (a device without a clock
-# battery, before the time sync): "not reachable" stopped the update.
-# The reason wget gives is shown with the error.
+# curl, as for the release list: the bundled wget (uclient-fetch on mbed TLS
+# 2.2.1, from 2015) timed out on github.com while curl (OpenSSL 3) reached it.
+# The certificate is not checked (-k), as it is not for the release list or
+# the download. Checked, it failed on a working network when the clock was
+# wrong (a device without a clock battery, before the time sync): "not
+# reachable" stopped the update. The reason curl gives is shown with the error.
 check_connection() {
 	echo -n "Checking internet connection... "
-	_why=$(wget -q -T 15 --no-check-certificate --spider https://github.com 2>&1 > /dev/null)
+	_why=$(curl -k -sS -L -f --connect-timeout 15 --max-time 30 -o /dev/null https://github.com 2>&1)
 	if [ $? -eq 0 ]; then
 		echo -e "${GREEN}OK${NC}"
 	else
@@ -448,7 +449,13 @@ download_update() {
 			"${BLUE}== Downloading RedOnion $Release_Version ($channel channel) ==${NC}\n"
 		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 		sync
-		wget --no-check-certificate $Release_url -O "$sysdir/download/$Release_Version.zip"
+		# curl, which reaches GitHub where the bundled wget may not (see
+		# check_connection); wget only if curl itself cannot run.
+		curl -k -L -f --connect-timeout 15 --retry 3 --retry-delay 2 -# \
+			-o "$sysdir/download/$Release_Version.zip" "$Release_url"
+		case $? in
+			126 | 127) wget --no-check-certificate "$Release_url" -O "$sysdir/download/$Release_Version.zip" ;;
+		esac
 		echo -ne "\n\n" \
 			"${GREEN}================== Download done ==================${NC}\n"
 		sync

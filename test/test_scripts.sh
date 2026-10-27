@@ -555,7 +555,7 @@ check "enable_wifi returns without a network" test -f "$TMP/returned"
 check "udhcpc started on wlan0" grep -q -- '-i wlan0' "$TMP/udhcpc_args"
 check "wpa_supplicant called by its full path" \
     grep -q '/mnt/SDCARD/miyoo/app/wpa_supplicant -B' "$OTA"
-check "connection check has a timeout" grep -q 'wget -q -T [0-9]' "$OTA"
+check "connection check has a timeout" grep -q 'curl -k -sS -L -f --connect-timeout [0-9]* --max-time [0-9]' "$OTA"
 wait
 unset -f ip sleep insmod ifconfig pkill clear udhcpc
 end
@@ -1006,6 +1006,122 @@ check "and its entry is the script's business" test "$(cat "$TMP/recent.json")" 
 unset -f glo_run
 end
 
+begin system_default_core
+# GLO > Game core > "All <system> games" makes a core the default of every
+# game of that system (asked on Reddit: mGBA for all GBA games). It is kept
+# in .tmp_update/config/system_cores, which updates leave alone (they
+# reinstall Emu/<system>/launch.sh), and a core set for one game still wins.
+for fn in system_core_file system_default_core; do
+    check "runtime.sh and GLO share $fn" test "$(extract_fn "$GLO" $fn)" = "$(extract_fn "$RUNTIME" $fn)"
+done
+sysdir_saved=${sysdir-}
+    eval "$(extract_fn "$GLO" system_core_file)"
+    eval "$(extract_fn "$GLO" system_default_core)"
+    eval "$(extract_fn "$GLO" set_system_default_core)"
+    sysdir=$TMP/sys
+    check "the file is named after the emulator folder" \
+        test "$(system_core_file /mnt/SDCARD/Emu/GBA)" = "$TMP/sys/config/system_cores/Emu-GBA"
+    check "a trailing slash is the same folder" \
+        test "$(system_core_file /mnt/SDCARD/Emu/GBA/)" = "$TMP/sys/config/system_cores/Emu-GBA"
+    check "no file: no system core" test -z "$(system_default_core /mnt/SDCARD/Emu/GBA)"
+    set_system_default_core /mnt/SDCARD/Emu/GBA mgba_libretro gpsp_libretro
+    check "All games: the core is saved" test "$(system_default_core /mnt/SDCARD/Emu/GBA)" = mgba_libretro
+    check "other systems are not touched" test -z "$(system_default_core /mnt/SDCARD/Emu/GB)"
+    set_system_default_core /mnt/SDCARD/Emu/GBA gpsp_libretro gpsp_libretro
+    check "back to the launcher's core: the file goes" test ! -e "$TMP/sys/config/system_cores/Emu-GBA"
+check "change_core asks for the scope and saves All games" sh -c \
+    "sed -n '/^change_core() {/,/^}/p' '$GLO' | grep -q 'Only this game' && sed -n '/^change_core() {/,/^}/p' '$GLO' | grep -q 'set_system_default_core \"\$emupath\" \"\$new_core\" \"\$launcher_core\"'"
+
+# GLO shows the system core as the default (get_core_info uses ash's "==":
+# only default_core and launcher_core are checked under this shell)
+    eval "$(extract_fn "$GLO" get_core_info)"
+    eval "$(extract_fn "$GLO" get_info_value)"
+    eval "$(extract_fn "$GLO" system_core_file)"
+    eval "$(extract_fn "$GLO" system_default_core)"
+    log() { :; }
+    sysdir=$TMP/sys radir=$TMP/ra emupath=/mnt/SDCARD/Emu/GBA romext=gba
+    rompath=$TMP/Roms/GBA/Game.gba launch_path=$TMP/launch.sh
+    mkdir -p "$TMP/ra/cores" "$TMP/Roms/GBA" "$TMP/sys/config/system_cores"
+    : > "$TMP/ra/cores/mgba_libretro.so"
+    echo 'default_core=gpsp' > "$launch_path"
+    get_core_info
+    check "no system core: the launcher's" test "$default_core" = gpsp_libretro
+    echo mgba_libretro > "$TMP/sys/config/system_cores/Emu-GBA"
+    get_core_info
+    check "system core: the default" test "$default_core:$launcher_core" = mgba_libretro:gpsp_libretro
+    rm -f "$TMP/ra/cores/mgba_libretro.so"
+    get_core_info
+    check "system core not installed: the launcher's" test "$default_core" = gpsp_libretro
+
+# runtime.sh starts the game with it
+    eval "$(extract_fn "$RUNTIME" override_game_core)"
+    eval "$(extract_fn "$RUNTIME" launcher_emu_dir)"
+    eval "$(extract_fn "$RUNTIME" system_core_file)"
+    eval "$(extract_fn "$RUNTIME" system_default_core)"
+    eval "$(extract_fn "$RUNTIME" get_info_value)" 2> /dev/null
+    get_info_value() { echo "$1" | grep "$2\b" | awk '{split($0,a,/\s*=\s*/); print a[2]}' | tr -d '"'; }
+    log() { :; }
+    sysdir=$TMP/sys2 miyoodir=/mnt/SDCARD/miyoo rompath=/mnt/SDCARD/Roms/GBA/Game.gba
+    mkdir -p "$TMP/sys2/config/system_cores" "$TMP/rapp"
+    check "launcher folder of launch.sh" test "$(launcher_emu_dir /mnt/SDCARD/Emu/GBA/launch.sh)" = /mnt/SDCARD/Emu/GBA
+    check "launcher folder of a proxy" test "$(launcher_emu_dir /mnt/SDCARD/Emu/GBA/../../.tmp_update/proxy.sh)" = /mnt/SDCARD/Emu/GBA
+    echo mgba_libretro > "$TMP/sys2/config/system_cores/Emu-GBA"
+    : > "$TMP/launch.sh"
+    # the core must exist under /mnt/SDCARD/RetroArch: fake it with a missing one
+    override_game_core "$TMP/none.cfg" /mnt/SDCARD/Emu/GBA/launch.sh
+    check "core file missing on this PC: falls back, no command written" test ! -e "$TMP/sys2/cmd_to_run.sh"
+    check "it looked for the system core" sh -c "sed -n '/^override_game_core() {/,/^}/p' '$RUNTIME' | grep -q 'system_default_core \"\$(launcher_emu_dir \"\$launch_path\")\"'"
+    check "a game's own core is read first" sh -c "sed -n '/^override_game_core() {/,/^}/p' '$RUNTIME' | awk '/get_info_value \"\\\$romcfg\" core/{a=NR} /system_default_core/{b=NR} END{exit !(a && b && a < b)}'"
+sysdir=$sysdir_saved
+unset -f get_core_info get_info_value system_core_file system_default_core set_system_default_core override_game_core launcher_emu_dir log
+end
+
+begin m3u_gen_lists_only_discs_and_bracketed_titles
+# #310: the extension filter was a character class ("*[cue|gdi|...]"), so
+# "(Disc 1).png" box art was taken for discs, and a title with [ ] (such as
+# "[T-En]") was a glob class too: its discs were never moved or listed.
+M3U="$ROOT/static/build/.tmp_update/script/m3u_gen.sh"
+m3u_run() { # mode (-sd / -md)
+    M3U_ROMS_ROOT="$TMP/Roms" M3U_CUE_GEN=true sh "$M3U" "$1" > /dev/null 2>&1
+}
+mkdir -p "$TMP/Roms/PS"
+cd "$TMP/Roms/PS"
+: > "Example (Disc 1).chd"; : > "Example (Disc 2).chd"
+: > "Picture (Disc 1).png"; : > "Picture (Disc 2).png"
+: > "Example [T-En] (Disc 1).chd"; : > "Example [T-En] (Disc 2).chd"
+: > "Other (Disc 1) (Rev 1).cue"; : > "Other (Disc 1) (Rev 1).bin"
+: > "Other (Disc 2) (Rev 1).cue"; : > "Other (Disc 2) (Rev 1).bin"
+cd "$ROOT"
+m3u_run -sd
+P=$TMP/Roms/PS
+check "plain title: two discs listed" test "$(cat "$P/Example.m3u" 2> /dev/null)" = "$(printf '.multi-disc/Example (Disc 1).chd\n.multi-disc/Example (Disc 2).chd')"
+check "pictures are not discs: no playlist" test ! -e "$P/Picture.m3u"
+check "and they stay where they are" test -f "$P/Picture (Disc 1).png" -a -f "$P/Picture (Disc 2).png"
+check "bracketed title: discs moved" test -f "$P/.multi-disc/Example [T-En] (Disc 1).chd" -a -f "$P/.multi-disc/Example [T-En] (Disc 2).chd"
+check "bracketed title: both listed" test "$(cat "$P/Example [T-En].m3u" 2> /dev/null)" = "$(printf '.multi-disc/Example [T-En] (Disc 1).chd\n.multi-disc/Example [T-En] (Disc 2).chd')"
+check "type 2: the .cue files listed, not the .bin" test "$(cat "$P/Other (Rev 1).m3u" 2> /dev/null)" = "$(printf '.multi-disc/Other (Disc 1) (Rev 1).cue\n.multi-disc/Other (Disc 2) (Rev 1).cue')"
+check "and the .bin moved with them" test -f "$P/.multi-disc/Other (Disc 2) (Rev 1).bin"
+# One folder per game (-md)
+rm -rf "$TMP/Roms"; mkdir -p "$TMP/Roms/PS"
+: > "$TMP/Roms/PS/Game [!] (Disc 1).chd"; : > "$TMP/Roms/PS/Game [!] (Disc 2).chd"
+m3u_run -md
+check "-md: bracketed title in its own folder" test "$(cat "$TMP/Roms/PS/Game [!].m3u" 2> /dev/null)" = "$(printf '.Game [!]/Game [!] (Disc 1).chd\n.Game [!]/Game [!] (Disc 2).chd')"
+# Type 3, "(Disc 1 of 2)": the playlist name has no space at the end...
+rm -rf "$TMP/Roms"; mkdir -p "$TMP/Roms/SEGACD"
+: > "$TMP/Roms/SEGACD/Lunar (Disc 1 of 2).iso"; : > "$TMP/Roms/SEGACD/Lunar (Disc 2 of 2).iso"
+m3u_run -sd
+check "type 3: playlist named without the space" test "$(cat "$TMP/Roms/SEGACD/Lunar.m3u" 2> /dev/null)" = "$(printf '.multi-disc/Lunar (Disc 1 of 2).iso\n.multi-disc/Lunar (Disc 2 of 2).iso')"
+check "and no \"Lunar .m3u\"" test ! -e "$TMP/Roms/SEGACD/Lunar .m3u"
+# ...but one made before keeps its name (its saves follow it)
+rm -rf "$TMP/Roms"; mkdir -p "$TMP/Roms/SEGACD"
+: > "$TMP/Roms/SEGACD/Lunar (Disc 1 of 2).iso"; : > "$TMP/Roms/SEGACD/Lunar (Disc 2 of 2).iso"
+: > "$TMP/Roms/SEGACD/Lunar .m3u"
+m3u_run -sd
+check "type 3: an old \"Lunar .m3u\" is kept and filled" test -s "$TMP/Roms/SEGACD/Lunar .m3u"
+check "and no second playlist" test ! -e "$TMP/Roms/SEGACD/Lunar.m3u"
+unset -f m3u_run
+end
+
 begin press_menu_to_kill_spares_glo
 # pressMenu2Kill runs "pkill -9 -f PATTERN": a literal pattern must not
 # also match the GLO script that launched it.
@@ -1284,23 +1400,28 @@ begin ota_connection_check_ignores_the_clock
 # The check skips the certificate, like the list and the download, and
 # says why it failed.
 eval "$(extract_fn "$OTA_SCRIPT" check_connection)"
-wget() {
-    echo "$*" > "$TMP/wget_args"
+curl() {
+    echo "$*" > "$TMP/curl_args"
     case " $* " in
-        *" --no-check-certificate "*) [ -f "$TMP/offline" ] && { echo "Failed to resolve host: github.com" >&2; return 4; }; return 0 ;;
-        *) echo "Connection error: Invalid SSL certificate" >&2; return 5 ;;
+        *" -k "*) [ -f "$TMP/offline" ] && { echo "curl: (6) Could not resolve host: github.com" >&2; return 6; }; return 0 ;;
+        *) echo "curl: (60) SSL certificate problem: certificate is not yet valid" >&2; return 60 ;;
     esac
 }
+wget() { echo "wget used" > "$TMP/wget_used"; return 4; }
 read() { :; }
 out=$( (check_connection) 2>&1); rc=$?
 check "wrong clock: connection OK" test $rc -eq 0
-check "the certificate is not checked" grep -q -- "--no-check-certificate" "$TMP/wget_args"
-check "still a 15 s timeout" grep -q -- "-T 15" "$TMP/wget_args"
+check "the certificate is not checked" grep -q -- "-k" "$TMP/curl_args"
+check "still a 15 s connect timeout" grep -q -- "--connect-timeout 15" "$TMP/curl_args"
+check "and an end to it" grep -q -- "--max-time 30" "$TMP/curl_args"
+# The bundled wget (mbed TLS 2.2.1) timed out on github.com: curl checks.
+check "wget not used for the check" test ! -e "$TMP/wget_used"
 touch "$TMP/offline"
 out=$( (check_connection) 2>&1); rc=$?
 check "offline: exits 2" test $rc -eq 2
-check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (Failed to resolve host: github.com)'" _ "$out"
-unset -f wget read check_connection
+check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (curl: (6) Could not resolve host: github.com)'" _ "$out"
+check "the download uses curl too" grep -q 'curl -k -L -f --connect-timeout 15 --retry 3' "$OTA_SCRIPT"
+unset -f curl wget read check_connection
 end
 
 # ---- migration 00022: RetroArch menu Border Filler OFF ----
@@ -1951,6 +2072,21 @@ for so in "$cores"/*_libretro.so; do
     grep -q '^systemid = "..*"' "${so%.so}.info" 2> /dev/null || missing="$missing ${so##*/}"
 done
 check "every core shipped has a systemid${missing:+:$missing}" test -z "$missing"
+end
+
+begin migration_renames_the_old_ota_app_label
+# A package update keeps the label already installed: "Onion OTA update"
+# stayed in Apps on installs from before the rename. Only that is changed.
+MIG25="$ROOT/static/build/.tmp_update/script/migration/00025_ota_app_redonion_label.sh"
+printf '{\n\t"label": "Onion OTA update",\n\t"launch": "launch.sh"\n}\n' > "$TMP/old.json"
+OTA_APP_CONFIG="$TMP/old.json" sh "$MIG25"
+check "old default renamed" grep -q '"label": "RedOnion OTA update"' "$TMP/old.json"
+check "the rest kept" grep -q '"launch": "launch.sh"' "$TMP/old.json"
+printf '{\n\t"label": "My updater",\n\t"launch": "launch.sh"\n}\n' > "$TMP/mine.json"
+OTA_APP_CONFIG="$TMP/mine.json" sh "$MIG25"
+check "a name the user chose is kept" grep -q '"label": "My updater"' "$TMP/mine.json"
+OTA_APP_CONFIG="$TMP/none.json" sh "$MIG25"; rc=$?
+check "no app: nothing to do" test $rc -eq 0 -a ! -e "$TMP/none.json"
 end
 
 begin migration_adds_core_systemid

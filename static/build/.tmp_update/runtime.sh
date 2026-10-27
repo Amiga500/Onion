@@ -751,6 +751,28 @@ EOM
     rm /tmp/onion_ra_patch.cfg
 }
 
+# Emulator folder of a launch script: /mnt/SDCARD/Emu/GBA for
+# /mnt/SDCARD/Emu/GBA/launch.sh and /mnt/SDCARD/Emu/GBA/../../x/proxy.sh.
+launcher_emu_dir() {
+    case "$1" in
+        */../*) echo "${1%%/../*}" ;;
+        *) echo "${1%/*}" ;;
+    esac
+}
+
+# Same helpers as in game_list_options.sh, which writes the file.
+system_core_file() { # emulator folder (/mnt/SDCARD/Emu/GBA)
+    _sc_key=${1#/mnt/SDCARD/}
+    _sc_key=$(echo "${_sc_key%/}" | tr '/' '-')
+    echo "$sysdir/config/system_cores/$_sc_key"
+}
+
+system_default_core() { # emulator folder: the core, or nothing
+    _sc_file=$(system_core_file "$1")
+    [ -f "$_sc_file" ] || return 0
+    head -n 1 "$_sc_file" | tr -d ' \r\n'
+}
+
 override_game_core() {
     romcfgpath="$1"
     launch_path="$2"
@@ -774,6 +796,12 @@ override_game_core() {
     if [ -f "$romcfgpath" ]; then
         romcfg=$(cat "$romcfgpath")
         retroarch_core=$(get_info_value "$romcfg" core)
+    fi
+
+    # Else the core chosen for all games of the system (GLO > Game core >
+    # All games), if any
+    if [ -z "$retroarch_core" ]; then
+        retroarch_core=$(system_default_core "$(launcher_emu_dir "$launch_path")")
     fi
 
     # Check if core override is specified in the ROM's config

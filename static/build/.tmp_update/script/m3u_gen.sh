@@ -2,9 +2,29 @@
 #          adapted by Onion Team (https://github.com/OnionUI/Onion)
 
 count_m3u="/tmp/count_m3u"
+# Overridable for the tests
+ROMS_ROOT=${M3U_ROMS_ROOT:-/mnt/SDCARD/Roms}
+CUE_GEN=${M3U_CUE_GEN:-/mnt/SDCARD/.tmp_update/script/cue_gen.sh}
 
 # target files extension
 EXT_INT="cue|gdi|chd|pbp|iso|dsk"
+
+# Disc files in folder $1 whose name matches the glob $2 (case-insensitive)
+# and ends with one of $EXT_INT. The extensions used to be appended to the
+# glob as "*[$EXT_INT]", a character class: any name ending in one of those
+# letters matched, so the box art (.png) of a "(Disc 1)" game was moved and
+# listed as a disc (#310).
+find_discs() {
+  find "$1" -maxdepth 1 ! -iname '*.m3u' -type f -iname "$2" \( -iname '*.cue' -o -iname '*.gdi' \
+    -o -iname '*.chd' -o -iname '*.pbp' -o -iname '*.iso' -o -iname '*.dsk' \)
+}
+
+# A literal title for a find glob: [ ] * ? and \ escaped. "Game [T-En]
+# (Disc 1)" used [T-En] as a character class, so its discs were found but
+# never moved or listed: an empty playlist (#310).
+glob_escape() {
+  printf '%s' "$1" | sed 's/[][*?\\]/\\&/g'
+}
 
 helpmsg() {
   echo "desc: create m3u playlist for multi disc games [$EXT_INT]"
@@ -81,7 +101,7 @@ fi
 
 echo 0 >"$count_m3u"
 # create missing cue files.
-"/mnt/SDCARD/.tmp_update/script/cue_gen.sh"
+"$CUE_GEN"
 
 if [ "$TARGETFOLDER" = -sd ]; then
   DIR_NAME=".multi-disc"
@@ -89,20 +109,20 @@ fi
 
 DIR_LIST="PS SEGACD NEOCD PCE PCFX AMIGA"
 for dir in $DIR_LIST; do
-  full_path="/mnt/SDCARD/Roms/$dir"
+  full_path="$ROMS_ROOT/$dir"
   echo "============================= $full_path ============================="
   if [ -d "$full_path" ]; then
     cd "$full_path"
     ### TYPE 1: TitleOfGame (USA) (Disc 1).chd
     #---------------------------------------------------------------------------------
-    find . -maxdepth 1 ! -iname '*.m3u' -type f -iname "*([Dd][Ii][Ss][KkCc] 1).*[$EXT_INT]" | while read line; do
+    find_discs . "*([Dd][Ii][Ss][KkCc] 1).*" | while read line; do
       # searching for a "Disc 1" file.
       FILE_NAME="$(echo "${line%.*}" | sed 's@./@@g' | sed 's@ ([Dd][Ii][Ss][KkCc] 1)@@g')"
       if [ "$TARGETFOLDER" = -md ]; then
         DIR_NAME=".$(echo "${line%.*}" | sed 's@./@@g' | sed 's@ ([Dd][Ii][Ss][KkCc] 1)@@g')"
         DIR_NAME="${DIR_NAME%"${DIR_NAME##*[![:space:]]}"}" # remove spaces at the end
       fi
-      SEARCH_NAME="$(echo "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1)@([Dd][Ii][Ss][KkCc] ?)@g')"
+      SEARCH_NAME="$(glob_escape "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1)@([Dd][Ii][Ss][KkCc] ?)@g')"
       mkdir -p "$DIR_NAME"
       echo -e "****************\nType 1: ${line}\n**** SEARCH_NAME : $SEARCH_NAME \n**** DIR_NAME : $DIR_NAME\n**** FILE_NAME : $FILE_NAME"
       count=$(cat "$count_m3u")
@@ -112,19 +132,19 @@ for dir in $DIR_LIST; do
       # move matching files to directory
       find . -maxdepth 1 ! -iname '*.m3u' -type f -iname "$SEARCH_NAME.*" -exec mv -n -- '{}' "$DIR_NAME" \;
       # Create m3u playslist file
-      find "$DIR_NAME" ! -iname '*.m3u' -type f -iname "$SEARCH_NAME*.*[$EXT_INT]" | sed -e 's/^//' | sort >"$FILE_NAME".m3u
+      find_discs "$DIR_NAME" "$SEARCH_NAME*.*" | sed -e 's@^\./@@' | sort >"$FILE_NAME".m3u
     done
 
     ### TYPE 2: AnotherTitleOfGame (USA) (Disc 1) (Rev 2).chd
     #---------------------------------------------------------------------------------
-    find . -maxdepth 1 ! -iname '*.m3u' -type f -iname "*([Dd][Ii][Ss][KkCc] 1) *.*[$EXT_INT]" | while read line; do
+    find_discs . "*([Dd][Ii][Ss][KkCc] 1) *.*" | while read line; do
       # searching for a "Disc 1" file.
       FILE_NAME="$(echo "${line%.*}" | sed 's@./@@g' | sed 's@ ([Dd][Ii][Ss][KkCc] 1)@@g')"
       if [ "$TARGETFOLDER" = -md ]; then
         DIR_NAME=".$(echo "${line%.*}" | sed 's@./@@g' | sed 's@ ([Dd][Ii][Ss][KkCc] 1)@@g')"
         DIR_NAME="${DIR_NAME%"${DIR_NAME##*[![:space:]]}"}" # remove spaces at the end
       fi
-      SEARCH_NAME="$(echo "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1)@([Dd][Ii][Ss][KkCc] ?)@g')"
+      SEARCH_NAME="$(glob_escape "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1)@([Dd][Ii][Ss][KkCc] ?)@g')"
       echo -e "****************\nType 2: ${line}\n**** SEARCH_NAME : $SEARCH_NAME \n**** DIR_NAME : $DIR_NAME\n**** FILE_NAME : $FILE_NAME"
       count=$(cat "$count_m3u")
       count=$((count + 1))
@@ -134,19 +154,24 @@ for dir in $DIR_LIST; do
       # move matching files to directory
       find . -maxdepth 1 ! -iname '*.m3u' -type f -iname "$SEARCH_NAME.*" -exec mv -n -- '{}' "$DIR_NAME" \;
       # Create m3u playslist file
-      find "$DIR_NAME" ! -iname '*.m3u' -type f -iname "$SEARCH_NAME*.*[$EXT_INT]" | sed -e 's/^//' | sort >"$FILE_NAME".m3u
+      find_discs "$DIR_NAME" "$SEARCH_NAME*.*" | sed -e 's@^\./@@' | sort >"$FILE_NAME".m3u
     done
 
     ### TYPE 3: AmstradMSXTitleOfGame (19xx)(Developer)(Disc 1 of 3).dsk
     #---------------------------------------------------------------------------------
-    find . -maxdepth 1 ! -iname '*.m3u' -type f -iname "*([Dd][Ii][Ss][KkCc] 1 of ?).*[$EXT_INT]" | while read line; do
+    find_discs . "*([Dd][Ii][Ss][KkCc] 1 of ?).*" | while read line; do
       # searching for a "Disc 1" file.
       FILE_NAME="$(echo "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1 of .*)@@g')"
+      # "Game (Disc 1 of 2)" left "Game " with a space at the end. A playlist
+      # already made with that name keeps it: its saves follow the name.
+      if [ ! -f "$FILE_NAME.m3u" ]; then
+        FILE_NAME="${FILE_NAME%"${FILE_NAME##*[![:space:]]}"}" # remove spaces at the end
+      fi
       if [ "$TARGETFOLDER" = -md ]; then
         DIR_NAME=".$(echo "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1 of .*)@@g')"
         DIR_NAME="${DIR_NAME%"${DIR_NAME##*[![:space:]]}"}" # remove spaces at the end
       fi
-      SEARCH_NAME="$(echo "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1 of@([Dd][Ii][Ss][KkCc] ? of@g')"
+      SEARCH_NAME="$(glob_escape "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1 of@([Dd][Ii][Ss][KkCc] ? of@g')"
       # SEARCH_NAME="$(echo "${line%.*}" | sed 's@./@@g' | sed 's@([Dd][Ii][Ss][KkCc] 1)@([Dd][Ii][Ss][KkCc] ?)@g')"
       echo -e "****************\nType 3: ${line}\n**** SEARCH_NAME : $SEARCH_NAME \n**** DIR_NAME : $DIR_NAME\n**** FILE_NAME : $FILE_NAME"
       count=$(cat "$count_m3u")
@@ -157,7 +182,7 @@ for dir in $DIR_LIST; do
       # move matching files to directory
       find . -maxdepth 1 ! -iname '*.m3u' -type f -iname "$SEARCH_NAME*.*" -exec mv -n -- '{}' "$DIR_NAME" \;
       # Create m3u playslist file
-      find "$DIR_NAME" ! -iname '*.m3u' -type f -iname "$SEARCH_NAME*.*[$EXT_INT]" | sed -e 's/^//' | sort >"$FILE_NAME".m3u
+      find_discs "$DIR_NAME" "$SEARCH_NAME*.*" | sed -e 's@^\./@@' | sort >"$FILE_NAME".m3u
     done
   else
     echo "Directory $full_path does not exist."
