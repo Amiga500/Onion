@@ -1010,6 +1010,158 @@ static bool consoleview_store_layout(int screen, int layout)
     return ok;
 }
 
+/* Look options of console-view.json (Open MainUI 1.1.0 rc8). Each one is a
+ * key at the root or in "carousel" (and "grid" for wrap), with the values
+ * Tweaks offers: the first has no text, which removes the key so Open MainUI
+ * uses its own default (its defaults change between versions). A value is
+ * written as a boolean ("true", "false"), a number, or else a string. A key
+ * whose value Tweaks doesn't offer shows as the first one and is kept until
+ * the option is changed; a section left empty is removed. */
+#define CONSOLEVIEW_OPTION_COUNT 6
+#define CONSOLEVIEW_COUNT 0
+#define CONSOLEVIEW_LABELS 1
+#define CONSOLEVIEW_SELECTION 2
+#define CONSOLEVIEW_OPACITY 3
+#define CONSOLEVIEW_ANIMATION 4
+#define CONSOLEVIEW_WRAP 5
+
+typedef struct {
+    const char *sections[2]; // NULL: the root
+    int section_count;
+    const char *key;
+    int count;
+    const char *values[3];
+} ConsoleViewOption;
+
+static const ConsoleViewOption consoleview_options[CONSOLEVIEW_OPTION_COUNT] = {
+    {{NULL}, 1, "count", 2, {NULL, "false"}},
+    {{"carousel"}, 1, "labels", 2, {NULL, "false"}},
+    {{"carousel"}, 1, "selection", 2, {NULL, "false"}},
+    {{"carousel"}, 1, "opacity_unselected", 3, {NULL, "1", "0.5"}},
+    {{"carousel"}, 1, "animation", 3, {NULL, "none", "slide"}},
+    {{"carousel", "grid"}, 2, "wrap", 2, {NULL, "false"}},
+};
+
+static cJSON *consoleview_value_json(const char *text)
+{
+    if (strcmp(text, "true") == 0)
+        return cJSON_CreateTrue();
+    if (strcmp(text, "false") == 0)
+        return cJSON_CreateFalse();
+    if (isdigit((unsigned char)text[0]) || text[0] == '-')
+        return cJSON_CreateNumber(atof(text));
+    return cJSON_CreateString(text);
+}
+
+static bool consoleview_value_matches(const cJSON *item, const char *text)
+{
+    if (strcmp(text, "true") == 0)
+        return cJSON_IsTrue(item);
+    if (strcmp(text, "false") == 0)
+        return cJSON_IsFalse(item);
+    if (isdigit((unsigned char)text[0]) || text[0] == '-') {
+        double want = atof(text);
+        return cJSON_IsNumber(item) && item->valuedouble > want - 0.001 &&
+               item->valuedouble < want + 0.001;
+    }
+    return cJSON_IsString(item) && strcmp(item->valuestring, text) == 0;
+}
+
+static int consoleview_option_of(cJSON *root, int option)
+{
+    const ConsoleViewOption *o = &consoleview_options[option];
+    cJSON *where = o->sections[0] ? cJSON_GetObjectItemCaseSensitive(root, o->sections[0]) : root;
+    cJSON *item = cJSON_IsObject(where) ? cJSON_GetObjectItemCaseSensitive(where, o->key) : NULL;
+    if (item == NULL)
+        return 0;
+    for (int i = 1; i < o->count; i++)
+        if (consoleview_value_matches(item, o->values[i]))
+            return i;
+    return 0;
+}
+
+static int consoleview_option(int option)
+{
+    if (option < 0 || option >= CONSOLEVIEW_OPTION_COUNT)
+        return 0;
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(CONSOLEVIEW_CONFIG_PATH, &exists, &valid);
+    int value = valid && root != NULL ? consoleview_option_of(root, option) : 0;
+    cJSON_Delete(root);
+    return value;
+}
+
+static bool consoleview_set_in(cJSON *object, const char *key, const char *text)
+{
+    if (text == NULL) {
+        cJSON_DeleteItemFromObjectCaseSensitive(object, key);
+        return true;
+    }
+    cJSON *value = consoleview_value_json(text);
+    if (value == NULL)
+        return false;
+    bool ok = cJSON_GetObjectItemCaseSensitive(object, key) != NULL
+                  ? cJSON_ReplaceItemInObjectCaseSensitive(object, key, value)
+                  : cJSON_AddItemToObject(object, key, value);
+    if (!ok)
+        cJSON_Delete(value);
+    return ok;
+}
+
+static bool consoleview_store_option(int option, int value)
+{
+    if (option < 0 || option >= CONSOLEVIEW_OPTION_COUNT)
+        return false;
+    const ConsoleViewOption *o = &consoleview_options[option];
+    if (value < 0 || value >= o->count)
+        return false;
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(CONSOLEVIEW_CONFIG_PATH, &exists, &valid);
+    if (!valid || root == NULL) {
+        cJSON_Delete(root);
+        return false;
+    }
+    const char *text = o->values[value];
+    bool ok = true;
+    for (int i = 0; ok && i < o->section_count; i++) {
+        const char *name = o->sections[i];
+        if (name == NULL) {
+            ok = consoleview_set_in(root, o->key, text);
+            continue;
+        }
+        cJSON *section = cJSON_GetObjectItemCaseSensitive(root, name);
+        if (section != NULL && !cJSON_IsObject(section)) {
+            ok = false; // not ours to replace
+            break;
+        }
+        if (section == NULL) {
+            if (text == NULL)
+                continue;
+            section = cJSON_AddObjectToObject(root, name);
+            if (section == NULL) {
+                ok = false;
+                break;
+            }
+        }
+        ok = consoleview_set_in(section, o->key, text);
+        if (ok && section->child == NULL)
+            cJSON_DeleteItemFromObjectCaseSensitive(root, name);
+    }
+    if (ok)
+        ok = consoleview_save(root);
+    cJSON_Delete(root);
+    return ok;
+}
+
+static void consoleview_action_option(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!consoleview_store_option(item->action_id, item->value))
+        item->value = consoleview_option(item->action_id);
+}
+
 static void consoleview_action_thumbs(void *pt)
 {
     ListItem *item = (ListItem *)pt;
@@ -1025,11 +1177,130 @@ static void consoleview_action_layout(void *pt)
         item->value = consoleview_layout(screen);
 }
 
+void menu_consoleView(void *_)
+{
+    (void)_;
+    if (!_menu_console_view._created) {
+        _menu_console_view = list_createWithTitle(9, LIST_SMALL, "Console view");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Games view",
+                .item_type = MULTIVALUE,
+                .value_max = CONSOLEVIEW_LAYOUT_COUNT - 1,
+                .value_labels = {"Grid", "Carousel", "List"},
+                .value = consoleview_layout(CONSOLEVIEW_GAMES),
+                .action_id = CONSOLEVIEW_GAMES,
+                .action = consoleview_action_layout},
+            "How Games shows the consoles: the grid,\n"
+            "a carousel or a list.\n"
+            "Needs Open MainUI 1.1.0.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Expert view",
+                .item_type = MULTIVALUE,
+                .value_max = CONSOLEVIEW_LAYOUT_COUNT - 1,
+                .value_labels = {"Grid", "Carousel", "List"},
+                .value = consoleview_layout(CONSOLEVIEW_EXPERT),
+                .action_id = CONSOLEVIEW_EXPERT,
+                .action = consoleview_action_layout},
+            "How Expert shows the consoles: the grid,\n"
+            "a carousel or a list.\n"
+            "Needs Open MainUI 1.1.0.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Console pictures",
+                .item_type = TOGGLE,
+                .value = consoleview_has_thumbs(),
+                .action = consoleview_action_thumbs},
+            "Carousel and List show the pictures in\n"
+            "miyoo/app/consoles (gba.png, ps.png...,\n"
+            "_default.png for the others), else the\n"
+            "theme's.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Game count",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"On", "Off"},
+                .value = consoleview_option(CONSOLEVIEW_COUNT),
+                .action_id = CONSOLEVIEW_COUNT,
+                .action = consoleview_action_option},
+            "Show the number of games\n"
+            "under each console.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Carousel: names",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"On", "Off"},
+                .value = consoleview_option(CONSOLEVIEW_LABELS),
+                .action_id = CONSOLEVIEW_LABELS,
+                .action = consoleview_action_option},
+            "Show the console's name under its\n"
+            "picture in the carousel.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Carousel: selection box",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"Theme", "Off"},
+                .value = consoleview_option(CONSOLEVIEW_SELECTION),
+                .action_id = CONSOLEVIEW_SELECTION,
+                .action = consoleview_action_option},
+            "The box behind the selected console:\n"
+            "the theme's colour, or none.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Carousel: other consoles",
+                .item_type = MULTIVALUE,
+                .value_max = 2,
+                .value_labels = {"Default", "Clear", "Dimmed"},
+                .value = consoleview_option(CONSOLEVIEW_OPACITY),
+                .action_id = CONSOLEVIEW_OPACITY,
+                .action = consoleview_action_option},
+            "How the consoles beside the selected one\n"
+            "look. Default: as Open MainUI sets it.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Carousel: animation",
+                .item_type = MULTIVALUE,
+                .value_max = 2,
+                .value_labels = {"Default", "None", "Slide"},
+                .value = consoleview_option(CONSOLEVIEW_ANIMATION),
+                .action_id = CONSOLEVIEW_ANIMATION,
+                .action = consoleview_action_option},
+            "Slide moves the consoles into place.\n"
+            "Default: as Open MainUI sets it.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Wrap around",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"On", "Off"},
+                .value = consoleview_option(CONSOLEVIEW_WRAP),
+                .action_id = CONSOLEVIEW_WRAP,
+                .action = consoleview_action_option},
+            "From the last console go on to the\n"
+            "first, in the carousel and the grid.");
+    }
+    menu_stack[++menu_level] = &_menu_console_view;
+    header_changed = true;
+}
+
 void menu_mainMenu(void *_)
 {
     (void)_;
     if (!_menu_main_menu._created) {
-        _menu_main_menu = list_createWithTitle(5, LIST_SMALL, "Main menu");
+        _menu_main_menu = list_createWithTitle(3, LIST_SMALL, "Main menu");
         list_addItemWithInfoNote(
             &_menu_main_menu,
             (ListItem){.label = "Main menu items...", .action = menu_mainMenuItems},
@@ -1043,41 +1314,10 @@ void menu_mainMenu(void *_)
             "Existing custom definitions are preserved.");
         list_addItemWithInfoNote(
             &_menu_main_menu,
-            (ListItem){
-                .label = "Games view",
-                .item_type = MULTIVALUE,
-                .value_max = CONSOLEVIEW_LAYOUT_COUNT - 1,
-                .value_labels = {"Grid", "Carousel", "List"},
-                .value = consoleview_layout(CONSOLEVIEW_GAMES),
-                .action_id = CONSOLEVIEW_GAMES,
-                .action = consoleview_action_layout},
-            "How Games shows the consoles: the grid,\n"
-            "a carousel or a list.\n"
-            "Needs Open MainUI 1.1.0 rc7.");
-        list_addItemWithInfoNote(
-            &_menu_main_menu,
-            (ListItem){
-                .label = "Expert view",
-                .item_type = MULTIVALUE,
-                .value_max = CONSOLEVIEW_LAYOUT_COUNT - 1,
-                .value_labels = {"Grid", "Carousel", "List"},
-                .value = consoleview_layout(CONSOLEVIEW_EXPERT),
-                .action_id = CONSOLEVIEW_EXPERT,
-                .action = consoleview_action_layout},
-            "How Expert shows the consoles: the grid,\n"
-            "a carousel or a list.\n"
-            "Needs Open MainUI 1.1.0 rc7.");
-        list_addItemWithInfoNote(
-            &_menu_main_menu,
-            (ListItem){
-                .label = "Console pictures",
-                .item_type = TOGGLE,
-                .value = consoleview_has_thumbs(),
-                .action = consoleview_action_thumbs},
-            "Carousel and List show the pictures in\n"
-            "miyoo/app/consoles (gba.png, ps.png...);\n"
-            "without them, the theme's.\n"
-            "Needs Open MainUI 1.1.0 rc7.");
+            (ListItem){.label = "Console view...", .action = menu_consoleView},
+            "Games and Expert as grid, carousel or\n"
+            "list, console pictures and the carousel's\n"
+            "look. Needs Open MainUI 1.1.0.");
     }
     menu_stack[++menu_level] = &_menu_main_menu;
     header_changed = true;
