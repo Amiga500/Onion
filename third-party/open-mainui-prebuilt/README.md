@@ -1,8 +1,8 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.0 rc7** (video previews in game lists, media
-gallery in Game Info, Games/Expert as grid, carousel or list, Game Info
+GitHub: **Open MainUI 1.1.0 rc8** (video previews in game lists, media
+gallery in Game Info, Games/Expert as grid, carousel (rewritten in rc8) or list, Game Info
 auto scroll; a release candidate).
 `MainUI.md5` is its checksum, checked by the build.
 
