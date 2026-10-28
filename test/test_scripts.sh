@@ -1223,6 +1223,25 @@ unset -f glo_game_files count_hidden_games drop_from_recents drop_rom_list_cache
 check "offered in Games and Expert" sh -c "grep -q 'add_menu_option hide_game \"Hide game\"' '$GLO' && grep -q 'add_menu_option show_hidden_games' '$GLO'"
 end
 
+begin miyoogamelist_lists_hidden_games_at_their_place
+# A list made while a game was hidden (GLO Hide game, .hidden/<name>/) left
+# it out, so it never showed again once back: it is listed at its usual
+# path, which MainUI skips while the file is not there.
+GEN="$ROOT/static/build/.tmp_update/script/miyoogamelist_gen.sh"
+mkdir -p "$TMP/Emu/GBA" "$TMP/Roms/GBA/.hidden/Zelda" "$TMP/Roms/GBA/.hidden/Dup"
+printf '{\n\t"label": "GBA",\n\t"rompath": "../../Roms/GBA",\n\t"imgpath": "../../Roms/GBA/Imgs",\n\t"extlist": "gba|zip"\n}\n' > "$TMP/Emu/GBA/config.json"
+: > "$TMP/Roms/GBA/Mario (USA).gba"
+: > "$TMP/Roms/GBA/.hidden/Zelda/Zelda (USA).gba"; : > "$TMP/Roms/GBA/.hidden/Zelda/readme.txt"
+: > "$TMP/Roms/GBA/.hidden/Dup/Mario (USA).gba"
+(cd "$TMP" && MIYOOGAMELIST_EMU_DIR="$TMP/Emu" sh "$GEN" > /dev/null 2>&1)
+X="$TMP/Roms/GBA/miyoogamelist.xml"
+check "the visible game is listed" grep -q '<path>./Mario (USA).gba</path>' "$X"
+check "the hidden one too, at its usual path" grep -q '<path>./Zelda (USA).gba</path>' "$X"
+check "not with its hidden path" sh -c '! grep -q "\.hidden" "$1"' _ "$X"
+check "a hidden copy of a visible game is not listed twice" test "$(grep -c 'Mario (USA).gba' "$X")" -eq 1
+check "non-game files are left out" sh -c '! grep -q readme "$1"' _ "$X"
+end
+
 begin glo_filter_dropped_with_cache
 glo_filter_env 1
 check "filter row in the cache: applied" filter_is_applied
