@@ -1,6 +1,6 @@
 #!/bin/sh
 
-rootdir="/mnt/SDCARD/Emu"
+rootdir="${MIYOOGAMELIST_EMU_DIR:-/mnt/SDCARD/Emu}"
 
 clean_name() {
     name="$1"
@@ -35,6 +35,27 @@ clean_name() {
     echo "$name"
 }
 
+# One <game> for the ROM file named $1 (a name, no folder), if it is a game.
+add_game() {
+    rom="$1"
+
+    # ignore non-game files
+    if ! echo "$rom" | grep -qE "\.($extlist)$"; then
+        return
+    fi
+
+    filename="${rom%.*}"
+    digest=$(clean_name "$rom" "$extlist")
+
+    cat <<EOF >>"$gamelistpath"
+    <game>
+        <path>$rompath/$rom</path>
+        <name>$digest</name>
+        <image>$imgpath/$filename.png</image>
+    </game>
+EOF
+}
+
 generate_miyoogamelist() {
     basepath=$1
     gamelistpath="$basepath/miyoogamelist.xml"
@@ -56,23 +77,18 @@ generate_miyoogamelist() {
         if [ -d "$rom" ]; then
             continue
         fi
+        add_game "${rom##*/}"
+    done
 
-        # ignore non-game files
-        if ! echo "$rom" | grep -qE "\.($extlist)$"; then
-            continue
-        fi
-
-        rom="${rom##*/}"
-        filename="${rom%.*}"
-        digest=$(clean_name "$rom" "$extlist")
-
-        cat <<EOF >>"$gamelistpath"
-    <game>
-        <path>$rompath/$rom</path>
-        <name>$digest</name>
-        <image>$imgpath/$filename.png</image>
-    </game>
-EOF
+    # Games hidden with GLO's Hide game wait in .hidden/<name>/. They are
+    # listed at their usual place: MainUI skips an entry whose file is not
+    # there, so the game stays hidden, and shows again once it is back.
+    # Without them, a list made while a game was hidden left it out for good.
+    for rom in "$basepath/$rompath/.hidden"/*/*; do
+        [ -f "$rom" ] || continue
+        # a visible file of the same name is listed already
+        [ -e "$basepath/$rompath/${rom##*/}" ] && continue
+        add_game "${rom##*/}"
     done
 
     echo '</gameList>' >>"$gamelistpath"
