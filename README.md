@@ -46,6 +46,7 @@ Your games, saves and BIOS files carry over. RedOnion keeps Onion's file layout.
 - **Not an official Onion release.** RedOnion is not affiliated with the Onion team, with Miyoo, or with the authors of the emulators and apps it includes. Onion's [documentation](https://onionui.github.io/docs) still describes how everything works.
 - **Found a bug?** [Open an issue](https://github.com/Amiga500/Onion/issues) with your model, version and steps to reproduce.
 - **Want the details?** The [technical reference](docs/TECHNICAL.md) lists every change, measurement and test.
+- **Box art, screenshots and videos** for the game gallery: [where they go and how to get them with Skraper](docs/GAME_MEDIA.md).
 
 ## Thanks
 
