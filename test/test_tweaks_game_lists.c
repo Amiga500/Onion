@@ -761,7 +761,7 @@ TEST(console_view_submenu_has_room_for_every_item)
             items++;
     }
     fclose(fp);
-    ASSERT_EQ(items, 9);
+    ASSERT_EQ(items, 11);
     ASSERT_TRUE(capacity >= items);
 }
 
@@ -788,6 +788,36 @@ TEST(console_view_options_written_and_read)
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_ANIMATION, 1));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"animation\":\t\"none\"") != NULL);
+}
+
+/* Open MainUI 1.1.0 rc9: easing and duration_ms in the carousel section. */
+TEST(console_view_motion_and_slide_time)
+{
+    reset_dir();
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_EASING, 1));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 2));
+    char text[512];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"easing\":\t\"smooth\"") != NULL);
+    ASSERT_TRUE(strstr(text, "\"duration_ms\":\t400") != NULL);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_EASING), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 2);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 3));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 3);
+    ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_DURATION, 4));
+    /* A time set by hand shows as Default and is kept. */
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 300, \"repeat_ms\": 200}}");
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 0);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_EASING, 1));
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"duration_ms\":\t300") != NULL);
+    ASSERT_TRUE(strstr(text, "\"repeat_ms\":\t200") != NULL);
+    /* Both back to Default: the keys go, and the file with them. */
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_EASING, 0));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 0));
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "easing") == NULL);
+    ASSERT_TRUE(strstr(text, "\"duration_ms\"") == NULL);
 }
 
 TEST(console_view_wrap_sets_carousel_and_grid)
@@ -874,6 +904,7 @@ int main(void)
     RUN_TEST(main_menu_submenu_has_room_for_every_item);
     RUN_TEST(console_view_submenu_has_room_for_every_item);
     RUN_TEST(console_view_options_written_and_read);
+    RUN_TEST(console_view_motion_and_slide_time);
     RUN_TEST(console_view_wrap_sets_carousel_and_grid);
     RUN_TEST(console_view_defaults_remove_only_their_key);
     RUN_TEST(console_view_value_not_offered_shows_first);
