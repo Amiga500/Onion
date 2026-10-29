@@ -1017,20 +1017,22 @@ static bool consoleview_store_layout(int screen, int layout)
  * written as a boolean ("true", "false"), a number, or else a string. A key
  * whose value Tweaks doesn't offer shows as the first one and is kept until
  * the option is changed; a section left empty is removed. */
-#define CONSOLEVIEW_OPTION_COUNT 6
+#define CONSOLEVIEW_OPTION_COUNT 8
 #define CONSOLEVIEW_COUNT 0
 #define CONSOLEVIEW_LABELS 1
 #define CONSOLEVIEW_SELECTION 2
 #define CONSOLEVIEW_OPACITY 3
 #define CONSOLEVIEW_ANIMATION 4
 #define CONSOLEVIEW_WRAP 5
+#define CONSOLEVIEW_EASING 6
+#define CONSOLEVIEW_DURATION 7
 
 typedef struct {
     const char *sections[2]; // NULL: the root
     int section_count;
     const char *key;
     int count;
-    const char *values[3];
+    const char *values[4];
 } ConsoleViewOption;
 
 static const ConsoleViewOption consoleview_options[CONSOLEVIEW_OPTION_COUNT] = {
@@ -1040,6 +1042,8 @@ static const ConsoleViewOption consoleview_options[CONSOLEVIEW_OPTION_COUNT] = {
     {{"carousel"}, 1, "opacity_unselected", 3, {NULL, "1", "0.5"}},
     {{"carousel"}, 1, "animation", 3, {NULL, "none", "slide"}},
     {{"carousel", "grid"}, 2, "wrap", 2, {NULL, "false"}},
+    {{"carousel"}, 1, "easing", 2, {NULL, "smooth"}},
+    {{"carousel"}, 1, "duration_ms", 4, {NULL, "160", "400", "600"}},
 };
 
 static cJSON *consoleview_value_json(const char *text)
@@ -1181,7 +1185,7 @@ void menu_consoleView(void *_)
 {
     (void)_;
     if (!_menu_console_view._created) {
-        _menu_console_view = list_createWithTitle(9, LIST_SMALL, "Console view");
+        _menu_console_view = list_createWithTitle(11, LIST_SMALL, "Console view");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1282,6 +1286,33 @@ void menu_consoleView(void *_)
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
+                .label = "Carousel: motion",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"Default", "Smooth"},
+                .value = consoleview_option(CONSOLEVIEW_EASING),
+                .action_id = CONSOLEVIEW_EASING,
+                .action = consoleview_action_option},
+            "How a slide moves. Default: fast, then\n"
+            "slowing down. Smooth: speeds up and\n"
+            "slows down gently. Only with Slide.\n"
+            "Needs Open MainUI 1.1.0.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Carousel: slide time",
+                .item_type = MULTIVALUE,
+                .value_max = 3,
+                .value_labels = {"Default", "160 ms", "400 ms", "600 ms"},
+                .value = consoleview_option(CONSOLEVIEW_DURATION),
+                .action_id = CONSOLEVIEW_DURATION,
+                .action = consoleview_action_option},
+            "How long a slide takes. Default: as\n"
+            "Open MainUI sets it (240 ms).\n"
+            "Only with Slide.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
                 .label = "Wrap around",
                 .item_type = MULTIVALUE,
                 .value_max = 1,
@@ -1290,7 +1321,8 @@ void menu_consoleView(void *_)
                 .action_id = CONSOLEVIEW_WRAP,
                 .action = consoleview_action_option},
             "From the last console go on to the\n"
-            "first, in the carousel and the grid.");
+            "first, in the carousel and the grid.\n"
+            "Off: stops at the first and last console.");
     }
     menu_stack[++menu_level] = &_menu_console_view;
     header_changed = true;
