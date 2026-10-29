@@ -181,6 +181,11 @@ void _settings_load_keymap(void)
     json_getInt(keymap, "ingame_double_press", &settings.ingame_double_press);
     json_getString(keymap, "mainui_button_x", settings.mainui_button_x);
     json_getString(keymap, "mainui_button_y", settings.mainui_button_y);
+    // Open MainUI also takes false for "disable"; keep it when saving.
+    if (cJSON_IsFalse(cJSON_GetObjectItem(keymap, "mainui_button_x")))
+        strcpy(settings.mainui_button_x, "disable");
+    if (cJSON_IsFalse(cJSON_GetObjectItem(keymap, "mainui_button_y")))
+        strcpy(settings.mainui_button_y, "disable");
     cJSON_Delete(keymap);
 }
 

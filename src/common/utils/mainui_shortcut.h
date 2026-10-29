@@ -10,13 +10,16 @@
 //  - "glo": the selected game starts with its Game List Options; keymon
 //    sets /tmp/launch_alt so runtime.sh opens them instead of the game;
 //  - "fav": the selected game is added to or removed from Favorites, by
-//    MainUI alone (keymon does nothing).
+//    MainUI alone (keymon does nothing);
+//  - "disable": the button does nothing in MainUI (Open MainUI 1.1.0 rc9 and
+//    later; keymon does nothing either). keymap.json may also hold false for
+//    the same thing, which settings load reads as "disable".
 // Tweaks lists them after the apps and the tools, in this order, for both
 // buttons.
-#define MAINUI_SHORTCUT_EXTRA_COUNT 2
+#define MAINUI_SHORTCUT_EXTRA_COUNT 3
 
-static const char *const mainui_shortcut_extra_values[MAINUI_SHORTCUT_EXTRA_COUNT] = {"glo", "fav"};
-static const char *const mainui_shortcut_extra_labels[MAINUI_SHORTCUT_EXTRA_COUNT] = {"GLO", "Toggle favorite"};
+static const char *const mainui_shortcut_extra_values[MAINUI_SHORTCUT_EXTRA_COUNT] = {"glo", "fav", "disable"};
+static const char *const mainui_shortcut_extra_labels[MAINUI_SHORTCUT_EXTRA_COUNT] = {"GLO", "Toggle favorite", "Disabled"};
 
 // Index of a saved value among the extras, or -1.
 static inline int mainui_shortcut_extraIndex(const char *value)
