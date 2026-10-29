@@ -5,7 +5,8 @@
  *        actions.h, keymon/menuButtonAction.h)
  *
  * Open MainUI 1.0.10 reads "glo" (Game List Options) and "fav" (toggle
- * favorite) for both buttons in keymap.json. Tweaks lists them after the
+ * favorite) for both buttons in keymap.json; 1.1.0 rc9 adds "disable" (or
+ * false), which turns the button off in MainUI. Tweaks lists them after the
  * apps and the tools for X and Y; keymon flags the next launch for GLO on
  * either button.
  *
@@ -70,12 +71,24 @@ TEST(both_buttons_offer_glo_and_toggle_favorite)
 {
     char label[STR_MAX];
     for (int button = 0; button < 2; button++) {
-        choose(button, max_value() - 1, label);
+        choose(button, max_value() - 2, label);
         ASSERT_STREQ(label, "GLO");
         ASSERT_STREQ(saved(button), "glo");
-        choose(button, max_value(), label);
+        choose(button, max_value() - 1, label);
         ASSERT_STREQ(label, "Toggle favorite");
         ASSERT_STREQ(saved(button), "fav");
+    }
+}
+
+/* Disabled is the last choice on both buttons and saves "disable". */
+TEST(both_buttons_offer_disabled_last)
+{
+    char label[STR_MAX];
+    for (int button = 0; button < 2; button++) {
+        choose(button, max_value(), label);
+        ASSERT_STREQ(label, "Disabled");
+        ASSERT_STREQ(saved(button), "disable");
+        ASSERT_EQ(value_appShortcut(button), max_value());
     }
 }
 
@@ -127,6 +140,9 @@ TEST(header_values)
 {
     ASSERT_EQ(mainui_shortcut_extraIndex("glo"), 0);
     ASSERT_EQ(mainui_shortcut_extraIndex("fav"), 1);
+    ASSERT_EQ(mainui_shortcut_extraIndex("disable"), 2);
+    ASSERT_EQ(mainui_shortcut_extraIndex("Disable"), -1);
+    ASSERT_FALSE(mainui_shortcut_launchesGlo("disable"));
     ASSERT_EQ(mainui_shortcut_extraIndex("app:Clock"), -1);
     ASSERT_EQ(mainui_shortcut_extraIndex(""), -1);
     ASSERT_EQ(mainui_shortcut_extraIndex(NULL), -1);
@@ -161,13 +177,21 @@ TEST(keymon_and_menu_sources)
     ASSERT_TRUE(file_contains("../src/tweaks/menus.h",
                               ".value_max = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT,\n"
                               "                                     .value = value_appShortcut(1),"));
+    /* keymap.json false reads as "disable", so saving keeps it off. */
+    ASSERT_TRUE(file_contains("../src/common/system/settings.h",
+                              "if (cJSON_IsFalse(cJSON_GetObjectItem(keymap, \"mainui_button_x\")))\n"
+                              "        strcpy(settings.mainui_button_x, \"disable\");"));
+    ASSERT_TRUE(file_contains("../src/common/system/settings.h",
+                              "if (cJSON_IsFalse(cJSON_GetObjectItem(keymap, \"mainui_button_y\")))\n"
+                              "        strcpy(settings.mainui_button_y, \"disable\");"));
 }
 
 int main(void)
 {
-    printf("\n=== MainUI X/Y shortcuts: GLO and Toggle favorite ===\n\n");
+    printf("\n=== MainUI X/Y shortcuts: GLO, Toggle favorite, Disabled ===\n\n");
 
     RUN_TEST(both_buttons_offer_glo_and_toggle_favorite);
+    RUN_TEST(both_buttons_offer_disabled_last);
     RUN_TEST(every_choice_round_trips);
     RUN_TEST(default_is_the_plain_button);
     RUN_TEST(apps_and_tools_keep_their_places);

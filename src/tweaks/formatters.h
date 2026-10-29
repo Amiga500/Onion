@@ -62,7 +62,7 @@ void formatter_appShortcut(void *pt, char *out_label)
         return;
     }
 
-    // GLO, Toggle favorite
+    // GLO, Toggle favorite, Disabled
     value -= NUM_TOOLS;
     strcpy(out_label, mainui_shortcut_extra_labels[value]);
 }

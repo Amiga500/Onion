@@ -363,9 +363,10 @@ void menu_buttonAction(void *_)
                                      .action_id = 0,
                                      .action = action_setAppShortcut},
                                  "Set the X button action in MainUI:\n"
-                                 "an app, a tool, GLO (the game's options)\n"
-                                 "or Toggle favorite (add or remove the\n"
-                                 "selected game from Favorites).");
+                                 "an app, a tool, GLO (the game's options),\n"
+                                 "Toggle favorite (add or remove the game\n"
+                                 "from Favorites) or Disabled (no action).\n"
+                                 "Disabled needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "MainUI: Y button",
@@ -376,9 +377,10 @@ void menu_buttonAction(void *_)
                                      .action_id = 1,
                                      .action = action_setAppShortcut},
                                  "Set the Y button action in MainUI:\n"
-                                 "an app, a tool, GLO (the game's options)\n"
-                                 "or Toggle favorite (add or remove the\n"
-                                 "selected game from Favorites).");
+                                 "an app, a tool, GLO (the game's options),\n"
+                                 "Toggle favorite (add or remove the game\n"
+                                 "from Favorites) or Disabled (no action).\n"
+                                 "Disabled needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "Power single press",
