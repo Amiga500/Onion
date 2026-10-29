@@ -583,7 +583,7 @@ wifi_started_here=0
 wifi_setting_on() { return 1; }
 restore_wifi
 check "already on before the updater: left on" test ! -e "$TMP/pkill"
-check "restored on every exit" grep -q "^	trap 'stop_download; restore_wifi' EXIT" "$OTA"
+check "restored on every exit" grep -q "^	trap 'stop_download; restore_wifi; restore_keys' EXIT" "$OTA"
 unset -f pkill wifi_setting_on
 end
 
@@ -729,7 +729,7 @@ mkdir -p "$TMP/script" "$TMP/config"
 sysdir=$TMP
 echo beta > "$TMP/config/ota_channel"
 clear() { :; }
-eval "$(extract_fn "$OTA" channel_choice)"
+for f in channel_choice ota_menu drop_keys quiet_keys; do eval "$(extract_fn "$OTA" $f)"; done
 printf '#!/bin/sh\ncat > /dev/null\nexit 1\n' > "$TMP/script/shellect.sh"
 chmod +x "$TMP/script/shellect.sh"
 (channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
@@ -739,8 +739,18 @@ printf '#!/bin/sh\ncat > /dev/null\necho stable\n' > "$TMP/script/shellect.sh"
 (channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
 check "choice saved" test "$(cat "$TMP/config/ota_channel")" = stable
 check "choice goes on" test -e "$TMP/went_on"
+ask_leave() { return 0; }
+printf '#!/bin/sh\ncat > /dev/null\nexit 2\n' > "$TMP/script/shellect.sh"
+rm -f "$TMP/went_on"
+(channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
+check "MENU, then START: leaves" test ! -e "$TMP/went_on"
+ask_leave() { printf '#!/bin/sh\ncat > /dev/null\necho beta\n' > "$TMP/script/shellect.sh"; return 1; }
+printf '#!/bin/sh\ncat > /dev/null\nexit 2\n' > "$TMP/script/shellect.sh"
+(channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
+check "MENU, then A: the menu again" test "$(cat "$TMP/config/ota_channel")" = beta
+check "MENU, then A: goes on" test -e "$TMP/went_on"
 check "Mini without Wi-Fi is told so" grep -q 'This device has no Wi-Fi' "$OTA"
-unset -f clear channel_choice
+unset -f clear channel_choice ota_menu drop_keys quiet_keys ask_leave
 end
 
 if command -v jq > /dev/null; then
@@ -1453,7 +1463,9 @@ check "no name-based kill left (it hit Open MainUI in mainui-test)" sh -c "! gre
 check "end of input leaves the key loop" grep -q '\[ -n "\$key" \] || exit 1' "$SHELLECT"
 check "MENU (a lone Esc) leaves like START" grep -q 'stty min 0 time 1' "$SHELLECT"
 check "with -m only Up/Down, A and MENU are accepted" grep -q "A2|B2|\"\$space\"?) ;;" "$SHELLECT"
-check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 3
+check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 1
+check "OTA menus all go through ota_menu" test "$(grep -c '^	ota_menu "' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 3
+check "with -m MENU returns 2 instead of closing the terminal" grep -q '\[ -z "\$menu_only_exit" \] || { term_reset; exit 2; }' "$SHELLECT"
 end
 
 # ---- ota_update.sh: "Press A to continue, MENU to exit" ----
@@ -1461,20 +1473,39 @@ end
 OTA_SCRIPT="$ROOT/static/build/.tmp_update/script/ota_update.sh"
 
 begin ota_info_screen_menu_exits
-eval "$(extract_fn "$OTA_SCRIPT" wait_key)"
+for f in wait_key read_button ask_leave drop_keys; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
+eval "$(grep -E '^(ESC|CR)=' "$OTA_SCRIPT")"
+NL='
+'
+YELLOW= NC=
 printf ' ' > "$TMP/a"
 wait_key "x" < "$TMP/a" > /dev/null
 check "A continues" test $? -eq 0
-printf 'x\n ' > "$TMP/other"
+printf 'x\n\033[Ayy ' > "$TMP/other"
 wait_key "x" < "$TMP/other" > /dev/null
-check "other buttons (START...) are ignored until A" test $? -eq 0
+check "other buttons (START, the D-pad...) are ignored until A" test $? -eq 0
 printf '\033' > "$TMP/menu"
-wait_key "x" < "$TMP/menu" > /dev/null
-check "MENU (a lone Esc) leaves" test $? -eq 1
+out=$(wait_key "x" < "$TMP/menu")
+check "MENU (a lone Esc), then nothing: leaves" test $? -eq 1
+check "MENU asks first" sh -c "echo \"\$1\" | grep -q 'Exit the updater? START: yes, A: no'" _ "$out"
+printf '\033\n' > "$TMP/menu_start"
+wait_key "x" < "$TMP/menu_start" > /dev/null
+check "MENU, then START: leaves" test $? -eq 1
+# Without a terminal the follow-up read takes the next byte: keep MENU
+# last in the input, and test "stay" with ask_leave itself.
+printf ' ' > "$TMP/a"
+ask_leave "q" < "$TMP/a" > /dev/null
+check "asked, A: stays" test $? -eq 1
+printf 'x\033' > "$TMP/menu_again"
+ask_leave "q" < "$TMP/menu_again" > /dev/null
+check "asked, MENU again does not answer (end of input: leaves)" test $? -eq 0
 wait_key "x" < /dev/null > /dev/null
 check "no input (terminal gone) leaves" test $? -eq 1
 check "the version screen offers MENU to exit" grep -q 'wait_key "Press A to continue, MENU to exit" || exit 0' "$OTA_SCRIPT"
-unset -f wait_key
+check "every Press A prompt drops the buttons pressed before" test "$(grep -c 'read -n 1 -s -r -p' "$OTA_SCRIPT")" -eq "$(grep -c 'drop_keys; read -n 1 -s -r -p' "$OTA_SCRIPT")"
+check "echo off for the whole updater" grep -q "^	quiet_keys$" "$OTA_SCRIPT"
+unset -f wait_key read_button ask_leave drop_keys
+unset YELLOW NC
 end
 
 begin ota_connection_check_ignores_the_clock
@@ -1510,8 +1541,10 @@ end
 # ---- ota_update.sh: MENU during the download asks, and stops it ----
 
 begin ota_download_menu_asks_then_stops
-eval "$(extract_fn "$OTA_SCRIPT" download_file)"
-eval "$(extract_fn "$OTA_SCRIPT" stop_download)"
+for f in download_file stop_download read_button; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
+eval "$(grep -E '^(ESC|CR)=' "$OTA_SCRIPT")"
+NL='
+'
 YELLOW= NC=
 curl() { # writes the -o file after 1 s, then a marker
     _o=
@@ -1524,8 +1557,7 @@ curl() { # writes the -o file after 1 s, then a marker
     echo done > "$TMP/curl_done"
     return ${CURL_RC:-0}
 }
-asked=0
-wait_key() { echo asked >> "$TMP/asked"; return ${ANSWER:-1}; }
+ask_leave() { echo asked >> "$TMP/asked"; return ${ANSWER:-0}; }
 
 download_file "https://x/u.zip" "$TMP/u.zip" < /dev/null > /dev/null
 check "no buttons: the download ends normally" test $? -eq 0
@@ -1540,17 +1572,17 @@ check "other buttons and the D-pad: nothing asked" test ! -e "$TMP/asked"
 
 rm -f "$TMP/u.zip" "$TMP/curl_done"
 printf '\033' > "$TMP/menu"
-ANSWER=0 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
+ANSWER=1 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
 check "MENU, then A: the download goes on" test $? -eq 0
 check "MENU, then A: asked once" test "$(wc -l < "$TMP/asked")" -eq 1
 check "MENU, then A: the file is there" test -s "$TMP/u.zip"
 
 rm -f "$TMP/u.zip" "$TMP/curl_done" "$TMP/asked"
-ANSWER=1 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
-check "MENU twice: stopped (130)" test $? -eq 130
+ANSWER=0 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
+check "MENU, then START: stopped (130)" test $? -eq 130
 sleep 2
-check "MENU twice: the download was ended" test ! -e "$TMP/curl_done"
-check "MENU twice: no partial file" test ! -e "$TMP/u.zip"
+check "MENU, then START: the download was ended" test ! -e "$TMP/curl_done"
+check "MENU, then START: no partial file" test ! -e "$TMP/u.zip"
 
 rm -f "$TMP/asked"
 CURL_RC=22 download_file "https://x/u.zip" "$TMP/u.zip" < /dev/null > /dev/null
@@ -1559,8 +1591,8 @@ unset CURL_RC
 
 check "the updater uses it" grep -q 'download_file "\$Release_url" "\$sysdir/download/\$Release_Version.zip"' "$OTA_SCRIPT"
 check "a stop leaves the updater" grep -q 'Download stopped.' "$OTA_SCRIPT"
-check "leaving the updater ends the download" grep -q "trap 'stop_download; restore_wifi' EXIT" "$OTA_SCRIPT"
-unset -f curl wait_key download_file stop_download
+check "leaving the updater ends the download" grep -q "trap 'stop_download; restore_wifi; restore_keys' EXIT" "$OTA_SCRIPT"
+unset -f curl ask_leave download_file stop_download read_button
 unset YELLOW NC ANSWER
 end
 
