@@ -583,7 +583,7 @@ wifi_started_here=0
 wifi_setting_on() { return 1; }
 restore_wifi
 check "already on before the updater: left on" test ! -e "$TMP/pkill"
-check "restored on every exit" grep -q '^	trap restore_wifi EXIT' "$OTA"
+check "restored on every exit" grep -q "^	trap 'stop_download; restore_wifi' EXIT" "$OTA"
 unset -f pkill wifi_setting_on
 end
 
@@ -1505,6 +1505,63 @@ check "offline: exits 2" test $rc -eq 2
 check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (curl: (6) Could not resolve host: github.com)'" _ "$out"
 check "the download uses curl too" grep -q 'curl -k -L -f --connect-timeout 15 --retry 3' "$OTA_SCRIPT"
 unset -f curl wget read check_connection
+end
+
+# ---- ota_update.sh: MENU during the download asks, and stops it ----
+
+begin ota_download_menu_asks_then_stops
+eval "$(extract_fn "$OTA_SCRIPT" download_file)"
+eval "$(extract_fn "$OTA_SCRIPT" stop_download)"
+YELLOW= NC=
+curl() { # writes the -o file after 1 s, then a marker
+    _o=
+    while [ $# -gt 0 ]; do
+        [ "$1" = "-o" ] && _o=$2
+        shift
+    done
+    sleep 1
+    echo zip > "$_o"
+    echo done > "$TMP/curl_done"
+    return ${CURL_RC:-0}
+}
+asked=0
+wait_key() { echo asked >> "$TMP/asked"; return ${ANSWER:-1}; }
+
+download_file "https://x/u.zip" "$TMP/u.zip" < /dev/null > /dev/null
+check "no buttons: the download ends normally" test $? -eq 0
+check "no buttons: the file is there" test -s "$TMP/u.zip"
+check "no buttons: nothing asked" test ! -e "$TMP/asked"
+
+rm -f "$TMP/u.zip" "$TMP/curl_done"
+printf 'x\033[A' > "$TMP/keys"
+download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/keys" > /dev/null
+check "other buttons and the D-pad: the download ends normally" test $? -eq 0
+check "other buttons and the D-pad: nothing asked" test ! -e "$TMP/asked"
+
+rm -f "$TMP/u.zip" "$TMP/curl_done"
+printf '\033' > "$TMP/menu"
+ANSWER=0 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
+check "MENU, then A: the download goes on" test $? -eq 0
+check "MENU, then A: asked once" test "$(wc -l < "$TMP/asked")" -eq 1
+check "MENU, then A: the file is there" test -s "$TMP/u.zip"
+
+rm -f "$TMP/u.zip" "$TMP/curl_done" "$TMP/asked"
+ANSWER=1 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
+check "MENU twice: stopped (130)" test $? -eq 130
+sleep 2
+check "MENU twice: the download was ended" test ! -e "$TMP/curl_done"
+check "MENU twice: no partial file" test ! -e "$TMP/u.zip"
+
+rm -f "$TMP/asked"
+CURL_RC=22 download_file "https://x/u.zip" "$TMP/u.zip" < /dev/null > /dev/null
+check "curl's error comes back" test $? -eq 22
+unset CURL_RC
+
+check "the updater uses it" grep -q 'download_file "\$Release_url" "\$sysdir/download/\$Release_Version.zip"' "$OTA_SCRIPT"
+check "a stop leaves the updater" grep -q 'Download stopped.' "$OTA_SCRIPT"
+check "leaving the updater ends the download" grep -q "trap 'stop_download; restore_wifi' EXIT" "$OTA_SCRIPT"
+unset -f curl wait_key download_file stop_download
+unset YELLOW NC ANSWER
 end
 
 # ---- migration 00022: RetroArch menu Border Filler OFF ----

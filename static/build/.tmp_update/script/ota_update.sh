@@ -48,7 +48,7 @@ main() {
 	rm $sysdir/cmd_to_run.sh 2> /dev/null
 
 	# Wi-Fi turned on here goes off again however the updater ends.
-	trap restore_wifi EXIT
+	trap 'stop_download; restore_wifi' EXIT
 	trap 'exit 130' INT TERM HUP
 
 	check_available_space
@@ -429,6 +429,72 @@ wait_key() { # prompt
 	return $_ret
 }
 
+# Download a URL to a file with curl in the background, reading the buttons
+# meanwhile: MENU pauses the download and asks, MENU again stops it (returns
+# 130, the partial file removed), A goes on. Other buttons do nothing, and
+# none are left over for the next prompt: a MENU pressed during the download
+# used to wait there and close the updater as soon as the download ended
+# (thanks kicksoda). Without a terminal (no stty) it just waits. Returns
+# curl's exit code.
+download_file() { # url, file
+	curl -k -L -f --connect-timeout 15 --retry 3 --retry-delay 2 -# \
+		-o "$2" "$1" < /dev/null &
+	_dl_pid=$!
+	_dl_stty=$(stty -g 2> /dev/null)
+	# No echo (the buttons garbled the progress bar); a read gives up after
+	# 0.5 s, so the loop sees the download end.
+	[ -n "$_dl_stty" ] && stty -icanon -echo min 0 time 5 2> /dev/null
+	_dl_keys=1
+	_dl_esc=$(printf '\033')
+	while [ -n "$_dl_keys" ] && kill -0 "$_dl_pid" 2> /dev/null; do
+		_key=$(dd ibs=1 count=1 2> /dev/null; echo .)
+		_key=${_key%.}
+		if [ -z "$_key" ]; then
+			# A terminal timed out; anything else is at the end of its input.
+			[ -n "$_dl_stty" ] || _dl_keys=
+			continue
+		fi
+		[ "$_key" = "$_dl_esc" ] || continue
+		# MENU is a lone Esc, the D-pad Esc [ A..D in one go.
+		[ -n "$_dl_stty" ] && stty min 0 time 1 2> /dev/null
+		_rest=$(dd ibs=1 count=4 2> /dev/null)
+		[ -n "$_dl_stty" ] && stty min 0 time 5 2> /dev/null
+		[ -z "$_rest" ] || continue
+		kill -STOP "$_dl_pid" 2> /dev/null
+		printf "\n${YELLOW}"
+		if wait_key "Stop the download? MENU: stop, A: go on"; then
+			printf "${NC}\r\033[K"
+			[ -n "$_dl_stty" ] && stty -icanon -echo min 0 time 5 2> /dev/null
+			kill -CONT "$_dl_pid" 2> /dev/null
+		else
+			printf "${NC}\n"
+			stop_download
+			rm -f "$2"
+			[ -n "$_dl_stty" ] && stty "$_dl_stty" 2> /dev/null
+			return 130
+		fi
+	done
+	wait "$_dl_pid"
+	_dl_rc=$?
+	_dl_pid=
+	if [ -n "$_dl_stty" ]; then
+		# Drop the buttons pressed meanwhile.
+		stty min 0 time 0 2> /dev/null
+		while [ -n "$(dd ibs=64 count=1 2> /dev/null)" ]; do :; done
+		stty "$_dl_stty" 2> /dev/null
+	fi
+	return $_dl_rc
+}
+
+# End a download still running (stopped, or the updater leaving).
+stop_download() {
+	[ -n "$_dl_pid" ] || return 0
+	kill "$_dl_pid" 2> /dev/null
+	kill -CONT "$_dl_pid" 2> /dev/null
+	wait "$_dl_pid" 2> /dev/null
+	_dl_pid=
+}
+
 download_update() {
 	echo -ne "${YELLOW}"
 	wait_key "Press A to continue, MENU to exit" || exit 0
@@ -451,10 +517,14 @@ download_update() {
 		sync
 		# curl, which reaches GitHub where the bundled wget may not (see
 		# check_connection); wget only if curl itself cannot run.
-		curl -k -L -f --connect-timeout 15 --retry 3 --retry-delay 2 -# \
-			-o "$sysdir/download/$Release_Version.zip" "$Release_url"
+		download_file "$Release_url" "$sysdir/download/$Release_Version.zip"
 		case $? in
 			126 | 127) wget --no-check-certificate "$Release_url" -O "$sysdir/download/$Release_Version.zip" ;;
+			130)
+				echo -e "${YELLOW}Download stopped.${NC}"
+				sleep 1
+				exit 0
+				;;
 		esac
 		echo -ne "\n\n" \
 			"${GREEN}================== Download done ==================${NC}\n"
