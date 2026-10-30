@@ -302,6 +302,10 @@ run_installation() {
 
     install_configs $reset_configs
 
+    # Console pictures for the carousel and the list: only the missing ones,
+    # so pictures put there by hand stay (before migration 00026 uses them).
+    sh $sysdir/script/console_pictures.sh
+
     run_migration_scripts
 
     # The update this flag announced is the one just installed. Nothing else

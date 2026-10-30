@@ -1,0 +1,7 @@
+Console pictures: "Retro game console icons" by KyleBing
+https://github.com/KyleBing/retro-game-console-icons
+Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+
+Changes made for RedOnion: the 500 x 370 PNGs are losslessly recompressed
+(same pixels) and copied under the names of RedOnion's emulator folders
+(map.txt: picture name, original icon). _default.png was added for RedOnion.

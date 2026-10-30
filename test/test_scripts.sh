@@ -1605,6 +1605,49 @@ unset -f curl ask_leave download_file stop_download read_button
 unset YELLOW NC ANSWER
 end
 
+# ---- console_pictures.sh + migration 00026: KyleBing's console pictures ----
+
+begin console_pictures_copied_without_replacing
+CP="$ROOT/static/build/.tmp_update/script/console_pictures.sh"
+RES="$ROOT/static/build/.tmp_update/res/consoles"
+mkdir -p "$TMP/consoles"
+echo mine > "$TMP/consoles/gba.png"
+CONSOLE_PICTURES_SRC="$RES" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$CP"
+check "runs fine" test $? -eq 0
+check "a picture put there by hand stays" test "$(cat "$TMP/consoles/gba.png")" = mine
+check "_default.png copied" cmp -s "$RES/_default.png" "$TMP/consoles/_default.png"
+check "Emu PSX gets the PlayStation picture" cmp -s "$RES/ps.png" "$TMP/consoles/psx.png"
+check "Emu ATARI gets the 2600 picture" cmp -s "$RES/atari2600.png" "$TMP/consoles/atari.png"
+check "RApp snes9x2005 gets the SNES picture" cmp -s "$RES/sfc.png" "$TMP/consoles/snes9x2005.png"
+check "the licence goes with them" grep -q "CC BY 4.0" "$TMP/consoles/LICENSE-console-icons.txt"
+missing=
+while read -r name icon _; do
+    case "$name" in '' | '#'*) continue ;; esac
+    [ -f "$RES/$icon.png" ] || missing="$missing $icon"
+done < "$RES/map.txt"
+check "every icon map.txt names is shipped ($missing)" test -z "$missing"
+unmapped=
+for d in "$ROOT"/static/packages/Emu/*/Emu/* "$ROOT"/static/packages/RApp/*/RApp/*; do
+    n=$(basename "$d" | tr 'A-Z' 'a-z')
+    grep -q "^$n " "$RES/map.txt" || unmapped="$unmapped $n"
+done
+unmapped=$(echo $unmapped | tr ' ' '\n' | sort | tr '\n' ' ')
+check "folders without their own picture use _default.png ($unmapped)" test "$unmapped" = "bk gme jaguar opera puzzlescript uw8 vemulator "
+rm "$TMP/consoles/fc.png"
+CONSOLE_PICTURES_SRC="$RES" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$CP"
+check "a missing one comes back on the next update" test -f "$TMP/consoles/fc.png"
+check "the installer runs it before the migrations" grep -q 'sh $sysdir/script/console_pictures.sh' "$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
+MIG="$ROOT/static/build/.tmp_update/script/migration/00026_console_pictures_default.sh"
+CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$MIG"
+check "no console-view.json: the pictures are turned on" grep -q "\"thumbs\":	\"$TMP/consoles\"" "$TMP/console-view.json"
+echo '{"games": "carousel"}' > "$TMP/console-view.json"
+CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$MIG"
+check "an existing console-view.json is left alone" test "$(cat "$TMP/console-view.json")" = '{"games": "carousel"}'
+rm -f "$TMP/console-view.json"
+CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/none" sh "$MIG"
+check "no pictures: nothing written" test ! -e "$TMP/console-view.json"
+end
+
 # ---- migration 00022: RetroArch menu Border Filler OFF ----
 
 begin migration_disables_rgui_border_filler
