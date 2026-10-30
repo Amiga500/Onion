@@ -1,9 +1,10 @@
-# Game media: box art, screenshots and videos
+# Game media: box art, screenshots, videos, maps and manuals
 
-Open MainUI 1.1.0 (from RedOnion 4.4.1) can show more than one picture per
+Open MainUI 1.1.0 (from RedOnion 4.5.0) can show more than one picture per
 game. In **Game Info**, press **Right** to open a gallery with the box front
-and back, the 3D box, screenshots and a video. The video can also play in the
-game list itself (see [Video preview](#video-preview-in-the-game-list)).
+and back, the 3D box, screenshots and a video. A game can also have **maps**
+(with zoom), a **walkthrough** (text) and a **manual** (PDF). The video can
+also play in the game list itself (see [On the device](#on-the-device)).
 
 This page explains where those files go, and how to get them with
 [Skraper](https://www.skraper.net/).
@@ -30,14 +31,33 @@ Roms/GB/
     │   ├── Pokemon Red (USA).png    screenshot
     │   ├── Pokemon Red (USA)-1.png  more screenshots, up to 20
     │   └── Pokemon Red (USA)-2.png
-    └── videos/
-        └── Pokemon Red (USA).mp4    video
+    ├── videos/
+    │   └── Pokemon Red (USA).mp4    video
+    ├── maps/
+    │   ├── Pokemon Red (USA).png    a map
+    │   ├── Pokemon Red (USA)-2.png  more maps, up to 32
+    │   └── Pokemon Red (USA)-10.bmp
+    └── manuals/
+        ├── Pokemon Red (USA).txt    walkthrough
+        └── Pokemon Red (USA).pdf    manual
 ```
 
-- Every part is optional: the gallery shows what it finds.
+- Every part is optional: Open MainUI shows what it finds.
 - `Imgs` stays the **cover in the game list**, as in Onion. `media` is only
-  for the gallery and the video preview; the list never shows its files.
-- Pictures are PNG, as Skraper saves them; videos are MP4.
+  for the gallery, the media menu and the video preview; the list never shows
+  its files.
+- The folder names must be exactly these, in lower case: there are no other
+  names or fallback folders.
+- A game in a subfolder (`Roms/GB/RPG/Game.gb`) uses the same `media` folder
+  of the console (`Roms/GB/media/...`).
+
+| Folder | Files | Notes |
+| --- | --- | --- |
+| `box2dfront`, `box2dback`, `box3d` | PNG | Covers and 3D box. |
+| `screenshot` | PNG | `Name.png`, then `Name-1.png`, `Name-2.png`…, up to 20. |
+| `videos` | MP4 (also MKV, AVI, MOV, WebM, M4V) | One video per game; MP4 is the one tested. |
+| `maps` | PNG or BMP (not JPG yet) | `Name.png`, then `Name-2.png`… in number order, up to 32. Titles can come from the game's `gamelist.xml`, else "Game Map 1", "Game Map 2"… |
+| `manuals` | TXT (walkthrough), PDF (manual) | TXT up to 2 MB. PDF opens in the PDF Reader (Green). |
 
 ## Getting the media with Skraper
 
@@ -56,6 +76,8 @@ up Skraper and the cover in `Imgs`. Then add the gallery media:
    | Box: 3D | `%ROMROOTFOLDER%\media\box3d` |
    | Screenshot (in game) | `%ROMROOTFOLDER%\media\screenshot` |
    | Video (normalized) | `%ROMROOTFOLDER%\media\videos` |
+   | Manual | `%ROMROOTFOLDER%\media\manuals` |
+   | Maps (if your Skraper version has them) | `%ROMROOTFOLDER%\media\maps` |
 
    The names of the media types can differ slightly between Skraper versions.
    The output folders must be exactly as above, in lower case.
@@ -104,9 +126,18 @@ Small videos also take less space on the card and less battery.
 
 ## On the device
 
-- **Gallery:** select a game, open **Game Info**, press **Right**. Left and
-  Right move through the media, **B** goes back. In a video, **A** pauses and
-  **L** / **R** jump about 5 seconds.
+- **Gallery:** select a game, open **Game Info**, press **Right**. The D-pad
+  moves through the media, **B** goes back. In a video, **A** pauses and
+  **L1** / **R1** jump about 5 seconds.
+- **Media menu:** in the gallery press **SELECT** to switch between Game Info,
+  Gallery, Game Maps, Walkthrough (TXT) and Manual (PDF). A game with maps or
+  manuals but no gallery pictures opens the menu straight from **Right** in
+  Game Info.
+- **Maps:** **L1** / **R1** change map, **A** switches between the whole map
+  and its real size, the D-pad moves around it when zoomed.
+- **Walkthrough:** Up / Down scroll a line, **L1** / **R1** 15 lines, **L2** /
+  **R2** 75 lines.
+- **Manual:** opens in the PDF Reader; leave it to come back.
 - **Video preview in the game list:** Tweaks › Appearance › Game lists ›
   **Video preview** plays the selected game's video, silently, after the wait
   you choose; **Video preview size** sets it where the cover is or over the
