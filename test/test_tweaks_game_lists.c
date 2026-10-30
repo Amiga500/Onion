@@ -761,7 +761,7 @@ TEST(console_view_submenu_has_room_for_every_item)
             items++;
     }
     fclose(fp);
-    ASSERT_EQ(items, 20);
+    ASSERT_EQ(items, 21);
     ASSERT_TRUE(capacity >= items);
 }
 
@@ -878,6 +878,28 @@ TEST(console_view_layout_keys)
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_MENU), 2);
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_MENU, 0));
     ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
+}
+
+TEST(console_view_remember_flag)
+{
+    reset_dir();
+    ASSERT_FALSE(consoleview_remembers());
+    ASSERT_TRUE(consoleview_store_remember(true));
+    ASSERT_TRUE(access(TEST_DIR "/.rememberConsole", F_OK) == 0);
+    ASSERT_TRUE(consoleview_remembers());
+    ASSERT_TRUE(consoleview_store_remember(false));
+    ASSERT_FALSE(consoleview_remembers());
+    ASSERT_TRUE(consoleview_store_remember(false));
+    /* Same flag runtime.sh reads. */
+    FILE *fp = fopen("../static/build/.tmp_update/runtime.sh", "r");
+    if (fp != NULL) {
+        static char buf[1 << 17];
+        size_t n = fread(buf, 1, sizeof(buf) - 1, fp);
+        fclose(fp);
+        buf[n] = '\0';
+        if (strstr(buf, "console_position_flag") != NULL)
+            ASSERT_TRUE(strstr(buf, "console_position_flag=\"$sysdir/config/.rememberConsole\"") != NULL);
+    }
 }
 
 TEST(console_view_selection_colours)
@@ -1040,6 +1062,7 @@ int main(void)
     RUN_TEST(console_view_options_written_and_read);
     RUN_TEST(console_view_motion_and_slide_time);
     RUN_TEST(console_view_layout_keys);
+    RUN_TEST(console_view_remember_flag);
     RUN_TEST(console_view_selection_colours);
     RUN_TEST(game_menus_default_without_file);
     RUN_TEST(game_menus_hide_and_show_again);
