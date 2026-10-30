@@ -1047,7 +1047,7 @@ typedef struct {
 static const ConsoleViewOption consoleview_options[CONSOLEVIEW_OPTION_COUNT] = {
     {{NULL}, 1, "count", 2, {NULL, "false"}},
     {{"carousel"}, 1, "labels", 2, {NULL, "false"}},
-    {{"carousel"}, 1, "selection", 2, {NULL, "false"}},
+    {{"carousel"}, 1, "selection", 4, {NULL, "false", "#FFFFFF1F", "#FFFFFF38"}},
     {{"carousel"}, 1, "opacity_unselected", 4, {NULL, "1", "0.5", "0.3"}},
     {{"carousel"}, 1, "animation", 3, {NULL, "none", "slide"}},
     {{"carousel", "grid"}, 2, "wrap", 2, {NULL, "false"}},
@@ -1278,13 +1278,14 @@ void menu_consoleView(void *_)
             (ListItem){
                 .label = "Carousel: selection box",
                 .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"Theme", "Off"},
+                .value_max = 3,
+                .value_labels = {"Theme", "Off", "Light", "Bright"},
                 .value = consoleview_option(CONSOLEVIEW_SELECTION),
                 .action_id = CONSOLEVIEW_SELECTION,
                 .action = consoleview_action_option},
             "The box behind the selected console:\n"
-            "the theme's colour, or none.");
+            "the theme's colour, none, or white at\n"
+            "12% (Light) or 22% (Bright).");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1469,11 +1470,196 @@ void menu_consoleView(void *_)
     header_changed = true;
 }
 
+/* Game-list context menus: .tmp_update/config/game-menu.json (Open MainUI
+ * 1.1.0). Each section is an array of action ids, in menu order; a missing
+ * section keeps the built-in menu, an empty one hides it. Tweaks shows one
+ * toggle per action. Turning one off removes it from its section; turning
+ * it on puts it back after the actions that come before it by default, so
+ * an order set by hand is kept. A section back to the default is removed,
+ * and the file with the last one. Unknown ids are kept. */
+#define GAMEMENU_CONFIG_PATH MAINMENU_CONFIG_DIR "/game-menu.json"
+#define GAMEMENU_SECTION_COUNT 4
+#define GAMEMENU_ITEM_COUNT 16
+
+typedef struct {
+    int section;
+    const char *id;
+    const char *label;
+} GameMenuItem;
+
+static const char *const gamemenu_sections[GAMEMENU_SECTION_COUNT] = {"roms", "favorites", "recents", "search_results"};
+static const char *const gamemenu_section_labels[GAMEMENU_SECTION_COUNT] = {"Games", "Favorites", "Recents", "Search"};
+
+static const GameMenuItem gamemenu_items[GAMEMENU_ITEM_COUNT] = {
+    {0, "launch", "Launch"},
+    {0, "favorite", "Favorite"},
+    {0, "delete", "Delete"},
+    {0, "search", "Search"},
+    {0, "refresh", "Refresh"},
+    {1, "move", "Move"},
+    {1, "create_folder", "Create folder"},
+    {1, "sort", "Sort"},
+    {1, "remove_favorite", "Remove favorite"},
+    {1, "rename_folder", "Rename folder"},
+    {1, "delete_folder", "Delete folder"},
+    {2, "launch", "Launch"},
+    {2, "remove_recent", "Remove recent"},
+    {2, "clear_recents", "Clear recents"},
+    {3, "launch", "Launch"},
+    {3, "favorite", "Favorite"},
+};
+
+// Position of an action among its section's defaults, or -1.
+static int gamemenu_default_index(int section, const char *id)
+{
+    int n = 0;
+    for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
+        if (gamemenu_items[i].section != section)
+            continue;
+        if (strcmp(gamemenu_items[i].id, id) == 0)
+            return n;
+        n++;
+    }
+    return -1;
+}
+
+static bool gamemenu_array_has(const cJSON *array, const char *id)
+{
+    const cJSON *entry;
+    cJSON_ArrayForEach(entry, array)
+    {
+        if (cJSON_IsString(entry) && strcmp(entry->valuestring, id) == 0)
+            return true;
+    }
+    return false;
+}
+
+static bool gamemenu_is_default(int section, const cJSON *array)
+{
+    const cJSON *entry = array->child;
+    for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
+        if (gamemenu_items[i].section != section)
+            continue;
+        if (!cJSON_IsString(entry) || strcmp(entry->valuestring, gamemenu_items[i].id) != 0)
+            return false;
+        entry = entry->next;
+    }
+    return entry == NULL;
+}
+
+static bool gamemenu_shown(int item)
+{
+    if (item < 0 || item >= GAMEMENU_ITEM_COUNT)
+        return false;
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    bool shown = true;
+    if (valid && root != NULL) {
+        const cJSON *array = cJSON_GetObjectItemCaseSensitive(root, gamemenu_sections[gamemenu_items[item].section]);
+        if (cJSON_IsArray(array))
+            shown = gamemenu_array_has(array, gamemenu_items[item].id);
+    }
+    cJSON_Delete(root);
+    return shown;
+}
+
+static bool gamemenu_store(int item, bool shown)
+{
+    if (item < 0 || item >= GAMEMENU_ITEM_COUNT)
+        return false;
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    if (!valid || root == NULL) {
+        cJSON_Delete(root);
+        return false;
+    }
+    int section = gamemenu_items[item].section;
+    const char *key = gamemenu_sections[section];
+    const char *id = gamemenu_items[item].id;
+    cJSON *array = cJSON_GetObjectItemCaseSensitive(root, key);
+    bool ok = true;
+    if (array != NULL && !cJSON_IsArray(array)) {
+        ok = false; // not ours to replace
+    }
+    else {
+        if (array == NULL) {
+            array = cJSON_AddArrayToObject(root, key);
+            for (int i = 0; array != NULL && i < GAMEMENU_ITEM_COUNT; i++)
+                if (gamemenu_items[i].section == section)
+                    cJSON_AddItemToArray(array, cJSON_CreateString(gamemenu_items[i].id));
+            ok = array != NULL;
+        }
+        if (ok && !shown) {
+            for (int k = cJSON_GetArraySize(array) - 1; k >= 0; k--) {
+                const cJSON *entry = cJSON_GetArrayItem(array, k);
+                if (cJSON_IsString(entry) && strcmp(entry->valuestring, id) == 0)
+                    cJSON_DeleteItemFromArray(array, k);
+            }
+        }
+        else if (ok && !gamemenu_array_has(array, id)) {
+            int want = gamemenu_default_index(section, id);
+            int at = 0, k = 0;
+            const cJSON *entry;
+            cJSON_ArrayForEach(entry, array)
+            {
+                k++;
+                if (cJSON_IsString(entry)) {
+                    int index = gamemenu_default_index(section, entry->valuestring);
+                    if (index >= 0 && index < want)
+                        at = k;
+                }
+            }
+            cJSON *value = cJSON_CreateString(id);
+            ok = value != NULL && (at < cJSON_GetArraySize(array) ? cJSON_InsertItemInArray(array, at, value)
+                                                                    : cJSON_AddItemToArray(array, value));
+        }
+        if (ok && gamemenu_is_default(section, array))
+            cJSON_DeleteItemFromObjectCaseSensitive(root, key);
+    }
+    if (ok)
+        ok = root->child == NULL ? (remove(GAMEMENU_CONFIG_PATH) == 0 || errno == ENOENT)
+                                 : mainmenu_write_root_file(GAMEMENU_CONFIG_PATH, root);
+    cJSON_Delete(root);
+    return ok;
+}
+
+static void gamemenu_action_item(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!gamemenu_store(item->action_id, item->value != 0))
+        item->value = gamemenu_shown(item->action_id);
+}
+
+void menu_gameMenus(void *_)
+{
+    (void)_;
+    if (!_menu_game_menus._created) {
+        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT, LIST_SMALL, "Game list menus");
+        for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
+            ListItem item = {.item_type = TOGGLE,
+                             .value = gamemenu_shown(i),
+                             .action_id = i,
+                             .action = gamemenu_action_item};
+            snprintf(item.label, sizeof(item.label), "%s: %s",
+                     gamemenu_section_labels[gamemenu_items[i].section], gamemenu_items[i].label);
+            list_addItemWithInfoNote(&_menu_game_menus, item,
+                                     "Show this action in the game list's\n"
+                                     "menu. Actions that don't apply to a\n"
+                                     "game stay hidden anyway.\n"
+                                     "Needs Open MainUI 1.1.0.");
+        }
+    }
+    menu_stack[++menu_level] = &_menu_game_menus;
+    header_changed = true;
+}
+
 void menu_mainMenu(void *_)
 {
     (void)_;
     if (!_menu_main_menu._created) {
-        _menu_main_menu = list_createWithTitle(3, LIST_SMALL, "Main menu");
+        _menu_main_menu = list_createWithTitle(4, LIST_SMALL, "Main menu");
         list_addItemWithInfoNote(
             &_menu_main_menu,
             (ListItem){.label = "Main menu items...", .action = menu_mainMenuItems},
@@ -1491,6 +1677,12 @@ void menu_mainMenu(void *_)
             "Games and Expert as grid, carousel or\n"
             "list, console pictures and the carousel's\n"
             "look. Needs Open MainUI 1.1.0.");
+        list_addItemWithInfoNote(
+            &_menu_main_menu,
+            (ListItem){.label = "Game list menus...", .action = menu_gameMenus},
+            "Choose which actions the menus of Games,\n"
+            "Favorites, Recents and Search show.\n"
+            "Needs Open MainUI 1.1.0.");
     }
     menu_stack[++menu_level] = &_menu_main_menu;
     header_changed = true;

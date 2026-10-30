@@ -47,7 +47,7 @@ static char **lang_list = NULL;
 static List *menu_stack[5];
 static int menu_level = 0;
 static bool header_changed = false;
-static List _menu_main_menu, _menu_main_menu_items, _menu_main_context_items, _menu_console_view;
+static List _menu_main_menu, _menu_main_menu_items, _menu_main_context_items, _menu_console_view, _menu_game_menus;
 #include "../src/tweaks/main_menu.h"
 
 void SDL_FreeSurface(SDL_Surface *surface) { (void)surface; }
@@ -737,7 +737,7 @@ TEST(main_menu_submenu_has_room_for_every_item)
             items++;
     }
     fclose(fp);
-    ASSERT_EQ(items, 3);
+    ASSERT_EQ(items, 4);
     ASSERT_TRUE(capacity >= items);
 }
 
@@ -880,6 +880,80 @@ TEST(console_view_layout_keys)
     ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
 }
 
+TEST(console_view_selection_colours)
+{
+    reset_dir();
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_SELECTION, 2));
+    char text[256];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"selection\":\t\"#FFFFFF1F\"") != NULL);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_SELECTION), 2);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_SELECTION, 3));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_SELECTION), 3);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_SELECTION, 1));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_SELECTION), 1);
+}
+
+#define GM_PATH TEST_DIR "/game-menu.json"
+
+TEST(game_menus_default_without_file)
+{
+    reset_dir();
+    for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++)
+        ASSERT_TRUE(gamemenu_shown(i));
+}
+
+TEST(game_menus_hide_and_show_again)
+{
+    reset_dir();
+    /* Games: Delete (2) off. */
+    ASSERT_TRUE(gamemenu_store(2, false));
+    char text[1024];
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"roms\":\t[\"launch\", \"favorite\", \"search\", \"refresh\"]") != NULL);
+    ASSERT_TRUE(strstr(text, "favorites") == NULL);
+    ASSERT_FALSE(gamemenu_shown(2));
+    ASSERT_TRUE(gamemenu_shown(3));
+    /* Back on: in its place, the section is default again, file gone. */
+    ASSERT_TRUE(gamemenu_store(2, true));
+    ASSERT_TRUE(access(GM_PATH, F_OK) != 0);
+    /* Search: both off makes an empty menu (hidden), not a missing one. */
+    ASSERT_TRUE(gamemenu_store(14, false));
+    ASSERT_TRUE(gamemenu_store(15, false));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"search_results\":\t[]") != NULL);
+    ASSERT_FALSE(gamemenu_shown(14));
+    ASSERT_FALSE(gamemenu_shown(15));
+    ASSERT_TRUE(gamemenu_shown(0));
+}
+
+TEST(game_menus_keep_a_hand_made_order)
+{
+    reset_dir();
+    gamelists_write_text(GM_PATH, "{\"recents\": [\"clear_recents\", \"launch\", \"other\"]}");
+    ASSERT_FALSE(gamemenu_shown(12)); /* remove_recent */
+    ASSERT_TRUE(gamemenu_store(12, true));
+    char text[512];
+    read_file(GM_PATH, text, sizeof(text));
+    /* After launch (before it by default), the unknown id kept. */
+    ASSERT_TRUE(strstr(text, "[\"clear_recents\", \"launch\", \"remove_recent\", \"other\"]") != NULL);
+    ASSERT_TRUE(gamemenu_store(13, false));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "[\"launch\", \"remove_recent\", \"other\"]") != NULL);
+}
+
+TEST(game_menus_damaged_file_left_alone)
+{
+    reset_dir();
+    gamelists_write_text(GM_PATH, "{\"roms\": ");
+    ASSERT_FALSE(gamemenu_store(0, false));
+    gamelists_write_text(GM_PATH, "{\"roms\": 5}");
+    ASSERT_FALSE(gamemenu_store(0, false));
+    char text[64];
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "{\"roms\": 5}");
+}
+
 TEST(console_view_wrap_sets_carousel_and_grid)
 {
     reset_dir();
@@ -966,6 +1040,11 @@ int main(void)
     RUN_TEST(console_view_options_written_and_read);
     RUN_TEST(console_view_motion_and_slide_time);
     RUN_TEST(console_view_layout_keys);
+    RUN_TEST(console_view_selection_colours);
+    RUN_TEST(game_menus_default_without_file);
+    RUN_TEST(game_menus_hide_and_show_again);
+    RUN_TEST(game_menus_keep_a_hand_made_order);
+    RUN_TEST(game_menus_damaged_file_left_alone);
     RUN_TEST(console_view_wrap_sets_carousel_and_grid);
     RUN_TEST(console_view_defaults_remove_only_their_key);
     RUN_TEST(console_view_value_not_offered_shows_first);
