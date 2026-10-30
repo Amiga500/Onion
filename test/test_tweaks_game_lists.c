@@ -970,6 +970,48 @@ TEST(game_menus_keep_a_hand_made_order)
     ASSERT_TRUE(strstr(text, "[\"launch\", \"remove_recent\", \"other\"]") != NULL);
 }
 
+/* rc12: the Game Info menu ("details"), where Game Info always stays. */
+TEST(game_menus_game_info_menu)
+{
+    reset_dir();
+    ASSERT_TRUE(gamemenu_items[16].fixed);
+    ASSERT_TRUE(gamemenu_store(18, false)); /* Saved Games off */
+    char text[1024];
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"details\":\t[\"game_info\", \"gallery\", \"maps\", \"walkthrough\", \"manual\"]") != NULL);
+    ASSERT_FALSE(gamemenu_shown(18));
+    for (int i = 17; i < GAMEMENU_ITEM_COUNT; i++)
+        ASSERT_TRUE(gamemenu_store(i, false));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"details\":\t[\"game_info\"]") != NULL);
+    for (int i = 17; i < GAMEMENU_ITEM_COUNT; i++)
+        ASSERT_TRUE(gamemenu_store(i, true));
+    ASSERT_TRUE(access(GM_PATH, F_OK) != 0);
+}
+
+TEST(game_menus_resume_mode)
+{
+    reset_dir();
+    ASSERT_EQ(gamemenu_resume_mode(), 0);
+    ASSERT_TRUE(gamemenu_store_resume_mode(2));
+    char text[512];
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"resume_mode\":\t\"swap\"") != NULL);
+    ASSERT_EQ(gamemenu_resume_mode(), 2);
+    ASSERT_TRUE(gamemenu_store_resume_mode(1));
+    ASSERT_EQ(gamemenu_resume_mode(), 1);
+    /* Kept beside a menu section; Backup (the default) removes it all. */
+    ASSERT_TRUE(gamemenu_store(2, false));
+    ASSERT_TRUE(gamemenu_store_resume_mode(0));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "saved_games") == NULL);
+    ASSERT_TRUE(strstr(text, "\"roms\"") != NULL);
+    ASSERT_TRUE(gamemenu_store(2, true));
+    ASSERT_TRUE(access(GM_PATH, F_OK) != 0);
+    gamelists_write_text(GM_PATH, "{\"saved_games\": {\"resume_mode\": \"weird\"}}");
+    ASSERT_EQ(gamemenu_resume_mode(), 0);
+}
+
 TEST(game_menus_damaged_file_left_alone)
 {
     reset_dir();
@@ -1073,6 +1115,8 @@ int main(void)
     RUN_TEST(game_menus_default_without_file);
     RUN_TEST(game_menus_hide_and_show_again);
     RUN_TEST(game_menus_keep_a_hand_made_order);
+    RUN_TEST(game_menus_game_info_menu);
+    RUN_TEST(game_menus_resume_mode);
     RUN_TEST(game_menus_damaged_file_left_alone);
     RUN_TEST(console_view_wrap_sets_carousel_and_grid);
     RUN_TEST(console_view_defaults_remove_only_their_key);
