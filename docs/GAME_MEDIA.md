@@ -57,7 +57,7 @@ Roms/GB/
 | `box2dfront`, `box2dback`, `box3d` | PNG | Covers and 3D box. |
 | `screenshot` | PNG | `Name.png`, then `Name-1.png`, `Name-2.png`…, up to 20. |
 | `videos` | MP4 (also MKV, AVI, MOV, WebM, M4V) | One video per game; MP4 is the one tested. |
-| `maps` | PNG only | `Name.png`, then `Name-1.png`, `Name-2.png`… in number order, up to 32, at most 2000 pixels wide or tall. Titles can come from the game's `gamelist.xml`, else "Game Map 1", "Game Map 2"… |
+| `maps` | PNG only | `Name.png`, then `Name-1.png`, `Name-2.png`… in number order, up to 32, at most 2000 pixels wide or tall. They are shown as "Game Map 1", "Game Map 2"… |
 | `manuals` | TXT (walkthrough), PDF (manual) | TXT up to 2 MB. PDF opens in the PDF Reader (Green). |
 
 ## Getting the media with Skraper
