@@ -1816,8 +1816,9 @@ void menu_mainMenu(void *_)
         list_addItemWithInfoNote(
             &_menu_main_menu,
             (ListItem){.label = "Game list menus...", .action = menu_gameMenus},
-            "Choose which actions the menus of Games,\n"
-            "Favorites, Recents and Search show.\n"
+            "Choose what the menus of Games,\n"
+            "Favorites, Recents, Search and Game Info\n"
+            "show, and Saved Games' older saves.\n"
             "Needs Open MainUI 1.1.0.");
     }
     menu_stack[++menu_level] = &_menu_main_menu;
