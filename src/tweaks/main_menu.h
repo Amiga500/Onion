@@ -1192,6 +1192,33 @@ static void consoleview_action_option(void *pt)
         item->value = consoleview_option(item->action_id);
 }
 
+// runtime.sh keeps /tmp/console-position.json (the console last selected in
+// Games and Expert, Open MainUI rc10) on the SD card across a shutdown while
+// this flag exists.
+#define CONSOLEVIEW_REMEMBER_FLAG MAINMENU_CONFIG_DIR "/.rememberConsole"
+
+static bool consoleview_remembers(void)
+{
+    return access(CONSOLEVIEW_REMEMBER_FLAG, F_OK) == 0;
+}
+
+static bool consoleview_store_remember(bool on)
+{
+    if (!on)
+        return remove(CONSOLEVIEW_REMEMBER_FLAG) == 0 || errno == ENOENT;
+    FILE *fp = fopen(CONSOLEVIEW_REMEMBER_FLAG, "w");
+    if (fp == NULL)
+        return false;
+    return fclose(fp) == 0;
+}
+
+static void consoleview_action_remember(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!consoleview_store_remember(item->value != 0))
+        item->value = consoleview_remembers();
+}
+
 static void consoleview_action_thumbs(void *pt)
 {
     ListItem *item = (ListItem *)pt;
@@ -1211,7 +1238,7 @@ void menu_consoleView(void *_)
 {
     (void)_;
     if (!_menu_console_view._created) {
-        _menu_console_view = list_createWithTitle(20, LIST_SMALL, "Console view");
+        _menu_console_view = list_createWithTitle(21, LIST_SMALL, "Console view");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1238,6 +1265,16 @@ void menu_consoleView(void *_)
             "How Expert shows the consoles: the grid,\n"
             "a carousel or a list.\n"
             "Needs Open MainUI 1.1.0.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Remember console after shutdown",
+                .item_type = TOGGLE,
+                .value = consoleview_remembers(),
+                .action = consoleview_action_remember},
+            "Games and Expert start on the console\n"
+            "you used last, also after turning the\n"
+            "device off. Needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
