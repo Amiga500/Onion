@@ -1282,10 +1282,12 @@ void menu_consoleView(void *_)
                 .item_type = TOGGLE,
                 .value = consoleview_has_thumbs(),
                 .action = consoleview_action_thumbs},
-            "Carousel and List show the pictures in\n"
-            "miyoo/app/consoles (KyleBing's icons,\n"
-            "or yours: gba.png, psx.png..., named\n"
-            "after the Emu folder), else the theme's.");
+            "On: Carousel and List use the pictures in\n"
+            "miyoo/app/consoles (KyleBing's icons or\n"
+            "yours, named after the Emu folder:\n"
+            "gba.png, psx.png...). Off: the carousel\n"
+            "uses the theme's, the list none. The grid\n"
+            "always uses the theme's.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
