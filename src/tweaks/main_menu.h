@@ -1398,9 +1398,9 @@ void menu_consoleView(void *_)
                 .action_id = CONSOLEVIEW_REPEAT,
                 .action = consoleview_action_option},
             "Time between moves while Left/Right is\n"
-            "held. Default: one move per slide.\n"
-            "Slides are never closer than the slide\n"
-            "time. Needs Open MainUI 1.1.0.");
+            "held. With Slide it is never shorter\n"
+            "than the slide time (Default: one move\n"
+            "per slide). Needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
