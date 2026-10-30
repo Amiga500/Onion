@@ -761,7 +761,7 @@ TEST(console_view_submenu_has_room_for_every_item)
             items++;
     }
     fclose(fp);
-    ASSERT_EQ(items, 12);
+    ASSERT_EQ(items, 20);
     ASSERT_TRUE(capacity >= items);
 }
 
@@ -795,25 +795,29 @@ TEST(console_view_motion_and_slide_time)
 {
     reset_dir();
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_EASING, 1));
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 2));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 3));
     char text[512];
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"easing\":\t\"smooth\"") != NULL);
     ASSERT_TRUE(strstr(text, "\"duration_ms\":\t300") != NULL);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_EASING), 1);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 2);
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 4));
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 4);
-    ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_DURATION, 5));
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_REPEAT, 1));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 3);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 5));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 5);
+    ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_DURATION, 6));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_REPEAT, 2));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"repeat_ms\":\t200") != NULL);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_REPEAT), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_REPEAT), 2);
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_REPEAT, 0));
     /* Rob's suggested values read back; a time not offered shows as
      * Default and is kept. */
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 300, \"repeat_ms\": 200}}");
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 2);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 3);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_REPEAT), 2);
+    /* rc10's suggestions: 180 ms, repeat 100. */
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 180, \"repeat_ms\": 100}}");
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 1);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_REPEAT), 1);
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 250, \"repeat_ms\": 200}}");
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 0);
@@ -827,6 +831,53 @@ TEST(console_view_motion_and_slide_time)
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "easing") == NULL);
     ASSERT_TRUE(strstr(text, "\"duration_ms\"") == NULL);
+}
+
+/* The rest of the rc8-rc10 keys: sizes, spacing, offset (negative too),
+ * padding, VSync, grid navigation, list folder icons, console menu. */
+TEST(console_view_layout_keys)
+{
+    reset_dir();
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_SCALE, 4));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_GAP, 3));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_OFFSET, 1));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_PADDING, 1));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_VSYNC, 1));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_GRID_NAV, 1));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_FOLDER_ICON, 1));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_MENU, 1));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_OPACITY, 3));
+    char text[1024];
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"scale_unselected\":\t0.6") != NULL);
+    ASSERT_TRUE(strstr(text, "\"gap\":\t32") != NULL);
+    ASSERT_TRUE(strstr(text, "\"offset_y\":\t-40") != NULL);
+    ASSERT_TRUE(strstr(text, "\"selection_padding\":\t0") != NULL);
+    ASSERT_TRUE(strstr(text, "\"vsync\":\tfalse") != NULL);
+    ASSERT_TRUE(strstr(text, "\"navigation\":\t\"stock\"") != NULL);
+    ASSERT_TRUE(strstr(text, "\"folder_icon\":\tfalse") != NULL);
+    ASSERT_TRUE(strstr(text, "\"menu\":\t[\"refresh_all\"]") != NULL);
+    ASSERT_TRUE(strstr(text, "\"opacity_unselected\":\t0.3") != NULL);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_SCALE), 4);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_GAP), 3);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OFFSET), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_PADDING), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_VSYNC), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_GRID_NAV), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_FOLDER_ICON), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_MENU), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OPACITY), 3);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_MENU, 3));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_MENU), 3);
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"menu\":\t[]") != NULL);
+    /* Another list reads as Default and is kept until changed. */
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"menu\": [\"refresh\", \"refresh_all\"]}");
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_MENU), 0);
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"menu\": [\"refresh\"]}");
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_MENU), 2);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_MENU, 0));
+    ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
 }
 
 TEST(console_view_wrap_sets_carousel_and_grid)
@@ -914,6 +965,7 @@ int main(void)
     RUN_TEST(console_view_submenu_has_room_for_every_item);
     RUN_TEST(console_view_options_written_and_read);
     RUN_TEST(console_view_motion_and_slide_time);
+    RUN_TEST(console_view_layout_keys);
     RUN_TEST(console_view_wrap_sets_carousel_and_grid);
     RUN_TEST(console_view_defaults_remove_only_their_key);
     RUN_TEST(console_view_value_not_offered_shows_first);

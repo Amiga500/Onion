@@ -1017,7 +1017,7 @@ static bool consoleview_store_layout(int screen, int layout)
  * written as a boolean ("true", "false"), a number, or else a string. A key
  * whose value Tweaks doesn't offer shows as the first one and is kept until
  * the option is changed; a section left empty is removed. */
-#define CONSOLEVIEW_OPTION_COUNT 9
+#define CONSOLEVIEW_OPTION_COUNT 17
 #define CONSOLEVIEW_COUNT 0
 #define CONSOLEVIEW_LABELS 1
 #define CONSOLEVIEW_SELECTION 2
@@ -1027,29 +1027,47 @@ static bool consoleview_store_layout(int screen, int layout)
 #define CONSOLEVIEW_EASING 6
 #define CONSOLEVIEW_DURATION 7
 #define CONSOLEVIEW_REPEAT 8
+#define CONSOLEVIEW_SCALE 9
+#define CONSOLEVIEW_GAP 10
+#define CONSOLEVIEW_OFFSET 11
+#define CONSOLEVIEW_PADDING 12
+#define CONSOLEVIEW_VSYNC 13
+#define CONSOLEVIEW_GRID_NAV 14
+#define CONSOLEVIEW_FOLDER_ICON 15
+#define CONSOLEVIEW_MENU 16
 
 typedef struct {
     const char *sections[2]; // NULL: the root
     int section_count;
     const char *key;
     int count;
-    const char *values[5];
+    const char *values[6];
 } ConsoleViewOption;
 
 static const ConsoleViewOption consoleview_options[CONSOLEVIEW_OPTION_COUNT] = {
     {{NULL}, 1, "count", 2, {NULL, "false"}},
     {{"carousel"}, 1, "labels", 2, {NULL, "false"}},
     {{"carousel"}, 1, "selection", 2, {NULL, "false"}},
-    {{"carousel"}, 1, "opacity_unselected", 3, {NULL, "1", "0.5"}},
+    {{"carousel"}, 1, "opacity_unselected", 4, {NULL, "1", "0.5", "0.3"}},
     {{"carousel"}, 1, "animation", 3, {NULL, "none", "slide"}},
     {{"carousel", "grid"}, 2, "wrap", 2, {NULL, "false"}},
     {{"carousel"}, 1, "easing", 2, {NULL, "smooth"}},
-    {{"carousel"}, 1, "duration_ms", 5, {NULL, "200", "300", "400", "600"}},
-    {{"carousel"}, 1, "repeat_ms", 3, {NULL, "200", "300"}},
+    {{"carousel"}, 1, "duration_ms", 6, {NULL, "180", "200", "300", "400", "600"}},
+    {{"carousel"}, 1, "repeat_ms", 4, {NULL, "100", "200", "300"}},
+    {{"carousel"}, 1, "scale_unselected", 5, {NULL, "1", "0.85", "0.7", "0.6"}},
+    {{"carousel"}, 1, "gap", 6, {NULL, "0", "16", "32", "48", "64"}},
+    {{"carousel"}, 1, "offset_y", 5, {NULL, "-40", "-20", "20", "40"}},
+    {{"carousel"}, 1, "selection_padding", 5, {NULL, "0", "8", "16", "24"}},
+    {{"carousel"}, 1, "vsync", 2, {NULL, "false"}},
+    {{"grid"}, 1, "navigation", 2, {NULL, "stock"}},
+    {{"list"}, 1, "folder_icon", 2, {NULL, "false"}},
+    {{NULL}, 1, "menu", 4, {NULL, "[\"refresh_all\"]", "[\"refresh\"]", "[]"}},
 };
 
 static cJSON *consoleview_value_json(const char *text)
 {
+    if (text[0] == '[')
+        return cJSON_Parse(text);
     if (strcmp(text, "true") == 0)
         return cJSON_CreateTrue();
     if (strcmp(text, "false") == 0)
@@ -1061,6 +1079,12 @@ static cJSON *consoleview_value_json(const char *text)
 
 static bool consoleview_value_matches(const cJSON *item, const char *text)
 {
+    if (text[0] == '[') {
+        cJSON *want = cJSON_Parse(text);
+        bool same = want != NULL && cJSON_Compare(item, want, true);
+        cJSON_Delete(want);
+        return same;
+    }
     if (strcmp(text, "true") == 0)
         return cJSON_IsTrue(item);
     if (strcmp(text, "false") == 0)
@@ -1187,7 +1211,7 @@ void menu_consoleView(void *_)
 {
     (void)_;
     if (!_menu_console_view._created) {
-        _menu_console_view = list_createWithTitle(12, LIST_SMALL, "Console view");
+        _menu_console_view = list_createWithTitle(20, LIST_SMALL, "Console view");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1264,15 +1288,65 @@ void menu_consoleView(void *_)
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
+                .label = "Carousel: selection padding",
+                .item_type = MULTIVALUE,
+                .value_max = 4,
+                .value_labels = {"Default", "0 px", "8 px", "16 px", "24 px"},
+                .value = consoleview_option(CONSOLEVIEW_PADDING),
+                .action_id = CONSOLEVIEW_PADDING,
+                .action = consoleview_action_option},
+            "Space between the selected picture and\n"
+            "its box. Default: as Open MainUI sets it\n"
+            "(12 px).");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
                 .label = "Carousel: other consoles",
                 .item_type = MULTIVALUE,
-                .value_max = 2,
-                .value_labels = {"Default", "Clear", "Dimmed"},
+                .value_max = 3,
+                .value_labels = {"Default", "Clear", "Dimmed", "Faint"},
                 .value = consoleview_option(CONSOLEVIEW_OPACITY),
                 .action_id = CONSOLEVIEW_OPACITY,
                 .action = consoleview_action_option},
             "How the consoles beside the selected one\n"
-            "look. Default: as Open MainUI sets it.");
+            "look: Clear, Dimmed (50%) or Faint (30%).\n"
+            "Default: as Open MainUI sets it (50%).");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Carousel: other consoles size",
+                .item_type = MULTIVALUE,
+                .value_max = 4,
+                .value_labels = {"Default", "Same", "85%", "70%", "60%"},
+                .value = consoleview_option(CONSOLEVIEW_SCALE),
+                .action_id = CONSOLEVIEW_SCALE,
+                .action = consoleview_action_option},
+            "Size of the consoles beside the selected\n"
+            "one. Default: as Open MainUI sets it (70%).");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Carousel: spacing",
+                .item_type = MULTIVALUE,
+                .value_max = 5,
+                .value_labels = {"Default", "0 px", "16 px", "32 px", "48 px", "64 px"},
+                .value = consoleview_option(CONSOLEVIEW_GAP),
+                .action_id = CONSOLEVIEW_GAP,
+                .action = consoleview_action_option},
+            "Space between the console pictures.\n"
+            "Default: as Open MainUI sets it (40 px).");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Carousel: height",
+                .item_type = MULTIVALUE,
+                .value_max = 4,
+                .value_labels = {"Default", "Up 40 px", "Up 20 px", "Down 20 px", "Down 40 px"},
+                .value = consoleview_option(CONSOLEVIEW_OFFSET),
+                .action_id = CONSOLEVIEW_OFFSET,
+                .action = consoleview_action_option},
+            "Moves the pictures and their names\n"
+            "up or down. Default: centred.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1304,8 +1378,8 @@ void menu_consoleView(void *_)
             (ListItem){
                 .label = "Carousel: slide time",
                 .item_type = MULTIVALUE,
-                .value_max = 4,
-                .value_labels = {"Default", "200 ms", "300 ms", "400 ms", "600 ms"},
+                .value_max = 5,
+                .value_labels = {"Default", "180 ms", "200 ms", "300 ms", "400 ms", "600 ms"},
                 .value = consoleview_option(CONSOLEVIEW_DURATION),
                 .action_id = CONSOLEVIEW_DURATION,
                 .action = consoleview_action_option},
@@ -1317,15 +1391,28 @@ void menu_consoleView(void *_)
             (ListItem){
                 .label = "Carousel: hold speed",
                 .item_type = MULTIVALUE,
-                .value_max = 2,
-                .value_labels = {"Default", "200 ms", "300 ms"},
+                .value_max = 3,
+                .value_labels = {"Default", "100 ms", "200 ms", "300 ms"},
                 .value = consoleview_option(CONSOLEVIEW_REPEAT),
                 .action_id = CONSOLEVIEW_REPEAT,
                 .action = consoleview_action_option},
             "Time between moves while Left/Right is\n"
             "held. Default: one move per slide.\n"
-            "Best equal to or longer than the slide\n"
+            "Slides are never closer than the slide\n"
             "time. Needs Open MainUI 1.1.0.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Carousel: VSync",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"On", "Off"},
+                .value = consoleview_option(CONSOLEVIEW_VSYNC),
+                .action_id = CONSOLEVIEW_VSYNC,
+                .action = consoleview_action_option},
+            "Draws the carousel in step with the\n"
+            "screen: less tearing. Turns itself off\n"
+            "if the screen is too slow for it.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1339,6 +1426,44 @@ void menu_consoleView(void *_)
             "From the last console go on to the\n"
             "first, in the carousel and the grid.\n"
             "Off: stops at the first and last console.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Grid: navigation",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"Linear", "Stock"},
+                .value = consoleview_option(CONSOLEVIEW_GRID_NAV),
+                .action_id = CONSOLEVIEW_GRID_NAV,
+                .action = consoleview_action_option},
+            "Linear: Left/Right go through the consoles\n"
+            "in order. Stock: like the original MainUI,\n"
+            "a page at a time at the row's end.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "List: folder icons",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"On", "Off"},
+                .value = consoleview_option(CONSOLEVIEW_FOLDER_ICON),
+                .action_id = CONSOLEVIEW_FOLDER_ICON,
+                .action = consoleview_action_option},
+            "Show a folder icon beside each console\n"
+            "in the List view.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "Console menu",
+                .item_type = MULTIVALUE,
+                .value_max = 3,
+                .value_labels = {"Default", "Refresh all", "Refresh", "None"},
+                .value = consoleview_option(CONSOLEVIEW_MENU),
+                .action_id = CONSOLEVIEW_MENU,
+                .action = consoleview_action_option},
+            "The menu on the Games/Expert console\n"
+            "page: both refresh actions, only one,\n"
+            "or none.");
     }
     menu_stack[++menu_level] = &_menu_console_view;
     header_changed = true;
