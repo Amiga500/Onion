@@ -805,6 +805,9 @@ TEST(console_view_motion_and_slide_time)
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 1));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"duration_ms\":\t100") != NULL);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 4));
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"duration_ms\":\t240") != NULL);
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 6));
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 6);
     ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_DURATION, 7));
