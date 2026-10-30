@@ -1041,7 +1041,7 @@ typedef struct {
     int section_count;
     const char *key;
     int count;
-    const char *values[6];
+    const char *values[8];
 } ConsoleViewOption;
 
 static const ConsoleViewOption consoleview_options[CONSOLEVIEW_OPTION_COUNT] = {
@@ -1052,7 +1052,7 @@ static const ConsoleViewOption consoleview_options[CONSOLEVIEW_OPTION_COUNT] = {
     {{"carousel"}, 1, "animation", 3, {NULL, "none", "slide"}},
     {{"carousel", "grid"}, 2, "wrap", 2, {NULL, "false"}},
     {{"carousel"}, 1, "easing", 2, {NULL, "smooth"}},
-    {{"carousel"}, 1, "duration_ms", 6, {NULL, "180", "200", "300", "400", "600"}},
+    {{"carousel"}, 1, "duration_ms", 7, {NULL, "100", "150", "180", "200", "300", "400"}},
     {{"carousel"}, 1, "repeat_ms", 4, {NULL, "100", "200", "300"}},
     {{"carousel"}, 1, "scale_unselected", 5, {NULL, "1", "0.85", "0.7", "0.6"}},
     {{"carousel"}, 1, "gap", 6, {NULL, "0", "16", "32", "48", "64"}},
@@ -1416,14 +1416,14 @@ void menu_consoleView(void *_)
             (ListItem){
                 .label = "Carousel: slide time",
                 .item_type = MULTIVALUE,
-                .value_max = 5,
-                .value_labels = {"Default", "180 ms", "200 ms", "300 ms", "400 ms", "600 ms"},
+                .value_max = 6,
+                .value_labels = {"Default", "100 ms", "150 ms", "180 ms", "200 ms", "300 ms", "400 ms"},
                 .value = consoleview_option(CONSOLEVIEW_DURATION),
                 .action_id = CONSOLEVIEW_DURATION,
                 .action = consoleview_action_option},
-            "How long a slide takes. Default: as\n"
-            "Open MainUI sets it (240 ms).\n"
-            "Only with Slide.");
+            "How long a slide takes: shorter is\n"
+            "snappier. Default: as Open MainUI sets\n"
+            "it (240 ms). Only with Slide.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
