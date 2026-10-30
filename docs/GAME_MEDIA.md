@@ -135,8 +135,9 @@ Small videos also take less space on the card and less battery.
   map or the walkthrough to switch between Game Info, Gallery, Saved Games,
   Game Maps, Walkthrough (TXT) and Manual (PDF). Only what the game has is
   listed. Tweaks › Main menu › Game list menus chooses which ones show.
-- **Saved Games:** the save states of a RetroArch game, with their pictures
-  (the ten highest slots; the auto save is not listed). Open it from the
+- **Saved Games:** the save states of a RetroArch game, with their pictures:
+  the **Auto Save** first, then the ten highest slots (a game with only an
+  auto save shows just that one). Open it from the
   media menu, or press **Left** on a game in the list (if its name is
   scrolling, the first Left stops it, the next one opens Saved Games). Left / Right choose a save, **A** plays it, **B** goes
   back. Playing an older save keeps your last auto save as **Previous
