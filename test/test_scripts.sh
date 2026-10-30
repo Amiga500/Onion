@@ -1640,6 +1640,11 @@ check "the installer runs it before the migrations" grep -q 'sh $sysdir/script/c
 MIG="$ROOT/static/build/.tmp_update/script/migration/00026_console_pictures_default.sh"
 CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$MIG"
 check "no console-view.json: the pictures are turned on" grep -q "\"thumbs\":	\"$TMP/consoles\"" "$TMP/console-view.json"
+check "and the carousel look: valid JSON with no selection box, 0.7, 0.5, smooth" python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1])); c=d['carousel']
+assert c=={'selection':False,'scale_unselected':0.7,'opacity_unselected':0.5,'easing':'smooth'}, c
+" "$TMP/console-view.json"
 echo '{"games": "carousel"}' > "$TMP/console-view.json"
 CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$MIG"
 check "an existing console-view.json is left alone" test "$(cat "$TMP/console-view.json")" = '{"games": "carousel"}'
