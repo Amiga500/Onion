@@ -68,6 +68,7 @@ static List _menu_game_lists;
 static List _menu_main_menu;
 static List _menu_main_menu_items;
 static List _menu_console_view;
+static List _menu_game_menus;
 static List _menu_main_context_items;
 static List _menu_theme_overrides;
 static List _menu_battery_percentage;
@@ -94,6 +95,7 @@ void menu_free_all(void)
     list_free(&_menu_main_menu);
     list_free(&_menu_main_menu_items);
     list_free(&_menu_console_view);
+    list_free(&_menu_game_menus);
     list_free(&_menu_main_context_items);
     list_free(&_menu_theme_overrides);
     list_free(&_menu_battery_percentage);
