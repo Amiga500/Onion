@@ -259,10 +259,19 @@ enable_wifi() {
 # the download. Checked, it failed on a working network when the clock was
 # wrong (a device without a clock battery, before the time sync): "not
 # reachable" stopped the update. The reason curl gives is shown with the error.
+# Headers only (-I): on some home networks the github.com page itself stalled
+# after the HTTP 200 until the 30 s limit (curl error 28), while a phone
+# hotspot worked (#311, thanks Nyiz). The check only needs the answer.
 check_connection() {
 	echo -n "Checking internet connection... "
-	_why=$(curl -k -sS -L -f --connect-timeout 15 --max-time 30 -o /dev/null https://github.com 2>&1)
-	if [ $? -eq 0 ]; then
+	_why=$(curl -k -sS -I -L -f --connect-timeout 15 --max-time 30 -o /dev/null https://github.com 2>&1)
+	_rc=$?
+	# A server answering HEAD with an HTTP error (22): ask for the page, compressed.
+	if [ $_rc -eq 22 ]; then
+		_why=$(curl -k -sS -L -f --compressed --connect-timeout 15 --max-time 30 -o /dev/null https://github.com 2>&1)
+		_rc=$?
+	fi
+	if [ $_rc -eq 0 ]; then
 		echo -e "${GREEN}OK${NC}"
 	else
 		_why=$(echo "$_why" | grep -v '^[[:space:]]*$' | head -n 1 | cut -c 1-60)
@@ -277,7 +286,7 @@ check_connection() {
 # keep that branch and file. Run only if a script came back: an error page
 # (a renamed repository without -L, a missing file) used to be run by sh.
 run_bootstrap() {
-	_bootstrap=$(curl -k -s -L -f "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/OnionPlus/static/build/.tmp_update/script/ota_bootstrap.sh")
+	_bootstrap=$(curl -k -s -L -f --compressed --connect-timeout 15 --max-time 30 "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/OnionPlus/static/build/.tmp_update/script/ota_bootstrap.sh")
 	case "$_bootstrap" in
 		'#!/bin/sh'*) echo "$_bootstrap" | sh ;;
 	esac
@@ -308,7 +317,7 @@ get_release_info() {
 		# Picked by publish time: GitHub doesn't list releases newest first
 		# (a stable release can come before a newer beta).
 		# -L: a renamed repository answers with a redirect.
-		Release_list=$(curl -k -s -L https://api.github.com/repos/$GITHUB_REPOSITORY/releases)
+		Release_list=$(curl -k -s -L --compressed --connect-timeout 15 --max-time 60 https://api.github.com/repos/$GITHUB_REPOSITORY/releases)
 		if ! echo "$Release_list" | jq -e 'type == "array"' > /dev/null 2>&1; then
 			release_info_error "$Release_list"
 			return 2
@@ -320,7 +329,7 @@ get_release_info() {
 			return 1
 		fi
 	else
-		Release_assets_info=$(curl -k -s -L https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest)
+		Release_assets_info=$(curl -k -s -L --compressed --connect-timeout 15 --max-time 60 https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest)
 	fi
 
 	if echo "$Release_assets_info" | grep -q '"message": *"Not Found"'; then
