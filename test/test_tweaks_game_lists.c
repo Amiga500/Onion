@@ -795,16 +795,19 @@ TEST(console_view_motion_and_slide_time)
 {
     reset_dir();
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_EASING, 1));
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 3));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 5));
     char text[512];
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"easing\":\t\"smooth\"") != NULL);
     ASSERT_TRUE(strstr(text, "\"duration_ms\":\t300") != NULL);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_EASING), 1);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 3);
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 5));
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 5);
-    ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_DURATION, 6));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 1));
+    read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"duration_ms\":\t100") != NULL);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 6));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 6);
+    ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_DURATION, 7));
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_REPEAT, 2));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"repeat_ms\":\t200") != NULL);
@@ -813,11 +816,11 @@ TEST(console_view_motion_and_slide_time)
     /* Rob's suggested values read back; a time not offered shows as
      * Default and is kept. */
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 300, \"repeat_ms\": 200}}");
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 3);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 5);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_REPEAT), 2);
     /* rc10's suggestions: 180 ms, repeat 100. */
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 180, \"repeat_ms\": 100}}");
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 3);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_REPEAT), 1);
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 250, \"repeat_ms\": 200}}");
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 0);
