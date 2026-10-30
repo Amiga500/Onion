@@ -1283,9 +1283,9 @@ void menu_consoleView(void *_)
                 .value = consoleview_has_thumbs(),
                 .action = consoleview_action_thumbs},
             "Carousel and List show the pictures in\n"
-            "miyoo/app/consoles (gba.png, ps.png...,\n"
-            "_default.png for the others), else the\n"
-            "theme's.");
+            "miyoo/app/consoles (KyleBing's icons,\n"
+            "or yours: gba.png, psx.png..., named\n"
+            "after the Emu folder), else the theme's.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
