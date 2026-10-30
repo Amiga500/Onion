@@ -432,25 +432,34 @@ if command -v jq > /dev/null; then
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
-    begin ota_4_4_1_betas_after_the_4_4_0_stable
-    # The betas after the 4.4.0 stable are 4.4.1-b1, -b2...: a higher version
+    begin ota_4_5_0_betas_after_the_4_4_0_stable
+    # The betas after the 4.4.0 stable are 4.5.0-b1, -b2...: a higher version
     # number, so the beta channel offers them over the stable, while the
-    # stable is not offered back to a device on a 4.4.1 beta.
-    check "4.4.1 is newer than 4.4.0" test "$(get_version 4.4.1)" -gt "$(get_version 4.4.0)"
+    # stable is not offered back to a device on a 4.5.0 beta.
+    check "4.5.0 is newer than 4.4.0" test "$(get_version 4.5.0)" -gt "$(get_version 4.4.0)"
     channel=beta
     installUI() { echo "4.4.0-20261025-e894906a"; }
-    printf '[%s,%s]' "$(ota_asset 4.4.0-20261025-e894906a false)" "$(ota_asset 4.4.1-b1-20261027-1a2b3c4d true)" > "$TMP/list.json"
+    printf '[%s,%s]' "$(ota_asset 4.4.0-20261025-e894906a false)" "$(ota_asset 4.5.0-b1-20261027-1a2b3c4d true)" > "$TMP/list.json"
     get_release_info > /dev/null
-    check "beta channel: 4.4.1-b1 offered over the 4.4.0 stable" test "$?" -eq 0 -a "$Release_FullVersion" = 4.4.1-b1-20261027-1a2b3c4d
+    check "beta channel: 4.5.0-b1 offered over the 4.4.0 stable" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.0-b1-20261027-1a2b3c4d
     channel=stable
-    installUI() { echo "4.4.1-b1-20261027-1a2b3c4d"; }
+    installUI() { echo "4.5.0-b1-20261027-1a2b3c4d"; }
     ota_asset 4.4.0-20261025-e894906a false > "$TMP/latest.json"
     get_release_info > /dev/null
-    check "stable channel on 4.4.1-b1: 4.4.0 not offered" test "$?" -eq 1
-    ota_asset 4.4.1-20261101-5e6f7a8b false > "$TMP/latest.json"
+    check "stable channel on 4.5.0-b1: 4.4.0 not offered" test "$?" -eq 1
+    ota_asset 4.5.0-20261101-5e6f7a8b false > "$TMP/latest.json"
     get_release_info > /dev/null
-    check "stable channel on 4.4.1-b1: the 4.4.1 stable offered" test "$?" -eq 0
-    check "4.4.1-b1: date parsed" test "$(build_date 4.4.1-b1-20261027-1a2b3c4d)" = 20261027
+    check "stable channel on 4.5.0-b1: the 4.5.0 stable offered" test "$?" -eq 0
+    check "4.5.0-b1: date parsed" test "$(build_date 4.5.0-b1-20261027-1a2b3c4d)" = 20261027
+    # b2 after b1: the same number, a newer build date.
+    channel=beta
+    printf '[%s]' "$(ota_asset 4.5.0-b2-20261108-9a8b7c6d true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel on 4.5.0-b1: 4.5.0-b2 offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.0-b2-20261108-9a8b7c6d
+    installUI() { echo "4.5.0-b2-20261108-9a8b7c6d"; }
+    printf '[%s]' "$(ota_asset 4.5.0-b1-20261027-1a2b3c4d true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel on 4.5.0-b2: b1 not offered back" test "$?" -eq 1
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
