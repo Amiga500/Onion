@@ -1596,6 +1596,35 @@ unset -f curl ask_leave download_file stop_download read_button
 unset YELLOW NC ANSWER
 end
 
+# ---- runtime.sh: the console last selected survives a shutdown ----
+
+begin console_position_kept_with_the_option
+for f in restore_console_position save_console_position; do eval "$(extract_fn "$RUNTIME" $f)"; done
+log() { :; }
+console_position_tmp="$TMP/tmp-console-position.json"
+console_position_sd="$TMP/console-position.json"
+console_position_flag="$TMP/.rememberConsole"
+echo '{"games":"gba"}' > "$console_position_tmp"
+save_console_position
+check "option off: nothing saved" test ! -e "$console_position_sd"
+touch "$console_position_flag"
+save_console_position
+check "option on: saved at shutdown" test "$(cat "$console_position_sd")" = '{"games":"gba"}'
+rm -f "$console_position_tmp"
+restore_console_position
+check "option on: restored at boot" test "$(cat "$console_position_tmp")" = '{"games":"gba"}'
+rm -f "$console_position_flag" "$console_position_tmp"
+restore_console_position
+check "option off: not restored" test ! -e "$console_position_tmp"
+save_console_position
+check "option off: the saved copy goes" test ! -e "$console_position_sd"
+check "saved on every shutdown" grep -q "touch /tmp/shutting_down
+        save_console_position" "$RUNTIME"
+check "restored at boot" grep -q "restore_romwinidx
+    restore_console_position" "$RUNTIME"
+unset -f restore_console_position save_console_position log
+end
+
 # ---- migration 00022: RetroArch menu Border Filler OFF ----
 
 begin migration_disables_rgui_border_filler

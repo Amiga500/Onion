@@ -14,6 +14,13 @@ screen_resolution="640x480"
 
 romwinidx_device="/appconfigs/romwinidx.json"
 romwinidx_sd="$sysdir/config/romwinidx.json"
+# Open MainUI 1.1.0 (rc10) keeps the console last selected in Games and
+# Expert in /tmp, so it is lost at shutdown. With Tweaks > Main menu >
+# Console view > "Remember console after shutdown" (this flag) it is kept on
+# the SD card like the list positions (thanks zazzagone, robcodedev).
+console_position_tmp="/tmp/console-position.json"
+console_position_sd="$sysdir/config/console-position.json"
+console_position_flag="$sysdir/config/.rememberConsole"
 
 # ---------------------------------------------------------------------------
 # Timing marks, written to logs/timing.log only when logging is enabled
@@ -103,6 +110,7 @@ main() {
     init_system
     perf_end boot_init
     restore_romwinidx
+    restore_console_position
     update_time
 
     # Remount passwd/group to add our own users
@@ -1159,6 +1167,22 @@ restore_romwinidx() {
     fi
 }
 
+restore_console_position() {
+    if [ -f "$console_position_flag" ] && [ -f "$console_position_sd" ]; then
+        cp -f "$console_position_sd" "$console_position_tmp"
+        log "console position: restored from SD"
+    fi
+}
+
+save_console_position() {
+    if [ -f "$console_position_flag" ] && [ -f "$console_position_tmp" ]; then
+        cp -f "$console_position_tmp" "$console_position_sd"
+        log "console position: saved to SD"
+    else
+        rm -f "$console_position_sd"
+    fi
+}
+
 save_romwinidx() {
     if [ -f "$romwinidx_device" ]; then
         cp -f "$romwinidx_device" "$romwinidx_sd"
@@ -1172,6 +1196,7 @@ save_romwinidx() {
 check_off_order() {
     if [ -f /tmp/.offOrder ]; then
         touch /tmp/shutting_down
+        save_console_position
         save_romwinidx
 
         #EmuDeck - CheckOff scripts
