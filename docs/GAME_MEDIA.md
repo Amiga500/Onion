@@ -3,8 +3,9 @@
 Open MainUI 1.1.0 (from RedOnion 4.5.0) can show more than one picture per
 game. In **Game Info**, press **Right** to open a gallery with the box front
 and back, the 3D box, screenshots and a video. A game can also have **maps**
-(with zoom), a **walkthrough** (text) and a **manual** (PDF). The video can
-also play in the game list itself (see [On the device](#on-the-device)).
+(with zoom), a **walkthrough** (text) and a **manual** (PDF), and **Saved
+Games** shows its save states. The video can also play in the game list itself
+(see [On the device](#on-the-device)).
 
 This page explains where those files go, and how to get them with
 [Skraper](https://www.skraper.net/).
@@ -126,6 +127,7 @@ Small videos also take less space on the card and less battery.
 
 ## On the device
 
+- **Game Info:** **L2** / **R2** scroll the description a page at a time.
 - **Gallery:** select a game, open **Game Info**, press **Right**. The D-pad
   moves through the media, **B** goes back. In a video, **A** pauses and
   **L1** / **R1** jump about 5 seconds.
@@ -133,9 +135,10 @@ Small videos also take less space on the card and less battery.
   map or the walkthrough to switch between Game Info, Gallery, Saved Games,
   Game Maps, Walkthrough (TXT) and Manual (PDF). Only what the game has is
   listed. Tweaks › Main menu › Game list menus chooses which ones show.
-- **Saved Games:** your save states for the game, with their pictures (the
-  ten highest slots). Open it from the media menu, or press **Left** on a
-  game in the list. Left / Right choose a save, **A** plays it, **B** goes
+- **Saved Games:** the save states of a RetroArch game, with their pictures
+  (the ten highest slots; the auto save is not listed). Open it from the
+  media menu, or press **Left** on a game in the list (if its name is
+  scrolling, the first Left stops it, the next one opens Saved Games). Left / Right choose a save, **A** plays it, **B** goes
   back. Playing an older save keeps your last auto save as **Previous
   Session**, so you can go back to it (Tweaks › Main menu › Game list menus ›
   Saved Games: older save).
