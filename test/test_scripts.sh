@@ -583,7 +583,7 @@ wifi_started_here=0
 wifi_setting_on() { return 1; }
 restore_wifi
 check "already on before the updater: left on" test ! -e "$TMP/pkill"
-check "restored on every exit" grep -q '^	trap restore_wifi EXIT' "$OTA"
+check "restored on every exit" grep -q "^	trap 'stop_download; restore_wifi; restore_keys' EXIT" "$OTA"
 unset -f pkill wifi_setting_on
 end
 
@@ -729,7 +729,7 @@ mkdir -p "$TMP/script" "$TMP/config"
 sysdir=$TMP
 echo beta > "$TMP/config/ota_channel"
 clear() { :; }
-eval "$(extract_fn "$OTA" channel_choice)"
+for f in channel_choice ota_menu drop_keys quiet_keys; do eval "$(extract_fn "$OTA" $f)"; done
 printf '#!/bin/sh\ncat > /dev/null\nexit 1\n' > "$TMP/script/shellect.sh"
 chmod +x "$TMP/script/shellect.sh"
 (channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
@@ -739,8 +739,18 @@ printf '#!/bin/sh\ncat > /dev/null\necho stable\n' > "$TMP/script/shellect.sh"
 (channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
 check "choice saved" test "$(cat "$TMP/config/ota_channel")" = stable
 check "choice goes on" test -e "$TMP/went_on"
+ask_leave() { return 0; }
+printf '#!/bin/sh\ncat > /dev/null\nexit 2\n' > "$TMP/script/shellect.sh"
+rm -f "$TMP/went_on"
+(channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
+check "MENU, then START: leaves" test ! -e "$TMP/went_on"
+ask_leave() { printf '#!/bin/sh\ncat > /dev/null\necho beta\n' > "$TMP/script/shellect.sh"; return 1; }
+printf '#!/bin/sh\ncat > /dev/null\nexit 2\n' > "$TMP/script/shellect.sh"
+(channel_choice; touch "$TMP/went_on") > /dev/null 2>&1
+check "MENU, then A: the menu again" test "$(cat "$TMP/config/ota_channel")" = beta
+check "MENU, then A: goes on" test -e "$TMP/went_on"
 check "Mini without Wi-Fi is told so" grep -q 'This device has no Wi-Fi' "$OTA"
-unset -f clear channel_choice
+unset -f clear channel_choice ota_menu drop_keys quiet_keys ask_leave
 end
 
 if command -v jq > /dev/null; then
@@ -1159,6 +1169,89 @@ sqlite3() { # db, query: the db file holds the count the query would return
     cat "$1"
 }
 
+begin glo_hide_game_and_bring_it_back
+# Hide game moves the game, with the tracks of a .cue, into
+# <folder>/.hidden/<rom name>/ (dot names are not listed); Hidden games puts
+# exactly those files back. The rom list cache is dropped both times.
+for fn in glo_game_files count_hidden_games drop_from_recents drop_rom_list_cache hide_game show_hidden_games unhide_game; do
+    eval "$(extract_fn "$GLO" $fn)"
+done
+log() { :; }
+infoPanel() { echo "$*" >> "$TMP/info"; }
+R="$TMP/Roms/PS"
+mkdir -p "$R" "$TMP/bin"
+printf '#!/bin/sh\nexit $(cat "%s/answer")\n' "$TMP" > "$TMP/bin/prompt"
+chmod +x "$TMP/bin/prompt"
+: > "$R/PS_cache6.db"
+printf 'FILE "Game (Track 1).bin" BINARY\r\nFILE "Game (Track 2).bin" BINARY\r\n' > "$R/Game.cue"
+: > "$R/Game (Track 1).bin"; : > "$R/Game (Track 2).bin"; : > "$R/Game 2.cue"; : > "$R/Other.chd"
+romroot="$R"
+recentlist="$TMP/recentlist.json"; recentlist_hidden="$TMP/recentlist-hidden.json"; recentlist_temp="$TMP/recent.tmp"
+printf '{"label":"Other","rompath":"%s/Other.chd","type":5}\n{"label":"Game 2","rompath":"%s/Game 2.cue","type":5}\n' "$R" "$R" > "$recentlist"
+printf '{"label":"Other","rompath": "%s/Other.chd","type":5}\n' "$(cd "$R" && pwd -P)" > "$recentlist_hidden"
+cd "$TMP"
+rompath="$R/Game.cue"
+echo 1 > "$TMP/answer"
+( hide_game ); rc=$?
+check "cancel: nothing moves" test -f "$R/Game.cue" -a ! -d "$R/.hidden"
+check "cancel: back to the list" test $rc -eq 1
+echo 0 > "$TMP/answer"
+( hide_game )
+check "the cue and its tracks are hidden" test -f "$R/.hidden/Game/Game.cue" -a -f "$R/.hidden/Game/Game (Track 1).bin" -a -f "$R/.hidden/Game/Game (Track 2).bin"
+check "nothing of them stays in the list" test ! -e "$R/Game.cue" -a ! -e "$R/Game (Track 1).bin"
+check "another game with a longer name stays" test -f "$R/Game 2.cue"
+check "the list cache is dropped" test ! -e "$R/PS_cache6.db"
+check "one hidden game" test "$(count_hidden_games "$R/.hidden")" -eq 1
+rompath="$R/Other.chd"
+( hide_game )
+check "a single-file game is hidden" test -f "$R/.hidden/Other/Other.chd"
+check "it leaves Recents" sh -c '! grep -q "Other.chd" "$1"' _ "$recentlist"
+check "and the other entries stay" grep -q 'Game 2.cue' "$recentlist"
+check "also from the hidden Recents (resolved path, spaces)" sh -c '! grep -q "Other.chd" "$1"' _ "$recentlist_hidden"
+check "two hidden games" test "$(count_hidden_games "$R/.hidden")" -eq 2
+: > "$R/PS_cache6.db"
+rompath="$R/Game 2.cue"
+echo 0 > "$TMP/answer"   # the first in the list: Game
+( show_hidden_games )
+check "Game is back with its tracks" test -f "$R/Game.cue" -a -f "$R/Game (Track 2).bin"
+check "its hidden folder is gone" test ! -d "$R/.hidden/Game"
+check "the other stays hidden" test -f "$R/.hidden/Other/Other.chd"
+check "the list cache is dropped again" test ! -e "$R/PS_cache6.db"
+echo 0 > "$TMP/answer"
+( show_hidden_games )
+check "the last one back removes .hidden" test -f "$R/Other.chd" -a ! -d "$R/.hidden"
+echo 0 > "$TMP/answer"
+( show_hidden_games ); rc=$?
+check "no hidden game: back to the list" test $rc -eq 1
+# A name already taken is not overwritten
+rompath="$R/Other.chd"; ( hide_game ); : > "$R/Other.chd"
+( show_hidden_games )
+check "taken name: the hidden copy stays" test -f "$R/.hidden/Other/Other.chd"
+check "and it says why" grep -q "already in the list folder" "$TMP/info"
+cd "$ROOT"
+unset -f glo_game_files count_hidden_games drop_from_recents drop_rom_list_cache hide_game show_hidden_games unhide_game log infoPanel
+check "offered in Games and Expert" sh -c "grep -q 'add_menu_option hide_game \"Hide game\"' '$GLO' && grep -q 'add_menu_option show_hidden_games' '$GLO'"
+end
+
+begin miyoogamelist_lists_hidden_games_at_their_place
+# A list made while a game was hidden (GLO Hide game, .hidden/<name>/) left
+# it out, so it never showed again once back: it is listed at its usual
+# path, which MainUI skips while the file is not there.
+GEN="$ROOT/static/build/.tmp_update/script/miyoogamelist_gen.sh"
+mkdir -p "$TMP/Emu/GBA" "$TMP/Roms/GBA/.hidden/Zelda" "$TMP/Roms/GBA/.hidden/Dup"
+printf '{\n\t"label": "GBA",\n\t"rompath": "../../Roms/GBA",\n\t"imgpath": "../../Roms/GBA/Imgs",\n\t"extlist": "gba|zip"\n}\n' > "$TMP/Emu/GBA/config.json"
+: > "$TMP/Roms/GBA/Mario (USA).gba"
+: > "$TMP/Roms/GBA/.hidden/Zelda/Zelda (USA).gba"; : > "$TMP/Roms/GBA/.hidden/Zelda/readme.txt"
+: > "$TMP/Roms/GBA/.hidden/Dup/Mario (USA).gba"
+(cd "$TMP" && MIYOOGAMELIST_EMU_DIR="$TMP/Emu" sh "$GEN" > /dev/null 2>&1)
+X="$TMP/Roms/GBA/miyoogamelist.xml"
+check "the visible game is listed" grep -q '<path>./Mario (USA).gba</path>' "$X"
+check "the hidden one too, at its usual path" grep -q '<path>./Zelda (USA).gba</path>' "$X"
+check "not with its hidden path" sh -c '! grep -q "\.hidden" "$1"' _ "$X"
+check "a hidden copy of a visible game is not listed twice" test "$(grep -c 'Mario (USA).gba' "$X")" -eq 1
+check "non-game files are left out" sh -c '! grep -q readme "$1"' _ "$X"
+end
+
 begin glo_filter_dropped_with_cache
 glo_filter_env 1
 check "filter row in the cache: applied" filter_is_applied
@@ -1370,7 +1463,9 @@ check "no name-based kill left (it hit Open MainUI in mainui-test)" sh -c "! gre
 check "end of input leaves the key loop" grep -q '\[ -n "\$key" \] || exit 1' "$SHELLECT"
 check "MENU (a lone Esc) leaves like START" grep -q 'stty min 0 time 1' "$SHELLECT"
 check "with -m only Up/Down, A and MENU are accepted" grep -q "A2|B2|\"\$space\"?) ;;" "$SHELLECT"
-check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 3
+check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 1
+check "OTA menus all go through ota_menu" test "$(grep -c '^	ota_menu "' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 3
+check "with -m MENU returns 2 instead of closing the terminal" grep -q '\[ -z "\$menu_only_exit" \] || { term_reset; exit 2; }' "$SHELLECT"
 end
 
 # ---- ota_update.sh: "Press A to continue, MENU to exit" ----
@@ -1378,20 +1473,39 @@ end
 OTA_SCRIPT="$ROOT/static/build/.tmp_update/script/ota_update.sh"
 
 begin ota_info_screen_menu_exits
-eval "$(extract_fn "$OTA_SCRIPT" wait_key)"
+for f in wait_key read_button ask_leave drop_keys; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
+eval "$(grep -E '^(ESC|CR)=' "$OTA_SCRIPT")"
+NL='
+'
+YELLOW= NC=
 printf ' ' > "$TMP/a"
 wait_key "x" < "$TMP/a" > /dev/null
 check "A continues" test $? -eq 0
-printf 'x\n ' > "$TMP/other"
+printf 'x\n\033[Ayy ' > "$TMP/other"
 wait_key "x" < "$TMP/other" > /dev/null
-check "other buttons (START...) are ignored until A" test $? -eq 0
+check "other buttons (START, the D-pad...) are ignored until A" test $? -eq 0
 printf '\033' > "$TMP/menu"
-wait_key "x" < "$TMP/menu" > /dev/null
-check "MENU (a lone Esc) leaves" test $? -eq 1
+out=$(wait_key "x" < "$TMP/menu")
+check "MENU (a lone Esc), then nothing: leaves" test $? -eq 1
+check "MENU asks first" sh -c "echo \"\$1\" | grep -q 'Exit the updater? START: yes, A: no'" _ "$out"
+printf '\033\n' > "$TMP/menu_start"
+wait_key "x" < "$TMP/menu_start" > /dev/null
+check "MENU, then START: leaves" test $? -eq 1
+# Without a terminal the follow-up read takes the next byte: keep MENU
+# last in the input, and test "stay" with ask_leave itself.
+printf ' ' > "$TMP/a"
+ask_leave "q" < "$TMP/a" > /dev/null
+check "asked, A: stays" test $? -eq 1
+printf 'x\033' > "$TMP/menu_again"
+ask_leave "q" < "$TMP/menu_again" > /dev/null
+check "asked, MENU again does not answer (end of input: leaves)" test $? -eq 0
 wait_key "x" < /dev/null > /dev/null
 check "no input (terminal gone) leaves" test $? -eq 1
 check "the version screen offers MENU to exit" grep -q 'wait_key "Press A to continue, MENU to exit" || exit 0' "$OTA_SCRIPT"
-unset -f wait_key
+check "every Press A prompt drops the buttons pressed before" test "$(grep -c 'read -n 1 -s -r -p' "$OTA_SCRIPT")" -eq "$(grep -c 'drop_keys; read -n 1 -s -r -p' "$OTA_SCRIPT")"
+check "echo off for the whole updater" grep -q "^	quiet_keys$" "$OTA_SCRIPT"
+unset -f wait_key read_button ask_leave drop_keys
+unset YELLOW NC
 end
 
 begin ota_connection_check_ignores_the_clock
@@ -1422,6 +1536,64 @@ check "offline: exits 2" test $rc -eq 2
 check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (curl: (6) Could not resolve host: github.com)'" _ "$out"
 check "the download uses curl too" grep -q 'curl -k -L -f --connect-timeout 15 --retry 3' "$OTA_SCRIPT"
 unset -f curl wget read check_connection
+end
+
+# ---- ota_update.sh: MENU during the download asks, and stops it ----
+
+begin ota_download_menu_asks_then_stops
+for f in download_file stop_download read_button; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
+eval "$(grep -E '^(ESC|CR)=' "$OTA_SCRIPT")"
+NL='
+'
+YELLOW= NC=
+curl() { # writes the -o file after 1 s, then a marker
+    _o=
+    while [ $# -gt 0 ]; do
+        [ "$1" = "-o" ] && _o=$2
+        shift
+    done
+    sleep 1
+    echo zip > "$_o"
+    echo done > "$TMP/curl_done"
+    return ${CURL_RC:-0}
+}
+ask_leave() { echo asked >> "$TMP/asked"; return ${ANSWER:-0}; }
+
+download_file "https://x/u.zip" "$TMP/u.zip" < /dev/null > /dev/null
+check "no buttons: the download ends normally" test $? -eq 0
+check "no buttons: the file is there" test -s "$TMP/u.zip"
+check "no buttons: nothing asked" test ! -e "$TMP/asked"
+
+rm -f "$TMP/u.zip" "$TMP/curl_done"
+printf 'x\033[A' > "$TMP/keys"
+download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/keys" > /dev/null
+check "other buttons and the D-pad: the download ends normally" test $? -eq 0
+check "other buttons and the D-pad: nothing asked" test ! -e "$TMP/asked"
+
+rm -f "$TMP/u.zip" "$TMP/curl_done"
+printf '\033' > "$TMP/menu"
+ANSWER=1 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
+check "MENU, then A: the download goes on" test $? -eq 0
+check "MENU, then A: asked once" test "$(wc -l < "$TMP/asked")" -eq 1
+check "MENU, then A: the file is there" test -s "$TMP/u.zip"
+
+rm -f "$TMP/u.zip" "$TMP/curl_done" "$TMP/asked"
+ANSWER=0 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
+check "MENU, then START: stopped (130)" test $? -eq 130
+sleep 2
+check "MENU, then START: the download was ended" test ! -e "$TMP/curl_done"
+check "MENU, then START: no partial file" test ! -e "$TMP/u.zip"
+
+rm -f "$TMP/asked"
+CURL_RC=22 download_file "https://x/u.zip" "$TMP/u.zip" < /dev/null > /dev/null
+check "curl's error comes back" test $? -eq 22
+unset CURL_RC
+
+check "the updater uses it" grep -q 'download_file "\$Release_url" "\$sysdir/download/\$Release_Version.zip"' "$OTA_SCRIPT"
+check "a stop leaves the updater" grep -q 'Download stopped.' "$OTA_SCRIPT"
+check "leaving the updater ends the download" grep -q "trap 'stop_download; restore_wifi; restore_keys' EXIT" "$OTA_SCRIPT"
+unset -f curl ask_leave download_file stop_download read_button
+unset YELLOW NC ANSWER
 end
 
 # ---- migration 00022: RetroArch menu Border Filler OFF ----

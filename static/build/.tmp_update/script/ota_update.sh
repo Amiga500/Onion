@@ -48,8 +48,9 @@ main() {
 	rm $sysdir/cmd_to_run.sh 2> /dev/null
 
 	# Wi-Fi turned on here goes off again however the updater ends.
-	trap restore_wifi EXIT
+	trap 'stop_download; restore_wifi; restore_keys' EXIT
 	trap 'exit 130' INT TERM HUP
+	quiet_keys
 
 	check_available_space
 	check_wifi_hardware
@@ -69,12 +70,12 @@ main() {
 		1)
 			rm -f "$sysdir/.updateAvailable"
 			echo -ne "${YELLOW}"
-			read -n 1 -s -r -p "Press A to exit"
+			drop_keys; read -n 1 -s -r -p "Press A to exit"
 			exit 3
 			;;
 		*)
 			echo -ne "${YELLOW}"
-			read -n 1 -s -r -p "Press A to exit"
+			drop_keys; read -n 1 -s -r -p "Press A to exit"
 			exit 8
 			;;
 	esac
@@ -92,7 +93,7 @@ check_available_space() {
 	if [ "$available_space" -lt "1000" ]; then
 		echo -e "${RED}Available space is insufficient on SD card${NC}\n"
 		echo -ne "${YELLOW}"
-		read -n 1 -s -r -p "Press A to exit"
+		drop_keys; read -n 1 -s -r -p "Press A to exit"
 		exit 1
 	fi
 }
@@ -103,7 +104,7 @@ check_wifi_hardware() {
 	if [ "$(cat /tmp/deviceModel 2> /dev/null)" = "283" ]; then
 		echo -e "${RED}This device has no Wi-Fi.${NC}\nTo update, copy the release to the SD card from a PC."
 		echo -ne "${YELLOW}"
-		read -n 1 -s -r -p "Press A to exit"
+		drop_keys; read -n 1 -s -r -p "Press A to exit"
 		exit 9
 	fi
 }
@@ -267,7 +268,7 @@ check_connection() {
 		_why=$(echo "$_why" | grep -v '^[[:space:]]*$' | head -n 1 | cut -c 1-60)
 		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable${_why:+ ($_why)}.\nTurn on Wi-Fi in Settings and check that it connects."
 		echo -ne "${YELLOW}"
-		read -n 1 -s -r -p "Press A to exit"
+		drop_keys; read -n 1 -s -r -p "Press A to exit"
 		exit 2
 	fi
 }
@@ -283,7 +284,8 @@ run_bootstrap() {
 }
 
 channel_choice() {
-	channel=$(echo -e "stable\nbeta" | $sysdir/script/shellect.sh -m -t "Select distribution channel:" -b "Press A to validate, MENU to exit.")
+	ota_menu "stable\nbeta" "Select distribution channel:"
+	channel=$menu_choice
 	clear
 	# Nothing chosen (B): leave, keeping the saved channel. An empty
 	# ota_channel used to be saved and read as stable.
@@ -402,31 +404,169 @@ release_info_error() { # response or reason
 		"Try again in a few minutes.\n"
 }
 
-# Show a prompt and wait for A (continue, returns 0) or MENU (leave,
-# returns 1); other buttons are ignored. MENU reaches the terminal as a
-# lone Esc, the D-pad as Esc [ A..D in one go, so a byte following within
-# 0.1 s means it was not MENU. No input at all (the terminal is gone)
-# counts as MENU.
+# Buttons pressed while the updater works wait in the terminal. They used to
+# show as ^[ and answer the next prompt: a MENU pressed for a screenshot
+# closed the updater at the next menu, A pressed a few times skipped screens
+# (thanks kicksoda). Echo stays off, every prompt drops them first, and MENU
+# asks before leaving, with START to leave and A to stay, so a second MENU
+# (another screenshot) doesn't answer.
+quiet_keys() {
+	[ -n "$keys_stty" ] || keys_stty=$(stty -g 2> /dev/null)
+	stty -echo 2> /dev/null
+}
+
+restore_keys() {
+	[ -n "$keys_stty" ] && stty "$keys_stty" 2> /dev/null
+}
+
+drop_keys() {
+	_dk=$(stty -g 2> /dev/null) || return 0
+	stty -icanon min 0 time 0 2> /dev/null
+	while [ -n "$(dd ibs=64 count=1 2> /dev/null)" ]; do :; done
+	stty "$_dk" 2> /dev/null
+}
+
+# Read one button into $button: A, MENU, START, other, or gone (no input:
+# the terminal is gone, or a read that waits only a while timed out). MENU
+# reaches the terminal as a lone Esc, the D-pad as Esc [ A..D in one go, so a
+# byte following within 0.1 s means it was not MENU.
+read_button() {
+	_key=$(dd ibs=1 count=1 2> /dev/null; echo .)
+	_key=${_key%.}
+	case $_key in
+		'') button=gone ;;
+		' ') button=A ;;
+		"$NL" | "$CR") button=START ;;
+		"$ESC")
+			_rb=$(stty -g 2> /dev/null)
+			[ -n "$_rb" ] && stty min 0 time 1 2> /dev/null
+			_rest=$(dd ibs=1 count=4 2> /dev/null)
+			[ -n "$_rb" ] && stty "$_rb" 2> /dev/null
+			if [ -z "$_rest" ]; then button=MENU; else button=other; fi
+			;;
+		*) button=other ;;
+	esac
+}
+ESC=$(printf '\033')
+CR=$(printf '\r')
+NL='
+'
+
+# Ask a yes/no question about leaving: START answers yes (returns 0), A no
+# (returns 1); other buttons, MENU too, are ignored. No input at all (the
+# terminal is gone) is yes.
+ask_leave() { # question
+	drop_keys
+	printf "\n${YELLOW}%s START: yes, A: no${NC}" "$1"
+	_al=$(stty -g 2> /dev/null)
+	stty -icanon -echo min 1 time 0 2> /dev/null
+	while :; do
+		read_button
+		case $button in
+			A) _al_ret=1 && break ;;
+			START | gone) _al_ret=0 && break ;;
+		esac
+	done
+	[ -n "$_al" ] && stty "$_al" 2> /dev/null
+	printf '\n'
+	return $_al_ret
+}
+
+# Show a prompt and wait for A (continue, returns 0). MENU asks whether to
+# leave (returns 1 if so, else shows the prompt again); other buttons are
+# ignored. No input at all (the terminal is gone) leaves.
 wait_key() { # prompt
+	drop_keys
 	printf '%s' "$1"
 	_stty=$(stty -g 2> /dev/null)
 	stty -icanon -echo min 1 time 0 2> /dev/null
 	_ret=
 	while [ -z "$_ret" ]; do
-		_key=$(dd ibs=1 count=1 2> /dev/null; echo .)
-		_key=${_key%.}
-		if [ -z "$_key" ]; then
-			_ret=1
-		elif [ "$_key" = " " ]; then
-			_ret=0
-		elif [ "$_key" = "$(printf '\033')" ]; then
-			stty min 0 time 1 2> /dev/null
-			[ -n "$(dd ibs=1 count=4 2> /dev/null)" ] || _ret=1
-			stty min 1 time 0 2> /dev/null
-		fi
+		read_button
+		case $button in
+			A) _ret=0 ;;
+			gone) _ret=1 ;;
+			MENU)
+				if ask_leave "Exit the updater?"; then
+					_ret=1
+				else
+					printf '%s' "$1"
+				fi
+				;;
+		esac
 	done
 	[ -n "$_stty" ] && stty "$_stty" 2> /dev/null
 	return $_ret
+}
+
+# A menu of the items (\n between them) in $menu_choice. MENU asks before
+# leaving the updater; A to stay shows the menu again. shellect turns echo
+# back on when it ends.
+ota_menu() { # items, title
+	while :; do
+		drop_keys
+		menu_choice=$(echo -e "$1" | $sysdir/script/shellect.sh -m -t "$2" -b "Press A to validate, MENU to exit.")
+		_rc=$?
+		quiet_keys
+		[ $_rc -eq 2 ] || return 0
+		clear
+		ask_leave "Exit the updater?" && exit 0
+	done
+}
+
+# Download a URL to a file with curl in the background, reading the buttons
+# meanwhile: MENU pauses the download and asks, START then stops it (returns
+# 130, the partial file removed), A goes on. Other buttons do nothing, and
+# none are left over for the next prompt (see quiet_keys). Without a
+# terminal (no stty) it just waits. Returns curl's exit code.
+download_file() { # url, file
+	curl -k -L -f --connect-timeout 15 --retry 3 --retry-delay 2 -# \
+		-o "$2" "$1" < /dev/null &
+	_dl_pid=$!
+	_dl_stty=$(stty -g 2> /dev/null)
+	# No echo (the buttons garbled the progress bar); a read gives up after
+	# 0.5 s, so the loop sees the download end.
+	[ -n "$_dl_stty" ] && stty -icanon -echo min 0 time 5 2> /dev/null
+	_dl_keys=1
+	while [ -n "$_dl_keys" ] && kill -0 "$_dl_pid" 2> /dev/null; do
+		read_button
+		case $button in
+			gone)
+				# A terminal timed out; anything else is at the end of its input.
+				[ -n "$_dl_stty" ] || _dl_keys=
+				continue
+				;;
+			MENU) ;;
+			*) continue ;;
+		esac
+		kill -STOP "$_dl_pid" 2> /dev/null
+		if ask_leave "Stop the download?"; then
+			stop_download
+			rm -f "$2"
+			[ -n "$_dl_stty" ] && stty "$_dl_stty" 2> /dev/null
+			return 130
+		fi
+		kill -CONT "$_dl_pid" 2> /dev/null
+	done
+	wait "$_dl_pid"
+	_dl_rc=$?
+	_dl_pid=
+	if [ -n "$_dl_stty" ]; then
+		# Drop the buttons pressed meanwhile.
+		stty min 0 time 0 2> /dev/null
+		while [ -n "$(dd ibs=64 count=1 2> /dev/null)" ]; do :; done
+		stty "$_dl_stty" 2> /dev/null
+	fi
+	return $_dl_rc
+}
+
+# End a download still running (stopped, or the updater leaving).
+stop_download() {
+	[ -n "$_dl_pid" ] || return 0
+	kill "$_dl_pid" 2> /dev/null
+	kill -CONT "$_dl_pid" 2> /dev/null
+	wait "$_dl_pid" 2> /dev/null
+	_dl_pid=
 }
 
 download_update() {
@@ -434,7 +574,8 @@ download_update() {
 	wait_key "Press A to continue, MENU to exit" || exit 0
 	echo -ne "${NC}"
 
-	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -m -t "Download $Release_Version ($Release_size_MB) ?" -b "Press A to validate, MENU to exit.")
+	ota_menu "No\nYes" "Download $Release_Version ($Release_size_MB) ?"
+	Mychoice=$menu_choice
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
 
@@ -451,10 +592,14 @@ download_update() {
 		sync
 		# curl, which reaches GitHub where the bundled wget may not (see
 		# check_connection); wget only if curl itself cannot run.
-		curl -k -L -f --connect-timeout 15 --retry 3 --retry-delay 2 -# \
-			-o "$sysdir/download/$Release_Version.zip" "$Release_url"
+		download_file "$Release_url" "$sysdir/download/$Release_Version.zip"
 		case $? in
 			126 | 127) wget --no-check-certificate "$Release_url" -O "$sysdir/download/$Release_Version.zip" ;;
+			130)
+				echo -e "${YELLOW}Download stopped.${NC}"
+				sleep 1
+				exit 0
+				;;
 		esac
 		echo -ne "\n\n" \
 			"${GREEN}================== Download done ==================${NC}\n"
@@ -473,13 +618,14 @@ download_update() {
 			"${RED}Error: Wrong download size${NC} ($Downloaded_size instead of $Release_size)\n"
 		rm -f "$sysdir/download/$Release_Version.zip"
 		echo -ne "${YELLOW}"
-		read -n 1 -s -r -p "Press A to exit"
+		drop_keys; read -n 1 -s -r -p "Press A to exit"
 		exit 5
 	fi
 }
 
 apply_update() {
-	Mychoice=$(echo -e "No\nYes" | $sysdir/script/shellect.sh -m -t "Apply update $Release_Version ?" -b "Press A to validate, MENU to exit.")
+	ota_menu "No\nYes" "Apply update $Release_Version ?"
+	Mychoice=$menu_choice
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
 		echo "Applying update... "
@@ -501,7 +647,7 @@ apply_update() {
 				"Update $Release_Version applied.\n" \
 				"Rebooting to run installation...\n"
 			echo -ne "${YELLOW}"
-			read -n 1 -s -r -p "Press A to reboot"
+			drop_keys; read -n 1 -s -r -p "Press A to reboot"
 			sleep 1
 			reboot
 		else
@@ -509,7 +655,7 @@ apply_update() {
 				"${RED}Error: Something wrong happened during decompression.${NC}\n" \
 				"Try to run OTA update again or do a manual update.\n"
 			echo -ne "${YELLOW}"
-			read -n 1 -s -r -p "Press A to exit"
+			drop_keys; read -n 1 -s -r -p "Press A to exit"
 			exit 6
 		fi
 	else

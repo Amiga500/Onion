@@ -460,7 +460,11 @@ key() {
 	    pending=$(dd ibs=1 count=1 2>/dev/null; echo .)
 	    pending=${pending%.}
 	    stty min 1 time 0
-	    [ -n "$pending" ] || quit_terminal
+	    # -m (OTA): MENU returns 2, so the caller can ask before leaving.
+	    if [ -z "$pending" ]; then
+		[ -z "$menu_only_exit" ] || { term_reset; exit 2; }
+		quit_terminal
+	    fi
 	fi
 
 	# -m (OTA): only Up/Down, A and MENU do anything. Right no longer
@@ -945,7 +949,7 @@ while getopts "t:b:n:d:c:f:hilm" result; do
         f) format=${OPTARG} ;;
 	i) case_insense=1 ;;
 	l) live_search=1 ;;
-	m) menu_only_exit=1 ;; # Up/Down, A and MENU only: MENU leaves
+	m) menu_only_exit=1 ;; # Up/Down, A and MENU only: MENU returns 2
 	t) msg="${OPTARG}" ;;
 	b) ltype="${OPTARG}" ;;
 	h) usage && exit 0 ;;

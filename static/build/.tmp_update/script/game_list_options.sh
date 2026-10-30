@@ -203,6 +203,20 @@ main() {
         fi
     fi # skip_game_options
 
+    # Hide game: Games and Expert list the files of a folder, so the game is
+    # moved into .hidden beside it (names starting with a dot are not listed).
+    if [ $current_tab -eq $TAB_GAMES ] || [ $current_tab -eq $TAB_EXPERT ]; then
+        if [ $skip_game_options -eq 0 ]; then
+            add_menu_option hide_game "Hide game" "Hides this game from the list.\nIts saves are kept: bring it back\nfrom Hidden games."
+        fi
+        if [ -n "$rompath" ]; then
+            hidden_count=$(count_hidden_games "$(dirname "$rompath")/.hidden")
+            if [ "$hidden_count" -gt 0 ]; then
+                add_menu_option show_hidden_games "Hidden games ($hidden_count)" "Brings a hidden game of\nthis folder back to the list"
+            fi
+        fi
+    fi
+
     if [ $current_tab -eq $TAB_GAMES ]; then
         if [ -f "$emupath/active_filter" ] && ! filter_is_applied; then
             log "rom list cache rebuilt since the filter was set: dropping active_filter"
@@ -631,6 +645,123 @@ rename_rom() {
 
     cd $sysdir
     ./bin/renameRom "$rompath" "$new_name"
+}
+
+# ---- Hide game ----
+# A hidden game goes, with its files, into <its folder>/.hidden/<rom name>/:
+# Open MainUI (as stock) does not list names starting with a dot, the names
+# stay the same (so do its saves and box art), and each game keeps its files
+# together, so bringing it back puts exactly them back.
+
+# The game's files: the rom and, for a .cue or a .gdi, the tracks it names
+# in the same folder (left beside the playlist, a .bin would be listed).
+glo_game_files() { # rom path
+    echo "$1"
+    _gf_dir=$(dirname "$1")
+    case "$(echo "${1##*.}" | tr 'A-Z' 'a-z')" in
+        cue) sed -n 's/^[[:space:]]*FILE[[:space:]]*"\([^"]*\)".*/\1/p' "$1" ;;
+        gdi) sed '1d' "$1" | awk '{ if (index($0, "\"")) { split($0, q, "\""); print q[2] } else if (NF >= 5) print $5 }' ;;
+    esac | tr -d '\r' | while IFS= read -r _gf_track; do
+        case "$_gf_track" in
+            "" | */* | "$(basename "$1")") ;;
+            *) [ -f "$_gf_dir/$_gf_track" ] && echo "$_gf_dir/$_gf_track" ;;
+        esac
+    done
+}
+
+count_hidden_games() { # .hidden folder
+    _ch_n=0
+    for _ch_d in "$1"/*/; do
+        [ -d "$_ch_d" ] && _ch_n=$((_ch_n + 1))
+    done
+    echo $_ch_n
+}
+
+# A hidden game leaves Recents (both lists): its entry would start a file
+# that is no longer there. Matched by its path as given and as resolved
+# (Recents may hold either form). Favorites keep it: it works again once the
+# game is back, at the same path.
+drop_from_recents() { # rom path
+    _dr_real="$(cd "$(dirname "$1")" 2> /dev/null && pwd -P)/$(basename "$1")"
+    for _dr_list in "$recentlist" "$recentlist_hidden"; do
+        [ -f "$_dr_list" ] || continue
+        awk -v a="$1" -v b="$_dr_real" '{
+            v = $0
+            if (match(v, /"rompath"[ \t]*:[ \t]*"[^"]*"/)) {
+                v = substr(v, RSTART, RLENGTH)
+                sub(/^"rompath"[ \t]*:[ \t]*"/, "", v)
+                sub(/"$/, "", v)
+                if (v == a || v == b) next
+            }
+            print
+        }' "$_dr_list" > "$recentlist_temp" && mv "$recentlist_temp" "$_dr_list"
+    done
+}
+
+# The rom list is rebuilt the next time it is opened.
+drop_rom_list_cache() {
+    [ -n "$romroot" ] || return 0
+    rm -f "$romroot/$(basename "$romroot")_cache6.db"
+}
+
+hide_game() {
+    log ":: hide_game $rompath"
+    _hg_name=$(basename "$rompath")
+    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "HIDE GAME" \
+        "Hide ${_hg_name%.*}" "Cancel"
+    [ $? -eq 0 ] || exit 1
+    _hg_dir="$(dirname "$rompath")/.hidden/${_hg_name%.*}"
+    if [ -e "$_hg_dir" ]; then
+        infoPanel --title "HIDE GAME" --message "A hidden game with this name\nis already there." --auto
+        return
+    fi
+    if ! mkdir -p "$_hg_dir"; then
+        infoPanel --title "HIDE GAME" --message "Could not create the hidden folder." --auto
+        return
+    fi
+    # The whole list first: the .cue is read for its tracks before it moves.
+    _hg_files=$(glo_game_files "$rompath")
+    echo "$_hg_files" | while IFS= read -r _hg_file; do
+        [ -n "$_hg_file" ] && mv -n -- "$_hg_file" "$_hg_dir/"
+    done
+    drop_from_recents "$rompath"
+    sync
+    log "hidden in $_hg_dir: $(ls "$_hg_dir" | tr '\n' '|')"
+    drop_rom_list_cache
+}
+
+show_hidden_games() {
+    log ":: show_hidden_games"
+    _sh_root="$(dirname "$rompath")/.hidden"
+    set --
+    for _sh_d in "$_sh_root"/*/; do
+        [ -d "$_sh_d" ] && set -- "$@" "$(basename "$_sh_d")"
+    done
+    [ $# -gt 0 ] || exit 1
+    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "HIDDEN GAMES" "$@"
+    _sh_i=$?
+    [ $_sh_i -lt $# ] || exit 1
+    shift $_sh_i
+    unhide_game "$_sh_root/$1"
+}
+
+unhide_game() { # .hidden/<rom name> folder
+    log ":: unhide_game $1"
+    _ug_dest=$(dirname "$(dirname "$1")")
+    for _ug_f in "$1"/* "$1"/.[!.]*; do
+        [ -e "$_ug_f" ] || continue
+        if [ -e "$_ug_dest/$(basename "$_ug_f")" ]; then
+            infoPanel --title "HIDDEN GAMES" --message "$(basename "$_ug_f")\nis already in the list folder." --auto
+            return
+        fi
+    done
+    for _ug_f in "$1"/* "$1"/.[!.]*; do
+        [ -e "$_ug_f" ] && mv -n -- "$_ug_f" "$_ug_dest/"
+    done
+    rmdir "$1" 2> /dev/null
+    rmdir "$(dirname "$1")" 2> /dev/null
+    sync
+    drop_rom_list_cache
 }
 
 clear_filter() {
