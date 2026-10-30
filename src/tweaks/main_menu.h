@@ -1517,35 +1517,44 @@ void menu_consoleView(void *_)
  * an order set by hand is kept. A section back to the default is removed,
  * and the file with the last one. Unknown ids are kept. */
 #define GAMEMENU_CONFIG_PATH MAINMENU_CONFIG_DIR "/game-menu.json"
-#define GAMEMENU_SECTION_COUNT 4
-#define GAMEMENU_ITEM_COUNT 16
+#define GAMEMENU_SECTION_COUNT 5
+#define GAMEMENU_ITEM_COUNT 22
+#define GAMEMENU_DETAILS 4
 
 typedef struct {
     int section;
     const char *id;
     const char *label;
+    bool fixed; // always in the menu (Game Info): kept, no toggle
 } GameMenuItem;
 
-static const char *const gamemenu_sections[GAMEMENU_SECTION_COUNT] = {"roms", "favorites", "recents", "search_results"};
-static const char *const gamemenu_section_labels[GAMEMENU_SECTION_COUNT] = {"Games", "Favorites", "Recents", "Search"};
+static const char *const gamemenu_sections[GAMEMENU_SECTION_COUNT] = {"roms", "favorites", "recents", "search_results", "details"};
+static const char *const gamemenu_section_labels[GAMEMENU_SECTION_COUNT] = {"Games", "Favorites", "Recents", "Search", "Game Info"};
 
 static const GameMenuItem gamemenu_items[GAMEMENU_ITEM_COUNT] = {
-    {0, "launch", "Launch"},
-    {0, "favorite", "Favorite"},
-    {0, "delete", "Delete"},
-    {0, "search", "Search"},
-    {0, "refresh", "Refresh"},
-    {1, "move", "Move"},
-    {1, "create_folder", "Create folder"},
-    {1, "sort", "Sort"},
-    {1, "remove_favorite", "Remove favorite"},
-    {1, "rename_folder", "Rename folder"},
-    {1, "delete_folder", "Delete folder"},
-    {2, "launch", "Launch"},
-    {2, "remove_recent", "Remove recent"},
-    {2, "clear_recents", "Clear recents"},
-    {3, "launch", "Launch"},
-    {3, "favorite", "Favorite"},
+    {0, "launch", "Launch", false},
+    {0, "favorite", "Favorite", false},
+    {0, "delete", "Delete", false},
+    {0, "search", "Search", false},
+    {0, "refresh", "Refresh", false},
+    {1, "move", "Move", false},
+    {1, "create_folder", "Create folder", false},
+    {1, "sort", "Sort", false},
+    {1, "remove_favorite", "Remove favorite", false},
+    {1, "rename_folder", "Rename folder", false},
+    {1, "delete_folder", "Delete folder", false},
+    {2, "launch", "Launch", false},
+    {2, "remove_recent", "Remove recent", false},
+    {2, "clear_recents", "Clear recents", false},
+    {3, "launch", "Launch", false},
+    {3, "favorite", "Favorite", false},
+    // rc12: the Game Info menu (SELECT in Game Info and the media viewers)
+    {GAMEMENU_DETAILS, "game_info", "Game Info", true},
+    {GAMEMENU_DETAILS, "gallery", "Gallery", false},
+    {GAMEMENU_DETAILS, "saved_games", "Saved Games", false},
+    {GAMEMENU_DETAILS, "maps", "Game Maps", false},
+    {GAMEMENU_DETAILS, "walkthrough", "Walkthrough", false},
+    {GAMEMENU_DETAILS, "manual", "Manual", false},
 };
 
 // Position of an action among its section's defaults, or -1.
@@ -1664,6 +1673,72 @@ static bool gamemenu_store(int item, bool shown)
     return ok;
 }
 
+/* Saved Games resume mode (rc12): game-menu.json "saved_games":
+ * {"resume_mode": "backup" | "overwrite" | "swap"}; backup is Open MainUI's
+ * default, so it removes the key (and the object once empty). */
+#define GAMEMENU_RESUME_COUNT 3
+static const char *const gamemenu_resume_modes[GAMEMENU_RESUME_COUNT] = {"backup", "overwrite", "swap"};
+
+static int gamemenu_resume_mode(void)
+{
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    int mode = 0;
+    if (valid && root != NULL) {
+        const cJSON *sg = cJSON_GetObjectItemCaseSensitive(root, "saved_games");
+        const cJSON *m = cJSON_IsObject(sg) ? cJSON_GetObjectItemCaseSensitive(sg, "resume_mode") : NULL;
+        for (int i = 1; cJSON_IsString(m) && i < GAMEMENU_RESUME_COUNT; i++)
+            if (strcmp(m->valuestring, gamemenu_resume_modes[i]) == 0)
+                mode = i;
+    }
+    cJSON_Delete(root);
+    return mode;
+}
+
+static bool gamemenu_store_resume_mode(int mode)
+{
+    if (mode < 0 || mode >= GAMEMENU_RESUME_COUNT)
+        return false;
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    if (!valid || root == NULL) {
+        cJSON_Delete(root);
+        return false;
+    }
+    cJSON *sg = cJSON_GetObjectItemCaseSensitive(root, "saved_games");
+    bool ok = sg == NULL || cJSON_IsObject(sg);
+    if (ok && mode == 0) {
+        if (sg != NULL) {
+            cJSON_DeleteItemFromObjectCaseSensitive(sg, "resume_mode");
+            if (sg->child == NULL)
+                cJSON_DeleteItemFromObjectCaseSensitive(root, "saved_games");
+        }
+    }
+    else if (ok) {
+        if (sg == NULL)
+            sg = cJSON_AddObjectToObject(root, "saved_games");
+        cJSON *value = cJSON_CreateString(gamemenu_resume_modes[mode]);
+        ok = sg != NULL && value != NULL &&
+             (cJSON_GetObjectItemCaseSensitive(sg, "resume_mode") != NULL
+                  ? cJSON_ReplaceItemInObjectCaseSensitive(sg, "resume_mode", value)
+                  : cJSON_AddItemToObject(sg, "resume_mode", value));
+    }
+    if (ok)
+        ok = root->child == NULL ? (remove(GAMEMENU_CONFIG_PATH) == 0 || errno == ENOENT)
+                                 : mainmenu_write_root_file(GAMEMENU_CONFIG_PATH, root);
+    cJSON_Delete(root);
+    return ok;
+}
+
+static void gamemenu_action_resume(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!gamemenu_store_resume_mode(item->value))
+        item->value = gamemenu_resume_mode();
+}
+
 static void gamemenu_action_item(void *pt)
 {
     ListItem *item = (ListItem *)pt;
@@ -1675,20 +1750,42 @@ void menu_gameMenus(void *_)
 {
     (void)_;
     if (!_menu_game_menus._created) {
-        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT, LIST_SMALL, "Game list menus");
+        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT + 1, LIST_SMALL, "Game list menus");
         for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
+            if (gamemenu_items[i].fixed)
+                continue;
             ListItem item = {.item_type = TOGGLE,
                              .value = gamemenu_shown(i),
                              .action_id = i,
                              .action = gamemenu_action_item};
             snprintf(item.label, sizeof(item.label), "%s: %s",
                      gamemenu_section_labels[gamemenu_items[i].section], gamemenu_items[i].label);
-            list_addItemWithInfoNote(&_menu_game_menus, item,
-                                     "Show this action in the game list's\n"
-                                     "menu. Actions that don't apply to a\n"
-                                     "game stay hidden anyway.\n"
-                                     "Needs Open MainUI 1.1.0.");
+            if (gamemenu_items[i].section == GAMEMENU_DETAILS)
+                list_addItemWithInfoNote(&_menu_game_menus, item,
+                                         "Show this in the Game Info menu (SELECT\n"
+                                         "in Game Info). Saved Games off also\n"
+                                         "turns off Left in the game list.\n"
+                                         "Needs Open MainUI 1.1.0.");
+            else
+                list_addItemWithInfoNote(&_menu_game_menus, item,
+                                         "Show this action in the game list's\n"
+                                         "menu. Actions that don't apply to a\n"
+                                         "game stay hidden anyway.\n"
+                                         "Needs Open MainUI 1.1.0.");
         }
+        list_addItemWithInfoNote(
+            &_menu_game_menus,
+            (ListItem){
+                .label = "Saved Games: older save",
+                .item_type = MULTIVALUE,
+                .value_max = GAMEMENU_RESUME_COUNT - 1,
+                .value_labels = {"Backup", "Overwrite", "Swap"},
+                .value = gamemenu_resume_mode(),
+                .action = gamemenu_action_resume},
+            "Playing an older save from Saved Games:\n"
+            "Backup keeps the last auto save as\n"
+            "Previous Session, Overwrite replaces it,\n"
+            "Swap trades it with that save's slot.");
     }
     menu_stack[++menu_level] = &_menu_game_menus;
     header_changed = true;
