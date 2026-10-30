@@ -432,25 +432,34 @@ if command -v jq > /dev/null; then
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
-    begin ota_4_4_1_betas_after_the_4_4_0_stable
-    # The betas after the 4.4.0 stable are 4.4.1-b1, -b2...: a higher version
+    begin ota_4_5_0_betas_after_the_4_4_0_stable
+    # The betas after the 4.4.0 stable are 4.5.0-b1, -b2...: a higher version
     # number, so the beta channel offers them over the stable, while the
-    # stable is not offered back to a device on a 4.4.1 beta.
-    check "4.4.1 is newer than 4.4.0" test "$(get_version 4.4.1)" -gt "$(get_version 4.4.0)"
+    # stable is not offered back to a device on a 4.5.0 beta.
+    check "4.5.0 is newer than 4.4.0" test "$(get_version 4.5.0)" -gt "$(get_version 4.4.0)"
     channel=beta
     installUI() { echo "4.4.0-20261025-e894906a"; }
-    printf '[%s,%s]' "$(ota_asset 4.4.0-20261025-e894906a false)" "$(ota_asset 4.4.1-b1-20261027-1a2b3c4d true)" > "$TMP/list.json"
+    printf '[%s,%s]' "$(ota_asset 4.4.0-20261025-e894906a false)" "$(ota_asset 4.5.0-b1-20261027-1a2b3c4d true)" > "$TMP/list.json"
     get_release_info > /dev/null
-    check "beta channel: 4.4.1-b1 offered over the 4.4.0 stable" test "$?" -eq 0 -a "$Release_FullVersion" = 4.4.1-b1-20261027-1a2b3c4d
+    check "beta channel: 4.5.0-b1 offered over the 4.4.0 stable" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.0-b1-20261027-1a2b3c4d
     channel=stable
-    installUI() { echo "4.4.1-b1-20261027-1a2b3c4d"; }
+    installUI() { echo "4.5.0-b1-20261027-1a2b3c4d"; }
     ota_asset 4.4.0-20261025-e894906a false > "$TMP/latest.json"
     get_release_info > /dev/null
-    check "stable channel on 4.4.1-b1: 4.4.0 not offered" test "$?" -eq 1
-    ota_asset 4.4.1-20261101-5e6f7a8b false > "$TMP/latest.json"
+    check "stable channel on 4.5.0-b1: 4.4.0 not offered" test "$?" -eq 1
+    ota_asset 4.5.0-20261101-5e6f7a8b false > "$TMP/latest.json"
     get_release_info > /dev/null
-    check "stable channel on 4.4.1-b1: the 4.4.1 stable offered" test "$?" -eq 0
-    check "4.4.1-b1: date parsed" test "$(build_date 4.4.1-b1-20261027-1a2b3c4d)" = 20261027
+    check "stable channel on 4.5.0-b1: the 4.5.0 stable offered" test "$?" -eq 0
+    check "4.5.0-b1: date parsed" test "$(build_date 4.5.0-b1-20261027-1a2b3c4d)" = 20261027
+    # b2 after b1: the same number, a newer build date.
+    channel=beta
+    printf '[%s]' "$(ota_asset 4.5.0-b2-20261108-9a8b7c6d true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel on 4.5.0-b1: 4.5.0-b2 offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.0-b2-20261108-9a8b7c6d
+    installUI() { echo "4.5.0-b2-20261108-9a8b7c6d"; }
+    printf '[%s]' "$(ota_asset 4.5.0-b1-20261027-1a2b3c4d true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel on 4.5.0-b2: b1 not offered back" test "$?" -eq 1
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
@@ -1623,6 +1632,49 @@ check "saved on every shutdown" grep -q "touch /tmp/shutting_down
 check "restored at boot" grep -q "restore_romwinidx
     restore_console_position" "$RUNTIME"
 unset -f restore_console_position save_console_position log
+end
+
+# ---- console_pictures.sh + migration 00026: KyleBing's console pictures ----
+
+begin console_pictures_copied_without_replacing
+CP="$ROOT/static/build/.tmp_update/script/console_pictures.sh"
+RES="$ROOT/static/build/.tmp_update/res/consoles"
+mkdir -p "$TMP/consoles"
+echo mine > "$TMP/consoles/gba.png"
+CONSOLE_PICTURES_SRC="$RES" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$CP"
+check "runs fine" test $? -eq 0
+check "a picture put there by hand stays" test "$(cat "$TMP/consoles/gba.png")" = mine
+check "_default.png copied" cmp -s "$RES/_default.png" "$TMP/consoles/_default.png"
+check "Emu PSX gets the PlayStation picture" cmp -s "$RES/ps.png" "$TMP/consoles/psx.png"
+check "Emu ATARI gets the 2600 picture" cmp -s "$RES/atari2600.png" "$TMP/consoles/atari.png"
+check "RApp snes9x2005 gets the SNES picture" cmp -s "$RES/sfc.png" "$TMP/consoles/snes9x2005.png"
+check "the licence goes with them" grep -q "CC BY 4.0" "$TMP/consoles/LICENSE-console-icons.txt"
+missing=
+while read -r name icon _; do
+    case "$name" in '' | '#'*) continue ;; esac
+    [ -f "$RES/$icon.png" ] || missing="$missing $icon"
+done < "$RES/map.txt"
+check "every icon map.txt names is shipped ($missing)" test -z "$missing"
+unmapped=
+for d in "$ROOT"/static/packages/Emu/*/Emu/* "$ROOT"/static/packages/RApp/*/RApp/*; do
+    n=$(basename "$d" | tr 'A-Z' 'a-z')
+    grep -q "^$n " "$RES/map.txt" || unmapped="$unmapped $n"
+done
+unmapped=$(echo $unmapped | tr ' ' '\n' | sort | tr '\n' ' ')
+check "folders without their own picture use _default.png ($unmapped)" test "$unmapped" = "bk gme jaguar opera puzzlescript uw8 vemulator "
+rm "$TMP/consoles/fc.png"
+CONSOLE_PICTURES_SRC="$RES" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$CP"
+check "a missing one comes back on the next update" test -f "$TMP/consoles/fc.png"
+check "the installer runs it before the migrations" grep -q 'sh $sysdir/script/console_pictures.sh' "$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
+MIG="$ROOT/static/build/.tmp_update/script/migration/00026_console_pictures_default.sh"
+CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$MIG"
+check "no console-view.json: the pictures are turned on" grep -q "\"thumbs\":	\"$TMP/consoles\"" "$TMP/console-view.json"
+echo '{"games": "carousel"}' > "$TMP/console-view.json"
+CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$MIG"
+check "an existing console-view.json is left alone" test "$(cat "$TMP/console-view.json")" = '{"games": "carousel"}'
+rm -f "$TMP/console-view.json"
+CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/none" sh "$MIG"
+check "no pictures: nothing written" test ! -e "$TMP/console-view.json"
 end
 
 # ---- migration 00022: RetroArch menu Border Filler OFF ----

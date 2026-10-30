@@ -9,7 +9,7 @@ TARGET=RedOnion
 # About in Open MainUI shows only the first characters of the version; the
 # script tests check the base leaves room for the whole date there. Computed
 # once and passed to sub-makes, so a build running past midnight keeps one date.
-VERSION_BASE=4.4.1-b1
+VERSION_BASE=4.5.0-b1
 VERSION_DATE ?= $(shell date -u +%Y%m%d)
 export VERSION_DATE
 VERSION=$(VERSION_BASE)-$(VERSION_DATE)

@@ -53,6 +53,8 @@ Thanks to the Discord team: [@robcodedev](https://github.com/robcodedev) for Ope
 
 Thanks to [@dredvm](https://github.com/dredvm) for the RedOnion logo, the Silky RedOnion theme and the name of the project.
 
+Console pictures for the carousel and the list: [Retro game console icons](https://github.com/KyleBing/retro-game-console-icons) by [KyleBing](https://github.com/KyleBing), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (recompressed losslessly and renamed after RedOnion's emulator folders).
+
 Thanks to the [Onion team](https://github.com/OnionUI/Onion): without their work this project would never have been born. The menus, emulators, themes and almost all of the code are theirs.
 
 And thanks to the whole community: everyone who supports this project, reports bugs, opens pull requests and tests RedOnion in depth.
