@@ -35,8 +35,8 @@ Roms/GB/
     │   └── Pokemon Red (USA).mp4    video
     ├── maps/
     │   ├── Pokemon Red (USA).png    a map
-    │   ├── Pokemon Red (USA)-2.png  more maps, up to 32
-    │   └── Pokemon Red (USA)-10.bmp
+    │   ├── Pokemon Red (USA)-1.png  more maps, up to 32
+    │   └── Pokemon Red (USA)-2.png
     └── manuals/
         ├── Pokemon Red (USA).txt    walkthrough
         └── Pokemon Red (USA).pdf    manual
@@ -56,7 +56,7 @@ Roms/GB/
 | `box2dfront`, `box2dback`, `box3d` | PNG | Covers and 3D box. |
 | `screenshot` | PNG | `Name.png`, then `Name-1.png`, `Name-2.png`…, up to 20. |
 | `videos` | MP4 (also MKV, AVI, MOV, WebM, M4V) | One video per game; MP4 is the one tested. |
-| `maps` | PNG or BMP (not JPG yet) | `Name.png`, then `Name-2.png`… in number order, up to 32. Titles can come from the game's `gamelist.xml`, else "Game Map 1", "Game Map 2"… |
+| `maps` | PNG only | `Name.png`, then `Name-1.png`, `Name-2.png`… in number order, up to 32, at most 2000 pixels wide or tall. Titles can come from the game's `gamelist.xml`, else "Game Map 1", "Game Map 2"… |
 | `manuals` | TXT (walkthrough), PDF (manual) | TXT up to 2 MB. PDF opens in the PDF Reader (Green). |
 
 ## Getting the media with Skraper
@@ -129,14 +129,21 @@ Small videos also take less space on the card and less battery.
 - **Gallery:** select a game, open **Game Info**, press **Right**. The D-pad
   moves through the media, **B** goes back. In a video, **A** pauses and
   **L1** / **R1** jump about 5 seconds.
-- **Media menu:** in the gallery press **SELECT** to switch between Game Info,
-  Gallery, Game Maps, Walkthrough (TXT) and Manual (PDF). A game with maps or
-  manuals but no gallery pictures opens the menu straight from **Right** in
-  Game Info.
-- **Maps:** **L1** / **R1** change map, **A** switches between the whole map
-  and its real size, the D-pad moves around it when zoomed.
+- **Media menu:** press **SELECT** in Game Info, the gallery, Saved Games, a
+  map or the walkthrough to switch between Game Info, Gallery, Saved Games,
+  Game Maps, Walkthrough (TXT) and Manual (PDF). Only what the game has is
+  listed. Tweaks › Main menu › Game list menus chooses which ones show.
+- **Saved Games:** your save states for the game, with their pictures (the
+  ten highest slots). Open it from the media menu, or press **Left** on a
+  game in the list. Left / Right choose a save, **A** plays it, **B** goes
+  back. Playing an older save keeps your last auto save as **Previous
+  Session**, so you can go back to it (Tweaks › Main menu › Game list menus ›
+  Saved Games: older save).
+- **Maps:** **L1** / **R1** change map, **R2** shows it at real size, **L2**
+  fits it to the screen, **A** switches between the two, the D-pad moves
+  around it when zoomed.
 - **Walkthrough:** Up / Down scroll a line, **L1** / **R1** 15 lines, **L2** /
-  **R2** 75 lines.
+  **R2** 75 lines. **A** searches the text, **START** finds the next match.
 - **Manual:** opens in the PDF Reader; leave it to come back.
 - **Video preview in the game list:** Tweaks › Appearance › Game lists ›
   **Video preview** plays the selected game's video, silently, after the wait
