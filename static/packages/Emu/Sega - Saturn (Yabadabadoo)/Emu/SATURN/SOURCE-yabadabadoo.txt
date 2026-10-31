@@ -1,0 +1,14 @@
+Yabadabadoo 0.4 - Sega Saturn core for the Miyoo Mini family
+by WillHasStyles, a fork of the libretro port of Yabause.
+GNU General Public License version 2 or later: see LICENSE-yabadabadoo.txt.
+Third-party code notices: THIRD-PARTY-NOTICES.txt.
+
+Source code of this build:
+  https://github.com/ProRapSuperstarOriginalMaster/Yabadabadoo
+  tag v0.4, commit f4572c9c1f67c243134e019836d621b6957fd5bb
+
+Built for RedOnion with the Miyoo Mini toolchain (GCC 8.3-2019.03,
+arm-linux-gnueabihf) as the upstream README describes:
+  cd yabause/src/libretro
+  make platform=miyoomini
+then stripped (arm-linux-gnueabihf-strip).
