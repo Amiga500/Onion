@@ -1,9 +1,10 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.0 rc12** (video previews in game lists, media
+GitHub: **Open MainUI 1.1.0 rc14** (video previews in game lists, media
 gallery in Game Info, Games/Expert as grid, carousel or list, Game Info
-auto scroll; rc12 adds the Game Info menu with Saved Games, maps,
+auto scroll; rc14 makes Saved Games' Left shortcut and Auto Save optional
+and refines grid Up/Down; rc12 added the Game Info menu with Saved Games, maps,
 walkthroughs and PDF manuals, and Left in game lists for Saved Games;
 rc10 added VSync for the carousel; rc9 easing, repeat_ms and X/Y
 "disable"; a release candidate).
