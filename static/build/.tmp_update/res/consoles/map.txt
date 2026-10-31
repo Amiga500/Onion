@@ -38,6 +38,7 @@ ports ports
 psx ps
 ps ps
 satellaview satellaview
+saturn saturn
 scummvm scummvm
 segacd segacd
 segasgone sg1000
