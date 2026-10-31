@@ -1477,8 +1477,10 @@ void menu_consoleView(void *_)
                 .action_id = CONSOLEVIEW_GRID_NAV,
                 .action = consoleview_action_option},
             "Linear: Left/Right go through the consoles\n"
-            "in order. Stock: like the original MainUI,\n"
-            "a page at a time at the row's end.");
+            "in order; Up/Down stop at the top and\n"
+            "bottom row. Stock: like the original\n"
+            "MainUI, a page at a time at the row's\n"
+            "end, Up/Down go round within the page.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1739,6 +1741,108 @@ static void gamemenu_action_resume(void *pt)
         item->value = gamemenu_resume_mode();
 }
 
+/* Viewer switches (rc14): booleans in game-menu.json sections "saved_games"
+ * and "gallery". A value equal to Open MainUI's default removes the key (and
+ * its object once empty), like the resume mode. */
+#define GAMEMENU_SWITCH_COUNT 5
+typedef struct {
+    const char *section;
+    const char *key;
+    bool fallback; // Open MainUI's default
+    const char *label;
+    const char *note;
+} GameMenuSwitch;
+
+static const GameMenuSwitch gamemenu_switches[GAMEMENU_SWITCH_COUNT] = {
+    {"saved_games", "left_shortcut", false, "Saved Games: Left shortcut",
+     "Left on a game in the list opens its\n"
+     "Saved Games. Off: Saved Games only from\n"
+     "the Game Info menu (SELECT).\n"
+     "Needs Open MainUI 1.1.0 rc14."},
+    {"saved_games", "show_auto", false, "Saved Games: show Auto Save",
+     "List the auto save in Saved Games too.\n"
+     "Off only hides it: auto save still\n"
+     "works.\n"
+     "Needs Open MainUI 1.1.0 rc14."},
+    {"saved_games", "upscale_preview", true, "Saved Games: enlarge pictures",
+     "Small save pictures are enlarged to fill\n"
+     "the screen. Off: shown at their size.\n"
+     "Needs Open MainUI 1.1.0 rc14."},
+    {"saved_games", "correct_aspect_ratio", false, "Saved Games: console ratio",
+     "Show save pictures with the console's\n"
+     "screen shape (4:3, GB 10:9, GBA 3:2).\n"
+     "Off: as the picture is.\n"
+     "Needs Open MainUI 1.1.0 rc14."},
+    {"gallery", "right_shortcut", true, "Gallery: Right shortcut",
+     "Right in Game Info opens the gallery.\n"
+     "Off: the gallery only from the Game\n"
+     "Info menu (SELECT).\n"
+     "Needs Open MainUI 1.1.0 rc14."},
+};
+
+static bool gamemenu_switch(int index)
+{
+    if (index < 0 || index >= GAMEMENU_SWITCH_COUNT)
+        return false;
+    const GameMenuSwitch *sw = &gamemenu_switches[index];
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    bool value = sw->fallback;
+    if (valid && root != NULL) {
+        const cJSON *section = cJSON_GetObjectItemCaseSensitive(root, sw->section);
+        const cJSON *v = cJSON_IsObject(section) ? cJSON_GetObjectItemCaseSensitive(section, sw->key) : NULL;
+        if (cJSON_IsBool(v))
+            value = cJSON_IsTrue(v);
+    }
+    cJSON_Delete(root);
+    return value;
+}
+
+static bool gamemenu_store_switch(int index, bool value)
+{
+    if (index < 0 || index >= GAMEMENU_SWITCH_COUNT)
+        return false;
+    const GameMenuSwitch *sw = &gamemenu_switches[index];
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    if (!valid || root == NULL) {
+        cJSON_Delete(root);
+        return false;
+    }
+    cJSON *section = cJSON_GetObjectItemCaseSensitive(root, sw->section);
+    bool ok = section == NULL || cJSON_IsObject(section);
+    if (ok && value == sw->fallback) {
+        if (section != NULL) {
+            cJSON_DeleteItemFromObjectCaseSensitive(section, sw->key);
+            if (section->child == NULL)
+                cJSON_DeleteItemFromObjectCaseSensitive(root, sw->section);
+        }
+    }
+    else if (ok) {
+        if (section == NULL)
+            section = cJSON_AddObjectToObject(root, sw->section);
+        cJSON *item = cJSON_CreateBool(value);
+        ok = section != NULL && item != NULL &&
+             (cJSON_GetObjectItemCaseSensitive(section, sw->key) != NULL
+                  ? cJSON_ReplaceItemInObjectCaseSensitive(section, sw->key, item)
+                  : cJSON_AddItemToObject(section, sw->key, item));
+    }
+    if (ok)
+        ok = root->child == NULL ? (remove(GAMEMENU_CONFIG_PATH) == 0 || errno == ENOENT)
+                                 : mainmenu_write_root_file(GAMEMENU_CONFIG_PATH, root);
+    cJSON_Delete(root);
+    return ok;
+}
+
+static void gamemenu_action_switch(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!gamemenu_store_switch(item->action_id, item->value != 0))
+        item->value = gamemenu_switch(item->action_id);
+}
+
 static void gamemenu_action_item(void *pt)
 {
     ListItem *item = (ListItem *)pt;
@@ -1750,7 +1854,7 @@ void menu_gameMenus(void *_)
 {
     (void)_;
     if (!_menu_game_menus._created) {
-        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT + 1, LIST_SMALL, "Game list menus");
+        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT + 1 + GAMEMENU_SWITCH_COUNT, LIST_SMALL, "Game list menus");
         for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
             if (gamemenu_items[i].fixed)
                 continue;
@@ -1764,7 +1868,7 @@ void menu_gameMenus(void *_)
                 list_addItemWithInfoNote(&_menu_game_menus, item,
                                          "Show this in the Game Info menu (SELECT\n"
                                          "in Game Info). Saved Games off also\n"
-                                         "turns off Left in the game list.\n"
+                                         "turns off its Left shortcut.\n"
                                          "Needs Open MainUI 1.1.0.");
             else
                 list_addItemWithInfoNote(&_menu_game_menus, item,
@@ -1786,6 +1890,14 @@ void menu_gameMenus(void *_)
             "Backup keeps the last auto save as\n"
             "Previous Session, Overwrite replaces it,\n"
             "Swap trades it with that save's slot.");
+        for (int i = 0; i < GAMEMENU_SWITCH_COUNT; i++) {
+            ListItem item = {.item_type = TOGGLE,
+                             .value = gamemenu_switch(i),
+                             .action_id = i,
+                             .action = gamemenu_action_switch};
+            snprintf(item.label, sizeof(item.label), "%s", gamemenu_switches[i].label);
+            list_addItemWithInfoNote(&_menu_game_menus, item, gamemenu_switches[i].note);
+        }
     }
     menu_stack[++menu_level] = &_menu_game_menus;
     header_changed = true;
