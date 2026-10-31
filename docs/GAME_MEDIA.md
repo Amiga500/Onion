@@ -128,21 +128,25 @@ Small videos also take less space on the card and less battery.
 ## On the device
 
 - **Game Info:** **L2** / **R2** scroll the description a page at a time.
-- **Gallery:** select a game, open **Game Info**, press **Right**. The D-pad
-  moves through the media, **B** goes back. In a video, **A** pauses and
+- **Gallery:** select a game, open **Game Info**, press **Right** (or choose
+  Gallery in the media menu). The D-pad moves through the media, **B** goes
+  back. In a video, **A** pauses and
   **L1** / **R1** jump about 5 seconds.
 - **Media menu:** press **SELECT** in Game Info, the gallery, Saved Games, a
   map or the walkthrough to switch between Game Info, Gallery, Saved Games,
   Game Maps, Walkthrough (TXT) and Manual (PDF). Only what the game has is
   listed. Tweaks › Main menu › Game list menus chooses which ones show.
-- **Saved Games:** the save states of a RetroArch game, with their pictures:
-  the **Auto Save** first, then the ten highest slots (a game with only an
-  auto save shows just that one). Open it from the
-  media menu, or press **Left** on a game in the list (if its name is
-  scrolling, the first Left stops it, the next one opens Saved Games). Left / Right choose a save, **A** plays it, **B** goes
-  back. Playing an older save keeps your last auto save as **Previous
-  Session**, so you can go back to it (Tweaks › Main menu › Game list menus ›
-  Saved Games: older save).
+- **Saved Games:** the save states of a RetroArch game, with their pictures
+  (the ten highest slots). Open it from the media menu. Left / Right choose a
+  save, **A** plays it, **B** goes back. Playing an older save keeps your
+  last auto save as **Previous Session**, so you can go back to it. In
+  Tweaks › Main menu › Game list menus you can also:
+  - turn on **Left shortcut**: Left on a game in the list opens its Saved
+    Games (if its name is scrolling, the first Left stops it);
+  - turn on **show Auto Save** to list the auto save too;
+  - choose **enlarge pictures** and **console ratio** for the save pictures;
+  - choose what **older save** does to your auto save (Backup, Overwrite or
+    Swap).
 - **Maps:** **L1** / **R1** change map, **R2** shows it at real size, **L2**
   fits it to the screen, **A** switches between the two, the D-pad moves
   around it when zoomed.
