@@ -1012,6 +1012,40 @@ TEST(game_menus_resume_mode)
     ASSERT_EQ(gamemenu_resume_mode(), 0);
 }
 
+TEST(game_menus_switches)
+{
+    reset_dir();
+    /* Open MainUI's rc14 defaults with no file. */
+    ASSERT_FALSE(gamemenu_switch(0)); /* left_shortcut */
+    ASSERT_FALSE(gamemenu_switch(1)); /* show_auto */
+    ASSERT_TRUE(gamemenu_switch(2));  /* upscale_preview */
+    ASSERT_FALSE(gamemenu_switch(3)); /* correct_aspect_ratio */
+    ASSERT_TRUE(gamemenu_switch(4));  /* gallery right_shortcut */
+    ASSERT_TRUE(gamemenu_store_switch(0, true));
+    ASSERT_TRUE(gamemenu_store_switch(4, false));
+    ASSERT_TRUE(gamemenu_store_resume_mode(2));
+    char text[512];
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"left_shortcut\":\ttrue") != NULL);
+    ASSERT_TRUE(strstr(text, "\"right_shortcut\":\tfalse") != NULL);
+    ASSERT_TRUE(gamemenu_switch(0));
+    ASSERT_FALSE(gamemenu_switch(4));
+    /* Defaults remove their key only; the resume mode stays. */
+    ASSERT_TRUE(gamemenu_store_switch(0, false));
+    ASSERT_TRUE(gamemenu_store_switch(4, true));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "left_shortcut") == NULL);
+    ASSERT_TRUE(strstr(text, "gallery") == NULL);
+    ASSERT_TRUE(strstr(text, "\"resume_mode\":\t\"swap\"") != NULL);
+    ASSERT_TRUE(gamemenu_store_resume_mode(0));
+    ASSERT_TRUE(access(GM_PATH, F_OK) != 0);
+    /* Comments (rc14 accepts them) are read; a wrong type is the default. */
+    gamelists_write_text(GM_PATH, "{\n// mine\n\"saved_games\": {\"show_auto\": true, \"upscale_preview\": \"no\"},\n}");
+    ASSERT_TRUE(gamemenu_switch(1));
+    ASSERT_TRUE(gamemenu_switch(2));
+    ASSERT_FALSE(gamemenu_store_switch(9, true));
+}
+
 TEST(game_menus_damaged_file_left_alone)
 {
     reset_dir();
@@ -1117,6 +1151,7 @@ int main(void)
     RUN_TEST(game_menus_keep_a_hand_made_order);
     RUN_TEST(game_menus_game_info_menu);
     RUN_TEST(game_menus_resume_mode);
+    RUN_TEST(game_menus_switches);
     RUN_TEST(game_menus_damaged_file_left_alone);
     RUN_TEST(console_view_wrap_sets_carousel_and_grid);
     RUN_TEST(console_view_defaults_remove_only_their_key);
