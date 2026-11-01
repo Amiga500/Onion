@@ -115,6 +115,8 @@ static uint32_t _value_scroll_start = 0;
 
 void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s params)
 {
+    // Coming back to a row starts its scroll over, not from where it was.
+    const bool was_scrolling = theme_listValueScrolling;
     theme_listValueScrolling = false;
 
     if (params.background)
@@ -264,7 +266,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             // instead of being cut; the others show their start.
             if (i == list->active_pos && value_label->w > scaled_226) {
                 uint32_t now = SDL_GetTicks();
-                if (_value_scroll_item != item || _value_scroll_hash != value_hash) {
+                if (!was_scrolling || _value_scroll_item != item ||
+                    _value_scroll_hash != value_hash) {
                     _value_scroll_item = item;
                     _value_scroll_hash = value_hash;
                     _value_scroll_start = now;
