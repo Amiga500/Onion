@@ -112,6 +112,10 @@ SDL_Surface *_loadImage(ThemeImages request)
         return theme_loadImage(t->path, "icon-A-54");
     case BUTTON_B:
         return theme_loadImage(t->path, "icon-B-54");
+    case BUTTON_X:
+        // Not a stock skin image: skin/extra/icon-X-54.png in the theme,
+        // else .tmp_update/res/icon-X-54.png.
+        return theme_loadImage(t->path, "extra/icon-X-54");
     case LEFT_ARROW:
         return theme_loadImage(t->path, "icon-left-arrow-24");
     case RIGHT_ARROW:

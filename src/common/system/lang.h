@@ -36,6 +36,7 @@
 #define LANG_FALLBACK_ADVANCED "Advanced"
 #define LANG_FALLBACK_REMOVE_FAVORITE "Remove favorite"
 #define LANG_FALLBACK_ADD_FAVORITE "Add favorite"
+#define LANG_FALLBACK_DELETE_UC "DELETE"
 
 static char **lang_list = NULL;
 
@@ -64,7 +65,9 @@ typedef enum {
     LANG_NEXT = 300,
     LANG_RESUME_UC = 301,
     LANG_REMOVE_FAVORITE = 302,
-    LANG_ADD_FAVORITE = 303
+    LANG_ADD_FAVORITE = 303,
+    // Onion addition: footer hint (stock 128 "Delete" is not upper case)
+    LANG_DELETE_UC = 304
 } lang_hash;
 
 void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)

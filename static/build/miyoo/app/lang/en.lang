@@ -160,6 +160,7 @@
 	"301": "RESUME",
 	"302": "Remove favorite",
 	"303": "Add favorite",
+	"304": "DELETE",
 	"400": "Create folder",
 	"401": "Move selected",
 	"402": "Move here",

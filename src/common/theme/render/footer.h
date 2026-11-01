@@ -36,6 +36,8 @@ static SDL_Surface *_cached_label_a = NULL;
 static SDL_Surface *_cached_label_b = NULL;
 static char _cached_label_a_str[STR_MAX] = "";
 static char _cached_label_b_str[STR_MAX] = "";
+static SDL_Surface *_cached_label_x = NULL;
+static char _cached_label_x_str[STR_MAX] = "";
 
 void theme_renderStandardHint_cleanup(void)
 {
@@ -47,8 +49,13 @@ void theme_renderStandardHint_cleanup(void)
         SDL_FreeSurface(_cached_label_b);
         _cached_label_b = NULL;
     }
+    if (_cached_label_x) {
+        SDL_FreeSurface(_cached_label_x);
+        _cached_label_x = NULL;
+    }
     _cached_label_a_str[0] = '\0';
     _cached_label_b_str[0] = '\0';
+    _cached_label_x_str[0] = '\0';
 }
 
 static SDL_Surface *_footer_hintLabel(SDL_Surface **cache, char *cache_str,
@@ -85,42 +92,65 @@ static void _footer_drawHint(SDL_Surface *screen, SDL_Surface *button,
     }
 }
 
-void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
-                              const char *btn_b_str)
+// A, B and an optional X hint (btn_x_str NULL: none). In the alternative
+// layout they go right to left from A, otherwise left to right.
+void theme_renderStandardHintX(SDL_Surface *screen, const char *btn_a_str,
+                               const char *btn_b_str, const char *btn_x_str)
 {
-    char label_a_str[STR_MAX] = " ", label_b_str[STR_MAX] = " ";
+    char label_a_str[STR_MAX] = " ", label_b_str[STR_MAX] = " ", label_x_str[STR_MAX] = " ";
 
     if (!theme()->hideLabels.hints) {
         if (btn_a_str != NULL)
             strncpy(label_a_str, btn_a_str, STR_MAX - 1);
         if (btn_b_str != NULL)
             strncpy(label_b_str, btn_b_str, STR_MAX - 1);
+        if (btn_x_str != NULL)
+            strncpy(label_x_str, btn_x_str, STR_MAX - 1);
     }
 
     bool show_b = btn_b_str != NULL && label_b_str[0] != '\0';
+    SDL_Surface *button_x = btn_x_str != NULL ? resource_getSurface(BUTTON_X) : NULL;
+    bool show_x = button_x != NULL && label_x_str[0] != '\0';
 
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
     SDL_Surface *label_a = _footer_hintLabel(&_cached_label_a, _cached_label_a_str, label_a_str);
     SDL_Surface *button_b = show_b ? resource_getSurface(BUTTON_B) : NULL;
     SDL_Surface *label_b = show_b ? _footer_hintLabel(&_cached_label_b, _cached_label_b_str, label_b_str) : NULL;
+    SDL_Surface *label_x = show_x ? _footer_hintLabel(&_cached_label_x, _cached_label_x_str, label_x_str) : NULL;
 
-    int gap = 30.0 * g_scale; // between the A and B hints
+    int gap = 30.0 * g_scale; // between two hints
     int width_a = _footer_hintWidth(button_a, label_a);
+    int width_b = show_b ? _footer_hintWidth(button_b, label_b) : 0;
 
     if (theme_footerAltLayout()) {
         int x_a = 620.0 * g_scale - width_a;
         _footer_drawHint(screen, button_a, label_a, x_a);
-        if (show_b)
-            _footer_drawHint(screen, button_b, label_b,
-                             x_a - gap - _footer_hintWidth(button_b, label_b));
+        int x_next = x_a;
+        if (show_b) {
+            x_next -= gap + width_b;
+            _footer_drawHint(screen, button_b, label_b, x_next);
+        }
+        if (show_x)
+            _footer_drawHint(screen, button_x, label_x,
+                             x_next - gap - _footer_hintWidth(button_x, label_x));
         return;
     }
 
     int x_a = 20.0 * g_scale;
     _footer_drawHint(screen, button_a, label_a, x_a);
-    if (show_b)
-        _footer_drawHint(screen, button_b, label_b,
-                         x_a + width_a + (label_a ? gap : 0));
+    int x_next = x_a + width_a + (label_a ? gap : 0);
+    if (show_b) {
+        _footer_drawHint(screen, button_b, label_b, x_next);
+        x_next += width_b + gap;
+    }
+    if (show_x)
+        _footer_drawHint(screen, button_x, label_x, x_next);
+}
+
+void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,
+                              const char *btn_b_str)
+{
+    theme_renderStandardHintX(screen, btn_a_str, btn_b_str, NULL);
 }
 
 void theme_renderFooter(SDL_Surface *screen)
