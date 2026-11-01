@@ -1425,7 +1425,8 @@ void menu_consoleView(void *_)
                 .action = consoleview_action_option},
             "How long a slide takes: shorter is\n"
             "snappier. Default: as Open MainUI sets\n"
-            "it (240 ms). Only with Slide.");
+            "it (180 ms; 240 ms before rc15). Only\n"
+            "with Slide.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1768,7 +1769,7 @@ static const GameMenuSwitch gamemenu_switches[GAMEMENU_SWITCH_COUNT] = {
      "Small save pictures are enlarged to fill\n"
      "the screen. Off: shown at their size.\n"
      "Needs Open MainUI 1.1.0 rc14."},
-    {"saved_games", "correct_aspect_ratio", false, "Saved Games: console ratio",
+    {"saved_games", "correct_aspect_ratio", true, "Saved Games: console ratio",
      "Show save pictures with the console's\n"
      "screen shape (4:3, GB 10:9, GBA 3:2).\n"
      "Off: as the picture is.\n"
