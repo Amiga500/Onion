@@ -1466,7 +1466,9 @@ void menu_consoleView(void *_)
                 .action = consoleview_action_option},
             "From the last console go on to the\n"
             "first, in the carousel and the grid.\n"
-            "Off: stops at the first and last console.");
+            "Off: stops at the first and last console,\n"
+            "and (rc16) Up/Down stop at the grid's\n"
+            "top and bottom rows.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1481,7 +1483,8 @@ void menu_consoleView(void *_)
             "in order; Up/Down stop at the top and\n"
             "bottom row. Stock: like the original\n"
             "MainUI, a page at a time at the row's\n"
-            "end, Up/Down go round within the page.");
+            "end, Up/Down go round within the page\n"
+            "(not with Wrap around Off).");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
