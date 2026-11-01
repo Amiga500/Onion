@@ -1965,6 +1965,32 @@ TEST(count_visible_single_disabled) {
 
 /* ---- main ---- */
 
+/* A value too wide for its place scrolls: 1.5 s at the start, 40 px/s to
+ * the end, 1.5 s there, back, and again. */
+TEST(value_scroll_offset)
+{
+    ASSERT_EQ(list_valueScrollOffset(5000, 0), 0);
+    ASSERT_EQ(list_valueScrollOffset(5000, -3), 0);
+    /* 80 px too wide: 2 s each way. */
+    ASSERT_EQ(list_valueScrollOffset(0, 80), 0);
+    ASSERT_EQ(list_valueScrollOffset(1499, 80), 0);
+    ASSERT_EQ(list_valueScrollOffset(1500, 80), 0);
+    ASSERT_EQ(list_valueScrollOffset(2500, 80), 40);
+    ASSERT_EQ(list_valueScrollOffset(3499, 80), 79);
+    ASSERT_EQ(list_valueScrollOffset(3500, 80), 80);
+    ASSERT_EQ(list_valueScrollOffset(4999, 80), 80);
+    ASSERT_EQ(list_valueScrollOffset(6000, 80), 40);
+    ASSERT_EQ(list_valueScrollOffset(7000, 80), 0);
+    /* and round again */
+    ASSERT_EQ(list_valueScrollOffset(7000 + 2500, 80), 40);
+    /* never outside 0..overflow, for any time */
+    for (uint32_t t = 0; t < 20000; t += 7) {
+        int o = list_valueScrollOffset(t, 33);
+        ASSERT_TRUE(o >= 0 && o <= 33);
+    }
+    ASSERT_TRUE(list_valueScrollOffset(0xFFFFFFF0u, 33) <= 33);
+}
+
 int main(void)
 {
     printf("\n=== list.h Unit Tests ===\n\n");
@@ -2175,6 +2201,7 @@ int main(void)
     RUN_TEST(count_visible_empty_list);
     RUN_TEST(count_visible_single_enabled);
     RUN_TEST(count_visible_single_disabled);
+    RUN_TEST(value_scroll_offset);
 
     TEST_REPORT();
     return test_failures;

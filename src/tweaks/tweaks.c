@@ -105,6 +105,7 @@ int main(int argc, char *argv[])
     SDLKey changed_key = SDLK_UNKNOWN;
 
     bool show_help_tooltip = !config_flag_get(".tweaksHelpCompleted");
+    uint32_t last_value_scroll = 0;
 
     while (!quit) {
         uint32_t ticks = SDL_GetTicks();
@@ -209,6 +210,12 @@ int main(int argc, char *argv[])
         blf_changing = exists("/tmp/blue_light_script.lock");
 
         if (acc_ticks >= time_step) {
+            // A long value on the selected row scrolls: about 30 redraws a
+            // second while it does, none otherwise.
+            if (theme_listValueScrolling && ticks - last_value_scroll >= 33) {
+                list_changed = true;
+                last_value_scroll = ticks;
+            }
             if (isMenu(&_menu_date_time) || isMenu(&_menu_user_blue_light)) {
                 if (isMenu(&_menu_date_time)) {
                     if (_writeDateString(_menu_date_time.items[0].label)) {

@@ -480,6 +480,30 @@ bool list_item_wantsPreviewLoad(const ListItem *item)
            item->preview_path[0] != '\0' && !item->_preview_missing;
 }
 
+// Scroll of a MULTIVALUE value too wide for its place (Tweaks: long app
+// names such as "RedOnion OTA update"): how many pixels of its start are
+// hidden, elapsed_ms after it was first shown. It rests at the start, slides
+// to the end, rests, slides back, and so on (LIST_VALUE_SCROLL_*). 0 when
+// it fits.
+#define LIST_VALUE_SCROLL_PAUSE_MS 1500
+#define LIST_VALUE_SCROLL_SPEED 40 // px/s
+
+int list_valueScrollOffset(uint32_t elapsed_ms, int overflow)
+{
+    if (overflow <= 0)
+        return 0;
+    const uint32_t pause = LIST_VALUE_SCROLL_PAUSE_MS;
+    const uint32_t travel = (uint32_t)overflow * 1000u / LIST_VALUE_SCROLL_SPEED;
+    const uint32_t t = elapsed_ms % (2u * (pause + travel));
+    if (t < pause)
+        return 0;
+    if (t < pause + travel)
+        return (int)((uint64_t)(t - pause) * (uint32_t)overflow / travel);
+    if (t < 2u * pause + travel)
+        return overflow;
+    return overflow - (int)((uint64_t)(t - 2u * pause - travel) * (uint32_t)overflow / travel);
+}
+
 // FNV-1a over a rendered label: cache key for the MULTIVALUE value surface.
 // Keyed on the text itself, not on item->value, because a formatter can
 // render a different string for the same value.

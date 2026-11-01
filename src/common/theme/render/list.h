@@ -106,8 +106,17 @@ typedef struct {
     bool preview_smoothing;
 } ListRenderParams_s;
 
+// True after a render that drew a scrolling value (see
+// list_valueScrollOffset): the program redraws the list to move it.
+static bool theme_listValueScrolling = false;
+static const ListItem *_value_scroll_item = NULL;
+static uint32_t _value_scroll_hash = 0;
+static uint32_t _value_scroll_start = 0;
+
 void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s params)
 {
+    theme_listValueScrolling = false;
+
     if (params.background)
         SDL_BlitSurface(params.background, &params.dim, screen, &params.pos);
 
@@ -251,6 +260,19 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 continue;
             SDL_Rect value_size = {0, 0, scaled_226, value_label->h};
             int label_width = value_label->w > value_size.w ? value_size.w : value_label->w;
+            // The selected row's value, when too wide, scrolls back and forth
+            // instead of being cut; the others show their start.
+            if (i == list->active_pos && value_label->w > scaled_226) {
+                uint32_t now = SDL_GetTicks();
+                if (_value_scroll_item != item || _value_scroll_hash != value_hash) {
+                    _value_scroll_item = item;
+                    _value_scroll_hash = value_hash;
+                    _value_scroll_start = now;
+                }
+                value_size.x = list_valueScrollOffset(now - _value_scroll_start,
+                                                      value_label->w - scaled_226);
+                theme_listValueScrolling = true;
+            }
             SDL_Rect value_pos = {
                 scaled_640 - scaled_20 - arrow_right->w - scaled_226 / 2 - label_width / 2,
                 item_center_y - value_size.h / 2};
