@@ -38,6 +38,7 @@ static TTF_Font fake_font;
 typedef enum { HINT } FontType;
 typedef enum { BUTTON_A,
                BUTTON_B,
+               BUTTON_X,
                BG_FOOTER } ResourceType;
 
 typedef struct {
@@ -59,9 +60,11 @@ static struct {
 static SDL_Rect theme_scaleRect(SDL_Rect rect) { return rect; }
 
 /* Surfaces: 54x40 buttons (icon-A-54), a footer bar and a background. */
-static SDL_Surface button_a = {.w = 54, .h = 40}, button_b = {.w = 54, .h = 40};
+static SDL_Surface button_a = {.w = 54, .h = 40}, button_b = {.w = 54, .h = 40},
+                   button_x = {.w = 54, .h = 40};
 static SDL_Surface bg_footer = {.w = 640, .h = 60}, background = {.w = 640, .h = 480};
 static bool no_b_button = false;
+static bool no_x_button = false;
 
 static SDL_Surface *resource_getSurface(ResourceType type)
 {
@@ -70,6 +73,8 @@ static SDL_Surface *resource_getSurface(ResourceType type)
         return &button_a;
     case BUTTON_B:
         return no_b_button ? NULL : &button_b;
+    case BUTTON_X:
+        return no_x_button ? NULL : &button_x;
     default:
         return &bg_footer;
     }
@@ -100,7 +105,7 @@ static SDL_Surface *TTF_RenderUTF8_Blended(TTF_Font *font, const char *text, SDL
 
 void SDL_FreeSurface(SDL_Surface *surface)
 {
-    if (surface != &button_a && surface != &button_b && surface != &bg_footer &&
+    if (surface != &button_a && surface != &button_b && surface != &button_x && surface != &bg_footer &&
         surface != &background)
         free(surface);
 }
@@ -132,6 +137,8 @@ static const char *text_of(SDL_Surface *s)
         return "[A]";
     if (s == &button_b)
         return "[B]";
+    if (s == &button_x)
+        return "[X]";
     if (s == &bg_footer)
         return "[footer]";
     if (s == &background)
@@ -162,6 +169,7 @@ static void reset(bool alt)
 {
     blit_count = 0;
     no_b_button = false;
+    no_x_button = false;
     theme_footerSetAltLayout(alt);
     theme_renderStandardHint_cleanup();
     old_status_width = -1;
@@ -229,6 +237,49 @@ TEST(missing_b_icon_draws_label_only)
     theme_renderStandardHint(&screen, "SELECT", "BACK");
     ASSERT_NULL(find("[B]"));
     ASSERT_EQ(find("BACK")->x + 40 + 30, find("[A]")->x);
+}
+
+/* GameSwitcher's Load: an X hint after B (classic), before B (B A layout),
+ * 30 px apart like the others. */
+TEST(x_hint_follows_b)
+{
+    reset(false);
+    theme_renderStandardHintX(&screen, "SELECT", "BACK", "DELETE");
+    ASSERT_EQ(find("[A]")->x, 20);
+    ASSERT_EQ(find("[X]")->x, find("BACK")->x + 40 + 30);
+    ASSERT_EQ(find("DELETE")->x, find("[X]")->x + 54 + 5);
+    ASSERT_EQ(find("[X]")->y, 450 - 20);
+
+    reset(true);
+    theme_renderStandardHintX(&screen, "SELECT", "BACK", "DELETE");
+    ASSERT_EQ(find("SELECT")->x + 60, 620);
+    ASSERT_EQ(find("BACK")->x + 40 + 30, find("[A]")->x);
+    ASSERT_EQ(find("DELETE")->x + 60 + 30, find("[B]")->x);
+    ASSERT_EQ(find("[X]")->x, find("DELETE")->x - 5 - 54);
+}
+
+/* No X label, or a theme and system without the X picture: no X hint, and A
+ * and B where theme_renderStandardHint() puts them. */
+TEST(x_hint_absent)
+{
+    reset(true);
+    theme_renderStandardHintX(&screen, "SELECT", "BACK", NULL);
+    ASSERT_NULL(find("[X]"));
+    int a_x = find("[A]")->x, b_x = find("[B]")->x;
+
+    reset(true);
+    no_x_button = true;
+    theme_renderStandardHintX(&screen, "SELECT", "BACK", "DELETE");
+    ASSERT_NULL(find("[X]"));
+    ASSERT_NULL(find("DELETE"));
+    ASSERT_EQ(find("[A]")->x, a_x);
+    ASSERT_EQ(find("[B]")->x, b_x);
+
+    /* Without B, X takes B's place. */
+    reset(false);
+    theme_renderStandardHintX(&screen, "SELECT", NULL, "DELETE");
+    ASSERT_NULL(find("[B]"));
+    ASSERT_EQ(find("[X]")->x, 20 + 54 + 5 + 60 + 30);
 }
 
 /* Hidden hint labels (theme override): icons stay, in the same order. */
@@ -318,6 +369,8 @@ int main(void)
     printf("\n=== Footer layout (theme/render/footer.h) ===\n\n");
 
     RUN_TEST(classic_layout_is_unchanged);
+    RUN_TEST(x_hint_follows_b);
+    RUN_TEST(x_hint_absent);
     RUN_TEST(alt_layout_page_left_b_then_a_right);
     RUN_TEST(alt_layout_without_b_hint);
     RUN_TEST(missing_b_icon_draws_label_only);

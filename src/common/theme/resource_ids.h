@@ -56,6 +56,7 @@ typedef enum theme_images {
     SCREEN_OFF,
     SCREEN_OFF_SAVE,
     LOW_BAT,
+    BUTTON_X,
     images_count
 } ThemeImages;
 

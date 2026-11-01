@@ -160,6 +160,7 @@
     "301": "CONTINUAR",
     "302": "Remover favorito",
     "303": "Adicionar favorito",
+	"304": "REMOVER",
     "400": "Criar pasta",
     "401": "Mover selecionado",
     "402": "Mover para cá",

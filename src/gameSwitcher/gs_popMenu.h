@@ -12,6 +12,7 @@
 #include "gs_model.h"
 #include "gs_retroarch.h"
 #include "gs_savestate_path.h"
+#include "gs_state_ratio.h"
 
 #define POP_MENU_ACTION_RESUME 0
 #define POP_MENU_ACTION_SAVE 1
@@ -204,6 +205,25 @@ static void setLoadPreview(void)
         // preview to the same width, so it would be shown again for the new
         // slot otherwise.
         list_item_clearPreview(item);
+
+        // Give the picture the shape the game has on screen (gs_state_ratio.h):
+        // scaled here to the preview's width, the list draws it as it is.
+        Game_s *game = &game_list[appState.current_game];
+        double ratio = gs_stateRatio(game->recentItem.rompath,
+                                     ra_getConfigOverrideOption(game, ASPECT_RATIO_OPTION, true));
+        if (ratio > 0 && item->preview_path[0] != '\0' && is_file(item->preview_path)) {
+            SDL_Surface *picture = IMG_Load(item->preview_path);
+            if (picture != NULL && picture->w > 0 && picture->h > 0) {
+                const int width = 320.0 * g_scale; // theme_renderPopMenuX's preview_width
+                const int height = (double)width / ratio + 0.5;
+                SDL_Surface *shaped = zoomSurface(picture, (double)width / picture->w,
+                                                  (double)height / picture->h, SMOOTHING_OFF);
+                if (shaped != NULL)
+                    item->preview_ptr = (void *)shaped;
+            }
+            if (picture != NULL)
+                SDL_FreeSurface(picture);
+        }
     }
 }
 
@@ -585,7 +605,13 @@ void renderPopMenu(AppState *state)
             popMenu_finishScan(true);
         }
 
-        theme_renderPopMenu(screen, state->view_mode == VIEW_NORMAL ? state->header_height : 0, &appState.pop_menu_list, transparent_bg);
+        // On Load, X deletes the state shown (popMenu_deleteSaveState):
+        // say so, or nobody finds it.
+        const char *x_hint = NULL;
+        if (item != NULL && item->action_id == POP_MENU_ACTION_LOAD && g_save_state_info.slot_count > 0)
+            x_hint = lang_get(LANG_DELETE_UC, LANG_FALLBACK_DELETE_UC);
+
+        theme_renderPopMenuX(screen, state->view_mode == VIEW_NORMAL ? state->header_height : 0, &appState.pop_menu_list, transparent_bg, x_hint);
 
         if (item != NULL && item->action_id == POP_MENU_ACTION_LOAD) {
             theme_renderFooterStatus(screen, g_save_state_info.selected_slot + 1, g_save_state_info.slot_count);

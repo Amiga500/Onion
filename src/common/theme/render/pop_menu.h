@@ -10,7 +10,9 @@
 #include "footer.h"
 #include "list.h"
 
-void theme_renderPopMenu(SDL_Surface *screen, int y_pos, List *list, SDL_Surface *transparent_bg)
+// x_hint: label of an X hint in the footer, or NULL for none.
+void theme_renderPopMenuX(SDL_Surface *screen, int y_pos, List *list, SDL_Surface *transparent_bg,
+                          const char *x_hint)
 {
     int size = list->scroll_height < 4 ? list->scroll_height : 4;
     SDL_Surface *bg = resource_getPopMenuBg(size);
@@ -26,7 +28,7 @@ void theme_renderPopMenu(SDL_Surface *screen, int y_pos, List *list, SDL_Surface
     }
 
     theme_renderFooter(screen);
-    theme_renderStandardHint(screen, lang_get(LANG_SELECT, LANG_FALLBACK_SELECT), lang_get(LANG_BACK, LANG_FALLBACK_BACK));
+    theme_renderStandardHintX(screen, lang_get(LANG_SELECT, LANG_FALLBACK_SELECT), lang_get(LANG_BACK, LANG_FALLBACK_BACK), x_hint);
 
     if (bg) {
         SDL_BlitSurface(bg, NULL, screen, &bg_rect);
@@ -50,6 +52,11 @@ void theme_renderPopMenu(SDL_Surface *screen, int y_pos, List *list, SDL_Surface
     }
 
     theme_renderListCustom(screen, list, params);
+}
+
+void theme_renderPopMenu(SDL_Surface *screen, int y_pos, List *list, SDL_Surface *transparent_bg)
+{
+    theme_renderPopMenuX(screen, y_pos, list, transparent_bg, NULL);
 }
 
 #endif // THEME_RENDER_POP_MENU_H__
