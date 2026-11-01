@@ -532,7 +532,7 @@ check "error page: not run" test -z "$out"
 BOOTSTRAP_BODY=
 out=$(run_bootstrap 2>&1)
 check "nothing: not run" test -z "$out"
-check "release lists read with -L" test "$(grep -c 'curl -k -s -L https://api.github.com' "$OTA")" -eq 2
+check "release lists read with -L, compressed, with a time limit" test "$(grep -c 'curl -k -s -L --compressed --connect-timeout 15 --max-time 60 https://api.github.com' "$OTA")" -eq 2
 unset -f curl run_bootstrap
 unset BOOTSTRAP_BODY BOOTSTRAP_MARK
 end
@@ -564,7 +564,8 @@ check "enable_wifi returns without a network" test -f "$TMP/returned"
 check "udhcpc started on wlan0" grep -q -- '-i wlan0' "$TMP/udhcpc_args"
 check "wpa_supplicant called by its full path" \
     grep -q '/mnt/SDCARD/miyoo/app/wpa_supplicant -B' "$OTA"
-check "connection check has a timeout" grep -q 'curl -k -sS -L -f --connect-timeout [0-9]* --max-time [0-9]' "$OTA"
+check "connection check has a timeout" grep -q 'curl -k -sS -I -L -f --connect-timeout [0-9]* --max-time [0-9]' "$OTA"
+check "connection check asks for the headers only (#311)" grep -q 'curl -k -sS -I -L -f' "$OTA"
 wait
 unset -f ip sleep insmod ifconfig pkill clear udhcpc
 end
@@ -1545,6 +1546,32 @@ check "offline: exits 2" test $rc -eq 2
 check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (curl: (6) Could not resolve host: github.com)'" _ "$out"
 check "the download uses curl too" grep -q 'curl -k -L -f --connect-timeout 15 --retry 3' "$OTA_SCRIPT"
 unset -f curl wget read check_connection
+end
+
+begin ota_connection_check_headers_only
+# #311: on some home networks the github.com page stalled after the HTTP 200
+# until the time limit. The check asks for the headers only; a server that
+# refuses HEAD gets a compressed GET instead.
+eval "$(extract_fn "$OTA_SCRIPT" check_connection)"
+read() { :; }
+curl() {
+    echo "$*" >> "$TMP/calls"
+    case " $* " in
+        *" -I "*) return ${HEAD_RC:-0} ;;
+        *" --compressed "*) return 0 ;;
+    esac
+    return 99
+}
+(check_connection) > /dev/null 2>&1; rc=$?
+check "HEAD answered: OK" test $rc -eq 0
+check "HEAD answered: one request, headers only" test "$(wc -l < "$TMP/calls")" -eq 1 -a "$(grep -c -- ' -I ' "$TMP/calls")" -eq 1
+rm -f "$TMP/calls"
+HEAD_RC=22; (check_connection) > /dev/null 2>&1; rc=$?
+check "HEAD refused (HTTP error): the compressed page instead, OK" test $rc -eq 0 -a "$(grep -c -- '--compressed' "$TMP/calls")" -eq 1
+rm -f "$TMP/calls"
+HEAD_RC=6; (check_connection) > /dev/null 2>&1; rc=$?
+check "offline: no second try, exits 2" test $rc -eq 2 -a "$(wc -l < "$TMP/calls")" -eq 1
+unset -f curl read check_connection; unset HEAD_RC
 end
 
 # ---- ota_update.sh: MENU during the download asks, and stops it ----
