@@ -1015,11 +1015,11 @@ TEST(game_menus_resume_mode)
 TEST(game_menus_switches)
 {
     reset_dir();
-    /* Open MainUI's rc14 defaults with no file. */
+    /* Open MainUI's defaults with no file (rc15). */
     ASSERT_FALSE(gamemenu_switch(0)); /* left_shortcut */
     ASSERT_FALSE(gamemenu_switch(1)); /* show_auto */
     ASSERT_TRUE(gamemenu_switch(2));  /* upscale_preview */
-    ASSERT_FALSE(gamemenu_switch(3)); /* correct_aspect_ratio */
+    ASSERT_TRUE(gamemenu_switch(3));  /* correct_aspect_ratio (on from rc15) */
     ASSERT_TRUE(gamemenu_switch(4));  /* gallery right_shortcut */
     ASSERT_TRUE(gamemenu_store_switch(0, true));
     ASSERT_TRUE(gamemenu_store_switch(4, false));
