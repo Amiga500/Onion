@@ -132,6 +132,7 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
             json_setString(root, "111", " "); // EXIT
             json_setString(root, "112", " "); // SAVE AND EXIT
             json_setString(root, "300", " "); // NEXT
+            json_setString(root, "304", " "); // DELETE (GameSwitcher Load)
         }
 
         json_save(root, file_path);
