@@ -68,4 +68,24 @@ int theme_getImagePath(const char *theme_path, const char *name, char *out_path)
     return load_mode;
 }
 
+// Name (for theme_loadImage) of the X button RedOnion ships for a theme
+// without one: "extra/theme-x/<theme folder>", which is found as
+// SYSTEM_RESOURCES "theme-x/<theme folder>.png" (.tmp_update/res/theme-x).
+// False when the theme path has no folder name.
+bool theme_bundledButtonXName(const char *theme_path, char *out, size_t out_size)
+{
+    if (theme_path == NULL || out == NULL || out_size == 0)
+        return false;
+    size_t len = strlen(theme_path);
+    while (len > 0 && theme_path[len - 1] == '/')
+        len--;
+    size_t start = len;
+    while (start > 0 && theme_path[start - 1] != '/')
+        start--;
+    if (start == len)
+        return false;
+    int n = snprintf(out, out_size, "extra/theme-x/%.*s", (int)(len - start), theme_path + start);
+    return n > 0 && (size_t)n < out_size;
+}
+
 #endif // THEME_IMAGE_PATH_H__
