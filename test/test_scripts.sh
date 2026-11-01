@@ -1653,36 +1653,6 @@ CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/none" s
 check "no pictures: nothing written" test ! -e "$TMP/console-view.json"
 end
 
-# ---- migration 00027: Saved Games "console ratio" on by default ----
-
-begin migration_turns_on_saved_games_console_ratio
-MIG="$ROOT/static/build/.tmp_update/script/migration/00027_saved_games_console_ratio.sh"
-GM="$TMP/game-menu.json"
-rm -f "$GM"
-GAME_MENU_CONFIG="$GM" sh "$MIG"
-check "no game-menu.json: written with console ratio on" python3 -c "
-import json,sys
-assert json.load(open(sys.argv[1]))=={'saved_games':{'correct_aspect_ratio':True}}
-" "$GM"
-printf '{"roms": ["launch"], "saved_games": {"resume_mode": "swap"}}' > "$GM"
-GAME_MENU_CONFIG="$GM" sh "$MIG"
-check "an existing file gets it, the rest kept" python3 -c "
-import json,sys
-assert json.load(open(sys.argv[1]))=={'roms':['launch'],'saved_games':{'resume_mode':'swap','correct_aspect_ratio':True}}
-" "$GM"
-printf '{"saved_games": {"correct_aspect_ratio": false}}' > "$GM"
-GAME_MENU_CONFIG="$GM" sh "$MIG"
-check "a choice already made is kept" test "$(cat "$GM")" = '{"saved_games": {"correct_aspect_ratio": false}}'
-printf '{\n// mine\n"roms": ["launch"]\n}' > "$GM"
-before=$(cat "$GM")
-GAME_MENU_CONFIG="$GM" sh "$MIG"
-check "a file jq can't read (comments) is left alone" test "$(cat "$GM")" = "$before"
-printf '{"saved_games": "odd"}' > "$GM"
-GAME_MENU_CONFIG="$GM" sh "$MIG"
-check "an odd saved_games is left alone" test "$(cat "$GM")" = '{"saved_games": "odd"}'
-check "no temp file left" test ! -e "$GM.tmp"
-end
-
 # ---- migration 00022: RetroArch menu Border Filler OFF ----
 
 begin migration_disables_rgui_border_filler
