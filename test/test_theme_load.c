@@ -144,6 +144,19 @@ static void setup_test_dirs(void)
     mkdir_p("/tmp/test_theme_load/res");
 }
 
+TEST(bundledButtonXName_uses_the_theme_folder) {
+    char name[STR_MAX];
+    ASSERT_TRUE(theme_bundledButtonXName("/mnt/SDCARD/Themes/Hippo Stock/", name, sizeof(name)));
+    ASSERT_STREQ(name, "extra/theme-x/Hippo Stock");
+    ASSERT_TRUE(theme_bundledButtonXName("/mnt/SDCARD/Themes/CyberOnion [Atomic] by Aemiii91", name, sizeof(name)));
+    ASSERT_STREQ(name, "extra/theme-x/CyberOnion [Atomic] by Aemiii91");
+    ASSERT_FALSE(theme_bundledButtonXName("/", name, sizeof(name)));
+    ASSERT_FALSE(theme_bundledButtonXName("", name, sizeof(name)));
+    ASSERT_FALSE(theme_bundledButtonXName(NULL, name, sizeof(name)));
+    char tiny[8];
+    ASSERT_FALSE(theme_bundledButtonXName("/mnt/SDCARD/Themes/Hippo Stock/", tiny, sizeof(tiny)));
+}
+
 TEST(getImagePath_fallback_when_no_files) {
     setup_test_dirs();
     char out[STR_MAX * 2] = {0};
@@ -227,6 +240,7 @@ int main(void)
     RUN_TEST(scaleRect_negative_coords);
 
     /* theme_getImagePath */
+    RUN_TEST(bundledButtonXName_uses_the_theme_folder);
     RUN_TEST(getImagePath_fallback_when_no_files);
     RUN_TEST(getImagePath_theme_file_found);
     RUN_TEST(getImagePath_override_takes_priority);

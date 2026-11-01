@@ -58,6 +58,54 @@ Theme_s *theme(void)
     return &resources.theme;
 }
 
+SDL_Surface *resource_getSurface(ThemeImages request);
+
+// True when a surface has no visible pixel: themes that draw their hints in
+// the footer art leave icon-B-54.png empty.
+static bool _surfaceIsBlank(SDL_Surface *surface)
+{
+    if (surface == NULL)
+        return true;
+    if (surface->format->BitsPerPixel != 32 || surface->format->Amask == 0)
+        return false;
+    bool blank = true;
+    SDL_LockSurface(surface);
+    for (int y = 0; blank && y < surface->h; y++) {
+        const Uint32 *row = (const Uint32 *)((const Uint8 *)surface->pixels + y * surface->pitch);
+        for (int x = 0; x < surface->w; x++) {
+            if (row[x] & surface->format->Amask) {
+                blank = false;
+                break;
+            }
+        }
+    }
+    SDL_UnlockSurface(surface);
+    return blank;
+}
+
+// X button (GameSwitcher's Load: X DELETE), not a stock skin image:
+// 1. the theme's (or the theme override's) skin/extra/icon-X-54.png;
+// 2. none when the theme's B button is empty: such themes draw their hints
+//    in the footer art, a lone X button would not fit;
+// 3. the one RedOnion ships for the theme, .tmp_update/res/theme-x/<theme
+//    folder>.png (made from the theme's B button);
+// 4. .tmp_update/res/icon-X-54.png.
+static SDL_Surface *_loadButtonX(Theme_s *t)
+{
+    if (theme_getImagePath(t->path, "extra/icon-X-54", NULL) != 0)
+        return theme_loadImage(t->path, "extra/icon-X-54");
+    if (_surfaceIsBlank(resource_getSurface(BUTTON_B)))
+        return NULL;
+    char name[STR_MAX];
+    if (theme_bundledButtonXName(t->path, name, sizeof(name))) {
+        char path[STR_MAX * 2];
+        theme_getImagePath(t->path, name, path);
+        if (exists(path))
+            return theme_loadImage(t->path, name);
+    }
+    return theme_loadImage(t->path, "extra/icon-X-54");
+}
+
 SDL_Surface *_loadImage(ThemeImages request)
 {
     Theme_s *t = theme();
@@ -113,9 +161,7 @@ SDL_Surface *_loadImage(ThemeImages request)
     case BUTTON_B:
         return theme_loadImage(t->path, "icon-B-54");
     case BUTTON_X:
-        // Not a stock skin image: skin/extra/icon-X-54.png in the theme,
-        // else .tmp_update/res/icon-X-54.png.
-        return theme_loadImage(t->path, "extra/icon-X-54");
+        return _loadButtonX(t);
     case LEFT_ARROW:
         return theme_loadImage(t->path, "icon-left-arrow-24");
     case RIGHT_ARROW:
@@ -208,10 +254,18 @@ TTF_Font *_loadFont(ThemeFonts request)
     return NULL;
 }
 
+// A theme without an X button is looked up once, not at every frame.
+static bool _button_x_absent = false;
+
 SDL_Surface *resource_getSurface(ThemeImages request)
 {
-    if (resources.surfaces[request] == NULL)
+    if (request == BUTTON_X && _button_x_absent)
+        return NULL;
+    if (resources.surfaces[request] == NULL) {
         resources.surfaces[request] = _loadImage(request);
+        if (request == BUTTON_X && resources.surfaces[request] == NULL)
+            _button_x_absent = true;
+    }
     return resources.surfaces[request];
 }
 
@@ -324,6 +378,7 @@ SDL_Surface *resource_getBrightness(int brightness)
 void resources_free()
 {
     temp_flag_set("hasBatteryDisplay", false);
+    _button_x_absent = false;
 
     for (int i = 0; i < images_count; i++)
         if (resources.surfaces[i] != NULL)
