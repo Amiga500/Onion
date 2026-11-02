@@ -1315,6 +1315,7 @@ for name in Reset Manual Core Hide; do
     check "the menu checks $name" grep -q "glo_shown $name" "$GLO"
 done
 check "Game core and Restore default core go together" test "$(grep -c 'glo_shown Core' "$GLO")" -eq 2
+check "an empty GLO says where the entries went" grep -qF 'add_menu_option : "Nothing to show"' "$GLO"
 check "Hidden games is not behind a flag" sh -c "grep 'show_hidden_games \"Hidden games' '$GLO' | grep -vq glo_shown"
 
 # Scripts: Netplay and Scraper are skipped while hidden, others stay.

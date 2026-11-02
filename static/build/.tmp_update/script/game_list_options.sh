@@ -248,6 +248,13 @@ main() {
         add_script_files "$emupath/romscripts"
     fi
 
+    # Nothing to list (entries hidden in Tweaks > List menus, or none that
+    # applies): one entry that says where hidden ones come back, instead of
+    # an empty menu.
+    if [ -z "$menu_options" ]; then
+        add_menu_option : "Nothing to show" "Hidden entries come back in\nTweaks > Game lists > List menus"
+    fi
+
     log "\n\n=================================================================================================="
     
     # Display menu and get user selection
