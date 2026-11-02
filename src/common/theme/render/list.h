@@ -47,11 +47,30 @@ static void _blit_cached_label(SDL_Surface *src, SDL_Rect *srcrect,
     SDL_FreeSurface(dimmed);
 }
 
+// A program that redraws its list about 30 times a second while
+// theme_listValueScrolling is true (Tweaks) sets theme_listCanScroll: then
+// the selected row's value or label, when too wide, scrolls back and forth.
+// Elsewhere (the GameSwitcher menus, prompt) they show their start, cut.
+static bool theme_listCanScroll = false;
+// True after a render that drew a scrolling value or label (see
+// list_valueScrollOffset): the program redraws the list to move it.
+static bool theme_listValueScrolling = false;
+static const ListItem *_value_scroll_item = NULL;
+static uint32_t _value_scroll_hash = 0;
+static uint32_t _value_scroll_start = 0;
+static const ListItem *_label_scroll_item = NULL;
+static uint32_t _label_scroll_hash = 0;
+static uint32_t _label_scroll_start = 0;
+
 // Render a list label with per-item TTF surface caching
-// Caches the TTF render in item->_label_cache; only re-renders when label changes
+// Caches the TTF render in item->_label_cache; only re-renders when label changes.
+// The selected row's label, when too wide, scrolls back and forth like a long
+// value (was_scrolling: the previous render scrolled something, so the same
+// row goes on from where it was instead of starting over).
 static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
                                          SDL_Color fg, int offset_x, int center_y,
-                                         int label_end, bool disabled)
+                                         int label_end, bool disabled,
+                                         bool is_active, bool was_scrolling)
 {
     uint32_t hash = _label_hash_fnv1a(item->label);
     if (item->_label_cache == NULL || item->_label_hash != hash) {
@@ -67,6 +86,20 @@ static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
 
     SDL_Rect item_label_rect = {offset_x, center_y - item_label->h / 2};
     SDL_Rect label_crop = {0, 0, label_end - 30 * g_scale, item_label->h};
+
+    if (theme_listCanScroll && is_active && label_crop.w > 0 &&
+        item_label->w > label_crop.w) {
+        uint32_t now = SDL_GetTicks();
+        if (!was_scrolling || _label_scroll_item != item ||
+            _label_scroll_hash != hash) {
+            _label_scroll_item = item;
+            _label_scroll_hash = hash;
+            _label_scroll_start = now;
+        }
+        label_crop.x = list_valueScrollOffset(now - _label_scroll_start,
+                                              item_label->w - label_crop.w);
+        theme_listValueScrolling = true;
+    }
 
     _blit_cached_label(item_label, &label_crop, screen, &item_label_rect,
                        disabled);
@@ -105,13 +138,6 @@ typedef struct {
     int preview_width;
     bool preview_smoothing;
 } ListRenderParams_s;
-
-// True after a render that drew a scrolling value (see
-// list_valueScrollOffset): the program redraws the list to move it.
-static bool theme_listValueScrolling = false;
-static const ListItem *_value_scroll_item = NULL;
-static uint32_t _value_scroll_hash = 0;
-static uint32_t _value_scroll_start = 0;
 
 void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s params)
 {
@@ -264,7 +290,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             int label_width = value_label->w > value_size.w ? value_size.w : value_label->w;
             // The selected row's value, when too wide, scrolls back and forth
             // instead of being cut; the others show their start.
-            if (i == list->active_pos && value_label->w > scaled_226) {
+            if (theme_listCanScroll && i == list->active_pos &&
+                value_label->w > scaled_226) {
                 uint32_t now = SDL_GetTicks();
                 if (!was_scrolling || _value_scroll_item != item ||
                     _value_scroll_hash != value_hash) {
@@ -286,7 +313,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)
         _theme_renderListLabelCached(screen, item, list_color,
                                      offset_x, item_bg_rect.y + label_y,
-                                     label_end, show_disabled);
+                                     label_end, show_disabled,
+                                     i == list->active_pos, was_scrolling);
 
         if (!list_small && item->description[0] != '\0') {
             theme_renderListLabel(
