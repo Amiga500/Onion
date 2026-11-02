@@ -39,10 +39,9 @@ void menu_systemStartup(void *_)
                                      .item_type = TOGGLE,
                                      .value = (int)settings.startup_auto_resume,
                                      .action = action_setStartupAutoResume},
-                                 "Auto-resume happens when you shutdown\n"
-                                 "the device while a game is running.\n"
-                                 "At startup, the system will resume\n"
-                                 "where you left off last time.");
+                                 "If you turn the device off while a game\n"
+                                 "is running, the game resumes where you\n"
+                                 "left off at the next startup.");
         list_addItemWithInfoNote(&_menu_system_startup,
                                  (ListItem){
                                      .label = "Open at startup",
@@ -51,9 +50,9 @@ void menu_systemStartup(void *_)
                                      .value_labels = {"MainUI", "GameSwitcher", "RetroArch", "AdvanceMENU"},
                                      .value = settings.startup_application,
                                      .action = action_setStartupApplication},
-                                 "With this option you can choose which\n"
-                                 "frontend you want to launch into on\n"
-                                 "startup.");
+                                 "What opens when the device starts:\n"
+                                 "MainUI, the GameSwitcher, RetroArch or\n"
+                                 "AdvanceMENU.");
         list_addItemWithInfoNote(&_menu_system_startup,
                                  (ListItem){
                                      .label = "Home screen tab",
@@ -62,8 +61,7 @@ void menu_systemStartup(void *_)
                                      .value_formatter = formatter_startupTab,
                                      .value = settings.startup_tab,
                                      .action = action_setStartupTab},
-                                 "Here you can set which tab you want\n"
-                                 "MainUI to launch into.");
+                                 "The tab MainUI shows at startup.");
     }
     menu_stack[++menu_level] = &_menu_system_startup;
     header_changed = true;
@@ -122,11 +120,9 @@ void menu_datetime(void *_)
                                          .disabled = !network_state.ntp,
                                          .value = (int)network_state.ntp_wait,
                                          .action = network_setNtpWaitState},
-                                     "Wait for date and time synchronization\n"
-                                     "on system startup."
-                                     " \n"
-                                     "Ensures that time is synced before a game\n"
-                                     "is launched.");
+                                     "Wait at startup until the date and time\n"
+                                     "are synced, so they are right before a\n"
+                                     "game starts.");
             list_addItemWithInfoNote(&_menu_date_time,
                                      (ListItem){
                                          .label = "Enable Wi-Fi temporarily",
@@ -144,12 +140,11 @@ void menu_datetime(void *_)
                                          .disabled = !network_state.ntp,
                                          .value = !network_state.manual_tz,
                                          .action = network_setTzManualState},
-                                     "If this is enabled, the system will try\n"
-                                     "to retrieve your time zone from your IP\n"
-                                     "address."
+                                     "Find your time zone from your IP\n"
+                                     "address.\n"
                                      " \n"
-                                     "It might be beneficial to disable this\n"
-                                     "option if you're on a VPN.");
+                                     "You may want to turn this off if you\n"
+                                     "use a VPN.");
             list_addItemWithInfoNote(&_menu_date_time,
                                      (ListItem){
                                          .label = "Select time zone",
@@ -171,10 +166,9 @@ void menu_datetime(void *_)
                                      .value_formatter = formatter_timeSkip,
                                      .value = settings.time_skip,
                                      .action = action_setTimeSkip},
-                                 "Without RTC the system time stands still\n"
-                                 "while the device is off.\n"
-                                 "This option lets you add a specific amount\n"
-                                 "of hours at startup.");
+                                 "Without a clock battery the time stands\n"
+                                 "still while the device is off. This adds\n"
+                                 "a number of hours at each startup.");
     }
     _writeDateString(_menu_date_time.items[0].label);
     menu_stack[++menu_level] = &_menu_date_time;
@@ -205,9 +199,9 @@ void menu_system(void *_)
                                      .value_formatter = formatter_battWarn,
                                      .value = settings.low_battery_warn_at / 5,
                                      .action = action_setLowBatteryWarnAt},
-                                 "Show a red battery icon warning in the\n"
-                                 "top right corner, when battery is at or\n"
-                                 "below this value.");
+                                 "Show a red battery icon in the top right\n"
+                                 "corner when the battery is at or below\n"
+                                 "this level.");
         list_addItemWithInfoNote(&_menu_system,
                                  (ListItem){
                                      .label = "Low battery: save and quit",
@@ -228,8 +222,7 @@ void menu_system(void *_)
                                          .value_labels = {"Suspend", "Shutdown", "Nothing"},
                                          .value = settings.lid_close_action,
                                          .action = action_setLidCloseAction},
-                                     "Choose what happens when \n"
-                                     "you close the lid.");
+                                     "What happens when you close the lid.");
         }
         list_addItemWithInfoNote(&_menu_system,
                                  (ListItem){
@@ -239,8 +232,8 @@ void menu_system(void *_)
                                      .value_labels = {"Off", "Low", "Normal", "High"},
                                      .value = settings.vibration,
                                      .action = action_setVibration},
-                                 "Set the vibration strength for haptic\n"
-                                 "feedback, when pressing system shortcuts.");
+                                 "Vibration strength for haptic feedback\n"
+                                 "when you press system shortcuts.");
     }
     menu_stack[++menu_level] = &_menu_system;
     header_changed = true;
@@ -379,8 +372,8 @@ void menu_buttonAction(void *_)
                                      .value_labels = {"Standby", "Shutdown"},
                                      .value = (int)settings.disable_standby,
                                      .action = action_setDisableStandby},
-                                 "Change the power button single press\n"
-                                 "action to either 'standby' or 'shutdown'.");
+                                 "A short press of POWER: Standby (sleep)\n"
+                                 "or Shutdown.");
         if (DEVICE_ID == MIYOO283) {
             list_addItemWithInfoNote(&_menu_button_action,
                                      (ListItem){
@@ -521,7 +514,7 @@ void menu_themeOverrides(void *_)
                                      .item_type = TOGGLE,
                                      .value = settings.bgm_mute,
                                      .action = action_toggleBackgroundMusic},
-                                 "Mute background music for themes");
+                                 "Mute the theme's background music.");
         list_addItemWithInfoNote(&_menu_theme_overrides,
                                  (ListItem){
                                      .label = "Hide icon labels",
@@ -580,7 +573,8 @@ void menu_blueLight(void *_)
                                      .item_type = TOGGLE,
                                      .value = (int)settings.blue_light_state || exists("/tmp/.blfOn"),
                                      .action = action_blueLight},
-                                 "Set the selected strength now\n");
+                                 "Turn the filter on or off now, at the\n"
+                                 "selected strength.");
         if (schedule_show) {
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
@@ -589,7 +583,8 @@ void menu_blueLight(void *_)
                                          .item_type = TOGGLE,
                                          .value = (int)settings.blue_light_schedule,
                                          .action = action_blueLightSchedule},
-                                     "Enable or disable the bluelight filter schedule\n");
+                                     "Turn the filter on and off by itself at\n"
+                                     "the times below.");
         }
         list_addItemWithInfoNote(&_menu_user_blue_light,
                                  (ListItem){
@@ -601,8 +596,7 @@ void menu_blueLight(void *_)
                                      .value_labels = BLUELIGHT_LABELS,
                                      .action = action_blueLightLevel,
                                      .value = value_blueLightLevel()},
-                                 "Change the strength of the \n"
-                                 "Blue light filter");
+                                 "How strong the blue light filter is.");
         if (schedule_show) {
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
@@ -613,7 +607,7 @@ void menu_blueLight(void *_)
                                          .value_formatter = formatter_Time,
                                          .action = action_blueLightTimeOn,
                                          .value = value_blueLightTimeOn()},
-                                     "Time schedule for the bluelight filter");
+                                     "When the schedule turns the filter on.");
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
                                          .label = "Time (Off)",
@@ -623,7 +617,7 @@ void menu_blueLight(void *_)
                                          .value_formatter = formatter_Time,
                                          .action = action_blueLightTimeOff,
                                          .value = value_blueLightTimeOff()},
-                                     "Time schedule for the bluelight filter");
+                                     "When the schedule turns the filter off.");
         }
     }
     if (schedule_show) {
@@ -698,9 +692,9 @@ void menu_lookAndFeel(void *_)
                                      .value_formatter = formatter_meterWidth,
                                      .value = value_meterWidth(),
                                      .action = action_meterWidth},
-                                 "Set the width of the 'OSD bar' shown\n"
-                                 "in the left side of the display when\n"
-                                 "adjusting brightness, or volume (MMP).");
+                                 "Width of the bar on the left of the\n"
+                                 "screen while you change the brightness,\n"
+                                 "or the volume on the Mini Plus.");
     }
     menu_stack[++menu_level] = &_menu_user_interface;
     header_changed = true;
@@ -725,8 +719,8 @@ void menu_resetSettings(void *_)
                                      .label = "Reset MainUI settings",
                                      .action = action_resetMainUI},
                                  "Resets the settings stored on the device,\n"
-                                 "such as theme, display options, and volume.\n"
-                                 "Also resets WiFi configuration.");
+                                 "such as theme, display options and\n"
+                                 "volume. Also resets the Wi-Fi setup.");
         list_addItem(&_menu_reset_settings,
                      (ListItem){
                          .label = "Reset RetroArch main configuration",
@@ -760,10 +754,9 @@ void menu_diagnostics(void *pt)
                                      .item_type = TOGGLE,
                                      .value = (int)settings.enable_logging,
                                      .action = action_setEnableLogging},
-                                 "Enable global logging, \n"
-                                 "for system & networking. \n \n"
-                                 "Logs will be generated in, \n"
-                                 "SD: /.tmp_update/logs.");
+                                 "Log what the system and the network do.\n"
+                                 "The logs go to .tmp_update/logs on the\n"
+                                 "SD card.");
         for (int i = 0; i < diags_numScripts; i++) {
             ListItem diagItem = {
                 .label = "",
@@ -816,9 +809,9 @@ void menu_advanced(void *_)
                                      .value_labels = PWM_FREQUENCIES,
                                      .value = value_getPWMFrequency(),
                                      .action = action_advancedSetPWMFreqency},
-                                 "Change the PWM frequency\n"
-                                 "Lower values for less buzzing\n"
-                                 "Experimental feature");
+                                 "Frequency of the screen backlight PWM.\n"
+                                 "Lower values can buzz less.\n"
+                                 "Experimental.");
         if (DEVICE_ID == MIYOO354) {
             list_addItemWithInfoNote(&_menu_advanced,
                                      (ListItem){
@@ -855,7 +848,7 @@ void menu_screen_recorder(void *pt)
                                      .label = "Start/stop recorder",
                                      .sticky_note = "Status:...",
                                      .action = tool_screenRecorder},
-                                 "Start or stop the recorder");
+                                 "Start or stop the recorder.");
         list_addItemWithInfoNote(&_menu_screen_recorder,
                                  (ListItem){
                                      .label = "Countdown (seconds)",
@@ -864,9 +857,11 @@ void menu_screen_recorder(void *pt)
                                      .value_max = 10,
                                      .value = (int)settings.rec_countdown,
                                      .action = action_toggleScreenRecCountdown},
-                                 "Countdown when starting recording. \n\n"
-                                 "The screen will pulse white n times \n"
-                                 "to signify recording has started/stopped");
+                                 "Countdown before recording starts.\n"
+                                 " \n"
+                                 "The screen pulses white once for each\n"
+                                 "second, to show recording has started\n"
+                                 "or stopped.");
         list_addItemWithInfoNote(&_menu_screen_recorder,
                                  (ListItem){
                                      .label = "Toggle indicator icon",
@@ -874,19 +869,19 @@ void menu_screen_recorder(void *pt)
                                      .item_type = TOGGLE,
                                      .value = (int)settings.rec_indicator,
                                      .action = action_toggleScreenRecIndicator},
-                                 "Toggles the display of a\n"
-                                 "a flashing icon to remind you\n"
-                                 "that you're still recording.");
+                                 "Show a flashing icon to remind you that\n"
+                                 "you're still recording.");
         list_addItemWithInfoNote(&_menu_screen_recorder,
                                  (ListItem){
                                      .label = "Toggle hotkey",
-                                     .sticky_note = "Turn the hotkey (Menu+A) on/off ",
+                                     .sticky_note = "Turn the hotkey (MENU+A) on/off",
                                      .item_type = TOGGLE,
                                      .value = (int)settings.rec_hotkey,
                                      .action = action_toggleScreenRecHotkey},
-                                 "Enable the hotkey function.\n\n"
-                                 "Recording can be started/stopped\n"
-                                 "with Menu+A");
+                                 "Turn the hotkey on or off.\n"
+                                 " \n"
+                                 "Recording can be started and stopped\n"
+                                 "with MENU+A.");
         list_addItemWithInfoNote(&_menu_screen_recorder,
                                  (ListItem){
                                      .label = "Reset screen recorder",
@@ -900,7 +895,8 @@ void menu_screen_recorder(void *pt)
                                      .label = "Delete all recordings",
                                      .sticky_note = "Empties the recordings directory",
                                      .action = action_deleteAllRecordings},
-                                 "Deletes all recorded videos. \n\n"
+                                 "Deletes all recorded videos.\n"
+                                 " \n"
                                  "WARNING: This action cannot\n"
                                  "be undone!");
     }
@@ -921,13 +917,13 @@ void menu_tools_m3uGenerator(void *_)
                                  (ListItem){
                                      .label = "Multiple directories (.Game_Name)",
                                      .action = tool_generateM3uFiles_md},
-                                 "One directory for each game \".Game_Name\"");
+                                 "One folder for each game (.Game_Name).");
         list_addItemWithInfoNote(&_menu_tools_m3uGenerator,
                                  (ListItem){
                                      .label = "Single directory (.multi-disc)",
                                      .action = tool_generateM3uFiles_sd},
-                                 "One single directory (\".multi-disc\")\n"
-                                 "will contain all multi-disc files");
+                                 "One folder (.multi-disc) holds all the\n"
+                                 "multi-disc files.");
     }
     menu_stack[++menu_level] = &_menu_tools_m3uGenerator;
     header_changed = true;
@@ -942,17 +938,16 @@ void menu_tools(void *_)
                                  (ListItem){
                                      .label = "Make CUE files for BIN games",
                                      .action = tool_generateCueFiles},
-                                 "PSX roms in '.bin' format needs a\n"
-                                 "matching '.cue' file. Use this tool\n"
-                                 "to automatically generate them.");
+                                 "PS1 games in .bin format need a\n"
+                                 "matching .cue file: this tool makes\n"
+                                 "them.");
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
                                      .label = "Make M3U files for multi-disc games...",
                                      .action = menu_tools_m3uGenerator},
-                                 "PSX multi-disc roms require to create\n"
-                                 "a playlist file (.m3u). It allows to \n"
-                                 "have only one entry for each multi-disc\n"
-                                 "game and one unique save file for each game");
+                                 "Multi-disc PS1 games need a playlist\n"
+                                 "(.m3u): one entry in the list and one\n"
+                                 "save file for the whole game.");
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
                                      .label = "Make game list for short-name roms",
@@ -975,14 +970,12 @@ void menu_tools(void *_)
                                  (ListItem){
                                      .label = "Sort apps: A to Z",
                                      .action = tool_sortAppsAZ},
-                                 "Use this tool to sort your App list\n"
-                                 "ascending from A to Z.\n");
+                                 "Sort the Apps list from A to Z.");
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
                                      .label = "Sort apps: Z to A",
                                      .action = tool_sortAppsZA},
-                                 "Use this tool to sort your App list\n"
-                                 "descending from Z to A.\n");
+                                 "Sort the Apps list from Z to A.");
         list_addItem(&_menu_tools,
                      (ListItem){
                          .label = "Screen recorder...",

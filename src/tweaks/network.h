@@ -508,8 +508,8 @@ void menu_ftp(void *pt)
                                  "Username: onion\n"
                                  "Password: onion\n"
                                  " \n"
-                                 "We're using a new auth system. User defined\n"
-                                 "passwords will come in a future update.");
+                                 "A new login system: passwords you\n"
+                                 "choose will come in a future update.");
     }
     menu_stack[++menu_level] = &_menu_ftp;
     header_changed = true;
@@ -553,8 +553,8 @@ void menu_ssh(void *pt)
                                  "Username: onion\n"
                                  "Password: onion\n"
                                  " \n"
-                                 "We're using a new auth system. User defined\n"
-                                 "passwords will come in a future update.");
+                                 "A new login system: passwords you\n"
+                                 "choose will come in a future update.");
     }
     menu_stack[++menu_level] = &_menu_ssh;
     header_changed = true;
@@ -582,9 +582,9 @@ void menu_vnc(void *pt)
                                      .value_min = 1,
                                      .value = (int)network_state.vncfps,
                                      .action = network_setVNCFPS},
-                                 "Set the framerate of the VNC server\n"
-                                 "between 1 and 20. The higher the \n"
-                                 "framerate the more CPU it will use \n");
+                                 "Frame rate of the VNC server, from 1 to\n"
+                                 "20. The higher it is, the more CPU it\n"
+                                 "uses.");
     }
     menu_stack[++menu_level] = &_menu_vnc;
     header_changed = true;
@@ -606,20 +606,19 @@ void menu_wifi(void *_)
                                      .item_type = TOGGLE,
                                      .value = (int)network_state.hotspot,
                                      .action = network_setHotspotState},
-                                 "Use hotspot to host all the network\n"
-                                 "services on the go, no router needed.\n"
-                                 "Stay connected at anytime, anywhere.\n"
-                                 "Compatible with Easy Netplay and\n"
+                                 "The device makes its own Wi-Fi network\n"
+                                 "for the network services: no router\n"
+                                 "needed. Works with Easy Netplay and\n"
                                  "regular netplay.");
         list_addItemWithInfoNote(&_menu_wifi,
                                  (ListItem){
                                      .label = "WPS connect",
                                      .action = network_wpsConnect},
-                                 "Use your WiFi router's WPS function\n"
-                                 "to connect your device with a single press.\n"
+                                 "Connect to your router with its WPS\n"
+                                 "button.\n"
                                  " \n"
                                  "First press the WPS button on your router,\n"
-                                 "then click this option to connect.");
+                                 "then select this option.");
         // list_addItem(&_menu_wifi,
         //              (ListItem){
         //                  .label = "WPS...",
@@ -656,12 +655,11 @@ void menu_network(void *_)
                                      .arrow_action = network_setSmbdState,
                                      .value = (int)network_state.smbd,
                                      .action = menu_smbd},
-                                 "Samba is a file sharing protocol that provides\n"
-                                 "integrated sharing of files and directories\n"
-                                 "between your Miyoo Mini Plus and your PC.\n"
+                                 "Samba shares files and folders between\n"
+                                 "your device and your PC.\n"
                                  " \n"
                                  "Username: onion\n"
-                                 "Password: onion\n");
+                                 "Password: onion");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
                                      .label = "Web file manager (HTTP)...",
@@ -671,12 +669,11 @@ void menu_network(void *_)
                                      .arrow_action = network_setHttpState,
                                      .value = (int)network_state.http,
                                      .action = menu_http},
-                                 "HTTP file server allows you to manage your\n"
-                                 "files through a web browser on your phone,\n"
-                                 "PC or tablet.\n"
+                                 "Manage your files from a web browser on\n"
+                                 "your phone, PC or tablet.\n"
                                  " \n"
-                                 "Think of it as a website hosted by RedOnion,\n"
-                                 "simply enter the IP address in your browser.");
+                                 "Think of it as a website on RedOnion:\n"
+                                 "enter its IP address in your browser.");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
                                      .label = "Terminal access (SSH)...",
@@ -721,19 +718,19 @@ void menu_network(void *_)
                                      .arrow_action = network_toggleVNC,
                                      .value = (int)network_state.vncserv,
                                      .action = menu_vnc},
-                                 "Connect to your MMP from another device\n"
-                                 "to view the screen and interact with it.");
+                                 "See and control the screen from another\n"
+                                 "device.");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
                                      .label = "Pause these while playing",
                                      .item_type = TOGGLE,
                                      .value = !network_state.keep_alive,
                                      .action = network_keepServicesAlive},
-                                 "Disable all network services (except WiFi)\n"
-                                 "while playing games.\n"
+                                 "Turn off the network services (not the\n"
+                                 "Wi-Fi itself) while a game runs.\n"
                                  " \n"
-                                 "This helps to conserve battery and\n"
-                                 "to keep performance at a maximum.");
+                                 "This saves battery and keeps games\n"
+                                 "running at full speed.");
     }
     strcpy(_menu_network.items[0].label, ip_address_label);
     menu_stack[++menu_level] = &_menu_network;

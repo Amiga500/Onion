@@ -1403,8 +1403,8 @@ void menu_consolePage(void *_)
             "From the last console go on to the\n"
             "first, in the carousel and the grid.\n"
             "Off: stops at the first and last console,\n"
-            "and (rc16) Up/Down stop at the grid's\n"
-            "top and bottom rows.");
+            "and Up/Down stop at the grid's top and\n"
+            "bottom rows.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1600,8 +1600,7 @@ void menu_carouselMovement(void *_)
                 .action = consoleview_action_option},
             "How long a slide takes: shorter is\n"
             "snappier. Default: as Open MainUI sets\n"
-            "it (180 ms; 240 ms before rc15). Only\n"
-            "with Slide.");
+            "it (180 ms). Only with Slide.");
         list_addItemWithInfoNote(
             &_menu_carousel_movement,
             (ListItem){
