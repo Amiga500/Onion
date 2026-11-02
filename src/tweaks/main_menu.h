@@ -1226,12 +1226,64 @@ static void consoleview_action_thumbs(void *pt)
         item->value = consoleview_has_thumbs();
 }
 
+// The console views an option of the Console view menu acts on. While
+// neither Games nor Expert uses one of them, the option is greyed out and
+// skipped; it keeps its value for when that view is chosen again.
+#define CONSOLEVIEW_FOR_GRID (1 << CONSOLEVIEW_GRID)
+#define CONSOLEVIEW_FOR_CAROUSEL (1 << CONSOLEVIEW_CAROUSEL)
+#define CONSOLEVIEW_FOR_LIST (1 << CONSOLEVIEW_LIST)
+#define CONSOLEVIEW_FOR_ALL (CONSOLEVIEW_FOR_GRID | CONSOLEVIEW_FOR_CAROUSEL | CONSOLEVIEW_FOR_LIST)
+// Console pictures: the carousel and the list (the grid always uses the
+// theme's pictures).
+#define CONSOLEVIEW_THUMBS_VIEWS (CONSOLEVIEW_FOR_CAROUSEL | CONSOLEVIEW_FOR_LIST)
+
+// From the section the option is stored in: "carousel", "grid" or "list"
+// (Wrap around is in both "carousel" and "grid"); one at the root of
+// console-view.json (Game count, Console menu) applies to every view.
+static int consoleview_option_views(int option)
+{
+    if (option < 0 || option >= CONSOLEVIEW_OPTION_COUNT)
+        return CONSOLEVIEW_FOR_ALL;
+    const ConsoleViewOption *opt = &consoleview_options[option];
+    int views = 0;
+    for (int s = 0; s < opt->section_count; s++) {
+        if (opt->sections[s] == NULL)
+            return CONSOLEVIEW_FOR_ALL;
+        for (int v = 0; v < CONSOLEVIEW_LAYOUT_COUNT; v++) {
+            if (strcmp(opt->sections[s], consoleview_layout_keys[v]) == 0)
+                views |= 1 << v;
+        }
+    }
+    return views != 0 ? views : CONSOLEVIEW_FOR_ALL;
+}
+
+static int consoleview_used_views(void)
+{
+    return (1 << consoleview_layout(CONSOLEVIEW_GAMES)) |
+           (1 << consoleview_layout(CONSOLEVIEW_EXPERT));
+}
+
+// Greys out the Console view options of the views not in use.
+static void consoleview_update_enabled(List *list)
+{
+    int used = consoleview_used_views();
+    for (int i = 0; i < list->item_count; i++) {
+        ListItem *item = &list->items[i];
+        if (item->action == consoleview_action_option)
+            item->disabled = (consoleview_option_views(item->action_id) & used) == 0;
+        else if (item->action == consoleview_action_thumbs)
+            item->disabled = (CONSOLEVIEW_THUMBS_VIEWS & used) == 0;
+    }
+}
+
 static void consoleview_action_layout(void *pt)
 {
     ListItem *item = (ListItem *)pt;
     int screen = item->action_id;
     if (!consoleview_store_layout(screen, item->value))
         item->value = consoleview_layout(screen);
+    if (_menu_console_view._created)
+        consoleview_update_enabled(&_menu_console_view);
 }
 
 void menu_consoleView(void *_)
@@ -1250,8 +1302,9 @@ void menu_consoleView(void *_)
                 .action_id = CONSOLEVIEW_GAMES,
                 .action = consoleview_action_layout},
             "How Games shows the consoles: the grid,\n"
-            "a carousel or a list.\n"
-            "Needs Open MainUI 1.1.0.");
+            "a carousel or a list. The options of a\n"
+            "view that Games and Expert don't use\n"
+            "are greyed out. Needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1263,8 +1316,9 @@ void menu_consoleView(void *_)
                 .action_id = CONSOLEVIEW_EXPERT,
                 .action = consoleview_action_layout},
             "How Expert shows the consoles: the grid,\n"
-            "a carousel or a list.\n"
-            "Needs Open MainUI 1.1.0.");
+            "a carousel or a list. The options of a\n"
+            "view that Games and Expert don't use\n"
+            "are greyed out. Needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1510,6 +1564,7 @@ void menu_consoleView(void *_)
             "The menu on the Games/Expert console\n"
             "page: both refresh actions, only one,\n"
             "or none.");
+        consoleview_update_enabled(&_menu_console_view);
     }
     menu_stack[++menu_level] = &_menu_console_view;
     header_changed = true;
