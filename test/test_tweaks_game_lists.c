@@ -51,6 +51,8 @@ static bool header_changed = false;
 static List _menu_game_lists;
 static List _menu_home_screen, _menu_main_menu_items, _menu_main_context_items, _menu_console_view,
     _menu_carousel_look, _menu_carousel_movement, _menu_game_menus, _menu_game_info_menu, _menu_saved_games;
+static bool test_glo_network = true;
+#define GLO_HAS_NETWORK test_glo_network
 #include "../src/tweaks/main_menu.h"
 
 /* game_lists.h: its menus, with appstate.h's lists declared here. */
@@ -1319,7 +1321,7 @@ TEST(game_info_and_saved_games_menus)
     ASSERT_TRUE(menu_item(&_menu_game_menus, "Games: Launch") != NULL);
     ASSERT_TRUE(menu_item(&_menu_game_menus, "Search: Favorite") != NULL);
     ASSERT_TRUE(menu_item(&_menu_game_menus, "Game Info: Gallery") == NULL);
-    ASSERT_EQ(_menu_game_menus.item_count, 16);
+    ASSERT_EQ(_menu_game_menus.item_count, 16 + GLO_ENTRY_COUNT);
 
     const char *info[] = {"Gallery", "Saved Games", "Game Maps", "Walkthrough", "Manual", "RIGHT opens the gallery"};
     ASSERT_EQ(_menu_game_info_menu.item_count, 6);
@@ -1345,6 +1347,71 @@ TEST(game_info_and_saved_games_menus)
     list_free(&_menu_game_info_menu);
     list_free(&_menu_saved_games);
     _menu_game_menus._created = _menu_game_info_menu._created = _menu_saved_games._created = false;
+}
+
+/* List menus ends with GLO's entries: each switch writes or removes
+   config/.hideGlo<name>, which game_list_options.sh reads. */
+static bool glo_flag_exists(const char *name)
+{
+    char path[256];
+    snprintf(path, sizeof(path), "%s/.hideGlo%s", TEST_DIR, name);
+    return access(path, F_OK) == 0;
+}
+
+static void glo_menu_rebuild(void)
+{
+    list_free(&_menu_game_menus);
+    _menu_game_menus._created = false;
+    menu_level = 0;
+    menu_listMenus(NULL);
+    menu_level = 0;
+}
+
+TEST(glo_entries_in_list_menus)
+{
+    reset_dir();
+    test_glo_network = true;
+    glo_menu_rebuild();
+
+    const char *labels[] = {"GLO: Reset game", "GLO: Game manual", "GLO: Game core", "GLO: Hide game",
+                            "GLO: Filter list", "GLO: Netplay", "GLO: Scraper"};
+    ASSERT_EQ(GLO_ENTRY_COUNT, 7);
+    for (int i = 0; i < 7; i++) {
+        ListItem *item = &_menu_game_menus.items[_menu_game_menus.item_count - 7 + i];
+        ASSERT_STREQ(item->label, labels[i]);
+        ASSERT_EQ(item->value, 1);
+    }
+
+    /* Off writes the flag, On removes it; the names the script uses. */
+    const char *flags[] = {"Reset", "Manual", "Core", "Hide", "Filter", "Netplay", "Scraper"};
+    for (int i = 0; i < 7; i++) {
+        ListItem *item = menu_item(&_menu_game_menus, labels[i]);
+        item->value = 0;
+        item->action(item);
+        ASSERT_TRUE(glo_flag_exists(flags[i]));
+    }
+    glo_menu_rebuild();
+    for (int i = 0; i < 7; i++)
+        ASSERT_EQ(menu_item(&_menu_game_menus, labels[i])->value, 0);
+    ListItem *filter = menu_item(&_menu_game_menus, "GLO: Filter list");
+    filter->value = 1;
+    filter->action(filter);
+    ASSERT_FALSE(glo_flag_exists("Filter"));
+    ASSERT_TRUE(glo_flag_exists("Reset"));
+
+    /* No Wi-Fi: no Netplay or Scraper switch. */
+    test_glo_network = false;
+    glo_menu_rebuild();
+    ASSERT_TRUE(menu_item(&_menu_game_menus, "GLO: Netplay") == NULL);
+    ASSERT_TRUE(menu_item(&_menu_game_menus, "GLO: Scraper") == NULL);
+    ASSERT_TRUE(menu_item(&_menu_game_menus, "GLO: Filter list") != NULL);
+    test_glo_network = true;
+
+    /* Game lists itself no longer has the old switch. */
+    ASSERT_FALSE(source_has("../src/tweaks/menus.h", "Filter list in game options"));
+
+    list_free(&_menu_game_menus);
+    _menu_game_menus._created = false;
 }
 
 TEST(console_view_remember_flag)
@@ -1607,6 +1674,7 @@ int main(void)
     RUN_TEST(console_view_option_views);
     RUN_TEST(console_view_greys_out_unused_options);
     RUN_TEST(game_info_and_saved_games_menus);
+    RUN_TEST(glo_entries_in_list_menus);
     RUN_TEST(console_view_on_off_switches);
     RUN_TEST(game_lists_options_follow_what_they_depend_on);
     RUN_TEST(options_follow_the_option_they_need);

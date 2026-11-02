@@ -415,13 +415,6 @@ void action_setCpuClockHotkey(void *pt)
     config_flag_set(".cpuClockHotkey", ((ListItem *)pt)->value);
 }
 
-// Tweaks > Game lists: "Filter list" in the game options (Y on a game),
-// shown unless config/.hideGloFilter exists (read by game_list_options.sh).
-void action_setGloFilter(void *pt)
-{
-    config_flag_set(".hideGloFilter", !((ListItem *)pt)->value);
-}
-
 void action_setAltBrightness(void *pt)
 {
     config_flag_set(".altBrightness", ((ListItem *)pt)->value);

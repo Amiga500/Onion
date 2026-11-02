@@ -1997,12 +1997,89 @@ static void gamemenu_action_item(void *pt)
     savedgames_update_enabled();
 }
 
-// The menus of Games, Favorites, Recents and Search: one toggle per action.
+// GLO, the game's options (X or Y on a game, set in Tweaks > Buttons):
+// game_list_options.sh leaves out an entry while its flag exists in config/.
+#ifndef GLO_HAS_NETWORK
+#define GLO_HAS_NETWORK IS_MIYOO_PLUS_OR_FLIP()
+#endif
+
+typedef struct {
+    const char *label;
+    const char *flag; // config/.hideGlo<flag>
+    bool network;     // only on devices with Wi-Fi
+    const char *note;
+} GloEntry;
+
+#define GLO_ENTRY_COUNT 7
+
+static const GloEntry glo_entries[GLO_ENTRY_COUNT] = {
+    {"Reset game", "Reset", false,
+     "Show \"Reset game\" in GLO (the game's\n"
+     "options): it starts the game without\n"
+     "loading the auto save."},
+    {"Game manual", "Manual", false,
+     "Show \"Game manual\" in GLO (the game's\n"
+     "options), for games with a PDF manual."},
+    {"Game core", "Core", false,
+     "Show \"Game core\" in GLO (the game's\n"
+     "options), to choose the core of one\n"
+     "game, and \"Restore default core\"."},
+    {"Hide game", "Hide", false,
+     "Show \"Hide game\" in GLO (the game's\n"
+     "options). \"Hidden games\" stays while\n"
+     "a folder has hidden games."},
+    {"Filter list", "Filter", false,
+     "Show \"Filter list\" in GLO (the game's\n"
+     "options). A filter already set can\n"
+     "still be cleared there."},
+    {"Netplay", "Netplay", true,
+     "Show \"Netplay\" in GLO (the game's\n"
+     "options): play the game with another\n"
+     "device."},
+    {"Scraper", "Scraper", true,
+     "Show \"Scraper\" in GLO (the game's\n"
+     "options): it downloads pictures and\n"
+     "videos for the console's games."},
+};
+
+static void glo_flag_path(int entry, char *out, size_t size)
+{
+    snprintf(out, size, "%s/.hideGlo%s", MAINMENU_CONFIG_DIR, glo_entries[entry].flag);
+}
+
+static bool glo_shown(int entry)
+{
+    char path[256];
+    glo_flag_path(entry, path, sizeof(path));
+    return access(path, F_OK) != 0;
+}
+
+static bool glo_store(int entry, bool shown)
+{
+    char path[256];
+    glo_flag_path(entry, path, sizeof(path));
+    if (shown)
+        return remove(path) == 0 || errno == ENOENT;
+    FILE *fp = fopen(path, "w");
+    if (fp == NULL)
+        return false;
+    return fclose(fp) == 0;
+}
+
+static void glo_action_entry(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!glo_store(item->action_id, item->value != 0))
+        item->value = glo_shown(item->action_id);
+}
+
+// The menus of Games, Favorites, Recents and Search (one toggle per
+// action), then the entries of GLO.
 void menu_listMenus(void *_)
 {
     (void)_;
     if (!_menu_game_menus._created) {
-        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT, LIST_SMALL, "List menus");
+        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT + GLO_ENTRY_COUNT, LIST_SMALL, "List menus");
         for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
             if (gamemenu_items[i].fixed || gamemenu_items[i].section == GAMEMENU_DETAILS)
                 continue;
@@ -2016,6 +2093,16 @@ void menu_listMenus(void *_)
                                      "Show this action in the game list's\n"
                                      "SELECT menu. Actions that don't apply\n"
                                      "to a game stay hidden anyway.");
+        }
+        for (int i = 0; i < GLO_ENTRY_COUNT; i++) {
+            if (glo_entries[i].network && !GLO_HAS_NETWORK)
+                continue;
+            ListItem item = {.item_type = TOGGLE,
+                             .value = glo_shown(i),
+                             .action_id = i,
+                             .action = glo_action_entry};
+            snprintf(item.label, sizeof(item.label), "GLO: %s", glo_entries[i].label);
+            list_addItemWithInfoNote(&_menu_game_menus, item, glo_entries[i].note);
         }
     }
     menu_stack[++menu_level] = &_menu_game_menus;

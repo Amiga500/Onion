@@ -1010,7 +1010,7 @@ void menu_gameListsMenu(void *_)
 {
     (void)_;
     if (!_menu_game_lists._created) {
-        _menu_game_lists = list_createWithTitle(7, LIST_SMALL, "Game lists");
+        _menu_game_lists = list_createWithTitle(6, LIST_SMALL, "Game lists");
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "Layout...", .action = menu_gameListsLayout},
                                  "Rows per page, font size, sorting and\n"
@@ -1026,7 +1026,8 @@ void menu_gameListsMenu(void *_)
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "List menus...", .action = menu_listMenus},
                                  "Which actions the SELECT menus of Games,\n"
-                                 "Favorites, Recents and Search show.");
+                                 "Favorites, Recents and Search show, and\n"
+                                 "what GLO (the game's options) shows.");
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "Game Info menu...", .action = menu_gameInfoMenu},
                                  "What the Game Info menu (SELECT in Game\n"
@@ -1037,16 +1038,6 @@ void menu_gameListsMenu(void *_)
                                  "Shortcut, auto save, pictures, and what\n"
                                  "playing an older save does to the last\n"
                                  "auto save.");
-        list_addItemWithInfoNote(&_menu_game_lists,
-                                 (ListItem){
-                                     .label = "Filter list in game options",
-                                     .item_type = TOGGLE,
-                                     .value = !config_flag_get(".hideGloFilter"),
-                                     .action = action_setGloFilter},
-                                 "Show \"Filter list\" in the game options\n"
-                                 "(Y on a game in Games). Off hides it;\n"
-                                 "a filter already set can still be\n"
-                                 "cleared there.");
         savedgames_update_enabled();
     }
     menu_stack[++menu_level] = &_menu_game_lists;
