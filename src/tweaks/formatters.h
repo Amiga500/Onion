@@ -11,9 +11,9 @@
 #include "./formatters_basic.h"
 #include "./tools.h"
 
-#define BUTTON_MAINUI_LABELS                          \
-    {                                                 \
-        "Context menu", "GameSwitcher", "Resume game" \
+#define BUTTON_MAINUI_LABELS                         \
+    {                                                \
+        "SELECT menu", "GameSwitcher", "Resume game" \
     }
 #define BUTTON_INGAME_LABELS                                                \
     {                                                                       \

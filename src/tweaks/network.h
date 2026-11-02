@@ -424,7 +424,7 @@ void menu_smbd(void *pt)
     if (!_menu_smbd._created) {
         network_getSmbShares();
 
-        _menu_smbd = list_createWithSticky(1 + network_numShares, "Samba");
+        _menu_smbd = list_createWithSticky(1 + network_numShares, "File sharing (Samba)");
 
         list_addItemWithInfoNote(&_menu_smbd,
                                  (ListItem){
@@ -459,7 +459,7 @@ void menu_http(void *pt)
     item->value = (int)network_state.http;
     if (!_menu_http._created) {
         _menu_http = list_create(2, LIST_SMALL);
-        strcpy(_menu_http.title, "HTTP");
+        strcpy(_menu_http.title, "Web file manager (HTTP)");
         list_addItemWithInfoNote(&_menu_http,
                                  (ListItem){
                                      .label = "Enable",
@@ -490,7 +490,7 @@ void menu_ftp(void *pt)
     item->value = (int)network_state.ftp;
     if (!_menu_ftp._created) {
         _menu_ftp = list_create(2, LIST_SMALL);
-        strcpy(_menu_ftp.title, "FTP");
+        strcpy(_menu_ftp.title, "File transfer (FTP)");
         list_addItemWithInfoNote(&_menu_ftp,
                                  (ListItem){
                                      .label = "Enable",
@@ -535,7 +535,7 @@ void menu_ssh(void *pt)
     item->value = (int)network_state.ssh;
     if (!_menu_ssh._created) {
         _menu_ssh = list_create(2, LIST_SMALL);
-        strcpy(_menu_ssh.title, "SSH");
+        strcpy(_menu_ssh.title, "Terminal access (SSH)");
         list_addItemWithInfoNote(&_menu_ssh,
                                  (ListItem){
                                      .label = "Enable",
@@ -566,7 +566,7 @@ void menu_vnc(void *pt)
     item->value = (int)network_state.vncserv;
     if (!_menu_vnc._created) {
         _menu_vnc = list_create(2, LIST_SMALL);
-        strcpy(_menu_vnc.title, "VNC");
+        strcpy(_menu_vnc.title, "Screen sharing (VNC)");
         list_addItem(&_menu_vnc,
                      (ListItem){
                          .label = "Enable",
@@ -593,7 +593,7 @@ void menu_wifi(void *_)
 {
     if (!_menu_wifi._created) {
         _menu_wifi = list_create(3, LIST_SMALL);
-        strcpy(_menu_wifi.title, "WiFi");
+        strcpy(_menu_wifi.title, "Wi-Fi hotspot and WPS");
         list_addItem(&_menu_wifi,
                      (ListItem){
                          .label = "IP address: N/A",
@@ -601,7 +601,7 @@ void menu_wifi(void *_)
                          .action = NULL});
         list_addItemWithInfoNote(&_menu_wifi,
                                  (ListItem){
-                                     .label = "WiFi Hotspot",
+                                     .label = "Wi-Fi hotspot",
                                      .item_type = TOGGLE,
                                      .value = (int)network_state.hotspot,
                                      .action = network_setHotspotState},
@@ -644,11 +644,11 @@ void menu_network(void *_)
                          .action = NULL});
         list_addItem(&_menu_network,
                      (ListItem){
-                         .label = "WiFi: Hotspot/WPS...",
+                         .label = "Wi-Fi hotspot and WPS...",
                          .action = menu_wifi});
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
-                                     .label = "Samba: Network file share...",
+                                     .label = "File sharing (Samba)...",
                                      .item_type = TOGGLE,
                                      .disabled = !settings.wifi_on,
                                      .alternative_arrow_action = true,
@@ -663,7 +663,7 @@ void menu_network(void *_)
                                  "Password: onion\n");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
-                                     .label = "HTTP: Web-based file sync...",
+                                     .label = "Web file manager (HTTP)...",
                                      .item_type = TOGGLE,
                                      .disabled = !settings.wifi_on,
                                      .alternative_arrow_action = true,
@@ -678,7 +678,7 @@ void menu_network(void *_)
                                  "simply enter the IP address in your browser.");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
-                                     .label = "SSH: Secure shell...",
+                                     .label = "Terminal access (SSH)...",
                                      .item_type = TOGGLE,
                                      .disabled = !settings.wifi_on,
                                      .alternative_arrow_action = true,
@@ -691,7 +691,7 @@ void menu_network(void *_)
                                  "SFTP provides a secure file transfer protocol.");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
-                                     .label = "FTP: File server...",
+                                     .label = "File transfer (FTP)...",
                                      .item_type = TOGGLE,
                                      .disabled = !settings.wifi_on,
                                      .alternative_arrow_action = true,
@@ -704,7 +704,7 @@ void menu_network(void *_)
                                  "other device.");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
-                                     .label = "Telnet: Remote shell",
+                                     .label = "Remote shell (Telnet)",
                                      .item_type = TOGGLE,
                                      .disabled = !settings.wifi_on,
                                      .value = (int)network_state.telnet,
@@ -713,7 +713,7 @@ void menu_network(void *_)
                                  "access to your device.");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
-                                     .label = "VNC: Screen share...",
+                                     .label = "Screen sharing (VNC)...",
                                      .item_type = TOGGLE,
                                      .disabled = !settings.wifi_on,
                                      .alternative_arrow_action = true,
@@ -724,7 +724,7 @@ void menu_network(void *_)
                                  "to view the screen and interact with it.");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
-                                     .label = "Disable services in game",
+                                     .label = "Pause these while playing",
                                      .item_type = TOGGLE,
                                      .value = !network_state.keep_alive,
                                      .action = network_keepServicesAlive},

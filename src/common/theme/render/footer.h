@@ -8,8 +8,8 @@
 #include "theme/config.h"
 #include "theme/resources.h"
 
-// Footer layout, shared with Open MainUI 1.0.10 (Tweaks > Appearance >
-// Footer layout). Classic: hints A then B from the left, page number on the
+// Footer layout, shared with Open MainUI 1.0.10 (Tweaks > Look and
+// feel > Button hints at the bottom). Classic: hints A then B from the left, page number on the
 // right. Alternative, when this flag exists: page number on the left, hints
 // in button order, B then A, ending on the right.
 #ifndef FOOTER_ALT_LAYOUT_FLAG

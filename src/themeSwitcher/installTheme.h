@@ -227,8 +227,8 @@ void installTheme(char *theme_path, bool apply_icons)
              theme_path);
     system(skin_cmd);
 
-    // List icons sized for the game-list row count, as Tweaks > Appearance >
-    // Game lists does when its rows or rescale option change.
+    // List icons sized for the game-list row count, as Tweaks > Game lists >
+    // Layout does when its rows or resize option change.
     theme_listRescale(theme_path, THEME_LIST_CONFIG_DIR, THEME_LIST_RESCALE_SCRIPT);
 }
 

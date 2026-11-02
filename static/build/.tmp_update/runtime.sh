@@ -15,8 +15,8 @@ screen_resolution="640x480"
 romwinidx_device="/appconfigs/romwinidx.json"
 romwinidx_sd="$sysdir/config/romwinidx.json"
 # Open MainUI 1.1.0 (rc10) keeps the console last selected in Games and
-# Expert in /tmp, so it is lost at shutdown. With Tweaks > Main menu >
-# Console view > "Remember console after shutdown" (this flag) it is kept on
+# Expert in /tmp, so it is lost at shutdown. With Tweaks > Home screen >
+# Console page > "Remember last console" (this flag) it is kept on
 # the SD card like the list positions (thanks zazzagone, robcodedev).
 console_position_tmp="/tmp/console-position.json"
 console_position_sd="$sysdir/config/console-position.json"
@@ -1750,7 +1750,7 @@ start_networking() {
 }
 
 # Screen shown while a game starts ("LOADING") or saves on exit ("SAVING"),
-# per Tweaks > Appearance > Loading/saving screen: 0 the game screenshot
+# per Tweaks > Look and feel > Loading/saving screen: 0 the game screenshot
 # with a popup (as in Onion), 1 the screenshot alone, 2 black, 3 the message
 # on the theme's full-screen panel (no screenshot).
 show_launch_screen() {

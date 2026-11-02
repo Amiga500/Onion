@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-only
 # Resize the current theme's list assets to fit a game-list row count
-# (Tweaks > Appearance > Game lists > Rescale theme list icons to fit).
+# (Tweaks > Game lists > Layout > Resize theme icons to fit).
 # Adapted from robcodedev/onionos-mainui-patcher. Scales with pngresize
 # (alpha-aware, rounded sizes); Onion's pngScale if pngresize is missing.
 #

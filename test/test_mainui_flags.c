@@ -1,6 +1,7 @@
 /**
  * @file test_mainui_flags.c
- * @brief Tweaks > Appearance > Footer layout and Long menu labels
+ * @brief Tweaks > Look and feel > Button hints at the bottom and Long SELECT
+ *        menu labels
  *        (src/common/system/settings.h, src/tweaks/actions.h)
  *
  * Open MainUI 1.0.10 reads two flag files in .tmp_update/config:
@@ -191,8 +192,8 @@ TEST(tweaks_sources_match)
 }
 
 /* list_addItem() drops items past the capacity given to list_create, so the
- * Appearance menu must have room for every item it adds. */
-TEST(appearance_menu_has_room_for_every_item)
+ * Look and feel menu must have room for every item it adds. */
+TEST(look_and_feel_menu_has_room_for_every_item)
 {
     FILE *fp = fopen("../src/tweaks/menus.h", "r");
     ASSERT_NOT_NULL(fp);
@@ -201,7 +202,7 @@ TEST(appearance_menu_has_room_for_every_item)
     fclose(fp);
     src[n] = '\0';
 
-    char *start = strstr(src, "void menu_userInterface(");
+    char *start = strstr(src, "void menu_lookAndFeel(");
     ASSERT_NOT_NULL(start);
     char *end = strstr(start, "menu_stack[++menu_level] = &_menu_user_interface;");
     ASSERT_NOT_NULL(end);
@@ -228,7 +229,7 @@ int main(void)
     RUN_TEST(hand_made_files_show_as_on);
     RUN_TEST(choice_is_written_at_once);
     RUN_TEST(tweaks_sources_match);
-    RUN_TEST(appearance_menu_has_room_for_every_item);
+    RUN_TEST(look_and_feel_menu_has_room_for_every_item);
 
     (void)!system("rm -rf " TEST_DIR);
     TEST_REPORT();

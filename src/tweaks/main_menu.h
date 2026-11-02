@@ -796,7 +796,7 @@ void menu_mainMenuItems(void *_)
         bool context_states[MAINMENU_CONTEXT_COUNT];
         mainmenu_load_states(menu_states, context_states);
         _menu_main_menu_items = list_createWithTitle(
-            MAINMENU_MENU_COUNT, LIST_SMALL, "Main menu items");
+            MAINMENU_MENU_COUNT, LIST_SMALL, "Tabs");
         for (int i = 0; i < MAINMENU_MENU_COUNT; i++) {
             list_addItem(&_menu_main_menu_items,
                          (ListItem){
@@ -820,7 +820,7 @@ void menu_mainContextItems(void *_)
         bool context_states[MAINMENU_CONTEXT_COUNT];
         mainmenu_load_shown_states(menu_states, context_states);
         _menu_main_context_items = list_createWithTitle(
-            MAINMENU_CONTEXT_LIST_COUNT, LIST_SMALL, "Context menu items");
+            MAINMENU_CONTEXT_LIST_COUNT, LIST_SMALL, "SELECT menu");
         for (int i = 0; i < MAINMENU_CONTEXT_COUNT; i++) {
             ListItem item = {.label = "",
                              .item_type = TOGGLE,
@@ -831,7 +831,7 @@ void menu_mainContextItems(void *_)
                 list_addItemWithInfoNote(&_menu_main_context_items, item,
                                          "Search is not installed. Install it\n"
                                          "from the Package Manager (Apps) to\n"
-                                         "show it in the context menu.");
+                                         "show it in the SELECT menu.");
             else if (i >= 11 && !mainmenu_context_available(i))
                 list_addItemWithInfoNote(&_menu_main_context_items, item,
                                          "Not defined: give it a label and a\n"
@@ -845,13 +845,14 @@ void menu_mainContextItems(void *_)
         list_addItemWithInfoNote(
             &_menu_main_context_items,
             (ListItem){
-                .label = "Activate hotkey",
+                .label = "Open with its hotkey",
                 .item_type = TOGGLE,
                 .value = mainmenu_load_hotkey_state(),
                 .action = mainmenu_action_hotkey},
             "Enable the MainUI hotkey that opens the\n"
-            "context menu. This root setting is not a\n"
-            "context-menu item. Default: on.");
+            "SELECT menu (also called context menu).\n"
+            "It is a setting, not a menu entry.\n"
+            "Default: on.");
     }
     menu_stack[++menu_level] = &_menu_main_context_items;
     header_changed = true;
@@ -1263,17 +1264,31 @@ static int consoleview_used_views(void)
            (1 << consoleview_layout(CONSOLEVIEW_EXPERT));
 }
 
-// Greys out the Console view options of the views not in use.
-static void consoleview_update_enabled(List *list)
+// Greys out what neither Games nor Expert uses: in Console page the options
+// of a view they don't show, in Home screen the two carousel menus.
+void menu_carouselLook(void *_);
+void menu_carouselMovement(void *_);
+
+static void consoleview_update_list(List *list, int used)
 {
-    int used = consoleview_used_views();
     for (int i = 0; i < list->item_count; i++) {
         ListItem *item = &list->items[i];
         if (item->action == consoleview_action_option)
             item->disabled = (consoleview_option_views(item->action_id) & used) == 0;
         else if (item->action == consoleview_action_thumbs)
             item->disabled = (CONSOLEVIEW_THUMBS_VIEWS & used) == 0;
+        else if (item->action == menu_carouselLook || item->action == menu_carouselMovement)
+            item->disabled = (CONSOLEVIEW_FOR_CAROUSEL & used) == 0;
     }
+}
+
+static void consoleview_update_enabled(void)
+{
+    int used = consoleview_used_views();
+    if (_menu_console_view._created)
+        consoleview_update_list(&_menu_console_view, used);
+    if (_menu_home_screen._created)
+        consoleview_update_list(&_menu_home_screen, used);
 }
 
 static void consoleview_action_layout(void *pt)
@@ -1282,19 +1297,18 @@ static void consoleview_action_layout(void *pt)
     int screen = item->action_id;
     if (!consoleview_store_layout(screen, item->value))
         item->value = consoleview_layout(screen);
-    if (_menu_console_view._created)
-        consoleview_update_enabled(&_menu_console_view);
+    consoleview_update_enabled();
 }
 
-void menu_consoleView(void *_)
+void menu_consolePage(void *_)
 {
     (void)_;
     if (!_menu_console_view._created) {
-        _menu_console_view = list_createWithTitle(21, LIST_SMALL, "Console view");
+        _menu_console_view = list_createWithTitle(9, LIST_SMALL, "Console page");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
-                .label = "Games view",
+                .label = "Games tab view",
                 .item_type = MULTIVALUE,
                 .value_max = CONSOLEVIEW_LAYOUT_COUNT - 1,
                 .value_labels = {"Grid", "Carousel", "List"},
@@ -1302,13 +1316,13 @@ void menu_consoleView(void *_)
                 .action_id = CONSOLEVIEW_GAMES,
                 .action = consoleview_action_layout},
             "How Games shows the consoles: the grid,\n"
-            "a carousel or a list. The options of a\n"
-            "view that Games and Expert don't use\n"
-            "are greyed out. Needs Open MainUI 1.1.0.");
+            "a carousel or a list. Options of a view\n"
+            "that neither Games nor Expert uses are\n"
+            "greyed out. Needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
-                .label = "Expert view",
+                .label = "Expert tab view",
                 .item_type = MULTIVALUE,
                 .value_max = CONSOLEVIEW_LAYOUT_COUNT - 1,
                 .value_labels = {"Grid", "Carousel", "List"},
@@ -1316,19 +1330,9 @@ void menu_consoleView(void *_)
                 .action_id = CONSOLEVIEW_EXPERT,
                 .action = consoleview_action_layout},
             "How Expert shows the consoles: the grid,\n"
-            "a carousel or a list. The options of a\n"
-            "view that Games and Expert don't use\n"
-            "are greyed out. Needs Open MainUI 1.1.0.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Remember console after shutdown",
-                .item_type = TOGGLE,
-                .value = consoleview_remembers(),
-                .action = consoleview_action_remember},
-            "Games and Expert start on the console\n"
-            "you used last, also after turning the\n"
-            "device off. Needs Open MainUI 1.1.0.");
+            "a carousel or a list. Options of a view\n"
+            "that neither Games nor Expert uses are\n"
+            "greyed out. Needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1357,157 +1361,13 @@ void menu_consoleView(void *_)
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
-                .label = "Carousel: names",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"On", "Off"},
-                .value = consoleview_option(CONSOLEVIEW_LABELS),
-                .action_id = CONSOLEVIEW_LABELS,
-                .action = consoleview_action_option},
-            "Show the console's name under its\n"
-            "picture in the carousel.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: selection box",
-                .item_type = MULTIVALUE,
-                .value_max = 3,
-                .value_labels = {"Theme", "Off", "Light", "Bright"},
-                .value = consoleview_option(CONSOLEVIEW_SELECTION),
-                .action_id = CONSOLEVIEW_SELECTION,
-                .action = consoleview_action_option},
-            "The box behind the selected console:\n"
-            "the theme's colour, none, or white at\n"
-            "12% (Light) or 22% (Bright).");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: selection padding",
-                .item_type = MULTIVALUE,
-                .value_max = 4,
-                .value_labels = {"Default", "0 px", "8 px", "16 px", "24 px"},
-                .value = consoleview_option(CONSOLEVIEW_PADDING),
-                .action_id = CONSOLEVIEW_PADDING,
-                .action = consoleview_action_option},
-            "Space between the selected picture and\n"
-            "its box. Default: as Open MainUI sets it\n"
-            "(12 px).");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: other consoles",
-                .item_type = MULTIVALUE,
-                .value_max = 3,
-                .value_labels = {"Default", "Clear", "Dimmed", "Faint"},
-                .value = consoleview_option(CONSOLEVIEW_OPACITY),
-                .action_id = CONSOLEVIEW_OPACITY,
-                .action = consoleview_action_option},
-            "How the consoles beside the selected one\n"
-            "look: Clear, Dimmed (50%) or Faint (30%).\n"
-            "Default: as Open MainUI sets it (50%).");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: other consoles size",
-                .item_type = MULTIVALUE,
-                .value_max = 4,
-                .value_labels = {"Default", "Same", "85%", "70%", "60%"},
-                .value = consoleview_option(CONSOLEVIEW_SCALE),
-                .action_id = CONSOLEVIEW_SCALE,
-                .action = consoleview_action_option},
-            "Size of the consoles beside the selected\n"
-            "one. Default: as Open MainUI sets it (70%).");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: spacing",
-                .item_type = MULTIVALUE,
-                .value_max = 5,
-                .value_labels = {"Default", "0 px", "16 px", "32 px", "48 px", "64 px"},
-                .value = consoleview_option(CONSOLEVIEW_GAP),
-                .action_id = CONSOLEVIEW_GAP,
-                .action = consoleview_action_option},
-            "Space between the console pictures.\n"
-            "Default: as Open MainUI sets it (40 px).");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: height",
-                .item_type = MULTIVALUE,
-                .value_max = 4,
-                .value_labels = {"Default", "Up 40 px", "Up 20 px", "Down 20 px", "Down 40 px"},
-                .value = consoleview_option(CONSOLEVIEW_OFFSET),
-                .action_id = CONSOLEVIEW_OFFSET,
-                .action = consoleview_action_option},
-            "Moves the pictures and their names\n"
-            "up or down. Default: centred.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: animation",
-                .item_type = MULTIVALUE,
-                .value_max = 2,
-                .value_labels = {"Default", "None", "Slide"},
-                .value = consoleview_option(CONSOLEVIEW_ANIMATION),
-                .action_id = CONSOLEVIEW_ANIMATION,
-                .action = consoleview_action_option},
-            "Slide moves the consoles into place.\n"
-            "Default: as Open MainUI sets it.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: motion",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"Default", "Smooth"},
-                .value = consoleview_option(CONSOLEVIEW_EASING),
-                .action_id = CONSOLEVIEW_EASING,
-                .action = consoleview_action_option},
-            "How a slide moves. Default: fast, then\n"
-            "slowing down. Smooth: speeds up and\n"
-            "slows down gently. Only with Slide.\n"
-            "Needs Open MainUI 1.1.0.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: slide time",
-                .item_type = MULTIVALUE,
-                .value_max = 6,
-                .value_labels = {"Default", "100 ms", "150 ms", "180 ms", "240 ms", "300 ms", "400 ms"},
-                .value = consoleview_option(CONSOLEVIEW_DURATION),
-                .action_id = CONSOLEVIEW_DURATION,
-                .action = consoleview_action_option},
-            "How long a slide takes: shorter is\n"
-            "snappier. Default: as Open MainUI sets\n"
-            "it (180 ms; 240 ms before rc15). Only\n"
-            "with Slide.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: hold speed",
-                .item_type = MULTIVALUE,
-                .value_max = 3,
-                .value_labels = {"Default", "100 ms", "200 ms", "300 ms"},
-                .value = consoleview_option(CONSOLEVIEW_REPEAT),
-                .action_id = CONSOLEVIEW_REPEAT,
-                .action = consoleview_action_option},
-            "Time between moves while Left/Right is\n"
-            "held. With Slide it is never shorter\n"
-            "than the slide time (Default: one move\n"
-            "per slide). Needs Open MainUI 1.1.0.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Carousel: VSync",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"On", "Off"},
-                .value = consoleview_option(CONSOLEVIEW_VSYNC),
-                .action_id = CONSOLEVIEW_VSYNC,
-                .action = consoleview_action_option},
-            "Draws the carousel in step with the\n"
-            "screen: less tearing. Turns itself off\n"
-            "if the screen is too slow for it.");
+                .label = "Remember last console",
+                .item_type = TOGGLE,
+                .value = consoleview_remembers(),
+                .action = consoleview_action_remember},
+            "Games and Expert start on the console\n"
+            "you used last, also after turning the\n"
+            "device off. Needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1526,7 +1386,7 @@ void menu_consoleView(void *_)
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
-                .label = "Grid: navigation",
+                .label = "Grid navigation",
                 .item_type = MULTIVALUE,
                 .value_max = 1,
                 .value_labels = {"Linear", "Stock"},
@@ -1554,7 +1414,7 @@ void menu_consoleView(void *_)
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
-                .label = "Console menu",
+                .label = "Console page menu",
                 .item_type = MULTIVALUE,
                 .value_max = 3,
                 .value_labels = {"Default", "Refresh all", "Refresh", "None"},
@@ -1564,9 +1424,183 @@ void menu_consoleView(void *_)
             "The menu on the Games/Expert console\n"
             "page: both refresh actions, only one,\n"
             "or none.");
-        consoleview_update_enabled(&_menu_console_view);
+        consoleview_update_enabled();
     }
     menu_stack[++menu_level] = &_menu_console_view;
+    header_changed = true;
+}
+
+void menu_carouselLook(void *_)
+{
+    (void)_;
+    if (!_menu_carousel_look._created) {
+        _menu_carousel_look = list_createWithTitle(7, LIST_SMALL, "Carousel look");
+        list_addItemWithInfoNote(
+            &_menu_carousel_look,
+            (ListItem){
+                .label = "Console names",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"On", "Off"},
+                .value = consoleview_option(CONSOLEVIEW_LABELS),
+                .action_id = CONSOLEVIEW_LABELS,
+                .action = consoleview_action_option},
+            "Show the console's name under its\n"
+            "picture in the carousel.");
+        list_addItemWithInfoNote(
+            &_menu_carousel_look,
+            (ListItem){
+                .label = "Selection box",
+                .item_type = MULTIVALUE,
+                .value_max = 3,
+                .value_labels = {"Theme", "Off", "Light", "Bright"},
+                .value = consoleview_option(CONSOLEVIEW_SELECTION),
+                .action_id = CONSOLEVIEW_SELECTION,
+                .action = consoleview_action_option},
+            "The box behind the selected console:\n"
+            "the theme's colour, none, or white at\n"
+            "12% (Light) or 22% (Bright).");
+        list_addItemWithInfoNote(
+            &_menu_carousel_look,
+            (ListItem){
+                .label = "Selection box padding",
+                .item_type = MULTIVALUE,
+                .value_max = 4,
+                .value_labels = {"Default", "0 px", "8 px", "16 px", "24 px"},
+                .value = consoleview_option(CONSOLEVIEW_PADDING),
+                .action_id = CONSOLEVIEW_PADDING,
+                .action = consoleview_action_option},
+            "Space between the selected picture and\n"
+            "its box. Default: as Open MainUI sets it\n"
+            "(12 px).");
+        list_addItemWithInfoNote(
+            &_menu_carousel_look,
+            (ListItem){
+                .label = "Nearby consoles",
+                .item_type = MULTIVALUE,
+                .value_max = 3,
+                .value_labels = {"Default", "Clear", "Dimmed", "Faint"},
+                .value = consoleview_option(CONSOLEVIEW_OPACITY),
+                .action_id = CONSOLEVIEW_OPACITY,
+                .action = consoleview_action_option},
+            "How the consoles beside the selected one\n"
+            "look: Clear, Dimmed (50%) or Faint (30%).\n"
+            "Default: as Open MainUI sets it (50%).");
+        list_addItemWithInfoNote(
+            &_menu_carousel_look,
+            (ListItem){
+                .label = "Nearby consoles size",
+                .item_type = MULTIVALUE,
+                .value_max = 4,
+                .value_labels = {"Default", "Same", "85%", "70%", "60%"},
+                .value = consoleview_option(CONSOLEVIEW_SCALE),
+                .action_id = CONSOLEVIEW_SCALE,
+                .action = consoleview_action_option},
+            "Size of the consoles beside the selected\n"
+            "one. Default: as Open MainUI sets it (70%).");
+        list_addItemWithInfoNote(
+            &_menu_carousel_look,
+            (ListItem){
+                .label = "Space between consoles",
+                .item_type = MULTIVALUE,
+                .value_max = 5,
+                .value_labels = {"Default", "0 px", "16 px", "32 px", "48 px", "64 px"},
+                .value = consoleview_option(CONSOLEVIEW_GAP),
+                .action_id = CONSOLEVIEW_GAP,
+                .action = consoleview_action_option},
+            "Space between the console pictures.\n"
+            "Default: as Open MainUI sets it (40 px).");
+        list_addItemWithInfoNote(
+            &_menu_carousel_look,
+            (ListItem){
+                .label = "Vertical position",
+                .item_type = MULTIVALUE,
+                .value_max = 4,
+                .value_labels = {"Default", "Up 40 px", "Up 20 px", "Down 20 px", "Down 40 px"},
+                .value = consoleview_option(CONSOLEVIEW_OFFSET),
+                .action_id = CONSOLEVIEW_OFFSET,
+                .action = consoleview_action_option},
+            "Moves the pictures and their names\n"
+            "up or down. Default: centred.");
+    }
+    menu_stack[++menu_level] = &_menu_carousel_look;
+    header_changed = true;
+}
+
+void menu_carouselMovement(void *_)
+{
+    (void)_;
+    if (!_menu_carousel_movement._created) {
+        _menu_carousel_movement = list_createWithTitle(5, LIST_SMALL, "Carousel movement");
+        list_addItemWithInfoNote(
+            &_menu_carousel_movement,
+            (ListItem){
+                .label = "Animation",
+                .item_type = MULTIVALUE,
+                .value_max = 2,
+                .value_labels = {"Default", "None", "Slide"},
+                .value = consoleview_option(CONSOLEVIEW_ANIMATION),
+                .action_id = CONSOLEVIEW_ANIMATION,
+                .action = consoleview_action_option},
+            "Slide moves the consoles into place.\n"
+            "Default: as Open MainUI sets it.");
+        list_addItemWithInfoNote(
+            &_menu_carousel_movement,
+            (ListItem){
+                .label = "Slide motion",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"Default", "Smooth"},
+                .value = consoleview_option(CONSOLEVIEW_EASING),
+                .action_id = CONSOLEVIEW_EASING,
+                .action = consoleview_action_option},
+            "How a slide moves. Default: fast, then\n"
+            "slowing down. Smooth: speeds up and\n"
+            "slows down gently. Only with Slide.\n"
+            "Needs Open MainUI 1.1.0.");
+        list_addItemWithInfoNote(
+            &_menu_carousel_movement,
+            (ListItem){
+                .label = "Slide time",
+                .item_type = MULTIVALUE,
+                .value_max = 6,
+                .value_labels = {"Default", "100 ms", "150 ms", "180 ms", "240 ms", "300 ms", "400 ms"},
+                .value = consoleview_option(CONSOLEVIEW_DURATION),
+                .action_id = CONSOLEVIEW_DURATION,
+                .action = consoleview_action_option},
+            "How long a slide takes: shorter is\n"
+            "snappier. Default: as Open MainUI sets\n"
+            "it (180 ms; 240 ms before rc15). Only\n"
+            "with Slide.");
+        list_addItemWithInfoNote(
+            &_menu_carousel_movement,
+            (ListItem){
+                .label = "Speed when holding",
+                .item_type = MULTIVALUE,
+                .value_max = 3,
+                .value_labels = {"Default", "100 ms", "200 ms", "300 ms"},
+                .value = consoleview_option(CONSOLEVIEW_REPEAT),
+                .action_id = CONSOLEVIEW_REPEAT,
+                .action = consoleview_action_option},
+            "Time between moves while Left/Right is\n"
+            "held. With Slide it is never shorter\n"
+            "than the slide time (Default: one move\n"
+            "per slide). Needs Open MainUI 1.1.0.");
+        list_addItemWithInfoNote(
+            &_menu_carousel_movement,
+            (ListItem){
+                .label = "VSync",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"On", "Off"},
+                .value = consoleview_option(CONSOLEVIEW_VSYNC),
+                .action_id = CONSOLEVIEW_VSYNC,
+                .action = consoleview_action_option},
+            "Draws the carousel in step with the\n"
+            "screen: less tearing. Turns itself off\n"
+            "if the screen is too slow for it.");
+    }
+    menu_stack[++menu_level] = &_menu_carousel_movement;
     header_changed = true;
 }
 
@@ -1813,26 +1847,26 @@ typedef struct {
 } GameMenuSwitch;
 
 static const GameMenuSwitch gamemenu_switches[GAMEMENU_SWITCH_COUNT] = {
-    {"saved_games", "left_shortcut", false, "Saved Games: Left shortcut",
+    {"saved_games", "left_shortcut", false, "LEFT opens Saved Games",
      "Left on a game in the list opens its\n"
      "Saved Games. Off: Saved Games only from\n"
      "the Game Info menu (SELECT).\n"
      "Needs Open MainUI 1.1.0 rc14."},
-    {"saved_games", "show_auto", false, "Saved Games: show Auto Save",
+    {"saved_games", "show_auto", false, "Show the Auto Save",
      "List the auto save in Saved Games too.\n"
      "Off only hides it: auto save still\n"
      "works.\n"
      "Needs Open MainUI 1.1.0 rc14."},
-    {"saved_games", "upscale_preview", true, "Saved Games: enlarge pictures",
+    {"saved_games", "upscale_preview", true, "Enlarge small pictures",
      "Small save pictures are enlarged to fill\n"
      "the screen. Off: shown at their size.\n"
      "Needs Open MainUI 1.1.0 rc14."},
-    {"saved_games", "correct_aspect_ratio", true, "Saved Games: console ratio",
+    {"saved_games", "correct_aspect_ratio", true, "Console screen shape",
      "Show save pictures with the console's\n"
      "screen shape (4:3, GB 10:9, GBA 3:2).\n"
      "Off: as the picture is.\n"
      "Needs Open MainUI 1.1.0 rc14."},
-    {"gallery", "right_shortcut", true, "Gallery: Right shortcut",
+    {"gallery", "right_shortcut", true, "RIGHT opens the gallery",
      "Right in Game Info opens the gallery.\n"
      "Off: the gallery only from the Game\n"
      "Info menu (SELECT).\n"
@@ -1909,13 +1943,14 @@ static void gamemenu_action_item(void *pt)
         item->value = gamemenu_shown(item->action_id);
 }
 
-void menu_gameMenus(void *_)
+// The menus of Games, Favorites, Recents and Search: one toggle per action.
+void menu_listMenus(void *_)
 {
     (void)_;
     if (!_menu_game_menus._created) {
-        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT + 1 + GAMEMENU_SWITCH_COUNT, LIST_SMALL, "Game list menus");
+        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT, LIST_SMALL, "List menus");
         for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
-            if (gamemenu_items[i].fixed)
+            if (gamemenu_items[i].fixed || gamemenu_items[i].section == GAMEMENU_DETAILS)
                 continue;
             ListItem item = {.item_type = TOGGLE,
                              .value = gamemenu_shown(i),
@@ -1923,23 +1958,69 @@ void menu_gameMenus(void *_)
                              .action = gamemenu_action_item};
             snprintf(item.label, sizeof(item.label), "%s: %s",
                      gamemenu_section_labels[gamemenu_items[i].section], gamemenu_items[i].label);
-            if (gamemenu_items[i].section == GAMEMENU_DETAILS)
-                list_addItemWithInfoNote(&_menu_game_menus, item,
-                                         "Show this in the Game Info menu (SELECT\n"
-                                         "in Game Info). Saved Games off also\n"
-                                         "turns off its Left shortcut.\n"
-                                         "Needs Open MainUI 1.1.0.");
-            else
-                list_addItemWithInfoNote(&_menu_game_menus, item,
-                                         "Show this action in the game list's\n"
-                                         "menu. Actions that don't apply to a\n"
-                                         "game stay hidden anyway.\n"
-                                         "Needs Open MainUI 1.1.0.");
+            list_addItemWithInfoNote(&_menu_game_menus, item,
+                                     "Show this action in the game list's\n"
+                                     "SELECT menu. Actions that don't apply\n"
+                                     "to a game stay hidden anyway.\n"
+                                     "Needs Open MainUI 1.1.0.");
+        }
+    }
+    menu_stack[++menu_level] = &_menu_game_menus;
+    header_changed = true;
+}
+
+static void gamemenu_add_switch(List *list, int index)
+{
+    ListItem item = {.item_type = TOGGLE,
+                     .value = gamemenu_switch(index),
+                     .action_id = index,
+                     .action = gamemenu_action_switch};
+    snprintf(item.label, sizeof(item.label), "%s", gamemenu_switches[index].label);
+    list_addItemWithInfoNote(list, item, gamemenu_switches[index].note);
+}
+
+// The Game Info menu (SELECT in Game Info and the media viewers).
+void menu_gameInfoMenu(void *_)
+{
+    (void)_;
+    if (!_menu_game_info_menu._created) {
+        _menu_game_info_menu = list_createWithTitle(GAMEMENU_ITEM_COUNT + 1, LIST_SMALL, "Game Info menu");
+        for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
+            if (gamemenu_items[i].fixed || gamemenu_items[i].section != GAMEMENU_DETAILS)
+                continue;
+            ListItem item = {.item_type = TOGGLE,
+                             .value = gamemenu_shown(i),
+                             .action_id = i,
+                             .action = gamemenu_action_item};
+            snprintf(item.label, sizeof(item.label), "%s", gamemenu_items[i].label);
+            list_addItemWithInfoNote(&_menu_game_info_menu, item,
+                                     "Show this in the Game Info menu (SELECT\n"
+                                     "in Game Info). With Saved Games off,\n"
+                                     "LEFT no longer opens it either.\n"
+                                     "Needs Open MainUI 1.1.0.");
+        }
+        for (int i = 0; i < GAMEMENU_SWITCH_COUNT; i++) {
+            if (strcmp(gamemenu_switches[i].section, "gallery") == 0)
+                gamemenu_add_switch(&_menu_game_info_menu, i);
+        }
+    }
+    menu_stack[++menu_level] = &_menu_game_info_menu;
+    header_changed = true;
+}
+
+void menu_savedGames(void *_)
+{
+    (void)_;
+    if (!_menu_saved_games._created) {
+        _menu_saved_games = list_createWithTitle(GAMEMENU_SWITCH_COUNT + 1, LIST_SMALL, "Saved Games");
+        for (int i = 0; i < GAMEMENU_SWITCH_COUNT; i++) {
+            if (strcmp(gamemenu_switches[i].section, "saved_games") == 0)
+                gamemenu_add_switch(&_menu_saved_games, i);
         }
         list_addItemWithInfoNote(
-            &_menu_game_menus,
+            &_menu_saved_games,
             (ListItem){
-                .label = "Saved Games: older save",
+                .label = "Playing an older save",
                 .item_type = MULTIVALUE,
                 .value_max = GAMEMENU_RESUME_COUNT - 1,
                 .value_labels = {"Backup", "Overwrite", "Swap"},
@@ -1949,50 +2030,50 @@ void menu_gameMenus(void *_)
             "Backup keeps the last auto save as\n"
             "Previous Session, Overwrite replaces it,\n"
             "Swap trades it with that save's slot.");
-        for (int i = 0; i < GAMEMENU_SWITCH_COUNT; i++) {
-            ListItem item = {.item_type = TOGGLE,
-                             .value = gamemenu_switch(i),
-                             .action_id = i,
-                             .action = gamemenu_action_switch};
-            snprintf(item.label, sizeof(item.label), "%s", gamemenu_switches[i].label);
-            list_addItemWithInfoNote(&_menu_game_menus, item, gamemenu_switches[i].note);
-        }
     }
-    menu_stack[++menu_level] = &_menu_game_menus;
+    menu_stack[++menu_level] = &_menu_saved_games;
     header_changed = true;
 }
 
-void menu_mainMenu(void *_)
+// Tweaks > Home screen: what MainUI shows before a game list.
+void menu_homeScreen(void *_)
 {
     (void)_;
-    if (!_menu_main_menu._created) {
-        _menu_main_menu = list_createWithTitle(4, LIST_SMALL, "Main menu");
+    if (!_menu_home_screen._created) {
+        _menu_home_screen = list_createWithTitle(5, LIST_SMALL, "Home screen");
         list_addItemWithInfoNote(
-            &_menu_main_menu,
-            (ListItem){.label = "Main menu items...", .action = menu_mainMenuItems},
-            "Choose which top-level MainUI sections\n"
-            "are visible. Restart MainUI after changes.");
+            &_menu_home_screen,
+            (ListItem){.label = "Tabs...", .action = menu_mainMenuItems},
+            "Which tabs MainUI shows: Recents,\n"
+            "Favorites, Games, Expert, Apps,\n"
+            "Settings. Restart MainUI after changes.");
         list_addItemWithInfoNote(
-            &_menu_main_menu,
-            (ListItem){.label = "Context menu items...", .action = menu_mainContextItems},
-            "Choose which SELECT-menu entries are visible\n"
-            "and whether its activation hotkey is enabled.\n"
-            "Existing custom definitions are preserved.");
+            &_menu_home_screen,
+            (ListItem){.label = "Console page...", .action = menu_consolePage},
+            "Games and Expert as a carousel, a grid\n"
+            "or a list, console pictures, game count,\n"
+            "wrap around. Needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(
-            &_menu_main_menu,
-            (ListItem){.label = "Console view...", .action = menu_consoleView},
-            "Games and Expert as grid, carousel or\n"
-            "list, console pictures and the carousel's\n"
-            "look. Needs Open MainUI 1.1.0.");
+            &_menu_home_screen,
+            (ListItem){.label = "Carousel look...", .action = menu_carouselLook},
+            "Names, selection box, size and spacing\n"
+            "of the consoles in the carousel. Greyed\n"
+            "out while no tab uses the carousel.");
         list_addItemWithInfoNote(
-            &_menu_main_menu,
-            (ListItem){.label = "Game list menus...", .action = menu_gameMenus},
-            "Choose what the menus of Games,\n"
-            "Favorites, Recents, Search and Game Info\n"
-            "show, and Saved Games' older saves.\n"
-            "Needs Open MainUI 1.1.0.");
+            &_menu_home_screen,
+            (ListItem){.label = "Carousel movement...", .action = menu_carouselMovement},
+            "How the carousel slides: animation,\n"
+            "time, speed when holding, VSync. Greyed\n"
+            "out while no tab uses the carousel.");
+        list_addItemWithInfoNote(
+            &_menu_home_screen,
+            (ListItem){.label = "SELECT menu...", .action = menu_mainContextItems},
+            "Which entries the SELECT menu of the\n"
+            "home screen shows, and its hotkey.\n"
+            "Custom entries defined by hand are kept.");
+        consoleview_update_enabled();
     }
-    menu_stack[++menu_level] = &_menu_main_menu;
+    menu_stack[++menu_level] = &_menu_home_screen;
     header_changed = true;
 }
 

@@ -144,8 +144,8 @@ void enableSavingMessage(void)
     temp_flag_set(".displaySavingMessage", true);
 }
 
-// Screen shown while the game saves on exit, per Tweaks > Appearance >
-// Loading/saving screen (settings.launch_screen): 0 the game screenshot with
+// Screen shown while the game saves on exit, per Tweaks > Look and feel
+// > Loading/saving screen (settings.launch_screen): 0 the game screenshot with
 // a "SAVING" popup, 1 the screenshot alone, 2 black, 3 "SAVING" on the
 // theme's full-screen panel. runtime.sh does the same for "LOADING"
 // (show_launch_screen).

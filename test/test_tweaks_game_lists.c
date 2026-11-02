@@ -1,6 +1,6 @@
 /**
  * @file test_tweaks_game_lists.c
- * @brief Tweaks > Appearance > Game lists and Main menu, on the real files
+ * @brief Tweaks > Game lists and Home screen, on the real files
  *
  * Runs the production code of tweaks/game_lists_core.h and tweaks/main_menu.h
  * against a temporary config folder:
@@ -23,6 +23,7 @@
  */
 
 #include "onion_test.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,7 +48,8 @@ static char **lang_list = NULL;
 static List *menu_stack[5];
 static int menu_level = 0;
 static bool header_changed = false;
-static List _menu_main_menu, _menu_main_menu_items, _menu_main_context_items, _menu_console_view, _menu_game_menus;
+static List _menu_home_screen, _menu_main_menu_items, _menu_main_context_items, _menu_console_view,
+    _menu_carousel_look, _menu_carousel_movement, _menu_game_menus, _menu_game_info_menu, _menu_saved_games;
 #include "../src/tweaks/main_menu.h"
 
 void SDL_FreeSurface(SDL_Surface *surface) { (void)surface; }
@@ -295,31 +297,6 @@ TEST(video_preview_size_waits_while_off)
     ASSERT_TRUE(gamelists_store_video_preview(250));
     read_file(GAMELISTS_VIDEO_PREVIEW_PATH, text, sizeof(text));
     ASSERT_STREQ(text, "250,fullscreen\n");
-}
-
-TEST(game_lists_menu_has_room_for_every_item)
-{
-    /* list_addItem drops an item past the capacity without a word. */
-    FILE *fp = fopen("../src/tweaks/game_lists.h", "r");
-    ASSERT_TRUE(fp != NULL);
-    char line[512];
-    int capacity = -1, items = 0;
-    bool inside = false;
-    while (fgets(line, sizeof(line), fp)) {
-        const char *create = strstr(line, "_menu_game_lists = list_createWithTitle(");
-        if (create) {
-            capacity = atoi(create + strlen("_menu_game_lists = list_createWithTitle("));
-            inside = true;
-            continue;
-        }
-        if (inside && strstr(line, "menu_stack[++menu_level]"))
-            break;
-        if (inside && strstr(line, "list_addItem"))
-            items++;
-    }
-    fclose(fp);
-    ASSERT_EQ(items, 14);
-    ASSERT_TRUE(items <= capacity);
 }
 
 TEST(scroll_speeds_are_rendered_exactly)
@@ -717,52 +694,69 @@ TEST(console_pictures_off_removes_the_key)
     ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
 }
 
-TEST(main_menu_submenu_has_room_for_every_item)
+/* list_addItem() drops items past the capacity a menu is created with, so
+ * every Tweaks menu built with a fixed number must have room for all the
+ * items it may add. Each list_addItem up to the menu's push is counted,
+ * also the ones behind a device check: the bound holds on every model. */
+static int menus_overflowing(const char *path, int *menus)
 {
-    FILE *fp = fopen("../src/tweaks/main_menu.h", "r");
-    ASSERT_TRUE(fp != NULL);
-    char line[512];
-    int capacity = -1, items = 0;
-    bool inside = false;
-    while (fgets(line, sizeof(line), fp)) {
-        const char *create = strstr(line, "_menu_main_menu = list_createWithTitle(");
-        if (create) {
-            capacity = atoi(create + strlen("_menu_main_menu = list_createWithTitle("));
-            inside = true;
-            continue;
-        }
-        if (inside && strstr(line, "menu_stack[++menu_level]"))
-            break;
-        if (inside && strstr(line, "list_addItem"))
-            items++;
-    }
+    FILE *fp = fopen(path, "r");
+    if (fp == NULL)
+        return 1;
+    static char src[1 << 20];
+    size_t n = fread(src, 1, sizeof(src) - 1, fp);
     fclose(fp);
-    ASSERT_EQ(items, 4);
-    ASSERT_TRUE(capacity >= items);
+    src[n] = '\0';
+
+    int overflows = 0;
+    for (char *p = src; (p = strstr(p, "list_create")) != NULL; p++) {
+        char *open = p + strlen("list_create");
+        if (strncmp(open, "WithTitle", 9) == 0)
+            open += 9;
+        else if (strncmp(open, "WithSticky", 10) == 0)
+            open += 10;
+        if (*open != '(' || !isdigit((unsigned char)open[1]))
+            continue; /* not a call with a number */
+        char *after = NULL;
+        int capacity = (int)strtol(open + 1, &after, 10);
+        while (*after == ' ')
+            after++;
+        if (*after != ',')
+            continue; /* a computed size: 1 + n */
+        char *end = strstr(open, "menu_stack[++menu_level]");
+        char *main_end = strstr(open, "menu_stack[0]");
+        if (end == NULL || (main_end != NULL && main_end < end))
+            end = main_end;
+        if (end == NULL)
+            continue;
+        int items = 0;
+        for (char *q = open; (q = strstr(q, "list_addItem")) != NULL && q < end; q++) {
+            char *line = q;
+            while (line > src && line[-1] != '\n')
+                line--;
+            while (*line == ' ')
+                line++;
+            if (strncmp(line, "//", 2) != 0) /* not commented out */
+                items++;
+        }
+        (*menus)++;
+        if (items > capacity) {
+            fprintf(stderr, "    %s: a menu made for %d adds %d items\n", path, capacity, items);
+            overflows++;
+        }
+    }
+    return overflows;
 }
 
-TEST(console_view_submenu_has_room_for_every_item)
+TEST(every_tweaks_menu_has_room_for_its_items)
 {
-    FILE *fp = fopen("../src/tweaks/main_menu.h", "r");
-    ASSERT_TRUE(fp != NULL);
-    char line[512];
-    int capacity = -1, items = 0;
-    bool inside = false;
-    while (fgets(line, sizeof(line), fp)) {
-        const char *create = strstr(line, "_menu_console_view = list_createWithTitle(");
-        if (create) {
-            capacity = atoi(create + strlen("_menu_console_view = list_createWithTitle("));
-            inside = true;
-            continue;
-        }
-        if (inside && strstr(line, "menu_stack[++menu_level]"))
-            break;
-        if (inside && strstr(line, "list_addItem"))
-            items++;
-    }
-    fclose(fp);
-    ASSERT_EQ(items, 21);
-    ASSERT_TRUE(capacity >= items);
+    const char *files[] = {"../src/tweaks/menus.h", "../src/tweaks/main_menu.h",
+                           "../src/tweaks/game_lists.h", "../src/tweaks/network.h"};
+    int menus = 0, overflows = 0;
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++)
+        overflows += menus_overflowing(files[i], &menus);
+    ASSERT_EQ(overflows, 0);
+    ASSERT_TRUE(menus >= 30); /* the scan found the menus */
 }
 
 TEST(console_view_options_written_and_read)
@@ -886,13 +880,18 @@ TEST(console_view_layout_keys)
     ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
 }
 
-static ListItem *console_view_item(const char *label)
+static ListItem *menu_item(List *list, const char *label)
 {
-    for (int i = 0; i < _menu_console_view.item_count; i++) {
-        if (strcmp(_menu_console_view.items[i].label, label) == 0)
-            return &_menu_console_view.items[i];
+    for (int i = 0; i < list->item_count; i++) {
+        if (strcmp(list->items[i].label, label) == 0)
+            return &list->items[i];
     }
     return NULL;
+}
+
+static ListItem *console_view_item(const char *label)
+{
+    return menu_item(&_menu_console_view, label);
 }
 
 static bool console_view_greyed(const char *label)
@@ -901,19 +900,42 @@ static bool console_view_greyed(const char *label)
     return item != NULL && item->disabled;
 }
 
+static bool home_screen_greyed(const char *label)
+{
+    ListItem *item = menu_item(&_menu_home_screen, label);
+    return item != NULL && item->disabled;
+}
+
 static const char *const console_view_checked_labels[] = {
-    "Games view", "Expert view", "Remember console after shutdown",
-    "Console pictures", "Game count", "Carousel: names",
-    "Carousel: spacing", "Carousel: animation", "Carousel: slide time",
-    "Carousel: hold speed", "Carousel: VSync", "Wrap around",
-    "Grid: navigation", "List: folder icons", "Console menu"};
+    "Games tab view", "Expert tab view", "Console pictures", "Game count",
+    "Remember last console", "Wrap around", "Grid navigation",
+    "List: folder icons", "Console page menu"};
+static const char *const home_screen_checked_labels[] = {
+    "Tabs...", "Console page...", "Carousel look...", "Carousel movement...",
+    "SELECT menu..."};
 
 static void console_view_set_layout(int screen, int layout)
 {
-    ListItem *item = console_view_item(screen == CONSOLEVIEW_GAMES ? "Games view" : "Expert view");
+    ListItem *item = console_view_item(screen == CONSOLEVIEW_GAMES ? "Games tab view" : "Expert tab view");
     ASSERT_TRUE(item != NULL);
     item->value = layout;
     item->action(item);
+}
+
+static void console_view_menus_free(void)
+{
+    list_free(&_menu_console_view);
+    _menu_console_view._created = false;
+    list_free(&_menu_home_screen);
+    _menu_home_screen._created = false;
+    menu_level = 0;
+}
+
+static void console_view_menus_build(void)
+{
+    console_view_menus_free();
+    menu_homeScreen(NULL);
+    menu_consolePage(NULL);
 }
 
 TEST(console_view_option_views)
@@ -934,7 +956,7 @@ TEST(console_view_option_views)
         case CONSOLEVIEW_FOLDER_ICON:
             expected = CONSOLEVIEW_FOR_LIST;
             break;
-        default: /* the twelve "Carousel: ..." options */
+        default: /* the carousel's look and movement */
             expected = CONSOLEVIEW_FOR_CAROUSEL;
             break;
         }
@@ -945,63 +967,106 @@ TEST(console_view_option_views)
 TEST(console_view_greys_out_unused_options)
 {
     reset_dir();
-    list_free(&_menu_console_view);
-    _menu_console_view._created = false;
-    menu_level = 0;
-    menu_consoleView(NULL);
+    console_view_menus_build();
     for (size_t i = 0; i < sizeof(console_view_checked_labels) / sizeof(console_view_checked_labels[0]); i++)
         ASSERT_TRUE(console_view_item(console_view_checked_labels[i]) != NULL);
+    for (size_t i = 0; i < sizeof(home_screen_checked_labels) / sizeof(home_screen_checked_labels[0]); i++)
+        ASSERT_TRUE(menu_item(&_menu_home_screen, home_screen_checked_labels[i]) != NULL);
 
     /* No file: Games and Expert are grids. */
-    ASSERT_TRUE(console_view_greyed("Carousel: names"));
-    ASSERT_TRUE(console_view_greyed("Carousel: slide time"));
-    ASSERT_TRUE(console_view_greyed("Carousel: VSync"));
+    ASSERT_TRUE(home_screen_greyed("Carousel look..."));
+    ASSERT_TRUE(home_screen_greyed("Carousel movement..."));
+    ASSERT_FALSE(home_screen_greyed("Tabs..."));
+    ASSERT_FALSE(home_screen_greyed("Console page..."));
+    ASSERT_FALSE(home_screen_greyed("SELECT menu..."));
     ASSERT_TRUE(console_view_greyed("Console pictures"));
     ASSERT_TRUE(console_view_greyed("List: folder icons"));
     ASSERT_FALSE(console_view_greyed("Wrap around"));
-    ASSERT_FALSE(console_view_greyed("Grid: navigation"));
+    ASSERT_FALSE(console_view_greyed("Grid navigation"));
     ASSERT_FALSE(console_view_greyed("Game count"));
-    ASSERT_FALSE(console_view_greyed("Console menu"));
-    ASSERT_FALSE(console_view_greyed("Remember console after shutdown"));
-    ASSERT_FALSE(console_view_greyed("Games view"));
-    ASSERT_FALSE(console_view_greyed("Expert view"));
+    ASSERT_FALSE(console_view_greyed("Console page menu"));
+    ASSERT_FALSE(console_view_greyed("Remember last console"));
+    ASSERT_FALSE(console_view_greyed("Games tab view"));
+    ASSERT_FALSE(console_view_greyed("Expert tab view"));
 
     /* Games as a list, Expert still a grid. */
     console_view_set_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_LIST);
-    ASSERT_TRUE(console_view_greyed("Carousel: names"));
+    ASSERT_TRUE(home_screen_greyed("Carousel look..."));
     ASSERT_FALSE(console_view_greyed("Console pictures"));
     ASSERT_FALSE(console_view_greyed("List: folder icons"));
-    ASSERT_FALSE(console_view_greyed("Grid: navigation"));
+    ASSERT_FALSE(console_view_greyed("Grid navigation"));
     ASSERT_FALSE(console_view_greyed("Wrap around"));
 
-    /* Expert as a carousel: no grid left. */
+    /* Expert as a carousel: no grid left, the carousel menus open. */
     console_view_set_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_CAROUSEL);
-    ASSERT_FALSE(console_view_greyed("Carousel: names"));
-    ASSERT_FALSE(console_view_greyed("Carousel: hold speed"));
+    ASSERT_FALSE(home_screen_greyed("Carousel look..."));
+    ASSERT_FALSE(home_screen_greyed("Carousel movement..."));
     ASSERT_FALSE(console_view_greyed("Wrap around"));
-    ASSERT_TRUE(console_view_greyed("Grid: navigation"));
+    ASSERT_TRUE(console_view_greyed("Grid navigation"));
     ASSERT_FALSE(console_view_greyed("List: folder icons"));
 
     /* Both lists: wrap around only moves the carousel and the grid. */
     console_view_set_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_LIST);
     ASSERT_TRUE(console_view_greyed("Wrap around"));
-    ASSERT_TRUE(console_view_greyed("Carousel: animation"));
+    ASSERT_TRUE(home_screen_greyed("Carousel movement..."));
     ASSERT_FALSE(console_view_greyed("Console pictures"));
 
-    /* A greyed-out option keeps its value, and the menu built again
-       greys out the same ones. */
+    /* Built again, the menus grey out the same; a carousel option keeps
+       its value while its menu is greyed out. */
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_GAP, 3));
-    list_free(&_menu_console_view);
-    _menu_console_view._created = false;
-    menu_level = 0;
-    menu_consoleView(NULL);
-    ASSERT_TRUE(console_view_greyed("Carousel: spacing"));
-    ASSERT_EQ(console_view_item("Carousel: spacing")->value, 3);
+    console_view_menus_build();
+    ASSERT_TRUE(home_screen_greyed("Carousel look..."));
     ASSERT_FALSE(console_view_greyed("List: folder icons"));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_GAP), 3);
 
-    list_free(&_menu_console_view);
-    _menu_console_view._created = false;
+    console_view_menus_free();
+}
+
+/* The Game Info menu and Saved Games each get their own toggles. */
+TEST(game_info_and_saved_games_menus)
+{
+    reset_dir();
+    list_free(&_menu_game_menus);
+    list_free(&_menu_game_info_menu);
+    list_free(&_menu_saved_games);
+    _menu_game_menus._created = _menu_game_info_menu._created = _menu_saved_games._created = false;
     menu_level = 0;
+    menu_listMenus(NULL);
+    menu_level = 0;
+    menu_gameInfoMenu(NULL);
+    menu_level = 0;
+    menu_savedGames(NULL);
+    menu_level = 0;
+
+    ASSERT_TRUE(menu_item(&_menu_game_menus, "Games: Launch") != NULL);
+    ASSERT_TRUE(menu_item(&_menu_game_menus, "Search: Favorite") != NULL);
+    ASSERT_TRUE(menu_item(&_menu_game_menus, "Game Info: Gallery") == NULL);
+    ASSERT_EQ(_menu_game_menus.item_count, 16);
+
+    const char *info[] = {"Gallery", "Saved Games", "Game Maps", "Walkthrough", "Manual", "RIGHT opens the gallery"};
+    ASSERT_EQ(_menu_game_info_menu.item_count, 6);
+    for (int i = 0; i < 6; i++)
+        ASSERT_STREQ(_menu_game_info_menu.items[i].label, info[i]);
+
+    const char *saved[] = {"LEFT opens Saved Games", "Show the Auto Save", "Enlarge small pictures",
+                           "Console screen shape", "Playing an older save"};
+    ASSERT_EQ(_menu_saved_games.item_count, 5);
+    for (int i = 0; i < 5; i++)
+        ASSERT_STREQ(_menu_saved_games.items[i].label, saved[i]);
+
+    /* Their switches still write the same keys. */
+    ListItem *left = menu_item(&_menu_saved_games, "LEFT opens Saved Games");
+    left->value = 1;
+    left->action(left);
+    ASSERT_TRUE(gamemenu_switch(0));
+    char text[256];
+    read_file(GAMEMENU_CONFIG_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"left_shortcut\":\ttrue") != NULL);
+
+    list_free(&_menu_game_menus);
+    list_free(&_menu_game_info_menu);
+    list_free(&_menu_saved_games);
+    _menu_game_menus._created = _menu_game_info_menu._created = _menu_saved_games._created = false;
 }
 
 TEST(console_view_remember_flag)
@@ -1256,14 +1321,13 @@ int main(void)
     RUN_TEST(console_pictures_on_writes_the_folder_and_creates_it);
     RUN_TEST(console_pictures_keep_a_folder_already_named);
     RUN_TEST(console_pictures_off_removes_the_key);
-    RUN_TEST(game_lists_menu_has_room_for_every_item);
-    RUN_TEST(main_menu_submenu_has_room_for_every_item);
-    RUN_TEST(console_view_submenu_has_room_for_every_item);
+    RUN_TEST(every_tweaks_menu_has_room_for_its_items);
     RUN_TEST(console_view_options_written_and_read);
     RUN_TEST(console_view_motion_and_slide_time);
     RUN_TEST(console_view_layout_keys);
     RUN_TEST(console_view_option_views);
     RUN_TEST(console_view_greys_out_unused_options);
+    RUN_TEST(game_info_and_saved_games_menus);
     RUN_TEST(console_view_remember_flag);
     RUN_TEST(console_view_selection_colours);
     RUN_TEST(game_menus_default_without_file);

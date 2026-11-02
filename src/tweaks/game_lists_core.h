@@ -3,7 +3,7 @@
 
 // SPDX-License-Identifier: GPL-3.0-only
 //
-// File handling behind Tweaks > Appearance > Game lists: the runtime
+// File handling behind Tweaks > Game lists: the runtime
 // configuration files Open MainUI reads for its game lists. Adapted from
 // robcodedev/onionos-mainui-patcher (tools/src/tweaks/game_lists.h), split
 // out of the menu so it can be tested without SDL. Changes for OnionPlus:
