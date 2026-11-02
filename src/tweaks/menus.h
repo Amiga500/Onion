@@ -1047,13 +1047,13 @@ void menu_main(void)
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Home screen",
-                         .description = "Tabs, consoles, carousel, SELECT menu",
+                         .description = "Tabs, consoles, SELECT menu",
                          .action = menu_homeScreen,
                          .icon_ptr = _get_menu_icon("tweaks_user_interface")});
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Game lists",
-                         .description = "Layout, scrolling, previews, Saved Games",
+                         .description = "Layout, scrolling, previews, menus",
                          .action = menu_gameListsMenu,
                          .icon_ptr = _get_menu_icon("tweaks_icons")});
         list_addItem(&_menu_main,
@@ -1065,7 +1065,7 @@ void menu_main(void)
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Look and feel",
-                         .description = "Theme tweaks, icons, blue light, hints",
+                         .description = "Theme, icons, blue light, hints",
                          .action = menu_lookAndFeel,
                          .icon_ptr = _get_menu_icon("tweaks_user_interface")});
         list_addItem(&_menu_main,
@@ -1085,13 +1085,13 @@ void menu_main(void)
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Tools",
-                         .description = "CUE and M3U files, game lists, recorder",
+                         .description = "CUE, M3U, game lists, recorder",
                          .action = menu_tools,
                          .icon_ptr = _get_menu_icon("tweaks_tools")});
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Advanced",
-                         .description = "Screen, fast forward, diagnostics, reset",
+                         .description = "Screen, fast forward, reset",
                          .action = menu_advanced,
                          .icon_ptr = _get_menu_icon("tweaks_advanced")});
     }

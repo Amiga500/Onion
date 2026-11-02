@@ -753,6 +753,31 @@ static int menus_overflowing(const char *path, int *menus)
     return overflows;
 }
 
+/* The main menu's second lines are drawn in the theme's list font and are
+ * not scrolled: 34 characters fit with the wider theme fonts (a tester's
+ * theme cut a 40-character one). */
+TEST(main_menu_descriptions_fit)
+{
+    FILE *fp = fopen("../src/tweaks/menus.h", "r");
+    ASSERT_TRUE(fp != NULL);
+    char line[512];
+    int found = 0;
+    while (fgets(line, sizeof(line), fp)) {
+        const char *d = strstr(line, ".description = \"");
+        if (d == NULL)
+            continue;
+        d += strlen(".description = \"");
+        const char *end = strchr(d, '"');
+        ASSERT_TRUE(end != NULL);
+        if ((int)(end - d) > 34)
+            fprintf(stderr, "    too long for a theme: %.*s\n", (int)(end - d), d);
+        ASSERT_TRUE(end - d <= 34);
+        found++;
+    }
+    fclose(fp);
+    ASSERT_TRUE(found >= 8);
+}
+
 TEST(every_tweaks_menu_has_room_for_its_items)
 {
     const char *files[] = {"../src/tweaks/menus.h", "../src/tweaks/main_menu.h",
@@ -1444,6 +1469,7 @@ int main(void)
     RUN_TEST(console_pictures_keep_a_folder_already_named);
     RUN_TEST(console_pictures_off_removes_the_key);
     RUN_TEST(every_tweaks_menu_has_room_for_its_items);
+    RUN_TEST(main_menu_descriptions_fit);
     RUN_TEST(console_view_options_written_and_read);
     RUN_TEST(console_view_motion_and_slide_time);
     RUN_TEST(console_view_layout_keys);
