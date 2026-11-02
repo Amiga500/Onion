@@ -886,6 +886,124 @@ TEST(console_view_layout_keys)
     ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
 }
 
+static ListItem *console_view_item(const char *label)
+{
+    for (int i = 0; i < _menu_console_view.item_count; i++) {
+        if (strcmp(_menu_console_view.items[i].label, label) == 0)
+            return &_menu_console_view.items[i];
+    }
+    return NULL;
+}
+
+static bool console_view_greyed(const char *label)
+{
+    ListItem *item = console_view_item(label);
+    return item != NULL && item->disabled;
+}
+
+static const char *const console_view_checked_labels[] = {
+    "Games view", "Expert view", "Remember console after shutdown",
+    "Console pictures", "Game count", "Carousel: names",
+    "Carousel: spacing", "Carousel: animation", "Carousel: slide time",
+    "Carousel: hold speed", "Carousel: VSync", "Wrap around",
+    "Grid: navigation", "List: folder icons", "Console menu"};
+
+static void console_view_set_layout(int screen, int layout)
+{
+    ListItem *item = console_view_item(screen == CONSOLEVIEW_GAMES ? "Games view" : "Expert view");
+    ASSERT_TRUE(item != NULL);
+    item->value = layout;
+    item->action(item);
+}
+
+TEST(console_view_option_views)
+{
+    for (int option = 0; option < CONSOLEVIEW_OPTION_COUNT; option++) {
+        int expected;
+        switch (option) {
+        case CONSOLEVIEW_COUNT:
+        case CONSOLEVIEW_MENU:
+            expected = CONSOLEVIEW_FOR_ALL;
+            break;
+        case CONSOLEVIEW_WRAP:
+            expected = CONSOLEVIEW_FOR_CAROUSEL | CONSOLEVIEW_FOR_GRID;
+            break;
+        case CONSOLEVIEW_GRID_NAV:
+            expected = CONSOLEVIEW_FOR_GRID;
+            break;
+        case CONSOLEVIEW_FOLDER_ICON:
+            expected = CONSOLEVIEW_FOR_LIST;
+            break;
+        default: /* the twelve "Carousel: ..." options */
+            expected = CONSOLEVIEW_FOR_CAROUSEL;
+            break;
+        }
+        ASSERT_EQ(consoleview_option_views(option), expected);
+    }
+}
+
+TEST(console_view_greys_out_unused_options)
+{
+    reset_dir();
+    list_free(&_menu_console_view);
+    _menu_console_view._created = false;
+    menu_level = 0;
+    menu_consoleView(NULL);
+    for (size_t i = 0; i < sizeof(console_view_checked_labels) / sizeof(console_view_checked_labels[0]); i++)
+        ASSERT_TRUE(console_view_item(console_view_checked_labels[i]) != NULL);
+
+    /* No file: Games and Expert are grids. */
+    ASSERT_TRUE(console_view_greyed("Carousel: names"));
+    ASSERT_TRUE(console_view_greyed("Carousel: slide time"));
+    ASSERT_TRUE(console_view_greyed("Carousel: VSync"));
+    ASSERT_TRUE(console_view_greyed("Console pictures"));
+    ASSERT_TRUE(console_view_greyed("List: folder icons"));
+    ASSERT_FALSE(console_view_greyed("Wrap around"));
+    ASSERT_FALSE(console_view_greyed("Grid: navigation"));
+    ASSERT_FALSE(console_view_greyed("Game count"));
+    ASSERT_FALSE(console_view_greyed("Console menu"));
+    ASSERT_FALSE(console_view_greyed("Remember console after shutdown"));
+    ASSERT_FALSE(console_view_greyed("Games view"));
+    ASSERT_FALSE(console_view_greyed("Expert view"));
+
+    /* Games as a list, Expert still a grid. */
+    console_view_set_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_LIST);
+    ASSERT_TRUE(console_view_greyed("Carousel: names"));
+    ASSERT_FALSE(console_view_greyed("Console pictures"));
+    ASSERT_FALSE(console_view_greyed("List: folder icons"));
+    ASSERT_FALSE(console_view_greyed("Grid: navigation"));
+    ASSERT_FALSE(console_view_greyed("Wrap around"));
+
+    /* Expert as a carousel: no grid left. */
+    console_view_set_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_CAROUSEL);
+    ASSERT_FALSE(console_view_greyed("Carousel: names"));
+    ASSERT_FALSE(console_view_greyed("Carousel: hold speed"));
+    ASSERT_FALSE(console_view_greyed("Wrap around"));
+    ASSERT_TRUE(console_view_greyed("Grid: navigation"));
+    ASSERT_FALSE(console_view_greyed("List: folder icons"));
+
+    /* Both lists: wrap around only moves the carousel and the grid. */
+    console_view_set_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_LIST);
+    ASSERT_TRUE(console_view_greyed("Wrap around"));
+    ASSERT_TRUE(console_view_greyed("Carousel: animation"));
+    ASSERT_FALSE(console_view_greyed("Console pictures"));
+
+    /* A greyed-out option keeps its value, and the menu built again
+       greys out the same ones. */
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_GAP, 3));
+    list_free(&_menu_console_view);
+    _menu_console_view._created = false;
+    menu_level = 0;
+    menu_consoleView(NULL);
+    ASSERT_TRUE(console_view_greyed("Carousel: spacing"));
+    ASSERT_EQ(console_view_item("Carousel: spacing")->value, 3);
+    ASSERT_FALSE(console_view_greyed("List: folder icons"));
+
+    list_free(&_menu_console_view);
+    _menu_console_view._created = false;
+    menu_level = 0;
+}
+
 TEST(console_view_remember_flag)
 {
     reset_dir();
@@ -1144,6 +1262,8 @@ int main(void)
     RUN_TEST(console_view_options_written_and_read);
     RUN_TEST(console_view_motion_and_slide_time);
     RUN_TEST(console_view_layout_keys);
+    RUN_TEST(console_view_option_views);
+    RUN_TEST(console_view_greys_out_unused_options);
     RUN_TEST(console_view_remember_flag);
     RUN_TEST(console_view_selection_colours);
     RUN_TEST(game_menus_default_without_file);
