@@ -25,14 +25,14 @@
         "-", "Off", "On"    \
     }
 
-#define BLUELIGHT_LABELS                                                          \
-    {                                                                             \
-        "Subtle 1/5", "Moderate 2/5", "Balanced 3/5", "Strong 4/5", "Intense 5/5" \
+#define BLUELIGHT_LABELS                                                                    \
+    {                                                                                       \
+        "Subtle 1/5 (default)", "Moderate 2/5", "Balanced 3/5", "Strong 4/5", "Intense 5/5" \
     }
 
-#define PWM_FREQUENCIES                                                                                                \
-    {                                                                                                                  \
-        "100 Hz", "200 Hz", "300 Hz", "400 Hz", "500 Hz", "600 Hz", "700 Hz", "800  Hz (Default)", "900 Hz", "1000 Hz" \
+#define PWM_FREQUENCIES                                                                                               \
+    {                                                                                                                 \
+        "100 Hz", "200 Hz", "300 Hz", "400 Hz", "500 Hz", "600 Hz", "700 Hz", "800 Hz (default)", "900 Hz", "1000 Hz" \
     }
 
 void formatter_appShortcut(void *pt, char *out_label)

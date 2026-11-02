@@ -290,7 +290,8 @@ void value_setSwapTriggers(void)
 
 int value_getPWMFrequency(void)
 {
-    int pwmfrequency = 0;
+    // No file: runtime.sh sets 800 Hz, the 8th value.
+    int pwmfrequency = 7;
     config_get(".pwmfrequency", CONFIG_INT, &pwmfrequency);
     return pwmfrequency;
 }

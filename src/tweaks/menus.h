@@ -229,7 +229,7 @@ void menu_system(void *_)
                                      .label = "Vibration strength",
                                      .item_type = MULTIVALUE,
                                      .value_max = 3,
-                                     .value_labels = {"Off", "Low", "Normal", "High"},
+                                     .value_labels = {"Off", "Low", "Normal (default)", "High"},
                                      .value = settings.vibration,
                                      .action = action_setVibration},
                                  "Vibration strength for haptic feedback\n"
@@ -604,7 +604,7 @@ void menu_blueLight(void *_)
                                          .disabled = !settings.blue_light_schedule,
                                          .item_type = MULTIVALUE,
                                          .value_max = 95,
-                                         .value_formatter = formatter_Time,
+                                         .value_formatter = formatter_TimeOn,
                                          .action = action_blueLightTimeOn,
                                          .value = value_blueLightTimeOn()},
                                      "When the schedule turns the filter on.");
@@ -614,7 +614,7 @@ void menu_blueLight(void *_)
                                          .disabled = !settings.blue_light_schedule,
                                          .item_type = MULTIVALUE,
                                          .value_max = 95,
-                                         .value_formatter = formatter_Time,
+                                         .value_formatter = formatter_TimeOff,
                                          .action = action_blueLightTimeOff,
                                          .value = value_blueLightTimeOff()},
                                      "When the schedule turns the filter off.");
@@ -818,7 +818,7 @@ void menu_advanced(void *_)
                                          .label = "LCD undervolt",
                                          .item_type = MULTIVALUE,
                                          .value_max = 4,
-                                         .value_labels = {"Off", "-0.1V", "-0.2V", "-0.3V", "-0.4V"},
+                                         .value_labels = {"Off (default)", "-0.1V", "-0.2V", "-0.3V", "-0.4V"},
                                          .value = value_getLcdVoltage(),
                                          .action = action_advancedSetLcdVoltage},
                                      "Use this option if you're seeing\n"
@@ -856,6 +856,7 @@ void menu_screen_recorder(void *pt)
                                      .item_type = MULTIVALUE,
                                      .value_max = 10,
                                      .value = (int)settings.rec_countdown,
+                                     .value_formatter = formatter_recCountdown,
                                      .action = action_toggleScreenRecCountdown},
                                  "Countdown before recording starts.\n"
                                  " \n"

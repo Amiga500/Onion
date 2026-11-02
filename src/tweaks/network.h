@@ -581,6 +581,7 @@ void menu_vnc(void *pt)
                                      .value_max = 20,
                                      .value_min = 1,
                                      .value = (int)network_state.vncfps,
+                                     .value_formatter = formatter_vncFps,
                                      .action = network_setVNCFPS},
                                  "Frame rate of the VNC server, from 1 to\n"
                                  "20. The higher it is, the more CPU it\n"
