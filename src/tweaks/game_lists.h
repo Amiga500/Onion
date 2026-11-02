@@ -365,7 +365,7 @@ void menu_gameListsScrolling(void *_)
                 .label = "Long names: style",
                 .item_type = MULTIVALUE,
                 .value_max = 1,
-                .value_labels = {"Rolling", "Bounce"},
+                .value_labels = {"Rolling (default)", "Bounce"},
                 .value = gamelists_scroll_style() == GAMELISTS_SCROLL_BOUNCE,
                 .action = gamelists_action_scroll_style},
             "Rolling: a long title goes round and\n"

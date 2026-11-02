@@ -63,6 +63,8 @@ static List _menu_game_lists_layout, _menu_game_lists_scrolling, _menu_game_list
 
 void SDL_FreeSurface(SDL_Surface *surface) { (void)surface; }
 
+static bool source_has(const char *path, const char *text);
+
 static void reset_dir(void)
 {
     (void)!system("rm -rf " TEST_DIR " && mkdir -p " TEST_DIR);
@@ -136,9 +138,49 @@ TEST(scroll_default_file_maps_to_menu)
     gamelists_write_text(GAMELISTS_SCROLL_PATH, "1000,50");
     char label[64];
     gamelists_label_scroll_delay(gamelists_value_scroll_delay(), label, sizeof(label));
-    ASSERT_STREQ(label, "1000 ms");
+    ASSERT_STREQ(label, "1000 ms (default)");
     gamelists_label_scroll_speed(gamelists_value_scroll_speed(), label, sizeof(label));
-    ASSERT_STREQ(label, "50 px/s");
+    ASSERT_STREQ(label, "50 px/s (default)");
+}
+
+/* "(default)": the value a new install starts with, on every number of
+   the Game lists menus; the shipped title scroll file says which. */
+TEST(default_values_are_marked)
+{
+    char label[64];
+    FILE *fp = fopen("../static/configs/.tmp_update/config/.romListTitleScroll", "r");
+    ASSERT_TRUE(fp != NULL);
+    int delay = 0, speed = 0;
+    ASSERT_EQ(fscanf(fp, "%d,%d", &delay, &speed), 2);
+    fclose(fp);
+    ASSERT_EQ(delay, GAMELISTS_SCROLL_DEFAULT_DELAY);
+    ASSERT_EQ(speed, GAMELISTS_SCROLL_DEFAULT_SPEED);
+
+    gamelists_label_rows(0, label, sizeof(label));
+    ASSERT_STREQ(label, "6 (default)");
+    gamelists_label_rows(1, label, sizeof(label));
+    ASSERT_STREQ(label, "7 rows");
+    gamelists_label_scroll_delay(0, label, sizeof(label));
+    ASSERT_STREQ(label, "Off");
+    gamelists_label_scroll_delay(12, label, sizeof(label));
+    ASSERT_STREQ(label, "1250 ms");
+    gamelists_label_scroll_speed(1, label, sizeof(label));
+    ASSERT_STREQ(label, "25 px/s");
+    gamelists_label_repeat_delay(8, label, sizeof(label));
+    ASSERT_STREQ(label, "500 ms (default)");
+    gamelists_label_repeat_delay(9, label, sizeof(label));
+    ASSERT_STREQ(label, "550 ms");
+    gamelists_label_repeat_interval(7, label, sizeof(label));
+    ASSERT_STREQ(label, "100 ms (default)");
+    gamelists_label_repeat_interval(8, label, sizeof(label));
+    ASSERT_STREQ(label, "120 ms");
+    gamelists_label_video_preview(1, label, sizeof(label));
+    ASSERT_STREQ(label, "Immediate");
+    gamelists_label_info_scroll_speed(3, label, sizeof(label));
+    ASSERT_STREQ(label, "20 px/s (default)");
+    gamelists_label_info_scroll_speed(4, label, sizeof(label));
+    ASSERT_STREQ(label, "25 px/s");
+    ASSERT_TRUE(source_has("../src/tweaks/game_lists.h", "{\"Rolling (default)\", \"Bounce\"}"));
 }
 
 /* Open MainUI 1.1.0: "<delay>,<speed>,bounce". Rolling stays two values. */
@@ -209,7 +251,7 @@ TEST(video_preview_off_without_file)
     ASSERT_EQ(gamelists_load_video_preview(), GAMELISTS_VIDEO_OFF);
     char label[64];
     gamelists_label_video_preview(gamelists_value_video_preview(), label, sizeof(label));
-    ASSERT_STREQ(label, "Off");
+    ASSERT_STREQ(label, "Off (default)");
 }
 
 TEST(video_preview_written_and_read)
@@ -542,7 +584,7 @@ TEST(info_scroll_off_without_file)
     ASSERT_EQ(gamelists_value_info_scroll_delay(), 0);
     char label[64];
     gamelists_label_info_scroll_delay(0, label, sizeof(label));
-    ASSERT_STREQ(label, "Off");
+    ASSERT_STREQ(label, "Off (default)");
 }
 
 TEST(info_scroll_empty_file_is_2000ms_20px)
@@ -1676,6 +1718,7 @@ int main(void)
     RUN_TEST(scroll_on_again_keeps_the_speed);
     RUN_TEST(scroll_missing_file_is_off);
     RUN_TEST(scroll_default_file_maps_to_menu);
+    RUN_TEST(default_values_are_marked);
     RUN_TEST(scroll_speeds_are_rendered_exactly);
     RUN_TEST(scroll_speed_snaps_to_offered_value);
     RUN_TEST(scroll_style_bounce_is_read);
