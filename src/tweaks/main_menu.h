@@ -845,14 +845,14 @@ void menu_mainContextItems(void *_)
         list_addItemWithInfoNote(
             &_menu_main_context_items,
             (ListItem){
-                .label = "Open with its hotkey",
+                .label = "L1+R1+L2+R2 shows all entries",
                 .item_type = TOGGLE,
                 .value = mainmenu_load_hotkey_state(),
                 .action = mainmenu_action_hotkey},
-            "Enable the MainUI hotkey that opens the\n"
-            "SELECT menu (also called context menu).\n"
-            "It is a setting, not a menu entry.\n"
-            "Default: on.");
+            "Holding L1, R1, L2 and R2 on the home\n"
+            "screen opens this menu with every entry,\n"
+            "also the hidden ones: a way back if you\n"
+            "hid too much. Default: on.");
     }
     menu_stack[++menu_level] = &_menu_main_context_items;
     header_changed = true;
@@ -2068,8 +2068,9 @@ void menu_homeScreen(void *_)
             &_menu_home_screen,
             (ListItem){.label = "SELECT menu...", .action = menu_mainContextItems},
             "Which entries the SELECT menu of the\n"
-            "home screen shows, and its hotkey.\n"
-            "Custom entries defined by hand are kept.");
+            "home screen shows (Shutdown, Refresh\n"
+            "all roms, Search...). Custom entries\n"
+            "defined by hand are kept.");
         consoleview_update_enabled();
     }
     menu_stack[++menu_level] = &_menu_home_screen;
