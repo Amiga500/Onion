@@ -422,12 +422,14 @@ void menu_buttonAction(void *_)
     header_changed = true;
 }
 
-// Battery percentage: its look only matters while Visible isn't Off.
+// Battery percentage: its look only matters while it is shown: Visible On,
+// or "-" with a theme that shows it.
 static void battery_update_enabled(void)
 {
     if (!_menu_battery_percentage._created)
         return;
-    bool off = _menu_battery_percentage.items[0].value == 1; // "-", Off, On
+    int visible = _menu_battery_percentage.items[0].value; // "-", Off, On
+    bool off = visible == 1 || (visible == 0 && !resources.theme_back.batteryPercentage.visible);
     for (int i = 1; i < _menu_battery_percentage.item_count; i++)
         _menu_battery_percentage.items[i].disabled = off;
 }
@@ -1052,6 +1054,7 @@ void menu_gameListsMenu(void *_)
                                  "(Y on a game in Games). Off hides it;\n"
                                  "a filter already set can still be\n"
                                  "cleared there.");
+        savedgames_update_enabled();
     }
     menu_stack[++menu_level] = &_menu_game_lists;
     header_changed = true;

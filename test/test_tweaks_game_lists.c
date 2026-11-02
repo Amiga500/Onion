@@ -48,6 +48,7 @@ static char **lang_list = NULL;
 static List *menu_stack[5];
 static int menu_level = 0;
 static bool header_changed = false;
+static List _menu_game_lists;
 static List _menu_home_screen, _menu_main_menu_items, _menu_main_context_items, _menu_console_view,
     _menu_carousel_look, _menu_carousel_movement, _menu_game_menus, _menu_game_info_menu, _menu_saved_games;
 #include "../src/tweaks/main_menu.h"
@@ -1237,6 +1238,21 @@ TEST(options_follow_the_option_they_need)
     sg->action(sg);
     ASSERT_FALSE(left->disabled);
 
+    /* The whole Saved Games menu in Game lists follows it too. */
+    list_free(&_menu_game_lists);
+    _menu_game_lists = list_createWithTitle(2, LIST_SMALL, "Game lists");
+    list_addItem(&_menu_game_lists, (ListItem){.label = "Game Info menu...", .action = menu_gameInfoMenu});
+    list_addItem(&_menu_game_lists, (ListItem){.label = "Saved Games...", .action = menu_savedGames});
+    sg->value = 0;
+    sg->action(sg);
+    ASSERT_TRUE(_menu_game_lists.items[1].disabled);
+    ASSERT_FALSE(_menu_game_lists.items[0].disabled);
+    sg->value = 1;
+    sg->action(sg);
+    ASSERT_FALSE(_menu_game_lists.items[1].disabled);
+    list_free(&_menu_game_lists);
+    _menu_game_lists._created = false;
+
     list_free(&_menu_carousel_look);
     list_free(&_menu_carousel_movement);
     list_free(&_menu_game_info_menu);
@@ -1276,6 +1292,12 @@ TEST(greyed_out_options_in_other_menus)
     /* Battery percentage: the rest while Visible is Off, at once. */
     ASSERT_TRUE(source_has("../src/tweaks/menus.h", ".action = battery_action_visible}"));
     ASSERT_TRUE(source_has("../src/tweaks/menus.h", "_menu_battery_percentage.items[i].disabled = off;"));
+    /* "-" follows the theme: off when the theme hides it. */
+    ASSERT_TRUE(source_has("../src/tweaks/menus.h",
+                           "visible == 1 || (visible == 0 && !resources.theme_back.batteryPercentage.visible)"));
+    /* Game lists greys out Saved Games... from the start too. */
+    ASSERT_TRUE(source_has("../src/tweaks/menus.h",
+                           "        savedgames_update_enabled();\n    }\n    menu_stack[++menu_level] = &_menu_game_lists;"));
 }
 
 /* The Game Info menu and Saved Games each get their own toggles. */

@@ -1960,17 +1960,26 @@ static void gamemenu_action_switch(void *pt)
         item->value = gamemenu_switch(item->action_id);
 }
 
-// LEFT opens Saved Games does nothing while Saved Games is off in the Game
-// Info menu (Open MainUI ignores LEFT then): greyed out meanwhile.
+// Saved Games can't be opened while it is off in the Game Info menu (Open
+// MainUI then ignores LEFT too): Game lists > Saved Games... is greyed out
+// meanwhile, and LEFT opens Saved Games inside it.
+void menu_savedGames(void *_);
+
 static void savedgames_update_enabled(void)
 {
-    if (!_menu_saved_games._created)
-        return;
     bool shown = true;
     for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
         if (gamemenu_items[i].section == GAMEMENU_DETAILS && strcmp(gamemenu_items[i].id, "saved_games") == 0)
             shown = gamemenu_shown(i);
     }
+    if (_menu_game_lists._created) {
+        for (int i = 0; i < _menu_game_lists.item_count; i++) {
+            if (_menu_game_lists.items[i].action == menu_savedGames)
+                _menu_game_lists.items[i].disabled = !shown;
+        }
+    }
+    if (!_menu_saved_games._created)
+        return;
     for (int i = 0; i < _menu_saved_games.item_count; i++) {
         ListItem *item = &_menu_saved_games.items[i];
         if (item->action == gamemenu_action_switch &&
