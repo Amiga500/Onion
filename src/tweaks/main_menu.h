@@ -1313,7 +1313,7 @@ void menu_consolePage(void *_)
 {
     (void)_;
     if (!_menu_console_view._created) {
-        _menu_console_view = list_createWithTitle(9, LIST_SMALL, "Console page");
+        _menu_console_view = list_createWithTitle(11, LIST_SMALL, "Console page");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1327,7 +1327,7 @@ void menu_consolePage(void *_)
             "How Games shows the consoles: the grid,\n"
             "a carousel or a list. Options of a view\n"
             "that neither Games nor Expert uses are\n"
-            "greyed out. Needs Open MainUI 1.1.0.");
+            "greyed out.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1341,20 +1341,7 @@ void menu_consolePage(void *_)
             "How Expert shows the consoles: the grid,\n"
             "a carousel or a list. Options of a view\n"
             "that neither Games nor Expert uses are\n"
-            "greyed out. Needs Open MainUI 1.1.0.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "Console pictures",
-                .item_type = TOGGLE,
-                .value = consoleview_has_thumbs(),
-                .action = consoleview_action_thumbs},
-            "On: Carousel and List use the pictures in\n"
-            "miyoo/app/consoles (KyleBing's icons or\n"
-            "yours, named after the Emu folder:\n"
-            "gba.png, psx.png...). Off: the carousel\n"
-            "uses the theme's, the list none. The grid\n"
-            "always uses the theme's.");
+            "greyed out.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1364,7 +1351,7 @@ void menu_consolePage(void *_)
                 .action = consoleview_action_remember},
             "Games and Expert start on the console\n"
             "you used last, also after turning the\n"
-            "device off. Needs Open MainUI 1.1.0.");
+            "device off.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1378,6 +1365,19 @@ void menu_consolePage(void *_)
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
+                .label = "Console page menu",
+                .item_type = MULTIVALUE,
+                .value_max = 3,
+                .value_labels = {"Default", "Refresh all", "Refresh", "None"},
+                .value = consoleview_option(CONSOLEVIEW_MENU),
+                .action_id = CONSOLEVIEW_MENU,
+                .action = consoleview_action_option},
+            "The menu on the Games/Expert console\n"
+            "page: both refresh actions, only one,\n"
+            "or none.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
                 .label = "Wrap around",
                 .item_type = TOGGLE,
                 .value = !consoleview_option(CONSOLEVIEW_WRAP),
@@ -1388,16 +1388,6 @@ void menu_consolePage(void *_)
             "Off: stops at the first and last console,\n"
             "and (rc16) Up/Down stop at the grid's\n"
             "top and bottom rows.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "List: folder icons",
-                .item_type = TOGGLE,
-                .value = !consoleview_option(CONSOLEVIEW_FOLDER_ICON),
-                .action_id = CONSOLEVIEW_FOLDER_ICON,
-                .action = consoleview_action_switch},
-            "Show a folder icon beside each console\n"
-            "in the List view.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1417,16 +1407,38 @@ void menu_consolePage(void *_)
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
-                .label = "Console page menu",
-                .item_type = MULTIVALUE,
-                .value_max = 3,
-                .value_labels = {"Default", "Refresh all", "Refresh", "None"},
-                .value = consoleview_option(CONSOLEVIEW_MENU),
-                .action_id = CONSOLEVIEW_MENU,
-                .action = consoleview_action_option},
-            "The menu on the Games/Expert console\n"
-            "page: both refresh actions, only one,\n"
-            "or none.");
+                .label = "Console pictures",
+                .item_type = TOGGLE,
+                .value = consoleview_has_thumbs(),
+                .action = consoleview_action_thumbs},
+            "On: Carousel and List use the pictures in\n"
+            "miyoo/app/consoles (KyleBing's icons or\n"
+            "yours, named after the Emu folder:\n"
+            "gba.png, psx.png...). Off: the carousel\n"
+            "uses the theme's, the list none. The grid\n"
+            "always uses the theme's.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "List: folder icons",
+                .item_type = TOGGLE,
+                .value = !consoleview_option(CONSOLEVIEW_FOLDER_ICON),
+                .action_id = CONSOLEVIEW_FOLDER_ICON,
+                .action = consoleview_action_switch},
+            "Show a folder icon beside each console\n"
+            "in the List view.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){.label = "Carousel look...", .action = menu_carouselLook},
+            "Names, selection box, size and spacing\n"
+            "of the consoles in the carousel. Greyed\n"
+            "out while no tab uses the carousel.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){.label = "Carousel movement...", .action = menu_carouselMovement},
+            "How the carousel slides: animation,\n"
+            "time, moves while holding, VSync. Greyed\n"
+            "out while no tab uses the carousel.");
         consoleview_update_enabled();
     }
     menu_stack[++menu_level] = &_menu_console_view;
@@ -1557,8 +1569,7 @@ void menu_carouselMovement(void *_)
                 .action = consoleview_action_option},
             "How a slide moves. Default: fast, then\n"
             "slowing down. Smooth: speeds up and\n"
-            "slows down gently. Only with Slide.\n"
-            "Needs Open MainUI 1.1.0.");
+            "slows down gently. Only with Slide.");
         list_addItemWithInfoNote(
             &_menu_carousel_movement,
             (ListItem){
@@ -1586,7 +1597,7 @@ void menu_carouselMovement(void *_)
             "Time between moves while Left/Right is\n"
             "held. With Slide it is never shorter\n"
             "than the slide time (Default: one move\n"
-            "per slide). Needs Open MainUI 1.1.0.");
+            "per slide).");
         list_addItemWithInfoNote(
             &_menu_carousel_movement,
             (ListItem){
@@ -1849,27 +1860,22 @@ static const GameMenuSwitch gamemenu_switches[GAMEMENU_SWITCH_COUNT] = {
     {"saved_games", "left_shortcut", false, "LEFT opens Saved Games",
      "Left on a game in the list opens its\n"
      "Saved Games. Off: Saved Games only from\n"
-     "the Game Info menu (SELECT).\n"
-     "Needs Open MainUI 1.1.0 rc14."},
+     "the Game Info menu (SELECT)."},
     {"saved_games", "show_auto", false, "Show the Auto Save",
      "List the auto save in Saved Games too.\n"
      "Off only hides it: auto save still\n"
-     "works.\n"
-     "Needs Open MainUI 1.1.0 rc14."},
+     "works."},
     {"saved_games", "upscale_preview", true, "Enlarge small pictures",
      "Small save pictures are enlarged to fill\n"
-     "the screen. Off: shown at their size.\n"
-     "Needs Open MainUI 1.1.0 rc14."},
+     "the screen. Off: shown at their size."},
     {"saved_games", "correct_aspect_ratio", true, "Console screen shape",
      "Show save pictures with the console's\n"
      "screen shape (4:3, GB 10:9, GBA 3:2).\n"
-     "Off: as the picture is.\n"
-     "Needs Open MainUI 1.1.0 rc14."},
+     "Off: as the picture is."},
     {"gallery", "right_shortcut", true, "RIGHT opens the gallery",
      "Right in Game Info opens the gallery.\n"
      "Off: the gallery only from the Game\n"
-     "Info menu (SELECT).\n"
-     "Needs Open MainUI 1.1.0 rc14."},
+     "Info menu (SELECT)."},
 };
 
 static bool gamemenu_switch(int index)
@@ -1960,8 +1966,7 @@ void menu_listMenus(void *_)
             list_addItemWithInfoNote(&_menu_game_menus, item,
                                      "Show this action in the game list's\n"
                                      "SELECT menu. Actions that don't apply\n"
-                                     "to a game stay hidden anyway.\n"
-                                     "Needs Open MainUI 1.1.0.");
+                                     "to a game stay hidden anyway.");
         }
     }
     menu_stack[++menu_level] = &_menu_game_menus;
@@ -1995,8 +2000,7 @@ void menu_gameInfoMenu(void *_)
             list_addItemWithInfoNote(&_menu_game_info_menu, item,
                                      "Show this in the Game Info menu (SELECT\n"
                                      "in Game Info). With Saved Games off,\n"
-                                     "LEFT no longer opens it either.\n"
-                                     "Needs Open MainUI 1.1.0.");
+                                     "LEFT no longer opens it either.");
         }
         for (int i = 0; i < GAMEMENU_SWITCH_COUNT; i++) {
             if (strcmp(gamemenu_switches[i].section, "gallery") == 0)
@@ -2039,7 +2043,7 @@ void menu_homeScreen(void *_)
 {
     (void)_;
     if (!_menu_home_screen._created) {
-        _menu_home_screen = list_createWithTitle(5, LIST_SMALL, "Home screen");
+        _menu_home_screen = list_createWithTitle(3, LIST_SMALL, "Home screen");
         list_addItemWithInfoNote(
             &_menu_home_screen,
             (ListItem){.label = "Tabs...", .action = menu_mainMenuItems},
@@ -2051,19 +2055,7 @@ void menu_homeScreen(void *_)
             (ListItem){.label = "Console page...", .action = menu_consolePage},
             "Games and Expert as a carousel, a grid\n"
             "or a list, console pictures, game count,\n"
-            "wrap around. Needs Open MainUI 1.1.0.");
-        list_addItemWithInfoNote(
-            &_menu_home_screen,
-            (ListItem){.label = "Carousel look...", .action = menu_carouselLook},
-            "Names, selection box, size and spacing\n"
-            "of the consoles in the carousel. Greyed\n"
-            "out while no tab uses the carousel.");
-        list_addItemWithInfoNote(
-            &_menu_home_screen,
-            (ListItem){.label = "Carousel movement...", .action = menu_carouselMovement},
-            "How the carousel slides: animation,\n"
-            "time, moves while holding, VSync. Greyed\n"
-            "out while no tab uses the carousel.");
+            "and the carousel's look and movement.");
         list_addItemWithInfoNote(
             &_menu_home_screen,
             (ListItem){.label = "SELECT menu...", .action = menu_mainContextItems},

@@ -357,8 +357,7 @@ void menu_buttonAction(void *_)
                                  "Set the X button action in MainUI:\n"
                                  "an app, a tool, GLO (the game's options),\n"
                                  "Toggle favorite (add or remove the game\n"
-                                 "from Favorites) or Disabled (no action).\n"
-                                 "Disabled needs Open MainUI 1.1.0.");
+                                 "from Favorites) or Disabled (no action).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "Y in MainUI",
@@ -371,8 +370,7 @@ void menu_buttonAction(void *_)
                                  "Set the Y button action in MainUI:\n"
                                  "an app, a tool, GLO (the game's options),\n"
                                  "Toggle favorite (add or remove the game\n"
-                                 "from Favorites) or Disabled (no action).\n"
-                                 "Disabled needs Open MainUI 1.1.0.");
+                                 "from Favorites) or Disabled (no action).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "POWER (short press)",
@@ -1012,24 +1010,21 @@ void menu_gameListsMenu(void *_)
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "Previews...", .action = menu_gameListsPreviews},
                                  "Video preview in the lists and the Game\n"
-                                 "Info text scrolling by itself.\n"
-                                 "Needs Open MainUI 1.1.0.");
+                                 "Info text scrolling by itself.");
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "List menus...", .action = menu_listMenus},
                                  "Which actions the SELECT menus of Games,\n"
-                                 "Favorites, Recents and Search show.\n"
-                                 "Needs Open MainUI 1.1.0.");
+                                 "Favorites, Recents and Search show.");
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "Game Info menu...", .action = menu_gameInfoMenu},
                                  "What the Game Info menu (SELECT in Game\n"
                                  "Info) shows: gallery, Saved Games, maps,\n"
-                                 "walkthrough, manual.\n"
-                                 "Needs Open MainUI 1.1.0.");
+                                 "walkthrough, manual.");
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "Saved Games...", .action = menu_savedGames},
                                  "Shortcut, auto save, pictures, and what\n"
                                  "playing an older save does to the last\n"
-                                 "auto save. Needs Open MainUI 1.1.0.");
+                                 "auto save.");
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){
                                      .label = "Filter list in game options",

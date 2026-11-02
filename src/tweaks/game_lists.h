@@ -142,12 +142,15 @@ static void gamelists_action_font(void *pt)
         gamelists_write_int(GAMELISTS_FONT_PATH, value + GAMELISTS_FONT_MIN - 1);
 }
 
+static void gamelists_update_enabled(void);
+
 static void gamelists_action_scroll_delay(void *pt)
 {
     int delay, speed;
     gamelists_load_scroll(&delay, &speed);
     delay = gamelists_scroll_delays[((ListItem *)pt)->value];
     gamelists_store_scroll(delay, speed);
+    gamelists_update_enabled();
 }
 
 static void gamelists_action_scroll_speed(void *pt)
@@ -167,6 +170,7 @@ static void gamelists_action_scroll_style(void *pt)
 static void gamelists_action_video_preview(void *pt)
 {
     gamelists_store_video_preview(gamelists_video_delays[((ListItem *)pt)->value]);
+    gamelists_update_enabled();
 }
 
 static void gamelists_action_video_size(void *pt)
@@ -181,6 +185,7 @@ static void gamelists_action_info_scroll_delay(void *pt)
     gamelists_load_info_scroll(&delay, &speed);
     delay = gamelists_info_scroll_delays[((ListItem *)pt)->value];
     gamelists_store_info_scroll(delay, speed);
+    gamelists_update_enabled();
 }
 
 static void gamelists_action_info_scroll_speed(void *pt)
@@ -221,6 +226,43 @@ static void gamelists_action_fixed_favorite_position(void *pt)
         gamelists_remove_file(GAMELISTS_DYNAMIC_FAV_PATH);
     else
         gamelists_write_text(GAMELISTS_DYNAMIC_FAV_PATH, "");
+}
+
+// An option that only matters while another is on is greyed out while that
+// one is Off (its first value): the video size without video preview, the
+// Game Info text speed without auto scroll, the long-name style and speed
+// without scrolling. They keep their values.
+static void gamelists_update_list(List *list)
+{
+    bool video = true, info = true, names = true;
+    for (int i = 0; i < list->item_count; i++) {
+        void (*action)(void *) = list->items[i].action;
+        if (action == gamelists_action_video_preview)
+            video = list->items[i].value != 0;
+        else if (action == gamelists_action_info_scroll_delay)
+            info = list->items[i].value != 0;
+        else if (action == gamelists_action_scroll_delay)
+            names = list->items[i].value != 0;
+    }
+    for (int i = 0; i < list->item_count; i++) {
+        ListItem *item = &list->items[i];
+        if (item->action == gamelists_action_video_size)
+            item->disabled = !video;
+        else if (item->action == gamelists_action_info_scroll_speed)
+            item->disabled = !info;
+        else if (item->action == gamelists_action_scroll_style || item->action == gamelists_action_scroll_speed)
+            item->disabled = !names;
+    }
+    if (list->item_count > 0 && list->items[list->active_pos].disabled)
+        list_ensureVisible(list, 1);
+}
+
+static void gamelists_update_enabled(void)
+{
+    if (_menu_game_lists_scrolling._created)
+        gamelists_update_list(&_menu_game_lists_scrolling);
+    if (_menu_game_lists_previews._created)
+        gamelists_update_list(&_menu_game_lists_previews);
 }
 
 // Called when leaving the menu with B and when Tweaks exits (MENU closes it
@@ -309,18 +351,6 @@ void menu_gameListsScrolling(void *_)
         list_addItemWithInfoNote(
             &_menu_game_lists_scrolling,
             (ListItem){
-                .label = "Long names: style",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"Rolling", "Bounce"},
-                .value = gamelists_scroll_style() == GAMELISTS_SCROLL_BOUNCE,
-                .action = gamelists_action_scroll_style},
-            "Rolling: a long title goes round and\n"
-            "starts again. Bounce: it goes to its end\n"
-            "and back. Bounce needs Open MainUI 1.1.0.");
-        list_addItemWithInfoNote(
-            &_menu_game_lists_scrolling,
-            (ListItem){
                 .label = "Long names: start after",
                 .item_type = MULTIVALUE,
                 .value_max = GAMELISTS_ARRAY_COUNT(gamelists_scroll_delays) - 1,
@@ -329,6 +359,18 @@ void menu_gameListsScrolling(void *_)
                 .action = gamelists_action_scroll_delay},
             "Wait before a selected long title starts\n"
             "scrolling. Off stops title scrolling.");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_scrolling,
+            (ListItem){
+                .label = "Long names: style",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"Rolling", "Bounce"},
+                .value = gamelists_scroll_style() == GAMELISTS_SCROLL_BOUNCE,
+                .action = gamelists_action_scroll_style},
+            "Rolling: a long title goes round and\n"
+            "starts again. Bounce: it goes to its end\n"
+            "and back.");
         list_addItemWithInfoNote(
             &_menu_game_lists_scrolling,
             (ListItem){
@@ -362,6 +404,7 @@ void menu_gameListsScrolling(void *_)
                 .action = gamelists_action_repeat_interval},
             "Time between repeats while a button\n"
             "is held, in all MainUI screens.");
+        gamelists_update_list(&_menu_game_lists_scrolling);
     }
     menu_stack[++menu_level] = &_menu_game_lists_scrolling;
     header_changed = true;
@@ -382,8 +425,7 @@ void menu_gameListsPreviews(void *_)
                 .value_formatter = gamelists_formatter_video_preview,
                 .action = gamelists_action_video_preview},
             "Play the selected game's video in the\n"
-            "list (media/videos), after this wait.\n"
-            "Needs Open MainUI 1.1.0.");
+            "list (media/videos), after this wait.");
         list_addItemWithInfoNote(
             &_menu_game_lists_previews,
             (ListItem){
@@ -394,8 +436,7 @@ void menu_gameListsPreviews(void *_)
                 .value = gamelists_video_size() == GAMELISTS_VIDEO_FULLSCREEN,
                 .action = gamelists_action_video_size},
             "Cover: the video plays where the cover\n"
-            "is. Full screen: over the whole screen.\n"
-            "Needs Open MainUI 1.1.0.");
+            "is. Full screen: over the whole screen.");
         list_addItemWithInfoNote(
             &_menu_game_lists_previews,
             (ListItem){
@@ -406,8 +447,7 @@ void menu_gameListsPreviews(void *_)
                 .value_formatter = gamelists_formatter_info_scroll_delay,
                 .action = gamelists_action_info_scroll_delay},
             "Scroll a long description in Game Info\n"
-            "by itself, after this wait. L2/R2 pause it.\n"
-            "Needs Open MainUI 1.1.0.");
+            "by itself, after this wait. L2/R2 pause it.");
         list_addItemWithInfoNote(
             &_menu_game_lists_previews,
             (ListItem){
@@ -419,6 +459,7 @@ void menu_gameListsPreviews(void *_)
                 .action = gamelists_action_info_scroll_speed},
             "How fast the Game Info description\n"
             "scrolls, in pixels per second.");
+        gamelists_update_list(&_menu_game_lists_previews);
     }
     menu_stack[++menu_level] = &_menu_game_lists_previews;
     header_changed = true;

@@ -52,6 +52,11 @@ static List _menu_home_screen, _menu_main_menu_items, _menu_main_context_items, 
     _menu_carousel_look, _menu_carousel_movement, _menu_game_menus, _menu_game_info_menu, _menu_saved_games;
 #include "../src/tweaks/main_menu.h"
 
+/* game_lists.h: its menus, with appstate.h's lists declared here. */
+#define TWEAKS_APPSTATE_H__
+static List _menu_game_lists_layout, _menu_game_lists_scrolling, _menu_game_lists_previews;
+#include "../src/tweaks/game_lists.h"
+
 void SDL_FreeSurface(SDL_Surface *surface) { (void)surface; }
 
 static void reset_dir(void)
@@ -907,12 +912,11 @@ static bool home_screen_greyed(const char *label)
 }
 
 static const char *const console_view_checked_labels[] = {
-    "Games tab view", "Expert tab view", "Console pictures", "Game count",
-    "Remember last console", "Wrap around", "Grid navigation",
-    "List: folder icons", "Console page menu"};
+    "Games tab view", "Expert tab view", "Remember last console", "Game count",
+    "Console page menu", "Wrap around", "Grid navigation", "Console pictures",
+    "List: folder icons", "Carousel look...", "Carousel movement..."};
 static const char *const home_screen_checked_labels[] = {
-    "Tabs...", "Console page...", "Carousel look...", "Carousel movement...",
-    "SELECT menu..."};
+    "Tabs...", "Console page...", "SELECT menu..."};
 
 static void console_view_set_layout(int screen, int layout)
 {
@@ -974,8 +978,8 @@ TEST(console_view_greys_out_unused_options)
         ASSERT_TRUE(menu_item(&_menu_home_screen, home_screen_checked_labels[i]) != NULL);
 
     /* No file: Games and Expert are grids. */
-    ASSERT_TRUE(home_screen_greyed("Carousel look..."));
-    ASSERT_TRUE(home_screen_greyed("Carousel movement..."));
+    ASSERT_TRUE(console_view_greyed("Carousel look..."));
+    ASSERT_TRUE(console_view_greyed("Carousel movement..."));
     ASSERT_FALSE(home_screen_greyed("Tabs..."));
     ASSERT_FALSE(home_screen_greyed("Console page..."));
     ASSERT_FALSE(home_screen_greyed("SELECT menu..."));
@@ -991,16 +995,20 @@ TEST(console_view_greys_out_unused_options)
 
     /* Games as a list, Expert still a grid. */
     console_view_set_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_LIST);
-    ASSERT_TRUE(home_screen_greyed("Carousel look..."));
+    ASSERT_TRUE(console_view_greyed("Carousel look..."));
     ASSERT_FALSE(console_view_greyed("Console pictures"));
     ASSERT_FALSE(console_view_greyed("List: folder icons"));
     ASSERT_FALSE(console_view_greyed("Grid navigation"));
     ASSERT_FALSE(console_view_greyed("Wrap around"));
 
+    /* Console page: what always applies first, the view options last. */
+    for (size_t i = 0; i < sizeof(console_view_checked_labels) / sizeof(console_view_checked_labels[0]); i++)
+        ASSERT_STREQ(_menu_console_view.items[i].label, console_view_checked_labels[i]);
+
     /* Expert as a carousel: no grid left, the carousel menus open. */
     console_view_set_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_CAROUSEL);
-    ASSERT_FALSE(home_screen_greyed("Carousel look..."));
-    ASSERT_FALSE(home_screen_greyed("Carousel movement..."));
+    ASSERT_FALSE(console_view_greyed("Carousel look..."));
+    ASSERT_FALSE(console_view_greyed("Carousel movement..."));
     ASSERT_FALSE(console_view_greyed("Wrap around"));
     ASSERT_TRUE(console_view_greyed("Grid navigation"));
     ASSERT_FALSE(console_view_greyed("List: folder icons"));
@@ -1008,14 +1016,14 @@ TEST(console_view_greys_out_unused_options)
     /* Both lists: wrap around only moves the carousel and the grid. */
     console_view_set_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_LIST);
     ASSERT_TRUE(console_view_greyed("Wrap around"));
-    ASSERT_TRUE(home_screen_greyed("Carousel movement..."));
+    ASSERT_TRUE(console_view_greyed("Carousel movement..."));
     ASSERT_FALSE(console_view_greyed("Console pictures"));
 
     /* Built again, the menus grey out the same; a carousel option keeps
        its value while its menu is greyed out. */
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_GAP, 3));
     console_view_menus_build();
-    ASSERT_TRUE(home_screen_greyed("Carousel look..."));
+    ASSERT_TRUE(console_view_greyed("Carousel look..."));
     ASSERT_FALSE(console_view_greyed("List: folder icons"));
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_GAP), 3);
 
@@ -1067,6 +1075,73 @@ TEST(console_view_on_off_switches)
     list_free(&_menu_carousel_movement);
     _menu_carousel_look._created = _menu_carousel_movement._created = false;
     console_view_menus_free();
+}
+
+/* Video preview size, the Game Info text speed and the long-name style and
+ * speed are greyed out while what they depend on is Off. */
+static ListItem *gamelists_item(List *list, const char *label)
+{
+    return menu_item(list, label);
+}
+
+static void gamelists_set(List *list, const char *label, int value)
+{
+    ListItem *item = gamelists_item(list, label);
+    ASSERT_TRUE(item != NULL);
+    item->value = value;
+    item->action(item);
+}
+
+TEST(game_lists_options_follow_what_they_depend_on)
+{
+    reset_dir();
+    list_free(&_menu_game_lists_scrolling);
+    list_free(&_menu_game_lists_previews);
+    _menu_game_lists_scrolling._created = _menu_game_lists_previews._created = false;
+    menu_level = 0;
+    menu_gameListsScrolling(NULL);
+    menu_level = 0;
+    menu_gameListsPreviews(NULL);
+    menu_level = 0;
+    List *sc = &_menu_game_lists_scrolling, *pv = &_menu_game_lists_previews;
+
+    /* The switching option comes first, so the menu opens on it. */
+    ASSERT_STREQ(sc->items[0].label, "Long names: start after");
+    ASSERT_STREQ(pv->items[0].label, "Video preview");
+
+    gamelists_set(pv, "Video preview", 0);
+    ASSERT_TRUE(gamelists_item(pv, "Video preview size")->disabled);
+    gamelists_set(pv, "Video preview", 5);
+    ASSERT_FALSE(gamelists_item(pv, "Video preview size")->disabled);
+
+    gamelists_set(pv, "Game Info text: auto scroll", 0);
+    ASSERT_TRUE(gamelists_item(pv, "Game Info text: speed")->disabled);
+    gamelists_set(pv, "Game Info text: auto scroll", 2);
+    ASSERT_FALSE(gamelists_item(pv, "Game Info text: speed")->disabled);
+    ASSERT_FALSE(gamelists_item(pv, "Video preview size")->disabled);
+
+    gamelists_set(sc, "Long names: start after", 0);
+    ASSERT_TRUE(gamelists_item(sc, "Long names: style")->disabled);
+    ASSERT_TRUE(gamelists_item(sc, "Long names: speed")->disabled);
+    ASSERT_FALSE(gamelists_item(sc, "Held button: delay")->disabled);
+    ASSERT_FALSE(gamelists_item(sc, "Held button: repeat")->disabled);
+    gamelists_set(sc, "Long names: start after", 3);
+    ASSERT_FALSE(gamelists_item(sc, "Long names: style")->disabled);
+    ASSERT_FALSE(gamelists_item(sc, "Long names: speed")->disabled);
+
+    /* Built again with scrolling Off: greyed out from the start. */
+    gamelists_set(sc, "Long names: start after", 0);
+    list_free(sc);
+    sc->_created = false;
+    menu_level = 0;
+    menu_gameListsScrolling(NULL);
+    menu_level = 0;
+    ASSERT_TRUE(gamelists_item(sc, "Long names: speed")->disabled);
+    ASSERT_FALSE(sc->items[sc->active_pos].disabled);
+
+    list_free(sc);
+    list_free(pv);
+    sc->_created = pv->_created = false;
 }
 
 /* The Game Info menu and Saved Games each get their own toggles. */
@@ -1376,6 +1451,7 @@ int main(void)
     RUN_TEST(console_view_greys_out_unused_options);
     RUN_TEST(game_info_and_saved_games_menus);
     RUN_TEST(console_view_on_off_switches);
+    RUN_TEST(game_lists_options_follow_what_they_depend_on);
     RUN_TEST(console_view_remember_flag);
     RUN_TEST(console_view_selection_colours);
     RUN_TEST(game_menus_default_without_file);
