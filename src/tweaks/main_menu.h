@@ -1576,7 +1576,7 @@ void menu_carouselMovement(void *_)
         list_addItemWithInfoNote(
             &_menu_carousel_movement,
             (ListItem){
-                .label = "Speed when holding",
+                .label = "Holding: time per move",
                 .item_type = MULTIVALUE,
                 .value_max = 3,
                 .value_labels = {"Default", "100 ms", "200 ms", "300 ms"},
@@ -2062,7 +2062,7 @@ void menu_homeScreen(void *_)
             &_menu_home_screen,
             (ListItem){.label = "Carousel movement...", .action = menu_carouselMovement},
             "How the carousel slides: animation,\n"
-            "time, speed when holding, VSync. Greyed\n"
+            "time, moves while holding, VSync. Greyed\n"
             "out while no tab uses the carousel.");
         list_addItemWithInfoNote(
             &_menu_home_screen,

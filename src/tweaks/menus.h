@@ -250,7 +250,7 @@ void menu_buttonActionMainUIMenu(void *_)
 {
     if (!_menu_button_action_mainui_menu._created) {
         _menu_button_action_mainui_menu = list_create(3, LIST_SMALL);
-        strcpy(_menu_button_action_mainui_menu.title, "MENU on the home screen");
+        strcpy(_menu_button_action_mainui_menu.title, "MENU in MainUI");
         list_addItemWithInfoNote(&_menu_button_action_mainui_menu,
                                  (ListItem){
                                      .label = "Short press",
@@ -261,7 +261,7 @@ void menu_buttonActionMainUIMenu(void *_)
                                      .action_id = 0,
                                      .action = action_setMenuButtonKeymap},
                                  "Set the action for a short press of\n"
-                                 "MENU on the home screen (MainUI).");
+                                 "MENU in MainUI (menus and game lists).");
         list_addItemWithInfoNote(&_menu_button_action_mainui_menu,
                                  (ListItem){
                                      .label = "Long press",
@@ -272,7 +272,7 @@ void menu_buttonActionMainUIMenu(void *_)
                                      .action_id = 1,
                                      .action = action_setMenuButtonKeymap},
                                  "Set the action for a long press of\n"
-                                 "MENU on the home screen (MainUI).");
+                                 "MENU in MainUI (menus and game lists).");
         list_addItemWithInfoNote(&_menu_button_action_mainui_menu,
                                  (ListItem){
                                      .label = "Double press",
@@ -283,7 +283,7 @@ void menu_buttonActionMainUIMenu(void *_)
                                      .action_id = 2,
                                      .action = action_setMenuButtonKeymap},
                                  "Set the action for a double press of\n"
-                                 "MENU on the home screen (MainUI).");
+                                 "MENU in MainUI (menus and game lists).");
     }
     menu_stack[++menu_level] = &_menu_button_action_mainui_menu;
     header_changed = true;
@@ -341,13 +341,13 @@ void menu_buttonAction(void *_)
                          .action = menu_buttonActionInGameMenu});
         list_addItem(&_menu_button_action,
                      (ListItem){
-                         .label = "MENU on the home screen...",
+                         .label = "MENU in MainUI...",
                          .action = menu_buttonActionMainUIMenu});
 
         getInstalledApps(true);
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
-                                     .label = "X on the home screen",
+                                     .label = "X in MainUI",
                                      .item_type = MULTIVALUE,
                                      .value_max = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT,
                                      .value = value_appShortcut(0),
@@ -361,7 +361,7 @@ void menu_buttonAction(void *_)
                                  "Disabled needs Open MainUI 1.1.0.");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
-                                     .label = "Y on the home screen",
+                                     .label = "Y in MainUI",
                                      .item_type = MULTIVALUE,
                                      .value_max = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT,
                                      .value = value_appShortcut(1),
