@@ -474,17 +474,21 @@ TEST(defaults_match_settings_and_configs) {
     ASSERT_TRUE(fp != NULL && fgets(line, sizeof(line), fp) != NULL);
     fclose(fp);
     ASSERT_EQ(atoi(line), DEFAULT_LOW_BATTERY_WARN);
+    /* batmon's own fallback, without the file */
+    ASSERT_TRUE(text_has("../src/batmon/batmon.c", "warn_at = 10;"));
     snprintf(path, sizeof(path), "%s/startup/addHours", cfg);
     fp = fopen(path, "r");
     ASSERT_TRUE(fp != NULL && fgets(line, sizeof(line), fp) != NULL);
     fclose(fp);
     ASSERT_EQ(atoi(line), DEFAULT_TIME_SKIP);
+    ASSERT_TRUE(text_has("../static/build/.tmp_update/runtime.sh", "hours=4\n"));
     snprintf(path, sizeof(path), "%s/display/meterWidth", cfg);
     fp = fopen(path, "r");
     ASSERT_TRUE(fp != NULL && fgets(line, sizeof(line), fp) != NULL);
     fclose(fp);
     ASSERT_EQ(atoi(line), DEFAULT_METER_WIDTH);
     ASSERT_TRUE(text_has("../src/tweaks/values.h", "int meterWidth = 4;"));
+    ASSERT_TRUE(text_has("../src/common/system/osd.h", "static int meterWidth = 4;"));
     snprintf(path, sizeof(path), "%s/battery/exitAt", cfg);
     ASSERT_TRUE(fopen(path, "r") == NULL); /* none shipped: settings.h */
 
