@@ -1022,6 +1022,53 @@ TEST(console_view_greys_out_unused_options)
     console_view_menus_free();
 }
 
+/* Game count, Wrap around, List: folder icons, Console names and VSync are
+ * switches: on is the option's default (no key), off writes false. */
+TEST(console_view_on_off_switches)
+{
+    reset_dir();
+    console_view_menus_build();
+    menu_level = 0;
+    list_free(&_menu_carousel_look);
+    list_free(&_menu_carousel_movement);
+    _menu_carousel_look._created = _menu_carousel_movement._created = false;
+    menu_carouselLook(NULL);
+    menu_level = 0;
+    menu_carouselMovement(NULL);
+    menu_level = 0;
+
+    struct { List *list; const char *label; int option; const char *key; } sw[] = {
+        {&_menu_console_view, "Game count", CONSOLEVIEW_COUNT, "\"count\":\tfalse"},
+        {&_menu_console_view, "Wrap around", CONSOLEVIEW_WRAP, "\"wrap\":\tfalse"},
+        {&_menu_console_view, "List: folder icons", CONSOLEVIEW_FOLDER_ICON, "\"folder_icon\":\tfalse"},
+        {&_menu_carousel_look, "Console names", CONSOLEVIEW_LABELS, "\"labels\":\tfalse"},
+        {&_menu_carousel_movement, "VSync", CONSOLEVIEW_VSYNC, "\"vsync\":\tfalse"},
+    };
+    char text[512];
+    for (size_t i = 0; i < sizeof(sw) / sizeof(sw[0]); i++) {
+        ListItem *item = menu_item(sw[i].list, sw[i].label);
+        ASSERT_TRUE(item != NULL);
+        ASSERT_EQ(item->item_type, TOGGLE);
+        ASSERT_EQ(item->value, 1); /* no file: on */
+        item->value = 0;
+        item->action(item);
+        ASSERT_EQ(consoleview_option(sw[i].option), 1);
+        read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+        ASSERT_TRUE(strstr(text, sw[i].key) != NULL);
+        item->value = 1;
+        item->action(item);
+        ASSERT_EQ(consoleview_option(sw[i].option), 0);
+        read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
+        ASSERT_TRUE(strstr(text, sw[i].key) == NULL);
+    }
+    ASSERT_TRUE(access(CONSOLEVIEW_CONFIG_PATH, F_OK) != 0);
+
+    list_free(&_menu_carousel_look);
+    list_free(&_menu_carousel_movement);
+    _menu_carousel_look._created = _menu_carousel_movement._created = false;
+    console_view_menus_free();
+}
+
 /* The Game Info menu and Saved Games each get their own toggles. */
 TEST(game_info_and_saved_games_menus)
 {
@@ -1328,6 +1375,7 @@ int main(void)
     RUN_TEST(console_view_option_views);
     RUN_TEST(console_view_greys_out_unused_options);
     RUN_TEST(game_info_and_saved_games_menus);
+    RUN_TEST(console_view_on_off_switches);
     RUN_TEST(console_view_remember_flag);
     RUN_TEST(console_view_selection_colours);
     RUN_TEST(game_menus_default_without_file);

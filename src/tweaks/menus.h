@@ -383,14 +383,6 @@ void menu_buttonAction(void *_)
                                      .action = action_setDisableStandby},
                                  "Change the power button single press\n"
                                  "action to either 'standby' or 'shutdown'.");
-        list_addItemWithInfoNote(&_menu_button_action,
-                                 (ListItem){
-                                     .label = "Vibrate on MENU",
-                                     .item_type = TOGGLE,
-                                     .value = (int)settings.menu_button_haptics,
-                                     .action = action_setMenuButtonHaptics},
-                                 "Vibrate when MENU is pressed once or\n"
-                                 "twice (its shortcuts).");
         if (DEVICE_ID == MIYOO283) {
             list_addItemWithInfoNote(&_menu_button_action,
                                      (ListItem){
@@ -403,6 +395,14 @@ void menu_buttonAction(void *_)
                                          .action = action_setAltBrightness},
                                      "Change the shortcut for brightness.");
         }
+        list_addItemWithInfoNote(&_menu_button_action,
+                                 (ListItem){
+                                     .label = "Vibrate on MENU",
+                                     .item_type = TOGGLE,
+                                     .value = (int)settings.menu_button_haptics,
+                                     .action = action_setMenuButtonHaptics},
+                                 "Vibrate when MENU is pressed once or\n"
+                                 "twice (its shortcuts).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "CPU speed keys (SEL+START+L/R)",

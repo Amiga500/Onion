@@ -250,6 +250,7 @@ void menu_gameListsLayout(void *_)
                 .action = gamelists_action_rows},
             "Number of visible rows in ROM, Favorites,\n"
             "Recents and Search game lists.");
+
         list_addItemWithInfoNote(
             &_menu_game_lists_layout,
             (ListItem){
@@ -261,6 +262,17 @@ void menu_gameListsLayout(void *_)
             "theme's list icons when leaving this menu.\n"
             "The originals are kept as .bak; 6 rows\n"
             "puts them back.");
+
+        list_addItemWithInfoNote(
+            &_menu_game_lists_layout,
+            (ListItem){
+                .label = "Fixed favorite star",
+                .item_type = TOGGLE,
+                .value = gamelists_value_fixed_favorite_position(),
+                .action = gamelists_action_fixed_favorite_position},
+            "Keep the favorite star in a fixed place.\n"
+            "Off: the star follows the title.");
+
         list_addItemWithInfoNote(
             &_menu_game_lists_layout,
             (ListItem){
@@ -272,6 +284,7 @@ void menu_gameListsLayout(void *_)
                 .action = gamelists_action_font},
             "Text size in game lists only.\n"
             "Theme default uses the theme's size.");
+
         list_addItemWithInfoNote(
             &_menu_game_lists_layout,
             (ListItem){
@@ -283,15 +296,6 @@ void menu_gameListsLayout(void *_)
                 .action = gamelists_action_sort},
             "Case-sensitive puts names that start\n"
             "with a capital letter first.");
-        list_addItemWithInfoNote(
-            &_menu_game_lists_layout,
-            (ListItem){
-                .label = "Fixed favorite star",
-                .item_type = TOGGLE,
-                .value = gamelists_value_fixed_favorite_position(),
-                .action = gamelists_action_fixed_favorite_position},
-            "Keep the favorite star in a fixed place.\n"
-            "Off: the star follows the title.");
     }
     menu_stack[++menu_level] = &_menu_game_lists_layout;
     header_changed = true;

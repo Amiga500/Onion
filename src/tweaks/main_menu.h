@@ -1264,6 +1264,15 @@ static int consoleview_used_views(void)
            (1 << consoleview_layout(CONSOLEVIEW_EXPERT));
 }
 
+// An On/Off option shown as a switch: the option's first value, the
+// default, is On.
+static void consoleview_action_switch(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!consoleview_store_option(item->action_id, item->value ? 0 : 1))
+        item->value = !consoleview_option(item->action_id);
+}
+
 // Greys out what neither Games nor Expert uses: in Console page the options
 // of a view they don't show, in Home screen the two carousel menus.
 void menu_carouselLook(void *_);
@@ -1273,7 +1282,7 @@ static void consoleview_update_list(List *list, int used)
 {
     for (int i = 0; i < list->item_count; i++) {
         ListItem *item = &list->items[i];
-        if (item->action == consoleview_action_option)
+        if (item->action == consoleview_action_option || item->action == consoleview_action_switch)
             item->disabled = (consoleview_option_views(item->action_id) & used) == 0;
         else if (item->action == consoleview_action_thumbs)
             item->disabled = (CONSOLEVIEW_THUMBS_VIEWS & used) == 0;
@@ -1349,18 +1358,6 @@ void menu_consolePage(void *_)
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
-                .label = "Game count",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"On", "Off"},
-                .value = consoleview_option(CONSOLEVIEW_COUNT),
-                .action_id = CONSOLEVIEW_COUNT,
-                .action = consoleview_action_option},
-            "Show the number of games\n"
-            "under each console.");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
                 .label = "Remember last console",
                 .item_type = TOGGLE,
                 .value = consoleview_remembers(),
@@ -1371,18 +1368,36 @@ void menu_consolePage(void *_)
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
+                .label = "Game count",
+                .item_type = TOGGLE,
+                .value = !consoleview_option(CONSOLEVIEW_COUNT),
+                .action_id = CONSOLEVIEW_COUNT,
+                .action = consoleview_action_switch},
+            "Show the number of games\n"
+            "under each console.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
                 .label = "Wrap around",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"On", "Off"},
-                .value = consoleview_option(CONSOLEVIEW_WRAP),
+                .item_type = TOGGLE,
+                .value = !consoleview_option(CONSOLEVIEW_WRAP),
                 .action_id = CONSOLEVIEW_WRAP,
-                .action = consoleview_action_option},
+                .action = consoleview_action_switch},
             "From the last console go on to the\n"
             "first, in the carousel and the grid.\n"
             "Off: stops at the first and last console,\n"
             "and (rc16) Up/Down stop at the grid's\n"
             "top and bottom rows.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
+            (ListItem){
+                .label = "List: folder icons",
+                .item_type = TOGGLE,
+                .value = !consoleview_option(CONSOLEVIEW_FOLDER_ICON),
+                .action_id = CONSOLEVIEW_FOLDER_ICON,
+                .action = consoleview_action_switch},
+            "Show a folder icon beside each console\n"
+            "in the List view.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1399,18 +1414,6 @@ void menu_consolePage(void *_)
             "MainUI, a page at a time at the row's\n"
             "end, Up/Down go round within the page\n"
             "(not with Wrap around Off).");
-        list_addItemWithInfoNote(
-            &_menu_console_view,
-            (ListItem){
-                .label = "List: folder icons",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"On", "Off"},
-                .value = consoleview_option(CONSOLEVIEW_FOLDER_ICON),
-                .action_id = CONSOLEVIEW_FOLDER_ICON,
-                .action = consoleview_action_option},
-            "Show a folder icon beside each console\n"
-            "in the List view.");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1439,12 +1442,10 @@ void menu_carouselLook(void *_)
             &_menu_carousel_look,
             (ListItem){
                 .label = "Console names",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"On", "Off"},
-                .value = consoleview_option(CONSOLEVIEW_LABELS),
+                .item_type = TOGGLE,
+                .value = !consoleview_option(CONSOLEVIEW_LABELS),
                 .action_id = CONSOLEVIEW_LABELS,
-                .action = consoleview_action_option},
+                .action = consoleview_action_switch},
             "Show the console's name under its\n"
             "picture in the carousel.");
         list_addItemWithInfoNote(
@@ -1590,12 +1591,10 @@ void menu_carouselMovement(void *_)
             &_menu_carousel_movement,
             (ListItem){
                 .label = "VSync",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"On", "Off"},
-                .value = consoleview_option(CONSOLEVIEW_VSYNC),
+                .item_type = TOGGLE,
+                .value = !consoleview_option(CONSOLEVIEW_VSYNC),
                 .action_id = CONSOLEVIEW_VSYNC,
-                .action = consoleview_action_option},
+                .action = consoleview_action_switch},
             "Draws the carousel in step with the\n"
             "screen: less tearing. Turns itself off\n"
             "if the screen is too slow for it.");
