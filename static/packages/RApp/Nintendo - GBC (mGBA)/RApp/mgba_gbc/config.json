@@ -1,0 +1,13 @@
+{
+"label":"mgba_gbc",
+"icon":"../../Icons/Default/gbc.png",
+"iconsel":"../../Icons/Default/gbc.png",
+"launch":"launch.sh",
+"rompath":"../../Roms/GBC",
+"imgpath":"../../Roms/GBC/Imgs",
+"gamelist":"../../Roms/GBC/miyoogamelist.xml",
+"useswap":0,
+"shortname":0,
+"hidebios":0,
+"extlist":"bin|dmg|gb|gbc|zip|7z"
+}
