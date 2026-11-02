@@ -2073,27 +2073,41 @@ static void glo_action_entry(void *pt)
         item->value = glo_shown(item->action_id);
 }
 
-// The menus of Games, Favorites, Recents and Search (one toggle per
-// action), then the entries of GLO.
-void menu_listMenus(void *_)
+// List menus > Games, Favorites, Recents, Search: one toggle per action of
+// that list's SELECT menu. The four share one list, rebuilt for the one
+// opened (action_id: its section), so menu_resetAll() can open it again.
+static void menu_listSection(void *pt)
+{
+    int section = ((ListItem *)pt)->action_id;
+    if (section < 0 || section >= GAMEMENU_DETAILS)
+        return;
+    char title[STR_MAX];
+    snprintf(title, sizeof(title), "%s menu", gamemenu_section_labels[section]);
+    list_free(&_menu_list_section);
+    _menu_list_section = list_createWithTitle(GAMEMENU_ITEM_COUNT, LIST_SMALL, title);
+    for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
+        if (gamemenu_items[i].fixed || gamemenu_items[i].section != section)
+            continue;
+        ListItem item = {.item_type = TOGGLE,
+                         .value = gamemenu_shown(i),
+                         .action_id = i,
+                         .action = gamemenu_action_item};
+        snprintf(item.label, sizeof(item.label), "%s", gamemenu_items[i].label);
+        list_addItemWithInfoNote(&_menu_list_section, item,
+                                 "Show this action in the SELECT menu.\n"
+                                 "Actions that don't apply to a game stay\n"
+                                 "hidden anyway.");
+    }
+    menu_stack[++menu_level] = &_menu_list_section;
+    header_changed = true;
+}
+
+// List menus > GLO: its entries that can be hidden.
+void menu_gloEntries(void *_)
 {
     (void)_;
-    if (!_menu_game_menus._created) {
-        _menu_game_menus = list_createWithTitle(GAMEMENU_ITEM_COUNT + GLO_ENTRY_COUNT, LIST_SMALL, "List menus");
-        for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
-            if (gamemenu_items[i].fixed || gamemenu_items[i].section == GAMEMENU_DETAILS)
-                continue;
-            ListItem item = {.item_type = TOGGLE,
-                             .value = gamemenu_shown(i),
-                             .action_id = i,
-                             .action = gamemenu_action_item};
-            snprintf(item.label, sizeof(item.label), "%s: %s",
-                     gamemenu_section_labels[gamemenu_items[i].section], gamemenu_items[i].label);
-            list_addItemWithInfoNote(&_menu_game_menus, item,
-                                     "Show this action in the game list's\n"
-                                     "SELECT menu. Actions that don't apply\n"
-                                     "to a game stay hidden anyway.");
-        }
+    if (!_menu_glo._created) {
+        _menu_glo = list_createWithTitle(GLO_ENTRY_COUNT, LIST_SMALL, "GLO (game options)");
         for (int i = 0; i < GLO_ENTRY_COUNT; i++) {
             if (glo_entries[i].network && !GLO_HAS_NETWORK)
                 continue;
@@ -2101,9 +2115,41 @@ void menu_listMenus(void *_)
                              .value = glo_shown(i),
                              .action_id = i,
                              .action = glo_action_entry};
-            snprintf(item.label, sizeof(item.label), "GLO: %s", glo_entries[i].label);
-            list_addItemWithInfoNote(&_menu_game_menus, item, glo_entries[i].note);
+            snprintf(item.label, sizeof(item.label), "%s", glo_entries[i].label);
+            list_addItemWithInfoNote(&_menu_glo, item, glo_entries[i].note);
         }
+    }
+    menu_stack[++menu_level] = &_menu_glo;
+    header_changed = true;
+}
+
+static const char *const list_section_notes[GAMEMENU_DETAILS] = {
+    "Which actions the SELECT menu of the\n"
+    "Games lists shows.",
+    "Which actions the SELECT menu of\n"
+    "Favorites shows.",
+    "Which actions the SELECT menu of\n"
+    "Recents shows.",
+    "Which actions the SELECT menu of\n"
+    "Search results shows.",
+};
+
+// List menus: a submenu for each list's SELECT menu, then GLO.
+void menu_listMenus(void *_)
+{
+    (void)_;
+    if (!_menu_game_menus._created) {
+        _menu_game_menus = list_createWithTitle(GAMEMENU_DETAILS + 1, LIST_SMALL, "List menus");
+        for (int section = 0; section < GAMEMENU_DETAILS; section++) {
+            ListItem item = {.action_id = section, .action = menu_listSection};
+            snprintf(item.label, sizeof(item.label), "%s...", gamemenu_section_labels[section]);
+            list_addItemWithInfoNote(&_menu_game_menus, item, list_section_notes[section]);
+        }
+        list_addItemWithInfoNote(&_menu_game_menus,
+                                 (ListItem){.label = "GLO (game options)...", .action = menu_gloEntries},
+                                 "What GLO shows: the game's options,\n"
+                                 "opened with Y on a game (by default,\n"
+                                 "see Buttons).");
     }
     menu_stack[++menu_level] = &_menu_game_menus;
     header_changed = true;

@@ -50,7 +50,8 @@ static int menu_level = 0;
 static bool header_changed = false;
 static List _menu_game_lists;
 static List _menu_home_screen, _menu_main_menu_items, _menu_main_context_items, _menu_console_view,
-    _menu_carousel_look, _menu_carousel_movement, _menu_game_menus, _menu_game_info_menu, _menu_saved_games;
+    _menu_carousel_look, _menu_carousel_movement, _menu_game_menus, _menu_game_info_menu, _menu_saved_games,
+    _menu_list_section, _menu_glo;
 static bool test_glo_network = true;
 #define GLO_HAS_NETWORK test_glo_network
 #include "../src/tweaks/main_menu.h"
@@ -1318,10 +1319,40 @@ TEST(game_info_and_saved_games_menus)
     menu_savedGames(NULL);
     menu_level = 0;
 
-    ASSERT_TRUE(menu_item(&_menu_game_menus, "Games: Launch") != NULL);
-    ASSERT_TRUE(menu_item(&_menu_game_menus, "Search: Favorite") != NULL);
-    ASSERT_TRUE(menu_item(&_menu_game_menus, "Game Info: Gallery") == NULL);
-    ASSERT_EQ(_menu_game_menus.item_count, 16 + GLO_ENTRY_COUNT);
+    /* List menus: one submenu per list, then GLO; no Game Info here. */
+    const char *subs[] = {"Games...", "Favorites...", "Recents...", "Search...", "GLO (game options)..."};
+    ASSERT_EQ(_menu_game_menus.item_count, 5);
+    for (int i = 0; i < 5; i++)
+        ASSERT_STREQ(_menu_game_menus.items[i].label, subs[i]);
+
+    /* Each list's submenu has its own actions, short labels. */
+    const char *titles[] = {"Games menu", "Favorites menu", "Recents menu", "Search menu"};
+    const int counts[] = {5, 6, 3, 2};
+    for (int i = 0; i < 4; i++) {
+        menu_level = 0;
+        _menu_game_menus.items[i].action(&_menu_game_menus.items[i]);
+        ASSERT_TRUE(menu_stack[menu_level] == &_menu_list_section);
+        ASSERT_STREQ(_menu_list_section.title, titles[i]);
+        ASSERT_EQ(_menu_list_section.item_count, counts[i]);
+    }
+    menu_level = 0;
+    _menu_game_menus.items[0].action(&_menu_game_menus.items[0]);
+    ASSERT_STREQ(_menu_list_section.items[0].label, "Launch");
+    ListItem *refresh = menu_item(&_menu_list_section, "Refresh");
+    ASSERT_TRUE(refresh != NULL);
+    /* Its toggle still writes game-menu.json. */
+    refresh->value = 0;
+    refresh->action(refresh);
+    ASSERT_FALSE(gamemenu_shown(refresh->action_id));
+    refresh->value = 1;
+    refresh->action(refresh);
+    ASSERT_TRUE(gamemenu_shown(refresh->action_id));
+    menu_level = 0;
+    _menu_game_menus.items[3].action(&_menu_game_menus.items[3]);
+    ASSERT_TRUE(menu_item(&_menu_list_section, "Favorite") != NULL);
+    ASSERT_TRUE(menu_item(&_menu_list_section, "Gallery") == NULL);
+    menu_level = 0;
+    list_free(&_menu_list_section);
 
     const char *info[] = {"Gallery", "Saved Games", "Game Maps", "Walkthrough", "Manual", "RIGHT opens the gallery"};
     ASSERT_EQ(_menu_game_info_menu.item_count, 6);
@@ -1349,7 +1380,7 @@ TEST(game_info_and_saved_games_menus)
     _menu_game_menus._created = _menu_game_info_menu._created = _menu_saved_games._created = false;
 }
 
-/* List menus ends with GLO's entries: each switch writes or removes
+/* List menus > GLO (game options): each switch writes or removes
    config/.hideGlo<name>, which game_list_options.sh reads. */
 static bool glo_flag_exists(const char *name)
 {
@@ -1360,10 +1391,11 @@ static bool glo_flag_exists(const char *name)
 
 static void glo_menu_rebuild(void)
 {
-    list_free(&_menu_game_menus);
-    _menu_game_menus._created = false;
+    list_free(&_menu_glo);
+    _menu_glo._created = false;
     menu_level = 0;
-    menu_listMenus(NULL);
+    menu_gloEntries(NULL);
+    ASSERT_TRUE(menu_stack[menu_level] == &_menu_glo);
     menu_level = 0;
 }
 
@@ -1373,11 +1405,13 @@ TEST(glo_entries_in_list_menus)
     test_glo_network = true;
     glo_menu_rebuild();
 
-    const char *labels[] = {"GLO: Reset game", "GLO: Game manual", "GLO: Game core", "GLO: Hide game",
-                            "GLO: Filter list", "GLO: Netplay", "GLO: Scraper"};
+    const char *labels[] = {"Reset game", "Game manual", "Game core", "Hide game",
+                            "Filter list", "Netplay", "Scraper"};
     ASSERT_EQ(GLO_ENTRY_COUNT, 7);
+    ASSERT_STREQ(_menu_glo.title, "GLO (game options)");
+    ASSERT_EQ(_menu_glo.item_count, 7);
     for (int i = 0; i < 7; i++) {
-        ListItem *item = &_menu_game_menus.items[_menu_game_menus.item_count - 7 + i];
+        ListItem *item = &_menu_glo.items[i];
         ASSERT_STREQ(item->label, labels[i]);
         ASSERT_EQ(item->value, 1);
     }
@@ -1385,15 +1419,15 @@ TEST(glo_entries_in_list_menus)
     /* Off writes the flag, On removes it; the names the script uses. */
     const char *flags[] = {"Reset", "Manual", "Core", "Hide", "Filter", "Netplay", "Scraper"};
     for (int i = 0; i < 7; i++) {
-        ListItem *item = menu_item(&_menu_game_menus, labels[i]);
+        ListItem *item = menu_item(&_menu_glo, labels[i]);
         item->value = 0;
         item->action(item);
         ASSERT_TRUE(glo_flag_exists(flags[i]));
     }
     glo_menu_rebuild();
     for (int i = 0; i < 7; i++)
-        ASSERT_EQ(menu_item(&_menu_game_menus, labels[i])->value, 0);
-    ListItem *filter = menu_item(&_menu_game_menus, "GLO: Filter list");
+        ASSERT_EQ(menu_item(&_menu_glo, labels[i])->value, 0);
+    ListItem *filter = menu_item(&_menu_glo, "Filter list");
     filter->value = 1;
     filter->action(filter);
     ASSERT_FALSE(glo_flag_exists("Filter"));
@@ -1402,16 +1436,16 @@ TEST(glo_entries_in_list_menus)
     /* No Wi-Fi: no Netplay or Scraper switch. */
     test_glo_network = false;
     glo_menu_rebuild();
-    ASSERT_TRUE(menu_item(&_menu_game_menus, "GLO: Netplay") == NULL);
-    ASSERT_TRUE(menu_item(&_menu_game_menus, "GLO: Scraper") == NULL);
-    ASSERT_TRUE(menu_item(&_menu_game_menus, "GLO: Filter list") != NULL);
+    ASSERT_TRUE(menu_item(&_menu_glo, "Netplay") == NULL);
+    ASSERT_TRUE(menu_item(&_menu_glo, "Scraper") == NULL);
+    ASSERT_TRUE(menu_item(&_menu_glo, "Filter list") != NULL);
     test_glo_network = true;
 
     /* Game lists itself no longer has the old switch. */
     ASSERT_FALSE(source_has("../src/tweaks/menus.h", "Filter list in game options"));
 
-    list_free(&_menu_game_menus);
-    _menu_game_menus._created = false;
+    list_free(&_menu_glo);
+    _menu_glo._created = false;
 }
 
 TEST(console_view_remember_flag)

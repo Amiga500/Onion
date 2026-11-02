@@ -74,6 +74,8 @@ static List _menu_console_view;
 static List _menu_carousel_look;
 static List _menu_carousel_movement;
 static List _menu_game_menus;
+static List _menu_list_section;
+static List _menu_glo;
 static List _menu_game_info_menu;
 static List _menu_saved_games;
 static List _menu_main_context_items;
@@ -108,6 +110,8 @@ void menu_free_all(void)
     list_free(&_menu_carousel_look);
     list_free(&_menu_carousel_movement);
     list_free(&_menu_game_menus);
+    list_free(&_menu_list_section);
+    list_free(&_menu_glo);
     list_free(&_menu_game_info_menu);
     list_free(&_menu_saved_games);
     list_free(&_menu_main_context_items);

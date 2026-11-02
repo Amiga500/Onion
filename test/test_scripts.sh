@@ -1279,7 +1279,7 @@ unset -f sqlite3
 end
 
 begin glo_filter_can_be_hidden
-# Tweaks > Game lists > List menus > "GLO: Filter list" Off writes
+# Tweaks > Game lists > List menus > GLO > "Filter list" Off writes
 # config/.hideGloFilter: no Filter list, no Current filter, but Clear filter
 # while a filter is set.
 eval "$(extract_fn "$GLO" glo_shown)"
@@ -1303,7 +1303,7 @@ unset -f filter_is_applied add_menu_option menu
 end
 
 begin glo_entries_can_be_hidden
-# List menus > "GLO: Reset game/Game manual/Game core/Hide game/Netplay/
+# List menus > GLO > "Reset game/Game manual/Game core/Hide game/Netplay/
 # Scraper" Off: the entry is left out of GLO.
 eval "$(extract_fn "$GLO" glo_shown)"
 sysdir="$TMP/sys"; mkdir -p "$sysdir/config"

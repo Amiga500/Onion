@@ -27,7 +27,7 @@ device_has_networking() {
     esac
 }
 
-# Tweaks > Game lists > List menus: "GLO: <entry>" Off writes
+# Tweaks > Game lists > List menus > GLO (game options): an entry Off writes
 # config/.hideGlo<name> and the entry is left out.
 glo_shown() {
     [ ! -f "$sysdir/config/.hideGlo$1" ]
@@ -252,7 +252,7 @@ main() {
     # applies): one entry that says where hidden ones come back, instead of
     # an empty menu.
     if [ -z "$menu_options" ]; then
-        add_menu_option : "Nothing to show" "Hidden entries come back in\nTweaks > Game lists > List menus"
+        add_menu_option : "Nothing to show" "Hidden entries come back in Tweaks >\nGame lists > List menus > GLO"
     fi
 
     log "\n\n=================================================================================================="
@@ -776,7 +776,7 @@ unhide_game() { # .hidden/<rom name> folder
 }
 
 # Filter list, or Clear filter and Current filter while one is set. Tweaks >
-# List menus > "GLO: Filter list" Off (config/.hideGloFilter)
+# List menus > GLO > "Filter list" Off (config/.hideGloFilter)
 # hides Filter list and Current filter; Clear filter stays while a filter is
 # set, so a list filtered before is never stuck that way.
 add_filter_options() {
