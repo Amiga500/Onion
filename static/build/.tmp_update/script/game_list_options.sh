@@ -218,17 +218,7 @@ main() {
     fi
 
     if [ $current_tab -eq $TAB_GAMES ]; then
-        if [ -f "$emupath/active_filter" ] && ! filter_is_applied; then
-            log "rom list cache rebuilt since the filter was set: dropping active_filter"
-            rm -f "$emupath/active_filter"
-        fi
-        if [ -f "$emupath/active_filter" ]; then
-            filter_kw=$(cat "$emupath/active_filter")
-            add_menu_option clear_filter "Clear filter" "Clear the current rom list filter"
-            add_menu_option filter_roms "Current filter: $filter_kw" "Change the rom list filter"
-        else
-            add_menu_option filter_roms "Filter list" "Filter the rom list by keyword"
-        fi
+        add_filter_options
     fi
 
     # No "Refresh list" here: Open MainUI's Select menu has "Refresh roms" for
@@ -762,6 +752,26 @@ unhide_game() { # .hidden/<rom name> folder
     rmdir "$(dirname "$1")" 2> /dev/null
     sync
     drop_rom_list_cache
+}
+
+# Filter list, or Clear filter and Current filter while one is set. Tweaks >
+# Game lists > "Filter list in game options" Off (config/.hideGloFilter)
+# hides Filter list and Current filter; Clear filter stays while a filter is
+# set, so a list filtered before is never stuck that way.
+add_filter_options() {
+    if [ -f "$emupath/active_filter" ] && ! filter_is_applied; then
+        log "rom list cache rebuilt since the filter was set: dropping active_filter"
+        rm -f "$emupath/active_filter"
+    fi
+    if [ -f "$emupath/active_filter" ]; then
+        filter_kw=$(cat "$emupath/active_filter")
+        add_menu_option clear_filter "Clear filter" "Clear the current rom list filter"
+        if [ ! -f "$sysdir/config/.hideGloFilter" ]; then
+            add_menu_option filter_roms "Current filter: $filter_kw" "Change the rom list filter"
+        fi
+    elif [ ! -f "$sysdir/config/.hideGloFilter" ]; then
+        add_menu_option filter_roms "Filter list" "Filter the rom list by keyword"
+    fi
 }
 
 clear_filter() {

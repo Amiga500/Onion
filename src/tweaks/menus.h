@@ -1000,7 +1000,7 @@ void menu_gameListsMenu(void *_)
 {
     (void)_;
     if (!_menu_game_lists._created) {
-        _menu_game_lists = list_createWithTitle(6, LIST_SMALL, "Game lists");
+        _menu_game_lists = list_createWithTitle(7, LIST_SMALL, "Game lists");
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "Layout...", .action = menu_gameListsLayout},
                                  "Rows per page, font size, sorting and\n"
@@ -1030,6 +1030,16 @@ void menu_gameListsMenu(void *_)
                                  "Shortcut, auto save, pictures, and what\n"
                                  "playing an older save does to the last\n"
                                  "auto save. Needs Open MainUI 1.1.0.");
+        list_addItemWithInfoNote(&_menu_game_lists,
+                                 (ListItem){
+                                     .label = "Filter list in game options",
+                                     .item_type = TOGGLE,
+                                     .value = !config_flag_get(".hideGloFilter"),
+                                     .action = action_setGloFilter},
+                                 "Show \"Filter list\" in the game options\n"
+                                 "(Y on a game in Games). Off hides it;\n"
+                                 "a filter already set can still be\n"
+                                 "cleared there.");
     }
     menu_stack[++menu_level] = &_menu_game_lists;
     header_changed = true;

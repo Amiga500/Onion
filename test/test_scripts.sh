@@ -1278,6 +1278,28 @@ check "no Refresh list entry: the Select menu has Refresh roms" \
 unset -f sqlite3
 end
 
+begin glo_filter_can_be_hidden
+# Tweaks > Game lists > "Filter list in game options" Off writes
+# config/.hideGloFilter: no Filter list, no Current filter, but Clear filter
+# while a filter is set.
+eval "$(extract_fn "$GLO" add_filter_options)"
+log() { :; }
+add_menu_option() { echo "$1" >> "$TMP/menu"; }
+filter_is_applied() { return 0; }
+sysdir="$TMP/sys"; mkdir -p "$sysdir/config"
+emupath="$TMP/Emu/GBA"; mkdir -p "$emupath"
+menu() { rm -f "$TMP/menu"; add_filter_options; tr '\n' ' ' < "$TMP/menu" 2> /dev/null; }
+check "shown, no filter: Filter list" test "$(menu)" = "filter_roms "
+echo zelda > "$emupath/active_filter"
+check "shown, a filter: Clear filter and Current filter" test "$(menu)" = "clear_filter filter_roms "
+: > "$sysdir/config/.hideGloFilter"
+check "hidden, a filter: only Clear filter" test "$(menu)" = "clear_filter "
+rm -f "$emupath/active_filter"
+check "hidden, no filter: nothing" test -z "$(menu)"
+check "the Tweaks switch writes that flag" grep -q 'config_flag_set(".hideGloFilter"' "$ROOT/src/tweaks/actions.h"
+unset -f filter_is_applied add_menu_option menu
+end
+
 # ---- migration 00021: Apps sorted by name once, as before Open MainUI 1.0.6 ----
 
 begin migration_sorts_apps_by_name
