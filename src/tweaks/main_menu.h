@@ -1186,11 +1186,14 @@ static bool consoleview_store_option(int option, int value)
     return ok;
 }
 
+static void consoleview_update_enabled(void);
+
 static void consoleview_action_option(void *pt)
 {
     ListItem *item = (ListItem *)pt;
     if (!consoleview_store_option(item->action_id, item->value))
         item->value = consoleview_option(item->action_id);
+    consoleview_update_enabled();
 }
 
 // runtime.sh keeps /tmp/console-position.json (the console last selected in
@@ -1278,12 +1281,22 @@ static void consoleview_action_switch(void *pt)
 void menu_carouselLook(void *_);
 void menu_carouselMovement(void *_);
 
+// Also: Slide motion and Slide time only with a slide (Animation not None),
+// Selection box padding only with a box (Selection box not Off).
 static void consoleview_update_list(List *list, int used)
 {
+    bool slide = consoleview_option(CONSOLEVIEW_ANIMATION) != 1; // Default, None, Slide
+    bool box = consoleview_option(CONSOLEVIEW_SELECTION) != 1;   // Theme, Off, Light, Bright
     for (int i = 0; i < list->item_count; i++) {
         ListItem *item = &list->items[i];
-        if (item->action == consoleview_action_option || item->action == consoleview_action_switch)
-            item->disabled = (consoleview_option_views(item->action_id) & used) == 0;
+        if (item->action == consoleview_action_option || item->action == consoleview_action_switch) {
+            bool off = (consoleview_option_views(item->action_id) & used) == 0;
+            if (item->action_id == CONSOLEVIEW_EASING || item->action_id == CONSOLEVIEW_DURATION)
+                off = off || !slide;
+            else if (item->action_id == CONSOLEVIEW_PADDING)
+                off = off || !box;
+            item->disabled = off;
+        }
         else if (item->action == consoleview_action_thumbs)
             item->disabled = (CONSOLEVIEW_THUMBS_VIEWS & used) == 0;
         else if (item->action == menu_carouselLook || item->action == menu_carouselMovement)
@@ -1298,6 +1311,10 @@ static void consoleview_update_enabled(void)
         consoleview_update_list(&_menu_console_view, used);
     if (_menu_home_screen._created)
         consoleview_update_list(&_menu_home_screen, used);
+    if (_menu_carousel_look._created)
+        consoleview_update_list(&_menu_carousel_look, used);
+    if (_menu_carousel_movement._created)
+        consoleview_update_list(&_menu_carousel_movement, used);
 }
 
 static void consoleview_action_layout(void *pt)
@@ -1536,6 +1553,7 @@ void menu_carouselLook(void *_)
             "Moves the pictures and their names\n"
             "up or down. Default: centred.");
     }
+    consoleview_update_enabled();
     menu_stack[++menu_level] = &_menu_carousel_look;
     header_changed = true;
 }
@@ -1610,6 +1628,7 @@ void menu_carouselMovement(void *_)
             "screen: less tearing. Turns itself off\n"
             "if the screen is too slow for it.");
     }
+    consoleview_update_enabled();
     menu_stack[++menu_level] = &_menu_carousel_movement;
     header_changed = true;
 }
@@ -1941,11 +1960,33 @@ static void gamemenu_action_switch(void *pt)
         item->value = gamemenu_switch(item->action_id);
 }
 
+// LEFT opens Saved Games does nothing while Saved Games is off in the Game
+// Info menu (Open MainUI ignores LEFT then): greyed out meanwhile.
+static void savedgames_update_enabled(void)
+{
+    if (!_menu_saved_games._created)
+        return;
+    bool shown = true;
+    for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
+        if (gamemenu_items[i].section == GAMEMENU_DETAILS && strcmp(gamemenu_items[i].id, "saved_games") == 0)
+            shown = gamemenu_shown(i);
+    }
+    for (int i = 0; i < _menu_saved_games.item_count; i++) {
+        ListItem *item = &_menu_saved_games.items[i];
+        if (item->action == gamemenu_action_switch &&
+            strcmp(gamemenu_switches[item->action_id].key, "left_shortcut") == 0)
+            item->disabled = !shown;
+    }
+    if (_menu_saved_games.items[_menu_saved_games.active_pos].disabled)
+        list_ensureVisible(&_menu_saved_games, 1);
+}
+
 static void gamemenu_action_item(void *pt)
 {
     ListItem *item = (ListItem *)pt;
     if (!gamemenu_store(item->action_id, item->value != 0))
         item->value = gamemenu_shown(item->action_id);
+    savedgames_update_enabled();
 }
 
 // The menus of Games, Favorites, Recents and Search: one toggle per action.
@@ -2034,6 +2075,7 @@ void menu_savedGames(void *_)
             "Previous Session, Overwrite replaces it,\n"
             "Swap trades it with that save's slot.");
     }
+    savedgames_update_enabled();
     menu_stack[++menu_level] = &_menu_saved_games;
     header_changed = true;
 }

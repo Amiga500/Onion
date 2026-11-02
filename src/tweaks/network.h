@@ -577,6 +577,7 @@ void menu_vnc(void *pt)
                                  (ListItem){
                                      .label = "Framerate",
                                      .item_type = MULTIVALUE,
+                                     .disabled = !network_state.vncserv,
                                      .value_max = 20,
                                      .value_min = 1,
                                      .value = (int)network_state.vncfps,

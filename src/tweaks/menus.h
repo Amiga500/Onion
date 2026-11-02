@@ -422,6 +422,22 @@ void menu_buttonAction(void *_)
     header_changed = true;
 }
 
+// Battery percentage: its look only matters while Visible isn't Off.
+static void battery_update_enabled(void)
+{
+    if (!_menu_battery_percentage._created)
+        return;
+    bool off = _menu_battery_percentage.items[0].value == 1; // "-", Off, On
+    for (int i = 1; i < _menu_battery_percentage.item_count; i++)
+        _menu_battery_percentage.items[i].disabled = off;
+}
+
+static void battery_action_visible(void *pt)
+{
+    action_batteryPercentageVisible(pt);
+    battery_update_enabled();
+}
+
 void menu_batteryPercentage(void *_)
 {
     if (!_menu_battery_percentage._created) {
@@ -433,7 +449,7 @@ void menu_batteryPercentage(void *_)
                          .value_max = 2,
                          .value_labels = THEME_TOGGLE_LABELS,
                          .value = value_batteryPercentageVisible(),
-                         .action = action_batteryPercentageVisible});
+                         .action = battery_action_visible});
         list_addItem(&_menu_battery_percentage,
                      (ListItem){
                          .label = "Font family",
@@ -482,6 +498,7 @@ void menu_batteryPercentage(void *_)
                          .value_formatter = formatter_positionOffset,
                          .value = value_batteryPercentageOffsetY(),
                          .action = action_batteryPercentageOffsetY});
+        battery_update_enabled();
     }
     menu_stack[++menu_level] = &_menu_battery_percentage;
     header_changed = true;
@@ -588,7 +605,7 @@ void menu_blueLight(void *_)
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
                                          .label = "Time (On)",
-                                         .disabled = schedule_disable,
+                                         .disabled = !settings.blue_light_schedule,
                                          .item_type = MULTIVALUE,
                                          .value_max = 95,
                                          .value_formatter = formatter_Time,
@@ -598,7 +615,7 @@ void menu_blueLight(void *_)
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
                                          .label = "Time (Off)",
-                                         .disabled = schedule_disable,
+                                         .disabled = !settings.blue_light_schedule,
                                          .item_type = MULTIVALUE,
                                          .value_max = 95,
                                          .value_formatter = formatter_Time,

@@ -1169,6 +1169,115 @@ TEST(game_lists_options_follow_what_they_depend_on)
     sc->_created = pv->_created = false;
 }
 
+/* Slide motion and Slide time need a slide, Selection box padding a box,
+ * and LEFT opens Saved Games needs Saved Games in the Game Info menu. */
+static void carousel_menus_build(void)
+{
+    list_free(&_menu_carousel_look);
+    list_free(&_menu_carousel_movement);
+    _menu_carousel_look._created = _menu_carousel_movement._created = false;
+    menu_level = 0;
+    menu_carouselLook(NULL);
+    menu_level = 0;
+    menu_carouselMovement(NULL);
+    menu_level = 0;
+}
+
+TEST(options_follow_the_option_they_need)
+{
+    reset_dir();
+    ASSERT_TRUE(consoleview_store_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_CAROUSEL));
+    console_view_menus_build();
+    carousel_menus_build();
+    List *look = &_menu_carousel_look, *move = &_menu_carousel_movement;
+
+    ASSERT_FALSE(menu_item(move, "Slide motion")->disabled);
+    ASSERT_FALSE(menu_item(move, "Slide time")->disabled);
+    ListItem *anim = menu_item(move, "Animation");
+    anim->value = 1; /* None */
+    anim->action(anim);
+    ASSERT_TRUE(menu_item(move, "Slide motion")->disabled);
+    ASSERT_TRUE(menu_item(move, "Slide time")->disabled);
+    ASSERT_FALSE(menu_item(move, "Holding: time per move")->disabled);
+    ASSERT_FALSE(menu_item(move, "VSync")->disabled);
+    anim->value = 2; /* Slide */
+    anim->action(anim);
+    ASSERT_FALSE(menu_item(move, "Slide time")->disabled);
+
+    ListItem *box = menu_item(look, "Selection box");
+    box->value = 1; /* Off */
+    box->action(box);
+    ASSERT_TRUE(menu_item(look, "Selection box padding")->disabled);
+    ASSERT_FALSE(menu_item(look, "Space between consoles")->disabled);
+    /* Built again: greyed out from the start. */
+    carousel_menus_build();
+    ASSERT_TRUE(menu_item(&_menu_carousel_look, "Selection box padding")->disabled);
+    box = menu_item(&_menu_carousel_look, "Selection box");
+    box->value = 0; /* Theme */
+    box->action(box);
+    ASSERT_FALSE(menu_item(&_menu_carousel_look, "Selection box padding")->disabled);
+
+    /* LEFT opens Saved Games and the Game Info menu's Saved Games. */
+    list_free(&_menu_game_info_menu);
+    list_free(&_menu_saved_games);
+    _menu_game_info_menu._created = _menu_saved_games._created = false;
+    menu_level = 0;
+    menu_gameInfoMenu(NULL);
+    menu_level = 0;
+    menu_savedGames(NULL);
+    menu_level = 0;
+    ListItem *left = menu_item(&_menu_saved_games, "LEFT opens Saved Games");
+    ASSERT_FALSE(left->disabled);
+    ListItem *sg = menu_item(&_menu_game_info_menu, "Saved Games");
+    sg->value = 0;
+    sg->action(sg);
+    ASSERT_TRUE(left->disabled);
+    ASSERT_FALSE(_menu_saved_games.items[_menu_saved_games.active_pos].disabled);
+    sg->value = 1;
+    sg->action(sg);
+    ASSERT_FALSE(left->disabled);
+
+    list_free(&_menu_carousel_look);
+    list_free(&_menu_carousel_movement);
+    list_free(&_menu_game_info_menu);
+    list_free(&_menu_saved_games);
+    _menu_carousel_look._created = _menu_carousel_movement._created = false;
+    _menu_game_info_menu._created = _menu_saved_games._created = false;
+    console_view_menus_free();
+}
+
+/* The menus these tests can't build: the greying is in their source. */
+static bool source_has(const char *path, const char *text)
+{
+    FILE *fp = fopen(path, "r");
+    if (fp == NULL)
+        return false;
+    static char src[1 << 20];
+    size_t n = fread(src, 1, sizeof(src) - 1, fp);
+    fclose(fp);
+    src[n] = '\0';
+    return strstr(src, text) != NULL;
+}
+
+TEST(greyed_out_options_in_other_menus)
+{
+    /* VNC's Framerate while VNC is off (toggling it rebuilds the menus). */
+    ASSERT_TRUE(source_has("../src/tweaks/network.h",
+                           ".label = \"Framerate\",\n"
+                           "                                     .item_type = MULTIVALUE,\n"
+                           "                                     .disabled = !network_state.vncserv,"));
+    /* The blue light times while the schedule is off (same). */
+    ASSERT_TRUE(source_has("../src/tweaks/menus.h",
+                           ".label = \"Time (On)\",\n"
+                           "                                         .disabled = !settings.blue_light_schedule,"));
+    ASSERT_TRUE(source_has("../src/tweaks/menus.h",
+                           ".label = \"Time (Off)\",\n"
+                           "                                         .disabled = !settings.blue_light_schedule,"));
+    /* Battery percentage: the rest while Visible is Off, at once. */
+    ASSERT_TRUE(source_has("../src/tweaks/menus.h", ".action = battery_action_visible}"));
+    ASSERT_TRUE(source_has("../src/tweaks/menus.h", "_menu_battery_percentage.items[i].disabled = off;"));
+}
+
 /* The Game Info menu and Saved Games each get their own toggles. */
 TEST(game_info_and_saved_games_menus)
 {
@@ -1478,6 +1587,8 @@ int main(void)
     RUN_TEST(game_info_and_saved_games_menus);
     RUN_TEST(console_view_on_off_switches);
     RUN_TEST(game_lists_options_follow_what_they_depend_on);
+    RUN_TEST(options_follow_the_option_they_need);
+    RUN_TEST(greyed_out_options_in_other_menus);
     RUN_TEST(console_view_remember_flag);
     RUN_TEST(console_view_selection_colours);
     RUN_TEST(game_menus_default_without_file);
