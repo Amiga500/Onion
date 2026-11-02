@@ -1,0 +1,53 @@
+#!/bin/sh
+# Adapted from boburning/BloomOS PR #56. Only the adjacent copy is edited.
+set -u
+
+SD_ROOT="${ONION_SD_ROOT:-/mnt/SDCARD}"
+
+fail() { printf 'redonion-launch-override: %s\n' "$*" >&2; exit 1; }
+
+valid_path() {
+    case "$1" in
+        "$SD_ROOT"/Emu/*/*|"$SD_ROOT"/RApp/*/*) ;;
+        *) return 1 ;;
+    esac
+    [ -f "$1" ] && [ ! -L "$1" ] && [ "$(realpath "$1")" = "$1" ]
+}
+
+case "${1:-}" in
+    create)
+        [ "$#" -eq 3 ] || fail "create expects LAUNCHER APPEND_CONFIG"
+        launcher="$2"
+        append_config="$3"
+        case "$launcher" in */launch.sh) ;; *) fail "expected launch.sh" ;; esac
+        valid_path "$launcher" || fail "launcher path is unsafe"
+        case "$append_config" in /tmp/reset.cfg|/tmp/auto_load_state.cfg) ;; *) fail "append config is unsupported" ;; esac
+        umask 077
+        temporary=$(mktemp "${launcher%/*}/.redonion-launch-override.XXXXXX") || fail "cannot create temporary launcher"
+        trap 'rm -f "$temporary"' 0
+        trap 'exit 1' HUP INT TERM
+        awk -v config="$append_config" '
+            !/^[[:space:]]*#/ && /retroarch"?[[:space:]]+-v([[:space:]]|$)/ {
+                # Do not discard a custom launcher configuration.
+                if ($0 ~ /--appendconfig/) exit 42
+                if (sub(/[[:space:]]-v([[:space:]]|$)/, " -v --appendconfig \"" config "\" ")) changed=1
+            }
+            { print }
+            END { if (!changed) exit 42 }
+        ' "$launcher" >"$temporary" || fail "unsupported RetroArch command"
+        chmod 700 "$temporary" || fail "cannot protect temporary launcher"
+        trap - 0 HUP INT TERM
+        printf '%s\n' "$temporary"
+        ;;
+    remove)
+        [ "$#" -eq 2 ] || fail "remove expects TEMPORARY_LAUNCHER"
+        temporary="$2"
+        case "${temporary##*/}" in
+            .redonion-launch-override.??????) ;;
+            *) fail "temporary launcher name is unsafe" ;;
+        esac
+        valid_path "$temporary" || fail "temporary launcher path is unsafe"
+        rm -f "$temporary" || fail "cannot remove temporary launcher"
+        ;;
+    *) fail "expected {create LAUNCHER APPEND_CONFIG|remove TEMPORARY_LAUNCHER}" ;;
+esac

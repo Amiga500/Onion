@@ -249,14 +249,14 @@ begin cleanup_appendconfig_reset
 appendconfig_env 'run "core" --appendconfig "/tmp/reset.cfg" "rom"' './retroarch -L core --appendconfig "/tmp/reset.cfg" "$1"'
 cleanup_appendconfig "$TMP/launch.sh"
 check "cmd cleaned" test "$(cat "$sysdir/cmd_to_run.sh")" = 'run "core" "rom"'
-check "launch.sh cleaned" test "$(cat "$TMP/launch.sh")" = './retroarch -L core "$1"'
+check "permanent launch.sh unchanged" test "$(cat "$TMP/launch.sh")" = './retroarch -L core --appendconfig "/tmp/reset.cfg" "$1"'
 end
 
 begin cleanup_appendconfig_auto_load
 appendconfig_env 'run "core" --appendconfig "/tmp/auto_load_state.cfg" "rom"' 'x --appendconfig "/tmp/auto_load_state.cfg" y'
 cleanup_appendconfig "$TMP/launch.sh"
 check "cmd cleaned" test "$(cat "$sysdir/cmd_to_run.sh")" = 'run "core" "rom"'
-check "launch.sh cleaned" test "$(cat "$TMP/launch.sh")" = 'x y'
+check "permanent launch.sh unchanged" test "$(cat "$TMP/launch.sh")" = 'x --appendconfig "/tmp/auto_load_state.cfg" y'
 end
 
 begin cleanup_appendconfig_nothing_to_do
@@ -2322,6 +2322,177 @@ unset -f version
 end
 
 echo ""
+OVERRIDE="$ROOT/static/build/.tmp_update/bin/redonion-launch-override"
+
+override_fixture() {
+    export ONION_SD_ROOT="$TMP/SDCARD"
+    sysdir="$ONION_SD_ROOT/.tmp_update"
+    miyoodir="$ONION_SD_ROOT/miyoo"
+    launcher="$ONION_SD_ROOT/Emu/GB/launch.sh"
+    mkdir -p "${launcher%/*}" "$sysdir/bin" "$ONION_SD_ROOT/RetroArch"
+    ln -s "$OVERRIDE" "$sysdir/bin/redonion-launch-override"
+    cat > "$launcher" <<'EOF'
+#!/bin/sh
+progdir=$(dirname "$0")
+"$progdir/../../RetroArch/retroarch" -v -L "$progdir/../../RetroArch/.retroarch/cores/core.so" "$1"
+EOF
+    cat > "$ONION_SD_ROOT/RetroArch/retroarch" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$@" > "$ONION_SD_ROOT/args"
+exit 7
+EOF
+    chmod +x "$launcher" "$ONION_SD_ROOT/RetroArch/retroarch"
+    cp "$launcher" "$TMP/original"
+    temporary_launch_path=""
+    TZ_VALUE=UTC
+    rompath="$ONION_SD_ROOT/Roms/GB/Bob's \$pecial \`Game\` \"quoted\" \\game.gb"
+    printf 'original persistent command\n' > "$sysdir/cmd_to_run.sh"
+    log() { :; }
+    eval "$(extract_fn "$RUNTIME" run_game_command)"
+    # Isolate runtime flags/config writes without touching host /tmp state.
+    eval "$(extract_fn "$RUNTIME" override_game_core | sed \
+        -e "s|/tmp/reset_game|$TMP/reset_game|g" \
+        -e "s|/tmp/force_auto_load_state|$TMP/force_auto_load_state|g" \
+        -e "s|> /tmp/reset.cfg|> '$TMP/reset.cfg'|g" \
+        -e "s|> /tmp/auto_load_state.cfg|> '$TMP/auto_load_state.cfg'|g" \
+        -e "s|/mnt/SDCARD/RetroArch/|$ONION_SD_ROOT/RetroArch/|g")"
+    eval "$(extract_fn "$RUNTIME" cleanup_appendconfig | sed "s|/tmp/quick_switch|$TMP/quick_switch|g")"
+    system_default_core() { :; }
+    launcher_emu_dir() { dirname "$1"; }
+    get_info_value() { printf '%s' "$1"; }
+}
+
+begin temporary_override_reset_and_auto_load
+override_fixture
+for mode in reset auto_load_state; do
+    if [ "$mode" = reset ]; then marker=reset_game; value=false; else marker=force_auto_load_state; value=true; fi
+    touch "$TMP/$marker"
+    check "prepare $mode" override_game_core "$TMP/no-game-config" "$launcher"
+    check "flag consumed" test ! -e "$TMP/$marker"
+    check "correct state setting" grep -qx "savestate_auto_load = \"$value\"" "$TMP/$mode.cfg"
+    check "launcher bytes preserved before execution" cmp -s "$launcher" "$TMP/original"
+    check "copy stays adjacent" test "${temporary_launch_path%/*}" = "${launcher%/*}"
+    check "copy permissions" test "$(stat -c '%a' "$temporary_launch_path")" = 700
+    run_game_command 2> "$TMP/stderr"
+    check "exit status propagated" test "$retval" = 7
+    check "temporary config argument" test "$(sed -n '3p' "$ONION_SD_ROOT/args")" = "/tmp/$mode.cfg"
+    check "relative core path preserved" test "$(sed -n '5p' "$ONION_SD_ROOT/args")" = "${launcher%/*}/../../RetroArch/.retroarch/cores/core.so"
+    check "ROM punctuation is data" test "$(tail -n 1 "$ONION_SD_ROOT/args")" = "$rompath"
+    check "persistent command never pointed to temporary file" test "$(cat "$sysdir/cmd_to_run.sh")" = 'original persistent command'
+    copy=$temporary_launch_path
+    cleanup_appendconfig "$launcher"
+    check "temporary file removed" test ! -e "$copy"
+    check "launcher bytes preserved after cleanup" cmp -s "$launcher" "$TMP/original"
+done
+end
+
+begin temporary_override_preserves_quick_switch_handoff
+override_fixture
+temporary_launch_path=$("$OVERRIDE" create "$launcher" /tmp/reset.cfg)
+copy=$temporary_launch_path
+printf 'next game --appendconfig "/tmp/auto_load_state.cfg"\n' > "$sysdir/cmd_to_run.sh"
+touch "$TMP/quick_switch"
+cleanup_appendconfig "$launcher"
+check "handoff command untouched" test "$(cat "$sysdir/cmd_to_run.sh")" = 'next game --appendconfig "/tmp/auto_load_state.cfg"'
+check "previous copy removed" test ! -e "$copy"
+check "copy ownership reset" test -z "$temporary_launch_path"
+check "launcher unchanged" cmp -s "$launcher" "$TMP/original"
+end
+
+begin temporary_override_normal_and_core_override_paths
+override_fixture
+check "normal launch needs no copy" override_game_core "$TMP/no-game-config" "$launcher"
+check "normal launch command unchanged" test "$(cat "$sysdir/cmd_to_run.sh")" = 'original persistent command'
+mkdir -p "$ONION_SD_ROOT/RetroArch/.retroarch/cores"
+: > "$ONION_SD_ROOT/RetroArch/.retroarch/cores/chosen.so"
+printf chosen > "$TMP/game.cfg"
+touch "$TMP/reset_game"
+check "direct core override" override_game_core "$TMP/game.cfg" "$launcher"
+check "direct core gets reset option" grep -q -- '--appendconfig "/tmp/reset.cfg" -L ".retroarch/cores/chosen.so"' "$sysdir/cmd_to_run.sh"
+check "direct core needs no launcher copy" test -z "$temporary_launch_path"
+cleanup_appendconfig "$launcher"
+check "direct core temporary option cleaned" sh -c '! grep -q -- --appendconfig "$1"' sh "$sysdir/cmd_to_run.sh"
+check "launcher unchanged" cmp -s "$launcher" "$TMP/original"
+printf '#!/bin/sh\nexit 9\n' > "$sysdir/cmd_to_run.sh"
+chmod +x "$sysdir/cmd_to_run.sh"
+run_game_command
+check "normal command status preserved" test "$retval" = 9
+end
+
+begin temporary_override_rejects_unsafe_or_unsupported_input
+override_fixture
+check "reject arbitrary config" sh -c '! "$1" create "$2" /tmp/arbitrary.cfg' sh "$OVERRIDE" "$launcher" 2>/dev/null
+cp "$launcher" "$TMP/launch.sh"
+check "reject outside launcher" sh -c '! "$1" create "$2" /tmp/reset.cfg' sh "$OVERRIDE" "$TMP/launch.sh" 2>/dev/null
+mkdir -p "$ONION_SD_ROOT/RApp/linked"
+ln -s "$launcher" "$ONION_SD_ROOT/RApp/linked/launch.sh"
+check "reject symlink launcher" sh -c '! "$1" create "$2" /tmp/reset.cfg' sh "$OVERRIDE" "$ONION_SD_ROOT/RApp/linked/launch.sh" 2>/dev/null
+ln -s "${launcher%/*}" "$ONION_SD_ROOT/Emu/alias"
+check "reject symlink parent" sh -c '! "$1" create "$2" /tmp/reset.cfg' sh "$OVERRIDE" "$ONION_SD_ROOT/Emu/alias/launch.sh" 2>/dev/null
+check "never remove permanent launcher" sh -c '! "$1" remove "$2"' sh "$OVERRIDE" "$launcher" 2>/dev/null
+ln -s "$launcher" "${launcher%/*}/.redonion-launch-override.abcdef"
+check "never remove symlink" sh -c '! "$1" remove "$2"' sh "$OVERRIDE" "${launcher%/*}/.redonion-launch-override.abcdef" 2>/dev/null
+rm "${launcher%/*}/.redonion-launch-override.abcdef"
+printf '#!/bin/sh\necho unsupported\n' > "$launcher"
+check "reject unsupported launcher" sh -c '! "$1" create "$2" /tmp/reset.cfg' sh "$OVERRIDE" "$launcher" 2>/dev/null
+check "failure leaves no copy" test "$(find "${launcher%/*}" -name '.redonion-launch-override.*' | wc -l)" -eq 0
+printf './retroarch -v --appendconfig "custom.cfg" -L core.so "$1"\n' > "$launcher"
+cp "$launcher" "$TMP/custom"
+check "reject rather than discard custom config" sh -c '! "$1" create "$2" /tmp/reset.cfg' sh "$OVERRIDE" "$launcher" 2>/dev/null
+check "custom config unchanged" cmp -s "$launcher" "$TMP/custom"
+check "failed custom copy removed" test "$(find "${launcher%/*}" -name '.redonion-launch-override.*' | wc -l)" -eq 0
+end
+
+begin temporary_override_failure_does_not_launch_or_leave_retry_command
+override_fixture
+eval "$(extract_fn "$RUNTIME" launch_game | sed "s|/tmp/|$TMP/|g")"
+eval "$(extract_fn "$RUNTIME" read_file_to)"
+perf_begin() { :; }
+start_audioserver() { :; }
+save_settings() { :; }
+check_is_game() { return 0; }
+get_full_resolution_path() { :; }
+playActivity() { printf '%s\n' "$1" >> "$TMP/activity"; }
+infoPanel() { printf '%s\n' "$@" > "$TMP/panel"; }
+run_game_command() { touch "$TMP/unexpected-launch"; }
+rompath="$ONION_SD_ROOT/Roms/GB/Game.gb"
+mkdir -p "${rompath%/*}"
+: > "$rompath"
+printf 'LD_PRELOAD=x "%s" "%s"\n' "$launcher" "$rompath" > "$sysdir/cmd_to_run.sh"
+printf '#!/bin/sh\n# .retroarch/cores\necho unsupported\n' > "$launcher"
+cp "$launcher" "$TMP/unsupported"
+touch "$TMP/reset_game" "$TMP/quick_switch"
+if launch_game 2> "$TMP/error"; then launch_status=0; else launch_status=$?; fi
+check "launch fails explicitly" test "$launch_status" -eq 1
+check "failed command removed" test ! -e "$sysdir/cmd_to_run.sh"
+check "no quick-switch retry loop" test ! -e "$TMP/quick_switch"
+check "emulator never executed" test ! -e "$TMP/unexpected-launch"
+check "play activity closed" test "$(cat "$TMP/activity")" = "$(printf 'start\nstop')"
+check "user sees failure" grep -qx 'Launch failed' "$TMP/panel"
+check "unsupported launcher unchanged" cmp -s "$launcher" "$TMP/unsupported"
+unset -f launch_game read_file_to perf_begin start_audioserver save_settings check_is_game get_full_resolution_path playActivity infoPanel
+end
+
+begin temporary_override_covers_bundled_retroarch_launchers
+override_fixture
+find "$ROOT/static/packages" -name launch.sh > "$TMP/launchers"
+covered=0
+while IFS= read -r source; do
+    grep -q '\.retroarch/cores' "$source" || continue
+    cp "$source" "$launcher"
+    copy=$("$OVERRIDE" create "$launcher" /tmp/reset.cfg)
+    check "bundled override created: $source" test -f "$copy"
+    check "bundled launcher unchanged" cmp -s "$launcher" "$source"
+    check "bundled reset argument" grep -q -- '-v --appendconfig "/tmp/reset.cfg"' "$copy"
+    "$OVERRIDE" remove "$copy"
+    covered=$((covered + 1))
+done < "$TMP/launchers"
+check "bundled coverage is nonempty" test "$covered" -gt 0
+echo "    Bundled RetroArch launchers checked: $covered"
+end
+unset ONION_SD_ROOT
+unset -f override_fixture run_game_command override_game_core system_default_core launcher_emu_dir get_info_value log
+
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
 if [ $fails -eq 0 ]; then

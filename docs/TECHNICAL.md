@@ -310,6 +310,19 @@ rewritten afterwards — a cut in between leaves them **empty**.
 
 Symlinked files are resolved first, so the link itself is never replaced.
 
+Reset and forced state loading also preserve permanent emulator `launch.sh` files.
+Adapted from [BloomOS PR #56](https://github.com/boburning/BloomOS/pull/56),
+`redonion-launch-override` creates a private adjacent copy so `$0`-relative paths
+still work. The runtime executes that copy directly and removes it after the
+game exits; the persistent launch command keeps its original launcher path.
+An interruption can leave an unused hidden copy, but cannot leave the permanent
+launcher edited. Quick-switch commands for the next game are preserved.
+Unsupported custom launchers, including ones already using `--appendconfig`,
+report a launch failure when these temporary options are requested. Existing
+launcher damage from older versions is not repaired automatically.
+Host tests cover both options, argument punctuation, quick switching, rejected
+paths and all 120 bundled RetroArch launchers. Device smoke testing is pending.
+
 ---
 
 ## 🧠 Memory that stays free

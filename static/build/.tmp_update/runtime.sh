@@ -497,6 +497,7 @@ launch_game() {
     retroarch_core=""
     full_resolution_path=""
     launch_script=""
+    temporary_launch_path=""
 
     start_audioserver
     save_settings
@@ -592,7 +593,16 @@ launch_game() {
     if [ $is_game -eq 1 ]; then
         if [ -f "$launch_script" ] && grep -q '.retroarch/cores' "$launch_script"; then
             # Override core if needed
-            override_game_core "$romcfgpath" "$launch_script"
+            if ! override_game_core "$romcfgpath" "$launch_script"; then
+                log "Could not prepare temporary launch options"
+                if [ -n "$play_activity_pid" ]; then
+                    wait "$play_activity_pid"
+                    playActivity stop "$rompath"
+                fi
+                rm -f "$sysdir/cmd_to_run.sh" /tmp/quick_switch /tmp/force_auto_load_state
+                infoPanel --title "Launch failed" --message "Temporary launch options could not be prepared." --auto
+                return 1
+            fi
         fi
 
         # Handle dollar sign. The former `grep -q "\$"` matched every line
@@ -662,8 +672,7 @@ launch_game() {
             perf_begin game_run
 
             # make the cmd_to_run shell env aware of the new timezone
-            TZ="$TZ_VALUE" $sysdir/cmd_to_run.sh
-            retval=$?
+            run_game_command
 
             perf_end game_run "${rompath##*/}"
             perf_begin game_exit
@@ -773,6 +782,17 @@ system_default_core() { # emulator folder: the core, or nothing
     head -n 1 "$_sc_file" | tr -d ' \r\n'
 }
 
+run_game_command() {
+    if [ -n "$temporary_launch_path" ]; then
+        # Keep the persistent command on the permanent launcher, including
+        # across a crash. Pass paths as arguments so shell punctuation is data.
+        TZ="$TZ_VALUE" LD_PRELOAD="$miyoodir/lib/libpadsp.so" "$temporary_launch_path" "$rompath"
+    else
+        TZ="$TZ_VALUE" "$sysdir/cmd_to_run.sh"
+    fi
+    retval=$?
+}
+
 override_game_core() {
     romcfgpath="$1"
     launch_path="$2"
@@ -781,11 +801,11 @@ override_game_core() {
 
     # Determine the appropriate appendconfig
     if [ -f /tmp/reset_game ]; then
-        echo -e "savestate_auto_load = \"false\"\nconfig_save_on_exit = \"false\"\n" > /tmp/reset.cfg
+        printf 'savestate_auto_load = "false"\nconfig_save_on_exit = "false"\n' > /tmp/reset.cfg
         appendconfig="/tmp/reset.cfg"
         rm /tmp/reset_game
     elif [ -f /tmp/force_auto_load_state ]; then
-        echo -e "savestate_auto_load = \"true\"\nconfig_save_on_exit = \"false\"\n" > /tmp/auto_load_state.cfg
+        printf 'savestate_auto_load = "true"\nconfig_save_on_exit = "false"\n' > /tmp/auto_load_state.cfg
         appendconfig="/tmp/auto_load_state.cfg"
         rm /tmp/force_auto_load_state
     else
@@ -823,23 +843,15 @@ override_game_core() {
         fi
     fi
 
-    # Add appendconfig to the launch script if necessary
-    if [ ! -z "$appendconfig" ]; then
-        if grep -q -- "--appendconfig" "$launch_path"; then
-            # Update existing appendconfig in the script
-            sed -i "s|--appendconfig \".*\"|--appendconfig \"$appendconfig\"|g" "$launch_path"
-            log "Updated existing appendconfig in launch script: $appendconfig (path: $launch_path)"
-        else
-            # Inject appendconfig argument into the command
-            sed -i "s|./retroarch -v|& --appendconfig \"$appendconfig\"|g" "$launch_path"
-            log "Injected appendconfig into launch script: $appendconfig (path: $launch_path)"
-        fi
+    # Relative paths based on $0 still resolve from the emulator directory.
+    if [ -n "$appendconfig" ]; then
+        temporary_launch_path=$("$sysdir/bin/redonion-launch-override" create "$launch_path" "$appendconfig") || return 1
+        log "Created temporary launch override: $temporary_launch_path"
     fi
+    return 0
 }
 
 cleanup_appendconfig() {
-    launch_path="$1"
-
     if [ ! -f /tmp/quick_switch ]; then
         # Cleanup `cmd_to_run.sh` by removing any existing appendconfig
         if [ -f "$sysdir/cmd_to_run.sh" ]; then
@@ -857,16 +869,11 @@ cleanup_appendconfig() {
         fi
     fi
 
-    # Clean up launch_path: Remove explicit appendconfig paths
-    # One grep for the usual case, neither file mentioned (was two).
-    if [ -w "$launch_path" ] && grep -qE '/tmp/(reset|auto_load_state).cfg' "$launch_path"; then
-        if grep -q '/tmp/reset.cfg' "$launch_path"; then
-            sed -i 's| --appendconfig "/tmp/reset.cfg"||g' "$launch_path"
-            log "Removed /tmp/reset.cfg from $launch_path"
-        elif grep -q '/tmp/auto_load_state.cfg' "$launch_path"; then
-            sed -i 's| --appendconfig "/tmp/auto_load_state.cfg"||g' "$launch_path"
-            log "Removed /tmp/auto_load_state.cfg from $launch_path"
-        fi
+    # cmd_to_run.sh may already contain the next quick-switch command. Never
+    # replace it while disposing of the previous game's private launcher.
+    if [ -n "${temporary_launch_path:-}" ]; then
+        "$sysdir/bin/redonion-launch-override" remove "$temporary_launch_path" || log "Could not remove temporary launch override"
+        temporary_launch_path=""
     fi
 }
 
