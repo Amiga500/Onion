@@ -1658,6 +1658,85 @@ CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/none" s
 check "no pictures: nothing written" test ! -e "$TMP/console-view.json"
 end
 
+# ---- console_pictures.sh: folders renamed or copied by hand ----
+
+begin console_pictures_for_renamed_folders
+RES="$ROOT/static/build/.tmp_update/res/consoles"
+CP="$ROOT/static/build/.tmp_update/script/console_pictures.sh"
+SD="$TMP/sd"
+mk() { # folder, config.json text
+    mkdir -p "$SD/$1"; printf '%s\n' "$2" > "$SD/$1/config.json"
+}
+mk "Emu/GBA mGBA" '{
+"label":"GBA",
+"icon":"../../Icons/Default/gba.png",
+"rompath":"../../Roms/GBA",
+"extlist":"gba"
+}'
+mk "Emu/SNES2" '{"label": "SNES", "rompath": "../../Roms/SFC/", "icon": "../../Icons/Default/sfc.png"}'
+mk "Emu/MyGB" '{
+    "rompath": "../../Roms/My Game Boy",
+    "icon": "../../Icons/Default/gb.png"
+}'
+mk "Emu/WEIRD" '{
+"rompath":"../../Roms/WEIRD",
+"icon":"../../Icons/Default/weird.png"
+}'
+mk "RApp/vba_m copy" '{
+    "rompath": "../../Roms/GBA",
+    "icon": "../../Icons/Default/rapp/vbam.png"
+}'
+mk "Emu/HANDMADE" '{"rompath":"../../Roms/GBA"}'
+mk "Emu/GBA" '{"rompath":"../../Roms/GBA"}'
+mkdir -p "$TMP/consoles"
+echo mine > "$TMP/consoles/handmade.png"
+run() { CONSOLE_PICTURES_SRC="$RES" CONSOLE_PICTURES_DEST="$TMP/consoles" CONSOLE_PICTURES_SD="$SD" sh "$CP" "$@"; }
+run renamed
+check "renamed folder: picture of its ROM folder" cmp -s "$RES/gba.png" "$TMP/consoles/gba mgba.png"
+check "one-line config, rompath ending in /" cmp -s "$RES/sfc.png" "$TMP/consoles/snes2.png"
+check "unknown ROM folder: the icon's name" cmp -s "$RES/gb.png" "$TMP/consoles/mygb.png"
+check "nothing known: no picture (the default one shows)" test ! -e "$TMP/consoles/weird.png"
+check "a copied RApp folder too" cmp -s "$RES/gba.png" "$TMP/consoles/vba_m copy.png"
+check "a picture put there by hand stays" test "$(cat "$TMP/consoles/handmade.png")" = mine
+check "boot pass: folders of map.txt are not its business" test ! -e "$TMP/consoles/gba.png"
+check "boot pass: no default, no licence" test ! -e "$TMP/consoles/_default.png" -a ! -e "$TMP/consoles/LICENSE-console-icons.txt"
+rm -rf "$TMP/none"
+CONSOLE_PICTURES_SRC="$RES" CONSOLE_PICTURES_DEST="$TMP/none" CONSOLE_PICTURES_SD="$SD" sh "$CP" renamed
+check "boot pass without the pictures folder: nothing created" test ! -e "$TMP/none"
+run
+check "update: the map.txt ones too" cmp -s "$RES/gba.png" "$TMP/consoles/gba.png"
+check "update: renamed folders as well" cmp -s "$RES/sfc.png" "$TMP/consoles/snes2.png"
+check "runtime runs the boot pass in background" grep -q '^    sh \$sysdir/script/console_pictures.sh renamed &$' "$RUNTIME"
+# Every bundled emulator, copied under a new name: the same picture as
+# the original, except the 7 folders that have none (default picture).
+rm -rf "$SD" "$TMP/consoles"; mkdir -p "$TMP/consoles"
+wrong=
+for c in "$ROOT"/static/packages/Emu/*/Emu/*/config.json "$ROOT"/static/packages/RApp/*/RApp/*/config.json; do
+    n=$(basename "$(dirname "$c")")
+    mkdir -p "$SD/Emu/copy of $n"; cp "$c" "$SD/Emu/copy of $n/config.json"
+done
+run renamed
+for c in "$ROOT"/static/packages/Emu/*/Emu/*/config.json "$ROOT"/static/packages/RApp/*/RApp/*/config.json; do
+    n=$(basename "$(dirname "$c")"); l=$(echo "$n" | tr 'A-Z' 'a-z')
+    want=$(awk -v n="$l" '$1 == n { print $2; exit }' "$RES/map.txt")
+    got="$TMP/consoles/copy of $l.png"
+    if [ -z "$want" ]; then
+        continue
+    elif [ ! -e "$got" ]; then
+        wrong="$wrong $l:none"
+    elif ! cmp -s "$RES/$want.png" "$got"; then
+        # or the picture of its ROM folder, shared with another emulator
+        # (MAME 2003-Xtreme reads Roms/ARCADE: the arcade picture)
+        r=$(sed -n 's/.*"rompath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$c" | head -n 1)
+        r=$(echo "${r%/}" | tr 'A-Z' 'a-z'); r=${r#*/roms/}
+        alt=$(awk -v n="$r" '$1 == n { print $2; exit }' "$RES/map.txt" "$RES/roms.txt")
+        [ -n "$alt" ] && cmp -s "$RES/$alt.png" "$got" || wrong="$wrong $l"
+    fi
+done
+check "a copy of any bundled folder gets its console's picture ($wrong)" test -z "$wrong"
+unset -f mk run
+end
+
 # ---- migration 00027: console pictures trimmed of their padding ----
 
 begin console_pictures_replaced_when_unchanged

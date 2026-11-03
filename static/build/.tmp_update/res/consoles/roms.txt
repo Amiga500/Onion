@@ -1,0 +1,20 @@
+# <ROM folder after Roms/> <icon>, lower case: for a console folder renamed
+# or copied by hand, when its rompath is not a name of map.txt
+advmame advmame
+amigacd amigacd
+arduboy arduboy
+eighthundred atari800
+mba arcade
+mdhacks md
+palm palmos
+pceightyeight pc88
+pcfx pcfx
+pcninetyeight pc98
+ports/shortcuts ports
+scummvm/shortcuts scummvm
+scummvm/shortcuts_standalone scummvm
+thomson thomson
+ti83 ti83
+uzebox uzebox
+xone x1
+zxeightyone zxs
