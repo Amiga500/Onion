@@ -4,4 +4,6 @@ Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
 
 Changes made for RedOnion: the 500 x 370 PNGs are losslessly recompressed
 (same pixels) and copied under the names of RedOnion's emulator folders
-(map.txt: picture name, original icon). _default.png was added for RedOnion.
+(map.txt: picture name, original icon). _default.png and search.png
+(the Search entry, Emu/SEARCH) are not KyleBing's: they were made for
+RedOnion in the same style.
