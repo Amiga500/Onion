@@ -1,6 +1,7 @@
 #ifndef RENDER_BATTERY_H__
 #define RENDER_BATTERY_H__
 
+#include "system/battery_level.h"
 #include "theme/config.h"
 #include "theme/resources.h"
 
@@ -24,9 +25,14 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
     BatteryPercentage_s *style = &theme()->batteryPercentage;
     bool visible = style->visible;
 
-    // Currently charging, hide text
-    if (percentage == 500)
-        visible = false;
+    // Charging (500): the charging icon, with the level as text when batmon
+    // knows it (Mini Plus, Flip); the Mini has none while charging.
+    int shown = percentage;
+    if (percentage == 500) {
+        shown = battery_chargingLevel();
+        if (shown < 0)
+            visible = false;
+    }
 
     TTF_Font *font = resource_getFont(BATTERY);
     int offsetY = style->offsetY;
@@ -37,7 +43,7 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
 
     // Battery percentage text
     char buffer[5];
-    sprintf(buffer, "%d%%", percentage);
+    sprintf(buffer, "%d%%", shown);
 
     // Battery icon
     ThemeImages icon_request = _getBatteryRequest(percentage);

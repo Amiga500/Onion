@@ -3,6 +3,7 @@
 
 #include <time.h>
 
+#include "system/battery_level.h"
 #include "system/device_model.h"
 #include "system/system.h"
 #include "utils/file.h"
@@ -12,6 +13,7 @@
 
 static time_t battery_last_modified = 0;
 static bool battery_is_charging = false;
+static int battery_charging_level = -1; // the level shown while charging
 
 /* Cache for battery_isCharging() to avoid repeated GPIO reads / subprocess spawns.
  * On HAS_AXP() devices (MM+/Flip), each uncached call forks+execs /customer/app/axp_test (~5-10ms).
@@ -171,7 +173,19 @@ bool battery_hasChanged(int ticks, int *out_percentage)
         if (!battery_is_charging) {
             *out_percentage = 500;
             battery_is_charging = true;
+            battery_charging_level = battery_chargingLevel();
+            file_isModified(BATTERY_PERCBAT_PATH, &battery_last_modified);
             return true;
+        }
+        // The Mini Plus and Flip keep publishing their level while
+        // charging: it shows next to the charging icon
+        // (theme/render/battery.h), so a new one redraws it.
+        if (file_isModified(BATTERY_PERCBAT_PATH, &battery_last_modified)) {
+            int level = battery_chargingLevel();
+            if (level != battery_charging_level) {
+                battery_charging_level = level;
+                return true;
+            }
         }
         return false;
     }
