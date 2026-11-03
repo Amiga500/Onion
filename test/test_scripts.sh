@@ -1278,6 +1278,48 @@ check "no Refresh list entry: the Select menu has Refresh roms" \
 unset -f sqlite3
 end
 
+# ---- SD card: a notice when the FAT was not unmounted cleanly ----
+
+begin sd_card_dirty_notice
+eval "$(extract_fn "$RUNTIME" sd_card_dirty)"
+eval "$(extract_fn "$RUNTIME" check_sd_card)"
+log() { :; }
+infoPanel() { echo shown >> "$TMP/panel"; }
+sysdir="$TMP/sys"; mkdir -p "$sysdir/config"
+printf '[    2.1] mmcblk0: mmc0:aaaa SC64G 59.5 GiB\n[    2.3] FAT-fs (mmcblk0p1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.\n' > "$TMP/dirty"
+printf '[    2.1] mmcblk0: mmc0:aaaa SC64G 59.5 GiB\n[    2.4] random: crng init done\n' > "$TMP/clean"
+printf '[    9.0] FAT-fs (sda1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.\n' > "$TMP/usb"
+SD_DMESG_CMD="cat $TMP/dirty" sd_card_dirty
+check "the kernel's message: dirty" test $? -eq 0
+SD_DMESG_CMD="cat $TMP/clean" sd_card_dirty
+check "no message: clean" test $? -ne 0
+SD_DMESG_CMD="cat $TMP/usb" sd_card_dirty
+check "another FAT device (a USB stick) does not count" test $? -ne 0
+SD_DMESG_CMD="cat $TMP/missing" sd_card_dirty
+check "dmesg failing: clean, no notice" test $? -ne 0
+check_sd_card 1
+check "dirty: the notice shows" test "$(cat "$TMP/panel" 2> /dev/null)" = shown
+check "and is remembered" test -f "$sysdir/config/.sdDirtyNotified"
+check_sd_card 1
+check "still dirty on the next boot: not shown again" test "$(grep -c shown "$TMP/panel")" -eq 1
+check_sd_card 0
+check "a clean boot forgets it" test ! -e "$sysdir/config/.sdDirtyNotified"
+check_sd_card 1
+check "dirty again later: shown again" test "$(grep -c shown "$TMP/panel")" -eq 2
+check "read at boot, shown before the auto launch" sh -c "grep -q 'sd_card_dirty && sd_card_was_dirty=1' '$RUNTIME' && grep -q 'check_sd_card \"\$sd_card_was_dirty\"' '$RUNTIME'"
+msg=$(sed -n 's/.*infoPanel --title "SD card check" --message "\(.*\)"$/\1/p' "$RUNTIME")
+check "the notice fits infoPanel (under 256 chars)" test ${#msg} -gt 0 -a ${#msg} -lt 256
+long=$(printf '%s' "$msg" | sed 's/\\n/\n/g' | awk 'length > 38' | head -n 1)
+check "lines of 38 characters or less ($long)" test -z "$long"
+unset -f infoPanel log
+end
+
+begin ota_reboots_with_the_clean_shutdown
+check "the OTA reboots through the clean shutdown" grep -q '^			\$sysdir/bin/shutdown -r$' "$OTA"
+check "no plain reboot left in the OTA" sh -c "! grep -qE '^[[:space:]]*reboot([[:space:]]|\$)' '$OTA'"
+check "shutdown -r reboots" grep -q 'if \[ "\$1" = "-r" \]; then' "$ROOT/static/build/.tmp_update/bin/shutdown"
+end
+
 # ---- migration 00021: Apps sorted by name once, as before Open MainUI 1.0.6 ----
 
 begin migration_sorts_apps_by_name

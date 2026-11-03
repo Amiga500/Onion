@@ -658,7 +658,10 @@ apply_update() {
 			echo -ne "${YELLOW}"
 			drop_keys; read -n 1 -s -r -p "Press A to reboot"
 			sleep 1
-			reboot
+			# The clean shutdown (stop what uses the SD card, swap off,
+			# unmount), not a plain reboot, right after writing the
+			# whole update to the card.
+			$sysdir/bin/shutdown -r
 		else
 			echo -ne "\n\n" \
 				"${RED}Error: Something wrong happened during decompression.${NC}\n" \

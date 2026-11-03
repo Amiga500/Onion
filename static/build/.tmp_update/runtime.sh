@@ -99,6 +99,9 @@ main() {
 
     touch /tmp/is_booting
     check_installer
+    # Early, while the kernel's mount message is surely still in dmesg.
+    sd_card_was_dirty=0
+    sd_card_dirty && sd_card_was_dirty=1
     clear_logs
 
     if [ -f $sysdir/config/.logging ]; then
@@ -210,6 +213,8 @@ main() {
     mount -o bind $miyoodir/lib/libgamename.so /customer/lib/libgamename.so
 
     rm -rf /tmp/is_booting
+
+    check_sd_card "$sd_card_was_dirty"
 
     #EmuDeck - Startup scripts
     mkdir -p "$sysdir/startup"
@@ -1812,6 +1817,29 @@ queue_network_check() {
         rmdir /tmp/network_check_queued
         [ -f /tmp/network_changed ] && run_network_check
     ) &
+}
+
+# The kernel says so when it mounts an SD card whose FAT was not unmounted
+# cleanly (power lost, card pulled out, a crash): "FAT-fs (mmcblk0p1):
+# Volume was not properly unmounted. Some data may be corrupt. Please run
+# fsck." Read only: repairing the card it runs from is not safe here.
+sd_card_dirty() {
+    ${SD_DMESG_CMD:-dmesg} 2> /dev/null |
+        grep -qE 'FAT-fs \(mmcblk[0-9]+(p[0-9]+)?\): Volume was not properly unmounted'
+}
+
+# The card stays "dirty" until it is checked on a PC, so the notice shows
+# once, and again only after a boot with a clean card.
+check_sd_card() { # 1 if the card was dirty at boot
+    _sd_notified="$sysdir/config/.sdDirtyNotified"
+    if [ "$1" != 1 ]; then
+        rm -f "$_sd_notified"
+        return 0
+    fi
+    [ -f "$_sd_notified" ] && return 0
+    log "SD card: the FAT was not unmounted cleanly"
+    infoPanel --title "SD card check" --message "The SD card was not shut down cleanly\n(power lost, card removed or a crash).\nCheck it on a PC to avoid data loss:\nWindows: Properties > Tools > Check\nMac: Disk Utility > First Aid\n \nShown again only after another\nunclean shutdown."
+    : > "$_sd_notified"
 }
 
 check_installer() {
