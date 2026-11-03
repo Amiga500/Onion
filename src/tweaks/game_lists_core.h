@@ -3,7 +3,7 @@
 
 // SPDX-License-Identifier: GPL-3.0-only
 //
-// File handling behind Tweaks > Appearance > Game lists: the runtime
+// File handling behind Tweaks > Game lists: the runtime
 // configuration files Open MainUI reads for its game lists. Adapted from
 // robcodedev/onionos-mainui-patcher (tools/src/tweaks/game_lists.h), split
 // out of the menu so it can be tested without SDL. Changes for OnionPlus:
@@ -54,6 +54,8 @@
 #define GAMELISTS_FONT_MAX 60
 #define GAMELISTS_SCROLL_OFF (-1)
 #define GAMELISTS_SCROLL_DEFAULT_SPEED 50
+// What a new install starts with (static/configs: .romListTitleScroll).
+#define GAMELISTS_SCROLL_DEFAULT_DELAY 1000
 #define GAMELISTS_SCROLL_ROLLING 0
 #define GAMELISTS_SCROLL_BOUNCE 1
 #define GAMELISTS_REPEAT_STOCK_DELAY 500
@@ -574,13 +576,15 @@ static int gamelists_value_fixed_favorite_position(void)
     return access(GAMELISTS_DYNAMIC_FAV_PATH, F_OK) != 0;
 }
 
-/* ---- Labels ---- */
+/* ---- Labels ----
+   "(default)" marks the value a new install starts with, so it can be found
+   again after trying others. */
 
 static void gamelists_label_rows(int value, char *out, size_t size)
 {
     int rows = value + GAMELISTS_ROWS_MIN;
     if (rows == GAMELISTS_ROWS_MIN)
-        snprintf(out, size, "%d (stock)", rows);
+        snprintf(out, size, "%d (default)", rows);
     else
         snprintf(out, size, "%d rows", rows);
 }
@@ -600,21 +604,26 @@ static void gamelists_label_scroll_delay(int value, char *out, size_t size)
         snprintf(out, size, "Off");
     else if (delay == 0)
         snprintf(out, size, "Immediate");
+    else if (delay == GAMELISTS_SCROLL_DEFAULT_DELAY)
+        snprintf(out, size, "%d ms (default)", delay);
     else
         snprintf(out, size, "%d ms", delay);
 }
 
 static void gamelists_label_scroll_speed(int value, char *out, size_t size)
 {
-    snprintf(out, size, "%d px/s",
-             gamelists_scroll_speeds[gamelists_clamp(value, 0, GAMELISTS_ARRAY_COUNT(gamelists_scroll_speeds) - 1)]);
+    int speed = gamelists_scroll_speeds[gamelists_clamp(value, 0, GAMELISTS_ARRAY_COUNT(gamelists_scroll_speeds) - 1)];
+    if (speed == GAMELISTS_SCROLL_DEFAULT_SPEED)
+        snprintf(out, size, "%d px/s (default)", speed);
+    else
+        snprintf(out, size, "%d px/s", speed);
 }
 
 static void gamelists_label_video_preview(int value, char *out, size_t size)
 {
     int delay = gamelists_video_delays[gamelists_clamp(value, 0, GAMELISTS_ARRAY_COUNT(gamelists_video_delays) - 1)];
     if (delay < 0)
-        snprintf(out, size, "Off");
+        snprintf(out, size, "Off (default)");
     else if (delay == 0)
         snprintf(out, size, "Immediate");
     else
@@ -625,7 +634,7 @@ static void gamelists_label_info_scroll_delay(int value, char *out, size_t size)
 {
     int delay = gamelists_info_scroll_delays[gamelists_clamp(value, 0, GAMELISTS_ARRAY_COUNT(gamelists_info_scroll_delays) - 1)];
     if (delay < 0)
-        snprintf(out, size, "Off");
+        snprintf(out, size, "Off (default)");
     else if (delay == 0)
         snprintf(out, size, "Immediate");
     else
@@ -634,15 +643,18 @@ static void gamelists_label_info_scroll_delay(int value, char *out, size_t size)
 
 static void gamelists_label_info_scroll_speed(int value, char *out, size_t size)
 {
-    snprintf(out, size, "%d px/s",
-             gamelists_info_scroll_speeds[gamelists_clamp(value, 0, GAMELISTS_ARRAY_COUNT(gamelists_info_scroll_speeds) - 1)]);
+    int speed = gamelists_info_scroll_speeds[gamelists_clamp(value, 0, GAMELISTS_ARRAY_COUNT(gamelists_info_scroll_speeds) - 1)];
+    if (speed == GAMELISTS_INFO_SCROLL_DEFAULT_SPEED)
+        snprintf(out, size, "%d px/s (default)", speed);
+    else
+        snprintf(out, size, "%d px/s", speed);
 }
 
 static void gamelists_label_repeat_delay(int value, char *out, size_t size)
 {
     int delay = 100 + value * 50;
     if (delay == GAMELISTS_REPEAT_STOCK_DELAY)
-        snprintf(out, size, "%d ms (stock)", delay);
+        snprintf(out, size, "%d ms (default)", delay);
     else
         snprintf(out, size, "%d ms", delay);
 }
@@ -651,7 +663,7 @@ static void gamelists_label_repeat_interval(int value, char *out, size_t size)
 {
     int interval = gamelists_repeat_intervals[gamelists_clamp(value, 0, GAMELISTS_ARRAY_COUNT(gamelists_repeat_intervals) - 1)];
     if (interval == GAMELISTS_REPEAT_STOCK_INTERVAL)
-        snprintf(out, size, "%d ms (stock)", interval);
+        snprintf(out, size, "%d ms (default)", interval);
     else
         snprintf(out, size, "%d ms", interval);
 }

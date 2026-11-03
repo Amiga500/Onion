@@ -1,6 +1,6 @@
 /**
  * @file test_mainui_shortcut.c
- * @brief Tweaks > Button shortcuts > MainUI X / Y button, and keymon
+ * @brief Tweaks > Buttons > X / Y on the home screen, and keymon
  *        (utils/mainui_shortcut.h, tweaks/formatters.h, values.h,
  *        actions.h, keymon/menuButtonAction.h)
  *

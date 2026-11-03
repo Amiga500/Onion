@@ -3,7 +3,7 @@
  * @brief Tests for src/themeSwitcher/themeListRescale.h (production header)
  *
  * Installing a theme in the Themes app runs rescale_theme_list_icons.sh with
- * the arguments Tweaks > Appearance > Game lists uses (theme path, 360 / rows,
+ * the arguments Tweaks > Game lists > Layout uses (theme path, 360 / rows,
  * rows), so a new theme's list icons fit the row count without toggling the
  * option again. The script here records its arguments.
  *

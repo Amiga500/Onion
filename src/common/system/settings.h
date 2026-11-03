@@ -72,7 +72,7 @@ typedef struct settings_s {
     char blue_light_time_off[16];
     bool rtc_available;
     int lid_close_action;
-    // Open MainUI 1.0.10 reads these flags (Tweaks > Appearance)
+    // Open MainUI 1.0.10 reads these flags (Tweaks > Look and feel)
     bool mainui_footer_alt;       // .mainuiFooterAltLayout: page number left, hints B then A
     bool mainui_menu_no_ellipsis; // .noContextMenuEllipsis: cut long SELECT menu labels, no …
 

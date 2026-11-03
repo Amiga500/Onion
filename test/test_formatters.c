@@ -292,7 +292,7 @@ TEST(fast_forward_unlimited) {
     TestListItem item = make_item(0);
     char out[STR_MAX] = {0};
     formatter_fastForward(&item, out);
-    ASSERT_STREQ(out, "Unlimited");
+    ASSERT_STREQ(out, "Unlimited (default)");
 }
 
 TEST(fast_forward_2x) {
@@ -383,6 +383,134 @@ TEST(time_skip_12h) {
 
 /* ---- main ---- */
 
+/* ==== Tests: "(default)" on the value a new install starts with ==== */
+
+static void label_of(void (*formatter)(void *, char *), int value, char *out)
+{
+    TestListItem item = make_item(value);
+    out[0] = '\0';
+    formatter(&item, out);
+}
+
+TEST(default_values_are_marked) {
+    char out[STR_MAX];
+    label_of(formatter_timeSkip, 4, out);
+    ASSERT_STREQ(out, "+ 4h (default)");
+    label_of(formatter_timeSkip, 5, out);
+    ASSERT_STREQ(out, "+ 5h");
+    label_of(formatter_battWarn, 2, out);
+    ASSERT_STREQ(out, "< 10% (default)");
+    label_of(formatter_battWarn, 3, out);
+    ASSERT_STREQ(out, "< 15%");
+    label_of(formatter_battExit, 4, out);
+    ASSERT_STREQ(out, "< 4% (default)");
+    label_of(formatter_battExit, 0, out);
+    ASSERT_STREQ(out, "Off");
+    label_of(formatter_meterWidth, 4, out);
+    ASSERT_STREQ(out, "4 px (default)");
+    label_of(formatter_meterWidth, 6, out);
+    ASSERT_STREQ(out, "6 px");
+    label_of(formatter_fastForward, 3, out);
+    ASSERT_STREQ(out, "3.0x");
+    label_of(formatter_TimeOn, 80, out);
+    ASSERT_STREQ(out, "20:00 (default)");
+    label_of(formatter_TimeOn, 32, out);
+    ASSERT_STREQ(out, "08:00");
+    label_of(formatter_TimeOff, 32, out);
+    ASSERT_STREQ(out, "08:00 (default)");
+    label_of(formatter_TimeOff, 80, out);
+    ASSERT_STREQ(out, "20:00");
+    /* formatter_Time stays plain: actions.h stores what it writes. */
+    label_of(formatter_Time, 80, out);
+    ASSERT_STREQ(out, "20:00");
+    label_of(formatter_recCountdown, 0, out);
+    ASSERT_STREQ(out, "Off (default)");
+    label_of(formatter_recCountdown, 3, out);
+    ASSERT_STREQ(out, "3");
+    label_of(formatter_vncFps, 20, out);
+    ASSERT_STREQ(out, "20 fps (default)");
+    label_of(formatter_vncFps, 10, out);
+    ASSERT_STREQ(out, "10 fps");
+}
+
+static bool text_has(const char *path, const char *text)
+{
+    FILE *fp = fopen(path, "r");
+    if (fp == NULL)
+        return false;
+    static char buf[1 << 20];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, fp);
+    fclose(fp);
+    buf[n] = '\0';
+    return strstr(buf, text) != NULL;
+}
+
+/* The marked values are the ones the device really starts with. */
+TEST(defaults_match_settings_and_configs) {
+    const char *settings = "../src/common/system/settings.h";
+    const char *cfg = "../static/configs/.tmp_update/config";
+    char path[256];
+    char line[64];
+
+    ASSERT_TRUE(text_has(settings, ".time_skip = 4,"));
+    ASSERT_EQ(DEFAULT_TIME_SKIP, 4);
+    ASSERT_TRUE(text_has(settings, ".low_battery_warn_at = 10,"));
+    ASSERT_EQ(DEFAULT_LOW_BATTERY_WARN, 10);
+    ASSERT_TRUE(text_has(settings, ".low_battery_autosave_at = 4,"));
+    ASSERT_EQ(DEFAULT_LOW_BATTERY_EXIT, 4);
+    ASSERT_TRUE(text_has(settings, ".vibration = 2,"));
+    ASSERT_TRUE(text_has("../src/tweaks/menus.h", "{\"Off\", \"Low\", \"Normal (default)\", \"High\"}"));
+    ASSERT_TRUE(text_has(settings, ".blue_light_level = 0,"));
+    ASSERT_TRUE(text_has("../src/tweaks/formatters.h", "\"Subtle 1/5 (default)\", \"Moderate 2/5\""));
+    ASSERT_TRUE(text_has(settings, ".blue_light_time = \"" DEFAULT_BLUE_LIGHT_ON "\","));
+    ASSERT_TRUE(text_has(settings, ".blue_light_time_off = \"" DEFAULT_BLUE_LIGHT_OFF "\","));
+    ASSERT_TRUE(text_has(settings, ".rec_countdown = false,"));
+    ASSERT_TRUE(text_has("../src/tweaks/network.h", ".vncfps = 20,"));
+    ASSERT_EQ(DEFAULT_VNC_FPS, 20);
+
+    /* Shipped files win over settings.h where they exist. */
+    snprintf(path, sizeof(path), "%s/battery/warnAt", cfg);
+    FILE *fp = fopen(path, "r");
+    ASSERT_TRUE(fp != NULL && fgets(line, sizeof(line), fp) != NULL);
+    fclose(fp);
+    ASSERT_EQ(atoi(line), DEFAULT_LOW_BATTERY_WARN);
+    /* batmon's own fallback, without the file */
+    ASSERT_TRUE(text_has("../src/batmon/batmon.c", "warn_at = 10;"));
+    snprintf(path, sizeof(path), "%s/startup/addHours", cfg);
+    fp = fopen(path, "r");
+    ASSERT_TRUE(fp != NULL && fgets(line, sizeof(line), fp) != NULL);
+    fclose(fp);
+    ASSERT_EQ(atoi(line), DEFAULT_TIME_SKIP);
+    ASSERT_TRUE(text_has("../static/build/.tmp_update/runtime.sh", "hours=4\n"));
+    snprintf(path, sizeof(path), "%s/display/meterWidth", cfg);
+    fp = fopen(path, "r");
+    ASSERT_TRUE(fp != NULL && fgets(line, sizeof(line), fp) != NULL);
+    fclose(fp);
+    ASSERT_EQ(atoi(line), DEFAULT_METER_WIDTH);
+    ASSERT_TRUE(text_has("../src/tweaks/values.h", "int meterWidth = 4;"));
+    ASSERT_TRUE(text_has("../src/common/system/osd.h", "static int meterWidth = 4;"));
+    snprintf(path, sizeof(path), "%s/battery/exitAt", cfg);
+    ASSERT_TRUE(fopen(path, "r") == NULL); /* none shipped: settings.h */
+
+    /* PWM: the shipped .pwmfrequency, Tweaks without it and runtime.sh. */
+    snprintf(path, sizeof(path), "%s/.pwmfrequency", cfg);
+    fp = fopen(path, "r");
+    ASSERT_TRUE(fp != NULL && fgets(line, sizeof(line), fp) != NULL);
+    fclose(fp);
+    ASSERT_EQ(atoi(line), 7);
+    ASSERT_TRUE(text_has("../src/tweaks/values.h", "int pwmfrequency = 7;"));
+    ASSERT_TRUE(text_has("../static/build/.tmp_update/runtime.sh", "frequency=800"));
+    ASSERT_TRUE(text_has("../src/tweaks/formatters.h", "\"700 Hz\", \"800 Hz (default)\", \"900 Hz\""));
+
+    /* Fast forward: RetroArch's shipped ratio (0: unlimited). */
+    ASSERT_TRUE(text_has("../static/configs/RetroArch/.retroarch/retroarch.cfg", "fastforward_ratio = \"0.000000\""));
+    ASSERT_EQ(DEFAULT_FAST_FORWARD, 0);
+
+    /* LCD undervolt: Off without its config file. */
+    ASSERT_TRUE(text_has("../src/tweaks/values.h", "if (!is_file(LCD_VOLT_CONFIG))\n        return 0;"));
+    ASSERT_TRUE(text_has("../src/tweaks/menus.h", "{\"Off (default)\", \"-0.1V\""));
+}
+
 int main(void)
 {
     printf("\n=== tweaks/formatters.h Unit Tests ===\n\n");
@@ -449,6 +577,8 @@ int main(void)
     RUN_TEST(time_skip_off);
     RUN_TEST(time_skip_1h);
     RUN_TEST(time_skip_12h);
+    RUN_TEST(default_values_are_marked);
+    RUN_TEST(defaults_match_settings_and_configs);
 
     TEST_REPORT();
     return test_failures;

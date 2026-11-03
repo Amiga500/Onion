@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
     best_session_time = get_best_session_time();
 
     FILE *fp;
-    int old_percentage = -1, current_percentage = -1, warn_at = 15;
+    int old_percentage = -1, current_percentage = -1, warn_at = 10; // as settings.h, without battery/warnAt
     time_t warn_at_mtime = 0;
     int lowest_percentage_after_charge = 500;
     atexit(cleanup);

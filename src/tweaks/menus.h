@@ -35,35 +35,33 @@ void menu_systemStartup(void *_)
 
         list_addItemWithInfoNote(&_menu_system_startup,
                                  (ListItem){
-                                     .label = "Auto-resume last game",
+                                     .label = "Resume the last game",
                                      .item_type = TOGGLE,
                                      .value = (int)settings.startup_auto_resume,
                                      .action = action_setStartupAutoResume},
-                                 "Auto-resume happens when you shutdown\n"
-                                 "the device while a game is running.\n"
-                                 "At startup, the system will resume\n"
-                                 "where you left off last time.");
+                                 "If you turn the device off while a game\n"
+                                 "is running, the game resumes where you\n"
+                                 "left off at the next startup.");
         list_addItemWithInfoNote(&_menu_system_startup,
                                  (ListItem){
-                                     .label = "Start application",
+                                     .label = "Open at startup",
                                      .item_type = MULTIVALUE,
                                      .value_max = 3,
                                      .value_labels = {"MainUI", "GameSwitcher", "RetroArch", "AdvanceMENU"},
                                      .value = settings.startup_application,
                                      .action = action_setStartupApplication},
-                                 "With this option you can choose which\n"
-                                 "frontend you want to launch into on\n"
-                                 "startup.");
+                                 "What opens when the device starts:\n"
+                                 "MainUI, the GameSwitcher, RetroArch or\n"
+                                 "AdvanceMENU.");
         list_addItemWithInfoNote(&_menu_system_startup,
                                  (ListItem){
-                                     .label = "MainUI: Start tab",
+                                     .label = "Home screen tab",
                                      .item_type = MULTIVALUE,
                                      .value_max = 5,
                                      .value_formatter = formatter_startupTab,
                                      .value = settings.startup_tab,
                                      .action = action_setStartupTab},
-                                 "Here you can set which tab you want\n"
-                                 "MainUI to launch into.");
+                                 "The tab MainUI shows at startup.");
     }
     menu_stack[++menu_level] = &_menu_system_startup;
     header_changed = true;
@@ -122,11 +120,9 @@ void menu_datetime(void *_)
                                          .disabled = !network_state.ntp,
                                          .value = (int)network_state.ntp_wait,
                                          .action = network_setNtpWaitState},
-                                     "Wait for date and time synchronization\n"
-                                     "on system startup."
-                                     " \n"
-                                     "Ensures that time is synced before a game\n"
-                                     "is launched.");
+                                     "Wait at startup until the date and time\n"
+                                     "are synced, so they are right before a\n"
+                                     "game starts.");
             list_addItemWithInfoNote(&_menu_date_time,
                                      (ListItem){
                                          .label = "Enable Wi-Fi temporarily",
@@ -144,12 +140,11 @@ void menu_datetime(void *_)
                                          .disabled = !network_state.ntp,
                                          .value = !network_state.manual_tz,
                                          .action = network_setTzManualState},
-                                     "If this is enabled, the system will try\n"
-                                     "to retrieve your time zone from your IP\n"
-                                     "address."
+                                     "Find your time zone from your IP\n"
+                                     "address.\n"
                                      " \n"
-                                     "It might be beneficial to disable this\n"
-                                     "option if you're on a VPN.");
+                                     "You may want to turn this off if you\n"
+                                     "use a VPN.");
             list_addItemWithInfoNote(&_menu_date_time,
                                      (ListItem){
                                          .label = "Select time zone",
@@ -171,10 +166,9 @@ void menu_datetime(void *_)
                                      .value_formatter = formatter_timeSkip,
                                      .value = settings.time_skip,
                                      .action = action_setTimeSkip},
-                                 "Without RTC the system time stands still\n"
-                                 "while the device is off.\n"
-                                 "This option lets you add a specific amount\n"
-                                 "of hours at startup.");
+                                 "Without a clock battery the time stands\n"
+                                 "still while the device is off. This adds\n"
+                                 "a number of hours at each startup.");
     }
     _writeDateString(_menu_date_time.items[0].label);
     menu_stack[++menu_level] = &_menu_date_time;
@@ -205,12 +199,12 @@ void menu_system(void *_)
                                      .value_formatter = formatter_battWarn,
                                      .value = settings.low_battery_warn_at / 5,
                                      .action = action_setLowBatteryWarnAt},
-                                 "Show a red battery icon warning in the\n"
-                                 "top right corner, when battery is at or\n"
-                                 "below this value.");
+                                 "Show a red battery icon in the top right\n"
+                                 "corner when the battery is at or below\n"
+                                 "this level.");
         list_addItemWithInfoNote(&_menu_system,
                                  (ListItem){
-                                     .label = "Low batt.: Save and exit",
+                                     .label = "Low battery: save and quit",
                                      .item_type = MULTIVALUE,
                                      .value_max = 5,
                                      .value_formatter = formatter_battExit,
@@ -222,25 +216,24 @@ void menu_system(void *_)
         if (DEVICE_ID == MIYOO285) {
             list_addItemWithInfoNote(&_menu_system,
                                      (ListItem){
-                                         .label = "Lid close action",
+                                         .label = "Lid close",
                                          .item_type = MULTIVALUE,
                                          .value_max = 2,
                                          .value_labels = {"Suspend", "Shutdown", "Nothing"},
                                          .value = settings.lid_close_action,
                                          .action = action_setLidCloseAction},
-                                     "Choose what happens when \n"
-                                     "you close the lid.");
+                                     "What happens when you close the lid.");
         }
         list_addItemWithInfoNote(&_menu_system,
                                  (ListItem){
-                                     .label = "Vibration intensity",
+                                     .label = "Vibration strength",
                                      .item_type = MULTIVALUE,
                                      .value_max = 3,
-                                     .value_labels = {"Off", "Low", "Normal", "High"},
+                                     .value_labels = {"Off", "Low", "Normal (default)", "High"},
                                      .value = settings.vibration,
                                      .action = action_setVibration},
-                                 "Set the vibration strength for haptic\n"
-                                 "feedback, when pressing system shortcuts.");
+                                 "Vibration strength for haptic feedback\n"
+                                 "when you press system shortcuts.");
     }
     menu_stack[++menu_level] = &_menu_system;
     header_changed = true;
@@ -250,18 +243,18 @@ void menu_buttonActionMainUIMenu(void *_)
 {
     if (!_menu_button_action_mainui_menu._created) {
         _menu_button_action_mainui_menu = list_create(3, LIST_SMALL);
-        strcpy(_menu_button_action_mainui_menu.title, "MainUI: Menu button");
+        strcpy(_menu_button_action_mainui_menu.title, "MENU in MainUI");
         list_addItemWithInfoNote(&_menu_button_action_mainui_menu,
                                  (ListItem){
-                                     .label = "Single press",
+                                     .label = "Short press",
                                      .item_type = MULTIVALUE,
                                      .value_max = 2,
                                      .value_labels = BUTTON_MAINUI_LABELS,
                                      .value = settings.mainui_single_press,
                                      .action_id = 0,
                                      .action = action_setMenuButtonKeymap},
-                                 "Set the action for single pressing\n"
-                                 "the menu button while in MainUI.");
+                                 "Set the action for a short press of\n"
+                                 "MENU in MainUI (menus and game lists).");
         list_addItemWithInfoNote(&_menu_button_action_mainui_menu,
                                  (ListItem){
                                      .label = "Long press",
@@ -271,8 +264,8 @@ void menu_buttonActionMainUIMenu(void *_)
                                      .value = settings.mainui_long_press,
                                      .action_id = 1,
                                      .action = action_setMenuButtonKeymap},
-                                 "Set the action for long pressing\n"
-                                 "the menu button while in MainUI.");
+                                 "Set the action for a long press of\n"
+                                 "MENU in MainUI (menus and game lists).");
         list_addItemWithInfoNote(&_menu_button_action_mainui_menu,
                                  (ListItem){
                                      .label = "Double press",
@@ -282,8 +275,8 @@ void menu_buttonActionMainUIMenu(void *_)
                                      .value = settings.mainui_double_press,
                                      .action_id = 2,
                                      .action = action_setMenuButtonKeymap},
-                                 "Set the action for double pressing\n"
-                                 "the menu button while in MainUI.");
+                                 "Set the action for a double press of\n"
+                                 "MENU in MainUI (menus and game lists).");
     }
     menu_stack[++menu_level] = &_menu_button_action_mainui_menu;
     header_changed = true;
@@ -292,18 +285,18 @@ void menu_buttonActionMainUIMenu(void *_)
 void menu_buttonActionInGameMenu(void *_)
 {
     if (!_menu_button_action_ingame_menu._created) {
-        _menu_button_action_ingame_menu = list_createWithTitle(3, LIST_SMALL, "In-game: Menu button");
+        _menu_button_action_ingame_menu = list_createWithTitle(3, LIST_SMALL, "MENU in game");
         list_addItemWithInfoNote(&_menu_button_action_ingame_menu,
                                  (ListItem){
-                                     .label = "Single press",
+                                     .label = "Short press",
                                      .item_type = MULTIVALUE,
                                      .value_max = 4,
                                      .value_labels = BUTTON_INGAME_LABELS,
                                      .value = settings.ingame_single_press,
                                      .action_id = 3,
                                      .action = action_setMenuButtonKeymap},
-                                 "Set the action for single pressing\n"
-                                 "the menu button while in-game.");
+                                 "Set the action for a short press of\n"
+                                 "MENU while playing.");
         list_addItemWithInfoNote(&_menu_button_action_ingame_menu,
                                  (ListItem){
                                      .label = "Long press",
@@ -313,8 +306,8 @@ void menu_buttonActionInGameMenu(void *_)
                                      .value = settings.ingame_long_press,
                                      .action_id = 4,
                                      .action = action_setMenuButtonKeymap},
-                                 "Set the action for long pressing\n"
-                                 "the menu button while in-game.");
+                                 "Set the action for a long press of\n"
+                                 "MENU while playing.");
         list_addItemWithInfoNote(&_menu_button_action_ingame_menu,
                                  (ListItem){
                                      .label = "Double press",
@@ -324,8 +317,8 @@ void menu_buttonActionInGameMenu(void *_)
                                      .value = settings.ingame_double_press,
                                      .action_id = 5,
                                      .action = action_setMenuButtonKeymap},
-                                 "Set the action for double pressing\n"
-                                 "the menu button while in-game.");
+                                 "Set the action for a double press of\n"
+                                 "MENU while playing.");
     }
     menu_stack[++menu_level] = &_menu_button_action_ingame_menu;
     header_changed = true;
@@ -334,28 +327,20 @@ void menu_buttonActionInGameMenu(void *_)
 void menu_buttonAction(void *_)
 {
     if (!_menu_button_action._created) {
-        _menu_button_action = list_createWithTitle(6, LIST_SMALL, "Button shortcuts");
-        list_addItemWithInfoNote(&_menu_button_action,
-                                 (ListItem){
-                                     .label = "Menu single press vibration",
-                                     .item_type = TOGGLE,
-                                     .value = (int)settings.menu_button_haptics,
-                                     .action = action_setMenuButtonHaptics},
-                                 "Enable haptic feedback for menu button\n"
-                                 "single and double press.");
+        _menu_button_action = list_createWithTitle(9, LIST_SMALL, "Buttons");
         list_addItem(&_menu_button_action,
                      (ListItem){
-                         .label = "In-game: Menu button...",
+                         .label = "MENU in game...",
                          .action = menu_buttonActionInGameMenu});
         list_addItem(&_menu_button_action,
                      (ListItem){
-                         .label = "MainUI: Menu button...",
+                         .label = "MENU in MainUI...",
                          .action = menu_buttonActionMainUIMenu});
 
         getInstalledApps(true);
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
-                                     .label = "MainUI: X button",
+                                     .label = "X in MainUI",
                                      .item_type = MULTIVALUE,
                                      .value_max = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT,
                                      .value = value_appShortcut(0),
@@ -365,11 +350,10 @@ void menu_buttonAction(void *_)
                                  "Set the X button action in MainUI:\n"
                                  "an app, a tool, GLO (the game's options),\n"
                                  "Toggle favorite (add or remove the game\n"
-                                 "from Favorites) or Disabled (no action).\n"
-                                 "Disabled needs Open MainUI 1.1.0.");
+                                 "from Favorites) or Disabled (no action).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
-                                     .label = "MainUI: Y button",
+                                     .label = "Y in MainUI",
                                      .item_type = MULTIVALUE,
                                      .value_max = installed_apps_count + NUM_TOOLS + MAINUI_SHORTCUT_EXTRA_COUNT,
                                      .value = value_appShortcut(1),
@@ -379,21 +363,74 @@ void menu_buttonAction(void *_)
                                  "Set the Y button action in MainUI:\n"
                                  "an app, a tool, GLO (the game's options),\n"
                                  "Toggle favorite (add or remove the game\n"
-                                 "from Favorites) or Disabled (no action).\n"
-                                 "Disabled needs Open MainUI 1.1.0.");
+                                 "from Favorites) or Disabled (no action).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
-                                     .label = "Power single press",
+                                     .label = "POWER (short press)",
                                      .item_type = MULTIVALUE,
                                      .value_max = 1,
                                      .value_labels = {"Standby", "Shutdown"},
                                      .value = (int)settings.disable_standby,
                                      .action = action_setDisableStandby},
-                                 "Change the power button single press\n"
-                                 "action to either 'standby' or 'shutdown'.");
+                                 "A short press of POWER: Standby (sleep)\n"
+                                 "or Shutdown.");
+        if (DEVICE_ID == MIYOO283) {
+            list_addItemWithInfoNote(&_menu_button_action,
+                                     (ListItem){
+                                         .label = "Brightness keys",
+                                         .item_type = MULTIVALUE,
+                                         .value_max = 1,
+                                         .value_labels = {"SELECT+R2/L2",
+                                                          "MENU+UP/DOWN"},
+                                         .value = config_flag_get(".altBrightness"),
+                                         .action = action_setAltBrightness},
+                                     "Change the shortcut for brightness.");
+        }
+        list_addItemWithInfoNote(&_menu_button_action,
+                                 (ListItem){
+                                     .label = "Vibrate on MENU",
+                                     .item_type = TOGGLE,
+                                     .value = (int)settings.menu_button_haptics,
+                                     .action = action_setMenuButtonHaptics},
+                                 "Vibrate when MENU is pressed once or\n"
+                                 "twice (its shortcuts).");
+        list_addItemWithInfoNote(&_menu_button_action,
+                                 (ListItem){
+                                     .label = "CPU speed keys (SEL+START+L/R)",
+                                     .item_type = TOGGLE,
+                                     .value = config_flag_get(".cpuClockHotkey"),
+                                     .action = action_setCpuClockHotkey},
+                                 "SELECT+START+R1 / L1 raise or lower the\n"
+                                 "CPU speed by 100 MHz (overclocking).");
+        list_addItemWithInfoNote(&_menu_button_action,
+                                 (ListItem){
+                                     .label = "Swap L/L2 and R/R2",
+                                     .item_type = TOGGLE,
+                                     .value = value_getSwapTriggers(),
+                                     .action = action_advancedSetSwapTriggers},
+                                 "Swap the function of L<>L2 and R<>R2\n"
+                                 "(only affects in-game actions).");
     }
     menu_stack[++menu_level] = &_menu_button_action;
     header_changed = true;
+}
+
+// Battery percentage: its look only matters while it is shown: Visible On,
+// or "-" with a theme that shows it.
+static void battery_update_enabled(void)
+{
+    if (!_menu_battery_percentage._created)
+        return;
+    int visible = _menu_battery_percentage.items[0].value; // "-", Off, On
+    bool off = visible == 1 || (visible == 0 && !resources.theme_back.batteryPercentage.visible);
+    for (int i = 1; i < _menu_battery_percentage.item_count; i++)
+        _menu_battery_percentage.items[i].disabled = off;
+}
+
+static void battery_action_visible(void *pt)
+{
+    action_batteryPercentageVisible(pt);
+    battery_update_enabled();
 }
 
 void menu_batteryPercentage(void *_)
@@ -407,7 +444,7 @@ void menu_batteryPercentage(void *_)
                          .value_max = 2,
                          .value_labels = THEME_TOGGLE_LABELS,
                          .value = value_batteryPercentageVisible(),
-                         .action = action_batteryPercentageVisible});
+                         .action = battery_action_visible});
         list_addItem(&_menu_battery_percentage,
                      (ListItem){
                          .label = "Font family",
@@ -456,6 +493,7 @@ void menu_batteryPercentage(void *_)
                          .value_formatter = formatter_positionOffset,
                          .value = value_batteryPercentageOffsetY(),
                          .action = action_batteryPercentageOffsetY});
+        battery_update_enabled();
     }
     menu_stack[++menu_level] = &_menu_battery_percentage;
     header_changed = true;
@@ -465,7 +503,7 @@ void menu_themeOverrides(void *_)
 {
     if (!_menu_theme_overrides._created) {
         _menu_theme_overrides = list_create(7, LIST_SMALL);
-        strcpy(_menu_theme_overrides.title, "Theme overrides");
+        strcpy(_menu_theme_overrides.title, "Theme tweaks");
         list_addItem(&_menu_theme_overrides,
                      (ListItem){
                          .label = "Battery percentage...",
@@ -476,7 +514,7 @@ void menu_themeOverrides(void *_)
                                      .item_type = TOGGLE,
                                      .value = settings.bgm_mute,
                                      .action = action_toggleBackgroundMusic},
-                                 "Mute background music for themes");
+                                 "Mute the theme's background music.");
         list_addItemWithInfoNote(&_menu_theme_overrides,
                                  (ListItem){
                                      .label = "Hide icon labels",
@@ -488,13 +526,14 @@ void menu_themeOverrides(void *_)
                                  "Hide the labels under the main menu icons.");
         list_addItemWithInfoNote(&_menu_theme_overrides,
                                  (ListItem){
-                                     .label = "Hide hint labels",
+                                     .label = "Hide button hints",
                                      .item_type = MULTIVALUE,
                                      .value_max = 2,
                                      .value_labels = THEME_TOGGLE_LABELS,
                                      .value = value_hideLabelsHints(),
                                      .action = action_hideLabelsHints},
-                                 "Hide the labels at the bottom of the screen.");
+                                 "Hide the button hints at the bottom of\n"
+                                 "the screen.");
         // list_addItem(&_menu_theme_overrides, (ListItem){
         // 	.label = "[Title] Font size", .item_type = MULTIVALUE,
         // .value_max = num_font_sizes, .value_formatter = formatter_fontSize
@@ -534,7 +573,8 @@ void menu_blueLight(void *_)
                                      .item_type = TOGGLE,
                                      .value = (int)settings.blue_light_state || exists("/tmp/.blfOn"),
                                      .action = action_blueLight},
-                                 "Set the selected strength now\n");
+                                 "Turn the filter on or off now, at the\n"
+                                 "selected strength.");
         if (schedule_show) {
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
@@ -543,7 +583,8 @@ void menu_blueLight(void *_)
                                          .item_type = TOGGLE,
                                          .value = (int)settings.blue_light_schedule,
                                          .action = action_blueLightSchedule},
-                                     "Enable or disable the bluelight filter schedule\n");
+                                     "Turn the filter on and off by itself at\n"
+                                     "the times below.");
         }
         list_addItemWithInfoNote(&_menu_user_blue_light,
                                  (ListItem){
@@ -555,29 +596,28 @@ void menu_blueLight(void *_)
                                      .value_labels = BLUELIGHT_LABELS,
                                      .action = action_blueLightLevel,
                                      .value = value_blueLightLevel()},
-                                 "Change the strength of the \n"
-                                 "Blue light filter");
+                                 "How strong the blue light filter is.");
         if (schedule_show) {
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
                                          .label = "Time (On)",
-                                         .disabled = schedule_disable,
+                                         .disabled = !settings.blue_light_schedule,
                                          .item_type = MULTIVALUE,
                                          .value_max = 95,
-                                         .value_formatter = formatter_Time,
+                                         .value_formatter = formatter_TimeOn,
                                          .action = action_blueLightTimeOn,
                                          .value = value_blueLightTimeOn()},
-                                     "Time schedule for the bluelight filter");
+                                     "When the schedule turns the filter on.");
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
                                          .label = "Time (Off)",
-                                         .disabled = schedule_disable,
+                                         .disabled = !settings.blue_light_schedule,
                                          .item_type = MULTIVALUE,
                                          .value_max = 95,
-                                         .value_formatter = formatter_Time,
+                                         .value_formatter = formatter_TimeOff,
                                          .action = action_blueLightTimeOff,
                                          .value = value_blueLightTimeOff()},
-                                     "Time schedule for the bluelight filter");
+                                     "When the schedule turns the filter off.");
         }
     }
     if (schedule_show) {
@@ -590,21 +630,24 @@ void menu_blueLight(void *_)
     header_changed = true;
 }
 
-void menu_userInterface(void *_)
+void menu_lookAndFeel(void *_)
 {
     settings.blue_light_state = config_flag_get(".blfOn");
     all_changed = true;
     if (!_menu_user_interface._created) {
-        _menu_user_interface = list_createWithTitle(9, LIST_SMALL, "Appearance");
-        list_addItemWithInfoNote(&_menu_user_interface,
-                                 (ListItem){.label = "Game lists...", .action = menu_gameLists},
-                                 "Rows, text size, title scrolling,\n"
-                                 "button repeat and sorting in game lists.");
-        list_addItemWithInfoNote(&_menu_user_interface,
-                                 (ListItem){.label = "Main menu...", .action = menu_mainMenu},
-                                 "Sections of the main menu (Recents,\n"
-                                 "Expert...), the context menu entries\n"
-                                 "and the Games and Expert views.");
+        _menu_user_interface = list_createWithTitle(7, LIST_SMALL, "Look and feel");
+        list_addItem(&_menu_user_interface,
+                     (ListItem){
+                         .label = "Theme tweaks...",
+                         .action = menu_themeOverrides});
+        list_addItem(&_menu_user_interface,
+                     (ListItem){
+                         .label = "Icons...",
+                         .action = menu_icons});
+        list_addItem(&_menu_user_interface,
+                     (ListItem){
+                         .label = "Blue light filter...",
+                         .action = menu_blueLight});
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
                                      .label = "Loading/saving screen",
@@ -619,7 +662,7 @@ void menu_userInterface(void *_)
                                  "message on the theme's full screen.");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
-                                     .label = "Footer layout",
+                                     .label = "Button hints at the bottom",
                                      .item_type = MULTIVALUE,
                                      .value_max = 1,
                                      .value_labels = {"Classic", "B A, page left"},
@@ -631,7 +674,7 @@ void menu_userInterface(void *_)
                                  "hints in button order, B then A.");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
-                                     .label = "Long menu labels",
+                                     .label = "Long SELECT menu labels",
                                      .item_type = MULTIVALUE,
                                      .value_max = 1,
                                      .value_labels = {"Shorten with ...", "Cut"},
@@ -643,27 +686,15 @@ void menu_userInterface(void *_)
         display_init(true);
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
-                                     .label = "OSD bar size",
+                                     .label = "Volume/brightness bar",
                                      .item_type = MULTIVALUE,
                                      .value_max = 15,
                                      .value_formatter = formatter_meterWidth,
                                      .value = value_meterWidth(),
                                      .action = action_meterWidth},
-                                 "Set the width of the 'OSD bar' shown\n"
-                                 "in the left side of the display when\n"
-                                 "adjusting brightness, or volume (MMP).");
-        list_addItem(&_menu_user_interface,
-                     (ListItem){
-                         .label = "Blue light filter...",
-                         .action = menu_blueLight});
-        list_addItem(&_menu_user_interface,
-                     (ListItem){
-                         .label = "Theme overrides...",
-                         .action = menu_themeOverrides});
-        list_addItem(&_menu_user_interface,
-                     (ListItem){
-                         .label = "Icons packs...",
-                         .action = menu_icons});
+                                 "Width of the bar on the left of the\n"
+                                 "screen while you change the brightness,\n"
+                                 "or the volume on the Mini Plus.");
     }
     menu_stack[++menu_level] = &_menu_user_interface;
     header_changed = true;
@@ -681,15 +712,15 @@ void menu_resetSettings(void *_)
                                  "including network setup.");
         list_addItem(&_menu_reset_settings,
                      (ListItem){
-                         .label = "Reset theme overrides",
+                         .label = "Reset theme tweaks",
                          .action = action_resetThemeOverrides});
         list_addItemWithInfoNote(&_menu_reset_settings,
                                  (ListItem){
                                      .label = "Reset MainUI settings",
                                      .action = action_resetMainUI},
                                  "Resets the settings stored on the device,\n"
-                                 "such as theme, display options, and volume.\n"
-                                 "Also resets WiFi configuration.");
+                                 "such as theme, display options and\n"
+                                 "volume. Also resets the Wi-Fi setup.");
         list_addItem(&_menu_reset_settings,
                      (ListItem){
                          .label = "Reset RetroArch main configuration",
@@ -723,10 +754,9 @@ void menu_diagnostics(void *pt)
                                      .item_type = TOGGLE,
                                      .value = (int)settings.enable_logging,
                                      .action = action_setEnableLogging},
-                                 "Enable global logging, \n"
-                                 "for system & networking. \n \n"
-                                 "Logs will be generated in, \n"
-                                 "SD: /.tmp_update/logs.");
+                                 "Log what the system and the network do.\n"
+                                 "The logs go to .tmp_update/logs on the\n"
+                                 "SD card.");
         for (int i = 0; i < diags_numScripts; i++) {
             ListItem diagItem = {
                 .label = "",
@@ -761,48 +791,10 @@ void menu_diagnostics(void *pt)
 void menu_advanced(void *_)
 {
     if (!_menu_advanced._created) {
-        _menu_advanced = list_createWithTitle(8, LIST_SMALL, "Advanced");
-        if (exists(RESET_CONFIGS_PAK)) {
-            list_addItem(&_menu_advanced,
-                         (ListItem){
-                             .label = "Reset settings...",
-                             .action = menu_resetSettings});
-        }
-        list_addItem(&_menu_advanced,
-                     (ListItem){
-                         .label = "Diagnostics...",
-                         .action = menu_diagnostics});
+        _menu_advanced = list_createWithTitle(5, LIST_SMALL, "Advanced");
         list_addItemWithInfoNote(&_menu_advanced,
                                  (ListItem){
-                                     .label = "Swap triggers (L<>L2, R<>R2)",
-                                     .item_type = TOGGLE,
-                                     .value = value_getSwapTriggers(),
-                                     .action = action_advancedSetSwapTriggers},
-                                 "Swap the function of L<>L2 and R<>R2\n"
-                                 "(only affects in-game actions).");
-        list_addItemWithInfoNote(&_menu_advanced,
-                                 (ListItem){
-                                     .label = "OC hotkeys (SELECT+START+L/R)",
-                                     .item_type = TOGGLE,
-                                     .value = config_flag_get(".cpuClockHotkey"),
-                                     .action = action_setCpuClockHotkey},
-                                 "Enable the global hotkeys for\n"
-                                 "overclocking the CPU.");
-        if (DEVICE_ID == MIYOO283) {
-            list_addItemWithInfoNote(&_menu_advanced,
-                                     (ListItem){
-                                         .label = "Brightness control",
-                                         .item_type = MULTIVALUE,
-                                         .value_max = 1,
-                                         .value_labels = {"SELECT+R2/L2",
-                                                          "MENU+UP/DOWN"},
-                                         .value = config_flag_get(".altBrightness"),
-                                         .action = action_setAltBrightness},
-                                     "Change the shortcut for brightness.");
-        }
-        list_addItemWithInfoNote(&_menu_advanced,
-                                 (ListItem){
-                                     .label = "Fast forward rate",
+                                     .label = "Fast forward speed",
                                      .item_type = MULTIVALUE,
                                      .value_max = 50,
                                      .value = value_getFrameThrottle(),
@@ -811,26 +803,36 @@ void menu_advanced(void *_)
                                  "Set the maximum fast forward rate.");
         list_addItemWithInfoNote(&_menu_advanced,
                                  (ListItem){
-                                     .label = "PWM frequency",
+                                     .label = "Screen PWM frequency",
                                      .item_type = MULTIVALUE,
                                      .value_max = 9,
                                      .value_labels = PWM_FREQUENCIES,
                                      .value = value_getPWMFrequency(),
                                      .action = action_advancedSetPWMFreqency},
-                                 "Change the PWM frequency\n"
-                                 "Lower values for less buzzing\n"
-                                 "Experimental feature");
+                                 "Frequency of the screen backlight PWM.\n"
+                                 "Lower values can buzz less.\n"
+                                 "Experimental.");
         if (DEVICE_ID == MIYOO354) {
             list_addItemWithInfoNote(&_menu_advanced,
                                      (ListItem){
                                          .label = "LCD undervolt",
                                          .item_type = MULTIVALUE,
                                          .value_max = 4,
-                                         .value_labels = {"Off", "-0.1V", "-0.2V", "-0.3V", "-0.4V"},
+                                         .value_labels = {"Off (default)", "-0.1V", "-0.2V", "-0.3V", "-0.4V"},
                                          .value = value_getLcdVoltage(),
                                          .action = action_advancedSetLcdVoltage},
                                      "Use this option if you're seeing\n"
                                      "small artifacts on the display.");
+        }
+        list_addItem(&_menu_advanced,
+                     (ListItem){
+                         .label = "Diagnostics...",
+                         .action = menu_diagnostics});
+        if (exists(RESET_CONFIGS_PAK)) {
+            list_addItem(&_menu_advanced,
+                         (ListItem){
+                             .label = "Reset settings...",
+                             .action = menu_resetSettings});
         }
     }
     menu_stack[++menu_level] = &_menu_advanced;
@@ -846,7 +848,7 @@ void menu_screen_recorder(void *pt)
                                      .label = "Start/stop recorder",
                                      .sticky_note = "Status:...",
                                      .action = tool_screenRecorder},
-                                 "Start or stop the recorder");
+                                 "Start or stop the recorder.");
         list_addItemWithInfoNote(&_menu_screen_recorder,
                                  (ListItem){
                                      .label = "Countdown (seconds)",
@@ -854,10 +856,13 @@ void menu_screen_recorder(void *pt)
                                      .item_type = MULTIVALUE,
                                      .value_max = 10,
                                      .value = (int)settings.rec_countdown,
+                                     .value_formatter = formatter_recCountdown,
                                      .action = action_toggleScreenRecCountdown},
-                                 "Countdown when starting recording. \n\n"
-                                 "The screen will pulse white n times \n"
-                                 "to signify recording has started/stopped");
+                                 "Countdown before recording starts.\n"
+                                 " \n"
+                                 "The screen pulses white once for each\n"
+                                 "second, to show recording has started\n"
+                                 "or stopped.");
         list_addItemWithInfoNote(&_menu_screen_recorder,
                                  (ListItem){
                                      .label = "Toggle indicator icon",
@@ -865,19 +870,19 @@ void menu_screen_recorder(void *pt)
                                      .item_type = TOGGLE,
                                      .value = (int)settings.rec_indicator,
                                      .action = action_toggleScreenRecIndicator},
-                                 "Toggles the display of a\n"
-                                 "a flashing icon to remind you\n"
-                                 "that you're still recording.");
+                                 "Show a flashing icon to remind you that\n"
+                                 "you're still recording.");
         list_addItemWithInfoNote(&_menu_screen_recorder,
                                  (ListItem){
                                      .label = "Toggle hotkey",
-                                     .sticky_note = "Turn the hotkey (Menu+A) on/off ",
+                                     .sticky_note = "Turn the hotkey (MENU+A) on/off",
                                      .item_type = TOGGLE,
                                      .value = (int)settings.rec_hotkey,
                                      .action = action_toggleScreenRecHotkey},
-                                 "Enable the hotkey function.\n\n"
-                                 "Recording can be started/stopped\n"
-                                 "with Menu+A");
+                                 "Turn the hotkey on or off.\n"
+                                 " \n"
+                                 "Recording can be started and stopped\n"
+                                 "with MENU+A.");
         list_addItemWithInfoNote(&_menu_screen_recorder,
                                  (ListItem){
                                      .label = "Reset screen recorder",
@@ -891,7 +896,8 @@ void menu_screen_recorder(void *pt)
                                      .label = "Delete all recordings",
                                      .sticky_note = "Empties the recordings directory",
                                      .action = action_deleteAllRecordings},
-                                 "Deletes all recorded videos. \n\n"
+                                 "Deletes all recorded videos.\n"
+                                 " \n"
                                  "WARNING: This action cannot\n"
                                  "be undone!");
     }
@@ -912,13 +918,13 @@ void menu_tools_m3uGenerator(void *_)
                                  (ListItem){
                                      .label = "Multiple directories (.Game_Name)",
                                      .action = tool_generateM3uFiles_md},
-                                 "One directory for each game \".Game_Name\"");
+                                 "One folder for each game (.Game_Name).");
         list_addItemWithInfoNote(&_menu_tools_m3uGenerator,
                                  (ListItem){
                                      .label = "Single directory (.multi-disc)",
                                      .action = tool_generateM3uFiles_sd},
-                                 "One single directory (\".multi-disc\")\n"
-                                 "will contain all multi-disc files");
+                                 "One folder (.multi-disc) holds all the\n"
+                                 "multi-disc files.");
     }
     menu_stack[++menu_level] = &_menu_tools_m3uGenerator;
     header_changed = true;
@@ -931,22 +937,21 @@ void menu_tools(void *_)
         strcpy(_menu_tools.title, "Tools");
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
-                                     .label = "Generate CUE files for BIN games",
+                                     .label = "Make CUE files for BIN games",
                                      .action = tool_generateCueFiles},
-                                 "PSX roms in '.bin' format needs a\n"
-                                 "matching '.cue' file. Use this tool\n"
-                                 "to automatically generate them.");
+                                 "PS1 games in .bin format need a\n"
+                                 "matching .cue file: this tool makes\n"
+                                 "them.");
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
-                                     .label = "Generate M3U files for multi-disc games",
+                                     .label = "Make M3U files for multi-disc games...",
                                      .action = menu_tools_m3uGenerator},
-                                 "PSX multi-disc roms require to create\n"
-                                 "a playlist file (.m3u). It allows to \n"
-                                 "have only one entry for each multi-disc\n"
-                                 "game and one unique save file for each game");
+                                 "Multi-disc PS1 games need a playlist\n"
+                                 "(.m3u): one entry in the list and one\n"
+                                 "save file for the whole game.");
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
-                                     .label = "Generate game list for short name roms",
+                                     .label = "Make game list for short-name roms",
                                      .action = tool_buildShortRomGameList},
                                  "This tool replaces the short names in\n"
                                  "game caches with their equivalent real\n"
@@ -954,7 +959,7 @@ void menu_tools(void *_)
                                  "correctly.");
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
-                                     .label = "Generate miyoogamelist with digest names",
+                                     .label = "Make miyoogamelist with digest names",
                                      .action = tool_generateMiyoogamelists},
                                  "Use this tool to clean your game names\n"
                                  "without having to rename the rom files\n"
@@ -962,22 +967,20 @@ void menu_tools(void *_)
                                  "This generates a 'miyoogamelist.xml' file\n"
                                  "which comes with some limitations, such\n"
                                  "as no subfolder support.");
+        list_addItemWithInfoNote(&_menu_tools,
+                                 (ListItem){
+                                     .label = "Sort apps: A to Z",
+                                     .action = tool_sortAppsAZ},
+                                 "Sort the Apps list from A to Z.");
+        list_addItemWithInfoNote(&_menu_tools,
+                                 (ListItem){
+                                     .label = "Sort apps: Z to A",
+                                     .action = tool_sortAppsZA},
+                                 "Sort the Apps list from Z to A.");
         list_addItem(&_menu_tools,
                      (ListItem){
                          .label = "Screen recorder...",
                          .action = menu_screen_recorder});
-        list_addItemWithInfoNote(&_menu_tools,
-                                 (ListItem){
-                                     .label = "Sort applist A-Z",
-                                     .action = tool_sortAppsAZ},
-                                 "Use this tool to sort your App list\n"
-                                 "ascending from A to Z.\n");
-        list_addItemWithInfoNote(&_menu_tools,
-                                 (ListItem){
-                                     .label = "Sort applist Z-A",
-                                     .action = tool_sortAppsZA},
-                                 "Use this tool to sort your App list\n"
-                                 "descending from Z to A.\n");
     }
     menu_stack[++menu_level] = &_menu_tools;
     header_changed = true;
@@ -1002,48 +1005,100 @@ void *_get_menu_icon(const char *name)
     return (void *)IMG_Load(path);
 }
 
+// Tweaks > Game lists: everything about Games, Favorites, Recents, Search
+// and Game Info.
+void menu_gameListsMenu(void *_)
+{
+    (void)_;
+    if (!_menu_game_lists._created) {
+        _menu_game_lists = list_createWithTitle(6, LIST_SMALL, "Game lists");
+        list_addItemWithInfoNote(&_menu_game_lists,
+                                 (ListItem){.label = "Layout...", .action = menu_gameListsLayout},
+                                 "Rows per page, font size, sorting and\n"
+                                 "the favorite star in game lists.");
+        list_addItemWithInfoNote(&_menu_game_lists,
+                                 (ListItem){.label = "Scrolling...", .action = menu_gameListsScrolling},
+                                 "How long game names scroll, and how a\n"
+                                 "held button repeats.");
+        list_addItemWithInfoNote(&_menu_game_lists,
+                                 (ListItem){.label = "Previews...", .action = menu_gameListsPreviews},
+                                 "Video preview in the lists and the Game\n"
+                                 "Info text scrolling by itself.");
+        list_addItemWithInfoNote(&_menu_game_lists,
+                                 (ListItem){.label = "List menus...", .action = menu_listMenus},
+                                 "Which actions the SELECT menus of Games,\n"
+                                 "Favorites, Recents and Search show, and\n"
+                                 "what GLO (the game's options) shows.");
+        list_addItemWithInfoNote(&_menu_game_lists,
+                                 (ListItem){.label = "Game Info menu...", .action = menu_gameInfoMenu},
+                                 "What the Game Info menu (SELECT in Game\n"
+                                 "Info) shows: gallery, Saved Games, maps,\n"
+                                 "walkthrough, manual.");
+        list_addItemWithInfoNote(&_menu_game_lists,
+                                 (ListItem){.label = "Saved Games...", .action = menu_savedGames},
+                                 "Shortcut, auto save, pictures, and what\n"
+                                 "playing an older save does to the last\n"
+                                 "auto save.");
+        savedgames_update_enabled();
+    }
+    menu_stack[++menu_level] = &_menu_game_lists;
+    header_changed = true;
+}
+
 void menu_main(void)
 {
     if (!_menu_main._created) {
-        _menu_main = list_createWithTitle(6, LIST_LARGE, "Tweaks");
+        _menu_main = list_createWithTitle(8, LIST_LARGE, "Tweaks");
+        list_addItem(&_menu_main,
+                     (ListItem){
+                         .label = "Home screen",
+                         .description = "Tabs, consoles, SELECT menu",
+                         .action = menu_homeScreen,
+                         .icon_ptr = _get_menu_icon("tweaks_user_interface")});
+        list_addItem(&_menu_main,
+                     (ListItem){
+                         .label = "Game lists",
+                         .description = "Layout, scrolling, previews, menus",
+                         .action = menu_gameListsMenu,
+                         .icon_ptr = _get_menu_icon("tweaks_icons")});
+        list_addItem(&_menu_main,
+                     (ListItem){
+                         .label = "Buttons",
+                         .description = "MENU, X, Y, POWER, hotkeys",
+                         .action = menu_buttonAction,
+                         .icon_ptr = _get_menu_icon("tweaks_menu_button")});
+        list_addItem(&_menu_main,
+                     (ListItem){
+                         .label = "Look and feel",
+                         .description = "Theme, icons, blue light, hints",
+                         .action = menu_lookAndFeel,
+                         .icon_ptr = _get_menu_icon("tweaks_user_interface")});
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "System",
-                         .description = "Startup, save and exit, vibration",
+                         .description = "Startup, date and time, battery",
                          .action = menu_system,
                          .icon_ptr = _get_menu_icon("tweaks_system")});
         if (IS_MIYOO_PLUS_OR_FLIP()) {
             list_addItem(&_menu_main,
                          (ListItem){
                              .label = "Network",
-                             .description = "Setup networking",
+                             .description = "Wi-Fi, file sharing, SSH, FTP",
                              .action = menu_network,
                              .icon_ptr = _get_menu_icon("tweaks_network")});
         }
         list_addItem(&_menu_main,
                      (ListItem){
-                         .label = "Button shortcuts",
-                         .description = "Customize global button actions",
-                         .action = menu_buttonAction,
-                         .icon_ptr = _get_menu_icon("tweaks_menu_button")});
-        list_addItem(&_menu_main,
-                     (ListItem){
-                         .label = "Appearance",
-                         .description = "Lists, main menu, theme overrides",
-                         .action = menu_userInterface,
-                         .icon_ptr = _get_menu_icon("tweaks_user_interface")});
+                         .label = "Tools",
+                         .description = "CUE, M3U, game lists, recorder",
+                         .action = menu_tools,
+                         .icon_ptr = _get_menu_icon("tweaks_tools")});
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Advanced",
-                         .description = "Emulator tweaks, reset settings",
+                         .description = "Screen, fast forward, reset",
                          .action = menu_advanced,
                          .icon_ptr = _get_menu_icon("tweaks_advanced")});
-        list_addItem(&_menu_main,
-                     (ListItem){
-                         .label = "Tools",
-                         .description = "Favorites, clean files",
-                         .action = menu_tools,
-                         .icon_ptr = _get_menu_icon("tweaks_tools")});
     }
     menu_level = 0;
     menu_stack[0] = &_menu_main;

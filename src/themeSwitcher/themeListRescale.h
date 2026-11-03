@@ -1,7 +1,7 @@
 #ifndef THEME_LIST_RESCALE_H__
 #define THEME_LIST_RESCALE_H__
 
-// Tweaks > Appearance > Game lists > "Rescale theme list icons to fit"
+// Tweaks > Game lists > Layout > "Resize theme icons to fit"
 // resizes the active theme's list icons for the row count, but only Tweaks
 // ran it: a theme picked in the Themes app kept its full-size icons until the
 // option was turned off and on again. Installing a theme now runs the same

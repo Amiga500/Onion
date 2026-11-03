@@ -1278,6 +1278,66 @@ check "no Refresh list entry: the Select menu has Refresh roms" \
 unset -f sqlite3
 end
 
+begin glo_filter_can_be_hidden
+# Tweaks > Game lists > List menus > GLO > "Filter list" Off writes
+# config/.hideGloFilter: no Filter list, no Current filter, but Clear filter
+# while a filter is set.
+eval "$(extract_fn "$GLO" glo_shown)"
+eval "$(extract_fn "$GLO" add_filter_options)"
+log() { :; }
+add_menu_option() { echo "$1" >> "$TMP/menu"; }
+filter_is_applied() { return 0; }
+sysdir="$TMP/sys"; mkdir -p "$sysdir/config"
+emupath="$TMP/Emu/GBA"; mkdir -p "$emupath"
+menu() { rm -f "$TMP/menu"; add_filter_options; tr '\n' ' ' < "$TMP/menu" 2> /dev/null; }
+check "shown, no filter: Filter list" test "$(menu)" = "filter_roms "
+echo zelda > "$emupath/active_filter"
+check "shown, a filter: Clear filter and Current filter" test "$(menu)" = "clear_filter filter_roms "
+: > "$sysdir/config/.hideGloFilter"
+check "hidden, a filter: only Clear filter" test "$(menu)" = "clear_filter "
+rm -f "$emupath/active_filter"
+check "hidden, no filter: nothing" test -z "$(menu)"
+check "Tweaks writes the same flag" grep -q '{"Filter list", "Filter", false,' "$ROOT/src/tweaks/main_menu.h"
+check "Tweaks names the flags .hideGlo<name>" grep -qF '"%s/.hideGlo%s"' "$ROOT/src/tweaks/main_menu.h"
+unset -f filter_is_applied add_menu_option menu
+end
+
+begin glo_entries_can_be_hidden
+# List menus > GLO > "Reset game/Game manual/Game core/Hide game/Netplay/
+# Scraper" Off: the entry is left out of GLO.
+eval "$(extract_fn "$GLO" glo_shown)"
+sysdir="$TMP/sys"; mkdir -p "$sysdir/config"
+check "no flag: shown" glo_shown Reset
+: > "$sysdir/config/.hideGloReset"
+if glo_shown Reset; then r=shown; else r=hidden; fi
+check "flag: hidden" test "$r" = hidden
+for name in Reset Manual Core Hide; do
+    check "the menu checks $name" grep -q "glo_shown $name" "$GLO"
+done
+check "Game core and Restore default core go together" test "$(grep -c 'glo_shown Core' "$GLO")" -eq 2
+check "an empty GLO says where the entries went" grep -qF 'add_menu_option : "Nothing to show"' "$GLO"
+check "Hidden games is not behind a flag" sh -c "grep 'show_hidden_games \"Hidden games' '$GLO' | grep -vq glo_shown"
+
+# Scripts: Netplay and Scraper are skipped while hidden, others stay.
+eval "$(extract_fn "$GLO" get_info_value)"
+eval "$(extract_fn "$GLO" add_script_files)"
+log() { :; }
+add_menu_option() { echo "$2" >> "$TMP/menu"; }
+has_networking=1
+emulabel=GBA
+sd="$TMP/romscripts"; mkdir -p "$sd"
+for n in Netplay Scraper Other; do
+    printf 'scriptlabel="%s"\nrequire_networking=0\n' "$n" > "$sd/$n.sh"
+done
+scripts() { rm -f "$TMP/menu"; add_script_files "$sd"; tr '\n' ' ' < "$TMP/menu" 2> /dev/null; }
+check "all shown" test "$(scripts)" = "Netplay Other Scraper "
+: > "$sysdir/config/.hideGloNetplay"
+check "Netplay hidden" test "$(scripts)" = "Other Scraper "
+: > "$sysdir/config/.hideGloScraper"
+check "Scraper hidden too" test "$(scripts)" = "Other "
+unset -f add_menu_option scripts
+end
+
 # ---- SD card: a notice when the FAT was not unmounted cleanly ----
 
 begin sd_card_dirty_notice

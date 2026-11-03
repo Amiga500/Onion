@@ -13,6 +13,25 @@
 
 #define BATTPERC_MAX_OFFSET 48
 
+// "(default)" marks the value a new install starts with, so it can be found
+// again after trying others. From __default_settings (system/settings.h),
+// the shipped static/configs files and the readers in values.h; the tests
+// check them against those.
+#define DEFAULT_TIME_SKIP 4         // hours (startup/addHours)
+#define DEFAULT_LOW_BATTERY_WARN 10 // % (battery/warnAt)
+#define DEFAULT_LOW_BATTERY_EXIT 4  // % (battery/exitAt)
+#define DEFAULT_METER_WIDTH 4       // px (display/meterWidth)
+#define DEFAULT_FAST_FORWARD 0      // Unlimited (RetroArch fastforward_ratio)
+#define DEFAULT_BLUE_LIGHT_ON "20:00"
+#define DEFAULT_BLUE_LIGHT_OFF "08:00"
+#define DEFAULT_VNC_FPS 20
+
+static void formatter_markDefault(char *out_label, bool is_default)
+{
+    if (is_default)
+        strcat(out_label, " (default)");
+}
+
 void formatter_timezone(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
@@ -36,6 +55,20 @@ void formatter_Time(void *pt, char *out_label)
     sprintf(out_label, "%02d:%02d", hours, minutes);
 }
 
+// The blue light filter's times as shown (formatter_Time alone is also used
+// to store them).
+void formatter_TimeOn(void *pt, char *out_label)
+{
+    formatter_Time(pt, out_label);
+    formatter_markDefault(out_label, strcmp(out_label, DEFAULT_BLUE_LIGHT_ON) == 0);
+}
+
+void formatter_TimeOff(void *pt, char *out_label)
+{
+    formatter_Time(pt, out_label);
+    formatter_markDefault(out_label, strcmp(out_label, DEFAULT_BLUE_LIGHT_OFF) == 0);
+}
+
 int formatter_timeStringToID(const char *time_str)
 {
     // A malformed time (edited or corrupt config) left hours and minutes
@@ -55,6 +88,7 @@ void formatter_battWarn(void *pt, char *out_label)
         strcpy(out_label, "Off");
     else
         sprintf(out_label, "< %d%%", item->value * 5);
+    formatter_markDefault(out_label, item->value * 5 == DEFAULT_LOW_BATTERY_WARN);
 }
 
 void formatter_battExit(void *pt, char *out_label)
@@ -64,6 +98,7 @@ void formatter_battExit(void *pt, char *out_label)
         strcpy(out_label, "Off");
     else
         sprintf(out_label, "< %d%%", item->value);
+    formatter_markDefault(out_label, item->value == DEFAULT_LOW_BATTERY_EXIT);
 }
 
 static const int num_font_families = 5;
@@ -97,6 +132,7 @@ void formatter_fastForward(void *pt, char *out_label)
         strcpy(out_label, "Unlimited");
     else
         sprintf(out_label, "%d.0x", item->value);
+    formatter_markDefault(out_label, item->value == DEFAULT_FAST_FORWARD);
 }
 
 void formatter_positionOffset(void *pt, char *out_label)
@@ -112,6 +148,7 @@ void formatter_meterWidth(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
     sprintf(out_label, "%d px", item->value);
+    formatter_markDefault(out_label, item->value == DEFAULT_METER_WIDTH);
 }
 
 void formatter_timeSkip(void *pt, char *out_label)
@@ -121,6 +158,24 @@ void formatter_timeSkip(void *pt, char *out_label)
         strcpy(out_label, "Off");
     else
         sprintf(out_label, "+ %dh", item->value);
+    formatter_markDefault(out_label, item->value == DEFAULT_TIME_SKIP);
+}
+
+// Screen recorder countdown, in seconds (0: none, the default).
+void formatter_recCountdown(void *pt, char *out_label)
+{
+    ListItem *item = (ListItem *)pt;
+    if (item->value == 0)
+        strcpy(out_label, "Off (default)");
+    else
+        sprintf(out_label, "%d", item->value);
+}
+
+void formatter_vncFps(void *pt, char *out_label)
+{
+    ListItem *item = (ListItem *)pt;
+    sprintf(out_label, "%d fps", item->value);
+    formatter_markDefault(out_label, item->value == DEFAULT_VNC_FPS);
 }
 
 #endif // TWEAKS_FORMATTERS_BASIC_H__

@@ -3,7 +3,7 @@
 
 // SPDX-License-Identifier: GPL-3.0-only
 //
-// Tweaks > Appearance > Game lists: the game-list settings Open MainUI reads.
+// Tweaks > Game lists: the game-list settings Open MainUI reads.
 // Adapted from robcodedev/onionos-mainui-patcher (tools/src/tweaks); the file
 // handling is in game_lists_core.h. Not taken over: "Rebuild caches after case
 // change", since Open MainUI applies the sort order when it reads a cache, so
@@ -142,12 +142,15 @@ static void gamelists_action_font(void *pt)
         gamelists_write_int(GAMELISTS_FONT_PATH, value + GAMELISTS_FONT_MIN - 1);
 }
 
+static void gamelists_update_enabled(void);
+
 static void gamelists_action_scroll_delay(void *pt)
 {
     int delay, speed;
     gamelists_load_scroll(&delay, &speed);
     delay = gamelists_scroll_delays[((ListItem *)pt)->value];
     gamelists_store_scroll(delay, speed);
+    gamelists_update_enabled();
 }
 
 static void gamelists_action_scroll_speed(void *pt)
@@ -167,6 +170,7 @@ static void gamelists_action_scroll_style(void *pt)
 static void gamelists_action_video_preview(void *pt)
 {
     gamelists_store_video_preview(gamelists_video_delays[((ListItem *)pt)->value]);
+    gamelists_update_enabled();
 }
 
 static void gamelists_action_video_size(void *pt)
@@ -181,6 +185,7 @@ static void gamelists_action_info_scroll_delay(void *pt)
     gamelists_load_info_scroll(&delay, &speed);
     delay = gamelists_info_scroll_delays[((ListItem *)pt)->value];
     gamelists_store_info_scroll(delay, speed);
+    gamelists_update_enabled();
 }
 
 static void gamelists_action_info_scroll_speed(void *pt)
@@ -223,6 +228,43 @@ static void gamelists_action_fixed_favorite_position(void *pt)
         gamelists_write_text(GAMELISTS_DYNAMIC_FAV_PATH, "");
 }
 
+// An option that only matters while another is on is greyed out while that
+// one is Off (its first value): the video size without video preview, the
+// Game Info text speed without auto scroll, the long-name style and speed
+// without scrolling. They keep their values.
+static void gamelists_update_list(List *list)
+{
+    bool video = true, info = true, names = true;
+    for (int i = 0; i < list->item_count; i++) {
+        void (*action)(void *) = list->items[i].action;
+        if (action == gamelists_action_video_preview)
+            video = list->items[i].value != 0;
+        else if (action == gamelists_action_info_scroll_delay)
+            info = list->items[i].value != 0;
+        else if (action == gamelists_action_scroll_delay)
+            names = list->items[i].value != 0;
+    }
+    for (int i = 0; i < list->item_count; i++) {
+        ListItem *item = &list->items[i];
+        if (item->action == gamelists_action_video_size)
+            item->disabled = !video;
+        else if (item->action == gamelists_action_info_scroll_speed)
+            item->disabled = !info;
+        else if (item->action == gamelists_action_scroll_style || item->action == gamelists_action_scroll_speed)
+            item->disabled = !names;
+    }
+    if (list->item_count > 0 && list->items[list->active_pos].disabled)
+        list_ensureVisible(list, 1);
+}
+
+static void gamelists_update_enabled(void)
+{
+    if (_menu_game_lists_scrolling._created)
+        gamelists_update_list(&_menu_game_lists_scrolling);
+    if (_menu_game_lists_previews._created)
+        gamelists_update_list(&_menu_game_lists_previews);
+}
+
 // Called when leaving the menu with B and when Tweaks exits (MENU closes it
 // from any menu): resize the theme's list icons once, after any number of
 // Rows changes.
@@ -234,16 +276,15 @@ static void gamelists_on_menu_exit(void)
         gamelists_rescale_pending = false;
 }
 
-void menu_gameLists(void *_)
+void menu_gameListsLayout(void *_)
 {
     (void)_;
-    if (!_menu_game_lists._created) {
-        _menu_game_lists = list_createWithTitle(14, LIST_SMALL, "Game lists");
-
+    if (!_menu_game_lists_layout._created) {
+        _menu_game_lists_layout = list_createWithTitle(5, LIST_SMALL, "Game lists: layout");
         list_addItemWithInfoNote(
-            &_menu_game_lists,
+            &_menu_game_lists_layout,
             (ListItem){
-                .label = "Rows",
+                .label = "Rows per page",
                 .item_type = MULTIVALUE,
                 .value_max = GAMELISTS_ROWS_MAX - GAMELISTS_ROWS_MIN,
                 .value = gamelists_value_rows(),
@@ -253,20 +294,31 @@ void menu_gameLists(void *_)
             "Recents and Search game lists.");
 
         list_addItemWithInfoNote(
-            &_menu_game_lists,
+            &_menu_game_lists_layout,
             (ListItem){
-                .label = "Rescale theme list icons to fit",
+                .label = "Resize theme icons to fit",
                 .item_type = TOGGLE,
                 .value = gamelists_value_rescale_icons(),
                 .action = gamelists_action_rescale_icons},
-            "After changing Rows, resize the theme's list\n"
-            "icons when leaving this menu. The originals\n"
-            "are kept as .bak; 6 rows puts them back.");
+            "After changing Rows per page, resize the\n"
+            "theme's list icons when leaving this menu.\n"
+            "The originals are kept as .bak; 6 rows\n"
+            "puts them back.");
 
         list_addItemWithInfoNote(
-            &_menu_game_lists,
+            &_menu_game_lists_layout,
             (ListItem){
-                .label = "Font override",
+                .label = "Fixed favorite star",
+                .item_type = TOGGLE,
+                .value = gamelists_value_fixed_favorite_position(),
+                .action = gamelists_action_fixed_favorite_position},
+            "Keep the favorite star in a fixed place.\n"
+            "Off: the star follows the title.");
+
+        list_addItemWithInfoNote(
+            &_menu_game_lists_layout,
+            (ListItem){
+                .label = "Font size",
                 .item_type = MULTIVALUE,
                 .value_max = GAMELISTS_FONT_MAX - GAMELISTS_FONT_MIN + 1,
                 .value = gamelists_value_font(),
@@ -276,119 +328,7 @@ void menu_gameLists(void *_)
             "Theme default uses the theme's size.");
 
         list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Title scroll delay",
-                .item_type = MULTIVALUE,
-                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_scroll_delays) - 1,
-                .value = gamelists_value_scroll_delay(),
-                .value_formatter = gamelists_formatter_scroll_delay,
-                .action = gamelists_action_scroll_delay},
-            "Wait before a selected long title starts\n"
-            "scrolling. Off stops title scrolling.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Title scroll speed",
-                .item_type = MULTIVALUE,
-                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_scroll_speeds) - 1,
-                .value = gamelists_value_scroll_speed(),
-                .value_formatter = gamelists_formatter_scroll_speed,
-                .action = gamelists_action_scroll_speed},
-            "How fast long titles scroll, in pixels\n"
-            "per second.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Title scroll style",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"Rolling", "Bounce"},
-                .value = gamelists_scroll_style() == GAMELISTS_SCROLL_BOUNCE,
-                .action = gamelists_action_scroll_style},
-            "Rolling: a long title goes round and\n"
-            "starts again. Bounce: it goes to its end\n"
-            "and back. Bounce needs Open MainUI 1.1.0.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Video preview",
-                .item_type = MULTIVALUE,
-                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_video_delays) - 1,
-                .value = gamelists_value_video_preview(),
-                .value_formatter = gamelists_formatter_video_preview,
-                .action = gamelists_action_video_preview},
-            "Play the selected game's video in the\n"
-            "list (media/videos), after this wait.\n"
-            "Needs Open MainUI 1.1.0.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Video preview size",
-                .item_type = MULTIVALUE,
-                .value_max = 1,
-                .value_labels = {"Cover", "Full screen"},
-                .value = gamelists_video_size() == GAMELISTS_VIDEO_FULLSCREEN,
-                .action = gamelists_action_video_size},
-            "Cover: the video plays where the cover\n"
-            "is. Full screen: over the whole screen.\n"
-            "Needs Open MainUI 1.1.0.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Game info auto scroll",
-                .item_type = MULTIVALUE,
-                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_info_scroll_delays) - 1,
-                .value = gamelists_value_info_scroll_delay(),
-                .value_formatter = gamelists_formatter_info_scroll_delay,
-                .action = gamelists_action_info_scroll_delay},
-            "Scroll a long description in Game Info\n"
-            "by itself, after this wait. L2/R2 pause it.\n"
-            "Needs Open MainUI 1.1.0.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Game info scroll speed",
-                .item_type = MULTIVALUE,
-                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_info_scroll_speeds) - 1,
-                .value = gamelists_value_info_scroll_speed(),
-                .value_formatter = gamelists_formatter_info_scroll_speed,
-                .action = gamelists_action_info_scroll_speed},
-            "How fast the Game Info description\n"
-            "scrolls, in pixels per second.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Repeat delay",
-                .item_type = MULTIVALUE,
-                .value_max = 38,
-                .value = gamelists_value_repeat_delay(),
-                .value_formatter = gamelists_formatter_repeat_delay,
-                .action = gamelists_action_repeat_delay},
-            "Wait before a held button starts to\n"
-            "repeat, in all MainUI screens.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Repeat interval",
-                .item_type = MULTIVALUE,
-                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_repeat_intervals) - 1,
-                .value = gamelists_value_repeat_interval(),
-                .value_formatter = gamelists_formatter_repeat_interval,
-                .action = gamelists_action_repeat_interval},
-            "Time between repeats while a button\n"
-            "is held, in all MainUI screens.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
+            &_menu_game_lists_layout,
             (ListItem){
                 .label = "Sorting",
                 .item_type = MULTIVALUE,
@@ -398,19 +338,130 @@ void menu_gameLists(void *_)
                 .action = gamelists_action_sort},
             "Case-sensitive puts names that start\n"
             "with a capital letter first.");
-
-        list_addItemWithInfoNote(
-            &_menu_game_lists,
-            (ListItem){
-                .label = "Fixed favorite position",
-                .item_type = TOGGLE,
-                .value = gamelists_value_fixed_favorite_position(),
-                .action = gamelists_action_fixed_favorite_position},
-            "Keep the favorite star in a fixed place.\n"
-            "Off: the star follows the title.");
     }
+    menu_stack[++menu_level] = &_menu_game_lists_layout;
+    header_changed = true;
+}
 
-    menu_stack[++menu_level] = &_menu_game_lists;
+void menu_gameListsScrolling(void *_)
+{
+    (void)_;
+    if (!_menu_game_lists_scrolling._created) {
+        _menu_game_lists_scrolling = list_createWithTitle(5, LIST_SMALL, "Game lists: scrolling");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_scrolling,
+            (ListItem){
+                .label = "Long names: start after",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_scroll_delays) - 1,
+                .value = gamelists_value_scroll_delay(),
+                .value_formatter = gamelists_formatter_scroll_delay,
+                .action = gamelists_action_scroll_delay},
+            "Wait before a selected long title starts\n"
+            "scrolling. Off stops title scrolling.");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_scrolling,
+            (ListItem){
+                .label = "Long names: style",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"Rolling (default)", "Bounce"},
+                .value = gamelists_scroll_style() == GAMELISTS_SCROLL_BOUNCE,
+                .action = gamelists_action_scroll_style},
+            "Rolling: a long title goes round and\n"
+            "starts again. Bounce: it goes to its end\n"
+            "and back.");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_scrolling,
+            (ListItem){
+                .label = "Long names: speed",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_scroll_speeds) - 1,
+                .value = gamelists_value_scroll_speed(),
+                .value_formatter = gamelists_formatter_scroll_speed,
+                .action = gamelists_action_scroll_speed},
+            "How fast long titles scroll, in pixels\n"
+            "per second.");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_scrolling,
+            (ListItem){
+                .label = "Held button: delay",
+                .item_type = MULTIVALUE,
+                .value_max = 38,
+                .value = gamelists_value_repeat_delay(),
+                .value_formatter = gamelists_formatter_repeat_delay,
+                .action = gamelists_action_repeat_delay},
+            "Wait before a held button starts to\n"
+            "repeat, in all MainUI screens.");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_scrolling,
+            (ListItem){
+                .label = "Held button: repeat",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_repeat_intervals) - 1,
+                .value = gamelists_value_repeat_interval(),
+                .value_formatter = gamelists_formatter_repeat_interval,
+                .action = gamelists_action_repeat_interval},
+            "Time between repeats while a button\n"
+            "is held, in all MainUI screens.");
+        gamelists_update_list(&_menu_game_lists_scrolling);
+    }
+    menu_stack[++menu_level] = &_menu_game_lists_scrolling;
+    header_changed = true;
+}
+
+void menu_gameListsPreviews(void *_)
+{
+    (void)_;
+    if (!_menu_game_lists_previews._created) {
+        _menu_game_lists_previews = list_createWithTitle(4, LIST_SMALL, "Game lists: previews");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_previews,
+            (ListItem){
+                .label = "Video preview",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_video_delays) - 1,
+                .value = gamelists_value_video_preview(),
+                .value_formatter = gamelists_formatter_video_preview,
+                .action = gamelists_action_video_preview},
+            "Play the selected game's video in the\n"
+            "list (media/videos), after this wait.");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_previews,
+            (ListItem){
+                .label = "Video preview size",
+                .item_type = MULTIVALUE,
+                .value_max = 1,
+                .value_labels = {"Cover", "Full screen"},
+                .value = gamelists_video_size() == GAMELISTS_VIDEO_FULLSCREEN,
+                .action = gamelists_action_video_size},
+            "Cover: the video plays where the cover\n"
+            "is. Full screen: over the whole screen.");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_previews,
+            (ListItem){
+                .label = "Game Info text: auto scroll",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_info_scroll_delays) - 1,
+                .value = gamelists_value_info_scroll_delay(),
+                .value_formatter = gamelists_formatter_info_scroll_delay,
+                .action = gamelists_action_info_scroll_delay},
+            "Scroll a long description in Game Info\n"
+            "by itself, after this wait. L2/R2 pause it.");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_previews,
+            (ListItem){
+                .label = "Game Info text: speed",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_info_scroll_speeds) - 1,
+                .value = gamelists_value_info_scroll_speed(),
+                .value_formatter = gamelists_formatter_info_scroll_speed,
+                .action = gamelists_action_info_scroll_speed},
+            "How fast the Game Info description\n"
+            "scrolls, in pixels per second.");
+        gamelists_update_list(&_menu_game_lists_previews);
+    }
+    menu_stack[++menu_level] = &_menu_game_lists_previews;
     header_changed = true;
 }
 

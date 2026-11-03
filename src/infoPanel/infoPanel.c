@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
     }
     else if (is_persistent) {
         // --romscreen without a message: the screenshot alone, full screen
-        // (Tweaks > Appearance > Loading/saving screen: Full screen).
+        // (Tweaks > Look and feel > Loading/saving screen: Full screen).
         if (show_romscreen) {
             SDL_Surface *romscreen = NULL;
             SDL_FillRect(screen, NULL, 0);

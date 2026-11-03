@@ -27,6 +27,12 @@ device_has_networking() {
     esac
 }
 
+# Tweaks > Game lists > List menus > GLO (game options): an entry Off writes
+# config/.hideGlo<name> and the entry is left out.
+glo_shown() {
+    [ ! -f "$sysdir/config/.hideGlo$1" ]
+}
+
 device_model=$(cat /tmp/deviceModel)
 has_networking=$(device_has_networking "$device_model")
 
@@ -175,7 +181,7 @@ main() {
                 add_reset_core=1
             fi
 
-            add_menu_option reset_game "Reset game" "Starts the game without\nloading the auto save state"
+            glo_shown Reset && add_menu_option reset_game "Reset game" "Starts the game without\nloading the auto save state"
         fi
 
         romdirname=$(echo "$rompath" | sed "s/^.*Roms\///g" | cut -d "/" -f1)
@@ -185,13 +191,15 @@ main() {
         log "romdirname: $romdirname"
         log "manpath: $manpath"
 
-        if [ -f "$manpath" ]; then
+        if [ -f "$manpath" ] && glo_shown Manual; then
             add_menu_option open_manual "Game manual" "Opens the manual for this game"
         fi
 
-        add_menu_option change_core "$game_core_label" "Change the RetroArch core\nused to run this game"
+        if glo_shown Core; then
+            add_menu_option change_core "$game_core_label" "Change the RetroArch core\nused to run this game"
+        fi
 
-        if [ $add_reset_core -eq 1 ]; then
+        if [ $add_reset_core -eq 1 ] && glo_shown Core; then
             add_menu_option reset_core "Restore default core" "Restores the default core\nfor this rom"
         fi
 
@@ -206,7 +214,7 @@ main() {
     # Hide game: Games and Expert list the files of a folder, so the game is
     # moved into .hidden beside it (names starting with a dot are not listed).
     if [ $current_tab -eq $TAB_GAMES ] || [ $current_tab -eq $TAB_EXPERT ]; then
-        if [ $skip_game_options -eq 0 ]; then
+        if [ $skip_game_options -eq 0 ] && glo_shown Hide; then
             add_menu_option hide_game "Hide game" "Hides this game from the list.\nIts saves are kept: bring it back\nfrom Hidden games."
         fi
         if [ -n "$rompath" ]; then
@@ -218,17 +226,7 @@ main() {
     fi
 
     if [ $current_tab -eq $TAB_GAMES ]; then
-        if [ -f "$emupath/active_filter" ] && ! filter_is_applied; then
-            log "rom list cache rebuilt since the filter was set: dropping active_filter"
-            rm -f "$emupath/active_filter"
-        fi
-        if [ -f "$emupath/active_filter" ]; then
-            filter_kw=$(cat "$emupath/active_filter")
-            add_menu_option clear_filter "Clear filter" "Clear the current rom list filter"
-            add_menu_option filter_roms "Current filter: $filter_kw" "Change the rom list filter"
-        else
-            add_menu_option filter_roms "Filter list" "Filter the rom list by keyword"
-        fi
+        add_filter_options
     fi
 
     # No "Refresh list" here: Open MainUI's Select menu has "Refresh roms" for
@@ -248,6 +246,13 @@ main() {
 
     if [ $current_tab -eq $TAB_GAMES ] || [ $current_tab -eq $TAB_EXPERT ]; then
         add_script_files "$emupath/romscripts"
+    fi
+
+    # Nothing to list (entries hidden in Tweaks > List menus, or none that
+    # applies): one entry that says where hidden ones come back, instead of
+    # an empty menu.
+    if [ -z "$menu_options" ]; then
+        add_menu_option : "Nothing to show" "Hidden entries come back in Tweaks >\nGame lists > List menus > GLO"
     fi
 
     log "\n\n=================================================================================================="
@@ -318,6 +323,12 @@ add_script_files() {
             if [ ! -f "$entry" ]; then
                 continue
             fi
+
+            # Netplay and Scraper can be hidden in Tweaks (List menus).
+            case "$(basename "$entry" .sh)" in
+                Netplay) glo_shown Netplay || continue ;;
+                Scraper) glo_shown Scraper || continue ;;
+            esac
 
             require_networking=$([ $(get_info_value "$(cat "$entry")" require_networking) -eq 1 ] && echo 1 || echo 0)
             log "$entry"
@@ -762,6 +773,26 @@ unhide_game() { # .hidden/<rom name> folder
     rmdir "$(dirname "$1")" 2> /dev/null
     sync
     drop_rom_list_cache
+}
+
+# Filter list, or Clear filter and Current filter while one is set. Tweaks >
+# List menus > GLO > "Filter list" Off (config/.hideGloFilter)
+# hides Filter list and Current filter; Clear filter stays while a filter is
+# set, so a list filtered before is never stuck that way.
+add_filter_options() {
+    if [ -f "$emupath/active_filter" ] && ! filter_is_applied; then
+        log "rom list cache rebuilt since the filter was set: dropping active_filter"
+        rm -f "$emupath/active_filter"
+    fi
+    if [ -f "$emupath/active_filter" ]; then
+        filter_kw=$(cat "$emupath/active_filter")
+        add_menu_option clear_filter "Clear filter" "Clear the current rom list filter"
+        if glo_shown Filter; then
+            add_menu_option filter_roms "Current filter: $filter_kw" "Change the rom list filter"
+        fi
+    elif glo_shown Filter; then
+        add_menu_option filter_roms "Filter list" "Filter the rom list by keyword"
+    fi
 }
 
 clear_filter() {
