@@ -4,7 +4,7 @@
 
 <h3 align="center">Like Onion but faster, safer and smarter - with more features and cores!</h3>
 
-**Supported devices: Miyoo Mini, Mini v4, Mini Plus and Mini Flip.**
+<p align="center"><b>Supported devices: Miyoo Mini, Mini v4, Mini Plus and Mini Flip</b></p>
 
 RedOnion (formerly OnionPlus) is an independent build of [Onion](https://github.com/OnionUI/Onion) for the Miyoo Mini family. Same menus, same themes, same emulators, same folders: everything you know from Onion is still there, with fixes, improvements and new features on top.
 
@@ -28,7 +28,7 @@ RedOnion started as my personal build to test fixes on real devices, and has bec
 - 📡 **Updates over Wi-Fi.** A stable channel for everyone and a beta channel for early testers, straight from the device.
 - 🧪 **Tested on every change.** More than 1,600 automated tests run on each update before it ships.
 
-## Switching from Onion
+<h2 align="center">Switching from Onion</h2>
 
 Your games, saves and BIOS files carry over. RedOnion keeps Onion's file layout.
 
@@ -37,7 +37,7 @@ Your games, saves and BIOS files carry over. RedOnion keeps Onion's file layout.
 3. For the cleanest start, format the card, copy the release onto it, then copy back `Roms`, `Saves`, `BIOS` and `Screenshots`.
 4. Insert the card and power on. Later updates arrive through the OTA app.
 
-## Disclaimer
+<h2 align="center">Disclaimer</h2>
 
 - **Use at your own risk.** RedOnion is provided "as is", without any warranty, as stated in sections 15 and 16 of the [GPL-3.0 license](LICENSE). The authors and contributors are not responsible for any damage to your device, SD card, battery or data, or for any other loss, however it happens.
 - **Overclocking, undervolting and similar settings** (CPU clock changes, LCD undervolt, display or power tweaks, custom cores and scripts) run the hardware outside its default limits. They can cause instability, data corruption, overheating, faster battery wear or permanent damage. If you change them, you do so entirely at your own risk.
@@ -47,14 +47,10 @@ Your games, saves and BIOS files carry over. RedOnion keeps Onion's file layout.
 - **Found a bug?** [Open an issue](https://github.com/Amiga500/Onion/issues) with your model, version and steps to reproduce.
 - **Want the details?** The [technical reference](docs/TECHNICAL.md) lists every change, measurement and test.
 
-## Thanks
+<h2 align="center">Thanks</h2>
 
-Thanks to the Discord team: [@robcodedev](https://github.com/robcodedev) for Open MainUI, zazzagone, Veuks and lordelan.
-
-Thanks to [@dredvm](https://github.com/dredvm) for the RedOnion logo, the Silky RedOnion theme and the name of the project.
-
-Thanks to [KyleBing](https://github.com/KyleBing/retro-game-console-icons) for the Retro game console icons, the console pictures of the carousel and the list (CC BY 4.0).
-
-Thanks to the [Onion team](https://github.com/OnionUI/Onion): without their work this project would never have been born. The menus, emulators, themes and almost all of the code are theirs.
-
-And thanks to the whole community: everyone who supports this project, reports bugs, opens pull requests and tests RedOnion in depth.
+- **The Discord team:** [@robcodedev](https://github.com/robcodedev) for Open MainUI, zazzagone, Veuks and lordelan.
+- **[@dredvm](https://github.com/dredvm)** for the RedOnion logo, the Silky RedOnion theme and the name of the project.
+- **[KyleBing](https://github.com/KyleBing/retro-game-console-icons)** for the Retro game console icons, the console pictures of the carousel and the list (CC BY 4.0).
+- **The [Onion team](https://github.com/OnionUI/Onion):** without their work this project would never have been born. The menus, emulators, themes and almost all of the code are theirs.
+- **The whole community:** everyone who supports this project, reports bugs, opens pull requests and tests RedOnion in depth.
