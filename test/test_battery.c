@@ -17,7 +17,10 @@
 /* Production code: the charging-state cache helpers and the axp_test
  * percentage filter from system/battery.h (getBatPercMMP in batmon.c uses
  * the filter; axp_test itself cannot run on the host). */
+#define BATTERY_PERCBAT_PATH "/tmp/onion_test_percBat"
 #include "system/battery.h"
+#include <stdio.h>
+#include <string.h>
 
 static long compute_elapsed_ms(struct timespec *cache_ts, struct timespec *now)
 {
@@ -27,6 +30,51 @@ static long compute_elapsed_ms(struct timespec *cache_ts, struct timespec *now)
 static bool cache_is_valid(struct timespec *cache_ts, struct timespec *now)
 {
     return battery_cacheFresh(cache_ts, now);
+}
+
+/* ---- Tests: the level shown while charging ---- */
+
+static int level_of(const char *text)
+{
+    if (text == NULL) {
+        remove(BATTERY_PERCBAT_PATH);
+    }
+    else {
+        FILE *fp = fopen(BATTERY_PERCBAT_PATH, "w");
+        fputs(text, fp);
+        fclose(fp);
+    }
+    return battery_chargingLevel();
+}
+
+/* Mini Plus and Flip: batmon writes the AXP level while charging. */
+TEST(charging_level_from_the_gauge) {
+    ASSERT_EQ(level_of("57"), 57);
+    ASSERT_EQ(level_of("0"), 0);
+    ASSERT_EQ(level_of("100\n"), 100);
+}
+
+/* Mini: 500 while charging, so only the charging icon shows. */
+TEST(charging_level_unknown) {
+    ASSERT_EQ(level_of("500"), -1);
+    ASSERT_EQ(level_of(""), -1);
+    ASSERT_EQ(level_of("abc"), -1);
+    ASSERT_EQ(level_of("-3"), -1);
+    ASSERT_EQ(level_of(NULL), -1);
+}
+
+/* The drawing keeps the charging icon and shows that level as its text. */
+TEST(charging_icon_shows_the_level) {
+    FILE *fp = fopen("../src/common/theme/render/battery.h", "r");
+    ASSERT_TRUE(fp != NULL);
+    static char src[1 << 16];
+    size_t n = fread(src, 1, sizeof(src) - 1, fp);
+    fclose(fp);
+    src[n] = '\0';
+    ASSERT_TRUE(strstr(src, "shown = battery_chargingLevel();") != NULL);
+    ASSERT_TRUE(strstr(src, "sprintf(buffer, \"%d%%\", shown);") != NULL);
+    ASSERT_TRUE(strstr(src, "if (percentage == 500)\n        return BATTERY_CHARGING;") != NULL);
+    remove(BATTERY_PERCBAT_PATH);
 }
 
 /* ---- Tests: elapsed_ms calculation ---- */
@@ -217,6 +265,9 @@ int main(void)
     RUN_TEST(axp_percent_rejects_negative);
     RUN_TEST(axp_percent_rejects_garbage);
     RUN_TEST(axp_percent_first_failure_is_unpublished);
+    RUN_TEST(charging_level_from_the_gauge);
+    RUN_TEST(charging_level_unknown);
+    RUN_TEST(charging_icon_shows_the_level);
 
     TEST_REPORT();
     return test_failures;
