@@ -14,6 +14,19 @@ export LD_LIBRARY_PATH="/lib:/config/lib:/customer/lib:$sysdir/lib"
 export PATH="$sysdir/bin:$PATH"
 unset LD_PRELOAD
 
+# Reboot through the clean shutdown (bin/shutdown -r): it stops what uses the
+# SD card (this script, its updater, batmon), turns swap off and unmounts the
+# card before rebooting. A plain reboot right after writing the whole update
+# left its FAT "dirty", so the SD card check notice showed after every update.
+# Plain reboot when the script is missing (an installation that failed early).
+installer_reboot() {
+    sync
+    if [ -x /mnt/SDCARD/.tmp_update/bin/shutdown ]; then
+        /mnt/SDCARD/.tmp_update/bin/shutdown -r
+    fi
+    reboot
+}
+
 MODEL_MM=283
 MODEL_MMF=285
 MODEL_MMP=354
@@ -742,8 +755,7 @@ unzip_progress() {
     if [ "$extraction_status" -ne 0 ]; then
         touch $sysdir/.installFailed
         echo ":: Installation failed!"
-        sync
-        reboot
+        installer_reboot
         sleep 10
         exit 0
     else
@@ -759,6 +771,5 @@ free_mma() {
 }
 
 main
-sync
-reboot
+installer_reboot
 sleep 10

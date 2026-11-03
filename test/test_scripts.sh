@@ -1320,6 +1320,17 @@ check "no plain reboot left in the OTA" sh -c "! grep -qE '^[[:space:]]*reboot([
 check "shutdown -r reboots" grep -q 'if \[ "\$1" = "-r" \]; then' "$ROOT/static/build/.tmp_update/bin/shutdown"
 end
 
+begin installer_reboots_with_the_clean_shutdown
+INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
+eval "$(extract_fn "$INST" installer_reboot)"
+check "the installer's reboot goes through bin/shutdown -r" grep -qF '/mnt/SDCARD/.tmp_update/bin/shutdown -r' "$INST"
+check "with a plain reboot only if the script is missing" sh -c "sed -n '/^installer_reboot() {/,/^}/p' '$INST' | grep -q '^    reboot$'"
+check "used at the end of the installation" sh -c "tail -n 5 '$INST' | grep -qx 'installer_reboot'"
+check "and when the extraction fails" sh -c "grep -B2 'installer_reboot' '$INST' | grep -q 'Installation failed'"
+check "no other plain reboot but the firmware check's (no shutdown script left there)" test "$(grep -cE '^[[:space:]]+reboot$' "$INST")" -eq 2
+check "the shutdown script stops the installer's updater" grep -q 'killall -9 updater' "$ROOT/static/build/.tmp_update/bin/shutdown"
+end
+
 # ---- migration 00021: Apps sorted by name once, as before Open MainUI 1.0.6 ----
 
 begin migration_sorts_apps_by_name
