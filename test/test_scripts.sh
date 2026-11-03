@@ -1756,6 +1756,40 @@ CONSOLE_VIEW_CONFIG="$TMP/console-view.json" CONSOLE_PICTURES_DEST="$TMP/none" s
 check "no pictures: nothing written" test ! -e "$TMP/console-view.json"
 end
 
+# ---- migration 00027: console pictures trimmed of their padding ----
+
+begin console_pictures_replaced_when_unchanged
+RES="$ROOT/static/build/.tmp_update/res/consoles"
+MIG="$ROOT/static/build/.tmp_update/script/migration/00027_console_pictures_trimmed.sh"
+OLDSUMS="$ROOT/static/build/.tmp_update/script/migration/data/00027_old_console_pictures.md5"
+CP="$ROOT/static/build/.tmp_update/script/console_pictures.sh"
+check "the old checksums are listed (one per line)" sh -c "[ \$(grep -cxE '[0-9a-f]{32}' '$OLDSUMS') -eq \$(wc -l < '$OLDSUMS') ] && [ \$(wc -l < '$OLDSUMS') -ge 70 ]"
+same=
+for f in "$RES"/*.png; do
+    grep -qx "$(md5sum "$f" | cut -d ' ' -f 1)" "$OLDSUMS" && same="$same $(basename "$f")"
+done
+check "no new picture is in the old list ($same)" test -z "$same"
+mkdir -p "$TMP/consoles"
+echo old-gba > "$TMP/consoles/gba.png"
+echo old-psx > "$TMP/consoles/psx.png"
+echo mine > "$TMP/consoles/sfc.png"
+cp "$RES/gb.png" "$TMP/consoles/gb.png"
+printf '%s\n%s\n' "$(md5sum "$TMP/consoles/gba.png" | cut -d ' ' -f 1)" "$(md5sum "$TMP/consoles/psx.png" | cut -d ' ' -f 1)" > "$TMP/old.md5"
+run() { CONSOLE_PICTURES_DEST="$TMP/consoles" CONSOLE_PICTURES_OLD_MD5="$TMP/old.md5" CONSOLE_PICTURES_SRC="$RES" CONSOLE_PICTURES_SCRIPT="$CP" sh "$MIG"; }
+run
+check "runs fine" test $? -eq 0
+check "an old picture is replaced by the new one" cmp -s "$RES/gba.png" "$TMP/consoles/gba.png"
+check "also under another folder's name (psx = ps)" cmp -s "$RES/ps.png" "$TMP/consoles/psx.png"
+check "a picture changed by hand stays" test "$(cat "$TMP/consoles/sfc.png")" = mine
+check "a new picture already there stays" cmp -s "$RES/gb.png" "$TMP/consoles/gb.png"
+run
+check "running it again changes nothing" test "$(cat "$TMP/consoles/sfc.png")" = mine
+CONSOLE_PICTURES_DEST="$TMP/none" CONSOLE_PICTURES_OLD_MD5="$TMP/old.md5" sh "$MIG"
+check "no pictures folder: nothing to do" test ! -e "$TMP/none"
+check "the installer copies the pictures before the migrations" sh -c "grep -n 'sh \$sysdir/script/console_pictures.sh' '$ROOT/static/dist/miyoo/app/.tmp_update/install.sh' | head -1 | cut -d: -f1 | { read a; b=\$(grep -n '^    run_migration_scripts' '$ROOT/static/dist/miyoo/app/.tmp_update/install.sh' | head -1 | cut -d: -f1); [ \$a -lt \$b ]; }"
+unset -f run
+end
+
 # ---- migration 00022: RetroArch menu Border Filler OFF ----
 
 begin migration_disables_rgui_border_filler
