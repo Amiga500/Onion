@@ -1620,6 +1620,11 @@ check "Emu PSX gets the PlayStation picture" cmp -s "$RES/ps.png" "$TMP/consoles
 check "Emu ATARI gets the 2600 picture" cmp -s "$RES/atari2600.png" "$TMP/consoles/atari.png"
 check "RApp snes9x2005 gets the SNES picture" cmp -s "$RES/sfc.png" "$TMP/consoles/snes9x2005.png"
 check "the licence goes with them" grep -q "CC BY 4.0" "$TMP/consoles/LICENSE-console-icons.txt"
+check "Search (Emu/SEARCH, made by the Search app) has its own picture" cmp -s "$RES/search.png" "$TMP/consoles/search.png"
+check "and it is a 500x370 PNG like the others" python3 -c "
+import struct,sys
+d=open(sys.argv[1],'rb').read(24); assert d[:8]==b'\\x89PNG\\r\\n\\x1a\\n' and struct.unpack('>II',d[16:24])==(500,370)
+" "$RES/search.png"
 missing=
 while read -r name icon _; do
     case "$name" in '' | '#'*) continue ;; esac
