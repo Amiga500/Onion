@@ -13,15 +13,8 @@
 #include "./display.h"
 #include "./settings.h"
 
-typedef enum system_state_e {
-    MODE_UNKNOWN,
-    MODE_MAIN_UI,
-    MODE_SWITCHER,
-    MODE_GAME,
-    MODE_APPS,
-    MODE_ADVMENU,
-    MODE_DRASTIC
-} SystemState;
+#include "./state_decide.h"
+
 static SystemState system_state = MODE_UNKNOWN;
 static pid_t system_state_pid = 0;
 
@@ -93,16 +86,9 @@ void system_state_update(void)
     // Same decision order as the check_is*() helpers above, but /proc is
     // scanned once for all candidates instead of once per candidate
     // (up to 5 full scans before), and cmd_to_run.sh is read at most once.
-    enum { P_SWITCHER,
-           P_RETROARCH,
-           P_RA32,
-           P_MAINUI,
-           P_ADVMENU,
-           P_DRASTIC,
-           P_COUNT };
-    static const char *const names[P_COUNT] = {
-        "gameSwitcher", "retroarch", "ra32", "MainUI", "advmenu", "drastic"};
-    pid_t pids[P_COUNT];
+    static const char *const names[STATE_P_COUNT] = {
+        "gameSwitcher", "retroarch", "ra32", "MainUI", "advmenu", "drastic", "green"};
+    pid_t pids[STATE_P_COUNT];
 
     bool switcher_flag = exists("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
     bool has_cmd = exists(CMD_TO_RUN_PATH);
@@ -118,30 +104,11 @@ void system_state_update(void)
         }
     }
 
-    process_searchpids(names, pids, P_COUNT);
-
-    if (switcher_flag && pids[P_SWITCHER]) {
-        system_state = MODE_SWITCHER;
-        system_state_pid = pids[P_SWITCHER];
-    }
-    else if (ra_cmd && (pids[P_RETROARCH] || pids[P_RA32])) {
-        system_state = MODE_GAME;
-        system_state_pid = pids[P_RETROARCH] ? pids[P_RETROARCH] : pids[P_RA32];
-    }
-    else if (!has_cmd && pids[P_MAINUI]) {
-        system_state = MODE_MAIN_UI;
-        system_state_pid = pids[P_MAINUI];
-    }
-    else if (!has_cmd && pids[P_ADVMENU]) {
-        system_state = MODE_ADVMENU;
-        system_state_pid = pids[P_ADVMENU];
-    }
-    else if (has_cmd && pids[P_DRASTIC]) {
-        system_state = MODE_DRASTIC;
-        system_state_pid = pids[P_DRASTIC];
-    }
-    else
-        system_state = MODE_APPS;
+    process_searchpids(names, pids, STATE_P_COUNT);
+    pid_t pid = 0;
+    system_state = system_state_decide(switcher_flag, has_cmd, ra_cmd, pids, &pid);
+    if (pid)
+        system_state_pid = pid;
 
 #ifdef LOG_DEBUG
     switch (system_state) {
