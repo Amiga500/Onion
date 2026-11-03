@@ -1402,9 +1402,9 @@ TEST(game_info_and_saved_games_menus)
         ASSERT_STREQ(_menu_game_info_menu.items[i].label, info[i]);
 
     const char *saved[] = {"LEFT opens Saved Games", "Show the Auto Save", "Enlarge small pictures",
-                           "Console screen shape", "Playing an older save"};
-    ASSERT_EQ(_menu_saved_games.item_count, 5);
-    for (int i = 0; i < 5; i++)
+                           "Console screen shape", "Playing an older save", "Layout"};
+    ASSERT_EQ(_menu_saved_games.item_count, 6);
+    for (int i = 0; i < 6; i++)
         ASSERT_STREQ(_menu_saved_games.items[i].label, saved[i]);
 
     /* Their switches still write the same keys. */
@@ -1415,6 +1415,14 @@ TEST(game_info_and_saved_games_menus)
     char text[256];
     read_file(GAMEMENU_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"left_shortcut\":\ttrue") != NULL);
+
+    /* Layout (rc17): Overlay is the default, Framed is written. */
+    ListItem *layout = menu_item(&_menu_saved_games, "Layout");
+    ASSERT_EQ(layout->value, 0);
+    ASSERT_STREQ(layout->value_labels[0], "Overlay (default)");
+    layout->value = 1;
+    layout->action(layout);
+    ASSERT_EQ(gamemenu_layout(), 1);
 
     list_free(&_menu_game_menus);
     list_free(&_menu_game_info_menu);
@@ -1650,6 +1658,36 @@ TEST(game_menus_switches)
     ASSERT_FALSE(gamemenu_store_switch(9, true));
 }
 
+TEST(game_menus_saved_games_layout)
+{
+    reset_dir();
+    /* rc17: no key is Overlay; both choices are written out. */
+    ASSERT_EQ(gamemenu_layout(), 0);
+    ASSERT_TRUE(gamemenu_store_layout(1));
+    char text[512];
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"layout\":\t\"framed\"") != NULL);
+    ASSERT_EQ(gamemenu_layout(), 1);
+    ASSERT_TRUE(gamemenu_store_resume_mode(2));
+    ASSERT_TRUE(gamemenu_store_layout(0));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"layout\":\t\"overlay\"") != NULL);
+    ASSERT_TRUE(strstr(text, "\"resume_mode\":\t\"swap\"") != NULL);
+    ASSERT_EQ(gamemenu_layout(), 0);
+    /* An unknown value or a wrong type shows Overlay; bad indexes are refused. */
+    gamelists_write_text(GM_PATH, "{\"saved_games\": {\"layout\": \"tiles\"}}");
+    ASSERT_EQ(gamemenu_layout(), 0);
+    gamelists_write_text(GM_PATH, "{\"saved_games\": {\"layout\": 1}}");
+    ASSERT_EQ(gamemenu_layout(), 0);
+    ASSERT_FALSE(gamemenu_store_layout(2));
+    ASSERT_FALSE(gamemenu_store_layout(-1));
+    /* A saved_games that is not an object is left alone. */
+    gamelists_write_text(GM_PATH, "{\"saved_games\": 5}");
+    ASSERT_FALSE(gamemenu_store_layout(1));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_STREQ(text, "{\"saved_games\": 5}");
+}
+
 TEST(game_menus_damaged_file_left_alone)
 {
     reset_dir();
@@ -1764,6 +1802,7 @@ int main(void)
     RUN_TEST(game_menus_game_info_menu);
     RUN_TEST(game_menus_resume_mode);
     RUN_TEST(game_menus_switches);
+    RUN_TEST(game_menus_saved_games_layout);
     RUN_TEST(game_menus_damaged_file_left_alone);
     RUN_TEST(console_view_wrap_sets_carousel_and_grid);
     RUN_TEST(console_view_defaults_remove_only_their_key);

@@ -1862,6 +1862,67 @@ static void gamemenu_action_resume(void *pt)
         item->value = gamemenu_resume_mode();
 }
 
+/* Saved Games layout (rc17): game-menu.json "saved_games": {"layout":
+ * "overlay" | "framed"}. Overlay is rc17's default (a missing key); framed may
+ * become the default once its downscaling is filtered, so both choices are
+ * written rather than removing the key at the default. */
+#define GAMEMENU_LAYOUT_COUNT 2
+static const char *const gamemenu_layouts[GAMEMENU_LAYOUT_COUNT] = {"overlay", "framed"};
+
+static int gamemenu_layout(void)
+{
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    int layout = 0;
+    if (valid && root != NULL) {
+        const cJSON *sg = cJSON_GetObjectItemCaseSensitive(root, "saved_games");
+        const cJSON *v = cJSON_IsObject(sg) ? cJSON_GetObjectItemCaseSensitive(sg, "layout") : NULL;
+        if (cJSON_IsString(v) && strcmp(v->valuestring, gamemenu_layouts[1]) == 0)
+            layout = 1;
+    }
+    cJSON_Delete(root);
+    return layout;
+}
+
+static bool gamemenu_store_layout(int layout)
+{
+    if (layout < 0 || layout >= GAMEMENU_LAYOUT_COUNT)
+        return false;
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    if (!valid || root == NULL) {
+        cJSON_Delete(root);
+        return false;
+    }
+    cJSON *sg = cJSON_GetObjectItemCaseSensitive(root, "saved_games");
+    bool ok = sg == NULL || cJSON_IsObject(sg);
+    if (ok && sg == NULL)
+        sg = cJSON_AddObjectToObject(root, "saved_games");
+    ok = ok && sg != NULL;
+    if (ok) {
+        cJSON *value = cJSON_CreateString(gamemenu_layouts[layout]);
+        ok = value != NULL &&
+             (cJSON_GetObjectItemCaseSensitive(sg, "layout") != NULL
+                  ? cJSON_ReplaceItemInObjectCaseSensitive(sg, "layout", value)
+                  : cJSON_AddItemToObject(sg, "layout", value));
+        if (!ok)
+            cJSON_Delete(value);
+    }
+    if (ok)
+        ok = mainmenu_write_root_file(GAMEMENU_CONFIG_PATH, root);
+    cJSON_Delete(root);
+    return ok;
+}
+
+static void gamemenu_action_layout(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!gamemenu_store_layout(item->value))
+        item->value = gamemenu_layout();
+}
+
 /* Viewer switches (rc14): booleans in game-menu.json sections "saved_games"
  * and "gallery". A value equal to Open MainUI's default removes the key (and
  * its object once empty), like the resume mode. */
@@ -2197,7 +2258,7 @@ void menu_savedGames(void *_)
 {
     (void)_;
     if (!_menu_saved_games._created) {
-        _menu_saved_games = list_createWithTitle(GAMEMENU_SWITCH_COUNT + 1, LIST_SMALL, "Saved Games");
+        _menu_saved_games = list_createWithTitle(GAMEMENU_SWITCH_COUNT + 2, LIST_SMALL, "Saved Games");
         for (int i = 0; i < GAMEMENU_SWITCH_COUNT; i++) {
             if (strcmp(gamemenu_switches[i].section, "saved_games") == 0)
                 gamemenu_add_switch(&_menu_saved_games, i);
@@ -2215,6 +2276,19 @@ void menu_savedGames(void *_)
             "Backup keeps the last auto save as\n"
             "Previous Session, Overwrite replaces it,\n"
             "Swap trades it with that save's slot.");
+        list_addItemWithInfoNote(
+            &_menu_saved_games,
+            (ListItem){
+                .label = "Layout",
+                .item_type = MULTIVALUE,
+                .value_max = GAMEMENU_LAYOUT_COUNT - 1,
+                .value_labels = {"Overlay (default)", "Framed"},
+                .value = gamemenu_layout(),
+                .action = gamemenu_action_layout},
+            "Overlay: the title bar over the save\n"
+            "picture. Framed: the picture in a\n"
+            "frame, apart from the title bar.\n"
+            "Needs Open MainUI 1.1.0 rc17.");
     }
     savedgames_update_enabled();
     menu_stack[++menu_level] = &_menu_saved_games;
