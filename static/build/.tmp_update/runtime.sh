@@ -185,6 +185,10 @@ main() {
     keymon &
     keymon_pid=$!
 
+    # A console folder renamed or copied by hand gets its console picture
+    # (in background: only missing ones are copied).
+    sh $sysdir/script/console_pictures.sh renamed &
+
     # Init
     rm /tmp/.offOrder 2> /dev/null
     HOME=/mnt/SDCARD/RetroArch/
