@@ -528,6 +528,9 @@ void resumeGame(int index)
             printf_debug("resume game: %s\n", LaunchCommand);
 
             temp_flag_set("force_auto_load_state", true);
+            // Tells runtime.sh this is the auto save itself (its GameSwitcher
+            // screenshot is right), unlike a Saved Games launch from MainUI.
+            temp_flag_set("resume_last_game", true);
 
             // Was a global sync(). Everything durable here is covered more
             // cheaply: the history move is an fsynced atomic rename (file

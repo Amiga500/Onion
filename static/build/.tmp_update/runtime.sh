@@ -507,6 +507,19 @@ launch_game() {
     read_file_to cmd $sysdir/cmd_to_run.sh
     read_file_to TZ_VALUE "$sysdir/config/.tz"
 
+    # Saved Games (Open MainUI) loads the chosen state through the auto
+    # slot: it leaves /tmp/force_auto_load_state on its way out. The
+    # GameSwitcher screenshot shows the auto save as it was, not that state.
+    # keymon's "Resume last game" from MainUI leaves the same flag but
+    # really loads the auto save, so it marks itself with resume_last_game.
+    launch_screen_shot=""
+    read_file_to _lg_prev /tmp/prev_state
+    if [ -f /tmp/force_auto_load_state ] && [ ! -f /tmp/resume_last_game ] &&
+        [ "$_lg_prev" = "mainui" ]; then
+        launch_screen_shot="no_screenshot"
+    fi
+    rm -f /tmp/resume_last_game
+
     is_game=0
     rompath=""
     romext=""
@@ -657,7 +670,7 @@ launch_game() {
             fi
 
             if [ $is_game -eq 1 ] && [ ! -f /tmp/new_res_available ]; then
-                show_launch_screen "LOADING"
+                show_launch_screen "LOADING" "$launch_screen_shot"
                 sync
             fi
 
@@ -1762,8 +1775,19 @@ start_networking() {
 # per Tweaks > Look and feel > Loading/saving screen: 0 the game screenshot
 # with a popup (as in Onion), 1 the screenshot alone, 2 black, 3 the message
 # on the theme's full-screen panel (no screenshot).
+# show_launch_screen MESSAGE [no_screenshot]
+# no_screenshot: the GameSwitcher screenshot is not the state being loaded
+# (Saved Games), so "Screenshot + message" shows the message only and
+# "Screenshot only" a black screen.
 show_launch_screen() {
-    case "$(cat "$sysdir/config/display/launchScreen" 2> /dev/null)" in
+    _ls_mode=$(cat "$sysdir/config/display/launchScreen" 2> /dev/null)
+    if [ "$2" = "no_screenshot" ]; then
+        case "$_ls_mode" in
+            1 | 2) _ls_mode=2 ;;
+            *) _ls_mode=3 ;;
+        esac
+    fi
+    case "$_ls_mode" in
         1)
             infoPanel --persistent --romscreen &
             touch /tmp/dismiss_info_panel

@@ -1484,6 +1484,37 @@ echo 3 > "$TMP/config/display/launchScreen"
 show_launch_screen SAVING; wait
 check "full popup: message without screenshot" grep -qx 'infoPanel --message SAVING --persistent' "$TMP/calls"
 check "full popup: dismissed like the popup" grep -qx 'touch /tmp/dismiss_info_panel' "$TMP/calls"
+# Saved Games: the GameSwitcher screenshot is not the state being loaded.
+rm -f "$TMP/calls"
+rm -f "$TMP/config/display/launchScreen"
+show_launch_screen LOADING no_screenshot; wait
+check "Saved Games, no setting: message without screenshot" test "$(grep -c infoPanel "$TMP/calls")-$(grep -c 'infoPanel --message LOADING --persistent$' "$TMP/calls")" = 1-1
+rm -f "$TMP/calls"
+echo 0 > "$TMP/config/display/launchScreen"
+show_launch_screen LOADING no_screenshot; wait
+check "Saved Games, screenshot + message: message only" grep -qx 'infoPanel --message LOADING --persistent' "$TMP/calls"
+rm -f "$TMP/calls"
+echo 1 > "$TMP/config/display/launchScreen"
+show_launch_screen LOADING no_screenshot; wait
+check "Saved Games, screenshot only: black screen" test "$(cat "$TMP/calls")" = "bootScreen clear"
+rm -f "$TMP/calls"
+echo 2 > "$TMP/config/display/launchScreen"
+show_launch_screen LOADING no_screenshot; wait
+check "Saved Games, black: still black" test "$(cat "$TMP/calls")" = "bootScreen clear"
+rm -f "$TMP/calls"
+echo 3 > "$TMP/config/display/launchScreen"
+show_launch_screen LOADING no_screenshot; wait
+check "Saved Games, message only: unchanged" grep -qx 'infoPanel --message LOADING --persistent' "$TMP/calls"
+rm -f "$TMP/calls"
+echo 0 > "$TMP/config/display/launchScreen"
+show_launch_screen LOADING ""; wait
+check "empty second argument: screenshot as before" grep -qx 'infoPanel --message LOADING --persistent --romscreen' "$TMP/calls"
+check "LOADING passes the Saved Games choice" grep -q 'show_launch_screen "LOADING" "$launch_screen_shot"' "$RUNTIME"
+check "SAVING keeps the screenshot" grep -qx '[[:space:]]*show_launch_screen "SAVING"' "$RUNTIME"
+check "Saved Games: flag from MainUI, not keymon's resume" grep -q '\[ -f /tmp/force_auto_load_state \] && \[ ! -f /tmp/resume_last_game \]' "$RUNTIME"
+check "Saved Games: read before the core override removes the flag" test \
+    "$(grep -n 'launch_screen_shot="no_screenshot"' "$RUNTIME" | cut -d: -f1)" -lt "$(grep -n 'override_game_core "$romcfgpath"' "$RUNTIME" | cut -d: -f1)"
+check "keymon's resume marks itself" grep -q 'temp_flag_set("resume_last_game", true)' "$ROOT/src/common/system/state.h"
 check "both screens use it" test "$(grep -c 'show_launch_screen "\(LOADING\|SAVING\)"' "$RUNTIME")" -eq 2
 check "no direct LOADING/SAVING infoPanel left" sh -c "! grep -q 'infoPanel --message \"\(LOADING\|SAVING\)\"' \"$RUNTIME\""
 unset -f infoPanel bootScreen touch show_launch_screen
