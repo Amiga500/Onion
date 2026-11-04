@@ -1416,10 +1416,10 @@ TEST(game_info_and_saved_games_menus)
     read_file(GAMEMENU_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"left_shortcut\":\ttrue") != NULL);
 
-    /* Layout (rc17): Overlay is the default, Framed is written. */
+    /* Layout (rc19): Framed is the default, Overlay is written. */
     ListItem *layout = menu_item(&_menu_saved_games, "Layout");
     ASSERT_EQ(layout->value, 0);
-    ASSERT_STREQ(layout->value_labels[0], "Overlay (default)");
+    ASSERT_STREQ(layout->value_labels[0], "Framed (default)");
     layout->value = 1;
     layout->action(layout);
     ASSERT_EQ(gamemenu_layout(), 1);
@@ -1661,20 +1661,21 @@ TEST(game_menus_switches)
 TEST(game_menus_saved_games_layout)
 {
     reset_dir();
-    /* rc17: no key is Overlay; both choices are written out. */
+    /* rc19: no key is Framed; both choices are written out. */
     ASSERT_EQ(gamemenu_layout(), 0);
     ASSERT_TRUE(gamemenu_store_layout(1));
     char text[512];
     read_file(GM_PATH, text, sizeof(text));
-    ASSERT_TRUE(strstr(text, "\"layout\":\t\"framed\"") != NULL);
+    ASSERT_TRUE(strstr(text, "\"layout\":\t\"overlay\"") != NULL);
     ASSERT_EQ(gamemenu_layout(), 1);
     ASSERT_TRUE(gamemenu_store_resume_mode(2));
     ASSERT_TRUE(gamemenu_store_layout(0));
     read_file(GM_PATH, text, sizeof(text));
-    ASSERT_TRUE(strstr(text, "\"layout\":\t\"overlay\"") != NULL);
+    ASSERT_TRUE(strstr(text, "\"layout\":\t\"framed\"") != NULL);
     ASSERT_TRUE(strstr(text, "\"resume_mode\":\t\"swap\"") != NULL);
     ASSERT_EQ(gamemenu_layout(), 0);
-    /* An unknown value or a wrong type shows Overlay; bad indexes are refused. */
+    /* As in MainUI, any value but "overlay" (or a wrong type) is Framed;
+     * bad indexes are refused. */
     gamelists_write_text(GM_PATH, "{\"saved_games\": {\"layout\": \"tiles\"}}");
     ASSERT_EQ(gamemenu_layout(), 0);
     gamelists_write_text(GM_PATH, "{\"saved_games\": {\"layout\": 1}}");

@@ -1862,12 +1862,12 @@ static void gamemenu_action_resume(void *pt)
         item->value = gamemenu_resume_mode();
 }
 
-/* Saved Games layout (rc17): game-menu.json "saved_games": {"layout":
- * "overlay" | "framed"}. Overlay is rc17's default (a missing key); framed may
- * become the default once its downscaling is filtered, so both choices are
- * written rather than removing the key at the default. */
+/* Saved Games layout: game-menu.json "saved_games": {"layout": "framed" |
+ * "overlay"}. Since rc19 a missing key (or any value but "overlay") is
+ * Framed; rc17 and rc18 showed Overlay then, so both choices are written
+ * rather than removing the key at the default. */
 #define GAMEMENU_LAYOUT_COUNT 2
-static const char *const gamemenu_layouts[GAMEMENU_LAYOUT_COUNT] = {"overlay", "framed"};
+static const char *const gamemenu_layouts[GAMEMENU_LAYOUT_COUNT] = {"framed", "overlay"};
 
 static int gamemenu_layout(void)
 {
@@ -2282,13 +2282,13 @@ void menu_savedGames(void *_)
                 .label = "Layout",
                 .item_type = MULTIVALUE,
                 .value_max = GAMEMENU_LAYOUT_COUNT - 1,
-                .value_labels = {"Overlay (default)", "Framed"},
+                .value_labels = {"Framed (default)", "Overlay"},
                 .value = gamemenu_layout(),
                 .action = gamemenu_action_layout},
-            "Overlay: the title bar over the save\n"
-            "picture. Framed: the picture in a\n"
-            "frame, apart from the title bar.\n"
-            "Needs Open MainUI 1.1.0 rc17.");
+            "Framed: the save picture in a frame,\n"
+            "apart from the title bar. Overlay:\n"
+            "the title bar over the picture.\n"
+            "Needs Open MainUI 1.1.0 rc19.");
     }
     savedgames_update_enabled();
     menu_stack[++menu_level] = &_menu_saved_games;
