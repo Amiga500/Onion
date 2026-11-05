@@ -40,6 +40,7 @@
 #include "./flip_suspend.h"
 #include "./input_fd.h"
 #include "./menuButtonAction.h"
+#include "./net_activity.h"
 #include "./state_scan.h"
 
 #define FAVORITES_PATH "/mnt/SDCARD/Roms/favourite.json"
@@ -815,6 +816,7 @@ int main(void)
 
     int ticks = getMilliseconds();
     int hibernate_start = ticks;
+    NetActivity net_activity = {0};
     int hibernate_time;
     int elapsed_sec = 0;
 
@@ -1361,6 +1363,10 @@ int main(void)
             hibernate_time = settings.sleep_timer;
 
         if (hibernate_time && !temp_flag_get("stay_awake")) {
+            // A file transfer (FTP, HTTP, Samba...) counts as activity
+            if (netActivity_keepAwake(&net_activity, NET_ACTIVITY_SYSFS,
+                                      NET_ACTIVITY_CONFIG_DIR, ticks))
+                hibernate_start = ticks;
             if (ticks - hibernate_start > hibernate_time * 60 * 1000) {
                 suspend_exec(SHUTDOWN_MIN * 60000);
                 hibernate_start = ticks;
