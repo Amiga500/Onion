@@ -1612,16 +1612,22 @@ TEST(game_menus_resume_mode)
     ASSERT_EQ(gamemenu_resume_mode(), 2);
     ASSERT_TRUE(gamemenu_store_resume_mode(1));
     ASSERT_EQ(gamemenu_resume_mode(), 1);
-    /* Kept beside a menu section; Backup (the default) removes it all. */
+    /* Kept beside a menu section; Backup is written too, since RedOnion's
+     * default (migration 00028) is Overwrite. */
     ASSERT_TRUE(gamemenu_store(2, false));
     ASSERT_TRUE(gamemenu_store_resume_mode(0));
     read_file(GM_PATH, text, sizeof(text));
-    ASSERT_TRUE(strstr(text, "saved_games") == NULL);
+    ASSERT_TRUE(strstr(text, "\"resume_mode\":\t\"backup\"") != NULL);
     ASSERT_TRUE(strstr(text, "\"roms\"") != NULL);
-    ASSERT_TRUE(gamemenu_store(2, true));
-    ASSERT_TRUE(access(GM_PATH, F_OK) != 0);
+    ASSERT_EQ(gamemenu_resume_mode(), 0);
+    /* A missing key or an unknown value is Backup, as in MainUI. */
+    gamelists_write_text(GM_PATH, "{}");
+    ASSERT_EQ(gamemenu_resume_mode(), 0);
     gamelists_write_text(GM_PATH, "{\"saved_games\": {\"resume_mode\": \"weird\"}}");
     ASSERT_EQ(gamemenu_resume_mode(), 0);
+    ASSERT_FALSE(gamemenu_store_resume_mode(3));
+    gamelists_write_text(GM_PATH, "{\"saved_games\": 5}");
+    ASSERT_FALSE(gamemenu_store_resume_mode(1));
 }
 
 TEST(game_menus_switches)
@@ -1650,7 +1656,8 @@ TEST(game_menus_switches)
     ASSERT_TRUE(strstr(text, "gallery") == NULL);
     ASSERT_TRUE(strstr(text, "\"resume_mode\":\t\"swap\"") != NULL);
     ASSERT_TRUE(gamemenu_store_resume_mode(0));
-    ASSERT_TRUE(access(GM_PATH, F_OK) != 0);
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"resume_mode\":\t\"backup\"") != NULL);
     /* Comments (rc14 accepts them) are read; a wrong type is the default. */
     gamelists_write_text(GM_PATH, "{\n// mine\n\"saved_games\": {\"show_auto\": true, \"upscale_preview\": \"no\"},\n}");
     ASSERT_TRUE(gamemenu_switch(1));

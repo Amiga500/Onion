@@ -1797,8 +1797,10 @@ static bool gamemenu_store(int item, bool shown)
 }
 
 /* Saved Games resume mode (rc12): game-menu.json "saved_games":
- * {"resume_mode": "backup" | "overwrite" | "swap"}; backup is Open MainUI's
- * default, so it removes the key (and the object once empty). */
+ * {"resume_mode": "backup" | "overwrite" | "swap"}. Open MainUI uses backup
+ * while the key is missing (it only matches "overwrite" and "swap");
+ * RedOnion's default is overwrite, written by migration 00028, so every
+ * choice is written, backup included, and a missing key reads as backup. */
 #define GAMEMENU_RESUME_COUNT 3
 static const char *const gamemenu_resume_modes[GAMEMENU_RESUME_COUNT] = {"backup", "overwrite", "swap"};
 
@@ -1832,25 +1834,20 @@ static bool gamemenu_store_resume_mode(int mode)
     }
     cJSON *sg = cJSON_GetObjectItemCaseSensitive(root, "saved_games");
     bool ok = sg == NULL || cJSON_IsObject(sg);
-    if (ok && mode == 0) {
-        if (sg != NULL) {
-            cJSON_DeleteItemFromObjectCaseSensitive(sg, "resume_mode");
-            if (sg->child == NULL)
-                cJSON_DeleteItemFromObjectCaseSensitive(root, "saved_games");
-        }
-    }
-    else if (ok) {
-        if (sg == NULL)
-            sg = cJSON_AddObjectToObject(root, "saved_games");
+    if (ok && sg == NULL)
+        sg = cJSON_AddObjectToObject(root, "saved_games");
+    ok = ok && sg != NULL;
+    if (ok) {
         cJSON *value = cJSON_CreateString(gamemenu_resume_modes[mode]);
-        ok = sg != NULL && value != NULL &&
+        ok = value != NULL &&
              (cJSON_GetObjectItemCaseSensitive(sg, "resume_mode") != NULL
                   ? cJSON_ReplaceItemInObjectCaseSensitive(sg, "resume_mode", value)
                   : cJSON_AddItemToObject(sg, "resume_mode", value));
+        if (!ok)
+            cJSON_Delete(value);
     }
     if (ok)
-        ok = root->child == NULL ? (remove(GAMEMENU_CONFIG_PATH) == 0 || errno == ENOENT)
-                                 : mainmenu_write_root_file(GAMEMENU_CONFIG_PATH, root);
+        ok = mainmenu_write_root_file(GAMEMENU_CONFIG_PATH, root);
     cJSON_Delete(root);
     return ok;
 }
@@ -2269,7 +2266,7 @@ void menu_savedGames(void *_)
                 .label = "Playing an older save",
                 .item_type = MULTIVALUE,
                 .value_max = GAMEMENU_RESUME_COUNT - 1,
-                .value_labels = {"Backup", "Overwrite", "Swap"},
+                .value_labels = {"Backup", "Overwrite (default)", "Swap"},
                 .value = gamemenu_resume_mode(),
                 .action = gamemenu_action_resume},
             "Playing an older save from Saved Games:\n"

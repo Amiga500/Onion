@@ -2660,6 +2660,35 @@ check "letters dropped with a file named a in the directory" test "$(cd "$TMP/gl
 unset -f version
 end
 
+begin migration_saved_games_overwrite_default
+mig="$ROOT/static/build/.tmp_update/script/migration/00028_saved_games_overwrite_default.sh"
+GM="$TMP/cfg/game-menu.json"
+run_mig() { GAME_MENU_CONFIG="$GM" JQ=jq sh "$mig"; }
+rm -rf "$TMP/cfg"
+run_mig
+check "no game-menu.json: created with overwrite" test "$(jq -r .saved_games.resume_mode "$GM")" = overwrite
+printf '{\n\t"games":\t{\n\t\t"reset":\tfalse\n\t},\n\t"saved_games":\t{\n\t\t"layout":\t"overlay"\n\t}\n}\n' > "$GM"
+run_mig
+check "other keys kept, overwrite added" test "$(jq -c . "$GM")" = '{"games":{"reset":false},"saved_games":{"layout":"overlay","resume_mode":"overwrite"}}'
+check "written with tabs, as cJSON does" grep -q '^	"games":' "$GM"
+echo '{"saved_games": {"resume_mode": "swap"}}' > "$GM"
+run_mig
+check "a choice already there stays (swap)" test "$(jq -r .saved_games.resume_mode "$GM")" = swap
+echo '{"saved_games": {"resume_mode": "backup"}}' > "$GM"
+run_mig
+check "a choice already there stays (backup)" test "$(jq -r .saved_games.resume_mode "$GM")" = backup
+echo '{"roms": {"reset": false}}' > "$GM"
+run_mig
+check "no saved_games section: added" test "$(jq -c .saved_games "$GM")" = '{"resume_mode":"overwrite"}'
+printf '{\n// mine\n"saved_games": {}\n}\n' > "$GM"
+run_mig
+check "a file with comments is left alone" grep -q '// mine' "$GM"
+echo '{"saved_games": 5}' > "$GM"
+run_mig
+check "a saved_games that is not an object is left alone" test "$(cat "$GM")" = '{"saved_games": 5}'
+check "no temporary file left" test ! -e "$GM.tmp"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
