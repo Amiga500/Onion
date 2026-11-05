@@ -1,9 +1,10 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.0 rc19** (video previews in game lists, media
+GitHub: **Open MainUI 1.1.0 rc20** (video previews in game lists, media
 gallery in Game Info, Games/Expert as grid, carousel or list, Game Info
-auto scroll; rc19 makes "framed" the Saved Games layout by default and fixes
+auto scroll; rc20 finds Supafaust's save states (SNES: the
+.info says "Beetle Supafaust", RetroArch saves in states/Supafaust); rc19 makes "framed" the Saved Games layout by default and fixes
 rare Saved Games cases, the SDL shutdown, the import shortcut that broke the
 recent list, and a Favorites bug; rc18 resizes the carousel pictures and the framed save
 pictures with filtering (smoother edges); rc17 adds the Saved Games layout,
