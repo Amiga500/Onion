@@ -45,7 +45,7 @@ RedOnion is still a personal-use build. It is **not** a replacement for Onion an
 
 ### 💾 SD card
 
-- **Clean reboot after an install or an update:** the installer and the OTA update now restart through RedOnion's clean shutdown, as when you power off. They used a plain reboot (inherited from Onion), which could leave the card marked as not properly unmounted.
+- **Clean reboot after an install or an update:** the installer, which also runs after every OTA update, now restarts through RedOnion's clean shutdown, as when you power off. It used a plain reboot (inherited from Onion), which could leave the card marked as not properly unmounted.
 - **SD card check notice:** if the card was not shut down cleanly (power lost, card removed, a crash), a notice at boot asks you to check it on a PC. It shows once.
 
 ### 📶 OTA update

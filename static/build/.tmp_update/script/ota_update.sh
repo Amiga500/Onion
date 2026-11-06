@@ -658,10 +658,11 @@ apply_update() {
 			echo -ne "${YELLOW}"
 			drop_keys; read -n 1 -s -r -p "Press A to reboot"
 			sleep 1
-			# The clean shutdown (stop what uses the SD card, swap off,
-			# unmount), not a plain reboot, right after writing the
-			# whole update to the card.
-			$sysdir/bin/shutdown -r
+			# A plain reboot, as in 4.4.0: from 4.5.0, the clean shutdown
+			# here could hang on this screen until POWER was held. The
+			# installer, which runs next, reboots through the clean
+			# shutdown.
+			reboot
 		else
 			echo -ne "\n\n" \
 				"${RED}Error: Something wrong happened during decompression.${NC}\n" \

@@ -1393,9 +1393,9 @@ check "lines of 38 characters or less ($long)" test -z "$long"
 unset -f infoPanel log
 end
 
-begin ota_reboots_with_the_clean_shutdown
-check "the OTA reboots through the clean shutdown" grep -q '^			\$sysdir/bin/shutdown -r$' "$OTA"
-check "no plain reboot left in the OTA" sh -c "! grep -qE '^[[:space:]]*reboot([[:space:]]|\$)' '$OTA'"
+begin ota_reboots_like_4_4_0
+check "the OTA ends with a plain reboot, as in 4.4.0" sh -c "grep -A2 'Press A to reboot\"\$' '$OTA' | grep -q 'sleep 1' && grep -qx '			reboot' '$OTA'"
+check "the OTA no longer calls bin/shutdown" sh -c "! grep -q 'bin/shutdown' '$OTA'"
 check "shutdown -r reboots" grep -q 'if \[ "\$1" = "-r" \]; then' "$ROOT/static/build/.tmp_update/bin/shutdown"
 end
 
