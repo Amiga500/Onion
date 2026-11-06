@@ -36,6 +36,8 @@ TESTS += test_gs_recent_list test_gs_game_name test_gs_state_copy
 TESTS += test_tweaks_reset test_tweaks_diags test_tweaks_smb
 # Package Manager: install script, list moves
 TESTS += test_pacman_install
+# Theme Switcher: fixed MainUI images, compact themes
+TESTS += test_theme_skin
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -524,6 +526,13 @@ test_pacman_install: $(BUILD_DIR)/test_pacman_install
 $(BUILD_DIR)/test_pacman_install: test_pacman_install.c onion_test.h ../src/packageManager/pacman_run.h ../src/packageManager/pacman_nav.h ../src/packageManager/script/pacman_install.sh $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_pacman_install.c $(COMMON_SRCS) $(LDFLAGS)
+test_theme_skin: $(BUILD_DIR)/test_theme_skin
+	@echo ""
+	@$(BUILD_DIR)/test_theme_skin
+
+$(BUILD_DIR)/test_theme_skin: test_theme_skin.c onion_test.h ../src/themeSwitcher/themeSkin.h ../src/themeSwitcher/script/themes_extract_theme.sh $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_theme_skin.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_gs_state_ratio: $(BUILD_DIR)/test_gs_state_ratio
 	@echo ""

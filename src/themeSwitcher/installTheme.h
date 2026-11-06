@@ -16,6 +16,7 @@
 #include "themeListRescale.h"
 #include "themeMarker.h"
 #include "themePreview.h"
+#include "themeSkin.h"
 
 #ifdef PLATFORM_MIYOOMINI
 #define SCRIPT_DIR "/mnt/SDCARD/.tmp_update/script"
@@ -154,50 +155,39 @@ bool loadTheme(const char *theme_name, Theme_s *theme_out)
 
 void installNonDynamicElement(const char *theme_path, const char *image_name)
 {
-    char override_image_path[256], theme_image_path[256],
-        system_image_path[256], system_image_backup[256];
-
-    sprintf(override_image_path, "%sskin/%s.png", THEME_OVERRIDES, image_name);
-    sprintf(theme_image_path, "%sskin/%s.png", theme_path, image_name);
-    sprintf(system_image_path, SYSTEM_SKIN_DIR "/%s.png", image_name);
-    sprintf(system_image_backup, SYSTEM_SKIN_DIR "/%s_back.png", image_name);
-
-    // backup system skin
-    if (!exists(system_image_backup))
-        file_copy(system_image_path, system_image_backup);
-
-    if (exists(override_image_path)) {
-        // apply override image
-        file_copy(override_image_path, system_image_path);
-    }
-    else if (exists(theme_image_path)) {
-        // apply theme image
-        file_copy(theme_image_path, system_image_path);
-    }
-    else {
-        // restore system skin
-        file_copy(system_image_backup, system_image_path);
-        remove(system_image_backup);
+    if (!ts_installSkinImage(THEME_OVERRIDES, theme_path, image_name, SYSTEM_SKIN_DIR)) {
+        printf_debug("Could not install skin image %s\n", image_name);
     }
 }
 
-void installTheme(char *theme_path, bool apply_icons)
+// Apply the theme at theme_path (a buffer of size bytes; a compact theme's
+// path becomes that of its extracted folder). False, with the current
+// theme left as it is, when a compact theme could not be extracted.
+bool installTheme(char *theme_path, size_t size, bool apply_icons)
 {
-    system("/mnt/SDCARD/.tmp_update/bin/mainUiBatPerc --restore");
-
     if (strstr(theme_path, "/.previews/") != NULL) {
-        char cmd[STR_MAX * 2];
-        snprintf(cmd, STR_MAX * 2 - 1,
-                 SCRIPT_DIR "/themes_extract_theme.sh \"%s\"", theme_path);
-
-        sprintf(theme_path, THEMES_DIR "/%s/", basename(theme_path));
-
-        system(cmd);
-        sync();
+        // Before anything changes: an extraction that failed (SD card
+        // full, damaged archive) used to switch to a missing or cut theme.
+        char extracted[STR_MAX * 2];
+        if (!ts_extractCompactTheme(SCRIPT_DIR "/themes_extract_theme.sh", theme_path,
+                                    THEMES_DIR, extracted, sizeof(extracted))) {
+            printf_debug("Could not extract theme: %s\n", theme_path);
+            return false;
+        }
+        if (strlen(extracted) >= size)
+            return false;
+        snprintf(theme_path, size, "%s", extracted);
     }
 
+    if (strlen(theme_path) >= sizeof(settings.theme)) {
+        printf_debug("Theme path too long: %s\n", theme_path);
+        return false;
+    }
+
+    system("/mnt/SDCARD/.tmp_update/bin/mainUiBatPerc --restore");
+
     // change theme setting
-    strcpy(settings.theme, theme_path);
+    snprintf(settings.theme, sizeof(settings.theme), "%s", theme_path);
     settings_save();
 
     FILE *fp;
@@ -222,19 +212,17 @@ void installTheme(char *theme_path, bool apply_icons)
 
     // Apps that load fixed files instead of theme images (Package Manager,
     // Search, Quick Guide, ...) follow the theme through its "system" folder.
-    char skin_cmd[STR_MAX * 2 + 64];
-    snprintf(skin_cmd, sizeof(skin_cmd), "sh " SCRIPT_DIR "/system_skin.sh \"%s\"",
-             theme_path);
-    system(skin_cmd);
+    ts_runScript(SCRIPT_DIR "/system_skin.sh", theme_path);
 
     // List icons sized for the game-list row count, as Tweaks > Game lists >
     // Layout does when its rows or resize option change.
     theme_listRescale(theme_path, THEME_LIST_CONFIG_DIR, THEME_LIST_RESCALE_SCRIPT);
+    return true;
 }
 
 bool checkAndSetDir(char *dest, const char *dir_path)
 {
-    strcpy(dest, dir_path);
+    snprintf(dest, STR_MAX * 2, "%s", dir_path);
     return is_dir(dest);
 }
 
@@ -276,8 +264,9 @@ void reinstallTheme(const char *theme_name, bool apply_icons,
     if (!ensureThemePath(theme_name, theme_path))
         return;
 
-    installTheme(theme_path, apply_icons);
-    printf_debug("Reapplied: \"%s\"\n", theme_path);
+    if (installTheme(theme_path, sizeof(theme_path), apply_icons)) {
+        printf_debug("Reapplied: \"%s\"\n", theme_path);
+    }
 }
 
 #endif // THEME_SWITCHER_INSTALL_THEME_H__

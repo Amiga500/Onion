@@ -295,6 +295,14 @@ int main(int argc, char *argv[])
     int themes_count = listAllThemes(themes, installed_theme, &installed_page);
     int current_page = installed_page;
 
+    // No theme at all: the pages below read themes[0], which was never
+    // written, and A installed whatever it held.
+    if (themes_count == 0) {
+        showCenteredMessage(video, screen, "No themes found", font30, color_white);
+        msleep(2000);
+        quit = true;
+    }
+
     PreviewCacheEntry preview_cache[PREVIEW_CACHE_SIZE];
     previewCacheInit(preview_cache);
     SDL_Surface *noPreview = IMG_Load("res/noThemePreview.png");
@@ -305,7 +313,8 @@ int main(int argc, char *argv[])
     Uint8 keystate[320] = {0};
     bool changed = true;
 
-    Theme_s theme;
+    Theme_s theme = {0};
+    bool theme_ok = false; // the page's theme could be loaded
     char icon_pack_path[STR_MAX + 32];
     bool has_icons = false;
     bool apply_icons = false;
@@ -349,13 +358,20 @@ int main(int argc, char *argv[])
             render_dirty = true;
         }
 
-        if (keystate[SW_BTN_A]) {
+        if (keystate[SW_BTN_A] && theme_ok) {
             if (levelPage == 1) {
                 showCenteredMessage(video, screen, "Installing...", font30, color_white);
 
                 // Install theme
-                installTheme(theme.path, apply_icons);
-                printf_debug("Theme installed: %s\n", themes[current_page]);
+                if (installTheme(theme.path, sizeof(theme.path), apply_icons)) {
+                    printf_debug("Theme installed: %s\n", themes[current_page]);
+                }
+                else {
+                    // The current theme stays: say so instead of closing
+                    // as if it had been applied.
+                    showCenteredMessage(video, screen, "Could not install the theme", font30, color_white);
+                    msleep(2000);
+                }
 
                 quit = true;
             }
@@ -390,7 +406,13 @@ int main(int argc, char *argv[])
             break;
 
         if (page_changed) {
-            loadTheme(themes[current_page], &theme);
+            // A theme removed since the list was made: shown by name only,
+            // and not installed (theme kept the previous page's values).
+            theme_ok = loadTheme(themes[current_page], &theme);
+            if (!theme_ok) {
+                memset(&theme, 0, sizeof(theme));
+                snprintf(theme.name, sizeof(theme.name), "%s", themes[current_page]);
+            }
             snprintf(icon_pack_path, STR_MAX + 32 - 1, "%sicons", theme.path);
             apply_icons = true;
             has_icons = is_dir(icon_pack_path);
@@ -442,7 +464,7 @@ int main(int argc, char *argv[])
             if (current_page == installed_page && !is_preview)
                 snprintf(title, STR_MAX + 12, "%s - Installed", theme.name);
             else
-                strcpy(title, theme.name);
+                snprintf(title, sizeof(title), "%s", theme.name);
 
             imageThemeNom = TTF_RenderUTF8_Blended(font21, title, color_white);
             SDL_BlitSurface(imageThemeNom, NULL, screen, &rectImageThemeNom);
