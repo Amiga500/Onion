@@ -1,0 +1,50 @@
+name: Test build (apps)
+
+# Builds the GameSwitcher, Tweaks, Package Manager, Theme Switcher and
+# keymon with the same Miyoo toolchain as "Check build", with the scripts
+# they run, and uploads them laid out for the SD card (.tmp_update/bin and
+# .tmp_update/script), for testers to copy over their install. Runs on
+# every push that changes them or the shared code; the zip is under the
+# run's "Artifacts" (kept 30 days).
+on:
+  push:
+    paths:
+      - 'src/gameSwitcher/**'
+      - 'src/tweaks/**'
+      - 'src/packageManager/**'
+      - 'src/themeSwitcher/**'
+      - 'src/keymon/**'
+      - 'src/common/**'
+      - '.github/workflows/test-build-apps.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build apps
+    runs-on: ubuntu-latest
+    container:
+      image: aemiii91/miyoomini-toolchain:latest
+      options: --user root
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Build
+      shell: bash
+      run: |
+        source /root/.bashrc
+        set -e
+        out="$GITHUB_WORKSPACE/sd/.tmp_update"
+        mkdir -p "$out/bin" "$out/script"
+        for app in gameSwitcher tweaks packageManager themeSwitcher keymon; do
+          (cd "src/$app" && PLATFORM=miyoomini VERSION="test-${GITHUB_SHA::8}" BUILD_DIR="$out/bin" make)
+          test -s "$out/bin/$app"
+        done
+        cp src/packageManager/script/pacman_install.sh src/themeSwitcher/script/themes_extract_theme.sh "$out/script/"
+        file "$out"/bin/* || true
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: apps-test-${{ github.sha }}
+        path: sd/
+        include-hidden-files: true
+        retention-days: 30
