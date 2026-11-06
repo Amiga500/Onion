@@ -2284,8 +2284,7 @@ void menu_savedGames(void *_)
                 .action = gamemenu_action_layout},
             "Framed: the save picture in a frame,\n"
             "apart from the title bar. Overlay:\n"
-            "the title bar over the picture.\n"
-            "Needs Open MainUI 1.1.0 rc19.");
+            "the title bar over the picture.");
     }
     savedgames_update_enabled();
     menu_stack[++menu_level] = &_menu_saved_games;

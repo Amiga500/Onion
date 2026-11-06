@@ -17,7 +17,7 @@ RedOnion is still a personal-use build. It is **not** a replacement for Onion an
 - **Remember console:** optionally reopens on the last console used, even after a shutdown (thanks zazzagone).
 - **Video previews in the game lists**, where the cover is or over the whole screen, after the wait you choose (thanks u/Kylie_Ray for the idea).
 - **Game Info menu** (SELECT in Game Info): a gallery with box art, screenshots and video, game maps with zoom, walkthroughs (TXT) and PDF manuals, with a loading panel while a big PDF opens. Files go in `Roms/<console>/media/` (see Game media below).
-- **Saved Games:** a game's save states with their pictures, SNES included, with 4:3 previews for most home consoles and computers. Starting an older save **replaces the auto save** by default (Overwrite); Backup keeps it as "Previous Session", Swap trades the two. The layout is **Framed** by default, or Overlay. Arcade games have no Saved Games by default (`saved_games.disabled_rom_dirs` in `.tmp_update/config/game-menu.json`).
+- **Saved Games:** a game's save states with their pictures, SNES included, with 4:3 previews for most home consoles and computers. Starting an older save **replaces the auto save** by default (Overwrite); Backup keeps it as "Previous Session", Swap trades the two. The layout is **Framed** by default, or Overlay. Arcade games have no Saved Games by default, as their core cannot load a state while a game starts (`saved_games.disabled_rom_dirs` in `.tmp_update/config/game-menu.json`).
 - **Long titles scroll**, rolling or bouncing, and the Game Info description can scroll by itself.
 - Full list: https://github.com/robcodedev/onionos-mainui-opensource/blob/main/CHANGELOG.md
 
@@ -75,10 +75,7 @@ RedOnion is still a personal-use build. It is **not** a replacement for Onion an
 
 ## ⚠️ Known issues
 
-- **Mini Flip display colours** (Luminance, Hue, Saturation, Contrast) can be back at their defaults after a reboot: Open MainUI sets them only from Settings › Display, as stock does, and RedOnion doesn't apply them at boot yet.
-- **Mini Flip charging:** a Flip that is charging doesn't wake up when the lid is opened. Use the power button for now.
 - **Long transfers:** with nobody touching the console, a long FTP, HTTP or Samba transfer can be cut by the sleep timer (Settings › Sleep timer). Press a button now and then, or keep the device charging.
-- **Arabic:** lines stay left-aligned like every other language, and text drawn one letter at a time (the on-screen keyboard) shows Arabic letters unjoined.
 - **Tweaks** is in English in every language.
 - **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package. Verifying certificates and the package's SHA-256 is planned.
 
@@ -90,7 +87,7 @@ Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga
 
 Thanks first to the Onion team and to the community. RedOnion sits on their work: the OS and the years of fixes already in the tree. None of this exists without that.
 
-Thanks to @robcodedev for Open MainUI 1.1.0 and the close work on its integration, to zazzagone and Veuks for testing every release candidate and reviewing Tweaks, to @dredvm for the RedOnion name, logo and the Silky RedOnion theme, to KyleBing for the console icons, and to @Roland013, u/Joecascio2000, u/Nyiz, u/kicksoda, u/tamamatuaai, fantomas and u/Kylie_Ray for their reports, ideas and pull requests.
+Thanks to @robcodedev for Open MainUI 1.1.0 and the close work on its integration, to zazzagone and Veuks for testing every release candidate and reviewing Tweaks, to @dredvm for the RedOnion name, logo and the Silky RedOnion theme, to KyleBing for the console icons, to @KNRBZ for the ideas behind Open MainUI's gallery, maps, walkthroughs and manuals, and to @Roland013, u/Joecascio2000, u/Nyiz, u/kicksoda, u/tamamatuaai, fantomas and u/Kylie_Ray for their reports, ideas and pull requests.
 
 ## 🔗 Links
 
