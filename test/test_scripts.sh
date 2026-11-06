@@ -1424,7 +1424,8 @@ rm -f "$TMP/sdcalls"
 (cd "$TMP/sd" && PATH="$TMP/sdbin:$PATH" sh "$SD_SH" -r > /dev/null 2>&1 &)
 sleep 9
 check "a hanging unmount: the safety net reboots after the wait" grep -qx 'reboot -f' "$TMP/sdcalls"
-check "the safety net first tries to leave the card read-only" grep -qx "mount -o remount,ro $TMP/sd" "$TMP/sdcalls"
+check "the safety net turns the swap off again" test "$(grep -cx "swapoff $TMP/sd/cachefile" "$TMP/sdcalls")" -ge 2
+check "and tries again to unmount the card" test "$(grep -cx "umount -r $TMP/sd" "$TMP/sdcalls")" -ge 2
 check "the steps are logged in logs/shutdown.log" grep -q 'unmounting the card' "$TMP/sd/.tmp_update/logs/shutdown.log"
 check "the forced restart is logged" grep -q 'still running after 1 s: forced' "$TMP/sd/.tmp_update/logs/shutdown.log"
 check "the log starts with the request and the model" grep -q 'start -r (model 354)' "$TMP/sd/.tmp_update/logs/shutdown.log"

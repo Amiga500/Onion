@@ -37,14 +37,16 @@ kill_hooked_tasks() {
 	done
 }
 
-# Last resort when the clean shutdown does not finish: flush and try to
-# leave the card read-only (marked clean), giving that 5 s in the background
-# as the card itself may be what is stuck, then restart or power off at
-# once. -f skips init.
+# Last resort when the clean shutdown does not finish: flush, turn the swap
+# off and unmount the card (or leave it read-only), so that it is marked
+# clean. The swap file alone keeps the card from going read-only. All that
+# gets 5 s in the background, as the card itself may be what is stuck, then
+# the device restarts or powers off at once. -f skips init.
 force_off() { # $1: -r to restart
 	(
 		sync
-		mount -o remount,ro /mnt/SDCARD
+		swapoff /mnt/SDCARD/cachefile
+		umount -r /mnt/SDCARD
 	) < /dev/null > /dev/null 2>&1 &
 	sleep 5
 	if [ "$1" = "-r" ] || [ "$(cat /tmp/deviceModel 2> /dev/null)" = "283" ]; then
