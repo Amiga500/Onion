@@ -1,9 +1,23 @@
 #!/bin/sh
 
+# Not to be killed with the tasks that use the card: this script, and its
+# safety net with the sleep it waits in. They can still hold a file of the
+# card inherited from the caller, and the safety net killed would restart
+# the device in the middle of the clean shutdown.
+spared() { # pid
+	[ "$1" = "$$" ] && return 0
+	[ -n "$safety_pid" ] || return 1
+	[ "$1" = "$safety_pid" ] && return 0
+	_st=$(cat "/proc/$1/stat" 2> /dev/null) || return 1
+	_st=${_st##*) } # after the command name, which may hold spaces
+	set -- $_st     # state, parent
+	[ "$2" = "$safety_pid" ]
+}
+
 task_killer() {
 	r=0
 	for p in $1; do
-		if [ -d "/proc/$p" ] && [ $p -ne $$ ]; then
+		if [ -d "/proc/$p" ] && ! spared "$p"; then
 			kill $2 $p
 			r=1
 		fi
@@ -54,6 +68,9 @@ if [ "$0" = "/tmp/_shutdown" ]; then
 		echo "$(date +%H:%M:%S) $*" >> "$slog" 2> /dev/null
 		sync
 	}
+	# The previous one is kept: after a forced restart, the next shutdown
+	# does not wipe what the stuck one logged.
+	[ -f "$slog" ] && mv -f "$slog" "${slog%.log}.prev.log" 2> /dev/null
 	: > "$slog" 2> /dev/null
 	mark "start $1 (model $(cat /tmp/deviceModel 2> /dev/null))"
 
@@ -66,6 +83,7 @@ if [ "$0" = "/tmp/_shutdown" ]; then
 		mark "still running after ${safety_wait} s: forced" &
 		force_off "$1"
 	) < /dev/null > /dev/null 2>&1 &
+	safety_pid=$!
 
 	killall -9 main # mandatory to avoid the suppression of .tmp_update !
 	killall -9 updater
@@ -78,7 +96,7 @@ if [ "$0" = "/tmp/_shutdown" ]; then
 	kill_hooked_tasks -9
 
 	sync
-	mark "tasks stopped, synced"
+	mark "tasks stopped, synced; still using the card: $(fuser -m /mnt/SDCARD 2> /dev/null | tr -s ' ' ' ')"
 
 	if [ -f /mnt/SDCARD/system.json ]; then
 		mkdir -p /mnt/SDCARD/.tmp_update/config/system

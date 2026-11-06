@@ -1436,6 +1436,8 @@ rm -f "$TMP/sdcalls"
 (cd "$TMP/sd" && PATH="$TMP/sdbin:$PATH" sh "$SD_SH" > /dev/null 2>&1 &)
 sleep 9
 check "power off: the safety net powers off (-f)" grep -qx 'poweroff -f' "$TMP/sdcalls"
+check "the previous shutdown's log is kept" grep -q 'start -r (model 354)' "$TMP/sd/.tmp_update/logs/shutdown.prev.log"
+check "the new log is the power off" grep -q 'start  (model 354)' "$TMP/sd/.tmp_update/logs/shutdown.log"
 _w=0
 while ! grep -qxE 'poweroff ?' "$TMP/sdcalls" 2> /dev/null && [ $_w -lt 25 ]; do sleep 1; _w=$((_w + 1)); done
 check "power off: then the normal power off" grep -qxE 'poweroff ?' "$TMP/sdcalls"
@@ -1455,6 +1457,27 @@ kill $_cpid 2> /dev/null
 check "caller: su was asked to start the detached part" grep -q '^su root -c' "$TMP/sdcalls"
 check "caller: nothing stopped it, so it restarts by itself" grep -qx 'reboot -f' "$TMP/sdcalls"
 check "the caller waits longer than the safety net" sh -c "test \$(sed -n 's/^caller_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown') -gt \$(sed -n 's/^[[:space:]]*safety_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown')"
+end
+
+begin shutdown_spares_its_safety_net
+# The tasks that use the card are killed, but not the safety net or the
+# sleep it waits in, which may hold a file of the card from the caller.
+eval "$(extract_fn "$ROOT/static/build/.tmp_update/bin/shutdown" spared)"
+(sleep 5; :) &
+safety_pid=$!
+sleep 5 &
+_other=$!
+sleep 0.5
+_child=$(pgrep -P "$safety_pid" sleep | head -1)
+check "the safety net is spared" spared "$safety_pid"
+check "the sleep of the safety net is spared" spared "$_child"
+check "the script itself is spared" spared "$$"
+not_spared() { ! spared "$1"; }
+check "another task is not" not_spared "$_other"
+check "task_killer asks spared" grep -q '! spared "\$p"' "$ROOT/static/build/.tmp_update/bin/shutdown"
+check "the pid of the safety net is kept" grep -q '^	safety_pid=\$!$' "$ROOT/static/build/.tmp_update/bin/shutdown"
+kill "$safety_pid" "$_child" "$_other" 2> /dev/null
+unset safety_pid
 end
 
 begin installer_reboots_with_the_clean_shutdown
