@@ -660,7 +660,7 @@ apply_update() {
 			sleep 1
 			# Shown until the device restarts: a second or two, up to
 			# 20 s when a step of the shutdown hangs (its safety net).
-			echo -ne "${NC}\n\nRestarting... (up to 20 s)"
+			echo -ne "${NC}\n\nRestarting... (up to 20 s)\n"
 			# The clean shutdown (stop what uses the SD card, swap off,
 			# unmount), not a plain reboot, right after writing the
 			# whole update to the card.
