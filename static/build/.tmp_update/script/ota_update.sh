@@ -658,6 +658,9 @@ apply_update() {
 			echo -ne "${YELLOW}"
 			drop_keys; read -n 1 -s -r -p "Press A to reboot"
 			sleep 1
+			# Shown until the device restarts: a second or two, up to
+			# 20 s when a step of the shutdown hangs (its safety net).
+			echo -ne "${NC}\n\nRestarting... (up to 20 s)"
 			# The clean shutdown (stop what uses the SD card, swap off,
 			# unmount), not a plain reboot, right after writing the
 			# whole update to the card.

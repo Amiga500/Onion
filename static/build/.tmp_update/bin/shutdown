@@ -77,9 +77,10 @@ if [ "$0" = "/tmp/_shutdown" ]; then
 	mark "start $1 (model $(cat /tmp/deviceModel 2> /dev/null))"
 
 	# Safety net: whatever hangs below (a process that won't die, swapoff,
-	# init), the device restarts or powers off by itself after 30 s instead
-	# of staying on the last screen until POWER is held.
-	safety_wait=30
+	# init), the device restarts or powers off by itself after 15 s (and up
+	# to 5 s more to unmount) instead of staying on the last screen until
+	# POWER is held. A normal shutdown takes a second or two.
+	safety_wait=15
 	(
 		sleep "$safety_wait"
 		mark "still running after ${safety_wait} s: forced" &
@@ -153,9 +154,10 @@ pgrep -f /tmp/_shutdown || (
 )
 
 # The detached part stops this caller with the other tasks that use the
-# card, within a second or two. Still here after 45 s: it never started (su)
-# or it is stuck before its own safety net, so restart or power off anyway.
-caller_wait=45
+# card, within a second or two. Still here after 25 s, past the safety net
+# and its 5 s: the detached part never started (su) or is stuck before its
+# own safety net, so restart or power off anyway.
+caller_wait=25
 sleep "$caller_wait"
 force_off "$1"
 while true; do

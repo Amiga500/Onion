@@ -1417,7 +1417,7 @@ chmod +x "$TMP/sdbin/umount"
 echo 354 > "$TMP/deviceModel"
 sed -e "s|/mnt/SDCARD|$TMP/sd|g" -e "s|/tmp/deviceModel|$TMP/deviceModel|g" \
     -e "s|/sbin/reboot|$TMP/sdbin/reboot|g" -e "s|/sbin/poweroff|$TMP/sdbin/poweroff|g" \
-    -e 's|safety_wait=30|safety_wait=1|' -e 's|"\$0" = "/tmp/_shutdown"|1 = 1|' \
+    -e 's|safety_wait=15|safety_wait=1|' -e 's|"\$0" = "/tmp/_shutdown"|1 = 1|' \
     -e '/^if \[ ! -f \/tmp\/_shutdown \]; then/,$d' \
     "$ROOT/static/build/.tmp_update/bin/shutdown" > "$SD_SH"
 rm -f "$TMP/sdcalls"
@@ -1448,7 +1448,7 @@ check "the script leaves the card before its safety net starts" sh -c "grep -n '
 CALLER_SH="$TMP/sd_shutdown_caller.sh"
 sed -e "s|/mnt/SDCARD|$TMP/sd|g" -e "s|/tmp/deviceModel|$TMP/deviceModel|g" \
     -e "s|/sbin/reboot|$TMP/sdbin/reboot|g" -e "s|/sbin/poweroff|$TMP/sdbin/poweroff|g" \
-    -e "s|/tmp/_shutdown|$TMP/_shutdown|g" -e 's|caller_wait=45|caller_wait=1|' \
+    -e "s|/tmp/_shutdown|$TMP/_shutdown|g" -e 's|caller_wait=25|caller_wait=1|' \
     "$ROOT/static/build/.tmp_update/bin/shutdown" > "$CALLER_SH"
 rm -f "$TMP/sdcalls" "$TMP/_shutdown"
 PATH="$TMP/sdbin:$PATH" sh "$CALLER_SH" -r > /dev/null 2>&1 &
@@ -1459,7 +1459,8 @@ kill $_cpid 2> /dev/null
 pkill -f "$SD_SH" 2> /dev/null
 check "caller: su was asked to start the detached part" grep -q '^su root -c' "$TMP/sdcalls"
 check "caller: nothing stopped it, so it restarts by itself" grep -qx 'reboot -f' "$TMP/sdcalls"
-check "the caller waits longer than the safety net" sh -c "test \$(sed -n 's/^caller_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown') -gt \$(sed -n 's/^[[:space:]]*safety_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown')"
+check "the caller waits longer than the safety net and its 5 s" sh -c "test \$(sed -n 's/^caller_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown') -gt \$((\$(sed -n 's/^[[:space:]]*safety_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown') + 5))"
+check "the OTA says how long the restart can take" grep -q 'Restarting... (up to 20 s)' "$ROOT/static/build/.tmp_update/script/ota_update.sh"
 end
 
 begin shutdown_spares_its_safety_net
@@ -1509,7 +1510,7 @@ full_shutdown() { # umount -r delay, safety wait, caller wait
     sed -e "s|/mnt/SDCARD|$TMP/sd|g" -e "s|/tmp/deviceModel|$TMP/deviceModel|g" \
         -e "s|/sbin/reboot|$TMP/bin/reboot|g" -e "s|/sbin/poweroff|$TMP/bin/poweroff|g" \
         -e "s|/usr/bin/nohup|nohup|" -e "s|/tmp/_shutdown|$TMP/_shutdown|g" \
-        -e "s|safety_wait=30|safety_wait=$2|" -e "s|caller_wait=45|caller_wait=$3|" \
+        -e "s|safety_wait=15|safety_wait=$2|" -e "s|caller_wait=25|caller_wait=$3|" \
         "$SHUT" > "$TMP/sd/shutdown"
     chmod +x "$TMP/sd/shutdown" # the card is FAT: every file runs
     rm -f "$TMP/calls" "$TMP/_shutdown"
