@@ -101,7 +101,7 @@ static void budget_exceeded(const char *what, size_t retained, size_t needed)
             what, needed / 1024, retained / 1024, THEME_IMAGE_BUDGET / 1024u);
 }
 
-static SDL_Surface *load_image(const MainUITheme *theme, const char *path)
+static SDL_Surface *load_asset_image(const MainUITheme *theme, const char *path, bool theme_owned)
 {
     SDL_Surface *image = mainui_artwork_load(path);
     if (!image) {
@@ -109,7 +109,7 @@ static SDL_Surface *load_image(const MainUITheme *theme, const char *path)
     }
     size_t retained = image_bytes(theme);
     size_t needed = (size_t)image->w * (size_t)image->h * 4;
-    if (retained > THEME_IMAGE_BUDGET || needed > THEME_IMAGE_BUDGET - retained) {
+    if (theme_owned && (retained > THEME_IMAGE_BUDGET || needed > THEME_IMAGE_BUDGET - retained)) {
         budget_exceeded(path, retained, needed);
         SDL_FreeSurface(image);
         return NULL;
@@ -124,6 +124,11 @@ static SDL_Surface *load_image(const MainUITheme *theme, const char *path)
     }
     mainui_artwork_blend(image);
     return image;
+}
+
+static SDL_Surface *load_image(const MainUITheme *theme, const char *path)
+{
+    return load_asset_image(theme, path, true);
 }
 
 static bool text_fits(TTF_Font *font, const char *text)
@@ -327,6 +332,7 @@ static SDL_Surface *popup_background(MainUITheme *theme, int rows)
         SDL_BlitSurface(source, &from, expanded, &to);
     }
     SDL_FreeSurface(source);
+    mainui_artwork_blend(expanded);
     return expanded;
 }
 
@@ -359,7 +365,7 @@ SDL_Surface *mainui_theme_console_icon(const MainUITheme *theme, const char *pat
     if (!path || !*path) {
         return NULL;
     }
-    SDL_Surface *surface = load_image(theme, path);
+    SDL_Surface *surface = load_asset_image(theme, path, false);
     /* Host fixtures can borrow Onion's default icon pack without copying its
      * artwork into the source tree. Real SD paths are always tried first. */
     const char *name = strrchr(path, '/');
@@ -372,7 +378,7 @@ SDL_Surface *mainui_theme_console_icon(const MainUITheme *theme, const char *pat
         int length = snprintf(fallback, sizeof fallback, "%s/../../Icons/Default/%s",
                               theme->fallback, name + 1);
         if (length > 0 && length < (int)sizeof fallback) {
-            surface = load_image(theme, fallback);
+            surface = load_asset_image(theme, fallback, false);
         }
     }
     return surface;

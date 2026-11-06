@@ -15,7 +15,7 @@ static bool path_for(char path[4096], const char *sd, const char *suffix)
     return n > 0 && n < 4096;
 }
 
-MainUIShortcut mainui_button_shortcut(const char *sd, char button, char why[160])
+static MainUIShortcut read_button_shortcut(const char *sd, char button, char why[160])
 {
     char path[4096], scratch[160];
     why = why ? why : scratch;
@@ -50,8 +50,12 @@ MainUIShortcut mainui_button_shortcut(const char *sd, char button, char why[160]
     const cJSON *value = cJSON_GetObjectItemCaseSensitive(root, button == 'X' ? "mainui_button_x"
                                                                               : "mainui_button_y");
     MainUIShortcut result = MAINUI_SHORTCUT_KEYMON;
+    /* false, or exactly "disable", turns the button off in MainUI. */
+    if (cJSON_IsFalse(value) || (cJSON_IsString(value) && !strcmp(value->valuestring, "disable"))) {
+        result = MAINUI_SHORTCUT_DISABLED;
+    }
     /* keymon keeps its empty default unless the value is text. */
-    if (!cJSON_IsString(value) || !*value->valuestring) {
+    else if (!cJSON_IsString(value) || !*value->valuestring) {
         result = MAINUI_SHORTCUT_NONE;
     }
     else if (!strcmp(value->valuestring, "glo")) {
@@ -68,6 +72,42 @@ MainUIShortcut mainui_button_shortcut(const char *sd, char button, char why[160]
     }
     cJSON_Delete(root);
     return result;
+}
+
+/* Button events are frequent: a file-stamp check avoids parsing keymap.json
+ * repeatedly, while edits become visible without restarting MainUI. The
+ * result and diagnostic for each button are cached together. UI thread only. */
+MainUIShortcut mainui_button_shortcut(const char *sd, char button, char why[160])
+{
+    typedef struct {
+        char sd[4096];
+        MainUIFileStamp stamp;
+        MainUIShortcut x, y;
+        char x_why[160], y_why[160];
+        bool valid;
+    } ShortcutCache;
+
+    static ShortcutCache cache;
+    if (!sd || (button != 'X' && button != 'Y') || strlen(sd) >= sizeof cache.sd) {
+        return read_button_shortcut(sd, button, why);
+    }
+    char path[4096];
+    int n = snprintf(path, sizeof path, "%s/.tmp_update/config/keymap.json", sd);
+    if (n <= 0 || n >= (int)sizeof path) {
+        return read_button_shortcut(sd, button, why);
+    }
+    MainUIFileStamp stamp = mainui_file_stamp(path);
+    if (!cache.valid || strcmp(cache.sd, sd) || !mainui_file_stamp_equal(stamp, cache.stamp)) {
+        cache.x = read_button_shortcut(sd, 'X', cache.x_why);
+        cache.y = read_button_shortcut(sd, 'Y', cache.y_why);
+        cache.stamp = stamp;
+        snprintf(cache.sd, sizeof cache.sd, "%s", sd);
+        cache.valid = true;
+    }
+    if (why) {
+        snprintf(why, 160, "%s", button == 'X' ? cache.x_why : cache.y_why);
+    }
+    return button == 'X' ? cache.x : cache.y;
 }
 
 cJSON *mainui_system_read(const char *sd)

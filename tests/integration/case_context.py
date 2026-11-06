@@ -166,10 +166,20 @@ fc_before = cache.read_bytes()
 
 # The synthetic console retains only the global grid action. It is Search by
 # its data folder, as Onion creates it; the label alone does not make it so.
-# Its rows are FC's files, as when the fixture borrowed Roms/FC.
+# Its rows are Search's results database, as Search leaves it: a console's
+# folder, then a game of FC's.
 (SD / 'Emu/SEARCH').mkdir()
-shutil.copytree(SD / 'Roms/FC', SD / 'App/Search/data',
-                ignore=shutil.ignore_patterns('*_cache6.db*'))
+(SD / 'App/Search/data').mkdir(parents=True)
+with closing(sqlite3.connect(SD / 'App/Search/data/data_cache6.db')) as db:
+    db.execute('CREATE TABLE data_roms (id INTEGER PRIMARY KEY AUTOINCREMENT, disp TEXT NOT NULL, '
+               'path TEXT NOT NULL, imgpath TEXT NOT NULL, type INTEGER DEFAULT 0, '
+               'ppath TEXT NOT NULL, pinyin TEXT NOT NULL, cpinyin TEXT NOT NULL)')
+    db.executemany("INSERT INTO data_roms (disp,path,imgpath,type,ppath,pinyin,cpinyin) "
+                   "VALUES (?,?,'',?,'.',?,'')", [
+                       ('FC (1)', '/mnt/SDCARD/Roms/FC', 1, 'FC (1)'),
+                       ('global', '/mnt/SDCARD/Emu/FC/launch.sh:/mnt/SDCARD/Roms/FC/global.nes',
+                        0, 'global')])
+    db.commit()
 (SD / 'Emu/SEARCH/config.json').write_text(json.dumps(dict(
     label=' Search ', rompath='../../App/Search/data', launch='../../App/Search/launch.sh',
     extlist='nes')))

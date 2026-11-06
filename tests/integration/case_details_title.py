@@ -47,5 +47,21 @@ assert details('RDU').tobytes() == first.tobytes()
 assert details('R' + 'D' * 7 + 'U' * 7).tobytes() == first.tobytes()
 for i in range(1, len(titles)):
     assert details('R' + 'D' * i + 'U' * i + 'D' * i).tobytes() == details('R' + 'D' * i).tobytes()
+# A queued page press may arrive before the first details redraw. Its layout
+# must be prepared from the current font/title before L2/R2 is consumed.
+first_rom = '00 ' + titles[0] + '.nes'
+(SD / 'Roms/FC/gamelist.xml').write_text(
+    '<gameList><game><path>./' + first_rom + '</path>'
+    '<desc>' + ('This is a description with enough words to need another page. ' * 25) +
+    '</desc></game></gameList>')
+paged = details('R4').tobytes()
+assert paged != details('R').tobytes(), (
+    'R2 immediately after opening Game Info must page the description')
+# With .gameInfoAutoScroll, R2 before the scrolling starts pages at once
+# as well, rather than only cancelling the start.
+(SD / '.tmp_update/config').mkdir(parents=True, exist_ok=True)
+(SD / '.tmp_update/config/.gameInfoAutoScroll').write_text('30000,20')
+assert details('R4').tobytes() == paged, (
+    'R2 before auto-scroll starts must page the description at once')
 shutil.rmtree(OUT)
-print('Game Info title layouts kept and replaced draw as freshly wrapped ones')
+print('Game Info title layouts and early page presses work with skipped draws')

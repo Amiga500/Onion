@@ -14,10 +14,53 @@
 
 static struct timespec marks[MAINUI_MARK_COUNT];
 static bool valid[MAINUI_MARK_COUNT], enabled, reported;
-static const char *const names[] = {"frames",      "roms",         "cache",          "cache-hits",
-                                    "cache-scans", "scan-entries", "cache-build-ms", "scan-ms",
-                                    "draw-ms",     "gap-under35",  "gap-40",         "gap-50-60",
-                                    "gap-over65",  "discover-ms",  "icon-ms"};
+static const char *const names[] = {"frames",
+                                    "roms",
+                                    "cache",
+                                    "cache-hits",
+                                    "cache-scans",
+                                    "scan-entries",
+                                    "cache-build-ms",
+                                    "scan-ms",
+                                    "draw-ms",
+                                    "gap-under35",
+                                    "gap-40",
+                                    "gap-50-60",
+                                    "gap-over65",
+                                    "discover-ms",
+                                    "icon-ms",
+                                    "video-marquee-coalesced",
+                                    "carousel-slot-hit",
+                                    "carousel-slot-miss",
+                                    "carousel-image-loads",
+                                    "carousel-load-ms",
+                                    "carousel-scale-ms",
+                                    "carousel-count-ms",
+                                    "carousel-slot-ms",
+                                    "carousel-compose-ms",
+                                    "carousel-present-ms",
+                                    "carousel-copy-us",
+                                    "carousel-copy-max-us",
+                                    "carousel-copy-over10",
+                                    "carousel-flip-us",
+                                    "carousel-flip-max-us",
+                                    "carousel-flip-over10",
+                                    "carousel-present-max-us",
+                                    "carousel-present-over16",
+                                    "carousel-present-over25",
+                                    "carousel-gap-max-ms",
+                                    "carousel-gap-over45",
+                                    "carousel-update-frames",
+                                    "carousel-flip-frames",
+                                    "carousel-stall25",
+                                    "carousel-stall100",
+                                    "carousel-cache-evict",
+                                    "carousel-idle-loads",
+                                    "carousel-idle-load-ms",
+                                    "carousel-vsync-waits",
+                                    "carousel-vsync-ms",
+                                    "carousel-vsync-fail",
+                                    "carousel-vsync-slow"};
 static atomic_long counters[sizeof names / sizeof *names];
 static char exchange[4096], boot_id[64];
 static int64_t away_ms = -1;
@@ -110,6 +153,18 @@ void mainui_timing_finish(const char *name, struct timespec start)
     if (ms >= 0) {
         mainui_count_add(name, ms > LONG_MAX ? LONG_MAX : (long)ms);
     }
+}
+
+long mainui_timing_elapsed_us(struct timespec start)
+{
+    struct timespec end;
+    if (!enabled || start.tv_sec < 0 || clock_gettime(CLOCK_MONOTONIC, &end) != 0) {
+        return -1;
+    }
+    int64_t seconds = (int64_t)end.tv_sec - (int64_t)start.tv_sec;
+    int64_t micros =
+        seconds * INT64_C(1000000) + ((int64_t)end.tv_nsec - (int64_t)start.tv_nsec) / 1000;
+    return micros < 0 ? -1 : micros > LONG_MAX ? LONG_MAX : (long)micros;
 }
 
 static bool current_boot(void)
@@ -236,7 +291,7 @@ void mainui_timing_interim(long interval_ms)
         return;
     }
     interim_at = now;
-    char line[1024];
+    char line[2048];
     int used = snprintf(line, sizeof line, "[timing] interim uptime-ms %" PRId64,
                         valid[MAINUI_MARK_ENTRY] ? elapsed(marks[MAINUI_MARK_ENTRY], now) : -1);
     used += format_counters(line + used, sizeof line - (size_t)used, interim_counters);
@@ -253,7 +308,7 @@ void mainui_timing_report(void)
         return;
     }
     reported = true;
-    char report[2048];
+    char report[3072];
     int used = snprintf(report, sizeof report,
                         "[timing] ms session %" PRId64 " video %" PRId64 " restore %" PRId64
                         " ready %" PRId64 " first-frame %" PRId64 " away %" PRId64 "\n",

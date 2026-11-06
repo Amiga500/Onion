@@ -49,6 +49,9 @@ int mainui_suite_timing(void)
     mainui_count_add("frames", 12);
     mainui_count_add("draw-ms", 12);
     mainui_count_add("draw-ms", 8);
+    mainui_count_add("carousel-cache-evict", 2);
+    mainui_count_add("carousel-idle-loads", 3);
+    mainui_count_add("carousel-idle-load-ms", 101);
     mainui_count("unknown", 999);
     mainui_count(NULL, 0);
     pthread_t workers[4];
@@ -75,8 +78,11 @@ int mainui_suite_timing(void)
     assert(strstr(output, "[timing] launch-ms "));
     assert(strstr(output, "frames 12 roms 1043 cache 1"));
     assert(strstr(output, "draw-ms 20"));
+    assert(strstr(output, "carousel-cache-evict 2"));
+    assert(strstr(output, "carousel-idle-loads 3 carousel-idle-load-ms 101"));
     assert(strstr(output, "scan-entries 20000 cache-build-ms 40000 scan-ms 60000"));
     assert(strstr(output, " discover-ms ") && strstr(output, " icon-ms "));
+    assert(strstr(output, " video-marquee-coalesced "));
     assert(!strstr(output, "unknown"));
     assert(!strstr(strstr(output, "[timing] ms session ") + 1, "[timing] ms session "));
     /* A second logged session consumes the same-boot handoff once. */

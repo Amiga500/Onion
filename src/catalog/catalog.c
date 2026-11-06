@@ -422,9 +422,11 @@ static bool visit(MainUICatalogPage *page, const char *sd, const char *name, boo
         cJSON_Delete(json);
         return ok;
     }
-    /* Box art and manuals live beside the ROMs; neither folder is a ROM
-     * folder. Names are matched without regard to case. */
+    /* Box art, manuals and Game Info's media (covers, 3D boxes, screenshots
+     * and videos) live beside the ROMs; none of these folders is a ROM folder.
+     * Names are matched without regard to case. */
     if (directory && (!compare_text(name, "Imgs", false) || !compare_text(name, "Manuals", false) ||
+                      !compare_text(name, "media", false) ||
                       !compare_text(scratch->path, page->images, false))) {
         return true;
     }
@@ -1301,6 +1303,37 @@ static bool cache_needs_repair(const char *file, const char *table)
     return missing || (result & 255) == SQLITE_CORRUPT || (result & 255) == SQLITE_NOTADB;
 }
 
+long long mainui_catalog_game_count(const MainUICatalog *catalog, int system)
+{
+    if (!catalog || system < 0 || system >= catalog->pages[0].count) {
+        return -1;
+    }
+    const MainUIEntry *entry = &catalog->pages[0].entries[system];
+    const char *name = strrchr(entry->path, '/');
+    name = name ? name + 1 : entry->path;
+    char file[MAINUI_PATH_MAX];
+    int length = snprintf(file, sizeof file, "%s/%s_cache6.db", entry->path, name);
+    if (length < 0 || length >= (int)sizeof file) {
+        return -1;
+    }
+    sqlite3 *db = NULL;
+    sqlite3_stmt *statement = NULL;
+    long long count = -1;
+    /* This count runs on the UI thread: reject WAL and cap untrusted views
+     * with the same read-only SQLite VM budget as normal cache browsing. */
+    int budget = 20000;
+    char *sql = sqlite3_mprintf("SELECT count(*) FROM \"%w_roms\" WHERE type = 0", name);
+    if (sql && mainui_cache_readonly_open(&db, file, &budget) &&
+        sqlite3_prepare_v2(db, sql, -1, &statement, NULL) == SQLITE_OK &&
+        sqlite3_step(statement) == SQLITE_ROW) {
+        count = sqlite3_column_int64(statement, 0);
+    }
+    sqlite3_free(sql);
+    sqlite3_finalize(statement);
+    sqlite3_close(db);
+    return count;
+}
+
 bool mainui_search_root(const char *sd, const char *root)
 {
     char path[MAINUI_PATH_MAX];
@@ -1348,6 +1381,13 @@ static bool take_scan_only(const char *root)
     }
     pthread_mutex_unlock(&scan_lock);
     return i >= 0;
+}
+
+void mainui_catalog_cancel_scan_only(const char *root)
+{
+    if (root && *root) {
+        (void)take_scan_only(root);
+    }
 }
 
 bool mainui_catalog_keep_scanning(const char *root)
@@ -1527,6 +1567,15 @@ bool mainui_catalog_enter(MainUICatalog *catalog, int index)
         next->cache_fallback = true;
         fprintf(stderr, "[scan] %s: listed by scanning its folder (cache unreadable)\n",
                 next->path);
+    }
+    /* Search's results are its database, which only Search writes: without
+     * one, scanning its data folder would list no results or unrelated
+     * folders as if they were. */
+    if (!catalog->depth && !forced_scan && search_database(catalog, next->path) &&
+        !path_exists(next->cache_file)) {
+        close_page(next);
+        strcpy(catalog->error, "No Search results to show. Run Search again.");
+        return false;
     }
     if (!scan(next, catalog->sd, false, catalog->case_sensitive, catalog->cancel)) {
         close_page(next);

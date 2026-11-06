@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "ui/preview.h"
+#include "menus/console_view.h"
 #include "ui/artwork.h"
+#include "ui/carousel_worker.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -91,7 +93,9 @@ static bool image_path(MainUIPreview *preview, char out[MAINUI_PATH_MAX], MainUI
     }
     else {
         if (!catalog->depth) {
-            return false;
+            /* A console listed: its thumbnail, when there is a folder of them. */
+            return mainui_console_thumb(out, preview->thumbs,
+                                        mainui_catalog_entry(catalog, selected));
         }
         MainUIEntry *entry = mainui_catalog_entry(catalog, selected);
         if (!entry) {
@@ -182,13 +186,51 @@ static SDL_Surface *scale_image(SDL_Surface *image)
     return NULL;
 }
 
+/* The listed console cover follows the carousel's fallback order without
+ * probing the SD card on every frame: specific, _default, theme icon. */
+static SDL_Surface *preview_load(const char *path, bool console, const char *theme,
+                                 const char *fallback)
+{
+    SDL_Surface *image = mainui_artwork_load(path);
+    if (!image && console) {
+        char default_path[MAINUI_PATH_MAX];
+        if (mainui_console_thumb_default(default_path, path)) {
+            image = mainui_artwork_load(default_path);
+        }
+        if (!image && *theme) {
+            image = mainui_carousel_theme_icon(theme, fallback);
+        }
+    }
+    return scale_image(image);
+}
+
+/* Copy all path data before starting the worker: catalog rediscovery can
+ * replace its entries while decoding is in progress. */
+static void preview_sources(MainUIPreview *preview, MainUICatalog *catalog,
+                            const MainUILibrary *library, int index)
+{
+    preview->loading_icon[0] = preview->loading_fallback[0] = 0;
+    preview->loading_console =
+        catalog && !library && !catalog->depth && preview->thumbs && *preview->thumbs;
+    if (!preview->loading_console) {
+        return;
+    }
+    MainUIEntry *entry = mainui_catalog_entry(catalog, index);
+    if (entry && entry->icon) {
+        snprintf(preview->loading_icon, sizeof preview->loading_icon, "%s", entry->icon);
+        snprintf(preview->loading_fallback, sizeof preview->loading_fallback, "%s",
+                 preview->theme_fallback ? preview->theme_fallback : "");
+    }
+}
+
 static int decode_image(void *context)
 {
     MainUIPreview *preview = context;
     /* The worker owns only this copied path and decoded surface. It never reads
      * catalog entries, which paging can invalidate, or touches the display.
      * Scaling uses software surfaces only, so it stays off the UI thread too. */
-    preview->decoded = scale_image(mainui_artwork_load(preview->loading));
+    preview->decoded = preview_load(preview->loading, preview->loading_console,
+                                    preview->loading_icon, preview->loading_fallback);
     atomic_store_explicit(&preview->done, true, memory_order_release);
     SDL_Event event = {.type = SDL_USEREVENT};
     SDL_PushEvent(&event);
@@ -293,12 +335,16 @@ void mainui_preview_request_within(MainUIPreview *preview, MainUICatalog *catalo
     }
     if (!preview->thread && preview->pending) {
         if (synchronous) {
-            cache_image(preview, path, scale_image(mainui_artwork_load(path)));
+            preview_sources(preview, catalog, library, selected);
+            cache_image(preview, path,
+                        preview_load(path, preview->loading_console, preview->loading_icon,
+                                     preview->loading_fallback));
             cached_image(preview, path, true);
             preview->pending = false;
         }
         else {
             snprintf(preview->loading, sizeof preview->loading, "%s", path);
+            preview_sources(preview, catalog, library, selected);
             /* The flag is reused across decodes, so store, not initialize:
              * atomic_init on a live object is not an atomic operation. */
             atomic_store(&preview->done, false);
@@ -329,6 +375,7 @@ void mainui_preview_request_within(MainUIPreview *preview, MainUICatalog *catalo
                 continue;
             }
             snprintf(preview->loading, sizeof preview->loading, "%s", neighbor);
+            preview_sources(preview, catalog, library, (int)index);
             atomic_store(&preview->done, false);
             preview->thread = SDL_CreateThread(decode_image, preview);
             break;
@@ -349,7 +396,14 @@ int mainui_preview_edge(const MainUITheme *theme)
 
 void mainui_preview_draw(MainUIPreview *preview, const MainUITheme *theme, SDL_Surface *screen)
 {
-    if (!preview->image) {
+    mainui_preview_draw_image(preview, theme, screen, NULL);
+}
+
+void mainui_preview_draw_image(MainUIPreview *preview, const MainUITheme *theme,
+                               SDL_Surface *screen, SDL_Surface *image)
+{
+    image = image ? image : preview->image;
+    if (!image) {
         return;
     }
     /* Stock 0x31698 overlays the theme background after the list. At 0x31794
@@ -359,7 +413,7 @@ void mainui_preview_draw(MainUIPreview *preview, const MainUITheme *theme, SDL_S
         SDL_Rect background = {(Sint16)edge, 60, 0, 0};
         SDL_BlitSurface(theme->preview_background, NULL, screen, &background);
     }
-    SDL_Rect destination = {(Sint16)(edge + (250 - preview->image->w) / 2),
-                            (Sint16)(60 + (360 - preview->image->h) / 2), 0, 0};
-    SDL_BlitSurface(preview->image, NULL, screen, &destination);
+    SDL_Rect destination = {(Sint16)(edge + (250 - image->w) / 2),
+                            (Sint16)(60 + (360 - image->h) / 2), 0, 0};
+    SDL_BlitSurface(image, NULL, screen, &destination);
 }

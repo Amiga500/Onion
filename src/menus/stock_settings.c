@@ -189,6 +189,13 @@ MainUISettingsResult mainui_stock_setting_adjust(MainUIStockSettings *settings, 
         return MAINUI_SETTINGS_NOT_SAVED;
     }
     int maximum = kind == SET_BRIGHTNESS ? 10 : kind == SET_SOUND ? 20 : 30;
+    int live = 0;
+    /* keymon's brightness combo changes the live level while Settings is
+     * open: step from that one, the shown value only without it. */
+    if (kind == SET_BRIGHTNESS && mainui_system_live_value(sd, key, &live) && live >= 0 &&
+        live <= maximum) {
+        settings->values[kind] = live;
+    }
     int value = settings->values[kind] + (delta < 0 ? -1 : 1);
     if (kind == SET_SLEEP) {
         /* fix-sleep-timer-left-right reverses the stock four-value cycle. */
@@ -214,7 +221,6 @@ MainUISettingsResult mainui_stock_setting_adjust(MainUIStockSettings *settings, 
     MainUISettingsResult result =
         number ? mainui_system_write_result(sd, key, number) : MAINUI_SETTINGS_NOT_SAVED;
     cJSON_Delete(number);
-    int live = 0;
     if (result == MAINUI_SETTINGS_SAVED) {
         settings->values[kind] = value;
     }

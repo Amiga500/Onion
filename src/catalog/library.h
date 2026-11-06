@@ -12,7 +12,7 @@
 typedef struct {
     cJSON *json;
     const char *label, *rom, *launch;
-    char *identity;
+    char *identity, *rom_key;
     int type, folder, order;
 } MainUILibraryItem;
 

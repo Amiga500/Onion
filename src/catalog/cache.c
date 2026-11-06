@@ -46,8 +46,8 @@ static char *duplicate_text(const char *text)
 
 static int query_budget_exhausted(void *context)
 {
-    MainUICache *cache = context;
-    return --cache->remaining_query_budget <= 0;
+    int *budget = context;
+    return --*budget <= 0;
 }
 
 void mainui_cache_close(MainUICache *cache)
@@ -60,9 +60,8 @@ void mainui_cache_close(MainUICache *cache)
     free(cache);
 }
 
-static bool configure_reader(MainUICache *cache)
+static bool configure_database(sqlite3 *database, int *budget)
 {
-    sqlite3 *database = cache->database;
     sqlite3_limit(database, SQLITE_LIMIT_LENGTH, CACHE_MAX_VALUE_BYTES);
     sqlite3_limit(database, SQLITE_LIMIT_SQL_LENGTH, 16384);
     /* Firmware can resolve an older libsqlite3.so.0 than the build-time SDK.
@@ -84,11 +83,16 @@ static bool configure_reader(MainUICache *cache)
         return false;
     }
 
-    cache->remaining_query_budget = CACHE_QUERY_BUDGET;
-    sqlite3_progress_handler(database, CACHE_PROGRESS_INTERVAL, query_budget_exhausted, cache);
+    sqlite3_progress_handler(database, CACHE_PROGRESS_INTERVAL, query_budget_exhausted, budget);
     return sqlite3_exec(database,
                         "PRAGMA query_only=ON; PRAGMA cache_size=-256; PRAGMA temp_store=MEMORY",
                         NULL, NULL, NULL) == SQLITE_OK;
+}
+
+static bool configure_reader(MainUICache *cache)
+{
+    cache->remaining_query_budget = CACHE_QUERY_BUDGET;
+    return configure_database(cache->database, &cache->remaining_query_budget);
 }
 
 static bool count_rows(MainUICache *cache, const char *table, const char *parent)
@@ -144,7 +148,7 @@ static bool prepare_rows(MainUICache *cache, const char *table, const char *pare
  * with WAL support or with SQLITE_OMIT_WAL. Bytes 18 and 19 hold the
  * read/write version; 2 means WAL. A file too short or unreadable here is left
  * for sqlite3_open_v2 to reject. */
-static bool journal_is_wal(const char *file)
+bool mainui_cache_is_wal(const char *file)
 {
     FILE *input = fopen(file, "rb");
     if (!input) {
@@ -156,6 +160,22 @@ static bool journal_is_wal(const char *file)
     fclose(input);
     return !failed && size == sizeof header && !memcmp(header, "SQLite format 3", 16) &&
            (header[18] == 2 || header[19] == 2);
+}
+
+bool mainui_cache_readonly_open(sqlite3 **out, const char *file, int *budget)
+{
+    if (!out || !file || !budget) {
+        return false;
+    }
+    *out = NULL;
+    if (mainui_cache_is_wal(file) ||
+        sqlite3_open_v2(file, out, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, NULL) != SQLITE_OK ||
+        !configure_database(*out, budget)) {
+        sqlite3_close(*out);
+        *out = NULL;
+        return false;
+    }
+    return true;
 }
 
 bool mainui_cache_open(MainUICache **out, const char *file, const char *table, const char *parent,
@@ -184,7 +204,7 @@ bool mainui_cache_open(MainUICache **out, const char *file, const char *table, c
     /* Read-only mode also prevents creation of a missing database. Connections,
      * statements and progress callbacks have one owner; worker handoff follows a join.
      */
-    if (journal_is_wal(file)) {
+    if (mainui_cache_is_wal(file)) {
         goto fail;
     }
     if (sqlite3_open_v2(file, &cache->database, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, NULL) !=

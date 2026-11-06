@@ -28,6 +28,8 @@ void mainui_count_add(const char *name, long value);
  * Finish every attempted operation, including failure/cancellation. */
 struct timespec mainui_timing_start(void);
 void mainui_timing_finish(const char *name, struct timespec start);
+/* Microsecond timing for short presentation stages; -1 if collection is disabled. */
+long mainui_timing_elapsed_us(struct timespec start);
 /* UI thread: optional tmpfs exchange, read against ENTRY, scoped to this boot.
  * Configure only for a real device; no SD writes or additional logging flag. */
 void mainui_timing_handoff(const char *path);

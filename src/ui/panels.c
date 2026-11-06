@@ -129,7 +129,7 @@ static SDL_Surface *app_icon(MainUITheme *theme, const char *path, bool used[4],
 }
 
 void mainui_draw_apps(SDL_Surface *screen, MainUITheme *theme, MainUICatalog *apps,
-                      const MainUIViewport *view)
+                      const MainUIViewport *view, const bool *favorite)
 {
     bool used[4] = {false};
     /* Stock counts Apps rows as it counts games: 10/15 on row 10 of 15. */
@@ -196,6 +196,18 @@ void mainui_draw_apps(SDL_Surface *screen, MainUITheme *theme, MainUICatalog *ap
             if (!borrowed) {
                 SDL_FreeSurface(icon);
             }
+        }
+        /* The Favorite mark, unscaled, 20 px from the right and centred in
+         * the row; the text lane ends 6 px before it on every row, so a
+         * toggle moves nothing. */
+        SDL_Surface *mark = theme->favorite;
+        int mark_x = mark ? 640 - 20 - mark->w : 640;
+        if (mark && favorite && favorite[i - view->start]) {
+            mainui_blit(screen, mark, mark_x, y + (90 - mark->h) / 2);
+        }
+        if (mark) {
+            SDL_Rect lane = {0, (Sint16)y, (Uint16)(mark_x - 6 > 0 ? mark_x - 6 : 0), 90};
+            SDL_SetClipRect(screen, &lane);
         }
         bool description = app->description && *app->description;
         mainui_label(screen, theme->menu_font, theme->color, app->label, x,

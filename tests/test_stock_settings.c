@@ -280,6 +280,19 @@ static int monitor(const char *config, const char *sd)
     assert(reopened.values[SET_BRIGHTNESS] == 8 && fake.values[0] == 8 &&
            saved(sd, "brightness") == 8);
     settings.values[SET_BRIGHTNESS] = 8;
+    /* The brightness combo lowered the live level to 3 while Settings still
+     * shows 8: Right steps from 3 to 4. */
+    fake.values[0] = 3;
+    assert(mainui_stock_setting_adjust(&settings, sd, 1) == MAINUI_SETTINGS_SAVED);
+    assert(settings.values[SET_BRIGHTNESS] == 4 && fake.values[0] == 4 &&
+           saved(sd, "brightness") == 4);
+    assert(mainui_stock_setting_adjust(&settings, sd, 1) == MAINUI_SETTINGS_SAVED);
+    assert(settings.values[SET_BRIGHTNESS] == 5 && saved(sd, "brightness") == 5);
+    settings.values[SET_BRIGHTNESS] = 8;
+    fake.values[0] = 8;
+    assert(mainui_stock_setting_adjust(&settings, sd, -1) == MAINUI_SETTINGS_SAVED);
+    assert(mainui_stock_setting_adjust(&settings, sd, 1) == MAINUI_SETTINGS_SAVED);
+    assert(settings.values[SET_BRIGHTNESS] == 8 && saved(sd, "brightness") == 8);
 
     /* Display: the third live value cannot be written; the two before it go
      * back, so nothing changed. */

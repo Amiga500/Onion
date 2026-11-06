@@ -15,8 +15,10 @@ typedef enum {
     MAINUI_SHORTCUT_NONE,         /* no shortcut: no file, no text value; X is B, Y is A */
     MAINUI_SHORTCUT_GAME_OPTIONS, /* "glo": Onion's Game List Options */
     MAINUI_SHORTCUT_FAVORITE,     /* "fav": add the game to Favorites or remove it */
-    MAINUI_SHORTCUT_KEYMON        /* keymon's (an app or tool) or unknown: the file
+    MAINUI_SHORTCUT_KEYMON,       /* keymon's (an app or tool) or unknown: the file
                                    * cannot be read or parsed, or another value */
+    MAINUI_SHORTCUT_DISABLED      /* false or "disable": the button does nothing in
+                                   * MainUI, but on the on-screen keyboard */
 } MainUIShortcut;
 
 /* button is 'X' or 'Y'. `why` (when not NULL) says why for

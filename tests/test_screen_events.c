@@ -41,7 +41,7 @@ static bool tap(MainUIApp *ui, SDLKey key)
 static void home_and_popups(MainUIApp *ui)
 {
     reset(ui);
-    assert(key_event(ui, SDL_KEYDOWN, SDLK_ESCAPE, 0));
+    assert(tap(ui, SDLK_ESCAPE));
     assert(ui->running && ui->home && ui->home_view.selected == 1);
     assert(key_event(ui, SDL_KEYDOWN, SDLK_LCTRL, 0));
     assert(ui->running && ui->home);
@@ -72,15 +72,22 @@ static void home_and_popups(MainUIApp *ui)
     assert(key_event(ui, SDL_KEYDOWN, SDLK_RETURN, 0));
     assert(!ui->context_open && ui->confirmation == CONTEXT_SHUTDOWN);
     assert(!ui->launch_pending);
-    assert(key_event(ui, SDL_KEYDOWN, SDLK_ESCAPE, 0));
+    assert(tap(ui, SDLK_ESCAPE));
     assert(ui->confirmation == -1 && ui->home && ui->running);
 
     /* Messages consume input before home/list navigation. */
     strcpy(ui->message_title, "Message");
     assert(key_event(ui, SDL_KEYDOWN, SDLK_RIGHT, 0));
     assert(ui->home_view.selected == 2 && *ui->message_title);
-    assert(key_event(ui, SDL_KEYDOWN, SDLK_ESCAPE, 0));
+    assert(tap(ui, SDLK_ESCAPE));
     assert(!*ui->message_title && ui->running);
+    /* B acts once per press: held, its repeats close nothing more. */
+    strcpy(ui->message_title, "Message");
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_ESCAPE, 0) && !*ui->message_title);
+    strcpy(ui->message_title, "Message");
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_ESCAPE, 0) && *ui->message_title);
+    assert(key_event(ui, SDL_KEYUP, SDLK_ESCAPE, 0) && *ui->message_title);
+    assert(tap(ui, SDLK_ESCAPE) && !*ui->message_title && ui->running);
 }
 
 static void start_is_consumed(MainUIApp *ui)
@@ -139,7 +146,12 @@ static void keyboard_priority(MainUIApp *ui)
     assert(key_event(ui, SDL_KEYDOWN, SDLK_F2, 0));
     assert(ui->name_input.open && ui->settings_keyboard == 2 && *ui->name_input.error);
     assert(!*ui->settings_page.password && !ui->device_job.thread);
-    assert(key_event(ui, SDL_KEYDOWN, SDLK_ESCAPE, 0));
+    /* Nor an empty one, for a network the scan found protected. */
+    ui->name_input.text[0] = ui->name_input.error[0] = 0;
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_F2, 0));
+    assert(ui->name_input.open && ui->settings_keyboard == 2 && *ui->name_input.error);
+    assert(!*ui->settings_page.password && !ui->device_job.thread);
+    assert(tap(ui, SDLK_ESCAPE));
     assert(!ui->name_input.open && !ui->settings_keyboard);
     assert(!ui->settings_page.connect_after_password && ui->settings_page.open);
 
@@ -160,7 +172,7 @@ static void keyboard_priority(MainUIApp *ui)
     ui->device_job.thread = NULL;
     ui->device_job.operation = 0;
     ui->device_enabled = false;
-    assert(key_event(ui, SDL_KEYDOWN, SDLK_ESCAPE, 0));
+    assert(tap(ui, SDLK_ESCAPE));
     assert(!ui->name_input.open && !ui->settings_keyboard);
 }
 
@@ -264,7 +276,7 @@ static void message_over_details(MainUIApp *ui)
     assert(!*ui->message_title && ui->details.open && !ui->launch_pending);
     assert(key_event(ui, SDL_KEYUP, SDLK_RETURN, 0));
     strcpy(ui->message_title, "Catalog unavailable");
-    assert(key_event(ui, SDL_KEYDOWN, SDLK_ESCAPE, 0));
+    assert(tap(ui, SDLK_ESCAPE));
     assert(!*ui->message_title && ui->details.open);
     ui->details.open = false;
     ui->handoff_dir = NULL;
@@ -313,6 +325,8 @@ static void releases_after_sleep(MainUIApp *ui)
     assert(key_event(ui, SDL_KEYDOWN, SDLK_RCTRL, 0));
     ui->y_armed = ui->start_armed = ui->select_brightness = true;
     assert(ui->select_armed && ui->y_armed && ui->start_armed);
+    /* SDL_GetTicks() is not guaranteed to start at zero before SDL_Init. */
+    ui->next_device_check = SDL_GetTicks();
     assert(mainui_poll_jobs(ui) && ui->device_status.sleeping == 1);
     assert(!ui->y_armed && !ui->select_armed && !ui->start_armed && !ui->select_brightness);
     /* Wake, then release. */
@@ -372,6 +386,16 @@ static void wake_intervals(MainUIApp *ui)
     ui->letter_jump.active = ui->animate = false;
     ui->catalog_job.started_at = (Uint32)-100;
     assert(mainui_wait_interval(ui, 100) == 300);
+    reset(ui);
+    /* A deferred carousel frame wakes at the next 40ms deadline, even
+     * without another key press. Pending redraws are never skipped as idle. */
+    ui->last_screen_present_at = 1000;
+    ui->carousel_frame_pending = true;
+    assert(mainui_wait_interval(ui, 1010) == 30);
+    assert(mainui_wait_interval(ui, 1039) == 1);
+    assert(mainui_wait_interval(ui, 1040) == 1);
+    assert(!mainui_frame_current(ui, 1040));
+    ui->carousel_frame_pending = false;
     reset(ui);
 }
 
@@ -474,6 +498,18 @@ static void idle_frame(MainUIApp *ui)
     ui->presented_animating = true;
     assert(mainui_frame_marquee_only(ui, 2500) && mainui_frame_marquee_only(ui, 20000));
     assert(!mainui_frame_marquee_only(ui, 32000));
+    /* A video frame then waits for the title's next paced frame. */
+    assert(!mainui_frame_current(ui, 2500));
+    ui->video_wake = ui->marquee_paced = true;
+    assert(mainui_frame_current(ui, 2500));
+    ui->marquee_paced = false;
+    assert(!mainui_frame_current(ui, 2500));
+    ui->marquee_paced = true;
+    ui->presented_animating = false;
+    ui->list_video.changed = true;
+    assert(!mainui_frame_current(ui, 2500));
+    ui->presented_animating = true;
+    ui->video_wake = ui->marquee_paced = ui->list_video.changed = false;
     ui->idle_tick = false;
     assert(!mainui_frame_marquee_only(ui, 2500));
     free(ui->catalog);
@@ -516,6 +552,20 @@ static void selection_identity(MainUIApp *ui)
     item.identity = "replacement";
     mainui_prepare_frame(ui);
     assert(ui->selected_at != (Uint32)-10000);
+    /* A console Search's rows have no identity; two with one title are told
+     * apart by their ROM, so a move between them is a new selection. */
+    MainUILibraryItem same[2] = {{.label = "Game", .rom = "/Roms/Game (A).zip"},
+                                 {.label = "Game", .rom = "/Roms/Game (B).zip"}};
+    library->items = same;
+    library->count = library->visible_count = 2;
+    library->visible[1] = 1;
+    mainui_prepare_frame(ui);
+    char first[sizeof ui->selected_identity];
+    strcpy(first, ui->selected_identity);
+    ui->view.selected = 1;
+    mainui_prepare_frame(ui);
+    assert(strcmp(first, ui->selected_identity));
+    ui->view.selected = 0;
     free(library);
     free(catalog);
     reset(ui);
@@ -596,16 +646,226 @@ static void keymon_quiet_l1(MainUIApp *ui)
     key_event(ui, SDL_KEYUP, SDLK_PAGEUP, 0);
 }
 
+/* Before the carousel's first pictures are ready the frame before stays,
+ * but never over a menu, confirmation, keyboard or message, which take the
+ * buttons and so show at once. */
+static void carousel_hold_frame(MainUIApp *ui)
+{
+    reset(ui);
+    ui->home = false;
+    ui->catalog = calloc(1, sizeof *ui->catalog);
+    assert(ui->catalog);
+    ui->view = (MainUIViewport){.total = 3, .selected = 0};
+    ui->console_view.games = MAINUI_CONSOLE_CAROUSEL;
+    ui->systems_drawn = true;
+    assert(mainui_carousel_hold_frame(ui));
+    ui->context_open = true;
+    assert(!mainui_carousel_hold_frame(ui));
+    ui->context_open = false;
+    ui->confirmation = 0;
+    assert(!mainui_carousel_hold_frame(ui));
+    ui->confirmation = -1;
+    ui->name_input.open = true;
+    assert(!mainui_carousel_hold_frame(ui));
+    ui->name_input.open = false;
+    snprintf(ui->message_title, sizeof ui->message_title, "Message");
+    assert(!mainui_carousel_hold_frame(ui));
+    ui->message_title[0] = 0;
+    assert(mainui_carousel_hold_frame(ui));
+    ui->menu_view.carousel_revealed = true;
+    assert(!mainui_carousel_hold_frame(ui));
+    ui->menu_view.carousel_revealed = false;
+    ui->console_view.games = MAINUI_CONSOLE_LIST;
+    assert(!mainui_carousel_hold_frame(ui));
+    free(ui->catalog);
+    ui->catalog = NULL;
+}
+
+/* One queued tap survives release; held repeats do not leave a tail of
+ * moves after release. The queue is drained on a frame tick, not a key event. */
+static void carousel_repeat_pacing(MainUIApp *ui)
+{
+    reset(ui);
+    ui->home = false;
+    ui->catalog = calloc(1, sizeof *ui->catalog);
+    assert(ui->catalog);
+    ui->view = (MainUIViewport){.total = 8, .selected = 2};
+    ui->console_view.games = MAINUI_CONSOLE_CAROUSEL;
+    ui->console_view.slide = true;
+    ui->console_view.duration_ms = 300;
+    ui->console_view.repeat_ms = 200;
+    assert(tap(ui, SDLK_RIGHT));
+    assert(ui->view.selected == 3 && ui->carousel_direction_paced);
+    Uint32 accepted = ui->carousel_last_direction_at;
+    assert(tap(ui, SDLK_RIGHT));
+    assert(ui->view.selected == 3 && ui->carousel_pending_direction == 1 &&
+           ui->carousel_pending_tap);
+    assert(mainui_screen_carousel_due(ui, accepted + 200) > 0);
+    mainui_screen_carousel_step(ui, accepted + 200);
+    assert(ui->view.selected == 3);
+    mainui_screen_carousel_step(ui, accepted + 301);
+    assert(ui->view.selected == 4 && !ui->carousel_pending_direction);
+    /* A reversed tap replaces the pending direction, including after keyup. */
+    assert(tap(ui, SDLK_RIGHT));
+    assert(tap(ui, SDLK_LEFT));
+    assert(ui->carousel_pending_direction == -1 && ui->carousel_pending_tap);
+    mainui_screen_carousel_step(ui, ui->carousel_last_direction_at + 301);
+    assert(ui->view.selected == 3);
+    /* A held repeat can be queued but is cancelled when the key is released:
+     * the press itself moves at once, its repeat waits for the slide. */
+    ui->carousel_last_direction_at = SDL_GetTicks() - 1000;
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_RIGHT, 0));
+    assert(ui->view.selected == 4 && !ui->carousel_pending_direction);
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_RIGHT, 0));
+    assert(ui->carousel_pending_direction == 1 && !ui->carousel_pending_tap);
+    assert(key_event(ui, SDL_KEYUP, SDLK_RIGHT, 0));
+    assert(!ui->carousel_pending_direction && ui->view.selected == 4);
+    /* The first press of a hold made while a slide runs is a press, and
+     * waits for it as a tap does. */
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_LEFT, 0));
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_LEFT, 0));
+    assert(key_event(ui, SDL_KEYUP, SDLK_LEFT, 0));
+    assert(ui->carousel_pending_direction == -1 && ui->carousel_pending_tap);
+    mainui_screen_carousel_step(ui, ui->carousel_last_direction_at + 301);
+    assert(ui->view.selected == 3 && !ui->carousel_pending_direction);
+    /* A held repeat must not cancel an already queued deliberate tap. */
+    assert(tap(ui, SDLK_RIGHT));
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_RIGHT, 0));
+    assert(key_event(ui, SDL_KEYDOWN, SDLK_RIGHT, 0));
+    assert(key_event(ui, SDL_KEYUP, SDLK_RIGHT, 0));
+    assert(ui->carousel_pending_direction == 1 && ui->carousel_pending_tap);
+    /* The real animation starts at its first rendered frame, not keydown. */
+    ui->menu_view.cached_start = MAINUI_MENU_VIEW_CAROUSEL;
+    ui->menu_view.slid_to = ui->view.selected;
+    ui->menu_view.sliding = true;
+    ui->menu_view.slide_start = ui->carousel_last_direction_at + 40;
+    assert(mainui_screen_carousel_due(ui, ui->carousel_last_direction_at + 301) > 0);
+    mainui_screen_carousel_step(ui, ui->carousel_last_direction_at + 301);
+    assert(ui->view.selected == 3);
+    mainui_screen_carousel_step(ui, ui->carousel_last_direction_at + 341);
+    assert(ui->view.selected == 4);
+    ui->menu_view.sliding = false;
+    ui->menu_view.cached_start = 0;
+    /* No slide: repeat_ms alone applies. */
+    ui->console_view.slide = false;
+    ui->console_view.repeat_ms = 100;
+    ui->carousel_last_direction_at = SDL_GetTicks() - 50;
+    assert(tap(ui, SDLK_RIGHT));
+    assert(ui->carousel_pending_direction == 1);
+    mainui_screen_carousel_step(ui, ui->carousel_last_direction_at + 101);
+    assert(ui->view.selected == 5);
+    /* A shoulder action cancels a pending tap. */
+    assert(tap(ui, SDLK_RIGHT));
+    assert(ui->carousel_pending_direction == 1);
+    assert(tap(ui, SDLK_TAB));
+    assert(!ui->carousel_pending_direction);
+    /* Leaving Carousel cancels pending input and resets the first-move latch. */
+    assert(tap(ui, SDLK_ESCAPE));
+    assert(ui->home && !ui->carousel_direction_paced);
+    ui->home = false;
+    ui->view.selected = 2;
+    assert(tap(ui, SDLK_RIGHT));
+    assert(ui->view.selected == 3);
+    /* Grid mode remains unpaced. */
+    ui->console_view.games = MAINUI_CONSOLE_GRID;
+    assert(tap(ui, SDLK_LEFT));
+    assert(tap(ui, SDLK_LEFT));
+    assert(ui->view.selected == 1);
+    free(ui->catalog);
+    reset(ui);
+}
+
+/* A shoulder jump is a snap, not a slide through now-invisible artwork.
+ * Ordinary Left/Right movement must keep its slide. */
+static void carousel_shoulder_snap(MainUIApp *ui)
+{
+    reset(ui);
+    ui->home = false;
+    ui->catalog = calloc(1, sizeof *ui->catalog);
+    assert(ui->catalog);
+    ui->view = (MainUIViewport){.total = 20, .selected = 5};
+    ui->console_view.games = MAINUI_CONSOLE_CAROUSEL;
+    assert(tap(ui, SDLK_TAB));
+    assert(ui->view.selected == 2 && ui->menu_view.carousel_snap);
+    ui->menu_view.carousel_snap = false; /* A draw consumes the one-shot flag. */
+    assert(tap(ui, SDLK_RIGHT));
+    assert(ui->view.selected == 3 && !ui->menu_view.carousel_snap);
+    assert(tap(ui, SDLK_PAGEDOWN));
+    assert(ui->view.selected != 3 && ui->menu_view.carousel_snap);
+    free(ui->catalog);
+    reset(ui);
+}
+
+/* B and unbound X dismiss a fullscreen list preview without running the
+ * list's normal Back action. Repeats are swallowed until that physical key
+ * is released; Menu also dismisses before opening its context menu. */
+static void fullscreen_video_back(MainUIApp *ui)
+{
+    const SDLKey back[] = {SDLK_ESCAPE, SDLK_LSHIFT};
+    for (unsigned i = 0; i < sizeof back / sizeof back[0]; i++) {
+        reset(ui);
+        ui->list_video.fullscreen = true;
+        ui->list_video.frame = (SDL_Surface *)ui; /* no decoder to close */
+        assert(key_event(ui, SDL_KEYDOWN, back[i], 0));
+        assert(ui->list_video.dismissed && !ui->list_video.frame);
+        assert(ui->list_video.swallow && ui->list_video.swallow_key == back[i]);
+        assert(ui->held[back[i]] && ui->home_view.selected == 1);
+        assert(key_event(ui, SDL_KEYDOWN, back[i], 0));
+        assert(ui->home_view.selected == 1); /* repeat didn't Back */
+        assert(key_event(ui, SDL_KEYUP, back[i], 0));
+        assert(!ui->list_video.swallow && !ui->held[back[i]]);
+        assert(ui->list_video.swallow_key == SDLK_UNKNOWN);
+    }
+    reset(ui);
+    ui->list_video.fullscreen = true;
+    ui->list_video.frame = (SDL_Surface *)ui;
+    SDL_Event menu = {0};
+    menu.type = SDL_USEREVENT;
+    menu.user.code = MAINUI_MENU_RELEASE_CODE;
+    assert(mainui_dispatch_event(ui, &menu));
+    assert(ui->list_video.dismissed && !ui->list_video.frame);
+    reset(ui);
+}
+
+/* Frame coalescing must not discard the movement already presented. A new
+ * selection, however, must not inherit the previous title's animation. */
+static void coalesced_marquee(MainUIApp *ui)
+{
+    reset(ui);
+    /* Give the home viewport real entries: a bare reset() has no menu,
+     * so changing selected would not change the selection identity. */
+    ui->menu.count = 3;
+    ui->menu.sections[1] = MAINUI_MENU_FAVORITES;
+    ui->menu.sections[2] = MAINUI_MENU_GAMES;
+    mainui_prepare_frame(ui); /* establish the selection identity */
+    ui->presented_animating = true;
+    ui->animate = false;
+    mainui_prepare_frame(ui);
+    assert(ui->animate);
+    ui->config.scroll_delay = 0;
+    ui->selected_at = SDL_GetTicks() - 1000;
+    assert(mainui_marquee_moving(ui, SDL_GetTicks()));
+    ui->home_view.selected++;
+    mainui_prepare_frame(ui);
+    assert(!ui->animate);
+    reset(ui);
+}
+
 int mainui_suite_screen_events(void)
 {
     MainUIApp *ui = calloc(1, sizeof *ui);
     assert(ui);
     settings_windows(ui);
     selection_identity(ui);
+    carousel_hold_frame(ui);
+    carousel_repeat_pacing(ui);
+    carousel_shoulder_snap(ui);
     wake_intervals(ui);
     tick_wraparound(ui);
     idle_frame(ui);
     home_and_popups(ui);
+    fullscreen_video_back(ui);
+    coalesced_marquee(ui);
     start_is_consumed(ui);
     keyboard_priority(ui);
     held_confirmation(ui);

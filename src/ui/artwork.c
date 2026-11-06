@@ -124,6 +124,8 @@ SDL_Surface *mainui_artwork_software(SDL_Surface *image)
     if (!image) {
         return NULL;
     }
+    /* Keep an alpha channel even for opaque RGB artwork: Carousel needs
+     * it to fade neighbouring thumbnails without changing the source. */
     SDL_Surface *format = SDL_CreateRGBSurface(SDL_SWSURFACE, 1, 1, 32, 0x00ff0000, 0x0000ff00,
                                                0x000000ff, 0xff000000);
     if (!format) {

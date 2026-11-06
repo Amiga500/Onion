@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "core/core.h"
 #include <limits.h>
+#include <math.h>
 
 /* Device IDs follow Onion 4.5-dev runtime.sh, not marketing-name guesses.
  * Keeping this table runtime-selected is the basis for one device executable.
@@ -169,6 +170,79 @@ int mainui_marquee_stream(uint64_t elapsed, int speed, int title, int visible, M
         out[count++] = (MainUIBlit){0, width, prefix};
     }
     return count;
+}
+
+int mainui_marquee_bounce_rest(int speed)
+{
+    if (speed <= 0) {
+        return 0;
+    }
+    /* As long as scrolling the rest distance takes, within bounds, in
+     * whole frames: longer for slow titles, shorter for fast ones. */
+    int ms = MAINUI_MARQUEE_BOUNCE_REST_PX * 1000 / speed;
+    ms = ms < MAINUI_MARQUEE_BOUNCE_REST_MIN_MS   ? MAINUI_MARQUEE_BOUNCE_REST_MIN_MS
+         : ms > MAINUI_MARQUEE_BOUNCE_REST_MAX_MS ? MAINUI_MARQUEE_BOUNCE_REST_MAX_MS
+                                                  : ms;
+    return (ms + MAINUI_MARQUEE_FRAME_MS - 1) / MAINUI_MARQUEE_FRAME_MS;
+}
+
+/* Where an eased leg of `distance` pixels is after `t` frames: the speed
+ * rises from 0 to `peak` pixels a frame over `ramp` frames along half a
+ * cosine, holds, and falls the same way to stop exactly at the end. */
+static double eased(double t, double distance, double peak, double ramp, double total)
+{
+    if (t <= 0) {
+        return 0;
+    }
+    if (t >= total) {
+        return distance;
+    }
+    if (t > total / 2) {
+        return distance - eased(total - t, distance, peak, ramp, total);
+    }
+    if (t < ramp) {
+        return peak * (t / 2 - ramp / (2 * MAINUI_PI) * sin(MAINUI_PI * t / ramp));
+    }
+    return peak * ramp / 2 + peak * (t - ramp);
+}
+
+int mainui_marquee_bounce(uint64_t moving_ms, int speed, int distance)
+{
+    if (speed <= 0 || distance <= 0) {
+        return 0;
+    }
+    /* Pixels a frame at full speed: the marquee's own whole-pixel step, or
+     * a fraction of one for the slowest speeds (one pixel every k frames). */
+    double peak = (double)mainui_marquee_step_pixels(1000, speed) / 1000;
+    double ramp = (double)MAINUI_MARQUEE_BOUNCE_EASE_MS / MAINUI_MARQUEE_FRAME_MS;
+    double total;
+    if (distance >= peak * ramp) {
+        /* Ease in, run at full speed, ease out. */
+        total = distance / peak + ramp;
+    }
+    else {
+        /* Too short for full speed: the same easing, to a lower peak. */
+        double shorter = sqrt(distance * ramp / peak);
+        peak = peak * shorter / ramp;
+        ramp = shorter;
+        total = 2 * shorter;
+    }
+    /* Each way takes whole frames and ends on the far edge, then rests
+     * there; the way back starts on the frame after the rest, so each end
+     * shows for exactly the rest. */
+    uint64_t travel = (uint64_t)ceil(total - 1e-9);
+    uint64_t rest = (uint64_t)mainui_marquee_bounce_rest(speed);
+    uint64_t leg = travel + rest - 1;
+    uint64_t frame = moving_ms / MAINUI_MARQUEE_FRAME_MS % (2 * leg);
+    bool back = frame >= leg;
+    if (back) {
+        frame -= leg;
+    }
+    int offset = frame >= travel
+                     ? distance
+                     : (int)floor(eased((double)frame, distance, peak, ramp, total) + 0.5);
+    offset = offset < 0 ? 0 : offset > distance ? distance : offset;
+    return back ? distance - offset : offset;
 }
 
 bool mainui_text_rtl(const char *text)

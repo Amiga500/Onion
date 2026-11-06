@@ -60,4 +60,7 @@ first = capture('ten-systems', '--systems', sd=large)
 assert first != capture('second-row', '--systems', '--input', 'D', sd=large)
 assert first != capture('last-page', '--systems', '--input', 'DD', sd=large)
 assert first == capture('wrap', '--systems', '--input', 'LR', sd=large)
+# R1 and L1 page as R2 and L2 do.
+assert capture('r2', '--systems', '--input', '4', sd=large) == capture('r1', '--systems', '--input', '2', sd=large) != first
+assert first == capture('r1-l1', '--systems', '--input', '21', sd=large)
 print('Menu SDL checks passed: home/browser round trips, config order, grid isolation, two rows, paging, wrap')

@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+#include "app/browser.h"
 #include "app/catalog_job.h"
 #include "app/details.h"
 #include "catalog/cache.h"
@@ -52,6 +53,55 @@ static unsigned hash_file(const char *path)
 static bool cancel_after(void *context)
 {
     return ++*(int *)context > 40;
+}
+
+static bool first_cache_gone(void *context)
+{
+    return access((const char *)context, F_OK) != 0;
+}
+
+/* Refresh all stops between consoles once Back cancels it: the console it
+ * was clearing finishes, the next keeps its cache. */
+static void refresh_all_cancelled(void)
+{
+    char sd[] = "/tmp/mainui-refresh-XXXXXX";
+    assert(mkdtemp(sd));
+    const char *names[] = {"Alpha", "Bravo"};
+    char path[4200], first[4200];
+    for (int i = 0; i < 2; i++) {
+        const char *files[][2] = {{"Emu/%s/config.json", NULL},
+                                  {"Emu/%s/launch.sh", "#!/bin/sh\n"},
+                                  {"Roms/%s/game.nes", "rom"},
+                                  {"Roms/%s/%s_cache6.db", "cache"}};
+        for (int f = 0; f < 4; f++) {
+            char relative[256];
+            snprintf(relative, sizeof relative, files[f][0], names[i], names[i]);
+            snprintf(path, sizeof path, "%s/%s", sd, relative);
+            char command[4400];
+            snprintf(command, sizeof command, "mkdir -p \"$(dirname '%s')\"", path);
+            assert(!system(command));
+            FILE *file = fopen(path, "w");
+            assert(file);
+            if (files[f][1]) {
+                fputs(files[f][1], file);
+            }
+            else {
+                fprintf(file,
+                        "{\"label\":\"%s\",\"launch\":\"launch.sh\",\"rompath\":"
+                        "\"../../Roms/%s\",\"extlist\":\"nes\"}",
+                        names[i], names[i]);
+            }
+            fclose(file);
+        }
+    }
+    snprintf(first, sizeof first, "%s/Roms/Alpha/Alpha_cache6.db", sd);
+    char error[256];
+    MainUICancel cancel = {first_cache_gone, first};
+    assert(!mainui_browser_refresh_control(sd, false, error, cancel) && *error);
+    snprintf(path, sizeof path, "%s/Roms/Bravo/Bravo_cache6.db", sd);
+    assert(access(first, F_OK) && !access(path, F_OK));
+    snprintf(path, sizeof path, "rm -rf '%s'", sd);
+    assert(!system(path));
 }
 
 /* Large covers are scaled by the decode worker, not when the UI thread reaps them (#8). */
@@ -180,7 +230,7 @@ static void thumbnail_cache(const char *sd)
     for (int i = 0; i < CACHE_ITEMS; ++i) {
         /* Opening never waits for a cover; the frame's progress step does,
          * in deterministic mode as snapshots use it. */
-        assert(mainui_details_open(&details, catalog, NULL, NULL, i, preview));
+        assert(mainui_details_open(&details, catalog, NULL, NULL, i, preview, NULL));
         if (!i) { /* nothing cached after close: the decode runs on its own */
             assert(!preview->image && preview->thread && preview->pending);
         }
@@ -192,14 +242,14 @@ static void thumbnail_cache(const char *sd)
     }
     /* Enter from the list cache, navigate in details, then press B. All source
      * images are gone, so a separate cache or a reload would lose the cover. */
-    assert(mainui_details_open(&details, catalog, NULL, NULL, 0, preview));
+    assert(mainui_details_open(&details, catalog, NULL, NULL, 0, preview, NULL));
     assert(preview->image); /* cached: shown at once, without waiting */
     MainUIViewport detail_view = {.total = ITEM_COUNT, .selected = 0};
-    mainui_details_key(&details, catalog, NULL, NULL, &detail_view, 6, SDLK_DOWN);
+    mainui_details_key(&details, catalog, NULL, NULL, &detail_view, 6, SDLK_DOWN, NULL);
     mainui_details_progress(&details, MAINUI_PREVIEW_WAIT_FOREVER);
     assert(detail_view.selected == 1 && details.preview == preview && preview->image);
     SDL_Surface *detail_image = preview->image;
-    mainui_details_key(&details, catalog, NULL, NULL, &detail_view, 6, SDLK_ESCAPE);
+    mainui_details_key(&details, catalog, NULL, NULL, &detail_view, 6, SDLK_ESCAPE, NULL);
     assert(!details.open && preview->image == detail_image);
     mainui_preview_request(preview, catalog, NULL, detail_view.selected, false);
     assert(preview->image == detail_image && !preview->pending && !preview->thread);
@@ -347,6 +397,7 @@ int main(int argc, char **argv)
     }
     cover_scaled_in_worker(sd);
     thumbnail_cache(sd);
+    refresh_all_cancelled();
     MainUICatalog *catalog = calloc(1, sizeof *catalog);
     assert(catalog && mainui_catalog_open(catalog, sd, false));
     MainUIViewport view, home = {1, 0, 0, 0};

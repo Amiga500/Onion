@@ -150,4 +150,22 @@ for name, keymap in (("broken", "{broken"), ("folder", None),
     assert launched("EDY") is None and RECENT.read_text() == original, name
     if not keymap:
         KEYMAP.rmdir()
+# runtime.sh removes the first Recents line after any .miyoocmd shortcut
+# too: A on an import shortcut puts its line above a full list of 50, all
+# kept, so removing it gives the list back.
+unlink_if_exists(KEYMAP)
+(SD / "Emu/C/config.json").write_text(json.dumps(dict(
+    label="Console", rompath="../../Roms/C", launch="launch.sh", extlist="nes|miyoocmd")))
+(SD / "Roms/C/~Import.miyoocmd").write_text("#!/bin/sh\n")
+for cache in (SD / "Roms/C").glob("C_cache6.db*"):
+    cache.unlink()  # built before the shortcut's extension was listed
+(SD / ".tmp_update/config/main-menu.json").write_text(json.dumps({"menu": dict(games=True)}))
+full = "".join(json.dumps(dict(
+    label=f"Game {i:02}", rompath=f"/mnt/SDCARD/Roms/C/G{i % 3:02}.nes",
+    launch="/mnt/SDCARD/Emu/C/launch.sh", type=5)) + "\n" for i in range(50))
+RECENT.write_text(full)
+shortcut = launched("EEDDDDA")  # Games, the console, past Sub and G00-G02
+assert shortcut and b"Import.miyoocmd" in shortcut, shortcut
+first, rest = RECENT.read_text().split("\n", 1)
+assert json.loads(first)["rompath"].endswith("Import.miyoocmd") and rest == full
 print("Y launches the selected game as A does, nothing on a folder, and keeps Recents")

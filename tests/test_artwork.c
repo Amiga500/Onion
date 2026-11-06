@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "support.h"
+#include "ui/artwork.h"
+#include "ui/image_scale.h"
 #include "ui/panels.h"
 #include "ui/theme.h"
 #ifdef NDEBUG
@@ -36,6 +38,148 @@ static void initialize(MainUITheme *theme, const char *active, const char *fallb
     strcpy(theme->fallback, fallback);
 }
 
+/* Bilinear scaling, as for Carousel artwork: sizes,
+ * averages and transparent edges. */
+static void image_scale_tests(void)
+{
+    SDL_Surface *image = SDL_CreateRGBSurface(SDL_SWSURFACE, 4, 4, 32, 0x00ff0000, 0x0000ff00,
+                                              0x000000ff, 0xff000000);
+    assert(image);
+    for (int y = 0; y < 4; y++) {
+        Uint32 *row = (Uint32 *)((Uint8 *)image->pixels + y * image->pitch);
+        for (int x = 0; x < 4; x++) {
+            row[x] = SDL_MapRGBA(image->format, (x + y) % 2 ? 255 : 0, (x + y) % 2 ? 255 : 0,
+                                 (x + y) % 2 ? 255 : 0, 255);
+        }
+    }
+    /* Half size samples between the pixels: a checkerboard becomes grey. */
+    SDL_Surface *half = mainui_image_bilinear_copy(image, 2, 2);
+    assert(half && half->w == 2 && half->h == 2 && half->format->Amask);
+    for (int y = 0; y < 2; y++) {
+        Uint32 *row = (Uint32 *)((Uint8 *)half->pixels + y * half->pitch);
+        for (int x = 0; x < 2; x++) {
+            Uint8 r, g, b, a;
+            SDL_GetRGBA(row[x], half->format, &r, &g, &b, &a);
+            assert(r == 128 && g == 128 && b == 128 && a == 255);
+        }
+    }
+    SDL_FreeSurface(half);
+    half = mainui_image_fit(image, 2, 3);
+    assert(half && half->w == 2 && half->h == 2);
+    SDL_FreeSurface(half);
+    assert(!mainui_image_fit(image, 8, 8)); /* Fitting never enlarges. */
+    SDL_Surface *up = mainui_image_bilinear_copy(image, 8, 8);
+    assert(up && up->w == 8 && up->h == 8);
+    SDL_FreeSurface(up);
+    SDL_FreeSurface(image);
+
+    image = SDL_CreateRGBSurface(SDL_SWSURFACE, 2, 2, 32, 0x00ff0000, 0x0000ff00, 0x000000ff,
+                                 0xff000000);
+    assert(image);
+    Uint32 *row = (Uint32 *)image->pixels;
+    row[0] = SDL_MapRGBA(image->format, 255, 0, 0, 255);
+    row[1] = SDL_MapRGBA(image->format, 0, 255, 0, 0);
+    row = (Uint32 *)((Uint8 *)image->pixels + image->pitch);
+    row[0] = row[1] = SDL_MapRGBA(image->format, 0, 255, 0, 0);
+    /* Transparent green beside opaque red leaves no green fringe, reduced
+     * or enlarged (the middle pixel is quarter opaque red). */
+    SDL_Surface *alpha = mainui_image_bilinear_copy(image, 1, 1);
+    assert(alpha && alpha->format->Amask);
+    Uint8 r, g, b, a;
+    SDL_GetRGBA(*(Uint32 *)alpha->pixels, alpha->format, &r, &g, &b, &a);
+    assert(r == 255 && g == 0 && b == 0 && a == 64);
+    SDL_FreeSurface(alpha);
+    SDL_Surface *enlarged = mainui_image_bilinear_copy(image, 3, 3);
+    assert(enlarged && enlarged->w == 3 && enlarged->h == 3);
+    SDL_GetRGBA(*(Uint32 *)((Uint8 *)enlarged->pixels + enlarged->pitch + 4), enlarged->format, &r,
+                &g, &b, &a);
+    assert(r == 255 && g == 0 && b == 0 && a == 64);
+    SDL_FreeSurface(enlarged);
+    SDL_FreeSurface(image);
+    /* A 256x240 picture enlarged to 480x360, as by a 4:3 pixel aspect
+     * correction, keeps a flat colour. */
+    image = SDL_CreateRGBSurface(SDL_SWSURFACE, 256, 240, 32, 0x00ff0000, 0x0000ff00, 0x000000ff,
+                                 0xff000000);
+    assert(image);
+    SDL_FillRect(image, NULL, SDL_MapRGBA(image->format, 25, 65, 125, 255));
+    enlarged = mainui_image_bilinear_copy(image, 480, 360);
+    assert(enlarged && enlarged->w == 480 && enlarged->h == 360);
+    SDL_GetRGBA(*(Uint32 *)enlarged->pixels, enlarged->format, &r, &g, &b, &a);
+    assert(r == 25 && g == 65 && b == 125 && a == 255);
+    SDL_FreeSurface(enlarged);
+    SDL_FreeSurface(image);
+}
+
+static Uint32 pixel_at(SDL_Surface *surface, int x, int y)
+{
+    return *(Uint32 *)((Uint8 *)surface->pixels + y * surface->pitch + x * 4);
+}
+
+/* Framed Saved Games: area-average enlargement keeps whole pixels crisp and
+ * mixes only across a source pixel's edge; reductions are bilinear. */
+static void framed_scale_tests(void)
+{
+    SDL_Surface *image = SDL_CreateRGBSurface(SDL_SWSURFACE, 2, 1, 32, 0x00ff0000, 0x0000ff00,
+                                              0x000000ff, 0xff000000);
+    assert(image);
+    Uint32 *row = (Uint32 *)image->pixels;
+    row[0] = SDL_MapRGBA(image->format, 255, 0, 0, 255);
+    row[1] = SDL_MapRGBA(image->format, 0, 0, 255, 255);
+    /* 1.5x: red, the middle pixel half each, blue. */
+    SDL_Surface *out = mainui_image_framed_copy(image, 3, 1);
+    assert(out && out->w == 3 && out->h == 1);
+    Uint8 r, g, b, a;
+    SDL_GetRGBA(pixel_at(out, 0, 0), out->format, &r, &g, &b, &a);
+    assert(r == 255 && g == 0 && b == 0 && a == 255);
+    SDL_GetRGBA(pixel_at(out, 1, 0), out->format, &r, &g, &b, &a);
+    assert(r == 128 && g == 0 && b == 128 && a == 255);
+    SDL_GetRGBA(pixel_at(out, 2, 0), out->format, &r, &g, &b, &a);
+    assert(r == 0 && g == 0 && b == 255 && a == 255);
+    SDL_FreeSurface(out);
+    SDL_FreeSurface(image);
+    /* A whole-number enlargement mixes nothing: a 2x2 checkerboard at 4x4
+     * keeps only black and white, where bilinear would give greys. */
+    image = SDL_CreateRGBSurface(SDL_SWSURFACE, 2, 2, 32, 0x00ff0000, 0x0000ff00, 0x000000ff,
+                                 0xff000000);
+    assert(image);
+    for (int y = 0; y < 2; y++) {
+        for (int x = 0; x < 2; x++) {
+            Uint8 v = (x + y) % 2 ? 255 : 0;
+            *(Uint32 *)((Uint8 *)image->pixels + y * image->pitch + x * 4) =
+                SDL_MapRGBA(image->format, v, v, v, 255);
+        }
+    }
+    out = mainui_image_framed_copy(image, 4, 4);
+    assert(out && out->w == 4 && out->h == 4);
+    for (int y = 0; y < 4; y++) {
+        for (int x = 0; x < 4; x++) {
+            SDL_GetRGBA(pixel_at(out, x, y), out->format, &r, &g, &b, &a);
+            assert(r == ((x / 2 + y / 2) % 2 ? 255 : 0) && r == g && g == b && a == 255);
+        }
+    }
+    SDL_FreeSurface(out);
+    SDL_FreeSurface(image);
+    /* NES 256x240 to 480x360 keeps a flat colour; 640x480 to 480x360 is a
+     * bilinear reduction of the right size. */
+    image = SDL_CreateRGBSurface(SDL_SWSURFACE, 256, 240, 32, 0x00ff0000, 0x0000ff00, 0x000000ff,
+                                 0xff000000);
+    assert(image);
+    SDL_FillRect(image, NULL, SDL_MapRGBA(image->format, 25, 65, 125, 255));
+    out = mainui_image_framed_copy(image, 480, 360);
+    assert(out && out->w == 480 && out->h == 360);
+    SDL_GetRGBA(pixel_at(out, 479, 359), out->format, &r, &g, &b, &a);
+    assert(r == 25 && g == 65 && b == 125 && a == 255);
+    SDL_FreeSurface(out);
+    SDL_FreeSurface(image);
+    image = SDL_CreateRGBSurface(SDL_SWSURFACE, 640, 480, 32, 0x00ff0000, 0x0000ff00, 0x000000ff,
+                                 0xff000000);
+    assert(image);
+    out = mainui_image_framed_copy(image, 480, 360);
+    assert(out && out->w == 480 && out->h == 360);
+    SDL_FreeSurface(out);
+    SDL_FreeSurface(image);
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -43,6 +187,23 @@ int main(int argc, char **argv)
         return 2;
     }
     assert(SDL_Init(0) == 0);
+    image_scale_tests();
+    framed_scale_tests();
+    /* Carousel fading requires an alpha channel even for opaque RGB art. */
+    SDL_Surface *rgb = SDL_CreateRGBSurface(SDL_SWSURFACE, 12, 8, 24, 0xff0000, 0xff00, 0xff, 0);
+    assert(rgb);
+    SDL_Surface *converted = mainui_artwork_software(rgb);
+    assert(converted && converted->format->Amask != 0);
+    mainui_artwork_blend(converted);
+    SDL_FreeSurface(converted);
+    SDL_FreeSurface(rgb);
+    SDL_Surface *rgba =
+        SDL_CreateRGBSurface(SDL_SWSURFACE, 12, 8, 32, 0xff0000, 0xff00, 0xff, 0xff000000);
+    assert(rgba);
+    converted = mainui_artwork_software(rgba);
+    assert(converted && converted->format->Amask != 0);
+    SDL_FreeSurface(converted);
+    SDL_FreeSurface(rgba);
     char root[256], active[512], fallback[512], path[1024];
     snprintf(root, sizeof root, "build/artwork-check-%ld", (long)getpid());
     assert(mkdir_0755(root) == 0);
@@ -299,7 +460,7 @@ int main(int argc, char **argv)
         SDL_CreateRGBSurface(SDL_SWSURFACE, 640, 480, 32, 0xff0000, 0xff00, 0xff, 0);
     assert(screen);
     MainUIViewport apps_view = {.total = 3, .selected = 0, .start = 0, .end = 1};
-    mainui_draw_apps(screen, &theme, apps, &apps_view);
+    mainui_draw_apps(screen, &theme, apps, &apps_view, NULL);
     SDL_Surface *kept = NULL;
     for (int i = 0; i < 4; i++) {
         if (theme.app_icon_paths[i] && !strcmp(theme.app_icon_paths[i], app_icons[0])) {
@@ -308,14 +469,14 @@ int main(int argc, char **argv)
     }
     assert(kept && kept->w == 60);
     kept->refcount++;
-    mainui_draw_apps(screen, &theme, apps, &apps_view);
+    mainui_draw_apps(screen, &theme, apps, &apps_view, NULL);
     int holders = 0;
     for (int i = 0; i < 4; i++) {
         holders += theme.app_icons[i] == kept;
     }
     assert(holders == 1 && kept->refcount == 2);
     apps_view = (MainUIViewport){.total = 3, .selected = 2, .start = 1, .end = 2};
-    mainui_draw_apps(screen, &theme, apps, &apps_view);
+    mainui_draw_apps(screen, &theme, apps, &apps_view, NULL);
     assert(kept->refcount == 1);
     SDL_FreeSurface(kept);
     int shown = 0;

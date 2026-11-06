@@ -253,12 +253,29 @@ static bool add_record(MainUILibrary *library, cJSON *json)
             return true;
         }
     }
+    /* The ROM's key, made once for mainui_library_contains(); on the heap,
+     * as the stack stays small. */
+    char *rom_key = *rom ? malloc(MAINUI_PATH_MAX) : NULL;
+    if (*rom && !rom_key) {
+        free(key);
+        cJSON_Delete(json);
+        return false;
+    }
+    if (rom_key && !mainui_rom_key(rom_key, rom)) {
+        free(rom_key);
+        rom_key = NULL;
+    }
+    else if (rom_key) {
+        char *shrunk = realloc(rom_key, strlen(rom_key) + 1);
+        rom_key = shrunk ? shrunk : rom_key;
+    }
     MainUILibraryItem *item = &library->items[library->count];
     *item = (MainUILibraryItem){.json = json,
                                 .label = label,
                                 .rom = rom,
                                 .launch = launch,
                                 .identity = key,
+                                .rom_key = rom_key,
                                 .type = type,
                                 .folder = -1,
                                 .order = library->count};
@@ -536,6 +553,7 @@ void mainui_library_close(MainUILibrary *library)
     for (int i = 0; i < library->count; i++) {
         cJSON_Delete(library->items[i].json);
         free(library->items[i].identity);
+        free(library->items[i].rom_key);
     }
     clear_folders(library);
     free(library->items);
@@ -673,13 +691,13 @@ bool mainui_library_reload(MainUILibrary *library, const char *sd)
 bool mainui_library_contains(const MainUILibrary *library, const char *rom)
 {
     /* As mainui_same_rom(), with the ROM's key made once, not per Favorite. */
-    char key[MAINUI_PATH_MAX], other[MAINUI_PATH_MAX];
+    char key[MAINUI_PATH_MAX];
     if (!library || !library->count || !rom || !*rom || !mainui_rom_key(key, rom)) {
         return false;
     }
     for (int i = 0; i < library->count; i++) {
-        const char *candidate = library->items[i].rom;
-        if (*candidate && mainui_rom_key(other, candidate) && !strcmp(key, other)) {
+        const char *candidate = library->items[i].rom_key;
+        if (candidate && !strcmp(key, candidate)) {
             return true;
         }
     }

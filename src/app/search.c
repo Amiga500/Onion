@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "app/search.h"
+#include "catalog/cache.h"
 #include "platform/system_config.h"
 #include "sqlite3.h"
 #include <limits.h>
@@ -79,9 +80,9 @@ bool mainui_search_open(MainUISearch *search, MainUICatalog *catalog, const Main
     sqlite3 *database = NULL;
     sqlite3_stmt *statement = NULL;
     SearchBudget budget = {20000, catalog->cancel};
-    bool ok =
-        results && sqlite3_open_v2(root->cache_file, &database,
-                                   SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, NULL) == SQLITE_OK;
+    bool ok = results && !mainui_cache_is_wal(root->cache_file) &&
+              sqlite3_open_v2(root->cache_file, &database,
+                              SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, NULL) == SQLITE_OK;
     if (ok) {
         results->current = -1;
         results->items = calloc(MAINUI_LIBRARY_LIMIT, sizeof *results->items);

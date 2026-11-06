@@ -2,11 +2,15 @@
 #ifndef MAINUI_APP_CONTEXT_H
 #define MAINUI_APP_CONTEXT_H
 #include "app/catalog_job.h"
+#include "app/console_position.h"
 #include "app/details.h"
 #include "app/device_job.h"
 #include "app/settings_page.h"
 #include "catalog/favorite_edit.h"
 #include "core/letter_jump.h"
+#include "menus/console_view.h"
+#include "menus/game_menu.h"
+#include "ui/list_video.h"
 #include "ui/menu_view.h"
 #include "ui/name_input.h"
 
@@ -32,7 +36,10 @@ typedef struct {
     MainUIAboutJob about_job;
     MainUILanguages languages;
     MainUIPreview preview;
-    bool preview_sync_once; /* Include selected artwork in the first list frame. */
+    bool preview_sync_once;     /* Include selected artwork in the first list frame. */
+    MainUIListVideo list_video; /* the selected game's video in place of its cover */
+    bool carousel_offscreen;    /* completed prefetch changed no visible icon */
+    bool presented_video;       /* the last full frame showed a video frame */
 
     const char *dir;
     const char *base;
@@ -92,6 +99,17 @@ typedef struct {
     bool language_open;
     MainUIContext context;
     MainUIContext home_context;
+    MainUIGameMenu game_menu;          /* game-menu.json, read once at startup */
+    MainUIConsoleView console_view;    /* console-view.json, read once at startup */
+    Uint32 carousel_last_direction_at; /* Last accepted Carousel Left/Right movement. */
+    bool carousel_direction_paced;     /* Timestamp valid, including tick zero. */
+    int carousel_pending_direction;    /* At most one deferred Left (-1) or Right (+1). */
+    bool carousel_pending_tap;         /* A released tap survives; held repeats do not. */
+    bool labels_consoles;              /* the cached row labels are the console page's */
+    /* The listed consoles' counter: the selected one's games, -1 for no cache. */
+    const MainUICatalog *console_games_catalog;
+    int console_games_index;
+    long long console_games;
     cJSON *context_record;
     bool context_open;
     int confirmation;
@@ -109,6 +127,10 @@ typedef struct {
     int timer_interval;
     bool timer_failure_logged;
     bool search_keyboard;
+    bool media_keyboard; /* the keyboard searches Game Info's walkthrough */
+    /* Left in a game list reset a scrolling title: the next Left on the same
+     * game opens Saved Games. Any other key ends it. */
+    bool saves_left_armed;
     bool wifi_was_visible;
     /* A connection was made to wifi_join_ssid: if it is not joined by
      * wifi_join_until, the Wi-Fi page says so, until it is. Joined counts
@@ -123,6 +145,11 @@ typedef struct {
     MainUIViewport games_view;
     MainUIViewport expert_view;
     MainUIViewport apps_view;
+    /* The console last selected in Games and Expert, saved whenever it
+     * changes. Until a section is opened, or a returned session or Search
+     * picks its console, opening it selects the remembered one (pending). */
+    MainUIConsolePosition console_position;
+    bool console_position_pending[MAINUI_POSITION_SECTIONS];
     MainUIViewport saved_library_views[2];
     char message_title[256];
     char message_body[256];
@@ -150,6 +177,7 @@ typedef struct {
     SDL_TimerID timer;
     /* Idle repaint skipping: what the last presented frame showed, and when. */
     bool idle_tick;
+    bool video_wake; /* woken by a list or gallery video's frame */
     /* Marquee pacing: next frame deadline, and frames shown since scrolling began
      * for the selection made at marquee_origin. */
     bool marquee_paced;
@@ -158,6 +186,8 @@ typedef struct {
     /* The last full frame drew the Games or Expert console grid. */
     bool systems_drawn;
     Uint32 active_at, presented_at;
+    Uint32 last_screen_present_at; /* Every present, including partial video/row updates. */
+    bool carousel_frame_pending;   /* A change waiting for the next carousel frame deadline. */
     int presented_battery, presented_wifi_signal;
     bool presented_charging;
     bool presented_wifi_online, presented_hotspot;
