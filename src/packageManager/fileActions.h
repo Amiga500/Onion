@@ -10,6 +10,7 @@
 #include "utils/str.h"
 
 #include "./globals.h"
+#include "./pacman_run.h"
 
 bool checkAppInstalled(const char *basePath, int base_len, int level, bool complete)
 {
@@ -36,11 +37,13 @@ bool checkAppInstalled(const char *basePath, int base_len, int level, bool compl
             (level == 1 && strcmp(dp->d_name, "romscripts") == 0))
             continue;
 
-        // Construct new path from our base path
-        sprintf(path, "%s/%s", basePath, dp->d_name);
+        // Construct new path from our base path (skipped when too long)
+        if (snprintf(path, sizeof(path), "%s/%s", basePath, dp->d_name) >= (int)sizeof(path))
+            continue;
 
         if (exists(path)) {
-            sprintf(pathInstalledApp, "/mnt/SDCARD%s", path + base_len);
+            if (snprintf(pathInstalledApp, sizeof(pathInstalledApp), "/mnt/SDCARD%s", path + base_len) >= (int)sizeof(pathInstalledApp))
+                continue;
 
             // Checked once per entry (was up to twice): this walks every
             // file of every package when the package manager opens.
@@ -85,7 +88,7 @@ bool getConfigPath(char *config_path, const char *data_path, const char *base_di
             continue;
         if (dp->d_type != DT_DIR)
             continue;
-        sprintf(config_path, "%s/%s/config.json", base_dir, dp->d_name);
+        snprintf(config_path, PATH_MAX, "%s/%s/config.json", base_dir, dp->d_name);
         if (!is_file(config_path)) {
             closedir(dir);
             return false;
@@ -108,7 +111,8 @@ bool hasExtension(const char *file_name, const char *extlist)
         return false;
 
     char extlist_dup[STR_MAX];
-    strcpy(extlist_dup, extlist);
+    strncpy(extlist_dup, extlist, STR_MAX - 1);
+    extlist_dup[STR_MAX - 1] = '\0';
 
     char *token = strtok(extlist_dup, "|");
 
@@ -161,7 +165,7 @@ bool checkRomDir(const char *rom_dir, const char *extlist, int level)
 
 bool checkRoms(const char *data_path)
 {
-    char path_dup[PATH_MAX];
+    char path_dup[PATH_MAX] = "";
     strncpy(path_dup, data_path, PATH_MAX - 1);
 
     char *base_dir_name = basename(dirname(path_dup));
@@ -211,13 +215,10 @@ void loadPackages(bool auto_update)
             continue;
 
         while ((ep = readdir(dp)) && package_count[nT] < LAYER_ITEM_COUNT) {
-            char cShort[MAX_LAYER_NAME_SIZE];
-            strcpy(cShort, ep->d_name);
-
             const char *file_name = ep->d_name;
-            if (file_name[0] != '.') {
+            if (file_name[0] != '.' &&
+                snprintf(basePath, sizeof(basePath), "%s/%s", data_path, file_name) < (int)sizeof(basePath)) {
                 // Installation check
-                sprintf(basePath, "%s/%s", data_path, file_name);
 
                 bool is_installed = checkAppInstalled(basePath, strlen(basePath), 0, false);
                 bool is_complete = !auto_update && is_installed
@@ -236,7 +237,7 @@ void loadPackages(bool auto_update)
                         changes_installs[nT]++;
                 }
 
-                strcpy(package.name, file_name);
+                strncpy(package.name, file_name, sizeof(package.name) - 1);
 
                 packages[nT][package_count[nT]] = package;
                 package_count[nT]++;
@@ -270,11 +271,12 @@ void loadPackages(bool auto_update)
     }
 }
 
-bool getPackageMainPath(char *out_path, const char *data_path,
+bool getPackageMainPath(char *out_path, size_t size, const char *data_path,
                         const char *package_name)
 {
-    const char *base_dir = basename((char *)data_path);
-    sprintf(out_path, "%s/%s/%s/", data_path, package_name, base_dir);
+    const char *base_dir = strrchr(data_path, '/') != NULL ? strrchr(data_path, '/') + 1 : data_path;
+    if (snprintf(out_path, size, "%s/%s/%s/", data_path, package_name, base_dir) >= (int)size)
+        return false;
 
     if (!is_dir(out_path))
         return false;
@@ -291,39 +293,32 @@ bool getPackageMainPath(char *out_path, const char *data_path,
             continue;
         if (dp->d_type != DT_DIR)
             continue;
-        sprintf(out_path, "/mnt/SDCARD/%s/%s", base_dir, dp->d_name);
+        bool fits = snprintf(out_path, size, "/mnt/SDCARD/%s/%s", base_dir, dp->d_name) < (int)size;
         closedir(dir);
-        return is_dir(out_path);
+        return fits && is_dir(out_path);
     }
 
     closedir(dir);
     return false;
 }
 
-void callPackageInstaller(const char *data_path, const char *package_name,
+// The package's own install.sh or uninstall.sh. True when it has none, or
+// it succeeded.
+bool callPackageInstaller(const char *data_path, const char *package_name,
                           bool install)
 {
-    char main_path[STR_MAX], cmd[STR_MAX];
+    char main_path[PATH_MAX];
 
-    if (getPackageMainPath(main_path, data_path, package_name)) {
-        char config_path[STR_MAX + 32];
-        snprintf(config_path, STR_MAX + 32 - 1, "%s/config.json", main_path);
+    if (!getPackageMainPath(main_path, sizeof(main_path), data_path, package_name))
+        return true;
 
-        if (install && is_file(config_path))
-            apply_singleIcon(config_path);
+    char config_path[PATH_MAX + 16];
+    snprintf(config_path, sizeof(config_path), "%s/config.json", main_path);
 
-        char installer_path[STR_MAX + 32];
-        concat(installer_path, main_path,
-               install ? "/install.sh" : "/uninstall.sh");
-        if (is_file(installer_path)) {
-            sprintf(cmd,
-                    install
-                        ? "cd \"%s\"; chmod a+x ./install.sh; ./install.sh"
-                        : "cd \"%s\"; chmod a+x ./uninstall.sh; ./uninstall.sh",
-                    main_path);
-            system(cmd);
-        }
-    }
+    if (install && is_file(config_path))
+        apply_singleIcon(config_path);
+
+    return pacman_runPackageScript(main_path, install);
 }
 
 void appUninstall(char *basePath, int strlenBase)
@@ -340,11 +335,12 @@ void appUninstall(char *basePath, int strlenBase)
 
     while ((dp = readdir(dir)) != NULL) {
         if (strcmp(dp->d_name, ".") != 0 && strcmp(dp->d_name, "..") != 0) {
-            // Construct new path from our base path
-            sprintf(path, "%s/%s", basePath, dp->d_name);
+            // Construct new path from our base path (skipped when too long)
+            if (snprintf(path, sizeof(path), "%s/%s", basePath, dp->d_name) >= (int)sizeof(path) ||
+                snprintf(pathInstalledApp, sizeof(pathInstalledApp), "/mnt/SDCARD%s", path + strlenBase) >= (int)sizeof(pathInstalledApp))
+                continue;
 
             if (exists(path)) {
-                sprintf(pathInstalledApp, "/mnt/SDCARD%s", path + strlenBase);
 
                 if (is_file(pathInstalledApp))
                     remove(pathInstalledApp);

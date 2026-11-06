@@ -29,6 +29,8 @@ SDL_Surface *createLabelSurface(Package *package)
 
     SDL_Surface *label_surface =
         TTF_RenderUTF8_Blended(font25, label_text, color_white);
+    if (label_surface == NULL)
+        return textbox;
     SDL_SetAlpha(label_surface, 0, 0); /* important */
     SDL_Rect label_pos = {0, 0};
     SDL_BlitSurface(label_surface, NULL, textbox, &label_pos);

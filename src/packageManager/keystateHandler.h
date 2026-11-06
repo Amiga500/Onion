@@ -7,6 +7,7 @@
 #include "./changes.h"
 #include "./globals.h"
 #include "./listActions.h"
+#include "./pacman_nav.h"
 #include "./render.h"
 #include "./summary.h"
 
@@ -61,55 +62,26 @@ bool keystateHandler(bool *quit_flag, bool *apply_changes, bool show_confirm, bo
         }
     }
     else if (package_count[nTab] > 0) {
+        // pacman_nav.h: also for lists of fewer than 7 packages.
         if (keystate[SW_BTN_R2] >= PRESSED) {
-            if ((nListPosition + 14) < package_count[nTab]) {
-                nListPosition += 7;
-            }
-            else if ((nListPosition + 7) < package_count[nTab]) {
-                nListPosition = package_count[nTab] - 7;
-                nSelection = 6;
-            }
+            pacman_pageDown(package_count[nTab], &nSelection, &nListPosition);
             state_changed = true;
         }
 
         if (keystate[SW_BTN_L2] >= PRESSED) {
-            if ((nListPosition - 7) > 0) {
-                nListPosition -= 7;
-            }
-            else {
-                nListPosition = 0;
-                nSelection = 0;
-            }
+            pacman_pageUp(&nSelection, &nListPosition);
             state_changed = true;
         }
 
         if (keystate[SW_BTN_DOWN] >= PRESSED) {
-            if (nSelection < 6) {
-                nSelection++;
-            }
-            else if (nSelection + nListPosition <
-                     package_count[nTab] - 1) {
-                nListPosition++;
-            }
-            else if (keystate[SW_BTN_DOWN] == PRESSED &&
-                     nSelection + nListPosition >=
-                         package_count[nTab] - 1) {
-                nSelection = nListPosition = 0;
-            }
+            pacman_down(package_count[nTab], keystate[SW_BTN_DOWN] == PRESSED,
+                        &nSelection, &nListPosition);
             state_changed = true;
         }
 
         if (keystate[SW_BTN_UP] >= PRESSED) {
-            if (nSelection > 0) {
-                nSelection--;
-            }
-            else if (nListPosition > 0) {
-                nListPosition--;
-            }
-            else if (keystate[SW_BTN_UP] == PRESSED) {
-                nSelection = 6;
-                nListPosition = package_count[nTab] - 7;
-            }
+            pacman_up(package_count[nTab], keystate[SW_BTN_UP] == PRESSED,
+                      &nSelection, &nListPosition);
             state_changed = true;
         }
     }

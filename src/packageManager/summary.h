@@ -9,11 +9,14 @@
 #include "utils/surfaceSetAlpha.h"
 
 #include "./globals.h"
+#include "./pacman_nav.h"
 
 int renderSummaryLine(SDL_Surface *surfaceTemp, int pos_y, const char *line_str,
                       int alpha, SDL_Color color)
 {
     SDL_Surface *surfaceLine = TTF_RenderUTF8_Blended(font18, line_str, color);
+    if (surfaceLine == NULL)
+        return 0;
     SDL_Rect rectLine = {0, pos_y};
     int h = surfaceLine->h;
 
@@ -89,6 +92,10 @@ void renderSummary()
             }
         }
 
+        // Lines past the 4096 rows drawn above are cut anyway: no taller
+        // surface than that (a large one costs memory for nothing).
+        if (pos_y > 4096)
+            pos_y = 4096;
         surfaceSummary =
             SDL_CreateRGBSurface(0, 593, pos_y, 32, 0x00FF0000, 0x0000FF00,
                                  0x000000FF, 0xFF000000); /* important */
@@ -110,21 +117,9 @@ void refreshSummary()
 
 bool summaryScrollBy(int offset)
 {
-    bool changed = false;
-    int y_max = surfaceSummary->h - 323;
-
-    if ((offset > 0 && summaryScrollY < y_max) ||
-        (offset < 0 && summaryScrollY > 0)) {
-        summaryScrollY += offset;
-        changed = true;
-    }
-
-    if (summaryScrollY > y_max)
-        summaryScrollY = y_max;
-    else if (summaryScrollY < 0)
-        summaryScrollY = 0;
-
-    return changed;
+    // A summary shorter than the screen stays at 0 (it was scrolled to a
+    // negative offset and drawn out of view).
+    return pacman_scrollBy(&summaryScrollY, offset, surfaceSummary->h, 323);
 }
 
 #endif // PACMAN_SUMMARY_H__

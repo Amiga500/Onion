@@ -34,6 +34,8 @@ TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar test_mainui_sho
 TESTS += test_gs_recent_list test_gs_game_name test_gs_state_copy
 # Tweaks: resets, diagnostics status, Samba shares
 TESTS += test_tweaks_reset test_tweaks_diags test_tweaks_smb
+# Package Manager: install script, list moves
+TESTS += test_pacman_install
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -515,6 +517,13 @@ test_tweaks_smb: $(BUILD_DIR)/test_tweaks_smb
 $(BUILD_DIR)/test_tweaks_smb: test_tweaks_smb.c onion_test.h ../src/tweaks/smb_shares.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_tweaks_smb.c $(COMMON_SRCS) $(LDFLAGS)
+test_pacman_install: $(BUILD_DIR)/test_pacman_install
+	@echo ""
+	@$(BUILD_DIR)/test_pacman_install
+
+$(BUILD_DIR)/test_pacman_install: test_pacman_install.c onion_test.h ../src/packageManager/pacman_run.h ../src/packageManager/pacman_nav.h ../src/packageManager/script/pacman_install.sh $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_pacman_install.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_gs_state_ratio: $(BUILD_DIR)/test_gs_state_ratio
 	@echo ""
