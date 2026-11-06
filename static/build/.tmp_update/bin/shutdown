@@ -23,6 +23,23 @@ kill_hooked_tasks() {
 	done
 }
 
+# Last resort when the clean shutdown does not finish: flush and try to
+# leave the card read-only (marked clean), giving that 5 s in the background
+# as the card itself may be what is stuck, then restart or power off at
+# once. -f skips init.
+force_off() { # $1: -r to restart
+	(
+		sync
+		mount -o remount,ro /mnt/SDCARD
+	) < /dev/null > /dev/null 2>&1 &
+	sleep 5
+	if [ "$1" = "-r" ] || [ "$(cat /tmp/deviceModel 2> /dev/null)" = "283" ]; then
+		/sbin/reboot -f
+	else
+		/sbin/poweroff -f
+	fi
+}
+
 if [ "$0" = "/tmp/_shutdown" ]; then
 
 	# Off the SD card: the steps below unmount it, and a child left in a
@@ -41,16 +58,13 @@ if [ "$0" = "/tmp/_shutdown" ]; then
 	mark "start $1 (model $(cat /tmp/deviceModel 2> /dev/null))"
 
 	# Safety net: whatever hangs below (a process that won't die, swapoff,
-	# init), the device restarts or powers off by itself after 20 s instead
-	# of staying on the last screen until POWER is held. -f skips init.
+	# init), the device restarts or powers off by itself after 30 s instead
+	# of staying on the last screen until POWER is held.
+	safety_wait=30
 	(
-		sleep 20
-		sync
-		if [ "$1" = "-r" ] || [ "$(cat /tmp/deviceModel 2> /dev/null)" = "283" ]; then
-			/sbin/reboot -f
-		else
-			/sbin/poweroff -f
-		fi
+		sleep "$safety_wait"
+		mark "still running after ${safety_wait} s: forced" &
+		force_off "$1"
 	) < /dev/null > /dev/null 2>&1 &
 
 	killall -9 main # mandatory to avoid the suppression of .tmp_update !
@@ -112,6 +126,13 @@ pgrep -f /tmp/_shutdown || (
 	set -m
 	su root -c "/usr/bin/nohup /tmp/_shutdown $1 </dev/null >/dev/null 2>&1 &"
 )
+
+# The detached part stops this caller with the other tasks that use the
+# card, within a second or two. Still here after 45 s: it never started (su)
+# or it is stuck before its own safety net, so restart or power off anyway.
+caller_wait=45
+sleep "$caller_wait"
+force_off "$1"
 while true; do
 	sleep 10
 done

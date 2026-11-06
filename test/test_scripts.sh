@@ -1405,37 +1405,56 @@ begin shutdown_restarts_by_itself_if_a_step_hangs
 # the device on its last screen.
 SD_SH="$TMP/sd_shutdown.sh"
 mkdir -p "$TMP/sdbin" "$TMP/sd/.tmp_update/logs"
-for c in killall fuser swapoff reboot poweroff read_uuid; do
+for c in killall fuser swapoff reboot poweroff read_uuid mount su pgrep; do
     printf '#!/bin/sh\necho "%s $*" >> "%s/sdcalls"\n' "$c" "$TMP" > "$TMP/sdbin/$c"
     chmod +x "$TMP/sdbin/$c"
 done
+# No detached part running yet.
+printf '#!/bin/sh\necho "pgrep $*" >> "%s/sdcalls"\nexit 1\n' "$TMP" > "$TMP/sdbin/pgrep"
 # umount -r hangs, as a busy card could.
 printf '#!/bin/sh\necho "umount $*" >> "%s/sdcalls"\n[ "$1" = "-r" ] && sleep 5\nexit 0\n' "$TMP" > "$TMP/sdbin/umount"
 chmod +x "$TMP/sdbin/umount"
 echo 354 > "$TMP/deviceModel"
 sed -e "s|/mnt/SDCARD|$TMP/sd|g" -e "s|/tmp/deviceModel|$TMP/deviceModel|g" \
     -e "s|/sbin/reboot|$TMP/sdbin/reboot|g" -e "s|/sbin/poweroff|$TMP/sdbin/poweroff|g" \
-    -e 's|sleep 20|sleep 1|' -e 's|"\$0" = "/tmp/_shutdown"|1 = 1|' \
+    -e 's|safety_wait=30|safety_wait=1|' -e 's|"\$0" = "/tmp/_shutdown"|1 = 1|' \
     -e '/^if \[ ! -f \/tmp\/_shutdown \]; then/,$d' \
     "$ROOT/static/build/.tmp_update/bin/shutdown" > "$SD_SH"
 rm -f "$TMP/sdcalls"
 (cd "$TMP/sd" && PATH="$TMP/sdbin:$PATH" sh "$SD_SH" -r > /dev/null 2>&1 &)
-sleep 3
+sleep 9
 check "a hanging unmount: the safety net reboots after the wait" grep -qx 'reboot -f' "$TMP/sdcalls"
+check "the safety net first tries to leave the card read-only" grep -qx "mount -o remount,ro $TMP/sd" "$TMP/sdcalls"
 check "the steps are logged in logs/shutdown.log" grep -q 'unmounting the card' "$TMP/sd/.tmp_update/logs/shutdown.log"
+check "the forced restart is logged" grep -q 'still running after 1 s: forced' "$TMP/sd/.tmp_update/logs/shutdown.log"
 check "the log starts with the request and the model" grep -q 'start -r (model 354)' "$TMP/sd/.tmp_update/logs/shutdown.log"
 _w=0
-while ! grep -qxE 'reboot ?' "$TMP/sdcalls" 2> /dev/null && [ $_w -lt 20 ]; do sleep 1; _w=$((_w + 1)); done
+while ! grep -qxE 'reboot ?' "$TMP/sdcalls" 2> /dev/null && [ $_w -lt 25 ]; do sleep 1; _w=$((_w + 1)); done
 check "the normal reboot follows the unmount" grep -qxE 'reboot ?' "$TMP/sdcalls"
 # Power off on a Plus: the safety net powers off too.
 rm -f "$TMP/sdcalls"
 (cd "$TMP/sd" && PATH="$TMP/sdbin:$PATH" sh "$SD_SH" > /dev/null 2>&1 &)
-sleep 3
+sleep 9
 check "power off: the safety net powers off (-f)" grep -qx 'poweroff -f' "$TMP/sdcalls"
 _w=0
-while ! grep -qxE 'poweroff ?' "$TMP/sdcalls" 2> /dev/null && [ $_w -lt 20 ]; do sleep 1; _w=$((_w + 1)); done
+while ! grep -qxE 'poweroff ?' "$TMP/sdcalls" 2> /dev/null && [ $_w -lt 25 ]; do sleep 1; _w=$((_w + 1)); done
 check "power off: then the normal power off" grep -qxE 'poweroff ?' "$TMP/sdcalls"
-check "the script leaves the card before its safety net starts" sh -c "grep -n 'cd /\$' '$ROOT/static/build/.tmp_update/bin/shutdown' | head -1 | cut -d: -f1 | xargs -I{} test {} -lt \$(grep -n 'sleep 20' '$ROOT/static/build/.tmp_update/bin/shutdown' | cut -d: -f1)"
+check "the script leaves the card before its safety net starts" sh -c "grep -n 'cd /\$' '$ROOT/static/build/.tmp_update/bin/shutdown' | head -1 | cut -d: -f1 | xargs -I{} test {} -lt \$(grep -n 'sleep \"\$safety_wait\"' '$ROOT/static/build/.tmp_update/bin/shutdown' | cut -d: -f1)"
+# The caller, when the detached part never starts (su does nothing here):
+# it must not wait forever either.
+CALLER_SH="$TMP/sd_shutdown_caller.sh"
+sed -e "s|/mnt/SDCARD|$TMP/sd|g" -e "s|/tmp/deviceModel|$TMP/deviceModel|g" \
+    -e "s|/sbin/reboot|$TMP/sdbin/reboot|g" -e "s|/sbin/poweroff|$TMP/sdbin/poweroff|g" \
+    -e "s|/tmp/_shutdown|$TMP/_shutdown|g" -e 's|caller_wait=45|caller_wait=1|' \
+    "$ROOT/static/build/.tmp_update/bin/shutdown" > "$CALLER_SH"
+rm -f "$TMP/sdcalls" "$TMP/_shutdown"
+PATH="$TMP/sdbin:$PATH" sh "$CALLER_SH" -r > /dev/null 2>&1 &
+_cpid=$!
+sleep 9
+kill $_cpid 2> /dev/null
+check "caller: su was asked to start the detached part" grep -q '^su root -c' "$TMP/sdcalls"
+check "caller: nothing stopped it, so it restarts by itself" grep -qx 'reboot -f' "$TMP/sdcalls"
+check "the caller waits longer than the safety net" sh -c "test \$(sed -n 's/^caller_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown') -gt \$(sed -n 's/^[[:space:]]*safety_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown')"
 end
 
 begin installer_reboots_with_the_clean_shutdown
