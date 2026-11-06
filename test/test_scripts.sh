@@ -189,6 +189,130 @@ check "all five toggles still on" toggles_kept
 check "nothing killed" test ! -e "$TMP/killed"
 end
 
+# ---- Syncthing ----
+
+SYNCTHING="$ROOT/static/build/.tmp_update/script/network/syncthing.sh"
+
+begin syncthing_follows_toggle_and_wifi
+eval "$(extract_fn "$NETWORK" check_syncthingstate)"
+eval "$(extract_fn "$NETWORK" lowest_pid_named)"
+sysdir=$TMP
+mkdir -p "$sysdir/config" "$TMP/proc/42"
+netscript=$TMP/net
+mkdir -p "$netscript"
+printf '#!/bin/sh\necho "$1" >> "%s/st_calls"\n' "$TMP" > "$netscript/syncthing.sh"
+chmod +x "$netscript/syncthing.sh"
+log() { :; }
+proc_dir=$TMP/proc
+WIFI=1
+wifi_enabled() { [ "$WIFI" -eq 1 ]; }
+touch "$sysdir/config/.syncthingState"
+check_syncthingstate
+check "toggle on, Wi-Fi on: started" grep -qx start "$TMP/st_calls"
+rm -f "$TMP/st_calls"
+WIFI=0
+echo syncthing > "$TMP/proc/42/comm"
+check_syncthingstate
+check "Wi-Fi off while running: stopped" grep -qx stop "$TMP/st_calls"
+check "and the toggle kept" test -f "$sysdir/config/.syncthingState"
+rm -f "$TMP/st_calls" "$sysdir/config/.syncthingState"
+echo syncthing.sh > "$TMP/proc/42/comm"
+check_syncthingstate
+check "off and not running (the script itself is not Syncthing): nothing called" test ! -e "$TMP/st_calls"
+unset proc_dir netscript
+end
+
+begin syncthing_is_a_remembered_service
+check "kept across a Wi-Fi change" grep -q '^services=.*syncthingState' "$NETWORK"
+check "restored from the saved state" grep -q 'authhttpState|syncthingState)' "$NETWORK"
+check "turned off with the others" sh -c "sed -n '/^disable_all_services() {/,/^}/p' '$NETWORK' | grep -q 'disable_flag syncthingState' && sed -n '/^disable_all_services() {/,/^}/p' '$NETWORK' | grep -q 'syncthing.sh stop'"
+check "update_networking.sh syncthing toggle" sh -c "grep -A3 '        syncthing) ' '$NETWORK' | grep -q check_syncthingstate"
+check "paused for a game with a plain TERM" grep -q 'killall syncthing; } 2> /dev/null &' "$RUNTIME"
+check "and back after the game" grep -q 'for service in smbd http ssh ftp telnet syncthing; do' "$RUNTIME"
+check "Tweaks toggles it in the background" sh -c "grep -A3 'void network_setSyncthingState' '$ROOT/src/tweaks/network.h' | grep -q '.syncthingState' && grep -A4 'void network_setSyncthingState' '$ROOT/src/tweaks/network.h' | grep -q 'execServiceState(\"syncthing\", true)'"
+end
+
+st_env() {
+    for fn in st_find_pids st_running st_installed st_sha256 st_lock_take st_install st_install_steps st_wifi_on st_has_ip st_wait_ip st_free_kb; do
+        eval "$(extract_fn "$SYNCTHING" $fn)"
+    done
+    sysdir=$TMP/sd
+    mkdir -p "$sysdir/bin" "$TMP/proc"
+    st_bin=$sysdir/bin/syncthing
+    st_stamp=$sysdir/bin/syncthing.version
+    st_dl=$sysdir/download/syncthing
+    st_lock=$TMP/st_lock
+    proc_dir=$TMP/proc
+    ST_VERSION=9.9.9
+    ST_FREE_KB_NEEDED=10
+    ST_URL=http://example.invalid/st.tar.gz
+    log() { echo "$*" >> "$TMP/st_log"; }
+    st_wait_ip() { true; }
+    st_free_kb() { echo 999999; }
+    # The release archive the mocked curl serves.
+    mkdir -p "$TMP/pkg/syncthing-linux-arm-v9.9.9"
+    printf 'ELF' > "$TMP/pkg/syncthing-linux-arm-v9.9.9/syncthing"
+    (cd "$TMP/pkg" && tar -czf "$TMP/st.tar.gz" syncthing-linux-arm-v9.9.9)
+    curl() {
+        while [ $# -gt 0 ]; do
+            [ "$1" = "-o" ] && { cp "$TMP/st.tar.gz" "$2"; return 0; }
+            shift
+        done
+        return 1
+    }
+}
+
+begin syncthing_download_is_checked
+st_env
+ST_SHA256=0000
+st_install
+check "wrong checksum: refused" test $? -ne 0
+check "nothing installed" test ! -e "$st_bin"
+check "the download is removed" test ! -e "$st_dl"
+check "the lock is released" test ! -e "$st_lock"
+ST_SHA256=$(sha256sum "$TMP/st.tar.gz" | awk '{ print $1 }')
+st_install
+check "right checksum: installed" test -s "$st_bin" -a -x "$st_bin"
+check "for this version" st_installed
+ST_VERSION=9.9.10
+not_installed() { ! st_installed; }
+check "another version asks for a new download" not_installed
+unset -f curl
+end
+
+begin syncthing_one_download_at_a_time
+st_env
+st_lock_take
+check "the first takes the lock" test "$(cat "$st_lock/pid")" = "$$"
+mkdir -p "$proc_dir/$$" # the first download is still running
+lock_busy() { ! st_lock_take; }
+check "a second call waits for it" lock_busy
+rm -rf "$st_lock"
+mkdir -p "$st_lock"
+echo 999999 > "$st_lock/pid"
+st_lock_take
+check "a lock left by a killed download is taken over" test "$(cat "$st_lock/pid")" = "$$"
+rm -rf "$st_lock"
+end
+
+begin syncthing_found_by_exact_name
+st_env
+mkdir -p "$TMP/proc/10" "$TMP/proc/11"
+echo syncthing.sh > "$TMP/proc/10/comm"
+st_find_pids
+check "only syncthing.sh: not running" test -z "$st_pids"
+echo syncthing > "$TMP/proc/11/comm"
+st_find_pids
+check "syncthing: found" test "$(echo $st_pids)" = 11
+unset proc_dir
+end
+
+begin syncthing_never_starts_open
+check "the login is set before the first start" grep -q -- '--gui-user="$ST_GUI_USER" --gui-password="$ST_GUI_PASSWORD"' "$SYNCTHING"
+check "no start without a configuration" sh -c "sed -n '/^st_start() {/,/^}/p' '$SYNCTHING' | grep -q 'st_generate || return 1'"
+check "FAT32: permissions ignored, 2 s time window" sh -c "grep -q 'ignorePerms=\"true\"' '$SYNCTHING' && grep -q '<modTimeWindowS>2</modTimeWindowS>' '$SYNCTHING'"
+end
+
 # ---- runtime.sh: MainUI return path ----
 
 eval "$(extract_fn "$RUNTIME" perf_dirty)"
