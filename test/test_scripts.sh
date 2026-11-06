@@ -1454,6 +1454,8 @@ PATH="$TMP/sdbin:$PATH" sh "$CALLER_SH" -r > /dev/null 2>&1 &
 _cpid=$!
 sleep 9
 kill $_cpid 2> /dev/null
+# The detached runs above wait for init after their reboot: stop them.
+pkill -f "$SD_SH" 2> /dev/null
 check "caller: su was asked to start the detached part" grep -q '^su root -c' "$TMP/sdcalls"
 check "caller: nothing stopped it, so it restarts by itself" grep -qx 'reboot -f' "$TMP/sdcalls"
 check "the caller waits longer than the safety net" sh -c "test \$(sed -n 's/^caller_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown') -gt \$(sed -n 's/^[[:space:]]*safety_wait=//p' '$ROOT/static/build/.tmp_update/bin/shutdown')"
@@ -1478,6 +1480,63 @@ check "task_killer asks spared" grep -q '! spared "\$p"' "$ROOT/static/build/.tm
 check "the pid of the safety net is kept" grep -q '^	safety_pid=\$!$' "$ROOT/static/build/.tmp_update/bin/shutdown"
 kill "$safety_pid" "$_child" "$_other" 2> /dev/null
 unset safety_pid
+end
+
+begin shutdown_full_flow
+# The whole script, caller and detached part, with su, nohup and fuser
+# working: fuser lists every process with its folder or a file in the card.
+SHUT="$ROOT/static/build/.tmp_update/bin/shutdown"
+mkdir -p "$TMP/bin" "$TMP/sd/.tmp_update/logs"
+for c in killall swapoff reboot poweroff read_uuid mount; do
+    printf '#!/bin/sh\necho "%s $*" >> "%s/calls"\n' "$c" "$TMP" > "$TMP/bin/$c"
+done
+printf '#!/bin/sh\nexec sh -c "$3"\n' > "$TMP/bin/su"
+cat > "$TMP/bin/fuser" << FUSER
+#!/bin/sh
+for d in /proc/[0-9]*; do
+    for l in "\$d/cwd" "\$d"/fd/*; do
+        case "\$(readlink "\$l" 2> /dev/null)" in "$TMP/sd"*) printf ' %s' "\${d#/proc/}"; break ;; esac
+    done
+done
+echo
+FUSER
+chmod +x "$TMP/bin/"*
+echo 354 > "$TMP/deviceModel"
+full_shutdown() { # umount -r delay, safety wait, caller wait
+    printf '#!/bin/sh\necho "umount $*" >> "%s/calls"\n[ "$1" = "-r" ] && sleep %s\nexit 0\n' "$TMP" "$1" > "$TMP/bin/umount"
+    chmod +x "$TMP/bin/umount"
+    sed -e "s|/mnt/SDCARD|$TMP/sd|g" -e "s|/tmp/deviceModel|$TMP/deviceModel|g" \
+        -e "s|/sbin/reboot|$TMP/bin/reboot|g" -e "s|/sbin/poweroff|$TMP/bin/poweroff|g" \
+        -e "s|/usr/bin/nohup|nohup|" -e "s|/tmp/_shutdown|$TMP/_shutdown|g" \
+        -e "s|safety_wait=30|safety_wait=$2|" -e "s|caller_wait=45|caller_wait=$3|" \
+        "$SHUT" > "$TMP/sd/shutdown"
+    chmod +x "$TMP/sd/shutdown" # the card is FAT: every file runs
+    rm -f "$TMP/calls" "$TMP/_shutdown"
+    # The caller in a folder of the card, holding one of its files (fd 7),
+    # which the detached part inherits, as from a log the caller has open.
+    (cd "$TMP/sd" && exec 7> "$TMP/sd/held" && PATH="$TMP/bin:$PATH" exec sh "$TMP/sd/shutdown" -r) > /dev/null 2>&1 &
+    _caller=$!
+}
+stop_full_shutdown() {
+    pkill -f "$TMP/_shutdown" 2> /dev/null
+    pkill -f "$TMP/bin/umount" 2> /dev/null
+    sleep 0.3
+}
+caller_gone() { ! kill -0 "$_caller" 2> /dev/null; }
+# A normal shutdown: the caller is stopped and nothing forces a restart.
+full_shutdown 0 30 2
+sleep 11
+check "normal: the clean reboot is reached" grep -qxE 'reboot ?' "$TMP/calls"
+check "normal: the caller is stopped with the tasks that use the card" caller_gone
+check "normal: no forced restart (caller nor detached part)" sh -c "! grep -q 'reboot -f' '$TMP/calls'"
+stop_full_shutdown
+# The unmount hangs: the safety net, though it holds a file of the card,
+# is not killed and restarts the device.
+full_shutdown 20 3 30
+sleep 11
+check "hang: the safety net survives and restarts the device" grep -qx 'reboot -f' "$TMP/calls"
+check "hang: the plain reboot was never reached" sh -c "! grep -qxE 'reboot ?' '$TMP/calls'"
+stop_full_shutdown
 end
 
 begin installer_reboots_with_the_clean_shutdown

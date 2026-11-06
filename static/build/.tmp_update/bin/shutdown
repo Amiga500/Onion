@@ -133,6 +133,11 @@ if [ "$0" = "/tmp/_shutdown" ]; then
 		fi
 	fi
 
+	# reboot and poweroff hand over to init, which stops this script. Not
+	# on to the caller's part below: the safety net covers until then.
+	while true; do
+		sleep 10
+	done
 fi
 
 if [ ! -f /tmp/_shutdown ]; then
