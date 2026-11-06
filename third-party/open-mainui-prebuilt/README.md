@@ -1,9 +1,13 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.0 rc20** (video previews in game lists, media
+GitHub: **Open MainUI 1.1.0 rc22** (video previews in game lists, media
 gallery in Game Info, Games/Expert as grid, carousel or list, Game Info
-auto scroll; rc20 finds Supafaust's save states (SNES: the
+auto scroll; rc22 adds game-menu.json `saved_games.disabled_rom_dirs`
+(default ["ARCADE"]: no Saved Games for ROMs there; robcodedev: not for
+Tweaks); rc21 forces 4:3 Saved Games previews for 25 more systems (NEOGEO,
+SEGACD, SATURN, AMIGA, DOS...), shows a loading panel while a PDF opens, and
+adds `gallery.upscale_images` (default true, as before); rc20 finds Supafaust's save states (SNES: the
 .info says "Beetle Supafaust", RetroArch saves in states/Supafaust); rc19 makes "framed" the Saved Games layout by default and fixes
 rare Saved Games cases, the SDL shutdown, the import shortcut that broke the
 recent list, and a Favorites bug; rc18 resizes the carousel pictures and the framed save
