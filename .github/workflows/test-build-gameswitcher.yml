@@ -1,0 +1,41 @@
+name: Test build (GameSwitcher)
+
+# Builds only the GameSwitcher, with the same Miyoo toolchain as "Check
+# build", and uploads it laid out for the SD card (.tmp_update/bin), for
+# testers to copy over their install. Runs on every push that changes it or
+# the shared code; the zip is under the run's "Artifacts" (kept 30 days).
+on:
+  push:
+    paths:
+      - 'src/gameSwitcher/**'
+      - 'src/common/**'
+      - '.github/workflows/test-build-gameswitcher.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build GameSwitcher
+    runs-on: ubuntu-latest
+    container:
+      image: aemiii91/miyoomini-toolchain:latest
+      options: --user root
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Build
+      shell: bash
+      run: |
+        source /root/.bashrc
+        out="$GITHUB_WORKSPACE/sd/.tmp_update/bin"
+        mkdir -p "$out"
+        cd src/gameSwitcher
+        PLATFORM=miyoomini VERSION="test-${GITHUB_SHA::8}" BUILD_DIR="$out" make
+        test -s "$out/gameSwitcher"
+        file "$out/gameSwitcher" || true
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: gameSwitcher-test-${{ github.sha }}
+        path: sd/
+        include-hidden-files: true
+        retention-days: 30
