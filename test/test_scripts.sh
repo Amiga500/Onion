@@ -1399,6 +1399,45 @@ check "no plain reboot left in the OTA" sh -c "! grep -qE '^[[:space:]]*reboot([
 check "shutdown -r reboots" grep -q 'if \[ "\$1" = "-r" \]; then' "$ROOT/static/build/.tmp_update/bin/shutdown"
 end
 
+begin shutdown_restarts_by_itself_if_a_step_hangs
+# The detached part of bin/shutdown, run on the host with the device's
+# commands mocked: a hanging step (here the card's unmount) must not leave
+# the device on its last screen.
+SD_SH="$TMP/sd_shutdown.sh"
+mkdir -p "$TMP/sdbin" "$TMP/sd/.tmp_update/logs"
+for c in killall fuser swapoff reboot poweroff read_uuid; do
+    printf '#!/bin/sh\necho "%s $*" >> "%s/sdcalls"\n' "$c" "$TMP" > "$TMP/sdbin/$c"
+    chmod +x "$TMP/sdbin/$c"
+done
+# umount -r hangs, as a busy card could.
+printf '#!/bin/sh\necho "umount $*" >> "%s/sdcalls"\n[ "$1" = "-r" ] && sleep 5\nexit 0\n' "$TMP" > "$TMP/sdbin/umount"
+chmod +x "$TMP/sdbin/umount"
+echo 354 > "$TMP/deviceModel"
+sed -e "s|/mnt/SDCARD|$TMP/sd|g" -e "s|/tmp/deviceModel|$TMP/deviceModel|g" \
+    -e "s|/sbin/reboot|$TMP/sdbin/reboot|g" -e "s|/sbin/poweroff|$TMP/sdbin/poweroff|g" \
+    -e 's|sleep 20|sleep 1|' -e 's|"\$0" = "/tmp/_shutdown"|1 = 1|' \
+    -e '/^if \[ ! -f \/tmp\/_shutdown \]; then/,$d' \
+    "$ROOT/static/build/.tmp_update/bin/shutdown" > "$SD_SH"
+rm -f "$TMP/sdcalls"
+(cd "$TMP/sd" && PATH="$TMP/sdbin:$PATH" sh "$SD_SH" -r > /dev/null 2>&1 &)
+sleep 3
+check "a hanging unmount: the safety net reboots after the wait" grep -qx 'reboot -f' "$TMP/sdcalls"
+check "the steps are logged in logs/shutdown.log" grep -q 'unmounting the card' "$TMP/sd/.tmp_update/logs/shutdown.log"
+check "the log starts with the request and the model" grep -q 'start -r (model 354)' "$TMP/sd/.tmp_update/logs/shutdown.log"
+_w=0
+while ! grep -qxE 'reboot ?' "$TMP/sdcalls" 2> /dev/null && [ $_w -lt 20 ]; do sleep 1; _w=$((_w + 1)); done
+check "the normal reboot follows the unmount" grep -qxE 'reboot ?' "$TMP/sdcalls"
+# Power off on a Plus: the safety net powers off too.
+rm -f "$TMP/sdcalls"
+(cd "$TMP/sd" && PATH="$TMP/sdbin:$PATH" sh "$SD_SH" > /dev/null 2>&1 &)
+sleep 3
+check "power off: the safety net powers off (-f)" grep -qx 'poweroff -f' "$TMP/sdcalls"
+_w=0
+while ! grep -qxE 'poweroff ?' "$TMP/sdcalls" 2> /dev/null && [ $_w -lt 20 ]; do sleep 1; _w=$((_w + 1)); done
+check "power off: then the normal power off" grep -qxE 'poweroff ?' "$TMP/sdcalls"
+check "the script leaves the card before its safety net starts" sh -c "grep -n 'cd /\$' '$ROOT/static/build/.tmp_update/bin/shutdown' | head -1 | cut -d: -f1 | xargs -I{} test {} -lt \$(grep -n 'sleep 20' '$ROOT/static/build/.tmp_update/bin/shutdown' | cut -d: -f1)"
+end
+
 begin installer_reboots_with_the_clean_shutdown
 INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
 eval "$(extract_fn "$INST" installer_reboot)"

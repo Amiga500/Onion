@@ -25,16 +25,46 @@ kill_hooked_tasks() {
 
 if [ "$0" = "/tmp/_shutdown" ]; then
 
+	# Off the SD card: the steps below unmount it, and a child left in a
+	# folder of the card would be killed with the tasks that use it.
+	cd /
+
+	# What is done, with the time, in logs/shutdown.log: a reboot that
+	# hangs shows where. Each mark is synced, as the next step may be the
+	# last one that reaches the card.
+	slog=/mnt/SDCARD/.tmp_update/logs/shutdown.log
+	mark() {
+		echo "$(date +%H:%M:%S) $*" >> "$slog" 2> /dev/null
+		sync
+	}
+	: > "$slog" 2> /dev/null
+	mark "start $1 (model $(cat /tmp/deviceModel 2> /dev/null))"
+
+	# Safety net: whatever hangs below (a process that won't die, swapoff,
+	# init), the device restarts or powers off by itself after 20 s instead
+	# of staying on the last screen until POWER is held. -f skips init.
+	(
+		sleep 20
+		sync
+		if [ "$1" = "-r" ] || [ "$(cat /tmp/deviceModel 2> /dev/null)" = "283" ]; then
+			/sbin/reboot -f
+		else
+			/sbin/poweroff -f
+		fi
+	) < /dev/null > /dev/null 2>&1 &
+
 	killall -9 main # mandatory to avoid the suppression of .tmp_update !
 	killall -9 updater
 	killall -9 runtime.sh
 	killall -9 smbd
 
+	mark "stopping the tasks that use the card"
 	kill_hooked_tasks
 	sleep 0.1
 	kill_hooked_tasks -9
 
 	sync
+	mark "tasks stopped, synced"
 
 	if [ -f /mnt/SDCARD/system.json ]; then
 		mkdir -p /mnt/SDCARD/.tmp_update/config/system
@@ -49,7 +79,9 @@ if [ "$0" = "/tmp/_shutdown" ]; then
 	umount /mnt/SDCARD/miyoo/app/MainUI
 	umount /mnt/SDCARD/RetroArch/retroarch
 	umount /customer/lib/libgamename.so
+	mark "swapoff"
 	swapoff /mnt/SDCARD/cachefile
+	mark "unmounting the card"
 	umount -r /mnt/SDCARD
 	umount /mnt/SDCARD
 
