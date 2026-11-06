@@ -15,6 +15,7 @@
 #include "utils/mainui_shortcut.h"
 
 #include "../tweaks/tools_defs.h"
+#include "./double_press.h"
 #include "./input_fd.h"
 #include "utils/retroarch_cmd.h"
 
@@ -433,9 +434,9 @@ bool menuButtonAction(uint32_t val, bool comboKey)
             menu_super_short_pulse();
 
         while (1) {
-            if (settings.ingame_double_press != 0 &&
-                poll(fds, 1, 300 - (getMilliseconds() - menu_last_pressed)) >
-                    0) {
+            int wait_ms = menuButton_doublePressWait(getMilliseconds(), menu_last_pressed);
+            if (settings.ingame_double_press != 0 && wait_ms > 0 &&
+                poll(fds, 1, wait_ms) > 0) {
                 if (!keyinput_isValid())
                     continue;
 

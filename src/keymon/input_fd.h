@@ -6,7 +6,10 @@
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 
+#include <errno.h>
 #include <fcntl.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "utils/msleep.h"
 
@@ -58,9 +61,24 @@ void _ignoreQueue_add(int code, int value)
     ignore_queue_count++;
 }
 
+// Read one event into ev. False, with ev cleared, when no whole event was
+// read: ev used to keep the previous event, handled again (and again, at
+// full speed, if the device kept failing).
+bool keyinput_read(void)
+{
+    ssize_t n = read(input_fd, &ev, sizeof(ev));
+    if (n == (ssize_t)sizeof(ev))
+        return true;
+    memset(&ev, 0, sizeof(ev));
+    if (n < 0 && errno != EINTR && errno != EAGAIN)
+        msleep(100); // not a busy loop on a device that keeps failing
+    return false;
+}
+
 bool keyinput_isValid(void)
 {
-    read(input_fd, &ev, sizeof(ev));
+    if (!keyinput_read())
+        return false;
 
     if (ev.type != EV_KEY || ev.value > REPEAT)
         return false;
@@ -138,11 +156,19 @@ void keyinput_sendMulti(int n, int code_value_pairs[n][2])
  * @brief stop input event for other processes
  *
  */
+// Tries for at most this long: another program holding the grab used to
+// keep keymon in this loop for as long as it did (no keys, no suspend).
+#define KEYINPUT_GRAB_TRIES 20 // x 100 ms
+
 void keyinput_disable(void)
 {
     if (keyinput_disabled)
         return;
-    while (ioctl(input_fd, EVIOCGRAB, 1) < 0) {
+    for (int i = 0; ioctl(input_fd, EVIOCGRAB, 1) < 0; i++) {
+        if (i + 1 >= KEYINPUT_GRAB_TRIES) {
+            print_debug("Keyinput grab failed, going on without it");
+            return;
+        }
         usleep(100000);
     }
     keyinput_disabled = true;
@@ -157,9 +183,8 @@ void keyinput_enable(void)
 {
     if (!keyinput_disabled)
         return;
-    while (ioctl(input_fd, EVIOCGRAB, 0) < 0) {
+    for (int i = 0; ioctl(input_fd, EVIOCGRAB, 0) < 0 && i + 1 < KEYINPUT_GRAB_TRIES; i++)
         usleep(100000);
-    }
     keyinput_disabled = false;
     print_debug("Keyinput enabled");
 }

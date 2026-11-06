@@ -37,6 +37,7 @@
 #include "utils/process.h"
 #include "utils/str.h"
 
+#include "./crash_restart.h"
 #include "./flip_suspend.h"
 #include "./input_fd.h"
 #include "./menuButtonAction.h"
@@ -546,7 +547,10 @@ void suspend_exec(int timeout)
         int ready = poll(fds, 1, poll_timeout);
 
         if (ready > 0) {
-            read(input_fd, &ev, sizeof(ev));
+            // A failed read left the previous event in ev, which was then
+            // handled again (a second POWER release woke the device up).
+            if (!keyinput_read())
+                continue;
             if ((ev.type != EV_KEY) || (ev.value > REPEAT))
                 continue;
             if (ev.code == HW_BTN_POWER) {
@@ -757,13 +761,19 @@ int read_lid_state(void)
 //
 //    Main
 //
-int main(void)
+int main(int argc, char *argv[])
 {
+    (void)argc;
     // Initialize
     signal(SIGTERM, quit);
-    signal(SIGSEGV, quit);
     signal(SIGUSR1, signal_refresh);
     log_setName("keymon");
+    // A crash starts keymon again at once (crash_restart.h); it used to
+    // run quit() from the SIGSEGV handler.
+    int restarts = crashRestart_install("/proc/self/exe", argv, environ);
+    if (restarts > 0) {
+        printf_debug("Started again after a crash (%d)\n", restarts);
+    }
 
     getDeviceModel();
 
@@ -787,7 +797,9 @@ int main(void)
     display_init(true);
 
     // Prepare for Poll button input
-    input_fd = open("/dev/input/event0", O_RDONLY);
+    // Not passed on by a restart after a crash: its grab would hold every
+    // key back from the new keymon.
+    input_fd = open("/dev/input/event0", O_RDONLY | O_CLOEXEC);
     memset(&fds, 0, sizeof(fds));
     fds[0].fd = input_fd;
     fds[0].events = POLLIN;

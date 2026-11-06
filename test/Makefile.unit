@@ -38,6 +38,8 @@ TESTS += test_tweaks_reset test_tweaks_diags test_tweaks_smb
 TESTS += test_pacman_install
 # Theme Switcher: fixed MainUI images, compact themes
 TESTS += test_theme_skin
+# keymon: crash restart, failing input
+TESTS += test_keymon_robust
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -533,6 +535,13 @@ test_theme_skin: $(BUILD_DIR)/test_theme_skin
 $(BUILD_DIR)/test_theme_skin: test_theme_skin.c onion_test.h ../src/themeSwitcher/themeSkin.h ../src/themeSwitcher/script/themes_extract_theme.sh $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_theme_skin.c $(COMMON_SRCS) $(LDFLAGS)
+test_keymon_robust: $(BUILD_DIR)/test_keymon_robust
+	@echo ""
+	@$(BUILD_DIR)/test_keymon_robust
+
+$(BUILD_DIR)/test_keymon_robust: test_keymon_robust.c onion_test.h ../src/keymon/crash_restart.h ../src/keymon/double_press.h ../src/keymon/input_fd.h ../src/keymon/input_inject.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_keymon_robust.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_gs_state_ratio: $(BUILD_DIR)/test_gs_state_ratio
 	@echo ""
