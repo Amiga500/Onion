@@ -16,14 +16,14 @@
 #include "./tools_defs.h"
 
 static pthread_t romscreen_thread_pt;
-static bool thread_active = false;
-static bool thread_success = false;
+static volatile bool thread_active = false;
+static volatile bool thread_success = false;
 static SDL_Surface *_tool_bg_cache = NULL;
 
 static void *_runCommandThread(void *cmd)
 {
     int ret = system((char *)cmd);
-    thread_success = WEXITSTATUS(ret) == 0;
+    thread_success = ret != -1 && WIFEXITED(ret) && WEXITSTATUS(ret) == 0;
     thread_active = false;
     return 0;
 }
@@ -62,10 +62,14 @@ void _runCommandPopup(const char *tool_name, const char *_cmd)
     sprintf(full_title, "Tool: %s", tool_name);
     _toolDialog(full_title, msg_apply, false);
 
-    char cmd[STR_MAX];
+    char cmd[STR_MAX] = "";
     strncpy(cmd, _cmd, STR_MAX - 1);
     thread_active = true;
-    pthread_create(&romscreen_thread_pt, NULL, _runCommandThread, cmd);
+    thread_success = false;
+    // No thread: the popup used to wait for it forever.
+    bool started = pthread_create(&romscreen_thread_pt, NULL, _runCommandThread, cmd) == 0;
+    if (!started)
+        thread_active = false;
 
     theme_clearDialogProgress();
 
@@ -79,6 +83,8 @@ void _runCommandPopup(const char *tool_name, const char *_cmd)
             break;
         _toolDialog(full_title, msg_apply, true);
     }
+    if (started)
+        pthread_join(romscreen_thread_pt, NULL);
 
     if (video != NULL)
         msleep(300);

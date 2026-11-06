@@ -145,6 +145,10 @@ static bool prev_blf_changing = false;
 static bool _disable_confirm = false;
 static SDL_Surface *background_cache = NULL;
 
+// The network flags changed on the card (Reset system tweaks): the Network
+// menu reads them again instead of showing the ones loaded before.
+static bool network_state_stale = false;
+
 static char ip_address_label[STR_MAX];
 
 static void sigHandler(int sig)

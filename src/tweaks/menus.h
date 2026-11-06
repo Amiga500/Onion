@@ -760,7 +760,7 @@ void menu_diagnostics(void *pt)
         for (int i = 0; i < diags_numScripts; i++) {
             ListItem diagItem = {
                 .label = "",
-                .payload_ptr = &scripts[i].filename,
+                .payload_ptr = scripts[i].filename,
                 .action = action_runDiagnosticScript,
             };
 
@@ -776,7 +776,7 @@ void menu_diagnostics(void *pt)
             }
 
             snprintf(diagItem.label, DIAG_MAX_LABEL_LENGTH - 1, prefix, scripts[i].label);
-            strncpy(diagItem.sticky_note, "Idle: Selected script not running", STR_MAX - 1);
+            strncpy(diagItem.sticky_note, DIAG_STATUS_IDLE, STR_MAX - 1);
 
             char *parsed_Tooltip = diags_parseNewLines(scripts[i].tooltip);
             list_addItemWithInfoNote(&_menu_diagnostics, diagItem, parsed_Tooltip);

@@ -199,14 +199,18 @@ void action_setEnableLogging(void *pt)
 void action_runDiagnosticScript(void *payload_ptr)
 { // run the script based on what the payload_ptr gives us
     ListItem *item = (ListItem *)payload_ptr;
-    char *filename = (char *)item->payload_ptr;
-    char script_path[DIAG_MAX_PATH_LENGTH + 1];
-    snprintf(script_path, sizeof(script_path), "%s/%s", DIAG_SCRIPT_PATH, filename);
+    // The thread gets its own copy of the name: the item may be freed
+    // (menus rebuilt) before the thread reads it.
+    char *filename = strdup((const char *)item->payload_ptr);
+    if (filename == NULL)
+        return;
 
     pthread_t thread;
-    if (pthread_create(&thread, NULL, diags_runScript, payload_ptr) != 0) {
+    if (pthread_create(&thread, NULL, diags_runScript, filename) != 0) {
+        free(filename);
         list_updateStickyNote(item, "Failed to run script..."); // threading issues
         list_changed = true;
+        return;
     }
 
     pthread_detach(thread);

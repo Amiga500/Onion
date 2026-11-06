@@ -61,11 +61,14 @@ int main(int argc, char *argv[])
 
     getDeviceModel();
 
+    // What a reset cut short by a crash or a power cut left (reset_core.h).
+    reset_recoverAll(RESET_SD_ROOT, RESET_STAGING_DIR, RESET_LEGACY_PAK, RESET_CONFIGS_PAK);
+
     char apply_tool[STR_MAX] = "";
     bool use_display = true;
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--apply_tool") == 0)
+        if (strcmp(argv[i], "--apply_tool") == 0 && i + 1 < argc)
             strncpy(apply_tool, argv[++i], STR_MAX - 1);
         else if (strcmp(argv[i], "--no_display") == 0)
             use_display = false;
@@ -231,6 +234,9 @@ int main(int argc, char *argv[])
                     }
                 }
             }
+            // Status of the diagnostics scripts, written by their threads.
+            if (diags_applyStatus(&_menu_diagnostics))
+                list_changed = true;
             if (isMenu(&_menu_network) || isMenu(&_menu_wifi)) {
                 network_loadState();
                 if (netinfo_getIpAddress(ip_address_label, network_state.hotspot ? "wlan1" : "wlan0")) {

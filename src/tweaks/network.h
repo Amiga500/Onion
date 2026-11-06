@@ -22,6 +22,7 @@
 #include "utils/process.h"
 
 #include "./appstate.h"
+#include "./smb_shares.h"
 
 #define NET_SCRIPT_PATH "/mnt/SDCARD/.tmp_update/script/network"
 #define SMBD_CONFIG_PATH "/mnt/SDCARD/.tmp_update/config/smb.conf"
@@ -52,8 +53,9 @@ static struct network_s {
 
 void network_loadState(void)
 {
-    if (network_state.loaded)
+    if (network_state.loaded && !network_state_stale)
         return;
+    network_state_stale = false;
 
     network_state.smbd = config_flag_get(".smbdState");
     network_state.http = config_flag_get(".httpState");
@@ -71,25 +73,19 @@ void network_loadState(void)
     network_state.check_updates = config_flag_get(".checkUpdates");
     network_state.keep_alive = config_flag_get(".keepServicesAlive");
     network_state.vncserv = config_flag_get(".vncServer");
+    network_state.vncfps = 20; // when there is no file
     config_get(".vncfps", CONFIG_INT, &network_state.vncfps);
     network_state.loaded = true;
 }
-
-typedef struct {
-    char name[STR_MAX - 11];
-    char path[STR_MAX];
-    int available;     // 1 if available = yes, 0 otherwise
-    long availablePos; // in file position for the available property
-} Share;
 
 static Share *_network_shares = NULL;
 static int network_numShares;
 
 void network_freeSmbShares()
 {
-    if (_network_shares != NULL) {
-        free(_network_shares);
-    }
+    free(_network_shares);
+    _network_shares = NULL;
+    network_numShares = 0;
 }
 
 void network_getSmbShares()
@@ -98,77 +94,13 @@ void network_getSmbShares()
         return;
     }
 
-    int numShares = 0;
-
+    network_numShares = 0;
     FILE *file = fopen(SMBD_CONFIG_PATH, "r");
     if (file == NULL) {
         printf("Failed to open smb.conf file.\n");
         return;
     }
-
-    char line[STR_MAX];
-
-    bool found_shares = false;
-    bool is_available = false;
-    long availablePos = -1;
-
-    while (fgets(line, sizeof(line), file) != NULL) {
-        char *trimmedLine = strtok(line, "\n");
-        if (trimmedLine == NULL) {
-            continue;
-        }
-
-        if (strstr(trimmedLine, "available = ") != NULL) {
-            availablePos = ftell(file) - strlen(trimmedLine) - 1;
-            is_available = strstr(trimmedLine, "1") != NULL;
-            continue;
-        }
-
-        if (strstr(trimmedLine, "path = ") != NULL) {
-            strncpy(_network_shares[numShares - 1].path, trimmedLine + 7, STR_MAX);
-            continue;
-        }
-
-        if (strncmp(trimmedLine, "[", 1) == 0 && strncmp(trimmedLine + strlen(trimmedLine) - 1, "]", 1) == 0) {
-            if (found_shares) {
-                _network_shares[numShares - 1].available = is_available;
-                _network_shares[numShares - 1].availablePos = availablePos;
-                is_available = false;
-            }
-
-            char *shareName = strtok(trimmedLine + 1, "]");
-            if (shareName != NULL && strlen(shareName) > 0) {
-                if (strcmp(shareName, "global") == 0) {
-                    continue;
-                }
-
-                numShares++;
-                _network_shares = (Share *)realloc(_network_shares, numShares * sizeof(Share));
-
-                bool add_exclamation = false;
-                if (strncmp("__", shareName, 2) == 0) {
-                    shareName = shareName + 2;
-                    add_exclamation = true;
-                }
-
-                strncpy(_network_shares[numShares - 1].name, shareName, STR_MAX - 11);
-
-                if (add_exclamation) {
-                    strncat(_network_shares[numShares - 1].name, " (!)", STR_MAX - 11 - strlen(shareName));
-                }
-
-                found_shares = true;
-            }
-        }
-    }
-
-    if (found_shares) {
-        _network_shares[numShares - 1].available = is_available;
-        _network_shares[numShares - 1].availablePos = availablePos;
-    }
-
-    network_numShares = numShares;
-
+    _network_shares = smb_readShares(file, &network_numShares);
     fclose(file);
 }
 
@@ -176,28 +108,14 @@ void network_toggleSmbAvailable(void *item)
 {
     ListItem *listItem = (ListItem *)item;
     Share *share = (Share *)listItem->payload_ptr;
+    bool available = listItem->value == 1; // already switched by the list
 
-    FILE *file = fopen(SMBD_CONFIG_PATH, "r+");
-    if (file == NULL) {
-        printf("Failed to open smb.conf file.\n");
-        return;
+    if (smb_setAvailable(SMBD_CONFIG_PATH, share->section, available))
+        share->available = available;
+    else {
+        printf("Failed to change share '%s' in smb.conf.\n", share->name);
+        listItem->value = share->available;
     }
-
-    if (fseek(file, share->availablePos, SEEK_SET) != 0) {
-        printf("Failed to seek to the available property of share '%s'.\n", share->name);
-        fclose(file);
-        return;
-    }
-
-    char line[STR_MAX];
-    fgets(line, sizeof(line), file);
-    share->available = strstr(line, "1") == NULL; // toggle
-
-    fseek(file, share->availablePos, SEEK_SET);
-    fprintf(file, "available = %d\n", share->available);
-    fflush(file);
-
-    fclose(file);
 }
 
 void network_setState(bool *state_ptr, const char *flag_name, bool value)
@@ -339,8 +257,9 @@ void network_setTzManualState(void *pt)
     bool enabled = ((ListItem *)pt)->value;
     network_setState(&network_state.manual_tz, ".manual_tz", !enabled);
     if (enabled) {
-        char utc_str[10];
-        if (config_get(".tz_sync", CONFIG_STR, utc_str)) {
+        // config_get() reads a whole line: room for any, not 10 bytes.
+        char utc_str[STR_MAX] = "";
+        if (config_get(".tz_sync", CONFIG_STR, utc_str) && utc_str[0] != '\0') {
             setenv("TZ", utc_str, 1);
             tzset();
             config_setString(".tz", utc_str);
@@ -422,6 +341,9 @@ void menu_smbd(void *pt)
     item->value = (int)network_state.smbd;
 
     if (!_menu_smbd._created) {
+        // Read again with the menu (smb.conf may have been reset): the old
+        // items, which pointed into the old list, are gone with it.
+        network_freeSmbShares();
         network_getSmbShares();
 
         _menu_smbd = list_createWithSticky(1 + network_numShares, "File sharing (Samba)");
@@ -444,7 +366,9 @@ void menu_smbd(void *pt)
                 .payload_ptr = _network_shares + i // store a pointer to the share in the payload
             };
             snprintf(shareItem.label, STR_MAX - 1, "Share: %s", _network_shares[i].name);
-            strncpy(shareItem.sticky_note, str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:"), STR_MAX - 1);
+            char *shown_path = str_replace(_network_shares[i].path, "/mnt/SDCARD", "SD:");
+            strncpy(shareItem.sticky_note, shown_path != NULL ? shown_path : _network_shares[i].path, STR_MAX - 1);
+            free(shown_path);
             list_addItem(&_menu_smbd, shareItem);
         }
     }

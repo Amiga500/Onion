@@ -2,6 +2,7 @@
 #define TWEAKS_ICONS_H__
 
 #include <SDL/SDL_image.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -25,8 +26,29 @@ typedef struct IconInfo {
     char config_path[STR_MAX];
 } IconInfo_t;
 
-static IconInfo_t icon_infos[500];
+// What the items of the console, app and expert icon menus point to (at
+// most 200 items each). The table only grew: every rebuild of these menus
+// (after an icon change, an icon pack, any menu reset) added all the icons
+// again, and past 500 it wrote beyond its end. Now it is reused once none
+// of those menus exists, and never written past its end.
+#define ICON_INFOS_MAX 600
+static IconInfo_t icon_infos[ICON_INFOS_MAX];
 static int icon_infos_len = 0;
+
+static void _icon_infos_reuse(void)
+{
+    if (!_menu_console_icons._created && !_menu_app_icons._created &&
+        !_menu_expert_icons._created && !_menu_temp._created)
+        icon_infos_len = 0;
+}
+
+// realpath() into a PATH_MAX buffer (it writes up to that much): "" when
+// the path can't be resolved.
+static void _icon_realpath(const char *path, char out[PATH_MAX])
+{
+    if (path == NULL || realpath(path, out) == NULL)
+        out[0] = '\0';
+}
 
 int _add_icon_alts(const char *pack_dir, const char *pack_name,
                    const char *icon_prefix, List *list, void (*action)(void *))
@@ -181,6 +203,7 @@ void _action_apply_icon_pack(void *_item)
 
         list_free(&_menu_console_icons);
         list_free(&_menu_app_icons);
+        list_free(&_menu_expert_icons);
         list_free(&_menu_temp);
 
         SDL_BlitSurface(background_cache, NULL, screen, NULL);
@@ -199,9 +222,9 @@ void _action_apply_icon_pack(void *_item)
 
 void menu_icon_packs(void *_)
 {
-    const char *active_icon_pack = file_read(ACTIVE_ICON_PACK);
-
     if (!_menu_icon_packs._created) {
+        char *active_icon_pack = file_read(ACTIVE_ICON_PACK);
+
         _menu_icon_packs = list_create(200, LIST_SMALL);
         strcpy(_menu_icon_packs.title, "Icon packs");
 
@@ -212,16 +235,18 @@ void menu_icon_packs(void *_)
 
         list_sortByLabel(&_menu_icon_packs);
 
-        char selected_path[STR_MAX];
-        realpath(is_dir(active_icon_pack) ? active_icon_pack
-                                          : "/mnt/SDCARD/Icons/Default",
-                 selected_path);
+        char selected_path[PATH_MAX];
+        _icon_realpath(active_icon_pack != NULL && is_dir(active_icon_pack)
+                           ? active_icon_pack
+                           : "/mnt/SDCARD/Icons/Default",
+                       selected_path);
+        free(active_icon_pack);
 
-        for (int i = 0; i < _menu_icon_packs.item_count; i++) {
+        for (int i = 0; selected_path[0] != '\0' && i < _menu_icon_packs.item_count; i++) {
             ListItem *current_item = &_menu_icon_packs.items[i];
 
-            char current_path[STR_MAX];
-            realpath(current_item->payload, current_path);
+            char current_path[PATH_MAX];
+            _icon_realpath(current_item->payload, current_path);
 
             if (strcmp(selected_path, current_path) == 0) {
                 list_scrollTo(&_menu_icon_packs, i);
@@ -248,7 +273,7 @@ bool _add_config_icon(const char *path, const char *name,
 
     cJSON *config = json_load(config_path);
 
-    if (!json_getString(config, "icon", icon_path)) {
+    if (icon_infos_len >= ICON_INFOS_MAX || !json_getString(config, "icon", icon_path)) {
         cJSON_Delete(config);
         return false;
     }
@@ -265,9 +290,6 @@ bool _add_config_icon(const char *path, const char *name,
                  icon_path);
     else
         strncpy(preview_path, icon_path, STR_MAX * 2 - 1);
-
-    char abs_path[STR_MAX - 56];
-    realpath(preview_path, abs_path);
 
     icon_name = file_removeExtension(basename(icon_path));
     str_split(icon_name, "-");
@@ -395,14 +417,14 @@ void _menu_change_icon(ListItem *item, IconMode_e mode)
 
     list_sortByLabel(&_menu_temp);
 
-    char selected_path[STR_MAX];
-    realpath(info->path, selected_path);
+    char selected_path[PATH_MAX];
+    _icon_realpath(info->path, selected_path);
 
-    for (int i = 0; i < _menu_temp.item_count; i++) {
+    for (int i = 0; selected_path[0] != '\0' && i < _menu_temp.item_count; i++) {
         ListItem *current_item = &_menu_temp.items[i];
 
-        char current_path[STR_MAX];
-        realpath(current_item->preview_path, current_path);
+        char current_path[PATH_MAX];
+        _icon_realpath(current_item->preview_path, current_path);
 
         if (strcmp(selected_path, current_path) == 0) {
             list_scrollTo(&_menu_temp, i);
@@ -424,6 +446,7 @@ void menu_change_console_icon(void *item)
 void menu_console_icons(void *_)
 {
     if (!_menu_console_icons._created) {
+        _icon_infos_reuse();
         _menu_console_icons = list_create(200, LIST_SMALL);
         strcpy(_menu_console_icons.title, "Console icons");
 
@@ -446,6 +469,7 @@ void menu_change_app_icon(void *item)
 void menu_app_icons(void *_)
 {
     if (!_menu_app_icons._created) {
+        _icon_infos_reuse();
         _menu_app_icons = list_create(200, LIST_LARGE);
         strcpy(_menu_app_icons.title, "App icons");
 
@@ -470,6 +494,7 @@ void menu_change_expert_icon(void *item)
 void menu_expert_icons(void *_)
 {
     if (!_menu_expert_icons._created) {
+        _icon_infos_reuse();
         _menu_expert_icons = list_create(200, LIST_SMALL);
         strcpy(_menu_expert_icons.title, "Expert icons");
 

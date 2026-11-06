@@ -5,13 +5,22 @@
 
 #include "system/device_model.h"
 #include "system/keymap_sw.h"
+#include "system/settings.h"
 #include "theme/render/dialog.h"
 #include "theme/sound.h"
 #include "utils/file.h"
+#include "utils/flags.h"
+#include "utils/msleep.h"
 
 #include "./appstate.h"
+#include "./reset_core.h"
 
-#define RESET_CONFIGS_PAK "/mnt/SDCARD/.tmp_update/config/configs.pak"
+static const ResetSource reset_source = {
+    .sd_root = RESET_SD_ROOT,
+    .pak = RESET_CONFIGS_PAK,
+    .staging = RESET_STAGING_DIR,
+    .extract = reset_extract7z,
+};
 
 bool _confirmReset(const char *title_str, const char *message_str)
 {
@@ -50,7 +59,7 @@ bool _confirmReset(const char *title_str, const char *message_str)
         SDL_Flip(video);
     }
     else {
-        // Cancelled: _notifyResetDone() (which frees it) will not run.
+        // Cancelled: _notifyResetResult() (which frees it) will not run.
         SDL_FreeSurface(background_cache);
         background_cache = NULL;
         keys_enabled = true;
@@ -60,13 +69,13 @@ bool _confirmReset(const char *title_str, const char *message_str)
     return retval;
 }
 
-void _notifyResetDone(const char *title_str)
+void _notifyResetResult(const char *title_str, bool ok)
 {
     SDL_BlitSurface(background_cache, NULL, screen, NULL);
-    theme_renderDialog(screen, title_str, "Done", false);
+    theme_renderDialog(screen, title_str, ok ? "Done" : "Reset failed", false);
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
-    msleep(300);
+    msleep(ok ? 300 : 1500);
 
     SDL_FreeSurface(background_cache);
     background_cache = NULL;
@@ -76,90 +85,130 @@ void _notifyResetDone(const char *title_str)
     sync();
 }
 
+void _notifyResetDone(const char *title_str)
+{
+    _notifyResetResult(title_str, true);
+}
+
+// Each reset: true when the defaults are in place. A failed one leaves the
+// files as they were (see reset_core.h).
+
+static bool _resetTweaks(void)
+{
+    reset_recoverAll(RESET_SD_ROOT, RESET_STAGING_DIR, RESET_LEGACY_PAK, RESET_CONFIGS_PAK);
+    if (!reset_replaceDir(&reset_source, ".tmp_update/config", reset_config_keep))
+        return false;
+    reset_runDefaultMigrations(RESET_MIGRATION_DIR);
+
+    // The network services follow their flags again when Tweaks closes
+    // (runtime.sh checks them), and the Network menu shows the new ones.
+    if (HAS_WIFI())
+        temp_flag_set("network_changed", true);
+    network_state_stale = true;
+    return true;
+}
+
+static bool _resetThemeOverrides(void)
+{
+    file_remove_recursive("/mnt/SDCARD/Saves/CurrentProfile/theme");
+    mkdirs("/mnt/SDCARD/Saves/CurrentProfile/theme");
+    return is_dir("/mnt/SDCARD/Saves/CurrentProfile/theme");
+}
+
+static bool _resetMainUI(void)
+{
+    char src_path[80];
+    snprintf(src_path, sizeof(src_path), "/mnt/SDCARD/.tmp_update/res/miyoo%d_system.json", DEVICE_ID);
+
+    // Replaced, not deleted and copied: a failed copy used to leave no
+    // system.json, or no Wi-Fi setup. Under the lock other programs take to
+    // save system.json (keymon on a volume change).
+    int lock = file_lock(MAIN_UI_SETTINGS, 1000);
+    bool ok = reset_copyFileAtomic(src_path, MAIN_UI_SETTINGS);
+    file_unlock(lock);
+
+    if (IS_MIYOO_PLUS_OR_FLIP() &&
+        !reset_copyFileAtomic("/mnt/SDCARD/.tmp_update/res/wpa_supplicant.reset", "/appconfigs/wpa_supplicant.conf"))
+        ok = false;
+
+    return ok;
+}
+
+static bool _resetRAMain(void)
+{
+    return reset_overwriteFiles(&reset_source, "RetroArch");
+}
+
+static bool _resetRACores(void)
+{
+    reset_recoverAll(RESET_SD_ROOT, RESET_STAGING_DIR, RESET_LEGACY_PAK, RESET_CONFIGS_PAK);
+    return reset_replaceDir(&reset_source, "Saves/CurrentProfile/config", NULL);
+}
+
+static bool _resetAdvanceMENU(void)
+{
+    return reset_overwriteFiles(&reset_source, "BIOS/.advance");
+}
+
 void action_resetTweaks(void *pt)
 {
     const char title_str[] = "Reset system tweaks";
-    if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset system tweaks?"))
+    if (!_confirmReset(title_str, "Are you sure you want to\nreset system tweaks?"))
         return;
-    rename(RESET_CONFIGS_PAK, "/mnt/SDCARD/.tmp_update/temp");
-    file_remove_recursive("/mnt/SDCARD/.tmp_update/config");
-    mkdirs("/mnt/SDCARD/.tmp_update/config");
-    system("7z x /mnt/SDCARD/.tmp_update/temp -o/mnt/SDCARD/ -ir!.tmp_update/config/*");
-    rename("/mnt/SDCARD/.tmp_update/temp", RESET_CONFIGS_PAK);
+    bool ok = _resetTweaks();
     reset_menus = true;
     settings_load();
-    if (!_disable_confirm)
-        _notifyResetDone(title_str);
+    _notifyResetResult(title_str, ok);
 }
 
 void action_resetThemeOverrides(void *pt)
 {
     const char title_str[] = "Reset theme overrides";
-    if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset theme overrides?"))
+    if (!_confirmReset(title_str, "Are you sure you want to\nreset theme overrides?"))
         return;
-    file_remove_recursive("/mnt/SDCARD/Saves/CurrentProfile/theme");
-    mkdirs("/mnt/SDCARD/Saves/CurrentProfile/theme");
-    if (!_disable_confirm)
-        _notifyResetDone(title_str);
+    bool ok = _resetThemeOverrides();
+    _notifyResetResult(title_str, ok);
 }
 
 void action_resetMainUI(void *pt)
 {
     const char title_str[] = "Reset MainUI settings";
-
-    if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset MainUI settings?"))
+    if (!_confirmReset(title_str, "Are you sure you want to\nreset MainUI settings?"))
         return;
-
-    remove("/mnt/SDCARD/system.json");
-
-    char src_path[80];
-    snprintf(src_path, sizeof(src_path), "/mnt/SDCARD/.tmp_update/res/miyoo%d_system.json", DEVICE_ID);
-    file_copy(src_path, "/mnt/SDCARD/system.json");
-
-    if (IS_MIYOO_PLUS_OR_FLIP()) {
-        remove("/appconfigs/wpa_supplicant.conf");
-        file_copy("/mnt/SDCARD/.tmp_update/res/wpa_supplicant.reset", "/appconfigs/wpa_supplicant.conf");
-    }
-
+    bool ok = _resetMainUI();
     reset_menus = true;
     settings_load();
-    if (!_disable_confirm)
-        _notifyResetDone(title_str);
+    _notifyResetResult(title_str, ok);
 }
 
 void action_resetRAMain(void *pt)
 {
     const char title_str[] = "Reset RetroArch configuration";
-    if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to reset\nRetroArch main configuration?"))
+    if (!_confirmReset(title_str, "Are you sure you want to reset\nRetroArch main configuration?"))
         return;
-    system("7z x -aoa " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!RetroArch/*");
+    bool ok = _resetRAMain();
     reset_menus = true;
-    if (!_disable_confirm)
-        _notifyResetDone(title_str);
+    _notifyResetResult(title_str, ok);
 }
 
 void action_resetRACores(void *pt)
 {
     const char title_str[] = "Reset all RA core overrides";
-    if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to reset\nall RetroArch core overrides?"))
+    if (!_confirmReset(title_str, "Are you sure you want to reset\nall RetroArch core overrides?"))
         return;
-    file_remove_recursive("/mnt/SDCARD/Saves/CurrentProfile/config");
-    mkdirs("/mnt/SDCARD/Saves/CurrentProfile/config");
-    system("7z x " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!Saves/CurrentProfile/config/*");
+    bool ok = _resetRACores();
     reset_menus = true;
-    if (!_disable_confirm)
-        _notifyResetDone(title_str);
+    _notifyResetResult(title_str, ok);
 }
 
 void action_resetAdvanceMENU(void *pt)
 {
     const char title_str[] = "Reset AdvanceMENU/MAME/MESS";
-    if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset AdvanceMENU/MAME/MESS?"))
+    if (!_confirmReset(title_str, "Are you sure you want to\nreset AdvanceMENU/MAME/MESS?"))
         return;
-    system("7z x -aoa " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!BIOS/.advance/*");
+    bool ok = _resetAdvanceMENU();
     reset_menus = true;
-    if (!_disable_confirm)
-        _notifyResetDone(title_str);
+    _notifyResetResult(title_str, ok);
 }
 
 void action_resetAll(void *pt)
@@ -167,17 +216,16 @@ void action_resetAll(void *pt)
     const char title_str[] = "Reset everything";
     if (!_confirmReset(title_str, "Are you sure you want to\nreset everything?"))
         return;
-    _disable_confirm = true;
-    action_resetTweaks(pt);
-    action_resetThemeOverrides(pt);
-    action_resetMainUI(pt);
-    action_resetRAMain(pt);
-    action_resetRACores(pt);
-    action_resetAdvanceMENU(pt);
-    _disable_confirm = false;
+    // All of them, even after one failed; "Reset failed" if any did.
+    bool ok = _resetTweaks();
+    ok = _resetThemeOverrides() && ok;
+    ok = _resetMainUI() && ok;
+    ok = _resetRAMain() && ok;
+    ok = _resetRACores() && ok;
+    ok = _resetAdvanceMENU() && ok;
     reset_menus = true;
     settings_load();
-    _notifyResetDone(title_str);
+    _notifyResetResult(title_str, ok);
 }
 
 #endif // TWEAKS_RESET_H__
