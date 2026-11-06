@@ -149,13 +149,19 @@ void renderGameName(AppState *state)
 
         state->surfaceGameName = TTF_RenderUTF8_Blended(resource_getFont(TITLE), game_name_str, color_white);
 
-        state->game_name_size.w = state->surfaceGameName->w < state->game_name_max_width ? state->surfaceGameName->w : state->game_name_max_width;
-        state->game_name_size.h = state->surfaceGameName->h;
+        // NULL for a text SDL_ttf cannot draw: the bar is then left empty.
+        if (state->surfaceGameName != NULL) {
+            state->game_name_size.w = state->surfaceGameName->w < state->game_name_max_width ? state->surfaceGameName->w : state->game_name_max_width;
+            state->game_name_size.h = state->surfaceGameName->h;
+        }
 
         state->gameNameScrollX = -state->gameNameScrollStart * state->gameNameScrollSpeed;
 
         state->current_game_changed = false;
     }
+
+    if (state->surfaceGameName == NULL)
+        return;
 
     SDL_Rect game_name_rect = {(g_display.width - state->surfaceGameName->w) / 2,
                                game_name_bg_pos.y + 30.0 * g_scale - state->surfaceGameName->h / 2};

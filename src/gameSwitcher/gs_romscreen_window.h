@@ -7,9 +7,9 @@
 // of SDL so the host tests can check it.
 //
 // An entry is evicted when it is further than `window` from `center`,
-// unless it is `pinned`: another thread (the overlay's autosave thread,
-// which encodes game_list[0].romScreen to PNG) is still reading its pixels.
-// pinned < 0 means nothing is pinned.
+// unless it is `pinned` (pinned < 0: none). The GameSwitcher passes -1:
+// the overlay now saves the running game's picture from its own copy of
+// the pixels, so no other thread reads a romScreen any more.
 static inline bool romscreen_shouldEvict(int index, int center, int window, int pinned)
 {
     if (index == pinned)

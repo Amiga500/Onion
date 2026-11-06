@@ -7,9 +7,12 @@
 
 #include <SDL/SDL.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cjson/cJSON.h"
+#include "utils/file.h"
 #include "utils/log.h"
 #include "utils/str.h"
 
@@ -113,6 +116,109 @@ void setEntryDefaultValues(Game_s *game, int index)
     strcpy(game->core_name, "");
     strcpy(game->core_path, "");
     game->index = index;
+}
+
+// The entry can be shown and started: its ROM and its launcher are there.
+static inline bool gs_recentItemUsable(const RecentItem *item)
+{
+    return item != NULL && exists(item->rompath) && exists(item->launch);
+}
+
+// Same game: the same ROM through the same launcher.
+static inline bool gs_sameRecentItem(const RecentItem *a, const RecentItem *b)
+{
+    return a != NULL && b != NULL &&
+           strcmp(a->rompath, b->rompath) == 0 &&
+           strcmp(a->launch, b->launch) == 0;
+}
+
+// Line item->lineNo (1-based) of the recent list still holds this game.
+// The list can change while the GameSwitcher is open, and a line number
+// that went stale would make the caller act on another game's line.
+static inline bool gs_recentLineMatches(const char *path, const RecentItem *item)
+{
+    if (path == NULL || item == NULL || item->lineNo < 1)
+        return false;
+    char *line = file_read_lineN(path, item->lineNo);
+    if (line == NULL)
+        return false;
+    RecentItem on_disk = {0};
+    bool same = parseJsonToRecentItem(line, &on_disk, item->lineNo) &&
+                gs_sameRecentItem(&on_disk, item);
+    free(line);
+    return same;
+}
+
+// Remove the game from the recent list, only if its line still holds it.
+// False when nothing was removed (the caller keeps its list as it is).
+static inline bool gs_deleteRecentLine(const char *path, const RecentItem *item)
+{
+    if (!gs_recentLineMatches(path, item))
+        return false;
+    return file_delete_lines(path, &item->lineNo, 1);
+}
+
+#define GS_RECENT_DUPLICATES_MAX 256
+
+// Read up to `max` games from MainUI's recent list into out[], in order:
+// entries of type 5/17 whose ROM and launcher are there, each ROM once.
+// Later lines for a ROM already listed are deleted from the file in one
+// rewrite. lineNo is each game's line in the file as it is afterwards: if
+// that rewrite fails, the duplicates stay and so do the line numbers.
+// Returns the number of games, or -1 if the list cannot be read.
+static inline int gs_readRecentFile(const char *path, RecentItem *out, int max)
+{
+    FILE *file = path != NULL ? fopen(path, "r") : NULL;
+    if (file == NULL || out == NULL || max <= 0) {
+        if (file != NULL)
+            fclose(file);
+        print_debug("Error opening the recent list");
+        return -1;
+    }
+
+    int dup_lines[GS_RECENT_DUPLICATES_MAX];
+    int dup_count = 0;
+    int count = 0;
+    int line_no = 0;
+    char *line = NULL;
+    size_t line_cap = 0;
+
+    while (count < max && getline(&line, &line_cap, file) != -1) {
+        ++line_no;
+        RecentItem item = {0};
+        if (!parseJsonToRecentItem(line, &item, line_no))
+            continue;
+
+        bool duplicate = false;
+        for (int i = 0; i < count && !duplicate; i++)
+            duplicate = strcmp(out[i].rompath, item.rompath) == 0;
+        if (duplicate) {
+            if (dup_count < GS_RECENT_DUPLICATES_MAX)
+                dup_lines[dup_count++] = line_no;
+            continue;
+        }
+
+        if (!gs_recentItemUsable(&item))
+            continue;
+
+        out[count++] = item;
+    }
+
+    free(line);
+    fclose(file);
+
+    if (dup_count > 0 && file_delete_lines(path, dup_lines, dup_count)) {
+        for (int i = 0; i < count; i++) {
+            int removed_before = 0;
+            for (int d = 0; d < dup_count; d++) {
+                if (dup_lines[d] < out[i].lineNo)
+                    removed_before++;
+            }
+            out[i].lineNo -= removed_before;
+        }
+    }
+
+    return count;
 }
 
 #endif // GAME_SWITCHER_RECENT_ITEM_H

@@ -36,7 +36,12 @@ static AppKeyState_s _gs_keystate = {
     .button_y = {false, false, 0},
 };
 
-void removeCurrentItem()
+// Remove the current game from the history. False when its line in the
+// recent list no longer holds it (the list changed) or could not be
+// rewritten: then nothing changes, here or in the file. The entries below
+// move up a line only once the line is really gone, so their line numbers
+// stay right for the next removal or resume.
+bool removeCurrentItem()
 {
     // The save state scan reads game_list, so let it finish before the
     // entries below the current one are shifted up.
@@ -50,12 +55,16 @@ void removeCurrentItem()
     printf_debug("removing: %s\n", game->name);
     printf_debug("linenumber: %i\n", game->recentItem.lineNo);
 
+    if (!gs_deleteRecentLine(getMiyooRecentFilePath(), &game->recentItem)) {
+        print_debug("removeCurrentItem: the history line no longer matches or could not be removed");
+        romscreen_unlock();
+        return false;
+    }
+
     if (game->romScreen != NULL) {
         SDL_FreeSurface(game->romScreen);
         game->romScreen = NULL;
     }
-
-    file_delete_line(getMiyooRecentFilePath(), game->recentItem.lineNo);
 
     if (strlen(game->recentItem.imgpath) > 0 && is_file(game->recentItem.imgpath)) {
         if (strncmp(game->recentItem.imgpath, ROM_SCREENS_DIR, strlen(ROM_SCREENS_DIR)) == 0) {
@@ -73,6 +82,7 @@ void removeCurrentItem()
     game_list_len--;
 
     romscreen_unlock();
+    return true;
 }
 
 int checkQuitAction(void)
@@ -98,11 +108,12 @@ void action_confirmRemove(AppState *state)
     while (!state->quit) {
         if (_updateKeystate(keystate, &state->quit, true, NULL)) {
             if (keystate[SW_BTN_A] == PRESSED) {
-                removeCurrentItem();
-                if (state->current_game > 0)
-                    state->current_game--;
-                state->current_game_changed = true;
-                loadRomScreen(state->current_game);
+                if (removeCurrentItem()) {
+                    if (state->current_game > 0)
+                        state->current_game--;
+                    state->current_game_changed = true;
+                    loadRomScreen(state->current_game);
+                }
                 state->changed = true;
                 break;
             }
@@ -330,6 +341,10 @@ void handleKeystate(AppState *state)
         if (keystate[SW_BTN_START] == PRESSED) {
             state->pop_menu_open = !state->pop_menu_open;
             state->changed = true;
+            // A acts on release: an A pressed in one view and released in
+            // the other (held while START opens or closes the menu) would
+            // resume the game or run the menu's first item.
+            _gs_keystate.btn_a_pressed = false;
         }
 
         if (state->pop_menu_open) {

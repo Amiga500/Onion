@@ -31,6 +31,7 @@ TESTS := test_str test_perf test_file test_images_browser test_hash test_json te
 # Build-only targets (compilation without running)
 # Suites for Tweaks > Appearance > Footer layout and the GameSwitcher bar
 TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar test_mainui_shortcut test_gs_state_ratio
+TESTS += test_gs_recent_list test_gs_game_name test_gs_state_copy
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -264,6 +265,30 @@ test_gs_history: $(BUILD_DIR)/test_gs_history
 $(BUILD_DIR)/test_gs_history: test_gs_history.c onion_test.h ../src/gameSwitcher/gs_recent_item.h stubs/SDL/SDL.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) -Istubs $(CFLAGS) -o $@ test_gs_history.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
+
+test_gs_recent_list: $(BUILD_DIR)/test_gs_recent_list
+	@echo ""
+	@$(BUILD_DIR)/test_gs_recent_list
+
+$(BUILD_DIR)/test_gs_recent_list: test_gs_recent_list.c onion_test.h ../src/gameSwitcher/gs_recent_item.h stubs/SDL/SDL.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_gs_recent_list.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
+
+test_gs_game_name: $(BUILD_DIR)/test_gs_game_name
+	@echo ""
+	@$(BUILD_DIR)/test_gs_game_name
+
+$(BUILD_DIR)/test_gs_game_name: test_gs_game_name.c onion_test.h ../src/gameSwitcher/gs_game_name.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_gs_game_name.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_gs_state_copy: $(BUILD_DIR)/test_gs_state_copy
+	@echo ""
+	@$(BUILD_DIR)/test_gs_state_copy
+
+$(BUILD_DIR)/test_gs_state_copy: test_gs_state_copy.c onion_test.h ../src/gameSwitcher/gs_state_copy.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_gs_state_copy.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_gs_popmenu: $(BUILD_DIR)/test_gs_popmenu
 	@echo ""

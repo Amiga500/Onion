@@ -130,8 +130,10 @@ int main(int argc, char *argv[])
             if (frame == GS_FRAME_SKIP)
                 continue;
 
-            Game_s *game = &game_list[appState.current_game];
-            processItem(game);
+            // No game (empty history, or the last one removed): nothing to
+            // look up, entry 0 is not a game.
+            if (game_list_len > 0)
+                processItem(&game_list[appState.current_game]);
 
             if (appState.changed) {
                 SDL_FillRect(screen, NULL, 0);

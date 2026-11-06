@@ -12,6 +12,7 @@
 #include "gs_model.h"
 #include "gs_retroarch.h"
 #include "gs_savestate_path.h"
+#include "gs_state_copy.h"
 #include "gs_state_ratio.h"
 
 #define POP_MENU_ACTION_RESUME 0
@@ -401,18 +402,28 @@ void action_loadGame(void *_)
         return;
     }
 
+    bool loaded;
     if (game->is_running) {
-        retroarch_load(real_slot);
+        loaded = retroarch_load(real_slot) == 0;
     }
     else {
-        // Copy the save state to the auto state path
+        // The game starts from its auto save state: make the slot that
+        // state, atomically, with its picture (gs_state_copy.h).
         char stateFilePath[2048];
         char autoStateFilePath[2048];
 
-        if (createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath)) &&
-            createSaveStatePath(game, -1, autoStateFilePath, sizeof(autoStateFilePath))) {
-            file_copy(stateFilePath, autoStateFilePath);
-        }
+        loaded = createSaveStatePath(game, real_slot, stateFilePath, sizeof(stateFilePath)) &&
+                 createSaveStatePath(game, -1, autoStateFilePath, sizeof(autoStateFilePath)) &&
+                 gs_loadSlotIntoAuto(stateFilePath, autoStateFilePath);
+    }
+
+    if (!loaded) {
+        // Stay in the menu: starting the game now would not load this slot.
+        theme_renderDialog(screen, "Loading", "Load failed", false);
+        render();
+        msleep(1000);
+        appState.changed = true;
+        return;
     }
 
     appState.exit_to_menu = false;

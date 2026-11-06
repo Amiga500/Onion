@@ -17,6 +17,7 @@
 #include "../playActivity/cacheDB.h"
 #include "../playActivity/playActivityDB.h"
 
+#include "gs_game_name.h"
 #include "gs_model.h"
 #include "gs_retroarch.h"
 #include "gs_romscreen.h"
@@ -24,73 +25,45 @@
 /**
  * @brief History extraction
  *
+ * gs_readRecentFile() (gs_recent_item.h) reads the list, drops the
+ * duplicates from the file and numbers the lines.
  */
 void readHistory()
 {
-    FILE *file;
-    int numRecents = 0;
-
-    const char *recentFilePath = getMiyooRecentFilePath();
-
-    file = fopen(recentFilePath, "r");
-    if (file == NULL) {
-        print_debug("Error opening file");
-        return;
+    // ~200 KB, only while reading (a large malloc goes back to the system)
+    RecentItem *items = (RecentItem *)malloc(sizeof(RecentItem) * MAX_HISTORY);
+    if (items == NULL)
+        return; // keep what readFirstEntry() found
+    int count = gs_readRecentFile(getMiyooRecentFilePath(), items, MAX_HISTORY);
+    if (count < 0) {
+        free(items);
+        return; // unreadable: keep what readFirstEntry() found
     }
 
-    // Duplicates are collected and removed in ONE rewrite after the scan
-    // (was: a full rewrite of the recent list per duplicate). Line numbers
-    // stored in each entry already account for the lines deleted before it.
-    int dup_lines[MAX_HISTORY * 2];
-    int dup_count = 0;
-    int orig_line_no = 0;
-
-    char *line = NULL;
-    size_t line_cap = 0;
-
-    while (numRecents < MAX_HISTORY && getline(&line, &line_cap, file) != -1) {
-        ++orig_line_no;
-        int lineNo = orig_line_no - dup_count;
-
-        if (!parseJsonToRecentItem(line, &game_list[numRecents].recentItem, lineNo)) {
-            continue;
+    for (int i = 0; i < count; i++) {
+        Game_s *game = &game_list[i];
+        // readFirstEntry() has prepared entry 0 (name, picture, running
+        // state): keep that only if it is the same game, or the first game
+        // would show another one's name and picture.
+        bool same = game->processed && gs_sameRecentItem(&game->recentItem, &items[i]);
+        if (!same && game->romScreen != NULL) {
+            SDL_FreeSurface(game->romScreen);
+            game->romScreen = NULL;
         }
-
-        // Check for duplicates by looping over the list
-        bool isDuplicate = false;
-        for (int i = 0; i < numRecents; i++) {
-            if (strcmp(game_list[i].recentItem.rompath, game_list[numRecents].recentItem.rompath) == 0) {
-                isDuplicate = true;
-                break;
-            }
-        }
-
-        if (isDuplicate) {
-            // Only count it as deleted if it will really be deleted, so the
-            // numbering of the following entries stays correct.
-            if (dup_count < (int)(sizeof(dup_lines) / sizeof(dup_lines[0])))
-                dup_lines[dup_count++] = orig_line_no;
-            continue;
-        }
-
-        if (!exists(game_list[numRecents].recentItem.rompath) || !exists(game_list[numRecents].recentItem.launch)) {
-            continue;
-        }
-
-        if (!game_list[numRecents].processed) {
-            setEntryDefaultValues(&game_list[numRecents], numRecents);
-        }
-
-        numRecents++;
+        game->recentItem = items[i];
+        if (!same)
+            setEntryDefaultValues(game, i);
     }
 
-    free(line);
-    fclose(file);
+    for (int i = count; i < game_list_len; i++) {
+        if (game_list[i].romScreen != NULL) {
+            SDL_FreeSurface(game_list[i].romScreen);
+            game_list[i].romScreen = NULL;
+        }
+    }
 
-    if (dup_count > 0)
-        file_delete_lines(recentFilePath, dup_lines, dup_count);
-
-    game_list_len = numRecents;
+    game_list_len = count;
+    free(items);
 }
 
 bool getGameName(char *name_out, const char *rom_path)
@@ -122,6 +95,8 @@ void processItemMetaWork(Game_s *game)
     }
 
     file_cleanName(game->shortname, game->name);
+    gs_fillShortName(game->shortname, sizeof(game->shortname), game->name,
+                     game->rom_name, game->recentItem.label);
 
     if (ra_findItemInRetroArchHistory(game)) {
         ra_getCoreNameFromInfo(game);
@@ -148,38 +123,20 @@ void processItem(Game_s *game)
 /**
  * @brief Read the first entry from the history file
  *
+ * Same rules as readHistory() (ROM and launcher present), so that entry 0
+ * is the game readHistory() puts first.
  */
 void readFirstEntry()
 {
-    FILE *file;
-    char line[STR_MAX * 6];
-
-    file = fopen(getMiyooRecentFilePath(), "r");
-    if (file == NULL) {
-        print_debug("Error opening file");
+    RecentItem item;
+    if (gs_readRecentFile(getMiyooRecentFilePath(), &item, 1) != 1)
         return;
-    }
 
-    int lineNo = -1;
-    bool found = false;
-
-    while (fgets(line, sizeof(line), file) != NULL) {
-        ++lineNo;
-
-        if (parseJsonToRecentItem(line, &game_list[0].recentItem, lineNo)) {
-            found = true;
-            break;
-        }
-    }
-
-    if (found) {
-        Game_s *game = &game_list[0];
-        setEntryDefaultValues(game, 0);
-        processItem(game);
-        game_list_len = 1;
-    }
-
-    fclose(file);
+    Game_s *game = &game_list[0];
+    game->recentItem = item;
+    setEntryDefaultValues(game, 0);
+    processItem(game);
+    game_list_len = 1;
 }
 
 void getLaunchCommand(Game_s *game, char *launchCommand)
@@ -192,21 +149,11 @@ void getLaunchCommand(Game_s *game, char *launchCommand)
 // been edited while the overlay was open.
 static bool resumeGameItem(Game_s *game)
 {
-    if (game == NULL || game->recentItem.lineNo < 1 ||
-        !exists(game->recentItem.rompath) || !exists(game->recentItem.launch))
+    if (game == NULL || !gs_recentItemUsable(&game->recentItem))
         return false;
 
     const char *recentPath = getMiyooRecentFilePath();
-    char *line = file_read_lineN(recentPath, game->recentItem.lineNo);
-    if (line == NULL)
-        return false;
-
-    RecentItem verified = {0};
-    bool same = parseJsonToRecentItem(line, &verified, game->recentItem.lineNo) &&
-                strcmp(verified.rompath, game->recentItem.rompath) == 0 &&
-                strcmp(verified.launch, game->recentItem.launch) == 0;
-    free(line);
-    if (!same)
+    if (!gs_recentLineMatches(recentPath, &game->recentItem))
         return false;
 
     // Write the launch command first, atomically (temp + fsync + rename +
