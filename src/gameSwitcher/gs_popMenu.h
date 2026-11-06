@@ -11,6 +11,7 @@
 #include "gs_favorites.h"
 #include "gs_model.h"
 #include "gs_retroarch.h"
+#include "gs_save_wait.h"
 #include "gs_savestate_path.h"
 #include "gs_state_ratio.h"
 
@@ -274,9 +275,8 @@ static void *_save_thread(void *_)
     }
 
     // Check if any process is using the save state file
-    while (file_isLocked(stateFilePath) && SDL_GetTicks() - start < 30000) {
-        msleep(100);
-    }
+    gs_waitStateFileRelease(stateFilePath, saved, (uint32_t)start, 30000,
+                            SDL_GetTicks, msleep);
 
     g_save_thread_running = false;
     return NULL;
