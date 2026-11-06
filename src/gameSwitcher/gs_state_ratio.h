@@ -6,10 +6,15 @@
 // nearly square), which looks squashed next to the game as it is played
 // (thanks zazzagone). The preview takes the shape the game has on screen:
 //  - RetroArch's "keep aspect" off: the game fills the 4:3 screen;
-//  - otherwise the console's screen, by ROM folder, the same table as
-//    Open MainUI 1.1.0 rc14's Saved Games "console ratio": 4:3, GB/GBC/GG
-//    10:9, GBA 3:2;
-//  - any other folder: 0, the picture keeps its own shape.
+//  - otherwise the console's screen, by ROM folder: Open MainUI 1.1.0
+//    rc14's Saved Games "console ratio" table (4:3, GB/GBC/GG 10:9, GBA
+//    3:2), plus the other consoles and computers made for a 4:3 TV or
+//    monitor (their cores show them 4:3; the raw frame, e.g. Neo Geo 320x224
+//    or Atari 2600 160x210, is not);
+//  - any other folder: 0, the picture keeps its own shape. That includes
+//    arcade (ARCADE, CPS*, FBNEO: some games are vertical), handhelds whose
+//    frame already has the screen's shape, the Super Game Boy (the shape
+//    depends on its border) and the Vectrex (a portrait screen).
 
 #include <stdbool.h>
 #include <string.h>
@@ -41,6 +46,31 @@ static const GsStateRatio_s gs_state_ratios[] = {
     {"GBC", 10.0 / 9.0},
     {"GG", 10.0 / 9.0},
     {"GBA", 3.0 / 2.0},
+    // TV consoles
+    {"SEGACD", 4.0 / 3.0},
+    {"THIRTYTWOX", 4.0 / 3.0},
+    {"SEGASGONE", 4.0 / 3.0},
+    {"NEOGEO", 4.0 / 3.0},
+    {"NEOCD", 4.0 / 3.0},
+    {"SGFX", 4.0 / 3.0},
+    {"SATELLAVIEW", 4.0 / 3.0},
+    {"SUFAMI", 4.0 / 3.0},
+    {"COLECO", 4.0 / 3.0},
+    {"INTELLIVISION", 4.0 / 3.0},
+    {"ODYSSEY", 4.0 / 3.0},
+    {"VIDEOPAC", 4.0 / 3.0},
+    {"FAIRCHILD", 4.0 / 3.0},
+    {"ATARI", 4.0 / 3.0},
+    {"FIFTYTWOHUNDRED", 4.0 / 3.0},
+    {"SEVENTYEIGHTHUNDRED", 4.0 / 3.0},
+    // Home computers (TV or 4:3 monitor)
+    {"MSX", 4.0 / 3.0},
+    {"CPC", 4.0 / 3.0},
+    {"ZXS", 4.0 / 3.0},
+    {"COMMODORE", 4.0 / 3.0},
+    {"VIC20", 4.0 / 3.0},
+    {"AMIGA", 4.0 / 3.0},
+    {"DOS", 4.0 / 3.0},
 };
 
 // The console folder of a ROM path: the part after "/Roms/", up to the next
