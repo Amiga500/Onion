@@ -463,6 +463,25 @@ if command -v jq > /dev/null; then
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
+    begin ota_4_5_0_stable_over_the_4_4_0_stable
+    # 4.5.0 follows the 4.4.0 stable directly (no public 4.5.0 beta): both
+    # channels offer it to a 4.4.0 device, and it is not offered again.
+    channel=stable
+    installUI() { echo "4.4.0-20261027-6cbd9b07"; }
+    ota_asset 4.5.0-20261106-1a2b3c4d false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable channel on 4.4.0: the 4.5.0 stable offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.0-20261106-1a2b3c4d
+    channel=beta
+    printf '[%s,%s]' "$(ota_asset 4.5.0-20261106-1a2b3c4d false)" "$(ota_asset 4.4.0-20261027-6cbd9b07 false)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel on 4.4.0: the 4.5.0 stable offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.0-20261106-1a2b3c4d
+    installUI() { echo "4.5.0-20261106-1a2b3c4d"; }
+    channel=stable
+    get_release_info > /dev/null
+    check "stable channel on 4.5.0: up to date" test "$?" -eq 1
+    installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
+    end
+
     begin ota_finds_redonion_and_onionplus_packages
     # The rename: releases carry RedOnion-v, OnionPlus-v or both.
     ota_release() { # version, then package names
