@@ -636,8 +636,10 @@ launch_game() {
         if [ ! -f $sysdir/config/.keepServicesAlive ]; then
             # Tells the boot-time network bring-up (still running in the
             # background when a game resumes at boot) not to start them.
+            # Syncthing gets a plain TERM (killall without -9): it closes
+            # its database on the way out.
             : > /tmp/services_paused_in_game
-            killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null &
+            { killall -9 dropbear bftpd filebrowser telnetd smbd; killall syncthing; } 2> /dev/null &
             services_kill_pid=$!
             # Services stopped: Wi-Fi power save back on for the game
             # (start_services_outside_game sets it again afterwards).
@@ -931,7 +933,7 @@ launch_game_postprocess() {
         # Reset networking if needed
         rm -f /tmp/services_paused_in_game
         if [ ! -f "$sysdir/config/.keepServicesAlive" ]; then
-            for service in smbd http ssh ftp telnet; do
+            for service in smbd http ssh ftp telnet syncthing; do
                 if [ -f "$sysdir/config/.${service}State" ]; then
                     touch /tmp/network_changed
                     break

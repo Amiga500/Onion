@@ -43,6 +43,7 @@ static struct network_s {
     bool check_updates;
     bool keep_alive;
     bool vncserv;
+    bool syncthing;
     bool loaded;
     bool force_wifi_on_startup;
     int vncfps;
@@ -71,6 +72,7 @@ void network_loadState(void)
     network_state.check_updates = config_flag_get(".checkUpdates");
     network_state.keep_alive = config_flag_get(".keepServicesAlive");
     network_state.vncserv = config_flag_get(".vncServer");
+    network_state.syncthing = config_flag_get(".syncthingState");
     config_get(".vncfps", CONFIG_INT, &network_state.vncfps);
     network_state.loaded = true;
 }
@@ -272,6 +274,16 @@ void network_setFtpState(void *pt)
 void network_setTelnetState(void *pt)
 {
     network_commonEnableToggle(&_menu_telnet, (ListItem *)pt, &network_state.telnet, "telnet", ".telnetState");
+}
+
+// In the background: the first start downloads Syncthing (about 25 MB),
+// which would keep Tweaks waiting.
+void network_setSyncthingState(void *pt)
+{
+    network_setState(&network_state.syncthing, ".syncthingState", ((ListItem *)pt)->value);
+    network_execServiceState("syncthing", true);
+    reset_menus = true;
+    all_changed = true;
 }
 
 void network_setHotspotState(void *pt)
@@ -633,7 +645,7 @@ void menu_wifi(void *_)
 void menu_network(void *_)
 {
     if (!_menu_network._created) {
-        _menu_network = list_create(9, LIST_SMALL);
+        _menu_network = list_create(10, LIST_SMALL);
         strcpy(_menu_network.title, "Network");
 
         network_loadState();
@@ -721,6 +733,20 @@ void menu_network(void *_)
                                      .action = menu_vnc},
                                  "See and control the screen from another\n"
                                  "device.");
+        list_addItemWithInfoNote(&_menu_network,
+                                 (ListItem){
+                                     .label = "Folder sync (Syncthing)",
+                                     .item_type = TOGGLE,
+                                     .disabled = !settings.wifi_on,
+                                     .value = (int)network_state.syncthing,
+                                     .action = network_setSyncthingState},
+                                 "Keeps folders in sync with your PC or\n"
+                                 "phone, e.g. Saves. The first start\n"
+                                 "downloads Syncthing (about 25 MB).\n"
+                                 " \n"
+                                 "Set it up in a browser:\n"
+                                 "http://<IP address>:8384\n"
+                                 "Username: onion  Password: onion");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
                                      .label = "Pause these while playing",

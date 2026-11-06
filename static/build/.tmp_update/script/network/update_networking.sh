@@ -12,7 +12,7 @@ is_booting=0
 [ -f /tmp/is_booting ] && is_booting=1
 
 # add service flags here to be remembered when wifi change is detected
-services="httpState ftpState smbdState sshState authsshState authftpState authhttpState"
+services="httpState ftpState smbdState sshState authsshState authftpState authhttpState syncthingState"
 
 logfile=${0##*/}
 logfile=${logfile%.sh}
@@ -37,6 +37,17 @@ main() {
                     ;;
                 authed)
                     ${service}_authed &
+                    store_state &
+                    ;;
+                *)
+                    print_usage
+                    ;;
+            esac
+            ;;
+        syncthing) # no authed: the login is set in its web interface
+            case "$2" in
+                toggle)
+                    check_syncthingstate &
                     store_state &
                     ;;
                 *)
@@ -171,12 +182,14 @@ disable_all_services() {
     disable_flag httpState
     disable_flag authhttpState
     disable_flag smbdState
+    disable_flag syncthingState
 
     for process in dropbear bftpd filebrowser telnetd hostapd dnsmasq smbd; do
         if is_running $process; then
             killall -9 $process
         fi
     done
+    $netscript/syncthing.sh stop
 
     $netscript/wifi_power_save.sh auto
 }
@@ -204,11 +217,13 @@ start_services_outside_game() {
     check_telnetstate &
     check_httpstate &
     check_smbdstate &
+    check_syncthingstate &
     wait
 
     if [ -f "$services_paused_flag" ]; then
         log "Network Checker: a game started meanwhile, stopping services"
         killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null
+        $netscript/syncthing.sh stop
     fi
 
     # Off while services run, on again if a game paused them meanwhile
@@ -503,6 +518,25 @@ check_httpstate() {
         if is_running filebrowser; then
             killall -9 filebrowser
         fi
+    fi
+}
+
+# Syncthing (script/network/syncthing.sh). The first start downloads the
+# program, which can take a minute: Tweaks runs this toggle in the
+# background. Without Wi-Fi it stops and keeps the toggle, like the others.
+# This runs after every game: with Syncthing off and not running it only
+# reads /proc, without starting syncthing.sh.
+check_syncthingstate() {
+    if flag_enabled syncthingState && wifi_enabled; then
+        $netscript/syncthing.sh start
+        return
+    fi
+    lowest_pid_named syncthing
+    if [ -n "$found_pid" ]; then
+        if flag_enabled syncthingState; then
+            log "Syncthing: Wifi is turned off, stopping Syncthing (toggle kept)"
+        fi
+        $netscript/syncthing.sh stop
     fi
 }
 
@@ -809,7 +843,7 @@ restore_state() {
     [ ! -f "$jsonfile" ] && return
     log "Network Checker: Restoring state from $jsonfile"
 
-    grep -E '"(httpState|ftpState|smbdState|sshState|authsshState|authftpState|authhttpState)":\s*"[01]"' "$jsonfile" | while IFS=":" read -r key value; do
+    grep -E '"(httpState|ftpState|smbdState|sshState|authsshState|authftpState|authhttpState|syncthingState)":\s*"[01]"' "$jsonfile" | while IFS=":" read -r key value; do
         key=$(echo "$key" | tr -d ' "{}')
         value=$(echo "$value" | tr -d ' ",')
 
@@ -903,8 +937,8 @@ is_noauth_enabled() { # Used to check authMethod val for HTTPFS
 }
 
 print_usage() {
-    echo "Usage: $0 {check|ftp|telnet|http|ssh|smbd|disableall|save|restore|full_reset} [toggle|authed]"
-    echo "       - For {ftp|telnet|http|ssh|smbd}, [toggle|authed] can be specified."
+    echo "Usage: $0 {check|ftp|telnet|http|ssh|smbd|syncthing|disableall|save|restore|full_reset} [toggle|authed]"
+    echo "       - For {ftp|telnet|http|ssh|smbd}, [toggle|authed] can be specified; syncthing takes toggle."
     echo "       - Commands {ntp|hotspot} only accept 'toggle'."
     echo "       - Commands {save|restore|full_reset} do not require additional args."
     echo "e.g:"
