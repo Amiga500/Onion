@@ -82,6 +82,18 @@ write(SD / "Metadata/TooMany/gamelist.xml", '<gameList>' +
       '<game><path>target.nes</path></game>' * 32769 + '</gameList>')
 write(SD / "Metadata/LargeRecord/gamelist.xml", '<gameList><game><path>target.nes</path>' +
       '<ignored>' + 'x' * 33000 + '</ignored></game></gameList>')
+# These distinct ROM names have the same case-folded FNV-1a metadata hash.
+# An oversized colliding record must not hide a following valid record or
+# prevent falling back from a subfolder gamelist to the console-root gamelist.
+write(SD / "Metadata/Collision/gamelist.xml", '<gameList>' +
+      '<game><path>game9538ab76.nes</path><ignored>' + 'x' * 33000 +
+      '</ignored></game>' +
+      '<game><path>game0b1b7ef0.nes</path><genre>Collision</genre></game>' +
+      '<game><path>Folder/game0b1b7ef0.nes</path><genre>Root fallback</genre></game>' +
+      '</gameList>')
+write(SD / "Metadata/Collision/Folder/gamelist.xml", '<gameList>' +
+      '<game><path>game9538ab76.nes</path><ignored>' + 'x' * 33000 +
+      '</ignored></game></gameList>')
 subprocess.run([str(BUILD / "fixture-boundaries"), str(SD)], cwd=ROOT, check=True)
 normal = capture("normal", "EEDD")
 assert normal == capture("parent-roundtrip", "EEDEDBD")

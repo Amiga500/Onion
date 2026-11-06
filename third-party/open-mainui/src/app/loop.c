@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "app/loop.h"
 #include "app/render.h"
+#include "app/screen_events.h"
 #include "localization/language.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "platform/launch.h"
 #include "platform/system_config.h"
 #include "platform/timing.h"
+#include "ui/carousel_worker.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -184,6 +186,10 @@ bool mainui_poll_jobs(MainUIApp *ui)
             if (resumed || previous_sleep != ui->device_status.sleeping) {
                 ui->active_at = now;
                 mainui_audio_pause(!resumed && ui->device_status.sleeping == 1);
+                mainui_media_sleep(&ui->details.media, !resumed && ui->device_status.sleeping == 1,
+                                   now);
+                /* A list's preview stops; it starts again on waking. */
+                mainui_list_video_sleep(&ui->list_video);
                 memset(ui->held, 0, sizeof ui->held);
                 /* As on focus loss: a release after sleep is no press. */
                 ui->x_armed = ui->y_armed = ui->select_armed = ui->start_armed = false;
@@ -203,11 +209,32 @@ bool mainui_poll_jobs(MainUIApp *ui)
                 ui->confirmation = -1;
                 ui->return_latched = false;
             }
-            if (refresh_due && ui->real_device && !ui->device_job.thread && !ui->snapshot) {
-                cJSON *system = mainui_system_read(ui->sd);
-                const cJSON *wifi = cJSON_GetObjectItemCaseSensitive(system, "wifi");
-                bool wifi_disabled = cJSON_IsNumber(wifi) && wifi->valuedouble == 0;
-                cJSON_Delete(system);
+            if (refresh_due && ui->real_device && ui->device_status.model.wifi &&
+                !ui->device_job.thread && !ui->snapshot) {
+                /* A status poll checks the SD card's stamp, not its JSON, if
+                 * system.json has not changed since the last poll. */
+                static MainUIFileStamp system_stamp;
+                static char system_sd[4096];
+                static bool known, wifi_disabled;
+                char path[4096];
+                int n = snprintf(path, sizeof path, "%s/system.json", ui->sd);
+                if (n > 0 && n < (int)sizeof path) {
+                    MainUIFileStamp current = mainui_file_stamp(path);
+                    if (!known || strcmp(system_sd, ui->sd) ||
+                        !mainui_file_stamp_equal(system_stamp, current)) {
+                        cJSON *system = mainui_system_read(ui->sd);
+                        const cJSON *wifi = cJSON_GetObjectItemCaseSensitive(system, "wifi");
+                        wifi_disabled = cJSON_IsNumber(wifi) && wifi->valuedouble == 0;
+                        cJSON_Delete(system);
+                        system_stamp = current;
+                        snprintf(system_sd, sizeof system_sd, "%s", ui->sd);
+                        known = true;
+                    }
+                }
+                else {
+                    wifi_disabled = false;
+                    known = false;
+                }
                 if (!wifi_disabled) {
                     mainui_device_job_start(&ui->device_job, &ui->device_adapter, 0, NULL, NULL);
                 }
@@ -253,6 +280,18 @@ bool mainui_poll_jobs(MainUIApp *ui)
 
 bool mainui_reap_jobs(MainUIApp *ui)
 {
+    bool handled = false;
+    bool carousel_shown = ui->catalog && !ui->catalog->depth && !ui->library && !ui->home &&
+                          mainui_console_mode(ui) == MAINUI_CONSOLE_CAROUSEL;
+    bool visible = mainui_menu_carousel_service(
+        &ui->menu_view, carousel_shown ? ui->catalog : NULL, carousel_shown ? &ui->view : NULL,
+        carousel_shown ? &ui->console_view : NULL, &handled);
+    if (handled && carousel_shown) {
+        ui->carousel_offscreen = !visible;
+        if (visible) {
+            ui->idle_tick = false;
+        }
+    }
     if (ui->launch_pending && !ui->snapshot) {
         mainui_mark(MAINUI_MARK_HANDOFF);
         return false;
@@ -307,9 +346,18 @@ bool mainui_reap_jobs(MainUIApp *ui)
                  * console that was selected before, wherever it is now. Its
                  * config file names it: two emulators can share a ROM folder. */
                 char previous[MAINUI_PATH_MAX] = "";
-                if (kind == JOB_DISCOVER && *target && saved->selected >= 0 &&
-                    saved->selected < (*target)->pages[0].count &&
-                    (*target)->pages[0].entries[saved->selected].config) {
+                /* First opened since MainUI started: the console remembered
+                 * from before, or the first if it is gone. */
+                int position = expert ? MAINUI_POSITION_EXPERT : MAINUI_POSITION_GAMES;
+                bool remembered = kind == JOB_DISCOVER && ui->console_position_pending[position];
+                if (remembered) {
+                    snprintf(previous, sizeof previous, "%s",
+                             ui->console_position.console[position]);
+                    ui->console_position_pending[position] = false;
+                }
+                else if (kind == JOB_DISCOVER && *target && saved->selected >= 0 &&
+                         saved->selected < (*target)->pages[0].count &&
+                         (*target)->pages[0].entries[saved->selected].config) {
                     snprintf(previous, sizeof previous, "%s",
                              (*target)->pages[0].entries[saved->selected].config);
                 }
@@ -321,11 +369,14 @@ bool mainui_reap_jobs(MainUIApp *ui)
                 ui->catalog = completed.catalog;
                 ui->view = completed.view;
                 if (kind == JOB_DISCOVER && ui->catalog->pages[0].count) {
-                    int row = saved->selected < ui->catalog->pages[0].count
+                    int row = remembered ? 0
+                              : saved->selected < ui->catalog->pages[0].count
                                   ? saved->selected
                                   : ui->catalog->pages[0].count - 1;
                     for (int i = 0; *previous && i < ui->catalog->pages[0].count; i++) {
-                        const char *config = ui->catalog->pages[0].entries[i].config;
+                        const MainUIEntry *entry = &ui->catalog->pages[0].entries[i];
+                        const char *config =
+                            remembered ? mainui_console_position_identity(entry) : entry->config;
                         if (config && !strcmp(config, previous)) {
                             row = i;
                             break;
@@ -357,6 +408,11 @@ bool mainui_reap_jobs(MainUIApp *ui)
         }
         bool recovering = ui->page_recovery && (kind == JOB_RELOAD || kind == JOB_REPAIR_SYSTEM);
         if (recovering && result == JOB_CANCELLED) {
+            /* Once the worker is finished, a marker it never consumed cannot
+             * leak into a later visit to this console. */
+            if (ui->catalog && ui->catalog->depth > 0) {
+                mainui_catalog_cancel_scan_only(ui->catalog->pages[1].path);
+            }
             /* Back during recovery leaves the list instead of starting the
              * next step; it reopens at its top. */
             ui->page_recovery = 0;
@@ -425,6 +481,43 @@ int mainui_wait_interval(const MainUIApp *ui, Uint32 now)
             interval = (int)until;
         }
     }
+    /* Wake for a queued tap even after the slide's 40 ms repaint ticks end. */
+    int carousel_due = mainui_screen_carousel_due(ui, now);
+    if (carousel_due >= 0 && carousel_due < interval) {
+        interval = carousel_due > 0 ? carousel_due : 1;
+    }
+    /* A coalesced Carousel update must still repaint at its deadline even
+     * if the user stops pressing keys before another input event arrives. */
+    if (ui->carousel_frame_pending) {
+        Sint32 due = (Sint32)(ui->last_screen_present_at + MAINUI_MARQUEE_FRAME_MS - now);
+        if (due <= 0) {
+            due = 1;
+        }
+        if (due < interval) {
+            interval = due;
+        }
+    }
+    /* The console carousel's slide, at the title's pace while it lasts. */
+    if (mainui_menu_carousel_sliding(&ui->menu_view) &&
+        mainui_console_mode(ui) == MAINUI_CONSOLE_CAROUSEL && interval > MAINUI_MARQUEE_FRAME_MS) {
+        interval = MAINUI_MARQUEE_FRAME_MS;
+    }
+    /* Game Info description animates only while visible and overflowing. */
+    int details_due = mainui_details_auto_due(&ui->details, now);
+    if (details_due >= 0 && details_due < interval) {
+        interval = details_due > 0 ? details_due : 1;
+    }
+    /* A playing video wakes when its next decoded frame is due; the decoder
+     * posts an event for a frame decoded later. */
+    int due = mainui_media_due(&ui->details.media, now);
+    if (due >= 0 && due < interval) {
+        interval = due > 0 ? due : 1;
+    }
+    /* Likewise a list's video preview, and the moment it is to start. */
+    due = mainui_list_video_due(&ui->list_video, now);
+    if (due >= 0 && due < interval) {
+        interval = due > 0 ? due : 1;
+    }
     if (ui->catalog_job.thread) {
         Uint32 elapsed = now - ui->catalog_job.started_at;
         if (elapsed < 500 && (Uint32)interval > 500 - elapsed) {
@@ -455,6 +548,14 @@ static void paced_wait(MainUIApp *ui, SDL_Event *event)
     }
     for (;;) {
         if (SDL_PollEvent(event)) {
+            /* Decoder notifications can arrive between paced marquee frames.
+             * Consume them here: the next 40 ms tick advances the video and
+             * title together. Otherwise each notification interrupts pacing
+             * even though render.c postpones the video redraw anyway.
+             * Never delay user input or other system events. */
+            if (event->type == SDL_USEREVENT && event->user.code == MAINUI_VIDEO_CODE) {
+                continue;
+            }
             return;
         }
         Sint32 remaining = (Sint32)(ui->marquee_due - SDL_GetTicks());
@@ -567,6 +668,13 @@ bool mainui_wait_event(MainUIApp *ui, SDL_Event *event)
              event->key.keysym.sym == SDLK_RCTRL || event->key.keysym.sym == SDLK_F2)) {
             ui->script_release = event->key.keysym.sym;
         }
+        /* A scripted B, Left or Right is a new press, as if released after
+         * the last one; +B, +L and +R are repeats of the key held down. */
+        if (event->type == SDL_KEYDOWN && !hold &&
+            (event->key.keysym.sym == SDLK_ESCAPE || event->key.keysym.sym == SDLK_LEFT ||
+             event->key.keysym.sym == SDLK_RIGHT)) {
+            ui->held[event->key.keysym.sym] = false;
+        }
         if (event->key.keysym.sym == SDLK_UNKNOWN) {
             fprintf(stderr, "Invalid --input action\n");
             ui->status = 2;
@@ -586,9 +694,18 @@ bool mainui_wait_event(MainUIApp *ui, SDL_Event *event)
     if (!scripted_event && (ui->handheld_input || ui->real_device)) {
         mainui_input_device_event(event);
     }
-    ui->idle_tick = event->type == SDL_USEREVENT && (event->user.code == MAINUI_TICK_CODE ||
-                                                     event->user.code == MAINUI_STATUS_CODE);
-    if (!ui->idle_tick) {
+    /* A video's frames are not input: a list's preview keeps its partial
+     * frames, and the gallery redraws for them anyway. */
+    ui->idle_tick =
+        event->type == SDL_USEREVENT &&
+        (event->user.code == MAINUI_TICK_CODE || event->user.code == MAINUI_STATUS_CODE ||
+         event->user.code == MAINUI_VIDEO_CODE || event->user.code == MAINUI_CAROUSEL_READY_CODE);
+    ui->video_wake = event->type == SDL_USEREVENT && event->user.code == MAINUI_VIDEO_CODE;
+    if (event->type != SDL_USEREVENT || event->user.code != MAINUI_CAROUSEL_READY_CODE) {
+        ui->carousel_offscreen = false;
+    }
+    if (!ui->idle_tick &&
+        !(event->type == SDL_USEREVENT && event->user.code == MAINUI_CAROUSEL_READY_CODE)) {
         ui->active_at = SDL_GetTicks();
     }
     return true;

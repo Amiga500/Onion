@@ -2,7 +2,14 @@
 #ifndef MAINUI_CACHE_H
 #define MAINUI_CACHE_H
 #include "catalog/catalog.h"
+#include "sqlite3.h"
 #define MAINUI_CACHE_WINDOW 64
+/* Reject WAL before SQLite opens the file; a read-only WAL open can still
+ * create a -shm sidecar on the SD card. */
+bool mainui_cache_is_wal(const char *file);
+/* Standalone bounded read-only queries (such as Carousel game counts).
+ * The budget must live until all statements are finalized and DB is closed. */
+bool mainui_cache_readonly_open(sqlite3 **out, const char *file, int *budget);
 /* One read-only connection and prepared query per open folder. No user/cache
  * writes, extension loading or schema repair. Close after releasing row data. */
 typedef struct MainUICache MainUICache;

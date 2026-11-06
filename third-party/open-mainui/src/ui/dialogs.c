@@ -21,6 +21,17 @@ void mainui_dim_popup_background(SDL_Surface *screen, MainUITheme *theme)
     SDL_BlitSurface(theme->popup_dim, NULL, screen, &destination);
 }
 
+void mainui_dim_popup_screen(SDL_Surface *screen, MainUITheme *theme)
+{
+    mainui_dim_popup_background(screen, theme);
+    if (theme->popup_dim) {
+        /* The footer's rows, darkened with part of the same surface. */
+        SDL_Rect rest = {0, 0, 640, (Uint16)(screen->h > 420 ? screen->h - 420 : 0)};
+        SDL_Rect destination = {0, 420, 0, 0};
+        SDL_BlitSurface(theme->popup_dim, &rest, screen, &destination);
+    }
+}
+
 /* A label that fits in room, the popup width right of the 20 px inset, is
  * shown whole: v1.0.9 showed it to the popup's right edge. A wider one, cut
  * off there mid-letter, is shortened to end in "..." 5 px clear of the edge,
@@ -93,13 +104,15 @@ static const char *context_label(MainUITheme *theme, const char *label, int room
     return theme->context_labels[slot].shown;
 }
 
-void mainui_draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUIContext *context,
-                         bool ellipsis)
+static void draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUIContext *context,
+                         bool ellipsis, bool footer)
 {
     if (!context->visible_count) {
         return;
     }
-    mainui_draw_popup_footer(screen, theme);
+    if (footer) {
+        mainui_draw_popup_footer(screen, theme);
+    }
     int rows = context->visible_count < 6 ? context->visible_count : 6;
     SDL_Surface *background = mainui_theme_popup_background(theme, rows);
     int width = background ? background->w : 120;
@@ -132,6 +145,19 @@ void mainui_draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUICo
                      top + (60 - TTF_FontHeight(theme->menu_font)) / 2);
     }
     SDL_SetClipRect(screen, NULL);
+}
+
+void mainui_draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUIContext *context,
+                         bool ellipsis)
+{
+    draw_context(screen, theme, context, ellipsis, true);
+}
+
+/* The fullscreen media popup reuses stock theme art, without footer hints. */
+void mainui_draw_media_context(SDL_Surface *screen, MainUITheme *theme,
+                               const MainUIContext *context)
+{
+    draw_context(screen, theme, context, true, false);
 }
 
 /* Stock's DialogWindow draws its title in the theme's total colour and its

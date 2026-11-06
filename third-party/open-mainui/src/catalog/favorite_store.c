@@ -560,8 +560,33 @@ static bool forget_assignment_unlocked(const char *sd, const cJSON *removed)
         return false;
     }
     if (!original) {
-        cJSON_Delete(records);
-        return true;
+        /* Browsing uses the backup when the primary is missing. Apply the
+         * removal to that same effective document and publish a new primary;
+         * keep the backup intact for recovery. This caller holds the lock. */
+        char *backup = malloc((size_t)n + 5); /* the stack stays small */
+        if (!backup) {
+            cJSON_Delete(records);
+            return false;
+        }
+        snprintf(backup, (size_t)n + 5, "%s.bak", path);
+        char *saved = NULL;
+        cJSON *fallback_records = read_document(backup, &saved);
+        free(backup);
+        if (!fallback_records) {
+            free(saved);
+            cJSON_Delete(records);
+            return false;
+        }
+        if (saved) {
+            cJSON_Delete(records);
+            records = fallback_records;
+        }
+        else {
+            cJSON_Delete(fallback_records); /* neither sidecar exists */
+            cJSON_Delete(records);
+            return true;
+        }
+        free(saved);
     }
     const cJSON *type_value = cJSON_GetObjectItemCaseSensitive(removed, "type");
     int type = cJSON_IsNumber(type_value) ? type_value->valueint : 5;

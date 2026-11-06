@@ -125,4 +125,13 @@ renamed = dict(SEARCH_STATE, list=SEARCH_STATE["list"][:2] + [dict(SEARCH_STATE[
 (sd.parent / "handoff/state.json").write_text(json.dumps(renamed))
 reference = run(sd, "reference-renamed", "--systems", "--input", "RRRE")  # after Console 0-2
 assert restart(sd, "after-renamed") == reference
+# 5. Search's console without its database (results cleared or lost): no
+# list of its data folder, but a message to run Search again.
+sd = sd_card("no-database")
+search_ran(sd)
+(sd / "App/Search/data/data_cache6.db").unlink()
+(sd / "App/Search/data/Imgs").mkdir(parents=True, exist_ok=True)
+games = run(sd, "games", "--systems")
+assert run(sd, "message", "--systems", "--input", "E") != games
+assert run(sd, "closed", "--systems", "--input", "EA") == games  # A closes it, still on Games
 print("Search returns to Games -> Search by every route; Clear search does not")

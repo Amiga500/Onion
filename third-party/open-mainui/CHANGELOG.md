@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.1.0 - 2026-11-06
+
+### Game Info
+
+* Right in Game Info opens a gallery of the game's covers, 3D box, screenshots and video, from Skraper's `media` folders in the console's ROM folder. Videos play with sound using Onion's FFmpeg; A pauses, L and R skip. Thanks to [@KNRBZ](https://github.com/KNRBZ) for the idea and inspiration.
+* Select in Game Info opens a media menu with Gallery, Game Maps, Walkthrough (TXT) and Manual (PDF), each as the game has them. Maps can be fitted or shown at full size, the walkthrough can be searched, and the manual opens in Onion's PDF reader. Thanks to [@KNRBZ](https://github.com/KNRBZ) for the idea and inspiration.
+* Saved Games, in the same menu, shows a RetroArch game's save states by their pictures, in the console's screen shape, framed between the theme's header and footer. A resumes a state as GameSwitcher does; by default the Auto before is kept as Previous Session, so a resume can be undone. Thanks to [@Zazzago](https://github.com/Zazzago) for the idea and inspiration of the framed layout.
+* `game-menu.json` orders and hides the media menu's rows and sets up Saved Games: how a resume treats Auto, Left in game lists to open them, the Auto Save among them, the picture's size and shape, a full-screen layout, and the ROM folders without them (ARCADE by default,
+  whose core cannot load a state as a game starts); and whether the gallery enlarges small images.
+* With `.tmp_update/config/.gameInfoAutoScroll`, the description scrolls on its own after a delay. Thanks to [@KNRBZ](https://github.com/KNRBZ) for the idea and inspiration.
+
+### Games and menus
+
+* `.tmp_update/config/console-view.json` shows the consoles of Games or Expert as a carousel or a list instead of the grid, with your own console pictures and each console's number of games. Thanks to keaganjames for the idea of the list.
+* With `.tmp_update/config/.romListVideoPreview`, a game that stays selected in a game list plays its video in place of its cover, or full screen.
+* A long selected title can bounce back and forth instead of rolling round (`bounce` in `.romListTitleScroll`).
+* `game-menu.json` reorders and hides the rows of the game lists' context menus. Thanks to Veuks for the suggestion.
+* X and Y can be turned off in `keymap.json`. Thanks to Veuks for the suggestion.
+* `fav` as the X or Y shortcut adds apps to Favorites too, and app Favorites show the theme's mark. Thanks to Veuks for the suggestions.
+* R and L page the console grids. Up and Down stay in their column; with the stock navigation they go round it within the page, or stop at its ends with `"wrap": false`. Thanks to Veuks for the fix.
+* Games and Expert reopen on the last selected console, also after GameSwitcher.
+
+### Fixes
+
+* B acts once per press instead of going back several levels when held.
+* Search's own folders and `~Missing caches` rows open the right list. Thanks to [@Amiga500](https://github.com/Amiga500) for finding it.
+* Search without its results database says to run Search again instead of showing an empty list.
+* A `media` folder is never listed as a ROM folder.
+* Game Info finds a game's `gamelist.xml` details in more cases.
+* Console and app icons no longer go missing with large themes.
+* Removing a Favorite also removes its folder assignment when only the backup is left.
+* Removing a Favorite in Game Info closes Game Info on the list, so A never launches another game.
+* A protected Wi-Fi network needs its password; an empty one saved it as open.
+* The Brightness row steps from the level set with the brightness shortcut.
+* Refresh all stops between consoles when cancelled.
+* An import shortcut no longer pushes a game off a full Recents list.
+
+See [docs/NAVIGATION.md](docs/NAVIGATION.md#game-infos-media-gallery) for every setting and control.
+
 ## 1.0.10 - 2026-10-24
 
 This version is considered stable.

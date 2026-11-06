@@ -17,6 +17,10 @@ bool mainui_screen_settings_page_key(MainUIApp *ui, SDLKey key);
 bool mainui_screen_context_menu_key(MainUIApp *ui, SDLKey key, int *requested_section);
 bool mainui_screen_home_key(MainUIApp *ui, SDLKey key, int requested_section);
 bool mainui_screen_list_key(MainUIApp *ui, SDLKey key);
+/* Deferred Carousel input runs on the UI thread, after the current slide/deadline. */
+void mainui_screen_carousel_step(MainUIApp *ui, Uint32 now);
+/* -1 if none, else ms until a deferred move may run (0 means now). */
+int mainui_screen_carousel_due(const MainUIApp *ui, Uint32 now);
 bool mainui_screen_search_key(MainUIApp *ui, SDLKey key);
 bool mainui_launch_tool(const char *directory, const char *sd, const MainUILaunchSource *source,
                         const char *label, const char *launch, int type, char error[256]);

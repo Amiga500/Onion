@@ -103,6 +103,8 @@ bool mainui_catalog_enter(MainUICatalog *catalog, int index);
  * last step of recovering a cache page that cannot be read. The entry after
  * that tries the cache again. False only when out of memory. */
 bool mainui_catalog_scan_only(const char *root);
+/* Remove an unconsumed scan-only marker after recovery fails or is cancelled. */
+void mainui_catalog_cancel_scan_only(const char *root);
 /* The same mark without a log line: a rebuilt catalog continuing a visit
  * that scans (a session snapshot with scan_visit) sets it before entering. */
 bool mainui_catalog_keep_scanning(const char *root);
@@ -112,6 +114,10 @@ bool mainui_catalog_page_damaged(const MainUICatalog *catalog);
 /* The list shows Search's results: a virtual database that neither a rebuild
  * nor a folder scan can reproduce. */
 bool mainui_catalog_search_results(const MainUICatalog *catalog);
+/* The games in a console's ROM list cache (<console>_cache6.db), counted from
+ * the cache as it is, folders not counted, or -1 when it has none or it
+ * cannot be read now. The cache is only read. */
+long long mainui_catalog_game_count(const MainUICatalog *catalog, int system);
 /* The one test for Onion's Search: a console whose ROM root is the SD card's
  * App/Search/data, where Search writes its results database. Its label and
  * launcher are not used: a theme or a config can change those. */

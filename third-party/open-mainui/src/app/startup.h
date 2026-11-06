@@ -11,4 +11,8 @@ int mainui_setup_video(MainUIApp *ui);
 void mainui_restore_session(MainUIApp *ui);
 void mainui_setup_render(MainUIApp *ui);
 int mainui_teardown(MainUIApp *ui);
+#ifdef MAINUI_ONION
+/* Shared by startup and the optional external PDF reader. */
+void mainui_reset_framebuffer_pan(const char *when);
+#endif
 #endif

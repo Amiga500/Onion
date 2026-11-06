@@ -1,19 +1,25 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "app/screen_events.h"
+#include "app/loop.h"
+#include "app/pdf.h"
 #include "app/positions.h"
 #include "app/render.h"
 #include "catalog/saved_actions.h"
+#include "localization/language.h"
 #include "menus/favorite_context.h"
 #include "platform/audio.h"
 #include "platform/device_request.h"
+#include "platform/files.h"
 #include "platform/input.h"
 #include "platform/launch.h"
 #include "platform/menu_button.h"
 #include "platform/system_config.h"
 #include "platform/timing.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 bool mainui_launch_tool(const char *directory, const char *sd, const MainUILaunchSource *source,
@@ -278,8 +284,12 @@ bool mainui_screen_name_input_key(MainUIApp *ui, const SDL_keysym *key)
         }
         else if (result == NAME_SUBMIT) {
             size_t length = strlen(ui->name_input.text);
-            bool valid = ui->settings_keyboard == 1 ? length > 0 && length <= 32
-                                                    : length == 0 || (length >= 8 && length <= 63);
+            /* An empty password is an open network's, never one the scan
+             * found protected: saved without one, it could not join. */
+            bool open = !ui->settings_page.connect_after_password;
+            bool valid = ui->settings_keyboard == 1
+                             ? length > 0 && length <= 32
+                             : (open && length == 0) || (length >= 8 && length <= 63);
             if (valid) {
                 if (ui->settings_keyboard == 1) {
                     strcpy(ui->settings_page.ssid, ui->name_input.text);
@@ -313,10 +323,20 @@ bool mainui_screen_name_input_key(MainUIApp *ui, const SDL_keysym *key)
             }
             else {
                 snprintf(ui->name_input.error, sizeof ui->name_input.error, "%s",
-                         ui->settings_keyboard == 1
-                             ? "SSID must contain 1-32 UTF-8 bytes."
-                             : "Use 8-63 bytes, or empty for an open network.");
+                         ui->settings_keyboard == 1 ? "SSID must contain 1-32 UTF-8 bytes."
+                         : open ? "Use 8-63 bytes, or empty for an open network."
+                                : "This network needs its password: 8-63 bytes.");
             }
+        }
+        return true;
+    }
+    if (ui->media_keyboard) {
+        if (result == NAME_SUBMIT) {
+            mainui_media_search(&ui->details.media, ui->name_input.text, false);
+        }
+        if (result != NAME_EDITING) {
+            mainui_name_input_close(&ui->name_input);
+            ui->media_keyboard = false;
         }
         return true;
     }
@@ -535,7 +555,9 @@ bool mainui_screen_settings_page_key(MainUIApp *ui, SDLKey key)
 /* Add the game `record` to Favorites, or remove it from Favorites or
  * Recents (entry->action), as the context menu and the X and Y Favorite
  * shortcut do; the list shown and its markers follow. */
-static void saved_list_update(MainUIApp *ui, const MainUIContextEntry *entry, const cJSON *record)
+/* True when the Favorite or Recent was added or removed, also if the list
+ * shown could not be reloaded after. */
+static bool saved_list_update(MainUIApp *ui, const MainUIContextEntry *entry, const cJSON *record)
 {
     bool recent = entry->action == CONTEXT_REMOVE_RECENT;
     MainUISavedAction action = entry->action == CONTEXT_ADD_FAVORITE ? SAVED_ADD : SAVED_REMOVE;
@@ -545,6 +567,7 @@ static void saved_list_update(MainUIApp *ui, const MainUIContextEntry *entry, co
     if (ok && entry->action == CONTEXT_REMOVE_FAVORITE) {
         mainui_favorite_editor_close(&ui->favorite_editor);
     }
+    bool done = ok;
     if (ok) {
         mainui_markers_refresh(ui, true);
     }
@@ -562,6 +585,7 @@ static void saved_list_update(MainUIApp *ui, const MainUIContextEntry *entry, co
         snprintf(ui->message_title, sizeof ui->message_title, "%s", mainui_context_label(entry));
         snprintf(ui->message_body, sizeof ui->message_body, "Could not update the saved list.");
     }
+    return done;
 }
 
 bool mainui_screen_context_menu_key(MainUIApp *ui, SDLKey key, int *requested_section)
@@ -766,13 +790,16 @@ static bool screen_context_open_key(MainUIApp *ui, SDLKey key)
         }
         if (ui->search.results) {
             mainui_context_rows(&ui->context, game_actions, ui->context_record ? 2 : 0);
+            mainui_game_menu_apply(&ui->context, &ui->game_menu, MAINUI_GAME_MENU_SEARCH_RESULTS);
         }
         else if (ui->library->recent) {
             mainui_context_rows(&ui->context, recent_actions, ui->context_record ? 3 : 0);
+            mainui_game_menu_apply(&ui->context, &ui->game_menu, MAINUI_GAME_MENU_RECENTS);
         }
         else {
             mainui_favorite_context(&ui->context, ui->library, ui->view.selected,
                                     ui->favorite_editor.key != NULL);
+            mainui_game_menu_apply(&ui->context, &ui->game_menu, MAINUI_GAME_MENU_FAVORITES);
         }
     }
     else if (ui->home) {
@@ -780,6 +807,7 @@ static bool screen_context_open_key(MainUIApp *ui, SDLKey key)
     }
     else if (ui->catalog && !ui->catalog->depth) {
         mainui_context_rows(&ui->context, grid_actions, refreshable ? 2 : 1);
+        mainui_game_menu_apply(&ui->context, &ui->console_view.menu, MAINUI_GAME_MENU_CONSOLES);
     }
     else {
         if (ui->catalog) {
@@ -792,6 +820,7 @@ static bool screen_context_open_key(MainUIApp *ui, SDLKey key)
         else {
             mainui_context_rows(&ui->context, system_actions, refreshable ? 2 : 1);
         }
+        mainui_game_menu_apply(&ui->context, &ui->game_menu, MAINUI_GAME_MENU_ROMS);
     }
     /* The patched ROM popup uses exact persistent ROM membership,
      * including games assigned to a Favorite folder, read as it is now. */
@@ -979,11 +1008,99 @@ bool mainui_screen_list_key(MainUIApp *ui, SDLKey key)
         if (key == SDLK_ESCAPE) {
             ui->home = true;
         }
+        else if (mainui_console_mode(ui) == MAINUI_CONSOLE_LIST) {
+            /* Listed, as a game list: Up and Down one console, wrapping;
+             * Left and Right, R and L and R2 and L2 a page. */
+            int rows = ui->config.rows;
+            int delta = key == SDLK_UP                                                       ? -1
+                        : key == SDLK_DOWN                                                   ? 1
+                        : key == SDLK_LEFT || key == SDLK_PAGEUP || key == SDLK_TAB          ? -rows
+                        : key == SDLK_RIGHT || key == SDLK_PAGEDOWN || key == SDLK_BACKSPACE ? rows
+                                                                                             : 0;
+            if (delta) {
+                mainui_viewport_move(&ui->view, rows, delta, delta == 1 || delta == -1);
+            }
+        }
         else {
+            /* The carousel is one row: Up and Down do nothing there. */
+            bool carousel = mainui_console_mode(ui) == MAINUI_CONSOLE_CAROUSEL;
+            int horizontal = (key == SDLK_RIGHT) - (key == SDLK_LEFT);
+            /* The grid's Right and Left as console-view.json's "grid" sets
+             * them: stock's pages, and no wrapping at the ends. */
+            if (!carousel && horizontal && ui->console_view.grid_stock) {
+                mainui_grid_move_stock(&ui->view, horizontal, ui->catalog == ui->expert ? 3 : 4,
+                                       ui->catalog == ui->expert ? 3 : 2,
+                                       !ui->console_view.grid_no_wrap);
+                return true;
+            }
+            /* Stock's Up and Down go round the column within the page, or
+             * stop at its ends without "wrap". */
+            if (!carousel && ui->console_view.grid_stock && (key == SDLK_UP || key == SDLK_DOWN)) {
+                mainui_grid_move_stock_vertical(
+                    &ui->view, key == SDLK_DOWN ? 1 : -1, ui->catalog == ui->expert ? 3 : 4,
+                    ui->catalog == ui->expert ? 3 : 2, !ui->console_view.grid_no_wrap);
+                return true;
+            }
+            if (!carousel && ui->console_view.grid_no_wrap &&
+                ((horizontal > 0 && ui->view.selected >= ui->view.total - 1) ||
+                 (horizontal < 0 && ui->view.selected <= 0))) {
+                return true;
+            }
+            if (carousel) {
+                /* Which way the row moves, for its slide round the ends. */
+                int way = horizontal + (key == SDLK_BACKSPACE || key == SDLK_PAGEDOWN) -
+                          (key == SDLK_TAB || key == SDLK_PAGEUP);
+                if (way) {
+                    ui->menu_view.carousel_direction = way;
+                }
+            }
+            /* With "wrap": false the carousel stops at its ends: Right on
+             * the last console and Left on the first do nothing. */
+            bool stops = carousel && !ui->console_view.carousel_wrap;
+            if (stops && ((horizontal > 0 && ui->view.selected >= ui->view.total - 1) ||
+                          (horizontal < 0 && ui->view.selected <= 0))) {
+                return true;
+            }
+            if (carousel && (key == SDLK_TAB || key == SDLK_BACKSPACE)) {
+                /* L2/R2 move three consoles, as many as show beside the
+                 * selected one, wrapping round as Left and Right do, or
+                 * stopping at the ends without "wrap"; L1/R1 move a grid
+                 * page (8 or 9), as R2/L2 do in the grid. */
+                int jump = key == SDLK_BACKSPACE ? 3 : -3;
+                int target = ui->view.selected + jump;
+                if (stops) {
+                    target = target < 0                 ? 0
+                             : target >= ui->view.total ? ui->view.total - 1
+                                                        : target;
+                }
+                else if (ui->view.total > 0) {
+                    target = ((target % ui->view.total) + ui->view.total) % ui->view.total;
+                }
+                if (target == ui->view.selected) {
+                    return true;
+                }
+                /* A three-console shoulder jump replaces the visible window.
+                 * Do not animate it as a one-console slide: the previous
+                 * selected artwork may no longer be among the five slots. */
+                ui->menu_view.carousel_snap = true;
+                mainui_grid_restore(&ui->view, ui->view.total, target,
+                                    ui->catalog == ui->expert ? 3 : 4,
+                                    ui->catalog == ui->expert ? 3 : 2);
+                return true;
+            }
+            int before = ui->view.selected;
             mainui_grid_move(&ui->view, (key == SDLK_RIGHT) - (key == SDLK_LEFT),
-                             (key == SDLK_DOWN) - (key == SDLK_UP),
-                             (key == SDLK_BACKSPACE) - (key == SDLK_TAB),
+                             carousel ? 0 : (key == SDLK_DOWN) - (key == SDLK_UP),
+                             /* L2/R2, as stock, and L1/R1 too (the carousel's L2/R2
+                              * are above). */
+                             (key == SDLK_BACKSPACE || key == SDLK_PAGEDOWN) -
+                                 (key == SDLK_TAB || key == SDLK_PAGEUP),
                              ui->catalog == ui->expert ? 3 : 4, ui->catalog == ui->expert ? 3 : 2);
+            if (carousel && (key == SDLK_PAGEUP || key == SDLK_PAGEDOWN) &&
+                ui->view.selected != before) {
+                /* L1/R1 page jumps also change the entire visible window. */
+                ui->menu_view.carousel_snap = true;
+            }
         }
         return true;
     }
@@ -1107,8 +1224,8 @@ static bool game_list_open(const MainUIApp *ui)
 /* Game Info with nothing over it. */
 static bool game_info_open(const MainUIApp *ui)
 {
-    return ui->details.open && !*ui->message_title && !ui->name_input.open && !ui->context_open &&
-           ui->confirmation < 0;
+    return ui->details.open && !ui->details.media.open && !*ui->message_title &&
+           !ui->name_input.open && !ui->context_open && ui->confirmation < 0;
 }
 
 /* The selected row is a game, not a folder or "..". */
@@ -1122,18 +1239,28 @@ static bool game_selected(MainUIApp *ui)
                               !mainui_browser_folder(ui->catalog, ui->view.selected));
 }
 
-/* The Favorite shortcut: the selected game is added to Favorites, or removed
- * when it is one, as the context menu's Add to favorites and Remove
- * Favorite do. */
-static void toggle_favorite(MainUIApp *ui)
+/* Apps in front with nothing over it, and an app selected. */
+static bool app_selected(const MainUIApp *ui)
+{
+    return ui->apps && !ui->settings_open && !ui->context_open && ui->confirmation < 0 &&
+           !*ui->message_title && !ui->name_input.open && ui->apps_view.selected >= 0 &&
+           ui->apps_view.selected < ui->apps->pages[0].count;
+}
+
+/* The Favorite shortcut: the selected game, or app in Apps, is added to
+ * Favorites, or removed when it is one, as the context menu's Add to
+ * favorites and Remove Favorite do. */
+/* True when it removed the selected Favorite. */
+static bool toggle_favorite(MainUIApp *ui)
 {
     cJSON *record =
-        ui->library ? cJSON_Duplicate(
-                          ui->library->items[ui->library->visible[ui->view.selected]].json, true)
-                    : mainui_catalog_record(ui->catalog,
-                                            mainui_browser_index(ui->catalog, ui->view.selected));
+        ui->apps      ? mainui_catalog_record(ui->apps, ui->apps_view.selected)
+        : ui->library ? cJSON_Duplicate(
+                            ui->library->items[ui->library->visible[ui->view.selected]].json, true)
+                      : mainui_catalog_record(ui->catalog,
+                                              mainui_browser_index(ui->catalog, ui->view.selected));
     if (!record) {
-        return;
+        return false;
     }
     mainui_markers_refresh(ui, false);
     const cJSON *rom = cJSON_GetObjectItemCaseSensitive(record, "rompath");
@@ -1141,8 +1268,9 @@ static void toggle_favorite(MainUIApp *ui)
         .action = cJSON_IsString(rom) && mainui_library_contains(ui->favorites, rom->valuestring)
                       ? CONTEXT_REMOVE_FAVORITE
                       : CONTEXT_ADD_FAVORITE};
-    saved_list_update(ui, &entry, record);
+    bool done = saved_list_update(ui, &entry, record);
     cJSON_Delete(record);
+    return done && entry.action == CONTEXT_REMOVE_FAVORITE;
 }
 
 /* What a launch from the screen in front would be: the screen, its list and
@@ -1150,6 +1278,144 @@ static void toggle_favorite(MainUIApp *ui)
  * the X shortcut, which acts from its release without one: after a start,
  * a list reload or entering Favorites it would otherwise describe a screen
  * no longer shown, or a list already freed. */
+/* Game Info's media menu as game-menu.json orders it, Saved Games with the
+ * Previous Session in the backup mode. */
+static MainUIMediaOptions media_options(const MainUIApp *ui)
+{
+    MainUIMediaOptions options = {.order_count = ui->game_menu.details_count,
+                                  .previous = ui->game_menu.resume_mode == MAINUI_RESUME_BACKUP,
+                                  .autosave = ui->game_menu.saves_auto,
+                                  .upscale = ui->game_menu.saves_upscale,
+                                  .gallery_upscale = ui->game_menu.gallery_upscale,
+                                  .framed = ui->game_menu.saves_framed,
+                                  .game_menu = &ui->game_menu,
+                                  .correct_aspect = ui->game_menu.saves_correct_aspect};
+    memcpy(options.order, ui->game_menu.details, sizeof options.order);
+    return options;
+}
+
+static void saves_message(MainUIApp *ui, const char *body)
+{
+    snprintf(ui->message_title, sizeof ui->message_title, "%s",
+             mainui_translate(416, "Saved Games"));
+    snprintf(ui->message_body, sizeof ui->message_body, "%s", body);
+}
+
+/* A on a save in Saved Games: it goes into the game's Auto state as
+ * game-menu.json's resume_mode says, and the game launches, as GameSwitcher
+ * resumes a state: Onion's force_auto_load_state flag, in the handoff
+ * folder (/tmp), has RetroArch load Auto this once. When the game cannot
+ * launch, Auto is put back (overwrite has nothing to put back); if even
+ * that fails, the message says where the earlier Auto is. */
+static void resume_save(MainUIApp *ui)
+{
+    MainUIMediaViewer *media = &ui->details.media;
+    char flag[4096], error[256];
+    int n = ui->handoff_dir
+                ? snprintf(flag, sizeof flag, "%s/force_auto_load_state", ui->handoff_dir)
+                : -1;
+    int undo = MAINUI_SAVES_UNDO_NONE;
+    struct stat launcher, rom;
+    if (!media->saves || n < 0 || n >= (int)sizeof flag) {
+        saves_message(ui, "Launch unavailable.");
+    }
+    /* Onion could not start the game without its launcher, but Auto would
+     * already be replaced: refuse before any file changes. */
+    else if (!*ui->details.launch || stat(ui->details.launch, &launcher) ||
+             !S_ISREG(launcher.st_mode)) {
+        saves_message(ui, "The emulator's launch script is missing.");
+    }
+    /* Nor without the game itself, moved or deleted while its console's
+     * cache still lists it. */
+    else if (!*ui->details.host_rom || stat(ui->details.host_rom, &rom)) {
+        saves_message(ui, errno == ENOENT || errno == ENOTDIR || !*ui->details.host_rom
+                              ? "The game's file is missing."
+                              : "Cannot check the game's file. Try again.");
+    }
+    else if (!mainui_write_text_atomic(flag, "")) {
+        saves_message(ui, "Cannot ask RetroArch to load the state.");
+    }
+    else if (!mainui_saves_resume(media->saves, media->save_index, ui->game_menu.resume_mode, &undo,
+                                  error)) {
+        mainui_remove_file(flag);
+        saves_message(ui, error);
+    }
+    else {
+        ui->launch_pending =
+            mainui_session_launch(ui->handoff_dir, &ui->launch_source, NULL, ui->message_body);
+        if (!ui->launch_pending) {
+            mainui_remove_file(flag);
+            if (undo == MAINUI_SAVES_UNDO_KEPT) {
+                saves_message(ui, "The game did not launch. Auto holds the chosen state.");
+            }
+            else if (mainui_saves_undo(media->saves, media->save_index, undo, error)) {
+                snprintf(ui->message_title, sizeof ui->message_title, "Launch unavailable");
+            }
+            else {
+                char body[256];
+                snprintf(body, sizeof body,
+                         "The game did not launch, and Auto cannot be put back: it is in %s, or "
+                         "beside it as .mainui-new.",
+                         undo == MAINUI_SAVES_UNDO_SWAP ? "the chosen slot" : "the backup");
+                saves_message(ui, body);
+            }
+        }
+    }
+    /* Failed launches and interrupted state operations may have updated
+     * Auto or Previous Session. The viewer must show the files now on disk. */
+    if (!ui->launch_pending && media->saves) {
+        mainui_media_refresh_saves(media, ui->screen,
+                                   ui->game_menu.resume_mode == MAINUI_RESUME_BACKUP);
+    }
+}
+
+/* Left on a game in a game list opens its Saved Games, over Game Info opened
+ * unseen, when game-menu.json lists them, turns on their left_shortcut,
+ * and the game has any. A title
+ * scrolling then is reset instead, as Left did, and the next Left on that
+ * game opens them; a held Left's repeats only reset the title. False leaves
+ * Left as it was. */
+static bool saved_games_left(MainUIApp *ui, bool repeat)
+{
+    if (repeat || !game_selected(ui) || !ui->game_menu.saves_left ||
+        !mainui_game_menu_details(&ui->game_menu, MAINUI_DETAILS_SAVED_GAMES)) {
+        return false;
+    }
+    char *rom = malloc(MAINUI_PATH_MAX), *launch = malloc(MAINUI_PATH_MAX);
+    MainUISaves *saves = malloc(sizeof *saves);
+    /* A folder with Saved Games turned off: not looked for, Left as before. */
+    bool any = rom && launch && saves &&
+               mainui_details_locate(ui->catalog, ui->library, ui->view.selected, rom, launch) &&
+               !mainui_game_menu_saves_disabled(&ui->game_menu, launch) &&
+               mainui_details_launcher(ui->catalog, ui->library, ui->view.selected, rom, launch) &&
+               mainui_saves_locate(saves, ui->sd, launch, rom) &&
+               mainui_saves_list(saves, ui->game_menu.resume_mode == MAINUI_RESUME_BACKUP,
+                                 ui->game_menu.saves_auto) > 0;
+    free(rom);
+    free(launch);
+    free(saves);
+    if (!any) {
+        return false;
+    }
+    if (!ui->saves_left_armed && mainui_marquee_moving(ui, SDL_GetTicks())) {
+        ui->saves_left_armed = true;
+        return false;
+    }
+    ui->saves_left_armed = false;
+    MainUIMediaOptions options = media_options(ui);
+    if (!mainui_details_open(&ui->details, ui->catalog, ui->library, ui->favorites,
+                             ui->view.selected, &ui->preview, &ui->config)) {
+        return false;
+    }
+    if (!mainui_details_media(&ui->details, ui->sd, ui->screen, MAINUI_MEDIA_START_SAVES,
+                              &options)) {
+        mainui_details_close(&ui->details);
+        return false;
+    }
+    ui->details.media.from_list = true;
+    return true;
+}
+
 static void prepare_launch(MainUIApp *ui)
 {
     ui->search.view = ui->view;
@@ -1202,12 +1468,14 @@ static void button_shortcut(MainUIApp *ui, char button)
         return;
     }
     if (shortcut == MAINUI_SHORTCUT_FAVORITE) {
-        toggle_favorite(ui);
+        bool removed = toggle_favorite(ui);
         /* Game Info's star follows (mainui_markers_refresh()). Removed from
-         * the Favorites list it is shown from, the game's row is gone:
-         * Game Info closes on the list. */
-        if (ui->details.open && ui->library && !ui->library->recent && !ui->search.results &&
-            !ui->details.favorite) {
+         * the Favorites list it is shown from, the game's row is gone, even
+         * when another Favorite for its ROM keeps the star lit: Game Info
+         * closes on the list, the next row selected, so A never launches a
+         * game other than the one shown. */
+        if (removed && ui->details.open && ui->library && !ui->library->recent &&
+            !ui->search.results) {
             mainui_details_close(&ui->details);
             ui->cached_start = -1;
         }
@@ -1230,6 +1498,24 @@ static void button_shortcut(MainUIApp *ui, char button)
     }
 }
 
+/* X or Y on an app in Apps: only the Favorite shortcut acts there, adding
+ * the app to Favorites or removing it. Game List Options, none, or keymon's
+ * app or tool do nothing, as before. */
+static void app_shortcut(MainUIApp *ui, char button)
+{
+    if (!app_selected(ui) || !ui->sd) {
+        return;
+    }
+    char why[160];
+    MainUIShortcut shortcut = mainui_button_shortcut(ui->sd, button, why);
+    if (shortcut == MAINUI_SHORTCUT_KEYMON) {
+        fprintf(stderr, "[launch] %c ignored: %s\n", button, why);
+    }
+    else if (shortcut == MAINUI_SHORTCUT_FAVORITE) {
+        toggle_favorite(ui);
+    }
+}
+
 /* X has a shortcut MainUI runs (Favorite or Game List Options): X is no
  * longer B anywhere. On a game in a game list it acts when released, as Y
  * does (keymon clears its Game List Options flag as X goes down, so a
@@ -1243,6 +1529,9 @@ static bool x_bound(const MainUIApp *ui)
         ui->sd ? mainui_button_shortcut(ui->sd, 'X', NULL) : MAINUI_SHORTCUT_NONE;
     return shortcut == MAINUI_SHORTCUT_FAVORITE || shortcut == MAINUI_SHORTCUT_GAME_OPTIONS;
 }
+
+static int carousel_pace(const MainUIApp *ui);
+static bool carousel_input_active(const MainUIApp *ui);
 
 static void dispatch_key(MainUIApp *ui, SDL_Event *event)
 {
@@ -1272,13 +1561,63 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
         ui->search.release_pending = false;
     }
     bool was_held = pressed >= 0 && pressed < SDLK_LAST && ui->held[pressed];
+    if (key != SDLK_LEFT) {
+        ui->saves_left_armed = false;
+    }
 
     if (pressed >= 0 && pressed < SDLK_LAST) {
         ui->held[pressed] = true;
     }
+    /* B, and X as B, act once per press: their repeats while held do
+     * nothing, so a held B never goes back more than one level. */
+    if (key == SDLK_ESCAPE && was_held) {
+        return;
+    }
     prepare_launch(ui);
     /* A message is drawn over Details, so it takes the keys first. */
     if (ui->details.open && screen_message_key(ui, key)) {
+        return;
+    }
+    /* The media gallery, over Game Info, takes every key. Right opens it. */
+    if (ui->details.open && ui->details.media.open) {
+        bool from_list = ui->details.media.from_list;
+        ui->details.media.key_held = was_held;
+        mainui_media_key(&ui->details.media, key, ui->screen);
+        /* B, or Right leaving, back from Saved Games opened by Left in the
+         * list: the list. */
+        if (!ui->details.media.open && from_list && (key == SDLK_ESCAPE || key == SDLK_RIGHT)) {
+            mainui_details_close(&ui->details);
+            ui->cached_start = -1;
+            ui->selected_at = SDL_GetTicks();
+            return;
+        }
+        if (!ui->details.media.open) {
+            mainui_details_reset_scroll(&ui->details);
+        }
+        if (ui->details.media.resume_requested) {
+            ui->details.media.resume_requested = false;
+            resume_save(ui);
+        }
+        if (ui->details.media.pdf_requested) {
+            ui->details.media.pdf_requested = false;
+            mainui_pdf_launch(ui, ui->details.media.pdf_path);
+        }
+        /* A in the walkthrough: the keyboard, with the last search. */
+        if (ui->details.media.search_requested) {
+            ui->details.media.search_requested = false;
+            ui->media_keyboard = true;
+            mainui_name_input_open(&ui->name_input, &ui->theme, 153, ui->details.media.search);
+        }
+        return;
+    }
+    if (ui->details.open && (key == SDLK_RIGHT || key == SDLK_RCTRL)) {
+        if (key == SDLK_RIGHT && !ui->game_menu.gallery_right) {
+            return;
+        }
+        MainUIMediaOptions options = media_options(ui);
+        mainui_details_media(
+            &ui->details, ui->sd, ui->screen,
+            key == SDLK_RCTRL ? MAINUI_MEDIA_START_MENU : MAINUI_MEDIA_START_GALLERY, &options);
         return;
     }
     if (ui->details.open && key == SDLK_RETURN && ui->handoff_dir) {
@@ -1297,8 +1636,14 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
         return;
     }
     if (ui->details.open) {
+        if (ui->details.swallow_page_key == key) {
+            return;
+        }
+        if ((key == SDLK_HOME || key == SDLK_END) && !ui->details.lines_per_page) {
+            mainui_details_prepare(&ui->details, &ui->theme);
+        }
         mainui_details_key(&ui->details, ui->catalog, ui->library, ui->favorites, &ui->view,
-                           ui->config.rows, key);
+                           ui->config.rows, key, &ui->config);
         ui->cached_start = -1;
         ui->selected_at = SDL_GetTicks();
         return;
@@ -1321,7 +1666,11 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
     }
     if (game_list && ui->catalog && key == SDLK_RIGHT &&
         mainui_details_open(&ui->details, ui->catalog, ui->library, ui->favorites,
-                            ui->view.selected, &ui->preview)) {
+                            ui->view.selected, &ui->preview, &ui->config)) {
+        ui->letter_jump.active = false;
+        return;
+    }
+    if (game_list && ui->catalog && key == SDLK_LEFT && saved_games_left(ui, was_held)) {
         ui->letter_jump.active = false;
         return;
     }
@@ -1382,6 +1731,13 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
                                  ++ui->catalog_generation);
         return;
     }
+    /* Y on an app: its Favorite shortcut, once per press. */
+    if (key == SDLK_LALT && app_selected(ui)) {
+        if (!was_held) {
+            app_shortcut(ui, 'Y');
+        }
+        return;
+    }
     const char *button = mainui_input_button(key);
     if (button && key != SDLK_PAGEUP && key != SDLK_PAGEDOWN) {
         /* Unassigned controller actions are silent. */
@@ -1399,7 +1755,121 @@ static void dispatch_key(MainUIApp *ui, SDL_Event *event)
     if (mainui_screen_home_key(ui, key, requested_section)) {
         return;
     }
+    /* A rapid separate tap is deferred rather than lost. Held SDL repeats
+     * may also reserve one move, but release cancels that reservation. */
+    int pace = carousel_pace(ui);
+    bool carousel_direction =
+        carousel_input_active(ui) && (key == SDLK_LEFT || key == SDLK_RIGHT) && pace > 0;
+    Uint32 now = carousel_direction ? SDL_GetTicks() : 0;
+    if (carousel_direction) {
+        int direction = key == SDLK_RIGHT ? 1 : -1;
+        bool waiting =
+            ui->carousel_direction_paced && (Sint32)(now - ui->carousel_last_direction_at) < pace;
+        if (mainui_menu_carousel_sliding(&ui->menu_view) &&
+            (Sint32)(now - ui->menu_view.slide_start) < ui->console_view.duration_ms) {
+            waiting = true;
+        }
+        if (waiting) {
+            if (!was_held || !ui->carousel_pending_tap ||
+                ui->carousel_pending_direction != direction) {
+                ui->carousel_pending_direction = direction;
+                ui->carousel_pending_tap = !was_held;
+            }
+            return;
+        }
+        /* A new accepted movement supersedes an older queued direction. */
+        ui->carousel_pending_direction = 0;
+        ui->carousel_pending_tap = false;
+    }
+    else if (key != SDLK_LEFT && key != SDLK_RIGHT) {
+        /* A shoulder jump, B, A, etc. invalidates the queued movement. */
+        ui->carousel_pending_direction = 0;
+        ui->carousel_pending_tap = false;
+    }
+    int selected = ui->view.selected;
     mainui_screen_list_key(ui, key);
+    if (carousel_direction && ui->view.selected != selected) {
+        ui->carousel_last_direction_at = now;
+        ui->carousel_direction_paced = true;
+    }
+    else if (mainui_console_mode(ui) != MAINUI_CONSOLE_CAROUSEL) {
+        ui->carousel_direction_paced = false;
+    }
+}
+
+/* The Carousel keeps only one pending direction. A completed tap is kept
+ * until it can move; a held repeat is discarded on release. This avoids
+ * both dropped deliberate taps and an unlimited backlog of repeats. */
+static int carousel_pace(const MainUIApp *ui)
+{
+    int pace = ui->console_view.repeat_ms;
+    if (ui->console_view.slide && ui->console_view.duration_ms > pace) {
+        pace = ui->console_view.duration_ms;
+    }
+    return pace;
+}
+
+static bool carousel_input_active(const MainUIApp *ui)
+{
+    return !ui->input_script && !ui->context_open && !ui->settings_open &&
+           !ui->settings_page.open && !ui->name_input.open && !ui->search_keyboard &&
+           !ui->details.open && ui->confirmation < 0 && !*ui->message_title &&
+           mainui_console_mode(ui) == MAINUI_CONSOLE_CAROUSEL;
+}
+
+int mainui_screen_carousel_due(const MainUIApp *ui, Uint32 now)
+{
+    if (!ui->carousel_pending_direction || !carousel_input_active(ui)) {
+        return -1;
+    }
+    int remaining = 0;
+    if (ui->carousel_direction_paced) {
+        Sint32 until = (Sint32)(ui->carousel_last_direction_at + (Uint32)carousel_pace(ui) - now);
+        if (until > remaining) {
+            remaining = until;
+        }
+    }
+    /* The animation starts on the first drawn frame, not at keydown. Avoid
+     * beginning a second slide while the first is still visible. */
+    if (mainui_menu_carousel_sliding(&ui->menu_view)) {
+        Sint32 until =
+            (Sint32)(ui->menu_view.slide_start + (Uint32)ui->console_view.duration_ms - now);
+        if (until > remaining) {
+            remaining = until;
+        }
+    }
+    /* Wait for the previous selection to be drawn before consuming the
+     * pending move; the render loop will wake again after the frame. */
+    if (ui->menu_view.cached_start == MAINUI_MENU_VIEW_CAROUSEL &&
+        ui->menu_view.slid_to != ui->view.selected && remaining < 16) {
+        remaining = 16;
+    }
+    return remaining;
+}
+
+void mainui_screen_carousel_step(MainUIApp *ui, Uint32 now)
+{
+    if (!ui->carousel_pending_direction) {
+        return;
+    }
+    if (!carousel_input_active(ui)) {
+        ui->carousel_pending_direction = 0;
+        ui->carousel_pending_tap = false;
+        ui->carousel_direction_paced = false;
+        return;
+    }
+    if (mainui_screen_carousel_due(ui, now) > 0) {
+        return;
+    }
+    int direction = ui->carousel_pending_direction;
+    ui->carousel_pending_direction = 0;
+    ui->carousel_pending_tap = false;
+    int selected = ui->view.selected;
+    mainui_screen_list_key(ui, direction > 0 ? SDLK_RIGHT : SDLK_LEFT);
+    if (ui->view.selected != selected) {
+        ui->carousel_last_direction_at = now;
+        ui->carousel_direction_paced = true;
+    }
 }
 
 /* Keymon sends no Menu after Select with L2 or R2 (Start not held) where
@@ -1429,6 +1899,11 @@ static void menu_release(MainUIApp *ui)
     ui->select_menu_pending = false;
     if (ui->context_open || ui->catalog_job.thread || ui->name_input.open) {
         return;
+    }
+    /* Menu is handled before normal key dispatch. Dismiss a fullscreen
+     * preview here so it cannot restart after the context menu closes. */
+    if (mainui_list_video_fullscreen(&ui->list_video)) {
+        mainui_list_video_dismiss(&ui->list_video);
     }
     SDL_Event select;
     memset(&select, 0, sizeof select);
@@ -1501,17 +1976,41 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
         /* Lost keyup events must not leave a modifier/chord stuck after Alt-Tab.
          * A pending confirmation is cancelled: its key state is unknown now. */
         memset(ui->held, 0, sizeof ui->held);
+        ui->carousel_pending_direction = 0;
+        ui->carousel_pending_tap = false;
         /* Their releases would be taken for presses. */
         ui->x_armed = ui->y_armed = ui->select_armed = ui->start_armed = false;
         ui->select_brightness = false;
+        ui->list_video.swallow = false;
+        ui->list_video.swallow_key = SDLK_UNKNOWN;
         ui->letter_jump.active = false;
+        ui->details.swallow_page_key = SDLK_UNKNOWN;
         ui->confirmation = -1;
         ui->return_latched = false;
+    }
+    /* X or Y turned off in keymap.json (false or "disable"): its presses,
+     * repeats and releases do nothing anywhere in MainUI, and none is armed
+     * to act on its release, but on the on-screen keyboard, where X types a
+     * space and Y erases as always. */
+    if ((event->type == SDL_KEYDOWN || event->type == SDL_KEYUP) && ui->sd &&
+        !ui->name_input.open && !ui->search_keyboard) {
+        SDLKey key = mainui_input_key(event->key.keysym.sym);
+        char button = key == SDLK_LSHIFT ? 'X' : key == SDLK_LALT ? 'Y' : 0;
+        if (button && mainui_button_shortcut(ui->sd, button, NULL) == MAINUI_SHORTCUT_DISABLED) {
+            ui->held[key] = false;
+            *(button == 'X' ? &ui->x_armed : &ui->y_armed) = false;
+            return true;
+        }
     }
     if (event->type == SDL_KEYUP) {
         SDLKey released = mainui_input_key(event->key.keysym.sym);
         if (released >= 0 && released < SDLK_LAST) {
             ui->held[released] = false;
+        }
+        if (!ui->carousel_pending_tap &&
+            ((released == SDLK_LEFT && ui->carousel_pending_direction < 0) ||
+             (released == SDLK_RIGHT && ui->carousel_pending_direction > 0))) {
+            ui->carousel_pending_direction = 0;
         }
         /* Keymon's Menu after a Select release is ignored, but only when it
          * sends one: else a real Menu shortly after would be. */
@@ -1530,6 +2029,33 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
         if (released == SDLK_RETURN) {
             ui->return_latched = false;
         }
+        if (ui->list_video.swallow && released == ui->list_video.swallow_key) {
+            ui->list_video.swallow = false;
+            ui->list_video.swallow_key = SDLK_UNKNOWN;
+        }
+        if (released == ui->details.swallow_page_key) {
+            ui->details.swallow_page_key = SDLK_UNKNOWN;
+        }
+    }
+    /* Fullscreen list video: B and unbound X only dismiss the video. The
+     * physical key that dismissed it is swallowed through its release, so
+     * its repeat cannot also back out of the ROM list. Bound X shortcuts
+     * still act normally on the list. */
+    if (event->type == SDL_KEYDOWN && mainui_list_video_fullscreen(&ui->list_video) &&
+        !(ui->device_enabled && ui->device_status.sleeping == 1)) {
+        SDLKey pressed = mainui_input_key(event->key.keysym.sym);
+        bool back = pressed == SDLK_ESCAPE || (pressed == SDLK_LSHIFT && !x_bound(ui));
+        mainui_list_video_dismiss(&ui->list_video);
+        if (back) {
+            ui->held[pressed] = true;
+            ui->list_video.swallow = true;
+            ui->list_video.swallow_key = pressed;
+            return true;
+        }
+    }
+    if (event->type == SDL_KEYDOWN && ui->list_video.swallow &&
+        mainui_input_key(event->key.keysym.sym) == ui->list_video.swallow_key) {
+        return true;
     }
     /* Key repeat from an A press that opened a confirmation or dismissed a
      * message: ignored until A is released. */
@@ -1576,9 +2102,14 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
      * dialog, message or keyboard opened while X was held owns the keys. */
     if (event->type == SDL_KEYUP && key == SDLK_LSHIFT && ui->x_armed) {
         ui->x_armed = false;
-        if ((game_list_open(ui) || game_info_open(ui)) &&
-            !(ui->device_enabled && ui->device_status.sleeping == 1)) {
+        if (ui->device_enabled && ui->device_status.sleeping == 1) {
+            return true;
+        }
+        if (game_list_open(ui) || game_info_open(ui)) {
             button_shortcut(ui, 'X');
+        }
+        else if (app_selected(ui)) {
+            app_shortcut(ui, 'X');
         }
         return true;
     }
@@ -1606,7 +2137,9 @@ bool mainui_dispatch_event(MainUIApp *ui, SDL_Event *event)
         return true;
     }
     if (event->type == SDL_KEYDOWN && key == SDLK_LSHIFT && (ui->x_armed || x_bound(ui))) {
-        if (!ui->held[key] && (game_list_open(ui) || game_info_open(ui)) && game_selected(ui) &&
+        if (!ui->held[key] &&
+            (((game_list_open(ui) || game_info_open(ui)) && game_selected(ui)) ||
+             app_selected(ui)) &&
             !(ui->device_enabled && ui->device_status.sleeping == 1)) {
             ui->x_armed = true;
         }

@@ -488,6 +488,7 @@ bool mainui_favorite_edit(MainUIFavoriteEditor *editor, MainUILibrary *library, 
             }
             cJSON_Delete(item->json);
             free(item->identity);
+            free(item->rom_key);
             memmove(item, item + 1, (size_t)(fresh->count - i - 1) * sizeof *item);
             fresh->count--;
         }

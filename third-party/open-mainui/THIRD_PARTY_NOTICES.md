@@ -33,3 +33,10 @@ THE SOFTWARE.
 SQLite is dedicated to the public domain by its authors. The device build links the SQLite library supplied by Onion; SQLite source is not vendored here. Host builds link the host's SQLite library.
 
 Upstream dedication: https://www.sqlite.org/copyright.html
+
+## FFmpeg
+
+Game Info's media gallery plays videos with the FFmpeg 2.4 libraries Onion ships in `.tmp_update/lib/parasyte` (libavformat, libavcodec, libavutil, libswscale and, for sound, libswresample), loaded at run time with `dlopen()`.
+FFmpeg is neither linked nor distributed with Open MainUI, and no FFmpeg source is vendored here. [src/platform/ffmpeg_abi.h](src/platform/ffmpeg_abi.h) declares the few FFmpeg 2.4.14 structure fields and functions used, to match those libraries.
+
+FFmpeg is licensed under the LGPL 2.1 or later, or the GPL depending on its build: https://ffmpeg.org/legal.html

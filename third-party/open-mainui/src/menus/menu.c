@@ -238,6 +238,69 @@ void mainui_grid_restore(MainUIViewport *view, int total, int selected, int colu
     *view = (MainUIViewport){total, selected, start, end};
 }
 
+void mainui_grid_move_stock(MainUIViewport *view, int horizontal, int columns, int rows, bool wrap)
+{
+    if (view->total <= 0 || !horizontal || columns <= 0 || rows <= 0) {
+        return;
+    }
+    int capacity = columns * rows, pages = (view->total + capacity - 1) / capacity;
+    int selected = view->selected < 0 ? 0 : view->selected;
+    int page = selected / capacity, row = selected % capacity / columns;
+    int column = selected % columns + (horizontal > 0 ? 1 : -1);
+    int target = page * capacity + row * columns + column;
+    if (column < 0 || column >= columns || target >= view->total) {
+        page += horizontal > 0 ? 1 : -1;
+        if (page < 0 || page >= pages) {
+            if (!wrap) {
+                return;
+            }
+            page = page < 0 ? pages - 1 : 0;
+        }
+        target = page * capacity + row * columns + (horizontal > 0 ? 0 : columns - 1);
+        if (target >= view->total) {
+            target = view->total - 1;
+        }
+    }
+    mainui_grid_restore(view, view->total, target, columns, rows);
+}
+
+/* Round the column within the page, over the rows it fills: a short last
+ * page may give a column fewer rows, or one. Never sideways or onto another
+ * page. */
+void mainui_grid_move_stock_vertical(MainUIViewport *view, int vertical, int columns, int rows,
+                                     bool wrap)
+{
+    if (view->total <= 0 || !vertical || columns <= 0 || rows <= 0 || view->selected < 0 ||
+        view->selected >= view->total) {
+        return;
+    }
+    int capacity = columns * rows;
+    int page_start = view->selected / capacity * capacity;
+    int available = view->total - page_start;
+    if (available > capacity) {
+        available = capacity;
+    }
+    int offset = view->selected - page_start;
+    int column = offset % columns;
+    int row = offset / columns;
+    /* Pages fill row by row: the column's own last row on this page. */
+    int last_row = (available - 1 - column) / columns;
+    int next_row = row + (vertical > 0 ? 1 : -1);
+    if (!wrap && (next_row < 0 || next_row > last_row)) {
+        return;
+    }
+    if (next_row < 0) {
+        next_row = last_row;
+    }
+    else if (next_row > last_row) {
+        next_row = 0;
+    }
+    if (next_row != row) {
+        mainui_grid_restore(view, view->total, page_start + next_row * columns + column, columns,
+                            rows);
+    }
+}
+
 void mainui_grid_move(MainUIViewport *view, int horizontal, int vertical, int pages, int columns,
                       int rows)
 {
@@ -246,6 +309,12 @@ void mainui_grid_move(MainUIViewport *view, int horizontal, int vertical, int pa
     }
     int64_t selected = view->selected + (int64_t)horizontal + (int64_t)vertical * columns +
                        (int64_t)pages * columns * rows;
+    /* Up and Down keep the column: with no entry above or below in it, at
+     * the first or last row or past a short last row, they stay put instead
+     * of moving sideways to the first or last entry. */
+    if (vertical && !horizontal && !pages && (selected < 0 || selected >= view->total)) {
+        return;
+    }
     if (horizontal) {
         if (selected < 0) {
             selected = view->total - 1;

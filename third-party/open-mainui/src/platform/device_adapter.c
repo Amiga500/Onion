@@ -597,7 +597,16 @@ void mainui_device_battery(const MainUIDeviceAdapter *adapter, MainUIDeviceStatu
 MainUIDeviceStatus mainui_device_status(const MainUIDeviceAdapter *adapter)
 {
     MainUIDeviceStatus status = {.battery = -1, .wifi = -1, .lid = -1, .sleeping = -1};
-    status.model = mainui_device(runtime_number(adapter, "deviceModel"));
+    /* Physical hardware cannot change models during this process. Simulator
+     * fixtures intentionally can, and still read their runtime file. */
+    static int physical_model = -1;
+    int model = adapter->backend == DEVICE_ONION && physical_model >= 0
+                    ? physical_model
+                    : runtime_number(adapter, "deviceModel");
+    if (adapter->backend == DEVICE_ONION && model >= 0) {
+        physical_model = model;
+    }
+    status.model = mainui_device(model);
     mainui_device_battery(adapter, &status);
     if (status.model.lid) {
         int lid = adapter->backend == DEVICE_SIMULATED

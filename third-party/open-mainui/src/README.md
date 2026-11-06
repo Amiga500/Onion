@@ -4,8 +4,8 @@
 - `core/`: platform-independent config, viewport, incremental letter navigation and state codec.
 - `catalog/`: ROM/cache discovery, saved lists and transactional saved-list actions.
 - `menus/`: menu definitions, configuration and stock setting models.
-- `ui/`: theme resources, frame/header/footer, list panels, dialogs, grids and thumbnails.
-- `platform/`: input, bounded file I/O, system config and optional SDL_mixer audio.
+- `ui/`: theme resources, frame/header/footer, list panels, dialogs, grids, thumbnails, ROM lists' video previews and Game Info's media gallery.
+- `platform/`: input, bounded file I/O, system config, optional SDL_mixer audio and video playback with Onion's FFmpeg, loaded at run time.
 - `localization/`: on-demand custom language loading and translation lookup.
 
 Include project headers by their domain path, such as `catalog/catalog.h`. Keep dependencies directed from app/UI to models and platform boundaries. The portable core must not depend on SDL.

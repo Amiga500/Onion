@@ -116,6 +116,25 @@ assert not any(json.loads(line).get("label") == "Zebra" for line in (removal / "
 assert not any(json.loads(line).get("key") == "Zebra" for line in assignment.read_text().splitlines())
 print("Remove Favorite also removes its sidecar assignment")
 
+# When only the valid backup is present, browsing uses it. Removing a Favorite
+# must publish the updated assignments to the missing main file, but keep the
+# backup byte-for-byte as recovery data.
+backup_sd = fixture("remove-assignment-from-backup")
+missing_primary = backup_sd / "Roms/favourite-folders.json"
+with missing_primary.open("a", encoding="utf-8") as stream:
+    stream.write(json.dumps(dict(kind="item", key="Zebra", type=5,
+                                 folder="", order=0)) + "\n")
+backup_file = backup_sd / "Roms/favourite-folders.json.bak"
+backup_bytes = missing_primary.read_bytes()
+backup_file.write_bytes(backup_bytes)
+missing_primary.unlink()
+capture(backup_sd, "remove-assignment-from-backup", "EDSDDDE")
+assert missing_primary.exists(), "assignment removal did not publish the primary"
+assert backup_file.read_bytes() == backup_bytes, "recovery backup was modified"
+assert not any(json.loads(line).get("key") == "Zebra" for line in
+               missing_primary.read_text().splitlines())
+print("Favorite assignment removal uses backup when primary is absent")
+
 keyboard = fixture("keyboard")
 capture(keyboard, "keyboard-blank", "ESDE", "")
 capture(keyboard, "keyboard-text", "ESDE", "Readable")

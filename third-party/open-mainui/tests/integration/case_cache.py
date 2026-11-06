@@ -92,6 +92,22 @@ run('repaired','long-row',[row(1,'x'*4096,'./x.nes')])
 run('scan-once','scan-once',[row(1,'Cached','./fallback.nes')])
 run('bad-later','bad-later',[row(i+1,f'Game {i:03d}','./x.nes' if i<69 else '') for i in range(70)])
 run('sort','sort',[row(i+1,label,f'./{i}.nes') for i,label in enumerate(['alpha','ALPHA','beta','Zebra'])])
+# The standalone Carousel count reader refuses WAL before SQLite can create
+# sidecars, and interrupts a recursive view rather than freezing the UI.
+guarded = BASE / 'guarded.db'
+for stale in ('guarded.db', 'guarded.db-wal', 'guarded.db-shm'):
+    (BASE / stale).unlink(missing_ok=True)
+with sqlite3.connect(guarded) as conn:
+    conn.execute("CREATE VIEW endless AS WITH RECURSIVE n(x) AS "
+                 "(SELECT 1 UNION ALL SELECT x+1 FROM n) SELECT x FROM n")
+subprocess.run([str(BUILD / 'fixture-cache'), str(guarded), 'bounded-reader'], check=True,
+               cwd=ROOT, timeout=10)
+with sqlite3.connect(guarded) as conn:
+    conn.execute('PRAGMA journal_mode=WAL')
+subprocess.run([str(BUILD / 'fixture-cache'), str(guarded), 'wal-reader'], check=True,
+               cwd=ROOT, timeout=10)
+assert not (BASE / 'guarded.db-shm').exists()
+
 # Real SDL rendering exercises the former fixed-size list boundary and cross-window navigation.
 ui = BUILD / "MainUI-dev"
 theme = ONION_THEME

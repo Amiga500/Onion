@@ -2,6 +2,7 @@
 #include "platform/audio.h"
 #include <SDL.h>
 #include <SDL_loadso.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -25,7 +26,15 @@ static struct {
     int (*halt_channel)(int);
     void (*free_music)(void *);
     void (*free_wave)(void *);
+    /* Optional: the music hook gives videos their sound. */
+    void (*hook_music)(void (*)(void *, Uint8 *, int), void *);
+    int (*query_spec)(int *, Uint16 *, int *);
+    void (*hooked)(void *, Uint8 *, int);
+    void *hooked_context;
 } audio;
+
+/* Read on the mixer's thread: paused while the device sleeps. */
+static atomic_bool hook_silent;
 
 /* Kept apart from `audio`, which close clears. UI thread only. */
 static unsigned change_requests;
@@ -59,6 +68,7 @@ static void *load_asset(const char *directory, const char *name, bool music)
 
 void mainui_audio_close(void)
 {
+    mainui_audio_unhook();
     if (audio.opened) {
         audio.halt_music();
         audio.halt_channel(-1);
@@ -131,6 +141,10 @@ bool mainui_audio_open(const char *theme, const char *fallback, int volume, int 
                   LOAD(pause_music, "Mix_PauseMusic") && LOAD(resume_music, "Mix_ResumeMusic") &&
                   LOAD(pause_channels, "Mix_Pause") && LOAD(resume_channels, "Mix_Resume") &&
                   LOAD(free_music, "Mix_FreeMusic") && LOAD(free_wave, "Mix_FreeChunk");
+    if (linked && !(LOAD(hook_music, "Mix_HookMusic") && LOAD(query_spec, "Mix_QuerySpec"))) {
+        audio.hook_music = NULL;
+        audio.query_spec = NULL;
+    }
 #undef LOAD
     if (!linked) {
         audio_failed("SDL_mixer is missing a function");
@@ -190,6 +204,7 @@ void mainui_audio_pause(bool paused)
         return;
     }
     audio.paused = paused;
+    atomic_store(&hook_silent, paused);
     if (paused) {
         audio.pause_music();
         audio.pause_channels(-1);
@@ -206,4 +221,49 @@ unsigned mainui_audio_change_requests(int *volume)
         *volume = change_volume;
     }
     return change_requests;
+}
+
+static void hook(void *context, Uint8 *stream, int length)
+{
+    (void)context;
+    if (atomic_load(&hook_silent)) {
+        memset(stream, 0, (size_t)length);
+        return;
+    }
+    audio.hooked(audio.hooked_context, stream, length);
+}
+
+int mainui_audio_rate(void)
+{
+    int rate = 0, channels = 0;
+    Uint16 format = 0;
+    if (!audio.opened || !audio.hook_music || !audio.query_spec ||
+        !audio.query_spec(&rate, &format, &channels) || format != AUDIO_S16SYS || channels != 2) {
+        return 0;
+    }
+    return rate;
+}
+
+bool mainui_audio_hook(void (*fill)(void *, Uint8 *, int), void *context)
+{
+    if (!fill || !mainui_audio_rate()) {
+        return false;
+    }
+    mainui_audio_unhook();
+    audio.hooked = fill;
+    audio.hooked_context = context;
+    atomic_store(&hook_silent, audio.paused);
+    audio.hook_music(hook, NULL);
+    return true;
+}
+
+void mainui_audio_unhook(void)
+{
+    /* SDL_mixer takes the audio lock: once this returns, fill is not running
+     * and never runs again. */
+    if (audio.hooked && audio.hook_music) {
+        audio.hook_music(NULL, NULL);
+    }
+    audio.hooked = NULL;
+    audio.hooked_context = NULL;
 }

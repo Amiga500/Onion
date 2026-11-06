@@ -12,6 +12,25 @@
 int main(int argc, char **argv)
 {
     assert(argc == 3);
+    if (!strcmp(argv[2], "bounded-reader")) {
+        sqlite3 *db = NULL;
+        int budget = 20000;
+        assert(mainui_cache_readonly_open(&db, argv[1], &budget));
+        sqlite3_stmt *stmt = NULL;
+        assert(sqlite3_prepare_v2(db, "SELECT count(*) FROM endless", -1, &stmt, NULL) ==
+               SQLITE_OK);
+        assert(sqlite3_step(stmt) == SQLITE_INTERRUPT);
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+    if (!strcmp(argv[2], "wal-reader")) {
+        sqlite3 *db = NULL;
+        int budget = 20000;
+        assert(mainui_cache_is_wal(argv[1]));
+        assert(!mainui_cache_readonly_open(&db, argv[1], &budget) && !db);
+        return 0;
+    }
     MainUICatalog *c = calloc(1, sizeof *c);
     assert(c && mainui_catalog_open(c, argv[1], false));
     if (!strcmp(argv[2], "rebuild")) {
@@ -34,6 +53,10 @@ int main(int argc, char **argv)
     }
     else if (!strcmp(argv[2], "scan-once")) {
         assert(p->cache && !strcmp(mainui_catalog_entry(c, 0)->label, "Cached"));
+        assert(mainui_catalog_back(c) && mainui_catalog_scan_only(c->pages[0].entries[0].path));
+        /* A cancelled recovery must not force a later visit to scan. */
+        mainui_catalog_cancel_scan_only(c->pages[0].entries[0].path);
+        assert(mainui_catalog_enter(c, 0) && p->cache && !p->cache_fallback);
         assert(mainui_catalog_back(c) && mainui_catalog_scan_only(c->pages[0].entries[0].path));
         assert(mainui_catalog_enter(c, 0) && !p->cache && p->cache_fallback);
         assert(!strcmp(mainui_catalog_entry(c, 0)->label, "fallback"));

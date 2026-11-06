@@ -88,6 +88,11 @@ bool mainui_browser_refresh_control(const char *sd, bool sensitive, char error[2
                                     MainUICancel cancel)
 {
     for (int kind = 0; kind < 2; kind++) {
+        /* Back stops it between consoles; one already started finishes. */
+        if (mainui_cancelled(cancel)) {
+            snprintf(error, 256, "Refresh cancelled.");
+            return false;
+        }
         MainUICatalog *catalog = calloc(1, sizeof *catalog);
         if (catalog) {
             catalog->cancel = cancel;
@@ -95,6 +100,11 @@ bool mainui_browser_refresh_control(const char *sd, bool sensitive, char error[2
         bool ok = catalog && (kind ? mainui_catalog_expert(catalog, sd, sensitive)
                                    : mainui_catalog_open(catalog, sd, sensitive));
         for (int i = 0; ok && i < catalog->pages[0].count; i++) {
+            if (mainui_cancelled(cancel)) {
+                snprintf(catalog->error, sizeof catalog->error, "Refresh cancelled.");
+                ok = false;
+                break;
+            }
             ok = mainui_catalog_remove_cache(catalog, i);
         }
         if (!ok) {

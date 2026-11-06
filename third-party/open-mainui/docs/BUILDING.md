@@ -106,6 +106,8 @@ make check-unit
 make check-integration ONION_ROOT=/root/development/dev-miyoomini-toolchain/workspace/Onion
 ```
 
+`make check-stack` builds the host binaries into `build/stack` with `-Wstack-usage=8192`, reporting each function whose stack frame may pass 8 KiB without failing the build. Host frames, with 64-bit pointers, differ from the device's, which the device build checks with the same limit.
+
 `build/unit-tests` takes suite names, for example `build/unit-tests core state`. The integration runner `tests/integration/run.py` takes case names and supports `--list`. When invoking that Python runner directly, pass `ONION_ROOT` through its environment as well.
 
 Some integration cases also need a fixture SD card tree at `tests/fixtures/sdcard`, or a path set through `MAINUI_FIXTURE_SD`. For example, if your host `SDCARD` directory contains the required fixtures:

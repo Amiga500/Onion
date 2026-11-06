@@ -143,6 +143,58 @@ int main(int argc, char **argv)
     snprintf(grid->pages[0].title, sizeof grid->pages[0].title, "Games");
     MainUIViewport page = {.total = 8, .selected = 0, .start = 0, .end = 7};
     MainUIMenuView view;
+    /* Switching through the main menu or a grid page preserves the carousel
+     * image cache. A catalog/size change, unlike a screen transition, may
+     * invalidate it. Use a tiny icon so this test does not affect the budget. */
+    char tiny[4096];
+    snprintf(tiny, sizeof tiny, "%s/small.png", argv[1]);
+    for (int i = 0; i < 9; i++) {
+        consoles[i].icon = tiny;
+    }
+    mainui_menu_view_open(&view, &theme);
+    view.defer_selected = true;
+    MainUIConsoleView carousel_settings;
+    mainui_console_view_defaults(&carousel_settings);
+    carousel_settings.hide_count = carousel_settings.hide_labels = true;
+    SDL_Surface *canvas =
+        SDL_CreateRGBSurface(SDL_SWSURFACE, 640, 480, 32, 0xff0000, 0xff00, 0xff, 0);
+    assert(canvas);
+    mainui_menu_draw_carousel(&view, canvas, grid, &page, &carousel_settings, 0, -1);
+    /* The first draw starts decoding without blocking the UI. Wait only in
+     * this deterministic fixture, then publish the finished worker result. */
+    for (int i = 0; i < 2000 && !atomic_load(&view.carousel_worker.done); i++) {
+        SDL_Delay(1);
+    }
+    assert(atomic_load(&view.carousel_worker.done));
+    mainui_menu_draw_carousel(&view, canvas, grid, &page, &carousel_settings, 0, -1);
+    SDL_Surface *retained = view.carousel_cache[0].icon;
+    assert(retained);
+    view.cached_start = -1; /* Returned to the main menu. */
+    mainui_menu_draw_carousel(&view, canvas, grid, &page, &carousel_settings, 0, -1);
+    assert(view.carousel_cache[0].icon == retained);
+    view.cached_start = -1;
+    mainui_menu_view_page(&view, grid, &page); /* Changed to the grid. */
+    assert(view.carousel_cache[0].icon == retained);
+    view.cached_start = -1;
+    mainui_menu_draw_carousel(&view, canvas, grid, &page, &carousel_settings, 0, -1);
+    assert(view.carousel_cache[0].icon == retained);
+    mainui_menu_view_close(&view);
+    /* A worker that cannot start: the visible consoles are decoded on the UI
+     * thread instead, and the carousel is revealed on its first draw. */
+    mainui_menu_view_open(&view, &theme);
+    view.defer_selected = true;
+    view.carousel_worker.refuse = true;
+    mainui_menu_draw_carousel(&view, canvas, grid, &page, &carousel_settings, 0, -1);
+    assert(view.carousel_revealed && !view.carousel_worker.thread);
+    for (int k = 0; k < MAINUI_CAROUSEL_SLOTS; k++) {
+        assert(view.carousel[k].index < 0 || (view.carousel[k].attempted && view.carousel[k].icon));
+    }
+    SDL_FreeSurface(canvas);
+    mainui_menu_view_close(&view);
+    for (int i = 0; i < 9; i++) {
+        consoles[i].icon = mid;
+    }
+    consoles[7].icon = NULL;
     mainui_menu_view_open(&view, &theme);
     mainui_menu_view_page(&view, grid, &page);
     /* 1200x1200 RGB icons (about 4.1 MiB each) are kept whole; five fit. */

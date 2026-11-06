@@ -39,7 +39,7 @@ static bool ends_with(const char *text, const char *end)
 static void check_favorite(const char *label, const char *system, const char *cover)
 {
     int row = favorite(label);
-    assert(mainui_details_open(&details, catalog, favorites, favorites, row, &preview));
+    assert(mainui_details_open(&details, catalog, favorites, favorites, row, &preview, NULL));
     assert(!strcmp(details.system, system));
     mainui_details_close(&details);
     mainui_preview_request(&preview, catalog, favorites, row, true);
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
             view.selected++;
         }
         assert(mainui_browser_enter(catalog, &view, 6) && catalog->depth == 1);
-        assert(mainui_details_open(&details, catalog, NULL, favorites, 0, &preview));
+        assert(mainui_details_open(&details, catalog, NULL, favorites, 0, &preview, NULL));
         assert(!strcmp(details.system, system));
         mainui_details_close(&details);
         assert(mainui_catalog_back(catalog) && catalog->depth == 0);

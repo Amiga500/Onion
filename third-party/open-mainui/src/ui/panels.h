@@ -14,16 +14,24 @@ void mainui_draw_confirmation(SDL_Surface *screen, MainUITheme *theme, int title
 /* Darken everything but the footer (0,0)-(640,420) with black at 0xAA alpha,
  * as stock does before it draws a popup. */
 void mainui_dim_popup_background(SDL_Surface *screen, MainUITheme *theme);
+/* The same over the whole screen, for a popup over a view without a footer. */
+void mainui_dim_popup_screen(SDL_Surface *screen, MainUITheme *theme);
 /* ellipsis: shorten a label too wide for the popup to end in "...";
  * without it a label is cut off at the popup's edge, as in v1.0.9. */
 void mainui_draw_context(SDL_Surface *screen, MainUITheme *theme, const MainUIContext *context,
                          bool ellipsis);
+/* The same themed popup, without the standard OK/CANCEL footer. */
+void mainui_draw_media_context(SDL_Surface *screen, MainUITheme *theme,
+                               const MainUIContext *context);
 void mainui_draw_languages(SDL_Surface *screen, MainUITheme *theme, const MainUILanguages *list);
 void mainui_draw_footer(SDL_Surface *screen, MainUITheme *theme, int page, int total);
 void mainui_draw_settings(SDL_Surface *screen, MainUITheme *theme,
                           const MainUIStockSettings *settings);
+/* favorite[row], for the four rows from view->start (NULL for none): the
+ * app is a Favorite, marked with the theme's skin/ic-favorite-mark.png at the
+ * row's right. With that image, every row's text stops short of it. */
 void mainui_draw_apps(SDL_Surface *screen, MainUITheme *theme, MainUICatalog *apps,
-                      const MainUIViewport *view);
+                      const MainUIViewport *view, const bool *favorite);
 void mainui_draw_message(SDL_Surface *screen, MainUITheme *theme, const char *title,
                          const char *body);
 /* Draw stock Empty.png at its natural size, centered in the 640x480 surface. */
