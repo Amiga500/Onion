@@ -9,8 +9,9 @@
 OPEN_MAINUI ?= 1
 OPEN_MAINUI_DIR := $(THIRD_PARTY_DIR)/open-mainui
 OPEN_MAINUI_BIN := $(OPEN_MAINUI_DIR)/build/onion/MainUI
-# Test builds: a binary given before its source is out, installed instead of
-# compiling the subtree when it exists (third-party/open-mainui-prebuilt/README.md).
+# Test builds: a binary given before its source is out (as for the 1.1.0
+# release candidates) in third-party/open-mainui-prebuilt/, with MainUI.md5
+# and a README, is installed instead of compiling the subtree.
 OPEN_MAINUI_PREBUILT_DIR := $(THIRD_PARTY_DIR)/open-mainui-prebuilt
 OPEN_MAINUI_PREBUILT := $(wildcard $(OPEN_MAINUI_PREBUILT_DIR)/MainUI)
 
