@@ -29,6 +29,8 @@ romcount=0
 Scrap_Success=0
 Scrap_Fail=0
 Scrap_notrequired=0
+GameInfo_Success=0
+GameInfo_Fail=0
 
 CurrentSystem=$1
 CurrentRom="$2"
@@ -254,6 +256,246 @@ get_ssSystemID() {
 
 
 
+# ---- Game Info media (Open MainUI 1.1.0) ----
+# Besides the cover (Imgs), ScreenScraper can fill what Game Info shows, in
+# the console's ROM folder (gi_root), named like the ROM without its
+# extension (gi_name):
+#   desc        gamelist.xml: description, genre, rating, date, developer...
+#   box2dfront  media/box2dfront/<name>.png  (front of the box, gallery)
+#   box2dback   media/box2dback/<name>.png
+#   box3d       media/box3d/<name>.png
+#   screenshot  media/screenshot/<name>.png, title screen as <name>-1.png
+#   video       media/videos/<name>.mp4      (several MB each)
+#   manual      media/manuals/<name>.pdf     (often tens of MB)
+# Which ones: "ScreenscraperGameInfo" in scraper.json, a comma list.
+# What ScreenScraper doesn't have for a game is written down in
+# media/.gameinfo_none ("<item> <ROM path>"), so that the next scraping
+# doesn't ask again for every game without, say, a 3D box. Delete the file
+# to ask again.
+GI_DEFAULT="desc,box2dfront,box2dback,box3d,screenshot"
+# Pictures are asked at the size of the largest screen (Mini v4, Flip).
+GI_PICTURE_SIZE="maxwidth=752&maxheight=560"
+
+# Text as gamelist.xml writes it (jq's @html: & < > " ').
+gi_xml() {
+    jq -rn --arg s "$1" '$s | @html'
+}
+
+gi_wanted() { # item
+    case ",$GameInfoMedia," in
+        *",$1,"*) return 0 ;;
+    esac
+    return 1
+}
+
+# The wanted items this ROM is still missing, one per line.
+gi_missing() {
+    for gi_item in desc box2dfront box2dback box3d screenshot video manual; do
+        gi_wanted "$gi_item" || continue
+        [ -f "$gi_root/media/.gameinfo_none" ] &&
+            grep -qxF "$gi_item $gi_rel" "$gi_root/media/.gameinfo_none" && continue
+        case "$gi_item" in
+            desc)
+                [ -f "$gi_root/gamelist.xml" ] &&
+                    grep -qF "<path>./$(gi_xml "$gi_rel")</path>" "$gi_root/gamelist.xml" && continue ;;
+            box2dfront | box2dback | box3d | screenshot)
+                [ -f "$gi_root/media/$gi_item/$gi_name.png" ] && continue ;;
+            video)
+                [ -f "$gi_root/media/videos/$gi_name.mp4" ] && continue ;;
+            manual)
+                [ -f "$gi_root/media/manuals/$gi_name.pdf" ] && continue ;;
+        esac
+        echo "$gi_item"
+    done
+}
+
+# The URL of a ScreenScraper media type, in the region order (Region1..8),
+# or nothing. $1: type, from the "medias" of the game ($gi_medias).
+gi_media_url() {
+    printf '%s\n' "$gi_medias" | jq -r --arg MediaType "$1" \
+        --arg Region1 "$Region1" --arg Region2 "$Region2" --arg Region3 "$Region3" \
+        --arg Region4 "$Region4" --arg Region5 "$Region5" --arg Region6 "$Region6" \
+        --arg Region7 "$Region7" --arg Region8 "$Region8" \
+        'if type == "array" then . else [] end |
+         map(select(.type == $MediaType)) |
+         sort_by(if .region == $Region1 then 0
+               elif .region == $Region2 then 1
+               elif .region == $Region3 then 2
+               elif .region == $Region4 then 3
+               elif .region == $Region5 then 4
+               elif .region == $Region6 then 5
+               elif .region == $Region7 then 6
+               elif .region == $Region8 then 7
+               else 8 end) |
+         .[0].url // empty' 2> /dev/null | head -n 1
+}
+
+# The first bytes of a file, in hex.
+gi_magic() { # file, bytes
+    head -c "$2" "$1" 2> /dev/null | od -An -tx1 | tr -d ' \n'
+}
+
+# Downloads a URL to a file, kept only if it really is that kind of file
+# (ScreenScraper answers some errors with a page of text). A JPEG picture is
+# turned into the PNG Open MainUI needs. $1 url, $2 destination, $3 png|pdf|mp4
+gi_fetch() {
+    gi_part="$2.part"
+    mkdir -p "$(dirname "$2")"
+    rm -f "$gi_part"
+    wget -q --no-check-certificate -O "$gi_part" "$1" 2> /dev/null
+    if [ ! -s "$gi_part" ]; then
+        rm -f "$gi_part"
+        return 1
+    fi
+    gi_sig=$(gi_magic "$gi_part" 8)
+    case "$3" in
+        png)
+            case "$gi_sig" in
+                89504e47*) ;;
+                ffd8ff*)
+                    mv -f "$gi_part" "$gi_part.jpg"
+                    jpg2png_stb "$gi_part.jpg" "$gi_part" 752 560 > /dev/null 2>&1
+                    rm -f "$gi_part.jpg"
+                    case "$(gi_magic "$gi_part" 4)" in
+                        89504e47) ;;
+                        *) rm -f "$gi_part"; return 1 ;;
+                    esac ;;
+                *) rm -f "$gi_part"; return 1 ;;
+            esac ;;
+        pdf)
+            case "$gi_sig" in
+                25504446*) ;;
+                *) rm -f "$gi_part"; return 1 ;;
+            esac ;;
+        mp4)
+            # ISO media: "ftyp" at the 5th byte.
+            case "$gi_sig" in
+                ????????66747970) ;;
+                *) rm -f "$gi_part"; return 1 ;;
+            esac ;;
+    esac
+    mv -f "$gi_part" "$2"
+}
+
+# The <game> entry of gamelist.xml for this ROM, from the game's
+# ScreenScraper record ($gi_game, .response.jeu): name, description, genre
+# and the rest in English when there is, XML-escaped. Rating: ScreenScraper's
+# note is out of 20, gamelist.xml's 0 to 1.
+gi_entry() {
+    printf '%s\n' "$gi_game" | jq -r --arg path "./$gi_rel" \
+        --arg Region1 "$Region1" --arg Region2 "$Region2" --arg Region3 "$Region3" \
+        '(.response.jeu // .jeu // {}) as $j |
+         def lang(a): ((a // []) | (map(select(.langue == "en")) + .) | .[0].text) // "";
+         def byregion(a): ((a // []) |
+             (map(select(.region == $Region1)) + map(select(.region == $Region2)) +
+              map(select(.region == $Region3)) + map(select(.region == "wor")) +
+              map(select(.region == "ss")) + .) | .[0].text) // "";
+         def tag(n; v): if (v | tostring | length) > 0
+             then "    <\(n)>\(v | tostring | @html)</\(n)>\n" else "" end;
+         (byregion($j.dates) | tostring) as $date |
+         (if ($date | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}")) then ($date[0:4] + $date[5:7] + $date[8:10] + "T000000")
+          elif ($date | test("^[0-9]{4}$")) then ($date + "0101T000000")
+          else "" end) as $released |
+         ((($j.note.text // "") | tostring | tonumber? // null) as $n |
+          if $n == null then "" else ($n * 5 | floor) / 100 end) as $rating |
+         "  <game>\n" +
+         tag("path"; $path) +
+         tag("name"; byregion($j.noms)) +
+         tag("desc"; lang($j.synopsis)) +
+         tag("genre"; ([($j.genres // [])[] | lang(.noms)] | map(select(length > 0)) | join(", "))) +
+         tag("rating"; $rating) +
+         tag("releasedate"; $released) +
+         tag("developer"; ($j.developpeur.text // "")) +
+         tag("publisher"; ($j.editeur.text // "")) +
+         tag("players"; ($j.joueurs.text // "")) +
+         "  </game>"'
+}
+
+# Adds this ROM's entry to the console's gamelist.xml, before its last
+# </gameList>, or makes the file. A gamelist.xml without </gameList> is left
+# alone.
+gi_write_desc() {
+    gi_list="$gi_root/gamelist.xml"
+    if [ ! -s "$gi_list" ]; then
+        printf '<?xml version="1.0"?>\n<gameList>\n</gameList>\n' > "$gi_list"
+    fi
+    grep -q '</gameList>' "$gi_list" || return 1
+    gi_entry > "$gi_list.entry" || { rm -f "$gi_list.entry"; return 1; }
+    grep -q '<path>' "$gi_list.entry" || { rm -f "$gi_list.entry"; return 1; }
+    awk -v entry="$gi_list.entry" '
+        { line[NR] = $0 }
+        /<\/gameList>/ { last = NR }
+        END {
+            for (i = 1; i <= NR; i++) {
+                if (i != last) { print line[i]; continue }
+                s = line[i]; pos = 0; rest = s
+                while ((k = index(rest, "</gameList>")) > 0) { pos += k; rest = substr(rest, k + 1) }
+                if (pos > 1) print substr(s, 1, pos - 1)
+                while ((getline l < entry) > 0) print l
+                print substr(s, pos)
+            }
+        }' "$gi_list" > "$gi_list.tmp" &&
+        [ -s "$gi_list.tmp" ] && mv -f "$gi_list.tmp" "$gi_list"
+    gi_ok=$?
+    rm -f "$gi_list.entry" "$gi_list.tmp"
+    return $gi_ok
+}
+
+# ScreenScraper has no such media for this game: not asked again.
+gi_none() { # item
+    mkdir -p "$gi_root/media"
+    echo "$1 $gi_rel" >> "$gi_root/media/.gameinfo_none"
+}
+
+# Gets the missing items ($1, one per line) for this ROM. Prints a line per
+# item and counts them in GameInfo_Success / GameInfo_Fail.
+gi_download() {
+    for gi_item in $1; do
+        gi_done=1
+        gi_url=""
+        case "$gi_item" in
+            desc)
+                gi_write_desc && gi_done=0 ;;
+            box2dfront | box2dback | box3d)
+                case "$gi_item" in
+                    box2dfront) gi_type=box-2D ;;
+                    box2dback) gi_type=box-2D-back ;;
+                    box3d) gi_type=box-3D ;;
+                esac
+                gi_url=$(gi_media_url "$gi_type")
+                [ -n "$gi_url" ] && gi_fetch "$gi_url&$GI_PICTURE_SIZE&outputformat=png" \
+                    "$gi_root/media/$gi_item/$gi_name.png" png && gi_done=0
+                [ -n "$gi_url" ] || gi_none "$gi_item" ;;
+            screenshot)
+                gi_url=$(gi_media_url ss)
+                [ -n "$gi_url" ] && gi_fetch "$gi_url&$GI_PICTURE_SIZE&outputformat=png" \
+                    "$gi_root/media/screenshot/$gi_name.png" png && gi_done=0
+                [ -n "$gi_url" ] || gi_none screenshot
+                # The title screen as a second screenshot, when there is one.
+                gi_url=$(gi_media_url sstitle)
+                [ $gi_done -eq 0 ] && [ -n "$gi_url" ] && [ ! -f "$gi_root/media/screenshot/$gi_name-1.png" ] &&
+                    gi_fetch "$gi_url&$GI_PICTURE_SIZE&outputformat=png" \
+                        "$gi_root/media/screenshot/$gi_name-1.png" png ;;
+            video)
+                gi_url=$(gi_media_url video-normalized)
+                [ -n "$gi_url" ] || gi_url=$(gi_media_url video)
+                [ -n "$gi_url" ] && gi_fetch "$gi_url" "$gi_root/media/videos/$gi_name.mp4" mp4 && gi_done=0
+                [ -n "$gi_url" ] || gi_none video ;;
+            manual)
+                gi_url=$(gi_media_url manuel)
+                [ -n "$gi_url" ] && gi_fetch "$gi_url" "$gi_root/media/manuals/$gi_name.pdf" pdf && gi_done=0
+                [ -n "$gi_url" ] || gi_none manual ;;
+        esac
+        if [ $gi_done -eq 0 ]; then
+            echo -e "  Game Info $gi_item: ${GREEN}OK${NONE}"
+            GameInfo_Success=$((GameInfo_Success + 1))
+        else
+            echo -e "  Game Info $gi_item: ${YELLOW}not found${NONE}"
+            GameInfo_Fail=$((GameInfo_Fail + 1))
+        fi
+    done
+}
+
 saveMetadata=false
 clear
 echo -e "\n*****************************************************"
@@ -277,6 +519,10 @@ if [ -f "$ScraperConfigFile" ]; then
     userSS=$(echo "$config" | jq -r '.screenscraper_username')
     passSS=$(echo "$config" | jq -r '.screenscraper_password')
     ScrapeInBackground=$(echo "$config" | jq -r '.ScrapeInBackground')
+	# Game Info media: missing key = the default list, "none" = only covers.
+	GameInfoMedia=$(echo "$config" | jq -r '.ScreenscraperGameInfo // empty')
+	[ -n "$GameInfoMedia" ] || GameInfoMedia=$GI_DEFAULT
+	[ "$GameInfoMedia" = "none" ] && GameInfoMedia=""
 	u=$(echo "U2FsdGVkX18PKpoEvELyE+5xionDX8iRxAIxJj4FN1U=" | openssl enc -aes-256-cbc -d -a -pbkdf2 -iter 10000 -salt -pass pass:"3x0tVD3jZvElZWRt3V67QQ==")
 	p=$(echo "U2FsdGVkX1/ydn2FWrwYcFVc5gVYgc5kVaJ5jDOeOKE=" |openssl enc -aes-256-cbc -d -a -pbkdf2 -iter 10000 -salt -pass pass:"RuA29ch3zVoodAItmvKKmZ+4Au+5owgvV/ztqRu4NjI=")
 	# Regions order management
@@ -352,6 +598,7 @@ echo -e "*****************************************************\n\n"
 echo "Scraping $CurrentSystem..."
 echo "Media Type: $MediaType"
 echo "Current Region: $SelectedRegion"
+echo "Game Info: ${GameInfoMedia:-off}"
 
 if [ "$userStored" = "true" ]; then
 	echo "screenscraper username: $userSS"
@@ -419,7 +666,15 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
     #echo $romNameTrimmed # for debugging
 
 
-	if [ -f "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" ]; then
+	# Game Info media this ROM still misses (see gi_missing).
+	gi_root="/mnt/SDCARD/Roms/$CurrentSystem"
+	gi_name="$romNameNoExtension"
+	gi_rel="${file#$gi_root/}"
+	gi_todo=$(gi_missing)
+	cover_present=false
+	[ -f "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" ] && cover_present=true
+
+	if [ "$cover_present" = true ] && [ -z "$gi_todo" ]; then
 		echo -e "${YELLOW}already Scraped !${NONE}"
 		let Scrap_notrequired++;
 	
@@ -459,9 +714,10 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 		
         echo "gameID = $gameIDSS"
 
-
+		gi_game="$api_result"
         
-		api_result=$(echo $api_result | jq '.response.jeu.medias')   # we keep only media section for faster search : 0.01s instead of 0.25s after that
+		api_result=$(echo $api_result | jq '.response.jeu.medias')
+		gi_medias="$api_result"
 
 
 
@@ -498,11 +754,13 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 									.[0].url' | head -n 1)
 
 
-        if [ -z "$MediaURL" ]; then 
+        if [ "$cover_present" = true ]; then
+            echo -e "${YELLOW}Cover already there${NONE}"
+            let Scrap_notrequired++
+        elif [ -z "$MediaURL" ] || [ "$MediaURL" = null ]; then 
             echo -e "${YELLOW}Game matches but no media found!${NONE}"
             let Scrap_Fail++
-            continue
-        fi
+        else
         
         # echo -e "Downloading Images for $romNameNoExtension \nScreenscraper ID : $gameIDSS \n url :$MediaURL\n\n"        # for debugging
 
@@ -523,6 +781,11 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 			echo -e "${RED}Download failed.${NONE}"
 			let Scrap_Fail++;
 		fi
+        fi
+
+        # Game Info media (description, boxes, screenshots...), whatever
+        # happened to the cover.
+        [ -n "$gi_todo" ] && gi_download "$gi_todo"
         
         
         #pngscale "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
@@ -569,6 +832,10 @@ echo "--------------------------"
 echo "Successfully scraped : $Scrap_Success"
 echo "Alread present       : $Scrap_notrequired"
 echo "Failed or not found  : $Scrap_Fail"
+if [ -n "$GameInfoMedia" ]; then
+	echo "Game Info items      : $GameInfo_Success"
+	echo "Game Info not found  : $GameInfo_Fail"
+fi
 echo -e "--------------------------\n"	 
 sleep 2
 echo "********   Screenscraper scraping finished   ********"

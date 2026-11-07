@@ -23,7 +23,8 @@ if [ -z "$config_json" ] || ! echo "$config_json" | jq . >/dev/null 2>&1; then
       "ScreenscraperMediaType": "box-2D",
       "LaunchboxMediaType": "Box - Front",
       "LaunchboxRegion": "United States",
-      "ScreenscraperRegion": "us"
+      "ScreenscraperRegion": "us",
+      "ScreenscraperGameInfo": "desc,box2dfront,box2dback,box3d,screenshot"
     }'
 fi
 
@@ -38,7 +39,8 @@ updated_config_json=$(echo "$config_json" | jq 'if .screenscraper_username == nu
     | if .ScreenscraperMediaType == null then .ScreenscraperMediaType = "box-2D" else . end
     | if .LaunchboxMediaType == null then .LaunchboxMediaType = "Box - Front" else . end
     | if .LaunchboxRegion == null then .LaunchboxRegion = "United States" else . end
-    | if .ScreenscraperRegion == null then .ScreenscraperRegion = "us" else . end')
+    | if .ScreenscraperRegion == null then .ScreenscraperRegion = "us" else . end
+    | if .ScreenscraperGameInfo == null then .ScreenscraperGameInfo = "desc,box2dfront,box2dback,box3d,screenshot" else . end')
 
 # Check if the content has changed
 if [ "$config_json" != "$updated_config_json" ]; then

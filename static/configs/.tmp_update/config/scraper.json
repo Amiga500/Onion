@@ -9,5 +9,6 @@
   "ScreenscraperMediaType": "box-2D",
   "LaunchboxMediaType": "Box - Front",
   "LaunchboxRegion": "United States",
-  "ScreenscraperRegion": "us"
+  "ScreenscraperRegion": "us",
+  "ScreenscraperGameInfo": "desc,box2dfront,box2dback,box3d,screenshot"
 }
