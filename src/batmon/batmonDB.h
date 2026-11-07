@@ -1,6 +1,10 @@
 #ifndef BATMON_DB_H
 #define BATMON_DB_H
 #define BATTERY_LOG_FILE "/mnt/SDCARD/Saves/Common/battery_logs/battery_logs.sqlite"
+// start_time values before this (2020-01-01) mean an unset clock
+#define BATTERY_LOG_MIN_TIME 1577836800LL
+
+#include <time.h>
 
 sqlite3 *bat_log_db = NULL;
 
@@ -31,6 +35,16 @@ int open_battery_log_db(void)
                      "CREATE TABLE device_specifics(id INTEGER PRIMARY KEY, device_serial TEXT, best_session INTEGER);"
                      "CREATE INDEX device_specifics_index ON device_specifics(device_serial);",
                      NULL, NULL, NULL);
+    }
+
+    // start_time (Unix time when the entry began, NULL when unknown) came later: add it to
+    // older logs, once per process. Appended last, so readers that use SELECT * with the
+    // first five columns, and writers that name their columns, keep working. The error
+    // when the column already exists is expected and ignored.
+    static bool start_time_checked = false;
+    if (!start_time_checked) {
+        sqlite3_exec(bat_log_db, "ALTER TABLE bat_activity ADD COLUMN start_time INTEGER;", NULL, NULL, NULL);
+        start_time_checked = true;
     }
 
     return 1;
