@@ -222,6 +222,10 @@ check "developer, publisher, players" sh -c "grep -q '<developer>Square</develop
 gi_game='{"response":{"jeu":{"noms":[{"region":"jp","text":"X"}]}}}'
 gi_entry > "$TMP/entry2"
 check "missing fields are left out" sh -c "! grep -q '<desc>\|<rating>\|<genre>' '$TMP/entry2' && grep -q '<name>X</name>' '$TMP/entry2'"
+gi_game='{"response":{"jeu":{"noms":[{"region":"us","text":"Y"}],"dates":[{"region":"us","text":"1995-09-30"}],"note":{"text":"16"}}}}'
+gi_entry > "$TMP/entry3"
+check "full date as YYYYMMDDT000000" grep -qx '    <releasedate>19950930T000000</releasedate>' "$TMP/entry3"
+check "16/20 as 0.8" grep -qx '    <rating>0.8</rating>' "$TMP/entry3"
 end
 
 begin scraper_game_info_gamelist
@@ -248,6 +252,9 @@ check "everything missing at first" test "$(gi_missing | tr '\n' ' ')" = "desc b
 mkdir -p "$gi_root/media/box3d" "$gi_root/media/videos"
 touch "$gi_root/media/box3d/Trials & Co.png" "$gi_root/media/videos/Trials & Co.mp4"
 check "files there are not missing" test "$(gi_missing | tr '\n' ' ')" = "desc box2dfront box2dback screenshot manual "
+printf '<gameList>\n<game><path>RPG/Trials &amp; Co.sfc</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+check "another scraper's entry without ./ counts too" test "$(gi_missing | tr '\n' ' ')" = "box2dfront box2dback screenshot manual "
+rm -f "$gi_root/gamelist.xml"
 GameInfoMedia="box2dfront"
 check "only the wanted ones" test "$(gi_missing)" = "box2dfront"
 GameInfoMedia=""
