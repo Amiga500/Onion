@@ -189,6 +189,139 @@ check "all five toggles still on" toggles_kept
 check "nothing killed" test ! -e "$TMP/killed"
 end
 
+# ---- Scraper: Game Info media from ScreenScraper ----
+
+SCRAPER_SS="$ROOT/static/build/.tmp_update/script/scraper/scrap_screenscraper.sh"
+SCRAPER_MENU="$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
+
+# The gi_* functions and their settings, as the scraper defines them.
+gi_env() {
+    eval "$(sed -n '/^GI_DEFAULT=/,/^saveMetadata=false/p' "$SCRAPER_SS" | grep -v '^saveMetadata')"
+    GREEN=; YELLOW=; NONE=
+    Region1=us; Region2=wor; Region3=eu; Region4=; Region5=; Region6=; Region7=; Region8=
+    gi_game=$(cat "$ROOT/test/data/screenscraper_game.json")
+    gi_medias=$(printf '%s\n' "$gi_game" | jq '.response.jeu.medias')
+    gi_root=$TMP/Roms/SFC
+    gi_name="Trials & Co"
+    gi_rel="RPG/Trials & Co.sfc"
+    mkdir -p "$gi_root/RPG"
+    GameInfo_Success=0
+    GameInfo_Fail=0
+}
+
+begin scraper_game_info_entry
+gi_env
+gi_entry > "$TMP/entry"
+check "path, XML-escaped" grep -qx '    <path>./RPG/Trials &amp; Co.sfc</path>' "$TMP/entry"
+check "name in the first region of the order (us)" grep -qx '    <name>Trials of Mana</name>' "$TMP/entry"
+check "description in English, escaped" grep -q '<desc>Three heroes &amp; a &lt;mana&gt; &quot;tree&quot;' "$TMP/entry"
+check "genres in English, or the first language" grep -qx '    <genre>Action RPG, Aventure</genre>' "$TMP/entry"
+check "rating: 17/20 as 0.85" grep -qx '    <rating>0.85</rating>' "$TMP/entry"
+check "date of the region, a year as 1 January" grep -qx '    <releasedate>20200101T000000</releasedate>' "$TMP/entry"
+check "developer, publisher, players" sh -c "grep -q '<developer>Square</developer>' '$TMP/entry' && grep -q '<publisher>Square Enix</publisher>' '$TMP/entry' && grep -q '<players>1-3</players>' '$TMP/entry'"
+gi_game='{"response":{"jeu":{"noms":[{"region":"jp","text":"X"}]}}}'
+gi_entry > "$TMP/entry2"
+check "missing fields are left out" sh -c "! grep -q '<desc>\|<rating>\|<genre>' '$TMP/entry2' && grep -q '<name>X</name>' '$TMP/entry2'"
+end
+
+begin scraper_game_info_gamelist
+gi_env
+gi_write_desc
+check "no gamelist.xml: made with the entry" sh -c "grep -q '^<gameList>' '$gi_root/gamelist.xml' && grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
+printf '<?xml version="1.0"?><gameList><game><path>./Other.sfc</path><desc>keep</desc></game></gameList>' > "$gi_root/gamelist.xml"
+gi_write_desc
+check "one-line list: entry inside gameList, old entry kept" sh -c "test \$(grep -c '<game>' '$gi_root/gamelist.xml') -eq 2 && grep -q '<desc>keep</desc>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>' && head -1 '$gi_root/gamelist.xml' | grep -q '^<?xml version=\"1.0\"?><gameList><game><path>./Other.sfc'"
+GameInfoMedia=desc
+missing=$(gi_missing)
+check "desc found by its escaped path" test -z "$missing"
+printf '<gameList>\n<game><path>./A.sfc</path></game>\n' > "$gi_root/gamelist.xml"
+gi_write_desc
+rc=$?
+check "a list without </gameList>: refused" test $rc -ne 0
+check "and left alone" sh -c "! grep -q 'Trials' '$gi_root/gamelist.xml'"
+end
+
+begin scraper_game_info_missing_and_urls
+gi_env
+GameInfoMedia="desc,box2dfront,box2dback,box3d,screenshot,video,manual"
+check "everything missing at first" test "$(gi_missing | tr '\n' ' ')" = "desc box2dfront box2dback box3d screenshot video manual "
+mkdir -p "$gi_root/media/box3d" "$gi_root/media/videos"
+touch "$gi_root/media/box3d/Trials & Co.png" "$gi_root/media/videos/Trials & Co.mp4"
+check "files there are not missing" test "$(gi_missing | tr '\n' ' ')" = "desc box2dfront box2dback screenshot manual "
+GameInfoMedia="box2dfront"
+check "only the wanted ones" test "$(gi_missing)" = "box2dfront"
+GameInfoMedia=""
+check "none wanted: nothing missing" test -z "$(gi_missing)"
+check "media URL in the region order (us before jp)" test "$(gi_media_url box-2D)" = "https://x/box2d_us?a=1"
+check "media of another region when there is no better one" test "$(gi_media_url box-2D-back)" = "https://x/back_eu?a=1"
+check "no media of a type: nothing" test -z "$(gi_media_url box-3D)"
+gi_medias=null
+check "no medias at all: nothing" test -z "$(gi_media_url box-2D)"
+end
+
+begin scraper_game_info_downloads
+gi_env
+mkdir -p "$TMP/bin"
+# wget: the content depends on the URL (-O file url).
+cat > "$TMP/bin/wget" << 'MOCK'
+#!/bin/sh
+while [ $# -gt 1 ]; do [ "$1" = "-O" ] && out=$2; shift; done
+url=$1
+echo "$url" >> "$(dirname "$0")/../wget_urls"
+case "$url" in
+    *back_eu*) printf '\377\330\377\340JFIF' > "$out" ;;
+    *ss\?*) printf '\211PNG\r\n\032\nDATA' > "$out" ;;
+    *title*) printf '<html>quota</html>' > "$out" ;;
+    *box2d_us*) printf '\211PNG\r\n\032\nDATA' > "$out" ;;
+    *video*) printf '\000\000\000\030ftypmp42DATA' > "$out" ;;
+    *manual*) printf '%%PDF-1.4 DATA' > "$out" ;;
+esac
+MOCK
+# jpg2png_stb: a PNG out of the JPEG.
+printf '#!/bin/sh\nprintf "\\211PNG\\r\\n\\032\\nCONV" > "$2"\n' > "$TMP/bin/jpg2png_stb"
+chmod +x "$TMP/bin/"*
+gi_oldpath=$PATH
+PATH="$TMP/bin:$PATH"
+GameInfoMedia="box2dfront,box2dback,box3d,screenshot,video,manual"
+gi_download "$(gi_missing)" > "$TMP/out"
+M="$gi_root/media"
+check "box front as PNG" sh -c "head -c 4 '$M/box2dfront/Trials & Co.png' | od -An -tx1 | tr -d ' \n' | grep -qx 89504e47"
+check "picture asked at the screen's size, as PNG" grep -q 'box2d_us?a=1&maxwidth=752&maxheight=560&outputformat=png' "$TMP/wget_urls"
+check "JPEG box back turned into PNG" grep -q CONV "$M/box2dback/Trials & Co.png"
+check "screenshot saved" test -s "$M/screenshot/Trials & Co.png"
+check "a title screen that is a page of text is not kept" test ! -e "$M/screenshot/Trials & Co-1.png"
+check "no stray .part files" sh -c "! find '$M' -name '*.part*' | grep -q ."
+check "video (normalized) as mp4" grep -q ftyp "$M/videos/Trials & Co.mp4"
+check "manual as pdf" grep -q '%PDF' "$M/manuals/Trials & Co.pdf"
+check "no 3D box on ScreenScraper: none made" test ! -e "$M/box3d/Trials & Co.png"
+check "counted: 5 got, 1 not found" test "$GameInfo_Success $GameInfo_Fail" = "5 1"
+check "what ScreenScraper doesn't have is written down" grep -qx 'box3d RPG/Trials & Co.sfc' "$M/.gameinfo_none"
+check "and not asked again" test -z "$(gi_missing)"
+check "a failed download (title page) is not written down" sh -c "! grep -q screenshot '$M/.gameinfo_none'"
+check "each item reported" sh -c "grep -q 'Game Info box3d: not found' '$TMP/out' && grep -q 'Game Info manual: OK' '$TMP/out'"
+rm -f "$M/box2dfront/Trials & Co.png"
+printf '#!/bin/sh\nwhile [ $# -gt 1 ]; do [ "$1" = "-O" ] && out=$2; shift; done\nprintf "<html>no</html>" > "$out"\n' > "$TMP/bin/wget"
+GameInfoMedia=box2dfront
+gi_download box2dfront > /dev/null
+check "an error page instead of a picture: nothing kept" test ! -e "$M/box2dfront/Trials & Co.png"
+PATH=$gi_oldpath
+end
+
+begin scraper_game_info_menu_and_config
+eval "$(sed -n '/^GI_ITEMS=/,/^Menu_Config_GameInfo()/p' "$SCRAPER_MENU" | grep -v '^Menu_Config_GameInfo')"
+check "switch one off" test "$(gi_toggle desc,box2dfront,screenshot box2dfront)" = "desc,screenshot"
+check "switch one on, in the menu's order" test "$(gi_toggle desc,screenshot video)" = "desc,screenshot,video"
+check "the last one off: none (not the default again)" test "$(gi_toggle video video)" = "none"
+check "from none" test "$(gi_toggle none manual)" = "manual"
+check "menu: Game Info entry in the configuration" grep -q 'Menu_Config_GameInfo$' "$SCRAPER_MENU"
+check "menu: the current ROM can be scraped again (Game Info media)" grep -qx 'Option2="Scrape current rom: $romname"' "$SCRAPER_MENU"
+check "same default list in the menu and the scraper" test "$(grep '^GI_DEFAULT=' "$SCRAPER_MENU")" = "$(grep '^GI_DEFAULT=' "$SCRAPER_SS")"
+check "default config has the key" sh -c "jq -e '.ScreenscraperGameInfo == \"desc,box2dfront,box2dback,box3d,screenshot\"' '$ROOT/static/configs/.tmp_update/config/scraper.json' > /dev/null"
+check "config_repair adds it to old configs" grep -q 'if .ScreenscraperGameInfo == null then .ScreenscraperGameInfo = "desc,box2dfront,box2dback,box3d,screenshot"' "$ROOT/static/build/.tmp_update/script/scraper/config_repair.sh"
+check "scraper: Game Info after the cover, whatever happened to it" grep -q '\[ -n "\$gi_todo" \] && gi_download "\$gi_todo"' "$SCRAPER_SS"
+check "scraper: a ROM is skipped only with its cover and all its Game Info" grep -q 'if \[ "\$cover_present" = true \] && \[ -z "\$gi_todo" \]; then' "$SCRAPER_SS"
+end
+
 # ---- runtime.sh: MainUI return path ----
 
 eval "$(extract_fn "$RUNTIME" perf_dirty)"

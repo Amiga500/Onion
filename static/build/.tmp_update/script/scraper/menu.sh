@@ -32,15 +32,17 @@ Menu_Config()
 	Option3="Scraping sources"
     Option4="Screenscraper: account settings"
     Option5="Toggle background scraping"
+    Option7="Screenscraper: Game Info media"
     Option6="Back to Main Menu"
     
-    Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option4\n$Option5\n$Option6" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "      --== CONFIGURATION MENU ==--" -b "Press A to validate your choice.")
+    Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option4\n$Option5\n$Option7\n$Option6" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "      --== CONFIGURATION MENU ==--" -b "Press A to validate your choice.")
 
     [ "$Mychoice" = "$Option1" ] && Menu_Config_MediaType
     [ "$Mychoice" = "$Option2" ] && Menu_RegionSelection
     [ "$Mychoice" = "$Option3" ] && Menu_Config_ScrapingSource
     [ "$Mychoice" = "$Option4" ] && Menu_Config_SSAccountSettings
     [ "$Mychoice" = "$Option5" ] && Menu_Config_BackgroundScraping
+    [ "$Mychoice" = "$Option7" ] && Menu_Config_GameInfo
 	[ "$Mychoice" = "$Option6" ] && Menu_Main
 	
 	sync
@@ -234,6 +236,80 @@ Menu_Config_BackgroundScraping()
         echo "$config" > $ScraperConfigFile
         sync
         Menu_Config
+}
+
+
+##########################################################################################
+
+# Game Info media: what ScreenScraper also gets for Open MainUI's Game Info
+# (scrap_screenscraper.sh, gi_*), a comma list in "ScreenscraperGameInfo".
+GI_ITEMS="desc box2dfront box2dback box3d screenshot video manual"
+GI_DEFAULT="desc,box2dfront,box2dback,box3d,screenshot"
+
+gi_label() { # item
+    case "$1" in
+        desc) echo "Description, genre, rating" ;;
+        box2dfront) echo "Box front (gallery)" ;;
+        box2dback) echo "Box back" ;;
+        box3d) echo "3D box" ;;
+        screenshot) echo "Screenshots" ;;
+        video) echo "Video (a few MB each)" ;;
+        manual) echo "Manual PDF (often big)" ;;
+    esac
+}
+
+# The list with one item switched on or off, in GI_ITEMS order ("none" when
+# empty, so that the default does not come back).
+gi_toggle() { # list, item
+    gi_new=""
+    for gi_i in $GI_ITEMS; do
+        gi_on=false
+        case ",$1," in *",$gi_i,"*) gi_on=true ;; esac
+        [ "$gi_i" = "$2" ] && { [ "$gi_on" = true ] && gi_on=false || gi_on=true; }
+        [ "$gi_on" = true ] && gi_new="${gi_new:+$gi_new,}$gi_i"
+    done
+    echo "${gi_new:-none}"
+}
+
+Menu_Config_GameInfo()
+{
+    if [ ! -f "$ScraperConfigFile" ]; then
+      echo "Error: configuration file not found"
+      read -n 1 -s -r -p "Press A to continue"
+      exit 1
+    fi
+
+    clear
+    echo -e "====================================================\n\n"
+    echo -e "Besides the cover, Screenscraper can get what\nGame Info shows: description, boxes,\nscreenshots, video and manual. They go in\nRoms/<console>/media and gamelist.xml.\n\nVideos and manuals are big: they take time\nand space on the SD card.\n"
+    echo -e "====================================================\n\n\n\n\n\n\n\n\n\n"
+    read -n 1 -s -r -p "Press A to continue"
+
+    while true; do
+        config=$(cat "$ScraperConfigFile")
+        GameInfo=$(echo "$config" | jq -r '.ScreenscraperGameInfo // empty')
+        [ -n "$GameInfo" ] || GameInfo=$GI_DEFAULT
+
+        list=""
+        for item in $GI_ITEMS; do
+            case ",$GameInfo," in *",$item,"*) state="On" ;; *) state="Off" ;; esac
+            list="$list$(gi_label "$item"): $state\n"
+        done
+        clear
+        Mychoice=$( echo -e "${list}Back to Configuration Menu" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "  --== GAME INFO MEDIA ==--" -b "A: switch on or off")
+
+        picked=""
+        for item in $GI_ITEMS; do
+            case "$Mychoice" in "$(gi_label "$item"):"*) picked=$item ;; esac
+        done
+        [ -n "$picked" ] || break
+
+        GameInfo=$(gi_toggle "$GameInfo" "$picked")
+        config=$(echo "$config" | jq --arg GameInfo "$GameInfo" '.ScreenscraperGameInfo = $GameInfo')
+        echo "$config" > "$ScraperConfigFile"
+        sync
+    done
+    Menu_Config
 }
 
 
@@ -590,7 +666,7 @@ Menu_Main ()
 {
 clear
 Option1="Scrape all $(basename "$CurrentSystem") roms"
-[ -f "$romimage" ] && Option2="" || Option2="Scrape current rom: $romname"
+Option2="Scrape current rom: $romname"
 [ -f "$romimage" ] && Option3="Delete cover: $romNameNoExtension.png" || Option3=""
 Option4="Configuration"
 Option5="Exit"

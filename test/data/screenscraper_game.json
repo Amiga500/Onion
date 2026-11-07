@@ -1,0 +1,8 @@
+{"header":{},"response":{"jeu":{"id":"1234","noms":[{"region":"jp","text":"Seiken Densetsu 3"},{"region":"us","text":"Trials of Mana"},{"region":"wor","text":"Trials of Mana (wor)"}],
+"synopsis":[{"langue":"fr","text":"Texte français"},{"langue":"en","text":"Three heroes & a <mana> \"tree\"\nsecond line"}],
+"genres":[{"id":"1","noms":[{"langue":"fr","text":"Action"},{"langue":"en","text":"Action RPG"}]},{"id":"2","noms":[{"langue":"fr","text":"Aventure"}]}],
+"note":{"text":"17"},"dates":[{"region":"jp","text":"1995-09-30"},{"region":"us","text":"2020"}],
+"developpeur":{"text":"Square"},"editeur":{"text":"Square Enix"},"joueurs":{"text":"1-3"},
+"medias":[{"type":"box-2D","region":"jp","url":"https://x/box2d_jp?a=1"},{"type":"box-2D","region":"us","url":"https://x/box2d_us?a=1"},
+{"type":"box-2D-back","region":"eu","url":"https://x/back_eu?a=1"},{"type":"ss","region":"wor","url":"https://x/ss?a=1"},{"type":"sstitle","url":"https://x/title?a=1"},
+{"type":"video-normalized","url":"https://x/video?a=1"},{"type":"manuel","region":"us","url":"https://x/manual?a=1"}]}}}
