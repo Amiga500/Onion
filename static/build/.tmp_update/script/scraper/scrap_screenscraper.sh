@@ -296,8 +296,10 @@ gi_missing() {
             grep -qxF "$gi_item $gi_rel" "$gi_root/media/.gameinfo_none" && continue
         case "$gi_item" in
             desc)
+                # An entry already there, ours or another scraper's ("./" or not).
                 [ -f "$gi_root/gamelist.xml" ] &&
-                    grep -qF "<path>./$(gi_xml "$gi_rel")</path>" "$gi_root/gamelist.xml" && continue ;;
+                    grep -qF -e "<path>./$(gi_xml "$gi_rel")</path>" -e "<path>$(gi_xml "$gi_rel")</path>" \
+                        "$gi_root/gamelist.xml" && continue ;;
             box2dfront | box2dback | box3d | screenshot)
                 [ -f "$gi_root/media/$gi_item/$gi_name.png" ] && continue ;;
             video)
@@ -393,8 +395,11 @@ gi_entry() {
          def tag(n; v): if (v | tostring | length) > 0
              then "    <\(n)>\(v | tostring | @html)</\(n)>\n" else "" end;
          (byregion($j.dates) | tostring) as $date |
-         (if ($date | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}")) then ($date[0:4] + $date[5:7] + $date[8:10] + "T000000")
-          elif ($date | test("^[0-9]{4}$")) then ($date + "0101T000000")
+         def digits: (explode | length > 0) and (explode | all(. >= 48 and . <= 57));
+         (if ($date | length) >= 10 and ($date[4:5] == "-") and ($date[7:8] == "-")
+             and ($date[0:4] | digits) and ($date[5:7] | digits) and ($date[8:10] | digits)
+          then ($date[0:4] + $date[5:7] + $date[8:10] + "T000000")
+          elif ($date | length) == 4 and ($date | digits) then ($date + "0101T000000")
           else "" end) as $released |
          ((($j.note.text // "") | tostring | tonumber? // null) as $n |
           if $n == null then "" else ($n * 5 | floor) / 100 end) as $rating |
