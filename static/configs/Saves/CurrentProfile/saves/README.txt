@@ -9,6 +9,7 @@ DOS             DOSBox
 FAIRCHILD       FreeChaF
 FC              FCEUmm
 FDS             FCEUmm
+GAMETANK        GameTank
 GB              Gambatte
 GBA             gpSP
 GBC             Gambatte
