@@ -38,6 +38,7 @@ static TTF_Font *font_tiny = NULL;
 static bool show_axp_menu = false;
 static bool axp_confirm_calib = false;
 static bool axp_confirm_btest = false;
+static bool axp_confirm_cap = false; // saving a capacity while the battery is still charging
 enum {
     AXP_MENU_CAPACITY = 0,
     AXP_MENU_VOFF,
@@ -76,6 +77,8 @@ typedef struct {
     bool cal_en;     // REG B8H bit 5: capacity correction function enabled (persistent switch)
     bool cal_active; // REG B8H bit 4: capacity correction currently in progress
     bool pct_valid;  // REG B9H bit 7: battery percentage correctly calculated
+    bool cap_set;    // REG E0H/E1H holds a capacity (bit 15 set, value > 0); factory default 0
+    bool cc_valid;   // REG E5H bit 7 with a capacity set; clear on a fresh PMIC (E5H then reads 100)
     int voff_code;   // REG 31H bits 2-0: auto power-off voltage code, -1 if unknown
 } axp_telemetry_t;
 
@@ -1069,8 +1072,13 @@ static bool axp_poll_data(void)
         axp_status.cc_mah = (int)(raw_cc * 1.456 + 0.5);
     }
 
+    // Measured on a Mini Plus with a factory-reset PMIC (battery unplugged): E0H-E3H read 0 and
+    // E5H reads 0x64 with bit 7 clear. Saving a capacity sets E0H bit 7, and the PMIC then seeds
+    // the counter by itself and sets E5H bit 7.
+    axp_status.cap_set = e01 >= 0 && (e01 & 0x8000) && (e01 & 0x7FFF) > 0;
     axp_status.ocv_pct = e4 >= 0 ? (e4 & 0x7F) : 0;
     axp_status.cc_pct = e5 >= 0 ? (e5 & 0x7F) : 0;
+    axp_status.cc_valid = axp_status.cap_set && e5 >= 0 && ((e5 >> 7) & 1);
 
     check_and_clear_lowbat_flag(axp_status.battery_pct, axp_status.is_charging);
 
@@ -1574,6 +1582,16 @@ static void drawKeyValueLine(const char *key, const char *val, TTF_Font *font, S
     renderTextAlignRight(val, font, val_col, &(SDL_Rect){x + w, y, 120, 20});
 }
 
+static void axp_save_capacity(Uint32 now)
+{
+    if (axp_set_capacity(axp_edit_capacity))
+        snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Saved capacity: %d mAh", axp_edit_capacity);
+    else
+        snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Failed to save capacity");
+    axp_feedback_until = now + 3000;
+    axp_poll_data();
+}
+
 static void renderAxpMenu(void)
 {
     dimScreen(240);
@@ -1654,31 +1672,57 @@ static void renderAxpMenu(void)
         snprintf(p_str, sizeof(p_str), "%d%%", axp_status.battery_pct);
     else
         snprintf(p_str, sizeof(p_str), "%d%% (est.)", axp_status.battery_pct);
-    snprintf(rem_str, sizeof(rem_str), "%d mAh", axp_status.cc_mah);
-    snprintf(cap_str, sizeof(cap_str), "%d mAh", axp_status.capacity_mah);
+    // No capacity in the PMIC (new console, battery unplugged): both read 0, which looks broken.
+    // A counter above the capacity happens when the capacity was saved while charging (the PMIC
+    // seeds the counter from the inflated voltage and never trims it back); syncing at 100% fixes it.
+    bool cc_over = axp_status.cap_set && axp_status.cc_mah > axp_status.capacity_mah + 50;
+    if (axp_status.cap_set) {
+        snprintf(rem_str, sizeof(rem_str), "%d mAh", axp_status.cc_mah);
+        snprintf(cap_str, sizeof(cap_str), "%d mAh", axp_status.capacity_mah);
+    }
+    else {
+        snprintf(rem_str, sizeof(rem_str), "Not set");
+        snprintf(cap_str, sizeof(cap_str), "Not set");
+    }
 
     TTF_Font *tbl_font = font_Arkhip ? font_Arkhip : font_small;
     drawKeyValueLine("Battery Voltage:", v_str, tbl_font, col_lbl, col_val, lx + 12, 92 + 0 * 34, card_w - 24);
     drawKeyValueLine("Power Draw:", c_str, tbl_font, col_lbl, (axp_status.is_charging && axp_status.current_ma > 0) ? col_green : col_val, lx + 12, 92 + 1 * 34, card_w - 24);
     drawKeyValueLine("Battery Level:", p_str, tbl_font, col_lbl, col_val, lx + 12, 92 + 2 * 34, card_w - 24);
-    drawKeyValueLine("Energy Remaining:", rem_str, tbl_font, col_lbl, col_val, lx + 12, 92 + 3 * 34, card_w - 24);
+    drawKeyValueLine("Energy Remaining:", rem_str, tbl_font, col_lbl, !axp_status.cap_set ? col_sub : cc_over ? col_warn
+                                                                                                              : col_val,
+                     lx + 12, 92 + 3 * 34, card_w - 24);
     drawKeyValueLine("Total Capacity:", cap_str, tbl_font, col_lbl, col_sub, lx + 12, 92 + 4 * 34, card_w - 24);
 
     char ocv_str[32], cc_str[32];
     snprintf(ocv_str, sizeof(ocv_str), "%d%%", axp_status.ocv_pct);
-    snprintf(cc_str, sizeof(cc_str), "%d%%", axp_status.cc_pct);
+    if (axp_status.cc_valid)
+        snprintf(cc_str, sizeof(cc_str), "%d%%", axp_status.cc_pct);
+    else
+        snprintf(cc_str, sizeof(cc_str), "--");
     const char *gauge_str = (axp_status.gauge_en && axp_status.cc_en) ? "Active" : "Disabled";
     const char *cal_mode_str = axp_status.cal_en ? "Enabled" : "Off";
     const char *cal_stat_str = axp_status.cal_active ? "In progress" : "Idle";
 
     drawKeyValueLine("Voltage (OCV):", ocv_str, tbl_font, col_lbl, col_val, rx + 12, 92 + 0 * 34, card_w - 24);
-    drawKeyValueLine("Coulomb Ctr (CC):", cc_str, tbl_font, col_lbl, col_val, rx + 12, 92 + 1 * 34, card_w - 24);
+    drawKeyValueLine("Coulomb Ctr (CC):", cc_str, tbl_font, col_lbl, axp_status.cc_valid ? col_val : col_sub, rx + 12, 92 + 1 * 34, card_w - 24);
     drawKeyValueLine("Fuel Gauge:", gauge_str, tbl_font, col_lbl, col_green, rx + 12, 92 + 2 * 34, card_w - 24);
     drawKeyValueLine("Cap. Learning:", cal_mode_str, tbl_font, col_lbl, axp_status.cal_en ? col_green : col_sub, rx + 12, 92 + 3 * 34, card_w - 24);
     drawKeyValueLine("Correction:", cal_stat_str, tbl_font, col_lbl, axp_status.cal_active ? col_cyan : col_sub, rx + 12, 92 + 4 * 34, card_w - 24);
 
     // Section 2: Settings & Actions (5 rows, 30 px pitch, fits above the footer at y=444)
     renderText("BATTERY SETTINGS & ACTIONS", font_Arkhip, col_header, &(SDL_Rect){25, 270, 300, 18});
+    // What to do next, on the right of the section header
+    const char *next_hint = NULL;
+    if (!axp_status.cap_set)
+        // Full means a finished charge, not just 99% after unplugging:
+        // without a capacity the level is voltage-based and drops at once under load.
+        next_hint = (!axp_status.is_charging && axp_status.battery_pct >= 100) ? "Battery full: save capacity now"
+                                                                               : "Charge to 100%, then save capacity";
+    else if (cc_over)
+        next_hint = axp_status.is_charging ? "Counter high: sync when charging ends" : "Counter high: sync at 100%";
+    if (next_hint)
+        renderTextAlignRight(next_hint, font_small ? font_small : font_Arkhip, col_warn, &(SDL_Rect){615, 273, 300, 16});
 
     const int row_y0 = 288, row_pitch = 30, row_h = 28, txt_dy = 4;
     for (int i = 0; i < AXP_MENU_COUNT; i++) {
@@ -1755,7 +1799,7 @@ static void renderAxpMenu(void)
         drawFrame2px(mx, my, mw, mh, m_border);
 
         drawCenteredText("BATTERY CALIBRATION", font_title ? font_title : font_Arkhip, col_val, mx, my + 18, mw);
-        drawCenteredText("Hardware PMIC battery capacity learning (REG B8H bit 5)", font_small ? font_small : font_Arkhip, col_title, mx, my + 44, mw);
+        drawCenteredText("Teaches the PMIC your battery's real capacity", font_small ? font_small : font_Arkhip, col_title, mx, my + 44, mw);
 
         int ib_x = mx + 20, ib_y = my + 72, ib_w = mw - 40, ib_h = 130;
         Uint32 ib_bg = SDL_MapRGB(screen->format, 18, 28, 44);
@@ -1770,15 +1814,19 @@ static void renderAxpMenu(void)
             renderText("Keeping it enabled is safe and recommended.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 92, ib_w - 32, 20});
         }
         else {
-            renderText("1. Enables Coulomb Counter (CC) & capacity learning.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 14, ib_w - 32, 20});
-            renderText("2. Charge to 100% until charge current stops.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 40, ib_w - 32, 20});
-            char step3[80];
+            // The safe order: capacity saved after a finished charge, so the counter starts right.
+            // Correction only runs in the charge after a PMIC power-off at Voff (observed on a Mini Plus).
+            renderText(axp_status.cap_set ? "1. Capacity is set (best saved right after a full charge)."
+                                          : "1. First charge to 100%, then save Battery Capacity.",
+                       font_small ? font_small : font_Arkhip, axp_status.cap_set ? col_val : col_warn, &(SDL_Rect){ib_x + 16, ib_y + 14, ib_w - 32, 20});
+            char step2[80];
             if (axp_status.voff_code >= 0)
-                snprintf(step3, sizeof(step3), "3. Discharge until auto power-off (%.1f V), recharge.", voff_code_to_mv(axp_status.voff_code) / 1000.0);
+                snprintf(step2, sizeof(step2), "2. At ~10%% sleep until it powers off (%.1f V).", voff_code_to_mv(axp_status.voff_code) / 1000.0);
             else
-                snprintf(step3, sizeof(step3), "3. Discharge until auto power-off, then recharge.");
-            renderText(step3, font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 66, ib_w - 32, 20});
-            renderText("4. PMIC updates Total Capacity with learned value.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 92, ib_w - 32, 20});
+                snprintf(step2, sizeof(step2), "2. At ~10%% sleep until it powers off by itself.");
+            renderText(step2, font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 40, ib_w - 32, 20});
+            renderText("3. Charge straight to 100% (Correction: In progress).", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 66, ib_w - 32, 20});
+            renderText("4. The PMIC then saves the learned Total Capacity.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 92, ib_w - 32, 20});
         }
 
         // Two Action Buttons at Modal bottom
@@ -1798,6 +1846,35 @@ static void renderAxpMenu(void)
         Uint32 b2_border = SDL_MapRGB(screen->format, 90, 90, 110);
         drawRectFill(b2_x, btn_y, btn_w, btn_h, b2_bg);
         drawFrame2px(b2_x, btn_y, btn_w, btn_h, b2_border);
+        drawCenteredText("[B] Cancel", font_Arkhip, col_val, b2_x, btn_y + 8, btn_w);
+    }
+
+    // Modal Confirmation Dialog (capacity saved while charging)
+    if (axp_confirm_cap) {
+        dimScreen(190);
+        int mw = 520, mh = 250, mx = 60, my = 115;
+        Uint32 m_bg = SDL_MapRGB(screen->format, 12, 20, 32);
+        Uint32 m_border = SDL_MapRGB(screen->format, 220, 140, 50);
+        drawRectFill(mx, my, mw, mh, m_bg);
+        drawFrame2px(mx, my, mw, mh, m_border);
+
+        drawCenteredText("STILL CHARGING", font_title ? font_title : font_Arkhip, col_val, mx, my + 18, mw);
+
+        int ib_x = mx + 20, ib_y = my + 54, ib_w = mw - 40, ib_h = 108;
+        drawRectFill(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 18, 28, 44));
+        drawFrame1px(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 40, 60, 90));
+        renderText("The PMIC starts its counter from the battery voltage,", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 20});
+        renderText("which reads too high while charging.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 36, ib_w - 32, 20});
+        renderText("Best: let it finish charging, then save.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 60, ib_w - 32, 20});
+        renderText("Saving now? Press 'Set current capacity to 100%' at full.", font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){ib_x + 16, ib_y + 84, ib_w - 32, 20});
+
+        int btn_w = 210, btn_h = 38, btn_y = my + 190;
+        int b1_x = mx + 35, b2_x = mx + mw - 35 - btn_w;
+        drawRectFill(b1_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 70, 50, 25));
+        drawFrame2px(b1_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 220, 140, 50));
+        drawCenteredText("[A] Save anyway", font_Arkhip, col_val, b1_x, btn_y + 8, btn_w);
+        drawRectFill(b2_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 45, 45, 55));
+        drawFrame2px(b2_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 90, 90, 110));
         drawCenteredText("[B] Cancel", font_Arkhip, col_val, b2_x, btn_y + 8, btn_w);
     }
 
@@ -2310,6 +2387,17 @@ int main(int argc, char *argv[])
                         changed = true;
                     }
                 }
+                else if (axp_confirm_cap) {
+                    if (keystate[SW_BTN_B] == PRESSED || keystate[SW_BTN_SELECT] == PRESSED) {
+                        axp_confirm_cap = false;
+                        changed = true;
+                    }
+                    else if (keystate[SW_BTN_A] == PRESSED) {
+                        axp_confirm_cap = false;
+                        axp_save_capacity(now);
+                        changed = true;
+                    }
+                }
                 else if (axp_confirm_btest) {
                     if (keystate[SW_BTN_B] == PRESSED || keystate[SW_BTN_SELECT] == PRESSED) {
                         axp_confirm_btest = false;
@@ -2360,16 +2448,11 @@ int main(int argc, char *argv[])
                             }
                         }
                         else if (keystate[SW_BTN_A] == PRESSED) {
-                            if (axp_set_capacity(axp_edit_capacity)) {
-                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                         "Saved capacity: %d mAh", axp_edit_capacity);
-                            }
-                            else {
-                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                         "Failed to save capacity");
-                            }
-                            axp_feedback_until = now + 3000;
                             axp_poll_data();
+                            if (axp_status.is_charging)
+                                axp_confirm_cap = true; // ask first: the counter would start too high
+                            else
+                                axp_save_capacity(now);
                             changed = true;
                         }
                     }
@@ -2437,6 +2520,7 @@ int main(int argc, char *argv[])
                     show_axp_menu = true;
                     axp_confirm_calib = false;
                     axp_confirm_btest = false;
+                    axp_confirm_cap = false;
                     axp_menu_selected = AXP_MENU_CAPACITY;
                     axp_poll_data();
                     if (axp_status.available && axp_status.capacity_mah >= 1500 && axp_status.capacity_mah <= 4000) {
