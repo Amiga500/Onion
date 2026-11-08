@@ -1,0 +1,13 @@
+{
+"label":"GameTank",
+"icon":"../../Icons/Default/gametank.png",
+"iconsel":"../../Icons/Default/gametank.png",
+"launch":"launch.sh",
+"rompath":"../../Roms/GAMETANK",
+"imgpath":"../../Roms/GAMETANK/Imgs",
+"gamelist":"../../Roms/GAMETANK/miyoogamelist.xml",
+"useswap":1,
+"shortname":0,
+"hidebios":1,
+"extlist":"gtr|zip|7z"
+}
