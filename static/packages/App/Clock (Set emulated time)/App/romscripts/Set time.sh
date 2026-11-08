@@ -9,3 +9,7 @@ HOME=/mnt/SDCARD
 ./bin/clock
 
 date +%s > $savedir/currentTime.txt
+
+# Non-zero: GLO goes back to the game list (as after Scraper). Zero would
+# start the game the menu was opened on.
+exit 1

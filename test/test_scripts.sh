@@ -1462,8 +1462,10 @@ for script in favorites/favfix.sh:favfix favorites/favsort.sh:favsort \
     check "${script%%:*}: back to the list (status 1, was 0)" test "$status" -eq 1
     check "${script%%:*}: still runs tools $args" test "$(cat "$TMP/tools.log" 2> /dev/null)" = "$args"
 done
-# The import and rename scripts of the Ports and ScummVM packages too.
+# The import and rename scripts of the Ports and ScummVM packages too, and
+# Set time of the Clock app (issue #334: B in the clock started the game).
 for file in "$ROOT/static/packages/Emu/Ports Collection/Emu/PORTS/romscripts/Import games (Ports).sh" \
+    "$ROOT/static/packages/App/Clock (Set emulated time)/App/romscripts/Set time.sh" \
     "$ROOT/static/packages/Emu/SCUMM (ScummVM)/Emu/SCUMMVM/romscripts/Import games (ScummVM).sh" \
     "$ROOT/static/packages/Emu/SCUMM (ScummVM)/Emu/SCUMMVM/romscripts/Change names (ScummVM).sh" \
     "$ROOT/static/packages/RApp/SCUMM (ScummVM standalone)/RApp/scummvm/scripts/romscripts/Import games (ScummVM).sh" \
@@ -1474,7 +1476,7 @@ end
 
 begin glo_script_that_starts_the_game_keeps_recents
 # GLO takes the selected game out of Recents when it opens. A script that
-# returns 0 starts that game (Set time, Netplay): the entry goes back, as
+# returns 0 starts that game (Netplay): the entry goes back, as
 # Reset game does, so the GameSwitcher title matches the game. A script that
 # returns 1 leaves it out; one that wrote another command (Random game)
 # handles its own entry.
