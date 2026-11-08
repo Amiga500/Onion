@@ -32,6 +32,7 @@ For convenience, a list of Rom folder names for all *fully supported* cores is d
 | Fairchild Channel F           | `FAIRCHILD`                 |
 | Famicom Disk System           | `FDS`                       |
 | Game & Watch                  | `GW`                        |
+| GameTank                      | `GAMETANK`                  |
 | GCE Vectrex                   | `VECTREX`                   |
 | Magnavox Odyssey 2            | `ODYSSEY`                   |
 | Mattel Intellivision          | `INTELLIVISION`             |
