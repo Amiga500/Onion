@@ -90,11 +90,11 @@ void free_resources(void)
     SDL_Quit();
 }
 
-void secondsToHoursMinutes(int seconds, char *output)
+void secondsToHoursMinutes(int seconds, char *output, size_t size)
 {
-    int hours = seconds / 3600;
-    int minutes = (seconds % 3600) / 60;
-    sprintf(output, "%dh%02d", hours, minutes);
+    if (seconds < 0) // corrupt record: "-1h-30" overflowed the [10] labels
+        seconds = 0;
+    snprintf(output, size, "%dh%02d", seconds / 3600, (seconds % 3600) / 60);
 }
 
 void drawLine(int x1, int y1, int x2, int y2, Uint32 color)
@@ -145,6 +145,8 @@ void drawLine(int x1, int y1, int x2, int y2, Uint32 color)
 int _renderText(const char *text, TTF_Font *font, SDL_Color color, SDL_Rect *rect, bool right_align)
 {
     int text_width = 0;
+    if (font == NULL) // res/Arkhip_font.ttf missing: TTF would get NULL
+        return 0;
     SDL_Surface *textSurface = TTF_RenderUTF8_Blended(font, text, color);
     if (textSurface != NULL) {
         text_width = textSurface->w;
@@ -204,10 +206,11 @@ void switch_zoom_profile(int segment_duration)
 
 void render_waiting_screen()
 {
+    // No sleep after the flip (was sleep(1.5), i.e. 1 s): the screen stays
+    // up while compute_graph() reads the database.
     safeBlitSurface(waiting_screen, NULL, screen, NULL);
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
-    sleep(1.5);
 }
 
 int battery_to_pixel(int battery_perc)
@@ -237,7 +240,7 @@ void compute_graph(void)
     int previous_index = graph_max_size - 1;
     bool is_estimation_computed = false;
 
-    secondsToHoursMinutes(get_best_session_time(), session_best);
+    secondsToHoursMinutes(get_best_session_time(), session_best, sizeof(session_best));
 
     if (open_battery_log_db() == 1) {
         if (bat_log_db != NULL) {
@@ -250,14 +253,20 @@ void compute_graph(void)
                 bool b_quit = false;
 
                 while ((sqlite3_step(stmt) == SQLITE_ROW) && (!b_quit)) {
-
                     int bat_perc = sqlite3_column_int(stmt, 2);
                     int duration = sqlite3_column_int(stmt, 3);
                     bool is_charging = sqlite3_column_int(stmt, 4);
 
-                    if (total_duration == 0) {
-                        sprintf(current_percentage, "%d%%", bat_perc);
-                    }
+                    // Clamped before any use: a corrupt record overflowed
+                    // current_percentage[10], and below -24 %
+                    // battery_to_pixel() returned -1, a row off the screen.
+                    if (bat_perc > 100)
+                        bat_perc = 100;
+                    else if (bat_perc < 0)
+                        bat_perc = 0;
+
+                    if (total_duration == 0)
+                        snprintf(current_percentage, sizeof(current_percentage), "%d%%", bat_perc);
 
                     current_index = (graph_max_size - 1) - duration_to_pixel(total_duration);
 
@@ -269,45 +278,35 @@ void compute_graph(void)
                     }
 
                     graphic[current_index].is_charging = is_charging;
-
-                    if (bat_perc > 100)
-                        bat_perc = 100;
-
-                    int current_value = battery_to_pixel(bat_perc);
-
-                    graphic[current_index].pixel_height = current_value;
+                    graphic[current_index].pixel_height = battery_to_pixel(bat_perc);
 
                     int segment = previous_index - current_index;
-                    if (segment > 1) {
-                        for (int i = 1; i < segment; i++) {
-                            //  graphic[current_index+i].pixel_height = graphic[current_index].pixel_height + (int)(((graphic[previous_index].pixel_height-current_value)/segment-1)*i);
-                            graphic[current_index + i].pixel_height = graphic[previous_index].pixel_height;
-                            graphic[current_index + i].is_charging = graphic[previous_index].is_charging;
-                        }
+                    for (int i = 1; i < segment; i++) {
+                        graphic[current_index + i].pixel_height = graphic[previous_index].pixel_height;
+                        graphic[current_index + i].is_charging = graphic[previous_index].is_charging;
                     }
 
-                    if ((is_charging) && (!is_estimation_computed)) {
-                        secondsToHoursMinutes(total_duration, session_duration);
+                    if (is_charging && !is_estimation_computed) {
+                        secondsToHoursMinutes(total_duration, session_duration, sizeof(session_duration));
                         if (previous_index < (graph_max_size - duration_to_pixel(GRAPH_MIN_SESSION_FOR_ESTIMATION))) {
                             float slope = (float)(graphic[graph_max_size - 1].pixel_height - graphic[previous_index].pixel_height) / (float)(graph_max_size - 1 - previous_index);
 
                             if (slope < 0) {
-
                                 estimation_line_size = (int)-(graphic[graph_max_size - 1].pixel_height - GRAPH_DISPLAY_START_Y) / slope;
-
                                 int estimated_playtime = (int)(estimation_line_size)*GRAPH_DISPLAY_DURATION / GRAPH_DISPLAY_SIZE_X;
+                                int room_to_make = estimation_line_size + GRAPH_ESTIMATED_LINE_GAP;
+                                bool plausible = estimated_playtime < GRAPH_MAX_PLAUSIBLE_ESTIMATION;
 
-                                if (estimated_playtime < GRAPH_MAX_PLAUSIBLE_ESTIMATION) {
-                                    secondsToHoursMinutes(estimated_playtime, session_left);
+                                if (plausible)
+                                    secondsToHoursMinutes(estimated_playtime, session_left, sizeof(session_left));
+
+                                if (plausible && current_index - room_to_make >= 0) {
                                     // shift of the existing logs to make room for the estimation line
-                                    int room_to_make = estimation_line_size + GRAPH_ESTIMATED_LINE_GAP;
-                                    if (current_index - room_to_make >= 0) {
-                                        for (int i = current_index; i < graph_max_size; i++) {
-                                            graphic[i - room_to_make].pixel_height = graphic[i].pixel_height;
-                                            graphic[i - room_to_make].is_charging = graphic[i].is_charging;
-                                            graphic[i].pixel_height = 0;
-                                            graphic[i].is_charging = false;
-                                        }
+                                    for (int i = current_index; i < graph_max_size; i++) {
+                                        graphic[i - room_to_make].pixel_height = graphic[i].pixel_height;
+                                        graphic[i - room_to_make].is_charging = graphic[i].is_charging;
+                                        graphic[i].pixel_height = 0;
+                                        graphic[i].is_charging = false;
                                     }
                                     total_duration += estimated_playtime + (int)(GRAPH_ESTIMATED_LINE_GAP)*GRAPH_DISPLAY_DURATION / GRAPH_DISPLAY_SIZE_X;
                                     current_index -= room_to_make;
@@ -324,12 +323,13 @@ void compute_graph(void)
                                     }
                                 }
                                 else {
+                                    // Implausible, or no room left for the line. With no
+                                    // room, the indexes used to be moved below 0 anyway
+                                    // and the line was drawn from graphic[-n].
                                     estimation_line_size = 0;
-                                    estimated_playtime = 0;
                                 }
                             }
                         }
-
                         is_estimation_computed = true;
                     }
 
@@ -419,6 +419,10 @@ void renderPage()
 
             x = GRAPH_DISPLAY_START_X + (int)(i / zoom_level);
             y = graphic[i + current_index].pixel_height;
+            // A column without records keeps pixel_height 0: row 480 - y was then
+            // 480, one past the last row of `screen`, written for every empty column.
+            if (y < GRAPH_DISPLAY_START_Y)
+                continue;
 
             bool is_charging = graphic[i + current_index].is_charging;
             bool is_estimated = graphic[i + current_index].is_estimated;
@@ -438,7 +442,10 @@ void renderPage()
             if (x < (GRAPH_DISPLAY_START_X + GRAPH_DISPLAY_SIZE_X)) {
                 if (half_line_width >= 0) {
                     for (int k = -half_line_width; k <= half_line_width; k++) {
-                        index = (480 - y + k) * screen->pitch + x * screen->format->BytesPerPixel;
+                        int row = 480 - y + k;
+                        if (row < 0 || row >= screen->h)
+                            continue;
+                        index = row * screen->pitch + x * screen->format->BytesPerPixel;
                         *((Uint32 *)((Uint8 *)screen->pixels + index)) = pixel_color;
                     }
                 }
