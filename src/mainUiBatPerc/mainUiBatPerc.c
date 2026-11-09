@@ -25,8 +25,10 @@ void restoreRegularDisplay(void)
 {
     print_debug(":: restoreRegularDisplay");
 
-    char icon_path[STR_MAX + 20],
-        icon_backup[STR_MAX],
+    // STR_MAX * 2: theme_getImagePath() writes up to that much (the theme
+    // path and skin/<name>.png), more than these held.
+    char icon_path[STR_MAX * 2],
+        icon_backup[STR_MAX * 2],
         theme_path[STR_MAX];
     theme_getPath(theme_path);
 

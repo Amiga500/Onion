@@ -45,7 +45,7 @@ char *execute_command(const char *command)
 
 int main()
 {
-    char serial[22] = "";
+    char serial[64] = ""; // [22] held exactly 3 lines of "0x" + 4 digits + newline
     const char *commands[] = {
         "/config/riu_r 20 18 | awk 'NR==2'",
         "/config/riu_r 20 17 | awk 'NR==2'",
@@ -54,7 +54,7 @@ int main()
     for (int i = 0; i < 3; i++) {
         char *output = execute_command(commands[i]);
         if (output != NULL) {
-            strcat(serial, output);
+            strncat(serial, output, sizeof(serial) - strlen(serial) - 1);
             free(output);
         }
         else {

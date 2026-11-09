@@ -15,6 +15,10 @@ int main(int argc, char *argv[])
     int key = atoi(argv[1]);
 
     FILE *kbd = fopen("/dev/input/event0", "r");
+    // No input device, or a key past the bitmap: not pressed (fileno(NULL)
+    // crashed, a large key read past key_map).
+    if (kbd == NULL || key < 0 || key > KEY_MAX)
+        return 1;
 
     char key_map[KEY_MAX / 8 + 1];
     memset(key_map, 0, sizeof(key_map));

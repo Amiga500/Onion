@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 {
     struct input_event events[100];
 
-    if (argc < 3 || argc % 2 == 0) {
+    if (argc < 3 || argc % 2 == 0 || (argc - 1) / 2 > 100) { // events[100]: more overflowed it
         printf("Usage: sendkeys [[CODE] [VALUE], ...]\nValues: 0 - released, 1 "
                "- pressed, 2 - repeating\n");
         return 1;
@@ -34,6 +34,5 @@ int main(int argc, char *argv[])
         write(input_fd, &events[j], sizeof(events[j]));
     }
     close(input_fd);
-    sync();
     return 0;
 }

@@ -94,7 +94,7 @@ main() {
         HAS_AXP=1
     fi
 
-    SERIAL_NUMBER=$(read_uuid)
+    SERIAL_NUMBER=$device_uuid # read_uuid already ran when this script loaded
     echo -n "$SERIAL_NUMBER" > /tmp/deviceSN
 
     touch /tmp/is_booting

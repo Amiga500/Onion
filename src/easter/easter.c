@@ -30,12 +30,16 @@ SDL_Surface *theme_textboxSurface_High_Memory(const char *message,
     strcpy(s, message);
 
     token = strtok(s, delim);
-    while (token != NULL) {
-        lines[line_count] = TTF_RenderUTF8_Blended(font, token, fg);
-        SDL_SetAlpha(lines[line_count], 0, 0); /* important */
-        if (lines[line_count]->w > line_width)
-            line_width = lines[line_count]->w;
-        line_count++;
+    // At most MAXTEXTLINES lines (more were written past lines[]); a line TTF
+    // could not render is skipped (it was used as NULL).
+    while (token != NULL && line_count < MAXTEXTLINES) {
+        SDL_Surface *line = TTF_RenderUTF8_Blended(font, token, fg);
+        if (line != NULL) {
+            SDL_SetAlpha(line, 0, 0); /* important */
+            if (line->w > line_width)
+                line_width = line->w;
+            lines[line_count++] = line;
+        }
         token = strtok(NULL, delim);
     }
 
@@ -165,36 +169,27 @@ int main(int argc, char *argv[])
             sprintf(gText, "%s", "Onion ");
             charIndex = 6;
 
-            FILE *file =
-                fopen("/mnt/SDCARD/.tmp_update/onionVersion/version.txt", "r");
-            char c;
-            c = getc(file);
-            while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
-
-                gText[charIndex] = c;
-
-                charIndex++;
-                c = getc(file);
+            // Bounded reads (with a long acknowledgments.txt the text and its
+            // terminator went past gText), each file closed, a missing one skipped
+            // (getc(NULL) crashed).
+            const char *text_files[] = {
+                "/mnt/SDCARD/.tmp_update/onionVersion/version.txt",
+                "/mnt/SDCARD/.tmp_update/onionVersion/acknowledgments.txt"};
+            for (int f = 0; f < 2; f++) {
+                FILE *file = fopen(text_files[f], "r");
+                int c;
+                while (file != NULL && charIndex < MAXCHARACTERSARRAY - 4 &&
+                       (c = getc(file)) != EOF)
+                    gText[charIndex++] = (char)c;
+                if (file != NULL)
+                    fclose(file);
+                if (f == 0) { // a blank line between the version and the thanks
+                    gText[charIndex++] = '\n';
+                    gText[charIndex++] = ' ';
+                    gText[charIndex++] = '\n';
+                }
             }
-            gText[charIndex] = '\n';
-            charIndex++;
-            gText[charIndex] = ' ';
-            charIndex++;
-            gText[charIndex] = '\n';
-            charIndex++;
-
-            file = fopen(
-                "/mnt/SDCARD/.tmp_update/onionVersion/acknowledgments.txt",
-                "r");
-            c = getc(file);
-            while ((!feof(file)) && (charIndex < MAXCHARACTERSARRAY)) {
-                gText[charIndex] = c;
-                charIndex++;
-                c = getc(file);
-            }
-
             gText[charIndex] = '\0';
-            fclose(file);
 
             TTF_Font *font35 =
                 TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 35);
@@ -206,7 +201,7 @@ int main(int argc, char *argv[])
             int moduloFrame;
             SDL_PixelFormat *fmt = screen->format;
             while (loop) {
-                moduloFrame = cptFrames % moduloFrame;
+                moduloFrame = cptFrames % 3; // was % moduloFrame, never set before (a division by garbage, or 0)
 
                 switch (animationStep) {
                 case 1:
