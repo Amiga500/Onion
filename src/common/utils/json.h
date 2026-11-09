@@ -37,7 +37,9 @@ bool json_getBool(cJSON *object, const char *key, bool *dest)
 {
     cJSON *json_object = cJSON_GetObjectItem(object, key);
     if (json_object) {
-        *dest = cJSON_IsTrue(json_object);
+        // A number counts too (1 / 0): a theme with "visible": 1 got false.
+        *dest = cJSON_IsNumber(json_object) ? json_object->valuedouble != 0
+                                            : cJSON_IsTrue(json_object);
         return true;
     }
     return false;
@@ -46,8 +48,14 @@ bool json_getBool(cJSON *object, const char *key, bool *dest)
 bool json_getInt(cJSON *object, const char *key, int *dest)
 {
     cJSON *json_object = cJSON_GetObjectItem(object, key);
-    if (json_object) {
-        *dest = (int)cJSON_GetNumberValue(json_object);
+    // Numbers (and true / false as 1 / 0) only: anything else was read as
+    // NaN, and (int)NaN is undefined (0 on the device), with true returned.
+    if (cJSON_IsNumber(json_object)) {
+        *dest = json_object->valueint; // saturated to the int range by cJSON
+        return true;
+    }
+    if (cJSON_IsBool(json_object)) {
+        *dest = cJSON_IsTrue(json_object);
         return true;
     }
     return false;
@@ -56,8 +64,8 @@ bool json_getInt(cJSON *object, const char *key, int *dest)
 bool json_getDouble(cJSON *object, const char *key, double *dest)
 {
     cJSON *json_object = cJSON_GetObjectItem(object, key);
-    if (json_object) {
-        *dest = cJSON_GetNumberValue(json_object);
+    if (cJSON_IsNumber(json_object)) { // anything else gave NaN
+        *dest = json_object->valuedouble;
         return true;
     }
     return false;

@@ -76,7 +76,10 @@ void system_clock_save(void)
     if (clock_paused)
         return;
     system_clock_get();
-    file_put_sync(fp, CLOCK_SAVE_FILE, "%ld", mktime(&clk));
+    // The time itself: mktime() reads the UTC fields gmtime() filled in as
+    // local time, so with a time zone other than UTC the saved time was off
+    // by its offset (and system_clock_load() then set it).
+    file_put_sync(fp, CLOCK_SAVE_FILE, "%ld", (long)time(NULL));
 }
 
 //

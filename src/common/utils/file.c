@@ -45,7 +45,9 @@ bool is_dir(const char *file_path)
 bool file_isModified(const char *path, time_t *old_mtime)
 {
     struct stat64 file_stat;
-    if (stat64(path, &file_stat) == 0 && file_stat.st_mtime > *old_mtime) {
+    // != rather than >: after the clock went back (a clock 4 h ahead set
+    // right, a time sync) every change was ignored until it caught up.
+    if (stat64(path, &file_stat) == 0 && file_stat.st_mtime != *old_mtime) {
         *old_mtime = file_stat.st_mtime;
         return true;
     }

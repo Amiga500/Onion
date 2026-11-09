@@ -2,7 +2,7 @@
  * @file test_history_recent.c
  * @brief Contract tests for history_getRecentPath against src/common/system/state.h
  *
- * Includes the production header (stubs malloc only). ROM paths in fixtures
+ * Includes the production header. ROM paths in fixtures
  * are real temp files because production calls exists() and skips missing ROMs.
  *
  * Build and run: make -f Makefile.unit test_history_recent
@@ -17,17 +17,6 @@
 #include <sys/ioctl.h>
 #include <sys/time.h>
 
-/* Intercept malloc used by the production parser in this translation unit.
- * libc fopen/stat keep using the real allocator. */
-static int g_fail_malloc = 0;
-static void *(*const onion_real_malloc)(size_t) = malloc;
-static void *onion_test_malloc(size_t n)
-{
-    if (g_fail_malloc)
-        return NULL;
-    return onion_real_malloc(n);
-}
-#define malloc(n) onion_test_malloc(n)
 
 #include "system/state.h"
 
@@ -168,18 +157,26 @@ TEST(prod_malformed_json_then_game) {
     cleanup_fixtures();
 }
 
-/* malloc failure on a line continues rather than crashing; no valid path. */
-TEST(prod_malloc_failure_continues) {
-    char line_game[512];
+/* A recent entry longer than the old 768-byte fgets() buffer, with a long
+ * imgpath between "type" and "rompath" (the field order JsonGameEntry_toJson
+ * writes): the two fell into different pieces and the game was skipped.
+ * getline() reads the line whole. */
+TEST(prod_long_line_found) {
+    char imgpath[1001];
+    memset(imgpath, 'i', sizeof(imgpath) - 1);
+    imgpath[sizeof(imgpath) - 1] = '\0';
+    char line[1600];
+    snprintf(line, sizeof(line),
+             "{\"label\":\"Game\",\"launch\":\"/mnt/SDCARD/Emu/GBA/launch.sh\","
+             "\"type\":5,\"imgpath\":\"%s\",\"rompath\":\"%s\"}",
+             imgpath, kRomA);
     write_file(kRomA, "rom");
-    write_ndjson(kRecent, game_line(line_game, sizeof(line_game), 5, kRomA), NULL);
+    write_ndjson(kRecent, line, NULL);
 
-    g_fail_malloc = 1;
     char rom_path[STR_MAX] = {0};
     char *result = history_getRecentPathFromPath(kRecent, rom_path);
-    g_fail_malloc = 0;
-
-    ASSERT_NULL(result);
+    ASSERT_NOT_NULL(result);
+    ASSERT_STREQ(result, kRomA);
     cleanup_fixtures();
 }
 
@@ -261,7 +258,7 @@ int main(void)
     RUN_TEST(prod_type17_game);
     RUN_TEST(prod_strip_colon_search_panel);
     RUN_TEST(prod_malformed_json_then_game);
-    RUN_TEST(prod_malloc_failure_continues);
+    RUN_TEST(prod_long_line_found);
     RUN_TEST(prod_missing_recent_file);
     RUN_TEST(prod_empty_recent_file);
     RUN_TEST(prod_top_only_app_on_top_returns_null);

@@ -16,7 +16,9 @@
 #define CONFIG_PATH "/mnt/SDCARD/.tmp_update/config/"
 #endif
 #define CONFIG_INT "%d"
-#define CONFIG_STR "%[^\n]"
+// STR_MAX - 1: callers read into STR_MAX buffers, which a longer value
+// overflowed without a limit.
+#define CONFIG_STR "%255[^\n]"
 
 bool config_flag_get(const char *key) { return flag_get(CONFIG_PATH, key); }
 

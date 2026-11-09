@@ -270,67 +270,50 @@ char *getMiyooRecentFilePath()
 //
 static char *_history_getRecentPath(const char *recent_path, char *rom_path, bool top_only)
 {
-    FILE *file;
-    char line[STR_MAX * 3];
-
-    file = fopen(recent_path, "r");
-
-    if (file == NULL) {
+    FILE *file = fopen(recent_path, "r");
+    if (file == NULL)
         return NULL;
-    }
 
-    while (fgets(line, STR_MAX * 3, file) != NULL) {
-        size_t line_len = strlen(line);
-        char *jsonContent = (char *)malloc(line_len + 1);
-        if (jsonContent == NULL) {
-            continue;
-        }
+    // getline(): whole lines of any length. With fgets() into 768 bytes a
+    // long entry was split, its "rompath" (the last field) landed in a
+    // second piece without "type", and the game was skipped.
+    char *line = NULL;
+    size_t line_cap = 0;
+    char *found = NULL;
+
+    while (getline(&line, &line_cap, file) != -1) {
         char romPathSearch[STR_MAX];
         int type;
 
-        memcpy(jsonContent, line, line_len + 1);
-        const char *typeStr = strstr(jsonContent, "\"type\":");
-        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1) {
-            free(jsonContent);
+        const char *typeStr = strstr(line, "\"type\":");
+        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1)
             continue;
-        }
 
         if ((type != 5) && (type != 17)) {
-            free(jsonContent);
             if (top_only)
                 break;
             continue;
         }
 
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
-        if (rompathStart == NULL) {
-            free(jsonContent);
+        const char *rompathStart = strstr(line, "\"rompath\":\"");
+        const char *rompathEnd = rompathStart != NULL ? strchr(rompathStart + 11, '\"') : NULL;
+        if (rompathEnd == NULL) {
             if (top_only)
                 break;
             continue;
         }
         rompathStart += 11;
-        const char *rompathEnd = strchr(rompathStart, '\"');
-        if (rompathEnd == NULL) {
-            free(jsonContent);
-            if (top_only)
-                break;
-            continue;
-        }
 
         size_t romPathLen = (size_t)(rompathEnd - rompathStart);
         if (romPathLen >= STR_MAX)
             romPathLen = STR_MAX - 1;
-        strncpy(romPathSearch, rompathStart, romPathLen);
+        memcpy(romPathSearch, rompathStart, romPathLen);
         romPathSearch[romPathLen] = '\0';
-
-        free(jsonContent);
 
         // Game launched with the search panel
         char *colonPosition = strchr(romPathSearch, ':');
-        if (colonPosition != NULL) {
+        if (colonPosition != NULL)
             memmove(romPathSearch, colonPosition + 1, strlen(colonPosition + 1) + 1);
-        }
 
         printf_debug("romPathSearch : %s\n", romPathSearch);
 
@@ -342,13 +325,13 @@ static char *_history_getRecentPath(const char *recent_path, char *rom_path, boo
 
         strncpy(rom_path, romPathSearch, STR_MAX - 1);
         rom_path[STR_MAX - 1] = '\0';
-
-        fclose(file);
-        return rom_path;
+        found = rom_path;
+        break;
     }
 
+    free(line);
     fclose(file);
-    return NULL;
+    return found;
 }
 
 char *history_getRecentPathFromPath(const char *recent_path, char *rom_path)
