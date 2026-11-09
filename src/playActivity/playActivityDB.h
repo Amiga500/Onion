@@ -96,7 +96,6 @@ void play_activity_db_open(void)
     if (play_activity_db != NULL)
         return;
 
-    bool play_activity_db_created = is_file(PLAY_ACTIVITY_DB_NEW_FILE);
 
     mkdir("/mnt/SDCARD/Saves/CurrentProfile/play_activity/", 0777);
 
@@ -106,18 +105,17 @@ void play_activity_db_open(void)
         return;
     }
 
-    // IF NOT EXISTS: never drop tables, so even a failed existence check
-    // (a transient SD error) can't wipe the play history.
-    if (!play_activity_db_created) {
-        sqlite3_exec(play_activity_db,
-                     "CREATE TABLE IF NOT EXISTS rom(id INTEGER PRIMARY KEY, type TEXT, name TEXT, file_path TEXT, image_path TEXT, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
-                     "CREATE UNIQUE INDEX IF NOT EXISTS rom_id_index ON rom(id);",
-                     NULL, NULL, NULL);
-        sqlite3_exec(play_activity_db,
-                     "CREATE TABLE IF NOT EXISTS play_activity(rom_id INTEGER, play_time INTEGER, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
-                     "CREATE INDEX IF NOT EXISTS play_activity_rom_id_index ON play_activity(rom_id);",
-                     NULL, NULL, NULL);
-    }
+    // Every open, with IF NOT EXISTS (nothing is written when the tables
+    // exist). Only on a new file, a first creation cut short (power off)
+    // left a database without tables: the play history never worked again.
+    sqlite3_exec(play_activity_db,
+                 "CREATE TABLE IF NOT EXISTS rom(id INTEGER PRIMARY KEY, type TEXT, name TEXT, file_path TEXT, image_path TEXT, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
+                 "CREATE UNIQUE INDEX IF NOT EXISTS rom_id_index ON rom(id);",
+                 NULL, NULL, NULL);
+    sqlite3_exec(play_activity_db,
+                 "CREATE TABLE IF NOT EXISTS play_activity(rom_id INTEGER, play_time INTEGER, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
+                 "CREATE INDEX IF NOT EXISTS play_activity_rom_id_index ON play_activity(rom_id);",
+                 NULL, NULL, NULL);
 
     // Wait instead of failing with SQLITE_BUSY when keymon, the game
     // switcher and runtime.sh touch the database at the same time.

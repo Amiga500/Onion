@@ -28,6 +28,10 @@ int readLegacyDB()
             if (fread(rom_list, sizeof(rom_list), 1, fp) != 1)
                 memset(rom_list, 0, sizeof(rom_list));
             rom_list_len = 0;
+            // Raw structs from the file: a name filling its 100 bytes has no NUL,
+            // and strlen() and the SQL of the migration read past it.
+            for (int i = 0; i < LEGACY_DB_MAX; i++)
+                rom_list[i].name[sizeof(rom_list[i].name) - 1] = '\0';
 
             for (int i = 0; i < LEGACY_DB_MAX; i++) {
                 if ((strlen(rom_list[i].name) != 0) && (rom_list[i].playTime) != 0)
