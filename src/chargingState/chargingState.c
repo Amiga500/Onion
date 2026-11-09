@@ -150,8 +150,12 @@ int main(void)
              display_timer = last_ticks;
 
     while (!quit) {
-        while (poll(fds, 1, suspended ? 1000 - min_delay : 0)) {
-            read(input_fd, &ev, sizeof(ev));
+        // poll() > 0: -1 (a signal arrived) went on to a read() that blocked until
+        // the next key press, and POLLERR without data looped on failed reads.
+        while (poll(fds, 1, suspended ? 1000 - min_delay : 0) > 0) {
+            if (!(fds[0].revents & POLLIN) ||
+                read(input_fd, &ev, sizeof(ev)) != (ssize_t)sizeof(ev))
+                break;
 
             if (ev.type != EV_KEY || ev.value > REPEATING)
                 continue;
