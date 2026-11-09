@@ -64,7 +64,7 @@ main() {
     check_install_ra
 
     # Start the battery monitor
-    if [ $DEVICE_ID -eq MODEL_MM ]; then
+    if [ $DEVICE_ID -eq $MODEL_MM ]; then
         # init charger detection
         gpiodir=/sys/devices/gpiochip0/gpio
         if [ ! -f $gpiodir/gpio59/direction ]; then
@@ -399,7 +399,7 @@ run_installation() {
     #                                           Exit                                        #
     #########################################################################################
 
-    if [ $DEVICE_ID -eq MODEL_MM ]; then
+    if [ $DEVICE_ID -eq $MODEL_MM ]; then
         echo "$verb2 complete!" >> /tmp/.update_msg
         touch $sysdir/.waitConfirm
         touch $sysdir/.installed
@@ -411,7 +411,7 @@ run_installation() {
     installUI &
     sleep 1
 
-    if [ $DEVICE_ID -eq MODEL_MM ]; then
+    if [ $DEVICE_ID -eq $MODEL_MM ]; then
         counter=10
 
         while [ -f $sysdir/.waitConfirm ] && [ $counter -ge 0 ]; do
@@ -538,12 +538,14 @@ install_configs() {
         7z x -aos $zipfile # aos = skip existing files
     fi
 
-    # Set X and Y button keymaps if empty
-    cat /mnt/SDCARD/.tmp_update/config/keymap.json |
-        sed 's/"mainui_button_x"\s*:\s*""/"mainui_button_x": "app:Search"/g' |
-        sed 's/"mainui_button_y"\s*:\s*""/"mainui_button_y": "glo"/g' \
-            > ./temp_keymap.json
-    mv -f ./temp_keymap.json /mnt/SDCARD/.tmp_update/config/keymap.json
+    # Set X and Y button keymaps if empty (a missing keymap.json used to be
+    # replaced by an empty file)
+    if [ -f /mnt/SDCARD/.tmp_update/config/keymap.json ]; then
+        sed -e 's/"mainui_button_x"\s*:\s*""/"mainui_button_x": "app:Search"/g' \
+            -e 's/"mainui_button_y"\s*:\s*""/"mainui_button_y": "glo"/g' \
+            /mnt/SDCARD/.tmp_update/config/keymap.json > ./temp_keymap.json &&
+            mv -f ./temp_keymap.json /mnt/SDCARD/.tmp_update/config/keymap.json
+    fi
 }
 
 check_firmware() {
@@ -672,7 +674,9 @@ refresh_roms() {
 }
 
 remove_everything_except() {
-    find * .* -maxdepth 0 -not -name "$1" -exec rm -rf {} \;
+    # .[!.]* ..?* instead of .*, which matched "." and "..": only rm's own
+    # refusal kept this from running "rm -rf .." on the SD card.
+    find * .[!.]* ..?* -maxdepth 0 -not -name "$1" -exec rm -rf {} \; 2> /dev/null
 }
 
 md5hash() {
@@ -691,79 +695,43 @@ unzip_progress() {
     dest="$3"
 
     echo "   - Extract '$zipfile' into $dest"
-
     verify_file
-
     echo "Verifying package..." > /tmp/.update_msg
-    sleep 3
 
-    if [ -f "/mnt/SDCARD/.tmp_update/onion.pak" ]; then
-        echo "onion.pak exists"
-        sleep 1
-    else
-        echo "onion.pak is missing, extraction will fail"
-    fi
+    # 7z's exit code through wait. The status file used before was read as
+    # soon as pgrep stopped finding 7z, at times before the subshell wrote it,
+    # and an empty status counted as success; pgrep also matched any other
+    # 7z. The checks between sleep calls around it (about 8 s per package)
+    # were diagnostics.
+    7z x -aoa -o"$dest" "$zipfile" -bsp1 -bb > /tmp/.extraction_output &
+    extract_pid=$!
 
-    verify_file
-
-    sleep 1
-
-    # Run the 7z extraction command in the background and redirect output to /tmp/.extraction_output
-    (
-        7z x -aoa -o"$dest" "$zipfile" -bsp1 -bb > /tmp/.extraction_output
-        echo $? > "/tmp/extraction_status"
-    ) &
-
-    sleep 1
-
-    if pgrep 7z > /dev/null; then
-        echo "7Z is running"
-        sleep 1
-    else
-        echo "7Z is NOT running and should be"
-        sleep 1
-    fi
-
-    if [ -f "/mnt/SDCARD/.tmp_update/onion.pak" ]; then
-        echo "onion.pak still exists"
-        sleep 1
-    else
-        echo "onion.pak is still missing, extraction has probably failed"
-        sleep 1
-        echo "the build will say it's complete but isn't"
-    fi
-
-    # Continuously update /tmp/.update_msg every 500 milliseconds until the command line finishes
-    a=$(pgrep 7z)
-    while [ -n "$a" ]; do
+    # Update /tmp/.update_msg every 500 milliseconds until 7z ends
+    while kill -0 $extract_pid 2> /dev/null; do
         last_line=$(tail -n 1 /tmp/.extraction_output)
         value=$(echo "$last_line" | sed 's/.* \([0-9]\+\)%.*/\1/')
-        if [ "$value" -eq "$value" ] 2> /dev/null; then # check if the value is numeric
+        if [ "$value" -eq "$value" ] 2> /dev/null; then # numeric
             if [ $value -eq 0 ]; then
-                echo "Preparing file system..." > /tmp/.update_msg # It gets stuck a bit at 0%, so don't show percentage yet
+                echo "Preparing file system..." > /tmp/.update_msg # stuck a bit at 0%: no percentage yet
             else
-                echo "$msg $value%" > /tmp/.update_msg # Now we can show completion percentage
+                echo "$msg $value%" > /tmp/.update_msg
             fi
         fi
-        > /tmp/.extraction_output # to avoid to parse a too big file
+        > /tmp/.extraction_output # to avoid parsing a too big file
         sleep 0.5
-        a=$(pgrep 7z)
     done
+    wait $extract_pid
+    extraction_status=$?
+    rm -f /tmp/.extraction_output
 
-    # Check the exit status of the extraction command
-    extraction_status=$(cat "/tmp/extraction_status")
-    if [ "$extraction_status" -ne 0 ]; then
+    if [ $extraction_status -ne 0 ]; then
         touch $sysdir/.installFailed
-        echo ":: Installation failed!"
+        echo ":: Installation failed! (7z exit code $extraction_status)"
         installer_reboot
         sleep 10
         exit 0
-    else
-        echo "$msg 100%" >> /tmp/.update_msg
     fi
-
-    rm /tmp/extraction_status
-    rm /tmp/.extraction_output
+    echo "$msg 100%" >> /tmp/.update_msg
 }
 
 free_mma() {
