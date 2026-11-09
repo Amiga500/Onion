@@ -89,12 +89,14 @@ int main(int argc, char *argv[])
     for (i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0) {
-                strncpy(title_str, argv[++i], STR_MAX - 1);
+                if (i + 1 < argc) // last argument: argv[argc] is NULL
+                    strncpy(title_str, argv[++i], STR_MAX - 1);
                 continue;
             }
             if (strcmp(argv[i], "-m") == 0 ||
                 strcmp(argv[i], "--message") == 0) {
-                strncpy(message_str, argv[++i], STR_MAX - 1);
+                if (i + 1 < argc)
+                    strncpy(message_str, argv[++i], STR_MAX - 1);
                 continue;
             }
             if (strcmp(argv[i], "-r") == 0 ||
@@ -109,7 +111,8 @@ int main(int argc, char *argv[])
             }
             if (strcmp(argv[i], "-s") == 0 ||
                 strcmp(argv[i], "--selected") == 0) {
-                selected = atoi(argv[++i]);
+                if (i + 1 < argc)
+                    selected = atoi(argv[++i]);
                 continue;
             }
         }
@@ -130,8 +133,11 @@ int main(int argc, char *argv[])
     int battery_percentage = battery_getPercentage();
 
     if (pargc == 0) {
-        pargs[pargc++] = (char *)lang_get(LANG_OK, LANG_FALLBACK_OK);
-        pargs[pargc++] = (char *)lang_get(LANG_CANCEL, LANG_FALLBACK_CANCEL);
+        // Copies: pargs[] is freed at the end, after lang_free() had already freed
+        // these strings (or they were literals). The crash at exit replaced the
+        // return code, the chosen option.
+        pargs[pargc++] = strdup(lang_get(LANG_OK, LANG_FALLBACK_OK));
+        pargs[pargc++] = strdup(lang_get(LANG_CANCEL, LANG_FALLBACK_CANCEL));
     }
 
     List list = list_create(pargc, LIST_SMALL);
