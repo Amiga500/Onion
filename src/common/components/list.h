@@ -84,6 +84,9 @@ int list_countVisible(List *list)
 
 void _list_ensureVisible(List *list, int direction, int items_left)
 {
+    // An empty list: no item to look at, and _list_modulo() divided by 0.
+    if (list->item_count <= 0)
+        return;
     if (list->items[list->active_pos].disabled) {
         list->active_pos = _list_modulo(list->active_pos + direction, list->item_count);
         if (items_left > 0) {
@@ -203,6 +206,11 @@ const char *list_getStickyNote(ListItem *item)
 
 void _list_scroll(List *list, int pos)
 {
+    if (list->item_count <= 0) { // empty list: a modulo by 0
+        list->scroll_pos = 0;
+        return;
+    }
+
     pos = _list_modulo(pos, list->item_count);
 
     // Scroll up
@@ -227,6 +235,8 @@ void list_scroll(List *list)
 
 bool list_scrollTo(List *list, int active_pos)
 {
+    if (list->item_count <= 0) // empty list: a modulo by 0
+        return false;
     list->active_pos = _list_modulo(active_pos, list->item_count);
     list_ensureVisible(list, 1);
     list_scroll(list);
@@ -235,6 +245,11 @@ bool list_scrollTo(List *list, int active_pos)
 
 bool list_keyUp(List *list, bool key_repeat)
 {
+    // An empty list: active_pos went to -1, items[-1] was read and
+    // _list_modulo() divided by 0.
+    if (list->item_count <= 0)
+        return false;
+
     int old_pos = list->active_pos;
 
     // Wrap-around (move to bottom)
@@ -267,6 +282,10 @@ bool list_keyUp(List *list, bool key_repeat)
 
 bool list_keyDown(List *list, bool key_repeat)
 {
+    // An empty list: _list_modulo() divided by 0.
+    if (list->item_count <= 0)
+        return false;
+
     int old_pos = list->active_pos;
 
     // Wrap-around (move to top)
@@ -435,7 +454,11 @@ void list_getItemValueLabel(ListItem *item, char *out_label)
 {
     if (item->value_formatter != NULL)
         item->value_formatter(item, out_label);
-    else if (item->value_labels[0][0] != '\0')
+    // The value indexes value_labels only in its range: one out of it (a
+    // config file edited by hand, or from another version) was read past
+    // the array.
+    else if (item->value_labels[0][0] != '\0' && item->value >= 0 &&
+             item->value < MAX_NUM_VALUES)
         snprintf(out_label, STR_MAX, "%s", item->value_labels[item->value]);
     else
         snprintf(out_label, STR_MAX, "%d", item->value);

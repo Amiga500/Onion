@@ -13,10 +13,11 @@ void theme_renderBootScreen(SDL_Surface *screen, ThemeImages background, const c
         SDL_BlitSurface(bg, NULL, screen, NULL);
     }
 
+    // Checked (NULL went to TTF) and closed at the end (it was left open).
     TTF_Font *font = theme_loadFont(theme()->path, theme()->hint.font, 18 * g_scale);
     SDL_Color color = theme()->total.color;
 
-    if (strlen(version_str) > 0) {
+    if (font != NULL && strlen(version_str) > 0) {
         SDL_Surface *version = TTF_RenderUTF8_Blended(font, version_str, color);
         if (version) {
             SDL_Rect rect = {20.0 * g_scale, (450 * g_scale - version->h / 2)};
@@ -25,7 +26,7 @@ void theme_renderBootScreen(SDL_Surface *screen, ThemeImages background, const c
         }
     }
 
-    if (strlen(message_str) > 0) {
+    if (font != NULL && strlen(message_str) > 0) {
         SDL_Surface *message = TTF_RenderUTF8_Blended(font, message_str, color);
         if (message) {
             SDL_Rect rect = {620 * g_scale - message->w, 450 * g_scale - message->h / 2};
@@ -33,6 +34,9 @@ void theme_renderBootScreen(SDL_Surface *screen, ThemeImages background, const c
             SDL_FreeSurface(message);
         }
     }
+
+    if (font != NULL)
+        TTF_CloseFont(font);
 
     if (battery_percentage >= 0) {
         theme_renderHeaderBattery(screen, battery_percentage);

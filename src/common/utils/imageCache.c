@@ -16,6 +16,9 @@ static int image_cache_offset = -1;
 
 static SDL_Surface *(*load_image)(int) = NULL;
 static int images_total = 0;
+// The offset handed to the thread, copied: the thread read the caller's int
+// when it ran, after the caller may have changed it.
+static int _thread_offset = 0;
 
 int modulo(int x, int n) { return (x % n + n) % n; }
 
@@ -61,7 +64,17 @@ void imageCache_load(int *offset, SDL_Surface *(*_load_image)(int), int total)
     thread_active = true;
     load_image = _load_image;
     images_total = total;
-    pthread_create(&romscreen_thread_pt, NULL, _imageCacheThread, offset);
+    _thread_offset = *offset;
+
+    // Detached: nothing joined these threads, and every load (each move in
+    // the list) leaked one until pthread_create() failed. A failed create
+    // left thread_active set, and nothing was ever loaded again.
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    if (pthread_create(&romscreen_thread_pt, &attr, _imageCacheThread, &_thread_offset) != 0)
+        thread_active = false;
+    pthread_attr_destroy(&attr);
 }
 
 void imageCache_removeItem(int image_index)
@@ -104,7 +117,9 @@ bool imageCache_isActive(void) { return thread_active; }
 void imageCache_freeAll(void)
 {
     for (int i = 0; i < image_cache_len; i++) {
-        if (image_cache[i] != NULL)
+        if (image_cache[i] != NULL) {
             SDL_FreeSurface(image_cache[i]);
+            image_cache[i] = NULL; // a second call freed them again
+        }
     }
 }

@@ -74,12 +74,13 @@ typedef struct Theme {
 
 bool json_color(cJSON *root, const char *key, SDL_Color *dest)
 {
-    cJSON *json_object = cJSON_GetObjectItem(root, key);
-    if (json_object) {
-        *dest = hex2sdl(cJSON_GetStringValue(json_object));
-        return true;
-    }
-    return false;
+    // Strings only: a number or null reached hex2sdl() as NULL, and every
+    // program loading the theme crashed. Anything else keeps the default.
+    const char *value = cJSON_GetStringValue(cJSON_GetObjectItem(root, key));
+    if (value == NULL)
+        return false;
+    *dest = hex2sdl((char *)value);
+    return true;
 }
 
 void json_fontStyle(cJSON *root, FontStyle_s *dest, FontStyle_s *fallback)

@@ -7,6 +7,8 @@
 SDL_Color hex2sdl(char *input)
 {
     char *ptr;
+    if (input == NULL) // a theme value that is not a string
+        return (SDL_Color){255, 255, 255};
     if (input[0] == '#')
         input++;
     unsigned long value = strtoul(input, &ptr, 16);

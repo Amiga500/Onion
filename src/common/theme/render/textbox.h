@@ -26,34 +26,46 @@ typedef enum { ALIGN_LEFT,
 SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
                                   SDL_Color fg, text_alignment_e align)
 {
-    char s[STR_MAX];
-    strncpy(s, message, sizeof(s) - 1);
-    s[sizeof(s) - 1] = '\0';
-
+    // A copy of any length (it was cut at 255 characters), every
+    // allocation checked.
+    char *s = strdup(message != NULL ? message : "");
     int max_lines = 8; // start small, grow if needed
     int line_count = 0, max_width = 0, empty_lines = 0;
     int *line_widths = malloc(max_lines * sizeof(int));
     char **lines = malloc(max_lines * sizeof(char *));
+    SDL_Surface *textbox = NULL;
+    bool ok = s != NULL && line_widths != NULL && lines != NULL;
 
-    TTF_Font *cur_font = font;
-    int font_lineskip = TTF_FontLineSkip(cur_font);
+    int font_lineskip = TTF_FontLineSkip(font);
     int line_height = 1.2 * font_lineskip; // default height
     int paragraph_spacing = (int)(0.5 * font_lineskip);
 
     // --- First pass: measure each line
-    size_t msglen = strlen(s);
+    size_t msglen = ok ? strlen(s) : 0;
     size_t start = 0;
-    for (size_t i = 0; i <= msglen; i++) {
-        if (s[i] != '\n' && s[i] != '\0') {
+    for (size_t i = 0; ok && i <= msglen; i++) {
+        if (s[i] != '\n' && s[i] != '\0')
             continue;
-        }
         size_t len = i - start;
         if (line_count >= max_lines) {
-            max_lines *= 2;
-            lines = realloc(lines, max_lines * sizeof(char *));
-            line_widths = realloc(line_widths, max_lines * sizeof(int));
+            int grown = max_lines * 2;
+            char **more_lines = realloc(lines, grown * sizeof(char *));
+            if (more_lines != NULL)
+                lines = more_lines;
+            int *more_widths = realloc(line_widths, grown * sizeof(int));
+            if (more_widths != NULL)
+                line_widths = more_widths;
+            if (more_lines == NULL || more_widths == NULL) {
+                ok = false;
+                break;
+            }
+            max_lines = grown;
         }
         char *linebuf = malloc(len + 1);
+        if (linebuf == NULL) {
+            ok = false;
+            break;
+        }
         memcpy(linebuf, &s[start], len);
         linebuf[len] = 0;
         lines[line_count] = linebuf;
@@ -64,7 +76,7 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
             line_widths[line_count] = 0;
         }
         else {
-            if (TTF_SizeUTF8(cur_font, linebuf, &w, &h) == 0) {
+            if (TTF_SizeUTF8(font, linebuf, &w, &h) == 0) {
                 if (h > line_height)
                     line_height = h;
             }
@@ -79,53 +91,52 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
         start = i + 1;
     }
 
-    if (line_count == 0) {
-        free(lines);
-        free(line_widths);
-        return NULL;
-    }
-
     // --- Calculate textbox height
     int textbox_height = (line_count - empty_lines) * line_height +
                          empty_lines * paragraph_spacing;
 
-    // --- Create textbox surface
-    SDL_Surface *textbox = SDL_CreateRGBSurface(
-        0, max_width, textbox_height, 32, 0x00FF0000, 0x0000FF00,
-        0x000000FF, 0xFF000000);
-    SDL_FillRect(textbox, NULL, 0x000000FF);
+    // Nothing to draw (only empty lines gave a surface 0 pixels wide), or
+    // out of memory: no textbox.
+    if (ok && max_width > 0 && textbox_height > 0)
+        textbox = SDL_CreateRGBSurface(0, max_width, textbox_height, 32, 0x00FF0000,
+                                       0x0000FF00, 0x000000FF, 0xFF000000);
+    if (textbox != NULL)
+        SDL_FillRect(textbox, NULL, 0x000000FF);
 
     // --- Second pass: render each line if not empty
     int y = 0;
     for (int i = 0; i < line_count; ++i) {
-        if (lines[i][0] == '\0') {
-            y += paragraph_spacing; // empty line, just add spacing
-        }
-        else {
-            SDL_Surface *surf = TTF_RenderUTF8_Blended(cur_font, lines[i], fg);
-            if (surf) {
-                SDL_SetAlpha(surf, 0, 0);
-                SDL_Rect r = {0, y};
-                // horizontal alignment
-                if (align == ALIGN_CENTER)
-                    r.x = (max_width - surf->w) / 2;
-                else if (align == ALIGN_RIGHT)
-                    r.x = max_width - surf->w;
-                r.y = y + (line_height - surf->h) / 2;
-
-                SDL_BlitSurface(surf, NULL, textbox, &r);
-                SDL_FreeSurface(surf);
+        if (textbox != NULL) {
+            if (lines[i][0] == '\0') {
+                y += paragraph_spacing; // empty line, just add spacing
             }
             else {
-                fprintf(stderr, "TTF_RenderUTF8_Blended failed: %s\n", TTF_GetError());
+                SDL_Surface *surf = TTF_RenderUTF8_Blended(font, lines[i], fg);
+                if (surf) {
+                    SDL_SetAlpha(surf, 0, 0);
+                    SDL_Rect r = {0, y};
+                    // horizontal alignment
+                    if (align == ALIGN_CENTER)
+                        r.x = (max_width - surf->w) / 2;
+                    else if (align == ALIGN_RIGHT)
+                        r.x = max_width - surf->w;
+                    r.y = y + (line_height - surf->h) / 2;
+
+                    SDL_BlitSurface(surf, NULL, textbox, &r);
+                    SDL_FreeSurface(surf);
+                }
+                else {
+                    fprintf(stderr, "TTF_RenderUTF8_Blended failed: %s\n", TTF_GetError());
+                }
+                y += line_height;
             }
-            y += line_height;
         }
         free(lines[i]);
     }
 
     free(lines);
     free(line_widths);
+    free(s);
 
     return textbox;
 }
@@ -178,15 +189,16 @@ SDL_Surface *theme_createTextOverlay(const char *text, SDL_Color fg, SDL_Color b
 {
     TTF_Init();
     TTF_Font *font = theme_loadFont(theme()->path, theme()->list.font, (int)(18.0 * g_scale));
+    if (font == NULL) // TTF_SetFontStyle(NULL) crashed
+        return NULL;
     TTF_SetFontStyle(font, TTF_STYLE_BOLD);
 
     SDL_Surface *text_surface = TTF_RenderUTF8_Blended(font, text, fg);
+    TTF_CloseFont(font); // was left open when the text did not render
     if (!text_surface) {
         fprintf(stderr, "TTF_RenderUTF8 failed: %s\n", TTF_GetError());
-        return 0;
+        return NULL;
     }
-
-    TTF_CloseFont(font);
 
     padding = (int)(padding * g_scale);
 
@@ -194,10 +206,11 @@ SDL_Surface *theme_createTextOverlay(const char *text, SDL_Color fg, SDL_Color b
     int overlayH = text_surface->h + 2 * padding;
 
     SDL_Surface *overlay_surface = SDL_CreateRGBSurface(SDL_SWSURFACE, overlayW, overlayH, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-    SDL_FillRect(overlay_surface, NULL, SDL_MapRGBA(overlay_surface->format, bg.r, bg.g, bg.b, (Uint8)(bgAlpha * 255.0)));
-
-    SDL_Rect dest = {padding, padding};
-    SDL_BlitSurface(text_surface, NULL, overlay_surface, &dest);
+    if (overlay_surface != NULL) {
+        SDL_FillRect(overlay_surface, NULL, SDL_MapRGBA(overlay_surface->format, bg.r, bg.g, bg.b, (Uint8)(bgAlpha * 255.0)));
+        SDL_Rect dest = {padding, padding};
+        SDL_BlitSurface(text_surface, NULL, overlay_surface, &dest);
+    }
 
     SDL_FreeSurface(text_surface);
     return overlay_surface;

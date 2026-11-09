@@ -284,30 +284,32 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 item->_cached_color = list_color_key;
             }
             SDL_Surface *value_label = (SDL_Surface *)item->_value_cache;
-            if (value_label == NULL)
-                continue;
-            SDL_Rect value_size = {0, 0, scaled_226, value_label->h};
-            int label_width = value_label->w > value_size.w ? value_size.w : value_label->w;
-            // The selected row's value, when too wide, scrolls back and forth
-            // instead of being cut; the others show their start.
-            if (theme_listCanScroll && i == list->active_pos &&
-                value_label->w > scaled_226) {
-                uint32_t now = SDL_GetTicks();
-                if (!was_scrolling || _value_scroll_item != item ||
-                    _value_scroll_hash != value_hash) {
-                    _value_scroll_item = item;
-                    _value_scroll_hash = value_hash;
-                    _value_scroll_start = now;
+            // An empty value renders nothing (NULL): only the value is skipped. The
+            // `continue` that was here left the row without its label too.
+            if (value_label != NULL) {
+                SDL_Rect value_size = {0, 0, scaled_226, value_label->h};
+                int label_width = value_label->w > value_size.w ? value_size.w : value_label->w;
+                // The selected row's value, when too wide, scrolls back and forth
+                // instead of being cut; the others show their start.
+                if (theme_listCanScroll && i == list->active_pos &&
+                    value_label->w > scaled_226) {
+                    uint32_t now = SDL_GetTicks();
+                    if (!was_scrolling || _value_scroll_item != item ||
+                        _value_scroll_hash != value_hash) {
+                        _value_scroll_item = item;
+                        _value_scroll_hash = value_hash;
+                        _value_scroll_start = now;
+                    }
+                    value_size.x = list_valueScrollOffset(now - _value_scroll_start,
+                                                          value_label->w - scaled_226);
+                    theme_listValueScrolling = true;
                 }
-                value_size.x = list_valueScrollOffset(now - _value_scroll_start,
-                                                      value_label->w - scaled_226);
-                theme_listValueScrolling = true;
+                SDL_Rect value_pos = {
+                    scaled_640 - scaled_20 - arrow_right->w - scaled_226 / 2 - label_width / 2,
+                    item_center_y - value_size.h / 2};
+                _blit_cached_label(value_label, &value_size, screen, &value_pos,
+                                   show_disabled);
             }
-            SDL_Rect value_pos = {
-                scaled_640 - scaled_20 - arrow_right->w - scaled_226 / 2 - label_width / 2,
-                item_center_y - value_size.h / 2};
-            _blit_cached_label(value_label, &value_size, screen, &value_pos,
-                               show_disabled);
         }
 
         // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)
@@ -349,9 +351,12 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                     if (active_preview->_scaled_preview != NULL)
                         SDL_FreeSurface((SDL_Surface *)active_preview->_scaled_preview);
                     double scale = (double)preview_width / (double)preview->w;
-                    preview = zoomSurface(preview, scale, scale, params.preview_smoothing ? SMOOTHING_ON : SMOOTHING_OFF);
-                    active_preview->_scaled_preview = (void *)preview;
+                    SDL_Surface *scaled = zoomSurface(preview, scale, scale, params.preview_smoothing ? SMOOTHING_ON : SMOOTHING_OFF);
+                    active_preview->_scaled_preview = (void *)scaled;
                     active_preview->_scaled_preview_w = preview_width;
+                    // NULL (out of memory): drawn unscaled this time (preview->w crashed).
+                    if (scaled != NULL)
+                        preview = scaled;
                 }
             }
 
