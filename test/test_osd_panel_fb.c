@@ -3,7 +3,7 @@
  * @brief The volume/brightness panel on a fake Miyoo framebuffer: drawn
  * upside down (the screen is turned 180 degrees) at the bottom centre of
  * every buffer, only over its rounded shape, and the screen behind it put
- * back when it goes, as the program last drew it.
+ * back when it goes, unless the program covers it by itself.
  *
  * Built with PLATFORM_MIYOOMINI, on the host.
  * Build and run: make -f Makefile.unit test_osd_panel_fb
@@ -70,9 +70,9 @@ TEST(panel_drawn_upside_down_on_every_buffer_then_restored) {
     _bar_saveBufferBehind();
     _print_bar();
 
-    osd_panel_rect_t r = osd_panel_geometry(SW, SH);
-    static uint32_t want[200 * 32];
-    ASSERT_EQ(r.w * r.h, 200 * 32);
+    osd_panel_rect_t r = osd_panel_geometry(SW, SH, false);
+    static uint32_t want[240 * 40];
+    ASSERT_EQ(r.w * r.h, 240 * 40);
     osd_panel_render(want, r.w, r.h, OSD_PANEL_VOLUME, 10, 20, false, OSD_VOLUME_COLOR);
 
     for (int b = 0; b < NBUF; b++) {
@@ -106,11 +106,14 @@ TEST(panel_drawn_upside_down_on_every_buffer_then_restored) {
     ASSERT_TRUE(_panel_px == NULL);
 }
 
-/* A menu redraws while the panel shows: what it drew is put back when the
- * panel goes, not the old menu. */
-TEST(menu_redrawn_under_the_panel_is_what_comes_back) {
+/* A game (or a menu with moving titles) draws over the panel all the time:
+ * that is noticed with a few pixels, without reading the whole area. When
+ * the panel goes, the buffer the game keeps drawing is left to it, the
+ * others get their picture back. */
+TEST(redrawn_buffer_left_to_the_program) {
     fb_setup();
     _osd_panel = true;
+    _osd_panel_top = false;
     _bar_kind = OSD_PANEL_BRIGHTNESS;
     _bar_value = 4;
     _bar_max = 10;
@@ -118,32 +121,31 @@ TEST(menu_redrawn_under_the_panel_is_what_comes_back) {
     _bar_mute = false;
     _bar_saveBufferBehind();
     _print_bar();
+    osd_panel_rect_t r = osd_panel_geometry(SW, SH, false);
 
-    /* The menu draws a new screen on buffer 1, over the panel. */
     for (int i = 0; i < SW * SH; i++)
-        fb[SW * SH + i] = 0x00123456;
-    _print_bar(); /* the panel comes back on top */
-    osd_panel_rect_t r = osd_panel_geometry(SW, SH);
-    ASSERT_TRUE(seen(1, r.x + r.w / 2, r.y + r.h / 2) != 0x00123456u);
-
-    /* The value changes: drawing the new picture is not the menu drawing. */
-    _bar_value = 9;
+        fb[SW * SH + i] = 0x00111111; /* a frame of the game on buffer 1 */
     _print_bar();
-    _print_bar();
+    ASSERT_TRUE(_panel_redrawn[1]);
+    ASSERT_TRUE(!_panel_redrawn[0]);
+    ASSERT_TRUE(seen(1, r.x + r.w / 2, r.y + r.h / 2) != 0x00111111u); /* panel on top again */
 
+    /* The panel's time is up; the next frame comes. */
+    _bar_timer = getMilliseconds() - 5000;
+    for (int i = 0; i < SW * SH; i++)
+        fb[SW * SH + i] = 0x00222222;
+    ASSERT_TRUE(_panel_settle());
     _bar_restoreBufferBehind();
     for (int y = r.y; y < r.y + r.h; y++)
-        for (int x = r.x; x < r.x + r.w; x++)
-            ASSERT_EQ(seen(1, x, y), 0x00123456u);
-    /* Buffer 0 wasn't redrawn: its own picture is back. */
-    ASSERT_EQ(seen(0, r.x + r.w / 2, r.y + r.h / 2),
-              (uint32_t)((size_t)(SH - 1 - (r.y + r.h / 2)) * SW + (SW - 1 - (r.x + r.w / 2))) * 2654435761u &
-                  0x00FFFFFF);
+        for (int x = r.x; x < r.x + r.w; x++) {
+            ASSERT_EQ(seen(1, x, y), 0x00222222u);
+            ASSERT_EQ(seen(0, x, y), (uint32_t)((size_t)(SH - 1 - y) * SW + (SW - 1 - x)) * 2654435761u & 0x00FFFFFF);
+        }
 }
 
-/* Half way through a redraw: the rows the menu hasn't reached yet keep the
- * old back, they don't take the panel as the menu. */
-TEST(half_drawn_menu_keeps_no_piece_of_the_panel) {
+/* Drawn over once, then still: after the wait the saved picture goes back
+ * (the best there is: the panel is not left on screen). */
+TEST(redrawn_once_then_still_gets_the_saved_picture) {
     fb_setup();
     _osd_panel = true;
     _bar_kind = OSD_PANEL_VOLUME;
@@ -152,19 +154,100 @@ TEST(half_drawn_menu_keeps_no_piece_of_the_panel) {
     _bar_color = OSD_VOLUME_COLOR;
     _bar_saveBufferBehind();
     _print_bar();
-    osd_panel_rect_t r = osd_panel_geometry(SW, SH);
-    /* The menu redrew the top half of the screen (screen rows 0..SH/2):
-     * in the framebuffer that is the bottom half, which has no panel. Then
-     * the bottom rows of the panel area only. */
-    for (int y = r.y + r.h / 2; y < r.y + r.h; y++)
-        for (int x = 0; x < SW; x++)
-            fb[(size_t)(SH - 1 - y) * SW + (SW - 1 - x)] = 0x00ABCDEF;
+    for (int i = 0; i < SW * SH; i++)
+        fb[i] = 0x00333333;
+    _print_bar();
+    ASSERT_TRUE(_panel_redrawn[0]);
+    _bar_timer = getMilliseconds() - 5000;
+    long t0 = getMilliseconds();
+    ASSERT_TRUE(_panel_settle());
+    ASSERT_TRUE(getMilliseconds() - t0 >= OSD_PANEL_SETTLE_MS - 10);
     _bar_restoreBufferBehind();
-    for (int x = r.x; x < r.x + r.w; x++) {
-        ASSERT_EQ(seen(0, x, r.y + r.h - 1), 0x00ABCDEFu);
-        uint32_t old = (uint32_t)((size_t)(SH - 1 - r.y) * SW + (SW - 1 - x)) * 2654435761u & 0x00FFFFFF;
-        ASSERT_EQ(seen(0, x, r.y), old);
-    }
+    osd_panel_rect_t r = osd_panel_geometry(SW, SH, false);
+    int x = r.x + r.w / 2, y = r.y + r.h / 2;
+    ASSERT_EQ(seen(0, x, y), (uint32_t)((size_t)(SH - 1 - y) * SW + (SW - 1 - x)) * 2654435761u & 0x00FFFFFF);
+}
+
+/* Nothing drew over it: no wait. A key during the wait brings it back. */
+TEST(settle_no_wait_when_still_and_stops_for_a_key) {
+    fb_setup();
+    _osd_panel = true;
+    _bar_kind = OSD_PANEL_VOLUME;
+    _bar_value = 3;
+    _bar_max = 20;
+    _bar_color = OSD_VOLUME_COLOR;
+    _bar_saveBufferBehind();
+    _print_bar();
+    _print_bar();
+    _bar_timer = getMilliseconds() - 5000;
+    long t0 = getMilliseconds();
+    ASSERT_TRUE(_panel_settle());
+    ASSERT_TRUE(getMilliseconds() - t0 < 5);
+
+    for (int i = 0; i < SW * SH; i++)
+        fb[i] = 0x00444444;
+    _print_bar();
+    _bar_timer = getMilliseconds(); /* a key: the panel is wanted again */
+    ASSERT_TRUE(!_panel_settle());
+    _bar_restoreBufferBehind();
+}
+
+/* The value changes: drawing the new picture is not the program drawing. */
+TEST(new_value_is_not_a_redraw) {
+    fb_setup();
+    _osd_panel = true;
+    _bar_kind = OSD_PANEL_VOLUME;
+    _bar_value = 3;
+    _bar_max = 20;
+    _bar_color = OSD_VOLUME_COLOR;
+    _bar_saveBufferBehind();
+    _print_bar();
+    _bar_value = 15;
+    _print_bar();
+    _print_bar();
+    for (int b = 0; b < NBUF; b++)
+        ASSERT_TRUE(!_panel_redrawn[b]);
+    _bar_restoreBufferBehind();
+}
+
+/* At the top, on request. */
+TEST(panel_at_the_top) {
+    fb_setup();
+    _osd_panel = true;
+    _osd_panel_top = true;
+    _bar_kind = OSD_PANEL_BRIGHTNESS;
+    _bar_value = 5;
+    _bar_max = 10;
+    _bar_color = OSD_BRIGHTNESS_COLOR;
+    _bar_saveBufferBehind();
+    _print_bar();
+    osd_panel_rect_t r = osd_panel_geometry(SW, SH, true);
+    static uint32_t want[240 * 40];
+    osd_panel_render(want, r.w, r.h, OSD_PANEL_BRIGHTNESS, 5, 10, false, OSD_BRIGHTNESS_COLOR);
+    ASSERT_EQ(seen(0, r.x + r.w / 2, r.y + r.h / 2), want[(r.h / 2) * r.w + r.w / 2]);
+    _bar_restoreBufferBehind();
+    _osd_panel_top = false;
+}
+
+/* A key came during the wait, after a buffer had been covered: the panel
+ * is drawn there again, so if a key then hides it, that buffer gets its
+ * picture back (it is not left with the panel on it). */
+TEST(drawn_again_after_the_wait_is_put_back) {
+    fb_setup();
+    _osd_panel = true;
+    _bar_kind = OSD_PANEL_VOLUME;
+    _bar_value = 9;
+    _bar_max = 20;
+    _bar_color = OSD_VOLUME_COLOR;
+    _bar_saveBufferBehind();
+    _print_bar();
+    _panel_covered[1] = true; /* as left by a wait that a key cut short */
+    _print_bar();             /* the panel is back on every buffer */
+    _bar_restoreBufferBehind();
+    osd_panel_rect_t r = osd_panel_geometry(SW, SH, false);
+    int x = r.x + r.w / 2, y = r.y + r.h / 2;
+    ASSERT_EQ(seen(1, x, y),
+              (uint32_t)((size_t)SW * SH + (size_t)(SH - 1 - y) * SW + (SW - 1 - x)) * 2654435761u & 0x00FFFFFF);
 }
 
 /* Rows further apart than the width (finfo.line_length): the panel follows
@@ -180,8 +263,8 @@ TEST(padded_rows_follow_the_line_length) {
     _bar_mute = false;
     _bar_saveBufferBehind();
     _print_bar();
-    osd_panel_rect_t r = osd_panel_geometry(SW, SH);
-    static uint32_t want[200 * 32];
+    osd_panel_rect_t r = osd_panel_geometry(SW, SH, false);
+    static uint32_t want[240 * 40];
     osd_panel_render(want, r.w, r.h, OSD_PANEL_VOLUME, 10, 20, false, OSD_VOLUME_COLOR);
     for (int b = 0; b < NBUF; b++) {
         int x = r.x + r.w / 2, y = r.y + r.h / 2;
@@ -223,7 +306,7 @@ TEST(one_buffer_mapping) {
     uint32_t second = fb[SW * SH + 5];
     _bar_saveBufferBehind();
     _print_bar();
-    osd_panel_rect_t r = osd_panel_geometry(SW, SH);
+    osd_panel_rect_t r = osd_panel_geometry(SW, SH, false);
     for (int y = r.y; y < r.y + r.h; y++)
         for (int x = r.x; x < r.x + r.w; x++)
             ASSERT_EQ(fb[(size_t)SW * SH + (size_t)(SH - 1 - y) * SW + (SW - 1 - x)],
@@ -252,8 +335,12 @@ TEST(edge_bar_unchanged_when_chosen) {
 int main(void)
 {
     RUN_TEST(panel_drawn_upside_down_on_every_buffer_then_restored);
-    RUN_TEST(menu_redrawn_under_the_panel_is_what_comes_back);
-    RUN_TEST(half_drawn_menu_keeps_no_piece_of_the_panel);
+    RUN_TEST(redrawn_buffer_left_to_the_program);
+    RUN_TEST(redrawn_once_then_still_gets_the_saved_picture);
+    RUN_TEST(settle_no_wait_when_still_and_stops_for_a_key);
+    RUN_TEST(new_value_is_not_a_redraw);
+    RUN_TEST(panel_at_the_top);
+    RUN_TEST(drawn_again_after_the_wait_is_put_back);
     RUN_TEST(padded_rows_follow_the_line_length);
     RUN_TEST(mode_change_while_shown_stays_in_the_mapping);
     RUN_TEST(one_buffer_mapping);

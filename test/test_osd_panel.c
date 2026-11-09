@@ -11,8 +11,8 @@
 
 #include "system/osd_panel.h"
 
-#define W 200
-#define H 32
+#define W 240
+#define H 40
 
 static uint32_t px[W * H];
 
@@ -33,27 +33,38 @@ static int count_color(uint32_t color)
 /* ==== Size and place ==== */
 
 TEST(geometry_640x480) {
-    osd_panel_rect_t r = osd_panel_geometry(640, 480);
-    ASSERT_EQ(r.w, 200);
-    ASSERT_EQ(r.h, 32);
-    ASSERT_EQ(r.x, 220);
-    ASSERT_EQ(r.y, 480 - 32 - 52);
+    osd_panel_rect_t r = osd_panel_geometry(640, 480, false);
+    ASSERT_EQ(r.w, 240);
+    ASSERT_EQ(r.h, 40);
+    ASSERT_EQ(r.x, 200);
+    ASSERT_EQ(r.y, 480 - 40 - 52);
+}
+
+TEST(geometry_top) {
+    osd_panel_rect_t r = osd_panel_geometry(640, 480, true);
+    ASSERT_EQ(r.x, 200);
+    ASSERT_EQ(r.y, 52);
 }
 
 TEST(geometry_752x560_scaled_and_centred) {
-    osd_panel_rect_t r = osd_panel_geometry(752, 560);
-    ASSERT_EQ(r.w, 233);
-    ASSERT_EQ(r.h, 37);
-    ASSERT_EQ(r.x, (752 - 233) / 2);
-    ASSERT_TRUE(r.y + r.h <= 560 - 60);
+    osd_panel_rect_t r = osd_panel_geometry(752, 560, false);
+    ASSERT_EQ(r.w, 280);
+    ASSERT_EQ(r.h, 47);
+    ASSERT_EQ(r.x, (752 - 280) / 2);
+    ASSERT_EQ(r.y, 560 - 47 - 61);
+    r = osd_panel_geometry(752, 560, true);
+    ASSERT_EQ(r.y, 61);
 }
 
 TEST(geometry_stays_on_a_tiny_screen) {
-    osd_panel_rect_t r = osd_panel_geometry(100, 40);
-    ASSERT_TRUE(r.w <= 100);
-    ASSERT_TRUE(r.h <= 40);
-    ASSERT_TRUE(r.x >= 0);
-    ASSERT_TRUE(r.y >= 0);
+    for (int top = 0; top <= 1; top++) {
+        osd_panel_rect_t r = osd_panel_geometry(100, 40, top);
+        ASSERT_TRUE(r.w <= 100);
+        ASSERT_TRUE(r.h <= 40);
+        ASSERT_TRUE(r.x >= 0);
+        ASSERT_TRUE(r.y >= 0);
+        ASSERT_TRUE(r.y + r.h <= 40);
+    }
 }
 
 /* ==== Rounded corners ==== */
@@ -188,6 +199,7 @@ TEST(render_equals_sampling_every_pixel) {
 int main(void)
 {
     RUN_TEST(geometry_640x480);
+    RUN_TEST(geometry_top);
     RUN_TEST(geometry_752x560_scaled_and_centred);
     RUN_TEST(geometry_stays_on_a_tiny_screen);
     RUN_TEST(row_inset_round_ends);

@@ -28,20 +28,24 @@ typedef struct {
 } osd_panel_rect_t;
 
 // Size and place of the panel on a screen of screen_w x screen_h, scaled
-// from 640x480 (200x32, 52 px above the bottom edge, centred), so it keeps
-// its look on the 752x560 screens.
-static inline osd_panel_rect_t osd_panel_geometry(int screen_w, int screen_h)
+// from 640x480: 240x40, centred, 52 px from the bottom edge or, with top,
+// from the top edge (below the menus' top bar). It keeps its look on the
+// 752x560 screens.
+static inline osd_panel_rect_t osd_panel_geometry(int screen_w, int screen_h, bool top)
 {
     double s = screen_h > 0 ? screen_h / 480.0 : 1.0;
     osd_panel_rect_t r;
-    r.w = (int)(200 * s + 0.5);
-    r.h = (int)(32 * s + 0.5);
+    r.w = (int)(240 * s + 0.5);
+    r.h = (int)(40 * s + 0.5);
     if (r.w > screen_w)
         r.w = screen_w;
     if (r.h > screen_h)
         r.h = screen_h;
     r.x = (screen_w - r.w) / 2;
-    r.y = screen_h - r.h - (int)(52 * s + 0.5);
+    int margin = (int)(52 * s + 0.5);
+    r.y = top ? margin : screen_h - r.h - margin;
+    if (r.y + r.h > screen_h)
+        r.y = screen_h - r.h;
     if (r.y < 0)
         r.y = 0;
     return r;
