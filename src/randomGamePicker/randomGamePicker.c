@@ -76,8 +76,10 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
 
     if (launch_out != NULL) {
         char launch_rel[STR_MAX];
-        if (!json_getString(json_root, "launch", launch_rel))
+        if (!json_getString(json_root, "launch", launch_rel)) {
+            cJSON_Delete(json_root);
             return false;
+        }
         snprintf(launch_out, STR_MAX * 2 + 1, "%s/%s", emupath, launch_rel);
     }
 
@@ -102,17 +104,27 @@ bool loadEmuConfig(char *emupath, char *emuname_out, char *romsdir_out,
 
 int getTotalGamesCount(sqlite3 *db, const char *table_name)
 {
-    sqlite3_stmt *res;
-    const char *sql = sqlite3_mprintf(
-        "SELECT COUNT(id) FROM %q WHERE type=0 AND path NOT LIKE '%%.miyoocmd'",
+    // Finalized and freed on every path: the open statement made
+    // sqlite3_close() fail (SQLITE_BUSY), so the cache DB of every system
+    // stayed open, descriptor and page cache, until the program ended.
+    int count = 0;
+    sqlite3_stmt *res = NULL;
+    char *sql = sqlite3_mprintf(
+        "SELECT COUNT(id) FROM \"%w\" WHERE type=0 AND path NOT LIKE '%%.miyoocmd'",
         table_name);
-    if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK)
-        return 0;
-    if (sqlite3_step(res) != SQLITE_ROW) {
-        sqlite3_finalize(res);
-        return 0;
-    }
-    return sqlite3_column_int(res, 0);
+    if (sql != NULL && sqlite3_prepare_v2(db, sql, -1, &res, 0) == SQLITE_OK &&
+        sqlite3_step(res) == SQLITE_ROW)
+        count = sqlite3_column_int(res, 0);
+    sqlite3_finalize(res);
+    sqlite3_free(sql);
+    return count;
+}
+
+// Text of a column, "" for NULL (strncpy() of a NULL column crashed).
+static const char *columnText(sqlite3_stmt *res, int col)
+{
+    const char *text = (const char *)sqlite3_column_text(res, col);
+    return text != NULL ? text : "";
 }
 
 bool pickRandomGameFromCache(char *emuname, char *romsdir,
@@ -120,6 +132,9 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
 {
     sqlite3 *db;
     sqlite3_stmt *res;
+
+    if (system_count >= MAX_SYSTEMS)
+        return false; // random_games[] is full
 
     char cache_path[STR_MAX * 3];
     snprintf(cache_path, STR_MAX * 3 - 1, "%s/%s_cache6.db", romsdir,
@@ -141,15 +156,18 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
 
     int count = getTotalGamesCount(db, table_name);
 
-    const char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
-                                      "%q WHERE type=0 AND path NOT LIKE "
-                                      "'%%.miyoocmd' ORDER BY RANDOM() LIMIT 1",
-                                      table_name);
+    // "%w": a ROM folder with a space in its name is a valid table name too.
+    char *sql = sqlite3_mprintf("SELECT id, pinyin, path, imgpath FROM "
+                                "\"%w\" WHERE type=0 AND path NOT LIKE "
+                                "'%%.miyoocmd' ORDER BY RANDOM() LIMIT 1",
+                                table_name);
 
-    if (sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
+    if (sql == NULL || sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
+        sqlite3_free(sql);
         sqlite3_close(db);
         return false;
     }
+    sqlite3_free(sql); // was never freed
 
     if (sqlite3_step(res) == SQLITE_ROW) {
         GameEntry *game = &random_games[system_count];
@@ -160,15 +178,11 @@ bool pickRandomGameFromCache(char *emuname, char *romsdir,
         game->sum = count;
         game->c_sum = total_games_count;
 
-        strncpy(game->label, (const char *)sqlite3_column_text(res, 1),
-                STR_MAX - 1);
-        strncpy(game->path, (const char *)sqlite3_column_text(res, 2),
-                STR_MAX - 1);
-        strncpy(game->img_path, (const char *)sqlite3_column_text(res, 3),
-                STR_MAX - 1);
-
-        strncpy(game->launch_path, launch_path, STR_MAX * 2 - 1);
-        strncpy(game->emu_name, emuname, STR_MAX - 1);
+        snprintf(game->label, sizeof(game->label), "%s", columnText(res, 1));
+        snprintf(game->path, sizeof(game->path), "%s", columnText(res, 2));
+        snprintf(game->img_path, sizeof(game->img_path), "%s", columnText(res, 3));
+        snprintf(game->launch_path, sizeof(game->launch_path), "%s", launch_path);
+        snprintf(game->emu_name, sizeof(game->emu_name), "%s", emuname);
     }
 
     sqlite3_finalize(res);
@@ -203,6 +217,8 @@ bool extractEmuPath(char *emupath, char *comp_path)
 {
     if (strncmp(comp_path, emupath, strlen(comp_path)) == 0) {
         char *str_p = strstr(emupath + strlen(comp_path), "/");
+        if (str_p == NULL)
+            return false; // no folder after the prefix (wrote through NULL)
         *str_p = 0;
         return true;
     }
@@ -216,7 +232,7 @@ bool addRandomFromJson(char *json_path)
 
     FILE *fp;
     char line[STR_MAX * 4];
-    char path_b[STR_MAX];
+    char path_b[PATH_MAX]; // realpath() writes up to PATH_MAX bytes
     // Canonicalized paths of already-kept entries, resolved once each so the
     // duplicate check does not call realpath() again for every comparison.
     static char kept_paths[MAX_SYSTEMS][PATH_MAX];
@@ -233,6 +249,7 @@ bool addRandomFromJson(char *json_path)
         json_root = cJSON_Parse(line);
         if (!json_getInt(json_root, "type", (int *)&type)) {
             print_debug("Malformed json; Skipping\n");
+            cJSON_Delete(json_root);
             continue;
         }
 
@@ -250,6 +267,9 @@ bool addRandomFromJson(char *json_path)
             json_getString(json_root, "rompath", game->path);
             json_getString(json_root, "imgpath", game->img_path);
             json_getString(json_root, "launch", game->launch_path);
+            // Fields copied: free it now, the `continue`s below used to leak it.
+            cJSON_Delete(json_root);
+            json_root = NULL;
 
             if (!is_file(game->path))
                 continue;
@@ -272,8 +292,8 @@ bool addRandomFromJson(char *json_path)
             if (is_duplicate)
                 continue;
 
-            char emupath[STR_MAX];
-            strcpy(emupath, game->launch_path);
+            char emupath[STR_MAX * 2]; // launch_path is STR_MAX * 2: strcpy() into [STR_MAX] overflowed
+            snprintf(emupath, sizeof(emupath), "%s", game->launch_path);
 
             if (!extractEmuPath(emupath, PATH_EMU))
                 extractEmuPath(emupath, PATH_RAPP);
@@ -375,7 +395,7 @@ int main(int argc, char *argv[])
         else if (strcmp("--recents", argv[1]) == 0)
             mode = MODE_RECENTS;
         else {
-            strncpy(emupath, argv[1], STR_MAX + 16);
+            snprintf(emupath, sizeof(emupath), "%s", argv[1]); // strncpy left it unterminated
             mode = MODE_SINGLE_SYSTEM;
         }
     }
