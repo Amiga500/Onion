@@ -144,6 +144,11 @@ void display_init(bool map_fb)
 //
 void display_save(void)
 {
+    // Nothing mapped (display_init(false)): it read from NULL. Already off:
+    // a second save copied the black screen and leaked the first copy.
+    if (g_display.fb_addr == NULL || g_display.savebuf != NULL)
+        return;
+
     ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo);
     g_display.bpp = g_display.vinfo.bits_per_pixel / 8; // byte per pixel
     g_display.stride = g_display.vinfo.xres_virtual * g_display.bpp;

@@ -52,6 +52,12 @@ typedef struct {
 
 static task_t g_overlay_task = {true, 0, PTHREAD_MUTEX_INITIALIZER};
 
+// The last overlay thread, until it is joined. One that ended on its own
+// (timeout) cleared thread_id and was never joined: every overlay leaked a
+// thread, as the OSD bar did (see osd_showBar).
+static pthread_t overlay_last;
+static bool overlay_unjoined = false;
+
 /**
  * @brief Cancels the overlay and cleans up resources.
  *
@@ -72,6 +78,12 @@ void cancel_overlay()
     pthread_mutex_unlock(&g_overlay_task.lock);
 
     pthread_join(thread_to_join, NULL);
+    // Joined: never join it again (a thread that ended early left its id set,
+    // and the next overlay joined it a second time).
+    pthread_mutex_lock(&g_overlay_task.lock);
+    g_overlay_task.thread_id = 0;
+    pthread_mutex_unlock(&g_overlay_task.lock);
+    overlay_unjoined = false;
 
     printf_debug("Cancelled overlay thread ID %ld\n", thread_to_join);
 }
@@ -86,6 +98,18 @@ static void free_overlay_data(overlay_thread_data *data)
     free(data);
 }
 
+// An overlay thread ending early: its data freed and the task marked over
+// (it returned with both left as they were).
+static void *_overlay_thread_end(overlay_thread_data *data)
+{
+    free_overlay_data(data);
+    pthread_mutex_lock(&g_overlay_task.lock);
+    g_overlay_task.cancelled = true;
+    g_overlay_task.thread_id = 0;
+    pthread_mutex_unlock(&g_overlay_task.lock);
+    return NULL;
+}
+
 static void *_overlay_draw_thread(void *arg)
 {
     overlay_thread_data *data = (overlay_thread_data *)arg;
@@ -97,7 +121,7 @@ static void *_overlay_draw_thread(void *arg)
         : 1;
     unsigned int **originalPixels = malloc(numBuffers * sizeof(unsigned int *));
     if (!originalPixels) {
-        return NULL;
+        return _overlay_thread_end(data);
     }
     for (int b = 0; b < numBuffers; b++) {
         originalPixels[b] = malloc(data->surface->w * data->surface->h * sizeof(unsigned int));
@@ -106,7 +130,7 @@ static void *_overlay_draw_thread(void *arg)
                 free(originalPixels[i]);
             }
             free(originalPixels);
-            return NULL;
+            return _overlay_thread_end(data);
         }
     }
 
@@ -208,6 +232,11 @@ int overlay_surface(SDL_Surface *surface, int destX, int destY, int duration_ms,
         print_debug("Cancelling existing overlay\n");
         cancel_overlay();
     }
+    // One that ended by itself is still to be joined.
+    if (overlay_unjoined) {
+        pthread_join(overlay_last, NULL);
+        overlay_unjoined = false;
+    }
 
     // Data for thread
     overlay_thread_data *data = (overlay_thread_data *)calloc(1, sizeof(overlay_thread_data));
@@ -261,6 +290,8 @@ int overlay_surface(SDL_Surface *surface, int destX, int destY, int duration_ms,
     }
 
     printf_debug("Thread ID %ld created\n", g_overlay_task.thread_id);
+    overlay_last = g_overlay_task.thread_id;
+    overlay_unjoined = true;
     pthread_mutex_unlock(&g_overlay_task.lock);
 
     return 0;

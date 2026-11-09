@@ -86,16 +86,16 @@ int axp_lcd_set(int value)
 
     res = axp_write(0x21, value);
 
+    // A failed read returned -1, and -1 | bit was written back as 0xFF:
+    // every output in the power chip's control register switched on.
     if (res == 0) {
         int val = axp_read(0x10);
-        val |= 0x02;
-        res = axp_write(0x10, val);
+        res = val < 0 ? -1 : axp_write(0x10, val | 0x02);
     }
 
     if (res == 0) {
         int val = axp_read(0x12);
-        val |= 0x80;
-        res = axp_write(0x12, val);
+        res = val < 0 ? -1 : axp_write(0x12, val | 0x80);
     }
 
     return res;

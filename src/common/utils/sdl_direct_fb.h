@@ -217,6 +217,10 @@ bool _updateKeystate(KeyState keystate[320], bool *quit_flag, bool enabled, SDLK
 
         if (ev.type == EV_KEY) {
             SDLKey key = _translate_input(ev.code);
+            // Not one of the buttons: SDLK_UNKNOWN is also SW_BTN_POWER's value (0),
+            // so the volume keys and the lid counted as POWER.
+            if (key == SDLK_UNKNOWN && ev.code != HW_BTN_POWER)
+                continue;
 
             switch (ev.value) {
             case 1: // Key press

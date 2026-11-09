@@ -113,76 +113,71 @@ bool screenshot_save_stride(const uint32_t *buffer, const char *screenshot_path,
     // make sure render resolution is up to date
     display_getRenderResolution();
 
-    // Guard against zero dimensions — the VLA below would be UB otherwise
-    if (buffer == NULL || g_display.width == 0 || g_display.height == 0)
+    const uint32_t width = (uint32_t)g_display.width;
+    const uint32_t height = (uint32_t)g_display.height;
+    if (buffer == NULL || screenshot_path == NULL || width == 0 || height == 0)
         return false;
 
-    int row_stride = (src_stride_pixels > 0) ? src_stride_pixels : g_display.width;
+    const size_t row_stride = src_stride_pixels > 0 ? (size_t)src_stride_pixels : width;
 
-    uint32_t line_buffer[g_display.width], x, y;
+    // Written beside and renamed, with libpng errors caught, as
+    // screenshot_save_buffer_atomic() does. Without setjmp() a write error
+    // (SD card full) made libpng abort() the process, keymon included, and
+    // a cut write left a truncated PNG (a broken GameSwitcher picture).
+    char tmp_path[PATH_MAX];
+    int n = snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", screenshot_path);
+    if (n < 0 || (size_t)n >= sizeof(tmp_path))
+        return false;
 
-    FILE *fp;
-    png_structp png_ptr;
-    png_infop info_ptr;
+    uint32_t *line_buffer = (uint32_t *)malloc((size_t)width * sizeof(uint32_t));
+    if (line_buffer == NULL)
+        return false;
 
-    if (!(fp = file_open_ensure_path(screenshot_path, "wb"))) {
+    FILE *fp = file_open_ensure_path(tmp_path, "wb");
+    if (fp == NULL) {
+        free(line_buffer);
         return false;
     }
 
-    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
-    if (!png_ptr) {
+    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    png_infop info_ptr = png_ptr ? png_create_info_struct(png_ptr) : NULL;
+    if (png_ptr == NULL || info_ptr == NULL || setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
         fclose(fp);
-        return false;
-    }
-    info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr) {
-        png_destroy_write_struct(&png_ptr, NULL);
-        fclose(fp);
+        remove(tmp_path);
+        free(line_buffer);
         return false;
     }
 
     png_init_io(png_ptr, fp);
-    png_set_IHDR(png_ptr, info_ptr, g_display.width, g_display.height, 8,
+    png_set_IHDR(png_ptr, info_ptr, width, height, 8,
                  PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE,
                  PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png_ptr, info_ptr);
 
-    if (do_rotate180) {
-        /* Bottom-to-top + reverse each row, then NEON ARGB→RGBA */
-        for (y = 0; y < g_display.height; y++) {
-            const uint32_t *row_start =
-                (const uint32_t *)((const uint8_t *)buffer + (size_t)(g_display.height - 1 - y) * (size_t)row_stride * sizeof(uint32_t));
-            for (x = 0; x < g_display.width; x++) {
-                line_buffer[x] = row_start[g_display.width - 1 - x];
-            }
-            neon_swap_rb_inplace(line_buffer, g_display.width);
-            /* Stock Onion forced opaque alpha on screenshots */
-            for (x = 0; x < g_display.width; x++) {
-                line_buffer[x] |= 0xFF000000;
-            }
-            png_write_row(png_ptr, (png_bytep)line_buffer);
+    for (uint32_t y = 0; y < height; y++) {
+        if (do_rotate180) {
+            /* Bottom-to-top + reverse each row, then the R/B swap */
+            const uint32_t *row_start = buffer + (size_t)(height - 1 - y) * row_stride;
+            for (uint32_t x = 0; x < width; x++)
+                line_buffer[x] = row_start[width - 1 - x];
+            neon_swap_rb_inplace(line_buffer, width);
         }
-    }
-    else {
-        for (y = 0; y < g_display.height; y++) {
-            const uint32_t *row =
-                (const uint32_t *)((const uint8_t *)buffer + (size_t)y * (size_t)row_stride * sizeof(uint32_t));
-            neon_argb_to_rgba(line_buffer, row, g_display.width);
-            for (x = 0; x < g_display.width; x++) {
-                line_buffer[x] |= 0xFF000000;
-            }
-            png_write_row(png_ptr, (png_bytep)line_buffer);
+        else {
+            neon_argb_to_rgba(line_buffer, buffer + (size_t)y * row_stride, width);
         }
+        /* Stock Onion forced opaque alpha on screenshots */
+        for (uint32_t x = 0; x < width; x++)
+            line_buffer[x] |= 0xFF000000;
+        png_write_row(png_ptr, (png_bytep)line_buffer);
     }
 
     png_write_end(png_ptr, info_ptr);
     png_destroy_write_struct(&png_ptr, &info_ptr);
+    free(line_buffer);
 
-    fflush(fp);
-    fsync(fileno(fp));
-    fclose(fp);
-
-    return true;
+    // fflush + fsync + rename + directory fsync; removes tmp on failure.
+    return file_atomic_commit(fp, tmp_path, screenshot_path);
 }
 
 bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool do_rotate180)

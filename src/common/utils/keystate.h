@@ -18,6 +18,11 @@ bool updateKeystate(KeyState keystate[320], bool *quit_flag, bool enabled,
 
     while (SDL_PollEvent(&keystate_event)) {
         SDLKey key = keystate_event.key.keysym.sym;
+        // Keys past the array (SDLK_POWER is 320 in SDL 1.2) were written beyond
+        // keystate[320].
+        if ((keystate_event.type == SDL_KEYDOWN || keystate_event.type == SDL_KEYUP) &&
+            (unsigned)key >= 320)
+            continue;
 
         if (!enabled)
             continue;
