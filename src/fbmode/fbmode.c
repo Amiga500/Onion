@@ -189,6 +189,22 @@ static int clear_bytes(int fd, size_t len)
     return 0;
 }
 
+/* Strict non-negative decimal option value. atoi() turned a typo such as
+ * "--timeout 4OO" into 0: an immediate TIMEOUT (exit 3), which callers read
+ * as a driver failure. */
+static int parse_count(const char *s, int *out)
+{
+    char *end;
+    long n;
+
+    errno = 0;
+    n = strtol(s, &end, 10);
+    if (errno != 0 || end == s || *end != '\0' || n < 0 || n > 600000)
+        return -1;
+    *out = (int)n;
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     int fd, want_x = 0, want_y = 0, pages = 0, pages_specified = 0;
@@ -213,16 +229,26 @@ int main(int argc, char *argv[])
         else if (!strcmp(argv[i], "-v"))
             ; /* backwards-compatible no-op: diagnostics are always stderr */
         else if (!strcmp(argv[i], "--pages") && i + 1 < argc) {
-            /* Track presence separately from value: atoi() maps both "0" and
-             * non-numeric text to 0, and neither should be mistaken for the
-             * caller having omitted --pages entirely. */
-            pages = atoi(argv[++i]);
+            /* Presence is tracked apart from the value: "0" is a value (an
+             * invalid page count), not an omitted --pages. */
+            if (parse_count(argv[++i], &pages) < 0) {
+                lg("invalid --pages value: %s", argv[i]);
+                return 2;
+            }
             pages_specified = 1;
         }
-        else if (!strcmp(argv[i], "--linger") && i + 1 < argc)
-            linger_ms = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "--timeout") && i + 1 < argc)
-            timeout_ms = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--linger") && i + 1 < argc) {
+            if (parse_count(argv[++i], &linger_ms) < 0) {
+                lg("invalid --linger value: %s", argv[i]);
+                return 2;
+            }
+        }
+        else if (!strcmp(argv[i], "--timeout") && i + 1 < argc) {
+            if (parse_count(argv[++i], &timeout_ms) < 0) {
+                lg("invalid --timeout value: %s", argv[i]);
+                return 2;
+            }
+        }
         else if (strchr(argv[i], 'x'))
             sscanf(argv[i], "%dx%d", &want_x, &want_y);
     }
