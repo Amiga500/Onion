@@ -124,9 +124,22 @@ bool getAppPosition(const char *app_dir_name, int *currpos, int *total)
     return found;
 }
 
-// One single-quoted sh word ('\'' for a quote inside).
+// One sh word. As is when nothing in it needs quoting: the form MainUI
+// writes, from which runtime.sh takes the app folder (2nd field, up to the
+// ';') to find full_resolution, and quotes made it miss. Otherwise
+// single-quoted ('\'' for a quote inside).
 static bool _shellQuote(const char *s, char *out, size_t size)
 {
+    static const char safe[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+                               "0123456789/._-+,:@%=";
+    size_t len = strlen(s);
+    if (len > 0 && strspn(s, safe) == len) {
+        if (len + 1 > size)
+            return false;
+        memcpy(out, s, len + 1);
+        return true;
+    }
+
     size_t j = 0;
     if (size < 3)
         return false;

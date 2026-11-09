@@ -78,7 +78,7 @@ void render_showFullscreenMessage(const char *message, bool draw_bg)
 
 SDL_Surface *loadOptionalImage(const char *resourceName)
 {
-    char image_path[STR_MAX];
+    char image_path[STR_MAX * 2]; // theme_getImagePath() writes up to STR_MAX * 2
     if (theme_getImagePath(theme()->path, resourceName, image_path)) {
         return theme_loadImage(theme()->path, resourceName);
     }
