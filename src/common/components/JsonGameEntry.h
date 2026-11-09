@@ -39,16 +39,32 @@ JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
     return entry;
 }
 
-void JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
+// Built with cJSON so quotes and backslashes in a label or path are
+// escaped: sprintf wrote them raw, and the line became invalid JSON.
+bool JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
 {
-    strcpy(dest, "{");
-    sprintf(dest + strlen(dest), "\"label\":\"%s\",", entry->label);
-    sprintf(dest + strlen(dest), "\"launch\":\"%s\",", entry->launch);
-    sprintf(dest + strlen(dest), "\"type\":%d,", entry->type);
-    if (strlen(entry->imgpath) > 0)
-        sprintf(dest + strlen(dest), "\"imgpath\":\"%s\",", entry->imgpath);
-    sprintf(dest + strlen(dest), "\"rompath\":\"%s\"", entry->rompath);
-    strcat(dest, "}");
+    dest[0] = '\0';
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL)
+        return false;
+    cJSON_AddStringToObject(root, "label", entry->label);
+    cJSON_AddStringToObject(root, "launch", entry->launch);
+    cJSON_AddNumberToObject(root, "type", entry->type);
+    if (entry->imgpath[0] != '\0')
+        cJSON_AddStringToObject(root, "imgpath", entry->imgpath);
+    cJSON_AddStringToObject(root, "rompath", entry->rompath);
+
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (json == NULL)
+        return false;
+    int n = snprintf(dest, STR_MAX * 6, "%s", json);
+    cJSON_free(json);
+    if (n < 0 || n >= STR_MAX * 6) {
+        dest[0] = '\0'; // a cut line would be invalid JSON
+        return false;
+    }
+    return true;
 }
 
 #endif // JSON_GAME_ENTRY_H__
