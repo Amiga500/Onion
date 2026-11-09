@@ -56,6 +56,24 @@ void nextSlide(int *current_slide, int num_slides, int direction)
     *current_slide = next_slide;
 }
 
+// Overall progress of a sub-install at `percent` (0-100) of its own work,
+// covering `total` points of the bar from `start`. Was start + n / (100 /
+// total): a division by zero for --total 0 or above 100, and off for totals
+// that do not divide 100 (40 gave 50 points).
+static int installProgress(int start, int total, long percent)
+{
+    if (percent < 0)
+        percent = 0;
+    if (percent > 100)
+        percent = 100;
+    long progress = start + percent * total / 100;
+    if (progress < 0)
+        progress = 0;
+    if (progress > 100)
+        progress = 100;
+    return (int)progress;
+}
+
 int main(int argc, char *argv[])
 {
     // The percentage to start at
@@ -72,15 +90,16 @@ int main(int argc, char *argv[])
 
     int i;
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--begin") == 0)
+        // Each option takes a value: as the last argument it read argv[argc].
+        bool has_value = i + 1 < argc;
+        if ((strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--begin") == 0) && has_value)
             start_at = atoi(argv[++i]);
-        else if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--total") == 0)
+        else if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--total") == 0) && has_value)
             total_offset = atoi(argv[++i]);
-        else if (strcmp(argv[i], "-m") == 0 ||
-                 strcmp(argv[i], "--message") == 0)
+        else if ((strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--message") == 0) && has_value)
             strncpy(message_str, argv[++i], STR_MAX - 1);
         else {
-            printf_debug("Error: Unknown argument '%s'\n", argv[i]);
+            printf_debug("Error: Unknown argument or missing value '%s'\n", argv[i]);
             exit(EXIT_FAILURE);
         }
     }
@@ -123,7 +142,6 @@ int main(int argc, char *argv[])
     bool quit = false;
     bool failed = false;
     int progress = 0;
-    int progress_div = 100 / total_offset;
     int spinner_tick = 0;
 
     SDL_Event event;
@@ -132,6 +150,10 @@ int main(int argc, char *argv[])
              time_step = 1000 / 24, // 12 fps
         check_timer = 0;
     uint32_t slide_timer = last_ticks;
+    uint32_t flags_timer = last_ticks - CHECK_TIMEOUT; // first check at once
+    bool installed = false, wait_confirm = false;
+    SDL_Surface *message = NULL;
+    char message_shown[STR_MAX] = "";
 
     while (!quit) {
         uint32_t ticks = SDL_GetTicks();
@@ -166,29 +188,37 @@ int main(int argc, char *argv[])
             slide_timer = ticks;
         }
 
-        if (exists(".installed") || exists(".waitConfirm")) {
-            progress = 100;
-            if (!exists(".waitConfirm"))
-                quit = true;
-        }
+        // Flag files polled every CHECK_TIMEOUT ms (were 4-5 stat() calls
+        // every 15 ms while the installer writes to the SD card).
+        if (ticks - flags_timer >= CHECK_TIMEOUT) {
+            flags_timer = ticks;
+            installed = exists(".installed");
+            wait_confirm = exists(".waitConfirm");
 
-        if (exists(".installFailed")) {
-            sprintf(message_str, "Installation failed");
-            progress = 100;
-            failed = true;
-            quit = true;
+            if (installed || wait_confirm) {
+                progress = 100;
+                if (!wait_confirm)
+                    quit = true;
+            }
+
+            if (exists(".installFailed")) {
+                snprintf(message_str, sizeof(message_str), "Installation failed");
+                progress = 100;
+                failed = true;
+                quit = true;
+            }
         }
 
         if (ticks - check_timer > CHECK_TIMEOUT) {
             if (exists("/tmp/.update_msg")) {
                 file_readLastLine("/tmp/.update_msg", message_str);
                 long n = 0;
-                if (!exists(".installed") && str_getLastNumber(message_str, &n))
-                    progress = (int)(start_at + n / progress_div);
+                if (!installed && str_getLastNumber(message_str, &n))
+                    progress = installProgress(start_at, total_offset, n);
                 check_timer = ticks; // reset timeout
             }
             else if (!quit && ticks - check_timer > TIMEOUT_M * 60 * 1000 &&
-                     !exists(".waitConfirm")) {
+                     !wait_confirm) {
                 sprintf(message_str, "The installation timed out, exiting...");
                 progress = 100;
                 failed = true;
@@ -224,10 +254,14 @@ int main(int argc, char *argv[])
                              failed ? failed_color : progress_color);
             }
 
-            SDL_Surface *message =
-                TTF_RenderUTF8_Blended(font, message_str, fg_color);
-            SDL_BlitSurface(message, NULL, screen, &rectMessage);
-            SDL_FreeSurface(message);
+            // Rendered again only when the text changes (was TTF at 24 fps).
+            if (message == NULL || strcmp(message_shown, message_str) != 0) {
+                SDL_FreeSurface(message);
+                message = TTF_RenderUTF8_Blended(font, message_str, fg_color);
+                snprintf(message_shown, sizeof(message_shown), "%s", message_str);
+            }
+            if (message != NULL)
+                SDL_BlitSurface(message, NULL, screen, &rectMessage);
 
             SDL_BlitSurface(screen, NULL, video, NULL);
             SDL_Flip(video);
@@ -258,6 +292,7 @@ int main(int argc, char *argv[])
         SDL_FreeSurface(slide);
     }
     SDL_FreeSurface(waiting_bg);
+    SDL_FreeSurface(message);
     SDL_FreeSurface(surface_version);
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);
