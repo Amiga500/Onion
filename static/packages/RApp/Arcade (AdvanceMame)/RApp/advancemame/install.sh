@@ -1,5 +1,10 @@
 #!/bin/sh
 
+# The paths below are relative: run them in this package's folder whatever
+# the caller's (the find below would delete every file but *.sh and *.json
+# of any other folder).
+cd "$(dirname "$0")" || exit 1
+
 # Cleanup
 rm "/mnt/SDCARD/Roms/ADVMAME/~Run advmenu.shortcut" 2> /dev/null
 rm "/mnt/SDCARD/Roms/ADVMAME/~Run advmenu.miyoocmd" 2> /dev/null
