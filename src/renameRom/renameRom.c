@@ -42,7 +42,9 @@ bool renameCache(const char *cache_path, const char *rom_dirname,
     sqlite3 *db;
     sqlite3_stmt *res;
 
-    int rc = sqlite3_open(cache_path, &db);
+    // Existing caches only: sqlite3_open() created an empty file when
+    // MainUI had none yet, a cache without tables for that console.
+    int rc = sqlite3_open_v2(cache_path, &db, SQLITE_OPEN_READWRITE, NULL);
 
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
@@ -50,12 +52,14 @@ bool renameCache(const char *cache_path, const char *rom_dirname,
         return false;
     }
 
-    const char *sql = sqlite3_mprintf(
-        "UPDATE %q_roms SET path = %Q, imgpath = %Q, disp = %Q WHERE path = %Q",
+    // "%w": the table name quoted (a folder with a space broke the SQL).
+    char *sql = sqlite3_mprintf(
+        "UPDATE \"%w_roms\" SET path = %Q, imgpath = %Q, disp = %Q WHERE path = %Q",
         rom_dirname, new_rompath, new_imgpath, new_name, rom_path);
     printf_debug("query: %s\n", sql);
 
-    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    rc = sql != NULL ? sqlite3_prepare_v2(db, sql, -1, &res, 0) : SQLITE_NOMEM;
+    sqlite3_free(sql); // was never freed
 
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Failed to fetch data: %s\n", sqlite3_errmsg(db));
@@ -72,20 +76,21 @@ bool renameCache(const char *cache_path, const char *rom_dirname,
     sqlite3_finalize(res);
     sqlite3_close(db);
 
-    return true;
+    return rc == SQLITE_DONE || rc == SQLITE_ROW;
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) {
+    if (argc < 3) { // both are used: with one, argv[2] was NULL
         printf("Usage: renameRom [ROMPATH] [NEWNAME]\n");
         return 1;
     }
 
     char rompath[STR_MAX], new_name[STR_MAX];
 
-    strncpy(rompath, argv[1], STR_MAX - 1);
-    strncpy(new_name, argv[2], STR_MAX - 1);
+    // snprintf: strncpy left a 255+ character argument unterminated.
+    snprintf(rompath, sizeof(rompath), "%s", argv[1]);
+    snprintf(new_name, sizeof(new_name), "%s", argv[2]);
 
     printf_debug("rompath: %s\n", rompath);
     printf_debug("rename to: %s\n", new_name);
