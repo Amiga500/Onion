@@ -229,9 +229,15 @@ int main(int argc, char *argv[])
     SDL_Rect rectMileage = {484, 8, 170, 42};
 
     play_activities = play_activity_find_all();
+    if (play_activities == NULL) { // out of memory: ->count below crashed
+        free_resources();
+        return EXIT_FAILURE;
+    }
     printf_debug("found %d roms\n", play_activities->count);
 
-    int num_pages = (int)ceil((double)play_activities->count / (double)4);
+    int num_pages = (play_activities->count + 3) / 4;
+    if (num_pages == 0)
+        num_pages = 1; // showed "1/0" with no games
     int current_page = 0;
 
     renderPage(current_page);
