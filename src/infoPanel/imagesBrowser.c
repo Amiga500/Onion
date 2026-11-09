@@ -164,8 +164,9 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
             capacity = new_capacity;
         }
 
-        (*images_paths)[*images_paths_count] =
-            (char *)malloc(PATH_MAX * sizeof(char));
+        // At its own length (was PATH_MAX, 4 KB, per image: 12 MB for a
+        // folder of 3000 screenshots).
+        (*images_paths)[*images_paths_count] = strdup(image_path);
         if ((*images_paths)[*images_paths_count] == NULL) {
             freeImagePaths(*images_paths, *images_paths_count);
             *images_paths = NULL;
@@ -173,8 +174,6 @@ bool loadImagesPathsFromDir(const char *dir_path, char ***images_paths,
             closedir(dir);
             return false;
         }
-        strncpy((*images_paths)[*images_paths_count], image_path, PATH_MAX - 1);
-        (*images_paths)[*images_paths_count][PATH_MAX - 1] = '\0';
         (*images_paths_count)++;
     }
 

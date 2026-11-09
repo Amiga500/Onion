@@ -84,7 +84,7 @@ static bool loadImagesPathsFromJson(const char *config_path,
             continue;
         const cJSON *json_image_path =
             cJSON_GetObjectItem(json_image_item, "path");
-        if (!json_image_path)
+        if (!cJSON_IsString(json_image_path)) // missing or not a string (NULL went to snprintf)
             continue;
 
         (*images_paths)[valid] = (char *)malloc((STR_MAX * 2 + 2) * sizeof(char));
@@ -461,7 +461,7 @@ int main(int argc, char *argv[])
 
             acc_ticks -= time_step;
         }
-        msleep(4);
+        msleep(15); // about 60 Hz, as the redraw (4 ms: 250 input polls a second)
 
         if (!wait_confirm)
             break;
