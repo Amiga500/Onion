@@ -254,8 +254,9 @@ TEST(drawn_again_after_the_wait_is_put_back) {
               (uint32_t)((size_t)SW * SH + (size_t)(SH - 1 - y) * SW + (SW - 1 - x)) * 2654435761u & 0x00FFFFFF);
 }
 
-/* Only the buffer on screen is drawn on every pass; another one only when
- * the panel isn't there (not yet, or the program drew over it). */
+/* A pass draws the panel on a buffer only when it isn't there: not yet,
+ * or the program drew over it (a frame); a stray pixel outside the nine
+ * checked is not a frame. */
 TEST(other_buffers_drawn_only_when_needed) {
     fb_setup();
     _osd_panel = true;
@@ -271,8 +272,7 @@ TEST(other_buffers_drawn_only_when_needed) {
     for (int b = 0; b < NBUF; b++)
         ASSERT_TRUE(seen(b, x, y) & 0x00FFFFFF);
 
-    /* Somebody paints one pixel of buffer 2 outside the nine checked: not
-     * noticed, not redrawn (a pass checks, it doesn't rewrite every buffer). */
+    /* One pixel of buffer 2 outside the nine checked: not redrawn. */
     size_t i2 = (size_t)2 * SW * SH + (size_t)(SH - 1 - (r.y + 1)) * SW + (SW - 1 - (r.x + r.w / 2 + 1));
     uint32_t panel_px = fb[i2];
     fb[i2] = 0x00777777;
@@ -287,14 +287,20 @@ TEST(other_buffers_drawn_only_when_needed) {
     ASSERT_TRUE(_panel_redrawn[2]);
     ASSERT_EQ(fb[i2], panel_px);
 
-    /* The buffer on screen gets the panel on every pass, even where the
-     * nine checked pixels saw nothing. */
-    _panel_shown_override = 2;
-    fb[i2] = 0x00777777;
-    _print_bar();
-    ASSERT_EQ(fb[i2], panel_px);
-    _panel_shown_override = -2;
     _bar_restoreBufferBehind();
+}
+
+/* The wait between passes: about 100 us when spinning (used when usleep
+ * turns out to sleep a whole timer tick), never a tick. */
+TEST(spin_wait_is_about_100_us) {
+    _panel_coarse_sleep = true;
+    long t0 = _osd_now_us();
+    for (int i = 0; i < 50; i++)
+        _panel_wait();
+    long each = (_osd_now_us() - t0) / 50;
+    _panel_coarse_sleep = false;
+    ASSERT_TRUE(each >= 100);
+    ASSERT_TRUE(each < 1000);
 }
 
 /* Rows further apart than the width (finfo.line_length): the panel follows
@@ -389,6 +395,7 @@ int main(void)
     RUN_TEST(panel_at_the_top);
     RUN_TEST(drawn_again_after_the_wait_is_put_back);
     RUN_TEST(other_buffers_drawn_only_when_needed);
+    RUN_TEST(spin_wait_is_about_100_us);
     RUN_TEST(padded_rows_follow_the_line_length);
     RUN_TEST(mode_change_while_shown_stays_in_the_mapping);
     RUN_TEST(one_buffer_mapping);
