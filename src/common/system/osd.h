@@ -311,10 +311,13 @@ static uint32_t *_bar_savebuf;
 #endif
 
 // The indicator's look, read when it appears (like meterWidth) and kept
-// while it is on screen: the panel at the bottom (default) or, with the
-// .osdEdgeBar flag, Onion's bar on the left edge. meterWidth 0 hides both.
+// while it is on screen: the panel at the bottom (default), at the top with
+// the .osdPanelTop flag, or with .osdEdgeBar Onion's bar on the left edge.
+// meterWidth 0 hides them all.
 #define OSD_EDGE_BAR_FLAG ".osdEdgeBar"
+#define OSD_PANEL_TOP_FLAG ".osdPanelTop"
 static bool _osd_panel = true;
+static bool _osd_panel_top = false;
 #ifdef PLATFORM_MIYOOMINI
 #define OSD_PANEL_MAX_BUFFERS 3
 static osd_panel_rect_t _panel_rect;
@@ -324,8 +327,14 @@ static uint32_t *_panel_rot; // the same, each row reversed (the screen is turne
 // gets its own back, as a program may show any of them.
 static uint32_t *_panel_save[OSD_PANEL_MAX_BUFFERS];
 // The panel is on that buffer as _panel_rot is now: a pixel there that
-// differs from it was drawn by the program since (see _panel_follow).
+// differs from it was drawn by the program since.
 static bool _panel_on[OSD_PANEL_MAX_BUFFERS];
+// The program drew over the panel on that buffer while it showed: what was
+// saved behind it may be old (see _panel_restoreBehind).
+static bool _panel_redrawn[OSD_PANEL_MAX_BUFFERS];
+// The program drew the panel over by itself once it went (no need to put
+// the saved picture back there).
+static bool _panel_covered[OSD_PANEL_MAX_BUFFERS];
 static int _panel_drawn_kind = -1, _panel_drawn_value = -1, _panel_drawn_max = -1;
 static uint32_t _panel_drawn_color;
 static bool _panel_drawn_mute;
@@ -391,36 +400,22 @@ static void _panel_render_if_changed(void)
     _panel_drawn_mute = mute;
 }
 
-// Keeps what is behind the panel up to date. A menu that redraws while the
-// panel shows (you change the volume, then move on) draws over it: put back
-// as it was when the panel appeared, a piece of the old menu would stay on
-// screen until the next redraw. Each pass checks three pixels on every other
-// row; if the program drew there, every pixel that is no longer the panel's is
-// taken as the new back (the ones still the panel's keep the old back, in
-// case the program is half way through).
-static void _panel_follow(int buf)
+// Has the program drawn over the panel on this buffer? Nine pixels, so a
+// pass stays fast: reading the framebuffer is slow, and while a pass is
+// slow the panel misses frames of a game or of a menu that redraws all the
+// time, and flickers.
+static bool _panel_overdrawn(int buf)
 {
     const int w = _panel_rect.w, h = _panel_rect.h;
-    uint32_t *save = _panel_save[buf];
-    bool drawn = false;
-    for (int y = 0; y < h && !drawn; y += 2) {
-        const uint32_t *fb = _panel_fb_row(buf, y);
-        const uint32_t *rot = _panel_rot + (size_t)y * w;
-        drawn = fb[w / 4] != rot[w / 4] || fb[w / 2] != rot[w / 2] || fb[3 * w / 4] != rot[3 * w / 4];
+    const int ys[3] = {h / 4, h / 2, 3 * h / 4}, xs[3] = {w / 4, w / 2, 3 * w / 4};
+    for (int j = 0; j < 3; j++) {
+        const uint32_t *fb = _panel_fb_row(buf, ys[j]);
+        const uint32_t *rot = _panel_rot + (size_t)ys[j] * w;
+        for (int i = 0; i < 3; i++)
+            if (fb[xs[i]] != rot[xs[i]])
+                return true;
     }
-    if (!drawn)
-        return;
-    for (int y = 0; y < h; y++) {
-        const uint32_t *fb = _panel_fb_row(buf, y);
-        const uint32_t *rot = _panel_rot + (size_t)y * w;
-        uint32_t *back = save + (size_t)y * w;
-        int inset = osd_panel_row_inset(w, h, y);
-        for (int x = inset; x < w - inset; x++) {
-            uint32_t v = fb[x];
-            if (v != rot[x])
-                back[x] = v;
-        }
-    }
+    return false;
 }
 
 static void _print_panel(void)
@@ -432,8 +427,8 @@ static void _print_panel(void)
     for (int buf = 0; buf < nbuf; buf++) {
         if (!_panel_save[buf])
             continue;
-        if (_panel_on[buf])
-            _panel_follow(buf);
+        if (_panel_on[buf] && !_panel_redrawn[buf] && _panel_overdrawn(buf))
+            _panel_redrawn[buf] = true;
         for (int y = 0; y < h; y++) {
             int inset = osd_panel_row_inset(w, h, y);
             if (w - 2 * inset <= 0)
@@ -442,6 +437,9 @@ static void _print_panel(void)
                    (size_t)(w - 2 * inset) * sizeof(uint32_t));
         }
         _panel_on[buf] = true;
+        // Drawn again (a key came during _panel_settle): if it is hidden
+        // now, this buffer needs its picture back.
+        _panel_covered[buf] = false;
     }
 }
 
@@ -454,6 +452,8 @@ static void _panel_free(void)
         free(_panel_save[b]);
         _panel_save[b] = NULL;
         _panel_on[b] = false;
+        _panel_redrawn[b] = false;
+        _panel_covered[b] = false;
     }
     _panel_drawn_kind = -1;
 }
@@ -462,7 +462,7 @@ static void _panel_saveBehind(void)
 {
     if (!_panel_take_screen())
         return;
-    _panel_rect = osd_panel_geometry(_panel_W, _panel_H);
+    _panel_rect = osd_panel_geometry(_panel_W, _panel_H, _osd_panel_top);
     const size_t n = (size_t)_panel_rect.w * _panel_rect.h;
     const int nbuf = _panel_nbuf;
     _panel_px = malloc(n * sizeof(uint32_t));
@@ -477,35 +477,67 @@ static void _panel_saveBehind(void)
     _panel_drawn_kind = -1;
     for (int b = 0; b < nbuf; b++) {
         _panel_on[b] = false;
+        _panel_redrawn[b] = false;
         for (int y = 0; y < _panel_rect.h; y++)
             memcpy(_panel_save[b] + (size_t)y * _panel_rect.w, _panel_fb_row(b, y),
                    (size_t)_panel_rect.w * sizeof(uint32_t));
     }
 }
 
-// Puts back what is behind the panel, each buffer its own: in a game the
-// next frame covers it anyway, in a menu it is the menu as last drawn.
-static void _panel_restoreBehind(void)
+static void _panel_put_back(int buf)
 {
-    if (_panel_px) {
-        const int nbuf = _panel_nbuf;
-        for (int b = 0; b < nbuf; b++) {
-            if (!_panel_save[b])
+    const int w = _panel_rect.w, h = _panel_rect.h;
+    // Only where the panel was: the corners were never drawn on.
+    for (int y = 0; y < h; y++) {
+        int inset = osd_panel_row_inset(w, h, y);
+        if (w - 2 * inset <= 0)
+            continue;
+        memcpy(_panel_fb_row(buf, y) + inset, _panel_save[buf] + (size_t)y * w + inset,
+               (size_t)(w - 2 * inset) * sizeof(uint32_t));
+    }
+}
+
+// When the panel goes, where the program never drew over it (a still menu,
+// the border around a Game Boy game) what was behind it goes back. Where it
+// did (a game, a menu with moving titles or a video), what was saved may be
+// old: _panel_settle() first waits a little for the program to draw there
+// again by itself, which covers the panel with the right picture, and only
+// the buffers where it doesn't get the saved picture back.
+#define OSD_PANEL_SETTLE_MS 100
+
+// Returns false if a key brought the panel back meanwhile (keep drawing).
+static bool _panel_settle(void)
+{
+    if (!_panel_px)
+        return true;
+    bool any = false;
+    for (int b = 0; b < _panel_nbuf; b++) {
+        _panel_covered[b] = false;
+        any = any || (_panel_save[b] && _panel_redrawn[b]);
+    }
+    for (int t = 0; any && t < OSD_PANEL_SETTLE_MS; t += 5) {
+        usleep(5000);
+        if (getMilliseconds() - _bar_timer < 2000)
+            return false;
+        any = false;
+        for (int b = 0; b < _panel_nbuf; b++) {
+            if (!_panel_save[b] || !_panel_redrawn[b] || _panel_covered[b])
                 continue;
-            if (_panel_on[b])
-                _panel_follow(b);
-            // Only where the panel was: the corners were never drawn on, and
-            // writing them back could only put back something older.
-            const int w = _panel_rect.w, h = _panel_rect.h;
-            for (int y = 0; y < h; y++) {
-                int inset = osd_panel_row_inset(w, h, y);
-                if (w - 2 * inset <= 0)
-                    continue;
-                memcpy(_panel_fb_row(b, y) + inset, _panel_save[b] + (size_t)y * w + inset,
-                       (size_t)(w - 2 * inset) * sizeof(uint32_t));
-            }
+            if (_panel_overdrawn(b))
+                _panel_covered[b] = true;
+            else
+                any = true;
         }
     }
+    return true;
+}
+
+static void _panel_restoreBehind(void)
+{
+    if (_panel_px)
+        for (int b = 0; b < _panel_nbuf; b++)
+            if (_panel_save[b] && !_panel_covered[b])
+                _panel_put_back(b);
     _panel_free();
 }
 #endif
@@ -585,17 +617,30 @@ void _bar_saveBufferBehind(void)
 //
 //    OSD draw thread
 //
+// The panel waits a little for the program to cover it (see
+// _panel_settle); false if a key brought it back meanwhile.
+static bool _osd_settled(void)
+{
+#ifdef PLATFORM_MIYOOMINI
+    return !_osd_panel || _panel_settle();
+#else
+    return true;
+#endif
+}
+
 static void *_osd_thread(void *_)
 {
-    while (getMilliseconds() - _bar_timer < 2000) {
-        _print_bar();
-        // The game redraws the framebuffer every frame and the bar is drawn
-        // over it, unsynchronised with the game's page flips. Redrawing once
-        // per frame (16 ms) left it missing from many frames, so it
-        // flickered; Onion's 100 us keeps it on screen. The loop only runs
-        // for the 2 s after a volume or brightness key.
-        usleep(100);
-    }
+    do {
+        while (getMilliseconds() - _bar_timer < 2000) {
+            _print_bar();
+            // The game redraws the framebuffer every frame and the bar is
+            // drawn over it, unsynchronised with the game's page flips.
+            // Redrawing once per frame (16 ms) left it missing from many
+            // frames, so it flickered; Onion's 100 us keeps it on screen. The
+            // loop only runs for the 2 s after a volume or brightness key.
+            usleep(100);
+        }
+    } while (!_osd_settled());
     _bar_restoreBufferBehind();
     osd_thread_active = false;
     return 0;
@@ -631,6 +676,7 @@ static void _osd_showIndicator(int kind, int value, int value_max, uint32_t colo
         return;
     }
     _osd_panel = !config_flag_get(OSD_EDGE_BAR_FLAG);
+    _osd_panel_top = config_flag_get(OSD_PANEL_TOP_FLAG);
 
     // The previous bar's thread ends on its own after 2 s and nobody joined
     // it: every bar leaked a thread (stack and descriptor) in keymon until

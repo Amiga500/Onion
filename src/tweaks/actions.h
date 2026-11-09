@@ -60,11 +60,21 @@ void action_meterWidth(void *pt)
     osd_showBrightnessBar(settings.brightness);
 }
 
-// Read by keymon each time the indicator appears, so it changes at once.
+// 0 panel at the bottom, 1 panel at the top, 2 Onion's edge bar. Read by
+// keymon each time the indicator appears, so it changes at once.
+int value_osdStyle(void)
+{
+    if (config_flag_get(OSD_EDGE_BAR_FLAG))
+        return 2;
+    return config_flag_get(OSD_PANEL_TOP_FLAG) ? 1 : 0;
+}
+
 void action_setOsdStyle(void *pt)
 {
+    int value = ((ListItem *)pt)->value;
     osd_hideBar();
-    config_flag_set(OSD_EDGE_BAR_FLAG, ((ListItem *)pt)->value == 1);
+    config_flag_set(OSD_EDGE_BAR_FLAG, value == 2);
+    config_flag_set(OSD_PANEL_TOP_FLAG, value == 1);
     osd_showBrightnessBar(settings.brightness);
 }
 
