@@ -381,6 +381,7 @@ int updateADCValue(int value)
     static int history[HISTORY_SIZE] = {0}; // Array to store history
     static int historyIndex = 0;            // Current index in the history
     static int historyCount = 0;            // Number of valid entries in history
+    static int last_average = 0;            // Last result, kept across a reset
 
     if (battery_isCharging())
         return 100;
@@ -404,14 +405,17 @@ int updateADCValue(int value)
             historyCount++;
     }
 
+    // Nothing read since the reset (the ADC read failed): the last average.
+    // 0 would read as an empty battery.
     if (historyCount == 0)
-        return value; // nothing read yet
+        return value != 0 ? value : last_average;
 
     // Calculate the average of the history
     int sum = 0;
     for (int i = 0; i < historyCount; i++)
         sum += history[i];
-    return sum / historyCount;
+    last_average = sum / historyCount;
+    return last_average;
 }
 
 int getBatPercMMP(void)

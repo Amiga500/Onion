@@ -353,7 +353,9 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                     double scale = (double)preview_width / (double)preview->w;
                     SDL_Surface *scaled = zoomSurface(preview, scale, scale, params.preview_smoothing ? SMOOTHING_ON : SMOOTHING_OFF);
                     active_preview->_scaled_preview = (void *)scaled;
-                    active_preview->_scaled_preview_w = preview_width;
+                    // Width 0 after a failed zoom: scaled again next frame, never taken
+                    // from the cache as a NULL preview.
+                    active_preview->_scaled_preview_w = scaled != NULL ? preview_width : 0;
                     // NULL (out of memory): drawn unscaled this time (preview->w crashed).
                     if (scaled != NULL)
                         preview = scaled;

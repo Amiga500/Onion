@@ -95,9 +95,9 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
     int textbox_height = (line_count - empty_lines) * line_height +
                          empty_lines * paragraph_spacing;
 
-    // Nothing to draw (only empty lines gave a surface 0 pixels wide), or
-    // out of memory: no textbox.
-    if (ok && max_width > 0 && textbox_height > 0)
+    // Out of memory: no textbox. A message of empty lines only still gets
+    // a surface 0 pixels wide, as before: callers use ->w unchecked.
+    if (ok)
         textbox = SDL_CreateRGBSurface(0, max_width, textbox_height, 32, 0x00FF0000,
                                        0x0000FF00, 0x000000FF, 0xFF000000);
     if (textbox != NULL)
