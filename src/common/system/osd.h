@@ -3,6 +3,8 @@
 
 #include <SDL/SDL.h>
 #include <pthread.h>
+#include <sched.h>
+#include <time.h>
 
 #include "utils/config.h"
 #include "utils/log.h"
@@ -418,45 +420,25 @@ static bool _panel_overdrawn(int buf)
     return false;
 }
 
-// The buffer on screen now (the one the program last flipped to), or -1 if
-// the driver doesn't say. Screenshots find it the same way.
-static int _panel_shown_override = -2; // tests: the buffer "on screen" (-2: ask the driver)
-
-static int _panel_shown_buffer(void)
-{
-    if (_panel_shown_override != -2)
-        return _panel_shown_override;
-    struct fb_var_screeninfo v;
-    if (fb_fd < 0 || ioctl(fb_fd, FBIOGET_VSCREENINFO, &v) != 0 || _panel_H <= 0)
-        return -1;
-    int index = (int)(v.yoffset / (unsigned)_panel_H);
-    return index < _panel_nbuf ? index : -1;
-}
-
-// Each pass draws the panel on the buffer on screen (a game draws the next
-// frame on another one, then flips to it: the panel is back on it a pass
-// after the flip, before the screen gets to it), and on another buffer only
-// when the panel isn't there (not drawn yet, or the program drew over it).
-// One buffer per pass instead of three keeps passes short, so the panel is
-// missing from fewer frames.
+// Each pass looks at nine pixels of the panel on every buffer and draws it
+// again only where something drew over it (a game's new frame, a menu
+// redrawing): cheap enough to run every 100 us, so the panel is back
+// within a fraction of a frame (see _panel_wait). Copying it to the
+// buffers on every pass would load the memory bus while a game runs.
 static void _print_panel(void)
 {
     if (!_panel_px)
         return;
     _panel_render_if_changed();
     const int w = _panel_rect.w, h = _panel_rect.h, nbuf = _panel_nbuf;
-    const int shown = _panel_shown_buffer();
     for (int buf = 0; buf < nbuf; buf++) {
         if (!_panel_save[buf])
             continue;
-        bool over = false;
-        if (_panel_on[buf] && (!_panel_redrawn[buf] || buf != shown)) {
-            over = _panel_overdrawn(buf);
-            if (over)
-                _panel_redrawn[buf] = true;
+        if (_panel_on[buf]) {
+            if (!_panel_overdrawn(buf))
+                continue;
+            _panel_redrawn[buf] = true;
         }
-        if (_panel_on[buf] && !over && buf != shown)
-            continue;
         for (int y = 0; y < h; y++) {
             int inset = osd_panel_row_inset(w, h, y);
             if (w - 2 * inset <= 0)
@@ -469,6 +451,33 @@ static void _print_panel(void)
         // now, this buffer needs its picture back.
         _panel_covered[buf] = false;
     }
+}
+
+static long _osd_now_us(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return t.tv_sec * 1000000L + t.tv_nsec / 1000;
+}
+
+// Waits about 100 us between the panel's passes. usleep(100) can sleep a
+// whole timer tick instead (10 ms with a 100 Hz kernel without high
+// resolution timers): the panel then came back only every few frames of a
+// game and flickered. If a usleep(100) takes over 2 ms, the panel's next
+// waits spin on the clock instead, yielding the CPU to the other threads.
+static bool _panel_coarse_sleep = false;
+
+static void _panel_wait(void)
+{
+    long t0 = _osd_now_us();
+    if (!_panel_coarse_sleep) {
+        usleep(100);
+        if (_osd_now_us() - t0 > 2000)
+            _panel_coarse_sleep = true;
+        return;
+    }
+    while (_osd_now_us() - t0 < 100)
+        sched_yield();
 }
 
 static void _panel_free(void)
@@ -666,6 +675,12 @@ static void *_osd_thread(void *_)
             // Redrawing once per frame (16 ms) left it missing from many
             // frames, so it flickered; Onion's 100 us keeps it on screen. The
             // loop only runs for the 2 s after a volume or brightness key.
+#ifdef PLATFORM_MIYOOMINI
+            if (_osd_panel) {
+                _panel_wait();
+                continue;
+            }
+#endif
             usleep(100);
         }
     } while (!_osd_settled());
