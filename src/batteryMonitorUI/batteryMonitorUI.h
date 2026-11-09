@@ -78,6 +78,9 @@
 // older entry's awake time (batmon's count runs a few percent slow, as each loop pass
 // takes a little over a second); the sleep rate (%/h) is shown from SLEEP_RATE_MIN of sleep
 #define SLEEP_GAP_MIN 120
+// %: a charge's level rising more than this between two log entries means the console was off
+// meanwhile (batmon logs nothing then), so without clock times the charge's length is incomplete
+#define CHARGE_OFF_JUMP_MIN 3
 #define SLEEP_GAP_MIN_PCT 10
 #define SLEEP_RATE_MIN 1800
 
