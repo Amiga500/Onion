@@ -1856,7 +1856,7 @@ for d in "$ROOT"/static/packages/Emu/*/Emu/* "$ROOT"/static/packages/RApp/*/RApp
     grep -q "^$n " "$RES/map.txt" || unmapped="$unmapped $n"
 done
 unmapped=$(echo $unmapped | tr ' ' '\n' | sort | tr '\n' ' ')
-check "folders without their own picture use _default.png ($unmapped)" test "$unmapped" = "bk gme jaguar opera puzzlescript uw8 vemulator "
+check "folders without their own picture use _default.png ($unmapped)" test "$unmapped" = "bk gametank gme jaguar opera puzzlescript uw8 vemulator "
 rm "$TMP/consoles/fc.png"
 CONSOLE_PICTURES_SRC="$RES" CONSOLE_PICTURES_DEST="$TMP/consoles" sh "$CP"
 check "a missing one comes back on the next update" test -f "$TMP/consoles/fc.png"
