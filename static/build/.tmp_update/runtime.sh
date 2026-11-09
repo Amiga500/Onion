@@ -547,6 +547,10 @@ launch_game() {
             rompath=$(echo "$cmd" | awk '{ st = index($0,"\" \""); print substr($0,st+3,length($0)-st-3)}')
         fi
 
+        # An earlier launch escaped the $ of the path (\$, "Handle dollar sign"
+        # below): the file name has no such backslash.
+        case "$rompath" in *'\$'*) rompath=$(printf '%s\n' "$rompath" | sed 's/\\\$/$/g') ;; esac
+
         # Check for custom launch script ("script:rom")
         case "$rompath" in
             *:*)
@@ -629,7 +633,8 @@ launch_game() {
         # (regex end-of-line), so cmd_to_run.sh was rewritten on each launch.
         if case "$rompath" in *'$'*) true ;; *) false ;; esac; then
             temp=$(cat $sysdir/cmd_to_run.sh)
-            echo "$temp" | sed 's/\$/\\\$/g' > $sysdir/cmd_to_run.sh
+            # Unescaped first: a command escaped by an earlier launch is not escaped twice.
+            echo "$temp" | sed 's/\\\$/$/g; s/\$/\\$/g' > $sysdir/cmd_to_run.sh
         fi
 
         # Kill services while remaining launch preparation continues.
@@ -1510,10 +1515,17 @@ mute_theme_bgm() {
 
 create_swap() {
     swapfile="/mnt/SDCARD/cachefile"
-    if [ ! -e "$swapfile" ]; then
+    # Rebuilt unless it is a complete swap file (128 MB, with mkswap's
+    # signature at the end of the first page). It was made only when missing,
+    # so a first creation cut short (power off during the dd) left a file
+    # swapon refused on every boot. Made under another name, renamed when ready.
+    if [ "$(stat -c %s "$swapfile" 2> /dev/null)" != "134217728" ] ||
+        [ "$(dd if="$swapfile" bs=1 skip=4086 count=10 2> /dev/null)" != "SWAPSPACE2" ]; then
         log "Creating swap file"
-        dd if=/dev/zero of="$swapfile" bs=1M count=128
-        mkswap "$swapfile"
+        rm -f "$swapfile" "$swapfile.tmp"
+        dd if=/dev/zero of="$swapfile.tmp" bs=1M count=128 &&
+            mkswap "$swapfile.tmp" &&
+            mv -f "$swapfile.tmp" "$swapfile"
     fi
     # Nothing in the first seconds of boot needs swap: enable it in the
     # background instead of waiting for swapon to map the 128 MB file.
@@ -1666,7 +1678,10 @@ load_settings() {
 
 save_settings() {
     if [ -f /mnt/SDCARD/system.json ]; then
-        cp -f /mnt/SDCARD/system.json "$device_settings"
+        # Through a sibling and a rename: a power cut during the copy left a
+        # partial file, which load_settings then put back as system.json.
+        cp -f /mnt/SDCARD/system.json "$device_settings.tmp" &&
+            mv -f "$device_settings.tmp" "$device_settings"
     fi
 }
 
@@ -1678,6 +1693,10 @@ update_time() {
     if [ "$current_time" -gt "$rtc_treshold" ]; then
         log "RTC available, not restoring time. Current time: $current_time"
         touch /tmp/rtc_available
+        # Sessions a crash left open: closed now, as on devices without a clock
+        # below. They stayed open until the next standby and counted all the time
+        # until then (a session over 24 h is dropped).
+        playActivity stop_all
         return
     else
         log "RTC not available, restoring time. Current time: $current_time"
