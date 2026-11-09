@@ -111,7 +111,15 @@ int main(int argc, char *argv[])
     }
 
     int fd_mem = open("/dev/mem", O_RDWR);
-    pll_map = mmap(0, PLL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd_mem, BASE_REG_MPLL_PA);
+    pll_map = fd_mem < 0 ? MAP_FAILED
+                         : mmap(0, PLL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd_mem, BASE_REG_MPLL_PA);
+    // Checked: MAP_FAILED was used as the register block (a crash).
+    if (pll_map == MAP_FAILED) {
+        puts("cannot map the clock registers");
+        if (fd_mem >= 0)
+            close(fd_mem);
+        return 1;
+    }
 
     int clock = 0;
     if (argc == 1) {

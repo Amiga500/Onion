@@ -137,8 +137,10 @@ int main(int argc, char *argv[])
     // Initialize MI_lib and allocate src mem
     MI_SYS_Init();
     MI_GFX_Open();
-    MI_SYS_MMA_Alloc(NULL, ss, &srcPa);
-    MI_SYS_Mmap(srcPa, ss, &srcVa, TRUE);
+    // Checked: a failed allocation left srcPa at 0, and physical address 0
+    // was then mapped and written to.
+    if (MI_SYS_MMA_Alloc(NULL, ss, &srcPa) != 0 || MI_SYS_Mmap(srcPa, ss, &srcVa, TRUE) != 0)
+        ERROR("out of memory (MMA)");
 
     // Read png
     rows = png_get_rows(png_ptr, info_ptr);
@@ -195,8 +197,8 @@ int main(int argc, char *argv[])
     ds = ALIGN4K(dw * dh * 4);
 
     // Allocate dst png mem and scale
-    MI_SYS_MMA_Alloc(NULL, ds, &dstPa);
-    MI_SYS_Mmap(dstPa, ds, &dstVa, TRUE);
+    if (MI_SYS_MMA_Alloc(NULL, ds, &dstPa) != 0 || MI_SYS_Mmap(dstPa, ds, &dstVa, TRUE) != 0)
+        ERROR("out of memory (MMA)");
     GFX_BlitSurface(srcPa, srcVa, sw, sh, dstPa, dstVa, dw, dh);
     MI_SYS_Munmap(srcVa, ss);
     MI_SYS_MMA_Free(srcPa);

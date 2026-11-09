@@ -2,8 +2,8 @@
 
 int main(int argc, char **argv)
 {
-    unsigned int reg_address, i, j;
-    int w_val, val, ret;
+    unsigned int reg_address, w_val, i, j;
+    int val, ret;
 
     if (argc < 2) {
         printf("Usage: %s reg_addr [+][write_val]\n\nRegisters:\n", argv[0]);
@@ -21,7 +21,13 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    sscanf(argv[1], "%x", &reg_address);
+    // Every number checked before anything is written to the power chip: an
+    // address or a value that did not parse was left uninitialized, and
+    // whatever it held was used as the register or the value.
+    if (sscanf(argv[1], "%x", &reg_address) != 1 || reg_address > 0xff) {
+        fprintf(stderr, "Invalid register address %s\n", argv[1]);
+        return 1;
+    }
 
     if (argc == 2) {
         val = axp_read(reg_address);
@@ -33,11 +39,18 @@ int main(int argc, char **argv)
                val);
     }
     else {
-        sscanf(argv[2], "%x", &w_val);
-        if ((w_val & ~0xff) != 0)
+        const char *w_str = argv[2][0] == '+' ? argv[2] + 1 : argv[2];
+        // A value over 0xff was only reported, then written cut to 8 bits.
+        if (sscanf(w_str, "%x", &w_val) != 1 || w_val > 0xff) {
             fprintf(stderr, "Error on written value %s\n", argv[2]);
+            return 1;
+        }
         if (argv[2][0] == '+') {
             val = axp_read(reg_address);
+            if (val < 0) { // -1 | bits was written back as 0xFF
+                fprintf(stderr, "axp read error: %d %s\n", val, strerror(errno));
+                return 1;
+            }
             val |= w_val;
             printf("Bit ");
         }

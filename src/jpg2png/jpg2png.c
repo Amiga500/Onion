@@ -98,8 +98,12 @@ int main(int argc, char *argv[])
     // Initialize MI_lib and allocate jpg mem
     MI_SYS_Init();
     MI_GFX_Open();
-    MI_SYS_MMA_Alloc(NULL, ss, &jpgPa);
-    MI_SYS_Mmap(jpgPa, ss, &jpgVa, TRUE);
+    // Checked: a failed allocation left jpgPa at 0, and physical address 0
+    // was then mapped and written to.
+    if (MI_SYS_MMA_Alloc(NULL, ss, &jpgPa) != 0 || MI_SYS_Mmap(jpgPa, ss, &jpgVa, TRUE) != 0) {
+        fprintf(stderr, "out of memory (MMA)\n");
+        goto error;
+    }
 
     // Read jpeg
     tmp = malloc(jpeg.output_width * 3);
@@ -125,8 +129,10 @@ int main(int argc, char *argv[])
     ds = ALIGN4K(dw * dh * 4);
 
     // Allocate png mem and scale
-    MI_SYS_MMA_Alloc(NULL, ds, &pngPa);
-    MI_SYS_Mmap(pngPa, ds, &pngVa, TRUE);
+    if (MI_SYS_MMA_Alloc(NULL, ds, &pngPa) != 0 || MI_SYS_Mmap(pngPa, ds, &pngVa, TRUE) != 0) {
+        fprintf(stderr, "out of memory (MMA)\n");
+        goto error;
+    }
     GFX_BlitSurface(jpgPa, jpgVa, sw, sh, pngPa, pngVa, dw, dh);
     MI_SYS_Munmap(jpgVa, ss);
     MI_SYS_MMA_Free(jpgPa);
