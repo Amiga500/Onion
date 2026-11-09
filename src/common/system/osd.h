@@ -418,17 +418,45 @@ static bool _panel_overdrawn(int buf)
     return false;
 }
 
+// The buffer on screen now (the one the program last flipped to), or -1 if
+// the driver doesn't say. Screenshots find it the same way.
+static int _panel_shown_override = -2; // tests: the buffer "on screen" (-2: ask the driver)
+
+static int _panel_shown_buffer(void)
+{
+    if (_panel_shown_override != -2)
+        return _panel_shown_override;
+    struct fb_var_screeninfo v;
+    if (fb_fd < 0 || ioctl(fb_fd, FBIOGET_VSCREENINFO, &v) != 0 || _panel_H <= 0)
+        return -1;
+    int index = (int)(v.yoffset / (unsigned)_panel_H);
+    return index < _panel_nbuf ? index : -1;
+}
+
+// Each pass draws the panel on the buffer on screen (a game draws the next
+// frame on another one, then flips to it: the panel is back on it a pass
+// after the flip, before the screen gets to it), and on another buffer only
+// when the panel isn't there (not drawn yet, or the program drew over it).
+// One buffer per pass instead of three keeps passes short, so the panel is
+// missing from fewer frames.
 static void _print_panel(void)
 {
     if (!_panel_px)
         return;
     _panel_render_if_changed();
     const int w = _panel_rect.w, h = _panel_rect.h, nbuf = _panel_nbuf;
+    const int shown = _panel_shown_buffer();
     for (int buf = 0; buf < nbuf; buf++) {
         if (!_panel_save[buf])
             continue;
-        if (_panel_on[buf] && !_panel_redrawn[buf] && _panel_overdrawn(buf))
-            _panel_redrawn[buf] = true;
+        bool over = false;
+        if (_panel_on[buf] && (!_panel_redrawn[buf] || buf != shown)) {
+            over = _panel_overdrawn(buf);
+            if (over)
+                _panel_redrawn[buf] = true;
+        }
+        if (_panel_on[buf] && !over && buf != shown)
+            continue;
         for (int y = 0; y < h; y++) {
             int inset = osd_panel_row_inset(w, h, y);
             if (w - 2 * inset <= 0)
