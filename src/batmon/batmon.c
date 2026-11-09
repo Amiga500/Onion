@@ -9,6 +9,10 @@
 int battery_current_state_duration = 0;
 int best_session_time = 0;
 
+// Set by sigHandler, handled at the top of the main loop.
+static volatile sig_atomic_t sig_resumed = 0;
+static volatile sig_atomic_t sig_render_res = 0;
+
 int main(int argc, char *argv[])
 {
     log_setName("batmon");
@@ -23,7 +27,6 @@ int main(int argc, char *argv[])
     atexit(cleanup);
     signal(SIGINT, sigHandler);
     signal(SIGTERM, sigHandler);
-    signal(SIGSTOP, sigHandler);
     signal(SIGCONT, sigHandler);
     signal(SIGUSR1, sigHandler);
 
@@ -33,6 +36,16 @@ int main(int argc, char *argv[])
     bool is_charging = false;
 
     while (!quit) {
+        // What the signal handler leaves to the loop (see sigHandler).
+        if (sig_resumed) {
+            sig_resumed = 0;
+            if (DEVICE_ID == MIYOO283)
+                adc_value_g = updateADCValue(0);
+        }
+        if (sig_render_res) {
+            sig_render_res = 0;
+            display_getRenderResolution();
+        }
         if (battery_isCharging()) {
             if (!is_charging) {
                 // Charging just started
@@ -160,23 +173,21 @@ int main(int argc, char *argv[])
 
 static void sigHandler(int sig)
 {
+    // Flags only: the main loop does the work. The handler used to read the
+    // ADC (updateADCValue, whose history the loop may be updating) and the
+    // display mode, neither safe in a signal handler. SIGSTOP cannot be
+    // caught, so its old case never ran.
     switch (sig) {
     case SIGINT:
     case SIGTERM:
         quit = true;
         msleep_interrupt = 1;
         break;
-    case SIGSTOP:
-        is_suspended = true;
-        break;
     case SIGCONT:
-        if (DEVICE_ID == MIYOO283) {
-            adc_value_g = updateADCValue(0);
-        }
-        is_suspended = false;
+        sig_resumed = 1;
         break;
     case SIGUSR1:
-        display_getRenderResolution();
+        sig_render_res = 1;
         break;
     default:
         break;
@@ -236,6 +247,10 @@ void log_new_percentage(int new_bat_value, int is_charging)
 {
     if (open_battery_log_db() == 1) {
         if (bat_log_db != NULL) {
+            // Insert and trim in one transaction: one commit on the SD card
+            // instead of two.
+            sqlite3_exec(bat_log_db, "BEGIN", NULL, NULL, NULL);
+
             char *sql = sqlite3_mprintf("INSERT INTO bat_activity(device_serial, bat_level, duration, is_charging) VALUES(%Q, %d, %d, %d);", DEVICE_SN, new_bat_value, 0, is_charging);
             sqlite3_exec(bat_log_db, sql, NULL, NULL, NULL);
             sqlite3_free(sql);
@@ -261,6 +276,8 @@ void log_new_percentage(int new_bat_value, int is_charging)
                     sqlite3_finalize(stmt);
                 }
             }
+
+            sqlite3_exec(bat_log_db, "COMMIT", NULL, NULL, NULL);
         }
         close_battery_log_db();
     }
@@ -354,10 +371,24 @@ void saveFakeAxpResult(int current_percentage)
 
 #define HISTORY_SIZE 5 // Number of values to smooth battery percentage
 
+// Smoothed ADC reading. value 0 starts a new average: the callers pass 0
+// when charging stops and on resume, but the history was kept, so after a
+// charge 4 of the 5 samples were from before it, and main() then held that
+// low level as the lowest one until the next charge.
 int updateADCValue(int value)
 {
+    static SAR_ADC_CONFIG_READ adcConfig;
+    static int history[HISTORY_SIZE] = {0}; // Array to store history
+    static int historyIndex = 0;            // Current index in the history
+    static int historyCount = 0;            // Number of valid entries in history
+
     if (battery_isCharging())
         return 100;
+
+    if (value == 0) {
+        historyIndex = 0;
+        historyCount = 0;
+    }
 
     if (sar_fd < 0) {
         sar_fd = open("/dev/sar", O_WRONLY);
@@ -365,28 +396,22 @@ int updateADCValue(int value)
             ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
     }
 
-    static SAR_ADC_CONFIG_READ adcConfig;
-    static int history[HISTORY_SIZE] = {0}; // Array to store history
-    static int historyIndex = 0;            // Current index in the history
-    static int historyCount = 0;            // Number of valid entries in history
-
-    ioctl(sar_fd, IOCTL_SAR_SET_CHANNEL_READ_VALUE, &adcConfig);
-
-    // Update history buffer
-    history[historyIndex] = adcConfig.adc_value;
-    historyIndex = (historyIndex + 1) % HISTORY_SIZE; // Wrap around
-    if (historyCount < HISTORY_SIZE) {
-        historyCount++;
+    // A failed read is not a sample (it added the previous or a zero value).
+    if (sar_fd >= 0 && ioctl(sar_fd, IOCTL_SAR_SET_CHANNEL_READ_VALUE, &adcConfig) >= 0) {
+        history[historyIndex] = adcConfig.adc_value;
+        historyIndex = (historyIndex + 1) % HISTORY_SIZE;
+        if (historyCount < HISTORY_SIZE)
+            historyCount++;
     }
+
+    if (historyCount == 0)
+        return value; // nothing read yet
 
     // Calculate the average of the history
     int sum = 0;
-    for (int i = 0; i < historyCount; i++) {
+    for (int i = 0; i < historyCount; i++)
         sum += history[i];
-    }
-    int smoothedValue = sum / historyCount;
-
-    return smoothedValue;
+    return sum / historyCount;
 }
 
 int getBatPercMMP(void)

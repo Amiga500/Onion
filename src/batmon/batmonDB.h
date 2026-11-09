@@ -4,11 +4,14 @@
 
 sqlite3 *bat_log_db = NULL;
 
+// Tables are created with IF NOT EXISTS, once per process. They used to be
+// made only when the file did not exist yet, so a first creation cut short
+// (power off) left a file without tables, and the log never worked again.
+static bool bat_log_schema_ready = false;
+
 int open_battery_log_db(void)
 {
-    bool bat_log_db_created = is_file(BATTERY_LOG_FILE);
-
-    if (!bat_log_db_created) {
+    if (!is_file(BATTERY_LOG_FILE)) {
         mkdir("/mnt/SDCARD/Saves/Common", 0777);
         mkdir("/mnt/SDCARD/Saves/Common/battery_logs", 0777);
     }
@@ -20,18 +23,14 @@ int open_battery_log_db(void)
         return -1;
     }
 
-    if (!bat_log_db_created) {
+    if (!bat_log_schema_ready &&
         sqlite3_exec(bat_log_db,
-                     "DROP TABLE IF EXISTS bat_activity;"
-                     "CREATE TABLE bat_activity(id INTEGER PRIMARY KEY, device_serial TEXT, bat_level INTEGER, duration INTEGER, is_charging INTEGER);"
-                     "CREATE INDEX bat_activity_device_SN_index ON bat_activity(device_serial);",
-                     NULL, NULL, NULL);
-        sqlite3_exec(bat_log_db,
-                     "DROP TABLE IF EXISTS device_specifics;"
-                     "CREATE TABLE device_specifics(id INTEGER PRIMARY KEY, device_serial TEXT, best_session INTEGER);"
-                     "CREATE INDEX device_specifics_index ON device_specifics(device_serial);",
-                     NULL, NULL, NULL);
-    }
+                     "CREATE TABLE IF NOT EXISTS bat_activity(id INTEGER PRIMARY KEY, device_serial TEXT, bat_level INTEGER, duration INTEGER, is_charging INTEGER);"
+                     "CREATE INDEX IF NOT EXISTS bat_activity_device_SN_index ON bat_activity(device_serial);"
+                     "CREATE TABLE IF NOT EXISTS device_specifics(id INTEGER PRIMARY KEY, device_serial TEXT, best_session INTEGER);"
+                     "CREATE INDEX IF NOT EXISTS device_specifics_index ON device_specifics(device_serial);",
+                     NULL, NULL, NULL) == SQLITE_OK)
+        bat_log_schema_ready = true;
 
     return 1;
 }
