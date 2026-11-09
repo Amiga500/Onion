@@ -60,6 +60,14 @@ void action_meterWidth(void *pt)
     osd_showBrightnessBar(settings.brightness);
 }
 
+// Read by keymon each time the indicator appears, so it changes at once.
+void action_setOsdStyle(void *pt)
+{
+    osd_hideBar();
+    config_flag_set(OSD_EDGE_BAR_FLAG, ((ListItem *)pt)->value == 1);
+    osd_showBrightnessBar(settings.brightness);
+}
+
 void action_blueLight(void *pt)
 {
     blf_changing = true;

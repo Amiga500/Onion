@@ -635,7 +635,7 @@ void menu_lookAndFeel(void *_)
     settings.blue_light_state = config_flag_get(".blfOn");
     all_changed = true;
     if (!_menu_user_interface._created) {
-        _menu_user_interface = list_createWithTitle(7, LIST_SMALL, "Look and feel");
+        _menu_user_interface = list_createWithTitle(8, LIST_SMALL, "Look and feel");
         list_addItem(&_menu_user_interface,
                      (ListItem){
                          .label = "Theme tweaks...",
@@ -686,15 +686,27 @@ void menu_lookAndFeel(void *_)
         display_init(true);
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
+                                     .label = "Volume/brightness indicator",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 1,
+                                     .value_labels = {"Panel", "Edge bar"},
+                                     .value = config_flag_get(OSD_EDGE_BAR_FLAG),
+                                     .action = action_setOsdStyle},
+                                 "Shown while you change the brightness,\n"
+                                 "or the volume on the Mini Plus: a panel\n"
+                                 "at the bottom with an icon and a bar,\n"
+                                 "or Onion's bar on the left edge.");
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
                                      .label = "Volume/brightness bar",
                                      .item_type = MULTIVALUE,
                                      .value_max = 15,
                                      .value_formatter = formatter_meterWidth,
                                      .value = value_meterWidth(),
                                      .action = action_meterWidth},
-                                 "Width of the bar on the left of the\n"
-                                 "screen while you change the brightness,\n"
-                                 "or the volume on the Mini Plus.");
+                                 "Width of the edge bar on the left of\n"
+                                 "the screen. 0 px hides the indicator,\n"
+                                 "the panel too.");
     }
     menu_stack[++menu_level] = &_menu_user_interface;
     header_changed = true;

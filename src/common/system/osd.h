@@ -11,6 +11,7 @@
 
 #include "./clock.h"
 #include "./display.h"
+#include "./osd_panel.h"
 
 #define CHR_WIDTH (3 * 4 + 4)
 #define CHR_HEIGHT (5 * 4)
@@ -303,13 +304,219 @@ static volatile long _bar_timer = 0;
 static volatile int _bar_value = 0;
 static volatile int _bar_max = 0;
 static volatile uint32_t _bar_color = 0x00FFFFFF;
+static volatile int _bar_kind = OSD_PANEL_BRIGHTNESS;
+static volatile bool _bar_mute = false;
 #ifdef PLATFORM_MIYOOMINI
 static uint32_t *_bar_savebuf;
+#endif
+
+// The indicator's look, read when it appears (like meterWidth) and kept
+// while it is on screen: the panel at the bottom (default) or, with the
+// .osdEdgeBar flag, Onion's bar on the left edge. meterWidth 0 hides both.
+#define OSD_EDGE_BAR_FLAG ".osdEdgeBar"
+static bool _osd_panel = true;
+#ifdef PLATFORM_MIYOOMINI
+#define OSD_PANEL_MAX_BUFFERS 3
+static osd_panel_rect_t _panel_rect;
+static uint32_t *_panel_px;  // the picture, screen orientation
+static uint32_t *_panel_rot; // the same, each row reversed (the screen is turned 180 degrees)
+// What is behind the panel on each buffer, framebuffer order: each buffer
+// gets its own back, as a program may show any of them.
+static uint32_t *_panel_save[OSD_PANEL_MAX_BUFFERS];
+// The panel is on that buffer as _panel_rot is now: a pixel there that
+// differs from it was drawn by the program since (see _panel_follow).
+static bool _panel_on[OSD_PANEL_MAX_BUFFERS];
+static int _panel_drawn_kind = -1, _panel_drawn_value = -1, _panel_drawn_max = -1;
+static uint32_t _panel_drawn_color;
+static bool _panel_drawn_mute;
+#endif
+
+#ifdef PLATFORM_MIYOOMINI
+// The screen the panel was placed on, taken when it appears and kept until
+// it goes: keymon's g_display follows a mode change (SIGUSR1, 640x480 <->
+// 752x560), and the rows and buffers must not move under the saved back.
+// Rows are finfo.line_length apart, as display_readOrWriteBuffer() has
+// them; each buffer is yres rows; only the buffers inside the mapping.
+static int _panel_W, _panel_H, _panel_stride, _panel_nbuf;
+
+static bool _panel_take_screen(void)
+{
+    _panel_W = g_display.width;
+    _panel_H = g_display.height;
+    _panel_stride = (int)(g_display.finfo.line_length / sizeof(uint32_t));
+    if (_panel_stride < _panel_W)
+        _panel_stride = _panel_W;
+    if (!g_display.fb_addr || _panel_W <= 0 || _panel_H <= 0)
+        return false;
+    long one = (long)_panel_stride * _panel_H;
+    long n = g_display.fb_size > 0 ? g_display.fb_size / (long)sizeof(uint32_t) / one : 1;
+    _panel_nbuf = n > OSD_PANEL_MAX_BUFFERS ? OSD_PANEL_MAX_BUFFERS : (int)n;
+    return _panel_nbuf >= 1;
+}
+
+// The panel's pixel (x, y) is on the framebuffer at row H-1-(r.y+y) and
+// column W-1-(r.x+x): the screen is upside down. With each row reversed
+// (_panel_rot), the panel's row is one run of the framebuffer row from
+// column W-r.x-r.w, so it is copied with memcpy.
+static inline uint32_t *_panel_fb_row(int buf, int y)
+{
+    int fy = _panel_H - 1 - (_panel_rect.y + y);
+    return g_display.fb_addr + ((size_t)buf * _panel_H + (size_t)fy) * _panel_stride +
+           (_panel_W - _panel_rect.x - _panel_rect.w);
+}
+
+static void _panel_render_if_changed(void)
+{
+    const int kind = _bar_kind, value = _bar_value, max = _bar_max;
+    const uint32_t color = _bar_color;
+    const bool mute = _bar_mute;
+    if (kind == _panel_drawn_kind && value == _panel_drawn_value && max == _panel_drawn_max &&
+        color == _panel_drawn_color && mute == _panel_drawn_mute)
+        return;
+    const int w = _panel_rect.w, h = _panel_rect.h;
+    osd_panel_render(_panel_px, w, h, kind, value, max, mute, color);
+    for (int y = 0; y < h; y++) {
+        const uint32_t *src = _panel_px + (size_t)y * w;
+        uint32_t *dst = _panel_rot + (size_t)y * w;
+        for (int x = 0; x < w; x++)
+            dst[w - 1 - x] = src[x];
+    }
+    // The buffers show the old picture: not a sign of the program drawing.
+    for (int b = 0; b < OSD_PANEL_MAX_BUFFERS; b++)
+        _panel_on[b] = false;
+    _panel_drawn_kind = kind;
+    _panel_drawn_value = value;
+    _panel_drawn_max = max;
+    _panel_drawn_color = color;
+    _panel_drawn_mute = mute;
+}
+
+// Keeps what is behind the panel up to date. A menu that redraws while the
+// panel shows (you change the volume, then move on) draws over it: put back
+// as it was when the panel appeared, a piece of the old menu would stay on
+// screen until the next redraw. Each pass checks three pixels on every other
+// row; if the program drew there, every pixel that is no longer the panel's is
+// taken as the new back (the ones still the panel's keep the old back, in
+// case the program is half way through).
+static void _panel_follow(int buf)
+{
+    const int w = _panel_rect.w, h = _panel_rect.h;
+    uint32_t *save = _panel_save[buf];
+    bool drawn = false;
+    for (int y = 0; y < h && !drawn; y += 2) {
+        const uint32_t *fb = _panel_fb_row(buf, y);
+        const uint32_t *rot = _panel_rot + (size_t)y * w;
+        drawn = fb[w / 4] != rot[w / 4] || fb[w / 2] != rot[w / 2] || fb[3 * w / 4] != rot[3 * w / 4];
+    }
+    if (!drawn)
+        return;
+    for (int y = 0; y < h; y++) {
+        const uint32_t *fb = _panel_fb_row(buf, y);
+        const uint32_t *rot = _panel_rot + (size_t)y * w;
+        uint32_t *back = save + (size_t)y * w;
+        int inset = osd_panel_row_inset(w, h, y);
+        for (int x = inset; x < w - inset; x++) {
+            uint32_t v = fb[x];
+            if (v != rot[x])
+                back[x] = v;
+        }
+    }
+}
+
+static void _print_panel(void)
+{
+    if (!_panel_px)
+        return;
+    _panel_render_if_changed();
+    const int w = _panel_rect.w, h = _panel_rect.h, nbuf = _panel_nbuf;
+    for (int buf = 0; buf < nbuf; buf++) {
+        if (!_panel_save[buf])
+            continue;
+        if (_panel_on[buf])
+            _panel_follow(buf);
+        for (int y = 0; y < h; y++) {
+            int inset = osd_panel_row_inset(w, h, y);
+            if (w - 2 * inset <= 0)
+                continue;
+            memcpy(_panel_fb_row(buf, y) + inset, _panel_rot + (size_t)y * w + inset,
+                   (size_t)(w - 2 * inset) * sizeof(uint32_t));
+        }
+        _panel_on[buf] = true;
+    }
+}
+
+static void _panel_free(void)
+{
+    free(_panel_px);
+    free(_panel_rot);
+    _panel_px = _panel_rot = NULL;
+    for (int b = 0; b < OSD_PANEL_MAX_BUFFERS; b++) {
+        free(_panel_save[b]);
+        _panel_save[b] = NULL;
+        _panel_on[b] = false;
+    }
+    _panel_drawn_kind = -1;
+}
+
+static void _panel_saveBehind(void)
+{
+    if (!_panel_take_screen())
+        return;
+    _panel_rect = osd_panel_geometry(_panel_W, _panel_H);
+    const size_t n = (size_t)_panel_rect.w * _panel_rect.h;
+    const int nbuf = _panel_nbuf;
+    _panel_px = malloc(n * sizeof(uint32_t));
+    _panel_rot = malloc(n * sizeof(uint32_t));
+    bool ok = n > 0 && _panel_px && _panel_rot;
+    for (int b = 0; b < nbuf && ok; b++)
+        ok = (_panel_save[b] = malloc(n * sizeof(uint32_t))) != NULL;
+    if (!ok) {
+        _panel_free();
+        return;
+    }
+    _panel_drawn_kind = -1;
+    for (int b = 0; b < nbuf; b++) {
+        _panel_on[b] = false;
+        for (int y = 0; y < _panel_rect.h; y++)
+            memcpy(_panel_save[b] + (size_t)y * _panel_rect.w, _panel_fb_row(b, y),
+                   (size_t)_panel_rect.w * sizeof(uint32_t));
+    }
+}
+
+// Puts back what is behind the panel, each buffer its own: in a game the
+// next frame covers it anyway, in a menu it is the menu as last drawn.
+static void _panel_restoreBehind(void)
+{
+    if (_panel_px) {
+        const int nbuf = _panel_nbuf;
+        for (int b = 0; b < nbuf; b++) {
+            if (!_panel_save[b])
+                continue;
+            if (_panel_on[b])
+                _panel_follow(b);
+            // Only where the panel was: the corners were never drawn on, and
+            // writing them back could only put back something older.
+            const int w = _panel_rect.w, h = _panel_rect.h;
+            for (int y = 0; y < h; y++) {
+                int inset = osd_panel_row_inset(w, h, y);
+                if (w - 2 * inset <= 0)
+                    continue;
+                memcpy(_panel_fb_row(b, y) + inset, _panel_save[b] + (size_t)y * w + inset,
+                       (size_t)(w - 2 * inset) * sizeof(uint32_t));
+            }
+        }
+    }
+    _panel_free();
+}
 #endif
 
 void _print_bar(void)
 {
 #ifdef PLATFORM_MIYOOMINI
+    if (_osd_panel) {
+        _print_panel();
+        return;
+    }
     uint32_t *ofs = g_display.fb_addr;
     const uint32_t height = g_display.height;
     // Snapshot volatile values into locals for consistent use within this frame
@@ -334,6 +541,10 @@ void _print_bar(void)
 void _bar_restoreBufferBehind(void)
 {
 #ifdef PLATFORM_MIYOOMINI
+    if (_osd_panel) {
+        _panel_restoreBehind();
+        return;
+    }
     _bar_value = 0;
     _bar_max = 0;
     _bar_color = 0;
@@ -354,6 +565,10 @@ void _bar_restoreBufferBehind(void)
 void _bar_saveBufferBehind(void)
 {
 #ifdef PLATFORM_MIYOOMINI
+    if (_osd_panel) {
+        _panel_saveBehind();
+        return;
+    }
     // Compact buffer: only meterWidth * height pixels (was width * height — 160x smaller!)
     if ((_bar_savebuf = (uint32_t *)malloc(meterWidth * g_display.height *
                                            sizeof(uint32_t)))) {
@@ -393,22 +608,29 @@ static void *_osd_thread(void *_)
  * @param value_max 
  * @param color 
  */
-void osd_showBar(int value, int value_max, uint32_t color)
+static void _osd_showIndicator(int kind, int value, int value_max, uint32_t color, bool mute)
 {
     _bar_timer = getMilliseconds();
+    _bar_kind = kind;
     _bar_value = value;
     _bar_max = value_max;
     _bar_color = color;
+    _bar_mute = mute;
     osd_bar_activated = true;
 
     if (osd_thread_active)
         return;
 
-    // Read meterWidth when the bar appears, not on every step: a cached
-    // value would go stale on theme change, but it must not change while
-    // the bar is on screen either, since the saved strip behind the bar
-    // (_bar_savebuf) is meterWidth pixels wide and is restored with it.
+    // Read meterWidth and the look when the bar appears, not on every step:
+    // a cached value would go stale on theme change, but it must not change
+    // while the bar is on screen either, since the saved strip behind the
+    // bar (_bar_savebuf, or the panel's) is that size and is restored with it.
     config_get("display/meterWidth", CONFIG_INT, &meterWidth);
+    if (meterWidth <= 0) {
+        osd_bar_activated = false;
+        return;
+    }
+    _osd_panel = !config_flag_get(OSD_EDGE_BAR_FLAG);
 
     // The previous bar's thread ends on its own after 2 s and nobody joined
     // it: every bar leaked a thread (stack and descriptor) in keymon until
@@ -439,14 +661,19 @@ void osd_hideBar(void)
     osd_thread_active = false;
 }
 
+void osd_showBar(int value, int value_max, uint32_t color)
+{
+    _osd_showIndicator(OSD_PANEL_BRIGHTNESS, value, value_max, color, false);
+}
+
 void osd_showVolumeBar(int volume, bool mute)
 {
-    osd_showBar(volume, 20, mute ? OSD_MUTE_ON_COLOR : OSD_VOLUME_COLOR);
+    _osd_showIndicator(OSD_PANEL_VOLUME, volume, 20, mute ? OSD_MUTE_ON_COLOR : OSD_VOLUME_COLOR, mute);
 }
 
 void osd_showBrightnessBar(int brightness)
 {
-    osd_showBar(brightness, 10, OSD_BRIGHTNESS_COLOR);
+    _osd_showIndicator(OSD_PANEL_BRIGHTNESS, brightness, 10, OSD_BRIGHTNESS_COLOR, false);
 }
 
 #endif // SYSTEM_OSD_H__
