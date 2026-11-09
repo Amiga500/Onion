@@ -31,7 +31,8 @@ SOFTWARE.
 
 #define MAX_YEAR 2100
 #define MIN_YEAR 1970
-#define DEFAULT_YEAR 2022
+// Year the app was built, for a clock never set (it reads 1970); was 2022.
+#define DEFAULT_YEAR (atoi(&__DATE__[7]))
 #define MAX_DAY 31
 #define MIN_DAY 1
 #define MAX_MONTH 12
