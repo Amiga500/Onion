@@ -155,6 +155,8 @@ bool lang_getFilePath(const char *lang_name, char *lang_path)
     return exists(lang_path);
 }
 
+void lang_free(void);
+
 bool lang_load(void)
 {
     if (!settings_loaded)
@@ -166,23 +168,37 @@ bool lang_load(void)
         !lang_getFilePath(LANG_DEFAULT, lang_path))
         return false;
 
-    lang_list = (char **)malloc(LANG_MAX * sizeof(char *));
-    memset(lang_list, 0, LANG_MAX * sizeof(char *));
+    lang_free(); // a second load leaked the first list
+    lang_list = (char **)calloc(LANG_MAX, sizeof(char *));
+    if (lang_list == NULL)
+        return false;
 
+    // One pass over the keys (was 400 lookups, each scanning all of them),
+    // each string allocated at its own length (was 256 bytes each).
     cJSON *lang_file = json_load(lang_path);
-
-    char key[32];
-    char value[STR_MAX];
-    for (int i = 0; i < LANG_MAX; i++) {
-        sprintf(key, "%d", i);
-        if (json_getString(lang_file, key, value)) {
-            lang_list[i] = (char *)malloc(STR_MAX * sizeof(char));
-            strcpy(lang_list[i], value);
-        }
+    cJSON *item = NULL;
+    cJSON_ArrayForEach(item, lang_file)
+    {
+        if (!cJSON_IsString(item) || item->string == NULL)
+            continue;
+        char *end = NULL;
+        long i = strtol(item->string, &end, 10);
+        char key[16];
+        snprintf(key, sizeof(key), "%ld", i);
+        // Only keys the lookups found ("0".."399" as "%d", not "07"), and
+        // the first of duplicates, as cJSON_GetObjectItem returns.
+        if (end == item->string || *end != '\0' || i < 0 || i >= LANG_MAX ||
+            strcmp(key, item->string) != 0 || lang_list[i] != NULL)
+            continue;
+        size_t len = strlen(item->valuestring);
+        if (len > STR_MAX - 1)
+            len = STR_MAX - 1; // as the STR_MAX buffer cut it
+        if ((lang_list[i] = malloc(len + 1)) == NULL)
+            continue;
+        memcpy(lang_list[i], item->valuestring, len);
+        lang_list[i][len] = '\0';
     }
-
     cJSON_Delete(lang_file);
-
     return true;
 }
 
