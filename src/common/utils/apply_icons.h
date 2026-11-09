@@ -40,22 +40,42 @@ IconMode_e icons_getIconMode(const char *config_path)
     return ICON_MODE_EMU;
 }
 
+// Write content to path unless the file already holds exactly that. Atomic
+// (temporary file + rename): applying an icon pack rewrites every console's
+// config.json, and a power cut during the old truncate-then-write could
+// leave one empty, which hides that console from the menu.
+static bool _writeConfigIfChanged(const char *path, const char *content)
+{
+    char *current = file_read(path);
+    bool same = current != NULL && strcmp(current, content) == 0;
+    free(current);
+    if (same)
+        return true;
+
+    char tmp_path[STR_MAX * 2], final_path[STR_MAX * 2];
+    FILE *fp = file_atomic_begin(path, tmp_path, sizeof(tmp_path),
+                                 final_path, sizeof(final_path));
+    if (fp == NULL)
+        return false;
+    fputs(content, fp);
+    return file_atomic_commit(fp, tmp_path, final_path);
+}
+
 void _saveConfigFile(const char *config_path, const char *content)
 {
-    FILE *config_file = fopen(config_path, "w+");
-    fprintf(config_file, "%s", content);
-    fflush(config_file);
-    fclose(config_file);
+    if (content == NULL || !_writeConfigIfChanged(config_path, content))
+        return;
 
+    // The copies are written the same way (were system("cp ...")).
     if (strcmp(SEARCH_CONFIG_SRC, config_path) == 0 && is_file(SEARCH_CONFIG))
-        system("cp \"" SEARCH_CONFIG_SRC "\" \"" SEARCH_CONFIG "\"");
+        _writeConfigIfChanged(SEARCH_CONFIG, content);
     else if (strcmp(GUEST_OFF_CONFIG, config_path) == 0) {
         if (is_dir(GUEST_DIR)) // main profile
-            system("cp \"" GUEST_OFF_CONFIG "\" \"" GUEST_CONFIG "\"");
+            _writeConfigIfChanged(GUEST_CONFIG, content);
     }
     else if (strcmp(GUEST_ON_CONFIG, config_path) == 0) {
         if (!is_dir(GUEST_DIR)) // guest profile
-            system("cp \"" GUEST_ON_CONFIG "\" \"" GUEST_CONFIG "\"");
+            _writeConfigIfChanged(GUEST_CONFIG, content);
     }
 }
 
@@ -65,23 +85,26 @@ bool apply_singleIconByFullPath(const char *config_path, const char *icon_path)
         return false;
 
     char temp_path[STR_MAX];
-    strncpy(temp_path, icon_path, STR_MAX - 1);
+    snprintf(temp_path, sizeof(temp_path), "%s", icon_path); // strncpy left 255+ unterminated
 
     const char *file_name = basename(temp_path);
     const char *dir_path = dirname(temp_path);
 
     cJSON *config = json_load(config_path);
+    if (config == NULL)
+        return false;
 
-    char sel_path[STR_MAX];
-    sprintf(sel_path, "%s/sel/%s", dir_path, file_name);
-
+    char sel_path[STR_MAX * 2];
+    snprintf(sel_path, sizeof(sel_path), "%s/sel/%s", dir_path, file_name);
     if (!is_file(sel_path))
-        strcpy(sel_path, icon_path);
+        snprintf(sel_path, sizeof(sel_path), "%s", icon_path);
 
     json_forceSetString(config, "icon", icon_path);
     json_forceSetString(config, "iconsel", sel_path);
 
-    _saveConfigFile(config_path, cJSON_Print(config));
+    char *config_str = cJSON_Print(config); // was never freed
+    _saveConfigFile(config_path, config_str);
+    cJSON_free(config_str);
     cJSON_Delete(config);
 
     return true;
@@ -137,33 +160,39 @@ bool _apply_singleIconFromPack(const char *config_path,
 
     cJSON *config = json_load(config_path);
     char temp_path[STR_MAX];
-    if (!json_getString(config, "icon", temp_path))
+    if (!json_getString(config, "icon", temp_path)) {
+        cJSON_Delete(config); // leaked for every config without an icon
         return false;
+    }
 
     char *icon_name = file_removeExtension(basename(temp_path));
+    if (icon_name == NULL) {
+        cJSON_Delete(config);
+        return false;
+    }
     str_split(icon_name, "-");
 
     IconMode_e mode = icons_getIconMode(config_path);
 
     char icon_path[STR_MAX];
-    sprintf(icon_path, icons_getIconPathFormat(mode), icon_pack_path,
-            icon_name);
+    snprintf(icon_path, sizeof(icon_path), icons_getIconPathFormat(mode),
+             icon_pack_path, icon_name);
 
     if (!is_file(icon_path)) {
-        if (reset_default) {
-            sprintf(icon_path, icons_getIconPathFormat(mode), ICON_PACK_DEFAULT,
-                    icon_name);
-        }
+        if (reset_default)
+            snprintf(icon_path, sizeof(icon_path), icons_getIconPathFormat(mode),
+                     ICON_PACK_DEFAULT, icon_name);
 
         if (!is_file(icon_path)) {
             free(icon_name);
+            cJSON_Delete(config); // leaked here too
             return false;
         }
     }
 
     char sel_path[STR_MAX];
-    sprintf(sel_path, icons_getSelectedIconPathFormat(mode), icon_pack_path,
-            icon_name);
+    snprintf(sel_path, sizeof(sel_path), icons_getSelectedIconPathFormat(mode),
+             icon_pack_path, icon_name);
     free(icon_name);
 
     if (is_file(sel_path))
@@ -173,7 +202,7 @@ bool _apply_singleIconFromPack(const char *config_path,
 
     json_forceSetString(config, "icon", icon_path);
 
-    char* config_str = cJSON_Print(config);
+    char *config_str = cJSON_Print(config);
     _saveConfigFile(config_path, config_str);
     cJSON_free(config_str);
     cJSON_Delete(config);
@@ -190,10 +219,10 @@ bool apply_singleIcon(const char *config_path)
     char *active_icon_pack = file_read(ACTIVE_ICON_PACK);
 
     if (active_icon_pack != NULL && is_dir(active_icon_pack))
-        strncpy(icon_pack_path, active_icon_pack, STR_MAX - 1);
-    else {
-        strcpy(icon_pack_path, "/mnt/SDCARD/Icons/Default");
-    }
+        snprintf(icon_pack_path, sizeof(icon_pack_path), "%s", active_icon_pack);
+    else
+        snprintf(icon_pack_path, sizeof(icon_pack_path), "%s", ICON_PACK_DEFAULT);
+    free(active_icon_pack); // was leaked when the pack folder was missing
 
     if (!is_dir(icon_pack_path))
         return false;
@@ -203,7 +232,6 @@ bool apply_singleIcon(const char *config_path)
         _apply_singleIconFromPack(GUEST_ON_CONFIG, icon_pack_path, false);
     }
 
-    free(active_icon_pack);
     return _apply_singleIconFromPack(config_path, icon_pack_path, false);
 }
 

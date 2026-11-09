@@ -209,9 +209,11 @@ Theme_s theme_loadFromPath(const char *theme_path, bool apply_overrides)
                  .selectedcolor = {255, 255, 255}},
         .list = {.font = FALLBACK_FONT, .size = 24, .color = {255, 255, 255}}};
 
-    strncpy(config.path, theme_path, STR_MAX - 1);
-    int len = strlen(config.path);
-    if (config.path[len - 1] != '/') {
+    snprintf(config.path, sizeof(config.path), "%s", theme_path);
+    size_t len = strlen(config.path);
+    // "" read config.path[-1]; a 255-character path wrote '/' and the NUL
+    // one byte past config.path.
+    if (len == 0 || (config.path[len - 1] != '/' && len + 1 < sizeof(config.path))) {
         config.path[len] = '/';
         config.path[len + 1] = '\0';
     }

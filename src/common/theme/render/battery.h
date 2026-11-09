@@ -42,8 +42,8 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
         offsetY -= 0.075 * TTF_FontHeight(font);
 
     // Battery percentage text
-    char buffer[5];
-    sprintf(buffer, "%d%%", shown);
+    char buffer[16]; // [5] held "100%", not a 4-digit value
+    snprintf(buffer, sizeof(buffer), "%d%%", shown);
 
     // Battery icon
     ThemeImages icon_request = _getBatteryRequest(percentage);
@@ -63,7 +63,7 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
 
     const int SPACER = 5;
     int img_width = 2 * (text->w + SPACER) + icon->w;
-    int img_height = text->h > icon->h ? text->h : icon->w;
+    int img_height = text->h > icon->h ? text->h : icon->h; // was icon->w
 
     if (!visible) {
         img_width = icon->w;

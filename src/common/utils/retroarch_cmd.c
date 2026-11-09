@@ -84,14 +84,19 @@ int retroarch_load(int slot)
 static int _parseRetroArchStatus(const char *response, RetroArchStatus_s *status)
 {
     char status_str[32];
+    int info_at = 0;
 
     // Parse response "GET_STATUS PAUSED game_boy_advance,Advance Wars (U) (V1.1) [!],crc32=26fd0fc9"
-    int parsed = sscanf(response, "GET_STATUS %31s %[^\n]", status_str, status->content_info);
-
-    if (parsed < 2)
-        strcpy(status->content_info, "");
-    if (parsed < 1)
+    // content_info is copied with its size: "%[^\n]" had no width, and a
+    // long game name overflowed it.
+    status->content_info[0] = '\0';
+    if (sscanf(response, "GET_STATUS %31s %n", status_str, &info_at) < 1)
         return -1;
+    if (info_at > 0) {
+        const char *info = response + info_at;
+        snprintf(status->content_info, sizeof(status->content_info), "%.*s",
+                 (int)strcspn(info, "\n"), info);
+    }
 
     if (strcmp(status_str, "PLAYING") == 0)
         status->state = RETROARCH_STATE_PLAYING;

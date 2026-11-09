@@ -39,34 +39,41 @@ void set_system_shutdown(void)
  */
 void system_powersave(bool enabled)
 {
-    static uint32_t saved_min_freq;
+    static uint32_t saved_min_freq = 0;
     static char saved_governor[16];
+    static bool saved = false;
     FILE *fp;
 
     if (enabled) {
         char buffer[128];
         FILE *pipe = popen("cpuclock", "r");
 
+        saved_min_freq = 0;
         if (pipe) {
-            while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+            while (fgets(buffer, sizeof(buffer), pipe) != NULL)
                 saved_min_freq = atoi(buffer);
-            }
+            pclose(pipe); // was also called with NULL when popen() failed
         }
 
-        pclose(pipe);
-
         // save values for restoring later
+        saved_governor[0] = '\0';
         file_get(fp, CPU_SCALING_GOVERNOR, "%15s", saved_governor);
+        saved = true;
         // set powersaving values
         file_put(fp, CPU_SCALING_MIN_FREQ, "%u", 0);
         file_put(fp, CPU_SCALING_GOVERNOR, "%s", "powersave");
     }
-    else {
-        // restore
-        char sCommand[15];
-        sprintf(sCommand, "cpuclock %u", saved_min_freq);
-        system(sCommand);
-        file_put(fp, CPU_SCALING_GOVERNOR, "%s", saved_governor);
+    else if (saved) {
+        // Restore only what powersave_on() read: without it, this wrote an
+        // empty governor and ran "cpuclock 0".
+        if (saved_min_freq > 0) {
+            char cmd[32]; // [15] overflowed for a value of 6+ digits
+            snprintf(cmd, sizeof(cmd), "cpuclock %u", saved_min_freq);
+            system(cmd);
+        }
+        if (saved_governor[0] != '\0')
+            file_put(fp, CPU_SCALING_GOVERNOR, "%s", saved_governor);
+        saved = false;
     }
 }
 

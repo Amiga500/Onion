@@ -72,7 +72,7 @@ TEST(charging_icon_shows_the_level) {
     fclose(fp);
     src[n] = '\0';
     ASSERT_TRUE(strstr(src, "shown = battery_chargingLevel();") != NULL);
-    ASSERT_TRUE(strstr(src, "sprintf(buffer, \"%d%%\", shown);") != NULL);
+    ASSERT_TRUE(strstr(src, "snprintf(buffer, sizeof(buffer), \"%d%%\", shown);") != NULL);
     ASSERT_TRUE(strstr(src, "if (percentage == 500)\n        return BATTERY_CHARGING;") != NULL);
     remove(BATTERY_PERCBAT_PATH);
 }

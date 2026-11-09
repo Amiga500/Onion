@@ -143,13 +143,15 @@ void lang_removeIconLabels(bool remove_icon_labels, bool remove_hints)
 
 bool lang_getFilePath(const char *lang_name, char *lang_path)
 {
-    sprintf(lang_path, LANG_DIR_BACKUP "/%s", lang_name);
+    // lang_path is char[STR_MAX] at every caller; the name comes from
+    // system.json.
+    snprintf(lang_path, STR_MAX, LANG_DIR_BACKUP "/%s", lang_name);
     if (exists(lang_path))
         return true;
-    sprintf(lang_path, LANG_DIR "/%s", lang_name);
+    snprintf(lang_path, STR_MAX, LANG_DIR "/%s", lang_name);
     if (exists(lang_path))
         return true;
-    sprintf(lang_path, LANG_DIR_FALLBACK "/%s", lang_name);
+    snprintf(lang_path, STR_MAX, LANG_DIR_FALLBACK "/%s", lang_name);
     return exists(lang_path);
 }
 
