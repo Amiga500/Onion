@@ -241,13 +241,60 @@ TEST(drawn_again_after_the_wait_is_put_back) {
     _bar_color = OSD_VOLUME_COLOR;
     _bar_saveBufferBehind();
     _print_bar();
-    _panel_covered[1] = true; /* as left by a wait that a key cut short */
-    _print_bar();             /* the panel is back on every buffer */
+    /* The wait saw the game cover buffer 1, then a key cut it short. */
+    for (int i = 0; i < SW * SH; i++)
+        fb[SW * SH + i] = 0x00555555;
+    _panel_covered[1] = true;
+    _print_bar(); /* the panel is drawn there again */
     _bar_restoreBufferBehind();
     osd_panel_rect_t r = osd_panel_geometry(SW, SH, false);
     int x = r.x + r.w / 2, y = r.y + r.h / 2;
+    /* Not left with the panel on it: the saved picture is back. */
     ASSERT_EQ(seen(1, x, y),
               (uint32_t)((size_t)SW * SH + (size_t)(SH - 1 - y) * SW + (SW - 1 - x)) * 2654435761u & 0x00FFFFFF);
+}
+
+/* Only the buffer on screen is drawn on every pass; another one only when
+ * the panel isn't there (not yet, or the program drew over it). */
+TEST(other_buffers_drawn_only_when_needed) {
+    fb_setup();
+    _osd_panel = true;
+    _osd_panel_top = false;
+    _bar_kind = OSD_PANEL_VOLUME;
+    _bar_value = 12;
+    _bar_max = 20;
+    _bar_color = OSD_VOLUME_COLOR;
+    _bar_saveBufferBehind();
+    _print_bar(); /* first pass: on every buffer */
+    osd_panel_rect_t r = osd_panel_geometry(SW, SH, false);
+    int x = r.x + r.w / 2, y = r.y + r.h / 2;
+    for (int b = 0; b < NBUF; b++)
+        ASSERT_TRUE(seen(b, x, y) & 0x00FFFFFF);
+
+    /* Somebody paints one pixel of buffer 2 outside the nine checked: not
+     * noticed, not redrawn (a pass checks, it doesn't rewrite every buffer). */
+    size_t i2 = (size_t)2 * SW * SH + (size_t)(SH - 1 - (r.y + 1)) * SW + (SW - 1 - (r.x + r.w / 2 + 1));
+    uint32_t panel_px = fb[i2];
+    fb[i2] = 0x00777777;
+    _print_bar();
+    ASSERT_EQ(fb[i2], 0x00777777u);
+    ASSERT_TRUE(!_panel_redrawn[2]);
+
+    /* The game draws a frame on buffer 2: noticed, the panel back on it. */
+    for (int i = 0; i < SW * SH; i++)
+        fb[2 * SW * SH + i] = 0x00666666;
+    _print_bar();
+    ASSERT_TRUE(_panel_redrawn[2]);
+    ASSERT_EQ(fb[i2], panel_px);
+
+    /* The buffer on screen gets the panel on every pass, even where the
+     * nine checked pixels saw nothing. */
+    _panel_shown_override = 2;
+    fb[i2] = 0x00777777;
+    _print_bar();
+    ASSERT_EQ(fb[i2], panel_px);
+    _panel_shown_override = -2;
+    _bar_restoreBufferBehind();
 }
 
 /* Rows further apart than the width (finfo.line_length): the panel follows
@@ -341,6 +388,7 @@ int main(void)
     RUN_TEST(new_value_is_not_a_redraw);
     RUN_TEST(panel_at_the_top);
     RUN_TEST(drawn_again_after_the_wait_is_put_back);
+    RUN_TEST(other_buffers_drawn_only_when_needed);
     RUN_TEST(padded_rows_follow_the_line_length);
     RUN_TEST(mode_change_while_shown_stays_in_the_mapping);
     RUN_TEST(one_buffer_mapping);
