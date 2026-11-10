@@ -507,7 +507,12 @@ void resumeGame(int index)
                 file_move_line_to_top(recentPath, lineCount);
             }
 
-            file_put_sync(fp, CMD_TO_RUN_PATH, "%s", LaunchCommand);
+            // Through a temporary file and a rename: on a quick switch the
+            // shell is still running the old cmd_to_run.sh, and a file
+            // rewritten in place could be read on from the middle.
+            if (!file_atomic_write(CMD_TO_RUN_PATH, LaunchCommand, strlen(LaunchCommand))) {
+                file_put_sync(fp, CMD_TO_RUN_PATH, "%s", LaunchCommand);
+            }
             printf_debug("resume game: %s\n", LaunchCommand);
 
             temp_flag_set("force_auto_load_state", true);

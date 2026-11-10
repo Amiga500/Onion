@@ -33,6 +33,10 @@
 #endif
 
 static volatile bool osd_thread_active = false;
+// Asks the OSD thread to end now (osd_hideBar). pthread_cancel() only acts at
+// a cancellation point, and the panel's wait loop (sched_yield) has none:
+// the join then blocked keymon until the indicator's 2 s were over.
+static volatile bool osd_stop = false;
 static pthread_t osd_pt;
 // osd_pt was created and not joined yet (it may have finished on its own)
 static bool osd_thread_joinable = false;
@@ -554,6 +558,8 @@ static bool _panel_settle(void)
     }
     for (int t = 0; any && t < OSD_PANEL_SETTLE_MS; t += 5) {
         usleep(5000);
+        if (osd_stop)
+            return true;
         if (getMilliseconds() - _bar_timer < 2000)
             return false;
         any = false;
@@ -668,7 +674,7 @@ static bool _osd_settled(void)
 static void *_osd_thread(void *_)
 {
     do {
-        while (getMilliseconds() - _bar_timer < 2000) {
+        while (!osd_stop && getMilliseconds() - _bar_timer < 2000) {
             _print_bar();
             // The game redraws the framebuffer every frame and the bar is
             // drawn over it, unsynchronised with the game's page flips.
@@ -683,7 +689,7 @@ static void *_osd_thread(void *_)
 #endif
             usleep(100);
         }
-    } while (!_osd_settled());
+    } while (!osd_stop && !_osd_settled());
     _bar_restoreBufferBehind();
     osd_thread_active = false;
     return 0;
@@ -743,10 +749,11 @@ void osd_hideBar(void)
     osd_bar_activated = false;
     if (!osd_thread_active)
         return;
-    pthread_cancel(osd_pt);
+    // The thread puts back what was behind the indicator before it ends.
+    osd_stop = true;
     pthread_join(osd_pt, NULL);
+    osd_stop = false;
     osd_thread_joinable = false;
-    _bar_restoreBufferBehind();
     osd_thread_active = false;
 }
 

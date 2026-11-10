@@ -392,6 +392,9 @@ launch_main_ui() {
     check_hide_recents
     perf_end mr_recents
 
+    # The command MainUI left goes to the card before the sync below.
+    [ -f /tmp/cmd_to_run.sh ] && mv -f /tmp/cmd_to_run.sh $sysdir/cmd_to_run.sh
+
     # Flush what MainUI wrote (recents, favourites, system.json). This is the
     # one sync per cycle that check_hide_recents used to provide implicitly.
     perf_dirty
@@ -409,7 +412,6 @@ launch_main_ui() {
     perf_begin mr_freemma
     $sysdir/bin/freemma
     perf_end mr_freemma
-    mv -f /tmp/cmd_to_run.sh $sysdir/cmd_to_run.sh
 
     set_prev_state "mainui"
     perf_end mainui_return

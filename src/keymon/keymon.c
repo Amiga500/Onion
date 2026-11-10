@@ -52,7 +52,7 @@
 #define CHECK_SEC 15   // Interval sec to check hibernate/adc
 #define SHUTDOWN_MIN 1 // Minutes to power off after hibernate
 #define REPEAT_SEC(val) ((val * 1000 - 250) / 50)
-#define PIDMAX 32
+#define PIDMAX 256 // was 32: the processes past the 31st kept running in standby
 
 // MMF headphone jack GPIO detection
 // Credit to Tenlevels for original patch, minor modifications made for device model check.
@@ -473,6 +473,8 @@ void deepsleep(void)
         return;
     }
 
+    // Not in the screenshot taken below, nor over the shutdown screen.
+    osd_hideBar();
     short_pulse();
     set_system_shutdown();
 
@@ -512,6 +514,8 @@ void deepsleep(void)
 //
 void suspend_exec(int timeout)
 {
+    // Its thread draws on the framebuffer: not while the screen goes off.
+    osd_hideBar();
     keyinput_disable();
 
     // pause playActivity (synchronous: the session must be closed before
@@ -1375,7 +1379,9 @@ int main(int argc, char *argv[])
         if (hibernate_time && !temp_flag_get("stay_awake")) {
             if (ticks - hibernate_start > hibernate_time * 60 * 1000) {
                 suspend_exec(SHUTDOWN_MIN * 60000);
-                hibernate_start = ticks;
+                // Not `ticks`, taken before the standby: after a long one
+                // the device went back to standby 15 s after waking up.
+                hibernate_start = getMilliseconds();
             }
         }
 

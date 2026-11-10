@@ -92,6 +92,10 @@ int main(int argc, char *argv[])
         uint32_t ticks = SDL_GetTicks();
         appState.acc_ticks += ticks - appState.last_ticks;
         appState.last_ticks = ticks;
+        // After a standby the clock is hours ahead: draw one frame, not
+        // every frame that was missed.
+        if (appState.acc_ticks > 10 * appState.time_step)
+            appState.acc_ticks = appState.time_step;
 
         if (appState.show_legend && ticks - appState.legend_start > appState.legend_timeout) {
             appState.show_legend = false;
@@ -205,6 +209,8 @@ int main(int argc, char *argv[])
     }
     else if (current_game == NULL) {
         print_debug("No current game; nothing to resume");
+        // Overlay: RetroArch stayed paused and the flag stayed. No-op otherwise.
+        overlay_resume();
     }
     else if (current_game->is_running) {
         if (appState.current_bg != NULL) {

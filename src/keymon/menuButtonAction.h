@@ -212,11 +212,14 @@ static void _saveAndQuitRetroArch(bool quickSwitch)
 
 void action_RA_gameSwitcher(void)
 {
-    if (exists("/mnt/SDCARD/.tmp_update/.runGameSwitcher"))
+    // The flag alone is not enough: one left by a GameSwitcher that ended
+    // badly made every later MENU do nothing until the game was closed.
+    if (exists("/mnt/SDCARD/.tmp_update/.runGameSwitcher") &&
+        process_searchpid("gameSwitcher") != 0)
         return;
     set_gameSwitcher();
     retroarch_pause();
-    system("(gameSwitcher --overlay && touch /tmp/state_changed) &");
+    system("(gameSwitcher --overlay; touch /tmp/state_changed) &");
     system_state_update();
 }
 
@@ -396,6 +399,21 @@ bool _hapticDoublePress(void)
     return false;
 }
 
+// Is a double press set where MENU was pressed? (The wait for the second
+// press used the in-game setting everywhere, MainUI included.)
+static bool _doublePressConfigured(void)
+{
+    switch (menu_pressed_state) {
+    case MODE_MAIN_UI:
+        return settings.mainui_double_press != 0;
+    case MODE_GAME:
+    case MODE_DRASTIC:
+        return settings.ingame_double_press != 0;
+    default:
+        return false;
+    }
+}
+
 bool menuButtonAction(uint32_t val, bool comboKey)
 {
     if (comboKey) {
@@ -435,7 +453,7 @@ bool menuButtonAction(uint32_t val, bool comboKey)
 
         while (1) {
             int wait_ms = menuButton_doublePressWait(getMilliseconds(), menu_last_pressed);
-            if (settings.ingame_double_press != 0 && wait_ms > 0 &&
+            if (_doublePressConfigured() && wait_ms > 0 &&
                 poll(fds, 1, wait_ms) > 0) {
                 if (!keyinput_isValid())
                     continue;

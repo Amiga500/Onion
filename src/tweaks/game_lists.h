@@ -121,6 +121,8 @@ static void gamelists_action_rows(void *pt)
     if (stored) {
         // Saved list positions belong to the old row count.
         gamelists_remove_file(GAMELISTS_ROMWINIDX_PATH);
+        // and its copy on the card, which runtime.sh puts back at boot
+        gamelists_remove_file(GAMELISTS_CONFIG_DIR "/romwinidx.json");
         gamelists_rescale_pending = true;
     }
 }
