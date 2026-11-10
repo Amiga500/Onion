@@ -2832,6 +2832,287 @@ check "a saved_games that is not an object is left alone" test "$(cat "$GM")" = 
 check "no temporary file left" test ! -e "$GM.tmp"
 end
 
+# ---- Backup app (App/Backup/launch.sh) ----
+#
+# The functions are loaded from the app itself (BACKUP_NO_MAIN skips its
+# menu). The tests that make and restore zips need a 7-Zip on the PC
+# (7zz, 7z or 7za, or BACKUP_TEST_7Z); without one they are skipped.
+
+BACKUP_APP="$ROOT/static/packages/App/Backup (Saves and settings)/App/Backup/launch.sh"
+backup_load() { # SD folder
+    BACKUP_SD=$1 BACKUP_NO_MAIN=1 BACKUP_7Z=${BACKUP_TEST_7Z:-7z}
+    export BACKUP_SD BACKUP_NO_MAIN BACKUP_7Z
+    . "$BACKUP_APP"
+    LOG=$TMP/backup.log
+}
+not_allowed() { ! allowed_path "$1"; }
+not_guest_archive() { ! archive_guest_mode_on "$1"; }
+zip_line_is() { # zip file, path in it, its one line
+    [ -f "$1" ] && test "$("$BACKUP_TEST_7Z" x -so "$1" "$2" 2> /dev/null)" = "$3"
+}
+backup_7z=${BACKUP_TEST_7Z:-$(command -v 7zz || command -v 7z || command -v 7za)}
+
+begin backup_allowed_paths
+backup_load "$TMP/sd"
+for p in Saves Saves/CurrentProfile/saves/Pokemon.srm Saves/GuestProfile/states/x.state0 \
+    .tmp_update .tmp_update/config .tmp_update/config/.logging .tmp_update/config/system/abc.json \
+    system.json RetroArch RetroArch/.retroarch RetroArch/.retroarch/retroarch.cfg \
+    Emu/NDS/backup/Mario.dsv Emu/NDS/savestates/Mario_0.dss Emu/NDS/config/drastic.cfg \
+    Emu/NDS/resources/settings.json Roms Roms/favourite.json "Roms/recentlist-hidden.json"; do
+    check "allowed: $p" allowed_path "$p"
+done
+for p in "" /etc/passwd ../x Saves/../.tmp_update/runtime.sh Saves/./x .tmp_update/runtime.sh \
+    .tmp_update/bin/7z RetroArch/retroarch RetroArch/.retroarch/cores/x.so Emu/GBA/launch.sh \
+    Emu/NDS/launch.sh Roms/GBA/game.gba Roms/GBA/x.json Roms/game.gba App/Tweaks/launch.sh BIOS/gba_bios.bin; do
+    check "refused: '$p'" not_allowed "$p"
+done
+end
+
+begin backup_labels_and_list
+backup_load "$TMP/sd"
+check "plain" test "$(backup_label RedOnion_backup_2026-11-10_09-30-15.zip)" = "2026-11-10 09:30:15"
+check "before restore" test "$(backup_label RedOnion_backup_2026-11-10_09-30-15_before-restore.zip)" = "2026-11-10 09:30:15 (before restore)"
+check "same second" test "$(backup_label RedOnion_backup_2026-11-10_09-30-15_2.zip)" = "2026-11-10 09:30:15 (2)"
+mkdir -p "$TMP/sd/Backups"
+for f in RedOnion_backup_2026-01-02_10-00-00.zip RedOnion_backup_2026-11-10_09-30-15.zip \
+    RedOnion_backup_2025-12-31_23-59-59.zip .RedOnion_backup_2026-12-01_00-00-00.zip.part \
+    other.zip RedOnion_backup_notes.txt; do
+    : > "$TMP/sd/Backups/$f"
+done
+check "newest first, only finished backups" test "$(list_backups | tr '\n' ' ')" = \
+    "RedOnion_backup_2026-11-10_09-30-15.zip RedOnion_backup_2026-01-02_10-00-00.zip RedOnion_backup_2025-12-31_23-59-59.zip "
+end
+
+begin backup_items_only_what_exists
+mkdir -p "$TMP/sd/Saves/CurrentProfile/saves" "$TMP/sd/.tmp_update/config" "$TMP/sd/Roms/GBA"
+: > "$TMP/sd/Roms/favourite.json"
+: > "$TMP/sd/Roms/GBA/list.json"
+backup_load "$TMP/sd"
+check "existing items, top Roms json only" test "$(backup_items | tr '\n' ' ')" = "Saves .tmp_update/config Roms/favourite.json "
+mkdir -p "$TMP/sd/Saves/CurrentProfile/romScreens"
+head -c 300000 /dev/urandom > "$TMP/sd/Saves/CurrentProfile/romScreens/big.png"
+head -c 20000 /dev/urandom > "$TMP/sd/Saves/CurrentProfile/saves/a.srm"
+kb=$(items_kb Saves)
+check "size without the screenshots ($kb KiB)" test "$kb" -ge 16 -a "$kb" -lt 100
+rm -rf "$TMP/sd"
+mkdir -p "$TMP/sd"
+check "nothing there: no items" test -z "$(backup_items)"
+end
+
+# The screens, with the menus answered from a list: ui_choose gives the next
+# answer and notes its title and choices; ui_info notes its title.
+backup_ui_stubs() { # answers...
+    echo "$*" | tr ' ' '\n' > "$TMP/answers"
+    : > "$TMP/ui"
+    ui_choose() {
+        printf 'CHOOSE %s | %s\n' "$1" "$(shift 2; echo "$*")" >> "$TMP/ui"
+        a=$(head -n 1 "$TMP/answers")
+        sed -i 1d "$TMP/answers"
+        return "${a:-255}"
+    }
+    ui_info() { printf 'INFO %s\n' "$1" >> "$TMP/ui"; }
+    ui_busy() { printf 'BUSY %s\n' "$1" >> "$TMP/ui"; }
+    ui_busy_end() { :; }
+}
+
+begin backup_delete_screen
+SD=$TMP/sd
+mkdir -p "$SD/Backups"
+: > "$SD/Backups/RedOnion_backup_2026-01-01_10-00-00.zip"
+: > "$SD/Backups/RedOnion_backup_2026-02-01_10-00-00.zip"
+backup_load "$SD"
+backup_ui_stubs 1 0
+screen_delete
+check "list titled" grep -q "^CHOOSE DELETE A BACKUP | 2026-02-01 10:00:00 2026-01-01 10:00:00$" "$TMP/ui"
+check "cancel keeps it" test -f "$SD/Backups/RedOnion_backup_2026-01-01_10-00-00.zip"
+backup_ui_stubs 1 1
+screen_delete
+check "asked first" grep -q "^CHOOSE DELETE A BACKUP | Cancel Delete$" "$TMP/ui"
+check "the second one deleted" test ! -e "$SD/Backups/RedOnion_backup_2026-01-01_10-00-00.zip"
+check "the other kept" test -f "$SD/Backups/RedOnion_backup_2026-02-01_10-00-00.zip"
+backup_ui_stubs 255
+screen_delete
+check "B on the list: nothing asked" test "$(grep -c CHOOSE "$TMP/ui")" -eq 1
+rm -f "$SD/Backups/"*
+backup_ui_stubs
+screen_delete
+check "none: says so" grep -q "^INFO DELETE A BACKUP$" "$TMP/ui"
+end
+
+# A small SD card: saves, settings and lists, and things a backup leaves out.
+backup_fake_sd() { # folder
+    mkdir -p "$1/Saves/CurrentProfile/saves/gpSP" "$1/Saves/CurrentProfile/states" \
+        "$1/Saves/CurrentProfile/romScreens" "$1/Saves/CurrentProfile/config/remaps" \
+        "$1/.tmp_update/config/system" "$1/.tmp_update/bin" "$1/RetroArch/.retroarch" \
+        "$1/Roms/GBA" "$1/Emu/NDS/backup" "$1/Emu/NDS/config" "$1/BIOS"
+    echo "save 1" > "$1/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm"
+    echo "state 1" > "$1/Saves/CurrentProfile/states/game.state0"
+    echo "screen" > "$1/Saves/CurrentProfile/romScreens/game.png"
+    echo "1700000000" > "$1/Saves/CurrentProfile/saves/currentTime.txt"
+    echo "remap" > "$1/Saves/CurrentProfile/config/remaps/x.rmp"
+    : > "$1/.tmp_update/config/.logging"
+    echo '{"vol": 10}' > "$1/.tmp_update/config/system/OLD.json"
+    echo "binary" > "$1/.tmp_update/bin/tool"
+    echo '{"vol": 15, "theme": "a"}' > "$1/system.json"
+    echo 'video_smooth = "true"' > "$1/RetroArch/.retroarch/retroarch.cfg"
+    echo '{"fav": 1}' > "$1/Roms/favourite.json"
+    echo "rom" > "$1/Roms/GBA/game.gba"
+    echo "nds save" > "$1/Emu/NDS/backup/Mario.dsv"
+    echo "cfg" > "$1/Emu/NDS/config/drastic.cfg"
+    echo "bios" > "$1/BIOS/bios.bin"
+}
+
+if [ -z "$backup_7z" ]; then
+    echo "  [SKIP] backup zip tests: no 7-Zip on this PC (set BACKUP_TEST_7Z)"
+else
+    BACKUP_TEST_7Z=$backup_7z
+
+    begin backup_make_and_restore
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    read_uuid() { echo DEVICE1; }
+    mkdir -p "$SD/Backups"
+    : > "$SD/Backups/.RedOnion_backup_2026-01-01_10-00-00.zip.part"
+    : > "$SD/.tmp_update/config/theme-applied-ABC"
+    make_backup ""
+    rc=$?
+    check "made" test $rc -eq 0
+    check "a part file left by a cut-short backup is removed" test ! -e "$SD/Backups/.RedOnion_backup_2026-01-01_10-00-00.zip.part"
+    check "in Backups" test -f "$BACKUP_FILE" -a "$(dirname "$BACKUP_FILE")" = "$SD/Backups"
+    check "no part file left" test -z "$(ls -A "$SD/Backups" | grep part)"
+    paths=$(archive_paths "$BACKUP_FILE")
+    for p in "Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm" Saves/CurrentProfile/states/game.state0 \
+        Saves/CurrentProfile/config/remaps/x.rmp .tmp_update/config/.logging system.json \
+        RetroArch/.retroarch/retroarch.cfg Roms/favourite.json Emu/NDS/backup/Mario.dsv Emu/NDS/config/drastic.cfg; do
+        check "has $p" sh -c 'printf "%s\n" "$1" | grep -qxF "$2"' _ "$paths" "$p"
+    done
+    for p in Saves/CurrentProfile/romScreens/game.png Saves/CurrentProfile/saves/currentTime.txt \
+        Roms/GBA/game.gba .tmp_update/bin/tool BIOS/bios.bin; do
+        check "not $p" sh -c '! printf "%s\n" "$1" | grep -qxF "$2"' _ "$paths" "$p"
+    done
+    check "every path may go back" check_archive "$BACKUP_FILE"
+    first=$BACKUP_FILE
+
+    # Things change, then the backup goes back.
+    echo "save 2" > "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm"
+    rm -f "$SD/.tmp_update/config/.logging"
+    echo '{"vol": 3, "theme": "b"}' > "$SD/system.json"
+    echo "new" > "$SD/Saves/CurrentProfile/saves/new.srm"
+    restore_backup "$first"
+    rc=$?
+    check "restored" test $rc -eq 0
+    check "save back" test "$(cat "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm")" = "save 1"
+    check "flag back" test -f "$SD/.tmp_update/config/.logging"
+    check "system.json back" test "$(cat "$SD/system.json")" = '{"vol": 15, "theme": "a"}'
+    check "and this device's boot copy" test "$(cat "$SD/.tmp_update/config/system/DEVICE1.json")" = '{"vol": 15, "theme": "a"}'
+    check "a file not in the backup stays" test "$(cat "$SD/Saves/CurrentProfile/saves/new.srm")" = new
+    check "the ROM is untouched" test "$(cat "$SD/Roms/GBA/game.gba")" = rom
+    check "the theme's icons are applied again at the next boot" test ! -e "$SD/.tmp_update/config/theme-applied-ABC"
+    before=$(list_backups | grep _before-restore)
+    check "the state before was backed up" test -n "$before"
+    check "with the changed save" zip_line_is "$SD/Backups/$before" "Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm" "save 2"
+    end
+
+    begin backup_restore_screen
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    read_uuid() { echo DEVICE1; }
+    printf '#!/bin/sh\necho "$*" > "%s/shutdown_args"\n' "$TMP" > "$SD/.tmp_update/bin/shutdown"
+    chmod +x "$SD/.tmp_update/bin/shutdown"
+    backup_ui_stubs
+    screen_backup
+    check "backup done shown" grep -q "^INFO BACKUP DONE$" "$TMP/ui"
+    echo "save 2" > "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm"
+    backup_ui_stubs 0 0 1
+    screen_restore
+    check "restore cancelled: save unchanged" test "$(cat "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm")" = "save 2"
+    check "list titled RESTORE" grep -q "^CHOOSE RESTORE | [0-9-]* [0-9:]*$" "$TMP/ui"
+    backup_ui_stubs 0 1 1
+    screen_restore
+    check "restored" test "$(cat "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm")" = "save 1"
+    check "restart offered" grep -q "^CHOOSE RESTORE DONE | Restart now Later$" "$TMP/ui"
+    check "Later: no restart" test ! -e "$TMP/shutdown_args"
+    (backup_ui_stubs 0 1 0; screen_restore)
+    check "Restart now: clean reboot" test "$(cat "$TMP/shutdown_args" 2> /dev/null)" = "-r"
+    end
+
+    begin backup_restore_keeps_the_clock
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    mkdir -p "$TMP/old/Saves/CurrentProfile/saves"
+    echo "1000" > "$TMP/old/Saves/CurrentProfile/saves/currentTime.txt"
+    echo "old save" > "$TMP/old/Saves/CurrentProfile/saves/old.srm"
+    (cd "$TMP/old" && "$BACKUP_TEST_7Z" a -tzip "$TMP/old.zip" Saves > /dev/null 2>&1)
+    restore_backup "$TMP/old.zip"
+    check "restored" test $? -eq 0
+    check "its save written" test "$(cat "$SD/Saves/CurrentProfile/saves/old.srm")" = "old save"
+    check "its saved clock not written back" test "$(cat "$SD/Saves/CurrentProfile/saves/currentTime.txt")" = 1700000000
+    end
+
+    begin backup_restore_refuses_foreign_paths
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    mkdir -p "$TMP/evil/Emu/GBA"
+    echo "evil" > "$TMP/evil/Emu/GBA/launch.sh"
+    (cd "$TMP/evil" && "$BACKUP_TEST_7Z" a -tzip "$TMP/evil.zip" Emu > /dev/null 2>&1)
+    restore_backup "$TMP/evil.zip"
+    check "refused" test $? -ne 0
+    check "says which file" sh -c 'printf "%s" "$1" | grep -q "Emu/GBA"' _ "$RESTORE_ERROR"
+    check "nothing written" test ! -e "$SD/Emu/GBA/launch.sh"
+    check "no backup made for it" test -z "$(list_backups)"
+    echo "not a zip" > "$TMP/broken.zip"
+    restore_backup "$TMP/broken.zip"
+    check "a damaged file is refused" test $? -ne 0 -a -n "$RESTORE_ERROR"
+    end
+
+    begin backup_restore_keeps_guest_mode
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    make_backup ""
+    normal=$BACKUP_FILE
+    mkdir -p "$SD/Saves/MainProfileOld"
+    : > "$SD/Saves/MainProfileOld/x"
+    make_backup ""
+    check "a folder only starting with MainProfile is not Guest Mode" not_guest_archive "$BACKUP_FILE"
+    rm -rf "$SD/Saves/MainProfileOld"
+    mv "$SD/Saves/CurrentProfile" "$SD/Saves/MainProfile"
+    mkdir -p "$SD/Saves/CurrentProfile/saves"
+    restore_backup "$normal"
+    check "Guest Mode on, backup without it: refused" test $? -ne 0
+    check "says to turn it off" sh -c 'printf "%s" "$1" | grep -q "Turn Guest Mode off"' _ "$RESTORE_ERROR"
+    check "main profile untouched" test ! -e "$SD/Saves/CurrentProfile/saves/gpSP"
+    make_backup ""
+    guest=$BACKUP_FILE
+    rm -rf "$SD/Saves/CurrentProfile"
+    mv "$SD/Saves/MainProfile" "$SD/Saves/CurrentProfile"
+    restore_backup "$guest"
+    check "Guest Mode off, backup with it: refused" test $? -ne 0
+    check "says to turn it on" sh -c 'printf "%s" "$1" | grep -q "Turn Guest Mode on"' _ "$RESTORE_ERROR"
+    end
+
+    begin backup_not_enough_space_or_7z_error
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    free_kb() { echo 100; }
+    make_backup ""
+    check "no space: not made" test $? -eq 2
+    check "says so" sh -c 'printf "%s" "$1" | grep -q "Not enough space"' _ "$BACKUP_ERROR"
+    check "no file" test -z "$(ls -A "$SD/Backups")"
+    backup_load "$SD"
+    BACKUP_7Z=false
+    Z7=false
+    make_backup ""
+    check "7z fails: not made" test $? -eq 2
+    check "nothing left behind" test -z "$(ls -A "$SD/Backups")"
+    end
+fi
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

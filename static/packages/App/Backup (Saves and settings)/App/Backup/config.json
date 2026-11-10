@@ -1,0 +1,7 @@
+{
+  "label": "Backup",
+  "icon": "/mnt/SDCARD/Icons/Default/app/backup.png",
+  "iconsel": "",
+  "launch": "launch.sh",
+  "description": "Back up and restore saves and settings"
+}
