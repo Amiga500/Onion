@@ -321,13 +321,19 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 				 if ! [ "$mediaextension" = "png" ]; then   # if the image is a jpg we convert it thanks to Eggs tool or ImageMagick
 					filename=$(basename -- "$urlMediaBox")
 					#magick "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension" -resize 250x360 "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
-					jpgconverstion=$(jpg2png "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension")
-					if [ $? -eq 0 ]; then  # we manage jpg2png crash on big images due to GFX  memory limit
-						jpgconverstion=$(echo "$jpgconverstion" | awk -F "[ :]" '{printf("w:%d h:%d -> w:%d h:%d\n", $2, $4, $6, $8)}')
+					# jpg2png_stb, as the ScreenScraper scraper: the old jpg2png (GFX
+					# hardware) failed on big images and, when its memory allocation
+					# failed, wrote to physical address 0. A failed conversion leaves no
+					# PNG, so the game is tried again at the next scraping.
+					img_src="/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension"
+					img_dst="/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
+					if jpg2png_stb "$img_src" "$img_dst" 250 360 > /dev/null 2>&1 && [ -s "$img_dst" ]; then
+						jpgconverstion="ok"
 					else
-						jpg2png_stb "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension" "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" 250 360
+						jpgconverstion="failed"
+						rm -f "$img_dst"
 					fi
-					
+
 					echo "jpg to png :  $jpgconverstion"
 					rm "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension"
 				else
