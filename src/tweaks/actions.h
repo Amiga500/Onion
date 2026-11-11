@@ -57,6 +57,9 @@ void action_setAppShortcut(void *pt)
 void action_meterWidth(void *pt)
 {
     config_setNumber("display/meterWidth", ((ListItem *)pt)->value);
+    // A bar still on screen keeps the width it appeared with: drawn
+    // again from scratch, the new width shows at once.
+    osd_hideBar();
     osd_showBrightnessBar(settings.brightness);
 }
 
