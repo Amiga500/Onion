@@ -9,3 +9,6 @@ HOME=/mnt/SDCARD
 ./bin/clock
 
 date +%s > $savedir/currentTime.txt
+
+# Non-zero: GLO goes back to the game list. Zero would start the game.
+exit 1
