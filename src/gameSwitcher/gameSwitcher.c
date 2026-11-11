@@ -202,7 +202,10 @@ int main(int argc, char *argv[])
     if (appState.exit_to_menu) {
         print_debug("Exiting to menu");
         remove("/mnt/SDCARD/.tmp_update/.runGameSwitcher");
-        remove("/mnt/SDCARD/.tmp_update/cmd_to_run.sh");
+        // Shutting down with the overlay over a game: the game is resumed
+        // at the next boot, as when the device is turned off in the game.
+        if (!(appState.is_overlay && temp_flag_get(".offOrder")))
+            remove("/mnt/SDCARD/.tmp_update/cmd_to_run.sh");
         overlay_exit();
         SDL_FillRect(screen, NULL, 0);
         render();

@@ -15,6 +15,8 @@
 
 #define CPU_SCALING_MIN_FREQ CPU_DIR "scaling_min_freq"
 #define CPU_SCALING_GOVERNOR CPU_DIR "scaling_governor"
+// What powersave changed, kept while it is on (system_powersave_recover).
+#define POWERSAVE_STATE_PATH "/tmp/.powersave_state"
 
 #define system_powersave_on() system_powersave(true)
 #define system_powersave_off() system_powersave(false)
@@ -59,6 +61,13 @@ void system_powersave(bool enabled)
         saved_governor[0] = '\0';
         file_get(fp, CPU_SCALING_GOVERNOR, "%15s", saved_governor);
         saved = true;
+        {
+            FILE *state = fopen(POWERSAVE_STATE_PATH, "w");
+            if (state != NULL) {
+                fprintf(state, "%u %s\n", saved_min_freq, saved_governor);
+                fclose(state);
+            }
+        }
         // set powersaving values
         file_put(fp, CPU_SCALING_MIN_FREQ, "%u", 0);
         file_put(fp, CPU_SCALING_GOVERNOR, "%s", "powersave");
@@ -74,7 +83,35 @@ void system_powersave(bool enabled)
         if (saved_governor[0] != '\0')
             file_put(fp, CPU_SCALING_GOVERNOR, "%s", saved_governor);
         saved = false;
+        remove(POWERSAVE_STATE_PATH);
     }
+}
+
+/**
+ * @brief Undo a powersave left on by a program that ended during standby
+ * (keymon after a crash): the CPU clock and governor saved in /tmp go back.
+ * Does nothing when powersave is not on.
+ */
+void system_powersave_recover(void)
+{
+    FILE *fp;
+    FILE *state = fopen(POWERSAVE_STATE_PATH, "r");
+    if (state == NULL)
+        return;
+    unsigned int clock_mhz = 0;
+    char governor[16] = "";
+    if (fscanf(state, "%u %15s", &clock_mhz, governor) < 1)
+        clock_mhz = 0;
+    fclose(state);
+    remove(POWERSAVE_STATE_PATH);
+
+    if (clock_mhz > 0) {
+        char cmd[32];
+        snprintf(cmd, sizeof(cmd), "cpuclock %u", clock_mhz);
+        system(cmd);
+    }
+    if (governor[0] != 0)
+        file_put(fp, CPU_SCALING_GOVERNOR, "%s", governor);
 }
 
 #endif // SYSTEM_H__

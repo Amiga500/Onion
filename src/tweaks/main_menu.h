@@ -752,9 +752,29 @@ static bool mainmenu_store_hotkey(bool enabled)
     return ok;
 }
 
+// Tweaks is opened from the Apps tab, from the SELECT menu's Tweaks entry or
+// with L1+R1+L2+R2. With all three off it could only be brought back by
+// editing main-menu.json on a PC: the last one stays on.
+static bool mainmenu_would_lock_out(int menu_off, int context_off, bool hotkey_off)
+{
+    bool menu_states[MAINMENU_MENU_COUNT];
+    bool context_states[MAINMENU_CONTEXT_COUNT];
+    mainmenu_load_shown_states(menu_states, context_states);
+    bool hotkey = mainmenu_load_hotkey_state() && !hotkey_off;
+    if (menu_off >= 0 && menu_off < MAINMENU_MENU_COUNT)
+        menu_states[menu_off] = false;
+    if (context_off >= 0 && context_off < MAINMENU_CONTEXT_COUNT)
+        context_states[context_off] = false;
+    return !menu_states[4] && !context_states[10] && !hotkey;
+}
+
 static void mainmenu_action_hotkey(void *pt)
 {
     ListItem *item = (ListItem *)pt;
+    if (item->value == 0 && mainmenu_would_lock_out(-1, -1, true)) {
+        item->value = 1;
+        return;
+    }
     if (!mainmenu_store_hotkey(item->value != 0))
         item->value = mainmenu_load_hotkey_state();
 }
@@ -765,6 +785,10 @@ static void mainmenu_action_menu_item(void *pt)
     int index = item->action_id;
     if (index < 0 || index >= MAINMENU_MENU_COUNT)
         return;
+    if (item->value == 0 && mainmenu_would_lock_out(index, -1, false)) {
+        item->value = 1;
+        return;
+    }
     if (!mainmenu_store_menu_item(index, item->value != 0)) {
         bool menu_states[MAINMENU_MENU_COUNT];
         bool context_states[MAINMENU_CONTEXT_COUNT];
@@ -779,6 +803,10 @@ static void mainmenu_action_context_item(void *pt)
     int index = item->action_id;
     if (index < 0 || index >= MAINMENU_CONTEXT_COUNT)
         return;
+    if (item->value == 0 && mainmenu_would_lock_out(-1, index, false)) {
+        item->value = 1;
+        return;
+    }
     if (!mainmenu_store_context_item(index, item->value != 0) ||
         !mainmenu_context_available(index)) {
         bool menu_states[MAINMENU_MENU_COUNT];
