@@ -106,6 +106,7 @@ clear
 search_on_screenscraper() {
     local retry_count=0
     local max_retries=5
+    ss_no_match=0
 
     while true; do
 		# TODO : managing multithread for users who have it.
@@ -133,7 +134,7 @@ search_on_screenscraper() {
 
     # Don't check art if screenscraper is closed
     if echo "$Head_api_result" | grep -q "API closed"; then
-        echo -e "${RED}The Screenscraper API is currently down, please try again later.{NONE}"
+        echo -e "${RED}The Screenscraper API is currently down, please try again later.${NONE}"
         let Scrap_Fail++
         read -n 1 -s -r -p "Press A to exit"
         return
@@ -151,6 +152,8 @@ search_on_screenscraper() {
     if echo "$Head_api_result" | grep -q "^Erreur"; then
         echo -e "${RED}No match found${NONE}"
         echo "Couldn't find a match for $romNameNoExtensionTrimmed" >> /mnt/SDCARD/.tmp_update/logs/scrap.log
+        # Only the "not found" answer: a login or quota error is not one.
+        echo "$Head_api_result" | grep -q "non trouv" && ss_no_match=1
         return
     fi
 
@@ -290,6 +293,9 @@ gi_wanted() { # item
 
 # The wanted items this ROM is still missing, one per line.
 gi_missing() {
+    # ScreenScraper doesn't know this game (gi_not_found): nothing to ask for.
+    [ -f "$gi_root/media/.gameinfo_none" ] &&
+        grep -qxF "notfound $gi_rel" "$gi_root/media/.gameinfo_none" && return 0
     for gi_item in desc box2dfront box2dback box3d screenshot video manual; do
         gi_wanted "$gi_item" || continue
         [ -f "$gi_root/media/.gameinfo_none" ] &&
@@ -297,6 +303,8 @@ gi_missing() {
         case "$gi_item" in
             desc)
                 # An entry already there, ours or another scraper's ("./" or not).
+                [ -s "$gi_root/gamelist.xml.pending" ] &&
+                    grep -qF "<path>./$(gi_xml "$gi_rel")</path>" "$gi_root/gamelist.xml.pending" && continue
                 [ -f "$gi_root/gamelist.xml" ] &&
                     grep -qF -e "<path>./$(gi_xml "$gi_rel")</path>" -e "<path>$(gi_xml "$gi_rel")</path>" \
                         "$gi_root/gamelist.xml" && continue ;;
@@ -427,6 +435,26 @@ gi_write_desc() {
     grep -q '</gameList>' "$gi_list" || return 1
     gi_entry > "$gi_list.entry" || { rm -f "$gi_list.entry"; return 1; }
     grep -q '<path>' "$gi_list.entry" || { rm -f "$gi_list.entry"; return 1; }
+    # Kept aside and merged in one go (gi_merge_pending): adding each game
+    # rewrote the whole gamelist.xml on the card, once per game.
+    cat "$gi_list.entry" >> "$gi_list.pending"
+    gi_ok=$?
+    rm -f "$gi_list.entry"
+    return $gi_ok
+}
+
+# The entries kept aside go into gamelist.xml: when a scraping starts (what
+# one cut short left) and when it ends. They stay aside if that fails.
+gi_merge_pending() {
+    gi_list="$gi_root/gamelist.xml"
+    [ -s "$gi_list.pending" ] || return 0
+    [ -s "$gi_list" ] && grep -q '</gameList>' "$gi_list" || return 1
+    cp -f "$gi_list.pending" "$gi_list.entry" || return 1
+    gi_merge_entry_file && rm -f "$gi_list.pending"
+}
+
+# Puts the lines of gamelist.xml.entry before the last </gameList>.
+gi_merge_entry_file() {
     awk -v entry="$gi_list.entry" '
         { line[NR] = $0 }
         /<\/gameList>/ { last = NR }
@@ -450,6 +478,16 @@ gi_write_desc() {
 gi_none() { # item
     mkdir -p "$gi_root/media"
     echo "$1 $gi_rel" >> "$gi_root/media/.gameinfo_none"
+}
+
+# ScreenScraper answered that it doesn't know this game: written down, so
+# that a game with its cover already there is not looked up at every
+# scraping for its Game Info. Delete media/.gameinfo_none to ask again.
+gi_not_found() {
+    [ "$ss_no_match" = 1 ] && [ -n "$GameInfoMedia" ] || return 0
+    [ -f "$gi_root/media/.gameinfo_none" ] &&
+        grep -qxF "notfound $gi_rel" "$gi_root/media/.gameinfo_none" && return 0
+    gi_none notfound
 }
 
 # Gets the missing items ($1, one per line) for this ROM. Prints a line per
@@ -619,6 +657,10 @@ fi
  #ls /mnt/SDCARD/Roms/$CurrentSystem
  mkdir -p /mnt/SDCARD/Roms/$CurrentSystem/Imgs > /dev/null
 
+# Entries a scraping cut short left aside (see gi_write_desc).
+gi_root="/mnt/SDCARD/Roms/$CurrentSystem"
+gi_merge_pending
+
 # =================
 #this is a trick to manage spaces from find command, do not indent or modify
 IFS='
@@ -695,6 +737,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 			
 			if [ "$rom_size" -gt "$MAX_FILE_SIZE_BYTES" ]; then
 				echo -e "${RED}Rom is too big to make a checksum.${NONE}"
+				gi_not_found
 				let Scrap_Fail++;
 				continue;
 				
@@ -707,6 +750,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 				search_on_screenscraper
 				if ! [ "$gameIDSS" -eq "$gameIDSS" ] 2> /dev/null; then	
 					echo -e "${RED}Failed to get game ID${NONE}"
+					gi_not_found
 					let Scrap_Fail++;
 					continue;
 				fi
@@ -844,5 +888,7 @@ fi
 echo -e "--------------------------\n"	 
 sleep 2
 echo "********   Screenscraper scraping finished   ********"
+
+gi_merge_pending
 
 echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
