@@ -2889,6 +2889,97 @@ run_mig
 check "a saved_games that is not an object is left alone" test "$(cat "$GM")" = '{"saved_games": 5}'
 check "no temporary file left" test ! -e "$GM.tmp"
 end
+# ---- review fixes: MainUI crash loop ----
+
+eval "$(extract_fn "$RUNTIME" read_file_to)"
+eval "$(extract_fn "$RUNTIME" mainui_check_crash_loop)"
+
+mainui_env() {
+    sysdir="$TMP/sys"
+    MAINUI_HANDOFF_DIR="$TMP/tmp"
+    MAINUI_CRASH_COUNT="$TMP/tmp/mainui_quick_exits"
+    MAINUI_CRASH_LIMIT=3
+    MAINUI_QUICK_CS=300
+    DEVICE_ID=354
+    mainui_mode=clean
+    mkdir -p "$sysdir/mainui-test/stock" "$MAINUI_HANDOFF_DIR"
+    printf '#!/bin/sh\n' > "$sysdir/mainui-test/stock/MainUI-354-clean"
+    chmod +x "$sysdir/mainui-test/stock/MainUI-354-clean"
+    panel_calls=0
+}
+command -v log > /dev/null 2>&1 || log() { :; }
+sync() { :; }
+sleep() { :; }
+infoPanel() { panel_calls=$((panel_calls + 1)); }
+
+begin mainui_crash_loop_falls_back
+mainui_env
+mainui_check_crash_loop 50
+mainui_check_crash_loop 80
+check "two quick exits: still Open MainUI" test ! -e "$sysdir/mainui-test/DISABLED"
+check "counted" test "$(cat "$MAINUI_CRASH_COUNT")" = 2
+mainui_check_crash_loop 10
+check "the third: the stock MainUI" test -e "$sysdir/mainui-test/DISABLED"
+check "the user is told once" test $panel_calls -eq 1
+check "the count is cleared" test ! -e "$MAINUI_CRASH_COUNT"
+end
+
+begin mainui_crash_loop_long_session_resets
+mainui_env
+mainui_check_crash_loop 50
+mainui_check_crash_loop 50
+mainui_check_crash_loop 5000
+mainui_check_crash_loop 50
+mainui_check_crash_loop 50
+check "a session that lasted starts the count over" test ! -e "$sysdir/mainui-test/DISABLED"
+check "no message" test $panel_calls -eq 0
+end
+
+begin mainui_crash_loop_requested_exits_not_counted
+mainui_env
+for f in "$sysdir/cmd_to_run.sh" "$MAINUI_HANDOFF_DIR/cmd_to_run.sh" \
+    "$sysdir/.runGameSwitcher" "$MAINUI_HANDOFF_DIR/.offOrder"; do
+    touch "$f"
+    mainui_check_crash_loop 10
+    mainui_check_crash_loop 10
+    mainui_check_crash_loop 10
+    rm -f "$f"
+done
+check "exits asked for (game, app, GameSwitcher, shutdown) are not crashes" \
+    test ! -e "$sysdir/mainui-test/DISABLED"
+check "and leave no count" test ! -e "$MAINUI_CRASH_COUNT"
+end
+
+begin mainui_crash_loop_stock_crashing_too
+mainui_env
+: > "$sysdir/mainui-test/DISABLED"
+mainui_check_crash_loop 10
+mainui_check_crash_loop 10
+mainui_check_crash_loop 10
+rc=$?
+check "the stock MainUI crashing too: reported" test $rc -ne 0
+check "no second message" test $panel_calls -eq 0
+end
+
+begin mainui_crash_loop_without_stock_binary
+mainui_env
+rm -f "$sysdir/mainui-test/stock/MainUI-354-clean"
+mainui_check_crash_loop 10
+mainui_check_crash_loop 10
+mainui_check_crash_loop 10
+check "nothing to fall back to: Open MainUI stays" test ! -e "$sysdir/mainui-test/DISABLED"
+end
+
+begin mainui_crash_loop_unknown_run_time
+mainui_env
+mainui_check_crash_loop ""
+mainui_check_crash_loop ""
+mainui_check_crash_loop ""
+check "no run time measured: not taken for a crash" test ! -e "$sysdir/mainui-test/DISABLED"
+end
+
+unset -f sync sleep infoPanel
+
 # ---- review fixes: theme extraction cut short ----
 
 THEME_EXTRACT="$ROOT/src/themeSwitcher/script/themes_extract_theme.sh"

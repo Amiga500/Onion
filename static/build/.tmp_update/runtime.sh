@@ -379,11 +379,15 @@ launch_main_ui() {
     # MainUI launch
     perf_end mainui_prepare
     perf_begin mainui_session
+    perf_now
+    mainui_started=$perf_cs
     cd $miyoodir/app
     PATH="$miyoodir/app:$PATH" \
         LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" \
         LD_PRELOAD="$miyoodir/lib/libpadsp.so" \
         ./MainUI 2>&1 > /dev/null
+    perf_now
+    mainui_check_crash_loop $((perf_cs - mainui_started))
     perf_end mainui_session
     perf_begin mainui_return
 
@@ -1269,6 +1273,51 @@ check_hide_recents() {
 }
 
 mainui_target=$miyoodir/app/MainUI
+
+# Open MainUI is external code that changes often: a version that can't read
+# a setting, or crashes as it starts, made runtime.sh start it again forever
+# (a black screen, a global sync and a mode change each time) and only a PC
+# could fix the card. Three exits within MAINUI_QUICK_CS of starting, in a
+# row, with nothing asked of runtime.sh (no command to run, no GameSwitcher,
+# no shutdown: keymon always leaves one of those before it kills MainUI)
+# switch to the stock MainUI, which the MainUI wrapper starts while
+# mainui-test/DISABLED exists. Deleting that file tries Open MainUI again.
+MAINUI_HANDOFF_DIR=/tmp
+MAINUI_CRASH_COUNT=/tmp/mainui_quick_exits
+MAINUI_CRASH_LIMIT=3
+MAINUI_QUICK_CS=300
+
+mainui_check_crash_loop() { # how long MainUI ran, in 1/100 s
+    if [ -f "$MAINUI_HANDOFF_DIR/cmd_to_run.sh" ] || [ -f "$sysdir/cmd_to_run.sh" ] ||
+        [ -f "$sysdir/.runGameSwitcher" ] || [ -f "$MAINUI_HANDOFF_DIR/.offOrder" ] ||
+        [ "${1:-$MAINUI_QUICK_CS}" -ge "$MAINUI_QUICK_CS" ] 2> /dev/null; then
+        rm -f "$MAINUI_CRASH_COUNT"
+        return 0
+    fi
+
+    read_file_to _mc_n "$MAINUI_CRASH_COUNT"
+    case "$_mc_n" in '' | *[!0-9]*) _mc_n=0 ;; esac
+    _mc_n=$((_mc_n + 1))
+    if [ $_mc_n -lt "$MAINUI_CRASH_LIMIT" ]; then
+        echo "$_mc_n" > "$MAINUI_CRASH_COUNT"
+        return 0
+    fi
+    rm -f "$MAINUI_CRASH_COUNT"
+
+    _mc_dir="$sysdir/mainui-test"
+    if [ -f "$_mc_dir/DISABLED" ] || [ ! -x "$_mc_dir/stock/MainUI-$DEVICE_ID-$mainui_mode" ]; then
+        # Already on the stock MainUI, or none to fall back to: at least
+        # don't spin (each start costs a sync and a mode change).
+        log "MainUI keeps exiting at start, no fallback left"
+        sleep 5
+        return 1
+    fi
+
+    log "Open MainUI exited at start $_mc_n times in a row: using the stock MainUI"
+    : > "$_mc_dir/DISABLED"
+    sync
+    infoPanel --title "MAINUI" --message "Open MainUI could not start.\nThe original MainUI is used instead.\n \nTo try Open MainUI again, delete\n.tmp_update/mainui-test/DISABLED\nfrom the SD card."
+}
 
 # Read one top-level value from system.json with shell builtins (jsonval is a
 # separate process per call). system.json keeps one key per line, as the sed
