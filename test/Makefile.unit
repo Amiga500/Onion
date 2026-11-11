@@ -42,6 +42,8 @@ TESTS += test_theme_skin
 TESTS += test_keymon_robust
 # Review fixes: hash equivalence with upstream, powersave recovery
 TESTS += test_hash_equiv test_powersave_recover
+# Review fixes: stopping the OSD thread, Tweaks lock-out guard
+TESTS += test_osd_stop test_tweaks_lockout
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -979,3 +981,20 @@ test_powersave_recover: $(BUILD_DIR)/test_powersave_recover
 $(BUILD_DIR)/test_powersave_recover: test_powersave_recover.c onion_test.h ../src/common/system/system.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_powersave_recover.c $(COMMON_SRCS) $(LDFLAGS) -lrt
+
+test_osd_stop: $(BUILD_DIR)/test_osd_stop
+	@echo ""
+	@$(BUILD_DIR)/test_osd_stop
+
+# The Miyoo drawing code and its thread, on a fake framebuffer.
+$(BUILD_DIR)/test_osd_stop: test_osd_stop.c onion_test.h ../src/common/system/osd.h ../src/common/system/osd_panel.h stubs/SDL/SDL.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) -Istubs $(CFLAGS) -UPLATFORM_LINUX -DPLATFORM_MIYOOMINI -o $@ test_osd_stop.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm -lpthread
+
+test_tweaks_lockout: $(BUILD_DIR)/test_tweaks_lockout
+	@echo ""
+	@$(BUILD_DIR)/test_tweaks_lockout
+
+$(BUILD_DIR)/test_tweaks_lockout: test_tweaks_lockout.c onion_test.h ../src/tweaks/main_menu.h ../src/common/components/list.h stubs/SDL/SDL.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_tweaks_lockout.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
