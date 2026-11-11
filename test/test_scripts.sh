@@ -231,9 +231,11 @@ end
 begin scraper_game_info_gamelist
 gi_env
 gi_write_desc
+gi_merge_pending
 check "no gamelist.xml: made with the entry" sh -c "grep -q '^<gameList>' '$gi_root/gamelist.xml' && grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
 printf '<?xml version="1.0"?><gameList><game><path>./Other.sfc</path><desc>keep</desc></game></gameList>' > "$gi_root/gamelist.xml"
 gi_write_desc
+gi_merge_pending
 check "one-line list: entry inside gameList, old entry kept" sh -c "test \$(grep -c '<game>' '$gi_root/gamelist.xml') -eq 2 && grep -q '<desc>keep</desc>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>' && head -1 '$gi_root/gamelist.xml' | grep -q '^<?xml version=\"1.0\"?><gameList><game><path>./Other.sfc'"
 GameInfoMedia=desc
 missing=$(gi_missing)
