@@ -544,6 +544,56 @@ TEST(search_toggle_without_app_stays_off)
     ASSERT_EQ(item.value, 0);
 }
 
+/* Tweaks opens from the Apps tab, the SELECT menu's Tweaks entry or the
+ * L1+R1+L2+R2 hotkey: the last of the three can't be turned off. */
+static void with_tweaks_app(void)
+{
+    (void)!system("mkdir -p " TEST_DIR "/sd/App/Tweaks && touch " TEST_DIR "/sd/App/Tweaks/launch.sh");
+}
+
+TEST(last_way_to_tweaks_stays_on)
+{
+    reset_dir();
+    with_tweaks_app();
+    gamelists_write_text(TEST_DIR "/main-menu.json",
+                         "{\"menu\": {\"games\": true, \"apps\": false}, \"context\": {\"tweaks\": false}}");
+    ListItem hotkey = {.item_type = TOGGLE, .value = 0};
+    mainmenu_action_hotkey(&hotkey);
+    ASSERT_EQ(hotkey.value, 1);
+    ASSERT_TRUE(mainmenu_load_hotkey_state());
+
+    gamelists_write_text(TEST_DIR "/main-menu.json",
+                         "{\"menu\": {\"games\": true, \"apps\": false}, \"hotkey\": false}");
+    ListItem context = {.item_type = TOGGLE, .value = 0, .action_id = 10};
+    mainmenu_action_context_item(&context);
+    ASSERT_EQ(context.value, 1);
+
+    gamelists_write_text(TEST_DIR "/main-menu.json",
+                         "{\"context\": {\"tweaks\": false}, \"hotkey\": false}");
+    ListItem apps = {.item_type = TOGGLE, .value = 0, .action_id = 4};
+    mainmenu_action_menu_item(&apps);
+    ASSERT_EQ(apps.value, 1);
+    bool menu[MAINMENU_MENU_COUNT], shown[MAINMENU_CONTEXT_COUNT];
+    mainmenu_load_shown_states(menu, shown);
+    ASSERT_TRUE(menu[4]);
+}
+
+TEST(ways_to_tweaks_off_while_another_is_left)
+{
+    reset_dir();
+    with_tweaks_app();
+    ListItem hotkey = {.item_type = TOGGLE, .value = 0};
+    mainmenu_action_hotkey(&hotkey);
+    ASSERT_EQ(hotkey.value, 0);
+    ASSERT_FALSE(mainmenu_load_hotkey_state());
+    ListItem context = {.item_type = TOGGLE, .value = 0, .action_id = 10};
+    mainmenu_action_context_item(&context);
+    ASSERT_EQ(context.value, 0); /* the Apps tab is still there */
+    ListItem apps = {.item_type = TOGGLE, .value = 0, .action_id = 4};
+    mainmenu_action_menu_item(&apps);
+    ASSERT_EQ(apps.value, 1); /* now it was the last one */
+}
+
 TEST(custom_action_without_definition_shows_off)
 {
     reset_dir();
@@ -1829,6 +1879,8 @@ int main(void)
     RUN_TEST(search_named_in_file_without_app_shows_off);
     RUN_TEST(other_change_keeps_search_for_later_install);
     RUN_TEST(search_toggle_without_app_stays_off);
+    RUN_TEST(last_way_to_tweaks_stays_on);
+    RUN_TEST(ways_to_tweaks_off_while_another_is_left);
     RUN_TEST(custom_action_without_definition_shows_off);
     RUN_TEST(custom_action_needs_label_and_launch);
 

@@ -247,6 +247,46 @@ check "a list without </gameList>: refused" test $rc -ne 0
 check "and left alone" sh -c "! grep -q 'Trials' '$gi_root/gamelist.xml'"
 end
 
+begin scraper_game_info_pending_and_not_found
+gi_env
+GameInfoMedia=desc
+printf '<?xml version="1.0"?>\n<gameList>\n<game><path>./Other.sfc</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+cp "$gi_root/gamelist.xml" "$TMP/list_before"
+gi_write_desc
+check "an entry waits aside, the list untouched" sh -c "cmp -s '$gi_root/gamelist.xml' '$TMP/list_before' && grep -q 'Trials &amp; Co' '$gi_root/gamelist.xml.pending'"
+check "a waiting entry counts as there" test -z "$(gi_missing)"
+# A scraping cut short: the next one merges what waited, once.
+gi_merge_pending
+check "merged at the start of the next run" sh -c "test \$(grep -c '<game>' '$gi_root/gamelist.xml') -eq 2 && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
+check "and no longer waiting" test ! -e "$gi_root/gamelist.xml.pending"
+gi_merge_pending
+check "nothing waiting: list unchanged" test "$(grep -c '<game>' "$gi_root/gamelist.xml")" -eq 2
+gi_name="Next"; gi_rel="Next.sfc"
+gi_write_desc
+printf '<gameList>\n<game><path>./A.sfc</path></game>\n' > "$gi_root/gamelist.xml"
+gi_merge_pending
+check "a broken list: entries keep waiting" test -s "$gi_root/gamelist.xml.pending"
+rm -f "$gi_root/gamelist.xml" "$gi_root/gamelist.xml.pending"
+
+gi_env
+GameInfoMedia=desc
+ss_no_match=0
+gi_not_found
+check "no 'not found' answer: nothing written" test ! -e "$gi_root/media/.gameinfo_none"
+ss_no_match=1
+GameInfoMedia=
+gi_not_found
+check "no Game Info wanted: nothing written" test ! -e "$gi_root/media/.gameinfo_none"
+GameInfoMedia=desc
+gi_not_found
+gi_not_found
+check "not found: written once" test "$(grep -c 'notfound RPG/Trials & Co.sfc' "$gi_root/media/.gameinfo_none")" -eq 1
+check "then nothing missing for it" test -z "$(gi_missing)"
+gi_rel="Other game.sfc"
+check "other games still asked" test "$(gi_missing)" = desc
+rm -rf "$gi_root/media"
+end
+
 begin scraper_game_info_missing_and_urls
 gi_env
 GameInfoMedia="desc,box2dfront,box2dback,box3d,screenshot,video,manual"
