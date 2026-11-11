@@ -16,7 +16,9 @@
 #define CPU_SCALING_MIN_FREQ CPU_DIR "scaling_min_freq"
 #define CPU_SCALING_GOVERNOR CPU_DIR "scaling_governor"
 // What powersave changed, kept while it is on (system_powersave_recover).
+#ifndef POWERSAVE_STATE_PATH /* tests point it at a folder of their own */
 #define POWERSAVE_STATE_PATH "/tmp/.powersave_state"
+#endif
 
 #define system_powersave_on() system_powersave(true)
 #define system_powersave_off() system_powersave(false)

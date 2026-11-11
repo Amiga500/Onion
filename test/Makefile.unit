@@ -40,6 +40,8 @@ TESTS += test_pacman_install
 TESTS += test_theme_skin
 # keymon: crash restart, failing input
 TESTS += test_keymon_robust
+# Review fixes: hash equivalence with upstream, powersave recovery
+TESTS += test_hash_equiv test_powersave_recover
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -955,3 +957,25 @@ test_udp_wait: $(BUILD_DIR)/test_udp_wait
 $(BUILD_DIR)/test_udp_wait: test_udp_wait.c onion_test.h ../src/common/utils/udp.c ../src/common/utils/udp.h ../src/common/utils/retroarch_cmd.c ../src/common/utils/retroarch_cmd.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_udp_wait.c ../src/common/utils/udp.c ../src/common/utils/retroarch_cmd.c $(LDFLAGS) -lpthread
+
+# hash_old.h is upstream's utils/hash.h, to compare the new one with it.
+HASH_OLD_REF ?= upstream/main
+$(BUILD_DIR)/hash_old.h:
+	@mkdir -p $(BUILD_DIR)
+	git show $(HASH_OLD_REF):src/common/utils/hash.h > $@ || { rm -f $@; exit 1; }
+
+test_hash_equiv: $(BUILD_DIR)/test_hash_equiv
+	@echo ""
+	@$(BUILD_DIR)/test_hash_equiv
+
+$(BUILD_DIR)/test_hash_equiv: test_hash_equiv.c onion_test.h ../src/common/utils/hash.h $(BUILD_DIR)/hash_old.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(BUILD_DIR) -o $@ test_hash_equiv.c $(LDFLAGS)
+
+test_powersave_recover: $(BUILD_DIR)/test_powersave_recover
+	@echo ""
+	@$(BUILD_DIR)/test_powersave_recover
+
+$(BUILD_DIR)/test_powersave_recover: test_powersave_recover.c onion_test.h ../src/common/system/system.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_powersave_recover.c $(COMMON_SRCS) $(LDFLAGS) -lrt

@@ -2889,6 +2889,82 @@ run_mig
 check "a saved_games that is not an object is left alone" test "$(cat "$GM")" = '{"saved_games": 5}'
 check "no temporary file left" test ! -e "$GM.tmp"
 end
+# ---- review fixes: Game Info pending list and not-found memo ----
+
+begin scraper_game_info_pending_merge
+gi_env
+rm -f "$gi_root/gamelist.xml" "$gi_root/gamelist.xml.pending"
+printf '<?xml version="1.0"?>\n<gameList>\n<game><path>./Other.sfc</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+before=$(cat "$gi_root/gamelist.xml")
+gi_write_desc
+rc=$?
+check "an entry is accepted" test $rc -eq 0
+check "gamelist.xml untouched until the merge" test "$(cat "$gi_root/gamelist.xml")" = "$before"
+check "the entry waits in the pending file" grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' "$gi_root/gamelist.xml.pending"
+GameInfoMedia=desc
+check "a pending entry counts as already there" test -z "$(gi_missing)"
+gi_rel="RPG/Second.sfc"
+gi_write_desc
+check "two entries pending" test "$(grep -c '<game>' "$gi_root/gamelist.xml.pending")" -eq 2
+gi_merge_pending
+rc=$?
+check "merge succeeds" test $rc -eq 0
+check "all three games in gamelist.xml" test "$(grep -c '<game>' "$gi_root/gamelist.xml")" -eq 3
+check "the pending file is gone" test ! -e "$gi_root/gamelist.xml.pending"
+check "list still ends with gameList" sh -c "tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
+check "old entry kept" grep -q '<path>./Other.sfc</path>' "$gi_root/gamelist.xml"
+gi_merge_pending
+rc=$?
+check "merging again does nothing" test $rc -eq 0
+check "and changes nothing" test "$(grep -c '<game>' "$gi_root/gamelist.xml")" -eq 3
+end
+
+begin scraper_game_info_pending_edge_cases
+gi_env
+printf '<?xml version="1.0"?>\n<gameList>\n</gameList>\n' > "$gi_root/gamelist.xml"
+: > "$gi_root/gamelist.xml.pending"
+before=$(cat "$gi_root/gamelist.xml")
+gi_merge_pending
+rc=$?
+check "an empty pending file is not an error" test $rc -eq 0
+check "and leaves the list alone" test "$(cat "$gi_root/gamelist.xml")" = "$before"
+printf '  <game>\n    <path>./Left.sfc</path>\n  </game>\n' > "$gi_root/gamelist.xml.pending"
+gi_merge_pending
+check "entries left by a scraping cut short are merged" grep -q '<path>./Left.sfc</path>' "$gi_root/gamelist.xml"
+check "and the pending file removed" test ! -e "$gi_root/gamelist.xml.pending"
+printf '<gameList>\n<game><path>./A.sfc</path></game>\n' > "$gi_root/gamelist.xml"
+printf '  <game>\n    <path>./B.sfc</path>\n  </game>\n' > "$gi_root/gamelist.xml.pending"
+gi_merge_pending
+rc=$?
+check "a list without </gameList>: refused" test $rc -ne 0
+check "the pending entries are kept" test -s "$gi_root/gamelist.xml.pending"
+check "the list is left alone" sh -c "! grep -q 'B.sfc' '$gi_root/gamelist.xml'"
+rm -f "$gi_root/gamelist.xml"
+printf '  <game>\n    <path>./C.sfc</path>\n  </game>\n' > "$gi_root/gamelist.xml.pending"
+gi_merge_pending
+rc=$?
+check "no gamelist.xml at all: refused, entries kept" sh -c "test $rc -ne 0 && test -s '$gi_root/gamelist.xml.pending'"
+end
+
+begin scraper_game_info_not_found_memo
+gi_env
+GameInfoMedia="desc,box2dfront"
+ss_no_match=0
+gi_not_found
+check "no 'not found' answer: nothing written" test ! -e "$gi_root/media/.gameinfo_none"
+ss_no_match=1
+gi_not_found
+check "a game ScreenScraper doesn't know is recorded" grep -qxF "notfound $gi_rel" "$gi_root/media/.gameinfo_none"
+gi_not_found
+check "and only once" test "$(grep -cxF "notfound $gi_rel" "$gi_root/media/.gameinfo_none")" -eq 1
+check "nothing is missing for it any more" test -z "$(gi_missing)"
+rm -rf "$gi_root/media"
+GameInfoMedia=""
+gi_not_found
+check "Game Info off: nothing written" test ! -e "$gi_root/media/.gameinfo_none"
+end
+
+
 
 echo ""
 echo "========================================"
