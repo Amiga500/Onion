@@ -28,6 +28,13 @@ main() {
     echo "theme: $theme_name"
     echo "path: $archive_path"
 
+    # A swap cut short (power off between the two moves below) left the
+    # theme only as .<name>.old: put it back before anything else, or the
+    # rm -rf "$old" below would delete the only copy.
+    if [ ! -d "$theme_dir/$theme_name" ] && [ -d "$theme_dir/.$theme_name.old" ]; then
+        mv "$theme_dir/.$theme_name.old" "$theme_dir/$theme_name"
+    fi
+
     rm -rf "$staging"
     mkdir -p "$staging" || return 1
 

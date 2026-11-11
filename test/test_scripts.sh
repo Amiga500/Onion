@@ -2889,6 +2889,106 @@ run_mig
 check "a saved_games that is not an object is left alone" test "$(cat "$GM")" = '{"saved_games": 5}'
 check "no temporary file left" test ! -e "$GM.tmp"
 end
+# ---- review fixes: theme extraction cut short ----
+
+THEME_EXTRACT="$ROOT/src/themeSwitcher/script/themes_extract_theme.sh"
+
+# A fake 7z: "x" makes <out>/<name>/config.json and a version file (or fails
+# with FAKE_7Z_FAIL set), "l" lists the archive and one theme.
+theme_fake_7z() { # bin dir
+    mkdir -p "$1"
+    cat > "$1/7z" << 'MOCK'
+#!/bin/sh
+cmd=$1
+shift
+case "$cmd" in
+    x)
+        [ -n "$FAKE_7Z_FAIL" ] && exit 2
+        out=""
+        name=""
+        for a in "$@"; do
+            case "$a" in
+                -o*) out=${a#-o} ;;
+                */\*) name=${a%/\*} ;;
+            esac
+        done
+        mkdir -p "$out/$name" || exit 2
+        echo '{}' > "$out/$name/config.json"
+        echo new > "$out/$name/version"
+        ;;
+    l)
+        echo "Path = $2"
+        echo "Path = $FAKE_THEME/config.json"
+        ;;
+esac
+exit 0
+MOCK
+    chmod +x "$1/7z"
+}
+
+# Themes/ with the compact theme's preview and its archive.
+theme_setup() {
+    T="$TMP/Themes"
+    mkdir -p "$T/.previews/Theme"
+    touch "$TMP/Theme.zip"
+    echo "$TMP/Theme.zip" > "$T/.previews/Theme/source"
+    theme_fake_7z "$TMP/bin"
+}
+
+theme_run() { # extra environment, as "VAR=value" words
+    env PATH="$TMP/bin:$PATH" THEMES_DIR="$T" FAKE_THEME=Theme "$@" \
+        sh "$THEME_EXTRACT" "$T/.previews/Theme" > /dev/null 2>&1
+}
+
+begin theme_extract_normal
+theme_setup
+theme_run
+rc=$?
+check "extraction succeeds" test $rc -eq 0
+check "theme in place" test -f "$T/Theme/config.json"
+check "new content" grep -qx new "$T/Theme/version"
+check "no staging left" test ! -e "$T/.extracting"
+check "no old copy left" test ! -e "$T/.Theme.old"
+check "preview removed" test ! -e "$T/.previews/Theme"
+end
+
+begin theme_extract_cut_short_then_retried
+theme_setup
+mkdir -p "$T/.Theme.old"
+echo '{}' > "$T/.Theme.old/config.json"
+echo old > "$T/.Theme.old/version"
+theme_run
+rc=$?
+check "the retry succeeds" test $rc -eq 0
+check "theme in place with the new content" grep -qx new "$T/Theme/version"
+check "no old copy left" test ! -e "$T/.Theme.old"
+end
+
+begin theme_extract_cut_short_then_failed
+theme_setup
+mkdir -p "$T/.Theme.old"
+echo '{}' > "$T/.Theme.old/config.json"
+echo old > "$T/.Theme.old/version"
+theme_run FAKE_7Z_FAIL=1
+rc=$?
+check "the failed extraction is reported" test $rc -ne 0
+check "the old theme is back in place" grep -qx old "$T/Theme/version"
+check "and not left hidden" test ! -e "$T/.Theme.old"
+check "the preview stays, to try again" test -f "$T/.previews/Theme/source"
+end
+
+begin theme_extract_failure_keeps_installed_theme
+theme_setup
+mkdir -p "$T/Theme"
+echo '{}' > "$T/Theme/config.json"
+echo old > "$T/Theme/version"
+theme_run FAKE_7Z_FAIL=1
+rc=$?
+check "the failed extraction is reported" test $rc -ne 0
+check "the installed theme is untouched" grep -qx old "$T/Theme/version"
+check "no staging left" test ! -e "$T/.extracting"
+end
+
 # ---- review fixes: Game Info pending list and not-found memo ----
 
 begin scraper_game_info_pending_merge
