@@ -96,7 +96,7 @@ if [ $retcode -eq 0 ]; then
 	elif [ $retcode -eq 2 ]; then
 		/bin/sh "$EasyNetplayPokemonScriptHost" "$1"
 	elif [ $retcode -eq 255 ]; then
-		exit
+		exit 1
 	fi
 elif [ $retcode -eq 1 ]; then
 	PlayerNum=2
@@ -114,11 +114,11 @@ elif [ $retcode -eq 1 ]; then
 	elif [ $retcode -eq 2 ]; then
 		/bin/sh "$EasyNetplayPokemonScriptClient" "$1"
 	elif [ $retcode -eq 255 ]; then
-		exit
+		exit 1
 	fi
 
 elif [ $retcode -eq 255 ]; then
-	exit
+	exit 1
 fi
 
 if [ "$romdirname" == "GB" ] || [ "$romdirname" == "GBC" ]; then
@@ -140,3 +140,7 @@ fi
 # Back to power save as Wi-Fi normally runs (netplay turned it off): on,
 # or off while a file-transfer service is on.
 "$sysdir/script/network/wifi_power_save.sh" auto
+
+# Non-zero: GLO goes back to the game list. Zero would start the game, in
+# single player: on B in a Netplay menu, and after a Netplay session.
+exit 1

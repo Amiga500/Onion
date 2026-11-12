@@ -416,6 +416,42 @@ check "no quotes" same_as_pipeline 'run b' "$R"
 check "path with \$ and spaces" same_as_pipeline 'run "x" "/mnt/SDCARD/Roms/A/\$weird name.zip"' '/mnt/SDCARD/Roms/A/$weird name.zip'
 end
 
+# ---- Netplay romscript: exit code ----
+# GLO starts the selected game when a romscript exits with 0. Netplay.sh is
+# run as a whole, from a copy: its own sysdir, the CPU governor written to
+# a file, prompt answering from $TMP/answers (one exit code per call).
+netplay_run() { # answers...
+    mkdir -p "$TMP/bin" "$TMP/sys/script/netplay" "$TMP/sys/script/network"
+    printf '%s\n' "$@" > "$TMP/answers"
+    cat > "$TMP/bin/prompt" << 'EOS'
+#!/bin/sh
+a=$(head -n 1 "$NP_TMP/answers"); sed -i '1d' "$NP_TMP/answers"
+exit ${a:-255}
+EOS
+    printf '#!/bin/sh\n: > "%s/session_ran"\n' "$TMP" > "$TMP/sys/script/netplay/standard-netplay.sh"
+    printf '#!/bin/sh\nexit 0\n' > "$TMP/sys/script/network/wifi_power_save.sh"
+    chmod +x "$TMP/bin/prompt" "$TMP/sys/script/network/wifi_power_save.sh"
+    sed -e "s|^sysdir=.*|sysdir=$TMP/sys|" \
+        -e "s|/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor|$TMP/governor|" \
+        -e "s|/tmp/old_ipv4.txt|$TMP/old_ipv4.txt|g" \
+        -e "s|LD_PRELOAD=[^ ]* ||" \
+        "$ROOT/static/build/App/romscripts/Netplay.sh" > "$TMP/Netplay.sh"
+    NP_TMP=$TMP PATH="$TMP/bin:$PATH" sh "$TMP/Netplay.sh" /mnt/SDCARD/Roms/X/Game.x /mnt/SDCARD/Emu/X > /dev/null 2>&1
+}
+
+begin netplay_romscript_never_starts_the_game
+netplay_run 255
+check "B in the Netplay menu: back to the list" test $? -ne 0
+netplay_run 0 255
+check "B in the Host menu: back to the list" test $? -ne 0
+netplay_run 1 255
+check "B in the Join menu: back to the list" test $? -ne 0
+netplay_run 0 0
+rc=$?
+check "after a session: back to the list" sh -c "test $rc -ne 0 && test -e '$TMP/session_ran'"
+unset -f netplay_run
+end
+
 # ---- runtime.sh: cleanup_appendconfig ----
 
 eval "$(extract_fn "$RUNTIME" cleanup_appendconfig)"
@@ -2773,7 +2809,7 @@ done
 check "every netplay script launches RetroArch (8 launches)" [ "$launches" -eq 8 ]
 check "each launch turns power save off first" [ "$unguarded" -eq 0 ]
 check "Netplay.sh hands power save back to the services at the end" sh -c \
-    "grep -v '^[[:space:]]*\$' \"$NETPLAY\" | tail -n 1 | grep -qx '\"\\\$sysdir/script/network/wifi_power_save.sh\" auto'"
+    "grep -v -e '^[[:space:]]*\$' -e '^#' -e '^exit 1\$' \"$NETPLAY\" | tail -n 1 | grep -qx '\"\\\$sysdir/script/network/wifi_power_save.sh\" auto'"
 check "only netplay turns power save off" sh -c \
     "! grep -rl 'wifi_power_save.sh\" off' \"$ROOT/static/build\" | grep -v '/script/netplay/'"
 check "the helper is executable" [ -x "$PS" ]
