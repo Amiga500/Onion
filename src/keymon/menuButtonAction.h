@@ -218,11 +218,18 @@ void action_RA_gameSwitcher(void)
 {
     // The flag alone is not enough: one left by a GameSwitcher that ended
     // badly made every later MENU do nothing until the game was closed.
+    // Nor is the process alone: for a moment after the command below the
+    // shell has not started it yet, and a MENU then opened a second one.
+    static long last_start = 0;
+    static bool started = false;
     if (exists("/mnt/SDCARD/.tmp_update/.runGameSwitcher") &&
-        process_searchpid("gameSwitcher") != 0)
+        (process_searchpid("gameSwitcher") != 0 ||
+         (started && getMilliseconds() - last_start < 1000)))
         return;
     set_gameSwitcher();
     retroarch_pause();
+    last_start = getMilliseconds();
+    started = true;
     system("(gameSwitcher --overlay; touch /tmp/state_changed) &");
     system_state_update();
 }

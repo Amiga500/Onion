@@ -35,8 +35,13 @@ static void reset_dir(void)
 
 /* ---- stand-ins ---- */
 
+#define SWITCHER_FLAG "/mnt/SDCARD/.tmp_update/.runGameSwitcher"
+static bool switcher_flag = false;
+
 static bool exists(const char *path)
 {
+    if (strcmp(path, SWITCHER_FLAG) == 0)
+        return switcher_flag;
     return access(path, F_OK) == 0;
 }
 
@@ -109,7 +114,28 @@ static void write_file(const char *path, const char *text)
     }
 }
 
+static long now_ms = 100000;
+static long getMilliseconds(void) { return now_ms; }
+static int switcher_pid = 0;
+static pid_t process_searchpid(const char *name)
+{
+    return strcmp(name, "gameSwitcher") == 0 ? switcher_pid : 0;
+}
+static void set_gameSwitcher(void) { switcher_flag = true; }
+static void retroarch_pause(void) {}
+static void system_state_update(void) {}
+static int switcher_starts = 0;
+static int test_system(const char *command)
+{
+    if (strstr(command, "gameSwitcher --overlay") != NULL)
+        switcher_starts++;
+    return 0;
+}
+#define system test_system
+
 #include KEYMON_FNS
+
+#undef system
 
 /* MENU "Resume game" in MainUI with nothing to resume: MainUI stays (it was
  * killed and started again with no command left, which runtime.sh counts as
@@ -171,6 +197,40 @@ TEST(recover_powersave_alone_opens_no_play_time)
     ASSERT_EQ(play_activity_resumes, 0);
 }
 
+/* MENU in a game opens the GameSwitcher over it, once. One test: the
+ * function keeps the time of its last start. */
+TEST(game_switcher_overlay_is_started_once)
+{
+    switcher_flag = false;
+    switcher_pid = 0;
+    switcher_starts = 0;
+    action_RA_gameSwitcher();
+    ASSERT_EQ(switcher_starts, 1);
+
+    /* a second MENU before the shell has started the process */
+    now_ms += 50;
+    action_RA_gameSwitcher();
+    ASSERT_EQ(switcher_starts, 1);
+
+    /* running: MENU belongs to it */
+    switcher_pid = 321;
+    now_ms += 5000;
+    action_RA_gameSwitcher();
+    ASSERT_EQ(switcher_starts, 1);
+
+    /* it ended badly and left its flag: MENU opens it again */
+    switcher_pid = 0;
+    now_ms += 5000;
+    action_RA_gameSwitcher();
+    ASSERT_EQ(switcher_starts, 2);
+
+    /* closed normally (no flag), opened again at once */
+    switcher_flag = false;
+    now_ms += 10;
+    action_RA_gameSwitcher();
+    ASSERT_EQ(switcher_starts, 3);
+}
+
 int main(void)
 {
     printf("\n=== keymon: actions cut from the sources ===\n\n");
@@ -179,6 +239,7 @@ int main(void)
     RUN_TEST(recover_wakes_up_and_counts_the_play_time_again);
     RUN_TEST(recover_without_a_standby_does_nothing);
     RUN_TEST(recover_powersave_alone_opens_no_play_time);
+    RUN_TEST(game_switcher_overlay_is_started_once);
     if (system("rm -rf " TEST_DIR) != 0)
         fprintf(stderr, "rm failed\n");
     TEST_REPORT();
