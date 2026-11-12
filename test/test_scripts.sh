@@ -416,6 +416,27 @@ check "no quotes" same_as_pipeline 'run b' "$R"
 check "path with \$ and spaces" same_as_pipeline 'run "x" "/mnt/SDCARD/Roms/A/\$weird name.zip"' '/mnt/SDCARD/Roms/A/$weird name.zip'
 end
 
+# ---- Makefile: when the setup step runs again ----
+# The real Makefile, run from a folder of its own (ROOT_DIR is the current
+# folder): `make -q` says whether the setup stamp is up to date.
+makefile_env() {
+    mkdir -p "$TMP/src/common" "$TMP/cache/temp/configs" "$TMP/build/.tmp_update/onionVersion"
+    cp "$ROOT/src/common/commands.mk" "$TMP/src/common/"
+    : > "$TMP/cache/.setup"
+    printf 'v%s' "$(cd "$TMP" && VERSION_DATE=20260101 make -s -f "$ROOT/Makefile" version)" > "$TMP/build/.tmp_update/onionVersion/version.txt"
+}
+setup_up_to_date() { # [VERSION_DATE]
+    (cd "$TMP" && VERSION_DATE=${1:-20260101} make -q -f "$ROOT/Makefile" "$TMP/cache/.setup" > /dev/null 2>&1)
+}
+
+begin makefile_setup_runs_again_after_dist
+makefile_env
+check "nothing changed: the setup is not run again" setup_up_to_date
+# dist ends with rm -rf $(TEMP_DIR)/configs and rmdir $(TEMP_DIR)
+rm -rf "$TMP/cache/temp"
+check "configs packed and removed by dist: the setup runs again" sh -c "! (cd '$TMP' && VERSION_DATE=20260101 make -q -f '$ROOT/Makefile' '$TMP/cache/.setup' > /dev/null 2>&1)"
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to

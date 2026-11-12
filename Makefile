@@ -80,9 +80,13 @@ print-version:
 # edits there were ignored until `make clean`. Now it re-runs whenever one
 # of those inputs is newer than the stamp. (A find is used because many
 # paths contain spaces, which make prerequisites cannot express.)
+# It also re-runs when the configs it prepares in $(TEMP_DIR) are gone: dist
+# packs them and removes them, so a second dist (`make release` after
+# `make`) stopped at "cannot stat .../configs/Saves/CurrentProfile/".
 SETUP_INPUTS := $(STATIC_BUILD) $(STATIC_DIST) $(STATIC_CONFIGS) $(STATIC_PACKAGES) $(ROOT_DIR)/lib
 ifeq ($(filter clean deepclean git-clean git-submodules version print-version pwd toolchain format,$(MAKECMDGOALS)),)
 SETUP_STALE := $(shell [ -f $(CACHE)/.setup ] && { \
+	[ -d $(TEMP_DIR)/configs ] || echo configs; \
 	find $(SETUP_INPUTS) -newer $(CACHE)/.setup -print -quit 2> /dev/null; \
 	find $(SRC_DIR) \( -path '*/res/*' -o -path '*/script/*' \) -newer $(CACHE)/.setup -print -quit 2> /dev/null; } | head -n 1)
 ifneq ($(SETUP_STALE),)
