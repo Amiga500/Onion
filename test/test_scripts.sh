@@ -467,6 +467,35 @@ check "every build goes through it (core needs version-files)" sh -c "cd '$TMP' 
 unset -f version_files makefile_env setup_up_to_date
 end
 
+# ---- runtime.sh: save_settings (the per-device copy of system.json) ----
+begin save_settings_flushes_before_the_rename
+eval "$(extract_fn "$RUNTIME" read_file_to)"
+eval "$(extract_fn "$RUNTIME" save_settings | sed "s|/mnt/SDCARD/system.json|$TMP/system.json|g")"
+device_settings="$TMP/device.json"
+syncs=0
+sync() { # what is on the "card" when it is flushed
+    syncs=$((syncs + 1))
+    at_sync="$(cat "$device_settings.tmp" 2> /dev/null)|$(cat "$device_settings" 2> /dev/null)"
+    return 0
+}
+printf '{\n\t"vol":\t10\n}\n' > "$TMP/system.json"
+save_settings
+check "first copy made" test "$(cat "$device_settings")" = "$(cat "$TMP/system.json")"
+printf '{\n\t"vol":\t12\n}\n' > "$TMP/system.json"
+syncs=0
+old=$(printf '{\n\t"vol":\t10\n}')
+new=$(printf '{\n\t"vol":\t12\n}')
+save_settings
+check "changed: copied" test "$(cat "$device_settings")" = "$new"
+check "flushed once, the new data in the sibling and the old copy still in place" test "$syncs:$at_sync" = "1:$new|$old"
+check "no sibling left" test ! -e "$device_settings.tmp"
+syncs=0
+inode=$(ls -i "$device_settings")
+save_settings
+check "unchanged: nothing written, nothing flushed" test "$syncs:$(ls -i "$device_settings")" = "0:$inode"
+unset -f sync save_settings
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to

@@ -1740,9 +1740,16 @@ load_settings() {
 
 save_settings() {
     if [ -f /mnt/SDCARD/system.json ]; then
+        # Nothing to do when the copy is the same (nearly every launch).
+        read_file_to _ss_new /mnt/SDCARD/system.json
+        read_file_to _ss_old "$device_settings"
+        [ -n "$_ss_new" ] && [ "$_ss_new" = "$_ss_old" ] && return 0
         # Through a sibling and a rename: a power cut during the copy left a
         # partial file, which load_settings then put back as system.json.
+        # Flushed before the rename, as replace_file_safely does: on FAT the
+        # new name could reach the card before the data it names.
         cp -f /mnt/SDCARD/system.json "$device_settings.tmp" &&
+            sync &&
             mv -f "$device_settings.tmp" "$device_settings"
     fi
 }
