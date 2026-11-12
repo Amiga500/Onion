@@ -401,6 +401,10 @@ int suspend(uint32_t mode)
                         // suspendpid[0] is the counter: entries are 1..PIDMAX-1
                         if (suspendpid[0] < PIDMAX - 1) {
                             suspendpid[++suspendpid[0]] = pid;
+                            // Listed before it is stopped: a keymon that
+                            // crashed in this loop left stopped processes
+                            // that its successor knew nothing of.
+                            suspend_state_save();
                             kill(pid, SIGSTOP);
                             ret++;
                         }

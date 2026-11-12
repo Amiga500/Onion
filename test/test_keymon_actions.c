@@ -69,14 +69,41 @@ static void system_powersave_recover(void)
 #define MAX_CONT 8
 static int cont_pids[MAX_CONT];
 static int cont_count = 0;
+static int stops = 0;          /* SIGSTOP sent by suspend() */
+static int stops_unlisted = 0; /* ...to a process not in the list yet */
 static int test_kill(pid_t pid, int sig)
 {
-    (void)sig;
+    if (sig == SIGSTOP) {
+        /* is it already in the list a restarted keymon reads? */
+        bool listed = false;
+        FILE *fp = fopen(SUSPEND_STATE_PATH, "r");
+        unsigned int listed_pid;
+        while (fp != NULL && fscanf(fp, "%u", &listed_pid) == 1)
+            if ((pid_t)listed_pid == pid)
+                listed = true;
+        if (fp != NULL)
+            fclose(fp);
+        stops++;
+        if (!listed)
+            stops_unlisted++;
+        return 0;
+    }
     if (cont_count < MAX_CONT)
         cont_pids[cont_count++] = (int)pid;
     return 0;
 }
 #define kill test_kill
+
+/* suspend(): the standby's SIGSTOP round over /proc (the real one of this
+ * PC; kill is the stand-in above, nothing is stopped) */
+#include <dirent.h>
+#define PIDMAX 256
+#define PF_KTHREAD 0x00200000
+static uint32_t suspendpid[PIDMAX];
+static void screenshot_system(void) {}
+static bool terminate_retroarch(void) { return false; }
+static bool terminate_drastic(void) { return false; }
+static void display_reset(void) {}
 
 static struct {
     int brightness, volume;
@@ -315,6 +342,18 @@ TEST(axp_register_not_read_is_not_written)
     ASSERT_EQ(axp_writes, 0); /* it was written as 0xFF */
 }
 
+/* Each process is in /tmp/.keymon_suspended before it is stopped: a keymon
+ * that crashes during the round leaves a list its successor can use. */
+TEST(standby_lists_each_process_before_stopping_it)
+{
+    reset_dir();
+    stops = stops_unlisted = 0;
+    int stopped = suspend(0);
+    ASSERT_EQ(stops, stopped);
+    ASSERT_EQ(stops_unlisted, 0);
+    ASSERT_TRUE(exists(SUSPEND_STATE_PATH));
+}
+
 static void menu_reset(void)
 {
     system_state = MODE_MAIN_UI;
@@ -391,6 +430,7 @@ int main(void)
     RUN_TEST(recover_without_a_standby_does_nothing);
     RUN_TEST(recover_powersave_alone_opens_no_play_time);
     RUN_TEST(game_switcher_overlay_is_started_once);
+    RUN_TEST(standby_lists_each_process_before_stopping_it);
     RUN_TEST(axp_bits_are_set_and_the_others_kept);
     RUN_TEST(axp_register_not_read_is_not_written);
     RUN_TEST(menu_single_press_in_mainui);

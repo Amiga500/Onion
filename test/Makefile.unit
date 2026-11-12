@@ -1018,6 +1018,8 @@ $(BUILD_DIR)/keymon_actions_fns.c: ../src/keymon/menuButtonAction.h ../src/keymo
 	sed -n '/^void action_RA_gameSwitcher(/,/^}/p' ../src/keymon/menuButtonAction.h >> $@
 	sed -n '/^static bool _doublePressConfigured(/,/^}/p' ../src/keymon/menuButtonAction.h >> $@
 	sed -n '/^bool menuButtonAction(/,/^}/p' ../src/keymon/menuButtonAction.h >> $@
+	sed -n '/^static void suspend_state_save(/,/^}/p' ../src/keymon/keymon.c >> $@
+	sed -n '/^int suspend(/,/^}/p' ../src/keymon/keymon.c >> $@
 	sed -n '/^static void suspend_recover(/,/^}/p' ../src/keymon/keymon.c >> $@
 	sed -n '/^int axp_setBits(/,/^}/p' ../src/common/system/axp.h >> $@
 
