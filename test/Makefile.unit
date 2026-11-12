@@ -960,11 +960,17 @@ $(BUILD_DIR)/test_udp_wait: test_udp_wait.c onion_test.h ../src/common/utils/udp
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_udp_wait.c ../src/common/utils/udp.c ../src/common/utils/retroarch_cmd.c $(LDFLAGS) -lpthread
 
-# hash_old.h is upstream's utils/hash.h, to compare the new one with it.
-HASH_OLD_REF ?= upstream/main
-$(BUILD_DIR)/hash_old.h:
+# hash_old.h is upstream's utils/hash.h, to compare the new one with it: the
+# copy kept in data/ (a clone or the CI checkout has no upstream/main, and
+# the whole suite stopped there), or the one of HASH_OLD_REF when it is set
+# (make -f Makefile.unit test_hash_equiv HASH_OLD_REF=upstream/main).
+$(BUILD_DIR)/hash_old.h: data/hash_upstream.h
 	@mkdir -p $(BUILD_DIR)
+ifdef HASH_OLD_REF
 	git show $(HASH_OLD_REF):src/common/utils/hash.h > $@ || { rm -f $@; exit 1; }
+else
+	cp data/hash_upstream.h $@
+endif
 
 test_hash_equiv: $(BUILD_DIR)/test_hash_equiv
 	@echo ""
