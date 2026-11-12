@@ -164,9 +164,14 @@ test_playactivity: $(BUILD_DIR)/test_playactivity
 	@echo ""
 	@$(BUILD_DIR)/test_playactivity
 
-$(BUILD_DIR)/test_playactivity: test_playactivity.c onion_test.h $(COMMON_SRCS)
+# _get_active_rom_path() cut from the real source (the header needs sqlite).
+$(BUILD_DIR)/playactivity_fns.c: ../src/playActivity/playActivityDB.h
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_playactivity.c $(COMMON_SRCS) $(LDFLAGS)
+	sed -n '/^bool _get_active_rom_path(/,/^}/p' ../src/playActivity/playActivityDB.h > $@
+
+$(BUILD_DIR)/test_playactivity: test_playactivity.c onion_test.h $(COMMON_SRCS) $(BUILD_DIR)/playactivity_fns.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DPLAYACTIVITY_FNS='"$(abspath $(BUILD_DIR))/playactivity_fns.c"' -o $@ test_playactivity.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_clock: $(BUILD_DIR)/test_clock
 	@echo ""

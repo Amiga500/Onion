@@ -547,6 +547,9 @@ int play_activity_get_play_time(const char *rom_path)
     return play_time;
 }
 
+// rom_path_out: PATH_MAX bytes. It was cut at 255: a longer path (a long
+// name in a folder or two) no longer matched its ROM, and the play time of
+// that game stopped being counted after the first standby.
 bool _get_active_rom_path(char *rom_path_out)
 {
     char *ptr;
@@ -561,8 +564,8 @@ bool _get_active_rom_path(char *rom_path_out)
     }
 
     if ((ptr = strrchr(cmd, '"')) != NULL) {
-        strncpy(rom_path_out, ptr + 1, STR_MAX - 1);
-        rom_path_out[STR_MAX - 1] = '\0';
+        strncpy(rom_path_out, ptr + 1, PATH_MAX - 1);
+        rom_path_out[PATH_MAX - 1] = '\0';
         return true;
     }
 
@@ -573,7 +576,7 @@ int __db_get_active_closed_activity(void)
 {
     int rom_id = ROM_NOT_FOUND;
 
-    char rom_path[STR_MAX];
+    char rom_path[PATH_MAX];
     if (!_get_active_rom_path(rom_path)) {
         return ROM_NOT_FOUND;
     }

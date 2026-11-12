@@ -76,6 +76,47 @@ TEST(get_active_rom_path_empty) {
     ASSERT_FALSE(result);
 }
 
+/* The real function, cut from playActivityDB.h by the Makefile, reading a
+ * command file of this test. */
+#include <limits.h>
+#define CMD_TO_RUN "/tmp/onion_test_playactivity_cmd.sh"
+#include PLAYACTIVITY_FNS
+
+static void write_cmd(const char *rom_path)
+{
+    FILE *fp = fopen(CMD_TO_RUN, "w");
+    if (fp != NULL) {
+        fprintf(fp, "LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so \"/mnt/SDCARD/Emu/PS/launch.sh\" \"%s\"", rom_path);
+        fclose(fp);
+    }
+}
+
+TEST(active_rom_path_read_from_the_command) {
+    char rom_path[PATH_MAX] = "";
+    write_cmd("/mnt/SDCARD/Roms/PS/Game (Disc 1).chd");
+    ASSERT_TRUE(_get_active_rom_path(rom_path));
+    ASSERT_STREQ(rom_path, "/mnt/SDCARD/Roms/PS/Game (Disc 1).chd");
+}
+
+/* A path of more than 255 characters comes back whole (it was cut, and no
+ * longer matched its ROM in the database). */
+TEST(active_rom_path_longer_than_255) {
+    char long_path[400];
+    char rom_path[PATH_MAX] = "";
+    int n = snprintf(long_path, sizeof(long_path), "/mnt/SDCARD/Roms/PS/Collection (Europe) (En,Fr,De,Es,It)/");
+    while (n < 330)
+    {
+        long_path[n] = (char)('a' + (n % 26));
+        n++;
+    }
+    snprintf(long_path + n, sizeof(long_path) - n, ".chd");
+    write_cmd(long_path);
+    ASSERT_TRUE(_get_active_rom_path(rom_path));
+    ASSERT_TRUE(strlen(rom_path) > 255);
+    ASSERT_STREQ(rom_path, long_path);
+    remove(CMD_TO_RUN);
+}
+
 /* ------------------------------------------------------------------ */
 /* Tests for lang_free NULL safety                                     */
 /* ------------------------------------------------------------------ */
@@ -129,6 +170,8 @@ int main(void)
     RUN_TEST(get_active_rom_path_standard);
     RUN_TEST(get_active_rom_path_no_quotes);
     RUN_TEST(get_active_rom_path_empty);
+    RUN_TEST(active_rom_path_read_from_the_command);
+    RUN_TEST(active_rom_path_longer_than_255);
 
     /* lang_free */
     RUN_TEST(lang_free_null_safe);
