@@ -176,6 +176,16 @@ TEST(time_str_2345) {
 }
 
 /* Malformed times read uninitialised variables before the fix. */
+/* A time outside the day (an edited or damaged config): the first entry,
+ * not an index past the end of the list. */
+TEST(time_str_out_of_range) {
+    ASSERT_EQ(formatter_timeStringToID("24:00"), 0);
+    ASSERT_EQ(formatter_timeStringToID("99:99"), 0);
+    ASSERT_EQ(formatter_timeStringToID("12:75"), 0);
+    ASSERT_EQ(formatter_timeStringToID("-1:30"), 0);
+    ASSERT_EQ(formatter_timeStringToID("23:59"), 95);
+}
+
 TEST(time_str_invalid) {
     ASSERT_EQ(formatter_timeStringToID("invalid"), 0);
     ASSERT_EQ(formatter_timeStringToID(""), 0);
@@ -539,6 +549,7 @@ int main(void)
     RUN_TEST(time_str_0130);
     RUN_TEST(time_str_0145);
     RUN_TEST(time_str_2345);
+    RUN_TEST(time_str_out_of_range);
     RUN_TEST(time_str_invalid);
     RUN_TEST(time_str_roundtrip);
 

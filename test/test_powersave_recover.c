@@ -19,6 +19,7 @@
 #define TEST_DIR "/tmp/onion_test_powersave"
 #define POWERSAVE_STATE_PATH TEST_DIR "/powersave_state"
 #define CLOCK_LOG TEST_DIR "/cpuclock.log"
+#define CPU_DIR TEST_DIR "/"
 
 #include "system/system.h"
 
@@ -28,7 +29,8 @@ static void reset_dir(void)
         fprintf(stderr, "reset failed\n");
     FILE *f = fopen(TEST_DIR "/bin/cpuclock", "w");
     if (f != NULL) {
-        fputs("#!/bin/sh\necho \"$@\" >> " CLOCK_LOG "\n", f);
+        // with no argument it prints the clock, as the real one
+        fputs("#!/bin/sh\necho \"$@\" >> " CLOCK_LOG "\n[ $# -eq 0 ] && echo 1200\nexit 0\n", f);
         fclose(f);
     }
     chmod(TEST_DIR "/bin/cpuclock", 0755);
@@ -70,6 +72,63 @@ TEST(powersave_off_without_on_does_nothing)
     reset_dir();
     system_powersave(false); // nothing was saved: no "cpuclock 0"
     ASSERT_EQ(clock_calls(NULL, 0), 0);
+}
+
+static void write_cpu(const char *name, const char *text)
+{
+    char path[128];
+    snprintf(path, sizeof(path), "%s%s", CPU_DIR, name);
+    FILE *f = fopen(path, "w");
+    if (f != NULL) {
+        fputs(text, f);
+        fclose(f);
+    }
+}
+
+static void read_cpu(const char *name, char *out, size_t size)
+{
+    char path[128];
+    snprintf(path, sizeof(path), "%s%s", CPU_DIR, name);
+    out[0] = '\0';
+    FILE *f = fopen(path, "r");
+    if (f != NULL) {
+        if (fgets(out, (int)size, f) == NULL)
+            out[0] = '\0';
+        fclose(f);
+    }
+    out[strcspn(out, "\n")] = '\0';
+}
+
+/* Powersave on leaves what a restarted keymon needs in the state file, and
+ * the recovery puts both back: the clock and the governor. */
+TEST(powersave_on_saves_what_the_recovery_needs)
+{
+    char text[64];
+    reset_dir();
+    write_cpu("scaling_governor", "ondemand\n");
+    write_cpu("scaling_min_freq", "400000\n");
+    system_powersave(true);
+    FILE *f = fopen(POWERSAVE_STATE_PATH, "r");
+    ASSERT_TRUE(f != NULL);
+    if (f != NULL) {
+        text[0] = '\0';
+        if (fgets(text, sizeof(text), f) == NULL)
+            text[0] = '\0';
+        fclose(f);
+        ASSERT_STREQ(text, "1200 ondemand\n");
+    }
+    read_cpu("scaling_governor", text, sizeof(text));
+    ASSERT_STREQ(text, "powersave");
+
+    /* keymon ended here; the next one finds the state */
+    remove(CLOCK_LOG);
+    system_powersave_recover();
+    char arg[32];
+    ASSERT_EQ(clock_calls(arg, sizeof(arg)), 1);
+    ASSERT_STREQ(arg, "1200");
+    read_cpu("scaling_governor", text, sizeof(text));
+    ASSERT_STREQ(text, "ondemand");
+    ASSERT_TRUE(access(POWERSAVE_STATE_PATH, F_OK) != 0);
 }
 
 TEST(recover_without_state_does_nothing)
@@ -135,6 +194,7 @@ int main(void)
     RUN_TEST(recover_twice_runs_once);
     RUN_TEST(recover_ignores_garbage_and_zero);
     RUN_TEST(recover_handles_the_largest_value);
+    RUN_TEST(powersave_on_saves_what_the_recovery_needs); // last: sets the static
     if (system("rm -rf " TEST_DIR) != 0)
         fprintf(stderr, "rm failed\n");
     TEST_REPORT();

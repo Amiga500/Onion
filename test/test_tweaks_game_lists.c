@@ -395,6 +395,23 @@ TEST(repeat_stock_values_remove_the_file)
     ASSERT_TRUE(access(GAMELISTS_REPEAT_PATH, F_OK) != 0);
 }
 
+/* Changing the rows drops the saved list positions: the copy on the card
+ * too, which runtime.sh puts back at boot (they belong to the old rows). */
+TEST(rows_change_drops_the_saved_positions_on_the_card)
+{
+    reset_dir();
+    gamelists_write_text(GAMELISTS_CONFIG_DIR "/romwinidx.json", "{}\n");
+    ListItem item = {.value = gamelists_value_rows() == 0 ? 2 : 0};
+    gamelists_action_rows(&item);
+    ASSERT_EQ(gamelists_value_rows(), item.value);
+    ASSERT_TRUE(access(GAMELISTS_CONFIG_DIR "/romwinidx.json", F_OK) != 0);
+
+    /* the same rows again: nothing is touched */
+    gamelists_write_text(GAMELISTS_CONFIG_DIR "/romwinidx.json", "{}\n");
+    gamelists_action_rows(&item);
+    ASSERT_TRUE(access(GAMELISTS_CONFIG_DIR "/romwinidx.json", F_OK) == 0);
+}
+
 TEST(rows_and_font_menu_values)
 {
     reset_dir();
@@ -1868,6 +1885,7 @@ int main(void)
     RUN_TEST(console_view_option_damaged_file_left_alone);
     RUN_TEST(pair_parser_accepts_open_mainui_forms);
     RUN_TEST(repeat_stock_values_remove_the_file);
+    RUN_TEST(rows_change_drops_the_saved_positions_on_the_card);
     RUN_TEST(rows_and_font_menu_values);
     RUN_TEST(write_leaves_no_temporary_file);
     RUN_TEST(main_menu_default_shows_apps_not_expert);

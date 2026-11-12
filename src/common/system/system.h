@@ -11,7 +11,9 @@
 #define GPIO_DIR1 "/sys/class/gpio/"
 #define GPIO_DIR2 "/sys/devices/gpiochip0/gpio/"
 #define PWM_DIR "/sys/devices/soc0/soc/1f003400.pwm/pwm/pwmchip0/"
+#ifndef CPU_DIR // a folder of their own for the host tests
 #define CPU_DIR "/sys/devices/system/cpu/cpufreq/policy0/"
+#endif
 
 #define CPU_SCALING_MIN_FREQ CPU_DIR "scaling_min_freq"
 #define CPU_SCALING_GOVERNOR CPU_DIR "scaling_governor"
