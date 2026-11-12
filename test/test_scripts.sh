@@ -419,14 +419,17 @@ end
 # ---- Makefile: when the setup step runs again ----
 # The real Makefile, run from a folder of its own (ROOT_DIR is the current
 # folder): `make -q` says whether the setup stamp is up to date.
+# Without the variables of the make that runs this script (BUILD_DIR, CFLAGS
+# given on its command line come down through MAKEFLAGS).
+MAKE_ALONE="env -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES -u MAKELEVEL make"
 makefile_env() {
     mkdir -p "$TMP/src/common" "$TMP/cache/temp/configs" "$TMP/build/.tmp_update/onionVersion"
     cp "$ROOT/src/common/commands.mk" "$TMP/src/common/"
     : > "$TMP/cache/.setup"
-    printf 'v%s' "$(cd "$TMP" && VERSION_DATE=20260101 make -s -f "$ROOT/Makefile" version)" > "$TMP/build/.tmp_update/onionVersion/version.txt"
+    printf 'v%s' "$(cd "$TMP" && VERSION_DATE=20260101 $MAKE_ALONE -s -f "$ROOT/Makefile" version)" > "$TMP/build/.tmp_update/onionVersion/version.txt"
 }
 setup_up_to_date() { # [VERSION_DATE]
-    (cd "$TMP" && VERSION_DATE=${1:-20260101} make -q -f "$ROOT/Makefile" "$TMP/cache/.setup" > /dev/null 2>&1)
+    (cd "$TMP" && VERSION_DATE=${1:-20260101} $MAKE_ALONE -q -f "$ROOT/Makefile" "$TMP/cache/.setup" > /dev/null 2>&1)
 }
 
 begin makefile_setup_runs_again_after_dist
@@ -434,7 +437,7 @@ makefile_env
 check "nothing changed: the setup is not run again" setup_up_to_date
 # dist ends with rm -rf $(TEMP_DIR)/configs and rmdir $(TEMP_DIR)
 rm -rf "$TMP/cache/temp"
-check "configs packed and removed by dist: the setup runs again" sh -c "! (cd '$TMP' && VERSION_DATE=20260101 make -q -f '$ROOT/Makefile' '$TMP/cache/.setup' > /dev/null 2>&1)"
+check "configs packed and removed by dist: the setup runs again" sh -c "! (cd '$TMP' && VERSION_DATE=20260101 $MAKE_ALONE -q -f '$ROOT/Makefile' '$TMP/cache/.setup' > /dev/null 2>&1)"
 end
 
 # The version ends with the day of the build: a build of another day, with
@@ -447,7 +450,7 @@ cp "$ROOT/static/build/autorun.inf" "$TMP/static/build/"
 # older than the setup stamp: not an input that changed
 touch -t 202001010000 "$TMP/static/build/autorun.inf" "$TMP/static/build" "$TMP/static"
 version_files() { # VERSION_DATE
-    (cd "$TMP" && VERSION_DATE=$1 make -s -f "$ROOT/Makefile" version-files > /dev/null 2>&1)
+    (cd "$TMP" && VERSION_DATE=$1 $MAKE_ALONE -s -f "$ROOT/Makefile" version-files > /dev/null 2>&1)
 }
 base=$(sed -n 's/^VERSION_BASE=//p' "$ROOT/Makefile")
 : > "$TMP/src/installUI/installUI.o"
@@ -463,7 +466,7 @@ version_files 20260102
 check "next day: version.txt follows" test "$(cat "$TMP/build/.tmp_update/onionVersion/version.txt")" = "v$base-20260102"
 check "the card's label follows" grep -qx "label = Onion-v$base-20260102" "$TMP/build/autorun.inf"
 check "and installUI is compiled again" test ! -e "$TMP/src/installUI/installUI.o"
-check "every build goes through it (core needs version-files)" sh -c "cd '$TMP' && make -pq -f '$ROOT/Makefile' version 2> /dev/null | grep -q '^core: .*version-files'"
+check "every build goes through it (core needs version-files)" sh -c "cd '$TMP' && $MAKE_ALONE -pq -f '$ROOT/Makefile' version 2> /dev/null | grep -q '^core: .*version-files'"
 unset -f version_files makefile_env setup_up_to_date
 end
 
