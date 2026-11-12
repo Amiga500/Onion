@@ -608,6 +608,14 @@ check "and the hidden one is gone" test ! -e "$recentlist_hidden"
 unset -f sync check_hide_recents
 end
 
+# ---- batmon: the low battery icon thread is stopped before the framebuffer goes ----
+begin batmon_stops_the_warning_before_closing_the_display
+check "batteryWarning_hide comes before display_close in cleanup" sh -c "sed -n '/^void cleanup(void)/,/^}/p' '$ROOT/src/batmon/batmon.c' | awk '
+    /batteryWarning_hide\\(\\);/ { hide = NR }
+    /display_close\\(\\);/ { close_line = NR }
+    END { exit !(hide && close_line && hide < close_line) }'"
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to

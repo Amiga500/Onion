@@ -197,6 +197,10 @@ static void sigHandler(int sig)
 void cleanup(void)
 {
     remove("/tmp/percBat");
+    // The low battery icon is drawn by a thread about 60 times a second:
+    // stopped before the framebuffer it draws on is unmapped (batmon ended
+    // with a segmentation fault when it was told to quit with the icon on).
+    batteryWarning_hide();
     display_close();
     if (sar_fd >= 0)
         close(sar_fd);
