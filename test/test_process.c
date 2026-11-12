@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <string.h>
 
+#define PROCESS_READ_TIMEOUT_MS 300 /* 2 s on the device */
 #include "../src/common/utils/str.h"
 #include "../src/common/utils/file.h"
 #include "../src/common/utils/process.h"
@@ -226,6 +227,34 @@ TEST(read_first_line_truncates_like_fgets) {
     ASSERT_STREQ("01234", buf);
 }
 
+static long rfl_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
+}
+
+/* A tool that never answers (axp_test on a stuck bus): given up on, and
+ * ended, instead of waiting for it for good. */
+TEST(read_first_line_gives_up_on_a_silent_tool) {
+    char buf[32] = "x";
+    rfl_tool("exec sleep 20");
+    long start = rfl_ms();
+    ASSERT_FALSE(process_readFirstLine(rfl_dir, "./tool", buf, sizeof(buf)));
+    ASSERT_TRUE(rfl_ms() - start < 3000);
+    ASSERT_STREQ("", buf);
+}
+
+/* One that printed its line and then hangs: the line is still the answer. */
+TEST(read_first_line_keeps_the_line_of_a_tool_that_then_hangs) {
+    char buf[32];
+    rfl_tool("echo ready; exec sleep 20");
+    long start = rfl_ms();
+    ASSERT_TRUE(process_readFirstLine(rfl_dir, "./tool", buf, sizeof(buf)));
+    ASSERT_TRUE(rfl_ms() - start < 3000);
+    ASSERT_STREQ("ready\n", buf);
+}
+
 TEST(read_first_line_no_newline_and_empty) {
     char buf[32];
     rfl_tool("printf abc");
@@ -260,6 +289,8 @@ int main(void)
     RUN_TEST(read_first_line_like_fgets);
     RUN_TEST(read_first_line_runs_in_dir);
     RUN_TEST(read_first_line_truncates_like_fgets);
+    RUN_TEST(read_first_line_gives_up_on_a_silent_tool);
+    RUN_TEST(read_first_line_keeps_the_line_of_a_tool_that_then_hangs);
     RUN_TEST(read_first_line_no_newline_and_empty);
     RUN_TEST(read_first_line_missing_program);
     RUN_TEST(read_first_line_long_output);

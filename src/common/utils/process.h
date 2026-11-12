@@ -4,12 +4,14 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 #ifndef DT_DIR
@@ -161,6 +163,39 @@ int process_run_wait(char *const argv[])
 //    newline kept, NUL-terminated), like fgets() on popen("cd dir; path").
 //    Returns false if it could not be started or printed nothing.
 //
+// How long process_readFirstLine() waits for the program, in all. axp_test
+// answers in about 10 ms; one that never did (a stuck I2C bus) kept its
+// caller in read() for good: batmon, and keymon at each charging check, so
+// no key worked.
+#ifndef PROCESS_READ_TIMEOUT_MS
+#define PROCESS_READ_TIMEOUT_MS 2000
+#endif
+
+static long _process_nowMs(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
+}
+
+// True when fd can be read (data or end of file) before the deadline.
+static bool _process_readable(int fd, long deadline_ms)
+{
+    for (;;) {
+        long left = deadline_ms - _process_nowMs();
+        if (left <= 0)
+            return false;
+        struct pollfd pfd = {.fd = fd, .events = POLLIN};
+        int ready = poll(&pfd, 1, (int)left);
+        if (ready > 0)
+            return true;
+        if (ready == 0)
+            return false;
+        if (errno != EINTR)
+            return false;
+    }
+}
+
 bool process_readFirstLine(const char *dir, const char *path, char *buf, size_t size)
 {
     if (buf == NULL || size == 0)
@@ -196,8 +231,14 @@ bool process_readFirstLine(const char *dir, const char *path, char *buf, size_t 
     }
 
     close(fds[1]);
+    long deadline = _process_nowMs() + PROCESS_READ_TIMEOUT_MS;
+    bool timed_out = false;
     size_t len = 0;
     while (len < size - 1) {
+        if (!_process_readable(fds[0], deadline)) {
+            timed_out = true;
+            break;
+        }
         ssize_t n = read(fds[0], buf + len, size - 1 - len);
         if (n < 0 && errno == EINTR)
             continue;
@@ -214,13 +255,19 @@ bool process_readFirstLine(const char *dir, const char *path, char *buf, size_t 
 
     // Drain the rest, as pclose() lets the child finish writing.
     char drain[64];
-    for (;;) {
+    while (!timed_out) {
+        if (!_process_readable(fds[0], deadline)) {
+            timed_out = true;
+            break;
+        }
         ssize_t n = read(fds[0], drain, sizeof(drain));
         if (n > 0 || (n < 0 && errno == EINTR))
             continue;
         break;
     }
     close(fds[0]);
+    if (timed_out)
+        kill(pid, SIGKILL); // or the wait below is the same wait
 
     int status;
     while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
