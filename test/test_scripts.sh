@@ -437,6 +437,36 @@ rm -rf "$TMP/cache/temp"
 check "configs packed and removed by dist: the setup runs again" sh -c "! (cd '$TMP' && VERSION_DATE=20260101 make -q -f '$ROOT/Makefile' '$TMP/cache/.setup' > /dev/null 2>&1)"
 end
 
+# The version ends with the day of the build: a build of another day, with
+# nothing else changed, has it in About, in the card's label and in the
+# installer (installUI has it compiled in).
+begin makefile_version_follows_the_build_day
+makefile_env
+mkdir -p "$TMP/static/build" "$TMP/src/installUI"
+cp "$ROOT/static/build/autorun.inf" "$TMP/static/build/"
+# older than the setup stamp: not an input that changed
+touch -t 202001010000 "$TMP/static/build/autorun.inf" "$TMP/static/build" "$TMP/static"
+version_files() { # VERSION_DATE
+    (cd "$TMP" && VERSION_DATE=$1 make -s -f "$ROOT/Makefile" version-files > /dev/null 2>&1)
+}
+base=$(sed -n 's/^VERSION_BASE=//p' "$ROOT/Makefile")
+: > "$TMP/src/installUI/installUI.o"
+version_files 20260101
+check "version.txt has the day of the build" test "$(cat "$TMP/build/.tmp_update/onionVersion/version.txt")" = "v$base-20260101"
+check "the card's label too" grep -qx "label = Onion-v$base-20260101" "$TMP/build/autorun.inf"
+check "first build: installUI is compiled" test ! -e "$TMP/src/installUI/installUI.o"
+: > "$TMP/src/installUI/installUI.o"
+version_files 20260101
+check "same day: installUI is not compiled again" test -e "$TMP/src/installUI/installUI.o"
+check "the setup step is not needed for it" setup_up_to_date 20260102
+version_files 20260102
+check "next day: version.txt follows" test "$(cat "$TMP/build/.tmp_update/onionVersion/version.txt")" = "v$base-20260102"
+check "the card's label follows" grep -qx "label = Onion-v$base-20260102" "$TMP/build/autorun.inf"
+check "and installUI is compiled again" test ! -e "$TMP/src/installUI/installUI.o"
+check "every build goes through it (core needs version-files)" sh -c "cd '$TMP' && make -pq -f '$ROOT/Makefile' version 2> /dev/null | grep -q '^core: .*version-files'"
+unset -f version_files makefile_env setup_up_to_date
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to

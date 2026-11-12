@@ -65,7 +65,7 @@ include ./src/common/commands.mk
 
 ###########################################################
 
-.PHONY: all version core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test jpg2png
+.PHONY: all version version-files core apps external release clean deepclean git-clean with-toolchain patch lib test unit-test jpg2png
 
 all: dist
 
@@ -101,10 +101,6 @@ $(CACHE)/.setup:
 	@rsync -a --exclude='.gitkeep' $(STATIC_DIST)/ $(DIST_DIR)
 # Copy shared libraries
 	@cp -R $(ROOT_DIR)/lib/. $(DIST_DIR)/miyoo/app/.tmp_update/lib
-# Set version number
-	@mkdir -p $(BUILD_DIR)/.tmp_update/onionVersion
-	@echo -n "v$(VERSION)" > $(BUILD_DIR)/.tmp_update/onionVersion/version.txt
-	@sed -i "s/{VERSION}/$(VERSION)/g" $(BUILD_DIR)/autorun.inf
 # Copy all resources from src folders
 	@find \
 		$(SRC_DIR)/gameSwitcher \
@@ -138,6 +134,20 @@ $(CACHE)/.setup:
 	@chmod a+x $(ROOT_DIR)/.github/create_fullres_files.sh && $(ROOT_DIR)/.github/create_fullres_files.sh
 # Set flag: finished setup
 	@touch $(CACHE)/.setup
+
+# The version (it ends with the day of the build) in the three places that
+# keep it, on every build. The first two were written by the setup step,
+# which does not run again on another day with nothing changed, and
+# installUI has it compiled in (ONION_VERSION) while its object only
+# depends on its source: a build of the next day showed the day before in
+# Settings > About and in the installer.
+version-files: $(CACHE)/.setup
+	@mkdir -p $(BUILD_DIR)/.tmp_update/onionVersion $(CACHE)
+	@echo -n "v$(VERSION)" > $(BUILD_DIR)/.tmp_update/onionVersion/version.txt
+	@sed "s/{VERSION}/$(VERSION)/g" $(STATIC_BUILD)/autorun.inf > $(BUILD_DIR)/autorun.inf
+	@[ "$$(cat $(CACHE)/.installui_version 2> /dev/null)" = "$(VERSION)" ] || { \
+		rm -f $(SRC_DIR)/installUI/installUI.o; \
+		echo "$(VERSION)" > $(CACHE)/.installui_version; }
 
 build: core apps external
 	@$(ECHO) $(PRINT_DONE)
@@ -193,7 +203,7 @@ $(CORE_MODULE_TARGETS): core-mod-%: core-prime
 
 core-modules: $(CORE_MODULE_TARGETS)
 
-core: core-modules
+core: core-modules version-files
 	@$(ECHO) $(PRINT_RECIPE)
 
 # Build dependencies for installer
