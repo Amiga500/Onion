@@ -731,9 +731,12 @@ end
 eval "$(extract_fn "$RUNTIME" start_audioserver)"
 
 begin audioserver_cached_pid_skips_pgrep
-for _sl in /bin/sleep /usr/bin/sleep; do [ -x "$_sl" ] && break; done
-cp "$_sl" "$TMP/audioserver"
-"$TMP/audioserver" 30 &
+# A script named audioserver: the kernel names its process after the file.
+# (A copy of sleep did the same until sleep became a multi-call binary, as
+# with uutils on newer Ubuntu: run under another name it just exits.)
+printf '#!/bin/sh\nwhile :; do sleep 1; done\n' > "$TMP/audioserver"
+chmod +x "$TMP/audioserver"
+"$TMP/audioserver" &
 as_pid=$!
 started=0
 runifnecessary() { started=$((started + 1)); }
