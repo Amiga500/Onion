@@ -443,6 +443,7 @@ static void suspend_recover(void)
 {
     if (!exists(SUSPEND_STATE_PATH) && !exists(POWERSAVE_STATE_PATH))
         return;
+    bool stopped = exists(SUSPEND_STATE_PATH);
 
     system_powersave_recover();
 
@@ -460,6 +461,12 @@ static void suspend_recover(void)
     display_on();
     display_setBrightness(settings.brightness);
     setVolume(settings.mute ? 0 : settings.volume);
+    if (stopped) {
+        // suspend_exec() closed the play time before the standby and opens
+        // it again on a wake-up: here too, or the game went on uncounted.
+        char *const argv[] = {"playActivity", "resume", NULL};
+        process_spawn_detached(argv);
+    }
     print_debug("Recovered from an interrupted standby");
 }
 
