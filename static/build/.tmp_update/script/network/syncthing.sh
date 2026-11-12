@@ -268,6 +268,9 @@ st_start() {
 }
 
 # Ask Syncthing to stop (it closes its database), then force it after 5 s.
+# Checked every 0.2 s: a game waits for this before it starts, and
+# Syncthing usually exits well within a second.
+ST_STOP_TRIES=${ST_STOP_TRIES:-25}
 st_stop() {
     st_find_pids
     [ -z "$st_pids" ] && return 0
@@ -276,14 +279,14 @@ st_stop() {
     # shellcheck disable=SC2086
     kill $st_pids 2> /dev/null
     _tries=0
-    while [ $_tries -lt 5 ]; do
-        sleep 1
-        st_running || return 0
+    while [ $_tries -lt "$ST_STOP_TRIES" ]; do
+        sleep 0.2
+        st_running || { log "Syncthing: stopped"; return 0; }
         _tries=$((_tries + 1))
     done
     # shellcheck disable=SC2086
     kill -9 $st_pids 2> /dev/null
-    log "Syncthing: killed"
+    log "Syncthing: killed (still running after 5 s)"
 }
 
 if [ -f $sysdir/config/.logging ]; then

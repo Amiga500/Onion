@@ -227,7 +227,7 @@ check "kept across a Wi-Fi change" grep -q '^services=.*syncthingState' "$NETWOR
 check "restored from the saved state" grep -q 'authhttpState|syncthingState)' "$NETWORK"
 check "turned off with the others" sh -c "sed -n '/^disable_all_services() {/,/^}/p' '$NETWORK' | grep -q 'disable_flag syncthingState' && sed -n '/^disable_all_services() {/,/^}/p' '$NETWORK' | grep -q 'syncthing.sh stop'"
 check "update_networking.sh syncthing toggle" sh -c "grep -A3 '        syncthing) ' '$NETWORK' | grep -q check_syncthingstate"
-check "paused for a game with a plain TERM" grep -q 'killall syncthing; } 2> /dev/null &' "$RUNTIME"
+check "paused for a game: stopped, and waited for" sh -c "grep -A3 'killall -9 dropbear bftpd filebrowser telnetd smbd\$' '$RUNTIME' | grep -q 'syncthing.sh stop'"
 check "and back after the game" grep -q 'for service in smbd http ssh ftp telnet syncthing; do' "$RUNTIME"
 check "Tweaks toggles it in the background" sh -c "grep -A3 'void network_setSyncthingState' '$ROOT/src/tweaks/network.h' | grep -q '.syncthingState' && grep -A4 'void network_setSyncthingState' '$ROOT/src/tweaks/network.h' | grep -q 'execServiceState(\"syncthing\", true)'"
 end
@@ -304,6 +304,41 @@ check "only syncthing.sh: not running" test -z "$st_pids"
 echo syncthing > "$TMP/proc/11/comm"
 st_find_pids
 check "syncthing: found" test "$(echo $st_pids)" = 11
+unset proc_dir
+end
+
+begin syncthing_stop_waits_and_forces
+st_env
+eval "$(extract_fn "$SYNCTHING" st_stop)"
+proc_dir=$TMP/proc_stop # only this test's process
+rm -f "$TMP/kills" "$TMP/ticks"
+ST_STOP_TRIES=25
+mkdir -p "$TMP/proc_stop/77"
+echo syncthing > "$TMP/proc_stop/77/comm"
+: > "$TMP/st_log"
+sleep() { echo tick >> "$TMP/ticks"; }
+# Exits at TERM, after two checks.
+kill() {
+    echo "$*" >> "$TMP/kills"
+    case "$1" in -9) ;; *) rm -rf "$TMP/proc_stop/77" ;; esac
+}
+st_stop
+check "asked with a plain TERM" test "$(cat "$TMP/kills")" = "77"
+check "gone at the first check" test "$(wc -l < "$TMP/ticks")" -eq 1
+check "logged as stopped" grep -q "Syncthing: stopped" "$TMP/st_log"
+# Ignores TERM: killed after the last check.
+rm -f "$TMP/kills" "$TMP/ticks"
+ST_STOP_TRIES=25
+mkdir -p "$TMP/proc_stop/77"
+echo syncthing > "$TMP/proc_stop/77/comm"
+kill() { echo "$*" >> "$TMP/kills"; [ "$1" = -9 ] && rm -rf "$TMP/proc_stop/77"; true; }
+ST_STOP_TRIES=25
+st_stop
+check "25 checks, 0.2 s apart (5 s)" test "$(wc -l < "$TMP/ticks")" -eq 25
+check "then killed" test "$(tail -n 1 "$TMP/kills")" = "-9 77"
+check "and logged" grep -q "Syncthing: killed" "$TMP/st_log"
+check "checked every 0.2 s in the script" sh -c "sed -n '/^st_stop() {/,/^}/p' '$SYNCTHING' | grep -q 'sleep 0.2'"
+unset -f sleep kill
 unset proc_dir
 end
 
@@ -2875,7 +2910,7 @@ check "a service toggled in Tweaks sets it" sh -c \
     "sed -n '/^        ftp | telnet | http | ssh | smbd)/,/^            ;;/p' \"$NETWORK\" | sed -n '/toggle)/,/;;/p' | grep -qF 'wifi_power_save.sh auto'"
 check "disableall sets it" sh -c "extract_fn() { sed -n \"/^\$2() {/,/^}/p\" \"\$1\"; }; extract_fn \"$NETWORK\" disable_all_services | grep -qF 'wifi_power_save.sh auto'"
 check "services started after Wi-Fi or a game set it" sh -c "sed -n '/^start_services_outside_game() {/,/^}/p' \"$NETWORK\" | grep -qF 'wifi_power_save.sh auto'"
-check "a game that pauses the services sets it" sh -c "grep -A6 ': > /tmp/services_paused_in_game' \"$RUNTIME\" | grep -qF 'wifi_power_save.sh auto'"
+check "a game that pauses the services sets it" sh -c "grep -A12 ': > /tmp/services_paused_in_game' \"$RUNTIME\" | grep -qF 'wifi_power_save.sh auto'"
 
 unset -f ps_auto
 end
