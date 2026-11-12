@@ -191,6 +191,10 @@ void action_MainUI_gameSwitcher(void)
 void action_MainUI_resumeGame(void)
 {
     set_resumeGame();
+    // No game to resume (an empty recent list): MainUI was killed all the
+    // same and started again for nothing, with no command left.
+    if (!exists(CMD_TO_RUN_PATH))
+        return;
     kill_mainUI();
 }
 

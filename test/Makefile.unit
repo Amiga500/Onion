@@ -44,6 +44,8 @@ TESTS += test_keymon_robust
 TESTS += test_hash_equiv test_powersave_recover
 # Review fixes: stopping the OSD thread, Tweaks lock-out guard
 TESTS += test_osd_stop test_tweaks_lockout
+# keymon functions cut from the real sources, run with stand-ins
+TESTS += test_keymon_actions
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -1004,3 +1006,16 @@ test_tweaks_lockout: $(BUILD_DIR)/test_tweaks_lockout
 $(BUILD_DIR)/test_tweaks_lockout: test_tweaks_lockout.c onion_test.h ../src/tweaks/main_menu.h ../src/common/components/list.h stubs/SDL/SDL.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) -Istubs $(CFLAGS) -o $@ test_tweaks_lockout.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
+
+test_keymon_actions: $(BUILD_DIR)/test_keymon_actions
+	@echo ""
+	@$(BUILD_DIR)/test_keymon_actions
+
+# keymon's functions under test, cut from the real sources.
+$(BUILD_DIR)/keymon_actions_fns.c: ../src/keymon/menuButtonAction.h
+	@mkdir -p $(BUILD_DIR)
+	sed -n '/^void action_MainUI_resumeGame(/,/^}/p' ../src/keymon/menuButtonAction.h > $@
+
+$(BUILD_DIR)/test_keymon_actions: test_keymon_actions.c onion_test.h $(BUILD_DIR)/keymon_actions_fns.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DKEYMON_FNS='"$(abspath $(BUILD_DIR))/keymon_actions_fns.c"' -o $@ test_keymon_actions.c $(LDFLAGS)
