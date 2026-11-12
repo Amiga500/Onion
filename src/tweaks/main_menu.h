@@ -2213,6 +2213,26 @@ void menu_listMenus(void *_)
     header_changed = true;
 }
 
+// Green opens a light copy of a heavy (scanned) manual (bin/green/green),
+// unless config/.noPdfLight exists.
+#define PDFLIGHT_OFF_PATH MAINMENU_CONFIG_DIR "/.noPdfLight"
+
+static bool pdflight_on(void)
+{
+    return access(PDFLIGHT_OFF_PATH, F_OK) != 0;
+}
+
+static void action_pdfLight(void *pt)
+{
+    if (((ListItem *)pt)->value) {
+        remove(PDFLIGHT_OFF_PATH);
+        return;
+    }
+    FILE *fp = fopen(PDFLIGHT_OFF_PATH, "w");
+    if (fp)
+        fclose(fp);
+}
+
 static void gamemenu_add_switch(List *list, int index)
 {
     ListItem item = {.item_type = TOGGLE,
@@ -2228,7 +2248,7 @@ void menu_gameInfoMenu(void *_)
 {
     (void)_;
     if (!_menu_game_info_menu._created) {
-        _menu_game_info_menu = list_createWithTitle(GAMEMENU_ITEM_COUNT + 1, LIST_SMALL, "Game Info menu");
+        _menu_game_info_menu = list_createWithTitle(GAMEMENU_ITEM_COUNT + 2, LIST_SMALL, "Game Info menu");
         for (int i = 0; i < GAMEMENU_ITEM_COUNT; i++) {
             if (gamemenu_items[i].fixed || gamemenu_items[i].section != GAMEMENU_DETAILS)
                 continue;
@@ -2246,6 +2266,15 @@ void menu_gameInfoMenu(void *_)
             if (strcmp(gamemenu_switches[i].section, "gallery") == 0)
                 gamemenu_add_switch(&_menu_game_info_menu, i);
         }
+        list_addItemWithInfoNote(&_menu_game_info_menu,
+                                 (ListItem){.label = "Lighter manuals (PDF)",
+                                            .item_type = TOGGLE,
+                                            .value = pdflight_on(),
+                                            .action = action_pdfLight},
+                                 "The first time a scanned manual opens,\n"
+                                 "make a light copy (once, page by page):\n"
+                                 "its pages then turn much faster. The\n"
+                                 "original PDF is kept as it is.");
     }
     menu_stack[++menu_level] = &_menu_game_info_menu;
     header_changed = true;

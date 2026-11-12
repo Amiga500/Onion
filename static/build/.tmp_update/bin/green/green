@@ -1,17 +1,154 @@
 #!/bin/sh
+# Green with light manuals.
+#
+# Green decodes a page's whole scan each time it shows the page, so a
+# scanned manual turns its pages slowly. The first time a heavy PDF (over
+# 120 KB per page) is opened, pdflight writes a light copy of it in .light/
+# next to it: each page once more as an 800-pixel JPEG. Green then opens the
+# copy. The original is not changed. Making it takes about as long as
+# showing every page once (minutes for a JPEG2000 scan), so the panel shows
+# the time left, and holding B opens the original at once: the copy is
+# offered again next time. A PDF that is not worth it (text, or a
+# copy not 30% smaller), or one pdflight cannot read, gets a
+# .light/<name>.skip note instead, so it is not tried at every opening.
+# Off with .tmp_update/config/.noPdfLight (Tweaks > Game lists > Game Info
+# menu > Lighter manuals).
 
-DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
-
-# JPEG2000 optimization
-export GREEN_JPX_REDUCE=2 # try 0, 1 and 2
+# Green's settings (robcodedev). pdflight reads the PDF with the same
+# poppler, so it gets them too (with its own JPEG2000 reduce, below):
+# - JPEG2000 pictures decoded at a lower resolution (try 0, 1 and 2);
+export GREEN_JPX_REDUCE=2
 unset GREEN_JPX_DEBUG
-
-# cache
+# - a cache of the pages already shown;
 export GREEN_CACHE_PAGES=8
 export GREEN_CACHE_MB=20
-
-# Single-core Miyoo
+# - single-core Miyoo: no JPEG2000 threads.
 unset GREEN_JPX_THREADS
 
-# Launch Green, preserving all arguments
-exec "$DIR/green.bin" "$@"
+here=$(CDPATH= cd "$(dirname "$0")" && pwd)
+sysdir=$(CDPATH= cd "$here/../.." && pwd)
+real="$here/green.bin"
+tmp=${PDFLIGHT_TMP:-/tmp}
+
+[ $# -eq 1 ] && [ -f "$1" ] || exec "$real" "$@"
+pdf=$1
+case "$pdf" in
+    */.light/* | .light/*) exec "$real" "$pdf" ;;
+esac
+[ -f "$sysdir/config/.noPdfLight" ] && exec "$real" "$pdf"
+[ -x "$here/pdflight" ] || exec "$real" "$pdf"
+
+light="$(dirname "$pdf")/.light/$(basename "$pdf")"
+# A copy or a note is for the PDF of that size: the size of the PDF is
+# kept in <name>.size, or in the .skip note, and a PDF of another size (a
+# new download, a replaced file) is redone. Dates are not compared: the
+# Miyoo's clock is often wrong (no RTC, or not synced), so a PDF copied
+# from a PC can look years newer than a copy made on the device.
+set -- $(ls -ln "$pdf" 2> /dev/null)
+size=$5
+case "$size" in
+    '' | *[!0-9]*) exec "$real" "$pdf" ;;
+esac
+fresh() { # file, size note
+    [ -f "$1" ] && [ "$(cat "$2" 2> /dev/null)" = "$size" ]
+}
+fresh "$light" "$light.size" && exec "$real" "$light"
+fresh "$light.skip" "$light.skip" && exec "$real" "$pdf"
+mkdir -p "$(dirname "$light")" 2> /dev/null || exec "$real" "$pdf"
+rm -f "$light" "$light.size" "$light.skip" "$light.tmp"
+
+# Progress: infoPanel, with the usual libraries (not Green's first).
+panel_ld="/lib:/config/lib:/mnt/SDCARD/miyoo/lib:$sysdir/lib:$sysdir/lib/parasyte"
+panel_pid=
+panel_close() {
+    [ -n "$panel_pid" ] || return
+    touch "$tmp/dismiss_info_panel"
+    wait $panel_pid 2> /dev/null
+    rm -f "$tmp/dismiss_info_panel"
+    panel_pid=
+}
+panel() { # message
+    panel_close
+    rm -f "$tmp/dismiss_info_panel"
+    LD_LIBRARY_PATH="$panel_ld" "$sysdir/bin/infoPanel" -t "MANUAL" -m "$1" --persistent &
+    panel_pid=$!
+}
+holding_b() { # B is KEY_LEFTCTRL (29) on the Miyoo
+    LD_LIBRARY_PATH="$panel_ld" "$sysdir/bin/detectKey" 29 2> /dev/null
+}
+nap() { # microseconds; busybox has usleep
+    usleep "$1" 2> /dev/null || sleep 1
+}
+
+progress="$tmp/pdflight.progress"
+: > "$progress"
+# The copy is read at 800 pixels from then on, so its JPEG2000 pictures
+# are decoded at half size (reduce 1), not a quarter: a 2000-pixel scan
+# would be 500 pixels at reduce 2.
+GREEN_JPX_REDUCE=1 "$here/pdflight" --auto "$pdf" "$light.tmp" > "$progress" 2> "$tmp/pdflight.log" &
+pid=$!
+trap 'kill $pid 2> /dev/null; wait $pid 2> /dev/null; rm -f "$light.tmp"; panel_close; exit 1' TERM INT HUP
+
+title="Making this manual lighter,\nonly the first time.\n \n"
+hint="\n \nHold B to open it now."
+shown=
+start=
+skipped=0
+while kill -0 $pid 2> /dev/null; do
+    step=$(tail -n 1 "$progress" 2> /dev/null)
+    if [ -n "$step" ] && [ "$step" != "$shown" ]; then
+        shown=$step
+        case "$step" in
+            pages\ *)
+                start=$(date +%s)
+                panel "${title}${step#pages } pages to do.${hint}"
+                ;;
+            page\ */*)
+                step=${step#page }
+                count=${step%/*}
+                total=${step#*/}
+                # Time left from the pages done so far.
+                left=$((($(date +%s) - ${start:-$(date +%s)}) * (total - count) / count))
+                if [ $count -ge $total ]; then
+                    left="Finishing..."
+                elif [ $left -lt 60 ]; then
+                    left="Less than a minute left."
+                else
+                    left="About $(((left + 30) / 60)) min left."
+                fi
+                panel "${title}Page $count of $total\n${left}${hint}"
+                ;;
+        esac
+    fi
+    if holding_b; then
+        skipped=1
+        kill $pid 2> /dev/null
+        break
+    fi
+    nap 500000
+done
+wait $pid
+status=$?
+trap - TERM INT HUP
+panel_close
+rm -f "$progress"
+
+if [ $skipped -eq 1 ]; then
+    # Skipped: the original now, the copy offered again next time. Wait
+    # (up to 3 s) for B to be released, so Green does not get it.
+    rm -f "$light.tmp"
+    i=0
+    while [ $i -lt 30 ] && holding_b; do
+        nap 100000
+        i=$((i + 1))
+    done
+    exec "$real" "$pdf"
+fi
+
+if [ $status -eq 0 ] && mv -f "$light.tmp" "$light" && echo "$size" > "$light.size"; then
+    exec "$real" "$light"
+fi
+rm -f "$light" "$light.size" "$light.tmp"
+# Not worth it (3), or not readable: noted, so not tried again.
+[ $status -ne 0 ] && echo "$size" > "$light.skip"
+exec "$real" "$pdf"

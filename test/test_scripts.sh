@@ -3271,6 +3271,131 @@ else
     end
 fi
 
+# ---- Green: light copies of heavy manuals (bin/green/green) ----
+begin "green_light_copy_of_heavy_manuals"
+GD="$TMP/sd/.tmp_update/bin/green"
+mkdir -p "$GD" "$TMP/sd/.tmp_update/config" "$TMP/t" "$TMP/manuals"
+cp "$ROOT/static/build/.tmp_update/bin/green/green" "$GD/green"
+printf '#!/bin/sh\necho "$*" >> "%s/opened"\n' "$TMP" > "$GD/green.bin"
+# pdflight stub: MODE ok (2 pages), skip (exit 3), fail (exit 1), slow.
+cat > "$GD/pdflight" << STUB
+#!/bin/sh
+echo "\$*" >> "$TMP/calls"
+echo "reduce=\$GREEN_JPX_REDUCE pages=\$GREEN_CACHE_PAGES" > "$TMP/pdflight_env"
+mode=\$(cat "$TMP/mode")
+[ "\$mode" = skip ] && exit 3
+echo "pages 2"
+echo "page 1/2"
+[ "\$mode" = slow ] && { echo partial > "\$3"; sleep 30; }
+[ "\$mode" = fail ] && { echo partial > "\$3"; exit 1; }
+sleep 2
+echo light > "\$3"
+echo "page 2/2"
+exit 0
+STUB
+mkdir -p "$TMP/sd/.tmp_update/bin"
+cat > "$TMP/sd/.tmp_update/bin/infoPanel" << STUB
+#!/bin/sh
+echo "\$4" >> "$TMP/panel"
+while [ ! -f "$TMP/t/dismiss_info_panel" ]; do sleep 0.1; done
+STUB
+# detectKey stub: B "held" once while $TMP/holdB exists.
+cat > "$TMP/sd/.tmp_update/bin/detectKey" << STUB
+#!/bin/sh
+[ "\$1" = 29 ] && [ -f "$TMP/holdB" ] && { rm -f "$TMP/holdB"; exit 0; }
+exit 1
+STUB
+chmod +x "$GD/green" "$GD/green.bin" "$GD/pdflight" "$TMP/sd/.tmp_update/bin/infoPanel" "$TMP/sd/.tmp_update/bin/detectKey"
+green() { PDFLIGHT_TMP="$TMP/t" sh "$GD/green" "$@"; }
+calls() { [ -f "$TMP/calls" ] && wc -l < "$TMP/calls" | tr -d ' ' || echo 0; }
+M="$TMP/manuals"
+echo scan > "$M/Metroid.pdf"
+
+echo ok > "$TMP/mode"
+green "$M/Metroid.pdf"
+check "heavy manual: light copy made with --auto" grep -qxF -- "--auto $M/Metroid.pdf $M/.light/Metroid.pdf.tmp" "$TMP/calls"
+check "heavy manual: Green opens the light copy" test "$(tail -n 1 "$TMP/opened")" = "$M/.light/Metroid.pdf"
+check "light copy in place, no .tmp left" sh -c 'test "$(cat "$1/.light/Metroid.pdf")" = light && test ! -e "$1/.light/Metroid.pdf.tmp"' _ "$M"
+check "progress shown page by page" grep -q 'Page 1 of 2' "$TMP/panel"
+check "progress: the time left" grep -q 'Less than a minute left' "$TMP/panel"
+check "progress: B to open it now" grep -q 'Hold B to open it now' "$TMP/panel"
+left=$(pgrep -f "$TMP/sd/.tmp_update/bin/infoPanel" | wc -l)
+check "progress panel closed" test "$left" -eq 0
+check "original untouched" test "$(cat "$M/Metroid.pdf")" = scan
+check "pdflight reads JPEG2000 at half size" test "$(cat "$TMP/pdflight_env")" = "reduce=1 pages=8"
+printf '#!/bin/sh\necho "reduce=$GREEN_JPX_REDUCE pages=$GREEN_CACHE_PAGES mb=$GREEN_CACHE_MB" > "%s/green_env"\n' "$TMP" > "$TMP/envbin"
+cp "$GD/green.bin" "$TMP/green.bin.keep"
+cp "$TMP/envbin" "$GD/green.bin"
+chmod +x "$GD/green.bin"
+green "$M/Metroid.pdf"
+check "Green gets robcodedev's settings" test "$(cat "$TMP/green_env")" = "reduce=2 pages=8 mb=20"
+cp "$TMP/green.bin.keep" "$GD/green.bin"
+chmod +x "$GD/green.bin"
+green "$M/Metroid.pdf"
+check "second time: no new copy, light copy opened" sh -c 'test "$(wc -l < "$1/calls")" -eq 1 && test "$(tail -n 1 "$1/opened")" = "$2/.light/Metroid.pdf"' _ "$TMP" "$M"
+touch -t 203001010000 "$M/Metroid.pdf"
+green "$M/Metroid.pdf"
+check "a PDF dated years after its copy (wrong clock) is not made again" sh -c 'test "$(wc -l < "$1/calls")" -eq 1 && test "$(tail -n 1 "$1/opened")" = "$2/.light/Metroid.pdf"' _ "$TMP" "$M"
+echo "a replaced, bigger scan" > "$M/Metroid.pdf"
+touch -t 201001010000 "$M/Metroid.pdf"
+green "$M/Metroid.pdf"
+check "a replaced original (another size) is made light again" test "$(calls)" -eq 2
+check "the copy notes the size of its original" test "$(cat "$M/.light/Metroid.pdf.size")" = "$(wc -c < "$M/Metroid.pdf" | tr -d ' ')"
+
+echo text > "$M/Text.pdf"
+echo skip > "$TMP/mode"
+green "$M/Text.pdf"
+check "not worth it: original opened" test "$(tail -n 1 "$TMP/opened")" = "$M/Text.pdf"
+check "not worth it: noted, no copy" sh -c 'test -f "$1/.light/Text.pdf.skip" && test ! -e "$1/.light/Text.pdf"' _ "$M"
+green "$M/Text.pdf"
+check "not worth it: not tried again" test "$(calls)" -eq 3
+
+echo scan > "$M/Bad.pdf"
+echo fail > "$TMP/mode"
+green "$M/Bad.pdf"
+check "pdflight fails: original opened" test "$(tail -n 1 "$TMP/opened")" = "$M/Bad.pdf"
+check "pdflight fails: no copy left behind" sh -c 'test ! -e "$1/.light/Bad.pdf" && test ! -e "$1/.light/Bad.pdf.tmp" && test ! -e "$1/.light/Bad.pdf.size"' _ "$M"
+before=$(calls)
+green "$M/Bad.pdf"
+check "pdflight fails: noted, not tried at every opening" sh -c 'test -f "$1/.light/Bad.pdf.skip" && test "$(wc -l < "$2/calls")" -eq "$3"' _ "$M" "$TMP" "$before"
+
+echo scan > "$M/Off.pdf"
+touch "$TMP/sd/.tmp_update/config/.noPdfLight"
+before=$(calls)
+green "$M/Off.pdf"
+check "switched off in Tweaks: original, no copy" sh -c 'test "$(tail -n 1 "$1/opened")" = "$2/Off.pdf" && test "$(wc -l < "$1/calls")" -eq "$3"' _ "$TMP" "$M" "$before"
+rm -f "$TMP/sd/.tmp_update/config/.noPdfLight"
+
+green "$M/.light/Metroid.pdf"
+check "a light copy itself opens as it is" test "$(tail -n 1 "$TMP/opened")" = "$M/.light/Metroid.pdf"
+green
+check "no file: Green as it was" test "$(tail -n 1 "$TMP/opened")" = ""
+green "$M/missing.pdf"
+check "missing file: passed to Green" test "$(tail -n 1 "$TMP/opened")" = "$M/missing.pdf"
+
+echo scan > "$M/Skip.pdf"
+echo slow > "$TMP/mode"
+( sleep 2; touch "$TMP/holdB" ) &
+green "$M/Skip.pdf"
+check "B held: the original opened now" test "$(tail -n 1 "$TMP/opened")" = "$M/Skip.pdf"
+check "B held: no copy, no note, offered again" sh -c 'test ! -e "$1/.light/Skip.pdf" && test ! -e "$1/.light/Skip.pdf.tmp" && test ! -e "$1/.light/Skip.pdf.skip"' _ "$M"
+left=$(pgrep -f "$GD/pdflight" | wc -l)
+check "B held: pdflight stopped" test "$left" -eq 0
+
+echo scan > "$M/Slow.pdf"
+echo slow > "$TMP/mode"
+PDFLIGHT_TMP="$TMP/t" sh "$GD/green" "$M/Slow.pdf" &
+gpid=$!
+sleep 2
+kill -TERM $gpid
+wait $gpid
+check "stopped while making it: Green not opened" test "$(tail -n 1 "$TMP/opened")" != "$M/Slow.pdf"
+check "stopped while making it: no partial copy" sh -c 'test ! -e "$1/.light/Slow.pdf.tmp" && test ! -e "$1/.light/Slow.pdf"' _ "$M"
+left=$(pgrep -f "$GD/pdflight" | wc -l)
+check "stopped while making it: pdflight ended" test "$left" -eq 0
+pkill -f "$TMP/sd/.tmp_update/bin/infoPanel" 2> /dev/null
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

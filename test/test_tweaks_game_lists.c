@@ -824,6 +824,20 @@ TEST(main_menu_descriptions_fit)
     ASSERT_TRUE(found >= 8);
 }
 
+TEST(pdf_light_on_by_default_and_switched_off_by_file)
+{
+    remove(TEST_DIR "/.noPdfLight");
+    ASSERT_TRUE(pdflight_on());
+    ListItem item = {.value = 0};
+    action_pdfLight(&item);
+    ASSERT_TRUE(access(TEST_DIR "/.noPdfLight", F_OK) == 0);
+    ASSERT_FALSE(pdflight_on());
+    item.value = 1;
+    action_pdfLight(&item);
+    ASSERT_TRUE(access(TEST_DIR "/.noPdfLight", F_OK) != 0);
+    ASSERT_TRUE(pdflight_on());
+}
+
 TEST(every_tweaks_menu_has_room_for_its_items)
 {
     const char *files[] = {"../src/tweaks/menus.h", "../src/tweaks/main_menu.h",
@@ -1396,9 +1410,10 @@ TEST(game_info_and_saved_games_menus)
     menu_level = 0;
     list_free(&_menu_list_section);
 
-    const char *info[] = {"Gallery", "Saved Games", "Game Maps", "Walkthrough", "Manual", "RIGHT opens the gallery"};
-    ASSERT_EQ(_menu_game_info_menu.item_count, 6);
-    for (int i = 0; i < 6; i++)
+    const char *info[] = {"Gallery", "Saved Games", "Game Maps", "Walkthrough",
+                          "Manual", "RIGHT opens the gallery", "Lighter manuals (PDF)"};
+    ASSERT_EQ(_menu_game_info_menu.item_count, 7);
+    for (int i = 0; i < 7; i++)
         ASSERT_STREQ(_menu_game_info_menu.items[i].label, info[i]);
 
     const char *saved[] = {"LEFT opens Saved Games", "Show the Auto Save", "Enlarge small pictures",
@@ -1789,6 +1804,7 @@ int main(void)
     RUN_TEST(console_pictures_on_writes_the_folder_and_creates_it);
     RUN_TEST(console_pictures_keep_a_folder_already_named);
     RUN_TEST(console_pictures_off_removes_the_key);
+    RUN_TEST(pdf_light_on_by_default_and_switched_off_by_file);
     RUN_TEST(every_tweaks_menu_has_room_for_its_items);
     RUN_TEST(main_menu_descriptions_fit);
     RUN_TEST(console_view_options_written_and_read);

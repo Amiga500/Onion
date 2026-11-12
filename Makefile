@@ -169,6 +169,7 @@ CORE_MODULES := chargingState \
 	pressMenu2Kill \
 	pngScale \
 	pngresize \
+	pdflight \
 	warmup \
 	libgamename \
 	gameNameList \
