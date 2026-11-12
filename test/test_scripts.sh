@@ -2898,6 +2898,7 @@ mainui_env() {
     sysdir="$TMP/sys"
     MAINUI_HANDOFF_DIR="$TMP/tmp"
     MAINUI_CRASH_COUNT="$TMP/tmp/mainui_quick_exits"
+    MAINUI_START_STAMP="$TMP/tmp/mainui_started"
     MAINUI_CRASH_LIMIT=3
     MAINUI_QUICK_CS=300
     DEVICE_ID=354
@@ -2976,6 +2977,32 @@ mainui_check_crash_loop ""
 mainui_check_crash_loop ""
 mainui_check_crash_loop ""
 check "no run time measured: not taken for a crash" test ! -e "$sysdir/mainui-test/DISABLED"
+end
+
+# Open MainUI ending to start again (language change): it leaves
+# mainui-return.json, written during that session, and no command.
+begin mainui_crash_loop_own_restart_not_counted
+mainui_env
+for i in 1 2 3; do
+    touch -t 202001010000 "$MAINUI_START_STAMP"
+    : > "$MAINUI_HANDOFF_DIR/mainui-return.json"
+    mainui_check_crash_loop 10
+    rm -f "$MAINUI_HANDOFF_DIR/mainui-return.json"
+done
+check "Open MainUI starting itself again is not a crash" test ! -e "$sysdir/mainui-test/DISABLED"
+check "and leaves no count" test ! -e "$MAINUI_CRASH_COUNT"
+end
+
+# A return file older than this start: MainUI ended before it took it.
+begin mainui_crash_loop_stale_return_file_counted
+mainui_env
+: > "$MAINUI_HANDOFF_DIR/mainui-return.json"
+touch -t 202001010000 "$MAINUI_HANDOFF_DIR/mainui-return.json"
+for i in 1 2 3; do
+    : > "$MAINUI_START_STAMP"
+    mainui_check_crash_loop 10
+done
+check "a return file left from before does not hide a crash loop" test -e "$sysdir/mainui-test/DISABLED"
 end
 
 unset -f sync sleep infoPanel

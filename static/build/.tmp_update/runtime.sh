@@ -381,6 +381,7 @@ launch_main_ui() {
     perf_begin mainui_session
     perf_now
     mainui_started=$perf_cs
+    : > "$MAINUI_START_STAMP"
     cd $miyoodir/app
     PATH="$miyoodir/app:$PATH" \
         LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" \
@@ -1282,7 +1283,12 @@ mainui_target=$miyoodir/app/MainUI
 # no shutdown: keymon always leaves one of those before it kills MainUI)
 # switch to the stock MainUI, which the MainUI wrapper starts while
 # mainui-test/DISABLED exists. Deleting that file tries Open MainUI again.
+# Open MainUI also ends by itself to start again (a language change that
+# needs other fonts): it then leaves mainui-return.json and no command. One
+# written since this start (newer than MAINUI_START_STAMP) is such an exit;
+# an older one was left by a MainUI that ended before it could take it.
 MAINUI_HANDOFF_DIR=/tmp
+MAINUI_START_STAMP=/tmp/mainui_started
 MAINUI_CRASH_COUNT=/tmp/mainui_quick_exits
 MAINUI_CRASH_LIMIT=3
 MAINUI_QUICK_CS=300
@@ -1290,6 +1296,7 @@ MAINUI_QUICK_CS=300
 mainui_check_crash_loop() { # how long MainUI ran, in 1/100 s
     if [ -f "$MAINUI_HANDOFF_DIR/cmd_to_run.sh" ] || [ -f "$sysdir/cmd_to_run.sh" ] ||
         [ -f "$sysdir/.runGameSwitcher" ] || [ -f "$MAINUI_HANDOFF_DIR/.offOrder" ] ||
+        [ "$MAINUI_HANDOFF_DIR/mainui-return.json" -nt "$MAINUI_START_STAMP" ] ||
         [ "${1:-$MAINUI_QUICK_CS}" -ge "$MAINUI_QUICK_CS" ] 2> /dev/null; then
         rm -f "$MAINUI_CRASH_COUNT"
         return 0
