@@ -1221,6 +1221,12 @@ check_off_order() {
     if [ -f /tmp/.offOrder ]; then
         touch /tmp/shutting_down
         save_console_position
+        # Copy system.json (volume, brightness, display colours...) to this
+        # device's settings on the SD card now, as a game launch does
+        # (robcodedev). bin/shutdown moves it there too, but only as its
+        # last step: settings changed since the last game could be missing
+        # from the card after a shutdown, and then on another device.
+        save_settings
         save_romwinidx
 
         #EmuDeck - CheckOff scripts

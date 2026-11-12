@@ -476,7 +476,11 @@ void deepsleep(void)
     set_system_shutdown();
 
     if (system_state == MODE_MAIN_UI) {
-        kill_mainUI();
+        // Not kill_mainUI(): its display_reset() right after display
+        // colours were changed could hang the device on shutdown
+        // (robcodedev, Mini Flip). runtime.sh shows the shutdown screen.
+        settings_shm_read();
+        kill(system_state_pid, SIGKILL);
     }
     else if (system_state == MODE_SWITCHER) {
         kill(system_state_pid, SIGTERM);
