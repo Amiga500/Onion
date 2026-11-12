@@ -23,6 +23,11 @@ LOG=/tmp/backup_app.log
 # (an old time written back would set the clock back at the next boot).
 EXCLUDE_ROMSCREENS='-xr!romScreens'
 EXCLUDE_CLOCK='-xr!currentTime.txt'
+# Syncthing's keys and database (.tmp_update/config/syncthing), left out
+# of a backup and not written back from one: a copy put back would give
+# another device the same identity, or roll the database back under a
+# running Syncthing. The folders it syncs are backed up as usual.
+EXCLUDE_SYNCTHING='-x!.tmp_update/config/syncthing'
 MAX_LISTED=30
 
 # What a backup holds, relative to the SD card, one per line. Missing ones
@@ -178,7 +183,7 @@ EOF
     part="$BACKUP_DIR/.$name.part"
     rm -f "$part"
 
-    (cd "$SD" && "$Z7" a -tzip -mx1 -y -bd "$part" "$@" "$EXCLUDE_ROMSCREENS" "$EXCLUDE_CLOCK") >> "$LOG" 2>&1
+    (cd "$SD" && "$Z7" a -tzip -mx1 -y -bd "$part" "$@" "$EXCLUDE_ROMSCREENS" "$EXCLUDE_CLOCK" "$EXCLUDE_SYNCTHING") >> "$LOG" 2>&1
     rc=$?
     if [ $rc -gt 1 ] || [ ! -s "$part" ]; then
         rm -f "$part"
@@ -218,7 +223,7 @@ restore_backup() {
         return 1
     fi
 
-    "$Z7" x -y -aoa "-o$SD" "$archive" "$EXCLUDE_CLOCK" >> "$LOG" 2>&1
+    "$Z7" x -y -aoa "-o$SD" "$archive" "$EXCLUDE_CLOCK" "$EXCLUDE_SYNCTHING" >> "$LOG" 2>&1
     rc=$?
     if [ $rc -ne 0 ]; then
         sync

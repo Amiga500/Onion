@@ -3099,6 +3099,9 @@ backup_fake_sd() { # folder
     echo "rom" > "$1/Roms/GBA/game.gba"
     echo "nds save" > "$1/Emu/NDS/backup/Mario.dsv"
     echo "cfg" > "$1/Emu/NDS/config/drastic.cfg"
+    mkdir -p "$1/.tmp_update/config/syncthing/index"
+    echo "key 1" > "$1/.tmp_update/config/syncthing/key.pem"
+    echo "db" > "$1/.tmp_update/config/syncthing/index/000001.log"
     echo "bios" > "$1/BIOS/bios.bin"
 }
 
@@ -3128,7 +3131,8 @@ else
         check "has $p" sh -c 'printf "%s\n" "$1" | grep -qxF "$2"' _ "$paths" "$p"
     done
     for p in Saves/CurrentProfile/romScreens/game.png Saves/CurrentProfile/saves/currentTime.txt \
-        Roms/GBA/game.gba .tmp_update/bin/tool BIOS/bios.bin; do
+        Roms/GBA/game.gba .tmp_update/bin/tool BIOS/bios.bin .tmp_update/config/syncthing/key.pem \
+        .tmp_update/config/syncthing/index/000001.log; do
         check "not $p" sh -c '! printf "%s\n" "$1" | grep -qxF "$2"' _ "$paths" "$p"
     done
     check "every path may go back" check_archive "$BACKUP_FILE"
@@ -3190,6 +3194,20 @@ else
     check "restored" test $? -eq 0
     check "its save written" test "$(cat "$SD/Saves/CurrentProfile/saves/old.srm")" = "old save"
     check "its saved clock not written back" test "$(cat "$SD/Saves/CurrentProfile/saves/currentTime.txt")" = 1700000000
+    end
+
+    begin backup_restore_leaves_syncthing_alone
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    mkdir -p "$TMP/old/.tmp_update/config/syncthing" "$TMP/old/Saves/CurrentProfile/saves"
+    echo "key 0" > "$TMP/old/.tmp_update/config/syncthing/key.pem"
+    echo "old save" > "$TMP/old/Saves/CurrentProfile/saves/old.srm"
+    (cd "$TMP/old" && "$BACKUP_TEST_7Z" a -tzip "$TMP/old.zip" Saves .tmp_update > /dev/null 2>&1)
+    restore_backup "$TMP/old.zip"
+    check "a backup with Syncthing's folder still goes back" test $? -eq 0
+    check "its save written" test "$(cat "$SD/Saves/CurrentProfile/saves/old.srm")" = "old save"
+    check "Syncthing's keys left as they are" test "$(cat "$SD/.tmp_update/config/syncthing/key.pem")" = "key 1"
     end
 
     begin backup_restore_refuses_foreign_paths
