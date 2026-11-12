@@ -1685,11 +1685,18 @@ replace_file_safely() {
     fi
 }
 
+# Temporary copies a save cut short by a power loss left behind (Onion
+# programs save through "<file>.tmp.<pid>.<n>"): system.json's, and those in
+# config and its folders (battery/, startup/, display/... were not looked
+# at, and theirs stayed on the card for good).
+clean_temp_saves() { # SD card
+    rm -f "$1"/system.json.tmp.* 2> /dev/null
+    find "$1/.tmp_update/config" -maxdepth 2 -type f -name '*.tmp.*' -exec rm -f {} \; 2> /dev/null
+}
+
 load_settings() {
-    # Temporary copies a save cut short by a power loss left behind (Onion
-    # programs save through "<file>.tmp.<pid>.<n>"). Nothing else saves
-    # settings this early in the boot.
-    rm -f /mnt/SDCARD/system.json.tmp.* /mnt/SDCARD/.tmp_update/config/*.tmp.* 2> /dev/null
+    # Nothing else saves settings this early in the boot.
+    clean_temp_saves /mnt/SDCARD
 
     if [ -f "$device_settings" ]; then
         cp -f "$device_settings" /mnt/SDCARD/system.json.tmp &&

@@ -516,6 +516,25 @@ check "an existing state.json is still reset" grep -q '"currpos":	0,' "$TMP/tmp/
 check "an existing romwinidx.json is kept" grep -q '"other":	1' "$TMP/appconfigs/romwinidx.json"
 end
 
+# ---- runtime.sh: temporary copies of settings saves, removed at boot ----
+begin clean_temp_saves_looks_in_config_folders
+eval "$(extract_fn "$RUNTIME" clean_temp_saves)"
+C="$TMP/.tmp_update/config"
+mkdir -p "$C/battery" "$C/startup" "$C/filebrowser/theme/img"
+: > "$TMP/system.json"; : > "$TMP/system.json.tmp.123.0"
+: > "$C/keymap.json"; : > "$C/keymap.json.tmp.45.1"
+: > "$C/battery/warnAt"; : > "$C/battery/warnAt.tmp.45.2"
+: > "$C/startup/tab.tmp.9.0"
+: > "$C/filebrowser/theme/img/logo.tmp.png"
+clean_temp_saves "$TMP"
+check "system.json's is removed" test ! -e "$TMP/system.json.tmp.123.0"
+check "config's is removed" test ! -e "$C/keymap.json.tmp.45.1"
+check "those in config's folders too" sh -c "! ls '$C'/battery/*.tmp.* '$C'/startup/*.tmp.* 2> /dev/null | grep -q ."
+check "the settings stay" test -e "$TMP/system.json" -a -e "$C/keymap.json" -a -e "$C/battery/warnAt"
+check "deeper files are left alone" test -e "$C/filebrowser/theme/img/logo.tmp.png"
+unset -f clean_temp_saves
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to
@@ -1279,7 +1298,7 @@ end
 # ---- runtime.sh: temporaries of interrupted saves removed at boot ----
 
 begin boot_removes_interrupted_save_temporaries
-check "load_settings removes system.json and config temporaries" sh -c "sed -n '/^load_settings() {/,/^}/p' \"$RUNTIME\" | grep -q 'rm -f /mnt/SDCARD/system.json.tmp.\* /mnt/SDCARD/.tmp_update/config/\*.tmp.\*'"
+check "load_settings removes system.json and config temporaries" sh -c "sed -n '/^load_settings() {/,/^}/p' \"$RUNTIME\" | grep -q '^    clean_temp_saves /mnt/SDCARD\$'"
 check "before batmon or keymon can save" sh -c "grep -n '^    init_system\|^    batmon &' \"$RUNTIME\" | head -1 | grep -q init_system"
 end
 
