@@ -16,7 +16,7 @@ on:
 jobs:
   unit-test:
     name: Host unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -31,7 +31,7 @@ jobs:
 
   neon-arm:
     name: NEON ARM (qemu)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -44,7 +44,7 @@ jobs:
 
   gtest:
     name: GTest infoPanel
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
     - name: Install SDL libs
