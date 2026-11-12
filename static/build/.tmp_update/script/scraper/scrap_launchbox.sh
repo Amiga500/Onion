@@ -340,8 +340,14 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 					pngScale "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension" "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
 				 fi
 				 
-				 echo -e "${GREEN}Scraped!${NONE}"
-				 let Scrap_Success++;
+				 # A conversion that failed left no cover: not a success.
+				 if [ -f "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" ]; then
+					 echo -e "${GREEN}Scraped!${NONE}"
+					 let Scrap_Success++;
+				 else
+					 echo -e "${RED}Conversion failed.${NONE}"
+					 let Scrap_Fail++;
+				 fi
 			else
 				 echo -e "${RED}Download failed.${NONE}"
 				 let Scrap_Fail++;
