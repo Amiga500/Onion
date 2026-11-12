@@ -583,6 +583,9 @@ end
 begin hide_recents_replaces_the_list_in_one_step
 eval "$(extract_fn "$RUNTIME" check_hide_recents)"
 check "the merged list is written next to the lists, on the card" sh -c "sed -n 's/^recentlist_temp=//p' '$RUNTIME' | grep -qx '/mnt/SDCARD/Roms/recentlist-temp.json'"
+for f in "$ROOT/static/build/.tmp_update/script/game_list_options.sh" "$ROOT/static/packages/App/Random Game/App/RandomGamePicker/random.sh"; do
+    check "${f##*/} too" sh -c "sed -n 's/^recentlist_temp=//p' \"\$1\" | grep -qx '/mnt/SDCARD/Roms/recentlist-temp.json'" _ "$f"
+done
 sysdir="$TMP/sys"; mkdir -p "$sysdir/config" "$TMP/Roms"
 recentlist="$TMP/Roms/recentlist.json"; recentlist_hidden="$TMP/Roms/recentlist-hidden.json"; recentlist_temp="$TMP/Roms/recentlist-temp.json"
 syncs=0

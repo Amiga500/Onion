@@ -35,7 +35,9 @@ fi
 # Build recent list entry 
 recentlist=/mnt/SDCARD/Roms/recentlist.json
 recentlist_hidden=/mnt/SDCARD/Roms/recentlist-hidden.json
-recentlist_temp=/tmp/recentlist-temp.json
+# On the card, next to the lists: from /tmp the mv over the list is a copy,
+# and a power loss during it leaves a cut list (as in runtime.sh).
+recentlist_temp=/mnt/SDCARD/Roms/recentlist-temp.json
 
 if [ ! -f $sysdir/config/.showRecents ]; then
     currentrecentlist=$recentlist_hidden
