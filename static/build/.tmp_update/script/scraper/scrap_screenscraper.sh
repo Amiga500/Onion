@@ -453,6 +453,17 @@ gi_merge_pending() {
     gi_merge_entry_file && rm -f "$gi_list.pending"
 }
 
+# The entries a scraping cut short left aside, in every console folder
+# ($1: the Roms folder): they only reached gamelist.xml at the next scraping
+# of that same console.
+gi_merge_all_pending() {
+    for gi_pending in "$1"/*/gamelist.xml.pending; do
+        [ -s "$gi_pending" ] || continue
+        gi_root="${gi_pending%/gamelist.xml.pending}"
+        gi_merge_pending
+    done
+}
+
 # Puts the lines of gamelist.xml.entry before the last </gameList>.
 gi_merge_entry_file() {
     awk -v entry="$gi_list.entry" '
@@ -658,8 +669,12 @@ fi
  mkdir -p /mnt/SDCARD/Roms/$CurrentSystem/Imgs > /dev/null
 
 # Entries a scraping cut short left aside (see gi_write_desc).
+gi_merge_all_pending /mnt/SDCARD/Roms
 gi_root="/mnt/SDCARD/Roms/$CurrentSystem"
-gi_merge_pending
+# Ended before the last line (the terminal closed, a shutdown): what this
+# scraping kept aside is merged then.
+trap 'gi_merge_pending' EXIT
+trap 'exit 1' HUP INT TERM
 
 # =================
 #this is a trick to manage spaces from find command, do not indent or modify

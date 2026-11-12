@@ -3164,6 +3164,25 @@ rc=$?
 check "no gamelist.xml at all: refused, entries kept" sh -c "test $rc -ne 0 && test -s '$gi_root/gamelist.xml.pending'"
 end
 
+# A scraping cut short on one console, the next scraping on another one.
+begin scraper_game_info_pending_of_other_consoles
+gi_env
+for c in SFC GBA; do
+    mkdir -p "$TMP/Roms/$c"
+    printf '<?xml version="1.0"?>\n<gameList>\n</gameList>\n' > "$TMP/Roms/$c/gamelist.xml"
+    printf '  <game>\n    <path>./Left in %s.rom</path>\n  </game>\n' "$c" > "$TMP/Roms/$c/gamelist.xml.pending"
+done
+mkdir -p "$TMP/Roms/MD" "$TMP/Roms/With space"
+printf '<gameList>\n</gameList>\n' > "$TMP/Roms/With space/gamelist.xml"
+printf '  <game>\n    <path>./S.rom</path>\n  </game>\n' > "$TMP/Roms/With space/gamelist.xml.pending"
+gi_merge_all_pending "$TMP/Roms"
+check "the entries left in one console are merged" grep -q '<path>./Left in SFC.rom</path>' "$TMP/Roms/SFC/gamelist.xml"
+check "and those of another" grep -q '<path>./Left in GBA.rom</path>' "$TMP/Roms/GBA/gamelist.xml"
+check "a folder name with a space too" grep -q '<path>./S.rom</path>' "$TMP/Roms/With space/gamelist.xml"
+check "nothing left aside" sh -c "! ls '$TMP'/Roms/*/gamelist.xml.pending 2> /dev/null | grep -q ."
+check "a console without entries aside gets no list" test ! -e "$TMP/Roms/MD/gamelist.xml"
+end
+
 begin scraper_game_info_not_found_memo
 gi_env
 GameInfoMedia="desc,box2dfront"
