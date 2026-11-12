@@ -10,6 +10,7 @@
 #include "onion_test.h"
 #include <signal.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -80,7 +81,8 @@ static int test_kill(pid_t pid, int sig)
 static struct {
     int brightness, volume;
     bool mute;
-} settings = {7, 10, false};
+    int mainui_single_press, mainui_double_press, ingame_double_press;
+} settings = {7, 10, false, 1, 2, 3};
 static int display_ons = 0;
 static void display_on(void) { display_ons++; }
 static void display_setBrightness(int value) { (void)value; }
@@ -132,6 +134,53 @@ static int test_system(const char *command)
     return 0;
 }
 #define system test_system
+
+/* menuButtonAction(): the MENU button, as keymon's main loop calls it */
+#include "../src/keymon/double_press.h"
+#define RELEASED 0
+#define PRESSED 1
+#define REPEAT 2
+#define HW_BTN_MENU 1
+typedef enum { MODE_UNKNOWN,
+               MODE_MAIN_UI,
+               MODE_GAME,
+               MODE_DRASTIC } SystemState;
+static SystemState system_state = MODE_MAIN_UI;
+static SystemState menu_pressed_state = MODE_UNKNOWN;
+static int menu_last_pressed = 0;
+static int menu_long_press_timeout = 700;
+static bool menu_ignore_next = false;
+static struct {
+    int code, value;
+} ev;
+static int fds;
+static bool keys_held_back = false; /* keymon's grab: MainUI sees no key */
+static void keyinput_disable(void) { keys_held_back = true; }
+static void keyinput_enable(void) { keys_held_back = false; }
+static void quietMainUI(void) {}
+static bool _hapticSinglePress(void) { return false; }
+static bool _hapticDoublePress(void) { return false; }
+static void menu_super_short_pulse(void) {}
+static int single_presses = 0, double_presses = 0, long_presses = 0;
+static void menuButtonEvent_singlePress(void) { single_presses++; }
+static void menuButtonEvent_doublePress(void) { double_presses++; }
+static void menuButtonEvent_longPress(void) { long_presses++; }
+static bool second_press_comes = false; /* a MENU press within the wait */
+static int test_poll(int timeout_ms)
+{
+    if (!second_press_comes)
+        return 0;
+    second_press_comes = false;
+    now_ms += timeout_ms / 2;
+    return 1;
+}
+#define poll(fds, count, timeout_ms) ((void)(fds), test_poll(timeout_ms))
+static bool keyinput_isValid(void)
+{
+    ev.code = HW_BTN_MENU;
+    ev.value = PRESSED;
+    return true;
+}
 
 #include KEYMON_FNS
 
@@ -231,6 +280,73 @@ TEST(game_switcher_overlay_is_started_once)
     ASSERT_EQ(switcher_starts, 3);
 }
 
+static void menu_reset(void)
+{
+    system_state = MODE_MAIN_UI;
+    menu_ignore_next = false;
+    keys_held_back = false;
+    second_press_comes = false;
+    single_presses = double_presses = long_presses = 0;
+    now_ms += 10000;
+}
+
+TEST(menu_single_press_in_mainui)
+{
+    menu_reset();
+    menuButtonAction(PRESSED, false);
+    ASSERT_TRUE(keys_held_back);
+    now_ms += 100;
+    menuButtonAction(RELEASED, false);
+    ASSERT_EQ(single_presses, 1);
+    ASSERT_EQ(double_presses, 0);
+    ASSERT_FALSE(keys_held_back);
+}
+
+/* A double press in MainUI: MainUI sees nothing of the second press either,
+ * its release included (it opened its SELECT menu on that release when the
+ * action left it running). */
+TEST(menu_double_press_keeps_the_keys_until_the_second_release)
+{
+    menu_reset();
+    menuButtonAction(PRESSED, false);
+    now_ms += 80;
+    second_press_comes = true;
+    menuButtonAction(RELEASED, false);
+    ASSERT_EQ(double_presses, 1);
+    ASSERT_EQ(single_presses, 0);
+    ASSERT_TRUE(keys_held_back); /* second press still down */
+
+    /* held for a while: not a long press, nothing given back */
+    now_ms += 400;
+    bool combo = menuButtonAction(REPEAT, false);
+    ASSERT_FALSE(combo);
+    ASSERT_EQ(long_presses, 0);
+    ASSERT_TRUE(keys_held_back);
+
+    menuButtonAction(RELEASED, false);
+    ASSERT_FALSE(keys_held_back);
+    ASSERT_EQ(single_presses, 0);
+    ASSERT_EQ(double_presses, 1);
+
+    /* and the next press is a press again */
+    now_ms += 2000;
+    menuButtonAction(PRESSED, false);
+    now_ms += 100;
+    menuButtonAction(RELEASED, false);
+    ASSERT_EQ(single_presses, 1);
+    ASSERT_FALSE(keys_held_back);
+}
+
+TEST(menu_long_press_still_works)
+{
+    menu_reset();
+    system_state = MODE_GAME;
+    menuButtonAction(PRESSED, false);
+    now_ms += 750;
+    ASSERT_TRUE(menuButtonAction(REPEAT, false));
+    ASSERT_EQ(long_presses, 1);
+}
+
 int main(void)
 {
     printf("\n=== keymon: actions cut from the sources ===\n\n");
@@ -240,6 +356,9 @@ int main(void)
     RUN_TEST(recover_without_a_standby_does_nothing);
     RUN_TEST(recover_powersave_alone_opens_no_play_time);
     RUN_TEST(game_switcher_overlay_is_started_once);
+    RUN_TEST(menu_single_press_in_mainui);
+    RUN_TEST(menu_double_press_keeps_the_keys_until_the_second_release);
+    RUN_TEST(menu_long_press_still_works);
     if (system("rm -rf " TEST_DIR) != 0)
         fprintf(stderr, "rm failed\n");
     TEST_REPORT();

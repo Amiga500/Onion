@@ -446,7 +446,9 @@ bool menuButtonAction(uint32_t val, bool comboKey)
         menu_pressed_state = system_state;
     }
     else if (val == REPEAT) {
-        if (getMilliseconds() - menu_last_pressed >= menu_long_press_timeout) {
+        // Not the second press of a double press, still held: it is used up.
+        if (!menu_ignore_next &&
+            getMilliseconds() - menu_last_pressed >= menu_long_press_timeout) {
             print_debug("LONG-PRESS");
             keyinput_enable();
             menuButtonEvent_longPress();
@@ -456,6 +458,7 @@ bool menuButtonAction(uint32_t val, bool comboKey)
     else if (val == RELEASED) {
         if (menu_ignore_next) {
             menu_ignore_next = false;
+            keyinput_enable();
             return comboKey;
         }
 
@@ -475,6 +478,11 @@ bool menuButtonAction(uint32_t val, bool comboKey)
                         menu_super_short_pulse();
                     menuButtonEvent_doublePress();
                     menu_ignore_next = true;
+                    // The keys stay held back until this second press is
+                    // released (above): given back now, MainUI got that
+                    // release alone and opened its SELECT menu when the
+                    // action left it running ("Resume game" with no game).
+                    return comboKey;
                 }
                 break;
             }
