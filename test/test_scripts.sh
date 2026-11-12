@@ -342,6 +342,42 @@ unset -f sleep kill
 unset proc_dir
 end
 
+begin flip_display_colours_restored_at_boot
+# The block in runtime.sh main(), run on its own.
+flip_csc_block=$(awk '/# Mini Flip: put the display colours/ { on = 1 } on { print } on && /^    fi$/ { exit }' "$RUNTIME")
+check "the block is found" test -n "$flip_csc_block"
+sysdir=$TMP/cscsd
+mkdir -p "$sysdir/bin" "$sysdir/logs"
+printf '#!/bin/sh\necho "$*" > "%s/csc_args"\necho "CSC: restored"; exit ${CSC_RC:-0}\n' "$TMP" > "$sysdir/bin/restore_lcd_csc"
+chmod +x "$sysdir/bin/restore_lcd_csc"
+sysjson_get() {
+    case "$1" in lumination) echo 7 ;; hue) echo 10 ;; saturation) echo 12 ;; contrast) echo 15 ;; esac
+}
+log() { echo "$*" >> "$TMP/csc_log"; }
+MODEL_MMF=285
+DEVICE_ID=354
+rm -f "$TMP/csc_args"
+eval "$flip_csc_block"
+check "not on a Mini Plus" test ! -e "$TMP/csc_args"
+DEVICE_ID=285
+eval "$flip_csc_block"
+check "on the Flip: lumination, hue, saturation, contrast" test "$(cat "$TMP/csc_args")" = "7 10 12 15"
+check "its output in restore-lcd-csc.log" grep -q "CSC: restored" "$sysdir/logs/restore-lcd-csc.log"
+check "no failure logged" test ! -e "$TMP/csc_log"
+CSC_RC=1
+export CSC_RC
+eval "$flip_csc_block"
+check "a failure goes to runtime.log" grep -q "Flip LCD color restoration failed" "$TMP/csc_log"
+unset CSC_RC
+rm -f "$sysdir/bin/restore_lcd_csc" "$TMP/csc_args"
+eval "$flip_csc_block"
+check "no program: nothing run" test ! -e "$TMP/csc_args"
+check "before the blue light filter" sh -c "awk '/# Mini Flip: put the display colours/ { c = NR } /# Check if blf needs enabling/ { b = NR } END { exit !(c && b && c < b) }' '$RUNTIME'"
+check "its log is cleared at each boot" sh -c "sed -n '/^clear_logs() {/,/^}/p' '$RUNTIME' | grep -q 'restore-lcd-csc.log'"
+check "built with the core programs" grep -q '^	restore_lcd_csc$' "$ROOT/Makefile"
+unset -f sysjson_get log
+end
+
 begin syncthing_never_starts_open
 check "the login is set before the first start" grep -q -- '--gui-user="$ST_GUI_USER" --gui-password="$ST_GUI_PASSWORD"' "$SYNCTHING"
 check "no start without a configuration" sh -c "sed -n '/^st_start() {/,/^}/p' '$SYNCTHING' | grep -q 'st_generate || return 1'"

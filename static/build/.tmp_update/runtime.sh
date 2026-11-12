@@ -158,6 +158,19 @@ main() {
     # Make sure MainUI doesn't show charging animation
     touch /tmp/no_charging_ui
 
+    # Mini Flip: put the display colours saved in Settings > Display back
+    # once at boot, the way MainUI sets them (robcodedev): the Flip starts
+    # with its default colours otherwise. Before the blue light filter,
+    # which goes on top of them.
+    if [ "$DEVICE_ID" -eq "$MODEL_MMF" ] && [ -x "$sysdir/bin/restore_lcd_csc" ]; then
+        if ! "$sysdir/bin/restore_lcd_csc" \
+            "$(sysjson_get lumination)" "$(sysjson_get hue)" \
+            "$(sysjson_get saturation)" "$(sysjson_get contrast)" \
+            >> "$sysdir/logs/restore-lcd-csc.log" 2>&1; then
+            log "Flip LCD color restoration failed"
+        fi
+    fi
+
     # Check if blf needs enabling
     if [ -f $sysdir/config/.blf ]; then
         /mnt/SDCARD/.tmp_update/script/blue_light.sh check &
@@ -309,6 +322,7 @@ clear_logs() {
         ./runtime.log \
         ./update_networking.log \
         ./easy_netplay.log \
+        ./restore-lcd-csc.log \
         2> /dev/null
 }
 
