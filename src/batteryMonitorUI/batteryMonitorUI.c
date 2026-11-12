@@ -34,7 +34,7 @@ static char battery_voltage[16];
 static TTF_Font *font_small = NULL;
 static TTF_Font *font_tiny = NULL;
 
-// AXP221 Telemetry & Menu State
+// AXP223 Telemetry & Menu State
 static bool show_axp_menu = false;
 static bool axp_confirm_calib = false;
 static bool axp_confirm_btest = false;
@@ -42,6 +42,7 @@ static bool axp_confirm_cap = false; // saving a capacity while the battery is s
 enum {
     AXP_MENU_CAPACITY = 0,
     AXP_MENU_VOFF,
+    AXP_MENU_CHGV,
     AXP_MENU_SYNC,
     AXP_MENU_CALIB,
     AXP_MENU_BTEST,
@@ -51,6 +52,8 @@ static int axp_menu_selected = AXP_MENU_CAPACITY;
 static int axp_edit_capacity = 3000;
 static int axp_edit_voff = 3; // REG 31H bits 2-0 code: 0..7 -> 2.6..3.3 V (default 3 = 2.9 V)
 #define AXP_VOFF_CODE_MAX 5   // UI limit: 3.1 V (3.2/3.3 V would waste too much usable capacity)
+static int axp_edit_chgv = 2; // REG 33H bits 6-5 code: 0 = 4.10 V, 1 = 4.15 V, 2 = 4.20 V (3 = 4.35 V, never offered)
+#define AXP_CHGV_CODE_MAX 2   // UI limit: 4.20 V, the cell's rated full voltage
 static Uint32 axp_last_poll = 0;
 static char axp_feedback_msg[64] = "";
 static Uint32 axp_feedback_until = 0;
@@ -80,6 +83,7 @@ typedef struct {
     bool cap_set;    // REG E0H/E1H holds a capacity (bit 15 set, value > 0); factory default 0
     bool cc_valid;   // REG E5H bit 7 with a capacity set; clear on a fresh PMIC (E5H then reads 100)
     int voff_code;   // REG 31H bits 2-0: auto power-off voltage code, -1 if unknown
+    int chgv_code;   // REG 33H bits 6-5: charge target voltage code, -1 if unknown
 } axp_telemetry_t;
 
 static int voff_code_to_mv(int code)
@@ -87,7 +91,21 @@ static int voff_code_to_mv(int code)
     return 2600 + code * 100;
 }
 
-static axp_telemetry_t axp_status = {.voff_code = -1};
+// Charge target voltage and the rough share of a full charge it stops at
+// (a Li-ion cell charged to 4.10 V holds about 90%, to 4.15 V about 95%).
+static int chgv_code_to_mv(int code)
+{
+    static const int mv[4] = {4100, 4150, 4200, 4350};
+    return mv[code & 3];
+}
+
+static const char *chgv_code_to_label(int code)
+{
+    static const char *lbl[4] = {"~90%", "~95%", "Full", "4.35"};
+    return lbl[code & 3];
+}
+
+static axp_telemetry_t axp_status = {.voff_code = -1, .chgv_code = -1};
 
 typedef struct {
     int pixel_height;
@@ -977,6 +995,7 @@ static void draw_right_zoom_icon(void)
 #define AXP_I2C_DEV "/dev/i2c-1"
 #define AXP_ADDR 0x34
 #define REG_AXP_VOFF 0x31
+#define REG_AXP_CHG1 0x33
 #define REG_AXP_CTL 0xB8
 #define REG_AXP_PCT 0xB9
 #define REG_AXP_E0 0xE0
@@ -1054,10 +1073,12 @@ static bool axp_poll_data(void)
     int c12 = axp_i2c_read16(fd, 0x7A);
     int st01 = axp_i2c_read(fd, 0x01);
     int r31 = axp_i2c_read(fd, REG_AXP_VOFF);
+    int r33 = axp_i2c_read(fd, REG_AXP_CHG1);
 
     close(fd);
 
     axp_status.voff_code = (r31 >= 0) ? (r31 & 0x07) : -1;
+    axp_status.chgv_code = (r33 >= 0) ? ((r33 >> 5) & 0x03) : -1;
 
     axp_status.available = true;
     axp_status.gauge_en = (b8 >> 7) & 1;
@@ -1154,7 +1175,7 @@ static bool axp_set_coulomb_counter(int mah)
     return ok;
 }
 
-// AXP221 datasheet v1.2, REG 31H (wakeup control & Voff), default 03H:
+// AXP223 datasheet v1.1 / AXP221 v1.2, REG 31H (wakeup control & Voff), default 03H:
 //   bit 7 PWROK pull-low on wakeup (RW, keep), bit 6 soft restart (write 1 = PMU reboots!),
 //   bit 5 soft wakeup (write 1 = outputs restored), bit 4 IRQ wakeup masking (RW, keep),
 //   bit 3 sleep wakeup enable (self-clearing), bits 2-0 Voff: 2.6 V + code * 0.1 V.
@@ -1187,7 +1208,38 @@ static int axp_set_voff(int code)
     return ((check & 0x07) == code) ? 0 : -2;
 }
 
-// AXP221 datasheet v1.2, REG B8H:
+// AXP223 datasheet v1.1 / AXP221 v1.2, REG 33H (charge control 1):
+//   bit 7 charge enable, bits 6-5 charge target voltage (00 4.10 V, 01 4.15 V, 10 4.20 V, 11 4.35 V),
+//   bit 4 end-of-charge current (0: 10%, 1: 15% of the set current), bits 3-0 charge current.
+// Only bits 6-5 change; codes above AXP_CHGV_CODE_MAX are refused (4.35 V would overcharge the cell).
+// Returns 0 on success, -1 on I2C failure, -2 when the read-back value differs.
+static int axp_set_charge_voltage(int code)
+{
+    if (!HAS_AXP() || code < 0 || code > AXP_CHGV_CODE_MAX)
+        return -1;
+    int fd = open(AXP_I2C_DEV, O_RDWR);
+    if (fd < 0) return -1;
+    ioctl(fd, I2C_TIMEOUT, 5);
+    ioctl(fd, I2C_RETRIES, 1);
+
+    int r33 = axp_i2c_read(fd, REG_AXP_CHG1);
+    if (r33 < 0) {
+        close(fd);
+        return -1;
+    }
+    unsigned char new_r33 = (unsigned char)((r33 & 0x9F) | ((code & 0x03) << 5));
+    if (new_r33 != r33 && axp_i2c_write(fd, REG_AXP_CHG1, new_r33) != 0) {
+        close(fd);
+        return -1;
+    }
+    int check = axp_i2c_read(fd, REG_AXP_CHG1);
+    close(fd);
+    if (check < 0)
+        return -1;
+    return (((check >> 5) & 0x03) == code) ? 0 : -2;
+}
+
+// AXP223 datasheet v1.1 / AXP221 v1.2, REG B8H:
 //   bit 7 fuel gauge enable, bit 6 coulomb counter enable,
 //   bit 5 battery total capacity correction enable (RW, persistent switch),
 //   bit 4 correction status (0: not correcting, 1: correcting).
@@ -1731,7 +1783,7 @@ static void renderAxpMenu(void)
     drawKeyValueLine("Cap. Learning:", cal_mode_str, tbl_font, col_lbl, axp_status.cal_en ? col_green : col_sub, rx + 12, 92 + 3 * 34, card_w - 24);
     drawKeyValueLine("Correction:", cal_stat_str, tbl_font, col_lbl, axp_status.cal_active ? col_cyan : col_sub, rx + 12, 92 + 4 * 34, card_w - 24);
 
-    // Section 2: Settings & Actions (5 rows, 30 px pitch, fits above the footer at y=444)
+    // Section 2: Settings & Actions (6 rows, 25 px pitch, fits above the footer at y=444)
     renderText("BATTERY SETTINGS & ACTIONS", font_Arkhip, col_header, &(SDL_Rect){25, 270, 300, 18});
     // What to do next, on the right of the section header
     const char *next_hint = NULL;
@@ -1745,7 +1797,7 @@ static void renderAxpMenu(void)
     if (next_hint)
         renderTextAlignRight(next_hint, font_small ? font_small : font_Arkhip, col_warn, &(SDL_Rect){615, 273, 300, 16});
 
-    const int row_y0 = 288, row_pitch = 30, row_h = 28, txt_dy = 4;
+    const int row_y0 = 288, row_pitch = 25, row_h = 23, txt_dy = 2;
     for (int i = 0; i < AXP_MENU_COUNT; i++) {
         int y = row_y0 + i * row_pitch;
         bool sel = (axp_menu_selected == i);
@@ -1780,6 +1832,22 @@ static void renderAxpMenu(void)
         else
             snprintf(voff_hint, sizeof(voff_hint), "[A] Save");
         renderText(voff_hint, font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){215, ROW_TY(AXP_MENU_VOFF) + 2, 210, 16});
+    }
+
+    // Item: Charge limit (charge target voltage, REG 33H bits 6-5)
+    renderText("Charge Limit:", font_Arkhip, col_val, &(SDL_Rect){50, ROW_TY(AXP_MENU_CHGV), 180, 20});
+    char chgv_edit_str[32];
+    bool chgv_dirty = (axp_status.chgv_code >= 0 && axp_edit_chgv != axp_status.chgv_code);
+    snprintf(chgv_edit_str, sizeof(chgv_edit_str), "<  %s %.2f V%s  >", chgv_code_to_label(axp_edit_chgv),
+             chgv_code_to_mv(axp_edit_chgv) / 1000.0, chgv_dirty ? "*" : "");
+    renderTextAlignRight(chgv_edit_str, font_Arkhip, col_cyan, &(SDL_Rect){605, ROW_TY(AXP_MENU_CHGV), 190, 20});
+    if (axp_menu_selected == AXP_MENU_CHGV) {
+        char chgv_hint[48];
+        if (axp_status.chgv_code >= 0)
+            snprintf(chgv_hint, sizeof(chgv_hint), "Now %.2f V  [A] Save", chgv_code_to_mv(axp_status.chgv_code) / 1000.0);
+        else
+            snprintf(chgv_hint, sizeof(chgv_hint), "[A] Save");
+        renderText(chgv_hint, font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){185, ROW_TY(AXP_MENU_CHGV) + 2, 210, 16});
     }
 
     // Item: Sync 100%
@@ -2301,7 +2369,7 @@ int main(int argc, char *argv[])
         Uint32 now = SDL_GetTicks();
         // Onion's sleep stops every process (SIGSTOP) and continues them on wake, batmon
         // included, which then reads the battery at its next 15 s check. A long gap
-        // between passes or SIGCONT means we were stopped: query AXP221 immediately and recompute.
+        // between passes or SIGCONT means we were stopped: query AXP223 immediately and recompute.
         if (sigcont_received || (Sint32)(now - last_pass) > WAKE_GAP_MS) {
             sigcont_received = 0;
             if (bt.state == BT_RUNNING)
@@ -2509,6 +2577,35 @@ int main(int argc, char *argv[])
                             changed = true;
                         }
                     }
+                    else if (axp_menu_selected == AXP_MENU_CHGV) {
+                        if (keystate[SW_BTN_LEFT] >= PRESSED) {
+                            if (axp_edit_chgv > 0) {
+                                axp_edit_chgv--;
+                                changed = true;
+                            }
+                        }
+                        else if (keystate[SW_BTN_RIGHT] >= PRESSED) {
+                            if (axp_edit_chgv < AXP_CHGV_CODE_MAX) {
+                                axp_edit_chgv++;
+                                changed = true;
+                            }
+                        }
+                        else if (keystate[SW_BTN_A] == PRESSED) {
+                            int res = axp_set_charge_voltage(axp_edit_chgv);
+                            if (res == 0)
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Charge limit set to %.2f V (%s)",
+                                         chgv_code_to_mv(axp_edit_chgv) / 1000.0, chgv_code_to_label(axp_edit_chgv));
+                            else if (res == -2)
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                                         "PMIC rejected the change (REG 33H unchanged)");
+                            else
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                                         "I2C error: failed to set charge limit");
+                            axp_feedback_until = now + 3000;
+                            axp_poll_data();
+                            changed = true;
+                        }
+                    }
                     else if (axp_menu_selected == AXP_MENU_SYNC) {
                         if (keystate[SW_BTN_A] == PRESSED) {
                             int cap = (axp_status.capacity_mah > 0) ? axp_status.capacity_mah : axp_edit_capacity;
@@ -2559,6 +2656,8 @@ int main(int argc, char *argv[])
                     }
                     if (axp_status.available && axp_status.voff_code >= 0)
                         axp_edit_voff = axp_status.voff_code;
+                    if (axp_status.available && axp_status.chgv_code >= 0 && axp_status.chgv_code <= AXP_CHGV_CODE_MAX)
+                        axp_edit_chgv = axp_status.chgv_code;
                     changed = true;
                 }
                 else if (keystate[SW_BTN_B] == PRESSED)
