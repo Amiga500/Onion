@@ -3161,7 +3161,12 @@ rm -f "$gi_root/gamelist.xml"
 printf '  <game>\n    <path>./C.sfc</path>\n  </game>\n' > "$gi_root/gamelist.xml.pending"
 gi_merge_pending
 rc=$?
-check "no gamelist.xml at all: refused, entries kept" sh -c "test $rc -ne 0 && test -s '$gi_root/gamelist.xml.pending'"
+check "no gamelist.xml (deleted since): made again with the entries" sh -c "test $rc -eq 0 && grep -q '<path>./C.sfc</path>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
+check "and nothing left aside" test ! -e "$gi_root/gamelist.xml.pending"
+: > "$gi_root/gamelist.xml"
+printf '  <game>\n    <path>./D.sfc</path>\n  </game>\n' > "$gi_root/gamelist.xml.pending"
+gi_merge_pending
+check "an empty gamelist.xml too" sh -c "grep -q '<path>./D.sfc</path>' '$gi_root/gamelist.xml' && test ! -e '$gi_root/gamelist.xml.pending'"
 end
 
 # A scraping cut short on one console, the next scraping on another one.

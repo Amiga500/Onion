@@ -448,7 +448,12 @@ gi_write_desc() {
 gi_merge_pending() {
     gi_list="$gi_root/gamelist.xml"
     [ -s "$gi_list.pending" ] || return 0
-    [ -s "$gi_list" ] && grep -q '</gameList>' "$gi_list" || return 1
+    # No list (deleted since): made again, as gi_write_desc does. The
+    # entries stayed aside for good, and counted as present (gi_missing).
+    if [ ! -s "$gi_list" ]; then
+        printf '<?xml version="1.0"?>\n<gameList>\n</gameList>\n' > "$gi_list"
+    fi
+    grep -q '</gameList>' "$gi_list" || return 1
     cp -f "$gi_list.pending" "$gi_list.entry" || return 1
     gi_merge_entry_file && rm -f "$gi_list.pending"
 }
