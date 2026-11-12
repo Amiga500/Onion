@@ -506,6 +506,17 @@ gi_not_found() {
     gi_none notfound
 }
 
+# ScreenScraper knows the game after all (it was only looked up again
+# because its cover is missing): the "notfound" note goes, and the Game
+# Info it kept from being asked for is asked for (gi_todo).
+gi_found() {
+    [ -f "$gi_root/media/.gameinfo_none" ] &&
+        grep -qxF "notfound $gi_rel" "$gi_root/media/.gameinfo_none" || return 0
+    grep -vxF "notfound $gi_rel" "$gi_root/media/.gameinfo_none" > "$gi_root/media/.gameinfo_none.tmp"
+    mv -f "$gi_root/media/.gameinfo_none.tmp" "$gi_root/media/.gameinfo_none"
+    gi_todo=$(gi_missing)
+}
+
 # Gets the missing items ($1, one per line) for this ROM. Prints a line per
 # item and counts them in GameInfo_Success / GameInfo_Fail.
 gi_download() {
@@ -783,6 +794,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 		
         echo "gameID = $gameIDSS"
 
+		gi_found
 		gi_game="$api_result"
         
 		api_result=$(echo $api_result | jq '.response.jeu.medias')

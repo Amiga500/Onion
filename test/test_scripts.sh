@@ -3169,6 +3169,33 @@ gi_merge_pending
 check "an empty gamelist.xml too" sh -c "grep -q '<path>./D.sfc</path>' '$gi_root/gamelist.xml' && test ! -e '$gi_root/gamelist.xml.pending'"
 end
 
+# Noted as unknown to ScreenScraper, then found (looked up again for its
+# missing cover): the note goes and its Game Info is asked for.
+begin scraper_game_info_found_after_not_found
+gi_env
+GameInfoMedia="desc,box2dfront"
+mkdir -p "$gi_root/media"
+printf 'box3d Other.sfc\nnotfound %s\nnotfound Other.sfc\n' "$gi_rel" > "$gi_root/media/.gameinfo_none"
+gi_todo=$(gi_missing)
+check "noted as not found: nothing asked for" test -z "$gi_todo"
+gi_found
+check "found: the note is removed" sh -c "! grep -qxF 'notfound $gi_rel' '$gi_root/media/.gameinfo_none'"
+check "the other notes are kept" test "$(cat "$gi_root/media/.gameinfo_none")" = "box3d Other.sfc
+notfound Other.sfc"
+check "and its Game Info is asked for" test "$gi_todo" = "desc
+box2dfront"
+check "no temporary file left" test ! -e "$gi_root/media/.gameinfo_none.tmp"
+printf 'notfound %s\n' "$gi_rel" > "$gi_root/media/.gameinfo_none"
+gi_found
+check "the only note: an empty file, nothing noted" sh -c "! grep -q . '$gi_root/media/.gameinfo_none'"
+gi_todo=kept
+gi_found
+check "no note: nothing changes" test "$gi_todo" = kept
+rm -f "$gi_root/media/.gameinfo_none"
+gi_found
+check "no file: nothing made" test ! -e "$gi_root/media/.gameinfo_none"
+end
+
 # A scraping cut short on one console, the next scraping on another one.
 begin scraper_game_info_pending_of_other_consoles
 gi_env
