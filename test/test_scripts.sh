@@ -579,6 +579,32 @@ check "osd_hideBar comes before display_close at the end of main" sh -c "awk '
     END { exit !(hide && close_line && hide < close_line) }' '$ROOT/src/tweaks/tweaks.c'"
 end
 
+# ---- runtime.sh: check_hide_recents (the list moved between its two files) ----
+begin hide_recents_replaces_the_list_in_one_step
+eval "$(extract_fn "$RUNTIME" check_hide_recents)"
+check "the merged list is written next to the lists, on the card" sh -c "sed -n 's/^recentlist_temp=//p' '$RUNTIME' | grep -qx '/mnt/SDCARD/Roms/recentlist-temp.json'"
+sysdir="$TMP/sys"; mkdir -p "$sysdir/config" "$TMP/Roms"
+recentlist="$TMP/Roms/recentlist.json"; recentlist_hidden="$TMP/Roms/recentlist-hidden.json"; recentlist_temp="$TMP/Roms/recentlist-temp.json"
+syncs=0
+sync() { # what is on the card at the first flush
+    syncs=$((syncs + 1))
+    [ $syncs -eq 1 ] && at_first_sync="$(cat "$recentlist_temp" 2> /dev/null | tr '\n' ' ')|$(cat "$recentlist_hidden" 2> /dev/null | tr '\n' ' ')"
+    return 0
+}
+printf 'new\n' > "$recentlist"; printf 'old\n' > "$recentlist_hidden"
+check_hide_recents # Recents hidden: the list moves to the hidden file
+check "hidden: merged, newest first" test "$(tr '\n' ' ' < "$recentlist_hidden")" = "new old "
+check "the visible list is gone" test ! -e "$recentlist"
+check "flushed before the rename: the whole new list aside, the old one still in place" test "$at_first_sync" = "new old |old "
+check "nothing left aside" test ! -e "$recentlist_temp"
+: > "$sysdir/config/.showRecents"
+syncs=0
+check_hide_recents # Recents shown: it comes back
+check "shown: the list is back" test "$(tr '\n' ' ' < "$recentlist")" = "new old "
+check "and the hidden one is gone" test ! -e "$recentlist_hidden"
+unset -f sync check_hide_recents
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to

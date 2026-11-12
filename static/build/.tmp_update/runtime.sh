@@ -1256,7 +1256,9 @@ check_off_order() {
 
 recentlist=/mnt/SDCARD/Roms/recentlist.json
 recentlist_hidden=/mnt/SDCARD/Roms/recentlist-hidden.json
-recentlist_temp=/tmp/recentlist-temp.json
+# Next to the lists, not in /tmp: from there the mv below was a copy onto the
+# card, and a power loss during it left a cut list in place of the whole one.
+recentlist_temp=/mnt/SDCARD/Roms/recentlist-temp.json
 
 check_hide_recents() {
     # Global sync only when a list was actually moved (it used to run
@@ -1266,6 +1268,7 @@ check_hide_recents() {
         # Hide recents by removing the json file
         if [ -f $recentlist ]; then
             cat $recentlist $recentlist_hidden 2>/dev/null | head -n 200 > $recentlist_temp
+            sync
             mv -f $recentlist_temp $recentlist_hidden
             rm -f $recentlist
             sync
@@ -1274,6 +1277,7 @@ check_hide_recents() {
         # Restore recentlist
         if [ -f $recentlist_hidden ]; then
             cat $recentlist $recentlist_hidden 2>/dev/null | head -n 200 > $recentlist_temp
+            sync
             mv -f $recentlist_temp $recentlist
             rm -f $recentlist_hidden
             sync
