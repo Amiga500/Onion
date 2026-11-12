@@ -59,6 +59,16 @@ static inline bool battery_acceptAxpPercent(int sample, int *last_good)
     return true;
 }
 
+// Whether keymon ends the game to save it and switch off: the level batmon
+// published is at or under the limit (0: never). With no level published
+// (batmon gone, or no sane reading from axp_test yet: /tmp/percBat missing)
+// battery_getPercentage() answers 0, for the display: that is not an empty
+// battery, and the game was closed and the device switched off.
+static inline bool battery_lowForAutosave(bool published, int percentage, int limit)
+{
+    return limit > 0 && published && percentage <= limit;
+}
+
 /**
  * @brief Retrieve the current battery percentage as reported by batmon
  *

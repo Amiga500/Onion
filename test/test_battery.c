@@ -235,6 +235,18 @@ TEST(axp_percent_first_failure_is_unpublished) {
     ASSERT_EQ(axp_sample(57), 57);
 }
 
+/* keymon's low battery exit (every 15 s): only on a level batmon published */
+TEST(low_battery_exit_needs_a_published_level) {
+    ASSERT_TRUE(battery_lowForAutosave(true, 4, 4));
+    ASSERT_TRUE(battery_lowForAutosave(true, 0, 4));
+    ASSERT_FALSE(battery_lowForAutosave(true, 5, 4));
+    ASSERT_FALSE(battery_lowForAutosave(true, 500, 4)); /* charging */
+    /* no /tmp/percBat: battery_getPercentage() says 0 */
+    ASSERT_FALSE(battery_lowForAutosave(false, 0, 4));
+    /* switched off in Tweaks */
+    ASSERT_FALSE(battery_lowForAutosave(true, 0, 0));
+}
+
 /* ---- main ---- */
 
 int main(void)
@@ -265,6 +277,7 @@ int main(void)
     RUN_TEST(axp_percent_rejects_negative);
     RUN_TEST(axp_percent_rejects_garbage);
     RUN_TEST(axp_percent_first_failure_is_unpublished);
+    RUN_TEST(low_battery_exit_needs_a_published_level);
     RUN_TEST(charging_level_from_the_gauge);
     RUN_TEST(charging_level_unknown);
     RUN_TEST(charging_icon_shows_the_level);

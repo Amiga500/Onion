@@ -1469,7 +1469,8 @@ int main(int argc, char *argv[])
         }
 
         // Quit RetroArch / auto-save when battery too low
-        if (settings.low_battery_autosave_at && battery_getPercentage() <= settings.low_battery_autosave_at && check_autosave()) {
+        bool battery_published = exists("/tmp/percBat");
+        if (battery_lowForAutosave(battery_published, battery_published ? battery_getPercentage() : 0, settings.low_battery_autosave_at) && check_autosave()) {
             temp_flag_set(".lowBat", true);
             screenshot_system();
             terminate_retroarch();
