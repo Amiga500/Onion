@@ -119,6 +119,8 @@ int main(int argc, char *argv[])
         if (pargc < MAX_ELEMENTS && strlen(argv[i]) > 0) {
             pargs[pargc] = malloc((STR_MAX + 1) * sizeof(char));
             strncpy(pargs[pargc], argv[i], STR_MAX);
+            // strncpy leaves no terminator when the argument fills it
+            pargs[pargc][STR_MAX] = '\0';
             pargc++;
         }
     }
