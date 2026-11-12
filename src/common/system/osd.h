@@ -286,12 +286,12 @@ static uint32_t *_bar_savebuf;
 #endif
 
 // The indicator's look, read when it appears (like meterWidth) and kept
-// while it is on screen: the panel at the bottom (default), at the top with
-// the .osdPanelTop flag, or with .osdEdgeBar Onion's bar on the left edge.
+// while it is on screen: Onion's bar on the left edge (default), or with the
+// .osdPanel flag a panel at the bottom, at the top with .osdPanelTop too.
 // meterWidth 0 hides them all.
-#define OSD_EDGE_BAR_FLAG ".osdEdgeBar"
+#define OSD_PANEL_FLAG ".osdPanel"
 #define OSD_PANEL_TOP_FLAG ".osdPanelTop"
-static bool _osd_panel = true;
+static bool _osd_panel = false;
 static bool _osd_panel_top = false;
 #ifdef PLATFORM_MIYOOMINI
 #define OSD_PANEL_MAX_BUFFERS 3
@@ -693,7 +693,7 @@ static void _osd_showIndicator(int kind, int value, int value_max, uint32_t colo
         osd_bar_activated = false;
         return;
     }
-    _osd_panel = !config_flag_get(OSD_EDGE_BAR_FLAG);
+    _osd_panel = config_flag_get(OSD_PANEL_FLAG);
     _osd_panel_top = config_flag_get(OSD_PANEL_TOP_FLAG);
 
     // The previous bar's thread ends on its own after 2 s and nobody joined

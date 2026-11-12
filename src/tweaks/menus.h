@@ -689,13 +689,13 @@ void menu_lookAndFeel(void *_)
                                      .label = "Volume/brightness indicator",
                                      .item_type = MULTIVALUE,
                                      .value_max = 2,
-                                     .value_labels = {"Bottom", "Top", "Edge bar"},
+                                     .value_labels = {"Edge bar", "Bottom", "Top"},
                                      .value = value_osdStyle(),
                                      .action = action_setOsdStyle},
                                  "Shown while you change the brightness,\n"
-                                 "or the volume on the Mini Plus: a panel\n"
-                                 "with an icon and a bar, at the bottom\n"
-                                 "or top, or Onion's bar on the left edge.");
+                                 "or the volume on the Mini Plus: Onion's\n"
+                                 "bar on the left edge, or a panel with\n"
+                                 "an icon and a bar, at the bottom or top.");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
                                      .label = "Volume/brightness bar",
