@@ -1,0 +1,6 @@
+{
+  "label": "DisplayCal",
+  "icon": "icon.png",
+  "launch": "launch.sh",
+  "description": "RGB and warmth display calibration"
+}
