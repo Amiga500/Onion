@@ -135,6 +135,23 @@ static int test_system(const char *command)
 }
 #define system test_system
 
+/* axp_setBits() (system/axp.h, needs the I2C headers): the power chip */
+static int axp_register = 0x5d; /* -1: the read fails */
+static int axp_writes = 0;
+static int axp_written = -1;
+static int axp_read(unsigned char address)
+{
+    (void)address;
+    return axp_register;
+}
+static int axp_write(unsigned char address, unsigned char val)
+{
+    (void)address;
+    axp_writes++;
+    axp_written = val;
+    return 0;
+}
+
 /* menuButtonAction(): the MENU button, as keymon's main loop calls it */
 #include "../src/keymon/double_press.h"
 #define RELEASED 0
@@ -280,6 +297,24 @@ TEST(game_switcher_overlay_is_started_once)
     ASSERT_EQ(switcher_starts, 3);
 }
 
+/* keymon sets the power key's hold time at start (register 0x36, bits 0-1) */
+TEST(axp_bits_are_set_and_the_others_kept)
+{
+    axp_register = 0x5d;
+    axp_writes = 0;
+    ASSERT_EQ(axp_setBits(0x36, 3), 0);
+    ASSERT_EQ(axp_writes, 1);
+    ASSERT_EQ(axp_written, 0x5f);
+}
+
+TEST(axp_register_not_read_is_not_written)
+{
+    axp_register = -1;
+    axp_writes = 0;
+    ASSERT_EQ(axp_setBits(0x36, 3), -1);
+    ASSERT_EQ(axp_writes, 0); /* it was written as 0xFF */
+}
+
 static void menu_reset(void)
 {
     system_state = MODE_MAIN_UI;
@@ -356,6 +391,8 @@ int main(void)
     RUN_TEST(recover_without_a_standby_does_nothing);
     RUN_TEST(recover_powersave_alone_opens_no_play_time);
     RUN_TEST(game_switcher_overlay_is_started_once);
+    RUN_TEST(axp_bits_are_set_and_the_others_kept);
+    RUN_TEST(axp_register_not_read_is_not_written);
     RUN_TEST(menu_single_press_in_mainui);
     RUN_TEST(menu_double_press_keeps_the_keys_until_the_second_release);
     RUN_TEST(menu_long_press_still_works);

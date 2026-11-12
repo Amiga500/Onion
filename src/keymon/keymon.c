@@ -856,7 +856,7 @@ int main(int argc, char *argv[])
 
     if (HAS_AXP()) {
         // set hardware poweroff time to 10s
-        axp_write(0x36, axp_read(0x36) | 3);
+        axp_setBits(0x36, 3);
     }
 
     settings_init();

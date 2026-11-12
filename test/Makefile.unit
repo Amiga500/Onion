@@ -1012,13 +1012,14 @@ test_keymon_actions: $(BUILD_DIR)/test_keymon_actions
 	@$(BUILD_DIR)/test_keymon_actions
 
 # keymon's functions under test, cut from the real sources.
-$(BUILD_DIR)/keymon_actions_fns.c: ../src/keymon/menuButtonAction.h ../src/keymon/keymon.c
+$(BUILD_DIR)/keymon_actions_fns.c: ../src/keymon/menuButtonAction.h ../src/keymon/keymon.c ../src/common/system/axp.h
 	@mkdir -p $(BUILD_DIR)
 	sed -n '/^void action_MainUI_resumeGame(/,/^}/p' ../src/keymon/menuButtonAction.h > $@
 	sed -n '/^void action_RA_gameSwitcher(/,/^}/p' ../src/keymon/menuButtonAction.h >> $@
 	sed -n '/^static bool _doublePressConfigured(/,/^}/p' ../src/keymon/menuButtonAction.h >> $@
 	sed -n '/^bool menuButtonAction(/,/^}/p' ../src/keymon/menuButtonAction.h >> $@
 	sed -n '/^static void suspend_recover(/,/^}/p' ../src/keymon/keymon.c >> $@
+	sed -n '/^int axp_setBits(/,/^}/p' ../src/common/system/axp.h >> $@
 
 $(BUILD_DIR)/test_keymon_actions: test_keymon_actions.c onion_test.h $(BUILD_DIR)/keymon_actions_fns.c
 	@mkdir -p $(BUILD_DIR)

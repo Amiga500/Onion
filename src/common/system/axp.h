@@ -75,6 +75,17 @@ int axp_read(unsigned char address)
     return val;
 }
 
+// Sets bits of a register and keeps the others. A register that cannot be
+// read is left alone: the failed read is -1, and -1 | bits was written back
+// as 0xFF (see axp_lcd_set below).
+int axp_setBits(unsigned char address, unsigned char bits)
+{
+    int val = axp_read(address);
+    if (val < 0)
+        return -1;
+    return axp_write(address, (unsigned char)(val | bits));
+}
+
 int axp_lcd_get(void) { return axp_read(0x21); }
 
 int axp_lcd_set(int value)
