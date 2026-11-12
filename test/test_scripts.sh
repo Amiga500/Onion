@@ -535,6 +535,23 @@ check "deeper files are left alone" test -e "$C/filebrowser/theme/img/logo.tmp.p
 unset -f clean_temp_saves
 end
 
+# ---- runtime.sh: startup/ and checkoff/ scripts ----
+begin run_scripts_in_runs_names_with_spaces
+eval "$(extract_fn "$RUNTIME" run_scripts_in)"
+mkdir -p "$TMP/startup/my scripts"
+printf 'echo plain >> "%s/ran"\n' "$TMP" > "$TMP/startup/plain.sh"
+printf 'echo spaced >> "%s/ran"\n' "$TMP" > "$TMP/startup/my scripts/second one.sh"
+printf 'cat > /dev/null\necho reader >> "%s/ran"\n' "$TMP" > "$TMP/startup/reader.sh"
+printf 'echo no >> "%s/ran"\n' "$TMP" > "$TMP/startup/notes.txt"
+run_scripts_in "$TMP/startup" < /dev/null
+check "a plain script runs" grep -qx plain "$TMP/ran"
+check "one with spaces in its name and folder runs" grep -qx spaced "$TMP/ran"
+check "a script reading its input does not stop the others" test "$(sort "$TMP/ran" | tr '\n' ' ')" = "plain reader spaced "
+run_scripts_in "$TMP/none"
+check "a missing folder: nothing run, no error" test "$(wc -l < "$TMP/ran")" -eq 3
+unset -f run_scripts_in
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to

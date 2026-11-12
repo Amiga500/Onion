@@ -223,11 +223,7 @@ main() {
     #EmuDeck - Startup scripts
     mkdir -p "$sysdir/startup"
     mkdir -p "$sysdir/checkoff"
-    startup_scripts=$(find "$sysdir/startup" -type f -name "*.sh")
-
-    for startup_script in $startup_scripts; do
-        sh "$startup_script"
-    done
+    run_scripts_in "$sysdir/startup"
 
     # Auto launch
     if [ ! -f $sysdir/config/.noAutoStart ]; then
@@ -263,6 +259,18 @@ main() {
         state_change check_game
         state_change check_switcher
     done
+}
+
+# Runs every *.sh under a folder (startup/, checkoff/). The list was split
+# on spaces: a script with a space in its name or folder was never run (sh
+# was given the pieces of its path). Read on fd 3, so a script that reads
+# its input does not take the rest of the list.
+run_scripts_in() { # folder
+    find "$1" -type f -name "*.sh" > /tmp/run_scripts_list 2> /dev/null
+    while IFS= read -r _rs_script <&3; do
+        sh "$_rs_script"
+    done 3< /tmp/run_scripts_list
+    rm -f /tmp/run_scripts_list
 }
 
 state_change() {
@@ -1238,11 +1246,7 @@ check_off_order() {
         save_romwinidx
 
         #EmuDeck - CheckOff scripts
-        check_off_scripts=$(find "$sysdir/checkoff" -type f -name "*.sh")
-
-        for check_off_script in $check_off_scripts; do
-            sh "$check_off_script"
-        done
+        run_scripts_in "$sysdir/checkoff"
 
         bootScreen "$1" &
         sleep 1 # Allow the bootScreen to be displayed
