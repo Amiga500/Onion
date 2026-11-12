@@ -441,6 +441,48 @@ check "cmd cleaned" test "$(cat "$sysdir/cmd_to_run.sh")" = 'run "core" "rom"'
 check "launch.sh cleaned" test "$(cat "$TMP/launch.sh")" = 'x y'
 end
 
+# A resumed game (GameSwitcher, auto_load_state) whose cleanup never ran
+# (power lost during the game), then resumed or reset again.
+begin override_game_core_stale_appendconfig
+eval "$(extract_fn "$RUNTIME" override_game_core)"
+eval "$(extract_fn "$RUNTIME" launcher_emu_dir)"
+eval "$(extract_fn "$RUNTIME" system_core_file)"
+eval "$(extract_fn "$RUNTIME" system_default_core)"
+get_info_value() { :; }
+log() { :; }
+sysdir=$TMP/sys miyoodir=/mnt/SDCARD/miyoo rompath=/mnt/SDCARD/Roms/SFC/Game.sfc
+mkdir -p "$TMP/sys/config/system_cores" "$TMP/tmp"
+line='HOME=/mnt/SDCARD/RetroArch/ $progdir/../../RetroArch/retroarch -v -L $progdir/../../RetroArch/.retroarch/cores/snes9x_libretro.so "$rompath"'
+printf '%s\n' "$line" > "$TMP/launch.sh"
+lg_flag() { # reset_game | force_auto_load_state: the flags live in /tmp
+    rm -f /tmp/reset_game /tmp/force_auto_load_state
+    : > "/tmp/$1"
+}
+lg_saved_flags=""
+for f in reset_game force_auto_load_state; do [ -e "/tmp/$f" ] && lg_saved_flags="$lg_saved_flags $f"; done
+lg_flag force_auto_load_state
+override_game_core "$TMP/none.cfg" "$TMP/launch.sh"
+check "first resume: appendconfig added" test "$(cat "$TMP/launch.sh")" = "$(printf '%s' "$line" | sed 's|retroarch -v|& --appendconfig "/tmp/auto_load_state.cfg"|')"
+# no cleanup (power lost), resumed again
+lg_flag force_auto_load_state
+override_game_core "$TMP/none.cfg" "$TMP/launch.sh"
+check "second resume: core and ROM still there, one appendconfig" test "$(cat "$TMP/launch.sh")" = "$(printf '%s' "$line" | sed 's|retroarch -v|& --appendconfig "/tmp/auto_load_state.cfg"|')"
+lg_flag reset_game
+override_game_core "$TMP/none.cfg" "$TMP/launch.sh"
+check "then reset: the reset one only" test "$(cat "$TMP/launch.sh")" = "$(printf '%s' "$line" | sed 's|retroarch -v|& --appendconfig "/tmp/reset.cfg"|')"
+appendconfig_env 'run "x" "rom"' "$(cat "$TMP/launch.sh")"
+cleanup_appendconfig "$TMP/launch.sh"
+check "and the cleanup gives the line back" test "$(cat "$TMP/launch.sh")" = "$line"
+# Some other appendconfig of the launcher's own: replaced, the rest kept
+printf '%s\n' './retroarch -v --appendconfig "./own.cfg" -L core "$1"' > "$TMP/launch.sh"
+lg_flag reset_game
+override_game_core "$TMP/none.cfg" "$TMP/launch.sh"
+check "a launcher's own appendconfig: only its value replaced" test "$(cat "$TMP/launch.sh")" = './retroarch -v --appendconfig "/tmp/reset.cfg" -L core "$1"'
+rm -f /tmp/reset_game /tmp/force_auto_load_state /tmp/reset.cfg /tmp/auto_load_state.cfg
+for f in $lg_saved_flags; do : > "/tmp/$f"; done
+unset -f override_game_core launcher_emu_dir system_core_file system_default_core get_info_value lg_flag
+end
+
 begin cleanup_appendconfig_nothing_to_do
 appendconfig_env 'run "core" "rom"' './retroarch "$1"'
 cleanup_appendconfig "$TMP/launch.sh"

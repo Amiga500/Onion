@@ -867,9 +867,13 @@ override_game_core() {
 
     # Add appendconfig to the launch script if necessary
     if [ ! -z "$appendconfig" ]; then
+        # Ours, left by a launch whose cleanup never ran (power lost during
+        # the game), go first: replaced below with ".*", which ran to the
+        # last quote of the line, they took the core and the ROM with them.
+        sed -i 's| --appendconfig "/tmp/reset.cfg"||g; s| --appendconfig "/tmp/auto_load_state.cfg"||g' "$launch_path"
         if grep -q -- "--appendconfig" "$launch_path"; then
             # Update existing appendconfig in the script
-            sed -i "s|--appendconfig \".*\"|--appendconfig \"$appendconfig\"|g" "$launch_path"
+            sed -i "s|--appendconfig \"[^\"]*\"|--appendconfig \"$appendconfig\"|g" "$launch_path"
             log "Updated existing appendconfig in launch script: $appendconfig (path: $launch_path)"
         else
             # Inject appendconfig argument into the command
