@@ -1367,11 +1367,14 @@ int main(int argc, char *argv[])
                         // The entire Konami code was entered!
                         FILE *file =
                             fopen("/mnt/SDCARD/.tmp_update/cmd_to_run.sh", "w");
-                        fputs("cd /mnt/SDCARD/.tmp_update/bin; ./easter", file);
-                        fclose(file);
-
                         konamiCodeIndex = 0;
-                        kill_mainUI();
+                        // A card that cannot be written: fputs(NULL)
+                        // crashed keymon, and MainUI was killed for nothing.
+                        if (file != NULL) {
+                            fputs("cd /mnt/SDCARD/.tmp_update/bin; ./easter", file);
+                            fclose(file);
+                            kill_mainUI();
+                        }
                     }
                 }
                 else {
