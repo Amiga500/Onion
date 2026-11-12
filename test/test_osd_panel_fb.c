@@ -303,6 +303,52 @@ TEST(spin_wait_is_about_100_us) {
     ASSERT_TRUE(each < 1000);
 }
 
+/* osd_hideBar() while the panel is shown (POWER, MENU, standby): the thread
+ * ends at once, even in the spin wait (no cancellation point there: with
+ * pthread_cancel the join waited for the rest of the 2 s), and the screen
+ * behind the panel is back on every buffer. */
+TEST(hide_while_shown_ends_at_once_and_puts_back) {
+    fb_setup();
+    static uint32_t before[SW * SH * NBUF];
+    for (int i = 0; i < SW * SH * NBUF; i++)
+        before[i] = fb[i];
+
+    _osd_panel = true;
+    _osd_panel_top = false;
+    _bar_kind = OSD_PANEL_BRIGHTNESS;
+    _bar_value = 5;
+    _bar_max = 10;
+    _bar_color = OSD_VOLUME_COLOR;
+    _bar_mute = false;
+    _panel_coarse_sleep = true; /* the spin wait */
+    _bar_timer = getMilliseconds();
+    _bar_saveBufferBehind();
+    ASSERT_TRUE(pthread_create(&osd_pt, NULL, _osd_thread, NULL) == 0);
+    osd_thread_joinable = true;
+    osd_thread_active = true;
+    usleep(50000);
+
+    osd_panel_rect_t r = osd_panel_geometry(SW, SH, false);
+    int cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    bool shown = false;
+    for (int b = 0; b < NBUF; b++)
+        shown = shown || seen(b, cx, cy) != before[(size_t)b * SW * SH + (size_t)(SH - 1 - cy) * SW + (SW - 1 - cx)];
+    ASSERT_TRUE(shown);
+
+    long t0 = _osd_now_us();
+    osd_hideBar();
+    long took = _osd_now_us() - t0;
+    _panel_coarse_sleep = false;
+    ASSERT_TRUE(took < 100000); /* not the rest of the 2 s */
+    ASSERT_TRUE(!osd_thread_active);
+    ASSERT_TRUE(!osd_stop);
+
+    bool same = true;
+    for (int i = 0; i < SW * SH * NBUF && same; i++)
+        same = fb[i] == before[i];
+    ASSERT_TRUE(same);
+}
+
 /* Rows further apart than the width (finfo.line_length): the panel follows
  * the pitch, as display_readOrWriteBuffer() does. */
 TEST(padded_rows_follow_the_line_length) {
@@ -396,6 +442,7 @@ int main(void)
     RUN_TEST(drawn_again_after_the_wait_is_put_back);
     RUN_TEST(other_buffers_drawn_only_when_needed);
     RUN_TEST(spin_wait_is_about_100_us);
+    RUN_TEST(hide_while_shown_ends_at_once_and_puts_back);
     RUN_TEST(padded_rows_follow_the_line_length);
     RUN_TEST(mode_change_while_shown_stays_in_the_mapping);
     RUN_TEST(one_buffer_mapping);
