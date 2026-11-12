@@ -103,6 +103,17 @@ clear
 
 
 # Function to search on screenscraper with retry logic
+# Downloads the cover. The command used to be written to /tmp/rundl.sh and
+# run by sh, with the ROM's name in it: a name with $, a backquote or a
+# double quote was expanded or run as a command there, and two spaces in a
+# row became one (the cover was then saved under another name: "Download
+# failed" at every scraping). $1 is the URL as jq prints it, in quotes.
+ss_download_cover() { # "url" folder file
+    _dl_url=${1#\"}
+    _dl_url=${_dl_url%\"}
+    wget -q --no-check-certificate "$_dl_url" -P "$2" -O "$3"
+}
+
 search_on_screenscraper() {
     local retry_count=0
     local max_retries=5
@@ -846,14 +857,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
         # echo -e "Downloading Images for $romNameNoExtension \nScreenscraper ID : $gameIDSS \n url :$MediaURL\n\n"        # for debugging
 
         MediaURL=$(echo "$MediaURL" | sed 's/"$/\&maxwidth=250\&maxheight=360"/')
-        urlcmd=$(echo "wget -q --no-check-certificate "$MediaURL" -P \"/mnt/SDCARD/Roms/$CurrentSystem/Imgs\" -O \"$romNameNoExtension.png\"")
-        
-        # directl download trigger an error
-        #wget --no-check-certificate "$MediaURL" -P "/mnt/SDCARD/Roms/$CurrentSystem/Imgs" -O "$romNameNoExtension.png"
-        #wget $urlcmd
-
-        echo $urlcmd>/tmp/rundl.sh
-        sh /tmp/rundl.sh
+        ss_download_cover "$MediaURL" "/mnt/SDCARD/Roms/$CurrentSystem/Imgs" "$romNameNoExtension.png"
 
 		if [ -f "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" ]; then
 			echo -e "${GREEN}Scraped!${NONE}"

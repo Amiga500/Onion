@@ -552,6 +552,22 @@ check "a missing folder: nothing run, no error" test "$(wc -l < "$TMP/ran")" -eq
 unset -f run_scripts_in
 end
 
+# ---- ScreenScraper: the cover download and odd ROM names ----
+begin scraper_cover_download_takes_the_name_as_it_is
+eval "$(extract_fn "$ROOT/static/build/.tmp_update/script/scraper/scrap_screenscraper.sh" ss_download_cover)"
+wget() { # the arguments, one per line
+    printf '%s\n' "$@" > "$TMP/wget_args"
+}
+name='Game  two spaces $(touch '"$TMP"'/ran) `touch '"$TMP"'/ran2` "q" $HOME.png'
+(cd "$TMP" && ss_download_cover '"https://example.org/img?a=1&maxwidth=250&maxheight=360"' "$TMP/Imgs" "$name")
+check "the name reaches wget as it is" test "$(tail -n 1 "$TMP/wget_args")" = "$name"
+check "nothing in it is run" test ! -e "$TMP/ran" -a ! -e "$TMP/ran2"
+check "the URL goes without its quotes" grep -qx 'https://example.org/img?a=1&maxwidth=250&maxheight=360' "$TMP/wget_args"
+check "into the Imgs folder" test "$(sed -n '/^-P$/{n;p;}' "$TMP/wget_args")" = "$TMP/Imgs"
+check "no command file is used any more" sh -c "! grep -q 'sh /tmp/rundl.sh' '$ROOT/static/build/.tmp_update/script/scraper/scrap_screenscraper.sh'"
+unset -f wget ss_download_cover
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to
