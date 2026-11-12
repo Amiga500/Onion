@@ -314,6 +314,10 @@ int main(int argc, char *argv[])
     network_freeSmbShares();
     diags_freeEntries();
 
+    // The bar shown as a preview (Look and feel > Volume/brightness bar)
+    // is drawn by a thread for 2 s: leaving within that time unmapped the
+    // framebuffer under it (error 139).
+    osd_hideBar();
     display_close();
 
     lang_free();

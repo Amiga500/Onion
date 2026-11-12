@@ -568,6 +568,17 @@ check "no command file is used any more" sh -c "! grep -q 'sh /tmp/rundl.sh' '$R
 unset -f wget ss_download_cover
 end
 
+# ---- Tweaks: the OSD preview thread is stopped before the framebuffer goes ----
+begin tweaks_stops_the_osd_preview_before_closing_the_display
+# osd_hideBar() stops and joins the thread (test_osd_stop); here, that Tweaks
+# calls it at exit before display_close() unmaps what the thread draws on.
+check "osd_hideBar comes before display_close at the end of main" sh -c "awk '
+    /^int main\\(/ { in_main = 1 }
+    in_main && /^    osd_hideBar\\(\\);/ { hide = NR }
+    in_main && /^    display_close\\(\\);/ { close_line = NR }
+    END { exit !(hide && close_line && hide < close_line) }' '$ROOT/src/tweaks/tweaks.c'"
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to
