@@ -499,6 +499,23 @@ check "unchanged: nothing written, nothing flushed" test "$syncs:$(ls -i "$devic
 unset -f sync save_settings
 end
 
+# ---- reset_list.sh (after importing Ports or ScummVM games) ----
+begin reset_list_makes_no_missing_file
+RESET_LIST="$ROOT/static/build/.tmp_update/script/reset_list.sh"
+mkdir -p "$TMP/appconfigs" "$TMP/tmp" "$TMP/Roms/PORTS"
+sed -e "s|/tmp/state.json|$TMP/tmp/state.json|g" -e "s|/appconfigs/|$TMP/appconfigs/|g" "$RESET_LIST" > "$TMP/reset_list.sh"
+: > "$TMP/Roms/PORTS/PORTS_cache6.db"
+sh "$TMP/reset_list.sh" "$TMP/Roms/PORTS" 2> /dev/null
+check "no romwinidx.json: none made" test ! -e "$TMP/appconfigs/romwinidx.json"
+check "no state.json: none made" test ! -e "$TMP/tmp/state.json"
+check "the list cache is still removed" test ! -e "$TMP/Roms/PORTS/PORTS_cache6.db"
+printf '{\n\t"list":\t[{\n\t\t\t"title":\t1,\n\t\t\t"type":\t1,\n\t\t\t"currpos":\t7,\n\t\t\t"pagestart":\t4,\n\t\t\t"pageend":\t9\n\t\t}]\n}\n' > "$TMP/tmp/state.json"
+printf '{\n\t"other":\t1\n}\n' > "$TMP/appconfigs/romwinidx.json"
+sh "$TMP/reset_list.sh" "$TMP/Roms/PORTS" 2> /dev/null
+check "an existing state.json is still reset" grep -q '"currpos":	0,' "$TMP/tmp/state.json"
+check "an existing romwinidx.json is kept" grep -q '"other":	1' "$TMP/appconfigs/romwinidx.json"
+end
+
 # ---- Netplay romscript: exit code ----
 # GLO starts the selected game when a romscript exits with 0. Netplay.sh is
 # run as a whole, from a copy: its own sysdir, the CPU governor written to
