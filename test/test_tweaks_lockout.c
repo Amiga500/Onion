@@ -197,6 +197,29 @@ TEST(turning_things_on_is_never_refused)
     ASSERT_TRUE(mainmenu_load_hotkey_state());
 }
 
+/* All three ways already off (main-menu.json edited by hand, or left by a
+ * version without the guard) and Tweaks reached some other way: the other
+ * switches still work. */
+TEST(already_locked_out_other_switches_still_work)
+{
+    fresh();
+    FILE *f = fopen(TEST_DIR "/main-menu.json", "w");
+    if (f != NULL) {
+        fputs("{\"hotkey\":false,"
+              "\"menu\":{\"recents\":true,\"favorites\":true,\"games\":true,\"apps\":false,\"settings\":true},"
+              "\"context\":{\"refresh\":true,\"search\":true}}",
+              f);
+        fclose(f);
+    }
+    ASSERT_EQ(set_tab(TAB_RECENTS, 0), 0);
+    ASSERT_FALSE(tab_on(TAB_RECENTS));
+    ASSERT_EQ(set_context(CTX_SEARCH, 0), 0);
+    ASSERT_FALSE(context_shown(CTX_SEARCH));
+    /* and a way in can be switched on again, then is kept as the last one */
+    ASSERT_EQ(set_hotkey(1), 1);
+    ASSERT_EQ(set_hotkey(0), 1);
+}
+
 int main(void)
 {
     (void)menu_stack;
@@ -210,6 +233,7 @@ int main(void)
     RUN_TEST(select_menu_entry_is_kept_when_it_is_the_last_way);
     RUN_TEST(a_missing_tweaks_app_is_not_a_way_in);
     RUN_TEST(turning_things_on_is_never_refused);
+    RUN_TEST(already_locked_out_other_switches_still_work);
     if (system("rm -rf " TEST_DIR) != 0)
         fprintf(stderr, "rm failed\n");
     TEST_REPORT();

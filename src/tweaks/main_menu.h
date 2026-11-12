@@ -760,7 +760,13 @@ static bool mainmenu_would_lock_out(int menu_off, int context_off, bool hotkey_o
     bool menu_states[MAINMENU_MENU_COUNT];
     bool context_states[MAINMENU_CONTEXT_COUNT];
     mainmenu_load_shown_states(menu_states, context_states);
-    bool hotkey = mainmenu_load_hotkey_state() && !hotkey_off;
+    bool hotkey = mainmenu_load_hotkey_state();
+    // All three off already (a file edited by hand or left by an older
+    // version): this switch is not what locks out, and refusing it made
+    // every other entry impossible to turn off.
+    if (!menu_states[4] && !context_states[10] && !hotkey)
+        return false;
+    hotkey = hotkey && !hotkey_off;
     if (menu_off >= 0 && menu_off < MAINMENU_MENU_COUNT)
         menu_states[menu_off] = false;
     if (context_off >= 0 && context_off < MAINMENU_CONTEXT_COUNT)
