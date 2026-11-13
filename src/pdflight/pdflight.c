@@ -13,9 +13,10 @@
  * Prints "pages <pages>" once it starts, then "page <n>/<pages>" after
  * each page. 800 pixels: sharp at the 640-pixel fit width, with some room
  * to zoom, and almost twice as fast to show as 960 pixels.
- * Exit 0: out.pdf written. 1: error. 3 (--auto): not worth it, because the
- * PDF has under 120 KB per page (text) or the copy would not be at least
- * 30% smaller. out.pdf exists only with exit 0. */
+ * Exit 0: out.pdf written. 1: error while making it (memory, card full).
+ * 3 (--auto): not worth it, because the PDF has under 120 KB per page
+ * (text) or the copy would not be at least 30% smaller. 4: the PDF cannot
+ * be read. out.pdf exists only with exit 0. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +31,7 @@
 #include "../pngresize/stb_image_write.h"
 
 #define EXIT_NOT_WORTH 3
+#define EXIT_UNREADABLE 4
 #define HEAVY_BYTES_PER_PAGE (120 * 1024)
 
 typedef struct {
@@ -151,7 +153,7 @@ int main(int argc, char **argv)
     char path[4096];
     if (!realpath(input, path)) {
         perror(input);
-        return 1;
+        return EXIT_UNREADABLE;
     }
     GError *error = NULL;
     char *uri = g_filename_to_uri(path, NULL, &error);
@@ -160,14 +162,14 @@ int main(int argc, char **argv)
     if (!document) {
         fprintf(stderr, "pdflight: %s: %s\n", input,
                 error && error->message ? error->message : "cannot open");
-        return 1;
+        return EXIT_UNREADABLE;
     }
     int pages = poppler_document_get_n_pages(document);
     long long size = file_size(path);
     if (pages < 1 || size < 0) {
         fprintf(stderr, "pdflight: %s: no pages\n", input);
         g_object_unref(document);
-        return 1;
+        return EXIT_UNREADABLE;
     }
     if (automatic && size / pages < HEAVY_BYTES_PER_PAGE) {
         g_object_unref(document);

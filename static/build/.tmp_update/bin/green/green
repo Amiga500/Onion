@@ -11,6 +11,8 @@
 # offered again next time. A PDF that is not worth it (text, or a
 # copy not 30% smaller), or one pdflight cannot read, gets a
 # .light/<name>.skip note instead, so it is not tried at every opening.
+# Any other failure (out of memory, card full) is tried once more the next
+# time (.light/<name>.fail), then noted too.
 # Off with .tmp_update/config/.noPdfLight (Tweaks > Game lists > Game Info
 # menu > Lighter manuals).
 
@@ -54,6 +56,12 @@ fresh() { # file, size note
 }
 fresh "$light" "$light.size" && exec "$real" "$light"
 fresh "$light.skip" "$light.skip" && exec "$real" "$pdf"
+# Room for the copy: pdflight keeps it only at most 70% of the PDF's size.
+free_kb=$(df -k "$(dirname "$pdf")" 2> /dev/null | awk 'END { print $(NF - 2) }')
+case "$free_kb" in
+    '' | *[!0-9]*) ;;
+    *) [ "$free_kb" -lt $((size / 1024 + 1024)) ] && exec "$real" "$pdf" ;;
+esac
 mkdir -p "$(dirname "$light")" 2> /dev/null || exec "$real" "$pdf"
 rm -f "$light" "$light.size" "$light.skip" "$light.tmp"
 
@@ -87,12 +95,12 @@ progress="$tmp/pdflight.progress"
 # would be 500 pixels at reduce 2.
 GREEN_JPX_REDUCE=1 "$here/pdflight" --auto "$pdf" "$light.tmp" > "$progress" 2> "$tmp/pdflight.log" &
 pid=$!
+start=$(date +%s)
 trap 'kill $pid 2> /dev/null; wait $pid 2> /dev/null; rm -f "$light.tmp"; panel_close; exit 1' TERM INT HUP
 
 title="Making this manual lighter,\nonly the first time.\n \n"
 hint="\n \nHold B to open it now."
 shown=
-start=
 skipped=0
 while kill -0 $pid 2> /dev/null; do
     step=$(tail -n 1 "$progress" 2> /dev/null)
@@ -107,8 +115,13 @@ while kill -0 $pid 2> /dev/null; do
                 step=${step#page }
                 count=${step%/*}
                 total=${step#*/}
+                # A line read while pdflight was still writing it: skipped
+                # (in ash, arithmetic on it would end this script).
+                case "$count/$total" in
+                    *[!0-9/]* | /* | */ | 0/*) continue ;;
+                esac
                 # Time left from the pages done so far.
-                left=$((($(date +%s) - ${start:-$(date +%s)}) * (total - count) / count))
+                left=$((($(date +%s) - start) * (total - count) / count))
                 if [ $count -ge $total ]; then
                     left="Finishing..."
                 elif [ $left -lt 60 ]; then
@@ -146,9 +159,24 @@ if [ $skipped -eq 1 ]; then
 fi
 
 if [ $status -eq 0 ] && mv -f "$light.tmp" "$light" && echo "$size" > "$light.size"; then
+    rm -f "$light.fail"
     exec "$real" "$light"
 fi
 rm -f "$light" "$light.size" "$light.tmp"
-# Not worth it (3), or not readable: noted, so not tried again.
-[ $status -ne 0 ] && echo "$size" > "$light.skip"
+case $status in
+    3 | 4)
+        # Not worth it (3), or not readable (4): noted, so not tried again.
+        echo "$size" > "$light.skip"
+        ;;
+    *)
+        # Out of memory (killed), card full...: tried once more next time,
+        # then noted as well.
+        if fresh "$light.fail" "$light.fail"; then
+            echo "$size" > "$light.skip"
+            rm -f "$light.fail"
+        else
+            echo "$size" > "$light.fail"
+        fi
+        ;;
+esac
 exec "$real" "$pdf"

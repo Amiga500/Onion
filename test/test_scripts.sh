@@ -3531,7 +3531,9 @@ echo "\$*" >> "$TMP/calls"
 echo "reduce=\$GREEN_JPX_REDUCE pages=\$GREEN_CACHE_PAGES" > "$TMP/pdflight_env"
 mode=\$(cat "$TMP/mode")
 [ "\$mode" = skip ] && exit 3
+[ "\$mode" = unreadable ] && exit 4
 echo "pages 2"
+[ "\$mode" = torn ] && { printf 'page 1/'; sleep 1; echo '2'; }
 echo "page 1/2"
 [ "\$mode" = slow ] && { echo partial > "\$3"; sleep 30; }
 [ "\$mode" = fail ] && { echo partial > "\$3"; exit 1; }
@@ -3602,9 +3604,24 @@ echo fail > "$TMP/mode"
 green "$M/Bad.pdf"
 check "pdflight fails: original opened" test "$(tail -n 1 "$TMP/opened")" = "$M/Bad.pdf"
 check "pdflight fails: no copy left behind" sh -c 'test ! -e "$1/.light/Bad.pdf" && test ! -e "$1/.light/Bad.pdf.tmp" && test ! -e "$1/.light/Bad.pdf.size"' _ "$M"
+check "pdflight fails (memory, card full): tried again next time" sh -c 'test -f "$1/.light/Bad.pdf.fail" && test ! -e "$1/.light/Bad.pdf.skip"' _ "$M"
+green "$M/Bad.pdf"
+check "fails a second time: then noted" sh -c 'test -f "$1/.light/Bad.pdf.skip" && test ! -e "$1/.light/Bad.pdf.fail"' _ "$M"
 before=$(calls)
 green "$M/Bad.pdf"
-check "pdflight fails: noted, not tried at every opening" sh -c 'test -f "$1/.light/Bad.pdf.skip" && test "$(wc -l < "$2/calls")" -eq "$3"' _ "$M" "$TMP" "$before"
+check "and not tried at every opening" test "$(calls)" -eq "$before"
+echo scan > "$M/Broken.pdf"
+echo unreadable > "$TMP/mode"
+green "$M/Broken.pdf"
+check "a PDF pdflight cannot read: noted at once" test -f "$M/.light/Broken.pdf.skip"
+echo scan > "$M/Full.pdf"
+echo ok > "$TMP/mode"
+mkdir -p "$TMP/dfbin"
+printf '#!/bin/sh\necho "Filesystem 1K-blocks Used Available Use%% Mounted on"\necho "/dev/mmcblk0p1 1000 990 10 99%% /mnt/SDCARD"\n' > "$TMP/dfbin/df"
+chmod +x "$TMP/dfbin/df"
+before=$(calls)
+PATH="$TMP/dfbin:$PATH" green "$M/Full.pdf"
+check "card full: the original, no copy tried" sh -c 'test "$(tail -n 1 "$1/opened")" = "$2/Full.pdf" && test "$(wc -l < "$1/calls")" -eq "$3"' _ "$TMP" "$M" "$before"
 
 echo scan > "$M/Off.pdf"
 touch "$TMP/sd/.tmp_update/config/.noPdfLight"
@@ -3619,6 +3636,11 @@ green
 check "no file: Green as it was" test "$(tail -n 1 "$TMP/opened")" = ""
 green "$M/missing.pdf"
 check "missing file: passed to Green" test "$(tail -n 1 "$TMP/opened")" = "$M/missing.pdf"
+
+echo scan > "$M/Torn.pdf"
+echo torn > "$TMP/mode"
+green "$M/Torn.pdf"
+check "a half-written progress line does not stop it" test "$(tail -n 1 "$TMP/opened")" = "$M/.light/Torn.pdf"
 
 echo scan > "$M/Skip.pdf"
 echo slow > "$TMP/mode"
