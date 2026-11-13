@@ -396,38 +396,6 @@ unset -f sleep kill
 unset proc_dir
 end
 
-begin flip_display_colours_restored_at_boot
-eval "$(extract_fn "$RUNTIME" restore_display_colours)"
-flip_csc_block=$(awk '/# Mini Flip: put the display colours/ { on = 1 } on { print } on && /^    fi$/ { exit }' "$RUNTIME")
-check "the block is found" test -n "$flip_csc_block"
-MI_DISP_NODE=$TMP/mi_disp0
-: > "$MI_DISP_NODE"
-sysjson_get() {
-    case "$1" in lumination) echo 7 ;; hue) echo 10 ;; saturation) echo 12 ;; contrast) echo 15 ;; esac
-}
-log() { echo "$*" >> "$TMP/csc_log"; }
-MODEL_MMF=285
-DEVICE_ID=354
-eval "$flip_csc_block"
-check "not on a Mini Plus" test ! -s "$MI_DISP_NODE"
-DEVICE_ID=285
-eval "$flip_csc_block"
-check "on the Flip: Open MainUI's formulas, BT709, sharpness 0" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 60 50 42 60 0 0"
-check "logged" grep -q "display colours restored: lumination 7, hue 10, saturation 12, contrast 15" "$TMP/csc_log"
-sysjson_get() {
-    case "$1" in lumination) echo "" ;; hue) echo 25 ;; saturation) echo x ;; contrast) echo 0 ;; esac
-}
-restore_display_colours
-check "missing or out of range: Miyoo's defaults" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 30 50 42 50 0 0"
-rm -f "$MI_DISP_NODE" "$TMP/csc_log"
-restore_display_colours
-check "no display device: nothing written, said so" sh -c 'test ! -e "$1" && grep -q "missing, not restored" "$2"' _ "$MI_DISP_NODE" "$TMP/csc_log"
-check "not through MI_SYS (restore_lcd_csc no longer run)" sh -c "! grep -q 'bin/restore_lcd_csc' '$RUNTIME'"
-check "before the blue light filter" sh -c "awk '/# Mini Flip: put the display colours/ { c = NR } /# Check if blf needs enabling/ { b = NR } END { exit !(c && b && c < b) }' '$RUNTIME'"
-unset -f sysjson_get log
-unset MI_DISP_NODE
-end
-
 begin syncthing_never_starts_open
 check "the login is set before the first start" grep -q -- '--gui-user="$ST_GUI_USER" --gui-password="$ST_GUI_PASSWORD"' "$SYNCTHING"
 check "no start without a configuration" sh -c "sed -n '/^st_launch() {/,/^}/p' '$SYNCTHING' | grep -q 'st_generate || return 1'"

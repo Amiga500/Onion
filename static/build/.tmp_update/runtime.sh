@@ -158,17 +158,6 @@ main() {
     # Make sure MainUI doesn't show charging animation
     touch /tmp/no_charging_ui
 
-    # Mini Flip: put the display colours saved in Settings > Display back
-    # once at boot (robcodedev): the Flip starts with its default colours
-    # otherwise. Before the blue light filter, which goes on top of them.
-    # Written to the display driver's proc node, with Open MainUI's
-    # formulas, not through MI_SYS: MI_SYS_Exit takes the display device
-    # down for everyone (as RetroArch does on exit), and a later change in
-    # Settings > Display then flashed the screen and was not applied.
-    if [ "$DEVICE_ID" -eq "$MODEL_MMF" ]; then
-        restore_display_colours
-    fi
-
     # Check if blf needs enabling
     if [ -f $sysdir/config/.blf ]; then
         /mnt/SDCARD/.tmp_update/script/blue_light.sh check &
@@ -1290,37 +1279,6 @@ check_hide_recents() {
 }
 
 mainui_target=$miyoodir/app/MainUI
-
-# Display colours from system.json (0..20, Miyoo's defaults 7/10/10/10 when
-# missing) to the display driver, as Open MainUI's Settings > Display sets
-# them: lumination + 35, hue * 5, saturation * 5, (contrast + 15) * 2.
-restore_display_colours() {
-    _node=${MI_DISP_NODE:-/proc/mi_modules/mi_disp/mi_disp0}
-    if [ ! -e "$_node" ]; then
-        log "display colours: $_node missing, not restored"
-        return 1
-    fi
-    _l=$(sysjson_get lumination)
-    _h=$(sysjson_get hue)
-    _s=$(sysjson_get saturation)
-    _c=$(sysjson_get contrast)
-    for _v in l h s c; do
-        eval "_x=\$_$_v"
-        case "$_x" in
-            '' | *[!0-9]*) _x=-1 ;;
-        esac
-        if [ "$_x" -lt 0 ] || [ "$_x" -gt 20 ]; then
-            [ "$_v" = l ] && _x=7 || _x=10
-        fi
-        eval "_$_v=\$_x"
-    done
-    # csc <device> <matrix 3 = BT709> <contrast> <hue> <luma> <saturation> <sharpness> <gain>
-    if ! echo "csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0" > "$_node"; then
-        log "display colours: could not be written"
-        return 1
-    fi
-    log "display colours restored: lumination $_l, hue $_h, saturation $_s, contrast $_c"
-}
 
 # Read one top-level value from system.json with shell builtins (jsonval is a
 # separate process per call). system.json keeps one key per line, as the sed
