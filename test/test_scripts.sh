@@ -3777,6 +3777,26 @@ check "back from a game: the launcher on it, not resuming a video" sh -c "sed -n
 unset -f run_game_cmd finish_game_handoff strip_reset_appendconfig wait_for_game_environment allow_onion_battery_warning_for_game log
 end
 
+begin kids_mode_loop_writes_games_as_mainui
+sysdir=$TMP
+miyoodir=/mnt/SDCARD/miyoo
+reset_cfg=$TMP/kidmode_reset.cfg
+eval "$(extract_fn "$KIDS_LOOP" build_game_cmd | sed "s#/tmp/reset_game#$TMP/reset_game#g")"
+eval "$(extract_fn "$KIDS_LOOP" strip_reset_appendconfig)"
+mkdir -p "$TMP/Roms/GBA" "$TMP/Emu/GBA/.game_config"
+echo rom > "$TMP/Roms/GBA/game.gba"
+printf './retroarch -v --appendconfig "%s" -L core.so "$1"\n' "$reset_cfg" > "$TMP/Emu/GBA/launch.sh"
+build_game_cmd "$TMP/Emu/GBA/launch.sh" "$TMP/Emu/GBA/../../Roms/GBA/game.gba"
+check "as MainUI writes it (runtime.sh picks the core)" test "$(cat "$sysdir/cmd_to_run.sh")" = "LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so \"$TMP/Emu/GBA/launch.sh\" \"$TMP/Roms/GBA/game.gba\""
+check "no reset flag to resume" test ! -e "$TMP/reset_game"
+check "an older version's Start over taken out of the launch script" sh -c '! grep -q appendconfig "$1"' _ "$TMP/Emu/GBA/launch.sh"
+build_game_cmd "$TMP/Emu/GBA/launch.sh" "$TMP/Roms/GBA/game.gba" fresh
+check "Start over: Onion's reset-game flag (runtime.sh adds /tmp/reset.cfg)" test -e "$TMP/reset_game"
+check "runtime.sh still knows that flag" grep -q 'if \[ -f /tmp/reset_game \]; then' "$RUNTIME"
+check "and takes the flag away if the game does not use it" sh -c "sed -n '/^finish_game_handoff() {/,/^}/p' '$KIDS_LOOP' | grep -q '/tmp/reset_game'"
+unset -f build_game_cmd strip_reset_appendconfig
+end
+
 begin kids_mode_loop_leaves_shutdown_to_runtime
 eval "$(extract_fn "$KIDS_LOOP" check_off_order | sed -e "s#/tmp/.offOrder#$TMP/.offOrder#" -e "s#/tmp/shutting_down#$TMP/shutting_down#")"
 stop_ticker() { echo ticker-stopped >> "$TMP/calls"; }

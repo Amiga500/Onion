@@ -1247,9 +1247,12 @@ check_off_order() {
 
 # ----------------------------- game launch ---------------------------------
 
-# "Start over": launch without loading the auto-save snapshot. Same
-# mechanism Onion's runtime.sh uses for its reset-game flag. In-game saves
-# (battery saves etc.) are untouched — only the resume snapshot is skipped.
+# "Start over": launch without loading the auto-save snapshot, with Onion's
+# reset-game flag (/tmp/reset_game, as the GameSwitcher's reset): runtime.sh
+# puts /tmp/reset.cfg into the RetroArch command and takes it out again.
+# In-game saves (battery saves etc.) are untouched. Older versions of this
+# script wrote their own option into the emulator's launch script: it is
+# taken out if it is still there.
 reset_cfg=/tmp/kidmode_reset.cfg
 
 strip_reset_appendconfig() { # $1 = emulator launch script
@@ -1259,8 +1262,9 @@ strip_reset_appendconfig() { # $1 = emulator launch script
     fi
 }
 
-# Build $sysdir/cmd_to_run.sh for a favorite exactly like MainUI would,
-# including the per-rom core override (.game_config/<rom>.cfg).
+# Write $sysdir/cmd_to_run.sh for a favorite exactly like MainUI does:
+# runtime.sh (launch_game) then picks the core (the game's own, or the one
+# chosen for all games of the system) as for a game started from MainUI.
 # $3 = "fresh" to start over instead of resuming.
 build_game_cmd() {
     game_launch="$1"
@@ -1271,51 +1275,15 @@ build_game_cmd() {
         game_rompath="$(realpath "$game_rompath")"
     fi
 
-    # Never leave a stale injection behind from an interrupted fresh launch.
     strip_reset_appendconfig "$game_launch"
-
-    if [ "$game_fresh" = "fresh" ]; then
-        printf 'savestate_auto_load = "false"\nconfig_save_on_exit = "false"\n' > "$reset_cfg"
-    fi
+    rm -f /tmp/reset_game
+    [ "$game_fresh" = "fresh" ] && touch /tmp/reset_game
 
     echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so \"$game_launch\" \"$game_rompath\"" > "$sysdir/cmd_to_run.sh"
-
-    game_ext="$(basename "$game_rompath" | awk -F. '{print tolower($NF)}')"
-    game_cfg="$(dirname "$game_rompath")/.game_config/$(basename "$game_rompath" ".$game_ext").cfg"
-
-    game_direct=0
-    if [ -f "$game_cfg" ] && [ -f "$game_launch" ] &&
-        grep -q '.retroarch/cores' "$game_launch"; then
-        game_core=$(grep "core\b" "$game_cfg" | awk '{split($0,a,"="); print a[2]}' | awk -F'"' '{print $2}' | tr -d '\n')
-        if [ -n "$game_core" ] && [ -f "/mnt/SDCARD/RetroArch/.retroarch/cores/$game_core.so" ]; then
-            if [ "$game_fresh" = "fresh" ]; then
-                echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so ./retroarch -v --appendconfig \"$reset_cfg\" -L \".retroarch/cores/$game_core.so\" \"$game_rompath\"" > "$sysdir/cmd_to_run.sh"
-            else
-                echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so ./retroarch -v -L \".retroarch/cores/$game_core.so\" \"$game_rompath\"" > "$sysdir/cmd_to_run.sh"
-            fi
-            game_direct=1
-        fi
-    fi
-
-    # Fresh launch through the emulator's launch script: inject the
-    # appendconfig into the script like runtime.sh does (removed after)
-    if [ "$game_fresh" = "fresh" ] && [ "$game_direct" -eq 0 ] &&
-        [ -f "$game_launch" ] && grep -q './retroarch -v' "$game_launch"; then
-        sed -i "s|./retroarch -v|& --appendconfig \"$reset_cfg\"|g" "$game_launch"
-    fi
-
-    # Escape dollar signs in rom filenames, like runtime.sh does
-    if echo "$game_rompath" | grep -q '\$'; then
-        sed -i 's/\$/\\$/g' "$sysdir/cmd_to_run.sh"
-    fi
-
     chmod a+x "$sysdir/cmd_to_run.sh"
 }
 
-# Run whatever is in $sysdir/cmd_to_run.sh and clean up afterwards.
-# Mirrors runtime.sh launch_game: audio, LOADING splash, 560p handling on the
-# Miyoo Mini V4, playActivity tracking, and the post-game SAVING splash —
-# so Onion auto-save/resume keeps working unchanged.
+# RetroArch lock, kid save profile and MENU override, once per armed session.
 prepare_game_environment() {
     # Prepare RetroArch and the kid save profile once per armed session, so
     # the first game launches without an extra setup pause.
@@ -1374,14 +1342,16 @@ run_game_cmd() {
     exit 0
 }
 
-# Back from the game handed to runtime.sh: the "Start over" option taken out
-# of its launch script again. Returns 1 when no game was handed over.
+# Back from the game handed to runtime.sh: "Start over" not left behind.
+# Returns 1 when no game was handed over.
 finish_game_handoff() {
     [ -f "$game_handoff_file" ] || return 1
     run_launch="$(sed -n 1p "$game_handoff_file")"
     rm -f "$game_handoff_file"
     strip_reset_appendconfig "$run_launch"
-    rm -f "$reset_cfg"
+    # Not taken by a game that is not RetroArch: it must not reset the next
+    # game started from MainUI.
+    rm -f "$reset_cfg" /tmp/reset_game
     log "game exited"
     return 0
 }
