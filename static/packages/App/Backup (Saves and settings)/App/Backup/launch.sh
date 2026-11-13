@@ -243,11 +243,20 @@ restore_backup() {
     fi
 
     # The current saves and settings first, so that this can be undone.
+    # Only a whole copy will do: a file 7z could not read (rc 1) would be
+    # written over and not be in the copy.
     make_backup _before-restore
-    if [ $? -gt 1 ]; then
-        RESTORE_ERROR="The current saves could not be backed up\nfirst, so nothing was restored.\n$BACKUP_ERROR"
-        return 1
-    fi
+    case $? in
+        0) ;;
+        1)
+            RESTORE_ERROR="Some of the current files could not be\nread, so they could not be backed up first.\nNothing was restored."
+            return 1
+            ;;
+        *)
+            RESTORE_ERROR="The current saves could not be backed up\nfirst, so nothing was restored.\n$BACKUP_ERROR"
+            return 1
+            ;;
+    esac
 
     "$Z7" x -y -aoa "-o$SD" "$archive" "$EXCLUDE_CLOCK" "$EXCLUDE_SYNCTHING" >> "$LOG" 2>&1
     rc=$?

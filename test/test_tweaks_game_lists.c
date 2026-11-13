@@ -827,15 +827,20 @@ TEST(main_menu_descriptions_fit)
 TEST(pdf_light_on_by_default_and_switched_off_by_file)
 {
     remove(TEST_DIR "/.noPdfLight");
+    remove(TEST_DIR "/.noPdfLight_");
     ASSERT_TRUE(pdflight_on());
     ListItem item = {.value = 0};
     action_pdfLight(&item);
     ASSERT_TRUE(access(TEST_DIR "/.noPdfLight", F_OK) == 0);
+    ASSERT_TRUE(access(TEST_DIR "/.noPdfLight_", F_OK) != 0);
     ASSERT_FALSE(pdflight_on());
     item.value = 1;
     action_pdfLight(&item);
     ASSERT_TRUE(access(TEST_DIR "/.noPdfLight", F_OK) != 0);
+    /* the other half of the pair, for the Backup app */
+    ASSERT_TRUE(access(TEST_DIR "/.noPdfLight_", F_OK) == 0);
     ASSERT_TRUE(pdflight_on());
+    remove(TEST_DIR "/.noPdfLight_");
 }
 
 TEST(every_tweaks_menu_has_room_for_its_items)

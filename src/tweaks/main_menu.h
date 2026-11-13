@@ -2214,8 +2214,12 @@ void menu_listMenus(void *_)
 }
 
 // Green opens a light copy of a heavy (scanned) manual (bin/green/green),
-// unless config/.noPdfLight exists.
+// unless config/.noPdfLight exists. Kept as a pair like the other Tweaks
+// options (.noPdfLight / .noPdfLight_), so that the Backup app puts it back
+// as it was: with only one file, a backup made while it was on had nothing
+// to remove a .noPdfLight made later.
 #define PDFLIGHT_OFF_PATH MAINMENU_CONFIG_DIR "/.noPdfLight"
+#define PDFLIGHT_ON_PATH PDFLIGHT_OFF_PATH "_"
 
 static bool pdflight_on(void)
 {
@@ -2224,13 +2228,11 @@ static bool pdflight_on(void)
 
 static void action_pdfLight(void *pt)
 {
-    if (((ListItem *)pt)->value) {
-        remove(PDFLIGHT_OFF_PATH);
-        return;
-    }
-    FILE *fp = fopen(PDFLIGHT_OFF_PATH, "w");
+    bool on = ((ListItem *)pt)->value;
+    FILE *fp = fopen(on ? PDFLIGHT_ON_PATH : PDFLIGHT_OFF_PATH, "w");
     if (fp)
         fclose(fp);
+    remove(on ? PDFLIGHT_OFF_PATH : PDFLIGHT_ON_PATH);
 }
 
 static void gamemenu_add_switch(List *list, int index)

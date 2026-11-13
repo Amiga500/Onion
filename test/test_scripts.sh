@@ -3361,6 +3361,23 @@ else
     check "and logged" grep -q "Removed .logging (the backup has .logging_)" "$LOG"
     end
 
+    begin backup_restore_needs_a_whole_safety_copy
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    rm -rf "$TMP/old"
+    mkdir -p "$TMP/old/Saves/CurrentProfile/saves"
+    echo "old save" > "$TMP/old/Saves/CurrentProfile/saves/old.srm"
+    rm -f "$TMP/old.zip"
+    (cd "$TMP/old" && "$BACKUP_TEST_7Z" a -tzip "$TMP/old.zip" Saves > /dev/null 2>&1)
+    # 7z could not read some current files: the copy is made, but not whole.
+    make_backup() { BACKUP_FILE="$SD/Backups/partial.zip"; return 1; }
+    restore_backup "$TMP/old.zip"
+    check "not restored" test $? -ne 0
+    check "nothing written" test ! -e "$SD/Saves/CurrentProfile/saves/old.srm"
+    check "says why" sh -c 'printf "%s" "$1" | grep -q "could not be backed up first"' _ "$RESTORE_ERROR"
+    end
+
     begin backup_restore_refuses_foreign_paths
     SD=$TMP/sd
     backup_fake_sd "$SD"
