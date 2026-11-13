@@ -447,14 +447,6 @@ void force_shutdown(void)
     exit(0);
 }
 
-void wait_seconds(int seconds)
-{
-    time_t t = time(NULL);
-    while ((time(NULL) - t) < seconds) {
-        sleep(1);
-    }
-}
-
 void showBootScreen(const char *type)
 {
     char *const argv[] = {"bootScreen", (char *)type, NULL};
@@ -503,8 +495,21 @@ void deepsleep(void)
         terminate_drastic();
     }
 
-    // Wait 30s before forcing a shutdown
-    wait_seconds(30);
+    // Wait up to 30 s for runtime.sh to start the shutdown, then force it.
+    // An app can exit by itself while POWER is held (prompt quits after
+    // 500 ms, before this runs at about 600 ms): runtime.sh then starts
+    // MainUI again before .offOrder exists, and above it was not running yet
+    // (taken as an app), so it was left on screen until the forced shutdown.
+    // It is closed as soon as it shows up.
+    time_t start = time(NULL);
+    while ((time(NULL) - start) < 30 && !temp_flag_get("shutting_down")) {
+        msleep(500);
+        system_state_update();
+        if (system_state == MODE_MAIN_UI) {
+            settings_shm_read();
+            kill(system_state_pid, SIGKILL);
+        }
+    }
     if (!temp_flag_get("shutting_down")) {
         force_shutdown();
     }
