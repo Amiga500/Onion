@@ -661,6 +661,8 @@ void compute_graph(void)
     bool run_tail_open = true; // still walking through rows at the end level
     bool run_charging = false;
     bool first_run = true;
+    // the newest entry only (first_run stays true for the whole current stretch)
+    bool first_row = true;
     // clock times (Unix): the stretch's first entry, its end, when a charge reached its last
     // level, and the start of the entry walked just before (the newer one; now at first)
     long long run_start_time = 0, run_end_time = 0, run_tail_time = 0;
@@ -697,7 +699,7 @@ void compute_graph(void)
                     // On stock OnionOS, batmon does not log start_time (it is NULL in SQLite).
                     // Derive row_time from log file mtime: mtime is when batmon last wrote
                     // this row's duration, so (mtime - duration) is when this row began.
-                    if (first_run && row_time <= 0) {
+                    if (first_row && row_time <= 0) {
                         struct stat st;
                         if (stat(BATTERY_LOG_FILE, &st) == 0 && st.st_mtime > 0)
                             row_time = (long long)st.st_mtime - duration;
@@ -705,11 +707,13 @@ void compute_graph(void)
 
                     // For the newest row, batmon only writes duration upon percentage change or every 10 min.
                     // Advance duration with live elapsed awake time so SESSION updates smoothly on the fly.
-                    if (first_run && !is_charging && row_time > 0 && newer_row_time > row_time) {
+                    if (first_row && !is_charging && row_time > 0 && newer_row_time > row_time) {
                         int live_elapsed = (int)(newer_row_time - row_time);
                         if (live_elapsed > duration)
                             duration = live_elapsed;
                     }
+
+                    first_row = false;
 
                     // CURRENT: the newest entry only. Testing total_duration == 0 also
                     // caught the entry before it, as the newest one has duration 0 until
