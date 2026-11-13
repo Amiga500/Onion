@@ -494,6 +494,63 @@ check "a list without </gameList>: refused" test $rc -ne 0
 check "and left alone" sh -c "! grep -q 'Trials' '$gi_root/gamelist.xml'"
 end
 
+begin scraper_game_info_entry_with_an_apostrophe
+gi_env
+GameInfoMedia=desc
+gi_rel="Kirby's Dream & Land.gb"
+printf '<gameList>\n<game><path>./Kirby'"'"'s Dream &amp; Land.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+check "another scraper's entry, apostrophe as it is" test -z "$(gi_missing)"
+printf '<gameList>\n<game><path>./Kirby&#39;s Dream &amp; Land.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+check "ours (&#39;)" test -z "$(gi_missing)"
+printf '<gameList>\n<game><path>Kirby&apos;s Dream &amp; Land.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+check "as &apos;, without ./" test -z "$(gi_missing)"
+printf '<gameList>\n<game><path>./Kirby.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+check "another game's entry does not count" test "$(gi_missing)" = desc
+gi_rel="Plain Game.gb"
+printf '<gameList>\n<game><path>./Plain Game.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+jq() { echo called >> "$TMP/jq_calls"; command jq "$@"; }
+rm -f "$TMP/jq_calls"
+check "a plain name: found" test -z "$(gi_missing)"
+check "without starting jq" test ! -e "$TMP/jq_calls"
+unset -f jq
+rm -f "$gi_root/gamelist.xml"
+end
+
+begin scraper_gamelist_back_after_a_cut_rename
+gi_env
+printf '<gameList>\n<game><path>./Other.sfc</path><desc>keep</desc></game>\n</gameList>\n' > "$gi_root/gamelist.xml.tmp"
+rm -f "$gi_root/gamelist.xml"
+gi_write_desc
+check "the whole list left in .tmp comes back" grep -q '<desc>keep</desc>' "$gi_root/gamelist.xml"
+check "with the new entry" grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' "$gi_root/gamelist.xml"
+printf '<gameList>\n<game><path>./Half' > "$gi_root/gamelist.xml.tmp"
+rm -f "$gi_root/gamelist.xml"
+gi_write_desc
+check "a cut .tmp (no </gameList>) is not used" sh -c "! grep -q Half '$gi_root/gamelist.xml'"
+rm -f "$gi_root/gamelist.xml" "$gi_root/gamelist.xml.tmp"
+end
+
+begin scraper_game_not_found_is_remembered
+gi_env
+GameInfoMedia="desc,box3d"
+gi_todo=$(gi_missing)
+ss_nomatch=1
+cover_present=false
+gi_no_game
+check "no cover: looked up again next time" test "$(gi_missing | tr '\n' ' ')" = "desc box3d "
+cover_present=true
+ss_nomatch=0
+gi_no_game
+check "a failed request is not a no-match" test "$(gi_missing | tr '\n' ' ')" = "desc box3d "
+ss_nomatch=1
+gi_no_game
+check "with its cover, no match: not asked again" test -z "$(gi_missing)"
+check "written down per item" test "$(grep -c 'RPG/Trials & Co.sfc' "$gi_root/media/.gameinfo_none")" -eq 2
+check "the no-match answer sets it, reset at each lookup" sh -c "grep -A4 '^search_on_screenscraper() {' '$SCRAPER_SS' | grep -q 'ss_nomatch=0' && grep -B1 -A1 'ss_nomatch=1' '$SCRAPER_SS' | grep -q 'Erreur'"
+check "used where a ROM is given up" test "$(grep -c '^				*gi_no_game$' "$SCRAPER_SS")" -eq 2
+rm -rf "$gi_root/media"
+end
+
 begin scraper_game_info_missing_and_urls
 gi_env
 GameInfoMedia="desc,box2dfront,box2dback,box3d,screenshot,video,manual"

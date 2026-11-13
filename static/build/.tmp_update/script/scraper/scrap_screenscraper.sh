@@ -106,6 +106,8 @@ clear
 search_on_screenscraper() {
     local retry_count=0
     local max_retries=5
+    # ScreenScraper answered that it has no such game (not a failed request).
+    ss_nomatch=0
 
     while true; do
 		# TODO : managing multithread for users who have it.
@@ -149,6 +151,7 @@ search_on_screenscraper() {
     
     # Don't check art if screenscraper can't find a match
     if echo "$Head_api_result" | grep -q "^Erreur"; then
+        ss_nomatch=1
         echo -e "${RED}No match found${NONE}"
         echo "Couldn't find a match for $romNameNoExtensionTrimmed" >> /mnt/SDCARD/.tmp_update/logs/scrap.log
         return
@@ -276,9 +279,27 @@ GI_DEFAULT="desc,box2dfront,box2dback,box3d,screenshot"
 # Pictures are asked at the size of the largest screen (Mini v4, Flip).
 GI_PICTURE_SIZE="maxwidth=752&maxheight=560"
 
-# Text as gamelist.xml writes it (jq's @html: & < > " ').
-gi_xml() {
-    jq -rn --arg s "$1" '$s | @html'
+# Is there already a gamelist.xml entry for this ROM, ours or another
+# scraper's? Its <path> is "./<ROM>" or "<ROM>", with & < > escaped, and ' "
+# raw (most scrapers), as &#39; &quot; (ours, jq's @html) or as &apos; &quot;.
+# Without any of those characters in the name, a single grep and no jq: this
+# runs for every ROM of the console.
+gi_has_entry() {
+    [ -f "$gi_root/gamelist.xml" ] || return 1
+    case "$gi_rel" in
+        *[\&\<\>\'\"]*)
+            gi_min=$(printf '%s' "$gi_rel" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+            gi_html=$(printf '%s' "$gi_min" | sed -e "s/'/\&#39;/g" -e 's/"/\&quot;/g')
+            gi_apos=$(printf '%s' "$gi_min" | sed -e "s/'/\&apos;/g" -e 's/"/\&quot;/g')
+            grep -qF -e "<path>./$gi_min</path>" -e "<path>$gi_min</path>" \
+                -e "<path>./$gi_html</path>" -e "<path>$gi_html</path>" \
+                -e "<path>./$gi_apos</path>" -e "<path>$gi_apos</path>" \
+                "$gi_root/gamelist.xml"
+            ;;
+        *)
+            grep -qF -e "<path>./$gi_rel</path>" -e "<path>$gi_rel</path>" "$gi_root/gamelist.xml"
+            ;;
+    esac
 }
 
 gi_wanted() { # item
@@ -296,10 +317,7 @@ gi_missing() {
             grep -qxF "$gi_item $gi_rel" "$gi_root/media/.gameinfo_none" && continue
         case "$gi_item" in
             desc)
-                # An entry already there, ours or another scraper's ("./" or not).
-                [ -f "$gi_root/gamelist.xml" ] &&
-                    grep -qF -e "<path>./$(gi_xml "$gi_rel")</path>" -e "<path>$(gi_xml "$gi_rel")</path>" \
-                        "$gi_root/gamelist.xml" && continue ;;
+                gi_has_entry && continue ;;
             box2dfront | box2dback | box3d | screenshot)
                 [ -f "$gi_root/media/$gi_item/$gi_name.png" ] && continue ;;
             video)
@@ -421,6 +439,12 @@ gi_entry() {
 # alone.
 gi_write_desc() {
     gi_list="$gi_root/gamelist.xml"
+    # Power lost while the new list replaced the old one (a rename on FAT32
+    # is not atomic): the whole new list is still in .tmp. Put it back
+    # before a new empty list would be made over it.
+    if [ ! -s "$gi_list" ] && [ -s "$gi_list.tmp" ] && grep -q '</gameList>' "$gi_list.tmp"; then
+        mv -f "$gi_list.tmp" "$gi_list"
+    fi
     if [ ! -s "$gi_list" ]; then
         printf '<?xml version="1.0"?>\n<gameList>\n</gameList>\n' > "$gi_list"
     fi
@@ -450,6 +474,17 @@ gi_write_desc() {
 gi_none() { # item
     mkdir -p "$gi_root/media"
     echo "$1 $gi_rel" >> "$gi_root/media/.gameinfo_none"
+}
+
+# ScreenScraper has no such game. A ROM with its cover was skipped before
+# Game Info existed; without this it was looked up again at every scraping
+# for the Game Info it lacks (and the lookups count in the daily quota).
+# Without a cover it is still looked up again, as before.
+gi_no_game() {
+    [ "$ss_nomatch" = 1 ] && [ "$cover_present" = true ] || return 0
+    for gi_item in $gi_todo; do
+        gi_none "$gi_item"
+    done
 }
 
 # Gets the missing items ($1, one per line) for this ROM. Prints a line per
@@ -696,6 +731,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 			if [ "$rom_size" -gt "$MAX_FILE_SIZE_BYTES" ]; then
 				echo -e "${RED}Rom is too big to make a checksum.${NONE}"
 				let Scrap_Fail++;
+				gi_no_game
 				continue;
 				
 			else
@@ -708,6 +744,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 				if ! [ "$gameIDSS" -eq "$gameIDSS" ] 2> /dev/null; then	
 					echo -e "${RED}Failed to get game ID${NONE}"
 					let Scrap_Fail++;
+					gi_no_game
 					continue;
 				fi
 				
