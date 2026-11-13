@@ -226,14 +226,16 @@ begin syncthing_is_a_remembered_service
 check "kept across a Wi-Fi change" grep -q '^services=.*syncthingState' "$NETWORK"
 check "restored from the saved state" grep -q 'authhttpState|syncthingState)' "$NETWORK"
 check "turned off with the others" sh -c "sed -n '/^disable_all_services() {/,/^}/p' '$NETWORK' | grep -q 'disable_flag syncthingState' && sed -n '/^disable_all_services() {/,/^}/p' '$NETWORK' | grep -q 'syncthing.sh stop'"
-check "update_networking.sh syncthing toggle" sh -c "grep -A3 '        syncthing) ' '$NETWORK' | grep -q check_syncthingstate"
+check "update_networking.sh syncthing toggle" sh -c "grep -A7 '        syncthing) ' '$NETWORK' | grep -q check_syncthingstate"
+check "the toggle retries a failed download at once" sh -c "grep -A7 '        syncthing) ' '$NETWORK' | grep -q 'export ST_RETRY_NOW=1'"
 check "paused for a game: stopped, and waited for" sh -c "grep -A3 'killall -9 dropbear bftpd filebrowser telnetd smbd\$' '$RUNTIME' | grep -q 'syncthing.sh stop'"
 check "and back after the game" grep -q 'for service in smbd http ssh ftp telnet syncthing; do' "$RUNTIME"
 check "Tweaks toggles it in the background" sh -c "grep -A3 'void network_setSyncthingState' '$ROOT/src/tweaks/network.h' | grep -q '.syncthingState' && grep -A4 'void network_setSyncthingState' '$ROOT/src/tweaks/network.h' | grep -q 'execServiceState(\"syncthing\", true)'"
 end
 
 st_env() {
-    for fn in st_find_pids st_running st_installed st_sha256 st_lock_take st_install st_install_steps st_wifi_on st_has_ip st_wait_ip st_free_kb; do
+    for fn in st_find_pids st_running st_installed st_sha256 st_lock_take st_install st_install_steps st_wifi_on st_has_ip st_wait_ip st_free_kb \
+        st_failed_recently st_install_then_start st_start; do
         eval "$(extract_fn "$SYNCTHING" $fn)"
     done
     sysdir=$TMP/sd
@@ -242,6 +244,10 @@ st_env() {
     st_stamp=$sysdir/bin/syncthing.version
     st_dl=$sysdir/download/syncthing
     st_lock=$TMP/st_lock
+    st_failed=$TMP/st_failed
+    ST_RETRY_AFTER=600
+    services_paused_flag=$TMP/services_paused
+    rm -f "$st_failed" "$services_paused_flag"
     proc_dir=$TMP/proc
     ST_VERSION=9.9.9
     ST_FREE_KB_NEEDED=10
@@ -293,6 +299,54 @@ echo 999999 > "$st_lock/pid"
 st_lock_take
 check "a lock left by a killed download is taken over" test "$(cat "$st_lock/pid")" = "$$"
 rm -rf "$st_lock"
+end
+
+begin syncthing_download_stops_for_a_game
+st_env
+ST_SHA256=0000
+# A slow transfer, until it is killed.
+curl() { while :; do sleep 0.1; done; }
+(sleep 1; : > "$services_paused_flag") &
+t0=$(date +%s)
+st_install
+st_rc=$?
+t1=$(date +%s)
+check "stopped when a game starts" test $st_rc -eq 3
+check "within a couple of seconds" test $((t1 - t0)) -le 4
+check "said so" grep -q "a game started, download stopped" "$TMP/st_log"
+check "the lock is released" test ! -e "$st_lock"
+st_install_then_start_lock() { st_lock_take && st_install_then_start; }
+mkdir -p "$TMP/proc/$$"
+st_install_then_start_lock
+check "a game is not a failure: retried after it" test ! -e "$st_failed"
+unset -f curl st_install_then_start_lock
+rm -f "$services_paused_flag"
+end
+
+begin syncthing_failed_download_waits_before_retrying
+st_env
+ST_SHA256=0000
+mkdir -p "$TMP/proc/$$"
+st_lock_take
+st_install_then_start
+check "a failed download is remembered" test -s "$st_failed"
+check "and the lock released" test ! -e "$st_lock"
+: > "$TMP/st_log"
+st_start
+check "an automatic start right after does not download again" test $? -ne 0
+check "and says why" grep -q "not tried again yet" "$TMP/st_log"
+check "nothing started in the background" test ! -e "$st_lock"
+echo $(($(date +%s) - 700)) > "$st_failed"
+not_recent() { ! st_failed_recently; }
+check "after 10 minutes it is tried again" not_recent
+echo $(($(date +%s) - 10)) > "$st_failed"
+st_install_then_start() { sleep 1; }
+ST_RETRY_NOW=1 st_start
+check "the Tweaks toggle tries at once, in the background" test $? -eq 0 -a -d "$st_lock"
+check "the lock names the background job" sh -c "test \"\$(cat '$st_lock/pid')\" != $$"
+sleep 1.5
+rm -rf "$st_lock"
+unset -f st_install_then_start curl not_recent
 end
 
 begin syncthing_found_by_exact_name
@@ -380,7 +434,7 @@ end
 
 begin syncthing_never_starts_open
 check "the login is set before the first start" grep -q -- '--gui-user="$ST_GUI_USER" --gui-password="$ST_GUI_PASSWORD"' "$SYNCTHING"
-check "no start without a configuration" sh -c "sed -n '/^st_start() {/,/^}/p' '$SYNCTHING' | grep -q 'st_generate || return 1'"
+check "no start without a configuration" sh -c "sed -n '/^st_launch() {/,/^}/p' '$SYNCTHING' | grep -q 'st_generate || return 1'"
 check "FAT32: permissions ignored, 2 s time window" sh -c "grep -q 'ignorePerms=\"true\"' '$SYNCTHING' && grep -q '<modTimeWindowS>2</modTimeWindowS>' '$SYNCTHING'"
 end
 

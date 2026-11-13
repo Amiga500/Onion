@@ -47,6 +47,9 @@ main() {
         syncthing) # no authed: the login is set in its web interface
             case "$2" in
                 toggle)
+                    # Turned on by hand: download again at once, even if
+                    # the last try failed a moment ago.
+                    export ST_RETRY_NOW=1
                     check_syncthingstate &
                     store_state &
                     ;;

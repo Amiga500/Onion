@@ -36,6 +36,10 @@ st_stamp=$sysdir/bin/syncthing.version
 st_home=$sysdir/config/syncthing
 st_dl=$sysdir/download/syncthing
 st_lock=/tmp/syncthing_install.lock
+# When the last download failed (Unix time). Automatic retries (after a
+# game, a Wi-Fi change) wait 10 minutes; the Tweaks toggle tries at once.
+st_failed=/tmp/syncthing_download_failed
+ST_RETRY_AFTER=600
 services_paused_flag=/tmp/services_paused_in_game
 proc_dir=/proc
 
@@ -105,6 +109,7 @@ st_wait_ip() {
         if [ $_waited -ge 60 ]; then
             return 1
         fi
+        [ -f "$services_paused_flag" ] && return 3
         sleep 1
         _waited=$((_waited + 1))
     done
@@ -129,11 +134,12 @@ st_lock_take() {
     echo $$ > "$st_lock/pid"
 }
 
-# Download, verify and unpack the program.
+# Download, verify and unpack the program. Returns 0 when installed, 1 when
+# it failed, 2 when another download is running, 3 when a game started.
 st_install() {
     if ! st_lock_take; then
         log "Syncthing: download already running"
-        return 1
+        return 2
     fi
 
     st_install_steps
@@ -151,10 +157,18 @@ st_install_steps() {
         return 1
     fi
 
-    if ! st_wait_ip; then
-        log "Syncthing: no network address after 60 s, download skipped"
-        return 1
-    fi
+    st_wait_ip
+    case $? in
+        0) ;;
+        3)
+            log "Syncthing: a game started, download left for after it"
+            return 3
+            ;;
+        *)
+            log "Syncthing: no network address after 60 s, download skipped"
+            return 1
+            ;;
+    esac
 
     rm -rf "$st_dl"
     mkdir -p "$st_dl"
@@ -164,11 +178,27 @@ st_install_steps() {
     # -k as in ota_update.sh (no CA bundle on the device): the archive is
     # checked against its SHA-256 below instead. A stalled transfer (under
     # 1 KB/s for a minute) gives up, so the lock is never held for good.
-    if ! curl -k -L -f -s --connect-timeout 20 --retry 2 --retry-delay 5 \
+    # A game pauses the network services: the download stops for it too.
+    curl -k -L -f -s --connect-timeout 20 --retry 2 --retry-delay 5 \
         --speed-limit 1024 --speed-time 60 --max-time 1200 \
-        -o "$_archive" "$ST_URL"; then
+        -o "$_archive" "$ST_URL" &
+    _curl_pid=$!
+    while kill -0 "$_curl_pid" 2> /dev/null; do
+        if [ -f "$services_paused_flag" ]; then
+            kill "$_curl_pid" 2> /dev/null
+            wait "$_curl_pid" 2> /dev/null
+            log "Syncthing: a game started, download stopped (tried again after it)"
+            return 3
+        fi
+        sleep 1
+    done
+    if ! wait "$_curl_pid"; then
         log "Syncthing: download failed"
         return 1
+    fi
+    if [ -f "$services_paused_flag" ]; then
+        log "Syncthing: a game started, download left for after it"
+        return 3
     fi
 
     _sum=$(st_sha256 "$_archive")
@@ -219,22 +249,71 @@ st_generate() {
     sync
 }
 
+# Did the last download fail less than ST_RETRY_AFTER seconds ago?
+st_failed_recently() {
+    _failed_at=$(cat "$st_failed" 2> /dev/null)
+    case "$_failed_at" in '' | *[!0-9]*) return 1 ;; esac
+    _since=$(($(date +%s) - _failed_at))
+    [ "$_since" -ge 0 ] && [ "$_since" -lt "$ST_RETRY_AFTER" ]
+}
+
 st_start() {
     if st_running; then
         return 0
     fi
 
     if ! st_installed; then
-        st_install || return 1
-        # The download can take a while: the toggle may have been turned
-        # off, Wi-Fi switched off or a game started meanwhile.
-        if [ ! -f "$sysdir/config/.syncthingState" ] || [ -f "$services_paused_flag" ] || ! st_wifi_on; then
-            log "Syncthing: installed, not started (toggle off, no Wi-Fi or game running)"
+        if [ -z "$ST_RETRY_NOW" ] && st_failed_recently; then
+            log "Syncthing: the last download failed less than 10 minutes ago, not tried again yet"
+            return 1
+        fi
+        if ! st_lock_take; then
+            log "Syncthing: download already running"
             return 0
         fi
-        if st_running; then
-            return 0
-        fi
+        # The download can take minutes: in the background, so that the
+        # network check and what waits for it (Wi-Fi power save, the other
+        # services) go on. The lock names the background job, not this one.
+        (st_install_then_start) > /dev/null 2>&1 &
+        echo $! > "$st_lock/pid"
+        return 0
+    fi
+
+    st_launch
+}
+
+# The background half of st_start: download (the lock is held), then start.
+st_install_then_start() {
+    st_install_steps
+    _ret=$?
+    rm -rf "$st_dl"
+    rm -rf "$st_lock"
+    case $_ret in
+        0) rm -f "$st_failed" ;;
+        1)
+            date +%s > "$st_failed"
+            return 1
+            ;;
+        *) return 1 ;;
+    esac
+    # The download can take a while: the toggle may have been turned
+    # off, Wi-Fi switched off or a game started meanwhile.
+    if [ ! -f "$sysdir/config/.syncthingState" ] || [ -f "$services_paused_flag" ] || ! st_wifi_on; then
+        log "Syncthing: installed, not started (toggle off, no Wi-Fi or game running)"
+        return 0
+    fi
+    st_launch
+}
+
+st_launch() {
+    if st_running; then
+        return 0
+    fi
+    # A game started while this was on its way (the network check runs in
+    # the background): the game's pause already ran, so don't start now.
+    if [ -f "$services_paused_flag" ]; then
+        log "Syncthing: not started, a game is running"
+        return 0
     fi
 
     # Never start without the login: Syncthing would create an open
