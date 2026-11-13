@@ -158,6 +158,19 @@ main() {
     # Make sure MainUI doesn't show charging animation
     touch /tmp/no_charging_ui
 
+    # Mini Flip: put the display colours saved in Settings > Display back
+    # once at boot (robcodedev): the Flip starts with its default colours
+    # otherwise. Written to the display driver's proc node, as
+    # disp_csc_reset.sh does (it brought them back on a Flip, issue #285),
+    # with Open MainUI's formulas, not through MI_SYS (restore_lcd_csc):
+    # MI_SYS_Exit takes the display device down for everyone, and changes
+    # in Settings > Display were then applied only after a reboot. In the
+    # background, after warmup's first MI setup, as restore_lcd_csc's own
+    # MI_SYS_Init did, so that setup cannot put the defaults back over them.
+    if [ "$DEVICE_ID" -eq "$MODEL_MMF" ]; then
+        restore_display_colours_after_warmup &
+    fi
+
     # Check if blf needs enabling
     if [ -f $sysdir/config/.blf ]; then
         /mnt/SDCARD/.tmp_update/script/blue_light.sh check &
@@ -1280,6 +1293,51 @@ check_hide_recents() {
 
 mainui_target=$miyoodir/app/MainUI
 
+# Display colours from system.json (0..20, Miyoo's defaults 7/10/10/10 when
+# missing) to the display driver, as Open MainUI's Settings > Display sets
+# them: lumination + 35, hue * 5, saturation * 5, (contrast + 15) * 2.
+restore_display_colours() {
+    _node=${MI_DISP_NODE:-/proc/mi_modules/mi_disp/mi_disp0}
+    if [ ! -e "$_node" ]; then
+        log "display colours: $_node missing, not restored"
+        return 1
+    fi
+    _l=$(sysjson_get lumination)
+    _h=$(sysjson_get hue)
+    _s=$(sysjson_get saturation)
+    _c=$(sysjson_get contrast)
+    for _v in l h s c; do
+        eval "_x=\$_$_v"
+        case "$_x" in
+            '' | *[!0-9]*) _x=-1 ;;
+        esac
+        if [ "$_x" -lt 0 ] || [ "$_x" -gt 20 ]; then
+            [ "$_v" = l ] && _x=7 || _x=10
+        fi
+        eval "_$_v=\$_x"
+    done
+    # csc <device> <matrix 3 = BT709> <contrast> <hue> <luma> <saturation> <sharpness> <gain>
+    if ! echo "csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0" > "$_node"; then
+        log "display colours: could not be written"
+        return 1
+    fi
+    log "display colours restored: lumination $_l, hue $_h, saturation $_s, contrast $_c"
+}
+
+# restore_display_colours once warmup has ended (at most 10 s).
+restore_display_colours_after_warmup() {
+    _i=0
+    while [ -n "$warmup_pid" ] && kill -0 "$warmup_pid" 2> /dev/null; do
+        if [ $_i -ge 20 ]; then
+            log "display colours: warmup still running after 10 s"
+            break
+        fi
+        sleep 0.5
+        _i=$((_i + 1))
+    done
+    restore_display_colours
+}
+
 # Read one top-level value from system.json with shell builtins (jsonval is a
 # separate process per call). system.json keeps one key per line, as the sed
 # edits in load_settings already assume. Falls back to jsonval whenever the
@@ -1609,6 +1667,7 @@ start_warmup() {
         LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" $sysdir/bin/warmup > /dev/null 2>&1
         perf_end warmup "(exit $?)"
     ) &
+    warmup_pid=$!
 }
 
 device_uuid=$(read_uuid)
