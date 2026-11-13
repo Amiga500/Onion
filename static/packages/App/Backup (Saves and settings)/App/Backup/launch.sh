@@ -225,9 +225,10 @@ FLAGS
 }
 
 # Writes a backup back. Sets RESTORE_ERROR; returns 0 when done, 1 when it
-# failed, 2 when some current files could not be read for the safety copy
-# (RESTORE_UNREAD: the first one; nothing restored, the partial copy
-# removed). $2 = 1 restores anyway, keeping the partial copy.
+# failed, 2 when some current files could not be read for the safety copy:
+# nothing restored, RESTORE_UNREAD is the first of them and RESTORE_PARTIAL
+# the partial copy. Then $2 = 1 restores anyway with that copy (not made a
+# second time); restore_cancel removes it.
 restore_backup() {
     RESTORE_ERROR=""
     RESTORE_UNREAD=""
@@ -250,17 +251,23 @@ restore_backup() {
     # The current saves and settings first, so that this can be undone.
     # A file 7z could not read (rc 1) is not in the copy and would be
     # written over: asked first (a damaged save is a reason to restore).
-    log_from=$(($(wc -l < "$LOG" 2> /dev/null || echo 0) + 1))
-    make_backup _before-restore
-    case $? in
+    if [ "$allow_partial" = 1 ] && [ -n "$RESTORE_PARTIAL" ] && [ -f "$RESTORE_PARTIAL" ]; then
+        BACKUP_FILE=$RESTORE_PARTIAL
+        backup_rc=1
+    else
+        log_from=$(($({ wc -l < "$LOG"; } 2> /dev/null || echo 0) + 1))
+        make_backup _before-restore
+        backup_rc=$?
+    fi
+    RESTORE_PARTIAL=""
+    case $backup_rc in
         0) ;;
         1)
             if [ "$allow_partial" != 1 ]; then
                 # 7z: "WARNING: <why>" with the file on the next line.
                 RESTORE_UNREAD=$(sed -n "$log_from,\$p" "$LOG" 2> /dev/null |
                     awk 'w { print; exit } /^WARNING: / { w = 1 }')
-                rm -f "$BACKUP_FILE"
-                sync
+                RESTORE_PARTIAL=$BACKUP_FILE
                 return 2
             fi
             ;;
@@ -295,6 +302,13 @@ restore_backup() {
     rm -f "$sysdir/config/theme-applied-"*
     sync
     return 0
+}
+
+# Not restored after all (return 2): the partial copy goes.
+restore_cancel() {
+    [ -n "$RESTORE_PARTIAL" ] && rm -f "$RESTORE_PARTIAL"
+    RESTORE_PARTIAL=""
+    sync
 }
 
 # ---- Screens (stubbed by the tests) ----
@@ -374,11 +388,16 @@ screen_restore() {
     rc=$?
     ui_busy_end
     if [ $rc -eq 2 ]; then
+        # The file's name only (the folders take the room); prompt shrinks
+        # a long line to fit.
         unread=""
-        [ -n "$RESTORE_UNREAD" ] && unread="\n$(printf '%s' "$RESTORE_UNREAD" | cut -c1-40)"
+        [ -n "$RESTORE_UNREAD" ] && unread="\n${RESTORE_UNREAD##*/}"
         ui_choose "RESTORE" "Some current files could not be read,${unread}\nso they cannot be backed up first.\nRestoring writes over them." \
             "Cancel" "Restore anyway"
-        [ $? -eq 1 ] || return
+        if [ $? -ne 1 ]; then
+            restore_cancel
+            return
+        fi
         ui_busy "RESTORE" "Restoring your saves and settings...\n \nThis can take a few minutes."
         restore_backup "$BACKUP_DIR/$PICKED" 1
         rc=$?

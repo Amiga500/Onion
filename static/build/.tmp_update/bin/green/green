@@ -57,7 +57,7 @@ fresh() { # file, size note
 fresh "$light" "$light.size" && exec "$real" "$light"
 fresh "$light.skip" "$light.skip" && exec "$real" "$pdf"
 # Room for the copy: pdflight keeps it only at most 70% of the PDF's size.
-free_kb=$(df -k "$(dirname "$pdf")" 2> /dev/null | awk 'END { print $(NF - 2) }')
+free_kb=$(df -k "$(dirname "$pdf")" 2> /dev/null | tail -n 1 | awk '{ print $(NF - 2) }')
 case "$free_kb" in
     '' | *[!0-9]*) ;;
     *) [ "$free_kb" -lt $((size / 1024 + 1024)) ] && exec "$real" "$pdf" ;;

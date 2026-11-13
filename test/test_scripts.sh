@@ -3449,12 +3449,19 @@ else
     check "asked first" test $? -eq 2
     check "nothing written" test ! -e "$SD/Saves/CurrentProfile/saves/old.srm"
     check "the unread file named (this run's)" test "$RESTORE_UNREAD" = "Saves/CurrentProfile/saves/bad.srm"
-    check "the partial copy removed" test ! -e "$SD/Backups/partial.zip"
+    check "the partial copy kept for the answer" test "$RESTORE_PARTIAL" = "$SD/Backups/partial.zip" -a -e "$SD/Backups/partial.zip"
+    restore_cancel
+    check "Cancel: the partial copy removed" test ! -e "$SD/Backups/partial.zip"
+    restore_backup "$TMP/old.zip"
+    : > "$TMP/backups_made"
+    make_backup() { echo again >> "$TMP/backups_made"; return 1; }
     restore_backup "$TMP/old.zip" 1
-    check "restore anyway" test $? -eq 0
+    check "Restore anyway" test $? -eq 0
     check "written" test "$(cat "$SD/Saves/CurrentProfile/saves/old.srm")" = "old save"
-    check "the partial copy kept then" test -e "$SD/Backups/partial.zip"
+    check "with the copy made before, not a second one" test ! -s "$TMP/backups_made"
+    check "which is kept" test -e "$SD/Backups/partial.zip"
     check "the screen asks" grep -q '"Cancel" "Restore anyway"' "$BACKUP_APP"
+    check "and names the file only" grep -q 'unread="\\n${RESTORE_UNREAD##\*/}"' "$BACKUP_APP"
     end
 
     begin backup_restore_refuses_foreign_paths
