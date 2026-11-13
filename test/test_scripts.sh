@@ -3890,14 +3890,16 @@ echo " Interface DevTiming CscMatrix Luma" > "$TMP/mi_disp0"
 sh "$TMP/cscr.sh" --repair > /dev/null
 check "colour processing there: nothing done" sh -c 'test $? -eq 0 && test ! -e "$1/calls"' _ "$TMP"
 echo " DevStatus IrqNum" > "$TMP/mi_disp0"
-sh "$TMP/cscr.sh" --repair > /dev/null
+out=$(sh "$TMP/cscr.sh" --repair)
 rc=$?
 check "lost: /dev/l (l) and an old disp_init stopped, disp_init started" test "$(cat "$TMP/calls")" = "killall -0 disp_init
 killall -2 l
 killall -9 disp_init
 killall -0 l
+killall -0 l
 disp_init"
 check "and waited until it is back" sh -c 'test $1 -eq 0 && grep -q CscMatrix "$2/mi_disp0"' _ "$rc" "$TMP"
+check "each step's time said (for the log)" sh -c 'printf "%s" "$1" | grep -q "/dev/l stopped (.* -> .* s)" && printf "%s" "$1" | grep -q "CSC section back (.* -> .* s)"' _ "$out"
 check "no colours written to the CSC-less node in --repair mode" sh -c '! grep -q "^csc " "$1/mi_disp0"' _ "$TMP"
 : > "$TMP/calls"
 printf '#!/bin/sh\necho disp_init >> "%s/calls"\n' "$TMP" > "$TMP/bin/disp_init"

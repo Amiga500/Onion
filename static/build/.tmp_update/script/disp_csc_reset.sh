@@ -31,6 +31,8 @@ if [ "$1" = "--repair" ]; then
     done
   fi
   echo "display: mi_disp0 gone or without CSC section, restarting disp_init"
+  # Each step's time in the log (seconds since boot), to see what takes long.
+  t0=$(cut -d" " -f1 /proc/uptime)
   killall -2 l 2> /dev/null
   killall -9 disp_init 2> /dev/null
   i=0
@@ -38,10 +40,19 @@ if [ "$1" = "--repair" ]; then
     sleep 0.1
     i=$((i + 1))
   done
+  t1=$(cut -d" " -f1 /proc/uptime)
+  if killall -0 l 2> /dev/null; then
+    echo "display: /dev/l still running after $t0 -> $t1 s"
+  else
+    echo "display: /dev/l stopped ($t0 -> $t1 s)"
+  fi
   "$sysdir/bin/disp_init" > /dev/null 2>&1 &
   i=0
   while [ $i -lt 30 ]; do
-    grep -q CscMatrix "$node" 2> /dev/null && exit 0
+    if grep -q CscMatrix "$node" 2> /dev/null; then
+      echo "display: CSC section back ($t1 -> $(cut -d" " -f1 /proc/uptime) s)"
+      exit 0
+    fi
     sleep 0.1
     i=$((i + 1))
   done
