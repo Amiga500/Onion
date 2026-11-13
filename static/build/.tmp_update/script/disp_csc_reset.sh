@@ -9,16 +9,16 @@ export PATH="$sysdir/bin:$PATH"
 # it will read system.json, process the values to what mi_disp expects and push them in
 
 # --repair (for Open MainUI, when it cannot apply Settings > Display): after some games (Atari ones on the
-# Mini Plus) the display is left without its colour processing: mi_disp0 has no CSC section, the colours
-# are off, and Settings > Display fails ("Please reboot the device"); writing to mi_disp0 does not help.
+# Mini Plus) the display is left without its colour processing: mi_disp0 is gone, or has no CSC section;
+# the colours are off, and Settings > Display fails ("Please reboot the device"); writing to mi_disp0
+# does not help.
 # Set the display up again as the PICO-8 launcher does: stop /dev/l (or a disp_init that replaced it) and
 # start disp_init, which calls this script to write the colours. Waits until the CSC section is back
 # (at most 3 s); exit 1 if it is not. Nothing is done while it is there.
 if [ "$1" = "--repair" ]; then
   node=/proc/mi_modules/mi_disp/mi_disp0
-  [ -e "$node" ] || exit 0
-  grep -q CscMatrix "$node" && exit 0
-  echo "display: no CSC section in mi_disp0, restarting disp_init"
+  grep -q CscMatrix "$node" 2> /dev/null && exit 0
+  echo "display: mi_disp0 gone or without CSC section, restarting disp_init"
   killall -2 l 2> /dev/null
   killall -9 disp_init 2> /dev/null
   i=0
@@ -29,7 +29,7 @@ if [ "$1" = "--repair" ]; then
   "$sysdir/bin/disp_init" > /dev/null 2>&1 &
   i=0
   while [ $i -lt 30 ]; do
-    grep -q CscMatrix "$node" && exit 0
+    grep -q CscMatrix "$node" 2> /dev/null && exit 0
     sleep 0.1
     i=$((i + 1))
   done

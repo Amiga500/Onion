@@ -3905,8 +3905,10 @@ sh "$TMP/cscr.sh" --repair > /dev/null
 check "not back after 3 s: said so" test $? -eq 1
 rm -f "$TMP/mi_disp0"
 : > "$TMP/calls"
+printf '#!/bin/sh\necho disp_init >> "%s/calls"\nsleep 0.3\necho " Interface DevTiming CscMatrix Luma" >> "%s/mi_disp0"\n' "$TMP" "$TMP" > "$TMP/bin/disp_init"
 sh "$TMP/cscr.sh" --repair > /dev/null
-check "no mi_disp0 at all: --repair leaves it alone" sh -c 'test $? -eq 0 && test ! -s "$1/calls"' _ "$TMP"
+rc=$?
+check "mi_disp0 gone after a game: repaired the same way" sh -c 'test $1 -eq 0 && grep -q "^disp_init$" "$2/calls" && grep -q CscMatrix "$2/mi_disp0"' _ "$rc" "$TMP"
 end
 
 echo ""
