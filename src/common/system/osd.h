@@ -436,17 +436,27 @@ static long _osd_now_us(void)
 // Waits about 100 us between the panel's passes. usleep(100) can sleep a
 // whole timer tick instead (10 ms with a 100 Hz kernel without high
 // resolution timers): the panel then came back only every few frames of a
-// game and flickered. If a usleep(100) takes over 2 ms, the panel's next
-// waits spin on the clock instead, yielding the CPU to the other threads.
+// game and flickered. If usleep(100) takes over 2 ms three times in a row,
+// the panel's next waits spin on the clock instead, yielding the CPU to the
+// other threads. Measured again each time the indicator appears: one
+// usleep made long by a busy game kept the spin, and its CPU cost on a
+// single core, for good.
+#define PANEL_SLOW_SLEEPS 3
 static bool _panel_coarse_sleep = false;
+static int _panel_slow_sleeps = 0;
 
 static void _panel_wait(void)
 {
     long t0 = _osd_now_us();
     if (!_panel_coarse_sleep) {
         usleep(100);
-        if (_osd_now_us() - t0 > 2000)
-            _panel_coarse_sleep = true;
+        if (_osd_now_us() - t0 > 2000) {
+            if (++_panel_slow_sleeps >= PANEL_SLOW_SLEEPS)
+                _panel_coarse_sleep = true;
+        }
+        else {
+            _panel_slow_sleeps = 0;
+        }
         return;
     }
     while (_osd_now_us() - t0 < 100)
@@ -695,6 +705,10 @@ static void _osd_showIndicator(int kind, int value, int value_max, uint32_t colo
     }
     _osd_panel = config_flag_get(OSD_PANEL_FLAG);
     _osd_panel_top = config_flag_get(OSD_PANEL_TOP_FLAG);
+#ifdef PLATFORM_MIYOOMINI
+    _panel_coarse_sleep = false;
+    _panel_slow_sleeps = 0;
+#endif
 
     // The previous bar's thread ends on its own after 2 s and nobody joined
     // it: every bar leaked a thread (stack and descriptor) in keymon until
