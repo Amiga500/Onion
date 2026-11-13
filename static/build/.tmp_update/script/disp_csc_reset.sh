@@ -8,6 +8,35 @@ export PATH="$sysdir/bin:$PATH"
 # this script is called by `disp_init` but can be called standalone
 # it will read system.json, process the values to what mi_disp expects and push them in
 
+# --repair (for Open MainUI, when it cannot apply Settings > Display): after some games (Atari ones on the
+# Mini Plus) the display is left without its colour processing: mi_disp0 has no CSC section, the colours
+# are off, and Settings > Display fails ("Please reboot the device"); writing to mi_disp0 does not help.
+# Set the display up again as the PICO-8 launcher does: stop /dev/l (or a disp_init that replaced it) and
+# start disp_init, which calls this script to write the colours. Waits until the CSC section is back
+# (at most 3 s); exit 1 if it is not. Nothing is done while it is there.
+if [ "$1" = "--repair" ]; then
+  node=/proc/mi_modules/mi_disp/mi_disp0
+  [ -e "$node" ] || exit 0
+  grep -q CscMatrix "$node" && exit 0
+  echo "display: no CSC section in mi_disp0, restarting disp_init"
+  killall -2 l 2> /dev/null
+  killall -9 disp_init 2> /dev/null
+  i=0
+  while killall -0 l 2> /dev/null && [ $i -lt 20 ]; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  "$sysdir/bin/disp_init" > /dev/null 2>&1 &
+  i=0
+  while [ $i -lt 30 ]; do
+    grep -q CscMatrix "$node" && exit 0
+    sleep 0.1
+    i=$((i + 1))
+  done
+  echo "display: CSC section still missing"
+  exit 1
+fi
+
 # mi_disp doesn't accept the values raw from system.json, they're manipulated before handing off to mi_disp.
 # Same formulas as the stock MainUI and Open MainUI use in Settings > Display (and runtime.sh at boot on
 # the Mini Flip): lumination + 35, hue * 5, saturation * 5, (contrast + 15) * 2. They were lumination + 34

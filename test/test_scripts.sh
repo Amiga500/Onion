@@ -3878,6 +3878,37 @@ fl=$(sed -n '/^restore_display_colours() {/,/^}/p' "$RUNTIME" | grep -o 'csc 0 3
 check "runtime.sh's formulas are the same" test "$fl" = 'csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0" '
 end
 
+begin disp_csc_reset_repairs_lost_colour_processing
+CSCR="$ROOT/static/build/.tmp_update/script/disp_csc_reset.sh"
+mkdir -p "$TMP/bin"
+sed -e "s#^export sysdir=.*#export sysdir=\"$TMP\"#" -e "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/mi_disp0#g" \
+    -e "s#^export PATH=.*#export PATH=\"$TMP/bin:\$PATH\"#" "$CSCR" > "$TMP/cscr.sh"
+printf '#!/bin/sh\necho "killall $*" >> "%s/calls"\n[ "$1" = -0 ] && exit 1\nexit 0\n' "$TMP" > "$TMP/bin/killall"
+printf '#!/bin/sh\necho disp_init >> "%s/calls"\nsleep 0.3\necho " Interface DevTiming CscMatrix Luma" >> "%s/mi_disp0"\n' "$TMP" "$TMP" > "$TMP/bin/disp_init"
+chmod +x "$TMP/bin/killall" "$TMP/bin/disp_init"
+echo " Interface DevTiming CscMatrix Luma" > "$TMP/mi_disp0"
+sh "$TMP/cscr.sh" --repair > /dev/null
+check "colour processing there: nothing done" sh -c 'test $? -eq 0 && test ! -e "$1/calls"' _ "$TMP"
+echo " DevStatus IrqNum" > "$TMP/mi_disp0"
+sh "$TMP/cscr.sh" --repair > /dev/null
+rc=$?
+check "lost: /dev/l (l) and an old disp_init stopped, disp_init started" test "$(cat "$TMP/calls")" = "killall -2 l
+killall -9 disp_init
+killall -0 l
+disp_init"
+check "and waited until it is back" sh -c 'test $1 -eq 0 && grep -q CscMatrix "$2/mi_disp0"' _ "$rc" "$TMP"
+check "no colours written to the CSC-less node in --repair mode" sh -c '! grep -q "^csc " "$1/mi_disp0"' _ "$TMP"
+: > "$TMP/calls"
+printf '#!/bin/sh\necho disp_init >> "%s/calls"\n' "$TMP" > "$TMP/bin/disp_init"
+echo " DevStatus IrqNum" > "$TMP/mi_disp0"
+sh "$TMP/cscr.sh" --repair > /dev/null
+check "not back after 3 s: said so" test $? -eq 1
+rm -f "$TMP/mi_disp0"
+: > "$TMP/calls"
+sh "$TMP/cscr.sh" --repair > /dev/null
+check "no mi_disp0 at all: --repair leaves it alone" sh -c 'test $? -eq 0 && test ! -s "$1/calls"' _ "$TMP"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
