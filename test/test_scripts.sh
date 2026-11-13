@@ -3883,7 +3883,7 @@ CSCR="$ROOT/static/build/.tmp_update/script/disp_csc_reset.sh"
 mkdir -p "$TMP/bin"
 sed -e "s#^export sysdir=.*#export sysdir=\"$TMP\"#" -e "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/mi_disp0#g" \
     -e "s#^export PATH=.*#export PATH=\"$TMP/bin:\$PATH\"#" "$CSCR" > "$TMP/cscr.sh"
-printf '#!/bin/sh\necho "killall $*" >> "%s/calls"\n[ "$1" = -0 ] && exit 1\nexit 0\n' "$TMP" > "$TMP/bin/killall"
+printf '#!/bin/sh\necho "killall $*" >> "%s/calls"\n[ "$*" = "-0 disp_init" ] && [ -e "%s/di_running" ] && exit 0\n[ "$1" = -0 ] && exit 1\nexit 0\n' "$TMP" "$TMP" > "$TMP/bin/killall"
 printf '#!/bin/sh\necho disp_init >> "%s/calls"\nsleep 0.3\necho " Interface DevTiming CscMatrix Luma" >> "%s/mi_disp0"\n' "$TMP" "$TMP" > "$TMP/bin/disp_init"
 chmod +x "$TMP/bin/killall" "$TMP/bin/disp_init"
 echo " Interface DevTiming CscMatrix Luma" > "$TMP/mi_disp0"
@@ -3892,7 +3892,8 @@ check "colour processing there: nothing done" sh -c 'test $? -eq 0 && test ! -e 
 echo " DevStatus IrqNum" > "$TMP/mi_disp0"
 sh "$TMP/cscr.sh" --repair > /dev/null
 rc=$?
-check "lost: /dev/l (l) and an old disp_init stopped, disp_init started" test "$(cat "$TMP/calls")" = "killall -2 l
+check "lost: /dev/l (l) and an old disp_init stopped, disp_init started" test "$(cat "$TMP/calls")" = "killall -0 disp_init
+killall -2 l
 killall -9 disp_init
 killall -0 l
 disp_init"
@@ -3903,6 +3904,14 @@ printf '#!/bin/sh\necho disp_init >> "%s/calls"\n' "$TMP" > "$TMP/bin/disp_init"
 echo " DevStatus IrqNum" > "$TMP/mi_disp0"
 sh "$TMP/cscr.sh" --repair > /dev/null
 check "not back after 3 s: said so" test $? -eq 1
+echo " DevStatus IrqNum" > "$TMP/mi_disp0"
+: > "$TMP/calls"
+: > "$TMP/di_running"
+( sleep 0.2; echo " Interface DevTiming CscMatrix Luma" >> "$TMP/mi_disp0" ) &
+out=$(sh "$TMP/cscr.sh" --repair)
+wait
+check "a disp_init already setting it up (PICO-8 exiting): waited for, nothing restarted" sh -c 'test "$(cat "$1/calls")" = "killall -0 disp_init" && printf "%s" "$2" | grep -q "already running"' _ "$TMP" "$out"
+rm -f "$TMP/di_running"
 rm -f "$TMP/mi_disp0"
 : > "$TMP/calls"
 printf '#!/bin/sh\necho disp_init >> "%s/calls"\nsleep 0.3\necho " Interface DevTiming CscMatrix Luma" >> "%s/mi_disp0"\n' "$TMP" "$TMP" > "$TMP/bin/disp_init"

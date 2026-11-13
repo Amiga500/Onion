@@ -8,16 +8,28 @@ export PATH="$sysdir/bin:$PATH"
 # this script is called by `disp_init` but can be called standalone
 # it will read system.json, process the values to what mi_disp expects and push them in
 
-# --repair (for Open MainUI, when it cannot apply Settings > Display): after some games (Atari ones on the
-# Mini Plus) the display is left without its colour processing: mi_disp0 is gone, or has no CSC section;
-# the colours are off, and Settings > Display fails ("Please reboot the device"); writing to mi_disp0
-# does not help.
+# --repair (runtime.sh after a game or app; Open MainUI can use it too): some games (Atari 2600 on the
+# Mini Plus) leave the display without its colour processing: mi_disp0 is gone, or has no CSC section.
+# The screen looks normal, but Settings > Display cannot apply anything ("Please reboot the device"),
+# and writing to mi_disp0 does not help.
 # Set the display up again as the PICO-8 launcher does: stop /dev/l (or a disp_init that replaced it) and
 # start disp_init, which calls this script to write the colours. Waits until the CSC section is back
-# (at most 3 s); exit 1 if it is not. Nothing is done while it is there.
+# (at most 3 s); exit 1 if it is not. Nothing is done while it is there. A disp_init already running
+# (the PICO-8 launcher starts one as it exits) is given 0.5 s to finish first.
 if [ "$1" = "--repair" ]; then
   node=/proc/mi_modules/mi_disp/mi_disp0
   grep -q CscMatrix "$node" 2> /dev/null && exit 0
+  if killall -0 disp_init 2> /dev/null; then
+    i=0
+    while [ $i -lt 5 ]; do
+      sleep 0.1
+      if grep -q CscMatrix "$node" 2> /dev/null; then
+        echo "display: set up by the disp_init already running"
+        exit 0
+      fi
+      i=$((i + 1))
+    done
+  fi
   echo "display: mi_disp0 gone or without CSC section, restarting disp_init"
   killall -2 l 2> /dev/null
   killall -9 disp_init 2> /dev/null
