@@ -233,6 +233,13 @@ main() {
 
     check_sd_card "$sd_card_was_dirty"
 
+    # This display shows its colour processing (CSC) in mi_disp0: a missing
+    # one later means it was lost (repair_display). Not known on every model,
+    # so nothing is repaired where it is not there at boot.
+    if grep -q CscMatrix /proc/mi_modules/mi_disp/mi_disp0 2> /dev/null; then
+        : > /tmp/display_has_csc
+    fi
+
     #EmuDeck - Startup scripts
     mkdir -p "$sysdir/startup"
     mkdir -p "$sysdir/checkoff"
@@ -385,6 +392,34 @@ launch_kids_mode() {
     cd $sysdir
 }
 
+# Some games leave the display without its colour processing when they exit
+# (seen with Atari 2600 on the Mini Plus, mostly when closed during the
+# loading screen): mi_disp0 is gone or has no CSC section, and Settings >
+# Display then cannot apply anything ("Please reboot the device").
+# disp_csc_reset.sh --repair sets the display up again (about 0.2 s). When
+# all is well this is one grep of mi_disp0 (about 0.02 s). Not while
+# shutting down, and only where the CSC section was there at boot
+# (/tmp/display_has_csc). $1: what just ended, for the log.
+repair_display() {
+    [ -f /tmp/display_has_csc ] || return 0
+    [ -f /tmp/.offOrder ] && return 0
+    grep -q CscMatrix /proc/mi_modules/mi_disp/mi_disp0 2> /dev/null && return 0
+    if [ -e /proc/mi_modules/mi_disp/mi_disp0 ]; then
+        log "Display: no CSC section in mi_disp0 after $1, setting it up again"
+    else
+        log "Display: mi_disp0 gone after $1, setting it up again"
+    fi
+    repair_from=$(cut -d" " -f1 /proc/uptime)
+    repair_out=$(sh $sysdir/script/disp_csc_reset.sh --repair 2>&1)
+    repair_rc=$?
+    [ -n "$repair_out" ] && log "$repair_out"
+    if [ $repair_rc -eq 0 ]; then
+        log "Display: set up again ($repair_from -> $(cut -d" " -f1 /proc/uptime) s)"
+    else
+        log "Display: still no CSC section"
+    fi
+}
+
 launch_main_ui() {
     log "\n:: Launch MainUI"
     perf_begin mainui_prepare
@@ -494,8 +529,11 @@ launch_game_menu() {
 
     cd $sysdir
     ./script/game_list_options.sh
+    glo_status=$?
+    # Netplay runs RetroArch from the game menu.
+    repair_display "the game menu"
 
-    if [ $? -ne 0 ]; then
+    if [ $glo_status -ne 0 ]; then
         log "\n\n< Back to MainUI\n\n"
         rm -f $sysdir/cmd_to_run.sh 2> /dev/null
         check_off_order "End"
@@ -978,6 +1016,8 @@ launch_game_postprocess() {
 
     # Flush what the game/app wrote (saves, configs) once, now that it exited
     sync
+
+    repair_display "$(basename "$rompath")"
 
     # Reset CPU frequency
     echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
