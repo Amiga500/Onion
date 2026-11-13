@@ -3437,11 +3437,24 @@ else
     rm -f "$TMP/old.zip"
     (cd "$TMP/old" && "$BACKUP_TEST_7Z" a -tzip "$TMP/old.zip" Saves > /dev/null 2>&1)
     # 7z could not read some current files: the copy is made, but not whole.
-    make_backup() { BACKUP_FILE="$SD/Backups/partial.zip"; return 1; }
+    make_backup() {
+        mkdir -p "$SD/Backups"
+        BACKUP_FILE="$SD/Backups/partial.zip"
+        : > "$BACKUP_FILE"
+        printf 'WARNING: errno=5 : Input/output error\nSaves/CurrentProfile/saves/bad.srm\n' >> "$LOG"
+        return 1
+    }
+    printf 'WARNING: errno=5 : Input/output error\nan older run\n' >> "$LOG"
     restore_backup "$TMP/old.zip"
-    check "not restored" test $? -ne 0
+    check "asked first" test $? -eq 2
     check "nothing written" test ! -e "$SD/Saves/CurrentProfile/saves/old.srm"
-    check "says why" sh -c 'printf "%s" "$1" | grep -q "could not be backed up first"' _ "$RESTORE_ERROR"
+    check "the unread file named (this run's)" test "$RESTORE_UNREAD" = "Saves/CurrentProfile/saves/bad.srm"
+    check "the partial copy removed" test ! -e "$SD/Backups/partial.zip"
+    restore_backup "$TMP/old.zip" 1
+    check "restore anyway" test $? -eq 0
+    check "written" test "$(cat "$SD/Saves/CurrentProfile/saves/old.srm")" = "old save"
+    check "the partial copy kept then" test -e "$SD/Backups/partial.zip"
+    check "the screen asks" grep -q '"Cancel" "Restore anyway"' "$BACKUP_APP"
     end
 
     begin backup_restore_refuses_foreign_paths

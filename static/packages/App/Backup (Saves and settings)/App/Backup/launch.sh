@@ -224,10 +224,15 @@ $_rf_list
 FLAGS
 }
 
-# Writes a backup back. Sets RESTORE_ERROR; returns 0 when done.
+# Writes a backup back. Sets RESTORE_ERROR; returns 0 when done, 1 when it
+# failed, 2 when some current files could not be read for the safety copy
+# (RESTORE_UNREAD: the first one; nothing restored, the partial copy
+# removed). $2 = 1 restores anyway, keeping the partial copy.
 restore_backup() {
     RESTORE_ERROR=""
+    RESTORE_UNREAD=""
     archive=$1
+    allow_partial=${2:-0}
     if ! RESTORE_ERROR=$(check_archive "$archive"); then
         return 1
     fi
@@ -243,14 +248,21 @@ restore_backup() {
     fi
 
     # The current saves and settings first, so that this can be undone.
-    # Only a whole copy will do: a file 7z could not read (rc 1) would be
-    # written over and not be in the copy.
+    # A file 7z could not read (rc 1) is not in the copy and would be
+    # written over: asked first (a damaged save is a reason to restore).
+    log_from=$(($(wc -l < "$LOG" 2> /dev/null || echo 0) + 1))
     make_backup _before-restore
     case $? in
         0) ;;
         1)
-            RESTORE_ERROR="Some of the current files could not be\nread, so they could not be backed up first.\nNothing was restored."
-            return 1
+            if [ "$allow_partial" != 1 ]; then
+                # 7z: "WARNING: <why>" with the file on the next line.
+                RESTORE_UNREAD=$(sed -n "$log_from,\$p" "$LOG" 2> /dev/null |
+                    awk 'w { print; exit } /^WARNING: / { w = 1 }')
+                rm -f "$BACKUP_FILE"
+                sync
+                return 2
+            fi
             ;;
         *)
             RESTORE_ERROR="The current saves could not be backed up\nfirst, so nothing was restored.\n$BACKUP_ERROR"
@@ -361,6 +373,17 @@ screen_restore() {
     restore_backup "$BACKUP_DIR/$PICKED"
     rc=$?
     ui_busy_end
+    if [ $rc -eq 2 ]; then
+        unread=""
+        [ -n "$RESTORE_UNREAD" ] && unread="\n$(printf '%s' "$RESTORE_UNREAD" | cut -c1-40)"
+        ui_choose "RESTORE" "Some current files could not be read,${unread}\nso they cannot be backed up first.\nRestoring writes over them." \
+            "Cancel" "Restore anyway"
+        [ $? -eq 1 ] || return
+        ui_busy "RESTORE" "Restoring your saves and settings...\n \nThis can take a few minutes."
+        restore_backup "$BACKUP_DIR/$PICKED" 1
+        rc=$?
+        ui_busy_end
+    fi
     if [ $rc -ne 0 ]; then
         ui_info "RESTORE FAILED" "$RESTORE_ERROR"
         return
