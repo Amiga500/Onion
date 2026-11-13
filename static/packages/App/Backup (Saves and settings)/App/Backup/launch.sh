@@ -7,8 +7,9 @@
 # system.json), RetroArch's main settings, DraStic's saves and settings, and
 # the Favorites and Recents lists. Games, BIOS files, themes and apps are not
 # in it. A restore writes those files back over the current ones; files that
-# are not in the backup are left as they are. It first backs up the current
-# ones, so a restore can be undone.
+# are not in the backup are left as they are, except the other half of a
+# Tweaks option (.name / .name_). It first backs up the current ones, so a
+# restore can be undone.
 #
 # BACKUP_SD and BACKUP_7Z are for the host tests (test/test_scripts.sh).
 
@@ -198,6 +199,31 @@ EOF
     return 0
 }
 
+# Tweaks keeps an option as a pair of files in .tmp_update/config: .name when
+# it is on, .name_ when it is off, never both. A restore writes the backup's
+# file of each pair; the other one, left from a change made after the backup,
+# would stay next to it (and .name wins), so it is removed.
+restore_flag_pairs() {
+    _rf_list=$(archive_paths "$1" | sed -n 's#^\.tmp_update/config/\(\.[^/]*\)$#\1#p')
+    [ -n "$_rf_list" ] || return 0
+    while IFS= read -r _rf_name; do
+        case "$_rf_name" in
+            *_) _rf_other=${_rf_name%_} ;;
+            *) _rf_other=${_rf_name}_ ;;
+        esac
+        # Both in the backup: nothing of the pair is left over.
+        if printf '%s\n' "$_rf_list" | grep -qxF -- "$_rf_other"; then
+            continue
+        fi
+        if [ -f "$sysdir/config/$_rf_other" ]; then
+            rm -f "$sysdir/config/$_rf_other"
+            echo "Removed $_rf_other (the backup has $_rf_name)" >> "$LOG"
+        fi
+    done << FLAGS
+$_rf_list
+FLAGS
+}
+
 # Writes a backup back. Sets RESTORE_ERROR; returns 0 when done.
 restore_backup() {
     RESTORE_ERROR=""
@@ -230,6 +256,8 @@ restore_backup() {
         RESTORE_ERROR="Restoring stopped (7z error $rc).\nYour files from before are in\n$(basename "$BACKUP_FILE")"
         return 1
     fi
+
+    restore_flag_pairs "$archive"
 
     # MainUI's settings: at boot RedOnion reads them from this device's copy
     # in .tmp_update/config/system (made at each shutdown), so the restored

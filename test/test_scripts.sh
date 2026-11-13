@@ -3281,6 +3281,32 @@ else
     check "Syncthing's keys left as they are" test "$(cat "$SD/.tmp_update/config/syncthing/key.pem")" = "key 1"
     end
 
+    begin backup_restore_puts_tweaks_switches_back
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    # Now: logging on, SSH off, the panel on (not in the backup).
+    : > "$SD/.tmp_update/config/.sshState_"
+    : > "$SD/.tmp_update/config/.osdPanel"
+    echo "secret" > "$SD/.tmp_update/config/.password.txt"
+    # The backup: logging off, SSH on.
+    rm -rf "$TMP/old"
+    mkdir -p "$TMP/old/.tmp_update/config/system"
+    : > "$TMP/old/.tmp_update/config/.logging_"
+    : > "$TMP/old/.tmp_update/config/.sshState"
+    echo "old" > "$TMP/old/.tmp_update/config/.password.txt"
+    : > "$TMP/old/.tmp_update/config/system/.keep"
+    rm -f "$TMP/old.zip"
+    (cd "$TMP/old" && "$BACKUP_TEST_7Z" a -tzip "$TMP/old.zip" .tmp_update > /dev/null 2>&1)
+    restore_backup "$TMP/old.zip"
+    check "restored" test $? -eq 0
+    check "logging off as in the backup" test -f "$SD/.tmp_update/config/.logging_" -a ! -e "$SD/.tmp_update/config/.logging"
+    check "SSH on as in the backup" test -f "$SD/.tmp_update/config/.sshState" -a ! -e "$SD/.tmp_update/config/.sshState_"
+    check "an option the backup does not have is left" test -f "$SD/.tmp_update/config/.osdPanel"
+    check "other dot files only written back" test "$(cat "$SD/.tmp_update/config/.password.txt")" = "old"
+    check "and logged" grep -q "Removed .logging (the backup has .logging_)" "$LOG"
+    end
+
     begin backup_restore_refuses_foreign_paths
     SD=$TMP/sd
     backup_fake_sd "$SD"
