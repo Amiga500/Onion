@@ -3856,6 +3856,19 @@ check "POWER: a dimmed Kids Mode screen only wakes" grep -q 'else if (kids_dimme
 check "VOL+ does not unmute in Kids Mode" grep -q 'if (settings.mute && kidsmode_active())' "$KEYMON_C"
 check "no MENU+B blue light toggle in Kids Mode" grep -q 'kidsmode_active()) {' "$KEYMON_C"
 check "a playing video is not inactivity" grep -q 'temp_flag_get("kidsmode_media_playing")' "$KEYMON_C"
+begin disp_csc_reset_uses_mainui_formulas
+CSCR="$ROOT/static/build/.tmp_update/script/disp_csc_reset.sh"
+mkdir -p "$TMP/bin"
+printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v jq)" > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
+sed -e "s#/appconfigs/system.json#$TMP/system.json#" -e "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/mi_disp0#g" \
+    -e "s#^export PATH=.*#export PATH=\"$TMP/bin:\$PATH\"#" "$CSCR" > "$TMP/cscr.sh"
+echo '{"lumination": 7, "hue": 10, "saturation": 12, "contrast": 15}' > "$TMP/system.json"
+: > "$TMP/mi_disp0"
+sh "$TMP/cscr.sh" > /dev/null 2>&1
+check "same values as Settings > Display and the Flip at boot" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 60 50 42 60 0 0"
+fl=$(sed -n '/^restore_display_colours() {/,/^}/p' "$RUNTIME" | grep -o 'csc 0 3 [^>]*')
+check "runtime.sh's formulas are the same" test "$fl" = 'csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0" '
 end
 
 echo ""

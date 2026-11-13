@@ -8,10 +8,10 @@ export PATH="$sysdir/bin:$PATH"
 # this script is called by `disp_init` but can be called standalone
 # it will read system.json, process the values to what mi_disp expects and push them in
 
-# mi_disp doesn't accept the values raw from system.json, they're manipulated before handing off to mi_disp
-LUMINATION_FACTOR=17
-SATURATION_FACTOR=5
-CONTRAST_OFFSET=40
+# mi_disp doesn't accept the values raw from system.json, they're manipulated before handing off to mi_disp.
+# Same formulas as the stock MainUI and Open MainUI use in Settings > Display (and runtime.sh at boot on
+# the Mini Flip): lumination + 35, hue * 5, saturation * 5, (contrast + 15) * 2. They were lumination + 34
+# and contrast + 40 here, so after disp_init the colours were a little off what Settings had set.
 
 # grab the values from system.json
 filename="/appconfigs/system.json"
@@ -34,10 +34,10 @@ if ! echo "$saturation" | grep -qE '^[0-9]+$' || [ "$saturation" -lt 0 ] || [ "$
 if ! echo "$contrast" | grep -qE '^[0-9]+$' || [ "$contrast" -lt 0 ] || [ "$contrast" -gt 20 ]; then contrast=10; fi
 
 # process ready for mi_disp to accept
-lumaProcessed=$((lumination + LUMINATION_FACTOR * 2))
-satProcessed=$((saturation * SATURATION_FACTOR))
-contProcessed=$((contrast + CONTRAST_OFFSET))
-hueProcessed=$((hue * SATURATION_FACTOR))
+lumaProcessed=$((lumination + 35))
+satProcessed=$((saturation * 5))
+contProcessed=$(((contrast + 15) * 2))
+hueProcessed=$((hue * 5))
 
 devid=0 # the mi_disp ID
 cscMatrix=3 # dont change this, it's the type of csc (E_MI_DISP_CSC_MATRIX_RGB_TO_BT709_PC)
