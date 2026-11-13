@@ -242,27 +242,35 @@ main() {
         sh "$startup_script"
     done
 
-    # Auto launch
-    if [ ! -f $sysdir/config/.noAutoStart ]; then
+    if kids_mode_armed; then
+        # Kids Mode decides what runs, a game left from before included
+        # (resumed only while play time is left): no startup app.
+        rm -f "$sysdir/.runGameSwitcher" /tmp/quick_switch /tmp/run_advmenu
+        launch_kids_mode
         state_change check_game
     else
-        rm -f "$sysdir/cmd_to_run.sh" 2> /dev/null
-    fi
+        # Auto launch
+        if [ ! -f $sysdir/config/.noAutoStart ]; then
+            state_change check_game
+        else
+            rm -f "$sysdir/cmd_to_run.sh" 2> /dev/null
+        fi
 
-    # Only launch startup app if not quick switching
-    if [ ! -f /tmp/quick_switch ]; then
-        startup_app=$(cat $sysdir/config/startup/app)
+        # Only launch startup app if not quick switching
+        if [ ! -f /tmp/quick_switch ]; then
+            startup_app=$(cat $sysdir/config/startup/app)
 
-        if [ $startup_app -eq 1 ]; then
-            log "\n\n:: STARTUP APP: GameSwitcher\n\n"
-            touch $sysdir/.runGameSwitcher
-        elif [ $startup_app -eq 2 ]; then
-            log "\n\n:: STARTUP APP: RetroArch\n\n"
-            echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so ./retroarch -v" > $sysdir/cmd_to_run.sh
-            touch /tmp/quick_switch
-        elif [ $startup_app -eq 3 ]; then
-            log "\n\n:: STARTUP APP: AdvanceMENU\n\n"
-            touch /tmp/run_advmenu
+            if [ $startup_app -eq 1 ]; then
+                log "\n\n:: STARTUP APP: GameSwitcher\n\n"
+                touch $sysdir/.runGameSwitcher
+            elif [ $startup_app -eq 2 ]; then
+                log "\n\n:: STARTUP APP: RetroArch\n\n"
+                echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so ./retroarch -v" > $sysdir/cmd_to_run.sh
+                touch /tmp/quick_switch
+            elif [ $startup_app -eq 3 ]; then
+                log "\n\n:: STARTUP APP: AdvanceMENU\n\n"
+                touch /tmp/run_advmenu
+            fi
         fi
     fi
 
@@ -327,7 +335,9 @@ clear_logs() {
 
 check_main_ui() {
     if [ ! -f $sysdir/cmd_to_run.sh ]; then
-        if [ -f /tmp/run_advmenu ]; then
+        if kids_mode_armed; then
+            launch_kids_mode
+        elif [ -f /tmp/run_advmenu ]; then
             rm /tmp/run_advmenu
             $sysdir/bin/adv/run_advmenu.sh
         else
@@ -336,6 +346,43 @@ check_main_ui() {
 
         check_off_order "End"
     fi
+}
+
+# Kids Mode (App/KidsMode): /mnt/SDCARD/.kidmode is there while it is armed
+# (deleting it from a computer turns it off).
+kids_mode_loop=/mnt/SDCARD/App/KidsMode/kid_mode_loop.sh
+
+kids_mode_armed() {
+    [ -f /mnt/SDCARD/.kidmode ] && [ -f "$kids_mode_loop" ]
+}
+
+# Kids Mode's launcher in place of MainUI. It returns with a game in
+# cmd_to_run.sh, launched by launch_game as from MainUI (services paused,
+# screen mode, saving screen...), and is started again after it; or with
+# Kids Mode turned off (then MainUI), or for a shutdown.
+launch_kids_mode() {
+    log "\n:: Launch Kids Mode"
+    cd $sysdir
+    start_audioserver
+
+    # Its launcher and video player flip between two 640x480 pages.
+    if [ -x "$sysdir/bin/fbmode" ] && [ -f /tmp/new_res_available ]; then
+        probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
+        fb_probe_fields "$probe"
+        if [ "$fb_f1" != "640x480" ] || [ "$fb_f3" != "640x960" ] ||
+           [ "$fb_f5" != "32" ] || [ "$fb_flast" != "2" ]; then
+            if ! $sysdir/bin/fbmode 640x480 --pages 2 --preclear --no-clear \
+                --linger 150 --timeout 500; then
+                log "fbmode failed before Kids Mode, falling back to fbset"
+                fbset -g 640 480 640 960 32
+            fi
+            notify_resolution_change
+        fi
+    fi
+
+    KIDSMODE_HOST=runtime sh "$kids_mode_loop" run
+    log "Kids Mode returned ($?)"
+    cd $sysdir
 }
 
 launch_main_ui() {
@@ -1149,6 +1196,11 @@ EOF_GIV
 }
 
 check_switcher() {
+    # Kids Mode: back to its launcher, never the GameSwitcher (the parent's
+    # recent games).
+    if kids_mode_armed; then
+        rm -f "$sysdir/.runGameSwitcher" /tmp/quick_switch
+    fi
     if [ -f $sysdir/.runGameSwitcher ]; then
         launch_switcher
     elif [ -f /tmp/quick_switch ]; then

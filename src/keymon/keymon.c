@@ -51,7 +51,8 @@
 #define CHECK_SEC 15   // Interval sec to check hibernate/adc
 #define SHUTDOWN_MIN 1 // Minutes to power off after hibernate
 #define REPEAT_SEC(val) ((val * 1000 - 250) / 50)
-#define PIDMAX 32
+// Kids Mode's video player (KidsPlay) runs many processes and threads.
+#define PIDMAX 128
 
 // MMF headphone jack GPIO detection
 // Credit to Tenlevels for original patch, minor modifications made for device model check.
@@ -290,6 +291,13 @@ static void blue_light_schedule_check(void)
         run_script_detached(BLUE_LIGHT_SCRIPT, "disable");
 }
 
+// Kids Mode (App/KidsMode) is armed: its launcher owns the screen
+// (/tmp/kidsmode, set and removed by kid_mode_loop.sh).
+static bool kidsmode_active(void)
+{
+    return temp_flag_get("kidsmode");
+}
+
 void takeScreenshot(void)
 {
     super_short_pulse();
@@ -522,6 +530,15 @@ void suspend_exec(int timeout)
 {
     keyinput_disable();
 
+    // Kids Mode: black the backlight before anything is stopped, and keep
+    // the LCD controller on (display_off()/display_on() save and restore
+    // the framebuffer, which flashed with the launcher's double buffer).
+    bool kids = kidsmode_active();
+    if (kids) {
+        display_setBrightnessRaw(0);
+        msleep(20);
+    }
+
     // pause playActivity (synchronous: the session must be closed before
     // processes are stopped; no shell needed)
     {
@@ -540,7 +557,8 @@ void suspend_exec(int timeout)
     }
     rumble(0);
     display_setBrightnessRaw(0);
-    display_off();
+    if (!kids)
+        display_off();
     system_powersave_on();
 
     uint32_t repeat_power = 0;
@@ -575,7 +593,8 @@ void suspend_exec(int timeout)
                 if (ev.code == HW_BTN_MENU) {
                     // screenshot
                     system_powersave_off();
-                    display_on();
+                    if (!kids)
+                        display_on();
                     takeScreenshot();
                     break;
                 }
@@ -633,7 +652,8 @@ void suspend_exec(int timeout)
         suspend(2);
         usleep(400000);
     }
-    display_on();
+    if (!kids)
+        display_on();
     display_setBrightness(settings.brightness);
     setVolume(settings.mute ? 0 : settings.volume);
     if (!killexit) {
@@ -810,6 +830,7 @@ int main(void)
     bool b_BTN_Not_Menu_Pressed = false;
     bool b_BTN_Menu_Pressed = false;
     bool power_pressed = false;
+    bool kids_dimmed_at_power_press = false;
     bool volUp_state = false;
     bool volUp_active = false;
     bool volDown_state = false;
@@ -945,8 +966,20 @@ int main(void)
 
             switch (ev.code) {
             case HW_BTN_POWER:
-                if (val == PRESSED)
+                if (val == PRESSED) {
                     power_pressed = true;
+                    // Kids Mode: a press on a screen its idle timer dimmed
+                    // or blanked only wakes it; otherwise the backlight goes
+                    // black at once, so no framebuffer change can flash.
+                    kids_dimmed_at_power_press = false;
+                    if (kidsmode_active()) {
+                        kids_dimmed_at_power_press =
+                            temp_flag_get("kidsmode_carousel_dimmed") ||
+                            temp_flag_get("kidsmode_media_dimmed");
+                        if (!kids_dimmed_at_power_press)
+                            display_setBrightnessRaw(0);
+                    }
+                }
                 if (!comboKey_menu && val == REPEAT) {
                     repeat_power++;
                     if (repeat_power == 7) {
@@ -963,7 +996,15 @@ int main(void)
                     // suspend
                     if (power_pressed && repeat_power < 7) {
                         if (comboKey_menu) {
+                            // KidsPlay ignores the MENU release that follows
+                            if (kidsmode_active())
+                                temp_flag_set("kidsmode_power_screenshot", true);
                             takeScreenshot();
+                        }
+                        else if (kids_dimmed_at_power_press) {
+                            display_setBrightness(settings.brightness);
+                            temp_flag_set("kidsmode_carousel_dimmed", false);
+                            temp_flag_set("kidsmode_media_dimmed", false);
                         }
                         else {
                             if (settings.disable_standby) {
@@ -975,6 +1016,7 @@ int main(void)
                         }
                     }
                     power_pressed = false;
+                    kids_dimmed_at_power_press = false;
                 }
                 repeat_power = 0;
                 break;
@@ -1154,7 +1196,10 @@ int main(void)
                 if (!volDown_active || comboKey_volume)
                     break;
                 if (val == RELEASED || val == REPEAT) {
-                    if (settings_setVolume(settings.volume - 1, true))
+                    // Kids Mode: while muted, only the level to come back to
+                    // changes (applying it would unmute the media player).
+                    if (settings_setVolume(settings.volume - 1,
+                                           !(settings.mute && kidsmode_active())))
                         settings_changed = true;
                 }
                 if (val == RELEASED)
@@ -1194,7 +1239,13 @@ int main(void)
                 if (!volUp_active || comboKey_volume)
                     break;
                 if (val == RELEASED || val == REPEAT) {
-                    if (settings_setMute(0, true)) {
+                    if (settings.mute && kidsmode_active()) {
+                        // Kids Mode: VOL+ does not unmute (VOL- with VOL+
+                        // does); only the level to come back to changes.
+                        if (settings_setVolume(settings.volume + 1, false))
+                            settings_changed = true;
+                    }
+                    else if (settings_setMute(0, true)) {
                         settings_changed = true;
                     }
                     else if (settings_setVolume(settings.volume + 1, true))
@@ -1238,6 +1289,12 @@ int main(void)
             }
 
             // toggle blue light filter
+            if (menuAndBPressed && (getMilliseconds() - menuAndBPressedTime >= 2000) &&
+                kidsmode_active()) {
+                // Kids Mode: no blue light toggle from the buttons
+                menuAndBPressed = false;
+                menuAndBPressedTime = 0;
+            }
             if (menuAndBPressed && (getMilliseconds() - menuAndBPressedTime >= 2000)) {
                 if (temp_flag_get(".blfOn")) {
                     run_script_detached(BLUE_LIGHT_SCRIPT, "disable");
@@ -1369,7 +1426,11 @@ int main(void)
         else
             hibernate_time = settings.sleep_timer;
 
-        if (hibernate_time && !temp_flag_get("stay_awake")) {
+        // A video or song playing in Kids Mode is not inactivity.
+        if (temp_flag_get("kidsmode_media_playing")) {
+            hibernate_start = ticks;
+        }
+        else if (hibernate_time && !temp_flag_get("stay_awake")) {
             if (ticks - hibernate_start > hibernate_time * 60 * 1000) {
                 suspend_exec(SHUTDOWN_MIN * 60000);
                 hibernate_start = ticks;

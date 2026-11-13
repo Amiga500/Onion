@@ -3679,6 +3679,165 @@ check "stopped while making it: pdflight ended" test "$left" -eq 0
 pkill -f "$TMP/sd/.tmp_update/bin/infoPanel" 2> /dev/null
 end
 
+# ---- Kids Mode (App/KidsMode): in place of MainUI while armed ----
+
+KIDS_APP="$ROOT/static/packages/App/Kids Mode/App/KidsMode"
+KIDS_LOOP="$KIDS_APP/kid_mode_loop.sh"
+KEYMON_C="$ROOT/src/keymon/keymon.c"
+
+begin kids_mode_runtime_in_place_of_mainui
+sysdir=$TMP
+eval "$(extract_fn "$RUNTIME" kids_mode_armed | sed "s#/mnt/SDCARD/.kidmode#$TMP/.kidmode#")"
+eval "$(extract_fn "$RUNTIME" check_main_ui)"
+eval "$(extract_fn "$RUNTIME" check_switcher)"
+kids_mode_loop=$TMP/loop.sh
+launch_kids_mode() { echo kids >> "$TMP/calls"; }
+launch_main_ui() { echo mainui >> "$TMP/calls"; }
+launch_switcher() { echo switcher >> "$TMP/calls"; }
+check_off_order() { :; }
+log() { :; }
+sync() { :; }
+check_main_ui
+check "not armed: MainUI" test "$(cat "$TMP/calls")" = mainui
+: > "$TMP/.kidmode"
+check_main_ui
+check "armed, Kids Mode not installed: MainUI" test "$(tail -n 1 "$TMP/calls")" = mainui
+: > "$kids_mode_loop"
+check_main_ui
+check "armed: Kids Mode in place of MainUI" test "$(tail -n 1 "$TMP/calls")" = kids
+echo game > "$sysdir/cmd_to_run.sh"
+: > "$TMP/calls"
+check_main_ui
+check "a game to launch: neither (launch_game runs it)" test ! -s "$TMP/calls"
+: > "$sysdir/.runGameSwitcher"
+check_switcher
+check "armed: never the GameSwitcher (the parent's recent games)" sh -c 'test ! -s "$1/calls" && test ! -e "$1/.runGameSwitcher"' _ "$TMP"
+rm -f "$TMP/.kidmode"
+: > "$sysdir/.runGameSwitcher"
+check_switcher
+check "not armed: the GameSwitcher as before" test "$(cat "$TMP/calls")" = switcher
+boot=$(sed -n '/^main() {/,/^}/p' "$RUNTIME")
+check "at boot: Kids Mode first, then a game it left (no startup app)" sh -c 'printf "%s\n" "$1" | awk "/if kids_mode_armed; then/ { k = NR } k && /launch_kids_mode/ && !l { l = NR } l && /state_change check_game/ && !g { g = NR } /startup_app=/ { a = NR } END { exit !(k && l > k && g > l && a > g) }"' _ "$boot"
+unset -f launch_kids_mode launch_main_ui launch_switcher check_off_order log sync check_main_ui check_switcher kids_mode_armed
+end
+
+begin kids_mode_runtime_starts_the_launcher
+sysdir=$TMP
+mkdir -p "$sysdir/bin"
+eval "$(extract_fn "$RUNTIME" launch_kids_mode)"
+eval "$(extract_fn "$RUNTIME" fb_probe_fields)"
+log() { :; }
+start_audioserver() { echo audio >> "$TMP/calls"; }
+notify_resolution_change() { echo notified >> "$TMP/calls"; }
+kids_mode_loop=$TMP/loop.sh
+printf 'echo "$KIDSMODE_HOST $1" > "%s/loop"\n' "$TMP" > "$kids_mode_loop"
+launch_kids_mode
+check "started as the host, to run" test "$(cat "$TMP/loop")" = "runtime run"
+check "audio server up" grep -q audio "$TMP/calls"
+printf '#!/bin/sh\n[ "$1" = --probe ] && { echo "$PROBE"; exit 0; }\necho "$*" >> "%s/fbmode"\n' "$TMP" > "$sysdir/bin/fbmode"
+chmod +x "$sysdir/bin/fbmode"
+check "640x480 devices: no mode change" test ! -e "$TMP/fbmode"
+: > /tmp/new_res_available.kidstest
+eval "$(extract_fn "$RUNTIME" launch_kids_mode | sed "s#/tmp/new_res_available#/tmp/new_res_available.kidstest#")"
+PROBE="640x480 virtual 640x1440 bpp 32 line_length 2560 pages 3" launch_kids_mode
+check "752x560 devices, MainUI's 3 pages: two 640x480 pages" sh -c 'grep -q "^640x480 --pages 2 " "$1/fbmode" && grep -q notified "$1/calls"' _ "$TMP"
+: > "$TMP/fbmode"
+PROBE="640x480 virtual 640x960 bpp 32 line_length 2560 pages 2" launch_kids_mode
+check "already two 640x480 pages: left alone" test ! -s "$TMP/fbmode"
+rm -f /tmp/new_res_available.kidstest
+unset -f launch_kids_mode fb_probe_fields log start_audioserver notify_resolution_change
+end
+
+begin kids_mode_loop_hands_games_to_runtime
+sysdir=$TMP
+game_handoff_file=$TMP/handoff
+reset_cfg=$TMP/reset.cfg
+eval "$(extract_fn "$KIDS_LOOP" run_game_cmd)"
+eval "$(extract_fn "$KIDS_LOOP" finish_game_handoff)"
+eval "$(extract_fn "$KIDS_LOOP" strip_reset_appendconfig)"
+wait_for_game_environment() { echo prepared >> "$TMP/calls"; }
+allow_onion_battery_warning_for_game() { echo battery >> "$TMP/calls"; }
+log() { :; }
+printf './retroarch -v --appendconfig "%s" -L core.so "$1"\n' "$reset_cfg" > "$TMP/launch.sh"
+printf 'LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so "%s" "%s/Roms/GBA/game.gba"\n' "$TMP/launch.sh" "$TMP" > "$sysdir/cmd_to_run.sh"
+: > "$reset_cfg"
+(run_game_cmd; echo "returned" > "$TMP/returned")
+check "the script ends, for runtime.sh to launch the game" test ! -e "$TMP/returned"
+check "the game stays in cmd_to_run.sh" grep -q game.gba "$sysdir/cmd_to_run.sh"
+check "its launch script remembered" test "$(cat "$game_handoff_file")" = "$TMP/launch.sh"
+check "set up first, Onion's battery warning back for the game" test "$(cat "$TMP/calls")" = "prepared
+battery"
+finish_game_handoff
+check "back from it: handled" test $? -eq 0
+check "Start over taken out of the launch script again" sh -c '! grep -q appendconfig "$1/launch.sh"' _ "$TMP"
+check "and its file removed" test ! -e "$reset_cfg"
+finish_game_handoff
+check "no game handed over: nothing to do" test $? -eq 1
+check "back from a game: the launcher on it, not resuming a video" sh -c "sed -n '/^cmd_run() {/,/^}/p' '$KIDS_LOOP' | awk '/load_state_cache/ { l = NR } /if finish_game_handoff; then/ { f = NR } /initial_mode=carousel/ { c = NR } /initial_mode\" = running/ && !r { r = NR } END { exit !(l && f > l && c > f && r > c) }'"
+unset -f run_game_cmd finish_game_handoff strip_reset_appendconfig wait_for_game_environment allow_onion_battery_warning_for_game log
+end
+
+begin kids_mode_loop_leaves_shutdown_to_runtime
+eval "$(extract_fn "$KIDS_LOOP" check_off_order | sed -e "s#/tmp/.offOrder#$TMP/.offOrder#" -e "s#/tmp/shutting_down#$TMP/shutting_down#")"
+stop_ticker() { echo ticker-stopped >> "$TMP/calls"; }
+log() { :; }
+(check_off_order End; echo continued > "$TMP/cont")
+check "no shutdown asked: carries on" test -e "$TMP/cont"
+rm -f "$TMP/cont"
+: > "$TMP/.offOrder"
+(check_off_order End; echo continued > "$TMP/cont")
+check "shutdown: play time saved, the script ends (runtime.sh shuts down)" sh -c 'test ! -e "$1/cont" && grep -q ticker-stopped "$1/calls"' _ "$TMP"
+check "it no longer shuts down by itself" sh -c "! sed -n '/^check_off_order() {/,/^}/p' '$KIDS_LOOP' | grep -q '^ *shutdown\$'"
+unset -f check_off_order stop_ticker log
+end
+
+begin kids_mode_loop_redonion_hooks
+sysdir=$TMP
+checkoff_src="$KIDS_APP/kidmode_checkoff.sh"
+checkoff_dst=$TMP/checkoff/kidmode_checkoff.sh
+eval "$(extract_fn "$KIDS_LOOP" install_hook)"
+log() { :; }
+mkdir -p "$TMP/startup"
+: > "$TMP/startup/kidmode_boot.sh"
+install_hook
+check "the standalone boot hook goes" test ! -e "$TMP/startup/kidmode_boot.sh"
+check "the shutdown hook installed" cmp -s "$checkoff_src" "$checkoff_dst"
+check "run only when runtime.sh starts it" grep -q '\[ "$kids_host" = runtime \] || exit 0' "$KIDS_LOOP"
+check "no separate keymon any more" sh -c "! grep -q 'bin/keymon\|killall keymon' '$KIDS_LOOP'"
+check "keymon reads the keymap again instead" sh -c "sed -n '/^restart_keymon() {/,/^}/p' '$KIDS_LOOP' | grep -q 'touch /tmp/settings_changed'"
+check "keymon's Kids Mode flag set while it runs, removed when it ends" sh -c "grep -q 'touch \"\$kidsmode_active_flag\"' '$KIDS_LOOP' && sed -n '/^disarm() {/,/^}/p' '$KIDS_LOOP' | grep -q kidsmode_active_flag"
+check "the loop lock released when the script ends" grep -q '^trap release_loop_lock EXIT' "$KIDS_LOOP"
+check "the Apps entry only arms (runtime.sh starts the launcher)" sh -c "grep -q '\[ -f /mnt/SDCARD/.kidmode \] && exit 0' '$KIDS_APP/launch.sh' && ! grep -q 'kid_mode_loop.sh run' '$KIDS_APP/launch.sh'"
+unset -f install_hook log
+end
+
+begin kids_mode_checkoff_saves_play_time
+sed -e "s#/mnt/SDCARD/.kidmode#$TMP/.kidmode#" -e "s#/tmp/kidsmode_timer_used#$TMP/used#" \
+    -e "s#/mnt/SDCARD/Saves/KidsMode#$TMP/saves#" "$KIDS_APP/kidmode_checkoff.sh" > "$TMP/off.sh"
+mkdir -p "$TMP/saves"
+printf '2026-11-12\n100\n300\n' > "$TMP/saves/timer_state.txt"
+echo 640 > "$TMP/used"
+sh "$TMP/off.sh"
+check "not armed: nothing written" test "$(sed -n 2p "$TMP/saves/timer_state.txt")" = 100
+: > "$TMP/.kidmode"
+sh "$TMP/off.sh"
+check "armed: the time used saved, the extra time kept" sh -c 'test "$(sed -n 2,3p "$1")" = "640
+300"' _ "$TMP/saves/timer_state.txt"
+echo "" > "$TMP/used"
+sh "$TMP/off.sh"
+check "no counter: left alone" test "$(sed -n 2p "$TMP/saves/timer_state.txt")" = 640
+end
+
+begin kids_mode_keymon_behaviour_only_while_armed
+check "Kids Mode known by its /tmp flag" grep -q 'return temp_flag_get("kidsmode");' "$KEYMON_C"
+fn=$(sed -n '/^void suspend_exec(int timeout)/,/^}/p' "$KEYMON_C")
+check "suspend: the LCD controller kept on in Kids Mode only" sh -c 'printf "%s\n" "$1" | grep -q "if (!kids)" && printf "%s\n" "$1" | grep -c "if (!kids)" | grep -q 3' _ "$fn"
+check "POWER: a dimmed Kids Mode screen only wakes" grep -q 'else if (kids_dimmed_at_power_press)' "$KEYMON_C"
+check "VOL+ does not unmute in Kids Mode" grep -q 'if (settings.mute && kidsmode_active())' "$KEYMON_C"
+check "no MENU+B blue light toggle in Kids Mode" grep -q 'kidsmode_active()) {' "$KEYMON_C"
+check "a playing video is not inactivity" grep -q 'temp_flag_get("kidsmode_media_playing")' "$KEYMON_C"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
