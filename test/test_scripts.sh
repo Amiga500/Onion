@@ -3848,6 +3848,13 @@ sh "$TMP/off.sh"
 check "no counter: left alone" test "$(sed -n 2p "$TMP/saves/timer_state.txt")" = 640
 end
 
+begin kids_mode_binaries_stripped
+# Veuks' release workflow strips them; the repository's copies were not.
+for f in bin/kidsplay bin/fb_reset lib/libminivsync.so; do
+    check "$f: no debug symbols (.symtab)" sh -c '! grep -q "\.symtab" "$1"' _ "$KIDS_APP/$f"
+done
+end
+
 begin kids_mode_keymon_behaviour_only_while_armed
 check "Kids Mode known by its /tmp flag" grep -q 'return temp_flag_get("kidsmode");' "$KEYMON_C"
 fn=$(sed -n '/^void suspend_exec(int timeout)/,/^}/p' "$KEYMON_C")
