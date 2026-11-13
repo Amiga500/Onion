@@ -546,7 +546,16 @@ ss_nomatch=1
 gi_no_game
 check "with its cover, no match: not asked again" test -z "$(gi_missing)"
 check "written down per item" test "$(grep -c 'RPG/Trials & Co.sfc' "$gi_root/media/.gameinfo_none")" -eq 2
-check "the no-match answer sets it, reset at each lookup" sh -c "grep -A4 '^search_on_screenscraper() {' '$SCRAPER_SS' | grep -q 'ss_nomatch=0' && grep -B1 -A1 'ss_nomatch=1' '$SCRAPER_SS' | grep -q 'Erreur'"
+check "reset at each lookup" sh -c "grep -A4 '^search_on_screenscraper() {' '$SCRAPER_SS' | grep -q 'ss_nomatch=0'"
+eval "$(sed -n '/^search_on_screenscraper() {/,/^}/p' "$SCRAPER_SS")"
+curl() { printf '%s\n' "$ss_answer"; }
+for ss_answer in "Erreur : Rom/Iso/Dossier non trouvée ! " "Erreur de login : Vérifier vos identifiants utilisateur !" "Erreur : Votre quota de scrape est dépassé"; do
+    url=x
+    search_on_screenscraper > /dev/null 2>&1
+    echo "$ss_nomatch" >> "$TMP/ss_nomatch"
+done
+unset -f curl
+check "only 'non trouvée' is a no-match (not a login or quota error)" test "$(tr '\n' ' ' < "$TMP/ss_nomatch")" = "1 0 0 "
 check "used where a ROM is given up" test "$(grep -c '^				*gi_no_game$' "$SCRAPER_SS")" -eq 2
 rm -rf "$gi_root/media"
 end

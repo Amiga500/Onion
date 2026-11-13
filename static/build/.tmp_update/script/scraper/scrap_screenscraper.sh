@@ -151,7 +151,9 @@ search_on_screenscraper() {
     
     # Don't check art if screenscraper can't find a match
     if echo "$Head_api_result" | grep -q "^Erreur"; then
-        ss_nomatch=1
+        # Only "... non trouvée !" means ScreenScraper has no such game; a
+        # login error or a quota message starts with "Erreur" too.
+        echo "$Head_api_result" | grep -q "non trouv" && ss_nomatch=1
         echo -e "${RED}No match found${NONE}"
         echo "Couldn't find a match for $romNameNoExtensionTrimmed" >> /mnt/SDCARD/.tmp_update/logs/scrap.log
         return
