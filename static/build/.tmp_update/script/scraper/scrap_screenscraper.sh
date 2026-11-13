@@ -679,7 +679,7 @@ fi
     
 
 for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
-	! -name '.*' ! -name '*.xml' ! -name '*.miyoocmd' ! -name '*.cfg' ! -name '*.db' \
+	! -name '.*' ! -name '*.xml' ! -name '*.xml.tmp' ! -name '*.xml.entry' ! -name '*.miyoocmd' ! -name '*.cfg' ! -name '*.db' \
 	! -path '*/Imgs/*' ! -path '*/.*/*' $romfilter"); do
 	
     echo "-------------------------------------------------"
