@@ -213,6 +213,7 @@ apps: $(CACHE)/.setup
 	@cd $(SRC_DIR)/playActivityUI && BUILD_DIR="$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity" make
 	@cd $(SRC_DIR)/displaycal && BUILD_DIR="$(PACKAGES_APP_DEST)/DisplayCal/App/DisplayCal" make
 	@cd $(SRC_DIR)/kidsMode && BUILD_DIR="$(PACKAGES_APP_DEST)/Kids Mode/App/KidsMode/bin" make
+	@cd $(SRC_DIR)/buttonlab && BUILD_DIR="$(PACKAGES_APP_DEST)/Button Lab/App/ButtonLab" make
 	@find $(SRC_DIR)/playActivityUI -depth -type d -name res -exec cp -r {}/. "$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity/res/" \;
 	@find $(SRC_DIR)/packageManager -depth -type d -name res -exec cp -r {}/. $(BUILD_DIR)/App/PackageManager/res/ \;
 	@cd $(SRC_DIR)/clock && BUILD_DIR="$(BIN_DIR)" make
