@@ -398,7 +398,6 @@ end
 
 begin flip_display_colours_restored_at_boot
 eval "$(extract_fn "$RUNTIME" restore_display_colours)"
-eval "$(extract_fn "$RUNTIME" restore_display_colours_after_warmup)"
 flip_csc_block=$(awk '/# Mini Flip: put the display colours/ { on = 1 } on { print } on && /^    fi$/ { exit }' "$RUNTIME")
 check "the block is found" test -n "$flip_csc_block"
 MI_DISP_NODE=$TMP/mi_disp0
@@ -410,17 +409,11 @@ log() { echo "$*" >> "$TMP/csc_log"; }
 MODEL_MMF=285
 DEVICE_ID=354
 eval "$flip_csc_block"
-wait
 check "not on a Mini Plus" test ! -s "$MI_DISP_NODE"
 DEVICE_ID=285
-sleep 2 &
-warmup_pid=$!
 eval "$flip_csc_block"
-sleep 1
-check "not while warmup runs" test ! -s "$MI_DISP_NODE"
-wait
-unset warmup_pid
-check "on the Flip, after it: Open MainUI's formulas, BT709, sharpness 0" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 60 50 42 60 0 0"
+check "on the Flip, at once (nothing waits for warmup): Open MainUI's formulas, BT709, sharpness 0" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 60 50 42 60 0 0"
+check "not in the background" sh -c '! printf "%s\n" "$1" | grep -q "&\$"' _ "$flip_csc_block"
 check "logged" grep -q "display colours restored: lumination 7, hue 10, saturation 12, contrast 15" "$TMP/csc_log"
 sysjson_get() {
     case "$1" in lumination) echo "" ;; hue) echo 25 ;; saturation) echo x ;; contrast) echo 0 ;; esac
@@ -2790,15 +2783,17 @@ check "SDL from miyoo/lib, as MainUI loads it" test "$(cat "$sysdir/ld_path")" =
 check "timing.log records its time and exit code" grep -Eq '^warmup [0-9]+\.[0-9]+ s \(exit 0\)$' "$sysdir/logs/timing.log"
 end
 
-begin warmup_starts_after_display_before_mainui_layout
-boot_fn=$(extract_fn "$RUNTIME" init_system)
+begin warmup_starts_after_colours_and_boot_screen
+init_fn=$(extract_fn "$RUNTIME" init_system)
+check "not in init_system any more" sh -c '! printf "%s\n" "$1" | grep -q "^ *start_warmup"' _ "$init_fn"
+boot_fn=$(sed -n '/^main() {/,/^}/p' "$RUNTIME")
 line_of() { printf '%s\n' "$boot_fn" | grep -n "^ *$1" | head -1 | cut -d: -f1; }
-res=$(line_of get_screen_resolution)
+flip=$(line_of restore_display_colours)
+blf=$(line_of "(")
+screen=$(line_of 'bootScreen "Boot"')
 warm=$(line_of start_warmup)
-layout=$(line_of "commit_mainui_fbmode")
-check "after the fb driver is up (lines $res < $warm)" test "${res:-0}" -gt 0 -a "${warm:-0}" -gt "${res:-0}"
-check "before MainUI's layout is set (lines $warm < $layout)" test "${layout:-0}" -gt "${warm:-0}"
-check "no sleep left between them" test -z "$(printf '%s\n' "$boot_fn" | sed -n "${warm:-1},${layout:-1}p" | grep -E '^ *sleep')"
+check "robcodedev's order: Flip colours, filter and DisplayCal, boot screen, warmup ($flip < $blf < $screen < $warm)" sh -c 'test "${1:-0}" -gt 0 -a "${2:-0}" -gt "${1:-0}" -a "${3:-0}" -gt "${2:-0}" -a "${4:-0}" -gt "${3:-0}"' _ "$flip" "$blf" "$screen" "$warm"
+check "nothing waits for warmup" sh -c '! grep -q "kill -0 \"\$warmup_pid\"" "$1"' _ "$RUNTIME"
 unset -f line_of
 end
 

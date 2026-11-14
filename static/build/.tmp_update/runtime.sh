@@ -164,11 +164,13 @@ main() {
     # disp_csc_reset.sh does (it brought them back on a Flip, issue #285),
     # with Open MainUI's formulas, not through MI_SYS (restore_lcd_csc):
     # MI_SYS_Exit takes the display device down for everyone, and changes
-    # in Settings > Display were then applied only after a reboot. In the
-    # background, after warmup's first MI setup, as restore_lcd_csc's own
-    # MI_SYS_Init did, so that setup cannot put the defaults back over them.
+    # in Settings > Display were then applied only after a reboot. In
+    # robcodedev's boot order: the colours first, then the Blue Light
+    # Filter and DisplayCal, then the boot screen, then warmup. Warmup's
+    # first MI setup would put the defaults back over colours written while
+    # it runs; it now starts after them, so nothing waits for it.
     if [ "$DEVICE_ID" -eq "$MODEL_MMF" ]; then
-        restore_display_colours_after_warmup &
+        restore_display_colours
     fi
 
     # Blue Light Filter, then DisplayCal (an app in the Package Manager),
@@ -193,6 +195,15 @@ main() {
 
     cd $sysdir
     bootScreen "Boot"
+
+    # The first process to call SDL_Init(SDL_INIT_VIDEO) after a cold boot
+    # pays a one-time MI setup cost of about 2 s. Pay it here in the
+    # background so MainUI does not. After the display colours, the Blue
+    # Light Filter and DisplayCal have started, and after the boot screen
+    # (robcodedev's order): the boot screen draws on the framebuffer
+    # directly, not through MI. robcodedev measured about 2 s gained on
+    # Onion with it here; started earlier, it gained about 1 s on RedOnion.
+    start_warmup
 
     # Set filebrowser branding to "Onion" and apply custom theme
     if [ -f "$sysdir/config/filebrowser/first.run" ]; then
@@ -1443,20 +1454,6 @@ restore_display_colours() {
     log "display colours restored: lumination $_l, hue $_h, saturation $_s, contrast $_c"
 }
 
-# restore_display_colours once warmup has ended (at most 10 s).
-restore_display_colours_after_warmup() {
-    _i=0
-    while [ -n "$warmup_pid" ] && kill -0 "$warmup_pid" 2> /dev/null; do
-        if [ $_i -ge 20 ]; then
-            log "display colours: warmup still running after 10 s"
-            break
-        fi
-        sleep 0.5
-        _i=$((_i + 1))
-    done
-    restore_display_colours
-}
-
 # Read one top-level value from system.json with shell builtins (jsonval is a
 # separate process per call). system.json keeps one key per line, as the sed
 # edits in load_settings already assume. Falls back to jsonval whenever the
@@ -1759,13 +1756,6 @@ init_system() {
     perf_begin boot_display
     get_screen_resolution
     perf_end boot_display
-
-    # The first process to call SDL_Init(SDL_INIT_VIDEO) after a cold boot
-    # pays a one-time MI setup cost of about 2 s. Pay it here in the
-    # background, as soon as the fb driver is up, so MainUI does not.
-    # Started this early because the rest of boot is shorter than that cost.
-    # Realistic gain is about 1 second.
-    start_warmup
 
     # Establish MainUI's layout before the boot screen is drawn. Doing it here
     # means the boot screen is painted in the mode MainUI will use, so nothing
