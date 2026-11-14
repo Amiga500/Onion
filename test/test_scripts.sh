@@ -432,7 +432,7 @@ restore_display_colours
 check "no display device: nothing written, said so" sh -c 'test ! -e "$1" && grep -q "missing, not restored" "$2"' _ "$MI_DISP_NODE" "$TMP/csc_log"
 check "not through MI_SYS (restore_lcd_csc no longer run)" sh -c "! grep -q 'bin/restore_lcd_csc' '$RUNTIME'"
 check "start_warmup keeps warmup's pid" sh -c "sed -n '/^start_warmup() {/,/^}/p' '$RUNTIME' | grep -q 'warmup_pid=\\\$!'"
-check "before the blue light filter" sh -c "awk '/# Mini Flip: put the display colours/ { c = NR } /# Check if blf needs enabling/ { b = NR } END { exit !(c && b && c < b) }' '$RUNTIME'"
+check "before the blue light filter" sh -c "awk '/# Mini Flip: put the display colours/ { c = NR } /# Blue Light Filter, then DisplayCal/ { b = NR } END { exit !(c && b && c < b) }' '$RUNTIME'"
 unset -f sysjson_get log
 unset MI_DISP_NODE
 end
@@ -3967,7 +3967,8 @@ BLUE_LIGHT="$ROOT/static/build/.tmp_update/script/blue_light.sh"
 DISPLAYCAL="$ROOT/static/packages/App/DisplayCal/App/DisplayCal/launch.sh"
 boot=$(sed -n '/^main() {/,/^}/p' "$RUNTIME")
 check "boot: DisplayCal --apply when the app is installed" sh -c 'printf "%s\n" "$1" | grep -q "sh /mnt/SDCARD/App/DisplayCal/launch.sh --apply"' _ "$boot"
-check "boot: after /tmp/deviceSN, before the Blue Light Filter" sh -c 'printf "%s\n" "$1" | grep -n -e "> /tmp/deviceSN" -e "DisplayCal/launch.sh --apply" -e "Check if blf needs enabling" | cut -d: -f1 | tr "\n" " " | awk "{exit !(\$1 < \$2 && \$2 < \$3)}"' _ "$boot"
+check "boot: after /tmp/deviceSN and the Blue Light Filter, before the boot screen" sh -c 'printf "%s\n" "$1" | grep -n -e "> /tmp/deviceSN" -e "blue_light.sh enable$" -e "DisplayCal/launch.sh --apply" -e "bootScreen \"Boot\"" | cut -d: -f1 | tr "\n" " " | awk "{exit !(NF == 4 && \$1 < \$2 && \$2 < \$3 && \$3 < \$4)}"' _ "$boot"
+check "boot: the filter and DisplayCal in one background job" sh -c 'printf "%s\n" "$1" | sed -n "/^    (\$/,/^    ) &\$/p" | grep -q -e "blue_light.sh check\$" && printf "%s\n" "$1" | sed -n "/^    (\$/,/^    ) &\$/p" | grep -q "DisplayCal/launch.sh --apply"' _ "$boot"
 # disable_blue_light_filter, with the display node and the app in $TMP
 eval "$(extract_fn "$BLUE_LIGHT" disable_blue_light_filter | sed "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/node#")"
 check_disp_init() { :; }

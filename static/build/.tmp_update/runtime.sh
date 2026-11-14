@@ -171,23 +171,25 @@ main() {
         restore_display_colours_after_warmup &
     fi
 
-    # DisplayCal (an app in the Package Manager): this device's saved red,
-    # green, blue and warmth, at boot (robcodedev). --apply only uses shell
-    # built-ins and changes nothing without a profile for this device's
-    # serial (/tmp/deviceSN, written above). Before the Blue Light Filter,
-    # which takes priority: --apply skips while it is on, and the filter's
-    # own write comes after.
-    if [ -f /mnt/SDCARD/App/DisplayCal/launch.sh ]; then
-        displaycal_out=$(sh /mnt/SDCARD/App/DisplayCal/launch.sh --apply 2>&1) ||
-            log "DisplayCal --apply failed: $displaycal_out"
-    fi
+    # Blue Light Filter, then DisplayCal (an app in the Package Manager),
+    # in the background before the boot screen, in robcodedev's order: the
+    # filter first (starting it can run disp_init), then DisplayCal's
+    # --apply puts this device's saved red, green, blue and warmth on,
+    # unless the filter is on (--apply skips while /tmp/.blfOn is there).
+    # --apply only uses shell built-ins and changes nothing without a
+    # profile for this device's serial (/tmp/deviceSN, written above).
+    (
+        if [ -f $sysdir/config/.blf ]; then
+            /mnt/SDCARD/.tmp_update/script/blue_light.sh check
+        elif [ -f $sysdir/config/.blfOn ]; then
+            /mnt/SDCARD/.tmp_update/script/blue_light.sh enable
+        fi
 
-    # Check if blf needs enabling
-    if [ -f $sysdir/config/.blf ]; then
-        /mnt/SDCARD/.tmp_update/script/blue_light.sh check &
-    elif [ -f $sysdir/config/.blfOn ]; then
-        /mnt/SDCARD/.tmp_update/script/blue_light.sh enable &
-    fi
+        if [ -f /mnt/SDCARD/App/DisplayCal/launch.sh ]; then
+            displaycal_out=$(sh /mnt/SDCARD/App/DisplayCal/launch.sh --apply 2>&1) ||
+                log "DisplayCal --apply failed: $displaycal_out"
+        fi
+    ) &
 
     cd $sysdir
     bootScreen "Boot"
