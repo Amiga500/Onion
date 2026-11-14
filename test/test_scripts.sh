@@ -3962,6 +3962,46 @@ unset -f repair_display repair_log log
 unset DEVICE_ID
 end
 
+begin displaycal_applied_at_boot_and_after_blue_light
+BLUE_LIGHT="$ROOT/static/build/.tmp_update/script/blue_light.sh"
+DISPLAYCAL="$ROOT/static/packages/App/DisplayCal/App/DisplayCal/launch.sh"
+boot=$(sed -n '/^main() {/,/^}/p' "$RUNTIME")
+check "boot: DisplayCal --apply when the app is installed" sh -c 'printf "%s\n" "$1" | grep -q "sh /mnt/SDCARD/App/DisplayCal/launch.sh --apply"' _ "$boot"
+check "boot: after /tmp/deviceSN, before the Blue Light Filter" sh -c 'printf "%s\n" "$1" | grep -n -e "> /tmp/deviceSN" -e "DisplayCal/launch.sh --apply" -e "Check if blf needs enabling" | cut -d: -f1 | tr "\n" " " | awk "{exit !(\$1 < \$2 && \$2 < \$3)}"' _ "$boot"
+# disable_blue_light_filter, with the display node and the app in $TMP
+eval "$(extract_fn "$BLUE_LIGHT" disable_blue_light_filter | sed "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/node#")"
+check_disp_init() { :; }
+usleep() { :; }
+sysdir=$TMP
+mkdir -p "$TMP/config/display"
+echo 8421504 > "$TMP/config/display/blueLightRGB"
+blf_key_on=$TMP/blfOn
+blf_key_on_user=$TMP/blfOnUser
+displaycal_launcher=$TMP/displaycal.sh
+printf 'if [ -e "%s/blfOn" ]; then echo "$* with the filter flag" >> "%s/calls"; else echo "$*" >> "%s/calls"; fi\n' "$TMP" "$TMP" "$TMP" > "$displaycal_launcher"
+: > "$blf_key_on"; : > "$blf_key_on_user"
+disable_blue_light_filter > /dev/null
+check "filter off: DisplayCal --apply once, after the flag is gone" test "$(cat "$TMP/calls")" = "--apply"
+rm -f "$displaycal_launcher" "$TMP/calls"
+: > "$blf_key_on"
+disable_blue_light_filter > /dev/null
+check "filter off without DisplayCal: nothing else run" test ! -e "$TMP/calls"
+unset -f disable_blue_light_filter check_disp_init usleep
+# DisplayCal's own --apply: this device's profile, B G R order, nothing with the filter on
+mkdir -p "$TMP/dc"
+printf 'R=120\nG=130\nB=140\nW=0\n' > "$TMP/dc/cal-0abc.cfg"
+echo 0abc > "$TMP/sn"
+: > "$TMP/dcnode"
+DISPLAYCAL_CFGDIR=$TMP/dc DISPLAYCAL_NODE=$TMP/dcnode DISPLAYCAL_SERIAL_FILE=$TMP/sn DISPLAYCAL_BLF_FLAG=$TMP/blf SERIAL_NUMBER= sh "$DISPLAYCAL" --apply
+check "DisplayCal --apply writes this device's profile (B G R)" test "$(cat "$TMP/dcnode")" = "colortemp 0 0 0 0 140 130 120"
+: > "$TMP/dcnode"; : > "$TMP/blf"
+DISPLAYCAL_CFGDIR=$TMP/dc DISPLAYCAL_NODE=$TMP/dcnode DISPLAYCAL_SERIAL_FILE=$TMP/sn DISPLAYCAL_BLF_FLAG=$TMP/blf SERIAL_NUMBER= sh "$DISPLAYCAL" --apply
+check "DisplayCal --apply: nothing while the filter is on" test ! -s "$TMP/dcnode"
+rm -f "$TMP/blf"; echo 0def > "$TMP/sn"
+DISPLAYCAL_CFGDIR=$TMP/dc DISPLAYCAL_NODE=$TMP/dcnode DISPLAYCAL_SERIAL_FILE=$TMP/sn DISPLAYCAL_BLF_FLAG=$TMP/blf SERIAL_NUMBER= sh "$DISPLAYCAL" --apply
+check "DisplayCal --apply: nothing without a profile for this device" sh -c 'test ! -s "$1"' _ "$TMP/dcnode"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

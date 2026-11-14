@@ -5,6 +5,7 @@ blf_key=$sysdir/config/.blf
 blf_key_on_user=$sysdir/config/.blfOn
 blf_key_on=/tmp/.blfOn
 ignore_schedule=/tmp/.blfIgnoreSchedule
+displaycal_launcher=/mnt/SDCARD/App/DisplayCal/launch.sh
 
 # Atomic lock: mkdir fails if another instance holds it (the old
 # test-then-touch left a window where two instances could both start).
@@ -173,6 +174,13 @@ disable_blue_light_filter() {
     echo ":: Blue Light Filter: Disabled"
     rm -f $blf_key_on
     rm -f $blf_key_on_user
+
+    # The filter faded back to neutral: put DisplayCal's calibration for
+    # this device back, if it has one (its --apply skips while the filter
+    # is on, so only now that the flag is gone).
+    if [ -f "$displaycal_launcher" ]; then
+        sh "$displaycal_launcher" --apply
+    fi
 }
 
 check_blf() {

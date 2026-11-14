@@ -171,6 +171,17 @@ main() {
         restore_display_colours_after_warmup &
     fi
 
+    # DisplayCal (an app in the Package Manager): this device's saved red,
+    # green, blue and warmth, at boot (robcodedev). --apply only uses shell
+    # built-ins and changes nothing without a profile for this device's
+    # serial (/tmp/deviceSN, written above). Before the Blue Light Filter,
+    # which takes priority: --apply skips while it is on, and the filter's
+    # own write comes after.
+    if [ -f /mnt/SDCARD/App/DisplayCal/launch.sh ]; then
+        displaycal_out=$(sh /mnt/SDCARD/App/DisplayCal/launch.sh --apply 2>&1) ||
+            log "DisplayCal --apply failed: $displaycal_out"
+    fi
+
     # Check if blf needs enabling
     if [ -f $sysdir/config/.blf ]; then
         /mnt/SDCARD/.tmp_update/script/blue_light.sh check &
