@@ -1,5 +1,5 @@
 #!/bin/sh
-# DisplayCal v0.7.2: single launcher; --apply uses shell built-ins only.
+# DisplayCal v0.8.1: single launcher; --apply uses shell built-ins only.
 # GUI logging is opt-in: DISPLAYCAL_DEBUG=1 ./launch.sh
 # No Onion/RedOnion runtime or Blue Light script changes.
 set -eu
@@ -104,6 +104,37 @@ if [ "${1-}" = --apply ]; then
     exit $?
 fi
 
+# RedOnion owns DISP recovery. Runs RedOnion's disp_csc_reset.sh --repair
+# only if the CSC section is missing. The repair script uses the proven
+# l/disp_init sequence; no repair or SDK reinitialization happens in the GUI.
+# $1 = "before" or "after" (used only in messages). Never fails the launcher.
+repair_if_needed() {
+    grep -q CscMatrix "$NODE" 2>/dev/null && return 0
+    REPAIR_SCRIPT=${DISPLAYCAL_REPAIR_SCRIPT:-}
+    if [ -z "$REPAIR_SCRIPT" ]; then
+        for CANDIDATE in /mnt/SDCARD/.tmp_update/script/disp_csc_reset.sh \
+                         /mnt/SDCARD/.tmp_update/bin/disp_csc_reset.sh; do
+            if [ -f "$CANDIDATE" ]; then
+                REPAIR_SCRIPT=$CANDIDATE
+                break
+            fi
+        done
+        if [ -z "$REPAIR_SCRIPT" ]; then
+            REPAIR_SCRIPT=$(command -v disp_csc_reset.sh 2>/dev/null || :)
+        fi
+    fi
+    if [ -n "$REPAIR_SCRIPT" ] && [ -f "$REPAIR_SCRIPT" ]; then
+        # Matches the uploaded RedOnion script's --repair path.
+        # Nonzero result is reported, never hidden by set -e.
+        if ! sh "$REPAIR_SCRIPT" --repair; then
+            printf 'DisplayCal: DISP repair %s GUI failed\n' "$1" >&2
+        fi
+    else
+        printf 'DisplayCal: CSC missing %s GUI, disp_csc_reset.sh not installed\n' "$1" >&2
+    fi
+    return 0
+}
+
 case "${1-}" in
     --neutral)
         write_rgb 128 128 128
@@ -129,14 +160,26 @@ case "${1-}" in
                 printf '%s\n' "$PROFILE" > /tmp/displaycal-device-id
                 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
                 export LD_LIBRARY_PATH="/mnt/SDCARD/.tmp_update/lib:/config/lib:/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+                # Repair BEFORE displaycal-gui opens the framebuffer...
+                repair_if_needed before
+
                 cd "$DIR"
+                # No exec: the shell must stay alive to run the post-exit check.
+                # The GUI's exit code is kept and returned at the end.
+                GUI_RC=0
                 if [ "${DISPLAYCAL_DEBUG:-0}" = 1 ]; then
                     LOGDIR=${DISPLAYCAL_LOGDIR:-/mnt/SDCARD/.tmp_update/logs}
                     mkdir -p "$LOGDIR"
-                    exec ./displaycal-gui >> "$LOGDIR/displaycal.log" 2>&1
+                    ./displaycal-gui >> "$LOGDIR/displaycal.log" 2>&1 || GUI_RC=$?
                 else
-                    exec ./displaycal-gui
-                fi ;;
+                    ./displaycal-gui || GUI_RC=$?
+                fi
+
+                # ...and AFTER it exits (Save, Cancel or crash), in case the
+                # Display page's SDK calls left the CSC section missing.
+                repair_if_needed after
+                exit "$GUI_RC" ;;
         esac ;;
     *)
         printf 'Usage: launch.sh [--apply|--serial|--config|--neutral|--set R G B [WARMTH]]\n' >&2

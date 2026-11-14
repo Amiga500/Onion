@@ -1,5 +1,5 @@
 /*
- * DisplayCal v0.7.2 for Onion
+ * DisplayCal v0.8.1 for Onion
  * Freestanding ARM/Linux utility: direct framebuffer + libz PNG decode.
  * Uses /dev/fb0 + /dev/input/event* and the working SigmaStar DISP proc node.
  */
@@ -28,10 +28,6 @@ enum {
 #define FBIOGET_VSCREENINFO 0x4600
 #define FBIOGET_FSCREENINFO 0x4602
 
-static inline long sc0(long n) {
-    register long r7 asm("r7")=n; register long r0 asm("r0");
-    asm volatile("svc 0" : "=r"(r0) : "r"(r7) : "memory"); return r0;
-}
 static inline long sc1(long n,long a) {
     register long r7 asm("r7")=n; register long r0 asm("r0")=a;
     asm volatile("svc 0" : "+r"(r0) : "r"(r7) : "memory"); return r0;
@@ -106,8 +102,10 @@ static void pset(int x,int y,u32 c){
 /* Clipped rectangle fill in RAM, not directly to visible video memory. */
 static void rect(int x,int y,int w,int h,u32 c){
     int x0=x,y0=y,x1=x+w,y1=y+h,yy,xx;
-    if(x0<0)x0=0; if(y0<0)y0=0;
-    if(x1>(int)W)x1=(int)W; if(y1>(int)H)y1=(int)H;
+    if(x0<0)x0=0;
+    if(y0<0)y0=0;
+    if(x1>(int)W)x1=(int)W;
+    if(y1>(int)H)y1=(int)H;
     if(x0>=x1||y0>=y1)return;
     for(yy=y0;yy<y1;yy++){
         u8 *row=canvas+(u32)((int)H-1-yy)*STRIDE+(u32)((int)W-x1)*(BPP/8u);
@@ -139,7 +137,6 @@ static void present(void){
     }
     presented=1;
 } 
-static void frame(int x,int y,int w,int h,int t,u32 c){rect(x,y,w,t,c);rect(x,y+h-t,w,t,c);rect(x,y,t,h,c);rect(x+w-t,y,t,h,c);} 
 
 /* compact 5x7 font: digits + selected uppercase ASCII used by UI. */
 struct glyph {char ch; u8 r[7];};
@@ -159,14 +156,14 @@ static const struct glyph F[] = {
 static const u8 *glyph(char c){u32 i; if(c>='a'&&c<='z') c-=32; for(i=0;i<sizeof(F)/sizeof(F[0]);i++) if(F[i].ch==c) return F[i].r; return 0;}
 static void chr5(int x,int y,char c,int s,u32 col){const u8 *g=glyph(c);int yy,xx; if(c==' ') return; if(!g) return; for(yy=0;yy<7;yy++) for(xx=0;xx<5;xx++) if(g[yy]&(1u<<(4-xx))) rect(x+xx*s,y+yy*s,s,s,col);} 
 static void text5(int x,int y,const char *s,int scale,u32 col){while(*s){chr5(x,y,*s,scale,col);x+=6*scale;s++;}}
-static void num3(int x,int y,int v,int scale,u32 col){char b[4];int h=0,t=0;while(v>=100){v-=100;h++;}while(v>=10){v-=10;t++;}b[0]='0'+h;b[1]='0'+t;b[2]='0'+v;b[3]=0;text5(x,y,b,scale,col);} 
 
 static int append_num(char *b,int p,int v){
     if(v>=100){int h=0,t=0;while(v>=100){v-=100;h++;}while(v>=10){v-=10;t++;}b[p++]='0'+h;b[p++]='0'+t;b[p++]='0'+v;}
-    else if(v>=10){int t=0;while(v>=10){v-=10;t++;}b[p++]='0'+t;b[p++]='0'+v;} else b[p++]='0'+v; return p;
+    else if(v>=10){int t=0;while(v>=10){v-=10;t++;}b[p++]='0'+t;b[p++]='0'+v;}
+    else b[p++]='0'+v;
+    return p;
 }
 
-static int isspace1(char c){return c==' '||c=='\t'||c=='\r'||c=='\n';}
 static int isserialchar(char c){return (c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='-'||c=='_';}
 static int read_small(const char *path,char *buf,int cap){
     long fd=xopen(path,O_RDONLY,0); int n=0; if(fd<0)return -1;
@@ -202,7 +199,9 @@ static int cfg_path(char *out,int cap){
     for(i=0;pre[i]&&p<cap-1;i++)out[p++]=pre[i];
     for(i=0;serial[i]&&p<cap-1;i++)out[p++]=serial[i];
     for(i=0;suf[i]&&p<cap-1;i++)out[p++]=suf[i];
-    if(p>=cap-1)return -2; out[p]=0; return p;
+    if(p>=cap-1)return -2;
+    out[p]=0;
+    return p;
 }
 static int parse_cfg(const char *path,int *rr,int *gg,int *bb,int *ww){
     char bfr[256]; int n=read_small(path,bfr,sizeof(bfr)); int i=0,got=0;
@@ -218,12 +217,23 @@ static int parse_cfg(const char *path,int *rr,int *gg,int *bb,int *ww){
     }}
     return got>=3?0:-2;
 }
+/* Preserve the actual kernel return for diagnosing post-MainUI failures.
+ * Raw ARM syscalls return -errno, unlike libc which returns -1 and sets errno.
+ */
+static int rgb_error_stage=0, rgb_csc_missing=0;
+static long rgb_error_sysrc=0;
 static int apply_rgb(int r,int g,int b){
-    const char *node="/proc/mi_modules/mi_disp/mi_disp0"; char s[64]; int p=0; long fd;
+    const char *node="/proc/mi_modules/mi_disp/mi_disp0"; char s[64]; int p=0; long fd,n;
     const char *pre="colortemp 0 0 0 0 "; u32 i;
     for(i=0;pre[i];i++) s[p++]=pre[i];
     p=append_num(s,p,b); s[p++]=' '; p=append_num(s,p,g); s[p++]=' '; p=append_num(s,p,r); s[p++]='\n';
-    fd=xopen(node,O_WRONLY,0); if(fd<0) return -1; long n=xwrite((int)fd,s,p); xclose((int)fd); return n==p?0:-2;
+    rgb_error_stage=0;rgb_error_sysrc=0;
+    fd=xopen(node,O_WRONLY,0);
+    if(fd<0){rgb_error_stage=1;rgb_error_sysrc=fd;return -1;}
+    n=xwrite((int)fd,s,p);
+    xclose((int)fd);
+    if(n!=p){rgb_error_stage=2;rgb_error_sysrc=n;return -2;}
+    return 0;
 }
 static int save_cfg(int r,int g,int b,int w){
     char path[192], tmp[200],s[64];int p=0,i=0;long fd,n;
@@ -240,8 +250,8 @@ static int save_cfg(int r,int g,int b,int w){
     n=xwrite((int)fd,s,p);
     if(n==p)sc1(118,fd); /* fsync syscall on ARM */
     xclose((int)fd);
-    if(n!=p)return -2;
-    if(sc2(38,(long)tmp,(long)path)<0)return -5; /* rename */
+    if(n!=p){sc1(10,(long)tmp);return -2;} /* unlink leftover temp */
+    if(sc2(38,(long)tmp,(long)path)<0){sc1(10,(long)tmp);return -5;} /* rename */
     return 0;
 }
 
@@ -440,7 +450,7 @@ static const char *image_names[] = {
 };
 #define NUM_IMAGES 5
 static int fullscreen=0,png_err=0;
-static int r=128,g=128,b=128,warmth=0,sel=0,applied=0,status=0;
+static int r=128,g=128,b=128,warmth=0,sel=0,page=0,applied=0,status=0;
 static int original_r=128,original_g=128,original_b=128,original_w=0;
 static int original_has_cfg=0;
 static int changed_by_gui=0;
@@ -448,6 +458,7 @@ static int changed_by_gui=0;
 static int blf_on(void){
     return sc2(SYS_access,(long)"/tmp/.blfOn",0)==0;
 }
+#include "display_settings.inc"
 static int clamp(int v){return v<0?0:(v>255?255:v);}
 static int clamp_w(int v){return v<-100?-100:(v>100?100:v);}
 /* Warmth does not alter the stored base RGB values.  Both warm and cool
@@ -465,11 +476,42 @@ static void effective_rgb(int *er,int *eg,int *eb){
         *eg=clamp(g - (cool*28+50)/100);
     }
 }
+/* Diagnostic is kept in tmpfs, not written to the SD card on GUI launch.
+ * This remains available after returning to MainUI and costs nothing on --apply.
+ */
+static void print_rgb_error(void){
+    char b[176]; int n=0,digitpos,i;long rc=rgb_error_sysrc,fd;
+    const char *msg="DisplayCal: RGB colortemp ";
+    for(i=0;msg[i];i++)b[n++]=msg[i];
+    msg=rgb_error_stage==1?"open":"write";
+    for(i=0;msg[i];i++)b[n++]=msg[i];
+    msg=" failed (syscall_rc=";
+    for(i=0;msg[i];i++)b[n++]=msg[i];
+    if(rc<0){b[n++]='-';rc=-rc;}
+    digitpos=n;
+    do{b[n++]=(char)('0'+(rc%10));rc/=10;}while(rc&&n<(int)sizeof(b)-62);
+    for(i=0;i<(n-digitpos)/2;i++){
+        char tmp=b[digitpos+i];b[digitpos+i]=b[n-1-i];b[n-1-i]=tmp;
+    }
+    msg=rgb_csc_missing?", CscMatrix=missing)\n":", CscMatrix=present)\n";
+    for(i=0;msg[i];i++)b[n++]=msg[i];
+    xwrite(1,b,(u32)n);
+    fd=xopen("/tmp/displaycal-last-error",O_WRONLY|O_CREAT|O_TRUNC,0644);
+    if(fd>=0){xwrite((int)fd,b,(u32)n);xclose((int)fd);}
+}
 static int apply_current(void){
     int rr,gg,bb;
     if(blf_on()){status=-6;applied=0;return status;}
     effective_rgb(&rr,&gg,&bb);
-    status=apply_rgb(rr,gg,bb);applied=(status==0);return status;
+    status=apply_rgb(rr,gg,bb);applied=(status==0);
+    if(status<0){
+        rgb_csc_missing=!dproc_csc_available();
+        print_rgb_error();
+    }else{
+        rgb_csc_missing=0;
+        sc1(10,(long)"/tmp/displaycal-last-error"); /* unlink stale diagnostic */
+    }
+    return status;
 }
 static int load_image(int idx){
     if(idx<0||idx>=NUM_IMAGES)return -1;
@@ -481,13 +523,8 @@ static int load_image(int idx){
     }
     return png_err;
 }
-static void text_int(int x,int y,int v,int scale,u32 col){
-    if(v<0){text5(x,y,"-",scale,col);v=-v;x+=6*scale;}
-    else {text5(x,y,"+",scale,col);x+=6*scale;}
-    num3(x,y,v,scale,col);
-}
 
-/* v0.7.2 polished RedOnion-inspired UI: 640x480, direct framebuffer.
+/* v0.8.1 polished RedOnion-inspired UI: 640x480, direct framebuffer.
  * RedOnion accent is exactly #EB5F7F; RGB labels remain pure primaries.
  */
 #include "ui_font_data.h"
@@ -578,12 +615,6 @@ static void ui_text(int x,int y,const char *s,int font,u32 color){
 static void ui_text_center(int x,int w,int y,const char*s,int font,u32 color){
     ui_text(x+(w-ui_text_width(s,font))/2,y,s,font,color);
 }
-static void ui_number(int x,int y,int v,int font,u32 color){
-    char buf[20];int pos=0;
-    if(v<0){buf[pos++]='-';v=-v;}
-    pos=append_num(buf,pos,v);buf[pos]=0;
-    ui_text(x,y,buf,font,color);
-}
 static void slider_draw(int row,int value){
     const int x=193,y=115+row*66,w=94,th=8;
     int knob=0;
@@ -621,6 +652,27 @@ static void channel_card(int row,int selected,int value){
     txtw=ui_text_width(t,2);
     ui_text(99+(83-txtw)/2,y+10,t,2,fg);
     slider_draw(row,row==3?warmth:(row==0?r:(row==1?g:b)));
+}
+static void display_slider(int row,int value){
+    int x=193,y=112+row*56,width=94,maxv=dmax[row];
+    int fill=value*width/maxv;
+    round_fill(x,y,width,8,4,px(80,83,91));
+    if(fill>2)round_fill(x,y,fill,8,4,accent());
+    disk(x+fill,y+4,9,px(85,82,85));disk(x+fill,y+4,7,px(245,246,247));
+}
+static void display_card(int row,int selected,int value){
+    int y=92+row*56;
+    u32 active=accent(),fg=px(242,244,247),muted=px(197,201,211);
+    u32 fill=selected?px(55,35,47):px(31,33,41);
+    round_stroke(16,y,294,50,10,selected?active:px(63,65,75),fill,selected?2:1);
+    /* Value box starts at x=116: longest label "Lumination" (font 0, 79 px
+     * from x=27) ends at 106, leaving a 10 px gap. Right edge stays at 181. */
+    round_stroke(116,y+8,65,34,7,selected?px(157,103,119):px(91,96,107),px(23,24,31),1);
+    ui_text(27,y+14,dtitle[row],0,muted);
+    char t[10];int p=append_num(t,0,value);t[p]=0;
+    int sw=ui_text_width(t,2);
+    ui_text(116+(65-sw)/2,y+8,t,2,fg);
+    display_slider(row,value);
 }
 static void monitor_icon(int x,int y){
     u32 framecol=px(246,246,249),edge=px(105,112,125);
@@ -664,37 +716,56 @@ static void draw(void){
     rect(0,60,W,2,accent());
     monitor_icon(19,14);
     ui_text(67,12,"DisplayCal",2,fg);
-    ui_text(213,21,"v0.7.2",0,muted);
-    round_fill((int)W-88,17,70,26,13,filter_active?px(126,86,42):(status<0?px(113,45,48):(applied?px(43,87,66):px(88,77,47))));
-    ui_text_center((int)W-88,70,20,filter_active?"BLF ON":(status<0?"ERROR":(applied?"LIVE":"READY")),0,status<0?px(255,207,203):px(234,240,237));
-    ui_text(20,66,"CHANNEL BALANCE",0,muted);
+    ui_text(213,21,"v0.8.1",0,muted);
+    /* Status pill reflects the CURRENT page only:
+     *   RGB page:     BLF ON / RGB ERR / LIVE (colortemp written) / READY
+     *   Display page: SDK ERR / LIVE (PWM or LCD write succeeded) / READY
+     */
+    {
+        int page_err=(page==0?status:dstatus)<0;
+        int page_live=(page==0?applied:dapplied);
+        int blf=(page==0 && filter_active);
+        u32 pill=blf?px(126,86,42):(page_err?px(113,45,48):(page_live?px(43,87,66):px(88,77,47)));
+        const char *label=blf?"BLF ON":(page_err?(page==0?"RGB ERR":"SDK ERR"):(page_live?"LIVE":"READY"));
+        round_fill((int)W-95,17,77,26,13,pill);
+        ui_text_center((int)W-95,77,20,label,0,px(234,240,237));
+    }
+    ui_text(20,66,page==0?"CHANNEL BALANCE":"DISPLAY SETTINGS",0,muted);
+    /* Visible page navigation hint. A is available because Compare was postponed. */
+    ui_text(225,66,page==0?"A:DISPLAY":"A:RGB",0,px(235,95,127));
     ui_text(326,66,"REFERENCE",0,muted);
-    for(int row=0;row<4;row++)channel_card(row,row==sel,row==0?r:(row==1?g:(row==2?b:warmth)));
-    rect(26,363,280,1,line);
-    ui_text(23,372,filter_active?"BLF ACTIVE - DISABLE TO TUNE":"OUTPUT RGB",0,muted);
+    if(page==0){
+        for(int row=0;row<4;row++)channel_card(row,row==sel,row==0?r:(row==1?g:(row==2?b:warmth)));
+    }else{
+        for(int row=0;row<5;row++)display_card(row,row==sel,dvalue[row]);
+    }
+    rect(26,377,280,1,line);
+    ui_text(23,381,page==0?(filter_active?"BLF ACTIVE - DISABLE TO TUNE":
+                 (status<0?(rgb_csc_missing?"DISP CSC MISSING":"RGB PROC WRITE FAILED"):"OUTPUT RGB")):
+          (dstatus==-10?"DISP UNAVAILABLE":(dstatus<0?"SDK FAILED - SAVE ONLY":"MAINUI VALUES")),0,muted);
     p=0; p=append_num(output,p,er);output[p++]=' ';output[p++]='/';output[p++]=' ';
     p=append_num(output,p,eg);output[p++]=' ';output[p++]='/';output[p++]=' ';
     p=append_num(output,p,eb);output[p]=0;
-    if(!filter_active) ui_text(149,371,output,1,fg);
+    if(page==0 && !filter_active) ui_text(149,378,output,1,fg);
     /* Preview card; test images preserve aspect ratio, topbar is native-size. */
     round_stroke(320,92,304,294,10,line,px(9,10,15),2);
     png_draw_preview(327,99,290,280);
     /* Current reference image name and count. */
     round_fill(446,64,178,25,6,px(36,35,44));
     ui_text_center(446,178,67,image_names[image_idx],0,px(239,222,225));
-    gradient_rect(0,397,(int)W,83,26,26,35,17,18,27);
-    rect(0,397,W,2,accent());
+    gradient_rect(0,412,(int)W,68,26,26,35,17,18,27);
+    rect(0,407,W,2,accent());
     /* Row 1: adjustment speeds and BOTH reset shortcuts on the same line. */
-    footer_pair(12,407,"LEFT","RIGHT","+/-1");
-    footer_pair(190,407,"L1","R1","+/-5");
-    footer_item(344,407,"X","RESET ROW");
-    footer_item(482,407,"Y","RESET ALL");
-    rect(14,436,W-28,1,px(60,58,70));
+    footer_pair(12,420,"LEFT","RIGHT","+/-1");
+    footer_pair(190,420,"L1","R1","+/-5");
+    footer_item(344,420,"X","RESET ROW");
+    footer_item(482,420,"Y","RESET PAGE");
+    rect(14,446,W-28,1,px(60,58,70));
     /* Row 2: independent Select tap/hold hints plus save and cancel. */
-    footer_item(12,444,"SELECT","NEXT");
-    footer_item(171,444,"HOLD SELECT","FULL");
-    footer_item(396,444,"B","CANCEL");
-    footer_item(504,444,"START","SAVE");
+    footer_item(12,452,"SELECT","NEXT");
+    footer_item(171,452,"HOLD SELECT","FULL");
+    footer_item(396,452,"B","CANCEL");
+    footer_item(504,452,"START","SAVE");
     present();
 }
 
@@ -704,6 +775,9 @@ static int is_left(u16 c){return c==105;}
 static int is_right(u16 c){return c==106;}
 static int is_l(u16 c){return c==18;}      /* KEY_E: HW_BTN_L1 */
 static int is_r(u16 c){return c==20;}      /* KEY_T: HW_BTN_R1 */
+static int is_l2(u16 c){return c==15;} /* KEY_TAB, Onion HW_BTN_L2 */
+static int is_r2(u16 c){return c==14;} /* KEY_BACKSPACE, Onion HW_BTN_R2 */
+static int is_a(u16 c){return c==57;} /* KEY_SPACE, Onion HW_BTN_A */
 static int is_select(u16 c){return c==97;} /* KEY_RIGHTCTRL */
 static int is_start(u16 c){return c==28;}  /* KEY_ENTER */
 static int is_b(u16 c){return c==29 || c==1;} /* KEY_LEFTCTRL / MENU=ESC */
@@ -717,15 +791,22 @@ static u32 clock_ms(void){
 static int due(u32 now,u32 when){return (s32)(now-when)>=0;}
 
 static void change(int delta){
+    if(page==1){
+        int nv=dvalue[sel]+delta;if(nv<0)nv=0;if(nv>dmax[sel])nv=dmax[sel];
+        if(nv==dvalue[sel])return;
+        dvalue[sel]=nv;dchanged=1;dapply_change(sel);draw();return;
+    }
     if(blf_on()){status=-6;draw();return;}
     int *v= sel==0?&r:(sel==1?&g:(sel==2?&b:&warmth));
     int value=sel==3?clamp_w(*v+delta):clamp(*v+delta);
-    if(value==*v)return; /* Limit reached: do not redraw or touch DISP. */
-    *v=value;
-    changed_by_gui=1;
-    apply_current();draw();
+    if(value==*v)return;
+    *v=value;changed_by_gui=1;apply_current();draw();
 }
 static void reset_selected(void){
+    if(page==1){
+        if(dvalue[sel]==ddefault[sel])return;
+        dvalue[sel]=ddefault[sel];dchanged=1;dapply_change(sel);draw();return;
+    }
     if(blf_on()){status=-6;draw();return;}
     int *v=sel==0?&r:(sel==1?&g:(sel==2?&b:&warmth));
     int value=sel==3?0:128;
@@ -733,6 +814,17 @@ static void reset_selected(void){
     *v=value;changed_by_gui=1;apply_current();draw();
 }
 static void reset_all(void){
+    if(page==1){
+        int i,any=0,bri=0,colors=0;
+        for(i=0;i<5;i++)if(dvalue[i]!=ddefault[i]){
+            dvalue[i]=ddefault[i];any=1;if(i==0)bri=1;else colors=1;
+        }
+        if(!any)return;
+        dchanged=1;
+        if(bri)dapply_change(0);
+        if(colors)dapply_lcd();
+        draw();return;
+    }
     if(blf_on()){status=-6;draw();return;}
     if(r==128&&g==128&&b==128&&warmth==0)return;
     r=g=b=128;warmth=0;changed_by_gui=1;apply_current();draw();
@@ -780,9 +872,10 @@ void _start(void){
             if(!blf_on()) apply_current();
         }
     }
+    dload_json();
     load_image(0);
     draw();
-    puts2("DisplayCal v0.7.2 running (BLF has priority).\n");
+    puts2("DisplayCal v0.8.1 running (BLF has priority).\n");
 
     {
         u16 held=0;
@@ -815,17 +908,35 @@ void _start(void){
                             if(original_has_cfg){r=original_r;g=original_g;b=original_b;warmth=original_w;apply_current();}
                             else status=apply_rgb(128,128,128);
                         }
+                        if(dchanged)dcancel_hw();
                         goto done;
                     }
                     if(is_start(e.code)){
-                        if(blf_on()){status=-6;draw();continue;}
-                        if(apply_current()<0){draw();continue;}
-                        if(save_cfg(r,g,b,warmth)<0){status=-3;draw();continue;}
+                        if(dchanged){
+                            if(dsave_json()<0){dstatus=-16;draw();continue;}
+                            /* system.json now holds these values: make them the
+                             * new baseline so a later Cancel (after an RGB save
+                             * failure) does not revert hardware away from disk. */
+                            {int k;for(k=0;k<DSET_COUNT;k++)doriginal[k]=dvalue[k];}
+                            dchanged=0;
+                        }
+                        /* Only touch the RGB profile when RGB/warmth changed;
+                         * otherwise Start would create a profile that --apply
+                         * then writes at every boot. */
+                        if(!blf_on() && changed_by_gui){
+                            if(apply_current()<0){draw();continue;}
+                            if(save_cfg(r,g,b,warmth)<0){status=-3;draw();continue;}
+                        }
                         draw();xsleep_ms(150);goto done;
                     }
                     if(fullscreen)continue;
-                    if(is_up(e.code)){sel--;if(sel<0)sel=3;draw();}
-                    else if(is_down(e.code)){sel++;if(sel>3)sel=0;draw();}
+                    if(is_l2(e.code)||is_r2(e.code)||is_a(e.code)){
+                        int next=is_a(e.code)?1-page:(is_l2(e.code)?0:1);
+                        if(next!=page){page=next;sel=0;draw();}
+                        continue;
+                    }
+                    if(is_up(e.code)){sel--;if(sel<0)sel=page?4:3;draw();}
+                    else if(is_down(e.code)){sel++;if(sel>(page?4:3))sel=0;draw();}
                     else if(is_x(e.code))reset_selected();
                     else if(is_y(e.code))reset_all();
                     else if(is_left(e.code)||is_right(e.code)||is_l(e.code)||is_r(e.code)){
@@ -850,7 +961,25 @@ void _start(void){
         }
     }
 done:
+    /* Leave a black screen, not the last UI frame: the launcher may now run
+     * disp_csc_reset.sh --repair, which restarts DISP and would otherwise
+     * flicker the stale UI until the app list redraws. Clear every fb page
+     * (not only the visible one) so a later pan can't show an old frame. */
+    {
+        volatile u32 *w=(volatile u32*)fb_map;
+        u32 k,words=MAPLEN/4u;
+        for(k=0;k<words;k++)w[k]=0;
+        for(k=words*4u;k<MAPLEN;k++)fb_map[k]=0;
+    }
+    if(dmi_init && d_sys_exit) d_sys_exit();
     for(i=0;i<nfd;i++)xclose(ev[i]);
     xmunmap(canvas,BUFLEN);xmunmap(previous,BUFLEN);
     xmunmap((void*)fb_map,MAPLEN);xclose((int)ffd);xexit(0);
+}
+/* Compiler-generated zero-init helper for the freestanding ARM build. */
+void *memset(void *p,int c,unsigned long n){
+    volatile u8 *v=(volatile u8*)p;
+    unsigned long i;
+    for(i=0;i<n;i++)v[i]=(u8)c;
+    return p;
 }

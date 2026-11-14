@@ -8,6 +8,13 @@ __aeabi_uidiv:
     b __aeabi_uidivmod
 .size __aeabi_uidiv, .-__aeabi_uidiv
 
+/* Restoring shift-subtract division, 32 iterations.
+ * LIMITATION: the running remainder (r3) is doubled before comparison, so a
+ * divisor > 0x80000000 can overflow r3 and give a wrong result. DisplayCal
+ * only divides by small values, so this is never reached; replace with
+ * libgcc's routine before reusing this file elsewhere.
+ * Division by zero returns quotient 0, remainder 0 (no trap).
+ */
 .global __aeabi_uidivmod
 .type __aeabi_uidivmod,%function
 __aeabi_uidivmod:
@@ -32,3 +39,21 @@ __aeabi_uidivmod:
     mov r1, #0
     bx lr
 .size __aeabi_uidivmod, .-__aeabi_uidivmod
+
+/* Clang freestanding signed-division import; preserves ABI sign semantics. */
+.global __aeabi_idiv
+.type __aeabi_idiv,%function
+__aeabi_idiv:
+    push {r4,lr}
+    mov r4, #0
+    cmp r0,#0
+    rsblt r0,r0,#0
+    eorlt r4,r4,#1
+    cmp r1,#0
+    rsblt r1,r1,#0
+    eorlt r4,r4,#1
+    bl __aeabi_uidiv
+    tst r4,#1
+    rsbne r0,r0,#0
+    pop {r4,pc}
+.size __aeabi_idiv, .-__aeabi_idiv
