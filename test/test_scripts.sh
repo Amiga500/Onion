@@ -3925,7 +3925,9 @@ end
 begin runtime_repairs_display_after_games
 eval "$(extract_fn "$RUNTIME" repair_display | sed -e "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/mi_disp0#g" \
     -e "s#/tmp/display_has_csc#$TMP/has_csc#" -e "s#/tmp/.offOrder#$TMP/offOrder#")"
+eval "$(extract_fn "$RUNTIME" repair_log)"
 sysdir=$TMP
+DEVICE_ID=354
 mkdir -p "$TMP/script"
 printf 'echo "$*" >> "%s/repairs"\necho "display: restarting disp_init"\nexit ${REPAIR_RC:-0}\n' "$TMP" > "$TMP/script/disp_csc_reset.sh"
 log() { echo "$*" >> "$TMP/log"; }
@@ -3940,6 +3942,7 @@ echo " DevStatus IrqNum" > "$TMP/mi_disp0"
 repair_display Amidar.a26
 check "lost: disp_csc_reset.sh --repair" test "$(cat "$TMP/repairs")" = "--repair"
 check "logged: what ended, what was wrong, the script's words, how long" sh -c 'grep -q "no CSC section in mi_disp0 after Amidar.a26" "$1/log" && grep -q "display: restarting disp_init" "$1/log" && grep -q "Display: set up again (.* -> .* s)" "$1/log"' _ "$TMP"
+check "also in logs/display_repair.log without debug logging, with the model" sh -c 'grep -q "(model 354) Display: no CSC section in mi_disp0 after Amidar.a26" "$1/logs/display_repair.log" && grep -q "(model 354) Display: set up again" "$1/logs/display_repair.log"' _ "$TMP"
 rm -f "$TMP/mi_disp0" "$TMP/log"
 REPAIR_RC=1 repair_display Amidar.a26
 check "mi_disp0 gone: repaired too, a failure logged" sh -c 'grep -q "mi_disp0 gone after Amidar.a26" "$1/log" && grep -q "still no CSC section" "$1/log"' _ "$TMP"
@@ -3947,10 +3950,16 @@ check "mi_disp0 gone: repaired too, a failure logged" sh -c 'grep -q "mi_disp0 g
 : > "$TMP/repairs"
 repair_display Amidar.a26
 check "not while shutting down" test ! -s "$TMP/repairs"
+rm -f "$TMP/offOrder"
+i=0
+while [ $i -lt 250 ]; do echo "old line $i"; i=$((i + 1)); done > "$TMP/logs/display_repair.log"
+repair_display Amidar.a26
+check "display_repair.log kept to its last 200 lines" sh -c 'test "$(wc -l < "$1/logs/display_repair.log")" -eq 200 && tail -n 1 "$1/logs/display_repair.log" | grep -q "set up again" && ! grep -q "old line 0$" "$1/logs/display_repair.log"' _ "$TMP"
 check "after every game or app" sh -c "sed -n '/^launch_game_postprocess() {/,/^}/p' '$RUNTIME' | grep -q '^    repair_display \"\$(basename \"\$rompath\")\"\$'"
 check "after the game menu (netplay)" sh -c "sed -n '/^launch_game_menu() {/,/^}/p' '$RUNTIME' | grep -q '^    repair_display \"the game menu\"\$'"
 check "the CSC section noted at boot" grep -q 'grep -q CscMatrix /proc/mi_modules/mi_disp/mi_disp0 2> /dev/null; then' "$RUNTIME"
-unset -f repair_display log
+unset -f repair_display repair_log log
+unset DEVICE_ID
 end
 
 echo ""

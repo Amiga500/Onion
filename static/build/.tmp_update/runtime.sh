@@ -405,19 +405,33 @@ repair_display() {
     [ -f /tmp/.offOrder ] && return 0
     grep -q CscMatrix /proc/mi_modules/mi_disp/mi_disp0 2> /dev/null && return 0
     if [ -e /proc/mi_modules/mi_disp/mi_disp0 ]; then
-        log "Display: no CSC section in mi_disp0 after $1, setting it up again"
+        repair_log "Display: no CSC section in mi_disp0 after $1, setting it up again"
     else
-        log "Display: mi_disp0 gone after $1, setting it up again"
+        repair_log "Display: mi_disp0 gone after $1, setting it up again"
     fi
     repair_from=$(cut -d" " -f1 /proc/uptime)
     repair_out=$(sh $sysdir/script/disp_csc_reset.sh --repair 2>&1)
     repair_rc=$?
-    [ -n "$repair_out" ] && log "$repair_out"
+    [ -n "$repair_out" ] && repair_log "$repair_out"
     if [ $repair_rc -eq 0 ]; then
-        log "Display: set up again ($repair_from -> $(cut -d" " -f1 /proc/uptime) s)"
+        repair_log "Display: set up again ($repair_from -> $(cut -d" " -f1 /proc/uptime) s)"
     else
-        log "Display: still no CSC section"
+        repair_log "Display: still no CSC section"
     fi
+    # Only the last 200 lines (about 40 repairs) are kept.
+    repair_file=$sysdir/logs/display_repair.log
+    if [ "$(wc -l < "$repair_file")" -gt 200 ]; then
+        tail -n 200 "$repair_file" > "$repair_file.tmp" && mv -f "$repair_file.tmp" "$repair_file"
+    fi
+}
+
+# A repair is written down even without debug logging, in its own file that
+# a tester can send: logs/display_repair.log (date, model, what happened).
+# With debug logging it is in runtime.log too.
+repair_log() {
+    log "$*"
+    mkdir -p "$sysdir/logs"
+    echo "$(date +"%Y-%m-%d %H:%M:%S") (model $DEVICE_ID) $*" >> "$sysdir/logs/display_repair.log"
 }
 
 launch_main_ui() {
