@@ -13,7 +13,7 @@ VERSION_BASE=4.5.0
 VERSION_DATE ?= $(shell date -u +%Y%m%d)
 export VERSION_DATE
 VERSION=$(VERSION_BASE)-$(VERSION_DATE)
-RA_SUBVERSION=1.22.2-2
+RA_SUBVERSION=1.22.2-3
 
 ###########################################################
 
