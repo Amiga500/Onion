@@ -1,8 +1,20 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.1 rc1**, on top of 1.1.0 (the source in
-`third-party/open-mainui`):
+GitHub: **Open MainUI 1.1.1 rc2**, on top of 1.1.0 (the source in
+`third-party/open-mainui`).
+
+Since rc1:
+
+- A button pressed together with MENU, such as MENU+B for the blue light
+  filter, no longer also acts in MainUI.
+- The Display page (Lumination, Hue, Saturation, Contrast) shows only B's
+  hint.
+- When changing colours finds the display driver broken, MainUI asks, then
+  closes and runs RedOnion's `disp_csc_reset.sh --repair` before it starts
+  again. An extra layer: runtime.sh still repairs after a game.
+
+From rc1:
 
 - A console's number of games no longer counts Onion's `~` entries, such as
   ~Filter and ~Refresh roms.
