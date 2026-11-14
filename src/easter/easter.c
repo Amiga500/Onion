@@ -1429,7 +1429,7 @@ static void draw_title(Game *game)
     char buffer[64];
     draw_stars(game);
     text_centre(font_big, "Cucuzziello's", 40, C_BLUE);
-    text_centre(font_big, "GAME", 86, C_MAGENTA);
+    text_centre(font_big, "Game", 86, C_MAGENTA);
     text_centre(font_small, "by Amiga500", 138, C_AMBER);
     text_centre(font_small, "push every crate onto a marker", 172, C_CHROME_DIM);
     text_centre(font_small, "levels: Microban by David W. Skinner", 198, C_CHROME_DIM);
