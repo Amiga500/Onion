@@ -1,4 +1,4 @@
-# Cucuziello's Game
+# Cucuzziello's Game
 
 Onion/RedOnion ten-level Easter egg (SDL 1.2, SDL_ttf, C11), by Amiga500.
 

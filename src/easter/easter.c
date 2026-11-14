@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  *
- * Cucuziello's Game -- a ten-level warehouse puzzle for Onion/RedOnion on the
+ * Cucuzziello's Game -- a ten-level warehouse puzzle for Onion/RedOnion on the
  * Miyoo Mini family, by Amiga500. It takes the place of Neon Breaker as the
  * easter egg and keeps its look, its sound code and the way it is started.
  *
@@ -1428,7 +1428,7 @@ static void draw_title(Game *game)
 {
     char buffer[64];
     draw_stars(game);
-    text_centre(font_big, "CUCUZIELLO'S", 40, C_BLUE);
+    text_centre(font_big, "Cucuzziello's", 40, C_BLUE);
     text_centre(font_big, "GAME", 86, C_MAGENTA);
     text_centre(font_small, "by Amiga500", 138, C_AMBER);
     text_centre(font_small, "push every crate onto a marker", 172, C_CHROME_DIM);
@@ -1672,7 +1672,7 @@ int main(int argc, char **argv)
         if (!snapshot_after) snapshot_after = 3600;
     }
     log_open();
-    say("--- cucuziello's game start ---");
+    say("--- cucuzziello's game start ---");
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
