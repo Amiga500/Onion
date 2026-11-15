@@ -236,7 +236,13 @@ void log_new_percentage(int new_bat_value, int is_charging)
 {
     if (open_battery_log_db() == 1) {
         if (bat_log_db != NULL) {
-            char *sql = sqlite3_mprintf("INSERT INTO bat_activity(device_serial, bat_level, duration, is_charging) VALUES(%Q, %d, %d, %d);", DEVICE_SN, new_bat_value, 0, is_charging);
+            // start_time: when this entry begins (Unix time), NULL while the clock is unset.
+            // Battery Monitor finds sleep and clock times from it (the column is added by
+            // open_battery_log_db).
+            long long start_time = (long long)time(NULL);
+            char *sql = start_time >= BATTERY_LOG_MIN_TIME
+                            ? sqlite3_mprintf("INSERT INTO bat_activity(device_serial, bat_level, duration, is_charging, start_time) VALUES(%Q, %d, %d, %d, %lld);", DEVICE_SN, new_bat_value, 0, is_charging, start_time)
+                            : sqlite3_mprintf("INSERT INTO bat_activity(device_serial, bat_level, duration, is_charging) VALUES(%Q, %d, %d, %d);", DEVICE_SN, new_bat_value, 0, is_charging);
             sqlite3_exec(bat_log_db, sql, NULL, NULL, NULL);
             sqlite3_free(sql);
 
