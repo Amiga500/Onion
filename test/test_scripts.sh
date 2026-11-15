@@ -529,6 +529,20 @@ check "a finished one is" test -s "$gi_root/Imgs/ok.png"
 unset -f wget
 end
 
+begin scraper_gamelist_not_replaced_by_a_short_list
+gi_env
+printf '<?xml version="1.0"?>\n<gameList>\n<game><path>./Other.sfc</path><desc>keep</desc></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+cp "$gi_root/gamelist.xml" "$TMP/before.xml"
+awk() { command awk "$@" | head -c 30; } # the new list written short, as on a full SD card
+gi_write_desc
+check "a short new list does not replace gamelist.xml" cmp -s "$gi_root/gamelist.xml" "$TMP/before.xml"
+check "and is not left behind" test ! -e "$gi_root/gamelist.xml.tmp"
+unset -f awk
+gi_write_desc
+check "a whole one does" grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' "$gi_root/gamelist.xml"
+check "keeping the others" grep -q '<desc>keep</desc>' "$gi_root/gamelist.xml"
+end
+
 begin scraper_gamelist_back_after_a_cut_rename
 gi_env
 printf '<gameList>\n<game><path>./Other.sfc</path><desc>keep</desc></game>\n</gameList>\n' > "$gi_root/gamelist.xml.tmp"

@@ -469,7 +469,9 @@ gi_write_desc() {
                 print substr(s, pos)
             }
         }' "$gi_list" > "$gi_list.tmp" &&
-        [ -s "$gi_list.tmp" ] && mv -f "$gi_list.tmp" "$gi_list"
+        # Only a whole new list replaces the old one: written short (SD card
+        # full), it would lose every entry after the cut, other scrapers' too.
+        grep -q '</gameList>' "$gi_list.tmp" && mv -f "$gi_list.tmp" "$gi_list"
     gi_ok=$?
     rm -f "$gi_list.entry" "$gi_list.tmp"
     return $gi_ok
