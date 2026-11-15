@@ -4270,6 +4270,23 @@ check "retroarch.cfg gone meanwhile: the backup put back whole" grep -qx 'kiosk_
 unset -f ra_lock_keys restore_ra_state_bindings apply_ra_lock restore_ra_lock log
 end
 
+begin displaycal_apply_skips_neutral_and_too_dark
+DISPLAYCAL="$ROOT/static/packages/App/DisplayCal/App/DisplayCal/launch.sh"
+mkdir -p "$TMP/dc"; echo 0abc > "$TMP/sn"
+dc_apply() { : > "$TMP/dcnode"; DISPLAYCAL_CFGDIR=$TMP/dc DISPLAYCAL_NODE=$TMP/dcnode DISPLAYCAL_SERIAL_FILE=$TMP/sn DISPLAYCAL_BLF_FLAG=$TMP/blf SERIAL_NUMBER= sh "$DISPLAYCAL" --apply 2> /dev/null; }
+printf 'R=128\nG=128\nB=128\nW=0\n' > "$TMP/dc/cal-0abc.cfg"
+dc_apply
+check "a neutral profile: nothing written at boot" sh -c 'test ! -s "$1"' _ "$TMP/dcnode"
+printf 'R=0\nG=0\nB=0\nW=0\n' > "$TMP/dc/cal-0abc.cfg"
+dc_apply; rc=$?
+check "a black profile (total under 70): refused" test "$rc" = 2
+check "and nothing written" sh -c 'test ! -s "$1"' _ "$TMP/dcnode"
+printf 'R=30\nG=20\nB=20\nW=0\n' > "$TMP/dc/cal-0abc.cfg"
+dc_apply
+check "a dark one at the limit (70) is written" test "$(cat "$TMP/dcnode")" = "colortemp 0 0 0 0 20 20 30"
+unset -f dc_apply
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

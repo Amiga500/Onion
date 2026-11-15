@@ -10,10 +10,10 @@
 #define DSET_CONTRAST 4
 static const char *dkey[DSET_COUNT]={"brightness","lumination","hue","saturation","contrast"};
 static const char *dtitle[DSET_COUNT]={"Brightness","Lumination","Hue","Saturation","Contrast"};
-static const int ddefault[DSET_COUNT]={7,7,10,10,10};
+static const int ddefault[DSET_COUNT]={7,10,10,10,10};
 static const int dmax[DSET_COUNT]={10,20,20,20,20};
-static int dvalue[DSET_COUNT]={7,7,10,10,10};
-static int doriginal[DSET_COUNT]={7,7,10,10,10};
+static int dvalue[DSET_COUNT]={7,10,10,10,10};
+static int doriginal[DSET_COUNT]={7,10,10,10,10};
 static int dchanged=0,dstatus=0,dloaded=0,dlast_mi_rc=0;
 /* 1 once a Display-page write (PWM or LCD) has succeeded this session. */
 static int dapplied=0;

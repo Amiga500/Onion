@@ -1,10 +1,10 @@
-# DisplayCal v0.8.1
+# DisplayCal v0.8.3
 
 DisplayCal is a lightweight display-calibration app for **Miyoo Mini and Miyoo Mini Plus** running **Onion or RedOnion**. It provides live RGB/warmth adjustment, brightness and LCD color controls, and reference images for comparing color casts, tone and saturation.
 
 The GUI is a small, freestanding ARM framebuffer executable. It does **not** use SDL and installs just one shell launcher, `launch.sh`. It does not patch MainUI or install an automatic startup hook.
 
-**Device testing:** DisplayCal v0.8.1 has been tested successfully on multiple Miyoo devices. The LCD controls use the same Get/Set interface and value conversions as MainUI, while the app maintains its own lightweight framebuffer interface. Hardware support can still vary by firmware and display state.
+**Device testing:** Has been tested successfully on multiple Miyoo devices. The LCD controls use the same Get/Set interface and value conversions as MainUI, while the app maintains its own lightweight framebuffer interface. Hardware support can still vary by firmware and display state.
 
 ## Installation
 
@@ -12,7 +12,7 @@ The GUI is a small, freestanding ARM framebuffer executable. It does **not** use
 2. Verify the installation directory is `/mnt/SDCARD/App/DisplayCal/`.
 3. Open **Apps → DisplayCal** in Onion/RedOnion, or run `./launch.sh` from that directory.
 
-No system files need to be patched. Calibration is **not automatically applied at boot** unless you choose to integrate `--apply` into your own startup scripts.
+No system files need to be patched. Calibration is automatically applied at boot in newer RedOnion. On other systems you might need to integrate `--apply` into your own startup scripts.
 
 ## Controls
 
@@ -67,6 +67,12 @@ The RGB page controls **Red**, **Green**, **Blue** and **Warmth** independently 
 
 Warmth attenuates channels instead of boosting them above their base RGB values. The UI displays the **effective RGB** values sent to the display controller.
 
+### Safety and neutral profiles
+
+Individual RGB channels retain the full **0–255** range. To prevent a black-screen profile from being written or automatically restored at boot, the **sum of the effective RGB values after Warmth is applied must be at least 70**. The GUI refuses an adjustment below that limit, leaves the last valid hardware values active, and displays **RGB TOO DARK**. Saved or manually edited profiles below the threshold are rejected by `--apply` without a display write. The threshold is a practical guard, not a guarantee of readability for every panel.
+
+A completely neutral profile (`R=128`, `G=128`, `B=128`, `W=0`) means **no calibration**. Saving it removes the existing per-device `.cfg` file (or leaves it absent). Existing manually created neutral profiles are ignored by `--apply`; the GUI also skips applying them on startup. An explicit `--neutral` command still writes neutral values when requested.
+
 The app adjusts **global channel gains**, not per-channel gamma curves or the LCD panel's physical black level. It may improve a color cast without fully matching a different display panel.
 
 ### RGB hardware interface
@@ -92,7 +98,7 @@ The Display page exposes five settings shared with MainUI:
 | Setting | Range | Default | Live hardware method |
 | --- | --- | --- | --- |
 | Brightness | 0–10 | 7 | PWM backlight |
-| Lumination | 0–20 | 7 | SigmaStar DISP SDK |
+| Lumination | 0–20 | 10 | SigmaStar DISP SDK |
 | Hue | 0–20 | 10 | SigmaStar DISP SDK |
 | Saturation | 0–20 | 10 | SigmaStar DISP SDK |
 | Contrast | 0–20 | 10 | SigmaStar DISP SDK |
@@ -128,7 +134,7 @@ The source uses the existing **24-byte LCD parameter layout** for the meaningful
 
 The LCD controls initialize their SigmaStar SDK session **lazily**, on the first LCD color adjustment. DisplayCal loads `libpthread`, `libmi_common`, `libmi_sys` and `libmi_disp` in order using `RTLD_NOW | RTLD_GLOBAL`, then calls `MI_SYS_Init()` and performs an initial `MI_DISP_GetLcdParam()` readiness read. Subsequent adjustments reuse the session and perform a fresh Get/Set pair. `MI_SYS_Exit()` runs when the GUI exits.
 
-The first LCD adjustment may pause briefly while the SDK session is initialized. Subsequent changes reuse that session. The initialization does not invoke an explicit display repair or restart, and the cause of the occasional pause has not been conclusively isolated.
+When an LCD color adjustment enters a potentially slow SDK call, the GUI first draws **WAIT** in the status label, then restores the normal status once the operation completes. The first LCD adjustment may pause briefly while the SDK session is initialized. Subsequent changes reuse that session. The initialization does not invoke an explicit display repair or restart, and the cause of the occasional pause has not been conclusively isolated.
 
 DisplayCal checks whether `/proc/mi_modules/mi_disp/mi_disp0` contains `CscMatrix`. If it is absent, or if the DISP SDK rejects an operation, the GUI reports an error such as **DISP UNAVAILABLE**, **SDK ERR**, or **SDK FAILED - SAVE ONLY**. Values can still be saved for later application, but a failed live call must not be taken as proof that the screen was updated.
 
@@ -155,7 +161,7 @@ DisplayCal reads Onion/RedOnion's **`$SERIAL_NUMBER`** when valid, otherwise **`
 
 When no valid serial is available, the interactive GUI uses **`cal-default.cfg`**. The headless `--apply` command deliberately **does not** apply that fallback profile, to avoid applying a shared calibration to the wrong device.
 
-Opening the GUI applies a saved RGB profile when the Blue Light Filter is inactive. **Start** saves changed RGB/Warmth values and leaves the applied calibration active. **Cancel** restores the saved profile if changes were made, or the neutral starting baseline when there is no saved profile and an RGB adjustment was made. If nothing changed, Cancel avoids an unnecessary RGB write.
+Opening the GUI applies a saved, non-neutral, valid RGB profile when the Blue Light Filter is inactive. **Start** saves changed RGB/Warmth values and leaves the applied calibration active. **Cancel** restores the saved profile if changes were made, or the neutral starting baseline when there is no saved profile and an RGB adjustment was made. If nothing changed, Cancel avoids an unnecessary RGB write.
 
 ### Shared MainUI settings
 
@@ -199,7 +205,7 @@ cd /mnt/SDCARD/App/DisplayCal
 ./launch.sh --apply               # Apply the saved profile headlessly
 ```
 
-**`--apply` is the fast boot-time path:** it uses shell built-ins, does not open the GUI, decode PNGs, call `read_uuid`, initialize SigmaStar userspace libraries, read `system.json`, write logs, or adjust brightness/CSC. If no valid device serial/profile is available or BLF is active, it exits without altering the display. It accepts both Unix LF and Windows CRLF profile files.
+**`--apply` is the fast boot-time path:** it uses shell built-ins, does not open the GUI, decode PNGs, call `read_uuid`, initialize SigmaStar userspace libraries, read `system.json`, write logs, or adjust brightness/CSC. If no valid device serial/profile is available, the saved profile is neutral, or BLF is active, it exits without altering the display. Profiles below the minimum effective RGB total are rejected before any hardware write. It accepts both Unix LF and Windows CRLF profile files.
 
 No automatic startup integration is installed by DisplayCal. If you add one to RedOnion, coordinate it with Blue Light Filter initialization and any display reset/CSC restoration so later writes do not overwrite calibration.
 

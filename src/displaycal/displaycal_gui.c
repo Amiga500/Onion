@@ -1,5 +1,5 @@
 /*
- * DisplayCal v0.8.1 for Onion
+ * DisplayCal v0.8.3 for Onion
  * Freestanding ARM/Linux utility: direct framebuffer + libz PNG decode.
  * Uses /dev/fb0 + /dev/input/event* and the working SigmaStar DISP proc node.
  */
@@ -235,9 +235,19 @@ static int apply_rgb(int r,int g,int b){
     if(n!=p){rgb_error_stage=2;rgb_error_sysrc=n;return -2;}
     return 0;
 }
+static int is_neutral_profile(int r,int g,int b,int w){
+    return r==128 && g==128 && b==128 && w==0;
+}
 static int save_cfg(int r,int g,int b,int w){
     char path[192], tmp[200],s[64];int p=0,i=0;long fd,n;
     if(cfg_path(path,sizeof(path))<0)return -3;
+    /* A fully neutral profile means calibration disabled. Remove the file
+     * rather than rewriting 128/128/128 at every boot. ENOENT is fine.
+     */
+    if(is_neutral_profile(r,g,b,w)){
+        long rc=sc1(10,(long)path); /* ARM unlink */
+        return rc==0 || rc==-2 ? 0 : -6;
+    }
     xmkdir("/mnt/SDCARD/.tmp_update/config/display",0755);
     for(;path[i]&&i<(int)sizeof(tmp)-5;i++) tmp[i]=path[i];
     if(i>=(int)sizeof(tmp)-5)return -4;
@@ -453,7 +463,7 @@ static int fullscreen=0,png_err=0;
 static int r=128,g=128,b=128,warmth=0,sel=0,page=0,applied=0,status=0;
 static int original_r=128,original_g=128,original_b=128,original_w=0;
 static int original_has_cfg=0;
-static int changed_by_gui=0;
+static int changed_by_gui=0,invalid_saved_cfg=0;
 /* /tmp/.blfOn is Onion's active Blue Light Filter state flag. */
 static int blf_on(void){
     return sc2(SYS_access,(long)"/tmp/.blfOn",0)==0;
@@ -465,6 +475,10 @@ static int clamp_w(int v){return v<-100?-100:(v>100?100:v);}
  * settings attenuate channels instead of boosting above the user values.
  * This is an additive adjustment in *display control units*, not Kelvin.
  */
+#define MIN_RGB_TOTAL 70
+static int rgb_total_ok(int er,int eg,int eb){
+    return er>=0 && eg>=0 && eb>=0 && er+eg+eb>=MIN_RGB_TOTAL;
+}
 static void effective_rgb(int *er,int *eg,int *eb){
     *er=r;*eg=g;*eb=b;
     if(warmth>0){
@@ -503,6 +517,9 @@ static int apply_current(void){
     int rr,gg,bb;
     if(blf_on()){status=-6;applied=0;return status;}
     effective_rgb(&rr,&gg,&bb);
+    if(!rgb_total_ok(rr,gg,bb)){
+        status=-7;applied=0;return status; /* No hardware write. */
+    }
     status=apply_rgb(rr,gg,bb);applied=(status==0);
     if(status<0){
         rgb_csc_missing=!dproc_csc_available();
@@ -716,7 +733,7 @@ static void draw(void){
     rect(0,60,W,2,accent());
     monitor_icon(19,14);
     ui_text(67,12,"DisplayCal",2,fg);
-    ui_text(213,21,"v0.8.1",0,muted);
+    ui_text(213,21,"v0.8.3",0,muted);
     /* Status pill reflects the CURRENT page only:
      *   RGB page:     BLF ON / RGB ERR / LIVE (colortemp written) / READY
      *   Display page: SDK ERR / LIVE (PWM or LCD write succeeded) / READY
@@ -726,7 +743,9 @@ static void draw(void){
         int page_live=(page==0?applied:dapplied);
         int blf=(page==0 && filter_active);
         u32 pill=blf?px(126,86,42):(page_err?px(113,45,48):(page_live?px(43,87,66):px(88,77,47)));
-        const char *label=blf?"BLF ON":(page_err?(page==0?"RGB ERR":"SDK ERR"):(page_live?"LIVE":"READY"));
+        const char *label=blf?"BLF ON":
+            (page==0 && status==-7?"TOO DARK":
+             (page_err?(page==0?"RGB ERR":"SDK ERR"):(page_live?"LIVE":"READY")));
         round_fill((int)W-95,17,77,26,13,pill);
         ui_text_center((int)W-95,77,20,label,0,px(234,240,237));
     }
@@ -741,7 +760,8 @@ static void draw(void){
     }
     rect(26,377,280,1,line);
     ui_text(23,381,page==0?(filter_active?"BLF ACTIVE - DISABLE TO TUNE":
-                 (status<0?(rgb_csc_missing?"DISP CSC MISSING":"RGB PROC WRITE FAILED"):"OUTPUT RGB")):
+                 (status==-7?"RGB TOO DARK - MIN TOTAL 70":
+                  (status<0?(rgb_csc_missing?"DISP CSC MISSING":"RGB PROC WRITE FAILED"):"OUTPUT RGB"))):
           (dstatus==-10?"DISP UNAVAILABLE":(dstatus<0?"SDK FAILED - SAVE ONLY":"MAINUI VALUES")),0,muted);
     p=0; p=append_num(output,p,er);output[p++]=' ';output[p++]='/';output[p++]=' ';
     p=append_num(output,p,eg);output[p++]=' ';output[p++]='/';output[p++]=' ';
@@ -800,7 +820,15 @@ static void change(int delta){
     int *v= sel==0?&r:(sel==1?&g:(sel==2?&b:&warmth));
     int value=sel==3?clamp_w(*v+delta):clamp(*v+delta);
     if(value==*v)return;
-    *v=value;changed_by_gui=1;apply_current();draw();
+    {
+        int old=*v,er,eg,eb;
+        *v=value;
+        effective_rgb(&er,&eg,&eb);
+        if(!rgb_total_ok(er,eg,eb)){
+            *v=old;status=-7;draw();return;
+        }
+    }
+    changed_by_gui=1;apply_current();draw();
 }
 static void reset_selected(void){
     if(page==1){
@@ -811,7 +839,15 @@ static void reset_selected(void){
     int *v=sel==0?&r:(sel==1?&g:(sel==2?&b:&warmth));
     int value=sel==3?0:128;
     if(*v==value)return;
-    *v=value;changed_by_gui=1;apply_current();draw();
+    {
+        int old=*v,er,eg,eb;
+        *v=value;
+        effective_rgb(&er,&eg,&eb);
+        if(!rgb_total_ok(er,eg,eb)){
+            *v=old;status=-7;draw();return;
+        }
+    }
+    changed_by_gui=1;apply_current();draw();
 }
 static void reset_all(void){
     if(page==1){
@@ -822,7 +858,7 @@ static void reset_all(void){
         if(!any)return;
         dchanged=1;
         if(bri)dapply_change(0);
-        if(colors)dapply_lcd();
+        if(colors)dapply_change(DSET_LUMA);
         draw();return;
     }
     if(blf_on()){status=-6;draw();return;}
@@ -867,15 +903,25 @@ void _start(void){
     {
         char cp[192]; int rr=128,gg=128,bb=128,ww=0;
         if(cfg_path(cp,sizeof(cp))>0 && parse_cfg(cp,&rr,&gg,&bb,&ww)==0){
+            int er,eg,eb;
             r=rr;g=gg;b=bb;warmth=ww;
-            original_r=rr;original_g=gg;original_b=bb;original_w=ww;original_has_cfg=1;
-            if(!blf_on()) apply_current();
+            effective_rgb(&er,&eg,&eb);
+            if(!rgb_total_ok(er,eg,eb)){
+                /* Corrupt/unsafe saved profile: never apply on GUI launch.
+                 * Start on neutral will delete this profile; Cancel won't
+                 * try to restore the unsafe values. */
+                r=g=b=128;warmth=0;
+                invalid_saved_cfg=1;status=-7;
+            }else{
+                original_r=rr;original_g=gg;original_b=bb;original_w=ww;original_has_cfg=1;
+                if(!blf_on() && !is_neutral_profile(r,g,b,warmth))apply_current();
+            }
         }
     }
     dload_json();
     load_image(0);
     draw();
-    puts2("DisplayCal v0.8.1 running (BLF has priority).\n");
+    puts2("DisplayCal v0.8.3 running (BLF has priority).\n");
 
     {
         u16 held=0;
@@ -923,8 +969,14 @@ void _start(void){
                         /* Only touch the RGB profile when RGB/warmth changed;
                          * otherwise Start would create a profile that --apply
                          * then writes at every boot. */
-                        if(!blf_on() && changed_by_gui){
-                            if(apply_current()<0){draw();continue;}
+                        if(!blf_on() && (changed_by_gui || invalid_saved_cfg ||
+                             (original_has_cfg && is_neutral_profile(r,g,b,warmth)))){
+                            int er,eg,eb;
+                            effective_rgb(&er,&eg,&eb);
+                            if(!rgb_total_ok(er,eg,eb)){status=-7;draw();continue;}
+                            /* An already-neutral profile should just be removed;
+                             * no unnecessary colortemp write on Save. */
+                            if(changed_by_gui && apply_current()<0){draw();continue;}
                             if(save_cfg(r,g,b,warmth)<0){status=-3;draw();continue;}
                         }
                         draw();xsleep_ms(150);goto done;

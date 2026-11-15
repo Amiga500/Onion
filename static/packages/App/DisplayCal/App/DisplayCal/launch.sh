@@ -1,7 +1,8 @@
 #!/bin/sh
-# DisplayCal v0.8.1: single launcher; --apply uses shell built-ins only.
+# DisplayCal v0.8.3: single launcher; --apply uses shell built-ins only.
 # GUI logging is opt-in: DISPLAYCAL_DEBUG=1 ./launch.sh
-# No Onion/RedOnion runtime or Blue Light script changes.
+# RedOnion may call --apply at boot and after Blue Light Filter is disabled.
+# DisplayCal never patches RedOnion runtime/Blue Light scripts.
 set -eu
 
 CFGDIR=${DISPLAYCAL_CFGDIR:-/mnt/SDCARD/.tmp_update/config/display}
@@ -66,6 +67,12 @@ with_warmth() {
     [ "$R" -ge 0 ] || R=0
     [ "$G" -ge 0 ] || G=0
     [ "$B" -ge 0 ] || B=0
+    # Safety limit applies to EFFECTIVE channels, after warmth attenuation.
+    # Individual channels may still be zero. Never write a total under 70.
+    if [ $((R + G + B)) -lt 70 ]; then
+        printf 'DisplayCal: RGB TOO DARK (minimum effective total: 70)\n' >&2
+        return 2
+    fi
     write_rgb "$R" "$G" "$B"
 }
 
@@ -87,6 +94,13 @@ apply_saved() {
             W=*) WW=${LINE#W=} ;;
         esac
     done < "$CFG"
+    # A neutral profile explicitly disables calibration. Avoid an unnecessary
+    # boot-time write that might override another display component's state.
+    if valid_channel "$RR" && valid_channel "$GG" && valid_channel "$BB" && valid_warmth "$WW"; then
+        if [ "$RR" -eq 128 ] && [ "$GG" -eq 128 ] && [ "$BB" -eq 128 ] && [ "$WW" -eq 0 ]; then
+            return 0
+        fi
+    fi
     with_warmth "$RR" "$GG" "$BB" "$WW"
 }
 
