@@ -71,6 +71,36 @@ void display_clear(void)
     }
 }
 
+// An alternative from robcodedev, documented here and NOT in use. It only
+// pans the visible page back to zero (FBIOPAN_DISPLAY) instead of setting
+// the whole screen mode again (FBIOPUT_VSCREENINFO), and does nothing when
+// /dev/fb0 cannot be opened, its info cannot be read, or page zero is
+// already shown. With it, kill_mainUI() would not need to skip
+// display_reset() on the Mini Flip (it froze there; it works for robcodedev),
+// but it is riskier, so the simple fix in kill_mainUI() is used instead.
+//
+// void display_reset(void)
+// {
+//     if (fb_fd < 0) {
+//         fb_fd = open("/dev/fb0", O_RDWR);
+//         if (fb_fd < 0)
+//             return;
+//     }
+//
+//     if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &g_display.vinfo) < 0)
+//         return;
+//
+//     // Already displaying page zero.
+//     if (g_display.vinfo.yoffset == 0)
+//         return;
+//
+//     // Only change the visible framebuffer page.
+//     g_display.vinfo.yoffset = 0;
+//
+//     if (ioctl(fb_fd, FBIOPAN_DISPLAY, &g_display.vinfo) < 0) {
+//         perror("display_reset: FBIOPAN_DISPLAY");
+//     }
+// }
 void display_reset(void)
 {
     if (fb_fd < 0)
