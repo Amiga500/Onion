@@ -236,7 +236,13 @@ void log_new_percentage(int new_bat_value, int is_charging)
 {
     if (open_battery_log_db() == 1) {
         if (bat_log_db != NULL) {
-            char *sql = sqlite3_mprintf("INSERT INTO bat_activity(device_serial, bat_level, duration, is_charging) VALUES(%Q, %d, %d, %d);", DEVICE_SN, new_bat_value, 0, is_charging);
+            // start_time: the system clock, NULL while it is clearly unset (before 2020). On
+            // the Mini (no RTC) Onion restores the clock saved at shutdown, so it is only
+            // right within one boot; readers treat it that way.
+            long long now = (long long)time(NULL);
+            char *sql = now >= BATTERY_LOG_MIN_TIME
+                            ? sqlite3_mprintf("INSERT INTO bat_activity(device_serial, bat_level, duration, is_charging, start_time) VALUES(%Q, %d, %d, %d, %lld);", DEVICE_SN, new_bat_value, 0, is_charging, now)
+                            : sqlite3_mprintf("INSERT INTO bat_activity(device_serial, bat_level, duration, is_charging) VALUES(%Q, %d, %d, %d);", DEVICE_SN, new_bat_value, 0, is_charging);
             sqlite3_exec(bat_log_db, sql, NULL, NULL, NULL);
             sqlite3_free(sql);
 
