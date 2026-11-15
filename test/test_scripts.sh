@@ -514,6 +514,21 @@ unset -f jq
 rm -f "$gi_root/gamelist.xml"
 end
 
+begin scraper_game_info_cut_download_not_kept
+gi_env
+wget() { # writes a PNG's first bytes, then fails like a cut transfer
+    while [ $# -gt 0 ]; do [ "$1" = -O ] && out=$2; shift; done
+    printf '\211PNG\r\n\032\nHALF' > "$out"
+    return "${WGET_RC:-1}"
+}
+WGET_RC=1 gi_fetch http://x/cover.png "$gi_root/Imgs/cut.png" png
+check "a download wget reports as failed is not kept" test ! -e "$gi_root/Imgs/cut.png"
+check "nor its .part" test ! -e "$gi_root/Imgs/cut.png.part"
+WGET_RC=0 gi_fetch http://x/cover.png "$gi_root/Imgs/ok.png" png
+check "a finished one is" test -s "$gi_root/Imgs/ok.png"
+unset -f wget
+end
+
 begin scraper_gamelist_back_after_a_cut_rename
 gi_env
 printf '<gameList>\n<game><path>./Other.sfc</path><desc>keep</desc></game>\n</gameList>\n' > "$gi_root/gamelist.xml.tmp"

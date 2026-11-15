@@ -364,8 +364,11 @@ gi_fetch() {
     gi_part="$2.part"
     mkdir -p "$(dirname "$2")"
     rm -f "$gi_part"
-    wget -q --no-check-certificate -O "$gi_part" "$1" 2> /dev/null
-    if [ ! -s "$gi_part" ]; then
+    # A download wget reports as failed is not kept, even with the right first
+    # bytes: cut short (connection lost, SD card full), it would stay broken,
+    # as a file that is there is not fetched again.
+    if ! wget -q --no-check-certificate -O "$gi_part" "$1" 2> /dev/null ||
+        [ ! -s "$gi_part" ]; then
         rm -f "$gi_part"
         return 1
     fi
