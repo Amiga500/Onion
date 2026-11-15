@@ -3235,6 +3235,36 @@ check "and the restart message no longer warns about volume or brightness" sh -c
 unset -f check_archive archive_guest_mode_on guest_mode_on make_backup restore_flag_pairs archive_paths fake7z
 end
 
+begin backup_restore_needs_room_for_new_files
+backup_load "$TMP/sd"
+SETTINGS_CHANGED=$TMP/settings_changed
+mkdir -p "$TMP/sd/Saves/CurrentProfile/saves" "$TMP/sd/Backups"
+echo old > "$TMP/sd/Saves/CurrentProfile/saves/there.srm"
+check_archive() { :; }
+archive_guest_mode_on() { return 1; }
+guest_mode_on() { return 1; }
+make_backup() { BACKUP_FILE=$TMP/sd/Backups/before.zip; : > "$BACKUP_FILE"; return 0; }
+restore_flag_pairs() { :; }
+archive_paths() { :; }
+fake7z() {
+    case $1 in
+        l) printf 'Path = Saves\nFolder = +\nSize = 0\n\nPath = Saves/CurrentProfile/saves/there.srm\nFolder = -\nSize = 900000000\n\nPath = Saves/CurrentProfile/saves/new.srm\nFolder = -\nSize = 20000000\n\nPath = Saves/CurrentProfile/saves/tiny.srm\nFolder = -\nSize = 10\n' ;;
+        x) echo extracted >> "$TMP/x" ;;
+    esac
+}
+Z7=fake7z
+check "new files only, each at least a cluster" test "$(restore_new_kb "$TMP/old.zip")" = $((19552 + 32))
+free_kb() { echo 10000; }
+restore_backup "$TMP/old.zip"
+check "too little room: not restored" test $? -eq 1 -a ! -e "$TMP/x"
+check "says so" sh -c 'printf "%s" "$1" | grep -q "Nothing was restored"' _ "$RESTORE_ERROR"
+check "the copy made before is not kept" test ! -e "$TMP/sd/Backups/before.zip"
+free_kb() { echo 30000; }
+restore_backup "$TMP/old.zip"
+check "room enough (the file written over not counted): restored" test $? -eq 0 -a -e "$TMP/x"
+unset -f check_archive archive_guest_mode_on guest_mode_on make_backup restore_flag_pairs archive_paths fake7z free_kb
+end
+
 begin backup_allowed_paths
 backup_load "$TMP/sd"
 for p in Saves Saves/CurrentProfile/saves/Pokemon.srm Saves/GuestProfile/states/x.state0 \

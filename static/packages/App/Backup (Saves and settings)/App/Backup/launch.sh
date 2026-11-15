@@ -120,6 +120,22 @@ items_kb() { # the GameSwitcher screenshots are left out of a backup
     ) | awk '{s += $1} END {print (s > 0 ? s : 0)}'
 }
 
+# What a restore adds to the card, in KiB: the files in the backup that are
+# not on the card, each taking at least a 32 KiB cluster. Files written over
+# stay about the size they were (saves, states, settings).
+restore_new_kb() { # archive
+    "$Z7" l -slt -ba "$1" 2> /dev/null | awk '
+        function out() { if (p != "" && !d) print s "\t" p; p = "" }
+        /^Path = / { out(); p = substr($0, 8); s = 0; d = 0; next }
+        /^Folder = \+/ { d = 1; next }
+        /^Size = / { s = $3 + 0; next }
+        END { out() }' |
+        while IFS="$(printf '\t')" read -r size path; do
+            [ -e "$SD/$path" ] && continue
+            echo $(((size + 32767) / 32768 * 32))
+        done | awk '{s += $1} END {print s + 0}'
+}
+
 size_label() { # KiB
     if [ "$1" -ge 1024 ]; then
         echo "$(($1 / 1024)) MB"
@@ -278,6 +294,18 @@ restore_backup() {
             return 1
             ;;
     esac
+
+    # Room for what the restore adds, with some left on the card. Without
+    # it nothing is written over, so the copy just made is not needed.
+    need=$(($(restore_new_kb "$archive") + 5120))
+    free=$(free_kb)
+    case "$free" in '' | *[!0-9]*) free=0 ;; esac
+    if [ "$free" -lt "$need" ]; then
+        rm -f "$BACKUP_FILE"
+        sync
+        RESTORE_ERROR="Not enough space on the SD card:\n$(size_label "$need") needed, $(size_label "$free") free.\nNothing was restored."
+        return 1
+    fi
 
     "$Z7" x -y -aoa "-o$SD" "$archive" "$EXCLUDE_CLOCK" "$EXCLUDE_SYNCTHING" >> "$LOG" 2>&1
     rc=$?
