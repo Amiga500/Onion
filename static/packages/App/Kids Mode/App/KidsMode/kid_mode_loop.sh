@@ -1448,18 +1448,21 @@ repair_onion_favorites_if_needed() {
             tools favfix > /dev/null 2>&1
         fi
         sorted_favorites=/tmp/kidsmode_favorites_sorted.$$
+        # $apps is the list of every saved app favorite ($apps[0] was only
+        # the first one, an object: jq failed and nothing was sorted).
         if jq -sc --slurpfile apps "$saved_apps" '
             map(select(((((.launch // "") | contains("/App/")) or
                          ((.rompath // "") | contains("/App/"))) | not))) +
-            $apps[0] |
+            $apps |
             sort_by((.label // "") | ascii_downcase)[]' \
             "$favfile" > "$sorted_favorites" 2> /dev/null; then
             mv -f "$sorted_favorites" "$favfile"
+            log "Onion game favorites repaired and all favorites sorted A-Z after a change."
         else
             rm -f "$sorted_favorites"
+            log "Onion game favorites repaired; sorting them failed, left as they were."
         fi
         rm -f "$saved_apps"
-        log "Onion game favorites repaired and all favorites sorted A-Z after a change."
         mkdir -p "$backupdir"
         favorites_signature > "$favorites_signature_file.tmp" &&
             mv -f "$favorites_signature_file.tmp" "$favorites_signature_file"

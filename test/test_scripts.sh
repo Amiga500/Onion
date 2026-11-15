@@ -4167,6 +4167,25 @@ check "screen recorder: started when neither runs" test -e "$TMP/started"
 unset -f check_disp_init pgrep killall sleep
 end
 
+begin kids_mode_favorites_sorted_with_an_app_among_them
+favfile=$TMP/favourite.json
+backupdir=$TMP/Saves/KidsMode
+favorites_signature_file=$backupdir/favorites_repaired.cksum
+eval "$(extract_fn "$KIDS_LOOP" repair_onion_favorites_if_needed)"
+eval "$(extract_fn "$KIDS_LOOP" favorites_signature)"
+repair_favourites() { :; }
+log() { echo "$*" >> "$TMP/log"; }
+tools() { :; } # Onion's favfix: nothing to repair here
+printf '%s\n' '{"label":"Zelda","rompath":"/mnt/SDCARD/Roms/GBA/z.gba"}' \
+    '{"label":"Kids App","launch":"/mnt/SDCARD/App/KidsMode/launch.sh"}' \
+    '{"label":"alpha","rompath":"/mnt/SDCARD/Roms/GB/a.gb"}' > "$favfile"
+repair_onion_favorites_if_needed
+check "with an app among them, all favorites sorted A-Z" test "$(jq -r .label "$favfile" | tr '\n' ,)" = "alpha,Kids App,Zelda,"
+check "the app kept" grep -q KidsMode "$favfile"
+check "the log says sorted" grep -q "sorted A-Z" "$TMP/log"
+unset -f repair_onion_favorites_if_needed favorites_signature repair_favourites log tools
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
