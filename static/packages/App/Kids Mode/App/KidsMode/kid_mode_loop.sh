@@ -811,18 +811,30 @@ restore_blf_lock() {
 # know which) is parked untouched in between. A plain directory rename
 # can't partially fail or leave mismatched data the way editing files in
 # place could.
+# Each folder is swapped on its own, and the parked copy says where it is:
+# Saves/KidsMode/profile-parked-<folder> there = the parent's folder is put
+# away and CurrentProfile has the kid's. A swap cut short (POWER held while
+# the launcher opens, a flat battery) is finished the next time, and the
+# parked copy is never deleted (it was: the parent's saves were lost when
+# the swap stopped after moving them).
 apply_profile_isolation() {
-    [ -f "$profile_isolation_marker" ] && return 0
     mkdir -p "$kids_profile" "$current_profile" "$backupdir"
     for d in $isolated_subdirs; do
-        rm -rf "${backupdir:?}/profile-parked-$d"
-        if [ -d "$current_profile/$d" ]; then
-            mv "$current_profile/$d" "$backupdir/profile-parked-$d"
+        parked="$backupdir/profile-parked-$d"
+        if [ ! -d "$parked" ]; then
+            if [ -d "$current_profile/$d" ]; then
+                mv "$current_profile/$d" "$parked" || return 1
+            else
+                # Nothing to put away: an empty one keeps the state.
+                mkdir -p "$parked" || return 1
+            fi
         fi
-        if [ -d "$kids_profile/$d" ]; then
-            mv "$kids_profile/$d" "$current_profile/$d"
-        else
-            mkdir -p "$current_profile/$d"
+        if [ ! -d "$current_profile/$d" ]; then
+            if [ -d "$kids_profile/$d" ]; then
+                mv "$kids_profile/$d" "$current_profile/$d" || return 1
+            else
+                mkdir -p "$current_profile/$d" || return 1
+            fi
         fi
     done
     touch "$profile_isolation_marker"
@@ -830,19 +842,27 @@ apply_profile_isolation() {
 }
 
 restore_profile_isolation() {
-    [ -f "$profile_isolation_marker" ] || return 0
-    mkdir -p "$kids_profile"
+    restored=0
     for d in $isolated_subdirs; do
-        rm -rf "${kids_profile:?}/$d"
+        parked="$backupdir/profile-parked-$d"
+        # Not swapped, or already put back.
+        [ -d "$parked" ] || continue
         if [ -d "$current_profile/$d" ]; then
-            mv "$current_profile/$d" "$kids_profile/$d" # keep kid's progress for next time
+            # The kid's progress, kept for next time. A copy already in
+            # KidsProfile is not expected here: moved aside, never deleted.
+            if [ -e "$kids_profile/$d" ]; then
+                mkdir -p "$backupdir/profile-recovery"
+                mv "$kids_profile/$d" "$backupdir/profile-recovery/KidsProfile-$source_profile-$d-$(date +%Y%m%d-%H%M%S)-$$" || return 1
+            fi
+            mkdir -p "$kids_profile"
+            mv "$current_profile/$d" "$kids_profile/$d" || return 1
         fi
-        if [ -d "$backupdir/profile-parked-$d" ]; then
-            mv "$backupdir/profile-parked-$d" "$current_profile/$d"
-        fi
+        mv "$parked" "$current_profile/$d" || return 1
+        restored=1
     done
     rm -f "$profile_isolation_marker"
-    log "Restored the previous saves/states/thumbnails."
+    [ "$restored" = 1 ] && log "Restored the previous saves/states/thumbnails."
+    return 0
 }
 
 # ------------------------- MENU button override ----------------------------

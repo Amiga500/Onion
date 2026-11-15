@@ -3998,6 +3998,71 @@ DISPLAYCAL_CFGDIR=$TMP/dc DISPLAYCAL_NODE=$TMP/dcnode DISPLAYCAL_SERIAL_FILE=$TM
 check "DisplayCal --apply: nothing without a profile for this device" sh -c 'test ! -s "$1"' _ "$TMP/dcnode"
 end
 
+begin kids_mode_saves_swap_survives_an_interruption
+backupdir=$TMP/Saves/KidsMode
+current_profile=$TMP/Saves/CurrentProfile
+kids_profile=$TMP/Saves/KidsProfile/Main
+source_profile=Main
+isolated_subdirs="saves states romScreens"
+profile_isolation_marker=$backupdir/profile_isolation_active
+eval "$(extract_fn "$KIDS_LOOP" apply_profile_isolation)"
+eval "$(extract_fn "$KIDS_LOOP" restore_profile_isolation)"
+log() { :; }
+kids_sd() { # a parent's and a kid's saves, nothing swapped
+    rm -rf "$TMP/Saves"
+    mkdir -p "$current_profile/saves" "$current_profile/states" "$kids_profile/saves"
+    echo parent > "$current_profile/saves/p.srm"
+    echo parent > "$current_profile/states/p.state"
+    echo kid > "$kids_profile/saves/k.srm"
+}
+parent_back() {
+    [ "$(cat "$current_profile/saves/p.srm" 2> /dev/null)" = parent ] &&
+        [ "$(cat "$current_profile/states/p.state" 2> /dev/null)" = parent ] &&
+        [ ! -e "$current_profile/saves/k.srm" ]
+}
+kids_sd
+apply_profile_isolation
+check "armed: the kid's saves in CurrentProfile" test "$(cat "$current_profile/saves/k.srm")" = kid
+check "the parent's put away" test "$(cat "$backupdir/profile-parked-saves/p.srm")" = parent
+restore_profile_isolation
+check "unarmed: the parent's back" parent_back
+check "the kid's kept for next time" test "$(cat "$kids_profile/saves/k.srm")" = kid
+check "nothing left parked" sh -c '! ls "$1"/profile-parked-* > /dev/null 2>&1' _ "$backupdir"
+# Cut short after the parent's saves were put away (the old code deleted them)
+kids_sd
+mkdir -p "$backupdir"
+mv "$current_profile/saves" "$backupdir/profile-parked-saves"
+apply_profile_isolation
+check "an interrupted swap is finished: the parent's saves still parked" test "$(cat "$backupdir/profile-parked-saves/p.srm")" = parent
+check "and the kid's in CurrentProfile" test "$(cat "$current_profile/saves/k.srm")" = kid
+restore_profile_isolation
+check "then put back as usual" parent_back
+# Cut short after the kid's saves came in, before the marker
+kids_sd
+mkdir -p "$backupdir"
+mv "$current_profile/saves" "$backupdir/profile-parked-saves"
+mv "$kids_profile/saves" "$current_profile/saves"
+apply_profile_isolation
+restore_profile_isolation
+check "cut short later: everything back" parent_back
+check "the kid's saves kept" test "$(cat "$kids_profile/saves/k.srm")" = kid
+# Put back cut short: the marker is still there, one folder already back
+kids_sd
+apply_profile_isolation
+mv "$current_profile/saves" "$kids_profile/saves"
+mv "$backupdir/profile-parked-saves" "$current_profile/saves"
+apply_profile_isolation
+check "armed again after a cut restore: the kid's saves, not the parent's" test "$(cat "$current_profile/saves/k.srm")" = kid
+restore_profile_isolation
+check "and the parent's back after it" parent_back
+# Restored twice, or never swapped: nothing moves
+kids_sd
+restore_profile_isolation
+check "never swapped: nothing moved" parent_back
+check "the kid's saves left alone" test "$(cat "$kids_profile/saves/k.srm")" = kid
+unset -f apply_profile_isolation restore_profile_isolation log kids_sd parent_back
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
