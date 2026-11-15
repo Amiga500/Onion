@@ -573,6 +573,46 @@ restore_ra_state_bindings() {
     ' "$rabackup" "$racfg" > "$tmpra" && mv -f "$tmpra" "$racfg"
 }
 
+# The retroarch.cfg settings Kids Mode locks (what each does: apply_ra_lock).
+# The unlock puts back these, and only these.
+ra_lock_keys() {
+    echo "kiosk_mode_enable video_font_enable quick_menu_show_options
+        quick_menu_show_cheats quick_menu_show_shaders
+        quick_menu_show_start_recording quick_menu_show_start_streaming
+        settings_show_configuration settings_show_core
+        settings_show_directory settings_show_drivers
+        settings_show_file_browser settings_show_input
+        settings_show_latency settings_show_network settings_show_recording
+        settings_show_user settings_show_user_interface settings_show_video
+        settings_show_audio input_menu_toggle_btn input_save_state_btn
+        input_load_state_btn input_rewind_btn input_toggle_fast_forward_btn
+        input_hold_fast_forward_btn input_state_slot_increase_btn
+        input_state_slot_decrease_btn input_toggle_fullscreen_btn
+        input_shader_toggle_btn input_shader_next_btn input_shader_prev_btn
+        input_reset_btn input_screenshot_btn input_pause_toggle_btn
+        input_frame_advance_btn input_cheat_toggle_btn
+        input_movie_record_toggle_btn input_recording_toggle_btn
+        input_streaming_toggle_btn input_netplay_game_watch_btn
+        input_ai_service_btn input_audio_mute_btn
+        input_cheat_index_minus_btn input_cheat_index_plus_btn
+        input_close_content_btn input_desktop_menu_toggle_btn
+        input_disk_eject_toggle_btn input_disk_next_btn input_disk_prev_btn
+        input_exit_emulator_btn input_fps_toggle_btn
+        input_game_focus_toggle_btn input_grab_mouse_toggle_btn
+        input_hold_slowmotion_btn input_osk_toggle_btn
+        input_overlay_next_btn input_preempt_toggle_btn
+        input_runahead_toggle_btn input_send_debug_info_btn
+        input_toggle_slowmotion_btn input_toggle_statistics_btn
+        input_toggle_vrr_runloop_btn input_volume_up_btn
+        input_volume_down_btn input_netplay_fade_chat_toggle_btn
+        input_netplay_host_toggle_btn input_netplay_ping_toggle_btn
+        input_netplay_player_chat_btn"
+    echo "input_save_state input_save_state_axis
+        input_load_state input_load_state_axis input_state_slot_increase
+        input_state_slot_increase_axis input_state_slot_decrease
+        input_state_slot_decrease_axis"
+}
+
 apply_ra_lock() {
     [ -f "$racfg" ] || return 0
     mkdir -p "$backupdir"
@@ -608,41 +648,7 @@ apply_ra_lock() {
     #     these fire on a single un-combo'd press instead. MENU+VOLUME for
     #     brightness is handled outside RetroArch (by the system's button
     #     daemon) and is unaffected by any of this.
-    ra_keys="kiosk_mode_enable video_font_enable quick_menu_show_options
-        quick_menu_show_cheats quick_menu_show_shaders
-        quick_menu_show_start_recording quick_menu_show_start_streaming
-        settings_show_configuration settings_show_core
-        settings_show_directory settings_show_drivers
-        settings_show_file_browser settings_show_input
-        settings_show_latency settings_show_network settings_show_recording
-        settings_show_user settings_show_user_interface settings_show_video
-        settings_show_audio input_menu_toggle_btn input_save_state_btn
-        input_load_state_btn input_rewind_btn input_toggle_fast_forward_btn
-        input_hold_fast_forward_btn input_state_slot_increase_btn
-        input_state_slot_decrease_btn input_toggle_fullscreen_btn
-        input_shader_toggle_btn input_shader_next_btn input_shader_prev_btn
-        input_reset_btn input_screenshot_btn input_pause_toggle_btn
-        input_frame_advance_btn input_cheat_toggle_btn
-        input_movie_record_toggle_btn input_recording_toggle_btn
-        input_streaming_toggle_btn input_netplay_game_watch_btn
-        input_ai_service_btn input_audio_mute_btn
-        input_cheat_index_minus_btn input_cheat_index_plus_btn
-        input_close_content_btn input_desktop_menu_toggle_btn
-        input_disk_eject_toggle_btn input_disk_next_btn input_disk_prev_btn
-        input_exit_emulator_btn input_fps_toggle_btn
-        input_game_focus_toggle_btn input_grab_mouse_toggle_btn
-        input_hold_slowmotion_btn input_osk_toggle_btn
-        input_overlay_next_btn input_preempt_toggle_btn
-        input_runahead_toggle_btn input_send_debug_info_btn
-        input_toggle_slowmotion_btn input_toggle_statistics_btn
-        input_toggle_vrr_runloop_btn input_volume_up_btn
-        input_volume_down_btn input_netplay_fade_chat_toggle_btn
-        input_netplay_host_toggle_btn input_netplay_ping_toggle_btn
-        input_netplay_player_chat_btn"
-    ra_keys="$ra_keys input_save_state input_save_state_axis
-        input_load_state input_load_state_axis input_state_slot_increase
-        input_state_slot_increase_axis input_state_slot_decrease
-        input_state_slot_decrease_axis"
+    ra_keys=$(ra_lock_keys)
 
     tmpra=/tmp/kidmode_ra.$$
     if [ "$cfg_allow_save_states" = true ]; then
@@ -701,11 +707,50 @@ AWKEOF
     log "RetroArch kiosk lock applied (direct-key lookup, duplicates locked)."
 }
 
+# Only the settings Kids Mode locked go back to what they were before it was
+# armed (or out, when they were not there then). The rest of retroarch.cfg
+# stays as it is now: copying the whole file back undid any change made
+# while armed, such as a RetroArch update.
 restore_ra_lock() {
-    if [ -f "$rabackup" ]; then
-        cp "$rabackup" "$racfg"
+    [ -f "$rabackup" ] || return 0
+    if [ ! -f "$racfg" ]; then
+        cp "$rabackup" "$racfg" && rm -f "$rabackup"
+        log "RetroArch config restored (it was gone)."
+        return 0
+    fi
+    tmpra=/tmp/kidmode_ra.$$
+    if awk -v keys="$(ra_lock_keys | tr -s ' \t\n' '   ')" '
+        function key(line, k) {
+            k = substr(line, 1, index(line, "=") - 1)
+            sub(/^[ \t]*/, "", k); sub(/[ \t]*$/, "", k)
+            return k
+        }
+        BEGIN {
+            n = split(keys, list, " ")
+            for (i = 1; i <= n; i++) if (list[i] != "") locked[list[i]] = 1
+        }
+        FILENAME == ARGV[1] {
+            k = index($0, "=") ? key($0) : ""
+            if (k in locked) original[k] = $0
+            next
+        }
+        {
+            k = index($0, "=") ? key($0) : ""
+            if (k in locked) {
+                if ((k in original) && !(k in seen)) print original[k]
+                seen[k] = 1
+                next
+            }
+            print
+        }
+        END { for (k in original) if (!(k in seen)) print original[k] }
+    ' "$rabackup" "$racfg" > "$tmpra" && [ -s "$tmpra" ] &&
+        mv -f "$tmpra" "$racfg"; then
         rm -f "$rabackup"
-        log "RetroArch config restored."
+        log "RetroArch config restored (the settings Kids Mode locked)."
+    else
+        rm -f "$tmpra"
+        log "RetroArch config not restored yet: kept its backup for the next unlock."
     fi
 }
 

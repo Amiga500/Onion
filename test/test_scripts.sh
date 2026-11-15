@@ -4156,7 +4156,7 @@ onion_battery_display_flag=$TMP/hasBatteryDisplay; onion_battery_display_marker=
 legacy_battery_warning_flag=$TMP/.noBatteryWarning; legacy_battery_warning_marker=$backupdir/no_battery_warning.created
 kidsmode_active_flag=$TMP/kidsmode; checkoff_dst=$TMP/kidmode_checkoff.sh
 timesup_since_file=$TMP/ts; timesup_resume_file=$TMP/tr
-for f in cmd_cleanup restore_ra_lock restore_gambatte_remap_lock restore_blf_lock restore_profile_isolation restore_onion_battery_warning restore_keymap_override; do
+for f in ra_lock_keys cmd_cleanup restore_ra_lock restore_gambatte_remap_lock restore_blf_lock restore_profile_isolation restore_onion_battery_warning restore_keymap_override; do
     eval "$(extract_fn "$KIDS_LOOP" $f | sed 's#/tmp/kidsmode_ra_lock_checked#'"$TMP"'/ra_checked#')"
 done
 log() { :; }
@@ -4165,7 +4165,7 @@ restart_keymon() { :; }
 infoPanel() { echo "$*" > "$TMP/panel"; }
 # Kids Mode armed, then .kidmode deleted from a computer
 rm -rf "$TMP/Saves"; mkdir -p "$backupdir/profile-parked-saves" "$current_profile/saves" "$kids_profile"
-echo parent-ra > "$rabackup"; echo kiosk > "$racfg"
+echo 'kiosk_mode_enable = "false"' > "$rabackup"; echo 'kiosk_mode_enable = "true"' > "$racfg"
 echo parent-keys > "$keymapbackup"; echo kid-keys > "$keymapcfg"
 echo parent > "$backupdir/profile-parked-saves/p.srm"
 echo kid > "$current_profile/saves/k.srm"
@@ -4173,17 +4173,17 @@ echo kid > "$current_profile/saves/k.srm"
 : > "$legacy_battery_warning_flag"; : > "$legacy_battery_warning_marker"
 : > "$flagfile"
 cmd_cleanup
-check "armed: cleanup does nothing" test "$(cat "$racfg")" = kiosk
+check "armed: cleanup does nothing" grep -qx 'kiosk_mode_enable = "true"' "$racfg"
 rm -f "$flagfile"
 cmd_cleanup
-check "RetroArch's config back" test "$(cat "$racfg")" = parent-ra
+check "RetroArch's config back" grep -qx 'kiosk_mode_enable = "false"' "$racfg"
 check "the keymap back" test "$(cat "$keymapcfg")" = parent-keys
 check "the parent's saves back" test "$(cat "$current_profile/saves/p.srm")" = parent
 check "the kid's kept for next time" test "$(cat "$kids_profile/saves/k.srm")" = kid
 check "Onion's battery warning back" test ! -e "$legacy_battery_warning_flag"
 check "shutdown hook and markers gone" sh -c 'test ! -e "$1" && test ! -e "$2" && test ! -e "$3"' _ "$checkoff_dst" "$game_environment_marker" "$profile_isolation_marker"
 check "a message says so" grep -q "Turned off from a computer" "$TMP/panel"
-unset -f cmd_cleanup restore_ra_lock restore_gambatte_remap_lock restore_blf_lock restore_profile_isolation restore_onion_battery_warning restore_keymap_override log sync restart_keymon infoPanel
+unset -f ra_lock_keys cmd_cleanup restore_ra_lock restore_gambatte_remap_lock restore_blf_lock restore_profile_isolation restore_onion_battery_warning restore_keymap_override log sync restart_keymon infoPanel
 check "the parent's profile is read for cleanup too (Guest stays Guest)" sh -c "sed -n '/^detect_source_profile() {/,/^}/p' '$KIDS_LOOP' | grep -q 'cleanup'"
 check "kid_mode_loop.sh has the cleanup command" sh -c "grep -q '^    cleanup)\$' '$KIDS_LOOP'"
 end
@@ -4235,6 +4235,39 @@ check "with an app among them, all favorites sorted A-Z" test "$(jq -r .label "$
 check "the app kept" grep -q KidsMode "$favfile"
 check "the log says sorted" grep -q "sorted A-Z" "$TMP/log"
 unset -f repair_onion_favorites_if_needed favorites_signature repair_favourites log tools
+end
+
+begin kids_mode_unlock_keeps_retroarch_changes_made_meanwhile
+racfg=$TMP/retroarch.cfg
+backupdir=$TMP/Saves/KidsMode
+rabackup=$backupdir/retroarch.cfg.backup
+cfg_allow_save_states=false
+log() { :; }
+eval "$(extract_fn "$KIDS_LOOP" ra_lock_keys)"
+eval "$(extract_fn "$KIDS_LOOP" restore_ra_state_bindings)"
+eval "$(sed -n '/^apply_ra_lock() {/,/RetroArch kiosk lock applied/p' "$KIDS_LOOP"; echo '}')"
+eval "$(extract_fn "$KIDS_LOOP" restore_ra_lock)"
+printf '%s\n' 'video_scale = "3"' 'kiosk_mode_enable = "false"' 'settings_show_video = "true"' \
+    'input_reset_btn = "2"' 'menu_driver = "rgui"' > "$racfg"
+mkdir -p "$backupdir"
+apply_ra_lock
+check "armed: kiosk on" grep -qx 'kiosk_mode_enable = "true"' "$racfg"
+# Meanwhile (a RetroArch update, say): one setting changed, one added
+sed -i 's/^video_scale = "3"$/video_scale = "4"/' "$racfg"
+echo 'new_option = "x"' >> "$racfg"
+restore_ra_lock
+check "unlocked: kiosk back as it was" grep -qx 'kiosk_mode_enable = "false"' "$racfg"
+check "a menu setting back" grep -qx 'settings_show_video = "true"' "$racfg"
+check "a hotkey back" grep -qx 'input_reset_btn = "2"' "$racfg"
+check "a setting Kids Mode added and was not there: out" sh -c "! grep -q '^input_menu_toggle_btn' '$racfg'"
+check "a change made meanwhile kept" grep -qx 'video_scale = "4"' "$racfg"
+check "a setting added meanwhile kept" grep -qx 'new_option = "x"' "$racfg"
+check "each locked setting once" test "$(grep -c '^kiosk_mode_enable' "$racfg")" = 1
+check "the backup gone" test ! -e "$rabackup"
+rm -f "$racfg"; echo 'kiosk_mode_enable = "false"' > "$rabackup"
+restore_ra_lock
+check "retroarch.cfg gone meanwhile: the backup put back whole" grep -qx 'kiosk_mode_enable = "false"' "$racfg"
+unset -f ra_lock_keys restore_ra_state_bindings apply_ra_lock restore_ra_lock log
 end
 
 echo ""
