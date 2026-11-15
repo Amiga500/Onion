@@ -1,4 +1,4 @@
-# Button Lab v0.1 - Input controller test & diagnostics
+# Button Lab v0.1.1 - Input controller test & diagnostics
 
 A compact, self-contained **Onion** controller diagnostic app for the **Miyoo Mini and Mini Plus**, using the **Mini Plus front panel** as the on-screen controller layout. Written in C99 with SDL 1.2 for drawing and Linux evdev for raw button input. The native UI is 640 × 480, with no external fonts, audio, SDL_image or SDL_ttf dependencies.
 
@@ -16,7 +16,7 @@ A compact, self-contained **Onion** controller diagnostic app for the **Miyoo Mi
 | Input | Action |
 | --- | --- |
 | Press any button | Light it up and count a press |
-| Hold **SELECT + START** for 1.8 seconds | Exit |
+| Press **SELECT + START** | Exit |
 | Hold **MENU** for 3 seconds | Alternative exit (for faulty SELECT or START) |
 | Hold **X + Y** for 2 seconds | Reset all test results |
 | VOL+/VOL− | Optional; only if the device generates volume key events |

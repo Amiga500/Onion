@@ -1,4 +1,6 @@
 # Button Lab v0.1 - Onion / Miyoo Mini / Mini Plus
+# Not built at the moment: RedOnion ships robcodedev's v0.1.1 binary from
+# static/packages/App/Button Lab until its source is here.
 # Place this Makefile and buttonlab.c in Onion's src/buttonlab/ directory.
 INCLUDE_UTILS=0
 PLATFORM ?= miyoomini
