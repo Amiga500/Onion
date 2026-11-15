@@ -32,6 +32,9 @@ TESTS := test_str test_perf test_file test_images_browser test_hash test_json te
 # Suites for Tweaks > Appearance > Footer layout and the GameSwitcher bar
 TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar test_mainui_shortcut
 
+# Battery Monitor PMIC code and batmon's log entry, cut from the real sources
+TESTS += test_batterymonitor_pmic test_batmon_start_time
+
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
 .PHONY: all clean $(TESTS) summary unit-test-san unit-test-neon-arm neon-test-arm
@@ -780,6 +783,40 @@ test_netinfo: $(BUILD_DIR)/test_netinfo
 $(BUILD_DIR)/test_netinfo: test_netinfo.c onion_test.h ../src/common/utils/netinfo.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_netinfo.c $(COMMON_SRCS) $(LDFLAGS)
+
+test_batterymonitor_pmic: $(BUILD_DIR)/test_batterymonitor_pmic
+	@echo ""
+	@$(BUILD_DIR)/test_batterymonitor_pmic
+
+# Battery Monitor's register constants and PMIC functions, cut from the real source.
+$(BUILD_DIR)/batterymonitor_pmic_fns.c: ../src/batteryMonitorUI/batteryMonitorUI.c
+	@mkdir -p $(BUILD_DIR)
+	grep -E '^#define (REG_AXP_|AXP_CHGV_|AXP_READBACK_|AXP_SYNC_|AXP_I2C_DEV)' ../src/batteryMonitorUI/batteryMonitorUI.c > $@
+	sed -n '/^static int chgv_code_to_mv(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int axp_write_mah16(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int axp_set_capacity(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int axp_set_coulomb_counter(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int axp_sync_check(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int axp_set_charge_voltage(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int axp_set_calibration(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+
+$(BUILD_DIR)/test_batterymonitor_pmic: test_batterymonitor_pmic.c onion_test.h $(BUILD_DIR)/batterymonitor_pmic_fns.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DPMIC_FNS='"$(abspath $(BUILD_DIR))/batterymonitor_pmic_fns.c"' -o $@ test_batterymonitor_pmic.c $(LDFLAGS)
+
+test_batmon_start_time: $(BUILD_DIR)/test_batmon_start_time
+	@echo ""
+	@$(BUILD_DIR)/test_batmon_start_time
+
+# batmon's log entry, cut from the real sources.
+$(BUILD_DIR)/batmon_start_time_fns.c: ../src/batmon/batmon.c ../src/batmon/batmonDB.h
+	@mkdir -p $(BUILD_DIR)
+	grep -E '^#define BATTERY_LOG_MIN_TIME' ../src/batmon/batmonDB.h > $@
+	sed -n '/^void log_new_percentage(/,/^}/p' ../src/batmon/batmon.c >> $@
+
+$(BUILD_DIR)/test_batmon_start_time: test_batmon_start_time.c onion_test.h $(BUILD_DIR)/batmon_start_time_fns.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DBATMON_FNS='"$(abspath $(BUILD_DIR))/batmon_start_time_fns.c"' -o $@ test_batmon_start_time.c $(LDFLAGS)
 
 test_flip_suspend: $(BUILD_DIR)/test_flip_suspend
 	@echo ""

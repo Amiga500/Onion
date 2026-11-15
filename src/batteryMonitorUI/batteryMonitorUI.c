@@ -43,6 +43,10 @@ static bool axp_confirm_sync = false; // setting the counter to 100 %
 // "Set current capacity to 100%" is only right on a full battery: charging has ended, and the voltage,
 // read with the console's own load on it, is at least this (a cell charged to 4.10 V rests near 4.08 V).
 #define AXP_SYNC_MIN_MV 4000
+#define AXP_SYNC_OK 0
+#define AXP_SYNC_NO_PMIC 1
+#define AXP_SYNC_CHARGING 2
+#define AXP_SYNC_NOT_FULL 3
 enum {
     AXP_MENU_CAPACITY = 0,
     AXP_MENU_VOFF,
@@ -1195,6 +1199,18 @@ static int axp_set_capacity(int mah)
 static int axp_set_coulomb_counter(int mah)
 {
     return axp_write_mah16(REG_AXP_E2, mah, 4);
+}
+
+// Whether the counter may be set to 100 % now (AXP_SYNC_OK), or why not.
+static int axp_sync_check(bool available, bool charging, int voltage_mv)
+{
+    if (!available)
+        return AXP_SYNC_NO_PMIC;
+    if (charging)
+        return AXP_SYNC_CHARGING;
+    if (voltage_mv < AXP_SYNC_MIN_MV)
+        return AXP_SYNC_NOT_FULL;
+    return AXP_SYNC_OK;
 }
 
 // AXP223 datasheet v1.1 / AXP221 v1.2, REG 31H (wakeup control & Voff), default 03H:
@@ -2568,7 +2584,7 @@ int main(int argc, char *argv[])
                         // Checked again: the charger may have gone in while the dialog was open.
                         axp_poll_data();
                         int cap = (axp_status.capacity_mah > 0) ? axp_status.capacity_mah : axp_edit_capacity;
-                        if (!axp_status.available || axp_status.is_charging || axp_status.voltage_mv < AXP_SYNC_MIN_MV) {
+                        if (axp_sync_check(axp_status.available, axp_status.is_charging, axp_status.voltage_mv) != AXP_SYNC_OK) {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Battery not full: counter left as it is");
                         }
                         else {
@@ -2709,16 +2725,17 @@ int main(int argc, char *argv[])
                             // sudden power-off. So: only with the charge ended and a full voltage,
                             // and only after a confirmation.
                             axp_poll_data();
-                            if (!axp_status.available) {
+                            int sync = axp_sync_check(axp_status.available, axp_status.is_charging, axp_status.voltage_mv);
+                            if (sync == AXP_SYNC_NO_PMIC) {
                                 snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "I2C error: PMIC not read");
                                 axp_feedback_until = now + 3000;
                             }
-                            else if (axp_status.is_charging) {
+                            else if (sync == AXP_SYNC_CHARGING) {
                                 snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
                                          "Still charging: wait until the charge has ended");
                                 axp_feedback_until = now + 3000;
                             }
-                            else if (axp_status.voltage_mv < AXP_SYNC_MIN_MV) {
+                            else if (sync == AXP_SYNC_NOT_FULL) {
                                 snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
                                          "Battery not full (%.2f V): charge it to the end first",
                                          axp_status.voltage_mv / 1000.0);
