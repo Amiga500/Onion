@@ -3214,6 +3214,27 @@ zip_line_is() { # zip file, path in it, its one line
 }
 backup_7z=${BACKUP_TEST_7Z:-$(command -v 7zz || command -v 7z || command -v 7za)}
 
+begin backup_restore_tells_keymon_to_read_the_settings
+backup_load "$TMP/sd"
+BACKUP_SETTINGS_CHANGED=$TMP/settings_changed
+SETTINGS_CHANGED=$BACKUP_SETTINGS_CHANGED
+mkdir -p "$TMP/sd/.tmp_update/config"
+check_archive() { :; }
+archive_guest_mode_on() { return 1; }
+guest_mode_on() { return 1; }
+make_backup() { BACKUP_FILE=$TMP/before.zip; return 0; }
+restore_flag_pairs() { :; }
+archive_paths() { :; }
+fake7z() { return "${FAKE7Z_RC:-0}"; }
+Z7=fake7z
+FAKE7Z_RC=2 restore_backup "$TMP/old.zip"
+check "extraction failed: keymon not told" test ! -e "$TMP/settings_changed"
+FAKE7Z_RC=0 restore_backup "$TMP/old.zip"
+check "restored: keymon reads the settings again" test -e "$TMP/settings_changed"
+check "and the restart message no longer warns about volume or brightness" sh -c "! grep -q \"Don't change the volume\" '$BACKUP_APP'"
+unset -f check_archive archive_guest_mode_on guest_mode_on make_backup restore_flag_pairs archive_paths fake7z
+end
+
 begin backup_allowed_paths
 backup_load "$TMP/sd"
 for p in Saves Saves/CurrentProfile/saves/Pokemon.srm Saves/GuestProfile/states/x.state0 \

@@ -19,6 +19,8 @@ BACKUP_DIR=$SD/Backups
 PREFIX=RedOnion_backup_
 Z7=${BACKUP_7Z:-7z}
 LOG=/tmp/backup_app.log
+# Tells keymon to read the settings again (keymon.c, at its next key press).
+SETTINGS_CHANGED=${BACKUP_SETTINGS_CHANGED:-/tmp/settings_changed}
 # Never in a backup, nor written back: the GameSwitcher screenshots (big,
 # made again while playing) and the clock saved for devices without an RTC
 # (an old time written back would set the clock back at the next boot).
@@ -300,6 +302,10 @@ restore_backup() {
     # The theme in the restored settings gets its icons at the next boot
     # (RedOnion applies them again when this file does not name it).
     rm -f "$sysdir/config/theme-applied-"*
+    # keymon keeps the settings in memory and writes them to system.json at
+    # the next volume or brightness change, over the restored ones. It reads
+    # them again (Tweaks' flags too) at its next key press instead.
+    touch "$SETTINGS_CHANGED"
     sync
     return 0
 }
@@ -407,7 +413,7 @@ screen_restore() {
         ui_info "RESTORE FAILED" "$RESTORE_ERROR"
         return
     fi
-    ui_choose "RESTORE DONE" "Restart now so that every setting\nis used. Don't change the volume or\nbrightness before restarting." \
+    ui_choose "RESTORE DONE" "Restart now so that every setting\nis used." \
         "Restart now" "Later"
     if [ $? -eq 0 ]; then
         finish
