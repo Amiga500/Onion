@@ -1,10 +1,15 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.1 rc2**, on top of 1.1.0 (the source in
+GitHub: **Open MainUI 1.1.1 rc3**, on top of 1.1.0 (the source in
 `third-party/open-mainui`).
 
-Since rc1:
+Since rc2:
+
+- In Apps, titles sit a little higher above their descriptions, and text
+  runs closer to the right edge on rows that aren't Favorites.
+
+From rc2:
 
 - A button pressed together with MENU, such as MENU+B for the blue light
   filter, no longer also acts in MainUI.
