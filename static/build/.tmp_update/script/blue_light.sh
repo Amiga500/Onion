@@ -81,7 +81,11 @@ check_disp_init() {
         exit 
     fi
     
-    if ! pgrep -f "/dev/l" > /dev/null || [ ! -e "/proc/mi_modules/mi_disp/mi_disp0" ]; then
+    # After a display repair (or PICO-8) disp_init runs in place of /dev/l:
+    # the display is set up, so no second one is started, and waited for
+    # 2.5 s, at every filter change.
+    if ! { pgrep -f "/dev/l" > /dev/null || killall -0 disp_init 2> /dev/null; } ||
+        [ ! -e "/proc/mi_modules/mi_disp/mi_disp0" ]; then
         $sysdir/bin/disp_init &
         sleep 2.5
     fi

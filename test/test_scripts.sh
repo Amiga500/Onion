@@ -4137,6 +4137,36 @@ check "the parent's profile is read for cleanup too (Guest stays Guest)" sh -c "
 check "kid_mode_loop.sh has the cleanup command" sh -c "grep -q '^    cleanup)\$' '$KIDS_LOOP'"
 end
 
+begin blue_light_no_second_disp_init_after_a_repair
+BLF="$ROOT/static/build/.tmp_update/script/blue_light.sh"
+REC="$ROOT/static/build/.tmp_update/script/screen_recorder.sh"
+eval "$(extract_fn "$BLF" check_disp_init | sed "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/mi_disp0#")"
+sysdir=$TMP
+mkdir -p "$TMP/bin"
+printf '#!/bin/sh\necho started >> "%s/started"\n' "$TMP" > "$TMP/bin/disp_init"; chmod +x "$TMP/bin/disp_init"
+pgrep() { [ "$L_RUNNING" = 1 ]; }
+killall() { [ "$DI_RUNNING" = 1 ]; }
+sleep() { :; }
+: > "$TMP/mi_disp0"
+L_RUNNING=1 DI_RUNNING=0 check_disp_init; wait
+check "/dev/l running: none started" test ! -e "$TMP/started"
+L_RUNNING=0 DI_RUNNING=1 check_disp_init; wait
+check "disp_init running in its place (after a repair): none started" test ! -e "$TMP/started"
+L_RUNNING=0 DI_RUNNING=0 check_disp_init; wait
+check "neither running: disp_init started" test "$(cat "$TMP/started" 2> /dev/null)" = started
+rm -f "$TMP/started" "$TMP/mi_disp0"
+L_RUNNING=0 DI_RUNNING=1 check_disp_init; wait
+check "mi_disp0 gone: started, as before" test -e "$TMP/started"
+unset -f check_disp_init
+rm -f "$TMP/started"
+eval "$(extract_fn "$REC" check_disp_init)"
+L_RUNNING=0 DI_RUNNING=1 check_disp_init; wait
+check "screen recorder: none started with disp_init running" test ! -e "$TMP/started"
+L_RUNNING=0 DI_RUNNING=0 check_disp_init; wait
+check "screen recorder: started when neither runs" test -e "$TMP/started"
+unset -f check_disp_init pgrep killall sleep
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
