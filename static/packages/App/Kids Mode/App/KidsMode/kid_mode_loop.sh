@@ -12,7 +12,8 @@
 #                           runtime.sh in place of MainUI (KIDSMODE_HOST=runtime)
 #
 # Mode flag: /mnt/SDCARD/.kidmode  (present = armed; delete it from a
-# computer to force-disable Kids Mode)
+# computer to force-disable Kids Mode: at the next boot runtime.sh runs
+# "kid_mode_loop.sh cleanup", which puts back what Kids Mode locked)
 #
 # RedOnion port: a game chosen here is launched by runtime.sh (launch_game),
 # as one chosen in MainUI, with everything RedOnion does around it (services
@@ -54,7 +55,10 @@ unset KIDSMODE_SELECTED_TIMER
 # Mode is already armed (including after a reboot), the persisted origin is
 # authoritative because Onion's profile folders are temporarily parked.
 detect_source_profile() {
-    if [ -f "$flagfile" ] && [ -f "$source_profile_file" ]; then
+    # Also for "cleanup": .kidmode is gone, but the profiles are still
+    # parked as Kids Mode left them.
+    if { [ -f "$flagfile" ] || [ "${1:-}" = cleanup ]; } &&
+        [ -f "$source_profile_file" ]; then
         persisted_profile="$(sed -n 1p "$source_profile_file" 2> /dev/null)"
         case "$persisted_profile" in
             Main | Guest)
@@ -72,7 +76,7 @@ detect_source_profile() {
     fi
 }
 
-source_profile="$(detect_source_profile)"
+source_profile="$(detect_source_profile "${1:-run}")"
 profile_state_dir="$backupdir/$source_profile"
 profile_preferences_file="$profile_state_dir/preferences.json"
 favorites_signature_file="$profile_state_dir/favorites_repaired.cksum"
@@ -1993,6 +1997,30 @@ disarm() {
     bootScreen clear 2> /dev/null
 }
 
+# .kidmode deleted from a computer while Kids Mode was armed (the way out
+# the README gives): nothing was unlocked, so runtime.sh runs this at boot.
+# It puts back what an unlock with the PIN does: RetroArch's config, the
+# Gambatte remap, blue_light.sh, the parent's saves/states/thumbnails, the
+# keymap and Onion's battery warning, and removes the shutdown hook. Each
+# step only acts on what it finds in Saves/KidsMode.
+cmd_cleanup() {
+    [ -f "$flagfile" ] && return 0
+    log "Kids Mode flag gone (deleted from a computer): restoring Onion."
+    rm -f "$kidsmode_active_flag" "$checkoff_dst" \
+        /tmp/kidsmode_ra_lock_checked "$timesup_since_file" \
+        "$timesup_resume_file" "$timesup_resume_file.tmp"
+    restore_ra_lock
+    restore_gambatte_remap_lock
+    restore_blf_lock
+    restore_profile_isolation
+    restore_onion_battery_warning
+    restore_keymap_override
+    rm -f "$game_environment_marker"
+    sync
+    log "Kids Mode cleaned up."
+    infoPanel -t "Kids Mode" -m "Turned off from a computer.\nOnion's settings are back." --auto
+}
+
 # ------------------------------ main loop ----------------------------------
 
 load_state_cache() {
@@ -2884,6 +2912,9 @@ case "${1:-run}" in
     arm)
         cmd_arm
         ;;
+    cleanup)
+        cmd_cleanup
+        ;;
     run)
         [ -f "$flagfile" ] || exit 0
         # The standalone version's boot hook: RedOnion's runtime.sh starts
@@ -2896,7 +2927,7 @@ case "${1:-run}" in
         cmd_run
         ;;
     *)
-        echo "Usage: kid_mode_loop.sh [arm|run]" >&2
+        echo "Usage: kid_mode_loop.sh [arm|run|cleanup]" >&2
         exit 1
         ;;
 esac

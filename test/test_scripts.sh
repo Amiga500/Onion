@@ -4030,6 +4030,84 @@ check "the kid's saves left alone" test "$(cat "$kids_profile/saves/k.srm")" = k
 unset -f apply_profile_isolation restore_profile_isolation log kids_sd parent_back
 end
 
+begin kids_mode_cleaned_up_when_kidmode_deleted_from_a_computer
+# runtime.sh at boot: only with .kidmode gone and something of Kids Mode left
+eval "$(extract_fn "$RUNTIME" kids_mode_cleanup_if_disarmed | sed "s#/mnt/SDCARD#$TMP#g")"
+log() { :; }
+sysdir=$TMP
+kids_mode_loop=$TMP/loop.sh
+printf 'echo "$KIDSMODE_HOST $1" >> "%s/calls"\n' "$TMP" > "$kids_mode_loop"
+mkdir -p "$TMP/Saves/KidsMode"
+kids_mode_cleanup_if_disarmed
+check "nothing of Kids Mode left: not run" test ! -e "$TMP/calls"
+: > "$TMP/Saves/KidsMode/retroarch.cfg.backup"
+: > "$TMP/.kidmode"
+kids_mode_cleanup_if_disarmed
+check "still armed: not run" test ! -e "$TMP/calls"
+rm -f "$TMP/.kidmode"
+kids_mode_cleanup_if_disarmed
+check ".kidmode gone, its RetroArch backup left: cleanup run" test "$(cat "$TMP/calls")" = "runtime cleanup"
+rm -f "$TMP/calls" "$TMP/Saves/KidsMode/retroarch.cfg.backup"
+mkdir -p "$TMP/Saves/KidsMode/profile-parked-saves"
+kids_mode_cleanup_if_disarmed
+check "the parent's saves still parked: cleanup run" test "$(cat "$TMP/calls")" = "runtime cleanup"
+rm -f "$TMP/calls" "$kids_mode_loop"
+kids_mode_cleanup_if_disarmed
+check "Kids Mode not installed: nothing to run" test ! -e "$TMP/calls"
+check "at boot, before Kids Mode or a startup app" sh -c "awk '/^    kids_mode_cleanup_if_disarmed\$/ { c = NR } /^    if kids_mode_armed; then\$/ && !k { k = NR } END { exit !(c && k > c) }' '$RUNTIME'"
+unset -f kids_mode_cleanup_if_disarmed log
+# Kids Mode's own cleanup: what an unlock puts back
+backupdir=$TMP/Saves/KidsMode
+flagfile=$TMP/.kidmode
+current_profile=$TMP/Saves/CurrentProfile
+kids_profile=$TMP/Saves/KidsProfile/Main
+source_profile=Main
+isolated_subdirs="saves states romScreens"
+profile_isolation_marker=$backupdir/profile_isolation_active
+game_environment_marker=$backupdir/game_environment_ready
+racfg=$TMP/retroarch.cfg; rabackup=$backupdir/retroarch.cfg.backup
+keymapcfg=$TMP/keymap.json; keymapbackup=$backupdir/keymap.json.backup; keymapnone=$backupdir/keymap-was-absent
+blfscript=$TMP/blue_light.sh; blfbackup=$backupdir/blue_light.sh.backup
+gambatte_remap_dir=$current_profile/config/remaps/Gambatte
+gambatte_remap_backup=$backupdir/gambatte-remaps.backup
+gambatte_remap_absent=$backupdir/gambatte-remaps.was-absent
+gambatte_remap_active=$backupdir/gambatte-remaps.active
+onion_battery_display_flag=$TMP/hasBatteryDisplay; onion_battery_display_marker=$TMP/hbd_created
+legacy_battery_warning_flag=$TMP/.noBatteryWarning; legacy_battery_warning_marker=$backupdir/no_battery_warning.created
+kidsmode_active_flag=$TMP/kidsmode; checkoff_dst=$TMP/kidmode_checkoff.sh
+timesup_since_file=$TMP/ts; timesup_resume_file=$TMP/tr
+for f in cmd_cleanup restore_ra_lock restore_gambatte_remap_lock restore_blf_lock restore_profile_isolation restore_onion_battery_warning restore_keymap_override; do
+    eval "$(extract_fn "$KIDS_LOOP" $f | sed 's#/tmp/kidsmode_ra_lock_checked#'"$TMP"'/ra_checked#')"
+done
+log() { :; }
+sync() { :; }
+restart_keymon() { :; }
+infoPanel() { echo "$*" > "$TMP/panel"; }
+# Kids Mode armed, then .kidmode deleted from a computer
+rm -rf "$TMP/Saves"; mkdir -p "$backupdir/profile-parked-saves" "$current_profile/saves" "$kids_profile"
+echo parent-ra > "$rabackup"; echo kiosk > "$racfg"
+echo parent-keys > "$keymapbackup"; echo kid-keys > "$keymapcfg"
+echo parent > "$backupdir/profile-parked-saves/p.srm"
+echo kid > "$current_profile/saves/k.srm"
+: > "$profile_isolation_marker"; : > "$game_environment_marker"; : > "$checkoff_dst"
+: > "$legacy_battery_warning_flag"; : > "$legacy_battery_warning_marker"
+: > "$flagfile"
+cmd_cleanup
+check "armed: cleanup does nothing" test "$(cat "$racfg")" = kiosk
+rm -f "$flagfile"
+cmd_cleanup
+check "RetroArch's config back" test "$(cat "$racfg")" = parent-ra
+check "the keymap back" test "$(cat "$keymapcfg")" = parent-keys
+check "the parent's saves back" test "$(cat "$current_profile/saves/p.srm")" = parent
+check "the kid's kept for next time" test "$(cat "$kids_profile/saves/k.srm")" = kid
+check "Onion's battery warning back" test ! -e "$legacy_battery_warning_flag"
+check "shutdown hook and markers gone" sh -c 'test ! -e "$1" && test ! -e "$2" && test ! -e "$3"' _ "$checkoff_dst" "$game_environment_marker" "$profile_isolation_marker"
+check "a message says so" grep -q "Turned off from a computer" "$TMP/panel"
+unset -f cmd_cleanup restore_ra_lock restore_gambatte_remap_lock restore_blf_lock restore_profile_isolation restore_onion_battery_warning restore_keymap_override log sync restart_keymon infoPanel
+check "the parent's profile is read for cleanup too (Guest stays Guest)" sh -c "sed -n '/^detect_source_profile() {/,/^}/p' '$KIDS_LOOP' | grep -q 'cleanup'"
+check "kid_mode_loop.sh has the cleanup command" sh -c "grep -q '^    cleanup)\$' '$KIDS_LOOP'"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

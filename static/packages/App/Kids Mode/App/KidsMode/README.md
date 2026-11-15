@@ -290,7 +290,9 @@ Nothing on the SD card is permanently locked.
   and `pin_salt`, and set `pin_plain` to a new four-digit PIN. Also delete
   `Saves/KidsMode/pin_backup.json` so the previous PIN is not restored.
 - **Force exit from a computer:** delete the hidden `/.kidmode` file at the
-  root of the SD card, then boot normally.
+  root of the SD card, then boot normally. At that boot RedOnion puts back
+  what Kids Mode locked: RetroArch's settings, the keymap, the parent's
+  saves, states and thumbnails (a message says so).
 - **Log file:** `.tmp_update/logs/kidsmode.log` records startup and recovery
   information.
 - **Interface failure:** after repeated launcher failures, the safety routine

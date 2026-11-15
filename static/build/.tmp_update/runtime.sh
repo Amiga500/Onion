@@ -266,6 +266,8 @@ main() {
         sh "$startup_script"
     done
 
+    kids_mode_cleanup_if_disarmed
+
     if kids_mode_armed; then
         # Kids Mode decides what runs, a game left from before included
         # (resumed only while play time is left): no startup app.
@@ -378,6 +380,28 @@ kids_mode_loop=/mnt/SDCARD/App/KidsMode/kid_mode_loop.sh
 
 kids_mode_armed() {
     [ -f /mnt/SDCARD/.kidmode ] && [ -f "$kids_mode_loop" ]
+}
+
+# .kidmode deleted from a computer while Kids Mode was on: what it locked
+# (RetroArch, keymap, the parent's saves...) is still there. Its script puts
+# it back. Nothing is run when nothing of it is left in Saves/KidsMode.
+kids_mode_cleanup_if_disarmed() {
+    [ -f /mnt/SDCARD/.kidmode ] && return 0
+    [ -f "$kids_mode_loop" ] || return 0
+    kids_left=
+    for kids_mark in game_environment_ready profile_isolation_active \
+        retroarch.cfg.backup keymap.json.backup keymap-was-absent \
+        blue_light.sh.backup gambatte-remaps.active \
+        profile-parked-saves profile-parked-states profile-parked-romScreens; do
+        if [ -e "/mnt/SDCARD/Saves/KidsMode/$kids_mark" ]; then
+            kids_left=$kids_mark
+            break
+        fi
+    done
+    [ -n "$kids_left" ] || return 0
+    log "Kids Mode: .kidmode gone but $kids_left left, cleaning up"
+    KIDSMODE_HOST=runtime sh "$kids_mode_loop" cleanup
+    cd $sysdir
 }
 
 # Kids Mode's launcher in place of MainUI. It returns with a game in
