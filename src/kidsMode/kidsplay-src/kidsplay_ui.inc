@@ -483,11 +483,15 @@ static size_t kp_title_break(TTF_Font *font, const char *text, int max_width,
     char candidate[512];
     size_t length = strlen(text), offset = 0, fit = 0, natural = 0;
     int natural_keep = 0;
-    while (offset < length && offset + 1 < sizeof(candidate)) {
+    while (offset < length) {
         size_t next = offset + 1;
         while (next < length &&
                (((unsigned char)text[next] & 0xc0) == 0x80))
             next++;
+        /* The whole character and the NUL must fit: checking only its
+         * first byte let a 4-byte character end 3 bytes past the buffer. */
+        if (next >= sizeof(candidate))
+            break;
         memcpy(candidate, text, next);
         candidate[next] = '\0';
         if (kp_text_width(font, candidate) > max_width)
@@ -684,11 +688,12 @@ static void kp_draw_progress(SDL_Surface *surface)
 
 static int kp_battery_index(void)
 {
+    /* The same levels as RedOnion's _getBatteryRequest() and Open MainUI. */
     if (kp.charging) return 5;
-    if (kp.battery <= 5) return 0;
-    if (kp.battery < 30) return 1;
-    if (kp.battery < 60) return 2;
-    if (kp.battery < 90) return 3;
+    if (kp.battery < 5) return 0;
+    if (kp.battery < 15) return 1;
+    if (kp.battery < 45) return 2;
+    if (kp.battery < 70) return 3;
     return 4;
 }
 

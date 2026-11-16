@@ -1952,6 +1952,23 @@ typedef enum { TEXT_LEFT,
                TEXT_CENTER,
                TEXT_RIGHT } TextAlignMode;
 
+// One character less of the text, then "...": the cut never falls inside a
+// UTF-8 character (an accented letter or a kana was cut in half before, and
+// shown as a wrong sign). Returns how many bytes of the text are kept.
+static size_t ellipsizeStep(char *buf, const char *text, size_t keep)
+{
+    if (keep > STR_MAX - 4)
+        keep = STR_MAX - 4;
+    while (keep > 0) {
+        keep--;
+        if (((unsigned char)text[keep] & 0xC0) != 0x80)
+            break;
+    }
+    memcpy(buf, text, keep);
+    memcpy(buf + keep, "...", 4);
+    return keep;
+}
+
 static void drawTextAlign(const char *text, int x, int center_y,
                           TTF_Font *font, SDL_Color color, int max_width,
                           TextAlignMode align)
@@ -1967,9 +1984,9 @@ static void drawTextAlign(const char *text, int x, int center_y,
     if (max_width > 0) {
         int w = 0, h = 0;
         TTF_SizeUTF8(font, buf, &w, &h);
-        while (w > max_width && strlen(buf) > 4) {
-            buf[strlen(buf) - 4] = '\0';
-            strcat(buf, "...");
+        size_t keep = strlen(buf);
+        while (w > max_width && keep > 1) {
+            keep = ellipsizeStep(buf, text, keep);
             TTF_SizeUTF8(font, buf, &w, &h);
         }
     }
@@ -2009,9 +2026,9 @@ static void drawSlantedText(const char *text, int center_x, int center_y,
     if (max_width > 0) {
         int w = 0, h = 0;
         TTF_SizeUTF8(font, buf, &w, &h);
-        while (w + estimated_shear > max_width && strlen(buf) > 4) {
-            buf[strlen(buf) - 4] = '\0';
-            strcat(buf, "...");
+        size_t keep = strlen(buf);
+        while (w + estimated_shear > max_width && keep > 1) {
+            keep = ellipsizeStep(buf, text, keep);
             TTF_SizeUTF8(font, buf, &w, &h);
         }
     }

@@ -469,6 +469,10 @@ void deepsleep(void)
     system_state_update();
 
     if (system_state == MODE_GAME && !check_autosave()) {
+        // Kids Mode blacked the backlight when POWER went down, and nothing
+        // is shut down here: put it back, or the game goes on in the dark.
+        if (kidsmode_active())
+            display_setBrightness(settings.brightness);
         return;
     }
 

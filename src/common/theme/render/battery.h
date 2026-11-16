@@ -5,17 +5,20 @@
 #include "theme/config.h"
 #include "theme/resources.h"
 
+// The levels of stock MainUI, which Open MainUI uses too (robcodedev), so
+// the icon is the same in the menu and everywhere else: 0-4, 5-14, 15-44,
+// 45-69, 70-100. Onion had 5, 30, 60 and 90.
 ThemeImages _getBatteryRequest(int percentage)
 {
     if (percentage == 500)
         return BATTERY_CHARGING;
     if (percentage < 5)
         return BATTERY_0;
-    if (percentage < 30)
+    if (percentage < 15)
         return BATTERY_20;
-    if (percentage < 60)
+    if (percentage < 45)
         return BATTERY_50;
-    if (percentage < 90)
+    if (percentage < 70)
         return BATTERY_80;
     return BATTERY_100;
 }

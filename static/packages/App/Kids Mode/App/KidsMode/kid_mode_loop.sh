@@ -1641,7 +1641,19 @@ switch_kids_profile() {
     # Save the current Kids environment, then restore the current Onion
     # profile completely before asking Onion's profile folders to trade places.
     restore_gambatte_remap_lock
-    restore_profile_isolation
+    # The parent's saves must be back in CurrentProfile before the profiles
+    # trade places: left parked, they would later be put into the other
+    # profile. A swap that stopped half-way is finished again instead.
+    if ! restore_profile_isolation; then
+        log "Profile switch aborted: could not put the parked saves back."
+        if [ "$initial_switch" != initial ]; then
+            apply_gambatte_remap_lock
+            apply_profile_isolation
+            start_ticker
+        fi
+        infoPanel -t "Kids Mode" -m "The profile could not be switched.\nNothing was changed." --auto
+        return 1
+    fi
     rm -f "$game_environment_marker" "$game_prepare_pid_file"
 
     mkdir -p "$current_profile/lists"
@@ -2051,9 +2063,10 @@ disarm() {
 # Gambatte remap, blue_light.sh, the parent's saves/states/thumbnails, the
 # keymap and Onion's battery warning, and removes the shutdown hook. Each
 # step only acts on what it finds in Saves/KidsMode.
+# $1, $2: what the log and the screen say (a missing app file: cmd_run).
 cmd_cleanup() {
     [ -f "$flagfile" ] && return 0
-    log "Kids Mode flag gone (deleted from a computer): restoring Onion."
+    log "${1:-Kids Mode flag gone (deleted from a computer): restoring Onion.}"
     rm -f "$kidsmode_active_flag" "$checkoff_dst" \
         /tmp/kidsmode_ra_lock_checked "$timesup_since_file" \
         "$timesup_resume_file" "$timesup_resume_file.tmp"
@@ -2066,7 +2079,7 @@ cmd_cleanup() {
     rm -f "$game_environment_marker"
     sync
     log "Kids Mode cleaned up."
-    infoPanel -t "Kids Mode" -m "Turned off from a computer.\nOnion's settings are back." --auto
+    infoPanel -t "Kids Mode" -m "${2:-Turned off from a computer.\nOnion's settings are back.}" --auto
 }
 
 # ------------------------------ main loop ----------------------------------
@@ -2529,10 +2542,12 @@ disable_timer_and_resume_timesup() {
 cmd_run() {
     if [ ! -f "$kidui_bin" ] || [ ! -f "$kidsplay" ] ||
        [ ! -f "$kidsplay_vsync" ] || [ ! -f "$kidsplay_fb_reset" ]; then
-        log "Kids Mode runtime incomplete; disarming."
+        # Not only the flag: what Kids Mode locked (RetroArch, the keymap,
+        # the parent's saves put away) goes back now. Left until the next
+        # boot, MainUI's games were played on the kid's saves meanwhile.
         rm -f "$flagfile"
-        restore_onion_battery_warning
-        sync
+        cmd_cleanup "Kids Mode runtime incomplete; disarming and restoring Onion." \
+            "Kids Mode is incomplete and was turned off.\nReinstall Kids Mode."
         return 1
     fi
     chmod a+x "$kidui_bin" 2> /dev/null
@@ -2788,6 +2803,9 @@ cmd_run() {
                         ;;
                     PLAY | RESTART)
                         active_floor=videos
+                        # Out of time (A pressed just before "Time's up!"
+                        # showed): not started, as for a game below.
+                        [ "$(timer_remaining)" = "0" ] && continue
                         last_video="$(sed -n 2p "$uiresult")"
                         last_artwork="$(sed -n 3p "$uiresult")"
                         printf '%s\n' "$last_artwork" > "$last_artwork_file"

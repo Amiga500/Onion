@@ -439,9 +439,19 @@ gi_entry() {
          "  </game>"'
 }
 
-# Adds this ROM's entry to the console's gamelist.xml, before its last
-# </gameList>, or makes the file. A gamelist.xml without </gameList> is left
-# alone.
+# The entries wait in gamelist.xml.entry and go into gamelist.xml
+# GI_DESC_BATCH at a time, and at the end of the scraping: the whole list is
+# written again each time, so one ROM at a time meant as many rewrites of a
+# growing file as ROMs (hundreds of MB on the SD card for a big console).
+# 1 (the default, and the tests) writes each entry at once; the scraping
+# below sets it higher. Entries still waiting when the power is lost are
+# asked again at the next scraping.
+GI_DESC_BATCH=${GI_DESC_BATCH:-1}
+gi_pending=0
+
+# Adds this ROM's entry to the ones waiting for the console's gamelist.xml,
+# and writes them when there are enough. A gamelist.xml without </gameList>
+# is left alone.
 gi_write_desc() {
     gi_list="$gi_root/gamelist.xml"
     # Power lost while the new list replaced the old one (a rename on FAT32
@@ -454,8 +464,26 @@ gi_write_desc() {
         printf '<?xml version="1.0"?>\n<gameList>\n</gameList>\n' > "$gi_list"
     fi
     grep -q '</gameList>' "$gi_list" || return 1
-    gi_entry > "$gi_list.entry" || { rm -f "$gi_list.entry"; return 1; }
-    grep -q '<path>' "$gi_list.entry" || { rm -f "$gi_list.entry"; return 1; }
+    # Nothing waiting: what an earlier scraping left there (cut short, maybe
+    # in the middle of an entry) is not used.
+    [ "$gi_pending" -gt 0 ] || rm -f "$gi_list.entry"
+    gi_entry > "$gi_list.one" || { rm -f "$gi_list.one"; return 1; }
+    grep -q '<path>' "$gi_list.one" || { rm -f "$gi_list.one"; return 1; }
+    cat "$gi_list.one" >> "$gi_list.entry" || { rm -f "$gi_list.one"; return 1; }
+    rm -f "$gi_list.one"
+    gi_pending=$((gi_pending + 1))
+    [ "$gi_pending" -lt "$GI_DESC_BATCH" ] && return 0
+    gi_flush_desc
+}
+
+# Writes the waiting entries into gamelist.xml, before its last </gameList>.
+# Nothing to do without any. When the list cannot be written whole the
+# entries are dropped (their ROMs are asked again at the next scraping).
+gi_flush_desc() {
+    [ "${gi_pending:-0}" -gt 0 ] || return 0
+    gi_list="$gi_root/gamelist.xml"
+    gi_flushed=$gi_pending
+    gi_pending=0
     awk -v entry="$gi_list.entry" '
         { line[NR] = $0 }
         /<\/gameList>/ { last = NR }
@@ -474,6 +502,9 @@ gi_write_desc() {
         grep -q '</gameList>' "$gi_list.tmp" && mv -f "$gi_list.tmp" "$gi_list"
     gi_ok=$?
     rm -f "$gi_list.entry" "$gi_list.tmp"
+    if [ $gi_ok -ne 0 ] && [ "$gi_flushed" -gt 1 ]; then
+        echo -e "${RED}gamelist.xml could not be written: $gi_flushed descriptions not saved${NONE}"
+    fi
     return $gi_ok
 }
 
@@ -544,6 +575,13 @@ gi_download() {
 }
 
 saveMetadata=false
+# gamelist.xml is written every 25 descriptions, and when the scraping ends.
+# Closed before the end (the menu closes its terminal with pkill st, which
+# hangs up this script; B, a TERM), the ones waiting are written first. Only
+# a SIGKILL or a power cut loses them: their ROMs are asked again next time.
+GI_DESC_BATCH=25
+trap gi_flush_desc EXIT
+trap 'gi_flush_desc; exit 1' HUP INT TERM
 clear
 echo -e "\n*****************************************************"
 echo -e "******************* SCREENSCRAPER *******************"
@@ -686,7 +724,7 @@ fi
     
 
 for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
-	! -name '.*' ! -name '*.xml' ! -name '*.xml.tmp' ! -name '*.xml.entry' ! -name '*.miyoocmd' ! -name '*.cfg' ! -name '*.db' \
+	! -name '.*' ! -name '*.xml' ! -name '*.xml.tmp' ! -name '*.xml.entry' ! -name '*.xml.one' ! -name '*.miyoocmd' ! -name '*.cfg' ! -name '*.db' \
 	! -path '*/Imgs/*' ! -path '*/.*/*' $romfilter"); do
 	
     echo "-------------------------------------------------"
@@ -873,6 +911,8 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 
 done
 
+# The descriptions still waiting go into gamelist.xml.
+gi_flush_desc
 
 
 echo -e "\n--------------------------"

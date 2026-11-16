@@ -52,6 +52,9 @@ static int axp_menu_selected = AXP_MENU_CAPACITY;
 static int axp_edit_capacity = 3000;
 static int axp_edit_voff = 3; // REG 31H bits 2-0 code: 0..7 -> 2.6..3.3 V (default 3 = 2.9 V)
 #define AXP_VOFF_CODE_MAX 5   // UI limit: 3.1 V (3.2/3.3 V would waste too much usable capacity)
+// UI limit below: 2.9 V, the PMIC's own default (REG 31H = 03H). Lower values discharge the cell deeper
+// than the device was made for. A lower value found on the PMIC is shown and can only be raised.
+#define AXP_VOFF_CODE_MIN 3
 static int axp_edit_chgv = 2; // REG 33H bits 6-5 code: 0 = 4.10 V, 2 = 4.20 V (1 = 4.22 V and 3 = 4.24 V are never offered)
 // The menu offers, and the write accepts, only 4.10 V and 4.20 V: codes 1 and 3 are above the cell's rated 4.20 V.
 #define AXP_CHGV_CODE_OFFERED(code) ((code) == 0 || (code) == 2)
@@ -2623,7 +2626,7 @@ int main(int argc, char *argv[])
                     }
                     else if (axp_menu_selected == AXP_MENU_VOFF) {
                         if (keystate[SW_BTN_LEFT] >= PRESSED) {
-                            if (axp_edit_voff > 0) {
+                            if (axp_edit_voff > AXP_VOFF_CODE_MIN) {
                                 axp_edit_voff--;
                                 changed = true;
                             }

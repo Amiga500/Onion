@@ -557,6 +557,41 @@ check "a cut .tmp (no </gameList>) is not used" sh -c "! grep -q Half '$gi_root/
 rm -f "$gi_root/gamelist.xml" "$gi_root/gamelist.xml.tmp"
 end
 
+begin battery_icon_levels_match_open_mainui
+BATTERY_H="$ROOT/src/common/theme/render/battery.h"
+KIDSPLAY_UI="$ROOT/src/kidsMode/kidsplay-src/kidsplay_ui.inc"
+check "RedOnion: 5, 15, 45, 70, as stock MainUI and Open MainUI" sh -c "sed -n '/^ThemeImages _getBatteryRequest/,/^}/p' '$BATTERY_H' | grep -o 'percentage < [0-9]*' | tr -d -c '0-9\n' | tr '\n' ' ' | grep -qx '5 15 45 70 '"
+check "KidsPlay: the same levels" sh -c "sed -n '/kp.charging) return 5;/,/return 4;/p' '$KIDSPLAY_UI' | grep -o 'kp.battery < [0-9]*' | tr -d -c '0-9\n' | tr '\n' ' ' | grep -qx '5 15 45 70 '"
+end
+
+begin scraper_gamelist_written_in_batches
+gi_env
+GI_DESC_BATCH=3
+printf '<gameList>\n<game><path>./Other.sfc</path><desc>keep</desc></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+cp "$gi_root/gamelist.xml" "$TMP/before.xml"
+echo '<game><path>./Stale.sfc</path>' > "$gi_root/gamelist.xml.entry" # left by a scraping cut short
+gi_rel="A & B.sfc"; gi_write_desc; rc1=$?
+gi_rel="C.sfc"; gi_write_desc
+check "the first two wait: gamelist.xml not written yet" cmp -s "$gi_root/gamelist.xml" "$TMP/before.xml"
+check "and count as done" test $rc1 -eq 0
+gi_rel="D.sfc"; gi_write_desc
+check "the third writes all three" test "$(grep -c '<path>' "$gi_root/gamelist.xml")" -eq 4
+check "in their order, before </gameList>" sh -c "awk '/A &amp; B.sfc/ { a = NR } /C.sfc/ { c = NR } /D.sfc/ { d = NR } /<\\/gameList>/ { e = NR } END { exit !(a && a < c && c < d && d < e) }' '$gi_root/gamelist.xml'"
+check "the old entry kept" grep -q '<desc>keep</desc>' "$gi_root/gamelist.xml"
+check "what an earlier scraping left waiting is not used" sh -c "! grep -q Stale '$gi_root/gamelist.xml'"
+gi_rel="E.sfc"; gi_write_desc
+gi_flush_desc
+check "the end of the scraping writes the ones still waiting" grep -q '<path>./E.sfc</path>' "$gi_root/gamelist.xml"
+check "nothing left behind" sh -c "! ls '$gi_root' | grep -q 'gamelist.xml\\.'"
+cp "$gi_root/gamelist.xml" "$TMP/before.xml"
+gi_flush_desc
+check "nothing waiting: gamelist.xml not written again" cmp -s "$gi_root/gamelist.xml" "$TMP/before.xml"
+check "the scraping writes every 25, and when it ends or is closed" sh -c "grep -qx 'GI_DESC_BATCH=25' '$SCRAPER_SS' && grep -qx 'trap gi_flush_desc EXIT' '$SCRAPER_SS' && grep -qx 'gi_flush_desc' '$SCRAPER_SS'"
+check "and when its terminal is closed or it is stopped" grep -qx "trap 'gi_flush_desc; exit 1' HUP INT TERM" "$SCRAPER_SS"
+check "the waiting entries are not taken for ROMs" grep -q "! -name '\*.xml.entry' ! -name '\*.xml.one'" "$SCRAPER_SS"
+GI_DESC_BATCH=1
+end
+
 begin scraper_game_not_found_is_remembered
 gi_env
 GameInfoMedia="desc,box3d"
@@ -4213,9 +4248,16 @@ check "the kid's kept for next time" test "$(cat "$kids_profile/saves/k.srm")" =
 check "Onion's battery warning back" test ! -e "$legacy_battery_warning_flag"
 check "shutdown hook and markers gone" sh -c 'test ! -e "$1" && test ! -e "$2" && test ! -e "$3"' _ "$checkoff_dst" "$game_environment_marker" "$profile_isolation_marker"
 check "a message says so" grep -q "Turned off from a computer" "$TMP/panel"
+: > "$game_environment_marker"
+cmd_cleanup "why" "Kids Mode is incomplete"
+check "its own words when the app is incomplete" grep -q "Kids Mode is incomplete" "$TMP/panel"
+check "and the same cleanup" test ! -e "$game_environment_marker"
 unset -f ra_lock_keys cmd_cleanup restore_ra_lock restore_gambatte_remap_lock restore_blf_lock restore_profile_isolation restore_onion_battery_warning restore_keymap_override log sync restart_keymon infoPanel
 check "the parent's profile is read for cleanup too (Guest stays Guest)" sh -c "sed -n '/^detect_source_profile() {/,/^}/p' '$KIDS_LOOP' | grep -q 'cleanup'"
 check "kid_mode_loop.sh has the cleanup command" sh -c "grep -q '^    cleanup)\$' '$KIDS_LOOP'"
+check "an incomplete app puts back what Kids Mode locked, not only the flag" sh -c "sed -n '/^cmd_run() {/,/^}/p' '$KIDS_LOOP' | sed -n '/runtime incomplete/,/return 1/p' | grep -q 'cmd_cleanup '"
+check "a profile switch stops when the parked saves cannot go back" sh -c "sed -n '/^switch_kids_profile() {/,/^}/p' '$KIDS_LOOP' | grep -q 'if ! restore_profile_isolation; then'"
+check "no video is started once the play time is over" sh -c "sed -n '/PLAY | RESTART)/,/play_video/p' '$KIDS_LOOP' | grep -q 'timer_remaining.* = \"0\" \] && continue'"
 end
 
 begin blue_light_no_second_disp_init_after_a_repair
