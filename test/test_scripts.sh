@@ -945,6 +945,36 @@ if command -v jq > /dev/null; then
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
+    begin ota_4_5_1_beta_after_the_4_5_0_stable
+    # 4.5.1-b1 for the testers, then the beta channel: offered over the 4.5.0
+    # stable there, not on the stable channel, and the 4.5.1 stable offered
+    # to it later. Also as a build made by hand (no commit hash).
+    check "the Makefile's version is 4.5.1-b1" test "$(sed -n 's/^VERSION_BASE=//p' "$ROOT/Makefile")" = 4.5.1-b1
+    check "4.5.1 is newer than 4.5.0" test "$(get_version 4.5.1)" -gt "$(get_version 4.5.0)"
+    installUI() { echo "4.5.0-20261106-3d9f2add"; }
+    channel=beta
+    printf '[%s,%s]' "$(ota_asset 4.5.0-20261106-3d9f2add false)" "$(ota_asset 4.5.1-b1-20261116-1a2b3c4d true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel: 4.5.1-b1 offered over the 4.5.0 stable" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.1-b1-20261116-1a2b3c4d
+    channel=stable
+    ota_asset 4.5.0-20261106-3d9f2add false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable channel on 4.5.0: nothing new (the beta is not offered)" test "$?" -eq 1
+    installUI() { echo "4.5.1-b1-20261116"; }
+    check "4.5.1-b1 made by hand: date parsed" test "$(build_date 4.5.1-b1-20261116)" = 20261116
+    ota_asset 4.5.0-20261106-3d9f2add false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable channel on 4.5.1-b1: 4.5.0 not offered back" test "$?" -eq 1
+    ota_asset 4.5.1-20261201-5e6f7a8b false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable channel on 4.5.1-b1: the 4.5.1 stable offered" test "$?" -eq 0
+    channel=beta
+    printf '[%s]' "$(ota_asset 4.5.1-b2-20261120-9a8b7c6d true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel on 4.5.1-b1: 4.5.1-b2 offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.1-b2-20261120-9a8b7c6d
+    installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
+    end
+
     begin ota_4_5_0_stable_over_the_4_4_0_stable
     # 4.5.0 follows the 4.4.0 stable directly (no public 4.5.0 beta): both
     # channels offer it to a 4.4.0 device, and it is not offered again.
