@@ -85,6 +85,10 @@
 #define CHARGE_OFF_JUMP_MIN 3
 #define SLEEP_GAP_MIN_PCT 10
 #define SLEEP_RATE_MIN 1800
+// A gap longer than this is the clock moving, not a sleep: batmon logs start_time from any clock
+// past 2020, so an entry begun before the time sync carries the fallback clock (~4 years behind).
+// Counted, the newest entry gave the current session about 35000 h of OFF/SLEEP.
+#define SLEEP_GAP_MAX (30LL * 24 * 3600)
 
 // "V2" after the title in the background (Arkhip at 20 matches its letters)
 #define TITLE_FONT_SIZE 20

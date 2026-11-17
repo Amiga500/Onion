@@ -905,7 +905,8 @@ void compute_graph(void)
                     // counts in the time asleep; its cost shows when the next level is logged.
                     if (!is_charging && row_time > 0 && newer_row_time > 0) {
                         long long gap = newer_row_time - row_time - duration;
-                        if (gap >= SLEEP_GAP_MIN && gap * 100 >= (long long)duration * SLEEP_GAP_MIN_PCT) {
+                        if (gap >= SLEEP_GAP_MIN && gap <= SLEEP_GAP_MAX &&
+                            gap * 100 >= (long long)duration * SLEEP_GAP_MIN_PCT) {
                             run_sleep += gap;
                             if (run_rows > 0 && raw_level <= 100 && newer_row_level <= 100 && raw_level > newer_row_level)
                                 run_sleep_drop += raw_level - newer_row_level;
