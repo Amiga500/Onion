@@ -38,6 +38,7 @@ static uint32_t *romscreen_save_pixels = NULL;
 static uint32_t romscreen_save_width = 0;
 static uint32_t romscreen_save_height = 0;
 static char romscreen_save_path[STR_MAX] = {0};
+static char romscreen_save_rompath[STR_MAX * 2] = {0}; // for the cover (romscreen_cover.h)
 static pid_t overlay_retroarch_pid = 0;
 
 // RetroArch computes the CRC32 of content that the core opens itself (arcade
@@ -120,6 +121,41 @@ static void _playActivityAsync(const char *action)
     }
 }
 
+// The overlay's "playActivity stop_all" (it closes the play session while the
+// GameSwitcher is up), kept so "resume" can wait for it. Both ran detached:
+// opening and closing the GameSwitcher quickly could start resume before
+// stop_all had closed the session; resume then found the session still open,
+// did nothing ("no active rom"), and stop_all closed it afterwards, so the
+// time played after returning to the game was never counted.
+static pid_t pa_stop_all_pid = 0;
+
+// Run stop_all in a child of our own (not double-forked) so it can be waited
+// for. The UI does not wait for it here.
+static void _playActivityStopAllStart(void)
+{
+    pid_t pid = fork();
+    if (pid == 0) {
+        execl("/mnt/SDCARD/.tmp_update/bin/playActivity", "playActivity", "stop_all", NULL);
+        _exit(127);
+    }
+    if (pid > 0)
+        pa_stop_all_pid = pid;
+    else
+        printf_debug("fork failed for playActivity %s\n", "stop_all");
+}
+
+// Wait until stop_all has finished (usually long done: no wait), and reap it.
+// Before resume, and before the GameSwitcher exits (a game launched next
+// then starts its session after this one was closed).
+static void _playActivityStopAllWait(void)
+{
+    if (pa_stop_all_pid <= 0)
+        return;
+    while (waitpid(pa_stop_all_pid, NULL, 0) < 0 && errno == EINTR)
+        ;
+    pa_stop_all_pid = 0;
+}
+
 static bool _autosavePending(void)
 {
     pthread_mutex_lock(&autosave_status_mutex);
@@ -137,11 +173,16 @@ static void *_writeRomScreenThread(void *arg)
             printf_debug("Saved rom screen: %s\n", romscreen_save_path);
         else
             printf_debug("Failed to save rom screen: %s\n", romscreen_save_path);
+        // The same frame as the game's cover, if it has none and the option
+        // is on. Upright here (the GameSwitcher's copy), unlike keymon's.
+        screenshot_romscreen_cover(romscreen_save_pixels, (int)romscreen_save_width,
+                                   (int)romscreen_save_height, false, romscreen_save_rompath);
     }
     free(romscreen_save_pixels);
     romscreen_save_pixels = NULL;
     romscreen_save_width = romscreen_save_height = 0;
     romscreen_save_path[0] = '\0';
+    romscreen_save_rompath[0] = '\0';
     return NULL;
 }
 
@@ -217,6 +258,8 @@ static void _snapshotRomScreen(Game_s *game)
                                        strlen(game->recentItem.rompath));
     snprintf(romscreen_save_path, sizeof(romscreen_save_path),
              ROM_SCREENS_DIR "/%" PRIu32 ".png", hash);
+    snprintf(romscreen_save_rompath, sizeof(romscreen_save_rompath), "%s",
+             game->recentItem.rompath);
     romscreen_save_width = (uint32_t)width;
     romscreen_save_height = (uint32_t)height;
     romscreen_save_pixels = copy;
@@ -235,6 +278,7 @@ void overlay_finishWorkers(void)
 {
     _finishAutosave(false);
     _finishRomScreen();
+    _playActivityStopAllWait();
 }
 
 void overlay_init()
@@ -254,7 +298,7 @@ void overlay_init()
         print_debug("Unable to capture RetroArch PID\n");
 
     bool retroarch_cmd_ready = retroarch_pause() == 0;
-    _playActivityAsync("stop_all");
+    _playActivityStopAllStart();
     setFbAsFirstRomScreen();
     RetroArchStatus_s status;
     int status_result = retroarch_cmd_ready
@@ -317,6 +361,7 @@ void overlay_resume(void)
 
         render();
         retroarch_unpause();
+        _playActivityStopAllWait(); // the session must be closed first
         _playActivityAsync("resume");
         _finishRomScreen();
         msleep(200);

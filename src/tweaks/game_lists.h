@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 
 #include "components/list.h"
+#include "system/romscreen_cover.h"
 #include "system/settings.h"
 #include "utils/config.h"
 
@@ -228,6 +229,13 @@ static void gamelists_action_fixed_favorite_position(void *pt)
         gamelists_write_text(GAMELISTS_DYNAMIC_FAV_PATH, "");
 }
 
+// Tweaks > Game lists > Previews > Screenshot as missing cover: keymon and
+// the GameSwitcher read the flag each time they save a game's picture.
+static void gamelists_action_romscreen_cover(void *pt)
+{
+    config_flag_set(ROMSCREEN_COVER_FLAG, ((ListItem *)pt)->value);
+}
+
 // An option that only matters while another is on is greyed out while that
 // one is Off (its first value): the video size without video preview, the
 // Game Info text speed without auto scroll, the long-name style and speed
@@ -414,7 +422,7 @@ void menu_gameListsPreviews(void *_)
 {
     (void)_;
     if (!_menu_game_lists_previews._created) {
-        _menu_game_lists_previews = list_createWithTitle(4, LIST_SMALL, "Game lists: previews");
+        _menu_game_lists_previews = list_createWithTitle(5, LIST_SMALL, "Game lists: previews");
         list_addItemWithInfoNote(
             &_menu_game_lists_previews,
             (ListItem){
@@ -459,6 +467,16 @@ void menu_gameListsPreviews(void *_)
                 .action = gamelists_action_info_scroll_speed},
             "How fast the Game Info description\n"
             "scrolls, in pixels per second.");
+        list_addItemWithInfoNote(
+            &_menu_game_lists_previews,
+            (ListItem){
+                .label = "Screenshot as missing cover",
+                .item_type = TOGGLE,
+                .value = config_flag_get(ROMSCREEN_COVER_FLAG),
+                .action = gamelists_action_romscreen_cover},
+            "A game without a cover gets the picture\n"
+            "the GameSwitcher keeps when you leave it.\n"
+            "Existing covers are never replaced.");
         gamelists_update_list(&_menu_game_lists_previews);
     }
     menu_stack[++menu_level] = &_menu_game_lists_previews;

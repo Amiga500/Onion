@@ -57,7 +57,9 @@ bool _has_changed(int new_value, int *old_value)
     return false;
 }
 
-void settings_shm_read(void)
+// Takes the values MainUI changed in the shared memory into `settings`.
+// True when one changed; the caller saves (now, or debounced in keymon).
+bool settings_shm_pull(void)
 {
     bool has_changes = false;
 
@@ -92,8 +94,17 @@ void settings_shm_read(void)
         has_changes = true;
 #endif
 
-    if (has_changes)
-        _settings_save_mainui();
+    return has_changes;
+}
+
+// Pull and save at once: for keymon's shutdown paths and kill_mainUI(), where
+// there is no later. Saves whatever is not on disk yet, a change pulled
+// earlier and still waiting for keymon's debounced save included (without
+// one, _settings_save_mainui() writes nothing).
+void settings_shm_read(void)
+{
+    settings_shm_pull();
+    _settings_save_mainui();
 }
 
 // Reloads what another program saved (it touched /tmp/settings_changed:

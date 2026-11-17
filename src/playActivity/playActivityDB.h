@@ -15,6 +15,7 @@
 #include "utils/str.h"
 
 #include "./cacheDB.h"
+#include "./playActivitySql.h"
 
 #define PLAY_ACTIVITY_DB_NEW_FILE "/mnt/SDCARD/Saves/CurrentProfile/play_activity/play_activity_db.sqlite"
 #ifndef ROMS_FOLDER // host tests point it at a temporary folder
@@ -114,7 +115,7 @@ void play_activity_db_open(void)
                      "CREATE UNIQUE INDEX IF NOT EXISTS rom_id_index ON rom(id);",
                      NULL, NULL, NULL);
         sqlite3_exec(play_activity_db,
-                     "CREATE TABLE IF NOT EXISTS play_activity(rom_id INTEGER, play_time INTEGER, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
+                     "CREATE TABLE IF NOT EXISTS play_activity(rom_id INTEGER, play_time INTEGER, created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER, resumed INTEGER DEFAULT 0);"
                      "CREATE INDEX IF NOT EXISTS play_activity_rom_id_index ON play_activity(rom_id);",
                      NULL, NULL, NULL);
     }
@@ -141,6 +142,10 @@ void play_activity_db_open(void)
     sqlite3_exec(play_activity_db,
                  "CREATE INDEX IF NOT EXISTS play_activity_play_time_index ON play_activity(play_time);",
                  NULL, NULL, NULL);
+
+    // resumed (see playActivitySql.h) came later: add it to an existing
+    // database. Fails, writing nothing, once the column is there.
+    sqlite3_exec(play_activity_db, PLAY_ACTIVITY_ADD_RESUMED_SQL, NULL, NULL, NULL);
 }
 
 int play_activity_db_transaction(int (*exec_transaction)(void))
@@ -202,9 +207,9 @@ PlayActivities *play_activity_find_all(void)
     char *sql =
         "SELECT * FROM ("
         "    SELECT rom.id, rom.type, rom.name, rom.file_path, "
-        "           COUNT(play_activity.ROWID) AS play_count_total, "
+        "           " PLAY_ACTIVITY_PLAYS_SQL " AS play_count_total, "
         "           SUM(play_activity.play_time) AS play_time_total, "
-        "           SUM(play_activity.play_time)/COUNT(play_activity.ROWID) AS play_time_average, "
+        "           SUM(play_activity.play_time)/" PLAY_ACTIVITY_PLAYS_SQL " AS play_time_average, "
         "           datetime(MIN(play_activity.created_at), 'unixepoch') AS first_played_at, "
         "           datetime(MAX(play_activity.created_at), 'unixepoch') AS last_played_at "
         "    FROM rom LEFT JOIN play_activity ON rom.id = play_activity.rom_id "
@@ -625,7 +630,8 @@ void play_activity_resume(void)
         printf("Error: no active rom\n");
         exit(1);
     }
-    char *sql = sqlite3_mprintf("INSERT INTO play_activity(rom_id) VALUES(%d);", rom_id);
+    // The same play continues: a row for its time, not a new play (#340)
+    char *sql = sqlite3_mprintf(PLAY_ACTIVITY_RESUME_FMT, rom_id);
     sqlite3_exec(play_activity_db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
     play_activity_db_close();
@@ -638,7 +644,7 @@ void play_activity_resume(void)
 // discarded, like negative ones already were. Only the session being closed
 // is checked: stored rows, such as play times imported from the old format
 // (one row per game with its total), are never removed for their length.
-#include "./playActivitySql.h"
+// (The statements are in playActivitySql.h, included at the top.)
 
 void play_activity_stop(char *rom_file_path)
 {
