@@ -38,7 +38,15 @@ static TTF_Font *font_tiny = NULL;
 static bool show_axp_menu = false;
 static bool axp_confirm_calib = false;
 static bool axp_confirm_btest = false;
-static bool axp_confirm_cap = false; // saving a capacity while the battery is still charging
+static bool axp_confirm_cap = false;  // saving a capacity while the battery is still charging
+static bool axp_confirm_sync = false; // setting the counter to 100 %
+// "Set current capacity to 100%" is only right on a full battery: charging has ended, and the voltage,
+// read with the console's own load on it, is at least this (a cell charged to 4.10 V rests near 4.08 V).
+#define AXP_SYNC_MIN_MV 4000
+#define AXP_SYNC_OK 0
+#define AXP_SYNC_NO_PMIC 1
+#define AXP_SYNC_CHARGING 2
+#define AXP_SYNC_NOT_FULL 3
 enum {
     AXP_MENU_CAPACITY = 0,
     AXP_MENU_VOFF,
@@ -52,13 +60,9 @@ static int axp_menu_selected = AXP_MENU_CAPACITY;
 static int axp_edit_capacity = 3000;
 static int axp_edit_voff = 3; // REG 31H bits 2-0 code: 0..7 -> 2.6..3.3 V (default 3 = 2.9 V)
 #define AXP_VOFF_CODE_MAX 5   // UI limit: 3.1 V (3.2/3.3 V would waste too much usable capacity)
-// UI limit below: 2.9 V, the PMIC's own default (REG 31H = 03H). Lower values discharge the cell deeper
-// than the device was made for. A lower value found on the PMIC is shown and can only be raised.
-#define AXP_VOFF_CODE_MIN 3
 static int axp_edit_chgv = 2; // REG 33H bits 6-5 code: 0 = 4.10 V, 2 = 4.20 V (1 = 4.22 V and 3 = 4.24 V are never offered)
 // The menu offers, and the write accepts, only 4.10 V and 4.20 V: codes 1 and 3 are above the cell's rated 4.20 V.
 #define AXP_CHGV_CODE_OFFERED(code) ((code) == 0 || (code) == 2)
-static bool axp_confirm_sync = false; // setting the counter to 100%: asked first
 static Uint32 axp_last_poll = 0;
 static char axp_feedback_msg[64] = "";
 static Uint32 axp_feedback_until = 0;
@@ -96,8 +100,9 @@ static int voff_code_to_mv(int code)
     return 2600 + code * 100;
 }
 
-// Charge target voltage of each code (AXP221 datasheet v1.2, section 10.2.27), and the rough share of a full
-// charge the two offered codes stop at (a Li-ion cell charged to 4.10 V holds about 90%).
+// Charge target voltage of each code (AXP221 datasheet v1.2, section 10.2.27; measured on a Mini Plus: after
+// a charge with code 2 the resting battery read 4.20 V), and the rough share of a full charge the two offered codes stop at
+// (a Li-ion cell charged to 4.10 V holds about 90%).
 static int chgv_code_to_mv(int code)
 {
     static const int mv[4] = {4100, 4220, 4200, 4240};
@@ -603,7 +608,7 @@ static void check_and_clear_lowbat_flag(int battery_pct, bool is_charging)
     }
 }
 
-// Battery voltage from batmon's last reading. On the Mini Plus that is axp_test's output
+// Battery voltage from batmon's last reading. On the Mini Plus and Mini Flip that is axp_test's output
 // (millivolts); on the Mini batmon writes the smoothed ADC value there instead, which it
 // turns into volts as (adc - 148) / 100. Returns true when the text changed.
 bool read_battery_voltage(void)
@@ -645,6 +650,30 @@ bool read_battery_voltage(void)
     return true;
 }
 
+// batmon adds the awake seconds to the newest entry when its level changes and otherwise every
+// MAX_DURATION_BEFORE_UPDATE (600) seconds awake; it is stopped while asleep. So the time since it
+// last wrote the log is awake time only up to that limit (plus its loop's slack); a longer span
+// holds a sleep or a power-off, which must stay out of the session time and the graph.
+#define BATMON_MAX_UNWRITTEN_S 630
+
+// The newest entry's duration with the awake time batmon has not written yet.
+static int live_duration(int duration, long long now, long long log_mtime)
+{
+    if (log_mtime <= 0 || now <= log_mtime)
+        return duration;
+    long long unwritten = now - log_mtime;
+    if (unwritten > BATMON_MAX_UNWRITTEN_S)
+        unwritten = BATMON_MAX_UNWRITTEN_S;
+    return duration + (int)unwritten;
+}
+
+// A wake from sleep: Onion's sleep stops the app (SIGSTOP) and continues it (SIGCONT). A gap
+// between loop passes longer than WAKE_GAP_MS counts too, in case the signal was missed.
+static int is_wake(int sigcont, int gap_ms)
+{
+    return sigcont || gap_ms > WAKE_GAP_MS;
+}
+
 void compute_graph(void)
 {
     int total_duration = 0;
@@ -666,8 +695,7 @@ void compute_graph(void)
     bool run_tail_open = true; // still walking through rows at the end level
     bool run_charging = false;
     bool first_run = true;
-    // the newest entry only (first_run stays true for the whole current stretch)
-    bool first_row = true;
+    bool newest_row = true; // the entry batmon is still writing
     // clock times (Unix): the stretch's first entry, its end, when a charge reached its last
     // level, and the start of the entry walked just before (the newer one; now at first)
     long long run_start_time = 0, run_end_time = 0, run_tail_time = 0;
@@ -704,27 +732,20 @@ void compute_graph(void)
                     // On stock OnionOS, batmon does not log start_time (it is NULL in SQLite).
                     // Derive row_time from log file mtime: mtime is when batmon last wrote
                     // this row's duration, so (mtime - duration) is when this row began.
-                    if (first_row && row_time <= 0) {
+                    if (newest_row && row_time <= 0) {
                         struct stat st;
                         if (stat(BATTERY_LOG_FILE, &st) == 0 && st.st_mtime > 0)
                             row_time = (long long)st.st_mtime - duration;
                     }
 
                     // For the newest row, batmon only writes duration upon percentage change or every 10 min.
-                    // Advance duration with live elapsed awake time so SESSION updates smoothly on the fly.
-                    // batmon rewrites the newest row at least every MAX_DURATION_BEFORE_UPDATE
-                    // (10 min) while awake, so a clock gap far beyond that is not time spent at
-                    // this level: the clock moved under the row. A row begun before the time
-                    // sync (fallback clock, ~4 years behind) gave SESSION 35064h03 and an empty
-                    // graph right after an update, until batmon logged the next level (tester
-                    // report, 4.5.1 beta 1). Then keep batmon's own duration.
-                    if (first_row && !is_charging && row_time > 0 && newer_row_time > row_time) {
-                        long long live_elapsed = newer_row_time - row_time;
-                        if (live_elapsed > duration && live_elapsed <= (long long)duration + LIVE_ELAPSED_MAX_GAP_S)
-                            duration = (int)live_elapsed;
+                    // Advance duration with the awake time it has not written yet, so SESSION updates on
+                    // the fly. Not the clock since the entry began: that holds every sleep since then.
+                    if (newest_row && !is_charging) {
+                        struct stat st;
+                        if (stat(BATTERY_LOG_FILE, &st) == 0)
+                            duration = live_duration(duration, newer_row_time, (long long)st.st_mtime);
                     }
-
-                    first_row = false;
 
                     // CURRENT: the newest entry only. Testing total_duration == 0 also
                     // caught the entry before it, as the newest one has duration 0 until
@@ -877,15 +898,18 @@ void compute_graph(void)
                     // end and the newer entry's start (batmon is stopped while asleep, so
                     // its duration leaves the sleep out). The level lost across the gap is
                     // what the sleep cost: batmon reads the battery at once on wake.
-                    if (run_rows > 0 && !is_charging && row_time > 0 && newer_row_time > 0) {
+                    // The newest entry: the gap up to now is a sleep going on at its level, so it
+                    // counts in the time asleep; its cost shows when the next level is logged.
+                    if (!is_charging && row_time > 0 && newer_row_time > 0) {
                         long long gap = newer_row_time - row_time - duration;
                         if (gap >= SLEEP_GAP_MIN && gap * 100 >= (long long)duration * SLEEP_GAP_MIN_PCT) {
                             run_sleep += gap;
-                            if (raw_level <= 100 && newer_row_level <= 100 && raw_level > newer_row_level)
+                            if (run_rows > 0 && raw_level <= 100 && newer_row_level <= 100 && raw_level > newer_row_level)
                                 run_sleep_drop += raw_level - newer_row_level;
                         }
                     }
                     run_rows++;
+                    newest_row = false;
                     newer_row_level = raw_level;
                     if (run_tail_open && raw_level == run_end_level) {
                         run_tail += duration;
@@ -1054,6 +1078,18 @@ static int axp_i2c_write(int fd, unsigned char reg, unsigned char val)
     return ioctl(fd, I2C_RDWR, &d) < 0 ? -1 : 0;
 }
 
+// Capacity and counter registers count in units of 1.456 mAh, so a round value is held a little
+// off: 3000 mAh is 2060 units = 2999.4 mAh. A value that is the stored form of a multiple of
+// 50 mAh (the step of the capacity menu) is shown as that multiple, so a saved 3000 reads 3000.
+static int axp_units_to_mah(int units)
+{
+    int mah = (int)(units * 1.456 + 0.5);
+    int round50 = ((mah + 25) / 50) * 50;
+    if ((int)((round50 / 1.456) + 0.5) == units)
+        return round50;
+    return mah;
+}
+
 static bool axp_poll_data(void)
 {
     if (!HAS_AXP()) {
@@ -1122,11 +1158,11 @@ static bool axp_poll_data(void)
 
     if (e01 >= 0) {
         int raw_cap = e01 & 0x7FFF;
-        axp_status.capacity_mah = (int)(raw_cap * 1.456 + 0.5);
+        axp_status.capacity_mah = axp_units_to_mah(raw_cap);
     }
     if (e23 >= 0) {
         int raw_cc = e23 & 0x7FFF;
-        axp_status.cc_mah = (int)(raw_cc * 1.456 + 0.5);
+        axp_status.cc_mah = axp_units_to_mah(raw_cc);
     }
 
     // Measured on a Mini Plus with a factory-reset PMIC (battery unplugged): E0H-E3H read 0 and
@@ -1142,57 +1178,81 @@ static bool axp_poll_data(void)
     return true;
 }
 
-// Writes a 15-bit value (1.456 mAh units) with bit 15 set to REG reg/reg+1 and reads it
-// back. The gauge and the coulomb counter (REG B8H bits 7-6) are turned on first. false on
-// any I2C failure or when the value read back differs.
-static bool axp_write_mah(unsigned char reg, int mah)
+// Writes a 15-bit value (bit 15 set) to a register pair, E0H/E1H (capacity) or E2H/E3H (counter), and
+// reads it back. The gauge and the Coulomb counter (REG B8H bits 7-6) are switched on first; a B8H that
+// cannot be read stops the write, as its other bits would be guessed.
+// The PMIC answers with the old value for a moment after a write (measured on a Mini Plus: E0H/E1H for
+// 1-2 s), so the read-back is repeated for up to AXP_READBACK_TRIES x AXP_READBACK_MS. `tolerance` is in
+// register units (1.456 mAh): the counter keeps counting while it is read.
+// Returns 0 on success, -1 on I2C failure, -2 when the PMIC does not hold the value.
+#define AXP_READBACK_TRIES 15
+#define AXP_READBACK_MS 200
+static int axp_write_mah16(unsigned char reg, int mah, int tolerance)
 {
     if (!HAS_AXP() || mah <= 0 || mah > 10000)
-        return false;
+        return -1;
     int fd = open(AXP_I2C_DEV, O_RDWR);
     if (fd < 0)
-        return false;
+        return -1;
     ioctl(fd, I2C_TIMEOUT, 5);
     ioctl(fd, I2C_RETRIES, 1);
 
     int b8 = axp_i2c_read(fd, REG_AXP_CTL);
     if (b8 < 0) {
         close(fd);
-        return false;
+        return -1;
     }
     if ((b8 & 0xC0) != 0xC0 && axp_i2c_write(fd, REG_AXP_CTL, (unsigned char)(b8 | 0xC0)) != 0) {
         close(fd);
-        return false;
+        return -1;
     }
 
     int units = (int)((mah / 1.456) + 0.5);
     unsigned char hi = 0x80 | ((units >> 8) & 0x7F);
     unsigned char lo = units & 0xFF;
-    bool ok = (axp_i2c_write(fd, reg, hi) == 0 &&
-               axp_i2c_write(fd, reg + 1, lo) == 0);
-    if (ok) {
-        // The capacity must read back as written, with its "configured" bit (E0H bit 7).
-        // The counter moves with the current, and its bit 15 is not documented: only the
-        // value is compared, with a few units of drift allowed.
+    if (axp_i2c_write(fd, reg, hi) != 0 || axp_i2c_write(fd, reg + 1, lo) != 0) {
+        close(fd);
+        return -1;
+    }
+
+    int res = -2;
+    for (int i = 0; i < AXP_READBACK_TRIES; i++) {
         int check = axp_i2c_read16(fd, reg);
+        if (check < 0) {
+            res = -1;
+            break;
+        }
         int diff = (check & 0x7FFF) - units;
-        if (reg == REG_AXP_E0)
-            ok = check >= 0 && (check & 0x8000) && diff == 0;
-        else
-            ok = check >= 0 && diff >= -16 && diff <= 16;
+        if ((check & 0x8000) && diff >= -tolerance && diff <= tolerance) {
+            res = 0;
+            break;
+        }
+        SDL_Delay(AXP_READBACK_MS);
     }
     close(fd);
-    return ok;
+    return res;
 }
 
-static bool axp_set_capacity(int mah)
+static int axp_set_capacity(int mah)
 {
-    return axp_write_mah(REG_AXP_E0, mah);
+    return axp_write_mah16(REG_AXP_E0, mah, 0);
 }
 
-static bool axp_set_coulomb_counter(int mah)
+static int axp_set_coulomb_counter(int mah)
 {
-    return axp_write_mah(REG_AXP_E2, mah);
+    return axp_write_mah16(REG_AXP_E2, mah, 4);
+}
+
+// Whether the counter may be set to 100 % now (AXP_SYNC_OK), or why not.
+static int axp_sync_check(bool available, bool charging, int voltage_mv)
+{
+    if (!available)
+        return AXP_SYNC_NO_PMIC;
+    if (charging)
+        return AXP_SYNC_CHARGING;
+    if (voltage_mv < AXP_SYNC_MIN_MV)
+        return AXP_SYNC_NOT_FULL;
+    return AXP_SYNC_OK;
 }
 
 // AXP223 datasheet v1.1 / AXP221 v1.2, REG 31H (wakeup control & Voff), default 03H:
@@ -1231,7 +1291,7 @@ static int axp_set_voff(int code)
 // AXP221 datasheet v1.2, section 10.2.27, REG 33H (charge control 1):
 //   bit 7 charge enable, bits 6-5 charge target voltage (00 4.1 V, 01 4.22 V, 10 4.2 V, 11 4.24 V),
 //   bit 4 end-of-charge current (0: 10%, 1: 15% of the set current), bits 3-0 charge current.
-// (4.15 V and 4.36 V are the AXP209's codes 01 and 11, not this chip's.)
+// (4.15 V and 4.35 V, used up to v2.3, are the AXP209's codes 01 and 11, not this chip's.)
 // Only bits 6-5 change; codes 1 and 3 (4.22 V, 4.24 V) are refused: they are above the cell's rated 4.20 V.
 // Returns 0 on success, -1 on I2C failure, -2 when the read-back value differs.
 static int axp_set_charge_voltage(int code)
@@ -1286,10 +1346,11 @@ static int axp_set_calibration(bool on)
     unsigned char new_b8 = (unsigned char)((b8 | 0xC0));
     if (on) {
         new_b8 |= 0x20;
-        // If design capacity is unconfigured or zero, initialize it with selected capacity
+        // If design capacity is unconfigured or zero, initialize it with selected capacity.
+        // A failed read (-1) is not "unconfigured": it stops here, or the capacity the PMIC holds
+        // (a learned one, maybe) would be overwritten with the menu's value.
         int e01 = axp_i2c_read16(fd, REG_AXP_E0);
         if (e01 < 0) {
-            // a failed read is not "no capacity": writing here would replace a saved one
             close(fd);
             return -1;
         }
@@ -1297,8 +1358,10 @@ static int axp_set_calibration(bool on)
             int units = (int)((axp_edit_capacity / 1.456) + 0.5);
             unsigned char hi = 0x80 | ((units >> 8) & 0x7F);
             unsigned char lo = units & 0xFF;
-            axp_i2c_write(fd, REG_AXP_E0, hi);
-            axp_i2c_write(fd, REG_AXP_E1, lo);
+            if (axp_i2c_write(fd, REG_AXP_E0, hi) != 0 || axp_i2c_write(fd, REG_AXP_E1, lo) != 0) {
+                close(fd);
+                return -1;
+            }
         }
     }
     else
@@ -1328,7 +1391,7 @@ static int axp_set_calibration(bool on)
 // ---------------------------------------------------------------------------
 #define BT_CPUCLOCK_BIN "/mnt/SDCARD/.tmp_update/bin/cpuclock"
 #define BT_GOVERNOR_FILE "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor"
-#define BT_STAGES 3
+#define BT_STAGES_MAX 4   // idle, 1200, 1600 and (Mini Plus) 1800 MHz
 #define BT_STAGE_MS 15000 // per stage
 #define BT_SETTLE_MS 7000 // samples before this are ignored (voltage relaxation)
 #define BT_SAMPLE_MS 250
@@ -1357,8 +1420,9 @@ static struct {
     int stage;
     Uint32 stage_start;
     Uint32 next_sample;
-    bt_stage_t st[BT_STAGES];
-    int r_mohm[BT_STAGES]; // per load stage vs idle, -1 if not measurable
+    int stages; // 3, or 4 with the 1800 MHz stage (Mini Plus)
+    bt_stage_t st[BT_STAGES_MAX];
+    int r_mohm[BT_STAGES_MAX]; // per load stage vs idle, -1 if not measurable
     int live_v, live_i;
     int saved_mhz;
     char saved_gov[32];
@@ -1447,25 +1511,84 @@ static bool bt_set_mhz(int mhz)
     return system(cmd) == 0;
 }
 
+static void bt_write_governor(const char *gov)
+{
+    if (gov[0] == '\0')
+        return;
+    FILE *fp = fopen(BT_GOVERNOR_FILE, "w");
+    if (fp != NULL) {
+        fputs(gov, fp);
+        fclose(fp);
+    }
+}
+
+// What the battery test changes (clock, governor, brightness), saved in RAM before it changes
+// anything. bt_restore() puts it back on every way out the app sees; a SIGKILL skips that, so
+// launch.sh runs "batteryMonitorUI --restore" after the app ends, and the app restores at start.
+#define BT_STATE_FILE "/tmp/batterymonitor_bt_restore"
+
+static int bt_format_state(char *buf, size_t len, int mhz, const char *gov, unsigned brightness)
+{
+    return snprintf(buf, len, "%d %s %u\n", mhz, gov[0] != '\0' ? gov : "-", brightness);
+}
+
+// Returns 0 when the line holds a clock, a governor ("-" for none) and a brightness.
+static int bt_parse_state(const char *line, int *mhz, char *gov, size_t gov_len, unsigned *brightness)
+{
+    char g[32];
+    if (sscanf(line, "%d %31s %u", mhz, g, brightness) != 3)
+        return -1;
+    if (*mhz < 100 || *mhz > 2400)
+        return -1;
+    snprintf(gov, gov_len, "%s", strcmp(g, "-") == 0 ? "" : g);
+    return 0;
+}
+
+static void bt_save_state(void)
+{
+    char line[64];
+    bt_format_state(line, sizeof(line), bt.saved_mhz, bt.saved_gov, bt.saved_brightness);
+    FILE *fp = fopen(BT_STATE_FILE, "w");
+    if (fp != NULL) {
+        fputs(line, fp);
+        fclose(fp);
+    }
+}
+
+// After a battery test the app did not end itself (SIGKILL): put back what the file holds.
+static void bt_restore_from_file(void)
+{
+    char line[64], gov[32];
+    int mhz;
+    unsigned brightness;
+    FILE *fp = fopen(BT_STATE_FILE, "r");
+    if (fp == NULL)
+        return;
+    bool read = fgets(line, sizeof(line), fp) != NULL;
+    fclose(fp);
+    unlink(BT_STATE_FILE);
+    if (!read || bt_parse_state(line, &mhz, gov, sizeof(gov), &brightness) != 0)
+        return;
+    bt_set_mhz(mhz);
+    bt_write_governor(gov);
+    if (brightness > 0)
+        display_setBrightnessRaw(brightness);
+}
+
 static void bt_restore(void)
 {
     bt_stop_load();
     if (bt.clock_changed) {
         if (bt.saved_mhz > 0)
             bt_set_mhz(bt.saved_mhz);
-        if (bt.saved_gov[0] != '\0') {
-            FILE *fp = fopen(BT_GOVERNOR_FILE, "w");
-            if (fp != NULL) {
-                fputs(bt.saved_gov, fp);
-                fclose(fp);
-            }
-        }
+        bt_write_governor(bt.saved_gov);
         bt.clock_changed = false;
     }
     if (bt.brightness_changed) {
         display_setBrightnessRaw(bt.saved_brightness);
         bt.brightness_changed = false;
     }
+    unlink(BT_STATE_FILE);
 }
 
 static void bt_abort(const char *reason)
@@ -1488,10 +1611,24 @@ static const char *bt_rating(int r_mohm)
     return "POOR / REPLACE";
 }
 
-// Best result: the 1600 MHz stage (largest current step), else 1200 MHz
+// The test's stages: the Mini Plus also runs 1800 MHz (Onion's cpuclock overclock, as DraStic uses it),
+// to show how the current scales with the clock.
+static int bt_stage_count(void)
+{
+    return DEVICE_ID == MIYOO354 ? 4 : 3;
+}
+
+// Best result: the stage with the largest current step (the most exact sag), of those measured
 static int bt_final_r(void)
 {
-    return bt.r_mohm[2] >= 0 ? bt.r_mohm[2] : bt.r_mohm[1];
+    int best = -1, best_i = 0;
+    for (int k = 1; k < bt.stages; k++) {
+        if (bt.r_mohm[k] >= 0 && bt.st[k].i_ma > best_i) {
+            best = bt.r_mohm[k];
+            best_i = bt.st[k].i_ma;
+        }
+    }
+    return best;
 }
 
 static void bt_enter_stage(int stage, Uint32 now)
@@ -1507,7 +1644,7 @@ static void bt_enter_stage(int stage, Uint32 now)
         display_setBrightnessRaw(BT_DIM_RAW);
     }
     else {
-        // Stage 1 & 2: Load 2 cores with screen at 100% brightness
+        // Load stages: 2 cores with screen at 100% brightness
         display_setBrightness(10);
     }
 
@@ -1528,7 +1665,9 @@ static void bt_start(Uint32 now)
     bt.st[0].mhz = 0;
     bt.st[1].mhz = 1200;
     bt.st[2].mhz = 1600;
-    for (int i = 0; i < BT_STAGES; i++)
+    bt.st[3].mhz = 1800;
+    bt.stages = bt_stage_count();
+    for (int i = 0; i < BT_STAGES_MAX; i++)
         bt.r_mohm[i] = -1;
     bt.state = BT_RUNNING;
 
@@ -1559,6 +1698,7 @@ static void bt_start(Uint32 now)
     }
 
     bt.saved_brightness = display_getBrightnessRaw();
+    bt_save_state(); // before anything changes
     bt.brightness_changed = true;
     display_setBrightnessRaw(BT_DIM_RAW);
 
@@ -1568,7 +1708,7 @@ static void bt_start(Uint32 now)
 static void bt_finish(void)
 {
     bt_restore();
-    for (int k = 1; k < BT_STAGES; k++) {
+    for (int k = 1; k < bt.stages; k++) {
         int d_i = bt.st[k].i_ma - bt.st[0].i_ma;
         int d_v = bt.st[0].v_mv - bt.st[k].v_mv;
         bt.r_mohm[k] = (d_i >= BT_MIN_DELTA_MA) ? (int)((long)d_v * 1000 / d_i) : -1;
@@ -1577,7 +1717,8 @@ static void bt_finish(void)
     }
     bt.state = BT_DONE;
     if (bt_final_r() < 0)
-        snprintf(bt.msg, sizeof(bt.msg), "Load step too small to measure (< %d mA)", BT_MIN_DELTA_MA);
+        // Wi-Fi draws about 150 mA, unevenly: on a Mini Plus it hid the load step (2026-11-17)
+        snprintf(bt.msg, sizeof(bt.msg), "Load step too small - turn Wi-Fi off and retry");
 }
 
 // Returns true when the screen needs a redraw
@@ -1614,7 +1755,7 @@ static bool bt_tick(Uint32 now)
             s->v_mv = (int)(s->v_sum / s->n);
             s->i_ma = (int)(s->i_sum / s->n);
         }
-        if (bt.stage + 1 < BT_STAGES)
+        if (bt.stage + 1 < bt.stages)
             bt_enter_stage(bt.stage + 1, now);
         else
             bt_finish();
@@ -1684,10 +1825,13 @@ static void drawKeyValueLine(const char *key, const char *val, TTF_Font *font, S
 
 static void axp_save_capacity(Uint32 now)
 {
-    if (axp_set_capacity(axp_edit_capacity))
+    int res = axp_set_capacity(axp_edit_capacity);
+    if (res == 0)
         snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Saved capacity: %d mAh", axp_edit_capacity);
+    else if (res == -2)
+        snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "PMIC did not keep the capacity (REG E0H/E1H)");
     else
-        snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Failed to save capacity");
+        snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "I2C error: capacity not saved");
     axp_feedback_until = now + 3000;
     axp_poll_data();
 }
@@ -1727,11 +1871,11 @@ static void renderAxpMenu(void)
         drawRectFill(mx, my, mw, mh, err_bg);
         drawFrame2px(mx, my, mw, mh, err_border);
 
-        drawCenteredText("HARDWARE FUEL GAUGE NOT AVAILABLE", font_title ? font_title : font_Arkhip, (SDL_Color){224, 108, 117}, mx, my + 25, mw);
-        drawCenteredText("This menu requires a PMIC chip with hardware fuel gauge,", font_small ? font_small : font_Arkhip, col_val, mx, my + 70, mw);
-        drawCenteredText("which is present on the Miyoo Mini Plus and Flip.", font_small ? font_small : font_Arkhip, col_val, mx, my + 92, mw);
-        drawCenteredText("Your console model or revision does not provide", font_small ? font_small : font_Arkhip, col_sub, mx, my + 122, mw);
-        drawCenteredText("I2C access to this hardware telemetry.", font_small ? font_small : font_Arkhip, col_sub, mx, my + 144, mw);
+        drawCenteredText("HARDWARE FUEL GAUGE NOT AVAILABLE", font_title ? font_title : font_Arkhip, (SDL_Color){224, 108, 117}, mx, my + 22, mw);
+        drawCenteredText("Capacity Learning requires an AXP PMIC chip,", font_small ? font_small : font_Arkhip, col_val, mx, my + 62, mw);
+        drawCenteredText("present only on Miyoo Mini Plus and Mini Flip.", font_small ? font_small : font_Arkhip, col_val, mx, my + 84, mw);
+        drawCenteredText("Miyoo Mini V1-V4 can use graph & session tracking.", font_small ? font_small : font_Arkhip, col_sub, mx, my + 114, mw);
+        drawCenteredText("Miyoo A30 and Miyoo Flip are not supported.", font_small ? font_small : font_Arkhip, col_sub, mx, my + 136, mw);
 
         drawBadgePill("[B / SELECT] Back to Graph", font_small ? font_small : font_Arkhip, col_val, col_sel_bg, col_sel_border, mx + 150, my + 185, 220, 32);
         return;
@@ -1989,12 +2133,10 @@ static void renderAxpMenu(void)
         drawCenteredText("[B] Cancel", font_Arkhip, col_val, b2_x, btn_y + 8, btn_w);
     }
 
-    // Modal Confirmation Dialog (counter set to 100%)
+    // Modal Confirmation Dialog (counter set to 100 %)
     if (axp_confirm_sync) {
         dimScreen(190);
         int mw = 520, mh = 250, mx = 60, my = 115;
-        // not full: still charging, or resting below 4.10 V (the lowest charge limit)
-        bool not_full = axp_status.is_charging || axp_status.voltage_mv < 4100;
         Uint32 m_bg = SDL_MapRGB(screen->format, 12, 20, 32);
         Uint32 m_border = SDL_MapRGB(screen->format, 220, 140, 50);
         drawRectFill(mx, my, mw, mh, m_bg);
@@ -2005,19 +2147,20 @@ static void renderAxpMenu(void)
         int ib_x = mx + 20, ib_y = my + 54, ib_w = mw - 40, ib_h = 108;
         drawRectFill(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 18, 28, 44));
         drawFrame1px(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 40, 60, 90));
-        char sync_line[64];
-        snprintf(sync_line, sizeof(sync_line), "Battery now: %.2f V%s", axp_status.voltage_mv / 1000.0,
-                 axp_status.is_charging ? ", still charging" : "");
-        renderText(sync_line, font_small ? font_small : font_Arkhip, not_full ? col_warn : col_green, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 20});
-        renderText("Only do this right after a finished charge.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 36, ib_w - 32, 20});
-        renderText("On a battery that is not full the gauge would read 100%", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 60, ib_w - 32, 20});
-        renderText("and the console could turn off with no low-battery warning.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 84, ib_w - 32, 20});
+        char sync_line[80];
+        int sync_cap = (axp_status.capacity_mah > 0) ? axp_status.capacity_mah : axp_edit_capacity;
+        snprintf(sync_line, sizeof(sync_line), "Energy Remaining: %d mAh  ->  %d mAh", axp_status.cc_mah, sync_cap);
+        renderText(sync_line, font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 20});
+        snprintf(sync_line, sizeof(sync_line), "Battery now: %.2f V, not charging.", axp_status.voltage_mv / 1000.0);
+        renderText(sync_line, font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 36, ib_w - 32, 20});
+        renderText("Do this only right after a full charge.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 60, ib_w - 32, 20});
+        renderText("On a battery that is not full, the percentage reads too high.", font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){ib_x + 16, ib_y + 84, ib_w - 32, 20});
 
         int btn_w = 210, btn_h = 38, btn_y = my + 190;
         int b1_x = mx + 35, b2_x = mx + mw - 35 - btn_w;
         drawRectFill(b1_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 70, 50, 25));
         drawFrame2px(b1_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 220, 140, 50));
-        drawCenteredText(not_full ? "[A] Set anyway" : "[A] Set to 100%", font_Arkhip, col_val, b1_x, btn_y + 8, btn_w);
+        drawCenteredText("[A] Set to 100%", font_Arkhip, col_val, b1_x, btn_y + 8, btn_w);
         drawRectFill(b2_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 45, 45, 55));
         drawFrame2px(b2_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 90, 90, 110));
         drawCenteredText("[B] Cancel", font_Arkhip, col_val, b2_x, btn_y + 8, btn_w);
@@ -2041,9 +2184,9 @@ static void renderAxpMenu(void)
         drawRectFill(ib_x, ib_y, ib_w, ib_h, ib_bg);
         drawFrame1px(ib_x, ib_y, ib_w, ib_h, ib_border);
 
-        renderText("NOTICE (about 45 s, battery only, >= 3.60 V):", font_small ? font_small : font_Arkhip, col_warn, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 18});
+        renderText(bt_stage_count() > 3 ? "NOTICE (about 60 s, battery only, >= 3.60 V):" : "NOTICE (about 45 s, battery only, >= 3.60 V):", font_small ? font_small : font_Arkhip, col_warn, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 18});
         renderText("1. Screen dims; 15 s idle baseline is measured.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 34, ib_w - 32, 18});
-        renderText("2. Both CPU cores at 100% load: 1200 MHz, then 1600 MHz.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 54, ib_w - 32, 18});
+        renderText(bt_stage_count() > 3 ? "2. Both CPU cores at 100% load: 1200, 1600, 1800 MHz." : "2. Both CPU cores at 100% load: 1200 MHz, then 1600 MHz.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 54, ib_w - 32, 18});
         renderText("3. Internal resistance = voltage sag / current step.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 76, ib_w - 32, 18});
         renderText("Clock & brightness restored. Turn Wi-Fi off for accuracy.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 102, ib_w - 32, 18});
 
@@ -2076,19 +2219,20 @@ static void renderAxpMenu(void)
         drawFrame2px(mx, my, mw, mh, m_border);
         drawCenteredText("BATTERY HEALTH TEST", font_title ? font_title : font_Arkhip, col_val, mx, my + 14, mw);
 
-        static const char *stage_names[BT_STAGES] = {"Idle baseline", "Load 2 cores @ 1200 MHz", "Load 2 cores @ 1600 MHz"};
+        static const char *stage_names[BT_STAGES_MAX] = {"Idle baseline", "Load 2 cores @ 1200 MHz", "Load 2 cores @ 1600 MHz",
+                                                         "Load 2 cores @ 1800 MHz"};
         char line[96];
 
         if (bt.state == BT_RUNNING) {
             Uint32 el = SDL_GetTicks() - bt.stage_start;
             if (el > BT_STAGE_MS)
                 el = BT_STAGE_MS;
-            snprintf(line, sizeof(line), "Stage %d/%d: %s", bt.stage + 1, BT_STAGES, stage_names[bt.stage]);
+            snprintf(line, sizeof(line), "Stage %d/%d: %s", bt.stage + 1, bt.stages, stage_names[bt.stage]);
             drawCenteredText(line, fs, col_warn, mx, my + 42, mw);
 
             // overall progress bar
             int pb_x = mx + 30, pb_y = my + 66, pb_w = mw - 60, pb_h = 12;
-            long total = (long)BT_STAGES * BT_STAGE_MS;
+            long total = (long)bt.stages * BT_STAGE_MS;
             long done = (long)bt.stage * BT_STAGE_MS + el;
             drawRectFill(pb_x, pb_y, pb_w, pb_h, SDL_MapRGB(screen->format, 30, 40, 58));
             drawRectFill(pb_x, pb_y, (int)(pb_w * done / total), pb_h, SDL_MapRGB(screen->format, 100, 215, 255));
@@ -2115,16 +2259,17 @@ static void renderAxpMenu(void)
             drawCenteredText("<160 excellent, <260 good, <380 aged, else replace", fs, col_sub, mx, my + 76, mw);
         }
 
-        // per-stage table
+        // per-stage table: 4 rows closer together, to keep clear of the button
         int tx = mx + 30, ty = my + 116, tw = mw - 60;
-        drawRectFill(tx, ty, tw, 128, SDL_MapRGB(screen->format, 18, 28, 44));
-        drawFrame1px(tx, ty, tw, 128, SDL_MapRGB(screen->format, 40, 60, 90));
+        int row_h = bt.stages > 3 ? 24 : 30, th = bt.stages > 3 ? 136 : 128;
+        drawRectFill(tx, ty, tw, th, SDL_MapRGB(screen->format, 18, 28, 44));
+        drawFrame1px(tx, ty, tw, th, SDL_MapRGB(screen->format, 40, 60, 90));
         renderText("Stage", fs, col_lbl, &(SDL_Rect){tx + 12, ty + 8, 200, 18});
         renderTextAlignRight("Voltage", fs, col_lbl, &(SDL_Rect){tx + 300, ty + 8, 80, 18});
         renderTextAlignRight("Current", fs, col_lbl, &(SDL_Rect){tx + 390, ty + 8, 80, 18});
         renderTextAlignRight("R_int", fs, col_lbl, &(SDL_Rect){tx + tw - 12, ty + 8, 70, 18});
-        for (int k = 0; k < BT_STAGES; k++) {
-            int ry = ty + 36 + k * 30;
+        for (int k = 0; k < bt.stages; k++) {
+            int ry = ty + (bt.stages > 3 ? 32 : 36) + k * row_h;
             bool measured = (k < bt.stage) || bt.state == BT_DONE || (bt.state == BT_ABORTED && k < bt.stage);
             measured = measured && bt.st[k].n > 0;
             SDL_Color c = (bt.state == BT_RUNNING && k == bt.stage) ? col_cyan : (measured ? col_val : col_sub);
@@ -2240,28 +2385,49 @@ void renderPage()
         // a session: the time asleep within it, the percent it cost and the rate per hour
         // (the rate from half an hour of sleep, shorter is too coarse at 1 % steps). Needs
         // clock times only around the sleep, not for the whole session.
+        // OFF/SLEEP: from the log alone a sleep and a console switched off look the same.
         if (!sel->is_charge && sel->sleep >= SLEEP_MIN_SHOWN) {
             char t[12];
             secondsToHoursMinutes((int)sel->sleep, t);
             if (sel->sleep >= SLEEP_RATE_MIN && sel->sleep_drop > 0) {
-                int tenths = (int)((long long)sel->sleep_drop * 36000 / sel->sleep); // %/h x10
-                snprintf(sleep_text, sizeof(sleep_text), " +%s SLEEP -%d%% (%d.%d%%/H)", t,
-                         sel->sleep_drop, tenths / 10, tenths % 10);
+                // %/h with one decimal, two below 1 %/h (2 % over 22 h is 0.09, not 0.0)
+                int hundredths = (int)((long long)sel->sleep_drop * 360000 / sel->sleep);
+                if (hundredths < 100)
+                    snprintf(sleep_text, sizeof(sleep_text), " +%s OFF/SLEEP -%d%% (0.%02d%%/H)", t,
+                             sel->sleep_drop, hundredths);
+                else
+                    snprintf(sleep_text, sizeof(sleep_text), " +%s OFF/SLEEP -%d%% (%d.%d%%/H)", t,
+                             sel->sleep_drop, hundredths / 100, hundredths / 10 % 10);
             }
             else
-                snprintf(sleep_text, sizeof(sleep_text), " +%s SLEEP -%d%%", t, sel->sleep_drop);
+                snprintf(sleep_text, sizeof(sleep_text), " +%s OFF/SLEEP -%d%%", t, sel->sleep_drop);
         }
-        // the date only with a hardware clock (Mini Plus / Flip): the Mini's clock restarts from
-        // the time saved at shutdown
-        if (sel->has_times && HAS_AXP()) {
+        // the date only with a hardware clock (Mini Plus, Mini Flip): the Mini's clock restarts from
+        // the time saved at shutdown. Hidden for now (SUB_TITLE_SHOW_DATE): the start date read as
+        // unclear and takes room the sleep needs.
+        if (SUB_TITLE_SHOW_DATE && sel->has_times && HAS_AXP()) {
             time_t t = (time_t)sel->start_time;
             struct tm *lt = localtime(&t);
             if (lt != NULL)
                 strftime(date_text, sizeof(date_text), " %d.%m %H:%M", lt);
         }
-        snprintf(sub_title, sizeof(sub_title), "%s: %s%s%s%s%s%s%s",
-                 sel->is_charge ? "CHARGE" : "SESSION", length_text,
-                 levels_text, off_text, tail_text, sleep_text, date_text, sel->is_current ? " NOW" : "");
+        // Too wide for the screen: drop the sleep rate first, then the date.
+        int sub_w = 0, sub_h = 0;
+        for (int fit = 0; fit < 3; fit++) {
+            if (fit == 1) {
+                char *rate = strstr(sleep_text, " (");
+                if (rate == NULL)
+                    continue;
+                *rate = '\0';
+            }
+            if (fit == 2)
+                date_text[0] = '\0';
+            snprintf(sub_title, sizeof(sub_title), "%s: %s%s%s%s%s%s%s",
+                     sel->is_charge ? "CHARGE" : "SESSION", length_text,
+                     levels_text, off_text, tail_text, sleep_text, date_text, sel->is_current ? " NOW" : "");
+            if (TTF_SizeUTF8(font_Arkhip, sub_title, &sub_w, &sub_h) != 0 || sub_w <= SUB_TITLE_MAX_W)
+                break;
+        }
     }
     // centred under the title
     int sub_w = 0, sub_h = 0;
@@ -2314,14 +2480,6 @@ void renderPage()
 
             x = GRAPH_DISPLAY_START_X + (int)(i / zoom_level);
             y = graphic[i + current_index].pixel_height;
-
-            // No log entry here (reset_graph() left it 0, before the oldest entry or
-            // after compute_graph() gave up on a bad row): nothing to draw. Drawn, it
-            // went to row 480 - 0, one row past the end of the 480-row surface, and
-            // showed as a white line flashing under the footer (tester video, PMIC
-            // screen redrawn every second; short history after a fresh install).
-            if (y < GRAPH_DISPLAY_START_Y || y > 480 - half_line_width - 1)
-                continue;
 
             bool is_charging = graphic[i + current_index].is_charging;
             bool is_estimated = graphic[i + current_index].is_estimated;
@@ -2403,6 +2561,11 @@ void renderPage()
 
 int main(int argc, char *argv[])
 {
+    // a battery test the app did not end itself (SIGKILL) left its clock and brightness: launch.sh
+    // runs "--restore" after the app ends, and any start restores too
+    bt_restore_from_file();
+    if (argc > 1 && strcmp(argv[1], "--restore") == 0)
+        return 0;
     init();
     signal(SIGCONT, sigcont_handler);
     atexit(bt_restore);
@@ -2439,7 +2602,7 @@ int main(int argc, char *argv[])
         // Onion's sleep stops every process (SIGSTOP) and continues them on wake, batmon
         // included, which then reads the battery at its next 15 s check. A long gap
         // between passes or SIGCONT means we were stopped: query AXP223 immediately and recompute.
-        if (sigcont_received || (Sint32)(now - last_pass) > WAKE_GAP_MS) {
+        if (is_wake(sigcont_received, (Sint32)(now - last_pass))) {
             sigcont_received = 0;
             if (bt.state == BT_RUNNING)
                 bt_abort("Interrupted by sleep");
@@ -2566,14 +2729,21 @@ int main(int argc, char *argv[])
                     }
                     else if (keystate[SW_BTN_A] == PRESSED) {
                         axp_confirm_sync = false;
+                        // Checked again: the charger may have gone in while the dialog was open.
+                        axp_poll_data();
                         int cap = (axp_status.capacity_mah > 0) ? axp_status.capacity_mah : axp_edit_capacity;
-                        if (axp_set_coulomb_counter(cap)) {
-                            snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                     "Synced counter to 100%% (%d mAh)", cap);
+                        if (axp_sync_check(axp_status.available, axp_status.is_charging, axp_status.voltage_mv) != AXP_SYNC_OK) {
+                            snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Battery not full: counter left as it is");
                         }
                         else {
-                            snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                     "Failed to sync counter");
+                            int res = axp_set_coulomb_counter(cap);
+                            if (res == 0)
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Synced counter to 100%% (%d mAh)", cap);
+                            else if (res == -2)
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                                         "PMIC did not keep the counter (REG E2H/E3H)");
+                            else
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "I2C error: counter not synced");
                         }
                         axp_feedback_until = now + 3000;
                         axp_poll_data();
@@ -2640,7 +2810,7 @@ int main(int argc, char *argv[])
                     }
                     else if (axp_menu_selected == AXP_MENU_VOFF) {
                         if (keystate[SW_BTN_LEFT] >= PRESSED) {
-                            if (axp_edit_voff > AXP_VOFF_CODE_MIN) {
+                            if (axp_edit_voff > 0) {
                                 axp_edit_voff--;
                                 changed = true;
                             }
@@ -2698,10 +2868,30 @@ int main(int argc, char *argv[])
                     }
                     else if (axp_menu_selected == AXP_MENU_SYNC) {
                         if (keystate[SW_BTN_A] == PRESSED) {
-                            // ask first: done on a battery that is not full, the gauge would
-                            // read 100% and the console would cut out with no low-battery warning
+                            // Setting the counter to 100 % on a battery that is not full makes the
+                            // percentage read too high: no low-battery warning or autosave, then a
+                            // sudden power-off. So: only with the charge ended and a full voltage,
+                            // and only after a confirmation.
                             axp_poll_data();
-                            axp_confirm_sync = true;
+                            int sync = axp_sync_check(axp_status.available, axp_status.is_charging, axp_status.voltage_mv);
+                            if (sync == AXP_SYNC_NO_PMIC) {
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "I2C error: PMIC not read");
+                                axp_feedback_until = now + 3000;
+                            }
+                            else if (sync == AXP_SYNC_CHARGING) {
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                                         "Still charging: wait until the charge has ended");
+                                axp_feedback_until = now + 3000;
+                            }
+                            else if (sync == AXP_SYNC_NOT_FULL) {
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                                         "Battery not full (%.2f V): charge it to the end first",
+                                         axp_status.voltage_mv / 1000.0);
+                                axp_feedback_until = now + 3000;
+                            }
+                            else {
+                                axp_confirm_sync = true;
+                            }
                             changed = true;
                         }
                     }
@@ -2740,9 +2930,8 @@ int main(int argc, char *argv[])
                     }
                     if (axp_status.available && axp_status.voff_code >= 0)
                         axp_edit_voff = axp_status.voff_code;
-                    // A code the menu does not offer (4.22 V or 4.24 V; the standalone app v2.3 set 4.22 V as
-                    // "~95%"): the row opens on Full, marked as a change to save, and the hint shows the voltage
-                    // the PMIC holds.
+                    // A code the menu does not offer (4.22 V set by v2.3's "~95%", or 4.24 V): the row opens on
+                    // Full, marked as a change to save, and the hint shows the voltage the PMIC holds.
                     if (axp_status.available && axp_status.chgv_code >= 0)
                         axp_edit_chgv = AXP_CHGV_CODE_OFFERED(axp_status.chgv_code) ? axp_status.chgv_code : 2;
                     changed = true;
