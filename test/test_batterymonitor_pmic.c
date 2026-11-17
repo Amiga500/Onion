@@ -350,6 +350,28 @@ TEST(counter_write_allows_for_the_counter_moving)
     ASSERT_EQ(axp_set_coulomb_counter(3052), -2);
 }
 
+/* ---- Shown capacity ---- */
+
+TEST(a_saved_round_capacity_is_shown_as_saved)
+{
+    /* every value the capacity menu can save (1500..4000 mAh in steps of 50) reads back as itself:
+     * 3000 mAh is held as 2060 units = 2999.4 mAh and was shown as 2999 */
+    for (int mah = 1500; mah <= 4000; mah += 50) {
+        int units = (int)((mah / 1.456) + 0.5);
+        ASSERT_EQ(axp_units_to_mah(units), mah);
+    }
+    ASSERT_EQ(axp_units_to_mah(2060), 3000);
+}
+
+TEST(other_values_are_shown_to_the_nearest_mah)
+{
+    ASSERT_EQ(axp_units_to_mah(0), 0);
+    ASSERT_EQ(axp_units_to_mah(2059), 2998); /* 2997.9 */
+    ASSERT_EQ(axp_units_to_mah(2061), 3001); /* 3000.8 */
+    ASSERT_EQ(axp_units_to_mah(2096), 3052); /* a learned capacity */
+    ASSERT_EQ(axp_units_to_mah(2579), 3755);
+}
+
 int main(void)
 {
     printf("\n=== batteryMonitorUI PMIC tests ===\n\n");
@@ -372,6 +394,8 @@ int main(void)
     RUN_TEST(capacity_write_reports_i2c_failures);
     RUN_TEST(writes_switch_the_gauge_and_counter_on);
     RUN_TEST(counter_write_allows_for_the_counter_moving);
+    RUN_TEST(a_saved_round_capacity_is_shown_as_saved);
+    RUN_TEST(other_values_are_shown_to_the_nearest_mah);
     TEST_REPORT();
     return test_failures;
 }

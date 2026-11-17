@@ -123,6 +123,8 @@
 
 #define SUB_TITLE_X 255
 #define SUB_TITLE_Y 32
+#define SUB_TITLE_MAX_W 620 // the session line under the title, on a 640 px screen
+#define SUB_TITLE_SHOW_DATE 0 // 1: the session line also shows when the session began
 
 #define LABEL_SESSION_X 100
 #define LABEL_SESSION_Y 439

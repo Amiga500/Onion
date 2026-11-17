@@ -670,6 +670,7 @@ void compute_graph(void)
     bool run_tail_open = true; // still walking through rows at the end level
     bool run_charging = false;
     bool first_run = true;
+    bool newest_row = true; // the entry batmon is still writing
     // clock times (Unix): the stretch's first entry, its end, when a charge reached its last
     // level, and the start of the entry walked just before (the newer one; now at first)
     long long run_start_time = 0, run_end_time = 0, run_tail_time = 0;
@@ -706,7 +707,7 @@ void compute_graph(void)
                     // On stock OnionOS, batmon does not log start_time (it is NULL in SQLite).
                     // Derive row_time from log file mtime: mtime is when batmon last wrote
                     // this row's duration, so (mtime - duration) is when this row began.
-                    if (first_run && row_time <= 0) {
+                    if (newest_row && row_time <= 0) {
                         struct stat st;
                         if (stat(BATTERY_LOG_FILE, &st) == 0 && st.st_mtime > 0)
                             row_time = (long long)st.st_mtime - duration;
@@ -714,7 +715,9 @@ void compute_graph(void)
 
                     // For the newest row, batmon only writes duration upon percentage change or every 10 min.
                     // Advance duration with live elapsed awake time so SESSION updates smoothly on the fly.
-                    if (first_run && !is_charging && row_time > 0 && newer_row_time > row_time) {
+                    // The newest entry only: for an older one the clock span to the next entry holds
+                    // the sleep between them, which must stay out of the graph and of the session time.
+                    if (newest_row && !is_charging && row_time > 0 && newer_row_time > row_time) {
                         int live_elapsed = (int)(newer_row_time - row_time);
                         if (live_elapsed > duration)
                             duration = live_elapsed;
@@ -880,6 +883,7 @@ void compute_graph(void)
                         }
                     }
                     run_rows++;
+                    newest_row = false;
                     newer_row_level = raw_level;
                     if (run_tail_open && raw_level == run_end_level) {
                         run_tail += duration;
@@ -1048,6 +1052,18 @@ static int axp_i2c_write(int fd, unsigned char reg, unsigned char val)
     return ioctl(fd, I2C_RDWR, &d) < 0 ? -1 : 0;
 }
 
+// Capacity and counter registers count in units of 1.456 mAh, so a round value is held a little
+// off: 3000 mAh is 2060 units = 2999.4 mAh. A value that is the stored form of a multiple of
+// 50 mAh (the step of the capacity menu) is shown as that multiple, so a saved 3000 reads 3000.
+static int axp_units_to_mah(int units)
+{
+    int mah = (int)(units * 1.456 + 0.5);
+    int round50 = ((mah + 25) / 50) * 50;
+    if ((int)((round50 / 1.456) + 0.5) == units)
+        return round50;
+    return mah;
+}
+
 static bool axp_poll_data(void)
 {
     if (!HAS_AXP()) {
@@ -1116,11 +1132,11 @@ static bool axp_poll_data(void)
 
     if (e01 >= 0) {
         int raw_cap = e01 & 0x7FFF;
-        axp_status.capacity_mah = (int)(raw_cap * 1.456 + 0.5);
+        axp_status.capacity_mah = axp_units_to_mah(raw_cap);
     }
     if (e23 >= 0) {
         int raw_cc = e23 & 0x7FFF;
-        axp_status.cc_mah = (int)(raw_cc * 1.456 + 0.5);
+        axp_status.cc_mah = axp_units_to_mah(raw_cc);
     }
 
     // Measured on a Mini Plus with a factory-reset PMIC (battery unplugged): E0H-E3H read 0 and
@@ -2263,28 +2279,49 @@ void renderPage()
         // a session: the time asleep within it, the percent it cost and the rate per hour
         // (the rate from half an hour of sleep, shorter is too coarse at 1 % steps). Needs
         // clock times only around the sleep, not for the whole session.
+        // OFF/SLEEP: from the log alone a sleep and a console switched off look the same.
         if (!sel->is_charge && sel->sleep >= SLEEP_MIN_SHOWN) {
             char t[12];
             secondsToHoursMinutes((int)sel->sleep, t);
             if (sel->sleep >= SLEEP_RATE_MIN && sel->sleep_drop > 0) {
-                int tenths = (int)((long long)sel->sleep_drop * 36000 / sel->sleep); // %/h x10
-                snprintf(sleep_text, sizeof(sleep_text), " +%s SLEEP -%d%% (%d.%d%%/H)", t,
-                         sel->sleep_drop, tenths / 10, tenths % 10);
+                // %/h with one decimal, two below 1 %/h (2 % over 22 h is 0.09, not 0.0)
+                int hundredths = (int)((long long)sel->sleep_drop * 360000 / sel->sleep);
+                if (hundredths < 100)
+                    snprintf(sleep_text, sizeof(sleep_text), " +%s OFF/SLEEP -%d%% (0.%02d%%/H)", t,
+                             sel->sleep_drop, hundredths);
+                else
+                    snprintf(sleep_text, sizeof(sleep_text), " +%s OFF/SLEEP -%d%% (%d.%d%%/H)", t,
+                             sel->sleep_drop, hundredths / 100, hundredths / 10 % 10);
             }
             else
-                snprintf(sleep_text, sizeof(sleep_text), " +%s SLEEP -%d%%", t, sel->sleep_drop);
+                snprintf(sleep_text, sizeof(sleep_text), " +%s OFF/SLEEP -%d%%", t, sel->sleep_drop);
         }
         // the date only with a hardware clock (Mini Plus / Flip): the Mini's clock restarts from
-        // the time saved at shutdown
-        if (sel->has_times && HAS_AXP()) {
+        // the time saved at shutdown. Hidden for now (SUB_TITLE_SHOW_DATE): the start date read as
+        // unclear and takes room the sleep needs.
+        if (SUB_TITLE_SHOW_DATE && sel->has_times && HAS_AXP()) {
             time_t t = (time_t)sel->start_time;
             struct tm *lt = localtime(&t);
             if (lt != NULL)
                 strftime(date_text, sizeof(date_text), " %d.%m %H:%M", lt);
         }
-        snprintf(sub_title, sizeof(sub_title), "%s: %s%s%s%s%s%s%s",
-                 sel->is_charge ? "CHARGE" : "SESSION", length_text,
-                 levels_text, off_text, tail_text, sleep_text, date_text, sel->is_current ? " NOW" : "");
+        // Too wide for the screen: drop the sleep rate first, then the date.
+        int sub_w = 0, sub_h = 0;
+        for (int fit = 0; fit < 3; fit++) {
+            if (fit == 1) {
+                char *rate = strstr(sleep_text, " (");
+                if (rate == NULL)
+                    continue;
+                *rate = '\0';
+            }
+            if (fit == 2)
+                date_text[0] = '\0';
+            snprintf(sub_title, sizeof(sub_title), "%s: %s%s%s%s%s%s%s",
+                     sel->is_charge ? "CHARGE" : "SESSION", length_text,
+                     levels_text, off_text, tail_text, sleep_text, date_text, sel->is_current ? " NOW" : "");
+            if (TTF_SizeUTF8(font_Arkhip, sub_title, &sub_w, &sub_h) != 0 || sub_w <= SUB_TITLE_MAX_W)
+                break;
+        }
     }
     // centred under the title
     int sub_w = 0, sub_h = 0;

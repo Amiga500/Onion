@@ -793,6 +793,7 @@ $(BUILD_DIR)/batterymonitor_pmic_fns.c: ../src/batteryMonitorUI/batteryMonitorUI
 	@mkdir -p $(BUILD_DIR)
 	grep -E '^#define (REG_AXP_|AXP_CHGV_|AXP_READBACK_|AXP_SYNC_|AXP_I2C_DEV)' ../src/batteryMonitorUI/batteryMonitorUI.c > $@
 	sed -n '/^static int chgv_code_to_mv(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int axp_units_to_mah(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
 	sed -n '/^static int axp_write_mah16(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
 	sed -n '/^static int axp_set_capacity(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
 	sed -n '/^static int axp_set_coulomb_counter(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
