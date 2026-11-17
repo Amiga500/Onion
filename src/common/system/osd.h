@@ -124,8 +124,8 @@ static void *_overlay_draw_thread(void *arg)
     // Backup original fb content
     START_TIMER(framebuffer_backup);
     int numBuffers = data->display.vinfo.yres > 0
-        ? data->display.vinfo.yres_virtual / data->display.vinfo.yres
-        : 1;
+                         ? data->display.vinfo.yres_virtual / data->display.vinfo.yres
+                         : 1;
     unsigned int **originalPixels = malloc(numBuffers * sizeof(unsigned int *));
     if (!originalPixels) {
         return _overlay_thread_end(data);
@@ -173,8 +173,8 @@ static void *_overlay_draw_thread(void *arg)
 
         // Draw to each buffer
         numBuffers = data->display.vinfo.yres > 0
-            ? data->display.vinfo.yres_virtual / data->display.vinfo.yres
-            : 1;
+                         ? data->display.vinfo.yres_virtual / data->display.vinfo.yres
+                         : 1;
         for (int b = 0; b < numBuffers; b++) {
             draw_count++;
             display_writeBuffer(b, &data->display, data->surface->pixels, rect, data->rotate, false);
@@ -196,8 +196,8 @@ static void *_overlay_draw_thread(void *arg)
 
     // Free buffer backups
     numBuffers = data->display.vinfo.yres > 0
-        ? data->display.vinfo.yres_virtual / data->display.vinfo.yres
-        : 1;
+                     ? data->display.vinfo.yres_virtual / data->display.vinfo.yres
+                     : 1;
     for (int b = 0; b < numBuffers; b++) {
         free(originalPixels[b]);
     }

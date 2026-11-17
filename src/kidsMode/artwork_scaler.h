@@ -40,13 +40,13 @@ static KIDSMODE_SCALER_OPT void artworkScaleRow(
         int a0 = x0_map[x], a1 = x1_map[x];
         int b0 = x0_map[x + 1], b1 = x1_map[x + 1];
         uint8x8_t p00 = vcreate_u8((uint64_t)top_row[a0] |
-                                  ((uint64_t)top_row[b0] << 32));
+                                   ((uint64_t)top_row[b0] << 32));
         uint8x8_t p01 = vcreate_u8((uint64_t)top_row[a1] |
-                                  ((uint64_t)top_row[b1] << 32));
+                                   ((uint64_t)top_row[b1] << 32));
         uint8x8_t p10 = vcreate_u8((uint64_t)bottom_row[a0] |
-                                  ((uint64_t)bottom_row[b0] << 32));
+                                   ((uint64_t)bottom_row[b0] << 32));
         uint8x8_t p11 = vcreate_u8((uint64_t)bottom_row[a1] |
-                                  ((uint64_t)bottom_row[b1] << 32));
+                                   ((uint64_t)bottom_row[b1] << 32));
         uint16x8_t weight_x = vcombine_u16(
             vdup_n_u16((uint16_t)wx_map[x]),
             vdup_n_u16((uint16_t)wx_map[x + 1]));

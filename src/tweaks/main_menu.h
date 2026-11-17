@@ -1818,7 +1818,7 @@ static bool gamemenu_store(int item, bool shown)
             }
             cJSON *value = cJSON_CreateString(id);
             ok = value != NULL && (at < cJSON_GetArraySize(array) ? cJSON_InsertItemInArray(array, at, value)
-                                                                    : cJSON_AddItemToArray(array, value));
+                                                                  : cJSON_AddItemToArray(array, value));
         }
         if (ok && gamemenu_is_default(section, array))
             cJSON_DeleteItemFromObjectCaseSensitive(root, key);

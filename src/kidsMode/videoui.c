@@ -64,10 +64,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <strings.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "artwork_scaler.h"
@@ -330,7 +330,8 @@ static char current_folder[STR_MAX] = "";
 static char single_media_root[STR_MAX] = "";
 static bool single_media_root_checked;
 
-typedef enum { FLOOR_GAMES = 0, FLOOR_VIDEOS = 1 } ContentFloor;
+typedef enum { FLOOR_GAMES = 0,
+               FLOOR_VIDEOS = 1 } ContentFloor;
 static ContentFloor current_floor = FLOOR_GAMES;
 static int game_selection = 0;
 static int video_selection = 0;
@@ -444,9 +445,9 @@ static TTF_Font *font_gamelabel = NULL; // theme list font, large + bold
 // Smaller versions of the same face are loaded only for exceptionally long
 // episode titles. Most titles keep the normal large carousel font.
 static TTF_Font *font_episode_sizes[GAME_LABEL_FONT_SIZE + 1] = {NULL};
-static TTF_Font *font_bigvalue = NULL;  // theme title font, large
+static TTF_Font *font_bigvalue = NULL;      // theme title font, large
 static TTF_Font *font_restart_title = NULL; // restart dialog, medium-large
-static TTF_Font *font_info = NULL;      // theme list font, sentence-sized
+static TTF_Font *font_info = NULL;          // theme list font, sentence-sized
 
 // Fonts are loaded lazily (on first actual use) rather than all three
 // unconditionally at startup: each screen (PIN, timer picker, menu,
@@ -827,9 +828,11 @@ static void tintRestartIcon(SDL_Surface *img)
             uint8_t r, g, b, a;
             SDL_GetRGBA(readSurfacePixel(img, x, y), img->format, &r, &g, &b, &a);
             unsigned hi = r > g ? r : g;
-            if (b > hi) hi = b;
+            if (b > hi)
+                hi = b;
             unsigned lo = r < g ? r : g;
-            if (b < lo) lo = b;
+            if (b < lo)
+                lo = b;
             if (a != 0 && hi - lo > max_chroma)
                 max_chroma = hi - lo;
         }
@@ -843,17 +846,17 @@ static void tintRestartIcon(SDL_Surface *img)
             for (int x = 0; x < img->w; x++) {
                 uint8_t r, g, b, a;
                 SDL_GetRGBA(readSurfacePixel(img, x, y), img->format, &r, &g, &b, &a);
-                if (a == 0) continue;
+                if (a == 0)
+                    continue;
                 unsigned hi = r > g ? r : g;
-                if (b > hi) hi = b;
+                if (b > hi)
+                    hi = b;
                 unsigned lo = r < g ? r : g;
-                if (b < lo) lo = b;
+                if (b < lo)
+                    lo = b;
                 unsigned ink = (hi - lo) * 255 / max_chroma;
                 unsigned white = 255 * (255 - ink);
-                writeSurfacePixel(img, x, y, SDL_MapRGBA(img->format,
-                    (tr * ink + white + 127) / 255,
-                    (tg * ink + white + 127) / 255,
-                    (tb * ink + white + 127) / 255, a));
+                writeSurfacePixel(img, x, y, SDL_MapRGBA(img->format, (tr * ink + white + 127) / 255, (tg * ink + white + 127) / 255, (tb * ink + white + 127) / 255, a));
             }
         }
     }
@@ -883,10 +886,13 @@ static SDL_Surface *matchRestartCircle(SDL_Surface *img)
             uint8_t r, g, b, a;
             SDL_GetRGBA(readSurfacePixel(img, x, y), img->format, &r, &g, &b, &a);
             unsigned hi = r > g ? r : g;
-            if (b > hi) hi = b;
+            if (b > hi)
+                hi = b;
             unsigned lo = r < g ? r : g;
-            if (b < lo) lo = b;
-            if (a && hi - lo > max_chroma) max_chroma = hi - lo;
+            if (b < lo)
+                lo = b;
+            if (a && hi - lo > max_chroma)
+                max_chroma = hi - lo;
         }
     }
     int left = badge->w, right = -1, top = badge->h, bottom = -1;
@@ -897,16 +903,21 @@ static SDL_Surface *matchRestartCircle(SDL_Surface *img)
             uint8_t r, g, b, a;
             SDL_GetRGBA(readSurfacePixel(badge, x, y), badge->format, &r, &g, &b, &a);
             if (a) {
-                if (x < left) left = x;
-                if (x > right) right = x;
-                if (y < top) top = y;
-                if (y > bottom) bottom = y;
+                if (x < left)
+                    left = x;
+                if (x > right)
+                    right = x;
+                if (y < top)
+                    top = y;
+                if (y > bottom)
+                    bottom = y;
             }
             writeSurfacePixel(badge, x, y, SDL_MapRGBA(badge->format, tr, tg, tb, a));
         }
     }
     if (max_chroma == 0 || right < left || bottom < top) {
-        if (locked) SDL_UnlockSurface(img);
+        if (locked)
+            SDL_UnlockSurface(img);
         SDL_FreeSurface(badge);
         return NULL;
     }
@@ -915,23 +926,25 @@ static SDL_Surface *matchRestartCircle(SDL_Surface *img)
     for (int y = 0; y < img->h; y++) {
         for (int x = 0; x < img->w; x++) {
             int bx = x + dx, by = y + dy;
-            if (bx < 0 || bx >= badge->w || by < 0 || by >= badge->h) continue;
+            if (bx < 0 || bx >= badge->w || by < 0 || by >= badge->h)
+                continue;
             uint8_t r, g, b, a, br, bg, bb, ba;
             SDL_GetRGBA(readSurfacePixel(img, x, y), img->format, &r, &g, &b, &a);
             unsigned hi = r > g ? r : g;
-            if (b > hi) hi = b;
+            if (b > hi)
+                hi = b;
             unsigned lo = r < g ? r : g;
-            if (b < lo) lo = b;
+            if (b < lo)
+                lo = b;
             unsigned glyph = (255 - (hi - lo) * 255 / max_chroma) * a / 255;
-            if (glyph == 0) continue;
+            if (glyph == 0)
+                continue;
             SDL_GetRGBA(readSurfacePixel(badge, bx, by), badge->format, &br, &bg, &bb, &ba);
-            writeSurfacePixel(badge, bx, by, SDL_MapRGBA(badge->format,
-                (tr * (255 - glyph) + 255 * glyph + 127) / 255,
-                (tg * (255 - glyph) + 255 * glyph + 127) / 255,
-                (tb * (255 - glyph) + 255 * glyph + 127) / 255, ba));
+            writeSurfacePixel(badge, bx, by, SDL_MapRGBA(badge->format, (tr * (255 - glyph) + 255 * glyph + 127) / 255, (tg * (255 - glyph) + 255 * glyph + 127) / 255, (tb * (255 - glyph) + 255 * glyph + 127) / 255, ba));
         }
     }
-    if (locked) SDL_UnlockSurface(img);
+    if (locked)
+        SDL_UnlockSurface(img);
     return badge;
 }
 
@@ -2078,8 +2091,7 @@ static void drawGlowingText(const char *text, int center_x, int center_y,
 {
     SDL_Color glow = {(Uint8)(color.r / 3), (Uint8)(color.g / 3),
                       (Uint8)(color.b / 3)};
-    const int offsets[][2] = {{-2, 0}, {2, 0}, {0, -2}, {0, 2},
-                              {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
+    const int offsets[][2] = {{-2, 0}, {2, 0}, {0, -2}, {0, 2}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
     for (size_t i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++)
         drawText(text, center_x + offsets[i][0], center_y + offsets[i][1],
                  font, glow, max_width);
@@ -2311,8 +2323,7 @@ static void drawOutlinedText(const char *text, int center_x, int center_y,
     int outline = (int)(1.0 * g_scale + 0.5);
     if (outline < 1)
         outline = 1;
-    const int directions[][2] = {{-1, 0}, {1, 0},  {0, -1}, {0, 1},
-                                  {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
+    const int directions[][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
     for (size_t i = 0; i < sizeof(directions) / sizeof(directions[0]); i++)
         drawText(text, center_x + directions[i][0] * outline,
                  center_y + directions[i][1] * outline, font, outline_color,
@@ -2598,8 +2609,7 @@ static void drawOutlinedTextRight(const char *text, int right_x, int center_y,
     int outline = (int)(1.0 * g_scale + 0.5);
     if (outline < 1)
         outline = 1;
-    const int directions[][2] = {{-1, 0}, {1, 0},  {0, -1}, {0, 1},
-                                  {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
+    const int directions[][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
     for (size_t i = 0; i < sizeof(directions) / sizeof(directions[0]); i++)
         drawTextAlign(text, right_x + directions[i][0] * outline,
                       center_y + directions[i][1] * outline, font,
@@ -2652,10 +2662,10 @@ static void loadArtwork(void)
     if (current_floor == FLOOR_VIDEOS)
         ensureVideoThumbnailCacheDir();
     bool thumbnail_ready = current_floor == FLOOR_VIDEOS &&
-        videoThumbnailCachePaths(imgpath, target_w, target_h, thumbnail_path,
-                                 sizeof(thumbnail_path), thumbnail_metadata,
-                                 sizeof(thumbnail_metadata)) &&
-        videoThumbnailIsCurrent(imgpath, thumbnail_path, thumbnail_metadata);
+                           videoThumbnailCachePaths(imgpath, target_w, target_h, thumbnail_path,
+                                                    sizeof(thumbnail_path), thumbnail_metadata,
+                                                    sizeof(thumbnail_metadata)) &&
+                           videoThumbnailIsCurrent(imgpath, thumbnail_path, thumbnail_metadata);
     SDL_Surface *raw = IMG_Load(thumbnail_ready ? thumbnail_path : imgpath);
     if (raw == NULL && thumbnail_ready) {
         // A partially written/corrupt cache must never hide the real poster.
@@ -3035,8 +3045,7 @@ static void renderTimeChip(int remaining)
         // run long enough for it to actually change. (Continued redraw
         // while held is re-armed in main()'s loop, same reasoning as the
         // scrolling title above.)
-        if (carousel_battery_charging)
-        {
+        if (carousel_battery_charging) {
             SDL_Surface *batt =
                 chargingBatterySurface(carousel_battery_percentage);
             if (batt != NULL) {
@@ -3144,30 +3153,30 @@ static void renderCarousel(int remaining)
                      theme()->hint.color, 0);
         }
         else {
-        // Missing artwork: use a clean black card. For a file inside a
-        // folder, this represents the folder's automatic cover; the selected
-        // file name remains in the caption below.
-        const char *fallback_label = games[current].item.label;
-        if (current_folder[0] && !games[current].is_folder) {
-            const char *slash = strrchr(current_folder, '/');
-            fallback_label = visibleFolderName(
-                slash != NULL ? slash + 1 : current_folder);
-        }
-        SDL_Color fallback_color = theme()->grid.selectedcolor;
-        int tile_h = (int)(g_display.height * 0.58);
-        int tile_w = tile_h;
-        SDL_Surface *crt = loadCrtFallback(tile_w, tile_h);
-        if (crt != NULL) {
-            SDL_Rect crt_pos = {cx - tile_w / 2, art_cy - tile_h / 2};
-            SDL_BlitSurface(crt, NULL, screen, &crt_pos);
-        }
-        else {
-            fillRect(cx - tile_w / 2, art_cy - tile_h / 2, tile_w, tile_h,
-                     0x000000);
-        }
+            // Missing artwork: use a clean black card. For a file inside a
+            // folder, this represents the folder's automatic cover; the selected
+            // file name remains in the caption below.
+            const char *fallback_label = games[current].item.label;
+            if (current_folder[0] && !games[current].is_folder) {
+                const char *slash = strrchr(current_folder, '/');
+                fallback_label = visibleFolderName(
+                    slash != NULL ? slash + 1 : current_folder);
+            }
+            SDL_Color fallback_color = theme()->grid.selectedcolor;
+            int tile_h = (int)(g_display.height * 0.58);
+            int tile_w = tile_h;
+            SDL_Surface *crt = loadCrtFallback(tile_w, tile_h);
+            if (crt != NULL) {
+                SDL_Rect crt_pos = {cx - tile_w / 2, art_cy - tile_h / 2};
+                SDL_BlitSurface(crt, NULL, screen, &crt_pos);
+            }
+            else {
+                fillRect(cx - tile_w / 2, art_cy - tile_h / 2, tile_w, tile_h,
+                         0x000000);
+            }
 
-        drawAdaptiveCardTitle(fallback_label, cx, art_cy, tile_w,
-                              fallback_color, true);
+            drawAdaptiveCardTitle(fallback_label, cx, art_cy, tile_w,
+                                  fallback_color, true);
         }
     }
 
@@ -3247,8 +3256,8 @@ static void renderCarousel(int remaining)
             else {
                 title_two_lines = true;
                 splitTwoLines(display_title, getFontGameLabel(),
-                             title_line1, sizeof(title_line1), title_line2,
-                             sizeof(title_line2));
+                              title_line1, sizeof(title_line1), title_line2,
+                              sizeof(title_line2));
             }
         }
 
@@ -3284,9 +3293,8 @@ static void renderCarousel(int remaining)
     // Native footer: folders open with A; videos play with A; games launch.
     theme_renderFooter(screen);
     theme_renderStandardHint(
-        screen, games[current].is_folder ? "OPEN"
-                : current_floor == FLOOR_GAMES ? "PLAY"
-                                               : "PLAY",
+        screen, games[current].is_folder ? "OPEN" : current_floor == FLOOR_GAMES ? "PLAY"
+                                                                                 : "PLAY",
         games[current].is_folder && canLeaveVideoFolder() ? "BACK" : NULL);
     // No X-button icon ships with Onion's theme (only BUTTON_A/BUTTON_B),
     // so we draw a small badge ourselves. To guarantee it lands in the
@@ -3467,7 +3475,8 @@ static void onLockFloorToggle(void *self)
 static void formatCarouselFloors(void *self, char *out_label)
 {
     int value = ((ListItem *)self)->value;
-    strcpy(out_label, value == 1 ? "Games only" : value == 2 ? "Media only" : "Games&Media");
+    strcpy(out_label, value == 1 ? "Games only" : value == 2 ? "Media only"
+                                                             : "Games&Media");
 }
 
 static void onSaveStatesToggle(void *self)
@@ -3990,7 +3999,8 @@ int main(int argc, char *argv[])
                             .value_min = 0,
                             .value_max = 2,
                             .value = menu_lock_floor >= 0 && menu_lock_floor <= 2
-                                         ? menu_lock_floor : 0,
+                                         ? menu_lock_floor
+                                         : 0,
                             .value_formatter = formatCarouselFloors,
                             .action = onLockFloorToggle});
     list_addItem(&carousel_settings_list,
@@ -4252,7 +4262,7 @@ int main(int argc, char *argv[])
                     leaveCurrentVideoFolder();
                 }
                 else if (!floor_locked && changed_key == SW_BTN_UP &&
-                    current_floor == FLOOR_GAMES)
+                         current_floor == FLOOR_GAMES)
                     active_screen = switchFloor(FLOOR_VIDEOS, remaining)
                                         ? SCREEN_CAROUSEL
                                         : SCREEN_EMPTY;
@@ -4344,8 +4354,7 @@ int main(int argc, char *argv[])
                         dirty = true;
                     break;
                 case SW_BTN_A:
-                case SW_BTN_START:
-                    {
+                case SW_BTN_START: {
                     char minutes_str[16];
                     snprintf(minutes_str, sizeof(minutes_str), "%d",
                              profile_list.items[1].value * TIMER_STEP);
@@ -4355,7 +4364,7 @@ int main(int argc, char *argv[])
                     exit_code = 5;
                     quit = true;
                     break;
-                    }
+                }
                 case SW_BTN_B:
                     exit_code = 1;
                     quit = true;

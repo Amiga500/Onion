@@ -21,8 +21,8 @@
 #include "easter.h"
 
 #include <SDL/SDL.h>
-#include <SDL/SDL_ttf.h>
 #include <SDL/SDL_loadso.h>
+#include <SDL/SDL_ttf.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -30,11 +30,11 @@
 #include <string.h>
 #include <time.h>
 #ifdef __linux__
-#include <errno.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <linux/soundcard.h>
+#include <sys/ioctl.h>
 #endif
 
 /* ----------------------------------------------------------------- layout */
@@ -42,9 +42,9 @@
 #define SCREEN_W 640
 #define SCREEN_H 480
 #define HUD_H 40
-#define FOOT_H 32     /* the line of hints under the board */
+#define FOOT_H 32 /* the line of hints under the board */
 
-#define TILE_MAX 40   /* a cell, in pixels; smaller when a level needs it */
+#define TILE_MAX 40 /* a cell, in pixels; smaller when a level needs it */
 #define MAX_W 16
 #define MAX_H 12
 
@@ -85,29 +85,28 @@ typedef enum {
 } Colour;
 
 static const Uint8 palette[C_COUNT][3] = {
-    {8, 10, 14},      /* background, Onion's near-black            */
-    {214, 220, 228},  /* chrome                                     */
-    {116, 132, 180},    /* dim chrome, separators                     */
-    {255, 255, 255},  /* highlight                                  */
+    {8, 10, 14},     /* background, Onion's near-black            */
+    {214, 220, 228}, /* chrome                                     */
+    {116, 132, 180}, /* dim chrome, separators                     */
+    {255, 255, 255}, /* highlight                                  */
     {64, 112, 255},  /* electric blue: accents, title, push count   */
     {139, 92, 246},  /* the porter                                  */
     {216, 180, 254}, /* the porter's trim                           */
-    {255, 46, 184},   /* markers                                     */
-    {255, 192, 32},   /* crates                                      */
-    {255, 74, 88},    /* errors                                      */
+    {255, 46, 184},  /* markers                                     */
+    {255, 192, 32},  /* crates                                      */
+    {255, 74, 88},   /* errors                                      */
     {50, 255, 163},  /* a crate on its marker, level clear          */
-    {132, 140, 152},  /* wall face                                   */
-    {72, 78, 88},     /* wall inner                                  */
-    {20, 24, 53},     /* dialog panels                              */
-    {40, 48, 62},     /* dim stars                                  */
-    {120, 136, 168},  /* bright stars                               */
-    {14, 17, 30},     /* warehouse floor                            */
-    {22, 27, 46},     /* floor joints                               */
+    {132, 140, 152}, /* wall face                                   */
+    {72, 78, 88},    /* wall inner                                  */
+    {20, 24, 53},    /* dialog panels                              */
+    {40, 48, 62},    /* dim stars                                  */
+    {120, 136, 168}, /* bright stars                               */
+    {14, 17, 30},    /* warehouse floor                            */
+    {22, 27, 46},    /* floor joints                               */
 };
 
 static Uint32 mapped[C_COUNT];
 static Uint32 shades[C_COUNT][6];
-
 
 /* ----------------------------------------------------------------- levels */
 
@@ -201,10 +200,18 @@ static const Level levels[] = {
 /* ----------------------------------------------------------------- state */
 
 /* What a cell holds, as bits: a marker can be under a crate or the player. */
-enum { CELL_WALL = 1, CELL_FLOOR = 2, CELL_GOAL = 4, CELL_CRATE = 8 };
+enum { CELL_WALL = 1,
+       CELL_FLOOR = 2,
+       CELL_GOAL = 4,
+       CELL_CRATE = 8 };
 
 /* Directions, and B (undo) as a fifth "held" key. */
-enum { D_LEFT, D_RIGHT, D_UP, D_DOWN, K_UNDO, K_COUNT };
+enum { D_LEFT,
+       D_RIGHT,
+       D_UP,
+       D_DOWN,
+       K_UNDO,
+       K_COUNT };
 static const int dir_x[4] = {-1, 1, 0, 0};
 static const int dir_y[4] = {0, 0, -1, 1};
 
@@ -219,7 +226,10 @@ typedef struct {
     Colour colour;
 } Star;
 
-typedef enum { S_TITLE, S_PLAY, S_CLEAR, S_WIN } State;
+typedef enum { S_TITLE,
+               S_PLAY,
+               S_CLEAR,
+               S_WIN } State;
 
 typedef struct {
     State state;
@@ -296,7 +306,8 @@ static void rotate_frame(SDL_Surface *surface);
  * SDL clips negative coordinates after the transform. */
 static void fill(int x, int y, int w, int h, Uint32 colour)
 {
-    if (w <= 0 || h <= 0) return;
+    if (w <= 0 || h <= 0)
+        return;
     SDL_Rect rect = {(Sint16)(SCREEN_W - x - w),
                      (Sint16)(SCREEN_H - y - h), (Uint16)w, (Uint16)h};
     SDL_FillRect(screen, &rect, colour);
@@ -323,7 +334,8 @@ static unsigned text_slot;
 
 static void text(TTF_Font *font, const char *string, int x, int y, Colour colour)
 {
-    if (!font || !string || !*string) return;
+    if (!font || !string || !*string)
+        return;
     SDL_Surface *rendered = NULL;
     for (int i = 0; i < TEXT_CACHE_SIZE; ++i) {
         TextCache *entry = &text_cache[i];
@@ -336,13 +348,16 @@ static void text(TTF_Font *font, const char *string, int x, int y, Colour colour
     if (!rendered) {
         SDL_Color fg = {palette[colour][0], palette[colour][1], palette[colour][2], 0};
         SDL_Surface *raw = TTF_RenderUTF8_Blended(font, string, fg);
-        if (!raw) return;
+        if (!raw)
+            return;
         rendered = SDL_DisplayFormatAlpha(raw);
         SDL_FreeSurface(raw);
-        if (!rendered) return;
+        if (!rendered)
+            return;
         rotate_frame(rendered); /* Once per cached label, preserving alpha. */
         TextCache *entry = &text_cache[text_slot++ % TEXT_CACHE_SIZE];
-        if (entry->surface) SDL_FreeSurface(entry->surface);
+        if (entry->surface)
+            SDL_FreeSurface(entry->surface);
         entry->font = font;
         entry->colour = colour;
         snprintf(entry->label, sizeof entry->label, "%s", string);
@@ -402,15 +417,24 @@ static void rotate_frame(SDL_Surface *surface)
 /* Precompute enveloped effects and an original music loop once. The callback
  * only mixes PCM: no allocation, file I/O, RNG or synthesis on that thread. */
 typedef enum {
-    FX_LAUNCH, FX_BOUNCE, FX_BRICK, FX_BOMB, FX_PICKUP, FX_LASER,
-    FX_LOST, FX_CLEAR, FX_COUNT
+    FX_LAUNCH,
+    FX_BOUNCE,
+    FX_BRICK,
+    FX_BOMB,
+    FX_PICKUP,
+    FX_LASER,
+    FX_LOST,
+    FX_CLEAR,
+    FX_COUNT
 } Sound;
 #define AUDIO_RATE 48000
 #define AUDIO_SAMPLES (AUDIO_RATE / 2)
 #define AUDIO_VOICES 4
 static Sint16 effects[FX_COUNT][AUDIO_SAMPLES];
 static int effect_length[FX_COUNT];
-static struct { int sound, position; } voices[AUDIO_VOICES];
+static struct {
+    int sound, position;
+} voices[AUDIO_VOICES];
 static bool audio_ready;
 static unsigned next_voice;
 /* Mini Plus/SSD202D uses 48 kHz signed-16 stereo, as Onion MainUI does.
@@ -428,7 +452,9 @@ static struct {
 static SDL_mutex *audio_mutex;
 /* SDL_mixer wraps SDL_OpenAudio, so it cannot repair a missing SDL backend.
  * On Linux/Miyoo use the firmware OSS /dev/dsp route when mixer fails. */
-typedef enum { A_NONE, A_SDL_MIXER, A_OSS } AudioBackend;
+typedef enum { A_NONE,
+               A_SDL_MIXER,
+               A_OSS } AudioBackend;
 static AudioBackend audio_backend;
 #ifdef __linux__
 static struct {
@@ -439,11 +465,11 @@ static struct {
 } oss = {.fd = -1};
 #endif
 
-
 static bool mixer_resolve(const char *name, void *function, size_t size)
 {
     void *address = SDL_LoadFunction(mixer.module, name);
-    if (!address || size != sizeof address) return false;
+    if (!address || size != sizeof address)
+        return false;
     memcpy(function, &address, size);
     return true;
 }
@@ -460,7 +486,8 @@ static void audio_stop(void)
         SDL_WaitThread(oss.thread, NULL); /* nonblocking writes allow prompt join */
         oss.thread = NULL;
     }
-    if (oss.fd >= 0) close(oss.fd);
+    if (oss.fd >= 0)
+        close(oss.fd);
     oss.fd = -1;
     oss.running = oss.paused = false;
     oss.failure_errno = 0;
@@ -472,16 +499,20 @@ static void audio_stop(void)
     }
     audio_ready = false;
     audio_backend = A_NONE;
-    if (mixer.initialized) SDL_QuitSubSystem(SDL_INIT_AUDIO);
-    if (mixer.module) SDL_UnloadObject(mixer.module);
+    if (mixer.initialized)
+        SDL_QuitSubSystem(SDL_INIT_AUDIO);
+    if (mixer.module)
+        SDL_UnloadObject(mixer.module);
     memset(&mixer, 0, sizeof mixer);
-    if (audio_mutex) SDL_DestroyMutex(audio_mutex);
+    if (audio_mutex)
+        SDL_DestroyMutex(audio_mutex);
     audio_mutex = NULL;
 }
 
 static void audio_pause(bool paused)
 {
-    if (mixer.opened) mixer.hook(paused ? NULL : audio_callback, NULL);
+    if (mixer.opened)
+        mixer.hook(paused ? NULL : audio_callback, NULL);
 #ifdef __linux__
     if (audio_backend == A_OSS) {
         SDL_LockMutex(audio_mutex);
@@ -505,7 +536,7 @@ static int triangle_wave(unsigned phase)
 {
     phase &= 65535u;
     return phase < 32768u ? (int)phase * 2 - 32768
-                         : 98303 - (int)phase * 2;
+                          : 98303 - (int)phase * 2;
 }
 
 /* Original eight-bar synth loop. Generate once, never on the audio thread.
@@ -513,11 +544,9 @@ static int triangle_wave(unsigned phase)
 static void music_build(void)
 {
     static const int chords[4][3] = {
-        {220, 262, 330}, {175, 220, 262}, {262, 330, 392}, {196, 247, 294}
-    };
+        {220, 262, 330}, {175, 220, 262}, {262, 330, 392}, {196, 247, 294}};
     static const int melody[16] = {
-        0, 1, 2, 1, 0, 2, 1, -1, 2, 1, 0, 1, 2, -1, 1, 2
-    };
+        0, 1, 2, 1, 0, 2, 1, -1, 2, 1, 0, 1, 2, -1, 1, 2};
     unsigned noise = 0x735a2b1u;
     for (int step = 0; step < MUSIC_STEPS; ++step) {
         int chord = step / 16;
@@ -539,20 +568,19 @@ static void music_build(void)
                 mixed += triangle_wave(pad[j]) / 80 * attack / 256 * release / 256;
             }
             if (step % 2 == 0) {
-                kick += (unsigned)(45 + 100 * (MUSIC_STEP-i) / MUSIC_STEP) * 65536u / AUDIO_RATE;
+                kick += (unsigned)(45 + 100 * (MUSIC_STEP - i) / MUSIC_STEP) * 65536u / AUDIO_RATE;
                 mixed += triangle_wave(kick) / 12 * attack / 256 * release / 256 * release / 256;
             }
             if (i < 1600) {
                 noise = noise * 1664525u + 1013904223u;
                 int hat = ((int)(noise >> 16) - 32768) / 30;
-                mixed += hat * attack / 256 * (1600-i) / 1600;
+                mixed += hat * attack / 256 * (1600 - i) / 1600;
             }
             music_pcm[step * MUSIC_STEP + i] = (Sint16)mixed;
         }
     }
     music_position = 0;
 }
-
 
 static void audio_callback(void *unused, Uint8 *stream, int bytes)
 {
@@ -566,7 +594,8 @@ static void audio_callback(void *unused, Uint8 *stream, int bytes)
         int mixed = 0;
         if (music_enabled) {
             mixed = music_pcm[music_position++];
-            if (music_position == MUSIC_SAMPLES) music_position = 0;
+            if (music_position == MUSIC_SAMPLES)
+                music_position = 0;
         }
         for (int v = 0; v < AUDIO_VOICES; ++v) {
             int sound = voices[v].sound;
@@ -576,12 +605,15 @@ static void audio_callback(void *unused, Uint8 *stream, int bytes)
                 voices[v].position++;
             }
         }
-        Sint16 sample = (Sint16)(mixed > 32767 ? 32767 : mixed < -32768 ? -32768 : mixed);
+        Sint16 sample = (Sint16)(mixed > 32767 ? 32767 : mixed < -32768 ? -32768
+                                                                        : mixed);
         out[i * 2] = sample;
         out[i * 2 + 1] = sample;
-        if (sample) audio_audible_frames++;
+        if (sample)
+            audio_audible_frames++;
         unsigned magnitude = (unsigned)(sample < 0 ? -(int)sample : sample);
-        if (magnitude > audio_peak) audio_peak = magnitude;
+        if (magnitude > audio_peak)
+            audio_peak = magnitude;
     }
     SDL_UnlockMutex(audio_mutex);
 }
@@ -594,7 +626,7 @@ static void audio_callback(void *unused, Uint8 *stream, int bytes)
 static int oss_writer(void *unused)
 {
     (void)unused;
-    Uint8 pcm[4096];  /* 1024 frames at 48kHz */
+    Uint8 pcm[4096]; /* 1024 frames at 48kHz */
     Uint32 deadline = SDL_GetTicks();
     unsigned timing_fraction = 0;
     for (;;) {
@@ -602,7 +634,8 @@ static int oss_writer(void *unused)
         bool running = oss.running;
         bool paused = oss.paused;
         SDL_UnlockMutex(audio_mutex);
-        if (!running) break;
+        if (!running)
+            break;
         if (paused) {
             SDL_Delay(10);
             continue;
@@ -615,7 +648,8 @@ static int oss_writer(void *unused)
             SDL_LockMutex(audio_mutex);
             running = oss.running;
             SDL_UnlockMutex(audio_mutex);
-            if (!running) return 0;
+            if (!running)
+                return 0;
             if (SDL_GetTicks() - last_progress >= OSS_STALL_TIMEOUT_MS) {
                 failed = ETIMEDOUT;
                 break;
@@ -628,7 +662,8 @@ static int oss_writer(void *unused)
                 last_progress = SDL_GetTicks();
                 continue;
             }
-            if (count < 0 && errno == EINTR) continue;
+            if (count < 0 && errno == EINTR)
+                continue;
             if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
                 SDL_Delay(1);
                 continue;
@@ -653,8 +688,10 @@ static int oss_writer(void *unused)
         deadline += timing_fraction / AUDIO_RATE;
         timing_fraction %= AUDIO_RATE;
         Sint32 sleep_ms = (Sint32)(deadline - SDL_GetTicks());
-        if (sleep_ms > 0) SDL_Delay((Uint32)sleep_ms);
-        else if (sleep_ms < -100) deadline = SDL_GetTicks();
+        if (sleep_ms > 0)
+            SDL_Delay((Uint32)sleep_ms);
+        else if (sleep_ms < -100)
+            deadline = SDL_GetTicks();
     }
     return 0;
 }
@@ -709,7 +746,8 @@ static bool audio_open_oss(char *error, size_t error_length)
 /* Called from the game thread (not from the writer) to report write failure. */
 static void audio_check_oss_failure(void)
 {
-    if (audio_backend != A_OSS) return;
+    if (audio_backend != A_OSS)
+        return;
     SDL_LockMutex(audio_mutex);
     int failed = oss.failure_errno;
     SDL_UnlockMutex(audio_mutex);
@@ -720,13 +758,14 @@ static void audio_check_oss_failure(void)
     }
 }
 #else
-static void audio_check_oss_failure(void) { }
+static void audio_check_oss_failure(void) {}
 #endif
 
 /* Generated PCM alone is not evidence of delivery to an OSS device. */
 static bool audio_test_passed(void)
 {
-    if (!audio_ready || !audio_mutex) return false;
+    if (!audio_ready || !audio_mutex)
+        return false;
     SDL_LockMutex(audio_mutex);
     bool passed = audio_callbacks > 0 && audio_audible_frames > 0;
 #ifdef __linux__
@@ -738,7 +777,8 @@ static bool audio_test_passed(void)
 }
 static void sound_play(Sound sound)
 {
-    if (!audio_ready) return;
+    if (!audio_ready)
+        return;
     SDL_LockMutex(audio_mutex);
     int slot = -1;
     for (int v = 0; v < AUDIO_VOICES; ++v) {
@@ -747,7 +787,8 @@ static void sound_play(Sound sound)
             break;
         }
     }
-    if (slot < 0) slot = (int)(next_voice++ % AUDIO_VOICES);
+    if (slot < 0)
+        slot = (int)(next_voice++ % AUDIO_VOICES);
     voices[slot].sound = sound;
     voices[slot].position = 0;
     SDL_UnlockMutex(audio_mutex);
@@ -760,7 +801,8 @@ static void audio_start(void)
     audio_callbacks = 0;
     audio_audible_frames = 0;
     audio_peak = 0;
-    if (music_enabled) music_build();
+    if (music_enabled)
+        music_build();
     static const int duration[FX_COUNT] = {120, 65, 90, 300, 300, 100, 400, 480};
     static const int start_hz[FX_COUNT] = {440, 780, 1050, 150, 660, 1800, 420, 523};
     static const int end_hz[FX_COUNT] = {880, 520, 650, 40, 1320, 160, 90, 1047};
@@ -777,7 +819,7 @@ static void audio_start(void)
             }
             phase = (phase + (unsigned)hz * 65536u / AUDIO_RATE) & 65535u;
             int triangle = phase < 32768 ? (int)phase * 2 - 32768
-                                        : 98303 - (int)phase * 2;
+                                         : 98303 - (int)phase * 2;
             int wave = triangle / 5;
             if (s == FX_BOMB) {
                 noise = noise * 1664525u + 1013904223u;
@@ -798,8 +840,7 @@ static void audio_start(void)
     static const char *const libraries[] = {"SDL_mixer.dll", "SDL_mixer-1.2.dll"};
 #else
     static const char *const libraries[] = {
-        "libSDL_mixer-1.2.so.0", "libSDL_mixer-1.2.so", "libSDL_mixer.so"
-    };
+        "libSDL_mixer-1.2.so.0", "libSDL_mixer-1.2.so", "libSDL_mixer.so"};
 #endif
     char mixer_error[160] = "SDL_mixer not found";
     const char *library = NULL;
@@ -817,17 +858,21 @@ static void audio_start(void)
 #undef LOAD
         if (!linked) {
             snprintf(mixer_error, sizeof mixer_error, "SDL_mixer symbol lookup: %.100s", SDL_GetError());
-        } else {
+        }
+        else {
             audio_mutex = SDL_CreateMutex();
             if (!audio_mutex) {
                 snprintf(mixer_error, sizeof mixer_error, "SDL mutex: %.100s", SDL_GetError());
-            } else if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+            }
+            else if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
                 snprintf(mixer_error, sizeof mixer_error, "SDL audio init: %.100s", SDL_GetError());
-            } else {
+            }
+            else {
                 mixer.initialized = true;
                 if (mixer.open(AUDIO_RATE, AUDIO_S16SYS, 2, 1024) != 0) {
                     snprintf(mixer_error, sizeof mixer_error, "Mix_OpenAudio: %.100s", SDL_GetError());
-                } else {
+                }
+                else {
                     mixer.opened = true;
                     int rate = 0, channels = 0;
                     Uint16 format = 0;
@@ -835,7 +880,8 @@ static void audio_start(void)
                         rate != AUDIO_RATE || format != AUDIO_S16SYS || channels != 2) {
                         snprintf(mixer_error, sizeof mixer_error,
                                  "SDL mixer format: %d Hz / %d ch / 0x%x", rate, channels, format);
-                    } else {
+                    }
+                    else {
                         memset(&audio_spec, 0, sizeof audio_spec);
                         audio_spec.freq = rate;
                         audio_spec.format = format;
@@ -869,7 +915,6 @@ static void audio_start(void)
 #endif
     fprintf(stderr, "Audio unavailable: %s\n", audio_error);
     say("Audio unavailable: %s", audio_error);
-
 }
 
 /* ----------------------------------------------------------------- helpers */
@@ -982,13 +1027,26 @@ static void load_level(Game *game, int index)
         for (int x = 0; x < MAX_W && row[x]; x++) {
             Uint8 cell = 0;
             switch (row[x]) {
-            case '#': cell = CELL_WALL; break;
-            case '$': cell = CELL_CRATE; break;
-            case '.': cell = CELL_GOAL; break;
-            case '*': cell = CELL_GOAL | CELL_CRATE; break;
-            case '+': cell = CELL_GOAL; /* fall through */
-            case '@': game->px = x; game->py = y; break;
-            default: break;
+            case '#':
+                cell = CELL_WALL;
+                break;
+            case '$':
+                cell = CELL_CRATE;
+                break;
+            case '.':
+                cell = CELL_GOAL;
+                break;
+            case '*':
+                cell = CELL_GOAL | CELL_CRATE;
+                break;
+            case '+':
+                cell = CELL_GOAL; /* fall through */
+            case '@':
+                game->px = x;
+                game->py = y;
+                break;
+            default:
+                break;
             }
             if (cell & CELL_GOAL) {
                 game->goals++;
@@ -1501,21 +1559,27 @@ static void draw(Game *game)
 static bool audioserver_running(void)
 {
     DIR *dir = opendir("/proc");
-    if (!dir) return false;
+    if (!dir)
+        return false;
     struct dirent *entry;
     bool found = false;
     while ((entry = readdir(dir))) {
-        if (entry->d_name[0] < '0' || entry->d_name[0] > '9') continue;
+        if (entry->d_name[0] < '0' || entry->d_name[0] > '9')
+            continue;
         char path[80], name[40] = {0};
         long pid = strtol(entry->d_name, NULL, 10);
-        if (pid <= 0) continue;
+        if (pid <= 0)
+            continue;
         snprintf(path, sizeof path, "/proc/%ld/comm", pid);
         FILE *fp = fopen(path, "r");
-        if (!fp) continue;
+        if (!fp)
+            continue;
         if (fgets(name, sizeof name, fp) &&
-            (!strncmp(name, "audioserver", 11))) found = true;
+            (!strncmp(name, "audioserver", 11)))
+            found = true;
         fclose(fp);
-        if (found) break;
+        if (found)
+            break;
     }
     closedir(dir);
     return found;
@@ -1525,30 +1589,41 @@ static void preload_miyoo_audiobridge(int argc, char **argv, bool audio_requeste
 {
     (void)argc;
     if (!audio_requested || access("/customer/lib/libpadsp.so", R_OK) != 0 ||
-        !audioserver_running()) return;
+        !audioserver_running())
+        return;
     const char *preload = getenv("LD_PRELOAD");
     const char *dummy = getenv("SDL_AUDIODRIVER");
     const char *disabled = getenv("PADSP_NO_DSP");
     if ((preload && strstr(preload, "libpadsp.so")) ||
         (dummy && !strcmp(dummy, "dummy")) ||
-        (disabled && !strcmp(disabled, "1"))) return;
+        (disabled && !strcmp(disabled, "1")))
+        return;
     char with_bridge[1024];
     int n = snprintf(with_bridge, sizeof with_bridge, "%s%s/customer/lib/libpadsp.so",
                      preload ? preload : "", (preload && *preload) ? " " : "");
-    if (n < 0 || (size_t)n >= sizeof with_bridge) return;
+    if (n < 0 || (size_t)n >= sizeof with_bridge)
+        return;
     char original_preload[1024];
-    if (preload) snprintf(original_preload, sizeof original_preload, "%s", preload);
-    if (setenv("LD_PRELOAD", with_bridge, 1) != 0) return;
+    if (preload)
+        snprintf(original_preload, sizeof original_preload, "%s", preload);
+    if (setenv("LD_PRELOAD", with_bridge, 1) != 0)
+        return;
     fprintf(stderr, "Audio: relaunching with Miyoo audioserver bridge: %s\n", with_bridge);
     execvp(argv[0], argv);
     fprintf(stderr, "Audio: bridge relaunch failed: %s\n", strerror(errno));
     /* Avoid unexpectedly inheriting a preload which has not been applied. */
-    if (preload) setenv("LD_PRELOAD", original_preload, 1);
-    else unsetenv("LD_PRELOAD");
+    if (preload)
+        setenv("LD_PRELOAD", original_preload, 1);
+    else
+        unsetenv("LD_PRELOAD");
 }
 #else
 static void preload_miyoo_audiobridge(int argc, char **argv, bool audio_requested)
-{ (void)argc; (void)argv; (void)audio_requested; }
+{
+    (void)argc;
+    (void)argv;
+    (void)audio_requested;
+}
 #endif
 
 /* ----------------------------------------------------------------- startup */
@@ -1576,7 +1651,6 @@ static TTF_Font *open_font(int size)
     }
     return NULL;
 }
-
 
 static void seed_stars(Game *game)
 {
@@ -1633,9 +1707,13 @@ int main(int argc, char **argv)
 
     preload_miyoo_audiobridge(argc, argv, !mute && !snapshot);
     if (audio_test) {
-        if (SDL_Init(0) < 0) return 1;
+        if (SDL_Init(0) < 0)
+            return 1;
         audio_start();
-        if (!audio_ready) { SDL_Quit(); return 1; }
+        if (!audio_ready) {
+            SDL_Quit();
+            return 1;
+        }
         for (int s = 0; s < FX_COUNT; ++s) {
             sound_play((Sound)s);
             SDL_Delay(500);
@@ -1653,7 +1731,8 @@ int main(int argc, char **argv)
         bool audio_ok = audio_test_passed();
         if (!audio_ok) {
             fprintf(stderr, "Audio test: FAIL - missing PCM, failed delivery, or audio error\n");
-        } else {
+        }
+        else {
             fprintf(stderr, "Audio test: PASS - PCM generated (speaker output is not verified)\n");
         }
 #ifdef __linux__
@@ -1669,7 +1748,8 @@ int main(int argc, char **argv)
         return audio_ok ? 0 : 1;
     }
     if (benchmark) {
-        if (!snapshot_after) snapshot_after = 3600;
+        if (!snapshot_after)
+            snapshot_after = 3600;
     }
     log_open();
     say("--- cucuzziello's game start ---");
@@ -1713,15 +1793,16 @@ int main(int argc, char **argv)
             for (int k = 0; k < 3; ++k) {
                 int base = palette[c][k];
                 rgb[k] = band < 2 ? base + (255 - base) * (2 - band) / 5
-                                 : base * (110 - band * 9) / 100;
+                                  : base * (110 - band * 9) / 100;
             }
             shades[c][band] = SDL_MapRGB(screen->format, rgb[0], rgb[1], rgb[2]);
         }
     }
     field_cache = SDL_CreateRGBSurface(SDL_SWSURFACE, SCREEN_W, SCREEN_H,
-        screen->format->BitsPerPixel, screen->format->Rmask,
-        screen->format->Gmask, screen->format->Bmask, 0);
-    if (field_cache) SDL_SetAlpha(field_cache, 0, SDL_ALPHA_OPAQUE);
+                                       screen->format->BitsPerPixel, screen->format->Rmask,
+                                       screen->format->Gmask, screen->format->Bmask, 0);
+    if (field_cache)
+        SDL_SetAlpha(field_cache, 0, SDL_ALPHA_OPAQUE);
     SDL_ShowCursor(SDL_DISABLE);
     SDL_EnableKeyRepeat(0, 0);
     font_big = open_font(38);
@@ -1736,7 +1817,8 @@ int main(int argc, char **argv)
         SDL_Quit();
         return 3;
     }
-    if (!mute && !snapshot) audio_start();
+    if (!mute && !snapshot)
+        audio_start();
     srand((snapshot || benchmark) ? 1u : (unsigned)time(NULL));
     seed_stars(game);
     game->state = S_TITLE;
@@ -1773,22 +1855,22 @@ int main(int argc, char **argv)
             }
             else if (event.type == SDL_KEYDOWN) {
                 switch (event.key.keysym.sym) {
-                case SDLK_SPACE:   /* A */
+                case SDLK_SPACE: /* A */
                     action(game);
                     break;
-                case SDLK_LSHIFT:  /* X */
+                case SDLK_LSHIFT: /* X */
                     restart(game);
                     break;
-                case SDLK_LEFT:    /* in play these are read as held keys */
+                case SDLK_LEFT: /* in play these are read as held keys */
                     choose_level(game, -1);
                     break;
                 case SDLK_RIGHT:
                     choose_level(game, 1);
                     break;
-                case SDLK_ESCAPE:  /* MENU: leave, runtime.sh restores MainUI */
+                case SDLK_ESCAPE: /* MENU: leave, runtime.sh restores MainUI */
                     game->running = false;
                     break;
-                case SDLK_LCTRL:   /* B: undo in play, back out of the title */
+                case SDLK_LCTRL: /* B: undo in play, back out of the title */
                     if (game->state == S_TITLE) {
                         game->running = false;
                     }
@@ -1804,22 +1886,40 @@ int main(int argc, char **argv)
             /* One script character per frame, each a single press. */
             char key = *script ? *script++ : 0;
             switch (key) {
-            case 'L': command(game, D_LEFT); break;
-            case 'R': command(game, D_RIGHT); break;
-            case 'U': command(game, D_UP); break;
-            case 'D': command(game, D_DOWN); break;
-            case 'B': command(game, K_UNDO); break;
-            case 'X': restart(game); break;
-            case 'A': action(game); break;
-            case 'M': game->running = false; break;
-            default: break;
+            case 'L':
+                command(game, D_LEFT);
+                break;
+            case 'R':
+                command(game, D_RIGHT);
+                break;
+            case 'U':
+                command(game, D_UP);
+                break;
+            case 'D':
+                command(game, D_DOWN);
+                break;
+            case 'B':
+                command(game, K_UNDO);
+                break;
+            case 'X':
+                restart(game);
+                break;
+            case 'A':
+                action(game);
+                break;
+            case 'M':
+                game->running = false;
+                break;
+            default:
+                break;
             }
             keys = scripted;
         }
 
         /* A benchmark draws a level over and over. */
         if (benchmark) {
-            if (game->state != S_PLAY) new_game(game);
+            if (game->state != S_PLAY)
+                new_game(game);
             game->t_intro = 0;
         }
         Uint32 work_start = SDL_GetTicks();
@@ -1845,8 +1945,10 @@ int main(int argc, char **argv)
             phase %= 60;
             Uint32 now = SDL_GetTicks();
             Sint32 remaining_ms = (Sint32)(deadline - now);
-            if (remaining_ms > 0) SDL_Delay((Uint32)remaining_ms);
-            else if (remaining_ms < -100) deadline = now;
+            if (remaining_ms > 0)
+                SDL_Delay((Uint32)remaining_ms);
+            else if (remaining_ms < -100)
+                deadline = now;
         }
     }
 
@@ -1863,7 +1965,8 @@ int main(int argc, char **argv)
     audio_stop();
     free(game);
     for (int i = 0; i < TEXT_CACHE_SIZE; ++i) {
-        if (text_cache[i].surface) SDL_FreeSurface(text_cache[i].surface);
+        if (text_cache[i].surface)
+            SDL_FreeSurface(text_cache[i].surface);
     }
     if (font_big) {
         TTF_CloseFont(font_big);
@@ -1871,7 +1974,8 @@ int main(int argc, char **argv)
     if (font_small) {
         TTF_CloseFont(font_small);
     }
-    if (field_cache) SDL_FreeSurface(field_cache);
+    if (field_cache)
+        SDL_FreeSurface(field_cache);
     SDL_FreeSurface(screen);
     TTF_Quit();
     /* Blank before leaving so the panel does not hold our last frame while
