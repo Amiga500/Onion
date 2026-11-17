@@ -97,7 +97,6 @@ void play_activity_db_open(void)
     if (play_activity_db != NULL)
         return;
 
-
     mkdir("/mnt/SDCARD/Saves/CurrentProfile/play_activity/", 0777);
 
     if (sqlite3_open(PLAY_ACTIVITY_DB_NEW_FILE, &play_activity_db) != SQLITE_OK) {
