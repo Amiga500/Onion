@@ -43,24 +43,35 @@ TEST(timeout_needs_check)
 TEST(lid_suspend_ignores_power_shutdown_setting)
 {
     /* The #228 combination: lid = Suspend, Power = Shutdown. */
-    ASSERT_TRUE(flipLid_onClose(FLIP_LID_SUSPEND, true) == FLIP_LID_SUSPEND);
-    ASSERT_TRUE(flipLid_onClose(FLIP_LID_SUSPEND, false) == FLIP_LID_SUSPEND);
+    ASSERT_TRUE(flipLid_onClose(FLIP_LID_SUSPEND, true, false) == FLIP_LID_SUSPEND);
+    ASSERT_TRUE(flipLid_onClose(FLIP_LID_SUSPEND, false, false) == FLIP_LID_SUSPEND);
 }
 
 TEST(lid_action_matrix)
 {
     const int actions[] = {FLIP_LID_SUSPEND, FLIP_LID_SHUTDOWN, FLIP_LID_NOTHING};
     for (int i = 0; i < 3; i++) {
-        ASSERT_TRUE(flipLid_onClose(actions[i], false) == (FlipLidAction)actions[i]);
-        ASSERT_TRUE(flipLid_onClose(actions[i], true) == (FlipLidAction)actions[i]);
+        ASSERT_TRUE(flipLid_onClose(actions[i], false, false) == (FlipLidAction)actions[i]);
+        ASSERT_TRUE(flipLid_onClose(actions[i], true, false) == (FlipLidAction)actions[i]);
     }
 }
 
 TEST(lid_unknown_action_does_nothing)
 {
-    ASSERT_TRUE(flipLid_onClose(-1, false) == FLIP_LID_NOTHING);
-    ASSERT_TRUE(flipLid_onClose(3, true) == FLIP_LID_NOTHING);
-    ASSERT_TRUE(flipLid_onClose(99, false) == FLIP_LID_NOTHING);
+    ASSERT_TRUE(flipLid_onClose(-1, false, false) == FLIP_LID_NOTHING);
+    ASSERT_TRUE(flipLid_onClose(3, true, false) == FLIP_LID_NOTHING);
+    ASSERT_TRUE(flipLid_onClose(99, false, false) == FLIP_LID_NOTHING);
+}
+
+/* Lid closed right after Power off (zazzagone, Mini Flip): the shutdown
+ * already started must win, whatever the lid setting. */
+TEST(lid_ignored_once_shutdown_started)
+{
+    const int actions[] = {FLIP_LID_SUSPEND, FLIP_LID_SHUTDOWN, FLIP_LID_NOTHING, 99};
+    for (int i = 0; i < 4; i++) {
+        ASSERT_TRUE(flipLid_onClose(actions[i], false, true) == FLIP_LID_NOTHING);
+        ASSERT_TRUE(flipLid_onClose(actions[i], true, true) == FLIP_LID_NOTHING);
+    }
 }
 
 int main(void)
@@ -73,6 +84,7 @@ int main(void)
     RUN_TEST(lid_suspend_ignores_power_shutdown_setting);
     RUN_TEST(lid_action_matrix);
     RUN_TEST(lid_unknown_action_does_nothing);
+    RUN_TEST(lid_ignored_once_shutdown_started);
     TEST_REPORT();
     return test_failures;
 }

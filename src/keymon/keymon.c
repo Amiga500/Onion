@@ -440,6 +440,14 @@ void quit(int exitcode)
 //
 //    Shutdown
 //
+// True once a shutdown has been ordered (.offOrder: keymon deepsleep(),
+// MainUI power off, low battery, Kids Mode) or runtime.sh has started it
+// (shutting_down). Both are only cleared at boot.
+static bool shutdown_in_progress(void)
+{
+    return temp_flag_get(".offOrder") || temp_flag_get("shutting_down");
+}
+
 void force_shutdown(void)
 {
     set_system_shutdown();
@@ -680,6 +688,13 @@ void suspend_exec(int timeout)
 
 void turnOffScreen(void)
 {
+    // Never suspend once a shutdown has begun: suspend(0) would stop
+    // runtime.sh mid-shutdown and leave the device in standby instead of
+    // off (Mini Flip: lid closed right after Power off).
+    if (shutdown_in_progress()) {
+        print_debug("Shutdown in progress, standby ignored");
+        return;
+    }
     if (settings.sleep_timer == 0) {
         suspend_exec(-1); // no sleep timeout
     }
@@ -1389,7 +1404,8 @@ int main(void)
                 if (current_lid_state == 0) {
                     printf_debug("Lid closed detected, action: %d", settings.lid_close_action);
 
-                    switch (flipLid_onClose(settings.lid_close_action, settings.disable_standby)) {
+                    switch (flipLid_onClose(settings.lid_close_action, settings.disable_standby,
+                                            shutdown_in_progress())) {
                     case FLIP_LID_SUSPEND:
                         /* Lid suspend must not inherit Power-button disable_standby
                          * (#228). That flag is Power-only. */

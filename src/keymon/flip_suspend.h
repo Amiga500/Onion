@@ -26,9 +26,16 @@ typedef enum {
 // Power-button "single press: Shutdown" flag and must not affect the lid
 // (#228); it is passed only so tests can prove that. Unknown values from a
 // hand-edited config do nothing, as the original switch did.
-static FlipLidAction flipLid_onClose(int lid_close_action, bool disable_standby)
+// shutdown_started: /tmp/.offOrder or /tmp/shutting_down exists. Once a
+// shutdown has begun it takes priority over the lid: closing the lid right
+// after Power off used to put the Flip in standby (SIGSTOP on every process,
+// runtime.sh and its shutdown included), so it never finished turning off.
+static FlipLidAction flipLid_onClose(int lid_close_action, bool disable_standby,
+                                     bool shutdown_started)
 {
     (void)disable_standby;
+    if (shutdown_started)
+        return FLIP_LID_NOTHING;
     switch (lid_close_action) {
     case FLIP_LID_SUSPEND:
         return FLIP_LID_SUSPEND;
