@@ -788,9 +788,12 @@ end
 eval "$(extract_fn "$RUNTIME" start_audioserver)"
 
 begin audioserver_cached_pid_skips_pgrep
-for _sl in /bin/sleep /usr/bin/sleep; do [ -x "$_sl" ] && break; done
-cp "$_sl" "$TMP/audioserver"
-"$TMP/audioserver" 30 &
+# A script named audioserver: the kernel names its process after the file.
+# (A copy of sleep did the same until sleep became a multi-call binary, as
+# with uutils on newer Ubuntu: run under another name it just exits.)
+printf '#!/bin/sh\nwhile :; do sleep 1; done\n' > "$TMP/audioserver"
+chmod +x "$TMP/audioserver"
+"$TMP/audioserver" &
 as_pid=$!
 started=0
 runifnecessary() { started=$((started + 1)); }
@@ -4357,6 +4360,57 @@ printf 'R=30\nG=20\nB=20\nW=0\n' > "$TMP/dc/cal-0abc.cfg"
 dc_apply
 check "a dark one at the limit (70) is written" test "$(cat "$TMP/dcnode")" = "colortemp 0 0 0 0 20 20 30"
 unset -f dc_apply
+end
+
+# ---- scraper/clean_media.sh: media of deleted games ----
+
+CLEAN_MEDIA="$ROOT/static/build/.tmp_update/script/scraper/clean_media.sh"
+cm_sd() { # a console with games still there, one deleted game, a hidden one
+    R=$TMP/Roms
+    mkdir -p "$R/GB/Imgs" "$R/GB/media/box2dfront" "$R/GB/media/screenshot" \
+        "$R/GB/media/videos" "$R/GB/Manuals" "$R/GB/Zelda" "$R/GB/.disc"
+    touch "$R/GB/Tetris (World).gb" "$R/GB/Zelda/Links Awakening.gb" "$R/GB/Sonic v1.1.zip"
+    touch "$R/GB/Imgs/Tetris (World).png" "$R/GB/Imgs/links awakening.png" \
+        "$R/GB/Imgs/Sonic v1.1.png" "$R/GB/Imgs/Zelda.png" "$R/GB/Imgs/Mario.png" "$R/GB/Imgs/.keep"
+    touch "$R/GB/media/box2dfront/Mario.png" "$R/GB/media/screenshot/Mario-1.png" \
+        "$R/GB/media/screenshot/Tetris (World)-1.png" "$R/GB/media/videos/Mario.mp4" \
+        "$R/GB/media/.gameinfo_none" "$R/GB/Manuals/Mario.pdf" "$R/GB/Manuals/Tetris (World).pdf"
+}
+
+begin clean_media_lists_only_media_of_deleted_games
+cm_sd
+out=$(sh "$CLEAN_MEDIA" "$R/GB" | sed "s|$R/||" | sort | tr '\n' '|')
+check "Mario's cover, box, screenshot, video and manual listed" \
+    test "$out" = "GB/Imgs/Mario.png|GB/Manuals/Mario.pdf|GB/media/box2dfront/Mario.png|GB/media/screenshot/Mario-1.png|GB/media/videos/Mario.mp4|"
+check "a listing deletes nothing" test -f "$R/GB/Imgs/Mario.png"
+end
+
+begin clean_media_delete_keeps_what_games_use
+cm_sd
+sh "$CLEAN_MEDIA" --delete "$R/GB" > /dev/null
+check "Mario's media deleted" test ! -e "$R/GB/Imgs/Mario.png" -a ! -e "$R/GB/media/videos/Mario.mp4" -a ! -e "$R/GB/Manuals/Mario.pdf"
+check "a ROM's cover kept" test -f "$R/GB/Imgs/Tetris (World).png"
+check "a cover in another case kept (ROM in a subfolder)" test -f "$R/GB/Imgs/links awakening.png"
+check "a name with dots kept" test -f "$R/GB/Imgs/Sonic v1.1.png"
+check "folder art kept" test -f "$R/GB/Imgs/Zelda.png"
+check "a gallery picture of a ROM kept" test -f "$R/GB/media/screenshot/Tetris (World)-1.png"
+check "hidden files kept" test -f "$R/GB/Imgs/.keep" -a -f "$R/GB/media/.gameinfo_none"
+check "ROMs untouched" test -f "$R/GB/Tetris (World).gb" -a -f "$R/GB/Zelda/Links Awakening.gb"
+end
+
+begin clean_media_skips_console_without_games
+mkdir -p "$TMP/Roms/GBA/Imgs" && touch "$TMP/Roms/GBA/Imgs/Waiting.png"
+out=$(sh "$CLEAN_MEDIA" --delete "$TMP/Roms/GBA/")
+check "reported as skipped" test "$out" = "skip: $TMP/Roms/GBA"
+check "its covers kept (ROMs not copied yet)" test -f "$TMP/Roms/GBA/Imgs/Waiting.png"
+end
+
+begin clean_media_several_consoles
+cm_sd
+mkdir -p "$R/MD/Imgs" && touch "$R/MD/Sonic.md" "$R/MD/Imgs/Sonic.png" "$R/MD/Imgs/Mario.png"
+out=$(sh "$CLEAN_MEDIA" "$R"/*/ | sed "s|$R/||" | grep -c "Mario")
+check "each console checked on its own (Mario on GB and MD)" test "$out" -eq 6
+check "MD's Sonic kept" sh -c '! sh "$1" "$2" | grep -q Sonic' _ "$CLEAN_MEDIA" "$R/MD"
 end
 
 echo ""

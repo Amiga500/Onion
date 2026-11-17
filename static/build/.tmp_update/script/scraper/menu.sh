@@ -40,7 +40,9 @@ Menu_Config()
     [ "$Mychoice" = "$Option1" ] && Menu_Config_MediaType
     [ "$Mychoice" = "$Option2" ] && Menu_RegionSelection
     [ "$Mychoice" = "$Option3" ] && Menu_Config_ScrapingSource
-    [ "$Mychoice" = "$Option4" ] && Menu_Config_SSAccountSettings
+    [ "$Mychoice" = "$Option6" ] && Clean_Media "/mnt/SDCARD/Roms/$CurrentSystem"
+[ "$Mychoice" = "$Option7" ] && Clean_Media all
+[ "$Mychoice" = "$Option4" ] && Menu_Config_SSAccountSettings
     [ "$Mychoice" = "$Option5" ] && Menu_Config_BackgroundScraping
     [ "$Mychoice" = "$Option7" ] && Menu_Config_GameInfo
 	[ "$Mychoice" = "$Option6" ] && Menu_Main
@@ -661,6 +663,62 @@ Delete_Rom_Cover ()
 
 ##########################################################################################
 
+# Media of deleted games (clean_media.sh): what would go is listed first, with
+# its size, and is deleted only after confirmation. $1: one console folder, or
+# "all" for every console.
+Clean_Media ()
+{
+    clean=/mnt/SDCARD/.tmp_update/script/scraper/clean_media.sh
+    if [ "$1" = "all" ]; then
+        scope="all consoles"
+        set -- /mnt/SDCARD/Roms/*/
+    else
+        scope=$(basename "$1")
+    fi
+    clear
+    echo "Looking for media of deleted games ($scope)..."
+    list=/tmp/clean_media_list
+    sh "$clean" "$@" | grep -v "^skip: " > "$list"
+    count=$(grep -c . "$list")
+
+    clear
+    if [ "$count" -eq 0 ]; then
+        echo -e "No media of deleted games found\n($scope).\n\n\n\n\n\n\n\n"
+        rm -f "$list"
+        read -n 1 -s -r -p "Press A to continue"
+        Menu_Main
+        return
+    fi
+
+    bytes=0
+    while IFS= read -r f; do
+        b=$(wc -c < "$f" 2> /dev/null)
+        bytes=$((bytes + ${b:-0}))
+    done < "$list"
+    size=$(awk -v b="$bytes" 'BEGIN { printf "%.1f MB", b / 1048576 }')
+
+    echo -e "$count files of deleted games ($size):\n"
+    head -n 8 "$list" | sed 's|^/mnt/SDCARD/Roms/||'
+    [ "$count" -gt 8 ] && echo "... and $((count - 8)) more"
+    echo -e "\nCovers (Imgs), Game Info media and manuals\nof games no longer on the SD card.\n"
+    read -n 1 -s -r -p "Press A to continue"
+
+    confirm=$( echo -e "Delete $count files ($size)\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "  --== MEDIA OF DELETED GAMES ==--" -b "A: validate")
+    clear
+    if [ "$confirm" = "Delete $count files ($size)" ]; then
+        echo "Deleting..."
+        deleted=$(sh "$clean" --delete "$@" | grep -vc "^skip: ")
+        clear
+        echo -e "$deleted files deleted.\n\n\n\n\n\n\n\n"
+        read -n 1 -s -r -p "Press A to continue"
+    fi
+    rm -f "$list"
+    Menu_Main
+}
+
+
+##########################################################################################
+
 Menu_Main ()
 
 {
@@ -670,9 +728,11 @@ Option2="Scrape current rom: $romname"
 [ -f "$romimage" ] && Option3="Delete cover: $romNameNoExtension.png" || Option3=""
 Option4="Configuration"
 Option5="Exit"
+Option6="Delete media of deleted games: $(basename "$CurrentSystem")"
+Option7="Delete media of deleted games: all consoles"
 
 clear
-Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option4\nExit" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "           --== MAIN MENU ==--" -b "                     Menu : Exit        A : Validate ")
+Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option6\n$Option7\n$Option4\nExit" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "           --== MAIN MENU ==--" -b "                     Menu : Exit        A : Validate ")
 
 [ "$Mychoice" = "$Option1" ] && (onerom=0; Launch_Scraping;)
 [ "$Mychoice" = "$Option2" ] && (onerom=1; Launch_Scraping;)

@@ -712,10 +712,16 @@ void compute_graph(void)
 
                     // For the newest row, batmon only writes duration upon percentage change or every 10 min.
                     // Advance duration with live elapsed awake time so SESSION updates smoothly on the fly.
+                    // batmon rewrites the newest row at least every MAX_DURATION_BEFORE_UPDATE
+                    // (10 min) while awake, so a clock gap far beyond that is not time spent at
+                    // this level: the clock moved under the row. A row begun before the time
+                    // sync (fallback clock, ~4 years behind) gave SESSION 35064h03 and an empty
+                    // graph right after an update, until batmon logged the next level (tester
+                    // report, 4.5.1 beta 1). Then keep batmon's own duration.
                     if (first_row && !is_charging && row_time > 0 && newer_row_time > row_time) {
-                        int live_elapsed = (int)(newer_row_time - row_time);
-                        if (live_elapsed > duration)
-                            duration = live_elapsed;
+                        long long live_elapsed = newer_row_time - row_time;
+                        if (live_elapsed > duration && live_elapsed <= (long long)duration + LIVE_ELAPSED_MAX_GAP_S)
+                            duration = (int)live_elapsed;
                     }
 
                     first_row = false;
@@ -2308,6 +2314,14 @@ void renderPage()
 
             x = GRAPH_DISPLAY_START_X + (int)(i / zoom_level);
             y = graphic[i + current_index].pixel_height;
+
+            // No log entry here (reset_graph() left it 0, before the oldest entry or
+            // after compute_graph() gave up on a bad row): nothing to draw. Drawn, it
+            // went to row 480 - 0, one row past the end of the 480-row surface, and
+            // showed as a white line flashing under the footer (tester video, PMIC
+            // screen redrawn every second; short history after a fresh install).
+            if (y < GRAPH_DISPLAY_START_Y || y > 480 - half_line_width - 1)
+                continue;
 
             bool is_charging = graphic[i + current_index].is_charging;
             bool is_estimated = graphic[i + current_index].is_estimated;
