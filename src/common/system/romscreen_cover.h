@@ -94,7 +94,7 @@ static inline bool _romscreen_cover_dark(uint32_t argb)
 }
 
 static inline bool _romscreen_cover_row_dark(const uint32_t *src, int w, int h, int stride,
-                                      bool rotate180, int y)
+                                             bool rotate180, int y)
 {
     int lit = 0;
     for (int x = 0; x < w; x++)
@@ -103,7 +103,7 @@ static inline bool _romscreen_cover_row_dark(const uint32_t *src, int w, int h, 
 }
 
 static inline bool _romscreen_cover_col_dark(const uint32_t *src, int w, int h, int stride,
-                                      bool rotate180, int x, int y0, int y1)
+                                             bool rotate180, int x, int y0, int y1)
 {
     int lit = 0;
     for (int y = y0; y < y1; y++)
@@ -116,7 +116,7 @@ static inline bool _romscreen_cover_col_dark(const uint32_t *src, int w, int h, 
 // it keeps at least a quarter of the width and of the height; a dark game
 // screen (a night level) then stays whole.
 static inline void romscreen_cover_content(const uint32_t *src, int w, int h, int stride,
-                                    bool rotate180, int *x0, int *y0, int *x1, int *y1)
+                                           bool rotate180, int *x0, int *y0, int *x1, int *y1)
 {
     *x0 = 0;
     *y0 = 0;
@@ -163,7 +163,7 @@ static inline void romscreen_cover_size(int w, int h, int *out_w, int *out_h)
 // pixel is the average of the frame pixels it covers, so text and sprites
 // stay readable when shrunk (no skipped rows). Free with free().
 static inline uint32_t *romscreen_cover_make(const uint32_t *src, int w, int h, int stride,
-                                      bool rotate180, int *out_w, int *out_h)
+                                             bool rotate180, int *out_w, int *out_h)
 {
     if (src == NULL || w <= 0 || h <= 0 || out_w == NULL || out_h == NULL)
         return NULL;

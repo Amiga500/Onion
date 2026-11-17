@@ -45,8 +45,8 @@
 // been dropped for a clock jump while a resumed row was kept).
 #define PLAY_ACTIVITY_ADD_RESUMED_SQL \
     "ALTER TABLE play_activity ADD COLUMN resumed INTEGER DEFAULT 0;"
-#define PLAY_ACTIVITY_PLAYS_SQL                                                       \
-    "MAX(1, SUM(CASE WHEN play_activity.ROWID IS NOT NULL AND "                         \
+#define PLAY_ACTIVITY_PLAYS_SQL                                 \
+    "MAX(1, SUM(CASE WHEN play_activity.ROWID IS NOT NULL AND " \
     "IFNULL(play_activity.resumed, 0) = 0 THEN 1 ELSE 0 END))"
 #define PLAY_ACTIVITY_RESUME_FMT "INSERT INTO play_activity(rom_id, resumed) VALUES(%d, 1);"
 
