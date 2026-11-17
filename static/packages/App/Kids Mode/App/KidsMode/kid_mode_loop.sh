@@ -1,0 +1,2999 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# Kids Mode for Onion OS — arming, play loop, and unlock logic.
+#
+# The device is locked to a fullscreen favorites-only launcher (kidui).
+# Exiting a game always returns to the launcher, never to MainUI.
+#
+# Usage:
+#   kid_mode_loop.sh arm    arm Kids Mode (first run asks to set a PIN);
+#                           called by the Apps-tab app
+#   kid_mode_loop.sh run    the launcher, while armed; started by RedOnion's
+#                           runtime.sh in place of MainUI (KIDSMODE_HOST=runtime)
+#
+# Mode flag: /mnt/SDCARD/.kidmode  (present = armed; delete it from a
+# computer to force-disable Kids Mode: at the next boot runtime.sh runs
+# "kid_mode_loop.sh cleanup", which puts back what Kids Mode locked)
+#
+# RedOnion port: a game chosen here is launched by runtime.sh (launch_game),
+# as one chosen in MainUI, with everything RedOnion does around it (services
+# paused, screen mode, loading and saving screens). This script ends with the
+# game in cmd_to_run.sh and runtime.sh starts it again once the game is over.
+# RedOnion's keymon has Kids Mode's behaviour while /tmp/kidsmode is there
+# (no separate keymon any more).
+# ---------------------------------------------------------------------------
+
+sysdir=/mnt/SDCARD/.tmp_update
+miyoodir=/mnt/SDCARD/miyoo
+appdir=/mnt/SDCARD/App/KidsMode
+
+kidui_bin="$appdir/bin/kidui"
+# Started by runtime.sh ("runtime"), or by the standalone version's boot hook.
+kids_host="${KIDSMODE_HOST:-}"
+# The game handed to runtime.sh (its launch script), until it has ended.
+game_handoff_file=/tmp/kidsmode_game_launched
+# Kids Mode's behaviour in RedOnion's keymon while this is there.
+kidsmode_active_flag=/tmp/kidsmode
+# Play time used, saved to the SD card at a shutdown (runtime.sh runs it).
+checkoff_src="$appdir/kidmode_checkoff.sh"
+checkoff_dst="$sysdir/checkoff/kidmode_checkoff.sh"
+configfile="$appdir/kidmode.json"
+flagfile=/mnt/SDCARD/.kidmode
+favfile=/mnt/SDCARD/Roms/favourite.json
+# Backups and state live OUTSIDE the app folder so that replacing
+# App/KidsMode during an update can never delete them.
+backupdir=/mnt/SDCARD/Saves/KidsMode
+source_profile_file="$backupdir/source_profile.txt"
+reopen_parent_menu_requested="${KIDSMODE_REOPEN_PARENT:-0}"
+unset KIDSMODE_REOPEN_PARENT
+profile_selection_done="${KIDSMODE_PROFILE_SELECTED:-0}"
+unset KIDSMODE_PROFILE_SELECTED
+profile_timer_choice="${KIDSMODE_SELECTED_TIMER:-0}"
+unset KIDSMODE_SELECTED_TIMER
+
+# Main and Guest each get an entirely separate kid environment. When Kids
+# Mode is already armed (including after a reboot), the persisted origin is
+# authoritative because Onion's profile folders are temporarily parked.
+detect_source_profile() {
+    # Also for "cleanup": .kidmode is gone, but the profiles are still
+    # parked as Kids Mode left them.
+    if { [ -f "$flagfile" ] || [ "${1:-}" = cleanup ]; } &&
+        [ -f "$source_profile_file" ]; then
+        persisted_profile="$(sed -n 1p "$source_profile_file" 2> /dev/null)"
+        case "$persisted_profile" in
+            Main | Guest)
+                printf '%s\n' "$persisted_profile"
+                return 0
+                ;;
+        esac
+    fi
+    # Onion parks MainProfile while Guest is active, and GuestProfile while
+    # Main is active. A device that never enabled Guest Mode is Main.
+    if [ -d /mnt/SDCARD/Saves/MainProfile ]; then
+        printf 'Guest\n'
+    else
+        printf 'Main\n'
+    fi
+}
+
+source_profile="$(detect_source_profile "${1:-run}")"
+profile_state_dir="$backupdir/$source_profile"
+profile_preferences_file="$profile_state_dir/preferences.json"
+favorites_signature_file="$profile_state_dir/favorites_repaired.cksum"
+
+racfg=/mnt/SDCARD/RetroArch/.retroarch/retroarch.cfg
+rabackup="$backupdir/retroarch.cfg.backup"
+keymapcfg=/mnt/SDCARD/.tmp_update/config/keymap.json
+keymapbackup="$backupdir/keymap.json.backup"
+keymapnone="$backupdir/keymap-was-absent"
+blfscript=/mnt/SDCARD/.tmp_update/script/blue_light.sh
+blfbackup="$backupdir/blue_light.sh.backup"
+current_profile=/mnt/SDCARD/Saves/CurrentProfile
+kids_profile="/mnt/SDCARD/Saves/KidsProfile/$source_profile"
+gambatte_remap_dir="$current_profile/config/remaps/Gambatte"
+gambatte_remap_backup="$backupdir/gambatte-remaps.backup"
+gambatte_remap_absent="$backupdir/gambatte-remaps.was-absent"
+gambatte_remap_active="$backupdir/gambatte-remaps.active"
+isolated_subdirs="saves states romScreens"
+profile_isolation_marker="$backupdir/profile_isolation_active"
+game_environment_marker="$backupdir/game_environment_ready"
+game_prepare_pid_file=/tmp/kidsmode_game_prepare.pid
+last_game_file="$profile_state_dir/last_game.txt"
+last_media_index="$profile_state_dir/last_media.tsv"
+logfile=/mnt/SDCARD/.tmp_update/logs/kidsmode.log
+loop_lock_dir=/tmp/kidsmode_loop.lock
+loop_lock_owner="$loop_lock_dir/owner"
+
+timer_state="$backupdir/timer_state.txt" # 3 lines: day / used seconds / bonus seconds
+timer_runtime_used=/tmp/kidsmode_timer_used
+# The PIN also lives in kidmode.json inside the app folder, which an app
+# update replaces. Keep a copy outside so updating while armed can't cause
+# a lockout (see restore_pin_backup).
+pin_backup="$backupdir/pin_backup.json"
+remaining_file=/tmp/kidsmode_remaining
+timesup_since_file=/tmp/kidsmode_timesup_since
+timesup_resume_file="$profile_state_dir/timesup_resume.txt"
+parent_menu_active_file=/tmp/kidsmode_parent_menu_active
+timer_minutes_file=/tmp/kidsmode_timer_minutes
+ticker_pid_file=/tmp/kidmode_ticker.pid
+onion_battery_display_flag=/tmp/hasBatteryDisplay
+onion_battery_display_marker=/tmp/kidsmode_hasBatteryDisplay_created
+legacy_battery_warning_flag="$sysdir/config/.noBatteryWarning"
+legacy_battery_warning_marker="$backupdir/no_battery_warning.created"
+
+# kidui reports results via this file, NOT stdout — the device's SDL/driver
+# stack prints noise on stdout, which broke first-line parsing on hardware.
+uiresult=/tmp/kidsmode_ui_result
+lockfloor_result=/tmp/kidsmode_lockfloor_result
+categories_result=/tmp/kidsmode_categories_result
+savestates_result=/tmp/kidsmode_savestates_result
+uilog=/tmp/kidmode_ui_log
+
+# Unified video state. Game state continues to use Onion's native
+# cmd_to_run.sh and last_game.txt; this file remembers the active floor,
+# folder, selected video and whether playback was running at shutdown.
+videosdir="/mnt/SDCARD/Media/KidsMode/$source_profile"
+statefile="$profile_state_dir/state.json"
+positions="$profile_state_dir/video_positions"
+kidsplay="$appdir/bin/kidsplay"
+kidsplay_lib="$appdir/lib"
+kidsplay_vsync="$kidsplay_lib/libminivsync.so"
+kidsplay_fb_reset="$appdir/bin/fb_reset"
+player_pid=/tmp/kidsmode_player.pid
+menu_exit_marker=/tmp/kidsmode_video_menu_exit
+brightness_pwm=/sys/devices/soc0/soc/1f003400.pwm/pwm/pwmchip0/pwm0/duty_cycle
+game_selection_file="$profile_state_dir/game_selection.txt"
+video_selection_file="$profile_state_dir/video_selection.txt"
+last_artwork_file="$profile_state_dir/last_artwork.txt"
+# Keep the established on-card directory name so this update does not create
+# a duplicate beside existing per-series selections. It now stores the last
+# selected item for every media folder, not only series.
+folder_selections_dir="$profile_state_dir/series_selections"
+folder_selections_index="$folder_selections_dir/selections.tsv"
+folder_history_file=/tmp/kidsmode_folder_history
+artwork_cache_dir="$profile_state_dir/artwork_cache"
+
+export LD_LIBRARY_PATH="/lib:/config/lib:$miyoodir/lib:$sysdir/lib:$sysdir/lib/parasyte"
+export PATH="$sysdir/bin:$PATH"
+export KIDSMODE_MEDIA_DIR="$videosdir"
+export KIDSMODE_FOLDER_SELECTIONS_DIR="$folder_selections_dir"
+export KIDSMODE_ARTWORK_CACHE_DIR="$artwork_cache_dir"
+export KIDSMODE_LAST_MEDIA_INDEX="$last_media_index"
+
+mkdir -p "$backupdir" "$profile_state_dir" "$positions" \
+    "$folder_selections_dir" "$artwork_cache_dir" "$videosdir/Imgs"
+timer_state_date="$(date +%Y-%m-%d)"
+
+cfg_pin_hash=""
+cfg_pin_salt=""
+cfg_pin_plain=""
+cfg_timer_minutes=0
+cfg_lock_current_floor=false
+cfg_locked_floor=""
+cfg_allow_save_states=false
+cfg_show_stories=true
+cfg_show_movies=true
+cfg_show_series=true
+cfg_show_music=true
+cfg_show_cartoons=true
+cfg_fav_shortcut=false
+
+log() {
+    mkdir -p "$(dirname "$logfile")"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$logfile"
+}
+
+# Only one launcher loop may own kidui, KidsPlay and the framebuffer.  The
+# Apps launcher already avoids the usual duplicate-launch case, but an atomic
+# lock here also covers races with the boot hook and profile re-execs.  The
+# PID is preserved by exec during a profile switch.  A lock left by a real
+# crash is reclaimed automatically once its former owner no longer exists.
+acquire_loop_lock() {
+    if mkdir "$loop_lock_dir" 2> /dev/null; then
+        printf '%s\n' "$$" > "$loop_lock_owner"
+        return 0
+    fi
+
+    lock_pid="$(sed -n 1p "$loop_lock_owner" 2> /dev/null)"
+    if [ -z "$lock_pid" ]; then
+        # Give a simultaneously starting owner time to publish its PID before
+        # deciding that the directory was left by a crashed process.
+        sleep 1
+        lock_pid="$(sed -n 1p "$loop_lock_owner" 2> /dev/null)"
+    fi
+    case "$lock_pid" in
+        '' | *[!0-9]*) lock_pid="" ;;
+    esac
+
+    # Profile switching re-executes this script without changing its PID.
+    [ "$lock_pid" = "$$" ] && return 0
+
+    if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2> /dev/null; then
+        log "Duplicate Kids Mode launch ignored; loop $lock_pid is already active."
+        return 1
+    fi
+
+    rm -f "$loop_lock_owner"
+    rmdir "$loop_lock_dir" 2> /dev/null
+    if mkdir "$loop_lock_dir" 2> /dev/null; then
+        printf '%s\n' "$$" > "$loop_lock_owner"
+        return 0
+    fi
+
+    log "Duplicate Kids Mode launch ignored while another loop was starting."
+    return 1
+}
+
+release_loop_lock() {
+    [ "$(sed -n 1p "$loop_lock_owner" 2> /dev/null)" = "$$" ] || return 0
+    rm -f "$loop_lock_owner"
+    rmdir "$loop_lock_dir" 2> /dev/null
+}
+
+# --------------------------- PIN handling ----------------------------------
+
+hash_string() {
+    if command -v sha256sum > /dev/null 2>&1; then
+        printf '%s' "$1" | sha256sum | awk '{print $1}'
+    elif command -v openssl > /dev/null 2>&1; then
+        printf '%s' "$1" | openssl dgst -sha256 2> /dev/null | awk '{print $NF}'
+    else
+        return 1
+    fi
+}
+
+make_salt() {
+    if [ -r /dev/urandom ]; then
+        dd if=/dev/urandom bs=8 count=1 2> /dev/null | od -An -tx1 | tr -d ' \n'
+    else
+        printf '%s' "$(date +%s)$$"
+    fi
+}
+
+load_config_cache() {
+    cfg_allow_save_states=false
+    cfg_locked_floor=""
+    [ -f "$configfile" ] || return 1
+    config_dump="$(jq -r '
+        (.pin_hash // ""),
+        (.pin_salt // ""),
+        (.pin_plain // ""),
+        ((.timer_minutes // 0) | tostring),
+        ((.lock_current_floor // false) | tostring),
+        ((if has("show_stories") then .show_stories else true end) | tostring),
+        ((if has("show_movies") then .show_movies else true end) | tostring),
+        ((if has("show_series") then .show_series else true end) | tostring),
+        ((if has("show_music") then .show_music else true end) | tostring),
+        ((if has("show_cartoons") then .show_cartoons else true end) | tostring),
+        ((.fav_shortcut // false) | tostring)
+    ' "$configfile" 2> /dev/null)" || return 1
+    {
+        IFS= read -r cfg_pin_hash
+        IFS= read -r cfg_pin_salt
+        IFS= read -r cfg_pin_plain
+        IFS= read -r cfg_timer_minutes
+        IFS= read -r cfg_lock_current_floor
+        IFS= read -r cfg_show_stories
+        IFS= read -r cfg_show_movies
+        IFS= read -r cfg_show_series
+        IFS= read -r cfg_show_music
+        IFS= read -r cfg_show_cartoons
+        IFS= read -r cfg_fav_shortcut
+    } <<EOF
+$config_dump
+EOF
+    case "$cfg_timer_minutes" in
+        '' | *[!0-9]*) cfg_timer_minutes=0 ;;
+    esac
+    if [ -f "$profile_preferences_file" ] &&
+        jq -e . "$profile_preferences_file" > /dev/null 2>&1; then
+        profile_dump="$(jq -r '
+            ((.lock_current_floor // false) | tostring),
+            ((if has("show_stories") then .show_stories else true end) | tostring),
+            ((if has("show_movies") then .show_movies else true end) | tostring),
+            ((if has("show_series") then .show_series else true end) | tostring),
+            ((if has("show_music") then .show_music else true end) | tostring),
+            ((if has("show_cartoons") then .show_cartoons else true end) | tostring),
+            ((.allow_save_states == true) | tostring),
+            (.locked_floor // "")
+        ' "$profile_preferences_file" 2> /dev/null)"
+        {
+            IFS= read -r cfg_lock_current_floor
+            IFS= read -r cfg_show_stories
+            IFS= read -r cfg_show_movies
+            IFS= read -r cfg_show_series
+            IFS= read -r cfg_show_music
+            IFS= read -r cfg_show_cartoons
+            IFS= read -r cfg_allow_save_states
+            IFS= read -r cfg_locked_floor
+        } <<EOF
+$profile_dump
+EOF
+    fi
+    case "$cfg_locked_floor" in games | videos) ;; *) cfg_locked_floor="" ;; esac
+    printf '%s\n' "$cfg_timer_minutes" > "$timer_minutes_file"
+}
+
+category_enabled() {
+    case "$1" in
+        stories) [ "$cfg_show_stories" != false ] ;;
+        movies) [ "$cfg_show_movies" != false ] ;;
+        series) [ "$cfg_show_series" != false ] ;;
+        music) [ "$cfg_show_music" != false ] ;;
+        cartoons) [ "$cfg_show_cartoons" != false ] ;;
+        *) return 1 ;;
+    esac
+}
+
+refresh_category_values() {
+    show_stories_value=0
+    show_movies_value=0
+    show_series_value=0
+    show_music_value=0
+    show_cartoons_value=0
+    category_enabled stories && show_stories_value=1
+    category_enabled movies && show_movies_value=1
+    category_enabled series && show_series_value=1
+    category_enabled music && show_music_value=1
+    category_enabled cartoons && show_cartoons_value=1
+}
+
+normalize_active_media_folder() {
+    case "$active_folder" in
+        "$videosdir"/*)
+            relative_folder="${active_folder#"$videosdir"/}"
+            root_folder="${relative_folder%%/*}"
+            case "$root_folder" in
+                [Ss][Tt][Oo][Rr][Ii][Ee][Ss])
+                    category_enabled stories || active_folder="" ;;
+                [Mm][Oo][Vv][Ii][Ee][Ss])
+                    category_enabled movies || active_folder="" ;;
+                [Ss][Ee][Rr][Ii][Ee][Ss])
+                    category_enabled series || active_folder="" ;;
+                [Mm][Uu][Ss][Ii][Cc])
+                    category_enabled music || active_folder="" ;;
+                [Cc][Aa][Rr][Tt][Oo][Oo][Nn][Ss])
+                    category_enabled cartoons || active_folder="" ;;
+            esac
+            ;;
+    esac
+}
+
+is_4_digits() {
+    case "$1" in
+        [0-9][0-9][0-9][0-9]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+ensure_config() {
+    if [ ! -f "$configfile" ] || ! jq -e . "$configfile" > /dev/null 2>&1; then
+        if [ -f "$configfile" ]; then
+            mkdir -p "$backupdir"
+            cp "$configfile" "$backupdir/kidmode.json.broken" 2> /dev/null
+            log "kidmode.json had invalid JSON; reset to defaults. Broken copy saved to $backupdir/kidmode.json.broken — check it for a missing/extra comma."
+        fi
+        printf '{\n    "pin_hash": "",\n    "pin_salt": "",\n    "pin_plain": ""\n}\n' > "$configfile"
+    fi
+}
+
+config_merge() {
+    # $1 = jq filter mutating the config; keeps all other keys intact
+    ensure_config
+    tmpcfg=/tmp/kidmode_config.$$
+    # Atomic rename is enough here. A global SD-card sync can take more than
+    # 20 seconds and used to freeze the final timer screen before the
+    # carousel appeared. Critical PIN data is separately backed up below.
+    if jq "$@" "$configfile" > "$tmpcfg" && mv -f "$tmpcfg" "$configfile"; then
+        load_config_cache
+    fi
+}
+
+profile_config_merge() {
+    # Parent-menu display choices belong to the originating Onion profile.
+    tmpprefs=/tmp/kidsmode_preferences.$$
+    if [ -f "$profile_preferences_file" ] &&
+        jq -e . "$profile_preferences_file" > /dev/null 2>&1; then
+        prefs_source="$profile_preferences_file"
+    else
+        prefs_source=/tmp/kidsmode_empty_preferences.$$
+        jq -n --argjson lock "$cfg_lock_current_floor" \
+            --argjson stories "$cfg_show_stories" \
+            --argjson movies "$cfg_show_movies" \
+            --argjson series "$cfg_show_series" \
+            --argjson music "$cfg_show_music" \
+            --argjson cartoons "$cfg_show_cartoons" \
+            --argjson states "$cfg_allow_save_states" \
+            --arg floor "$cfg_locked_floor" \
+            '{lock_current_floor: $lock, show_stories: $stories,
+              show_movies: $movies, show_series: $series,
+              show_music: $music, show_cartoons: $cartoons,
+              allow_save_states: $states, locked_floor: $floor}' > "$prefs_source"
+    fi
+    if jq "$@" "$prefs_source" > "$tmpprefs" &&
+        mv -f "$tmpprefs" "$profile_preferences_file"; then
+        load_config_cache
+    else
+        rm -f "$tmpprefs"
+    fi
+    [ "$prefs_source" = "$profile_preferences_file" ] || rm -f "$prefs_source"
+}
+
+store_pin() {
+    new_pin="$1"
+    salt="$(make_salt)"
+    hash="$(hash_string "${salt}${new_pin}" 2> /dev/null || true)"
+    if [ -n "$hash" ]; then
+        config_merge --arg h "$hash" --arg s "$salt" \
+            '.pin_hash = $h | .pin_salt = $s | .pin_plain = ""'
+    else
+        # No hashing tool available — plaintext fallback (threat model: child)
+        config_merge --arg p "$new_pin" \
+            '.pin_hash = "" | .pin_salt = "" | .pin_plain = $p'
+    fi
+    backup_pin
+    log "PIN updated."
+}
+
+# Snapshot the PIN fields outside the app folder, so replacing App/KidsMode
+# (an update) while armed can't lose the PIN.
+backup_pin() {
+    [ -f "$configfile" ] || return 1
+    mkdir -p "$backupdir"
+    if jq '{pin_hash: (.pin_hash // ""), pin_salt: (.pin_salt // ""), pin_plain: (.pin_plain // "")}' \
+        "$configfile" > "$pin_backup.tmp" 2> /dev/null; then
+        mv -f "$pin_backup.tmp" "$pin_backup"
+    else
+        rm -f "$pin_backup.tmp"
+        return 1
+    fi
+}
+
+# The config has no PIN (fresh kidmode.json after an app update): bring it
+# back from the snapshot in Saves/KidsMode. Returns 0 if a PIN is on file
+# afterwards.
+restore_pin_backup() {
+    [ -f "$pin_backup" ] || return 1
+    bk_hash="$(jq -r '.pin_hash // ""' "$pin_backup" 2> /dev/null)"
+    bk_salt="$(jq -r '.pin_salt // ""' "$pin_backup" 2> /dev/null)"
+    bk_plain="$(jq -r '.pin_plain // ""' "$pin_backup" 2> /dev/null)"
+    if [ -n "$bk_hash" ] || is_4_digits "$bk_plain"; then
+        config_merge --arg h "$bk_hash" --arg s "$bk_salt" --arg p "$bk_plain" \
+            '.pin_hash = $h | .pin_salt = $s | .pin_plain = $p'
+        log "PIN restored from $pin_backup (app folder replaced?)."
+        hash_plain_pin
+        has_pin
+        return $?
+    fi
+    return 1
+}
+
+has_pin() {
+    [ -n "$cfg_pin_hash" ] && return 0
+    is_4_digits "$cfg_pin_plain"
+}
+
+# If the parent wrote a plaintext PIN into kidmode.json, hash it in place.
+hash_plain_pin() {
+    plain="$cfg_pin_plain"
+    if is_4_digits "$plain"; then
+        store_pin "$plain"
+    fi
+}
+
+verify_pin() {
+    entered="$1"
+    is_4_digits "$entered" || return 1
+
+    stored_plain="$cfg_pin_plain"
+    if is_4_digits "$stored_plain" && [ "$entered" = "$stored_plain" ]; then
+        return 0
+    fi
+
+    stored_hash="$cfg_pin_hash"
+    stored_salt="$cfg_pin_salt"
+    if [ -n "$stored_hash" ]; then
+        entered_hash="$(hash_string "${stored_salt}${entered}" 2> /dev/null || true)"
+        [ -n "$entered_hash" ] && [ "$entered_hash" = "$stored_hash" ] && return 0
+    fi
+
+    return 1
+}
+
+run_pin_entry() {
+    # $1 = title, $2 = optional notice shown under the PIN boxes;
+    # echoes the PIN on success
+    rm -f "$uiresult"
+    if [ -n "$2" ]; then
+        run_kidui --set-pin -t "$1" --notice "$2" > "$uilog" 2>&1
+    else
+        run_kidui --set-pin -t "$1" > "$uilog" 2>&1
+    fi
+    [ $? -eq 3 ] || return 1
+    [ "$(sed -n 1p "$uiresult")" = "PIN" ] || return 1
+    entered="$(sed -n 2p "$uiresult")"
+    rm -f "$uiresult"
+    is_4_digits "$entered" || return 1
+    printf '%s\n' "$entered"
+}
+
+ensure_pin() {
+    hash_plain_pin
+    has_pin || restore_pin_backup
+    if has_pin; then
+        [ -f "$pin_backup" ] || backup_pin
+        return 0
+    fi
+
+    # First-time setup; a mismatch retries in place (B cancels)
+    setup_notice=""
+    while :; do
+        pin1="$(run_pin_entry "Set parent PIN" "$setup_notice")" || return 1
+        pin2="$(run_pin_entry "Confirm PIN")" || return 1
+        if [ "$pin1" = "$pin2" ]; then
+            store_pin "$pin1"
+            return 0
+        fi
+        setup_notice="PINs did not match - try again"
+    done
+}
+
+# ----------------------- RetroArch kiosk lock ------------------------------
+# While armed, hide RetroArch's settings so the in-game menu can't be used to
+# change cores, shaders, mappings, etc. Restored from backup on unlock.
+# (Approach borrowed from OnionUI PR #1910.)
+
+restore_ra_state_bindings() {
+    # Restore only the four allowed actions from the untouched backup.
+    # Preserve keyboard/axis binds too, and never invent a button combination.
+    awk '
+        function key(line, k) {
+            k = substr(line, 1, index(line, "=") - 1)
+            sub(/^[ \t]*/, "", k); sub(/[ \t]*$/, "", k)
+            return k
+        }
+        function statekey(k) {
+            return k ~ /^input_(save_state|load_state|state_slot_increase|state_slot_decrease)(_btn|_axis)?$/
+        }
+        FILENAME == ARGV[1] {
+            k = index($0, "=") ? key($0) : ""
+            if (statekey(k)) original[k] = $0
+            next
+        }
+        {
+            k = index($0, "=") ? key($0) : ""
+            if (statekey(k)) {
+                if (k in original) print original[k]
+                seen[k] = 1
+                next
+            }
+            print
+        }
+        END { for (k in original) if (!(k in seen)) print original[k] }
+    ' "$rabackup" "$racfg" > "$tmpra" && mv -f "$tmpra" "$racfg"
+}
+
+# The retroarch.cfg settings Kids Mode locks (what each does: apply_ra_lock).
+# The unlock puts back these, and only these.
+ra_lock_keys() {
+    echo "kiosk_mode_enable video_font_enable quick_menu_show_options
+        quick_menu_show_cheats quick_menu_show_shaders
+        quick_menu_show_start_recording quick_menu_show_start_streaming
+        settings_show_configuration settings_show_core
+        settings_show_directory settings_show_drivers
+        settings_show_file_browser settings_show_input
+        settings_show_latency settings_show_network settings_show_recording
+        settings_show_user settings_show_user_interface settings_show_video
+        settings_show_audio input_menu_toggle_btn input_save_state_btn
+        input_load_state_btn input_rewind_btn input_toggle_fast_forward_btn
+        input_hold_fast_forward_btn input_state_slot_increase_btn
+        input_state_slot_decrease_btn input_toggle_fullscreen_btn
+        input_shader_toggle_btn input_shader_next_btn input_shader_prev_btn
+        input_reset_btn input_screenshot_btn input_pause_toggle_btn
+        input_frame_advance_btn input_cheat_toggle_btn
+        input_movie_record_toggle_btn input_recording_toggle_btn
+        input_streaming_toggle_btn input_netplay_game_watch_btn
+        input_ai_service_btn input_audio_mute_btn
+        input_cheat_index_minus_btn input_cheat_index_plus_btn
+        input_close_content_btn input_desktop_menu_toggle_btn
+        input_disk_eject_toggle_btn input_disk_next_btn input_disk_prev_btn
+        input_exit_emulator_btn input_fps_toggle_btn
+        input_game_focus_toggle_btn input_grab_mouse_toggle_btn
+        input_hold_slowmotion_btn input_osk_toggle_btn
+        input_overlay_next_btn input_preempt_toggle_btn
+        input_runahead_toggle_btn input_send_debug_info_btn
+        input_toggle_slowmotion_btn input_toggle_statistics_btn
+        input_toggle_vrr_runloop_btn input_volume_up_btn
+        input_volume_down_btn input_netplay_fade_chat_toggle_btn
+        input_netplay_host_toggle_btn input_netplay_ping_toggle_btn
+        input_netplay_player_chat_btn"
+    echo "input_save_state input_save_state_axis
+        input_load_state input_load_state_axis input_state_slot_increase
+        input_state_slot_increase_axis input_state_slot_decrease
+        input_state_slot_decrease_axis"
+}
+
+apply_ra_lock() {
+    [ -f "$racfg" ] || return 0
+    mkdir -p "$backupdir"
+    if [ ! -f "$rabackup" ]; then
+        cp "$racfg" "$rabackup" || return 1
+    fi
+
+    # Parse each RetroArch line's key once, then look it up in an awk array.
+    # Do not build a variable regular expression for every key on every line:
+    # BusyBox awk recompiles those expressions and made this small rewrite
+    # surprisingly expensive. Every duplicate occurrence is replaced too,
+    # because RetroArch honours the last value found in the file.
+    #
+    #   kiosk_mode_enable true — locks down the in-game quick menu
+    #   video_font_enable true — timer countdown arrives via RA's OSD
+    #     (SHOW_MSG), so on-screen notifications must stay on. On Miyoo,
+    #     RetroArch's sdl_miyoomini driver fixes the bitmap font size and
+    #     position internally; the normal video_message settings do not
+    #     control this display.
+    #   quick_menu_show_* false — hide options/cheats/shaders/record/stream
+    #     from the (already locked-down) quick menu
+    #   settings_show_* false — hide every settings category
+    #   input_*_btn nul — RetroArch hotkey actions disabled, except save/load
+    #     and slot selection when the parent explicitly permits them.
+    #     MENU is input_enable_hotkey_btn, held with another
+    #     button: this covers MENU+SELECT (open RA's menu), MENU+L2/R2
+    #     (save/load state), MENU+L/R (rewind/fast-forward), MENU+LEFT/
+    #     RIGHT (save-slot change), MENU+START (fullscreen), and every
+    #     other hotkey RetroArch documents — even ones not expected by
+    #     default, so nothing is left reachable via MENU+<button>. The
+    #     individual actions are cleared rather than input_enable_hotkey_btn
+    #     itself, because unbinding the enable button would make each of
+    #     these fire on a single un-combo'd press instead. MENU+VOLUME for
+    #     brightness is handled outside RetroArch (by the system's button
+    #     daemon) and is unaffected by any of this.
+    ra_keys=$(ra_lock_keys)
+
+    tmpra=/tmp/kidmode_ra.$$
+    if [ "$cfg_allow_save_states" = true ]; then
+        restore_ra_state_bindings || return 1
+    fi
+    awkprog=/tmp/kidmode_ra_awk.$$
+    {
+        echo 'BEGIN {'
+        i=0
+        for k in $ra_keys; do
+            case "$k" in
+                input_save_state | input_save_state_btn | input_save_state_axis | \
+                input_load_state | input_load_state_btn | input_load_state_axis | \
+                input_state_slot_increase | input_state_slot_increase_btn | input_state_slot_increase_axis | \
+                input_state_slot_decrease | input_state_slot_decrease_btn | input_state_slot_decrease_axis)
+                    [ "$cfg_allow_save_states" = true ] && continue ;;
+            esac
+            i=$((i + 1))
+            case "$k" in
+                kiosk_mode_enable | video_font_enable) v=true ;;
+                quick_menu_show_* | settings_show_*) v=false ;;
+                *) v=nul ;;
+            esac
+            printf '  order[%d]="%s"; val["%s"]="%s";\n' \
+                "$i" "$k" "$k" "$v"
+        done
+        echo "  n=$i"
+        echo '}'
+        cat << 'AWKEOF'
+{
+    equals = index($0, "=")
+    if (equals > 0) {
+        setting = substr($0, 1, equals - 1)
+        sub(/^[ \t]*/, "", setting)
+        sub(/[ \t]*$/, "", setting)
+        if (setting in val) {
+            print setting " = \"" val[setting] "\""
+            seen[setting] = 1
+            next
+        }
+    }
+    print $0
+}
+END {
+    for (i = 1; i <= n; i++) {
+        setting = order[i]
+        if (!(setting in seen))
+            print setting " = \"" val[setting] "\""
+    }
+}
+AWKEOF
+    } > "$awkprog"
+
+    awk -f "$awkprog" "$racfg" > "$tmpra" && mv -f "$tmpra" "$racfg"
+    rm -f "$awkprog"
+    log "RetroArch kiosk lock applied (direct-key lookup, duplicates locked)."
+}
+
+# Only the settings Kids Mode locked go back to what they were before it was
+# armed (or out, when they were not there then). The rest of retroarch.cfg
+# stays as it is now: copying the whole file back undid any change made
+# while armed, such as a RetroArch update.
+restore_ra_lock() {
+    [ -f "$rabackup" ] || return 0
+    if [ ! -f "$racfg" ]; then
+        cp "$rabackup" "$racfg" && rm -f "$rabackup"
+        log "RetroArch config restored (it was gone)."
+        return 0
+    fi
+    tmpra=/tmp/kidmode_ra.$$
+    if awk -v keys="$(ra_lock_keys | tr -s ' \t\n' '   ')" '
+        function key(line, k) {
+            k = substr(line, 1, index(line, "=") - 1)
+            sub(/^[ \t]*/, "", k); sub(/[ \t]*$/, "", k)
+            return k
+        }
+        BEGIN {
+            n = split(keys, list, " ")
+            for (i = 1; i <= n; i++) if (list[i] != "") locked[list[i]] = 1
+        }
+        FILENAME == ARGV[1] {
+            k = index($0, "=") ? key($0) : ""
+            if (k in locked) original[k] = $0
+            next
+        }
+        {
+            k = index($0, "=") ? key($0) : ""
+            if (k in locked) {
+                if ((k in original) && !(k in seen)) print original[k]
+                seen[k] = 1
+                next
+            }
+            print
+        }
+        END { for (k in original) if (!(k in seen)) print original[k] }
+    ' "$rabackup" "$racfg" > "$tmpra" && [ -s "$tmpra" ] &&
+        mv -f "$tmpra" "$racfg"; then
+        rm -f "$rabackup"
+        log "RetroArch config restored (the settings Kids Mode locked)."
+    else
+        rm -f "$tmpra"
+        log "RetroArch config not restored yet: kept its backup for the next unlock."
+    fi
+}
+
+# Gambatte implements its own R2 fast-forward action inside the core, after
+# RetroArch has processed global hotkey binds and controller autoconfiguration.
+# A core remap is therefore the only reliable place to hide this action. Keep
+# an exact backup of all existing Gambatte remaps and restore it on unlock.
+patch_gambatte_remap_file() { # $1 = .rmp file
+    remap_file="$1"
+    remap_tmp="$remap_file.tmp.$$"
+    awk '
+        BEGIN { key = "input_player1_btn_r2" }
+        {
+            equals = index($0, "=")
+            setting = equals ? substr($0, 1, equals - 1) : ""
+            sub(/^[ \t]*/, "", setting)
+            sub(/[ \t]*$/, "", setting)
+            if (setting == key) {
+                if (!seen) print key " = \"-1\""
+                seen = 1
+                next
+            }
+            print
+        }
+        END { if (!seen) print key " = \"-1\"" }
+    ' "$remap_file" > "$remap_tmp" && mv -f "$remap_tmp" "$remap_file"
+    rm -f "$remap_tmp"
+}
+
+apply_gambatte_remap_lock() {
+    [ -f "$gambatte_remap_active" ] && return 0
+    rm -rf "$gambatte_remap_backup"
+    rm -f "$gambatte_remap_absent"
+    if [ -d "$gambatte_remap_dir" ]; then
+        cp -R "$gambatte_remap_dir" "$gambatte_remap_backup" || return 1
+    else
+        touch "$gambatte_remap_absent"
+    fi
+
+    mkdir -p "$gambatte_remap_dir" || return 1
+    # Mark the transaction active before touching a remap. If writing any
+    # file fails, restore the exact pre-Kids-Mode directory immediately.
+    touch "$gambatte_remap_active" || return 1
+    found_remap=0
+    for remap_file in "$gambatte_remap_dir"/*.rmp; do
+        [ -f "$remap_file" ] || continue
+        if ! patch_gambatte_remap_file "$remap_file"; then
+            restore_gambatte_remap_lock
+            return 1
+        fi
+        found_remap=1
+    done
+    if [ "$found_remap" -eq 0 ]; then
+        if ! printf '%s\n' 'input_player1_btn_r2 = "-1"' > \
+            "$gambatte_remap_dir/Gambatte.rmp"; then
+            restore_gambatte_remap_lock
+            return 1
+        fi
+    fi
+    log "Gambatte R2 core fast-forward disabled."
+}
+
+restore_gambatte_remap_lock() {
+    [ -f "$gambatte_remap_active" ] || return 0
+    rm -rf "$gambatte_remap_dir"
+    if [ -d "$gambatte_remap_backup" ]; then
+        mkdir -p "$(dirname "$gambatte_remap_dir")"
+        mv "$gambatte_remap_backup" "$gambatte_remap_dir"
+    fi
+    rm -f "$gambatte_remap_absent" "$gambatte_remap_active"
+    log "Gambatte remaps restored."
+}
+
+# ------------------------ Blue-light-filter lock ----------------------------
+# RedOnion's keymon ignores MENU+B (the blue light filter) while Kids Mode is
+# armed. The standalone version changed blue_light.sh instead: that change is
+# taken back once (restore_blf_lock), if it is still there.
+
+restore_blf_lock() {
+    if [ -f "$blfbackup" ]; then
+        cp "$blfbackup" "$blfscript"
+        rm -f "$blfbackup"
+        chmod +x "$blfscript" 2> /dev/null
+        log "blue_light.sh restored."
+    fi
+}
+
+# ------------------------------ save profile --------------------------------
+# Saves/CurrentProfile holds several DIFFERENT kinds of data mixed together:
+# actual save files/save-states and GameSwitcher's thumbnail cache (personal,
+# tied to who's playing) alongside config/ — RetroArch's per-core settings
+# like aspect ratio, scanlines/shaders, CPU clock — and theme/, which are
+# device-wide preferences, not personal data, and should stay exactly the
+# same no matter who's playing.
+#
+# Onion's own Guest Mode swaps the WHOLE folder (MainProfile <->
+# GuestProfile) since a guest is meant to get a fully separate setup. Kids
+# Mode only wants the personal parts isolated — so we swap just the
+# saves/states/romScreens subfolders individually, leaving config/, theme/,
+# and lists/ untouched and shared throughout.
+#
+# The kid's own save progress should persist across sessions — so instead of
+# a throwaway park each time, Kids Mode keeps its own permanent
+# Saves/KidsProfile (holding just these three subfolders) that's swapped in
+# at arm time and swapped back out (keeping whatever was added) at disarm,
+# while whatever was there before (from Main or Guest — we don't need to
+# know which) is parked untouched in between. A plain directory rename
+# can't partially fail or leave mismatched data the way editing files in
+# place could.
+# Each folder is swapped on its own, and the parked copy says where it is:
+# Saves/KidsMode/profile-parked-<folder> there = the parent's folder is put
+# away and CurrentProfile has the kid's. A swap cut short (POWER held while
+# the launcher opens, a flat battery) is finished the next time, and the
+# parked copy is never deleted (it was: the parent's saves were lost when
+# the swap stopped after moving them).
+apply_profile_isolation() {
+    mkdir -p "$kids_profile" "$current_profile" "$backupdir"
+    for d in $isolated_subdirs; do
+        parked="$backupdir/profile-parked-$d"
+        if [ ! -d "$parked" ]; then
+            if [ -d "$current_profile/$d" ]; then
+                mv "$current_profile/$d" "$parked" || return 1
+            else
+                # Nothing to put away: an empty one keeps the state.
+                mkdir -p "$parked" || return 1
+            fi
+        fi
+        if [ ! -d "$current_profile/$d" ]; then
+            if [ -d "$kids_profile/$d" ]; then
+                mv "$kids_profile/$d" "$current_profile/$d" || return 1
+            else
+                mkdir -p "$current_profile/$d" || return 1
+            fi
+        fi
+    done
+    touch "$profile_isolation_marker"
+    log "Switched to the kid's own saves/states/thumbnails for this session."
+}
+
+restore_profile_isolation() {
+    restored=0
+    for d in $isolated_subdirs; do
+        parked="$backupdir/profile-parked-$d"
+        # Not swapped, or already put back.
+        [ -d "$parked" ] || continue
+        if [ -d "$current_profile/$d" ]; then
+            # The kid's progress, kept for next time. A copy already in
+            # KidsProfile is not expected here: moved aside, never deleted.
+            if [ -e "$kids_profile/$d" ]; then
+                mkdir -p "$backupdir/profile-recovery"
+                mv "$kids_profile/$d" "$backupdir/profile-recovery/KidsProfile-$source_profile-$d-$(date +%Y%m%d-%H%M%S)-$$" || return 1
+            fi
+            mkdir -p "$kids_profile"
+            mv "$current_profile/$d" "$kids_profile/$d" || return 1
+        fi
+        mv "$parked" "$current_profile/$d" || return 1
+        restored=1
+    done
+    rm -f "$profile_isolation_marker"
+    [ "$restored" = 1 ] && log "Restored the previous saves/states/thumbnails."
+    return 0
+}
+
+# ------------------------- MENU button override ----------------------------
+# While armed, a single press of the MENU button in-game saves and exits
+# straight back to the kid launcher (keymap ingame_single_press = 2,
+# "exit to menu") instead of opening the GameSwitcher overlay, which could
+# expose the parent's recent games. A long press is deliberately disabled:
+# Onion otherwise vibrates and runs a second exit action after about 700 ms.
+# keymon reads keymap.json at startup, so it is restarted after the change.
+# The original keymap is restored on unlock.
+
+# RedOnion's keymon reads keymap.json again at its next key press (it is not
+# restarted: runtime.sh keeps it running).
+restart_keymon() {
+    touch /tmp/settings_changed
+}
+
+# kidui and KidsPlay render their own stable, themed critical-battery gauge.
+# Disable Onion's separate flashing image only while one of those interfaces
+# owns the screen.  Games keep Onion's warning because RetroArch has no copy
+# of the themed header gauge.
+suppress_onion_battery_warning() {
+    # One test build used Onion's deprecated persistent opt-out. Remove it
+    # only when its Kids Mode ownership marker proves that we created it;
+    # never alter a parent's pre-existing preference.
+    if [ -f "$legacy_battery_warning_marker" ]; then
+        rm -f "$legacy_battery_warning_flag" \
+            "$legacy_battery_warning_marker"
+    fi
+    # batmon checks this temporary flag continuously and immediately retires
+    # its framebuffer warning thread. Unlike the deprecated configuration
+    # flag, Onion's settings saver never removes it during media playback.
+    if [ -f "$onion_battery_display_marker" ]; then
+        touch "$onion_battery_display_flag"
+    elif [ ! -e "$onion_battery_display_flag" ]; then
+        touch "$onion_battery_display_flag"
+        touch "$onion_battery_display_marker"
+    fi
+}
+
+allow_onion_battery_warning_for_game() {
+    [ -f "$onion_battery_display_marker" ] &&
+        rm -f "$onion_battery_display_flag"
+}
+
+restore_onion_battery_warning() {
+    if [ -f "$onion_battery_display_marker" ]; then
+        rm -f "$onion_battery_display_flag" \
+            "$onion_battery_display_marker"
+    fi
+    if [ -f "$legacy_battery_warning_marker" ]; then
+        rm -f "$legacy_battery_warning_flag" \
+            "$legacy_battery_warning_marker"
+    fi
+}
+
+apply_keymap_override() {
+    mkdir -p "$backupdir"
+    # Already in place (runtime.sh starts this script again after each game):
+    # nothing to write.
+    if { [ -f "$keymapbackup" ] || [ -f "$keymapnone" ]; } &&
+        jq -e '.ingame_single_press == 2 and .ingame_long_press == 0' \
+            "$keymapcfg" > /dev/null 2>&1; then
+        return 0
+    fi
+    if [ -f "$keymapcfg" ]; then
+        [ -f "$keymapbackup" ] || cp "$keymapcfg" "$keymapbackup"
+        tmpkm=/tmp/kidmode_keymap.$$
+        if jq '.ingame_single_press = 2 | .ingame_long_press = 0' \
+            "$keymapcfg" > "$tmpkm" 2> /dev/null; then
+            mv -f "$tmpkm" "$keymapcfg"
+        else
+            rm -f "$tmpkm"
+        fi
+    else
+        touch "$keymapnone"
+        printf '{\n    "ingame_single_press": 2,\n    "ingame_long_press": 0\n}\n' \
+            > "$keymapcfg"
+    fi
+    restart_keymon
+    log "MENU short press set to exit-to-launcher; long press disabled while armed."
+}
+
+restore_keymap_override() {
+    keymap_restored=0
+    if [ -f "$keymapnone" ]; then
+        rm -f "$keymapcfg" "$keymapnone"
+        keymap_restored=1
+    elif [ -f "$keymapbackup" ]; then
+        cp "$keymapbackup" "$keymapcfg"
+        rm -f "$keymapbackup"
+        keymap_restored=1
+    fi
+    if [ "$keymap_restored" = "1" ]; then
+        sync
+        log "keymap.json restored."
+    fi
+    # Also restore Onion's original binary when no keymap backup existed.
+    restart_keymon
+}
+
+# ------------------------------ play timer ---------------------------------
+# Daily play budget in 5-minute steps (timer_minutes in kidmode.json;
+# 0 = no timer). A background ticker counts *consumed* seconds — not wall
+# clock — so sleeping the device pauses the timer and rebooting doesn't
+# reset it (used/bonus persist in timer_state.txt, keyed to the day).
+# The countdown shows inside games via RetroArch's OSD (see notify_game);
+# at zero RetroArch gets a network QUIT, which triggers Onion's normal
+# auto-save — the game resumes exactly there next launch.
+
+get_timer_minutes() {
+    tm=""
+    [ -f "$timer_minutes_file" ] && IFS= read -r tm < "$timer_minutes_file"
+    [ -n "$tm" ] || tm="$cfg_timer_minutes"
+    case "$tm" in
+        '' | *[!0-9]*) echo 0 ;;
+        *) echo "$tm" ;;
+    esac
+}
+
+state_used() {
+    v=""
+    if [ -f "$timer_runtime_used" ]; then
+        IFS= read -r v < "$timer_runtime_used"
+    elif [ -f "$timer_state" ]; then
+        {
+            IFS= read -r _timer_day
+            IFS= read -r v
+        } < "$timer_state"
+    fi
+    case "$v" in '' | *[!0-9]*) echo 0 ;; *) echo "$v" ;; esac
+}
+state_bonus() {
+    v=""
+    if [ -f "$timer_state" ]; then
+        {
+            IFS= read -r _timer_day
+            IFS= read -r _timer_used
+            IFS= read -r v
+        } < "$timer_state"
+    fi
+    case "$v" in '' | *[!0-9]*) echo 0 ;; *) echo "$v" ;; esac
+}
+
+state_persist() { # $1 used, $2 bonus
+    # Avoid rewriting an unchanged checkpoint (timer OFF, Time's up, repeated
+    # controlled exits). The ticker is stopped before a parent edits state.
+    if [ -f "$timer_state" ]; then
+        {
+            IFS= read -r timer_disk_day
+            IFS= read -r timer_disk_used
+            IFS= read -r timer_disk_bonus
+        } < "$timer_state"
+        if [ "$timer_disk_day" = "$timer_state_date" ] &&
+            [ "$timer_disk_used" = "$1" ] &&
+            [ "$timer_disk_bonus" = "$2" ]; then
+            return 0
+        fi
+    fi
+    mkdir -p "$backupdir"
+    printf '%s\n%s\n%s\n' "$timer_state_date" "$1" "$2" > "$timer_state.tmp" &&
+        mv -f "$timer_state.tmp" "$timer_state"
+}
+
+state_write() { # $1 used, $2 bonus
+    printf '%s\n' "$1" > "$timer_runtime_used.parent" &&
+        mv -f "$timer_runtime_used.parent" "$timer_runtime_used"
+    state_persist "$1" "$2"
+}
+
+checkpoint_timer_state() {
+    [ -f "$timer_runtime_used" ] || return 0
+    state_persist "$(state_used)" "$(state_bonus)"
+}
+
+# Recompute and publish remaining seconds right now (clamped to >= 0;
+# file absent = timer off). Called by the ticker and after menu changes.
+# NB: the budget is per SESSION (set at arm / extended via Add play time);
+# there is no daily reset — a new arm starts a fresh budget.
+update_remaining_now() {
+    budget=$(($(get_timer_minutes) * 60 + $(state_bonus)))
+    if [ "$budget" -le 0 ]; then
+        rm -f "$remaining_file" "$timesup_since_file"
+        return 0
+    fi
+    rem=$((budget - $(state_used)))
+    [ "$rem" -lt 0 ] && rem=0
+    echo "$rem" > "$remaining_file"
+    if [ "$rem" -eq 0 ]; then
+        if [ ! -f "$timesup_since_file" ]; then
+            date +%s > "$timesup_since_file.tmp"
+            mv -f "$timesup_since_file.tmp" "$timesup_since_file"
+        fi
+    else
+        rm -f "$timesup_since_file"
+    fi
+    return 0
+}
+
+timer_remaining() {
+    update_remaining_now
+    if [ -f "$remaining_file" ]; then
+        remaining_value=0
+        IFS= read -r remaining_value < "$remaining_file"
+        echo "$remaining_value"
+    else
+        echo -1 # timer off
+    fi
+}
+
+add_bonus() {
+    # Only one process may modify the timer's persisted state at a time.
+    stop_ticker
+    state_write "$(state_used)" "$(($(state_bonus) + $1))"
+    update_remaining_now
+    start_ticker
+    log "Bonus play time added: $1 s"
+}
+
+set_timer_minutes() {
+    config_merge --argjson m "$1" '.timer_minutes = $m'
+    update_remaining_now
+    log "Timer set to $1 min/day."
+}
+
+# RetroArch redraws the framebuffer every frame, so imgpop overlays are not
+# reliably visible inside games. Use RetroArch's own OSD instead (SHOW_MSG
+# network command — same socket used for the graceful QUIT). Silently
+# ignored by anything that isn't RetroArch.
+notify_game() {
+    sendUDP "SHOW_MSG $1" > /dev/null 2>&1 &
+}
+
+# RA's OSD messages last ~3 s; re-pushing the same text every ~2 s makes it
+# render as one continuous message.
+pin_message() {
+    (
+        for _i in 1 2 3 4 5; do
+            sendUDP "SHOW_MSG $1" > /dev/null 2>&1
+            sleep 2
+        done
+    ) &
+}
+
+game_is_running() {
+    pgrep -f "cmd_to_run.sh" > /dev/null 2>&1 ||
+        { [ -f "$player_pid" ] && kill -0 "$(cat "$player_pid")" 2> /dev/null; }
+}
+
+mark_timesup_resume() { # $1 = carousel | parent
+    resume_kind="$1"
+    [ -f "$timesup_resume_file" ] && return 0
+    printf '%s\n' "$resume_kind" > "$timesup_resume_file.tmp" &&
+        mv -f "$timesup_resume_file.tmp" "$timesup_resume_file"
+}
+
+# Ask the running game to stop gracefully. RetroArch first (network QUIT →
+# normal exit path → Onion auto-save state); escalate only if needed.
+# Non-RetroArch games (ports, standalone) get a plain TERM — best effort.
+save_quit_game() {
+    if [ -f "$player_pid" ]; then
+        # After Time's up, return to the carousel with this media selected;
+        # never restart content behind the parent's back.
+        mark_timesup_resume carousel
+        kill "$(cat "$player_pid")" 2> /dev/null
+        log "Play time over; video stopped."
+        return
+    fi
+    # The game selection is already persisted before launch. Keep that
+    # carousel position, but do not relaunch the game after the parent PIN.
+    mark_timesup_resume carousel
+    notify_game "Time's up! Saving your game..."
+    sleep 2
+    if pgrep retroarch > /dev/null 2>&1; then
+        sendUDP QUIT
+        sleep 3
+        if pgrep retroarch > /dev/null 2>&1; then
+            sendUDP QUIT
+            sleep 3
+        fi
+        if pgrep retroarch > /dev/null 2>&1; then
+            killall -TERM retroarch 2> /dev/null
+            sleep 2
+        fi
+    elif game_is_running; then
+        pkill -TERM -f "cmd_to_run.sh" 2> /dev/null
+        sleep 2
+    fi
+    log "Play time over; game stopped."
+}
+
+ticker_loop() {
+    timer_checkpoint_elapsed=0
+    while [ -f "$flagfile" ]; do
+        sleep 10
+        [ -f "$flagfile" ] || break
+        [ -f /tmp/shutting_down ] && break
+
+        budget=$(($(get_timer_minutes) * 60 + $(state_bonus)))
+        if [ "$budget" -le 0 ]; then
+            rm -f "$remaining_file" "$timesup_since_file"
+            continue
+        fi
+
+        previous_used="$(state_used)"
+        used=$((previous_used + 10))
+        [ "$used" -gt "$budget" ] && used="$budget"
+        # The live counter belongs in tmpfs. Persist once a minute (and on
+        # every controlled stop) instead of rewriting FAT metadata six times
+        # per minute. A sudden total power loss can therefore restore at most
+        # 50 seconds of already-counted play time. Suspend keeps the live
+        # counter in RAM; controlled exit and shutdown checkpoint it to SD.
+        if [ "$used" -gt "$previous_used" ]; then
+            printf '%s\n' "$used" > "$timer_runtime_used.ticker" &&
+                mv -f "$timer_runtime_used.ticker" "$timer_runtime_used"
+            timer_checkpoint_elapsed=$((timer_checkpoint_elapsed + 10))
+            if [ "$timer_checkpoint_elapsed" -ge 60 ] ||
+                [ "$used" -eq "$budget" ]; then
+                state_persist "$used" "$(state_bonus)"
+                timer_checkpoint_elapsed=0
+            fi
+        fi
+        rem=$((budget - used))
+        [ "$rem" -lt 0 ] && rem=0
+        echo "$rem" > "$remaining_file"
+        if [ "$rem" -eq 0 ]; then
+            if [ ! -f "$timesup_since_file" ]; then
+                date +%s > "$timesup_since_file.tmp"
+                mv -f "$timesup_since_file.tmp" "$timesup_since_file"
+            fi
+            [ -f "$parent_menu_active_file" ] && mark_timesup_resume parent
+        else
+            rm -f "$timesup_since_file"
+        fi
+
+        if game_is_running; then
+            rem_min=$(((rem + 59) / 60))
+
+            # Fresh game session: announce the budget once via RA's OSD
+            if [ "$game_seen" != "1" ]; then
+                game_seen=1
+                [ "$rem" -gt 0 ] && notify_game "$rem_min min"
+            fi
+
+            # In-game countdown via RetroArch OSD only. (imgpop overlays are
+            # erased by RA's per-frame redraw AND draw in panel-native
+            # coordinates — rotated 180° from the viewed image — so they
+            # only produce a brief flipped flash. Not used during games.)
+            if [ "$rem" -gt 0 ]; then
+                if [ "$rem_min" -le 5 ]; then
+                    # Last 5 minutes: countdown stays pinned on screen
+                    pin_message "$rem_min min"
+                elif [ "$rem_min" != "$last_notified_min" ] &&
+                    [ $((rem_min % 5)) -eq 0 ]; then
+                    notify_game "$rem_min min"
+                fi
+                last_notified_min="$rem_min"
+            fi
+
+            if [ "$rem" -le 0 ]; then
+                save_quit_game
+            fi
+        else
+            game_seen=0
+            last_notified_min=""
+        fi
+    done
+    checkpoint_timer_state
+    rm -f "$remaining_file"
+}
+
+start_ticker() {
+    stop_ticker
+    ticker_loop &
+    echo $! > "$ticker_pid_file"
+}
+
+stop_ticker() {
+    if [ -f "$ticker_pid_file" ]; then
+        ticker_pid="$(cat "$ticker_pid_file")"
+        kill "$ticker_pid" 2> /dev/null
+        wait "$ticker_pid" 2> /dev/null
+        rm -f "$ticker_pid_file"
+    fi
+    checkpoint_timer_state
+    killall imgpop 2> /dev/null # remove any lingering chip overlay
+    rm -f "$remaining_file"
+}
+
+# --------------------------- shutdown handling -----------------------------
+# A shutdown asked for while the launcher or a video is on screen: the play
+# time is saved and this script ends; runtime.sh then shuts down
+# (check_off_order), as it does after MainUI.
+
+check_off_order() {
+    [ -f /tmp/.offOrder ] || return 0
+    touch /tmp/shutting_down
+    stop_ticker
+    log "Shutdown: back to runtime.sh."
+    exit 0
+}
+
+# ----------------------------- game launch ---------------------------------
+
+# "Start over": launch without loading the auto-save snapshot, with Onion's
+# reset-game flag (/tmp/reset_game, as the GameSwitcher's reset): runtime.sh
+# puts /tmp/reset.cfg into the RetroArch command and takes it out again.
+# In-game saves (battery saves etc.) are untouched. Older versions of this
+# script wrote their own option into the emulator's launch script: it is
+# taken out if it is still there.
+reset_cfg=/tmp/kidmode_reset.cfg
+
+strip_reset_appendconfig() { # $1 = emulator launch script
+    [ -n "$1" ] && [ -w "$1" ] || return 0
+    if grep -q "$reset_cfg" "$1" 2> /dev/null; then
+        sed -i "s| --appendconfig \"$reset_cfg\"||g" "$1"
+    fi
+}
+
+# Write $sysdir/cmd_to_run.sh for a favorite exactly like MainUI does:
+# runtime.sh (launch_game) then picks the core (the game's own, or the one
+# chosen for all games of the system) as for a game started from MainUI.
+# $3 = "fresh" to start over instead of resuming.
+build_game_cmd() {
+    game_launch="$1"
+    game_rompath="$2"
+    game_fresh="${3:-}"
+
+    if [ -f "$game_rompath" ]; then
+        game_rompath="$(realpath "$game_rompath")"
+    fi
+
+    strip_reset_appendconfig "$game_launch"
+    rm -f /tmp/reset_game
+    [ "$game_fresh" = "fresh" ] && touch /tmp/reset_game
+
+    echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so \"$game_launch\" \"$game_rompath\"" > "$sysdir/cmd_to_run.sh"
+    chmod a+x "$sysdir/cmd_to_run.sh"
+}
+
+# RetroArch lock, kid save profile and MENU override, once per armed session.
+prepare_game_environment() {
+    # Prepare RetroArch and the kid save profile once per armed session, so
+    # the first game launches without an extra setup pause.
+    [ -f "$game_environment_marker" ] && return 0
+    apply_ra_lock
+    apply_gambatte_remap_lock
+    apply_profile_isolation
+    apply_keymap_override
+    touch "$game_environment_marker"
+}
+
+prepare_game_environment_async() {
+    if [ -f "$game_environment_marker" ]; then
+        rm -f "$game_prepare_pid_file"
+        return 0
+    fi
+    if [ -f "$game_prepare_pid_file" ] &&
+        kill -0 "$(cat "$game_prepare_pid_file" 2> /dev/null)" 2> /dev/null; then
+        return 0
+    fi
+    (
+        started_at="$(date +%s)"
+        prepare_game_environment
+        finished_at="$(date +%s)"
+        log "Startup: game preparation completed in $((finished_at - started_at))s."
+    ) &
+    echo $! > "$game_prepare_pid_file"
+}
+
+wait_for_game_environment() {
+    if [ -f "$game_prepare_pid_file" ]; then
+        prepare_pid="$(cat "$game_prepare_pid_file" 2> /dev/null)"
+        case "$prepare_pid" in
+            '' | *[!0-9]*) ;;
+            *) wait "$prepare_pid" 2> /dev/null ;;
+        esac
+        rm -f "$game_prepare_pid_file"
+    fi
+    [ -f "$game_environment_marker" ] || prepare_game_environment
+}
+
+# The game is launched by runtime.sh (launch_game) as one chosen in MainUI:
+# this script ends with it in cmd_to_run.sh, and runtime.sh starts it again
+# once the game is over (finish_game_handoff).
+run_game_cmd() {
+    [ -f "$sysdir/cmd_to_run.sh" ] || return 1
+
+    # Preparation starts as soon as Kids Mode opens, in parallel with the
+    # carousel. Only an immediate game launch waits for the remaining work.
+    wait_for_game_environment
+
+    run_launch="$(awk -F'"' 'NR == 1 { print $2 }' "$sysdir/cmd_to_run.sh")"
+    printf '%s\n' "$run_launch" > "$game_handoff_file"
+    allow_onion_battery_warning_for_game
+    log "launching: $(cat "$sysdir/cmd_to_run.sh")"
+    exit 0
+}
+
+# Back from the game handed to runtime.sh: "Start over" not left behind.
+# Returns 1 when no game was handed over.
+finish_game_handoff() {
+    [ -f "$game_handoff_file" ] || return 1
+    run_launch="$(sed -n 1p "$game_handoff_file")"
+    rm -f "$game_handoff_file"
+    strip_reset_appendconfig "$run_launch"
+    # Not taken by a game that is not RetroArch: it must not reset the next
+    # game started from MainUI.
+    rm -f "$reset_cfg" /tmp/reset_game
+    log "game exited"
+    return 0
+}
+
+is_game_cmd() {
+    grep -q "retroarch/cores\|/../../Roms/\|/mnt/SDCARD/Roms/" "$1" 2> /dev/null
+}
+
+# ----------------------------- shutdown hook -------------------------------
+# runtime.sh starts Kids Mode itself: the standalone version's boot hook goes.
+# Its shutdown scripts (checkoff) save the play time used during a game.
+
+install_hook() {
+    rm -f "$sysdir/startup/kidmode_boot.sh"
+    [ -f "$checkoff_src" ] || return 1
+    mkdir -p "$sysdir/checkoff"
+    if ! cmp -s "$checkoff_src" "$checkoff_dst" 2> /dev/null; then
+        cp "$checkoff_src" "$checkoff_dst"
+        log "Shutdown hook installed to $checkoff_dst"
+    fi
+    return 0
+}
+
+# ------------------------ MainUI favorites shortcut ------------------------
+# Adds a "Kids Mode" entry to Onion's Favorites tab (usually the
+# boot tab),
+# so arming is one tap without visiting Apps. kidui filters this entry out
+# of the kid carousel. Disable with "fav_shortcut": false in kidmode.json.
+
+fav_entry='{"label":"Kids Mode","launch":"/mnt/SDCARD/App/KidsMode/launch.sh","type":5,"imgpath":"/mnt/SDCARD/Icons/Default/app/guest_on.png","rompath":"/mnt/SDCARD/App/KidsMode/launch.sh"}'
+fav_launch=/mnt/SDCARD/App/KidsMode/launch.sh
+
+# An earlier version appended the shortcut without checking that the file
+# ended in a newline, which could glue two JSON entries onto one line and
+# corrupt the favorites list (breaking MainUI search results too). Split
+# any glued lines back apart.
+repair_favourites() {
+    [ -f "$favfile" ] || return 0
+    if grep -q '}{' "$favfile"; then
+        awk '{gsub(/\}\{/, "}\n{"); print}' "$favfile" > "$favfile.tmp" &&
+            mv -f "$favfile.tmp" "$favfile"
+        log "Repaired glued lines in favourite.json."
+    fi
+}
+
+favorites_signature() {
+    [ -f "$favfile" ] || return 1
+    cksum "$favfile" 2> /dev/null | awk '{print $1 ":" $2}'
+}
+
+repair_onion_favorites_if_needed() {
+    [ -f "$favfile" ] || return 0
+    repair_favourites
+    current_signature="$(favorites_signature)"
+    repaired_signature="$(sed -n 1p "$favorites_signature_file" 2> /dev/null)"
+    if [ -z "$current_signature" ] || [ "$current_signature" != "$repaired_signature" ]; then
+        started_at="$(date +%s)"
+
+        # Onion's FavFix treats App entries as invalid game favorites. Save
+        # them first, then restore them after its game-artwork repair.
+        saved_apps=/tmp/kidsmode_app_favorites.$$
+        if ! jq -c 'select(((.launch // "") | contains("/App/")) or
+                         ((.rompath // "") | contains("/App/")))' \
+            "$favfile" > "$saved_apps" 2> /dev/null; then
+            rm -f "$saved_apps"
+            log "Skipped favorites repair because favourite.json has an invalid record."
+            return 0
+        fi
+        if command -v tools > /dev/null 2>&1; then
+            tools favfix > /dev/null 2>&1
+        fi
+        sorted_favorites=/tmp/kidsmode_favorites_sorted.$$
+        # $apps is the list of every saved app favorite ($apps[0] was only
+        # the first one, an object: jq failed and nothing was sorted).
+        if jq -sc --slurpfile apps "$saved_apps" '
+            map(select(((((.launch // "") | contains("/App/")) or
+                         ((.rompath // "") | contains("/App/"))) | not))) +
+            $apps |
+            sort_by((.label // "") | ascii_downcase)[]' \
+            "$favfile" > "$sorted_favorites" 2> /dev/null; then
+            mv -f "$sorted_favorites" "$favfile"
+            log "Onion game favorites repaired and all favorites sorted A-Z after a change."
+        else
+            rm -f "$sorted_favorites"
+            log "Onion game favorites repaired; sorting them failed, left as they were."
+        fi
+        rm -f "$saved_apps"
+        mkdir -p "$backupdir"
+        favorites_signature > "$favorites_signature_file.tmp" &&
+            mv -f "$favorites_signature_file.tmp" "$favorites_signature_file"
+        finished_at="$(date +%s)"
+        log "Startup: favorites repair completed in $((finished_at - started_at))s."
+    fi
+}
+
+remove_fav_shortcut() {
+    [ -f "$favfile" ] || return 0
+    grep -qF "$fav_launch" "$favfile" 2> /dev/null || return 0
+
+    # Filter the JSON record by its exact launch path. A line-based removal
+    # could discard another App if two entries were written on one line.
+    tmp="$favfile.tmp.$$"
+    if ! jq -c --arg path "$fav_launch" 'select(.launch != $path)' \
+        "$favfile" > "$tmp" 2> /dev/null; then
+        rm -f "$tmp"
+        log "Skipped Kids Mode shortcut cleanup because favourite.json has an invalid record."
+        return 0
+    fi
+    if mv -f "$tmp" "$favfile"; then
+        log "Removed only the Kids Mode shortcut from favorites."
+    else
+        rm -f "$tmp"
+    fi
+}
+
+ensure_fav_shortcut() {
+    repair_favourites
+
+    # Default OFF: the entry confused MainUI's search results on some
+    # setups. Opt in with "fav_shortcut": true in kidmode.json.
+    if [ "$cfg_fav_shortcut" != "true" ]; then
+        remove_fav_shortcut
+        return 0
+    fi
+
+    if ! grep -qF "/App/KidsMode/launch.sh" "$favfile" 2> /dev/null; then
+        # Never append onto a final line that lacks its newline
+        if [ -s "$favfile" ] && [ -n "$(tail -c 1 "$favfile")" ]; then
+            echo >> "$favfile"
+        fi
+        printf '%s\n' "$fav_entry" >> "$favfile"
+        log "Added Kids Mode shortcut to favorites."
+    fi
+}
+
+# --------------------------- initial session picker ------------------------
+# Kids Mode's Main and Guest environments are fully independent. Let the
+# parent choose the one to enter before saves, favourites and media paths are
+# isolated, and optionally set the session timer on the same screen.
+
+pick_start_session() {
+    rm -f "$uiresult"
+    main_available=0
+    guest_available=0
+    { [ "$source_profile" = Main ] || [ -d /mnt/SDCARD/Saves/MainProfile ]; } &&
+        main_available=1
+    { [ "$source_profile" = Guest ] || [ -d /mnt/SDCARD/Saves/GuestProfile ]; } &&
+        guest_available=1
+    run_kidui --pick-profile --current-profile "$source_profile" \
+        --main-available "$main_available" \
+        --guest-available "$guest_available" > "$uilog" 2>&1
+    picker_rc=$?
+    if [ "$picker_rc" -ne 5 ] ||
+       [ "$(sed -n 1p "$uiresult")" != "PROFILE" ]; then
+        rm -f "$uiresult"
+        return 1
+    fi
+    picked_profile="$(sed -n 2p "$uiresult")"
+    profile_timer_choice="$(sed -n 3p "$uiresult")"
+    rm -f "$uiresult"
+    case "$picked_profile" in
+        Main | Guest) ;;
+        *) return 1 ;;
+    esac
+    case "$profile_timer_choice" in
+        '' | *[!0-9]*) profile_timer_choice=0 ;;
+    esac
+    [ "$profile_timer_choice" -gt 120 ] && profile_timer_choice=120
+    [ "$picked_profile" = "$source_profile" ] && return 0
+    export KIDSMODE_SELECTED_TIMER="$profile_timer_choice"
+    switch_kids_profile "$picked_profile" initial
+}
+
+# -------------------------- Onion profile switch ---------------------------
+# Run only after the parent PIN has been accepted. Kids Mode first puts the
+# current child's saves back in KidsProfile/<origin>, restores the Onion
+# profile that was parked at arm time, then performs the same whole-profile
+# directory swap as Onion's official Guest Mode app. The script is relaunched
+# afterwards so every profile-specific path and cached preference is rebuilt
+# from the new origin.
+switch_kids_profile() {
+    target_profile="$1"
+    initial_switch="${2:-0}"
+    [ "$target_profile" != "$source_profile" ] || return 0
+
+    case "$source_profile:$target_profile" in
+        Main:Guest)
+            incoming_profile=/mnt/SDCARD/Saves/GuestProfile
+            parked_profile=/mnt/SDCARD/Saves/MainProfile
+            guest_config=configON.json
+            ;;
+        Guest:Main)
+            incoming_profile=/mnt/SDCARD/Saves/MainProfile
+            parked_profile=/mnt/SDCARD/Saves/GuestProfile
+            guest_config=configOFF.json
+            ;;
+        *)
+            log "Rejected invalid profile switch: $source_profile -> $target_profile"
+            return 1
+            ;;
+    esac
+
+    if [ ! -d "$incoming_profile" ]; then
+        log "Profile switch unavailable: $source_profile -> $target_profile"
+        infoPanel -t "Kids Mode" -m "The requested Onion profile is unavailable." --auto
+        return 1
+    fi
+
+    log "Switching Kids Mode profile: $source_profile -> $target_profile"
+    # The Kids Mode key monitor persists the final brightness value after a
+    # short debounce. Reapply that single global Onion value before replacing
+    # profile directories so neither a temporary dim/off state nor an old PWM
+    # value can leak across the profile boundary.
+    restore_configured_brightness
+    wait_for_game_environment
+    stop_ticker
+
+    # Save the current Kids environment, then restore the current Onion
+    # profile completely before asking Onion's profile folders to trade places.
+    restore_gambatte_remap_lock
+    # The parent's saves must be back in CurrentProfile before the profiles
+    # trade places: left parked, they would later be put into the other
+    # profile. A swap that stopped half-way is finished again instead.
+    if ! restore_profile_isolation; then
+        log "Profile switch aborted: could not put the parked saves back."
+        if [ "$initial_switch" != initial ]; then
+            apply_gambatte_remap_lock
+            apply_profile_isolation
+            start_ticker
+        fi
+        infoPanel -t "Kids Mode" -m "The profile could not be switched.\nNothing was changed." --auto
+        return 1
+    fi
+    rm -f "$game_environment_marker" "$game_prepare_pid_file"
+
+    mkdir -p "$current_profile/lists"
+    for onion_list in /mnt/SDCARD/Roms/*.json; do
+        [ -f "$onion_list" ] || continue
+        cp -f "$onion_list" "$current_profile/lists/" || {
+            log "Profile switch aborted: could not save Onion lists."
+            if [ "$initial_switch" != initial ]; then
+                apply_gambatte_remap_lock
+                apply_profile_isolation
+                start_ticker
+            fi
+            return 1
+        }
+    done
+
+    system_json=/mnt/SDCARD/system.json
+    current_theme_file="$current_profile/theme/currentTheme"
+    if [ -f "$system_json" ] && command -v jq > /dev/null 2>&1; then
+        mkdir -p "$current_profile/theme"
+        jq -r '.theme // empty' "$system_json" > "$current_theme_file.tmp" 2> /dev/null &&
+            mv -f "$current_theme_file.tmp" "$current_theme_file"
+        rm -f "$current_theme_file.tmp"
+    fi
+    sync
+
+    # A previous interrupted profile switch, or Onion itself, can leave both
+    # parked profile folders present. Never delete that unexpected copy: move
+    # it to a timestamped recovery folder immediately before the directory
+    # swap. Every failure below restores it to its original location.
+    stale_profile_recovery=""
+    if [ -e "$parked_profile" ]; then
+        recovery_root="$backupdir/profile-recovery"
+        recovery_name="${parked_profile##*/}-$(date +%Y%m%d-%H%M%S)-$$"
+        stale_profile_recovery="$recovery_root/$recovery_name"
+        mkdir -p "$recovery_root"
+        if ! mv "$parked_profile" "$stale_profile_recovery"; then
+            log "Profile switch unavailable: could not preserve stale ${parked_profile##*/}."
+            if [ "$initial_switch" != initial ]; then
+                apply_gambatte_remap_lock
+                apply_profile_isolation
+                start_ticker
+            fi
+            infoPanel -t "Kids Mode" -m "The requested Onion profile is unavailable." --auto
+            return 1
+        fi
+        log "Preserved stale ${parked_profile##*/} as profile-recovery/$recovery_name."
+    fi
+
+    # The second rename can still fail on a damaged/full card. Roll the first
+    # one back immediately so CurrentProfile is never left missing.
+    if ! mv "$current_profile" "$parked_profile"; then
+        [ -n "$stale_profile_recovery" ] &&
+            mv "$stale_profile_recovery" "$parked_profile" 2> /dev/null
+        log "Profile switch aborted: could not park CurrentProfile."
+        if [ "$initial_switch" != initial ]; then
+            apply_gambatte_remap_lock
+            apply_profile_isolation
+            start_ticker
+        fi
+        return 1
+    fi
+    if ! mv "$incoming_profile" "$current_profile"; then
+        mv "$parked_profile" "$current_profile" 2> /dev/null
+        [ -n "$stale_profile_recovery" ] &&
+            mv "$stale_profile_recovery" "$parked_profile" 2> /dev/null
+        log "Profile switch rolled back: could not activate $target_profile."
+        if [ "$initial_switch" != initial ]; then
+            apply_gambatte_remap_lock
+            apply_profile_isolation
+            start_ticker
+        fi
+        return 1
+    fi
+
+    # Make the new origin authoritative immediately after the directory swap.
+    # If the marker cannot be committed, put both Onion profiles back exactly
+    # where they were rather than continuing with ambiguous ownership.
+    if ! printf '%s\n' "$target_profile" > "$source_profile_file.tmp" ||
+        ! mv -f "$source_profile_file.tmp" "$source_profile_file"; then
+        rm -f "$source_profile_file.tmp"
+        mv "$current_profile" "$incoming_profile" 2> /dev/null
+        mv "$parked_profile" "$current_profile" 2> /dev/null
+        [ -n "$stale_profile_recovery" ] &&
+            mv "$stale_profile_recovery" "$parked_profile" 2> /dev/null
+        log "Profile switch rolled back: could not save the active profile."
+        if [ "$initial_switch" != initial ]; then
+            apply_gambatte_remap_lock
+            apply_profile_isolation
+            start_ticker
+        fi
+        return 1
+    fi
+
+    # Replace the global favorites/recent JSON files with the newly active
+    # Onion profile's copies. This intentionally mirrors Guest Mode itself.
+    rm -f /mnt/SDCARD/Roms/*.json
+    for onion_list in "$current_profile"/lists/*.json; do
+        [ -f "$onion_list" ] || continue
+        cp -f "$onion_list" /mnt/SDCARD/Roms/
+    done
+
+    current_theme_file="$current_profile/theme/currentTheme"
+    if [ -s "$current_theme_file" ] && [ -f "$system_json" ] &&
+        command -v jq > /dev/null 2>&1; then
+        theme_tmp=/tmp/kidsmode_system_theme.$$
+        if jq --arg theme "$(sed -n 1p "$current_theme_file")" \
+            '.theme = $theme' "$system_json" > "$theme_tmp" 2> /dev/null; then
+            mv -f "$theme_tmp" "$system_json"
+        else
+            rm -f "$theme_tmp"
+        fi
+    fi
+
+    # Keep Onion's Guest Mode app icon/label accurate for the day Kids Mode is
+    # eventually unlocked. Older Onion layouts simply skip this optional step.
+    guest_app=/mnt/SDCARD/App/Guest_Mode
+    if [ -f "$guest_app/data/$guest_config" ]; then
+        cp -f "$guest_app/data/$guest_config" "$guest_app/config.json"
+    fi
+    command -v themeSwitcher > /dev/null 2>&1 && themeSwitcher --reapply_icons
+
+    rm -f /tmp/kidsmode_floor /tmp/kidsmode_selection \
+        /tmp/kidsmode_game_selection /tmp/kidsmode_video_selection \
+        /tmp/kidsmode_folder /tmp/kidsmode_folder_history
+    sync
+    log "Kids Mode profile switched to $target_profile."
+
+    if [ "$initial_switch" = initial ]; then
+        export KIDSMODE_PROFILE_SELECTED=1
+        exec /bin/sh "$appdir/kid_mode_loop.sh" arm
+    fi
+
+    # Re-exec rather than mutating dozens of cached profile paths in place.
+    # The one-exec environment flag bypasses a second PIN request and returns
+    # the authenticated parent directly to the same menu. Unlike a file, it
+    # cannot survive a crash or a later app launch and bypass authentication.
+    export KIDSMODE_REOPEN_PARENT=1
+    exec /bin/sh "$appdir/kid_mode_loop.sh" run
+}
+
+# ------------------------------ parent menu --------------------------------
+# Shown after a correct PIN: exit Kids Mode, switch Main/Guest or add play
+# time. "Add play time" is an inline value selector on the menu row (LEFT/RIGHT to
+# pick 5-120 min, A/START to apply) — kidui reports the chosen minutes on
+# line 3 of the result. Returns 0 = unlock requested, 1 = stay in Kids Mode.
+
+parent_menu() {
+    touch "$parent_menu_active_file"
+    while :; do
+        rm -f "$uiresult" "$lockfloor_result" "$categories_result" "$savestates_result"
+        lock_val=0
+        if [ "$cfg_lock_current_floor" = true ]; then
+            locked_menu_floor="${cfg_locked_floor:-$active_floor}"
+            [ "$locked_menu_floor" = videos ] && lock_val=2 || lock_val=1
+        fi
+        states_val=0
+        [ "$cfg_allow_save_states" = true ] && states_val=1
+        refresh_category_values
+        [ "$active_floor" = videos ] && menu_floor=VIDEOS || menu_floor=GAMES
+        switch_profile_arg=""
+        if [ "$source_profile" = Main ] &&
+            [ -d /mnt/SDCARD/Saves/GuestProfile ]; then
+            switch_profile_arg=Guest
+        elif [ "$source_profile" = Guest ] &&
+            [ -d /mnt/SDCARD/Saves/MainProfile ]; then
+            switch_profile_arg=Main
+        fi
+        run_kidui --parent-menu \
+            --remaining "$(timer_remaining)" \
+            --floor "$menu_floor" \
+            --lock-floor "$lock_val" \
+            --allow-save-states "$states_val" \
+            --switch-profile "$switch_profile_arg" \
+            --show-stories "$show_stories_value" \
+            --show-movies "$show_movies_value" \
+            --show-series "$show_series_value" \
+            --show-music "$show_music_value" \
+            --show-cartoons "$show_cartoons_value" > "$uilog" 2>&1
+        menu_rc=$?
+
+        if [ -f "$lockfloor_result" ]; then
+            new_lock_val="$(sed -n 1p "$lockfloor_result")"
+            rm -f "$lockfloor_result"
+            case "$new_lock_val" in
+                1)
+                    profile_config_merge '.lock_current_floor = true | .locked_floor = "games"'
+                    active_floor=games
+                    log "Carousel restricted to games."
+                    ;;
+                2)
+                    profile_config_merge '.lock_current_floor = true | .locked_floor = "videos"'
+                    active_floor=videos
+                    log "Carousel restricted to media."
+                    ;;
+                0)
+                    profile_config_merge '.lock_current_floor = false | .locked_floor = ""'
+                    log "Current floor lock turned OFF."
+                    ;;
+            esac
+        fi
+
+        if [ -f "$categories_result" ]; then
+            new_stories="$show_stories_value"
+            new_movies="$show_movies_value"
+            new_series="$show_series_value"
+            new_music="$show_music_value"
+            new_cartoons="$show_cartoons_value"
+            while IFS='=' read -r category new_value; do
+                case "$category:$new_value" in
+                    stories:1) new_stories=1 ;;
+                    stories:0) new_stories=0 ;;
+                    movies:1) new_movies=1 ;;
+                    movies:0) new_movies=0 ;;
+                    series:1) new_series=1 ;;
+                    series:0) new_series=0 ;;
+                    music:1) new_music=1 ;;
+                    music:0) new_music=0 ;;
+                    cartoons:1) new_cartoons=1 ;;
+                    cartoons:0) new_cartoons=0 ;;
+                esac
+            done < "$categories_result"
+            rm -f "$categories_result"
+            profile_config_merge --argjson stories "$new_stories" \
+                --argjson movies "$new_movies" --argjson series "$new_series" \
+                --argjson music "$new_music" --argjson cartoons "$new_cartoons" \
+                '.show_stories = ($stories == 1) |
+                 .show_movies = ($movies == 1) |
+                 .show_series = ($series == 1) |
+                 .show_music = ($music == 1) |
+                 .show_cartoons = ($cartoons == 1)'
+            log "Visible media folders updated from the parent menu."
+            normalize_active_media_folder
+        fi
+
+        if [ -f "$savestates_result" ]; then
+            new_states_val="$(sed -n 1p "$savestates_result")"
+            rm -f "$savestates_result"
+            case "$new_states_val" in
+                0 | 1)
+                    # Join preparation before changing the config, so a stale
+                    # background worker cannot overwrite the parent's choice.
+                    wait_for_game_environment
+                    profile_config_merge --argjson enabled "$new_states_val" \
+                        '.allow_save_states = ($enabled == 1)'
+                    apply_ra_lock
+                    log "Manual save/load states and slot hotkeys: $cfg_allow_save_states."
+                    ;;
+            esac
+        fi
+
+        if [ "$menu_rc" -ne 5 ] || [ "$(sed -n 1p "$uiresult")" != "MENU" ]; then
+            rm -f "$uiresult"
+            rm -f "$parent_menu_active_file"
+            return 1
+        fi
+
+        menu_action="$(sed -n 2p "$uiresult")"
+        menu_arg="$(sed -n 3p "$uiresult")"
+        rm -f "$uiresult" /tmp/kidsmode_game_selection \
+            /tmp/kidsmode_video_selection
+        case "$menu_action" in
+            UNLOCK)
+                rm -f "$parent_menu_active_file"
+                return 0
+                ;;
+            NOTIMER)
+                # Turn the play timer off entirely: clear the configured
+                # minutes AND any bonus, so nothing keeps a budget alive.
+                # The kid can play with no limit until re-armed or time is
+                # added again.
+                stop_ticker
+                set_timer_minutes 0
+                state_write 0 0
+                update_remaining_now
+                start_ticker
+                rm -f "$timesup_resume_file" "$timesup_resume_file.tmp"
+                log "Play timer turned off from the parent menu."
+                continue
+                ;;
+            ADDTIME)
+                case "$menu_arg" in
+                    '' | *[!0-9]*)
+                        # Older kidui without the inline selector: fall back
+                        # to the separate picker screen; B cancels
+                        rm -f "$uiresult"
+                        run_kidui --pick-timer --no-off -t "Add play time" > "$uilog" 2>&1
+                        if [ $? -eq 5 ] && [ "$(sed -n 1p "$uiresult")" = "TIMER" ]; then
+                            menu_arg="$(sed -n 2p "$uiresult")"
+                        else
+                            menu_arg=""
+                        fi
+                        rm -f "$uiresult"
+                        ;;
+                esac
+                case "$menu_arg" in
+                    '' | *[!0-9]* | 0) ;; # canceled: back to the parent menu
+                    *)
+                        [ "$menu_arg" -gt 120 ] && menu_arg=120
+                        add_bonus $((menu_arg * 60))
+                        rm -f "$timesup_resume_file" "$timesup_resume_file.tmp"
+                        # Refresh the displayed remaining time without
+                        # dropping the authenticated parent back to carousel.
+                        continue
+                        ;;
+                esac
+                ;;
+            SWITCHPROFILE)
+                case "$menu_arg" in
+                    Main | Guest)
+                        rm -f "$parent_menu_active_file"
+                        switch_kids_profile "$menu_arg"
+                        ;;
+                esac
+                ;;
+        esac
+    done
+}
+
+# ------------------------------ unlock -------------------------------------
+
+restore_configured_brightness() {
+    # kidui and KidsPlay may temporarily dim the backlight.  Before returning
+    # to Onion, always restore the brightness chosen in Onion's settings so
+    # the launcher never inherits a transient dim/off value.
+    settings_save_checks=0
+    while [ -f /tmp/kidsmode_settings_pending ] &&
+        [ "$settings_save_checks" -lt 20 ] &&
+        pgrep keymon > /dev/null 2>&1; do
+        sleep 0.05
+        settings_save_checks=$((settings_save_checks + 1))
+    done
+    configured_brightness=$(/customer/app/jsonval brightness 2> /dev/null)
+    case "$configured_brightness" in
+        '' | *[!0-9]*) return 0 ;;
+    esac
+    configured_raw=$(awk -v level="$configured_brightness" \
+        'BEGIN { printf "%d", 3 * exp(0.350656 * level) + 0.5 }')
+    [ -w "$brightness_pwm" ] && printf '%s\n' "$configured_raw" > "$brightness_pwm"
+}
+
+prepare_kidui_display() {
+    # kidui and KidsPlay use different SDL generations but share the same
+    # double-buffered framebuffer.  Normalize and clear both pages between
+    # their short-lived processes so a parent-menu refresh cannot reveal an
+    # old page prepared in the opposite orientation.
+    [ -x "$kidsplay_fb_reset" ] && "$kidsplay_fb_reset" 2> /dev/null
+}
+
+run_kidui() {
+    # Normalize before every new interface. When kidui returns a PIN or a
+    # parent-menu action, keep its completed frame visible while the shell
+    # verifies or applies it. Those actions immediately open another kidui
+    # screen (or return through the explicit Onion cleanup path), so clearing
+    # here and again before that next screen creates two back-to-back
+    # framebuffer resets. On the Miyoo's second page, that rapid hand-off can
+    # re-expose the completed menu rotated by 180 degrees. The next kidui still
+    # receives one clean boundary immediately before it starts.
+    # resources_free() in each previous kidui process removes Onion's shared
+    # hasBatteryDisplay flag. Reassert it at every UI boundary so batmon never
+    # starts its own flashing warning between two Kids Mode screens.
+    suppress_onion_battery_warning
+    prepare_kidui_display
+    "$kidui_bin" "$@"
+    kidui_status=$?
+    kidui_result_kind="$(sed -n 1p "$uiresult" 2> /dev/null)"
+    case "$kidui_result_kind" in
+        PIN | MENU) ;;
+        *) prepare_kidui_display ;;
+    esac
+    return "$kidui_status"
+}
+
+disarm() {
+    rm -f "$flagfile" "$kidsmode_active_flag" "$checkoff_dst" \
+        /tmp/kidsmode_ra_lock_checked
+    rm -f /tmp/kidsmode_carousel_dimmed /tmp/kidsmode_media_dimmed \
+        /tmp/kidsmode_media_playing "$timesup_since_file" \
+        "$timesup_resume_file" "$timesup_resume_file.tmp" \
+        "$parent_menu_active_file"
+    stop_ticker
+    wait_for_game_environment
+    restore_ra_lock
+    restore_gambatte_remap_lock
+    restore_blf_lock
+    restore_profile_isolation
+    restore_onion_battery_warning
+    # Finish every favorites write before Onion's keymon is restarted. Its
+    # automatic FavFix watches mtime and would otherwise treat our cleanup as
+    # a new user edit on the first B/X press after leaving Kids Mode.
+    ensure_fav_shortcut
+    restore_keymap_override
+    restore_configured_brightness
+    rm -f "$game_environment_marker"
+    rm -f "$sysdir/cmd_to_run.sh" "$uiresult"
+    sync
+    log "Kids Mode disarmed."
+    infoPanel -t "Kids Mode" -m "Unlocked!\nReturning to Onion." --auto
+    # Reset the framebuffer (page/pan) so the relaunched MainUI is actually
+    # visible — without this the screen can stay on our last-flipped page.
+    bootScreen clear 2> /dev/null
+}
+
+# .kidmode deleted from a computer while Kids Mode was armed (the way out
+# the README gives): nothing was unlocked, so runtime.sh runs this at boot.
+# It puts back what an unlock with the PIN does: RetroArch's config, the
+# Gambatte remap, blue_light.sh, the parent's saves/states/thumbnails, the
+# keymap and Onion's battery warning, and removes the shutdown hook. Each
+# step only acts on what it finds in Saves/KidsMode.
+# $1, $2: what the log and the screen say (a missing app file: cmd_run).
+cmd_cleanup() {
+    [ -f "$flagfile" ] && return 0
+    log "${1:-Kids Mode flag gone (deleted from a computer): restoring Onion.}"
+    rm -f "$kidsmode_active_flag" "$checkoff_dst" \
+        /tmp/kidsmode_ra_lock_checked "$timesup_since_file" \
+        "$timesup_resume_file" "$timesup_resume_file.tmp"
+    restore_ra_lock
+    restore_gambatte_remap_lock
+    restore_blf_lock
+    restore_profile_isolation
+    restore_onion_battery_warning
+    restore_keymap_override
+    rm -f "$game_environment_marker"
+    sync
+    log "Kids Mode cleaned up."
+    infoPanel -t "Kids Mode" -m "${2:-Turned off from a computer.\nOnion's settings are back.}" --auto
+}
+
+# ------------------------------ main loop ----------------------------------
+
+load_state_cache() {
+    state_dump="$(jq -r '
+        (.active_floor // ""),
+        (.active_mode // ""),
+        (.last_video // ""),
+        (.active_folder // "")
+    ' "$statefile" 2> /dev/null)" || state_dump=""
+    {
+        IFS= read -r active_floor
+        IFS= read -r initial_mode
+        IFS= read -r last_video
+        IFS= read -r active_folder
+    } <<EOF
+$state_dump
+EOF
+}
+
+state_save() {
+    state_floor="$1" state_mode="$2" state_video="$3" state_folder="$4"
+    mkdir -p "$backupdir" "$positions" "$videosdir/Imgs"
+    jq -n --arg floor "$state_floor" --arg mode "$state_mode" \
+        --arg video "$state_video" --arg folder "$state_folder" \
+        '{version:2,active_floor:$floor,active_mode:$mode,last_video:$video,active_folder:$folder}' \
+        > "$statefile.tmp" && mv -f "$statefile.tmp" "$statefile"
+}
+
+video_key() {
+    if command -v sha256sum > /dev/null 2>&1; then
+        printf '%s' "$1" | sha256sum | awk '{print $1}'
+    else
+        printf '%s' "$1" | cksum | awk '{print $1}'
+    fi
+}
+
+# Remember one carousel selection per media folder. A separate file for each
+# level lets Films, Series, individual shows and deeper folders all reopen on
+# their own last selected item, even after browsing elsewhere or rebooting.
+folder_selection_file() {
+    folder_key="$(video_key "$1")" || return 1
+    printf '%s/%s.txt\n' "$folder_selections_dir" "$folder_key"
+}
+
+remember_folder_selection() {
+    browse_folder="$1"
+    selected_item="$2"
+    case "$selected_item" in
+        "$browse_folder"/*)
+            selected_parent="${selected_item%/*}"
+            [ "$selected_parent" = "$browse_folder" ] || return 0
+            [ -f "$selected_item" ] || [ -d "$selected_item" ] || return 0
+            ;;
+        *) return 0 ;;
+    esac
+    mkdir -p "$folder_selections_dir"
+    folder_state_file="$(folder_selection_file "$browse_folder")" || return 0
+    printf '%s\n' "$selected_item" > "$folder_state_file.tmp" &&
+        mv -f "$folder_state_file.tmp" "$folder_state_file"
+
+    # Keep one consolidated index for kidui. Reading this single file is much
+    # faster than opening every hashed selection file after each video exits.
+    tab_char="$(printf '\t')"
+    index_tmp="$folder_selections_index.tmp"
+    : > "$index_tmp"
+    if [ -f "$folder_selections_index" ]; then
+        while IFS="$tab_char" read -r indexed_folder indexed_selection; do
+            [ "$indexed_folder" = "$browse_folder" ] ||
+                printf '%s\t%s\n' "$indexed_folder" "$indexed_selection" >> "$index_tmp"
+        done < "$folder_selections_index"
+    fi
+    printf '%s\t%s\n' "$browse_folder" "$selected_item" >> "$index_tmp"
+    mv -f "$index_tmp" "$folder_selections_index"
+}
+
+last_folder_selection() {
+    browse_folder="$1"
+    folder_state_file="$(folder_selection_file "$browse_folder")" || return 0
+    [ -f "$folder_state_file" ] || return 0
+    selected_item="$(sed -n 1p "$folder_state_file")"
+    case "$selected_item" in
+        "$browse_folder"/*)
+            selected_parent="${selected_item%/*}"
+            if [ "$selected_parent" = "$browse_folder" ] &&
+                { [ -f "$selected_item" ] || [ -d "$selected_item" ]; }; then
+                printf '%s\n' "$selected_item"
+            fi
+            ;;
+    esac
+}
+
+ensure_audio_server() {
+    audio_fifo=/tmp/audio_fifo_server
+    if ! pgrep audioserver > /dev/null 2>&1; then
+        volume="$(/customer/app/jsonval vol 2> /dev/null)"
+        case "$volume" in '' | *[!0-9]*) volume=20 ;; esac
+        defvol="$(awk -v v="$volume" 'BEGIN { printf "%.0f\n", 48 * (log(1 + v) / log(10)) - 60 }')"
+        "$miyoodir/app/audioserver" "$defvol" > /dev/null 2>&1 &
+    fi
+
+    # A running process is not sufficient: audioserver creates its transport
+    # FIFO slightly later. Starting KidsPlay in that interval makes libpadsp
+    # reject /dev/dsp and leaves the media silent. Wait for the real readiness
+    # signal, with a short bounded delay so a broken server cannot hang Kids
+    # Mode indefinitely.
+    n=0
+    while { ! pgrep audioserver > /dev/null 2>&1 ||
+            [ ! -e "$audio_fifo" ]; } && [ "$n" -lt 50 ]; do
+        sleep 0.1
+        n=$((n + 1))
+    done
+    [ -e "$audio_fifo" ]
+}
+
+# Remember the last media that was actually launched in each folder. This is
+# deliberately separate from the browsing selection: moving over a cover must
+# not move the visual "last played" marker. The index belongs to the active
+# Onion profile through profile_state_dir.
+remember_last_media() {
+    media_folder="$1"
+    media_item="$2"
+    [ -n "$media_folder" ] || media_folder="$videosdir"
+    [ -n "$media_item" ] || return 0
+    case "$media_item" in
+        "$media_folder"/*)
+            media_parent="${media_item%/*}"
+            [ "$media_parent" = "$media_folder" ] || return 0
+            ;;
+        *) return 0 ;;
+    esac
+
+    mkdir -p "$profile_state_dir"
+    last_media_tmp="$last_media_index.tmp"
+    : > "$last_media_tmp" || return 0
+    tab_char="$(printf '\t')"
+    if [ -f "$last_media_index" ]; then
+        while IFS="$tab_char" read -r indexed_folder indexed_media; do
+            [ "$indexed_folder" = "$media_folder" ] ||
+                printf '%s\t%s\n' "$indexed_folder" "$indexed_media" >> "$last_media_tmp"
+        done < "$last_media_index"
+    fi
+    printf '%s\t%s\n' "$media_folder" "$media_item" >> "$last_media_tmp"
+    mv -f "$last_media_tmp" "$last_media_index"
+}
+
+watch_media_duration() {
+    duration_log="$1" duration_output="$2" watched_pid="$3"
+    tries=0
+    while [ "$tries" -lt 100 ] && [ -d "/proc/$watched_pid" ]; do
+        media_seconds="$(awk '
+            match($0, /Duration: [0-9]+:[0-9]+:[0-9]+/) {
+                stamp = substr($0, RSTART + 10, RLENGTH - 10)
+                split(stamp, value, ":")
+                print (value[1] + 0) * 3600 + (value[2] + 0) * 60 +
+                      (value[3] + 0)
+                exit
+            }
+        ' "$duration_log" 2> /dev/null)"
+        if [ -n "$media_seconds" ]; then
+            printf '%s\n' "$media_seconds" > "$duration_output"
+            return 0
+        fi
+        tries=$((tries + 1))
+        sleep 0.1
+    done
+    return 1
+}
+
+play_video() {
+    video="$1" fresh="$2" artwork_file="$3"
+    [ -f "$video" ] || return 1
+    # The carousel has just exited and its Onion theme cleanup removes the
+    # shared battery-display flag. Restore it before KidsPlay starts; otherwise
+    # batmon draws Onion's flashing warning behind KidsPlay's fixed gauge.
+    suppress_onion_battery_warning
+    mkdir -p "$positions"
+    video_dir="${video%/*}"
+    video_name="${video##*/}"
+    video_base="${video_name%.*}"
+    screenshot_dir="$video_dir/Imgs"
+    screenshot_file="$screenshot_dir/$video_base.bmp"
+    mkdir -p "$screenshot_dir"
+    media_kind=video
+    case "$video_name" in
+        *.[mM][pP]3 | *.[mM]4[aA] | *.[aA][aA][cC] | *.[fF][lL][aA][cC] | \
+        *.[oO][gG][gG] | *.[oO][pP][uU][sS] | *.[wW][aA][vV] | \
+        *.[wW][mM][aA]) media_kind=audio ;;
+    esac
+    [ "$media_kind" = audio ] && screenshot_file=""
+    key="$(video_key "$video")"
+    posfile="$positions/$key.pos"
+    runtime_pos="/tmp/kidsmode_position.$$"
+    duration_file="/tmp/kidsmode_duration.$$"
+    # Keep KidsPlay's last startup output on the SD card.  This is tiny in
+    # normal use and makes a failed media launch diagnosable after returning
+    # to the carousel.
+    duration_log="/mnt/SDCARD/.tmp_update/logs/kidsplay.log"
+    brightness_state="/tmp/kidsmode_brightness.$$"
+    rm -f "$duration_file" "$duration_log" "$brightness_state"
+    brightness_restore=""
+    if [ -r "$brightness_pwm" ]; then
+        brightness_restore="$(cat "$brightness_pwm" 2> /dev/null)"
+        case "$brightness_restore" in
+            '' | *[!0-9]*) brightness_restore="" ;;
+        esac
+    fi
+    [ -n "$brightness_restore" ] &&
+        printf '%s\n' "$brightness_restore" > "$brightness_state"
+    start=0
+    if [ "$fresh" != yes ] && [ -f "$posfile" ]; then
+        start="$(cat "$posfile" 2> /dev/null)"
+        case "$start" in '' | *[!0-9]*) start=0 ;; esac
+    fi
+    [ "$fresh" = yes ] && printf '0\n' > "$posfile"
+    printf '%s\n' "$start" > "$runtime_pos"
+    state_save videos running "$video" "$active_folder"
+    rm -f "$menu_exit_marker"
+    ensure_audio_server
+    # POWER uses the same genuine Onion suspend path for media and carousel.
+    # The Kids Mode keymon has enough PID slots to stop and resume KidsPlay
+    # reliably, so playback and its controls cannot continue during sleep.
+    rm -f /tmp/stay_awake
+    touch /tmp/kidsmode_media_playing
+    # Match the media OSD to the battery font selected by the active Onion
+    # theme. Fall back to Onion's standard Exo 2 face when a theme omits it.
+    osd_font="/customer/app/Exo-2-Bold-Italic.ttf"
+    osd_font_size=24
+    timer_font="$osd_font"
+    timer_font_size="$osd_font_size"
+    battery_fixed=false
+    battery_text_align=left
+    battery_offset_x=0
+    battery_offset_y=0
+    theme_path="$(jq -r '.theme // empty' /mnt/SDCARD/system.json \
+        2> /dev/null)"
+    if [ ! -d "$theme_path" ] &&
+       [ -r /mnt/SDCARD/Saves/CurrentProfile/theme/currentTheme ]; then
+        IFS= read -r theme_path < \
+            /mnt/SDCARD/Saves/CurrentProfile/theme/currentTheme
+    fi
+    [ "$theme_path" = "./" ] && theme_path="/mnt/SDCARD/miyoo/app/"
+    [ -d "$theme_path" ] || theme_path="/mnt/SDCARD/miyoo/app/"
+    theme_config="${theme_path%/}/config.json"
+    if [ -r "$theme_config" ]; then
+        profile_theme_config=/mnt/SDCARD/Saves/CurrentProfile/theme/config.json
+        if [ -r "$profile_theme_config" ]; then
+            effective_theme="$(jq -s '.[0] * .[1]' "$theme_config" \
+                "$profile_theme_config" 2> /dev/null)"
+        else
+            effective_theme="$(jq -c '.' "$theme_config" 2> /dev/null)"
+        fi
+        theme_font="$(printf '%s' "$effective_theme" | jq -r \
+            '.batteryPercentage.font // .hint.font // empty' 2> /dev/null)"
+        theme_font_size="$(printf '%s' "$effective_theme" | jq -r \
+            '.batteryPercentage.size // 24' 2> /dev/null)"
+        theme_timer_font="$(printf '%s' "$effective_theme" | jq -r \
+            '.hint.font // .batteryPercentage.font // empty' 2> /dev/null)"
+        theme_timer_font_size="$(printf '%s' "$effective_theme" | jq -r \
+            '.hint.size // .batteryPercentage.size // 24' 2> /dev/null)"
+        battery_fixed="$(printf '%s' "$effective_theme" | jq -r \
+            '.batteryPercentage.fixed // false' 2> /dev/null)"
+        battery_text_align="$(printf '%s' "$effective_theme" | jq -r \
+            '.batteryPercentage.textAlign // "left"' 2> /dev/null)"
+        battery_offset_x="$(printf '%s' "$effective_theme" | jq -r \
+            '.batteryPercentage.offsetX // 0' 2> /dev/null)"
+        battery_offset_y="$(printf '%s' "$effective_theme" | jq -r \
+            '.batteryPercentage.offsetY // 0' 2> /dev/null)"
+        if [ -n "$theme_font" ]; then
+            case "$theme_font" in
+                /*) candidate_font="$theme_font" ;;
+                *) candidate_font="${theme_path%/}/$theme_font" ;;
+            esac
+            [ -r "$candidate_font" ] && osd_font="$candidate_font"
+        fi
+        case "$theme_font_size" in
+            '' | *[!0-9]*) ;;
+            *) osd_font_size="$theme_font_size" ;;
+        esac
+        if [ -n "$theme_timer_font" ]; then
+            case "$theme_timer_font" in
+                /*) candidate_timer_font="$theme_timer_font" ;;
+                *) candidate_timer_font="${theme_path%/}/$theme_timer_font" ;;
+            esac
+            [ -r "$candidate_timer_font" ] && timer_font="$candidate_timer_font"
+        fi
+        case "$theme_timer_font_size" in
+            '' | *[!0-9]*) ;;
+            *) timer_font_size="$theme_timer_font_size" ;;
+        esac
+    fi
+    if ! cd "$sysdir"; then
+        rm -f /tmp/kidsmode_media_playing
+        return 1
+    fi
+    # A true restart must not ask KidsPlay to seek, even to zero. Apart from
+    # avoiding unnecessary decoder preroll, this keeps 0:00 distinct from a
+    # normal resume position.
+    seek_args=""
+    [ "$start" -gt 0 ] && seek_args="-ss $start"
+
+    # Keep Onion's audio server alive and route KidsPlay through libpadsp,
+    # exactly like Onion's FFplay launcher. The codec therefore stays open
+    # across carousel -> media -> carousel transitions, avoiding speaker pops.
+    ensure_audio_server
+
+    player_library_path="$kidsplay_lib:/config/lib:/customer/lib:$sysdir/lib"
+    player_preload="$kidsplay_vsync:$miyoodir/lib/libpadsp.so"
+    # This variable tells libpadsp to bypass /dev/dsp interception. It may be
+    # inherited from another Onion launcher and must never leak into KidsPlay.
+    unset PADSP_NO_DSP
+    if [ "$media_kind" = audio ]; then
+        # An MP3 can contain an attached cover exposed as a video stream.
+        # -vn guarantees that KidsPlay's stable artwork screen remains the
+        # only rendered image.
+        VC_START_SECONDS="$start" VC_POSITION_FILE="$runtime_pos" \
+            VC_CHECKPOINT_FILE="$posfile" VC_SCREENSHOT_FILE="" \
+            VC_MEDIA_KIND=audio VC_ARTWORK_FILE="$artwork_file" \
+            VC_MEDIA_TITLE="$video_base" \
+            VC_DURATION_FILE="$duration_file" \
+            VC_BRIGHTNESS_FILE="$brightness_pwm" \
+            VC_BRIGHTNESS_RESTORE="$brightness_restore" \
+            VC_BRIGHTNESS_STATE_FILE="$brightness_state" \
+            VC_OSD_FONT="$osd_font" VC_OSD_FONT_SIZE="$osd_font_size" \
+            VC_TIMER_FONT="$timer_font" VC_TIMER_FONT_SIZE="$timer_font_size" \
+            VC_BATTERY_FIXED="$battery_fixed" \
+            VC_BATTERY_TEXT_ALIGN="$battery_text_align" \
+            VC_BATTERY_OFFSET_X="$battery_offset_x" \
+            VC_BATTERY_OFFSET_Y="$battery_offset_y" \
+            VC_THEME_PATH="$theme_path" \
+            LD_LIBRARY_PATH="$player_library_path" \
+            LD_PRELOAD="$player_preload" SDL_VIDEODRIVER=mini \
+            SDL_AUDIODRIVER=dsp \
+            "$kidsplay" -hide_banner -loglevel info -nostats -framedrop \
+                -vn -autoexit $seek_args -i "$video" \
+                2> "$duration_log" &
+    else
+        VC_START_SECONDS="$start" VC_POSITION_FILE="$runtime_pos" \
+            VC_CHECKPOINT_FILE="$posfile" \
+            VC_SCREENSHOT_FILE="$screenshot_file" VC_MEDIA_KIND=video \
+            VC_MEDIA_TITLE="$video_base" \
+            VC_DURATION_FILE="$duration_file" \
+            VC_BRIGHTNESS_FILE="$brightness_pwm" \
+            VC_BRIGHTNESS_RESTORE="$brightness_restore" \
+            VC_BRIGHTNESS_STATE_FILE="$brightness_state" \
+            VC_OSD_FONT="$osd_font" VC_OSD_FONT_SIZE="$osd_font_size" \
+            VC_TIMER_FONT="$timer_font" VC_TIMER_FONT_SIZE="$timer_font_size" \
+            VC_BATTERY_FIXED="$battery_fixed" \
+            VC_BATTERY_TEXT_ALIGN="$battery_text_align" \
+            VC_BATTERY_OFFSET_X="$battery_offset_x" \
+            VC_BATTERY_OFFSET_Y="$battery_offset_y" \
+            VC_THEME_PATH="$theme_path" \
+            LD_LIBRARY_PATH="$player_library_path" \
+            LD_PRELOAD="$player_preload" SDL_VIDEODRIVER=mini \
+            SDL_AUDIODRIVER=dsp \
+            "$kidsplay" -hide_banner -loglevel info -nostats -framedrop \
+                -autoexit \
+                -vf "scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2" \
+                $seek_args -i "$video" \
+            2> "$duration_log" &
+    fi
+    pid=$!
+    log "Starting KidsPlay ($media_kind): $video"
+    printf '%s\n' "$pid" > "$player_pid"
+    watch_media_duration "$duration_log" "$duration_file" "$pid" &
+    duration_watcher=$!
+    wait "$pid"
+    player_status=$?
+    if [ "$player_status" -ne 0 ]; then
+        log "KidsPlay stopped with status $player_status; see $duration_log"
+    fi
+    if [ "$player_status" -eq 139 ]; then
+        # Keep the evidence from the most recent segmentation fault. The
+        # regular KidsPlay logs are replaced at the next launch, whereas this
+        # single crash report remains available until another crash replaces
+        # it (so it cannot slowly fill the SD card).
+        crash_log="/mnt/SDCARD/.tmp_update/logs/kidsplay-crash.log"
+        crash_tmp="/tmp/kidsplay-crash.$$"
+        {
+            printf 'KidsPlay crash\n'
+            printf 'status=%s\n' "$player_status"
+            printf 'media_kind=%s\n' "$media_kind"
+            printf 'media=%s\n' "$video"
+            printf '\n--- kidsplay.log ---\n'
+            [ -r "$duration_log" ] && cat "$duration_log"
+        } > "$crash_tmp"
+        mv -f "$crash_tmp" "$crash_log"
+        log "Saved KidsPlay crash report to $crash_log"
+    fi
+    "$kidsplay_fb_reset" 2> /dev/null
+    kill "$duration_watcher" 2> /dev/null
+    wait "$duration_watcher" 2> /dev/null
+    cd "$appdir" 2> /dev/null
+    # The next kidui instance primes both framebuffer pages with its first
+    # complete frame. Do not call bootScreen or flip KidsPlay's dying surface
+    # here: either can expose a foreign or inverted page during transition.
+    # Restore the latest brightness selected during playback, not the value
+    # captured when KidsPlay started. This also recovers cleanly if playback
+    # ended while Kids Mode's own dim/off state was active.
+    if [ ! -f /tmp/.offOrder ] && [ ! -f /tmp/shutting_down ] &&
+        [ -r "$brightness_state" ] && [ -w "$brightness_pwm" ]; then
+        brightness_restore="$(cat "$brightness_state" 2> /dev/null)"
+        case "$brightness_restore" in
+            '' | *[!0-9]*) ;;
+            *) printf '%s\n' "$brightness_restore" > "$brightness_pwm" ;;
+        esac
+    fi
+    # Keep KidsPlay's two-second safety checkpoint after MENU and during
+    # shutdown. The decoder may continue briefly after POWER; its later
+    # runtime value must not replace the last point the child actually saw.
+    # Other exits still retain their exact runtime value.
+    if [ ! -f /tmp/.offOrder ] && [ ! -f "$menu_exit_marker" ] &&
+        [ -f "$runtime_pos" ]; then
+        cp -f "$runtime_pos" "$posfile"
+    fi
+    rm -f "$runtime_pos" "$duration_file" \
+        "$brightness_state" "$player_pid" \
+        /tmp/stay_awake /tmp/kidsmode_media_playing
+    check_off_order "End_Save"
+    rem="$(timer_remaining)"
+    if [ "$player_status" -eq 0 ] && [ ! -f "$menu_exit_marker" ] && \
+        [ "$rem" != 0 ]; then
+        printf '0\n' > "$posfile"
+    fi
+    rm -f "$menu_exit_marker"
+    state_save videos carousel "$video" "$active_folder"
+}
+
+disable_timer_and_resume_timesup() {
+    resume_kind=""
+    [ -f "$timesup_resume_file" ] &&
+        resume_kind="$(sed -n 1p "$timesup_resume_file" 2> /dev/null)"
+    rm -f "$timesup_resume_file" "$timesup_resume_file.tmp" \
+        "$timesup_since_file"
+
+    # Stop the zero-budget ticker before changing both persistent values, then
+    # restart it in timer-off mode so a later parent-menu change still works.
+    stop_ticker
+    set_timer_minutes 0
+    state_write 0 0
+    update_remaining_now
+    start_ticker
+    log "Time's-up PIN accepted; timer disabled; returning to $resume_kind."
+
+    case "$resume_kind" in
+        parent)
+            # Reopen the authenticated parent menu once, without asking for
+            # a second PIN. The main loop consumes this in its next pass.
+            reopen_parent_menu_requested=1
+            ;;
+        *)
+            # Media and games both return to their saved carousel selection.
+            # Old "video"/"game" markers from an earlier build deliberately
+            # fall through here too, so updating cannot relaunch content.
+            ;;
+    esac
+}
+
+cmd_run() {
+    if [ ! -f "$kidui_bin" ] || [ ! -f "$kidsplay" ] ||
+       [ ! -f "$kidsplay_vsync" ] || [ ! -f "$kidsplay_fb_reset" ]; then
+        # Not only the flag: what Kids Mode locked (RetroArch, the keymap,
+        # the parent's saves put away) goes back now. Left until the next
+        # boot, MainUI's games were played on the kid's saves meanwhile.
+        rm -f "$flagfile"
+        cmd_cleanup "Kids Mode runtime incomplete; disarming and restoring Onion." \
+            "Kids Mode is incomplete and was turned off.\nReinstall Kids Mode."
+        return 1
+    fi
+    chmod a+x "$kidui_bin" 2> /dev/null
+    chmod a+x "$kidsplay" "$kidsplay_fb_reset" 2> /dev/null
+    touch "$kidsmode_active_flag"
+    install_hook
+    rm -f /tmp/kidsmode_carousel_dimmed /tmp/kidsmode_media_dimmed \
+        /tmp/kidsmode_media_playing "$parent_menu_active_file"
+    # Suppress Onion's flashing low-battery image before the Kids Mode keymon
+    # and first carousel are started. Kids Mode supplies its own fixed gauge.
+    suppress_onion_battery_warning
+    # Do this before starting the Kids Mode keymon too, for the same reason:
+    # its mtime watcher must see the repaired favorites as its baseline.
+    repair_onion_favorites_if_needed
+    # Reapply the complete keymap lock on every launch. This is intentionally
+    # not gated by game_environment_ready: an app update can add a new lock
+    # while Kids Mode is already armed and that persistent marker still exists.
+    apply_keymap_override
+
+    startup_started_at="$(date +%s)"
+    # This lock was added after some installations were already armed. Their
+    # persistent game_environment_ready marker legitimately skips the older
+    # preparation work, but must never skip a newly introduced safety lock.
+    # The operation is idempotent and only writes on the first run, so checking
+    # it here also covers app updates performed while Kids Mode stays active.
+    apply_gambatte_remap_lock
+    # A previous armed session or app update can leave preparation marked
+    # complete. Reapply the current profile's permission in that case too,
+    # once per boot (this script is started again after every game).
+    if [ -f "$game_environment_marker" ] && [ ! -f /tmp/kidsmode_ra_lock_checked ]; then
+        apply_ra_lock && touch /tmp/kidsmode_ra_lock_checked
+    fi
+    prepare_game_environment_async
+
+    ui_fails=0
+    pin_fails=0
+    pin_notice=""
+    update_remaining_now
+
+    # Existing installs from before the PIN snapshot existed: take one now,
+    # so the next app update can't lose the PIN either
+    if has_pin && [ ! -f "$pin_backup" ]; then
+        backup_pin
+    fi
+
+    start_ticker
+    startup_ready_at="$(date +%s)"
+    log "Startup: blocking work completed in $((startup_ready_at - startup_started_at))s."
+
+    load_state_cache
+    # Back from a game: the launcher again, on that game.
+    if finish_game_handoff; then
+        active_floor=games
+        initial_mode=carousel
+        state_save games carousel "$last_video" "$active_folder"
+    fi
+    [ "$active_floor" = videos ] || active_floor=games
+    case "$active_folder" in "$videosdir"/*) ;; *) active_folder="" ;; esac
+    case "$last_video" in "$videosdir"/*) ;; *) last_video="" ;; esac
+    [ -d "$active_folder" ] || active_folder=""
+
+    # Resume only what was genuinely running when power was cut. Returning
+    # to the carousel before shutdown records carousel and does not relaunch.
+    if [ "$initial_mode" = running ] && [ -f "$last_video" ] &&
+        [ "$(timer_remaining)" != 0 ]; then
+        active_floor=videos
+        resume_artwork="$(sed -n 1p "$last_artwork_file" 2> /dev/null)"
+        play_video "$last_video" no "$resume_artwork"
+    fi
+
+    # A game left in cmd_to_run.sh means the device powered off mid-game:
+    # relaunch it first so RetroArch auto-resume works like stock Onion.
+    if [ -f "$sysdir/cmd_to_run.sh" ] && is_game_cmd "$sysdir/cmd_to_run.sh"; then
+        if [ "$(timer_remaining)" = "0" ]; then
+            rm -f "$sysdir/cmd_to_run.sh"
+        else
+            log "resuming interrupted game"
+            active_floor=games
+            run_game_cmd
+            state_save games carousel "$last_video" "$active_folder"
+        fi
+    elif [ "$initial_mode" = running ] &&
+        [ "$active_floor" = games ] && [ -f "$last_game_file" ] &&
+        [ "$(timer_remaining)" != 0 ]; then
+        # Some shutdown paths let the emulator wrapper return and remove
+        # cmd_to_run.sh just before the hardware actually powers off. The
+        # running marker plus last_game.txt is the authoritative fallback.
+        lg_launch="$(sed -n 1p "$last_game_file")"
+        lg_rompath="$(sed -n 2p "$last_game_file")"
+        if [ -f "$lg_launch" ] && [ -f "$lg_rompath" ]; then
+            log "resuming interrupted game from saved state: $lg_rompath"
+            build_game_cmd "$lg_launch" "$lg_rompath"
+            run_game_cmd
+            state_save games carousel "$last_video" "$active_folder"
+        else
+            state_save games carousel "$last_video" "$active_folder"
+        fi
+    fi
+
+    while [ -f "$flagfile" ]; do
+        check_off_order "End"
+
+        if [ "$reopen_parent_menu_requested" = 1 ]; then
+            reopen_parent_menu_requested=0
+            if parent_menu; then
+                disarm
+                return 0
+            fi
+            continue
+        fi
+
+        # Defensive cleanup: nothing may divert the loop into GameSwitcher
+        rm -f "$sysdir/.runGameSwitcher" 2> /dev/null
+
+        # No PIN on file (armed, but the app folder was replaced and no
+        # snapshot existed): the unlock gesture sets a NEW pin instead of
+        # rejecting everything — never lock the parent out.
+        no_pin_recovery=0
+        if ! has_pin; then
+            no_pin_recovery=1
+        fi
+
+        rm -f "$uiresult" "$folder_history_file"
+        game_select_path=""
+        video_select_path=""
+        [ -f "$game_selection_file" ] &&
+            game_select_path="$(sed -n 1p "$game_selection_file")"
+        [ -n "$game_select_path" ] || [ ! -f "$last_game_file" ] ||
+            game_select_path="$(sed -n 2p "$last_game_file")"
+        [ -f "$video_selection_file" ] &&
+            video_select_path="$(sed -n 1p "$video_selection_file")"
+        [ -n "$video_select_path" ] || video_select_path="$last_video"
+        if [ "$cfg_lock_current_floor" = true ] && [ -n "$cfg_locked_floor" ]; then
+            active_floor="$cfg_locked_floor"
+        fi
+        [ "$active_floor" = videos ] && ui_floor_arg=VIDEOS || ui_floor_arg=GAMES
+        set -- --floor "$ui_floor_arg"
+        [ -n "$game_select_path" ] &&
+            set -- "$@" --game-select "$game_select_path"
+        [ -n "$video_select_path" ] &&
+            set -- "$@" --video-select "$video_select_path"
+        if [ -f "$last_game_file" ]; then
+            last_played_game="$(sed -n 2p "$last_game_file")"
+            [ -n "$last_played_game" ] &&
+                set -- "$@" --last-game "$last_played_game"
+        fi
+        [ -n "$active_folder" ] && set -- "$@" --folder "$active_folder"
+        [ "$cfg_lock_current_floor" = true ] && set -- "$@" --floor-locked
+        refresh_category_values
+        set -- "$@" \
+            --show-stories "$show_stories_value" \
+            --show-movies "$show_movies_value" \
+            --show-series "$show_series_value" \
+            --show-music "$show_music_value" \
+            --show-cartoons "$show_cartoons_value"
+        if [ "$no_pin_recovery" = "1" ] && [ -n "$pin_notice" ]; then
+            run_kidui "$@" -t "Set a new PIN" --start-pin --notice "$pin_notice" > "$uilog" 2>&1
+        elif [ "$no_pin_recovery" = "1" ]; then
+            run_kidui "$@" -t "Set a new PIN" > "$uilog" 2>&1
+        elif [ -n "$pin_notice" ]; then
+            # Wrong PIN last time: reopen straight on the PIN screen so the
+            # parent can try again in place
+            run_kidui "$@" --start-pin --notice "$pin_notice" > "$uilog" 2>&1
+        else
+            run_kidui "$@" > "$uilog" 2>&1
+        fi
+        ui_rc=$?
+        pin_notice=""
+
+        # Folder navigation now stays inside kidui instead of relaunching it.
+        # Persist every selection touched during that session once kidui
+        # eventually returns to the loop.
+        if [ -f "$folder_history_file" ]; then
+            tab_char="$(printf '\t')"
+            while IFS="$tab_char" read -r history_folder history_selection; do
+                [ -n "$history_folder" ] && [ -n "$history_selection" ] &&
+                    remember_folder_selection "$history_folder" "$history_selection"
+            done < "$folder_history_file"
+            rm -f "$folder_history_file"
+        fi
+
+        ui_floor="$(cat /tmp/kidsmode_floor 2> /dev/null)"
+        case "$ui_floor" in games | videos) active_floor="$ui_floor" ;; esac
+        ui_folder="$(sed -n 1p /tmp/kidsmode_folder 2> /dev/null)"
+        case "$ui_folder" in
+            "$videosdir"/*) [ -d "$ui_folder" ] && active_folder="$ui_folder" ;;
+            '') active_folder="" ;;
+        esac
+        ui_selection="$(sed -n 1p /tmp/kidsmode_selection 2> /dev/null)"
+        ui_game_selection="$(sed -n 1p /tmp/kidsmode_game_selection 2> /dev/null)"
+        ui_video_selection="$(sed -n 1p /tmp/kidsmode_video_selection 2> /dev/null)"
+        [ -n "$ui_game_selection" ] &&
+            printf '%s\n' "$ui_game_selection" > "$game_selection_file"
+        [ -n "$ui_video_selection" ] &&
+            printf '%s\n' "$ui_video_selection" > "$video_selection_file"
+        # Compatibility fallback if an older binary is copied beside this
+        # script during an interrupted update.
+        if [ -z "$ui_game_selection" ] && [ -z "$ui_video_selection" ] &&
+            [ -n "$ui_selection" ]; then
+            if [ "$active_floor" = videos ]; then
+                ui_video_selection="$ui_selection"
+                printf '%s\n' "$ui_selection" > "$video_selection_file"
+            else
+                ui_game_selection="$ui_selection"
+                printf '%s\n' "$ui_selection" > "$game_selection_file"
+            fi
+        fi
+        [ -n "$active_folder" ] &&
+            remember_folder_selection "$active_folder" "$ui_video_selection"
+        state_save "$active_floor" carousel "$last_video" "$active_folder"
+
+        check_off_order "End"
+
+        case "$ui_rc" in
+            0) # game selected
+                sel_verb="$(sed -n 1p "$uiresult")"
+                case "$sel_verb" in
+                    FOLDER)
+                        active_floor=videos
+                        active_folder="$(sed -n 2p "$uiresult")"
+                        folder_selection="$(last_folder_selection "$active_folder")"
+                        if [ -n "$folder_selection" ]; then
+                            printf '%s\n' "$folder_selection" > "$video_selection_file"
+                        else
+                            printf '\n' > "$video_selection_file"
+                        fi
+                        last_video=""
+                        state_save videos carousel "" "$active_folder"
+                        continue
+                        ;;
+                    BACK)
+                        active_floor=videos
+                        leaving_folder="$(sed -n 2p "$uiresult")"
+                        case "$leaving_folder" in
+                            "$videosdir"/*) ;;
+                            *) continue ;;
+                        esac
+                        parent_folder="${leaving_folder%/*}"
+                        case "$parent_folder" in
+                            "$videosdir") active_folder="" ;;
+                            "$videosdir"/*)
+                                if [ -d "$parent_folder" ]; then
+                                    active_folder="$parent_folder"
+                                else
+                                    active_folder=""
+                                fi
+                                ;;
+                            *) active_folder="" ;;
+                        esac
+                        printf '%s\n' "$leaving_folder" > "$video_selection_file"
+                        state_save videos carousel "$last_video" "$active_folder"
+                        continue
+                        ;;
+                    PLAY | RESTART)
+                        active_floor=videos
+                        # Out of time (A pressed just before "Time's up!"
+                        # showed): not started, as for a game below.
+                        [ "$(timer_remaining)" = "0" ] && continue
+                        last_video="$(sed -n 2p "$uiresult")"
+                        last_artwork="$(sed -n 3p "$uiresult")"
+                        printf '%s\n' "$last_artwork" > "$last_artwork_file"
+                        printf '%s\n' "$last_video" > "$video_selection_file"
+                        remember_last_media \
+                            "${active_folder:-$videosdir}" "$last_video"
+                        play_video "$last_video" \
+                            "$([ "$sel_verb" = RESTART ] && echo yes || echo no)" \
+                            "$last_artwork"
+                        ui_fails=0
+                        continue
+                        ;;
+                    LAUNCH | LAUNCH_FRESH) active_floor=games ;;
+                    *) continue ;;
+                esac
+                sel_launch="$(sed -n 2p "$uiresult")"
+                sel_rompath="$(sed -n 3p "$uiresult")"
+                [ -f "$sel_rompath" ] || continue
+
+                sel_rem="$(timer_remaining)"
+                [ "$sel_rem" = "0" ] && continue # out of time; kidui shows it
+
+                if [ "$sel_verb" = "LAUNCH_FRESH" ]; then
+                    build_game_cmd "$sel_launch" "$sel_rompath" fresh
+                else
+                    build_game_cmd "$sel_launch" "$sel_rompath"
+                fi
+                # Remember the selection. Actual boot resume is driven only
+                # by the real running/carousel state, never by an option.
+                mkdir -p "$backupdir"
+                printf '%s\n%s\n' "$sel_launch" "$sel_rompath" > "$last_game_file"
+                state_save games running "$last_video" "$active_folder"
+                run_game_cmd
+                state_save games carousel "$last_video" "$active_folder"
+                ui_fails=0
+                ;;
+            7) # Five minutes after "Time's up!": power off even if buttons
+                # were used, unless the parent explicitly turned the timer
+                # OFF or added more time before the deadline.
+                log "Times-up deadline reached; powering off."
+                touch /tmp/.offOrder
+                check_off_order "End"
+                ;;
+            3) # PIN entered
+                [ "$(sed -n 1p "$uiresult")" = "PIN" ] || continue
+                entered_pin="$(sed -n 2p "$uiresult")"
+                rm -f "$uiresult"
+                is_4_digits "$entered_pin" || continue
+
+                if [ "$no_pin_recovery" = "1" ]; then
+                    # The PIN just entered becomes the new PIN (after a
+                    # confirm step)
+                    confirm_pin="$(run_pin_entry "Confirm new PIN")"
+                    if [ -n "$confirm_pin" ] && [ "$confirm_pin" = "$entered_pin" ]; then
+                        store_pin "$entered_pin"
+                        pin_fails=0
+                        if [ "$(timer_remaining)" = 0 ]; then
+                            disable_timer_and_resume_timesup
+                            continue
+                        fi
+                        if parent_menu; then
+                            disarm
+                            return 0
+                        fi
+                    elif [ -n "$confirm_pin" ]; then
+                        pin_notice="PINs did not match - try again"
+                    fi
+                elif verify_pin "$entered_pin"; then
+                    pin_fails=0
+                    if [ "$(timer_remaining)" = 0 ]; then
+                        disable_timer_and_resume_timesup
+                        continue
+                    fi
+                    if parent_menu; then
+                        disarm
+                        return 0
+                    fi
+                else
+                    pin_fails=$((pin_fails + 1))
+                    log "Wrong PIN attempt ($pin_fails)."
+                    sleep 1 # slow down guessing
+                    if [ "$pin_fails" -ge 3 ]; then
+                        pin_notice="Wrong PIN - to reset it, see the README"
+                    else
+                        pin_notice="Wrong PIN - try again"
+                    fi
+                fi
+                ;;
+            *) # UI crashed or won't start
+                ui_fails=$((ui_fails + 1))
+                log "kidui exited with unexpected code $ui_rc (fail $ui_fails/3)"
+                if [ "$ui_fails" -ge 3 ]; then
+                    # Fail open: a broken Kids Mode must never brick the
+                    # device. Parent can re-arm after fixing the SD card.
+                    infoPanel -t "Kids Mode" -m "Interface failed.\nReturning to normal Onion." --auto
+                    disarm
+                    return 1
+                fi
+                sleep 1
+                ;;
+        esac
+    done
+
+    # Flag removed externally (e.g. deleted from a computer) — clean up
+    rm -f "$kidsmode_active_flag" "$checkoff_dst"
+    stop_ticker
+    wait_for_game_environment
+    restore_ra_lock
+    restore_gambatte_remap_lock
+    restore_blf_lock
+    restore_profile_isolation
+    rm -f /tmp/kidsmode_carousel_dimmed /tmp/kidsmode_media_dimmed \
+        /tmp/kidsmode_media_playing "$parent_menu_active_file"
+    restore_onion_battery_warning
+    restore_keymap_override
+    rm -f "$game_environment_marker"
+    rm -f "$sysdir/cmd_to_run.sh"
+    bootScreen clear 2> /dev/null
+    return 0
+}
+
+cmd_arm() {
+    if [ ! -f "$kidui_bin" ] || [ ! -f "$kidsplay" ] ||
+       [ ! -f "$kidsplay_vsync" ] || [ ! -f "$kidsplay_fb_reset" ]; then
+        infoPanel -t "Kids Mode" -m "Kids Mode is incomplete.\nReinstall Kids Mode." --auto
+        return 1
+    fi
+
+    if ! install_hook; then
+        infoPanel -t "Kids Mode" -m "kidmode_checkoff.sh is missing.\nReinstall Kids Mode." --auto
+        return 1
+    fi
+
+    if ! ensure_pin; then
+        infoPanel -t "Kids Mode" -m "PIN setup canceled.\nThe mode was not armed." --auto
+        return 1
+    fi
+
+    if [ "$profile_selection_done" != 1 ]; then
+        if ! pick_start_session; then
+            infoPanel -t "Kids Mode" -m "Session setup canceled.\nThe mode was not armed." --auto
+            return 1
+        fi
+    fi
+    set_timer_minutes "$profile_timer_choice"
+    state_write 0 0
+    update_remaining_now
+    rm -f "$timesup_resume_file" "$timesup_resume_file.tmp" \
+        "$parent_menu_active_file"
+
+    # (MENU+B, the blue light filter, is off in keymon while armed.)
+    ensure_fav_shortcut
+    # Save the Onion profile of origin before the armed flag is created.
+    # The boot hook uses this value to restore the same isolated environment.
+    printf '%s\n' "$source_profile" > "$source_profile_file"
+    touch "$flagfile"
+    # Flush writes after launch without holding the timer screen on display.
+    (sleep 2; sync) &
+    log "Kids Mode armed (timer: $(get_timer_minutes) min)."
+    # runtime.sh starts the launcher once this app has ended.
+}
+
+acquire_loop_lock || exit 0
+trap release_loop_lock EXIT
+
+ensure_config
+load_config_cache || exit 1
+
+case "${1:-run}" in
+    arm)
+        cmd_arm
+        ;;
+    cleanup)
+        cmd_cleanup
+        ;;
+    run)
+        [ -f "$flagfile" ] || exit 0
+        # The standalone version's boot hook: RedOnion's runtime.sh starts
+        # Kids Mode itself, after it.
+        [ "$kids_host" = runtime ] || exit 0
+        hash_plain_pin
+        # App updated while armed? kidmode.json ships blank — bring the PIN
+        # back from the snapshot in Saves/KidsMode
+        has_pin || restore_pin_backup
+        cmd_run
+        ;;
+    *)
+        echo "Usage: kid_mode_loop.sh [arm|run|cleanup]" >&2
+        exit 1
+        ;;
+esac

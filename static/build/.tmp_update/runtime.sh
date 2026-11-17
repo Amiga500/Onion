@@ -158,15 +158,52 @@ main() {
     # Make sure MainUI doesn't show charging animation
     touch /tmp/no_charging_ui
 
-    # Check if blf needs enabling
-    if [ -f $sysdir/config/.blf ]; then
-        /mnt/SDCARD/.tmp_update/script/blue_light.sh check &
-    elif [ -f $sysdir/config/.blfOn ]; then
-        /mnt/SDCARD/.tmp_update/script/blue_light.sh enable &
+    # Mini Flip: put the display colours saved in Settings > Display back
+    # once at boot (robcodedev): the Flip starts with its default colours
+    # otherwise. Written to the display driver's proc node, as
+    # disp_csc_reset.sh does (it brought them back on a Flip, issue #285),
+    # with Open MainUI's formulas, not through MI_SYS (restore_lcd_csc):
+    # MI_SYS_Exit takes the display device down for everyone, and changes
+    # in Settings > Display were then applied only after a reboot. In
+    # robcodedev's boot order: the colours first, then the Blue Light
+    # Filter and DisplayCal, then the boot screen, then warmup. Warmup's
+    # first MI setup would put the defaults back over colours written while
+    # it runs; it now starts after them, so nothing waits for it.
+    if [ "$DEVICE_ID" -eq "$MODEL_MMF" ]; then
+        restore_display_colours
     fi
+
+    # Blue Light Filter, then DisplayCal (an app in the Package Manager),
+    # in the background before the boot screen, in robcodedev's order: the
+    # filter first (starting it can run disp_init), then DisplayCal's
+    # --apply puts this device's saved red, green, blue and warmth on,
+    # unless the filter is on (--apply skips while /tmp/.blfOn is there).
+    # --apply only uses shell built-ins and changes nothing without a
+    # profile for this device's serial (/tmp/deviceSN, written above).
+    (
+        if [ -f $sysdir/config/.blf ]; then
+            /mnt/SDCARD/.tmp_update/script/blue_light.sh check
+        elif [ -f $sysdir/config/.blfOn ]; then
+            /mnt/SDCARD/.tmp_update/script/blue_light.sh enable
+        fi
+
+        if [ -f /mnt/SDCARD/App/DisplayCal/launch.sh ]; then
+            displaycal_out=$(sh /mnt/SDCARD/App/DisplayCal/launch.sh --apply 2>&1) ||
+                log "DisplayCal --apply failed: $displaycal_out"
+        fi
+    ) &
 
     cd $sysdir
     bootScreen "Boot"
+
+    # The first process to call SDL_Init(SDL_INIT_VIDEO) after a cold boot
+    # pays a one-time MI setup cost of about 2 s. Pay it here in the
+    # background so MainUI does not. After the display colours, the Blue
+    # Light Filter and DisplayCal have started, and after the boot screen
+    # (robcodedev's order): the boot screen draws on the framebuffer
+    # directly, not through MI. robcodedev measured about 2 s gained on
+    # Onion with it here; started earlier, it gained about 1 s on RedOnion.
+    start_warmup
 
     # Set filebrowser branding to "Onion" and apply custom theme
     if [ -f "$sysdir/config/filebrowser/first.run" ]; then
@@ -225,27 +262,37 @@ main() {
     mkdir -p "$sysdir/checkoff"
     run_scripts_in "$sysdir/startup"
 
-    # Auto launch
-    if [ ! -f $sysdir/config/.noAutoStart ]; then
+    kids_mode_cleanup_if_disarmed
+
+    if kids_mode_armed; then
+        # Kids Mode decides what runs, a game left from before included
+        # (resumed only while play time is left): no startup app.
+        rm -f "$sysdir/.runGameSwitcher" /tmp/quick_switch /tmp/run_advmenu
+        launch_kids_mode
         state_change check_game
     else
-        rm -f "$sysdir/cmd_to_run.sh" 2> /dev/null
-    fi
+        # Auto launch
+        if [ ! -f $sysdir/config/.noAutoStart ]; then
+            state_change check_game
+        else
+            rm -f "$sysdir/cmd_to_run.sh" 2> /dev/null
+        fi
 
-    # Only launch startup app if not quick switching
-    if [ ! -f /tmp/quick_switch ]; then
-        startup_app=$(cat $sysdir/config/startup/app)
+        # Only launch startup app if not quick switching
+        if [ ! -f /tmp/quick_switch ]; then
+            startup_app=$(cat $sysdir/config/startup/app)
 
-        if [ $startup_app -eq 1 ]; then
-            log "\n\n:: STARTUP APP: GameSwitcher\n\n"
-            touch $sysdir/.runGameSwitcher
-        elif [ $startup_app -eq 2 ]; then
-            log "\n\n:: STARTUP APP: RetroArch\n\n"
-            echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so ./retroarch -v" > $sysdir/cmd_to_run.sh
-            touch /tmp/quick_switch
-        elif [ $startup_app -eq 3 ]; then
-            log "\n\n:: STARTUP APP: AdvanceMENU\n\n"
-            touch /tmp/run_advmenu
+            if [ $startup_app -eq 1 ]; then
+                log "\n\n:: STARTUP APP: GameSwitcher\n\n"
+                touch $sysdir/.runGameSwitcher
+            elif [ $startup_app -eq 2 ]; then
+                log "\n\n:: STARTUP APP: RetroArch\n\n"
+                echo "LD_PRELOAD=$miyoodir/lib/libpadsp.so ./retroarch -v" > $sysdir/cmd_to_run.sh
+                touch /tmp/quick_switch
+            elif [ $startup_app -eq 3 ]; then
+                log "\n\n:: STARTUP APP: AdvanceMENU\n\n"
+                touch /tmp/run_advmenu
+            fi
         fi
     fi
 
@@ -322,7 +369,9 @@ clear_logs() {
 
 check_main_ui() {
     if [ ! -f $sysdir/cmd_to_run.sh ]; then
-        if [ -f /tmp/run_advmenu ]; then
+        if kids_mode_armed; then
+            launch_kids_mode
+        elif [ -f /tmp/run_advmenu ]; then
             rm /tmp/run_advmenu
             $sysdir/bin/adv/run_advmenu.sh
         else
@@ -331,6 +380,65 @@ check_main_ui() {
 
         check_off_order "End"
     fi
+}
+
+# Kids Mode (App/KidsMode): /mnt/SDCARD/.kidmode is there while it is armed
+# (deleting it from a computer turns it off).
+kids_mode_loop=/mnt/SDCARD/App/KidsMode/kid_mode_loop.sh
+
+kids_mode_armed() {
+    [ -f /mnt/SDCARD/.kidmode ] && [ -f "$kids_mode_loop" ]
+}
+
+# .kidmode deleted from a computer while Kids Mode was on: what it locked
+# (RetroArch, keymap, the parent's saves...) is still there. Its script puts
+# it back. Nothing is run when nothing of it is left in Saves/KidsMode.
+kids_mode_cleanup_if_disarmed() {
+    [ -f /mnt/SDCARD/.kidmode ] && return 0
+    [ -f "$kids_mode_loop" ] || return 0
+    kids_left=
+    for kids_mark in game_environment_ready profile_isolation_active \
+        retroarch.cfg.backup keymap.json.backup keymap-was-absent \
+        blue_light.sh.backup gambatte-remaps.active \
+        profile-parked-saves profile-parked-states profile-parked-romScreens; do
+        if [ -e "/mnt/SDCARD/Saves/KidsMode/$kids_mark" ]; then
+            kids_left=$kids_mark
+            break
+        fi
+    done
+    [ -n "$kids_left" ] || return 0
+    log "Kids Mode: .kidmode gone but $kids_left left, cleaning up"
+    KIDSMODE_HOST=runtime sh "$kids_mode_loop" cleanup
+    cd $sysdir
+}
+
+# Kids Mode's launcher in place of MainUI. It returns with a game in
+# cmd_to_run.sh, launched by launch_game as from MainUI (services paused,
+# screen mode, saving screen...), and is started again after it; or with
+# Kids Mode turned off (then MainUI), or for a shutdown.
+launch_kids_mode() {
+    log "\n:: Launch Kids Mode"
+    cd $sysdir
+    start_audioserver
+
+    # Its launcher and video player flip between two 640x480 pages.
+    if [ -x "$sysdir/bin/fbmode" ] && [ -f /tmp/new_res_available ]; then
+        probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
+        fb_probe_fields "$probe"
+        if [ "$fb_f1" != "640x480" ] || [ "$fb_f3" != "640x960" ] ||
+           [ "$fb_f5" != "32" ] || [ "$fb_flast" != "2" ]; then
+            if ! $sysdir/bin/fbmode 640x480 --pages 2 --preclear --no-clear \
+                --linger 150 --timeout 500; then
+                log "fbmode failed before Kids Mode, falling back to fbset"
+                fbset -g 640 480 640 960 32
+            fi
+            notify_resolution_change
+        fi
+    fi
+
+    KIDSMODE_HOST=runtime sh "$kids_mode_loop" run
+    log "Kids Mode returned ($?)"
+    cd $sysdir
 }
 
 launch_main_ui() {
@@ -449,8 +557,9 @@ launch_game_menu() {
 
     cd $sysdir
     ./script/game_list_options.sh
+    glo_status=$?
 
-    if [ $? -ne 0 ]; then
+    if [ $glo_status -ne 0 ]; then
         log "\n\n< Back to MainUI\n\n"
         rm -f $sysdir/cmd_to_run.sh 2> /dev/null
         check_off_order "End"
@@ -656,8 +765,19 @@ launch_game() {
         if [ ! -f $sysdir/config/.keepServicesAlive ]; then
             # Tells the boot-time network bring-up (still running in the
             # background when a game resumes at boot) not to start them.
+            # Syncthing is asked to stop (it closes its database) and is
+            # killed if it is still there after 5 s: the wait below holds
+            # the game until it is gone. With a plain TERM and no wait, a
+            # busy Syncthing (a big first scan) was found still running
+            # with the device stuck on LOADING (128 MB of RAM).
             : > /tmp/services_paused_in_game
-            killall -9 dropbear bftpd filebrowser telnetd smbd 2> /dev/null &
+            {
+                killall -9 dropbear bftpd filebrowser telnetd smbd
+                # pgrep also matches syncthing.sh: then stop finds nothing.
+                if pgrep syncthing > /dev/null; then
+                    $sysdir/script/network/syncthing.sh stop
+                fi
+            } 2> /dev/null &
             services_kill_pid=$!
             # Services stopped: Wi-Fi power save back on for the game
             # (start_services_outside_game sets it again afterwards).
@@ -955,7 +1075,7 @@ launch_game_postprocess() {
         # Reset networking if needed
         rm -f /tmp/services_paused_in_game
         if [ ! -f "$sysdir/config/.keepServicesAlive" ]; then
-            for service in smbd http ssh ftp telnet; do
+            for service in smbd http ssh ftp telnet syncthing; do
                 if [ -f "$sysdir/config/.${service}State" ]; then
                     touch /tmp/network_changed
                     break
@@ -1149,6 +1269,11 @@ EOF_GIV
 }
 
 check_switcher() {
+    # Kids Mode: back to its launcher, never the GameSwitcher (the parent's
+    # recent games).
+    if kids_mode_armed; then
+        rm -f "$sysdir/.runGameSwitcher" /tmp/quick_switch
+    fi
     if [ -f $sysdir/.runGameSwitcher ]; then
         launch_switcher
     elif [ -f /tmp/quick_switch ]; then
@@ -1243,6 +1368,12 @@ check_off_order() {
     if [ -f /tmp/.offOrder ]; then
         touch /tmp/shutting_down
         save_console_position
+        # Copy system.json (volume, brightness, display colours...) to this
+        # device's settings on the SD card now, as a game launch does
+        # (robcodedev). bin/shutdown moves it there too, but only as its
+        # last step: settings changed since the last game could be missing
+        # from the card after a shutdown, and then on another device.
+        save_settings
         save_romwinidx
 
         #EmuDeck - CheckOff scripts
@@ -1336,6 +1467,37 @@ mainui_check_crash_loop() { # how long MainUI ran, in 1/100 s
     : > "$_mc_dir/DISABLED"
     sync
     infoPanel --title "MAINUI" --message "Open MainUI could not start.\nThe original MainUI is used instead.\n \nTo try Open MainUI again, delete\n.tmp_update/mainui-test/DISABLED\nfrom the SD card."
+}
+
+# Display colours from system.json (0..20, Miyoo's defaults 7/10/10/10 when
+# missing) to the display driver, as Open MainUI's Settings > Display sets
+# them: lumination + 35, hue * 5, saturation * 5, (contrast + 15) * 2.
+restore_display_colours() {
+    _node=${MI_DISP_NODE:-/proc/mi_modules/mi_disp/mi_disp0}
+    if [ ! -e "$_node" ]; then
+        log "display colours: $_node missing, not restored"
+        return 1
+    fi
+    _l=$(sysjson_get lumination)
+    _h=$(sysjson_get hue)
+    _s=$(sysjson_get saturation)
+    _c=$(sysjson_get contrast)
+    for _v in l h s c; do
+        eval "_x=\$_$_v"
+        case "$_x" in
+            '' | *[!0-9]*) _x=-1 ;;
+        esac
+        if [ "$_x" -lt 0 ] || [ "$_x" -gt 20 ]; then
+            [ "$_v" = l ] && _x=7 || _x=10
+        fi
+        eval "_$_v=\$_x"
+    done
+    # csc <device> <matrix 3 = BT709> <contrast> <hue> <luma> <saturation> <sharpness> <gain>
+    if ! echo "csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0" > "$_node"; then
+        log "display colours: could not be written"
+        return 1
+    fi
+    log "display colours restored: lumination $_l, hue $_h, saturation $_s, contrast $_c"
 }
 
 # Read one top-level value from system.json with shell builtins (jsonval is a
@@ -1648,13 +1810,6 @@ init_system() {
     get_screen_resolution
     perf_end boot_display
 
-    # The first process to call SDL_Init(SDL_INIT_VIDEO) after a cold boot
-    # pays a one-time MI setup cost of about 2 s. Pay it here in the
-    # background, as soon as the fb driver is up, so MainUI does not.
-    # Started this early because the rest of boot is shorter than that cost.
-    # Realistic gain is about 1 second.
-    start_warmup
-
     # Establish MainUI's layout before the boot screen is drawn. Doing it here
     # means the boot screen is painted in the mode MainUI will use, so nothing
     # has to clear it later and it stays up until MainUI paints over it. On
@@ -1674,6 +1829,7 @@ start_warmup() {
         LD_LIBRARY_PATH="$miyoodir/lib:/config/lib:/lib" $sysdir/bin/warmup > /dev/null 2>&1
         perf_end warmup "(exit $?)"
     ) &
+    warmup_pid=$!
 }
 
 device_uuid=$(read_uuid)

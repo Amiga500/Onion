@@ -9,7 +9,7 @@ TARGET=RedOnion
 # About in Open MainUI shows only the first characters of the version; the
 # script tests check the base leaves room for the whole date there. Computed
 # once and passed to sub-makes, so a build running past midnight keeps one date.
-VERSION_BASE=4.5.1
+VERSION_BASE=4.6.0-b1
 VERSION_DATE ?= $(shell date -u +%Y%m%d)
 export VERSION_DATE
 VERSION=$(VERSION_BASE)-$(VERSION_DATE)
@@ -183,6 +183,7 @@ CORE_MODULES := chargingState \
 	pressMenu2Kill \
 	pngScale \
 	pngresize \
+	pdflight \
 	warmup \
 	libgamename \
 	gameNameList \
@@ -219,11 +220,16 @@ core: core-modules version-files
 # Overrider miyoo libraries
 	@cp $(BIN_DIR)/libgamename.so $(BUILD_DIR)/miyoo/lib/
 
+# Button Lab v0.1.1 is robcodedev's binary, in its package
+# (static/packages/App/Button Lab): src/buttonlab is v0.1, built again from
+# there once v0.1.1's source is in.
 apps: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)
 	@cd $(SRC_DIR)/batteryMonitorUI && BUILD_DIR="$(PACKAGES_APP_DEST)/Battery Monitor/App/BatteryMonitorUI" make
 	@find $(SRC_DIR)/batteryMonitorUI -depth -type d -name res -exec cp -r {}/. "$(PACKAGES_APP_DEST)/Battery Monitor/App/BatteryMonitorUI/res/" \;
 	@cd $(SRC_DIR)/playActivityUI && BUILD_DIR="$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity" make
+	@cd $(SRC_DIR)/displaycal && BUILD_DIR="$(PACKAGES_APP_DEST)/DisplayCal/App/DisplayCal" make
+	@cd $(SRC_DIR)/kidsMode && BUILD_DIR="$(PACKAGES_APP_DEST)/Kids Mode/App/KidsMode/bin" make
 	@find $(SRC_DIR)/playActivityUI -depth -type d -name res -exec cp -r {}/. "$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity/res/" \;
 	@find $(SRC_DIR)/packageManager -depth -type d -name res -exec cp -r {}/. $(BUILD_DIR)/App/PackageManager/res/ \;
 	@cd $(SRC_DIR)/clock && BUILD_DIR="$(BIN_DIR)" make

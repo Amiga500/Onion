@@ -49,8 +49,10 @@ static void setup(bool edge_bar)
     osd_hideBar(); /* a thread left by a test that failed */
     if (system("rm -rf " TEST_DIR " && mkdir -p " TEST_DIR "/config") != 0)
         fprintf(stderr, "setup failed\n");
-    if (edge_bar) {
-        FILE *f = fopen(CONFIG_PATH OSD_EDGE_BAR_FLAG, "w");
+    // Since the 4.5.1-b1 port the edge bar is the default and the panel is
+    // the choice (.osdPanel): the flag is made for the panel.
+    if (!edge_bar) {
+        FILE *f = fopen(CONFIG_PATH OSD_PANEL_FLAG, "w");
         if (f != NULL)
             fclose(f);
     }

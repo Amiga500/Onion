@@ -20,6 +20,10 @@ cache/
 src/batmon/batmon
 src/bootScreen/bootScreen
 src/chargingState/chargingState
+src/displaycal/displaycal-gui
+src/kidsMode/kidui
+src/buttonlab/buttonlab
+src/restore_lcd_csc/restore_lcd_csc
 src/gameSwitcher/gameSwitcher
 src/infoPanel/infoPanel
 src/installUI/installUI
