@@ -448,6 +448,46 @@ static bool _settings_write_mainui(void)
     return file_atomic_commit(fp, tmp_path, final_path);
 }
 
+// True when system.json already holds every value _settings_write_mainui()
+// would write. Open MainUI changes the display colours (and other values) in
+// keymon's shared memory, then saves system.json itself: keymon saw the shared
+// memory change and wrote the same values again, holding the lock while the
+// card synced. Open MainUI takes that lock without waiting, so a Display
+// setting changed meanwhile failed ("Could not save system.json"), now and
+// then, when adjusting quickly (tester report, 4.5.1 beta 1).
+static bool _settings_disk_matches(void)
+{
+    cJSON *disk = json_load(MAIN_UI_SETTINGS);
+    if (disk == NULL)
+        return false;
+    char s[JSON_STRING_LEN];
+    int n;
+    bool same = true;
+#define _SAME_INT(key, value) \
+    same = same && json_getInt(disk, key, &n) && n == (value)
+#define _SAME_STR(key, value) \
+    same = same && json_getString(disk, key, s) && strcmp(s, (value)) == 0
+    _SAME_INT("vol", settings.volume);
+    _SAME_STR("keymap", settings.keymap);
+    _SAME_INT("mute", settings.mute);
+    _SAME_INT("bgmvol", settings.bgm_volume);
+    _SAME_INT("brightness", settings.brightness);
+    _SAME_STR("language", settings.language);
+    _SAME_INT("hibernate", settings.sleep_timer);
+    _SAME_INT("lumination", settings.lumination);
+    _SAME_INT("hue", settings.hue);
+    _SAME_INT("saturation", settings.saturation);
+    _SAME_INT("contrast", settings.contrast);
+    _SAME_STR("theme", settings.theme);
+    _SAME_INT("fontsize", settings.fontsize);
+    _SAME_INT("audiofix", settings.audiofix);
+    _SAME_INT("wifi", settings.wifi_on);
+#undef _SAME_INT
+#undef _SAME_STR
+    cJSON_Delete(disk);
+    return same;
+}
+
 void _settings_save_mainui_force(void)
 {
     // Open MainUI and other Onion programs save system.json too: take turns
@@ -456,7 +496,12 @@ void _settings_save_mainui_force(void)
     if (lock < 0)
         print_debug("system.json lock busy, saving anyway");
     _settings_merge_from_disk();
-    bool saved = false;
+    // Nothing to write (Open MainUI saved these values already): release the
+    // lock at once instead of rewriting and syncing the same file.
+    bool saved = exists(MAIN_UI_SETTINGS) && _settings_disk_matches();
+    if (saved) {
+        print_debug("system.json already up to date");
+    }
     for (int attempt = 0; !saved && attempt < FILE_ATOMIC_ATTEMPTS; attempt++) {
         if (attempt > 0)
             usleep(attempt * 50000);

@@ -715,10 +715,16 @@ void compute_graph(void)
 
                     // For the newest row, batmon only writes duration upon percentage change or every 10 min.
                     // Advance duration with live elapsed awake time so SESSION updates smoothly on the fly.
+                    // batmon rewrites the newest row at least every MAX_DURATION_BEFORE_UPDATE
+                    // (10 min) while awake, so a clock gap far beyond that is not time spent at
+                    // this level: the clock moved under the row. A row begun before the time
+                    // sync (fallback clock, ~4 years behind) gave SESSION 35064h03 and an empty
+                    // graph right after an update, until batmon logged the next level (tester
+                    // report, 4.5.1 beta 1). Then keep batmon's own duration.
                     if (first_row && !is_charging && row_time > 0 && newer_row_time > row_time) {
-                        int live_elapsed = (int)(newer_row_time - row_time);
-                        if (live_elapsed > duration)
-                            duration = live_elapsed;
+                        long long live_elapsed = newer_row_time - row_time;
+                        if (live_elapsed > duration && live_elapsed <= (long long)duration + LIVE_ELAPSED_MAX_GAP_S)
+                            duration = (int)live_elapsed;
                     }
 
                     first_row = false;

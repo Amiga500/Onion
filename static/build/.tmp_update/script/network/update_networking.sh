@@ -671,7 +671,13 @@ check_ntpstate() {
         if [ "$got_ip" -eq 1 ]; then
             while true; do
                 log "NTPwait: get_time attempt $attempts"
-                if ping -q -c 1 -W 1 worldtimeapi.org > /dev/null 2>&1; then
+                # The ping is only a quick "is the network up yet". Some routers
+                # (a 5G home router in testing; the phone hotspot worked) drop
+                # ping, or worldtimeapi.org is down, while timeapi.io and NTP
+                # work: then get_time was never tried and the sync always failed.
+                # The last attempt tries it anyway (curl and ntpdate time out).
+                if ping -q -c 1 -W 1 worldtimeapi.org > /dev/null 2>&1 ||
+                    [ $((attempts + 1)) -ge $max_attempts ]; then
                     if get_time; then
                         ret_val=0
                         break

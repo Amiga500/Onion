@@ -36,4 +36,18 @@
                                                                                                 "DELETE FROM play_activity WHERE rom_id = %d AND play_time < 0;"                               \
                                                                                                 "COMMIT;"
 
+// Plays (issue #340: one hour of play counted as 4 plays). A game is played
+// once per start; every pause that closes its session (the GameSwitcher in
+// game, sleep, a time sync) is followed by "playActivity resume", which adds
+// a new row for the same play. Those rows are marked resumed = 1: they add
+// play time, not plays. Rows from before the column count as starts, as they
+// always did. At least 1 for a game with play time (its start row may have
+// been dropped for a clock jump while a resumed row was kept).
+#define PLAY_ACTIVITY_ADD_RESUMED_SQL \
+    "ALTER TABLE play_activity ADD COLUMN resumed INTEGER DEFAULT 0;"
+#define PLAY_ACTIVITY_PLAYS_SQL                                                       \
+    "MAX(1, SUM(CASE WHEN play_activity.ROWID IS NOT NULL AND "                         \
+    "IFNULL(play_activity.resumed, 0) = 0 THEN 1 ELSE 0 END))"
+#define PLAY_ACTIVITY_RESUME_FMT "INSERT INTO play_activity(rom_id, resumed) VALUES(%d, 1);"
+
 #endif // PLAY_ACTIVITY_SQL_H__

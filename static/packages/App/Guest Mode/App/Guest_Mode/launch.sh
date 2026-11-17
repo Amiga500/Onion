@@ -36,9 +36,14 @@ fi
 # Favourites + RecentList restoration
 cp /mnt/SDCARD/Saves/CurrentProfile/lists/*.json /mnt/SDCARD/Roms
 
-if [ ! -e "$currentThemefile" ]; then
-	# Default theme file
-    echo "$themeString" > "$currentThemefile"
+# Default theme for a profile without one (a new Guest profile), or whose
+# theme is gone (Silky by DiMo, the default before RedOnion). This wrote
+# "$themeString", never set: the theme became "", and MainUI, the boot logo
+# and Tweaks fell back to the stock Onion skin in /mnt/SDCARD/miyoo/app/.
+mkdir -p "$(dirname "$currentThemefile")"
+saved_theme="$(cat "$currentThemefile" 2>/dev/null)"
+if [ -z "$saved_theme" ] || [ ! -d "$saved_theme" ]; then
+	echo "$defautTheme" > "$currentThemefile"
 fi
 
 # Theme restoration
