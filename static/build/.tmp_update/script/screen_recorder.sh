@@ -29,7 +29,8 @@ check_disp_init() {
         exit
     fi
 
-    if ! pgrep -f "/dev/l" >/dev/null; then
+    # disp_init runs in place of /dev/l after a display repair (or PICO-8).
+    if ! pgrep -f "/dev/l" >/dev/null && ! killall -0 disp_init 2>/dev/null; then
         $sysdir/bin/disp_init &
     fi
 }

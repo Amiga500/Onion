@@ -48,16 +48,39 @@ main() {
         sleep 1
     fi
 
+    # Wait for the LCD driver to finish its init (mi_fb0 publishes its timing).
+    # A mode change issued earlier is overwritten by the driver's late init: on
+    # a Mini Flip the installer was drawn at 640x480 on the 752x560 panel
+    # (sheared screen; there the timing came about 0.3 s after the start).
+    # Same barrier as wait_for_fb_driver in runtime.sh, up to 5 s.
+    fb_wait=0
+    while [ "$fb_wait" -lt 50 ]; do
+        grep -q 'Current TimingWidth=' /proc/mi_modules/fb/mi_fb0 2>/dev/null && break
+        fb_wait=$((fb_wait + 1))
+        sleep 0.1
+    done
+
     # Drop old-stride pixels and park at 640x480/2 before any installer UI.
     # fbmode is preferred on updates (already on the card); otherwise stock fbset.
     # Two pages: installer SDL, not MainUI's three-page layout.
     if [ -x /mnt/SDCARD/.tmp_update/bin/fbmode ]; then
         /mnt/SDCARD/.tmp_update/bin/fbmode 640x480 --pages 2 --preclear --no-clear \
             --linger 150 --timeout 500 \
-            || fbset -g 640 480 640 960 32
+            || { dd if=/dev/zero of=/dev/fb0 bs=1M 2>/dev/null; fbset -g 640 480 640 960 32; }
     else
         dd if=/dev/zero of=/dev/fb0 bs=1M 2>/dev/null
         fbset -g 640 480 640 960 32
+    fi
+
+    # Mini Flip only (hall sensor, as in check_device_model): on a slower unit
+    # the driver could still reset the mode just after publishing its timing.
+    # Check once more and park at 640x480/2 again if it did.
+    if [ -e /sys/devices/soc0/soc/soc:hall-mh248/hallvalue ]; then
+        sleep 0.2
+        if ! fbset | grep -q 'geometry 640 480 640 960 32'; then
+            dd if=/dev/zero of=/dev/fb0 bs=1M 2>/dev/null
+            fbset -g 640 480 640 960 32
+        fi
     fi
 
     check_device_model

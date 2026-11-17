@@ -189,6 +189,253 @@ check "all five toggles still on" toggles_kept
 check "nothing killed" test ! -e "$TMP/killed"
 end
 
+# ---- Syncthing ----
+
+SYNCTHING="$ROOT/static/build/.tmp_update/script/network/syncthing.sh"
+
+begin syncthing_follows_toggle_and_wifi
+eval "$(extract_fn "$NETWORK" check_syncthingstate)"
+eval "$(extract_fn "$NETWORK" lowest_pid_named)"
+sysdir=$TMP
+mkdir -p "$sysdir/config" "$TMP/proc/42"
+netscript=$TMP/net
+mkdir -p "$netscript"
+printf '#!/bin/sh\necho "$1" >> "%s/st_calls"\n' "$TMP" > "$netscript/syncthing.sh"
+chmod +x "$netscript/syncthing.sh"
+log() { :; }
+proc_dir=$TMP/proc
+WIFI=1
+wifi_enabled() { [ "$WIFI" -eq 1 ]; }
+touch "$sysdir/config/.syncthingState"
+check_syncthingstate
+check "toggle on, Wi-Fi on: started" grep -qx start "$TMP/st_calls"
+rm -f "$TMP/st_calls"
+WIFI=0
+echo syncthing > "$TMP/proc/42/comm"
+check_syncthingstate
+check "Wi-Fi off while running: stopped" grep -qx stop "$TMP/st_calls"
+check "and the toggle kept" test -f "$sysdir/config/.syncthingState"
+rm -f "$TMP/st_calls" "$sysdir/config/.syncthingState"
+echo syncthing.sh > "$TMP/proc/42/comm"
+check_syncthingstate
+check "off and not running (the script itself is not Syncthing): nothing called" test ! -e "$TMP/st_calls"
+unset proc_dir netscript
+end
+
+begin syncthing_is_a_remembered_service
+check "kept across a Wi-Fi change" grep -q '^services=.*syncthingState' "$NETWORK"
+check "restored from the saved state" grep -q 'authhttpState|syncthingState)' "$NETWORK"
+check "turned off with the others" sh -c "sed -n '/^disable_all_services() {/,/^}/p' '$NETWORK' | grep -q 'disable_flag syncthingState' && sed -n '/^disable_all_services() {/,/^}/p' '$NETWORK' | grep -q 'syncthing.sh stop'"
+check "update_networking.sh syncthing toggle" sh -c "grep -A7 '        syncthing) ' '$NETWORK' | grep -q check_syncthingstate"
+check "the toggle retries a failed download at once" sh -c "grep -A7 '        syncthing) ' '$NETWORK' | grep -q 'export ST_RETRY_NOW=1'"
+check "paused for a game: stopped, and waited for" sh -c "grep -A3 'killall -9 dropbear bftpd filebrowser telnetd smbd\$' '$RUNTIME' | grep -q 'syncthing.sh stop'"
+check "and back after the game" grep -q 'for service in smbd http ssh ftp telnet syncthing; do' "$RUNTIME"
+check "Tweaks toggles it in the background" sh -c "grep -A3 'void network_setSyncthingState' '$ROOT/src/tweaks/network.h' | grep -q '.syncthingState' && grep -A4 'void network_setSyncthingState' '$ROOT/src/tweaks/network.h' | grep -q 'execServiceState(\"syncthing\", true)'"
+end
+
+st_env() {
+    for fn in st_find_pids st_running st_installed st_sha256 st_lock_take st_install st_install_steps st_wifi_on st_has_ip st_wait_ip st_free_kb \
+        st_failed_recently st_install_then_start st_start; do
+        eval "$(extract_fn "$SYNCTHING" $fn)"
+    done
+    sysdir=$TMP/sd
+    mkdir -p "$sysdir/bin" "$TMP/proc"
+    st_bin=$sysdir/bin/syncthing
+    st_stamp=$sysdir/bin/syncthing.version
+    st_dl=$sysdir/download/syncthing
+    st_lock=$TMP/st_lock
+    st_failed=$TMP/st_failed
+    ST_RETRY_AFTER=600
+    services_paused_flag=$TMP/services_paused
+    rm -f "$st_failed" "$services_paused_flag"
+    proc_dir=$TMP/proc
+    ST_VERSION=9.9.9
+    ST_FREE_KB_NEEDED=10
+    ST_URL=http://example.invalid/st.tar.gz
+    log() { echo "$*" >> "$TMP/st_log"; }
+    st_wait_ip() { true; }
+    st_free_kb() { echo 999999; }
+    # The release archive the mocked curl serves.
+    mkdir -p "$TMP/pkg/syncthing-linux-arm-v9.9.9"
+    printf 'ELF' > "$TMP/pkg/syncthing-linux-arm-v9.9.9/syncthing"
+    (cd "$TMP/pkg" && tar -czf "$TMP/st.tar.gz" syncthing-linux-arm-v9.9.9)
+    curl() {
+        while [ $# -gt 0 ]; do
+            [ "$1" = "-o" ] && { cp "$TMP/st.tar.gz" "$2"; return 0; }
+            shift
+        done
+        return 1
+    }
+}
+
+begin syncthing_download_is_checked
+st_env
+ST_SHA256=0000
+st_install
+check "wrong checksum: refused" test $? -ne 0
+check "nothing installed" test ! -e "$st_bin"
+check "the download is removed" test ! -e "$st_dl"
+check "the lock is released" test ! -e "$st_lock"
+ST_SHA256=$(sha256sum "$TMP/st.tar.gz" | awk '{ print $1 }')
+st_install
+check "right checksum: installed" test -s "$st_bin" -a -x "$st_bin"
+check "for this version" st_installed
+ST_VERSION=9.9.10
+not_installed() { ! st_installed; }
+check "another version asks for a new download" not_installed
+unset -f curl
+end
+
+begin syncthing_one_download_at_a_time
+st_env
+st_lock_take
+check "the first takes the lock" test "$(cat "$st_lock/pid")" = "$$"
+mkdir -p "$proc_dir/$$" # the first download is still running
+lock_busy() { ! st_lock_take; }
+check "a second call waits for it" lock_busy
+rm -rf "$st_lock"
+mkdir -p "$st_lock"
+echo 999999 > "$st_lock/pid"
+st_lock_take
+check "a lock left by a killed download is taken over" test "$(cat "$st_lock/pid")" = "$$"
+rm -rf "$st_lock"
+end
+
+begin syncthing_download_stops_for_a_game
+st_env
+ST_SHA256=0000
+# A slow transfer, until it is killed.
+curl() { while :; do sleep 0.1; done; }
+(sleep 1; : > "$services_paused_flag") &
+t0=$(date +%s)
+st_install
+st_rc=$?
+t1=$(date +%s)
+check "stopped when a game starts" test $st_rc -eq 3
+check "within a couple of seconds" test $((t1 - t0)) -le 4
+check "said so" grep -q "a game started, download stopped" "$TMP/st_log"
+check "the lock is released" test ! -e "$st_lock"
+st_install_then_start_lock() { st_lock_take && st_install_then_start; }
+mkdir -p "$TMP/proc/$$"
+st_install_then_start_lock
+check "a game is not a failure: retried after it" test ! -e "$st_failed"
+unset -f curl st_install_then_start_lock
+rm -f "$services_paused_flag"
+end
+
+begin syncthing_failed_download_waits_before_retrying
+st_env
+ST_SHA256=0000
+mkdir -p "$TMP/proc/$$"
+st_lock_take
+st_install_then_start
+check "a failed download is remembered" test -s "$st_failed"
+check "and the lock released" test ! -e "$st_lock"
+: > "$TMP/st_log"
+st_start
+check "an automatic start right after does not download again" test $? -ne 0
+check "and says why" grep -q "not tried again yet" "$TMP/st_log"
+check "nothing started in the background" test ! -e "$st_lock"
+echo $(($(date +%s) - 700)) > "$st_failed"
+not_recent() { ! st_failed_recently; }
+check "after 10 minutes it is tried again" not_recent
+echo $(($(date +%s) - 10)) > "$st_failed"
+st_install_then_start() { sleep 1; }
+ST_RETRY_NOW=1 st_start
+check "the Tweaks toggle tries at once, in the background" test $? -eq 0 -a -d "$st_lock"
+check "the lock names the background job" sh -c "test \"\$(cat '$st_lock/pid')\" != $$"
+sleep 1.5
+rm -rf "$st_lock"
+unset -f st_install_then_start curl not_recent
+end
+
+begin syncthing_found_by_exact_name
+st_env
+mkdir -p "$TMP/proc/10" "$TMP/proc/11"
+echo syncthing.sh > "$TMP/proc/10/comm"
+st_find_pids
+check "only syncthing.sh: not running" test -z "$st_pids"
+echo syncthing > "$TMP/proc/11/comm"
+st_find_pids
+check "syncthing: found" test "$(echo $st_pids)" = 11
+unset proc_dir
+end
+
+begin syncthing_stop_waits_and_forces
+st_env
+eval "$(extract_fn "$SYNCTHING" st_stop)"
+proc_dir=$TMP/proc_stop # only this test's process
+rm -f "$TMP/kills" "$TMP/ticks"
+ST_STOP_TRIES=25
+mkdir -p "$TMP/proc_stop/77"
+echo syncthing > "$TMP/proc_stop/77/comm"
+: > "$TMP/st_log"
+sleep() { echo tick >> "$TMP/ticks"; }
+# Exits at TERM, after two checks.
+kill() {
+    echo "$*" >> "$TMP/kills"
+    case "$1" in -9) ;; *) rm -rf "$TMP/proc_stop/77" ;; esac
+}
+st_stop
+check "asked with a plain TERM" test "$(cat "$TMP/kills")" = "77"
+check "gone at the first check" test "$(wc -l < "$TMP/ticks")" -eq 1
+check "logged as stopped" grep -q "Syncthing: stopped" "$TMP/st_log"
+# Ignores TERM: killed after the last check.
+rm -f "$TMP/kills" "$TMP/ticks"
+ST_STOP_TRIES=25
+mkdir -p "$TMP/proc_stop/77"
+echo syncthing > "$TMP/proc_stop/77/comm"
+kill() { echo "$*" >> "$TMP/kills"; [ "$1" = -9 ] && rm -rf "$TMP/proc_stop/77"; true; }
+ST_STOP_TRIES=25
+st_stop
+check "25 checks, 0.2 s apart (5 s)" test "$(wc -l < "$TMP/ticks")" -eq 25
+check "then killed" test "$(tail -n 1 "$TMP/kills")" = "-9 77"
+check "and logged" grep -q "Syncthing: killed" "$TMP/st_log"
+check "checked every 0.2 s in the script" sh -c "sed -n '/^st_stop() {/,/^}/p' '$SYNCTHING' | grep -q 'sleep 0.2'"
+unset -f sleep kill
+unset proc_dir
+end
+
+begin flip_display_colours_restored_at_boot
+eval "$(extract_fn "$RUNTIME" restore_display_colours)"
+flip_csc_block=$(awk '/# Mini Flip: put the display colours/ { on = 1 } on { print } on && /^    fi$/ { exit }' "$RUNTIME")
+check "the block is found" test -n "$flip_csc_block"
+MI_DISP_NODE=$TMP/mi_disp0
+: > "$MI_DISP_NODE"
+sysjson_get() {
+    case "$1" in lumination) echo 7 ;; hue) echo 10 ;; saturation) echo 12 ;; contrast) echo 15 ;; esac
+}
+log() { echo "$*" >> "$TMP/csc_log"; }
+MODEL_MMF=285
+DEVICE_ID=354
+eval "$flip_csc_block"
+check "not on a Mini Plus" test ! -s "$MI_DISP_NODE"
+DEVICE_ID=285
+eval "$flip_csc_block"
+check "on the Flip, at once (nothing waits for warmup): Open MainUI's formulas, BT709, sharpness 0" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 60 50 42 60 0 0"
+check "not in the background" sh -c '! printf "%s\n" "$1" | grep -q "&\$"' _ "$flip_csc_block"
+check "logged" grep -q "display colours restored: lumination 7, hue 10, saturation 12, contrast 15" "$TMP/csc_log"
+sysjson_get() {
+    case "$1" in lumination) echo "" ;; hue) echo 25 ;; saturation) echo x ;; contrast) echo 0 ;; esac
+}
+restore_display_colours
+check "missing or out of range: Miyoo's defaults" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 30 50 42 50 0 0"
+rm -f "$MI_DISP_NODE" "$TMP/csc_log"
+restore_display_colours
+check "no display device: nothing written, said so" sh -c 'test ! -e "$1" && grep -q "missing, not restored" "$2"' _ "$MI_DISP_NODE" "$TMP/csc_log"
+check "not through MI_SYS (restore_lcd_csc no longer run)" sh -c "! grep -q 'bin/restore_lcd_csc' '$RUNTIME'"
+check "start_warmup keeps warmup's pid" sh -c "sed -n '/^start_warmup() {/,/^}/p' '$RUNTIME' | grep -q 'warmup_pid=\\\$!'"
+check "before the blue light filter" sh -c "awk '/# Mini Flip: put the display colours/ { c = NR } /# Blue Light Filter, then DisplayCal/ { b = NR } END { exit !(c && b && c < b) }' '$RUNTIME'"
+unset -f sysjson_get log
+unset MI_DISP_NODE
+end
+
+begin syncthing_never_starts_open
+check "the login is set before the first start" grep -q -- '--gui-user="$ST_GUI_USER" --gui-password="$ST_GUI_PASSWORD"' "$SYNCTHING"
+check "no start without a configuration" sh -c "sed -n '/^st_launch() {/,/^}/p' '$SYNCTHING' | grep -q 'st_generate || return 1'"
+check "FAT32: permissions ignored, 2 s time window" sh -c "grep -q 'ignorePerms=\"true\"' '$SYNCTHING' && grep -q '<modTimeWindowS>2</modTimeWindowS>' '$SYNCTHING'"
+end
+
 # ---- Scraper: Game Info media from ScreenScraper ----
 
 SCRAPER_SS="$ROOT/static/build/.tmp_update/script/scraper/scrap_screenscraper.sh"
@@ -231,11 +478,9 @@ end
 begin scraper_game_info_gamelist
 gi_env
 gi_write_desc
-gi_merge_pending
 check "no gamelist.xml: made with the entry" sh -c "grep -q '^<gameList>' '$gi_root/gamelist.xml' && grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
 printf '<?xml version="1.0"?><gameList><game><path>./Other.sfc</path><desc>keep</desc></game></gameList>' > "$gi_root/gamelist.xml"
 gi_write_desc
-gi_merge_pending
 check "one-line list: entry inside gameList, old entry kept" sh -c "test \$(grep -c '<game>' '$gi_root/gamelist.xml') -eq 2 && grep -q '<desc>keep</desc>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>' && head -1 '$gi_root/gamelist.xml' | grep -q '^<?xml version=\"1.0\"?><gameList><game><path>./Other.sfc'"
 GameInfoMedia=desc
 missing=$(gi_missing)
@@ -247,43 +492,133 @@ check "a list without </gameList>: refused" test $rc -ne 0
 check "and left alone" sh -c "! grep -q 'Trials' '$gi_root/gamelist.xml'"
 end
 
-begin scraper_game_info_pending_and_not_found
+begin scraper_game_info_entry_with_an_apostrophe
 gi_env
 GameInfoMedia=desc
-printf '<?xml version="1.0"?>\n<gameList>\n<game><path>./Other.sfc</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
-cp "$gi_root/gamelist.xml" "$TMP/list_before"
-gi_write_desc
-check "an entry waits aside, the list untouched" sh -c "cmp -s '$gi_root/gamelist.xml' '$TMP/list_before' && grep -q 'Trials &amp; Co' '$gi_root/gamelist.xml.pending'"
-check "a waiting entry counts as there" test -z "$(gi_missing)"
-# A scraping cut short: the next one merges what waited, once.
-gi_merge_pending
-check "merged at the start of the next run" sh -c "test \$(grep -c '<game>' '$gi_root/gamelist.xml') -eq 2 && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
-check "and no longer waiting" test ! -e "$gi_root/gamelist.xml.pending"
-gi_merge_pending
-check "nothing waiting: list unchanged" test "$(grep -c '<game>' "$gi_root/gamelist.xml")" -eq 2
-gi_name="Next"; gi_rel="Next.sfc"
-gi_write_desc
-printf '<gameList>\n<game><path>./A.sfc</path></game>\n' > "$gi_root/gamelist.xml"
-gi_merge_pending
-check "a broken list: entries keep waiting" test -s "$gi_root/gamelist.xml.pending"
-rm -f "$gi_root/gamelist.xml" "$gi_root/gamelist.xml.pending"
+gi_rel="Kirby's Dream & Land.gb"
+printf '<gameList>\n<game><path>./Kirby'"'"'s Dream &amp; Land.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+check "another scraper's entry, apostrophe as it is" test -z "$(gi_missing)"
+printf '<gameList>\n<game><path>./Kirby&#39;s Dream &amp; Land.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+check "ours (&#39;)" test -z "$(gi_missing)"
+printf '<gameList>\n<game><path>Kirby&apos;s Dream &amp; Land.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+check "as &apos;, without ./" test -z "$(gi_missing)"
+printf '<gameList>\n<game><path>./Kirby.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+check "another game's entry does not count" test "$(gi_missing)" = desc
+gi_rel="Plain Game.gb"
+printf '<gameList>\n<game><path>./Plain Game.gb</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+jq() { echo called >> "$TMP/jq_calls"; command jq "$@"; }
+rm -f "$TMP/jq_calls"
+check "a plain name: found" test -z "$(gi_missing)"
+check "without starting jq" test ! -e "$TMP/jq_calls"
+unset -f jq
+rm -f "$gi_root/gamelist.xml"
+end
 
+begin scraper_game_info_cut_download_not_kept
 gi_env
-GameInfoMedia=desc
-ss_no_match=0
-gi_not_found
-check "no 'not found' answer: nothing written" test ! -e "$gi_root/media/.gameinfo_none"
-ss_no_match=1
-GameInfoMedia=
-gi_not_found
-check "no Game Info wanted: nothing written" test ! -e "$gi_root/media/.gameinfo_none"
-GameInfoMedia=desc
-gi_not_found
-gi_not_found
-check "not found: written once" test "$(grep -c 'notfound RPG/Trials & Co.sfc' "$gi_root/media/.gameinfo_none")" -eq 1
-check "then nothing missing for it" test -z "$(gi_missing)"
-gi_rel="Other game.sfc"
-check "other games still asked" test "$(gi_missing)" = desc
+wget() { # writes a PNG's first bytes, then fails like a cut transfer
+    while [ $# -gt 0 ]; do [ "$1" = -O ] && out=$2; shift; done
+    printf '\211PNG\r\n\032\nHALF' > "$out"
+    return "${WGET_RC:-1}"
+}
+WGET_RC=1 gi_fetch http://x/cover.png "$gi_root/Imgs/cut.png" png
+check "a download wget reports as failed is not kept" test ! -e "$gi_root/Imgs/cut.png"
+check "nor its .part" test ! -e "$gi_root/Imgs/cut.png.part"
+WGET_RC=0 gi_fetch http://x/cover.png "$gi_root/Imgs/ok.png" png
+check "a finished one is" test -s "$gi_root/Imgs/ok.png"
+unset -f wget
+end
+
+begin scraper_gamelist_not_replaced_by_a_short_list
+gi_env
+printf '<?xml version="1.0"?>\n<gameList>\n<game><path>./Other.sfc</path><desc>keep</desc></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+cp "$gi_root/gamelist.xml" "$TMP/before.xml"
+awk() { command awk "$@" | head -c 30; } # the new list written short, as on a full SD card
+gi_write_desc
+check "a short new list does not replace gamelist.xml" cmp -s "$gi_root/gamelist.xml" "$TMP/before.xml"
+check "and is not left behind" test ! -e "$gi_root/gamelist.xml.tmp"
+unset -f awk
+gi_write_desc
+check "a whole one does" grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' "$gi_root/gamelist.xml"
+check "keeping the others" grep -q '<desc>keep</desc>' "$gi_root/gamelist.xml"
+end
+
+begin scraper_gamelist_back_after_a_cut_rename
+gi_env
+printf '<gameList>\n<game><path>./Other.sfc</path><desc>keep</desc></game>\n</gameList>\n' > "$gi_root/gamelist.xml.tmp"
+rm -f "$gi_root/gamelist.xml"
+gi_write_desc
+check "the whole list left in .tmp comes back" grep -q '<desc>keep</desc>' "$gi_root/gamelist.xml"
+check "with the new entry" grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' "$gi_root/gamelist.xml"
+printf '<gameList>\n<game><path>./Half' > "$gi_root/gamelist.xml.tmp"
+rm -f "$gi_root/gamelist.xml"
+gi_write_desc
+check "a cut .tmp (no </gameList>) is not used" sh -c "! grep -q Half '$gi_root/gamelist.xml'"
+rm -f "$gi_root/gamelist.xml" "$gi_root/gamelist.xml.tmp"
+end
+
+begin battery_icon_levels_match_open_mainui
+BATTERY_H="$ROOT/src/common/theme/render/battery.h"
+KIDSPLAY_UI="$ROOT/src/kidsMode/kidsplay-src/kidsplay_ui.inc"
+check "RedOnion: 5, 15, 45, 70, as stock MainUI and Open MainUI" sh -c "sed -n '/^ThemeImages _getBatteryRequest/,/^}/p' '$BATTERY_H' | grep -o 'percentage < [0-9]*' | tr -d -c '0-9\n' | tr '\n' ' ' | grep -qx '5 15 45 70 '"
+check "KidsPlay: the same levels" sh -c "sed -n '/kp.charging) return 5;/,/return 4;/p' '$KIDSPLAY_UI' | grep -o 'kp.battery < [0-9]*' | tr -d -c '0-9\n' | tr '\n' ' ' | grep -qx '5 15 45 70 '"
+end
+
+begin scraper_gamelist_written_in_batches
+gi_env
+GI_DESC_BATCH=3
+printf '<gameList>\n<game><path>./Other.sfc</path><desc>keep</desc></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
+cp "$gi_root/gamelist.xml" "$TMP/before.xml"
+echo '<game><path>./Stale.sfc</path>' > "$gi_root/gamelist.xml.entry" # left by a scraping cut short
+gi_rel="A & B.sfc"; gi_write_desc; rc1=$?
+gi_rel="C.sfc"; gi_write_desc
+check "the first two wait: gamelist.xml not written yet" cmp -s "$gi_root/gamelist.xml" "$TMP/before.xml"
+check "and count as done" test $rc1 -eq 0
+gi_rel="D.sfc"; gi_write_desc
+check "the third writes all three" test "$(grep -c '<path>' "$gi_root/gamelist.xml")" -eq 4
+check "in their order, before </gameList>" sh -c "awk '/A &amp; B.sfc/ { a = NR } /C.sfc/ { c = NR } /D.sfc/ { d = NR } /<\\/gameList>/ { e = NR } END { exit !(a && a < c && c < d && d < e) }' '$gi_root/gamelist.xml'"
+check "the old entry kept" grep -q '<desc>keep</desc>' "$gi_root/gamelist.xml"
+check "what an earlier scraping left waiting is not used" sh -c "! grep -q Stale '$gi_root/gamelist.xml'"
+gi_rel="E.sfc"; gi_write_desc
+gi_flush_desc
+check "the end of the scraping writes the ones still waiting" grep -q '<path>./E.sfc</path>' "$gi_root/gamelist.xml"
+check "nothing left behind" sh -c "! ls '$gi_root' | grep -q 'gamelist.xml\\.'"
+cp "$gi_root/gamelist.xml" "$TMP/before.xml"
+gi_flush_desc
+check "nothing waiting: gamelist.xml not written again" cmp -s "$gi_root/gamelist.xml" "$TMP/before.xml"
+check "the scraping writes every 25, and when it ends or is closed" sh -c "grep -qx 'GI_DESC_BATCH=25' '$SCRAPER_SS' && grep -qx 'trap gi_flush_desc EXIT' '$SCRAPER_SS' && grep -qx 'gi_flush_desc' '$SCRAPER_SS'"
+check "and when its terminal is closed or it is stopped" grep -qx "trap 'gi_flush_desc; exit 1' HUP INT TERM" "$SCRAPER_SS"
+check "the waiting entries are not taken for ROMs" grep -q "! -name '\*.xml.entry' ! -name '\*.xml.one'" "$SCRAPER_SS"
+GI_DESC_BATCH=1
+end
+
+begin scraper_game_not_found_is_remembered
+gi_env
+GameInfoMedia="desc,box3d"
+gi_todo=$(gi_missing)
+ss_nomatch=1
+cover_present=false
+gi_no_game
+check "no cover: looked up again next time" test "$(gi_missing | tr '\n' ' ')" = "desc box3d "
+cover_present=true
+ss_nomatch=0
+gi_no_game
+check "a failed request is not a no-match" test "$(gi_missing | tr '\n' ' ')" = "desc box3d "
+ss_nomatch=1
+gi_no_game
+check "with its cover, no match: not asked again" test -z "$(gi_missing)"
+check "written down per item" test "$(grep -c 'RPG/Trials & Co.sfc' "$gi_root/media/.gameinfo_none")" -eq 2
+check "reset at each lookup" sh -c "grep -A4 '^search_on_screenscraper() {' '$SCRAPER_SS' | grep -q 'ss_nomatch=0'"
+eval "$(sed -n '/^search_on_screenscraper() {/,/^}/p' "$SCRAPER_SS")"
+curl() { printf '%s\n' "$ss_answer"; }
+for ss_answer in "Erreur : Rom/Iso/Dossier non trouvée ! " "Erreur de login : Vérifier vos identifiants utilisateur !" "Erreur : Votre quota de scrape est dépassé"; do
+    url=x
+    search_on_screenscraper > /dev/null 2>&1
+    echo "$ss_nomatch" >> "$TMP/ss_nomatch"
+done
+unset -f curl
+check "only 'non trouvée' is a no-match (not a login or quota error)" test "$(tr '\n' ' ' < "$TMP/ss_nomatch")" = "1 0 0 "
+check "used where a ROM is given up" test "$(grep -c '^				*gi_no_game$' "$SCRAPER_SS")" -eq 2
 rm -rf "$gi_root/media"
 end
 
@@ -926,6 +1261,36 @@ if command -v jq > /dev/null; then
     installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
     end
 
+    begin ota_4_5_1_beta_after_the_4_5_0_stable
+    # 4.5.1-b1 for the testers, then the beta channel: offered over the 4.5.0
+    # stable there, not on the stable channel, and the 4.5.1 stable offered
+    # to it later. Also as a build made by hand (no commit hash).
+    check "the Makefile's version is 4.5.1-b1" test "$(sed -n 's/^VERSION_BASE=//p' "$ROOT/Makefile")" = 4.5.1-b1
+    check "4.5.1 is newer than 4.5.0" test "$(get_version 4.5.1)" -gt "$(get_version 4.5.0)"
+    installUI() { echo "4.5.0-20261106-3d9f2add"; }
+    channel=beta
+    printf '[%s,%s]' "$(ota_asset 4.5.0-20261106-3d9f2add false)" "$(ota_asset 4.5.1-b1-20261116-1a2b3c4d true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel: 4.5.1-b1 offered over the 4.5.0 stable" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.1-b1-20261116-1a2b3c4d
+    channel=stable
+    ota_asset 4.5.0-20261106-3d9f2add false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable channel on 4.5.0: nothing new (the beta is not offered)" test "$?" -eq 1
+    installUI() { echo "4.5.1-b1-20261116"; }
+    check "4.5.1-b1 made by hand: date parsed" test "$(build_date 4.5.1-b1-20261116)" = 20261116
+    ota_asset 4.5.0-20261106-3d9f2add false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable channel on 4.5.1-b1: 4.5.0 not offered back" test "$?" -eq 1
+    ota_asset 4.5.1-20261201-5e6f7a8b false > "$TMP/latest.json"
+    get_release_info > /dev/null
+    check "stable channel on 4.5.1-b1: the 4.5.1 stable offered" test "$?" -eq 0
+    channel=beta
+    printf '[%s]' "$(ota_asset 4.5.1-b2-20261120-9a8b7c6d true)" > "$TMP/list.json"
+    get_release_info > /dev/null
+    check "beta channel on 4.5.1-b1: 4.5.1-b2 offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.1-b2-20261120-9a8b7c6d
+    installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
+    end
+
     begin ota_4_5_0_stable_over_the_4_4_0_stable
     # 4.5.0 follows the 4.4.0 stable directly (no public 4.5.0 beta): both
     # channels offer it to a 4.4.0 device, and it is not offered again.
@@ -1465,8 +1830,10 @@ for script in favorites/favfix.sh:favfix favorites/favsort.sh:favsort \
     check "${script%%:*}: back to the list (status 1, was 0)" test "$status" -eq 1
     check "${script%%:*}: still runs tools $args" test "$(cat "$TMP/tools.log" 2> /dev/null)" = "$args"
 done
-# The import and rename scripts of the Ports and ScummVM packages too.
+# The import and rename scripts of the Ports and ScummVM packages too, and
+# Set time of the Clock app (issue #334: B in the clock started the game).
 for file in "$ROOT/static/packages/Emu/Ports Collection/Emu/PORTS/romscripts/Import games (Ports).sh" \
+    "$ROOT/static/packages/App/Clock (Set emulated time)/App/romscripts/Set time.sh" \
     "$ROOT/static/packages/Emu/SCUMM (ScummVM)/Emu/SCUMMVM/romscripts/Import games (ScummVM).sh" \
     "$ROOT/static/packages/Emu/SCUMM (ScummVM)/Emu/SCUMMVM/romscripts/Change names (ScummVM).sh" \
     "$ROOT/static/packages/RApp/SCUMM (ScummVM standalone)/RApp/scummvm/scripts/romscripts/Import games (ScummVM).sh" \
@@ -1477,7 +1844,7 @@ end
 
 begin glo_script_that_starts_the_game_keeps_recents
 # GLO takes the selected game out of Recents when it opens. A script that
-# returns 0 starts that game (Set time, Netplay): the entry goes back, as
+# returns 0 starts that game (Netplay): the entry goes back, as
 # Reset game does, so the GameSwitcher title matches the game. A script that
 # returns 1 leaves it out; one that wrote another command (Random game)
 # handles its own entry.
@@ -2791,15 +3158,17 @@ check "SDL from miyoo/lib, as MainUI loads it" test "$(cat "$sysdir/ld_path")" =
 check "timing.log records its time and exit code" grep -Eq '^warmup [0-9]+\.[0-9]+ s \(exit 0\)$' "$sysdir/logs/timing.log"
 end
 
-begin warmup_starts_after_display_before_mainui_layout
-boot_fn=$(extract_fn "$RUNTIME" init_system)
+begin warmup_starts_after_colours_and_boot_screen
+init_fn=$(extract_fn "$RUNTIME" init_system)
+check "not in init_system any more" sh -c '! printf "%s\n" "$1" | grep -q "^ *start_warmup"' _ "$init_fn"
+boot_fn=$(sed -n '/^main() {/,/^}/p' "$RUNTIME")
 line_of() { printf '%s\n' "$boot_fn" | grep -n "^ *$1" | head -1 | cut -d: -f1; }
-res=$(line_of get_screen_resolution)
+flip=$(line_of restore_display_colours)
+blf=$(line_of "(")
+screen=$(line_of 'bootScreen "Boot"')
 warm=$(line_of start_warmup)
-layout=$(line_of "commit_mainui_fbmode")
-check "after the fb driver is up (lines $res < $warm)" test "${res:-0}" -gt 0 -a "${warm:-0}" -gt "${res:-0}"
-check "before MainUI's layout is set (lines $warm < $layout)" test "${layout:-0}" -gt "${warm:-0}"
-check "no sleep left between them" test -z "$(printf '%s\n' "$boot_fn" | sed -n "${warm:-1},${layout:-1}p" | grep -E '^ *sleep')"
+check "robcodedev's order: Flip colours, filter and DisplayCal, boot screen, warmup ($flip < $blf < $screen < $warm)" sh -c 'test "${1:-0}" -gt 0 -a "${2:-0}" -gt "${1:-0}" -a "${3:-0}" -gt "${2:-0}" -a "${4:-0}" -gt "${3:-0}"' _ "$flip" "$blf" "$screen" "$warm"
+check "nothing waits for warmup" sh -c '! grep -q "kill -0 \"\$warmup_pid\"" "$1"' _ "$RUNTIME"
 unset -f line_of
 end
 
@@ -3074,7 +3443,7 @@ check "a service toggled in Tweaks sets it" sh -c \
     "sed -n '/^        ftp | telnet | http | ssh | smbd)/,/^            ;;/p' \"$NETWORK\" | sed -n '/toggle)/,/;;/p' | grep -qF 'wifi_power_save.sh auto'"
 check "disableall sets it" sh -c "extract_fn() { sed -n \"/^\$2() {/,/^}/p\" \"\$1\"; }; extract_fn \"$NETWORK\" disable_all_services | grep -qF 'wifi_power_save.sh auto'"
 check "services started after Wi-Fi or a game set it" sh -c "sed -n '/^start_services_outside_game() {/,/^}/p' \"$NETWORK\" | grep -qF 'wifi_power_save.sh auto'"
-check "a game that pauses the services sets it" sh -c "grep -A6 ': > /tmp/services_paused_in_game' \"$RUNTIME\" | grep -qF 'wifi_power_save.sh auto'"
+check "a game that pauses the services sets it" sh -c "grep -A12 ': > /tmp/services_paused_in_game' \"$RUNTIME\" | grep -qF 'wifi_power_save.sh auto'"
 
 unset -f ps_auto
 end
@@ -3388,133 +3757,1109 @@ check "the installed theme is untouched" grep -qx old "$T/Theme/version"
 check "no staging left" test ! -e "$T/.extracting"
 end
 
-# ---- review fixes: Game Info pending list and not-found memo ----
+# (v5-alpha's tests of its own Game Info pending list and not-found memo were
+# here. The scraper is 4.5.1-b1's since the port: batches (GI_DESC_BATCH,
+# gi_flush_desc) and gi_no_game, tested above.)
 
-begin scraper_game_info_pending_merge
-gi_env
-rm -f "$gi_root/gamelist.xml" "$gi_root/gamelist.xml.pending"
-printf '<?xml version="1.0"?>\n<gameList>\n<game><path>./Other.sfc</path></game>\n</gameList>\n' > "$gi_root/gamelist.xml"
-before=$(cat "$gi_root/gamelist.xml")
-gi_write_desc
-rc=$?
-check "an entry is accepted" test $rc -eq 0
-check "gamelist.xml untouched until the merge" test "$(cat "$gi_root/gamelist.xml")" = "$before"
-check "the entry waits in the pending file" grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' "$gi_root/gamelist.xml.pending"
-GameInfoMedia=desc
-check "a pending entry counts as already there" test -z "$(gi_missing)"
-gi_rel="RPG/Second.sfc"
-gi_write_desc
-check "two entries pending" test "$(grep -c '<game>' "$gi_root/gamelist.xml.pending")" -eq 2
-gi_merge_pending
-rc=$?
-check "merge succeeds" test $rc -eq 0
-check "all three games in gamelist.xml" test "$(grep -c '<game>' "$gi_root/gamelist.xml")" -eq 3
-check "the pending file is gone" test ! -e "$gi_root/gamelist.xml.pending"
-check "list still ends with gameList" sh -c "tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
-check "old entry kept" grep -q '<path>./Other.sfc</path>' "$gi_root/gamelist.xml"
-gi_merge_pending
-rc=$?
-check "merging again does nothing" test $rc -eq 0
-check "and changes nothing" test "$(grep -c '<game>' "$gi_root/gamelist.xml")" -eq 3
+# ---- Backup app (App/Backup/launch.sh) ----
+#
+# The functions are loaded from the app itself (BACKUP_NO_MAIN skips its
+# menu). The tests that make and restore zips need a 7-Zip on the PC
+# (7zz, 7z or 7za, or BACKUP_TEST_7Z); without one they are skipped.
+
+BACKUP_APP="$ROOT/static/packages/App/Backup (Saves and settings)/App/Backup/launch.sh"
+backup_load() { # SD folder
+    BACKUP_SD=$1 BACKUP_NO_MAIN=1 BACKUP_7Z=${BACKUP_TEST_7Z:-7z}
+    export BACKUP_SD BACKUP_NO_MAIN BACKUP_7Z
+    . "$BACKUP_APP"
+    LOG=$TMP/backup.log
+}
+not_allowed() { ! allowed_path "$1"; }
+not_guest_archive() { ! archive_guest_mode_on "$1"; }
+zip_line_is() { # zip file, path in it, its one line
+    [ -f "$1" ] && test "$("$BACKUP_TEST_7Z" x -so "$1" "$2" 2> /dev/null)" = "$3"
+}
+backup_7z=${BACKUP_TEST_7Z:-$(command -v 7zz || command -v 7z || command -v 7za)}
+
+begin backup_restore_tells_keymon_to_read_the_settings
+backup_load "$TMP/sd"
+BACKUP_SETTINGS_CHANGED=$TMP/settings_changed
+SETTINGS_CHANGED=$BACKUP_SETTINGS_CHANGED
+mkdir -p "$TMP/sd/.tmp_update/config"
+check_archive() { :; }
+archive_guest_mode_on() { return 1; }
+guest_mode_on() { return 1; }
+make_backup() { BACKUP_FILE=$TMP/before.zip; return 0; }
+restore_flag_pairs() { :; }
+archive_paths() { :; }
+fake7z() { return "${FAKE7Z_RC:-0}"; }
+Z7=fake7z
+FAKE7Z_RC=2 restore_backup "$TMP/old.zip"
+check "extraction failed: keymon not told" test ! -e "$TMP/settings_changed"
+FAKE7Z_RC=0 restore_backup "$TMP/old.zip"
+check "restored: keymon reads the settings again" test -e "$TMP/settings_changed"
+check "and the restart message no longer warns about volume or brightness" sh -c "! grep -q \"Don't change the volume\" '$BACKUP_APP'"
+unset -f check_archive archive_guest_mode_on guest_mode_on make_backup restore_flag_pairs archive_paths fake7z
 end
 
-begin scraper_game_info_pending_edge_cases
-gi_env
-printf '<?xml version="1.0"?>\n<gameList>\n</gameList>\n' > "$gi_root/gamelist.xml"
-: > "$gi_root/gamelist.xml.pending"
-before=$(cat "$gi_root/gamelist.xml")
-gi_merge_pending
-rc=$?
-check "an empty pending file is not an error" test $rc -eq 0
-check "and leaves the list alone" test "$(cat "$gi_root/gamelist.xml")" = "$before"
-printf '  <game>\n    <path>./Left.sfc</path>\n  </game>\n' > "$gi_root/gamelist.xml.pending"
-gi_merge_pending
-check "entries left by a scraping cut short are merged" grep -q '<path>./Left.sfc</path>' "$gi_root/gamelist.xml"
-check "and the pending file removed" test ! -e "$gi_root/gamelist.xml.pending"
-printf '<gameList>\n<game><path>./A.sfc</path></game>\n' > "$gi_root/gamelist.xml"
-printf '  <game>\n    <path>./B.sfc</path>\n  </game>\n' > "$gi_root/gamelist.xml.pending"
-gi_merge_pending
-rc=$?
-check "a list without </gameList>: refused" test $rc -ne 0
-check "the pending entries are kept" test -s "$gi_root/gamelist.xml.pending"
-check "the list is left alone" sh -c "! grep -q 'B.sfc' '$gi_root/gamelist.xml'"
-rm -f "$gi_root/gamelist.xml"
-printf '  <game>\n    <path>./C.sfc</path>\n  </game>\n' > "$gi_root/gamelist.xml.pending"
-gi_merge_pending
-rc=$?
-check "no gamelist.xml (deleted since): made again with the entries" sh -c "test $rc -eq 0 && grep -q '<path>./C.sfc</path>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
-check "and nothing left aside" test ! -e "$gi_root/gamelist.xml.pending"
-: > "$gi_root/gamelist.xml"
-printf '  <game>\n    <path>./D.sfc</path>\n  </game>\n' > "$gi_root/gamelist.xml.pending"
-gi_merge_pending
-check "an empty gamelist.xml too" sh -c "grep -q '<path>./D.sfc</path>' '$gi_root/gamelist.xml' && test ! -e '$gi_root/gamelist.xml.pending'"
+begin backup_restore_needs_room_for_new_files
+backup_load "$TMP/sd"
+SETTINGS_CHANGED=$TMP/settings_changed
+mkdir -p "$TMP/sd/Saves/CurrentProfile/saves" "$TMP/sd/Backups"
+echo old > "$TMP/sd/Saves/CurrentProfile/saves/there.srm"
+check_archive() { :; }
+archive_guest_mode_on() { return 1; }
+guest_mode_on() { return 1; }
+make_backup() { BACKUP_FILE=$TMP/sd/Backups/before.zip; : > "$BACKUP_FILE"; return 0; }
+restore_flag_pairs() { :; }
+archive_paths() { :; }
+fake7z() {
+    case $1 in
+        l) printf 'Path = Saves\nFolder = +\nSize = 0\n\nPath = Saves/CurrentProfile/saves/there.srm\nFolder = -\nSize = 900000000\n\nPath = Saves/CurrentProfile/saves/new.srm\nFolder = -\nSize = 20000000\n\nPath = Saves/CurrentProfile/saves/tiny.srm\nFolder = -\nSize = 10\n' ;;
+        x) echo extracted >> "$TMP/x" ;;
+    esac
+}
+Z7=fake7z
+check "new files only, each at least a cluster" test "$(restore_new_kb "$TMP/old.zip")" = $((19552 + 32))
+free_kb() { echo 10000; }
+restore_backup "$TMP/old.zip"
+check "too little room: not restored" test $? -eq 1 -a ! -e "$TMP/x"
+check "says so" sh -c 'printf "%s" "$1" | grep -q "Nothing was restored"' _ "$RESTORE_ERROR"
+check "the copy made before is not kept" test ! -e "$TMP/sd/Backups/before.zip"
+free_kb() { echo 30000; }
+restore_backup "$TMP/old.zip"
+check "room enough (the file written over not counted): restored" test $? -eq 0 -a -e "$TMP/x"
+unset -f check_archive archive_guest_mode_on guest_mode_on make_backup restore_flag_pairs archive_paths fake7z free_kb
 end
 
-# Noted as unknown to ScreenScraper, then found (looked up again for its
-# missing cover): the note goes and its Game Info is asked for.
-begin scraper_game_info_found_after_not_found
-gi_env
-GameInfoMedia="desc,box2dfront"
-mkdir -p "$gi_root/media"
-printf 'box3d Other.sfc\nnotfound %s\nnotfound Other.sfc\n' "$gi_rel" > "$gi_root/media/.gameinfo_none"
-gi_todo=$(gi_missing)
-check "noted as not found: nothing asked for" test -z "$gi_todo"
-gi_found
-check "found: the note is removed" sh -c "! grep -qxF 'notfound $gi_rel' '$gi_root/media/.gameinfo_none'"
-check "the other notes are kept" test "$(cat "$gi_root/media/.gameinfo_none")" = "box3d Other.sfc
-notfound Other.sfc"
-check "and its Game Info is asked for" test "$gi_todo" = "desc
-box2dfront"
-check "no temporary file left" test ! -e "$gi_root/media/.gameinfo_none.tmp"
-printf 'notfound %s\n' "$gi_rel" > "$gi_root/media/.gameinfo_none"
-gi_found
-check "the only note: an empty file, nothing noted" sh -c "! grep -q . '$gi_root/media/.gameinfo_none'"
-gi_todo=kept
-gi_found
-check "no note: nothing changes" test "$gi_todo" = kept
-rm -f "$gi_root/media/.gameinfo_none"
-gi_found
-check "no file: nothing made" test ! -e "$gi_root/media/.gameinfo_none"
-end
-
-# A scraping cut short on one console, the next scraping on another one.
-begin scraper_game_info_pending_of_other_consoles
-gi_env
-for c in SFC GBA; do
-    mkdir -p "$TMP/Roms/$c"
-    printf '<?xml version="1.0"?>\n<gameList>\n</gameList>\n' > "$TMP/Roms/$c/gamelist.xml"
-    printf '  <game>\n    <path>./Left in %s.rom</path>\n  </game>\n' "$c" > "$TMP/Roms/$c/gamelist.xml.pending"
+begin backup_allowed_paths
+backup_load "$TMP/sd"
+for p in Saves Saves/CurrentProfile/saves/Pokemon.srm Saves/GuestProfile/states/x.state0 \
+    .tmp_update .tmp_update/config .tmp_update/config/.logging .tmp_update/config/system/abc.json \
+    system.json RetroArch RetroArch/.retroarch RetroArch/.retroarch/retroarch.cfg \
+    Emu/NDS/backup/Mario.dsv Emu/NDS/savestates/Mario_0.dss Emu/NDS/config/drastic.cfg \
+    Emu/NDS/resources/settings.json Roms Roms/favourite.json "Roms/recentlist-hidden.json"; do
+    check "allowed: $p" allowed_path "$p"
 done
-mkdir -p "$TMP/Roms/MD" "$TMP/Roms/With space"
-printf '<gameList>\n</gameList>\n' > "$TMP/Roms/With space/gamelist.xml"
-printf '  <game>\n    <path>./S.rom</path>\n  </game>\n' > "$TMP/Roms/With space/gamelist.xml.pending"
-gi_merge_all_pending "$TMP/Roms"
-check "the entries left in one console are merged" grep -q '<path>./Left in SFC.rom</path>' "$TMP/Roms/SFC/gamelist.xml"
-check "and those of another" grep -q '<path>./Left in GBA.rom</path>' "$TMP/Roms/GBA/gamelist.xml"
-check "a folder name with a space too" grep -q '<path>./S.rom</path>' "$TMP/Roms/With space/gamelist.xml"
-check "nothing left aside" sh -c "! ls '$TMP'/Roms/*/gamelist.xml.pending 2> /dev/null | grep -q ."
-check "a console without entries aside gets no list" test ! -e "$TMP/Roms/MD/gamelist.xml"
+for p in "" /etc/passwd ../x Saves/../.tmp_update/runtime.sh Saves/./x .tmp_update/runtime.sh \
+    .tmp_update/bin/7z RetroArch/retroarch RetroArch/.retroarch/cores/x.so Emu/GBA/launch.sh \
+    Emu/NDS/launch.sh Roms/GBA/game.gba Roms/GBA/x.json Roms/game.gba App/Tweaks/launch.sh BIOS/gba_bios.bin; do
+    check "refused: '$p'" not_allowed "$p"
+done
 end
 
-begin scraper_game_info_not_found_memo
-gi_env
-GameInfoMedia="desc,box2dfront"
-ss_no_match=0
-gi_not_found
-check "no 'not found' answer: nothing written" test ! -e "$gi_root/media/.gameinfo_none"
-ss_no_match=1
-gi_not_found
-check "a game ScreenScraper doesn't know is recorded" grep -qxF "notfound $gi_rel" "$gi_root/media/.gameinfo_none"
-gi_not_found
-check "and only once" test "$(grep -cxF "notfound $gi_rel" "$gi_root/media/.gameinfo_none")" -eq 1
-check "nothing is missing for it any more" test -z "$(gi_missing)"
-rm -rf "$gi_root/media"
-GameInfoMedia=""
-gi_not_found
-check "Game Info off: nothing written" test ! -e "$gi_root/media/.gameinfo_none"
+begin backup_labels_and_list
+backup_load "$TMP/sd"
+check "plain" test "$(backup_label RedOnion_backup_2026-11-10_09-30-15.zip)" = "2026-11-10 09:30:15"
+check "before restore" test "$(backup_label RedOnion_backup_2026-11-10_09-30-15_before-restore.zip)" = "2026-11-10 09:30:15 (before restore)"
+check "same second" test "$(backup_label RedOnion_backup_2026-11-10_09-30-15_2.zip)" = "2026-11-10 09:30:15 (2)"
+mkdir -p "$TMP/sd/Backups"
+for f in RedOnion_backup_2026-01-02_10-00-00.zip RedOnion_backup_2026-11-10_09-30-15.zip \
+    RedOnion_backup_2025-12-31_23-59-59.zip .RedOnion_backup_2026-12-01_00-00-00.zip.part \
+    other.zip RedOnion_backup_notes.txt; do
+    : > "$TMP/sd/Backups/$f"
+done
+check "newest first, only finished backups" test "$(list_backups | tr '\n' ' ')" = \
+    "RedOnion_backup_2026-11-10_09-30-15.zip RedOnion_backup_2026-01-02_10-00-00.zip RedOnion_backup_2025-12-31_23-59-59.zip "
 end
 
+begin backup_items_only_what_exists
+mkdir -p "$TMP/sd/Saves/CurrentProfile/saves" "$TMP/sd/.tmp_update/config" "$TMP/sd/Roms/GBA"
+: > "$TMP/sd/Roms/favourite.json"
+: > "$TMP/sd/Roms/GBA/list.json"
+backup_load "$TMP/sd"
+check "existing items, top Roms json only" test "$(backup_items | tr '\n' ' ')" = "Saves .tmp_update/config Roms/favourite.json "
+mkdir -p "$TMP/sd/Saves/CurrentProfile/romScreens"
+head -c 300000 /dev/urandom > "$TMP/sd/Saves/CurrentProfile/romScreens/big.png"
+head -c 20000 /dev/urandom > "$TMP/sd/Saves/CurrentProfile/saves/a.srm"
+kb=$(items_kb Saves)
+check "size without the screenshots ($kb KiB)" test "$kb" -ge 16 -a "$kb" -lt 100
+rm -rf "$TMP/sd"
+mkdir -p "$TMP/sd"
+check "nothing there: no items" test -z "$(backup_items)"
+end
 
+# The screens, with the menus answered from a list: ui_choose gives the next
+# answer and notes its title and choices; ui_info notes its title.
+backup_ui_stubs() { # answers...
+    echo "$*" | tr ' ' '\n' > "$TMP/answers"
+    : > "$TMP/ui"
+    ui_choose() {
+        printf 'CHOOSE %s | %s\n' "$1" "$(shift 2; echo "$*")" >> "$TMP/ui"
+        a=$(head -n 1 "$TMP/answers")
+        sed -i 1d "$TMP/answers"
+        return "${a:-255}"
+    }
+    ui_info() { printf 'INFO %s\n' "$1" >> "$TMP/ui"; }
+    ui_busy() { printf 'BUSY %s\n' "$1" >> "$TMP/ui"; }
+    ui_busy_end() { :; }
+}
+
+begin backup_delete_screen
+SD=$TMP/sd
+mkdir -p "$SD/Backups"
+: > "$SD/Backups/RedOnion_backup_2026-01-01_10-00-00.zip"
+: > "$SD/Backups/RedOnion_backup_2026-02-01_10-00-00.zip"
+backup_load "$SD"
+backup_ui_stubs 1 0
+screen_delete
+check "list titled" grep -q "^CHOOSE DELETE A BACKUP | 2026-02-01 10:00:00 2026-01-01 10:00:00$" "$TMP/ui"
+check "cancel keeps it" test -f "$SD/Backups/RedOnion_backup_2026-01-01_10-00-00.zip"
+backup_ui_stubs 1 1
+screen_delete
+check "asked first" grep -q "^CHOOSE DELETE A BACKUP | Cancel Delete$" "$TMP/ui"
+check "the second one deleted" test ! -e "$SD/Backups/RedOnion_backup_2026-01-01_10-00-00.zip"
+check "the other kept" test -f "$SD/Backups/RedOnion_backup_2026-02-01_10-00-00.zip"
+backup_ui_stubs 255
+screen_delete
+check "B on the list: nothing asked" test "$(grep -c CHOOSE "$TMP/ui")" -eq 1
+rm -f "$SD/Backups/"*
+backup_ui_stubs
+screen_delete
+check "none: says so" grep -q "^INFO DELETE A BACKUP$" "$TMP/ui"
+end
+
+# A small SD card: saves, settings and lists, and things a backup leaves out.
+backup_fake_sd() { # folder
+    mkdir -p "$1/Saves/CurrentProfile/saves/gpSP" "$1/Saves/CurrentProfile/states" \
+        "$1/Saves/CurrentProfile/romScreens" "$1/Saves/CurrentProfile/config/remaps" \
+        "$1/.tmp_update/config/system" "$1/.tmp_update/bin" "$1/RetroArch/.retroarch" \
+        "$1/Roms/GBA" "$1/Emu/NDS/backup" "$1/Emu/NDS/config" "$1/BIOS"
+    echo "save 1" > "$1/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm"
+    echo "state 1" > "$1/Saves/CurrentProfile/states/game.state0"
+    echo "screen" > "$1/Saves/CurrentProfile/romScreens/game.png"
+    echo "1700000000" > "$1/Saves/CurrentProfile/saves/currentTime.txt"
+    echo "remap" > "$1/Saves/CurrentProfile/config/remaps/x.rmp"
+    : > "$1/.tmp_update/config/.logging"
+    echo '{"vol": 10}' > "$1/.tmp_update/config/system/OLD.json"
+    echo "binary" > "$1/.tmp_update/bin/tool"
+    echo '{"vol": 15, "theme": "a"}' > "$1/system.json"
+    echo 'video_smooth = "true"' > "$1/RetroArch/.retroarch/retroarch.cfg"
+    echo '{"fav": 1}' > "$1/Roms/favourite.json"
+    echo "rom" > "$1/Roms/GBA/game.gba"
+    echo "nds save" > "$1/Emu/NDS/backup/Mario.dsv"
+    echo "cfg" > "$1/Emu/NDS/config/drastic.cfg"
+    mkdir -p "$1/.tmp_update/config/syncthing/index"
+    echo "key 1" > "$1/.tmp_update/config/syncthing/key.pem"
+    echo "db" > "$1/.tmp_update/config/syncthing/index/000001.log"
+    echo "bios" > "$1/BIOS/bios.bin"
+}
+
+if [ -z "$backup_7z" ]; then
+    echo "  [SKIP] backup zip tests: no 7-Zip on this PC (set BACKUP_TEST_7Z)"
+else
+    BACKUP_TEST_7Z=$backup_7z
+
+    begin backup_make_and_restore
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    read_uuid() { echo DEVICE1; }
+    mkdir -p "$SD/Backups"
+    : > "$SD/Backups/.RedOnion_backup_2026-01-01_10-00-00.zip.part"
+    : > "$SD/.tmp_update/config/theme-applied-ABC"
+    make_backup ""
+    rc=$?
+    check "made" test $rc -eq 0
+    check "a part file left by a cut-short backup is removed" test ! -e "$SD/Backups/.RedOnion_backup_2026-01-01_10-00-00.zip.part"
+    check "in Backups" test -f "$BACKUP_FILE" -a "$(dirname "$BACKUP_FILE")" = "$SD/Backups"
+    check "no part file left" test -z "$(ls -A "$SD/Backups" | grep part)"
+    paths=$(archive_paths "$BACKUP_FILE")
+    for p in "Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm" Saves/CurrentProfile/states/game.state0 \
+        Saves/CurrentProfile/config/remaps/x.rmp .tmp_update/config/.logging system.json \
+        RetroArch/.retroarch/retroarch.cfg Roms/favourite.json Emu/NDS/backup/Mario.dsv Emu/NDS/config/drastic.cfg; do
+        check "has $p" sh -c 'printf "%s\n" "$1" | grep -qxF "$2"' _ "$paths" "$p"
+    done
+    for p in Saves/CurrentProfile/romScreens/game.png Saves/CurrentProfile/saves/currentTime.txt \
+        Roms/GBA/game.gba .tmp_update/bin/tool BIOS/bios.bin .tmp_update/config/syncthing/key.pem \
+        .tmp_update/config/syncthing/index/000001.log; do
+        check "not $p" sh -c '! printf "%s\n" "$1" | grep -qxF "$2"' _ "$paths" "$p"
+    done
+    check "every path may go back" check_archive "$BACKUP_FILE"
+    first=$BACKUP_FILE
+
+    # Things change, then the backup goes back.
+    echo "save 2" > "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm"
+    rm -f "$SD/.tmp_update/config/.logging"
+    echo '{"vol": 3, "theme": "b"}' > "$SD/system.json"
+    echo "new" > "$SD/Saves/CurrentProfile/saves/new.srm"
+    restore_backup "$first"
+    rc=$?
+    check "restored" test $rc -eq 0
+    check "save back" test "$(cat "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm")" = "save 1"
+    check "flag back" test -f "$SD/.tmp_update/config/.logging"
+    check "system.json back" test "$(cat "$SD/system.json")" = '{"vol": 15, "theme": "a"}'
+    check "and this device's boot copy" test "$(cat "$SD/.tmp_update/config/system/DEVICE1.json")" = '{"vol": 15, "theme": "a"}'
+    check "a file not in the backup stays" test "$(cat "$SD/Saves/CurrentProfile/saves/new.srm")" = new
+    check "the ROM is untouched" test "$(cat "$SD/Roms/GBA/game.gba")" = rom
+    check "the theme's icons are applied again at the next boot" test ! -e "$SD/.tmp_update/config/theme-applied-ABC"
+    before=$(list_backups | grep _before-restore)
+    check "the state before was backed up" test -n "$before"
+    check "with the changed save" zip_line_is "$SD/Backups/$before" "Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm" "save 2"
+    end
+
+    begin backup_restore_screen
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    read_uuid() { echo DEVICE1; }
+    printf '#!/bin/sh\necho "$*" > "%s/shutdown_args"\n' "$TMP" > "$SD/.tmp_update/bin/shutdown"
+    chmod +x "$SD/.tmp_update/bin/shutdown"
+    backup_ui_stubs
+    screen_backup
+    check "backup done shown" grep -q "^INFO BACKUP DONE$" "$TMP/ui"
+    echo "save 2" > "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm"
+    backup_ui_stubs 0 0 1
+    screen_restore
+    check "restore cancelled: save unchanged" test "$(cat "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm")" = "save 2"
+    check "list titled RESTORE" grep -q "^CHOOSE RESTORE | [0-9-]* [0-9:]*$" "$TMP/ui"
+    backup_ui_stubs 0 1 1
+    screen_restore
+    check "restored" test "$(cat "$SD/Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm")" = "save 1"
+    check "restart offered" grep -q "^CHOOSE RESTORE DONE | Restart now Later$" "$TMP/ui"
+    check "Later: no restart" test ! -e "$TMP/shutdown_args"
+    (backup_ui_stubs 0 1 0; screen_restore)
+    check "Restart now: clean reboot" test "$(cat "$TMP/shutdown_args" 2> /dev/null)" = "-r"
+    end
+
+    begin backup_restore_keeps_the_clock
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    mkdir -p "$TMP/old/Saves/CurrentProfile/saves"
+    echo "1000" > "$TMP/old/Saves/CurrentProfile/saves/currentTime.txt"
+    echo "old save" > "$TMP/old/Saves/CurrentProfile/saves/old.srm"
+    (cd "$TMP/old" && "$BACKUP_TEST_7Z" a -tzip "$TMP/old.zip" Saves > /dev/null 2>&1)
+    restore_backup "$TMP/old.zip"
+    check "restored" test $? -eq 0
+    check "its save written" test "$(cat "$SD/Saves/CurrentProfile/saves/old.srm")" = "old save"
+    check "its saved clock not written back" test "$(cat "$SD/Saves/CurrentProfile/saves/currentTime.txt")" = 1700000000
+    end
+
+    begin backup_restore_leaves_syncthing_alone
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    mkdir -p "$TMP/old/.tmp_update/config/syncthing" "$TMP/old/Saves/CurrentProfile/saves"
+    echo "key 0" > "$TMP/old/.tmp_update/config/syncthing/key.pem"
+    echo "old save" > "$TMP/old/Saves/CurrentProfile/saves/old.srm"
+    (cd "$TMP/old" && "$BACKUP_TEST_7Z" a -tzip "$TMP/old.zip" Saves .tmp_update > /dev/null 2>&1)
+    restore_backup "$TMP/old.zip"
+    check "a backup with Syncthing's folder still goes back" test $? -eq 0
+    check "its save written" test "$(cat "$SD/Saves/CurrentProfile/saves/old.srm")" = "old save"
+    check "Syncthing's keys left as they are" test "$(cat "$SD/.tmp_update/config/syncthing/key.pem")" = "key 1"
+    end
+
+    begin backup_restore_puts_tweaks_switches_back
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    # Now: logging on, SSH off, the panel on (not in the backup).
+    : > "$SD/.tmp_update/config/.sshState_"
+    : > "$SD/.tmp_update/config/.osdPanel"
+    echo "secret" > "$SD/.tmp_update/config/.password.txt"
+    # The backup: logging off, SSH on.
+    rm -rf "$TMP/old"
+    mkdir -p "$TMP/old/.tmp_update/config/system"
+    : > "$TMP/old/.tmp_update/config/.logging_"
+    : > "$TMP/old/.tmp_update/config/.sshState"
+    echo "old" > "$TMP/old/.tmp_update/config/.password.txt"
+    : > "$TMP/old/.tmp_update/config/system/.keep"
+    rm -f "$TMP/old.zip"
+    (cd "$TMP/old" && "$BACKUP_TEST_7Z" a -tzip "$TMP/old.zip" .tmp_update > /dev/null 2>&1)
+    restore_backup "$TMP/old.zip"
+    check "restored" test $? -eq 0
+    check "logging off as in the backup" test -f "$SD/.tmp_update/config/.logging_" -a ! -e "$SD/.tmp_update/config/.logging"
+    check "SSH on as in the backup" test -f "$SD/.tmp_update/config/.sshState" -a ! -e "$SD/.tmp_update/config/.sshState_"
+    check "an option the backup does not have is left" test -f "$SD/.tmp_update/config/.osdPanel"
+    check "other dot files only written back" test "$(cat "$SD/.tmp_update/config/.password.txt")" = "old"
+    check "and logged" grep -q "Removed .logging (the backup has .logging_)" "$LOG"
+    end
+
+    begin backup_restore_needs_a_whole_safety_copy
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    rm -rf "$TMP/old"
+    mkdir -p "$TMP/old/Saves/CurrentProfile/saves"
+    echo "old save" > "$TMP/old/Saves/CurrentProfile/saves/old.srm"
+    rm -f "$TMP/old.zip"
+    (cd "$TMP/old" && "$BACKUP_TEST_7Z" a -tzip "$TMP/old.zip" Saves > /dev/null 2>&1)
+    # 7z could not read some current files: the copy is made, but not whole.
+    make_backup() {
+        mkdir -p "$SD/Backups"
+        BACKUP_FILE="$SD/Backups/partial.zip"
+        : > "$BACKUP_FILE"
+        printf 'WARNING: errno=5 : Input/output error\nSaves/CurrentProfile/saves/bad.srm\n' >> "$LOG"
+        return 1
+    }
+    printf 'WARNING: errno=5 : Input/output error\nan older run\n' >> "$LOG"
+    restore_backup "$TMP/old.zip"
+    check "asked first" test $? -eq 2
+    check "nothing written" test ! -e "$SD/Saves/CurrentProfile/saves/old.srm"
+    check "the unread file named (this run's)" test "$RESTORE_UNREAD" = "Saves/CurrentProfile/saves/bad.srm"
+    check "the partial copy kept for the answer" test "$RESTORE_PARTIAL" = "$SD/Backups/partial.zip" -a -e "$SD/Backups/partial.zip"
+    restore_cancel
+    check "Cancel: the partial copy removed" test ! -e "$SD/Backups/partial.zip"
+    restore_backup "$TMP/old.zip"
+    : > "$TMP/backups_made"
+    make_backup() { echo again >> "$TMP/backups_made"; return 1; }
+    restore_backup "$TMP/old.zip" 1
+    check "Restore anyway" test $? -eq 0
+    check "written" test "$(cat "$SD/Saves/CurrentProfile/saves/old.srm")" = "old save"
+    check "with the copy made before, not a second one" test ! -s "$TMP/backups_made"
+    check "which is kept" test -e "$SD/Backups/partial.zip"
+    check "the screen asks" grep -q '"Cancel" "Restore anyway"' "$BACKUP_APP"
+    check "and names the file only" grep -q 'unread="\\n${RESTORE_UNREAD##\*/}"' "$BACKUP_APP"
+    end
+
+    begin backup_restore_refuses_foreign_paths
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    mkdir -p "$TMP/evil/Emu/GBA"
+    echo "evil" > "$TMP/evil/Emu/GBA/launch.sh"
+    (cd "$TMP/evil" && "$BACKUP_TEST_7Z" a -tzip "$TMP/evil.zip" Emu > /dev/null 2>&1)
+    restore_backup "$TMP/evil.zip"
+    check "refused" test $? -ne 0
+    check "says which file" sh -c 'printf "%s" "$1" | grep -q "Emu/GBA"' _ "$RESTORE_ERROR"
+    check "nothing written" test ! -e "$SD/Emu/GBA/launch.sh"
+    check "no backup made for it" test -z "$(list_backups)"
+    echo "not a zip" > "$TMP/broken.zip"
+    restore_backup "$TMP/broken.zip"
+    check "a damaged file is refused" test $? -ne 0 -a -n "$RESTORE_ERROR"
+    end
+
+    begin backup_restore_keeps_guest_mode
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    make_backup ""
+    normal=$BACKUP_FILE
+    mkdir -p "$SD/Saves/MainProfileOld"
+    : > "$SD/Saves/MainProfileOld/x"
+    make_backup ""
+    check "a folder only starting with MainProfile is not Guest Mode" not_guest_archive "$BACKUP_FILE"
+    rm -rf "$SD/Saves/MainProfileOld"
+    mv "$SD/Saves/CurrentProfile" "$SD/Saves/MainProfile"
+    mkdir -p "$SD/Saves/CurrentProfile/saves"
+    restore_backup "$normal"
+    check "Guest Mode on, backup without it: refused" test $? -ne 0
+    check "says to turn it off" sh -c 'printf "%s" "$1" | grep -q "Turn Guest Mode off"' _ "$RESTORE_ERROR"
+    check "main profile untouched" test ! -e "$SD/Saves/CurrentProfile/saves/gpSP"
+    make_backup ""
+    guest=$BACKUP_FILE
+    rm -rf "$SD/Saves/CurrentProfile"
+    mv "$SD/Saves/MainProfile" "$SD/Saves/CurrentProfile"
+    restore_backup "$guest"
+    check "Guest Mode off, backup with it: refused" test $? -ne 0
+    check "says to turn it on" sh -c 'printf "%s" "$1" | grep -q "Turn Guest Mode on"' _ "$RESTORE_ERROR"
+    end
+
+    begin backup_not_enough_space_or_7z_error
+    SD=$TMP/sd
+    backup_fake_sd "$SD"
+    backup_load "$SD"
+    free_kb() { echo 100; }
+    make_backup ""
+    check "no space: not made" test $? -eq 2
+    check "says so" sh -c 'printf "%s" "$1" | grep -q "Not enough space"' _ "$BACKUP_ERROR"
+    check "no file" test -z "$(ls -A "$SD/Backups")"
+    backup_load "$SD"
+    BACKUP_7Z=false
+    Z7=false
+    make_backup ""
+    check "7z fails: not made" test $? -eq 2
+    check "nothing left behind" test -z "$(ls -A "$SD/Backups")"
+    end
+fi
+
+# ---- Green: light copies of heavy manuals (bin/green/green) ----
+begin "green_light_copy_of_heavy_manuals"
+GD="$TMP/sd/.tmp_update/bin/green"
+mkdir -p "$GD" "$TMP/sd/.tmp_update/config" "$TMP/t" "$TMP/manuals"
+cp "$ROOT/static/build/.tmp_update/bin/green/green" "$GD/green"
+printf '#!/bin/sh\necho "$*" >> "%s/opened"\n' "$TMP" > "$GD/green.bin"
+# pdflight stub: MODE ok (2 pages), skip (exit 3), fail (exit 1), slow.
+cat > "$GD/pdflight" << STUB
+#!/bin/sh
+echo "\$*" >> "$TMP/calls"
+echo "reduce=\$GREEN_JPX_REDUCE pages=\$GREEN_CACHE_PAGES" > "$TMP/pdflight_env"
+mode=\$(cat "$TMP/mode")
+[ "\$mode" = skip ] && exit 3
+[ "\$mode" = unreadable ] && exit 4
+echo "pages 2"
+[ "\$mode" = torn ] && { printf 'page 1/'; sleep 1; echo '2'; }
+echo "page 1/2"
+[ "\$mode" = slow ] && { echo partial > "\$3"; sleep 30; }
+[ "\$mode" = fail ] && { echo partial > "\$3"; exit 1; }
+sleep 2
+echo light > "\$3"
+echo "page 2/2"
+exit 0
+STUB
+mkdir -p "$TMP/sd/.tmp_update/bin"
+cat > "$TMP/sd/.tmp_update/bin/infoPanel" << STUB
+#!/bin/sh
+echo "\$4" >> "$TMP/panel"
+while [ ! -f "$TMP/t/dismiss_info_panel" ]; do sleep 0.1; done
+STUB
+# detectKey stub: B "held" once while $TMP/holdB exists.
+cat > "$TMP/sd/.tmp_update/bin/detectKey" << STUB
+#!/bin/sh
+[ "\$1" = 29 ] && [ -f "$TMP/holdB" ] && { rm -f "$TMP/holdB"; exit 0; }
+exit 1
+STUB
+chmod +x "$GD/green" "$GD/green.bin" "$GD/pdflight" "$TMP/sd/.tmp_update/bin/infoPanel" "$TMP/sd/.tmp_update/bin/detectKey"
+green() { PDFLIGHT_TMP="$TMP/t" sh "$GD/green" "$@"; }
+calls() { [ -f "$TMP/calls" ] && wc -l < "$TMP/calls" | tr -d ' ' || echo 0; }
+M="$TMP/manuals"
+echo scan > "$M/Metroid.pdf"
+
+echo ok > "$TMP/mode"
+green "$M/Metroid.pdf"
+check "heavy manual: light copy made with --auto" grep -qxF -- "--auto $M/Metroid.pdf $M/.light/Metroid.pdf.tmp" "$TMP/calls"
+check "heavy manual: Green opens the light copy" test "$(tail -n 1 "$TMP/opened")" = "$M/.light/Metroid.pdf"
+check "light copy in place, no .tmp left" sh -c 'test "$(cat "$1/.light/Metroid.pdf")" = light && test ! -e "$1/.light/Metroid.pdf.tmp"' _ "$M"
+check "progress shown page by page" grep -q 'Page 1 of 2' "$TMP/panel"
+check "progress: the time left" grep -q 'Less than a minute left' "$TMP/panel"
+check "progress: B to open it now" grep -q 'Hold B to open it now' "$TMP/panel"
+left=$(pgrep -f "$TMP/sd/.tmp_update/bin/infoPanel" | wc -l)
+check "progress panel closed" test "$left" -eq 0
+check "original untouched" test "$(cat "$M/Metroid.pdf")" = scan
+check "pdflight reads JPEG2000 at half size" test "$(cat "$TMP/pdflight_env")" = "reduce=1 pages=8"
+printf '#!/bin/sh\necho "reduce=$GREEN_JPX_REDUCE pages=$GREEN_CACHE_PAGES mb=$GREEN_CACHE_MB" > "%s/green_env"\n' "$TMP" > "$TMP/envbin"
+cp "$GD/green.bin" "$TMP/green.bin.keep"
+cp "$TMP/envbin" "$GD/green.bin"
+chmod +x "$GD/green.bin"
+green "$M/Metroid.pdf"
+check "Green gets robcodedev's settings" test "$(cat "$TMP/green_env")" = "reduce=2 pages=8 mb=20"
+cp "$TMP/green.bin.keep" "$GD/green.bin"
+chmod +x "$GD/green.bin"
+green "$M/Metroid.pdf"
+check "second time: no new copy, light copy opened" sh -c 'test "$(wc -l < "$1/calls")" -eq 1 && test "$(tail -n 1 "$1/opened")" = "$2/.light/Metroid.pdf"' _ "$TMP" "$M"
+touch -t 203001010000 "$M/Metroid.pdf"
+green "$M/Metroid.pdf"
+check "a PDF dated years after its copy (wrong clock) is not made again" sh -c 'test "$(wc -l < "$1/calls")" -eq 1 && test "$(tail -n 1 "$1/opened")" = "$2/.light/Metroid.pdf"' _ "$TMP" "$M"
+echo "a replaced, bigger scan" > "$M/Metroid.pdf"
+touch -t 201001010000 "$M/Metroid.pdf"
+green "$M/Metroid.pdf"
+check "a replaced original (another size) is made light again" test "$(calls)" -eq 2
+check "the copy notes the size of its original" test "$(cat "$M/.light/Metroid.pdf.size")" = "$(wc -c < "$M/Metroid.pdf" | tr -d ' ')"
+
+echo text > "$M/Text.pdf"
+echo skip > "$TMP/mode"
+green "$M/Text.pdf"
+check "not worth it: original opened" test "$(tail -n 1 "$TMP/opened")" = "$M/Text.pdf"
+check "not worth it: noted, no copy" sh -c 'test -f "$1/.light/Text.pdf.skip" && test ! -e "$1/.light/Text.pdf"' _ "$M"
+green "$M/Text.pdf"
+check "not worth it: not tried again" test "$(calls)" -eq 3
+
+echo scan > "$M/Bad.pdf"
+echo fail > "$TMP/mode"
+green "$M/Bad.pdf"
+check "pdflight fails: original opened" test "$(tail -n 1 "$TMP/opened")" = "$M/Bad.pdf"
+check "pdflight fails: no copy left behind" sh -c 'test ! -e "$1/.light/Bad.pdf" && test ! -e "$1/.light/Bad.pdf.tmp" && test ! -e "$1/.light/Bad.pdf.size"' _ "$M"
+check "pdflight fails (memory, card full): tried again next time" sh -c 'test -f "$1/.light/Bad.pdf.fail" && test ! -e "$1/.light/Bad.pdf.skip"' _ "$M"
+green "$M/Bad.pdf"
+check "fails a second time: then noted" sh -c 'test -f "$1/.light/Bad.pdf.skip" && test ! -e "$1/.light/Bad.pdf.fail"' _ "$M"
+before=$(calls)
+green "$M/Bad.pdf"
+check "and not tried at every opening" test "$(calls)" -eq "$before"
+echo scan > "$M/Broken.pdf"
+echo unreadable > "$TMP/mode"
+green "$M/Broken.pdf"
+check "a PDF pdflight cannot read: noted at once" test -f "$M/.light/Broken.pdf.skip"
+echo scan > "$M/Full.pdf"
+echo ok > "$TMP/mode"
+mkdir -p "$TMP/dfbin"
+printf '#!/bin/sh\necho "Filesystem 1K-blocks Used Available Use%% Mounted on"\necho "/dev/mmcblk0p1 1000 990 10 99%% /mnt/SDCARD"\n' > "$TMP/dfbin/df"
+chmod +x "$TMP/dfbin/df"
+before=$(calls)
+PATH="$TMP/dfbin:$PATH" green "$M/Full.pdf"
+check "card full: the original, no copy tried" sh -c 'test "$(tail -n 1 "$1/opened")" = "$2/Full.pdf" && test "$(wc -l < "$1/calls")" -eq "$3"' _ "$TMP" "$M" "$before"
+
+echo scan > "$M/Off.pdf"
+touch "$TMP/sd/.tmp_update/config/.noPdfLight"
+before=$(calls)
+green "$M/Off.pdf"
+check "switched off in Tweaks: original, no copy" sh -c 'test "$(tail -n 1 "$1/opened")" = "$2/Off.pdf" && test "$(wc -l < "$1/calls")" -eq "$3"' _ "$TMP" "$M" "$before"
+rm -f "$TMP/sd/.tmp_update/config/.noPdfLight"
+
+green "$M/.light/Metroid.pdf"
+check "a light copy itself opens as it is" test "$(tail -n 1 "$TMP/opened")" = "$M/.light/Metroid.pdf"
+green
+check "no file: Green as it was" test "$(tail -n 1 "$TMP/opened")" = ""
+green "$M/missing.pdf"
+check "missing file: passed to Green" test "$(tail -n 1 "$TMP/opened")" = "$M/missing.pdf"
+
+echo scan > "$M/Torn.pdf"
+echo torn > "$TMP/mode"
+green "$M/Torn.pdf"
+check "a half-written progress line does not stop it" test "$(tail -n 1 "$TMP/opened")" = "$M/.light/Torn.pdf"
+
+echo scan > "$M/Skip.pdf"
+echo slow > "$TMP/mode"
+( sleep 2; touch "$TMP/holdB" ) &
+green "$M/Skip.pdf"
+check "B held: the original opened now" test "$(tail -n 1 "$TMP/opened")" = "$M/Skip.pdf"
+check "B held: no copy, no note, offered again" sh -c 'test ! -e "$1/.light/Skip.pdf" && test ! -e "$1/.light/Skip.pdf.tmp" && test ! -e "$1/.light/Skip.pdf.skip"' _ "$M"
+left=$(pgrep -f "$GD/pdflight" | wc -l)
+check "B held: pdflight stopped" test "$left" -eq 0
+
+echo scan > "$M/Slow.pdf"
+echo slow > "$TMP/mode"
+PDFLIGHT_TMP="$TMP/t" sh "$GD/green" "$M/Slow.pdf" &
+gpid=$!
+sleep 2
+kill -TERM $gpid
+wait $gpid
+check "stopped while making it: Green not opened" test "$(tail -n 1 "$TMP/opened")" != "$M/Slow.pdf"
+check "stopped while making it: no partial copy" sh -c 'test ! -e "$1/.light/Slow.pdf.tmp" && test ! -e "$1/.light/Slow.pdf"' _ "$M"
+left=$(pgrep -f "$GD/pdflight" | wc -l)
+check "stopped while making it: pdflight ended" test "$left" -eq 0
+pkill -f "$TMP/sd/.tmp_update/bin/infoPanel" 2> /dev/null
+end
+
+# ---- Kids Mode (App/KidsMode): in place of MainUI while armed ----
+
+KIDS_APP="$ROOT/static/packages/App/Kids Mode/App/KidsMode"
+KIDS_LOOP="$KIDS_APP/kid_mode_loop.sh"
+KEYMON_C="$ROOT/src/keymon/keymon.c"
+
+begin kids_mode_runtime_in_place_of_mainui
+sysdir=$TMP
+eval "$(extract_fn "$RUNTIME" kids_mode_armed | sed "s#/mnt/SDCARD/.kidmode#$TMP/.kidmode#")"
+eval "$(extract_fn "$RUNTIME" check_main_ui)"
+eval "$(extract_fn "$RUNTIME" check_switcher)"
+kids_mode_loop=$TMP/loop.sh
+launch_kids_mode() { echo kids >> "$TMP/calls"; }
+launch_main_ui() { echo mainui >> "$TMP/calls"; }
+launch_switcher() { echo switcher >> "$TMP/calls"; }
+check_off_order() { :; }
+log() { :; }
+sync() { :; }
+check_main_ui
+check "not armed: MainUI" test "$(cat "$TMP/calls")" = mainui
+: > "$TMP/.kidmode"
+check_main_ui
+check "armed, Kids Mode not installed: MainUI" test "$(tail -n 1 "$TMP/calls")" = mainui
+: > "$kids_mode_loop"
+check_main_ui
+check "armed: Kids Mode in place of MainUI" test "$(tail -n 1 "$TMP/calls")" = kids
+echo game > "$sysdir/cmd_to_run.sh"
+: > "$TMP/calls"
+check_main_ui
+check "a game to launch: neither (launch_game runs it)" test ! -s "$TMP/calls"
+: > "$sysdir/.runGameSwitcher"
+check_switcher
+check "armed: never the GameSwitcher (the parent's recent games)" sh -c 'test ! -s "$1/calls" && test ! -e "$1/.runGameSwitcher"' _ "$TMP"
+rm -f "$TMP/.kidmode"
+: > "$sysdir/.runGameSwitcher"
+check_switcher
+check "not armed: the GameSwitcher as before" test "$(cat "$TMP/calls")" = switcher
+boot=$(sed -n '/^main() {/,/^}/p' "$RUNTIME")
+check "at boot: Kids Mode first, then a game it left (no startup app)" sh -c 'printf "%s\n" "$1" | awk "/if kids_mode_armed; then/ { k = NR } k && /launch_kids_mode/ && !l { l = NR } l && /state_change check_game/ && !g { g = NR } /startup_app=/ { a = NR } END { exit !(k && l > k && g > l && a > g) }"' _ "$boot"
+unset -f launch_kids_mode launch_main_ui launch_switcher check_off_order log sync check_main_ui check_switcher kids_mode_armed
+end
+
+begin kids_mode_runtime_starts_the_launcher
+sysdir=$TMP
+mkdir -p "$sysdir/bin"
+eval "$(extract_fn "$RUNTIME" launch_kids_mode)"
+eval "$(extract_fn "$RUNTIME" fb_probe_fields)"
+log() { :; }
+start_audioserver() { echo audio >> "$TMP/calls"; }
+notify_resolution_change() { echo notified >> "$TMP/calls"; }
+kids_mode_loop=$TMP/loop.sh
+printf 'echo "$KIDSMODE_HOST $1" > "%s/loop"\n' "$TMP" > "$kids_mode_loop"
+launch_kids_mode
+check "started as the host, to run" test "$(cat "$TMP/loop")" = "runtime run"
+check "audio server up" grep -q audio "$TMP/calls"
+printf '#!/bin/sh\n[ "$1" = --probe ] && { echo "$PROBE"; exit 0; }\necho "$*" >> "%s/fbmode"\n' "$TMP" > "$sysdir/bin/fbmode"
+chmod +x "$sysdir/bin/fbmode"
+check "640x480 devices: no mode change" test ! -e "$TMP/fbmode"
+: > /tmp/new_res_available.kidstest
+eval "$(extract_fn "$RUNTIME" launch_kids_mode | sed "s#/tmp/new_res_available#/tmp/new_res_available.kidstest#")"
+PROBE="640x480 virtual 640x1440 bpp 32 line_length 2560 pages 3" launch_kids_mode
+check "752x560 devices, MainUI's 3 pages: two 640x480 pages" sh -c 'grep -q "^640x480 --pages 2 " "$1/fbmode" && grep -q notified "$1/calls"' _ "$TMP"
+: > "$TMP/fbmode"
+PROBE="640x480 virtual 640x960 bpp 32 line_length 2560 pages 2" launch_kids_mode
+check "already two 640x480 pages: left alone" test ! -s "$TMP/fbmode"
+rm -f /tmp/new_res_available.kidstest
+unset -f launch_kids_mode fb_probe_fields log start_audioserver notify_resolution_change
+end
+
+begin kids_mode_loop_hands_games_to_runtime
+sysdir=$TMP
+game_handoff_file=$TMP/handoff
+reset_cfg=$TMP/reset.cfg
+eval "$(extract_fn "$KIDS_LOOP" run_game_cmd)"
+eval "$(extract_fn "$KIDS_LOOP" finish_game_handoff)"
+eval "$(extract_fn "$KIDS_LOOP" strip_reset_appendconfig)"
+wait_for_game_environment() { echo prepared >> "$TMP/calls"; }
+allow_onion_battery_warning_for_game() { echo battery >> "$TMP/calls"; }
+log() { :; }
+printf './retroarch -v --appendconfig "%s" -L core.so "$1"\n' "$reset_cfg" > "$TMP/launch.sh"
+printf 'LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so "%s" "%s/Roms/GBA/game.gba"\n' "$TMP/launch.sh" "$TMP" > "$sysdir/cmd_to_run.sh"
+: > "$reset_cfg"
+(run_game_cmd; echo "returned" > "$TMP/returned")
+check "the script ends, for runtime.sh to launch the game" test ! -e "$TMP/returned"
+check "the game stays in cmd_to_run.sh" grep -q game.gba "$sysdir/cmd_to_run.sh"
+check "its launch script remembered" test "$(cat "$game_handoff_file")" = "$TMP/launch.sh"
+check "set up first, Onion's battery warning back for the game" test "$(cat "$TMP/calls")" = "prepared
+battery"
+finish_game_handoff
+check "back from it: handled" test $? -eq 0
+check "Start over taken out of the launch script again" sh -c '! grep -q appendconfig "$1/launch.sh"' _ "$TMP"
+check "and its file removed" test ! -e "$reset_cfg"
+finish_game_handoff
+check "no game handed over: nothing to do" test $? -eq 1
+check "back from a game: the launcher on it, not resuming a video" sh -c "sed -n '/^cmd_run() {/,/^}/p' '$KIDS_LOOP' | awk '/load_state_cache/ { l = NR } /if finish_game_handoff; then/ { f = NR } /initial_mode=carousel/ { c = NR } /initial_mode\" = running/ && !r { r = NR } END { exit !(l && f > l && c > f && r > c) }'"
+unset -f run_game_cmd finish_game_handoff strip_reset_appendconfig wait_for_game_environment allow_onion_battery_warning_for_game log
+end
+
+begin kids_mode_loop_writes_games_as_mainui
+sysdir=$TMP
+miyoodir=/mnt/SDCARD/miyoo
+reset_cfg=$TMP/kidmode_reset.cfg
+eval "$(extract_fn "$KIDS_LOOP" build_game_cmd | sed "s#/tmp/reset_game#$TMP/reset_game#g")"
+eval "$(extract_fn "$KIDS_LOOP" strip_reset_appendconfig)"
+mkdir -p "$TMP/Roms/GBA" "$TMP/Emu/GBA/.game_config"
+echo rom > "$TMP/Roms/GBA/game.gba"
+printf './retroarch -v --appendconfig "%s" -L core.so "$1"\n' "$reset_cfg" > "$TMP/Emu/GBA/launch.sh"
+build_game_cmd "$TMP/Emu/GBA/launch.sh" "$TMP/Emu/GBA/../../Roms/GBA/game.gba"
+check "as MainUI writes it (runtime.sh picks the core)" test "$(cat "$sysdir/cmd_to_run.sh")" = "LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so \"$TMP/Emu/GBA/launch.sh\" \"$TMP/Roms/GBA/game.gba\""
+check "no reset flag to resume" test ! -e "$TMP/reset_game"
+check "an older version's Start over taken out of the launch script" sh -c '! grep -q appendconfig "$1"' _ "$TMP/Emu/GBA/launch.sh"
+build_game_cmd "$TMP/Emu/GBA/launch.sh" "$TMP/Roms/GBA/game.gba" fresh
+check "Start over: Onion's reset-game flag (runtime.sh adds /tmp/reset.cfg)" test -e "$TMP/reset_game"
+check "runtime.sh still knows that flag" grep -q 'if \[ -f /tmp/reset_game \]; then' "$RUNTIME"
+check "and takes the flag away if the game does not use it" sh -c "sed -n '/^finish_game_handoff() {/,/^}/p' '$KIDS_LOOP' | grep -q '/tmp/reset_game'"
+unset -f build_game_cmd strip_reset_appendconfig
+end
+
+begin kids_mode_loop_leaves_shutdown_to_runtime
+eval "$(extract_fn "$KIDS_LOOP" check_off_order | sed -e "s#/tmp/.offOrder#$TMP/.offOrder#" -e "s#/tmp/shutting_down#$TMP/shutting_down#")"
+stop_ticker() { echo ticker-stopped >> "$TMP/calls"; }
+log() { :; }
+(check_off_order End; echo continued > "$TMP/cont")
+check "no shutdown asked: carries on" test -e "$TMP/cont"
+rm -f "$TMP/cont"
+: > "$TMP/.offOrder"
+(check_off_order End; echo continued > "$TMP/cont")
+check "shutdown: play time saved, the script ends (runtime.sh shuts down)" sh -c 'test ! -e "$1/cont" && grep -q ticker-stopped "$1/calls"' _ "$TMP"
+check "it no longer shuts down by itself" sh -c "! sed -n '/^check_off_order() {/,/^}/p' '$KIDS_LOOP' | grep -q '^ *shutdown\$'"
+unset -f check_off_order stop_ticker log
+end
+
+begin kids_mode_loop_redonion_hooks
+sysdir=$TMP
+checkoff_src="$KIDS_APP/kidmode_checkoff.sh"
+checkoff_dst=$TMP/checkoff/kidmode_checkoff.sh
+eval "$(extract_fn "$KIDS_LOOP" install_hook)"
+log() { :; }
+mkdir -p "$TMP/startup"
+: > "$TMP/startup/kidmode_boot.sh"
+install_hook
+check "the standalone boot hook goes" test ! -e "$TMP/startup/kidmode_boot.sh"
+check "the shutdown hook installed" cmp -s "$checkoff_src" "$checkoff_dst"
+check "run only when runtime.sh starts it" grep -q '\[ "$kids_host" = runtime \] || exit 0' "$KIDS_LOOP"
+check "no separate keymon any more" sh -c "! grep -q 'bin/keymon\|killall keymon' '$KIDS_LOOP'"
+check "keymon reads the keymap again instead" sh -c "sed -n '/^restart_keymon() {/,/^}/p' '$KIDS_LOOP' | grep -q 'touch /tmp/settings_changed'"
+check "keymon's Kids Mode flag set while it runs, removed when it ends" sh -c "grep -q 'touch \"\$kidsmode_active_flag\"' '$KIDS_LOOP' && sed -n '/^disarm() {/,/^}/p' '$KIDS_LOOP' | grep -q kidsmode_active_flag"
+check "the loop lock released when the script ends" grep -q '^trap release_loop_lock EXIT' "$KIDS_LOOP"
+check "the Apps entry only arms (runtime.sh starts the launcher)" sh -c "grep -q '\[ -f /mnt/SDCARD/.kidmode \] && exit 0' '$KIDS_APP/launch.sh' && ! grep -q 'kid_mode_loop.sh run' '$KIDS_APP/launch.sh'"
+unset -f install_hook log
+end
+
+begin kids_mode_checkoff_saves_play_time
+sed -e "s#/mnt/SDCARD/.kidmode#$TMP/.kidmode#" -e "s#/tmp/kidsmode_timer_used#$TMP/used#" \
+    -e "s#/mnt/SDCARD/Saves/KidsMode#$TMP/saves#" "$KIDS_APP/kidmode_checkoff.sh" > "$TMP/off.sh"
+mkdir -p "$TMP/saves"
+printf '2026-11-12\n100\n300\n' > "$TMP/saves/timer_state.txt"
+echo 640 > "$TMP/used"
+sh "$TMP/off.sh"
+check "not armed: nothing written" test "$(sed -n 2p "$TMP/saves/timer_state.txt")" = 100
+: > "$TMP/.kidmode"
+sh "$TMP/off.sh"
+check "armed: the time used saved, the extra time kept" sh -c 'test "$(sed -n 2,3p "$1")" = "640
+300"' _ "$TMP/saves/timer_state.txt"
+echo "" > "$TMP/used"
+sh "$TMP/off.sh"
+check "no counter: left alone" test "$(sed -n 2p "$TMP/saves/timer_state.txt")" = 640
+end
+
+begin kids_mode_binaries_stripped
+# Veuks' release workflow strips them; the repository's copies were not.
+for f in bin/kidsplay bin/fb_reset lib/libminivsync.so; do
+    check "$f: no debug symbols (.symtab)" sh -c '! grep -q "\.symtab" "$1"' _ "$KIDS_APP/$f"
+done
+end
+
+begin kids_mode_keymon_behaviour_only_while_armed
+check "Kids Mode known by its /tmp flag" grep -q 'return temp_flag_get("kidsmode");' "$KEYMON_C"
+fn=$(sed -n '/^void suspend_exec(int timeout)/,/^}/p' "$KEYMON_C")
+check "suspend: the LCD controller kept on in Kids Mode only" sh -c 'printf "%s\n" "$1" | grep -q "if (!kids)" && printf "%s\n" "$1" | grep -c "if (!kids)" | grep -q 3' _ "$fn"
+check "POWER: a dimmed Kids Mode screen only wakes" grep -q 'else if (kids_dimmed_at_power_press)' "$KEYMON_C"
+check "VOL+ does not unmute in Kids Mode" grep -q 'if (settings.mute && kidsmode_active())' "$KEYMON_C"
+check "no MENU+B blue light toggle in Kids Mode" grep -q 'kidsmode_active()) {' "$KEYMON_C"
+check "a playing video is not inactivity" grep -q 'temp_flag_get("kidsmode_media_playing")' "$KEYMON_C"
+begin disp_csc_reset_uses_mainui_formulas
+CSCR="$ROOT/static/build/.tmp_update/script/disp_csc_reset.sh"
+mkdir -p "$TMP/bin"
+printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v jq)" > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
+sed -e "s#/appconfigs/system.json#$TMP/system.json#" -e "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/mi_disp0#g" \
+    -e "s#^export PATH=.*#export PATH=\"$TMP/bin:\$PATH\"#" "$CSCR" > "$TMP/cscr.sh"
+echo '{"lumination": 7, "hue": 10, "saturation": 12, "contrast": 15}' > "$TMP/system.json"
+: > "$TMP/mi_disp0"
+sh "$TMP/cscr.sh" > /dev/null 2>&1
+check "same values as Settings > Display and the Flip at boot" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 60 50 42 60 0 0"
+fl=$(sed -n '/^restore_display_colours() {/,/^}/p' "$RUNTIME" | grep -o 'csc 0 3 [^>]*')
+check "runtime.sh's formulas are the same" test "$fl" = 'csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0" '
+end
+
+begin disp_csc_reset_repairs_lost_colour_processing
+CSCR="$ROOT/static/build/.tmp_update/script/disp_csc_reset.sh"
+mkdir -p "$TMP/bin"
+sed -e "s#^export sysdir=.*#export sysdir=\"$TMP\"#" -e "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/mi_disp0#g" \
+    -e "s#^export PATH=.*#export PATH=\"$TMP/bin:\$PATH\"#" "$CSCR" > "$TMP/cscr.sh"
+printf '#!/bin/sh\necho "killall $*" >> "%s/calls"\n[ "$*" = "-0 disp_init" ] && [ -e "%s/di_running" ] && exit 0\n[ "$1" = -0 ] && exit 1\nexit 0\n' "$TMP" "$TMP" > "$TMP/bin/killall"
+printf '#!/bin/sh\necho disp_init >> "%s/calls"\nsleep 0.3\necho " Interface DevTiming CscMatrix Luma" >> "%s/mi_disp0"\n' "$TMP" "$TMP" > "$TMP/bin/disp_init"
+chmod +x "$TMP/bin/killall" "$TMP/bin/disp_init"
+echo " Interface DevTiming CscMatrix Luma" > "$TMP/mi_disp0"
+sh "$TMP/cscr.sh" --repair > /dev/null
+check "colour processing there: nothing done" sh -c 'test $? -eq 0 && test ! -e "$1/calls"' _ "$TMP"
+echo " DevStatus IrqNum" > "$TMP/mi_disp0"
+out=$(sh "$TMP/cscr.sh" --repair)
+rc=$?
+check "lost: /dev/l (l) and an old disp_init stopped, disp_init started" test "$(cat "$TMP/calls")" = "killall -0 disp_init
+killall -2 l
+killall -9 disp_init
+killall -0 l
+killall -0 l
+disp_init"
+check "and waited until it is back" sh -c 'test $1 -eq 0 && grep -q CscMatrix "$2/mi_disp0"' _ "$rc" "$TMP"
+check "each step's time said (for the log)" sh -c 'printf "%s" "$1" | grep -q "/dev/l stopped (.* -> .* s)" && printf "%s" "$1" | grep -q "CSC section back (.* -> .* s)"' _ "$out"
+check "no colours written to the CSC-less node in --repair mode" sh -c '! grep -q "^csc " "$1/mi_disp0"' _ "$TMP"
+: > "$TMP/calls"
+printf '#!/bin/sh\necho disp_init >> "%s/calls"\n' "$TMP" > "$TMP/bin/disp_init"
+echo " DevStatus IrqNum" > "$TMP/mi_disp0"
+sh "$TMP/cscr.sh" --repair > /dev/null
+check "not back after 3 s: said so" test $? -eq 1
+echo " DevStatus IrqNum" > "$TMP/mi_disp0"
+: > "$TMP/calls"
+: > "$TMP/di_running"
+( sleep 0.2; echo " Interface DevTiming CscMatrix Luma" >> "$TMP/mi_disp0" ) &
+out=$(sh "$TMP/cscr.sh" --repair)
+wait
+check "a disp_init already setting it up (PICO-8 exiting): waited for, nothing restarted" sh -c 'test "$(cat "$1/calls")" = "killall -0 disp_init" && printf "%s" "$2" | grep -q "already running"' _ "$TMP" "$out"
+rm -f "$TMP/di_running"
+rm -f "$TMP/mi_disp0"
+: > "$TMP/calls"
+printf '#!/bin/sh\necho disp_init >> "%s/calls"\nsleep 0.3\necho " Interface DevTiming CscMatrix Luma" >> "%s/mi_disp0"\n' "$TMP" "$TMP" > "$TMP/bin/disp_init"
+sh "$TMP/cscr.sh" --repair > /dev/null
+rc=$?
+check "mi_disp0 gone after a game: repaired the same way" sh -c 'test $1 -eq 0 && grep -q "^disp_init$" "$2/calls" && grep -q CscMatrix "$2/mi_disp0"' _ "$rc" "$TMP"
+end
+
+begin runtime_leaves_display_repair_to_mainui
+# runtime.sh no longer repairs the display after games (robcodedev): Open
+# MainUI and DisplayCal run disp_csc_reset.sh --repair when they need it.
+check "no repair after games or the game menu" sh -c "! grep -qE 'repair_display|display_repair.log|display_has_csc' '$RUNTIME'"
+check "disp_csc_reset.sh keeps its --repair branch (Open MainUI checks for it)" grep -q '"$1" = "--repair"' "$ROOT/static/build/.tmp_update/script/disp_csc_reset.sh"
+end
+
+begin displaycal_applied_at_boot_and_after_blue_light
+BLUE_LIGHT="$ROOT/static/build/.tmp_update/script/blue_light.sh"
+DISPLAYCAL="$ROOT/static/packages/App/DisplayCal/App/DisplayCal/launch.sh"
+boot=$(sed -n '/^main() {/,/^}/p' "$RUNTIME")
+check "boot: DisplayCal --apply when the app is installed" sh -c 'printf "%s\n" "$1" | grep -q "sh /mnt/SDCARD/App/DisplayCal/launch.sh --apply"' _ "$boot"
+check "boot: after /tmp/deviceSN and the Blue Light Filter, before the boot screen" sh -c 'printf "%s\n" "$1" | grep -n -e "> /tmp/deviceSN" -e "blue_light.sh enable$" -e "DisplayCal/launch.sh --apply" -e "bootScreen \"Boot\"" | cut -d: -f1 | tr "\n" " " | awk "{exit !(NF == 4 && \$1 < \$2 && \$2 < \$3 && \$3 < \$4)}"' _ "$boot"
+check "boot: the filter and DisplayCal in one background job" sh -c 'printf "%s\n" "$1" | sed -n "/^    (\$/,/^    ) &\$/p" | grep -q -e "blue_light.sh check\$" && printf "%s\n" "$1" | sed -n "/^    (\$/,/^    ) &\$/p" | grep -q "DisplayCal/launch.sh --apply"' _ "$boot"
+# disable_blue_light_filter, with the display node and the app in $TMP
+eval "$(extract_fn "$BLUE_LIGHT" disable_blue_light_filter | sed "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/node#")"
+check_disp_init() { :; }
+usleep() { :; }
+sysdir=$TMP
+mkdir -p "$TMP/config/display"
+echo 8421504 > "$TMP/config/display/blueLightRGB"
+blf_key_on=$TMP/blfOn
+blf_key_on_user=$TMP/blfOnUser
+displaycal_launcher=$TMP/displaycal.sh
+printf 'if [ -e "%s/blfOn" ]; then echo "$* with the filter flag" >> "%s/calls"; else echo "$*" >> "%s/calls"; fi\n' "$TMP" "$TMP" "$TMP" > "$displaycal_launcher"
+: > "$blf_key_on"; : > "$blf_key_on_user"
+disable_blue_light_filter > /dev/null
+check "filter off: DisplayCal --apply once, after the flag is gone" test "$(cat "$TMP/calls")" = "--apply"
+rm -f "$displaycal_launcher" "$TMP/calls"
+: > "$blf_key_on"
+disable_blue_light_filter > /dev/null
+check "filter off without DisplayCal: nothing else run" test ! -e "$TMP/calls"
+unset -f disable_blue_light_filter check_disp_init usleep
+# DisplayCal's own --apply: this device's profile, B G R order, nothing with the filter on
+mkdir -p "$TMP/dc"
+printf 'R=120\nG=130\nB=140\nW=0\n' > "$TMP/dc/cal-0abc.cfg"
+echo 0abc > "$TMP/sn"
+: > "$TMP/dcnode"
+DISPLAYCAL_CFGDIR=$TMP/dc DISPLAYCAL_NODE=$TMP/dcnode DISPLAYCAL_SERIAL_FILE=$TMP/sn DISPLAYCAL_BLF_FLAG=$TMP/blf SERIAL_NUMBER= sh "$DISPLAYCAL" --apply
+check "DisplayCal --apply writes this device's profile (B G R)" test "$(cat "$TMP/dcnode")" = "colortemp 0 0 0 0 140 130 120"
+: > "$TMP/dcnode"; : > "$TMP/blf"
+DISPLAYCAL_CFGDIR=$TMP/dc DISPLAYCAL_NODE=$TMP/dcnode DISPLAYCAL_SERIAL_FILE=$TMP/sn DISPLAYCAL_BLF_FLAG=$TMP/blf SERIAL_NUMBER= sh "$DISPLAYCAL" --apply
+check "DisplayCal --apply: nothing while the filter is on" test ! -s "$TMP/dcnode"
+rm -f "$TMP/blf"; echo 0def > "$TMP/sn"
+DISPLAYCAL_CFGDIR=$TMP/dc DISPLAYCAL_NODE=$TMP/dcnode DISPLAYCAL_SERIAL_FILE=$TMP/sn DISPLAYCAL_BLF_FLAG=$TMP/blf SERIAL_NUMBER= sh "$DISPLAYCAL" --apply
+check "DisplayCal --apply: nothing without a profile for this device" sh -c 'test ! -s "$1"' _ "$TMP/dcnode"
+end
+
+begin kids_mode_saves_swap_survives_an_interruption
+backupdir=$TMP/Saves/KidsMode
+current_profile=$TMP/Saves/CurrentProfile
+kids_profile=$TMP/Saves/KidsProfile/Main
+source_profile=Main
+isolated_subdirs="saves states romScreens"
+profile_isolation_marker=$backupdir/profile_isolation_active
+eval "$(extract_fn "$KIDS_LOOP" apply_profile_isolation)"
+eval "$(extract_fn "$KIDS_LOOP" restore_profile_isolation)"
+log() { :; }
+kids_sd() { # a parent's and a kid's saves, nothing swapped
+    rm -rf "$TMP/Saves"
+    mkdir -p "$current_profile/saves" "$current_profile/states" "$kids_profile/saves"
+    echo parent > "$current_profile/saves/p.srm"
+    echo parent > "$current_profile/states/p.state"
+    echo kid > "$kids_profile/saves/k.srm"
+}
+parent_back() {
+    [ "$(cat "$current_profile/saves/p.srm" 2> /dev/null)" = parent ] &&
+        [ "$(cat "$current_profile/states/p.state" 2> /dev/null)" = parent ] &&
+        [ ! -e "$current_profile/saves/k.srm" ]
+}
+kids_sd
+apply_profile_isolation
+check "armed: the kid's saves in CurrentProfile" test "$(cat "$current_profile/saves/k.srm")" = kid
+check "the parent's put away" test "$(cat "$backupdir/profile-parked-saves/p.srm")" = parent
+restore_profile_isolation
+check "unarmed: the parent's back" parent_back
+check "the kid's kept for next time" test "$(cat "$kids_profile/saves/k.srm")" = kid
+check "nothing left parked" sh -c '! ls "$1"/profile-parked-* > /dev/null 2>&1' _ "$backupdir"
+# Cut short after the parent's saves were put away (the old code deleted them)
+kids_sd
+mkdir -p "$backupdir"
+mv "$current_profile/saves" "$backupdir/profile-parked-saves"
+apply_profile_isolation
+check "an interrupted swap is finished: the parent's saves still parked" test "$(cat "$backupdir/profile-parked-saves/p.srm")" = parent
+check "and the kid's in CurrentProfile" test "$(cat "$current_profile/saves/k.srm")" = kid
+restore_profile_isolation
+check "then put back as usual" parent_back
+# Cut short after the kid's saves came in, before the marker
+kids_sd
+mkdir -p "$backupdir"
+mv "$current_profile/saves" "$backupdir/profile-parked-saves"
+mv "$kids_profile/saves" "$current_profile/saves"
+apply_profile_isolation
+restore_profile_isolation
+check "cut short later: everything back" parent_back
+check "the kid's saves kept" test "$(cat "$kids_profile/saves/k.srm")" = kid
+# Put back cut short: the marker is still there, one folder already back
+kids_sd
+apply_profile_isolation
+mv "$current_profile/saves" "$kids_profile/saves"
+mv "$backupdir/profile-parked-saves" "$current_profile/saves"
+apply_profile_isolation
+check "armed again after a cut restore: the kid's saves, not the parent's" test "$(cat "$current_profile/saves/k.srm")" = kid
+restore_profile_isolation
+check "and the parent's back after it" parent_back
+# Restored twice, or never swapped: nothing moves
+kids_sd
+restore_profile_isolation
+check "never swapped: nothing moved" parent_back
+check "the kid's saves left alone" test "$(cat "$kids_profile/saves/k.srm")" = kid
+unset -f apply_profile_isolation restore_profile_isolation log kids_sd parent_back
+end
+
+begin kids_mode_cleaned_up_when_kidmode_deleted_from_a_computer
+# runtime.sh at boot: only with .kidmode gone and something of Kids Mode left
+eval "$(extract_fn "$RUNTIME" kids_mode_cleanup_if_disarmed | sed "s#/mnt/SDCARD#$TMP#g")"
+log() { :; }
+sysdir=$TMP
+kids_mode_loop=$TMP/loop.sh
+printf 'echo "$KIDSMODE_HOST $1" >> "%s/calls"\n' "$TMP" > "$kids_mode_loop"
+mkdir -p "$TMP/Saves/KidsMode"
+kids_mode_cleanup_if_disarmed
+check "nothing of Kids Mode left: not run" test ! -e "$TMP/calls"
+: > "$TMP/Saves/KidsMode/retroarch.cfg.backup"
+: > "$TMP/.kidmode"
+kids_mode_cleanup_if_disarmed
+check "still armed: not run" test ! -e "$TMP/calls"
+rm -f "$TMP/.kidmode"
+kids_mode_cleanup_if_disarmed
+check ".kidmode gone, its RetroArch backup left: cleanup run" test "$(cat "$TMP/calls")" = "runtime cleanup"
+rm -f "$TMP/calls" "$TMP/Saves/KidsMode/retroarch.cfg.backup"
+mkdir -p "$TMP/Saves/KidsMode/profile-parked-saves"
+kids_mode_cleanup_if_disarmed
+check "the parent's saves still parked: cleanup run" test "$(cat "$TMP/calls")" = "runtime cleanup"
+rm -f "$TMP/calls" "$kids_mode_loop"
+kids_mode_cleanup_if_disarmed
+check "Kids Mode not installed: nothing to run" test ! -e "$TMP/calls"
+check "at boot, before Kids Mode or a startup app" sh -c "awk '/^    kids_mode_cleanup_if_disarmed\$/ { c = NR } /^    if kids_mode_armed; then\$/ && !k { k = NR } END { exit !(c && k > c) }' '$RUNTIME'"
+unset -f kids_mode_cleanup_if_disarmed log
+# Kids Mode's own cleanup: what an unlock puts back
+backupdir=$TMP/Saves/KidsMode
+flagfile=$TMP/.kidmode
+current_profile=$TMP/Saves/CurrentProfile
+kids_profile=$TMP/Saves/KidsProfile/Main
+source_profile=Main
+isolated_subdirs="saves states romScreens"
+profile_isolation_marker=$backupdir/profile_isolation_active
+game_environment_marker=$backupdir/game_environment_ready
+racfg=$TMP/retroarch.cfg; rabackup=$backupdir/retroarch.cfg.backup
+keymapcfg=$TMP/keymap.json; keymapbackup=$backupdir/keymap.json.backup; keymapnone=$backupdir/keymap-was-absent
+blfscript=$TMP/blue_light.sh; blfbackup=$backupdir/blue_light.sh.backup
+gambatte_remap_dir=$current_profile/config/remaps/Gambatte
+gambatte_remap_backup=$backupdir/gambatte-remaps.backup
+gambatte_remap_absent=$backupdir/gambatte-remaps.was-absent
+gambatte_remap_active=$backupdir/gambatte-remaps.active
+onion_battery_display_flag=$TMP/hasBatteryDisplay; onion_battery_display_marker=$TMP/hbd_created
+legacy_battery_warning_flag=$TMP/.noBatteryWarning; legacy_battery_warning_marker=$backupdir/no_battery_warning.created
+kidsmode_active_flag=$TMP/kidsmode; checkoff_dst=$TMP/kidmode_checkoff.sh
+timesup_since_file=$TMP/ts; timesup_resume_file=$TMP/tr
+for f in ra_lock_keys cmd_cleanup restore_ra_lock restore_gambatte_remap_lock restore_blf_lock restore_profile_isolation restore_onion_battery_warning restore_keymap_override; do
+    eval "$(extract_fn "$KIDS_LOOP" $f | sed 's#/tmp/kidsmode_ra_lock_checked#'"$TMP"'/ra_checked#')"
+done
+log() { :; }
+sync() { :; }
+restart_keymon() { :; }
+infoPanel() { echo "$*" > "$TMP/panel"; }
+# Kids Mode armed, then .kidmode deleted from a computer
+rm -rf "$TMP/Saves"; mkdir -p "$backupdir/profile-parked-saves" "$current_profile/saves" "$kids_profile"
+echo 'kiosk_mode_enable = "false"' > "$rabackup"; echo 'kiosk_mode_enable = "true"' > "$racfg"
+echo parent-keys > "$keymapbackup"; echo kid-keys > "$keymapcfg"
+echo parent > "$backupdir/profile-parked-saves/p.srm"
+echo kid > "$current_profile/saves/k.srm"
+: > "$profile_isolation_marker"; : > "$game_environment_marker"; : > "$checkoff_dst"
+: > "$legacy_battery_warning_flag"; : > "$legacy_battery_warning_marker"
+: > "$flagfile"
+cmd_cleanup
+check "armed: cleanup does nothing" grep -qx 'kiosk_mode_enable = "true"' "$racfg"
+rm -f "$flagfile"
+cmd_cleanup
+check "RetroArch's config back" grep -qx 'kiosk_mode_enable = "false"' "$racfg"
+check "the keymap back" test "$(cat "$keymapcfg")" = parent-keys
+check "the parent's saves back" test "$(cat "$current_profile/saves/p.srm")" = parent
+check "the kid's kept for next time" test "$(cat "$kids_profile/saves/k.srm")" = kid
+check "Onion's battery warning back" test ! -e "$legacy_battery_warning_flag"
+check "shutdown hook and markers gone" sh -c 'test ! -e "$1" && test ! -e "$2" && test ! -e "$3"' _ "$checkoff_dst" "$game_environment_marker" "$profile_isolation_marker"
+check "a message says so" grep -q "Turned off from a computer" "$TMP/panel"
+: > "$game_environment_marker"
+cmd_cleanup "why" "Kids Mode is incomplete"
+check "its own words when the app is incomplete" grep -q "Kids Mode is incomplete" "$TMP/panel"
+check "and the same cleanup" test ! -e "$game_environment_marker"
+unset -f ra_lock_keys cmd_cleanup restore_ra_lock restore_gambatte_remap_lock restore_blf_lock restore_profile_isolation restore_onion_battery_warning restore_keymap_override log sync restart_keymon infoPanel
+check "the parent's profile is read for cleanup too (Guest stays Guest)" sh -c "sed -n '/^detect_source_profile() {/,/^}/p' '$KIDS_LOOP' | grep -q 'cleanup'"
+check "kid_mode_loop.sh has the cleanup command" sh -c "grep -q '^    cleanup)\$' '$KIDS_LOOP'"
+check "an incomplete app puts back what Kids Mode locked, not only the flag" sh -c "sed -n '/^cmd_run() {/,/^}/p' '$KIDS_LOOP' | sed -n '/runtime incomplete/,/return 1/p' | grep -q 'cmd_cleanup '"
+check "a profile switch stops when the parked saves cannot go back" sh -c "sed -n '/^switch_kids_profile() {/,/^}/p' '$KIDS_LOOP' | grep -q 'if ! restore_profile_isolation; then'"
+check "no video is started once the play time is over" sh -c "sed -n '/PLAY | RESTART)/,/play_video/p' '$KIDS_LOOP' | grep -q 'timer_remaining.* = \"0\" \] && continue'"
+end
+
+begin blue_light_no_second_disp_init_after_a_repair
+BLF="$ROOT/static/build/.tmp_update/script/blue_light.sh"
+REC="$ROOT/static/build/.tmp_update/script/screen_recorder.sh"
+eval "$(extract_fn "$BLF" check_disp_init | sed "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/mi_disp0#")"
+sysdir=$TMP
+mkdir -p "$TMP/bin"
+printf '#!/bin/sh\necho started >> "%s/started"\n' "$TMP" > "$TMP/bin/disp_init"; chmod +x "$TMP/bin/disp_init"
+pgrep() { [ "$L_RUNNING" = 1 ]; }
+killall() { [ "$DI_RUNNING" = 1 ]; }
+sleep() { :; }
+: > "$TMP/mi_disp0"
+L_RUNNING=1 DI_RUNNING=0 check_disp_init; wait
+check "/dev/l running: none started" test ! -e "$TMP/started"
+L_RUNNING=0 DI_RUNNING=1 check_disp_init; wait
+check "disp_init running in its place (after a repair): none started" test ! -e "$TMP/started"
+L_RUNNING=0 DI_RUNNING=0 check_disp_init; wait
+check "neither running: disp_init started" test "$(cat "$TMP/started" 2> /dev/null)" = started
+rm -f "$TMP/started" "$TMP/mi_disp0"
+L_RUNNING=0 DI_RUNNING=1 check_disp_init; wait
+check "mi_disp0 gone: started, as before" test -e "$TMP/started"
+unset -f check_disp_init
+rm -f "$TMP/started"
+eval "$(extract_fn "$REC" check_disp_init)"
+L_RUNNING=0 DI_RUNNING=1 check_disp_init; wait
+check "screen recorder: none started with disp_init running" test ! -e "$TMP/started"
+L_RUNNING=0 DI_RUNNING=0 check_disp_init; wait
+check "screen recorder: started when neither runs" test -e "$TMP/started"
+unset -f check_disp_init pgrep killall sleep
+end
+
+begin kids_mode_favorites_sorted_with_an_app_among_them
+favfile=$TMP/favourite.json
+backupdir=$TMP/Saves/KidsMode
+favorites_signature_file=$backupdir/favorites_repaired.cksum
+eval "$(extract_fn "$KIDS_LOOP" repair_onion_favorites_if_needed)"
+eval "$(extract_fn "$KIDS_LOOP" favorites_signature)"
+repair_favourites() { :; }
+log() { echo "$*" >> "$TMP/log"; }
+tools() { :; } # Onion's favfix: nothing to repair here
+printf '%s\n' '{"label":"Zelda","rompath":"/mnt/SDCARD/Roms/GBA/z.gba"}' \
+    '{"label":"Kids App","launch":"/mnt/SDCARD/App/KidsMode/launch.sh"}' \
+    '{"label":"alpha","rompath":"/mnt/SDCARD/Roms/GB/a.gb"}' > "$favfile"
+repair_onion_favorites_if_needed
+check "with an app among them, all favorites sorted A-Z" test "$(jq -r .label "$favfile" | tr '\n' ,)" = "alpha,Kids App,Zelda,"
+check "the app kept" grep -q KidsMode "$favfile"
+check "the log says sorted" grep -q "sorted A-Z" "$TMP/log"
+unset -f repair_onion_favorites_if_needed favorites_signature repair_favourites log tools
+end
+
+begin kids_mode_unlock_keeps_retroarch_changes_made_meanwhile
+racfg=$TMP/retroarch.cfg
+backupdir=$TMP/Saves/KidsMode
+rabackup=$backupdir/retroarch.cfg.backup
+cfg_allow_save_states=false
+log() { :; }
+eval "$(extract_fn "$KIDS_LOOP" ra_lock_keys)"
+eval "$(extract_fn "$KIDS_LOOP" restore_ra_state_bindings)"
+eval "$(sed -n '/^apply_ra_lock() {/,/RetroArch kiosk lock applied/p' "$KIDS_LOOP"; echo '}')"
+eval "$(extract_fn "$KIDS_LOOP" restore_ra_lock)"
+printf '%s\n' 'video_scale = "3"' 'kiosk_mode_enable = "false"' 'settings_show_video = "true"' \
+    'input_reset_btn = "2"' 'menu_driver = "rgui"' > "$racfg"
+mkdir -p "$backupdir"
+apply_ra_lock
+check "armed: kiosk on" grep -qx 'kiosk_mode_enable = "true"' "$racfg"
+# Meanwhile (a RetroArch update, say): one setting changed, one added
+sed -i 's/^video_scale = "3"$/video_scale = "4"/' "$racfg"
+echo 'new_option = "x"' >> "$racfg"
+restore_ra_lock
+check "unlocked: kiosk back as it was" grep -qx 'kiosk_mode_enable = "false"' "$racfg"
+check "a menu setting back" grep -qx 'settings_show_video = "true"' "$racfg"
+check "a hotkey back" grep -qx 'input_reset_btn = "2"' "$racfg"
+check "a setting Kids Mode added and was not there: out" sh -c "! grep -q '^input_menu_toggle_btn' '$racfg'"
+check "a change made meanwhile kept" grep -qx 'video_scale = "4"' "$racfg"
+check "a setting added meanwhile kept" grep -qx 'new_option = "x"' "$racfg"
+check "each locked setting once" test "$(grep -c '^kiosk_mode_enable' "$racfg")" = 1
+check "the backup gone" test ! -e "$rabackup"
+rm -f "$racfg"; echo 'kiosk_mode_enable = "false"' > "$rabackup"
+restore_ra_lock
+check "retroarch.cfg gone meanwhile: the backup put back whole" grep -qx 'kiosk_mode_enable = "false"' "$racfg"
+unset -f ra_lock_keys restore_ra_state_bindings apply_ra_lock restore_ra_lock log
+end
+
+begin displaycal_apply_skips_neutral_and_too_dark
+DISPLAYCAL="$ROOT/static/packages/App/DisplayCal/App/DisplayCal/launch.sh"
+mkdir -p "$TMP/dc"; echo 0abc > "$TMP/sn"
+dc_apply() { : > "$TMP/dcnode"; DISPLAYCAL_CFGDIR=$TMP/dc DISPLAYCAL_NODE=$TMP/dcnode DISPLAYCAL_SERIAL_FILE=$TMP/sn DISPLAYCAL_BLF_FLAG=$TMP/blf SERIAL_NUMBER= sh "$DISPLAYCAL" --apply 2> /dev/null; }
+printf 'R=128\nG=128\nB=128\nW=0\n' > "$TMP/dc/cal-0abc.cfg"
+dc_apply
+check "a neutral profile: nothing written at boot" sh -c 'test ! -s "$1"' _ "$TMP/dcnode"
+printf 'R=0\nG=0\nB=0\nW=0\n' > "$TMP/dc/cal-0abc.cfg"
+dc_apply; rc=$?
+check "a black profile (total under 70): refused" test "$rc" = 2
+check "and nothing written" sh -c 'test ! -s "$1"' _ "$TMP/dcnode"
+printf 'R=30\nG=20\nB=20\nW=0\n' > "$TMP/dc/cal-0abc.cfg"
+dc_apply
+check "a dark one at the limit (70) is written" test "$(cat "$TMP/dcnode")" = "colortemp 0 0 0 0 20 20 30"
+unset -f dc_apply
+end
 
 echo ""
 echo "========================================"

@@ -1,6 +1,6 @@
 {
 	"label": "RedOnion OTA update",
-	"icon": "/mnt/SDCARD/Icons/Default/app/pacman.png",
+	"icon": "/mnt/SDCARD/Icons/Default/app/redonion_ota.png",
 	"launch": "launch.sh",
 	"description": "Update RedOnion over internet"
 }

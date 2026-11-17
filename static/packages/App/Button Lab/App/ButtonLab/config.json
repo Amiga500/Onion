@@ -1,0 +1,6 @@
+{
+  "label": "Button Lab",
+  "icon": "icon.png",
+  "launch": "launch.sh",
+  "description": "Input controller test & diagnostics"
+}
