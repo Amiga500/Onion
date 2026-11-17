@@ -130,6 +130,54 @@ TEST(close_rom_only_touches_that_game) {
     sqlite3_close(db);
 }
 
+/* Issue #340: one play of an hour, paused 3 times in it (GameSwitcher in
+ * game, sleep), is 1 play with the hour's play time, not 4 plays. */
+static int query_int(const char *sql)
+{
+    sqlite3_stmt *stmt;
+    int n = -1;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW)
+            n = sqlite3_column_int(stmt, 0);
+        sqlite3_finalize(stmt);
+    }
+    return n;
+}
+
+TEST(resumes_add_time_not_plays)
+{
+    sqlite3_open(":memory:", &db);
+    /* an existing database from before the column */
+    sqlite3_exec(db,
+                 "CREATE TABLE play_activity(rom_id INTEGER, play_time INTEGER, "
+                 "created_at INTEGER DEFAULT (strftime('%s', 'now')), updated_at INTEGER);"
+                 "INSERT INTO play_activity VALUES(7, 600, 1000, 1600);", /* an older play */
+                 NULL, NULL, NULL);
+    ASSERT_EQ(sqlite3_exec(db, PLAY_ACTIVITY_ADD_RESUMED_SQL, NULL, NULL, NULL), SQLITE_OK);
+    /* run again on every open: fails, changes nothing */
+    ASSERT_TRUE(sqlite3_exec(db, PLAY_ACTIVITY_ADD_RESUMED_SQL, NULL, NULL, NULL) != SQLITE_OK);
+
+    /* start, then 3 resumes, each segment 15 minutes */
+    sqlite3_exec(db, "INSERT INTO play_activity(rom_id, play_time) VALUES(7, 900);", NULL, NULL, NULL);
+    for (int i = 0; i < 3; i++) {
+        char *sql = sqlite3_mprintf(PLAY_ACTIVITY_RESUME_FMT, 7);
+        sqlite3_exec(db, sql, NULL, NULL, NULL);
+        sqlite3_free(sql);
+        sqlite3_exec(db, "UPDATE play_activity SET play_time = 900 WHERE play_time IS NULL;", NULL, NULL, NULL);
+    }
+
+    ASSERT_EQ(query_int("SELECT " PLAY_ACTIVITY_PLAYS_SQL " FROM play_activity WHERE rom_id = 7;"), 2);
+    ASSERT_EQ(query_int("SELECT SUM(play_time) FROM play_activity WHERE rom_id = 7;"), 4200);
+    ASSERT_EQ(query_int("SELECT SUM(play_activity.play_time)/" PLAY_ACTIVITY_PLAYS_SQL
+                        " FROM play_activity WHERE rom_id = 7;"),
+              2100);
+
+    /* only resumed rows left (the start dropped for a clock jump): 1 play */
+    sqlite3_exec(db, "DELETE FROM play_activity WHERE IFNULL(resumed, 0) = 0;", NULL, NULL, NULL);
+    ASSERT_EQ(query_int("SELECT " PLAY_ACTIVITY_PLAYS_SQL " FROM play_activity WHERE rom_id = 7;"), 1);
+    sqlite3_close(db);
+}
+
 int main(void)
 {
     RUN_TEST(close_all_keeps_imported_total);
@@ -139,6 +187,7 @@ int main(void)
     RUN_TEST(close_all_removes_negative_rows);
     RUN_TEST(close_rom_keeps_imported_total);
     RUN_TEST(close_rom_only_touches_that_game);
+    RUN_TEST(resumes_add_time_not_plays);
 
     TEST_REPORT();
     return test_failures;

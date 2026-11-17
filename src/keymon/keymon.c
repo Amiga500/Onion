@@ -1454,7 +1454,13 @@ int main(int argc, char *argv[])
             }
 
             if (system_state == MODE_MAIN_UI) {
-                settings_shm_read();
+                // Debounced like keymon's own changes: MainUI saves
+                // system.json itself, and a save here on every key event
+                // held the lock Open MainUI needs for its next change.
+                if (settings_shm_pull()) {
+                    needWriteSettings = true;
+                    save_settings_timestamp = getMilliseconds();
+                }
                 display_setBrightness(settings.brightness);
             }
 

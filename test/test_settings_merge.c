@@ -247,6 +247,52 @@ TEST(other_program_missing_file_saves_own_values)
     cJSON_Delete(root);
 }
 
+/* Open MainUI puts a change in the shared memory, then saves system.json
+ * itself. keymon takes the change and saves: the file already holds it, so it
+ * is not written again (keymon held the lock Open MainUI then failed to take:
+ * "Could not save system.json" while adjusting the display colours). */
+TEST(keymon_does_not_rewrite_what_open_mainui_saved)
+{
+    file_remove_recursive(CONFIG_PATH); /* no flags left by the tests above */
+    write_system_json("en.lang", "/mnt/SDCARD/Themes/Silky RedOnion/", 7, 0);
+    settings_init();
+
+    fake_shm[MONITOR_BRIGHTNESS] = 5;
+    write_system_json("en.lang", "/mnt/SDCARD/Themes/Silky RedOnion/", 5, 0);
+    struct stat before, after;
+    ASSERT_EQ(stat(MAIN_UI_SETTINGS, &before), 0);
+
+    ASSERT_TRUE(settings_shm_pull());
+    _settings_save_mainui();
+
+    ASSERT_EQ(stat(MAIN_UI_SETTINGS, &after), 0);
+    ASSERT_EQ((long)after.st_ino, (long)before.st_ino); /* atomic writes rename */
+    ASSERT_EQ(settings.brightness, 5);
+    /* and the snapshot follows the file: nothing left to save */
+    ASSERT_FALSE(_settings_dirty_mainui());
+}
+
+/* keymon pulled a change and its debounced save is still waiting when MainUI
+ * is killed or the device shuts down: settings_shm_read() there finds nothing
+ * new in the shared memory, but must still save what is pending. */
+TEST(shutdown_path_saves_a_pending_pulled_change)
+{
+    file_remove_recursive(CONFIG_PATH);
+    write_system_json("en.lang", "/mnt/SDCARD/Themes/Silky RedOnion/", 7, 0);
+    settings_init();
+
+    fake_shm[MONITOR_BRIGHTNESS] = 3;
+    ASSERT_TRUE(settings_shm_pull()); /* debounced: not saved yet */
+    cJSON *root = read_back();
+    ASSERT_EQ(int_of(root, "brightness"), 7);
+    cJSON_Delete(root);
+
+    settings_shm_read(); /* the shutdown path */
+    root = read_back();
+    ASSERT_EQ(int_of(root, "brightness"), 3);
+    cJSON_Delete(root);
+}
+
 int main(void)
 {
     printf("\n=== settings merge Unit Tests ===\n\n");
@@ -259,6 +305,8 @@ int main(void)
     RUN_TEST(other_program_own_brightness_wins_over_file);
     RUN_TEST(other_program_save_keeps_mute_set_by_keymon);
     RUN_TEST(other_program_missing_file_saves_own_values);
+    RUN_TEST(keymon_does_not_rewrite_what_open_mainui_saved);
+    RUN_TEST(shutdown_path_saves_a_pending_pulled_change);
     unlink(MAIN_UI_SETTINGS);
     file_remove_recursive(CONFIG_PATH);
     rmdir("/tmp/onion_test_settings_merge");

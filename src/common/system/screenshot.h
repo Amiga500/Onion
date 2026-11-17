@@ -10,8 +10,10 @@
 #include <sys/types.h>
 
 #include "./display.h"
+#include "./romscreen_cover.h"
 #include "./screenshot_path.h"
 #include "./state.h"
+#include "utils/config.h"
 #include "utils/file.h"
 #include "utils/hash.h"
 #include "utils/log.h"
@@ -287,13 +289,58 @@ bool screenshot_recent(void)
     return __screenshot_perform(__get_path_recent, get_game_pid());
 }
 
+// The game's cover from the frame just saved as its GameSwitcher picture
+// (see romscreen_cover.h): only with the option on, and only when the game
+// has no cover yet. `buffer` is w x h, tightly packed ARGB; `rotate180` as
+// the frame buffer is (keymon) or not (the GameSwitcher's own copy).
+bool screenshot_romscreen_cover(const uint32_t *buffer, int w, int h, bool rotate180,
+                                const char *rom_path)
+{
+    if (buffer == NULL || rom_path == NULL || w <= 0 || h <= 0 ||
+        !config_flag_get(ROMSCREEN_COVER_FLAG))
+        return false;
+
+    // A game launched from Search: "<console>:<path>", as in state.h
+    const char *colon = strchr(rom_path, ':');
+    if (colon != NULL)
+        rom_path = colon + 1;
+
+    char cover[PATH_MAX];
+    if (!romscreen_cover_path(rom_path, cover, sizeof(cover)) || exists(cover))
+        return false;
+
+    int cw = 0, ch = 0;
+    uint32_t *pixels = romscreen_cover_make(buffer, w, h, w, rotate180, &cw, &ch);
+    bool saved = pixels != NULL &&
+                 screenshot_save_buffer_atomic(pixels, cover, (uint32_t)cw, (uint32_t)ch);
+    free(pixels);
+    printf_debug("romscreen cover %s: %s\n", saved ? "saved" : "not saved", cover);
+    return saved;
+}
+
 bool screenshot_system(void)
 {
     pid_t p_id = get_game_pid();
-    if (p_id != 0) {
-        return __screenshot_perform(history_getRomscreenPath, p_id);
+    if (p_id == 0)
+        return false;
+
+    // As __screenshot_perform(history_getRomscreenPath, p_id), keeping the
+    // frame for the cover.
+    char path[SCREENSHOT_PATH_MAX];
+    kill(p_id, SIGSTOP);
+    uint32_t *buffer = __screenshot_buffer();
+    kill(p_id, SIGCONT);
+
+    bool retval = false;
+    if (buffer != NULL && history_getRomscreenPath(path)) {
+        retval = screenshot_save(buffer, path, true);
+        char rom_path[STR_MAX];
+        if (retval && config_flag_get(ROMSCREEN_COVER_FLAG) &&
+            history_getTopRecentPath(rom_path) != NULL)
+            screenshot_romscreen_cover(buffer, g_display.width, g_display.height, true, rom_path);
     }
-    return false;
+    free(buffer);
+    return retval;
 }
 
 #endif // SCREENSHOT_H__

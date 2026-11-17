@@ -113,6 +113,9 @@
 #define GRAPH_MIN_SESSION_FOR_ESTIMATION 1200
 #define GRAPH_MAX_PLAUSIBLE_ESTIMATION 54000
 #define GRAPH_ESTIMATED_LINE_GAP 20
+// Most a newest row's live clock time may exceed its logged duration: batmon's
+// 10 min rewrite interval plus room for a late tick; beyond it the clock jumped.
+#define LIVE_ELAPSED_MAX_GAP_S (15 * 60)
 
 #define LABEL_Y 410
 
