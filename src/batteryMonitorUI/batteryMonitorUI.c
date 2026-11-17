@@ -649,6 +649,30 @@ bool read_battery_voltage(void)
     return true;
 }
 
+// batmon adds the awake seconds to the newest entry when its level changes and otherwise every
+// MAX_DURATION_BEFORE_UPDATE (600) seconds awake; it is stopped while asleep. So the time since it
+// last wrote the log is awake time only up to that limit (plus its loop's slack); a longer span
+// holds a sleep or a power-off, which must stay out of the session time and the graph.
+#define BATMON_MAX_UNWRITTEN_S 630
+
+// The newest entry's duration with the awake time batmon has not written yet.
+static int live_duration(int duration, long long now, long long log_mtime)
+{
+    if (log_mtime <= 0 || now <= log_mtime)
+        return duration;
+    long long unwritten = now - log_mtime;
+    if (unwritten > BATMON_MAX_UNWRITTEN_S)
+        unwritten = BATMON_MAX_UNWRITTEN_S;
+    return duration + (int)unwritten;
+}
+
+// A wake from sleep: Onion's sleep stops the app (SIGSTOP) and continues it (SIGCONT). A gap
+// between loop passes longer than WAKE_GAP_MS counts too, in case the signal was missed.
+static int is_wake(int sigcont, int gap_ms)
+{
+    return sigcont || gap_ms > WAKE_GAP_MS;
+}
+
 void compute_graph(void)
 {
     int total_duration = 0;
@@ -714,13 +738,12 @@ void compute_graph(void)
                     }
 
                     // For the newest row, batmon only writes duration upon percentage change or every 10 min.
-                    // Advance duration with live elapsed awake time so SESSION updates smoothly on the fly.
-                    // The newest entry only: for an older one the clock span to the next entry holds
-                    // the sleep between them, which must stay out of the graph and of the session time.
-                    if (newest_row && !is_charging && row_time > 0 && newer_row_time > row_time) {
-                        int live_elapsed = (int)(newer_row_time - row_time);
-                        if (live_elapsed > duration)
-                            duration = live_elapsed;
+                    // Advance duration with the awake time it has not written yet, so SESSION updates on
+                    // the fly. Not the clock since the entry began: that holds every sleep since then.
+                    if (newest_row && !is_charging) {
+                        struct stat st;
+                        if (stat(BATTERY_LOG_FILE, &st) == 0)
+                            duration = live_duration(duration, newer_row_time, (long long)st.st_mtime);
                     }
 
                     // CURRENT: the newest entry only. Testing total_duration == 0 also
@@ -874,11 +897,13 @@ void compute_graph(void)
                     // end and the newer entry's start (batmon is stopped while asleep, so
                     // its duration leaves the sleep out). The level lost across the gap is
                     // what the sleep cost: batmon reads the battery at once on wake.
-                    if (run_rows > 0 && !is_charging && row_time > 0 && newer_row_time > 0) {
+                    // The newest entry: the gap up to now is a sleep going on at its level, so it
+                    // counts in the time asleep; its cost shows when the next level is logged.
+                    if (!is_charging && row_time > 0 && newer_row_time > 0) {
                         long long gap = newer_row_time - row_time - duration;
                         if (gap >= SLEEP_GAP_MIN && gap * 100 >= (long long)duration * SLEEP_GAP_MIN_PCT) {
                             run_sleep += gap;
-                            if (raw_level <= 100 && newer_row_level <= 100 && raw_level > newer_row_level)
+                            if (run_rows > 0 && raw_level <= 100 && newer_row_level <= 100 && raw_level > newer_row_level)
                                 run_sleep_drop += raw_level - newer_row_level;
                         }
                     }
@@ -1365,7 +1390,7 @@ static int axp_set_calibration(bool on)
 // ---------------------------------------------------------------------------
 #define BT_CPUCLOCK_BIN "/mnt/SDCARD/.tmp_update/bin/cpuclock"
 #define BT_GOVERNOR_FILE "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor"
-#define BT_STAGES 3
+#define BT_STAGES_MAX     4     // idle, 1200, 1600 and (Mini Plus) 1800 MHz
 #define BT_STAGE_MS 15000 // per stage
 #define BT_SETTLE_MS 7000 // samples before this are ignored (voltage relaxation)
 #define BT_SAMPLE_MS 250
@@ -1394,8 +1419,9 @@ static struct {
     int stage;
     Uint32 stage_start;
     Uint32 next_sample;
-    bt_stage_t st[BT_STAGES];
-    int r_mohm[BT_STAGES]; // per load stage vs idle, -1 if not measurable
+    int stages; // 3, or 4 with the 1800 MHz stage (Mini Plus)
+    bt_stage_t st[BT_STAGES_MAX];
+    int r_mohm[BT_STAGES_MAX]; // per load stage vs idle, -1 if not measurable
     int live_v, live_i;
     int saved_mhz;
     char saved_gov[32];
@@ -1484,25 +1510,84 @@ static bool bt_set_mhz(int mhz)
     return system(cmd) == 0;
 }
 
+static void bt_write_governor(const char *gov)
+{
+    if (gov[0] == '\0')
+        return;
+    FILE *fp = fopen(BT_GOVERNOR_FILE, "w");
+    if (fp != NULL) {
+        fputs(gov, fp);
+        fclose(fp);
+    }
+}
+
+// What the battery test changes (clock, governor, brightness), saved in RAM before it changes
+// anything. bt_restore() puts it back on every way out the app sees; a SIGKILL skips that, so
+// launch.sh runs "batteryMonitorUI --restore" after the app ends, and the app restores at start.
+#define BT_STATE_FILE "/tmp/batterymonitor_bt_restore"
+
+static int bt_format_state(char *buf, size_t len, int mhz, const char *gov, unsigned brightness)
+{
+    return snprintf(buf, len, "%d %s %u\n", mhz, gov[0] != '\0' ? gov : "-", brightness);
+}
+
+// Returns 0 when the line holds a clock, a governor ("-" for none) and a brightness.
+static int bt_parse_state(const char *line, int *mhz, char *gov, size_t gov_len, unsigned *brightness)
+{
+    char g[32];
+    if (sscanf(line, "%d %31s %u", mhz, g, brightness) != 3)
+        return -1;
+    if (*mhz < 100 || *mhz > 2400)
+        return -1;
+    snprintf(gov, gov_len, "%s", strcmp(g, "-") == 0 ? "" : g);
+    return 0;
+}
+
+static void bt_save_state(void)
+{
+    char line[64];
+    bt_format_state(line, sizeof(line), bt.saved_mhz, bt.saved_gov, bt.saved_brightness);
+    FILE *fp = fopen(BT_STATE_FILE, "w");
+    if (fp != NULL) {
+        fputs(line, fp);
+        fclose(fp);
+    }
+}
+
+// After a battery test the app did not end itself (SIGKILL): put back what the file holds.
+static void bt_restore_from_file(void)
+{
+    char line[64], gov[32];
+    int mhz;
+    unsigned brightness;
+    FILE *fp = fopen(BT_STATE_FILE, "r");
+    if (fp == NULL)
+        return;
+    bool read = fgets(line, sizeof(line), fp) != NULL;
+    fclose(fp);
+    unlink(BT_STATE_FILE);
+    if (!read || bt_parse_state(line, &mhz, gov, sizeof(gov), &brightness) != 0)
+        return;
+    bt_set_mhz(mhz);
+    bt_write_governor(gov);
+    if (brightness > 0)
+        display_setBrightnessRaw(brightness);
+}
+
 static void bt_restore(void)
 {
     bt_stop_load();
     if (bt.clock_changed) {
         if (bt.saved_mhz > 0)
             bt_set_mhz(bt.saved_mhz);
-        if (bt.saved_gov[0] != '\0') {
-            FILE *fp = fopen(BT_GOVERNOR_FILE, "w");
-            if (fp != NULL) {
-                fputs(bt.saved_gov, fp);
-                fclose(fp);
-            }
-        }
+        bt_write_governor(bt.saved_gov);
         bt.clock_changed = false;
     }
     if (bt.brightness_changed) {
         display_setBrightnessRaw(bt.saved_brightness);
         bt.brightness_changed = false;
     }
+    unlink(BT_STATE_FILE);
 }
 
 static void bt_abort(const char *reason)
@@ -1525,10 +1610,24 @@ static const char *bt_rating(int r_mohm)
     return "POOR / REPLACE";
 }
 
-// Best result: the 1600 MHz stage (largest current step), else 1200 MHz
+// The test's stages: the Mini Plus also runs 1800 MHz (Onion's cpuclock overclock, as DraStic uses it),
+// to show how the current scales with the clock.
+static int bt_stage_count(void)
+{
+    return DEVICE_ID == MIYOO354 ? 4 : 3;
+}
+
+// Best result: the stage with the largest current step (the most exact sag), of those measured
 static int bt_final_r(void)
 {
-    return bt.r_mohm[2] >= 0 ? bt.r_mohm[2] : bt.r_mohm[1];
+    int best = -1, best_i = 0;
+    for (int k = 1; k < bt.stages; k++) {
+        if (bt.r_mohm[k] >= 0 && bt.st[k].i_ma > best_i) {
+            best = bt.r_mohm[k];
+            best_i = bt.st[k].i_ma;
+        }
+    }
+    return best;
 }
 
 static void bt_enter_stage(int stage, Uint32 now)
@@ -1544,7 +1643,7 @@ static void bt_enter_stage(int stage, Uint32 now)
         display_setBrightnessRaw(BT_DIM_RAW);
     }
     else {
-        // Stage 1 & 2: Load 2 cores with screen at 100% brightness
+        // Load stages: 2 cores with screen at 100% brightness
         display_setBrightness(10);
     }
 
@@ -1565,7 +1664,9 @@ static void bt_start(Uint32 now)
     bt.st[0].mhz = 0;
     bt.st[1].mhz = 1200;
     bt.st[2].mhz = 1600;
-    for (int i = 0; i < BT_STAGES; i++)
+    bt.st[3].mhz = 1800;
+    bt.stages = bt_stage_count();
+    for (int i = 0; i < BT_STAGES_MAX; i++)
         bt.r_mohm[i] = -1;
     bt.state = BT_RUNNING;
 
@@ -1596,6 +1697,7 @@ static void bt_start(Uint32 now)
     }
 
     bt.saved_brightness = display_getBrightnessRaw();
+    bt_save_state(); // before anything changes
     bt.brightness_changed = true;
     display_setBrightnessRaw(BT_DIM_RAW);
 
@@ -1605,7 +1707,7 @@ static void bt_start(Uint32 now)
 static void bt_finish(void)
 {
     bt_restore();
-    for (int k = 1; k < BT_STAGES; k++) {
+    for (int k = 1; k < bt.stages; k++) {
         int d_i = bt.st[k].i_ma - bt.st[0].i_ma;
         int d_v = bt.st[0].v_mv - bt.st[k].v_mv;
         bt.r_mohm[k] = (d_i >= BT_MIN_DELTA_MA) ? (int)((long)d_v * 1000 / d_i) : -1;
@@ -1614,7 +1716,8 @@ static void bt_finish(void)
     }
     bt.state = BT_DONE;
     if (bt_final_r() < 0)
-        snprintf(bt.msg, sizeof(bt.msg), "Load step too small to measure (< %d mA)", BT_MIN_DELTA_MA);
+        // Wi-Fi draws about 150 mA, unevenly: on a Mini Plus it hid the load step (2026-11-17)
+        snprintf(bt.msg, sizeof(bt.msg), "Load step too small - turn Wi-Fi off and retry");
 }
 
 // Returns true when the screen needs a redraw
@@ -1651,7 +1754,7 @@ static bool bt_tick(Uint32 now)
             s->v_mv = (int)(s->v_sum / s->n);
             s->i_ma = (int)(s->i_sum / s->n);
         }
-        if (bt.stage + 1 < BT_STAGES)
+        if (bt.stage + 1 < bt.stages)
             bt_enter_stage(bt.stage + 1, now);
         else
             bt_finish();
@@ -2080,9 +2183,9 @@ static void renderAxpMenu(void)
         drawRectFill(ib_x, ib_y, ib_w, ib_h, ib_bg);
         drawFrame1px(ib_x, ib_y, ib_w, ib_h, ib_border);
 
-        renderText("NOTICE (about 45 s, battery only, >= 3.60 V):", font_small ? font_small : font_Arkhip, col_warn, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 18});
+        renderText(bt_stage_count() > 3 ? "NOTICE (about 60 s, battery only, >= 3.60 V):" : "NOTICE (about 45 s, battery only, >= 3.60 V):", font_small ? font_small : font_Arkhip, col_warn, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 18});
         renderText("1. Screen dims; 15 s idle baseline is measured.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 34, ib_w - 32, 18});
-        renderText("2. Both CPU cores at 100% load: 1200 MHz, then 1600 MHz.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 54, ib_w - 32, 18});
+        renderText(bt_stage_count() > 3 ? "2. Both CPU cores at 100% load: 1200, 1600, 1800 MHz." : "2. Both CPU cores at 100% load: 1200 MHz, then 1600 MHz.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 54, ib_w - 32, 18});
         renderText("3. Internal resistance = voltage sag / current step.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 76, ib_w - 32, 18});
         renderText("Clock & brightness restored. Turn Wi-Fi off for accuracy.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 102, ib_w - 32, 18});
 
@@ -2115,19 +2218,20 @@ static void renderAxpMenu(void)
         drawFrame2px(mx, my, mw, mh, m_border);
         drawCenteredText("BATTERY HEALTH TEST", font_title ? font_title : font_Arkhip, col_val, mx, my + 14, mw);
 
-        static const char *stage_names[BT_STAGES] = {"Idle baseline", "Load 2 cores @ 1200 MHz", "Load 2 cores @ 1600 MHz"};
+        static const char *stage_names[BT_STAGES_MAX] = {"Idle baseline", "Load 2 cores @ 1200 MHz", "Load 2 cores @ 1600 MHz",
+                                                         "Load 2 cores @ 1800 MHz"};
         char line[96];
 
         if (bt.state == BT_RUNNING) {
             Uint32 el = SDL_GetTicks() - bt.stage_start;
             if (el > BT_STAGE_MS)
                 el = BT_STAGE_MS;
-            snprintf(line, sizeof(line), "Stage %d/%d: %s", bt.stage + 1, BT_STAGES, stage_names[bt.stage]);
+            snprintf(line, sizeof(line), "Stage %d/%d: %s", bt.stage + 1, bt.stages, stage_names[bt.stage]);
             drawCenteredText(line, fs, col_warn, mx, my + 42, mw);
 
             // overall progress bar
             int pb_x = mx + 30, pb_y = my + 66, pb_w = mw - 60, pb_h = 12;
-            long total = (long)BT_STAGES * BT_STAGE_MS;
+            long total = (long)bt.stages * BT_STAGE_MS;
             long done = (long)bt.stage * BT_STAGE_MS + el;
             drawRectFill(pb_x, pb_y, pb_w, pb_h, SDL_MapRGB(screen->format, 30, 40, 58));
             drawRectFill(pb_x, pb_y, (int)(pb_w * done / total), pb_h, SDL_MapRGB(screen->format, 100, 215, 255));
@@ -2154,16 +2258,17 @@ static void renderAxpMenu(void)
             drawCenteredText("<160 excellent, <260 good, <380 aged, else replace", fs, col_sub, mx, my + 76, mw);
         }
 
-        // per-stage table
+        // per-stage table: 4 rows closer together, to keep clear of the button
         int tx = mx + 30, ty = my + 116, tw = mw - 60;
-        drawRectFill(tx, ty, tw, 128, SDL_MapRGB(screen->format, 18, 28, 44));
-        drawFrame1px(tx, ty, tw, 128, SDL_MapRGB(screen->format, 40, 60, 90));
+        int row_h = bt.stages > 3 ? 24 : 30, th = bt.stages > 3 ? 136 : 128;
+        drawRectFill(tx, ty, tw, th, SDL_MapRGB(screen->format, 18, 28, 44));
+        drawFrame1px(tx, ty, tw, th, SDL_MapRGB(screen->format, 40, 60, 90));
         renderText("Stage", fs, col_lbl, &(SDL_Rect){tx + 12, ty + 8, 200, 18});
         renderTextAlignRight("Voltage", fs, col_lbl, &(SDL_Rect){tx + 300, ty + 8, 80, 18});
         renderTextAlignRight("Current", fs, col_lbl, &(SDL_Rect){tx + 390, ty + 8, 80, 18});
         renderTextAlignRight("R_int", fs, col_lbl, &(SDL_Rect){tx + tw - 12, ty + 8, 70, 18});
-        for (int k = 0; k < BT_STAGES; k++) {
-            int ry = ty + 36 + k * 30;
+        for (int k = 0; k < bt.stages; k++) {
+            int ry = ty + (bt.stages > 3 ? 32 : 36) + k * row_h;
             bool measured = (k < bt.stage) || bt.state == BT_DONE || (bt.state == BT_ABORTED && k < bt.stage);
             measured = measured && bt.st[k].n > 0;
             SDL_Color c = (bt.state == BT_RUNNING && k == bt.stage) ? col_cyan : (measured ? col_val : col_sub);
@@ -2455,6 +2560,11 @@ void renderPage()
 
 int main(int argc, char *argv[])
 {
+    // a battery test the app did not end itself (SIGKILL) left its clock and brightness: launch.sh
+    // runs "--restore" after the app ends, and any start restores too
+    bt_restore_from_file();
+    if (argc > 1 && strcmp(argv[1], "--restore") == 0)
+        return 0;
     init();
     signal(SIGCONT, sigcont_handler);
     atexit(bt_restore);
@@ -2491,7 +2601,7 @@ int main(int argc, char *argv[])
         // Onion's sleep stops every process (SIGSTOP) and continues them on wake, batmon
         // included, which then reads the battery at its next 15 s check. A long gap
         // between passes or SIGCONT means we were stopped: query AXP223 immediately and recompute.
-        if (sigcont_received || (Sint32)(now - last_pass) > WAKE_GAP_MS) {
+        if (is_wake(sigcont_received, (Sint32)(now - last_pass))) {
             sigcont_received = 0;
             if (bt.state == BT_RUNNING)
                 bt_abort("Interrupted by sleep");

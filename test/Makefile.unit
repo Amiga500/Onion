@@ -789,11 +789,16 @@ test_batterymonitor_pmic: $(BUILD_DIR)/test_batterymonitor_pmic
 	@$(BUILD_DIR)/test_batterymonitor_pmic
 
 # Battery Monitor's register constants and PMIC functions, cut from the real source.
-$(BUILD_DIR)/batterymonitor_pmic_fns.c: ../src/batteryMonitorUI/batteryMonitorUI.c
+$(BUILD_DIR)/batterymonitor_pmic_fns.c: ../src/batteryMonitorUI/batteryMonitorUI.c ../src/batteryMonitorUI/batteryMonitorUI.h
 	@mkdir -p $(BUILD_DIR)
-	grep -E '^#define (REG_AXP_|AXP_CHGV_|AXP_READBACK_|AXP_SYNC_|AXP_I2C_DEV)' ../src/batteryMonitorUI/batteryMonitorUI.c > $@
+	grep -E '^#define (REG_AXP_|AXP_CHGV_|AXP_READBACK_|AXP_SYNC_|AXP_I2C_DEV|BATMON_MAX_UNWRITTEN_S)' ../src/batteryMonitorUI/batteryMonitorUI.c > $@
 	sed -n '/^static int chgv_code_to_mv(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
 	sed -n '/^static int axp_units_to_mah(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	grep -E '^#define WAKE_GAP_MS' ../src/batteryMonitorUI/batteryMonitorUI.h >> $@
+	sed -n '/^static int live_duration(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int is_wake(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int bt_format_state(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
+	sed -n '/^static int bt_parse_state(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
 	sed -n '/^static int axp_write_mah16(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
 	sed -n '/^static int axp_set_capacity(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
 	sed -n '/^static int axp_set_coulomb_counter(/,/^}/p' ../src/batteryMonitorUI/batteryMonitorUI.c >> $@
