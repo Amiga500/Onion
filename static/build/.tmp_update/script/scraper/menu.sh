@@ -56,7 +56,7 @@ Screenscraper_accountState()
 
 	clear
 	if [ "$userSS" = "null" ] || [ "$passSS" = "null" ] || [ "$userSS" = "" ] || [ "$passSS" = "" ]; then
-		echo -e "Login or Password is empty!\nCheck user IDs!\n\n\n\n\n\n\n\n"
+		echo -e "Login or Password is empty!\nCheck user IDs!\n"
 		read -n 1 -s -r -p "Press A to continue"
 		return
 	fi
@@ -68,7 +68,7 @@ Screenscraper_accountState()
 
 
 	if echo "$api_result" | grep -q "^Erreur"; then
-		echo -e "Authentification failed.\nCheck user IDs!\n\n\n\n\n\n\n\n"
+		echo -e "Authentification failed.\nCheck user IDs!\n"
 		read -n 1 -s -r -p "Press A to continue"
 		return
 	fi
@@ -681,7 +681,7 @@ Clean_Media ()
 
     clear
     if [ "$count" -eq 0 ]; then
-        echo -e "No media of deleted games found\n($scope).\n\n\n\n\n\n\n\n"
+        echo -e "No media of deleted games found\n($scope).\n"
         rm -f "$list"
         read -n 1 -s -r -p "Press A to continue"
         Menu_Main
@@ -707,7 +707,7 @@ Clean_Media ()
         echo "Deleting..."
         deleted=$(sh "$clean" --delete "$@" | grep -vc "^skip: ")
         clear
-        echo -e "$deleted files deleted.\n\n\n\n\n\n\n\n"
+        echo -e "$deleted files deleted.\n"
         read -n 1 -s -r -p "Press A to continue"
     fi
     rm -f "$list"
@@ -761,7 +761,7 @@ Scrape_Favorites ()
     Favorites_List "$fav" > "$list"
     count=$(grep -c . "$list")
     if [ "$count" -eq 0 ]; then
-        echo -e "No favorite games to scrape.\n\n\n\n\n\n\n\n"
+        echo -e "No favorite games to scrape.\n"
         rm -f "$list"
         read -n 1 -s -r -p "Press A to continue"
         Menu_Main
@@ -835,7 +835,7 @@ Scrape_All_Consoles ()
     count=$(grep -c . "$list")
     clear
     if [ "$count" -eq 0 ]; then
-        echo -e "No consoles with games to scrape.\n\n\n\n\n\n\n\n"
+        echo -e "No consoles with games to scrape.\n"
         rm -f "$list"
         read -n 1 -s -r -p "Press A to continue"
         Menu_Main
