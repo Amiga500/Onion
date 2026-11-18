@@ -2292,7 +2292,7 @@ end
 # ---- ota_update.sh: MENU during the download asks, and stops it ----
 
 begin ota_download_menu_asks_then_stops
-for f in download_file stop_download read_button; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
+for f in download_file stop_download read_button onion_percent; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
 # The onion drawing is checked in ota_onion_progress_fits_the_screen
 onion_draw() { :; }
 onion_status() { :; }
@@ -2346,7 +2346,7 @@ unset CURL_RC
 check "the updater uses it" grep -q 'download_file "\$Release_url" "\$sysdir/download/\$Release_Version.zip"' "$OTA_SCRIPT"
 check "a stop leaves the updater" grep -q 'Download stopped.' "$OTA_SCRIPT"
 check "leaving the updater ends the download" grep -q "trap 'stop_download; restore_wifi; restore_keys' EXIT" "$OTA_SCRIPT"
-unset -f curl ask_leave download_file stop_download read_button onion_draw onion_status
+unset -f curl ask_leave download_file stop_download read_button onion_draw onion_status onion_percent
 unset YELLOW NC ANSWER
 end
 
@@ -4464,7 +4464,7 @@ begin ota_onion_progress_fits_the_screen
 # free rows under it (MENU question, result or error + "Press A"), or the
 # messages scroll it off the top.
 OTA_SCRIPT="$ROOT/static/build/.tmp_update/script/ota_update.sh"
-for f in onion_layout onion_draw onion_status; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
+for f in onion_layout onion_draw onion_status onion_percent; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
 stty() { [ "$1" = size ] && echo "$FAKE_SIZE"; }
 FAKE_SIZE="29 53"; onion_layout
 check "Miyoo 29x53: a 20-row onion" test "$onion_rows" -eq 20
@@ -4488,7 +4488,16 @@ check "0% is empty" test "$(onion_draw 0 | grep -c '#')" -eq 0
 check "no 'name (' in the onion's awk (BusyBox)" sh -c '! sed -n "/^onion_draw()/,/^}/p" "$1" | sed 1d | grep -v "^[[:space:]]*#" | grep -E "[A-Za-z0-9_\"] \(" | grep -vE "\b(if|for|while|else)\b \("' _ "$OTA_SCRIPT"
 out=$(onion_status 5242880 10485760 | sed 's/\x1b\[[0-9;]*[HK]//g')
 check "status: percent and MB ($out)" sh -c 'echo "$1" | grep -q "50%   5.0 / 10.0 MB"' _ "$out"
-unset -f stty onion_layout onion_draw onion_status
+# bytes * 100 passed 2^31 after 21 MB: a 32-bit shell went negative
+onion_percent 214748365 432013312; check "percent past 21 MB: 49 ($onion_pct)" test "$onion_pct" -eq 49
+onion_percent 432013312 432013312; check "percent at the end: 100 ($onion_pct)" test "$onion_pct" -eq 100
+onion_percent 500000000 432013312; check "percent never over 100 ($onion_pct)" test "$onion_pct" -eq 100
+onion_percent 0 432013312; check "percent at the start: 0 ($onion_pct)" test "$onion_pct" -eq 0
+onion_percent 1000 x; check "size not a number: 0 ($onion_pct)" test "$onion_pct" -eq 0
+onion_percent 1000 ""; check "no size: 0 ($onion_pct)" test "$onion_pct" -eq 0
+onion_percent 500 900; check "size under 1 KB: 0 ($onion_pct)" test "$onion_pct" -eq 0
+check "no bytes * 100 in the updater" sh -c '! grep -nE "(done|\\\$1) \\* 100" "$1"' _ "$OTA_SCRIPT"
+unset -f stty onion_layout onion_draw onion_status onion_percent
 end
 
 begin low_battery_shutdown_rechecks_the_battery

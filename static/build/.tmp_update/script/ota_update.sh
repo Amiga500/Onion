@@ -651,11 +651,23 @@ onion_draw() { # percent (0-100)
 	}'
 }
 
+# onion_pct: the percent of done bytes in total bytes, 0-100 (0 for a
+# value that is not a number). Counted in KB: bytes * 100 passes 2^31
+# after 21 MB, and the shell's arithmetic may be 32-bit.
+onion_percent() { # done bytes, total bytes
+	onion_pct=0
+	case "$1$2" in '' | *[!0-9]*) return ;; esac
+	[ -n "$1" ] && [ -n "$2" ] || return
+	_op_t=$(($2 / 1024))
+	[ "$_op_t" -gt 0 ] || return
+	onion_pct=$(($1 / 1024 * 100 / _op_t))
+	[ "$onion_pct" -gt 100 ] && onion_pct=100
+}
+
 # The percent and MB under the onion, centred.
 onion_status() { # done bytes, total bytes
-	_pct=0
-	[ "$2" -gt 0 ] && _pct=$(($1 * 100 / $2))
-	[ "$_pct" -gt 100 ] && _pct=100
+	onion_percent "$1" "$2"
+	_pct=$onion_pct
 	_mb=$(awk -v d="$1" -v t="$2" 'BEGIN { printf "%.1f / %.1f MB", d / 1048576, t / 1048576 }')
 	_line=$(printf '%3d%%   %s' "$_pct" "$_mb")
 	_sp=$(((onion_cols - ${#_line}) / 2))
@@ -676,9 +688,8 @@ download_file() { # url, file, expected size (bytes)
 	_dl_keys=1
 	while [ -n "$_dl_keys" ] && kill -0 "$_dl_pid" 2> /dev/null; do
 		_dl_done=$(stat -c %s "$2" 2> /dev/null || echo 0)
-		_dl_fill=0
-		[ "$3" -gt 0 ] 2> /dev/null && _dl_fill=$((_dl_done * 100 / $3))
-		[ "$_dl_fill" -gt 100 ] && _dl_fill=100
+		onion_percent "$_dl_done" "$3"
+		_dl_fill=$onion_pct
 		if [ "$_dl_fill" -ne "$_dl_last" ]; then
 			onion_draw "$_dl_fill"
 			_dl_last=$_dl_fill
