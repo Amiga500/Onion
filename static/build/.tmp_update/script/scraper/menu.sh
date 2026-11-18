@@ -12,6 +12,17 @@ romNameNoExtension=${romname%.*}
 romimage="/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
 ScraperConfigFile=/mnt/SDCARD/.tmp_update/config/scraper.json
 
+# "Press A to ...": wait for A only. Any key used to go on, so a D-pad press
+# (or the console resting on its buttons) skipped the message. A reaches the
+# terminal as a space, START as Enter, the D-pad as Esc [ A..D: only the
+# space ends the wait (or no input at all: the terminal is gone).
+press_a() { # prompt
+    printf '%s' "$1"
+    while IFS= read -n 1 -s -r _pa_key; do
+        [ "$_pa_key" = " " ] && break
+    done
+}
+
 # The keys at the bottom of every menu (shellect right-aligns them) and the
 # titles, centred, in capitals: the same layout in every menu.
 FootValidate="Menu: Exit      A: Validate"
@@ -24,7 +35,7 @@ FootToggle="Menu: Exit      A: On/Off"
 # echo "romimage : $romimage"
 # echo "romNameNoExtension : $romNameNoExtension"
 # echo "romimage : $romimage"
-# read -n 1 -s -r -p "Press A to continue"
+# press_a "Press A to continue"
 
 
 
@@ -62,7 +73,7 @@ Screenscraper_accountState()
 	clear
 	if [ "$userSS" = "null" ] || [ "$passSS" = "null" ] || [ "$userSS" = "" ] || [ "$passSS" = "" ]; then
 		echo -e "Login or Password is empty!\nCheck user IDs!\n"
-		read -n 1 -s -r -p "Press A to continue"
+		press_a "Press A to continue"
 		return
 	fi
 	
@@ -74,7 +85,7 @@ Screenscraper_accountState()
 
 	if echo "$api_result" | grep -q "^Erreur"; then
 		echo -e "Authentification failed.\nCheck user IDs!\n"
-		read -n 1 -s -r -p "Press A to continue"
+		press_a "Press A to continue"
 		return
 	fi
 
@@ -106,7 +117,7 @@ Screenscraper_accountState()
 	echo " max requests per minute: $maxRequestsPerMinute"
 	echo -e " Last scrape: $lastScrape\n\n\n\n\n\n\n\n\n\n\n\n"
 
-	read -n 1 -s -r -p "Press A to continue"
+	press_a "Press A to continue"
 
 }
 
@@ -210,7 +221,7 @@ Menu_Config_BackgroundScraping()
     if [ ! -f "$ScraperConfigFile" ]; then
       clear
       echo -e "Error: configuration file not found.\n"
-      read -n 1 -s -r -p "Press A to continue"
+      press_a "Press A to continue"
       exit 1
     fi
     
@@ -218,7 +229,7 @@ Menu_Config_BackgroundScraping()
     echo -e "====================================================\n\n"
     echo -e "Background scraping allows you to use your\nMiyoo during scraping.\n\nYou may experience slowdowns,so choose \nnon-demanding emulators.\n\nHowever you will not see download in live if enabled.\n"
     echo -e "====================================================\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
-    read -n 1 -s -r -p "Press A to continue"
+    press_a "Press A to continue"
     clear
     
     config=$(cat "$ScraperConfigFile")
@@ -282,7 +293,7 @@ Menu_Config_GameInfo()
     if [ ! -f "$ScraperConfigFile" ]; then
       clear
       echo -e "Error: configuration file not found.\n"
-      read -n 1 -s -r -p "Press A to continue"
+      press_a "Press A to continue"
       exit 1
     fi
 
@@ -290,7 +301,7 @@ Menu_Config_GameInfo()
     echo -e "====================================================\n\n"
     echo -e "Besides the cover, Screenscraper can get what\nGame Info shows: description, boxes,\nscreenshots, video and manual. They go in\nRoms/<console>/media and gamelist.xml.\n\nVideos and manuals are big: they take time\nand space on the SD card.\n"
     echo -e "====================================================\n\n\n\n\n\n\n\n\n\n"
-    read -n 1 -s -r -p "Press A to continue"
+    press_a "Press A to continue"
 
     while true; do
         config=$(cat "$ScraperConfigFile")
@@ -329,7 +340,7 @@ Menu_Config_MediaType()
     if [ ! -f "$ScraperConfigFile" ]; then
       clear
       echo -e "Error: configuration file not found.\n"
-      read -n 1 -s -r -p "Press A to continue"
+      press_a "Press A to continue"
       exit 1
     fi
 
@@ -351,7 +362,7 @@ Menu_Config_MediaType()
     ScreenscraperMediaType=$(echo "$config" | jq -r '.ScreenscraperMediaType')
     LaunchBoxMediaType=$(echo "$config" | jq -r '.LaunchboxMediaType')
 	
-    read -n 1 -s -r -p "Press A to continue"
+    press_a "Press A to continue"
     clear
 
     # Screenscreaper.fr
@@ -401,7 +412,7 @@ Menu_RegionSelection()
     if [ ! -f "$ScraperConfigFile" ]; then
       clear
       echo -e "Error: configuration file not found.\n"
-      read -n 1 -s -r -p "Press A to continue"
+      press_a "Press A to continue"
       exit 1
     fi
 
@@ -418,7 +429,7 @@ Menu_RegionSelection()
     echo -e " If no media is found for your country code," 
     echo -e " other countries will be searched as fallback.\n" 
     echo -e "====================================================\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
-    read -n 1 -s -r -p "Press A to continue"
+    press_a "Press A to continue"
     clear
 
 
@@ -531,7 +542,7 @@ Launch_Scraping ()
 	if [ "$(ip r)" = "" ]; then 
 		clear
 		echo -e "You must be connected to Wi-Fi to use the scraper.\n"
-		read -n 1 -s -r -p "Press A to continue"
+		press_a "Press A to continue"
 		exit
 	fi
 
@@ -539,7 +550,7 @@ Launch_Scraping ()
     if [ ! -f "$ScraperConfigFile" ]; then
       clear
       echo -e "Error: configuration file not found.\n"
-      read -n 1 -s -r -p "Press A to continue"
+      press_a "Press A to continue"
       exit 1
     fi
     
@@ -622,7 +633,7 @@ moderator/Admin     : 200.000 requests per day
 
 EOF
 
-read -n 1 -s -r -p "Press A to continue"
+press_a "Press A to continue"
 clear 
 
 cat << 	EOF
@@ -653,7 +664,7 @@ https://www.screenscraper.fr/faq.php
 
 EOF
 
-read -n 1 -s -r -p "Press A to continue"
+press_a "Press A to continue"
 clear
 }
 
@@ -664,7 +675,7 @@ Delete_Rom_Cover ()
     clear
     rm "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
     echo -e "$romNameNoExtension.png\nRemoved\n"
-    read -n 1 -s -r -p "Press A to continue"
+    press_a "Press A to continue"
     clear
     Menu_Main
 }
@@ -694,7 +705,7 @@ Clean_Media ()
     if [ "$count" -eq 0 ]; then
         echo -e "No media of deleted games found\n($scope).\n"
         rm -f "$list"
-        read -n 1 -s -r -p "Press A to continue"
+        press_a "Press A to continue"
         Menu_Main
         return
     fi
@@ -710,7 +721,7 @@ Clean_Media ()
     head -n 8 "$list" | sed 's|^/mnt/SDCARD/Roms/||'
     [ "$count" -gt 8 ] && echo "... and $((count - 8)) more"
     echo -e "\nCovers (Imgs), Game Info media and manuals\nof games no longer on the SD card.\n"
-    read -n 1 -s -r -p "Press A to continue"
+    press_a "Press A to continue"
 
     confirm=$( echo -e "Delete $count files ($size)\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== MEDIA OF DELETED GAMES ==--" -b "$FootValidate")
     clear
@@ -719,7 +730,7 @@ Clean_Media ()
         deleted=$(sh "$clean" --delete "$@" | grep -vc "^skip: ")
         clear
         echo -e "$deleted files deleted.\n"
-        read -n 1 -s -r -p "Press A to continue"
+        press_a "Press A to continue"
     fi
     rm -f "$list"
     Menu_Main
@@ -747,13 +758,13 @@ Batch_Prepare ()
     if [ "$(ip r)" = "" ]; then
         clear
         echo -e "You must be connected to Wi-Fi to use the scraper.\n"
-        read -n 1 -s -r -p "Press A to continue"
+        press_a "Press A to continue"
         exit
     fi
     if [ ! -f "$ScraperConfigFile" ]; then
         clear
         echo -e "Error: configuration file not found.\n"
-        read -n 1 -s -r -p "Press A to continue"
+        press_a "Press A to continue"
         exit 1
     fi
     config=$(cat "$ScraperConfigFile")
@@ -776,7 +787,7 @@ Scrape_Favorites ()
     if [ "$count" -eq 0 ]; then
         echo -e "No favorite games to scrape.\n"
         rm -f "$list"
-        read -n 1 -s -r -p "Press A to continue"
+        press_a "Press A to continue"
         Menu_Main
         return
     fi
@@ -811,7 +822,7 @@ Scrape_Favorites ()
 
     if [ "$ScrapeInBackground" != "true" ]; then
         echo -e "\n$count favorite games done.\n"
-        read -n 1 -s -r -p "Press A to exit"
+        press_a "Press A to exit"
     fi
     rm -f /tmp/stay_awake
     pkill st
@@ -850,7 +861,7 @@ Scrape_All_Consoles ()
     if [ "$count" -eq 0 ]; then
         echo -e "No consoles with games to scrape.\n"
         rm -f "$list"
-        read -n 1 -s -r -p "Press A to continue"
+        press_a "Press A to continue"
         Menu_Main
         return
     fi
@@ -888,7 +899,7 @@ Scrape_All_Consoles ()
 
     if [ "$ScrapeInBackground" != "true" ]; then
         echo -e "\n$count consoles done.\n"
-        read -n 1 -s -r -p "Press A to exit"
+        press_a "Press A to exit"
     fi
     rm -f /tmp/stay_awake
     pkill st

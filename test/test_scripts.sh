@@ -4429,6 +4429,25 @@ out=$(sh "$CLEAN_MEDIA" "$R/ARCADE" | grep -c "mslug")
 check "without the MAME 2003 config its covers count as deleted games" test "$out" -eq 1
 end
 
+begin scraper_press_a_waits_for_a_only
+# "Press A to continue" went on with any button: a D-pad press (or the
+# console resting on its buttons) skipped the message. Only A (a space)
+# ends it now, or the end of input (the terminal closed).
+SCRAPER_MENU="$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
+eval "$(extract_fn "$SCRAPER_MENU" press_a)"
+if (printf 'x' | IFS= read -n 1 -r _k) 2> /dev/null; then
+    out=$(printf '\033[B\033[Dx\n z' | { press_a "Press A"; cat; })
+    check "D-pad, a letter and START ignored, A goes on" test "$out" = "Press Az"
+    out=$(printf 'abc' | { press_a "Press A"; echo "|end"; })
+    check "no A before the end of input: no hang" test "$out" = "Press A|end"
+else
+    echo "    (skipped: this shell has no read -n)"
+fi
+for f in "$SCRAPER_MENU" "$ROOT/static/build/.tmp_update/script/scraper/scrap_screenscraper.sh" "$ROOT/static/build/.tmp_update/script/ota_update.sh"; do
+    check "no any-key prompt left in ${f##*/}" sh -c '! grep -q "read -n 1 -s -r -p" "$1"' _ "$f"
+done
+end
+
 # ---- update_networking.sh: no Play Activity resume behind the GameSwitcher ----
 
 eval "$(extract_fn "$NETWORK" lowest_pid_named)"

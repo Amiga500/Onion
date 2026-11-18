@@ -1,4 +1,15 @@
 #!/bin/sh
+
+# "Press A to ...": wait for A only. Any key used to go on, so a D-pad press
+# (or the console resting on its buttons) skipped the message. A reaches the
+# terminal as a space, START as Enter, the D-pad as Esc [ A..D: only the
+# space ends the wait (or no input at all: the terminal is gone).
+press_a() { # prompt
+    printf '%s' "$1"
+    while IFS= read -n 1 -s -r _pa_key; do
+        [ "$_pa_key" = " " ] && break
+    done
+}
 #echo $0 $*    # for debugging
 
 if [ -z "$1" ]
@@ -67,7 +78,7 @@ moderator/Admin     : 200.000 requests per day
 
 EOF
 
-read -n 1 -s -r -p "Press A to continue"
+press_a "Press A to continue"
 clear 
 
 cat << 	EOF
@@ -96,7 +107,7 @@ https://www.screenscraper.fr/faq.php
 
 EOF
 
-read -n 1 -s -r -p "Press A to continue"
+press_a "Press A to continue"
 clear
 }
 
@@ -137,7 +148,7 @@ search_on_screenscraper() {
     if echo "$Head_api_result" | grep -q "API closed"; then
         echo -e "${RED}The Screenscraper API is currently down, please try again later.{NONE}"
         let Scrap_Fail++
-        read -n 1 -s -r -p "Press A to exit"
+        press_a "Press A to exit"
         return
     fi
 

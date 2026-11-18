@@ -70,12 +70,12 @@ main() {
 		1)
 			rm -f "$sysdir/.updateAvailable"
 			echo -ne "${YELLOW}"
-			drop_keys; read -n 1 -s -r -p "Press A to exit"
+			press_a "Press A to exit"
 			exit 3
 			;;
 		*)
 			echo -ne "${YELLOW}"
-			drop_keys; read -n 1 -s -r -p "Press A to exit"
+			press_a "Press A to exit"
 			exit 8
 			;;
 	esac
@@ -93,7 +93,7 @@ check_available_space() {
 	if [ "$available_space" -lt "1000" ]; then
 		echo -e "${RED}Available space is insufficient on SD card${NC}\n"
 		echo -ne "${YELLOW}"
-		drop_keys; read -n 1 -s -r -p "Press A to exit"
+		press_a "Press A to exit"
 		exit 1
 	fi
 }
@@ -104,7 +104,7 @@ check_wifi_hardware() {
 	if [ "$(cat /tmp/deviceModel 2> /dev/null)" = "283" ]; then
 		echo -e "${RED}This device has no Wi-Fi.${NC}\nTo update, copy the release to the SD card from a PC.\n"
 		echo -ne "${YELLOW}"
-		drop_keys; read -n 1 -s -r -p "Press A to exit"
+		press_a "Press A to exit"
 		exit 9
 	fi
 }
@@ -277,7 +277,7 @@ check_connection() {
 		_why=$(echo "$_why" | grep -v '^[[:space:]]*$' | head -n 1 | cut -c 1-60)
 		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable${_why:+ ($_why)}.\nTurn on Wi-Fi in Settings and check that it connects.\n"
 		echo -ne "${YELLOW}"
-		drop_keys; read -n 1 -s -r -p "Press A to exit"
+		press_a "Press A to exit"
 		exit 2
 	fi
 }
@@ -481,6 +481,20 @@ ask_leave() { # question
 	return $_al_ret
 }
 
+# "Press A to exit": wait for A only (any button used to do; a D-pad press
+# left the updater). No input at all (the terminal is gone) goes on too.
+press_a() { # prompt
+	drop_keys
+	printf '%s' "$1"
+	_pa=$(stty -g 2> /dev/null)
+	stty -icanon -echo min 1 time 0 2> /dev/null
+	while :; do
+		read_button
+		case $button in A | gone) break ;; esac
+	done
+	[ -n "$_pa" ] && stty "$_pa" 2> /dev/null
+}
+
 # Show a prompt and wait for A (continue, returns 0). MENU asks whether to
 # leave (returns 1 if so, else shows the prompt again); other buttons are
 # ignored. No input at all (the terminal is gone) leaves.
@@ -627,7 +641,7 @@ download_update() {
 			"${RED}Error: Wrong download size${NC} ($Downloaded_size instead of $Release_size)\n\n"
 		rm -f "$sysdir/download/$Release_Version.zip"
 		echo -ne "${YELLOW}"
-		drop_keys; read -n 1 -s -r -p "Press A to exit"
+		press_a "Press A to exit"
 		exit 5
 	fi
 }
@@ -656,7 +670,7 @@ apply_update() {
 				"Update $Release_Version applied.\n" \
 				"Rebooting to run installation...\n\n"
 			echo -ne "${YELLOW}"
-			drop_keys; read -n 1 -s -r -p "Press A to reboot"
+			press_a "Press A to reboot"
 			sleep 1
 			# A plain reboot, as in 4.4.0: from 4.5.0, the clean shutdown
 			# here could hang on this screen until POWER was held. The
@@ -668,7 +682,7 @@ apply_update() {
 				"${RED}Error: Something wrong happened during decompression.${NC}\n" \
 				"Try to run OTA update again or do a manual update.\n\n"
 			echo -ne "${YELLOW}"
-			drop_keys; read -n 1 -s -r -p "Press A to exit"
+			press_a "Press A to exit"
 			exit 6
 		fi
 	else
