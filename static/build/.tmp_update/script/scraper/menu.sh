@@ -726,23 +726,10 @@ Favorites_List ()
         awk -F'/Roms/' 'NF > 1 { n = split($NF, p, "/"); if (n >= 2 && p[n] != "") print p[1] "\t" p[n] }'
 }
 
-# Scrapes every favorite game, each in its own console, with the sources
-# turned on in Configuration (as "Scrape current rom" does for one game).
-Scrape_Favorites ()
+# Before a batch (all favorites, all consoles): Wi-Fi, the configuration
+# and the sources turned on, as Launch_Scraping checks them for one console.
+Batch_Prepare ()
 {
-    fav=/mnt/SDCARD/Roms/favourite.json
-    list=/tmp/scrape_favorites_list
-    clear
-    Favorites_List "$fav" > "$list"
-    count=$(grep -c . "$list")
-    if [ "$count" -eq 0 ]; then
-        echo -e "No favorite games to scrape.\n\n\n\n\n\n\n\n"
-        rm -f "$list"
-        read -n 1 -s -r -p "Press A to continue"
-        Menu_Main
-        return
-    fi
-
     touch /tmp/stay_awake
     rm -f /tmp/scraper_script.sh
 
@@ -761,8 +748,27 @@ Scrape_Favorites ()
     Launchbox_enabled=$(echo "$config" | jq -r '.Launchbox_enabled')
     Retroarch_enabled=$(echo "$config" | jq -r '.Retroarch_enabled')
     ScrapeInBackground=$(echo "$config" | jq -r '.ScrapeInBackground')
-
     sdir=/mnt/SDCARD/.tmp_update/script/scraper
+}
+
+# Scrapes every favorite game, each in its own console, with the sources
+# turned on in Configuration (as "Scrape current rom" does for one game).
+Scrape_Favorites ()
+{
+    fav=/mnt/SDCARD/Roms/favourite.json
+    list=/tmp/scrape_favorites_list
+    clear
+    Favorites_List "$fav" > "$list"
+    count=$(grep -c . "$list")
+    if [ "$count" -eq 0 ]; then
+        echo -e "No favorite games to scrape.\n\n\n\n\n\n\n\n"
+        rm -f "$list"
+        read -n 1 -s -r -p "Press A to continue"
+        Menu_Main
+        return
+    fi
+
+    Batch_Prepare
     n=0
     tab=$(printf '\t')
     # The list on fd 3: the scrapers read the keys on stdin.
@@ -799,6 +805,83 @@ Scrape_Favorites ()
 }
 
 
+# The consoles the scraper knows (the names in scrap_screenscraper.sh's
+# get_ssSystemID) that hold at least one game, one per line, from the Roms
+# folder ($1).
+Consoles_List ()
+{
+    known=$(sed -n '/^get_ssSystemID() {/,/^}/p' \
+        "${SCRAPER_DIR:-/mnt/SDCARD/.tmp_update/script/scraper}/scrap_screenscraper.sh" |
+        sed -n 's/^ *\([A-Za-z0-9_]*\)).*/\1/p')
+    for cdir in "$1"/*/; do
+        [ -d "$cdir" ] || continue
+        csys=$(basename "$cdir")
+        echo "$known" | grep -qxF "$csys" || continue
+        find "$cdir" -maxdepth 2 -type f ! -name '.*' ! -name '*.xml' \
+            ! -name '*.xml.*' ! -name '*.db' ! -name '*.cfg' ! -name '*.miyoocmd' \
+            ! -name '*.json' ! -path '*/Imgs/*' ! -path '*/media/*' ! -path '*/.*/*' 2> /dev/null |
+            grep -q . && echo "$csys"
+    done
+}
+
+# Scrapes every console with games, one after the other, with the sources
+# turned on in Configuration (as "Scrape all ... roms" does for one).
+Scrape_All_Consoles ()
+{
+    list=/tmp/scrape_consoles_list
+    clear
+    echo "Looking for consoles with games..."
+    Consoles_List /mnt/SDCARD/Roms > "$list"
+    count=$(grep -c . "$list")
+    clear
+    if [ "$count" -eq 0 ]; then
+        echo -e "No consoles with games to scrape.\n\n\n\n\n\n\n\n"
+        rm -f "$list"
+        read -n 1 -s -r -p "Press A to continue"
+        Menu_Main
+        return
+    fi
+    confirm=$( echo -e "Scrape $count consoles\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "  --== SCRAPE ALL CONSOLES ==--" -b "With many games this can take hours.")
+    if [ "$confirm" != "Scrape $count consoles" ]; then
+        rm -f "$list"
+        Menu_Main
+        return
+    fi
+    clear
+
+    Batch_Prepare
+    n=0
+    # The list on fd 3: the scrapers read the keys on stdin.
+    while read -r csys <&3; do
+        n=$((n + 1))
+        # Shown by the scrapers under their title (they clear the screen)
+        export SCRAPER_PROGRESS="=== Console $n/$count: $csys ==="
+        for src in screenscraper launchbox retroarch; do
+            case $src in
+                screenscraper) [ "$Screenscraper_enabled" = "true" ] || continue ;;
+                launchbox) [ "$Launchbox_enabled" = "true" ] || continue ;;
+                retroarch) [ "$Retroarch_enabled" = "true" ] || continue ;;
+            esac
+            if [ "$ScrapeInBackground" = "true" ]; then
+                echo "$sdir/scrap_$src.sh $csys \"\"" >> /tmp/scraper_script.sh
+            else
+                "$sdir/scrap_$src.sh" "$csys" ""
+                # The account question once, not for every console
+                export SCRAPER_NO_ACCOUNT_PROMPT=1
+            fi
+        done
+    done 3< "$list"
+    rm -f "$list"
+
+    if [ "$ScrapeInBackground" != "true" ]; then
+        echo -e "\n$count consoles done.\n"
+        read -n 1 -s -r -p "Press A to exit"
+    fi
+    rm -f /tmp/stay_awake
+    pkill st
+}
+
+
 ##########################################################################################
 
 Menu_Main ()
@@ -813,13 +896,15 @@ Option5="Exit"
 Option6="Delete media of deleted games: $(basename "$CurrentSystem")"
 Option7="Delete media of deleted games: all consoles"
 Option8="Scrape all favorites"
+Option9="Scrape all consoles"
 
 clear
-Mychoice=$( echo -e "$Option1\n$Option2\n$Option8\n$Option3\n$Option6\n$Option7\n$Option4\nExit" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "           --== MAIN MENU ==--" -b "                     Menu : Exit        A : Validate ")
+Mychoice=$( echo -e "$Option1\n$Option9\n$Option2\n$Option8\n$Option3\n$Option6\n$Option7\n$Option4\nExit" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "           --== MAIN MENU ==--" -b "                     Menu : Exit        A : Validate ")
 
 [ "$Mychoice" = "$Option1" ] && (onerom=0; Launch_Scraping;)
 [ "$Mychoice" = "$Option2" ] && (onerom=1; Launch_Scraping;)
 [ "$Mychoice" = "$Option8" ] && Scrape_Favorites
+[ "$Mychoice" = "$Option9" ] && Scrape_All_Consoles
 [ "$Mychoice" = "$Option3" ] && Delete_Rom_Cover
 [ "$Mychoice" = "$Option6" ] && Clean_Media "/mnt/SDCARD/Roms/$CurrentSystem"
 [ "$Mychoice" = "$Option7" ] && Clean_Media all

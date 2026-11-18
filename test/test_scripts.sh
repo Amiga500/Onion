@@ -4473,6 +4473,27 @@ done
 check "menu: shown and handled" sh -c "grep -q 'Option8=\"Scrape all favorites\"' '$SCRAPER_MENU' && grep -q 'Option8\" ] && Scrape_Favorites' '$SCRAPER_MENU'"
 end
 
+# ---- Scraper menu: "Scrape all consoles" ----
+
+begin scraper_consoles_list
+eval "$(sed -n '/^Consoles_List ()/,/^}/p' "$SCRAPER_MENU")"
+R="$TMP/Roms"
+mkdir -p "$R/GBA/Imgs" "$R/MD/Sega" "$R/SFC/Imgs" "$R/PS/media/box3d" "$R/MYSTERY" "$R/FC" "$R/PICO"
+: > "$R/GBA/Metroid.gba"
+: > "$R/MD/Sega/Sonic.md"                 # one folder down
+: > "$R/SFC/Imgs/Mario.png"               # covers only
+: > "$R/SFC/SFC_cache6.db"                # and the list cache
+: > "$R/SFC/miyoogamelist.xml"
+: > "$R/PS/media/box3d/Crash.png"         # Game Info media only
+: > "$R/MYSTERY/game.bin"                 # not a console the scraper knows
+: > "$R/FC/.hidden"
+: > "$R/PICO/celeste.p8.png"              # PICO-8 carts are PNG files
+check "consoles with games, known to the scraper" test "$(SCRAPER_DIR="$(dirname "$SCRAPER_SS")" Consoles_List "$R" | tr '\n' ' ')" = "GBA MD PICO "
+check "no Roms folder: nothing" test -z "$(SCRAPER_DIR="$(dirname "$SCRAPER_SS")" Consoles_List "$TMP/none")"
+check "menu: shown and handled" sh -c "grep -q 'Option9=\"Scrape all consoles\"' '$SCRAPER_MENU' && grep -q 'Option9\" ] && Scrape_All_Consoles' '$SCRAPER_MENU'"
+check "asks before starting" grep -q 'SCRAPE ALL CONSOLES' "$SCRAPER_MENU"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
