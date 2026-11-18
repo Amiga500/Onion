@@ -924,7 +924,12 @@ void compute_graph(void)
                     run_start_level = raw_level;
                     run_length += duration;
                     run_start_time = row_time;
-                    if (row_time <= 0 || (newer_row_time > 0 && row_time > newer_row_time))
+                    // Clock times are no good with the clock moved under the run: backwards, or forwards
+                    // by more than SLEEP_GAP_MAX between this entry's end and the newer entry's start. An
+                    // entry begun before the time sync carries the fallback clock (~4 years behind), and a
+                    // charge timed on the clock (has_times) showed about 35000 h, as SESSION did.
+                    if (row_time <= 0 || (newer_row_time > 0 && row_time > newer_row_time) ||
+                        (newer_row_time > 0 && newer_row_time - row_time - duration > SLEEP_GAP_MAX))
                         run_times_ok = false;
                     newer_row_time = row_time;
 
