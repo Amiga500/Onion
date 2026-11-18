@@ -230,8 +230,8 @@ void renderHeader(AppState *state, int battery_percentage)
 
 // RetroAchievements in hardcore mode (retroarch.cfg, read once): RetroArch
 // then refuses to load a save state, so a game the GameSwitcher starts again
-// does not resume, it restarts from the beginning (a YouTube review took it
-// for a bug). The running game in the in-game GameSwitcher still resumes:
+// does not resume, it restarts from the beginning (pointed out in a YouTube
+// review). The running game in the in-game GameSwitcher still resumes:
 // it is only unpaused.
 static bool _gs_hardcore(void)
 {
