@@ -14,6 +14,7 @@
 #include "gs_model.h"
 #include "gs_popMenu.h"
 #include "gs_romscreen.h"
+#include "gs_ra_files.h"
 
 void renderCentered(SDL_Surface *image, int view_mode, SDL_Rect *overrideSrcRect, SDL_Rect *overrideDestRect)
 {
@@ -227,6 +228,22 @@ void renderHeader(AppState *state, int battery_percentage)
     }
 }
 
+// RetroAchievements in hardcore mode (retroarch.cfg, read once): RetroArch
+// then refuses to load a save state, so a game the GameSwitcher starts again
+// does not resume, it restarts from the beginning (a YouTube review took it
+// for a bug). The running game in the in-game GameSwitcher still resumes:
+// it is only unpaused.
+static bool _gs_hardcore(void)
+{
+    static int hardcore = -1;
+    if (hardcore < 0) {
+        bool cheevos = false, hc = false;
+        hardcore = ra_getBoolFromConfig(RETROARCH_CONFIG_PATH, &cheevos, "cheevos_enable") && cheevos &&
+                   ra_getBoolFromConfig(RETROARCH_CONFIG_PATH, &hc, "cheevos_hardcore_mode_enable") && hc;
+    }
+    return hardcore == 1;
+}
+
 void renderFooter(AppState *state)
 {
     if (state->custom_footer) {
@@ -244,6 +261,27 @@ void renderFooter(AppState *state)
             theme_renderFooterStatus(screen,
                                      game_list_len > 0 ? state->current_game + 1 : 0,
                                      game_list_len);
+        }
+    }
+
+    // In every theme: theme bottom bars are pictures, without text
+    Game_s *game = currentGame();
+    if (_gs_hardcore() && game != NULL && !game->is_running) {
+        SDL_Surface *note = TTF_RenderUTF8_Blended(
+            resource_getFont(HINT), "Hardcore mode: this game restarts from the beginning",
+            (SDL_Color){255, 255, 255});
+        if (note != NULL) {
+            // Above the game name bar (60 px over the footer, renderGameName),
+            // which is redrawn alone while a long name scrolls.
+            int pad = (int)(8.0 * g_scale);
+            int name_y = g_display.height - (int)(60.0 * g_scale) - state->footer_height;
+            SDL_Rect box = {(g_display.width - note->w) / 2 - pad,
+                            name_y - note->h - 2 * pad,
+                            note->w + 2 * pad, note->h + pad};
+            SDL_FillRect(screen, &box, SDL_MapRGB(screen->format, 20, 20, 24));
+            SDL_Rect pos = {box.x + pad, box.y + pad / 2};
+            SDL_BlitSurface(note, NULL, screen, &pos);
+            SDL_FreeSurface(note);
         }
     }
 }
