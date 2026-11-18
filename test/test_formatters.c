@@ -234,10 +234,29 @@ TEST(batt_exit_1_percent) {
 }
 
 TEST(batt_exit_10_percent) {
-    TestListItem item = make_item(10);
+    // Index 6: after 1-5 %, the levels go on with 10, 15 and 20 %
+    TestListItem item = make_item(6);
     char out[STR_MAX] = {0};
     formatter_battExit(&item, out);
     ASSERT_STREQ(out, "< 10%");
+}
+
+TEST(batt_exit_levels_up_to_20_percent) {
+    char out[STR_MAX] = {0};
+    TestListItem item = make_item(BATTERY_EXIT_LEVEL_COUNT - 1);
+    formatter_battExit(&item, out);
+    ASSERT_STREQ(out, "< 20%");
+    // the stored value is the percentage: 1-5 keep their index
+    for (int pct = 0; pct <= 5; pct++)
+        ASSERT_EQ(battery_exitLevelIndex(pct), pct);
+    ASSERT_EQ(battery_exitLevelIndex(10), 6);
+    ASSERT_EQ(battery_exitLevelIndex(15), 7);
+    ASSERT_EQ(battery_exitLevelIndex(20), 8);
+    ASSERT_EQ(battery_exitLevelIndex(7), 5);   // hand-edited: the level under it
+    ASSERT_EQ(battery_exitLevelIndex(99), 8);
+    for (int i = 0; i < BATTERY_EXIT_LEVEL_COUNT; i++)
+        ASSERT_EQ(battery_exitLevelIndex(battery_exitLevelPercent(i)), i);
+    ASSERT_EQ(battery_exitLevelPercent(99), 20);
 }
 
 /* ==== Tests: formatter_fontFamily ==== */
@@ -549,6 +568,7 @@ int main(void)
     RUN_TEST(batt_exit_off);
     RUN_TEST(batt_exit_1_percent);
     RUN_TEST(batt_exit_10_percent);
+    RUN_TEST(batt_exit_levels_up_to_20_percent);
 
     /* Font family/size */
     RUN_TEST(font_family_default);

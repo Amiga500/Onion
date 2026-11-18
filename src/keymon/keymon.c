@@ -1474,8 +1474,12 @@ int main(void)
             blue_light_schedule_check();
         }
 
-        // Quit RetroArch / auto-save when battery too low
-        if (settings.low_battery_autosave_at && battery_getPercentage() <= settings.low_battery_autosave_at && check_autosave()) {
+        // Quit RetroArch / auto-save when battery too low. Not on the
+        // charger (plugged in at the level, the game went on to be closed
+        // anyway), nor with no reading (-1: /tmp/percBat missing).
+        int low_battery_pct = settings.low_battery_autosave_at ? battery_getPercentage() : -1;
+        if (low_battery_pct >= 0 && low_battery_pct <= settings.low_battery_autosave_at &&
+            !battery_isCharging() && check_autosave()) {
             temp_flag_set(".lowBat", true);
             screenshot_system();
             terminate_retroarch();

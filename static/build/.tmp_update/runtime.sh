@@ -1020,6 +1020,30 @@ cleanup_appendconfig() {
     fi
 }
 
+# After a game closed by keymon's "Low battery: save and quit" (/tmp/.lowBat):
+# shut down only if the battery is still at that level (+2 %: the reading
+# rises a little once the game's load is gone) and not charging. The flag
+# stays in /tmp until a reboot, so a charge in between used to be ignored and
+# the next game's exit shut the device down. No reading: shut down, as before.
+low_battery_shutdown_due() {
+    _lb_charging=0
+    if [ "$DEVICE_ID" = "$MODEL_MM" ]; then
+        _lb_charging=$(cat /sys/devices/gpiochip0/gpio/gpio59/value 2> /dev/null)
+    elif [ "$HAS_AXP" = 1 ]; then
+        _lb_axp=$(axp 0 2> /dev/null | cut -d':' -f2)
+        case $_lb_axp in
+            '' | *[!0-9a-fA-F]*) ;;
+            *) [ $((0x$_lb_axp & 0x4)) -eq 4 ] && _lb_charging=1 ;;
+        esac
+    fi
+    [ "$_lb_charging" = 1 ] && return 1
+    _lb_pct=$(cat /tmp/percBat 2> /dev/null)
+    case $_lb_pct in '' | *[!0-9]*) return 0 ;; esac
+    _lb_at=$(cat "$sysdir/config/battery/exitAt" 2> /dev/null)
+    case $_lb_at in '' | *[!0-9]*) _lb_at=4 ;; esac
+    [ "$_lb_pct" -le $((_lb_at + 2)) ]
+}
+
 launch_game_postprocess() {
     is_game=$1
     launch_path="$2"
@@ -1043,9 +1067,16 @@ launch_game_postprocess() {
         cleanup_appendconfig "$launch_path"
 
         if [ -f /tmp/.lowBat ]; then
-            bootScreen lowBat
-            sleep 3
-            touch /tmp/.offOrder
+            if low_battery_shutdown_due; then
+                bootScreen lowBat
+                sleep 3
+                touch /tmp/.offOrder
+            else
+                # Charged (or on the charger) since keymon set it: the flag
+                # stayed in /tmp and shut the device down after a later game.
+                log "Low battery flag dropped: charging or above the save-and-quit level"
+                rm -f /tmp/.lowBat
+            fi
         fi
 
         # Reset networking if needed

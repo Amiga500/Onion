@@ -2,6 +2,7 @@
 #define TWEAKS_ACTIONS_H__
 
 #include "components/list.h"
+#include "./formatters_basic.h"
 #include "system/axp.h"
 #include "system/osd.h"
 #include "system/rumble.h"
@@ -172,7 +173,7 @@ void action_setVibration(void *pt)
 
 void action_setLowBatteryAutoSave(void *pt)
 {
-    settings.low_battery_autosave_at = ((ListItem *)pt)->value;
+    settings.low_battery_autosave_at = battery_exitLevelPercent(((ListItem *)pt)->value);
 }
 
 void action_setLaunchScreen(void *pt)

@@ -91,14 +91,43 @@ void formatter_battWarn(void *pt, char *out_label)
     formatter_markDefault(out_label, item->value * 5 == DEFAULT_LOW_BATTERY_WARN);
 }
 
+// "Low battery: save and quit" (battery/exitAt, a percentage). The list
+// index is not the percentage any more: 1-5 % as in Onion, then 10, 15 and
+// 20 % for stopping earlier with a clean save (a tester raised the PMIC's
+// Voff instead, which cuts power with no save). The stored value stays the
+// percentage, so existing settings and keymon read it as before.
+static const int battery_exit_levels[] = {0, 1, 2, 3, 4, 5, 10, 15, 20};
+#define BATTERY_EXIT_LEVEL_COUNT ((int)(sizeof(battery_exit_levels) / sizeof(battery_exit_levels[0])))
+
+static int battery_exitLevelPercent(int index)
+{
+    if (index < 0)
+        index = 0;
+    if (index >= BATTERY_EXIT_LEVEL_COUNT)
+        index = BATTERY_EXIT_LEVEL_COUNT - 1;
+    return battery_exit_levels[index];
+}
+
+// The list index of a stored percentage: its own, else the highest level
+// under it (a hand-edited 7 shows as 5 %).
+static int battery_exitLevelIndex(int percent)
+{
+    int index = 0;
+    for (int i = 0; i < BATTERY_EXIT_LEVEL_COUNT; i++)
+        if (battery_exit_levels[i] <= percent)
+            index = i;
+    return index;
+}
+
 void formatter_battExit(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
-    if (item->value == 0)
+    int percent = battery_exitLevelPercent(item->value);
+    if (percent == 0)
         strcpy(out_label, "Off");
     else
-        sprintf(out_label, "< %d%%", item->value);
-    formatter_markDefault(out_label, item->value == DEFAULT_LOW_BATTERY_EXIT);
+        sprintf(out_label, "< %d%%", percent);
+    formatter_markDefault(out_label, percent == DEFAULT_LOW_BATTERY_EXIT);
 }
 
 static const int num_font_families = 5;

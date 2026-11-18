@@ -206,12 +206,14 @@ void menu_system(void *_)
                                  (ListItem){
                                      .label = "Low battery: save and quit",
                                      .item_type = MULTIVALUE,
-                                     .value_max = 5,
+                                     .value_max = BATTERY_EXIT_LEVEL_COUNT - 1,
                                      .value_formatter = formatter_battExit,
-                                     .value = settings.low_battery_autosave_at,
+                                     .value = battery_exitLevelIndex(settings.low_battery_autosave_at),
                                      .action = action_setLowBatteryAutoSave},
-                                 "Set the battery percentage at which the\n"
-                                 "system should save and exit RetroArch.");
+                                 "At this battery level the game is saved\n"
+                                 "(RetroArch auto save state) and closed,\n"
+                                 "then the console turns off. 10-20 %:\n"
+                                 "stop early, with a clean save.");
         // Flip-specific: Lid close action
         if (DEVICE_ID == MIYOO285) {
             list_addItemWithInfoNote(&_menu_system,

@@ -4491,6 +4491,36 @@ check "status: percent and MB ($out)" sh -c 'echo "$1" | grep -q "50%   5.0 / 10
 unset -f stty onion_layout onion_draw onion_status
 end
 
+begin low_battery_shutdown_rechecks_the_battery
+# keymon's "Low battery: save and quit" leaves /tmp/.lowBat; runtime.sh shut
+# down after every later game exit, even after a charge. Now it checks the
+# battery first.
+RT="$ROOT/static/build/.tmp_update/runtime.sh"
+eval "$(sed -n '/^low_battery_shutdown_due() {/,/^}/p' "$RT" | sed "s#/tmp/percBat#$TMP/percBat#; s#/sys/devices/gpiochip0/gpio/gpio59/value#$TMP/gpio59#")"
+sysdir=$TMP; mkdir -p "$TMP/config/battery"; MODEL_MM=283
+axp() { echo "0:$FAKE_AXP"; }
+not_due() { ! low_battery_shutdown_due; }
+DEVICE_ID=354; HAS_AXP=1; FAKE_AXP=70
+echo 4 > "$TMP/percBat"
+check "Plus at 4 %, default level, not charging: shut down" low_battery_shutdown_due
+echo 6 > "$TMP/percBat"
+check "6 %: still within 2 % of the level" low_battery_shutdown_due
+echo 30 > "$TMP/percBat"
+check "charged to 30 % since: no shutdown" not_due
+echo 4 > "$TMP/percBat"; FAKE_AXP=74
+check "on the charger: no shutdown" not_due
+FAKE_AXP=70; echo 15 > "$TMP/config/battery/exitAt"; echo 14 > "$TMP/percBat"
+check "level 15 %, at 14 %: shut down" low_battery_shutdown_due
+rm -f "$TMP/percBat"
+check "no reading: shut down, as before" low_battery_shutdown_due
+DEVICE_ID=283; HAS_AXP=0; echo 1 > "$TMP/gpio59"; echo 3 > "$TMP/percBat"
+check "Mini on the charger (gpio59): no shutdown" not_due
+echo 0 > "$TMP/gpio59"
+check "Mini off the charger at 3 %: shut down" low_battery_shutdown_due
+check "the game exit uses it" grep -q "if low_battery_shutdown_due; then" "$RT"
+unset -f axp not_due low_battery_shutdown_due; unset sysdir
+end
+
 # ---- update_networking.sh: no Play Activity resume behind the GameSwitcher ----
 
 eval "$(extract_fn "$NETWORK" lowest_pid_named)"
