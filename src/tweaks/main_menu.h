@@ -1923,7 +1923,7 @@ static void gamemenu_action_layout(void *pt)
 /* Viewer switches (rc14): booleans in game-menu.json sections "saved_games"
  * and "gallery". A value equal to Open MainUI's default removes the key (and
  * its object once empty), like the resume mode. */
-#define GAMEMENU_SWITCH_COUNT 5
+#define GAMEMENU_SWITCH_COUNT 6
 typedef struct {
     const char *section;
     const char *key;
@@ -1952,6 +1952,10 @@ static const GameMenuSwitch gamemenu_switches[GAMEMENU_SWITCH_COUNT] = {
      "Right in Game Info opens the gallery.\n"
      "Off: the gallery only from the Game\n"
      "Info menu (SELECT)."},
+    {"gallery", "upscale_images", true, "Enlarge small images",
+     "Gallery images smaller than the screen\n"
+     "are enlarged to fill it. Off: shown at\n"
+     "their size. Videos and maps unchanged."},
 };
 
 static bool gamemenu_switch(int index)

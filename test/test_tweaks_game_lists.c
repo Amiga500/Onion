@@ -1416,9 +1416,10 @@ TEST(game_info_and_saved_games_menus)
     list_free(&_menu_list_section);
 
     const char *info[] = {"Gallery", "Saved Games", "Game Maps", "Walkthrough",
-                          "Manual", "RIGHT opens the gallery", "Lighter manuals (PDF)"};
-    ASSERT_EQ(_menu_game_info_menu.item_count, 7);
-    for (int i = 0; i < 7; i++)
+                          "Manual", "RIGHT opens the gallery", "Enlarge small images",
+                          "Lighter manuals (PDF)"};
+    ASSERT_EQ(_menu_game_info_menu.item_count, 8);
+    for (int i = 0; i < 8; i++)
         ASSERT_STREQ(_menu_game_info_menu.items[i].label, info[i]);
 
     const char *saved[] = {"LEFT opens Saved Games", "Show the Auto Save", "Enlarge small pictures",
@@ -1659,6 +1660,7 @@ TEST(game_menus_switches)
     ASSERT_TRUE(gamemenu_switch(2));  /* upscale_preview */
     ASSERT_TRUE(gamemenu_switch(3));  /* correct_aspect_ratio (on from rc15) */
     ASSERT_TRUE(gamemenu_switch(4));  /* gallery right_shortcut */
+    ASSERT_TRUE(gamemenu_switch(5));  /* gallery upscale_images */
     ASSERT_TRUE(gamemenu_store_switch(0, true));
     ASSERT_TRUE(gamemenu_store_switch(4, false));
     ASSERT_TRUE(gamemenu_store_resume_mode(2));
@@ -1683,6 +1685,19 @@ TEST(game_menus_switches)
     ASSERT_TRUE(gamemenu_switch(1));
     ASSERT_TRUE(gamemenu_switch(2));
     ASSERT_FALSE(gamemenu_store_switch(9, true));
+    /* The gallery's two switches share its section: off writes it, back on
+     * removes only that key, the other stays. */
+    reset_dir();
+    ASSERT_TRUE(gamemenu_store_switch(4, false));
+    ASSERT_TRUE(gamemenu_store_switch(5, false));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"upscale_images\":\tfalse") != NULL);
+    ASSERT_FALSE(gamemenu_switch(5));
+    ASSERT_TRUE(gamemenu_store_switch(5, true));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "upscale_images") == NULL);
+    ASSERT_TRUE(strstr(text, "\"right_shortcut\":\tfalse") != NULL);
+    ASSERT_TRUE(gamemenu_switch(5));
 }
 
 TEST(game_menus_saved_games_layout)
