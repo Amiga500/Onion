@@ -132,7 +132,7 @@ main() {
 
 prompt_update() {
     # Prompt for update or fresh install
-    prompt -r -m "Welcome to the Onion installer!\nPlease choose an action:" \
+    prompt -r -m "Welcome to the RedOnion installer!\nPlease choose an action:" \
         "Update (keep settings)" \
         "Reinstall (reset settings)" \
         "Update OS/RetroArch only"
@@ -322,11 +322,11 @@ run_installation() {
 
     if [ $install_ra -eq 1 ]; then
         verify_file
-        install_core "1/2: $verb Onion..."
+        install_core "1/2: $verb RedOnion..."
         install_retroarch "2/2: $verb RetroArch..."
     else
         verify_file
-        install_core "1/1: $verb Onion..."
+        install_core "1/1: $verb RedOnion..."
         echo "Skipped installing RetroArch"
         rm -f $RA_PACKAGE_FILE
         rm -f $RA_PACKAGE_VERSION_FILE
