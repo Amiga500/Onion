@@ -1,5 +1,5 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅🔴 RedOnion 4.5.1 beta 1: Kids Mode, Backup, Folder sync, new apps, Open MainUI 1.1.1 rc3
+# 🧅🔴 RedOnion 4.5.1 beta 1: Kids Mode, Backup, Folder sync, new apps, Open MainUI 1.1.1 rc4
 
 > ⚠️ **Always back up your SD card before updating!** At least copy `Roms`, `Saves`, `BIOS` and `Screenshots` to your PC.
 
@@ -24,12 +24,14 @@ This beta uses a **release candidate of Open MainUI 1.1.1** by @robcodedev, as a
 - On the Mini+ and Mini Flip, **SELECT** opens a PMIC menu: live voltage, current and charge, a Coulomb counter (mAh), a battery health test, the shutdown voltage (not below 2.9 V) and a **charge limit** (Full, 4.20 V, or about 90%, 4.10 V).
 - Sleep tracking, session and charging navigation, and a remaining time from your history.
 
-### 🖥️ Open MainUI 1.1.1 rc3 (@robcodedev)
+### 🖥️ Open MainUI 1.1.1 rc4 (@robcodedev)
 
 - Faster return from a game, and the screen you were on opens again after the GameSwitcher.
 - A console's number of games no longer counts `~Filter` and `~Refresh roms`.
 - A button pressed together with MENU (such as MENU+B for the blue light filter) no longer also acts in MainUI.
 - If changing colours finds the display driver broken, MainUI asks, repairs it and starts again.
+- Changing the Display page quickly no longer ends in "Could not save system.json".
+- The Wi-Fi page says "Connecting..." while it joins a network, then "Connected" or why it could not.
 
 ### 🌐 Network and media
 

@@ -1,10 +1,18 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.1 rc3**, on top of 1.1.0 (the source in
+GitHub: **Open MainUI 1.1.1 rc4**, on top of 1.1.0 (the source in
 `third-party/open-mainui`).
 
-Since rc2:
+Since rc3:
+
+- Changing the Display page quickly no longer sometimes ends in "Could not
+  save system.json": a save waits briefly while keymon reads the file.
+- The Wi-Fi page says "Connecting..." while it joins a network, then
+  "Connected" or why it couldn't, and choosing the network again meanwhile
+  asks for its password.
+
+From rc3:
 
 - In Apps, titles sit a little higher above their descriptions, and text
   runs closer to the right edge on rows that aren't Favorites.
