@@ -22,6 +22,10 @@
 # ignored. That is generous on purpose: a stray Tetris.txt keeps Tetris.png;
 # nothing a game still uses goes. Hidden files and folders are never
 # touched, nor gamelist.xml.
+# Covers shared with another console count too: a console installed in Emu
+# or RApp whose config.json has its imgpath in this folder's Imgs (MAME 2003
+# and MAME 2000: Roms/MAME2003 and Roms/MAME2000 use Roms/ARCADE/Imgs) keeps
+# the covers of its games. Without that, cleaning ARCADE deleted them.
 
 delete=0
 if [ "$1" = "--delete" ]; then
@@ -33,17 +37,51 @@ tmp=${TMPDIR:-/tmp}/clean_media.$$
 mkdir -p "$tmp" || exit 1
 trap 'rm -rf "$tmp"' EXIT
 
+# A config.json path (relative to Emu/<x> or RApp/<x>, or under /mnt/SDCARD)
+# as a path under the SD card root $2, without a trailing slash.
+sd_path() {
+    case "$1" in
+        ../../*) p="$2/${1#../../}" ;;
+        /mnt/SDCARD/*) p="$2/${1#/mnt/SDCARD/}" ;;
+        *) return 1 ;;
+    esac
+    echo "${p%/}"
+}
+
+# The ROM folders of other consoles whose covers are in $1/Imgs, one per line.
+shared_rom_dirs() {
+    roms=${1%/*}
+    sd=${roms%/*}
+    own=$(echo "$1" | tr 'A-Z' 'a-z')
+    for cfg in "$sd"/Emu/*/config.json "$sd"/RApp/*/config.json; do
+        [ -f "$cfg" ] || continue
+        img=$(sed -n 's/.*"imgpath"[^"]*"\([^"]*\)".*/\1/p' "$cfg" | head -n 1)
+        rom=$(sed -n 's/.*"rompath"[^"]*"\([^"]*\)".*/\1/p' "$cfg" | head -n 1)
+        img=$(sd_path "$img" "$sd") || continue
+        rom=$(sd_path "$rom" "$sd") || continue
+        [ "$(echo "$img" | tr 'A-Z' 'a-z')" = "$own/imgs" ] || continue
+        [ "$(echo "$rom" | tr 'A-Z' 'a-z')" = "$own" ] && continue
+        [ -d "$rom" ] && echo "$rom"
+    done
+}
+
+# Every file and folder of a ROM folder outside its media folders and
+# hidden ones (the names still in use); with "-type d", the folders only.
+names_in() {
+    find "$1" ! -path "$1" \
+        ! -path "$1/Imgs" ! -path "$1/Imgs/*" \
+        ! -path "$1/media" ! -path "$1/media/*" \
+        ! -path "$1/Manuals" ! -path "$1/Manuals/*" \
+        ! -path "$1/.*" ! -path "$1/*/.*" \
+        \( ${2:--type f -o -type d} \) 2> /dev/null
+}
+
 for dir in "$@"; do
     dir=${dir%/}
     [ -d "$dir" ] || continue
 
     # Names still in use: every file and folder outside the media folders.
-    find "$dir" ! -path "$dir" \
-        ! -path "$dir/Imgs" ! -path "$dir/Imgs/*" \
-        ! -path "$dir/media" ! -path "$dir/media/*" \
-        ! -path "$dir/Manuals" ! -path "$dir/Manuals/*" \
-        ! -path "$dir/.*" ! -path "$dir/*/.*" \
-        \( -type f -o -type d \) > "$tmp/games" 2> /dev/null
+    names_in "$dir" > "$tmp/games"
 
     if [ ! -s "$tmp/games" ]; then
         echo "skip: $dir"
@@ -51,10 +89,14 @@ for dir in "$@"; do
     fi
     # Folders keep their whole name (folder art is "<folder name>.png");
     # files lose their extension.
-    find "$dir" ! -path "$dir" ! -path "$dir/.*" ! -path "$dir/*/.*" -type d \
-        ! -path "$dir/Imgs" ! -path "$dir/Imgs/*" \
-        ! -path "$dir/media" ! -path "$dir/media/*" \
-        ! -path "$dir/Manuals" ! -path "$dir/Manuals/*" > "$tmp/folders" 2> /dev/null
+    names_in "$dir" "-type d" > "$tmp/folders"
+
+    # The games of consoles sharing this folder's covers
+    shared_rom_dirs "$dir" > "$tmp/shared"
+    while IFS= read -r other; do
+        names_in "$other" >> "$tmp/games"
+        names_in "$other" "-type d" >> "$tmp/folders"
+    done < "$tmp/shared"
 
     # Media: files directly in Imgs and Manuals, and in each media/<kind>.
     {

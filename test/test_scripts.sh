@@ -4413,6 +4413,22 @@ check "each console checked on its own (Mario on GB and MD)" test "$out" -eq 6
 check "MD's Sonic kept" sh -c '! sh "$1" "$2" | grep -q Sonic' _ "$CLEAN_MEDIA" "$R/MD"
 end
 
+begin clean_media_keeps_covers_shared_with_another_console
+# MAME 2003 (RApp) lists Roms/MAME2003 with its covers in Roms/ARCADE/Imgs
+R=$TMP/Roms
+mkdir -p "$R/ARCADE/Imgs" "$R/MAME2003/Neo" "$TMP/RApp/mame2003" "$TMP/Emu/ARCADE"
+printf '{\n"rompath":"../../Roms/MAME2003",\n"imgpath":"../../Roms/ARCADE/Imgs/"\n}\n' > "$TMP/RApp/mame2003/config.json"
+printf '{"rompath":"../../Roms/ARCADE","imgpath":"../../Roms/ARCADE/Imgs"}\n' > "$TMP/Emu/ARCADE/config.json"
+touch "$R/ARCADE/sf2.zip" "$R/MAME2003/mslug.zip" "$R/MAME2003/Neo/kof98.zip"
+touch "$R/ARCADE/Imgs/sf2.png" "$R/ARCADE/Imgs/mslug.png" "$R/ARCADE/Imgs/Neo.png" \
+    "$R/ARCADE/Imgs/kof98.png" "$R/ARCADE/Imgs/gone.png"
+out=$(sh "$CLEAN_MEDIA" "$R/ARCADE" | sed "s|$R/||" | tr '\n' '|')
+check "only the cover of a game in neither folder listed" test "$out" = "ARCADE/Imgs/gone.png|"
+rm "$TMP/RApp/mame2003/config.json"
+out=$(sh "$CLEAN_MEDIA" "$R/ARCADE" | grep -c "mslug")
+check "without the MAME 2003 config its covers count as deleted games" test "$out" -eq 1
+end
+
 # ---- update_networking.sh: no Play Activity resume behind the GameSwitcher ----
 
 eval "$(extract_fn "$NETWORK" lowest_pid_named)"
