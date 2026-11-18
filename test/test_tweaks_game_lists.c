@@ -1423,9 +1423,9 @@ TEST(game_info_and_saved_games_menus)
         ASSERT_STREQ(_menu_game_info_menu.items[i].label, info[i]);
 
     const char *saved[] = {"LEFT opens Saved Games", "Show the Auto Save", "Enlarge small pictures",
-                           "Console screen shape", "Playing an older save", "Layout"};
-    ASSERT_EQ(_menu_saved_games.item_count, 6);
-    for (int i = 0; i < 6; i++)
+                           "Console screen shape", "Arcade games", "Playing an older save", "Layout"};
+    ASSERT_EQ(_menu_saved_games.item_count, 7);
+    for (int i = 0; i < 7; i++)
         ASSERT_STREQ(_menu_saved_games.items[i].label, saved[i]);
 
     /* Their switches still write the same keys. */
@@ -1700,6 +1700,43 @@ TEST(game_menus_switches)
     ASSERT_TRUE(gamemenu_switch(5));
 }
 
+TEST(game_menus_arcade_saved_games)
+{
+    reset_dir();
+    char text[512];
+    /* No key: Open MainUI's ["ARCADE"], no Saved Games there. */
+    ASSERT_FALSE(gamemenu_arcade_saved_games());
+    ASSERT_TRUE(gamemenu_store_arcade_saved_games(true));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"disabled_rom_dirs\":\t[]") != NULL);
+    ASSERT_TRUE(gamemenu_arcade_saved_games());
+    /* Back off: the default list again, so the key (and the file) go. */
+    ASSERT_TRUE(gamemenu_store_arcade_saved_games(false));
+    ASSERT_FALSE(gamemenu_arcade_saved_games());
+    ASSERT_TRUE(access(GM_PATH, F_OK) != 0);
+    /* Folders a user listed stay; only ARCADE (any case) changes. */
+    gamelists_write_text(GM_PATH, "{\"saved_games\": {\"disabled_rom_dirs\": [\"arcade\", \"SCUMMVM\"], \"show_auto\": true}}");
+    ASSERT_FALSE(gamemenu_arcade_saved_games());
+    ASSERT_TRUE(gamemenu_store_arcade_saved_games(true));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "SCUMMVM") != NULL);
+    ASSERT_TRUE(strstr(text, "arcade") == NULL && strstr(text, "ARCADE") == NULL);
+    ASSERT_TRUE(strstr(text, "\"show_auto\":\ttrue") != NULL);
+    ASSERT_TRUE(gamemenu_arcade_saved_games());
+    ASSERT_TRUE(gamemenu_store_arcade_saved_games(false));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "SCUMMVM") != NULL && strstr(text, "ARCADE") != NULL);
+    ASSERT_FALSE(gamemenu_arcade_saved_games());
+    /* A list without ARCADE already means on; not a list is the default. */
+    gamelists_write_text(GM_PATH, "{\"saved_games\": {\"disabled_rom_dirs\": [\"NEOGEO\"]}}");
+    ASSERT_TRUE(gamemenu_arcade_saved_games());
+    gamelists_write_text(GM_PATH, "{\"saved_games\": {\"disabled_rom_dirs\": \"ARCADE\"}}");
+    ASSERT_FALSE(gamemenu_arcade_saved_games());
+    /* A saved_games that is not an object is left alone. */
+    gamelists_write_text(GM_PATH, "{\"saved_games\": 5}");
+    ASSERT_FALSE(gamemenu_store_arcade_saved_games(true));
+}
+
 TEST(game_menus_saved_games_layout)
 {
     reset_dir();
@@ -1846,6 +1883,7 @@ int main(void)
     RUN_TEST(game_menus_game_info_menu);
     RUN_TEST(game_menus_resume_mode);
     RUN_TEST(game_menus_switches);
+    RUN_TEST(game_menus_arcade_saved_games);
     RUN_TEST(game_menus_saved_games_layout);
     RUN_TEST(game_menus_damaged_file_left_alone);
     RUN_TEST(console_view_wrap_sets_carousel_and_grid);

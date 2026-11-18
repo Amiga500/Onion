@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -2014,6 +2015,111 @@ static bool gamemenu_store_switch(int index, bool value)
     return ok;
 }
 
+/* Saved Games for arcade games: game-menu.json "saved_games":
+ * {"disabled_rom_dirs": [...]}, the ROM folders whose games have no Saved
+ * Games. Without the key Open MainUI's list is ["ARCADE"] (an arcade core
+ * cannot load a state while a game starts); a list given replaces it. The
+ * switch only takes ARCADE (any case) out or puts it back, and keeps the
+ * other folders a list names; the default list again removes the key. */
+#define GAMEMENU_ARCADE_DIR "ARCADE"
+
+static bool gamemenu_dirs_have_arcade(const cJSON *dirs)
+{
+    const cJSON *d = NULL;
+    cJSON_ArrayForEach(d, dirs)
+    {
+        if (cJSON_IsString(d) && d->valuestring != NULL &&
+            strcasecmp(d->valuestring, GAMEMENU_ARCADE_DIR) == 0)
+            return true;
+    }
+    return false;
+}
+
+static bool gamemenu_arcade_saved_games(void)
+{
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    bool on = false; // no list: ["ARCADE"], no Saved Games there
+    if (valid && root != NULL) {
+        const cJSON *section = cJSON_GetObjectItemCaseSensitive(root, "saved_games");
+        const cJSON *dirs = cJSON_IsObject(section) ? cJSON_GetObjectItemCaseSensitive(section, "disabled_rom_dirs") : NULL;
+        if (cJSON_IsArray(dirs))
+            on = !gamemenu_dirs_have_arcade(dirs);
+    }
+    cJSON_Delete(root);
+    return on;
+}
+
+static bool gamemenu_store_arcade_saved_games(bool on)
+{
+    bool exists = false;
+    bool valid = false;
+    cJSON *root = mainmenu_load_root_file(GAMEMENU_CONFIG_PATH, &exists, &valid);
+    if (!valid || root == NULL) {
+        cJSON_Delete(root);
+        return false;
+    }
+    cJSON *section = cJSON_GetObjectItemCaseSensitive(root, "saved_games");
+    if (section != NULL && !cJSON_IsObject(section)) {
+        cJSON_Delete(root);
+        return false;
+    }
+    const cJSON *dirs = section != NULL ? cJSON_GetObjectItemCaseSensitive(section, "disabled_rom_dirs") : NULL;
+    // The list Open MainUI uses now: the file's, or its default
+    cJSON *list = cJSON_IsArray(dirs) ? cJSON_Duplicate(dirs, true) : cJSON_CreateArray();
+    bool ok = list != NULL;
+    if (ok && !cJSON_IsArray(dirs))
+        ok = cJSON_AddItemToArray(list, cJSON_CreateString(GAMEMENU_ARCADE_DIR));
+    if (ok && on) {
+        for (int i = cJSON_GetArraySize(list) - 1; i >= 0; i--) {
+            const cJSON *d = cJSON_GetArrayItem(list, i);
+            if (cJSON_IsString(d) && d->valuestring != NULL &&
+                strcasecmp(d->valuestring, GAMEMENU_ARCADE_DIR) == 0)
+                cJSON_DeleteItemFromArray(list, i);
+        }
+    }
+    else if (ok && !gamemenu_dirs_have_arcade(list)) {
+        ok = cJSON_AddItemToArray(list, cJSON_CreateString(GAMEMENU_ARCADE_DIR));
+    }
+    const cJSON *first = ok ? cJSON_GetArrayItem(list, 0) : NULL;
+    bool is_default = ok && cJSON_GetArraySize(list) == 1 && cJSON_IsString(first) &&
+                      first->valuestring != NULL &&
+                      strcasecmp(first->valuestring, GAMEMENU_ARCADE_DIR) == 0;
+    if (ok && is_default) {
+        cJSON_Delete(list);
+        list = NULL;
+        if (section != NULL) {
+            cJSON_DeleteItemFromObjectCaseSensitive(section, "disabled_rom_dirs");
+            if (section->child == NULL)
+                cJSON_DeleteItemFromObjectCaseSensitive(root, "saved_games");
+        }
+    }
+    else if (ok) {
+        if (section == NULL)
+            section = cJSON_AddObjectToObject(root, "saved_games");
+        ok = section != NULL &&
+             (cJSON_GetObjectItemCaseSensitive(section, "disabled_rom_dirs") != NULL
+                  ? cJSON_ReplaceItemInObjectCaseSensitive(section, "disabled_rom_dirs", list)
+                  : cJSON_AddItemToObject(section, "disabled_rom_dirs", list));
+        if (ok)
+            list = NULL; // owned by the section now
+    }
+    cJSON_Delete(list);
+    if (ok)
+        ok = root->child == NULL ? (remove(GAMEMENU_CONFIG_PATH) == 0 || errno == ENOENT)
+                                 : mainmenu_write_root_file(GAMEMENU_CONFIG_PATH, root);
+    cJSON_Delete(root);
+    return ok;
+}
+
+static void gamemenu_action_arcade(void *pt)
+{
+    ListItem *item = (ListItem *)pt;
+    if (!gamemenu_store_arcade_saved_games(item->value != 0))
+        item->value = gamemenu_arcade_saved_games();
+}
+
 static void gamemenu_action_switch(void *pt)
 {
     ListItem *item = (ListItem *)pt;
@@ -2043,8 +2149,9 @@ static void savedgames_update_enabled(void)
         return;
     for (int i = 0; i < _menu_saved_games.item_count; i++) {
         ListItem *item = &_menu_saved_games.items[i];
-        if (item->action == gamemenu_action_switch &&
-            strcmp(gamemenu_switches[item->action_id].key, "left_shortcut") == 0)
+        if ((item->action == gamemenu_action_switch &&
+             strcmp(gamemenu_switches[item->action_id].key, "left_shortcut") == 0) ||
+            item->action == gamemenu_action_arcade)
             item->disabled = !shown;
     }
     if (_menu_saved_games.items[_menu_saved_games.active_pos].disabled)
@@ -2295,6 +2402,15 @@ void menu_savedGames(void *_)
             if (strcmp(gamemenu_switches[i].section, "saved_games") == 0)
                 gamemenu_add_switch(&_menu_saved_games, i);
         }
+        list_addItemWithInfoNote(&_menu_saved_games,
+                                 (ListItem){.label = "Arcade games",
+                                            .item_type = TOGGLE,
+                                            .value = gamemenu_arcade_saved_games(),
+                                            .action = gamemenu_action_arcade},
+                                 "Saved Games for the games in\n"
+                                 "Roms/ARCADE. Off by default: an arcade\n"
+                                 "core can't load a save while a game\n"
+                                 "starts, so they may not work.");
         list_addItemWithInfoNote(
             &_menu_saved_games,
             (ListItem){
