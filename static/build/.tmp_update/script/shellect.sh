@@ -481,9 +481,9 @@ key() {
 	    fi
 	fi
 
-	# -m (OTA): only Up/Down, A and MENU do anything. Right no longer
-	# confirms, and Left, START, R2 and keys typed on the on-screen
-	# keyboard (q, /, ?...) are ignored.
+	# -m (OTA): only Up/Down, A and MENU do anything. Left, START, R2 and
+	# keys typed on the on-screen keyboard (q, /, ?...) are ignored.
+	# (Right confirms in no menu now, -m or not.)
 	if [ -n "$menu_only_exit" ]; then
 	    case $key${esc:-0} in
 		"$esc_c"?|'[1'|A2|B2|"$space"?) ;; # Esc [ A / Esc [ B, A
@@ -621,7 +621,9 @@ key() {
 		return 0
 	    ;;
 
-	    l?|C2|"$space"?) # l / Arrow Right / Esc
+	    "$space"?) # A (the space). Right and "l" confirmed too: a D-pad
+		# press could start what the highlighted item does (e.g.
+		# "Delete 14 files"). Only A confirms now, as with -m.
 		case $token in
 		    '?') continue ;;
 		    *)

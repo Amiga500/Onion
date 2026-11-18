@@ -4448,6 +4448,14 @@ for f in "$SCRAPER_MENU" "$ROOT/static/build/.tmp_update/script/scraper/scrap_sc
 done
 end
 
+begin shellect_only_a_confirms
+# Right (Esc [ C, "C2" in shellect's key case) and "l" confirmed like A: a
+# D-pad press could run the highlighted item ("Delete 14 files").
+SH_SELECT="$ROOT/static/build/.tmp_update/script/shellect.sh"
+check "Right does not confirm" sh -c '! grep -qE "^[[:space:]]*[^#]*C2[|)]" "$1"' _ "$SH_SELECT"
+check "A (space) still confirms" grep -q '^[[:space:]]*"\$space"?) # A' "$SH_SELECT"
+end
+
 # ---- update_networking.sh: no Play Activity resume behind the GameSwitcher ----
 
 eval "$(extract_fn "$NETWORK" lowest_pid_named)"
