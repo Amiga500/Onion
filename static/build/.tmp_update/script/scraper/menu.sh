@@ -12,6 +12,11 @@ romNameNoExtension=${romname%.*}
 romimage="/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
 ScraperConfigFile=/mnt/SDCARD/.tmp_update/config/scraper.json
 
+# The keys at the bottom of every menu (shellect right-aligns them) and the
+# titles, centred, in capitals: the same layout in every menu.
+FootValidate="Menu: Exit      A: Validate"
+FootToggle="Menu: Exit      A: On/Off"
+
 
 # # for debugging
 # echo "CurrentSystem : $CurrentSystem"
@@ -33,9 +38,9 @@ Menu_Config()
     Option4="Screenscraper: account settings"
     Option5="Toggle background scraping"
     Option7="Screenscraper: Game Info media"
-    Option6="Back to Main Menu"
+    Option6="Back"
     
-    Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option4\n$Option5\n$Option7\n$Option6" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "      --== CONFIGURATION MENU ==--" -b "Press A to validate your choice.")
+    Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option4\n$Option5\n$Option7\n$Option6" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== CONFIGURATION ==--" -b "$FootValidate")
 
     [ "$Mychoice" = "$Option1" ] && Menu_Config_MediaType
     [ "$Mychoice" = "$Option2" ] && Menu_RegionSelection
@@ -145,7 +150,7 @@ Menu_Config_SSAccountSettings()
 				passwordState="Password: (not set)"
 			fi
 			clear
-			Mychoice=$( echo -e "Screenscraper information\nUsername : $userSS\n${passwordState}\nAccount state and stats\nBack to configuration menu." | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "     --== SCREENSCRAPER ACCOUNT ==--" -b "Press A to validate your choice.")
+			Mychoice=$( echo -e "Screenscraper information\nUsername : $userSS\n${passwordState}\nAccount state and stats\nBack" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== SCREENSCRAPER ACCOUNT ==--" -b "$FootValidate")
 			
 			case "$Mychoice" in
 				*Username\ *)
@@ -180,7 +185,7 @@ Menu_Config_SSAccountSettings()
 				*Account\ state\ and\ stats*)
 					Screenscraper_accountState
 					;;
-				*Back\ to\ configuration\ menu.*)
+				Back)
 					Menu_Config 
 					break
 					;;
@@ -203,7 +208,8 @@ Menu_Config_BackgroundScraping()
 
     # Check if the configuration file exists
     if [ ! -f "$ScraperConfigFile" ]; then
-      echo "Error: configuration file not found"
+      clear
+      echo -e "Error: configuration file not found.\n"
       read -n 1 -s -r -p "Press A to continue"
       exit 1
     fi
@@ -219,14 +225,14 @@ Menu_Config_BackgroundScraping()
     ScrapeInBackground=$(echo "$config" | jq -r '.ScrapeInBackground')
     
     
-    	Mychoice=$( echo -e "No\nYes\nBack to Configuration Menu" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "Background scraping ? (Currently: $ScrapeInBackground)" -b "Press A to validate your choice.")
+    	Mychoice=$( echo -e "No\nYes\nBack" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== BACKGROUND SCRAPING: $([ "$ScrapeInBackground" = "true" ] && echo ON || echo OFF) ==--" -b "$FootValidate")
         # TODO : add a new option to display the tail of the log to show what happens in background
 
         if [ "$Mychoice" = "Yes" ]; then
             ScrapeInBackground="true"
         elif [ "$Mychoice" = "No" ]; then
             ScrapeInBackground="false"
-		elif [ "$Mychoice" = "Back to Configuration Menu" ]; then
+		elif [ "$Mychoice" = "Back" ]; then
 			Menu_Config
 			return
         fi
@@ -274,7 +280,8 @@ gi_toggle() { # list, item
 Menu_Config_GameInfo()
 {
     if [ ! -f "$ScraperConfigFile" ]; then
-      echo "Error: configuration file not found"
+      clear
+      echo -e "Error: configuration file not found.\n"
       read -n 1 -s -r -p "Press A to continue"
       exit 1
     fi
@@ -296,7 +303,7 @@ Menu_Config_GameInfo()
             list="$list$(gi_label "$item"): $state\n"
         done
         clear
-        Mychoice=$( echo -e "${list}Back to Configuration Menu" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "  --== GAME INFO MEDIA ==--" -b "A: switch on or off")
+        Mychoice=$( echo -e "${list}Back" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== GAME INFO MEDIA ==--" -b "$FootToggle")
 
         picked=""
         for item in $GI_ITEMS; do
@@ -320,7 +327,8 @@ Menu_Config_MediaType()
 {
     # Check if the configuration file exists
     if [ ! -f "$ScraperConfigFile" ]; then
-      echo "Error: configuration file not found"
+      clear
+      echo -e "Error: configuration file not found.\n"
       read -n 1 -s -r -p "Press A to continue"
       exit 1
     fi
@@ -355,9 +363,9 @@ Menu_Config_MediaType()
     Option06="Marquee                    (available on SS,LB)"
     Option07="Screenscraper Mix V1       (available on SS)"
     Option08="Screenscraper Mix V2       (available on SS)"
-	Option09="Back to Configuration Menu"
+	Option09="Back"
 
-    Mychoice=$( echo -e "$Option01\n$Option02\n$Option03\n$Option04\n$Option05\n$Option06\n$Option07\n$Option08\n$Option09\n" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t\ "Current media type : $ScreenscraperMediaType" -b "Press A to validate your choice.")
+    Mychoice=$( echo -e "$Option01\n$Option02\n$Option03\n$Option04\n$Option05\n$Option06\n$Option07\n$Option08\n$Option09\n" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== MEDIA TYPE: $(echo "$ScreenscraperMediaType" | tr a-z A-Z) ==--" -b "$FootValidate")
     
     [ "$Mychoice" = "$Option01" ]  && SSmediaType="box-2D"                 && LBmediaType="Box - Front"                      && RAmediaType="Named_Boxarts"  
     [ "$Mychoice" = "$Option02" ]  && SSmediaType="sstitle"                && LBmediaType="Screenshot - Game Title"          && RAmediaType="Named_Titles"  
@@ -391,7 +399,8 @@ Menu_RegionSelection()
 {
     # Check if the configuration file exists
     if [ ! -f "$ScraperConfigFile" ]; then
-      echo "Error: configuration file not found"
+      clear
+      echo -e "Error: configuration file not found.\n"
       read -n 1 -s -r -p "Press A to continue"
       exit 1
     fi
@@ -430,10 +439,10 @@ Option14="Spain (sp)"
 Option15="Sweden (se)"
 Option16="United States (us)"
 Option17="United Kingdom (uk)"
-Option18="Back to Configuration Menu"
+Option18="Back"
 
-    Mychoice=$( echo -e "$Option01\n$Option02\n$Option03\n$Option04\n$Option05n$Option06\n$Option07\n$Option08\n$Option09\n$Option10\n$Option11\n$Option12\n$Option13\n$Option14\n$Option15\n$Option16\n$Option17\n$Option18\n" \
-	| /mnt/SDCARD/.tmp_update/script/shellect.sh -t\ "Current selected region: $ScreenscraperRegion" -b "Press A to validate your choice.") \
+    Mychoice=$( echo -e "$Option01\n$Option02\n$Option03\n$Option04\n$Option05\n$Option06\n$Option07\n$Option08\n$Option09\n$Option10\n$Option11\n$Option12\n$Option13\n$Option14\n$Option15\n$Option16\n$Option17\n$Option18\n" \
+	| /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== REGION: $(echo "$ScreenscraperRegion" | tr a-z A-Z) ==--" -b "$FootValidate") \
     
 	SSregion=$(echo "$Mychoice" | sed -n 's/.*(\(.*\))/\1/p')
 	LBregion=$(echo "$Mychoice" | sed -n 's/\(.*\) (.*)/\1/p')
@@ -479,7 +488,7 @@ Menu_Config_ScrapingSource()
     
     while true; do
     
-        Mychoice=$( echo -e "$Screenscraper\n$Launchbox\n$Retroarch\nBack to Configuration Menu" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "      --== SCRAPER SELECTION ==--" -b "Press A to validate your choice.")
+        Mychoice=$( echo -e "$Screenscraper\n$Launchbox\n$Retroarch\nBack" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== SCRAPING SOURCES ==--" -b "$FootValidate")
         
         [ "$Mychoice" = "[ ] Screenscraper" ] && Screenscraper="[x] Screenscraper"
         [ "$Mychoice" = "[x] Screenscraper" ] && Screenscraper="[ ] Screenscraper"
@@ -488,7 +497,7 @@ Menu_Config_ScrapingSource()
         [ "$Mychoice" = "[ ] Retroarch" ] && Retroarch="[x] Retroarch"
         [ "$Mychoice" = "[x] Retroarch" ] && Retroarch="[ ] Retroarch"
 
-        [ "$Mychoice" = "Back to Configuration Menu" ] && break
+        [ "$Mychoice" = "Back" ] && break
     
     done
     
@@ -520,14 +529,16 @@ Launch_Scraping ()
     rm -f /tmp/scraper_script.sh
 	
 	if [ "$(ip r)" = "" ]; then 
-		echo "You must be connected to wifi to use Scraper"
+		clear
+		echo -e "You must be connected to Wi-Fi to use the scraper.\n"
 		read -n 1 -s -r -p "Press A to continue"
 		exit
 	fi
 
     # Check if the configuration file exists
     if [ ! -f "$ScraperConfigFile" ]; then
-      echo "Error: configuration file not found"
+      clear
+      echo -e "Error: configuration file not found.\n"
       read -n 1 -s -r -p "Press A to continue"
       exit 1
     fi
@@ -701,7 +712,7 @@ Clean_Media ()
     echo -e "\nCovers (Imgs), Game Info media and manuals\nof games no longer on the SD card.\n"
     read -n 1 -s -r -p "Press A to continue"
 
-    confirm=$( echo -e "Delete $count files ($size)\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "  --== MEDIA OF DELETED GAMES ==--" -b "A: validate")
+    confirm=$( echo -e "Delete $count files ($size)\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== MEDIA OF DELETED GAMES ==--" -b "$FootValidate")
     clear
     if [ "$confirm" = "Delete $count files ($size)" ]; then
         echo "Deleting..."
@@ -734,12 +745,14 @@ Batch_Prepare ()
     rm -f /tmp/scraper_script.sh
 
     if [ "$(ip r)" = "" ]; then
-        echo "You must be connected to wifi to use Scraper"
+        clear
+        echo -e "You must be connected to Wi-Fi to use the scraper.\n"
         read -n 1 -s -r -p "Press A to continue"
         exit
     fi
     if [ ! -f "$ScraperConfigFile" ]; then
-        echo "Error: configuration file not found"
+        clear
+        echo -e "Error: configuration file not found.\n"
         read -n 1 -s -r -p "Press A to continue"
         exit 1
     fi
@@ -841,8 +854,8 @@ Scrape_All_Consoles ()
         Menu_Main
         return
     fi
-    confirm=$( echo -e "Scrape $count consoles\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "  --== SCRAPE ALL CONSOLES ==--" -b "With many games this can take hours.")
-    if [ "$confirm" != "Scrape $count consoles" ]; then
+    confirm=$( echo -e "Scrape $count consoles (may take hours)\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== SCRAPE ALL CONSOLES ==--" -b "$FootValidate")
+    if [ "$confirm" != "Scrape $count consoles (may take hours)" ]; then
         rm -f "$list"
         Menu_Main
         return
@@ -899,7 +912,7 @@ Option8="Scrape all favorites"
 Option9="Scrape all consoles"
 
 clear
-Mychoice=$( echo -e "$Option1\n$Option9\n$Option2\n$Option8\n$Option3\n$Option6\n$Option7\n$Option4\nExit" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "           --== MAIN MENU ==--" -b "                     Menu : Exit        A : Validate ")
+Mychoice=$( echo -e "$Option1\n$Option9\n$Option2\n$Option8\n$Option3\n$Option6\n$Option7\n$Option4\nExit" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== MAIN MENU ==--" -b "$FootValidate")
 
 [ "$Mychoice" = "$Option1" ] && (onerom=0; Launch_Scraping;)
 [ "$Mychoice" = "$Option2" ] && (onerom=1; Launch_Scraping;)

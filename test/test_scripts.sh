@@ -2948,11 +2948,11 @@ printf '#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = -b ] && printf %%s "$2" > "%s
 chmod +x "$TMP/shellect"
 sed "s#/mnt/SDCARD/.tmp_update/script/shellect.sh#$TMP/shellect#" "$SEL" > "$TMP/sel.sh"
 sh "$TMP/sel.sh" "Videos" "$TMP/media" "pdf" > /dev/null 2>&1
-check "default hint kept" grep -qx "Press A to open, START to exit." "$TMP/hint"
+check "default hint kept" grep -qx "Start: Exit      A: Open" "$TMP/hint"
 check "the choice is written" grep -q "/a.pdf" "$TMP/media/.selected.pls"
-sh "$TMP/sel.sh" "PDF Reader" "$TMP/media" "pdf" "A: open, START: exit, MENU: close a PDF." > /dev/null 2>&1
-check "a caller's hint is shown" grep -qx "A: open, START: exit, MENU: close a PDF." "$TMP/hint"
-check "the PDF Reader passes the MENU hint" grep -qF '"pdf" "A: open, START: exit, MENU: close a PDF."' "$ROOT/static/packages/App/PDF Reader (Green)/App/Green/launch.sh"
+sh "$TMP/sel.sh" "PDF Reader" "$TMP/media" "pdf" "Menu: Close PDF   Start: Exit   A: Open" > /dev/null 2>&1
+check "a caller's hint is shown" grep -qx "Menu: Close PDF   Start: Exit   A: Open" "$TMP/hint"
+check "the PDF Reader passes the MENU hint" grep -qF '"pdf" "Menu: Close PDF   Start: Exit   A: Open"' "$ROOT/static/packages/App/PDF Reader (Green)/App/Green/launch.sh"
 end
 
 begin media_apps_keys_do_what_the_list_says

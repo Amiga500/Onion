@@ -301,8 +301,22 @@ term_move_down() {
 
 status_line () {
     esc DECSC
-    esc CUP 1; esc EL2; printf '%s %s' "($y/$1)" "$msg"
-    [ -n "$ltype" ] && { esc CUP "$LINES"; esc EL2; printf '%s' "$ltype"; }
+    # Top: the position "(y/n)" on the left, the title centred on the
+    # screen (right after the position when too long). Bottom: the keys,
+    # right-aligned. Same layout in every menu, whatever the screen width.
+    esc CUP 1; esc EL2; printf '%s' "($y/$1)"
+    if [ -n "$msg" ]; then
+        _col=$(( (COLUMNS - ${#msg}) / 2 + 1 ))
+        _min=$(( ${#y} + ${#1} + 5 ))
+        [ "$_col" -lt "$_min" ] && _col=$_min
+        esc CUP 1 "$_col"; printf '%s' "$msg"
+    fi
+    if [ -n "$ltype" ]; then
+        esc CUP "$LINES"; esc EL2
+        _col=$(( COLUMNS - ${#ltype} ))
+        [ "$_col" -lt 1 ] && _col=1
+        esc CUP "$LINES" "$_col"; printf '%s' "$ltype"
+    fi
     esc DECRC
 }
 

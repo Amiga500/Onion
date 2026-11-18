@@ -10,7 +10,7 @@ do
 	# reopened the last file instead of leaving.
 	rm -f "$mediadir/.selected.pls"
 	cd $sysdir
-	./bin/st -q -e "$sysdir/script/file_selector.sh" "PDF Reader" "$mediadir" "pdf" "A: open, START: exit, MENU: close a PDF."
+	./bin/st -q -e "$sysdir/script/file_selector.sh" "PDF Reader" "$mediadir" "pdf" "Menu: Close PDF   Start: Exit   A: Open"
 	retVal=$?
 	
 	# No file chosen (START, MENU, or the terminal was killed): leave.

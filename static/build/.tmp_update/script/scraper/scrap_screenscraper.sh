@@ -634,7 +634,7 @@ fi
 # game, so the account question comes once, not for every game.
 if [ "$userStored" = "false" ] && ! [ "$ScrapeInBackground" = "true" ] && [ -z "$SCRAPER_NO_ACCOUNT_PROMPT" ]; then
     while true; do
-	    Mychoice=$( echo -e "No\nYes\nScreenscraper information" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "Add your screenscraper account ?" -b "Press A to validate your choice.")
+	    Mychoice=$( echo -e "No\nYes\nScreenscraper information" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== ADD A SCREENSCRAPER ACCOUNT? ==--" -b "Menu: Exit      A: Validate")
         
         if [ "$Mychoice" = "Yes" ]; then
 			clear

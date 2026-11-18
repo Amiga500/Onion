@@ -102,7 +102,7 @@ check_available_space() {
 # network that can't come.
 check_wifi_hardware() {
 	if [ "$(cat /tmp/deviceModel 2> /dev/null)" = "283" ]; then
-		echo -e "${RED}This device has no Wi-Fi.${NC}\nTo update, copy the release to the SD card from a PC."
+		echo -e "${RED}This device has no Wi-Fi.${NC}\nTo update, copy the release to the SD card from a PC.\n"
 		echo -ne "${YELLOW}"
 		drop_keys; read -n 1 -s -r -p "Press A to exit"
 		exit 9
@@ -275,7 +275,7 @@ check_connection() {
 		echo -e "${GREEN}OK${NC}"
 	else
 		_why=$(echo "$_why" | grep -v '^[[:space:]]*$' | head -n 1 | cut -c 1-60)
-		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable${_why:+ ($_why)}.\nTurn on Wi-Fi in Settings and check that it connects."
+		echo -e "${RED}FAIL${NC}\nError: https://github.com not reachable${_why:+ ($_why)}.\nTurn on Wi-Fi in Settings and check that it connects.\n"
 		echo -ne "${YELLOW}"
 		drop_keys; read -n 1 -s -r -p "Press A to exit"
 		exit 2
@@ -293,7 +293,7 @@ run_bootstrap() {
 }
 
 channel_choice() {
-	ota_menu "stable\nbeta" "Select distribution channel:"
+	ota_menu "stable\nbeta" "Update channel"
 	channel=$menu_choice
 	clear
 	# Nothing chosen (B): leave, keeping the saved channel. An empty
@@ -514,7 +514,7 @@ wait_key() { # prompt
 ota_menu() { # items, title
 	while :; do
 		drop_keys
-		menu_choice=$(echo -e "$1" | $sysdir/script/shellect.sh -m -t "$2" -b "Press A to validate, MENU to exit.")
+		menu_choice=$(echo -e "$1" | $sysdir/script/shellect.sh -m -t "--== $(echo "$2" | tr a-z A-Z) ==--" -b "Menu: Exit      A: Validate")
 		_rc=$?
 		quiet_keys
 		[ $_rc -eq 2 ] || return 0
@@ -583,7 +583,7 @@ download_update() {
 	wait_key "Press A to continue, MENU to exit" || exit 0
 	echo -ne "${NC}"
 
-	ota_menu "No\nYes" "Download $Release_Version ($Release_size_MB) ?"
+	ota_menu "No\nYes" "Download $Release_Version ($Release_size_MB)?"
 	Mychoice=$menu_choice
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
@@ -624,7 +624,7 @@ download_update() {
 		sleep 3
 	else
 		echo -ne "\n\n" \
-			"${RED}Error: Wrong download size${NC} ($Downloaded_size instead of $Release_size)\n"
+			"${RED}Error: Wrong download size${NC} ($Downloaded_size instead of $Release_size)\n\n"
 		rm -f "$sysdir/download/$Release_Version.zip"
 		echo -ne "${YELLOW}"
 		drop_keys; read -n 1 -s -r -p "Press A to exit"
@@ -633,7 +633,7 @@ download_update() {
 }
 
 apply_update() {
-	ota_menu "No\nYes" "Apply update $Release_Version ?"
+	ota_menu "No\nYes" "Apply update $Release_Version?"
 	Mychoice=$menu_choice
 	clear
 	if [ "$Mychoice" = "Yes" ]; then
@@ -654,7 +654,7 @@ apply_update() {
 			sleep 3
 			echo -ne "\n\n" \
 				"Update $Release_Version applied.\n" \
-				"Rebooting to run installation...\n"
+				"Rebooting to run installation...\n\n"
 			echo -ne "${YELLOW}"
 			drop_keys; read -n 1 -s -r -p "Press A to reboot"
 			sleep 1
@@ -666,7 +666,7 @@ apply_update() {
 		else
 			echo -ne "\n\n" \
 				"${RED}Error: Something wrong happened during decompression.${NC}\n" \
-				"Try to run OTA update again or do a manual update.\n"
+				"Try to run OTA update again or do a manual update.\n\n"
 			echo -ne "${YELLOW}"
 			drop_keys; read -n 1 -s -r -p "Press A to exit"
 			exit 6
