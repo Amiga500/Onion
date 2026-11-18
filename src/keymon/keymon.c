@@ -39,6 +39,7 @@
 
 #include "./flip_suspend.h"
 #include "./input_fd.h"
+#include "./low_battery.h"
 #include "./menuButtonAction.h"
 #include "./state_scan.h"
 
@@ -1476,14 +1477,19 @@ int main(void)
 
         // Quit RetroArch / auto-save when battery too low. Not on the
         // charger (plugged in at the level, the game went on to be closed
-        // anyway), nor with no reading (-1: /tmp/percBat missing).
-        int low_battery_pct = settings.low_battery_autosave_at ? battery_getPercentage() : -1;
-        if (low_battery_pct >= 0 && low_battery_pct <= settings.low_battery_autosave_at &&
-            !battery_isCharging() && check_autosave()) {
-            temp_flag_set(".lowBat", true);
-            screenshot_system();
-            terminate_retroarch();
-            terminate_drastic();
+        // anyway), nor with no reading (low_battery.h), and only with a game
+        // in front: system_state is otherwise refreshed only on a state
+        // change, so it is read again here.
+        if (settings.low_battery_autosave_at &&
+            lowBattery_levelReached(battery_chargingLevel(), settings.low_battery_autosave_at) &&
+            !battery_isCharging()) {
+            system_state_update();
+            if (lowBattery_inGame(system_state) && check_autosave()) {
+                temp_flag_set(".lowBat", true);
+                screenshot_system();
+                terminate_retroarch();
+                terminate_drastic();
+            }
         }
 
         elapsed_sec = 0;
