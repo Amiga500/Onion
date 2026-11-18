@@ -466,7 +466,13 @@ NL='
 # terminal is gone) is yes.
 ask_leave() { # question
 	drop_keys
-	printf "\n${YELLOW}%s START: yes, A: no${NC}" "$1"
+	# While the onion is on screen ($ask_row set) the question goes in its
+	# row under the onion and is cleared after, so the drawing stays put.
+	if [ -n "$ask_row" ]; then
+		printf "\033[%d;1H\033[K${YELLOW}%s START: yes, A: no${NC}" "$ask_row" "$1"
+	else
+		printf "\n${YELLOW}%s START: yes, A: no${NC}" "$1"
+	fi
 	_al=$(stty -g 2> /dev/null)
 	stty -icanon -echo min 1 time 0 2> /dev/null
 	while :; do
@@ -477,7 +483,11 @@ ask_leave() { # question
 		esac
 	done
 	[ -n "$_al" ] && stty "$_al" 2> /dev/null
-	printf '\n'
+	if [ -n "$ask_row" ]; then
+		printf "\033[%d;1H\033[K" "$ask_row"
+	else
+		printf '\n'
+	fi
 	return $_al_ret
 }
 
@@ -542,16 +552,138 @@ ota_menu() { # items, title
 # 130, the partial file removed), A goes on. Other buttons do nothing, and
 # none are left over for the next prompt (see quiet_keys). Without a
 # terminal (no stty) it just waits. Returns curl's exit code.
-download_file() { # url, file
-	curl -k -L -f --connect-timeout 15 --retry 3 --retry-delay 2 -# \
+# ---- the download progress: an onion filling up ----
+# The onion of the RedOnion logo (sprouts, a narrow neck, a round body,
+# roots), 20 columns wide and centred, filled in red from the bottom as the
+# download goes. Under it: a blank row, the percent, a blank row and 4 rows
+# for the question (MENU), the result or an error with its "Press A" (the
+# updater's messages take up to 3: one more is kept free, so nothing scrolls
+# the onion off the top). The tall onion (18 rows) takes the rows left over,
+# up to 4 more body rows; a compact one (12 rows) on a short screen. The
+# Miyoo terminal is 29 x 53: a 20-row onion. Without stty: 29 x 53.
+onion_layout() {
+	onion_cols=$(stty size 2> /dev/null | awk '{ print $2 }')
+	onion_lines=$(stty size 2> /dev/null | awk '{ print $1 }')
+	case $onion_cols in '' | *[!0-9]*) onion_cols=53 ;; esac
+	case $onion_lines in '' | *[!0-9]*) onion_lines=29 ;; esac
+	onion_pad=$(((onion_cols - 20) / 2))
+	[ "$onion_pad" -lt 0 ] && onion_pad=0
+	onion_top=3
+	onion_tall=1
+	onion_mid=5
+	onion_extra=$((onion_lines - onion_top - 18 - 6))
+	if [ "$onion_extra" -lt 0 ]; then
+		onion_tall=0
+		onion_rows=12
+	else
+		[ "$onion_extra" -gt 4 ] && onion_extra=4
+		onion_mid=$((5 + onion_extra))
+		onion_rows=$((18 + onion_extra))
+	fi
+	onion_status_row=$((onion_top + onion_rows + 1)) # percent and MB
+	onion_msg_row=$((onion_status_row + 2))          # first of the 4 rows
+}
+
+# Draws the onion filled from the bottom up to $1 percent.
+onion_draw() { # percent (0-100)
+	awk -v pct="$1" -v tall="$onion_tall" -v mid="$onion_mid" -v pad="$onion_pad" -v top="$onion_top" \
+		-v red="$(printf '\033[1;31m')" -v green="$(printf '\033[1;32m')" \
+		-v white="$(printf '\033[1;37m')" -v root="$(printf '\033[0;33m')" \
+		-v nc="$(printf '\033[0m')" -v q="'" '
+	BEGIN {
+		n = 0
+		a[++n] = "          ,/"
+		a[++n] = "        \\ |/"
+		a[++n] = "        (:)"
+		if (tall) {
+			a[++n] = "        /::\\"
+			a[++n] = "       /::::\\"
+			a[++n] = "     .`::::::`."
+			a[++n] = "   .`::::::::::`."
+			a[++n] = "  /::::::::::::::\\"
+			for (r = 0; r < mid; r++) a[++n] = " |::::::::::::::::|"
+		}
+		else {
+			a[++n] = "       /::::\\"
+			a[++n] = "   .`::::::::::`."
+			a[++n] = "  /::::::::::::::\\"
+			for (r = 0; r < 2; r++) a[++n] = " |::::::::::::::::|"
+		}
+		a[++n] = "  \\::::::::::::::/"
+		a[++n] = "   `.::::::::::.`"
+		a[++n] = "     `-.::::.-`"
+		a[++n] = "       /|||\\"
+		if (tall) a[++n] = "     / /|||\\ \\"
+		# ` stands for the quote (no quote inside this shell string)
+		for (i = 1; i <= n; i++) gsub(/`/, q, a[i])
+		inside = 0
+		first = 0
+		for (i = 1; i <= n; i++) if (index(a[i], ":")) { inside++; if (!first) first = i; last = i }
+		if (pct < 0) pct = 0
+		if (pct > 100) pct = 100
+		filled = int(pct * inside / 100)
+		k = 0
+		sp = sprintf("%" pad "s", "")
+		for (i = 1; i <= n; i++) {
+			line = a[i]
+			if (i < first) colour = green
+			else if (i > last) colour = root
+			else colour = white
+			if (index(line, ":")) {
+				k++
+				full = (k > inside - filled)
+				out = ""
+				for (j = 1; j <= length(line); j++) {
+					c = substr(line, j, 1)
+					# No "out (...)": BusyBox awk reads a name followed by
+					# "(" as a function call ("call to undefined function").
+					if (c == ":") {
+						if (full) out = out red "#"
+						else out = out " "
+					}
+					else out = out colour c
+				}
+				line = out
+			}
+			else line = colour line
+			printf "\033[%d;1H\033[K%s%s%s", top + i - 1, sp, line, nc
+		}
+	}'
+}
+
+# The percent and MB under the onion, centred.
+onion_status() { # done bytes, total bytes
+	_pct=0
+	[ "$2" -gt 0 ] && _pct=$(($1 * 100 / $2))
+	[ "$_pct" -gt 100 ] && _pct=100
+	_mb=$(awk -v d="$1" -v t="$2" 'BEGIN { printf "%.1f / %.1f MB", d / 1048576, t / 1048576 }')
+	_line=$(printf '%3d%%   %s' "$_pct" "$_mb")
+	_sp=$(((onion_cols - ${#_line}) / 2))
+	[ "$_sp" -lt 0 ] && _sp=0
+	printf "\033[%d;1H\033[K%${_sp}s%s" "$onion_status_row" "" "$_line"
+}
+
+download_file() { # url, file, expected size (bytes)
+	# Quiet: the onion shows the progress (curl's own bar scrolled it).
+	curl -k -L -f -s --connect-timeout 15 --retry 3 --retry-delay 2 \
 		-o "$2" "$1" < /dev/null &
 	_dl_pid=$!
+	_dl_last=-1
 	_dl_stty=$(stty -g 2> /dev/null)
 	# No echo (the buttons garbled the progress bar); a read gives up after
 	# 0.5 s, so the loop sees the download end.
 	[ -n "$_dl_stty" ] && stty -icanon -echo min 0 time 5 2> /dev/null
 	_dl_keys=1
 	while [ -n "$_dl_keys" ] && kill -0 "$_dl_pid" 2> /dev/null; do
+		_dl_done=$(stat -c %s "$2" 2> /dev/null || echo 0)
+		_dl_fill=0
+		[ "$3" -gt 0 ] 2> /dev/null && _dl_fill=$((_dl_done * 100 / $3))
+		[ "$_dl_fill" -gt 100 ] && _dl_fill=100
+		if [ "$_dl_fill" -ne "$_dl_last" ]; then
+			onion_draw "$_dl_fill"
+			_dl_last=$_dl_fill
+		fi
+		onion_status "$_dl_done" "$3"
 		read_button
 		case $button in
 			gone)
@@ -574,6 +706,11 @@ download_file() { # url, file
 	wait "$_dl_pid"
 	_dl_rc=$?
 	_dl_pid=
+	if [ "$_dl_rc" -eq 0 ]; then
+		_dl_done=$(stat -c %s "$2" 2> /dev/null || echo 0)
+		onion_draw 100
+		onion_status "$_dl_done" "$3"
+	fi
 	if [ -n "$_dl_stty" ]; then
 		# Drop the buttons pressed meanwhile.
 		stty min 0 time 0 2> /dev/null
@@ -609,36 +746,53 @@ download_update() {
 		sync
 
 		mkdir -p $sysdir/download/
-		echo -ne "\n\n" \
-			"${BLUE}== Downloading RedOnion $Release_Version ($channel channel) ==${NC}\n"
 		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 		sync
+		onion_layout
+		clear
+		printf '\033[?25l' # no cursor over the onion
+		printf "${BLUE}== Downloading RedOnion $Release_Version ($channel) ==${NC}"
+		printf "\033[%d;1H${YELLOW}MENU: stop the download${NC}" "$((onion_msg_row + 2))"
+		ask_row=$onion_msg_row
 		# curl, which reaches GitHub where the bundled wget may not (see
 		# check_connection); wget only if curl itself cannot run.
-		download_file "$Release_url" "$sysdir/download/$Release_Version.zip"
-		case $? in
-			126 | 127) wget --no-check-certificate "$Release_url" -O "$sysdir/download/$Release_Version.zip" ;;
+		download_file "$Release_url" "$sysdir/download/$Release_Version.zip" "$Release_size"
+		_dl_result=$?
+		ask_row=
+		# The rows under the onion, cleared for the result.
+		printf "\033[%d;1H\033[J\033[?25h" "$onion_msg_row"
+		case $_dl_result in
+			126 | 127)
+				clear
+				wget --no-check-certificate "$Release_url" -O "$sysdir/download/$Release_Version.zip"
+				;;
 			130)
 				echo -e "${YELLOW}Download stopped.${NC}"
 				sleep 1
 				exit 0
 				;;
 		esac
-		echo -ne "\n\n" \
-			"${GREEN}================== Download done ==================${NC}\n"
 		sync
-		sleep 2
 	else
 		exit 4
 	fi
 
-	Downloaded_size=$(stat -c %s "$sysdir/download/$Release_Version.zip")
+	Downloaded_size=$(stat -c %s "$sysdir/download/$Release_Version.zip" 2> /dev/null || echo 0)
+	# Up to 3 rows: they fit under the onion.
 	if [ "$Downloaded_size" -eq "$Release_size" ]; then
-		echo -e "${GREEN}File size OK!${NC} ($Downloaded_size)"
+		echo -e "${GREEN}Download done, file size OK.${NC}"
 		sleep 3
+	elif [ "${_dl_result:-0}" -ne 0 ]; then
+		# curl runs quietly (-s), so its error is told here.
+		echo -e "${RED}Error: download failed (curl error $_dl_result).${NC}"
+		echo -e "Check the Wi-Fi connection and try again.\n"
+		rm -f "$sysdir/download/$Release_Version.zip"
+		echo -ne "${YELLOW}"
+		press_a "Press A to exit"
+		exit 5
 	else
-		echo -ne "\n\n" \
-			"${RED}Error: Wrong download size${NC} ($Downloaded_size instead of $Release_size)\n\n"
+		echo -e "${RED}Error: wrong download size${NC}"
+		echo -e "($Downloaded_size instead of $Release_size bytes)\n"
 		rm -f "$sysdir/download/$Release_Version.zip"
 		echo -ne "${YELLOW}"
 		press_a "Press A to exit"

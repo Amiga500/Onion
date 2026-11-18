@@ -2259,7 +2259,7 @@ touch "$TMP/offline"
 out=$( (check_connection) 2>&1); rc=$?
 check "offline: exits 2" test $rc -eq 2
 check "offline: the reason is shown ($out)" sh -c "echo \"\$1\" | grep -q 'not reachable (curl: (6) Could not resolve host: github.com)'" _ "$out"
-check "the download uses curl too" grep -q 'curl -k -L -f --connect-timeout 15 --retry 3' "$OTA_SCRIPT"
+check "the download uses curl too" grep -q 'curl -k -L -f -s --connect-timeout 15 --retry 3' "$OTA_SCRIPT"
 unset -f curl wget read check_connection
 end
 
@@ -2293,6 +2293,9 @@ end
 
 begin ota_download_menu_asks_then_stops
 for f in download_file stop_download read_button; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
+# The onion drawing is checked in ota_onion_progress_fits_the_screen
+onion_draw() { :; }
+onion_status() { :; }
 eval "$(grep -E '^(ESC|CR)=' "$OTA_SCRIPT")"
 NL='
 '
@@ -2343,7 +2346,7 @@ unset CURL_RC
 check "the updater uses it" grep -q 'download_file "\$Release_url" "\$sysdir/download/\$Release_Version.zip"' "$OTA_SCRIPT"
 check "a stop leaves the updater" grep -q 'Download stopped.' "$OTA_SCRIPT"
 check "leaving the updater ends the download" grep -q "trap 'stop_download; restore_wifi; restore_keys' EXIT" "$OTA_SCRIPT"
-unset -f curl ask_leave download_file stop_download read_button
+unset -f curl ask_leave download_file stop_download read_button onion_draw onion_status
 unset YELLOW NC ANSWER
 end
 
@@ -4454,6 +4457,38 @@ begin shellect_only_a_confirms
 SH_SELECT="$ROOT/static/build/.tmp_update/script/shellect.sh"
 check "Right does not confirm" sh -c '! grep -qE "^[[:space:]]*[^#]*C2[|)]" "$1"' _ "$SH_SELECT"
 check "A (space) still confirms" grep -q '^[[:space:]]*"\$space"?) # A' "$SH_SELECT"
+end
+
+begin ota_onion_progress_fits_the_screen
+# The download shows an onion filling up. It must fit the terminal with 4
+# free rows under it (MENU question, result or error + "Press A"), or the
+# messages scroll it off the top.
+OTA_SCRIPT="$ROOT/static/build/.tmp_update/script/ota_update.sh"
+for f in onion_layout onion_draw onion_status; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
+stty() { [ "$1" = size ] && echo "$FAKE_SIZE"; }
+FAKE_SIZE="29 53"; onion_layout
+check "Miyoo 29x53: a 20-row onion" test "$onion_rows" -eq 20
+check "Miyoo 29x53: 4 rows under it end on the last row" test $((onion_msg_row + 3)) -eq 29
+FAKE_SIZE="40 53"; onion_layout
+check "taller screen: at most 4 more rows" test "$onion_rows" -eq 22
+check "taller screen: rows left free" test $((onion_msg_row + 3)) -le 40
+FAKE_SIZE="24 53"; onion_layout
+check "short screen: the compact onion" test "$onion_tall" -eq 0 -a "$onion_rows" -eq 12
+check "short screen: still fits" test $((onion_msg_row + 3)) -le 24
+FAKE_SIZE=""; onion_layout
+check "no stty: the Miyoo size" test "$onion_lines" -eq 29 -a "$onion_cols" -eq 53
+FAKE_SIZE="29 53"; onion_layout
+drawn=$(onion_draw 50 | sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;]*[mK]//g' | grep -c .)
+check "the onion draws all its rows ($drawn)" test "$drawn" -eq 20
+half=$(onion_draw 50 | sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;]*[mK]//g' | grep -c '#')
+full=$(onion_draw 100 | sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;]*[mK]//g' | grep -c '#')
+check "50% fills about half its body ($half of $full rows)" test "$half" -ge $((full / 2 - 1)) -a "$half" -le $((full / 2 + 1))
+check "0% is empty" test "$(onion_draw 0 | grep -c '#')" -eq 0
+# BusyBox awk reads "name (" as a function call: no such concatenation
+check "no 'name (' in the onion's awk (BusyBox)" sh -c '! sed -n "/^onion_draw()/,/^}/p" "$1" | sed 1d | grep -v "^[[:space:]]*#" | grep -E "[A-Za-z0-9_\"] \(" | grep -vE "\b(if|for|while|else)\b \("' _ "$OTA_SCRIPT"
+out=$(onion_status 5242880 10485760 | sed 's/\x1b\[[0-9;]*[HK]//g')
+check "status: percent and MB ($out)" sh -c 'echo "$1" | grep -q "50%   5.0 / 10.0 MB"' _ "$out"
+unset -f stty onion_layout onion_draw onion_status
 end
 
 # ---- update_networking.sh: no Play Activity resume behind the GameSwitcher ----
