@@ -116,7 +116,8 @@ typedef enum { SCREEN_CAROUSEL,
                SCREEN_CATEGORIES,
                SCREEN_PICKTIMER,
                SCREEN_PICKPROFILE,
-               SCREEN_CONFIRM_RESTART } Screen;
+               SCREEN_CONFIRM_RESTART,
+               SCREEN_HELP } Screen;
 
 #define MENU_SWITCHPROFILE 0
 #define MENU_ADDTIME 1
@@ -3116,6 +3117,58 @@ static void renderFloorIndicator(void)
     }
 }
 
+// Footer hints in the order given (the first is A), placed as
+// theme_renderStandardHintX places them: from the left in the classic layout,
+// ending on the right (A last) in the alternative one (Tweaks > Look and
+// feel > Button hints at the bottom). Kids Mode adds an X hint (its own X
+// icon, as the theme has none) that the standard hints can't place: drawn
+// from the left only, it stayed there while PLAY moved to the right.
+typedef struct {
+    SDL_Surface *icon;
+    const char *label;
+} FooterHint;
+
+static void renderFooterHints(const FooterHint *hints, int count)
+{
+    TTF_Font *font = resource_getFont(HINT);
+    int gap = (int)(30.0 * g_scale);
+    int cy = (int)(450.0 * g_scale);
+    int widths[4] = {0};
+    if (count > 4)
+        count = 4;
+    for (int i = 0; i < count; i++) {
+        int w = 0, h = 0;
+        if (hints[i].label != NULL)
+            TTF_SizeUTF8(font, hints[i].label, &w, &h);
+        widths[i] = (hints[i].icon ? hints[i].icon->w + 5 : 0) + w;
+    }
+    bool alt = theme_footerAltLayout();
+    int x = alt ? (int)(620.0 * g_scale) : (int)(20.0 * g_scale);
+    for (int i = 0; i < count; i++) {
+        if (alt)
+            x -= widths[i];
+        int hx = x;
+        if (hints[i].icon != NULL) {
+            SDL_Rect pos = {hx, cy - hints[i].icon->h / 2};
+            SDL_BlitSurface(hints[i].icon, NULL, screen, &pos);
+            hx += hints[i].icon->w + 5;
+        }
+        if (hints[i].label != NULL)
+            drawTextAlign(hints[i].label, hx, cy - 1, font, theme()->hint.color, 0,
+                          TEXT_LEFT);
+        x = alt ? x - gap : x + widths[i] + gap;
+    }
+}
+
+static SDL_Surface *footerIconX(void)
+{
+    if (!icon_x_checked) {
+        icon_x = loadIconX();
+        icon_x_checked = true;
+    }
+    return icon_x;
+}
+
 static void renderCarousel(int remaining)
 {
     renderBase();
@@ -3281,68 +3334,20 @@ static void renderCarousel(int remaining)
         }
     }
 
-    // Native footer: folders open with A; videos play with A; games launch.
+    // Footer: A opens a folder or plays; X restarts a game or video; B goes
+    // back one folder (a folder, or a video inside one). Kid-facing order
+    // A:PLAY, X:RESTART, B:BACK, in either footer layout.
     theme_renderFooter(screen);
-    theme_renderStandardHint(
-        screen, games[current].is_folder ? "OPEN"
-                : current_floor == FLOOR_GAMES ? "PLAY"
-                                               : "PLAY",
-        games[current].is_folder && canLeaveVideoFolder() ? "BACK" : NULL);
-    // No X-button icon ships with Onion's theme (only BUTTON_A/BUTTON_B),
-    // so we draw a small badge ourselves. To guarantee it lands in the
-    // right spot regardless of theme (icon size and "PLAY" label width
-    // both vary per theme/font), we replicate theme_renderStandardHint's
-    // own offset math exactly rather than guessing a fixed pixel position
-    // — same formula Onion itself uses to place a second (B) hint after
-    // the first.
-    if (!games[current].is_folder) {
-        int offsetX = (int)(20.0 * g_scale);
-        SDL_Surface *button_a = resource_getSurface(BUTTON_A);
-        if (button_a)
-            offsetX += button_a->w + 5;
-        int play_w = 0, play_h = 0;
-        TTF_SizeUTF8(resource_getFont(HINT), "PLAY", &play_w, &play_h);
-        offsetX += play_w + (int)(30.0 * g_scale);
-
-        if (!icon_x_checked) {
-            icon_x = loadIconX();
-            icon_x_checked = true;
-        }
-
-        int badge_r = 0, badge_cx = offsetX;
-        int badge_cy = (int)(450.0 * g_scale);
-
-        if (icon_x != NULL) {
-            badge_r = icon_x->w / 2;
-            badge_cx = offsetX + badge_r;
-            SDL_Rect pos = {offsetX, badge_cy - icon_x->h / 2};
-            SDL_BlitSurface(icon_x, NULL, screen, &pos);
-        }
-
-        // Same single unscaled +5px gap Onion's own footer uses between
-        // an icon and its label (was accidentally adding an extra scaled
-        // gap on top of that, throwing off the rhythm vs "A : PLAY").
-        drawTextAlign("RESTART", badge_cx + badge_r + 5, badge_cy,
-                      resource_getFont(HINT), theme()->hint.color, 0,
-                      TEXT_LEFT);
-
-        // Inside any media folder, B returns one level. Keep the kid-facing
-        // order A:PLAY, X:RESTART, B:BACK.
-        if (current_floor == FLOOR_VIDEOS && canLeaveVideoFolder()) {
-            int restart_w = 0, restart_h = 0;
-            TTF_SizeUTF8(resource_getFont(HINT), "RESTART", &restart_w,
-                         &restart_h);
-            int back_x = badge_cx + badge_r + 5 + restart_w +
-                         (int)(30.0 * g_scale);
-            SDL_Surface *button_b = resource_getSurface(BUTTON_B);
-            if (button_b != NULL) {
-                SDL_Rect pos = {back_x, badge_cy - button_b->h / 2};
-                SDL_BlitSurface(button_b, NULL, screen, &pos);
-                back_x += button_b->w + 5;
-            }
-            drawTextAlign("BACK", back_x, badge_cy, resource_getFont(HINT),
-                          theme()->hint.color, 0, TEXT_LEFT);
-        }
+    {
+        FooterHint hints[3];
+        int n = 0;
+        bool folder = games[current].is_folder;
+        hints[n++] = (FooterHint){resource_getSurface(BUTTON_A), folder ? "OPEN" : "PLAY"};
+        if (!folder)
+            hints[n++] = (FooterHint){footerIconX(), "RESTART"};
+        if (canLeaveVideoFolder() && (folder || current_floor == FLOOR_VIDEOS))
+            hints[n++] = (FooterHint){resource_getSurface(BUTTON_B), "BACK"};
+        renderFooterHints(hints, n);
     }
     if (games_count > 1)
         theme_renderFooterStatus(screen, current + 1, games_count);
@@ -3554,7 +3559,10 @@ static void renderMenu(List *list, int remaining)
                   g_display.width - 40, TEXT_RIGHT);
 
     theme_renderFooter(screen);
-    theme_renderStandardHint(screen, "OK", "BACK");
+    FooterHint hints[] = {{resource_getSurface(BUTTON_A), "OK"},
+                          {resource_getSurface(BUTTON_B), "BACK"},
+                          {footerIconX(), "HELP"}};
+    renderFooterHints(hints, 3);
     theme_renderFooterStatus(screen, list->active_pos + 1, list->item_count);
 }
 
@@ -3567,6 +3575,64 @@ static void renderSettingsList(List *list, const char *title)
     theme_renderFooter(screen);
     theme_renderStandardHint(screen, "OK", "BACK");
     theme_renderFooterStatus(screen, list->active_pos + 1, list->item_count);
+}
+
+// "Controls & tips" (X in the parent menu): the shortcuts that are hard to
+// find without the README, on two read-only pages (LEFT/RIGHT). A or B goes
+// back to the menu. Checked against kidsplay_ui.inc (player) and the
+// carousel's own keys.
+static int help_page = 0;
+
+static void renderHelp(int page)
+{
+    typedef struct {
+        bool heading;
+        const char *text;
+    } HelpLine;
+    static const HelpLine page1[] = {
+        {true, "Parent menu"},
+        {false, "Hold SELECT+START for 3 seconds"},
+        {true, "Carousel"},
+        {false, "LEFT/RIGHT  browse      UP/DOWN  games <-> videos"},
+        {false, "A  play, or open a folder      B  back one folder"},
+        {false, "X  start over (asks first)"},
+        {false, "Hold Y  battery (instead of the time left)"},
+        {true, "In a game"},
+        {false, "MENU  saves and goes back to the carousel"},
+    };
+    static const HelpLine page2[] = {
+        {true, "Videos and audio"},
+        {false, "B  pause      A  resume      MENU alone  back"},
+        {false, "MENU+LEFT/RIGHT  10 s  (held: 1 min)"},
+        {false, "MENU+UP/DOWN  5 min  (held: 10 min)"},
+        {false, "Paused: MENU+X+Y makes the frame its cover"},
+        {false, "Hold Y  battery (and time left, with a timer)"},
+        {true, "Files"},
+        {false, "Media: SD card > Media/KidsMode"},
+        {false, "Forgot the PIN? See App/KidsMode/CHANGE-PIN.txt"},
+    };
+    const HelpLine *lines = page == 0 ? page1 : page2;
+    int count = page == 0 ? (int)(sizeof(page1) / sizeof(page1[0]))
+                          : (int)(sizeof(page2) / sizeof(page2[0]));
+
+    renderBase();
+    theme_renderHeader(screen, "Controls & tips", false);
+    theme_renderHeaderBattery(screen, batteryPercentage());
+
+    TTF_Font *font = getFontInfo();
+    int top = (int)(84.0 * g_scale);
+    int step = (int)(32.0 * g_scale);
+    int x = (int)(24.0 * g_scale);
+    for (int i = 0; i < count; i++) {
+        drawTextAlign(lines[i].text, lines[i].heading ? x : x + (int)(16.0 * g_scale),
+                      top + i * step, font,
+                      lines[i].heading ? theme()->hint.color : COLOR_WHITE,
+                      g_display.width - x * 2, TEXT_LEFT);
+    }
+
+    theme_renderFooter(screen);
+    theme_renderStandardHint(screen, "OK", "BACK");
+    theme_renderFooterStatus(screen, page + 1, 2);
 }
 
 static void renderPin(const char *title, bool show_intro)
@@ -4366,6 +4432,12 @@ int main(int argc, char *argv[])
             }
             else if (active_screen == SCREEN_MENU) {
                 switch (changed_key) {
+                case SW_BTN_X:
+                    // "X HELP" in the footer: the menu keeps its 5 rows
+                    help_page = 0;
+                    active_screen = SCREEN_HELP;
+                    dirty = true;
+                    break;
                 case SW_BTN_UP:
                     list_keyUp(&menu_list, false);
                     dirty = true;
@@ -4427,6 +4499,18 @@ int main(int argc, char *argv[])
                     break;
                 default:
                     break;
+                }
+            }
+            else if (active_screen == SCREEN_HELP) {
+                // LEFT/RIGHT: the other page. A (OK) or B (BACK): back to
+                // the parent menu.
+                if (changed_key == SW_BTN_LEFT || changed_key == SW_BTN_RIGHT) {
+                    help_page = 1 - help_page;
+                    dirty = true;
+                }
+                else if (changed_key == SW_BTN_A || changed_key == SW_BTN_B) {
+                    active_screen = SCREEN_MENU;
+                    dirty = true;
                 }
             }
             else if (active_screen == SCREEN_CAROUSEL_SETTINGS) {
@@ -4689,6 +4773,9 @@ int main(int argc, char *argv[])
                 break;
             case SCREEN_CAROUSEL_SETTINGS:
                 renderSettingsList(&carousel_settings_list, "Carousel settings");
+                break;
+            case SCREEN_HELP:
+                renderHelp(help_page);
                 break;
             case SCREEN_PICKTIMER:
                 renderPickTimer(pin_title, menu_timer_minutes, picker_no_off);

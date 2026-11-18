@@ -203,6 +203,7 @@ unlimited for normal use.
 | X | Restart the selected game or video after confirmation |
 | B | Return to the previous folder level |
 | Hold SELECT + START for 3 seconds | Open the PIN screen and parent menu |
+| Hold Y | Show the battery level (instead of the time left) |
 | MENU | No action in the carousel |
 
 UP and DOWN are unavailable while a section is locked. DOWN is also disabled
@@ -225,15 +226,17 @@ normal in-game save data.
 | B | Pause playback |
 | MENU + LEFT | Rewind progressively |
 | MENU + RIGHT | Fast-forward progressively |
-| MENU + DOWN | Rewind 10 minutes |
-| MENU + UP | Fast-forward 10 minutes |
-| MENU + X while paused | Capture the current frame for the carousel |
+| MENU + DOWN | Rewind 5 minutes (held: 10 minutes at a time) |
+| MENU + UP | Fast-forward 5 minutes (held: 10 minutes at a time) |
+| MENU + X + Y while paused | Capture the current frame for the carousel |
+| Hold Y | Show the battery level; with a timer, it alternates with the time left |
 | MENU alone | Save the position and return to the carousel |
 | Other buttons | Ignored by the player |
 
 Holding MENU + LEFT or RIGHT repeats the seek and increases each step from
-10 seconds to 1 minute. It remains at one-minute steps no matter how long the
-combination is held. A small white indicator appears at the bottom-left when
+10 seconds to 1 minute after about 1.5 seconds. It remains at one-minute steps
+no matter how long the combination is held. MENU + UP or DOWN works the same
+way, from 5 minutes to 10 minutes per step. A small white indicator appears at the bottom-left when
 rewinding and at the bottom-right when moving forward.
 
 Audio playback shows the selected file's artwork, or the nearest inherited
@@ -250,7 +253,9 @@ paused video.
 Volume and brightness shortcuts remain usable. Releasing MENU after using a
 combination does not accidentally leave the video.
 
-To create a carousel image from a video, pause with B and press MENU + X.
+To create a carousel image from a video, pause with B and press MENU + X + Y
+together (all three, so a capture can't happen by mistake). There is no
+on-screen confirmation yet.
 Kids Mode saves `Imgs/Video name.bmp` beside that video. A later capture
 replaces the BMP. Captured BMP files take priority over supplied PNG/JPG
 posters; deleting the BMP restores the former poster or inherited folder
@@ -261,12 +266,22 @@ cover.
 Hold SELECT + START for about three seconds, enter the four-digit PIN, then
 choose:
 
-- **Exit Kids Mode** — restore Onion and return to its normal interface.
-- **Add play time** — add 5 to 120 minutes to the current session.
-- **Turn off timer** — continue without a time limit.
-- **Games only / Videos only** — lock the section currently being viewed. The
-  vertical navigation arrow disappears while the lock is enabled.
-- **Back** — return to the child interface.
+- **Switch to Main / Guest profile** — play with the other profile's games
+  and saves.
+- **Add play time** — add 5 to 120 minutes to the current session, or none
+  to continue without a time limit.
+- **Save/load states** — let the child use RetroArch's save and load state
+  hotkeys, or keep them locked.
+- **Carousel settings**:
+  - **Content access** — Games & Media, Games only or Media only.
+  - **Media folders** — show or hide Movies, Music, Cartoons, Series and
+    Stories.
+- **Exit Kids Mode** — restore RedOnion and return to its normal interface.
+
+B leaves the parent menu and goes back to the child interface. X opens
+**Controls & tips**: the shortcuts of this README on two pages (LEFT/RIGHT),
+with the carousel, games, the media player, where the media go and how to
+reset a forgotten PIN. A or B goes back to the menu.
 
 ## Timer and resume behavior
 
