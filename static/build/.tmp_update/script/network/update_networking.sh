@@ -743,11 +743,11 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
             hwclock -w
             log "NTP: Time successfully aquired using API"
             touch /tmp/ntp_synced
-            playActivity resume
+            play_activity_resume
             return 0
         fi
 
-        playActivity resume
+        play_activity_resume
     fi
 
     log "NTP: Failed to get time via timeapi.io as well, falling back to NTP."
@@ -759,7 +759,7 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
     playActivity stop_all
     ntpdate -t 3 -u time.google.com
     ntp_ret=$?
-    playActivity resume
+    play_activity_resume
     if [ $ntp_ret -eq 0 ]; then
         log "NTP: Time successfully aquired using NTP"
         # Mark the sync as done, like the API path: without it every later
@@ -990,6 +990,18 @@ disable_flag() {
     if [ -f "$sysdir/config/.$flag" ]; then
         mv -f "$sysdir/config/.$flag" "$sysdir/config/.${flag}_"
     fi
+}
+
+# Play Activity around the clock change. While the GameSwitcher is in front
+# of a paused game, its own "playActivity stop_all" has closed the session
+# and its "resume" opens it again when the game goes on: a resume here would
+# count the time spent in the GameSwitcher as play.
+play_activity_resume() {
+    if [ -f "$sysdir/.runGameSwitcher" ]; then
+        lowest_pid_named gameSwitcher
+        [ -n "$found_pid" ] && return 0
+    fi
+    playActivity resume
 }
 
 is_running() {

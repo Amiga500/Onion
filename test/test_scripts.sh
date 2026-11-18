@@ -4413,6 +4413,32 @@ check "each console checked on its own (Mario on GB and MD)" test "$out" -eq 6
 check "MD's Sonic kept" sh -c '! sh "$1" "$2" | grep -q Sonic' _ "$CLEAN_MEDIA" "$R/MD"
 end
 
+# ---- update_networking.sh: no Play Activity resume behind the GameSwitcher ----
+
+eval "$(extract_fn "$NETWORK" lowest_pid_named)"
+eval "$(extract_fn "$NETWORK" play_activity_resume)"
+
+begin time_sync_resume_skipped_behind_the_gameswitcher
+proc_dir="$TMP/proc"
+sysdir="$TMP/sd"
+mkdir -p "$proc_dir/700" "$sysdir"
+echo retroarch > "$proc_dir/700/comm"
+playActivity() { echo "$*" >> "$TMP/pa"; }
+play_activity_resume
+check "game running: resumed" test "$(cat "$TMP/pa")" = "resume"
+rm -f "$TMP/pa"
+touch "$sysdir/.runGameSwitcher"
+mkdir -p "$proc_dir/710"
+echo gameSwitcher > "$proc_dir/710/comm"
+play_activity_resume
+check "GameSwitcher in front: not resumed" test ! -e "$TMP/pa"
+rm -rf "$proc_dir/710"
+play_activity_resume
+check "flag left over, no GameSwitcher: resumed" test "$(cat "$TMP/pa")" = "resume"
+unset -f playActivity
+unset proc_dir
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

@@ -543,6 +543,12 @@ void suspend_exec(int timeout)
         msleep(20);
     }
 
+    // The GameSwitcher in front of a paused game has already closed the play
+    // session, and opens it again itself when the game goes on: no resume
+    // after this sleep then, or the time left in the GameSwitcher counts.
+    system_state_update();
+    bool in_switcher = system_state == MODE_SWITCHER;
+
     // pause playActivity (synchronous: the session must be closed before
     // processes are stopped; no shell needed)
     {
@@ -662,9 +668,11 @@ void suspend_exec(int timeout)
     setVolume(settings.mute ? 0 : settings.volume);
     if (!killexit) {
         resume();
-        // nobody waits for this: run it in background
-        char *const argv[] = {"playActivity", "resume", NULL};
-        process_spawn_detached(argv);
+        if (!in_switcher) {
+            // nobody waits for this: run it in background
+            char *const argv[] = {"playActivity", "resume", NULL};
+            process_spawn_detached(argv);
+        }
     }
 
     keyinput_enable();
