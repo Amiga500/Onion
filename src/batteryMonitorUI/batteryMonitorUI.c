@@ -40,6 +40,7 @@ static bool axp_confirm_calib = false;
 static bool axp_confirm_btest = false;
 static bool axp_confirm_cap = false;  // saving a capacity while the battery is still charging
 static bool axp_confirm_sync = false; // setting the counter to 100 %
+static bool axp_confirm_voff = false; // a shutdown voltage above the 2.9 V default
 // "Set current capacity to 100%" is only right on a full battery: charging has ended, and the voltage,
 // read with the console's own load on it, is at least this (a cell charged to 4.10 V rests near 4.08 V).
 #define AXP_SYNC_MIN_MV 4000
@@ -63,6 +64,7 @@ static int axp_edit_voff = 3; // REG 31H bits 2-0 code: 0..7 -> 2.6..3.3 V (defa
 // UI limit below: 2.9 V, the PMIC's own default (REG 31H = 03H). Lower values discharge the cell deeper
 // than the device was made for. A lower value found on the PMIC is shown and can only be raised.
 #define AXP_VOFF_CODE_MIN 3
+#define AXP_VOFF_CODE_DEFAULT 3 // 2.9 V: higher values are saved only after a warning
 static int axp_edit_chgv = 2; // REG 33H bits 6-5 code: 0 = 4.10 V, 2 = 4.20 V (1 = 4.22 V and 3 = 4.24 V are never offered)
 // The menu offers, and the write accepts, only 4.10 V and 4.20 V: codes 1 and 3 are above the cell's rated 4.20 V.
 #define AXP_CHGV_CODE_OFFERED(code) ((code) == 0 || (code) == 2)
@@ -1832,6 +1834,22 @@ static void drawKeyValueLine(const char *key, const char *val, TTF_Font *font, S
     renderTextAlignRight(val, font, val_col, &(SDL_Rect){x + w, y, 120, 20});
 }
 
+static void axp_save_voff(Uint32 now)
+{
+    int res = axp_set_voff(axp_edit_voff);
+    if (res == 0)
+        snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                 "Shutdown voltage set to %.1f V", voff_code_to_mv(axp_edit_voff) / 1000.0);
+    else if (res == -2)
+        snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                 "PMIC rejected the change (REG 31H unchanged)");
+    else
+        snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                 "I2C error: failed to set shutdown voltage");
+    axp_feedback_until = now + 3000;
+    axp_poll_data();
+}
+
 static void axp_save_capacity(Uint32 now)
 {
     int res = axp_set_capacity(axp_edit_capacity);
@@ -1994,7 +2012,8 @@ static void renderAxpMenu(void)
     // Item: Capacity
     renderText("Battery Capacity:", font_Arkhip, col_val, &(SDL_Rect){50, ROW_TY(AXP_MENU_CAPACITY), 180, 20});
     char cap_edit_str[32];
-    snprintf(cap_edit_str, sizeof(cap_edit_str), "<  %d mAh  >", axp_edit_capacity);
+    bool cap_dirty = axp_status.cap_set && axp_edit_capacity != axp_status.capacity_mah;
+    snprintf(cap_edit_str, sizeof(cap_edit_str), "<  %d mAh%s  >", axp_edit_capacity, cap_dirty ? "*" : "");
     renderTextAlignRight(cap_edit_str, font_Arkhip, col_cyan, &(SDL_Rect){605, ROW_TY(AXP_MENU_CAPACITY), 150, 20});
     if (axp_menu_selected == AXP_MENU_CAPACITY)
         renderText("[LEFT/RIGHT] Change  [A] Save", font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
@@ -2008,10 +2027,12 @@ static void renderAxpMenu(void)
     if (axp_menu_selected == AXP_MENU_VOFF) {
         char voff_hint[48];
         if (axp_status.voff_code >= 0)
-            snprintf(voff_hint, sizeof(voff_hint), "Now %.1f V  [A] Save", voff_code_to_mv(axp_status.voff_code) / 1000.0);
+            snprintf(voff_hint, sizeof(voff_hint), "Now %.1f V  [A] Save%s", voff_code_to_mv(axp_status.voff_code) / 1000.0,
+                     axp_edit_voff > AXP_VOFF_CODE_DEFAULT ? " (risky)" : "");
         else
             snprintf(voff_hint, sizeof(voff_hint), "[A] Save");
-        renderText(voff_hint, font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){215, ROW_TY(AXP_MENU_VOFF) + 2, 210, 16});
+        renderText(voff_hint, font_small ? font_small : font_Arkhip, axp_edit_voff > AXP_VOFF_CODE_DEFAULT ? col_warn : col_sub,
+                   &(SDL_Rect){215, ROW_TY(AXP_MENU_VOFF) + 2, 210, 16});
     }
 
     // Item: Charge limit (charge target voltage, REG 33H bits 6-5)
@@ -2088,7 +2109,7 @@ static void renderAxpMenu(void)
             renderText(axp_status.cap_set ? "1. Capacity is set (best saved right after a full charge)."
                                           : "1. First charge to 100%, then save Battery Capacity.",
                        font_small ? font_small : font_Arkhip, axp_status.cap_set ? col_val : col_warn, &(SDL_Rect){ib_x + 16, ib_y + 14, ib_w - 32, 20});
-            renderText("2. Discharge down to 1%, then plug in the charger.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 40, ib_w - 32, 20});
+            renderText("2. Discharge to 1%, then charge with the console on.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 40, ib_w - 32, 20});
             renderText("3. Charge straight to 100% (Correction: In progress).", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 66, ib_w - 32, 20});
             renderText("4. The PMIC then saves the learned Total Capacity.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 92, ib_w - 32, 20});
         }
@@ -2110,6 +2131,40 @@ static void renderAxpMenu(void)
         Uint32 b2_border = SDL_MapRGB(screen->format, 90, 90, 110);
         drawRectFill(b2_x, btn_y, btn_w, btn_h, b2_bg);
         drawFrame2px(b2_x, btn_y, btn_w, btn_h, b2_border);
+        drawCenteredText("[B] Cancel", font_Arkhip, col_val, b2_x, btn_y + 8, btn_w);
+    }
+
+    // Modal Confirmation Dialog (shutdown voltage above the 2.9 V default). The PMIC compares
+    // the voltage under load: a higher Voff turned a tester's Mini Plus off at about 15 % with
+    // the volume up (no save, no warning); back at 2.9 V it no longer did. See ksielick's
+    // docs/TECHNICAL.md ("Raising Voff to 3.0-3.1 V").
+    if (axp_confirm_voff) {
+        dimScreen(190);
+        int mw = 520, mh = 250, mx = 60, my = 115;
+        Uint32 m_bg = SDL_MapRGB(screen->format, 12, 20, 32);
+        Uint32 m_border = SDL_MapRGB(screen->format, 220, 140, 50);
+        drawRectFill(mx, my, mw, mh, m_bg);
+        drawFrame2px(mx, my, mw, mh, m_border);
+
+        char voff_title[48];
+        snprintf(voff_title, sizeof(voff_title), "SHUTDOWN AT %.1f V?", voff_code_to_mv(axp_edit_voff) / 1000.0);
+        drawCenteredText(voff_title, font_title ? font_title : font_Arkhip, col_val, mx, my + 18, mw);
+
+        int ib_x = mx + 20, ib_y = my + 54, ib_w = mw - 40, ib_h = 108;
+        drawRectFill(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 18, 28, 44));
+        drawFrame1px(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 40, 60, 90));
+        renderText("The PMIC cuts power at once below this voltage, measured", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 20});
+        renderText("under load: high volume or a heavy game can turn the", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 36, ib_w - 32, 20});
+        renderText("console off at 15-20 %, with no save and no warning.", font_small ? font_small : font_Arkhip, col_warn, &(SDL_Rect){ib_x + 16, ib_y + 60, ib_w - 32, 20});
+        renderText("2.9 V (default) is safe for the battery.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 84, ib_w - 32, 20});
+
+        int btn_w = 210, btn_h = 38, btn_y = my + 190;
+        int b1_x = mx + 35, b2_x = mx + mw - 35 - btn_w;
+        drawRectFill(b1_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 70, 50, 25));
+        drawFrame2px(b1_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 220, 140, 50));
+        drawCenteredText("[A] Save anyway", font_Arkhip, col_val, b1_x, btn_y + 8, btn_w);
+        drawRectFill(b2_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 45, 45, 55));
+        drawFrame2px(b2_x, btn_y, btn_w, btn_h, SDL_MapRGB(screen->format, 90, 90, 110));
         drawCenteredText("[B] Cancel", font_Arkhip, col_val, b2_x, btn_y + 8, btn_w);
     }
 
@@ -2739,6 +2794,17 @@ int main(int argc, char *argv[])
                         changed = true;
                     }
                 }
+                else if (axp_confirm_voff) {
+                    if (keystate[SW_BTN_B] == PRESSED || keystate[SW_BTN_SELECT] == PRESSED) {
+                        axp_confirm_voff = false;
+                        changed = true;
+                    }
+                    else if (keystate[SW_BTN_A] == PRESSED) {
+                        axp_confirm_voff = false;
+                        axp_save_voff(now);
+                        changed = true;
+                    }
+                }
                 else if (axp_confirm_sync) {
                     if (keystate[SW_BTN_B] == PRESSED || keystate[SW_BTN_SELECT] == PRESSED) {
                         axp_confirm_sync = false;
@@ -2818,7 +2884,14 @@ int main(int argc, char *argv[])
                         }
                         else if (keystate[SW_BTN_A] == PRESSED) {
                             axp_poll_data();
-                            if (axp_status.is_charging)
+                            if (axp_status.cap_set && axp_edit_capacity == axp_status.capacity_mah) {
+                                // Nothing to save: a write would only make the PMIC refill the
+                                // counter from the voltage.
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Capacity unchanged: %d mAh",
+                                         axp_edit_capacity);
+                                axp_feedback_until = now + 3000;
+                            }
+                            else if (axp_status.is_charging)
                                 axp_confirm_cap = true; // ask first: the counter would start too high
                             else
                                 axp_save_capacity(now);
@@ -2839,18 +2912,11 @@ int main(int argc, char *argv[])
                             }
                         }
                         else if (keystate[SW_BTN_A] == PRESSED) {
-                            int res = axp_set_voff(axp_edit_voff);
-                            if (res == 0)
-                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                         "Shutdown voltage set to %.1f V", voff_code_to_mv(axp_edit_voff) / 1000.0);
-                            else if (res == -2)
-                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                         "PMIC rejected the change (REG 31H unchanged)");
+                            // Above the 2.9 V default: ask first (the dialog says why)
+                            if (axp_edit_voff > AXP_VOFF_CODE_DEFAULT)
+                                axp_confirm_voff = true;
                             else
-                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                         "I2C error: failed to set shutdown voltage");
-                            axp_feedback_until = now + 3000;
-                            axp_poll_data();
+                                axp_save_voff(now);
                             changed = true;
                         }
                     }
@@ -2933,14 +2999,17 @@ int main(int argc, char *argv[])
                     axp_confirm_btest = false;
                     axp_confirm_cap = false;
                     axp_confirm_sync = false;
+                    axp_confirm_voff = false;
                     axp_menu_selected = AXP_MENU_CAPACITY;
                     axp_poll_data();
+                    // The row opens on the capacity the PMIC holds, a learned one
+                    // (e.g. 3036 mAh) included: it used to open on 3000 for any value
+                    // off the 50 mAh steps, and A then replaced a learned capacity
+                    // with it (reported by a tester). LEFT/RIGHT go on to the
+                    // nearest 50 mAh steps.
                     if (axp_status.available && axp_status.capacity_mah >= 1500 && axp_status.capacity_mah <= 4000) {
                         int rounded = ((axp_status.capacity_mah + 25) / 50) * 50;
-                        if (abs(axp_status.capacity_mah - rounded) <= 1)
-                            axp_edit_capacity = rounded;
-                        else
-                            axp_edit_capacity = 3000;
+                        axp_edit_capacity = abs(axp_status.capacity_mah - rounded) <= 1 ? rounded : axp_status.capacity_mah;
                     }
                     else {
                         axp_edit_capacity = 3000;
