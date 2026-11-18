@@ -4439,6 +4439,19 @@ unset -f playActivity
 unset proc_dir
 end
 
+# ---- Scraper menu: "Delete media of deleted games" from the main menu ----
+# Its two choices are Option6/Option7 of Menu_Main. Handled in Menu_Config,
+# whose Option6 is "Back to Main Menu" and Option7 the Game Info media
+# settings, those two started the media cleaning instead.
+
+begin scraper_menu_clean_media_in_main_menu
+menu_fn() { sed -n "/^$1 *()/,/^}/p" "$SCRAPER_MENU"; }
+check "not handled in the configuration menu" sh -c '! printf "%s" "$1" | grep -q Clean_Media' _ "$(menu_fn Menu_Config)"
+check "configuration: Back still goes to the main menu" sh -c 'printf "%s" "$1" | grep -q "Option6\" ] && Menu_Main"' _ "$(menu_fn Menu_Config)"
+check "main menu: one console" sh -c 'printf "%s" "$1" | grep -qF "[ \"\$Mychoice\" = \"\$Option6\" ] && Clean_Media \"/mnt/SDCARD/Roms/\$CurrentSystem\""' _ "$(menu_fn Menu_Main)"
+check "main menu: all consoles" sh -c 'printf "%s" "$1" | grep -qF "[ \"\$Mychoice\" = \"\$Option7\" ] && Clean_Media all"' _ "$(menu_fn Menu_Main)"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

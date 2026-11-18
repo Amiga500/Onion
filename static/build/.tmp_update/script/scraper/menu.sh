@@ -40,9 +40,7 @@ Menu_Config()
     [ "$Mychoice" = "$Option1" ] && Menu_Config_MediaType
     [ "$Mychoice" = "$Option2" ] && Menu_RegionSelection
     [ "$Mychoice" = "$Option3" ] && Menu_Config_ScrapingSource
-    [ "$Mychoice" = "$Option6" ] && Clean_Media "/mnt/SDCARD/Roms/$CurrentSystem"
-[ "$Mychoice" = "$Option7" ] && Clean_Media all
-[ "$Mychoice" = "$Option4" ] && Menu_Config_SSAccountSettings
+    [ "$Mychoice" = "$Option4" ] && Menu_Config_SSAccountSettings
     [ "$Mychoice" = "$Option5" ] && Menu_Config_BackgroundScraping
     [ "$Mychoice" = "$Option7" ] && Menu_Config_GameInfo
 	[ "$Mychoice" = "$Option6" ] && Menu_Main
@@ -737,6 +735,8 @@ Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option6\n$Option7\n$Option4\
 [ "$Mychoice" = "$Option1" ] && (onerom=0; Launch_Scraping;)
 [ "$Mychoice" = "$Option2" ] && (onerom=1; Launch_Scraping;)
 [ "$Mychoice" = "$Option3" ] && Delete_Rom_Cover
+[ "$Mychoice" = "$Option6" ] && Clean_Media "/mnt/SDCARD/Roms/$CurrentSystem"
+[ "$Mychoice" = "$Option7" ] && Clean_Media all
 [ "$Mychoice" = "$Option4" ] && Menu_Config
 [ "$Mychoice" = "$Option5" ] && exit
 
