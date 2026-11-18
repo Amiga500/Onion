@@ -2870,6 +2870,8 @@ int main(int argc, char *argv[])
                     else if (axp_menu_selected == AXP_MENU_CAPACITY) {
                         if (keystate[SW_BTN_LEFT] >= PRESSED) {
                             int next = ((axp_edit_capacity - 1) / 50) * 50;
+                            if (next > 4000)
+                                next = 4000; // from a PMIC value above the menu's range
                             if (next >= 1500) {
                                 axp_edit_capacity = next;
                                 changed = true;
@@ -2877,6 +2879,8 @@ int main(int argc, char *argv[])
                         }
                         else if (keystate[SW_BTN_RIGHT] >= PRESSED) {
                             int next = (axp_edit_capacity / 50 + 1) * 50;
+                            if (next < 1500)
+                                next = 1500; // from a PMIC value under the menu's range
                             if (next <= 4000) {
                                 axp_edit_capacity = next;
                                 changed = true;
@@ -3005,15 +3009,15 @@ int main(int argc, char *argv[])
                     // The row opens on the capacity the PMIC holds, a learned one
                     // (e.g. 3036 mAh) included: it used to open on 3000 for any value
                     // off the 50 mAh steps, and A then replaced a learned capacity
-                    // with it (reported by a tester). LEFT/RIGHT go on to the
-                    // nearest 50 mAh steps.
-                    if (axp_status.available && axp_status.capacity_mah >= 1500 && axp_status.capacity_mah <= 4000) {
-                        int rounded = ((axp_status.capacity_mah + 25) / 50) * 50;
-                        axp_edit_capacity = abs(axp_status.capacity_mah - rounded) <= 1 ? rounded : axp_status.capacity_mah;
-                    }
-                    else {
+                    // with it (reported by a tester). capacity_mah is used as read:
+                    // axp_units_to_mah() already shows a saved 50 mAh step as such,
+                    // and rounding again turned a learned 3001 into 3000. Outside
+                    // 1500-4000 too: A writes nothing until LEFT/RIGHT change it.
+                    // LEFT/RIGHT go on to the nearest 50 mAh steps.
+                    if (axp_status.available && axp_status.cap_set)
+                        axp_edit_capacity = axp_status.capacity_mah;
+                    else
                         axp_edit_capacity = 3000;
-                    }
                     if (axp_status.available && axp_status.voff_code >= 0)
                         axp_edit_voff = axp_status.voff_code;
                     // A code the menu does not offer (4.22 V set by v2.3's "~95%", or 4.24 V): the row opens on
