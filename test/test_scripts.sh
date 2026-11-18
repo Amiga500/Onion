@@ -4452,6 +4452,27 @@ check "main menu: one console" sh -c 'printf "%s" "$1" | grep -qF "[ \"\$Mychoic
 check "main menu: all consoles" sh -c 'printf "%s" "$1" | grep -qF "[ \"\$Mychoice\" = \"\$Option7\" ] && Clean_Media all"' _ "$(menu_fn Menu_Main)"
 end
 
+# ---- Scraper menu: "Scrape all favorites" ----
+
+begin scraper_favorites_list
+eval "$(sed -n '/^Favorites_List ()/,/^}/p' "$SCRAPER_MENU")"
+cat > "$TMP/fav.json" << 'FAVEOF'
+{"label":"Metroid","launch":"/mnt/SDCARD/Emu/GBA/launch.sh","type":5,"rompath":"/mnt/SDCARD/Emu/GBA/../../Roms/GBA/Metroid Fusion (USA).gba"}
+{"label":"Kids Mode","launch":"/mnt/SDCARD/App/KidsMode/launch.sh","type":5,"rompath":"/mnt/SDCARD/App/KidsMode/launch.sh"}
+{"label":"Sonic","launch":"/mnt/SDCARD/Emu/MD/launch.sh","type":5,"rompath":"/mnt/SDCARD/Roms/MD/Sega/Sonic [!].md"}
+{"label":"No path","launch":"/mnt/SDCARD/Emu/GB/launch.sh","type":5}
+FAVEOF
+tab=$(printf '\t')
+check "games only, console and file name" test "$(Favorites_List "$TMP/fav.json")" = "GBA${tab}Metroid Fusion (USA).gba
+MD${tab}Sonic [!].md"
+check "no file: nothing" test -z "$(Favorites_List "$TMP/none.json")"
+check "the account question once (scrap_screenscraper.sh)" grep -q 'SCRAPER_NO_ACCOUNT_PROMPT' "$SCRAPER_SS"
+for sc in screenscraper launchbox retroarch; do
+    check "progress under the $sc title" grep -q 'echo -e "$SCRAPER_PROGRESS' "$ROOT/static/build/.tmp_update/script/scraper/scrap_$sc.sh"
+done
+check "menu: shown and handled" sh -c "grep -q 'Option8=\"Scrape all favorites\"' '$SCRAPER_MENU' && grep -q 'Option8\" ] && Scrape_Favorites' '$SCRAPER_MENU'"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

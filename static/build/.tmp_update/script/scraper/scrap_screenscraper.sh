@@ -630,7 +630,9 @@ fi
 
 
 # TODO : improve or remove this part (now in options)
-if [ "$userStored" = "false" ] && ! [ "$ScrapeInBackground" = "true" ]; then
+# SCRAPER_NO_ACCOUNT_PROMPT: set by "Scrape all favorites" after its first
+# game, so the account question comes once, not for every game.
+if [ "$userStored" = "false" ] && ! [ "$ScrapeInBackground" = "true" ] && [ -z "$SCRAPER_NO_ACCOUNT_PROMPT" ]; then
     while true; do
 	    Mychoice=$( echo -e "No\nYes\nScreenscraper information" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "Add your screenscraper account ?" -b "Press A to validate your choice.")
         
@@ -679,6 +681,8 @@ clear
 echo -e "\n*****************************************************"
 echo -e "******************* SCREENSCRAPER *******************"
 echo -e "*****************************************************\n\n"
+# "Scrape all favorites" (menu.sh): which game of how many
+[ -n "$SCRAPER_PROGRESS" ] && echo -e "$SCRAPER_PROGRESS\n"
 
 echo "Scraping $CurrentSystem..."
 echo "Media Type: $MediaType"

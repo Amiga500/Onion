@@ -200,6 +200,8 @@ clear
 echo -e "\n*****************************************************"
 echo -e "*******************   LAUNCHBOX   *******************"
 echo -e "*****************************************************\n\n"
+# "Scrape all favorites" (menu.sh): which game of how many
+[ -n "$SCRAPER_PROGRESS" ] && echo -e "$SCRAPER_PROGRESS\n"
 
 
 

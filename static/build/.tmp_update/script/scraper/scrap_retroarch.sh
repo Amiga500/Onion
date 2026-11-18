@@ -101,6 +101,8 @@ clear
 echo -e "\n*****************************************************"
 echo -e "*******************   RETROARCH   *******************"
 echo -e "*****************************************************\n\n"
+# "Scrape all favorites" (menu.sh): which game of how many
+[ -n "$SCRAPER_PROGRESS" ] && echo -e "$SCRAPER_PROGRESS\n"
 
 ScraperConfigFile=/mnt/SDCARD/.tmp_update/config/scraper.json
 config=$(cat $ScraperConfigFile)

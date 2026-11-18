@@ -717,6 +717,90 @@ Clean_Media ()
 
 ##########################################################################################
 
+# One line per favorite game, "<console folder><TAB><ROM file name>", from
+# favourite.json ($1, one JSON object per line); apps and other entries
+# outside Roms are left out.
+Favorites_List ()
+{
+    jq -r '.rompath // empty' "$1" 2> /dev/null |
+        awk -F'/Roms/' 'NF > 1 { n = split($NF, p, "/"); if (n >= 2 && p[n] != "") print p[1] "\t" p[n] }'
+}
+
+# Scrapes every favorite game, each in its own console, with the sources
+# turned on in Configuration (as "Scrape current rom" does for one game).
+Scrape_Favorites ()
+{
+    fav=/mnt/SDCARD/Roms/favourite.json
+    list=/tmp/scrape_favorites_list
+    clear
+    Favorites_List "$fav" > "$list"
+    count=$(grep -c . "$list")
+    if [ "$count" -eq 0 ]; then
+        echo -e "No favorite games to scrape.\n\n\n\n\n\n\n\n"
+        rm -f "$list"
+        read -n 1 -s -r -p "Press A to continue"
+        Menu_Main
+        return
+    fi
+
+    touch /tmp/stay_awake
+    rm -f /tmp/scraper_script.sh
+
+    if [ "$(ip r)" = "" ]; then
+        echo "You must be connected to wifi to use Scraper"
+        read -n 1 -s -r -p "Press A to continue"
+        exit
+    fi
+    if [ ! -f "$ScraperConfigFile" ]; then
+        echo "Error: configuration file not found"
+        read -n 1 -s -r -p "Press A to continue"
+        exit 1
+    fi
+    config=$(cat "$ScraperConfigFile")
+    Screenscraper_enabled=$(echo "$config" | jq -r '.Screenscraper_enabled')
+    Launchbox_enabled=$(echo "$config" | jq -r '.Launchbox_enabled')
+    Retroarch_enabled=$(echo "$config" | jq -r '.Retroarch_enabled')
+    ScrapeInBackground=$(echo "$config" | jq -r '.ScrapeInBackground')
+
+    sdir=/mnt/SDCARD/.tmp_update/script/scraper
+    n=0
+    tab=$(printf '\t')
+    # The list on fd 3: the scrapers read the keys on stdin.
+    while IFS="$tab" read -r fsys from <&3; do
+        n=$((n + 1))
+        fimage="/mnt/SDCARD/Roms/$fsys/Imgs/${from%.*}.png"
+        # Shown by the scrapers under their title (they clear the screen)
+        export SCRAPER_PROGRESS="=== Favorite $n/$count: $from ($fsys) ==="
+        for src in screenscraper launchbox retroarch; do
+            case $src in
+                screenscraper) [ "$Screenscraper_enabled" = "true" ] || continue ;;
+                launchbox) [ "$Launchbox_enabled" = "true" ] || continue ;;
+                retroarch) [ "$Retroarch_enabled" = "true" ] || continue ;;
+            esac
+            if [ "$ScrapeInBackground" = "true" ]; then
+                echo "$sdir/scrap_$src.sh $fsys \"$from\"" >> /tmp/scraper_script.sh
+            else
+                "$sdir/scrap_$src.sh" "$fsys" "$from"
+                # The account question once, not for every game
+                export SCRAPER_NO_ACCOUNT_PROMPT=1
+                # Cover found: the next sources are not needed for this game
+                [ -f "$fimage" ] && break
+            fi
+        done
+    done 3< "$list"
+    rm -f "$list"
+
+    if [ "$ScrapeInBackground" != "true" ]; then
+        echo -e "\n$count favorite games done.\n"
+        read -n 1 -s -r -p "Press A to exit"
+    fi
+    rm -f /tmp/stay_awake
+    pkill st
+}
+
+
+##########################################################################################
+
 Menu_Main ()
 
 {
@@ -728,12 +812,14 @@ Option4="Configuration"
 Option5="Exit"
 Option6="Delete media of deleted games: $(basename "$CurrentSystem")"
 Option7="Delete media of deleted games: all consoles"
+Option8="Scrape all favorites"
 
 clear
-Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option6\n$Option7\n$Option4\nExit" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "           --== MAIN MENU ==--" -b "                     Menu : Exit        A : Validate ")
+Mychoice=$( echo -e "$Option1\n$Option2\n$Option8\n$Option3\n$Option6\n$Option7\n$Option4\nExit" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "           --== MAIN MENU ==--" -b "                     Menu : Exit        A : Validate ")
 
 [ "$Mychoice" = "$Option1" ] && (onerom=0; Launch_Scraping;)
 [ "$Mychoice" = "$Option2" ] && (onerom=1; Launch_Scraping;)
+[ "$Mychoice" = "$Option8" ] && Scrape_Favorites
 [ "$Mychoice" = "$Option3" ] && Delete_Rom_Cover
 [ "$Mychoice" = "$Option6" ] && Clean_Media "/mnt/SDCARD/Roms/$CurrentSystem"
 [ "$Mychoice" = "$Option7" ] && Clean_Media all
