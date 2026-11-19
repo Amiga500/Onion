@@ -1,10 +1,22 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.1 rc6**, on top of 1.1.0 (the source in
+GitHub: **Open MainUI 1.1.1 rc7**, on top of 1.1.0 (the source in
 `third-party/open-mainui`).
 
-Since rc4:
+Since rc6 (edge cases found in a code review):
+
+- The Wi-Fi networks are saved again once they are enabled.
+- The screen stays restored when a Search return finds no Search.
+- Reading the About page leaves system.json and keymon's memory alone.
+- A console's cache is rebuilt when a folder row is outside its ROM
+  folder.
+- X's or Y's release action is cancelled when another button is pressed.
+- Two small races between threads are closed.
+- The frame timer stops while a PDF manual is open.
+- The consoles' game counts are read again after a refresh.
+
+From rc6:
 
 - A theme can give the console carousel and the console list their own
   pictures, and `carousel.scale` makes the selected picture smaller.
