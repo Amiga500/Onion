@@ -4416,6 +4416,41 @@ check "each console checked on its own (Mario on GB and MD)" test "$out" -eq 6
 check "MD's Sonic kept" sh -c '! sh "$1" "$2" | grep -q Sonic' _ "$CLEAN_MEDIA" "$R/MD"
 end
 
+begin clean_media_keeps_media_named_in_the_game_lists
+# A hand-made or imported list may name a cover unlike its ROM: it was
+# listed as left behind and deleted.
+cm_sd
+cat > "$R/GB/miyoogamelist.xml" <<'XML'
+<?xml version="1.0"?>
+<gameList>
+  <game>
+    <path>./Tetris (World).gb</path>
+    <name>Tetris</name>
+    <image>./Imgs/tetris-cover.png</image>
+  </game>
+  <game><path>./Sonic v1.1.zip</path><image>./Imgs/Sonic &amp; Knuckles.png</image><image>./Imgs/Tom&apos;s.png</image></game>
+</gameList>
+XML
+printf '<gameList><game><path>./Zelda</path><video>./media/videos/zelda-intro.mp4</video><manual>/mnt/SDCARD/Roms/GB/Manuals/LA manual.pdf</manual></game></gameList>\n' > "$R/GB/gamelist.xml"
+touch "$R/GB/Imgs/tetris-cover.png" "$R/GB/Imgs/Sonic & Knuckles.png" "$R/GB/Imgs/Tom's.png" \
+    "$R/GB/media/videos/zelda-intro.mp4" "$R/GB/Manuals/LA manual.pdf"
+out=$(sh "$CLEAN_MEDIA" "$R/GB" | sed "s|$R/||" | sort | tr '\n' '|')
+check "only Mario's media listed ($out)" \
+    test "$out" = "GB/Imgs/Mario.png|GB/Manuals/Mario.pdf|GB/media/box2dfront/Mario.png|GB/media/screenshot/Mario-1.png|GB/media/videos/Mario.mp4|"
+sh "$CLEAN_MEDIA" --delete "$R/GB" > /dev/null
+check "a cover named in miyoogamelist.xml kept" test -f "$R/GB/Imgs/tetris-cover.png"
+check "names with &amp; and &apos; kept" test -f "$R/GB/Imgs/Sonic & Knuckles.png" -a -f "$R/GB/Imgs/Tom's.png"
+check "a video and a manual named in gamelist.xml kept" test -f "$R/GB/media/videos/zelda-intro.mp4" -a -f "$R/GB/Manuals/LA manual.pdf"
+check "Mario's cover still deleted" test ! -e "$R/GB/Imgs/Mario.png"
+printf '<gameList><game><image>./Imgs/A &amp;amp; B.png</image></game></gameList>\n' > "$R/GB/gamelist.xml"
+eval "$(extract_fn "$CLEAN_MEDIA" listed_media)"
+out=$(listed_media "$R/GB" | tail -n 1)
+check "an entity decoded once (&amp;amp; is &amp;: $out)" test "$out" = "./Imgs/A &amp; B.png"
+unset -f listed_media
+# BusyBox awk reads "name (" as a function call: no such concatenation
+check "no 'name (' in listed_media's awk (BusyBox)" sh -c '! sed -n "/^listed_media()/,/^}/p" "$1" | sed 1d | grep -v "^[[:space:]]*#" | grep -E "[A-Za-z0-9_\"] \(" | grep -vE "\b(if|for|while|else|function)\b \("' _ "$CLEAN_MEDIA"
+end
+
 begin clean_media_skips_a_console_it_could_not_read
 # find skipped a folder it could not read (an SD card error) and went on:
 # its games were missing from the list and their covers listed, then

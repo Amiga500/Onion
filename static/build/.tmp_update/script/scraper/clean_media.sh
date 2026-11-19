@@ -28,6 +28,9 @@
 # or RApp whose config.json has its imgpath in this folder's Imgs (MAME 2003
 # and MAME 2000: Roms/MAME2003 and Roms/MAME2000 use Roms/ARCADE/Imgs) keeps
 # the covers of its games. Without that, cleaning ARCADE deleted them.
+# Files named in the console's miyoogamelist.xml or gamelist.xml (<image>,
+# <thumbnail>, <marquee>, <video>, <manual>) stay too, whatever their name:
+# hand-made or imported lists may point at "Imgs/tetris-cover.png".
 
 delete=0
 if [ "$1" = "--delete" ]; then
@@ -79,6 +82,38 @@ names_in() {
         \( ${2:--type f -o -type d} \) 2> /dev/null
 }
 
+# The media files named in a ROM folder's game lists, one path per line.
+# Plain index/substr for the XML entities: no escapes in a gsub
+# replacement, and no "name (" concatenation (BusyBox awk).
+listed_media() {
+    for xml in "$1/miyoogamelist.xml" "$1/gamelist.xml"; do
+        [ -f "$xml" ] && cat "$xml"
+    done | awk -v q="'" -v dq='"' '
+        function unent(v, e, c,    i, out) {
+            out = ""
+            while ((i = index(v, e)) > 0) {
+                out = out substr(v, 1, i - 1) c
+                v = substr(v, i + length(e))
+            }
+            return out v
+        }
+        {
+            line = $0
+            while (match(line, /<(image|thumbnail|marquee|video|manual)>[^<]*</)) {
+                v = substr(line, RSTART, RLENGTH - 1)
+                line = substr(line, RSTART + RLENGTH)
+                sub(/^<[a-z]*>/, "", v)
+                v = unent(v, "&apos;", q)
+                v = unent(v, "&quot;", dq)
+                v = unent(v, "&lt;", "<")
+                v = unent(v, "&gt;", ">")
+                v = unent(v, "&amp;", "&")
+                if (v != "")
+                    print v
+            }
+        }'
+}
+
 for dir in "$@"; do
     dir=${dir%/}
     [ -d "$dir" ] || continue
@@ -110,6 +145,12 @@ for dir in "$@"; do
         echo "skip: $dir (read error)"
         continue
     fi
+
+    # Media the game lists name, here and in the folders sharing the covers
+    listed_media "$dir" >> "$tmp/games"
+    while IFS= read -r other; do
+        listed_media "$other" >> "$tmp/games"
+    done < "$tmp/shared"
 
     # Media: files directly in Imgs and Manuals, and in each media/<kind>.
     {
