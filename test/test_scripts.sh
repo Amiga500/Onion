@@ -2193,6 +2193,21 @@ check "OTA menus all go through ota_menu" test "$(grep -c '^	ota_menu "' "$ROOT/
 check "with -m MENU returns 2 instead of closing the terminal" grep -q '\[ -z "\$menu_only_exit" \] || { term_reset; exit 2; }' "$SHELLECT"
 end
 
+begin scraper_closes_its_own_terminal_only
+# The scraper menu closed its terminal with "pkill st", which matched any
+# process with "st" in its name (hostapd, installUI).
+SCRAPER_MENU="$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
+extract_fn "$SCRAPER_MENU" close_terminal > "$TMP/close.sh"
+cp "$(command -v sh)" "$TMP/st"
+"$TMP/st" -c "sh -c '. \"$TMP/close.sh\"; close_terminal'; sleep 1; echo still-open" > "$TMP/out" 2>&1
+rc=$?
+check "the menu's own terminal is asked to quit (SIGTERM, 143)" test $rc -eq 143
+check "nothing runs after the terminal quits" sh -c "! grep -q still-open '$TMP/out'"
+sh -c ". '$TMP/close.sh'; close_terminal; echo returned" > "$TMP/out2"
+check "no terminal above: nothing killed, it returns" grep -q returned "$TMP/out2"
+check "no name-based kill left in the scraper" sh -c "! grep -v '^[[:space:]]*#' \"\$1\"/*.sh | grep -q 'pkill st'" _ "$ROOT/static/build/.tmp_update/script/scraper"
+end
+
 # ---- ota_update.sh: "Press A to continue, MENU to exit" ----
 
 OTA_SCRIPT="$ROOT/static/build/.tmp_update/script/ota_update.sh"
@@ -4458,7 +4473,7 @@ begin clean_media_skips_a_console_it_could_not_read
 cm_sd
 mkdir -p "$TMP/bin"
 real_find=$(command -v find)
-printf '#!/bin/sh\n"%s" "$@"\nrc=$?\ncase "$1" in "$CM_FIND_FAIL") exit 1 ;; esac\nexit $rc\n' "$real_find" > "$TMP/bin/find"
+printf '#!/bin/sh\n"%s" "$@"\nrc=$?\ncase "$1" in "$CM_FIND_FAIL") exit 1 ;; esac\ncase "$1 $*" in "$CM_FIND_FAIL_DIRS "*"( -type d )"*) exit 1 ;; esac\nexit $rc\n' "$real_find" > "$TMP/bin/find"
 chmod +x "$TMP/bin/find"
 out=$(CM_FIND_FAIL="$R/GB" PATH="$TMP/bin:$PATH" sh "$CLEAN_MEDIA" --delete "$R/GB")
 check "reported as skipped ($out)" test "$out" = "skip: $R/GB (read error)"
@@ -4472,6 +4487,12 @@ check "a shared folder not read: skipped ($out)" test "$out" = "skip: $R2/ARCADE
 check "its covers kept" test -f "$R2/ARCADE/Imgs/mslug.png" -a -f "$R2/ARCADE/Imgs/gone.png"
 out=$(PATH="$TMP/bin:$PATH" sh "$CLEAN_MEDIA" "$R2/ARCADE" | sed "s|$R2/||")
 check "read normally: cleaned as before ($out)" test "$out" = "ARCADE/Imgs/gone.png"
+# Only the folders pass fails: "Vol. 1" would be taken for a file
+mkdir -p "$R/GB/Vol. 1" && touch "$R/GB/Vol. 1/game.gb" "$R/GB/Imgs/Vol. 1.png"
+out=$(CM_FIND_FAIL_DIRS="$R/GB" PATH="$TMP/bin:$PATH" sh "$CLEAN_MEDIA" --delete "$R/GB")
+check "folders pass not read: skipped ($out)" test "$out" = "skip: $R/GB (read error)"
+check "folder art kept" test -f "$R/GB/Imgs/Vol. 1.png"
+check "the Scraper menu counts the consoles not checked" grep -q 'grep -c "^skip: .\* (read error)\$"' "$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
 end
 
 begin clean_media_keeps_covers_shared_with_another_console

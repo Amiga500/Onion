@@ -587,7 +587,7 @@ gi_download() {
 
 saveMetadata=false
 # gamelist.xml is written every 25 descriptions, and when the scraping ends.
-# Closed before the end (the menu closes its terminal with pkill st, which
+# Closed before the end (the menu closes its terminal, close_terminal, which
 # hangs up this script; B, a TERM), the ones waiting are written first. Only
 # a SIGKILL or a power cut loses them: their ROMs are asked again next time.
 GI_DESC_BATCH=25

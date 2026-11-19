@@ -131,15 +131,19 @@ for dir in "$@"; do
         continue
     fi
     # Folders keep their whole name (folder art is "<folder name>.png");
-    # files lose their extension.
-    names_in "$dir" "-type d" > "$tmp/folders"
+    # files lose their extension. A failed pass would take "Vol. 1" for a
+    # file and list Imgs/Vol. 1.png.
+    if ! names_in "$dir" "-type d" > "$tmp/folders"; then
+        echo "skip: $dir (read error)"
+        continue
+    fi
 
     # The games of consoles sharing this folder's covers
     shared_rom_dirs "$dir" > "$tmp/shared"
     unread=
     while IFS= read -r other; do
         names_in "$other" >> "$tmp/games" || unread=1
-        names_in "$other" "-type d" >> "$tmp/folders"
+        names_in "$other" "-type d" >> "$tmp/folders" || unread=1
     done < "$tmp/shared"
     if [ -n "$unread" ]; then
         echo "skip: $dir (read error)"

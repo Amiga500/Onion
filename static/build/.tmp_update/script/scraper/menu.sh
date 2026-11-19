@@ -23,6 +23,26 @@ press_a() { # prompt
     done
 }
 
+# Close the terminal this menu runs in (SIGTERM, as "pkill st" did).
+# "pkill st" matched any process with "st" in its name (hostapd,
+# installUI): only our own st is asked to quit, as shellect.sh's
+# quit_terminal does. It hangs up this script.
+close_terminal() {
+    _ct_pid=$$
+    while [ "$_ct_pid" -gt 1 ] 2> /dev/null; do
+        _ct_stat=$(cat "/proc/$_ct_pid/stat" 2> /dev/null) || break
+        _ct_comm=${_ct_stat#*\(}
+        _ct_comm=${_ct_comm%%)*}
+        if [ "$_ct_comm" = st ]; then
+            kill -TERM "$_ct_pid"
+            break
+        fi
+        # Fields after the name: state, then the parent's pid.
+        set -- ${_ct_stat##*) }
+        _ct_pid=$2
+    done
+}
+
 # The keys at the bottom of every menu (shellect right-aligns them) and the
 # titles, centred, in capitals: the same layout in every menu.
 FootValidate="Menu: Exit      A: Validate"
@@ -576,7 +596,7 @@ Launch_Scraping ()
             /mnt/SDCARD/.tmp_update/script/scraper/scrap_screenscraper.sh $CurrentSystem "$onerom"
         fi
     fi
-    if [ -f "$romimage" ] && ! [ "$onerom" = "" ] ; then echo exiting $romimage; pkill st; fi;  # exit if only one rom must be scraped and is already found
+    if [ -f "$romimage" ] && ! [ "$onerom" = "" ] ; then echo exiting $romimage; close_terminal; fi;  # exit if only one rom must be scraped and is already found
 
     if [ "$Launchbox_enabled" = "true" ]; then
         if [ "$ScrapeInBackground" = "true" ]; then
@@ -585,7 +605,7 @@ Launch_Scraping ()
             /mnt/SDCARD/.tmp_update/script/scraper/scrap_launchbox.sh $CurrentSystem "$onerom"
         fi
     fi
-    if [ -f "$romimage" ] && ! [ "$onerom" = "" ] ; then  echo exiting $romimage ; pkill st; fi;
+    if [ -f "$romimage" ] && ! [ "$onerom" = "" ] ; then  echo exiting $romimage ; close_terminal; fi;
     
     if [ "$Retroarch_enabled" = "true" ]; then
         if [ "$ScrapeInBackground" = "true" ]; then
@@ -594,10 +614,10 @@ Launch_Scraping ()
             /mnt/SDCARD/.tmp_update/script/scraper/scrap_retroarch.sh $CurrentSystem "$onerom"
         fi
     fi
-    if [ -f "$romimage" ] && ! [ "$onerom" = "" ] ; then  echo exiting $romimage ; pkill st; fi;
+    if [ -f "$romimage" ] && ! [ "$onerom" = "" ] ; then  echo exiting $romimage ; close_terminal; fi;
 
 	rm -f /tmp/stay_awake
-	pkill st
+	close_terminal
 }
 
 ##########################################################################################
@@ -698,12 +718,19 @@ Clean_Media ()
     clear
     echo "Looking for media of deleted games ($scope)..."
     list=/tmp/clean_media_list
-    sh "$clean" "$@" | grep -v "^skip: " > "$list"
+    sh "$clean" "$@" > "$list.all"
+    grep -v "^skip: " "$list.all" > "$list"
+    # Consoles not checked: their games could not all be read (SD card error)
+    unread=$(grep -c "^skip: .* (read error)$" "$list.all")
+    rm -f "$list.all"
     count=$(grep -c . "$list")
+    unread_note=
+    [ "$unread" -gt 0 ] && unread_note="Consoles not checked (SD card read error): $unread\n"
 
     clear
     if [ "$count" -eq 0 ]; then
         echo -e "No media of deleted games found\n($scope).\n"
+        [ -n "$unread_note" ] && echo -e "$unread_note"
         rm -f "$list"
         press_a "Press A to continue"
         Menu_Main
@@ -721,6 +748,7 @@ Clean_Media ()
     head -n 8 "$list" | sed 's|^/mnt/SDCARD/Roms/||'
     [ "$count" -gt 8 ] && echo "... and $((count - 8)) more"
     echo -e "\nCovers (Imgs), Game Info media and manuals\nof games no longer on the SD card.\n"
+    [ -n "$unread_note" ] && echo -e "$unread_note"
     press_a "Press A to continue"
 
     confirm=$( echo -e "Delete $count files ($size)\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== MEDIA OF DELETED GAMES ==--" -b "$FootValidate")
@@ -825,7 +853,7 @@ Scrape_Favorites ()
         press_a "Press A to exit"
     fi
     rm -f /tmp/stay_awake
-    pkill st
+    close_terminal
 }
 
 
@@ -902,7 +930,7 @@ Scrape_All_Consoles ()
         press_a "Press A to exit"
     fi
     rm -f /tmp/stay_awake
-    pkill st
+    close_terminal
 }
 
 
