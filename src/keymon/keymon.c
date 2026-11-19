@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -42,6 +43,7 @@
 #include "./low_battery.h"
 #include "./menuButtonAction.h"
 #include "./state_scan.h"
+#include "./suspend_timer.h"
 
 #define FAVORITES_PATH "/mnt/SDCARD/Roms/favourite.json"
 
@@ -537,6 +539,28 @@ void deepsleep(void)
 }
 
 //
+//    Standby log: why a standby did or did not end in a power-off.
+//    Only with Tweaks > Advanced > "Enable logging" (config/.logging);
+//    a few lines per standby, in logs/keymon.log.
+//
+static void standby_log(const char *format, ...)
+{
+    if (!settings.enable_logging)
+        return;
+    mkdirs("/mnt/SDCARD/.tmp_update/logs");
+    FILE *fp = fopen("/mnt/SDCARD/.tmp_update/logs/keymon.log", "a");
+    if (fp == NULL)
+        return;
+    fprintf(fp, "[%ld s] ", getMilliseconds() / 1000);
+    va_list args;
+    va_start(args, format);
+    vfprintf(fp, format, args);
+    va_end(args);
+    fputc('\n', fp);
+    fclose(fp);
+}
+
+//
 //    Suspend interface
 //
 void suspend_exec(int timeout)
@@ -583,16 +607,30 @@ void suspend_exec(int timeout)
     uint32_t repeat_power = 0;
     uint32_t killexit = 0;
     int suspend_lid_state = read_lid_state(); // Store initial lid state
-    int suspend_start = getMilliseconds();
-
-    // Use shorter poll timeout for lid detection on flip devices
-    int poll_timeout = (DEVICE_ID == MIYOO285) ? 500 : ((timeout == -1) ? -1 : timeout);
+    long suspend_start = getMilliseconds();
+    const long standby_begin = suspend_start;
+    // Input events read in this standby (for the log): any of them used
+    // to start the wait before the power-off again (suspend_timer.h).
+    int standby_events = 0;
+    int last_type = -1, last_code = -1, last_value = -1;
+    bool charging_logged = false;
+    standby_log("standby: start, power-off after %d s (-1: none, stay awake)",
+                timeout < 0 ? -1 : timeout / 1000);
 
     while (1) {
+        // Flip: 500 ms polls for the lid. Mini and Mini Plus: the time left
+        // of the timeout, counted from the start of the standby.
+        int poll_timeout = (DEVICE_ID == MIYOO285)
+                               ? 500
+                               : suspendTimer_remaining(timeout, getMilliseconds() - suspend_start);
         int ready = poll(fds, 1, poll_timeout);
 
         if (ready > 0) {
             read(input_fd, &ev, sizeof(ev));
+            standby_events++;
+            last_type = ev.type;
+            last_code = ev.code;
+            last_value = ev.value;
             if ((ev.type != EV_KEY) || (ev.value > REPEAT))
                 continue;
             if (ev.code == HW_BTN_POWER) {
@@ -645,16 +683,32 @@ void suspend_exec(int timeout)
                 continue;
             }
 
-            if (battery_isCharging())
+            long standby_sec = (getMilliseconds() - standby_begin) / 1000;
+            if (battery_isCharging()) {
+                // As before: checked again after another timeout
+                if (!charging_logged)
+                    standby_log("standby: %ld s, charging: no power-off while it charges", standby_sec);
+                charging_logged = true;
+                suspend_start = getMilliseconds();
                 continue;
+            }
 
             // Original timeout shutdown behavior (non-flip devices)
+            standby_log("standby: %ld s, %d input events (last: type %d code %d value %d), powering off",
+                        standby_sec, standby_events, last_type, last_code, last_value);
             system_powersave_off();
             resume();
             usleep(150000);
             deepsleep();
+            // Back here only when deepsleep() kept a game that has no auto
+            // save: wait another timeout, not a poll(0) loop.
+            standby_log("standby: power-off refused (game without auto save state)");
+            suspend_start = getMilliseconds();
         }
     }
+
+    standby_log("standby: woken after %ld s, %d input events",
+                (getMilliseconds() - standby_begin) / 1000, standby_events);
 
     // resume
     system_powersave_off();
