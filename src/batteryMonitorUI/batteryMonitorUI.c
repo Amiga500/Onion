@@ -1287,6 +1287,12 @@ static int axp_set_voff(int code)
         close(fd);
         return -1;
     }
+    // Not below 2.9 V (the PMIC default), whoever calls: only a lower value
+    // already on the PMIC may be written back as it is.
+    if (code < AXP_VOFF_CODE_MIN && code < (r31 & 0x07)) {
+        close(fd);
+        return -1;
+    }
     unsigned char new_r31 = (unsigned char)((r31 & 0x90) | (code & 0x07));
     if (axp_i2c_write(fd, REG_AXP_VOFF, new_r31) != 0) {
         close(fd);
@@ -1337,7 +1343,8 @@ static int axp_set_charge_voltage(int code)
 //   bit 5 battery total capacity correction enable (RW, persistent switch),
 //   bit 4 correction status (0: not correcting, 1: correcting).
 // Returns 0 on success, -1 on I2C failure, -2 when the PMIC did not accept the new bit 5 value,
-// -3 when learning is to be enabled with no capacity saved (nothing written).
+// -3 when learning is to be enabled with no capacity saved (E0H bit 15 clear or value 0;
+// nothing written).
 static int axp_set_calibration(bool on)
 {
     if (!HAS_AXP())
@@ -1368,7 +1375,7 @@ static int axp_set_calibration(bool on)
             close(fd);
             return -1;
         }
-        if ((e01 & 0x7FFF) == 0) {
+        if (!(e01 & 0x8000) || (e01 & 0x7FFF) == 0) { // as axp_status.cap_set
             close(fd);
             return -3;
         }
@@ -2817,7 +2824,14 @@ int main(int argc, char *argv[])
                         // Checked again: the charger may have gone in while the dialog was open.
                         axp_poll_data();
                         int cap = (axp_status.capacity_mah > 0) ? axp_status.capacity_mah : axp_edit_capacity;
-                        if (axp_sync_check(axp_status.available, axp_status.is_charging, axp_status.voltage_mv) != AXP_SYNC_OK) {
+                        int sync = axp_sync_check(axp_status.available, axp_status.is_charging, axp_status.voltage_mv);
+                        if (sync == AXP_SYNC_NO_PMIC) {
+                            snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "I2C error: PMIC not read");
+                        }
+                        else if (sync == AXP_SYNC_CHARGING) {
+                            snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Charging: counter left as it is");
+                        }
+                        else if (sync != AXP_SYNC_OK) {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Battery not full: counter left as it is");
                         }
                         else {
