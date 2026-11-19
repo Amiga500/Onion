@@ -662,6 +662,7 @@ onion_percent() { # done bytes, total bytes
 	[ "$_op_t" -gt 0 ] || return
 	onion_pct=$(($1 / 1024 * 100 / _op_t))
 	[ "$onion_pct" -gt 100 ] && onion_pct=100
+	return 0
 }
 
 # The percent and MB under the onion, centred.

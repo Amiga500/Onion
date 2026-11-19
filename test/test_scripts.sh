@@ -4575,6 +4575,7 @@ onion_percent 0 432013312; check "percent at the start: 0 ($onion_pct)" test "$o
 onion_percent 1000 x; check "size not a number: 0 ($onion_pct)" test "$onion_pct" -eq 0
 onion_percent 1000 ""; check "no size: 0 ($onion_pct)" test "$onion_pct" -eq 0
 onion_percent 500 900; check "size under 1 KB: 0 ($onion_pct)" test "$onion_pct" -eq 0
+onion_percent 1048576 4194304; check "returns 0 below 100 %" test $? -eq 0
 check "no bytes * 100 in the updater" sh -c '! grep -nE "(done|\\\$1) \\* 100" "$1"' _ "$OTA_SCRIPT"
 unset -f stty onion_layout onion_draw onion_status onion_percent
 end
