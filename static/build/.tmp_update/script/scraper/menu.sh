@@ -12,12 +12,33 @@ romNameNoExtension=${romname%.*}
 romimage="/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
 ScraperConfigFile=/mnt/SDCARD/.tmp_update/config/scraper.json
 
+# Prompts in the menus' style (shellect.sh): the button names (A, MENU,
+# START: ...) in red, the rest as it is. One line of single-spaced words.
+keys_red() { # text
+    _kr_sep=
+    # No globbing while splitting the words; the caller's setting after.
+    case $- in *f*) _kr_glob= ;; *) _kr_glob=1 ;; esac
+    set -f
+    for _kr_w in $1; do
+        printf '%s' "$_kr_sep"
+        _kr_sep=' '
+        _kr_key=${_kr_w%[,.]}
+        case $_kr_key in
+            A | A: | B | B: | X | X: | Y | Y: | MENU | MENU: | START | START: | SELECT | SELECT: | L1 | L1: | R1 | R1: | Enter | Enter:)
+                printf '\033[31;1m%s\033[0m%s' "$_kr_key" "${_kr_w#"$_kr_key"}" ;;
+            *) printf '%s' "$_kr_w" ;;
+        esac
+    done
+    [ -n "$_kr_glob" ] && set +f
+    return 0
+}
+
 # "Press A to ...": wait for A only. Any key used to go on, so a D-pad press
 # (or the console resting on its buttons) skipped the message. A reaches the
 # terminal as a space, START as Enter, the D-pad as Esc [ A..D: only the
 # space ends the wait (or no input at all: the terminal is gone).
 press_a() { # prompt
-    printf '%s' "$1"
+    keys_red "$1"
     while IFS= read -n 1 -s -r _pa_key; do
         [ "$_pa_key" = " " ] && break
     done
@@ -70,17 +91,30 @@ Menu_Config()
     Option5="Toggle background scraping"
     Option7="Screenscraper: Game Info media"
     Option6="Back"
-    
-    Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option4\n$Option5\n$Option7\n$Option6" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== CONFIGURATION ==--" -b "$FootValidate")
+    # Long jobs over many games (zazzagone): here rather than in the main
+    # menu, where a wrong press could start hours or days of scraping.
+    Option8="Scrape all favorites"
+    Option9="Scrape all consoles"
+    Option10="Delete media of deleted games: all consoles"
 
-    [ "$Mychoice" = "$Option1" ] && Menu_Config_MediaType
-    [ "$Mychoice" = "$Option2" ] && Menu_RegionSelection
-    [ "$Mychoice" = "$Option3" ] && Menu_Config_ScrapingSource
-    [ "$Mychoice" = "$Option4" ] && Menu_Config_SSAccountSettings
-    [ "$Mychoice" = "$Option5" ] && Menu_Config_BackgroundScraping
-    [ "$Mychoice" = "$Option7" ] && Menu_Config_GameInfo
-	[ "$Mychoice" = "$Option6" ] && Menu_Main
-	
+    Mychoice=$( echo -e "$Option1\n$Option2\n$Option3\n$Option4\n$Option5\n$Option7\n$Option8\n$Option9\n$Option10\n$Option6" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== CONFIGURATION ==--" -b "$FootValidate")
+
+    # One case: the menus called here set Option* and Mychoice too, so a
+    # test after them could match a value of theirs.
+    case "$Mychoice" in
+        "") ;;
+        "$Option1") Menu_Config_MediaType ;;
+        "$Option2") Menu_RegionSelection ;;
+        "$Option3") Menu_Config_ScrapingSource ;;
+        "$Option4") Menu_Config_SSAccountSettings ;;
+        "$Option5") Menu_Config_BackgroundScraping ;;
+        "$Option7") Menu_Config_GameInfo ;;
+        "$Option8") Scrape_Favorites ;;
+        "$Option9") Scrape_All_Consoles ;;
+        "$Option10") Clean_Media all ;;
+        "$Option6") Menu_Main ;;
+    esac
+
 	sync
 }
 
@@ -690,13 +724,83 @@ clear
 
 ##########################################################################################
 
-Delete_Rom_Cover ()
+# This game's media (zazzagone): its cover (Imgs), its Game Info media
+# (media/<kind>, "-1", "-2"... screenshots included) and its manual
+# (Manuals), named after the ROM. Names are compared, not used as
+# patterns: "[!]" and "*" in a ROM name match only themselves.
+Game_Media_Files ()
 {
+    _gm_root="${ROMS_DIR:-/mnt/SDCARD/Roms}/$CurrentSystem" # ROMS_DIR: tests
+    [ -n "$romNameNoExtension" ] || return 0
+    for _gm_dir in "$_gm_root/Imgs" "$_gm_root/Manuals" "$_gm_root"/media/*; do
+        [ -d "$_gm_dir" ] || continue
+        for _gm_f in "$_gm_dir"/*; do
+            [ -f "$_gm_f" ] || continue
+            _gm_n=${_gm_f##*/}
+            _gm_n=${_gm_n%.*}
+            if [ "$_gm_n" = "$romNameNoExtension" ]; then
+                echo "$_gm_f"
+                continue
+            fi
+            _gm_s=${_gm_n#"$romNameNoExtension"-}
+            [ "$_gm_s" != "$_gm_n" ] || continue
+            case $_gm_s in
+                '' | *[!0-9]*) ;;
+                *) echo "$_gm_f" ;;
+            esac
+        done
+    done
+}
+
+# For the main menu, quick: the names the scrapers write (cover .png, Game
+# Info .png/.mp4/.pdf, manual .pdf), without listing whole folders, which
+# can hold thousands of files. Game_Media_Files finds everything.
+Game_Has_Media ()
+{
+    _gh_root="${ROMS_DIR:-/mnt/SDCARD/Roms}/$CurrentSystem" # ROMS_DIR: tests
+    [ -n "$romNameNoExtension" ] || return 1
+    [ -f "$_gh_root/Imgs/$romNameNoExtension.png" ] && return 0
+    [ -f "$_gh_root/Manuals/$romNameNoExtension.pdf" ] && return 0
+    for _gh_dir in "$_gh_root"/media/*; do
+        [ -d "$_gh_dir" ] || continue
+        for _gh_ext in png mp4 pdf; do
+            [ -f "$_gh_dir/$romNameNoExtension.$_gh_ext" ] && return 0
+        done
+    done
+    return 1
+}
+
+Delete_Game_Media ()
+{
+    list=/tmp/game_media_list
+    Game_Media_Files > "$list"
+    count=$(grep -c . "$list")
     clear
-    rm "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
-    echo -e "$romNameNoExtension.png\nRemoved\n"
+    if [ "$count" -eq 0 ]; then
+        echo -e "No cover or media for\n$romNameNoExtension.\n"
+        rm -f "$list"
+        press_a "Press A to continue"
+        Menu_Main
+        return
+    fi
+    echo -e "$count files of $romNameNoExtension:\n"
+    head -n 12 "$list" | sed "s|^${ROMS_DIR:-/mnt/SDCARD/Roms}/$CurrentSystem/||"
+    [ "$count" -gt 12 ] && echo "... and $((count - 12)) more"
+    echo
     press_a "Press A to continue"
+
+    confirm=$( echo -e "Delete $count files\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== COVER AND MEDIA ==--" -b "$FootValidate")
     clear
+    if [ "$confirm" = "Delete $count files" ]; then
+        deleted=0
+        while IFS= read -r f; do
+            rm -f "$f" && deleted=$((deleted + 1))
+        done < "$list"
+        sync
+        echo -e "$deleted files deleted.\n"
+        press_a "Press A to continue"
+    fi
+    rm -f "$list"
     Menu_Main
 }
 
@@ -942,26 +1046,43 @@ Menu_Main ()
 clear
 Option1="Scrape all $(basename "$CurrentSystem") roms"
 Option2="Scrape current rom: $romname"
-[ -f "$romimage" ] && Option3="Delete cover: $romNameNoExtension.png" || Option3=""
+# Only when the game has a cover or other media
+Game_Has_Media && Option3="Delete cover and media: $romNameNoExtension" || Option3=""
 Option4="Configuration"
 Option5="Exit"
 Option6="Delete media of deleted games: $(basename "$CurrentSystem")"
-Option7="Delete media of deleted games: all consoles"
-Option8="Scrape all favorites"
-Option9="Scrape all consoles"
+# Opened from the Favorites tab (game_list_options.sh: glo_tab 2): the
+# favorites are the list this game is in.
+[ "$glo_tab" = 2 ] && Option8="Scrape all favorites" || Option8=""
 
+# This game and its list only (zazzagone). The long jobs over many games
+# (all favorites, all consoles, media of all consoles) are in
+# Configuration. "Delete cover and media" only with some: an empty item
+# matched an empty choice (MENU).
 clear
-Mychoice=$( echo -e "$Option1\n$Option9\n$Option2\n$Option8\n$Option3\n$Option6\n$Option7\n$Option4\nExit" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== MAIN MENU ==--" -b "$FootValidate")
+Mychoice=$(
+    {
+        echo "$Option2"
+        [ -n "$Option3" ] && echo "$Option3"
+        echo "$Option1"
+        [ -n "$Option8" ] && echo "$Option8"
+        echo "$Option6"
+        echo "$Option4"
+        echo "$Option5"
+    } | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== MAIN MENU ==--" -b "$FootValidate"
+)
 
-[ "$Mychoice" = "$Option1" ] && (onerom=0; Launch_Scraping;)
-[ "$Mychoice" = "$Option2" ] && (onerom=1; Launch_Scraping;)
-[ "$Mychoice" = "$Option8" ] && Scrape_Favorites
-[ "$Mychoice" = "$Option9" ] && Scrape_All_Consoles
-[ "$Mychoice" = "$Option3" ] && Delete_Rom_Cover
-[ "$Mychoice" = "$Option6" ] && Clean_Media "/mnt/SDCARD/Roms/$CurrentSystem"
-[ "$Mychoice" = "$Option7" ] && Clean_Media all
-[ "$Mychoice" = "$Option4" ] && Menu_Config
-[ "$Mychoice" = "$Option5" ] && exit
+# One case: the menus called here set Option* and Mychoice too.
+case "$Mychoice" in
+    "") ;;
+    "$Option1") (onerom=0; Launch_Scraping;) ;;
+    "$Option2") (onerom=1; Launch_Scraping;) ;;
+    "$Option3") Delete_Game_Media ;;
+    "$Option8") Scrape_Favorites ;;
+    "$Option6") Clean_Media "/mnt/SDCARD/Roms/$CurrentSystem" ;;
+    "$Option4") Menu_Config ;;
+    "$Option5") exit ;;
+esac
 
 
 }

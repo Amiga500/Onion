@@ -697,7 +697,7 @@ check "switch one off" test "$(gi_toggle desc,box2dfront,screenshot box2dfront)"
 check "switch one on, in the menu's order" test "$(gi_toggle desc,screenshot video)" = "desc,screenshot,video"
 check "the last one off: none (not the default again)" test "$(gi_toggle video video)" = "none"
 check "from none" test "$(gi_toggle none manual)" = "manual"
-check "menu: Game Info entry in the configuration" grep -q 'Menu_Config_GameInfo$' "$SCRAPER_MENU"
+check "menu: Game Info entry in the configuration" grep -q 'Menu_Config_GameInfo ;;' "$SCRAPER_MENU"
 check "menu: the current ROM can be scraped again (Game Info media)" grep -qx 'Option2="Scrape current rom: $romname"' "$SCRAPER_MENU"
 check "same default list in the menu and the scraper" test "$(grep '^GI_DEFAULT=' "$SCRAPER_MENU")" = "$(grep '^GI_DEFAULT=' "$SCRAPER_SS")"
 check "default config has the key" sh -c "jq -e '.ScreenscraperGameInfo == \"desc,box2dfront,box2dback,box3d,screenshot\"' '$ROOT/static/configs/.tmp_update/config/scraper.json' > /dev/null"
@@ -2221,7 +2221,7 @@ end
 OTA_SCRIPT="$ROOT/static/build/.tmp_update/script/ota_update.sh"
 
 begin ota_info_screen_menu_exits
-for f in wait_key read_button ask_leave drop_keys; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
+for f in wait_key read_button ask_leave drop_keys keys_red; do eval "$(extract_fn "$OTA_SCRIPT" $f)"; done
 eval "$(grep -E '^(ESC|CR)=' "$OTA_SCRIPT")"
 NL='
 '
@@ -2235,7 +2235,10 @@ check "other buttons (START, the D-pad...) are ignored until A" test $? -eq 0
 printf '\033' > "$TMP/menu"
 out=$(wait_key "x" < "$TMP/menu")
 check "MENU (a lone Esc), then nothing: leaves" test $? -eq 1
-check "MENU asks first" sh -c "echo \"\$1\" | grep -q 'Exit the updater? START: yes, A: no'" _ "$out"
+esc_x=$(printf '\033')
+plain=$(printf '%s' "$out" | sed "s/$esc_x\[[0-9;]*m//g")
+check "MENU asks first" sh -c 'echo "$1" | grep -q "Exit the updater? START: yes, A: no"' _ "$plain"
+check "the buttons in red (START:, A:)" sh -c 'case "$1" in *"$2[31;1mSTART:"*) exit 0 ;; esac; exit 1' _ "$out" "$esc_x"
 printf '\033\n' > "$TMP/menu_start"
 wait_key "x" < "$TMP/menu_start" > /dev/null
 check "MENU, then START: leaves" test $? -eq 1
@@ -4525,11 +4528,19 @@ begin scraper_press_a_waits_for_a_only
 # ends it now, or the end of input (the terminal closed).
 SCRAPER_MENU="$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
 eval "$(extract_fn "$SCRAPER_MENU" press_a)"
+eval "$(extract_fn "$SCRAPER_MENU" keys_red)"
+noansi() { sed "s/$(printf '\033')\[[0-9;]*m//g"; }
 if (printf 'x' | IFS= read -n 1 -r _k) 2> /dev/null; then
-    out=$(printf '\033[B\033[Dx\n z' | { press_a "Press A"; cat; })
+    out=$(printf '\033[B\033[Dx\n z' | { press_a "Press A"; cat; } | noansi)
     check "D-pad, a letter and START ignored, A goes on" test "$out" = "Press Az"
-    out=$(printf 'abc' | { press_a "Press A"; echo "|end"; })
+    out=$(printf 'abc' | { press_a "Press A"; echo "|end"; } | noansi)
     check "no A before the end of input: no hang" test "$out" = "Press A|end"
+    out=$(keys_red "Press A to continue, MENU to exit" | sed "s/$(printf '\033')\[31;1m/<R>/g; s/$(printf '\033')\[0m/<\/R>/g")
+    check "the buttons in red, as in the menus ($out)" test "$out" = "Press <R>A</R> to continue, <R>MENU</R> to exit"
+    out=$(set -f; keys_red "Press A" > /dev/null; case $- in *f*) echo off ;; *) echo on ;; esac)
+    check "keys_red leaves a script's set -f as it was ($out)" test "$out" = off
+    out=$(set +f; keys_red "Press A" > /dev/null; case $- in *f*) echo off ;; *) echo on ;; esac)
+    check "keys_red leaves globbing on when it was ($out)" test "$out" = on
 else
     echo "    (skipped: this shell has no read -n)"
 fi
@@ -4651,10 +4662,114 @@ end
 
 begin scraper_menu_clean_media_in_main_menu
 menu_fn() { sed -n "/^$1 *()/,/^}/p" "$SCRAPER_MENU"; }
-check "not handled in the configuration menu" sh -c '! printf "%s" "$1" | grep -q Clean_Media' _ "$(menu_fn Menu_Config)"
-check "configuration: Back still goes to the main menu" sh -c 'printf "%s" "$1" | grep -q "Option6\" ] && Menu_Main"' _ "$(menu_fn Menu_Config)"
-check "main menu: one console" sh -c 'printf "%s" "$1" | grep -qF "[ \"\$Mychoice\" = \"\$Option6\" ] && Clean_Media \"/mnt/SDCARD/Roms/\$CurrentSystem\""' _ "$(menu_fn Menu_Main)"
-check "main menu: all consoles" sh -c 'printf "%s" "$1" | grep -qF "[ \"\$Mychoice\" = \"\$Option7\" ] && Clean_Media all"' _ "$(menu_fn Menu_Main)"
+check "configuration: Back still goes to the main menu" sh -c 'printf "%s" "$1" | grep -qF "\"\$Option6\") Menu_Main ;;"' _ "$(menu_fn Menu_Config)"
+check "main menu: one console" sh -c 'printf "%s" "$1" | grep -qF "\"\$Option6\") Clean_Media \"/mnt/SDCARD/Roms/\$CurrentSystem\" ;;"' _ "$(menu_fn Menu_Main)"
+check "configuration: all consoles" sh -c 'printf "%s" "$1" | grep -qF "\"\$Option10\") Clean_Media all ;;"' _ "$(menu_fn Menu_Config)"
+check "main menu: not all consoles" sh -c '! printf "%s" "$1" | grep -q "Clean_Media all"' _ "$(menu_fn Menu_Main)"
+end
+
+# ---- Scraper main menu: this game's commands only (zazzagone) ----
+# The game's and its console's commands, then Configuration and Exit. The
+# long jobs (all favorites, all consoles, media of all consoles) moved to
+# Configuration: a wrong press could start hours of scraping. "Delete
+# cover" was an empty item without a cover, and an empty choice (MENU)
+# matched it: "Removed" for a file that wasn't there.
+
+begin scraper_main_menu_game_commands_first
+menu_fn() { sed -n "/^$1 *()/,/^}/p" "$SCRAPER_MENU"; }
+# shellect stub: saves the items, answers with what mm_pick set (once)
+# (it runs in $(...): the answer is a file, used once)
+{ menu_fn Menu_Main; menu_fn Menu_Config; } | sed "s|/mnt/SDCARD/.tmp_update/script/shellect.sh|mm_shellect|" > "$TMP/mm.sh"
+mm_shellect() { cat > "$TMP/items"; cat "$TMP/pick" 2> /dev/null; rm -f "$TMP/pick"; }
+mm_pick() { printf '%s' "$1" > "$TMP/pick"; }
+clear() { :; }
+Launch_Scraping() { echo "scrape $onerom" >> "$TMP/calls"; }
+Clean_Media() { echo "clean $1" >> "$TMP/calls"; }
+Delete_Game_Media() { echo delete_media >> "$TMP/calls"; }
+Game_Has_Media() { [ -f "$TMP/has_media" ]; }
+Scrape_Favorites() { echo favorites >> "$TMP/calls"; }
+Scrape_All_Consoles() { echo all_consoles >> "$TMP/calls"; }
+Menu_Config_BackgroundScraping() { echo background >> "$TMP/calls"; Mychoice="Exit"; }
+. "$TMP/mm.sh"
+CurrentSystem=CPS1 romname=dino.zip romNameNoExtension=dino
+touch "$TMP/has_media"
+: > "$TMP/calls"; mm_pick ""; Menu_Main
+items=$(tr '\n' '|' < "$TMP/items")
+check "main: game, its media, console, Configuration, Exit ($items)" test "$items" = "Scrape current rom: dino.zip|Delete cover and media: dino|Scrape all CPS1 roms|Delete media of deleted games: CPS1|Configuration|Exit|"
+check "MENU (empty choice) with media: nothing done" test ! -s "$TMP/calls"
+: > "$TMP/calls"; mm_pick "Delete cover and media: dino"; Menu_Main
+check "Delete cover and media runs" test "$(cat "$TMP/calls")" = delete_media
+rm "$TMP/has_media"
+: > "$TMP/calls"; mm_pick ""; Menu_Main
+items=$(tr '\n' '|' < "$TMP/items")
+check "no media: no Delete item ($items)" sh -c 'case "$1" in *"Delete cover"*) exit 1 ;; esac' _ "$items"
+check "MENU without media: nothing run" test ! -s "$TMP/calls"
+: > "$TMP/calls"; mm_pick "Scrape current rom: dino.zip"; Menu_Main
+check "this game still scraped" test "$(cat "$TMP/calls")" = "scrape 1"
+: > "$TMP/calls"; mm_pick "Scrape all favorites"; Menu_Main
+check "from a console list: no Scrape all favorites" test ! -s "$TMP/calls"
+glo_tab=2; : > "$TMP/calls"; mm_pick "Scrape all favorites"; Menu_Main
+items=$(tr '\n' '|' < "$TMP/items")
+check "from Favorites: Scrape all favorites after the console ($items)" test "$items" = "Scrape current rom: dino.zip|Scrape all CPS1 roms|Scrape all favorites|Delete media of deleted games: CPS1|Configuration|Exit|"
+check "from Favorites: it runs" test "$(cat "$TMP/calls")" = favorites
+unset glo_tab
+check "the game list options pass their tab on" grep -q '^export glo_tab="\$current_tab"' "$ROOT/static/build/.tmp_update/script/game_list_options.sh"
+: > "$TMP/calls"; mm_pick ""; Menu_Config
+items=$(tr '\n' '|' < "$TMP/items")
+check "configuration: the long jobs before Back ($items)" sh -c 'case "$1" in *"|Scrape all favorites|Scrape all consoles|Delete media of deleted games: all consoles|Back|") exit 0 ;; esac; exit 1' _ "$items"
+for job in "Scrape all favorites:favorites" "Scrape all consoles:all_consoles" "Delete media of deleted games: all consoles:clean all"; do
+    : > "$TMP/calls"; mm_pick "${job%:*}"; Menu_Config
+    check "configuration: ${job%:*}" test "$(cat "$TMP/calls")" = "${job##*:}"
+done
+# A submenu that leaves Mychoice set to "Exit" no longer makes the
+# main menu's later tests exit: one case, decided before the call.
+: > "$TMP/calls"; mm_pick "Toggle background scraping"; ( Menu_Config; echo returned >> "$TMP/calls" )
+check "configuration: a submenu's choice doesn't leak ($(tr '\n' ' ' < "$TMP/calls"))" test "$(tr '\n' ' ' < "$TMP/calls")" = "background returned "
+unset -f mm_shellect mm_pick clear Launch_Scraping Delete_Game_Media Game_Has_Media Clean_Media Scrape_Favorites Scrape_All_Consoles Menu_Config_BackgroundScraping Menu_Main Menu_Config
+check "shellect: red cursor" grep -q "esc SGR 31 1; printf '>'" "$ROOT/static/build/.tmp_update/script/shellect.sh"
+check "shellect: red title" grep -qF "esc SGR 31 1; printf '%s' \"\$msg\"; esc SGR 0 0" "$ROOT/static/build/.tmp_update/script/shellect.sh"
+# The keys at the bottom: the key red, its action normal, same text
+SHELLECT="$ROOT/static/build/.tmp_update/script/shellect.sh"
+esc_c=$(printf '\033')
+eval "$(extract_fn "$SHELLECT" esc)"
+eval "$(extract_fn "$SHELLECT" keys_print)"
+kp_marked() { keys_print "$1" | sed "s/$esc_c\[31;1m/<R>/g; s/$esc_c\[0;0m/<\/R>/g"; }
+check "keys: Menu/A" test "$(kp_marked "Menu: Exit      A: Validate")" = "<R>Menu:</R> Exit      <R>A:</R> Validate"
+check "keys: three keys, two-word action" test "$(kp_marked "Menu: Close PDF   Start: Exit   A: Open")" = "<R>Menu:</R> Close PDF   <R>Start:</R> Exit   <R>A:</R> Open"
+check "keys: no key, as it is" test "$(kp_marked "no keys here")" = "no keys here"
+unset -f esc keys_print kp_marked
+end
+
+# ---- Scraper: "Delete cover and media" finds all of this game's media ----
+# "Delete cover" removed Imgs/<game>.png only: the Game Info media,
+# screenshots and manual stayed (zazzagone).
+
+begin scraper_game_media_files
+eval "$(sed -n '/^Game_Media_Files ()/,/^}/p' "$SCRAPER_MENU")"
+eval "$(sed -n '/^Game_Has_Media ()/,/^}/p' "$SCRAPER_MENU")"
+ROMS_DIR=$TMP/Roms CurrentSystem=CPS1
+r=$ROMS_DIR/CPS1
+mkdir -p "$r/Imgs" "$r/Manuals" "$r/media/box2dfront" "$r/media/screenshot" "$r/media/videos"
+romNameNoExtension="Dino [!] (World)"
+for f in "Imgs/Dino [!] (World).png" "Manuals/Dino [!] (World).pdf" "media/box2dfront/Dino [!] (World).png" \
+    "media/screenshot/Dino [!] (World)-1.png" "media/screenshot/Dino [!] (World)-2.png" "media/videos/Dino [!] (World).mp4" \
+    "Imgs/Dino [!] (World) 2.png" "Imgs/Dino x.png" "media/screenshot/Dino [!] (World)-a.png" "Imgs/Dino [!] (World)-.png"; do
+    touch "$r/$f"
+done
+out=$(Game_Media_Files | sed "s|^$r/||" | sort | tr '\n' '|')
+check "cover, manual, media, numbered screenshots; not other games ($out)" test "$out" = "Imgs/Dino [!] (World).png|Manuals/Dino [!] (World).pdf|media/box2dfront/Dino [!] (World).png|media/screenshot/Dino [!] (World)-1.png|media/screenshot/Dino [!] (World)-2.png|media/videos/Dino [!] (World).mp4|"
+Game_Has_Media; check "the menu sees its media" test $? -eq 0
+for only in "Imgs/Solo.png" "Manuals/Solo.pdf" "media/videos/Solo.mp4"; do
+    rm -rf "$TMP/solo"; mkdir -p "$TMP/solo/CPS1/$(dirname "$only")"; touch "$TMP/solo/CPS1/$only"
+    ( ROMS_DIR=$TMP/solo romNameNoExtension=Solo; Game_Has_Media ); check "the menu sees only $only" test $? -eq 0
+done
+romNameNoExtension="Nothing"
+check "a game without media: nothing" test -z "$(Game_Media_Files)"
+Game_Has_Media; check "the menu sees none" test $? -eq 1
+romNameNoExtension=
+check "no game name: nothing" test -z "$(Game_Media_Files)"
+unset -f Game_Media_Files Game_Has_Media; unset ROMS_DIR CurrentSystem romNameNoExtension
+check "menu: Delete cover and media runs Delete_Game_Media" grep -qF '"$Option3") Delete_Game_Media ;;' "$SCRAPER_MENU"
 end
 
 # ---- Scraper menu: "Scrape all favorites" ----
@@ -4675,7 +4790,7 @@ check "the account question once (scrap_screenscraper.sh)" grep -q 'SCRAPER_NO_A
 for sc in screenscraper launchbox retroarch; do
     check "progress under the $sc title" grep -q 'echo -e "$SCRAPER_PROGRESS' "$ROOT/static/build/.tmp_update/script/scraper/scrap_$sc.sh"
 done
-check "menu: shown and handled" sh -c "grep -q 'Option8=\"Scrape all favorites\"' '$SCRAPER_MENU' && grep -q 'Option8\" ] && Scrape_Favorites' '$SCRAPER_MENU'"
+check "configuration menu: shown and handled" sh -c "grep -q 'Option8=\"Scrape all favorites\"' '$SCRAPER_MENU' && grep -q '\"\$Option8\") Scrape_Favorites ;;' '$SCRAPER_MENU'"
 end
 
 # ---- Scraper menu: "Scrape all consoles" ----
@@ -4695,7 +4810,7 @@ mkdir -p "$R/GBA/Imgs" "$R/MD/Sega" "$R/SFC/Imgs" "$R/PS/media/box3d" "$R/MYSTER
 : > "$R/PICO/celeste.p8.png"              # PICO-8 carts are PNG files
 check "consoles with games, known to the scraper" test "$(SCRAPER_DIR="$(dirname "$SCRAPER_SS")" Consoles_List "$R" | tr '\n' ' ')" = "GBA MD PICO "
 check "no Roms folder: nothing" test -z "$(SCRAPER_DIR="$(dirname "$SCRAPER_SS")" Consoles_List "$TMP/none")"
-check "menu: shown and handled" sh -c "grep -q 'Option9=\"Scrape all consoles\"' '$SCRAPER_MENU' && grep -q 'Option9\" ] && Scrape_All_Consoles' '$SCRAPER_MENU'"
+check "configuration menu: shown and handled" sh -c "grep -q 'Option9=\"Scrape all consoles\"' '$SCRAPER_MENU' && grep -q '\"\$Option9\") Scrape_All_Consoles ;;' '$SCRAPER_MENU'"
 check "asks before starting" grep -q 'SCRAPE ALL CONSOLES' "$SCRAPER_MENU"
 end
 

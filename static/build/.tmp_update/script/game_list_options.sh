@@ -46,6 +46,9 @@ TAB_APPS=3
 TAB_RECENTS=10
 TAB_EXPERT=16
 current_tab=$(cat /tmp/state.json | grep "\"type\":" | sed -e 's/^.*:\s*//g' | sed -e 's/\s*,$//g' | xargs | awk '{ print $2 }')
+# For the scripts started from here: the Scraper offers "Scrape all
+# favorites" in its main menu when opened from the Favorites tab.
+export glo_tab="$current_tab"
 
 cmd=$(cat ./cmd_to_run.sh 2> /dev/null)
 rompath=""

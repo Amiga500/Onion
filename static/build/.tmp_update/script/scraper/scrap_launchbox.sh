@@ -197,9 +197,11 @@ get_launchbox_alias() {
 
 saveMetadata=false
 clear
+printf '\033[31;1m'
 echo -e "\n*****************************************************"
 echo -e "*******************   LAUNCHBOX   *******************"
 echo -e "*****************************************************\n\n"
+printf '\033[0m'
 # "Scrape all favorites" (menu.sh): which game of how many
 [ -n "$SCRAPER_PROGRESS" ] && echo -e "$SCRAPER_PROGRESS\n"
 

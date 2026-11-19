@@ -1,11 +1,32 @@
 #!/bin/sh
 
+# Prompts in the menus' style (shellect.sh): the button names (A, MENU,
+# START: ...) in red, the rest as it is. One line of single-spaced words.
+keys_red() { # text
+    _kr_sep=
+    # No globbing while splitting the words; the caller's setting after.
+    case $- in *f*) _kr_glob= ;; *) _kr_glob=1 ;; esac
+    set -f
+    for _kr_w in $1; do
+        printf '%s' "$_kr_sep"
+        _kr_sep=' '
+        _kr_key=${_kr_w%[,.]}
+        case $_kr_key in
+            A | A: | B | B: | X | X: | Y | Y: | MENU | MENU: | START | START: | SELECT | SELECT: | L1 | L1: | R1 | R1: | Enter | Enter:)
+                printf '\033[31;1m%s\033[0m%s' "$_kr_key" "${_kr_w#"$_kr_key"}" ;;
+            *) printf '%s' "$_kr_w" ;;
+        esac
+    done
+    [ -n "$_kr_glob" ] && set +f
+    return 0
+}
+
 # "Press A to ...": wait for A only. Any key used to go on, so a D-pad press
 # (or the console resting on its buttons) skipped the message. A reaches the
 # terminal as a space, START as Enter, the D-pad as Esc [ A..D: only the
 # space ends the wait (or no input at all: the terminal is gone).
 press_a() { # prompt
-    printf '%s' "$1"
+    keys_red "$1"
     while IFS= read -n 1 -s -r _pa_key; do
         [ "$_pa_key" = " " ] && break
     done
@@ -594,9 +615,11 @@ GI_DESC_BATCH=25
 trap gi_flush_desc EXIT
 trap 'gi_flush_desc; exit 1' HUP INT TERM
 clear
+printf '\033[31;1m'
 echo -e "\n*****************************************************"
 echo -e "******************* SCREENSCRAPER *******************"
 echo -e "*****************************************************\n\n"
+printf '\033[0m'
 
 
 
@@ -650,7 +673,7 @@ if [ "$userStored" = "false" ] && ! [ "$ScrapeInBackground" = "true" ] && [ -z "
         if [ "$Mychoice" = "Yes" ]; then
 			clear
 			echo -ne "\e[?25h"  # display the cursor
-			echo -e "Press X to display the keyboard.\nPress A to enter a key.\nPress L1 for shift.\nPress R1 for backspace.\nPress Enter to validate.\n\n\n\nEnter your screenscraper username.\n\n"
+			for _kb in "Press X to display the keyboard." "Press A to enter a key." "Press L1 for shift." "Press R1 for backspace." "Press Enter to validate."; do keys_red "$_kb"; echo; done; echo -e "\n\n\nEnter your screenscraper username.\n\n"
 			readline -m "username: "
 			userSS=$(cat /tmp/readline.txt)
 			userSS="${userSS// /}"  # removing spaces
@@ -662,7 +685,7 @@ if [ "$userStored" = "false" ] && ! [ "$ScrapeInBackground" = "true" ] && [ -z "
 			sync
 			clear
 			echo -ne "\e[?25h"  # display the cursor
-			echo -e "Press X to display the keyboard.\nPress A to enter a key.\nPress L1 for shift.\nPress R1 for backspace.\nPress Enter to validate.\n\n\n\nEnter your screenscraper password.\n\n"
+			for _kb in "Press X to display the keyboard." "Press A to enter a key." "Press L1 for shift." "Press R1 for backspace." "Press Enter to validate."; do keys_red "$_kb"; echo; done; echo -e "\n\n\nEnter your screenscraper password.\n\n"
 			readline -m "password: "
 			passSS=$(cat /tmp/readline.txt)
 			passSS="${passSS// /}"  # removing spaces

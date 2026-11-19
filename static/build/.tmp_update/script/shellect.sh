@@ -215,8 +215,10 @@ arg_format() {
 
     # overall display rule
     case "$cur" in
+	# Not selected: faint (light grey). Selected: a red cursor and bright
+	# white text, as in the theme (RedOnion; was a magenta cursor, yellow).
 	'') esc CUR 2; esc SGR '' 2 ;;
-	*) esc CUR -2; esc SGR 35 1; printf '>'; esc SGR 33 1; esc CUR 1 ;;
+	*) esc CUR -2; esc SGR 31 1; printf '>'; esc SGR 37 1; esc CUR 1 ;;
     esac
 
     # content display format
@@ -309,15 +311,47 @@ status_line () {
         _col=$(( (COLUMNS - ${#msg}) / 2 + 1 ))
         _min=$(( ${#y} + ${#1} + 5 ))
         [ "$_col" -lt "$_min" ] && _col=$_min
-        esc CUP 1 "$_col"; printf '%s' "$msg"
+        # Red like the cursor (RedOnion), then the normal colour again
+        esc CUP 1 "$_col"; esc SGR 31 1; printf '%s' "$msg"; esc SGR 0 0
     fi
     if [ -n "$ltype" ]; then
         esc CUP "$LINES"; esc EL2
         _col=$(( COLUMNS - ${#ltype} ))
         [ "$_col" -lt 1 ] && _col=1
-        esc CUP "$LINES" "$_col"; printf '%s' "$ltype"
+        esc CUP "$LINES" "$_col"; keys_print "$ltype"
     fi
     esc DECRC
+}
+
+# The keys at the bottom, such as "Menu: Exit      A: Validate": each key
+# ("Menu:", "A:") in red like the title and the cursor, its action in the
+# normal colour. Text without "Key: " is printed as it is.
+keys_print() {
+    _kp=$1
+    while [ -n "$_kp" ]; do
+        case $_kp in
+            *": "*)
+                _kp_key=${_kp%%": "*}
+                esc SGR 31 1; printf '%s:' "$_kp_key"; esc SGR 0 0
+                printf ' '
+                _kp=${_kp#*": "}
+                # The action runs to the next gap of two spaces or more.
+                case $_kp in
+                    *"  "*) _kp_act=${_kp%%"  "*} ;;
+                    *) _kp_act=$_kp ;;
+                esac
+                _kp=${_kp#"$_kp_act"}
+                printf '%s' "$_kp_act"
+                _kp_gap=${_kp%%[! ]*}
+                printf '%s' "$_kp_gap"
+                _kp=${_kp#"$_kp_gap"}
+                ;;
+            *)
+                printf '%s' "$_kp"
+                _kp=
+                ;;
+        esac
+    done
 }
 
 prompt() {

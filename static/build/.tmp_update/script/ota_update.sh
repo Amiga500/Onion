@@ -369,17 +369,17 @@ get_release_info() {
 	echo -e "${GREEN}DONE${NC}"
 
 	echo -ne "\n\n" \
-		"${BLUE}======= Installed Version ========${NC}\n" \
+		"${RED}======= Installed Version ========${NC}\n" \
 		" Version: $Current_FullVersion \n" \
-		"${BLUE}==================================${NC}\n"
+		"${RED}==================================${NC}\n"
 	echo -ne "\n\n" \
-		"${BLUE}======== Online Version  =========${NC}\n" \
+		"${RED}======== Online Version  =========${NC}\n" \
 		" Version: $Release_FullVersion \n" \
 		" Channel: $channel \n" \
 		" Size:    $Release_size_MB \n" \
 		" Date:    $Release_Date \n" \
 		" URL:     $Release_url \n" \
-		"${BLUE}==================================${NC}\n\n\n"
+		"${RED}==================================${NC}\n\n\n"
 
 	v1=$(get_version $Current_Version)
 	v2=$(get_version $Release_Version)
@@ -469,10 +469,11 @@ ask_leave() { # question
 	# While the onion is on screen ($ask_row set) the question goes in its
 	# row under the onion and is cleared after, so the drawing stays put.
 	if [ -n "$ask_row" ]; then
-		printf "\033[%d;1H\033[K${YELLOW}%s START: yes, A: no${NC}" "$ask_row" "$1"
+		printf "\033[%d;1H\033[K" "$ask_row"
 	else
-		printf "\n${YELLOW}%s START: yes, A: no${NC}" "$1"
+		printf "\n"
 	fi
+	keys_red "$1 START: yes, A: no"
 	_al=$(stty -g 2> /dev/null)
 	stty -icanon -echo min 1 time 0 2> /dev/null
 	while :; do
@@ -491,11 +492,32 @@ ask_leave() { # question
 	return $_al_ret
 }
 
+# Prompts in the menus' style (shellect.sh): the button names (A, MENU,
+# START: ...) in red, the rest as it is. One line of single-spaced words.
+keys_red() { # text
+	_kr_sep=
+	# No globbing while splitting the words; the caller's setting after.
+	case $- in *f*) _kr_glob= ;; *) _kr_glob=1 ;; esac
+	set -f
+	for _kr_w in $1; do
+		printf '%s' "$_kr_sep"
+		_kr_sep=' '
+		_kr_key=${_kr_w%[,.]}
+		case $_kr_key in
+			A | A: | B | B: | X | X: | Y | Y: | MENU | MENU: | START | START: | SELECT | SELECT: | L1 | L1: | R1 | R1: | Enter | Enter:)
+				printf '\033[31;1m%s\033[0m%s' "$_kr_key" "${_kr_w#"$_kr_key"}" ;;
+			*) printf '%s' "$_kr_w" ;;
+		esac
+	done
+	[ -n "$_kr_glob" ] && set +f
+	return 0
+}
+
 # "Press A to exit": wait for A only (any button used to do; a D-pad press
 # left the updater). No input at all (the terminal is gone) goes on too.
 press_a() { # prompt
 	drop_keys
-	printf '%s' "$1"
+	keys_red "$1"
 	_pa=$(stty -g 2> /dev/null)
 	stty -icanon -echo min 1 time 0 2> /dev/null
 	while :; do
@@ -510,7 +532,7 @@ press_a() { # prompt
 # ignored. No input at all (the terminal is gone) leaves.
 wait_key() { # prompt
 	drop_keys
-	printf '%s' "$1"
+	keys_red "$1"
 	_stty=$(stty -g 2> /dev/null)
 	stty -icanon -echo min 1 time 0 2> /dev/null
 	_ret=
@@ -523,7 +545,7 @@ wait_key() { # prompt
 				if ask_leave "Exit the updater?"; then
 					_ret=1
 				else
-					printf '%s' "$1"
+					keys_red "$1"
 				fi
 				;;
 		esac
@@ -763,8 +785,9 @@ download_update() {
 		onion_layout
 		clear
 		printf '\033[?25l' # no cursor over the onion
-		printf "${BLUE}== Downloading RedOnion $Release_Version ($channel) ==${NC}"
-		printf "\033[%d;1H${YELLOW}MENU: stop the download${NC}" "$((onion_msg_row + 2))"
+		printf "${RED}== Downloading RedOnion $Release_Version ($channel) ==${NC}"
+		printf "\033[%d;1H" "$((onion_msg_row + 2))"
+		keys_red "MENU: stop the download"
 		ask_row=$onion_msg_row
 		# curl, which reaches GitHub where the bundled wget may not (see
 		# check_connection); wget only if curl itself cannot run.
