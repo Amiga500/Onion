@@ -7,7 +7,9 @@
 #   CONSOLE_DIR: a console folder, e.g. /mnt/SDCARD/Roms/GB
 #   Without --delete it only lists what would go; with it, deletes it.
 #   Prints one file per line; a console without any game is skipped and
-#   reported as "skip: <dir>" (its Imgs may be waiting for the ROMs to come).
+#   reported as "skip: <dir>" (its Imgs may be waiting for the ROMs to come),
+#   and so is one whose games could not all be read (an SD card read error:
+#   their media would count as left behind).
 #
 # What is looked at, in each console folder (the scraper's places, and where
 # Open MainUI and GLO look for them):
@@ -67,6 +69,7 @@ shared_rom_dirs() {
 
 # Every file and folder of a ROM folder outside its media folders and
 # hidden ones (the names still in use); with "-type d", the folders only.
+# Fails when find could not read all of it.
 names_in() {
     find "$1" ! -path "$1" \
         ! -path "$1/Imgs" ! -path "$1/Imgs/*" \
@@ -81,7 +84,12 @@ for dir in "$@"; do
     [ -d "$dir" ] || continue
 
     # Names still in use: every file and folder outside the media folders.
-    names_in "$dir" > "$tmp/games"
+    # A folder that could not all be read: its games would be missing from
+    # the list and their media taken for left behind.
+    if ! names_in "$dir" > "$tmp/games"; then
+        echo "skip: $dir (read error)"
+        continue
+    fi
 
     if [ ! -s "$tmp/games" ]; then
         echo "skip: $dir"
@@ -93,10 +101,15 @@ for dir in "$@"; do
 
     # The games of consoles sharing this folder's covers
     shared_rom_dirs "$dir" > "$tmp/shared"
+    unread=
     while IFS= read -r other; do
-        names_in "$other" >> "$tmp/games"
+        names_in "$other" >> "$tmp/games" || unread=1
         names_in "$other" "-type d" >> "$tmp/folders"
     done < "$tmp/shared"
+    if [ -n "$unread" ]; then
+        echo "skip: $dir (read error)"
+        continue
+    fi
 
     # Media: files directly in Imgs and Manuals, and in each media/<kind>.
     {

@@ -4416,6 +4416,29 @@ check "each console checked on its own (Mario on GB and MD)" test "$out" -eq 6
 check "MD's Sonic kept" sh -c '! sh "$1" "$2" | grep -q Sonic' _ "$CLEAN_MEDIA" "$R/MD"
 end
 
+begin clean_media_skips_a_console_it_could_not_read
+# find skipped a folder it could not read (an SD card error) and went on:
+# its games were missing from the list and their covers listed, then
+# deleted. Here find reads everything but exits 1 for one folder.
+cm_sd
+mkdir -p "$TMP/bin"
+real_find=$(command -v find)
+printf '#!/bin/sh\n"%s" "$@"\nrc=$?\ncase "$1" in "$CM_FIND_FAIL") exit 1 ;; esac\nexit $rc\n' "$real_find" > "$TMP/bin/find"
+chmod +x "$TMP/bin/find"
+out=$(CM_FIND_FAIL="$R/GB" PATH="$TMP/bin:$PATH" sh "$CLEAN_MEDIA" --delete "$R/GB")
+check "reported as skipped ($out)" test "$out" = "skip: $R/GB (read error)"
+check "nothing deleted" test -f "$R/GB/Imgs/Mario.png"
+R2=$TMP/Roms
+mkdir -p "$R2/ARCADE/Imgs" "$R2/MAME2003" "$TMP/RApp/mame2003"
+printf '{"rompath":"../../Roms/MAME2003","imgpath":"../../Roms/ARCADE/Imgs"}\n' > "$TMP/RApp/mame2003/config.json"
+touch "$R2/ARCADE/sf2.zip" "$R2/MAME2003/mslug.zip" "$R2/ARCADE/Imgs/mslug.png" "$R2/ARCADE/Imgs/gone.png"
+out=$(CM_FIND_FAIL="$R2/MAME2003" PATH="$TMP/bin:$PATH" sh "$CLEAN_MEDIA" --delete "$R2/ARCADE")
+check "a shared folder not read: skipped ($out)" test "$out" = "skip: $R2/ARCADE (read error)"
+check "its covers kept" test -f "$R2/ARCADE/Imgs/mslug.png" -a -f "$R2/ARCADE/Imgs/gone.png"
+out=$(PATH="$TMP/bin:$PATH" sh "$CLEAN_MEDIA" "$R2/ARCADE" | sed "s|$R2/||")
+check "read normally: cleaned as before ($out)" test "$out" = "ARCADE/Imgs/gone.png"
+end
+
 begin clean_media_keeps_covers_shared_with_another_console
 # MAME 2003 (RApp) lists Roms/MAME2003 with its covers in Roms/ARCADE/Imgs
 R=$TMP/Roms
