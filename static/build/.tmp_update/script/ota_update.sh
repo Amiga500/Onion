@@ -13,17 +13,26 @@ NC='\033[0m' # No Color
 # Repository name :
 GITHUB_REPOSITORY=Amiga500/Onion
 
+# The testers' builds have a repository of their own: the beta channel takes
+# the newest release of GITHUB_REPOSITORY, in the updaters already installed
+# too, so a testers' build released there would reach every beta user. The
+# "testers" channel shows only with config/.otaTesters (an empty file).
+TESTERS_REPOSITORY=Amiga500/RedOnion-testers
+
 # Packages are named <project>-v<version>.zip. The project is becoming
 # RedOnion; earlier releases are OnionPlus, and releases will carry both for a
 # while, since updaters before this one look for OnionPlus-v only. Prefixes in
 # order of preference.
 PACKAGE_PREFIXES="RedOnion-v OnionPlus-v"
 
-# channel : stable or beta
+# channel : stable, beta or testers (only with config/.otaTesters: without
+# it, beta)
 channel=$(cat "$sysdir/config/ota_channel" 2> /dev/null)
-if [ "$channel" = "" ]; then
-	channel="stable"
-fi
+case $channel in
+	stable | beta) ;;
+	testers) [ -f "$sysdir/config/.otaTesters" ] || channel=beta ;;
+	*) channel=stable ;;
+esac
 
 main() {
 	if [ "$cmd" = "check" ]; then
@@ -293,14 +302,18 @@ run_bootstrap() {
 }
 
 channel_choice() {
-	ota_menu "stable\nbeta" "Update channel"
+	_channels="stable\nbeta"
+	[ -f "$sysdir/config/.otaTesters" ] && _channels="$_channels\ntesters"
+	ota_menu "$_channels" "Update channel"
 	channel=$menu_choice
 	clear
 	# Nothing chosen (B): leave, keeping the saved channel. An empty
 	# ota_channel used to be saved and read as stable.
-	if [ "$channel" != "stable" ] && [ "$channel" != "beta" ]; then
-		exit 0
-	fi
+	case $channel in
+		stable | beta) ;;
+		testers) [ -f "$sysdir/config/.otaTesters" ] || exit 0 ;;
+		*) exit 0 ;;
+	esac
 	echo "$channel" > "$sysdir/config/ota_channel"
 }
 
@@ -310,14 +323,17 @@ get_release_info() {
 	echo -n "Retrieving release information... "
 
 	# Github source api url
-	if [ "$channel" = "beta" ]; then
+	if [ "$channel" = "beta" ] || [ "$channel" = "testers" ]; then
 		# The newest published build, prerelease or not: beta is never behind
 		# stable. Taking prereleases only left beta with nothing at all, since
 		# pre-release.yml publishes every build with prerelease:false.
 		# Picked by publish time: GitHub doesn't list releases newest first
 		# (a stable release can come before a newer beta).
+		# testers: the same, from the testers' repository.
 		# -L: a renamed repository answers with a redirect.
-		Release_list=$(curl -k -s -L --compressed --connect-timeout 15 --max-time 60 https://api.github.com/repos/$GITHUB_REPOSITORY/releases)
+		_repo=$GITHUB_REPOSITORY
+		[ "$channel" = "testers" ] && _repo=$TESTERS_REPOSITORY
+		Release_list=$(curl -k -s -L --compressed --connect-timeout 15 --max-time 60 https://api.github.com/repos/$_repo/releases)
 		if ! echo "$Release_list" | jq -e 'type == "array"' > /dev/null 2>&1; then
 			release_info_error "$Release_list"
 			return 2

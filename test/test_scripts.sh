@@ -880,10 +880,12 @@ if command -v jq > /dev/null; then
         _pub=${3:-$(echo "$1" | sed 's/^.*-\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)-.*$/\1-\2-\3T12:00:00Z/')}
         printf '{"tag_name":"%s","prerelease":%s,"draft":false,"published_at":"%s","body":"","assets":[{"name":"OnionPlus-v%s.zip","browser_download_url":"https://x/%s.zip","size":1048576,"created_at":"2026-09-27T00:00:00Z"}]}' "$1" "$2" "$_pub" "$1" "$1"
     }
+    eval "$(grep '^TESTERS_REPOSITORY=' "$OTA")"
     curl() { # the last argument is the URL
         for _u; do :; done
         case "$_u" in
             */releases/latest) cat "$TMP/latest.json" ;;
+            */"$TESTERS_REPOSITORY"/releases) cat "$TMP/testers.json" ;;
             */releases) cat "$TMP/list.json" ;;
         esac
     }
@@ -911,6 +913,55 @@ if command -v jq > /dev/null; then
     echo '[]' > "$TMP/list.json"
     get_release_info > /dev/null
     check "no release at all: nothing offered" test "$?" -eq 1
+    end
+
+    begin ota_testers_channel_reads_its_own_repository
+    # The testers' builds are released in their own repository: the beta
+    # channel (and the updaters already out there) never sees them.
+    check "testers repository is not the main one" test -n "$TESTERS_REPOSITORY" -a "$TESTERS_REPOSITORY" != "$GITHUB_REPOSITORY"
+    installUI() { echo "4.5.1-b2-20261119-6ec827a0"; }
+    printf '[%s]' "$(ota_asset 4.5.1-b2-20261121-1a2b3c4d true)" > "$TMP/testers.json"
+    printf '[%s]' "$(ota_asset 4.5.1-b2-20261119-6ec827a0 true)" > "$TMP/list.json"
+    channel=testers
+    get_release_info > /dev/null
+    check "testers: the testers' newest build offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.1-b2-20261121-1a2b3c4d
+    channel=beta
+    get_release_info > /dev/null
+    check "beta: the testers' build not offered" test "$?" -eq 1
+    echo '[]' > "$TMP/testers.json"
+    channel=testers
+    get_release_info > /dev/null
+    check "testers: no release, nothing offered" test "$?" -eq 1
+    installUI() { echo "4.4.0-beta-20260926-aaaaaaaa"; }
+    # The saved channel: testers only with config/.otaTesters
+    _ota_sysdir=$sysdir
+    sysdir=$TMP/sys; mkdir -p "$sysdir/config"
+    ota_read_channel() { eval "$(sed -n '/^channel=\$(cat /,/^esac/p' "$OTA")"; echo "$channel"; }
+    echo testers > "$sysdir/config/ota_channel"
+    check "saved testers without the flag: beta" test "$(ota_read_channel)" = beta
+    touch "$sysdir/config/.otaTesters"
+    check "saved testers with the flag: testers" test "$(ota_read_channel)" = testers
+    echo beta > "$sysdir/config/ota_channel"
+    check "saved beta: beta" test "$(ota_read_channel)" = beta
+    rm -f "$sysdir/config/ota_channel"
+    check "nothing saved: stable" test "$(ota_read_channel)" = stable
+    # The menu: testers listed and saved only with the flag
+    eval "$(extract_fn "$OTA" channel_choice)"
+    clear() { :; }
+    ota_menu() { echo "$1" > "$TMP/menu_items"; menu_choice=$(cat "$TMP/menu_pick"); }
+    echo testers > "$TMP/menu_pick"
+    ( channel_choice ); rc=$?
+    check "with the flag: testers in the menu" sh -c 'printf "%b" "$(cat "$1")" | grep -qx testers' _ "$TMP/menu_items"
+    check "with the flag: testers saved" test $rc -eq 0 -a "$(cat "$sysdir/config/ota_channel")" = testers
+    rm -f "$sysdir/config/.otaTesters" "$sysdir/config/ota_channel"
+    ( channel_choice ); rc=$?
+    check "without the flag: menu stable and beta only" test "$(printf '%b' "$(cat "$TMP/menu_items")" | tr '\n' ' ')" = "stable beta"
+    check "without the flag: testers not saved" test ! -e "$sysdir/config/ota_channel"
+    echo beta > "$TMP/menu_pick"
+    ( channel_choice )
+    check "beta still saved" test "$(cat "$sysdir/config/ota_channel")" = beta
+    unset -f clear ota_menu ota_read_channel channel_choice
+    sysdir=$_ota_sysdir
     end
 
     begin ota_stable_takes_latest_release
