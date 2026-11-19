@@ -1336,7 +1336,8 @@ static int axp_set_charge_voltage(int code)
 //   bit 7 fuel gauge enable, bit 6 coulomb counter enable,
 //   bit 5 battery total capacity correction enable (RW, persistent switch),
 //   bit 4 correction status (0: not correcting, 1: correcting).
-// Returns 0 on success, -1 on I2C failure, -2 when the PMIC did not accept the new bit 5 value.
+// Returns 0 on success, -1 on I2C failure, -2 when the PMIC did not accept the new bit 5 value,
+// -3 when learning is to be enabled with no capacity saved (nothing written).
 static int axp_set_calibration(bool on)
 {
     if (!HAS_AXP())
@@ -1357,22 +1358,19 @@ static int axp_set_calibration(bool on)
     unsigned char new_b8 = (unsigned char)((b8 | 0xC0));
     if (on) {
         new_b8 |= 0x20;
-        // If design capacity is unconfigured or zero, initialize it with selected capacity.
-        // A failed read (-1) is not "unconfigured": it stops here, or the capacity the PMIC holds
-        // (a learned one, maybe) would be overwritten with the menu's value.
+        // No capacity saved (E0H/E1H 0): refused, nothing written. It used to write the
+        // Capacity row's value (3000, or a change left unsaved), not shown in this dialog,
+        // and before B8H: a failed B8H write left it changed. The dialog's step 1 is to
+        // save Battery Capacity first. A failed read (-1) stops here too, or a capacity the
+        // PMIC holds could be taken for none.
         int e01 = axp_i2c_read16(fd, REG_AXP_E0);
         if (e01 < 0) {
             close(fd);
             return -1;
         }
         if ((e01 & 0x7FFF) == 0) {
-            int units = (int)((axp_edit_capacity / 1.456) + 0.5);
-            unsigned char hi = 0x80 | ((units >> 8) & 0x7F);
-            unsigned char lo = units & 0xFF;
-            if (axp_i2c_write(fd, REG_AXP_E0, hi) != 0 || axp_i2c_write(fd, REG_AXP_E1, lo) != 0) {
-                close(fd);
-                return -1;
-            }
+            close(fd);
+            return -3;
         }
     }
     else
@@ -2768,6 +2766,10 @@ int main(int argc, char *argv[])
                         else if (res == -2) {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
                                      "PMIC rejected the change (REG B8H unchanged)");
+                        }
+                        else if (res == -3) {
+                            snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                                     "Save Battery Capacity first (step 1)");
                         }
                         else {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
