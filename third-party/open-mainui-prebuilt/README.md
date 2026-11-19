@@ -1,10 +1,25 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.1 rc4**, on top of 1.1.0 (the source in
+GitHub: **Open MainUI 1.1.1 rc6**, on top of 1.1.0 (the source in
 `third-party/open-mainui`).
 
-Since rc3:
+Since rc4:
+
+- A theme can give the console carousel and the console list their own
+  pictures, and `carousel.scale` makes the selected picture smaller.
+- The carousel slide starts once its consoles are ready, so the animation
+  always shows.
+- A refused Delete ROM no longer blocks the list's other games.
+- MainUI says when the Wi-Fi switch cannot be saved.
+- List rows are drawn without reading the cache again, a ROM list's
+  position is written only when it changes, and its videos folder is read
+  off the input thread.
+- Save states: an empty one is not resumed, a game's save states are
+  offered only with its core installed, and a launch known to fail is
+  refused before a resume changes the saves.
+
+From rc4:
 
 - Changing the Display page quickly no longer sometimes ends in "Could not
   save system.json": a save waits briefly while keymon reads the file.
