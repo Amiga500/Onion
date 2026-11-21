@@ -2291,6 +2291,26 @@ check "no status written: a failure, not a success" test "$(unzip_run no_status)
 unset -f unzip_run
 end
 
+# ---- installer: the migrations leave a "temp" at the card's root alone ----
+
+begin installer_migrations_keep_a_temp_folder
+(
+    eval "$(extract_fn "$INSTALLER" run_migration_scripts | sed "s#/tmp/#$TMP/tmp/#g")"
+    sysdir=$TMP/sys
+    mkdir -p "$sysdir/script/migration" "$sysdir/config" "$TMP/tmp" "$TMP/root/temp"
+    echo photo > "$TMP/root/temp/keep.txt"
+    for id in 00002 00001; do
+        printf '#!/bin/sh\necho %s >> "%s/ran"\n' "$id" "$TMP" > "$sysdir/script/migration/${id}_test.sh"
+    done
+    cd "$TMP/root"   # install_configs leaves the card's root as the working directory
+    run_migration_scripts > /dev/null 2>&1
+)
+check "the user's temp folder is still there" test -f "$TMP/root/temp/keep.txt"
+check "both migrations ran, in order" test "$(cat "$TMP/ran" 2> /dev/null | tr '\n' ' ')" = "00001 00002 "
+check "the state is the last one" test "$(cat "$TMP/sys/config/migration_state" 2> /dev/null)" = 00002
+check "no list left in /tmp" test -z "$(ls "$TMP/tmp")"
+end
+
 # ---- an update made with Guest Mode on keeps the guest's profile ----
 
 begin installer_configs_keep_guest_mode

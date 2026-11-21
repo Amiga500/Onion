@@ -656,9 +656,12 @@ run_migration_scripts() {
     fi
 
     if [ $count -gt 0 ] && [ -f "$MIGRATION_LIST_FILE" ]; then
-        sort -f -o temp "$MIGRATION_LIST_FILE"
-        rm -f "$MIGRATION_LIST_FILE"
-        mv temp "$MIGRATION_LIST_FILE"
+        # Sorted next to the list, not as "temp" in the working directory:
+        # that is the card's root here, and a user's folder or file named
+        # temp (Temp, TEMP) was moved into /tmp or overwritten, and no
+        # migration ran.
+        sort -f -o "$MIGRATION_LIST_FILE.sorted" "$MIGRATION_LIST_FILE" &&
+            mv -f "$MIGRATION_LIST_FILE.sorted" "$MIGRATION_LIST_FILE"
 
         echo "0/$count: Running migrations... 0%" >> /tmp/.update_msg
         local n=0
