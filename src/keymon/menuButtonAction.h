@@ -432,10 +432,20 @@ bool menuButtonAction(uint32_t val, bool comboKey)
         if (_hapticSinglePress())
             menu_super_short_pulse();
 
+        // A second press is waited for only for what is left of the 300 ms
+        // after the press. poll() with a negative timeout waits for ever: a
+        // press of 300-700 ms in a game (the long press starts at 700 ms)
+        // ran no action and blocked keymon until the next key (no standby,
+        // no lid, no low battery save meanwhile), and that key, MENU even
+        // seconds later, counted as the second press. MainUI's own double
+        // press setting decides there (it was the in-game one).
+        int double_press = menu_pressed_state == MODE_MAIN_UI
+                               ? settings.mainui_double_press
+                               : settings.ingame_double_press;
         while (1) {
-            if (settings.ingame_double_press != 0 &&
-                poll(fds, 1, 300 - (getMilliseconds() - menu_last_pressed)) >
-                    0) {
+            int wait_ms = 300 - (int)(getMilliseconds() - menu_last_pressed);
+            if (double_press != 0 && wait_ms > 0 &&
+                poll(fds, 1, wait_ms) > 0) {
                 if (!keyinput_isValid())
                     continue;
 
