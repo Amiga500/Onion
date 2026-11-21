@@ -733,50 +733,26 @@ unzip_progress() {
 
     echo "   - Extract '$zipfile' into $dest"
 
-    verify_file
-
     echo "Verifying package..." > /tmp/.update_msg
-    sleep 3
-
-    if [ -f "/mnt/SDCARD/.tmp_update/onion.pak" ]; then
-        echo "onion.pak exists"
-        sleep 1
-    else
-        echo "onion.pak is missing, extraction will fail"
+    verify_file
+    if [ ! -f "$zipfile" ]; then
+        echo "$zipfile is missing, the extraction will fail"
     fi
 
-    verify_file
-
-    sleep 1
-
-    # Run the 7z extraction command in the background and redirect output to /tmp/.extraction_output
+    # 7z runs in the background; the subshell writes its status when it
+    # ends. The progress is read until that subshell has ended (its PID,
+    # not "pgrep 7z": with fixed sleeps around it, the status could be read
+    # before it was written, and a missing status counted as a success:
+    # install_core then deleted the package).
+    rm -f /tmp/extraction_status
     (
         7z x -aoa -o"$dest" "$zipfile" -bsp1 -bb > /tmp/.extraction_output
         echo $? > "/tmp/extraction_status"
     ) &
+    extraction_pid=$!
 
-    sleep 1
-
-    if pgrep 7z > /dev/null; then
-        echo "7Z is running"
-        sleep 1
-    else
-        echo "7Z is NOT running and should be"
-        sleep 1
-    fi
-
-    if [ -f "/mnt/SDCARD/.tmp_update/onion.pak" ]; then
-        echo "onion.pak still exists"
-        sleep 1
-    else
-        echo "onion.pak is still missing, extraction has probably failed"
-        sleep 1
-        echo "the build will say it's complete but isn't"
-    fi
-
-    # Continuously update /tmp/.update_msg every 500 milliseconds until the command line finishes
-    a=$(pgrep 7z)
-    while [ -n "$a" ]; do
+    # Update /tmp/.update_msg every 500 milliseconds until it finishes
+    while kill -0 $extraction_pid 2> /dev/null; do
         last_line=$(tail -n 1 /tmp/.extraction_output)
         value=$(echo "$last_line" | sed 's/.* \([0-9]\+\)%.*/\1/')
         if [ "$value" -eq "$value" ] 2> /dev/null; then # check if the value is numeric
@@ -788,14 +764,18 @@ unzip_progress() {
         fi
         > /tmp/.extraction_output # to avoid to parse a too big file
         sleep 0.5
-        a=$(pgrep 7z)
     done
+    wait $extraction_pid 2> /dev/null
 
-    # Check the exit status of the extraction command
-    extraction_status=$(cat "/tmp/extraction_status")
+    # Check the exit status of the extraction command: none, or not a
+    # number, is a failure too
+    extraction_status=$(cat "/tmp/extraction_status" 2> /dev/null)
+    case "$extraction_status" in
+        '' | *[!0-9]*) extraction_status=255 ;;
+    esac
     if [ "$extraction_status" -ne 0 ]; then
         touch $sysdir/.installFailed
-        echo ":: Installation failed!"
+        echo ":: Installation failed! (7z status: $extraction_status)"
         installer_reboot
         sleep 10
         exit 0
@@ -803,8 +783,8 @@ unzip_progress() {
         echo "$msg 100%" >> /tmp/.update_msg
     fi
 
-    rm /tmp/extraction_status
-    rm /tmp/.extraction_output
+    rm -f /tmp/extraction_status
+    rm -f /tmp/.extraction_output
 }
 
 free_mma() {

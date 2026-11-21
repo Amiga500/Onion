@@ -2170,6 +2170,42 @@ check "main cleans up only when prompt_update installed something" \
     sh -c "sed -n '/^main() {/,/^}/p' \"$INSTALLER\" | grep -q '^        prompt_update && cleanup\$'"
 end
 
+# ---- installer: the extraction's status, read once 7z has ended ----
+
+begin installer_extraction_status_waits_for_7z
+unzip_run() { # what the stand-in 7z does -> result
+    rm -rf "$TMP/t"
+    mkdir -p "$TMP/t/stub" "$TMP/t/sys"
+    touch "$TMP/t/pkg.pak"
+    case "$1" in
+        ok) printf '#!/bin/sh\necho " 50%%"\nsleep 0.2\necho " 99%%"\nexit 0\n' ;;
+        fails) printf '#!/bin/sh\necho " 10%%"\nexit 2\n' ;;
+        # the shell that waits for 7z ends before it can write the status
+        no_status) printf '#!/bin/sh\nkill -9 $PPID\nexit 0\n' ;;
+    esac > "$TMP/t/stub/7z"
+    chmod +x "$TMP/t/stub/7z"
+    (
+        eval "$(extract_fn "$INSTALLER" unzip_progress | sed "s#/tmp/#$TMP/t/#g")"
+        verify_file() { :; }
+        installer_reboot() { echo reboot > "$TMP/t/rebooted"; }
+        sysdir=$TMP/t/sys
+        PATH="$TMP/t/stub:$PATH"
+        unzip_progress "$TMP/t/pkg.pak" "1/1: Updating RedOnion..." /dest > /dev/null 2>&1
+        echo returned > "$TMP/t/returned"
+    )
+    r=""
+    [ -f "$TMP/t/returned" ] && r="${r}returned "
+    [ -f "$TMP/t/sys/.installFailed" ] && r="${r}failed "
+    [ -f "$TMP/t/rebooted" ] && r="${r}reboot "
+    grep -q '100%' "$TMP/t/.update_msg" 2> /dev/null && r="${r}100% "
+    echo "$r"
+}
+check "7z succeeds: 100%, the installation goes on" test "$(unzip_run ok)" = "returned 100% "
+check "7z fails: installation failed, reboot" test "$(unzip_run fails)" = "failed reboot "
+check "no status written: a failure, not a success" test "$(unzip_run no_status)" = "failed reboot "
+unset -f unzip_run
+end
+
 # ---- an update made with Guest Mode on keeps the guest's profile ----
 
 begin installer_configs_keep_guest_mode
