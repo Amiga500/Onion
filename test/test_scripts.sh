@@ -1438,6 +1438,7 @@ check "the boot stub updater is not extracted" grep -q '^-x!\.tmp_update/updater
 check "the boot stub runtime.sh is not extracted" grep -q '^-x!\.tmp_update/runtime\.sh$' "$TMP/7z_args"
 check "nothing else is left out (installer, trigger)" test "$(grep -c '^-x' "$TMP/7z_args")" -eq 2
 check "into the card root" grep -q '^-o/mnt/SDCARD$' "$TMP/7z_args"
+check "files on the card are replaced (-aoa, not -aos)" grep -q '^-aoa$' "$TMP/7z_args"
 check "a failed extraction: exit 6, no reboot" test "$(cat "$TMP/rc")" = 6 -a ! -e "$TMP/rebooted"
 end
 
@@ -1841,7 +1842,13 @@ end
 # ---- runtime.sh: temporaries of interrupted saves removed at boot ----
 
 begin boot_removes_interrupted_save_temporaries
-check "load_settings removes system.json and config temporaries" sh -c "sed -n '/^load_settings() {/,/^}/p' \"$RUNTIME\" | grep -q 'rm -f /mnt/SDCARD/system.json.tmp.\* /mnt/SDCARD/.tmp_update/config/\*.tmp.\*'"
+# The first command of load_settings, run on a card with leftovers
+mkdir -p "$TMP/sd/.tmp_update/config"
+touch "$TMP/sd/system.json.tmp.123.1" "$TMP/sd/.tmp_update/config/display.tmp.9.2" "$TMP/sd/system.json" "$TMP/sd/.tmp_update/config/.showRecents"
+eval "$(sed -n '/^load_settings() {/,/^}/p' "$RUNTIME" | grep -m 1 '^    rm -f ' | sed "s#/mnt/SDCARD#$TMP/sd#g")"
+check "load_settings removes system.json and config temporaries" test ! -e "$TMP/sd/system.json.tmp.123.1" -a ! -e "$TMP/sd/.tmp_update/config/display.tmp.9.2"
+check "and nothing else" test -e "$TMP/sd/system.json" -a -e "$TMP/sd/.tmp_update/config/.showRecents"
+check "it is load_settings' first command" sh -c "sed -n '/^load_settings() {/,/^}/p' \"$RUNTIME\" | grep -v '^[[:space:]]*#' | sed -n 2p | grep -q '^    rm -f /mnt/SDCARD/system.json.tmp'"
 check "before batmon or keymon can save" sh -c "grep -n '^    init_system\|^    batmon &' \"$RUNTIME\" | head -1 | grep -q init_system"
 end
 
@@ -2325,9 +2332,20 @@ end
 
 begin installer_reboots_with_the_clean_shutdown
 INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
-eval "$(extract_fn "$INST" installer_reboot)"
-check "the installer's reboot goes through bin/shutdown -r" grep -qF '/mnt/SDCARD/.tmp_update/bin/shutdown -r' "$INST"
-check "with a plain reboot only if the script is missing" sh -c "sed -n '/^installer_reboot() {/,/^}/p' '$INST' | grep -q '^    reboot$'"
+# Run, not read: a call commented out or moved behind an exit passed a
+# grep for its text.
+eval "$(extract_fn "$INST" installer_reboot | sed "s#/mnt/SDCARD#$TMP/sd#g")"
+sync() { echo sync >> "$TMP/calls"; }
+reboot() { echo reboot >> "$TMP/calls"; }
+mkdir -p "$TMP/sd/.tmp_update/bin"
+printf '#!/bin/sh\necho "shutdown $*" >> "%s/calls"\n' "$TMP" > "$TMP/sd/.tmp_update/bin/shutdown"
+chmod +x "$TMP/sd/.tmp_update/bin/shutdown"
+installer_reboot
+check "the installer's reboot: sync, bin/shutdown -r, then reboot" test "$(tr '\n' ' ' < "$TMP/calls")" = "sync shutdown -r reboot "
+rm -f "$TMP/calls" "$TMP/sd/.tmp_update/bin/shutdown"
+installer_reboot
+check "with a plain reboot only if the script is missing" test "$(tr '\n' ' ' < "$TMP/calls")" = "sync reboot "
+unset -f sync reboot installer_reboot
 check "used at the end of the installation" sh -c "tail -n 5 '$INST' | grep -q '^installer_reboot$'"
 check "and when the extraction fails" sh -c "grep -B2 'installer_reboot' '$INST' | grep -q 'Installation failed'"
 check "no other plain reboot but the firmware check's (no shutdown script left there)" test "$(grep -cE '^[[:space:]]+reboot$' "$INST")" -eq 2
@@ -5956,11 +5974,16 @@ for rtc in 1700000000 3; do
     (
         log() { :; }; touch() { :; }
         playActivity() { echo "playActivity $*" >> "$TMP/calls"; }
-        date() { case "$1" in +%s) [ $# -eq 1 ] && echo "$rtc" ;; esac; }
+        date() { case "$1" in +%s) [ $# -eq 1 ] && echo "$rtc" ;; esac; [ "$2" = -s ] && echo "date -s" >> "$TMP/calls"; return 0; }
         sysdir=$TMP/sys
         update_time
     ) > /dev/null 2>&1
     check "clock $rtc: drop_open is the first call" test "$(head -n 1 "$TMP/calls")" = "playActivity drop_open"
+    if [ $rtc -gt 15 ]; then
+        check "RTC: the clock is left alone" sh -c '! grep -q "date -s" "$1"' _ "$TMP/calls"
+    else
+        check "no RTC: the clock is set back" grep -q "date -s" "$TMP/calls"
+    fi
     rm -f "$TMP/calls"
 done
 unset -f update_time
