@@ -670,10 +670,12 @@ void menu_lookAndFeel(void *_)
                                      .value_labels = {"Classic", "B A, page left"},
                                      .value = settings.mainui_footer_alt,
                                      .action = action_setFooterLayout},
-                                 "Bottom bar of the menus, lists, Tweaks\n"
-                                 "and the GameSwitcher: Classic, as stock,\n"
-                                 "or the page number on the left and the\n"
-                                 "hints in button order, B then A.");
+                                 "Bottom bar of the menus, lists and\n"
+                                 "Tweaks: Classic, as stock, or the page\n"
+                                 "number on the left and the hints in\n"
+                                 "button order, B then A. GameSwitcher:\n"
+                                 "only with themes that have the B A bar\n"
+                                 "(Silky RedOnion).");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
                                      .label = "Long SELECT menu labels",
