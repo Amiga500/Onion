@@ -812,6 +812,50 @@ found=$(grep -rnE 'sed( +-[a-zA-Z]+)* +-[a-zA-Z]*E' "$ROOT/static" "$ROOT/src" -
 check "sed -E is used in: ${found:-nothing}" test -z "$found"
 end
 
+# ---- runtime.sh: a value that is not a number does not stop the boot ----
+
+begin boot_survives_bad_time_and_pwm_files
+# update_time: a syntax error in $(( )) ended runtime.sh at every boot
+ut_run() { # currentTime.txt content, addHours content -> the time set last
+    rm -rf "$TMP/sd" "$TMP/date_log"
+    mkdir -p "$TMP/sd/Saves/CurrentProfile/saves" "$TMP/sys/config/startup"
+    printf '%b' "$1" > "$TMP/sd/Saves/CurrentProfile/saves/currentTime.txt"
+    printf '%b' "$2" > "$TMP/sys/config/startup/addHours"
+    (
+        eval "$(extract_fn "$RUNTIME" update_time | sed "s#/mnt/SDCARD#$TMP/sd#g; s#/tmp/rtc_available#$TMP/rtc#g")"
+        sysdir=$TMP/sys
+        date() { case "$*" in "+%s") echo 5 ;; *) echo "$*" >> "$TMP/date_log" ;; esac; }
+        playActivity() { :; }
+        log() { :; }
+        update_time
+        echo "boot goes on" >> "$TMP/date_log"
+    ) 2> /dev/null
+    tail -n 2 "$TMP/date_log" | tr '\n' ' '
+}
+check "valid files: time + hours" test "$(ut_run '1000\n' '2\n')" = "+%s -s @8200 boot goes on "
+check "no line end" test "$(ut_run '1000' '2')" = "+%s -s @8200 boot goes on "
+check "currentTime.txt not a number: from 0" test "$(ut_run 'LD_PRELOAD=x\n' '2\n')" = "+%s -s @7200 boot goes on "
+check "currentTime.txt with two lines: the first" test "$(ut_run '1000\n2000\n' '2\n')" = "+%s -s @8200 boot goes on "
+check "addHours empty: 4 hours" test "$(ut_run '1000\n' '')" = "+%s -s @15400 boot goes on "
+check "addHours 4.5: 4 hours" test "$(ut_run '1000\n' '4.5\n')" = "+%s -s @15400 boot goes on "
+check "addHours negative" test "$(ut_run '10000\n' '-1\n')" = "+%s -s @6400 boot goes on "
+# The backlight's PWM frequency (init_system)
+pwm_run() { # .pwmfrequency content -> frequency
+    mkdir -p "$TMP/sys/config"
+    printf '%b' "$1" > "$TMP/sys/config/.pwmfrequency"
+    (
+        sysdir=$TMP/sys
+        eval "$(sed -n '/^    pwmfile="\$sysdir\/config\/.pwmfrequency"$/,/^    fi$/p' "$RUNTIME")"
+        echo "$frequency"
+    ) 2> /dev/null
+}
+check "pwm 3: 400 Hz" test "$(pwm_run '3\n')" = 400
+check "pwm not a digit: 800 Hz" test "$(pwm_run 'x\n')" = 800
+check "pwm 12: 800 Hz" test "$(pwm_run '12\n')" = 800
+check "pwm empty: 800 Hz" test "$(pwm_run '')" = 800
+unset -f ut_run pwm_run
+end
+
 # ---- runtime.sh: get_full_resolution_path (vs the grep|sed pipeline) ----
 
 begin full_resolution_path_matches_pipeline

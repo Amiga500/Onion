@@ -1749,11 +1749,14 @@ init_system() {
     # init backlight
     echo 0 > /sys/class/pwm/pwmchip0/export
     pwmfile="$sysdir/config/.pwmfrequency"
+    frequency=800
     if [ -s $pwmfile ]; then
-        # 0 - 9 = 100 - 1000 Hz
-        frequency=$((($(cat "$pwmfile") + 1) * 100))
-    else
-        frequency=800
+        # 0 - 9 = 100 - 1000 Hz. Anything else keeps 800: it went straight
+        # into $(( )), where a syntax error ends this script (no boot).
+        read -r pwm_value < "$pwmfile"
+        case "$pwm_value" in
+            [0-9]) frequency=$(((pwm_value + 1) * 100)) ;;
+        esac
     fi
     echo $frequency > /sys/class/pwm/pwmchip0/pwm0/period
     echo $brightness_raw > /sys/class/pwm/pwmchip0/pwm0/duty_cycle
@@ -1879,8 +1882,15 @@ update_time() {
     # Load current time
     if [ -f $timepath ]; then
         log "Restoring time"
-        currentTime=$(cat $timepath)
+        read -r currentTime < $timepath
     fi
+    # Both values below go into $(( )), where a syntax error ends this
+    # script: the console rebooted at every start ("Runtime exited
+    # unexpectedly") when one of the two files held anything but a number
+    # (a power cut while it was written, an edit on a computer).
+    case "$currentTime" in
+        '' | *[!0-9]*) currentTime=0 ;;
+    esac
     date +%s -s @$currentTime
 
     # Ensure that all play activities are closed
@@ -1889,8 +1899,11 @@ update_time() {
     #Add 4 hours to the current time
     hours=4
     if [ -f $sysdir/config/startup/addHours ]; then
-        hours=$(cat $sysdir/config/startup/addHours)
+        read -r hours < $sysdir/config/startup/addHours
     fi
+    case "$hours" in
+        '' | - | *[!0-9-]* | ?*-*) hours=4 ;;
+    esac
     addTime=$(($hours * 3600))
     if [ ! -f $sysdir/config/.ntpState ]; then
         currentTime=$(($currentTime + $addTime))

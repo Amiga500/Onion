@@ -6,13 +6,20 @@ timepath=/mnt/SDCARD/Saves/CurrentProfile/saves/currentTime.txt
 currentTime=0
 # Load current time
 if [ -f $timepath ]; then
-    currentTime=`cat $timepath`
+    read -r currentTime < $timepath
 fi
+# Numbers only: they go into $(( )) (as in runtime.sh's update_time)
+case "$currentTime" in
+    '' | *[!0-9]*) currentTime=0 ;;
+esac
 #Add 4 hours to the current time
 hours=4
 if [ -f $sysdir/config/startup/addHours ]; then
-    hours=`cat $sysdir/config/startup/addHours`
+    read -r hours < $sysdir/config/startup/addHours
 fi
+case "$hours" in
+    '' | - | *[!0-9-]* | ?*-*) hours=4 ;;
+esac
 addTime=$(($hours * 3600))
 if [ ! -f $sysdir/config/.ntpState ]; then
     currentTime=$(($currentTime + $addTime))
