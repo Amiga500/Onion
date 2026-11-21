@@ -202,7 +202,13 @@ int main(int argc, char *argv[])
         render();
     }
     else if (current_game == NULL) {
-        print_debug("No current game; nothing to resume");
+        // The history is empty (its last entry was removed), but over a
+        // game that game is still paused and .runGameSwitcher still set:
+        // left as it was, the game stayed frozen and keymon ignored MENU.
+        // overlay_resume() gives it back (it does nothing without
+        // --overlay).
+        print_debug("No current game; resuming the game under the overlay");
+        overlay_resume();
     }
     else if (current_game->is_running) {
         if (appState.current_bg != NULL) {
