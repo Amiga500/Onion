@@ -541,16 +541,14 @@ void _settings_save_mainui(void)
     _settings_save_mainui_force();
 }
 
-// Write a flag only when it changed since the last load/save, or when the
-// file that should represent it on disk is missing.
+// Write a flag only when this program changed it since the last load/save
+// (or on a forced save). A flag file that does not match the value loaded is
+// another program's change (blue_light.sh, Tweaks): writing the old value
+// back would undo it.
 static void _settings_save_flag(const char *key, bool value, bool old_value, bool force)
 {
-    if (!force && value == old_value) {
-        char path[STR_MAX];
-        snprintf(path, sizeof(path), "%s%s%s", CONFIG_PATH, key, value ? "" : "_");
-        if (exists(path))
-            return;
-    }
+    if (!force && value == old_value)
+        return;
     config_flag_set(key, value);
 }
 

@@ -293,6 +293,30 @@ TEST(shutdown_path_saves_a_pending_pulled_change)
     cJSON_Delete(root);
 }
 
+/* keymon loaded the flags; blue_light.sh then turns the filter off and
+ * Tweaks turns Show recents on, each in its own process. keymon saves a
+ * volume step: neither flag may go back to what keymon loaded. */
+TEST(save_keeps_flags_changed_by_another_program)
+{
+    file_remove_recursive(CONFIG_PATH);
+    mkdir(CONFIG_PATH, 0700);
+    write_system_json("en.lang", "/mnt/SDCARD/Themes/Silky RedOnion/", 7, 0);
+    config_flag_set(".blfOn", true);
+    config_flag_set(".showRecents", false);
+    settings_load();
+    ASSERT_TRUE(settings.blue_light_state);
+    ASSERT_FALSE(settings.show_recents);
+
+    remove(CONFIG_PATH ".blfOn"); /* blue_light.sh disable */
+    config_flag_set(".showRecents", true);
+
+    settings.volume = 12;
+    settings_save();
+
+    ASSERT_FALSE(config_flag_get(".blfOn"));
+    ASSERT_TRUE(config_flag_get(".showRecents"));
+}
+
 int main(void)
 {
     printf("\n=== settings merge Unit Tests ===\n\n");
@@ -307,6 +331,7 @@ int main(void)
     RUN_TEST(other_program_missing_file_saves_own_values);
     RUN_TEST(keymon_does_not_rewrite_what_open_mainui_saved);
     RUN_TEST(shutdown_path_saves_a_pending_pulled_change);
+    RUN_TEST(save_keeps_flags_changed_by_another_program);
     unlink(MAIN_UI_SETTINGS);
     file_remove_recursive(CONFIG_PATH);
     rmdir("/tmp/onion_test_settings_merge");
