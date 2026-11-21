@@ -782,12 +782,13 @@ TEST(file_move_line_to_top_handles_missing_trailing_newline) {
 /* ---- file_isLocked ----
  *
  * This is NOT a flock/lock-file check. Production opens the path
- * O_RDONLY | O_CREAT:
- *   open succeeds  -> false  (existing file, or missing file now created)
- *   open fails     -> true   (uncreatable path, permission, etc.)
- * gs_popMenu.h polls it while waiting for a save-state file to appear;
- * a missing-but-creatable file must report false so the wait loop
- * terminates once the file shows up.
+ * O_RDONLY:
+ *   open succeeds        -> false  (an existing file)
+ *   it does not exist    -> false  (and it is NOT created)
+ *   open fails otherwise -> true   (permission, etc.)
+ * gs_popMenu.h polls it after a save. It used O_CREAT, which created the
+ * state file RetroArch had not written: an empty save state, offered by
+ * "Load".
  */
 
 TEST(file_isLocked_existing_file) {
@@ -803,15 +804,16 @@ TEST(file_isLocked_existing_file) {
 }
 
 TEST(file_isLocked_uncreateable_path) {
-    /* A path inside a non-existent directory cannot be opened/created */
-    ASSERT_TRUE(file_isLocked("/tmp/nonexistent_dir_xyz/file.txt"));
+    /* A path inside a non-existent directory: nothing there, not locked */
+    ASSERT_FALSE(file_isLocked("/tmp/nonexistent_dir_xyz/file.txt"));
 }
 
 TEST(file_isLocked_missing_file) {
-    /* A missing file in a writable dir is created by O_CREAT -> not locked */
+    /* A missing file is not locked, and is not created */
     const char *tmpfile = "/tmp/onion_test_no_such_locked_file";
     unlink(tmpfile);
     ASSERT_FALSE(file_isLocked(tmpfile));
+    ASSERT_FALSE(access(tmpfile, F_OK) == 0);
     unlink(tmpfile);
 }
 

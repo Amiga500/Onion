@@ -52,11 +52,16 @@ bool file_isModified(const char *path, time_t *old_mtime)
     return false;
 }
 
+// Whether the file cannot be opened for reading right now. A file that
+// does not exist is not "locked" and is not created: with O_CREAT, the
+// GameSwitcher's wait after a "Save" RetroArch did not carry out left an
+// empty save state, which "Load" then offered (and copied over the auto
+// state).
 bool file_isLocked(const char *path)
 {
-    int fd = open(path, O_RDONLY | O_CREAT, 0666);
+    int fd = open(path, O_RDONLY);
     if (fd == -1)
-        return true;
+        return errno != ENOENT;
     close(fd);
     return false;
 }
