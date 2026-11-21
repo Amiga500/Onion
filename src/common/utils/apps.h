@@ -11,8 +11,9 @@ typedef struct {
     bool is_duplicate;
     int dup_id;
 } InstalledApp;
-static InstalledApp _installed_apps[100];
-static InstalledApp _installed_apps_sorted[100];
+#define INSTALLED_APPS_MAX 100
+static InstalledApp _installed_apps[INSTALLED_APPS_MAX];
+static InstalledApp _installed_apps_sorted[INSTALLED_APPS_MAX];
 static int installed_apps_count = 0;
 static bool installed_apps_loaded = false;
 
@@ -53,6 +54,10 @@ InstalledApp *getInstalledApps(bool sort)
             return NULL;
 
         while ((ep = readdir(dp))) {
+            // The table holds 100: the 101st app folder was written past it
+            // (keymon at the first X/Y press in MainUI, Tweaks, setState)
+            if (installed_apps_count >= INSTALLED_APPS_MAX)
+                break;
             if (ep->d_type != DT_DIR || strcmp(ep->d_name, ".") == 0 ||
                 strcmp(ep->d_name, "..") == 0)
                 continue;
@@ -83,6 +88,7 @@ InstalledApp *getInstalledApps(bool sort)
             printf_debug("app %d: %s (%s)\n", i, app->dirName, app->label);
             installed_apps_count++;
         }
+        closedir(dp); // it stayed open for as long as the program ran
 
         qsort(_installed_apps_sorted, installed_apps_count,
               sizeof(InstalledApp), _comp_installed_apps);
