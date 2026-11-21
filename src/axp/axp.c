@@ -21,7 +21,10 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    sscanf(argv[1], "%x", &reg_address);
+    if (sscanf(argv[1], "%x", &reg_address) != 1 || reg_address > 0xff) {
+        fprintf(stderr, "Error on register %s\n", argv[1]);
+        return 1;
+    }
 
     if (argc == 2) {
         val = axp_read(reg_address);
@@ -33,11 +36,20 @@ int main(int argc, char **argv)
                val);
     }
     else {
-        sscanf(argv[2], "%x", &w_val);
-        if ((w_val & ~0xff) != 0)
+        // A value that is not a byte is refused (it was reported and
+        // written anyway)
+        if (sscanf(argv[2], "%x", &w_val) != 1 || (w_val & ~0xff) != 0) {
             fprintf(stderr, "Error on written value %s\n", argv[2]);
+            return 1;
+        }
         if (argv[2][0] == '+') {
+            // "+bits": read, OR, write. A failed read is not written back
+            // as 0xFF (-1 ORed): every bit of the register on.
             val = axp_read(reg_address);
+            if (val < 0) {
+                fprintf(stderr, "axp read error: %d %s\n", val, strerror(errno));
+                return 1;
+            }
             val |= w_val;
             printf("Bit ");
         }

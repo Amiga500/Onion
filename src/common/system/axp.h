@@ -86,16 +86,16 @@ int axp_lcd_set(int value)
 
     res = axp_write(0x21, value);
 
+    // One bit set in each register, the others kept. A failed read is -1:
+    // ORed and written it gave 0xFF, every bit on. Nothing is written then.
     if (res == 0) {
         int val = axp_read(0x10);
-        val |= 0x02;
-        res = axp_write(0x10, val);
+        res = val < 0 ? -1 : axp_write(0x10, val | 0x02);
     }
 
     if (res == 0) {
         int val = axp_read(0x12);
-        val |= 0x80;
-        res = axp_write(0x12, val);
+        res = val < 0 ? -1 : axp_write(0x12, val | 0x80);
     }
 
     return res;

@@ -914,8 +914,12 @@ int main(void)
     printf_debug("Device detected: DEVICE_ID=%d (283=MM, 285=Flip, 354=Plus)", DEVICE_ID);
 
     if (HAS_AXP()) {
-        // set hardware poweroff time to 10s
-        axp_write(0x36, axp_read(0x36) | 3);
+        // set hardware poweroff time to 10s. A failed read is -1, which
+        // ORed and written gave 0xFF: every field of the power key register
+        // at its highest value. Nothing is written then.
+        int pek = axp_read(0x36);
+        if (pek >= 0)
+            axp_write(0x36, pek | 3);
     }
 
     settings_init();
