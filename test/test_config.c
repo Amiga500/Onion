@@ -20,73 +20,10 @@
 static char test_config_path[256];
 #define CONFIG_PATH test_config_path
 
-/* Prevent config.h from redefining CONFIG_PATH */
-#include "../src/common/utils/file.h"
-#include "../src/common/utils/flags.h"
-#include "../src/common/utils/log.h"
-#include "../src/common/utils/str.h"
-
-/* Include config.h content inline, skipping the original CONFIG_PATH define */
-#ifndef CONFIG_H__
-#define CONFIG_H__
-
-#define CONFIG_INT "%d"
-#define CONFIG_STR "%[^\n]"
-
-bool config_flag_get(const char *key) { return flag_get(CONFIG_PATH, key); }
-
-void config_flag_set(const char *key, bool value)
-{
-    char hidden_flag[STR_MAX];
-    concat(hidden_flag, key, "_");
-    flag_set(CONFIG_PATH, key, value);
-    flag_set(CONFIG_PATH, hidden_flag, !value);
-}
-
-bool config_get(const char *key, const char *format, void *dest)
-{
-    FILE *fp;
-
-    char filename[STR_MAX];
-    concat(filename, CONFIG_PATH, key);
-
-    if (exists(filename)) {
-        file_get(fp, filename, format, dest);
-        return true;
-    }
-
-    return false;
-}
-
-void _config_prepare(const char *key, char *filename)
-{
-    concat(filename, CONFIG_PATH, key);
-
-    char dir_path[STR_MAX];
-    strncpy(dir_path, filename, STR_MAX - 1);
-    dir_path[STR_MAX - 1] = '\0';
-    dirname(dir_path);
-
-    mkdirs(dir_path);
-}
-
-void config_setNumber(const char *key, int value)
-{
-    FILE *fp;
-    char filename[STR_MAX];
-    _config_prepare(key, filename);
-    file_put_sync(fp, filename, "%d", value);
-}
-
-void config_setString(const char *key, const char *value)
-{
-    FILE *fp;
-    char filename[STR_MAX];
-    _config_prepare(key, filename);
-    file_put_sync(fp, filename, "%s", value);
-}
-
-#endif // CONFIG_H__
+/* The production header: it only defines CONFIG_PATH when it is not set,
+ * so the test's folder is used. (This file used to carry a copy of it,
+ * which had drifted: file_put_sync where the source writes atomically.) */
+#include "utils/config.h"
 
 /* ---- Test setup helpers ---- */
 

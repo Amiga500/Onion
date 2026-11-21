@@ -18,116 +18,38 @@
 #include <string.h>
 #include <unistd.h>
 
-/* ---- Inline types and logic from state.h ---- */
+/* ---- The production code: write_mainui_state() and state_getAppName()
+ * from system/state.h (they used to be copied here, and the copy had lost
+ * the source's two lower bounds), with the state file in /tmp/<pid>. ---- */
 
-typedef enum mainui_states {
-    MAIN_MENU,
-    RECENTS,
-    FAVORITES,
-    GAMES,
-    EXPERT,
-    APPS
-} MainUIState;
+static char state_file[64];
+#define MAINUI_STATE_FILE state_file
+#include "system/state.h"
 
-/* Testable version of write_mainui_state that writes to buffer instead of file */
+/* write_mainui_state() with the two MainUI settings it reads, then the file
+ * it wrote; false when it wrote none (MAIN_MENU removes it). */
 static bool _write_mainui_state_to_buf(char *buf, size_t buf_size,
                                        MainUIState state, int currpos,
                                        int total,
                                        bool show_recents, bool show_expert)
 {
-    int title_num = 0, page_type = 0, page_size = 6, page_start = 0, page_end,
-        main_currpos = 0, main_page_start = 0, main_page_end;
-
-    switch (state) {
-    case MAIN_MENU:
-        return false; /* MAIN_MENU removes state file */
-    case RECENTS:
-        title_num = 18;
-        page_type = 10;
-        main_currpos = 0;
-        break;
-    case FAVORITES:
-        title_num = 1;
-        page_type = 2;
-        main_currpos = 1;
-        break;
-    case GAMES:
-        title_num = 2;
-        page_type = 1;
-        page_size = 8;
-        main_currpos = 2;
-        break;
-    case EXPERT:
-        title_num = 0;
-        page_type = 16;
-        page_size = 9;
-        main_currpos = 3;
-        break;
-    case APPS:
-        title_num = 107;
-        page_type = 3;
-        page_size = 4;
-        main_currpos = 4;
-        break;
-    default:
+    snprintf(state_file, sizeof(state_file), "/tmp/onion_test_state_%d.json", (int)getpid());
+    remove(state_file);
+    settings.show_recents = show_recents;
+    settings.show_expert = show_expert;
+    write_mainui_state(state, currpos, total);
+    buf[0] = '\0';
+    FILE *fp = fopen(state_file, "r");
+    if (fp == NULL)
         return false;
-    }
-
-    int main_total = 6;
-    if (!show_recents) {
-        if (main_currpos > 0)
-            main_currpos--;
-        main_total--;
-    }
-    if (!show_expert) {
-        if (state == APPS)
-            main_currpos--;
-        main_total--;
-    }
-
-    if (main_currpos + 4 > main_total)
-        main_page_start = main_total - 4;
-    main_page_end = main_page_start + 3;
-
-    if (currpos + page_size > total)
-        page_start = total - page_size;
-    else
-        page_start = currpos;
-    page_end = page_start + page_size - 1;
-
-    snprintf(buf, buf_size,
-            "{\"list\":[{\"title\":157,\"type\":0,\"currpos\":%d,\"pagestart\":"
-            "%d,\"pageend\":%d},{\"title\":%d,\"type\":%d,\"currpos\":%d,"
-            "\"pagestart\":%d,\"pageend\":%d}]}",
-            main_currpos, main_page_start, main_page_end, title_num, page_type,
-            currpos, page_start, page_end);
-
+    size_t n = fread(buf, 1, buf_size - 1, fp);
+    buf[n] = '\0';
+    fclose(fp);
+    remove(state_file);
     return true;
 }
 
-/* Fixed state_getAppName from state.h */
-static size_t _state_getAppName(char *out, const char *str)
-{
-    char *end;
-    size_t out_size;
-
-    const char *prefix_end = strstr(str, " ./");
-    if (prefix_end == NULL) {
-        *out = '\0';
-        return 0;
-    }
-    str = prefix_end + 3;
-
-    end = (char *)strchr(str, ';');
-    if (end == NULL)
-        end = (char *)(str + strlen(str));
-
-    out_size = (end - str) < STR_MAX - 1 ? (end - str) : STR_MAX - 1;
-    memcpy(out, str, out_size);
-    out[out_size] = 0;
-
-    return out_size;
-}
+#define _state_getAppName state_getAppName
 
 /* ---- Tests: write_mainui_state JSON format ---- */
 
@@ -207,15 +129,13 @@ TEST(write_state_currpos_at_start) {
 }
 
 TEST(write_state_total_smaller_than_page_size) {
-    /* When total < page_size, page_start becomes negative.
-     * This documents the current behavior; in practice, the UI
-     * ensures total >= page_size for each state. However, callers
-     * should be aware that invalid inputs can produce negative indices. */
+    /* Fewer entries than a page: the page starts at 0, never below (the
+     * old copy of the function said -6 here, the source never did). */
     char buf[STR_MAX];
     _write_mainui_state_to_buf(buf, sizeof(buf),
                                 EXPERT, 0, 3, true, true);
-    /* EXPERT page_size = 9, total = 3, page_start = 3-9 = -6 */
-    ASSERT_NOT_NULL(strstr(buf, "\"pagestart\":-6"));
+    /* EXPERT page_size = 9, total = 3 */
+    ASSERT_NOT_NULL(strstr(buf, "\"currpos\":0,\"pagestart\":0,\"pageend\":8"));
 }
 
 /* ---- Tests: show_recents / show_expert toggles ---- */

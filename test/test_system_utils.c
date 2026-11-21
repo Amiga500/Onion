@@ -6,7 +6,7 @@
  * "savestate_auto_save" key and returns true/false.
  *
  * The function uses file_parseKeyValue with '=' delimiter.
- * We test by writing temp config files and inlining the logic.
+ * We test by writing temp config files read by the production function.
  *
  * Build and run: make -f Makefile.unit test_system_utils
  */
@@ -21,16 +21,17 @@
 #include <string.h>
 #include <unistd.h>
 
-#define TEST_CONFIG_PATH "/tmp/test_retroarch.cfg"
-
-/* ---- Inline check_autosave using our temp path ---- */
+/* Production code: check_autosave() from system/system_utils.h, reading a
+ * retroarch.cfg in /tmp/<pid> (this file used to test a copy of it). */
+static char ra_cfg[64];
+#define RETROARCH_CONFIG ra_cfg
+#define TEST_CONFIG_PATH ra_cfg
+#include "system/system_utils.h"
 
 static bool check_autosave_path(const char *config_path)
 {
-    char value[STR_MAX];
-    memset(value, 0, sizeof(value));
-    file_parseKeyValue(config_path, "savestate_auto_save", value, '=', 0);
-    return strcmp(value, "true") == 0;
+    (void)config_path; /* always RETROARCH_CONFIG */
+    return check_autosave();
 }
 
 /* ---- Helper ---- */
@@ -145,39 +146,11 @@ TEST(autosave_with_comments) {
     ASSERT_TRUE(check_autosave_path(TEST_CONFIG_PATH));
 }
 
-/* ---- Tests: cpuclock command buffer (Bug 5 fix) ---- */
-
-TEST(cpuclock_command_max_uint32) {
-    /* system_powersave() builds "cpuclock %u" into a buffer.
-     * The old buffer was 15 bytes — truncating max uint32_t (4294967295).
-     * The fix enlarged it to 32 bytes. Verify snprintf output is correct. */
-    char sCommand[32];
-    uint32_t max_freq = 4294967295u;
-    int n = snprintf(sCommand, sizeof(sCommand), "cpuclock %u", max_freq);
-    ASSERT_TRUE(n > 0 && n < (int)sizeof(sCommand)); /* Not truncated */
-    ASSERT_STREQ(sCommand, "cpuclock 4294967295");
-}
-
-TEST(cpuclock_command_zero) {
-    char sCommand[32];
-    uint32_t freq = 0;
-    int n = snprintf(sCommand, sizeof(sCommand), "cpuclock %u", freq);
-    ASSERT_TRUE(n > 0 && n < (int)sizeof(sCommand));
-    ASSERT_STREQ(sCommand, "cpuclock 0");
-}
-
-TEST(cpuclock_command_typical) {
-    char sCommand[32];
-    uint32_t freq = 1200000;
-    int n = snprintf(sCommand, sizeof(sCommand), "cpuclock %u", freq);
-    ASSERT_TRUE(n > 0 && n < (int)sizeof(sCommand));
-    ASSERT_STREQ(sCommand, "cpuclock 1200000");
-}
-
 /* ---- main ---- */
 
 int main(void)
 {
+    snprintf(ra_cfg, sizeof(ra_cfg), "/tmp/onion_test_ra_%d.cfg", (int)getpid());
     printf("\n=== system_utils.h check_autosave Unit Tests ===\n\n");
 
     RUN_TEST(autosave_true);
@@ -194,11 +167,6 @@ int main(void)
     RUN_TEST(autosave_case_sensitive);
     RUN_TEST(autosave_partial_match_key);
     RUN_TEST(autosave_with_comments);
-
-    /* cpuclock buffer size (Bug 5 fix) */
-    RUN_TEST(cpuclock_command_max_uint32);
-    RUN_TEST(cpuclock_command_zero);
-    RUN_TEST(cpuclock_command_typical);
 
     /* Cleanup */
     unlink(TEST_CONFIG_PATH);

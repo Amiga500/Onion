@@ -137,7 +137,7 @@ $(BUILD_DIR)/test_json: test_json.c onion_test.h $(COMMON_SRCS)
 
 $(BUILD_DIR)/test_state: test_state.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_state.c $(COMMON_SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_state.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 $(BUILD_DIR)/test_history_recent: test_history_recent.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
@@ -155,9 +155,9 @@ test_playactivity: $(BUILD_DIR)/test_playactivity
 	@echo ""
 	@$(BUILD_DIR)/test_playactivity
 
-$(BUILD_DIR)/test_playactivity: test_playactivity.c onion_test.h $(COMMON_SRCS)
+$(BUILD_DIR)/test_playactivity: test_playactivity.c onion_test.h $(COMMON_SRCS) $(BUILD_DIR)/sqlite3_host.o
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_playactivity.c $(COMMON_SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_playactivity.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(BUILD_DIR)/sqlite3_host.o $(LDFLAGS) -lm
 
 test_clock: $(BUILD_DIR)/test_clock
 	@echo ""
@@ -349,7 +349,7 @@ test_state_security: $(BUILD_DIR)/test_state_security
 
 $(BUILD_DIR)/test_state_security: test_state_security.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_state_security.c $(COMMON_SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_state_security.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 test_config_security: $(BUILD_DIR)/test_config_security
 	@echo ""
@@ -403,9 +403,9 @@ test_playactivity_paths: $(BUILD_DIR)/test_playactivity_paths
 	@echo ""
 	@$(BUILD_DIR)/test_playactivity_paths
 
-$(BUILD_DIR)/test_playactivity_paths: test_playactivity_paths.c onion_test.h $(COMMON_SRCS)
+$(BUILD_DIR)/test_playactivity_paths: test_playactivity_paths.c onion_test.h $(COMMON_SRCS) $(BUILD_DIR)/sqlite3_host.o
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_playactivity_paths.c $(COMMON_SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_playactivity_paths.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(BUILD_DIR)/sqlite3_host.o $(LDFLAGS) -lm
 
 test_theme_config: $(BUILD_DIR)/test_theme_config
 	@echo ""
@@ -413,7 +413,7 @@ test_theme_config: $(BUILD_DIR)/test_theme_config
 
 $(BUILD_DIR)/test_theme_config: test_theme_config.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_theme_config.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS)
+	$(CC) -Istubs $(CFLAGS) -o $@ test_theme_config.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 test_device_model: $(BUILD_DIR)/test_device_model
 	@echo ""
@@ -591,7 +591,7 @@ test_system_utils: $(BUILD_DIR)/test_system_utils
 
 $(BUILD_DIR)/test_system_utils: test_system_utils.c onion_test.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_system_utils.c $(COMMON_SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_system_utils.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
 
 test_display_buffers: $(BUILD_DIR)/test_display_buffers
 	@echo ""

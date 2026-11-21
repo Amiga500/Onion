@@ -151,64 +151,9 @@ TEST(json_getBool_null_object) {
     ASSERT_TRUE(dest); /* unchanged */
 }
 
-/* ================================================================== */
-/*  Test: write_mainui_state integer underflow guards                  */
-/* ================================================================== */
-
-/*
- * Test the underflow fix pattern:
- *   old: page_start = total - page_size;        (underflows if total < page_size)
- *   new: page_start = (total >= page_size) ? total - page_size : 0;
- */
-
-TEST(underflow_guard_total_less_than_pagesize) {
-    int total = 2, page_size = 6;
-    int page_start;
-
-    /* Fixed pattern */
-    page_start = (total >= page_size) ? total - page_size : 0;
-    ASSERT_GE(page_start, 0);
-    ASSERT_EQ(page_start, 0);
-}
-
-TEST(underflow_guard_total_equals_pagesize) {
-    int total = 6, page_size = 6;
-    int page_start = (total >= page_size) ? total - page_size : 0;
-    ASSERT_EQ(page_start, 0);
-}
-
-TEST(underflow_guard_total_greater_than_pagesize) {
-    int total = 10, page_size = 6;
-    int page_start = (total >= page_size) ? total - page_size : 0;
-    ASSERT_EQ(page_start, 4);
-}
-
-TEST(underflow_guard_main_total_less_than_4) {
-    int main_total = 3;
-    int main_page_start = (main_total >= 4) ? main_total - 4 : 0;
-    ASSERT_EQ(main_page_start, 0);
-}
-
-TEST(underflow_guard_main_total_equals_4) {
-    int main_total = 4;
-    int main_page_start = (main_total >= 4) ? main_total - 4 : 0;
-    ASSERT_EQ(main_page_start, 0);
-}
-
-TEST(underflow_guard_main_total_greater_than_4) {
-    int main_total = 6;
-    int main_page_start = (main_total >= 4) ? main_total - 4 : 0;
-    ASSERT_EQ(main_page_start, 2);
-}
-
-TEST(underflow_guard_zero_total) {
-    int total = 0, page_size = 8;
-    int page_start = (total >= page_size) ? total - page_size : 0;
-    ASSERT_EQ(page_start, 0);
-
-    int page_end = page_start + page_size - 1;
-    ASSERT_EQ(page_end, 7);
-}
+/* write_mainui_state's lower bounds: tested on the real function in
+ * test_state_security.c (seven tests here only computed the same expression
+ * written out again). */
 
 /* ================================================================== */
 /*  main                                                              */
@@ -236,13 +181,6 @@ int main(void)
     RUN_TEST(json_getBool_null_object);
 
     /* Integer underflow guards */
-    RUN_TEST(underflow_guard_total_less_than_pagesize);
-    RUN_TEST(underflow_guard_total_equals_pagesize);
-    RUN_TEST(underflow_guard_total_greater_than_pagesize);
-    RUN_TEST(underflow_guard_main_total_less_than_4);
-    RUN_TEST(underflow_guard_main_total_equals_4);
-    RUN_TEST(underflow_guard_main_total_greater_than_4);
-    RUN_TEST(underflow_guard_zero_total);
 
     TEST_REPORT();
     return test_failures;

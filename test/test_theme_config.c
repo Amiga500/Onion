@@ -5,8 +5,7 @@
  * Tests the pure-logic theme configuration functions: json_color,
  * json_fontStyle, and theme_applyConfig (via temp files).
  *
- * SDL types and theme load constants are stubbed to avoid pulling in
- * the full SDL dependency.
+ * Includes the production header, with SDL from test/stubs.
  *
  * Build and run: make -f Makefile.unit test_theme_config
  */
@@ -17,215 +16,28 @@
 #include <stdio.h>
 #include <unistd.h>
 
-/* ---- Stub SDL types (same approach as test_color.c) ---- */
+/* Production code: json_color(), json_fontStyle() and theme_applyConfig()
+ * from theme/config.h, with SDL from test/stubs (it used to be a copy, with
+ * bounded copies the source did not have). The SDL, SDL_image and SDL_ttf
+ * calls of theme/load.h are never made by these tests: stubs to link. */
+#include "utils/log.h"
+#include "theme/config.h"
 
-typedef struct {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char unused;
-} SDL_Color;
-
-typedef unsigned int Uint32;
-
-/* ---- Stub SDL headers to satisfy includes ---- */
-#define _SDL_H
-#define _SDL_image_h
-#define _SDL_TTF_H
-
-/* ---- Provide constants from theme/load.h ---- */
-#define FALLBACK_FONT "/customer/app/Exo-2-Bold-Italic.ttf"
-#define FALLBACK_PATH "/mnt/SDCARD/miyoo/app/"
-#define THEME_OVERRIDES "/mnt/SDCARD/Saves/CurrentProfile/theme"
-
-/* ---- Include the real source dependencies ---- */
-#include "../src/common/utils/str.h"
-#include "../src/common/utils/json.h"
-
-/* ---- Inline color.h pure functions ---- */
-
-static SDL_Color hex2sdl(char *input)
+SDL_Surface *IMG_Load(const char *file) { (void)file; return NULL; }
+SDL_Surface *SDL_CreateRGBSurface(Uint32 flags, int width, int height, int depth,
+                                  Uint32 Rmask, Uint32 Gmask, Uint32 Bmask, Uint32 Amask)
 {
-    char *ptr;
-    if (input[0] == '#')
-        input++;
-    unsigned long value = strtoul(input, &ptr, 16);
-    SDL_Color color = {(value >> 16) & 0xff, (value >> 8) & 0xff,
-                       (value >> 0) & 0xff, 0};
-    return color;
+    (void)flags; (void)width; (void)height; (void)depth;
+    (void)Rmask; (void)Gmask; (void)Bmask; (void)Amask;
+    return NULL;
 }
-
-/* ---- Inline theme/config.h structs and pure functions ---- */
-
-typedef enum TextAlign {
-    LEFT,
-    CENTER,
-    RIGHT
-} Theme_TextAlign;
-
-typedef struct Theme_BatteryPercentage {
-    bool visible;
-    char font[STR_MAX];
-    int size;
-    SDL_Color color;
-    int offsetX;
-    int offsetY;
-    Theme_TextAlign textAlign;
-    bool fixed;
-} BatteryPercentage_s;
-
-typedef struct Theme_Frame {
-    int border_left;
-    int border_right;
-} Frame_s;
-
-typedef struct Theme_HideLabels {
-    bool icons;
-    bool hints;
-} HideLabels_s;
-
-typedef struct Theme_FontStyle {
-    char font[STR_MAX];
-    int size;
-    SDL_Color color;
-} FontStyle_s;
-
-typedef struct Theme_GridStyle {
-    char font[STR_MAX];
-    int grid1x4;
-    int grid3x4;
-    SDL_Color color;
-    SDL_Color selectedcolor;
-} GridStyle_s;
-
-typedef struct Theme {
-    char path[STR_MAX];
-    char name[STR_MAX];
-    char author[STR_MAX];
-    char description[STR_MAX];
-    HideLabels_s hideLabels;
-    BatteryPercentage_s batteryPercentage;
-    Frame_s frame;
-    FontStyle_s title;
-    FontStyle_s hint;
-    FontStyle_s currentpage;
-    FontStyle_s total;
-    GridStyle_s grid;
-    FontStyle_s list;
-} Theme_s;
-
-/* ---- Inline the pure-logic functions from theme/config.h ---- */
-
-static bool json_color(cJSON *root, const char *key, SDL_Color *dest)
+int SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect)
 {
-    cJSON *json_object = cJSON_GetObjectItem(root, key);
-    if (json_object) {
-        *dest = hex2sdl(cJSON_GetStringValue(json_object));
-        return true;
-    }
-    return false;
+    (void)src; (void)srcrect; (void)dst; (void)dstrect;
+    return 0;
 }
-
-static void json_fontStyle(cJSON *root, FontStyle_s *dest, FontStyle_s *fallback)
-{
-    if (!json_getString(root, "font", dest->font) && fallback) {
-        strncpy(dest->font, fallback->font, STR_MAX - 1);
-        dest->font[STR_MAX - 1] = '\0';
-    }
-    if (!json_getInt(root, "size", &dest->size) && fallback)
-        dest->size = fallback->size;
-    if (!json_color(root, "color", &dest->color) && fallback)
-        dest->color = fallback->color;
-}
-
-static bool theme_applyConfig(Theme_s *config, const char *config_path,
-                               bool use_fallbacks)
-{
-    char *json_str = NULL;
-
-    if (!exists(config_path) || !(json_str = file_read(config_path)))
-        return false;
-
-    cJSON *json_root = cJSON_Parse(json_str);
-    free(json_str);
-    cJSON *json_batteryPercentage =
-        cJSON_GetObjectItem(json_root, "batteryPercentage");
-    cJSON *json_hideLabels = cJSON_GetObjectItem(json_root, "hideLabels");
-    cJSON *json_frame = cJSON_GetObjectItem(json_root, "frame");
-    cJSON *json_title = cJSON_GetObjectItem(json_root, "title");
-    cJSON *json_hint = cJSON_GetObjectItem(json_root, "hint");
-    cJSON *json_currentpage = cJSON_GetObjectItem(json_root, "currentpage");
-    cJSON *json_total = cJSON_GetObjectItem(json_root, "total");
-    cJSON *json_grid = cJSON_GetObjectItem(json_root, "grid");
-    cJSON *json_list = cJSON_GetObjectItem(json_root, "list");
-
-    json_getString(json_root, "name", config->name);
-    json_getString(json_root, "author", config->author);
-    json_getString(json_root, "description", config->description);
-
-    if (json_hideLabels) {
-        json_getBool(json_hideLabels, "icons", &config->hideLabels.icons);
-        json_getBool(json_hideLabels, "hints", &config->hideLabels.hints);
-    }
-    else {
-        bool value = false;
-        if (json_getBool(json_root, "hideIconTitle", &value)) {
-            config->hideLabels.icons = value;
-            config->hideLabels.hints = value;
-        }
-    }
-
-    json_fontStyle(json_title, &config->title, NULL);
-    json_fontStyle(json_hint, &config->hint, use_fallbacks ? &config->title : NULL);
-    json_fontStyle(json_currentpage, &config->currentpage, use_fallbacks ? &config->hint : NULL);
-    json_fontStyle(json_total, &config->total, use_fallbacks ? &config->hint : NULL);
-    json_fontStyle(json_list, &config->list, use_fallbacks ? &config->title : NULL);
-
-    json_getString(json_grid, "font", config->grid.font);
-    json_getInt(json_grid, "grid1x4", &config->grid.grid1x4);
-    json_getInt(json_grid, "grid3x4", &config->grid.grid3x4);
-    json_color(json_grid, "color", &config->grid.color);
-    json_color(json_grid, "selectedcolor", &config->grid.selectedcolor);
-
-    json_getBool(json_batteryPercentage, "visible", &config->batteryPercentage.visible);
-
-    if (!json_getString(json_batteryPercentage, "font", config->batteryPercentage.font) && use_fallbacks) {
-        strncpy(config->batteryPercentage.font, config->hint.font, STR_MAX - 1);
-        config->batteryPercentage.font[STR_MAX - 1] = '\0';
-    }
-
-    json_getInt(json_batteryPercentage, "size", &config->batteryPercentage.size);
-
-    if (!json_color(json_batteryPercentage, "color", &config->batteryPercentage.color) && use_fallbacks)
-        config->batteryPercentage.color = config->hint.color;
-
-    json_getInt(json_batteryPercentage, "offsetX", &config->batteryPercentage.offsetX);
-    json_getInt(json_batteryPercentage, "offsetY", &config->batteryPercentage.offsetY);
-
-    char textAlign_str[JSON_STRING_LEN];
-    if (json_getString(json_batteryPercentage, "textAlign", textAlign_str)) {
-        if (strcmp("center", textAlign_str) == 0)
-            config->batteryPercentage.textAlign = CENTER;
-        else if (strcmp("right", textAlign_str) == 0)
-            config->batteryPercentage.textAlign = RIGHT;
-        else
-            config->batteryPercentage.textAlign = LEFT;
-    }
-    else {
-        bool depr_onleft = false;
-        if (json_getBool(json_batteryPercentage, "onleft", &depr_onleft))
-            config->batteryPercentage.textAlign = depr_onleft ? RIGHT : LEFT;
-    }
-
-    json_getBool(json_batteryPercentage, "fixed", &config->batteryPercentage.fixed);
-
-    json_getInt(json_frame, "border-left", &config->frame.border_left);
-    json_getInt(json_frame, "border-right", &config->frame.border_right);
-
-    cJSON_Delete(json_root);
-
-    return true;
-}
+void SDL_FreeSurface(SDL_Surface *surface) { (void)surface; }
+TTF_Font *TTF_OpenFont(const char *file, int ptsize) { (void)file; (void)ptsize; return NULL; }
 
 /* ---- Helper: write string to a temp file ---- */
 

@@ -4,7 +4,8 @@
  *
  * Tests the logic that converts various ROM path formats into
  * relative paths under the Roms/ folder. The function handles:
- * 1. Paths already relative (via file_path_relative_to, skipped in tests)
+ * 1. Paths of files under Roms/ (file_path_relative_to: not here, Roms/ is
+ *    the device's)
  * 2. Paths containing "../../Roms/" prefix (str_split fallback)
  * 3. Paths containing "/mnt/SDCARD/Roms/" prefix (str_replace fallback)
  * 4. Paths that match none of the above (returned as-is)
@@ -20,42 +21,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- Stub file_path_relative_to to always return false ---- */
-/* In unit tests, we can't use realpath() on nonexistent device paths.
- * Returning false forces __ensure_rel_path to use its fallback logic,
- * which is the code we actually want to test. */
-static bool file_path_relative_to(char *path_out, const char *dir_from, const char *file_to)
-{
-    (void)dir_from;
-    (void)file_to;
-    path_out[0] = '\0';
-    return false;
-}
-
-/* ---- Constants from playActivityDB.h ---- */
-#define ROMS_FOLDER "/mnt/SDCARD/Roms"
-
-/* ---- Inline the function under test ---- */
-
-static void __ensure_rel_path(char *rel_path, const char *rom_path)
-{
-    if (!file_path_relative_to(rel_path, ROMS_FOLDER, rom_path)) {
-        if (strstr(rom_path, "../../Roms/") != NULL) {
-            char *dup = strdup((const char *)rom_path);
-            strncpy(rel_path, str_split(dup, "../../Roms/"), PATH_MAX - 1);
-            rel_path[PATH_MAX - 1] = '\0';
-            free(dup);
-        }
-        else {
-            char *temp = strdup((const char *)rom_path);
-            char *replaced = str_replace(temp, "/mnt/SDCARD/Roms/", "");
-            free(temp);
-            strncpy(rel_path, replaced ? replaced : (const char *)rom_path, PATH_MAX - 1);
-            rel_path[PATH_MAX - 1] = '\0';
-            free(replaced);
-        }
-    }
-}
+/* Production code: __ensure_rel_path() from playActivityDB.h, with the
+ * real file_path_relative_to() (it used to be a copy, without the source's
+ * strdup checks, and a file_path_relative_to() that always failed). Roms/ is
+ * the device's: it does not exist here, so the fallbacks below are what
+ * runs, as on the console for a path that is not on the card. */
+#include "utils/file.h"
+#include "utils/log.h"
+#include "../src/playActivity/playActivityDB.h"
 
 /* ---- Tests: ../../Roms/ prefix paths ---- */
 

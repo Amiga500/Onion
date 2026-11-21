@@ -17,11 +17,17 @@
 #include "./cacheDB.h"
 #include "./playActivitySql.h"
 
-#define PLAY_ACTIVITY_DB_NEW_FILE "/mnt/SDCARD/Saves/CurrentProfile/play_activity/play_activity_db.sqlite"
-#ifndef ROMS_FOLDER // host tests point it at a temporary folder
+// Host tests point these at a temporary folder
+#ifndef PLAY_ACTIVITY_DB_DIR
+#define PLAY_ACTIVITY_DB_DIR "/mnt/SDCARD/Saves/CurrentProfile/play_activity/"
+#define PLAY_ACTIVITY_DB_NEW_FILE PLAY_ACTIVITY_DB_DIR "play_activity_db.sqlite"
+#endif
+#ifndef ROMS_FOLDER
 #define ROMS_FOLDER "/mnt/SDCARD/Roms"
 #endif
+#ifndef CMD_TO_RUN
 #define CMD_TO_RUN "/mnt/SDCARD/.tmp_update/cmd_to_run.sh"
+#endif
 #define ROM_NOT_FOUND -1
 
 typedef struct ROM ROM;
@@ -97,7 +103,7 @@ void play_activity_db_open(void)
     if (play_activity_db != NULL)
         return;
 
-    mkdir("/mnt/SDCARD/Saves/CurrentProfile/play_activity/", 0777);
+    mkdir(PLAY_ACTIVITY_DB_DIR, 0777);
 
     if (sqlite3_open(PLAY_ACTIVITY_DB_NEW_FILE, &play_activity_db) != SQLITE_OK) {
         printf("%s\n", sqlite3_errmsg(play_activity_db));

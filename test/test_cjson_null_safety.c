@@ -3,10 +3,10 @@
  * @brief Tests for cJSON_Parse NULL safety fixes (round 3)
  *
  * Validates:
- * - theme_applyConfig returns false on malformed JSON
- * - JsonGameEntry_fromJson returns defaults on malformed JSON
- * - _settings_load_mainui doesn't crash on malformed JSON
- * - file_removeExtension NULL result is safely handled in snprintf
+ * - cJSON's own NULL handling
+ * - JsonGameEntry_fromJson (the production function) returns defaults on
+ *   malformed JSON
+ * - file_removeExtension
  *
  * Build and run: make -f Makefile.unit test_cjson_null_safety
  */
@@ -20,9 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- Stubs for SDL-dependent code ---- */
-#define print_debug(...)
-#define printf_debug(...)
+#include "../src/common/utils/log.h"
 
 /* ================================================================== */
 /*  Test: cJSON_Parse NULL handling                                   */
@@ -80,20 +78,6 @@ TEST(cjson_delete_null_safe) {
  *   if (root == NULL) return <default>;
  */
 
-TEST(cjson_parse_guard_returns_early) {
-    /* Simulate the fixed config.h pattern */
-    const char *bad_json = "this is not valid json";
-    cJSON *json_root = cJSON_Parse(bad_json);
-    if (json_root == NULL) {
-        /* Fixed: early return prevents NULL dereference */
-        ASSERT_TRUE(1);
-        return;
-    }
-    /* Should not reach here */
-    cJSON_Delete(json_root);
-    ASSERT_TRUE(0); /* fail if we get here */
-}
-
 TEST(cjson_parse_valid_json) {
     const char *good_json = "{\"vol\":50,\"brightness\":5}";
     cJSON *json_root = cJSON_Parse(good_json);
@@ -114,40 +98,10 @@ TEST(cjson_parse_valid_json) {
 /*  Test: JsonGameEntry default values on parse failure               */
 /* ================================================================== */
 
-/*
- * Reproduce the fixed JsonGameEntry_fromJson pattern.
- * On NULL cJSON_Parse, returns entry with default values.
- */
-
-typedef struct {
-    char label[STR_MAX];
-    char launch[STR_MAX];
-    int type;
-    char rompath[STR_MAX];
-    char imgpath[STR_MAX];
-} TestGameEntry;
-
-static TestGameEntry test_entry_from_json(const char *json_str)
-{
-    TestGameEntry entry = {.label = "", .launch = "", .type = 5, .rompath = "", .imgpath = ""};
-
-    cJSON *root = cJSON_Parse(json_str);
-    if (root == NULL)
-        return entry;
-
-    cJSON *label = cJSON_GetObjectItem(root, "label");
-    if (label) {
-        const char *val = cJSON_GetStringValue(label);
-        if (val) strncpy(entry.label, val, STR_MAX - 1);
-    }
-
-    cJSON *type_obj = cJSON_GetObjectItem(root, "type");
-    if (type_obj)
-        entry.type = (int)cJSON_GetNumberValue(type_obj);
-
-    cJSON_Delete(root);
-    return entry;
-}
+/* The production JsonGameEntry_fromJson() (a reduced copy before). */
+#include "components/JsonGameEntry.h"
+typedef JsonGameEntry TestGameEntry;
+#define test_entry_from_json JsonGameEntry_fromJson
 
 TEST(game_entry_null_json_returns_defaults) {
     TestGameEntry entry = test_entry_from_json(NULL);
@@ -171,28 +125,6 @@ TEST(game_entry_valid_json) {
 /*  Test: file_removeExtension NULL-safe snprintf pattern             */
 /* ================================================================== */
 
-TEST(snprintf_null_string_guard) {
-    /*
-     * Validates the fix in randomGamePicker.c:
-     *   char *no_ext = file_removeExtension(basename(path));
-     *   if (no_ext != NULL) {
-     *       snprintf(buf, size, "%s/%s.png", dir, no_ext);
-     *       free(no_ext);
-     *   }
-     */
-    char buf[256] = "";
-    const char *dir = "/mnt/SDCARD/Roms/GBA/Imgs";
-
-    /* Simulate file_removeExtension returning NULL */
-    char *no_ext = NULL;
-    if (no_ext != NULL) {
-        snprintf(buf, sizeof(buf), "%s/%s.png", dir, no_ext);
-        free(no_ext);
-    }
-    /* buf should still be empty — no crash */
-    ASSERT_STREQ(buf, "");
-}
-
 TEST(snprintf_valid_extension_removal) {
     char buf[256] = "";
     const char *dir = "/mnt/SDCARD/Roms/GBA/Imgs";
@@ -205,53 +137,8 @@ TEST(snprintf_valid_extension_removal) {
     ASSERT_STREQ(buf, "/mnt/SDCARD/Roms/GBA/Imgs/game.png");
 }
 
-/* ================================================================== */
-/*  Test: settings load pattern with malformed JSON                   */
-/* ================================================================== */
-
-TEST(settings_load_pattern_malformed) {
-    /*
-     * Simulate the fixed _settings_load_mainui pattern:
-     *   cJSON *root = cJSON_Parse(str);
-     *   if (root == NULL) return;
-     */
-    int volume = 42;
-    int brightness = 7;
-
-    const char *bad_json = "{corrupt";
-    cJSON *json_root = cJSON_Parse(bad_json);
-    if (json_root == NULL) {
-        /* Fixed: return early, keep default values */
-        ASSERT_EQ(volume, 42);
-        ASSERT_EQ(brightness, 7);
-        return;
-    }
-    /* Should not reach here */
-    cJSON_Delete(json_root);
-    ASSERT_TRUE(0);
-}
-
-TEST(settings_load_pattern_valid) {
-    int volume = 42;
-    int brightness = 7;
-
-    const char *good_json = "{\"vol\":80,\"brightness\":3}";
-    cJSON *json_root = cJSON_Parse(good_json);
-    if (json_root == NULL) {
-        ASSERT_TRUE(0); /* should not reach here */
-        return;
-    }
-
-    cJSON *vol = cJSON_GetObjectItem(json_root, "vol");
-    if (vol) volume = (int)cJSON_GetNumberValue(vol);
-    cJSON *br = cJSON_GetObjectItem(json_root, "brightness");
-    if (br) brightness = (int)cJSON_GetNumberValue(br);
-
-    cJSON_Delete(json_root);
-
-    ASSERT_EQ(volume, 80);
-    ASSERT_EQ(brightness, 3);
-}
+/* settings_load() with a broken system.json: test_settings_merge.c (the two
+ * tests here re-enacted the pattern on local variables). */
 
 /* ================================================================== */
 /*  main                                                              */
@@ -269,7 +156,6 @@ int main(void)
     RUN_TEST(cjson_delete_null_safe);
 
     /* Fixed cJSON_Parse guard pattern */
-    RUN_TEST(cjson_parse_guard_returns_early);
     RUN_TEST(cjson_parse_valid_json);
 
     /* JsonGameEntry defaults on parse failure */
@@ -278,12 +164,9 @@ int main(void)
     RUN_TEST(game_entry_valid_json);
 
     /* file_removeExtension NULL-safe snprintf */
-    RUN_TEST(snprintf_null_string_guard);
     RUN_TEST(snprintf_valid_extension_removal);
 
     /* Settings load pattern */
-    RUN_TEST(settings_load_pattern_malformed);
-    RUN_TEST(settings_load_pattern_valid);
 
     TEST_REPORT();
     return test_failures;

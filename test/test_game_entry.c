@@ -7,8 +7,7 @@
  * (serializing struct back to JSON string).
  *
  * Covers: valid entries, missing fields, malformed JSON, colon-splitting
- * of rompath, emupath extraction, roundtrip serialization, and buffer
- * boundary conditions.
+ * of rompath, emupath extraction and roundtrip serialization.
  *
  * Build and run: make -f Makefile.unit test_game_entry
  */
@@ -20,90 +19,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- Inline types and functions from JsonGameEntry.h ---- */
-/* (Cannot include directly due to path dependencies)        */
-
-#define JSON_STRING_LEN 256
-
-typedef struct json_game_entry_s {
-    char label[STR_MAX];
-    char launch[STR_MAX];
-    int type;
-    char rompath[STR_MAX];
-    char imgpath[STR_MAX];
-    char emupath[STR_MAX];
-} JsonGameEntry;
-
-/* Forward declarations for json helpers we need */
-static bool _json_getString(cJSON *object, const char *key, char *dest)
-{
-    cJSON *json_object = cJSON_GetObjectItem(object, key);
-    if (json_object) {
-        const char *val = cJSON_GetStringValue(json_object);
-        if (val == NULL)
-            return false;
-        strncpy(dest, val, JSON_STRING_LEN - 1);
-        dest[JSON_STRING_LEN - 1] = '\0';
-        return true;
-    }
-    return false;
-}
-
-static bool _json_getInt(cJSON *object, const char *key, int *dest)
-{
-    cJSON *json_object = cJSON_GetObjectItem(object, key);
-    if (json_object) {
-        *dest = (int)cJSON_GetNumberValue(json_object);
-        return true;
-    }
-    return false;
-}
-
-static JsonGameEntry JsonGameEntry_fromJson(const char *json_str)
-{
-    JsonGameEntry entry = {.label = "",
-                           .launch = "",
-                           .type = 5,
-                           .rompath = "",
-                           .imgpath = "",
-                           .emupath = ""};
-
-    cJSON *root = cJSON_Parse(json_str);
-    _json_getString(root, "label", entry.label);
-    _json_getString(root, "launch", entry.launch);
-    _json_getInt(root, "type", &entry.type);
-    _json_getString(root, "rompath", entry.rompath);
-    _json_getString(root, "imgpath", entry.imgpath);
-    cJSON_Delete(root);
-
-    strncpy(entry.emupath, entry.rompath, STR_MAX - 1);
-    entry.emupath[STR_MAX - 1] = '\0';
-    str_split(entry.emupath, "/../../");
-
-    return entry;
-}
-
-static void JsonGameEntry_toJson(char dest[STR_MAX * 6], JsonGameEntry *entry)
-{
-    size_t dest_size = STR_MAX * 6;
-    size_t len = 0;
-    int n;
-    dest[0] = '{';
-    dest[1] = '\0';
-    len = 1;
-    n = snprintf(dest + len, dest_size - len, "\"label\":\"%s\",", entry->label);
-    if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
-    n = snprintf(dest + len, dest_size - len, "\"launch\":\"%s\",", entry->launch);
-    if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
-    n = snprintf(dest + len, dest_size - len, "\"type\":%d,", entry->type);
-    if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
-    if (strlen(entry->imgpath) > 0) {
-        n = snprintf(dest + len, dest_size - len, "\"imgpath\":\"%s\",", entry->imgpath);
-        if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
-    }
-    n = snprintf(dest + len, dest_size - len, "\"rompath\":\"%s\"}", entry->rompath);
-    if (n > 0) len += (size_t)n < dest_size - len ? (size_t)n : dest_size - len - 1;
-}
+/* The production header (it used to be copied here, "cannot include
+ * directly", and the copy had bounded writes the source does not have). */
+#include "components/JsonGameEntry.h"
 
 /* ---- Tests: JsonGameEntry_fromJson ---- */
 

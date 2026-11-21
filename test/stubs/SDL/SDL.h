@@ -29,6 +29,7 @@ typedef struct SDL_PixelFormat {
     Uint32 Amask;
     Uint8 Ashift;
     Uint8 BytesPerPixel;
+    Uint8 BitsPerPixel; /* theme/load.h */
 } SDL_PixelFormat;
 
 typedef struct SDL_Surface {

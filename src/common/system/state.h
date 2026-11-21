@@ -166,6 +166,11 @@ typedef enum mainui_states {
     APPS
 } MainUIState;
 
+// MainUI reads its list positions here (a test points it elsewhere)
+#ifndef MAINUI_STATE_FILE
+#define MAINUI_STATE_FILE "/tmp/state.json"
+#endif
+
 void write_mainui_state(MainUIState state, int currpos, int total)
 {
     FILE *fp;
@@ -175,7 +180,7 @@ void write_mainui_state(MainUIState state, int currpos, int total)
 
     switch (state) {
     case MAIN_MENU:
-        remove("/tmp/state.json");
+        remove(MAINUI_STATE_FILE);
         return;
     case RECENTS:
         title_num = 18;
@@ -238,7 +243,7 @@ void write_mainui_state(MainUIState state, int currpos, int total)
              main_currpos, main_page_start, main_page_end, title_num, page_type,
              currpos, page_start, page_end);
 
-    file_put_sync(fp, "/tmp/state.json", "%s", state_str);
+    file_put_sync(fp, MAINUI_STATE_FILE, "%s", state_str);
 }
 
 //

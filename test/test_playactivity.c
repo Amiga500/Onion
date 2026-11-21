@@ -1,139 +1,163 @@
 /**
  * @file test_playactivity.c
- * @brief Unit tests for playActivityDB.h utility functions.
+ * @brief Unit tests for src/playActivity/playActivityDB.h, the production
+ *        header, on a real SQLite database in /tmp/<pid>.
  *
- * Tests _get_active_rom_path without requiring
- * SQLite or device-specific dependencies.
+ * _get_active_rom_path() reads cmd_to_run.sh (it was tested on a copy that
+ * took a string). The database functions (start, stop, stop_all, resume,
+ * drop_open) ran in no test before: the SQLite stand-in failed every call.
  *
- * Build and run: make -f Makefile.unit test_playactivity && ./build_test/test_playactivity
+ * Build and run: make -f Makefile.unit test_playactivity
  */
 
 #include "onion_test.h"
-#include "../src/common/utils/str.h"
-#include "../src/common/utils/file.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
-/* get_rom_image_path is tested against the production header in
- * test_rom_image_path.c. */
+static char dir[] = "/tmp/onion_test_pa_XXXXXX";
+static char cmd_to_run[96], db_dir[96], db_file[128], rom[128];
+#define CMD_TO_RUN cmd_to_run
+#define PLAY_ACTIVITY_DB_DIR db_dir
+#define PLAY_ACTIVITY_DB_NEW_FILE db_file
 
-/* ------------------------------------------------------------------ */
-/* Tests for _get_active_rom_path (strncpy fix)                        */
-/* ------------------------------------------------------------------ */
+#include "utils/file.h"
+#include "utils/log.h"
+#include "utils/str.h"
+#include "../src/playActivity/playActivityDB.h"
 
-/* Reproduce the fixed _get_active_rom_path using a string input
- * instead of reading from the filesystem. */
-static bool _fixed_get_active_rom_path_from_str(const char *cmd_input, char *rom_path_out)
+static void write_cmd(const char *line)
 {
-    char *ptr;
-    char cmd[STR_MAX];
-    strncpy(cmd, cmd_input, STR_MAX - 1);
-    cmd[STR_MAX - 1] = '\0';
-
-    if (strlen(cmd) == 0) {
-        return false;
-    }
-
-    if ((ptr = strrchr(cmd, '"')) != NULL) {
-        *ptr = '\0';
-    }
-
-    if ((ptr = strrchr(cmd, '"')) != NULL) {
-        strncpy(rom_path_out, ptr + 1, STR_MAX - 1);
-        rom_path_out[STR_MAX - 1] = '\0';
-        return true;
-    }
-
-    return false;
+    FILE *fp = fopen(cmd_to_run, "w");
+    fputs(line, fp);
+    fclose(fp);
 }
 
-/* Standard command string with quoted rom path */
+/* Rows of play_activity matching WHERE, -1 when the table cannot be read */
+static int rows(const char *where)
+{
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    char sql[256];
+    int n = -1;
+    if (sqlite3_open(db_file, &db) != SQLITE_OK)
+        return -1;
+    snprintf(sql, sizeof(sql), "SELECT COUNT(*) FROM play_activity WHERE %s;", where);
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW)
+            n = sqlite3_column_int(stmt, 0);
+        sqlite3_finalize(stmt);
+    }
+    sqlite3_close(db);
+    return n;
+}
+
+static void fresh_db(void)
+{
+    remove(db_file);
+}
+
+/* ---- _get_active_rom_path ---- */
+
 TEST(get_active_rom_path_standard) {
     char rom_path[STR_MAX] = "";
-    bool result = _fixed_get_active_rom_path_from_str(
-        "LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so \"/mnt/SDCARD/Emu/GBA/launch.sh\" \"/mnt/SDCARD/Roms/GBA/game.gba\"",
-        rom_path);
-    ASSERT_TRUE(result);
+    write_cmd("LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so \"/mnt/SDCARD/Emu/GBA/launch.sh\" \"/mnt/SDCARD/Roms/GBA/game.gba\"\n");
+    ASSERT_TRUE(_get_active_rom_path(rom_path));
     ASSERT_STREQ(rom_path, "/mnt/SDCARD/Roms/GBA/game.gba");
 }
 
-/* No quotes in command string */
 TEST(get_active_rom_path_no_quotes) {
     char rom_path[STR_MAX] = "";
-    bool result = _fixed_get_active_rom_path_from_str(
-        "no quotes here",
-        rom_path);
-    ASSERT_FALSE(result);
+    write_cmd("no quotes here\n");
+    ASSERT_FALSE(_get_active_rom_path(rom_path));
 }
 
-/* Empty command string */
 TEST(get_active_rom_path_empty) {
     char rom_path[STR_MAX] = "";
-    bool result = _fixed_get_active_rom_path_from_str("", rom_path);
-    ASSERT_FALSE(result);
+    write_cmd("");
+    ASSERT_FALSE(_get_active_rom_path(rom_path));
 }
 
-/* ------------------------------------------------------------------ */
-/* Tests for lang_free NULL safety                                     */
-/* ------------------------------------------------------------------ */
-
-/* Reproduce lang_free with the FIX applied */
-static char **_test_lang_list = NULL;
-#define _TEST_LANG_MAX 5
-
-static void _fixed_lang_free(void)
-{
-    if (_test_lang_list == NULL)
-        return;
-    for (int i = 0; i < _TEST_LANG_MAX; i++) {
-        if (_test_lang_list[i] == NULL)
-            continue;
-        free(_test_lang_list[i]);
-    }
-    free(_test_lang_list);
-    _test_lang_list = NULL;
+TEST(get_active_rom_path_no_file) {
+    char rom_path[STR_MAX] = "";
+    remove(cmd_to_run);
+    ASSERT_FALSE(_get_active_rom_path(rom_path));
 }
 
-/* lang_free on NULL list must not crash */
-TEST(lang_free_null_safe) {
-    _test_lang_list = NULL;
-    /* This would crash without the NULL guard */
-    _fixed_lang_free();
-    /* If we reach here, no crash occurred */
-    ASSERT_NULL(_test_lang_list);
+/* ---- the database ---- */
+
+TEST(start_then_stop_records_one_session) {
+    fresh_db();
+    play_activity_start(rom);
+    ASSERT_EQ(rows("play_time IS NULL"), 1);
+    play_activity_stop(rom);
+    ASSERT_EQ(rows("play_time IS NULL"), 0);
+    ASSERT_EQ(rows("play_time >= 0"), 1);
 }
 
-/* lang_free on allocated list works and NULLs the pointer */
-TEST(lang_free_allocated_list) {
-    _test_lang_list = (char **)calloc(_TEST_LANG_MAX, sizeof(char *));
-    ASSERT_NOT_NULL(_test_lang_list);
-    _test_lang_list[0] = strdup("hello");
-    _test_lang_list[2] = strdup("world");
-
-    _fixed_lang_free();
-    ASSERT_NULL(_test_lang_list);
+/* An empty database file (a first write that failed) gets its tables. */
+TEST(empty_database_file_gets_tables) {
+    fresh_db();
+    fclose(fopen(db_file, "w"));
+    play_activity_start(rom);
+    ASSERT_EQ(rows("1"), 1);
+    play_activity_stop_all();
 }
 
-/* ------------------------------------------------------------------ */
-/* main                                                                */
-/* ------------------------------------------------------------------ */
+/* Standby: stop_all closes the session, resume adds a row for the same play. */
+TEST(stop_all_then_resume_continues_the_play) {
+    char line[STR_MAX * 2];
+    fresh_db();
+    snprintf(line, sizeof(line), "LD_PRELOAD=x \"/mnt/SDCARD/Emu/GBA/launch.sh\" \"%s\"\n", rom);
+    write_cmd(line);
+    play_activity_start(rom);
+    play_activity_stop_all();
+    ASSERT_EQ(rows("play_time IS NULL"), 0);
+    play_activity_resume();
+    ASSERT_EQ(rows("play_time IS NULL AND resumed = 1"), 1);
+    play_activity_stop(rom);
+    ASSERT_EQ(rows("1"), 2);
+    ASSERT_EQ(rows("resumed = 1"), 1);
+}
+
+/* Boot after a power loss: an open session is dropped, closed ones stay. */
+TEST(drop_open_keeps_closed_sessions) {
+    fresh_db();
+    play_activity_start(rom);
+    play_activity_stop(rom);
+    play_activity_start(rom);
+    play_activity_drop_open();
+    ASSERT_EQ(rows("play_time IS NULL"), 0);
+    ASSERT_EQ(rows("1"), 1);
+}
 
 int main(void)
 {
-    printf("\n=== playActivityDB.h & lang.h Unit Tests ===\n\n");
+    printf("\n=== playActivityDB.h Unit Tests ===\n\n");
 
-    /* _get_active_rom_path */
+    if (mkdtemp(dir) == NULL)
+        return 1;
+    snprintf(cmd_to_run, sizeof(cmd_to_run), "%s/cmd_to_run.sh", dir);
+    snprintf(db_dir, sizeof(db_dir), "%s/play_activity/", dir);
+    snprintf(db_file, sizeof(db_file), "%splay_activity_db.sqlite", db_dir);
+    snprintf(rom, sizeof(rom), "%s/Tetris.gb", dir);
+    fclose(fopen(rom, "w"));
+
     RUN_TEST(get_active_rom_path_standard);
     RUN_TEST(get_active_rom_path_no_quotes);
     RUN_TEST(get_active_rom_path_empty);
+    RUN_TEST(get_active_rom_path_no_file);
 
-    /* lang_free */
-    RUN_TEST(lang_free_null_safe);
-    RUN_TEST(lang_free_allocated_list);
+    RUN_TEST(start_then_stop_records_one_session);
+    RUN_TEST(empty_database_file_gets_tables);
+    RUN_TEST(stop_all_then_resume_continues_the_play);
+    RUN_TEST(drop_open_keeps_closed_sessions);
 
+    file_remove_recursive(dir);
     TEST_REPORT();
     return test_failures;
 }

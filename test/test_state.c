@@ -1,515 +1,225 @@
 /**
  * @file test_state.c
- * @brief Unit tests for AdvanceMENU-related state functions in state.h.
+ * @brief Unit tests for state_getAppName() and the recent-list readers of
+ *        src/common/system/state.h (AdvanceMENU, screenshots, romscreens).
  *
- * Documents and regression-tests two bugs that affect the AdvanceMENU
- * integration:
+ * Includes the production header. (This file used to test copies of the
+ * functions, a "buggy" and a "fixed" one, which had drifted from the
+ * source.) ROM paths in the fixtures are real files: the source skips a ROM
+ * that is not on the card.
  *
- * BUG #1 — state_getAppName: hardcoded offset of 19 characters
- *   The function unconditionally skips the first 19 characters of the command
- *   string.  That number exactly matches the prefix "HOME=/mnt/SDCARD ./"
- *   produced by the Onion MainUI app launcher.  If the HOME path is shorter
- *   (e.g. "HOME=/home/user ./", which is 18 chars), the window shifts by one
- *   character and the extracted name is wrong — silently, with no error.
- *   Fix: search for the " ./" separator dynamically instead of using a magic
- *   constant.
+ * The two bugs these tests were written for:
+ *  - state_getAppName() skipped a fixed 19 characters ("HOME=/mnt/SDCARD ./"),
+ *    so a shorter HOME cut the app name: it looks for " ./" now.
+ *  - history_getRecentPath() stopped at the first entry that was not a game
+ *    (an App launch): screenshots were named "Screenshot". It goes on now.
  *
- * BUG #2 — history_getRecentPath: premature return on non-game entries
- *   When the function encounters a line whose "type" field is not 5 or 17
- *   (i.e. not a game entry — could be an App, a section header, etc.) it
- *   calls fclose() + return NULL, aborting the scan.  resumeGame() correctly
- *   uses 'continue' to skip those entries.  In the AdvanceMENU quick-switch
- *   flow the recent list is read via history_getRecentPath to derive the
- *   screenshot filename; if the top entry is an App launch (type 3), the
- *   function returns NULL and every screenshot is named "Screenshot" instead
- *   of the ROM name.
- *   Fix: replace the two "fclose + return NULL" inside the while-loop with
- *   "free(jsonContent) + continue".
- *
- * SHADOW COPY: history_getRecentPath / state_getAppName below are local
- * reproductions used to document the old bugs. Production contract tests
- * live in test_history_recent.c (#include of state.h).
- *
- * Build and run:
- *   make -f Makefile.unit test_state && ./build_test/test_state
+ * Build and run: make -f Makefile.unit test_state
  */
 
 #include "onion_test.h"
-#include "../src/common/utils/str.h"
-#include "../src/common/utils/file.h"
-#include "../src/common/utils/hash.h"
 
 #include <stdio.h>
-#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
-/* ------------------------------------------------------------------ */
-/* Local reproductions of the functions under test                     */
-/*                                                                     */
-/* state.h cannot be included here without pulling in SDL-heavy system */
-/* headers.  We therefore reproduce only the two functions of interest */
-/* verbatim from state.h so the tests are fully self-contained and     */
-/* compile without device-specific dependencies.                       */
-/* ------------------------------------------------------------------ */
+static char recent_path[64], recent_hidden_path[64];
+#define RECENTLIST_PATH recent_path
+#define RECENTLIST_HIDDEN_PATH recent_hidden_path
 
-/* Exact copy of the BUGGY state_getAppName from state.h.
- * Kept here to document the problem; the production code is fixed. */
-static size_t _buggy_state_getAppName(char *out, const char *str)
+#include "system/state.h"
+
+static char dir[] = "/tmp/onion_test_state_XXXXXX";
+static char rom_a[96], rom_b[96];
+
+static void write_recent(const char *lines)
 {
-    char *end;
-    size_t out_size;
-
-    str += 19; /* hardcoded: assumes "HOME=/mnt/SDCARD ./" prefix */
-    end = (char *)strchr(str, ';');
-    if (end == NULL)
-        end = (char *)(str + strlen(str));
-
-    out_size = (end - str) < STR_MAX - 1 ? (end - str) : STR_MAX - 1;
-    memcpy(out, str, out_size);
-    out[out_size] = 0;
-    return out_size;
+    FILE *fp = fopen(recent_path, "w");
+    fputs(lines, fp);
+    fclose(fp);
 }
 
-/* Exact copy of the FIXED state_getAppName (dynamically finds " ./"). */
-static size_t _fixed_state_getAppName(char *out, const char *str)
+static void game_line(char *out, size_t size, const char *label, int type, const char *rom)
 {
-    char *end;
-    size_t out_size;
-
-    const char *prefix_end = strstr(str, " ./");
-    if (prefix_end == NULL) {
-        *out = '\0';
-        return 0;
-    }
-    str = prefix_end + 3; /* skip " ./" */
-
-    end = (char *)strchr(str, ';');
-    if (end == NULL)
-        end = (char *)(str + strlen(str));
-
-    out_size = (end - str) < STR_MAX - 1 ? (end - str) : STR_MAX - 1;
-    memcpy(out, str, out_size);
-    out[out_size] = 0;
-    return out_size;
+    snprintf(out, size,
+             "{\"label\":\"%s\",\"type\":%d,\"rompath\":\"%s\","
+             "\"launch\":\"/mnt/SDCARD/Emu/GBA/launch.sh\"}\n",
+             label, type, rom);
 }
 
-/* Testable version of history_getRecentPath that takes a file path.
- * Contains the BUGGY logic (fclose+return NULL on non-game lines)
- * so the tests below prove the problem is real. */
-static char *_buggy_history_getRecentPath(const char *recentlist_path,
-                                          char *rom_path)
-{
-    FILE *file = fopen(recentlist_path, "r");
-    if (file == NULL)
-        return NULL;
+/* ---- state_getAppName ---- */
 
-    char line[STR_MAX * 3];
-    while (fgets(line, STR_MAX * 3, file) != NULL) {
-        size_t line_len = strlen(line);
-        char *jsonContent = (char *)malloc(line_len + 1);
-        int type;
-
-        memcpy(jsonContent, line, line_len + 1);
-        const char *typeStr = strstr(jsonContent, "\"type\":");
-        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1) {
-            free(jsonContent);
-            fclose(file);
-            return NULL; /* BUG: should be 'continue' */
-        }
-
-        if ((type != 5) && (type != 17)) {
-            free(jsonContent);
-            fclose(file);
-            return NULL; /* BUG: should be 'continue' */
-        }
-
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
-        if (rompathStart == NULL) {
-            free(jsonContent);
-            fclose(file);
-            return NULL;
-        }
-        rompathStart += 11;
-        const char *rompathEnd = strchr(rompathStart, '"');
-        if (rompathEnd == NULL) {
-            free(jsonContent);
-            fclose(file);
-            return NULL;
-        }
-        size_t len = (size_t)(rompathEnd - rompathStart);
-        if (len >= STR_MAX)
-            len = STR_MAX - 1;
-        strncpy(rom_path, rompathStart, len);
-        rom_path[len] = '\0';
-
-        free(jsonContent);
-        fclose(file);
-        return rom_path;
-    }
-
-    fclose(file);
-    return NULL;
-}
-
-/* Testable version with the FIX applied (continue on non-game lines). */
-static char *_fixed_history_getRecentPath(const char *recentlist_path,
-                                          char *rom_path)
-{
-    FILE *file = fopen(recentlist_path, "r");
-    if (file == NULL)
-        return NULL;
-
-    char line[STR_MAX * 3];
-    while (fgets(line, STR_MAX * 3, file) != NULL) {
-        size_t line_len = strlen(line);
-        char *jsonContent = (char *)malloc(line_len + 1);
-        int type;
-
-        memcpy(jsonContent, line, line_len + 1);
-        const char *typeStr = strstr(jsonContent, "\"type\":");
-        if (typeStr == NULL || sscanf(typeStr + 7, "%d", &type) != 1) {
-            free(jsonContent);
-            continue; /* fixed: skip malformed lines */
-        }
-
-        if ((type != 5) && (type != 17)) {
-            free(jsonContent);
-            continue; /* fixed: skip non-game entries */
-        }
-
-        const char *rompathStart = strstr(jsonContent, "\"rompath\":\"");
-        if (rompathStart == NULL) {
-            free(jsonContent);
-            continue;
-        }
-        rompathStart += 11;
-        const char *rompathEnd = strchr(rompathStart, '"');
-        if (rompathEnd == NULL) {
-            free(jsonContent);
-            continue;
-        }
-        size_t len = (size_t)(rompathEnd - rompathStart);
-        if (len >= STR_MAX)
-            len = STR_MAX - 1;
-        strncpy(rom_path, rompathStart, len);
-        rom_path[len] = '\0';
-
-        free(jsonContent);
-        fclose(file);
-        return rom_path;
-    }
-
-    fclose(file);
-    return NULL;
-}
-
-/* ------------------------------------------------------------------ */
-/* Tests for state_getAppName                                          */
-/* ------------------------------------------------------------------ */
-
-/* The function works correctly when the prefix is exactly
- * "HOME=/mnt/SDCARD ./" (19 chars). */
 TEST(state_getAppName_standard_sdcard_prefix) {
-    char cmd[STR_MAX] = "HOME=/mnt/SDCARD ./Tweaks; chmod 777 Tweaks";
     char out[STR_MAX] = {0};
-    _fixed_state_getAppName(out, cmd);
+    state_getAppName(out, "HOME=/mnt/SDCARD ./Tweaks; chmod 777 Tweaks");
     ASSERT_STREQ(out, "Tweaks");
 }
 
-/* Without a semicolon the full remainder is the app name. */
 TEST(state_getAppName_no_semicolon) {
-    char cmd[STR_MAX] = "HOME=/mnt/SDCARD ./Tweaks";
     char out[STR_MAX] = {0};
-    _fixed_state_getAppName(out, cmd);
+    state_getAppName(out, "HOME=/mnt/SDCARD ./Tweaks");
     ASSERT_STREQ(out, "Tweaks");
 }
 
-/* An app name that contains spaces is preserved up to the semicolon. */
 TEST(state_getAppName_app_name_with_space) {
-    char cmd[STR_MAX] = "HOME=/mnt/SDCARD ./My App; chmod 777 MyApp";
     char out[STR_MAX] = {0};
-    _fixed_state_getAppName(out, cmd);
+    state_getAppName(out, "HOME=/mnt/SDCARD ./My App; chmod 777 MyApp");
     ASSERT_STREQ(out, "My App");
 }
 
-/* No " ./" separator → returns empty string gracefully. */
 TEST(state_getAppName_no_prefix_returns_empty) {
-    char cmd[STR_MAX] = "invalid_command_without_prefix";
-    char out[STR_MAX] = {0};
-    _fixed_state_getAppName(out, cmd);
+    char out[STR_MAX] = "x";
+    ASSERT_EQ((int)state_getAppName(out, "invalid_command_without_prefix"), 0);
     ASSERT_EQ((int)strlen(out), 0);
 }
 
-/*
- * BUG #1 — Logged regression test.
- *
- * "HOME=/home/user ./" is 18 chars — one shorter than the hardcoded 19.
- * The buggy function therefore starts one character INTO the app name,
- * returning "ppName" instead of "AppName".
- * The fixed function finds " ./" dynamically and always returns the
- * correct app name regardless of the HOME path length.
- */
-TEST(state_getAppName_shorter_home_prefix_misparses_bug) {
-    char cmd[STR_MAX] = "HOME=/home/user ./AppName; chmod 777 AppName";
-    char out_buggy[STR_MAX] = {0};
-    char out_fixed[STR_MAX] = {0};
-
-    _buggy_state_getAppName(out_buggy, cmd);
-    _fixed_state_getAppName(out_fixed, cmd);
-
-    /* The buggy version skips 19 chars on an 18-char prefix:
-     * it starts at the 2nd character of "AppName" → "ppName". */
-    ASSERT_STREQ(out_buggy, "ppName");   /* documents what the bug produces */
-    ASSERT_STREQ(out_fixed, "AppName");  /* the fix produces the correct result */
+/* 18 characters of prefix: the old fixed offset gave "ppName". */
+TEST(state_getAppName_shorter_home_prefix) {
+    char out[STR_MAX] = {0};
+    state_getAppName(out, "HOME=/home/user ./AppName; chmod 777 AppName");
+    ASSERT_STREQ(out, "AppName");
 }
 
-/* ------------------------------------------------------------------ */
-/* Tests for history_getRecentPath                                     */
-/* ------------------------------------------------------------------ */
+/* ---- history_getRecentPath (the recent list chosen by the source) ---- */
 
-static const char *_TMP_RECENT = "/tmp/onion_test_recentlist.json";
-
-/* When the first (and only) line is a game entry, the path is found. */
 TEST(history_getRecentPath_single_game_entry) {
-    FILE *fp = fopen(_TMP_RECENT, "w");
-    ASSERT_NOT_NULL(fp);
-    fprintf(fp,
-        "{\"label\":\"MyGame\",\"type\":5,"
-        "\"rompath\":\"/mnt/SDCARD/Roms/GBA/game.gba\","
-        "\"imgpath\":\"/mnt/SDCARD/Roms/GBA/Imgs/game.png\","
-        "\"launch\":\"/mnt/SDCARD/Emu/GBA/launch.sh\"}\n");
-    fclose(fp);
-
-    char rom_path[STR_MAX] = {0};
-    char *result = _fixed_history_getRecentPath(_TMP_RECENT, rom_path);
-    ASSERT_NOT_NULL(result);
-    ASSERT_STREQ(result, "/mnt/SDCARD/Roms/GBA/game.gba");
-    unlink(_TMP_RECENT);
+    char line[STR_MAX * 2], rom_path[STR_MAX] = "";
+    game_line(line, sizeof(line), "MyGame", 5, rom_a);
+    write_recent(line);
+    ASSERT_NOT_NULL(history_getRecentPath(rom_path));
+    ASSERT_STREQ(rom_path, rom_a);
 }
 
-/* A type-17 entry (search-launched game) is also treated as a game. */
 TEST(history_getRecentPath_type17_game_entry) {
-    FILE *fp = fopen(_TMP_RECENT, "w");
-    ASSERT_NOT_NULL(fp);
-    fprintf(fp,
-        "{\"label\":\"GameViaSearch\",\"type\":17,"
-        "\"rompath\":\"/mnt/SDCARD/Roms/SNES/game.sfc\","
-        "\"imgpath\":\"/mnt/SDCARD/Roms/SNES/Imgs/game.png\","
-        "\"launch\":\"/mnt/SDCARD/Emu/SNES/launch.sh\"}\n");
-    fclose(fp);
-
-    char rom_path[STR_MAX] = {0};
-    char *result = _fixed_history_getRecentPath(_TMP_RECENT, rom_path);
-    ASSERT_NOT_NULL(result);
-    ASSERT_STREQ(result, "/mnt/SDCARD/Roms/SNES/game.sfc");
-    unlink(_TMP_RECENT);
+    char line[STR_MAX * 2], rom_path[STR_MAX] = "";
+    game_line(line, sizeof(line), "GameViaSearch", 17, rom_b);
+    write_recent(line);
+    ASSERT_NOT_NULL(history_getRecentPath(rom_path));
+    ASSERT_STREQ(rom_path, rom_b);
 }
 
-/* When the file does not exist the function returns NULL gracefully. */
 TEST(history_getRecentPath_missing_file) {
-    char rom_path[STR_MAX] = {0};
-    char *result = _fixed_history_getRecentPath(
-        "/tmp/onion_test_nonexistent_recent.json", rom_path);
-    ASSERT_NULL(result);
+    char rom_path[STR_MAX] = "";
+    remove(recent_path);
+    ASSERT_NULL(history_getRecentPath(rom_path));
 }
 
-/* A completely empty file returns NULL without crashing. */
 TEST(history_getRecentPath_empty_file) {
-    FILE *fp = fopen(_TMP_RECENT, "w");
-    ASSERT_NOT_NULL(fp);
-    fclose(fp);
-
-    char rom_path[STR_MAX] = {0};
-    char *result = _fixed_history_getRecentPath(_TMP_RECENT, rom_path);
-    ASSERT_NULL(result);
-    unlink(_TMP_RECENT);
+    char rom_path[STR_MAX] = "";
+    write_recent("");
+    ASSERT_NULL(history_getRecentPath(rom_path));
 }
 
-/* A malformed (non-JSON) line is skipped; the next valid game line is found. */
 TEST(history_getRecentPath_malformed_line_then_game) {
-    FILE *fp = fopen(_TMP_RECENT, "w");
-    ASSERT_NOT_NULL(fp);
-    fprintf(fp, "this is not valid json\n");
-    fprintf(fp,
-        "{\"label\":\"Game2\",\"type\":5,"
-        "\"rompath\":\"/mnt/SDCARD/Roms/GBA/game2.gba\","
-        "\"imgpath\":\"/mnt/SDCARD/Roms/GBA/Imgs/game2.png\","
-        "\"launch\":\"/mnt/SDCARD/Emu/GBA/launch.sh\"}\n");
+    char line[STR_MAX * 2], all[STR_MAX * 3], rom_path[STR_MAX] = "";
+    game_line(line, sizeof(line), "Game2", 5, rom_b);
+    snprintf(all, sizeof(all), "this is not valid json\n%s", line);
+    write_recent(all);
+    ASSERT_NOT_NULL(history_getRecentPath(rom_path));
+    ASSERT_STREQ(rom_path, rom_b);
+}
+
+/* An App launch on top: the game below it names the screenshot. */
+TEST(history_getRecentPath_app_entry_before_game_entry) {
+    char line[STR_MAX * 2], all[STR_MAX * 3], rom_path[STR_MAX] = "";
+    game_line(line, sizeof(line), "MyGame", 5, rom_a);
+    snprintf(all, sizeof(all),
+             "{\"label\":\"SomeApp\",\"type\":3,\"rompath\":\"/mnt/SDCARD/App/SomeApp\"}\n%s", line);
+    write_recent(all);
+    ASSERT_NOT_NULL(history_getRecentPath(rom_path));
+    ASSERT_STREQ(rom_path, rom_a);
+}
+
+/* A game whose ROM is gone is skipped too. */
+TEST(history_getRecentPath_missing_rom_skipped) {
+    char l1[STR_MAX * 2], l2[STR_MAX * 2], all[STR_MAX * 4], rom_path[STR_MAX] = "";
+    game_line(l1, sizeof(l1), "Gone", 5, "/tmp/onion_test_state_no_such.gba");
+    game_line(l2, sizeof(l2), "Here", 5, rom_b);
+    snprintf(all, sizeof(all), "%s%s", l1, l2);
+    write_recent(all);
+    ASSERT_NOT_NULL(history_getRecentPath(rom_path));
+    ASSERT_STREQ(rom_path, rom_b);
+}
+
+/* The hidden list (Show recents off) is the one read when it exists. */
+TEST(history_getRecentPath_hidden_list_first) {
+    char line[STR_MAX * 2], rom_path[STR_MAX] = "";
+    game_line(line, sizeof(line), "Shown", 5, rom_a);
+    write_recent(line);
+    game_line(line, sizeof(line), "Hidden", 5, rom_b);
+    FILE *fp = fopen(recent_hidden_path, "w");
+    fputs(line, fp);
     fclose(fp);
-
-    char rom_path[STR_MAX] = {0};
-    char *result = _fixed_history_getRecentPath(_TMP_RECENT, rom_path);
-    ASSERT_NOT_NULL(result);
-    ASSERT_STREQ(result, "/mnt/SDCARD/Roms/GBA/game2.gba");
-    unlink(_TMP_RECENT);
+    ASSERT_NOT_NULL(history_getRecentPath(rom_path));
+    ASSERT_STREQ(rom_path, rom_b);
+    remove(recent_hidden_path);
 }
 
-/*
- * BUG #2 — Logged regression test.
- *
- * The recent list has an App entry (type 3) on the first line and a valid
- * game entry (type 5) on the second line.
- *
- * Buggy behaviour  : returns NULL after seeing line 1 (type 3) without
- *                    examining line 2.
- * Fixed behaviour  : skips line 1 (continue) and returns the path from
- *                    line 2.
- *
- * Impact on AdvanceMENU: when advmenu launches a game via advexec.sh and
- * the most-recent MainUI entry was an App, history_getRecentPath returns
- * NULL → the screenshot path builder falls through to the generic
- * "Screenshot" name instead of the actual ROM name.
- */
-TEST(history_getRecentPath_app_entry_before_game_entry_bug) {
-    FILE *fp = fopen(_TMP_RECENT, "w");
-    ASSERT_NOT_NULL(fp);
-    /* Line 1: App entry (type 3) — not a game, should be skipped */
-    fprintf(fp,
-        "{\"label\":\"SomeApp\",\"type\":3,"
-        "\"rompath\":\"/mnt/SDCARD/App/SomeApp\"}\n");
-    /* Line 2: Game entry (type 5) — should be found */
-    fprintf(fp,
-        "{\"label\":\"MyGame\",\"type\":5,"
-        "\"rompath\":\"/mnt/SDCARD/Roms/GBA/game.gba\","
-        "\"imgpath\":\"/mnt/SDCARD/Roms/GBA/Imgs/game.png\","
-        "\"launch\":\"/mnt/SDCARD/Emu/GBA/launch.sh\"}\n");
-    fclose(fp);
+/* ---- history_getRomscreenPath: the top entry only ---- */
 
-    char rom_path_buggy[STR_MAX] = {0};
-    char rom_path_fixed[STR_MAX] = {0};
-
-    char *buggy        = _buggy_history_getRecentPath(_TMP_RECENT, rom_path_buggy);
-    char *fixed_result = _fixed_history_getRecentPath(_TMP_RECENT, rom_path_fixed);
-
-    /* The buggy version hits the type-3 line, calls fclose+return NULL. */
-    ASSERT_NULL(buggy);
-
-    /* The fixed version skips the type-3 line and finds the type-5 game. */
-    ASSERT_NOT_NULL(fixed_result);
-    ASSERT_STREQ(fixed_result, "/mnt/SDCARD/Roms/GBA/game.gba");
-
-    unlink(_TMP_RECENT);
-}
-
-/* Three non-game entries followed by a game: the fixed version finds it. */
-TEST(history_getRecentPath_multiple_non_game_entries_then_game) {
-    FILE *fp = fopen(_TMP_RECENT, "w");
-    ASSERT_NOT_NULL(fp);
-    fprintf(fp, "{\"label\":\"App1\",\"type\":3,\"rompath\":\"/App/App1\"}\n");
-    fprintf(fp, "{\"label\":\"App2\",\"type\":3,\"rompath\":\"/App/App2\"}\n");
-    fprintf(fp, "{\"label\":\"App3\",\"type\":3,\"rompath\":\"/App/App3\"}\n");
-    fprintf(fp,
-        "{\"label\":\"TheGame\",\"type\":5,"
-        "\"rompath\":\"/mnt/SDCARD/Roms/GBA/thegame.gba\","
-        "\"imgpath\":\"/mnt/SDCARD/Roms/GBA/Imgs/thegame.png\","
-        "\"launch\":\"/mnt/SDCARD/Emu/GBA/launch.sh\"}\n");
-    fclose(fp);
-
-    char rom_path[STR_MAX] = {0};
-    char *result = _fixed_history_getRecentPath(_TMP_RECENT, rom_path);
-    ASSERT_NOT_NULL(result);
-    ASSERT_STREQ(result, "/mnt/SDCARD/Roms/GBA/thegame.gba");
-    unlink(_TMP_RECENT);
-}
-
-/* ------------------------------------------------------------------ */
-/* Tests for history_getRomscreenPath                                  */
-/*                                                                     */
-/* BUG #7 — Uninitialized file_path read                              */
-/* When history_getRecentPath() returns NULL (e.g. no game entries),   */
-/* the original code had char file_path[STR_MAX] without init.        */
-/* The print_debug(file_path) on the failure path would read garbage. */
-/* Fix: initialize file_path to "" so print_debug reads a valid       */
-/* empty string even on the failure path.                             */
-/* ------------------------------------------------------------------ */
-
-/* Reproduce history_getRomscreenPath with the FIX applied,
- * using a testable file path parameter. */
-static bool _fixed_history_getRomscreenPath(const char *recentlist_path,
-                                            char *path_out)
-{
-    char filename[32];
-    char file_path[STR_MAX] = "";  /* FIX: initialize to empty string */
-
-    filename[0] = '\0';
-    char *result = _fixed_history_getRecentPath(recentlist_path, file_path);
-    if (result != NULL) {
-        snprintf(filename, sizeof(filename), "%" PRIu32,
-                 FNV1A_Pippip_Yurii(file_path, strlen(file_path)));
-    }
-    /* file_path is always valid here (either filled by getRecentPath or "") */
-    if (strlen(filename) > 0) {
-        snprintf(path_out, STR_MAX,
-                 "/mnt/SDCARD/Saves/CurrentProfile/romScreens/%s.png", filename);
-        return true;
-    }
-    return false;
-}
-
-/* When no game entries exist, getRomscreenPath returns false safely. */
 TEST(history_getRomscreenPath_no_game_returns_false) {
-    FILE *fp = fopen(_TMP_RECENT, "w");
-    ASSERT_NOT_NULL(fp);
-    fprintf(fp, "{\"label\":\"App\",\"type\":3,\"rompath\":\"/App/App1\"}\n");
-    fclose(fp);
-
     char path_out[STR_MAX] = "";
-    bool result = _fixed_history_getRomscreenPath(_TMP_RECENT, path_out);
-    ASSERT_FALSE(result);
-    unlink(_TMP_RECENT);
+    write_recent("{\"label\":\"App\",\"type\":3,\"rompath\":\"/mnt/SDCARD/App/App1\"}\n");
+    ASSERT_FALSE(history_getRomscreenPath(path_out));
 }
 
-/* When a game entry exists, getRomscreenPath returns true with a valid path. */
 TEST(history_getRomscreenPath_game_found_returns_path) {
-    FILE *fp = fopen(_TMP_RECENT, "w");
-    ASSERT_NOT_NULL(fp);
-    fprintf(fp,
-        "{\"label\":\"MyGame\",\"type\":5,"
-        "\"rompath\":\"/mnt/SDCARD/Roms/GBA/game.gba\","
-        "\"imgpath\":\"/mnt/SDCARD/Roms/GBA/Imgs/game.png\","
-        "\"launch\":\"/mnt/SDCARD/Emu/GBA/launch.sh\"}\n");
-    fclose(fp);
-
-    char path_out[STR_MAX] = "";
-    bool result = _fixed_history_getRomscreenPath(_TMP_RECENT, path_out);
-    ASSERT_TRUE(result);
-    /* path must end with .png */
+    char line[STR_MAX * 2], path_out[STR_MAX] = "";
+    game_line(line, sizeof(line), "MyGame", 5, rom_a);
+    write_recent(line);
+    ASSERT_TRUE(history_getRomscreenPath(path_out));
     ASSERT_TRUE(str_endsWith(path_out, ".png"));
-    /* path must contain romScreens directory */
-    ASSERT_NOT_NULL(strstr(path_out, "romScreens/"));
-    unlink(_TMP_RECENT);
+    ASSERT_NOT_NULL(strstr(path_out, "/romScreens/"));
 }
 
-/* ------------------------------------------------------------------ */
-/* main                                                                */
-/* ------------------------------------------------------------------ */
+/* An App on top: no romscreen (it would be another game's picture). */
+TEST(history_getRomscreenPath_app_on_top_returns_false) {
+    char line[STR_MAX * 2], all[STR_MAX * 3], path_out[STR_MAX] = "";
+    game_line(line, sizeof(line), "MyGame", 5, rom_a);
+    snprintf(all, sizeof(all),
+             "{\"label\":\"SomeApp\",\"type\":3,\"rompath\":\"/mnt/SDCARD/App/SomeApp\"}\n%s", line);
+    write_recent(all);
+    ASSERT_FALSE(history_getRomscreenPath(path_out));
+}
 
 int main(void)
 {
-    printf("\n=== state.h / AdvanceMENU Unit Tests ===\n\n");
+    printf("\n=== state.h Unit Tests ===\n\n");
 
-    /* state_getAppName */
+    if (mkdtemp(dir) == NULL)
+        return 1;
+    snprintf(recent_path, sizeof(recent_path), "%s/recentlist.json", dir);
+    snprintf(recent_hidden_path, sizeof(recent_hidden_path), "%s/recentlist-hidden.json", dir);
+    snprintf(rom_a, sizeof(rom_a), "%s/game a.gba", dir);
+    snprintf(rom_b, sizeof(rom_b), "%s/game b.gba", dir);
+    fclose(fopen(rom_a, "w"));
+    fclose(fopen(rom_b, "w"));
+
     RUN_TEST(state_getAppName_standard_sdcard_prefix);
     RUN_TEST(state_getAppName_no_semicolon);
     RUN_TEST(state_getAppName_app_name_with_space);
     RUN_TEST(state_getAppName_no_prefix_returns_empty);
-    RUN_TEST(state_getAppName_shorter_home_prefix_misparses_bug);
+    RUN_TEST(state_getAppName_shorter_home_prefix);
 
-    /* history_getRecentPath */
     RUN_TEST(history_getRecentPath_single_game_entry);
     RUN_TEST(history_getRecentPath_type17_game_entry);
     RUN_TEST(history_getRecentPath_missing_file);
     RUN_TEST(history_getRecentPath_empty_file);
     RUN_TEST(history_getRecentPath_malformed_line_then_game);
-    RUN_TEST(history_getRecentPath_app_entry_before_game_entry_bug);
-    RUN_TEST(history_getRecentPath_multiple_non_game_entries_then_game);
+    RUN_TEST(history_getRecentPath_app_entry_before_game_entry);
+    RUN_TEST(history_getRecentPath_missing_rom_skipped);
+    RUN_TEST(history_getRecentPath_hidden_list_first);
 
-    /* history_getRomscreenPath */
     RUN_TEST(history_getRomscreenPath_no_game_returns_false);
     RUN_TEST(history_getRomscreenPath_game_found_returns_path);
+    RUN_TEST(history_getRomscreenPath_app_on_top_returns_false);
 
+    remove(rom_a);
+    remove(rom_b);
+    remove(recent_path);
+    rmdir(dir);
     TEST_REPORT();
     return test_failures;
 }

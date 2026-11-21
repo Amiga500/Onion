@@ -15,11 +15,15 @@
 #define MAIN_UI_SETTINGS "/mnt/SDCARD/system.json"
 #endif
 #define CMD_TO_RUN_PATH "/mnt/SDCARD/.tmp_update/cmd_to_run.sh"
+#ifndef RETROARCH_CONFIG // a test points it elsewhere
 #define RETROARCH_CONFIG "/mnt/SDCARD/RetroArch/.retroarch/retroarch.cfg"
+#endif
 #define HISTORY_PATH \
     "/mnt/SDCARD/Saves/CurrentProfile/lists/content_history.lpl"
+#ifndef RECENTLIST_PATH // a test points them elsewhere
 #define RECENTLIST_PATH "/mnt/SDCARD/Roms/recentlist.json"
 #define RECENTLIST_HIDDEN_PATH "/mnt/SDCARD/Roms/recentlist-hidden.json"
+#endif
 #define RECENTLISTMIGRATED "/mnt/SDCARD/Saves/CurrentProfile/config/.recentListMigrated"
 #define DEFAULT_THEME_PATH "/mnt/SDCARD/Themes/Silky RedOnion/"
 #define RECORDED_DIR "/mnt/SDCARD/Media/Videos/Recorded"
