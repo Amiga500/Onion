@@ -788,7 +788,8 @@ clean:
 		$(BUILD_DIR)/test_neon_san $(BUILD_DIR)/test_images_browser \
 		$(BUILD_DIR)/_san_probe \
 		$(BUILD_DIR)/test_neon_arm $(BUILD_DIR)/test_neon_pixel_arm \
-		$(BUILD_DIR)/test_alpha_scale_arm
+		$(BUILD_DIR)/test_alpha_scale_arm \
+		$(BUILD_DIR)/*.d
 
 test_gs_longpress: $(BUILD_DIR)/test_gs_longpress
 	@echo ""
@@ -901,3 +902,19 @@ test_romscreen_cover: $(BUILD_DIR)/test_romscreen_cover
 $(BUILD_DIR)/test_romscreen_cover: test_romscreen_cover.c onion_test.h ../src/common/system/romscreen_cover.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_romscreen_cover.c $(LDFLAGS)
+
+# Header dependencies. The rules above list each test's .c file and a few
+# sources; the headers it tests were mostly missing, so after a change to one
+# of them make ran the program built before and printed its "PASSED". The
+# compiler lists every header the test file includes (with stubs/ and the
+# usual include paths; a header it cannot find is still named, -MG, and gets
+# an empty rule, -MP), into $(BUILD_DIR)/<test>.d, read below.
+DEPFLAGS = -MM -MG -MP -Istubs $(CFLAGS)
+
+$(BUILD_DIR)/%.d: %.c
+	@mkdir -p $(BUILD_DIR)
+	@$(CC) $(DEPFLAGS) -MT '$(BUILD_DIR)/$* $@' -MF $@ $<
+
+ifeq (,$(filter clean,$(MAKECMDGOALS)))
+-include $(patsubst %,$(BUILD_DIR)/%.d,$(filter-out test_scripts,$(TESTS)))
+endif
