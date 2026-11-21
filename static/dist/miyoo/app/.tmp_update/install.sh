@@ -559,14 +559,24 @@ install_configs() {
         return
     fi
 
+    # Guest Mode on: Saves/MainProfile holds the owner's profile and
+    # CurrentProfile the guest's, so there is no Saves/GuestProfile, and
+    # configs.pak must not bring one back. Guest Mode would take it for the
+    # parked guest profile and swap the wrong way: the guest's profile went
+    # inside MainProfile and an empty one became the current profile.
+    guest_on_exclude=""
+    if [ -d /mnt/SDCARD/Saves/MainProfile ]; then
+        guest_on_exclude="-x!Saves/GuestProfile"
+    fi
+
     cd /mnt/SDCARD
     if [ $reset_configs -eq 1 ]; then
         # Overwrite all default configs
         rm -rf /mnt/SDCARD/Saves/CurrentProfile/config/*
-        7z x -aoa $zipfile # aoa = overwrite existing files
+        7z x -aoa $zipfile $guest_on_exclude # aoa = overwrite existing files
     else
         # Extract config files without overwriting any existing files
-        7z x -aos $zipfile # aos = skip existing files
+        7z x -aos $zipfile $guest_on_exclude # aos = skip existing files
     fi
 
     # Set X and Y button keymaps if empty

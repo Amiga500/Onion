@@ -2170,6 +2170,75 @@ check "main cleans up only when prompt_update installed something" \
     sh -c "sed -n '/^main() {/,/^}/p' \"$INSTALLER\" | grep -q '^        prompt_update && cleanup\$'"
 end
 
+# ---- an update made with Guest Mode on keeps the guest's profile ----
+
+begin installer_configs_keep_guest_mode
+(
+    eval "$(extract_fn "$INSTALLER" install_configs | sed "s#/mnt/SDCARD#$TMP/sd#g")"
+    sysdir=$TMP/sd/.tmp_update
+    mkdir -p "$sysdir/config" "$TMP/sd/Saves/CurrentProfile/config" "$TMP/stub"
+    touch "$sysdir/config/configs.pak"
+    echo '{}' > "$sysdir/config/keymap.json"
+    printf '#!/bin/sh\necho "$*" >> "%s/7z_args"\n' "$TMP" > "$TMP/stub/7z"
+    chmod +x "$TMP/stub/7z"
+    PATH="$TMP/stub:$PATH"
+    cd "$TMP"
+    install_configs 0 > /dev/null 2>&1   # Guest Mode off
+    install_configs 1 > /dev/null 2>&1
+    mkdir -p "$TMP/sd/Saves/MainProfile" # Guest Mode on
+    install_configs 0 > /dev/null 2>&1
+    install_configs 1 > /dev/null 2>&1
+)
+check "Guest Mode off: everything extracted (update)" test "$(sed -n 1p "$TMP/7z_args")" = "x -aos $TMP/sd/.tmp_update/config/configs.pak"
+check "Guest Mode off: everything extracted (reinstall)" test "$(sed -n 2p "$TMP/7z_args")" = "x -aoa $TMP/sd/.tmp_update/config/configs.pak"
+check "Guest Mode on: no GuestProfile (update)" test "$(sed -n 3p "$TMP/7z_args")" = "x -aos $TMP/sd/.tmp_update/config/configs.pak -x!Saves/GuestProfile"
+check "Guest Mode on: no GuestProfile (reinstall)" test "$(sed -n 4p "$TMP/7z_args")" = "x -aoa $TMP/sd/.tmp_update/config/configs.pak -x!Saves/GuestProfile"
+end
+
+begin guest_mode_switch_decides_by_the_parked_main_profile
+GUEST_APP="$ROOT/static/packages/App/Guest Mode/App/Guest_Mode"
+mkdir -p "$TMP/stub"
+# jq: -r prints the theme; otherwise the file unchanged
+printf '#!/bin/sh\nif [ "$1" = -r ]; then echo "%s/sd/Themes/T/"; else for a; do :; done; cat "$a"; fi\n' "$TMP" > "$TMP/stub/jq"
+printf '#!/bin/sh\necho "infoPanel $*" >> "%s/log"\n' "$TMP" > "$TMP/stub/infoPanel"
+printf '#!/bin/sh\n:\n' > "$TMP/stub/themeSwitcher"
+chmod +x "$TMP"/stub/*
+guest_switch() { # the profiles before (folder=who, ...) -> after, and the status
+    rm -rf "$TMP/sd" "$TMP/log"
+    mkdir -p "$TMP/sd/App/Guest_Mode/data" "$TMP/sd/Roms" "$TMP/sd/Themes/T"
+    for f in launch.sh data/configON.json data/configOFF.json; do
+        sed "s#/mnt/SDCARD#$TMP/sd#g; s#/tmp/rtc_available#$TMP/rtc#g" "$GUEST_APP/$f" > "$TMP/sd/App/Guest_Mode/$f"
+    done
+    touch "$TMP/rtc"
+    echo '{"theme":"x"}' > "$TMP/sd/system.json"
+    for p; do
+        mkdir -p "$TMP/sd/Saves/${p%=*}/lists" "$TMP/sd/Saves/${p%=*}/theme"
+        echo "${p#*=}" > "$TMP/sd/Saves/${p%=*}/who"
+    done
+    (cd "$TMP/sd/App/Guest_Mode" && PATH="$TMP/stub:$PATH" sh ./launch.sh > /dev/null 2>&1)
+    rc=$?
+    for d in "$TMP"/sd/Saves/*; do
+        [ -d "$d" ] || continue
+        w=$(cat "$d/who" 2> /dev/null)
+        [ -d "$d/CurrentProfile" ] && w="$w+inside:$(cat "$d/CurrentProfile/who")"
+        n=${d##*/}
+        case "$n" in GuestProfile-unused-*) n=GuestProfile-unused ;; esac
+        echo "$n=$w"
+    done | LC_ALL=C sort | tr '\n' ','
+    echo "rc=$rc"
+}
+check "main on: the guest's profile becomes current" \
+    test "$(guest_switch CurrentProfile=main GuestProfile=guest)" = "CurrentProfile=guest,MainProfile=main,rc=0"
+check "guest on: the owner's profile comes back" \
+    test "$(guest_switch CurrentProfile=guest MainProfile=main)" = "CurrentProfile=main,GuestProfile=guest,rc=0"
+check "guest on, an empty GuestProfile left by an update: kept aside, nothing nested" \
+    test "$(guest_switch CurrentProfile=guest MainProfile=main GuestProfile=empty)" = "CurrentProfile=main,GuestProfile-unused=empty,GuestProfile=guest,rc=0"
+check "no guest profile at all: nothing changed" \
+    test "$(guest_switch CurrentProfile=main)" = "CurrentProfile=main,rc=1"
+check "no guest profile at all: a message" grep -q '^infoPanel --title Guest Mode' "$TMP/log"
+unset -f guest_switch
+end
+
 begin update_flag_cleared_after_update
 check "installer removes .updateAvailable" \
     sh -c "sed -n '/^run_installation() {/,/^}/p' \"$INSTALLER\" | grep -q 'rm -f /mnt/SDCARD/.tmp_update/.updateAvailable'"
