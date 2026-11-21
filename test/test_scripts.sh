@@ -5565,6 +5565,14 @@ check "client: its FTP server is stopped" test ! -e "$TMP/run/tcpsvd"
 unset -f np_run
 end
 
+# ---- netplay: the appended configuration is never saved into retroarch.cfg ----
+
+begin netplay_override_not_saved_on_exit
+for f in netplay_override.cfg easynetplay_override.cfg; do
+    check "$f: config_save_on_exit = false" grep -q '^config_save_on_exit = "false"$' "$ROOT/static/build/RetroArch/.retroarch/$f"
+done
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
