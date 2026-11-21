@@ -1303,6 +1303,14 @@ int main(void)
                         settings_changed = true;
                     }
                     osd_showBrightnessBar(settings.brightness);
+                    // Pressed before MENU, it is released here: without
+                    // recording it, it stayed "pressed", and the next VOL+
+                    // looked like both keys together (mute toggled, VOL+
+                    // dead until VOL- was pressed alone)
+                    if (val == RELEASED) {
+                        volDown_state = false;
+                        volDown_active = false;
+                    }
                     break;
                 }
                 if (val == PRESSED)
@@ -1346,6 +1354,11 @@ int main(void)
                         settings_changed = true;
                     }
                     osd_showBrightnessBar(settings.brightness);
+                    // (as for VOL- above)
+                    if (val == RELEASED) {
+                        volUp_state = false;
+                        volUp_active = false;
+                    }
                     break;
                 }
                 if (val == PRESSED)
