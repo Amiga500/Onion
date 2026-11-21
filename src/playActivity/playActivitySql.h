@@ -24,6 +24,11 @@
                                                                                                                                                               "DELETE FROM play_activity WHERE play_time < 0;"                                       \
                                                                                                                                                               "COMMIT;"
 
+// At boot, before anything is started: a session still open was cut by an
+// unclean power-off. Its length is unknown (no RTC: the clock is set back
+// before its start; RTC: the time off would be counted), so it is dropped.
+#define PLAY_ACTIVITY_DROP_OPEN_SQL "DELETE FROM play_activity WHERE play_time IS NULL;"
+
 // One game's open session: a sqlite3_mprintf() format taking the rom id three
 // times ('%' is doubled because it is a format string).
 #define _PA_NOW_FMT "(strftime('%%s', 'now'))"

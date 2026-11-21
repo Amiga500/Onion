@@ -1901,6 +1901,11 @@ save_settings() {
 }
 
 update_time() {
+    # A play session still open here was cut by an unclean power-off. Closing
+    # it by the clock counted the time off (RTC) or dropped it anyway (no
+    # RTC, the clock is set back below): drop it on every model, first.
+    playActivity drop_open
+
     # Detect RTC, if available, do not restore time
     rtc_treshold=15 # usually around 3-5 at this point
     current_time=$(date +%s)

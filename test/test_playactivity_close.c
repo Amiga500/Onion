@@ -178,6 +178,19 @@ TEST(resumes_add_time_not_plays)
     sqlite3_close(db);
 }
 
+/* At boot: an open session (cut by a power loss) is dropped, whatever the
+ * clock says; every closed row stays. */
+TEST(drop_open_at_boot_keeps_closed_rows) {
+    setup();
+    sqlite3_exec(db, PLAY_ACTIVITY_DROP_OPEN_SQL, NULL, NULL, NULL);
+    ASSERT_EQ(count("play_time IS NULL"), 0);
+    ASSERT_EQ(count("rom_id IN (2, 3, 4)"), 0);
+    ASSERT_EQ(play_time(1), 360000);
+    ASSERT_EQ(play_time(6), 108000);
+    ASSERT_EQ(count("rom_id = 5"), 1); /* removed only by a close, as before */
+    sqlite3_close(db);
+}
+
 int main(void)
 {
     RUN_TEST(close_all_keeps_imported_total);
@@ -188,6 +201,7 @@ int main(void)
     RUN_TEST(close_rom_keeps_imported_total);
     RUN_TEST(close_rom_only_touches_that_game);
     RUN_TEST(resumes_add_time_not_plays);
+    RUN_TEST(drop_open_at_boot_keeps_closed_rows);
 
     TEST_REPORT();
     return test_failures;

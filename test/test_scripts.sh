@@ -5862,6 +5862,24 @@ PATH="$TMP/stub:$PATH" sh "$TMP/random.sh" > /dev/null 2>&1
 check "the next one is added on top" test "$(wc -l < "$TMP/Roms/recentlist-hidden.json")" -eq 2
 end
 
+# ---- runtime.sh update_time: sessions cut by a power loss are dropped first ----
+
+begin update_time_drops_open_sessions_first
+eval "$(extract_fn "$RUNTIME" update_time | sed "s#/mnt/SDCARD/#$TMP/sd/#g")"
+for rtc in 1700000000 3; do
+    (
+        log() { :; }; touch() { :; }
+        playActivity() { echo "playActivity $*" >> "$TMP/calls"; }
+        date() { case "$1" in +%s) [ $# -eq 1 ] && echo "$rtc" ;; esac; }
+        sysdir=$TMP/sys
+        update_time
+    ) > /dev/null 2>&1
+    check "clock $rtc: drop_open is the first call" test "$(head -n 1 "$TMP/calls")" = "playActivity drop_open"
+    rm -f "$TMP/calls"
+done
+unset -f update_time
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

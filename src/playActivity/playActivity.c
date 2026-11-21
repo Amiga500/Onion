@@ -11,6 +11,7 @@ void printUsage()
            "       playActivity resume           -> Resume the last rom as a new play activity\n"
            "       playActivity stop [rom_path]  -> Stop the counter for this rom\n"
            "       playActivity stop_all         -> Stop the counter for all roms\n"
+           "       playActivity drop_open        -> Drop sessions left open by a power loss (boot)\n"
            "       playActivity migrate          -> Migrate the old database (prior to Onion 4.2.0) to SQLite\n"
            "       playActivity fix_paths        -> Change all absolute paths to relative paths\n");
 }
@@ -50,6 +51,9 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(argv[i], "stop_all") == 0) {
             play_activity_stop_all();
+        }
+        else if (strcmp(argv[i], "drop_open") == 0) {
+            play_activity_drop_open();
         }
         else if (strcmp(argv[i], "migrate") == 0) {
             migrateDB();

@@ -673,6 +673,14 @@ void play_activity_stop_all(void)
     play_activity_db_close();
 }
 
+void play_activity_drop_open(void)
+{
+    print_debug("\n:: play_activity_drop_open()");
+    play_activity_db_open();
+    sqlite3_exec(play_activity_db, PLAY_ACTIVITY_DROP_OPEN_SQL, NULL, NULL, NULL);
+    play_activity_db_close();
+}
+
 void play_activity_fix_paths(void)
 {
     print_debug("\n:: play_activity_fix_paths()");
