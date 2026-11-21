@@ -347,6 +347,42 @@ TEST(damaged_blue_light_time_is_refused)
     ASSERT_STREQ(settings.blue_light_time, "21:30");
 }
 
+/* keymap.json is read: values that are not the defaults come back. */
+TEST(keymap_json_is_loaded)
+{
+    file_remove_recursive(CONFIG_PATH);
+    mkdir(CONFIG_PATH, 0700);
+    write_system_json("en.lang", "/mnt/SDCARD/Themes/Silky RedOnion/", 7, 0);
+    FILE *fp = fopen(CONFIG_PATH "keymap.json", "w");
+    fputs("{\"mainui_single_press\": 3, \"ingame_double_press\": 2, "
+          "\"mainui_button_x\": \"app:Tweaks\", \"mainui_button_y\": false}", fp);
+    fclose(fp);
+    settings_load();
+    ASSERT_EQ(settings.mainui_single_press, 3);
+    ASSERT_EQ(settings.ingame_double_press, 2);
+    ASSERT_STREQ(settings.mainui_button_x, "app:Tweaks");
+    ASSERT_STREQ(settings.mainui_button_y, "disable");
+}
+
+/* A flag this program changes is written as the right file: on is .x,
+ * off is .x_ (and never both). */
+TEST(changed_flag_writes_the_right_file)
+{
+    file_remove_recursive(CONFIG_PATH);
+    mkdir(CONFIG_PATH, 0700);
+    write_system_json("en.lang", "/mnt/SDCARD/Themes/Silky RedOnion/", 7, 0);
+    config_flag_set(".showRecents", false);
+    settings_load();
+    settings.show_recents = true;
+    settings_save();
+    ASSERT_TRUE(exists(CONFIG_PATH ".showRecents"));
+    ASSERT_FALSE(exists(CONFIG_PATH ".showRecents_"));
+    settings.show_recents = false;
+    settings_save();
+    ASSERT_FALSE(exists(CONFIG_PATH ".showRecents"));
+    ASSERT_TRUE(exists(CONFIG_PATH ".showRecents_"));
+}
+
 int main(void)
 {
     printf("\n=== settings merge Unit Tests ===\n\n");
@@ -363,6 +399,8 @@ int main(void)
     RUN_TEST(shutdown_path_saves_a_pending_pulled_change);
     RUN_TEST(save_keeps_flags_changed_by_another_program);
     RUN_TEST(damaged_blue_light_time_is_refused);
+    RUN_TEST(keymap_json_is_loaded);
+    RUN_TEST(changed_flag_writes_the_right_file);
     unlink(MAIN_UI_SETTINGS);
     file_remove_recursive(CONFIG_PATH);
     rmdir("/tmp/onion_test_settings_merge");

@@ -2659,6 +2659,8 @@ check "one CUE per game, in the game's folder" test "$cues" = \
 check "FILE is the bare file name" grep -q '^FILE "Beta Game (Track 02).bin" BINARY$' "$TMP/PS/Beta Game/Beta Game.cue"
 check "no folder in any FILE" test -z "$(grep -h '^FILE "[^"]*/' "$TMP"/PS/*.cue "$TMP"/PS/*/*.cue)"
 check "tracks in numeric order (10 after 2)" test "$(grep -o 'TRACK [0-9]*' "$TMP/PS/Flat Game.cue" | tr '\n' ' ')" = "TRACK 01 TRACK 02 TRACK 10 "
+check "track 1 is data, the others audio" test "$(grep -o 'TRACK [0-9]* [A-Z0-9/]*' "$TMP/PS/Flat Game.cue" | tr '\n' ' ')" = "TRACK 01 MODE1/2352 TRACK 02 AUDIO TRACK 10 AUDIO "
+check "an audio track has its 2 s pregap" test "$(grep -c '^        INDEX 01 00:02:00$' "$TMP/PS/Flat Game.cue")" -eq 2
 check "square brackets keep track 1" grep -q '^FILE "Hack \[T-En\] (Track 1).bin" BINARY$' "$TMP/PS/Hack [T-En].cue"
 check "each disc gets its own CUE" test "$(grep -c '^FILE' "$TMP/PS/Novastorm (USA) (Disc 2).cue")" -eq 1
 check "existing CUE left untouched" test "$(cat "$TMP/SEGACD/Kept (USA).cue")" = ORIGINAL

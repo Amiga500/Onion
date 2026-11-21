@@ -187,10 +187,29 @@ TEST(config_flag_toggle) {
 
 /* ---- main ---- */
 
+/* What is written is read back as the same value: a number above 9 (a
+ * number written in hex read back as 15 would not pass) and a string. */
+TEST(config_values_read_back_exactly) {
+    setup_config_dir();
+    config_setNumber("startup/addHours", 15);
+    int n = 0;
+    ASSERT_TRUE(config_get("startup/addHours", CONFIG_INT, &n));
+    ASSERT_EQ(n, 15);
+    config_setNumber("battery/warnAt", -1);
+    ASSERT_TRUE(config_get("battery/warnAt", CONFIG_INT, &n));
+    ASSERT_EQ(n, -1);
+    config_setString("display/blueLightTime", "21:30");
+    char buf[16] = "";
+    ASSERT_TRUE(config_getString("display/blueLightTime", buf, sizeof(buf)));
+    ASSERT_STREQ(buf, "21:30");
+    cleanup_config_dir();
+}
+
 int main(void)
 {
     printf("\n=== config.h Unit Tests ===\n\n");
 
+    RUN_TEST(config_values_read_back_exactly);
     RUN_TEST(config_setNumber_and_get);
     RUN_TEST(config_setNumber_overwrite);
     RUN_TEST(config_setNumber_zero);

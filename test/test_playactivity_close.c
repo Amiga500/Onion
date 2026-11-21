@@ -191,6 +191,19 @@ TEST(drop_open_at_boot_keeps_closed_rows) {
     sqlite3_close(db);
 }
 
+/* The longest session kept is a day: 3 hours stay, 25 hours go. */
+TEST(close_all_keeps_3_hours_drops_25) {
+    setup();
+    sqlite3_exec(db,
+                 "INSERT INTO play_activity(rom_id, created_at) VALUES(7, strftime('%s', 'now') - 10800);"
+                 "INSERT INTO play_activity(rom_id, created_at) VALUES(8, strftime('%s', 'now') - 90000);",
+                 NULL, NULL, NULL);
+    sqlite3_exec(db, PLAY_ACTIVITY_CLOSE_ALL_SQL, NULL, NULL, NULL);
+    ASSERT_TRUE(play_time(7) >= 10800 && play_time(7) <= 10810);
+    ASSERT_EQ(count("rom_id = 8"), 0);
+    sqlite3_close(db);
+}
+
 int main(void)
 {
     RUN_TEST(close_all_keeps_imported_total);
@@ -202,6 +215,7 @@ int main(void)
     RUN_TEST(close_rom_only_touches_that_game);
     RUN_TEST(resumes_add_time_not_plays);
     RUN_TEST(drop_open_at_boot_keeps_closed_rows);
+    RUN_TEST(close_all_keeps_3_hours_drops_25);
 
     TEST_REPORT();
     return test_failures;
