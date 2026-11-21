@@ -49,4 +49,11 @@ else
     recentFileLine="{\"label\":\"$label\",\"rompath\":\"$rompath\",\"launch\":\"$launchpath\",\"type\":5}"
 fi
 
-echo "$recentFileLine" | cat - $currentrecentlist > $recentlist_temp && mv $recentlist_temp $currentrecentlist
+# A new card or profile has no recent list yet: cat failed, the script ended
+# with an error and the game it showed was never started.
+[ -f "$currentrecentlist" ] || : > "$currentrecentlist"
+echo "$recentFileLine" | cat - "$currentrecentlist" > $recentlist_temp && mv $recentlist_temp "$currentrecentlist"
+
+# The game was chosen (cmd_to_run.sh is written): a list that could not be
+# updated must not cancel it.
+exit 0

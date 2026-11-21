@@ -5846,6 +5846,22 @@ check "one hidden in a sub-folder, a name with a dot" test -f "$R/GB/Imgs/Final 
 check "a deleted game's media still go" test ! -e "$R/GB/Imgs/Mario.png"
 end
 
+# ---- Random Game: starts the game it shows when there is no recent list yet ----
+
+begin random_game_without_recent_list
+RG="$ROOT/static/packages/App/Random Game/App/RandomGamePicker/random.sh"
+mkdir -p "$TMP/stub" "$TMP/Roms" "$TMP/sys/config"
+sed -e "s#/mnt/SDCARD/Roms/#$TMP/Roms/#g; s#/tmp/recentlist-temp.json#$TMP/rl.tmp#; s#^sysdir=.*#sysdir=$TMP/sys#" "$RG" > "$TMP/random.sh"
+printf '#!/bin/sh\nprintf "emu=Game Boy\\nlabel=Tetris\\npath=/mnt/SDCARD/Roms/GB/Tetris.gb\\nimg=\\nlaunch=/mnt/SDCARD/Emu/GB/launch.sh\\n"\n' > "$TMP/stub/randomGamePicker"
+printf '#!/bin/sh\nexit 0\n' > "$TMP/stub/infoPanel"
+chmod +x "$TMP"/stub/*
+PATH="$TMP/stub:$PATH" sh "$TMP/random.sh" > /dev/null 2>&1
+check "no recent list: random.sh ends with 0 (the game starts)" test $? -eq 0
+check "the hidden recent list now has the game" grep -q '"rompath":"/mnt/SDCARD/Roms/GB/Tetris.gb"' "$TMP/Roms/recentlist-hidden.json"
+PATH="$TMP/stub:$PATH" sh "$TMP/random.sh" > /dev/null 2>&1
+check "the next one is added on top" test "$(wc -l < "$TMP/Roms/recentlist-hidden.json")" -eq 2
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
