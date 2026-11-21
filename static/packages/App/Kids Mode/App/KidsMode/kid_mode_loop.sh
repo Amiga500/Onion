@@ -110,6 +110,9 @@ timer_runtime_used=/tmp/kidsmode_timer_used
 # update replaces. Keep a copy outside so updating while armed can't cause
 # a lockout (see restore_pin_backup).
 pin_backup="$backupdir/pin_backup.json"
+# The play timer, kept with the PIN outside the app folder: an update
+# replaces kidmode.json, and the timer was only there.
+timer_backup="$backupdir/timer_minutes.txt"
 remaining_file=/tmp/kidsmode_remaining
 timesup_since_file=/tmp/kidsmode_timesup_since
 timesup_resume_file="$profile_state_dir/timesup_resume.txt"
@@ -973,14 +976,17 @@ apply_keymap_override() {
     # Already in place (runtime.sh starts this script again after each game):
     # nothing to write.
     if { [ -f "$keymapbackup" ] || [ -f "$keymapnone" ]; } &&
-        jq -e '.ingame_single_press == 2 and .ingame_long_press == 0' \
+        jq -e '.ingame_single_press == 2 and .ingame_long_press == 0 and .ingame_double_press == 0' \
             "$keymapcfg" > /dev/null 2>&1; then
         return 0
     fi
     if [ -f "$keymapcfg" ]; then
         [ -f "$keymapbackup" ] || cp "$keymapcfg" "$keymapbackup"
         tmpkm=/tmp/kidmode_keymap.$$
-        if jq '.ingame_single_press = 2 | .ingame_long_press = 0' \
+        # The double press too: it ran keymon's Quick switch, which moved
+        # the parent's two most recent games around in their recent list
+        # (and made MENU wait 0.3 s for a second press).
+        if jq '.ingame_single_press = 2 | .ingame_long_press = 0 | .ingame_double_press = 0' \
             "$keymapcfg" > "$tmpkm" 2> /dev/null; then
             mv -f "$tmpkm" "$keymapcfg"
         else
@@ -988,11 +994,11 @@ apply_keymap_override() {
         fi
     else
         touch "$keymapnone"
-        printf '{\n    "ingame_single_press": 2,\n    "ingame_long_press": 0\n}\n' \
+        printf '{\n    "ingame_single_press": 2,\n    "ingame_long_press": 0,\n    "ingame_double_press": 0\n}\n' \
             > "$keymapcfg"
     fi
     restart_keymon
-    log "MENU short press set to exit-to-launcher; long press disabled while armed."
+    log "MENU short press set to exit-to-launcher; long and double press disabled while armed."
 }
 
 restore_keymap_override() {
@@ -1133,6 +1139,7 @@ add_bonus() {
 
 set_timer_minutes() {
     config_merge --argjson m "$1" '.timer_minutes = $m'
+    mkdir -p "$backupdir" && printf '%s\n' "$1" > "$timer_backup"
     update_remaining_now
     log "Timer set to $1 min/day."
 }
@@ -1171,6 +1178,12 @@ mark_timesup_resume() { # $1 = carousel | parent
 # Ask the running game to stop gracefully. RetroArch first (network QUIT →
 # normal exit path → Onion auto-save state); escalate only if needed.
 # Non-RetroArch games (ports, standalone) get a plain TERM — best effort.
+# A process and everything it started, children first (TERM)
+kill_tree() {
+    for _kt in $(pgrep -P "$1" 2> /dev/null); do kill_tree "$_kt"; done
+    kill -TERM "$1" 2> /dev/null
+}
+
 save_quit_game() {
     if [ -f "$player_pid" ]; then
         # After Time's up, return to the carousel with this media selected;
@@ -1197,7 +1210,25 @@ save_quit_game() {
             sleep 2
         fi
     elif game_is_running; then
-        pkill -TERM -f "cmd_to_run.sh" 2> /dev/null
+        # Not RetroArch (DraStic, a port): only the shell running
+        # cmd_to_run.sh got the signal; launch.sh and the emulator went on
+        # running behind the launcher, and DraStic was killed later by the
+        # shutdown without its auto save state. DraStic first gets its own
+        # "save and quit" keys (as keymon's terminate_drastic() sends), then
+        # what is left of the game is ended from the bottom up.
+        if pgrep drastic > /dev/null 2>&1; then
+            dk=18
+            [ -f /tmp/drastic_swap_l1l2 ] && dk=15
+            sendkeys 1 1, $dk 1
+            sleep 0.2
+            sendkeys 1 0, $dk 0
+            n=0
+            while pgrep drastic > /dev/null 2>&1 && [ $n -lt 30 ]; do
+                sleep 1
+                n=$((n + 1))
+            done
+        fi
+        for wp in $(pgrep -f "cmd_to_run.sh" 2> /dev/null); do kill_tree "$wp"; done
         sleep 2
     fi
     log "Play time over; game stopped."
@@ -2990,6 +3021,19 @@ case "${1:-run}" in
         # App updated while armed? kidmode.json ships blank — bring the PIN
         # back from the snapshot in Saves/KidsMode
         has_pin || restore_pin_backup
+        # The same update took the play timer with it: no timer was left
+        # (or, with play time added before, only that bonus)
+        if [ -f "$timer_backup" ] &&
+            [ "$(jq -r 'has("timer_minutes")' "$configfile" 2> /dev/null)" = false ]; then
+            IFS= read -r tm_bk < "$timer_backup"
+            case "$tm_bk" in
+                '' | *[!0-9]*) ;;
+                *)
+                    config_merge --argjson m "$tm_bk" '.timer_minutes = $m'
+                    log "Timer restored from $timer_backup (app folder replaced?)."
+                    ;;
+            esac
+        fi
         cmd_run
         ;;
     *)
