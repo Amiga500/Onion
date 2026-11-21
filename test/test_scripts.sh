@@ -38,6 +38,43 @@ end() {
     fi
 }
 
+# A whole line equal to TEXT (FILE "-": standard input). Not grep -x: the
+# console's BusyBox 1.20.2 never matches with -x (and -xF is a substring
+# search), so the suite could not run there.
+has_line() { # file text
+    HL_TEXT=$2 awk '$0 == ENVIRON["HL_TEXT"] { found = 1 } END { exit !found }' "$1"
+}
+
+# Line SECOND comes right after line FIRST in FILE (leading and trailing
+# blanks ignored). Not grep with a line break in the pattern: GNU grep reads
+# it as "or" (either line passed), BusyBox's as a literal line break.
+line_follows() { # file first second
+    LF_A=$2 LF_B=$3 awk '{ t = $0; sub(/^[ \t]+/, "", t); sub(/[ \t]+$/, "", t) }
+        prev == ENVIRON["LF_A"] && t == ENVIRON["LF_B"] { found = 1 }
+        { prev = t }
+        END { exit !found }' "$1"
+}
+
+# Sets $? (an environment for one function call is set, the call made,
+# the status kept, the environment taken back: "VAR=x function" does not
+# work in the console's BusyBox 1.20.2 ash).
+rc() { return "$1"; }
+
+# Runs a command for at most SECONDS (no "timeout": BusyBox 1.20.2's takes
+# -t SECONDS, GNU's a bare number).
+with_limit() { # seconds, command...
+    _wl_s=$1
+    shift
+    "$@" &
+    _wl_pid=$!
+    (sleep "$_wl_s" && kill "$_wl_pid") > /dev/null 2>&1 &
+    _wl_dog=$!
+    wait "$_wl_pid"
+    _wl_rc=$?
+    kill "$_wl_dog" 2> /dev/null
+    return $_wl_rc
+}
+
 # A block that cannot run on this PC (no 7-Zip, jq, python3, C compiler...)
 # is counted and shown in the result: with TESTS_NO_SKIP=1 (CI) it fails.
 skip() {
@@ -216,12 +253,12 @@ WIFI=1
 wifi_enabled() { [ "$WIFI" -eq 1 ]; }
 touch "$sysdir/config/.syncthingState"
 check_syncthingstate
-check "toggle on, Wi-Fi on: started" grep -qx start "$TMP/st_calls"
+check "toggle on, Wi-Fi on: started" has_line "$TMP/st_calls" 'start'
 rm -f "$TMP/st_calls"
 WIFI=0
 echo syncthing > "$TMP/proc/42/comm"
 check_syncthingstate
-check "Wi-Fi off while running: stopped" grep -qx stop "$TMP/st_calls"
+check "Wi-Fi off while running: stopped" has_line "$TMP/st_calls" 'stop'
 check "and the toggle kept" test -f "$sysdir/config/.syncthingState"
 rm -f "$TMP/st_calls" "$sysdir/config/.syncthingState"
 echo syncthing.sh > "$TMP/proc/42/comm"
@@ -349,7 +386,7 @@ not_recent() { ! st_failed_recently; }
 check "after 10 minutes it is tried again" not_recent
 echo $(($(date +%s) - 10)) > "$st_failed"
 st_install_then_start() { sleep 1; }
-ST_RETRY_NOW=1 st_start
+export ST_RETRY_NOW=1; st_start; _rc=$?; unset ST_RETRY_NOW; rc $_rc
 check "the Tweaks toggle tries at once, in the background" test $? -eq 0 -a -d "$st_lock"
 check "the lock names the background job" sh -c "test \"\$(cat '$st_lock/pid')\" != $$"
 sleep 1.5
@@ -467,29 +504,29 @@ gi_env() {
 begin scraper_game_info_entry
 gi_env
 gi_entry > "$TMP/entry"
-check "path, XML-escaped" grep -qx '    <path>./RPG/Trials &amp; Co.sfc</path>' "$TMP/entry"
-check "name in the first region of the order (us)" grep -qx '    <name>Trials of Mana</name>' "$TMP/entry"
+check "path, XML-escaped" has_line "$TMP/entry" '    <path>./RPG/Trials &amp; Co.sfc</path>'
+check "name in the first region of the order (us)" has_line "$TMP/entry" '    <name>Trials of Mana</name>'
 check "description in English, escaped" grep -q '<desc>Three heroes &amp; a &lt;mana&gt; &quot;tree&quot;' "$TMP/entry"
-check "genres in English, or the first language" grep -qx '    <genre>Action RPG, Aventure</genre>' "$TMP/entry"
-check "rating: 17/20 as 0.85" grep -qx '    <rating>0.85</rating>' "$TMP/entry"
-check "date of the region, a year as 1 January" grep -qx '    <releasedate>20200101T000000</releasedate>' "$TMP/entry"
+check "genres in English, or the first language" has_line "$TMP/entry" '    <genre>Action RPG, Aventure</genre>'
+check "rating: 17/20 as 0.85" has_line "$TMP/entry" '    <rating>0.85</rating>'
+check "date of the region, a year as 1 January" has_line "$TMP/entry" '    <releasedate>20200101T000000</releasedate>'
 check "developer, publisher, players" sh -c "grep -q '<developer>Square</developer>' '$TMP/entry' && grep -q '<publisher>Square Enix</publisher>' '$TMP/entry' && grep -q '<players>1-3</players>' '$TMP/entry'"
 gi_game='{"response":{"jeu":{"noms":[{"region":"jp","text":"X"}]}}}'
 gi_entry > "$TMP/entry2"
 check "missing fields are left out" sh -c "! grep -q '<desc>\|<rating>\|<genre>' '$TMP/entry2' && grep -q '<name>X</name>' '$TMP/entry2'"
 gi_game='{"response":{"jeu":{"noms":[{"region":"us","text":"Y"}],"dates":[{"region":"us","text":"1995-09-30"}],"note":{"text":"16"}}}}'
 gi_entry > "$TMP/entry3"
-check "full date as YYYYMMDDT000000" grep -qx '    <releasedate>19950930T000000</releasedate>' "$TMP/entry3"
-check "16/20 as 0.8" grep -qx '    <rating>0.8</rating>' "$TMP/entry3"
+check "full date as YYYYMMDDT000000" has_line "$TMP/entry3" '    <releasedate>19950930T000000</releasedate>'
+check "16/20 as 0.8" has_line "$TMP/entry3" '    <rating>0.8</rating>'
 end
 
 begin scraper_game_info_gamelist
 gi_env
 gi_write_desc
-check "no gamelist.xml: made with the entry" sh -c "grep -q '^<gameList>' '$gi_root/gamelist.xml' && grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>'"
+check "no gamelist.xml: made with the entry" sh -c "grep -q '^<gameList>' '$gi_root/gamelist.xml' && grep -q '<path>./RPG/Trials &amp; Co.sfc</path>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -q '^</gameList>$'"
 printf '<?xml version="1.0"?><gameList><game><path>./Other.sfc</path><desc>keep</desc></game></gameList>' > "$gi_root/gamelist.xml"
 gi_write_desc
-check "one-line list: entry inside gameList, old entry kept" sh -c "test \$(grep -c '<game>' '$gi_root/gamelist.xml') -eq 2 && grep -q '<desc>keep</desc>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -qx '</gameList>' && head -1 '$gi_root/gamelist.xml' | grep -q '^<?xml version=\"1.0\"?><gameList><game><path>./Other.sfc'"
+check "one-line list: entry inside gameList, old entry kept" sh -c "test \$(grep -c '<game>' '$gi_root/gamelist.xml') -eq 2 && grep -q '<desc>keep</desc>' '$gi_root/gamelist.xml' && tail -1 '$gi_root/gamelist.xml' | grep -q '^</gameList>$' && head -1 '$gi_root/gamelist.xml' | grep -q '^<?xml version=\"1.0\"?><gameList><game><path>./Other.sfc'"
 GameInfoMedia=desc
 missing=$(gi_missing)
 check "desc found by its escaped path" test -z "$missing"
@@ -529,10 +566,10 @@ wget() { # writes a PNG's first bytes, then fails like a cut transfer
     printf '\211PNG\r\n\032\nHALF' > "$out"
     return "${WGET_RC:-1}"
 }
-WGET_RC=1 gi_fetch http://x/cover.png "$gi_root/Imgs/cut.png" png
+export WGET_RC=1; gi_fetch http://x/cover.png "$gi_root/Imgs/cut.png" png; _rc=$?; unset WGET_RC; rc $_rc
 check "a download wget reports as failed is not kept" test ! -e "$gi_root/Imgs/cut.png"
 check "nor its .part" test ! -e "$gi_root/Imgs/cut.png.part"
-WGET_RC=0 gi_fetch http://x/cover.png "$gi_root/Imgs/ok.png" png
+export WGET_RC=0; gi_fetch http://x/cover.png "$gi_root/Imgs/ok.png" png; _rc=$?; unset WGET_RC; rc $_rc
 check "a finished one is" test -s "$gi_root/Imgs/ok.png"
 unset -f wget
 end
@@ -568,8 +605,8 @@ end
 begin battery_icon_levels_match_open_mainui
 BATTERY_H="$ROOT/src/common/theme/render/battery.h"
 KIDSPLAY_UI="$ROOT/src/kidsMode/kidsplay-src/kidsplay_ui.inc"
-check "RedOnion: 5, 15, 45, 70, as stock MainUI and Open MainUI" sh -c "sed -n '/^ThemeImages _getBatteryRequest/,/^}/p' '$BATTERY_H' | grep -o 'percentage < [0-9]*' | tr -d -c '0-9\n' | tr '\n' ' ' | grep -qx '5 15 45 70 '"
-check "KidsPlay: the same levels" sh -c "sed -n '/kp.charging) return 5;/,/return 4;/p' '$KIDSPLAY_UI' | grep -o 'kp.battery < [0-9]*' | tr -d -c '0-9\n' | tr '\n' ' ' | grep -qx '5 15 45 70 '"
+check "RedOnion: 5, 15, 45, 70, as stock MainUI and Open MainUI" sh -c "sed -n '/^ThemeImages _getBatteryRequest/,/^}/p' '$BATTERY_H' | grep -o 'percentage < [0-9]*' | tr -d -c '0-9\n' | tr '\n' ' ' | grep -q '^5 15 45 70 $'"
+check "KidsPlay: the same levels" sh -c "sed -n '/kp.charging) return 5;/,/return 4;/p' '$KIDSPLAY_UI' | grep -o 'kp.battery < [0-9]*' | tr -d -c '0-9\n' | tr '\n' ' ' | grep -q '^5 15 45 70 $'"
 end
 
 begin scraper_gamelist_written_in_batches
@@ -594,8 +631,8 @@ check "nothing left behind" sh -c "! ls '$gi_root' | grep -q 'gamelist.xml\\.'"
 cp "$gi_root/gamelist.xml" "$TMP/before.xml"
 gi_flush_desc
 check "nothing waiting: gamelist.xml not written again" cmp -s "$gi_root/gamelist.xml" "$TMP/before.xml"
-check "the scraping writes every 25, and when it ends or is closed" sh -c "grep -qx 'GI_DESC_BATCH=25' '$SCRAPER_SS' && grep -qx 'trap gi_flush_desc EXIT' '$SCRAPER_SS' && grep -qx 'gi_flush_desc' '$SCRAPER_SS'"
-check "and when its terminal is closed or it is stopped" grep -qx "trap 'gi_flush_desc; exit 1' HUP INT TERM" "$SCRAPER_SS"
+check "the scraping writes every 25, and when it ends or is closed" sh -c "grep -q '^GI_DESC_BATCH=25$' '$SCRAPER_SS' && grep -q '^trap gi_flush_desc EXIT$' '$SCRAPER_SS' && grep -q '^gi_flush_desc$' '$SCRAPER_SS'"
+check "and when its terminal is closed or it is stopped" has_line "$SCRAPER_SS" "trap 'gi_flush_desc; exit 1' HUP INT TERM"
 check "the waiting entries are not taken for ROMs" grep -q "! -name '\*.xml.entry' ! -name '\*.xml.one'" "$SCRAPER_SS"
 GI_DESC_BATCH=1
 end
@@ -677,7 +714,7 @@ PATH="$TMP/bin:$PATH"
 GameInfoMedia="box2dfront,box2dback,box3d,screenshot,video,manual"
 gi_download "$(gi_missing)" > "$TMP/out"
 M="$gi_root/media"
-check "box front as PNG" sh -c "head -c 4 '$M/box2dfront/Trials & Co.png' | od -An -tx1 | tr -d ' \n' | grep -qx 89504e47"
+check "box front as PNG" sh -c "head -c 4 '$M/box2dfront/Trials & Co.png' | od -An -tx1 | tr -d ' \n' | grep -q '^89504e47$'"
 check "picture asked at the screen's size, as PNG" grep -q 'box2d_us?a=1&maxwidth=752&maxheight=560&outputformat=png' "$TMP/wget_urls"
 check "JPEG box back turned into PNG" grep -q CONV "$M/box2dback/Trials & Co.png"
 check "screenshot saved" test -s "$M/screenshot/Trials & Co.png"
@@ -687,7 +724,7 @@ check "video (normalized) as mp4" grep -q ftyp "$M/videos/Trials & Co.mp4"
 check "manual as pdf" grep -q '%PDF' "$M/manuals/Trials & Co.pdf"
 check "no 3D box on ScreenScraper: none made" test ! -e "$M/box3d/Trials & Co.png"
 check "counted: 5 got, 1 not found" test "$GameInfo_Success $GameInfo_Fail" = "5 1"
-check "what ScreenScraper doesn't have is written down" grep -qx 'box3d RPG/Trials & Co.sfc' "$M/.gameinfo_none"
+check "what ScreenScraper doesn't have is written down" has_line "$M/.gameinfo_none" 'box3d RPG/Trials & Co.sfc'
 check "and not asked again" test -z "$(gi_missing)"
 check "a failed download (title page) is not written down" sh -c "! grep -q screenshot '$M/.gameinfo_none'"
 check "each item reported" sh -c "grep -q 'Game Info box3d: not found' '$TMP/out' && grep -q 'Game Info manual: OK' '$TMP/out'"
@@ -706,7 +743,7 @@ check "switch one on, in the menu's order" test "$(gi_toggle desc,screenshot vid
 check "the last one off: none (not the default again)" test "$(gi_toggle video video)" = "none"
 check "from none" test "$(gi_toggle none manual)" = "manual"
 check "menu: Game Info entry in the configuration" grep -q 'Menu_Config_GameInfo ;;' "$SCRAPER_MENU"
-check "menu: the current ROM can be scraped again (Game Info media)" grep -qx 'Option2="Scrape current rom: $romname"' "$SCRAPER_MENU"
+check "menu: the current ROM can be scraped again (Game Info media)" has_line "$SCRAPER_MENU" 'Option2="Scrape current rom: $romname"'
 check "same default list in the menu and the scraper" test "$(grep '^GI_DEFAULT=' "$SCRAPER_MENU")" = "$(grep '^GI_DEFAULT=' "$SCRAPER_SS")"
 check "default config has the key" sh -c "jq -e '.ScreenscraperGameInfo == \"desc,box2dfront,box2dback,box3d,screenshot\"' '$ROOT/static/configs/.tmp_update/config/scraper.json' > /dev/null"
 check "config_repair adds it to old configs" grep -q 'if .ScreenscraperGameInfo == null then .ScreenscraperGameInfo = "desc,box2dfront,box2dback,box3d,screenshot"' "$ROOT/static/build/.tmp_update/script/scraper/config_repair.sh"
@@ -862,9 +899,9 @@ end
 # never matches with -x, and with -F it searches for a substring
 
 begin shipped_scripts_have_no_grep_x
-found=$(grep -rnE 'grep( +-[a-zA-Z]+)* +-[a-zA-Z]*x' "$ROOT/static" "$ROOT/src" --include='*.sh' 2> /dev/null |
+found=$(grep -rnE 'grep( +-[a-zA-Z]+)* +-[a-zA-Z]*x' "$ROOT/static" "$ROOT/src" "$ROOT/test" --include='*.sh' 2> /dev/null |
     grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' | sed "s#^$ROOT/##" | head -n 3)
-check "grep -x is used in: ${found:-nothing}" test -z "$found"
+check "a whole-line grep (-x) is used in: ${found:-nothing}" test -z "$found"
 # The forms used instead, as the console's tools run them
 check "whole line with ^...\$" sh -c "printf 'x abc\nabc\n' | grep -q '^abc\$'"
 check "the newline-wrapped case: a whole line only" sh -c '
@@ -1034,9 +1071,16 @@ as_pid=$!
 started=0
 runifnecessary() { started=$((started + 1)); }
 audioserver_pid=""
-real_pgrep=$(command -v pgrep)
-# runs in a $(...) subshell: count in a file
-pgrep() { echo >> "$TMP/pgrep_calls"; "$real_pgrep" -x audioserver; }
+# runs in a $(...) subshell: count in a file. The process is found by its
+# name in /proc (pgrep -x never matches in BusyBox 1.20.2, and its pgrep
+# NAME looks at the first word of the command line: /bin/sh for a script).
+pgrep() {
+    echo >> "$TMP/pgrep_calls"
+    for _pg in /proc/[0-9]*; do
+        read -r _pg_comm < "$_pg/comm" 2> /dev/null && [ "$_pg_comm" = audioserver ] && echo "${_pg#/proc/}"
+    done
+    return 0
+}
 pgrep_calls() { wc -l < "$TMP/pgrep_calls"; }
 start_audioserver
 check "found by pgrep the first time" test "$audioserver_pid" = "$as_pid"
@@ -1187,7 +1231,7 @@ if command -v jq > /dev/null; then
     ota_menu() { echo "$1" > "$TMP/menu_items"; menu_choice=$(cat "$TMP/menu_pick"); }
     echo testers > "$TMP/menu_pick"
     ( channel_choice ); rc=$?
-    check "with the flag: testers in the menu" sh -c 'printf "%b" "$(cat "$1")" | grep -qx testers' _ "$TMP/menu_items"
+    check "with the flag: testers in the menu" sh -c 'printf "%b" "$(cat "$1")" | grep -q "^testers\$"' _ "$TMP/menu_items"
     check "with the flag: testers saved" test $rc -eq 0 -a "$(cat "$sysdir/config/ota_channel")" = testers
     rm -f "$sysdir/config/.otaTesters" "$sysdir/config/ota_channel"
     ( channel_choice ); rc=$?
@@ -1620,12 +1664,12 @@ enable_wifi > /dev/null 2>&1
 # udhcpc runs in the background: its line may come after "ip 20". Poll
 # for it (a bare `wait` would also wait for any job left by other tests).
 n=0
-while ! grep -qx udhcpc "$TMP/steps" && [ $n -lt 50 ]; do
+while ! has_line "$TMP/steps" 'udhcpc' && [ $n -lt 50 ]; do
     command sleep 0.1
     n=$((n + 1))
 done
 check "wpa_supplicant, up to 50 s for the link, then udhcpc" test "$(grep -v '^udhcpc$' "$TMP/steps" | tr '\n' ' ')" = "pkill -9 wpa_supplicant wpa link 50 pkill -9 udhcpc ip 20 "
-check "udhcpc started" grep -qx udhcpc "$TMP/steps"
+check "udhcpc started" has_line "$TMP/steps" 'udhcpc'
 unset -f ip sleep clear insmod ifconfig iw pkill udhcpc wifi_radio_running wait_for_wlan0 start_wpa_supplicant wait_for_link wait_for_ip
 end
 
@@ -1791,7 +1835,7 @@ end
 
 begin no_pgrep_x_in_shipped_scripts
 # The firmware's BusyBox 1.20.2 pgrep -x never matches anything.
-check "no pgrep -x under static/" test -z "$(command grep -rlE '^[^#]*pgrep +-[a-z]*x' "$ROOT/static")"
+check "no pgrep with -x under static/" test -z "$(command grep -rlE '^[^#]*pgrep +-[a-z]*x' "$ROOT/static")"
 end
 
 # ---- runtime.sh: temporaries of interrupted saves removed at boot ----
@@ -1822,7 +1866,7 @@ probe() { # hall present (1/0), axp exit code
     else
         hall_sensor="$TMP/missing/hallvalue"
     fi
-    PATH="$TMP/bin:$PATH" detect_device_model
+    _saved_path=$PATH; PATH="$TMP/bin:$PATH"; detect_device_model; _rc=$?; PATH=$_saved_path; rc $_rc
 }
 
 begin detect_flip_with_axp
@@ -2248,13 +2292,13 @@ sysdir="$TMP/sys"; mkdir -p "$sysdir/config"
 printf '[    2.1] mmcblk0: mmc0:aaaa SC64G 59.5 GiB\n[    2.3] FAT-fs (mmcblk0p1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.\n' > "$TMP/dirty"
 printf '[    2.1] mmcblk0: mmc0:aaaa SC64G 59.5 GiB\n[    2.4] random: crng init done\n' > "$TMP/clean"
 printf '[    9.0] FAT-fs (sda1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.\n' > "$TMP/usb"
-SD_DMESG_CMD="cat $TMP/dirty" sd_card_dirty
+export SD_DMESG_CMD="cat $TMP/dirty"; sd_card_dirty; _rc=$?; unset SD_DMESG_CMD; rc $_rc
 check "the kernel's message: dirty" test $? -eq 0
-SD_DMESG_CMD="cat $TMP/clean" sd_card_dirty
+export SD_DMESG_CMD="cat $TMP/clean"; sd_card_dirty; _rc=$?; unset SD_DMESG_CMD; rc $_rc
 check "no message: clean" test $? -ne 0
-SD_DMESG_CMD="cat $TMP/usb" sd_card_dirty
+export SD_DMESG_CMD="cat $TMP/usb"; sd_card_dirty; _rc=$?; unset SD_DMESG_CMD; rc $_rc
 check "another FAT device (a USB stick) does not count" test $? -ne 0
-SD_DMESG_CMD="cat $TMP/missing" sd_card_dirty
+export SD_DMESG_CMD="cat $TMP/missing"; sd_card_dirty; _rc=$?; unset SD_DMESG_CMD; rc $_rc
 check "dmesg failing: clean, no notice" test $? -ne 0
 check_sd_card 1
 check "dirty: the notice shows" test "$(cat "$TMP/panel" 2> /dev/null)" = shown
@@ -2274,7 +2318,7 @@ unset -f infoPanel log
 end
 
 begin ota_reboots_like_4_4_0
-check "the OTA ends with a plain reboot, as in 4.4.0" sh -c "grep -A2 'Press A to reboot\"\$' '$OTA' | grep -q 'sleep 1' && grep -qx '			reboot' '$OTA'"
+check "the OTA ends with a plain reboot, as in 4.4.0" sh -c "grep -A2 'Press A to reboot\"\$' '$OTA' | grep -q 'sleep 1' && grep -q '^			reboot$' '$OTA'"
 check "the OTA no longer calls bin/shutdown" sh -c "! grep -q 'bin/shutdown' '$OTA'"
 check "shutdown -r reboots" grep -q 'if \[ "\$1" = "-r" \]; then' "$ROOT/static/build/.tmp_update/bin/shutdown"
 end
@@ -2284,7 +2328,7 @@ INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
 eval "$(extract_fn "$INST" installer_reboot)"
 check "the installer's reboot goes through bin/shutdown -r" grep -qF '/mnt/SDCARD/.tmp_update/bin/shutdown -r' "$INST"
 check "with a plain reboot only if the script is missing" sh -c "sed -n '/^installer_reboot() {/,/^}/p' '$INST' | grep -q '^    reboot$'"
-check "used at the end of the installation" sh -c "tail -n 5 '$INST' | grep -qx 'installer_reboot'"
+check "used at the end of the installation" sh -c "tail -n 5 '$INST' | grep -q '^installer_reboot$'"
 check "and when the extraction fails" sh -c "grep -B2 'installer_reboot' '$INST' | grep -q 'Installation failed'"
 check "no other plain reboot but the firmware check's (no shutdown script left there)" test "$(grep -cE '^[[:space:]]+reboot$' "$INST")" -eq 2
 check "the shutdown script stops the installer's updater" grep -q 'killall -9 updater' "$ROOT/static/build/.tmp_update/bin/shutdown"
@@ -2559,7 +2603,7 @@ begin update_flag_cleared_after_update
 check "installer removes .updateAvailable" \
     sh -c "sed -n '/^run_installation() {/,/^}/p' \"$INSTALLER\" | grep -q 'rm -f /mnt/SDCARD/.tmp_update/.updateAvailable'"
 check "OTA check removes it when up to date" \
-    sh -c "sed -n '/^main() {/,/^}/p' \"$OTA\" | grep -c 'rm -f \"\$sysdir/.updateAvailable\"' | grep -qx 2"
+    sh -c "sed -n '/^main() {/,/^}/p' \"$OTA\" | grep -c 'rm -f \"\$sysdir/.updateAvailable\"' | grep -q '^2$'"
 # Run the real check mode: up to date drops the flag, newer release sets it.
 eval "$(extract_fn "$OTA" main)"
 ip() { echo "1.0.0.0 via 10.0.0.1 dev wlan0 src 10.0.0.2"; }
@@ -2620,12 +2664,12 @@ infoPanel() { echo "infoPanel $*" >> "$TMP/calls"; }
 bootScreen() { echo "bootScreen $*" >> "$TMP/calls"; }
 touch() { echo "touch $*" >> "$TMP/calls"; }
 show_launch_screen LOADING; wait
-check "no setting: popup with the message, as in Onion" grep -qx 'infoPanel --message LOADING --persistent --romscreen' "$TMP/calls"
+check "no setting: popup with the message, as in Onion" has_line "$TMP/calls" 'infoPanel --message LOADING --persistent --romscreen'
 rm -f "$TMP/calls"
 echo 1 > "$TMP/config/display/launchScreen"
 show_launch_screen SAVING; wait
-check "full screen: screenshot without message" grep -qx 'infoPanel --persistent --romscreen' "$TMP/calls"
-check "full screen: dismissed like the popup" grep -qx 'touch /tmp/dismiss_info_panel' "$TMP/calls"
+check "full screen: screenshot without message" has_line "$TMP/calls" 'infoPanel --persistent --romscreen'
+check "full screen: dismissed like the popup" has_line "$TMP/calls" 'touch /tmp/dismiss_info_panel'
 rm -f "$TMP/calls"
 echo 2 > "$TMP/config/display/launchScreen"
 show_launch_screen LOADING; wait
@@ -2633,8 +2677,8 @@ check "black: screen cleared, no infoPanel" test "$(cat "$TMP/calls")" = "bootSc
 rm -f "$TMP/calls"
 echo 3 > "$TMP/config/display/launchScreen"
 show_launch_screen SAVING; wait
-check "full popup: message without screenshot" grep -qx 'infoPanel --message SAVING --persistent' "$TMP/calls"
-check "full popup: dismissed like the popup" grep -qx 'touch /tmp/dismiss_info_panel' "$TMP/calls"
+check "full popup: message without screenshot" has_line "$TMP/calls" 'infoPanel --message SAVING --persistent'
+check "full popup: dismissed like the popup" has_line "$TMP/calls" 'touch /tmp/dismiss_info_panel'
 # Saved Games: the GameSwitcher screenshot is not the state being loaded.
 rm -f "$TMP/calls"
 rm -f "$TMP/config/display/launchScreen"
@@ -2643,7 +2687,7 @@ check "Saved Games, no setting: message without screenshot" test "$(grep -c info
 rm -f "$TMP/calls"
 echo 0 > "$TMP/config/display/launchScreen"
 show_launch_screen LOADING no_screenshot; wait
-check "Saved Games, screenshot + message: message only" grep -qx 'infoPanel --message LOADING --persistent' "$TMP/calls"
+check "Saved Games, screenshot + message: message only" has_line "$TMP/calls" 'infoPanel --message LOADING --persistent'
 rm -f "$TMP/calls"
 echo 1 > "$TMP/config/display/launchScreen"
 show_launch_screen LOADING no_screenshot; wait
@@ -2655,13 +2699,13 @@ check "Saved Games, black: still black" test "$(cat "$TMP/calls")" = "bootScreen
 rm -f "$TMP/calls"
 echo 3 > "$TMP/config/display/launchScreen"
 show_launch_screen LOADING no_screenshot; wait
-check "Saved Games, message only: unchanged" grep -qx 'infoPanel --message LOADING --persistent' "$TMP/calls"
+check "Saved Games, message only: unchanged" has_line "$TMP/calls" 'infoPanel --message LOADING --persistent'
 rm -f "$TMP/calls"
 echo 0 > "$TMP/config/display/launchScreen"
 show_launch_screen LOADING ""; wait
-check "empty second argument: screenshot as before" grep -qx 'infoPanel --message LOADING --persistent --romscreen' "$TMP/calls"
+check "empty second argument: screenshot as before" has_line "$TMP/calls" 'infoPanel --message LOADING --persistent --romscreen'
 check "LOADING passes the Saved Games choice" grep -q 'show_launch_screen "LOADING" "$launch_screen_shot"' "$RUNTIME"
-check "SAVING keeps the screenshot" grep -qx '[[:space:]]*show_launch_screen "SAVING"' "$RUNTIME"
+check "SAVING keeps the screenshot" grep -q '^[[:space:]]*show_launch_screen "SAVING"$' "$RUNTIME"
 check "Saved Games: flag from MainUI, not keymon's resume" grep -q '\[ -f /tmp/force_auto_load_state \] && \[ ! -f /tmp/resume_last_game \]' "$RUNTIME"
 check "Saved Games: read before the core override removes the flag" test \
     "$(grep -n 'launch_screen_shot="no_screenshot"' "$RUNTIME" | cut -d: -f1)" -lt "$(grep -n 'override_game_core "$romcfgpath"' "$RUNTIME" | cut -d: -f1)"
@@ -2703,18 +2747,18 @@ check "red: Package Manager artwork replaced" test "$(cat "$sd/App/PackageManage
 check "red: package source replaced" test "$(cat "$sd/$qg")" = red
 check "red: installed Quick Guide follows its package" test "$(cat "$sd/App/Onion_Manual/page1.png")" = red
 check "red: app that is not installed is not created" test ! -e "$sd/App/Commander_Italic"
-check "red: RetroArch title colour" grep -qx 'rgui_title_color = "0xFFc43b59"' "$sd/RetroArch/.retroarch/assets/rgui/Onion.cfg"
+check "red: RetroArch title colour" has_line "$sd/RetroArch/.retroarch/assets/rgui/Onion.cfg" 'rgui_title_color = "0xFFc43b59"'
 check "red: AdvanceMENU accents" test "$(grep -c 9e2c45 "$sd/BIOS/.advance/advmenu.rc")" -eq 2
-check "red: other AdvanceMENU settings untouched" grep -qx 'ui_mode custom 7247c2' "$sd/BIOS/.advance/advmenu.rc"
+check "red: other AdvanceMENU settings untouched" has_line "$sd/BIOS/.advance/advmenu.rc" 'ui_mode custom 7247c2'
 check "red: PCSX package and installed menu colour" test "$(grep -c '^selection_color=9e2c45$' "$sd/$pcsx_pkg" "$sd/RApp/PCSX-ReARMed/skin/skin.txt" | grep -c ':1$')" -eq 2
 check "red: state remembers the theme" test "$(cat "$sd/.tmp_update/config/.systemSkin")" = "$sd/Themes/Red"
 
 apply_system_skin "$sd/Themes/DiMo/"
 check "onion: Package Manager artwork restored" test "$(cat "$sd/App/PackageManager/res/bgApp.png")" = onion
 check "onion: installed Quick Guide restored" test "$(cat "$sd/App/Onion_Manual/page1.png")" = onion
-check "onion: RetroArch title colour restored" grep -qx 'rgui_title_color = "0xFF9160fd"' "$sd/RetroArch/.retroarch/assets/rgui/Onion.cfg"
+check "onion: RetroArch title colour restored" has_line "$sd/RetroArch/.retroarch/assets/rgui/Onion.cfg" 'rgui_title_color = "0xFF9160fd"'
 check "onion: AdvanceMENU accents restored" test "$(grep -c 7247c2 "$sd/BIOS/.advance/advmenu.rc")" -eq 3
-check "onion: PCSX colour restored" grep -qx 'selection_color=8526eb' "$sd/RApp/PCSX-ReARMed/skin/skin.txt"
+check "onion: PCSX colour restored" has_line "$sd/RApp/PCSX-ReARMed/skin/skin.txt" 'selection_color=8526eb'
 check "onion: state cleared" test ! -e "$sd/.tmp_update/config/.systemSkin"
 
 echo custom > "$sd/App/PackageManager/res/bgApp.png"
@@ -2756,7 +2800,11 @@ SHELLECT="$ROOT/static/build/.tmp_update/script/shellect.sh"
 
 begin shellect_start_quits_own_terminal_only
 extract_fn "$SHELLECT" quit_terminal > "$TMP/quit.sh"
-cp "$(command -v sh)" "$TMP/st"
+# A terminal stand-in named st that runs its -c string itself: a script with
+# a #! line (the kernel names the process after the file). A copy of sh
+# named st is not a shell when sh is BusyBox (applet "st" not found).
+printf '#!/bin/sh\n[ "$1" = -c ] && eval "$2"\n' > "$TMP/st"
+chmod +x "$TMP/st"
 # st -e sh script.sh: the menu runs in a shell under the terminal.
 "$TMP/st" -c "sh -c 'term_reset() { :; }; . \"$TMP/quit.sh\"; quit_terminal'; echo still-open" > "$TMP/out" 2>&1
 rc=$?
@@ -2778,7 +2826,11 @@ begin scraper_closes_its_own_terminal_only
 # process with "st" in its name (hostapd, installUI).
 SCRAPER_MENU="$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
 extract_fn "$SCRAPER_MENU" close_terminal > "$TMP/close.sh"
-cp "$(command -v sh)" "$TMP/st"
+# A terminal stand-in named st that runs its -c string itself: a script with
+# a #! line (the kernel names the process after the file). A copy of sh
+# named st is not a shell when sh is BusyBox (applet "st" not found).
+printf '#!/bin/sh\n[ "$1" = -c ] && eval "$2"\n' > "$TMP/st"
+chmod +x "$TMP/st"
 "$TMP/st" -c "sh -c '. \"$TMP/close.sh\"; close_terminal'; sleep 1; echo still-open" > "$TMP/out" 2>&1
 rc=$?
 check "the menu's own terminal is asked to quit (SIGTERM, 143)" test $rc -eq 143
@@ -2924,20 +2976,20 @@ check "other buttons and the D-pad: nothing asked" test ! -e "$TMP/asked"
 
 rm -f "$TMP/u.zip" "$TMP/curl_done"
 printf '\033' > "$TMP/menu"
-ANSWER=1 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
+export ANSWER=1; download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null; _rc=$?; unset ANSWER; rc $_rc
 check "MENU, then A: the download goes on" test $? -eq 0
 check "MENU, then A: asked once" test "$(wc -l < "$TMP/asked")" -eq 1
 check "MENU, then A: the file is there" test -s "$TMP/u.zip"
 
 rm -f "$TMP/u.zip" "$TMP/curl_done" "$TMP/asked"
-ANSWER=0 download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null
+export ANSWER=0; download_file "https://x/u.zip" "$TMP/u.zip" < "$TMP/menu" > /dev/null; _rc=$?; unset ANSWER; rc $_rc
 check "MENU, then START: stopped (130)" test $? -eq 130
 sleep 2
 check "MENU, then START: the download was ended" test ! -e "$TMP/curl_done"
 check "MENU, then START: no partial file" test ! -e "$TMP/u.zip"
 
 rm -f "$TMP/asked"
-CURL_RC=22 download_file "https://x/u.zip" "$TMP/u.zip" < /dev/null > /dev/null
+export CURL_RC=22; download_file "https://x/u.zip" "$TMP/u.zip" < /dev/null > /dev/null; _rc=$?; unset CURL_RC; rc $_rc
 check "curl's error comes back" test $? -eq 22
 unset CURL_RC
 
@@ -2970,10 +3022,11 @@ restore_console_position
 check "option off: not restored" test ! -e "$console_position_tmp"
 save_console_position
 check "option off: the saved copy goes" test ! -e "$console_position_sd"
-check "saved on every shutdown" grep -q "touch /tmp/shutting_down
-        save_console_position" "$RUNTIME"
-check "restored at boot" grep -q "restore_romwinidx
-    restore_console_position" "$RUNTIME"
+check "saved on every shutdown" line_follows "$RUNTIME" 'touch /tmp/shutting_down' 'save_console_position'
+check "restored at boot" line_follows "$RUNTIME" 'restore_romwinidx' 'restore_console_position'
+printf 'a\nx\nb\n' > "$TMP/lf"
+! line_follows "$TMP/lf" a b
+check "and the check fails when the second line is elsewhere" test $? -eq 0
 unset -f restore_console_position save_console_position log
 end
 
@@ -3116,10 +3169,10 @@ RES="$ROOT/static/build/.tmp_update/res/consoles"
 MIG="$ROOT/static/build/.tmp_update/script/migration/00027_console_pictures_trimmed.sh"
 OLDSUMS="$ROOT/static/build/.tmp_update/script/migration/data/00027_old_console_pictures.md5"
 CP="$ROOT/static/build/.tmp_update/script/console_pictures.sh"
-check "the old checksums are listed (one per line)" sh -c "[ \$(grep -cxE '[0-9a-f]{32}' '$OLDSUMS') -eq \$(wc -l < '$OLDSUMS') ] && [ \$(wc -l < '$OLDSUMS') -ge 70 ]"
+check "the old checksums are listed (one per line)" sh -c "[ \$(grep -cE '^[0-9a-f]{32}$' '$OLDSUMS') -eq \$(wc -l < '$OLDSUMS') ] && [ \$(wc -l < '$OLDSUMS') -ge 70 ]"
 same=
 for f in "$RES"/*.png; do
-    grep -qx "$(md5sum "$f" | cut -d ' ' -f 1)" "$OLDSUMS" && same="$same $(basename "$f")"
+    has_line "$OLDSUMS" "$(md5sum "$f" | cut -d ' ' -f 1)" && same="$same $(basename "$f")"
 done
 check "no new picture is in the old list ($same)" test -z "$same"
 mkdir -p "$TMP/consoles"
@@ -3149,15 +3202,15 @@ begin migration_disables_rgui_border_filler
 MIG="$ROOT/static/build/.tmp_update/script/migration/00022_disable_rgui_border_filler.sh"
 printf 'menu_driver = "rgui"\nrgui_border_filler_enable = "true"\nrgui_border_filler_thickness_enable = "true"\n' > "$TMP/ra.cfg"
 RA_CFG="$TMP/ra.cfg" sh "$MIG"
-check "existing setting turned off" grep -qx 'rgui_border_filler_enable = "false"' "$TMP/ra.cfg"
-check "other settings untouched" grep -qx 'rgui_border_filler_thickness_enable = "true"' "$TMP/ra.cfg"
+check "existing setting turned off" has_line "$TMP/ra.cfg" 'rgui_border_filler_enable = "false"'
+check "other settings untouched" has_line "$TMP/ra.cfg" 'rgui_border_filler_thickness_enable = "true"'
 check "only one line for the setting" test "$(grep -c '^rgui_border_filler_enable' "$TMP/ra.cfg")" -eq 1
 printf 'menu_driver = "rgui"\n' > "$TMP/ra2.cfg"
 RA_CFG="$TMP/ra2.cfg" sh "$MIG"
-check "missing setting added as off" grep -qx 'rgui_border_filler_enable = "false"' "$TMP/ra2.cfg"
+check "missing setting added as off" has_line "$TMP/ra2.cfg" 'rgui_border_filler_enable = "false"'
 RA_CFG="$TMP/none.cfg" sh "$MIG"
 check "no RetroArch config: nothing created" test ! -e "$TMP/none.cfg"
-check "new installs default to off" grep -qx 'rgui_border_filler_enable = "false"' "$ROOT/static/configs/RetroArch/.retroarch/retroarch.cfg"
+check "new installs default to off" has_line "$ROOT/static/configs/RetroArch/.retroarch/retroarch.cfg" 'rgui_border_filler_enable = "false"'
 end
 
 # ---- migration 00023: devices on the old default theme get Silky RedOnion ----
@@ -3503,7 +3556,7 @@ begin arcade_cores_ignore_power_as_r3
 remaps="$ROOT/static/configs/Saves/CurrentProfile/config/remaps"
 for core in "FB Alpha 2012" "FB Alpha 2012 CPS-1" "FB Alpha 2012 CPS-2" \
     "FB Alpha 2012 CPS-3" "FB Alpha 2012 Neo Geo" "FinalBurn Neo"; do
-    check "$core: R3 unbound" grep -qx 'input_player1_btn_r3 = "-1"' "$remaps/$core/$core.rmp"
+    check "$core: R3 unbound" has_line "$remaps/$core/$core.rmp" 'input_player1_btn_r3 = "-1"'
 done
 cores="$ROOT/static/build/RetroArch/.retroarch/cores"
 for info in "$cores"/fbalpha2012*_libretro.info "$cores"/fbneo_libretro.info; do
@@ -3529,7 +3582,7 @@ printf '#!/bin/sh\n' > "$TMP/app/wpa_supplicant"
 printf '#!/bin/sh\necho "$*" >> "%s/ps"\n' "$TMP" > "$netscript/wifi_power_save.sh"
 chmod +x "$TMP/app/wpa_supplicant" "$netscript/wifi_power_save.sh"
 wifi_on > /dev/null 2>&1
-check "wifi_on sets power save by the services" grep -qx "auto" "$TMP/ps"
+check "wifi_on sets power save by the services" has_line "$TMP/ps" "auto"
 check "the OTA's Wi-Fi start does the same" grep -qF 'wifi_power_save.sh auto' "$OTA"
 check "no script hardcodes power save" sh -c "! grep -rq 'set power_save o' \"$ROOT/static/build\" --exclude=wifi_power_save.sh"
 miyoodir=$miyoodir_saved
@@ -3549,10 +3602,10 @@ printf '#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = -b ] && printf %%s "$2" > "%s
 chmod +x "$TMP/shellect"
 sed "s#/mnt/SDCARD/.tmp_update/script/shellect.sh#$TMP/shellect#" "$SEL" > "$TMP/sel.sh"
 sh "$TMP/sel.sh" "Videos" "$TMP/media" "pdf" > /dev/null 2>&1
-check "default hint kept" grep -qx "Start: Exit      A: Open" "$TMP/hint"
+check "default hint kept" has_line "$TMP/hint" "Start: Exit      A: Open"
 check "the choice is written" grep -q "/a.pdf" "$TMP/media/.selected.pls"
 sh "$TMP/sel.sh" "PDF Reader" "$TMP/media" "pdf" "Menu: Close PDF   Start: Exit   A: Open" > /dev/null 2>&1
-check "a caller's hint is shown" grep -qx "Menu: Close PDF   Start: Exit   A: Open" "$TMP/hint"
+check "a caller's hint is shown" has_line "$TMP/hint" "Menu: Close PDF   Start: Exit   A: Open"
 check "the PDF Reader passes the MENU hint" grep -qF '"pdf" "Menu: Close PDF   Start: Exit   A: Open"' "$ROOT/static/packages/App/PDF Reader (Green)/App/Green/launch.sh"
 end
 
@@ -3638,24 +3691,24 @@ EOF
 
     # Open a.pdf (the list starts with ../), close it, then START.
     scenes "DOWN A" "START"
-    timeout 30 sh "$TMP/pdf.sh" > /dev/null 2>&1
+    with_limit 30 sh "$TMP/pdf.sh" > /dev/null 2>&1
     check "PDF: A opens the file under the cursor" test "$(cat "$TMP/opened" 2> /dev/null)" = "$SD/Media/PDF/a.pdf"
     check "PDF: START in the list leaves the app (no reopening)" test "$(lists_shown)" = 2
 
     # MENU in the list leaves too.
     scenes "MENU"
-    timeout 30 sh "$TMP/pdf.sh" > /dev/null 2>&1
+    with_limit 30 sh "$TMP/pdf.sh" > /dev/null 2>&1
     check "PDF: MENU in the list leaves the app" sh -c "test ! -f '$TMP/opened' && test \"\$(cat '$FAKE_ST/scene')\" = 1"
 
     # Two PDFs in a row, then START.
     scenes "DOWN A" "DOWN DOWN A" "START"
-    timeout 30 sh "$TMP/pdf.sh" > /dev/null 2>&1
+    with_limit 30 sh "$TMP/pdf.sh" > /dev/null 2>&1
     check "PDF: the second choice opens the second file" test "$(sed -n 2p "$TMP/opened")" = "$SD/Media/PDF/b.pdf"
     check "PDF: then START leaves" test "$(lists_shown)" = 3
 
     # Video Player: same list, same keys.
     scenes "DOWN A" "START"
-    timeout 30 sh "$TMP/video.sh" > /dev/null 2>&1
+    with_limit 30 sh "$TMP/video.sh" > /dev/null 2>&1
     check "Video: A plays the file under the cursor" test "$(cat "$TMP/played" 2> /dev/null)" = "$SD/Media/Videos/a.mp4"
     check "Video: START in the list leaves the app" test "$(lists_shown)" = 2
     unset FAKE_ST
@@ -3671,14 +3724,14 @@ begin release_named_redonion_with_onionplus_copy
 # the same zip under that name; ota_update.sh takes either.
 PRE="$ROOT/.github/workflows/pre-release.yml"
 TAGGED="$ROOT/.github/workflows/tagged-release.yml"
-check "the Makefile names the zip RedOnion" grep -qx "TARGET=RedOnion" "$ROOT/Makefile"
+check "the Makefile names the zip RedOnion" has_line "$ROOT/Makefile" "TARGET=RedOnion"
 check "release tag and title are RedOnion" sh -c "grep -qF 'RELEASE_TAG=RedOnion-v' '$PRE' && grep -qF 'RELEASE_TITLE=RedOnion V' '$PRE'"
 check "the release zip is RedOnion-v" grep -qF 'ZIP_NAME=RedOnion-v${BUILD_VERSION}-${SHA_SHORT}.zip' "$PRE"
 check "an OnionPlus-v copy is made" grep -qF 'cp "release/${ZIP_NAME}" "release/${LEGACY_ZIP_NAME}"' "$PRE"
 check "the copy keeps the same version" grep -qF 'LEGACY_ZIP_NAME=OnionPlus-v${BUILD_VERSION}-${SHA_SHORT}.zip' "$PRE"
 check "both zips are published" sh -c "grep -qF 'release/\${{ env.ZIP_NAME }}' '$PRE' && grep -qF 'release/\${{ env.LEGACY_ZIP_NAME }}' '$PRE'"
 check "tagged releases carry both too" sh -c "grep -qF 'release/RedOnion-v' '$TAGGED' && grep -qF 'release/OnionPlus-v' '$TAGGED'"
-check "the updater takes both names" grep -qx 'PACKAGE_PREFIXES="RedOnion-v OnionPlus-v"' "$OTA"
+check "the updater takes both names" has_line "$OTA" 'PACKAGE_PREFIXES="RedOnion-v OnionPlus-v"'
 end
 
 begin netplay_runs_with_power_save_off
@@ -3715,11 +3768,11 @@ mkdir -p "$TMP/sys/bin" "$TMP/net/wlan0"
 printf '#!/bin/sh\necho "$*" >> "%s/iw"\necho "$LD_LIBRARY_PATH" > "%s/ld"\n' "$TMP" "$TMP" > "$TMP/sys/bin/iw"
 chmod +x "$TMP/sys/bin/iw"
 sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" off
-check "off: iw sets wlan0 power save off" grep -qx "dev wlan0 set power_save off" "$TMP/iw"
+check "off: iw sets wlan0 power save off" has_line "$TMP/iw" "dev wlan0 set power_save off"
 check "iw finds its libraries" grep -q "$TMP/sys/lib/parasyte" "$TMP/ld"
 rm -f "$TMP/iw"
 sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" on
-check "on: iw sets wlan0 power save on" grep -qx "dev wlan0 set power_save on" "$TMP/iw"
+check "on: iw sets wlan0 power save on" has_line "$TMP/iw" "dev wlan0 set power_save on"
 check "an absent wlan1 is left alone" sh -c "! grep -q wlan1 \"$TMP/iw\""
 rm -f "$TMP/iw"
 sysdir="$TMP/sys" WIFI_NET_DIR="$TMP/net" sh "$PS" maybe 2> /dev/null
@@ -3859,9 +3912,9 @@ printf 'systemid = "game_boy_advance"\n' > "$TMP/cores/gpsp_libretro.info"
 touch "$TMP/cores/core_info.cache"
 CORES_DIR="$TMP/cores" sh "$mig"
 CORES_DIR="$TMP/cores" sh "$mig"
-check "gw gets a systemid" grep -qx 'systemid = "handheld_electronic"' "$TMP/cores/gw_libretro.info"
+check "gw gets a systemid" has_line "$TMP/cores/gw_libretro.info" 'systemid = "handheld_electronic"'
 check "added once" test "$(grep -c systemid "$TMP/cores/gw_libretro.info")" = 1
-check "the last line stays intact" grep -qx 'systemname = "Handheld Electronic"' "$TMP/cores/gw_libretro.info"
+check "the last line stays intact" has_line "$TMP/cores/gw_libretro.info" 'systemname = "Handheld Electronic"'
 check "a core with a systemid is left alone" test "$(cat "$TMP/cores/gpsp_libretro.info")" = 'systemid = "game_boy_advance"'
 check "the core info cache is removed" test ! -e "$TMP/cores/core_info.cache"
 end
@@ -3937,9 +3990,9 @@ restore_flag_pairs() { :; }
 archive_paths() { :; }
 fake7z() { return "${FAKE7Z_RC:-0}"; }
 Z7=fake7z
-FAKE7Z_RC=2 restore_backup "$TMP/old.zip"
+export FAKE7Z_RC=2; restore_backup "$TMP/old.zip"; _rc=$?; unset FAKE7Z_RC; rc $_rc
 check "extraction failed: keymon not told" test ! -e "$TMP/settings_changed"
-FAKE7Z_RC=0 restore_backup "$TMP/old.zip"
+export FAKE7Z_RC=0; restore_backup "$TMP/old.zip"; _rc=$?; unset FAKE7Z_RC; rc $_rc
 check "restored: keymon reads the settings again" test -e "$TMP/settings_changed"
 check "and the restart message no longer warns about volume or brightness" sh -c "! grep -q \"Don't change the volume\" '$BACKUP_APP'"
 unset -f check_archive archive_guest_mode_on guest_mode_on make_backup restore_flag_pairs archive_paths fake7z
@@ -4111,12 +4164,12 @@ else
     for p in "Saves/CurrentProfile/saves/gpSP/Pokemon Emerald (USA).srm" Saves/CurrentProfile/states/game.state0 \
         Saves/CurrentProfile/config/remaps/x.rmp .tmp_update/config/.logging system.json \
         RetroArch/.retroarch/retroarch.cfg Roms/favourite.json Emu/NDS/backup/Mario.dsv Emu/NDS/config/drastic.cfg; do
-        check "has $p" sh -c 'printf "%s\n" "$1" | grep -qxF "$2"' _ "$paths" "$p"
+        check "has $p" sh -c 'printf "%s\n" "$1" | { while IFS= read -r l; do [ "$l" = "$2" ] && exit 0; done; exit 1; }' _ "$paths" "$p"
     done
     for p in Saves/CurrentProfile/romScreens/game.png Saves/CurrentProfile/saves/currentTime.txt \
         Roms/GBA/game.gba .tmp_update/bin/tool BIOS/bios.bin .tmp_update/config/syncthing/key.pem \
         .tmp_update/config/syncthing/index/000001.log; do
-        check "not $p" sh -c '! printf "%s\n" "$1" | grep -qxF "$2"' _ "$paths" "$p"
+        check "not $p" sh -c 'printf "%s\n" "$1" | { while IFS= read -r l; do [ "$l" = "$2" ] && exit 1; done; exit 0; }' _ "$paths" "$p"
     done
     check "every path may go back" check_archive "$BACKUP_FILE"
     first=$BACKUP_FILE
@@ -4361,7 +4414,7 @@ echo scan > "$M/Metroid.pdf"
 
 echo ok > "$TMP/mode"
 green "$M/Metroid.pdf"
-check "heavy manual: light copy made with --auto" grep -qxF -- "--auto $M/Metroid.pdf $M/.light/Metroid.pdf.tmp" "$TMP/calls"
+check "heavy manual: light copy made with --auto" has_line "$TMP/calls" "--auto $M/Metroid.pdf $M/.light/Metroid.pdf.tmp"
 check "heavy manual: Green opens the light copy" test "$(tail -n 1 "$TMP/opened")" = "$M/.light/Metroid.pdf"
 check "light copy in place, no .tmp left" sh -c 'test "$(cat "$1/.light/Metroid.pdf")" = light && test ! -e "$1/.light/Metroid.pdf.tmp"' _ "$M"
 check "progress shown page by page" grep -q 'Page 1 of 2' "$TMP/panel"
@@ -4419,7 +4472,7 @@ mkdir -p "$TMP/dfbin"
 printf '#!/bin/sh\necho "Filesystem 1K-blocks Used Available Use%% Mounted on"\necho "/dev/mmcblk0p1 1000 990 10 99%% /mnt/SDCARD"\n' > "$TMP/dfbin/df"
 chmod +x "$TMP/dfbin/df"
 before=$(calls)
-PATH="$TMP/dfbin:$PATH" green "$M/Full.pdf"
+_saved_path=$PATH; PATH="$TMP/dfbin:$PATH"; green "$M/Full.pdf"; _rc=$?; PATH=$_saved_path; rc $_rc
 check "card full: the original, no copy tried" sh -c 'test "$(tail -n 1 "$1/opened")" = "$2/Full.pdf" && test "$(wc -l < "$1/calls")" -eq "$3"' _ "$TMP" "$M" "$before"
 
 echo scan > "$M/Off.pdf"
@@ -4606,10 +4659,10 @@ chmod +x "$sysdir/bin/fbmode"
 check "640x480 devices: no mode change" test ! -e "$TMP/fbmode"
 : > /tmp/new_res_available.kidstest
 eval "$(extract_fn "$RUNTIME" launch_kids_mode | sed "s#/tmp/new_res_available#/tmp/new_res_available.kidstest#")"
-PROBE="640x480 virtual 640x1440 bpp 32 line_length 2560 pages 3" launch_kids_mode
+export PROBE="640x480 virtual 640x1440 bpp 32 line_length 2560 pages 3"; launch_kids_mode; _rc=$?; unset PROBE; rc $_rc
 check "752x560 devices, MainUI's 3 pages: two 640x480 pages" sh -c 'grep -q "^640x480 --pages 2 " "$1/fbmode" && grep -q notified "$1/calls"' _ "$TMP"
 : > "$TMP/fbmode"
-PROBE="640x480 virtual 640x960 bpp 32 line_length 2560 pages 2" launch_kids_mode
+export PROBE="640x480 virtual 640x960 bpp 32 line_length 2560 pages 2"; launch_kids_mode; _rc=$?; unset PROBE; rc $_rc
 check "already two 640x480 pages: left alone" test ! -s "$TMP/fbmode"
 rm -f /tmp/new_res_available.kidstest
 unset -f launch_kids_mode fb_probe_fields log start_audioserver notify_resolution_change
@@ -4966,10 +5019,10 @@ echo kid > "$current_profile/saves/k.srm"
 : > "$legacy_battery_warning_flag"; : > "$legacy_battery_warning_marker"
 : > "$flagfile"
 cmd_cleanup
-check "armed: cleanup does nothing" grep -qx 'kiosk_mode_enable = "true"' "$racfg"
+check "armed: cleanup does nothing" has_line "$racfg" 'kiosk_mode_enable = "true"'
 rm -f "$flagfile"
 cmd_cleanup
-check "RetroArch's config back" grep -qx 'kiosk_mode_enable = "false"' "$racfg"
+check "RetroArch's config back" has_line "$racfg" 'kiosk_mode_enable = "false"'
 check "the keymap back" test "$(cat "$keymapcfg")" = parent-keys
 check "the parent's saves back" test "$(cat "$current_profile/saves/p.srm")" = parent
 check "the kid's kept for next time" test "$(cat "$kids_profile/saves/k.srm")" = kid
@@ -4999,21 +5052,21 @@ pgrep() { [ "$L_RUNNING" = 1 ]; }
 killall() { [ "$DI_RUNNING" = 1 ]; }
 sleep() { :; }
 : > "$TMP/mi_disp0"
-L_RUNNING=1 DI_RUNNING=0 check_disp_init; wait
+export L_RUNNING=1 DI_RUNNING=0; check_disp_init; _rc=$?; unset L_RUNNING DI_RUNNING; rc $_rc; wait
 check "/dev/l running: none started" test ! -e "$TMP/started"
-L_RUNNING=0 DI_RUNNING=1 check_disp_init; wait
+export L_RUNNING=0 DI_RUNNING=1; check_disp_init; _rc=$?; unset L_RUNNING DI_RUNNING; rc $_rc; wait
 check "disp_init running in its place (after a repair): none started" test ! -e "$TMP/started"
-L_RUNNING=0 DI_RUNNING=0 check_disp_init; wait
+export L_RUNNING=0 DI_RUNNING=0; check_disp_init; _rc=$?; unset L_RUNNING DI_RUNNING; rc $_rc; wait
 check "neither running: disp_init started" test "$(cat "$TMP/started" 2> /dev/null)" = started
 rm -f "$TMP/started" "$TMP/mi_disp0"
-L_RUNNING=0 DI_RUNNING=1 check_disp_init; wait
+export L_RUNNING=0 DI_RUNNING=1; check_disp_init; _rc=$?; unset L_RUNNING DI_RUNNING; rc $_rc; wait
 check "mi_disp0 gone: started, as before" test -e "$TMP/started"
 unset -f check_disp_init
 rm -f "$TMP/started"
 eval "$(extract_fn "$REC" check_disp_init)"
-L_RUNNING=0 DI_RUNNING=1 check_disp_init; wait
+export L_RUNNING=0 DI_RUNNING=1; check_disp_init; _rc=$?; unset L_RUNNING DI_RUNNING; rc $_rc; wait
 check "screen recorder: none started with disp_init running" test ! -e "$TMP/started"
-L_RUNNING=0 DI_RUNNING=0 check_disp_init; wait
+export L_RUNNING=0 DI_RUNNING=0; check_disp_init; _rc=$?; unset L_RUNNING DI_RUNNING; rc $_rc; wait
 check "screen recorder: started when neither runs" test -e "$TMP/started"
 unset -f check_disp_init pgrep killall sleep
 end
@@ -5051,22 +5104,22 @@ printf '%s\n' 'video_scale = "3"' 'kiosk_mode_enable = "false"' 'settings_show_v
     'input_reset_btn = "2"' 'menu_driver = "rgui"' > "$racfg"
 mkdir -p "$backupdir"
 apply_ra_lock
-check "armed: kiosk on" grep -qx 'kiosk_mode_enable = "true"' "$racfg"
+check "armed: kiosk on" has_line "$racfg" 'kiosk_mode_enable = "true"'
 # Meanwhile (a RetroArch update, say): one setting changed, one added
 sed -i 's/^video_scale = "3"$/video_scale = "4"/' "$racfg"
 echo 'new_option = "x"' >> "$racfg"
 restore_ra_lock
-check "unlocked: kiosk back as it was" grep -qx 'kiosk_mode_enable = "false"' "$racfg"
-check "a menu setting back" grep -qx 'settings_show_video = "true"' "$racfg"
-check "a hotkey back" grep -qx 'input_reset_btn = "2"' "$racfg"
+check "unlocked: kiosk back as it was" has_line "$racfg" 'kiosk_mode_enable = "false"'
+check "a menu setting back" has_line "$racfg" 'settings_show_video = "true"'
+check "a hotkey back" has_line "$racfg" 'input_reset_btn = "2"'
 check "a setting Kids Mode added and was not there: out" sh -c "! grep -q '^input_menu_toggle_btn' '$racfg'"
-check "a change made meanwhile kept" grep -qx 'video_scale = "4"' "$racfg"
-check "a setting added meanwhile kept" grep -qx 'new_option = "x"' "$racfg"
+check "a change made meanwhile kept" has_line "$racfg" 'video_scale = "4"'
+check "a setting added meanwhile kept" has_line "$racfg" 'new_option = "x"'
 check "each locked setting once" test "$(grep -c '^kiosk_mode_enable' "$racfg")" = 1
 check "the backup gone" test ! -e "$rabackup"
 rm -f "$racfg"; echo 'kiosk_mode_enable = "false"' > "$rabackup"
 restore_ra_lock
-check "retroarch.cfg gone meanwhile: the backup put back whole" grep -qx 'kiosk_mode_enable = "false"' "$racfg"
+check "retroarch.cfg gone meanwhile: the backup put back whole" has_line "$racfg" 'kiosk_mode_enable = "false"'
 unset -f ra_lock_keys restore_ra_state_bindings apply_ra_lock restore_ra_lock log
 end
 
@@ -5286,15 +5339,16 @@ check "short screen: still fits" test $((onion_msg_row + 3)) -le 24
 FAKE_SIZE=""; onion_layout
 check "no stty: the Miyoo size" test "$onion_lines" -eq 29 -a "$onion_cols" -eq 53
 FAKE_SIZE="29 53"; onion_layout
-drawn=$(onion_draw 50 | sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;]*[mK]//g' | grep -c .)
+esc=$(printf '\033') # not \x1b in sed: GNU only
+drawn=$(onion_draw 50 | sed "s/${esc}\[[0-9]*;1H/\n/g; s/${esc}\[[0-9;]*[mK]//g" | grep -c .)
 check "the onion draws all its rows ($drawn)" test "$drawn" -eq 20
-half=$(onion_draw 50 | sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;]*[mK]//g' | grep -c '#')
-full=$(onion_draw 100 | sed 's/\x1b\[[0-9]*;1H/\n/g; s/\x1b\[[0-9;]*[mK]//g' | grep -c '#')
+half=$(onion_draw 50 | sed "s/${esc}\[[0-9]*;1H/\n/g; s/${esc}\[[0-9;]*[mK]//g" | grep -c '#')
+full=$(onion_draw 100 | sed "s/${esc}\[[0-9]*;1H/\n/g; s/${esc}\[[0-9;]*[mK]//g" | grep -c '#')
 check "50% fills about half its body ($half of $full rows)" test "$half" -ge $((full / 2 - 1)) -a "$half" -le $((full / 2 + 1))
 check "0% is empty" test "$(onion_draw 0 | grep -c '#')" -eq 0
 # BusyBox awk reads "name (" as a function call: no such concatenation
 check "no 'name (' in the onion's awk (BusyBox)" sh -c '! sed -n "/^onion_draw()/,/^}/p" "$1" | sed 1d | grep -v "^[[:space:]]*#" | grep -E "[A-Za-z0-9_\"] \(" | grep -vE "\b(if|for|while|else)\b \("' _ "$OTA_SCRIPT"
-out=$(onion_status 5242880 10485760 | sed 's/\x1b\[[0-9;]*[HK]//g')
+out=$(onion_status 5242880 10485760 | sed "s/${esc}\[[0-9;]*[HK]//g")
 check "status: percent and MB ($out)" sh -c 'echo "$1" | grep -q "50%   5.0 / 10.0 MB"' _ "$out"
 # bytes * 100 passed 2^31 after 21 MB: a 32-bit shell went negative
 onion_percent 214748365 432013312; check "percent past 21 MB: 49 ($onion_pct)" test "$onion_pct" -eq 49
@@ -5609,7 +5663,7 @@ begin easy_netplay_cookie_and_cores
 NPD="$ROOT/static/build/.tmp_update/script/netplay"
 for f in easy-netplay_client.sh easy-netplay_client_pokemon.sh; do
     eval "$(extract_fn "$NPD/$f" cookie_paths_ok)"
-    cp_ok() { core=$1 rom=$2 cookie_paths_ok; }
+    cp_ok() { core=$1; rom=$2; cookie_paths_ok; }
     C=/mnt/SDCARD/RetroArch/.retroarch/cores
     check "$f: a core and a game" cp_ok "$C/tgbdual_libretro.so" "/mnt/SDCARD/Roms/GB/Pokemon Red.gb"
     check "$f: a game in a sub-folder" cp_ok "$C/snes9x2005_libretro.so" "/mnt/SDCARD/Roms/SFC/RPG/Chrono... Trigger.sfc"

@@ -34,7 +34,7 @@ TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar test_mainui_sho
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
-.PHONY: all clean $(TESTS) summary unit-test-san unit-test-neon-arm neon-test-arm
+.PHONY: all clean $(TESTS) test_scripts_busybox summary unit-test-san unit-test-neon-arm neon-test-arm
 
 all: $(BINARIES)
 	@total_tests=0; total_asserts=0; total_fails=0; suite_fails=0; skip_note=; \
@@ -520,6 +520,18 @@ $(BUILD_DIR)/test_scripts: test_scripts.sh ../static/build/.tmp_update/runtime.s
 	@mkdir -p $(BUILD_DIR)
 	cp test_scripts.sh $@
 	chmod +x $@
+
+# The same script tests with BusyBox, as on the console: its sh, and its
+# applets (grep, sed, awk, pgrep...) first in PATH. The console runs BusyBox
+# 1.20.2: BUSYBOX=<path to a 1.20.2 build> to check against that one.
+BUSYBOX ?= busybox
+
+test_scripts_busybox:
+	@bb=$$(command -v $(BUSYBOX)) || { echo "No BusyBox: install it or set BUSYBOX=<path>"; exit 1; }; \
+	d=$(BUILD_DIR)/busybox_applets; rm -rf $$d; mkdir -p $$d; d=$$(cd $$d && pwd); \
+	for a in $$($$bb --list 2> /dev/null); do ln -s $$bb $$d/$$a; done; \
+	echo "BusyBox: $$($$bb 2>&1 | head -n 1), $$(ls $$d | wc -l) applets"; \
+	PATH=$$d:$$PATH $$bb sh test_scripts.sh
 
 # The real SQLite (the repository's amalgamation), for tests that run SQL.
 $(BUILD_DIR)/sqlite3_host.o: ../include/sqlite3/sqlite3.c

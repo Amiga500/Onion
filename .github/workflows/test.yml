@@ -34,6 +34,12 @@ jobs:
       run: make unit-test
     - name: Run sanitizer subset
       run: make -C test -f Makefile.unit unit-test-san
+    # The script tests again with BusyBox's sh and applets, as on the
+    # console (Ubuntu's BusyBox is newer than the console's 1.20.2). Not
+    # blocking until a first green run has been seen.
+    - name: Run script tests with BusyBox
+      continue-on-error: true
+      run: make -C test -f Makefile.unit test_scripts_busybox
 
   neon-arm:
     name: NEON ARM (qemu)
