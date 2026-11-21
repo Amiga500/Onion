@@ -1,7 +1,10 @@
 #ifndef TWEAKS_RESET_H__
 #define TWEAKS_RESET_H__
 
+#include <dirent.h>
+#include <limits.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "system/device_model.h"
 #include "system/keymap_sw.h"
@@ -81,11 +84,34 @@ void action_resetTweaks(void *pt)
     const char title_str[] = "Reset system tweaks";
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset system tweaks?"))
         return;
-    rename(RESET_CONFIGS_PAK, "/mnt/SDCARD/.tmp_update/temp");
-    file_remove_recursive("/mnt/SDCARD/.tmp_update/config");
-    mkdirs("/mnt/SDCARD/.tmp_update/config");
-    system("7z x /mnt/SDCARD/.tmp_update/temp -o/mnt/SDCARD/ -ir!.tmp_update/config/*");
-    rename("/mnt/SDCARD/.tmp_update/temp", RESET_CONFIGS_PAK);
+    // The settings go, not the folder: configs.pak only holds the default
+    // settings, so the installer's state (without it every migration ran
+    // again at the next update), Syncthing's identity and the two netplay
+    // files of the system zip were gone for good.
+    static const char *const keep[] = {"configs.pak", "migration_state", "syncthing",
+                                       "netplay_cores.conf", "hotspot_wpa_supplicant.conf"};
+    DIR *dp = opendir("/mnt/SDCARD/.tmp_update/config");
+    struct dirent *ep;
+    while (dp != NULL && (ep = readdir(dp)) != NULL) {
+        bool kept = strcmp(ep->d_name, ".") == 0 || strcmp(ep->d_name, "..") == 0;
+        for (size_t i = 0; !kept && i < sizeof(keep) / sizeof(keep[0]); i++)
+            kept = strcmp(ep->d_name, keep[i]) == 0;
+        if (!kept) {
+            char path[PATH_MAX];
+            snprintf(path, sizeof(path), "/mnt/SDCARD/.tmp_update/config/%s", ep->d_name);
+            file_remove_recursive(path);
+        }
+    }
+    if (dp != NULL)
+        closedir(dp);
+    system("7z x -aoa " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!.tmp_update/config/*");
+    // RedOnion's defaults that only a migration creates (Apps sorted by
+    // name, console pictures, Saved Games: Overwrite); each one leaves a
+    // file that is there alone. Keeping migration_state without these would
+    // leave them off for good.
+    system("cd /mnt/SDCARD/.tmp_update/script/migration && "
+           "sh ./00021_sort_apps_by_name.sh; sh ./00026_console_pictures_default.sh; "
+           "sh ./00028_saved_games_overwrite_default.sh");
     reset_menus = true;
     settings_load();
     if (!_disable_confirm)
