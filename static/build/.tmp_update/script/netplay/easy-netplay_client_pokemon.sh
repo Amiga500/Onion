@@ -110,7 +110,9 @@ backup_and_send_save() {
         if [ -f "$save_tgbdual" ]; then
             confirm_join_panel "Continue ?" "There is a local save for\n$client_rom_filename_NoExt\nfor TGB Dual and for Gambatte.\n Gambatte save will be used by default."
             log "Existing TGB Dual save file detected. Continue with Gambatte save."
-            # cp -f "$save_tgbdual" "${save_tgbdual}_$CurDate"
+            # Kept and put back by cleanup, as the host does
+            tgbdual_kept="${save_tgbdual}_$CurDate"
+            cp -f "$save_tgbdual" "$tgbdual_kept"
         fi
         # copy save from Gambatte to TGB Dual
         cp -f "$save_gambatte" "$save_tgbdual"
@@ -201,8 +203,9 @@ start_retroarch() {
 
 # Go into a waiting state for the host to return the save (If you don't call this you don't retransfer the saves - Users cannot under any circumstances miss this function)
 wait_for_save_return() {
-    build_infoPanel_and_log "Syncing" "Waiting for host to be ready for save sync"
+    build_infoPanel_and_log "Syncing" "Waiting for host to be ready for save sync\nClose the game on the other console (MENU)"
     notify_peer "ready_to_receive"
+    counter=0 # not the count of failed pings left by hotspot_join.sh
 
     sync
 
@@ -218,7 +221,9 @@ wait_for_save_return() {
         sleep 1
         counter=$((counter + 1))
 
-        if [ $counter -ge 30 ]; then
+        # Each player closes the game on their own console: give the other
+        # one time (5 min). The host waits as long.
+        if [ $counter -ge 300 ]; then
             build_infoPanel_and_log "Error" "The Host didn't ready up, cannot continue..."
             log "We ran out of time waiting for the host to ready up, possibly due to host->client connecitivity"
             sleep 1
@@ -256,6 +261,11 @@ cleanup() {
 
     if is_running infoPanel; then
         killall -9 infoPanel
+    fi
+
+    # The TGB Dual save that the Gambatte one replaced for the session
+    if [ -n "$tgbdual_kept" ] && [ -f "$tgbdual_kept" ]; then
+        mv -f "$tgbdual_kept" "$save_tgbdual"
     fi
 
     # restore_wifi_state

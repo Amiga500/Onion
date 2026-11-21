@@ -246,6 +246,7 @@ client_save_rename() {
 # Read the cookie and store the paths and checksums into a var.
 client_read_cookie() {
 	sync
+	client_rom=
 	while IFS= read -r line; do
 		case $line in
 		"[core]: "*)
@@ -277,6 +278,12 @@ client_read_cookie() {
 	export core_url=$(url_encode "$core")
 	export rom_url=$(url_encode "$rom")
 
+	if [ -z "$client_rom" ]; then
+		build_infoPanel_and_log "Sync Failed" "The client's cookie names no game."
+		sleep 2
+		notify_stop
+	fi
+
 	romdirname=$(echo "$client_rom" | grep -o '/Roms/[^/]*' | cut -d'/' -f3)
 	romName=$(basename "$client_rom")
 	romNameNoExtension=${romName%.*}
@@ -300,6 +307,18 @@ client_rom_rename() {
 	else
 		log "Failed to copy $client_rom to $client_rom_clone"
 	fi
+}
+
+# The client starts its FTP server only after it has joined the hotspot and
+# reached this host: wait (up to 20 s) until its cookie can be asked for.
+wait_for_client_ftp() {
+	_wf=0
+	while [ $_wf -lt 20 ]; do
+		curl -s -I --connect-timeout 2 "ftp://${client_ip}/$(url_encode "mnt/SDCARD/RetroArch/retroarch.cookie")" 2>/dev/null | grep -qi "Content-Length" && return 0
+		sleep 1
+		_wf=$((_wf + 1))
+	done
+	return 0 # sync_file reports the failure
 }
 
 # Tell the client we're ready to accept connections
@@ -363,7 +382,7 @@ client_wait_for_save_return() {
 	check_stop
 	local counter=0
 
-	build_infoPanel_and_log "Syncing" "Waiting for client to be ready for save sync"
+	build_infoPanel_and_log "Syncing" "Waiting for client to be ready for save sync\nClose the game on the other console (MENU)"
 	notify_peer "ready_to_send"
 	sync
 
@@ -378,7 +397,9 @@ client_wait_for_save_return() {
 		sleep 1
 		counter=$((counter + 1))
 
-		if [ $counter -ge 30 ]; then
+		# Each player closes the game on their own console: give the other
+		# one time (5 min). The client waits as long.
+		if [ $counter -ge 300 ]; then
 			build_infoPanel_and_log "Error" "The client didn't ready up, cannot continue..."
 			sleep 1
 			cleanup
@@ -399,6 +420,7 @@ client_save_send() {
 	curl_exit_status=$?
 
 	if [ $curl_exit_status -eq 0 ]; then
+		client_save_returned=1
 		build_infoPanel_and_log "Syncing" "Client save returned!"
 	else
 		build_infoPanel_and_log "Syncing" "Failed to return the client save \n Progress has likely been lost \n Curl exit code: $curl_exit_status"
@@ -417,13 +439,21 @@ cleanup() {
 
 	# Remove some files we prepared and received
 	rm "/tmp/host_ready"
-	rm "$save_new_path"
+	if [ "$session_ran" = 1 ] && [ "$client_save_returned" != 1 ] && [ -f "$save_new_path" ]; then
+		# The client's save of the session exists only here: keep it (dated)
+		# so it can be copied to the client's card by hand.
+		mv -f "$save_new_path" "${save_new_path}_$CurDate"
+		log "Client save not returned, kept as ${save_new_path}_$CurDate"
+	else
+		rm "$save_new_path"
+	fi
 	rm "$client_rom_clone"
 	rm "/tmp/ready_to_send"
 	rm "/tmp/ready_to_receive"
 	rm "/tmp/MISSING.srm"
 	rm "/tmp/stop_now"
 	disable_flag hotspotState
+	rm -f /mnt/SDCARD/RetroArch/retroarch.cookie /mnt/SDCARD/RetroArch/retroarch.cookie.client /mnt/SDCARD/RetroArch/retroarch.cookie_old
 	rm "/tmp/dismiss_info_panel"
 	sync
 	log "Cleanup done"
@@ -576,6 +606,14 @@ sync_file() {
 	dir_path=$(dirname "$file_path")
 	file_url="ftp://${client_ip}/$(url_encode "${file_path#*/}")"
 
+	# The client's cookie is stored as retroarch.cookie.client: every test
+	# below is about that file (the host's own cookie is never moved), and
+	# one of an earlier session never counts as this one's.
+	if [ $file_type == "Cookie" ]; then
+		file_path="${file_path}.client"
+		rm -f "$file_path"
+	fi
+
 	log "\n############################ SYNC_FILE DEBUGGING ############################"
 	log file_type $file_type
 	log file_path $file_path
@@ -720,6 +758,7 @@ sync_file() {
 				mkdir -p "$Netplay_Rom_Folder"
 				file_path="$Netplay_Rom_Folder/$(basename "$file_path")"
 				rom=$file_path
+				client_rom=$file_path # the client's version of the game is the one cloned and played
 
 			elif [ $file_type == "Core" ]; then
 				# oldpath="$file_path"
@@ -734,9 +773,6 @@ sync_file() {
 				mv "$file_path" "${file_path}_old"
 				log "Existing $file_type file moved to ${file_path}_old"
 			fi
-		fi
-		if [ $file_type == "Cookie" ]; then # exception for cookies : we don't download with the same target name
-			file_path="${file_path}.client"
 		fi
 
 		if [ ! -d "$dir_path" ]; then
@@ -944,6 +980,7 @@ lets_go() {
 	. "$sysdir/script/network/hotspot_create.sh"
 	start_ftp
 	wait_for_client
+	wait_for_client_ftp
 	sync_file "Cookie" "/mnt/SDCARD/RetroArch/retroarch.cookie" 0 0 -f -m # will be downloaded as retroarch.cookie.client !
 	client_read_cookie
 	host_save_backup
@@ -957,6 +994,7 @@ lets_go() {
 	confirm_join_panel "Host now?" "$host_game_name \n $client_game_name"
 	pkill -9 pressMenu2Kill
 	start_retroarch
+	session_ran=1
 	host_save_overwrite
 	client_wait_for_save_return
 	client_save_send

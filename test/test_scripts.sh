@@ -5639,6 +5639,159 @@ check "host FTP is read-only" sh -c '! grep -n "ftpd -w" "$1"' _ "$NPD/easy-netp
 unset -f create_cookie_info read_cookie log xcrc url_encode
 end
 
+# ---- Pokemon trade (GB/GBC): the client's save is never lost, cookies, TGB Dual ----
+
+begin pokemon_trade_saves_and_cookies
+NPD="$ROOT/static/build/.tmp_update/script/netplay"
+SRV="$NPD/easy-netplay_server_pokemon.sh"
+CLI="$NPD/easy-netplay_client_pokemon.sh"
+sysdir=$TMP/sd
+mkdir -p "$sysdir/script/network" "$TMP/t"
+: > "$sysdir/script/network/hotspot_cleanup.sh"
+pk_stubs() {
+    build_infoPanel_and_log() { echo "$1|$2" >> "$TMP/panels"; }
+    log() { :; }
+    pkill() { :; }
+    killall() { :; }
+    restore_ftp() { :; }
+    disable_flag() { :; }
+    sync() { :; }
+    sleep() { :; }
+}
+# A. host cleanup: a played session whose save did not go back keeps it
+eval "$(extract_fn "$SRV" cleanup | sed "s#/tmp/#$TMP/t/#g; s#/mnt/SDCARD/RetroArch/#$TMP/ra/#g")"
+host_cleanup() { # session_ran returned
+    printf 'client save' > "$TMP/client_client.srm"
+    ( pk_stubs; save_new_path=$TMP/client_client.srm CurDate=20261120 session_ran=$1 client_save_returned=$2 cleanup ) > /dev/null 2>&1
+}
+host_cleanup 1 ""
+check "played, not returned: kept with a date" test -f "$TMP/client_client.srm_20261120" -a ! -f "$TMP/client_client.srm"
+rm -f "$TMP"/client_client.srm*
+host_cleanup 1 1
+check "played and returned: removed" test ! -e "$TMP/client_client.srm" -a ! -e "$TMP/client_client.srm_20261120"
+host_cleanup "" ""
+check "never played: removed" test ! -e "$TMP/client_client.srm" -a ! -e "$TMP/client_client.srm_20261120"
+mkdir -p "$TMP/ra"; : > "$TMP/ra/retroarch.cookie"; : > "$TMP/ra/retroarch.cookie.client"; : > "$TMP/ra/retroarch.cookie_old"
+host_cleanup "" ""
+check "host cleanup removes the cookies" test -z "$(ls "$TMP/ra")"
+check "lets_go marks the session after RetroArch" sh -c 'sed -n "/^lets_go() {/,/^}/p" "$1" | grep -A1 "^	start_retroarch$" | grep -q "session_ran=1"' _ "$SRV"
+unset -f cleanup host_cleanup
+for w in "$SRV:client_wait_for_save_return" "$CLI:wait_for_save_return"; do
+    check "${w##*:}: waits 5 minutes" sh -c 'sed -n "/^$2() {/,/^}/p" "$1" | grep -q "counter -ge 300"' _ "${w%%:*}" "${w##*:}"
+done
+
+# B. host sync_file: the client's cookie never moves the host's own
+if command -v bash > /dev/null; then
+    cat > "$TMP/sf.sh" << 'SF'
+. "$TMP/fns.sh"
+build_infoPanel_and_log() { echo "$1|$2" >> "$TMP/panels"; }
+log() { :; }; sleep() { :; }; url_encode() { echo "$*"; }
+cleanup() { echo CLEANUP >> "$TMP/panels"; exit 0; }
+notify_peer() { :; }
+curl() {
+    case "$1" in
+    -I) [ -n "$REMOTE" ] && printf 'Content-Length: %s\n' "$(printf %s "$REMOTE" | wc -c)" ;;
+    -o) [ -n "$REMOTE" ] && printf %s "$REMOTE" > "$2" ;;
+    esac
+}
+client_ip=192.168.100.101
+sync_file "Cookie" "$TMP/ra/retroarch.cookie" 0 0 -f -m
+SF
+    { extract_fn "$SRV" sync_file; extract_fn "$SRV" checksum_func; extract_fn "$SRV" checksize_func; } > "$TMP/fns.sh"
+    rm -rf "$TMP/ra" "$TMP/panels"; mkdir -p "$TMP/ra"; printf 'host cookie' > "$TMP/ra/retroarch.cookie"
+    TMP=$TMP REMOTE="client cookie" bash "$TMP/sf.sh" > /dev/null 2>&1
+    check "the host's cookie stays" test "$(cat "$TMP/ra/retroarch.cookie")" = "host cookie"
+    check "the client's is .client" test "$(cat "$TMP/ra/retroarch.cookie.client" 2> /dev/null)" = "client cookie"
+    check "no _old" test ! -e "$TMP/ra/retroarch.cookie_old"
+    # The client's FTP does not answer; a cookie of an earlier session is there
+    rm -f "$TMP/panels"; printf 'old partner' > "$TMP/ra/retroarch.cookie.client"
+    TMP=$TMP REMOTE="" bash "$TMP/sf.sh" > /dev/null 2>&1
+    check "nothing fetched: no 'synced'" sh -c '! grep -q "Cookie synced" "$1"' _ "$TMP/panels"
+    check "nothing fetched: the session stops" grep -q CLEANUP "$TMP/panels"
+    check "the old cookie is not used" test ! -e "$TMP/ra/retroarch.cookie.client"
+    check "a different ROM of the client is the one cloned" sh -c 'sed -n "/^sync_file() {/,/^}/p" "$1" | grep -A1 "^				rom=\$file_path$" | grep -q "client_rom=\$file_path"' _ "$SRV"
+fi
+
+# C. client: the wait starts at 0, whatever hotspot_join.sh left in counter
+eval "$(extract_fn "$CLI" wait_for_save_return | sed "s#/tmp/#$TMP/t/#g")"
+rm -f "$TMP/panels"
+(
+    pk_stubs
+    notify_peer() { :; }
+    cleanup() { echo CLEANUP >> "$TMP/panels"; exit 0; }
+    n=0
+    sleep() { n=$((n + 1)); [ $n -eq 40 ] && touch "$TMP/t/ready_to_send"; }
+    counter=25 save_file_matched=$TMP/s.srm SaveFromGambatte=0
+    wait_for_save_return
+) > /dev/null 2>&1
+check "client: 40 s later the host is still waited for" sh -c '! grep -q "CLEANUP\|didn.t ready up" "$1"' _ "$TMP/panels"
+unset -f wait_for_save_return
+
+# D. client: a TGB Dual save replaced by the Gambatte one comes back
+S=$TMP/saves
+eval "$(extract_fn "$CLI" backup_and_send_save | sed "s#/tmp/#$TMP/t/#g; s#/mnt/SDCARD/Saves/CurrentProfile/saves#$S#g")"
+eval "$(extract_fn "$CLI" cleanup | sed "s#/tmp/#$TMP/t/#g; s#/mnt/SDCARD/RetroArch/#$TMP/ra/#g")"
+mkdir -p "$S/Gambatte" "$S/TGB Dual"
+printf 'gambatte' > "$S/Gambatte/Blue.srm"; printf 'tgb dual 40 hours' > "$S/TGB Dual/Blue.srm"
+(
+    pk_stubs
+    check_stop() { :; }; confirm_join_panel() { :; }; curl() { :; }; url_encode() { echo "$*"; }; is_running() { false; }
+    client_rom_filename_NoExt=Blue CurDate=20261120
+    backup_and_send_save
+    [ "$(cat "$S/TGB Dual/Blue.srm")" = gambatte ] && echo used > "$TMP/during"
+    cleanup
+) > /dev/null 2>&1
+check "client: Gambatte save used for the session" test -f "$TMP/during"
+check "client: the TGB Dual save is back" test "$(cat "$S/TGB Dual/Blue.srm")" = "tgb dual 40 hours"
+check "client: no dated copy left" test ! -e "$S/TGB Dual/Blue.srm_20261120"
+unset -f backup_and_send_save cleanup pk_stubs
+end
+
+# ---- Pokemon trade (GBA) host: the auto state is put away only after a session ----
+
+begin pokemon_gba_host_autostate
+GBA="$ROOT/static/build/.tmp_update/script/netplay/easy-netplay_server_pokemon_GBA.sh"
+ST=$TMP/states/gpSP
+mkdir -p "$ST" "$TMP/sd/script/network"
+: > "$TMP/sd/script/network/hotspot_create.sh"; : > "$TMP/sd/script/network/hotspot_cleanup.sh"
+eval "$(extract_fn "$GBA" cleanup | sed "s#/tmp/#$TMP/#g; s#/mnt/SDCARD/Saves/CurrentProfile/states/gpSP#$ST#g")"
+eval "$(extract_fn "$GBA" lets_go | sed "s#/mnt/SDCARD/Saves/CurrentProfile/states/gpSP#$ST#g")"
+gba_run() { # retroarch_runs
+    : > "$ST/Emerald.state.auto"
+    (
+        sysdir=$TMP/sd host_rom=/x/Emerald.gba host_rom_filename_NoExt=Emerald CurDate=20261120
+        build_infoPanel_and_log() { :; }; log() { :; }; pkill() { :; }; restore_ftp() { :; }; disable_flag() { :; }; sync() { :; }
+        pressMenu2Kill() { :; }; start_ftp() { :; }; ready_up() { :; }; stripped_game_names() { :; }
+        wait_for_client() { [ "$1" = ok ] || cleanup; }
+        confirm_join_panel() { :; }
+        start_retroarch() { :; }
+        if [ "$1" = 1 ]; then wait_for_client() { :; }; fi
+        lets_go
+    ) > /dev/null 2>&1
+}
+gba_run 0
+check "nobody joined: the auto state stays" test -f "$ST/Emerald.state.auto"
+rm -f "$ST"/*
+gba_run 1
+check "after a session: put away with a date" test -f "$ST/Emerald.state.auto_20261120" -a ! -f "$ST/Emerald.state.auto"
+unset -f cleanup lets_go gba_run
+# The launcher keeps gpSP for a game with a gpSP save and no gpSP state
+GL="$ROOT/static/packages/Emu/Nintendo - GBA (gpSP)/Emu/GBA/launch.sh"
+gl_core() { # files...
+    rm -rf "$TMP/g"; mkdir -p "$TMP/g/saves/gpSP" "$TMP/g/states/mGBA" "$TMP/g/states/gpSP" "$TMP/g/cfg"
+    for f in "$@"; do : > "$TMP/g/$f"; done
+    (
+        save_dir=$TMP/g/saves state_dir=$TMP/g/states romname=Emerald auto_core_marker=$TMP/g/cfg/marker
+        gpsp_state="$state_dir/gpSP/$romname.state.auto" mgba_state="$state_dir/mGBA/$romname.state.auto"
+        eval "$(sed -n '/^default_core=gpsp/,/^fi$/p' "$GL")"
+        echo "$default_core"
+    )
+}
+check "mGBA state only: mGBA" test "$(gl_core states/mGBA/Emerald.state.auto)" = mgba
+check "mGBA state and a gpSP save: gpSP" test "$(gl_core states/mGBA/Emerald.state.auto saves/gpSP/Emerald.srm)" = gpsp
+unset -f gl_core
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

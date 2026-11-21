@@ -149,10 +149,6 @@ cleanup() {
 	rm "/tmp/dismiss_info_panel"
 	sync
 	log "Cleanup done"
-	
-	#Rename savestate_auto_load so savestate doesn't overwrite next loadsave
-	mv -f "/mnt/SDCARD/Saves/CurrentProfile/states/gpSP/$host_rom_filename_NoExt.state.auto" "/mnt/SDCARD/Saves/CurrentProfile/states/gpSP/$host_rom_filename_NoExt.state.auto_$CurDate"
-	
 	exit
 }
 
@@ -295,6 +291,10 @@ lets_go() {
 	confirm_join_panel "Host now?" "$host_game_name"
 	pkill -9 pressMenu2Kill
 	start_retroarch
+	# Only after a session that ran: its in-game save is now newer than the
+	# auto save state, which must not be loaded over it at the next start.
+	# (A session that never started leaves the state where it is.)
+	mv -f "/mnt/SDCARD/Saves/CurrentProfile/states/gpSP/$host_rom_filename_NoExt.state.auto" "/mnt/SDCARD/Saves/CurrentProfile/states/gpSP/$host_rom_filename_NoExt.state.auto_$CurDate"
 	cleanup
 }
 

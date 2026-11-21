@@ -24,9 +24,10 @@ mgba_save="$save_dir/mGBA/$romname.srm"
 
 default_core=gpsp
 
-# Switch to mGBA if no gpSP state but mGBA state exists
+# Switch to mGBA if no gpSP state but mGBA state exists (and no gpSP save:
+# a game played on gpSP may have no auto state, e.g. after a netplay trade)
 if [ ! -f "$auto_core_marker" ]; then
-    if [ ! -f "$gpsp_state" ] && [ -f "$mgba_state" ]; then
+    if [ ! -f "$gpsp_state" ] && [ -f "$mgba_state" ] && [ ! -f "$save_dir/gpSP/$romname.srm" ]; then
         default_core=mgba
         # Mark this switch as completed so it's only done once
         touch "$auto_core_marker"
