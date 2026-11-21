@@ -2403,6 +2403,28 @@ check "Guest Mode on: no GuestProfile (update)" test "$(sed -n 3p "$TMP/7z_args"
 check "Guest Mode on: no GuestProfile (reinstall)" test "$(sed -n 4p "$TMP/7z_args")" = "x -aoa $TMP/sd/.tmp_update/config/configs.pak -x!Saves/GuestProfile"
 end
 
+begin installer_keeps_the_x_and_y_choice
+# "B button" for X and "A button" for Y are stored as "" by Tweaks: an
+# update set them back to Search and GLO
+(
+    eval "$(extract_fn "$INSTALLER" install_configs | sed "s#/mnt/SDCARD#$TMP/sd#g")"
+    sysdir=$TMP/sd/.tmp_update
+    mkdir -p "$sysdir/config" "$TMP/stub"
+    touch "$sysdir/config/configs.pak"
+    printf '{\n    "mainui_button_x": "",\n    "mainui_button_y": ""\n}\n' > "$sysdir/config/keymap.json"
+    printf '#!/bin/sh\n:\n' > "$TMP/stub/7z"
+    chmod +x "$TMP/stub/7z"
+    PATH="$TMP/stub:$PATH"
+    cd "$TMP"
+    install_configs 0 > /dev/null 2>&1
+)
+check "X stays on B button" grep -q '"mainui_button_x": ""' "$TMP/sd/.tmp_update/config/keymap.json"
+check "Y stays on A button" grep -q '"mainui_button_y": ""' "$TMP/sd/.tmp_update/config/keymap.json"
+check "nothing left at the card's root" test ! -e "$TMP/temp_keymap.json"
+check "a fresh install gets Search and GLO (default keymap.json)" \
+    grep -q '"mainui_button_x": "app:Search"' "$ROOT/static/configs/.tmp_update/config/keymap.json"
+end
+
 begin guest_mode_switch_decides_by_the_parked_main_profile
 GUEST_APP="$ROOT/static/packages/App/Guest Mode/App/Guest_Mode"
 mkdir -p "$TMP/stub"

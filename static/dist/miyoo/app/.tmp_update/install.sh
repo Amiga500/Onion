@@ -565,12 +565,10 @@ install_configs() {
         7z x -aos $zipfile $guest_on_exclude # aos = skip existing files
     fi
 
-    # Set X and Y button keymaps if empty
-    cat /mnt/SDCARD/.tmp_update/config/keymap.json |
-        sed 's/"mainui_button_x"\s*:\s*""/"mainui_button_x": "app:Search"/g' |
-        sed 's/"mainui_button_y"\s*:\s*""/"mainui_button_y": "glo"/g' \
-            > ./temp_keymap.json
-    mv -f ./temp_keymap.json /mnt/SDCARD/.tmp_update/config/keymap.json
+    # X and Y in MainUI are no longer set back to Search and GLO here: an
+    # empty value is Tweaks' first choice ("B button" for X, "A button" for
+    # Y), and every update undid it. A fresh install gets Search and GLO
+    # from the default keymap.json.
 }
 
 check_firmware() {
