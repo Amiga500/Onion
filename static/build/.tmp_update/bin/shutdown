@@ -1,5 +1,18 @@
 #!/bin/sh
 
+# Reboot (-r), or power off (the Mini has no poweroff: it reboots).
+power_off_or_reboot() {
+	if [ "$1" = "-r" ]; then
+		/sbin/reboot
+	else
+		if [ "$(cat /tmp/deviceModel)" = "283" ]; then
+			/sbin/reboot # no poweroff command on Miyoo Mini
+		else
+			/sbin/poweroff
+		fi
+	fi
+}
+
 task_killer() {
 	r=0
 	for p in $1; do
@@ -24,6 +37,14 @@ kill_hooked_tasks() {
 }
 
 if [ "$0" = "/tmp/_shutdown" ]; then
+	# Started from a terminal (st, SSH, Telnet: the OTA app, "shutdown"
+	# typed in the Terminal), this script is in the terminal's process
+	# group, and killing the terminal below hangs it up: SIGHUP ended the
+	# script before the unmount and the reboot, and the console stayed on
+	# (the OTA's "Press A to reboot" hang of 4.5.0). nohup does not
+	# protect it: ash sets SIGHUP back to its default when it starts.
+	# SIGTERM: what keymon sends to the processes it stops.
+	trap '' HUP TERM
 
 	killall -9 main # mandatory to avoid the suppression of .tmp_update !
 	killall -9 updater
@@ -59,15 +80,7 @@ if [ "$0" = "/tmp/_shutdown" ]; then
 	# mount >> /appconfigs/shutdown.log
 	#################################
 
-	if [ "$1" = "-r" ]; then
-		/sbin/reboot
-	else
-		if [ "$(cat /tmp/deviceModel)" = "283" ]; then
-			/sbin/reboot # no poweroff command on Miyoo Mini
-		else
-			/sbin/poweroff
-		fi
-	fi
+	power_off_or_reboot "$1"
 
 fi
 
@@ -75,11 +88,28 @@ if [ ! -f /tmp/_shutdown ]; then
 	cp -f "$0" /tmp/_shutdown
 fi
 
+# Apps run with LD_PRELOAD=libpadsp.so, a library on the card: a second
+# stage started with it keeps the card busy and cannot unmount it.
+unset LD_PRELOAD
+
 # run the script totally detached from current shell
 pgrep -f /tmp/_shutdown || (
 	set -m
 	su root -c "/usr/bin/nohup /tmp/_shutdown $1 </dev/null >/dev/null 2>&1 &"
 )
+
+# The second stage kills this script (its file is on the card) on its way
+# to the unmount. Still here after 30 s with no second stage running: it
+# was killed before it got there. Power off or reboot anyway rather than
+# leave the console on with a dark screen until the battery is empty. A
+# second stage still running (a long sync or unmount) is left to finish.
+# (The second stage itself also comes here after its request, finds
+# itself running and waits for init to end every process.)
+sleep 30
+if ! pgrep -f /tmp/_shutdown > /dev/null; then
+	sync
+	power_off_or_reboot "$1"
+fi
 while true; do
 	sleep 10
 done

@@ -2052,6 +2052,74 @@ check "no other plain reboot but the firmware check's (no shutdown script left t
 check "the shutdown script stops the installer's updater" grep -q 'killall -9 updater' "$ROOT/static/build/.tmp_update/bin/shutdown"
 end
 
+begin shutdown_survives_its_terminal_and_has_a_fallback
+# bin/shutdown run on stand-ins: its paths moved into $TMP, the commands it
+# calls replaced by stubs that log what they were asked.
+SHUTDOWN="$ROOT/static/build/.tmp_update/bin/shutdown"
+mkdir -p "$TMP/stub" "$TMP/sd/.tmp_update/config" "$TMP/app"
+echo 354 > "$TMP/deviceModel"
+for c in fuser sync umount swapoff mv mkdir rm read_uuid reboot poweroff; do
+    printf '#!/bin/sh\necho "%s $*" >> "%s/log"\n' "$c" "$TMP" > "$TMP/stub/$c"
+done
+# killall: the first call hangs up the script, as closing its terminal
+# does; the second sends it SIGTERM, as keymon does to what it stops
+cat > "$TMP/stub/killall" << EOF
+#!/bin/sh
+echo "killall \$*" >> "$TMP/log"
+n=\$(grep -c '^killall' "$TMP/log")
+[ \$n -eq 1 ] && kill -HUP \$PPID
+[ \$n -eq 2 ] && kill -TERM \$PPID
+exit 0
+EOF
+# sleep: returns at once, and ends the script at the endless wait
+cat > "$TMP/stub/sleep" << EOF
+#!/bin/sh
+echo "sleep \$*" >> "$TMP/log"
+[ "\$1" = 10 ] && kill -9 \$PPID
+exit 0
+EOF
+# pgrep: is a second stage running? (the answer in \$TMP/second_stage)
+printf '#!/bin/sh\necho "pgrep $*" >> "%s/log"\n[ -f "%s/second_stage" ]\n' "$TMP" "$TMP" > "$TMP/stub/pgrep"
+# su: what it would start, and with which LD_PRELOAD
+printf '#!/bin/sh\necho "su LD_PRELOAD=${LD_PRELOAD:-none}" >> "%s/log"\n' "$TMP" > "$TMP/stub/su"
+chmod +x "$TMP"/stub/*
+sed -e "s#/tmp/_shutdown#$TMP/_shutdown#g" -e "s#/tmp/deviceModel#$TMP/deviceModel#g" \
+    -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g" -e "s#/sbin/#$TMP/stub/#g" \
+    -e "s#/usr/bin/nohup#nohup#g" "$SHUTDOWN" > "$TMP/_shutdown"
+cp "$TMP/_shutdown" "$TMP/shutdown"
+shutdown_run() { # the script's name, its argument -> what it did
+    rm -f "$TMP/log"
+    if [ -n "$shutdown_preload" ]; then
+        PATH="$TMP/stub:$PATH" LD_PRELOAD="$shutdown_preload" sh "$TMP/$1" $2 > /dev/null 2>&1
+    else
+        PATH="$TMP/stub:$PATH" sh "$TMP/$1" $2 > /dev/null 2>&1
+    fi
+    grep -E '^(killall -9 main|killall -9 smbd|umount -r|reboot|poweroff|sleep 30|su )' "$TMP/log" | tr '\n' ','
+}
+# The second stage: hung up and sent SIGTERM, it still unmounts and reboots
+check "second stage: SIGHUP and SIGTERM do not stop it" \
+    test "$(shutdown_run _shutdown -r | cut -d, -f1-4)" = "killall -9 main,killall -9 smbd,umount -r $TMP/sd,reboot "
+check "second stage, power off on a Plus: poweroff" \
+    sh -c "printf '%s' \"\$1\" | grep -q 'umount -r [^,]*,poweroff ,'" _ "$(shutdown_run _shutdown)"
+# The first stage: starts the second without LD_PRELOAD; if that one never
+# gets to kill it, it reboots by itself after 30 s
+rm -f "$TMP/second_stage"
+shutdown_preload=/nonexistent/libpadsp.so
+out=$(shutdown_run shutdown -r)
+shutdown_preload=
+check "first stage: the second stage is started without LD_PRELOAD" \
+    sh -c "printf '%s' \"\$1\" | grep -q '^su LD_PRELOAD=none,'" _ "$out"
+check "first stage, the second stage killed early: fallback reboot after 30 s" \
+    test "$out" = "su LD_PRELOAD=none,sleep 30,reboot ,"
+touch "$TMP/second_stage"
+check "first stage, second stage running: not started again, left to finish" \
+    test "$(shutdown_run shutdown -r)" = "sleep 30,"
+rm -f "$TMP/second_stage"
+check "first stage, power off on a Plus: fallback poweroff" \
+    test "$(shutdown_run shutdown)" = "su LD_PRELOAD=none,sleep 30,poweroff ,"
+unset -f shutdown_run
+end
+
 # ---- migration 00021: Apps sorted by name once, as before Open MainUI 1.0.6 ----
 
 begin migration_sorts_apps_by_name
