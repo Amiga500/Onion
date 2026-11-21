@@ -5573,6 +5573,72 @@ for f in netplay_override.cfg easynetplay_override.cfg; do
 done
 end
 
+# ---- Easy Netplay: what a cookie may name, consoles without netplay, CPU speed ----
+
+begin easy_netplay_cookie_and_cores
+NPD="$ROOT/static/build/.tmp_update/script/netplay"
+for f in easy-netplay_client.sh easy-netplay_client_pokemon.sh; do
+    eval "$(extract_fn "$NPD/$f" cookie_paths_ok)"
+    cp_ok() { core=$1 rom=$2 cookie_paths_ok; }
+    C=/mnt/SDCARD/RetroArch/.retroarch/cores
+    check "$f: a core and a game" cp_ok "$C/tgbdual_libretro.so" "/mnt/SDCARD/Roms/GB/Pokemon Red.gb"
+    check "$f: a game in a sub-folder" cp_ok "$C/snes9x2005_libretro.so" "/mnt/SDCARD/Roms/SFC/RPG/Chrono... Trigger.sfc"
+    ! cp_ok /mnt/SDCARD/.tmp_update/runtime.sh "/mnt/SDCARD/Roms/GB/a.gb"
+    check "$f: no core elsewhere" test $? -eq 0
+    ! cp_ok "/mnt/SDCARD/.tmp_update/x_libretro.so" "/mnt/SDCARD/Roms/GB/a.gb"
+    check "$f: no core outside cores/" test $? -eq 0
+    ! cp_ok "$C/../../../.tmp_update/x_libretro.so" "/mnt/SDCARD/Roms/GB/a.gb"
+    check "$f: no .. in the core" test $? -eq 0
+    ! cp_ok "$C/x_libretro.so" "/mnt/SDCARD/Roms/../.tmp_update/runtime.sh"
+    check "$f: no .. in the ROM" test $? -eq 0
+    ! cp_ok "$C/x_libretro.so" "/mnt/SDCARD/.tmp_update/runtime.sh"
+    check "$f: no ROM outside Roms/" test $? -eq 0
+    ! cp_ok "$C/none" "/mnt/SDCARD/Roms/NDS/a.nds"
+    check "$f: no core named none" test $? -eq 0
+    unset -f cookie_paths_ok cp_ok
+done
+
+# Host: a console without netplay stops before anything is set up
+eval "$(extract_fn "$NPD/easy-netplay_server.sh" Get_NetplayCore)"
+sysdir=$TMP/sd
+mkdir -p "$sysdir/config"
+cp "$ROOT/static/build/.tmp_update/config/netplay_cores.conf" "$sysdir/config/"
+build_infoPanel_and_log() { echo "$1|$2" >> "$TMP/panels"; }
+sleep() { :; }
+cookie_rom_path="/mnt/SDCARD/Roms/NDS/Mario Kart DS.nds" cookie_core_path=x
+netplaycore=
+Get_NetplayCore
+check "NDS: Get_NetplayCore fails" test $? -eq 1
+check "NDS: says not compatible" grep -q "^Netplay impossible|NDS not compatible" "$TMP/panels"
+cookie_rom_path="/mnt/SDCARD/Roms/SFC/Mario.sfc" netplaycore=
+Get_NetplayCore
+check "SFC: the table's core, full path" test "$netplaycore" = /mnt/SDCARD/RetroArch/.retroarch/cores/snes9x2005_libretro.so
+check "SFC: 1500 MHz" test "$cpuspeed" = 1500
+check "lets_go asks before the hotspot" sh -c 'sed -n "/^lets_go() {/,/^}/p" "$1" | grep -n "Get_NetplayCore\|hotspot_create" | head -n 1 | grep -q "Get_NetplayCore || exit"' _ "$NPD/easy-netplay_server.sh"
+unset -f Get_NetplayCore build_infoPanel_and_log sleep
+
+# The speed goes into the cookie, and into the core's folder on the client
+eval "$(extract_fn "$NPD/easy-netplay_server.sh" create_cookie_info | sed "s#/mnt/SDCARD/RetroArch/retroarch.cookie#$TMP/cookie#")"
+log() { :; }
+xcrc() { echo 1234; }
+netplaycore=$TMP/core.so cookie_rom_path=$TMP/rom.sfc cpuspeed=1500
+: > "$netplaycore"; : > "$cookie_rom_path"
+create_cookie_info
+check "the cookie has the speed" grep -q '^\[cpuspeed\]: 1500$' "$TMP/cookie"
+{ echo "[core]: /mnt/SDCARD/RetroArch/.retroarch/cores/snes9x2005_libretro.so"; echo "[rom]: /mnt/SDCARD/Roms/SFC/Mario.sfc"; echo "[cpuspeed]: 1500"; } > "$TMP/cookie.client"
+eval "$(extract_fn "$NPD/easy-netplay_client.sh" read_cookie | sed "s#/mnt/SDCARD/RetroArch/retroarch.cookie.client#$TMP/cookie.client#")"
+url_encode() { echo "$*"; }
+core= rom= cpuspeed= core_config_folder=
+read_cookie
+check "client: speed kept" test "$cpuspeed" = 1500
+check "client: the core's folder" test "$core_config_folder" = "Snes9x 2005"
+sed -i 's#Roms/SFC#Roms/FC#' "$TMP/cookie.client"
+cpuspeed= ; read_cookie
+check "client: no folder, no speed" test -z "$cpuspeed"
+check "host FTP is read-only" sh -c '! grep -n "ftpd -w" "$1"' _ "$NPD/easy-netplay_server.sh"
+unset -f create_cookie_info read_cookie log xcrc url_encode
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

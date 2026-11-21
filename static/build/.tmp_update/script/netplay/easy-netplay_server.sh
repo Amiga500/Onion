@@ -20,15 +20,17 @@ program=$(basename "$0" .sh)
 ##########
 
 # We'll need FTP to host the cookie to the client - use the built in FTP, it allows us to curl (errors on bftpd re: path)
+# Read-only (no -w): the client only downloads from this host (cookie, core,
+# ROM, cover). The root stays / because the client asks for full paths.
 start_ftp() {
 	if is_running bftpd; then
 		log "FTP already running, killing to rebind"
 		bftpd_p=$(ps | grep bftpd | grep -v grep | awk '{for(i=4;i<=NF;++i) printf $i" "}')
 		killall -9 bftpd
 		killall -9 tcpsvd
-		tcpsvd -E 0.0.0.0 21 ftpd -w / &
+		tcpsvd -E 0.0.0.0 21 ftpd / &
 	else
-		tcpsvd -E 0.0.0.0 21 ftpd -w / &
+		tcpsvd -E 0.0.0.0 21 ftpd / &
 		log "Starting FTP server"
 	fi
 }
@@ -40,7 +42,8 @@ Get_NetplayCore() {
 	netplaycore_info=$(grep "^${platform};" "$sysdir/config/netplay_cores.conf")
 	if [ -n "$netplaycore_info" ]; then
 		netplaycore=$(echo "$netplaycore_info" | cut -d ';' -f 2)
-		netplaycore="/mnt/SDCARD/RetroArch/.retroarch/cores/$netplaycore"
+		# "none": the console has no netplay (tested below on the bare name)
+		[ "$netplaycore" != "none" ] && netplaycore="/mnt/SDCARD/RetroArch/.retroarch/cores/$netplaycore"
 		core_config_folder=$(echo "$netplaycore_info" | cut -d ';' -f 3)
 		cpuspeed=$(echo "$netplaycore_info" | cut -d ';' -f 4)
 	fi
@@ -85,7 +88,7 @@ create_cookie_info() {
 		fi
 	fi
 
-	if [ -s "$cpuspeed" ]; then
+	if [ -n "$cpuspeed" ]; then
 		echo "[cpuspeed]: $cpuspeed" >>"$COOKIE_FILE"
 		log "Writing cpuspeed: $cpuspeed"
 	fi
@@ -199,10 +202,11 @@ is_running() {
 #########
 
 lets_go() {
+	# Before anything is set up: a console without netplay stops here
+	Get_NetplayCore || exit
 	pressMenu2Kill $(basename $0) &
 	. "$sysdir/script/network/hotspot_create.sh"
 	start_ftp
-	Get_NetplayCore
 	create_cookie_info
 	pkill -9 pressMenu2Kill
 	start_retroarch

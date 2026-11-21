@@ -73,6 +73,25 @@ read_cookie() {
 
 }
 
+# The cookie comes from whatever answers at the host's address. Its core and
+# ROM are downloaded to the same paths on this card and the core is then
+# run: accept only a core of RetroArch's cores folder and a game under Roms.
+cookie_paths_ok() {
+    case "$core" in
+    /mnt/SDCARD/RetroArch/.retroarch/cores/*/*) return 1 ;;
+    /mnt/SDCARD/RetroArch/.retroarch/cores/?*_libretro.so) ;;
+    *) return 1 ;;
+    esac
+    case "$rom" in
+    /mnt/SDCARD/Roms/?*/?*) ;;
+    *) return 1 ;;
+    esac
+    case "/$core/$rom/" in
+    */../*) return 1 ;;
+    esac
+    return 0
+}
+
 # Push our save over to the host - The save will be found based on the rom we've started GLO on and it will look in the $save_dir path for it (see line13) - Backs up first
 backup_and_send_save() {
     check_stop
@@ -783,6 +802,11 @@ lets_go() {
     start_ftp
     sync_file "Cookie" "/mnt/SDCARD/RetroArch/retroarch.cookie" 0 0 -f -m
     read_cookie
+    if ! cookie_paths_ok; then
+        build_infoPanel_and_log "Sync Failed" "The host sent a path that is not\na core or a game."
+        sleep 2
+        cleanup
+    fi
     backup_and_send_save
     # backup_save
     # sync_file Rom "$client_rom" # Doesn't sync anything, just uses the sync function to confirm it exists locally

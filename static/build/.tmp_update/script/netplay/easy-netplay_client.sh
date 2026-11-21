@@ -60,7 +60,32 @@ read_cookie() {
 	romNameNoExtension=${romName%.*}
 	Img_path="/mnt/SDCARD/Roms/$romdirname/Imgs/$romNameNoExtension.png"
 
+	# The host's CPU speed goes into the core's own folder, found as the host
+	# finds it (netplay_cores.conf); without a folder it is not used.
+	case "$cpuspeed" in '' | *[!0-9]*) cpuspeed= ;; esac
+	core_config_folder=$(grep "^${romdirname};" "$sysdir/config/netplay_cores.conf" | cut -d ';' -f 3)
+	[ -z "$core_config_folder" ] && cpuspeed=
+
 	log "Cookie file read"
+}
+
+# The cookie comes from whatever answers at the host's address. Its core and
+# ROM are downloaded to the same paths on this card and the core is then
+# run: accept only a core of RetroArch's cores folder and a game under Roms.
+cookie_paths_ok() {
+	case "$core" in
+	/mnt/SDCARD/RetroArch/.retroarch/cores/*/*) return 1 ;;
+	/mnt/SDCARD/RetroArch/.retroarch/cores/?*_libretro.so) ;;
+	*) return 1 ;;
+	esac
+	case "$rom" in
+	/mnt/SDCARD/Roms/?*/?*) ;;
+	*) return 1 ;;
+	esac
+	case "/$core/$rom/" in
+	*/../*) return 1 ;;
+	esac
+	return 0
 }
 
 sync_file() {
@@ -533,6 +558,11 @@ lets_go() {
 	. "$sysdir/script/network/hotspot_join.sh"
 	sync_file "Cookie" "/mnt/SDCARD/RetroArch/retroarch.cookie" 0 0 -f -m
 	read_cookie
+	if ! cookie_paths_ok; then
+		build_infoPanel_and_log "Sync Failed" "The host sent a path that is not\na core or a game."
+		sleep 2
+		cleanup
+	fi
 	sync_file "Core" "$core" 1 "$corechecksum" -b -m
 	sync_file "Rom" "$rom" 1 "$romchecksum" -b -m
 	sync_file "Img" "$Img_path" 0 0 -o
