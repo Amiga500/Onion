@@ -36,6 +36,14 @@ fi
 
 echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 
+# The menu runs on ondemand (as runtime.sh sets it after a game). The netplay
+# scripts start RetroArch themselves, so nothing else puts it back: every way
+# out of this script goes through here.
+netplay_end() {
+	echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+	exit
+}
+
 cores_configurator() {
 
 	if [ "$romdirname" == "GB" ] || [ "$romdirname" == "GBC" ]; then
@@ -92,11 +100,13 @@ if [ $retcode -eq 0 ]; then
 	if [ $retcode -eq 0 ]; then
 		/bin/sh "$sysdir/script/netplay/standard-netplay.sh" "$1" "$2" "host"
 	elif [ $retcode -eq 1 ]; then
+		easy_host=1
 		/bin/sh "$sysdir/script/netplay/easy-netplay_server.sh"
 	elif [ $retcode -eq 2 ]; then
+		easy_host=1
 		/bin/sh "$EasyNetplayPokemonScriptHost" "$1"
 	elif [ $retcode -eq 255 ]; then
-		exit
+		netplay_end
 	fi
 elif [ $retcode -eq 1 ]; then
 	PlayerNum=2
@@ -114,11 +124,11 @@ elif [ $retcode -eq 1 ]; then
 	elif [ $retcode -eq 2 ]; then
 		/bin/sh "$EasyNetplayPokemonScriptClient" "$1"
 	elif [ $retcode -eq 255 ]; then
-		exit
+		netplay_end
 	fi
 
 elif [ $retcode -eq 255 ]; then
-	exit
+	netplay_end
 fi
 
 if [ "$romdirname" == "GB" ] || [ "$romdirname" == "GBC" ]; then
@@ -132,11 +142,23 @@ echo "##########################################################################
 echo "############################################# Netplay.sh script end. ##############################################"
 echo "###################################################################################################################"
 
-# restore wifi in case of sudden quit :
-if [ -f "/tmp/old_ipv4.txt" ]; then
+# MENU while a session is set up kills the netplay script with SIGKILL
+# (pressMenu2Kill): its own cleanup never runs. What it left goes here.
+# Joining side: /tmp/old_ipv4.txt. Host side: its hotspot (hotspot_create.sh
+# stopped any other hostapd first).
+if [ -f "/tmp/old_ipv4.txt" ] || { [ "$easy_host" = 1 ] && pgrep hostapd > /dev/null; }; then
 	"$sysdir/script/network/hotspot_cleanup.sh"
+	touch /tmp/network_changed # the user's own services come back with the next network check
+fi
+# The session's FTP server (tcpsvd ftpd -w /: the whole card, no login) must
+# never outlive it. Only netplay starts tcpsvd; the user's FTP is bftpd.
+if pgrep tcpsvd > /dev/null; then
+	killall -9 tcpsvd
+	touch /tmp/network_changed
 fi
 
 # Back to power save as Wi-Fi normally runs (netplay turned it off): on,
 # or off while a file-transfer service is on.
 "$sysdir/script/network/wifi_power_save.sh" auto
+
+netplay_end

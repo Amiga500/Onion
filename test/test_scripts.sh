@@ -3694,7 +3694,7 @@ done
 check "every netplay script launches RetroArch (8 launches)" [ "$launches" -eq 8 ]
 check "each launch turns power save off first" [ "$unguarded" -eq 0 ]
 check "Netplay.sh hands power save back to the services at the end" sh -c \
-    "grep -v '^[[:space:]]*\$' \"$NETPLAY\" | tail -n 1 | grep -qx '\"\\\$sysdir/script/network/wifi_power_save.sh\" auto'"
+    "grep -v '^[[:space:]]*\$' \"$NETPLAY\" | tail -n 2 | tr '\n' ' ' | grep -q '^\"\\\$sysdir/script/network/wifi_power_save.sh\" auto netplay_end \$'"
 check "only netplay turns power save off" sh -c \
     "! grep -rl 'wifi_power_save.sh\" off' \"$ROOT/static/build\" | grep -v '/script/netplay/'"
 check "the helper is executable" [ -x "$PS" ]
@@ -5509,6 +5509,60 @@ check "one never switched is Disabled" sh -c 'printf "%s\n" "$1" | grep -q "^hot
 check "Syncthing is listed" sh -c 'printf "%s\n" "$1" | grep -q "^syncthing: *Enabled$"' _ "$out"
 check "each service once" test "$(printf '%s\n' "$out" | cut -d: -f1 | sort | uniq -d)" = ""
 unset -f get_netserv_status log
+end
+
+# ---- Netplay.sh: MENU during the set-up, and the CPU governor ----
+
+begin netplay_menu_cancel_and_governor
+NP="$ROOT/static/build/App/romscripts/Netplay.sh"
+np_sh=$(command -v bash || echo sh) # Netplay.sh uses == (ash with bash extensions)
+mkdir -p "$TMP/stub" "$TMP/sd/script/netplay" "$TMP/sd/script/network"
+sed -e "s#/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor#$TMP/gov#g" \
+    -e "s#^sysdir=.*#sysdir=$TMP/sd#" -e "s#LD_PRELOAD=[^ ]* ##" "$NP" > "$TMP/Netplay.sh"
+# prompt answers from a file, one line per call
+cat > "$TMP/stub/prompt" << 'STUB'
+#!/bin/sh
+n=$(head -n 1 "$NP_ANSWERS"); sed -i 1d "$NP_ANSWERS"; exit $n
+STUB
+# A session killed by MENU: hostapd and tcpsvd are left running
+printf '#!/bin/sh\ntouch "$NP_RUN/hostapd" "$NP_RUN/tcpsvd"\n' > "$TMP/sd/script/netplay/easy-netplay_server.sh"
+printf '#!/bin/sh\necho cleanup >> "$NP_RUN/log"; rm -f "$NP_RUN/hostapd" "$NP_RUN/tcpsvd"\n' > "$TMP/sd/script/network/hotspot_cleanup.sh"
+printf '#!/bin/sh\n:\n' > "$TMP/sd/script/network/wifi_power_save.sh"
+printf '#!/bin/sh\n[ -e "$NP_RUN/$1" ]\n' > "$TMP/stub/pgrep"
+printf '#!/bin/sh\nshift; rm -f "$NP_RUN/$1"\n' > "$TMP/stub/killall"
+printf '#!/bin/sh\ntouch "$NP_RUN/network_changed"\n' > "$TMP/stub/touch_nc"
+chmod +x "$TMP"/stub/* "$TMP"/sd/script/*/*
+sed -i "s#touch /tmp/network_changed#touch \"\$NP_RUN/network_changed\"#g" "$TMP/Netplay.sh"
+np_run() { # answers...
+    rm -rf "$TMP/run"; mkdir -p "$TMP/run"
+    printf '%s\n' "$@" > "$TMP/answers"
+    echo performance > "$TMP/gov"
+    NP_ANSWERS="$TMP/answers" NP_RUN="$TMP/run" PATH="$TMP/stub:$PATH" \
+        $np_sh "$TMP/Netplay.sh" /mnt/SDCARD/Roms/SFC/Mario.sfc "" > /dev/null 2>&1
+}
+np_run 255
+check "B at the first question: ondemand" test "$(cat "$TMP/gov")" = ondemand
+np_run 0 255
+check "B at the second question: ondemand" test "$(cat "$TMP/gov")" = ondemand
+np_run 0 1
+check "host killed by MENU: hotspot cleaned up" test "$(cat "$TMP/run/log" 2> /dev/null)" = cleanup
+check "no hostapd, no tcpsvd left" test ! -e "$TMP/run/hostapd" -a ! -e "$TMP/run/tcpsvd"
+check "a network check is asked for" test -e "$TMP/run/network_changed"
+check "after a session: ondemand" test "$(cat "$TMP/gov")" = ondemand
+# A user hotspot running while Standard Netplay is used is left alone
+printf '#!/bin/sh\ntouch "$NP_RUN/hostapd"\n' > "$TMP/sd/script/netplay/standard-netplay.sh"
+chmod +x "$TMP/sd/script/netplay/standard-netplay.sh"
+np_run 0 0
+check "Standard Netplay: the user's hotspot stays" test -e "$TMP/run/hostapd" -a ! -e "$TMP/run/log"
+# A joining Pokemon client killed by MENU leaves its FTP server
+printf '#!/bin/sh\ntouch "$NP_RUN/tcpsvd"\n' > "$TMP/sd/script/netplay/easy-netplay_client_pokemon.sh"
+chmod +x "$TMP/sd/script/netplay/easy-netplay_client_pokemon.sh"
+sed -i "s#\$sysdir/script/netplay/easy-netplay_client_pokemon.sh#$TMP/sd/script/netplay/easy-netplay_client_pokemon.sh#" "$TMP/Netplay.sh"
+rm -rf "$TMP/run"; mkdir -p "$TMP/run"; printf '1\n2\n' > "$TMP/answers"
+NP_ANSWERS="$TMP/answers" NP_RUN="$TMP/run" PATH="$TMP/stub:$PATH" \
+    $np_sh "$TMP/Netplay.sh" /mnt/SDCARD/Roms/GB/Red.gb "" > /dev/null 2>&1
+check "client: its FTP server is stopped" test ! -e "$TMP/run/tcpsvd"
+unset -f np_run
 end
 
 echo ""
