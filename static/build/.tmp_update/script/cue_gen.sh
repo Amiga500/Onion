@@ -40,8 +40,10 @@ find $targets -maxdepth 3 -name "*.bin" -type f 2> /dev/null | while IFS= read -
     target_base="${target_name%.*}"
 
     # "(Track N)" or "Track N" picks the track; the rest of the name is the game.
-    track_number=$(echo "$target_base" | sed -n -E 's/.*[Tt]rack[[:space:]]*0*([0-9]+).*/\1/p')
-    game_base=$(echo "$target_base" | sed -E 's/[[:space:]]*[(]?[Tt]rack[[:space:]]*[0-9]+[)]?//' | sed 's/[[:space:]]*$//')
+    # sed -r, not -E: BusyBox 1.20.2's sed (the firmware's) has no -E, gave
+    # nothing, and every track became a game of its own.
+    track_number=$(echo "$target_base" | sed -n -r 's/.*[Tt]rack[[:space:]]*0*([0-9]+).*/\1/p')
+    game_base=$(echo "$target_base" | sed -r 's/[[:space:]]*[(]?[Tt]rack[[:space:]]*[0-9]+[)]?//' | sed 's/[[:space:]]*$//')
     [ -n "$track_number" ] || track_number=1
     [ -n "$game_base" ] || game_base="$target_base"
 

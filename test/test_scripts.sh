@@ -794,6 +794,14 @@ unset -f not_needed not_a_line
 unset -f needs_migration gi_has_line
 end
 
+# ---- no sed -E in what is shipped: BusyBox 1.20.2's sed knows only -r ----
+
+begin shipped_scripts_have_no_sed_E
+found=$(grep -rnE 'sed( +-[a-zA-Z]+)* +-[a-zA-Z]*E' "$ROOT/static" "$ROOT/src" --include='*.sh' 2> /dev/null |
+    grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' | sed "s#^$ROOT/##" | head -n 3)
+check "sed -E is used in: ${found:-nothing}" test -z "$found"
+end
+
 # ---- runtime.sh: get_full_resolution_path (vs the grep|sed pipeline) ----
 
 begin full_resolution_path_matches_pipeline
