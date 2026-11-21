@@ -190,7 +190,23 @@ get_wpa_supplicant() { # print the file aswell but remove the users ssid/psk - w
         echo "File not found: $wpa_conf_path"
     fi
 
-    sed 's/ssid="[^"]*"/ssid="redacted"/g; s/psk="[^"]*"/psk="redacted"/g' "$wpa_conf_path"
+    # The whole value of every key that names or opens a network, quoted
+    # or not, also in commented lines: wpa_supplicant also writes psk= as
+    # 64 hex digits (the key itself), ssid= as hex (a name with an accent
+    # or an emoji), and keeps a password with a '"' in it whole, which
+    # [^"]* cut at the first quote. WPA3 (sae_password), WEP and
+    # enterprise keys were not looked at. Then, as before, anything left
+    # inside a line.
+    sed -e 's/^\([[:space:]#]*ssid=\).*/\1redacted/' \
+        -e 's/^\([[:space:]#]*psk=\).*/\1redacted/' \
+        -e 's/^\([[:space:]#]*sae_password=\).*/\1redacted/' \
+        -e 's/^\([[:space:]#]*password=\).*/\1redacted/' \
+        -e 's/^\([[:space:]#]*wep_key[0-9]=\).*/\1redacted/' \
+        -e 's/^\([[:space:]#]*identity=\).*/\1redacted/' \
+        -e 's/^\([[:space:]#]*anonymous_identity=\).*/\1redacted/' \
+        -e 's/^\([[:space:]#]*private_key_passwd=\).*/\1redacted/' \
+        -e 's/ssid="[^"]*"/ssid="redacted"/g; s/psk="[^"]*"/psk="redacted"/g' \
+        "$wpa_conf_path"
 }
 
 check_hostapd_conf() {
