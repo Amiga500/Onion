@@ -477,6 +477,14 @@ void showBootScreen(const char *type)
 //
 void deepsleep(void)
 {
+    // A power-off is already under way (this function returns once
+    // runtime.sh has started it): nothing more to do. Called again then,
+    // it found no game or MainUI left (MODE_APPS), deleted cmd_to_run.sh
+    // (the game was not resumed at the next boot), vibrated and sent
+    // SIGTERM to the processes of the shutdown itself.
+    if (shutdown_in_progress())
+        return;
+
     system_state_update();
 
     if (system_state == MODE_GAME && !check_autosave()) {
@@ -679,6 +687,11 @@ void suspend_exec(int timeout)
                     resume();
                     usleep(150000);
                     deepsleep();
+                    // Back here: the power-off has started, or a game with
+                    // no auto save state was kept. Count a new timeout, as
+                    // below: the old one stayed elapsed, and the power-off
+                    // was run again every 500 ms.
+                    suspend_start = getMilliseconds();
                 }
                 continue;
             }
@@ -700,9 +713,11 @@ void suspend_exec(int timeout)
             resume();
             usleep(150000);
             deepsleep();
-            // Back here only when deepsleep() kept a game that has no auto
-            // save: wait another timeout, not a poll(0) loop.
-            standby_log("standby: power-off refused (game without auto save state)");
+            // Back here when the power-off has started, or when deepsleep()
+            // kept a game that has no auto save: wait another timeout, not
+            // a poll(0) loop.
+            if (!shutdown_in_progress())
+                standby_log("standby: power-off refused (game without auto save state)");
             suspend_start = getMilliseconds();
         }
     }
