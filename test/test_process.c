@@ -187,6 +187,31 @@ TEST(process_spawn_detached_runs_program) {
     unlink(marker);
 }
 
+/* keymon's "playActivity resume": started without waiting, then waited for
+ * before the next standby's stop_all. */
+TEST(process_spawn_then_reap_waits_for_the_program) {
+    const char *marker = "/tmp/onion_test_spawn_marker3";
+    unlink(marker);
+    char *const argv[] = {"sh", "-c", "sleep 0.3; touch /tmp/onion_test_spawn_marker3", NULL};
+    pid_t pid = process_spawn(argv);
+    ASSERT_TRUE(pid > 0);
+    ASSERT_FALSE(process_reap(pid, 0));        /* still running */
+    ASSERT_TRUE(process_reap(pid, 3000));      /* waited for */
+    ASSERT_EQ(access(marker, F_OK), 0);        /* its work is done */
+    ASSERT_TRUE(process_reap(pid, 0));         /* already reaped */
+    ASSERT_TRUE(process_reap(0, 0));
+    unlink(marker);
+}
+
+TEST(process_reap_gives_up_after_its_time) {
+    char *const argv[] = {"sleep", "2", NULL};
+    pid_t pid = process_spawn(argv);
+    ASSERT_TRUE(pid > 0);
+    ASSERT_FALSE(process_reap(pid, 100));
+    kill(pid, SIGKILL);
+    ASSERT_TRUE(process_reap(pid, 1000));
+}
+
 /* ---- process_readFirstLine (axp_test without popen) ---- */
 
 static char rfl_dir[] = "/tmp/onion_rfl_XXXXXX";
@@ -273,6 +298,8 @@ int main(void)
     RUN_TEST(process_killall_missing_is_noop);
     RUN_TEST(process_killall_signal_sends_once_to_each_match);
     RUN_TEST(process_spawn_detached_with_sigchld_ignored);
+    RUN_TEST(process_spawn_then_reap_waits_for_the_program);
+    RUN_TEST(process_reap_gives_up_after_its_time);
     RUN_TEST(process_spawn_detached_runs_program);
 
     {

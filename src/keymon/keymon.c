@@ -65,6 +65,8 @@
 #define GPIO45_DIRECTION "/sys/class/gpio/gpio45/direction"
 #define GPIO44_DIRECTION "/sys/class/gpio/gpio44/direction"
 
+// "playActivity resume" started at the last wake-up (0: none pending)
+static pid_t pa_resume_pid = 0;
 static bool headphone_jack_available = false;
 static int last_jack_state = -1;
 
@@ -606,6 +608,14 @@ void suspend_exec(int timeout)
     system_state_update();
     bool in_switcher = system_state == MODE_SWITCHER;
 
+    // The resume started at the last wake-up must have written its row
+    // first: a resume that ends after this stop_all leaves a session open
+    // through the whole standby (two quick POWER taps).
+    if (pa_resume_pid > 0) {
+        process_reap(pa_resume_pid, 3000);
+        pa_resume_pid = 0;
+    }
+
     // pause playActivity (synchronous: the session must be closed before
     // processes are stopped; no shell needed)
     {
@@ -765,9 +775,11 @@ void suspend_exec(int timeout)
     if (!killexit) {
         resume();
         if (!in_switcher) {
-            // nobody waits for this: run it in background
+            // In background, but keep its pid: the next standby waits for it
+            // before its stop_all (reaped on the 15 s tick otherwise).
             char *const argv[] = {"playActivity", "resume", NULL};
-            process_spawn_detached(argv);
+            process_reap(pa_resume_pid, 0);
+            pa_resume_pid = process_spawn(argv);
         }
     }
 
@@ -1262,6 +1274,13 @@ int main(void)
                         system_state_update();
                     comboKey_menu = menuButtonAction(val, comboKey_menu);
                 }
+                else if (val == RELEASED) {
+                    // MENU belongs to the port: no combo outlives it (only
+                    // menuButtonAction() cleared it; POWER took a screenshot
+                    // and the power-off by POWER was skipped until the next
+                    // MENU press, also after the port).
+                    comboKey_menu = false;
+                }
 
                 break;
             case HW_BTN_X:
@@ -1565,6 +1584,9 @@ int main(void)
 
         // Update ticks
         ticks = getMilliseconds();
+
+        if (pa_resume_pid > 0 && process_reap(pa_resume_pid, 0))
+            pa_resume_pid = 0;
 
         // Check Hibernate
         if (battery_isCharging())

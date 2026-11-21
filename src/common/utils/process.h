@@ -133,6 +133,40 @@ bool process_spawn_detached(char *const argv[])
 }
 
 //
+//    Start a program without a shell and without waiting for it, but keep
+//    its pid: the caller reaps it with process_reap() (or it stays a zombie
+//    until then). Returns the pid, or -1.
+//
+pid_t process_spawn(char *const argv[])
+{
+    pid_t pid = fork();
+    if (pid == 0) {
+        setsid();
+        execvp(argv[0], argv);
+        _exit(127);
+    }
+    return pid;
+}
+
+//
+//    Reap a child started with process_spawn(). Waits up to timeout_ms
+//    (0: only looks). True when it has ended (or is not a child any more).
+//
+bool process_reap(pid_t pid, int timeout_ms)
+{
+    if (pid <= 0)
+        return true;
+    for (int waited = 0;; waited += 10) {
+        pid_t r = waitpid(pid, NULL, WNOHANG);
+        if (r == pid || (r < 0 && errno != EINTR))
+            return true;
+        if (waited >= timeout_ms)
+            return false;
+        usleep(10000);
+    }
+}
+
+//
 //    Run a program without a shell and wait for it.
 //    Returns the exit code, or -1 if it could not be started.
 //
