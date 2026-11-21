@@ -357,7 +357,12 @@ bool screenshot_system(void)
     if (buffer != NULL && history_getRomscreenPath(path)) {
         retval = screenshot_save(buffer, path, true);
         char rom_path[STR_MAX];
+        // The cover goes to the top entry of the recent list. Kids Mode
+        // starts its games without adding them there (/tmp/kidsmode while
+        // it runs): that entry is the parent's last game, which got a
+        // picture of the child's game as its cover, for good.
         if (retval && config_flag_get(ROMSCREEN_COVER_FLAG) &&
+            !exists("/tmp/kidsmode") &&
             history_getTopRecentPath(rom_path) != NULL)
             screenshot_romscreen_cover(buffer, g_display.width, g_display.height, true, rom_path);
     }
