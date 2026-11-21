@@ -51,7 +51,12 @@ bool checkAppInstalled(const char *basePath, int base_len, int level, bool compl
             else if (dp->d_type == DT_DIR)
                 is_installed = checkAppInstalled(path, base_len, level + 1, complete);
 
-            if (!complete && level >= 2 && installed_exists) {
+            // A folder alone does not make the package installed: one with
+            // a file of the user's in it (a BIOS, PICO-8's binaries) stays
+            // after an uninstall. Only one where a file of the package was
+            // found (is_installed from the walk into it) counts.
+            if (!complete && level >= 2 && installed_exists &&
+                (dp->d_type != DT_DIR || is_installed)) {
                 closedir(dir);
                 return true;
             }
