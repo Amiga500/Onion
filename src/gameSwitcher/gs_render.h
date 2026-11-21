@@ -141,14 +141,24 @@ void renderGameName(AppState *state)
         SDL_BlitSurface(arrow_right, NULL, screen, &arrow_right_rect);
     }
 
+    // A name made only of brackets ("(Prototype)", "[BIOS]") cleans to
+    // nothing, and SDL_ttf gives no surface for an empty text: the name as
+    // it is then (the GameSwitcher crashed on its first frame, and over a
+    // game left it paused with MENU dead)
+    const char *shown_name = game->shortname[0] != '\0' ? game->shortname
+                             : game->name[0] != '\0'    ? game->name
+                             : game->rom_name[0] != '\0' ? game->rom_name
+                                                         : " ";
     char game_name_str[STR_MAX * 2 + 4];
-    snprintf(game_name_str, sizeof(game_name_str), "%s", game->shortname);
+    snprintf(game_name_str, sizeof(game_name_str), "%s", shown_name);
 
     if (state->current_game_changed) {
         if (state->surfaceGameName != NULL)
             SDL_FreeSurface(state->surfaceGameName);
 
         state->surfaceGameName = TTF_RenderUTF8_Blended(resource_getFont(TITLE), game_name_str, color_white);
+        if (state->surfaceGameName == NULL)
+            return; // tried again at the next frame
 
         state->game_name_size.w = state->surfaceGameName->w < state->game_name_max_width ? state->surfaceGameName->w : state->game_name_max_width;
         state->game_name_size.h = state->surfaceGameName->h;
