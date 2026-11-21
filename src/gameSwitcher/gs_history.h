@@ -160,13 +160,19 @@ void readFirstEntry()
         return;
     }
 
-    int lineNo = -1;
+    int lineNo = 0; // 1-based, as readHistory() counts
     bool found = false;
 
     while (fgets(line, sizeof(line), file) != NULL) {
         ++lineNo;
 
-        if (parseJsonToRecentItem(line, &game_list[0].recentItem, lineNo)) {
+        // The same rule as readHistory(): a game whose ROM or launcher is
+        // gone is skipped. Shown first, it kept its name and picture while
+        // readHistory() put the next game's path under it (entry 0 is
+        // already processed there), so A started another game.
+        if (parseJsonToRecentItem(line, &game_list[0].recentItem, lineNo) &&
+            exists(game_list[0].recentItem.rompath) &&
+            exists(game_list[0].recentItem.launch)) {
             found = true;
             break;
         }
