@@ -139,7 +139,11 @@ int main(int argc, char *argv[])
                 }
             }
             else if (keystate[SW_BTN_A] == PRESSED) {
-                bool has_action = list_currentItem(menu_stack[menu_level])->action != NULL;
+                // An empty menu has no current item ("Edit app icon" for an
+                // app no icon pack has an icon for, "Edit expert icon" with
+                // no Expert system): A crashed Tweaks there
+                ListItem *current = list_currentItem(menu_stack[menu_level]);
+                bool has_action = current != NULL && current->action != NULL;
                 if (has_action) {
                     sound_change();
                     skip_next_change = true;

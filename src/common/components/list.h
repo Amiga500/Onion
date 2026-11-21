@@ -70,7 +70,9 @@ typedef struct List {
 
 static int list_id_incr = 0;
 
-int _list_modulo(int x, int n) { return (x % n + n) % n; }
+// An empty list (n == 0) has no position: 0. "x % 0" traps on a PC and
+// gives x on the console's CPU (no exception), a position outside the list.
+int _list_modulo(int x, int n) { return n > 0 ? (x % n + n) % n : 0; }
 
 int list_countVisible(List *list)
 {
@@ -185,7 +187,7 @@ ListItem *list_addItemWithLang(List *list, ListItem item, const lang_hash key)
 
 ListItem *list_currentItem(List *list)
 {
-    if (list->active_pos >= list->item_count)
+    if (list->active_pos < 0 || list->active_pos >= list->item_count)
         return NULL;
     return &list->items[list->active_pos];
 }
@@ -235,6 +237,11 @@ bool list_scrollTo(List *list, int active_pos)
 
 bool list_keyUp(List *list, bool key_repeat)
 {
+    // Nothing to move to (an empty menu): UP set the position to -1 and
+    // read the item 31 KB before the list
+    if (list->item_count <= 0)
+        return false;
+
     int old_pos = list->active_pos;
 
     // Wrap-around (move to bottom)
@@ -267,6 +274,9 @@ bool list_keyUp(List *list, bool key_repeat)
 
 bool list_keyDown(List *list, bool key_repeat)
 {
+    if (list->item_count <= 0)
+        return false;
+
     int old_pos = list->active_pos;
 
     // Wrap-around (move to top)

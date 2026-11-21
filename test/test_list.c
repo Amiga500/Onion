@@ -215,6 +215,39 @@ TEST(current_item_empty_list) {
     list_free(&list);
 }
 
+/* An empty menu (Tweaks: "Edit app icon" for an app no pack has an icon
+ * for, "Edit expert icon" with no Expert system). UP set the position to -1
+ * and read the item 31 KB before the list; on the console x % 0 gives x. */
+TEST(empty_list_keys_do_nothing) {
+    List list = list_create(5, LIST_SMALL);
+    ASSERT_FALSE(list_keyUp(&list, false));
+    ASSERT_EQ(list.active_pos, 0);
+    ASSERT_FALSE(list_keyDown(&list, false));
+    ASSERT_FALSE(list_keyDown(&list, false));
+    ASSERT_EQ(list.active_pos, 0);
+    ASSERT_NULL(list_currentItem(&list));
+    ASSERT_FALSE(list_activateItem(&list));
+    list_free(&list);
+}
+
+TEST(empty_list_modulo_and_scroll) {
+    ASSERT_EQ(_list_modulo(5, 0), 0);
+    ASSERT_EQ(_list_modulo(-1, 0), 0);
+    List list = list_create(5, LIST_SMALL);
+    list_scrollTo(&list, 3);
+    ASSERT_EQ(list.active_pos, 0);
+    ASSERT_NULL(list_currentItem(&list));
+    list_free(&list);
+}
+
+TEST(current_item_negative_position) {
+    List list = list_create(5, LIST_SMALL);
+    list_addItem(&list, _make_item("First", ACTION, 0));
+    list.active_pos = -1;
+    ASSERT_NULL(list_currentItem(&list));
+    list_free(&list);
+}
+
 /* ---- list_countVisible ---- */
 
 TEST(count_visible_all_enabled) {
@@ -2202,6 +2235,10 @@ int main(void)
     RUN_TEST(count_visible_single_enabled);
     RUN_TEST(count_visible_single_disabled);
     RUN_TEST(value_scroll_offset);
+
+    RUN_TEST(empty_list_keys_do_nothing);
+    RUN_TEST(empty_list_modulo_and_scroll);
+    RUN_TEST(current_item_negative_position);
 
     TEST_REPORT();
     return test_failures;
