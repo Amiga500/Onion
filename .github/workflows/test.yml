@@ -24,9 +24,13 @@ jobs:
       uses: actions/checkout@v3
       with:
         submodules: recursive
-    - name: Install gcc sanitizer runtimes
-      run: sudo apt-get update && sudo apt-get install -y gcc libasan8 libubsan1
+    - name: Install gcc sanitizer runtimes and the tools the script tests use
+      run: sudo apt-get update && sudo apt-get install -y gcc libasan8 libubsan1 p7zip-full jq python3 bash busybox
     - name: Run unit tests
+      # Every tool is installed here: a block of the script tests that is
+      # skipped all the same fails the run.
+      env:
+        TESTS_NO_SKIP: 1
       run: make unit-test
     - name: Run sanitizer subset
       run: make -C test -f Makefile.unit unit-test-san

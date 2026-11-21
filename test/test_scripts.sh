@@ -14,6 +14,7 @@ NETWORK="$ROOT/static/build/.tmp_update/script/network/update_networking.sh"
 tests=0
 asserts=0
 fails=0
+skipped=0
 current=""
 current_failed=0
 
@@ -35,6 +36,13 @@ end() {
     else
         echo "  [FAIL] $current"
     fi
+}
+
+# A block that cannot run on this PC (no 7-Zip, jq, python3, C compiler...)
+# is counted and shown in the result: with TESTS_NO_SKIP=1 (CI) it fails.
+skip() {
+    skipped=$((skipped + 1))
+    echo "  [SKIP] $*"
 }
 
 check() { # description, then a test command
@@ -1355,7 +1363,7 @@ if command -v jq > /dev/null; then
     end
     unset -f curl installUI ota_asset ota_release
 else
-    echo "  [SKIP] ota_update.sh tests (jq not installed)"
+    skip "ota_update.sh tests (jq not installed)"
 fi
 
 # ---- ota_update.sh: apply_update keeps the installed boot scripts ----
@@ -1684,6 +1692,8 @@ if command -v jq > /dev/null; then
     check "boot check, GitHub error: flag kept" test -e "$TMP/.updateAvailable"
     unset -f curl installUI ip get_release_info main release_info_error
     end
+else
+    skip "OTA GitHub error tests (jq not installed)"
 fi
 
 # ---- runtime.sh: network check skipped while update_networking.sh runs ----
@@ -3650,6 +3660,8 @@ EOF
     check "Video: START in the list leaves the app" test "$(lists_shown)" = 2
     unset FAKE_ST
     unset -f scenes lists_shown
+else
+    skip "PDF / video viewer key tests (python3 not installed)"
 fi
 end
 
@@ -4077,7 +4089,7 @@ backup_fake_sd() { # folder
 }
 
 if [ -z "$backup_7z" ]; then
-    echo "  [SKIP] backup zip tests: no 7-Zip on this PC (set BACKUP_TEST_7Z)"
+    skip "backup zip tests: no 7-Zip on this PC (set BACKUP_TEST_7Z)"
 else
     BACKUP_TEST_7Z=$backup_7z
 
@@ -4478,6 +4490,8 @@ if command -v jq > /dev/null; then
     apply_keymap_override
     check "double press off while armed" test "$(jq -c '[.ingame_single_press, .ingame_long_press, .ingame_double_press]' "$keymapcfg")" = "[2,0,0]"
     check "the parent's keymap kept for the unlock" test "$(jq .ingame_double_press "$keymapbackup")" = 3
+else
+    skip "Kids Mode keymap override test (jq not installed)"
 fi
 rm -f "$keymapcfg" "$keymapbackup"
 apply_keymap_override
@@ -4496,6 +4510,8 @@ if command -v jq > /dev/null; then
     rm -f "$TMP/merges"
     eval "$restore"
     check "a timer in kidmode.json is left as it is" test ! -e "$TMP/merges"
+else
+    skip "Kids Mode timer restore test (jq not installed)"
 fi
 # kill_tree: launch.sh and the emulator under the shell of cmd_to_run.sh
 sh -c 'sh -c "sleep 30 & sleep 30 & wait" & wait' &
@@ -5210,20 +5226,34 @@ SCRAPER_MENU="$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
 eval "$(extract_fn "$SCRAPER_MENU" press_a)"
 eval "$(extract_fn "$SCRAPER_MENU" keys_red)"
 noansi() { sed "s/$(printf '\033')\[[0-9;]*m//g"; }
-if (printf 'x' | IFS= read -n 1 -r _k) 2> /dev/null; then
-    out=$(printf '\033[B\033[Dx\n z' | { press_a "Press A"; cat; } | noansi)
-    check "D-pad, a letter and START ignored, A goes on" test "$out" = "Press Az"
-    out=$(printf 'abc' | { press_a "Press A"; echo "|end"; } | noansi)
-    check "no A before the end of input: no hang" test "$out" = "Press A|end"
-    out=$(keys_red "Press A to continue, MENU to exit" | sed "s/$(printf '\033')\[31;1m/<R>/g; s/$(printf '\033')\[0m/<\/R>/g")
-    check "the buttons in red, as in the menus ($out)" test "$out" = "Press <R>A</R> to continue, <R>MENU</R> to exit"
-    out=$(set -f; keys_red "Press A" > /dev/null; case $- in *f*) echo off ;; *) echo on ;; esac)
-    check "keys_red leaves a script's set -f as it was ($out)" test "$out" = off
-    out=$(set +f; keys_red "Press A" > /dev/null; case $- in *f*) echo off ;; *) echo on ;; esac)
-    check "keys_red leaves globbing on when it was ($out)" test "$out" = on
+# press_a needs read -n (the console's ash has it; dash, the usual sh of a
+# PC, does not): run it with a shell that has it, not with the one that
+# happens to run this file.
+pa_sh=
+for _s in sh bash "busybox sh"; do
+    if (printf 'x' | $_s -c 'IFS= read -n 1 -r _k') > /dev/null 2>&1; then
+        pa_sh=$_s
+        break
+    fi
+done
+pa_run() { # input, then what follows press_a in the same shell
+    printf "$1" | $pa_sh -c 'for f in keys_red press_a; do eval "$(sed -n "/^$f() {/,/^}/p" "$1")"; done; press_a "Press A"; '"$2" _ "$SCRAPER_MENU" | noansi
+}
+if [ -n "$pa_sh" ]; then
+    out=$(pa_run '\033[B\033[Dx\n z' 'cat')
+    check "D-pad, a letter and START ignored, A goes on ($pa_sh)" test "$out" = "Press Az"
+    out=$(pa_run 'abc' 'echo "|end"')
+    check "no A before the end of input: no hang ($pa_sh)" test "$out" = "Press A|end"
 else
-    echo "    (skipped: this shell has no read -n)"
+    skip "press_a tests (no shell with read -n: sh, bash or busybox)"
 fi
+out=$(keys_red "Press A to continue, MENU to exit" | sed "s/$(printf '\033')\[31;1m/<R>/g; s/$(printf '\033')\[0m/<\/R>/g")
+check "the buttons in red, as in the menus ($out)" test "$out" = "Press <R>A</R> to continue, <R>MENU</R> to exit"
+out=$(set -f; keys_red "Press A" > /dev/null; case $- in *f*) echo off ;; *) echo on ;; esac)
+check "keys_red leaves a script's set -f as it was ($out)" test "$out" = off
+out=$(set +f; keys_red "Press A" > /dev/null; case $- in *f*) echo off ;; *) echo on ;; esac)
+check "keys_red leaves globbing on when it was ($out)" test "$out" = on
+unset -f pa_run
 for f in "$SCRAPER_MENU" "$ROOT/static/build/.tmp_update/script/scraper/scrap_screenscraper.sh" "$ROOT/static/build/.tmp_update/script/ota_update.sh"; do
     check "no any-key prompt left in ${f##*/}" sh -c '! grep -q "read -n 1 -s -r -p" "$1"' _ "$f"
 done
@@ -5710,6 +5740,8 @@ SF
     check "nothing fetched: the session stops" grep -q CLEANUP "$TMP/panels"
     check "the old cookie is not used" test ! -e "$TMP/ra/retroarch.cookie.client"
     check "a different ROM of the client is the one cloned" sh -c 'sed -n "/^sync_file() {/,/^}/p" "$1" | grep -A1 "^				rom=\$file_path$" | grep -q "client_rom=\$file_path"' _ "$SRV"
+else
+    skip "Pokemon host sync_file tests (bash not installed)"
 fi
 
 # C. client: the wait starts at 0, whatever hotspot_join.sh left in counter
@@ -5882,11 +5914,17 @@ end
 
 echo ""
 echo "========================================"
-echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
-if [ $fails -eq 0 ]; then
-    echo "  Result: PASSED"
+echo "  Tests: $tests | Assertions: $asserts | Failures: $fails | Skipped blocks: $skipped"
+# A skipped block is not a pass: with TESTS_NO_SKIP=1 (CI, where every tool
+# is installed) it fails the run; elsewhere it is shown here.
+if [ $fails -eq 0 ] && { [ $skipped -eq 0 ] || [ -z "$TESTS_NO_SKIP" ]; }; then
+    if [ $skipped -eq 0 ]; then
+        echo "  Result: PASSED"
+    else
+        echo "  Result: PASSED, $skipped blocks SKIPPED (see [SKIP] above)"
+    fi
 else
     echo "  Result: FAILED"
 fi
 echo "========================================"
-[ $fails -eq 0 ]
+[ $fails -eq 0 ] && { [ $skipped -eq 0 ] || [ -z "$TESTS_NO_SKIP" ]; }
