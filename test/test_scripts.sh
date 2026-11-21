@@ -794,6 +794,16 @@ unset -f not_needed not_a_line
 unset -f needs_migration gi_has_line
 end
 
+# ---- model tests compare with the value ($MODEL_MM), not the word ----
+
+begin model_tests_use_the_value
+found=$(grep -rnE '(-eq|-ne|-gt|-lt|-ge|-le) +MODEL_' "$ROOT/static" "$ROOT/src" --include='*.sh' 2> /dev/null |
+    grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' | sed "s#^$ROOT/##" | head -n 3)
+check "MODEL_ compared without \$ in: ${found:-nothing}" test -z "$found"
+check "the installer's charger set-up is for the Mini" \
+    grep -q '^    if \[ \$DEVICE_ID -eq \$MODEL_MM \]; then$' "$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
+end
+
 # ---- no sed -E in what is shipped: BusyBox 1.20.2's sed knows only -r ----
 
 begin shipped_scripts_have_no_sed_E

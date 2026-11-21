@@ -87,7 +87,9 @@ main() {
     check_install_ra
 
     # Start the battery monitor
-    if [ $DEVICE_ID -eq MODEL_MM ]; then
+    # ($MODEL_MM: without the "$" the test was an error, never true, and the
+    # Mini's charger GPIO was not set up for the installer's batmon)
+    if [ $DEVICE_ID -eq $MODEL_MM ]; then
         # init charger detection
         gpiodir=/sys/devices/gpiochip0/gpio
         if [ ! -f $gpiodir/gpio59/direction ]; then
@@ -430,32 +432,16 @@ run_installation() {
     #                                           Exit                                        #
     #########################################################################################
 
-    if [ $DEVICE_ID -eq MODEL_MM ]; then
-        echo "$verb2 complete!" >> /tmp/.update_msg
-        touch $sysdir/.waitConfirm
-        touch $sysdir/.installed
-        sync
-    else
-        echo "$verb2 complete - Rebooting..." >> /tmp/.update_msg
-    fi
+    # Every model ends the same way: "Rebooting...", then the clean reboot
+    # (installer_reboot). A Mini-only "Press A to turn off" countdown and End
+    # screen were here, behind a test written "-eq MODEL_MM" (no "$") that was
+    # never true: the Minis have always taken this way too.
+    echo "$verb2 complete - Rebooting..." >> /tmp/.update_msg
 
     installUI &
     sleep 1
 
-    if [ $DEVICE_ID -eq MODEL_MM ]; then
-        counter=10
-
-        while [ -f $sysdir/.waitConfirm ] && [ $counter -ge 0 ]; do
-            echo "Press A to turn off (""$counter""s)" >> /tmp/.update_msg
-            counter=$((counter - 1))
-            sleep 1
-        done
-
-        killall installUI
-        bootScreen "End"
-    else
-        touch $sysdir/.installed
-    fi
+    touch $sysdir/.installed
 
     rm -f $sysdir/config/currentSlide 2> /dev/null
     sync
