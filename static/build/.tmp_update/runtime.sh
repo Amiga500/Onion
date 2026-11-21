@@ -1860,10 +1860,11 @@ load_settings() {
         fi
     fi
 
-    # link /appconfigs/system.json to SD card
-    if [ -L /appconfigs/system.json ] && [ "$(readlink /appconfigs/system.json)" == "/mnt/SDCARD/system.json" ]; then
-        rm /appconfigs/system.json
-    fi
+    # link /appconfigs/system.json to SD card. Whatever is there goes first:
+    # a regular file (left by the stock firmware, or by a start without the
+    # card) made ln fail and stayed, so MainUI and RedOnion read two files.
+    # The card's copy was made from it above when the card had none.
+    rm -f /appconfigs/system.json
     ln -s /mnt/SDCARD/system.json /appconfigs/system.json
 
     if [ $DEVICE_ID -eq $MODEL_MM ]; then

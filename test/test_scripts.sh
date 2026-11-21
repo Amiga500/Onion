@@ -5792,6 +5792,21 @@ check "mGBA state and a gpSP save: gpSP" test "$(gl_core states/mGBA/Emerald.sta
 unset -f gl_core
 end
 
+# ---- runtime.sh load_settings: /appconfigs/system.json becomes the link ----
+
+begin load_settings_links_system_json
+mkdir -p "$TMP/appconfigs" "$TMP/sd"
+echo '{"vol":5}' > "$TMP/sd/system.json"
+link_part=$(sed -n '/^load_settings() {/,/^}/p' "$RUNTIME" | sed -n '/# link \/appconfigs\/system.json/,/ln -s/p' |
+    sed "s#/appconfigs/#$TMP/appconfigs/#g; s#/mnt/SDCARD/#$TMP/sd/#g")
+echo '{"vol":20}' > "$TMP/appconfigs/system.json"   # a regular file
+eval "$link_part"
+check "a regular file is replaced by the link" test -L "$TMP/appconfigs/system.json"
+check "the link points to the card" test "$(readlink "$TMP/appconfigs/system.json")" = "$TMP/sd/system.json"
+eval "$link_part"
+check "a link already there stays a link" test "$(readlink "$TMP/appconfigs/system.json")" = "$TMP/sd/system.json"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
