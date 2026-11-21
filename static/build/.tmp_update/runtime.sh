@@ -382,12 +382,47 @@ kids_mode_armed() {
     [ -f /mnt/SDCARD/.kidmode ] && [ -f "$kids_mode_loop" ]
 }
 
+# Kids Mode's app gone while it was armed (Reinstall, App/KidsMode deleted
+# on a computer): its script, which puts the parent's saves, states and
+# GameSwitcher pictures back, is gone with it. MainUI then started with the
+# child's in Saves/CurrentProfile and the parent's left in
+# Saves/KidsMode/profile-parked-*. They are put back here, as its
+# restore_profile_isolation does: the child's go to Saves/KidsProfile/<Main
+# or Guest> (a copy already there is renamed, never overwritten). The other
+# marks stay in Saves/KidsMode: once the app is installed again, the hook
+# below runs its cleanup (RetroArch settings, keymap) at the next boot.
+kids_mode_restore_parked_saves() {
+    kids_park=/mnt/SDCARD/Saves/KidsMode
+    # Nothing parked (the usual case: Kids Mode never installed): no fork
+    [ -d "$kids_park/profile-parked-saves" ] || [ -d "$kids_park/profile-parked-states" ] ||
+        [ -d "$kids_park/profile-parked-romScreens" ] || return 0
+    kids_from=$(sed -n 1p "$kids_park/source_profile.txt" 2> /dev/null)
+    case "$kids_from" in Main | Guest) ;; *) kids_from=Main ;; esac
+    kids_moved=
+    for kids_d in saves states romScreens; do
+        [ -d "$kids_park/profile-parked-$kids_d" ] || continue
+        kids_cur=/mnt/SDCARD/Saves/CurrentProfile/$kids_d
+        kids_keep=/mnt/SDCARD/Saves/KidsProfile/$kids_from/$kids_d
+        if [ -d "$kids_cur" ]; then
+            [ -e "$kids_keep" ] && kids_keep="$kids_keep-$(date +%Y%m%d-%H%M%S)"
+            mkdir -p "${kids_keep%/*}" && mv "$kids_cur" "$kids_keep" || continue
+        fi
+        mv "$kids_park/profile-parked-$kids_d" "$kids_cur" && kids_moved="$kids_moved $kids_d"
+    done
+    [ -n "$kids_moved" ] || return 0
+    rm -f "$kids_park/profile_isolation_active" /mnt/SDCARD/.kidmode
+    log "Kids Mode: app gone while armed, the parent's$kids_moved put back"
+}
+
 # .kidmode deleted from a computer while Kids Mode was on: what it locked
 # (RetroArch, keymap, the parent's saves...) is still there. Its script puts
 # it back. Nothing is run when nothing of it is left in Saves/KidsMode.
 kids_mode_cleanup_if_disarmed() {
+    if [ ! -f "$kids_mode_loop" ]; then
+        kids_mode_restore_parked_saves
+        return 0
+    fi
     [ -f /mnt/SDCARD/.kidmode ] && return 0
-    [ -f "$kids_mode_loop" ] || return 0
     kids_left=
     for kids_mark in game_environment_ready profile_isolation_active \
         retroarch.cfg.backup keymap.json.backup keymap-was-absent \
