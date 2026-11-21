@@ -263,11 +263,11 @@ void settings_load(void)
     config_get("display/blueLightLevel", CONFIG_INT, &settings.blue_light_level);
     {
         char _tmp_time[STR_MAX] = "";
-        if (config_get("display/blueLightTime", CONFIG_STR, _tmp_time)) {
+        if (config_getString("display/blueLightTime", _tmp_time, sizeof(_tmp_time))) {
             strncpy(settings.blue_light_time, _tmp_time, sizeof(settings.blue_light_time) - 1);
             settings.blue_light_time[sizeof(settings.blue_light_time) - 1] = '\0';
         }
-        if (config_get("display/blueLightTimeOff", CONFIG_STR, _tmp_time)) {
+        if (config_getString("display/blueLightTimeOff", _tmp_time, sizeof(_tmp_time))) {
             strncpy(settings.blue_light_time_off, _tmp_time, sizeof(settings.blue_light_time_off) - 1);
             settings.blue_light_time_off[sizeof(settings.blue_light_time_off) - 1] = '\0';
         }

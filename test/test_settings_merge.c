@@ -317,6 +317,36 @@ TEST(save_keeps_flags_changed_by_another_program)
     ASSERT_TRUE(config_flag_get(".showRecents"));
 }
 
+/* A damaged display/blueLightTime (one long line, no line end) overflowed
+ * the 256-byte buffer settings_load() reads it into ("%[^\n]" has no width):
+ * every program that loads settings, keymon included. It is now refused and
+ * the default kept; a good file is still read. */
+TEST(damaged_blue_light_time_is_refused)
+{
+    file_remove_recursive(CONFIG_PATH);
+    mkdir(CONFIG_PATH, 0700);
+    mkdir(CONFIG_PATH "display", 0700);
+    write_system_json("en.lang", "/mnt/SDCARD/Themes/Silky RedOnion/", 7, 0);
+    settings_load();
+    char def[sizeof(settings.blue_light_time)];
+    strcpy(def, settings.blue_light_time);
+
+    FILE *fp = fopen(CONFIG_PATH "display/blueLightTime", "w");
+    for (int i = 0; i < 600; i++)
+        fputc('x', fp);
+    fclose(fp);
+    char buf[16] = "";
+    ASSERT_FALSE(config_getString("display/blueLightTime", buf, sizeof(buf)));
+    settings_load();
+    ASSERT_STREQ(settings.blue_light_time, def);
+
+    config_setString("display/blueLightTime", "21:30");
+    ASSERT_TRUE(config_getString("display/blueLightTime", buf, sizeof(buf)));
+    ASSERT_STREQ(buf, "21:30");
+    settings_load();
+    ASSERT_STREQ(settings.blue_light_time, "21:30");
+}
+
 int main(void)
 {
     printf("\n=== settings merge Unit Tests ===\n\n");
@@ -332,6 +362,7 @@ int main(void)
     RUN_TEST(keymon_does_not_rewrite_what_open_mainui_saved);
     RUN_TEST(shutdown_path_saves_a_pending_pulled_change);
     RUN_TEST(save_keeps_flags_changed_by_another_program);
+    RUN_TEST(damaged_blue_light_time_is_refused);
     unlink(MAIN_UI_SETTINGS);
     file_remove_recursive(CONFIG_PATH);
     rmdir("/tmp/onion_test_settings_merge");

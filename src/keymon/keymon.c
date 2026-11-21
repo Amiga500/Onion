@@ -274,8 +274,8 @@ static void blue_light_schedule_check(void)
 
     char time_on[STR_MAX] = "";
     char time_off[STR_MAX] = "";
-    if (!config_get("display/blueLightTime", CONFIG_STR, time_on) ||
-        !config_get("display/blueLightTimeOff", CONFIG_STR, time_off))
+    if (!config_getString("display/blueLightTime", time_on, sizeof(time_on)) ||
+        !config_getString("display/blueLightTimeOff", time_off, sizeof(time_off)))
         return;
 
     int on = blf_parse_minutes(time_on);

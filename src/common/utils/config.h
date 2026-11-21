@@ -43,6 +43,16 @@ bool config_get(const char *key, const char *format, void *dest)
     return false;
 }
 
+// A string setting: the first line, cut to the buffer (CONFIG_STR in
+// config_get has no width: a damaged file overflowed the caller's stack).
+// False when the file is missing, empty or longer than the buffer.
+bool config_getString(const char *key, char *dest, size_t size)
+{
+    char filename[STR_MAX];
+    concat(filename, CONFIG_PATH, key);
+    return file_read_line(filename, dest, size);
+}
+
 void _config_prepare(const char *key, char *filename)
 {
     concat(filename, CONFIG_PATH, key);
