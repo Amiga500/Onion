@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -89,11 +90,15 @@ static int network_numShares;
 
 void network_freeSmbShares()
 {
-    if (_network_shares != NULL) {
-        free(_network_shares);
-    }
+    free(_network_shares);
+    _network_shares = NULL;
+    network_numShares = 0;
 }
 
+// smb.conf invites edits ("## Edit your shares below"): a line is read
+// whatever its indentation and line ends (CRLF), "path" and "available" only
+// inside a share, a share without "available" is on (Samba's default) and
+// gets no toggle position, so a toggle never rewrites another share's line.
 void network_getSmbShares()
 {
     if (_network_shares != NULL) {
@@ -109,64 +114,58 @@ void network_getSmbShares()
     }
 
     char line[STR_MAX];
+    Share *share = NULL; // the share whose lines are being read
 
-    bool found_shares = false;
-    bool is_available = false;
-    long availablePos = -1;
+    for (;;) {
+        long lineStart = ftell(file);
+        if (fgets(line, sizeof(line), file) == NULL)
+            break;
+        line[strcspn(line, "\r\n")] = '\0';
+        char *t = line;
+        while (*t == ' ' || *t == '\t')
+            t++;
+        size_t len = strlen(t);
+        if (len == 0)
+            continue;
 
-    while (fgets(line, sizeof(line), file) != NULL) {
-        char *trimmedLine = strtok(line, "\n");
-        if (trimmedLine == NULL) {
+        if (t[0] == '[' && t[len - 1] == ']') {
+            share = NULL;
+            t[len - 1] = '\0';
+            char *shareName = t + 1;
+            if (*shareName == '\0' || strcmp(shareName, "global") == 0)
+                continue;
+
+            Share *grown = (Share *)realloc(_network_shares, (numShares + 1) * sizeof(Share));
+            if (grown == NULL)
+                break;
+            _network_shares = grown;
+            share = &_network_shares[numShares++];
+            memset(share, 0, sizeof(*share));
+            share->available = 1;
+            share->availablePos = -1;
+
+            if (strncmp("__", shareName, 2) == 0)
+                snprintf(share->name, sizeof(share->name), "%s (!)", shareName + 2);
+            else
+                snprintf(share->name, sizeof(share->name), "%s", shareName);
             continue;
         }
 
-        if (strstr(trimmedLine, "available = ") != NULL) {
-            availablePos = ftell(file) - strlen(trimmedLine) - 1;
-            is_available = strstr(trimmedLine, "1") != NULL;
+        if (share == NULL)
             continue;
+
+        if (strncmp(t, "available = ", 12) == 0) {
+            const char *v = t + 12;
+            share->available = v[0] == '1' || strncasecmp(v, "yes", 3) == 0 ||
+                               strncasecmp(v, "true", 4) == 0;
+            // Toggled by rewriting the one digit: only "available = 0|1"
+            share->availablePos = ((v[0] == '0' || v[0] == '1') && v[1] == '\0')
+                                      ? lineStart + (long)(t - line)
+                                      : -1;
         }
-
-        if (strstr(trimmedLine, "path = ") != NULL) {
-            strncpy(_network_shares[numShares - 1].path, trimmedLine + 7, STR_MAX);
-            continue;
+        else if (strncmp(t, "path = ", 7) == 0) {
+            snprintf(share->path, sizeof(share->path), "%s", t + 7);
         }
-
-        if (strncmp(trimmedLine, "[", 1) == 0 && strncmp(trimmedLine + strlen(trimmedLine) - 1, "]", 1) == 0) {
-            if (found_shares) {
-                _network_shares[numShares - 1].available = is_available;
-                _network_shares[numShares - 1].availablePos = availablePos;
-                is_available = false;
-            }
-
-            char *shareName = strtok(trimmedLine + 1, "]");
-            if (shareName != NULL && strlen(shareName) > 0) {
-                if (strcmp(shareName, "global") == 0) {
-                    continue;
-                }
-
-                numShares++;
-                _network_shares = (Share *)realloc(_network_shares, numShares * sizeof(Share));
-
-                bool add_exclamation = false;
-                if (strncmp("__", shareName, 2) == 0) {
-                    shareName = shareName + 2;
-                    add_exclamation = true;
-                }
-
-                strncpy(_network_shares[numShares - 1].name, shareName, STR_MAX - 11);
-
-                if (add_exclamation) {
-                    strncat(_network_shares[numShares - 1].name, " (!)", STR_MAX - 11 - strlen(shareName));
-                }
-
-                found_shares = true;
-            }
-        }
-    }
-
-    if (found_shares) {
-        _network_shares[numShares - 1].available = is_available;
-        _network_shares[numShares - 1].availablePos = availablePos;
     }
 
     network_numShares = numShares;
@@ -179,24 +178,33 @@ void network_toggleSmbAvailable(void *item)
     ListItem *listItem = (ListItem *)item;
     Share *share = (Share *)listItem->payload_ptr;
 
+    if (share == NULL || share->availablePos < 0) {
+        printf("No \"available = 0|1\" line to toggle for this share.\n");
+        return;
+    }
+
     FILE *file = fopen(SMBD_CONFIG_PATH, "r+");
     if (file == NULL) {
         printf("Failed to open smb.conf file.\n");
         return;
     }
 
-    if (fseek(file, share->availablePos, SEEK_SET) != 0) {
-        printf("Failed to seek to the available property of share '%s'.\n", share->name);
+    char line[STR_MAX];
+    if (fseek(file, share->availablePos, SEEK_SET) != 0 ||
+        fgets(line, sizeof(line), file) == NULL ||
+        strncmp(line, "available = ", 12) != 0 ||
+        (line[12] != '0' && line[12] != '1') ||
+        (line[13] != '\n' && line[13] != '\r' && line[13] != '\0')) {
+        // The file changed since it was read: touch nothing
+        printf("smb.conf changed: the available property of share '%s' is not where it was.\n", share->name);
         fclose(file);
         return;
     }
 
-    char line[STR_MAX];
-    fgets(line, sizeof(line), file);
-    share->available = strstr(line, "1") == NULL; // toggle
+    share->available = line[12] == '0'; // toggle
 
-    fseek(file, share->availablePos, SEEK_SET);
-    fprintf(file, "available = %d\n", share->available);
+    fseek(file, share->availablePos + 12, SEEK_SET);
+    fputc(share->available ? '1' : '0', file);
     fflush(file);
 
     fclose(file);
