@@ -107,6 +107,14 @@ bool terminate_drastic(void)
     char fname[20];
 
     if (pid) {
+        // In standby (suspend_exec) keymon holds the input for itself
+        // (EVIOCGRAB): the events sendkeys writes then go to keymon alone,
+        // DraStic never saw its exit keys and was killed about 90 s later
+        // without its auto save state. Give the input back meanwhile.
+        bool grabbed = keyinput_disabled;
+        if (grabbed)
+            keyinput_enable();
+
         // If swap L<>L2 is on, the off button combo becomes 1 + 15 instead of 1 + 18
         if (temp_flag_get("drastic_swap_l1l2")) {
             system("sendkeys 1 1, 15 1");
@@ -124,6 +132,17 @@ bool terminate_drastic(void)
 
         while (--count && exists(fname))
             usleep(200000); // 0.2s
+
+        if (grabbed) {
+            keyinput_disable();
+            // keymon read those keys too: MENU's release, read by the
+            // standby loop, would wake it up in the middle of the power-off
+            struct pollfd pending = {input_fd, POLLIN, 0};
+            struct input_event drop;
+            while (poll(&pending, 1, 0) > 0 &&
+                   read(input_fd, &drop, sizeof(drop)) == sizeof(drop))
+                ;
+        }
         return true;
     }
     return false;
