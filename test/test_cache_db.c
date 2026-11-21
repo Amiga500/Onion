@@ -27,8 +27,9 @@
 #include <unistd.h>
 
 /* Production code: cacheDB.h needs is_file/file_basename (file.h) and the
- * log macros (log.h) from its includer. sqlite3 calls link against
- * stubs/sqlite3_stub.c, which always fails to open a database. */
+ * log macros (log.h) from its includer. sqlite3 is the real library (the
+ * repository's amalgamation): a stand-in that failed every call made
+ * "the cache exists" and "it does not" end the same way. */
 #include "utils/file.h"
 #include "utils/log.h"
 #include "../src/playActivity/cacheDB.h"
@@ -223,9 +224,40 @@ TEST(cache_db_find_long_folder_does_not_overflow) {
     touch_file(file);
     snprintf(rom, sizeof(rom), "%s/game.gba", dir);
 
-    /* sqlite stub cannot open the DB, so no item: only the path matters. */
+    /* An empty file has no table: no item. Only the path matters here. */
     CacheDBItem *item = cache_db_find(rom);
     ASSERT_NULL(item);
+}
+
+/* MainUI's cache of a folder: the game's name is found in it. */
+TEST(cache_db_find_reads_the_name) {
+    setup();
+    sqlite3 *db;
+    ASSERT_EQ(sqlite3_open("/tmp/test_cache_db/Roms/GBA/GBA_cache6.db", &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+                           "CREATE TABLE GBA_roms(disp TEXT, path TEXT, imgpath TEXT, pinyin TEXT);"
+                           "INSERT INTO GBA_roms VALUES('Metroid Fusion', '/tmp/test_cache_db/Roms/GBA/mf.gba', "
+                           "'/tmp/test_cache_db/Roms/GBA/Imgs/mf.png', 'Metroid Fusion (USA)');",
+                           NULL, NULL, NULL),
+              SQLITE_OK);
+    sqlite3_close(db);
+
+    CacheDBItem *item = cache_db_find("/tmp/test_cache_db/Roms/GBA/mf.gba");
+    ASSERT_NOT_NULL(item);
+    ASSERT_STREQ(item->name, "Metroid Fusion (USA)");
+    ASSERT_STREQ(item->imgpath, "/tmp/test_cache_db/Roms/GBA/Imgs/mf.png");
+    free(item);
+
+    item = cache_db_find("/tmp/test_cache_db/Roms/GBA/other.gba");
+    ASSERT_NULL(item);
+}
+
+/* No cache file: none is created by looking (sqlite3_open would make one). */
+TEST(cache_db_open_never_creates_the_file) {
+    setup();
+    cache_db_open("/tmp/test_cache_db/Roms/SNES/SNES_cache6.db");
+    ASSERT_NULL(cache_db);
+    ASSERT_FALSE(exists("/tmp/test_cache_db/Roms/SNES/SNES_cache6.db"));
 }
 
 /* ---- main ---- */
@@ -252,6 +284,8 @@ int main(void)
     RUN_TEST(cache_version_truncated_path_is_never_probed);
     RUN_TEST(cache_version_long_folder_found_with_path_max);
     RUN_TEST(cache_db_find_long_folder_does_not_overflow);
+    RUN_TEST(cache_db_find_reads_the_name);
+    RUN_TEST(cache_db_open_never_creates_the_file);
 
     /* Cleanup */
     system("rm -rf /tmp/test_cache_db");

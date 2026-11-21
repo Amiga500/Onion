@@ -23,8 +23,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* Production code. sqlite3 calls link against stubs/sqlite3_stub.c; the
- * function under test never touches the database. */
+/* Production code, linked with the real SQLite (the repository's
+ * amalgamation); the function under test never touches the database. */
 #include "utils/file.h"
 #include "utils/log.h"
 #include "utils/str.h"

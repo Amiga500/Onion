@@ -549,9 +549,9 @@ test_cache_db: $(BUILD_DIR)/test_cache_db
 	@echo ""
 	@$(BUILD_DIR)/test_cache_db
 
-$(BUILD_DIR)/test_cache_db: test_cache_db.c onion_test.h stubs/sqlite3_stub.c ../src/playActivity/cacheDB.h $(COMMON_SRCS)
+$(BUILD_DIR)/test_cache_db: test_cache_db.c onion_test.h ../src/playActivity/cacheDB.h $(COMMON_SRCS) $(BUILD_DIR)/sqlite3_host.o
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_cache_db.c stubs/sqlite3_stub.c $(COMMON_SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_cache_db.c $(BUILD_DIR)/sqlite3_host.o $(COMMON_SRCS) $(LDFLAGS) -lm
 
 test_legacy_db: $(BUILD_DIR)/test_legacy_db
 	@echo ""
@@ -605,9 +605,9 @@ test_rom_image_path: $(BUILD_DIR)/test_rom_image_path
 	@echo ""
 	@$(BUILD_DIR)/test_rom_image_path
 
-$(BUILD_DIR)/test_rom_image_path: test_rom_image_path.c onion_test.h stubs/sqlite3_stub.c ../src/playActivity/playActivityDB.h ../src/playActivity/cacheDB.h $(COMMON_SRCS)
+$(BUILD_DIR)/test_rom_image_path: test_rom_image_path.c onion_test.h ../src/playActivity/playActivityDB.h ../src/playActivity/cacheDB.h $(COMMON_SRCS) $(BUILD_DIR)/sqlite3_host.o
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ test_rom_image_path.c stubs/sqlite3_stub.c $(COMMON_SRCS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ test_rom_image_path.c $(BUILD_DIR)/sqlite3_host.o $(COMMON_SRCS) $(LDFLAGS) -lm
 
 test_savestate_path: $(BUILD_DIR)/test_savestate_path
 	@echo ""
@@ -743,7 +743,7 @@ $(BUILD_DIR)/test_json_null_guards: test_json_null_guards.c onion_test.h $(COMMO
 # detect a compiler that can actually link the sanitizers.
 SANITIZE_FLAGS := -fsanitize=address,undefined
 
-unit-test-san:
+unit-test-san: $(BUILD_DIR)/sqlite3_host.o
 	@mkdir -p $(BUILD_DIR)
 	@probe="$(BUILD_DIR)/_san_probe"; \
 	if echo 'int main(void){return 0;}' | $(CC) $(SANITIZE_FLAGS) -x c - -o $$probe 2>/dev/null; then \
@@ -761,7 +761,7 @@ unit-test-san:
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_str_san test_str.c $(COMMON_SRCS) $(LDFLAGS) && \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_json_san test_json.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) && \
 	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_neon_san test_neon.c $(LDFLAGS) && \
-	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_cache_db_san test_cache_db.c stubs/sqlite3_stub.c $(COMMON_SRCS) $(LDFLAGS)
+	$$SAN_CC $(CFLAGS) $(SANITIZE_FLAGS) -o $(BUILD_DIR)/test_cache_db_san test_cache_db.c $(BUILD_DIR)/sqlite3_host.o $(COMMON_SRCS) $(LDFLAGS) -lm
 	@fail=0; \
 	for t in test_hash test_file test_str test_json test_neon test_cache_db; do \
 		printf "\n"; \
