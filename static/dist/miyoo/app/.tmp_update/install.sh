@@ -121,8 +121,13 @@ main() {
     menu_pressed=$?
 
     if [ $menu_pressed -eq 0 ]; then
-        prompt_update
-        cleanup
+        # Cancelled (POWER held at the prompt): keep the installer. The
+        # trigger has already removed the previous system, so there is
+        # nothing to go back to; cleanup would remove install.sh, the
+        # packages and the trigger, and every boot would then end in
+        # "Install script exited unexpectedly". Kept, the next boot runs
+        # the installer again (a normal update unless MENU is held).
+        prompt_update && cleanup
         return
     fi
 
@@ -151,15 +156,18 @@ prompt_update() {
             # Reinstall (reset settings)
             run_installation 1 0
         else
+            # Back to the first choice: its answer is this one
             prompt_update
+            return
         fi
     elif [ $retcode -eq 2 ]; then
         # Update OS/RetroArch only
         run_installation 0 1
     else
-        # Cancel (can be reached if pressing POWER)
-        return
+        # Cancel (can be reached if pressing POWER): nothing installed
+        return 1
     fi
+    return 0
 }
 
 cleanup() {

@@ -2065,6 +2065,43 @@ end
 
 INSTALLER="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
 
+# ---- installer: POWER at the prompt keeps the installer ----
+
+begin installer_prompt_cancel_keeps_the_installer
+(
+    eval "$(extract_fn "$INSTALLER" prompt_update)"
+    # prompt: the answers queued in $TMP/answers, one per call (255 = POWER)
+    prompt() {
+        _a=$(sed -n 1p "$TMP/answers")
+        sed -i 1d "$TMP/answers"
+        return "$_a"
+    }
+    run_installation() { echo "$1 $2" >> "$TMP/installed"; }
+    ask() { # answers... -> prints prompt_update's status and what ran
+        printf '%s\n' "$@" > "$TMP/answers"
+        rm -f "$TMP/installed"
+        prompt_update
+        echo "$? $(cat "$TMP/installed" 2> /dev/null)"
+    }
+    ask 255 > "$TMP/r_power"
+    ask 0 > "$TMP/r_update"
+    ask 2 > "$TMP/r_system"
+    ask 1 0 > "$TMP/r_reinstall"
+    ask 1 1 255 > "$TMP/r_back_then_power"
+    ask 1 1 0 > "$TMP/r_back_then_update"
+)
+check "POWER: status 1, nothing installed" test "$(cat "$TMP/r_power")" = "1 "
+check "Update: status 0" test "$(cat "$TMP/r_update")" = "0 0 0"
+check "OS/RetroArch only: status 0" test "$(cat "$TMP/r_system")" = "0 0 1"
+check "Reinstall confirmed: status 0" test "$(cat "$TMP/r_reinstall")" = "0 1 0"
+check "Reinstall cancelled, then POWER: status 1" test "$(cat "$TMP/r_back_then_power")" = "1 "
+check "Reinstall cancelled, then Update: status 0" test "$(cat "$TMP/r_back_then_update")" = "0 0 0"
+# main() needs the device (framebuffer, PWM): its MENU branch must clean up
+# only after an installation
+check "main cleans up only when prompt_update installed something" \
+    sh -c "sed -n '/^main() {/,/^}/p' \"$INSTALLER\" | grep -q '^        prompt_update && cleanup\$'"
+end
+
 begin update_flag_cleared_after_update
 check "installer removes .updateAvailable" \
     sh -c "sed -n '/^run_installation() {/,/^}/p' \"$INSTALLER\" | grep -q 'rm -f /mnt/SDCARD/.tmp_update/.updateAvailable'"
