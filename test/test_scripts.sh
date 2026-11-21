@@ -1130,6 +1130,37 @@ else
     echo "  [SKIP] ota_update.sh tests (jq not installed)"
 fi
 
+# ---- ota_update.sh: apply_update keeps the installed boot scripts ----
+
+begin ota_apply_keeps_the_boot_scripts
+(
+    eval "$(extract_fn "$OTA" apply_update)"
+    sysdir=$TMP
+    Release_Version=4.5.1-b3
+    ota_menu() { menu_choice=Yes; }
+    clear() { :; }
+    umount() { :; }
+    press_a() { :; }
+    sync() { :; }
+    sleep() { :; }
+    reboot() { echo reboot > "$TMP/rebooted"; }
+    # 7z: what it was asked, one argument per line; it fails, as a cut
+    # extraction would
+    mkdir -p "$TMP/stub"
+    printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/7z_args"\nexit 2\n' "$TMP" > "$TMP/stub/7z"
+    chmod +x "$TMP/stub/7z"
+    PATH="$TMP/stub:$PATH"
+    apply_update > /dev/null 2>&1
+) 2> /dev/null
+echo $? > "$TMP/rc"
+check "7z was run" test -f "$TMP/7z_args"
+check "the boot stub updater is not extracted" grep -q '^-x!\.tmp_update/updater$' "$TMP/7z_args"
+check "the boot stub runtime.sh is not extracted" grep -q '^-x!\.tmp_update/runtime\.sh$' "$TMP/7z_args"
+check "nothing else is left out (installer, trigger)" test "$(grep -c '^-x' "$TMP/7z_args")" -eq 2
+check "into the card root" grep -q '^-o/mnt/SDCARD$' "$TMP/7z_args"
+check "a failed extraction: exit 6, no reboot" test "$(cat "$TMP/rc")" = 6 -a ! -e "$TMP/rebooted"
+end
+
 # ---- ota_update.sh: get_version ignores the files around it ----
 
 eval "$(grep '^get_version()' "$OTA")"

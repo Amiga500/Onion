@@ -861,8 +861,15 @@ apply_update() {
 		umount /mnt/SDCARD/miyoo/app/MainUI 2> /dev/null
 		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 
-		# unzip -o "$sysdir/download/$Release_Version.zip" -d "/mnt/SDCARD"
-		7z x -aoa -o"/mnt/SDCARD" "$sysdir/download/$Release_Version.zip"
+		# Not the two boot stubs at the top of the zip (.tmp_update/updater
+		# and runtime.sh, the first files extracted): they replaced the
+		# installed ones at once, so an extraction cut short (battery,
+		# power off, 7z error) left a card that no longer started RedOnion.
+		# Without them the installed system still boots until the trigger,
+		# miyoo/app/MainUI (near the end), is there; then check_installer
+		# in runtime.sh starts the installer, which installs the real ones.
+		7z x -aoa -o"/mnt/SDCARD" "$sysdir/download/$Release_Version.zip" \
+			-x!.tmp_update/updater -x!.tmp_update/runtime.sh
 
 		if [ $? -eq 0 ]; then
 			echo -e "${GREEN}Decompression successful.${NC}"
