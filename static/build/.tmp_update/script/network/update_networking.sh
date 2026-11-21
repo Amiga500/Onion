@@ -740,7 +740,11 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
         fi
 
         if date -u -s "$utc_datetime" > /dev/null 2>&1; then
-            hwclock -w
+            # In UTC (-u), as the Clock app stores it: TZ is exported here,
+            # and without -u BusyBox's hwclock stored the local time, which
+            # the next boot without a sync (Mini Plus, Flip) took as UTC:
+            # the clock was off by the time zone.
+            hwclock -w -u
             log "NTP: Time successfully aquired using API"
             touch /tmp/ntp_synced
             play_activity_resume
@@ -761,6 +765,9 @@ get_time() { # handles 2 types of network time, instant from an API or longer fr
     ntp_ret=$?
     play_activity_resume
     if [ $ntp_ret -eq 0 ]; then
+        # Into the RTC too (it was left as it was: the next restart went
+        # back to its old time)
+        hwclock -w -u
         log "NTP: Time successfully aquired using NTP"
         # Mark the sync as done, like the API path: without it every later
         # network check (after each game) synced again.
