@@ -127,19 +127,39 @@ bool screenshot_save_stride(const uint32_t *buffer, const char *screenshot_path,
     png_structp png_ptr;
     png_infop info_ptr;
 
-    if (!(fp = file_open_ensure_path(screenshot_path, "wb"))) {
+    // Written to "<path>.tmp" and renamed at the end: a write that fails
+    // leaves the previous picture (the GameSwitcher's, for one) in place.
+    char tmp_path[PATH_MAX];
+    int n = snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", screenshot_path);
+    if (n < 0 || (size_t)n >= sizeof(tmp_path))
+        return false;
+
+    if (!(fp = file_open_ensure_path(tmp_path, "wb"))) {
         return false;
     }
 
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
     if (!png_ptr) {
         fclose(fp);
+        remove(tmp_path);
         return false;
     }
     info_ptr = png_create_info_struct(png_ptr);
     if (!info_ptr) {
         png_destroy_write_struct(&png_ptr, NULL);
         fclose(fp);
+        remove(tmp_path);
+        return false;
+    }
+
+    // A write error (card full, I/O error) ends in libpng's error handler,
+    // which without this aborts the process: keymon died, with the screen
+    // left black after MENU+POWER, a game left paused or never closed by
+    // the standby power-off or the low battery exit.
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        remove(tmp_path);
         return false;
     }
 
@@ -180,11 +200,8 @@ bool screenshot_save_stride(const uint32_t *buffer, const char *screenshot_path,
     png_write_end(png_ptr, info_ptr);
     png_destroy_write_struct(&png_ptr, &info_ptr);
 
-    fflush(fp);
-    fsync(fileno(fp));
-    fclose(fp);
-
-    return true;
+    // fflush + fsync + rename + directory fsync; removes tmp on failure.
+    return file_atomic_commit(fp, tmp_path, screenshot_path);
 }
 
 bool screenshot_save(const uint32_t *buffer, const char *screenshot_path, bool do_rotate180)
