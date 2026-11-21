@@ -50,6 +50,10 @@ static volatile sig_atomic_t quit = 0;
 static int sar_fd = -1;
 static volatile sig_atomic_t adc_value_g;
 static volatile sig_atomic_t is_suspended = 0;
+// Set by SIGCONT (keymon stops batmon for a standby): the main loop starts
+// the Mini's average and its "lowest since the charge" again, since a
+// charge may have started and ended meanwhile.
+static volatile sig_atomic_t resumed_from_standby = 0;
 
 static void sigHandler(int sig);
 void cleanup(void);

@@ -33,6 +33,14 @@ int main(int argc, char *argv[])
     bool is_charging = false;
 
     while (!quit) {
+        if (resumed_from_standby) {
+            resumed_from_standby = 0;
+            lowest_percentage_after_charge = 500;
+            if (DEVICE_ID == MIYOO283)
+                adc_value_g = updateADCValue(0); // a fresh average
+            ticks = CHECK_BATTERY_TIMEOUT_S;     // and a level at once
+        }
+
         if (battery_isCharging()) {
             if (!is_charging) {
                 // Charging just started
@@ -170,9 +178,9 @@ static void sigHandler(int sig)
         is_suspended = true;
         break;
     case SIGCONT:
-        if (DEVICE_ID == MIYOO283) {
-            adc_value_g = updateADCValue(0);
-        }
+        // The ADC is read in the main loop, not here (the loop may have
+        // been stopped inside updateADCValue()).
+        resumed_from_standby = 1;
         is_suspended = false;
         break;
     case SIGUSR1:
@@ -360,8 +368,22 @@ void saveFakeAxpResult(int current_percentage)
 
 #define HISTORY_SIZE 5 // Number of values to smooth battery percentage
 
+// value 0: start the average again (after a charge or a standby the old
+// samples say nothing about the battery: no sample is taken while
+// charging, so the five from before the charge stayed and held the level
+// near the old one). Otherwise the previous average (unused).
 int updateADCValue(int value)
 {
+    static SAR_ADC_CONFIG_READ adcConfig;
+    static int history[HISTORY_SIZE] = {0}; // Array to store history
+    static int historyIndex = 0;            // Current index in the history
+    static int historyCount = 0;            // Number of valid entries in history
+
+    if (value == 0) {
+        historyIndex = 0;
+        historyCount = 0;
+    }
+
     if (battery_isCharging())
         return 100;
 
@@ -370,11 +392,6 @@ int updateADCValue(int value)
         if (sar_fd >= 0)
             ioctl(sar_fd, IOCTL_SAR_INIT, NULL);
     }
-
-    static SAR_ADC_CONFIG_READ adcConfig;
-    static int history[HISTORY_SIZE] = {0}; // Array to store history
-    static int historyIndex = 0;            // Current index in the history
-    static int historyCount = 0;            // Number of valid entries in history
 
     ioctl(sar_fd, IOCTL_SAR_SET_CHANNEL_READ_VALUE, &adcConfig);
 
