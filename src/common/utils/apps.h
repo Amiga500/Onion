@@ -43,6 +43,14 @@ int _comp_installed_apps(const void *a, const void *b)
     return strcasecmp(((InstalledApp *)a)->label, ((InstalledApp *)b)->label);
 }
 
+// The list is read once per program: forget it, the next getInstalledApps()
+// reads the App folder again (an app installed since then).
+void installedApps_forget(void)
+{
+    installed_apps_loaded = false;
+    installed_apps_count = 0;
+}
+
 InstalledApp *getInstalledApps(bool sort)
 {
     DIR *dp;

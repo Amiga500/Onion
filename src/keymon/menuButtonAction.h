@@ -56,11 +56,20 @@ void applyExtraButtonShortcut(int button)
         temp_flag_set("launch_alt", true);
     }
     else if (strncmp(action, "app:", 4) == 0) {
-        for (i = 0; i < installed_apps_count; i++)
-            if (strcmp(action + 4, apps[i].dirName) == 0) {
-                _action_runApp(apps[i].dirName);
-                return;
+        // keymon reads the list at the first X/Y press and keeps it: an app
+        // installed since then (Package Manager, no reboot) is looked for
+        // once more in a fresh list.
+        for (int pass = 0; pass < 2; pass++) {
+            for (i = 0; apps != NULL && i < installed_apps_count; i++)
+                if (strcmp(action + 4, apps[i].dirName) == 0) {
+                    _action_runApp(apps[i].dirName);
+                    return;
+                }
+            if (pass == 0) {
+                installedApps_forget();
+                apps = getInstalledApps(false);
             }
+        }
     }
     else if (strncmp(action, "tool:", 5) == 0) {
         for (i = 0; i < NUM_TOOLS; i++)
