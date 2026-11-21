@@ -44,6 +44,18 @@ static List _menu_app_icons;
 static List _menu_expert_icons;
 static List _menu_temp;
 
+// One entry per row of the console, app and Expert icon lists (icons.h):
+// the rows point into it.
+typedef struct IconInfo {
+    char name[STR_MAX];
+    char path[STR_MAX];
+    char config_path[STR_MAX];
+} IconInfo_t;
+
+#define ICON_INFOS_MAX 500
+static IconInfo_t icon_infos[ICON_INFOS_MAX];
+static int icon_infos_len = 0;
+
 void menu_icons_free_all(void)
 {
     list_free(&_menu_icons);
@@ -52,6 +64,11 @@ void menu_icons_free_all(void)
     list_free(&_menu_app_icons);
     list_free(&_menu_expert_icons);
     list_free(&_menu_temp);
+    // No list points into the table any more. It was never emptied: each
+    // rebuild of the lists (after every icon saved) took a new set of
+    // entries, and after about eight changes in one visit the table was
+    // full and written past its end.
+    icon_infos_len = 0;
 }
 
 static List _menu_main;

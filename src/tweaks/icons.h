@@ -19,15 +19,6 @@
 
 #include "./appstate.h"
 
-typedef struct IconInfo {
-    char name[STR_MAX];
-    char path[STR_MAX];
-    char config_path[STR_MAX];
-} IconInfo_t;
-
-static IconInfo_t icon_infos[500];
-static int icon_infos_len = 0;
-
 int _add_icon_alts(const char *pack_dir, const char *pack_name,
                    const char *icon_prefix, List *list, void (*action)(void *))
 {
@@ -181,6 +172,7 @@ void _action_apply_icon_pack(void *_item)
 
         list_free(&_menu_console_icons);
         list_free(&_menu_app_icons);
+        list_free(&_menu_expert_icons); // new icons for the Expert systems too
         list_free(&_menu_temp);
 
         SDL_BlitSurface(background_cache, NULL, screen, NULL);
@@ -283,6 +275,10 @@ bool _add_config_icon(const char *path, const char *name,
         strncpy(item.description, icon_name, STR_MAX - 1);
     }
 
+    if (icon_infos_len >= ICON_INFOS_MAX) { // more icons than rows: not listed
+        free(icon_name);
+        return false;
+    }
     IconInfo_t *info = &icon_infos[icon_infos_len++];
     strcpy(info->name, icon_name);
     strncpy(info->path, preview_path, STR_MAX - 1);
