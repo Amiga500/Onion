@@ -767,6 +767,8 @@ unzip_progress() {
     if [ "$extraction_status" -ne 0 ]; then
         touch $sysdir/.installFailed
         echo ":: Installation failed! (7z status: $extraction_status)"
+        # installUI shows "Installation failed" for 5 s: let it be read
+        sleep 6
         installer_reboot
         sleep 10
         exit 0

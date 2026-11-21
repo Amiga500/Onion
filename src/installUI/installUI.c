@@ -23,6 +23,7 @@
 #define TIMEOUT_M 10
 #define CHECK_TIMEOUT 300
 #define SLIDE_TIMEOUT 10000
+#define FAILED_HOLD_MS 5000 // how long "Installation failed" stays on screen
 
 static SDL_Surface *slide = NULL;
 
@@ -196,8 +197,13 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (quit)
+        // A failure (or the time-out) is drawn once more and held: the loop
+        // used to end before drawing, so "Installation failed" never showed
+        // and the installer just went back to the stock firmware.
+        if (quit && !failed)
             break;
+        if (failed)
+            acc_ticks = time_step;
 
         if (acc_ticks >= time_step) {
             if (slide == NULL)
@@ -237,6 +243,11 @@ int main(int argc, char *argv[])
                 spinner_tick = 0;
 
             acc_ticks -= time_step;
+        }
+
+        if (failed) {
+            SDL_Delay(FAILED_HOLD_MS);
+            break;
         }
 
         msleep(15);
