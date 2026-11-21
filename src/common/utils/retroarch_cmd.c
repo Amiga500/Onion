@@ -6,16 +6,17 @@
 #include "udp.h"
 
 static const char *LOCALHOST_IP = "127.0.0.1";
-static const int RETROARCH_CMD_UDP_PORT = 55355;
+// RetroArch's network command port (a host test points it at its own)
+int retroarch_cmd_udp_port = 55355;
 
 int retroarch_cmd(const char *cmd)
 {
-    return udp_send(LOCALHOST_IP, RETROARCH_CMD_UDP_PORT, cmd);
+    return udp_send(LOCALHOST_IP, retroarch_cmd_udp_port, cmd);
 }
 
 int retroarch_get(const char *cmd, char *response, size_t response_size)
 {
-    return udp_send_receive(LOCALHOST_IP, RETROARCH_CMD_UDP_PORT, cmd, response, response_size);
+    return udp_send_receive(LOCALHOST_IP, retroarch_cmd_udp_port, cmd, response, response_size);
 }
 
 int retroarch_quit(void)
@@ -40,7 +41,7 @@ int retroarch_unpause(void)
 
 int retroarch_pauseNoProbe(void)
 {
-    return udp_send_no_probe(LOCALHOST_IP, RETROARCH_CMD_UDP_PORT, "PAUSE");
+    return udp_send_no_probe(LOCALHOST_IP, retroarch_cmd_udp_port, "PAUSE");
 }
 
 int retroarch_getStateSlot(int *slot)
@@ -116,7 +117,7 @@ int retroarch_getStatus(RetroArchStatus_s *status)
 int retroarch_getStatusNoProbe(RetroArchStatus_s *status)
 {
     char response[512];
-    if (udp_send_receive_no_probe(LOCALHOST_IP, RETROARCH_CMD_UDP_PORT,
+    if (udp_send_receive_no_probe(LOCALHOST_IP, retroarch_cmd_udp_port,
                                   "GET_STATUS", response, sizeof(response)) == -1)
         return -1;
     return _parseRetroArchStatus(response, status);
@@ -126,7 +127,7 @@ int retroarch_getStatusWait(RetroArchStatus_s *status, int timeout_ms,
                             bool (*keep_waiting)(void *ctx), void *ctx)
 {
     char response[512];
-    if (udp_send_receive_wait(LOCALHOST_IP, RETROARCH_CMD_UDP_PORT, "GET_STATUS",
+    if (udp_send_receive_wait(LOCALHOST_IP, retroarch_cmd_udp_port, "GET_STATUS",
                               response, sizeof(response), timeout_ms,
                               keep_waiting, ctx) == -1)
         return -1;

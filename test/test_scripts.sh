@@ -1743,16 +1743,19 @@ fi
 
 # ---- runtime.sh: network check skipped while update_networking.sh runs ----
 
-eval "$(extract_fn "$RUNTIME" check_networking)"
-eval "$(extract_fn "$RUNTIME" run_network_check)"
-eval "$(extract_fn "$RUNTIME" queue_network_check)"
+# The flags in a folder of this run's, not the real /tmp: two runs of the
+# suite at once took each other's network_changed.
+NETTMP=$(mktemp -d)
+for f in check_networking run_network_check queue_network_check; do
+    eval "$(extract_fn "$RUNTIME" $f | sed "s#/tmp/network_#$NETTMP/network_#g")"
+done
 
 net_setup() {
     sysdir=$TMP
     mkdir -p "$sysdir/script/network"
     printf '#!/bin/sh\necho "$1" >> "%s/net_runs"\n' "$TMP" > "$sysdir/script/network/update_networking.sh"
     chmod +x "$sysdir/script/network/update_networking.sh"
-    rm -rf /tmp/network_changed /tmp/network_changed.taken /tmp/network_check_queued
+    rm -rf $NETTMP/network_changed $NETTMP/network_changed.taken $NETTMP/network_check_queued
 }
 unset -f sleep # the waiter really waits (an earlier section stubs it)
 pgrep() { [ -f "$TMP/running" ]; } # pgrep -f update_networking.sh
@@ -1763,39 +1766,39 @@ net_runs() { [ -f "$TMP/net_runs" ] && wc -l < "$TMP/net_runs" | tr -d ' ' || ec
 
 begin network_check_runs_when_idle
 net_setup
-: > /tmp/network_changed
+: > $NETTMP/network_changed
 check_networking > /dev/null
 check "check ran once" test "$(net_runs)" = 1
-check "change consumed" test ! -e /tmp/network_changed
+check "change consumed" test ! -e $NETTMP/network_changed
 end
 
 begin network_check_queued_while_running
 net_setup
-: > /tmp/network_changed
+: > $NETTMP/network_changed
 : > "$TMP/running"
 check_networking > /dev/null
 check_networking > /dev/null # a second state change: still one waiter
 check "not run while the other check runs" test "$(net_runs)" = 0
-check "one waiter queued" test -d /tmp/network_check_queued
+check "one waiter queued" test -d $NETTMP/network_check_queued
 rm -f "$TMP/running" # the running check ends
 i=0
-while [ -d /tmp/network_check_queued ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+while [ -d $NETTMP/network_check_queued ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
 sleep 0.3
 check "run once after it ended" test "$(net_runs)" = 1
-check "change consumed" test ! -e /tmp/network_changed
+check "change consumed" test ! -e $NETTMP/network_changed
 end
 
 begin network_check_taken_once
 net_setup
 run_network_check
 check "nothing pending: no run" test "$(net_runs)" = 0
-: > /tmp/network_changed
+: > $NETTMP/network_changed
 run_network_check
 run_network_check
 check "a pending change runs once" test "$(net_runs)" = 1
 end
 unset -f pgrep log perf_begin perf_end net_runs net_setup
-rm -rf /tmp/network_changed /tmp/network_changed.taken /tmp/network_check_queued
+rm -rf "$NETTMP"
 
 # ---- update_networking.sh: libpadspblocker pid lookup ----
 
@@ -4677,14 +4680,14 @@ check "audio server up" grep -q audio "$TMP/calls"
 printf '#!/bin/sh\n[ "$1" = --probe ] && { echo "$PROBE"; exit 0; }\necho "$*" >> "%s/fbmode"\n' "$TMP" > "$sysdir/bin/fbmode"
 chmod +x "$sysdir/bin/fbmode"
 check "640x480 devices: no mode change" test ! -e "$TMP/fbmode"
-: > /tmp/new_res_available.kidstest
-eval "$(extract_fn "$RUNTIME" launch_kids_mode | sed "s#/tmp/new_res_available#/tmp/new_res_available.kidstest#")"
+: > $TMP/new_res_available
+eval "$(extract_fn "$RUNTIME" launch_kids_mode | sed "s#/tmp/new_res_available#$TMP/new_res_available#")"
 export PROBE="640x480 virtual 640x1440 bpp 32 line_length 2560 pages 3"; launch_kids_mode; _rc=$?; unset PROBE; rc $_rc
 check "752x560 devices, MainUI's 3 pages: two 640x480 pages" sh -c 'grep -q "^640x480 --pages 2 " "$1/fbmode" && grep -q notified "$1/calls"' _ "$TMP"
 : > "$TMP/fbmode"
 export PROBE="640x480 virtual 640x960 bpp 32 line_length 2560 pages 2"; launch_kids_mode; _rc=$?; unset PROBE; rc $_rc
 check "already two 640x480 pages: left alone" test ! -s "$TMP/fbmode"
-rm -f /tmp/new_res_available.kidstest
+rm -f $TMP/new_res_available
 unset -f launch_kids_mode fb_probe_fields log start_audioserver notify_resolution_change
 end
 

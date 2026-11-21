@@ -23,6 +23,8 @@ typedef struct RetroArchInfo {
     bool has_state_slot;
 } RetroArchInfo_s;
 
+extern int retroarch_cmd_udp_port;
+
 int retroarch_cmd(const char *cmd);                                       // Send RetroArch UDP command
 int retroarch_get(const char *cmd, char *response, size_t response_size); // Get RetroArch UDP command response
 

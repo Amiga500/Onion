@@ -36,8 +36,14 @@ BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
 .PHONY: all clean $(TESTS) test_scripts_busybox summary unit-test-san unit-test-neon-arm neon-test-arm
 
+# Several C tests use fixed names in /tmp: two runs on one PC at the same
+# time (two checkouts, a shared CI runner) would take each other's files.
+# The run waits for the other one instead (flock, where there is one).
+UNIT_LOCK ?= /tmp/onion-unit-tests.lock
+
 all: $(BINARIES)
-	@total_tests=0; total_asserts=0; total_fails=0; suite_fails=0; skip_note=; \
+	@if command -v flock > /dev/null 2>&1; then exec 9> "$(UNIT_LOCK)"; flock 9; fi; \
+	total_tests=0; total_asserts=0; total_fails=0; suite_fails=0; skip_note=; \
 	summary=""; \
 	for t in $(TESTS); do \
 		printf "\n"; \

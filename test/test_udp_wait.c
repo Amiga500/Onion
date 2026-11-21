@@ -25,7 +25,6 @@
 #include "utils/retroarch_cmd.h"
 #include "utils/udp.h"
 
-#define RA_PORT 55355
 
 typedef struct {
     int fd;
@@ -201,14 +200,13 @@ TEST(bad_arguments)
     ASSERT_EQ(udp_send_receive_wait("127.0.0.1", 9, "X", response, sizeof(response), 0, NULL, NULL), -1);
 }
 
-// Through retroarch_cmd on RetroArch's own port (skipped if it is taken).
+// Through retroarch_cmd, pointed at a port of its own (RetroArch's 55355
+// may be taken on the PC, or by a second run of these tests).
 TEST(get_status_wait_parses_neo_geo_reply)
 {
-    FakeRetroArch ra = {.fd = _bind_udp(RA_PORT), .busy_ms = 1500, .reply = "GET_STATUS PAUSED fb_alpha,mslugx,crc32=3a5a3b1f\n"};
-    if (ra.fd < 0) {
-        printf("  (port %d in use, skipped)\n", RA_PORT);
-        return;
-    }
+    FakeRetroArch ra = {.fd = _bind_udp(0), .busy_ms = 1500, .reply = "GET_STATUS PAUSED fb_alpha,mslugx,crc32=3a5a3b1f\n"};
+    ASSERT_TRUE(ra.fd >= 0);
+    retroarch_cmd_udp_port = _port_of(ra.fd);
     pthread_t t;
     pthread_create(&t, NULL, _fake_retroarch, &ra);
 
