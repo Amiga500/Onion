@@ -262,7 +262,7 @@ bool _add_config_icon(const char *path, const char *name,
     realpath(preview_path, abs_path);
 
     icon_name = file_removeExtension(basename(icon_path));
-    str_split(icon_name, "-");
+    icons_lookupName(icon_name, mode); // pico-8 stays pico-8, gba-2 is gba
 
     char short_label[56];
     str_trim(short_label, 55, label, false);

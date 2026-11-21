@@ -129,6 +129,24 @@ const char *icons_getSelectedIconPathFormat(IconMode_e mode)
     return "%s/sel/%s.png";
 }
 
+// The name an icon is looked up by in a pack. "<name>-<variant>.png" is a
+// variant of <name> (gba-2.png: a second picture for gba), so the name was
+// always cut at its first "-". Four Expert systems have a hyphen in the
+// name itself (pico-8, ti-83, puae-xtreme, mame2003-xtreme): looked up as
+// pico, ti, puae and mame2003, three never got a pack's icon and
+// MAME 2003-xtreme got MAME 2003's. A name the Default pack has a picture
+// for is a name, not a variant, and is kept whole.
+void icons_lookupName(char *icon_name, IconMode_e mode)
+{
+    if (strchr(icon_name, '-') == NULL)
+        return;
+    char default_path[STR_MAX];
+    snprintf(default_path, sizeof(default_path), icons_getIconPathFormat(mode),
+             ICON_PACK_DEFAULT, icon_name);
+    if (!is_file(default_path))
+        str_split(icon_name, "-");
+}
+
 bool _apply_singleIconFromPack(const char *config_path,
                                const char *icon_pack_path, bool reset_default)
 {
@@ -141,13 +159,19 @@ bool _apply_singleIconFromPack(const char *config_path,
         return false;
 
     char *icon_name = file_removeExtension(basename(temp_path));
-    str_split(icon_name, "-");
 
     IconMode_e mode = icons_getIconMode(config_path);
 
+    // The full name first (a pack may have the variant itself), then the
+    // name icons_lookupName() gives
     char icon_path[STR_MAX];
     sprintf(icon_path, icons_getIconPathFormat(mode), icon_pack_path,
             icon_name);
+    if (!is_file(icon_path) && strchr(icon_name, '-') != NULL) {
+        icons_lookupName(icon_name, mode);
+        sprintf(icon_path, icons_getIconPathFormat(mode), icon_pack_path,
+                icon_name);
+    }
 
     if (!is_file(icon_path)) {
         if (reset_default) {
