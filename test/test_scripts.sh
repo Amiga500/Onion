@@ -4458,6 +4458,84 @@ KIDS_APP="$ROOT/static/packages/App/Kids Mode/App/KidsMode"
 KIDS_LOOP="$KIDS_APP/kid_mode_loop.sh"
 KEYMON_C="$ROOT/src/keymon/keymon.c"
 
+begin kids_mode_review_fixes
+# Double press off while armed; the timer kept outside the app folder;
+# a game that is not RetroArch ended with its children
+for fn in apply_keymap_override set_timer_minutes kill_tree; do
+    eval "$(extract_fn "$KIDS_LOOP" $fn)"
+done
+backupdir=$TMP/km
+keymapcfg=$TMP/keymap.json
+keymapbackup=$backupdir/keymap.json.backup
+keymapnone=$backupdir/keymap-was-absent
+timer_backup=$backupdir/timer_minutes.txt
+restart_keymon() { :; }
+log() { :; }
+update_remaining_now() { :; }
+config_merge() { echo "merge $*" >> "$TMP/merges"; }
+printf '{"ingame_single_press": 1, "ingame_long_press": 1, "ingame_double_press": 3}\n' > "$keymapcfg"
+if command -v jq > /dev/null; then
+    apply_keymap_override
+    check "double press off while armed" test "$(jq -c '[.ingame_single_press, .ingame_long_press, .ingame_double_press]' "$keymapcfg")" = "[2,0,0]"
+    check "the parent's keymap kept for the unlock" test "$(jq .ingame_double_press "$keymapbackup")" = 3
+fi
+rm -f "$keymapcfg" "$keymapbackup"
+apply_keymap_override
+check "no keymap before: the one written has the double press off" grep -q '"ingame_double_press": 0' "$keymapcfg"
+set_timer_minutes 45
+check "the timer is copied outside the app folder" test "$(cat "$timer_backup")" = 45
+# The restore at the start of a run, as an update leaves kidmode.json
+restore=$(sed -n '/# The same update took the play timer with it/,/^        fi$/p' "$KIDS_LOOP")
+configfile=$TMP/kidmode.json
+printf '{"pin_hash": ""}\n' > "$configfile"
+rm -f "$TMP/merges"
+if command -v jq > /dev/null; then
+    eval "$restore"
+    check "after an update: the timer comes back" grep -q 'timer_minutes = \$m' "$TMP/merges"
+    printf '{"timer_minutes": 10}\n' > "$configfile"
+    rm -f "$TMP/merges"
+    eval "$restore"
+    check "a timer in kidmode.json is left as it is" test ! -e "$TMP/merges"
+fi
+# kill_tree: launch.sh and the emulator under the shell of cmd_to_run.sh
+sh -c 'sh -c "sleep 30 & sleep 30 & wait" & wait' &
+top=$!
+sleep 0.3
+kill_tree $top
+sleep 0.3
+left=$(pgrep -P $top 2> /dev/null; for c in $(pgrep -P $top 2> /dev/null); do pgrep -P $c; done)
+check "the whole tree is ended" sh -c '! kill -0 "$1" 2> /dev/null' _ $top
+check "nothing left under it${left:+: $left}" test -z "$left"
+unset -f apply_keymap_override set_timer_minutes kill_tree restart_keymon log update_remaining_now config_merge
+end
+
+begin kids_mode_app_gone_gives_the_saves_back
+# Armed, then App/KidsMode removed (Reinstall, deleted on a computer): the
+# parent's saves were left parked in Saves/KidsMode
+eval "$(extract_fn "$RUNTIME" kids_mode_restore_parked_saves | sed "s#/mnt/SDCARD#$TMP/sd#g")"
+eval "$(extract_fn "$RUNTIME" kids_mode_cleanup_if_disarmed | sed "s#/mnt/SDCARD#$TMP/sd#g")"
+log() { :; }
+kids_mode_loop=$TMP/sd/App/KidsMode/kid_mode_loop.sh
+mkdir -p "$TMP/sd/Saves/KidsMode/profile-parked-saves" "$TMP/sd/Saves/KidsMode/profile-parked-states" \
+    "$TMP/sd/Saves/CurrentProfile/saves" "$TMP/sd/Saves/CurrentProfile/states"
+echo parent > "$TMP/sd/Saves/KidsMode/profile-parked-saves/Tetris.srm"
+echo parent > "$TMP/sd/Saves/KidsMode/profile-parked-states/Tetris.state.auto"
+echo child > "$TMP/sd/Saves/CurrentProfile/saves/Tetris.srm"
+echo Guest > "$TMP/sd/Saves/KidsMode/source_profile.txt"
+touch "$TMP/sd/.kidmode" "$TMP/sd/Saves/KidsMode/profile_isolation_active" "$TMP/sd/Saves/KidsMode/retroarch.cfg.backup"
+kids_mode_cleanup_if_disarmed
+check "the parent's save is back" test "$(cat "$TMP/sd/Saves/CurrentProfile/saves/Tetris.srm")" = parent
+check "the parent's state is back" test -f "$TMP/sd/Saves/CurrentProfile/states/Tetris.state.auto"
+check "the child's save kept in KidsProfile/Guest" test "$(cat "$TMP/sd/Saves/KidsProfile/Guest/saves/Tetris.srm")" = child
+check "nothing parked any more" test ! -e "$TMP/sd/Saves/KidsMode/profile-parked-saves" -a ! -e "$TMP/sd/Saves/KidsMode/profile-parked-states"
+check ".kidmode removed" test ! -e "$TMP/sd/.kidmode"
+check "the other marks stay for the app's own cleanup" test -f "$TMP/sd/Saves/KidsMode/retroarch.cfg.backup"
+rm -rf "$TMP/sd/Saves/KidsMode/profile-parked-"*
+kids_mode_cleanup_if_disarmed
+check "nothing parked: nothing changes" test "$(cat "$TMP/sd/Saves/CurrentProfile/saves/Tetris.srm")" = parent
+unset -f kids_mode_restore_parked_saves kids_mode_cleanup_if_disarmed log
+end
+
 begin kids_mode_runtime_in_place_of_mainui
 sysdir=$TMP
 eval "$(extract_fn "$RUNTIME" kids_mode_armed | sed "s#/mnt/SDCARD/.kidmode#$TMP/.kidmode#")"
@@ -4811,6 +4889,7 @@ end
 begin kids_mode_cleaned_up_when_kidmode_deleted_from_a_computer
 # runtime.sh at boot: only with .kidmode gone and something of Kids Mode left
 eval "$(extract_fn "$RUNTIME" kids_mode_cleanup_if_disarmed | sed "s#/mnt/SDCARD#$TMP#g")"
+eval "$(extract_fn "$RUNTIME" kids_mode_restore_parked_saves | sed "s#/mnt/SDCARD#$TMP#g")"
 log() { :; }
 sysdir=$TMP
 kids_mode_loop=$TMP/loop.sh
@@ -4833,7 +4912,7 @@ rm -f "$TMP/calls" "$kids_mode_loop"
 kids_mode_cleanup_if_disarmed
 check "Kids Mode not installed: nothing to run" test ! -e "$TMP/calls"
 check "at boot, before Kids Mode or a startup app" sh -c "awk '/^    kids_mode_cleanup_if_disarmed\$/ { c = NR } /^    if kids_mode_armed; then\$/ && !k { k = NR } END { exit !(c && k > c) }' '$RUNTIME'"
-unset -f kids_mode_cleanup_if_disarmed log
+unset -f kids_mode_cleanup_if_disarmed kids_mode_restore_parked_saves log
 # Kids Mode's own cleanup: what an unlock puts back
 backupdir=$TMP/Saves/KidsMode
 flagfile=$TMP/.kidmode
