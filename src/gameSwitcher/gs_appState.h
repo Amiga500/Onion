@@ -88,10 +88,15 @@ static AppState appState = {
     .gameNameScrollStart = 20,
     .gameNameScrollEnd = 20};
 
+// Set when the exit comes from a signal (keymon's power-off or standby
+// timeout), not from a key.
+static volatile sig_atomic_t gs_terminated = 0;
+
 static void sigHandler(int sig)
 {
     /* Custom: gameSwitcher must set both exit_to_menu and quit. */
     if (sig == SIGINT || sig == SIGTERM) {
+        gs_terminated = 1;
         appState.exit_to_menu = true;
         appState.quit = true;
     }
