@@ -3331,6 +3331,45 @@ check "config and onionVersion survive" test -d "$TMP/sys/config" -a -d "$TMP/sy
 check "old system files are removed" test ! -e "$TMP/sys/bin"
 end
 
+begin update_trigger_leaves_the_reboot_to_the_clean_shutdown
+# The trigger (miyoo/app/MainUI) runs the installer's updater; install.sh
+# reboots through bin/shutdown, which kills updater first. The trigger
+# must not reboot plainly then, before the card is unmounted.
+mainui="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/static/dist/miyoo/app/MainUI"
+mkdir -p "$TMP/stub"
+for c in reboot sleep; do
+    printf '#!/bin/sh\necho "%s $*" >> "%s/log"\n' "$c" "$TMP" > "$TMP/stub/$c"
+    chmod +x "$TMP/stub/$c"
+done
+trigger_run() { # clean|plain|missing: the trigger run on a stand-in card
+    rm -rf "$TMP/sd" "$TMP/_shutdown" "$TMP/log"
+    mkdir -p "$TMP/sd/miyoo/app/.tmp_update" "$TMP/sd/.tmp_update/bin" "$TMP/sd/.tmp_update/config"
+    sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/tmp/_shutdown#$TMP/_shutdown#g" "$mainui" > "$TMP/sd/miyoo/app/MainUI"
+    if [ "$1" != missing ]; then
+        touch "$TMP/sd/miyoo/app/.tmp_update/install.sh" "$TMP/sd/miyoo/app/.tmp_update/onion.pak"
+    fi
+    # The installer's updater: with the clean shutdown, bin/shutdown has
+    # copied itself to /tmp/_shutdown and killed updater
+    if [ "$1" = clean ]; then
+        printf '#!/bin/sh\necho updater >> "%s/log"\ntouch "%s/_shutdown"\nexit 137\n' "$TMP" "$TMP"
+    else
+        printf '#!/bin/sh\necho updater >> "%s/log"\n' "$TMP"
+    fi > "$TMP/sd/miyoo/app/.tmp_update/updater"
+    chmod +x "$TMP/sd/miyoo/app/.tmp_update/updater"
+    PATH="$TMP/stub:$PATH" sh "$TMP/sd/miyoo/app/MainUI" > /dev/null 2>&1
+    tr '\n' ',' < "$TMP/log"
+}
+check "clean shutdown started: wait for it, plain reboot only after 30 s" \
+    test "$(trigger_run clean)" = "updater,sleep 30,reboot ,sleep 10,"
+check "no clean shutdown (failed installation): plain reboot at once" \
+    test "$(trigger_run plain)" = "updater,reboot ,sleep 10,"
+check "installer files missing: reboot and stop" \
+    test "$(trigger_run missing)" = "reboot ,sleep 10,"
+check "installer files missing: the installed system is left alone" \
+    test -d "$TMP/sd/.tmp_update/bin"
+unset -f trigger_run
+end
+
 begin cores_have_systemid
 # The GameSwitcher sends RetroArch GET_STATUS, answered with the core's
 # systemid: a core whose .info had none crashed RetroArch with error 139 (#283).

@@ -8,6 +8,8 @@ if [ ! -d "$appdir/.tmp_update" ] || [ ! -f "$appdir/.tmp_update/install.sh" ] |
     rm -- "$0"
     reboot
     sleep 10
+    # Never go on: below, the installed system is removed
+    exit 1
 fi
 
 if [ -d $sysdir ]; then
@@ -38,5 +40,13 @@ mv .tmp_update/* $sysdir
 cd $sysdir
 ./updater
 
+# install.sh reboots through the clean shutdown (bin/shutdown -r, copied to
+# /tmp/_shutdown), which kills updater first: this script went on at once
+# to its own plain reboot, a few ms later, before the shutdown had saved
+# system.json and unmounted the card, so the FAT stayed dirty after every
+# installation. Leave the reboot to it: it kills this script soon after
+# (its folder is on the card). Without it (a failed installation reboots
+# plainly), reboot as before.
+[ -f /tmp/_shutdown ] && sleep 30
 reboot
 sleep 10
