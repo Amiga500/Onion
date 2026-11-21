@@ -1,6 +1,6 @@
 {
     "label": "Kids Mode",
-    "icon": "../../Icons/Default/app/guest_on.png",
+    "icon": "/mnt/SDCARD/Icons/Default/app/kidsmode.png",
     "iconsel": "",
     "launch": "launch.sh",
     "description": "Games and videos in one protected mode"

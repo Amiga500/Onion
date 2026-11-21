@@ -1481,7 +1481,7 @@ install_hook() {
 # so arming is one tap without visiting Apps. kidui filters this entry out
 # of the kid carousel. Disable with "fav_shortcut": false in kidmode.json.
 
-fav_entry='{"label":"Kids Mode","launch":"/mnt/SDCARD/App/KidsMode/launch.sh","type":5,"imgpath":"/mnt/SDCARD/Icons/Default/app/guest_on.png","rompath":"/mnt/SDCARD/App/KidsMode/launch.sh"}'
+fav_entry='{"label":"Kids Mode","launch":"/mnt/SDCARD/App/KidsMode/launch.sh","type":5,"imgpath":"/mnt/SDCARD/Icons/Default/app/kidsmode.png","rompath":"/mnt/SDCARD/App/KidsMode/launch.sh"}'
 fav_launch=/mnt/SDCARD/App/KidsMode/launch.sh
 
 # An earlier version appended the shortcut without checking that the file

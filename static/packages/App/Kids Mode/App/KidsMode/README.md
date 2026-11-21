@@ -75,8 +75,11 @@ V4 display sizes are supported in the code, but feedback is welcome.
    Media section below.
 6. Reinsert the SD card, refresh the Apps list or reboot, then open
    **Apps → Kids Mode**.
-7. On first launch, choose and confirm a four-digit PIN, then select a session
-   timer or choose `OFF`.
+7. On first launch, choose and confirm a four-digit PIN. Then, on every
+   launch, **Start Kids Mode** asks for the profile (Main or Guest) and the
+   session timer (or `OFF`); X opens **Controls & tips**. Starting shows a
+   reminder of how to leave: hold SELECT + START in the carousel, enter the
+   PIN, then choose **Exit Kids Mode**.
 
 Kids Mode remains active after a reboot until it is exited through the
 parent menu.
@@ -278,10 +281,13 @@ choose:
     Stories.
 - **Exit Kids Mode** — restore RedOnion and return to its normal interface.
 
+SELECT on an item shows a short note about it, as in Tweaks; SELECT, A or B
+hides it again.
+
 B leaves the parent menu and goes back to the child interface. X opens
-**Controls & tips**: the shortcuts of this README on two pages (LEFT/RIGHT),
-with the carousel, games, the media player, where the media go and how to
-reset a forgotten PIN. A or B goes back to the menu.
+**Controls & tips**: the shortcuts of this README on three pages
+(LEFT/RIGHT), with the carousel, the media player, games, where the media go
+and how to reset a forgotten PIN. A or B goes back to the menu.
 
 ## Timer and resume behavior
 

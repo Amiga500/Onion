@@ -117,7 +117,9 @@ typedef enum { SCREEN_CAROUSEL,
                SCREEN_PICKTIMER,
                SCREEN_PICKPROFILE,
                SCREEN_CONFIRM_RESTART,
-               SCREEN_HELP } Screen;
+               SCREEN_HELP,
+               SCREEN_CONFIRM_START,
+               SCREEN_INFO } Screen;
 
 #define MENU_SWITCHPROFILE 0
 #define MENU_ADDTIME 1
@@ -448,6 +450,7 @@ static TTF_Font *font_episode_sizes[GAME_LABEL_FONT_SIZE + 1] = {NULL};
 static TTF_Font *font_bigvalue = NULL;  // theme title font, large
 static TTF_Font *font_restart_title = NULL; // restart dialog, medium-large
 static TTF_Font *font_info = NULL;      // theme list font, sentence-sized
+static TTF_Font *font_help_key = NULL;  // theme hint font, sentence-sized
 
 // Fonts are loaded lazily (on first actual use) rather than all three
 // unconditionally at startup: each screen (PIN, timer picker, menu,
@@ -504,6 +507,16 @@ static TTF_Font *getFontInfo(void)
         font_info =
             theme_loadFont(theme()->path, theme()->list.font, INFO_FONT_SIZE);
     return font_info;
+}
+
+// Controls & tips: the keys in the theme's hint face (the one of the
+// footer's button labels), at the size of the sentences next to them.
+static TTF_Font *getFontHelpKey(void)
+{
+    if (font_help_key == NULL)
+        font_help_key =
+            theme_loadFont(theme()->path, theme()->hint.font, INFO_FONT_SIZE);
+    return font_help_key;
 }
 
 // Solid panels drawn over the theme background (PIN boxes, art fallback).
@@ -946,6 +959,25 @@ static SDL_Surface *loadIconX(void)
     if (theme_getImagePath(theme()->path, "icon-X-54", themed_path) > 0) {
         img = IMG_Load(themed_path);
         bundled = img == NULL;
+    }
+    // The X the rest of RedOnion shows for the theme (GameSwitcher, Tweaks):
+    // its skin/extra/icon-X-54.png (Silky RedOnion's red one), or the one
+    // RedOnion ships for it in .tmp_update/res/theme-x. Not the plain white
+    // last resort: the bundled badge, tinted, looks better than that.
+    if (img == NULL &&
+        theme_getImagePath(theme()->path, "extra/icon-X-54", themed_path) > 0) {
+        img = IMG_Load(themed_path);
+        bundled = img == NULL;
+    }
+    if (img == NULL) {
+        char name[STR_MAX];
+        if (theme_bundledButtonXName(theme()->path, name, sizeof(name))) {
+            theme_getImagePath(theme()->path, name, themed_path);
+            if (access(themed_path, F_OK) == 0) {
+                img = IMG_Load(themed_path);
+                bundled = img == NULL;
+            }
+        }
     }
     if (img == NULL)
         img = IMG_Load(ICON_X_PATH);
@@ -3577,62 +3609,132 @@ static void renderSettingsList(List *list, const char *title)
     theme_renderFooterStatus(screen, list->active_pos + 1, list->item_count);
 }
 
-// "Controls & tips" (X in the parent menu): the shortcuts that are hard to
-// find without the README, on two read-only pages (LEFT/RIGHT). A or B goes
-// back to the menu. Checked against kidsplay_ui.inc (player) and the
-// carousel's own keys.
+// "Controls & tips" (X in the parent menu and in Start Kids Mode): the
+// shortcuts that are hard to find without the README, on read-only pages
+// (LEFT/RIGHT). A or B goes back to the screen it was opened from. Checked
+// against kidsplay_ui.inc (player) and the carousel's own keys.
+// Each page: section titles with a line under them, then the keys in a
+// column (accent color) and what they do next to them (white).
+#define HELP_PAGES 3
 static int help_page = 0;
+static Screen help_return = SCREEN_MENU;
+
+typedef struct {
+    const char *key; // NULL: a section title (text); "": the line above goes on
+    const char *text;
+} HelpLine;
+
+static const HelpLine help_page1[] = {
+    {NULL, "Open the parent menu"},
+    {"SELECT+START", "hold 3 seconds, then the PIN"},
+    {NULL, "On the carousel"},
+    {"LEFT/RIGHT", "browse"},
+    {"UP/DOWN", "games <-> videos"},
+    {"A", "play, or open a folder"},
+    {"B", "back one folder"},
+    {"X", "start over (asks first)"},
+    {"Hold Y", "battery (instead of the time left)"},
+};
+static const HelpLine help_page2[] = {
+    {NULL, "In a video or audio"},
+    {"B / A", "pause / resume"},
+    {"MENU", "back (pressed alone)"},
+    {"MENU+LEFT/RIGHT", "10 s  (held: 1 min)"},
+    {"MENU+UP/DOWN", "5 min  (held: 10 min)"},
+    {"MENU+X+Y", "paused only: this frame becomes"},
+    {"", "the video's picture in the carousel"},
+    {"Hold Y", "battery (and time left if timed)"},
+};
+static const HelpLine help_page3[] = {
+    {NULL, "In a game"},
+    {"MENU", "saves and goes back to the carousel"},
+    {NULL, "Files"},
+    {"Media", "SD card > Media/KidsMode"},
+    {"Forgot the PIN?", "App/KidsMode/CHANGE-PIN.txt"},
+};
+
+// The color of the theme's buttons, as the X badge and the last-played
+// marker use (red in Silky RedOnion, violet in a violet theme), or RedOnion
+// red where that is as light as the text: the keys must stand out.
+static SDL_Color helpAccent(void)
+{
+    uint32_t hex = markerAccentHex();
+    SDL_Color c = {(hex >> 16) & 255, (hex >> 8) & 255, hex & 255};
+    if (c.r > 200 && c.g > 200 && c.b > 200)
+        return (SDL_Color){0xC4, 0x3B, 0x59};
+    return c;
+}
 
 static void renderHelp(int page)
 {
-    typedef struct {
-        bool heading;
-        const char *text;
-    } HelpLine;
-    static const HelpLine page1[] = {
-        {true, "Parent menu"},
-        {false, "Hold SELECT+START for 3 seconds"},
-        {true, "Carousel"},
-        {false, "LEFT/RIGHT  browse      UP/DOWN  games <-> videos"},
-        {false, "A  play, or open a folder      B  back one folder"},
-        {false, "X  start over (asks first)"},
-        {false, "Hold Y  battery (instead of the time left)"},
-        {true, "In a game"},
-        {false, "MENU  saves and goes back to the carousel"},
-    };
-    static const HelpLine page2[] = {
-        {true, "Videos and audio"},
-        {false, "B  pause      A  resume      MENU alone  back"},
-        {false, "MENU+LEFT/RIGHT  10 s  (held: 1 min)"},
-        {false, "MENU+UP/DOWN  5 min  (held: 10 min)"},
-        {false, "Paused: MENU+X+Y makes the frame its cover"},
-        {false, "Hold Y  battery (and time left, with a timer)"},
-        {true, "Files"},
-        {false, "Media: SD card > Media/KidsMode"},
-        {false, "Forgot the PIN? See App/KidsMode/CHANGE-PIN.txt"},
-    };
-    const HelpLine *lines = page == 0 ? page1 : page2;
-    int count = page == 0 ? (int)(sizeof(page1) / sizeof(page1[0]))
-                          : (int)(sizeof(page2) / sizeof(page2[0]));
+    const HelpLine *lines = help_page1;
+    int count = (int)(sizeof(help_page1) / sizeof(help_page1[0]));
+    if (page == 1) {
+        lines = help_page2;
+        count = (int)(sizeof(help_page2) / sizeof(help_page2[0]));
+    }
+    else if (page == 2) {
+        lines = help_page3;
+        count = (int)(sizeof(help_page3) / sizeof(help_page3[0]));
+    }
 
     renderBase();
     theme_renderHeader(screen, "Controls & tips", false);
     theme_renderHeaderBattery(screen, batteryPercentage());
 
-    TTF_Font *font = getFontInfo();
-    int top = (int)(84.0 * g_scale);
-    int step = (int)(32.0 * g_scale);
-    int x = (int)(24.0 * g_scale);
+    TTF_Font *title_font = resource_getFont(TITLE);
+    TTF_Font *key_font = getFontHelpKey();
+    TTF_Font *text_font = getFontInfo();
+    SDL_Color accent = helpAccent();
+    uint32_t accent_hex = ((uint32_t)accent.r << 16) |
+                          ((uint32_t)accent.g << 8) | accent.b;
+
+    int left = (int)(32.0 * g_scale);
+    int right = g_display.width - left;
+    int indent = left + (int)(12.0 * g_scale);
+    int gap = (int)(18.0 * g_scale);
+
+    // The key column: as wide as the page's widest key
+    int key_w = 0;
     for (int i = 0; i < count; i++) {
-        drawTextAlign(lines[i].text, lines[i].heading ? x : x + (int)(16.0 * g_scale),
-                      top + i * step, font,
-                      lines[i].heading ? theme()->hint.color : COLOR_WHITE,
-                      g_display.width - x * 2, TEXT_LEFT);
+        int w = 0, h = 0;
+        if (lines[i].key != NULL && key_font != NULL &&
+            TTF_SizeUTF8(key_font, lines[i].key, &w, &h) == 0 && w > key_w)
+            key_w = w;
+    }
+    int text_x = indent + key_w + gap;
+
+    int y = (int)(84.0 * g_scale);
+    int row = (int)(30.0 * g_scale);
+    int title_row = (int)(34.0 * g_scale);
+    for (int i = 0; i < count; i++) {
+        if (lines[i].key == NULL) {
+            if (i > 0)
+                y += (int)(10.0 * g_scale); // space before a new section
+            drawTextAlign(lines[i].text, left, y, title_font, COLOR_WHITE,
+                          right - left, TEXT_LEFT);
+            int line_h = (int)(2.0 * g_scale);
+            fillRect(left, y + (int)(16.0 * g_scale), right - left,
+                     line_h > 0 ? line_h : 1, accent_hex);
+            y += title_row;
+        }
+        else {
+            // Same baseline as the sentence (the two faces differ)
+            int key_y = y;
+            if (key_font != NULL && text_font != NULL)
+                key_y += (TTF_FontAscent(text_font) - TTF_FontHeight(text_font) / 2) -
+                         (TTF_FontAscent(key_font) - TTF_FontHeight(key_font) / 2);
+            drawTextAlign(lines[i].key, indent, key_y, key_font, accent, key_w,
+                          TEXT_LEFT);
+            drawTextAlign(lines[i].text, text_x, y, text_font, COLOR_WHITE,
+                          right - text_x, TEXT_LEFT);
+            y += row;
+        }
     }
 
     theme_renderFooter(screen);
     theme_renderStandardHint(screen, "OK", "BACK");
-    theme_renderFooterStatus(screen, page + 1, 2);
+    theme_renderFooterStatus(screen, page + 1, HELP_PAGES);
 }
 
 static void renderPin(const char *title, bool show_intro)
@@ -3762,7 +3864,23 @@ static void renderPickProfile(List *list)
     theme_renderHeaderBattery(screen, batteryPercentage());
     theme_renderList(screen, list);
     theme_renderFooter(screen);
-    theme_renderStandardHint(screen, "START", "CANCEL");
+    FooterHint hints[] = {{resource_getSurface(BUTTON_A), "START"},
+                          {resource_getSurface(BUTTON_B), "CANCEL"},
+                          {footerIconX(), "HELP"}};
+    renderFooterHints(hints, 3);
+}
+
+// Before Kids Mode starts (Veuks): how to get out of it again. The PIN
+// setup says it too, but only the first time.
+static void renderConfirmStart(List *list)
+{
+    renderPickProfile(list);
+    theme_renderDialog(screen, "Start Kids Mode",
+                       "To leave Kids Mode later:\n"
+                       "in the carousel, hold SELECT+START\n"
+                       "for 3 seconds, enter the PIN,\n"
+                       "then choose Exit Kids Mode.",
+                       true);
 }
 
 static void flip(void)
@@ -4018,49 +4136,80 @@ int main(int argc, char *argv[])
 
     // Parent menu list (native Onion list component)
     List menu_list = list_create(5, LIST_SMALL);
+    // SELECT on an item: its note (as in Tweaks), SELECT, A or B hides it
     if (strcmp(menu_switch_profile, "Main") == 0)
-        list_addItem(&menu_list,
-                     (ListItem){.label = "Switch to Main profile",
-                                .item_type = ACTION});
+        list_addItemWithInfoNote(&menu_list,
+                                 (ListItem){.label = "Switch to Main profile",
+                                            .item_type = ACTION},
+                                 "Kids Mode goes on with the Main\n"
+                                 "profile's games and saves.");
     else if (strcmp(menu_switch_profile, "Guest") == 0)
-        list_addItem(&menu_list,
-                     (ListItem){.label = "Switch to Guest profile",
-                                .item_type = ACTION});
+        list_addItemWithInfoNote(&menu_list,
+                                 (ListItem){.label = "Switch to Guest profile",
+                                            .item_type = ACTION},
+                                 "Kids Mode goes on with the Guest\n"
+                                 "profile's games and saves.");
     else
-        list_addItem(&menu_list,
-                     (ListItem){.label = "Profile switch unavailable",
-                                .item_type = ACTION,
-                                .disabled = true});
-    list_addItem(&menu_list, (ListItem){.label = "Add play time",
+        list_addItemWithInfoNote(&menu_list,
+                                 (ListItem){.label = "Profile switch unavailable",
+                                            .item_type = ACTION,
+                                            .disabled = true},
+                                 "The other profile's folder is missing\n"
+                                 "(Saves/GuestProfile or MainProfile).");
+    list_addItemWithInfoNote(&menu_list,
+                             (ListItem){.label = "Add play time",
                                         .item_type = MULTIVALUE,
                                         .value_min = 0,
                                         .value_max = TIMER_MAX / TIMER_STEP,
                                         .value = 1,
-                                        .value_formatter = formatAddMinutes});
-    list_addItem(&menu_list,
-                 (ListItem){.label = "Save/load states",
-                            .item_type = TOGGLE,
-                            .value = menu_allow_save_states,
-                            .action = onSaveStatesToggle});
-    list_addItem(&menu_list,
-                 (ListItem){.label = "Carousel settings",
-                            .item_type = ACTION});
-    list_addItem(&menu_list,
-                 (ListItem){.label = "Exit Kids Mode",
-                            .item_type = ACTION});
+                                        .value_formatter = formatAddMinutes},
+                             "LEFT/RIGHT picks the minutes, A adds\n"
+                             "them to this session.\n"
+                             "OFF: no time limit for the rest\n"
+                             "of the session.");
+    list_addItemWithInfoNote(&menu_list,
+                             (ListItem){.label = "Save/load states",
+                                        .item_type = TOGGLE,
+                                        .value = menu_allow_save_states,
+                                        .action = onSaveStatesToggle},
+                             "Let the child use RetroArch's save\n"
+                             "and load state hotkeys in games,\n"
+                             "or keep them locked.");
+    list_addItemWithInfoNote(&menu_list,
+                             (ListItem){.label = "Carousel settings",
+                                        .item_type = ACTION},
+                             "What the carousel shows: games,\n"
+                             "media or both, and which media\n"
+                             "folders.");
+    list_addItemWithInfoNote(&menu_list,
+                             (ListItem){.label = "Exit Kids Mode",
+                                        .item_type = ACTION},
+                             "Restore RedOnion and go back to\n"
+                             "its normal interface.");
 
     List carousel_settings_list = list_create(2, LIST_SMALL);
-    list_addItem(&carousel_settings_list,
-                 (ListItem){.label = "Content access",
-                            .item_type = MULTIVALUE,
-                            .value_min = 0,
-                            .value_max = 2,
-                            .value = menu_lock_floor >= 0 && menu_lock_floor <= 2
-                                         ? menu_lock_floor : 0,
-                            .value_formatter = formatCarouselFloors,
-                            .action = onLockFloorToggle});
-    list_addItem(&carousel_settings_list,
-                 (ListItem){.label = "Media folders", .item_type = ACTION});
+    list_addItemWithInfoNote(&carousel_settings_list,
+                             (ListItem){.label = "Content access",
+                                        .item_type = MULTIVALUE,
+                                        .value_min = 0,
+                                        .value_max = 2,
+                                        .value = menu_lock_floor >= 0 &&
+                                                         menu_lock_floor <= 2
+                                                     ? menu_lock_floor
+                                                     : 0,
+                                        .value_formatter = formatCarouselFloors,
+                                        .action = onLockFloorToggle},
+                             "Which floors the child can reach\n"
+                             "with UP/DOWN: Games&Media,\n"
+                             "Games only or Media only.");
+    list_addItemWithInfoNote(&carousel_settings_list,
+                             (ListItem){.label = "Media folders",
+                                        .item_type = ACTION},
+                             "Show or hide Movies, Music,\n"
+                             "Cartoons, Series and Stories.");
+    // The note open (SCREEN_INFO): its list and the screen under it
+    List *info_list = NULL;
+    Screen info_return = SCREEN_MENU;
 
     List category_list = list_create(5, LIST_SMALL);
     list_addItem(&category_list,
@@ -4411,6 +4560,26 @@ int main(int argc, char *argv[])
                     break;
                 case SW_BTN_A:
                 case SW_BTN_START:
+                    active_screen = SCREEN_CONFIRM_START;
+                    dirty = true;
+                    break;
+                case SW_BTN_X:
+                    help_page = 0;
+                    help_return = SCREEN_PICKPROFILE;
+                    active_screen = SCREEN_HELP;
+                    dirty = true;
+                    break;
+                case SW_BTN_B:
+                    exit_code = 1;
+                    quit = true;
+                    break;
+                default:
+                    break;
+                }
+            }
+            else if (active_screen == SCREEN_CONFIRM_START) {
+                switch (changed_key) {
+                case SW_BTN_A:
                     {
                     char minutes_str[16];
                     snprintf(minutes_str, sizeof(minutes_str), "%d",
@@ -4423,8 +4592,8 @@ int main(int argc, char *argv[])
                     break;
                     }
                 case SW_BTN_B:
-                    exit_code = 1;
-                    quit = true;
+                    active_screen = SCREEN_PICKPROFILE;
+                    dirty = true;
                     break;
                 default:
                     break;
@@ -4432,9 +4601,18 @@ int main(int argc, char *argv[])
             }
             else if (active_screen == SCREEN_MENU) {
                 switch (changed_key) {
+                case SW_BTN_SELECT:
+                    if (list_hasInfoNote(&menu_list)) {
+                        info_list = &menu_list;
+                        info_return = SCREEN_MENU;
+                        active_screen = SCREEN_INFO;
+                        dirty = true;
+                    }
+                    break;
                 case SW_BTN_X:
                     // "X HELP" in the footer: the menu keeps its 5 rows
                     help_page = 0;
+                    help_return = SCREEN_MENU;
                     active_screen = SCREEN_HELP;
                     dirty = true;
                     break;
@@ -4502,19 +4680,39 @@ int main(int argc, char *argv[])
                 }
             }
             else if (active_screen == SCREEN_HELP) {
-                // LEFT/RIGHT: the other page. A (OK) or B (BACK): back to
-                // the parent menu.
-                if (changed_key == SW_BTN_LEFT || changed_key == SW_BTN_RIGHT) {
-                    help_page = 1 - help_page;
+                // LEFT/RIGHT: the previous or next page. A (OK) or B (BACK):
+                // back to the screen the help was opened from.
+                if (changed_key == SW_BTN_RIGHT) {
+                    help_page = (help_page + 1) % HELP_PAGES;
+                    dirty = true;
+                }
+                else if (changed_key == SW_BTN_LEFT) {
+                    help_page = (help_page + HELP_PAGES - 1) % HELP_PAGES;
                     dirty = true;
                 }
                 else if (changed_key == SW_BTN_A || changed_key == SW_BTN_B) {
-                    active_screen = SCREEN_MENU;
+                    active_screen = help_return;
+                    dirty = true;
+                }
+            }
+            else if (active_screen == SCREEN_INFO) {
+                // SELECT again, A or B: back to the list (as in Tweaks)
+                if (changed_key == SW_BTN_SELECT || changed_key == SW_BTN_A ||
+                    changed_key == SW_BTN_B) {
+                    active_screen = info_return;
                     dirty = true;
                 }
             }
             else if (active_screen == SCREEN_CAROUSEL_SETTINGS) {
                 switch (changed_key) {
+                case SW_BTN_SELECT:
+                    if (list_hasInfoNote(&carousel_settings_list)) {
+                        info_list = &carousel_settings_list;
+                        info_return = SCREEN_CAROUSEL_SETTINGS;
+                        active_screen = SCREEN_INFO;
+                        dirty = true;
+                    }
+                    break;
                 case SW_BTN_UP:
                     list_keyUp(&carousel_settings_list, false);
                     dirty = true;
@@ -4786,6 +4984,21 @@ int main(int argc, char *argv[])
             case SCREEN_CONFIRM_RESTART:
                 renderConfirmRestart(games[current].item.label, remaining);
                 break;
+            case SCREEN_CONFIRM_START:
+                renderConfirmStart(&profile_list);
+                break;
+            case SCREEN_INFO:
+                if (info_return == SCREEN_CAROUSEL_SETTINGS)
+                    renderSettingsList(&carousel_settings_list,
+                                       "Carousel settings");
+                else
+                    renderMenu(&menu_list, menu_remaining);
+                if (info_list != NULL && list_currentItem(info_list) != NULL)
+                    theme_renderDialog(screen,
+                                       list_currentItem(info_list)->label,
+                                       list_currentItem(info_list)->info_note,
+                                       false);
+                break;
             }
             if (hold_started != 0)
                 renderHoldBar(ticks - hold_started);
@@ -4833,6 +5046,8 @@ int main(int argc, char *argv[])
         TTF_CloseFont(font_restart_title);
     if (font_info != NULL)
         TTF_CloseFont(font_info);
+    if (font_help_key != NULL)
+        TTF_CloseFont(font_help_key);
     list_free(&menu_list);
     list_free(&carousel_settings_list);
     list_free(&category_list);
