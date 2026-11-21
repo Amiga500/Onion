@@ -482,10 +482,12 @@ install_retroarch() {
         return
     fi
 
-    # Backup old RA configuration
+    # Backup old RA configuration (put back by restore_ra_config on an update)
     cd /mnt/SDCARD/RetroArch
     mkdir -p /mnt/SDCARD/Backup
-    mv .retroarch/retroarch.cfg /mnt/SDCARD/Backup/
+    if [ -f .retroarch/retroarch.cfg ] && mv -f .retroarch/retroarch.cfg /mnt/SDCARD/Backup/; then
+        ra_cfg_saved=1
+    fi
 
     # Remove old RetroArch before unzipping
     maybe_remove_retroarch
@@ -530,7 +532,9 @@ maybe_remove_retroarch() {
 restore_ra_config() {
     echo ":: Restore RA config"
     cfg_file=/mnt/SDCARD/Backup/retroarch.cfg
-    if [ -f $cfg_file ]; then
+    # Only the copy install_retroarch made in this run: a Backup/retroarch.cfg
+    # of the user's (or left by an older run) is not the live configuration.
+    if [ "$ra_cfg_saved" = 1 ] && [ -f $cfg_file ]; then
         mv -f $cfg_file /mnt/SDCARD/RetroArch/.retroarch/
     fi
 }

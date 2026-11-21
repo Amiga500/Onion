@@ -5807,6 +5807,30 @@ eval "$link_part"
 check "a link already there stays a link" test "$(readlink "$TMP/appconfigs/system.json")" = "$TMP/sd/system.json"
 end
 
+# ---- installer: only the RetroArch configuration moved by this run is put back ----
+
+begin installer_restores_only_its_own_ra_cfg
+IN="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
+eval "$(extract_fn "$IN" install_retroarch | sed "s#/mnt/SDCARD/#$TMP/sd/#g")"
+eval "$(extract_fn "$IN" restore_ra_config | sed "s#/mnt/SDCARD/#$TMP/sd/#g")"
+mkdir -p "$TMP/sd/RetroArch/.retroarch" "$TMP/sd/Backup"
+echo live > "$TMP/sd/RetroArch/.retroarch/retroarch.cfg"
+echo "user's old copy" > "$TMP/sd/Backup/retroarch.cfg"
+# An update that does not install RetroArch
+( ra_cfg_saved=; restore_ra_config > /dev/null )
+check "no RetroArch this time: the live cfg stays" test "$(cat "$TMP/sd/RetroArch/.retroarch/retroarch.cfg")" = live
+check "and the user's copy stays" test -f "$TMP/sd/Backup/retroarch.cfg"
+# An update that installs RetroArch
+(
+    RA_PACKAGE_FILE=$TMP/ra.zip; : > "$RA_PACKAGE_FILE"
+    maybe_remove_retroarch() { :; }; unzip_progress() { :; }
+    install_retroarch "x" > /dev/null
+    restore_ra_config > /dev/null
+)
+check "with RetroArch: the live cfg comes back" test "$(cat "$TMP/sd/RetroArch/.retroarch/retroarch.cfg")" = live
+unset -f install_retroarch restore_ra_config
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
