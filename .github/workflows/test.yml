@@ -1,7 +1,9 @@
 name: Test build
 on:
   push:
-    branches: [onionplus-compact]
+    # beta/*: the branches RedOnion's commits go to directly (they had no
+    # run: only pull requests and onionplus-compact were tested)
+    branches: [onionplus-compact, 'beta/**']
   pull_request:
     paths-ignore:
       - '**/README.md'
