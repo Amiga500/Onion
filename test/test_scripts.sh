@@ -240,8 +240,7 @@ st_env() {
     done
     sysdir=$TMP/sd
     mkdir -p "$sysdir/bin" "$TMP/proc"
-    st_bin=$sysdir/bin/syncthing
-    st_stamp=$sysdir/bin/syncthing.version
+    eval "$(grep -e '^st_bin=' -e '^st_stamp=' "$SYNCTHING")"
     st_dl=$sysdir/download/syncthing
     st_lock=$TMP/st_lock
     st_failed=$TMP/st_failed
@@ -279,6 +278,7 @@ check "the lock is released" test ! -e "$st_lock"
 ST_SHA256=$(sha256sum "$TMP/st.tar.gz" | awk '{ print $1 }')
 st_install
 check "right checksum: installed" test -s "$st_bin" -a -x "$st_bin"
+check "in .tmp_update/etc, which the update trigger keeps" sh -c 'case "$1" in "$2"/etc/*) ;; *) exit 1 ;; esac && grep -q -- "-not -name \"etc\"" "$3"' _ "$st_bin" "$sysdir" "$ROOT/static/dist/miyoo/app/MainUI"
 check "for this version" st_installed
 ST_VERSION=9.9.10
 not_installed() { ! st_installed; }
@@ -772,6 +772,82 @@ touch "$TMP/background"
 PATH="$TMP/stub:$PATH" sh "$TMP/Scraper.sh" GB "" > /dev/null 2>&1
 n=0; while [ ! -f "$TMP/job_log" ] && [ $n -lt 50 ]; do sleep 0.1; n=$((n + 1)); done; sleep 0.2
 check "background job run, then the governor back" test -f "$TMP/job_log" -a "$(cat "$TMP/governor")" = ondemand
+end
+
+# ---- time sync: the RTC is written in UTC, by both ways ----
+
+begin time_sync_writes_the_rtc_in_utc
+gt_run() { # api|ntp -> the hwclock calls
+    rm -f "$TMP/hw"
+    (
+        eval "$(extract_fn "$NETWORK" get_time | sed "s#/tmp/ntp_synced#$TMP/ntp_synced#g")"
+        sysdir=$TMP
+        log() { :; }
+        flag_enabled() { return 1; }
+        playActivity() { :; }
+        play_activity_resume() { :; }
+        store_tz() { :; }
+        jq() { :; }
+        date() { return 0; }
+        hwclock() { echo "hwclock $*" >> "$TMP/hw"; }
+        ntpdate() { return 0; }
+        if [ "$1" = api ]; then
+            curl() { printf 'utc_datetime: 2026-11-21T03:00:00.000000+00:00\nutc_offset: -05:00\n'; }
+        else
+            curl() { :; }
+        fi
+        get_time
+    ) > /dev/null 2>&1
+    cat "$TMP/hw" 2> /dev/null
+}
+check "web API: hwclock -w -u" test "$(gt_run api)" = "hwclock -w -u"
+check "NTP fallback: hwclock -w -u" test "$(gt_run ntp)" = "hwclock -w -u"
+unset -f gt_run
+end
+
+# ---- System log snapshot: no Wi-Fi name or key in the archive ----
+
+begin snapshot_redacts_wifi_keys
+eval "$(extract_fn "$ROOT/static/build/.tmp_update/script/diagnostics/util_snapshot.sh" get_wpa_supplicant)"
+wpa_conf_path=$TMP/wpa_supplicant.conf
+cat > "$wpa_conf_path" << 'WPA'
+ctrl_interface=/var/run/wpa_supplicant
+update_config=1
+network={
+	ssid="HomeNet"
+	psk="typed-passphrase-1"
+	key_mgmt=WPA-PSK
+}
+network={
+	ssid="Second"
+	psk=5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
+}
+network={
+	ssid="Third"
+	psk="first"SECOND-HALF"
+}
+network={
+	ssid=436166c3a9
+	key_mgmt=SAE
+	sae_password="sae-secret-3"
+}
+#	psk="old-commented-key"
+network={
+	ssid="Corp"
+	key_mgmt=WPA-EAP
+	identity="someone@example.org"
+	password="eap-secret-4"
+	wep_key0=0102030405
+}
+WPA
+out=$(get_wpa_supplicant)
+leak=""
+for secret in HomeNet typed-passphrase-1 5e884898da28 SECOND-HALF 436166c3a9 sae-secret-3 old-commented-key someone@example.org eap-secret-4 0102030405 Corp Third Second; do
+    case "$out" in *"$secret"*) leak="$leak $secret" ;; esac
+done
+check "no name or key left:${leak:- none}" test -z "$leak"
+check "the rest of the file is kept" sh -c 'printf "%s\n" "$1" | grep -q "^update_config=1$" && printf "%s\n" "$1" | grep -q "key_mgmt=SAE"' _ "$out"
+unset -f get_wpa_supplicant
 end
 
 # ---- no grep -x in what is shipped: BusyBox 1.20.2 (the firmware's) ----
