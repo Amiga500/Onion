@@ -134,10 +134,17 @@ SDL_Surface *_loadImage(ThemeImages request)
     case BATTERY_80:
         return theme_loadImage(t->path, "power-80%-icon");
     case BATTERY_100:
+        // "_back" is the copy an older battery percentage method left next
+        // to the icon it had drawn on: used when it sits where the icon is
+        // (both in the theme, or both overridden). Both missing (0, the stock
+        // skin) is not that: the stock skin has no "_back", the icon was NULL
+        // and every program that draws the battery crashed at 70 % or more
+        // with a theme that leaves this icon to the stock skin.
         real_location = theme_getImagePath(t->path, "power-full-icon", NULL);
         backup_location =
             theme_getImagePath(t->path, "power-full-icon_back", NULL);
-        return theme_loadImage(t->path, real_location == backup_location
+        return theme_loadImage(t->path, real_location == backup_location &&
+                                                backup_location != 0
                                             ? "power-full-icon_back"
                                             : "power-full-icon");
     case BATTERY_CHARGING:

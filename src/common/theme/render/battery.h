@@ -51,6 +51,15 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
     // Battery icon
     ThemeImages icon_request = _getBatteryRequest(percentage);
     SDL_Surface *icon = resource_getSurface(icon_request);
+    // A picture that cannot be loaded anywhere (missing, cut, not a PNG):
+    // an empty icon instead of a crash in every program that draws it
+    SDL_Surface *no_icon = NULL;
+    if (icon == NULL) {
+        no_icon = SDL_CreateRGBSurface(0, 1, 1, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+        if (no_icon == NULL)
+            return NULL;
+        icon = no_icon;
+    }
 
     SDL_Surface *image = NULL;
     SDL_Surface *text = TTF_RenderUTF8_Blended(font, buffer, style->color);
@@ -162,6 +171,8 @@ SDL_Surface *theme_batterySurfaceWithBg(int percentage, SDL_Surface *background)
 
     SDL_FreeSurface(text);
     SDL_FreeSurface(icon);
+    if (no_icon != NULL)
+        SDL_FreeSurface(no_icon);
 
     return image;
 }
