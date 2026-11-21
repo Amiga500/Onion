@@ -34,8 +34,14 @@ if [ ! -f "$auto_core_marker" ]; then
 fi
 
 # Helper: Check if the ROM exists in the migration log
+# (a whole line: not grep -Fx, which BusyBox 1.20.2 takes as a substring
+# search, so "Mario.gba" was found in "Super Mario.gba")
 needs_migration() {
-    grep -Fxq "$romname" "$migration_log" && return 0 || return 1
+    [ -f "$migration_log" ] || return 1
+    while IFS= read -r _nm_line || [ -n "$_nm_line" ]; do
+        [ "$_nm_line" = "$romname" ] && return 0
+    done < "$migration_log"
+    return 1
 }
 
 # Show info panel about migration

@@ -972,7 +972,16 @@ Consoles_List ()
     for cdir in "$1"/*/; do
         [ -d "$cdir" ] || continue
         csys=$(basename "$cdir")
-        echo "$known" | grep -qxF "$csys" || continue
+        # A whole line of the list (not grep -xF: a substring search in
+        # BusyBox 1.20.2)
+        case "
+$known
+" in
+            *"
+$csys
+"*) ;;
+            *) continue ;;
+        esac
         find "$cdir" -maxdepth 2 -type f ! -name '.*' ! -name '*.xml' \
             ! -name '*.xml.*' ! -name '*.db' ! -name '*.cfg' ! -name '*.miyoocmd' \
             ! -name '*.json' ! -path '*/Imgs/*' ! -path '*/media/*' ! -path '*/.*/*' 2> /dev/null |

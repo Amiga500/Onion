@@ -343,12 +343,21 @@ gi_wanted() { # item
     return 1
 }
 
+# Is $1 a whole line of file $2? (Not grep -xF: BusyBox 1.20.2 takes it as
+# a substring search.)
+gi_has_line() {
+    while IFS= read -r _gl || [ -n "$_gl" ]; do
+        [ "$_gl" = "$1" ] && return 0
+    done < "$2"
+    return 1
+}
+
 # The wanted items this ROM is still missing, one per line.
 gi_missing() {
     for gi_item in desc box2dfront box2dback box3d screenshot video manual; do
         gi_wanted "$gi_item" || continue
         [ -f "$gi_root/media/.gameinfo_none" ] &&
-            grep -qxF "$gi_item $gi_rel" "$gi_root/media/.gameinfo_none" && continue
+            gi_has_line "$gi_item $gi_rel" "$gi_root/media/.gameinfo_none" && continue
         case "$gi_item" in
             desc)
                 gi_has_entry && continue ;;

@@ -229,10 +229,16 @@ restore_flag_pairs() {
             *_) _rf_other=${_rf_name%_} ;;
             *) _rf_other=${_rf_name}_ ;;
         esac
-        # Both in the backup: nothing of the pair is left over.
-        if printf '%s\n' "$_rf_list" | grep -qxF -- "$_rf_other"; then
-            continue
-        fi
+        # Both in the backup: nothing of the pair is left over. (Not
+        # grep -xF: BusyBox 1.20.2 ignores -x with -F, and ".name" was
+        # found in ".name_".)
+        case "
+$_rf_list
+" in
+            *"
+$_rf_other
+"*) continue ;;
+        esac
         if [ -f "$sysdir/config/$_rf_other" ]; then
             rm -f "$sysdir/config/$_rf_other"
             echo "Removed $_rf_other (the backup has $_rf_name)" >> "$LOG"
@@ -320,7 +326,8 @@ restore_backup() {
     # MainUI's settings: at boot RedOnion reads them from this device's copy
     # in .tmp_update/config/system (made at each shutdown), so the restored
     # ones go there too.
-    if archive_paths "$archive" | grep -qx "system.json"; then
+    # Not grep -x: in BusyBox 1.20.2 it never matches
+    if archive_paths "$archive" | grep -q '^system\.json$'; then
         uuid=$(read_uuid 2> /dev/null)
         if [ -n "$uuid" ]; then
             mkdir -p "$sysdir/config/system"

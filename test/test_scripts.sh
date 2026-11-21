@@ -751,6 +751,49 @@ check "no quotes" same_as_pipeline 'run b' "$R"
 check "path with \$ and spaces" same_as_pipeline 'run "x" "/mnt/SDCARD/Roms/A/\$weird name.zip"' '/mnt/SDCARD/Roms/A/$weird name.zip'
 end
 
+# ---- no grep -x in what is shipped: BusyBox 1.20.2 (the firmware's) ----
+# never matches with -x, and with -F it searches for a substring
+
+begin shipped_scripts_have_no_grep_x
+found=$(grep -rnE 'grep( +-[a-zA-Z]+)* +-[a-zA-Z]*x' "$ROOT/static" "$ROOT/src" --include='*.sh' 2> /dev/null |
+    grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' | sed "s#^$ROOT/##" | head -n 3)
+check "grep -x is used in: ${found:-nothing}" test -z "$found"
+# The forms used instead, as the console's tools run them
+check "whole line with ^...\$" sh -c "printf 'x abc\nabc\n' | grep -q '^abc\$'"
+check "the newline-wrapped case: a whole line only" sh -c '
+    l=".name_
+.other"
+    case "
+$l
+" in *"
+.name
+"*) exit 1 ;; esac
+    case "
+$l
+" in *"
+.name_
+"*) exit 0 ;; esac
+    exit 1'
+# The two helpers that replaced grep -xF
+eval "$(extract_fn "$ROOT/static/packages/Emu/Nintendo - GBA (gpSP)/Emu/GBA/launch.sh" needs_migration)"
+eval "$(extract_fn "$ROOT/static/build/.tmp_update/script/scraper/scrap_screenscraper.sh" gi_has_line)"
+not_needed() { ! needs_migration; }
+not_a_line() { ! gi_has_line "$@"; }
+migration_log=$TMP/migration.log
+printf 'Super Mario.gba\nZelda [!].gba' > "$migration_log"
+romname='Mario.gba'
+check "gpSP: a name inside another is not listed" not_needed
+romname='Zelda [!].gba'
+check "gpSP: the whole name, last line without a line end" needs_migration
+migration_log=$TMP/none
+check "gpSP: no migration log" not_needed
+printf 'box3d GB/Tetris.gb\n' > "$TMP/gameinfo_none"
+check "scraper: the whole line" gi_has_line 'box3d GB/Tetris.gb' "$TMP/gameinfo_none"
+check "scraper: part of a line is not it" not_a_line 'box3d GB/Tetris' "$TMP/gameinfo_none"
+unset -f not_needed not_a_line
+unset -f needs_migration gi_has_line
+end
+
 # ---- runtime.sh: get_full_resolution_path (vs the grep|sed pipeline) ----
 
 begin full_resolution_path_matches_pipeline

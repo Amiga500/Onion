@@ -163,7 +163,8 @@ wpa_supplicant_health_check() {
     log "Running wpa_supplicant health checks"
     if [[ -f "$wpa_conf_path" ]]; then
         echo "File $wpa_conf_path exists."
-        if grep -Fxq "ctrl_interface=/var/run/wpa_supplicant" "$wpa_conf_path" && grep -Fxq "update_config=1" "$wpa_conf_path"; then
+        # Whole lines (not grep -Fx: a substring search in BusyBox 1.20.2)
+        if grep -q '^ctrl_interface=/var/run/wpa_supplicant$' "$wpa_conf_path" && grep -q '^update_config=1$' "$wpa_conf_path"; then
             echo "Wpa_supplicant.conf contains the correct info"
         else
             echo "Wpa_supplicant.conf is missing the required headers"

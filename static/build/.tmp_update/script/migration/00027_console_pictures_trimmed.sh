@@ -17,7 +17,8 @@ removed=0
 for picture in "$THUMBS"/*.png; do
     [ -f "$picture" ] || continue
     sum=$(md5sum "$picture" | cut -d ' ' -f 1)
-    if grep -qx "$sum" "$OLD"; then
+    # Not grep -x: in BusyBox 1.20.2 (the firmware's) it never matches
+    if grep -q "^$sum\$" "$OLD"; then
         rm -f "$picture" && removed=$((removed + 1))
     fi
 done
