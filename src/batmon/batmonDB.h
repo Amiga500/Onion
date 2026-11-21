@@ -10,12 +10,8 @@ sqlite3 *bat_log_db = NULL;
 
 int open_battery_log_db(void)
 {
-    bool bat_log_db_created = is_file(BATTERY_LOG_FILE);
-
-    if (!bat_log_db_created) {
-        mkdir("/mnt/SDCARD/Saves/Common", 0777);
-        mkdir("/mnt/SDCARD/Saves/Common/battery_logs", 0777);
-    }
+    mkdir("/mnt/SDCARD/Saves/Common", 0777);
+    mkdir("/mnt/SDCARD/Saves/Common/battery_logs", 0777);
 
     if (sqlite3_open(BATTERY_LOG_FILE, &bat_log_db) != SQLITE_OK) {
         printf("%s\n", sqlite3_errmsg(bat_log_db));
@@ -24,18 +20,17 @@ int open_battery_log_db(void)
         return -1;
     }
 
-    if (!bat_log_db_created) {
-        sqlite3_exec(bat_log_db,
-                     "DROP TABLE IF EXISTS bat_activity;"
-                     "CREATE TABLE bat_activity(id INTEGER PRIMARY KEY, device_serial TEXT, bat_level INTEGER, duration INTEGER, is_charging INTEGER);"
-                     "CREATE INDEX bat_activity_device_SN_index ON bat_activity(device_serial);",
-                     NULL, NULL, NULL);
-        sqlite3_exec(bat_log_db,
-                     "DROP TABLE IF EXISTS device_specifics;"
-                     "CREATE TABLE device_specifics(id INTEGER PRIMARY KEY, device_serial TEXT, best_session INTEGER);"
-                     "CREATE INDEX device_specifics_index ON device_specifics(device_serial);",
-                     NULL, NULL, NULL);
-    }
+    // On every open, and never DROP: an empty file left by a failed first
+    // write gets its tables, and a failed stat() of a good file no longer
+    // empties the battery history.
+    sqlite3_exec(bat_log_db,
+                 "CREATE TABLE IF NOT EXISTS bat_activity(id INTEGER PRIMARY KEY, device_serial TEXT, bat_level INTEGER, duration INTEGER, is_charging INTEGER);"
+                 "CREATE INDEX IF NOT EXISTS bat_activity_device_SN_index ON bat_activity(device_serial);",
+                 NULL, NULL, NULL);
+    sqlite3_exec(bat_log_db,
+                 "CREATE TABLE IF NOT EXISTS device_specifics(id INTEGER PRIMARY KEY, device_serial TEXT, best_session INTEGER);"
+                 "CREATE INDEX IF NOT EXISTS device_specifics_index ON device_specifics(device_serial);",
+                 NULL, NULL, NULL);
 
     // start_time (Unix time when the entry began, NULL when unknown) came later: add it to
     // older logs, once per process. Appended last, so readers that use SELECT * with the
