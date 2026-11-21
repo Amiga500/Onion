@@ -3,9 +3,11 @@
 #
 # The Syncthing program (about 25 MB) is not part of the release: the first
 # start downloads the official linux-arm build of the version below and
-# checks it against its SHA-256 before using it. It is kept in .tmp_update/bin,
-# which updates don't remove, and downloaded again only when RedOnion moves
-# to another version.
+# checks it against its SHA-256 before using it. It is kept in
+# .tmp_update/etc/syncthing, which updates don't remove (the installer's
+# trigger keeps config, etc and onionVersion and replaces bin, where it was
+# kept before: every update downloaded it again), and downloaded again only
+# when RedOnion moves to another version.
 #
 # No folder is shared by default: the user adds folders and devices from the
 # web interface, http://<device IP>:8384 (user onion, password onion until
@@ -31,8 +33,8 @@ ST_GUI_PASSWORD=onion
 # Download plus the unpacked program (~25 MB), with some margin.
 ST_FREE_KB_NEEDED=51200
 
-st_bin=$sysdir/bin/syncthing
-st_stamp=$sysdir/bin/syncthing.version
+st_bin=$sysdir/etc/syncthing/syncthing
+st_stamp=$sysdir/etc/syncthing/syncthing.version
 st_home=$sysdir/config/syncthing
 st_dl=$sysdir/download/syncthing
 st_lock=/tmp/syncthing_install.lock
@@ -213,7 +215,8 @@ st_install_steps() {
         return 1
     fi
 
-    if ! mv -f "$st_dl/$_member" "$st_bin.new" ||
+    if ! mkdir -p "${st_bin%/*}" ||
+        ! mv -f "$st_dl/$_member" "$st_bin.new" ||
         ! chmod +x "$st_bin.new" ||
         ! mv -f "$st_bin.new" "$st_bin" ||
         ! echo "$ST_VERSION" > "$st_stamp"; then
