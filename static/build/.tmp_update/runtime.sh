@@ -1187,7 +1187,11 @@ get_full_resolution_path() {
                         _frp_m=${_frp_cmd#*\"}
                         case "$_frp_m" in
                             *'launch.sh"'*)
-                                _frp_f="${_frp_m%'launch.sh"'*}launch.sh"
+                                # Unquoted, the '"' escaped: with quotes inside
+                                # "${x%...}", BusyBox 1.20.2 ash (the firmware's)
+                                # took them as plain characters, cut nothing and
+                                # the 752x560 switch never happened (Mini v4, Flip)
+                                _frp_f=${_frp_m%launch.sh\"*}launch.sh
                                 while :; do
                                     case "$_frp_f" in
                                         *\"*) _frp_f="${_frp_f%%\"*}${_frp_f#*\"}" ;;

@@ -751,6 +751,30 @@ check "no quotes" same_as_pipeline 'run b' "$R"
 check "path with \$ and spaces" same_as_pipeline 'run "x" "/mnt/SDCARD/Roms/A/\$weird name.zip"' '/mnt/SDCARD/Roms/A/$weird name.zip'
 end
 
+# ---- runtime.sh: get_full_resolution_path (vs the grep|sed pipeline) ----
+
+begin full_resolution_path_matches_pipeline
+eval "$(extract_fn "$RUNTIME" get_full_resolution_path | sed "s#/tmp/new_res_available#$TMP/new_res_available#g")"
+sysdir=$TMP
+touch "$TMP/new_res_available"
+frp_same() { # command: the fast path gives what the pipeline gives
+    printf '%s\n' "$1" > "$TMP/cmd_to_run.sh"
+    _want=$(grep -o '".*launch\.sh"' "$TMP/cmd_to_run.sh" | sed 's/"//g; s/launch\.sh/full_resolution/')
+    [ "$(get_full_resolution_path)" = "$_want" ]
+}
+check "DraStic (a ROM name with spaces and brackets)" \
+    frp_same 'LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so "/mnt/SDCARD/Emu/NDS/launch.sh" "/mnt/SDCARD/Roms/NDS/Mario Kart DS (USA).nds"'
+check "the exact path for DraStic" \
+    test "$(get_full_resolution_path)" = /mnt/SDCARD/Emu/NDS/full_resolution
+check "two launch.sh: up to the last one, the first replaced" \
+    frp_same 'run "/mnt/SDCARD/Emu/A/launch.sh" "/mnt/SDCARD/Roms/A/launch.sh" x'
+check "RetroArch (no launch.sh): nothing" \
+    frp_same 'LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so "/mnt/SDCARD/Emu/GBA/../../.tmp_update/proxy.sh" "/mnt/SDCARD/Roms/GBA/Game.gba"'
+rm -f "$TMP/new_res_available"
+check "no 752x560 mode: nothing" test -z "$(get_full_resolution_path)"
+unset -f frp_same get_full_resolution_path
+end
+
 # ---- runtime.sh: cleanup_appendconfig ----
 
 eval "$(extract_fn "$RUNTIME" cleanup_appendconfig)"
