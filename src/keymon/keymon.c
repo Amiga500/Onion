@@ -1499,6 +1499,13 @@ int main(void)
                          * (#228). That flag is Power-only. */
                         turnOffScreen();
                         hibernate_start = getMilliseconds();
+                        // Back from standby: stored below as the last state,
+                        // "open" lets the next pass see a closed lid as a
+                        // change. Woken by POWER with the lid closed, or with
+                        // the lid opened and closed again during the wake-up,
+                        // the Flip stayed on inside the closed lid (only a
+                        // change was acted on). An open lid changes nothing.
+                        current_lid_state = 1;
                         break;
                     case FLIP_LID_SHUTDOWN:
                         print_debug("Shutting down due to lid close");
