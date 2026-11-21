@@ -5494,6 +5494,23 @@ check "configuration menu: shown and handled" sh -c "grep -q 'Option9=\"Scrape a
 check "asks before starting" grep -q 'SCRAPE ALL CONSOLES' "$SCRAPER_MENU"
 end
 
+# ---- System log snapshot: network services as Tweaks has them ----
+
+begin snapshot_netserv_status
+eval "$(extract_fn "$ROOT/static/build/.tmp_update/script/diagnostics/util_snapshot.sh" get_netserv_status)"
+log() { :; }
+sysdir=$TMP
+mkdir -p "$sysdir/config"
+touch "$sysdir/config/.sshState" "$sysdir/config/.ftpState_" "$sysdir/config/.syncthingState"
+out=$(get_netserv_status)
+check "a service switched on is Enabled" sh -c 'printf "%s\n" "$1" | grep -q "^ssh: *Enabled$"' _ "$out"
+check "one switched off is Disabled" sh -c 'printf "%s\n" "$1" | grep -q "^ftp: *Disabled$"' _ "$out"
+check "one never switched is Disabled" sh -c 'printf "%s\n" "$1" | grep -q "^hotspot: *Disabled$"' _ "$out"
+check "Syncthing is listed" sh -c 'printf "%s\n" "$1" | grep -q "^syncthing: *Enabled$"' _ "$out"
+check "each service once" test "$(printf '%s\n' "$out" | cut -d: -f1 | sort | uniq -d)" = ""
+unset -f get_netserv_status log
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"

@@ -141,17 +141,17 @@ system_healthcheck() {
 ## NETWORKING ##
 ##################
 
-get_netserv_status() { # Just checks if these exist - will need upkeep in this format
+get_netserv_status() { # The names Tweaks > Network uses (src/tweaks/network.h)
     log "Checking system services"
-    services=".smbdState_ .authftpState_ .authhttpState_ .authsshState_ .ftpState_ .hotspotState_ .httpState_ .ntpState_ .smbdState_ .sshState_ .telnetState_"
+    services="smbd ftp authftp http authhttp ssh authssh telnet syncthing hotspot ntp"
 
-    for file in $services; do
-        if [ -e "$sysdir/config/$file" ]; then
-            status="${file%State_}"
-            echo "$status:     Disabled"
+    # On = config/.<name>State exists, as for config_flag_get. A service that
+    # was never switched has neither file and is off.
+    for name in $services; do
+        if [ -f "$sysdir/config/.${name}State" ]; then
+            echo "$name:     Enabled"
         else
-            status="${file%State_}"
-            echo "$status:     Enabled"
+            echo "$name:     Disabled"
         fi
     done
 }
