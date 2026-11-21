@@ -751,6 +751,29 @@ check "no quotes" same_as_pipeline 'run b' "$R"
 check "path with \$ and spaces" same_as_pipeline 'run "x" "/mnt/SDCARD/Roms/A/\$weird name.zip"' '/mnt/SDCARD/Roms/A/$weird name.zip'
 end
 
+# ---- the Scraper, however its menu ended, gives standby and the CPU back ----
+
+begin scraper_leaves_no_stay_awake
+SCRAPER_GLO="$ROOT/static/build/App/romscripts/Scraper.sh"
+mkdir -p "$TMP/sys/bin" "$TMP/stub"
+# The terminal: the menu started a scraping and was left early
+printf '#!/bin/sh\ntouch "%s/stay_awake"\necho performance > "%s/governor"\n[ -f "%s/background" ] && echo "echo job >> %s/job_log" > "%s/scraper_script.sh"\nexit 0\n' \
+    "$TMP" "$TMP" "$TMP" "$TMP" "$TMP" > "$TMP/sys/bin/st"
+printf '#!/bin/sh\n:\n' > "$TMP/stub/pressMenu2Kill"
+printf '#!/bin/sh\n:\n' > "$TMP/stub/pkill"
+chmod +x "$TMP/sys/bin/st" "$TMP"/stub/*
+sed -e "s#/mnt/SDCARD/.tmp_update#$TMP/sys#g" -e "s#/tmp/stay_awake#$TMP/stay_awake#g" \
+    -e "s#/tmp/scraper_script.sh#$TMP/scraper_script.sh#g" \
+    -e "s#/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor#$TMP/governor#g" "$SCRAPER_GLO" > "$TMP/Scraper.sh"
+PATH="$TMP/stub:$PATH" sh "$TMP/Scraper.sh" GB "" > /dev/null 2>&1
+check "no stay_awake left" test ! -e "$TMP/stay_awake"
+check "governor back to ondemand" test "$(cat "$TMP/governor")" = ondemand
+touch "$TMP/background"
+PATH="$TMP/stub:$PATH" sh "$TMP/Scraper.sh" GB "" > /dev/null 2>&1
+n=0; while [ ! -f "$TMP/job_log" ] && [ $n -lt 50 ]; do sleep 0.1; n=$((n + 1)); done; sleep 0.2
+check "background job run, then the governor back" test -f "$TMP/job_log" -a "$(cat "$TMP/governor")" = ondemand
+end
+
 # ---- no grep -x in what is shipped: BusyBox 1.20.2 (the firmware's) ----
 # never matches with -x, and with -F it searches for a substring
 
