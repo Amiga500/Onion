@@ -2357,7 +2357,27 @@ printf '#!/bin/sh\necho "shutdown $*" >> "%s/calls"\n' "$TMP" > "$TMP/sd/.tmp_up
 chmod +x "$TMP/sd/.tmp_update/bin/shutdown"
 installer_reboot
 check "the installer's reboot: sync, bin/shutdown -r, then reboot" test "$(tr '\n' ' ' < "$TMP/calls")" = "sync shutdown -r reboot "
-rm -f "$TMP/calls" "$TMP/sd/.tmp_update/bin/shutdown"
+# The console's settings: saved ones are not replaced by the card's copy,
+# which during an installation holds the defaults (beta 3: brightness,
+# volume and colours reset by the update)
+read_uuid() { echo 0123abcd; }
+mkdir -p "$TMP/sd/.tmp_update/config/system"
+echo '{"brightness": 3}' > "$TMP/sd/.tmp_update/config/system/0123abcd.json"
+echo '{"brightness": 7}' > "$TMP/sd/system.json"
+rm -f "$TMP/calls"
+installer_reboot
+check "settings saved for this console: the card's copy is dropped before the shutdown" test ! -e "$TMP/sd/system.json"
+check "and the saved ones are left alone" grep -q '"brightness": 3' "$TMP/sd/.tmp_update/config/system/0123abcd.json"
+check "then the same reboot" test "$(tr '\n' ' ' < "$TMP/calls")" = "sync sync shutdown -r reboot "
+rm -f "$TMP/sd/.tmp_update/config/system/0123abcd.json"
+echo '{"brightness": 7}' > "$TMP/sd/system.json"
+installer_reboot
+check "none saved (a first installation): the card's copy stays, for the shutdown to save" test -f "$TMP/sd/system.json"
+read_uuid() { return 1; }
+installer_reboot
+check "no serial number: the card's copy stays" test -f "$TMP/sd/system.json"
+unset -f read_uuid
+rm -f "$TMP/calls" "$TMP/sd/.tmp_update/bin/shutdown" "$TMP/sd/system.json"
 installer_reboot
 check "with a plain reboot only if the script is missing" test "$(tr '\n' ' ' < "$TMP/calls")" = "sync reboot "
 unset -f sync reboot installer_reboot

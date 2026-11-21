@@ -19,9 +19,24 @@ unset LD_PRELOAD
 # card before rebooting. A plain reboot right after writing the whole update
 # left its FAT "dirty", so the SD card check notice showed after every update.
 # Plain reboot when the script is missing (an installation that failed early).
+#
+# The shutdown saves /mnt/SDCARD/system.json as this console's settings
+# (config/system/<serial>.json), which the boot puts back. During an
+# installation that file is not them: the installer runs before the boot
+# has put them back, so what its programs saved there (themeSwitcher) holds
+# the defaults. Saved by the shutdown, they replaced the console's own:
+# brightness, volume, menu sound and display colours reset by every update
+# (4.5.1 beta 3). With the console's settings already saved, the card's copy
+# is dropped first: the boot makes it again from them, as after a plain
+# reboot.
 installer_reboot() {
     sync
     if [ -x /mnt/SDCARD/.tmp_update/bin/shutdown ]; then
+        _serial=$(read_uuid 2> /dev/null)
+        if [ -n "$_serial" ] && [ -f "/mnt/SDCARD/.tmp_update/config/system/$_serial.json" ]; then
+            rm -f /mnt/SDCARD/system.json
+            sync
+        fi
         /mnt/SDCARD/.tmp_update/bin/shutdown -r
     fi
     reboot
