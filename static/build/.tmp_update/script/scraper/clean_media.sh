@@ -82,6 +82,17 @@ names_in() {
         \( ${2:--type f -o -type d} \) 2> /dev/null
 }
 
+# Games hidden with GLO (<folder>/.hidden/<name>/ holding the game's files)
+# are still on the card and their media must stay. Prints the files and the
+# folders (names in use, as names_in does) and adds the folders to $2, the
+# list of names kept whole (the folder's name is the cover's).
+hidden_names() {
+    find "$1" -type d -name .hidden 2> /dev/null | while IFS= read -r hidden; do
+        find "$hidden" ! -path "$hidden" -type d 2> /dev/null | tee -a "$2"
+        find "$hidden" -type f 2> /dev/null
+    done
+}
+
 # The media files named in a ROM folder's game lists, one path per line.
 # Plain index/substr for the XML entities: no escapes in a gsub
 # replacement, and no "name (" concatenation (BusyBox awk).
@@ -138,12 +149,15 @@ for dir in "$@"; do
         continue
     fi
 
+    hidden_names "$dir" "$tmp/folders" >> "$tmp/games"
+
     # The games of consoles sharing this folder's covers
     shared_rom_dirs "$dir" > "$tmp/shared"
     unread=
     while IFS= read -r other; do
         names_in "$other" >> "$tmp/games" || unread=1
         names_in "$other" "-type d" >> "$tmp/folders" || unread=1
+        hidden_names "$other" "$tmp/folders" >> "$tmp/games"
     done < "$tmp/shared"
     if [ -n "$unread" ]; then
         echo "skip: $dir (read error)"

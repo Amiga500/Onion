@@ -5831,6 +5831,21 @@ check "with RetroArch: the live cfg comes back" test "$(cat "$TMP/sd/RetroArch/.
 unset -f install_retroarch restore_ra_config
 end
 
+# ---- clean_media.sh: games hidden with GLO keep their media ----
+
+begin clean_media_keeps_media_of_hidden_games
+cm_sd
+mkdir -p "$R/GB/.hidden/Pokemon Red (USA)" "$R/GB/RPG/.hidden/Final Quest Vol. 1"
+touch "$R/GB/.hidden/Pokemon Red (USA)/Pokemon Red (USA).gb" "$R/GB/RPG/.hidden/Final Quest Vol. 1/disc.cue"
+touch "$R/GB/Imgs/Pokemon Red (USA).png" "$R/GB/Manuals/Pokemon Red (USA).pdf" \
+    "$R/GB/media/box2dfront/Pokemon Red (USA).png" "$R/GB/Imgs/Final Quest Vol. 1.png"
+sh "$CLEAN_MEDIA" --delete "$R/GB" > /dev/null
+check "a hidden game's cover, manual and media stay" \
+    test -f "$R/GB/Imgs/Pokemon Red (USA).png" -a -f "$R/GB/Manuals/Pokemon Red (USA).pdf" -a -f "$R/GB/media/box2dfront/Pokemon Red (USA).png"
+check "one hidden in a sub-folder, a name with a dot" test -f "$R/GB/Imgs/Final Quest Vol. 1.png"
+check "a deleted game's media still go" test ! -e "$R/GB/Imgs/Mario.png"
+end
+
 echo ""
 echo "========================================"
 echo "  Tests: $tests | Assertions: $asserts | Failures: $fails"
