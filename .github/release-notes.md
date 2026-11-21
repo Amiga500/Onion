@@ -1,78 +1,112 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅🔴 RedOnion 4.5.1 beta 2: Battery Monitor 2.3.2, low-battery save and quit, standby fix, new scraper options, RedOnion everywhere
+# 🧅🔴 RedOnion 4.5.1 beta 3: safer updates, standby and battery fixes, Netplay clean-ups, Play Activity you can trust
 
 > ⚠️ **Always back up your SD card before updating!** At least copy `Roms`, `Saves`, `BIOS` and `Screenshots` to your PC.
 
-> 🧪 **Beta.** This build is offered only to devices on the **beta** OTA channel. Devices on the **stable** channel stay on 4.5.0. It was tried by the RedOnion testers first, but it is still a beta: please report what you find.
+> 🧪 **Beta.** This build goes to the RedOnion testers first (testers OTA channel), then to devices on the **beta** channel. Devices on the **stable** channel stay on 4.5.0. Please report what you find.
 
 RedOnion is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 
-This beta uses a **release candidate of Open MainUI 1.1.1** by @robcodedev, as a prebuilt binary. Its source will be published with 1.1.1, before a stable RedOnion uses it. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
+This beta keeps the **release candidate of Open MainUI 1.1.1** (rc7) by @robcodedev of beta 2, as a prebuilt binary. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
 
-## 🆕 New in 4.5.1 beta 2
+Beta 3 is mostly fixes: a full review of RedOnion's code turned up about 80 problems, most of them inherited from Onion, and nearly all of them are fixed here. Many only showed up in rare cases (a power cut, a full card, a hand-edited file), but some could cost saves, play time or a working card.
 
-### 🔋 Battery Monitor 2.3.2 (thanks ksielick) — Mini+ and Mini Flip
+## 🆕 New in 4.5.1 beta 3
 
-- Updated to ksielick's v2.3.2, keeping RedOnion's graph and Shutdown Voltage fixes. "Set current capacity to 100%" is refused while charging or below 4.00 V, saved values are read back to confirm them, and the battery test restores the CPU speed and brightness when it ends. On the Mini+ the test has an extra 1800 MHz stage.
-- **Battery Capacity** opens on the PMIC's real value, a learned one included (e.g. 3036 mAh). LEFT/RIGHT change it in 50 mAh steps (1500–4000), and A on an unchanged value writes nothing ("Capacity unchanged").
-- **Shutdown Voltage** above 2.9 V is shown as "(risky)" in orange and asks for confirmation.
-- **Capacity learning** can't be turned on before a capacity is saved ("Save Battery Capacity first"). Step 2 now says: discharge to 1%, then charge with the console on.
-- Clearer messages for "Set current capacity to 100%": "I2C error: PMIC not read" and "Charging: counter left as it is".
-- No more huge times (like 35000 h) in SESSION, CHARGE or OFF/SLEEP after a clock change or a boot without internet.
+### 🛟 Installing and updating
 
-### 🪫 Low battery and standby
+- **An OTA update cut short** (battery, power off, an extraction error) no longer leaves a console that doesn't start: the boot scripts installed on the card are kept until the new installer is in place.
+- **Installer:** pressing POWER at the "Update / Reinstall" question no longer deletes the installer (every boot then ended in "Install script exited unexpectedly").
+- **Installer:** a failed extraction is now seen as a failure (it could show 100% and delete the package), and **"Installation failed"** stays on screen for 5 s before the restart.
+- **The installation ends with a clean shutdown:** the card is unmounted before the restart, so no "SD card check" notice after installing from a PC.
+- **Shutdown started from a terminal** (Terminal app, SSH, Telnet, the OTA) now completes: it unmounts the card and restarts instead of freezing on the last screen.
+- **Guest Mode on during an update:** the two profiles are no longer swapped at the next switch. On a card updated to beta 2 with Guest Mode on, the empty guest profile it created is renamed `GuestProfile-unused-<date>` and nothing is lost.
+- An update **keeps your X and Y choices** for MainUI (they went back to Search and GLO), and no longer puts an old `Backup/retroarch.cfg` over RetroArch's settings.
+- A folder named `temp` at the root of the card no longer stops the updates' migrations.
+- **Syncthing** is no longer downloaded again (25 MB) after every update.
 
-- **Low battery: save and quit** (Tweaks › System) now goes up to 20% (Off, 1–5, 10, 15, 20%). It never triggers on the charger or without a battery reading, and it only closes a running game, never the game list or an app. After it, the console powers off only if the battery is still low and not charging.
-- **Standby powers off after its timeout**, counted from the start. Before, a Mini+ could stay on with the green LED for hours. With Tweaks › Advanced › Diagnostics › Enable logging, standby writes to `logs/keymon.log`.
-- **Mini Flip:** power off takes priority over closing the lid, and opening the lid wakes the console even while charging.
+### 🔌 Boot
 
-### 🖼️ Scraper
+- A damaged time, "add hours" or backlight setting file no longer makes the console restart at every boot.
+- MainUI and RedOnion always read the same `system.json` (after a start without the card, or straight after the stock firmware, they could use two different files for the whole session).
+- **Mini v4 and Mini Flip:** DraStic and GnGeo start in 752x560 again.
+- **Mini+ and Flip:** the time sync stores UTC in the hardware clock, so the clock is no longer off by your time zone after a restart.
 
-- New: **Scrape all favorites** (in the Favorites tab), **Scrape all consoles**, and **Delete cover and media** for the selected game (press Y on a game › Scraper).
-- **Delete media of deleted games** works from the main menu, keeps covers shared by MAME 2003/2000 sets and media named in `gamelist.xml`/`miyoogamelist.xml`, and skips (and tells you about) consoles it can't read.
-- The menu shows the commands for the selected game first, and it runs in its own terminal.
+### 😴 Standby, power and battery
 
-### 🖥️ Menus and screens
+- **MENU held between 0.3 and 0.7 s in a game** no longer freezes the button handling (no standby, lid or low-battery save until the next key).
+- A screenshot on a **full card** no longer stops the buttons and the backlight.
+- **Mini Flip:** the power-off at the end of a standby runs once, and the game is resumed at the next start. Woken with the lid still closed, the Flip goes back to standby.
+- **DraStic** closes properly from standby (auto save state, a few seconds instead of about 90).
+- A game **without auto save state** stays paused in standby instead of running on in the dark.
+- **Mini:** after charging (with the console on or in standby) the battery level is the real one, not one close to the old level.
+- A volume key released during MENU+VOL no longer mutes later, and ports that use MENU as a game key no longer turn POWER into a screenshot button.
+- After the Scraper, however it was closed, the console goes to standby again and the CPU slows down again.
 
-- **Text screens** (Scraper, OTA, PDF Reader, Video Player): one layout everywhere (position top left, title centred, keys bottom right), in RedOnion style: red titles and cursor, keys in red and actions in white. Only A confirms, and "Press A" waits for A only.
-- **OTA:** the download shows an onion filling up in red, with the percentage and MB. MENU stops it. The percentage is counted in KB, so big files no longer overflow it.
-- **Tweaks:** "Enlarge small images" for the Game Info gallery, and an "Arcade games" switch for Saved Games.
-- **GameSwitcher:** with RetroAchievements hardcore on, a note says the game will restart from the beginning.
-- **Play Activity:** a game resumed after a pause adds its time instead of counting a new play, and quickly opening and closing the GameSwitcher no longer loses play time (#340).
-- **Kids Mode** (Veuks): "Controls & tips" on X in the parent menu, and RESTART next to PLAY with the alternative button layout too.
+### 🕹️ Play Activity
 
-### 🧅 RedOnion everywhere
+- Pressing POWER twice quickly no longer counts the standby as play time.
+- A session cut by a power loss is dropped at the next boot, instead of counting the whole time the console was off (a night on the charger).
+- A play activity database left empty by a failed first write is repaired by itself.
 
-- New top bar (Silky RedOnion and the system skin), boot screen, installer slides and screens ("Welcome to the RedOnion installer!", "Updating RedOnion..."), Package Manager waiting screen and ThemeSwitcher artwork. No more "onionos" or "Onion V4" screens.
-- Windows shows the SD card as **RedOnion-v&lt;version&gt;**.
-- Console tiles are 12 px wider, so names like "Commodore" fit.
+### 🔀 GameSwitcher
 
-### 🖥️ Open MainUI 1.1.1 rc7 (@robcodedev)
+- Turning the console off with the GameSwitcher open over a game now **resumes that game** at the next start.
+- No crash on a game whose name is only brackets, like `(Prototype).nes`.
+- When the last game played was deleted, the first entry no longer shows it and starts another game.
+- Removing the last history entry over a game gives the game back instead of leaving it frozen.
+- A failed "Save" no longer leaves an empty save state in "Load".
 
-- Up from rc3 in beta 1: the carousel animation always plays, themes can give the console carousel and list their own pictures, the Wi-Fi page says "Connecting..." and then the result, saved Wi-Fi networks are kept when Wi-Fi is turned on, changing the Display page quickly no longer ends in "Could not save system.json", empty save states are not resumed and a game's save states are offered only with its core installed, plus smaller fixes (Search, folders in a console, game counts after a refresh, PDF manuals).
+### 🛠️ Tweaks, apps and tools
 
-## 🔧 Other fixes
+- **Reset system tweaks** resets the settings only: the installer's state, Syncthing's identity and the Netplay files stay, and RedOnion's defaults come back (Apps by name, console pictures, Saved Games: Overwrite).
+- **Blue light filter** turned off with MENU+B stays off, and a flag changed in Tweaks is no longer undone by a volume change.
+- **Icons:** no crash after changing several icons in one visit; PICO-8, TI-83 and the "xtreme" systems get the icons of a pack; applying a pack or a theme with icons can no longer leave empty `config.json` files after a power cut.
+- No crash in an empty Tweaks menu ("Edit app icon" for Button Lab, "Edit expert icon" with no Expert system).
+- No crash at 70% battery with a theme that has no full-battery icon of its own.
+- **File sharing (Samba):** a `smb.conf` edited on a PC (Windows line ends, indented shares) is read correctly, and switching one share no longer switches the whole SD card share.
+- **Backup app:** a restore puts switched-off Tweaks options back as they were.
+- **Package Manager:** a removed package stays removed when one of its folders still holds a file of yours (a BIOS, PICO-8's binaries).
+- **Random Game** starts the game it shows on a new card or profile.
+- An app installed after the boot can be started with the X/Y shortcut.
+- **Tweaks › Tools › Make CUE files** and the M3U tools make one CUE per multi-track game again (every track became a game of its own on the console).
+- **Scraper:** "Delete media of deleted games" keeps the covers and media of games hidden with "Hide game".
+- **System log snapshot:** no Wi-Fi names or passwords left in the archive, and the network services are shown as they really are.
 
-- **Battery Monitor:** no white line flashing under the PMIC screen.
-- **Settings:** keymon no longer rewrites `system.json` on every key while Open MainUI saves it.
-- **Guest Mode:** a profile without a theme gets Silky RedOnion, not Onion's theme and boot logo.
-- **Time sync:** the last attempt asks for the time even when the router blocks ping.
+### 🌐 Netplay
+
+- **MENU during the set-up** of an Easy Netplay session no longer leaves the hotspot and an open FTP server running: Wi-Fi comes back.
+- The CPU goes back to its normal speed after the Netplay menu.
+- With RetroArch's "Save configuration on exit" on, a session no longer turns off auto save state for every game.
+- **Easy Netplay:** consoles without Netplay (NDS, PS, PICO, ports, ScummVM) say so instead of starting a hotspot; the host's files are served read-only; the joining console only accepts a core and a game from the host; the SNES CPU speed is used on both consoles.
+- **Pokémon trade (GB/GBC):** each player has 5 minutes to close the game on their console, and a save of the session is never deleted before it is returned. A TGB Dual save of the joining console is kept.
+- **Pokémon trade (GBA):** a session that never started no longer hides the game's auto save state, and the game is no longer switched to mGBA afterwards.
+
+### 👶 Kids Mode (Veuks)
+
+- Help on three pages (X on the profile screen), a reminder of how to leave Kids Mode when it starts, notes on SELECT, and its own icon.
+- "Time's up" also ends DraStic and ports; a double press of MENU no longer runs Quick switch; the play timer survives updates; the parent's saves come back even if the Kids Mode app was removed; the child's game no longer becomes the parent's game cover.
+
+## 🔧 Under the hood
+
+- The tests now run on every push, with the console's BusyBox and the real SQLite, and test the real code instead of copies of it.
 
 ## ⚠️ Known issues
 
-- **SD card check after an OTA update:** the OTA restarts the console without unmounting the card, so at the next boot you may see a one-time "SD card check" notice. Checking the card on a PC clears it. A clean restart from the OTA is planned.
+- **SD card check after an OTA update:** the OTA still restarts the console without unmounting the card, so you may see a one-time "SD card check" notice. Checking the card on a PC clears it. The clean restart (now used by the installer) will come to the OTA after the testers have tried it.
+- **Easy Netplay:** the hotspot has the same password on every console; during a session anyone nearby who knows it can join. Use it with people you know.
 - **Low-battery icon in MainUI:** the red warning icon is not shown while MainUI runs, so it doesn't cover MainUI's own battery icon.
 - **Long transfers:** with nobody touching the console, a long FTP, HTTP, Samba or Syncthing transfer can be cut by the sleep timer (Settings › Sleep timer). Press a button now and then, or keep the device charging.
 - **Tweaks** is in English in every language.
 - **OTA security (inherited from Onion):** the updater downloads without checking TLS certificates and only verifies the size of the package.
 
-Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga500/Onion/issues), with your model, the version (from `.tmp_update/onionVersion/version.txt`) and the steps to reproduce. Turning on Tweaks › Advanced › Diagnostics › Enable logging and sending `.tmp_update/logs` helps a lot.
+Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga500/Onion/issues), with your model, the version (Tweaks › About, or `.tmp_update/onionVersion/version.txt`) and the steps to reproduce. Turning on Tweaks › Advanced › Diagnostics › Enable logging and sending `.tmp_update/logs` helps a lot.
 
 ---
 
 ## 🙏 Thanks
 
-Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode; and to the RedOnion testers Machiavellian, Veuks and zazzagone. Several features in this beta come from your comments on beta 1.
+Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
 
 ## 🔗 Links
 
