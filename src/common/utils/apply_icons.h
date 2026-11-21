@@ -42,10 +42,14 @@ IconMode_e icons_getIconMode(const char *config_path)
 
 void _saveConfigFile(const char *config_path, const char *content)
 {
-    FILE *config_file = fopen(config_path, "w+");
-    fprintf(config_file, "%s", content);
-    fflush(config_file);
-    fclose(config_file);
+    // Temporary file, fsync, rename: the old config.json stays until the new
+    // one is on the card (it was truncated and rewritten in place: a power
+    // cut right after applying a pack could leave consoles and apps with an
+    // empty config.json, gone from the menu). Nothing is written when there
+    // is nothing to write or the card refuses it (read-only after a FAT
+    // error: fopen's NULL was used).
+    if (content == NULL || !file_atomic_write(config_path, content, strlen(content)))
+        return;
 
     if (strcmp(SEARCH_CONFIG_SRC, config_path) == 0 && is_file(SEARCH_CONFIG))
         system("cp \"" SEARCH_CONFIG_SRC "\" \"" SEARCH_CONFIG "\"");
@@ -81,7 +85,9 @@ bool apply_singleIconByFullPath(const char *config_path, const char *icon_path)
     json_forceSetString(config, "icon", icon_path);
     json_forceSetString(config, "iconsel", sel_path);
 
-    _saveConfigFile(config_path, cJSON_Print(config));
+    char *config_str = cJSON_Print(config);
+    _saveConfigFile(config_path, config_str);
+    cJSON_free(config_str);
     cJSON_Delete(config);
 
     return true;

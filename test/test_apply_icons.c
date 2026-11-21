@@ -122,6 +122,41 @@ TEST(emu_path_format_produces_correct_path) {
 
 /* ---- main ---- */
 
+/* ---- _saveConfigFile: config.json replaced whole, never cut ---- */
+
+TEST(save_config_replaces_the_file_whole) {
+    char dir[] = "/tmp/onion_icons_XXXXXX";
+    ASSERT_NOT_NULL(mkdtemp(dir));
+    char path[64];
+    snprintf(path, sizeof(path), "%s/config.json", dir);
+    FILE *fp = fopen(path, "w");
+    fputs("{\"label\":\"old\"}", fp);
+    fclose(fp);
+
+    _saveConfigFile(path, "{\"label\":\"new\"}");
+    char buf[64] = "";
+    fp = fopen(path, "r");
+    ASSERT_NOT_NULL(fp);
+    ASSERT_NOT_NULL(fgets(buf, sizeof(buf), fp));
+    fclose(fp);
+    ASSERT_STREQ(buf, "{\"label\":\"new\"}");
+
+    _saveConfigFile(path, NULL); /* a config that did not parse: left alone */
+    fp = fopen(path, "r");
+    ASSERT_NOT_NULL(fgets(buf, sizeof(buf), fp));
+    fclose(fp);
+    ASSERT_STREQ(buf, "{\"label\":\"new\"}");
+
+    /* a folder that cannot be written: no crash, nothing changed */
+    char missing[96];
+    snprintf(missing, sizeof(missing), "%s/no/such/config.json", dir);
+    _saveConfigFile(missing, "{}");
+    ASSERT_FALSE(exists(missing));
+
+    remove(path);
+    rmdir(dir);
+}
+
 int main(void)
 {
     printf("\n=== apply_icons.h Unit Tests ===\n\n");
@@ -150,6 +185,7 @@ int main(void)
     RUN_TEST(icon_path_format_produces_correct_path);
     RUN_TEST(sel_icon_path_format_produces_correct_path);
     RUN_TEST(emu_path_format_produces_correct_path);
+    RUN_TEST(save_config_replaces_the_file_whole);
 
     TEST_REPORT();
     return test_failures;
