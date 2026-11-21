@@ -568,6 +568,22 @@ static void standby_log(const char *format, ...)
     fclose(fp);
 }
 
+// Standby timeout: a RetroArch game without auto save state is not powered
+// off (deepsleep() refuses it, or its progress would be lost). Decided here,
+// before resume(): resumed and then refused, the game went on running with
+// the screen off, the sound at 0 and the CPU at full speed until POWER was
+// pressed. It now stays stopped, and the next timeout asks again. The state
+// is read from /proc and files, which a stopped RetroArch does not change.
+static bool standby_game_without_autosave(void)
+{
+    system_state_update();
+    if (system_state == MODE_GAME && !check_autosave()) {
+        standby_log("standby: power-off refused (game without auto save state)");
+        return true;
+    }
+    return false;
+}
+
 //
 //    Suspend interface
 //
@@ -683,6 +699,10 @@ void suspend_exec(int timeout)
                     break;
                 }
                 if (step == FLIP_SUSPEND_POWER_OFF) {
+                    if (standby_game_without_autosave()) {
+                        suspend_start = getMilliseconds();
+                        continue;
+                    }
                     system_powersave_off();
                     resume();
                     usleep(150000);
@@ -707,6 +727,10 @@ void suspend_exec(int timeout)
             }
 
             // Original timeout shutdown behavior (non-flip devices)
+            if (standby_game_without_autosave()) {
+                suspend_start = getMilliseconds();
+                continue;
+            }
             standby_log("standby: %ld s, %d input events (last: type %d code %d value %d), powering off",
                         standby_sec, standby_events, last_type, last_code, last_value);
             system_powersave_off();
