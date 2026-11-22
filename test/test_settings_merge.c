@@ -15,6 +15,7 @@
 
 #define MAIN_UI_SETTINGS "/tmp/onion_test_settings_merge/system.json"
 #define CONFIG_PATH "/tmp/onion_test_settings_merge/config/"
+#define SETTINGS_DEVICE_MODEL_PATH "/tmp/onion_test_settings_merge/deviceModel"
 
 #include "onion_test.h"
 #include <stdio.h>
@@ -165,6 +166,39 @@ TEST(missing_file_saves_own_values)
     ASSERT_STREQ(string_of(root, "language"), "de.lang");
     ASSERT_STREQ(string_of(root, "theme"), "/mnt/SDCARD/Themes/Silky RedOnion/");
     cJSON_Delete(root);
+}
+
+/* A system.json without lumination on a Mini Flip: a save of another value
+ * (here the language) writes the Flip's default lumination, 10, not 7. */
+TEST(missing_lumination_saved_as_the_model_default)
+{
+    mkdir("/tmp/onion_test_settings_merge", 0700);
+    FILE *fp = fopen(SETTINGS_DEVICE_MODEL_PATH, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("285", fp);
+    fclose(fp);
+    fp = fopen(MAIN_UI_SETTINGS, "w");
+    ASSERT_NOT_NULL(fp);
+    fputs("{\n\t\"vol\":\t10,\n\t\"brightness\":\t7,\n\t\"language\":\t\"en.lang\",\n"
+          "\t\"hue\":\t10,\n\t\"saturation\":\t10,\n\t\"contrast\":\t10\n}",
+          fp);
+    fclose(fp);
+    settings_load();
+    ASSERT_EQ(settings.lumination, 10);
+    strcpy(settings.language, "it.lang");
+    _settings_save_mainui_force();
+
+    cJSON *root = read_back();
+    ASSERT_NOT_NULL(root);
+    ASSERT_EQ(int_of(root, "lumination"), 10);
+    ASSERT_STREQ(string_of(root, "language"), "it.lang");
+    cJSON_Delete(root);
+
+    /* A lumination in the file is used as it is, on any model. */
+    write_system_json("en.lang", "/mnt/SDCARD/Themes/Silky RedOnion/", 7, 0);
+    settings_load();
+    ASSERT_EQ(settings.lumination, 7);
+    unlink(SETTINGS_DEVICE_MODEL_PATH);
 }
 
 /* The Themes app loads the settings, the user then sets brightness and
@@ -391,6 +425,7 @@ int main(void)
     RUN_TEST(own_change_wins_over_file);
     RUN_TEST(mirrored_values_are_not_taken_from_file);
     RUN_TEST(missing_file_saves_own_values);
+    RUN_TEST(missing_lumination_saved_as_the_model_default);
     RUN_TEST(other_program_save_keeps_brightness_and_volume_saved_by_keymon);
     RUN_TEST(other_program_own_brightness_wins_over_file);
     RUN_TEST(other_program_save_keeps_mute_set_by_keymon);

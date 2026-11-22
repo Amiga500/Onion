@@ -20,6 +20,8 @@
  * guard). */
 #define VOLUME_H__
 #define MAX_VOLUME 20
+/* The model the default lumination is taken from (/tmp/deviceModel). */
+#define SETTINGS_DEVICE_MODEL_PATH "/tmp/onion_test_settings_model"
 static int _stub_volume_value = -1;
 static int setVolume(int value)
 {
@@ -120,6 +122,40 @@ TEST(reset_restores_button_defaults) {
     ASSERT_EQ(s.ingame_single_press, 1);
     ASSERT_EQ(s.ingame_long_press, 2);
     ASSERT_EQ(s.ingame_double_press, 3);
+}
+
+/* ---- the default lumination follows the model ---- */
+
+static void write_model(const char *text)
+{
+    FILE *fp = fopen(SETTINGS_DEVICE_MODEL_PATH, "w");
+    if (fp) {
+        fputs(text, fp);
+        fclose(fp);
+    }
+}
+
+TEST(reset_lumination_follows_the_model) {
+    settings_s s;
+    write_model("285");
+    _settings_reset(&s);
+    ASSERT_EQ(s.lumination, 10); /* Mini Flip */
+    write_model("354\n");
+    _settings_reset(&s);
+    ASSERT_EQ(s.lumination, 10); /* Mini+ */
+    write_model("283");
+    _settings_reset(&s);
+    ASSERT_EQ(s.lumination, 7); /* Mini, v4 included */
+    write_model("garbage");
+    _settings_reset(&s);
+    ASSERT_EQ(s.lumination, 7);
+    unlink(SETTINGS_DEVICE_MODEL_PATH);
+    _settings_reset(&s);
+    ASSERT_EQ(s.lumination, 7); /* no model file */
+    /* the other colours stay 10 on every model */
+    ASSERT_EQ(s.hue, 10);
+    ASSERT_EQ(s.saturation, 10);
+    ASSERT_EQ(s.contrast, 10);
 }
 
 /* ---- _settings_dirty_mainui ---- */
@@ -334,6 +370,7 @@ int main(void)
 
     RUN_TEST(reset_restores_defaults);
     RUN_TEST(reset_restores_button_defaults);
+    RUN_TEST(reset_lumination_follows_the_model);
 
     RUN_TEST(dirty_mainui_clean_after_clone);
     RUN_TEST(dirty_mainui_volume_changed);

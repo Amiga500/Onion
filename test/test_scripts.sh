@@ -4901,11 +4901,22 @@ mkdir -p "$TMP/bin"
 printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v jq)" > "$TMP/bin/jq"
 chmod +x "$TMP/bin/jq"
 sed -e "s#/appconfigs/system.json#$TMP/system.json#" -e "s#/proc/mi_modules/mi_disp/mi_disp0#$TMP/mi_disp0#g" \
+    -e "s#/tmp/deviceModel#$TMP/deviceModel#g" \
     -e "s#^export PATH=.*#export PATH=\"$TMP/bin:\$PATH\"#" "$CSCR" > "$TMP/cscr.sh"
 echo '{"lumination": 7, "hue": 10, "saturation": 12, "contrast": 15}' > "$TMP/system.json"
 : > "$TMP/mi_disp0"
+printf 285 > "$TMP/deviceModel"
 sh "$TMP/cscr.sh" > /dev/null 2>&1
 check "same values as Settings > Display and the Flip at boot" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 60 50 42 60 0 0"
+# No lumination: the model's default (10 on the Mini+ and Flip, 7 on the Mini)
+echo '{"hue": 10, "saturation": 12, "contrast": 15}' > "$TMP/system.json"
+for m in 285:45 354:45 283:42 none:42; do
+    if [ "${m%%:*}" = none ]; then rm -f "$TMP/deviceModel"; else printf '%s' "${m%%:*}" > "$TMP/deviceModel"; fi
+    : > "$TMP/mi_disp0"
+    sh "$TMP/cscr.sh" > /dev/null 2>&1
+    check "no lumination on model ${m%%:*}: its default" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 60 50 ${m##*:} 60 0 0"
+done
+rm -f "$TMP/deviceModel"
 fl=$(sed -n '/^restore_display_colours() {/,/^}/p' "$RUNTIME" | grep -o 'csc 0 3 [^>]*')
 check "runtime.sh's formulas are the same" test "$fl" = 'csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0" '
 end

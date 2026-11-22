@@ -79,8 +79,15 @@ done <<EOF
 $readout
 EOF
 
-# check if they're within bounds, if not force defaults of 7/10/10/10 like miyoo do.
-if ! echo "$lumination" | grep -qE '^[0-9]+$' || [ "$lumination" -lt 0 ] || [ "$lumination" -gt 20 ]; then lumination=7; fi
+# check if they're within bounds, if not use the model's defaults, as in
+# res/miyoo<ID>_system.json, runtime.sh and Open MainUI: lumination 10 on
+# the Mini+ (354) and Mini Flip (285), 7 on the Mini (283) or an unknown
+# model; hue, saturation and contrast 10.
+default_lumination=7
+case "$(cat /tmp/deviceModel 2> /dev/null)" in
+  285 | 354) default_lumination=10 ;;
+esac
+if ! echo "$lumination" | grep -qE '^[0-9]+$' || [ "$lumination" -lt 0 ] || [ "$lumination" -gt 20 ]; then lumination=$default_lumination; fi
 if ! echo "$hue" | grep -qE '^[0-9]+$' || [ "$hue" -lt 0 ] || [ "$hue" -gt 20 ]; then hue=10; fi
 if ! echo "$saturation" | grep -qE '^[0-9]+$' || [ "$saturation" -lt 0 ] || [ "$saturation" -gt 20 ]; then saturation=10; fi
 if ! echo "$contrast" | grep -qE '^[0-9]+$' || [ "$contrast" -lt 0 ] || [ "$contrast" -gt 20 ]; then contrast=10; fi

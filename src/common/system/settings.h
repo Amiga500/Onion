@@ -164,9 +164,31 @@ void _settings_clone(settings_s *dst, settings_s *src)
     dst->mainui_button_y[sizeof(dst->mainui_button_y) - 1] = '\0';
 }
 
+#ifndef SETTINGS_DEVICE_MODEL_PATH
+#define SETTINGS_DEVICE_MODEL_PATH "/tmp/deviceModel"
+#endif
+
+// Lumination when system.json has none: the model's default, as in
+// res/miyoo<ID>_system.json, runtime.sh, disp_csc_reset.sh and Open MainUI
+// 1.1.1 rc9: 10 on the Mini+ (354) and Mini Flip (285), 7 on the Mini (283)
+// and when the model is unknown. It was 7 on every model, so a save of any
+// other setting wrote 7 into a system.json that had no lumination.
+static int _settings_default_lumination(void)
+{
+    int model = 0;
+    FILE *fp = fopen(SETTINGS_DEVICE_MODEL_PATH, "r");
+    if (fp != NULL) {
+        if (fscanf(fp, "%d", &model) != 1)
+            model = 0;
+        fclose(fp);
+    }
+    return model == 285 || model == 354 ? 10 : 7;
+}
+
 void _settings_reset(settings_s *_settings)
 {
     _settings_clone(_settings, &__default_settings);
+    _settings->lumination = _settings_default_lumination();
 }
 
 void _settings_load_keymap(void)
