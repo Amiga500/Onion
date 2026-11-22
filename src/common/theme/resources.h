@@ -19,6 +19,7 @@
 
 #include "./config.h"
 
+#include "./button_x.h"
 #include "./resource_ids.h"
 
 typedef struct Theme_Resources {
@@ -83,18 +84,71 @@ static bool _surfaceIsBlank(SDL_Surface *surface)
     return blank;
 }
 
-// X button (GameSwitcher's Load: X DELETE), not a stock skin image:
-// 1. the theme's (or the theme override's) skin/extra/icon-X-54.png;
+// The X button made from the theme's B button (theme/button_x.h), as a new
+// 32-bit surface; NULL when that B is not a button it can read.
+static SDL_Surface *_buttonXFromB(SDL_Surface *button_b)
+{
+    if (button_b == NULL || button_b->format->BitsPerPixel != 32)
+        return NULL;
+    int w = button_b->w, h = button_b->h;
+    if (w < 8 || h < 8 || w > BUTTONX_MAX_SIDE || h > BUTTONX_MAX_SIDE)
+        return NULL;
+    uint8_t *src = malloc((size_t)w * h * 4);
+    uint8_t *dst = malloc((size_t)w * h * 4);
+    SDL_Surface *out = NULL;
+    if (src == NULL || dst == NULL)
+        goto done;
+    SDL_LockSurface(button_b);
+    for (int y = 0; y < h; y++) {
+        const Uint32 *row = (const Uint32 *)((const Uint8 *)button_b->pixels +
+                                             y * button_b->pitch);
+        for (int x = 0; x < w; x++) {
+            uint8_t *p = src + (y * w + x) * 4;
+            SDL_GetRGBA(row[x], button_b->format, &p[0], &p[1], &p[2], &p[3]);
+        }
+    }
+    SDL_UnlockSurface(button_b);
+    if (!buttonx_generate(src, w, h, dst))
+        goto done;
+    out = SDL_CreateRGBSurface(SDL_SWSURFACE, w, h, 32, 0x000000ff, 0x0000ff00,
+                               0x00ff0000, 0xff000000);
+    if (out == NULL)
+        goto done;
+    SDL_SetAlpha(out, SDL_SRCALPHA, 255); // blitted with its own alpha
+    SDL_LockSurface(out);
+    for (int y = 0; y < h; y++) {
+        Uint32 *row = (Uint32 *)((Uint8 *)out->pixels + y * out->pitch);
+        for (int x = 0; x < w; x++) {
+            const uint8_t *p = dst + (y * w + x) * 4;
+            row[x] = SDL_MapRGBA(out->format, p[0], p[1], p[2], p[3]);
+        }
+    }
+    SDL_UnlockSurface(out);
+done:
+    free(src);
+    free(dst);
+    return out;
+}
+
+// X button, the same everywhere it shows (GameSwitcher's Load: X DELETE,
+// Kids Mode's RESTART and HELP); MainUI has none, so no stock skin has one:
+// 1. the theme's (or the theme override's) skin/icon-X-54.png, then its
+//    skin/extra/icon-X-54.png: a theme maker's own X comes first;
 // 2. none when the theme's B button is empty: such themes draw their hints
 //    in the footer art, a lone X button would not fit;
 // 3. the one RedOnion ships for the theme, .tmp_update/res/theme-x/<theme
-//    folder>.png (made from the theme's B button);
-// 4. .tmp_update/res/icon-X-54.png.
+//    folder>.png (made by hand from the theme's B button);
+// 4. one made now from the theme's B button (theme/button_x.h): same shape
+//    and colours, an X where the B was;
+// 5. .tmp_update/res/icon-X-54.png, for a B it can't make one from.
 static SDL_Surface *_loadButtonX(Theme_s *t)
 {
+    if (theme_getImagePath(t->path, "icon-X-54", NULL) != 0)
+        return theme_loadImage(t->path, "icon-X-54");
     if (theme_getImagePath(t->path, "extra/icon-X-54", NULL) != 0)
         return theme_loadImage(t->path, "extra/icon-X-54");
-    if (_surfaceIsBlank(resource_getSurface(BUTTON_B)))
+    SDL_Surface *button_b = resource_getSurface(BUTTON_B);
+    if (_surfaceIsBlank(button_b))
         return NULL;
     char name[STR_MAX];
     if (theme_bundledButtonXName(t->path, name, sizeof(name))) {
@@ -103,6 +157,9 @@ static SDL_Surface *_loadButtonX(Theme_s *t)
         if (exists(path))
             return theme_loadImage(t->path, name);
     }
+    SDL_Surface *made = _buttonXFromB(button_b);
+    if (made != NULL)
+        return made;
     return theme_loadImage(t->path, "extra/icon-X-54");
 }
 

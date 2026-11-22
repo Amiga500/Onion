@@ -103,7 +103,6 @@
 #define RESULT_FILE "/tmp/kidsmode_ui_result"
 #define DEFAULT_VIDEOS_DIR "/mnt/SDCARD/Media/KidsMode/Main"
 #define FAVORITES_PATH "/mnt/SDCARD/Roms/favourite.json"
-#define ICON_X_PATH "/mnt/SDCARD/App/KidsMode/icon-X-54.png"
 #define SCREEN_REFLECTION_PATH \
     "/mnt/SDCARD/App/KidsMode/screen-reflection.png"
 
@@ -417,11 +416,6 @@ static uint32_t duration_probe_last_poll;
 static SDL_Surface *crt_fallback = NULL;
 static SDL_Surface *screen_reflection = NULL;
 static bool screen_reflection_checked = false;
-static SDL_Surface *icon_x = NULL; // optional theme icon-X-54.png, loaded
-                                   // once on first use; NULL if the theme
-                                   // doesn't have one (checked, not
-                                   // missing-file-error)
-static bool icon_x_checked = false;
 static SDL_Surface *arrow_up = NULL;
 static SDL_Surface *arrow_down = NULL;
 static bool vertical_arrows_checked = false;
@@ -824,181 +818,6 @@ static SDL_Surface *scaleAlphaSurface(SDL_Surface *src, int dst_w, int dst_h)
     if (SDL_MUSTLOCK(src))
         SDL_UnlockSurface(src);
     return dst;
-}
-
-// Recolor only the bundled badge. Its white X and antialiased edges remain
-// white/mixed with the new accent, and its alpha channel stays untouched.
-// Use the same A-button accent as the last-played marker, not the theme's
-// text color (which is often white even when its buttons are colored).
-static void tintRestartIcon(SDL_Surface *img)
-{
-    bool locked = SDL_MUSTLOCK(img);
-    if (locked && SDL_LockSurface(img) != 0)
-        return;
-    unsigned max_chroma = 0;
-    for (int y = 0; y < img->h; y++) {
-        for (int x = 0; x < img->w; x++) {
-            uint8_t r, g, b, a;
-            SDL_GetRGBA(readSurfacePixel(img, x, y), img->format, &r, &g, &b, &a);
-            unsigned hi = r > g ? r : g;
-            if (b > hi) hi = b;
-            unsigned lo = r < g ? r : g;
-            if (b < lo) lo = b;
-            if (a != 0 && hi - lo > max_chroma)
-                max_chroma = hi - lo;
-        }
-    }
-    if (max_chroma != 0) {
-        uint32_t accent = markerAccentHex();
-        unsigned tr = (accent >> 16) & 255;
-        unsigned tg = (accent >> 8) & 255;
-        unsigned tb = accent & 255;
-        for (int y = 0; y < img->h; y++) {
-            for (int x = 0; x < img->w; x++) {
-                uint8_t r, g, b, a;
-                SDL_GetRGBA(readSurfacePixel(img, x, y), img->format, &r, &g, &b, &a);
-                if (a == 0) continue;
-                unsigned hi = r > g ? r : g;
-                if (b > hi) hi = b;
-                unsigned lo = r < g ? r : g;
-                if (b < lo) lo = b;
-                unsigned ink = (hi - lo) * 255 / max_chroma;
-                unsigned white = 255 * (255 - ink);
-                writeSurfacePixel(img, x, y, SDL_MapRGBA(img->format,
-                    (tr * ink + white + 127) / 255,
-                    (tg * ink + white + 127) / 255,
-                    (tb * ink + white + 127) / 255, a));
-            }
-        }
-    }
-    if (locked)
-        SDL_UnlockSurface(img);
-}
-
-// Use A's actual alpha silhouette, including its transparent margins and
-// antialiased circle edge. Extract only the white X from the bundled badge
-// and center it without scaling it: changing the circle must not enlarge X.
-static SDL_Surface *matchRestartCircle(SDL_Surface *img)
-{
-    SDL_Surface *button = resource_getSurface(BUTTON_A);
-    if (button == NULL)
-        return NULL;
-    SDL_Surface *badge = scaleAlphaSurface(button, button->w, button->h);
-    if (badge == NULL)
-        return NULL;
-    bool locked = SDL_MUSTLOCK(img);
-    if (locked && SDL_LockSurface(img) != 0) {
-        SDL_FreeSurface(badge);
-        return NULL;
-    }
-    unsigned max_chroma = 0;
-    for (int y = 0; y < img->h; y++) {
-        for (int x = 0; x < img->w; x++) {
-            uint8_t r, g, b, a;
-            SDL_GetRGBA(readSurfacePixel(img, x, y), img->format, &r, &g, &b, &a);
-            unsigned hi = r > g ? r : g;
-            if (b > hi) hi = b;
-            unsigned lo = r < g ? r : g;
-            if (b < lo) lo = b;
-            if (a && hi - lo > max_chroma) max_chroma = hi - lo;
-        }
-    }
-    int left = badge->w, right = -1, top = badge->h, bottom = -1;
-    uint32_t accent = markerAccentHex();
-    unsigned tr = (accent >> 16) & 255, tg = (accent >> 8) & 255, tb = accent & 255;
-    for (int y = 0; y < badge->h; y++) {
-        for (int x = 0; x < badge->w; x++) {
-            uint8_t r, g, b, a;
-            SDL_GetRGBA(readSurfacePixel(badge, x, y), badge->format, &r, &g, &b, &a);
-            if (a) {
-                if (x < left) left = x;
-                if (x > right) right = x;
-                if (y < top) top = y;
-                if (y > bottom) bottom = y;
-            }
-            writeSurfacePixel(badge, x, y, SDL_MapRGBA(badge->format, tr, tg, tb, a));
-        }
-    }
-    if (max_chroma == 0 || right < left || bottom < top) {
-        if (locked) SDL_UnlockSurface(img);
-        SDL_FreeSurface(badge);
-        return NULL;
-    }
-    int dx = (left + right - img->w + 1) / 2;
-    int dy = (top + bottom - img->h + 1) / 2;
-    for (int y = 0; y < img->h; y++) {
-        for (int x = 0; x < img->w; x++) {
-            int bx = x + dx, by = y + dy;
-            if (bx < 0 || bx >= badge->w || by < 0 || by >= badge->h) continue;
-            uint8_t r, g, b, a, br, bg, bb, ba;
-            SDL_GetRGBA(readSurfacePixel(img, x, y), img->format, &r, &g, &b, &a);
-            unsigned hi = r > g ? r : g;
-            if (b > hi) hi = b;
-            unsigned lo = r < g ? r : g;
-            if (b < lo) lo = b;
-            unsigned glyph = (255 - (hi - lo) * 255 / max_chroma) * a / 255;
-            if (glyph == 0) continue;
-            SDL_GetRGBA(readSurfacePixel(badge, bx, by), badge->format, &br, &bg, &bb, &ba);
-            writeSurfacePixel(badge, bx, by, SDL_MapRGBA(badge->format,
-                (tr * (255 - glyph) + 255 * glyph + 127) / 255,
-                (tg * (255 - glyph) + 255 * glyph + 127) / 255,
-                (tb * (255 - glyph) + 255 * glyph + 127) / 255, ba));
-        }
-    }
-    if (locked) SDL_UnlockSurface(img);
-    return badge;
-}
-
-// Prefer an X supplied by the theme or its profile overrides. A missing or
-// unreadable themed icon falls back to the bundled shape, tinted once.
-static SDL_Surface *loadIconX(void)
-{
-    char themed_path[STR_MAX * 2];
-    SDL_Surface *img = NULL;
-    bool bundled = true;
-    if (theme_getImagePath(theme()->path, "icon-X-54", themed_path) > 0) {
-        img = IMG_Load(themed_path);
-        bundled = img == NULL;
-    }
-    // The X the rest of RedOnion shows for the theme (GameSwitcher, Tweaks):
-    // its skin/extra/icon-X-54.png (Silky RedOnion's red one), or the one
-    // RedOnion ships for it in .tmp_update/res/theme-x. Not the plain white
-    // last resort: the bundled badge, tinted, looks better than that.
-    if (img == NULL &&
-        theme_getImagePath(theme()->path, "extra/icon-X-54", themed_path) > 0) {
-        img = IMG_Load(themed_path);
-        bundled = img == NULL;
-    }
-    if (img == NULL) {
-        char name[STR_MAX];
-        if (theme_bundledButtonXName(theme()->path, name, sizeof(name))) {
-            theme_getImagePath(theme()->path, name, themed_path);
-            if (access(themed_path, F_OK) == 0) {
-                img = IMG_Load(themed_path);
-                bundled = img == NULL;
-            }
-        }
-    }
-    if (img == NULL)
-        img = IMG_Load(ICON_X_PATH);
-    if (img == NULL)
-        return NULL;
-    // Normalize without an alpha-destroying SDL blit; use the same safe
-    // scaler as our transparent overlays. No orientation changes here.
-    SDL_Surface *scaled = scaleAlphaSurface(
-        img, (int)(img->w * g_scale + 0.5), (int)(img->h * g_scale + 0.5));
-    SDL_FreeSurface(img);
-    if (scaled != NULL && bundled) {
-        SDL_Surface *matched = matchRestartCircle(scaled);
-        if (matched != NULL) {
-            SDL_FreeSurface(scaled);
-            scaled = matched;
-        }
-        else {
-            tintRestartIcon(scaled);
-        }
-    }
-    return scaled;
 }
 
 // ScreenScraper Mix V1 bakes the same glass highlight into every square.
@@ -3152,8 +2971,8 @@ static void renderFloorIndicator(void)
 // Footer hints in the order given (the first is A), placed as
 // theme_renderStandardHintX places them: from the left in the classic layout,
 // ending on the right (A last) in the alternative one (Tweaks > Look and
-// feel > Button hints at the bottom). Kids Mode adds an X hint (its own X
-// icon, as the theme has none) that the standard hints can't place: drawn
+// feel > Button hints at the bottom). Kids Mode adds an X hint (the X button
+// of theme/resources.h) that the standard hints can't place: drawn
 // from the left only, it stayed there while PLAY moved to the right.
 typedef struct {
     SDL_Surface *icon;
@@ -3192,13 +3011,24 @@ static void renderFooterHints(const FooterHint *hints, int count)
     }
 }
 
+// The X button the GameSwitcher shows too (theme/resources.h: the theme's
+// own, or one made from its B button), owned by the theme resources. A theme
+// with an empty B button (hints drawn in its footer art) has none, and the
+// GameSwitcher leaves out its X hint; RESTART and HELP still need to show
+// their button: the plain X then (.tmp_update/res/icon-X-54.png).
+static SDL_Surface *icon_x_plain = NULL;
+static bool icon_x_plain_checked = false;
+
 static SDL_Surface *footerIconX(void)
 {
-    if (!icon_x_checked) {
-        icon_x = loadIconX();
-        icon_x_checked = true;
+    SDL_Surface *icon = resource_getSurface(BUTTON_X);
+    if (icon != NULL)
+        return icon;
+    if (!icon_x_plain_checked) {
+        icon_x_plain_checked = true;
+        icon_x_plain = theme_loadImage(theme()->path, "extra/icon-X-54");
     }
-    return icon_x;
+    return icon_x_plain;
 }
 
 static void renderCarousel(int remaining)
@@ -3653,9 +3483,9 @@ static const HelpLine help_page3[] = {
     {"Forgot the PIN?", "App/KidsMode/CHANGE-PIN.txt"},
 };
 
-// The color of the theme's buttons, as the X badge and the last-played
-// marker use (red in Silky RedOnion, violet in a violet theme), or RedOnion
-// red where that is as light as the text: the keys must stand out.
+// The color of the theme's buttons, as the last-played marker uses (red in
+// Silky RedOnion, violet in a violet theme), or RedOnion red where that is
+// as light as the text: the keys must stand out.
 static SDL_Color helpAccent(void)
 {
     uint32_t hex = markerAccentHex();
@@ -5027,8 +4857,6 @@ int main(int argc, char *argv[])
         SDL_FreeSurface(crt_fallback);
     if (screen_reflection != NULL)
         SDL_FreeSurface(screen_reflection);
-    if (icon_x != NULL)
-        SDL_FreeSurface(icon_x);
     if (arrow_up != NULL)
         SDL_FreeSurface(arrow_up);
     if (arrow_down != NULL)
@@ -5052,6 +4880,8 @@ int main(int argc, char *argv[])
     list_free(&carousel_settings_list);
     list_free(&category_list);
     list_free(&profile_list);
+    if (icon_x_plain != NULL)
+        SDL_FreeSurface(icon_x_plain);
     resources_free();
 
     // NB: deliberately no final clear+flip here — an extra page flip on the
