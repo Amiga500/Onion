@@ -1,0 +1,15 @@
+MP3 decoder (build-time dependency)
+===================================
+AudioTune uses the single-header minimp3 decoder by lieff and contributors.
+Upstream: https://github.com/lieff/minimp3
+Licence: CC0-1.0: https://creativecommons.org/publicdomain/zero/1.0/
+
+The build fetches exactly commit:
+afb604c06bc8beb145fecd42c0ceb5bda8795144
+File: minimp3.h
+SHA-256: 5fb296a790734772b65a5514438cc06d14f24e539c13475ff2a7f737681c82c0
+
+The file checksum and upstream revision are published by FreeBSD ports
+(audio/minimp3 g20211130). src/fetch-mp3-decoder.sh validates SHA-256
+whether the header is already present or freshly downloaded. A mismatch
+stops the build. No decoder dependency is needed on the Miyoo device.

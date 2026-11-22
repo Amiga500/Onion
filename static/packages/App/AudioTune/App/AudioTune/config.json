@@ -1,0 +1,6 @@
+{
+  "label": "AudioTune",
+  "icon": "icon.png",
+  "launch": "launch.sh",
+  "description": "Audio tests and EQ"
+}
