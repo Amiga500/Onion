@@ -857,22 +857,43 @@ TEST(every_tweaks_menu_has_room_for_its_items)
 TEST(console_view_options_written_and_read)
 {
     reset_dir();
-    for (int i = 0; i < CONSOLEVIEW_OPTION_COUNT; i++)
-        ASSERT_EQ(consoleview_option(i), 0);
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_ANIMATION, 2));
+    /* No file: every option shows the choice that writes nothing (Open
+     * MainUI's own), wherever it is in its list. */
+    for (int i = 0; i < CONSOLEVIEW_OPTION_COUNT; i++) {
+        ASSERT_EQ(consoleview_option(i), consoleview_default_index(i));
+        ASSERT_TRUE(consoleview_options[i].values[consoleview_default_index(i)] == NULL);
+    }
+    ASSERT_EQ(consoleview_default_index(CONSOLEVIEW_ANIMATION), 0); /* Slide */
+    ASSERT_EQ(consoleview_default_index(CONSOLEVIEW_OPACITY), 1);   /* Dimmed, 50% */
+    ASSERT_EQ(consoleview_default_index(CONSOLEVIEW_SCALE), 2);     /* 70% */
+    ASSERT_EQ(consoleview_default_index(CONSOLEVIEW_GAP), 3);       /* 40 px */
+    ASSERT_EQ(consoleview_default_index(CONSOLEVIEW_OFFSET), 2);    /* Centred */
+    ASSERT_EQ(consoleview_default_index(CONSOLEVIEW_PADDING), 2);   /* 12 px */
+    ASSERT_EQ(consoleview_default_index(CONSOLEVIEW_DURATION), 2);  /* 180 ms */
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_OPACITY, 2));
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_SELECTION, 1));
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_COUNT, 1));
     char text[512];
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
-    ASSERT_TRUE(strstr(text, "\"animation\":\t\"slide\"") != NULL);
-    ASSERT_TRUE(strstr(text, "\"opacity_unselected\":\t0.5") != NULL);
+    ASSERT_TRUE(strstr(text, "\"opacity_unselected\":\t0.3") != NULL);
     ASSERT_TRUE(strstr(text, "\"selection\":\tfalse") != NULL);
     ASSERT_TRUE(strstr(text, "\"count\":\tfalse") != NULL);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_ANIMATION), 2);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_OPACITY), 2);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_SELECTION), 1);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_COUNT), 1);
+    /* "slide" written before (Slide was a choice of its own) reads as Slide. */
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"animation\": \"slide\"}}");
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_ANIMATION), 0);
+    /* Migration 00026's carousel: 0.7, 0.5, smooth, 180 ms read as 70%,
+     * Dimmed, Smooth and 180 ms, not as a "Default". */
+    gamelists_write_text(CONSOLEVIEW_CONFIG_PATH,
+                         "{\"carousel\": {\"selection\": false, \"scale_unselected\": 0.7, "
+                         "\"opacity_unselected\": 0.5, \"easing\": \"smooth\", \"duration_ms\": 180}}");
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_SCALE), 2);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OPACITY), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_EASING), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 2);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_SELECTION), 1);
     /* "None" is written as such: Open MainUI's default changes later. */
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_ANIMATION, 1));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
@@ -884,22 +905,22 @@ TEST(console_view_motion_and_slide_time)
 {
     reset_dir();
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_EASING, 1));
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 5));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 4));
     char text[512];
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"easing\":\t\"smooth\"") != NULL);
     ASSERT_TRUE(strstr(text, "\"duration_ms\":\t300") != NULL);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_EASING), 1);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 5);
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 1));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 4);
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 0));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"duration_ms\":\t100") != NULL);
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 4));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 3));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"duration_ms\":\t240") != NULL);
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 6));
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 6);
-    ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_DURATION, 7));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 5));
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 5);
+    ASSERT_FALSE(consoleview_store_option(CONSOLEVIEW_DURATION, 6));
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_REPEAT, 2));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"repeat_ms\":\t200") != NULL);
@@ -908,21 +929,22 @@ TEST(console_view_motion_and_slide_time)
     /* Rob's suggested values read back; a time not offered shows as
      * Default and is kept. */
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 300, \"repeat_ms\": 200}}");
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 5);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 4);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_REPEAT), 2);
     /* rc10's suggestions: 180 ms, repeat 100. */
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 180, \"repeat_ms\": 100}}");
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 3);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 2); /* 180 ms, Open MainUI's own */
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_REPEAT), 1);
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"duration_ms\": 250, \"repeat_ms\": 200}}");
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 0);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_DURATION), 2);
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_EASING, 1));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"duration_ms\":\t250") != NULL);
     ASSERT_TRUE(strstr(text, "\"repeat_ms\":\t200") != NULL);
-    /* Both back to Default: the keys go, and the file with them. */
+    /* Both back to Open MainUI's own (Ease-out, 180 ms): the keys go, and
+     * the file with them. */
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_EASING, 0));
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 0));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_DURATION, 2));
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "easing") == NULL);
     ASSERT_TRUE(strstr(text, "\"duration_ms\"") == NULL);
@@ -933,15 +955,15 @@ TEST(console_view_motion_and_slide_time)
 TEST(console_view_layout_keys)
 {
     reset_dir();
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_SCALE, 4));
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_GAP, 3));
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_OFFSET, 1));
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_PADDING, 1));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_SCALE, 3));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_GAP, 2));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_OFFSET, 0));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_PADDING, 0));
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_VSYNC, 1));
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_GRID_NAV, 1));
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_FOLDER_ICON, 1));
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_MENU, 1));
-    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_OPACITY, 3));
+    ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_OPACITY, 2));
     char text[1024];
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"scale_unselected\":\t0.6") != NULL);
@@ -953,20 +975,21 @@ TEST(console_view_layout_keys)
     ASSERT_TRUE(strstr(text, "\"folder_icon\":\tfalse") != NULL);
     ASSERT_TRUE(strstr(text, "\"menu\":\t[\"refresh_all\"]") != NULL);
     ASSERT_TRUE(strstr(text, "\"opacity_unselected\":\t0.3") != NULL);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_SCALE), 4);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_GAP), 3);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OFFSET), 1);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_PADDING), 1);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_SCALE), 3);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_GAP), 2);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OFFSET), 0);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_PADDING), 0);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_VSYNC), 1);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_GRID_NAV), 1);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_FOLDER_ICON), 1);
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_MENU), 1);
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OPACITY), 3);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OPACITY), 2);
     ASSERT_TRUE(consoleview_store_option(CONSOLEVIEW_MENU, 3));
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_MENU), 3);
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"menu\":\t[]") != NULL);
-    /* Another list reads as Default and is kept until changed. */
+    /* Another list reads as Both (Open MainUI's own) and is kept until
+     * changed. */
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"menu\": [\"refresh\", \"refresh_all\"]}");
     ASSERT_EQ(consoleview_option(CONSOLEVIEW_MENU), 0);
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"menu\": [\"refresh\"]}");
@@ -1004,7 +1027,7 @@ static bool home_screen_greyed(const char *label)
 static const char *const console_view_checked_labels[] = {
     "Games tab view", "Expert tab view", "Remember last console", "Game count",
     "Console page menu", "Wrap around", "Grid navigation", "Console pictures",
-    "List: folder icons", "Carousel look...", "Carousel movement..."};
+    "List: folder icons", "Vertical position", "Carousel look...", "Carousel movement..."};
 static const char *const home_screen_checked_labels[] = {
     "Tabs...", "Console page...", "SELECT menu..."};
 
@@ -1086,6 +1109,7 @@ TEST(console_view_greys_out_unused_options)
     /* Games as a list, Expert still a grid. */
     console_view_set_layout(CONSOLEVIEW_GAMES, CONSOLEVIEW_LIST);
     ASSERT_TRUE(console_view_greyed("Carousel look..."));
+    ASSERT_TRUE(console_view_greyed("Vertical position"));
     ASSERT_FALSE(console_view_greyed("Console pictures"));
     ASSERT_FALSE(console_view_greyed("List: folder icons"));
     ASSERT_FALSE(console_view_greyed("Grid navigation"));
@@ -1098,6 +1122,7 @@ TEST(console_view_greys_out_unused_options)
     /* Expert as a carousel: no grid left, the carousel menus open. */
     console_view_set_layout(CONSOLEVIEW_EXPERT, CONSOLEVIEW_CAROUSEL);
     ASSERT_FALSE(console_view_greyed("Carousel look..."));
+    ASSERT_FALSE(console_view_greyed("Vertical position"));
     ASSERT_FALSE(console_view_greyed("Carousel movement..."));
     ASSERT_FALSE(console_view_greyed("Wrap around"));
     ASSERT_TRUE(console_view_greyed("Grid navigation"));
@@ -1265,7 +1290,7 @@ TEST(options_follow_the_option_they_need)
     ASSERT_TRUE(menu_item(move, "Slide time")->disabled);
     ASSERT_FALSE(menu_item(move, "Holding: time per move")->disabled);
     ASSERT_FALSE(menu_item(move, "VSync")->disabled);
-    anim->value = 2; /* Slide */
+    anim->value = 0; /* Slide */
     anim->action(anim);
     ASSERT_FALSE(menu_item(move, "Slide time")->disabled);
 
@@ -1856,11 +1881,11 @@ TEST(console_view_defaults_remove_only_their_key)
     ASSERT_EQ(consoleview_layout(CONSOLEVIEW_GAMES), CONSOLEVIEW_CAROUSEL);
 }
 
-TEST(console_view_value_not_offered_shows_first)
+TEST(console_view_value_not_offered_shows_open_mainui_own)
 {
     reset_dir();
     gamelists_write_text(CONSOLEVIEW_CONFIG_PATH, "{\"carousel\": {\"opacity_unselected\": 0.7}}");
-    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OPACITY), 0);
+    ASSERT_EQ(consoleview_option(CONSOLEVIEW_OPACITY), consoleview_default_index(CONSOLEVIEW_OPACITY));
     char text[128];
     read_file(CONSOLEVIEW_CONFIG_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "0.7") != NULL);
@@ -1938,7 +1963,7 @@ int main(void)
     RUN_TEST(game_menus_damaged_file_left_alone);
     RUN_TEST(console_view_wrap_sets_carousel_and_grid);
     RUN_TEST(console_view_defaults_remove_only_their_key);
-    RUN_TEST(console_view_value_not_offered_shows_first);
+    RUN_TEST(console_view_value_not_offered_shows_open_mainui_own);
     RUN_TEST(console_view_option_damaged_file_left_alone);
     RUN_TEST(pair_parser_accepts_open_mainui_forms);
     RUN_TEST(repeat_stock_values_remove_the_file);

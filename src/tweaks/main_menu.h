@@ -1050,16 +1050,16 @@ static const ConsoleViewOption consoleview_options[CONSOLEVIEW_OPTION_COUNT] = {
     {{NULL}, 1, "count", 2, {NULL, "false"}},
     {{"carousel"}, 1, "labels", 2, {NULL, "false"}},
     {{"carousel"}, 1, "selection", 4, {NULL, "false", "#FFFFFF1F", "#FFFFFF38"}},
-    {{"carousel"}, 1, "opacity_unselected", 4, {NULL, "1", "0.5", "0.3"}},
-    {{"carousel"}, 1, "animation", 3, {NULL, "none", "slide"}},
+    {{"carousel"}, 1, "opacity_unselected", 3, {"1", NULL, "0.3"}},
+    {{"carousel"}, 1, "animation", 2, {NULL, "none"}},
     {{"carousel", "grid"}, 2, "wrap", 2, {NULL, "false"}},
     {{"carousel"}, 1, "easing", 2, {NULL, "smooth"}},
-    {{"carousel"}, 1, "duration_ms", 7, {NULL, "100", "150", "180", "240", "300", "400"}},
+    {{"carousel"}, 1, "duration_ms", 6, {"100", "150", NULL, "240", "300", "400"}},
     {{"carousel"}, 1, "repeat_ms", 4, {NULL, "100", "200", "300"}},
-    {{"carousel"}, 1, "scale_unselected", 5, {NULL, "1", "0.85", "0.7", "0.6"}},
-    {{"carousel"}, 1, "gap", 6, {NULL, "0", "16", "32", "48", "64"}},
-    {{"carousel"}, 1, "offset_y", 5, {NULL, "-40", "-20", "20", "40"}},
-    {{"carousel"}, 1, "selection_padding", 5, {NULL, "0", "8", "16", "24"}},
+    {{"carousel"}, 1, "scale_unselected", 4, {"1", "0.85", NULL, "0.6"}},
+    {{"carousel"}, 1, "gap", 6, {"0", "16", "32", NULL, "48", "64"}},
+    {{"carousel"}, 1, "offset_y", 5, {"-40", "-20", NULL, "20", "40"}},
+    {{"carousel"}, 1, "selection_padding", 5, {"0", "8", NULL, "16", "24"}},
     {{"carousel"}, 1, "vsync", 2, {NULL, "false"}},
     {{"grid"}, 1, "navigation", 2, {NULL, "stock"}},
     {{"list"}, 1, "folder_icon", 2, {NULL, "false"}},
@@ -1099,17 +1099,30 @@ static bool consoleview_value_matches(const cJSON *item, const char *text)
     return cJSON_IsString(item) && strcmp(item->valuestring, text) == 0;
 }
 
+// The choice that writes nothing (NULL): Open MainUI's own default. It is
+// listed among the others in order (Slide time: 100, 150, 180 ms...), named
+// by what it does instead of "Default", and a value already written that
+// equals it (0.7, 180 from migration 00026) is shown as it.
+static int consoleview_default_index(int option)
+{
+    const ConsoleViewOption *o = &consoleview_options[option];
+    for (int i = 0; i < o->count; i++)
+        if (o->values[i] == NULL)
+            return i;
+    return 0;
+}
+
 static int consoleview_option_of(cJSON *root, int option)
 {
     const ConsoleViewOption *o = &consoleview_options[option];
     cJSON *where = o->sections[0] ? cJSON_GetObjectItemCaseSensitive(root, o->sections[0]) : root;
     cJSON *item = cJSON_IsObject(where) ? cJSON_GetObjectItemCaseSensitive(where, o->key) : NULL;
     if (item == NULL)
-        return 0;
-    for (int i = 1; i < o->count; i++)
-        if (consoleview_value_matches(item, o->values[i]))
+        return consoleview_default_index(option);
+    for (int i = 0; i < o->count; i++)
+        if (o->values[i] != NULL && consoleview_value_matches(item, o->values[i]))
             return i;
-    return 0;
+    return consoleview_default_index(option);
 }
 
 static int consoleview_option(int option)
@@ -1119,7 +1132,8 @@ static int consoleview_option(int option)
     bool exists = false;
     bool valid = false;
     cJSON *root = mainmenu_load_root_file(CONSOLEVIEW_CONFIG_PATH, &exists, &valid);
-    int value = valid && root != NULL ? consoleview_option_of(root, option) : 0;
+    int value = valid && root != NULL ? consoleview_option_of(root, option)
+                                      : consoleview_default_index(option);
     cJSON_Delete(root);
     return value;
 }
@@ -1286,7 +1300,7 @@ void menu_carouselMovement(void *_);
 // Selection box padding only with a box (Selection box not Off).
 static void consoleview_update_list(List *list, int used)
 {
-    bool slide = consoleview_option(CONSOLEVIEW_ANIMATION) != 1; // Default, None, Slide
+    bool slide = consoleview_option(CONSOLEVIEW_ANIMATION) != 1; // Slide, None
     bool box = consoleview_option(CONSOLEVIEW_SELECTION) != 1;   // Theme, Off, Light, Bright
     for (int i = 0; i < list->item_count; i++) {
         ListItem *item = &list->items[i];
@@ -1331,7 +1345,7 @@ void menu_consolePage(void *_)
 {
     (void)_;
     if (!_menu_console_view._created) {
-        _menu_console_view = list_createWithTitle(11, LIST_SMALL, "Console page");
+        _menu_console_view = list_createWithTitle(12, LIST_SMALL, "Console page");
         list_addItemWithInfoNote(
             &_menu_console_view,
             (ListItem){
@@ -1386,7 +1400,7 @@ void menu_consolePage(void *_)
                 .label = "Console page menu",
                 .item_type = MULTIVALUE,
                 .value_max = 3,
-                .value_labels = {"Default", "Refresh all", "Refresh", "None"},
+                .value_labels = {"Both", "Refresh all", "Refresh", "None"},
                 .value = consoleview_option(CONSOLEVIEW_MENU),
                 .action_id = CONSOLEVIEW_MENU,
                 .action = consoleview_action_option},
@@ -1447,6 +1461,20 @@ void menu_consolePage(void *_)
             "in the List view.");
         list_addItemWithInfoNote(
             &_menu_console_view,
+            (ListItem){
+                .label = "Vertical position",
+                .item_type = MULTIVALUE,
+                .value_max = 4,
+                .value_labels = {"Up 40 px", "Up 20 px", "Centred", "Down 20 px", "Down 40 px"},
+                .value = consoleview_option(CONSOLEVIEW_OFFSET),
+                .action_id = CONSOLEVIEW_OFFSET,
+                .action = consoleview_action_option},
+            "Moves the carousel's pictures and their\n"
+            "names up or down, to fit consoles with\n"
+            "taller or wider pictures. Greyed out\n"
+            "while no tab uses the carousel.");
+        list_addItemWithInfoNote(
+            &_menu_console_view,
             (ListItem){.label = "Carousel look...", .action = menu_carouselLook},
             "Names, selection box, size and spacing\n"
             "of the consoles in the carousel. Greyed\n"
@@ -1467,7 +1495,7 @@ void menu_carouselLook(void *_)
 {
     (void)_;
     if (!_menu_carousel_look._created) {
-        _menu_carousel_look = list_createWithTitle(7, LIST_SMALL, "Carousel look");
+        _menu_carousel_look = list_createWithTitle(6, LIST_SMALL, "Carousel look");
         list_addItemWithInfoNote(
             &_menu_carousel_look,
             (ListItem){
@@ -1497,62 +1525,49 @@ void menu_carouselLook(void *_)
                 .label = "Selection box padding",
                 .item_type = MULTIVALUE,
                 .value_max = 4,
-                .value_labels = {"Default", "0 px", "8 px", "16 px", "24 px"},
+                .value_labels = {"0 px", "8 px", "12 px", "16 px", "24 px"},
                 .value = consoleview_option(CONSOLEVIEW_PADDING),
                 .action_id = CONSOLEVIEW_PADDING,
                 .action = consoleview_action_option},
             "Space between the selected picture and\n"
-            "its box. Default: as Open MainUI sets it\n"
-            "(12 px).");
+            "its box. 12 px is Open MainUI's own.");
         list_addItemWithInfoNote(
             &_menu_carousel_look,
             (ListItem){
                 .label = "Nearby consoles",
                 .item_type = MULTIVALUE,
-                .value_max = 3,
-                .value_labels = {"Default", "Clear", "Dimmed", "Faint"},
+                .value_max = 2,
+                .value_labels = {"Clear", "Dimmed", "Faint"},
                 .value = consoleview_option(CONSOLEVIEW_OPACITY),
                 .action_id = CONSOLEVIEW_OPACITY,
                 .action = consoleview_action_option},
             "How the consoles beside the selected one\n"
-            "look: Clear, Dimmed (50%) or Faint (30%).\n"
-            "Default: as Open MainUI sets it (50%).");
+            "look: Clear, Dimmed (50%, Open MainUI's\n"
+            "own) or Faint (30%).");
         list_addItemWithInfoNote(
             &_menu_carousel_look,
             (ListItem){
                 .label = "Nearby consoles size",
                 .item_type = MULTIVALUE,
-                .value_max = 4,
-                .value_labels = {"Default", "Same", "85%", "70%", "60%"},
+                .value_max = 3,
+                .value_labels = {"Same", "85%", "70%", "60%"},
                 .value = consoleview_option(CONSOLEVIEW_SCALE),
                 .action_id = CONSOLEVIEW_SCALE,
                 .action = consoleview_action_option},
             "Size of the consoles beside the selected\n"
-            "one. Default: as Open MainUI sets it (70%).");
+            "one. 70% is Open MainUI's own.");
         list_addItemWithInfoNote(
             &_menu_carousel_look,
             (ListItem){
                 .label = "Space between consoles",
                 .item_type = MULTIVALUE,
                 .value_max = 5,
-                .value_labels = {"Default", "0 px", "16 px", "32 px", "48 px", "64 px"},
+                .value_labels = {"0 px", "16 px", "32 px", "40 px", "48 px", "64 px"},
                 .value = consoleview_option(CONSOLEVIEW_GAP),
                 .action_id = CONSOLEVIEW_GAP,
                 .action = consoleview_action_option},
             "Space between the console pictures.\n"
-            "Default: as Open MainUI sets it (40 px).");
-        list_addItemWithInfoNote(
-            &_menu_carousel_look,
-            (ListItem){
-                .label = "Vertical position",
-                .item_type = MULTIVALUE,
-                .value_max = 4,
-                .value_labels = {"Default", "Up 40 px", "Up 20 px", "Down 20 px", "Down 40 px"},
-                .value = consoleview_option(CONSOLEVIEW_OFFSET),
-                .action_id = CONSOLEVIEW_OFFSET,
-                .action = consoleview_action_option},
-            "Moves the pictures and their names\n"
-            "up or down. Default: centred.");
+            "40 px is Open MainUI's own.");
     }
     consoleview_update_enabled();
     menu_stack[++menu_level] = &_menu_carousel_look;
@@ -1569,24 +1584,24 @@ void menu_carouselMovement(void *_)
             (ListItem){
                 .label = "Animation",
                 .item_type = MULTIVALUE,
-                .value_max = 2,
-                .value_labels = {"Default", "None", "Slide"},
+                .value_max = 1,
+                .value_labels = {"Slide", "None"},
                 .value = consoleview_option(CONSOLEVIEW_ANIMATION),
                 .action_id = CONSOLEVIEW_ANIMATION,
                 .action = consoleview_action_option},
             "Slide moves the consoles into place.\n"
-            "Default: as Open MainUI sets it.");
+            "None: the new one shows at once.");
         list_addItemWithInfoNote(
             &_menu_carousel_movement,
             (ListItem){
                 .label = "Slide motion",
                 .item_type = MULTIVALUE,
                 .value_max = 1,
-                .value_labels = {"Default", "Smooth"},
+                .value_labels = {"Ease-out", "Smooth"},
                 .value = consoleview_option(CONSOLEVIEW_EASING),
                 .action_id = CONSOLEVIEW_EASING,
                 .action = consoleview_action_option},
-            "How a slide moves. Default: fast, then\n"
+            "How a slide moves. Ease-out: fast, then\n"
             "slowing down. Smooth: speeds up and\n"
             "slows down gently. Only with Slide.");
         list_addItemWithInfoNote(
@@ -1594,28 +1609,29 @@ void menu_carouselMovement(void *_)
             (ListItem){
                 .label = "Slide time",
                 .item_type = MULTIVALUE,
-                .value_max = 6,
-                .value_labels = {"Default", "100 ms", "150 ms", "180 ms", "240 ms", "300 ms", "400 ms"},
+                .value_max = 5,
+                .value_labels = {"100 ms", "150 ms", "180 ms", "240 ms", "300 ms", "400 ms"},
                 .value = consoleview_option(CONSOLEVIEW_DURATION),
                 .action_id = CONSOLEVIEW_DURATION,
                 .action = consoleview_action_option},
             "How long a slide takes: shorter is\n"
-            "snappier. Default: as Open MainUI sets\n"
-            "it (180 ms). Only with Slide.");
+            "snappier. 180 ms is Open MainUI's own.\n"
+            "Only with Slide.");
         list_addItemWithInfoNote(
             &_menu_carousel_movement,
             (ListItem){
                 .label = "Holding: time per move",
                 .item_type = MULTIVALUE,
                 .value_max = 3,
-                .value_labels = {"Default", "100 ms", "200 ms", "300 ms"},
+                .value_labels = {"Auto", "100 ms", "200 ms", "300 ms"},
                 .value = consoleview_option(CONSOLEVIEW_REPEAT),
                 .action_id = CONSOLEVIEW_REPEAT,
                 .action = consoleview_action_option},
             "Time between moves while Left/Right is\n"
             "held. With Slide it is never shorter\n"
-            "than the slide time (Default: one move\n"
-            "per slide).");
+            "than the slide time. Auto: one move per\n"
+            "slide; with None, as fast as the key\n"
+            "repeats.");
         list_addItemWithInfoNote(
             &_menu_carousel_movement,
             (ListItem){
