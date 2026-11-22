@@ -1,10 +1,16 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.1 rc8**, on top of 1.1.0 (the source in
+GitHub: **Open MainUI 1.1.1 rc9**, on top of 1.1.0 (the source in
 `third-party/open-mainui`).
 
-Since rc7:
+Since rc8:
+
+- Lumination missing or invalid in system.json now falls back to 10 on
+  the Mini Flip and Mini+ and 7 on the Mini, as in RedOnion's
+  `res/miyoo<ID>_system.json` defaults (it was 7 on every model).
+
+From rc8:
 
 - `gallery.direct_from_list` in game-menu.json (off by default): RIGHT on
   a game in a list opens its gallery straight away instead of Game Info.
