@@ -1,0 +1,6 @@
+{
+  "label": "SD Card Doctor",
+  "icon": "icon.png",
+  "launch": "launch.sh",
+  "description": "SD diagnostics and cleanup"
+}
