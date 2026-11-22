@@ -40,6 +40,7 @@
 
 #include "./flip_suspend.h"
 #include "./input_fd.h"
+#include "./konami.h"
 #include "./low_battery.h"
 #include "./menuButtonAction.h"
 #include "./state_scan.h"
@@ -957,7 +958,7 @@ int main(void)
     uint32_t repeat_LR = 0;
     uint32_t repeat_power = 0;
     uint32_t val;
-    int konamiCodeIndex = 0;
+    KonamiState konami = {0};
     bool b_BTN_Not_Menu_Pressed = false;
     bool b_BTN_Menu_Pressed = false;
     bool power_pressed = false;
@@ -1482,23 +1483,20 @@ int main(void)
                 save_settings_timestamp = getMilliseconds();
             }
 
-            if ((val == PRESSED) && (system_state == MODE_MAIN_UI)) {
-                // Check for Konami code
-                if (ev.code == KONAMI_CODE[konamiCodeIndex]) {
-                    ++konamiCodeIndex;
-                    if (konamiCodeIndex == KONAMI_CODE_LENGTH) {
-                        // The entire Konami code was entered!
-                        FILE *file =
-                            fopen("/mnt/SDCARD/.tmp_update/cmd_to_run.sh", "w");
+            // Konami code: the easter egg, from MainUI (konami.h). The
+            // state is read when the code is complete: the cached one can
+            // still be the game's just after coming back to MainUI.
+            if (val == PRESSED &&
+                konami_feed(&konami, KONAMI_CODE, KONAMI_CODE_LENGTH, ev.code)) {
+                system_state_update();
+                if (system_state == MODE_MAIN_UI) {
+                    FILE *file =
+                        fopen("/mnt/SDCARD/.tmp_update/cmd_to_run.sh", "w");
+                    if (file != NULL) {
                         fputs("cd /mnt/SDCARD/.tmp_update/bin; ./easter", file);
                         fclose(file);
-
-                        konamiCodeIndex = 0;
                         kill_mainUI();
                     }
-                }
-                else {
-                    konamiCodeIndex = (ev.code == HW_BTN_UP);
                 }
             }
 
