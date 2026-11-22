@@ -1,10 +1,17 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.1 rc7**, on top of 1.1.0 (the source in
+GitHub: **Open MainUI 1.1.1 rc8**, on top of 1.1.0 (the source in
 `third-party/open-mainui`).
 
-Since rc6 (edge cases found in a code review):
+Since rc7:
+
+- `gallery.direct_from_list` in game-menu.json (off by default): RIGHT on
+  a game in a list opens its gallery straight away instead of Game Info.
+  Needs `gallery.right_shortcut` (on by default). Closes
+  https://github.com/Amiga500/Onion/issues/349.
+
+From rc7 (edge cases found in a code review):
 
 - The Wi-Fi networks are saved again once they are enabled.
 - The screen stays restored when a Search return finds no Search.
