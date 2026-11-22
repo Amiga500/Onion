@@ -1924,7 +1924,7 @@ static void gamemenu_action_layout(void *pt)
 /* Viewer switches (rc14): booleans in game-menu.json sections "saved_games"
  * and "gallery". A value equal to Open MainUI's default removes the key (and
  * its object once empty), like the resume mode. */
-#define GAMEMENU_SWITCH_COUNT 6
+#define GAMEMENU_SWITCH_COUNT 7
 typedef struct {
     const char *section;
     const char *key;
@@ -1953,6 +1953,12 @@ static const GameMenuSwitch gamemenu_switches[GAMEMENU_SWITCH_COUNT] = {
      "Right in Game Info opens the gallery.\n"
      "Off: the gallery only from the Game\n"
      "Info menu (SELECT)."},
+    /* rc8 (issue #349). Open MainUI reads it only with right_shortcut on:
+     * greyed out meanwhile (gallery_update_enabled). */
+    {"gallery", "direct_from_list", false, "RIGHT in a list: gallery",
+     "Right on a game in a list opens its\n"
+     "gallery straight away, not Game Info.\n"
+     "Needs RIGHT opens the gallery."},
     {"gallery", "upscale_images", true, "Enlarge small images",
      "Gallery images smaller than the screen\n"
      "are enlarged to fill it. Off: shown at\n"
@@ -2120,11 +2126,34 @@ static void gamemenu_action_arcade(void *pt)
         item->value = gamemenu_arcade_saved_games();
 }
 
+// "RIGHT in a list: gallery" does nothing while "RIGHT opens the gallery" is
+// off (Open MainUI then ignores direct_from_list): greyed out meanwhile.
+static void gamemenu_action_switch(void *pt);
+
+static void gallery_update_enabled(List *list)
+{
+    if (list == NULL || !list->_created)
+        return;
+    bool right = true;
+    for (int i = 0; i < GAMEMENU_SWITCH_COUNT; i++) {
+        if (strcmp(gamemenu_switches[i].key, "right_shortcut") == 0)
+            right = gamemenu_switch(i);
+    }
+    for (int i = 0; i < list->item_count; i++) {
+        ListItem *it = &list->items[i];
+        if (it->action == gamemenu_action_switch &&
+            strcmp(gamemenu_switches[it->action_id].key, "direct_from_list") == 0)
+            it->disabled = !right;
+    }
+}
+
 static void gamemenu_action_switch(void *pt)
 {
     ListItem *item = (ListItem *)pt;
     if (!gamemenu_store_switch(item->action_id, item->value != 0))
         item->value = gamemenu_switch(item->action_id);
+    if (strcmp(gamemenu_switches[item->action_id].key, "right_shortcut") == 0)
+        gallery_update_enabled(&_menu_game_info_menu);
 }
 
 // Saved Games can't be opened while it is off in the Game Info menu (Open
@@ -2379,6 +2408,7 @@ void menu_gameInfoMenu(void *_)
             if (strcmp(gamemenu_switches[i].section, "gallery") == 0)
                 gamemenu_add_switch(&_menu_game_info_menu, i);
         }
+        gallery_update_enabled(&_menu_game_info_menu);
         list_addItemWithInfoNote(&_menu_game_info_menu,
                                  (ListItem){.label = "Lighter manuals (PDF)",
                                             .item_type = TOGGLE,

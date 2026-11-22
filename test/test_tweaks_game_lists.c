@@ -1416,10 +1416,10 @@ TEST(game_info_and_saved_games_menus)
     list_free(&_menu_list_section);
 
     const char *info[] = {"Gallery", "Saved Games", "Game Maps", "Walkthrough",
-                          "Manual", "RIGHT opens the gallery", "Enlarge small images",
-                          "Lighter manuals (PDF)"};
-    ASSERT_EQ(_menu_game_info_menu.item_count, 8);
-    for (int i = 0; i < 8; i++)
+                          "Manual", "RIGHT opens the gallery", "RIGHT in a list: gallery",
+                          "Enlarge small images", "Lighter manuals (PDF)"};
+    ASSERT_EQ(_menu_game_info_menu.item_count, 9);
+    for (int i = 0; i < 9; i++)
         ASSERT_STREQ(_menu_game_info_menu.items[i].label, info[i]);
 
     const char *saved[] = {"LEFT opens Saved Games", "Show the Auto Save", "Enlarge small pictures",
@@ -1660,7 +1660,8 @@ TEST(game_menus_switches)
     ASSERT_TRUE(gamemenu_switch(2));  /* upscale_preview */
     ASSERT_TRUE(gamemenu_switch(3));  /* correct_aspect_ratio (on from rc15) */
     ASSERT_TRUE(gamemenu_switch(4));  /* gallery right_shortcut */
-    ASSERT_TRUE(gamemenu_switch(5));  /* gallery upscale_images */
+    ASSERT_FALSE(gamemenu_switch(5)); /* gallery direct_from_list (rc8) */
+    ASSERT_TRUE(gamemenu_switch(6));  /* gallery upscale_images */
     ASSERT_TRUE(gamemenu_store_switch(0, true));
     ASSERT_TRUE(gamemenu_store_switch(4, false));
     ASSERT_TRUE(gamemenu_store_resume_mode(2));
@@ -1685,19 +1686,67 @@ TEST(game_menus_switches)
     ASSERT_TRUE(gamemenu_switch(1));
     ASSERT_TRUE(gamemenu_switch(2));
     ASSERT_FALSE(gamemenu_store_switch(9, true));
-    /* The gallery's two switches share its section: off writes it, back on
-     * removes only that key, the other stays. */
+    /* The gallery's switches share its section: off writes it, back on
+     * removes only that key, the others stay. */
     reset_dir();
     ASSERT_TRUE(gamemenu_store_switch(4, false));
-    ASSERT_TRUE(gamemenu_store_switch(5, false));
+    ASSERT_TRUE(gamemenu_store_switch(6, false));
     read_file(GM_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "\"upscale_images\":\tfalse") != NULL);
-    ASSERT_FALSE(gamemenu_switch(5));
-    ASSERT_TRUE(gamemenu_store_switch(5, true));
+    ASSERT_FALSE(gamemenu_switch(6));
+    ASSERT_TRUE(gamemenu_store_switch(6, true));
     read_file(GM_PATH, text, sizeof(text));
     ASSERT_TRUE(strstr(text, "upscale_images") == NULL);
     ASSERT_TRUE(strstr(text, "\"right_shortcut\":\tfalse") != NULL);
+    ASSERT_TRUE(gamemenu_switch(6));
+    /* direct_from_list (rc8): off by default, so on is written and off
+     * removes the key again. */
+    reset_dir();
+    ASSERT_TRUE(gamemenu_store_switch(5, true));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "\"direct_from_list\":\ttrue") != NULL);
     ASSERT_TRUE(gamemenu_switch(5));
+    ASSERT_TRUE(gamemenu_store_switch(5, false));
+    read_file(GM_PATH, text, sizeof(text));
+    ASSERT_TRUE(strstr(text, "direct_from_list") == NULL);
+    ASSERT_FALSE(gamemenu_switch(5));
+}
+
+TEST(game_menus_gallery_from_list_needs_right_shortcut)
+{
+    /* "RIGHT in a list: gallery" is greyed out while "RIGHT opens the
+     * gallery" is off (Open MainUI ignores direct_from_list then). */
+    reset_dir();
+    list_free(&_menu_game_info_menu);
+    _menu_game_info_menu._created = false;
+    menu_level = 0;
+    menu_gameInfoMenu(NULL);
+    menu_level = 0;
+    ListItem *right = menu_item(&_menu_game_info_menu, "RIGHT opens the gallery");
+    ListItem *direct = menu_item(&_menu_game_info_menu, "RIGHT in a list: gallery");
+    ASSERT_TRUE(right != NULL && direct != NULL);
+    ASSERT_FALSE(direct->disabled);
+    ASSERT_EQ(direct->value, 0);
+    right->value = 0;
+    right->action(right);
+    ASSERT_TRUE(direct->disabled);
+    right->value = 1;
+    right->action(right);
+    ASSERT_FALSE(direct->disabled);
+    /* Built with right_shortcut already off: greyed out from the start. */
+    ASSERT_TRUE(gamemenu_store_switch(4, false));
+    list_free(&_menu_game_info_menu);
+    _menu_game_info_menu._created = false;
+    menu_gameInfoMenu(NULL);
+    menu_level = 0;
+    ASSERT_TRUE(menu_item(&_menu_game_info_menu, "RIGHT in a list: gallery")->disabled);
+    /* Its own switch writes the key. */
+    direct = menu_item(&_menu_game_info_menu, "RIGHT in a list: gallery");
+    direct->value = 1;
+    direct->action(direct);
+    ASSERT_TRUE(gamemenu_switch(5));
+    list_free(&_menu_game_info_menu);
+    _menu_game_info_menu._created = false;
 }
 
 TEST(game_menus_arcade_saved_games)
@@ -1883,6 +1932,7 @@ int main(void)
     RUN_TEST(game_menus_game_info_menu);
     RUN_TEST(game_menus_resume_mode);
     RUN_TEST(game_menus_switches);
+    RUN_TEST(game_menus_gallery_from_list_needs_right_shortcut);
     RUN_TEST(game_menus_arcade_saved_games);
     RUN_TEST(game_menus_saved_games_layout);
     RUN_TEST(game_menus_damaged_file_left_alone);
