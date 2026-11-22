@@ -94,6 +94,7 @@ int main(int argc, char *argv[])
     }
 
     int battery_percentage = battery_getPercentage();
+    int footer_info_shown = -1; // the SELECT hint as last drawn (-1: never)
 
     menu_main();
 
@@ -252,9 +253,19 @@ int main(int argc, char *argv[])
             if (list_changed)
                 theme_renderList(screen, menu_stack[menu_level]);
 
+            // SELECT opens the selected item's info box (the first-run
+            // tooltip says so once): its hint is in the footer while the
+            // item has one, so the footer is drawn again when that changes.
+            int info_now = list_hasInfoNote(menu_stack[menu_level]) ? 1 : 0;
+            if (info_now != footer_info_shown)
+                footer_changed = true;
+
             if (footer_changed) {
+                footer_info_shown = info_now;
                 theme_renderFooter(screen);
-                theme_renderStandardHint(screen, lang_get(LANG_SELECT, LANG_FALLBACK_SELECT), lang_get(LANG_BACK, LANG_FALLBACK_BACK));
+                theme_renderStandardHintSelect(screen, lang_get(LANG_SELECT, LANG_FALLBACK_SELECT),
+                                               lang_get(LANG_BACK, LANG_FALLBACK_BACK),
+                                               info_now ? "INFO" : NULL);
             }
 
             if (footer_changed || list_changed)

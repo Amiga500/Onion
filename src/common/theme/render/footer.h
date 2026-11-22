@@ -38,6 +38,8 @@ static char _cached_label_a_str[STR_MAX] = "";
 static char _cached_label_b_str[STR_MAX] = "";
 static SDL_Surface *_cached_label_x = NULL;
 static char _cached_label_x_str[STR_MAX] = "";
+static SDL_Surface *_cached_label_select = NULL;
+static char _cached_label_select_str[STR_MAX] = "";
 
 void theme_renderStandardHint_cleanup(void)
 {
@@ -53,9 +55,14 @@ void theme_renderStandardHint_cleanup(void)
         SDL_FreeSurface(_cached_label_x);
         _cached_label_x = NULL;
     }
+    if (_cached_label_select) {
+        SDL_FreeSurface(_cached_label_select);
+        _cached_label_select = NULL;
+    }
     _cached_label_a_str[0] = '\0';
     _cached_label_b_str[0] = '\0';
     _cached_label_x_str[0] = '\0';
+    _cached_label_select_str[0] = '\0';
 }
 
 static SDL_Surface *_footer_hintLabel(SDL_Surface **cache, char *cache_str,
@@ -92,10 +99,15 @@ static void _footer_drawHint(SDL_Surface *screen, SDL_Surface *button,
     }
 }
 
-// A, B and an optional X hint (btn_x_str NULL: none). In the alternative
-// layout they go right to left from A, otherwise left to right.
-void theme_renderStandardHintX(SDL_Surface *screen, const char *btn_a_str,
-                               const char *btn_b_str, const char *btn_x_str)
+// A, B, an optional X hint (btn_x_str NULL: none) and an optional SELECT
+// hint (select_str NULL: none). In the alternative layout they go right to
+// left from A, otherwise left to right. Themes have no SELECT button image:
+// it is written out, "[SELECT] INFO", in the hint font and colour (in
+// brackets as Battery Monitor writes it: Tweaks' A hint says "SELECT"), and
+// left out when the theme hides the hint labels.
+static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
+                                const char *btn_b_str, const char *btn_x_str,
+                                const char *select_str)
 {
     char label_a_str[STR_MAX] = " ", label_b_str[STR_MAX] = " ", label_x_str[STR_MAX] = " ";
 
@@ -111,12 +123,18 @@ void theme_renderStandardHintX(SDL_Surface *screen, const char *btn_a_str,
     bool show_b = btn_b_str != NULL && label_b_str[0] != '\0';
     SDL_Surface *button_x = btn_x_str != NULL ? resource_getSurface(BUTTON_X) : NULL;
     bool show_x = button_x != NULL && label_x_str[0] != '\0';
+    char label_select_str[STR_MAX] = "";
+    if (select_str != NULL && select_str[0] != '\0' && !theme()->hideLabels.hints)
+        snprintf(label_select_str, sizeof(label_select_str), "[SELECT] %s", select_str);
+    bool show_select = label_select_str[0] != '\0';
 
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
     SDL_Surface *label_a = _footer_hintLabel(&_cached_label_a, _cached_label_a_str, label_a_str);
     SDL_Surface *button_b = show_b ? resource_getSurface(BUTTON_B) : NULL;
     SDL_Surface *label_b = show_b ? _footer_hintLabel(&_cached_label_b, _cached_label_b_str, label_b_str) : NULL;
     SDL_Surface *label_x = show_x ? _footer_hintLabel(&_cached_label_x, _cached_label_x_str, label_x_str) : NULL;
+    SDL_Surface *label_select =
+        show_select ? _footer_hintLabel(&_cached_label_select, _cached_label_select_str, label_select_str) : NULL;
 
     int gap = 30.0 * g_scale; // between two hints
     int width_a = _footer_hintWidth(button_a, label_a);
@@ -130,9 +148,12 @@ void theme_renderStandardHintX(SDL_Surface *screen, const char *btn_a_str,
             x_next -= gap + width_b;
             _footer_drawHint(screen, button_b, label_b, x_next);
         }
-        if (show_x)
-            _footer_drawHint(screen, button_x, label_x,
-                             x_next - gap - _footer_hintWidth(button_x, label_x));
+        if (show_x) {
+            x_next -= gap + _footer_hintWidth(button_x, label_x);
+            _footer_drawHint(screen, button_x, label_x, x_next);
+        }
+        if (show_select && label_select)
+            _footer_drawHint(screen, NULL, label_select, x_next - gap - label_select->w);
         return;
     }
 
@@ -143,8 +164,25 @@ void theme_renderStandardHintX(SDL_Surface *screen, const char *btn_a_str,
         _footer_drawHint(screen, button_b, label_b, x_next);
         x_next += width_b + gap;
     }
-    if (show_x)
+    if (show_x) {
         _footer_drawHint(screen, button_x, label_x, x_next);
+        x_next += _footer_hintWidth(button_x, label_x) + gap;
+    }
+    if (show_select && label_select)
+        _footer_drawHint(screen, NULL, label_select, x_next);
+}
+
+void theme_renderStandardHintX(SDL_Surface *screen, const char *btn_a_str,
+                               const char *btn_b_str, const char *btn_x_str)
+{
+    _footer_renderHints(screen, btn_a_str, btn_b_str, btn_x_str, NULL);
+}
+
+// A and B, then "[SELECT] <select_str>" (NULL or empty: A and B only).
+void theme_renderStandardHintSelect(SDL_Surface *screen, const char *btn_a_str,
+                                    const char *btn_b_str, const char *select_str)
+{
+    _footer_renderHints(screen, btn_a_str, btn_b_str, NULL, select_str);
 }
 
 void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,

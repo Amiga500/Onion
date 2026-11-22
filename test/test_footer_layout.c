@@ -282,6 +282,41 @@ TEST(x_hint_absent)
     ASSERT_EQ(find("[X]")->x, 20 + 54 + 5 + 60 + 30);
 }
 
+/* Tweaks: "[SELECT] INFO" after B (classic), before B (B A layout), 30 px
+ * apart, text only (themes have no SELECT picture). */
+TEST(select_hint_follows_b)
+{
+    reset(false);
+    theme_renderStandardHintSelect(&screen, "SELECT", "BACK", "INFO");
+    ASSERT_EQ(find("[A]")->x, 20);
+    ASSERT_EQ(find("[B]")->x, 20 + 54 + 5 + 60 + 30);
+    ASSERT_EQ(find("[SELECT] INFO")->x, find("BACK")->x + 40 + 30);
+    ASSERT_EQ(find("[SELECT] INFO")->y, 449 - 15);
+
+    reset(true);
+    theme_renderStandardHintSelect(&screen, "SELECT", "BACK", "INFO");
+    ASSERT_EQ(find("SELECT")->x + 60, 620);
+    ASSERT_EQ(find("BACK")->x + 40 + 30, find("[A]")->x);
+    ASSERT_EQ(find("[SELECT] INFO")->x + 130 + 30, find("[B]")->x);
+
+    /* No info for the selected item: A and B only, where they always are. */
+    reset(false);
+    theme_renderStandardHintSelect(&screen, "SELECT", "BACK", NULL);
+    ASSERT_NULL(find("[SELECT] INFO"));
+    ASSERT_EQ(find("[B]")->x, 20 + 54 + 5 + 60 + 30);
+    reset(true);
+    theme_renderStandardHintSelect(&screen, "SELECT", "BACK", "");
+    ASSERT_NULL(find("[SELECT] "));
+    ASSERT_EQ(find("BACK")->x + 40 + 30, find("[A]")->x);
+
+    /* Hidden hint labels: nothing to show it with. */
+    reset(false);
+    fake_theme.hideLabels.hints = true;
+    theme_renderStandardHintSelect(&screen, "SELECT", "BACK", "INFO");
+    fake_theme.hideLabels.hints = false;
+    ASSERT_NULL(find("[SELECT] INFO"));
+}
+
 /* Hidden hint labels (theme override): icons stay, in the same order. */
 TEST(hidden_labels_keep_icon_order)
 {
@@ -371,6 +406,7 @@ int main(void)
     RUN_TEST(classic_layout_is_unchanged);
     RUN_TEST(x_hint_follows_b);
     RUN_TEST(x_hint_absent);
+    RUN_TEST(select_hint_follows_b);
     RUN_TEST(alt_layout_page_left_b_then_a_right);
     RUN_TEST(alt_layout_without_b_hint);
     RUN_TEST(missing_b_icon_draws_label_only);
