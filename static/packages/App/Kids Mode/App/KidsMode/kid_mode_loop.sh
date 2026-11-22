@@ -2355,6 +2355,15 @@ play_video() {
     fi
     [ "$theme_path" = "./" ] && theme_path="/mnt/SDCARD/miyoo/app/"
     [ -d "$theme_path" ] || theme_path="/mnt/SDCARD/miyoo/app/"
+    # The theme's button colour for the progress bar, as kidui worked it out
+    # from the theme's A button (RRGGBB): the carousel's marks and the bar
+    # match. KidsPlay keeps its violet without it.
+    accent=
+    [ -r /tmp/kidsmode_accent ] && IFS= read -r accent < /tmp/kidsmode_accent
+    case "$accent" in
+        [0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) ;;
+        *) accent= ;;
+    esac
     theme_config="${theme_path%/}/config.json"
     if [ -r "$theme_config" ]; then
         profile_theme_config=/mnt/SDCARD/Saves/CurrentProfile/theme/config.json
@@ -2442,6 +2451,7 @@ play_video() {
             VC_BATTERY_OFFSET_X="$battery_offset_x" \
             VC_BATTERY_OFFSET_Y="$battery_offset_y" \
             VC_THEME_PATH="$theme_path" \
+            VC_ACCENT="$accent" \
             LD_LIBRARY_PATH="$player_library_path" \
             LD_PRELOAD="$player_preload" SDL_VIDEODRIVER=mini \
             SDL_AUDIODRIVER=dsp \
@@ -2464,6 +2474,7 @@ play_video() {
             VC_BATTERY_OFFSET_X="$battery_offset_x" \
             VC_BATTERY_OFFSET_Y="$battery_offset_y" \
             VC_THEME_PATH="$theme_path" \
+            VC_ACCENT="$accent" \
             LD_LIBRARY_PATH="$player_library_path" \
             LD_PRELOAD="$player_preload" SDL_VIDEODRIVER=mini \
             SDL_AUDIODRIVER=dsp \

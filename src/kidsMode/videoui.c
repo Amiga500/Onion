@@ -3483,9 +3483,35 @@ static const HelpLine help_page3[] = {
     {"Forgot the PIN?", "App/KidsMode/CHANGE-PIN.txt"},
 };
 
-// The color of the theme's buttons, as the last-played marker uses (red in
-// Silky RedOnion, violet in a violet theme), or RedOnion red where that is
-// as light as the text: the keys must stand out.
+// KidsPlay's progress bar in the colour of the carousel's marks (the
+// theme's A button): kid_mode_loop.sh passes it on as VC_ACCENT (RRGGBB).
+// One too dark to see on the player's black bar: none, KidsPlay keeps its
+// violet.
+static void writePlayerAccent(void)
+{
+    const char *path = "/tmp/kidsmode_accent";
+    uint32_t hex = markerAccentHex();
+    unsigned r = (hex >> 16) & 255, g = (hex >> 8) & 255, b = hex & 255;
+    unsigned hi = r > g ? r : g;
+    if (b > hi)
+        hi = b;
+    if (hi < 64) {
+        remove(path);
+        return;
+    }
+    FILE *f = fopen("/tmp/kidsmode_accent.tmp", "w");
+    if (f == NULL)
+        return;
+    bool ok = fprintf(f, "%06X\n", (unsigned)(hex & 0xFFFFFF)) > 0;
+    ok = fclose(f) == 0 && ok;
+    if (!ok || rename("/tmp/kidsmode_accent.tmp", path) != 0)
+        remove("/tmp/kidsmode_accent.tmp");
+}
+
+// The color of the theme's buttons, as the last-played marker and the
+// player's progress bar use (red in Silky RedOnion, violet in a violet
+// theme), or RedOnion red where that is as light as the text: the keys must
+// stand out.
 static SDL_Color helpAccent(void)
 {
     uint32_t hex = markerAccentHex();
@@ -3960,6 +3986,7 @@ int main(int argc, char *argv[])
     // quick to browse without the abrupt jumps of staged acceleration.
     SDL_EnableKeyRepeat(350, 50);
     writeFloorState();
+    writePlayerAccent();
 
     Screen active_screen = SCREEN_CAROUSEL;
     int remaining = -1;

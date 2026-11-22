@@ -64,6 +64,7 @@ typedef struct KidsPlayUi {
     int battery_text_align;
     int battery_offset_x;
     int battery_offset_y;
+    Uint8 accent[3]; // progress bar: the theme's button colour (VC_ACCENT)
     int startup_osd_pending;
     int clean_ready;
     int clean_pitch;
@@ -270,6 +271,21 @@ static void kp_init(VideoState *is)
                               atoi(getenv("VC_BATTERY_OFFSET_X")) : 0;
     kp.battery_offset_y = getenv("VC_BATTERY_OFFSET_Y") ?
                               atoi(getenv("VC_BATTERY_OFFSET_Y")) : 0;
+    // Kids Mode's colour for the theme (RRGGBB, from the theme's A button, as
+    // its carousel marks use); KidsPlay's violet without one.
+    kp.accent[0] = 174;
+    kp.accent[1] = 72;
+    kp.accent[2] = 255;
+    {
+        const char *accent = getenv("VC_ACCENT");
+        char *end = NULL;
+        unsigned long rgb = accent ? strtoul(accent, &end, 16) : 0;
+        if (accent && strlen(accent) == 6 && end && *end == '\0') {
+            kp.accent[0] = (rgb >> 16) & 255;
+            kp.accent[1] = (rgb >> 8) & 255;
+            kp.accent[2] = rgb & 255;
+        }
+    }
     kind = getenv("VC_MEDIA_KIND");
     kp.audio_only = kind && !strcmp(kind, "audio");
     start = getenv("VC_START_SECONDS");
@@ -644,7 +660,8 @@ static void kp_draw_progress(SDL_Surface *surface)
         int bar_y = 452;
         int knob_x, dx, dy;
         Uint32 black = SDL_MapRGB(surface->format, 0, 0, 0);
-        Uint32 accent = SDL_MapRGB(surface->format, 174, 72, 255);
+        Uint32 accent = SDL_MapRGB(surface->format, kp.accent[0],
+                                   kp.accent[1], kp.accent[2]);
         if (elapsed_label) {
             elapsed_w = elapsed_label->w;
             elapsed_h = elapsed_label->h;
