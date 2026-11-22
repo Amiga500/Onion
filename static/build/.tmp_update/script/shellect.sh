@@ -470,7 +470,13 @@ key() {
 
     loop=$(( loop + 1 ))
 
-    # Generate new list
+    # Generate new list. On the first call after -s the list is the first
+    # window: the case below reads y against the last move, and with no
+    # move yet it took item last - 1 for the last one (Down did nothing).
+    if [ -n "$started" ]; then
+	started=
+	input_assign "0" "$len" "$@"
+    else
     case $(( y - move )) in
         1) y=1; yy=1; input_assign "0" "$len" "$@" ;;
 	$(( last - move - 1 ))) y=$last; input_assign "$(( y - len ))" "$len" "$@" ;;
@@ -480,6 +486,7 @@ key() {
 		*) input_assign "$(( yy > 1 ? y - len : y - 1 ))" "$len" "$@" ;;
 	    esac
     esac
+    fi
 
     IFS=${ifs:=$nl}
     # shellcheck disable=2086
@@ -921,6 +928,19 @@ main() {
     set -- $list
     unset IFS
 
+    # -s N: start on item N (the OTA's saved channel), placed as End
+    # places the last one. Anything else starts on the first.
+    case $start in
+	''|*[!0-9]*) ;;
+	*)
+	    if [ "$start" -gt 1 ] && [ "$start" -le "$len" ]; then
+		y=$start yy=$start pos=$(( num * start - num + top ))
+		y2=$(( pos < fin - (num - 1) ? pos : fin - (num - 1) ))
+		started=1
+	    fi
+	    ;;
+    esac
+
     redraw "$@"
 
     # shellcheck disable=2181
@@ -957,6 +977,7 @@ shellect [OPTIONS] ([ARGS])
   -f=[format],		Set the format to print out content
   -t=[msg],		Set top status bar message
   -b=[msg],		Set bottom status bar message
+  -s=[num],		Start on item num (default 1)
 
 format detail:
   nldel			delete last nl, equiv to "\${1%\$nl}"
@@ -991,7 +1012,7 @@ ctrl_e=$(printf '\005')
 space=$(printf '\040')
 escape=$(printf '\033')
 
-while getopts "t:b:n:d:c:f:hilm" result; do
+while getopts "t:b:n:d:c:f:s:hilm" result; do
     case "${result}" in
         n) num=${OPTARG} ;;
         d) ifs=${OPTARG} ;;
@@ -1000,6 +1021,7 @@ while getopts "t:b:n:d:c:f:hilm" result; do
 	i) case_insense=1 ;;
 	l) live_search=1 ;;
 	m) menu_only_exit=1 ;; # Up/Down, A and MENU only: MENU returns 2
+	s) start=${OPTARG} ;; # the item the cursor starts on (1 = first)
 	t) msg="${OPTARG}" ;;
 	b) ltype="${OPTARG}" ;;
 	h) usage && exit 0 ;;

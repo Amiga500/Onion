@@ -304,7 +304,14 @@ run_bootstrap() {
 channel_choice() {
 	_channels="stable\nbeta"
 	[ -f "$sysdir/config/.otaTesters" ] && _channels="$_channels\ntesters"
-	ota_menu "$_channels" "Update channel"
+	# The cursor starts on the saved channel: it always started on stable,
+	# so a tester pressing A at once got the stable channel.
+	case $channel in
+		beta) _start=2 ;;
+		testers) [ -f "$sysdir/config/.otaTesters" ] && _start=3 || _start=1 ;;
+		*) _start=1 ;;
+	esac
+	ota_menu "$_channels" "Update channel" "$_start"
 	channel=$menu_choice
 	clear
 	# Nothing chosen (B): leave, keeping the saved channel. An empty
@@ -573,10 +580,10 @@ wait_key() { # prompt
 # A menu of the items (\n between them) in $menu_choice. MENU asks before
 # leaving the updater; A to stay shows the menu again. shellect turns echo
 # back on when it ends.
-ota_menu() { # items, title
+ota_menu() { # items, title[, the item to start on: 1 when not given]
 	while :; do
 		drop_keys
-		menu_choice=$(echo -e "$1" | $sysdir/script/shellect.sh -m -t "--== $(echo "$2" | tr a-z A-Z) ==--" -b "Menu: Exit      A: Validate")
+		menu_choice=$(echo -e "$1" | $sysdir/script/shellect.sh -m -s "${3:-1}" -t "--== $(echo "$2" | tr a-z A-Z) ==--" -b "Menu: Exit      A: Validate")
 		_rc=$?
 		quiet_keys
 		[ $_rc -eq 2 ] || return 0

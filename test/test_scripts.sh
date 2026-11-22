@@ -1734,6 +1734,81 @@ check "Mini without Wi-Fi is told so" grep -q 'This device has no Wi-Fi' "$OTA"
 unset -f clear channel_choice ota_menu drop_keys quiet_keys ask_leave
 end
 
+begin ota_channel_menu_starts_on_saved_channel
+# The Update channel menu always started on stable, so a tester who pressed
+# A at once got stable. It starts on the saved channel (shellect.sh -s).
+mkdir -p "$TMP/script" "$TMP/config"
+sysdir=$TMP
+clear() { :; }
+for f in channel_choice ota_menu drop_keys quiet_keys; do eval "$(extract_fn "$OTA" $f)"; done
+printf '#!/bin/sh\ncat > /dev/null\nwhile [ $# -gt 0 ]; do [ "$1" = -s ] && echo "$2" > "%s/start"; shift; done\necho stable\n' "$TMP" > "$TMP/script/shellect.sh"
+chmod +x "$TMP/script/shellect.sh"
+: > "$TMP/config/.otaTesters"
+for c in testers:3 beta:2 stable:1 :1 junk:1; do
+    channel=${c%%:*}
+    (channel_choice) > /dev/null 2>&1
+    check "saved \"${c%%:*}\": starts on item ${c##*:}" test "$(cat "$TMP/start")" = "${c##*:}"
+done
+rm -f "$TMP/config/.otaTesters"
+channel=testers
+(channel_choice) > /dev/null 2>&1
+check "saved testers without .otaTesters: starts on stable" test "$(cat "$TMP/start")" = 1
+rm -f "$TMP/start" "$TMP/config/ota_channel"
+unset -f clear channel_choice ota_menu drop_keys quiet_keys
+# shellect.sh -s itself, in a pseudo terminal: A takes the item it starts on.
+if command -v python3 > /dev/null 2>&1; then
+    SHL="$ROOT/static/build/.tmp_update/script/shellect.sh"
+    pick() { # start, keys...
+        _s=$1
+        shift
+        python3 - "$SHL" "$_s" "$TMP/picked" "$@" << 'EOF'
+import os, pty, select, struct, sys, termios, time, fcntl
+shl, start, out, keys = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
+send = {"A": b" ", "UP": b"\x1b[A", "DOWN": b"\x1b[B"}
+cmd = "printf 'stable\\nbeta\\ntesters' | sh '%s' -m -s '%s' -t T -b B > '%s'" % (shl, start, out)
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp("sh", ["sh", "-c", cmd])
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 29, 53, 0, 0))
+def pump(t):
+    end = time.time() + t
+    while time.time() < end:
+        r, _, _ = select.select([fd], [], [], 0.05)
+        if r:
+            try:
+                os.read(fd, 4096)
+            except OSError:
+                return
+pump(1.0)
+for k in keys:
+    os.write(fd, send[k])
+    pump(0.6)
+end = time.time() + 5
+while time.time() < end:
+    done, _ = os.waitpid(pid, os.WNOHANG)
+    if done:
+        break
+    pump(0.1)
+else:
+    os.kill(pid, 9)
+EOF
+        cat "$TMP/picked" 2> /dev/null
+    }
+    check "-s 3, A: testers" test "$(pick 3 A)" = testers
+    check "-s 2, A: beta" test "$(pick 2 A)" = beta
+    check "-s 1, A: stable" test "$(pick 1 A)" = stable
+    check "-s 3, Up, A: beta" test "$(pick 3 UP A)" = beta
+    check "-s 2, Down, A: testers" test "$(pick 2 DOWN A)" = testers
+    check "-s 2, Up, Up, A: stable" test "$(pick 2 UP UP A)" = stable
+    check "-s 9 (past the end): stable" test "$(pick 9 A)" = stable
+    check "-s x: stable" test "$(pick x A)" = stable
+    unset -f pick
+    rm -f "$TMP/picked"
+else
+    skip "shellect -s in a pseudo terminal (no python3)"
+fi
+end
+
 if command -v jq > /dev/null; then
     begin ota_github_error_is_not_up_to_date
     # Rate limit (60 requests an hour per address), no answer, or no
@@ -2890,7 +2965,7 @@ check "no name-based kill left (it hit Open MainUI in mainui-test)" sh -c "! gre
 check "end of input leaves the key loop" grep -q '\[ -n "\$key" \] || exit 1' "$SHELLECT"
 check "MENU (a lone Esc) leaves like START" grep -q 'stty min 0 time 1' "$SHELLECT"
 check "with -m only Up/Down, A and MENU are accepted" grep -q "A2|B2|\"\$space\"?) ;;" "$SHELLECT"
-check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 1
+check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -s "${3:-1}" -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 1
 check "OTA menus all go through ota_menu" test "$(grep -c '^	ota_menu "' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 3
 check "with -m MENU returns 2 instead of closing the terminal" grep -q '\[ -z "\$menu_only_exit" \] || { term_reset; exit 2; }' "$SHELLECT"
 end
