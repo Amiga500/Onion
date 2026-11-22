@@ -3,7 +3,7 @@
 	url = https://github.com/Amiga500/SearchFilter.git
 [submodule "third-party/Terminal"]
 	path = third-party/Terminal
-	url = https://github.com/OnionUI/app-Terminal.git
+	url = https://github.com/Amiga500/app-Terminal.git
 [submodule "third-party/DinguxCommander"]
 	path = third-party/DinguxCommander
 	url = https://github.com/OnionUI/app-DinguxCommander
