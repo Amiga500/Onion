@@ -309,6 +309,15 @@ TEST(select_hint_follows_b)
     ASSERT_NULL(find("[SELECT] "));
     ASSERT_EQ(find("BACK")->x + 40 + 30, find("[A]")->x);
 
+    /* No room before the page number (long translations): left out. */
+    reset(false);
+    theme_renderStandardHintSelect(&screen, "SELECCIONAR TODO", "VOLVER ATRAS", "INFO");
+    ASSERT_NULL(find("[SELECT] INFO"));
+    ASSERT_NOT_NULL(find("[B]"));
+    reset(true);
+    theme_renderStandardHintSelect(&screen, "SELECCIONAR TODO", "VOLVER ATRAS", "INFO");
+    ASSERT_NULL(find("[SELECT] INFO"));
+
     /* Hidden hint labels: nothing to show it with. */
     reset(false);
     fake_theme.hideLabels.hints = true;

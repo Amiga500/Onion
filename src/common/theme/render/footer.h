@@ -38,6 +38,9 @@ static char _cached_label_a_str[STR_MAX] = "";
 static char _cached_label_b_str[STR_MAX] = "";
 static SDL_Surface *_cached_label_x = NULL;
 static char _cached_label_x_str[STR_MAX] = "";
+// The page number's side of the footer kept free of the SELECT hint: its
+// margin (20) and room for "99/99".
+#define FOOTER_STATUS_ROOM 100
 static SDL_Surface *_cached_label_select = NULL;
 static char _cached_label_select_str[STR_MAX] = "";
 
@@ -152,7 +155,10 @@ static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
             x_next -= gap + _footer_hintWidth(button_x, label_x);
             _footer_drawHint(screen, button_x, label_x, x_next);
         }
-        if (show_select && label_select)
+        // Only where it leaves room for the page number on the left (a long
+        // translation of SELECT or BACK, a big theme font): left out else.
+        if (show_select && label_select &&
+            x_next - gap - label_select->w >= FOOTER_STATUS_ROOM * g_scale)
             _footer_drawHint(screen, NULL, label_select, x_next - gap - label_select->w);
         return;
     }
@@ -168,7 +174,9 @@ static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
         _footer_drawHint(screen, button_x, label_x, x_next);
         x_next += _footer_hintWidth(button_x, label_x) + gap;
     }
-    if (show_select && label_select)
+    // Only where it leaves room for the page number on the right.
+    if (show_select && label_select &&
+        x_next + label_select->w <= (640 - FOOTER_STATUS_ROOM) * g_scale)
         _footer_drawHint(screen, NULL, label_select, x_next);
 }
 
