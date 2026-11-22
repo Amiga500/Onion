@@ -1,4 +1,4 @@
-# DisplayCal v0.8.3
+# DisplayCal v0.8.4
 
 DisplayCal is a lightweight display-calibration app for **Miyoo Mini and Miyoo Mini Plus** running **Onion or RedOnion**. It provides live RGB/warmth adjustment, brightness and LCD color controls, and reference images for comparing color casts, tone and saturation.
 
@@ -98,10 +98,16 @@ The Display page exposes five settings shared with MainUI:
 | Setting | Range | Default | Live hardware method |
 | --- | --- | --- | --- |
 | Brightness | 0–10 | 7 | PWM backlight |
-| Lumination | 0–20 | 10 | SigmaStar DISP SDK |
+| Lumination | 0–20 | 7 (Mini 283), 10 (Mini+ 354 / Flip 285) | SigmaStar DISP SDK |
 | Hue | 0–20 | 10 | SigmaStar DISP SDK |
 | Saturation | 0–20 | 10 | SigmaStar DISP SDK |
 | Contrast | 0–20 | 10 | SigmaStar DISP SDK |
+
+The Lumination factory default is selected using `/tmp/deviceModel` when the GUI starts.
+Model **283** (Mini / Mini v4) resets to **7**, and models **354** (Mini+) and **285**
+(Flip) reset to **10**. If the model cannot be identified, the existing fallback
+of 10 is retained. A valid Lumination saved in `system.json` always takes precedence;
+X and Y use the device-specific factory default, while Cancel restores the loaded value.
 
 **Brightness** uses the MainUI mapping for levels 0–10:
 
@@ -134,7 +140,7 @@ The source uses the existing **24-byte LCD parameter layout** for the meaningful
 
 The LCD controls initialize their SigmaStar SDK session **lazily**, on the first LCD color adjustment. DisplayCal loads `libpthread`, `libmi_common`, `libmi_sys` and `libmi_disp` in order using `RTLD_NOW | RTLD_GLOBAL`, then calls `MI_SYS_Init()` and performs an initial `MI_DISP_GetLcdParam()` readiness read. Subsequent adjustments reuse the session and perform a fresh Get/Set pair. `MI_SYS_Exit()` runs when the GUI exits.
 
-When an LCD color adjustment enters a potentially slow SDK call, the GUI first draws **WAIT** in the status label, then restores the normal status once the operation completes. The first LCD adjustment may pause briefly while the SDK session is initialized. Subsequent changes reuse that session. The initialization does not invoke an explicit display repair or restart, and the cause of the occasional pause has not been conclusively isolated.
+The first LCD adjustment may pause briefly while the SDK session is initialized. Subsequent changes reuse that session. The initialization does not invoke an explicit display repair or restart, and the cause of the occasional pause has not been conclusively isolated.
 
 DisplayCal checks whether `/proc/mi_modules/mi_disp/mi_disp0` contains `CscMatrix`. If it is absent, or if the DISP SDK rejects an operation, the GUI reports an error such as **DISP UNAVAILABLE**, **SDK ERR**, or **SDK FAILED - SAVE ONLY**. Values can still be saved for later application, but a failed live call must not be taken as proof that the screen was updated.
 

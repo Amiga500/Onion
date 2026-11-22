@@ -1,5 +1,5 @@
 /*
- * DisplayCal v0.8.3 for Onion
+ * DisplayCal v0.8.4 for Onion
  * Freestanding ARM/Linux utility: direct framebuffer + libz PNG decode.
  * Uses /dev/fb0 + /dev/input/event* and the working SigmaStar DISP proc node.
  */
@@ -541,7 +541,7 @@ static int load_image(int idx){
     return png_err;
 }
 
-/* v0.8.1 polished RedOnion-inspired UI: 640x480, direct framebuffer.
+/* RedOnion-inspired UI: 640x480, direct framebuffer.
  * RedOnion accent is exactly #EB5F7F; RGB labels remain pure primaries.
  */
 #include "ui_font_data.h"
@@ -733,7 +733,7 @@ static void draw(void){
     rect(0,60,W,2,accent());
     monitor_icon(19,14);
     ui_text(67,12,"DisplayCal",2,fg);
-    ui_text(213,21,"v0.8.3",0,muted);
+    ui_text(213,21,"v0.8.4",0,muted);
     /* Status pill reflects the CURRENT page only:
      *   RGB page:     BLF ON / RGB ERR / LIVE (colortemp written) / READY
      *   Display page: SDK ERR / LIVE (PWM or LCD write succeeded) / READY
@@ -918,10 +918,11 @@ void _start(void){
             }
         }
     }
+    dinit_model_defaults();
     dload_json();
     load_image(0);
     draw();
-    puts2("DisplayCal v0.8.3 running (BLF has priority).\n");
+    puts2("DisplayCal v0.8.4 running (BLF has priority).\n");
 
     {
         u16 held=0;

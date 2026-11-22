@@ -1,5 +1,5 @@
 #!/bin/sh
-# DisplayCal v0.8.3: single launcher; --apply uses shell built-ins only.
+# DisplayCal v0.8.4: single launcher; --apply uses shell built-ins only.
 # GUI logging is opt-in: DISPLAYCAL_DEBUG=1 ./launch.sh
 # RedOnion may call --apply at boot and after Blue Light Filter is disabled.
 # DisplayCal never patches RedOnion runtime/Blue Light scripts.

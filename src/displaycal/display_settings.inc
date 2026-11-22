@@ -1,4 +1,4 @@
-/* DisplayCal v0.8.1: MainUI-compatible display control page.
+/* DisplayCal v0.8.4: MainUI-compatible display control page.
  * Intentionally never uses procfs csc, disp_init, or MI_DISP_InitDev.
  * Uses the documented 24-byte MI_DISP_LcdParam_t and MainUI conversion formulae.
  */
@@ -10,7 +10,7 @@
 #define DSET_CONTRAST 4
 static const char *dkey[DSET_COUNT]={"brightness","lumination","hue","saturation","contrast"};
 static const char *dtitle[DSET_COUNT]={"Brightness","Lumination","Hue","Saturation","Contrast"};
-static const int ddefault[DSET_COUNT]={7,10,10,10,10};
+static int ddefault[DSET_COUNT]={7,10,10,10,10};
 static const int dmax[DSET_COUNT]={10,20,20,20,20};
 static int dvalue[DSET_COUNT]={7,10,10,10,10};
 static int doriginal[DSET_COUNT]={7,10,10,10,10};
@@ -66,6 +66,28 @@ static int dfind_top(const char *s,int len,const char *key,int *a,int *b){
     return 0;
 }
 static int parse_int(const char *s,int a,int b){int n=0,i=a,neg=0;if(s[i]=='-'){neg=1;i++;}for(;i<b;i++)n=n*10+(s[i]-'0');return neg?-n:n;}
+/* The Mini (model 283, including v4) uses factory Lumination 7.
+ * Mini+ (354) and Flip (285) use 10. An unknown/missing model keeps
+ * the existing 10 fallback; a valid system.json value always overrides it.
+ * The model ID is prepared by Onion/RedOnion at /tmp/deviceModel.
+ */
+static void dinit_model_defaults(void){
+    char model[32]; int n=read_small("/tmp/deviceModel",model,sizeof(model));
+    int i=0,id=0,digits=0;
+    if(n<=0)return;
+    while(i<n && (model[i]==' '||model[i]=='\t'||model[i]=='\r'||model[i]=='\n'))i++;
+    while(i<n && model[i]>='0' && model[i]<='9' && digits<4){
+        id=id*10+(model[i++]-'0');digits++;
+    }
+    while(i<n && (model[i]==' '||model[i]=='\t'||model[i]=='\r'||model[i]=='\n'))i++;
+    if(i!=n || digits!=3)return;
+    if(id==283 || id==354 || id==285){
+        int luma=(id==283)?7:10;
+        ddefault[DSET_LUMA]=luma;
+        dvalue[DSET_LUMA]=luma;
+        doriginal[DSET_LUMA]=luma;
+    }
+}
 static int dload_json(void){
     int n=read_small(djson_path,djson,sizeof(djson));
     if(n<=0 || n==(int)sizeof(djson)-1) return -1;
