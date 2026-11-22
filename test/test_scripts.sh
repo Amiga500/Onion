@@ -4696,6 +4696,44 @@ check "at boot: Kids Mode first, then a game it left (no startup app)" sh -c 'pr
 unset -f launch_kids_mode launch_main_ui launch_switcher check_off_order log sync check_main_ui check_switcher kids_mode_armed
 end
 
+begin sd_read_only_no_relaunch_loop
+# A read-only card: cmd_to_run.sh can't be removed when an app or a game
+# ends, so check_game would start it again at once, forever. Instead: a
+# message, then the console turns off.
+sysdir="$TMP/sys"; mkdir -p "$sysdir"
+eval "$(extract_fn "$RUNTIME" kids_mode_armed | sed "s#/mnt/SDCARD/.kidmode#$TMP/.kidmode#")"
+eval "$(extract_fn "$RUNTIME" check_switcher)"
+eval "$(extract_fn "$RUNTIME" sd_read_only_stop)"
+rm -f "$TMP/.kidmode" "$sysdir/.runGameSwitcher" /tmp/quick_switch
+check_off_order() { :; }
+log() { :; }
+sync() { :; }
+infoPanel() { echo "panel $2" >> "$TMP/calls"; }
+shutdown() { echo shutdown >> "$TMP/calls"; }
+echo app > "$sysdir/cmd_to_run.sh"
+: > "$TMP/calls"
+check_switcher
+check "writable card: the command goes, nothing shown" sh -c 'test ! -e "$1/cmd_to_run.sh" && test ! -s "$2"' _ "$sysdir" "$TMP/calls"
+echo app > "$sysdir/cmd_to_run.sh"
+rm() { return 1; } # read-only: nothing can be removed
+check_switcher
+unset -f rm
+check "read-only card: the message, then the console turns off" test "$(tr '\n' ' ' < "$TMP/calls")" = "panel SD card is read-only shutdown "
+: > "$TMP/calls"
+: > "$sysdir/.runGameSwitcher"
+check_switcher() { :; }
+eval "$(extract_fn "$RUNTIME" check_switcher)"
+launch_switcher() { echo switcher >> "$TMP/calls"; }
+check_switcher
+check "the GameSwitcher keeps the command on purpose: no message" test "$(cat "$TMP/calls")" = switcher
+rm -f "$sysdir/.runGameSwitcher"
+msg=$(sed -n 's/.*infoPanel --title "SD card is read-only" --message "\(.*\)"$/\1/p' "$RUNTIME")
+check "the message fits infoPanel (under 256 chars)" test ${#msg} -gt 0 -a ${#msg} -lt 256
+long=$(printf '%s' "$msg" | sed 's/\\n/\n/g' | awk 'length > 38' | head -n 1)
+check "lines of 38 characters or less ($long)" test -z "$long"
+unset -f check_off_order log sync infoPanel shutdown launch_switcher check_switcher sd_read_only_stop kids_mode_armed
+end
+
 begin kids_mode_runtime_starts_the_launcher
 sysdir=$TMP
 mkdir -p "$sysdir/bin"

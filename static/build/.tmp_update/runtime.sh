@@ -1329,9 +1329,22 @@ check_switcher() {
         # Return to MainUI
         rm $sysdir/cmd_to_run.sh 2> /dev/null
         sync
+        # Still there: the card can't be written to any more (the kernel
+        # makes it read-only after a card or FAT error). check_main_ui would
+        # skip MainUI and check_game start the same app or game again at
+        # once, forever, with nothing saved (tester report, 4.5.1 beta 3).
+        [ -f $sysdir/cmd_to_run.sh ] && sd_read_only_stop
     fi
 
     check_off_order "End"
+}
+
+# The card is read-only until the next start: say so, then turn off (a
+# restart would open the same app once more: B leaves it normally then).
+sd_read_only_stop() {
+    log "SD card: cmd_to_run.sh can't be removed (read-only card): turning off"
+    infoPanel --title "SD card is read-only" --message "The SD card can't be written to:\nnothing can be saved, and the last\napp or game would keep opening.\n \nThe console will now turn off.\nCheck the card on a PC:\nWindows: Properties > Tools > Check\nMac: Disk Utility > First Aid"
+    shutdown
 }
 
 launch_switcher() {
