@@ -1477,9 +1477,12 @@ check_hide_recents() {
 
 mainui_target=$miyoodir/app/MainUI
 
-# Display colours from system.json (0..20, Miyoo's defaults 7/10/10/10 when
-# missing) to the display driver, as Open MainUI's Settings > Display sets
-# them: lumination + 35, hue * 5, saturation * 5, (contrast + 15) * 2.
+# Display colours from system.json (0..20) to the display driver, as Open
+# MainUI's Settings > Display sets them: lumination + 35, hue * 5,
+# saturation * 5, (contrast + 15) * 2. A value missing or out of range gets
+# the model's default, as in res/miyoo<ID>_system.json and Open MainUI 1.1.1
+# rc9: lumination 7 on the Mini, 10 on the Mini+ and Flip; the others 10.
+# Lumination 7 on every model put a Flip darker than its default.
 restore_display_colours() {
     _node=${MI_DISP_NODE:-/proc/mi_modules/mi_disp/mi_disp0}
     if [ ! -e "$_node" ]; then
@@ -1496,7 +1499,8 @@ restore_display_colours() {
             '' | *[!0-9]*) _x=-1 ;;
         esac
         if [ "$_x" -lt 0 ] || [ "$_x" -gt 20 ]; then
-            [ "$_v" = l ] && _x=7 || _x=10
+            _x=10
+            [ "$_v" = l ] && [ "$DEVICE_ID" = "$MODEL_MM" ] && _x=7
         fi
         eval "_$_v=\$_x"
     done

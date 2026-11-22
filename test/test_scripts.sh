@@ -463,8 +463,16 @@ check "logged" grep -q "display colours restored: lumination 7, hue 10, saturati
 sysjson_get() {
     case "$1" in lumination) echo "" ;; hue) echo 25 ;; saturation) echo x ;; contrast) echo 0 ;; esac
 }
+MODEL_MM=283
 restore_display_colours
-check "missing or out of range: Miyoo's defaults" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 30 50 42 50 0 0"
+check "missing or out of range on the Flip: its defaults (lumination 10)" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 30 50 45 50 0 0"
+DEVICE_ID=283
+restore_display_colours
+check "missing or out of range on the Mini: its defaults (lumination 7)" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 30 50 42 50 0 0"
+DEVICE_ID=354
+restore_display_colours
+check "missing or out of range on the Mini+: its defaults (lumination 10)" test "$(cat "$MI_DISP_NODE")" = "csc 0 3 30 50 45 50 0 0"
+DEVICE_ID=285
 rm -f "$MI_DISP_NODE" "$TMP/csc_log"
 restore_display_colours
 check "no display device: nothing written, said so" sh -c 'test ! -e "$1" && grep -q "missing, not restored" "$2"' _ "$MI_DISP_NODE" "$TMP/csc_log"
@@ -472,7 +480,7 @@ check "not through MI_SYS (restore_lcd_csc no longer run)" sh -c "! grep -q 'bin
 check "start_warmup keeps warmup's pid" sh -c "sed -n '/^start_warmup() {/,/^}/p' '$RUNTIME' | grep -q 'warmup_pid=\\\$!'"
 check "before the blue light filter" sh -c "awk '/# Mini Flip: put the display colours/ { c = NR } /# Blue Light Filter, then DisplayCal/ { b = NR } END { exit !(c && b && c < b) }' '$RUNTIME'"
 unset -f sysjson_get log
-unset MI_DISP_NODE
+unset MI_DISP_NODE MODEL_MM
 end
 
 begin syncthing_never_starts_open
