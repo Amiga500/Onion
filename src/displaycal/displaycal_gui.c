@@ -542,20 +542,18 @@ static int load_image(int idx){
 }
 
 /* RedOnion-inspired UI: 640x480, direct framebuffer.
- * RedOnion accent is exactly #EB5F7F; RGB labels remain pure primaries.
+ * Test branch (RedOnion unified look): the Tweaks greys and accent #9E2C45,
+ * Exo 2 text (ui_font_data.h, make_ui_font.py); RGB labels remain pure
+ * primaries.
  */
 #include "ui_font_data.h"
-static u32 accent(void){return px(235,95,127);}
-static void gradient_rect(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1){
-    int k;
-    for(k=0;k<h;k++){
-        int t=h>1? k*256/(h-1):0;
-        u8 rr=(u8)(r0+((r1-r0)*t)/256);
-        u8 gg=(u8)(g0+((g1-g0)*t)/256);
-        u8 bb=(u8)(b0+((b1-b0)*t)/256);
-        rect(x,y+k,w,1,px(rr,gg,bb));
-    }
-}
+static u32 accent(void){return px(158,44,69);}
+static u32 ui_bg(void){return px(39,39,39);}
+static u32 ui_head(void){return px(30,30,30);}
+static u32 ui_panel(void){return px(46,46,49);}
+static u32 ui_track(void){return px(58,58,61);}
+static u32 ui_grey(void){return px(163,163,168);}
+static u32 ui_dark_accent(void){return px(120,32,54);}
 static int curve_inset(int row,int rad){
     if(row>=rad) return 0;
     int d=rad-row;
@@ -634,8 +632,9 @@ static void ui_text_center(int x,int w,int y,const char*s,int font,u32 color){
 }
 static void slider_draw(int row,int value){
     const int x=193,y=115+row*66,w=94,th=8;
-    int knob=0;
-    u32 bg=px(80,83,91),hot=accent();
+    int knob=0,selected=(row==sel);
+    /* On the selected (accent) card the slider turns white, as in Tweaks. */
+    u32 bg=selected?ui_dark_accent():ui_track(),hot=selected?px(244,244,245):accent();
     round_fill(x,y,w,th,4,bg);
     if(row==3){
         int rel=(value+100)*w/200;
@@ -649,16 +648,15 @@ static void slider_draw(int row,int value){
         knob=x+fill;
     }
     if(knob>x+w)knob=x+w;
-    disk(knob,y+4,9,px(85,82,85));
+    disk(knob,y+4,9,selected?ui_dark_accent():px(30,30,32));
     disk(knob,y+4,7,px(245,246,247));
 }
 static void channel_card(int row,int selected,int value){
     const int y=95+row*66;
-    const u32 active=accent(),fg=px(242,244,247),muted=px(197,201,211);
-    u32 fill=selected?px(55,35,47):px(31,33,41);
-    round_stroke(16,y,294,56,11,selected?active:px(63,65,75),fill,selected?2:1);
+    const u32 fg=px(244,244,245),muted=selected?px(244,244,245):px(220,220,224);
+    round_fill(16,y,294,56,11,selected?accent():ui_panel());
     /* Inner value box. */
-    round_stroke(99,y+10,83,37,7,selected?px(157,103,119):px(91,96,107),px(23,24,31),1);
+    round_fill(99,y+10,83,37,7,selected?ui_dark_accent():px(30,30,32));
     if(row==0)ui_text(36,y+10,"R",2,px(255,40,40));
     if(row==1)ui_text(36,y+10,"G",2,px(30,255,30));
     if(row==2)ui_text(36,y+10,"B",2,px(40,88,255));
@@ -671,56 +669,46 @@ static void channel_card(int row,int selected,int value){
     slider_draw(row,row==3?warmth:(row==0?r:(row==1?g:b)));
 }
 static void display_slider(int row,int value){
-    int x=193,y=112+row*56,width=94,maxv=dmax[row];
+    int x=193,y=112+row*56,width=94,maxv=dmax[row],selected=(row==sel);
     int fill=value*width/maxv;
-    round_fill(x,y,width,8,4,px(80,83,91));
-    if(fill>2)round_fill(x,y,fill,8,4,accent());
-    disk(x+fill,y+4,9,px(85,82,85));disk(x+fill,y+4,7,px(245,246,247));
+    round_fill(x,y,width,8,4,selected?ui_dark_accent():ui_track());
+    if(fill>2)round_fill(x,y,fill,8,4,selected?px(244,244,245):accent());
+    disk(x+fill,y+4,9,selected?ui_dark_accent():px(30,30,32));disk(x+fill,y+4,7,px(245,246,247));
 }
 static void display_card(int row,int selected,int value){
     int y=92+row*56;
-    u32 active=accent(),fg=px(242,244,247),muted=px(197,201,211);
-    u32 fill=selected?px(55,35,47):px(31,33,41);
-    round_stroke(16,y,294,50,10,selected?active:px(63,65,75),fill,selected?2:1);
+    u32 fg=px(244,244,245),muted=selected?px(244,244,245):px(220,220,224);
+    round_fill(16,y,294,50,10,selected?accent():ui_panel());
     /* Value box starts at x=116: longest label "Lumination" (font 0, 79 px
      * from x=27) ends at 106, leaving a 10 px gap. Right edge stays at 181. */
-    round_stroke(116,y+8,65,34,7,selected?px(157,103,119):px(91,96,107),px(23,24,31),1);
+    round_fill(116,y+8,65,34,7,selected?ui_dark_accent():px(30,30,32));
     ui_text(27,y+14,dtitle[row],0,muted);
     char t[10];int p=append_num(t,0,value);t[p]=0;
     int sw=ui_text_width(t,2);
     ui_text(116+(65-sw)/2,y+8,t,2,fg);
     display_slider(row,value);
 }
-static void monitor_icon(int x,int y){
-    u32 framecol=px(246,246,249),edge=px(105,112,125);
-    round_stroke(x,y,32,26,5,edge,px(16,17,23),1);
-    rect(x+4,y+5,8,15,px(238,55,63));
-    rect(x+12,y+5,8,15,px(36,220,91));
-    rect(x+20,y+5,8,15,px(38,99,246));
-    rect(x+13,y+26,6,4,framecol);
-    rect(x+8,y+30,16,2,framecol);
-}
 /* Uniform rounded button legends, including dual keys. */
 static int footer_key(int x,int y,const char *key){
     int kw=ui_text_width(key,0)+16;
-    round_stroke(x,y,kw,22,6,accent(),px(41,32,41),1);
-    ui_text_center(x,kw,y+2,key,0,px(252,240,244));
+    round_fill(x,y,kw,22,11,accent());
+    ui_text_center(x,kw,y+2,key,0,px(255,255,255));
     return kw;
 }
 static int footer_item(int x,int y,const char *key,const char *label){
     int kw=footer_key(x,y,key);
-    ui_text(x+kw+7,y+2,label,0,px(225,224,230));
+    ui_text(x+kw+7,y+2,label,0,px(244,244,245));
     return kw+7+ui_text_width(label,0);
 }
 static int footer_pair(int x,int y,const char *first,const char *second,const char *label){
     int kw=footer_key(x,y,first);
     int kw2=footer_key(x+kw+4,y,second);
-    ui_text(x+kw+kw2+12,y+2,label,0,px(225,224,230));
+    ui_text(x+kw+kw2+12,y+2,label,0,px(244,244,245));
     return kw+kw2+12+ui_text_width(label,0);
 }
 static void draw(void){
     int filter_active=blf_on();
-    const u32 fg=px(245,245,247),muted=px(172,177,189),line=px(71,75,87);
+    const u32 fg=px(244,244,245),muted=px(163,163,168);
     int er,eg,eb;char output[48];int p=0;
     effective_rgb(&er,&eg,&eb);
     if(fullscreen){
@@ -728,12 +716,14 @@ static void draw(void){
         png_draw_preview(0,0,(int)W,(int)H);
         present();return;
     }
-    gradient_rect(0,0,(int)W,(int)H,13,16,25,19,19,26);
-    gradient_rect(0,0,(int)W,61,48,25,36,27,23,34);
-    rect(0,60,W,2,accent());
-    monitor_icon(19,14);
-    ui_text(67,12,"DisplayCal",2,fg);
-    ui_text(213,21,"v0.8.4",0,muted);
+    /* Unified look: flat greys, header like Tweaks (badge, title, version),
+     * the two pages as tabs under it, the reference name on the right. */
+    rect(0,0,W,H,ui_bg());
+    rect(0,0,W,90,ui_head());
+    round_fill(16,14,32,32,8,accent());
+    ui_text_center(16,32,18,"D",1,fg);
+    ui_text(60,14,"DisplayCal",2,fg);
+    ui_text(60+ui_text_width("DisplayCal",2)+10,20,"v0.8.4",0,px(110,110,115));
     /* Status pill reflects the CURRENT page only:
      *   RGB page:     BLF ON / RGB ERR / LIVE (colortemp written) / READY
      *   Display page: SDK ERR / LIVE (PWM or LCD write succeeded) / READY
@@ -742,23 +732,33 @@ static void draw(void){
         int page_err=(page==0?status:dstatus)<0;
         int page_live=(page==0?applied:dapplied);
         int blf=(page==0 && filter_active);
-        u32 pill=blf?px(126,86,42):(page_err?px(113,45,48):(page_live?px(43,87,66):px(88,77,47)));
+        u32 ink=blf?px(242,179,91):(page_err?px(240,120,130):(page_live?px(126,201,152):ui_grey()));
         const char *label=blf?"BLF ON":
             (page==0 && status==-7?"TOO DARK":
              (page_err?(page==0?"RGB ERR":"SDK ERR"):(page_live?"LIVE":"READY")));
-        round_fill((int)W-95,17,77,26,13,pill);
-        ui_text_center((int)W-95,77,20,label,0,px(234,240,237));
+        round_fill((int)W-95,17,77,26,13,ui_track());
+        ui_text_center((int)W-95,77,20,label,0,ink);
     }
-    ui_text(20,66,page==0?"CHANNEL BALANCE":"DISPLAY SETTINGS",0,muted);
-    /* Visible page navigation hint. A is available because Compare was postponed. */
-    ui_text(225,66,page==0?"A:DISPLAY":"A:RGB",0,px(235,95,127));
-    ui_text(326,66,"REFERENCE",0,muted);
+    {
+        /* Pages as tabs; A switches them. */
+        static const char *const tabs[2]={"Channel balance","Display settings"};
+        int x=16,k;
+        for(k=0;k<2;k++){
+            int tw=ui_text_width(tabs[k],0)+28;
+            if(k==page)round_fill(x,64,tw,22,11,accent());
+            ui_text(x+14,64,tabs[k],0,k==page?fg:ui_grey());
+            x+=tw+4;
+        }
+        disk(x+16,75,10,accent());
+        ui_text_center(x+6,20,64,"A",0,fg);
+        ui_text(x+32,64,"switch",0,ui_grey());
+    }
     if(page==0){
         for(int row=0;row<4;row++)channel_card(row,row==sel,row==0?r:(row==1?g:(row==2?b:warmth)));
     }else{
         for(int row=0;row<5;row++)display_card(row,row==sel,dvalue[row]);
     }
-    rect(26,377,280,1,line);
+    rect(26,377,280,1,ui_track());
     ui_text(23,381,page==0?(filter_active?"BLF ACTIVE - DISABLE TO TUNE":
                  (status==-7?"RGB TOO DARK - MIN TOTAL 70":
                   (status<0?(rgb_csc_missing?"DISP CSC MISSING":"RGB PROC WRITE FAILED"):"OUTPUT RGB"))):
@@ -768,19 +768,17 @@ static void draw(void){
     p=append_num(output,p,eb);output[p]=0;
     if(page==0 && !filter_active) ui_text(149,378,output,1,fg);
     /* Preview card; test images preserve aspect ratio, topbar is native-size. */
-    round_stroke(320,92,304,294,10,line,px(9,10,15),2);
+    round_stroke(320,92,304,294,10,px(86,86,92),px(9,10,15),2);
     png_draw_preview(327,99,290,280);
     /* Current reference image name and count. */
-    round_fill(446,64,178,25,6,px(36,35,44));
-    ui_text_center(446,178,67,image_names[image_idx],0,px(239,222,225));
-    gradient_rect(0,412,(int)W,68,26,26,35,17,18,27);
-    rect(0,407,W,2,accent());
+    round_fill(446,64,178,22,11,ui_track());
+    ui_text_center(446,178,64,image_names[image_idx],0,fg);
     /* Row 1: adjustment speeds and BOTH reset shortcuts on the same line. */
     footer_pair(12,420,"LEFT","RIGHT","+/-1");
     footer_pair(190,420,"L1","R1","+/-5");
     footer_item(344,420,"X","RESET ROW");
     footer_item(482,420,"Y","RESET PAGE");
-    rect(14,446,W-28,1,px(60,58,70));
+    rect(14,446,W-28,1,ui_track());
     /* Row 2: independent Select tap/hold hints plus save and cancel. */
     footer_item(12,452,"SELECT","NEXT");
     footer_item(171,452,"HOLD SELECT","FULL");
