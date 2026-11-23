@@ -247,8 +247,15 @@ int main(int argc, char *argv[])
                 }
             }
 
-            if (header_changed || battery_changed)
-                theme_renderHeader(screen, menu_stack[menu_level]->title, false);
+            if (header_changed || battery_changed) {
+                /* Test branch (unified look): the path to this page. */
+                const char *path[5];
+                int levels = 0;
+                for (int i = 0; i <= menu_level && levels < 5; i++)
+                    if (menu_stack[i] != NULL && menu_stack[i]->title[0])
+                        path[levels++] = menu_stack[i]->title;
+                theme_renderHeaderPath(screen, path, levels);
+            }
 
             if (list_changed)
                 theme_renderList(screen, menu_stack[menu_level]);
