@@ -113,6 +113,42 @@ static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
                        disabled);
 }
 
+// Unified look: a small list's description, right-aligned on the row in a
+// smaller size of the list font (the font itself when it can't be opened),
+// grey, white on the selected row. Rendered per draw: lists with
+// descriptions are short (Tweaks' main menu).
+static TTF_Font *_theme_listDescFont(void)
+{
+    static bool tried = false;
+    static TTF_Font *font = NULL;
+    if (!tried) {
+        tried = true;
+        font = theme_loadFont(theme()->path, theme()->list.font, 17.0 * g_scale);
+    }
+    return font ? font : resource_getFont(LIST);
+}
+
+// Draws it ending at right_x; returns where it starts (right_x when none).
+static int _theme_renderListDescRight(SDL_Surface *screen, const char *desc,
+                                      int right_x, int center_y, bool active,
+                                      bool disabled)
+{
+    if (desc == NULL || desc[0] == '\0')
+        return right_x;
+    SDL_Color c = active ? (SDL_Color){255, 255, 255}
+                         : (SDL_Color){UI_GREY_R, UI_GREY_G, UI_GREY_B};
+    SDL_Surface *text = TTF_RenderUTF8_Blended(_theme_listDescFont(), desc, c);
+    if (text == NULL)
+        return right_x;
+    // At most half the row, so the name keeps its room.
+    int max_w = 300.0 * g_scale;
+    SDL_Rect crop = {0, 0, text->w > max_w ? max_w : text->w, text->h};
+    SDL_Rect pos = {right_x - crop.w, center_y - text->h / 2};
+    _blit_cached_label(text, &crop, screen, &pos, disabled);
+    SDL_FreeSurface(text);
+    return pos.x;
+}
+
 // Uncached version for one-off labels (descriptions, sticky notes)
 void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
                            int offset_x, int center_y, bool is_active,
@@ -256,7 +292,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                                   i == list->active_pos, show_disabled);
             label_end = scaled_620 - w;
         }
-        else if (item->item_type == ACTION && ui_opensPage(item->label)) {
+        else if (item->item_type == ACTION &&
+                 (ui_opensPage(item->label) || (list_small && item->description[0] != '\0'))) {
             SDL_Color c = i == list->active_pos ? (SDL_Color){255, 255, 255}
                                                 : (SDL_Color){122, 122, 128};
             int half = 7.0 * g_scale;
@@ -324,6 +361,14 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 item_center_y - value_size.h / 2};
             _blit_cached_label(value_label, &value_size, screen, &value_pos,
                                show_disabled);
+        }
+
+        if (list_small && item->description[0] != '\0') {
+            int desc_x = _theme_renderListDescRight(screen, item->description,
+                                                    label_end - 12.0 * g_scale,
+                                                    item_center_y, i == list->active_pos,
+                                                    show_disabled);
+            label_end = desc_x - 4.0 * g_scale;
         }
 
         // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)
