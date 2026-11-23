@@ -122,29 +122,48 @@ void theme_renderHeader(SDL_Surface *screen, const char *title_str, bool show_lo
     _theme_renderHeaderTitle(screen, title_str ? _cached_header_title : NULL, title_str, show_logo);
 }
 
-/* Width of levels[from..count-2] joined with " › ", after "… › " when
- * from > 0, in the path font. */
-static int _header_pathPrefix(const char *const *levels, int count, int from, char *out, size_t out_size)
+/* Between two levels of a path: a drawn chevron, not a "›" character,
+ * which some fonts do not have. */
+#define HEADER_PATH_GAP (22.0 * g_scale)
+
+/* Width of the levels levels[from..count-2], each followed by a chevron gap,
+ * after "..." and a gap when from > 0, in the path font. */
+static int _header_pathWidth(const char *const *levels, int count, int from)
 {
-    out[0] = '\0';
-    if (from > 0)
-        snprintf(out, out_size, "\xe2\x80\xa6 \xe2\x80\xba ");
-    for (int i = from; i < count - 1; i++) {
-        size_t len = strlen(out);
-        snprintf(out + len, out_size - len, "%s \xe2\x80\xba ", levels[i]);
-    }
-    int w = 0;
-    if (_header_path_font && out[0])
-        TTF_SizeUTF8(_header_path_font, out, &w, NULL);
+    int w = 0, piece;
+    if (_header_path_font == NULL)
+        return 0;
+    if (from > 0 && TTF_SizeUTF8(_header_path_font, "...", &piece, NULL) == 0)
+        w += piece + HEADER_PATH_GAP;
+    for (int i = from; i < count - 1; i++)
+        if (TTF_SizeUTF8(_header_path_font, levels[i], &piece, NULL) == 0)
+            w += piece + HEADER_PATH_GAP;
     return w;
+}
+
+static int _header_pathPiece(SDL_Surface *screen, const char *text, int x, int baseline)
+{
+    SDL_Color grey = {163, 163, 168};
+    SDL_Surface *piece = TTF_RenderUTF8_Blended(_header_path_font, text, grey);
+    if (piece == NULL)
+        return x;
+    SDL_Rect r = {x, baseline - TTF_FontAscent(_header_path_font)};
+    SDL_BlitSurface(piece, NULL, screen, &r);
+    x += piece->w;
+    SDL_FreeSurface(piece);
+    /* chevron in the middle of the gap, on the capitals' middle */
+    int cy = baseline - (int)(TTF_FontAscent(_header_path_font) * 0.35);
+    ui_drawChevron(screen, x + HEADER_PATH_GAP / 2 + 2.0 * g_scale, cy, 4.0 * g_scale, 1,
+                   SDL_MapRGB(screen->format, grey.r, grey.g, grey.b));
+    return x + HEADER_PATH_GAP;
 }
 
 /**
  * @brief Header with the path to the current page (test branch, unified
- *        look): "Tweaks › System › Startup". The badge has the first level's
- *        letter, the earlier levels are smaller and grey, the current one is
- *        the title. When it does not fit, the oldest levels give way to "…",
- *        so the current one stays whole.
+ *        look): "Tweaks > System > Startup". The badge has the first level's
+ *        letter, the earlier levels are smaller and grey with chevrons
+ *        between them, the current one is the title. When it does not fit,
+ *        the oldest levels give way to "...", so the current one stays whole.
  */
 void theme_renderHeaderPath(SDL_Surface *screen, const char *const *levels, int count)
 {
@@ -168,23 +187,19 @@ void theme_renderHeaderPath(SDL_Surface *screen, const char *const *levels, int 
                                            (int)(theme()->title.size * 0.7 + 0.5));
     SDL_Surface *title = _cached_header_title;
     int title_w = title ? title->w : 0, avail = 540.0 * g_scale - x;
-    char prefix[STR_MAX * 2];
-    int from = 0, prefix_w = _header_pathPrefix(levels, count, from, prefix, sizeof(prefix));
+    int from = 0, prefix_w = _header_pathWidth(levels, count, from);
     while (prefix_w + title_w > avail && from < count - 1) {
         from++;
-        prefix_w = _header_pathPrefix(levels, count, from, prefix, sizeof(prefix));
+        prefix_w = _header_pathWidth(levels, count, from);
     }
     TTF_Font *title_font = resource_getFont(TITLE);
     int title_y = 29.0 * g_scale - (title ? title->h / 2 : 0);
     int baseline = title_y + (title_font ? TTF_FontAscent(title_font) : 0);
-    if (_header_path_font && prefix[0] && prefix_w + title_w <= avail) {
-        SDL_Surface *path = TTF_RenderUTF8_Blended(_header_path_font, prefix, (SDL_Color){163, 163, 168});
-        if (path) {
-            SDL_Rect r = {x, baseline - TTF_FontAscent(_header_path_font)};
-            SDL_BlitSurface(path, NULL, screen, &r);
-            SDL_FreeSurface(path);
-            x += prefix_w;
-        }
+    if (_header_path_font && prefix_w > 0 && prefix_w + title_w <= avail) {
+        if (from > 0)
+            x = _header_pathPiece(screen, "...", x, baseline);
+        for (int i = from; i < count - 1; i++)
+            x = _header_pathPiece(screen, levels[i], x, baseline);
     }
     if (title) {
         SDL_Rect crop = {0, 0, 540.0 * g_scale - x, title->h};
