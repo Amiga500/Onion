@@ -6,6 +6,7 @@
 #include "utils/surfaceSetAlpha.h"
 
 #include "./textbox.h"
+#include "./unified.h"
 
 #define DIALOG_WIDTH 450
 #define DIALOG_LINE_HEIGHT 30
@@ -38,35 +39,40 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     // Cache transparent background — avoids CreateRGBSurface+FillRect+FreeSurface per call
     if (_dialog_transparent_bg == NULL) {
         _dialog_transparent_bg = SDL_CreateRGBSurface(0, g_display.width, g_display.height, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-        SDL_FillRect(_dialog_transparent_bg, NULL, /* 33.3% transparent black */ 0x55000000);
+        /* Test branch (unified look): a darker veil, as behind Tweaks' pop-ups. */
+        SDL_FillRect(_dialog_transparent_bg, NULL, /* 66% black */ 0xAA000000);
     }
     SDL_BlitSurface(_dialog_transparent_bg, NULL, screen, NULL);
 
-    SDL_Surface *pop_bg = resource_getSurface(POP_BG);
-    SDL_Rect center_rect = {(g_display.width - pop_bg->w) / 2, (g_display.height - pop_bg->h) / 2};
-
-    SDL_BlitSurface(pop_bg, NULL, screen, &center_rect);
+    /* Test branch (unified look): the card is drawn, not the theme's pop-bg:
+     * a rounded panel like Tweaks' (panel grey, 16 px corners), the title on
+     * the left as in the headers, the message in light grey in the middle,
+     * the button hints at the bottom right. */
+    SDL_Rect center_rect = {(g_display.width - (int)(500.0 * g_scale)) / 2,
+                            (g_display.height - (int)(300.0 * g_scale)) / 2,
+                            (Uint16)(500.0 * g_scale), (Uint16)(300.0 * g_scale)};
+    ui_fillRoundRect(screen, center_rect, (int)(16.0 * g_scale), SDL_MapRGB(screen->format, 46, 46, 49));
 
     SDL_Surface *title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), title_str, theme()->total.color);
     if (title) {
-        SDL_Rect title_rect = {(g_display.width - title->w) / 2, center_rect.y + 25.0 * g_scale - title->h / 2};
+        SDL_Rect title_rect = {center_rect.x + 28.0 * g_scale, center_rect.y + 40.0 * g_scale - title->h / 2};
         SDL_BlitSurface(title, NULL, screen, &title_rect);
         SDL_FreeSurface(title);
     }
 
-    // Shrink the font until every line fits the popup (6 lines of 30 px).
-    SDL_Surface *textbox = theme_textboxSurfaceFit(message_str, theme()->grid.color, ALIGN_CENTER,
+    // Shrink the font until every line fits the card (5 lines of 30 px).
+    SDL_Surface *textbox = theme_textboxSurfaceFit(message_str, (SDL_Color){220, 220, 224, 0}, ALIGN_CENTER,
                                                    (int)(DIALOG_WIDTH * g_scale),
-                                                   (int)(6 * DIALOG_LINE_HEIGHT * g_scale));
+                                                   (int)(5 * DIALOG_LINE_HEIGHT * g_scale));
     if (textbox) {
-        SDL_Rect textbox_rect = {(g_display.width - textbox->w) / 2, center_rect.y + 160.0 * g_scale - textbox->h / 2};
+        SDL_Rect textbox_rect = {(g_display.width - textbox->w) / 2, center_rect.y + 145.0 * g_scale - textbox->h / 2};
         SDL_BlitSurface(textbox, NULL, screen, &textbox_rect);
         SDL_FreeSurface(textbox);
     }
 
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
     if (show_hint && button_a != NULL && button_a->w < g_display.width) {
-        SDL_Rect hint_rect = {center_rect.x + pop_bg->w - 30.0 * g_scale, center_rect.y + pop_bg->h - 60.0 * g_scale};
+        SDL_Rect hint_rect = {center_rect.x + center_rect.w - 4.0 * g_scale, center_rect.y + center_rect.h - 40.0 * g_scale};
 
         SDL_Surface *button_b = resource_getSurface(BUTTON_B);
         // Cache OK/Cancel labels — they don't change between calls
@@ -116,7 +122,8 @@ void theme_renderDialogProgress(SDL_Surface *screen, const char *title_str,
     theme_renderDialog(screen, title_str, message_str, show_hint);
 
     SDL_Surface *dot = resource_getSurface(PROGRESS_DOT);
-    SDL_Rect dot_rect = {(g_display.width - dot->w) / 2 - 32.0 * g_scale, 225.0 * g_scale - dot->h / 2};
+    /* Test branch: in the middle of the card (the screen's middle). */
+    SDL_Rect dot_rect = {(g_display.width - dot->w) / 2 - 32.0 * g_scale, g_display.height / 2 + 10.0 * g_scale - dot->h / 2};
 
     if (dialog_progress >= 1)
         SDL_BlitSurface(dot, NULL, screen, &dot_rect);
