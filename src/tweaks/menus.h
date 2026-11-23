@@ -1021,6 +1021,17 @@ void *_get_menu_icon(const char *name)
     return (void *)IMG_Load(path);
 }
 
+// Unified look: the main menu's small line icons (res/line/<name>.png, 24
+// px); the icon pack's picture when one is missing.
+void *_get_menu_line_icon(const char *line_name, const char *fallback)
+{
+    char path[STR_MAX];
+    snprintf(path, STR_MAX - 1, "res/line/%s.png", line_name);
+    if (is_file(path))
+        return (void *)IMG_Load(path);
+    return _get_menu_icon(fallback);
+}
+
 // Tweaks > Game lists: everything about Games, Favorites, Recents, Search
 // and Game Info.
 void menu_gameListsMenu(void *_)
@@ -1064,57 +1075,57 @@ void menu_gameListsMenu(void *_)
 void menu_main(void)
 {
     if (!_menu_main._created) {
-        _menu_main = list_createWithTitle(8, LIST_LARGE, "Tweaks");
+        _menu_main = list_createWithTitle(8, LIST_SMALL, "Tweaks");
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Home screen",
                          .description = "Tabs, consoles, SELECT menu",
                          .action = menu_homeScreen,
-                         .icon_ptr = _get_menu_icon("tweaks_user_interface")});
+                         .icon_ptr = _get_menu_line_icon("home", "tweaks_user_interface")});
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Game lists",
                          .description = "Layout, scrolling, previews, menus",
                          .action = menu_gameListsMenu,
-                         .icon_ptr = _get_menu_icon("tweaks_icons")});
+                         .icon_ptr = _get_menu_line_icon("game_lists", "tweaks_icons")});
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Buttons",
                          .description = "MENU, X, Y, POWER, hotkeys",
                          .action = menu_buttonAction,
-                         .icon_ptr = _get_menu_icon("tweaks_menu_button")});
+                         .icon_ptr = _get_menu_line_icon("buttons", "tweaks_menu_button")});
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Look and feel",
                          .description = "Theme, icons, blue light, hints",
                          .action = menu_lookAndFeel,
-                         .icon_ptr = _get_menu_icon("tweaks_user_interface")});
+                         .icon_ptr = _get_menu_line_icon("look_and_feel", "tweaks_user_interface")});
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "System",
                          .description = "Startup, date and time, battery",
                          .action = menu_system,
-                         .icon_ptr = _get_menu_icon("tweaks_system")});
+                         .icon_ptr = _get_menu_line_icon("system", "tweaks_system")});
         if (IS_MIYOO_PLUS_OR_FLIP()) {
             list_addItem(&_menu_main,
                          (ListItem){
                              .label = "Network",
                              .description = "Wi-Fi, file sharing, SSH, FTP",
                              .action = menu_network,
-                             .icon_ptr = _get_menu_icon("tweaks_network")});
+                             .icon_ptr = _get_menu_line_icon("network", "tweaks_network")});
         }
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Tools",
                          .description = "CUE, M3U, game lists, recorder",
                          .action = menu_tools,
-                         .icon_ptr = _get_menu_icon("tweaks_tools")});
+                         .icon_ptr = _get_menu_line_icon("tools", "tweaks_tools")});
         list_addItem(&_menu_main,
                      (ListItem){
                          .label = "Advanced",
                          .description = "Screen, fast forward, reset",
                          .action = menu_advanced,
-                         .icon_ptr = _get_menu_icon("tweaks_advanced")});
+                         .icon_ptr = _get_menu_line_icon("advanced", "tweaks_advanced")});
     }
     menu_level = 0;
     menu_stack[0] = &_menu_main;
