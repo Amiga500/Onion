@@ -61,12 +61,12 @@
 // the area under its curve with this colour (strength out of 256), its start
 // kept this far inside the view
 #define MAX_SESSION_MARKS 256
-#define SESSION_MARK_COLOR 136, 97, 252 // Onion purple (boot screen)
+#define SESSION_MARK_COLOR 214, 86, 112 // test branch: RedOnion accent, light
 #define SESSION_MARK_MARGIN 20
 #define SESSION_MARK_TINT 80
 // the caption under the title for the chosen one: a lighter Onion purple, readable on
 // the blue background
-#define SESSION_CAPTION_COLOR 190, 168, 255
+#define SESSION_CAPTION_COLOR 235, 150, 170
 // the graph while charging (was a pink red, 255, 170, 170; red reads as a low-battery
 // warning, green as charging)
 #define CHARGE_COLOR 125, 219, 143
@@ -92,6 +92,7 @@
 
 // "V2" after the title in the background (Arkhip at 20 matches its letters)
 #define TITLE_FONT_SIZE 20
+#define UI_FONT "/customer/app/Exo-2-Bold-Italic.ttf"
 #define TITLE_V2_X 452
 #define TITLE_V2_Y 11
 
@@ -128,7 +129,7 @@
 #define LABEL4_X 538
 
 #define SUB_TITLE_X 255
-#define SUB_TITLE_Y 32
+#define SUB_TITLE_Y 52 // test branch: under the 48 px header
 #define SUB_TITLE_MAX_W 620   // the session line under the title, on a 640 px screen
 #define SUB_TITLE_SHOW_DATE 0 // 1: the session line also shows when the session began
 
@@ -149,10 +150,10 @@
 #define LABEL_SIZE_Y 15
 
 #define RIGHT_ARROW_X 591
-#define RIGHT_ARROW_Y 13
+#define RIGHT_ARROW_Y 10
 
-#define LEFT_ARROW_X 0
-#define LEFT_ARROW_Y 13
+#define LEFT_ARROW_X 500 // test branch: both zoom keys on the right of the header
+#define LEFT_ARROW_Y 10
 
 #define ARROW_LENGHT 48
 #define ARROW_WIDTH 28

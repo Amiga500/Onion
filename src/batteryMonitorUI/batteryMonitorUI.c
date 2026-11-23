@@ -19,7 +19,7 @@ static int segment_duration;
 
 static char label[4][4];
 static SDL_Color color_white = {255, 255, 255};
-static SDL_Color color_pastel_blue = {89, 167, 255};
+static SDL_Color color_pastel_blue = {163, 163, 168}; // test branch: unified grey
 static int graph_max_size = GRAPH_MAX_FULL_PAGES * GRAPH_DISPLAY_SIZE_X;
 static int estimation_line_size = 0;
 static int begining_session_index;
@@ -219,10 +219,18 @@ void init(void)
     left_arrow = IMG_Load("./res/left_arrow.png");
     end_graph = IMG_Load("./res/end.png");
 
-    font_Arkhip = TTF_OpenFont("./res/Arkhip_font.ttf", 15);
-    font_title = TTF_OpenFont("./res/Arkhip_font.ttf", TITLE_FONT_SIZE);
-    font_small = TTF_OpenFont("./res/Arkhip_font.ttf", 12);
-    font_tiny = TTF_OpenFont("./res/Arkhip_font.ttf", 10);
+    // Test branch (RedOnion unified look): Exo 2, the system font, as in Tweaks;
+    // the app's own Arkhip font when Exo 2 is missing.
+    font_Arkhip = TTF_OpenFont(UI_FONT, 15);
+    font_title = TTF_OpenFont(UI_FONT, TITLE_FONT_SIZE);
+    font_small = TTF_OpenFont(UI_FONT, 12);
+    font_tiny = TTF_OpenFont(UI_FONT, 10);
+    if (font_Arkhip == NULL) {
+        font_Arkhip = TTF_OpenFont("./res/Arkhip_font.ttf", 15);
+        font_title = TTF_OpenFont("./res/Arkhip_font.ttf", TITLE_FONT_SIZE);
+        font_small = TTF_OpenFont("./res/Arkhip_font.ttf", 12);
+        font_tiny = TTF_OpenFont("./res/Arkhip_font.ttf", 10);
+    }
 }
 
 void free_resources(void)
@@ -1805,7 +1813,7 @@ static void dimScreen(Uint8 alpha)
 {
     SDL_Surface *dim = SDL_CreateRGBSurface(SDL_SWSURFACE, 640, 480, 32, 0, 0, 0, 0);
     if (dim != NULL) {
-        SDL_FillRect(dim, NULL, SDL_MapRGB(dim->format, 4, 8, 16));
+        SDL_FillRect(dim, NULL, SDL_MapRGB(dim->format, 39, 39, 39)); // test branch: unified grey
         SDL_SetAlpha(dim, SDL_SRCALPHA, alpha);
         SDL_BlitSurface(dim, NULL, screen, NULL);
         SDL_FreeSurface(dim);
@@ -1870,35 +1878,38 @@ static void axp_save_capacity(Uint32 now)
 
 static void renderAxpMenu(void)
 {
-    dimScreen(240);
+    dimScreen(252);
     // Draw solid dark bar behind header to prevent background text bleeding through
-    drawRectFill(0, 0, 640, 56, SDL_MapRGB(screen->format, 8, 14, 24));
+    drawRectFill(0, 0, 640, 56, SDL_MapRGB(screen->format, 39, 39, 39));
+    // test branch: the graph page's header (badge and title) on top
+    safeBlitSurface(background, &(SDL_Rect){0, 0, 640, 48}, screen, &(SDL_Rect){0, 0, 640, 48});
     // Draw solid dark bar behind footer badges
-    drawRectFill(0, 436, 640, 44, SDL_MapRGB(screen->format, 8, 14, 24));
+    drawRectFill(0, 436, 640, 44, SDL_MapRGB(screen->format, 30, 30, 30));
 
-    Uint32 col_card_bg = SDL_MapRGB(screen->format, 16, 24, 38);
-    Uint32 col_card_border = SDL_MapRGB(screen->format, 42, 59, 92);
-    Uint32 col_sel_bg = SDL_MapRGB(screen->format, 30, 53, 91);
-    Uint32 col_sel_border = SDL_MapRGB(screen->format, 77, 132, 219);
-    Uint32 col_pill_bg = SDL_MapRGB(screen->format, 14, 22, 34);
-    Uint32 col_pill_border = SDL_MapRGB(screen->format, 50, 70, 105);
+    Uint32 col_card_bg = SDL_MapRGB(screen->format, 46, 46, 49);
+    Uint32 col_card_border = SDL_MapRGB(screen->format, 46, 46, 49);
+    Uint32 col_sel_bg = SDL_MapRGB(screen->format, 158, 44, 69);
+    Uint32 col_sel_border = SDL_MapRGB(screen->format, 158, 44, 69);
+    Uint32 col_pill_bg = SDL_MapRGB(screen->format, 58, 58, 61);
+    Uint32 col_pill_border = SDL_MapRGB(screen->format, 58, 58, 61);
 
-    SDL_Color col_title = {89, 167, 255};
-    SDL_Color col_sub = {160, 185, 215};
-    SDL_Color col_header = {100, 200, 255};
-    SDL_Color col_lbl = {150, 175, 205};
+    SDL_Color col_title = {244, 244, 245};
+    SDL_Color col_sub = {163, 163, 168};
+    SDL_Color col_header = {163, 163, 168};
+    SDL_Color col_lbl = {163, 163, 168};
     SDL_Color col_val = {255, 255, 255};
-    SDL_Color col_green = {125, 219, 143};
-    SDL_Color col_cyan = {100, 215, 255};
-    SDL_Color col_warn = {240, 140, 100};
+    SDL_Color col_green = {126, 201, 152};
+    SDL_Color col_cyan = {235, 150, 170};
+    SDL_Color col_warn = {242, 179, 91};
 
     // Header
-    drawCenteredText("HARDWARE PMIC & BATTERY MONITOR", font_title ? font_title : font_Arkhip, col_title, 0, 20, 640);
+    renderTextAlignRight("PMIC & BATTERY", font_Arkhip, col_sub, &(SDL_Rect){624, 15, 200, 20});
+    (void)col_title;
 
     // Safeguard check
     if (!axp_status.available) {
         int mw = 520, mh = 240, mx = 60, my = 120;
-        Uint32 err_bg = SDL_MapRGB(screen->format, 14, 22, 34);
+        Uint32 err_bg = SDL_MapRGB(screen->format, 58, 58, 61);
         Uint32 err_border = SDL_MapRGB(screen->format, 224, 108, 117);
         drawRectFill(mx, my, mw, mh, err_bg);
         drawFrame2px(mx, my, mw, mh, err_border);
@@ -1934,8 +1945,8 @@ static void renderAxpMenu(void)
     // Subtle horizontal divider lines between table rows
     for (int i = 1; i < 5; i++) {
         int line_y = 92 + i * 34 - 8;
-        drawRectFill(lx + 10, line_y, card_w - 20, 1, SDL_MapRGB(screen->format, 28, 40, 60));
-        drawRectFill(rx + 10, line_y, card_w - 20, 1, SDL_MapRGB(screen->format, 28, 40, 60));
+        drawRectFill(lx + 10, line_y, card_w - 20, 1, SDL_MapRGB(screen->format, 58, 58, 61));
+        drawRectFill(rx + 10, line_y, card_w - 20, 1, SDL_MapRGB(screen->format, 58, 58, 61));
     }
 
     char v_str[32], c_str[32], p_str[32], rem_str[32], cap_str[32];
@@ -2007,7 +2018,7 @@ static void renderAxpMenu(void)
         drawRectFill(25, y, 590, row_h, sel ? col_sel_bg : col_card_bg);
         if (sel) {
             drawFrame2px(25, y, 590, row_h, col_sel_border);
-            renderText(">", font_Arkhip, col_cyan, &(SDL_Rect){35, y + txt_dy, 15, 20});
+            renderText(">", font_Arkhip, col_val, &(SDL_Rect){35, y + txt_dy, 15, 20});
         }
         else
             drawFrame1px(25, y, 590, row_h, col_card_border);
@@ -2019,16 +2030,16 @@ static void renderAxpMenu(void)
     char cap_edit_str[32];
     bool cap_dirty = axp_status.cap_set && axp_edit_capacity != axp_status.capacity_mah;
     snprintf(cap_edit_str, sizeof(cap_edit_str), "<  %d mAh%s  >", axp_edit_capacity, cap_dirty ? "*" : "");
-    renderTextAlignRight(cap_edit_str, font_Arkhip, col_cyan, &(SDL_Rect){605, ROW_TY(AXP_MENU_CAPACITY), 150, 20});
+    renderTextAlignRight(cap_edit_str, font_Arkhip, axp_menu_selected == AXP_MENU_CAPACITY ? col_val : col_cyan, &(SDL_Rect){605, ROW_TY(AXP_MENU_CAPACITY), 150, 20});
     if (axp_menu_selected == AXP_MENU_CAPACITY)
-        renderText("[LEFT/RIGHT] Change  [A] Save", font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
+        renderText("[LEFT/RIGHT] Change  [A] Save", font_small ? font_small : font_Arkhip, (SDL_Color){235, 205, 214}, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
 
     // Item: Shutdown voltage (Voff, REG 31H bits 2-0)
     renderText("Shutdown Voltage:", font_Arkhip, col_val, &(SDL_Rect){50, ROW_TY(AXP_MENU_VOFF), 180, 20});
     char voff_edit_str[32];
     bool voff_dirty = (axp_status.voff_code >= 0 && axp_edit_voff != axp_status.voff_code);
     snprintf(voff_edit_str, sizeof(voff_edit_str), "<  %.1f V%s  >", voff_code_to_mv(axp_edit_voff) / 1000.0, voff_dirty ? "*" : "");
-    renderTextAlignRight(voff_edit_str, font_Arkhip, col_cyan, &(SDL_Rect){605, ROW_TY(AXP_MENU_VOFF), 150, 20});
+    renderTextAlignRight(voff_edit_str, font_Arkhip, axp_menu_selected == AXP_MENU_VOFF ? col_val : col_cyan, &(SDL_Rect){605, ROW_TY(AXP_MENU_VOFF), 150, 20});
     if (axp_menu_selected == AXP_MENU_VOFF) {
         char voff_hint[48];
         if (axp_status.voff_code >= 0)
@@ -2046,7 +2057,7 @@ static void renderAxpMenu(void)
     bool chgv_dirty = (axp_status.chgv_code >= 0 && axp_edit_chgv != axp_status.chgv_code);
     snprintf(chgv_edit_str, sizeof(chgv_edit_str), "<  %s %.2f V%s  >", chgv_code_to_label(axp_edit_chgv),
              chgv_code_to_mv(axp_edit_chgv) / 1000.0, chgv_dirty ? "*" : "");
-    renderTextAlignRight(chgv_edit_str, font_Arkhip, col_cyan, &(SDL_Rect){605, ROW_TY(AXP_MENU_CHGV), 190, 20});
+    renderTextAlignRight(chgv_edit_str, font_Arkhip, axp_menu_selected == AXP_MENU_CHGV ? col_val : col_cyan, &(SDL_Rect){605, ROW_TY(AXP_MENU_CHGV), 190, 20});
     if (axp_menu_selected == AXP_MENU_CHGV) {
         char chgv_hint[48];
         if (axp_status.chgv_code >= 0)
@@ -2088,8 +2099,8 @@ static void renderAxpMenu(void)
     if (axp_confirm_calib) {
         dimScreen(190);
         int mw = 520, mh = 290, mx = 60, my = 95;
-        Uint32 m_bg = SDL_MapRGB(screen->format, 12, 20, 32);
-        Uint32 m_border = SDL_MapRGB(screen->format, 77, 132, 219);
+        Uint32 m_bg = SDL_MapRGB(screen->format, 39, 39, 39);
+        Uint32 m_border = SDL_MapRGB(screen->format, 158, 44, 69);
         drawRectFill(mx, my, mw, mh, m_bg);
         drawFrame2px(mx, my, mw, mh, m_border);
 
@@ -2097,8 +2108,8 @@ static void renderAxpMenu(void)
         drawCenteredText("Teaches the PMIC your battery's real capacity", font_small ? font_small : font_Arkhip, col_title, mx, my + 44, mw);
 
         int ib_x = mx + 20, ib_y = my + 72, ib_w = mw - 40, ib_h = 130;
-        Uint32 ib_bg = SDL_MapRGB(screen->format, 18, 28, 44);
-        Uint32 ib_border = SDL_MapRGB(screen->format, 40, 60, 90);
+        Uint32 ib_bg = SDL_MapRGB(screen->format, 46, 46, 49);
+        Uint32 ib_border = SDL_MapRGB(screen->format, 58, 58, 61);
         drawRectFill(ib_x, ib_y, ib_w, ib_h, ib_bg);
         drawFrame1px(ib_x, ib_y, ib_w, ib_h, ib_border);
 
@@ -2146,7 +2157,7 @@ static void renderAxpMenu(void)
     if (axp_confirm_voff) {
         dimScreen(190);
         int mw = 520, mh = 250, mx = 60, my = 115;
-        Uint32 m_bg = SDL_MapRGB(screen->format, 12, 20, 32);
+        Uint32 m_bg = SDL_MapRGB(screen->format, 39, 39, 39);
         Uint32 m_border = SDL_MapRGB(screen->format, 220, 140, 50);
         drawRectFill(mx, my, mw, mh, m_bg);
         drawFrame2px(mx, my, mw, mh, m_border);
@@ -2156,8 +2167,8 @@ static void renderAxpMenu(void)
         drawCenteredText(voff_title, font_title ? font_title : font_Arkhip, col_val, mx, my + 18, mw);
 
         int ib_x = mx + 20, ib_y = my + 54, ib_w = mw - 40, ib_h = 108;
-        drawRectFill(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 18, 28, 44));
-        drawFrame1px(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 40, 60, 90));
+        drawRectFill(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 46, 46, 49));
+        drawFrame1px(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 58, 58, 61));
         renderText("The PMIC cuts power at once below this voltage, measured", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 20});
         renderText("under load: high volume or a heavy game can turn the", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 36, ib_w - 32, 20});
         renderText("console off at 15-20 %, with no save and no warning.", font_small ? font_small : font_Arkhip, col_warn, &(SDL_Rect){ib_x + 16, ib_y + 60, ib_w - 32, 20});
@@ -2177,7 +2188,7 @@ static void renderAxpMenu(void)
     if (axp_confirm_cap) {
         dimScreen(190);
         int mw = 520, mh = 250, mx = 60, my = 115;
-        Uint32 m_bg = SDL_MapRGB(screen->format, 12, 20, 32);
+        Uint32 m_bg = SDL_MapRGB(screen->format, 39, 39, 39);
         Uint32 m_border = SDL_MapRGB(screen->format, 220, 140, 50);
         drawRectFill(mx, my, mw, mh, m_bg);
         drawFrame2px(mx, my, mw, mh, m_border);
@@ -2185,8 +2196,8 @@ static void renderAxpMenu(void)
         drawCenteredText("STILL CHARGING", font_title ? font_title : font_Arkhip, col_val, mx, my + 18, mw);
 
         int ib_x = mx + 20, ib_y = my + 54, ib_w = mw - 40, ib_h = 108;
-        drawRectFill(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 18, 28, 44));
-        drawFrame1px(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 40, 60, 90));
+        drawRectFill(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 46, 46, 49));
+        drawFrame1px(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 58, 58, 61));
         renderText("The PMIC starts its counter from the battery voltage,", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 20});
         renderText("which reads too high while charging.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 36, ib_w - 32, 20});
         renderText("Best: let it finish charging, then save.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 60, ib_w - 32, 20});
@@ -2206,7 +2217,7 @@ static void renderAxpMenu(void)
     if (axp_confirm_sync) {
         dimScreen(190);
         int mw = 520, mh = 250, mx = 60, my = 115;
-        Uint32 m_bg = SDL_MapRGB(screen->format, 12, 20, 32);
+        Uint32 m_bg = SDL_MapRGB(screen->format, 39, 39, 39);
         Uint32 m_border = SDL_MapRGB(screen->format, 220, 140, 50);
         drawRectFill(mx, my, mw, mh, m_bg);
         drawFrame2px(mx, my, mw, mh, m_border);
@@ -2214,8 +2225,8 @@ static void renderAxpMenu(void)
         drawCenteredText("SET COUNTER TO 100%?", font_title ? font_title : font_Arkhip, col_val, mx, my + 18, mw);
 
         int ib_x = mx + 20, ib_y = my + 54, ib_w = mw - 40, ib_h = 108;
-        drawRectFill(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 18, 28, 44));
-        drawFrame1px(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 40, 60, 90));
+        drawRectFill(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 46, 46, 49));
+        drawFrame1px(ib_x, ib_y, ib_w, ib_h, SDL_MapRGB(screen->format, 58, 58, 61));
         char sync_line[80];
         int sync_cap = (axp_status.capacity_mah > 0) ? axp_status.capacity_mah : axp_edit_capacity;
         snprintf(sync_line, sizeof(sync_line), "Energy Remaining: %d mAh  ->  %d mAh", axp_status.cc_mah, sync_cap);
@@ -2239,7 +2250,7 @@ static void renderAxpMenu(void)
     if (axp_confirm_btest) {
         dimScreen(190);
         int mw = 520, mh = 296, mx = 60, my = 92;
-        Uint32 m_bg = SDL_MapRGB(screen->format, 12, 20, 32);
+        Uint32 m_bg = SDL_MapRGB(screen->format, 39, 39, 39);
         Uint32 m_border = SDL_MapRGB(screen->format, 220, 140, 50);
         drawRectFill(mx, my, mw, mh, m_bg);
         drawFrame2px(mx, my, mw, mh, m_border);
@@ -2248,8 +2259,8 @@ static void renderAxpMenu(void)
         drawCenteredText("Hardware stress test & internal resistance check", font_small ? font_small : font_Arkhip, col_warn, mx, my + 42, mw);
 
         int ib_x = mx + 20, ib_y = my + 68, ib_w = mw - 40, ib_h = 138;
-        Uint32 ib_bg = SDL_MapRGB(screen->format, 18, 28, 44);
-        Uint32 ib_border = SDL_MapRGB(screen->format, 40, 60, 90);
+        Uint32 ib_bg = SDL_MapRGB(screen->format, 46, 46, 49);
+        Uint32 ib_border = SDL_MapRGB(screen->format, 58, 58, 61);
         drawRectFill(ib_x, ib_y, ib_w, ib_h, ib_bg);
         drawFrame1px(ib_x, ib_y, ib_w, ib_h, ib_border);
 
@@ -2284,7 +2295,7 @@ static void renderAxpMenu(void)
         dimScreen(190);
         int mw = 540, mh = 330, mx = 50, my = 75;
         Uint32 m_border = bt.state == BT_ABORTED ? SDL_MapRGB(screen->format, 224, 108, 117) : SDL_MapRGB(screen->format, 220, 140, 50);
-        drawRectFill(mx, my, mw, mh, SDL_MapRGB(screen->format, 12, 20, 32));
+        drawRectFill(mx, my, mw, mh, SDL_MapRGB(screen->format, 39, 39, 39));
         drawFrame2px(mx, my, mw, mh, m_border);
         drawCenteredText("BATTERY HEALTH TEST", font_title ? font_title : font_Arkhip, col_val, mx, my + 14, mw);
 
@@ -2331,8 +2342,8 @@ static void renderAxpMenu(void)
         // per-stage table: 4 rows closer together, to keep clear of the button
         int tx = mx + 30, ty = my + 116, tw = mw - 60;
         int row_h = bt.stages > 3 ? 24 : 30, th = bt.stages > 3 ? 136 : 128;
-        drawRectFill(tx, ty, tw, th, SDL_MapRGB(screen->format, 18, 28, 44));
-        drawFrame1px(tx, ty, tw, th, SDL_MapRGB(screen->format, 40, 60, 90));
+        drawRectFill(tx, ty, tw, th, SDL_MapRGB(screen->format, 46, 46, 49));
+        drawFrame1px(tx, ty, tw, th, SDL_MapRGB(screen->format, 58, 58, 61));
         renderText("Stage", fs, col_lbl, &(SDL_Rect){tx + 12, ty + 8, 200, 18});
         renderTextAlignRight("Voltage", fs, col_lbl, &(SDL_Rect){tx + 300, ty + 8, 80, 18});
         renderTextAlignRight("Current", fs, col_lbl, &(SDL_Rect){tx + 390, ty + 8, 80, 18});
@@ -2529,7 +2540,7 @@ void renderPage()
 
     Uint32 white_pixel_color = SDL_MapRGBA(screen->format, 255, 255, 255, 0);
     Uint32 charge_pixel_color = SDL_MapRGBA(screen->format, CHARGE_COLOR, 0); // was 255, 170, 170
-    Uint32 blue_pixel_color = SDL_MapRGBA(screen->format, 89, 167, 255, 0);
+    Uint32 blue_pixel_color = SDL_MapRGBA(screen->format, 214, 86, 112, 0); // test branch: accent, was 89, 167, 255
     Uint32 pixel_color = white_pixel_color;
 
     int x;
