@@ -16,6 +16,10 @@
 #include "utils/msleep.h"
 #include "utils/str.h"
 
+/* Test branch (unified look): header, footer and progress are drawn here,
+ * the images (waitingBG, installSlideN) hold only the middle. */
+#include "theme/render/canvas_ui.h"
+
 #ifndef ONION_VERSION
 #define ONION_VERSION "4.x.x-dev-test"
 #endif
@@ -57,6 +61,25 @@ void nextSlide(int *current_slide, int num_slides, int direction)
     *current_slide = next_slide;
 }
 
+/* Rounded track; grey stripes move along the part still to do while the
+ * install runs, the done part is accent (or red when it failed). */
+static void draw_progress(CuiCanvas *c, int x, int y, int w, int h, int progress, bool failed, int tick)
+{
+    float r = h / 2.0f;
+    cui_rrect(c, x, y, w, h, r, CUI_TRACK);
+    if (progress < 100) {
+        uint32_t light = CUI_RGB(78, 78, 82);
+        for (int yy = y + 1; yy < y + h - 1; yy++)
+            for (int xx = x + h; xx < x + w - h; xx++)
+                if (((xx - yy + 1024 - tick) / 8) % 2 == 0)
+                    c->px[yy * c->pitch + xx] = light;
+    }
+    if (progress > 0) {
+        float done = w * (progress > 100 ? 100 : progress) / 100.0f;
+        cui_rrect(c, x, y, done < h ? h : done, h, r, failed ? CUI_BAD : CUI_ACCENT);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     // The percentage to start at
@@ -95,27 +118,9 @@ int main(int argc, char *argv[])
         SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
 
     SDL_Surface *waiting_bg = IMG_Load("res/waitingBG.png");
-    SDL_Surface *progress_stripes = IMG_Load("res/progress_stripes.png");
-
-    TTF_Font *font = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 36);
-    TTF_Font *font_small =
-        TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 18);
-    SDL_Color fg_color = {255, 255, 255, 0};
 
     char version_str[STR_MAX];
     sprintf(version_str, "v%s", ONION_VERSION);
-
-    SDL_Surface *surface_version = TTF_RenderUTF8_Blended(font_small, version_str, fg_color);
-    SDL_Rect rect_version = {10, 10};
-
-    Uint32 progress_bg = SDL_MapRGB(video->format, 29, 30, 37);
-    Uint32 progress_color = SDL_MapRGB(video->format, 158, 44, 69);
-    Uint32 failed_color = SDL_MapRGB(video->format, 194, 71, 71);
-
-    SDL_Rect rectMessage = {10, 414};
-    SDL_Rect rectProgress = {0, 470, 0, 10};
-    SDL_Rect stripes_pos = {0, 470};
-    SDL_Rect stripes_frame = {0, 0, 640, 10};
 
     int current_slide = -1;
     int num_slides = 9;
@@ -180,7 +185,9 @@ int main(int argc, char *argv[])
             quit = true;
         }
 
-        if (ticks - check_timer > CHECK_TIMEOUT) {
+        // Once failed, the last line of .update_msg must not overwrite
+        // "Installation failed" (and its full red bar) any more.
+        if (!failed && ticks - check_timer > CHECK_TIMEOUT) {
             if (exists("/tmp/.update_msg")) {
                 file_readLastLine("/tmp/.update_msg", message_str);
                 long n = 0;
@@ -206,41 +213,26 @@ int main(int argc, char *argv[])
             acc_ticks = time_step;
 
         if (acc_ticks >= time_step) {
-            if (slide == NULL)
+            if (slide != NULL)
+                SDL_BlitSurface(slide, NULL, screen, NULL);
+            else if (waiting_bg != NULL)
                 SDL_BlitSurface(waiting_bg, NULL, screen, NULL);
             else
-                SDL_BlitSurface(slide, NULL, screen, NULL);
+                SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 39, 39, 39));
 
-            if (surface_version)
-                SDL_BlitSurface(surface_version, NULL, screen, &rect_version);
+            CuiCanvas c = {(uint32_t *)screen->pixels, screen->pitch / 4};
+            cui_header(&c, "R", "RedOnion", version_str, -1);
 
-            rectProgress.w = 640;
-            SDL_FillRect(screen, &rectProgress, progress_bg);
-
-            // spinner
-            if (progress < 100) {
-                stripes_frame.x = spinner_tick;
-                SDL_BlitSurface(progress_stripes, &stripes_frame, screen,
-                                &stripes_pos);
-            }
-
-            if (progress > 0) {
-                rectProgress.w = (Uint16)(6.4 * progress);
-                SDL_FillRect(screen, &rectProgress,
-                             failed ? failed_color : progress_color);
-            }
-
-            SDL_Surface *message =
-                TTF_RenderUTF8_Blended(font, message_str, fg_color);
-            SDL_BlitSurface(message, NULL, screen, &rectMessage);
-            SDL_FreeSurface(message);
-
+            // footer: the message, then the progress bar under it
+            cui_rect(&c, 0, 420, 640, 60, CUI_HEAD);
+            char fitted[STR_MAX];
+            cui_fit(message_str, 21, 592, fitted, sizeof(fitted));
+            cui_text(&c, 24, 441, fitted, 21, failed ? CUI_BAD : CUI_WHITE, CUI_LEFT);
+            draw_progress(&c, 24, 461, 592, 8, progress, failed, spinner_tick);
             SDL_BlitSurface(screen, NULL, video, NULL);
             SDL_Flip(video);
 
-            spinner_tick += 4;
-            if (spinner_tick >= 16)
-                spinner_tick = 0;
+            spinner_tick = (spinner_tick + 1) % 16;
 
             acc_ticks -= time_step;
         }
@@ -261,15 +253,13 @@ int main(int argc, char *argv[])
 
     config_setNumber("currentSlide", current_slide);
 
-    TTF_CloseFont(font);
-    TTF_CloseFont(font_small);
     TTF_Quit();
 
     if (slide != NULL) {
         SDL_FreeSurface(slide);
     }
-    SDL_FreeSurface(waiting_bg);
-    SDL_FreeSurface(surface_version);
+    if (waiting_bg != NULL)
+        SDL_FreeSurface(waiting_bg);
     SDL_FreeSurface(screen);
     SDL_FreeSurface(video);
     SDL_Quit();
