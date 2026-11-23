@@ -19,9 +19,10 @@ jobs:
   unit-test:
     name: Host unit tests
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
       with:
         submodules: recursive
     - name: Install gcc sanitizer runtimes and the tools the script tests use
@@ -37,8 +38,15 @@ jobs:
     # The script tests again with BusyBox's sh and applets, as on the
     # console (Ubuntu's BusyBox is newer than the console's 1.20.2). Not
     # blocking until a first green run has been seen.
+    # It hung until GitHub's 6-hour limit (seen on beta/4.5.1, b4), which
+    # kept the whole run "in progress": 20 minutes is several times a normal
+    # run. TESTS_TRACE names each block as it starts, so the log shows the
+    # one that hangs.
     - name: Run script tests with BusyBox
       continue-on-error: true
+      timeout-minutes: 20
+      env:
+        TESTS_TRACE: 1
       run: make -C test -f Makefile.unit test_scripts_busybox
 
   neon-arm:
@@ -46,7 +54,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
       with:
         submodules: recursive
     - name: Install ARM cross-compiler and qemu
@@ -71,7 +79,7 @@ jobs:
         sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a
         sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
       with:
         submodules: recursive
     - name: Run static analysis

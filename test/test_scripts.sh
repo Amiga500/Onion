@@ -27,6 +27,10 @@ begin() {
     current_failed=0
     tests=$((tests + 1))
     TMP=$(mktemp -d)
+    # TESTS_TRACE=1 (CI's BusyBox run): the block's name before it runs, so a
+    # block that hangs is named in the log when the step's time runs out.
+    [ "${TESTS_TRACE:-0}" = 1 ] && echo "  [RUN ] $current" >&2
+    return 0
 }
 
 end() {
