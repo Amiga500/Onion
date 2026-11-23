@@ -770,9 +770,19 @@ static void draw(void){
     /* Preview card; test images preserve aspect ratio, topbar is native-size. */
     round_stroke(320,92,304,294,10,px(86,86,92),px(9,10,15),2);
     png_draw_preview(327,99,290,280);
-    /* Current reference image name and count. */
-    round_fill(446,64,178,22,11,ui_track());
-    ui_text_center(446,178,64,image_names[image_idx],0,fg);
+    /* Current reference image: "Reference" label, then its name in a chip
+       sized for the longest name, right-aligned over the preview. */
+    {
+        int k,cw=0;
+        for(k=0;k<(int)(sizeof(image_names)/sizeof(image_names[0]));k++){
+            int tw=ui_text_width(image_names[k],0);
+            if(tw>cw)cw=tw;
+        }
+        cw+=28;
+        round_fill(624-cw,64,cw,22,11,ui_track());
+        ui_text_center(624-cw,cw,64,image_names[image_idx],0,fg);
+        ui_text(624-cw-10-ui_text_width("Reference",0),64,"Reference",0,ui_grey());
+    }
     /* Row 1: adjustment speeds and BOTH reset shortcuts on the same line. */
     footer_pair(12,420,"LEFT","RIGHT","+/-1");
     footer_pair(190,420,"L1","R1","+/-5");
