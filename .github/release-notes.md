@@ -1,5 +1,5 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅🔴 RedOnion 4.5.1 beta 4: settings kept on update, Open MainUI rc8, an X button that matches your theme
+# 🧅🔴 RedOnion 4.5.1 beta 5: Open MainUI rc9, two new apps by robcodedev, a clearer Tweaks
 
 > ⚠️ **Always back up your SD card before updating!** At least copy `Roms`, `Saves`, `BIOS` and `Screenshots` to your PC.
 
@@ -7,42 +7,55 @@
 
 RedOnion is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 
-This beta brings the **release candidate 8 of Open MainUI 1.1.1** by @robcodedev, as a prebuilt binary. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
+This beta brings the **release candidate 9 of Open MainUI 1.1.1** by @robcodedev, as a prebuilt binary, and two new apps of his. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
 
-Beta 4 only fixes what the testers found in beta 3. New features come after it.
+## 🆕 New in 4.5.1 beta 5
 
-## 🆕 New in 4.5.1 beta 4
+### 📦 Apps by robcodedev (Package Manager › APPS)
 
-### 🛟 Updating
+- **New: SD Card Doctor 0.6.3** by @robcodedev: card and FAT32 information, quick and deep read scans, a speed test, folder sizes, a read-only FAT check, the card's identity and a reviewed cleanup of macOS leftovers (`.DS_Store`, `._*`…), moved to a quarantine you can restore from. It never formats or repairs the card. The write part of the speed test asks first, and needs 25 % battery and 160 MiB free.
+- **New: AudioTune 0.2.3** by @robcodedev: tone, stereo and noise tests, a five-band EQ with presets, and music to try it on (its demo, or your own `sample.mp3` next to its `launch.sh`). On the firmware it was checked against, it can also carry the EQ into games (beta: when the firmware is different, the normal audio is left as it is). Start at a low volume.
+- **DisplayCal 0.8.4** by @robcodedev: on the Display page, Lumination starts from and resets to (X, Y) your model's default when `system.json` has none: 7 on the Mini and Mini v4, 10 on the Mini+ and Mini Flip (it was 10 on every model).
 
-- **Your settings stay after an update.** Every update to beta 3 put brightness, volume, menu sound and the display colours back to their defaults. The fix is in the installer of the version being installed, so updating from beta 3 to beta 4 already keeps them. Thanks to @robcodedev for finding it.
+### 🎮 Open MainUI 1.1.1 rc9
 
-### 🎮 Open MainUI 1.1.1 rc8
+- Lumination, when `system.json` has none, is your model's default (7 on the Mini and Mini v4, 10 on the Mini+ and Mini Flip): it was 7 on every model.
 
-- **RIGHT on a game in a list can open its gallery** straight away, instead of Game Info: Tweaks › Game lists › Game Info menu › **RIGHT in a list: gallery**. It is off by default and needs "RIGHT opens the gallery" on (it is greyed out while that is off). Closes #349.
+### 📜 Game lists
 
-### 💾 SD card
+- **Game Info text scrolls by itself**, so long descriptions (from the scraper, for example) can be read to the end: Tweaks › Game lists › Previews › Game Info text: auto scroll is now **on**, 2 s before it starts, 20 px/s. It is turned on once with this update, even if you had switched it off: switch it off again and it stays off. Thanks to Machiavellian.
 
-- **A card that has become read-only** (the system does that after a card or FAT error) no longer reopens the last app or game over and over with nothing saved. RedOnion now says so, explains how to check the card on a PC (Windows: Properties › Tools › Check; Mac: Disk Utility › First Aid) and turns the console off.
+### 🛠️ Tweaks
 
-### 🎨 Themes
+- **A "[SELECT] INFO" hint** at the bottom of the screen whenever the selected option has an explanation: SELECT has always opened it, but nothing said so. Thanks to Machiavellian. (Also hidden until now: **Y** puts the selected option back to the value it had when you opened Tweaks.)
+- **Console page:** no more "Default" choices. Each one says what it does, and the ones that were the same as another are gone (Animation: Slide or None; Slide motion: Ease-out or Smooth; 180 ms, 70 %, Dimmed, 40 px, 12 px and Centred are now listed in their place). Thanks to Machiavellian.
+- **Vertical position** of the carousel is now on the Console page itself (it was inside Carousel look): the one setting you may need when your consoles' pictures are taller or wider.
 
-- **The X button matches your theme** in the GameSwitcher (Load › DELETE) and in Kids Mode (RESTART, HELP), and it is the same in both. A theme's own `skin/icon-X-54.png` (or `skin/extra/icon-X-54.png`) comes first, so theme makers can add theirs. Otherwise RedOnion makes one from the theme's B button: same shape and colours, with an X where the B is. For a B button it can't use (a label, a drawing) the plain X stays.
-- **Kids Mode** no longer shows an "A" under its X.
-- Themes whose B button is empty (the hints are drawn in the footer picture) still show no X in the GameSwitcher; Kids Mode shows the plain X there, so RESTART and HELP keep a button.
+### 🔄 Updates (OTA)
 
-### 🥚 And
+- **The Update channel menu starts on the channel you chose last time** (it always started on stable, so pressing A straight away moved a tester to the stable channel).
 
-- The easter egg starts on the first try of the code (an UP pressed just before it made it miss).
+### 🖥️ Display
+
+- **Lumination default by model everywhere:** when `system.json` has no Lumination (or a broken one), the Mini+ and Mini Flip now get 10 (their default) and the Mini 7, at boot on the Flip, after a display reset, and in the programs that save your settings. Before, it was 7 everywhere, so a Flip could come up a little darker and keep it. Your own colour settings are not changed.
+
+### 🗂️ Terminal and File Explorer
+
+- **Terminal:** F7 on the on-screen keyboard sends F7 (from F7 on, every key sent the next one, so in Midnight Commander F7 "Mkdir" was "Delete" and F9 "Menu" was "Quit"). Font drawing stays inside the screen.
+- **File Explorer:** copying or moving several files picks the right choice in the overwrite and error dialogs, and it no longer crashes on an image or a folder title it cannot draw.
 
 ## 🔧 Under the hood
 
-- Tests for the X button maker (drawn buttons: a letter, a cut-out letter, a ring, things that are not buttons) and for the testers' OTA from beta 3 to beta 4.
+- Terminal and File Explorer are now built from RedOnion's own forks, which already had these fixes.
+- SD Card Doctor, AudioTune and DisplayCal are built from source. AudioTune's MP3 decoder (minimp3, CC0) is kept in the tree at the exact version its author checked, so the build needs no download.
+- Tests for the model default Lumination, the OTA menu starting on your channel, the Console page choices, the SELECT hint and the Game Info scroll; the testers' OTA from beta 4 to beta 5.
 
 ## ⚠️ Known issues
 
-- **Kids Mode:** the progress bar of videos and audio is still violet with every theme. Kids Mode now passes the theme's colour to its player; the player will use it from its next build.
-- **SD card check after an OTA update:** the OTA still restarts the console without unmounting the card, so you may see a one-time "SD card check" notice. Checking the card on a PC clears it. The clean restart (already used by the installer) will come to the OTA after the testers have tried it.
+- **Kids Mode:** the progress bar of videos and audio is still violet with every theme. Kids Mode passes the theme's colour to its player; the player will use it from its next build.
+- **AudioTune in games:** the EQ outside the app is a beta and needs the exact firmware audio library it was checked against; on other firmware only the app's own preview uses it.
+- **Game Info auto scroll** after a Reinstall on a card where it was switched off stays off: switch it on in Tweaks.
+- **SD card check after an OTA update:** the OTA still restarts the console without unmounting the card, so you may see a one-time "SD card check" notice. Checking the card on a PC clears it.
 - **Easy Netplay:** the hotspot has the same password on every console; during a session anyone nearby who knows it can join. Use it with people you know.
 - **Low-battery icon in MainUI:** the red warning icon is not shown while MainUI runs, so it doesn't cover MainUI's own battery icon.
 - **Long transfers:** with nobody touching the console, a long FTP, HTTP, Samba or Syncthing transfer can be cut by the sleep timer (Settings › Sleep timer). Press a button now and then, or keep the device charging.
@@ -55,7 +68,7 @@ Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga
 
 ## 🙏 Thanks
 
-Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
+Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI, SD Card Doctor, AudioTune, DisplayCal and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode; to KyleBing for the console pictures; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
 
 ## 🔗 Links
 
