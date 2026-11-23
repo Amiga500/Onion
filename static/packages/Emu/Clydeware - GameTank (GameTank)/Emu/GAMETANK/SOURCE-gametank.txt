@@ -1,0 +1,18 @@
+GameTank 1.0.3 - GameTank core for the Miyoo Mini family
+Libretro port by SundownerSport of GameTankEmulator.
+The GameTank console and GameTankEmulator are by Clyde Shaffer.
+GameTank icon by tenlevels.
+MIT License: see LICENSE-gametank.txt.
+
+Source code of this build:
+  https://github.com/SundownerSport/gametank-libretro
+  version 1.0.3, commit b9d0436ba70786912e9ef2dda9b3b3ee8e1c3c13
+  (upstream emulator: https://github.com/clydeshaffer/GameTankEmulator)
+
+Built for RedOnion with the Miyoo Mini toolchain (GCC 8.3-2019.03,
+arm-linux-gnueabihf):
+  CXXFLAGS="-march=armv7-a -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard" \
+  LDFLAGS="-static-libstdc++ -static-libgcc" \
+  make platform=unix CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++
+then stripped (arm-linux-gnueabihf-strip).
+sha256 f27188df74751bc64f1a4a49d56e89a6f58cb3e3af6848d91e01a575df90057c

@@ -17,6 +17,10 @@ This beta brings the **release candidate 9 of Open MainUI 1.1.1** by @robcodedev
 - **New: AudioTune 0.2.3** by @robcodedev: tone, stereo and noise tests, a five-band EQ with presets, and music to try it on (its demo, or your own `sample.mp3` next to its `launch.sh`). On the firmware it was checked against, it can also carry the EQ into games (beta: when the firmware is different, the normal audio is left as it is). Start at a low volume.
 - **DisplayCal 0.8.4** by @robcodedev: on the Display page, Lumination starts from and resets to (X, Y) your model's default when `system.json` has none: 7 on the Mini and Mini v4, 10 on the Mini+ and Mini Flip (it was 10 on every model).
 
+### 🕹️ New console: GameTank (Package Manager › VERIFIED)
+
+- **GameTank** (Clydeware - GameTank), the open-source 8-bit console by Clyde Shaffer: put `.gtr` games (also zipped) in `Roms/GAMETANK`, no BIOS needed. Core 1.0.3 by SundownerSport, a libretro port of Clyde Shaffer's GameTankEmulator, built for the Miyoo; icon by tenlevels. Games: https://gametank.zone/ It is marked experimental by its author.
+
 ### 🎮 Open MainUI 1.1.1 rc9
 
 - Lumination, when `system.json` has none, is your model's default (7 on the Mini and Mini v4, 10 on the Mini+ and Mini Flip): it was 7 on every model.
@@ -68,7 +72,7 @@ Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga
 
 ## 🙏 Thanks
 
-Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI, SD Card Doctor, AudioTune, DisplayCal and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode; to KyleBing for the console pictures; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
+Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI, SD Card Doctor, AudioTune, DisplayCal and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode; to KyleBing for the console pictures; to SundownerSport for the GameTank core, Clyde Shaffer for the GameTank and its emulator, and tenlevels for the GameTank icon; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
 
 ## 🔗 Links
 
