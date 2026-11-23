@@ -31,6 +31,8 @@ TESTS := test_str test_perf test_file test_images_browser test_hash test_json te
 # Build-only targets (compilation without running)
 # Suites for Tweaks > Appearance > Footer layout and the GameSwitcher bar
 TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar test_mainui_shortcut test_gs_state_ratio
+# Tweaks > Reset system tweaks: what it keeps, the default migrations again
+TESTS += test_tweaks_reset_keep
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -646,6 +648,14 @@ test_neon_pixel: $(BUILD_DIR)/test_neon_pixel
 $(BUILD_DIR)/test_neon_pixel: test_neon_pixel.c onion_test.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_neon_pixel.c $(LDFLAGS)
+
+test_tweaks_reset_keep: $(BUILD_DIR)/test_tweaks_reset_keep
+	@echo ""
+	@$(BUILD_DIR)/test_tweaks_reset_keep
+
+$(BUILD_DIR)/test_tweaks_reset_keep: test_tweaks_reset_keep.c onion_test.h ../src/tweaks/reset_keep.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_tweaks_reset_keep.c $(COMMON_SRCS) $(LDFLAGS)
 
 test_tweaks_game_lists: $(BUILD_DIR)/test_tweaks_game_lists
 	@echo ""

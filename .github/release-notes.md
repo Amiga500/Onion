@@ -34,6 +34,7 @@ This beta brings the **release candidate 9 of Open MainUI 1.1.1** by @robcodedev
 - **A "[SELECT] INFO" hint** at the bottom of the screen whenever the selected option has an explanation: SELECT has always opened it, but nothing said so. Thanks to Machiavellian. (Also hidden until now: **Y** puts the selected option back to the value it had when you opened Tweaks.)
 - **Console page:** no more "Default" choices. Each one says what it does, and the ones that were the same as another are gone (Animation: Slide or None; Slide motion: Ease-out or Smooth; 180 ms, 70 %, Dimmed, 40 px, 12 px and Centred are now listed in their place). Thanks to Machiavellian.
 - **Vertical position** of the carousel is now on the Console page itself (it was inside Carousel look): the one setting you may need when your consoles' pictures are taller or wider.
+- **Reset system tweaks** resets only the settings: it no longer moves you back to the stable update channel (testers lost the testers channel), and it keeps the cores you chose per console, the applied theme and icons, the MainUI settings saved for each device and AudioTune's settings. Game Info auto scroll, like the other RedOnion defaults, is on again after it. **Reset MainUI settings** also resets this device's saved copy, so a power-off without a shutdown no longer brings the old settings back.
 
 ### 🔄 Updates (OTA)
 
