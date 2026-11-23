@@ -260,15 +260,15 @@ int main(int argc, char *argv[])
     SDL_Surface *surfaceFileZIP = IMG_Load("res/file_zip.png");
     SDL_Surface *surfaceFile7Z = IMG_Load("res/file_7z.png");
     SDL_Surface *surfaceFileRAR = IMG_Load("res/file_rar.png");
-    SDL_Rect rectPreviewIcon = {560 - SURF_W(surfaceFileZIP),
-                                21 - SURF_H(surfaceFileZIP) / 2};
 
     SDL_Surface *surfaceHasIcons = IMG_Load("res/themes_has_icons.png");
     SDL_Rect rectHasIcons = {560 - SURF_W(surfaceHasIcons),
                              21 - SURF_H(surfaceHasIcons) / 2};
-    SDL_Rect rectHasIconsPreviewIcon = {560 - SURF_W(surfaceFileZIP) -
-                                            SURF_W(surfaceHasIcons) - 10,
-                                        21 - SURF_H(surfaceFileZIP) / 2};
+    // The archive icon keeps one place, left of the ICONS badge's place,
+    // whether the theme has icons or not, so it does not jump while browsing.
+    SDL_Rect rectPreviewIcon = {560 - SURF_W(surfaceFileZIP) -
+                                    SURF_W(surfaceHasIcons) - 10,
+                                21 - SURF_H(surfaceFileZIP) / 2};
 
     SDL_Rect preview_src_rect = {0, 0, 480, 360};
     SDL_Rect rectArrowLeft = {24, 210, 28, 32};
@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
             }
 
             if (is_preview) {
-                safeBlitSurface(previewIcon, NULL, screen, has_icons ? &rectHasIconsPreviewIcon : &rectPreviewIcon);
+                safeBlitSurface(previewIcon, NULL, screen, &rectPreviewIcon);
             }
 
             SDL_BlitSurface(screen, NULL, background_cache, NULL);
