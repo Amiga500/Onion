@@ -8,6 +8,30 @@
 #include "theme/config.h"
 #include "theme/resources.h"
 
+// Unified look: SELECT drawn as a pill (rounded ends, the theme's selection
+// colour) with the word in it. The test (test_footer_layout) defines both
+// hooks: its SDL stubs draw nothing.
+#ifndef FOOTER_FILL_PILL
+#include "./unified.h"
+#define FOOTER_FILL_PILL(screen, rect) \
+    ui_fillRoundRect((screen), (rect), (rect).h / 2, ui_map((screen), ui_accent()))
+#endif
+#ifndef FOOTER_PILL_FONT
+// The theme's hint font, smaller, to fit the pill; the hint font itself
+// when it can't be opened.
+static TTF_Font *_footer_pillFont(void)
+{
+    static bool tried = false;
+    static TTF_Font *font = NULL;
+    if (!tried) {
+        tried = true;
+        font = theme_loadFont(theme()->path, theme()->hint.font, 18.0 * g_scale);
+    }
+    return font ? font : resource_getFont(HINT);
+}
+#define FOOTER_PILL_FONT() _footer_pillFont()
+#endif
+
 // Footer layout, shared with Open MainUI 1.0.10 (Tweaks > Look and
 // feel > Button hints at the bottom). Classic: hints A then B from the left, page number on the
 // right. Alternative, when this flag exists: page number on the left, hints
@@ -43,6 +67,7 @@ static char _cached_label_x_str[STR_MAX] = "";
 #define FOOTER_STATUS_ROOM 100
 static SDL_Surface *_cached_label_select = NULL;
 static char _cached_label_select_str[STR_MAX] = "";
+static SDL_Surface *_cached_select_word = NULL;
 
 void theme_renderStandardHint_cleanup(void)
 {
@@ -61,6 +86,10 @@ void theme_renderStandardHint_cleanup(void)
     if (_cached_label_select) {
         SDL_FreeSurface(_cached_label_select);
         _cached_label_select = NULL;
+    }
+    if (_cached_select_word) {
+        SDL_FreeSurface(_cached_select_word);
+        _cached_select_word = NULL;
     }
     _cached_label_a_str[0] = '\0';
     _cached_label_b_str[0] = '\0';
@@ -102,12 +131,46 @@ static void _footer_drawHint(SDL_Surface *screen, SDL_Surface *button,
     }
 }
 
+// The SELECT pill: the word, white, 8 px in from each rounded end.
+#define FOOTER_PILL_PAD 8
+#define FOOTER_PILL_GAP 6
+static SDL_Surface *_footer_selectWord(void)
+{
+    if (_cached_select_word == NULL)
+        _cached_select_word = TTF_RenderUTF8_Blended(FOOTER_PILL_FONT(), "SELECT",
+                                                     (SDL_Color){255, 255, 255});
+    return _cached_select_word;
+}
+
+static int _footer_selectWidth(SDL_Surface *word, SDL_Surface *label)
+{
+    return (word ? word->w + 2 * FOOTER_PILL_PAD * g_scale + FOOTER_PILL_GAP * g_scale : 0) +
+           (label ? label->w : 0);
+}
+
+static void _footer_drawSelect(SDL_Surface *screen, SDL_Surface *word,
+                               SDL_Surface *label, int x)
+{
+    if (word) {
+        int h = 28.0 * g_scale;
+        SDL_Rect pill = {x, 450.0 * g_scale - h / 2, word->w + 2 * FOOTER_PILL_PAD * g_scale, h};
+        FOOTER_FILL_PILL(screen, pill);
+        SDL_Rect word_rect = {x + FOOTER_PILL_PAD * g_scale, 450.0 * g_scale - word->h / 2, 0, 0};
+        SDL_BlitSurface(word, NULL, screen, &word_rect);
+        x += pill.w + FOOTER_PILL_GAP * g_scale;
+    }
+    if (label) {
+        SDL_Rect label_rect = {x, 449.0 * g_scale - label->h / 2, 0, 0};
+        SDL_BlitSurface(label, NULL, screen, &label_rect);
+    }
+}
+
 // A, B, an optional X hint (btn_x_str NULL: none) and an optional SELECT
 // hint (select_str NULL: none). In the alternative layout they go right to
 // left from A, otherwise left to right. Themes have no SELECT button image:
-// it is written out, "[SELECT] INFO", in the hint font and colour (in
-// brackets as Battery Monitor writes it: Tweaks' A hint says "SELECT"), and
-// left out when the theme hides the hint labels.
+// it is drawn as a pill in the theme's selection colour with SELECT in it,
+// then the label (INFO) in the hint font and colour; left out when the
+// theme hides the hint labels.
 static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
                                 const char *btn_b_str, const char *btn_x_str,
                                 const char *select_str)
@@ -128,7 +191,7 @@ static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
     bool show_x = button_x != NULL && label_x_str[0] != '\0';
     char label_select_str[STR_MAX] = "";
     if (select_str != NULL && select_str[0] != '\0' && !theme()->hideLabels.hints)
-        snprintf(label_select_str, sizeof(label_select_str), "[SELECT] %s", select_str);
+        snprintf(label_select_str, sizeof(label_select_str), "%s", select_str);
     bool show_select = label_select_str[0] != '\0';
 
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
@@ -138,6 +201,8 @@ static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
     SDL_Surface *label_x = show_x ? _footer_hintLabel(&_cached_label_x, _cached_label_x_str, label_x_str) : NULL;
     SDL_Surface *label_select =
         show_select ? _footer_hintLabel(&_cached_label_select, _cached_label_select_str, label_select_str) : NULL;
+    SDL_Surface *select_word = show_select ? _footer_selectWord() : NULL;
+    int width_select = show_select ? _footer_selectWidth(select_word, label_select) : 0;
 
     int gap = 30.0 * g_scale; // between two hints
     int width_a = _footer_hintWidth(button_a, label_a);
@@ -158,8 +223,8 @@ static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
         // Only where it leaves room for the page number on the left (a long
         // translation of SELECT or BACK, a big theme font): left out else.
         if (show_select && label_select &&
-            x_next - gap - label_select->w >= FOOTER_STATUS_ROOM * g_scale)
-            _footer_drawHint(screen, NULL, label_select, x_next - gap - label_select->w);
+            x_next - gap - width_select >= FOOTER_STATUS_ROOM * g_scale)
+            _footer_drawSelect(screen, select_word, label_select, x_next - gap - width_select);
         return;
     }
 
@@ -176,8 +241,8 @@ static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
     }
     // Only where it leaves room for the page number on the right.
     if (show_select && label_select &&
-        x_next + label_select->w <= (640 - FOOTER_STATUS_ROOM) * g_scale)
-        _footer_drawHint(screen, NULL, label_select, x_next);
+        x_next + width_select <= (640 - FOOTER_STATUS_ROOM) * g_scale)
+        _footer_drawSelect(screen, select_word, label_select, x_next);
 }
 
 void theme_renderStandardHintX(SDL_Surface *screen, const char *btn_a_str,
