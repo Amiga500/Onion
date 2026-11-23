@@ -223,6 +223,13 @@ static const uint16_t small_font[][13] = {
 typedef char Font_index_alignment[(ARRAY_LEN(font) == ARRAY_LEN(small_font)) ? 1 : -1];
 
 typedef struct { uint32_t *pixels; int pitch; } Canvas;
+/* Test branch (RedOnion unified look): text in Exo 2 through SDL_ttf and the
+ * shared header, panels, selection and hints of Tweaks. Without the font the
+ * built-in bitmap font below is still used. */
+#include "theme/render/canvas_ui.h"
+#define CUI(c) (&(CuiCanvas){(c)->pixels,(c)->pitch})
+#define UI_SMALL 15
+#define UI_BIG 25
 static uint32_t rgb(unsigned r, unsigned g, unsigned b) { return (r << 16) | (g << 8) | b; }
 static void put(Canvas *c, int x, int y, uint32_t color) {
     if ((unsigned)x < W && (unsigned)y < H) c->pixels[y * c->pitch + x] = color;
@@ -235,34 +242,6 @@ static void rect(Canvas *c, int x, int y, int w, int h, uint32_t color) {
         uint32_t *p = c->pixels + yy * c->pitch;
         for (xx = x0; xx < x1; ++xx) p[xx] = color;
     }
-}
-static void round_rect(Canvas *c, int x, int y, int w, int h, int r, uint32_t color) {
-    int yy, xx;
-    if (w <= 0 || h <= 0) return;
-    if (r > w / 2) r = w / 2;
-    if (r > h / 2) r = h / 2;
-    for (yy = 0; yy < h; ++yy) {
-        int inset = 0;
-        if (r) {
-            int dy = yy < r ? r - yy - 1 : (yy >= h-r ? yy - (h-r) : -1);
-            if (dy >= 0) {
-                /* Pixel-perfect curved corners without floating point. */
-                while (inset < r && ((r-inset-1)*(r-inset-1) + dy*dy >= r*r)) ++inset;
-            }
-        }
-        for (xx = inset; xx < w - inset; ++xx) put(c, x + xx, y + yy, color);
-    }
-}
-static void framed_round(Canvas *c, int x, int y, int w, int h, int r,
-                         uint32_t frame, uint32_t fill) {
-    round_rect(c, x, y, w, h, r, frame);
-    round_rect(c, x+1, y+1, w-2, h-2, r > 1 ? r-1 : 0, fill);
-}
-static void disc(Canvas *c, int cx, int cy, int radius, uint32_t color) {
-    int dx, dy;
-    for (dy = -radius; dy <= radius; ++dy)
-        for (dx = -radius; dx <= radius; ++dx)
-            if (dx*dx + dy*dy <= radius*radius) put(c,cx+dx,cy+dy,color);
 }
 /* Small labels use 1:1 native 9x13 pixel glyphs: no interpolation or blur. */
 #define SMALL_W 9
@@ -291,22 +270,21 @@ static void glyph(Canvas *c, int x, int y, char ch, int scale, uint32_t color) {
 }
 static int text_width(const char *s, int scale) {
     int count = (int)strlen(s);
+    if (cui_font(scale == 1 ? UI_SMALL : UI_BIG)) return cui_text_width(s, scale == 1 ? UI_SMALL : UI_BIG);
     if (!count) return 0;
     return scale == 1 ? count * SMALL_ADVANCE - 1 : count * 6*scale - scale;
 }
 static void label(Canvas *c, int x, int y, const char *s, int scale, uint32_t color) {
     int advance = scale == 1 ? SMALL_ADVANCE : 6*scale;
+    /* Same top-left placement as the bitmap glyphs: centre on their middle. */
+    if (cui_font(scale == 1 ? UI_SMALL : UI_BIG)) {
+        cui_text(CUI(c), x, y + (scale == 1 ? 6.5f : 3.5f * scale), s, scale == 1 ? UI_SMALL : UI_BIG, color, CUI_LEFT);
+        return;
+    }
     while (*s) { glyph(c,x,y,*s++,scale,color); x += advance; }
 }
 static void centered(Canvas *c, int x, int y, const char *s, int scale, uint32_t color) {
     label(c,x-text_width(s,scale)/2,y,s,scale,color);
-}
-static uint32_t blend(uint32_t a, uint32_t b, int alpha) {
-    unsigned ar=(a>>16)&255,ag=(a>>8)&255,ab=a&255;
-    unsigned br=(b>>16)&255,bg=(b>>8)&255,bb=b&255;
-    return rgb((ar*(255-alpha)+br*alpha)/255,
-               (ag*(255-alpha)+bg*alpha)/255,
-               (ab*(255-alpha)+bb*alpha)/255);
 }
 static uint32_t convert_pixel(uint32_t color, const SDL_PixelFormat *fmt) {
     return (((color >> 16 & 255u) >> fmt->Rloss) << fmt->Rshift) |
@@ -2070,22 +2048,22 @@ static void cancel_job(void) {
     LOG("active job cancelled");
 }
 
-#define BG0 rgb(8,17,35)
-#define BG1 rgb(17,39,69)
-#define WHITE rgb(234,244,255)
-#define MUTED rgb(153,184,216)
-#define TEAL rgb(105,192,255)
-#define AMBER rgb(248,188,105)
-#define BAD rgb(246,130,140)
+#define BG0 CUI_BG
+#define BG1 CUI_BG
+#define WHITE CUI_WHITE
+#define MUTED CUI_GREY
+#define TEAL CUI_GOOD
+#define AMBER CUI_WARN
+#define BAD CUI_BAD
 static void panel(Canvas *c,int x,int y,int w,int h) {
-    round_rect(c,x,y+3,w,h,15,rgb(5,10,19));
-    framed_round(c,x,y,w,h,15,rgb(50,83,123),rgb(19,38,65));
-    rect(c,x+13,y+48,w-26,1,rgb(50,83,123));
+    cui_rrect(CUI(c),x,y,w,h,12,CUI_PANEL);
+}
+/* Selectable box inside a panel: accent when selected, as in Tweaks. */
+static void item_box(Canvas *c,int x,int y,int w,int h,bool selected) {
+    cui_rrect(CUI(c),x,y,w,h,9,selected?CUI_ACCENT:CUI_TRACK);
 }
 static void draw_background(Canvas *c) {
-    int y;
-    for (y=0;y<H;y++) rect(c,0,y,W,1,blend(BG0,BG1,y*200/H));
-    rect(c,20,75,600,1,rgb(47,82,120));
+    cui_rect(CUI(c),0,0,W,H,CUI_BG);
 }
 static void limited_label(Canvas *c,int x,int y,const char *s,int max_chars,uint32_t color) {
     char out[256];
@@ -2099,6 +2077,13 @@ static void limited_label(Canvas *c,int x,int y,const char *s,int max_chars,uint
     safe_short(s,out,(size_t)max_chars+1);
     if ((int)n>max_chars && max_chars>3) {
         out[max_chars-3]='.';out[max_chars-2]='.';out[max_chars-1]='.';out[max_chars]=0;
+    }
+    if (cui_font(UI_SMALL)) {
+        /* Exo 2 is not monospaced: keep the bitmap font's width limit. */
+        char fit[256];
+        cui_fit(out,UI_SMALL,max_chars*SMALL_ADVANCE+10,fit,sizeof(fit));
+        label(c,x,y,fit,1,color);
+        return;
     }
     label(c,x,y,out,1,color);
 }
@@ -2131,38 +2116,34 @@ static void small_pair(Canvas *c,int x,int y,const char *a,const char *b) {
     if (len && row<2) label(c,x,y+18+row*17,line,1,WHITE);
 }
 static void progress(Canvas *c,int x,int y,int w,int pct) {
-    if (pct<0) pct=0;
-    if (pct>100) pct=100;
-    round_rect(c,x,y,w,9,4,rgb(49,77,117));
-    if (pct) round_rect(c,x,y,w*pct/100,9,4,TEAL);
+    cui_progress(CUI(c),x,y,w,9,pct/100.0f);
 }
 static void header(Canvas *c) {
     draw_background(c);
-    round_rect(c,22,19,36,36,10,rgb(75,161,241));
-    round_rect(c,30,26,20,24,3,rgb(13,36,79));
-    rect(c,33,31,13,3,rgb(124,202,255));
-    rect(c,33,37,13,3,rgb(124,202,255));
-    rect(c,33,43,8,3,rgb(124,202,255));
-    label(c,69,28,"SD CARD DOCTOR",2,WHITE);
-    framed_round(c,252,22,68,27,9,rgb(53,100,156),rgb(20,47,87));
-    centered(c,286,30,"V0.6.3",1,rgb(119,202,255));
-    framed_round(c,475,23,144,39,14,rgb(53,100,156),rgb(20,47,87));
-    centered(c,547,29,card.mounted?"CARD FOUND":"NO CARD",1,card.mounted?TEAL:BAD);
-    centered(c,547,45,card.mounted?(card.readonly?"READ ONLY":"MOUNTED RW"):"NOT MOUNTED",1,MUTED);
+    cui_header(CUI(c),"S","SD Card Doctor",
+               card.mounted?(card.readonly?"Read only":"Mounted RW"):"No card",card.battery);
+    cui_text(CUI(c),60+cui_text_width("SD Card Doctor",25)+10,31,"v0.6.3",14,CUI_DIM,CUI_LEFT);
 }
 static void footer(Canvas *c,const char *hint) {
-    rect(c,20,419,600,1,rgb(48,69,88));
-    limited_label(c,25,432,hint,65,rgb(171,201,211));
-    centered(c,320,464,page==PAGE_MAIN ?
-        "A: SELECT   B: EXIT   SELECT+START: EXIT" :
-        page==PAGE_FAT_CHECK_RESULT ?
-        "A: SAVE REPORT   B: BACK   SELECT+START: EXIT" :
-        "A: SELECT   B: BACK   SELECT+START: EXIT",
-        1,page==PAGE_FAT_CHECK_RESULT?TEAL:rgb(136,162,184));
+    char fit[256];
+    int x=20;
+    cui_fit(hint?hint:"",15,600,fit,sizeof(fit));
+    cui_text(CUI(c),20,419,fit,15,CUI_GREY,CUI_LEFT);
+    if (page==PAGE_FAT_CHECK_RESULT) {
+        x+=cui_hint(CUI(c),x,456,"A","SAVE REPORT",22);
+        cui_hint(CUI(c),x,456,"B","BACK",22);
+    } else {
+        x+=cui_hint(CUI(c),x,456,"A","SELECT",22);
+        cui_hint(CUI(c),x,456,"B",page==PAGE_MAIN?"EXIT":"BACK",22);
+    }
+    /* SELECT+START leaves from any screen */
+    x=620-(cui_text_width("SELECT+START",14)+18)-7-cui_text_width("EXIT",22);
+    cui_hint(CUI(c),x,456,"SELECT+START","EXIT",22);
 }
 static void panel_heading(Canvas *c,int x,const char *s) {
-    rect(c,x+14,120,4,22,TEAL);
-    limited_label(c,x+27,126,s,18,WHITE);
+    char fit[64];
+    cui_fit(s,15,160,fit,sizeof(fit));
+    cui_text(CUI(c),x+16,128,fit,15,CUI_GREY,CUI_LEFT);
 }
 /* Recognizable microSD card with a clean beveled upper-right corner.
  * No decorative moving lights when idle. */
@@ -2178,19 +2159,18 @@ static void sd_silhouette(Canvas *c,int x,int y,int w,int h,int cut,uint32_t col
 }
 static void sd_card(Canvas *c,int x,int y) {
     int i;
-    sd_silhouette(c,x+5,y+7,139,180,25,rgb(5,10,20));
-    sd_silhouette(c,x,y,140,180,27,rgb(48,148,232));
-    sd_silhouette(c,x+3,y+3,134,174,24,rgb(20,48,82));
-    rect(c,x+14,y+39,112,2,rgb(70,138,192));
-    for (i=0;i<7;i++) round_rect(c,x+17+i*15,y+12,10,18,2,rgb(197,173,102));
-    centered(c,x+70,y+63,"MICRO SD",2,rgb(229,246,246));
-    centered(c,x+70,y+102,card.fat32?"FAT32":card.vfat?"VFAT":"STORAGE",1,TEAL);
-    framed_round(c,x+20,y+126,100,30,7,rgb(55,135,211),rgb(22,65,108));
+    sd_silhouette(c,x,y,140,180,27,rgb(86,86,92));
+    sd_silhouette(c,x+3,y+3,134,174,24,CUI_PANEL);
+    rect(c,x+14,y+39,112,2,rgb(86,86,92));
+    for (i=0;i<7;i++) cui_rrect(CUI(c),x+17+i*15,y+12,10,18,2,rgb(120,120,126));
+    centered(c,x+70,y+63,"MICRO SD",2,CUI_WHITE);
+    centered(c,x+70,y+102,card.fat32?"FAT32":card.vfat?"VFAT":"STORAGE",1,CUI_GREY);
+    cui_rrect(CUI(c),x+20,y+126,100,30,15,CUI_TRACK);
     centered(c,x+70,y+134,card.mounted?"CONNECTED":"NO CARD",1,card.mounted?TEAL:BAD);
     if (scan.active || speedtest.stage || fatcheck.active) {
         /* Activity dots only during an actual operation, with live redraws. */
-        for (i=0;i<4;i++) disc(c,x+40+i*20,y+168,3,
-             (unsigned)i==((SDL_GetTicks()/350u)%4u)?TEAL:rgb(44,90,136));
+        for (i=0;i<4;i++) cui_disc(CUI(c),x+40+i*20,y+168,3,
+             (unsigned)i==((SDL_GetTicks()/350u)%4u)?CUI_ACCENT:CUI_DIM);
     }
 }
 
@@ -2211,39 +2191,80 @@ static void left_card_info(Canvas *c) {
         limited_label(c,32,387,buf,21,card.battery<25?AMBER:MUTED);
     } else limited_label(c,32,387,"BATTERY UNKNOWN",21,MUTED);
 }
-static void main_tools(Canvas *c) {
-    static const char *items[]={"QUICK SAMPLE","DEEP SCAN","SPEED TEST","STORAGE","SAFE REPAIR"};
-    int i;
-    panel(c,432,103,190,302);
-    panel_heading(c,432,"TOOLS");
-    for (i=0;i<5;i++) {
-        int y=161+i*45;
-        if (i==main_selected) {
-            framed_round(c,446,y,161,37,9,rgb(117,199,255),rgb(25,66,110));
-            limited_label(c,461,y+13,items[i],17,TEAL);
-        } else {
-            framed_round(c,446,y,161,37,9,rgb(52,82,119),rgb(25,45,73));
-            limited_label(c,461,y+13,items[i],17,WHITE);
+/* Line icons of the main list, 28 px, centred on (x, y). */
+static void tool_icon(Canvas *c,int i,float x,float y,uint32_t col) {
+    CuiCanvas *cc=CUI(c);
+    const float w=2.5f;
+    switch (i) {
+    case 0: /* quick sample: bolt */
+        cui_line(cc,x+3,y-12,x-6,y+1,w,col);cui_line(cc,x-6,y+1,x+1,y+1,w,col);
+        cui_line(cc,x+1,y+1,x-3,y+12,w,col);cui_line(cc,x-3,y+12,x+7,y-2,w,col);
+        cui_line(cc,x+7,y-2,x,y-2,w,col);cui_line(cc,x,y-2,x+3,y-12,w,col);break;
+    case 1: /* deep scan: magnifier */
+        cui_ring(cc,x-2,y-2,8,w,col);cui_line(cc,x+4,y+4,x+11,y+11,w+0.5f,col);break;
+    case 2: { /* speed test: gauge */
+        int k;
+        for (k=0;k<=12;k++) {
+            float a0=3.14159f*(1+k/12.0f),a1=3.14159f*(1+(k+1)/12.0f);
+            if (k<12) cui_line(cc,x+12*cosf(a0),y+5+12*sinf(a0),x+12*cosf(a1),y+5+12*sinf(a1),w,col);
         }
+        cui_line(cc,x,y+5,x+6,y-3,w,col);cui_disc(cc,x,y+5,2.2f,col);break;
+    }
+    case 3: /* storage: folder */
+        cui_line(cc,x-12,y-8,x-5,y-8,w,col);cui_line(cc,x-5,y-8,x-2,y-5,w,col);
+        cui_line(cc,x-2,y-5,x+12,y-5,w,col);cui_line(cc,x+12,y-5,x+12,y+10,w,col);
+        cui_line(cc,x+12,y+10,x-12,y+10,w,col);cui_line(cc,x-12,y+10,x-12,y-8,w,col);break;
+    default: /* safe repair: shield with a tick */
+        cui_line(cc,x,y-12,x+10,y-8,w,col);cui_line(cc,x+10,y-8,x+10,y,w,col);
+        cui_line(cc,x+10,y,x,y+12,w,col);cui_line(cc,x,y+12,x-10,y,w,col);
+        cui_line(cc,x-10,y,x-10,y-8,w,col);cui_line(cc,x-10,y-8,x,y-12,w,col);
+        cui_line(cc,x-4,y,x-1,y+3,w,col);cui_line(cc,x-1,y+3,x+5,y-4,w,col);break;
     }
 }
-static void main_middle(Canvas *c) {
-    char used[42],free_sz[20];
-    sd_card(c,251,133);
-    if (card.total) {
-        int pct=(int)(card.used*100/card.total);
-        snprintf(used,sizeof(used),"%d%% USED",pct);
-        centered(c,321,339,used,1,WHITE);
-        progress(c,231,358,181,pct);
+/* Main page as in Tweaks: the card on one row, then the tools as list rows
+ * with an icon, a short description on the right and a chevron. */
+static void main_list(Canvas *c) {
+    static const char *items[]={"Quick sample","Deep scan","Speed test","Storage","Safe repair"};
+    static const char *descs[]={"samples key files","reads every file","read · write","folder sizes","asks before changing"};
+    CuiCanvas *cc=CUI(c);
+    char line[96],capacity[32],free_sz[32];
+    int i;
+    /* card row */
+    cui_line(cc,26,77,39,77,2.5f,CUI_WHITE);cui_line(cc,39,77,45,83,2.5f,CUI_WHITE);
+    cui_line(cc,45,83,45,103,2.5f,CUI_WHITE);cui_line(cc,45,103,26,103,2.5f,CUI_WHITE);
+    cui_line(cc,26,103,26,77,2.5f,CUI_WHITE);
+    for (i=0;i<3;i++) cui_line(cc,31+i*4,82,31+i*4,87,2,CUI_WHITE);
+    if (card.mounted) {
+        human_size(card.total,capacity,sizeof(capacity));
         human_size(card.available,free_sz,sizeof(free_sz));
-        centered(c,321,382,free_sz,1,MUTED);
-    } else centered(c,321,355,"CARD NOT READY",1,AMBER);
+        snprintf(line,sizeof(line),"%s · %s",card.volume_label[0]?card.volume_label:"SD card",capacity);
+        cui_text(cc,66,80,line,22,CUI_WHITE,CUI_LEFT);
+        snprintf(line,sizeof(line),"%s · %s free · %s",card.fat32?"FAT32":card.vfat?"VFAT":card.fstype,free_sz,card.device);
+        cui_text(cc,66,103,line,15,CUI_GREY,CUI_LEFT);
+        if (card.total) {
+            int pct=(int)(card.used*100/card.total);
+            cui_progress(cc,430,83,190,10,pct/100.0f);
+            snprintf(line,sizeof(line),"%d%% used",pct);
+            cui_text(cc,620,107,line,15,CUI_GREY,CUI_RIGHT);
+        }
+    } else {
+        cui_text(cc,66,90,"No card found",22,BAD,CUI_LEFT);
+    }
+    /* tools */
+    for (i=0;i<5;i++) {
+        int y=120+i*56;
+        bool sel=i==main_selected;
+        if (sel) cui_rect(cc,0,y,W,56,CUI_ACCENT);
+        tool_icon(c,i,35,y+28,sel?CUI_WHITE:rgb(220,220,224));
+        cui_text(cc,66,y+28,items[i],25,CUI_WHITE,CUI_LEFT);
+        cui_text(cc,594,y+28,descs[i],17,sel?CUI_WHITE:CUI_GREY,CUI_RIGHT);
+        cui_chevron(cc,612,y+28,1,sel?CUI_WHITE:CUI_DIM);
+    }
 }
 static void info_row(Canvas *c,int y,const char *title,const char *detail,bool selected) {
-    if (selected) framed_round(c,445,y,164,45,9,rgb(91,174,243),rgb(25,66,110));
-    else framed_round(c,445,y,164,45,9,rgb(52,82,119),rgb(25,45,73));
-    limited_label(c,455,y+8,title,19,selected?TEAL:WHITE);
-    if (detail && *detail) limited_label(c,455,y+25,detail,19,MUTED);
+    item_box(c,445,y,164,45,selected);
+    limited_label(c,455,y+8,title,19,WHITE);
+    if (detail && *detail) limited_label(c,455,y+25,detail,19,selected?rgb(235,205,214):MUTED);
 }
 static void main_stats(Canvas *c) {
     char a[48],b[48],d[48];
@@ -2375,10 +2396,9 @@ static void repair_side(Canvas *c) {
     panel(c,432,103,190,302);panel_heading(c,432,"SAFE REPAIR");
     for(i=0;i<6;i++) {
         int y=158+i*40;
-        framed_round(c,445,y,164,36,8,repair_selected==i?rgb(91,174,243):rgb(52,82,119),
-                     repair_selected==i?rgb(25,66,110):rgb(25,45,73));
-        limited_label(c,455,y+4,names[i],17,repair_selected==i?TEAL:WHITE);
-        limited_label(c,455,y+20,descs[i],17,MUTED);
+        item_box(c,445,y,164,36,repair_selected==i);
+        limited_label(c,455,y+4,names[i],17,WHITE);
+        limited_label(c,455,y+20,descs[i],17,repair_selected==i?rgb(235,205,214):MUTED);
     }
 }
 static void info_panel_text(Canvas *c,const char *body,const char *controls,uint32_t color);
@@ -2580,7 +2600,7 @@ static void fatcheck_result_screen(Canvas *c) {
     }
     label(c,35,157,line1,1,color);
     label(c,35,181,line2,1,WHITE);
-    rect(c,34,209,571,1,rgb(48,90,130));
+    rect(c,34,209,571,1,CUI_TRACK);
     label(c,35,218,"A: SAVE REPORT  UP/DOWN: SCROLL  B: BACK",1,TEAL);
     for(i=0;i<8;i++) {
         int line=i+fat_ui_scroll;
@@ -2597,7 +2617,7 @@ static void draw_screen(Canvas *c) {
     char tmp[512],sizebuf[32];
     header(c);
     if (page==PAGE_MAIN) {
-        left_card_info(c);main_middle(c);main_tools(c);
+        main_list(c);
         footer(c,card.readonly?"CARD IS READ ONLY - WRITE TOOLS DISABLED":"READ-ONLY DIAGNOSTICS BY DEFAULT");
         return;
     }
