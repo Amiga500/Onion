@@ -9,6 +9,7 @@
 
 #include "footer.h"
 #include "list.h"
+#include "unified.h"
 
 // x_hint: label of an X hint in the footer, or NULL for none.
 void theme_renderPopMenuX(SDL_Surface *screen, int y_pos, List *list, SDL_Surface *transparent_bg,
@@ -30,8 +31,13 @@ void theme_renderPopMenuX(SDL_Surface *screen, int y_pos, List *list, SDL_Surfac
     theme_renderFooter(screen);
     theme_renderStandardHintX(screen, lang_get(LANG_SELECT, LANG_FALLBACK_SELECT), lang_get(LANG_BACK, LANG_FALLBACK_BACK), x_hint);
 
-    if (bg) {
-        SDL_BlitSurface(bg, NULL, screen, &bg_rect);
+    /* Test branch (unified look): a panel like Tweaks' instead of the
+     * theme's bg-pop-menu image, its right corners rounded, the list on it. */
+    {
+        int h = bg ? bg->h : (int)((double)size * 60.0 * g_scale);
+        int w = bg ? bg->w : (int)(320.0 * g_scale);
+        SDL_Rect panel = {-(int)(16.0 * g_scale), y_pos, (Uint16)(w + 16.0 * g_scale), (Uint16)h};
+        ui_fillRoundRect(screen, panel, (int)(14.0 * g_scale), SDL_MapRGB(screen->format, 46, 46, 49));
     }
 
     ListRenderParams_s params = {
