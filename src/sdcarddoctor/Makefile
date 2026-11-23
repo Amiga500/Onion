@@ -11,7 +11,7 @@ CFLAGS := $(CFLAGS) -std=c99 -Os -Wall -Wextra \
 LDFLAGS := $(LDFLAGS) -no-pie \
            -Wl,--dynamic-linker=/lib/ld-linux-armhf.so.3 \
            -Wl,-z,max-page-size=4096 \
-           -lSDL -lpthread -ldl -lm
+           -lSDL -lSDL_ttf -lpthread -ldl -lm
 
 include ../common/commands.mk
 include ../common/recipes.mk
