@@ -3,7 +3,7 @@
 #
 # Usage: system_skin.sh THEME_PATH   (called by themeSwitcher on every apply)
 #
-# Package Manager, the Search/Filter tools, the Themes app badge, the Quick
+# Package Manager, the Search/Filter tools, the Theme Switcher, the Quick
 # Guide, Activity Tracker and the File Explorer icons load fixed files, not
 # theme images. A theme can ship crimson (or any) copies of those files in
 # its "system" folder, using the same paths as on the SD card:

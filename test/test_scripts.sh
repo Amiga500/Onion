@@ -2944,7 +2944,8 @@ source_of() { # path on the SD card -> source file in this repository
     App/PackageManager/res/*) echo "$ROOT/src/packageManager/res/${1##*/}" ;;
     "App/PackageManager/data/App/Activity Tracker/App/PlayActivity/res/"*) echo "$ROOT/src/playActivityUI/res/${1##*/}" ;;
     App/PackageManager/data/*) p=${1#App/PackageManager/data/} && echo "$ROOT/static/packages/$p" ;;
-    .tmp_update/res/themes_has_icons.png) echo "$ROOT/src/themeSwitcher/res/themes_has_icons.png" ;;
+    .tmp_update/res/toggle-on.png | .tmp_update/res/toggle-off.png) echo "$ROOT/static/build/.tmp_update/res/${1##*/}" ;;
+    .tmp_update/res/*) [ -f "$ROOT/src/themeSwitcher/res/${1##*/}" ] && echo "$ROOT/src/themeSwitcher/res/${1##*/}" ;;
     esac
 }
 mismatch=0
