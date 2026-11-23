@@ -4106,6 +4106,25 @@ check "a saved_games that is not an object is left alone" test "$(cat "$GM")" = 
 check "no temporary file left" test ! -e "$GM.tmp"
 end
 
+begin migration_game_info_auto_scroll_default
+mig="$ROOT/static/build/.tmp_update/script/migration/00029_game_info_auto_scroll_default.sh"
+GI="$TMP/cfg/.gameInfoAutoScroll"
+run_mig() { GAME_INFO_SCROLL_CONFIG="$GI" sh "$mig"; }
+rm -rf "$TMP/cfg"
+run_mig
+check "no file (Off, or never set): on at 2000 ms, 20 px/s" test "$(cat "$GI")" = "2000,20"
+echo "500,75" > "$GI"
+run_mig
+check "the user's delay and speed stay" test "$(cat "$GI")" = "500,75"
+: > "$GI"
+run_mig
+check "an empty file (Open MainUI's defaults) stays" test ! -s "$GI"
+check "not in configs.pak's files: an update would add it back after Off" test ! -e "$ROOT/static/configs/.tmp_update/config/.gameInfoAutoScroll"
+check "the format Tweaks writes and reads (delay,speed)" grep -q 'gamelists_write_pair(GAMELISTS_INFO_SCROLL_PATH' "$ROOT/src/tweaks/game_lists_core.h"
+check "the next migration number" test "$(ls "$ROOT/static/build/.tmp_update/script/migration/" | grep -c '^00029_')" -eq 1
+rm -rf "$TMP/cfg"
+end
+
 # ---- Backup app (App/Backup/launch.sh) ----
 #
 # The functions are loaded from the app itself (BACKUP_NO_MAIN skips its
