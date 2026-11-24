@@ -8,6 +8,8 @@
 #include "theme/config.h"
 #include "theme/resources.h"
 
+#include "./unified.h"
+
 // Fast FNV-1a hash for cache invalidation
 static inline uint32_t _label_hash_fnv1a(const char *str)
 {
@@ -76,8 +78,14 @@ static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
     if (item->_label_cache == NULL || item->_label_hash != hash) {
         if (item->_label_cache != NULL)
             SDL_FreeSurface((SDL_Surface *)item->_label_cache);
+        // Unified look: "Startup..." shows as "Startup" and a chevron.
+        char shown[STR_MAX];
+        strncpy(shown, item->label, STR_MAX - 1);
+        shown[STR_MAX - 1] = '\0';
+        if (item->item_type == ACTION && ui_opensPage(shown))
+            shown[strlen(shown) - 3] = '\0';
         item->_label_cache = (void *)TTF_RenderUTF8_Blended(
-            resource_getFont(LIST), item->label, fg);
+            resource_getFont(LIST), shown, fg);
         item->_label_hash = hash;
     }
     SDL_Surface *item_label = (SDL_Surface *)item->_label_cache;
@@ -103,6 +111,42 @@ static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
 
     _blit_cached_label(item_label, &label_crop, screen, &item_label_rect,
                        disabled);
+}
+
+// Unified look: a small list's description, right-aligned on the row in a
+// smaller size of the list font (the font itself when it can't be opened),
+// grey, white on the selected row. Rendered per draw: lists with
+// descriptions are short (Tweaks' main menu).
+static TTF_Font *_theme_listDescFont(void)
+{
+    static bool tried = false;
+    static TTF_Font *font = NULL;
+    if (!tried) {
+        tried = true;
+        font = theme_loadFont(theme()->path, theme()->list.font, 17.0 * g_scale);
+    }
+    return font ? font : resource_getFont(LIST);
+}
+
+// Draws it ending at right_x; returns where it starts (right_x when none).
+static int _theme_renderListDescRight(SDL_Surface *screen, const char *desc,
+                                      int right_x, int center_y, bool active,
+                                      bool disabled)
+{
+    if (desc == NULL || desc[0] == '\0')
+        return right_x;
+    SDL_Color c = active ? (SDL_Color){255, 255, 255}
+                         : (SDL_Color){UI_GREY_R, UI_GREY_G, UI_GREY_B};
+    SDL_Surface *text = TTF_RenderUTF8_Blended(_theme_listDescFont(), desc, c);
+    if (text == NULL)
+        return right_x;
+    // At most half the row, so the name keeps its room.
+    int max_w = 300.0 * g_scale;
+    SDL_Rect crop = {0, 0, text->w > max_w ? max_w : text->w, text->h};
+    SDL_Rect pos = {right_x - crop.w, center_y - text->h / 2};
+    _blit_cached_label(text, &crop, screen, &pos, disabled);
+    SDL_FreeSurface(text);
+    return pos.x;
 }
 
 // Uncached version for one-off labels (descriptions, sticky notes)
@@ -153,9 +197,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
     TTF_Font *list_font = resource_getFont(LIST);
 
     SDL_Rect item_bg_rect = {0, 60.0 * g_scale},
-             item_div_size = {0, 0, params.dim.w, 4.0 * g_scale},
-             item_bg_size = {0, 0, params.dim.w, (list_small ? 56.0 : 90.0) * g_scale},
-             toggle_rect = {0, 0};
+             item_bg_size = {0, 0, params.dim.w, (list_small ? 56.0 : 90.0) * g_scale};
 
     int list_height = params.stretch_y ? params.dim.h - 10.0 * g_scale : 420.0 * g_scale;
     int item_padding = list_small && params.show_dividers ? 4.0 * g_scale : 0;
@@ -188,8 +230,6 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
 
     if (list->has_sticky) {
         ListItem *active_item = &list->items[list->active_pos];
-        if (params.show_dividers)
-            SDL_BlitSurface(resource_getSurface(HORIZONTAL_DIVIDER), &item_div_size, screen, &item_bg_rect);
         theme_renderListLabel(screen, active_item->sticky_note, theme()->list.color, 20 * g_scale, item_bg_rect.y + label_y, false, 640 * g_scale, true);
     }
 
@@ -216,8 +256,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             item_bg_rect.y += (item_height - item_bg_size.h) / 2;
         }
 
-        if (params.show_dividers)
-            SDL_BlitSurface(resource_getSurface(HORIZONTAL_DIVIDER), &item_div_size, screen, &item_bg_rect);
+        // Unified look: no divider lines between rows.
         item_bg_rect.y += item_padding;
 
         if (i == list->active_pos) {
@@ -248,11 +287,18 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         }
 
         if (item->item_type == TOGGLE) {
-            SDL_Surface *toggle = show_disabled ? (item->value == 1 ? g_hidden_items.toggle_on : g_hidden_items.toggle_off) : (resource_getSurface(item->value == 1 ? TOGGLE_ON : TOGGLE_OFF));
-            toggle_rect.x = scaled_620 - toggle->w;
-            toggle_rect.y = item_center_y - toggle->h / 2;
-            label_end = toggle_rect.x;
-            SDL_BlitSurface(toggle, NULL, screen, &toggle_rect);
+            // Unified look: the switch is drawn, in the theme's colours.
+            int w = ui_drawSwitch(screen, scaled_620, item_center_y, item->value == 1,
+                                  i == list->active_pos, show_disabled);
+            label_end = scaled_620 - w;
+        }
+        else if (item->item_type == ACTION &&
+                 (ui_opensPage(item->label) || (list_small && item->description[0] != '\0'))) {
+            SDL_Color c = i == list->active_pos ? (SDL_Color){255, 255, 255}
+                                                : (SDL_Color){122, 122, 128};
+            int half = 7.0 * g_scale;
+            ui_drawChevron(screen, scaled_620 - 2, item_center_y, half, 1, ui_map(screen, c));
+            label_end = scaled_620 - half * 2;
         }
         else if (item->item_type == MULTIVALUE) {
             SDL_Surface *arrow_left = show_disabled ? g_hidden_items.arrow_left : resource_getSurface(LEFT_ARROW);
@@ -263,15 +309,22 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             SDL_Rect arrow_right_pos = {
                 scaled_640 - scaled_20 - arrow_right->w,
                 item_center_y - arrow_right->h / 2};
-            SDL_BlitSurface(arrow_left, NULL, screen, &arrow_left_pos);
-            SDL_BlitSurface(arrow_right, NULL, screen, &arrow_right_pos);
+            // Unified look: the arrows only on the selected row, the value
+            // in grey on the others.
+            if (i == list->active_pos) {
+                SDL_BlitSurface(arrow_left, NULL, screen, &arrow_left_pos);
+                SDL_BlitSurface(arrow_right, NULL, screen, &arrow_right_pos);
+            }
             label_end = arrow_left_pos.x;
+            const SDL_Color value_color = i == list->active_pos
+                                              ? list_color
+                                              : (SDL_Color){UI_GREY_R, UI_GREY_G, UI_GREY_B};
 
             // Cache MULTIVALUE label — only re-render when value or color changes
             /* Miyoo SDL_Color is RGB-only (no unused/.a field). */
-            const uint32_t list_color_key = ((uint32_t)list_color.r << 16) |
-                                            ((uint32_t)list_color.g << 8) |
-                                            (uint32_t)list_color.b;
+            const uint32_t list_color_key = ((uint32_t)value_color.r << 16) |
+                                            ((uint32_t)value_color.g << 8) |
+                                            (uint32_t)value_color.b;
             char value_str[STR_MAX];
             list_getItemValueLabel(item, value_str);
             const uint32_t value_hash = list_labelHash(value_str);
@@ -279,7 +332,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 item->_cached_color != list_color_key) {
                 if (item->_value_cache != NULL)
                     SDL_FreeSurface((SDL_Surface *)item->_value_cache);
-                item->_value_cache = (void *)TTF_RenderUTF8_Blended(list_font, value_str, list_color);
+                item->_value_cache = (void *)TTF_RenderUTF8_Blended(list_font, value_str, value_color);
                 item->_cached_value_hash = value_hash;
                 item->_cached_color = list_color_key;
             }
@@ -308,6 +361,14 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 item_center_y - value_size.h / 2};
             _blit_cached_label(value_label, &value_size, screen, &value_pos,
                                show_disabled);
+        }
+
+        if (list_small && item->description[0] != '\0') {
+            int desc_x = _theme_renderListDescRight(screen, item->description,
+                                                    label_end - 12.0 * g_scale,
+                                                    item_center_y, i == list->active_pos,
+                                                    show_disabled);
+            label_end = desc_x - 4.0 * g_scale;
         }
 
         // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)

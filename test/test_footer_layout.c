@@ -23,6 +23,12 @@
 #include <string.h>
 
 #include "SDL/SDL.h" /* test/stubs */
+
+/* The SELECT pill: no drawing in the stubs, the word in the hint font. */
+static int pill_fills = 0;
+static SDL_Rect last_pill;
+#define FOOTER_FILL_PILL(screen, rect) (pill_fills++, last_pill = (rect))
+#define FOOTER_PILL_FONT() resource_getFont(HINT)
 #include "utils/str.h"
 
 /* ---- SDL_ttf and theme stubs (footer.h's dependencies) ---- */
@@ -282,31 +288,42 @@ TEST(x_hint_absent)
     ASSERT_EQ(find("[X]")->x, 20 + 54 + 5 + 60 + 30);
 }
 
-/* Tweaks: "[SELECT] INFO" after B (classic), before B (B A layout), 30 px
- * apart, text only (themes have no SELECT picture). */
+/* Tweaks: the SELECT pill (SELECT inside, 8 px in from each end, 28 px
+ * tall), 6 px, then INFO; after B (classic), before B (B A layout), 30 px
+ * apart. "SELECT" is 60 px: the pill is 76 px wide. */
 TEST(select_hint_follows_b)
 {
     reset(false);
+    pill_fills = 0;
     theme_renderStandardHintSelect(&screen, "SELECT", "BACK", "INFO");
     ASSERT_EQ(find("[A]")->x, 20);
     ASSERT_EQ(find("[B]")->x, 20 + 54 + 5 + 60 + 30);
-    ASSERT_EQ(find("[SELECT] INFO")->x, find("BACK")->x + 40 + 30);
-    ASSERT_EQ(find("[SELECT] INFO")->y, 449 - 15);
+    ASSERT_EQ(pill_fills, 1);
+    ASSERT_EQ(last_pill.x, find("BACK")->x + 40 + 30);
+    ASSERT_EQ(last_pill.w, 76);
+    ASSERT_EQ(last_pill.h, 28);
+    ASSERT_EQ(last_pill.y, 450 - 14);
+    ASSERT_EQ(find("INFO")->x, last_pill.x + 76 + 6);
+    ASSERT_EQ(find("INFO")->y, 449 - 15);
 
     reset(true);
     theme_renderStandardHintSelect(&screen, "SELECT", "BACK", "INFO");
     ASSERT_EQ(find("SELECT")->x + 60, 620);
     ASSERT_EQ(find("BACK")->x + 40 + 30, find("[A]")->x);
-    ASSERT_EQ(find("[SELECT] INFO")->x + 130 + 30, find("[B]")->x);
+    ASSERT_EQ(find("INFO")->x + 40 + 30, find("[B]")->x);
+    ASSERT_EQ(last_pill.x + 76 + 6, find("INFO")->x);
 
     /* No info for the selected item: A and B only, where they always are. */
     reset(false);
+    pill_fills = 0;
     theme_renderStandardHintSelect(&screen, "SELECT", "BACK", NULL);
-    ASSERT_NULL(find("[SELECT] INFO"));
+    ASSERT_NULL(find("INFO"));
+    ASSERT_EQ(pill_fills, 0);
     ASSERT_EQ(find("[B]")->x, 20 + 54 + 5 + 60 + 30);
     reset(true);
+    pill_fills = 0;
     theme_renderStandardHintSelect(&screen, "SELECT", "BACK", "");
-    ASSERT_NULL(find("[SELECT] "));
+    ASSERT_EQ(pill_fills, 0);
     ASSERT_EQ(find("BACK")->x + 40 + 30, find("[A]")->x);
 
     /* No room before the page number (long translations): left out. */

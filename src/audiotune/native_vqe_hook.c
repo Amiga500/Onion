@@ -1,5 +1,5 @@
 /*
- * AudioTune v0.2.3 beta - firmware-verified SigmaStar MI_AO/VQE server hook.
+ * AudioTune v0.2.9 beta - firmware-verified SigmaStar MI_AO/VQE server hook.
  * Copyright (c) 2026. SPDX-License-Identifier: MIT.
  *
  * Beta feature: MI_AO readback is not acoustic proof of game EQ.
@@ -23,6 +23,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include "audiotune_presets.h"
+#include "audiotune_eq.h"
 
 typedef struct {
     int32_t eSamplerate, eBitwidth, eWorkmode, eSoundmode;
@@ -73,10 +74,38 @@ static void status_update(const char *state,int dev,int chn,int rc) {
     HOOK_LOG("%s dev=%d chn=%d rc=0x%x",state,dev,chn,(unsigned)rc);
 }
 
+/* Internal, per-process snapshot for approximate local preview only.
+ * Do not write a status if readback failed. A stale file is removed by the
+ * constructor and when a channel is disabled or process exits normally. */
+static void applied_state_path(char *dst,size_t cap) {
+    snprintf(dst,cap,"/tmp/audiotune-vqe-%ld.state",(long)getpid());
+}
+static void applied_state_clear(void) {
+    char path[80]; applied_state_path(path,sizeof(path)); unlink(path);
+}
+static void applied_state_write(const int gains[5],int mode,int output,int cut) {
+    char path[80],tmp[112]; FILE *f;
+    int fd;
+    applied_state_path(path,sizeof(path));
+    snprintf(tmp,sizeof(tmp),"%s-XXXXXX",path);
+    fd=mkstemp(tmp);
+    if(fd<0) return;
+    f=fdopen(fd,"w");
+    if(!f) { close(fd); unlink(tmp); return; }
+    fprintf(f,"V1 %d %d %d %d %d %d %d %d\n",gains[0],gains[1],gains[2],
+            gains[3],gains[4],mode,output,cut);
+    if(fclose(f)==0) { if(rename(tmp,path)!=0) unlink(tmp); }
+    else unlink(tmp);
+}
+__attribute__((constructor)) static void audiotune_vqe_on_load(void) { applied_state_clear(); }
+__attribute__((destructor)) static void audiotune_vqe_on_unload(void) { applied_state_clear(); }
+
 static unsigned char installed[4][2];
+static int last_gains[4][2][5];
+static int last_cut[4][2],last_mode[4][2],last_output[4][2];
 static int (*real_enable_chn)(int,int);
 
-static int native_profile(int gains[5]) {
+static int native_profile(int gains[5],int *mode,int *output) {
     const char *path=getenv("AUDIOTUNE_VQE_PROFILE");
     int preset=0, eqOn=0, custom[5]={0};
     FILE *f;
@@ -91,6 +120,11 @@ static int native_profile(int gains[5]) {
         int i;
         if(sscanf(line,"preset=%d",&i)==1) preset=i;
         else if(sscanf(line,"eq_enabled=%d",&i)==1) eqOn=(i==1);
+        else if(sscanf(line,"output_mode=%d",&i)==1)
+            *output=(i==AUDIOTUNE_OUTPUT_HEADPHONES)?AUDIOTUNE_OUTPUT_HEADPHONES:AUDIOTUNE_OUTPUT_SPEAKER;
+        else if(sscanf(line,"headroom_mode=%d",&i)==1)
+            *mode=(i==AUDIOTUNE_HEADROOM_PUNCHY)?
+                  AUDIOTUNE_HEADROOM_PUNCHY:AUDIOTUNE_HEADROOM_SAFE;
         else if(sscanf(line,"custom=%d %d %d %d %d",
                  &custom[0],&custom[1],&custom[2],&custom[3],&custom[4])==5) { }
     }
@@ -112,78 +146,45 @@ static int native_profile(int gains[5]) {
     return 1;
 }
 
-/* Approximate the same five Q=1 peaking filters used by the UI, then
-   quantize to the native 129-band gain table. Unlike the old interpolation,
-   these filters naturally return to ~0 dB outside the control bands.
-   Frequency quantization can still differ substantially at 48 kHz. */
-typedef struct { float b0,b1,b2,a1,a2; } ResponseBiquad;
-static void response_peaking(ResponseBiquad *b,int rate,int hz,int db) {
-    float f=fminf((float)hz,rate*0.44f);
-    float A=powf(10.0f,(float)db/40.0f);
-    float w=6.2831853071795864769f*f/rate;
-    float alpha=sinf(w)*0.5f;
-    float cs=cosf(w);
-    float a0=1.0f+alpha/A;
-    b->b0=(1.0f+alpha*A)/a0;
-    b->b1=(-2.0f*cs)/a0;
-    b->b2=(1.0f-alpha*A)/a0;
-    b->a1=b->b1;
-    b->a2=(1.0f-alpha/A)/a0;
-}
-static float response_db(float hz,int rate,const ResponseBiquad b[5]) {
-    float w=6.2831853071795864769f*hz/rate;
-    float c1=cosf(w),s1=sinf(w),c2=cosf(2*w),s2=sinf(2*w);
-    float sum=0.0f;
-    int k;
-    for(k=0;k<5;k++) {
-        float nr=b[k].b0+b[k].b1*c1+b[k].b2*c2;
-        float ni=-b[k].b1*s1-b[k].b2*s2;
-        float dr=1.0f+b[k].a1*c1+b[k].a2*c2;
-        float di=-b[k].a1*s1-b[k].a2*s2;
-        float nn=nr*nr+ni*ni,dd=dr*dr+di*di;
-        if(nn>1e-12f && dd>1e-12f) sum+=10.0f*log10f(nn/dd);
-    }
-    return sum;
-}
-static int build_vqe_table(VqeConfig *cfg, int rate, const int gains[5]) {
-    ResponseBiquad b[5];
-    float maxdb=0.0f;
-    float raw[129];
-    int i,attenuate,limited=0, minbin=0, maxbin=-50;
-    for(i=0;i<5;i++) response_peaking(&b[i],rate,audiotune_eq_freq[i],gains[i]);
-    for(i=0;i<1025;i++) {
-        float freq=(rate*0.5f)*(float)i/1024.0f;
-        float v=response_db(freq,rate,b);
-        if(v>maxdb) maxdb=v;
-    }
-    /* Each VQE bin covers one interval, not a single isolated frequency.
-       Using its centre avoids a low/high-frequency shelf. */
-    for(i=0;i<129;i++) {
-        float freq=(rate*0.5f)*((float)i+0.5f)/129.0f;
-        raw[i]=response_db(freq,rate,b);
+/* Approximate shared five-band shelf/peaking response in the native 129
+ * frequency-bin table. SAFE allows no positive native gains; PUNCHY allows
+ * at most +3 dB and may clip on loud game material. No game-side limiter. */
+static int build_vqe_table(VqeConfig *cfg,int rate,const int gains[5],int mode,int output,int *cut_db) {
+    AudioTuneEQCoeff coeff[AUDIOTUNE_EQ_BANDS];
+    float maxdb,raw[129];
+    int i,attenuate,limited=0,minbin=0,maxbin=-50;
+    const int max_gain=(output==AUDIOTUNE_OUTPUT_HEADPHONES && mode==AUDIOTUNE_HEADROOM_PUNCHY)?
+                       AUDIOTUNE_NATIVE_PEAK_DB:0;
+    for(i=0;i<AUDIOTUNE_EQ_BANDS;++i)
+        audiotune_eq_make(&coeff[i],i,rate,gains[i]);
+    maxdb=audiotune_native_peak_db(rate,coeff,output);
+    for(i=0;i<129;++i) {
+        float hz=(rate*0.5f)*((float)i+0.5f)/129.0f;
+        raw[i]=audiotune_eq_response_db(hz,rate,coeff);
+        if(output==AUDIOTUNE_OUTPUT_SPEAKER)
+            raw[i]=audiotune_speaker_guard_db(i,raw[i]);
         if(raw[i]>maxdb) maxdb=raw[i];
     }
-    /* Ensure no positive gain in native path; extra 1 dB guard.
-       Supported range is [-50,+20] dB in SigmaStar audio docs. */
-    attenuate=maxdb>0?((int)ceilf(maxdb)+1):0;
-    for(i=0;i<129;i++) {
-        float v=raw[i]-attenuate;
-        int rounded=(int)(v<0?v-0.5f:v+0.5f);
-        /* Saturate instead of rejecting extreme ±12 dB combinations.
-           The native ABI has a -50 dB floor and never sends a boost >0. */
+    attenuate=audiotune_native_attenuation_db(maxdb,
+                      output==AUDIOTUNE_OUTPUT_SPEAKER?AUDIOTUNE_HEADROOM_SAFE:mode);
+    if(cut_db) *cut_db=attenuate;
+    for(i=0;i<129;++i) {
+        float v=raw[i]-(float)attenuate;
+        int rounded=(int)(v<0.0f?v-0.5f:v+0.5f);
         if(rounded < -50) { rounded=-50; limited++; }
-        if(rounded > 0) { rounded=0; limited++; }
+        if(rounded > max_gain) { rounded=max_gain; limited++; }
         if(i==0 || rounded<minbin) minbin=rounded;
         if(rounded>maxbin) maxbin=rounded;
         cfg->eqCfg.gainDb[i]=(int16_t)rounded;
     }
-    HOOK_LOG("native EQ attenuation: %d dB; 129-bin range %d..%d dB; saturated bins=%d; approximate curve, NOT exact preview",
+    HOOK_LOG("%s native cut=%d dB, 129-bin range %d..%d dB, clamp=%d, approximate",
+             (output==AUDIOTUNE_OUTPUT_HEADPHONES && mode==AUDIOTUNE_HEADROOM_PUNCHY)?"PUNCHY":"SAFE",
              attenuate,minbin,maxbin,limited);
     return 1;
 }
 
 int MI_AO_EnableChn(int dev,int chn) {
-    int rc, gains[5];
+    int rc, gains[5],mode=AUDIOTUNE_HEADROOM_SAFE,output=AUDIOTUNE_OUTPUT_SPEAKER,cut_db=0;
     AudioAttr attr;
     VqeConfig config,existing;
     int (*getpub)(int,AudioAttr *);
@@ -223,11 +224,13 @@ int MI_AO_EnableChn(int dev,int chn) {
             int r=enablevqe(dev,chn);
             HOOK_LOG("re-enable VQE dev=%d chn=%d rc=0x%x",dev,chn,r);
             status_update(r==0?"EQ_REENABLE_OK":"EQ_REENABLE_FAILED",dev,chn,r);
-            if(r!=0) installed[dev][chn]=0;
+            if(r!=0) { installed[dev][chn]=0; applied_state_clear(); }
+            else applied_state_write(last_gains[dev][chn],last_mode[dev][chn],
+                                      last_output[dev][chn],last_cut[dev][chn]);
         } else status_update("EQ_REENABLE_API_MISSING",dev,chn,-1);
         return rc;
     }
-    if(!native_profile(gains)) return rc;
+    if(!native_profile(gains,&mode,&output)) return rc;
     getpub=(int (*)(int,AudioAttr *))dlsym(RTLD_NEXT,"MI_AO_GetPubAttr");
     getvqe=(int (*)(int,int,VqeConfig *))dlsym(RTLD_NEXT,"MI_AO_GetVqeAttr");
     setvqe=(int (*)(int,int,const VqeConfig *))dlsym(RTLD_NEXT,"MI_AO_SetVqeAttr");
@@ -281,7 +284,7 @@ int MI_AO_EnableChn(int dev,int chn) {
     config.workRate=attr.eSamplerate;
     if(config.frameSamples==0) config.frameSamples=128;
     config.eqCfg.eMode=1; /* USER mode */
-    if(!build_vqe_table(&config,attr.eSamplerate,gains)) {
+    if(!build_vqe_table(&config,attr.eSamplerate,gains,mode,output,&cut_db)) {
         status_update("TABLE_REJECTED",dev,chn,0); return rc;
     }
     rc=setvqe(dev,chn,&config);
@@ -299,6 +302,10 @@ int MI_AO_EnableChn(int dev,int chn) {
     }
     HOOK_LOG("EnableVqe dev=%d chn=%d accepted rc=0",dev,chn);
     installed[dev][chn]=1;
+    memcpy(last_gains[dev][chn],gains,sizeof(gains));
+    last_cut[dev][chn]=cut_db;
+    last_mode[dev][chn]=mode;
+    last_output[dev][chn]=output;
     { VqeConfig readback;
       memset(&readback,0,sizeof(readback));
       if(getvqe(dev,chn,&readback)==0) {
@@ -307,6 +314,8 @@ int MI_AO_EnableChn(int dev,int chn) {
                    (int)readback.eqCfg.gainDb[0]);
           status_update(readback.eq==1?"EQ_READBACK_OK":"EQ_READBACK_MISMATCH",
                         dev,chn,0);
+          if(readback.eq==1) applied_state_write(gains,mode,output,cut_db);
+          else applied_state_clear();
       } else {
           HOOK_LOG("VQE readback unavailable after enable");
           status_update("EQ_READBACK_UNAVAILABLE",dev,chn,0);
@@ -324,7 +333,9 @@ int MI_AO_DisableChn(int dev,int chn) {
     int rc;
     if(!real_disable) { HOOK_LOG("original MI_AO_DisableChn unavailable"); return -1; }
     rc=real_disable(dev,chn);
-    if(rc==0 && dev>=0 && dev<4 && chn>=0 && chn<2 && installed[dev][chn])
+    if(rc==0 && dev>=0 && dev<4 && chn>=0 && chn<2 && installed[dev][chn]) {
         status_update("CHANNEL_DISABLED",dev,chn,0);
+        applied_state_clear();
+    }
     return rc;
 }

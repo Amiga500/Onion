@@ -1,5 +1,5 @@
 /*
- * AudioTune v0.2.3 beta - sound diagnostics and five-band preview EQ.
+ * AudioTune v0.2.9 beta - sound diagnostics and five-band preview EQ.
  * Miyoo Mini / Mini Plus, Onion / RedOnion. SPDX-License-Identifier: MIT.
  *
  * The UI provides a software EQ preview. On verified Miyoo firmware the
@@ -21,11 +21,12 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include "audiotune_presets.h"
+#include "audiotune_eq.h"
 #include "audiotune_mp3.h"
 
 #define W 640
 #define H 480
-#define VERSION "V0.2.3 BETA"
+#define VERSION "V0.2.9"
 #define ARRAY_LEN(x) ((int)(sizeof(x) / sizeof((x)[0])))
 #define PI_F 3.14159265358979323846f
 #define LUT_BITS 11
@@ -179,6 +180,12 @@ typedef char audiotune_font_table_sizes_must_match[
     ARRAY_LEN(font) == ARRAY_LEN(small_font) ? 1 : -1];
 
 typedef struct { uint32_t *pixels; int pitch; } Canvas;
+/* Test branch (RedOnion unified look): Exo 2 text through SDL_ttf and the
+ * Tweaks header, tabs, panels, selection and hints. Without the font the
+ * built-in bitmap font below is still used. */
+#include "theme/render/canvas_ui.h"
+#define CUI(c) (&(CuiCanvas){(c)->pixels,(c)->pitch})
+static int ui_size(int scale) { return scale==1?15:scale==2?21:25; }
 
 static uint32_t rgb(unsigned r, unsigned g, unsigned b) { return (r << 16) | (g << 8) | b; }
 static void put(Canvas *c, int x, int y, uint32_t color) {
@@ -260,25 +267,27 @@ static void glyph(Canvas *c, int x, int y, char ch, int scale, uint32_t color) {
     }
 }
 static int text_width(const char *s, int scale) {
+    if (cui_font(ui_size(scale))) return cui_text_width(s,ui_size(scale));
     int count = (int)strlen(s);
     if (!count) return 0;
     return scale == 1 ? count * SMALL_ADVANCE - 1 : count * 6*scale - scale;
 }
 static void label(Canvas *c, int x, int y, const char *s, int scale, uint32_t color) {
+    /* Same top-left placement as the bitmap glyphs: centre on their middle. */
+    if (cui_font(ui_size(scale))) {
+        cui_text(CUI(c),x,y+(scale==1?5.5f:3.5f*scale),s,ui_size(scale),color,CUI_LEFT);
+        return;
+    }
     int advance = scale == 1 ? SMALL_ADVANCE : 6*scale;
     while (*s) { glyph(c,x,y,*s++,scale,color); x += advance; }
 }
 static void centered(Canvas *c, int x, int y, const char *s, int scale, uint32_t color) {
     label(c,x-text_width(s,scale)/2,y,s,scale,color);
 }
-static uint32_t blend(uint32_t a, uint32_t b, int alpha) {
-    unsigned ar=(a>>16)&255,ag=(a>>8)&255,ab=a&255;
-    unsigned br=(b>>16)&255,bg=(b>>8)&255,bb=b&255;
-    return rgb((ar*(255-alpha)+br*alpha)/255,
-               (ag*(255-alpha)+bg*alpha)/255,
-               (ab*(255-alpha)+bb*alpha)/255);
+/* Draw a label so two independent status lines share the same right edge. */
+static void right_aligned(Canvas *c, int right, int y, const char *s, int scale, uint32_t color) {
+    label(c,right-text_width(s,scale),y,s,scale,color);
 }
-
 static uint32_t convert_pixel(uint32_t color, const SDL_PixelFormat *fmt) {
     return (((color >> 16 & 255u) >> fmt->Rloss) << fmt->Rshift) |
            (((color >>  8 & 255u) >> fmt->Gloss) << fmt->Gshift) |
@@ -368,18 +377,18 @@ static const char *const test_detail[TEST_COUNT] = {
 };
 static const int test_seconds[TEST_COUNT] = {12,6,6,5,8,10,4,4,5};
 
-typedef enum { PROFILE_FLAT, PROFILE_SPEAKER, PROFILE_HEADPHONES,
+typedef enum { PROFILE_FLAT, PROFILE_PRESENCE, PROFILE_FULL,
                PROFILE_CLEAR, PROFILE_WARM, PROFILE_BRIGHT,
                PROFILE_CUSTOM, PROFILE_COUNT } Profile;
 static const char *const profile_names[PROFILE_COUNT] = {
-    "FLAT", "SPEAKER", "HEADPHONES", "CLEAR", "WARM", "BRIGHT", "CUSTOM"
+    "FLAT", "PRESENCE", "FULL", "CLEAR", "WARM", "BRIGHT", "CUSTOM"
 };
 static const char *const profile_info[PROFILE_COUNT] = {
-    "NO TONAL CORRECTION", "LESS BASS, CLEARER MIDS", "BALANCED STARTING POINT",
+    "NO TONAL CORRECTION", "CRISP MIDRANGE AND DETAIL", "RICHER, MORE OPEN SOUND",
     "EMPHASIZED DETAILS", "FULLER, SOFTER SOUND", "EXTRA HIGH END", "YOUR ADJUSTED EQ"
 };
 /* Built-in profiles and band centers are shared with the native VQE hook. */
-static const char *const eq_labels[EQ_BANDS] = {"125 HZ", "500 HZ", "1 KHZ", "4 KHZ", "8 KHZ"};
+static const char *const eq_labels[EQ_BANDS] = {"250 HZ", "500 HZ", "1 KHZ", "4 KHZ", "8 KHZ"};
 
 typedef struct { float b0,b1,b2,a1,a2,z1,z2; } Biquad;
 typedef struct {
@@ -389,9 +398,15 @@ typedef struct {
     bool loop; /* repeat preview in EQ and Profiles without a timeout */
     bool eq_on;
     bool native_hook_present; /* Guarded by SDL_LockAudio on UI thread. */
+    bool native_preview_valid; /* Applied native EQ snapshot was verified. */
+    bool native_delta_active; /* Apply only nonzero profile differences. */
+    int native_gains[EQ_BANDS];
+    int native_cut;
+    int native_output;
     int test;
     int gains[EQ_BANDS];
     float headroom;
+    bool limiter_enabled; /* software preview only */
     Biquad biquad[2][EQ_BANDS];
     uint32_t sample_index;
     uint32_t total_samples;
@@ -405,8 +420,7 @@ typedef struct {
     float music_left, music_right;
 } Audio;
 static Audio audio;
-/* The native hook applies no positive bin gain. Its response is computed at
-   48 kHz; this estimate is kept separate from the 22.05 kHz preview DSP. */
+/* Driver headroom estimate uses the exact shared EQ response at 48 kHz. */
 static int native_headroom_db=0;
 /* One shared music source for Home, Tests, EQ and Profiles. */
 static AudioTuneMP3 music_mp3;
@@ -440,6 +454,16 @@ static int profile_cursor = PROFILE_FLAT;
 static int custom_gains[EQ_BANDS];
 static int graph_delta_y[GRAPH_STEPS+1];
 static bool eq_enabled = false;
+/* Old settings without these fields default to full SAFE compensation. */
+static int headroom_mode=AUDIOTUNE_HEADROOM_SAFE;
+static bool soft_limiter_enabled=false;
+/* Manual target: no reliance on an unverified headphone-jack detector. */
+static int output_mode=AUDIOTUNE_OUTPUT_SPEAKER;
+static int applied_native_gains[EQ_BANDS]={0};
+static int applied_native_cut=0;
+static int applied_native_output=AUDIOTUNE_OUTPUT_SPEAKER;
+static bool applied_native_valid=false;
+static const char *applied_state_path=NULL;
 /* Keep the user's saved Custom selection; bypass processing for a flat curve. */
 static bool effective_eq_enabled(void) {
     const int *gains=(selected_profile==PROFILE_CUSTOM)?custom_gains:
@@ -455,10 +479,11 @@ static char audio_error[96] = "AUDIO UNAVAILABLE";
 static bool vqe_test_process=false;
 static bool vqe_restore_requested=false;
 static const char *vqe_status_path;
+static void update_audio_eq(void);
 static void update_vqe_test_state(void) {
-    char line[32];
-    FILE *f;
-    bool detected=false;
+    char line[32]; FILE *f;
+    bool detected=false,valid=false,changed=false;
+    int gains[EQ_BANDS]={0},mode=0,out=0,cut=0;
     if (vqe_status_path && strncmp(vqe_status_path,"/tmp/audiotune-",15)==0) {
         f=fopen(vqe_status_path,"r");
         if (f) {
@@ -467,10 +492,40 @@ static void update_vqe_test_state(void) {
             fclose(f);
         }
     }
-    if (audio.open) SDL_LockAudio();
+    if (detected && applied_state_path &&
+        strncmp(applied_state_path,"/tmp/audiotune-vqe-",19)==0) {
+        char tail;
+        f=fopen(applied_state_path,"r");
+        if (f) {
+            char state[144];
+            if(fgets(state,sizeof(state),f) &&
+               sscanf(state,"V1 %d %d %d %d %d %d %d %d %c",
+                      &gains[0],&gains[1],&gains[2],&gains[3],&gains[4],
+                      &mode,&out,&cut,&tail)==8 &&
+               (mode==0 || mode==1) && (out==0 || out==1) &&
+               cut>=0 && cut<=40) {
+                int i;valid=true;
+                for(i=0;i<EQ_BANDS;++i)
+                    if(gains[i]<-AUDIOTUNE_EQ_GAIN_LIMIT ||
+                       gains[i]>AUDIOTUNE_EQ_GAIN_LIMIT) valid=false;
+            }
+            fclose(f);
+        }
+    }
+    changed=(detected!=vqe_test_process || valid!=applied_native_valid ||
+             (valid && (memcmp(gains,applied_native_gains,sizeof(gains))!=0 ||
+                        cut!=applied_native_cut || out!=applied_native_output)));
+    if(audio.open) SDL_LockAudio();
     audio.native_hook_present=detected;
-    if (audio.open) SDL_UnlockAudio();
+    if(audio.open) SDL_UnlockAudio();
     vqe_test_process=detected;
+    applied_native_valid=valid;
+    if(valid) {
+        memcpy(applied_native_gains,gains,sizeof(gains));
+        applied_native_cut=cut;
+        applied_native_output=out;
+    }
+    if(changed) update_audio_eq();
 }
 
 static float clampf(float a, float lo, float hi) {
@@ -490,103 +545,108 @@ static float lookup_sin(float phase) {
     int idx = i & (LUT_N-1);
     return wave_table[idx] + fract*(wave_table[(idx+1)&(LUT_N-1)]-wave_table[idx]);
 }
-static void calc_peaking(Biquad *b, float frequency, int db, int rate) {
-    float a, w, sn, cs, alpha, a0;
-    /* RBJ peaking biquad. Coefficients are updated on the main thread
-       while SDL_LockAudio excludes the output callback. */
-    frequency = clampf(frequency,30.0f,rate*0.44f);
-    a = powf(10.0f,(float)db/40.0f);
-    w = 2.0f*PI_F*frequency/rate;
-    sn = sinf(w); cs = cosf(w);
-    alpha = sn / 2.0f; /* Q=1.0, deliberately broad 5-band correction. */
-    a0 = 1.0f + alpha/a;
-    b->b0 = (1.0f+alpha*a)/a0;
-    b->b1 = (-2.0f*cs)/a0;
-    b->b2 = (1.0f-alpha*a)/a0;
-    b->a1 = b->b1;
-    b->a2 = (1.0f-alpha/a)/a0;
-}
-/* Response graph and peak compensation use exactly the same filter
-   coefficients as the DSP. No trigonometry runs on every UI frame. */
-static float response_db_coeff(float hz, const Biquad coeff[EQ_BANDS], int rate) {
-    float w=2.0f*PI_F*hz/rate;
-    float c1=cosf(w),s1=sinf(w),c2=cosf(2*w),s2=sinf(2*w);
-    float result=0.0f;
-    int k;
-    for (k=0;k<EQ_BANDS;++k) {
-        const Biquad *b=&coeff[k];
-        float nr=b->b0+b->b1*c1+b->b2*c2;
-        float ni=-b->b1*s1-b->b2*s2;
-        float dr=1.0f+b->a1*c1+b->a2*c2;
-        float di=-b->a1*s1-b->a2*s2;
-        float numerator=nr*nr+ni*ni,denominator=dr*dr+di*di;
-        if (numerator>1e-12f && denominator>1e-12f)
-            result+=10.0f*log10f(numerator/denominator);
-    }
-    return result;
-}
 /* Direct-form II transposed; state is separate for each channel and band. */
 static float process_biquad(Biquad *b, float x) {
     float y=b->b0*x+b->z1;
     b->z1=b->b1*x-b->a1*y+b->z2;
     b->z2=b->b2*x-b->a2*y;
+    if(!isfinite(y) || !isfinite(b->z1) || !isfinite(b->z2)) {
+        b->z1=b->z2=0.0f;
+        return 0.0f;
+    }
+    /* Prevent long-lived denormal feedback that can consume CPU and sound
+       like a low-level residue after a shelf filter change. */
+    if(fabsf(b->z1)<1e-20f) b->z1=0.0f;
+    if(fabsf(b->z2)<1e-20f) b->z2=0.0f;
     return y;
 }
 static void update_audio_eq(void) {
-    int ch,i,rate=audio.open?audio.format.freq:22050;
+    int ch,i,rate=audio.open?audio.format.freq:48000;
     int new_gains[EQ_BANDS];
-    Biquad coeff[EQ_BANDS];
-    float maximum=0.0f,headroom;
-    memcpy(new_gains,selected_profile==PROFILE_CUSTOM?custom_gains:
-           audiotune_preset_gains[selected_profile],sizeof(new_gains));
+    AudioTuneEQCoeff coeff[EQ_BANDS],native_coeff[EQ_BANDS];
+    int correction[EQ_BANDS];
+    bool delta_active=false;
+    AudioTuneEQCoeff graph_coeff[EQ_BANDS];
+    float maximum,headroom;
+    /* On the Profiles page the highlighted profile is a temporary live
+       audition, committed only by A. Nothing is saved while browsing. */
+    bool preview_on=(page==PAGE_PROFILES && profile_cursor!=selected_profile)?
+                    (profile_cursor!=PROFILE_FLAT):effective_eq_enabled();
+    memcpy(new_gains,(page==PAGE_PROFILES)?
+           (profile_cursor==PROFILE_CUSTOM?custom_gains:
+            audiotune_preset_gains[profile_cursor]):
+           (selected_profile==PROFILE_CUSTOM?custom_gains:
+            audiotune_preset_gains[selected_profile]),sizeof(new_gains));
+    if(audiotune_gains_all_zero(new_gains)) preview_on=false;
+    /* When a known native profile is active, audition only the DIFFERENCE
+       against the applied native settings. This avoids stacking the full
+       software curve on top of native EQ. It is only an approximation because
+       SigmaStar quantizes its curve to 129 bins. */
     for(i=0;i<EQ_BANDS;++i) {
-        memset(&coeff[i],0,sizeof(coeff[i]));
-        calc_peaking(&coeff[i],(float)audiotune_eq_freq[i],new_gains[i],rate);
+        correction[i]=(applied_native_valid && vqe_test_process ?
+                       (preview_on?new_gains[i]:0)-applied_native_gains[i]
+                       :new_gains[i]);
+        audiotune_eq_make(&coeff[i],i,rate,correction[i]);
     }
-    /* More points than the drawing graph to estimate peak headroom. */
-    for(i=0;i<=256;++i) {
-        float hz=(rate*0.5f)*(float)i/256.0f;
-        float db=response_db_coeff(hz,coeff,rate);
-        if(db>maximum) maximum=db;
+    maximum=audiotune_eq_peak_db(rate,coeff);
+    for(i=0;i<EQ_BANDS;++i) {
+        if(correction[i]) delta_active=true;
+        audiotune_eq_make(&graph_coeff[i],i,rate,new_gains[i]);
     }
     for(i=0;i<=GRAPH_STEPS;++i) {
         float hz=90.0f*powf(9000.0f/90.0f,(float)i/GRAPH_STEPS);
-        float db=response_db_coeff(clampf(hz,90.0f,rate*0.44f),coeff,rate);
+        float db=audiotune_eq_response_db(clampf(hz,90.0f,rate*0.44f),rate,graph_coeff);
         graph_delta_y[i]=clampi((int)(db*3.8f),-46,46);
-        if(db>maximum) maximum=db;
     }
-    /* A conservative 1 dB guard for boosted settings; bypass is unity. */
-    headroom=maximum>0.0f?powf(10.0f,-(maximum+1.0f)/20.0f):1.0f;
-    /* Match the native hook's attenuation estimate (48 kHz, 129 bin centers
-       plus 1025 sample points) without changing the actual software DSP. */
+    /* SAFE: full peak + 1 dB guard. PUNCHY: allow at most +3 dB peak
+       in the SOFTWARE EQ; a local optional limiter catches excursions. */
+    headroom=maximum>0.0f ? fmaxf(0.0f,maximum+1.0f-
+              (headroom_mode==AUDIOTUNE_HEADROOM_PUNCHY &&
+               output_mode==AUDIOTUNE_OUTPUT_HEADPHONES ?
+               AUDIOTUNE_NATIVE_PEAK_DB:0)) : 0.0f;
+    headroom=powf(10.0f,-headroom/20.0f);
     native_headroom_db=0;
-    if (effective_eq_enabled()) {
-        Biquad native_coeff[EQ_BANDS];
-        float native_max=0.0f;
-        for(i=0;i<EQ_BANDS;++i) {
-            memset(&native_coeff[i],0,sizeof(native_coeff[i]));
-            calc_peaking(&native_coeff[i],(float)audiotune_eq_freq[i],new_gains[i],48000);
-        }
-        for(i=0;i<=1024;++i) {
-            float hz=24000.0f*(float)i/1024.0f;
-            float db=response_db_coeff(hz,native_coeff,48000);
-            if(db>native_max) native_max=db;
-        }
-        for(i=0;i<129;++i) {
-            float hz=24000.0f*((float)i+0.5f)/129.0f;
-            float db=response_db_coeff(hz,native_coeff,48000);
-            if(db>native_max) native_max=db;
-        }
-        native_headroom_db=native_max>0.0f?(int)ceilf(native_max)+1:0;
+    if (preview_on) {
+        float native_max;
+        for(i=0;i<EQ_BANDS;++i)
+            audiotune_eq_make(&native_coeff[i],i,48000,new_gains[i]);
+        native_max=audiotune_native_peak_db(48000,native_coeff,output_mode);
+        native_headroom_db=audiotune_native_attenuation_db(native_max,
+          output_mode==AUDIOTUNE_OUTPUT_SPEAKER?AUDIOTUNE_HEADROOM_SAFE:headroom_mode);
     }
     if(audio.open) SDL_LockAudio();
     memcpy(audio.gains,new_gains,sizeof(new_gains));
-    audio.eq_on=effective_eq_enabled();
+    audio.eq_on=preview_on;
+    audio.native_preview_valid=(applied_native_valid && vqe_test_process);
+    audio.native_delta_active=audio.native_preview_valid && delta_active;
     audio.headroom=headroom;
+    /* The local differential preview is deliberately at limited headroom.
+       It never applies the native attenuation twice. */
+    if(audio.native_delta_active) {
+        int safe_mode=(output_mode==AUDIOTUNE_OUTPUT_SPEAKER)?
+                      AUDIOTUNE_HEADROOM_SAFE:headroom_mode;
+        float cut=maximum>0.0f ?
+           fmaxf(0.0f,maximum+1.0f-(safe_mode==AUDIOTUNE_HEADROOM_PUNCHY?
+                                 AUDIOTUNE_NATIVE_PEAK_DB:0)):0.0f;
+        audio.headroom=powf(10.0f,-cut/20.0f);
+    }
+    audio.limiter_enabled=soft_limiter_enabled;
+    memcpy(audio.native_gains,applied_native_gains,sizeof(audio.native_gains));
+    audio.native_cut=applied_native_cut;
+    audio.native_output=applied_native_output;
     for(ch=0;ch<2;++ch)
         for(i=0;i<EQ_BANDS;++i) {
             float old1=audio.biquad[ch][i].z1,old2=audio.biquad[ch][i].z2;
-            audio.biquad[ch][i]=coeff[i];
+            /* Discard stale integrator energy on major mode/preset changes;
+               especially important for a 250 Hz shelf on a tiny speaker. */
+            float change=fabsf(audio.biquad[ch][i].b0-coeff[i].b0);
+            if(change>0.025f || !isfinite(old1) || !isfinite(old2))
+                old1=old2=0.0f;
+            audio.biquad[ch][i].b0=coeff[i].b0;
+            audio.biquad[ch][i].b1=coeff[i].b1;
+            audio.biquad[ch][i].b2=coeff[i].b2;
+            audio.biquad[ch][i].a1=coeff[i].a1;
+            audio.biquad[ch][i].a2=coeff[i].a2;
             audio.biquad[ch][i].z1=old1;
             audio.biquad[ch][i].z2=old2;
         }
@@ -694,11 +754,15 @@ static void sdl_audio_callback(void *userdata, Uint8 *stream, int len) {
                a second EQ or headroom cut while the native hook is loaded.
                Edits to the on-screen bands take effect after server sync on
                exit, not instantly in this mode. */
-            if (a->eq_on && !a->native_hook_present) {
+            if ((!a->native_hook_present && a->eq_on) || a->native_delta_active) {
                 signal*=a->headroom;
                 for (k=0;k<EQ_BANDS;++k)
                     signal=process_biquad(&a->biquad[ch][k],signal);
             }
+            /* The optional local limiter does not process game audio, and is
+               intentionally bypassed under the native hook for comparison. */
+            if ((a->limiter_enabled && !a->native_hook_present) ||
+                a->native_delta_active) signal=audiotune_soft_limit(signal);
             /* Retain the complete signed 16-bit output range. The previous
                +/-0.68 limiter silently clipped full-scale MP3 peaks. */
             signal=clampf(signal,-1.0f,32767.0f/32768.0f);
@@ -769,16 +833,23 @@ static void audio_initialize(void) {
         return;
     }
     memset(&want,0,sizeof(want)); memset(&got,0,sizeof(got));
-    want.freq=22050;
+    want.freq=48000;
     want.format=AUDIO_S16SYS;
     want.channels=2;
-    want.samples=512;
+    want.samples=1024;
     want.callback=sdl_audio_callback;
     want.userdata=&audio;
     if (SDL_OpenAudio(&want,&got)<0) {
-        snprintf(audio_error,sizeof(audio_error),"SDL AUDIO OPEN FAILED");
-        LOG("SDL_OpenAudio: %s",SDL_GetError());
-        return;
+        /* Older SDL/OSS bridges may reject 48 kHz. Keep the diagnostics
+           usable instead of failing audio initialization outright. */
+        LOG("SDL_OpenAudio 48 kHz rejected: %s; retrying 22.05 kHz",SDL_GetError());
+        want.freq=22050; want.samples=512;
+        memset(&got,0,sizeof(got));
+        if (SDL_OpenAudio(&want,&got)<0) {
+            snprintf(audio_error,sizeof(audio_error),"SDL AUDIO OPEN FAILED");
+            LOG("SDL_OpenAudio fallback: %s",SDL_GetError());
+            return;
+        }
     }
     if (got.format!=AUDIO_S16SYS || got.channels!=2 ||
         got.freq<16000 || got.freq>48000) {
@@ -809,6 +880,7 @@ static void save_settings(void);
 static void apply_profile(int id) {
     selected_profile=clampi(id,0,PROFILE_COUNT-1);
     profile_cursor=selected_profile;
+    /* The sound curve is independent of the speaker/headphone protection target. */
     eq_enabled=(selected_profile!=PROFILE_FLAT);
     dirty_settings=true;
     update_audio_eq();
@@ -865,6 +937,8 @@ static void save_settings(void) {
     if (!f) { LOG("cannot save %s: %s",tmp,strerror(errno)); return; }
     fprintf(f,"# AudioTune beta EQ profile\n");
     fprintf(f,"preset=%d\neq_enabled=%d\n",selected_profile,eq_enabled?1:0);
+    fprintf(f,"headroom_mode=%d\nsoft_limiter=%d\noutput_mode=%d\n",headroom_mode,
+            soft_limiter_enabled?1:0,output_mode);
     fprintf(f,"custom=%d %d %d %d %d\n",custom_gains[0],custom_gains[1],
             custom_gains[2],custom_gains[3],custom_gains[4]);
     {
@@ -893,6 +967,11 @@ static void load_settings(void) {
         int x[EQ_BANDS],i;
         if (sscanf(line,"preset=%d",&i)==1) p=i;
         else if (sscanf(line,"eq_enabled=%d",&i)==1) e=(i!=0);
+        else if (sscanf(line,"headroom_mode=%d",&i)==1)
+            headroom_mode=(i==AUDIOTUNE_HEADROOM_PUNCHY)?AUDIOTUNE_HEADROOM_PUNCHY:AUDIOTUNE_HEADROOM_SAFE;
+        else if (sscanf(line,"soft_limiter=%d",&i)==1) soft_limiter_enabled=(i==1);
+        else if (sscanf(line,"output_mode=%d",&i)==1)
+            output_mode=(i==AUDIOTUNE_OUTPUT_HEADPHONES)?AUDIOTUNE_OUTPUT_HEADPHONES:AUDIOTUNE_OUTPUT_SPEAKER;
         else if (sscanf(line,"custom=%d %d %d %d %d",
                         &x[0],&x[1],&x[2],&x[3],&x[4])==EQ_BANDS)
             for(i=0;i<EQ_BANDS;++i) custom_gains[i]=clampi(x[i],-AUDIOTUNE_EQ_GAIN_LIMIT,AUDIOTUNE_EQ_GAIN_LIMIT);
@@ -906,13 +985,13 @@ static void load_settings(void) {
 }
 
 /* ButtonLab-style pixels, inset panels and amber-gold accents. */
-#define BG_DARK rgb(21,18,25)
-#define BORDER rgb(95,76,62)
-#define PANEL_BG rgb(38,31,36)
-#define WHITE rgb(255,239,217)
-#define MUTED rgb(189,163,145)
-#define TEAL rgb(255,205,95)
-#define AMBER rgb(245,139,95)
+#define BG_DARK CUI_BG
+#define BORDER CUI_TRACK
+#define PANEL_BG CUI_PANEL
+#define WHITE CUI_WHITE
+#define MUTED CUI_GREY
+#define TEAL rgb(214,86,112) /* accent, light enough for text on the panels */
+#define AMBER CUI_WARN
 
 static void line(Canvas *c,int x0,int y0,int x1,int y1,uint32_t ink) {
     int dx=abs(x1-x0),sx=x0<x1?1:-1;
@@ -927,36 +1006,31 @@ static void line(Canvas *c,int x0,int y0,int x1,int y1,uint32_t ink) {
     }
 }
 static void box_panel(Canvas *c,int x,int y,int w,int h) {
-    round_rect(c,x,y+3,w,h,15,rgb(12,10,15));
-    framed_round(c,x,y,w,h,15,BORDER,PANEL_BG);
-    rect(c,x+13,y+50,w-26,1,BORDER);
+    cui_rrect(CUI(c),x,y,w,h,12,CUI_PANEL);
 }
 static void draw_background(Canvas *c) {
-    int y;
-    for (y=0;y<H;++y)
-        rect(c,0,y,W,1,blend(rgb(20,17,23),rgb(35,27,30),y*195/H));
-    rect(c,20,76,600,1,rgb(86,68,57));
+    cui_rect(CUI(c),0,0,W,H,CUI_BG);
 }
 static void draw_header(Canvas *c) {
-    char status[56];
-    int x,idx;
-    uint32_t color=audio.open?TEAL:AMBER;
-    round_rect(c,22,19,36,36,10,rgb(245,187,68));
-    for (x=0;x<19;x+=3) {
-        int h=(x==9?21:(x==6||x==12?14:8));
-        rect(c,30+x,37-h/2,2,h,rgb(69,42,19));
+    static const char *const tabs[]={"Home","Tests","EQ","Profiles"};
+    CuiCanvas *cc=CUI(c);
+    int i,x,widths[4],total=0;
+    cui_header(cc,"A","AudioTune",audio.open?"Audio ready":
+               audio_initializing?"Audio starting":"Audio offline",-1);
+    cui_text(cc,60+cui_text_width("AudioTune",25)+10,31,VERSION,14,CUI_DIM,CUI_LEFT);
+    /* pages as tabs, like the Package Manager: L1/R1 change them */
+    cui_rect(cc,0,60,W,34,CUI_HEAD);
+    cui_rrect(cc,14,66,30,22,6,CUI_TRACK);
+    cui_text(cc,29,77,"L1",14,CUI_GREY,CUI_CENTER);
+    cui_rrect(cc,596,66,30,22,6,CUI_TRACK);
+    cui_text(cc,611,77,"R1",14,CUI_GREY,CUI_CENTER);
+    for (i=0;i<4;i++) {widths[i]=cui_text_width(tabs[i],19)+34;total+=widths[i];}
+    x=320-total/2;
+    for (i=0;i<4;i++) {
+        if (i==(int)page) cui_rrect(cc,x,64,widths[i],26,13,CUI_ACCENT);
+        cui_text(cc,x+widths[i]/2,77,tabs[i],19,i==(int)page?CUI_WHITE:CUI_GREY,CUI_CENTER);
+        x+=widths[i];
     }
-    label(c,69,25,"AUDIO TUNE",3,rgb(255,245,225));
-    framed_round(c,281,22,71,27,9,rgb(111,85,54),rgb(55,37,26));
-    centered(c,316,30,VERSION,1,rgb(255,215,119));
-    framed_round(c,457,23,161,39,13,rgb(101,77,53),rgb(52,37,31));
-    snprintf(status,sizeof(status),"%s",audio.open?"AUDIO READY":
-             audio_initializing?"AUDIO STARTING":"AUDIO OFFLINE");
-    centered(c,537,29,status,1,color);
-    idx=page;
-    snprintf(status,sizeof(status),"%d / 4  %s",idx+1,
-             idx==PAGE_HOME?"HOME":idx==PAGE_TESTS?"TESTS":idx==PAGE_EQ?"EQ":"PROFILES");
-    centered(c,537,46,status,1,MUTED);
 }
 static void draw_footer(Canvas *c) {
     const char *hint;
@@ -966,7 +1040,6 @@ static void draw_footer(Canvas *c) {
         music=audio.playing && audio.test==TEST_DEMO;
         SDL_UnlockAudio();
     }
-    rect(c,20,426,600,1,rgb(89,71,60));
     switch (page) {
         case PAGE_HOME:
             hint=vqe_test_process?
@@ -979,8 +1052,8 @@ static void draw_footer(Canvas *c) {
             break;
         case PAGE_EQ:
             hint=music?
-                "L/R: BAND  UP/DOWN: DB  X: 0DB  Y: ALL 0DB  A: FLAT/EQ  START: STOP":
-                "L/R: BAND  UP/DOWN: DB  X: 0DB  Y: ALL 0DB  A: FLAT/EQ  START: PLAY";
+                "L/R: BAND  UP/DN: DB  X: 0  Y: ALL 0  A: EQ  START: STOP":
+                "L/R: BAND  UP/DN: DB  X: 0  Y: ALL 0  A: EQ  START: PLAY";
             break;
         default:
             hint=music?
@@ -988,15 +1061,28 @@ static void draw_footer(Canvas *c) {
                 "UP/DOWN: PRESET   A: APPLY   X: SAVE   START: MUSIC";
             break;
     }
-    centered(c,320,438,hint,1,rgb(224,199,168));
-    centered(c,320,461,page==PAGE_HOME?
-             "B: EXIT     L1/R1: PAGE     SELECT+START: EXIT":
-             "B: HOME     L1/R1: PAGE     SELECT+START: EXIT",1,rgb(183,152,129));
+    {
+        /* Round hints: B, then L2/R2 where the page has them, and
+           SELECT+START on the right. L1/R1 are on the tabs. */
+        CuiCanvas *cc=CUI(c);
+        char fit[128];
+        int x=20;
+        cui_fit(hint,14,600,fit,sizeof(fit));
+        cui_text(cc,320,430,fit,14,CUI_GREY,CUI_CENTER);
+        x+=cui_hint(cc,x,459,"B",page==PAGE_HOME?"EXIT":"HOME",21);
+        if (page==PAGE_EQ || page==PAGE_PROFILES) {
+            x+=cui_hint(cc,x,459,"L2","OUTPUT",21);
+            cui_hint(cc,x,459,"R2",page==PAGE_EQ?"LIMITER":
+                     output_mode==AUDIOTUNE_OUTPUT_HEADPHONES?"MODE":"HP ONLY",21);
+        }
+        x=620-(cui_text_width("SELECT+START",14)+18)-7-cui_text_width("EXIT",21);
+        cui_hint(cc,x,459,"SELECT+START","EXIT",21);
+    }
 }
 static void draw_meter(Canvas *c,int x,int y,int w,float level,const char *side) {
     int filled=clampi((int)(clampf(level,0.0f,1.0f)*(w-54)),0,w-54);
-    label(c,x,y-1,side,1,rgb(215,186,157));
-    round_rect(c,x+28,y-1,w-54,13,4,rgb(63,49,49));
+    label(c,x,y-1,side,1,rgb(220,220,224));
+    round_rect(c,x+28,y-1,w-54,13,4,CUI_TRACK);
     if (filled>0) round_rect(c,x+28,y-1,filled,13,4,TEAL);
 }
 static void read_meters(float *l,float *r, int *active_test, float *fraction) {
@@ -1018,28 +1104,26 @@ static void draw_home(Canvas *c,int test,float l,float r) {
     static const char *const sub[]={"TONES AND CHANNELS","ADJUST LIVE SOUND","SPEAKER / HEADPHONES"};
     box_panel(c,18,98,394,317);
     box_panel(c,424,98,198,317);
-    rect(c,33,116,4,22,TEAL);
     label(c,47,120,"AUDIO OUTPUT",2,WHITE);
-    rect(c,438,116,4,22,TEAL);
     label(c,451,120,"QUICK ACCESS",2,WHITE);
-    disc(c,214,233,67,rgb(24,20,25));
-    ring(c,214,233,63,2,rgb(116,87,60));
-    disc(c,214,233,47,rgb(79,59,45));
-    disc(c,214,233,33,rgb(56,40,37));
-    disc(c,214,233,20,audio.open?rgb(223,166,61):rgb(119,64,51));
-    ring(c,214,233,18,2,audio.open?TEAL:AMBER);
-    rect(c,203,219,5,28,rgb(75,47,29));
-    rect(c,212,211,5,44,rgb(75,47,29));
-    rect(c,221,224,5,17,rgb(75,47,29));
+    disc(c,214,238,67,rgb(30,30,32));
+    ring(c,214,238,63,2,rgb(86,86,92));
+    disc(c,214,238,47,CUI_TRACK);
+    disc(c,214,238,33,CUI_PANEL);
+    disc(c,214,238,20,audio.open?CUI_ACCENT:rgb(90,90,95));
+    ring(c,214,238,18,2,audio.open?TEAL:AMBER);
+    rect(c,203,224,5,28,CUI_WHITE);
+    rect(c,212,216,5,44,CUI_WHITE);
+    rect(c,221,229,5,17,CUI_WHITE);
     centered(c,214,159,audio.open?"SOUND SYSTEM READY":
              audio_initializing?"INITIALIZING AUDIO":"PLAYBACK UNAVAILABLE",1,
              audio.open?TEAL:AMBER);
-    centered(c,214,299,vqe_restore_requested?"RESTORE REQUESTED":
+    centered(c,214,309,vqe_restore_requested?"RESTORE REQUESTED":
              vqe_test_process?"SYSTEM VQE: HOOKED":
              "SYSTEM VQE: OFF",1,
              vqe_restore_requested?AMBER:vqe_test_process?AMBER:MUTED);
-    draw_meter(c,58,319,325,l,"L");
-    draw_meter(c,58,341,325,r,"R");
+    draw_meter(c,58,332,325,l,"L");
+    draw_meter(c,58,354,325,r,"R");
     centered(c,214,383,test==TEST_DEMO?
              (music_custom_available()?"CUSTOM MUSIC - LOOPING":"BUILT-IN MUSIC - LOOPING"):
              test>=0?test_names[test]:
@@ -1047,10 +1131,10 @@ static void draw_home(Canvas *c,int test,float l,float r) {
               audio_error),1,test>=0?TEAL:MUTED);
     for (i=0;i<3;++i) {
         int y=161+i*74;
-        uint32_t border=(i==selected_home)?rgb(239,186,73):rgb(100,79,61);
-        uint32_t fill=(i==selected_home)?rgb(94,65,37):rgb(54,43,44);
+        uint32_t border=(i==selected_home)?CUI_ACCENT:CUI_TRACK;
+        uint32_t fill=(i==selected_home)?CUI_ACCENT:CUI_TRACK;
         framed_round(c,437,y,172,61,9,border,fill);
-        centered(c,523,y+11,names[i],1,(i==selected_home)?TEAL:WHITE);
+        centered(c,523,y+11,names[i],1,WHITE);
         centered(c,523,y+34,sub[i],1,(i==selected_home)?WHITE:MUTED);
     }
 }
@@ -1058,24 +1142,22 @@ static void draw_tests(Canvas *c,int current,float l,float r,float progress) {
     int i;
     box_panel(c,18,98,300,317);
     box_panel(c,331,98,291,317);
-    rect(c,33,116,4,22,TEAL);
     label(c,45,120,"TEST SIGNALS",2,WHITE);
-    rect(c,346,116,4,22,TEAL);
     label(c,359,120,"SIGNAL PREVIEW",2,WHITE);
     for (i=0;i<TEST_COUNT;++i) {
         int y=155+i*27;
         bool sel=(i==selected_test);
-        if (sel) framed_round(c,32,y-5,273,26,7,rgb(227,177,72),rgb(94,63,39));
-        label(c,48,y,test_names[i],1,sel?TEAL:rgb(239,217,192));
-        if (i==current) label(c,264,y,"ON",1,TEAL);
+        if (sel) framed_round(c,32,y-5,273,26,7,CUI_ACCENT,CUI_ACCENT);
+        label(c,48,y,test_names[i],1,sel?WHITE:rgb(220,220,224));
+        if (i==current) label(c,264,y,"ON",1,sel?WHITE:TEAL);
     }
     centered(c,475,163,test_names[selected_test],2,WHITE);
     centered(c,475,201,selected_test==TEST_DEMO?
              (music_custom_available()?"CUSTOM MP3 LOOP":"BUILT-IN SYNTH LOOP"):
              test_detail[selected_test],1,MUTED);
     centered(c,475,230, current==selected_test?"PLAYING":"A: START / STOP",1,
-             current==selected_test?TEAL:rgb(221,191,157));
-    round_rect(c,365,261,225,12,5,rgb(81,60,52));
+             current==selected_test?TEAL:rgb(220,220,224));
+    round_rect(c,365,261,225,12,5,CUI_TRACK);
     if (current==selected_test && progress>0)
         round_rect(c,365,261,clampi((int)(225*progress),0,225),12,5,TEAL);
     draw_meter(c,363,302,230,l,"L");
@@ -1090,26 +1172,27 @@ static void draw_eq(Canvas *c,int current) {
     const int graph_x=55,graph_w=530,center_y=193;
     int gains[EQ_BANDS];
     box_panel(c,18,98,604,317);
-    rect(c,33,116,4,22,TEAL);
     label(c,46,120,"FIVE BAND EQUALIZER",2,WHITE);
     /* The hardware setting remains unchanged until the launcher syncs on
        exit. Do not claim a live Flat/EQ toggle while the hook is loaded. */
-    centered(c,518,122,vqe_test_process?"NATIVE HOOK":
-             effective_eq_enabled()?"EQ ACTIVE":"EQ BYPASSED",1,
-             (vqe_test_process||!effective_eq_enabled())?AMBER:TEAL);
-    label(c,430,136,music_custom_available()?"CUSTOM MUSIC":"BUILT-IN MUSIC",1,MUTED);
+    /* Both right-side labels share the exact same right edge. */
+    right_aligned(c,596,122,vqe_test_process?
+                  (applied_native_valid?"LIVE EQ APPROX":"NATIVE HOOK") :
+                  effective_eq_enabled()?"EQ ACTIVE":"EQ BYPASSED",1,
+                  (vqe_test_process||!effective_eq_enabled())?AMBER:TEAL);
+    right_aligned(c,596,138,music_custom_available()?"CUSTOM MUSIC":"BUILT-IN MUSIC",1,MUTED);
     if (selected_profile==PROFILE_CUSTOM)
         memcpy(gains,custom_gains,sizeof(gains));
     else memcpy(gains,audiotune_preset_gains[selected_profile],sizeof(gains));
     for (i=0;i<5;++i) {
         int y=center_y+(i-2)*22;
-        line(c,graph_x,y,graph_x+graph_w,y,i==2?rgb(122,99,78):rgb(78,62,56));
+        line(c,graph_x,y,graph_x+graph_w,y,i==2?CUI_DIM:CUI_TRACK);
     }
     for (x=0;x<=graph_w;x+=3) {
         int sample=clampi((x*GRAPH_STEPS+graph_w/2)/graph_w,0,GRAPH_STEPS);
         int y=center_y-graph_delta_y[sample];
         if (x) line(c,graph_x+last_x,last_y,graph_x+x,y,
-                    effective_eq_enabled()?TEAL:rgb(139,111,73));
+                    effective_eq_enabled()?TEAL:CUI_DIM);
         last_x=x;last_y=y;
     }
     label(c,25,143,"+12",1,MUTED);
@@ -1124,27 +1207,31 @@ static void draw_eq(Canvas *c,int current) {
         int cx=101+i*109, val=gains[i];
         int knob=zero-(val*travel)/AUDIOTUNE_EQ_GAIN_LIMIT;
         bool chosen=(i==selected_band);
-        uint32_t line_color=chosen?TEAL:rgb(162,125,67);
+        uint32_t line_color=chosen?TEAL:CUI_DIM;
         char value[16];
-        round_rect(c,cx-31,247,62,24,7,chosen?rgb(122,83,42):rgb(69,52,45));
+        round_rect(c,cx-31,247,62,24,7,chosen?CUI_ACCENT:CUI_TRACK);
         snprintf(value,sizeof(value),"%+d DB",val);
         centered(c,cx,254,value,1,chosen?WHITE:MUTED);
-        round_rect(c,cx-4,track_top,8,track_bottom-track_top+1,3,rgb(97,74,60));
-        rect(c,cx-1,zero,3,1,rgb(224,193,162));
+        round_rect(c,cx-4,track_top,8,track_bottom-track_top+1,3,CUI_TRACK);
+        rect(c,cx-1,zero,3,1,rgb(220,220,224));
         if (val>=0) rect(c,cx-3,knob,6,zero-knob+1,line_color);
         else rect(c,cx-3,zero,6,knob-zero+1,line_color);
-        round_rect(c,cx-12,knob-6,24,12,5,chosen?rgb(255,228,142):rgb(176,133,74));
-        centered(c,cx,388,eq_labels[i],1,chosen?TEAL:MUTED);
+        round_rect(c,cx-12,knob-6,24,12,5,chosen?CUI_WHITE:rgb(200,200,204));
+        centered(c,cx,385,eq_labels[i],1,chosen?WHITE:MUTED);
     }
     {
-        char info[96];
-        if (vqe_test_process)
-            snprintf(info,sizeof(info),"NATIVE HOOK LOADED - UPDATES ON EXIT");
-        else if (!effective_eq_enabled())
-            snprintf(info,sizeof(info),"NATIVE EQ BYPASSED - NO HEADROOM REDUCTION");
+        char info[110];
+        const char *target=output_mode==AUDIOTUNE_OUTPUT_SPEAKER?"SPEAKER":"HEADPHONES";
+        const char *mode=(output_mode==AUDIOTUNE_OUTPUT_HEADPHONES &&
+                          headroom_mode==AUDIOTUNE_HEADROOM_PUNCHY)?"PUNCHY":"SAFE";
+        if (!effective_eq_enabled())
+            snprintf(info,sizeof(info),"OUTPUT: %s  %s  EQ OFF  LIM: %s",target,mode,
+                     soft_limiter_enabled?"ON":"OFF");
         else
-            snprintf(info,sizeof(info),"NATIVE EQ RESERVES %d DB HEADROOM",native_headroom_db);
-        centered(c,320,402,info,1,MUTED);
+            snprintf(info,sizeof(info),"OUTPUT: %s  %s  CUT: -%d DB  LIM: %s%s",
+                     target,mode,native_headroom_db,soft_limiter_enabled?"ON":"OFF",
+                     vqe_test_process?"  APPLY ON EXIT":"");
+        centered(c,320,404,info,1,MUTED);
     }
     (void)current;
 }
@@ -1153,34 +1240,45 @@ static void draw_profiles(Canvas *c,int current) {
     int values[EQ_BANDS];
     box_panel(c,18,98,297,317);
     box_panel(c,329,98,293,317);
-    rect(c,32,116,4,22,TEAL);
     label(c,45,120,"SOUND PROFILES",2,WHITE);
-    rect(c,345,116,4,22,TEAL);
-    label(c,358,120,"PROFILE DETAILS",2,WHITE);
+    label(c,358,120,profile_cursor==selected_profile?
+          "PROFILE DETAILS":(audio_is_playing()?"AUDITIONING":"PREVIEW PROFILE"),2,WHITE);
     for (i=0;i<PROFILE_COUNT;++i) {
         int y=160+i*35;
         bool highlighted=(i==profile_cursor);
         if (highlighted)
-            framed_round(c,31,y-7,269,31,8,rgb(220,167,61),rgb(102,65,33));
-        label(c,48,y,profile_names[i],1,highlighted?TEAL:WHITE);
-        if (i==selected_profile) label(c,250,y,"ON",1,TEAL);
+            framed_round(c,31,y-7,269,31,8,CUI_ACCENT,CUI_ACCENT);
+        label(c,48,y,profile_names[i],1,WHITE);
+        if (i==selected_profile) label(c,250,y,"ON",1,highlighted?WHITE:TEAL);
     }
     centered(c,475,162,profile_names[profile_cursor],2,WHITE);
     centered(c,475,203,profile_info[profile_cursor],1,MUTED);
-    if (vqe_test_process) {
-        centered(c,475,228,"HOOK LOADED - APPLY ON EXIT",1,MUTED);
-    } else if (profile_cursor==selected_profile && effective_eq_enabled() && native_headroom_db>0) {
+    {
         char info[64];
-        snprintf(info,sizeof(info),"NATIVE HEADROOM: -%d DB",native_headroom_db);
-        centered(c,475,228,info,1,MUTED);
+        const bool headphones=(output_mode==AUDIOTUNE_OUTPUT_HEADPHONES);
+        const char *mode=(headphones && headroom_mode==AUDIOTUNE_HEADROOM_PUNCHY)?
+                         "PUNCHY":"SAFE";
+        /* R2 is a headphones-only control: the speaker is always Safe.
+           Keep the actual mode visible even when the native hook is loaded. */
+        if (!headphones)
+            snprintf(info,sizeof(info),"SAFE - SPEAKER LOCKED  CUT: -%d DB",native_headroom_db);
+        else if (vqe_test_process)
+            snprintf(info,sizeof(info),"MODE: %s - APPLY ON EXIT",mode);
+        else if (!effective_eq_enabled() && profile_cursor==selected_profile)
+            snprintf(info,sizeof(info),"MODE: %s - EQ OFF",mode);
+        else
+            snprintf(info,sizeof(info),"MODE: %s  CUT: -%d DB",mode,native_headroom_db);
+        centered(c,475,233,info,1,MUTED);
     }
     if (profile_cursor==PROFILE_CUSTOM) memcpy(values,custom_gains,sizeof(values));
     else memcpy(values,audiotune_preset_gains[profile_cursor],sizeof(values));
+    centered(c,475,218,output_mode==AUDIOTUNE_OUTPUT_SPEAKER?
+             "OUTPUT: SPEAKER (SAFE BASS)":"OUTPUT: HEADPHONES",1,TEAL);
     for (j=0;j<EQ_BANDS;++j) {
         int cx=373+j*50,mid=299,delta=values[j]*42/AUDIOTUNE_EQ_GAIN_LIMIT;
         char val[16];
-        round_rect(c,cx-10,254,20,90,4,rgb(61,46,45));
-        rect(c,cx-8,mid,16,1,rgb(143,113,86));
+        round_rect(c,cx-10,254,20,90,4,CUI_TRACK);
+        rect(c,cx-8,mid,16,1,CUI_DIM);
         if (delta>0) round_rect(c,cx-7,mid-delta,14,delta,2,TEAL);
         else if (delta<0) round_rect(c,cx-7,mid,14,-delta,2,AMBER);
         snprintf(val,sizeof(val),"%+d",values[j]);
@@ -1190,7 +1288,9 @@ static void draw_profiles(Canvas *c,int current) {
              (music_custom_available()?"CUSTOM MUSIC LOOPING":"BUILT-IN MUSIC LOOPING"):
              (music_custom_available()?"START: CUSTOM MUSIC":"START: BUILT-IN MUSIC"),
              1,current==TEST_DEMO?TEAL:MUTED);
-    centered(c,475,393,"A: APPLY   X: SAVE CUSTOM",1,MUTED);
+    centered(c,475,393,output_mode==AUDIOTUNE_OUTPUT_HEADPHONES?
+             "A: APPLY  L2: OUTPUT  R2: MODE":
+             "A: APPLY  L2: OUTPUT  R2: HP ONLY",1,MUTED);
 }
 static void draw(Canvas *c) {
     float l,r,progress;
@@ -1224,7 +1324,10 @@ static void on_key_press(KeyId id) {
                 selected_test=(selected_test+TEST_COUNT-1)%TEST_COUNT;
                 if (audio_is_playing() && audio.test!=TEST_DEMO) audio_stop();
             } else if (page==PAGE_EQ) change_eq_gain(selected_band,+1);
-            else if (page==PAGE_PROFILES) profile_cursor=(profile_cursor+PROFILE_COUNT-1)%PROFILE_COUNT;
+            else if (page==PAGE_PROFILES) {
+                profile_cursor=(profile_cursor+PROFILE_COUNT-1)%PROFILE_COUNT;
+                update_audio_eq();
+            }
             break;
         case KEY_DOWN_ID:
             if (page==PAGE_HOME) selected_home=(selected_home+1)%3;
@@ -1232,7 +1335,10 @@ static void on_key_press(KeyId id) {
                 selected_test=(selected_test+1)%TEST_COUNT;
                 if (audio_is_playing() && audio.test!=TEST_DEMO) audio_stop();
             } else if (page==PAGE_EQ) change_eq_gain(selected_band,-1);
-            else if (page==PAGE_PROFILES) profile_cursor=(profile_cursor+1)%PROFILE_COUNT;
+            else if (page==PAGE_PROFILES) {
+                profile_cursor=(profile_cursor+1)%PROFILE_COUNT;
+                update_audio_eq();
+            }
             break;
         case KEY_LEFT_ID:
             if (page==PAGE_EQ) selected_band=(selected_band+EQ_BANDS-1)%EQ_BANDS;
@@ -1240,20 +1346,49 @@ static void on_key_press(KeyId id) {
         case KEY_RIGHT_ID:
             if (page==PAGE_EQ) selected_band=(selected_band+1)%EQ_BANDS;
             break;
+        case KEY_L2_ID:
+            /* The output protection target is independent of the EQ preset. */
+            if (page==PAGE_PROFILES || page==PAGE_EQ) {
+                output_mode=(output_mode==AUDIOTUNE_OUTPUT_SPEAKER)?
+                    AUDIOTUNE_OUTPUT_HEADPHONES:AUDIOTUNE_OUTPUT_SPEAKER;
+                dirty_settings=true;
+                update_audio_eq();
+                save_settings();
+            }
+            break;
+        case KEY_R2_ID:
+            if (page==PAGE_PROFILES && output_mode==AUDIOTUNE_OUTPUT_HEADPHONES) {
+                /* PUNCHY is headphone-only. Do not change a hidden setting
+                   while SPEAKER is selected and its native mode stays Safe. */
+                headroom_mode=(headroom_mode==AUDIOTUNE_HEADROOM_SAFE)?
+                    AUDIOTUNE_HEADROOM_PUNCHY:AUDIOTUNE_HEADROOM_SAFE;
+                dirty_settings=true;
+                update_audio_eq();
+                save_settings();
+            } else if (page==PAGE_EQ) {
+                soft_limiter_enabled=!soft_limiter_enabled;
+                dirty_settings=true;
+                update_audio_eq();
+                save_settings();
+            }
+            break;
         case KEY_L1_ID:
             if (page==PAGE_EQ) save_settings();
             page=(Page)((page+PAGE_COUNT-1)%PAGE_COUNT);
             if (page==PAGE_PROFILES) profile_cursor=selected_profile;
+            update_audio_eq();
             break;
         case KEY_R1_ID:
             if (page==PAGE_EQ) save_settings();
             page=(Page)((page+1)%PAGE_COUNT);
             if (page==PAGE_PROFILES) profile_cursor=selected_profile;
+            update_audio_eq();
             break;
         case KEY_A_ID:
             if (page==PAGE_HOME) {
                 page=(Page)(selected_home+1);
                 if (page==PAGE_PROFILES) profile_cursor=selected_profile;
+                update_audio_eq();
             }
             else if (page==PAGE_TESTS) audio_toggle(selected_test,selected_test==TEST_DEMO);
             else if (page==PAGE_EQ) {
@@ -1267,7 +1402,7 @@ static void on_key_press(KeyId id) {
         case KEY_B_ID:
             if (page==PAGE_EQ) save_settings();
             if (page==PAGE_HOME) { exit_b_armed=true; audio_stop(); }
-            else page=PAGE_HOME;
+            else {page=PAGE_HOME; update_audio_eq();}
             break;
         case KEY_X_ID:
             if (page==PAGE_EQ) {
@@ -1420,10 +1555,10 @@ static void await_audio_apply(SDL_Surface *screen,uint32_t *pixels) {
     if (strncmp(reply,"APPLY",5)!=0) return;
     {
         Canvas canvas={pixels,W};
-        rect(&canvas,0,0,W,H,rgb(0,0,0));
-        centered(&canvas,320,202,"APPLYING AUDIO SETTINGS",2,rgb(255,218,124));
-        centered(&canvas,320,254,"THE SPEAKER MAY CLICK BRIEFLY",1,rgb(207,199,188));
-        centered(&canvas,320,279,"RETURNING TO MAIN MENU",1,rgb(207,199,188));
+        rect(&canvas,0,0,W,H,CUI_BG);
+        centered(&canvas,320,202,"APPLYING AUDIO SETTINGS",2,CUI_WHITE);
+        centered(&canvas,320,254,"THE SPEAKER MAY CLICK BRIEFLY",1,CUI_GREY);
+        centered(&canvas,320,279,"RETURNING TO MAIN MENU",1,CUI_GREY);
         present(screen,pixels);
     }
     SDL_Delay(140); /* Ensure at least one visible frame before audio restarts. */
@@ -1446,8 +1581,9 @@ int main(int argc,char **argv) {
     signal(SIGINT,on_signal);
     signal(SIGTERM,on_signal);
     signal(SIGHUP,on_signal);
-    LOG("AudioTune v0.2.3 beta startup");
+    LOG("AudioTune v0.2.9 beta startup");
     vqe_status_path=getenv("AUDIOTUNE_VQE_STATE");
+    applied_state_path=getenv("AUDIOTUNE_APPLIED_STATE");
     update_vqe_test_state();
     initialize_wave_table();
     load_settings();
