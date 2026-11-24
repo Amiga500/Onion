@@ -2393,8 +2393,10 @@ check "an empty GLO says where the entries went" grep -qF 'add_menu_option : "No
 check "Hidden games is not behind a flag" sh -c "grep 'show_hidden_games \"Hidden games' '$GLO' | grep -vq glo_shown"
 
 # Scripts: Netplay and Scraper are skipped while hidden, others stay.
-eval "$(extract_fn "$GLO" get_info_value)"
+eval "$(extract_fn "$GLO" script_metadata)"
+eval "$(extract_fn "$GLO" expand_script_label)"
 eval "$(extract_fn "$GLO" add_script_files)"
+_glo_sep=$(printf '\037')
 log() { :; }
 add_menu_option() { echo "$2" >> "$TMP/menu"; }
 has_networking=1

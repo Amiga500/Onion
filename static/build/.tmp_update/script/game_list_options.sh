@@ -11,10 +11,11 @@ recentlist_temp=/tmp/recentlist-temp.json
 save_dir=/mnt/SDCARD/Saves/CurrentProfile/saves
 gpsp_migration_log="$save_dir/gpSP/migration_status.log"
 
-mkdir -p $radir/cores/cache
+[ -d "$radir/cores/cache" ] || mkdir -p "$radir/cores/cache"
 
 # Logging setup
-logfile=$(basename "$0" .sh)
+logfile=${0##*/}
+logfile=${logfile%.sh}
 . $sysdir/script/log.sh
 
 cd $sysdir
@@ -33,8 +34,12 @@ glo_shown() {
     [ ! -f "$sysdir/config/.hideGlo$1" ]
 }
 
-device_model=$(cat /tmp/deviceModel)
-has_networking=$(device_has_networking "$device_model")
+device_model=
+IFS= read -r device_model < /tmp/deviceModel || :
+case $device_model in
+    354 | 285) has_networking=1 ;;
+    *) has_networking=0 ;;
+esac
 
 ROM_TYPE_UNKNOWN=0
 ROM_TYPE_GAME=1
@@ -81,16 +86,14 @@ main() {
         exit 1
     fi
 
-    # Recent list entry removal
-    if [ ! -f $sysdir/config/.showRecents ]; then
+    # Defer the Recents rewrite where possible. DynamicLabel romscripts that
+    # inspect Recents will trigger it early so they see the original state.
+    recents_removed=0
+    if [ ! -f "$sysdir/config/.showRecents" ]; then
         currentrecentlist=$recentlist_hidden
     else
         currentrecentlist=$recentlist
     fi
-
-    firstrecententry=$(head -n 1 "$currentrecentlist")
-    sed '1d' $currentrecentlist > $recentlist_temp
-    mv $recentlist_temp $currentrecentlist
 
     if [ $current_tab -eq $TAB_GAMES ]; then
         log "tab: games"
@@ -105,6 +108,9 @@ main() {
     fi
 
     if [ $current_tab -eq $TAB_APPS ]; then
+        # No menu for apps, but the entry the launcher just added to
+        # Recents goes, as before.
+        remove_recent_entry
         exit
     fi
 
@@ -125,7 +131,11 @@ main() {
             romtype=$ROM_TYPE_GAME
         fi
 
-        romext=$(echo "$(basename "$rompath")" | awk -F. '{print tolower($NF)}')
+        _romfile=${rompath##*/}
+        romext=${_romfile##*.}
+        case $romext in
+            *[A-Z]*) romext=$(printf '%s' "$romext" | tr '[:upper:]' '[:lower:]') ;;
+        esac
 
         emu_config_json=$(cat "$emupath/config.json")
         romroot="$emupath/$(get_json_value "$emu_config_json" "rompath")"
@@ -187,8 +197,9 @@ main() {
             glo_shown Reset && add_menu_option reset_game "Reset game" "Starts the game without\nloading the auto save state"
         fi
 
-        romdirname=$(echo "$rompath" | sed "s/^.*Roms\///g" | cut -d "/" -f1)
-        romname=$(basename "$rompath" ".$romext")
+        romdirname=${rompath##*Roms/}
+        romdirname=${romdirname%%/*}
+        romname=${_romfile%."$romext"}
         manpath="/mnt/SDCARD/Roms/$romdirname/Manuals/$romname.pdf"
 
         log "romdirname: $romdirname"
@@ -221,7 +232,7 @@ main() {
             add_menu_option hide_game "Hide game" "Hides this game from the list.\nIts saves are kept: bring it back\nfrom Hidden games."
         fi
         if [ -n "$rompath" ]; then
-            hidden_count=$(count_hidden_games "$(dirname "$rompath")/.hidden")
+            hidden_count=$(count_hidden_games "${rompath%/*}/.hidden")
             if [ "$hidden_count" -gt 0 ]; then
                 add_menu_option show_hidden_games "Hidden games ($hidden_count)" "Brings a hidden game of\nthis folder back to the list"
             fi
@@ -264,6 +275,10 @@ main() {
     show_prompt
     retcode=$?
 
+    # Keep the original Recents semantics without blocking the first frame of
+    # the GLO menu on a potentially slow SD-card file rewrite.
+    remove_recent_entry
+
     log "\n\n=================================================================================================="
     log "retcode: $retcode"
 
@@ -281,37 +296,58 @@ main() {
     exit 1
 }
 
+# Real newline used when decoding descriptions (which store literal "\n").
+_glo_sep=$(printf '\037')
+_glo_nl='
+'
+
 show_prompt() {
-    scriptfile=$(mktemp)
+    # POSIX shell positional arguments are an array: no generated script,
+    # chmod, eval, temp file or per-description sed processes are required.
+    set --
+    while IFS= read -r _glo_label; do
+        set -- "$@" "$_glo_label"
+    done <<EOF
+$menu_option_labels
+EOF
 
-    # Start command (use printf because info can contain newlines)
-    echo -n "LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so prompt -t \"GLO\" -i" > "$scriptfile"
+    while IFS= read -r _glo_info; do
+        _glo_rest=$_glo_info
+        _glo_decoded=
+        while :; do
+            case $_glo_rest in
+                *\\n*)
+                    _glo_decoded=$_glo_decoded${_glo_rest%%\\n*}$_glo_nl
+                    _glo_rest=${_glo_rest#*\\n}
+                    ;;
+                *)
+                    _glo_decoded=$_glo_decoded$_glo_rest
+                    break
+                    ;;
+            esac
+        done
+        set -- "$@" "$_glo_decoded"
+    done <<EOF
+$menu_option_info
+EOF
 
-    echo "$menu_option_labels" | while IFS= read -r label; do
-        printf ' "%s"' "$label"
-    done >> "$scriptfile"
-
-    echo "$menu_option_info" | while IFS= read -r info; do
-        info_with_real_newlines=$(printf "%s" "$info" | sed 's/\\n/\n/g')
-        printf ' "%s"' "$info_with_real_newlines"
-    done >> "$scriptfile"
-
-    echo >> "$scriptfile"  # ensure script ends with newline
-
-    log "Executing prompt script: $(cat "$scriptfile")"
-
-    chmod +x "$scriptfile"
-
-    sh "$scriptfile"
-    retcode=$?
-
-    rm -f "$scriptfile"
-
-    return $retcode
+    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "GLO" -i "$@"
 }
 
 check_is_game() {
-    echo "$1" | grep -q "retroarch" || echo "$1" | grep -q "/../../Roms/"
+    case $1 in
+        *retroarch* | */../../Roms/*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+remove_recent_entry() {
+    [ "$recents_removed" -eq 0 ] || return 0
+    recents_removed=1
+    [ -f "$currentrecentlist" ] || return 0
+    IFS= read -r firstrecententry < "$currentrecentlist" || :
+    sed '1d' "$currentrecentlist" > "$recentlist_temp" &&
+        mv "$recentlist_temp" "$currentrecentlist"
 }
 
 add_game_to_recent_list() {
@@ -319,68 +355,109 @@ add_game_to_recent_list() {
     mv "$recentlist_temp" "$currentrecentlist"
 }
 
+# Read a romscript once. Outputs networking flag, label and description on
+# separate lines, using the same metadata conventions as get_info_value.
+script_metadata() {
+    awk '
+        function val(s,   a,n,v) {
+            n = split(s, a, /[[:space:]]*=[[:space:]]*/)
+            if (n < 2) return ""
+            v = a[2]
+            gsub(/["\r]/, "", v)
+            return v
+        }
+        /require_networking([^[:alnum:]_]|$)/ { network = network val($0) }
+        /scriptlabel([^[:alnum:]_]|$)/       { label = label val($0) }
+        /scriptinfo([^[:alnum:]_]|$)/        { info = info val($0) }
+        END { printf "%s\037%s\037%s", network, label, info }
+    ' "$1"
+}
+
+# Replace %LIST% using shell string operations, not a sed process per script.
+expand_script_label() {
+    _glo_left=$1
+    _glo_label_result=
+    while :; do
+        case $_glo_left in
+            *%LIST%*)
+                _glo_label_result=$_glo_label_result${_glo_left%%\%LIST\%*}$emulabel
+                _glo_left=${_glo_left#*%LIST%}
+                ;;
+            *)
+                _glo_label_result=$_glo_label_result$_glo_left
+                break
+                ;;
+        esac
+    done
+}
+
 add_script_files() {
-    scriptdir="$1"
-    if [ -d "$scriptdir" ]; then
-        for entry in "$scriptdir"/*.sh; do
-            if [ ! -f "$entry" ]; then
-                continue
-            fi
+    scriptdir=$1
+    [ -d "$scriptdir" ] || return 0
 
-            # Netplay and Scraper can be hidden in Tweaks (List menus).
-            case "$(basename "$entry" .sh)" in
-                Netplay) glo_shown Netplay || continue ;;
-                Scraper) glo_shown Scraper || continue ;;
-            esac
+    for entry in "$scriptdir"/*.sh; do
+        [ -f "$entry" ] || continue
+        scriptname=${entry##*/}
+        scriptname=${scriptname%.sh}
 
-            require_networking=$([ $(get_info_value "$(cat "$entry")" require_networking) -eq 1 ] && echo 1 || echo 0)
-            log "$entry"
-            log "require_networking: $require_networking"
+        # Netplay and Scraper can be hidden in Tweaks (List menus).
+        case $scriptname in
+            Netplay) glo_shown Netplay || continue ;;
+            Scraper) glo_shown Scraper || continue ;;
+        esac
 
-            if [ $has_networking -eq 0 ] && [ $require_networking -eq 1 ]; then
-                continue
-            fi
+        _glo_meta=$(script_metadata "$entry")
+        _glo_net=${_glo_meta%%"$_glo_sep"*}
+        _glo_meta=${_glo_meta#*"$_glo_sep"}
+        scriptlabel=${_glo_meta%%"$_glo_sep"*}
+        scriptinfo=${_glo_meta#*"$_glo_sep"}
 
-            scriptlabel=$(get_info_value "$(cat "$entry")" scriptlabel)
+        log "$entry"
+        log "require_networking: $_glo_net"
+        if [ "$has_networking" -eq 0 ] && [ "$_glo_net" = 1 ]; then
+            continue
+        fi
 
-            if [ "$scriptlabel" == "" ]; then
-                scriptlabel=$(basename "$entry" .sh)
-            elif [ "$scriptlabel" == "DynamicLabel" ]; then
-                # We run the script with "DynamicLabel" in third parameter to generate the name
-                "$entry" "$rompath" "$emupath" "DynamicLabel" "$emulabel" "$retroarch_core" "$romdirname" "$romext"
-                scriptlabel=$(cat /tmp/DynamicLabel.tmp)
-                rm /tmp/DynamicLabel.tmp
-            fi
+        if [ -z "$scriptlabel" ]; then
+            scriptlabel=$scriptname
+        elif [ "$scriptlabel" = DynamicLabel ]; then
+            # A dynamic label may consult Recents. Preserve the state that the
+            # original GLO gave these scripts before running one.
+            remove_recent_entry
+            # DynamicLabel scripts remain supported unchanged; their execution
+            # may itself be a significant part of startup time.
+            "$entry" "$rompath" "$emupath" "DynamicLabel" "$emulabel" "$retroarch_core" "$romdirname" "$romext"
+            IFS= read -r scriptlabel < /tmp/DynamicLabel.tmp || :
+            rm -f /tmp/DynamicLabel.tmp
+        fi
 
-            scriptlabel=$(echo "$scriptlabel" | sed "s/%LIST%/$emulabel/g")
+        expand_script_label "$scriptlabel"
+        scriptlabel=$_glo_label_result
 
-            scriptinfo=$(get_info_value "$(cat "$entry")" scriptinfo)
-            if [ "$scriptinfo" == "" ]; then
-                scriptinfo="Runs the script:\n$scriptlabel"
-            fi
+        if [ -z "$scriptinfo" ]; then
+            scriptinfo="Runs the script:\n$scriptlabel"
+        fi
 
-            if [ "$scriptlabel" != "none" ]; then
-                log "adding romscript: $scriptlabel"
-                add_menu_option run_script "$scriptlabel" "$scriptinfo" "$entry"
-            fi
-        done
-    fi
+        if [ "$scriptlabel" != none ]; then
+            log "adding romscript: $scriptlabel"
+            add_menu_option run_script "$scriptlabel" "$scriptinfo" "$entry"
+        fi
+    done
 }
 
 add_menu_option() {
-    action="$1"
-    label="$2"
-    info="$3"
-    args="$4"
+    action=$1
+    label=$2
+    info=$3
+    args=$4
 
-    # Escape newlines in the info message for proper passing to `prompt`
-    escaped_info=$(echo -e "$info" | sed ':a;N;$!ba;s/\n/\\n/g')
-
-    if [ "$menu_options" == "" ]; then
-        menu_options="$action"
-        menu_option_labels="$label"
+    # Entries are separated by real newlines. Description "\n" sequences are
+    # left untouched here; show_prompt decodes them without spawning sed.
+    if [ -z "$menu_options" ]; then
+        menu_options=$action
+        menu_option_labels=$label
         menu_option_args="\"$args\""
-        menu_option_info="$escaped_info"
+        menu_option_info=$info
     else
         menu_options="$menu_options
 $action"
@@ -389,7 +466,7 @@ $label"
         menu_option_args="$menu_option_args
 \"$args\""
         menu_option_info="$menu_option_info
-$escaped_info"
+$info"
     fi
 }
 
@@ -403,7 +480,7 @@ get_item() {
 get_core_info() {
     retroarch_core=""
 
-    romcfgpath="$(dirname "$rompath")/.game_config/$(basename "$rompath" ".$romext").cfg"
+    romcfgpath="${rompath%/*}/.game_config/${_romfile%."$romext"}.cfg"
 
     if [ -f "$romcfgpath" ]; then
         romcfg=$(cat "$romcfgpath")
