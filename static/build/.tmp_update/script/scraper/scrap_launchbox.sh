@@ -329,34 +329,40 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 			
             mediaextension="${urlMediaBox##*.}"
             # echo "wget --no-check-certificate "http://images.launchbox-app.com/${urlMediaBox}" -P \"/mnt/SDCARD/Roms/$CurrentSystem/Imgs\" -O \"$romNameNoExtension.png\""      # for debugging
-             wget -q --no-check-certificate "http://images.launchbox-app.com/${urlMediaBox}" -P "/mnt/SDCARD/Roms/$CurrentSystem/Imgs" -O "$romNameNoExtension.$mediaextension"
+             wget -q --no-check-certificate "http://images.launchbox-app.com/${urlMediaBox}" -P "/mnt/SDCARD/Roms/$CurrentSystem/Imgs" -O "$romNameNoExtension.dl.$mediaextension"
              
 			 img="/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension"
-			 if [ -f "$img.$mediaextension" ]; then
+			 if [ -f "$img.dl.$mediaextension" ]; then
 				 # Box art is scaled in software. jpg2png and pngScale scaled it with
 				 # the graphics hardware, in video memory taken without checking that
 				 # there was some: a big picture (LaunchBox has them at full size, up
 				 # to ~2000 px) could hang the console until a 20 s POWER reset
 				 # (Mini Flip, 4.5.1 beta 4).
+				 # Downloaded as "$img.dl.<ext>", scaled to "$img.tmp.png", then
+				 # renamed: MENU closes the terminal (pressMenu2Kill), and a picture
+				 # cut or not scaled yet was kept as the game's (a PNG was downloaded
+				 # under its final name), then skipped as "already Scraped".
 				 scaled=0
+				 rm -f "$img.tmp.png"
 				 if ! [ "$mediaextension" = "png" ]; then
 					 # A PNG must come out (as the ScreenScraper scraper checks).
-					 if jpg2png_stb "$img.$mediaextension" "$img.png" 250 360 > /dev/null 2>&1 &&
-						 [ "$(od -An -tx1 -N4 "$img.png" 2> /dev/null | tr -d ' \n')" = 89504e47 ]; then
+					 if jpg2png_stb "$img.dl.$mediaextension" "$img.tmp.png" 250 360 > /dev/null 2>&1 &&
+						 [ "$(od -An -tx1 -N4 "$img.tmp.png" 2> /dev/null | tr -d ' \n')" = 89504e47 ] &&
+						 mv -f "$img.tmp.png" "$img.png"; then
 						 echo "jpg to png : scaled to fit 250x360"
 						 scaled=1
 					 fi
-					 rm -f "$img.$mediaextension"
-				 elif PNGSCALE_SOFTWARE=1 pngScale "$img.png" "$img.png" && [ -s "$img.png" ]; then
+				 elif PNGSCALE_SOFTWARE=1 pngScale "$img.dl.png" "$img.tmp.png" && [ -s "$img.tmp.png" ] &&
+					 mv -f "$img.tmp.png" "$img.png"; then
 					 scaled=1
 				 fi
+				 rm -f "$img.tmp.png" "$img.dl.$mediaextension"
 
 				 if [ $scaled -eq 1 ]; then
 					 echo -e "${GREEN}Scraped!${NONE}"
 					 let Scrap_Success++;
 				 else
-					 # Not left at full size: MainUI would load the big picture.
-					 rm -f "$img.png"
+					 # Nothing kept: no full-size picture for MainUI to load.
 					 echo -e "${RED}Picture could not be converted.${NONE}"
 					 let Scrap_Fail++;
 				 fi
