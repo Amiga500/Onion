@@ -914,6 +914,22 @@ check "the rest of the file is kept" sh -c 'printf "%s\n" "$1" | grep -q "^updat
 unset -f get_wpa_supplicant
 end
 
+# ---- LaunchBox box art: scaled without the graphics hardware ----
+# jpg2png and pngScale took video memory without checking it; a big
+# LaunchBox picture hung a Mini Flip until a 20 s POWER reset.
+
+begin scraper_launchbox_box_art_in_software
+lb="$ROOT/static/build/.tmp_update/script/scraper/scrap_launchbox.sh"
+code=$(grep -vE '^[[:space:]]*#' "$lb")
+check "no jpg2png (graphics hardware) call" sh -c '! printf "%s\n" "$1" | grep -qE "(^|[^_[:alnum:]])jpg2png[[:space:]]"' _ "$code"
+check "JPEG box art goes through jpg2png_stb" sh -c 'printf "%s\n" "$1" | grep -q "jpg2png_stb \"\$img.\$mediaextension\" \"\$img.png\" 250 360"' _ "$code"
+check "every pngScale call is PNGSCALE_SOFTWARE=1" sh -c '
+    all=$(printf "%s\n" "$1" | grep -c "pngScale ")
+    soft=$(printf "%s\n" "$1" | grep -c "PNGSCALE_SOFTWARE=1 pngScale ")
+    [ "$all" -ge 1 ] && [ "$all" -eq "$soft" ]' _ "$code"
+check "a picture that could not be scaled is not kept" sh -c 'printf "%s\n" "$1" | grep -q "Picture could not be converted"' _ "$code"
+end
+
 # ---- no grep -x in what is shipped: BusyBox 1.20.2 (the firmware's) ----
 # never matches with -x, and with -F it searches for a substring
 

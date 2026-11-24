@@ -331,25 +331,35 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
             # echo "wget --no-check-certificate "http://images.launchbox-app.com/${urlMediaBox}" -P \"/mnt/SDCARD/Roms/$CurrentSystem/Imgs\" -O \"$romNameNoExtension.png\""      # for debugging
              wget -q --no-check-certificate "http://images.launchbox-app.com/${urlMediaBox}" -P "/mnt/SDCARD/Roms/$CurrentSystem/Imgs" -O "$romNameNoExtension.$mediaextension"
              
-			 if [ -f "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension" ]; then
-				 if ! [ "$mediaextension" = "png" ]; then   # if the image is a jpg we convert it thanks to Eggs tool or ImageMagick
-					filename=$(basename -- "$urlMediaBox")
-					#magick "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension" -resize 250x360 "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
-					jpgconverstion=$(jpg2png "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension")
-					if [ $? -eq 0 ]; then  # we manage jpg2png crash on big images due to GFX  memory limit
-						jpgconverstion=$(echo "$jpgconverstion" | awk -F "[ :]" '{printf("w:%d h:%d -> w:%d h:%d\n", $2, $4, $6, $8)}')
-					else
-						jpg2png_stb "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension" "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" 250 360
-					fi
-					
-					echo "jpg to png :  $jpgconverstion"
-					rm "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension"
-				else
-					pngScale "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.$mediaextension" "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
+			 img="/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension"
+			 if [ -f "$img.$mediaextension" ]; then
+				 # Box art is scaled in software. jpg2png and pngScale scaled it with
+				 # the graphics hardware, in video memory taken without checking that
+				 # there was some: a big picture (LaunchBox has them at full size, up
+				 # to ~2000 px) could hang the console until a 20 s POWER reset
+				 # (Mini Flip, 4.5.1 beta 4).
+				 scaled=0
+				 if ! [ "$mediaextension" = "png" ]; then
+					 # A PNG must come out (as the ScreenScraper scraper checks).
+					 if jpg2png_stb "$img.$mediaextension" "$img.png" 250 360 > /dev/null 2>&1 &&
+						 [ "$(od -An -tx1 -N4 "$img.png" 2> /dev/null | tr -d ' \n')" = 89504e47 ]; then
+						 echo "jpg to png : scaled to fit 250x360"
+						 scaled=1
+					 fi
+					 rm -f "$img.$mediaextension"
+				 elif PNGSCALE_SOFTWARE=1 pngScale "$img.png" "$img.png" && [ -s "$img.png" ]; then
+					 scaled=1
 				 fi
-				 
-				 echo -e "${GREEN}Scraped!${NONE}"
-				 let Scrap_Success++;
+
+				 if [ $scaled -eq 1 ]; then
+					 echo -e "${GREEN}Scraped!${NONE}"
+					 let Scrap_Success++;
+				 else
+					 # Not left at full size: MainUI would load the big picture.
+					 rm -f "$img.png"
+					 echo -e "${RED}Picture could not be converted.${NONE}"
+					 let Scrap_Fail++;
+				 fi
 			else
 				 echo -e "${RED}Download failed.${NONE}"
 				 let Scrap_Fail++;
