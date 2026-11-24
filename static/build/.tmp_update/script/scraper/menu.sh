@@ -9,6 +9,7 @@ LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/mnt/SDCARD/.tmp_update/lib:$sysdir/lib/parasy
 romname=$(basename "$1")
 CurrentSystem=$(echo "$1" | grep -o '/Roms/[^/]*' | cut -d'/' -f3)
 romNameNoExtension=${romname%.*}
+romPath=$1
 romimage="/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
 ScraperConfigFile=/mnt/SDCARD/.tmp_update/config/scraper.json
 
@@ -752,6 +753,80 @@ Game_Media_Files ()
     done
 }
 
+# This game's media as its console's game lists name them (gamelist.xml,
+# miyoogamelist.xml: <image>, <thumbnail>, <marquee>, <video>, <manual> of
+# the <game> whose <path> is this ROM), whatever their names and folders:
+# lists made with Skraper or ES-DE point at "./images/<name>-image.png",
+# "./videos/...", "./manuals/..." (Quack Walks). Only existing files inside
+# the console folder, and not one another game's entry names too.
+Game_Listed_Media ()
+{
+    _gl_root="${ROMS_DIR:-/mnt/SDCARD/Roms}/$CurrentSystem" # ROMS_DIR: tests
+    _gl_rel=${romPath#*/Roms/"$CurrentSystem"/}
+    [ -n "$CurrentSystem" ] && [ -n "$romPath" ] && [ "$_gl_rel" != "$romPath" ] || return 0
+    for _gl_x in "$_gl_root/miyoogamelist.xml" "$_gl_root/gamelist.xml"; do
+        [ -f "$_gl_x" ] && cat "$_gl_x"
+    done | awk -v rel="$_gl_rel" -v abs="/mnt/SDCARD/Roms/$CurrentSystem/" -v q="'" -v dq='"' '
+        function unent(v, e, c,    i, out) {
+            out = ""
+            while ((i = index(v, e)) > 0) {
+                out = out substr(v, 1, i - 1) c
+                v = substr(v, i + length(e))
+            }
+            return out v
+        }
+        function value(v) {
+            sub(/^<[a-z]*>/, "", v)
+            v = unent(v, "&apos;", q)
+            v = unent(v, "&#39;", q)
+            v = unent(v, "&quot;", dq)
+            v = unent(v, "&lt;", "<")
+            v = unent(v, "&gt;", ">")
+            v = unent(v, "&amp;", "&")
+            sub(/^\.\//, "", v)
+            # the same file written from the card root
+            if (index(v, abs) == 1) v = substr(v, length(abs) + 1)
+            return v
+        }
+        # games[m]: how many games name m (a game listed twice, in both
+        # lists, counts once)
+        function end_game(    i, key) {
+            if (path != "")
+                for (i = 1; i <= n; i++) {
+                    key = media[i] SUBSEP path
+                    if (!(key in by)) {
+                        by[key] = 1
+                        games[media[i]]++
+                    }
+                    if (path == rel) mine[media[i]] = 1
+                }
+            path = ""; n = 0
+        }
+        {
+            line = $0
+            while (match(line, /<\/game>|<game[ >\/]|<(path|image|thumbnail|marquee|video|manual)>[^<]*</)) {
+                t = substr(line, RSTART, RLENGTH)
+                line = substr(line, RSTART + RLENGTH)
+                if (t == "</game>") end_game()
+                else if (t ~ /^<game/) { path = ""; n = 0 }
+                else if (t ~ /^<path>/) path = value(substr(t, 1, length(t) - 1))
+                else { v = value(substr(t, 1, length(t) - 1)); if (v != "") media[++n] = v }
+            }
+        }
+        END {
+            for (m in mine)
+                if (games[m] == 1) print m
+        }' | while IFS= read -r _gl_m; do
+        case $_gl_m in
+            /*) continue ;; # outside the console folder (awk made the inside ones relative)
+        esac
+        case /$_gl_m/ in
+            */../*) continue ;;
+        esac
+        [ -f "$_gl_root/$_gl_m" ] && echo "$_gl_root/$_gl_m"
+    done
+}
+
 # For the main menu, quick: the names the scrapers write (cover .png, Game
 # Info .png/.mp4/.pdf, manual .pdf), without listing whole folders, which
 # can hold thousands of files. Game_Media_Files finds everything.
@@ -767,13 +842,16 @@ Game_Has_Media ()
             [ -f "$_gh_dir/$romNameNoExtension.$_gh_ext" ] && return 0
         done
     done
+    # media a game list names (Skraper, ES-DE layouts)
+    [ -n "$(Game_Listed_Media)" ] && return 0
     return 1
 }
 
 Delete_Game_Media ()
 {
     list=/tmp/game_media_list
-    Game_Media_Files > "$list"
+    # By name, and as the game lists name them: once each.
+    { Game_Media_Files; Game_Listed_Media; } | awk '!seen[$0]++' > "$list"
     count=$(grep -c . "$list")
     clear
     if [ "$count" -eq 0 ]; then

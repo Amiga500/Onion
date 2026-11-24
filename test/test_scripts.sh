@@ -5773,6 +5773,58 @@ unset -f Game_Media_Files Game_Has_Media; unset ROMS_DIR CurrentSystem romNameNo
 check "menu: Delete cover and media runs Delete_Game_Media" grep -qF '"$Option3") Delete_Game_Media ;;' "$SCRAPER_MENU"
 end
 
+# ---- Scraper: "Delete cover and media" with media a gamelist.xml names ----
+# Lists made with Skraper or ES-DE name their media freely
+# ("./images/<name>-image.png", "./videos/...", "./manuals/..."): the game's
+# entry is read, so they go too (Quack Walks: "it doesn't work if I use
+# gamelist.xml"). Shared art, files outside the console folder and other
+# games' media stay.
+
+begin scraper_game_listed_media
+eval "$(sed -n '/^Game_Listed_Media ()/,/^}/p' "$SCRAPER_MENU")"
+eval "$(sed -n '/^Game_Media_Files ()/,/^}/p' "$SCRAPER_MENU")"
+eval "$(sed -n '/^Game_Has_Media ()/,/^}/p' "$SCRAPER_MENU")"
+ROMS_DIR=$TMP/RomsGL CurrentSystem=SNES
+r=$ROMS_DIR/SNES
+mkdir -p "$r/images" "$r/videos" "$r/manuals" "$r/sub" "$TMP/outside"
+romNameNoExtension="Zelda & Link"
+romPath="/mnt/SDCARD/Emu/SFC/../../Roms/SNES/sub/Zelda & Link.sfc"
+for f in "images/Zelda & Link-image.png" "images/Zelda & Link-thumb.png" "videos/Zelda & Link-video.mp4" \
+    "manuals/Zelda & Link-manual.pdf" "images/shared.png" "images/Mario-image.png" "images/Zelda's box.png"; do
+    touch "$r/$f"
+done
+touch "$TMP/outside/evil.png"
+cat > "$r/gamelist.xml" << 'XML'
+<?xml version="1.0"?>
+<gameList>
+  <game id="1">
+    <path>./sub/Zelda &amp; Link.sfc</path>
+    <name>Zelda</name>
+    <image>./images/Zelda &amp; Link-image.png</image>
+    <thumbnail>./images/Zelda &amp; Link-thumb.png</thumbnail>
+    <video>/mnt/SDCARD/Roms/SNES/videos/Zelda &amp; Link-video.mp4</video>
+    <manual>./manuals/Zelda &amp; Link-manual.pdf</manual>
+    <marquee>./images/shared.png</marquee>
+    <fanart>./images/missing.png</fanart>
+  </game>
+  <game><path>./Mario.sfc</path><image>./images/Mario-image.png</image><marquee>./images/shared.png</marquee></game>
+  <game><path>./sub/Zelda &amp; Link.sfc</path><image>../../outside/evil.png</image></game>
+  <game><path>/mnt/SDCARD/Roms/SNES/sub/Zelda &amp; Link.sfc</path><image>./images/Zelda&#39;s box.png</image></game>
+</gameList>
+XML
+out=$(Game_Listed_Media | sed "s|^$r/||" | sort | tr '\n' '|')
+check "listed media of the game (also from an entry with the card path, &#39;), not shared art nor other games nor outside ($out)" test "$out" = "images/Zelda & Link-image.png|images/Zelda & Link-thumb.png|images/Zelda's box.png|manuals/Zelda & Link-manual.pdf|videos/Zelda & Link-video.mp4|"
+Game_Has_Media; check "the menu sees media only a list names" test $? -eq 0
+romPath="/mnt/SDCARD/Roms/SNES/Other.sfc" romNameNoExtension=Other
+check "a game without an entry: nothing" test -z "$(Game_Listed_Media)"
+Game_Has_Media; check "the menu sees none for it" test $? -eq 1
+rm -f "$r/gamelist.xml"
+romPath="/mnt/SDCARD/Emu/SFC/../../Roms/SNES/sub/Zelda & Link.sfc"
+check "no game list: nothing" test -z "$(Game_Listed_Media)"
+check "Delete_Game_Media reads both, once each" grep -qF '{ Game_Media_Files; Game_Listed_Media; } | awk' "$SCRAPER_MENU"
+unset -f Game_Listed_Media Game_Media_Files Game_Has_Media; unset ROMS_DIR CurrentSystem romNameNoExtension romPath
+end
+
 # ---- Scraper menu: "Scrape all favorites" ----
 
 begin scraper_favorites_list
