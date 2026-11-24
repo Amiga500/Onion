@@ -180,6 +180,12 @@ typedef char audiotune_font_table_sizes_must_match[
     ARRAY_LEN(font) == ARRAY_LEN(small_font) ? 1 : -1];
 
 typedef struct { uint32_t *pixels; int pitch; } Canvas;
+/* Test branch (RedOnion unified look): Exo 2 text through SDL_ttf and the
+ * Tweaks header, tabs, panels, selection and hints. Without the font the
+ * built-in bitmap font below is still used. */
+#include "theme/render/canvas_ui.h"
+#define CUI(c) (&(CuiCanvas){(c)->pixels,(c)->pitch})
+static int ui_size(int scale) { return scale==1?15:scale==2?21:25; }
 
 static uint32_t rgb(unsigned r, unsigned g, unsigned b) { return (r << 16) | (g << 8) | b; }
 static void put(Canvas *c, int x, int y, uint32_t color) {
@@ -261,11 +267,17 @@ static void glyph(Canvas *c, int x, int y, char ch, int scale, uint32_t color) {
     }
 }
 static int text_width(const char *s, int scale) {
+    if (cui_font(ui_size(scale))) return cui_text_width(s,ui_size(scale));
     int count = (int)strlen(s);
     if (!count) return 0;
     return scale == 1 ? count * SMALL_ADVANCE - 1 : count * 6*scale - scale;
 }
 static void label(Canvas *c, int x, int y, const char *s, int scale, uint32_t color) {
+    /* Same top-left placement as the bitmap glyphs: centre on their middle. */
+    if (cui_font(ui_size(scale))) {
+        cui_text(CUI(c),x,y+(scale==1?5.5f:3.5f*scale),s,ui_size(scale),color,CUI_LEFT);
+        return;
+    }
     int advance = scale == 1 ? SMALL_ADVANCE : 6*scale;
     while (*s) { glyph(c,x,y,*s++,scale,color); x += advance; }
 }
@@ -276,14 +288,6 @@ static void centered(Canvas *c, int x, int y, const char *s, int scale, uint32_t
 static void right_aligned(Canvas *c, int right, int y, const char *s, int scale, uint32_t color) {
     label(c,right-text_width(s,scale),y,s,scale,color);
 }
-static uint32_t blend(uint32_t a, uint32_t b, int alpha) {
-    unsigned ar=(a>>16)&255,ag=(a>>8)&255,ab=a&255;
-    unsigned br=(b>>16)&255,bg=(b>>8)&255,bb=b&255;
-    return rgb((ar*(255-alpha)+br*alpha)/255,
-               (ag*(255-alpha)+bg*alpha)/255,
-               (ab*(255-alpha)+bb*alpha)/255);
-}
-
 static uint32_t convert_pixel(uint32_t color, const SDL_PixelFormat *fmt) {
     return (((color >> 16 & 255u) >> fmt->Rloss) << fmt->Rshift) |
            (((color >>  8 & 255u) >> fmt->Gloss) << fmt->Gshift) |
@@ -981,13 +985,13 @@ static void load_settings(void) {
 }
 
 /* ButtonLab-style pixels, inset panels and amber-gold accents. */
-#define BG_DARK rgb(21,18,25)
-#define BORDER rgb(95,76,62)
-#define PANEL_BG rgb(38,31,36)
-#define WHITE rgb(255,239,217)
-#define MUTED rgb(189,163,145)
-#define TEAL rgb(255,205,95)
-#define AMBER rgb(245,139,95)
+#define BG_DARK CUI_BG
+#define BORDER CUI_TRACK
+#define PANEL_BG CUI_PANEL
+#define WHITE CUI_WHITE
+#define MUTED CUI_GREY
+#define TEAL rgb(214,86,112) /* accent, light enough for text on the panels */
+#define AMBER CUI_WARN
 
 static void line(Canvas *c,int x0,int y0,int x1,int y1,uint32_t ink) {
     int dx=abs(x1-x0),sx=x0<x1?1:-1;
@@ -1002,36 +1006,31 @@ static void line(Canvas *c,int x0,int y0,int x1,int y1,uint32_t ink) {
     }
 }
 static void box_panel(Canvas *c,int x,int y,int w,int h) {
-    round_rect(c,x,y+3,w,h,15,rgb(12,10,15));
-    framed_round(c,x,y,w,h,15,BORDER,PANEL_BG);
-    rect(c,x+13,y+50,w-26,1,BORDER);
+    cui_rrect(CUI(c),x,y,w,h,12,CUI_PANEL);
 }
 static void draw_background(Canvas *c) {
-    int y;
-    for (y=0;y<H;++y)
-        rect(c,0,y,W,1,blend(rgb(20,17,23),rgb(35,27,30),y*195/H));
-    rect(c,20,76,600,1,rgb(86,68,57));
+    cui_rect(CUI(c),0,0,W,H,CUI_BG);
 }
 static void draw_header(Canvas *c) {
-    char status[56];
-    int x,idx;
-    uint32_t color=audio.open?TEAL:AMBER;
-    round_rect(c,22,19,36,36,10,rgb(245,187,68));
-    for (x=0;x<19;x+=3) {
-        int h=(x==9?21:(x==6||x==12?14:8));
-        rect(c,30+x,37-h/2,2,h,rgb(69,42,19));
+    static const char *const tabs[]={"Home","Tests","EQ","Profiles"};
+    CuiCanvas *cc=CUI(c);
+    int i,x,widths[4],total=0;
+    cui_header(cc,"A","AudioTune",audio.open?"Audio ready":
+               audio_initializing?"Audio starting":"Audio offline",-1);
+    cui_text(cc,60+cui_text_width("AudioTune",25)+10,31,VERSION,14,CUI_DIM,CUI_LEFT);
+    /* pages as tabs, like the Package Manager: L1/R1 change them */
+    cui_rect(cc,0,60,W,34,CUI_HEAD);
+    cui_rrect(cc,14,66,30,22,6,CUI_TRACK);
+    cui_text(cc,29,77,"L1",14,CUI_GREY,CUI_CENTER);
+    cui_rrect(cc,596,66,30,22,6,CUI_TRACK);
+    cui_text(cc,611,77,"R1",14,CUI_GREY,CUI_CENTER);
+    for (i=0;i<4;i++) {widths[i]=cui_text_width(tabs[i],19)+34;total+=widths[i];}
+    x=320-total/2;
+    for (i=0;i<4;i++) {
+        if (i==(int)page) cui_rrect(cc,x,64,widths[i],26,13,CUI_ACCENT);
+        cui_text(cc,x+widths[i]/2,77,tabs[i],19,i==(int)page?CUI_WHITE:CUI_GREY,CUI_CENTER);
+        x+=widths[i];
     }
-    label(c,69,25,"AUDIO TUNE",3,rgb(255,245,225));
-    framed_round(c,281,22,71,27,9,rgb(111,85,54),rgb(55,37,26));
-    centered(c,316,30,VERSION,1,rgb(255,215,119));
-    framed_round(c,457,23,161,39,13,rgb(101,77,53),rgb(52,37,31));
-    snprintf(status,sizeof(status),"%s",audio.open?"AUDIO READY":
-             audio_initializing?"AUDIO STARTING":"AUDIO OFFLINE");
-    centered(c,537,29,status,1,color);
-    idx=page;
-    snprintf(status,sizeof(status),"%d / 4  %s",idx+1,
-             idx==PAGE_HOME?"HOME":idx==PAGE_TESTS?"TESTS":idx==PAGE_EQ?"EQ":"PROFILES");
-    centered(c,537,46,status,1,MUTED);
 }
 static void draw_footer(Canvas *c) {
     const char *hint;
@@ -1041,7 +1040,6 @@ static void draw_footer(Canvas *c) {
         music=audio.playing && audio.test==TEST_DEMO;
         SDL_UnlockAudio();
     }
-    rect(c,20,426,600,1,rgb(89,71,60));
     switch (page) {
         case PAGE_HOME:
             hint=vqe_test_process?
@@ -1063,21 +1061,28 @@ static void draw_footer(Canvas *c) {
                 "UP/DOWN: PRESET   A: APPLY   X: SAVE   START: MUSIC";
             break;
     }
-    centered(c,320,438,hint,1,rgb(224,199,168));
-    centered(c,320,461,page==PAGE_HOME?
-             "B: EXIT     L1/R1: PAGE     SELECT+START: EXIT":
-             page==PAGE_EQ?
-             "L1/R1: PAGE  L2: OUTPUT  R2: LIMITER  B: HOME  SEL+START: EXIT":
-             page==PAGE_PROFILES?
-             (output_mode==AUDIOTUNE_OUTPUT_HEADPHONES?
-              "L1/R1: PAGE  L2: OUTPUT  R2: MODE  B: HOME  SEL+START: EXIT":
-              "L1/R1: PAGE  L2: OUTPUT  R2: HP ONLY  B: HOME  SEL+START: EXIT"):
-             "B: HOME     L1/R1: PAGE     SELECT+START: EXIT",1,rgb(183,152,129));
+    {
+        /* Round hints: B, then L2/R2 where the page has them, and
+           SELECT+START on the right. L1/R1 are on the tabs. */
+        CuiCanvas *cc=CUI(c);
+        char fit[128];
+        int x=20;
+        cui_fit(hint,14,600,fit,sizeof(fit));
+        cui_text(cc,320,430,fit,14,CUI_GREY,CUI_CENTER);
+        x+=cui_hint(cc,x,459,"B",page==PAGE_HOME?"EXIT":"HOME",21);
+        if (page==PAGE_EQ || page==PAGE_PROFILES) {
+            x+=cui_hint(cc,x,459,"L2","OUTPUT",21);
+            cui_hint(cc,x,459,"R2",page==PAGE_EQ?"LIMITER":
+                     output_mode==AUDIOTUNE_OUTPUT_HEADPHONES?"MODE":"HP ONLY",21);
+        }
+        x=620-(cui_text_width("SELECT+START",14)+18)-7-cui_text_width("EXIT",21);
+        cui_hint(cc,x,459,"SELECT+START","EXIT",21);
+    }
 }
 static void draw_meter(Canvas *c,int x,int y,int w,float level,const char *side) {
     int filled=clampi((int)(clampf(level,0.0f,1.0f)*(w-54)),0,w-54);
-    label(c,x,y-1,side,1,rgb(215,186,157));
-    round_rect(c,x+28,y-1,w-54,13,4,rgb(63,49,49));
+    label(c,x,y-1,side,1,rgb(220,220,224));
+    round_rect(c,x+28,y-1,w-54,13,4,CUI_TRACK);
     if (filled>0) round_rect(c,x+28,y-1,filled,13,4,TEAL);
 }
 static void read_meters(float *l,float *r, int *active_test, float *fraction) {
@@ -1099,19 +1104,17 @@ static void draw_home(Canvas *c,int test,float l,float r) {
     static const char *const sub[]={"TONES AND CHANNELS","ADJUST LIVE SOUND","SPEAKER / HEADPHONES"};
     box_panel(c,18,98,394,317);
     box_panel(c,424,98,198,317);
-    rect(c,33,116,4,22,TEAL);
     label(c,47,120,"AUDIO OUTPUT",2,WHITE);
-    rect(c,438,116,4,22,TEAL);
     label(c,451,120,"QUICK ACCESS",2,WHITE);
-    disc(c,214,238,67,rgb(24,20,25));
-    ring(c,214,238,63,2,rgb(116,87,60));
-    disc(c,214,238,47,rgb(79,59,45));
-    disc(c,214,238,33,rgb(56,40,37));
-    disc(c,214,238,20,audio.open?rgb(223,166,61):rgb(119,64,51));
+    disc(c,214,238,67,rgb(30,30,32));
+    ring(c,214,238,63,2,rgb(86,86,92));
+    disc(c,214,238,47,CUI_TRACK);
+    disc(c,214,238,33,CUI_PANEL);
+    disc(c,214,238,20,audio.open?CUI_ACCENT:rgb(90,90,95));
     ring(c,214,238,18,2,audio.open?TEAL:AMBER);
-    rect(c,203,224,5,28,rgb(75,47,29));
-    rect(c,212,216,5,44,rgb(75,47,29));
-    rect(c,221,229,5,17,rgb(75,47,29));
+    rect(c,203,224,5,28,CUI_WHITE);
+    rect(c,212,216,5,44,CUI_WHITE);
+    rect(c,221,229,5,17,CUI_WHITE);
     centered(c,214,159,audio.open?"SOUND SYSTEM READY":
              audio_initializing?"INITIALIZING AUDIO":"PLAYBACK UNAVAILABLE",1,
              audio.open?TEAL:AMBER);
@@ -1128,10 +1131,10 @@ static void draw_home(Canvas *c,int test,float l,float r) {
               audio_error),1,test>=0?TEAL:MUTED);
     for (i=0;i<3;++i) {
         int y=161+i*74;
-        uint32_t border=(i==selected_home)?rgb(239,186,73):rgb(100,79,61);
-        uint32_t fill=(i==selected_home)?rgb(94,65,37):rgb(54,43,44);
+        uint32_t border=(i==selected_home)?CUI_ACCENT:CUI_TRACK;
+        uint32_t fill=(i==selected_home)?CUI_ACCENT:CUI_TRACK;
         framed_round(c,437,y,172,61,9,border,fill);
-        centered(c,523,y+11,names[i],1,(i==selected_home)?TEAL:WHITE);
+        centered(c,523,y+11,names[i],1,WHITE);
         centered(c,523,y+34,sub[i],1,(i==selected_home)?WHITE:MUTED);
     }
 }
@@ -1139,24 +1142,22 @@ static void draw_tests(Canvas *c,int current,float l,float r,float progress) {
     int i;
     box_panel(c,18,98,300,317);
     box_panel(c,331,98,291,317);
-    rect(c,33,116,4,22,TEAL);
     label(c,45,120,"TEST SIGNALS",2,WHITE);
-    rect(c,346,116,4,22,TEAL);
     label(c,359,120,"SIGNAL PREVIEW",2,WHITE);
     for (i=0;i<TEST_COUNT;++i) {
         int y=155+i*27;
         bool sel=(i==selected_test);
-        if (sel) framed_round(c,32,y-5,273,26,7,rgb(227,177,72),rgb(94,63,39));
-        label(c,48,y,test_names[i],1,sel?TEAL:rgb(239,217,192));
-        if (i==current) label(c,264,y,"ON",1,TEAL);
+        if (sel) framed_round(c,32,y-5,273,26,7,CUI_ACCENT,CUI_ACCENT);
+        label(c,48,y,test_names[i],1,sel?WHITE:rgb(220,220,224));
+        if (i==current) label(c,264,y,"ON",1,sel?WHITE:TEAL);
     }
     centered(c,475,163,test_names[selected_test],2,WHITE);
     centered(c,475,201,selected_test==TEST_DEMO?
              (music_custom_available()?"CUSTOM MP3 LOOP":"BUILT-IN SYNTH LOOP"):
              test_detail[selected_test],1,MUTED);
     centered(c,475,230, current==selected_test?"PLAYING":"A: START / STOP",1,
-             current==selected_test?TEAL:rgb(221,191,157));
-    round_rect(c,365,261,225,12,5,rgb(81,60,52));
+             current==selected_test?TEAL:rgb(220,220,224));
+    round_rect(c,365,261,225,12,5,CUI_TRACK);
     if (current==selected_test && progress>0)
         round_rect(c,365,261,clampi((int)(225*progress),0,225),12,5,TEAL);
     draw_meter(c,363,302,230,l,"L");
@@ -1171,7 +1172,6 @@ static void draw_eq(Canvas *c,int current) {
     const int graph_x=55,graph_w=530,center_y=193;
     int gains[EQ_BANDS];
     box_panel(c,18,98,604,317);
-    rect(c,33,116,4,22,TEAL);
     label(c,46,120,"FIVE BAND EQUALIZER",2,WHITE);
     /* The hardware setting remains unchanged until the launcher syncs on
        exit. Do not claim a live Flat/EQ toggle while the hook is loaded. */
@@ -1186,13 +1186,13 @@ static void draw_eq(Canvas *c,int current) {
     else memcpy(gains,audiotune_preset_gains[selected_profile],sizeof(gains));
     for (i=0;i<5;++i) {
         int y=center_y+(i-2)*22;
-        line(c,graph_x,y,graph_x+graph_w,y,i==2?rgb(122,99,78):rgb(78,62,56));
+        line(c,graph_x,y,graph_x+graph_w,y,i==2?CUI_DIM:CUI_TRACK);
     }
     for (x=0;x<=graph_w;x+=3) {
         int sample=clampi((x*GRAPH_STEPS+graph_w/2)/graph_w,0,GRAPH_STEPS);
         int y=center_y-graph_delta_y[sample];
         if (x) line(c,graph_x+last_x,last_y,graph_x+x,y,
-                    effective_eq_enabled()?TEAL:rgb(139,111,73));
+                    effective_eq_enabled()?TEAL:CUI_DIM);
         last_x=x;last_y=y;
     }
     label(c,25,143,"+12",1,MUTED);
@@ -1207,17 +1207,17 @@ static void draw_eq(Canvas *c,int current) {
         int cx=101+i*109, val=gains[i];
         int knob=zero-(val*travel)/AUDIOTUNE_EQ_GAIN_LIMIT;
         bool chosen=(i==selected_band);
-        uint32_t line_color=chosen?TEAL:rgb(162,125,67);
+        uint32_t line_color=chosen?TEAL:CUI_DIM;
         char value[16];
-        round_rect(c,cx-31,247,62,24,7,chosen?rgb(122,83,42):rgb(69,52,45));
+        round_rect(c,cx-31,247,62,24,7,chosen?CUI_ACCENT:CUI_TRACK);
         snprintf(value,sizeof(value),"%+d DB",val);
         centered(c,cx,254,value,1,chosen?WHITE:MUTED);
-        round_rect(c,cx-4,track_top,8,track_bottom-track_top+1,3,rgb(97,74,60));
-        rect(c,cx-1,zero,3,1,rgb(224,193,162));
+        round_rect(c,cx-4,track_top,8,track_bottom-track_top+1,3,CUI_TRACK);
+        rect(c,cx-1,zero,3,1,rgb(220,220,224));
         if (val>=0) rect(c,cx-3,knob,6,zero-knob+1,line_color);
         else rect(c,cx-3,zero,6,knob-zero+1,line_color);
-        round_rect(c,cx-12,knob-6,24,12,5,chosen?rgb(255,228,142):rgb(176,133,74));
-        centered(c,cx,388,eq_labels[i],1,chosen?TEAL:MUTED);
+        round_rect(c,cx-12,knob-6,24,12,5,chosen?CUI_WHITE:rgb(200,200,204));
+        centered(c,cx,385,eq_labels[i],1,chosen?WHITE:MUTED);
     }
     {
         char info[110];
@@ -1231,7 +1231,7 @@ static void draw_eq(Canvas *c,int current) {
             snprintf(info,sizeof(info),"OUTPUT: %s  %s  CUT: -%d DB  LIM: %s%s",
                      target,mode,native_headroom_db,soft_limiter_enabled?"ON":"OFF",
                      vqe_test_process?"  APPLY ON EXIT":"");
-        centered(c,320,402,info,1,MUTED);
+        centered(c,320,404,info,1,MUTED);
     }
     (void)current;
 }
@@ -1240,18 +1240,16 @@ static void draw_profiles(Canvas *c,int current) {
     int values[EQ_BANDS];
     box_panel(c,18,98,297,317);
     box_panel(c,329,98,293,317);
-    rect(c,32,116,4,22,TEAL);
     label(c,45,120,"SOUND PROFILES",2,WHITE);
-    rect(c,345,116,4,22,TEAL);
     label(c,358,120,profile_cursor==selected_profile?
           "PROFILE DETAILS":(audio_is_playing()?"AUDITIONING":"PREVIEW PROFILE"),2,WHITE);
     for (i=0;i<PROFILE_COUNT;++i) {
         int y=160+i*35;
         bool highlighted=(i==profile_cursor);
         if (highlighted)
-            framed_round(c,31,y-7,269,31,8,rgb(220,167,61),rgb(102,65,33));
-        label(c,48,y,profile_names[i],1,highlighted?TEAL:WHITE);
-        if (i==selected_profile) label(c,250,y,"ON",1,TEAL);
+            framed_round(c,31,y-7,269,31,8,CUI_ACCENT,CUI_ACCENT);
+        label(c,48,y,profile_names[i],1,WHITE);
+        if (i==selected_profile) label(c,250,y,"ON",1,highlighted?WHITE:TEAL);
     }
     centered(c,475,162,profile_names[profile_cursor],2,WHITE);
     centered(c,475,203,profile_info[profile_cursor],1,MUTED);
@@ -1279,8 +1277,8 @@ static void draw_profiles(Canvas *c,int current) {
     for (j=0;j<EQ_BANDS;++j) {
         int cx=373+j*50,mid=299,delta=values[j]*42/AUDIOTUNE_EQ_GAIN_LIMIT;
         char val[16];
-        round_rect(c,cx-10,254,20,90,4,rgb(61,46,45));
-        rect(c,cx-8,mid,16,1,rgb(143,113,86));
+        round_rect(c,cx-10,254,20,90,4,CUI_TRACK);
+        rect(c,cx-8,mid,16,1,CUI_DIM);
         if (delta>0) round_rect(c,cx-7,mid-delta,14,delta,2,TEAL);
         else if (delta<0) round_rect(c,cx-7,mid,14,-delta,2,AMBER);
         snprintf(val,sizeof(val),"%+d",values[j]);
@@ -1557,10 +1555,10 @@ static void await_audio_apply(SDL_Surface *screen,uint32_t *pixels) {
     if (strncmp(reply,"APPLY",5)!=0) return;
     {
         Canvas canvas={pixels,W};
-        rect(&canvas,0,0,W,H,rgb(0,0,0));
-        centered(&canvas,320,202,"APPLYING AUDIO SETTINGS",2,rgb(255,218,124));
-        centered(&canvas,320,254,"THE SPEAKER MAY CLICK BRIEFLY",1,rgb(207,199,188));
-        centered(&canvas,320,279,"RETURNING TO MAIN MENU",1,rgb(207,199,188));
+        rect(&canvas,0,0,W,H,CUI_BG);
+        centered(&canvas,320,202,"APPLYING AUDIO SETTINGS",2,CUI_WHITE);
+        centered(&canvas,320,254,"THE SPEAKER MAY CLICK BRIEFLY",1,CUI_GREY);
+        centered(&canvas,320,279,"RETURNING TO MAIN MENU",1,CUI_GREY);
         present(screen,pixels);
     }
     SDL_Delay(140); /* Ensure at least one visible frame before audio restarts. */
