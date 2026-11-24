@@ -751,7 +751,8 @@ static void draw(void){
         }
         disk(x+16,75,10,accent());
         ui_text_center(x+6,20,64,"A",0,fg);
-        ui_text(x+32,64,"switch",0,ui_grey());
+        /* as before: what A switches to */
+        ui_text(x+32,64,page==0?"Display":"RGB",0,ui_grey());
     }
     if(page==0){
         for(int row=0;row<4;row++)channel_card(row,row==sel,row==0?r:(row==1?g:(row==2?b:warmth)));

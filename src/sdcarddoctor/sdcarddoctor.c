@@ -2239,7 +2239,7 @@ static void main_list(Canvas *c) {
         human_size(card.available,free_sz,sizeof(free_sz));
         snprintf(line,sizeof(line),"%s · %s",card.volume_label[0]?card.volume_label:"SD card",capacity);
         cui_text(cc,66,80,line,22,CUI_WHITE,CUI_LEFT);
-        snprintf(line,sizeof(line),"%s · %s free · %s",card.fat32?"FAT32":card.vfat?"VFAT":card.fstype,free_sz,card.device);
+        snprintf(line,sizeof(line),"%s · %s free · %s",card.fat32?"FAT32":card.vfat?"VFAT (unverified)":card.fstype,free_sz,card.device);
         cui_text(cc,66,103,line,15,CUI_GREY,CUI_LEFT);
         if (card.total) {
             int pct=(int)(card.used*100/card.total);
