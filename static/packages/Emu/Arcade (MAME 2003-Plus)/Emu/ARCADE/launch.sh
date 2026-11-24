@@ -23,9 +23,10 @@ if ! [ -f "$savedir/MAME 2003-Plus/.mame2003plusTutorialDone" ]; then
 
 	if [ $retcode -eq 0 ]; then
 			cd $sysdir
-			touch /tmp/stay_awake
+			# as the Video Player: no sleep timer, but POWER or the lid pause it (#350)
+			touch /tmp/video_playing
 			./bin/ffplay -autoexit -vf "hflip,vflip" -i "/mnt/SDCARD/Media/Videos/Onion/Mame2003Plus Save State Tutorial.mp4"
-			rm -f /tmp/stay_awake
+			rm -f /tmp/video_playing
 	fi
 
 	touch "$savedir/MAME 2003-Plus/.mame2003plusTutorialDone"
