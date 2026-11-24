@@ -3836,12 +3836,12 @@ EOF
     } > "$SD/.tmp_update/bin/st"
     chmod +x "$SD/.tmp_update/bin/st"
     printf '#!/bin/sh\necho "$1" >> "%s/opened"\n' "$TMP" > "$SD/.tmp_update/bin/green/green"
-    printf '#!/bin/sh\nfor a; do last=$a; done\necho "$last" >> "%s/played"\n' "$TMP" > "$SD/.tmp_update/bin/ffplay"
+    printf '#!/bin/sh\nfor a; do last=$a; done\necho "$last" >> "%s/played"\nls "%s" > "%s/flags_while_playing"\n' "$TMP" "$TMP" "$TMP" > "$SD/.tmp_update/bin/ffplay"
     chmod +x "$SD/.tmp_update/bin/green/green" "$SD/.tmp_update/bin/ffplay"
     PDF_LAUNCH="$ROOT/static/packages/App/PDF Reader (Green)/App/Green/launch.sh"
     VID_LAUNCH="$ROOT/static/packages/App/Video Player (FFplay)/App/FFplay/launch.sh"
     sed -e "s#/mnt/SDCARD#$SD#g" "$PDF_LAUNCH" > "$TMP/pdf.sh"
-    sed -e "s#/mnt/SDCARD#$SD#g" -e "s#/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor#$TMP/sys/governor#g" -e "s#/tmp/stay_awake#$TMP/stay_awake#g" "$VID_LAUNCH" > "$TMP/video.sh"
+    sed -e "s#/mnt/SDCARD#$SD#g" -e "s#/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor#$TMP/sys/governor#g" -e "s#/tmp/stay_awake#$TMP/stay_awake#g" -e "s#/tmp/video_playing#$TMP/video_playing#g" "$VID_LAUNCH" > "$TMP/video.sh"
     export FAKE_ST="$TMP/st"
     scenes() { # keys for each time the list opens
         rm -rf "$FAKE_ST" "$TMP/opened" "$TMP/played"
@@ -3876,6 +3876,11 @@ EOF
     with_limit 30 sh "$TMP/video.sh" > /dev/null 2>&1
     check "Video: A plays the file under the cursor" test "$(cat "$TMP/played" 2> /dev/null)" = "$SD/Media/Videos/a.mp4"
     check "Video: START in the list leaves the app" test "$(lists_shown)" = 2
+    # #350: while playing only video_playing (no sleep timer); stay_awake
+    # would keep the video running in standby (POWER, Flip lid closed).
+    check "Video: video_playing set while the video plays" grep -q "^video_playing$" "$TMP/flags_while_playing"
+    check "Video: no stay_awake while the video plays" sh -c "! grep -q ^stay_awake\$ '$TMP/flags_while_playing'"
+    check "Video: video_playing removed after the video" test ! -e "$TMP/video_playing"
     unset FAKE_ST
     unset -f scenes lists_shown
 else

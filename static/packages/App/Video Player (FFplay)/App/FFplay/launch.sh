@@ -38,7 +38,9 @@ do
 	echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 
 	cd $sysdir
-	touch /tmp/stay_awake
+	# No sleep timer while the video plays, but POWER or closing the lid
+	# still pause it: stay_awake kept it playing with the screen off (#350).
+	touch /tmp/video_playing
 	./bin/ffplay -autoexit -vf "hflip,vflip" -i "$selected_file" $startTimer
-	rm -f /tmp/stay_awake
+	rm -f /tmp/video_playing
 done
