@@ -1,5 +1,5 @@
 #!/bin/sh
-# AudioTune beta — app, audio restore and optional runtime boot integration.
+# AudioTune v0.2.5 beta — app, audio restore and optional runtime boot integration.
 # Firmware-specific native VQE is never used without the verified MI_AO ABI.
 APP_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd) || exit 1
 PROFILE=/mnt/SDCARD/.tmp_update/config/audiotune.ini
@@ -97,9 +97,22 @@ profile_valid() {
     fi
     command -v sha256sum >/dev/null 2>&1 || return 1
     [ "$(sha "$AO_LIB")" = "$AO_SHA256" ] || { log 'Unsupported MI_AO firmware: leaving stock audio untouched.'; return 1; }
-    PROFILE_HASH=$(sha "$PROFILE")
+    # Hash only fields that affect the native EQ. A software-only limiter
+    # toggle must not restart the hardware audio server.
+    # On speaker output, PUNCHY is deliberately clamped to SAFE. Do not
+    # restart audioserver when only this ineffective mode bit was toggled.
+    if grep -q '^output_mode=1$' "$PROFILE"; then
+        PROFILE_HASH=$(grep -E '^(preset|eq_enabled|custom|headroom_mode|output_mode)=' "$PROFILE" | sha256sum | sed -n '1s/ .*//p')
+    else
+        PROFILE_HASH=$({ grep -E '^(preset|eq_enabled|custom|output_mode)=' "$PROFILE"; printf 'headroom_mode=0\n'; } | sha256sum | sed -n '1s/ .*//p')
+    fi
     HOOK_HASH=$(sha "$HOOK")
     [ -n "$PROFILE_HASH" ] && [ -n "$HOOK_HASH" ]
+}
+# The hook's private, process-local preview snapshot is not a log.
+remove_applied_state() {
+    case "$1" in ''|*[!0-9]*) return ;; esac
+    rm -f "/tmp/audiotune-vqe-$1.state"
 }
 stop_server() {
     pid=$1
@@ -110,7 +123,7 @@ stop_server() {
     kill -TERM "$pid" 2>/dev/null || { ! server_running; return $?; }
     n=0
     while [ "$n" -lt 30 ]; do
-        if ! server_running; then return 0; fi
+        if ! server_running; then remove_applied_state "$pid"; return 0; fi
         sleep 0.1
         n=$((n+1))
     done
@@ -122,7 +135,7 @@ stop_server() {
     kill -KILL "$pid" 2>/dev/null || { ! server_running; return $?; }
     n=0
     while [ "$n" -lt 15 ]; do
-        if ! server_running; then return 0; fi
+        if ! server_running; then remove_applied_state "$pid"; return 0; fi
         sleep 0.1
         n=$((n+1))
     done
@@ -263,6 +276,13 @@ if [ -f /mnt/SDCARD/miyoo/lib/libpadsp.so ]; then BRIDGE=/mnt/SDCARD/miyoo/lib/l
 elif [ -f /customer/lib/libpadsp.so ]; then BRIDGE=/customer/lib/libpadsp.so
 else export AUDIOTUNE_NO_AUDIO=1; fi
 export AUDIOTUNE_VQE_STATE="$STATE"
+# A process-local native VQE snapshot is only used for an approximate
+# differential audition. It never causes writes to the persistent profile.
+if [ -n "$SERVER_PID" ] && is_hooked; then
+    export AUDIOTUNE_APPLIED_STATE="/tmp/audiotune-vqe-$SERVER_PID.state"
+else
+    unset AUDIOTUNE_APPLIED_STATE
+fi
 export AUDIOTUNE_APPLY_REQUEST="$REQUEST"
 export AUDIOTUNE_APPLY_DECISION="$DECISION"
 export AUDIOTUNE_APPLY_READY="$READY"

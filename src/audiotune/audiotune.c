@@ -1,5 +1,5 @@
 /*
- * AudioTune v0.2.3 beta - sound diagnostics and five-band preview EQ.
+ * AudioTune v0.2.9 beta - sound diagnostics and five-band preview EQ.
  * Miyoo Mini / Mini Plus, Onion / RedOnion. SPDX-License-Identifier: MIT.
  *
  * The UI provides a software EQ preview. On verified Miyoo firmware the
@@ -21,11 +21,12 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include "audiotune_presets.h"
+#include "audiotune_eq.h"
 #include "audiotune_mp3.h"
 
 #define W 640
 #define H 480
-#define VERSION "V0.2.3 BETA"
+#define VERSION "V0.2.9"
 #define ARRAY_LEN(x) ((int)(sizeof(x) / sizeof((x)[0])))
 #define PI_F 3.14159265358979323846f
 #define LUT_BITS 11
@@ -271,6 +272,10 @@ static void label(Canvas *c, int x, int y, const char *s, int scale, uint32_t co
 static void centered(Canvas *c, int x, int y, const char *s, int scale, uint32_t color) {
     label(c,x-text_width(s,scale)/2,y,s,scale,color);
 }
+/* Draw a label so two independent status lines share the same right edge. */
+static void right_aligned(Canvas *c, int right, int y, const char *s, int scale, uint32_t color) {
+    label(c,right-text_width(s,scale),y,s,scale,color);
+}
 static uint32_t blend(uint32_t a, uint32_t b, int alpha) {
     unsigned ar=(a>>16)&255,ag=(a>>8)&255,ab=a&255;
     unsigned br=(b>>16)&255,bg=(b>>8)&255,bb=b&255;
@@ -368,18 +373,18 @@ static const char *const test_detail[TEST_COUNT] = {
 };
 static const int test_seconds[TEST_COUNT] = {12,6,6,5,8,10,4,4,5};
 
-typedef enum { PROFILE_FLAT, PROFILE_SPEAKER, PROFILE_HEADPHONES,
+typedef enum { PROFILE_FLAT, PROFILE_PRESENCE, PROFILE_FULL,
                PROFILE_CLEAR, PROFILE_WARM, PROFILE_BRIGHT,
                PROFILE_CUSTOM, PROFILE_COUNT } Profile;
 static const char *const profile_names[PROFILE_COUNT] = {
-    "FLAT", "SPEAKER", "HEADPHONES", "CLEAR", "WARM", "BRIGHT", "CUSTOM"
+    "FLAT", "PRESENCE", "FULL", "CLEAR", "WARM", "BRIGHT", "CUSTOM"
 };
 static const char *const profile_info[PROFILE_COUNT] = {
-    "NO TONAL CORRECTION", "LESS BASS, CLEARER MIDS", "BALANCED STARTING POINT",
+    "NO TONAL CORRECTION", "CRISP MIDRANGE AND DETAIL", "RICHER, MORE OPEN SOUND",
     "EMPHASIZED DETAILS", "FULLER, SOFTER SOUND", "EXTRA HIGH END", "YOUR ADJUSTED EQ"
 };
 /* Built-in profiles and band centers are shared with the native VQE hook. */
-static const char *const eq_labels[EQ_BANDS] = {"125 HZ", "500 HZ", "1 KHZ", "4 KHZ", "8 KHZ"};
+static const char *const eq_labels[EQ_BANDS] = {"250 HZ", "500 HZ", "1 KHZ", "4 KHZ", "8 KHZ"};
 
 typedef struct { float b0,b1,b2,a1,a2,z1,z2; } Biquad;
 typedef struct {
@@ -389,9 +394,15 @@ typedef struct {
     bool loop; /* repeat preview in EQ and Profiles without a timeout */
     bool eq_on;
     bool native_hook_present; /* Guarded by SDL_LockAudio on UI thread. */
+    bool native_preview_valid; /* Applied native EQ snapshot was verified. */
+    bool native_delta_active; /* Apply only nonzero profile differences. */
+    int native_gains[EQ_BANDS];
+    int native_cut;
+    int native_output;
     int test;
     int gains[EQ_BANDS];
     float headroom;
+    bool limiter_enabled; /* software preview only */
     Biquad biquad[2][EQ_BANDS];
     uint32_t sample_index;
     uint32_t total_samples;
@@ -405,8 +416,7 @@ typedef struct {
     float music_left, music_right;
 } Audio;
 static Audio audio;
-/* The native hook applies no positive bin gain. Its response is computed at
-   48 kHz; this estimate is kept separate from the 22.05 kHz preview DSP. */
+/* Driver headroom estimate uses the exact shared EQ response at 48 kHz. */
 static int native_headroom_db=0;
 /* One shared music source for Home, Tests, EQ and Profiles. */
 static AudioTuneMP3 music_mp3;
@@ -440,6 +450,16 @@ static int profile_cursor = PROFILE_FLAT;
 static int custom_gains[EQ_BANDS];
 static int graph_delta_y[GRAPH_STEPS+1];
 static bool eq_enabled = false;
+/* Old settings without these fields default to full SAFE compensation. */
+static int headroom_mode=AUDIOTUNE_HEADROOM_SAFE;
+static bool soft_limiter_enabled=false;
+/* Manual target: no reliance on an unverified headphone-jack detector. */
+static int output_mode=AUDIOTUNE_OUTPUT_SPEAKER;
+static int applied_native_gains[EQ_BANDS]={0};
+static int applied_native_cut=0;
+static int applied_native_output=AUDIOTUNE_OUTPUT_SPEAKER;
+static bool applied_native_valid=false;
+static const char *applied_state_path=NULL;
 /* Keep the user's saved Custom selection; bypass processing for a flat curve. */
 static bool effective_eq_enabled(void) {
     const int *gains=(selected_profile==PROFILE_CUSTOM)?custom_gains:
@@ -455,10 +475,11 @@ static char audio_error[96] = "AUDIO UNAVAILABLE";
 static bool vqe_test_process=false;
 static bool vqe_restore_requested=false;
 static const char *vqe_status_path;
+static void update_audio_eq(void);
 static void update_vqe_test_state(void) {
-    char line[32];
-    FILE *f;
-    bool detected=false;
+    char line[32]; FILE *f;
+    bool detected=false,valid=false,changed=false;
+    int gains[EQ_BANDS]={0},mode=0,out=0,cut=0;
     if (vqe_status_path && strncmp(vqe_status_path,"/tmp/audiotune-",15)==0) {
         f=fopen(vqe_status_path,"r");
         if (f) {
@@ -467,10 +488,40 @@ static void update_vqe_test_state(void) {
             fclose(f);
         }
     }
-    if (audio.open) SDL_LockAudio();
+    if (detected && applied_state_path &&
+        strncmp(applied_state_path,"/tmp/audiotune-vqe-",19)==0) {
+        char tail;
+        f=fopen(applied_state_path,"r");
+        if (f) {
+            char state[144];
+            if(fgets(state,sizeof(state),f) &&
+               sscanf(state,"V1 %d %d %d %d %d %d %d %d %c",
+                      &gains[0],&gains[1],&gains[2],&gains[3],&gains[4],
+                      &mode,&out,&cut,&tail)==8 &&
+               (mode==0 || mode==1) && (out==0 || out==1) &&
+               cut>=0 && cut<=40) {
+                int i;valid=true;
+                for(i=0;i<EQ_BANDS;++i)
+                    if(gains[i]<-AUDIOTUNE_EQ_GAIN_LIMIT ||
+                       gains[i]>AUDIOTUNE_EQ_GAIN_LIMIT) valid=false;
+            }
+            fclose(f);
+        }
+    }
+    changed=(detected!=vqe_test_process || valid!=applied_native_valid ||
+             (valid && (memcmp(gains,applied_native_gains,sizeof(gains))!=0 ||
+                        cut!=applied_native_cut || out!=applied_native_output)));
+    if(audio.open) SDL_LockAudio();
     audio.native_hook_present=detected;
-    if (audio.open) SDL_UnlockAudio();
+    if(audio.open) SDL_UnlockAudio();
     vqe_test_process=detected;
+    applied_native_valid=valid;
+    if(valid) {
+        memcpy(applied_native_gains,gains,sizeof(gains));
+        applied_native_cut=cut;
+        applied_native_output=out;
+    }
+    if(changed) update_audio_eq();
 }
 
 static float clampf(float a, float lo, float hi) {
@@ -490,103 +541,108 @@ static float lookup_sin(float phase) {
     int idx = i & (LUT_N-1);
     return wave_table[idx] + fract*(wave_table[(idx+1)&(LUT_N-1)]-wave_table[idx]);
 }
-static void calc_peaking(Biquad *b, float frequency, int db, int rate) {
-    float a, w, sn, cs, alpha, a0;
-    /* RBJ peaking biquad. Coefficients are updated on the main thread
-       while SDL_LockAudio excludes the output callback. */
-    frequency = clampf(frequency,30.0f,rate*0.44f);
-    a = powf(10.0f,(float)db/40.0f);
-    w = 2.0f*PI_F*frequency/rate;
-    sn = sinf(w); cs = cosf(w);
-    alpha = sn / 2.0f; /* Q=1.0, deliberately broad 5-band correction. */
-    a0 = 1.0f + alpha/a;
-    b->b0 = (1.0f+alpha*a)/a0;
-    b->b1 = (-2.0f*cs)/a0;
-    b->b2 = (1.0f-alpha*a)/a0;
-    b->a1 = b->b1;
-    b->a2 = (1.0f-alpha/a)/a0;
-}
-/* Response graph and peak compensation use exactly the same filter
-   coefficients as the DSP. No trigonometry runs on every UI frame. */
-static float response_db_coeff(float hz, const Biquad coeff[EQ_BANDS], int rate) {
-    float w=2.0f*PI_F*hz/rate;
-    float c1=cosf(w),s1=sinf(w),c2=cosf(2*w),s2=sinf(2*w);
-    float result=0.0f;
-    int k;
-    for (k=0;k<EQ_BANDS;++k) {
-        const Biquad *b=&coeff[k];
-        float nr=b->b0+b->b1*c1+b->b2*c2;
-        float ni=-b->b1*s1-b->b2*s2;
-        float dr=1.0f+b->a1*c1+b->a2*c2;
-        float di=-b->a1*s1-b->a2*s2;
-        float numerator=nr*nr+ni*ni,denominator=dr*dr+di*di;
-        if (numerator>1e-12f && denominator>1e-12f)
-            result+=10.0f*log10f(numerator/denominator);
-    }
-    return result;
-}
 /* Direct-form II transposed; state is separate for each channel and band. */
 static float process_biquad(Biquad *b, float x) {
     float y=b->b0*x+b->z1;
     b->z1=b->b1*x-b->a1*y+b->z2;
     b->z2=b->b2*x-b->a2*y;
+    if(!isfinite(y) || !isfinite(b->z1) || !isfinite(b->z2)) {
+        b->z1=b->z2=0.0f;
+        return 0.0f;
+    }
+    /* Prevent long-lived denormal feedback that can consume CPU and sound
+       like a low-level residue after a shelf filter change. */
+    if(fabsf(b->z1)<1e-20f) b->z1=0.0f;
+    if(fabsf(b->z2)<1e-20f) b->z2=0.0f;
     return y;
 }
 static void update_audio_eq(void) {
-    int ch,i,rate=audio.open?audio.format.freq:22050;
+    int ch,i,rate=audio.open?audio.format.freq:48000;
     int new_gains[EQ_BANDS];
-    Biquad coeff[EQ_BANDS];
-    float maximum=0.0f,headroom;
-    memcpy(new_gains,selected_profile==PROFILE_CUSTOM?custom_gains:
-           audiotune_preset_gains[selected_profile],sizeof(new_gains));
+    AudioTuneEQCoeff coeff[EQ_BANDS],native_coeff[EQ_BANDS];
+    int correction[EQ_BANDS];
+    bool delta_active=false;
+    AudioTuneEQCoeff graph_coeff[EQ_BANDS];
+    float maximum,headroom;
+    /* On the Profiles page the highlighted profile is a temporary live
+       audition, committed only by A. Nothing is saved while browsing. */
+    bool preview_on=(page==PAGE_PROFILES && profile_cursor!=selected_profile)?
+                    (profile_cursor!=PROFILE_FLAT):effective_eq_enabled();
+    memcpy(new_gains,(page==PAGE_PROFILES)?
+           (profile_cursor==PROFILE_CUSTOM?custom_gains:
+            audiotune_preset_gains[profile_cursor]):
+           (selected_profile==PROFILE_CUSTOM?custom_gains:
+            audiotune_preset_gains[selected_profile]),sizeof(new_gains));
+    if(audiotune_gains_all_zero(new_gains)) preview_on=false;
+    /* When a known native profile is active, audition only the DIFFERENCE
+       against the applied native settings. This avoids stacking the full
+       software curve on top of native EQ. It is only an approximation because
+       SigmaStar quantizes its curve to 129 bins. */
     for(i=0;i<EQ_BANDS;++i) {
-        memset(&coeff[i],0,sizeof(coeff[i]));
-        calc_peaking(&coeff[i],(float)audiotune_eq_freq[i],new_gains[i],rate);
+        correction[i]=(applied_native_valid && vqe_test_process ?
+                       (preview_on?new_gains[i]:0)-applied_native_gains[i]
+                       :new_gains[i]);
+        audiotune_eq_make(&coeff[i],i,rate,correction[i]);
     }
-    /* More points than the drawing graph to estimate peak headroom. */
-    for(i=0;i<=256;++i) {
-        float hz=(rate*0.5f)*(float)i/256.0f;
-        float db=response_db_coeff(hz,coeff,rate);
-        if(db>maximum) maximum=db;
+    maximum=audiotune_eq_peak_db(rate,coeff);
+    for(i=0;i<EQ_BANDS;++i) {
+        if(correction[i]) delta_active=true;
+        audiotune_eq_make(&graph_coeff[i],i,rate,new_gains[i]);
     }
     for(i=0;i<=GRAPH_STEPS;++i) {
         float hz=90.0f*powf(9000.0f/90.0f,(float)i/GRAPH_STEPS);
-        float db=response_db_coeff(clampf(hz,90.0f,rate*0.44f),coeff,rate);
+        float db=audiotune_eq_response_db(clampf(hz,90.0f,rate*0.44f),rate,graph_coeff);
         graph_delta_y[i]=clampi((int)(db*3.8f),-46,46);
-        if(db>maximum) maximum=db;
     }
-    /* A conservative 1 dB guard for boosted settings; bypass is unity. */
-    headroom=maximum>0.0f?powf(10.0f,-(maximum+1.0f)/20.0f):1.0f;
-    /* Match the native hook's attenuation estimate (48 kHz, 129 bin centers
-       plus 1025 sample points) without changing the actual software DSP. */
+    /* SAFE: full peak + 1 dB guard. PUNCHY: allow at most +3 dB peak
+       in the SOFTWARE EQ; a local optional limiter catches excursions. */
+    headroom=maximum>0.0f ? fmaxf(0.0f,maximum+1.0f-
+              (headroom_mode==AUDIOTUNE_HEADROOM_PUNCHY &&
+               output_mode==AUDIOTUNE_OUTPUT_HEADPHONES ?
+               AUDIOTUNE_NATIVE_PEAK_DB:0)) : 0.0f;
+    headroom=powf(10.0f,-headroom/20.0f);
     native_headroom_db=0;
-    if (effective_eq_enabled()) {
-        Biquad native_coeff[EQ_BANDS];
-        float native_max=0.0f;
-        for(i=0;i<EQ_BANDS;++i) {
-            memset(&native_coeff[i],0,sizeof(native_coeff[i]));
-            calc_peaking(&native_coeff[i],(float)audiotune_eq_freq[i],new_gains[i],48000);
-        }
-        for(i=0;i<=1024;++i) {
-            float hz=24000.0f*(float)i/1024.0f;
-            float db=response_db_coeff(hz,native_coeff,48000);
-            if(db>native_max) native_max=db;
-        }
-        for(i=0;i<129;++i) {
-            float hz=24000.0f*((float)i+0.5f)/129.0f;
-            float db=response_db_coeff(hz,native_coeff,48000);
-            if(db>native_max) native_max=db;
-        }
-        native_headroom_db=native_max>0.0f?(int)ceilf(native_max)+1:0;
+    if (preview_on) {
+        float native_max;
+        for(i=0;i<EQ_BANDS;++i)
+            audiotune_eq_make(&native_coeff[i],i,48000,new_gains[i]);
+        native_max=audiotune_native_peak_db(48000,native_coeff,output_mode);
+        native_headroom_db=audiotune_native_attenuation_db(native_max,
+          output_mode==AUDIOTUNE_OUTPUT_SPEAKER?AUDIOTUNE_HEADROOM_SAFE:headroom_mode);
     }
     if(audio.open) SDL_LockAudio();
     memcpy(audio.gains,new_gains,sizeof(new_gains));
-    audio.eq_on=effective_eq_enabled();
+    audio.eq_on=preview_on;
+    audio.native_preview_valid=(applied_native_valid && vqe_test_process);
+    audio.native_delta_active=audio.native_preview_valid && delta_active;
     audio.headroom=headroom;
+    /* The local differential preview is deliberately at limited headroom.
+       It never applies the native attenuation twice. */
+    if(audio.native_delta_active) {
+        int safe_mode=(output_mode==AUDIOTUNE_OUTPUT_SPEAKER)?
+                      AUDIOTUNE_HEADROOM_SAFE:headroom_mode;
+        float cut=maximum>0.0f ?
+           fmaxf(0.0f,maximum+1.0f-(safe_mode==AUDIOTUNE_HEADROOM_PUNCHY?
+                                 AUDIOTUNE_NATIVE_PEAK_DB:0)):0.0f;
+        audio.headroom=powf(10.0f,-cut/20.0f);
+    }
+    audio.limiter_enabled=soft_limiter_enabled;
+    memcpy(audio.native_gains,applied_native_gains,sizeof(audio.native_gains));
+    audio.native_cut=applied_native_cut;
+    audio.native_output=applied_native_output;
     for(ch=0;ch<2;++ch)
         for(i=0;i<EQ_BANDS;++i) {
             float old1=audio.biquad[ch][i].z1,old2=audio.biquad[ch][i].z2;
-            audio.biquad[ch][i]=coeff[i];
+            /* Discard stale integrator energy on major mode/preset changes;
+               especially important for a 250 Hz shelf on a tiny speaker. */
+            float change=fabsf(audio.biquad[ch][i].b0-coeff[i].b0);
+            if(change>0.025f || !isfinite(old1) || !isfinite(old2))
+                old1=old2=0.0f;
+            audio.biquad[ch][i].b0=coeff[i].b0;
+            audio.biquad[ch][i].b1=coeff[i].b1;
+            audio.biquad[ch][i].b2=coeff[i].b2;
+            audio.biquad[ch][i].a1=coeff[i].a1;
+            audio.biquad[ch][i].a2=coeff[i].a2;
             audio.biquad[ch][i].z1=old1;
             audio.biquad[ch][i].z2=old2;
         }
@@ -694,11 +750,15 @@ static void sdl_audio_callback(void *userdata, Uint8 *stream, int len) {
                a second EQ or headroom cut while the native hook is loaded.
                Edits to the on-screen bands take effect after server sync on
                exit, not instantly in this mode. */
-            if (a->eq_on && !a->native_hook_present) {
+            if ((!a->native_hook_present && a->eq_on) || a->native_delta_active) {
                 signal*=a->headroom;
                 for (k=0;k<EQ_BANDS;++k)
                     signal=process_biquad(&a->biquad[ch][k],signal);
             }
+            /* The optional local limiter does not process game audio, and is
+               intentionally bypassed under the native hook for comparison. */
+            if ((a->limiter_enabled && !a->native_hook_present) ||
+                a->native_delta_active) signal=audiotune_soft_limit(signal);
             /* Retain the complete signed 16-bit output range. The previous
                +/-0.68 limiter silently clipped full-scale MP3 peaks. */
             signal=clampf(signal,-1.0f,32767.0f/32768.0f);
@@ -769,16 +829,23 @@ static void audio_initialize(void) {
         return;
     }
     memset(&want,0,sizeof(want)); memset(&got,0,sizeof(got));
-    want.freq=22050;
+    want.freq=48000;
     want.format=AUDIO_S16SYS;
     want.channels=2;
-    want.samples=512;
+    want.samples=1024;
     want.callback=sdl_audio_callback;
     want.userdata=&audio;
     if (SDL_OpenAudio(&want,&got)<0) {
-        snprintf(audio_error,sizeof(audio_error),"SDL AUDIO OPEN FAILED");
-        LOG("SDL_OpenAudio: %s",SDL_GetError());
-        return;
+        /* Older SDL/OSS bridges may reject 48 kHz. Keep the diagnostics
+           usable instead of failing audio initialization outright. */
+        LOG("SDL_OpenAudio 48 kHz rejected: %s; retrying 22.05 kHz",SDL_GetError());
+        want.freq=22050; want.samples=512;
+        memset(&got,0,sizeof(got));
+        if (SDL_OpenAudio(&want,&got)<0) {
+            snprintf(audio_error,sizeof(audio_error),"SDL AUDIO OPEN FAILED");
+            LOG("SDL_OpenAudio fallback: %s",SDL_GetError());
+            return;
+        }
     }
     if (got.format!=AUDIO_S16SYS || got.channels!=2 ||
         got.freq<16000 || got.freq>48000) {
@@ -809,6 +876,7 @@ static void save_settings(void);
 static void apply_profile(int id) {
     selected_profile=clampi(id,0,PROFILE_COUNT-1);
     profile_cursor=selected_profile;
+    /* The sound curve is independent of the speaker/headphone protection target. */
     eq_enabled=(selected_profile!=PROFILE_FLAT);
     dirty_settings=true;
     update_audio_eq();
@@ -865,6 +933,8 @@ static void save_settings(void) {
     if (!f) { LOG("cannot save %s: %s",tmp,strerror(errno)); return; }
     fprintf(f,"# AudioTune beta EQ profile\n");
     fprintf(f,"preset=%d\neq_enabled=%d\n",selected_profile,eq_enabled?1:0);
+    fprintf(f,"headroom_mode=%d\nsoft_limiter=%d\noutput_mode=%d\n",headroom_mode,
+            soft_limiter_enabled?1:0,output_mode);
     fprintf(f,"custom=%d %d %d %d %d\n",custom_gains[0],custom_gains[1],
             custom_gains[2],custom_gains[3],custom_gains[4]);
     {
@@ -893,6 +963,11 @@ static void load_settings(void) {
         int x[EQ_BANDS],i;
         if (sscanf(line,"preset=%d",&i)==1) p=i;
         else if (sscanf(line,"eq_enabled=%d",&i)==1) e=(i!=0);
+        else if (sscanf(line,"headroom_mode=%d",&i)==1)
+            headroom_mode=(i==AUDIOTUNE_HEADROOM_PUNCHY)?AUDIOTUNE_HEADROOM_PUNCHY:AUDIOTUNE_HEADROOM_SAFE;
+        else if (sscanf(line,"soft_limiter=%d",&i)==1) soft_limiter_enabled=(i==1);
+        else if (sscanf(line,"output_mode=%d",&i)==1)
+            output_mode=(i==AUDIOTUNE_OUTPUT_HEADPHONES)?AUDIOTUNE_OUTPUT_HEADPHONES:AUDIOTUNE_OUTPUT_SPEAKER;
         else if (sscanf(line,"custom=%d %d %d %d %d",
                         &x[0],&x[1],&x[2],&x[3],&x[4])==EQ_BANDS)
             for(i=0;i<EQ_BANDS;++i) custom_gains[i]=clampi(x[i],-AUDIOTUNE_EQ_GAIN_LIMIT,AUDIOTUNE_EQ_GAIN_LIMIT);
@@ -979,8 +1054,8 @@ static void draw_footer(Canvas *c) {
             break;
         case PAGE_EQ:
             hint=music?
-                "L/R: BAND  UP/DOWN: DB  X: 0DB  Y: ALL 0DB  A: FLAT/EQ  START: STOP":
-                "L/R: BAND  UP/DOWN: DB  X: 0DB  Y: ALL 0DB  A: FLAT/EQ  START: PLAY";
+                "L/R: BAND  UP/DN: DB  X: 0  Y: ALL 0  A: EQ  START: STOP":
+                "L/R: BAND  UP/DN: DB  X: 0  Y: ALL 0  A: EQ  START: PLAY";
             break;
         default:
             hint=music?
@@ -991,6 +1066,12 @@ static void draw_footer(Canvas *c) {
     centered(c,320,438,hint,1,rgb(224,199,168));
     centered(c,320,461,page==PAGE_HOME?
              "B: EXIT     L1/R1: PAGE     SELECT+START: EXIT":
+             page==PAGE_EQ?
+             "L1/R1: PAGE  L2: OUTPUT  R2: LIMITER  B: HOME  SEL+START: EXIT":
+             page==PAGE_PROFILES?
+             (output_mode==AUDIOTUNE_OUTPUT_HEADPHONES?
+              "L1/R1: PAGE  L2: OUTPUT  R2: MODE  B: HOME  SEL+START: EXIT":
+              "L1/R1: PAGE  L2: OUTPUT  R2: HP ONLY  B: HOME  SEL+START: EXIT"):
              "B: HOME     L1/R1: PAGE     SELECT+START: EXIT",1,rgb(183,152,129));
 }
 static void draw_meter(Canvas *c,int x,int y,int w,float level,const char *side) {
@@ -1022,24 +1103,24 @@ static void draw_home(Canvas *c,int test,float l,float r) {
     label(c,47,120,"AUDIO OUTPUT",2,WHITE);
     rect(c,438,116,4,22,TEAL);
     label(c,451,120,"QUICK ACCESS",2,WHITE);
-    disc(c,214,233,67,rgb(24,20,25));
-    ring(c,214,233,63,2,rgb(116,87,60));
-    disc(c,214,233,47,rgb(79,59,45));
-    disc(c,214,233,33,rgb(56,40,37));
-    disc(c,214,233,20,audio.open?rgb(223,166,61):rgb(119,64,51));
-    ring(c,214,233,18,2,audio.open?TEAL:AMBER);
-    rect(c,203,219,5,28,rgb(75,47,29));
-    rect(c,212,211,5,44,rgb(75,47,29));
-    rect(c,221,224,5,17,rgb(75,47,29));
+    disc(c,214,238,67,rgb(24,20,25));
+    ring(c,214,238,63,2,rgb(116,87,60));
+    disc(c,214,238,47,rgb(79,59,45));
+    disc(c,214,238,33,rgb(56,40,37));
+    disc(c,214,238,20,audio.open?rgb(223,166,61):rgb(119,64,51));
+    ring(c,214,238,18,2,audio.open?TEAL:AMBER);
+    rect(c,203,224,5,28,rgb(75,47,29));
+    rect(c,212,216,5,44,rgb(75,47,29));
+    rect(c,221,229,5,17,rgb(75,47,29));
     centered(c,214,159,audio.open?"SOUND SYSTEM READY":
              audio_initializing?"INITIALIZING AUDIO":"PLAYBACK UNAVAILABLE",1,
              audio.open?TEAL:AMBER);
-    centered(c,214,299,vqe_restore_requested?"RESTORE REQUESTED":
+    centered(c,214,309,vqe_restore_requested?"RESTORE REQUESTED":
              vqe_test_process?"SYSTEM VQE: HOOKED":
              "SYSTEM VQE: OFF",1,
              vqe_restore_requested?AMBER:vqe_test_process?AMBER:MUTED);
-    draw_meter(c,58,319,325,l,"L");
-    draw_meter(c,58,341,325,r,"R");
+    draw_meter(c,58,332,325,l,"L");
+    draw_meter(c,58,354,325,r,"R");
     centered(c,214,383,test==TEST_DEMO?
              (music_custom_available()?"CUSTOM MUSIC - LOOPING":"BUILT-IN MUSIC - LOOPING"):
              test>=0?test_names[test]:
@@ -1094,10 +1175,12 @@ static void draw_eq(Canvas *c,int current) {
     label(c,46,120,"FIVE BAND EQUALIZER",2,WHITE);
     /* The hardware setting remains unchanged until the launcher syncs on
        exit. Do not claim a live Flat/EQ toggle while the hook is loaded. */
-    centered(c,518,122,vqe_test_process?"NATIVE HOOK":
-             effective_eq_enabled()?"EQ ACTIVE":"EQ BYPASSED",1,
-             (vqe_test_process||!effective_eq_enabled())?AMBER:TEAL);
-    label(c,430,136,music_custom_available()?"CUSTOM MUSIC":"BUILT-IN MUSIC",1,MUTED);
+    /* Both right-side labels share the exact same right edge. */
+    right_aligned(c,596,122,vqe_test_process?
+                  (applied_native_valid?"LIVE EQ APPROX":"NATIVE HOOK") :
+                  effective_eq_enabled()?"EQ ACTIVE":"EQ BYPASSED",1,
+                  (vqe_test_process||!effective_eq_enabled())?AMBER:TEAL);
+    right_aligned(c,596,138,music_custom_available()?"CUSTOM MUSIC":"BUILT-IN MUSIC",1,MUTED);
     if (selected_profile==PROFILE_CUSTOM)
         memcpy(gains,custom_gains,sizeof(gains));
     else memcpy(gains,audiotune_preset_gains[selected_profile],sizeof(gains));
@@ -1137,13 +1220,17 @@ static void draw_eq(Canvas *c,int current) {
         centered(c,cx,388,eq_labels[i],1,chosen?TEAL:MUTED);
     }
     {
-        char info[96];
-        if (vqe_test_process)
-            snprintf(info,sizeof(info),"NATIVE HOOK LOADED - UPDATES ON EXIT");
-        else if (!effective_eq_enabled())
-            snprintf(info,sizeof(info),"NATIVE EQ BYPASSED - NO HEADROOM REDUCTION");
+        char info[110];
+        const char *target=output_mode==AUDIOTUNE_OUTPUT_SPEAKER?"SPEAKER":"HEADPHONES";
+        const char *mode=(output_mode==AUDIOTUNE_OUTPUT_HEADPHONES &&
+                          headroom_mode==AUDIOTUNE_HEADROOM_PUNCHY)?"PUNCHY":"SAFE";
+        if (!effective_eq_enabled())
+            snprintf(info,sizeof(info),"OUTPUT: %s  %s  EQ OFF  LIM: %s",target,mode,
+                     soft_limiter_enabled?"ON":"OFF");
         else
-            snprintf(info,sizeof(info),"NATIVE EQ RESERVES %d DB HEADROOM",native_headroom_db);
+            snprintf(info,sizeof(info),"OUTPUT: %s  %s  CUT: -%d DB  LIM: %s%s",
+                     target,mode,native_headroom_db,soft_limiter_enabled?"ON":"OFF",
+                     vqe_test_process?"  APPLY ON EXIT":"");
         centered(c,320,402,info,1,MUTED);
     }
     (void)current;
@@ -1156,7 +1243,8 @@ static void draw_profiles(Canvas *c,int current) {
     rect(c,32,116,4,22,TEAL);
     label(c,45,120,"SOUND PROFILES",2,WHITE);
     rect(c,345,116,4,22,TEAL);
-    label(c,358,120,"PROFILE DETAILS",2,WHITE);
+    label(c,358,120,profile_cursor==selected_profile?
+          "PROFILE DETAILS":(audio_is_playing()?"AUDITIONING":"PREVIEW PROFILE"),2,WHITE);
     for (i=0;i<PROFILE_COUNT;++i) {
         int y=160+i*35;
         bool highlighted=(i==profile_cursor);
@@ -1167,15 +1255,27 @@ static void draw_profiles(Canvas *c,int current) {
     }
     centered(c,475,162,profile_names[profile_cursor],2,WHITE);
     centered(c,475,203,profile_info[profile_cursor],1,MUTED);
-    if (vqe_test_process) {
-        centered(c,475,228,"HOOK LOADED - APPLY ON EXIT",1,MUTED);
-    } else if (profile_cursor==selected_profile && effective_eq_enabled() && native_headroom_db>0) {
+    {
         char info[64];
-        snprintf(info,sizeof(info),"NATIVE HEADROOM: -%d DB",native_headroom_db);
-        centered(c,475,228,info,1,MUTED);
+        const bool headphones=(output_mode==AUDIOTUNE_OUTPUT_HEADPHONES);
+        const char *mode=(headphones && headroom_mode==AUDIOTUNE_HEADROOM_PUNCHY)?
+                         "PUNCHY":"SAFE";
+        /* R2 is a headphones-only control: the speaker is always Safe.
+           Keep the actual mode visible even when the native hook is loaded. */
+        if (!headphones)
+            snprintf(info,sizeof(info),"SAFE - SPEAKER LOCKED  CUT: -%d DB",native_headroom_db);
+        else if (vqe_test_process)
+            snprintf(info,sizeof(info),"MODE: %s - APPLY ON EXIT",mode);
+        else if (!effective_eq_enabled() && profile_cursor==selected_profile)
+            snprintf(info,sizeof(info),"MODE: %s - EQ OFF",mode);
+        else
+            snprintf(info,sizeof(info),"MODE: %s  CUT: -%d DB",mode,native_headroom_db);
+        centered(c,475,233,info,1,MUTED);
     }
     if (profile_cursor==PROFILE_CUSTOM) memcpy(values,custom_gains,sizeof(values));
     else memcpy(values,audiotune_preset_gains[profile_cursor],sizeof(values));
+    centered(c,475,218,output_mode==AUDIOTUNE_OUTPUT_SPEAKER?
+             "OUTPUT: SPEAKER (SAFE BASS)":"OUTPUT: HEADPHONES",1,TEAL);
     for (j=0;j<EQ_BANDS;++j) {
         int cx=373+j*50,mid=299,delta=values[j]*42/AUDIOTUNE_EQ_GAIN_LIMIT;
         char val[16];
@@ -1190,7 +1290,9 @@ static void draw_profiles(Canvas *c,int current) {
              (music_custom_available()?"CUSTOM MUSIC LOOPING":"BUILT-IN MUSIC LOOPING"):
              (music_custom_available()?"START: CUSTOM MUSIC":"START: BUILT-IN MUSIC"),
              1,current==TEST_DEMO?TEAL:MUTED);
-    centered(c,475,393,"A: APPLY   X: SAVE CUSTOM",1,MUTED);
+    centered(c,475,393,output_mode==AUDIOTUNE_OUTPUT_HEADPHONES?
+             "A: APPLY  L2: OUTPUT  R2: MODE":
+             "A: APPLY  L2: OUTPUT  R2: HP ONLY",1,MUTED);
 }
 static void draw(Canvas *c) {
     float l,r,progress;
@@ -1224,7 +1326,10 @@ static void on_key_press(KeyId id) {
                 selected_test=(selected_test+TEST_COUNT-1)%TEST_COUNT;
                 if (audio_is_playing() && audio.test!=TEST_DEMO) audio_stop();
             } else if (page==PAGE_EQ) change_eq_gain(selected_band,+1);
-            else if (page==PAGE_PROFILES) profile_cursor=(profile_cursor+PROFILE_COUNT-1)%PROFILE_COUNT;
+            else if (page==PAGE_PROFILES) {
+                profile_cursor=(profile_cursor+PROFILE_COUNT-1)%PROFILE_COUNT;
+                update_audio_eq();
+            }
             break;
         case KEY_DOWN_ID:
             if (page==PAGE_HOME) selected_home=(selected_home+1)%3;
@@ -1232,7 +1337,10 @@ static void on_key_press(KeyId id) {
                 selected_test=(selected_test+1)%TEST_COUNT;
                 if (audio_is_playing() && audio.test!=TEST_DEMO) audio_stop();
             } else if (page==PAGE_EQ) change_eq_gain(selected_band,-1);
-            else if (page==PAGE_PROFILES) profile_cursor=(profile_cursor+1)%PROFILE_COUNT;
+            else if (page==PAGE_PROFILES) {
+                profile_cursor=(profile_cursor+1)%PROFILE_COUNT;
+                update_audio_eq();
+            }
             break;
         case KEY_LEFT_ID:
             if (page==PAGE_EQ) selected_band=(selected_band+EQ_BANDS-1)%EQ_BANDS;
@@ -1240,20 +1348,49 @@ static void on_key_press(KeyId id) {
         case KEY_RIGHT_ID:
             if (page==PAGE_EQ) selected_band=(selected_band+1)%EQ_BANDS;
             break;
+        case KEY_L2_ID:
+            /* The output protection target is independent of the EQ preset. */
+            if (page==PAGE_PROFILES || page==PAGE_EQ) {
+                output_mode=(output_mode==AUDIOTUNE_OUTPUT_SPEAKER)?
+                    AUDIOTUNE_OUTPUT_HEADPHONES:AUDIOTUNE_OUTPUT_SPEAKER;
+                dirty_settings=true;
+                update_audio_eq();
+                save_settings();
+            }
+            break;
+        case KEY_R2_ID:
+            if (page==PAGE_PROFILES && output_mode==AUDIOTUNE_OUTPUT_HEADPHONES) {
+                /* PUNCHY is headphone-only. Do not change a hidden setting
+                   while SPEAKER is selected and its native mode stays Safe. */
+                headroom_mode=(headroom_mode==AUDIOTUNE_HEADROOM_SAFE)?
+                    AUDIOTUNE_HEADROOM_PUNCHY:AUDIOTUNE_HEADROOM_SAFE;
+                dirty_settings=true;
+                update_audio_eq();
+                save_settings();
+            } else if (page==PAGE_EQ) {
+                soft_limiter_enabled=!soft_limiter_enabled;
+                dirty_settings=true;
+                update_audio_eq();
+                save_settings();
+            }
+            break;
         case KEY_L1_ID:
             if (page==PAGE_EQ) save_settings();
             page=(Page)((page+PAGE_COUNT-1)%PAGE_COUNT);
             if (page==PAGE_PROFILES) profile_cursor=selected_profile;
+            update_audio_eq();
             break;
         case KEY_R1_ID:
             if (page==PAGE_EQ) save_settings();
             page=(Page)((page+1)%PAGE_COUNT);
             if (page==PAGE_PROFILES) profile_cursor=selected_profile;
+            update_audio_eq();
             break;
         case KEY_A_ID:
             if (page==PAGE_HOME) {
                 page=(Page)(selected_home+1);
                 if (page==PAGE_PROFILES) profile_cursor=selected_profile;
+                update_audio_eq();
             }
             else if (page==PAGE_TESTS) audio_toggle(selected_test,selected_test==TEST_DEMO);
             else if (page==PAGE_EQ) {
@@ -1267,7 +1404,7 @@ static void on_key_press(KeyId id) {
         case KEY_B_ID:
             if (page==PAGE_EQ) save_settings();
             if (page==PAGE_HOME) { exit_b_armed=true; audio_stop(); }
-            else page=PAGE_HOME;
+            else {page=PAGE_HOME; update_audio_eq();}
             break;
         case KEY_X_ID:
             if (page==PAGE_EQ) {
@@ -1446,8 +1583,9 @@ int main(int argc,char **argv) {
     signal(SIGINT,on_signal);
     signal(SIGTERM,on_signal);
     signal(SIGHUP,on_signal);
-    LOG("AudioTune v0.2.3 beta startup");
+    LOG("AudioTune v0.2.9 beta startup");
     vqe_status_path=getenv("AUDIOTUNE_VQE_STATE");
+    applied_state_path=getenv("AUDIOTUNE_APPLIED_STATE");
     update_vqe_test_state();
     initialize_wave_table();
     load_settings();
