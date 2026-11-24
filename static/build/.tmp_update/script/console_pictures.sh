@@ -23,8 +23,32 @@ sd=${CONSOLE_PICTURES_SD:-/mnt/SDCARD}
 
 [ -f "$src/map.txt" ] || exit 0
 
+# POSIX-shell ASCII lowercase, without starting tr for every emulator folder.
+# Set lower_result in the caller (command substitution would fork a subshell).
 lower() {
-    echo "$1" | tr 'A-Z' 'a-z'
+    lower_result=$1
+    case "$lower_result" in
+        *[A-Z]*) ;;
+        *) return ;;
+    esac
+    lower_rest=$lower_result
+    lower_result=
+    while [ -n "$lower_rest" ]; do
+        lower_char=${lower_rest%"${lower_rest#?}"}
+        lower_rest=${lower_rest#?}
+        case "$lower_char" in
+            A) lower_char=a ;; B) lower_char=b ;; C) lower_char=c ;;
+            D) lower_char=d ;; E) lower_char=e ;; F) lower_char=f ;;
+            G) lower_char=g ;; H) lower_char=h ;; I) lower_char=i ;;
+            J) lower_char=j ;; K) lower_char=k ;; L) lower_char=l ;;
+            M) lower_char=m ;; N) lower_char=n ;; O) lower_char=o ;;
+            P) lower_char=p ;; Q) lower_char=q ;; R) lower_char=r ;;
+            S) lower_char=s ;; T) lower_char=t ;; U) lower_char=u ;;
+            V) lower_char=v ;; W) lower_char=w ;; X) lower_char=x ;;
+            Y) lower_char=y ;; Z) lower_char=z ;;
+        esac
+        lower_result=$lower_result$lower_char
+    done
 }
 
 # The icon a table (map.txt, roms.txt) names for a name, or nothing.
@@ -42,15 +66,18 @@ copy_renamed() {
     for config in "$sd"/Emu/*/config.json "$sd"/RApp/*/config.json; do
         [ -f "$config" ] || continue
         folder=${config%/config.json}
-        name=$(lower "${folder##*/}")
+        lower "${folder##*/}"
+        name=$lower_result
         [ -e "$dest/$name.png" ] && continue
         [ -n "$(map_icon "$name")" ] && continue
         # ROM folder after Roms/ (gba, ports/shortcuts), icon file name
         rom=$(config_value rompath "$config")
-        rom=$(lower "${rom%/}")
+        lower "${rom%/}"
+        rom=$lower_result
         case "$rom" in */roms/*) rom=${rom#*/roms/} ;; *) rom=${rom##*/} ;; esac
         icon=$(config_value icon "$config")
-        icon=$(lower "${icon##*/}")
+        lower "${icon##*/}"
+        icon=$lower_result
         icon=${icon%.png}
         for picture in "$(map_icon "$rom")" "$(map_icon "$rom" roms.txt)" \
             "$(map_icon "$icon")" "$icon"; do
