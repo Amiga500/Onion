@@ -915,7 +915,9 @@ begin scraper_launchbox_box_art_in_software
 lb="$ROOT/static/build/.tmp_update/script/scraper/scrap_launchbox.sh"
 code=$(grep -vE '^[[:space:]]*#' "$lb")
 check "no jpg2png (graphics hardware) call" sh -c '! printf "%s\n" "$1" | grep -qE "(^|[^_[:alnum:]])jpg2png[[:space:]]"' _ "$code"
-check "JPEG box art goes through jpg2png_stb" sh -c 'printf "%s\n" "$1" | grep -q "jpg2png_stb \"\$img.\$mediaextension\" \"\$img.png\" 250 360"' _ "$code"
+check "JPEG box art goes through jpg2png_stb" sh -c 'printf "%s\n" "$1" | grep -q "jpg2png_stb \"\$img.dl.\$mediaextension\" \"\$img.tmp.png\" 250 360"' _ "$code"
+check "the game's picture only by a rename (MENU can cut a write)" sh -c '
+    [ "$(printf "%s\n" "$1" | grep -c "mv -f \"\$img.tmp.png\" \"\$img.png\"")" -eq 2 ]' _ "$code"
 check "every pngScale call is PNGSCALE_SOFTWARE=1" sh -c '
     all=$(printf "%s\n" "$1" | grep -c "pngScale ")
     soft=$(printf "%s\n" "$1" | grep -c "PNGSCALE_SOFTWARE=1 pngScale ")
