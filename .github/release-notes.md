@@ -1,5 +1,5 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅🔴 RedOnion 4.5.1 beta 5 (tester): Open MainUI rc10, the MiniCinema video player, two new apps by robcodedev, a faster game menu, the Flip lid pauses videos
+# 🧅🔴 RedOnion 4.5.1 beta 5 (tester): Open MainUI rc10, the MiniCinema and RedAmp players, two more new apps by robcodedev, a faster game menu, the Flip lid pauses videos
 
 > ⚠️ **Always back up your SD card before updating!** At least copy `Roms`, `Saves`, `BIOS` and `Screenshots` to your PC.
 
@@ -7,7 +7,7 @@
 
 RedOnion is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 
-This beta brings the **release candidate 10 of Open MainUI 1.1.1** by @robcodedev, as a prebuilt binary, two new apps of his and **MiniCinema**, a new video player by Rob and Veuks. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
+This beta brings the **release candidate 10 of Open MainUI 1.1.1** by @robcodedev, as a prebuilt binary, two new apps of his, **MiniCinema**, a new video player by Rob and Veuks, and **RedAmp**, a new music player by Rob. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
 
 ## 🆕 New in 4.5.1 beta 5
 
@@ -20,6 +20,11 @@ This beta brings the **release candidate 10 of Open MainUI 1.1.1** by @robcodede
 ### 🍿 New: MiniCinema 1.1.42 (Package Manager › APPS)
 
 - **MiniCinema** by Rob (@robcodedev) and Veuks: a new video player for the videos in `Media/Videos` (and its folders), built on FFmpeg 4.4.8 and the KidsPlay player Veuks made for Kids Mode. Its list sorts names naturally (Episode 2 before Episode 10), remembers where you stopped in each video and shows it (a percentage, END when watched, BAD when it could not play), and can show a picture of each video. Playing: resume, chapters, audio and subtitle tracks (also `.srt` files next to the video), Fit/Fill/Stretch/Original, a sleep timer and the next video by itself if you want it. SELECT opens the options, in the list and while playing; while playing, MENU goes back to the list and MENU twice leaves the app. While a video plays the sleep timer leaves it alone, and POWER or closing the Mini Flip lid put the console to sleep as usual. The Video Player stays as well.
+- This is its **first public test build**: please tell us how it works on your model.
+
+### 🎵 New: RedAmp 1.1.11 (Package Manager › APPS)
+
+- **RedAmp** by Rob (@robcodedev): a new music player with Winamp-style skins, for MP3, FLAC, WAV, Ogg Vorbis and Opus (also AAC/M4A/ALAC), and internet radio (the stations are in its `stations.m3u`, Wi-Fi needed). A music library from `Media/Music` (artists, albums, songs, folders), playlists, an equalizer with presets, visualizers, album covers from the music folders and the tags (and, if you turn it on, downloaded from MusicBrainz / Cover Art Archive), a sleep timer and a screen-off mode. **Play during standby** (on by default) keeps the music playing when POWER turns the screen off or the Mini Flip is closed; switched off, POWER and the lid pause it.
 - This is its **first public test build**: please tell us how it works on your model.
 
 ### 🎬 Video Player (Mini Flip lid)
@@ -71,12 +76,14 @@ This beta brings the **release candidate 10 of Open MainUI 1.1.1** by @robcodede
 
 - Terminal and File Explorer are now built from RedOnion's own forks, which already had these fixes.
 - SD Card Doctor, AudioTune and DisplayCal are built from source. AudioTune's MP3 decoder (minimp3, CC0) is kept in the tree at the exact version its author checked, so the build needs no download.
-- MiniCinema's source is kept in `third-party/minicinema`.
+- MiniCinema's and RedAmp's sources are kept in `third-party/minicinema` and `third-party/redamp`.
 - AudioTune's launcher writes its whole-line checks in a form the firmware's BusyBox understands (with `grep -x` the saved EQ would never have been found).
 - Tests for the model default Lumination, the OTA menu starting on your channel, the Console page choices, the SELECT hint, the Game Info scroll, the Video Player's standby and the faster game options menu (compared with the old one); the testers' OTA from beta 4 to beta 5. The script tests also pass under BusyBox 1.20.2, the version in the firmware.
 
 ## ⚠️ Known issues
 
+- **RedAmp, "Music in games":** it needs RedOnion to start games and MainUI through RedAmp's audio hook, which is not in this build: leave it **off**. Turned on, the music does not reach games or MainUI, and its background player keeps the console from suspending games on POWER.
+- **RedAmp, Play during standby:** a standby started while music plays has no automatic power-off, also after the music ends. Wake the console, or switch it off, when you are done.
 - **MiniCinema after a power-off:** reopening the video you were watching at the next start is still experimental.
 - **Kids Mode:** the progress bar of videos and audio is still violet with every theme. Kids Mode passes the theme's colour to its player; the player will use it from its next build.
 - **AudioTune in games:** the EQ outside the app is a beta and needs the exact firmware audio library it was checked against; on other firmware only the app's own preview uses it. It is set up when you leave AudioTune: after a restart, open and close AudioTune once to have it in games again.
@@ -94,7 +101,7 @@ Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga
 
 ## 🙏 Thanks
 
-Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI, MiniCinema, SD Card Doctor, AudioTune, DisplayCal, the faster scripts and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode and MiniCinema; to KyleBing for the console pictures; to SundownerSport for the GameTank core, Clyde Shaffer for the GameTank and its emulator, and tenlevels for the GameTank icon; to QuackWalks for the Mini Flip lid report; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
+Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI, MiniCinema, RedAmp, SD Card Doctor, AudioTune, DisplayCal, the faster scripts and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode and MiniCinema; to KyleBing for the console pictures; to SundownerSport for the GameTank core, Clyde Shaffer for the GameTank and its emulator, and tenlevels for the GameTank icon; to QuackWalks for the Mini Flip lid report; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
 
 ## 🔗 Links
 

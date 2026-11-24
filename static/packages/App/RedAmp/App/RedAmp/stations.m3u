@@ -1,0 +1,185 @@
+#EXTM3U
+
+# ===================== News & talk =====================
+#EXTINF:-1,BBC World Service [UK]
+http://stream.live.vc.bbcmedia.co.uk/bbc_world_service
+#EXTINF:-1,NPR News [US]
+https://npr-ice.streamguys1.com/live.mp3
+#EXTINF:-1,Sveriges Radio P1 [SE]
+http://sverigesradio.se/topsy/direkt/srapi/132.mp3
+#EXTINF:-1,Deutschlandfunk [DE]
+https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3
+#EXTINF:-1,Deutschlandfunk Kultur [DE]
+https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3
+#EXTINF:-1,franceinfo [FR]
+https://icecast.radiofrance.fr/franceinfo-midfi.mp3?id=radiofrance
+#EXTINF:-1,France Inter [FR]
+https://icecast.radiofrance.fr/franceinter-midfi.mp3?id=radiofrance
+#EXTINF:-1,France Culture [FR]
+https://icecast.radiofrance.fr/franceculture-midfi.mp3?id=radiofrance
+#EXTINF:-1,LBC [UK]
+http://media-ice.musicradio.com/LBCUKMP3
+#EXTINF:-1,Rai Radio 1 [IT]
+http://icestreaming.rai.it/1.mp3
+#EXTINF:-1,Cadena SER [ES]
+https://playerservices.streamtheworld.com/api/livestream-redirect/CADENASER.mp3
+#EXTINF:-1,NPO Radio 1 [NL]
+https://icecast.omroep.nl/radio1-bb-mp3
+#EXTINF:-1,VRT Radio 1 [BE]
+http://icecast.vrtcdn.be/radio1-high.mp3
+#EXTINF:-1,RTBF La Premiere [BE]
+http://radios.rtbf.be/laprem1ere-128.mp3
+#EXTINF:-1,DR P1 [DK]
+http://live-icy.gss.dr.dk/A/A03H.mp3
+#EXTINF:-1,NRK P1 [NO]
+http://lyd.nrk.no/nrk_radio_p1_ostlandssendingen_mp3_h
+#EXTINF:-1,ORF Oe1 [AT]
+https://orf-live.ors-shoutcast.at/oe1-q2a
+#EXTINF:-1,SRF 1 [CH]
+http://stream.srg-ssr.ch/m/drs1/mp3_128
+#EXTINF:-1,CRo Radiozurnal [CZ]
+https://rozhlas.stream/radiozurnal_mp3_128.mp3
+
+# ===================== Pop & hits =====================
+#EXTINF:-1,Sveriges Radio P3 [SE]
+http://sverigesradio.se/topsy/direkt/srapi/164.mp3
+#EXTINF:-1,Sveriges Radio P4 Stockholm [SE]
+http://sverigesradio.se/topsy/direkt/srapi/701.mp3
+#EXTINF:-1,Sveriges Radio P4 Goteborg [SE]
+http://sverigesradio.se/topsy/direkt/srapi/212.mp3
+#EXTINF:-1,Sveriges Radio P4 Malmohus [SE]
+http://sverigesradio.se/topsy/direkt/srapi/207.mp3
+#EXTINF:-1,RIX FM [SE]
+https://fm01-ice.stream.khz.se/fm01_mp3
+#EXTINF:-1,NRJ Sweden [SE]
+https://fm03-ice.stream.khz.se/fm03_mp3
+#EXTINF:-1,Lugna Favoriter [SE]
+https://fm02-ice.stream.khz.se/fm02_mp3
+#EXTINF:-1,Capital [UK]
+http://media-ice.musicradio.com/CapitalMP3
+#EXTINF:-1,Heart [UK]
+http://media-ice.musicradio.com/HeartUKMP3
+#EXTINF:-1,1LIVE [DE]
+https://wdr-1live-live.icecast.wdr.de/wdr/1live/live/mp3/128/stream.mp3
+#EXTINF:-1,WDR 2 [DE]
+https://wdr-wdr2-rheinland.icecast.wdr.de/wdr/wdr2/rheinland/mp3/128/stream.mp3
+#EXTINF:-1,SWR3 [DE]
+https://liveradio.swr.de/sw282p3/swr3/play.mp3
+#EXTINF:-1,Antenne Bayern [DE]
+https://stream.antenne.de/antenne
+#EXTINF:-1,bigFM [DE]
+https://streams.bigfm.de/bigfm-deutschland-128-mp3
+#EXTINF:-1,Mouv' [FR]
+https://icecast.radiofrance.fr/mouv-midfi.mp3?id=radiofrance
+#EXTINF:-1,NRJ [FR]
+http://cdn.nrjaudio.fm/audio1/fr/30001/mp3_128.mp3
+#EXTINF:-1,Rai Radio 2 [IT]
+http://icestreaming.rai.it/2.mp3
+#EXTINF:-1,RTL 102.5 [IT]
+https://streamingv2.shoutcast.com/rtl-1025
+#EXTINF:-1,Radio 105 [IT]
+http://icecast.unitedradio.it/Radio105.mp3
+#EXTINF:-1,LOS40 [ES]
+https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40.mp3
+#EXTINF:-1,Cadena Dial [ES]
+https://playerservices.streamtheworld.com/api/livestream-redirect/CADENADIAL.mp3
+#EXTINF:-1,NPO Radio 2 [NL]
+https://icecast.omroep.nl/radio2-bb-mp3
+#EXTINF:-1,Radio 538 [NL]
+https://22593.live.streamtheworld.com/RADIO538.mp3
+#EXTINF:-1,VRT Radio 2 [BE]
+http://icecast.vrtcdn.be/ra2ant-high.mp3
+#EXTINF:-1,DR P3 [DK]
+http://live-icy.gss.dr.dk/A/A05H.mp3
+#EXTINF:-1,NRK P3 [NO]
+http://lyd.nrk.no/nrk_radio_p3_mp3_h
+#EXTINF:-1,Hitradio Oe3 [AT]
+https://orf-live.ors-shoutcast.at/oe3-q2a
+#EXTINF:-1,SRF 3 [CH]
+http://stream.srg-ssr.ch/m/drs3/mp3_128
+#EXTINF:-1,Energy Zuerich [CH]
+https://energyzuerich.ice.infomaniak.ch/energyzuerich-high.mp3
+#EXTINF:-1,Radio ZET [PL]
+https://zt.cdn.eurozet.pl/zet-net.mp3
+#EXTINF:-1,Evropa 2 [CZ]
+https://ice.actve.net/fm-evropa2-128
+#EXTINF:-1,Antena 1 [PT]
+http://radiocast.rtp.pt/antena180a.mp3
+
+# ===================== Rock & alternative =====================
+#EXTINF:-1,NPO 3FM [NL]
+https://icecast.omroep.nl/3fm-bb-mp3
+#EXTINF:-1,Studio Brussel [BE]
+http://icecast.vrtcdn.be/stubru-high.mp3
+#EXTINF:-1,Classic 21 [BE]
+http://radios.rtbf.be/classic21-128.mp3
+#EXTINF:-1,FM4 [AT]
+https://orf-live.ors-shoutcast.at/fm4-q2a
+#EXTINF:-1,KEXP [US]
+https://kexp-mp3-128.streamguys1.com/kexp128.mp3
+
+# ===================== Classical & jazz =====================
+#EXTINF:-1,Sveriges Radio P2 [SE]
+http://sverigesradio.se/topsy/direkt/srapi/163.mp3
+#EXTINF:-1,Classic FM [UK]
+http://media-ice.musicradio.com/ClassicFMMP3
+#EXTINF:-1,Classic FM Calm [UK]
+http://media-ice.musicradio.com/ClassicFMCalmMP3
+#EXTINF:-1,France Musique [FR]
+https://icecast.radiofrance.fr/francemusique-midfi.mp3?id=radiofrance
+#EXTINF:-1,FIP Jazz [FR]
+https://icecast.radiofrance.fr/fipjazz-midfi.mp3?id=radiofrance
+#EXTINF:-1,Rai Radio 3 [IT]
+http://icestreaming.rai.it/3.mp3
+#EXTINF:-1,NPO Klassiek [NL]
+https://icecast.omroep.nl/radio4-bb-mp3
+#EXTINF:-1,Klara [BE]
+http://icecast.vrtcdn.be/klara-high.mp3
+#EXTINF:-1,DR P2 [DK]
+http://live-icy.gss.dr.dk/A/A04H.mp3
+#EXTINF:-1,NRK P2 [NO]
+http://lyd.nrk.no/nrk_radio_p2_mp3_h
+#EXTINF:-1,Radio Swiss Classic [CH]
+http://stream.srg-ssr.ch/m/rsc_de/mp3_128
+#EXTINF:-1,Radio Swiss Jazz [CH]
+http://stream.srg-ssr.ch/m/rsj/mp3_128
+#EXTINF:-1,Klassik Radio [DE]
+http://stream.klassikradio.de/live/mp3-128/
+
+# ===================== Eclectic, chill & world =====================
+#EXTINF:-1,FIP [FR]
+https://icecast.radiofrance.fr/fip-midfi.mp3?id=radiofrance
+#EXTINF:-1,FIP Groove [FR]
+https://icecast.radiofrance.fr/fipgroove-midfi.mp3?id=radiofrance
+#EXTINF:-1,FIP Monde [FR]
+https://icecast.radiofrance.fr/fipworld-midfi.mp3?id=radiofrance
+#EXTINF:-1,Deutschlandfunk Nova [DE]
+https://st03.sslstream.dlf.de/dlf/03/128/mp3/stream.mp3
+#EXTINF:-1,Radio Swiss Pop [CH]
+http://stream.srg-ssr.ch/m/rsp/mp3_128
+#EXTINF:-1,Radio Paradise [US]
+https://stream.radioparadise.com/mp3-192
+#EXTINF:-1,SomaFM Groove Salad [US]
+https://ice1.somafm.com/groovesalad-128-mp3
+#EXTINF:-1,SomaFM Drone Zone [US]
+https://ice1.somafm.com/dronezone-128-mp3
+
+# ===== Additional stations (AAC streams use the private FFmpeg decoder) =====
+#EXTINF:-1,Europe 1 [FR]
+https://europe1.lmn.fm/europe1.mp3
+#EXTINF:-1,Yle Radio Suomi [FI] (AAC)
+https://icecast.live.yle.fi/radio/YleRS/icecast.audio
+#EXTINF:-1,Mix Megapol [SE]
+https://live-bauerse-fm.sharp-stream.com/mixmegapol_instream_se_mp3
+#EXTINF:-1,Radio 100 [DK]
+https://live-bauerdk.sharp-stream.com/radio100_dk_mp3
+#EXTINF:-1,Radio Norge [NO]
+https://live-bauerno.sharp-stream.com/radionorge_no_mp3
+#EXTINF:-1,YleX [FI] (AAC)
+https://icecast.live.yle.fi/radio/YleX/icecast.audio
+#EXTINF:-1,RMF FM [PL]
+https://rs6-krk2.rmfstream.pl/RMFFM48
+#EXTINF:-1,Radio Comercial [PT]
+https://stream-icy.bauermedia.pt/comercial.mp3
+#EXTINF:-1,FIP (HLS) [FR]
+https://stream.radiofrance.fr/fip/fip.m3u8

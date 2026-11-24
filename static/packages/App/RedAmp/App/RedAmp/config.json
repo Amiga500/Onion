@@ -1,0 +1,6 @@
+{
+  "label": "RedAmp",
+  "icon": "icon.png",
+  "launch": "launch.sh",
+  "description": "Powerful music player."
+}
