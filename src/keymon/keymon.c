@@ -1592,8 +1592,11 @@ int main(void)
         else
             hibernate_time = settings.sleep_timer;
 
-        // A video or song playing in Kids Mode is not inactivity.
-        if (temp_flag_get("kidsmode_media_playing")) {
+        // A video or song playing in Kids Mode, or a video in the Video
+        // Player, is not inactivity. Not stay_awake: that one also keeps
+        // everything running in standby (POWER, Flip lid closed), and the
+        // video went on playing with the screen off (#350).
+        if (temp_flag_get("kidsmode_media_playing") || temp_flag_get("video_playing")) {
             hibernate_start = ticks;
         }
         else if (hibernate_time && !temp_flag_get("stay_awake")) {

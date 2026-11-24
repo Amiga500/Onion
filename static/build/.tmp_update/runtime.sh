@@ -1091,7 +1091,7 @@ launch_game_postprocess() {
     echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 
     # Reset flags
-    rm /tmp/stay_awake 2> /dev/null
+    rm /tmp/stay_awake /tmp/video_playing 2> /dev/null
 
     # TIMER END + SHUTDOWN CHECK
     if [ $is_game -eq 1 ]; then
