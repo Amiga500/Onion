@@ -16,11 +16,10 @@ TARGET := audiotune
 HOOK := libaudiotune_vqe.so
 
 CFLAGS := -Os -std=c99 -Wall -Wextra -Wshadow -Wstrict-prototypes \
-          -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve \
-          -I../common
+          -marm -mtune=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -march=armv7ve
 LDFLAGS := -no-pie -Wl,--dynamic-linker=/lib/ld-linux-armhf.so.3 \
            -Wl,-z,max-page-size=4096
-LDLIBS := -lSDL -lSDL_ttf -lpthread -ldl -lm
+LDLIBS := -lSDL -lpthread -ldl -lm
 
 .PHONY: all build verify-mp3 clean
 
