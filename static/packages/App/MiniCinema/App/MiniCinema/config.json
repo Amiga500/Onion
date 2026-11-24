@@ -1,0 +1,7 @@
+{
+  "label": "MiniCinema",
+  "icon": "icon.png",
+  "iconsel": "",
+  "launch": "launch.sh",
+  "description": "Modern pocket video player"
+}
