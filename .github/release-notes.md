@@ -17,9 +17,9 @@ This beta brings the **release candidate 10 of Open MainUI 1.1.1** by @robcodede
 - **New: AudioTune 0.2.9** by @robcodedev: tone, stereo and noise tests, a five-band EQ (250 Hz and 8 kHz as low/high shelves, 500 Hz, 1 kHz and 4 kHz) with presets (Flat, Presence, Full, Clear, Warm, Bright, Custom), and music to try it on (its demo, or your own `sample.mp3` next to its `launch.sh`, played at 48 kHz). **L2** picks the output you are listening on, SPEAKER or HEADPHONES (SPEAKER protects the small speaker from strong bass), **R2** turns on a soft limiter (EQ page) or switches SAFE/PUNCHY headroom with headphones (Sound Profiles page). On Sound Profiles, moving over a preset lets you hear it while the music plays; **A** applies it. On the firmware it was checked against, it can also carry the EQ into games when you leave the app (beta: when the firmware is different, the normal audio is left as it is). Start at a low volume.
 - **DisplayCal 0.8.4** by @robcodedev: on the Display page, Lumination starts from and resets to (X, Y) your model's default when `system.json` has none: 7 on the Mini and Mini v4, 10 on the Mini+ and Mini Flip (it was 10 on every model).
 
-### 🍿 New: MiniCinema 1.1.41 (Package Manager › APPS)
+### 🍿 New: MiniCinema 1.1.42 (Package Manager › APPS)
 
-- **MiniCinema** by Rob (@robcodedev) and Veuks: a new video player for the videos in `Media/Videos` (and its folders), built on FFmpeg 4.4.8 and the KidsPlay player Veuks made for Kids Mode. Its list sorts names naturally (Episode 2 before Episode 10), remembers where you stopped in each video and shows it (a percentage, END when watched, BAD when it could not play), and can show a picture of each video. Playing: resume, chapters, audio and subtitle tracks (also `.srt` files next to the video), Fit/Fill/Stretch/Original, a sleep timer and the next video by itself if you want it. SELECT opens the options, in the list and while playing; while playing, MENU goes back to the list and MENU twice leaves the app. The Video Player stays as well.
+- **MiniCinema** by Rob (@robcodedev) and Veuks: a new video player for the videos in `Media/Videos` (and its folders), built on FFmpeg 4.4.8 and the KidsPlay player Veuks made for Kids Mode. Its list sorts names naturally (Episode 2 before Episode 10), remembers where you stopped in each video and shows it (a percentage, END when watched, BAD when it could not play), and can show a picture of each video. Playing: resume, chapters, audio and subtitle tracks (also `.srt` files next to the video), Fit/Fill/Stretch/Original, a sleep timer and the next video by itself if you want it. SELECT opens the options, in the list and while playing; while playing, MENU goes back to the list and MENU twice leaves the app. While a video plays the sleep timer leaves it alone, and POWER or closing the Mini Flip lid put the console to sleep as usual. The Video Player stays as well.
 - This is its **first public test build**: please tell us how it works on your model.
 
 ### 🎬 Video Player (Mini Flip lid)
@@ -71,13 +71,12 @@ This beta brings the **release candidate 10 of Open MainUI 1.1.1** by @robcodede
 
 - Terminal and File Explorer are now built from RedOnion's own forks, which already had these fixes.
 - SD Card Doctor, AudioTune and DisplayCal are built from source. AudioTune's MP3 decoder (minimp3, CC0) is kept in the tree at the exact version its author checked, so the build needs no download.
-- MiniCinema's source is kept in `third-party/minicinema`; its launcher checks a watched video with a whole-line match the firmware's BusyBox gets right (`grep -Fx` there finds any line containing the name).
+- MiniCinema's source is kept in `third-party/minicinema`.
 - AudioTune's launcher writes its whole-line checks in a form the firmware's BusyBox understands (with `grep -x` the saved EQ would never have been found).
 - Tests for the model default Lumination, the OTA menu starting on your channel, the Console page choices, the SELECT hint, the Game Info scroll, the Video Player's standby and the faster game options menu (compared with the old one); the testers' OTA from beta 4 to beta 5. The script tests also pass under BusyBox 1.20.2, the version in the firmware.
 
 ## ⚠️ Known issues
 
-- **MiniCinema on the Mini Flip:** closing the lid while a video plays turns the screen off but the video and its sound go on (POWER pauses it). Press POWER, or pause, before closing the lid. To be fixed in MiniCinema.
 - **MiniCinema after a power-off:** reopening the video you were watching at the next start is still experimental.
 - **Kids Mode:** the progress bar of videos and audio is still violet with every theme. Kids Mode passes the theme's colour to its player; the player will use it from its next build.
 - **AudioTune in games:** the EQ outside the app is a beta and needs the exact firmware audio library it was checked against; on other firmware only the app's own preview uses it. It is set up when you leave AudioTune: after a restart, open and close AudioTune once to have it in games again.

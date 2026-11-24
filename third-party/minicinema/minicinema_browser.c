@@ -1334,7 +1334,7 @@ static void display(void){
         for (const char *ch = title; *ch; ++ch)
             advance += ui_title_advance[(unsigned char)*ch - 32];
         rect(88, 62, advance, 2, red);
-        small(87+advance+15,35,"v1.1.41",95,muted);
+        small(87+advance+15,35,"v1.1.42",95,muted);
     }
     rect(22,78,596,1,color(53,62,75));
     const char *folder=cwd;

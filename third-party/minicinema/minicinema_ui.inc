@@ -27,7 +27,7 @@ extern SDL_Surface *IMG_Load(const char *);
 #define KP_H 480
 #define KP_HEADER_TITLE_LINES 4
 #define KP_MEDIA_PLAYING "/tmp/minicinema_media_playing"
-#define KP_STAY_AWAKE "/tmp/stay_awake"
+#define KP_VIDEO_PLAYING "/tmp/video_playing"
 #define KP_BACKLIGHT "/sys/devices/soc0/soc/1f003400.pwm/pwm/pwmchip0/pwm0/duty_cycle"
 #define KP_BACKLIGHT_SAVED "/tmp/minicinema_backlight"
 
@@ -90,7 +90,7 @@ typedef struct KidsPlayUi {
     int pause_dim_seconds;
     int auto_preview_pending;
     char subtitle_font_setting[512];
-    int awake_owned;
+    int video_playing_owned;
     uint32_t menu_released;
     TTF_Font *srt_font;
     char srt_font_path[512];
@@ -251,17 +251,18 @@ static void kp_touch(const char *path, int present)
     }
 }
 
-/* Do not remove a sleep-inhibit flag created by another application. */
-static void kp_set_stay_awake(int active)
+/* Advertise playback as activity without blocking keymon POWER/lid suspend.
+ * Do not remove a video-playing flag created by another application. */
+static void kp_set_video_playing(int active)
 {
     if (!active) {
-        if (kp.awake_owned) unlink(KP_STAY_AWAKE);
-        kp.awake_owned = 0;
-    } else if (!kp.awake_owned) {
-        int fd = open(KP_STAY_AWAKE, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        if (kp.video_playing_owned) unlink(KP_VIDEO_PLAYING);
+        kp.video_playing_owned = 0;
+    } else if (!kp.video_playing_owned) {
+        int fd = open(KP_VIDEO_PLAYING, O_WRONLY | O_CREAT | O_EXCL, 0644);
         if (fd >= 0) {
             close(fd);
-            kp.awake_owned = 1;
+            kp.video_playing_owned = 1;
         }
     }
 }
@@ -790,7 +791,7 @@ static void kp_init(VideoState *is)
     kp.clock_ready = kp.audio_only;
     kp.clock_ready_after = 0;
     kp_touch(KP_MEDIA_PLAYING, 1);
-    kp_set_stay_awake(is && !is->paused);
+    kp_set_video_playing(is && !is->paused);
     kp_update_status(is, 1);
     kp.initialized = 1;
 }
@@ -878,15 +879,15 @@ static void kp_backlight_tick(VideoState *is, uint32_t now)
     }
 }
 
-/* A short POWER press must release the sleep inhibitor before keymon handles
- * the release event. The same checkpoint path is used by B and POWER. */
+/* B and POWER share the checkpoint/pause path. A paused video is no longer
+ * playback activity for keymon; POWER/lid suspend remains keymon-owned. */
 static void kp_pause(VideoState *is)
 {
     if (!is || is->paused) return;
     kp_save_position(is, 1);
     toggle_pause(is);
     kp_touch(KP_MEDIA_PLAYING, 0);
-    kp_set_stay_awake(0);
+    kp_set_video_playing(0);
     kp.pause_activity_at = SDL_GetTicks();
     kp.backlight_observed = kp_read_number(KP_BACKLIGHT);
     kp.osd_hidden = 0;
@@ -902,7 +903,7 @@ static void kp_resume(VideoState *is)
     kp_backlight_restore();
     toggle_pause(is);
     kp_touch(KP_MEDIA_PLAYING, 1);
-    kp_set_stay_awake(1);
+    kp_set_video_playing(1);
     kp.osd_hidden = 0;
     kp.progress_until = SDL_GetTicks() + mc_osd_ms();
     is->force_refresh = 1;
@@ -916,7 +917,7 @@ static void kp_sleep_timer_fire(VideoState *is)
     long current;
     if (!is) return;
     kp.sleep_timer_fired = 1;
-    kp_pause(is); /* checkpoint, release stay_awake, pause audio */
+    kp_pause(is); /* checkpoint, release video_playing, pause audio */
     kp.progress_until = kp.seek_notice_until = 0;
     kp.notice[0] = 0;
     kp.osd_hidden = 1;
@@ -1100,12 +1101,12 @@ static void kp_tick(VideoState *is)
     }
     mc_stats_tick(is, now);
     /* FFplay briefly unpauses to step one frame. That is not a user resume:
-     * keep the preexisting sleep-inhibitor state instead of toggling it. */
+     * keep the preexisting playback-activity state instead of toggling it. */
     if (kp.frame_stepping) {
         if (is->paused) kp.frame_stepping = 0;
         kp.paused = 1;
     } else {
-        if (kp.paused != is->paused) kp_set_stay_awake(!is->paused);
+        if (kp.paused != is->paused) kp_set_video_playing(!is->paused);
         kp.paused = is->paused;
     }
     if (kp.sleep_deadline > 0 && !kp.sleep_timer_fired && !kp.power_blanked &&
@@ -2940,7 +2941,7 @@ static void mc_leave(VideoState *is, int exit_app)
     const char *marker = getenv(exit_app ? "MC_EXIT_APP_FILE" : "MC_BACK_BROWSER_FILE");
     kp_backlight_restore();
     kp_save_position(is, 1);
-    kp_set_stay_awake(0);
+    kp_set_video_playing(0);
     if (marker && marker[0]) kp_touch(marker, 1);
     /* Explicit exit only: checkpoints and handoff marker are already saved.
      * Bound slow decoder/SDL teardown on troubled SD cards. */
@@ -3381,7 +3382,7 @@ static void kp_shutdown(VideoState *is)
     if (kp.power_fd >= 0) { close(kp.power_fd); kp.power_fd = -1; }
     kp_save_position(is, 1);
     kp_touch(KP_MEDIA_PLAYING, 0);
-    kp_set_stay_awake(0);
+    kp_set_video_playing(0);
     mc_srt_shutdown();
     if (kp.audio_texture) SDL_DestroyTexture(kp.audio_texture);
     if (kp.audio_canvas) SDL_FreeSurface(kp.audio_canvas);

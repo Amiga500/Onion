@@ -1,5 +1,5 @@
 #!/bin/sh
-# MiniCinema 1.1.41 - RedOnion standalone video player (KidsPlay-derived).
+# MiniCinema 1.1.42 - RedOnion standalone video player (KidsPlay-derived).
 # Copyright 2026 MiniCinema contributors; KidsPlay engine by Veuks.
 set -u
 APP=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || exit 1
@@ -35,7 +35,7 @@ LOG="$APP/reports/last-play.log"
 ERROR_FILE=/tmp/minicinema_error
 PROGRESS_INDEX="$APP/resume/index.tsv"
 APP_EXIT_REQUESTED=0
-AWAKE_OWNED=0
+VIDEO_PLAYING_OWNED=0
 BATTERY_DISPLAY_FLAG=/tmp/hasBatteryDisplay
 BATTERY_DISPLAY_OWNED=0
 FB_PROBED=0
@@ -166,7 +166,7 @@ cleanup() {
     restore_backlight
     if [ -f /tmp/.offOrder ]; then record_shutdown || :; fi
     # Leave a pre-existing flag belonging to another process untouched.
-    if [ "$AWAKE_OWNED" -eq 1 ]; then rm -f /tmp/stay_awake; fi
+    if [ "$VIDEO_PLAYING_OWNED" -eq 1 ]; then rm -f /tmp/video_playing; fi
     if [ "$BATTERY_DISPLAY_OWNED" -eq 1 ]; then rm -f "$BATTERY_DISPLAY_FLAG"; fi
     rm -f "$EXIT_FILE" "$BACK_FILE" "$NEXT_FILE" "$NEXT_CANCEL_FILE" "$PREV_FILE" \
         "$POSRUNTIME" "$DURRUNTIME" "$SEEK_END_FILE" "$FRAME_OK_FILE" \
@@ -252,7 +252,7 @@ set_completed() {
     finished=$2
     temporary="$APP/resume/.completed.$$"
     if [ -f "$COMPLETED_INDEX" ]; then
-        awk -v target="$target" '$0 != target' "$COMPLETED_INDEX" > "$temporary" || : > "$temporary"
+        MC_COMPLETED_TARGET="$target" awk '$0 != ENVIRON["MC_COMPLETED_TARGET"]' "$COMPLETED_INDEX" > "$temporary" || : > "$temporary"
     else
         : > "$temporary"
     fi
@@ -464,9 +464,9 @@ play_video() {
     set -- "$@" -i "$video"
     next_title=${following##*/}
     next_title=${next_title%.*}
-    # Only remove a stay_awake flag we were entitled to create ourselves.
-    AWAKE_OWNED=0
-    if [ ! -e /tmp/stay_awake ]; then AWAKE_OWNED=1; fi
+    # Only clean up a video_playing flag that was absent before this player.
+    VIDEO_PLAYING_OWNED=0
+    if [ ! -e /tmp/video_playing ]; then VIDEO_PLAYING_OWNED=1; fi
     MC_VIDEO_SCALER="$scaler" MC_DEFAULT_ASPECT="$default_aspect" MC_PERF_MODE="$perf_mode" \
     MC_NIGHT_MODE="$night_mode" MC_SCREEN_OVERLAY="$screen_overlay" MC_NEXT_TITLE="$next_title" \
     MC_SLEEP_DEADLINE="$SLEEP_DEADLINE" MC_SLEEP_END_VIDEO="$SLEEP_END_VIDEO" \
@@ -490,8 +490,8 @@ play_video() {
     status=$?
     ACTIVE_CHILD=
     restore_backlight
-    if [ "$AWAKE_OWNED" -eq 1 ]; then rm -f /tmp/stay_awake; fi
-    AWAKE_OWNED=0
+    if [ "$VIDEO_PLAYING_OWNED" -eq 1 ]; then rm -f /tmp/video_playing; fi
+    VIDEO_PLAYING_OWNED=0
     if record_shutdown; then
         # Never classify a shutdown as DONE, BAD, or auto-next. The checkpoint
         # was saved by kp_shutdown on SIGTERM or by the POWER pause handler.
@@ -570,11 +570,9 @@ play_video() {
         # A new partially watched session supersedes an old END marker.
         # Wait for a decoded frame and a real checkpoint, so opening a
         # completed video and immediately failing doesn't erase its history.
-        # Whole line with awk: the firmware's BusyBox 1.20.2 ignores -x
-        # with grep -F (a substring search).
         if [ -f "$FRAME_OK_FILE" ] && [ -r "$COMPLETED_INDEX" ] &&
-            awk -v target="$video" '$0 == target { found = 1 } END { exit !found }' \
-                "$COMPLETED_INDEX"; then
+            MC_COMPLETED_TARGET="$video" awk '$0 == ENVIRON["MC_COMPLETED_TARGET"] { found=1; exit }
+                END { exit !found }' "$COMPLETED_INDEX"; then
             set_completed "$video" 0
         fi
         media_duration=0

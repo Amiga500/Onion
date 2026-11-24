@@ -1,6 +1,6 @@
 # MiniCinema source
 
-Source of **MiniCinema 1.1.41** by Rob (@robcodedev) and Veuks, as given
+Source of **MiniCinema 1.1.42** by Rob (@robcodedev) and Veuks, as given
 with its release (its `src/` folder). GPL-3.0, see
 `static/packages/App/MiniCinema/App/MiniCinema/LICENSE`.
 

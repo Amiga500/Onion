@@ -1,4 +1,4 @@
-# MiniCinema v1.1.41: source-only ARM build. Outputs stay in this directory.
+# MiniCinema v1.1.42: source-only ARM build. Outputs stay in this directory.
 
 CROSS_CC ?= /opt/miyoomini-toolchain/usr/bin/arm-linux-gnueabihf-gcc
 CLANG ?= clang

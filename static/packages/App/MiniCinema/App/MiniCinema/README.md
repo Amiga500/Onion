@@ -1,6 +1,6 @@
 # MiniCinema
 
-**Version: 1.1.41**
+**Version: 1.1.42**
 
 **Created by Rob and Veuks.**
 
@@ -342,19 +342,21 @@ when starting from the beginning and no matching PNG preview exists. Existing ar
 replaced. In Browser Settings, A from Off or 0 selects 5s; RIGHT progresses Off, 0, 5s, 10s,
 and so on. LEFT from 0 returns to Off. Preview capture works independently of the preview panel.
 
-While video is playing, MiniCinema creates `/tmp/stay_awake` to prevent automatic suspend. A short
-POWER press is monitored through `/dev/input/event0`. MiniCinema immediately pauses, checkpoints,
-removes its own stay-awake flag and draws a black frame without the pause/progress OSD. RedOnion
-keymon remains responsible for the actual backlight and sleep transition. When keymon uses
-SIGSTOP/SIGCONT for sleep, the player resumes as soon as keymon continues it
-on wake, without waiting for another button. POWER events queued during suspension are drained
-on wake, with only a brief debounce for duplicates. Fresh sleep presses are accepted on every
-cycle. A video playing before sleep resumes playing; if it was already paused, it remains paused.
-For sleep configurations without
-SIGSTOP, the POWER, clock and backlight fallbacks remain. Another player key can also recover a
-missed wake; that key is consumed to avoid unintended seeks/exits. This behavior still requires
-hardware testing on each Miyoo model. MiniCinema never removes a stay-awake flag belonging to
-another application.
+While video is playing, MiniCinema creates `/tmp/video_playing` to report playback activity to
+RedOnion keymon. On versions of keymon that support this flag, it prevents idle sleep while still
+allowing real suspend on POWER or when the Mini Flip lid closes. The flag is released on pause
+or exit; a pre-existing flag belonging to another application is left untouched. Older keymon
+versions that do not recognize `video_playing` may still apply their normal idle sleep timeout.
+
+A short POWER press is monitored through `/dev/input/event0`. MiniCinema blanks the display,
+pauses and checkpoints without showing the pause/progress OSD. RedOnion keymon remains responsible
+for the actual backlight and sleep transition. On wake, SIGCONT restores the video presentation
+and resumes playback if MiniCinema paused a playing video for POWER sleep. Lid sleep can suspend
+the player directly without a POWER event; a playing video is expected to continue on wake,
+while an already paused video remains paused. Queued POWER events are drained on SIGCONT, with
+only a brief debounce for duplicates. For configurations without SIGSTOP, the POWER, clock and
+backlight fallbacks remain. Another player key can recover a missed wake; that key is consumed
+to avoid unintended seeks or exits. Hardware testing is needed on each Miyoo model.
 
 While normally paused, the backlight dims to duty cycle 3 after the chosen pause dim interval
 (default 30 seconds), then switches off 15 seconds later. Settings > Power & Battery offers
