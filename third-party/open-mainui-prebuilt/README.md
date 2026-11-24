@@ -1,10 +1,21 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.1 rc9**, on top of 1.1.0 (the source in
+GitHub: **Open MainUI 1.1.1 rc10**, on top of 1.1.0 (the source in
 `third-party/open-mainui`).
 
-Since rc8:
+Since rc9:
+
+- Stopped with SIGTERM (as keymon would), MainUI saves the screen it is on
+  (`mainui-screen.json` in its handoff directory, `/tmp` in RedOnion) and
+  opens it again at its next start. keymon still stops MainUI with SIGKILL
+  to open the GameSwitcher: that needs a keymon change, and the exact
+  screen is not kept until then (the screen after a GameSwitcher stays as
+  before). The only other signal RedOnion sends it is `app_sorter.sh`'s
+  SIGINT, when MainUI is running (not from Tweaks, where it is not); in
+  the 1.1.0 source SIGINT and SIGTERM take the same path.
+
+From rc9:
 
 - Lumination missing or invalid in system.json now falls back to 10 on
   the Mini Flip and Mini+ and 7 on the Mini, as in RedOnion's
