@@ -1,5 +1,5 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅🔴 RedOnion 4.5.1 beta 5: Open MainUI rc9, two new apps by robcodedev, a clearer Tweaks
+# 🧅🔴 RedOnion 4.5.1 beta 5 (tester): Open MainUI rc9, two new apps by robcodedev, a faster game menu, the Flip lid pauses videos
 
 > ⚠️ **Always back up your SD card before updating!** At least copy `Roms`, `Saves`, `BIOS` and `Screenshots` to your PC.
 
@@ -14,8 +14,20 @@ This beta brings the **release candidate 9 of Open MainUI 1.1.1** by @robcodedev
 ### 📦 Apps by robcodedev (Package Manager › APPS)
 
 - **New: SD Card Doctor 0.6.3** by @robcodedev: card and FAT32 information, quick and deep read scans, a speed test, folder sizes, a read-only FAT check, the card's identity and a reviewed cleanup of macOS leftovers (`.DS_Store`, `._*`…), moved to a quarantine you can restore from. It never formats or repairs the card. The write part of the speed test asks first, and needs 25 % battery and 160 MiB free.
-- **New: AudioTune 0.2.3** by @robcodedev: tone, stereo and noise tests, a five-band EQ with presets, and music to try it on (its demo, or your own `sample.mp3` next to its `launch.sh`). On the firmware it was checked against, it can also carry the EQ into games (beta: when the firmware is different, the normal audio is left as it is). Start at a low volume.
+- **New: AudioTune 0.2.9** by @robcodedev: tone, stereo and noise tests, a five-band EQ (250 Hz and 8 kHz as low/high shelves, 500 Hz, 1 kHz and 4 kHz) with presets (Flat, Presence, Full, Clear, Warm, Bright, Custom), and music to try it on (its demo, or your own `sample.mp3` next to its `launch.sh`, played at 48 kHz). **L2** picks the output you are listening on, SPEAKER or HEADPHONES (SPEAKER protects the small speaker from strong bass), **R2** turns on a soft limiter (EQ page) or switches SAFE/PUNCHY headroom with headphones (Sound Profiles page). On Sound Profiles, moving over a preset lets you hear it while the music plays; **A** applies it. On the firmware it was checked against, it can also carry the EQ into games when you leave the app (beta: when the firmware is different, the normal audio is left as it is). Start at a low volume.
 - **DisplayCal 0.8.4** by @robcodedev: on the Display page, Lumination starts from and resets to (X, Y) your model's default when `system.json` has none: 7 on the Mini and Mini v4, 10 on the Mini+ and Mini Flip (it was 10 on every model).
+
+### 🎬 Video Player (Mini Flip lid)
+
+- **Closing the lid, or pressing POWER, pauses the video again** (#350). The screen turned off but the video and its sound went on: the Video Player kept the console "awake" so that the sleep timer would not stop a long video, and that also kept it from pausing in standby. Now the sleep timer still leaves a playing video alone, and the lid and POWER pause it, on every model. The same for the MAME 2003-Plus save state tutorial video. Thanks to QuackWalks for the report and the test.
+- The Music Player is unchanged: music goes on with the lid closed.
+
+### ⚡ Faster (by robcodedev)
+
+- **The game options menu (Y on a game) opens faster**: each script entry is read once instead of through a dozen small programs. A console whose name has a `/` or a `&` (for example "Sega CD / Mega-CD") no longer gets empty script entries.
+- **Video Player and PDF Reader file lists** open faster in big folders; an empty folder no longer shows a stray "/" row.
+- **The core list** (Game core in the game options) is built faster the first time, and an interrupted build no longer leaves half a list.
+- Console pictures are set up faster at install.
 
 ### 🕹️ New console: GameTank (Package Manager › VERIFIED)
 
@@ -53,12 +65,13 @@ This beta brings the **release candidate 9 of Open MainUI 1.1.1** by @robcodedev
 
 - Terminal and File Explorer are now built from RedOnion's own forks, which already had these fixes.
 - SD Card Doctor, AudioTune and DisplayCal are built from source. AudioTune's MP3 decoder (minimp3, CC0) is kept in the tree at the exact version its author checked, so the build needs no download.
-- Tests for the model default Lumination, the OTA menu starting on your channel, the Console page choices, the SELECT hint and the Game Info scroll; the testers' OTA from beta 4 to beta 5.
+- AudioTune's launcher writes its whole-line checks in a form the firmware's BusyBox understands (with `grep -x` the saved EQ would never have been found).
+- Tests for the model default Lumination, the OTA menu starting on your channel, the Console page choices, the SELECT hint, the Game Info scroll, the Video Player's standby and the faster game options menu (compared with the old one); the testers' OTA from beta 4 to beta 5. The script tests also pass under BusyBox 1.20.2, the version in the firmware.
 
 ## ⚠️ Known issues
 
 - **Kids Mode:** the progress bar of videos and audio is still violet with every theme. Kids Mode passes the theme's colour to its player; the player will use it from its next build.
-- **AudioTune in games:** the EQ outside the app is a beta and needs the exact firmware audio library it was checked against; on other firmware only the app's own preview uses it.
+- **AudioTune in games:** the EQ outside the app is a beta and needs the exact firmware audio library it was checked against; on other firmware only the app's own preview uses it. It is set up when you leave AudioTune: after a restart, open and close AudioTune once to have it in games again.
 - **Game Info auto scroll** after a Reinstall on a card where it was switched off stays off: switch it on in Tweaks.
 - **SD card check after an OTA update:** the OTA still restarts the console without unmounting the card, so you may see a one-time "SD card check" notice. Checking the card on a PC clears it.
 - **Easy Netplay:** the hotspot has the same password on every console; during a session anyone nearby who knows it can join. Use it with people you know.
@@ -73,7 +86,7 @@ Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga
 
 ## 🙏 Thanks
 
-Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI, SD Card Doctor, AudioTune, DisplayCal and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode; to KyleBing for the console pictures; to SundownerSport for the GameTank core, Clyde Shaffer for the GameTank and its emulator, and tenlevels for the GameTank icon; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
+Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI, SD Card Doctor, AudioTune, DisplayCal, the faster scripts and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode; to KyleBing for the console pictures; to SundownerSport for the GameTank core, Clyde Shaffer for the GameTank and its emulator, and tenlevels for the GameTank icon; to QuackWalks for the Mini Flip lid report; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
 
 ## 🔗 Links
 
