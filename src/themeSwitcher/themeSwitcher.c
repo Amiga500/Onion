@@ -16,6 +16,7 @@
 #include "utils/msleep.h"
 
 #include "installTheme.h"
+#include "theme/render/canvas_ui.h"
 
 static bool quit = false;
 
@@ -107,100 +108,114 @@ static void previewCacheFree(PreviewCacheEntry cache[PREVIEW_CACHE_SIZE])
     }
 }
 
-#define SURF_W(s) ((s) != NULL ? (s)->w : 0)
-#define SURF_H(s) ((s) != NULL ? (s)->h : 0)
+/* New UI: the preview at 360x270 (from the theme's 480x360 preview.png),
+ * kept for the theme it was made for. */
+static SDL_Surface *scaled_preview = NULL;
+static int scaled_preview_page = -1;
 
-static void safeBlitSurface(SDL_Surface *src, SDL_Rect *srcrect,
-                            SDL_Surface *dst, SDL_Rect *dstrect)
+static SDL_Surface *scaledPreview(SDL_Surface *preview, int page)
 {
-    if (src != NULL && dst != NULL)
-        SDL_BlitSurface(src, srcrect, dst, dstrect);
+    if (scaled_preview_page == page && scaled_preview != NULL)
+        return scaled_preview;
+    if (scaled_preview)
+        SDL_FreeSurface(scaled_preview);
+    scaled_preview = NULL;
+    scaled_preview_page = page;
+    if (preview == NULL)
+        return NULL;
+    SDL_PixelFormat *f = preview->format;
+    scaled_preview = SDL_CreateRGBSurface(0, 360, 270, f->BitsPerPixel, f->Rmask, f->Gmask, f->Bmask, f->Amask);
+    if (scaled_preview == NULL)
+        return NULL;
+    SDL_Rect src = {0, 0, preview->w > 480 ? 480 : preview->w, preview->h > 360 ? 360 : preview->h};
+    SDL_Rect dst = {0, 0, 360, 270};
+    SDL_SoftStretch(preview, &src, scaled_preview, &dst);
+    return scaled_preview;
 }
 
-void showCenteredMessage(SDL_Surface *video, SDL_Surface *screen,
-                         const char *message_str, TTF_Font *font,
-                         SDL_Color color)
+/* The whole screen: header, the preview on the left with its page, the
+ * theme's details on the right, and the footer. details: the install page
+ * (A installs, X switches the icons). */
+static void drawThemes(SDL_Surface *screen, SDL_Surface *preview, int page, int count,
+                       const Theme_s *theme, bool installed, bool is_preview, bool has_icons,
+                       bool details, bool apply_icons)
 {
-    SDL_Surface *message = TTF_RenderUTF8_Blended(font, message_str, color);
-    SDL_Rect loadingRect = {320 - message->w / 2, 240 - message->h / 2};
-    SDL_FillRect(screen, NULL, 0);
-    SDL_BlitSurface(message, NULL, screen, &loadingRect);
+    CuiCanvas c = {(uint32_t *)screen->pixels, screen->pitch / 4};
+    cui_rect(&c, 0, 0, CUI_W, CUI_H, CUI_BG);
+    cui_header(&c, "palette", "Themes", installed ? "In use" : NULL, -1);
+
+    /* preview, framed in the accent when it is the one being installed */
+    cui_rrect(&c, 13, 73, 366, 276, 12, details ? CUI_ACCENT : CUI_TRACK);
+    cui_rrect(&c, 16, 76, 360, 270, 10, CUI_PANEL);
+    SDL_Surface *shown = scaledPreview(preview, page);
+    if (shown) {
+        SDL_Rect r = {16, 76};
+        SDL_BlitSurface(shown, NULL, screen, &r);
+    }
+    else
+        cui_text(&c, 196, 211, "No preview", 18, CUI_GREY, CUI_CENTER);
+
+    /* page: arrows and "3 of 7" under the preview */
+    char pages[32];
+    snprintf(pages, sizeof(pages), "%d of %d", page + 1, count);
+    cui_text(&c, 196, 374, pages, 17, CUI_GREY, CUI_CENTER);
+    if (page > 0)
+        cui_chevron(&c, 130, 374, -1, CUI_WHITE);
+    if (page < count - 1)
+        cui_chevron(&c, 262, 374, 1, CUI_WHITE);
+
+    /* details on the right */
+    int x = 396, w = 228;
+    char line[STR_MAX * 2];
+    cui_text(&c, x, 88, "THEME", 12, CUI_GREY, CUI_LEFT);
+    cui_fit(theme->name, 22, w, line, sizeof(line));
+    cui_text(&c, x, 116, line, 22, CUI_WHITE, CUI_LEFT);
+    if (strlen(theme->author) > 0) {
+        char author[STR_MAX * 2];
+        snprintf(author, sizeof(author), "by %s", theme->author);
+        cui_fit(author, 16, w, line, sizeof(line));
+        cui_text(&c, x, 144, line, 16, CUI_GREY, CUI_LEFT);
+    }
+    cui_rrect(&c, x - 4, 168, w + 8, 96, 10, CUI_RGB(38, 38, 41));
+    cui_text(&c, x + 8, 190, has_icons ? "Icons: included" : "Icons: none", 15, CUI_GREY, CUI_LEFT);
+    cui_text(&c, x + 8, 214, installed ? "Installed: in use" : "Installed: no", 15, CUI_GREY, CUI_LEFT);
+    cui_text(&c, x + 8, 238, is_preview ? "Kept as an archive" : "Ready on the card", 15, CUI_GREY, CUI_LEFT);
+
+    if (details) {
+        /* the icons switch, as a row */
+        cui_rrect(&c, x - 4, 284, w + 8, 46, 10, CUI_ACCENT);
+        cui_text(&c, x + 8, 307, has_icons ? "Apply its icons" : "Reset the icons", 18, CUI_WHITE, CUI_LEFT);
+        int sx = x + w - 44;
+        cui_rrect(&c, sx, 296, 40, 22, 11, apply_icons ? CUI_WHITE : cui_mix(CUI_ACCENT, CUI_WHITE, 0.3f));
+        cui_disc(&c, apply_icons ? sx + 29 : sx + 11, 307, 8, apply_icons ? CUI_ACCENT : CUI_GREY);
+    }
+
+    cui_rect(&c, 0, 428, CUI_W, 52, CUI_HEAD);
+    int hx = 16;
+    if (details) {
+        hx += cui_hint(&c, hx, 454, "A", "INSTALL", 20);
+        hx += cui_hint(&c, hx, 454, "X", "ICONS", 20);
+        cui_hint(&c, hx, 454, "B", "BACK", 20);
+    }
+    else {
+        hx += cui_hint(&c, hx, 454, "A", "SELECT", 20);
+        cui_rrect(&c, hx, 442, 36, 24, 6, CUI_TRACK);
+        cui_chevron(&c, hx + 10, 454, -1, CUI_WHITE);
+        cui_chevron(&c, hx + 26, 454, 1, CUI_WHITE);
+        hx += 36 + 7 + cui_text(&c, hx + 43, 454, "BROWSE", 20, CUI_WHITE, CUI_LEFT) + 20;
+        cui_hint(&c, hx, 454, "B", "EXIT", 20);
+    }
+}
+
+/* Loading and installing: the header and one line. */
+static void drawThemesMessage(SDL_Surface *video, SDL_Surface *screen, const char *message)
+{
+    CuiCanvas c = {(uint32_t *)screen->pixels, screen->pitch / 4};
+    cui_rect(&c, 0, 0, CUI_W, CUI_H, CUI_BG);
+    cui_header(&c, "palette", "Themes", "Working", -1);
+    cui_text(&c, 320, 240, message, 22, CUI_GREY, CUI_CENTER);
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
-    SDL_FreeSurface(message);
-}
-
-SDL_Surface *createBottomBar(TTF_Font *font)
-{
-    SDL_Surface *surfaceButtonA = IMG_Load("res/button_a.png");
-    SDL_Surface *surfaceButtonB = IMG_Load("res/button_b.png");
-    SDL_Surface *surfaceButtonX = IMG_Load("res/button_x.png");
-
-    SDL_Surface *surface = SDL_CreateRGBSurface(0, 640, 70, 32, 0, 0, 0, 0);
-
-    SDL_FillRect(surface, NULL, 0);
-
-    SDL_Rect pos = {20, 35 - SURF_H(surfaceButtonA) / 2};
-    safeBlitSurface(surfaceButtonA, NULL, surface, &pos);
-    pos.x += SURF_W(surfaceButtonA) + 10;
-
-    SDL_Surface *text =
-        TTF_RenderUTF8_Blended(font, "INSTALL", (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
-
-    pos.y = 35 - SURF_H(surfaceButtonB) / 2;
-    safeBlitSurface(surfaceButtonB, NULL, surface, &pos);
-    pos.x += SURF_W(surfaceButtonB) + 10;
-
-    text = TTF_RenderUTF8_Blended(font, "CANCEL", (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
-
-    pos.y = 35 - SURF_H(surfaceButtonX) / 2;
-    safeBlitSurface(surfaceButtonX, NULL, surface, &pos);
-    pos.x += SURF_W(surfaceButtonX) + 10;
-
-    text = TTF_RenderUTF8_Blended(font, "TOGGLE ICONS",
-                                  (SDL_Color){255, 255, 255});
-    pos.y = 35 - text->h / 2 - 3;
-    SDL_BlitSurface(text, NULL, surface, &pos);
-    pos.x += text->w + 20;
-    SDL_FreeSurface(text);
-
-    SDL_FreeSurface(surfaceButtonA);
-    SDL_FreeSurface(surfaceButtonB);
-    SDL_FreeSurface(surfaceButtonX);
-
-    return surface;
-}
-
-SDL_Surface *getPreviewIcon(const char *path, SDL_Surface *file_zip,
-                            SDL_Surface *file_7z, SDL_Surface *file_rar)
-{
-    char source_path[STR_MAX];
-    snprintf(source_path, STR_MAX - 1, "%s/source", path);
-
-    if (!is_file(source_path))
-        return NULL;
-
-    if (!file_read_line(source_path, source_path, sizeof(source_path)))
-        return NULL;
-
-    const char *ext = file_getExtension(source_path);
-
-    if (strcmp("zip", ext) == 0)
-        return file_zip;
-    if (strcmp("7z", ext) == 0)
-        return file_7z;
-    if (strcmp("rar", ext) == 0)
-        return file_rar;
-
-    return NULL;
 }
 
 int main(int argc, char *argv[])
@@ -240,55 +255,9 @@ int main(int argc, char *argv[])
     SDL_Surface *screen =
         SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
 
-    TTF_Font *font40 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 40);
-    TTF_Font *font21 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 21);
-    TTF_Font *font30 = TTF_OpenFont("/customer/app/Exo-2-Bold-Italic.ttf", 30);
-
-    SDL_Color color_white = {255, 255, 255};
-
-    SDL_Surface *background_page0 = IMG_Load("res/background.png");
-
-    SDL_Surface *imagePages;
-    SDL_Surface *imageThemeNom;
-
-    SDL_Surface *surfaceArrowLeft = IMG_Load("res/arrowLeft.png");
-    SDL_Surface *surfaceArrowRight = IMG_Load("res/arrowRight.png");
-
-    SDL_Surface *surfaceToggleON = IMG_Load("res/simple-toggle-on.png");
-    SDL_Surface *surfaceToggleOFF = IMG_Load("res/simple-toggle-off.png");
-
-    SDL_Surface *surfaceFileZIP = IMG_Load("res/file_zip.png");
-    SDL_Surface *surfaceFile7Z = IMG_Load("res/file_7z.png");
-    SDL_Surface *surfaceFileRAR = IMG_Load("res/file_rar.png");
-
-    SDL_Surface *surfaceHasIcons = IMG_Load("res/themes_has_icons.png");
-    SDL_Rect rectHasIcons = {560 - SURF_W(surfaceHasIcons),
-                             21 - SURF_H(surfaceHasIcons) / 2};
-    // The archive icon keeps one place, left of the ICONS badge's place,
-    // whether the theme has icons or not, so it does not jump while browsing.
-    SDL_Rect rectPreviewIcon = {560 - SURF_W(surfaceFileZIP) -
-                                    SURF_W(surfaceHasIcons) - 10,
-                                21 - SURF_H(surfaceFileZIP) / 2};
-
-    SDL_Rect preview_src_rect = {0, 0, 480, 360};
-    SDL_Rect rectArrowLeft = {24, 210, 28, 32};
-    SDL_Rect rectArrowRight = {588, 210, 28, 32};
-    SDL_Rect rectPages = {559, 450};
-    SDL_Rect rectThemeName = {20, 175, 600, 44};
-    SDL_Rect rectThemePreview = {80, 46, 480, 360};
-    SDL_Rect rectImageThemeNom = {77, 7, 557, 54};
-
-    SDL_Surface *transparent_bg = SDL_CreateRGBSurface(0, 640, 480, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-    SDL_FillRect(transparent_bg, NULL, 0xEE000000);
-
-    SDL_Rect rectBottomBar = {0, 410};
-    SDL_Surface *surfaceBottomBar = createBottomBar(font21);
-
-    SDL_Surface *background_cache = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
-
     int levelPage = 0;
 
-    showCenteredMessage(video, screen, "Loading themes...", font30, color_white);
+    drawThemesMessage(video, screen, "Loading themes...");
 
     char themes[NUMBER_OF_THEMES][STR_MAX];
     int installed_page = 0;
@@ -297,9 +266,6 @@ int main(int argc, char *argv[])
 
     PreviewCacheEntry preview_cache[PREVIEW_CACHE_SIZE];
     previewCacheInit(preview_cache);
-    SDL_Surface *noPreview = IMG_Load("res/noThemePreview.png");
-
-    char cPages[25];
 
     SDL_Event event;
     Uint8 keystate[320] = {0};
@@ -310,7 +276,6 @@ int main(int argc, char *argv[])
     bool has_icons = false;
     bool apply_icons = false;
     bool is_preview = false;
-    SDL_Surface *previewIcon = NULL;
 
     bool page_changed = true;
     bool render_dirty = true;
@@ -340,6 +305,9 @@ int main(int argc, char *argv[])
             continue;
         }
 
+        if (keystate[SW_BTN_MENU] && levelPage == 0)
+            quit = true;
+
         if (keystate[SW_BTN_B]) {
             if (levelPage == 0)
                 quit = true; // exit program
@@ -351,7 +319,7 @@ int main(int argc, char *argv[])
 
         if (keystate[SW_BTN_A]) {
             if (levelPage == 1) {
-                showCenteredMessage(video, screen, "Installing...", font30, color_white);
+                drawThemesMessage(video, screen, "Installing the theme...");
 
                 // Install theme
                 installTheme(theme.path, apply_icons);
@@ -397,7 +365,6 @@ int main(int argc, char *argv[])
 
             if (strstr(theme.path, "/.previews/") != NULL) {
                 is_preview = true;
-                previewIcon = getPreviewIcon(theme.path, surfaceFileZIP, surfaceFile7Z, surfaceFileRAR);
             }
             else {
                 is_preview = false;
@@ -415,80 +382,9 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        if (levelPage == 0) {
-            SDL_Surface *preview = previewCacheGet(
-                preview_cache, themes, current_page);
-            if (preview == NULL) {
-                safeBlitSurface(noPreview, NULL, screen, &rectThemePreview);
-            }
-            else {
-                SDL_BlitSurface(preview, &preview_src_rect, screen, &rectThemePreview);
-            }
-            safeBlitSurface(background_page0, NULL, screen, NULL);
-
-            if (current_page != 0)
-                safeBlitSurface(surfaceArrowLeft, NULL, screen, &rectArrowLeft);
-            if (current_page != themes_count - 1)
-                safeBlitSurface(surfaceArrowRight, NULL, screen, &rectArrowRight);
-
-            snprintf(cPages, sizeof(cPages) - 1, "%d/%d", current_page + 1, themes_count);
-            imagePages = TTF_RenderUTF8_Blended(font30, cPages, color_white);
-            rectPages.x = 620 - imagePages->w;
-            rectPages.y = 450 - imagePages->h / 2;
-            SDL_BlitSurface(imagePages, NULL, screen, &rectPages);
-            SDL_FreeSurface(imagePages);
-
-            char title[STR_MAX + 13];
-            if (current_page == installed_page && !is_preview)
-                snprintf(title, STR_MAX + 12, "%s - Installed", theme.name);
-            else
-                strcpy(title, theme.name);
-
-            imageThemeNom = TTF_RenderUTF8_Blended(font21, title, color_white);
-            SDL_BlitSurface(imageThemeNom, NULL, screen, &rectImageThemeNom);
-            SDL_FreeSurface(imageThemeNom);
-
-            if (has_icons) {
-                safeBlitSurface(surfaceHasIcons, NULL, screen, &rectHasIcons);
-            }
-
-            if (is_preview) {
-                safeBlitSurface(previewIcon, NULL, screen, &rectPreviewIcon);
-            }
-
-            SDL_BlitSurface(screen, NULL, background_cache, NULL);
-        }
-        else {
-            SDL_BlitSurface(background_cache, NULL, screen, NULL);
-            SDL_BlitSurface(transparent_bg, NULL, screen, NULL);
-            rectThemeName.x = 20;
-            rectThemeName.y = 175;
-
-            imagePages = TTF_RenderUTF8_Blended(font40, theme.name, color_white);
-            SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
-            SDL_FreeSurface(imagePages);
-            rectThemeName.y += 50;
-
-            if (strlen(theme.author) > 0) {
-                char author[STR_MAX * 2];
-                snprintf(author, STR_MAX * 2 - 1, "by %s", theme.author);
-                imagePages = TTF_RenderUTF8_Blended(font30, author, color_white);
-                SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
-                SDL_FreeSurface(imagePages);
-                rectThemeName.y += 70;
-            }
-
-            safeBlitSurface(apply_icons ? surfaceToggleON : surfaceToggleOFF, NULL, screen, &rectThemeName);
-
-            rectThemeName.x = 60;
-            char msg[STR_MAX];
-            sprintf(msg, "%s [%s]", has_icons ? "Apply icons" : "Reset icons", apply_icons ? "ON" : "OFF");
-            imagePages = TTF_RenderUTF8_Blended(font21, msg, color_white);
-            SDL_BlitSurface(imagePages, NULL, screen, &rectThemeName);
-            SDL_FreeSurface(imagePages);
-
-            SDL_BlitSurface(surfaceBottomBar, NULL, screen, &rectBottomBar);
-        }
+        drawThemes(screen, previewCacheGet(preview_cache, themes, current_page), current_page,
+                   themes_count, &theme, current_page == installed_page && !is_preview, is_preview,
+                   has_icons, levelPage == 1, apply_icons);
 
         SDL_BlitSurface(screen, NULL, video, NULL);
         SDL_Flip(video);
@@ -500,25 +396,10 @@ int main(int argc, char *argv[])
     msleep(100);
 
     previewCacheFree(preview_cache);
-    SDL_FreeSurface(noPreview);
-    SDL_FreeSurface(surfaceArrowLeft);
-    SDL_FreeSurface(surfaceArrowRight);
-    SDL_FreeSurface(surfaceHasIcons);
-    SDL_FreeSurface(background_page0);
-    SDL_FreeSurface(transparent_bg);
-    SDL_FreeSurface(surfaceBottomBar);
-    SDL_FreeSurface(surfaceToggleON);
-    SDL_FreeSurface(surfaceToggleOFF);
-    SDL_FreeSurface(background_cache);
-    SDL_FreeSurface(surfaceFileZIP);
-    SDL_FreeSurface(surfaceFile7Z);
-    SDL_FreeSurface(surfaceFileRAR);
+    if (scaled_preview)
+        SDL_FreeSurface(scaled_preview);
 
     SDL_Quit();
-
-    TTF_CloseFont(font40);
-    TTF_CloseFont(font21);
-    TTF_CloseFont(font30);
 
     return EXIT_SUCCESS;
 }

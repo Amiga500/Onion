@@ -304,7 +304,7 @@ static inline uint32_t cui_status_color(const char *status)
         return CUI_BAD;
     if ((strstr(low, "ing") && !strstr(low, "setting")) || strstr(low, "not saved") || strstr(low, "change"))
         return CUI_WARN;
-    if (strstr(low, "ready") || strstr(low, "live") || strstr(low, "mounted") ||
+    if (strstr(low, "ready") || strstr(low, "live") || strstr(low, "mounted") || strstr(low, "in use") ||
         strstr(low, "ok") || strstr(low, "done"))
         return CUI_GOOD;
     return CUI_GREY;
