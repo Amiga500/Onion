@@ -2110,7 +2110,10 @@ cmd_cleanup() {
     rm -f "$game_environment_marker"
     sync
     log "Kids Mode cleaned up."
-    infoPanel -t "Kids Mode" -m "${2:-Turned off from a computer.\nOnion's settings are back.}" --auto
+    # The default in a variable: an apostrophe inside "${2:-...}" is a
+    # quote for bash (the tests), though not for BusyBox.
+    _cc_default="Turned off from a computer.\nOnion's settings are back."
+    infoPanel -t "Kids Mode" -m "${2:-$_cc_default}" --auto
 }
 
 # ------------------------------ main loop ----------------------------------
