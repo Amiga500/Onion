@@ -154,19 +154,16 @@ SDL_Surface *loadRomImage(const char *image_path)
     return dst;
 }
 
-void renderPage(int current_page)
+/* New UI: drawn with the shared canvas look. Header with the chart icon
+ * and the total play time as a chip; 4 games per page, each a row with its
+ * rank, picture, name, details and total time; footer with the page. */
+static void renderScreen(int current_page, int num_pages, const char *total_str)
 {
-    char num_str[12];
-    char rom_name[STR_MAX];
-    char total[25];
-    char average[25];
-    char plays[25];
-
-    int num_width = 50;
-    if (current_page >= 2)
-        num_width += 20;
-    if (current_page >= 24)
-        num_width += 20;
+    CuiCanvas c = {(uint32_t *)screen->pixels, screen->pitch / 4};
+    cui_rect(&c, 0, 0, CUI_W, CUI_H, CUI_BG);
+    char chip[STR_MAX];
+    snprintf(chip, sizeof(chip), "%s total", total_str);
+    cui_header(&c, "chart", "Activity Tracker", chip, -1);
 
     if (rom_image_cache_page != current_page) {
         clearRomImageCache();
@@ -179,42 +176,69 @@ void renderPage(int current_page)
         }
     }
 
+    if (play_activities->count == 0)
+        cui_text(&c, 320, 240, "No games played yet", 22, CUI_GREY, CUI_CENTER);
+
     for (int row = 0; row < 4; row++) {
         int index = current_page * 4 + row;
-
         if (index >= play_activities->count)
             break;
-
         PlayActivity *entry = play_activities->play_activity[index];
         ROM *rom = entry->rom;
+        int top = 68 + row * 88;
+        float cy = top + 40;
 
+        cui_rrect(&c, 10, top, 620, 80, 12, CUI_RGB(36, 36, 39));
+        char num_str[12];
         snprintf(num_str, sizeof(num_str), "%d", index + 1);
-        renderTextAlignRight(num_str, font40, color_accent, &(SDL_Rect){num_width, 80 + 90 * row, 50, 39});
+        cui_text(&c, 46, cy, num_str, 26, index < 3 ? CUI_ACCENT : CUI_GREY, CUI_CENTER);
 
         SDL_Surface *romImage = rom_image_cache[row];
         if (romImage != NULL) {
-            SDL_Rect rectRomImage = {num_width + 10 + (80 - romImage->w) / 2, 70 + 90 * row, 80, 80};
-            SDL_BlitSurface(romImage, NULL, screen, &rectRomImage);
+            SDL_Rect r = {76 + (72 - romImage->w) / 2, (Sint16)(top + 4 + (72 - romImage->h) / 2)};
+            SDL_BlitSurface(romImage, NULL, screen, &r);
         }
 
+        char rom_name[STR_MAX];
         if (show_raw_names) {
             strncpy(rom_name, rom->name, STR_MAX - 1);
             rom_name[STR_MAX - 1] = '\0';
         }
         else
             file_cleanName(rom_name, rom->name);
-        renderText(rom_name, includeCJK(rom_name) ? fontCJKRomName25 : font30, color_white, &(SDL_Rect){num_width + 100, 75 + 90 * row, 400, 40});
 
+        char total[25], average[25], details[STR_MAX];
         str_serializeTime(total, entry->play_time_total);
         str_serializeTime(average, entry->play_time_average);
-        snprintf(plays, 24, "%d", entry->play_count);
+        snprintf(details, sizeof(details), "%d %s \xc2\xb7 %s on average", entry->play_count,
+                 entry->play_count == 1 ? "time" : "times", average);
 
-        const char *details[] = {"TOTAL ", total, "  AVG ", average, "  PLAYS ", plays};
-        SDL_Rect detailsRect = {num_width + 100, 115 + 90 * row, 400, 40};
-        for (int i = 0; i < 6; i++) {
-            detailsRect.x += renderText(details[i], font18, i % 2 == 0 ? color_grey : color_lightgrey, &detailsRect);
+        int time_w = cui_text_width(total, 22);
+        int name_max = 610 - 18 - time_w - 164;
+        if (includeCJK(rom_name))
+            renderText(rom_name, fontCJKRomName25, color_white, &(SDL_Rect){164, top + 10, name_max, 34});
+        else {
+            char fitted[STR_MAX];
+            cui_fit(rom_name, 21, name_max, fitted, sizeof(fitted));
+            cui_text(&c, 164, cy - 12, fitted, 21, CUI_WHITE, CUI_LEFT);
         }
+        cui_text(&c, 164, cy + 16, details, 15, CUI_GREY, CUI_LEFT);
+        cui_text(&c, 612, cy, total, 22, CUI_WHITE, CUI_RIGHT);
     }
+
+    cui_rect(&c, 0, 428, CUI_W, 52, CUI_HEAD);
+    int hx = 16;
+    if (num_pages > 1) {
+        cui_rrect(&c, hx, 442, 36, 24, 6, CUI_TRACK);
+        cui_chevron(&c, hx + 10, 454, -1, CUI_WHITE);
+        cui_chevron(&c, hx + 26, 454, 1, CUI_WHITE);
+        hx += 36 + 7 + cui_text(&c, hx + 43, 454, "PAGE", 20, CUI_WHITE, CUI_LEFT) + 20;
+    }
+    hx += cui_hint(&c, hx, 454, "Y", show_raw_names ? "CLEAN NAMES" : "FILE NAMES", 20);
+    cui_hint(&c, hx, 454, "B", "EXIT", 20);
+    char pages[24];
+    snprintf(pages, sizeof(pages), "%d/%d", current_page + 1, num_pages > 0 ? num_pages : 1);
+    cui_text(&c, 624, 454, pages, 17, CUI_GREY, CUI_RIGHT);
 }
 
 int main(int argc, char *argv[])
@@ -223,28 +247,16 @@ int main(int argc, char *argv[])
 
     init();
 
-    SDL_BlitSurface(background, NULL, screen, NULL);
-
-    SDL_Rect rectPages = {620, 430, 90, 44};
-    SDL_Rect rectMileage = {484, 8, 170, 42};
-
     play_activities = play_activity_find_all();
     printf_debug("found %d roms\n", play_activities->count);
 
     int num_pages = (int)ceil((double)play_activities->count / (double)4);
     int current_page = 0;
 
-    renderPage(current_page);
-
-    char num_pages_str[25];
-    snprintf(num_pages_str, sizeof(num_pages_str), "%d/%d", current_page + 1, num_pages);
-    renderTextAlignRight(num_pages_str, font30, color_white, &rectPages);
-
-    int play_time_total = play_activities->play_time_total;
     char play_time_total_formatted[STR_MAX];
-    str_serializeTime(play_time_total_formatted, play_time_total);
-    renderText(play_time_total_formatted, font30, color_white, &rectMileage);
+    str_serializeTime(play_time_total_formatted, play_activities->play_time_total);
 
+    renderScreen(current_page, num_pages, play_time_total_formatted);
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
 
@@ -255,7 +267,7 @@ int main(int argc, char *argv[])
         changed = false;
 
         if (updateKeystate(keystate, &quit, true, NULL)) {
-            if (keystate[SW_BTN_B] == PRESSED)
+            if (keystate[SW_BTN_B] == PRESSED || keystate[SW_BTN_MENU] == RELEASED)
                 quit = true;
             if (keystate[SW_BTN_RIGHT] >= PRESSED) {
                 if (current_page < num_pages - 1) {
@@ -280,14 +292,7 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        SDL_BlitSurface(background, NULL, screen, NULL);
-
-        snprintf(num_pages_str, sizeof(num_pages_str), "%d/%d", current_page + 1, num_pages);
-        renderTextAlignRight(num_pages_str, font30, color_white, &rectPages);
-
-        renderText(play_time_total_formatted, font30, color_white, &rectMileage);
-
-        renderPage(current_page);
+        renderScreen(current_page, num_pages, play_time_total_formatted);
 
         SDL_BlitSurface(screen, NULL, video, NULL);
         SDL_Flip(video);

@@ -146,12 +146,12 @@ typedef struct {
     int cap_top, cap_h; /* where the top and the height of a capital are */
 } CuiFont;
 
-static CuiFont cui_fonts[8];
+static CuiFont cui_fonts[16];
 static bool cui_text_ok = true;
 
 static inline CuiFont *cui_font(int size)
 {
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < (int)(sizeof(cui_fonts) / sizeof(cui_fonts[0])); i++)
         if (cui_fonts[i].size == size)
             return cui_fonts[i].font ? &cui_fonts[i] : NULL;
     if (!cui_text_ok)
@@ -160,7 +160,7 @@ static inline CuiFont *cui_font(int size)
         cui_text_ok = false;
         return NULL;
     }
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < (int)(sizeof(cui_fonts) / sizeof(cui_fonts[0])); i++) {
         if (cui_fonts[i].size)
             continue;
         CuiFont *f = &cui_fonts[i];

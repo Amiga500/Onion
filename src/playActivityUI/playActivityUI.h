@@ -1,6 +1,7 @@
 #ifndef PLAY_ACTIVITY_UI_H
 #define PLAY_ACTIVITY_UI_H
 
+#include "theme/render/canvas_ui.h"
 #include "sys/ioctl.h"
 #include <SDL/SDL.h>
 #include <SDL/SDL_image.h>
@@ -31,7 +32,7 @@
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
-#define IMG_MAX_WIDTH 80
-#define IMG_MAX_HEIGHT 80
+#define IMG_MAX_WIDTH 72
+#define IMG_MAX_HEIGHT 72
 
 #endif
