@@ -171,6 +171,75 @@ void theme_renderListLabel(SDL_Surface *screen, const char *label, SDL_Color fg,
     SDL_FreeSurface(item_label);
 }
 
+/* New look: the selected row's note under the list, in a box with an (i),
+ * two lines at most (the rest stays in the SELECT note). */
+static TTF_Font *_list_note_font = NULL;
+
+static void _list_noteLine(SDL_Surface *screen, const char *text, int x, int y)
+{
+    SDL_Surface *s = TTF_RenderUTF8_Blended(_list_note_font, text, (SDL_Color){163, 163, 168});
+    if (s) {
+        SDL_Rect r = {x, y};
+        SDL_BlitSurface(s, NULL, screen, &r);
+        SDL_FreeSurface(s);
+    }
+}
+
+static void theme_renderListNote(SDL_Surface *screen, const char *note, SDL_Rect box)
+{
+    if (_list_note_font == NULL)
+        _list_note_font = theme_loadFont(theme()->path, theme()->list.font, 16);
+    ui_fillRoundRect(screen, box, 10.0 * g_scale, SDL_MapRGB(screen->format, 38, 38, 41));
+    /* the (i): a grey ring with an i */
+    int r = 8.0 * g_scale, cx = box.x + 18.0 * g_scale, cy = box.y + box.h / 2;
+    ui_fillRoundRect(screen, (SDL_Rect){cx - r, cy - r, 2 * r, 2 * r}, r, SDL_MapRGB(screen->format, 163, 163, 168));
+    int ri = r - 1.5 * g_scale;
+    ui_fillRoundRect(screen, (SDL_Rect){cx - ri, cy - ri, 2 * ri, 2 * ri}, ri, SDL_MapRGB(screen->format, 38, 38, 41));
+    SDL_FillRect(screen, &(SDL_Rect){cx - 1, cy - 2 * g_scale, 2 * g_scale, 6 * g_scale}, SDL_MapRGB(screen->format, 163, 163, 168));
+    SDL_FillRect(screen, &(SDL_Rect){cx - 1, cy - 5 * g_scale, 2 * g_scale, 2 * g_scale}, SDL_MapRGB(screen->format, 163, 163, 168));
+    if (_list_note_font == NULL || note == NULL)
+        return;
+
+    char text[STR_MAX];
+    int n = 0;
+    for (const char *p = note; *p && n < STR_MAX - 1; p++)
+        text[n++] = *p == '\n' ? ' ' : *p;
+    text[n] = '\0';
+    int x = box.x + 34.0 * g_scale, max_w = box.x + box.w - 12.0 * g_scale - x;
+    int line_h = TTF_FontLineSkip(_list_note_font);
+    char line[2][STR_MAX] = {"", ""};
+    int li = 0;
+    char *save = NULL;
+    for (char *w = strtok_r(text, " ", &save); w && li < 2; w = strtok_r(NULL, " ", &save)) {
+        char tryl[STR_MAX];
+        snprintf(tryl, sizeof(tryl), "%s%s%s", line[li], line[li][0] ? " " : "", w);
+        int tw = 0;
+        TTF_SizeUTF8(_list_note_font, tryl, &tw, NULL);
+        if (tw <= max_w || line[li][0] == '\0') {
+            snprintf(line[li], STR_MAX, "%s", tryl);
+            continue;
+        }
+        if (li == 1) {
+            /* more than two lines: end the second with "..." */
+            int lw = 0;
+            size_t len = strlen(line[1]);
+            do {
+                snprintf(tryl, sizeof(tryl), "%.*s...", (int)len, line[1]);
+                TTF_SizeUTF8(_list_note_font, tryl, &lw, NULL);
+            } while (lw > max_w && len-- > 0);
+            snprintf(line[1], STR_MAX, "%s", tryl);
+            li = 2;
+            break;
+        }
+        li++;
+        snprintf(line[li], STR_MAX, "%s", w);
+    }
+    int lines = line[1][0] ? 2 : 1;
+    int y = cy - lines * line_h / 2;
+    for (int i = 0; i < lines; i++)
+        _list_noteLine(screen, line[i], x, y + i * line_h);
+}
+
 typedef struct {
     SDL_Surface *background;
     SDL_Rect dim;
@@ -207,6 +276,21 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
 
     int menu_pos_y = params.stretch_y ? params.pos.y + 4.0 * g_scale + (list_height - list->scroll_height * item_height) / 2
                                       : 420.0 * g_scale - list->scroll_height * item_height;
+
+    /* New look: a full-screen small list whose rows have notes shows the
+     * selected row's note in a box under it; the rows get 50 px for room. */
+    bool with_note = false;
+    if (list_small && !params.stretch_y && list->scroll_height <= 6 &&
+        params.dim.w >= 600.0 * g_scale && list->active_pos < list->item_count)
+        for (int i = 0; i < list->item_count && !with_note; i++)
+            with_note = list->items[i].info_note[0] != '\0';
+    if (with_note) {
+        item_height = 50.0 * g_scale;
+        item_bg_size.h = 50.0 * g_scale;
+        item_padding = 0;
+        label_y = 25.0 * g_scale;
+        menu_pos_y = 62.0 * g_scale;
+    }
     int last_item = list->scroll_pos + list->scroll_height;
 
     if (last_item > list->item_count)
@@ -387,6 +471,11 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                 screen, item->description, grid_color, offset_x,
                 item_bg_rect.y + scaled_62, list->active_pos == i, label_end, show_disabled);
         }
+    }
+
+    if (with_note) {
+        SDL_Rect box = {12.0 * g_scale, 366.0 * g_scale, params.dim.w - 24.0 * g_scale, 50.0 * g_scale};
+        theme_renderListNote(screen, list->items[list->active_pos].info_note, box);
     }
 
     if (active_preview != NULL) {
