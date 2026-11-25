@@ -307,7 +307,8 @@ run_installation() {
     #get_install_stats
 
     rm -f /tmp/.update_msg 2> /dev/null
-    rm -f $sysdir/config/currentSlide 2> /dev/null
+    # a new random order of the tips (installUI keeps it for its last screen)
+    rm -f $sysdir/config/currentSlide $sysdir/config/slideSeed 2> /dev/null
 
     # Show installation progress
     cd $sysdir
@@ -458,7 +459,7 @@ run_installation() {
 
     touch $sysdir/.installed
 
-    rm -f $sysdir/config/currentSlide 2> /dev/null
+    rm -f $sysdir/config/currentSlide $sysdir/config/slideSeed 2> /dev/null
     sync
 }
 

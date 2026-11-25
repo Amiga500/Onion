@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "system/keymap_sw.h"
@@ -52,25 +53,73 @@ SDL_Surface *_loadSlide(int index)
     return NULL;
 }
 
-void nextSlide(int *current_slide, int num_slides, int direction)
+/* The tips in a random order, new at each installation: the logo (-1) and
+ * the welcome (0) first, then the others shuffled. The order comes from a
+ * seed kept in the config with the position, so the installer's second part
+ * (after its restart) goes on in the same order; install.sh removes both
+ * when an installation starts. */
+#define MAX_SLIDES 64
+static int slide_order[MAX_SLIDES + 1];
+static int slide_order_n = 0;
+
+static void buildSlideOrder(int num_slides, unsigned int seed)
+{
+    if (num_slides > MAX_SLIDES)
+        num_slides = MAX_SLIDES;
+    slide_order_n = 0;
+    slide_order[slide_order_n++] = -1;
+    if (num_slides > 0)
+        slide_order[slide_order_n++] = 0;
+    int first = slide_order_n;
+    for (int i = 1; i < num_slides; i++)
+        slide_order[slide_order_n++] = i;
+    unsigned int x = seed ? seed : 1;
+    for (int i = slide_order_n - 1; i > first; i--) {
+        x ^= x << 13; /* xorshift32 */
+        x ^= x >> 17;
+        x ^= x << 5;
+        int j = first + (int)(x % (unsigned int)(i - first + 1));
+        int t = slide_order[i];
+        slide_order[i] = slide_order[j];
+        slide_order[j] = t;
+    }
+}
+
+/* Moves *pos (an index in slide_order) by direction, skipping pictures that
+ * cannot be loaded; the logo (-1) needs none. */
+void nextSlide(int *pos, int direction)
 {
     if (slide != NULL) {
         SDL_FreeSurface(slide);
+        slide = NULL;
     }
+    if (slide_order_n <= 0)
+        return;
+    int p = *pos;
+    for (int tries = 0; tries < slide_order_n; tries++) {
+        p = ((p + direction) % slide_order_n + slide_order_n) % slide_order_n;
+        if (slide_order[p] == -1 || (slide = _loadSlide(slide_order[p])) != NULL)
+            break;
+    }
+    *pos = p;
+}
 
-    int next_slide = *current_slide;
-
-    do {
-        next_slide += direction;
-
-        if (next_slide >= num_slides)
-            next_slide = -1;
-
-        if (next_slide < -1)
-            next_slide = num_slides - 1;
-    } while ((slide = _loadSlide(next_slide)) == NULL && next_slide != *current_slide && next_slide != -1);
-
-    *current_slide = next_slide;
+/* Page dots under the tip: where it is in this installation's order (the
+ * pictures have none: with the order random, theirs would jump about). */
+static void draw_dots(CuiCanvas *c, int pos)
+{
+    int n = slide_order_n - 1; /* the logo has no dot */
+    if (n <= 1 || pos <= 0 || pos > n)
+        return;
+    float gap = n > 24 ? 300.0f / (n - 1) : 14.0f;
+    float x0 = 320 - (n - 1) * gap / 2;
+    for (int k = 0; k < n; k++) {
+        float x = x0 + k * gap;
+        if (k == pos - 1)
+            cui_rrect(c, x - 9, 361, 18, 10, 5, CUI_ACCENT);
+        else
+            cui_disc(c, x, 366, 3.5f, CUI_RGB(80, 80, 85));
+    }
 }
 
 /* Rounded track; grey stripes move along the part still to do while the
@@ -134,9 +183,22 @@ int main(int argc, char *argv[])
     char version_str[STR_MAX];
     sprintf(version_str, "v%s", ONION_VERSION);
 
-    int current_slide = -1;
     int num_slides = _countSlides(); // 20 tips in the new UI (9 before)
-    config_get("currentSlide", CONFIG_INT, &current_slide);
+    int seed = 0, current_slide = 0; // a position in slide_order
+    if (!config_get("slideSeed", CONFIG_INT, &seed) || seed <= 0) {
+        /* a new installation: a new order, from the logo */
+        seed = (int)(((unsigned int)time(NULL) ^ (unsigned int)getpid() * 2654435761u) & 0x7fffffff);
+        if (seed <= 0)
+            seed = 1;
+    }
+    else if (!config_get("currentSlide", CONFIG_INT, &current_slide))
+        current_slide = 0;
+    buildSlideOrder(num_slides, (unsigned int)seed);
+    if (current_slide < 0 || current_slide >= slide_order_n)
+        current_slide = 0;
+    if (slide_order[current_slide] != -1)
+        slide = _loadSlide(slide_order[current_slide]);
+
 
     bool quit = false;
     bool failed = false;
@@ -162,11 +224,11 @@ int main(int argc, char *argv[])
             else if (event.type == SDL_KEYUP) {
                 switch (event.key.keysym.sym) {
                 case SW_BTN_LEFT:
-                    nextSlide(&current_slide, num_slides, -1);
+                    nextSlide(&current_slide, -1);
                     slide_timer = ticks;
                     break;
                 case SW_BTN_RIGHT:
-                    nextSlide(&current_slide, num_slides, 1);
+                    nextSlide(&current_slide, 1);
                     slide_timer = ticks;
                     break;
                 case SW_BTN_A:
@@ -180,7 +242,7 @@ int main(int argc, char *argv[])
         }
 
         if (ticks - slide_timer > SLIDE_TIMEOUT) {
-            nextSlide(&current_slide, num_slides, 1);
+            nextSlide(&current_slide, 1);
             slide_timer = ticks;
         }
 
@@ -233,6 +295,8 @@ int main(int argc, char *argv[])
                 SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 39, 39, 39));
 
             CuiCanvas c = {(uint32_t *)screen->pixels, screen->pitch / 4};
+            if (slide != NULL)
+                draw_dots(&c, current_slide);
             cui_header(&c, "R", "RedOnion", version_str, -1);
 
             // footer: the message, then the progress bar under it
@@ -264,6 +328,7 @@ int main(int argc, char *argv[])
     }
 
     config_setNumber("currentSlide", current_slide);
+    config_setNumber("slideSeed", seed);
 
     TTF_Quit();
 

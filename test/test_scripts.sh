@@ -6491,6 +6491,17 @@ check "the screen follows the log" sh -c 'printf "%s" "$1" | grep -qF "sed -n \"
 check "no terminal lines in the native download" grep -qF 'if [ -z "$OTA_NATIVE" ]; then' "$OTA"
 end
 
+begin install_tips_in_a_random_order
+# The tips come in a new random order at each installation (the logo and
+# the welcome first); the installer's last screen goes on in the same order.
+IUI="$ROOT/src/installUI/installUI.c"
+INS="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
+check "the order is shuffled from a seed" grep -q "static void buildSlideOrder(int num_slides, unsigned int seed)" "$IUI"
+check "the seed is kept with the position" grep -qF 'config_setNumber("slideSeed", seed);' "$IUI"
+check "each installation starts a new order (both places)" test "$(grep -c 'rm -f $sysdir/config/currentSlide $sysdir/config/slideSeed' "$INS")" -eq 2
+check "the dots are drawn by installUI, not in the pictures" grep -q "draw_dots(&c, current_slide);" "$IUI"
+end
+
 begin clock_unhandled_key_keeps_the_redraw
 check "the default case does not clear dirty" sh -c '! sed -n "/default:/,/break;/p" "$1" | grep -q "dirty = false"' _ "$ROOT/src/clock/main.c"
 check "dirty is cleared only after drawing" test "$(grep -c "dirty = false" "$ROOT/src/clock/main.c")" -eq 1
