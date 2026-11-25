@@ -174,7 +174,7 @@ static void draw(CuiCanvas *c, int battery)
     char line[LINE_MAX_LEN];
     if (finished)
         snprintf(line, sizeof(line), "Finished: %d of %d", item > total ? item : total, total);
-    else if (total > 0 && item > 0)
+    else if (total > 0 && item > 0 && !(panel_set[0] || panel_set[1] || panel_set[2]))
         snprintf(line, sizeof(line), "%d of %d · %s", item, total, item_name);
     else
         snprintf(line, sizeof(line), "%s", item_name);
@@ -206,7 +206,8 @@ static void draw(CuiCanvas *c, int battery)
     }
 
     /* the last lines of the task */
-    cui_rrect(c, 20, 292, 600, 76, 10, CUI_RGB(38, 38, 41));
+    if (log_count > 0)
+        cui_rrect(c, 20, 292, 600, 76, 10, CUI_RGB(38, 38, 41));
     for (int i = 0; i < log_count; i++) {
         cui_fit(log_lines[i], 14, 576, fitted, sizeof(fitted));
         cui_text(c, 32, 307 + i * 17, fitted, 14, CUI_GREY, CUI_LEFT);
