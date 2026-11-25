@@ -1,5 +1,5 @@
 /*
- * Button Lab v0.1 - Miyoo Mini Plus controller tester for Onion.
+ * Button Lab v0.1.1 - Miyoo Mini Plus controller tester for Onion.
  * SPDX-License-Identifier: MIT
  *
  * No external artwork, fonts, or Onion internals are required. SDL 1.2 draws
@@ -21,6 +21,7 @@
 #define W 640
 #define H 480
 #define RESET_MS 2000u
+#define MENU_EXIT_MS 3000u
 #define HOLD_POPUP_DELAY_MS 1000u
 #define ARRAY_LEN(x) ((int)(sizeof(x) / sizeof((x)[0])))
 
@@ -163,10 +164,12 @@ static bool raw_input = false;
 static bool needs_redraw = true;
 static int last_button = -1;
 static Uint32 reset_since = 0;
+static Uint32 menu_since = 0;
 static bool exit_armed = false;
+static bool menu_exit_armed = false;
 static bool resetting_latch = false;
 
-/* All diagnostics go to stderr; launch.sh captures them to buttonlab.log. */
+/* All diagnostics go to stderr; */
 #define LOG(...) do { \
     fprintf(stderr, "buttonlab: " __VA_ARGS__); \
     fputc('\n', stderr); fflush(stderr); \
@@ -441,7 +444,7 @@ static void draw(Canvas *c, Uint32 now) {
     rect(c,30,35,21,5,rgb(9,38,42));
     label(c,69,25,"BUTTON LAB",3,rgb(240,249,255));
     framed_round(c,266,22,64,27,9,rgb(59,95,103),rgb(22,45,57));
-    centered(c,298,30,"V0.1",1,rgb(119,235,207));
+    centered(c,298,30,"V0.1.1",1,rgb(119,235,207));
     framed_round(c,484,23,134,39,14,rgb(59,92,104),rgb(22,43,57));
     snprintf(tmp,sizeof(tmp),"%02d / 15",n);
     centered(c,552,29,tmp,2,n==15 ? rgb(121,251,196) : rgb(167,237,219));
@@ -487,8 +490,16 @@ static void draw(Canvas *c, Uint32 now) {
     for (i=0;i<15;++i)
         round_rect(c,27+i*40,449,33,5,2,i<n ? rgb(67,232,191) : rgb(53,69,90));
 
-    /* Only X+Y reset has a progress overlay; the exit is a single chord. */
-    if (reset_since && now - reset_since >= HOLD_POPUP_DELAY_MS) {
+    /* Timed gestures show progress after 1 second. SELECT+START still
+     * requires no hold and never displays an exit progress popup. */
+    if (menu_since && now - menu_since >= HOLD_POPUP_DELAY_MS) {
+        unsigned elapsed = now - menu_since;
+        int part = (int)((elapsed >= MENU_EXIT_MS ? MENU_EXIT_MS : elapsed)*276u/MENU_EXIT_MS);
+        framed_round(c,152,420,336,57,11,rgb(70,134,133),rgb(13,32,43));
+        centered(c,320,429,"HOLD MENU TO EXIT",1,rgb(200,238,230));
+        round_rect(c,182,452,276,6,3,rgb(46,65,82));
+        round_rect(c,182,452,part,6,3,rgb(89,232,188));
+    } else if (reset_since && now - reset_since >= HOLD_POPUP_DELAY_MS) {
         unsigned elapsed = now - reset_since;
         int part = (int)((elapsed >= RESET_MS ? RESET_MS : elapsed)*276u/RESET_MS);
         framed_round(c,152,420,336,57,11,rgb(70,134,133),rgb(13,32,43));
@@ -496,7 +507,7 @@ static void draw(Canvas *c, Uint32 now) {
         round_rect(c,182,452,276,6,3,rgb(46,65,82));
         round_rect(c,182,452,part,6,3,rgb(89,232,188));
     } else {
-        centered(c,320,463,"SELECT+START: EXIT     X+Y 2S: RESET",1,
+        centered(c,320,463,"SELECT+START: EXIT   MENU 3S: EXIT   X+Y 2S: RESET",1,
                  rgb(136,162,184));
     }
 }
@@ -544,9 +555,8 @@ static void reset_test(void) {
     needs_redraw=true;
 }
 static void process_gestures(Uint32 now, bool *quit) {
-    /* A single SELECT+START chord requests exit. Wait only for both keys to be
-     * released before closing, to avoid forwarding a held combo to MainUI.
-     * MENU is a testable button but is no longer an exit gesture. */
+    /* SELECT+START is a single chord with no hold timer. Wait for both
+     * releases before closing so held keys cannot leak into MainUI. */
     if (!exit_armed && buttons[SELECT].down && buttons[START].down) {
         exit_armed = true;
         LOG("SELECT+START exit requested; waiting for release");
@@ -555,6 +565,25 @@ static void process_gestures(Uint32 now, bool *quit) {
         if (!buttons[SELECT].down && !buttons[START].down) *quit = true;
         return;
     }
+
+    /* Holding MENU for 3 seconds also requests exit. Keep the app active
+     * until MENU is released, avoiding a still-held MENU in MainUI. */
+    if (buttons[MENU].down) {
+        if (!menu_since) menu_since = now ? now : 1;
+        if (!menu_exit_armed && now - menu_since >= MENU_EXIT_MS) {
+            menu_exit_armed = true;
+            LOG("MENU held for 3 seconds; waiting for release to exit");
+        }
+        needs_redraw = true;
+    } else {
+        if (menu_exit_armed) {
+            *quit = true;
+            return;
+        }
+        menu_since = 0;
+    }
+    if (menu_exit_armed) return;
+
     /* Reset is independent of exiting and retains the 2-second hold. */
     if (buttons[X].down && buttons[Y].down) {
         if (!reset_since && !resetting_latch) reset_since = now ? now : 1;
@@ -640,7 +669,7 @@ int main(int argc, char **argv) {
     signal(SIGABRT, on_fatal);
 
     crash_stage = '1';
-    LOG("v0.1 startup; init input");
+    LOG("v0.1.1 startup; init input");
     input_fd = open("/dev/input/event0", O_RDONLY | O_NONBLOCK);
     raw_input = input_fd >= 0;
     if (!raw_input) LOG("cannot open /dev/input/event0; SDL fallback: %s", strerror(errno));
