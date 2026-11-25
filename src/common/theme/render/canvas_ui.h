@@ -302,7 +302,7 @@ static inline uint32_t cui_status_color(const char *status)
     if (strstr(low, "error") || strstr(low, "fail") || strstr(low, "no card") ||
         strstr(low, "offline") || strstr(low, "read only"))
         return CUI_BAD;
-    if (strstr(low, "ing") && !strstr(low, "setting"))
+    if ((strstr(low, "ing") && !strstr(low, "setting")) || strstr(low, "not saved"))
         return CUI_WARN;
     if (strstr(low, "ready") || strstr(low, "live") || strstr(low, "mounted") ||
         strstr(low, "ok") || strstr(low, "done"))

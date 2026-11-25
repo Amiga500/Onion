@@ -1,4 +1,4 @@
-/* Generated from static/build/.tmp_update/res/icons/ui/*.png: 20x20 alpha
+/* Generated from static/build/.tmp_update/res/icons/ui (the PNGs): 20x20 alpha
  * masks of the header icons, for the apps that draw into their own canvas
  * and do not load PNGs. */
 #ifndef UI_ICONS_DATA_H__

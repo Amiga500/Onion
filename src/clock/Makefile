@@ -1,10 +1,8 @@
-SOURCES := $(SOURCES) ./font
-
 include ../common/config.mk
 
 TARGET = clock
-LDFLAGS := $(LDFLAGS) -lSDL -lpthread -lmi_sys -lmi_gfx
-CFLAGS := $(CFLAGS) -I./font -Os -flto -fno-fat-lto-objects
+LDFLAGS := $(LDFLAGS) -lSDL -lSDL_ttf -lpthread
+CFLAGS := $(CFLAGS) -Os
 
 include ../common/commands.mk
 include ../common/recipes.mk

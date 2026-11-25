@@ -20,349 +20,220 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include "gfx.h"
-#include "stringPrinting.h"
-#include "system/keymap_sw.h"
+/* Clock (RedOnion, new UI): one box per value - day, month, year, hour,
+ * minute - left/right to move, up/down to change, START saves, B or MENU
+ * leaves without saving. Seconds are set to 00 when saving. Drawn with the
+ * shared canvas look (theme/render/canvas_ui.h), like SD Card Doctor. */
+
 #include <SDL/SDL.h>
+#include <SDL/SDL_ttf.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
 
+#include "system/battery.h"
+#include "system/keymap_sw.h"
+#include "theme/render/canvas_ui.h"
+
 #define MAX_YEAR 2100
 #define MIN_YEAR 1970
 #define DEFAULT_YEAR 2022
-#define MAX_DAY 31
-#define MIN_DAY 1
-#define MAX_MONTH 12
-#define MIN_MONTH 1
-#define MAX_SECOND 59
-#define MAX_MINUTE MAX_SECOND
-#define MAX_HOUR 23
-#define MS_TO_US(ms)  ms * 1000 
 
-SDL_Surface *sdl_screen, *screen;
+enum { F_DAY, F_MONTH, F_YEAR, F_HOUR, F_MIN, F_COUNT };
 
-char tmp_str[64];
-int buttons;
+static int value[F_COUNT];
+static int cursor = F_MIN;
+static bool changed = false;
 
-uint32_t date_selected = MIN_DAY, month_selected = MIN_DAY,
-         year_selected = MIN_YEAR;
-uint32_t hour_selected = 0, minute_selected = 0, seconds_selected = 0;
-uint32_t february_days = 28;
-uint32_t update_clock = 0;
-
-char final_long_string[512];
-
-uint8_t string_tmp[2][512];
-
-int select_cursor = 0;
-
-/* I could probably make this smaller */
-static void Dont_go_over_days()
+static int days_in_month(int month, int year)
 {
-    if (month_selected > MAX_MONTH) {
-        month_selected = MIN_MONTH;
-    }
+    static const int days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    return month == 2 && leap ? 29 : days[month - 1];
+}
 
-    if (year_selected > MAX_YEAR) {
-        year_selected = MIN_YEAR;
-    }
+/* Wraps the selected value around its range; the day follows the month. */
+static void step(int field, int delta)
+{
+    int lo[] = {1, 1, MIN_YEAR, 0, 0};
+    int hi[] = {days_in_month(value[F_MONTH], value[F_YEAR]), 12, MAX_YEAR, 23, 59};
+    int v = value[field] + delta;
+    if (v > hi[field])
+        v = lo[field];
+    if (v < lo[field])
+        v = hi[field];
+    value[field] = v;
+    int max_day = days_in_month(value[F_MONTH], value[F_YEAR]);
+    if (value[F_DAY] > max_day)
+        value[F_DAY] = max_day;
+    changed = true;
+}
 
-    if (year_selected < MIN_YEAR) {
-        year_selected = MIN_YEAR;
-    }
-
-    switch (month_selected) {
-    case 2:
-        if (date_selected > february_days)
-            date_selected = MIN_DAY;
-        break;
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-        if (date_selected > 30)
-            date_selected = MIN_DAY;
-        break;
-    default:
-        if (date_selected > MAX_DAY)
-            date_selected = MIN_DAY;
-        break;
+static void triangle(CuiCanvas *c, float cx, float cy, bool up, uint32_t color, float alpha)
+{
+    for (int row = 0; row < 6; row++) {
+        float half = (up ? row : 5 - row) * 0.9f + 0.4f;
+        for (int x = (int)(cx - half + 0.5f); x <= (int)(cx + half); x++)
+            cui_blend(c, x, (int)cy - 3 + row, color, alpha);
     }
 }
 
-static void Check_leap_year()
+static void triangle_side(CuiCanvas *c, float cx, float cy, bool right, uint32_t color)
 {
-    if (((year_selected % 4 == 0) && (year_selected % 100 != 0)) ||
-        (year_selected % 400 == 0))
-        february_days = 29;
-    else
-        february_days = 28;
-}
-
-static void Dont_go_over_hour()
-{
-    if (hour_selected > MAX_HOUR) {
-        hour_selected = 0;
-    }
-
-    if (minute_selected > MAX_MINUTE) {
-        minute_selected = 0;
-    }
-
-    if (seconds_selected > MAX_SECOND) {
-        seconds_selected = 0;
+    for (int col = 0; col < 6; col++) {
+        float half = (right ? 5 - col : col) * 0.9f + 0.4f;
+        for (int y = (int)(cy - half + 0.5f); y <= (int)(cy + half); y++)
+            cui_blend(c, (int)cx - 3 + col, y, color, 1);
     }
 }
 
-static void DecreaseMonthElement(uint32_t *month_element, int max)
+/* A d-pad hint: a grey key with two small arrows, then its word. */
+static int dpad_hint(CuiCanvas *c, int x, float cy, bool vertical, const char *label)
 {
-    if (*month_element == MIN_DAY) {
-        *month_element = max;
+    cui_rrect(c, x, cy - 12, 36, 24, 6, CUI_TRACK);
+    if (vertical) {
+        triangle(c, x + 11, cy, true, CUI_WHITE, 1);
+        triangle(c, x + 25, cy, false, CUI_WHITE, 1);
     }
     else {
-        (*month_element)--;
+        triangle_side(c, x + 11, cy, false, CUI_WHITE);
+        triangle_side(c, x + 25, cy, true, CUI_WHITE);
     }
+    int lw = cui_text(c, x + 43, cy, label, 20, CUI_WHITE, CUI_LEFT);
+    return 36 + 7 + lw + 20;
 }
 
-static void DecreaseDateElement(uint32_t month_element, uint32_t *date_element,
-                                int max)
+static void draw(CuiCanvas *c, int battery)
 {
-    int max_days = MAX_DAY;
-    switch (month_element) {
-    case 2:
-        max_days = february_days;
-        break;
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-        max_days = 30;
-        break;
-    default:
-        break;
-    }
-    if (*date_element == MIN_DAY) {
-        *date_element = max_days;
-    }
-    else {
-        (*date_element)--;
-    }
-}
+    static const char *months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                                   "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+    static const char *labels[] = {"DAY", "MONTH", "YEAR", "HOUR", "MIN"};
+    static const int widths[] = {88, 104, 124, 88, 88};
+    cui_rect(c, 0, 0, CUI_W, CUI_H, CUI_BG);
+    cui_header(c, "clock", "Clock", changed ? "Not saved" : NULL, battery);
 
-static void DecreaseTimeElement(uint32_t *time_element, int max)
-{
-    if (*time_element == 0) {
-        *time_element = max;
+    int gap = 12, total = 0;
+    for (int i = 0; i < F_COUNT; i++)
+        total += widths[i] + (i ? gap : 0);
+    int x = (CUI_W - total) / 2, top = 150;
+    for (int i = 0; i < F_COUNT; i++) {
+        int w = widths[i], cx = x + w / 2;
+        bool sel = i == cursor;
+        cui_text(c, cx, top - 20, labels[i], 13, CUI_GREY, CUI_CENTER);
+        cui_rrect(c, x, top, w, 120, 14, sel ? CUI_ACCENT : CUI_PANEL);
+        char text[8];
+        if (i == F_MONTH)
+            snprintf(text, sizeof text, "%s", months[value[i] - 1]);
+        else if (i == F_YEAR)
+            snprintf(text, sizeof text, "%04d", value[i]);
+        else
+            snprintf(text, sizeof text, "%02d", value[i]);
+        cui_text(c, cx, top + 60, text, 40, CUI_WHITE, CUI_CENTER);
+        triangle(c, cx, top + 18, true, CUI_WHITE, sel ? 0.9f : 0.45f);
+        triangle(c, cx, top + 102, false, CUI_WHITE, sel ? 0.9f : 0.45f);
+        x += w + gap;
     }
-    else {
-        (*time_element)--;
-    }
-}
+    cui_text(c, CUI_W / 2, 318, "Seconds are set to 00 when you save.", 17, CUI_GREY, CUI_CENTER);
+    cui_text(c, CUI_W / 2, 344, "The time counts on while the console is on.", 17, CUI_GREY, CUI_CENTER);
 
-static void
-FallbackToDefaultTime(uint32_t *date_selected, uint32_t *month_selected,
-                      uint32_t *year_selected, uint32_t *hour_selected,
-                      uint32_t *minute_selected, uint32_t *seconds_selected)
-{
-    if (*year_selected == 1970) {
-        *year_selected = DEFAULT_YEAR;
-    }
+    cui_rect(c, 0, 420, CUI_W, 60, CUI_HEAD);
+    int hx = 16;
+    hx += cui_hint(c, hx, 450, "START", "SAVE", 20);
+    hx += dpad_hint(c, hx, 450, false, "MOVE");
+    hx += dpad_hint(c, hx, 450, true, "CHANGE");
+    cui_hint(c, hx, 450, "B", "CANCEL", 20);
 }
 
 int main(int argc, char *argv[])
 {
-    SDL_Event event;
-    int quit = 0;
-    SDL_Rect rectS = {0, 0, 213, 100};
-    SDL_Rect rectD = {0, 120, 639, 240};
-
     SDL_Init(SDL_INIT_VIDEO);
-    GFX_Init();
-    SDL_ShowCursor(0);
-    screen = GFX_CreateRGBSurface(0, 640, 480, 16, 0, 0, 0, 0);
-    sdl_screen = GFX_CreateRGBSurface(0, 213, 100, 16, 0, 0, 0, 0);
-    if ((!sdl_screen) || (!screen)) {
+    SDL_ShowCursor(SDL_DISABLE);
+    TTF_Init();
+    SDL_Surface *video = SDL_SetVideoMode(640, 480, 32, SDL_HWSURFACE);
+    SDL_Surface *screen = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
+    if (!video || !screen) {
         printf("Can't set video mode\n");
         return 0;
     }
 
-    /* Actual time is retrieved */
-    /* Here, we don't need to check if year is a leap year as it's being taken
-     * care of by the system but when the user change the date, we do need to
-     * detect it.
-     * */
-
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
-
-    date_selected = tm.tm_mday;
-    month_selected = tm.tm_mon + 1;
-    year_selected = tm.tm_year + 1900;
-    hour_selected = tm.tm_hour;
-    minute_selected = tm.tm_min;
-    seconds_selected = tm.tm_sec;
-
-    FallbackToDefaultTime(&date_selected, &month_selected, &year_selected,
-                          &hour_selected, &minute_selected, &seconds_selected);
+    value[F_DAY] = tm.tm_mday;
+    value[F_MONTH] = tm.tm_mon + 1;
+    value[F_YEAR] = tm.tm_year + 1900;
+    value[F_HOUR] = tm.tm_hour;
+    value[F_MIN] = tm.tm_min;
+    if (value[F_YEAR] <= MIN_YEAR)
+        value[F_YEAR] = DEFAULT_YEAR;
 
     SDL_EnableKeyRepeat(500, 50);
-    int dirty = 1; // first draw
+    bool quit = false, save = false, dirty = true;
+    int battery = battery_getPercentage();
+    Uint32 battery_at = SDL_GetTicks();
     while (!quit) {
+        SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            dirty = 1;
-            switch (event.type) {
-            case SDL_KEYUP:
-                switch (event.key.keysym.sym) {
-                /* SDLK_HOME for OD needs the Power button to be detected upon
-                 * release. */
-                case SDLK_HOME:
-                    quit = 1;
-                    break;
-                default:
-                    break;
-                }
+            if (event.type == SDL_QUIT) {
+                quit = true;
                 break;
-            case SDL_KEYDOWN:
-                switch (event.key.keysym.sym) {
-                case SDLK_UP:
-                    switch (select_cursor) {
-                    case 0:
-                        date_selected++;
-                        break;
-                    case 1:
-                        month_selected++;
-                        break;
-                    case 2:
-                        year_selected++;
-                        break;
-                    case 3:
-                        hour_selected++;
-                        break;
-                    case 4:
-                        minute_selected++;
-                        break;
-                    case 5:
-                        seconds_selected++;
-                        break;
-                    }
-                    break;
-                case SDLK_DOWN:
-                    switch (select_cursor) {
-                    case 0:
-                        DecreaseDateElement(month_selected, &date_selected,
-                                            MAX_DAY);
-                        break;
-                    case 1:
-                        DecreaseMonthElement(&month_selected, MAX_MONTH);
-                        break;
-                    case 2:
-                        DecreaseTimeElement(&year_selected, MAX_YEAR);
-                        break;
-                    case 3:
-                        DecreaseTimeElement(&hour_selected, MAX_HOUR);
-                        break;
-                    case 4:
-                        DecreaseTimeElement(&minute_selected, MAX_MINUTE);
-                        break;
-                    case 5:
-                        DecreaseTimeElement(&seconds_selected, MAX_SECOND);
-                        break;
-                    }
-                    break;
-                case SDLK_LEFT:
-                    select_cursor--;
-                    if (select_cursor < 0)
-                        select_cursor = 0;
-                    break;
-                case SDLK_RIGHT:
-                    select_cursor++;
-                    if (select_cursor > 5)
-                        select_cursor = 5;
-                    break;
-                case SDLK_RETURN:
-                    quit = 1;
-                    update_clock = 1;
-                    break;
-                case SW_BTN_B:
-                    quit = 1;
-                    break;
-                default:
-                    break;
-                }
+            }
+            if (event.type != SDL_KEYDOWN)
+                continue;
+            dirty = true;
+            switch (event.key.keysym.sym) {
+            case SW_BTN_UP:
+                step(cursor, 1);
                 break;
-            case SDL_QUIT:
-                quit = 1;
+            case SW_BTN_DOWN:
+                step(cursor, -1);
+                break;
+            case SW_BTN_LEFT:
+                if (cursor > 0)
+                    cursor--;
+                break;
+            case SW_BTN_RIGHT:
+                if (cursor < F_COUNT - 1)
+                    cursor++;
+                break;
+            case SW_BTN_START:
+                save = quit = true;
+                break;
+            case SW_BTN_B:
+            case SW_BTN_MENU:
+                quit = true;
+                break;
+            default:
+                dirty = false;
                 break;
             }
         }
-
-        if (dirty != 1) {
-            usleep(MS_TO_US(100));
-            continue;
+        if (SDL_GetTicks() - battery_at > 15000) {
+            int b = battery_getPercentage();
+            dirty |= b != battery;
+            battery = b;
+            battery_at = SDL_GetTicks();
         }
-
-        Check_leap_year();
-        Dont_go_over_days();
-        Dont_go_over_hour();
-        FallbackToDefaultTime(&date_selected, &month_selected, &year_selected,
-                              &hour_selected, &minute_selected,
-                              &seconds_selected);
-
-        GFX_FillRect(sdl_screen, NULL, 0);
-
-        PrintWhiteString("Please set the Clock", sdl_screen, 10, 5);
-
-        PrintString("dd/mm/yyyy hh:mm:ss", sdl_screen, DARK_GRAY_COLOR, 26, 20);
-        snprintf(tmp_str, sizeof(tmp_str), "%02d/%02d/%04d %02d:%02d:%02d",
-                 date_selected, month_selected, year_selected, hour_selected,
-                 minute_selected, seconds_selected);
-        PrintWhiteString(tmp_str, sdl_screen, 26, 30);
-
-        if (select_cursor == 2) {
-            PrintWhiteString("^^^^", sdl_screen, 26 + (select_cursor * 24), 50);
+        if (dirty && !quit) {
+            CuiCanvas c = {(uint32_t *)screen->pixels, screen->pitch / 4};
+            draw(&c, battery);
+            SDL_BlitSurface(screen, NULL, video, NULL);
+            SDL_Flip(video);
+            dirty = false;
         }
-        else {
-            PrintWhiteString(
-                "^^", sdl_screen,
-                26 + (select_cursor * 24) + (select_cursor > 2 ? 16 : 0), 50);
-        }
-
-        PrintWhiteString("Start: Update time/Quit", sdl_screen, 10, 70);
-        PrintWhiteString("B: Quit", sdl_screen, 10, 90);
-
-        /* Print back buffer to the final screen */
-        SDL_SoftStretch(sdl_screen, &rectS, screen, &rectD);
-
-        /* Flip the screen so it gets displayed*/
-        GFX_Flip(screen);
-
-        dirty = 0;
+        SDL_Delay(16);
     }
 
-    /* Make sure to clean up the allocated surfaces before exiting.
-     * Most of the time when an SDL app leaks, it's for that reason.
-     * */
-    if (sdl_screen) {
-        GFX_FreeSurface(sdl_screen);
-        sdl_screen = NULL;
-    }
-    if (screen) {
-        GFX_FreeSurface(screen);
-        screen = NULL;
-    }
-
-    GFX_Quit();
+    SDL_FreeSurface(screen);
+    TTF_Quit();
     SDL_Quit();
 
-    if (update_clock == 1) {
-        snprintf(final_long_string, sizeof(final_long_string),
-                 "date -s '%d-%d-%d %d:%d:%d';hwclock --utc -w", year_selected,
-                 month_selected, date_selected, hour_selected, minute_selected,
-                 seconds_selected);
-        execlp("/bin/sh", "/bin/sh", "-c", final_long_string, (char *)NULL);
+    if (save) {
+        char cmd[128];
+        snprintf(cmd, sizeof cmd, "date -s '%d-%d-%d %d:%d:00';hwclock --utc -w",
+                 value[F_YEAR], value[F_MONTH], value[F_DAY], value[F_HOUR], value[F_MIN]);
+        execlp("/bin/sh", "/bin/sh", "-c", cmd, (char *)NULL);
     }
-
     return 0;
 }
