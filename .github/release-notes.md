@@ -1,5 +1,5 @@
 <!-- One line per paragraph or list item: GitHub releases turn every line break into a visible break. -->
-# 🧅🔴 RedOnion 4.5.1 beta 5 (tester): Open MainUI rc10, the MiniCinema and RedAmp players, two more new apps by robcodedev, a faster game menu, the Flip lid pauses videos
+# 🧅🔴 RedOnion 4.5.1 beta 5 (tester): Open MainUI rc11, the MiniCinema and RedAmp players, two more new apps by robcodedev, a faster game menu, the Flip lid pauses videos
 
 > ⚠️ **Always back up your SD card before updating!** At least copy `Roms`, `Saves`, `BIOS` and `Screenshots` to your PC.
 
@@ -7,7 +7,7 @@
 
 RedOnion is still a personal-use build. It is **not** a replacement for Onion and **not** an official release. It runs on the Miyoo Mini, Mini+, Mini v4 and Mini Flip.
 
-This beta brings the **release candidate 10 of Open MainUI 1.1.1** by @robcodedev, as a prebuilt binary, two new apps of his, **MiniCinema**, a new video player by Rob and Veuks, and **RedAmp**, a new music player by Rob. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
+This beta brings the **release candidate 11 of Open MainUI 1.1.1** by @robcodedev, as a prebuilt binary, two new apps of his, **MiniCinema**, a new video player by Rob and Veuks, and **RedAmp**, a new music player by Rob. Open MainUI: https://github.com/robcodedev/onionos-mainui-opensource
 
 ## 🆕 New in 4.5.1 beta 5
 
@@ -43,9 +43,10 @@ This beta brings the **release candidate 10 of Open MainUI 1.1.1** by @robcodede
 
 - **GameTank** (Clydeware - GameTank), the open-source 8-bit console by Clyde Shaffer: put `.gtr` games (also zipped) in `Roms/GAMETANK`, no BIOS needed. Core 1.0.3 by SundownerSport, a libretro port of Clyde Shaffer's GameTankEmulator, built for the Miyoo; icon by tenlevels. Games: https://gametank.zone/ It is marked experimental by its author.
 
-### 🎮 Open MainUI 1.1.1 rc10
+### 🎮 Open MainUI 1.1.1 rc11
 
 - MainUI can now keep the exact screen it is on when it is asked to close, and open it again: RedOnion will use it to bring you back from the GameSwitcher in a coming build.
+- **Settings › Sleep** has its own icon (a moon), no longer About's.
 - **Expert:** the names under the icons are bigger with the Silky RedOnion theme (22 instead of 18), still inside their boxes. Thanks to robcodedev.
 - Lumination, when `system.json` has none, is your model's default (7 on the Mini and Mini v4, 10 on the Mini+ and Mini Flip): it was 7 on every model.
 

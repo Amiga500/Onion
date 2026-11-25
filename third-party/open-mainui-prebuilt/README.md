@@ -1,10 +1,16 @@
 # Open MainUI, prebuilt (test builds only)
 
 `MainUI` here is a binary given by @robcodedev before its source is on
-GitHub: **Open MainUI 1.1.1 rc10**, on top of 1.1.0 (the source in
+GitHub: **Open MainUI 1.1.1 rc11**, on top of 1.1.0 (the source in
 `third-party/open-mainui`).
 
-Since rc9:
+Since rc10:
+
+- Settings › Sleep has its own icon, `skin/icon-sleep-48.png` (it used
+  About's, `icon-device-info-48.png`). Silky RedOnion and the stock skin
+  (`miyoo/app/skin`, the fallback for themes without it) have one.
+
+From rc10:
 
 - Stopped with SIGTERM (as keymon would), MainUI saves the screen it is on
   (`mainui-screen.json` in its handoff directory, `/tmp` in RedOnion) and
