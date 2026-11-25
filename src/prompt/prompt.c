@@ -179,9 +179,14 @@ int main(int argc, char *argv[])
         // The message fits the screen width, 20 px from each side, and
         // leaves room for at least one choice below it. Positions are for
         // 640x480 and scaled, as the list below it is.
+        /* New UI: room for every choice (up to 3) under the message: the
+         * message's font gets smaller instead (a question's Cancel was
+         * scrolled off under a long message). */
+        int shown = list.item_count < 3 ? list.item_count : 3;
         message = theme_textboxSurfaceFit(
             str ? str : message_str, theme()->grid.color, ALIGN_CENTER,
-            g_display.width - (int)(40.0 * g_scale), (int)(280.0 * g_scale));
+            g_display.width - (int)(40.0 * g_scale),
+            (int)((340.0 - shown * 60.0) * g_scale));
         free(str);
 
         if (message) {
