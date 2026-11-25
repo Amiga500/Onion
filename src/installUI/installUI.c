@@ -31,6 +31,18 @@
 
 static SDL_Surface *slide = NULL;
 
+/* How many tip slides there are: res/installSlide0.png, 1, 2... */
+static int _countSlides(void)
+{
+    char image_path[STR_MAX];
+    int n = 0;
+    for (;; n++) {
+        sprintf(image_path, "res/installSlide%d.png", n);
+        if (!exists(image_path))
+            return n;
+    }
+}
+
 SDL_Surface *_loadSlide(int index)
 {
     char image_path[STR_MAX];
@@ -123,7 +135,7 @@ int main(int argc, char *argv[])
     sprintf(version_str, "v%s", ONION_VERSION);
 
     int current_slide = -1;
-    int num_slides = 9;
+    int num_slides = _countSlides(); // 20 tips in the new UI (9 before)
     config_get("currentSlide", CONFIG_INT, &current_slide);
 
     bool quit = false;
