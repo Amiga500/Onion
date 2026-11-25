@@ -2129,7 +2129,10 @@ static void footer(Canvas *c,const char *hint) {
     int x=20;
     cui_fit(hint?hint:"",15,600,fit,sizeof(fit));
     cui_text(CUI(c),20,419,fit,15,CUI_GREY,CUI_LEFT);
-    if (page==PAGE_FAT_CHECK_RESULT) {
+    if (page==PAGE_RUNNING) {
+        cui_hint(CUI(c),x,456,"B",job==JOB_FAT_CHECK?"CANCEL CHECK":
+                 (job==JOB_SPEED_READ||job==JOB_SPEED_WRITE)?"CANCEL TEST":"CANCEL SCAN",22);
+    } else if (page==PAGE_FAT_CHECK_RESULT) {
         x+=cui_hint(CUI(c),x,456,"A","SAVE REPORT",22);
         cui_hint(CUI(c),x,456,"B","BACK",22);
     } else {
@@ -2265,48 +2268,6 @@ static void info_row(Canvas *c,int y,const char *title,const char *detail,bool s
     item_box(c,445,y,164,45,selected);
     limited_label(c,455,y+8,title,19,WHITE);
     if (detail && *detail) limited_label(c,455,y+25,detail,19,selected?rgb(235,205,214):MUTED);
-}
-static void main_stats(Canvas *c) {
-    char a[48],b[48],d[48];
-    panel(c,18,103,190,302);
-    panel_heading(c,18,"LIVE DIAGNOSTICS");
-    snprintf(a,sizeof(a),"%" PRIu64,scan.files);
-    snprintf(b,sizeof(b),"%" PRIu64,scan.dirs);
-    snprintf(d,sizeof(d),"%" PRIu64,scan.bad);
-    small_pair(c,32,166,"FILES SCANNED",a);
-    small_pair(c,32,218,"DIRECTORIES",b);
-    small_pair(c,32,270,"READ / STAT ERRORS",d);
-    if (scan.bad) {
-        char shortname[80];compact_name(scan.last_error,shortname,sizeof(shortname));
-        limited_label(c,31,341,"FIRST ERROR",20,AMBER);
-        limited_label(c,31,366,shortname,21,WHITE);
-    } else limited_label(c,31,350,"NO ERRORS REPORTED",21,TEAL);
-}
-static void job_stats(Canvas *c) {
-    char tmp[96],sz[32];
-    panel(c,432,103,190,302);
-    panel_heading(c,432,"OPERATION");
-    if (job==JOB_FAT_CHECK) {
-        small_pair(c,446,162,"MODE","READ ONLY FSCK");
-        small_pair(c,446,219,"PARTITION",card.device);
-        small_pair(c,446,277,"STATE",fatcheck.cancelling?"CANCELLING":"CHECKING FAT32");
-        centered(c,526,367,"B: CANCEL CHECK",1,AMBER);
-    } else if (job==JOB_QUICK || job==JOB_DEEP || job==JOB_STORAGE) {
-        small_pair(c,446,162,"MODE",job==JOB_QUICK?"SAMPLE CHECK":job==JOB_DEEP?"DEEP READ":"FOLDER SIZES");
-        human_size(scan.bytes,sz,sizeof(sz));
-        small_pair(c,446,219,job==JOB_STORAGE?"SIZE FOUND":"DATA READ",sz);
-        compact_name(scan.reading,tmp,sizeof(tmp));
-        small_pair(c,446,277,"CURRENT FILE",tmp[0]?tmp:"ENUMERATING");
-        centered(c,526,367,"B: CANCEL SCAN",1,AMBER);
-    } else {
-        double pct=speedtest.size?100.0*(double)speedtest.done/(double)speedtest.size:0;
-        snprintf(tmp,sizeof(tmp),"%.0f%%",pct);
-        small_pair(c,446,165,"PROGRESS",tmp);
-        small_pair(c,446,221,"STAGE",speedtest.stage==SPEED_RAW_READ?"DEVICE READ":
-                   speedtest.stage==SPEED_WRITE?"FILE WRITE":"VERIFY DATA");
-        progress(c,449,287,152,(int)pct);
-        centered(c,526,367,"B: CANCEL TEST",1,AMBER);
-    }
 }
 static void result_stats(Canvas *c) {
     char tmp[64],sz[32];
@@ -2613,6 +2574,92 @@ static void fatcheck_result_screen(Canvas *c) {
         label(c,35,386,"MORE OUTPUT: UP/DOWN",1,MUTED);
 }
 
+/* A running check, as in the mockup: its name and progress big at the top,
+ * the file being read, three numbers in boxes and a note on what it does. */
+static void stat_box(Canvas *c,int x,const char *title,const char *value,uint32_t vcol,const char *sub) {
+    CuiCanvas *cc=CUI(c);
+    char fit[64];
+    cui_rrect(cc,x,214,190,112,12,CUI_PANEL);
+    cui_text(cc,x+16,236,title,13,CUI_GREY,CUI_LEFT);
+    cui_fit(value,26,160,fit,sizeof(fit));
+    cui_text(cc,x+16,270,fit,26,vcol,CUI_LEFT);
+    cui_fit(sub,14,160,fit,sizeof(fit));
+    cui_text(cc,x+16,303,fit,14,CUI_GREY,CUI_LEFT);
+}
+static void running_screen(Canvas *c) {
+    CuiCanvas *cc=CUI(c);
+    char name[64],pct_s[16],line[160],fit[160],v1[32],s1[48],v2[32],s2[48],v3[32],s3[48];
+    float frac=-1;
+    Uint32 began=scan.began;
+    uint64_t used=card.total>card.available?card.total-card.available:0;
+    if (job==JOB_FAT_CHECK) {
+        snprintf(name,sizeof(name),"FAT check");
+        snprintf(line,sizeof(line),"Read-only check of %s",card.device);
+        snprintf(v1,sizeof(v1),"%s",card.fat32?"FAT32":"FAT");snprintf(s1,sizeof(s1),"%s",card.device);
+        snprintf(v2,sizeof(v2),"Read only");snprintf(s2,sizeof(s2),"fsck.fat -n");
+        snprintf(v3,sizeof(v3),"%s",fatcheck.cancelling?"Cancelling":"Checking");snprintf(s3,sizeof(s3),"nothing is changed");
+        began=0;
+    } else if (job==JOB_QUICK || job==JOB_DEEP || job==JOB_STORAGE) {
+        char sz[32];
+        const char *rel=scan.reading;
+        snprintf(name,sizeof(name),"%s",job==JOB_QUICK?"Quick sample":job==JOB_DEEP?"Deep scan":"Storage");
+        /* how much of the used space is read (or counted) so far */
+        if (job!=JOB_QUICK && used) {
+            frac=(float)((double)scan.bytes/(double)used);
+            if (frac>0.99f) frac=0.99f;
+        }
+        /* the file as the user knows it: Roms/GBA/Golden Sun (USA).zip */
+        if (!strncmp(rel,"/mnt/SDCARD/",12)) rel+=12;
+        snprintf(line,sizeof(line),"%s %s",job==JOB_STORAGE?"Counting":"Reading",*rel?rel:"the folders...");
+        snprintf(v1,sizeof(v1),"%" PRIu64,scan.files);
+        snprintf(s1,sizeof(s1),"in %" PRIu64 " folders",scan.dirs);
+        human_size(scan.bytes,sz,sizeof(sz));
+        if (job==JOB_STORAGE) {
+            snprintf(v2,sizeof(v2),"%s",sz);snprintf(s2,sizeof(s2),"counted so far");
+        } else {
+            snprintf(v2,sizeof(v2),"%" PRIu64,scan.bad);
+            snprintf(s2,sizeof(s2),"%s",scan.bad?"see the report":"none so far");
+        }
+    } else {
+        double p=speedtest.size?(double)speedtest.done/(double)speedtest.size:0;
+        snprintf(name,sizeof(name),"Speed test");
+        frac=(float)p;
+        snprintf(line,sizeof(line),"%s",speedtest.stage==SPEED_RAW_READ?"Reading the card (no writes)":
+                 speedtest.stage==SPEED_WRITE?"Writing a 32 MB temporary file":"Checking the written data");
+        snprintf(v1,sizeof(v1),"%s",speedtest.stage==SPEED_RAW_READ?"Read":speedtest.stage==SPEED_WRITE?"Write":"Verify");
+        snprintf(s1,sizeof(s1),"%s",speedtest.stage==SPEED_RAW_READ?"no writes":
+                 speedtest.stage==SPEED_WRITE?"then verify":"last step");
+        snprintf(v2,sizeof(v2),"%.0f MB",(double)speedtest.done/1048576.0);
+        snprintf(s2,sizeof(s2),"of %.0f MB",(double)speedtest.size/1048576.0);
+        began=speedtest.started;
+    }
+    if (began) {
+        Uint32 sec=(SDL_GetTicks()-began)/1000u;
+        snprintf(v3,sizeof(v3),"%02u:%02u",sec/60u,sec%60u);
+        if (frac>0.02f) {
+            unsigned left=(unsigned)((float)sec*(1.0f-frac)/frac);
+            if (left<60) snprintf(s3,sizeof(s3),"under a minute left");
+            else snprintf(s3,sizeof(s3),"about %u min left",(left+30)/60);
+        } else snprintf(s3,sizeof(s3),"elapsed");
+    }
+    cui_text(cc,20,95,name,26,CUI_WHITE,CUI_LEFT);
+    if (frac>=0) {
+        snprintf(pct_s,sizeof(pct_s),"%d%%",(int)(frac*100));
+        cui_text(cc,620,95,pct_s,26,CUI_WARN,CUI_RIGHT);
+        cui_progress(cc,20,124,600,10,frac);
+    } else {
+        /* no total to measure against: a block that runs along the track */
+        float t=(float)(SDL_GetTicks()%1600u)/1600.0f;
+        cui_rrect(cc,20,124,600,10,5,CUI_TRACK);
+        cui_rrect(cc,20+t*480,124,120,10,5,CUI_ACCENT);
+    }
+    cui_fit(line,16,600,fit,sizeof(fit));
+    cui_text(cc,20,160,fit,16,CUI_GREY,CUI_LEFT);
+    stat_box(c,20,job==JOB_FAT_CHECK?"FILESYSTEM":job==JOB_SPEED_READ||job==JOB_SPEED_WRITE?"STAGE":"FILES READ",v1,CUI_WHITE,s1);
+    stat_box(c,225,job==JOB_FAT_CHECK?"MODE":job==JOB_STORAGE?"SIZE":job==JOB_SPEED_READ||job==JOB_SPEED_WRITE?"DATA":"READ ERRORS",
+             v2,(job==JOB_QUICK||job==JOB_DEEP)?(scan.bad?CUI_BAD:CUI_GOOD):CUI_WHITE,s2);
+    stat_box(c,430,job==JOB_FAT_CHECK?"STATE":"TIME",v3,CUI_WHITE,s3);
+}
 static void draw_screen(Canvas *c) {
     char tmp[512],sizebuf[32];
     header(c);
@@ -2623,9 +2670,7 @@ static void draw_screen(Canvas *c) {
     }
     if (page==PAGE_RUNNING) {
         /* FAT check examines the partition, not a file-scan counter. */
-        if (job==JOB_FAT_CHECK) left_card_info(c);
-        else main_stats(c);
-        sd_card(c,251,133);job_stats(c);
+        running_screen(c);
         if (job==JOB_FAT_CHECK)
             footer(c,"FSCK.FAT -N READ ONLY - MOUNTED RESULTS MAY CHANGE");
         else if (job==JOB_QUICK || job==JOB_DEEP || job==JOB_STORAGE)

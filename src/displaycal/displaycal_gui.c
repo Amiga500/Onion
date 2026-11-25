@@ -547,8 +547,33 @@ static int load_image(int idx){
  * primaries.
  */
 #include "ui_font_data.h"
+/* The header badge's icon: "monitor" from res/icons/ui, as a 20x20 alpha
+ * mask (copied from common/theme/render/ui_icons_data.h: this app links no
+ * libc and draws everything itself). */
+static const u8 icon_monitor[400] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,2,4,3,3,3,3,3,3,3,3,3,3,3,3,4,2,0,0,
+    0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,
+    2,0,28,138,170,170,171,171,171,171,171,171,171,171,170,170,138,28,0,2,
+    1,17,220,255,253,254,254,254,254,254,254,254,254,254,254,253,255,219,16,1,
+    0,73,255,123,14,17,14,14,14,14,14,14,14,14,17,14,123,255,73,0,
+    0,82,253,75,0,0,0,0,0,0,0,0,0,0,0,0,76,253,82,0,
+    0,81,255,84,1,5,1,1,1,1,1,1,1,1,5,1,85,255,81,0,
+    0,81,255,82,0,4,0,0,0,0,0,0,0,0,4,0,83,255,81,0,
+    0,81,255,82,0,4,0,0,0,0,0,0,0,0,4,0,83,255,81,0,
+    0,81,255,83,0,4,0,0,0,0,0,0,0,0,4,0,84,255,81,0,
+    0,81,254,81,3,7,3,3,3,3,3,3,3,3,7,3,82,254,81,0,
+    0,81,255,86,0,0,0,0,0,0,0,0,0,0,0,0,87,255,81,0,
+    0,36,254,234,171,172,171,171,171,168,168,171,171,171,172,171,234,254,35,0,
+    2,0,90,225,252,254,255,255,255,255,255,255,255,255,254,252,225,90,0,2,
+    0,1,0,4,14,13,11,0,0,214,213,0,0,11,13,14,4,0,1,0,
+    0,0,3,0,0,0,4,72,81,226,226,81,72,4,0,0,0,3,0,0,
+    0,0,0,1,4,1,70,255,255,255,255,255,255,69,1,4,1,0,0,0,
+    0,0,0,0,0,0,9,75,84,86,86,85,75,9,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+};
 static u32 accent(void){return px(158,44,69);}
-static u32 ui_bg(void){return px(39,39,39);}
+static u32 ui_bg(void){return px(28,28,30);}
 static u32 ui_head(void){return px(30,30,30);}
 static u32 ui_panel(void){return px(46,46,49);}
 static u32 ui_track(void){return px(58,58,61);}
@@ -691,6 +716,11 @@ static void display_card(int row,int selected,int value){
 /* Uniform rounded button legends, including dual keys. */
 static int footer_key(int x,int y,const char *key){
     int kw=ui_text_width(key,0)+16;
+    if(!key[1]){ /* A, B, X, Y: a round button, as in every app */
+        disk(x+11,y+11,11,accent());
+        ui_text_center(x,22,y+2,key,0,px(255,255,255));
+        return 22;
+    }
     round_fill(x,y,kw,22,11,accent());
     ui_text_center(x,kw,y+2,key,0,px(255,255,255));
     return kw;
@@ -719,9 +749,15 @@ static void draw(void){
     /* Unified look: flat greys, header like Tweaks (badge, title, version),
      * the two pages as tabs under it, the reference name on the right. */
     rect(0,0,W,H,ui_bg());
-    rect(0,0,W,90,ui_head());
+    rect(0,0,W,60,ui_head());
     round_fill(16,14,32,32,8,accent());
-    ui_text_center(16,32,18,"D",1,fg);
+    {   /* the app's icon in the badge, as in the other apps' headers */
+        int ix,iy;
+        for(iy=0;iy<20;iy++)for(ix=0;ix<20;ix++){
+            int a=icon_monitor[iy*20+ix];
+            if(a) alpha_pixel(22+ix,20+iy,fg,(a*15+127)/255);
+        }
+    }
     ui_text(60,14,"DisplayCal",2,fg);
     ui_text(60+ui_text_width("DisplayCal",2)+10,20,"v0.8.4",0,px(110,110,115));
     /* Status pill reflects the CURRENT page only:
@@ -736,8 +772,11 @@ static void draw(void){
         const char *label=blf?"BLF ON":
             (page==0 && status==-7?"TOO DARK":
              (page_err?(page==0?"RGB ERR":"SDK ERR"):(page_live?"LIVE":"READY")));
-        round_fill((int)W-95,17,77,26,13,ui_track());
-        ui_text_center((int)W-95,77,20,label,0,ink);
+        /* outlined in its colour, as the status chips of the other apps */
+        int cw=ui_text_width(label,0)+24;
+        round_fill((int)W-16-cw,18,cw,24,12,ink);
+        round_fill((int)W-16-cw+2,20,cw-4,20,10,ui_head());
+        ui_text_center((int)W-16-cw,cw,19,label,0,ink);
     }
     {
         /* Pages as tabs; A switches them. */

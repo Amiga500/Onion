@@ -993,18 +993,6 @@ static void load_settings(void) {
 #define TEAL rgb(214,86,112) /* accent, light enough for text on the panels */
 #define AMBER CUI_WARN
 
-static void line(Canvas *c,int x0,int y0,int x1,int y1,uint32_t ink) {
-    int dx=abs(x1-x0),sx=x0<x1?1:-1;
-    int dy=-abs(y1-y0),sy=y0<y1?1:-1;
-    int err=dx+dy;
-    for (;;) {
-        put(c,x0,y0,ink); put(c,x0,y0+1,ink);
-        if (x0==x1 && y0==y1) break;
-        { int e2=2*err;
-          if (e2>=dy) { err+=dy; x0+=sx; }
-          if (e2<=dx) { err+=dx; y0+=sy; } }
-    }
-}
 static void box_panel(Canvas *c,int x,int y,int w,int h) {
     cui_rrect(CUI(c),x,y,w,h,12,CUI_PANEL);
 }
@@ -1167,71 +1155,68 @@ static void draw_tests(Canvas *c,int current,float l,float r,float progress) {
               "SOFT OUTPUT - AUTO STOP"):audio_error,1,
              audio.open?MUTED:AMBER);
 }
+/* EQ as in the mockup: the profile on a strip, then one column per band
+ * (its gain on top, a vertical track and a round knob, its frequency under
+ * it); the chosen band's column stands out. */
 static void draw_eq(Canvas *c,int current) {
-    int i,x,last_x=0,last_y=0;
-    const int graph_x=55,graph_w=530,center_y=193;
+    CuiCanvas *cc=CUI(c);
+    int i;
     int gains[EQ_BANDS];
-    box_panel(c,18,98,604,317);
-    label(c,46,120,"FIVE BAND EQUALIZER",2,WHITE);
+    char fit[128];
+    cui_rrect(cc,18,102,604,38,10,CUI_PANEL);
+    cui_text(cc,34,121,"PROFILE",13,CUI_GREY,CUI_LEFT);
+    cui_text(cc,104,121,profile_names[selected_profile],19,CUI_WHITE,CUI_LEFT);
     /* The hardware setting remains unchanged until the launcher syncs on
        exit. Do not claim a live Flat/EQ toggle while the hook is loaded. */
-    /* Both right-side labels share the exact same right edge. */
-    right_aligned(c,596,122,vqe_test_process?
-                  (applied_native_valid?"LIVE EQ APPROX":"NATIVE HOOK") :
-                  effective_eq_enabled()?"EQ ACTIVE":"EQ BYPASSED",1,
-                  (vqe_test_process||!effective_eq_enabled())?AMBER:TEAL);
-    right_aligned(c,596,138,music_custom_available()?"CUSTOM MUSIC":"BUILT-IN MUSIC",1,MUTED);
+    {
+        const char *state=vqe_test_process?
+                  (applied_native_valid?"Live EQ approx":"Native hook"):
+                  effective_eq_enabled()?"EQ active":"EQ bypassed";
+        char right[80];
+        snprintf(right,sizeof(right),"%s - %s",state,
+                 music_custom_available()?"custom music":"built-in music");
+        cui_text(cc,606,121,right,14,(vqe_test_process||!effective_eq_enabled())?CUI_WARN:CUI_GOOD,CUI_RIGHT);
+    }
     if (selected_profile==PROFILE_CUSTOM)
         memcpy(gains,custom_gains,sizeof(gains));
     else memcpy(gains,audiotune_preset_gains[selected_profile],sizeof(gains));
-    for (i=0;i<5;++i) {
-        int y=center_y+(i-2)*22;
-        line(c,graph_x,y,graph_x+graph_w,y,i==2?CUI_DIM:CUI_TRACK);
-    }
-    for (x=0;x<=graph_w;x+=3) {
-        int sample=clampi((x*GRAPH_STEPS+graph_w/2)/graph_w,0,GRAPH_STEPS);
-        int y=center_y-graph_delta_y[sample];
-        if (x) line(c,graph_x+last_x,last_y,graph_x+x,y,
-                    effective_eq_enabled()?TEAL:CUI_DIM);
-        last_x=x;last_y=y;
-    }
-    label(c,25,143,"+12",1,MUTED);
-    label(c,37,188,"0",1,MUTED);
-    label(c,25,230,"-12",1,MUTED);
     /* Knob centres map linearly to the full track: +12 at the very top,
-       -12 at the very bottom. Value badges are clearly above the tracks. */
+       -12 at the very bottom. */
     for (i=0;i<EQ_BANDS;++i) {
-        const int track_top=288, track_bottom=382;
+        const int track_top=196, track_bottom=344;
         const int zero=(track_top+track_bottom)/2;
-        const int travel=(track_bottom-track_top-12)/2;
-        int cx=101+i*109, val=gains[i];
+        const int travel=(track_bottom-track_top)/2;
+        int cx=78+i*121, val=gains[i];
         int knob=zero-(val*travel)/AUDIOTUNE_EQ_GAIN_LIMIT;
         bool chosen=(i==selected_band);
-        uint32_t line_color=chosen?TEAL:CUI_DIM;
         char value[16];
-        round_rect(c,cx-31,247,62,24,7,chosen?CUI_ACCENT:CUI_TRACK);
-        snprintf(value,sizeof(value),"%+d DB",val);
-        centered(c,cx,254,value,1,chosen?WHITE:MUTED);
-        round_rect(c,cx-4,track_top,8,track_bottom-track_top+1,3,CUI_TRACK);
-        rect(c,cx-1,zero,3,1,rgb(220,220,224));
-        if (val>=0) rect(c,cx-3,knob,6,zero-knob+1,line_color);
-        else rect(c,cx-3,zero,6,knob-zero+1,line_color);
-        round_rect(c,cx-12,knob-6,24,12,5,chosen?CUI_WHITE:rgb(200,200,204));
-        centered(c,cx,385,eq_labels[i],1,chosen?WHITE:MUTED);
+        if (chosen) cui_rrect(cc,cx-54,150,108,236,12,CUI_PANEL);
+        snprintf(value,sizeof(value),val?"%+d":"0",val);
+        cui_text(cc,cx,174,value,20,chosen?CUI_WHITE:CUI_GREY,CUI_CENTER);
+        cui_rrect(cc,cx-3,track_top,6,track_bottom-track_top,3,CUI_TRACK);
+        cui_rect(cc,cx-7,zero,14,1,CUI_DIM);
+        if (val>0) cui_rect(cc,cx-3,knob,6,zero-knob,chosen?CUI_ACCENT:CUI_DIM);
+        else if (val<0) cui_rect(cc,cx-3,zero,6,knob-zero,chosen?CUI_ACCENT:CUI_DIM);
+        if (chosen) {
+            cui_disc(cc,cx,knob,11,CUI_WHITE);
+            cui_disc(cc,cx,knob,8,CUI_ACCENT);
+        } else cui_disc(cc,cx,knob,9,CUI_WHITE);
+        cui_text(cc,cx,366,eq_labels[i],14,chosen?CUI_WHITE:CUI_GREY,CUI_CENTER);
     }
     {
         char info[110];
-        const char *target=output_mode==AUDIOTUNE_OUTPUT_SPEAKER?"SPEAKER":"HEADPHONES";
+        const char *target=output_mode==AUDIOTUNE_OUTPUT_SPEAKER?"Speaker":"Headphones";
         const char *mode=(output_mode==AUDIOTUNE_OUTPUT_HEADPHONES &&
-                          headroom_mode==AUDIOTUNE_HEADROOM_PUNCHY)?"PUNCHY":"SAFE";
+                          headroom_mode==AUDIOTUNE_HEADROOM_PUNCHY)?"punchy":"safe";
         if (!effective_eq_enabled())
-            snprintf(info,sizeof(info),"OUTPUT: %s  %s  EQ OFF  LIM: %s",target,mode,
-                     soft_limiter_enabled?"ON":"OFF");
+            snprintf(info,sizeof(info),"Output: %s, %s - EQ off - limiter %s",target,mode,
+                     soft_limiter_enabled?"on":"off");
         else
-            snprintf(info,sizeof(info),"OUTPUT: %s  %s  CUT: -%d DB  LIM: %s%s",
-                     target,mode,native_headroom_db,soft_limiter_enabled?"ON":"OFF",
-                     vqe_test_process?"  APPLY ON EXIT":"");
-        centered(c,320,404,info,1,MUTED);
+            snprintf(info,sizeof(info),"Output: %s, %s - cut -%d dB - limiter %s%s",
+                     target,mode,native_headroom_db,soft_limiter_enabled?"on":"off",
+                     vqe_test_process?" - applied on exit":"");
+        cui_fit(info,14,600,fit,sizeof(fit));
+        cui_text(cc,320,404,fit,14,CUI_GREY,CUI_CENTER);
     }
     (void)current;
 }
