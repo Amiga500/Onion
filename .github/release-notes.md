@@ -46,6 +46,7 @@ This beta brings the **release candidate 10 of Open MainUI 1.1.1** by @robcodede
 ### 🎮 Open MainUI 1.1.1 rc10
 
 - MainUI can now keep the exact screen it is on when it is asked to close, and open it again: RedOnion will use it to bring you back from the GameSwitcher in a coming build.
+- **Expert:** the names under the icons are bigger with the Silky RedOnion theme (22 instead of 18), still inside their boxes. Thanks to robcodedev.
 - Lumination, when `system.json` has none, is your model's default (7 on the Mini and Mini v4, 10 on the Mini+ and Mini Flip): it was 7 on every model.
 
 ### 📜 Game lists
