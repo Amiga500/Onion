@@ -3,8 +3,11 @@ slug: /apps/battery-tool
 description: Monitor your battery usage
 ---
 
-#  Battery Tool
+#  RedOnion Battery Monitor
 <p><i>{frontMatter.description}</i></p>
+
+RedOnion Battery Monitor is based on ksielick's Battery Monitor: thanks to
+ksielick for the app, its battery tests and the AXP (PMIC) tools.
 
 
 ## Presentation
@@ -16,7 +19,7 @@ Onion Battery Tool enables to track and monitor historical battery charge while 
 
 ## Usage
 
-Battery Monitor is available in the Apps section of [Package Manager](package-manager).
+RedOnion Battery Monitor is available in the Apps section of [Package Manager](package-manager).
 
 Onion is recording your daily battery usage, so you can view it graphically just by installing Onion Battery Tool. The battery is monitored only when the device is ON. 
 Onion Battery Tool will allow you to see a little more than the last 24h of use of your battery.

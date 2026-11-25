@@ -211,8 +211,8 @@ core: core-modules
 # there once v0.1.1's source is in.
 apps: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)
-	@cd $(SRC_DIR)/batteryMonitorUI && BUILD_DIR="$(PACKAGES_APP_DEST)/Battery Monitor/App/BatteryMonitorUI" make
-	@find $(SRC_DIR)/batteryMonitorUI -depth -type d -name res -exec cp -r {}/. "$(PACKAGES_APP_DEST)/Battery Monitor/App/BatteryMonitorUI/res/" \;
+	@cd $(SRC_DIR)/batteryMonitorUI && BUILD_DIR="$(PACKAGES_APP_DEST)/RedOnion Battery Monitor/App/BatteryMonitorUI" make
+	@find $(SRC_DIR)/batteryMonitorUI -depth -type d -name res -exec cp -r {}/. "$(PACKAGES_APP_DEST)/RedOnion Battery Monitor/App/BatteryMonitorUI/res/" \;
 	@cd $(SRC_DIR)/playActivityUI && BUILD_DIR="$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity" make
 	@cd $(SRC_DIR)/displaycal && BUILD_DIR="$(PACKAGES_APP_DEST)/DisplayCal/App/DisplayCal" make
 	@cd $(SRC_DIR)/sdcarddoctor && BUILD_DIR="$(PACKAGES_APP_DEST)/SD Card Doctor/App/SDCardDoctor" make

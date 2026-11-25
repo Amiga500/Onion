@@ -1,0 +1,6 @@
+{
+	"label":	"RedOnion Battery Monitor",
+	"icon":	"/mnt/SDCARD/Icons/Default/app/battery_monitor.png",
+	"launch":	"launch.sh",
+	"description":	"Battery use, health and calibration. Based on ksielick's Battery Monitor"
+}
