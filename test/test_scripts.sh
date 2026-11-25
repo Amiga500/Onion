@@ -2521,6 +2521,7 @@ check "B goes on, nothing opened" test ! -f "$TMP/doctor_ran"
 rm -f "$SD_DOCTOR_DIR/launch.sh" "$TMP/offered"; printf '0\n0\n1\n' > "$TMP/answers"; sd_card_notice
 check "without it: two choices" grep -q "^How to repair it on a PC OK$" "$TMP/offered"
 check "the first is the PC page, then OK goes on" test "$(wc -l < "$TMP/offered")" -eq 3
+check "SD Card Doctor is preinstalled (where the notice looks for it)" sh -c 'grep -qF "cp -a \"\$(PACKAGES_APP_DEST)/SD Card Doctor/.\" \$(BUILD_DIR)/" "$1" && test -f "$2/static/packages/App/SD Card Doctor/App/SDCardDoctor/launch.sh" && grep -q "SD_DOCTOR_DIR:-/mnt/SDCARD/App/SDCardDoctor" "$3"' _ "$ROOT/Makefile" "$ROOT" "$RUNTIME"
 check "the PC page says how on Windows, Mac and Linux" sh -c 'grep -q "Tools > Check" "$1" && grep -q "First Aid" "$1" && grep -q "fsck.fat -a" "$1"' _ "$RUNTIME"
 long=$(sed -n '/^sd_card_notice()/,/^}/p' "$RUNTIME" | grep -o '\-m "[^"]*"' | sed 's/^-m "//; s/"$//; s/\\n/\n/g' | awk 'length > 44' | head -n 1)
 check "message lines of 44 characters or less ($long)" test -z "$long"

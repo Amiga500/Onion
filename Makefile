@@ -225,6 +225,7 @@ apps: $(CACHE)/.setup
 	@cp -a "$(PACKAGES_APP_DEST)/Activity Tracker/." $(BUILD_DIR)/
 	@cp -a "$(PACKAGES_APP_DEST)/Quick Guide/." $(BUILD_DIR)/
 	@cp -a "$(PACKAGES_APP_DEST)/RetroArch (Shortcut)/." $(BUILD_DIR)/
+	@cp -a "$(PACKAGES_APP_DEST)/SD Card Doctor/." $(BUILD_DIR)/
 	@cp -a "$(PACKAGES_APP_DEST)/Tweaks/." $(BUILD_DIR)/
 	@cp -a "$(PACKAGES_APP_DEST)/ThemeSwitcher/." $(BUILD_DIR)/
 
