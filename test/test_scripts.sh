@@ -644,7 +644,7 @@ cp "$gi_root/gamelist.xml" "$TMP/before.xml"
 gi_flush_desc
 check "nothing waiting: gamelist.xml not written again" cmp -s "$gi_root/gamelist.xml" "$TMP/before.xml"
 check "the scraping writes every 25, and when it ends or is closed" sh -c "grep -q '^GI_DESC_BATCH=25$' '$SCRAPER_SS' && grep -q '^trap gi_flush_desc EXIT$' '$SCRAPER_SS' && grep -q '^gi_flush_desc$' '$SCRAPER_SS'"
-check "and when its terminal is closed or it is stopped" has_line "$SCRAPER_SS" "trap 'gi_flush_desc; exit 1' HUP INT TERM"
+check "and when its terminal is closed or it is stopped (and when its progress screen closes)" has_line "$SCRAPER_SS" "trap 'gi_flush_desc; exit 1' HUP INT TERM PIPE"
 check "the waiting entries are not taken for ROMs" grep -q "! -name '\*.xml.entry' ! -name '\*.xml.one'" "$SCRAPER_SS"
 GI_DESC_BATCH=1
 end
@@ -3965,7 +3965,12 @@ mkdir -p "$SD/Media/PDF/.state_seen"; : > "$SD/Media/PDF/.state_seen/b.pdf._seen
     echo '#!/bin/sh'
     echo "for a; do printf '<%s>' \"\$a\"; done >> '$TMP/args'; echo >> '$TMP/args'"
     echo "n=\$(cat '$TMP/n' 2> /dev/null || echo 0); n=\$((n + 1)); echo \$n > '$TMP/n'"
-    echo "exit \$(sed -n \"\${n}p\" '$TMP/answers')"
+    echo "a=\$(sed -n \"\${n}p\" '$TMP/answers')"
+    # like the real prompt: the index in --index-file (-1 for B, menu)
+    echo 'f=; while [ $# -gt 0 ]; do [ "$1" = --index-file ] && f=$2; shift; done'
+    echo 'case $a in 255) i=-1 ;; 254) i=menu ;; *) i=$a ;; esac'
+    echo '[ -n "$f" ] && echo "$i" > "$f"'
+    echo 'exit $a'
 } > "$TMP/bin/prompt"
 chmod +x "$TMP/bin/prompt"
 sed -e "s#/mnt/SDCARD/.tmp_update/script/shellect.sh#$TMP/shellect.sh#" "$ROOT/static/build/.tmp_update/script/file_selector.sh" > "$TMP/fs.sh"
@@ -3987,6 +3992,11 @@ fs_run 255
 check "B in the first folder: leaves, nothing chosen" test ! -f "$SD/Media/PDF/.selected.pls"
 fs_run 2
 check "a new one opened: seen next time" test -f "$SD/Media/PDF/.state_seen/a.pdf._seen"
+# ../ above the first folder (0), then B: leaves (it went on up to / and
+# looped there); the answers end with a choice that would be taken if not
+fs_run 0 255 2
+check "above the first folder, B leaves" test ! -f "$SD/Media/PDF/.selected.pls"
+check "and asks no more ($(cat "$TMP/n"))" test "$(cat "$TMP/n")" -eq 2
 end
 
 begin release_named_redonion_with_onionplus_copy
@@ -5654,18 +5664,43 @@ end
 begin shellect_native_mode_answers_like_the_terminal
 SHL="$ROOT/static/build/.tmp_update/script/shellect.sh"
 mkdir -p "$TMP/bin"
-printf '#!/bin/sh\nfor a; do printf "<%%s>" "$a"; done >> "%s/args"; echo >> "%s/args"\nexit ${FAKE_RC:-0}\n' "$TMP" "$TMP" > "$TMP/bin/prompt"
+{
+    echo '#!/bin/sh'
+    echo "for a; do printf '<%s>' \"\$a\"; done >> '$TMP/args'; echo >> '$TMP/args'"
+    # like the real prompt: the index in --index-file (-1 for B, menu);
+    # FAKE_IDX for an index the exit status cannot hold
+    echo 'f=; while [ $# -gt 0 ]; do [ "$1" = --index-file ] && f=$2; shift; done'
+    echo 'a=${FAKE_RC:-0}; case $a in 255) i=-1 ;; 254) i=menu ;; *) i=$a ;; esac'
+    echo '[ -n "$FAKE_IDX" ] && i=$FAKE_IDX'
+    echo '[ -n "$f" ] && [ -z "$FAKE_NO_ANSWER" ] && echo "$i" > "$f"'
+    echo 'exit $a'
+} > "$TMP/bin/prompt"
 chmod +x "$TMP/bin/prompt"
 sed "s#/mnt/SDCARD/.tmp_update/bin/prompt#$TMP/bin/prompt#" "$SHL" > "$TMP/shellect.sh"
 r=$(printf 'One\nTwo\nBack' | SHELLECT_NATIVE=1 SHELLECT_PARENT=Scraper FAKE_RC=1 sh "$TMP/shellect.sh" -t "--== MAIN MENU ==--" -b x -s 2)
 check "A on the second item: its text" test "$r" = Two
-check "the path, the title in sentence case, the start item" grep -q "<-p><Scraper><-t><Main menu><-s><1><One><Two><Back>" "$TMP/args"
+check "the path, the title in sentence case, the start item" grep -q "<-p><Scraper><-t><Main menu><-s><1><--index-file><[^>]*><One><Two><Back>" "$TMP/args"
 r=$(printf 'One\nBack' | SHELLECT_NATIVE=1 FAKE_RC=255 sh "$TMP/shellect.sh" -t "--== X ==--")
 check "B: the menu's Back item" test "$r" = Back
 r=$(printf 'One\nTwo' | SHELLECT_NATIVE=1 FAKE_RC=255 sh "$TMP/shellect.sh" -t "--== X ==--")
 check "B without a Back item: nothing" test -z "$r"
 printf 'Yes\nNo' | SHELLECT_NATIVE=1 FAKE_RC=254 sh "$TMP/shellect.sh" -m -t x > /dev/null
 check "MENU with -m: exit 2" test $? -eq 2
+# More than 254 items (a big PDF or video folder): the exit status wraps
+# at 256 and 254/255 are MENU and B, so the index comes from the file.
+big=$(i=1; while [ $i -le 300 ]; do echo "file$i"; i=$((i + 1)); done)
+r=$(printf '%s' "$big" | SHELLECT_NATIVE=1 FAKE_RC=4 FAKE_IDX=260 sh "$TMP/shellect.sh" -t x)
+check "item 261 of 300: itself, not item 5 ($r)" test "$r" = file261
+r=$(printf '%s' "$big" | SHELLECT_NATIVE=1 FAKE_RC=254 FAKE_IDX=254 sh "$TMP/shellect.sh" -m -t x)
+check "item 255: itself, not MENU ($r, rc $?)" test "$r" = file255
+r=$(printf '%s' "$big" | SHELLECT_NATIVE=1 FAKE_RC=255 FAKE_IDX=255 sh "$TMP/shellect.sh" -t x)
+check "item 256: itself, not B ($r)" test "$r" = file256
+r=$(printf 'One\nBack' | SHELLECT_NATIVE=1 FAKE_NO_ANSWER=1 sh "$TMP/shellect.sh" -t x)
+rc=$?
+check "prompt gave no answer: as B (Back), exit 3 ($r, $rc)" sh -c 'test "$1" -eq 3 && test "$2" = Back' _ "$rc" "$r"
+r=$(printf 'One\nTwo' | SHELLECT_NATIVE=1 FAKE_NO_ANSWER=1 sh "$TMP/shellect.sh" -t x)
+check "no answer and no Back item: nothing chosen ($r)" test -z "$r"
+check "no index file left behind" sh -c '! ls /tmp/shellect_index.* > /dev/null 2>&1'
 end
 
 begin scraper_long_scraping_warning
@@ -6371,6 +6406,94 @@ for rtc in 1700000000 3; do
     rm -f "$TMP/calls"
 done
 unset -f update_time
+end
+
+# ---- Fable's review of the new UI (wip/new-ui) ----
+
+begin scraper_native_b_stops_the_scraper_at_once
+# B on the progress screen: the scraper gets TERM (its trap writes the Game
+# Info descriptions waiting) and the menu goes on, even while the scraper
+# writes nothing (a download, a quota wait): in a pipe it went on until
+# its next line and died of SIGPIPE, skipping the trap.
+SCRAPER_MENU="$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
+mkdir -p "$TMP/bin"
+# the progress screen: reads the tip and the game, then B
+printf '#!/bin/sh\nread -r _l; read -r _l; exit 2\n' > "$TMP/bin/progressUI"
+{
+    echo '#!/bin/sh'
+    echo "trap 'echo flushed > \"$TMP/flushed\"; exit 1' TERM"
+    echo 'echo "@@item 1 Game"'
+    echo 'while :; do sleep 1; done'
+} > "$TMP/scraper"
+chmod +x "$TMP/bin/progressUI" "$TMP/scraper"
+start=$(date +%s)
+(
+    eval "$(extract_fn "$SCRAPER_MENU" run_scraper)"
+    scraper_tips() { echo "@@tip x"; }
+    ui_scraper_label() { echo Test; }
+    close_terminal() { echo closed > "$TMP/closed"; }
+    SCRAPER_NATIVE=1 PATH="$TMP/bin:$PATH"
+    run_scraper "$TMP/scraper" GB
+) > /dev/null 2>&1 &
+rs_pid=$!
+n=0
+while kill -0 $rs_pid 2> /dev/null && [ $n -lt 40 ]; do sleep 0.5; n=$((n + 1)); done
+kill -0 $rs_pid 2> /dev/null && kill -9 $rs_pid 2> /dev/null
+took=$(($(date +%s) - start))
+check "back from the scraper in seconds ($took s)" test $took -le 10
+check "the scraper's TERM trap ran (pending descriptions written)" test -f "$TMP/flushed"
+check "stopped with B: no next source" test -f "$TMP/closed"
+check "no fifo left" sh -c '! ls /tmp/scraper_progress.* > /dev/null 2>&1'
+check "and when the progress screen goes away: the PIPE trap too" grep -q "HUP INT TERM PIPE" "$ROOT/static/build/.tmp_update/script/scraper/scrap_screenscraper.sh"
+end
+
+begin scraper_native_menu_on_the_account_question
+# MENU there killed the main shell while the question ran in a subshell
+# ("(onerom=0; Launch_Scraping;)"), which went on to scrape over MainUI.
+SCRAPER_MENU="$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
+q=$(sed -n '/Native_Account_Question() {/,/^    }/p' "$SCRAPER_MENU")
+check "asked with -m (MENU comes back as exit 2)" sh -c 'printf "%s" "$1" | grep -q "shellect.sh -m -t \"--== ADD A SCREENSCRAPER ACCOUNT? ==--\""' _ "$q"
+check "exit 2: the scraper leaves" sh -c 'printf "%s" "$1" | grep -qF "[ \$? -eq 2 ] && exit 0"' _ "$q"
+end
+
+begin menu_leaves_only_after_its_press
+# keystate[MENU] == RELEASED is also the state of every idle key: as an exit
+# test it closed Activity Tracker and Battery Monitor on any button.
+for f in "$ROOT/src/batteryMonitorUI/batteryMonitorUI.c" "$ROOT/src/playActivityUI/playActivityUI.c"; do
+    check "${f##*/}: no exit on a bare MENU == RELEASED" sh -c '! grep -qF "|| keystate[SW_BTN_MENU] == RELEASED" "$1"' _ "$f"
+    check "${f##*/}: MENU's press is seen first" grep -q "menu_armed = true" "$f"
+done
+check "prompt: MENU's release only after its press (menu_seen)" grep -q "!menu_combo && menu_seen" "$ROOT/src/prompt/prompt.c"
+end
+
+begin prompt_long_messages_and_long_lists
+P="$ROOT/src/prompt/prompt.c"
+# -m was cut at 255 bytes; the scraper's warnings run to 300+
+check "the message holds 2 KB" grep -qF "char message_str[2048]" "$P"
+check "and is copied to its own size" grep -qF "strncpy(message_str, argv[++i], sizeof(message_str) - 1);" "$P"
+check "--index-file: the choice past 254 items" grep -qF '"--index-file"' "$P"
+check "MENU written as menu (254 can be an item)" grep -qF 'fprintf(fp, "menu' "$P"
+end
+
+begin progressui_task_ends_early_and_nostop
+PU="$ROOT/src/progressUI/progressUI.c"
+check "an early end shows where it stopped" grep -qF '"Ended at %d of %d"' "$PU"
+check "100% only when every item was reached" grep -qF "bool complete = !finished || total <= 0 || item >= total;" "$PU"
+check "SIGTERM (SDL_QUIT) does not close a nostop task" grep -qF "event.type == SDL_QUIT && (!nostop || finished)" "$PU"
+end
+
+begin ota_extraction_does_not_depend_on_the_screen
+OTA="$ROOT/static/build/.tmp_update/script/ota_update.sh"
+ax=$(sed -n '/apply_extract() { # zip/,/^	}/p' "$OTA")
+check "7z writes to a log, not into progressUI" sh -c 'printf "%s" "$1" | grep -qF "runtime.sh > /tmp/ota_7z.log 2>&1"' _ "$ax"
+check "the old result removed first" sh -c 'printf "%s\n" "$1" | grep -q "rm -f /tmp/ota_7z_rc$"' _ "$ax"
+check "the screen follows the log" sh -c 'printf "%s" "$1" | grep -qF "sed -n \"\$((_shown + 1)),\${_lines}p\" /tmp/ota_7z.log"' _ "$ax"
+check "no terminal lines in the native download" grep -qF 'if [ -z "$OTA_NATIVE" ]; then' "$OTA"
+end
+
+begin clock_unhandled_key_keeps_the_redraw
+check "the default case does not clear dirty" sh -c '! sed -n "/default:/,/break;/p" "$1" | grep -q "dirty = false"' _ "$ROOT/src/clock/main.c"
+check "dirty is cleared only after drawing" test "$(grep -c "dirty = false" "$ROOT/src/clock/main.c")" -eq 1
 end
 
 echo ""

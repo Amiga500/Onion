@@ -1070,15 +1070,35 @@ if [ -n "$SHELLECT_NATIVE" ]; then
     unset IFS
     sel=0
     case $start in ''|*[!0-9]*) ;; *) sel=$((start - 1)) ;; esac
+    # The choice comes back in a file: the exit status holds only 0-255,
+    # and 254/255 are MENU and B (a folder of 255 files went wrong).
+    idx_file=/tmp/shellect_index.$$
+    rm -f "$idx_file"
     /mnt/SDCARD/.tmp_update/bin/prompt --menu-code -p "${SHELLECT_PARENT:-Menu}" \
-        -t "$title" -s "$sel" "$@" > /dev/null
+        -t "$title" -s "$sel" --index-file "$idx_file" "$@" > /dev/null
     rc=$?
-    if [ $rc -eq 254 ]; then
+    idx=
+    [ -f "$idx_file" ] && read -r idx < "$idx_file"
+    rm -f "$idx_file"
+    case $idx in
+        menu) rc=254 ;;
+        -1) rc=255 ;;
+        '' | *[!0-9]*)
+            # prompt did not answer (missing, or it failed): as B, so the
+            # menu loops (which leave on Back) end instead of asking again
+            # and again with nothing on screen; exit 3 says why.
+            for item; do
+                case "$item" in Back|Exit|Cancel) printf '%s' "$item"; exit 3 ;; esac
+            done
+            exit 3 ;;
+        *) rc=$idx ;;
+    esac
+    if [ $rc -eq 254 ] && [ "$idx" = menu ]; then
         [ -n "$menu_only_exit" ] && exit 2
         [ -n "$SHELLECT_NATIVE_PID" ] && kill -TERM "$SHELLECT_NATIVE_PID" 2> /dev/null
         exit 2
     fi
-    if [ $rc -eq 255 ]; then
+    if [ "$idx" = -1 ]; then
         for item; do
             case "$item" in Back|Exit|Cancel) printf '%s' "$item"; exit 0 ;; esac
         done

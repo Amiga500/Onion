@@ -80,7 +80,10 @@ int main(int argc, char *argv[])
     char title_str[STR_MAX] = "";
     char parent_str[STR_MAX] = "";
     bool menu_code = false;
-    char message_str[STR_MAX] = "";
+    /* New UI: the scraper's and the OTA's messages run to 14 lines (300+
+     * bytes); STR_MAX cut them mid-word. */
+    char message_str[2048] = "";
+    char index_file[STR_MAX] = "";
     bool required = false;
     int selected = 0;
     bool has_info = false;
@@ -100,13 +103,20 @@ int main(int argc, char *argv[])
                 menu_code = true;
                 continue;
             }
+            /* The chosen index, written to a file: the exit status holds
+             * only 0-255, and 254/255 mean MENU and B, so a list longer
+             * than 254 items needs this (shellect's native lists). */
+            if (strcmp(argv[i], "--index-file") == 0) {
+                strncpy(index_file, argv[++i], STR_MAX - 1);
+                continue;
+            }
             if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--parent") == 0) {
                 strncpy(parent_str, argv[++i], STR_MAX - 1);
                 continue;
             }
             if (strcmp(argv[i], "-m") == 0 ||
                 strcmp(argv[i], "--message") == 0) {
-                strncpy(message_str, argv[++i], STR_MAX - 1);
+                strncpy(message_str, argv[++i], sizeof(message_str) - 1);
                 continue;
             }
             if (strcmp(argv[i], "-r") == 0 ||
@@ -218,6 +228,9 @@ int main(int argc, char *argv[])
     bool key_changed = false;
     bool info_showned = false;
     bool menu_combo = false;
+    /* MENU's press seen here: a release left over from the screen before
+     * (MENU still held when this prompt opened) must not answer it. */
+    bool menu_seen = false;
 
 #ifdef PLATFORM_MIYOOMINI
     bool first_draw = true;
@@ -228,6 +241,7 @@ int main(int argc, char *argv[])
 #endif
 
     int return_code = -1;
+    bool menu_exit = false; // left with MENU (254 can also be an index)
 
     uint32_t acc_ticks = 0, last_ticks = SDL_GetTicks(),
              time_step = 1000 / FRAMES_PER_SECOND;
@@ -254,8 +268,10 @@ int main(int argc, char *argv[])
         if (updateKeystate(keystate, &quit, true, &changed_key)) {
             /* MENU leaves on release, unless another button was pressed
              * with it (MENU+UP/DOWN is the brightness) */
-            if (changed_key == SW_BTN_MENU && keystate[SW_BTN_MENU] == PRESSED)
+            if (changed_key == SW_BTN_MENU && keystate[SW_BTN_MENU] == PRESSED) {
                 menu_combo = false;
+                menu_seen = true;
+            }
             else if (changed_key != SW_BTN_MENU && keystate[SW_BTN_MENU] >= PRESSED)
                 menu_combo = true;
             if (keystate[SW_BTN_DOWN] >= PRESSED) {
@@ -286,10 +302,11 @@ int main(int argc, char *argv[])
             }
 
             else if (!required && changed_key == SW_BTN_MENU && keystate[SW_BTN_MENU] == RELEASED &&
-                     !menu_combo) {
+                     !menu_combo && menu_seen) {
                 /* MENU leaves the app: with --menu-code it returns 254, so a
                  * script can tell it from B (255); otherwise it is B */
                 return_code = menu_code ? 254 : -1;
+                menu_exit = true;
                 quit = true;
             }
             else if (!required && changed_key == SW_BTN_B && keystate[SW_BTN_B] == PRESSED) {
@@ -397,6 +414,17 @@ int main(int argc, char *argv[])
     msleep(200); // to clear SDL input on quit
 #endif
     SDL_Quit();
+
+    if (index_file[0]) {
+        FILE *fp = fopen(index_file, "w");
+        if (fp) {
+            if (menu_exit && menu_code)
+                fprintf(fp, "menu\n");
+            else
+                fprintf(fp, "%d\n", return_code);
+            fclose(fp);
+        }
+    }
 
     return return_code;
 }

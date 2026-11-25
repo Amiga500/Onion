@@ -262,12 +262,19 @@ int main(int argc, char *argv[])
 
     bool changed;
     KeyState keystate[320] = {(KeyState)0};
+    bool menu_armed = false; // MENU pressed while Activity Tracker was open
 
     while (!quit) {
         changed = false;
 
         if (updateKeystate(keystate, &quit, true, NULL)) {
-            if (keystate[SW_BTN_B] == PRESSED || keystate[SW_BTN_MENU] == RELEASED)
+            // MENU leaves on its release, once its press was seen here:
+            // RELEASED is also the state of every idle key.
+            if (keystate[SW_BTN_MENU] >= PRESSED)
+                menu_armed = true;
+            else if (menu_armed)
+                quit = true;
+            if (keystate[SW_BTN_B] == PRESSED)
                 quit = true;
             if (keystate[SW_BTN_RIGHT] >= PRESSED) {
                 if (current_page < num_pages - 1) {

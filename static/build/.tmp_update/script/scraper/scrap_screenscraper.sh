@@ -622,7 +622,8 @@ saveMetadata=false
 # a SIGKILL or a power cut loses them: their ROMs are asked again next time.
 GI_DESC_BATCH=25
 trap gi_flush_desc EXIT
-trap 'gi_flush_desc; exit 1' HUP INT TERM
+# PIPE too: the progress screen closed while this was writing to it
+trap 'gi_flush_desc; exit 1' HUP INT TERM PIPE
 clear
 printf '\033[31;1m'
 echo -e "\n*****************************************************"

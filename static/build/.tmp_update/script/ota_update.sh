@@ -812,12 +812,16 @@ download_update() {
 		mkdir -p $sysdir/download/
 		/mnt/SDCARD/.tmp_update/bin/freemma > /dev/null
 		sync
-		onion_layout
-		clear
-		printf '\033[?25l' # no cursor over the onion
-		printf "${RED}== Downloading RedOnion $Release_Version ($channel) ==${NC}"
-		printf "\033[%d;1H" "$((onion_msg_row + 2))"
-		keys_red "MENU: stop the download"
+		# The terminal's screen (in the new UI the download has its own, and
+		# these lines went on to show up in its error messages)
+		if [ -z "$OTA_NATIVE" ]; then
+			onion_layout
+			clear
+			printf '\033[?25l' # no cursor over the onion
+			printf "${RED}== Downloading RedOnion $Release_Version ($channel) ==${NC}"
+			printf "\033[%d;1H" "$((onion_msg_row + 2))"
+			keys_red "MENU: stop the download"
+		fi
 		ask_row=$onion_msg_row
 		# curl, which reaches GitHub where the bundled wget may not (see
 		# check_connection); wget only if curl itself cannot run.
@@ -825,7 +829,7 @@ download_update() {
 		_dl_result=$?
 		ask_row=
 		# The rows under the onion, cleared for the result.
-		printf "\033[%d;1H\033[J\033[?25h" "$onion_msg_row"
+		[ -z "$OTA_NATIVE" ] && printf "\033[%d;1H\033[J\033[?25h" "$onion_msg_row"
 		case $_dl_result in
 			126 | 127)
 				clear
@@ -1053,6 +1057,16 @@ if [ -n "$OTA_NATIVE" ] && [ "$cmd" != "check" ]; then
 	# The extraction on progressUI, which cannot be stopped there (a card
 	# half written does not start); 7z's own result as before.
 	apply_extract() { # zip
+		# 7z writes to a log, not to the screen: in a pipe into progressUI
+		# it was killed by SIGPIPE mid-extraction if the screen went away
+		# (SDL failing to start, a crash). The screen follows the log.
+		rm -f /tmp/ota_7z_rc
+		: > /tmp/ota_7z.log
+		(
+			7z x -aoa -o"/mnt/SDCARD" "$1" -x!.tmp_update/updater -x!.tmp_update/runtime.sh > /tmp/ota_7z.log 2>&1
+			echo $? > /tmp/ota_7z_rc
+		) &
+		_zpid=$!
 		{
 			echo "@@title Installing RedOnion $Release_Version"
 			echo "@@nostop"
@@ -1060,10 +1074,25 @@ if [ -n "$OTA_NATIVE" ] && [ "$cmd" != "check" ]; then
 			echo "@@note Don't turn the console off: it restarts when this is done."
 			echo "@@tip This takes a few minutes."
 			echo "@@tip Then the console restarts to finish the installation."
-			7z x -aoa -o"/mnt/SDCARD" "$1" -x!.tmp_update/updater -x!.tmp_update/runtime.sh
-			echo $? > /tmp/ota_7z_rc
-		} 2>&1 | "$sysdir/bin/progressUI" -t Update -i down
-		return "$(cat /tmp/ota_7z_rc 2> /dev/null || echo 1)"
+			# the log's new lines every second (no tail -f: not in every
+			# BusyBox), and the last ones once 7z is done
+			_shown=0
+			while :; do
+				_done=0
+				[ -f /tmp/ota_7z_rc ] && _done=1
+				_lines=$(wc -l < /tmp/ota_7z.log)
+				if [ "$_lines" -gt "$_shown" ]; then
+					sed -n "$((_shown + 1)),${_lines}p" /tmp/ota_7z.log
+					_shown=$_lines
+				fi
+				[ $_done = 1 ] && break
+				sleep 1
+			done
+		} 2> /dev/null | "$sysdir/bin/progressUI" -t Update -i down
+		wait "$_zpid" 2> /dev/null
+		_rc=$(cat /tmp/ota_7z_rc 2> /dev/null)
+		rm -f /tmp/ota_7z_rc /tmp/ota_7z.log
+		return "${_rc:-1}"
 	}
 fi
 

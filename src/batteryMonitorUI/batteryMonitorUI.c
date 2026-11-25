@@ -2665,6 +2665,7 @@ int main(int argc, char *argv[])
     signal(SIGCONT, sigcont_handler);
     atexit(bt_restore);
     KeyState keystate[320] = {(KeyState)0};
+    bool menu_armed = false; // MENU pressed while this screen was open
     render_waiting_screen();
 
     getDeviceModel();
@@ -2762,6 +2763,15 @@ int main(int argc, char *argv[])
 
         if (updateKeystate(keystate, &quit, true, NULL)) {
             last_input = now;
+            // MENU leaves on its release, and only after its press was seen
+            // here: RELEASED is also the state of every idle key.
+            bool menu_released = false;
+            if (keystate[SW_BTN_MENU] >= PRESSED)
+                menu_armed = true;
+            else if (menu_armed) {
+                menu_armed = false;
+                menu_released = true;
+            }
             if (show_axp_menu && bt.state != BT_OFF) {
                 // Battery test screen swallows all input except cancel / close
                 if (bt.state == BT_RUNNING) {
@@ -3060,7 +3070,7 @@ int main(int argc, char *argv[])
                         axp_edit_chgv = AXP_CHGV_CODE_OFFERED(axp_status.chgv_code) ? axp_status.chgv_code : 2;
                     changed = true;
                 }
-                else if (keystate[SW_BTN_B] == PRESSED || keystate[SW_BTN_MENU] == RELEASED)
+                else if (keystate[SW_BTN_B] == PRESSED || menu_released)
                     quit = true; // MENU leaves too, as in every app
                 else if (keystate[SW_BTN_RIGHT] >= PRESSED) {
                     if (current_page > 0)

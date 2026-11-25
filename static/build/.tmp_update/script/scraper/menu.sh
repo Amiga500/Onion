@@ -200,7 +200,12 @@ if [ -n "$SCRAPER_NATIVE" ]; then
         passSS=$(echo "$config" | jq -r '.screenscraper_password')
         [ "$userSS" = "null" ] || [ "$passSS" = "null" ] || [ -z "$userSS" ] || [ -z "$passSS" ] || return
         while true; do
-            Mychoice=$(echo -e "No\nYes\nScreenscraper information" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== ADD A SCREENSCRAPER ACCOUNT? ==--")
+            # -m: MENU comes back as exit 2 instead of killing the main
+            # shell, since this often runs in a subshell
+            # ("(onerom=0; Launch_Scraping;)"), which then went on to
+            # scrape over MainUI. MENU leaves the scraper.
+            Mychoice=$(echo -e "No\nYes\nScreenscraper information" | /mnt/SDCARD/.tmp_update/script/shellect.sh -m -t "--== ADD A SCREENSCRAPER ACCOUNT? ==--")
+            [ $? -eq 2 ] && exit 0
             case "$Mychoice" in
                 Yes)
                     for _which in username password; do
@@ -236,9 +241,30 @@ scraper_tips() {
 # new UI, in the terminal otherwise.
 run_scraper() { # script system [rom]
     if [ -n "$SCRAPER_NATIVE" ]; then
-        { scraper_tips; PROGRESS_UI=1 SCRAPER_NO_ACCOUNT_PROMPT=1 "$@" < /dev/null; } 2>&1 |
-            progressUI -t Scraper -i image -s "$2 · $(ui_scraper_label "$1")"
-        [ $? -eq 2 ] && close_terminal # stopped with B: no next source
+        # The scraper writes into a fifo read by progressUI, not a pipe, so
+        # B can stop it at once: in a pipeline it went on until its next
+        # line (a download, a quota wait) and died of SIGPIPE, which skipped
+        # its TERM trap and lost the Game Info descriptions not yet written.
+        _fifo=/tmp/scraper_progress.$$
+        rm -f "$_fifo"
+        mkfifo "$_fifo" || return 0
+        (scraper_tips; export PROGRESS_UI=1 SCRAPER_NO_ACCOUNT_PROMPT=1; exec "$@" < /dev/null) > "$_fifo" 2>&1 &
+        _spid=$!
+        progressUI -t Scraper -i image -s "$2 · $(ui_scraper_label "$1")" < "$_fifo"
+        _rc=$?
+        if kill -0 "$_spid" 2> /dev/null; then
+            # stopped with B (or progressUI gone): TERM runs the scraper's
+            # trap, which writes what is waiting; up to 5 s for it
+            kill -TERM "$_spid" 2> /dev/null
+            _n=0
+            while kill -0 "$_spid" 2> /dev/null && [ $_n -lt 25 ]; do
+                sleep 0.2
+                _n=$((_n + 1))
+            done
+        fi
+        wait "$_spid" 2> /dev/null
+        rm -f "$_fifo"
+        [ $_rc -ne 0 ] && close_terminal # stopped with B: no next source
         return 0
     fi
     "$@"

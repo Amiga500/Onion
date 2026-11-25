@@ -70,8 +70,12 @@ while :; do
         selected_file=$(show_files | /mnt/SDCARD/.tmp_update/script/shellect.sh \
             -t "$dir_short")
         if [ -z "$selected_file" ]; then
-            [ "$current_dir" = "$top_dir" ] && break
-            selected_file=../
+            # B: up a folder while inside the one the app started in, else
+            # leave (after "../" above it, B went on up to / and never left)
+            case "$current_dir" in
+                "$top_dir"/*) selected_file=../ ;;
+                *) break ;;
+            esac
         fi
         case "$selected_file" in
             */) ;;

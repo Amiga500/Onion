@@ -165,22 +165,29 @@ static void draw(CuiCanvas *c, int battery)
     cui_rect(c, 0, 0, CUI_W, CUI_H, CUI_BG);
     cui_header(c, app_icon, app_title, finished ? "Done" : "Working", battery);
 
-    int percent = total > 0 ? (finished ? 100 : (item > 0 ? (item - 1) * 100 / total : 0)) : -1;
+    /* At the end, 100% only if every item was reached: a task that ended
+     * early (an error, no network) shows where it stopped. */
+    bool complete = !finished || total <= 0 || item >= total;
+    int percent = total > 0 ? (finished ? (complete ? 100 : item * 100 / total)
+                                        : (item > 0 ? (item - 1) * 100 / total : 0))
+                            : -1;
     char fitted[LINE_MAX_LEN];
     cui_fit(task_title[0] ? task_title : app_title, 26, 470, fitted, sizeof(fitted));
     cui_text(c, 20, 92, fitted, 26, CUI_WHITE, CUI_LEFT);
     if (percent >= 0) {
         char p[8];
         snprintf(p, sizeof(p), "%d%%", percent);
-        cui_text(c, 620, 92, p, 28, finished ? CUI_GOOD : CUI_WARN, CUI_RIGHT);
+        cui_text(c, 620, 92, p, 28, finished && complete ? CUI_GOOD : CUI_WARN, CUI_RIGHT);
         cui_progress(c, 20, 118, 600, 8, percent / 100.0f);
     }
     else
         cui_progress(c, 20, 118, 600, 8, finished ? 1.0f : (SDL_GetTicks() / 40 % 100) / 100.0f);
 
     char line[LINE_MAX_LEN];
-    if (finished)
-        snprintf(line, sizeof(line), "Finished: %d of %d", item > total ? item : total, total);
+    if (finished && complete)
+        snprintf(line, sizeof(line), "Finished: %d of %d", total, total);
+    else if (finished)
+        snprintf(line, sizeof(line), "Ended at %d of %d", item, total);
     else if (total > 0 && item > 0 && !(panel_set[0] || panel_set[1] || panel_set[2]))
         snprintf(line, sizeof(line), "%d of %d · %s", item, total, item_name);
     else
@@ -325,7 +332,9 @@ int main(int argc, char *argv[])
 
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT)
+            /* SDL_QUIT (SDL 1.2 raises it on SIGTERM/SIGINT) does not
+             * close a task that must not be cut (@@nostop) before its end */
+            if (event.type == SDL_QUIT && (!nostop || finished))
                 quit = true;
             if (event.type != SDL_KEYDOWN)
                 continue;

@@ -181,21 +181,24 @@ int main(int argc, char *argv[])
             }
             if (event.type != SDL_KEYDOWN)
                 continue;
-            dirty = true;
             switch (event.key.keysym.sym) {
             case SW_BTN_UP:
                 step(cursor, 1);
+                dirty = true;
                 break;
             case SW_BTN_DOWN:
                 step(cursor, -1);
+                dirty = true;
                 break;
             case SW_BTN_LEFT:
                 if (cursor > 0)
                     cursor--;
+                dirty = true;
                 break;
             case SW_BTN_RIGHT:
                 if (cursor < F_COUNT - 1)
                     cursor++;
+                dirty = true;
                 break;
             case SW_BTN_START:
                 save = quit = true;
@@ -204,8 +207,8 @@ int main(int argc, char *argv[])
             case SW_BTN_MENU:
                 quit = true;
                 break;
-            default:
-                dirty = false;
+            default: /* nothing to draw again; a redraw already asked for
+                      * (first frame, an earlier key) stays asked */
                 break;
             }
         }
