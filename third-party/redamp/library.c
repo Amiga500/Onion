@@ -14,7 +14,6 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#define LIB_MAX_TRACKS 8192
 #define LIB_MAX_DEPTH 16
 #define LIB_MAX_PATH 1024
 #define LIB_CACHE_MAGIC "RA-LIB05"

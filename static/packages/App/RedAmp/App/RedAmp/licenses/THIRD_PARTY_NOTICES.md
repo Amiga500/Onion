@@ -63,3 +63,9 @@ misrepresented; you must not claim that you wrote the original software.
 misrepresented as being the original software. 3. This notice may not be
 removed or altered from any source distribution.
 
+## Unicode case folding
+
+`src/utf8_fold.inc` contains compressed case-folding mappings generated from the Unicode 15.1.0
+data exposed by Python's `str.casefold()`. The data is modified for compact lookup.
+Unicode data is copyright © 1991–2023 Unicode, Inc. All rights reserved.
+See `LICENSE-Unicode.txt` and https://www.unicode.org/license.txt.

@@ -1,5 +1,15 @@
 # RedAmp source
-Version 1.1.10
+Version 1.1.15
+
+Version 1.1.15 preserves the play queue when A plays an individual Library track. It reuses
+an existing entry or appends the selected track, without clearing the rest of the queue.
+Y still explicitly plays the collection. Rebuild with `make player`.
+
+Version 1.1.14 replaces the shared text keyboard with QWERTY, Shift, international characters
+and symbols. UTF-8 playlist names and Unicode case-insensitive search are supported.
+
+Version 1.1.13 adds indexed Library Search, antialiased favorite hearts, confirmed queue clearing,
+and single-file Folder playback with A (Y still plays the folder). Rebuild with `make player`.
 
 Version 1.1.10 adds persistent Allow insecure HTTPS (default Off) for native radio, covers and
 private FFmpeg live/HLS streams. It suppresses NTP when enabled and propagates the chosen TLS
@@ -54,6 +64,5 @@ MiniCinema's cross-compiler or Zig setup and the FFmpeg 4.4.8 tree at
 The application assets, required font files, default RedOnion skin and licenses are in
 `App/RedAmp/` within the complete source archive.
 
-For this update, `make player` rebuilds every modified player component. The v1.0.11
-ARM FFmpeg and game-audio libraries can stay in place if the v1.0.11 security fixes were
-already compiled and installed. Real device, TLS and cover-download behavior still need testing.
+For this update, `make player` rebuilds every modified player component. The v1.1.10 ARM FFmpeg libraries and the corrected game-audio wrapper can stay in place
+if already compiled and installed. Real device, TLS and cover-download behavior still need testing.

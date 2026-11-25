@@ -1,12 +1,12 @@
 #!/bin/sh
-# RedAmp v1.1.11 source-only ARM build. MiniCinema ARM GCC, or Zig fallback.
+# RedAmp v1.1.15 source-only ARM build. MiniCinema ARM GCC, or Zig fallback.
 # Outputs: ./redamp, ./libpadsp_wrap.so, ./lib/ (ARM runtime dependencies).
 # No App directory needed. FFmpeg libraries are built by make ffmpeg-audio.
 set -eu
 cd "$(dirname "$0")"
 mkdir -p build
 
-FILES='main.c netclock.c core.c stayawake.c audio.c decode.c meta.c library.c album_art.c covers.c skin.c zip.c font.c vis.c playlist.c gamemusic.c opus_ogg.c radio.c ffaudio.c third_party/mini2d.c'
+FILES='main.c netclock.c core.c stayawake.c audio.c decode.c meta.c library.c album_art.c covers.c skin.c zip.c font.c vis.c collections.c utf8_text.c playlist.c gamemusic.c opus_ogg.c radio.c ffaudio.c third_party/mini2d.c'
 WARN='-Wall -Wno-format-truncation -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable'
 
 case "${1:-host}" in

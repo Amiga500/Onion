@@ -1,4 +1,4 @@
-# RedAmp v1.1.11: source-only ARM build, following MiniCinema's VM workflow.
+# RedAmp v1.1.15: source-only ARM build, following MiniCinema's VM workflow.
 # No App/ directory is required. Build outputs remain here in src/RedAmp.
 # make / make all: player, game-music wrapper, private FFmpeg audio libraries.
 
@@ -79,6 +79,8 @@ test: host check
 	./tools/test_ioctl_preload.sh
 	./tools/chiptest/run.sh
 	./tools/test_playlists.sh
+	$${HOST_CC:-gcc} -std=gnu11 -Wall -Wextra -Werror -I. collections.c utf8_text.c tools/test_collections.c -o build/test_collections
+	./build/test_collections
 	./tools/test_library.sh
 	./tools/test_album_art.sh
 	./tools/test_netclock.sh
@@ -95,6 +97,10 @@ test: host check
 	    python3 ./tools/test_navigation_battery.py && \
 	    python3 ./tools/test_ui_v112.py && \
 	    python3 ./tools/test_library_views.py && \
+	    python3 ./tools/test_collections_ui.py && \
+	    python3 ./tools/test_search_queue.py && \
+	    python3 ./tools/test_queue_preservation.py && \
+	    python3 ./tools/test_keyboard_ui.py && \
 	    python3 ./tools/test_navigation_v114.py && \
 	    python3 ./tools/test_https_menu.py && \
 	    python3 ./tools/test_event_loop.py && \

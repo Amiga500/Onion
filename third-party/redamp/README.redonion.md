@@ -1,7 +1,7 @@
 # RedAmp source
 
-Source of **RedAmp 1.1.11** by Rob (@robcodedev), as given with its first
-public test build (its `src/` folder; `README.md` here is the author's). See
+Source of **RedAmp 1.1.15** by Rob (@robcodedev), as given with its 1.1.15 test
+build (its `src/` folder; `README.md` here is the author's). See
 `static/packages/App/RedAmp/App/RedAmp/licenses/` for its licences.
 
 The package in `static/packages/App/RedAmp` ships the binaries built from it

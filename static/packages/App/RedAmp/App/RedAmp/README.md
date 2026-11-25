@@ -1,11 +1,11 @@
 # RedAmp
-Version 1.1.11
+Version 1.1.15
 
 Powerful music player for Miyoo handhelds, designed for RedOnion and compatible OnionOS setups.
 
 RedAmp supports local MP3, FLAC, WAV, Ogg Vorbis, Opus and optional AAC/M4A/ALAC playback. Internet
 radio supports MP3, Vorbis, Opus and optional AAC/HLS using private FFmpeg 4.4.8 libraries. It
-includes equalizer, visualizers, playlists, artwork and an indexed music library.
+includes equalizer, visualizers, saved playlists, favorites, artwork and an indexed music library.
 
 ## Controls
 
@@ -19,11 +19,14 @@ includes equalizer, visualizers, playlists, artwork and an indexed music library
 | A | Play/select |
 | B (player) | No action; use SELECT to switch between Player and Library |
 | B (library) | Back one level; at Library home stays on Library home |
-| B (hold 0.65s, Library) | Open the quick Artists / Albums / Songs / Folders / Home picker |
+| B (hold 0.65s, Library) | Open the quick Library views picker |
 | X (tap) | Toggle normal/expanded playlist when on the main player screen |
 | X (hold 1s) | Open visualizer immediately after holding 1 second, without releasing X |
 | X / Y (library) | Add selected music / play all; home-screen X opens the Library menu |
-| Y (player) | Equalizer |
+| Y (player, tap) | Equalizer |
+| Y (player, hold 0.75s) | Play queue actions |
+| X (library, hold 0.75s) | Collection actions |
+| Y (song in library, hold 0.75s) | Toggle Favorite |
 | L / R | Previous/next track |
 | Left / Right | Seek in playlist and library, or change a selected setting |
 | L2 / R2 (library) | Page through library entries |
@@ -45,7 +48,8 @@ critical shutdown mechanisms remain active; the marker only changes the warning 
 
 ## Music library
 
-Choose Artists, Albums, Songs or Folders. RedAmp scans `Media/Music` (or `Music` as a fallback) for
+Choose Artists, Albums, Songs, Folders, Playlists, Favorites or Search. RedAmp scans
+`Media/Music` (or `Music` as a fallback) for
 up to 8192 tracks, caching metadata in `data/library-cache-v5.bin`. It does not follow symlink
 directories. Album covers can come from `cover.jpg`, `cover.png`, `folder.jpg`, `folder.png`, MP3
 ID3v2 APIC or FLAC picture tags. The Folders view can also browse outside those library roots.
@@ -55,12 +59,63 @@ bar appear at the bottom. Returning to the library preserves the previous view a
 LEFT/RIGHT seeks in the indexed library and Folders browser (including holds); L2/R2 pages through
 entries. Tap SELECT to return to the main player at any library depth; hold SELECT to open Options
 without leaving the current library level. Hold B from any indexed Library level or Folder path
-for the quick views picker; use Up/Down to select Artists, Albums, Songs, Folders or Library home,
+for the quick views picker; use Up/Down to select any category or Library home,
 A to switch directly and B to cancel. A short B press still goes back one level.
 Backing out of Artists, Albums or Songs restores that category at Library home.
 The Folder browser and indexed Library use the same row counts and regular-weight text. Playing
 tracks have a vertically centred play or pause marker in both views and in the bottom status strip.
 The library and expanded playlist show a compact progress bar when the track length is known.
+
+## Search
+
+Open Search from Library home or the hold-B Library Views picker. Type a query with the on-screen
+keyboard (A types, X erases, Y searches and B cancels). Search matches song titles, artists, album
+artists, album titles and filenames using Unicode case-insensitive partial matching. It
+uses the existing library index without rescanning the SD card. Queries may contain up to 40
+characters from the keyboard. Matching is accent-sensitive and does not normalize combining marks.
+Results show track information and selected album details when
+Library covers are enabled. A plays the selected result without clearing the queue, Y plays
+all results, and X adds the selected track to the queue. Hold Y toggles a favorite; hold X opens
+the actions menu, including Edit search and Add to saved playlist. If there are no results, A
+opens the keyboard again. SELECT switches to Player and back without losing the results or cursor.
+
+## Play queue, saved playlists and favorites
+
+The Player shows the active **PLAY QUEUE**, not the entire music library. Pressing A on any
+individual song in the Library plays it without clearing the queue. If it is already queued,
+RedAmp plays the existing entry; otherwise it appends the song and starts playback. X adds
+music without switching tracks. Y explicitly replaces the queue with the selected collection
+(e.g. a folder, album, or saved playlist). Opening an M3U/PLS file still loads that playlist.
+Shuffle and repeat operate on the active queue. Selecting a song with A starts a fresh shuffle
+pass at that song when shuffle is enabled.
+With repeat off, playback stops after the queue is exhausted.
+
+Library home includes **Playlists** and **Favorites**. Open Playlists to choose a saved collection
+or select **Create playlist**. Hold X on a playlist or on one of its tracks for rename and delete
+commands. Deleting a playlist requires confirmation and never deletes music files or the queue.
+On a song, hold X and choose **Add to saved playlist** or use the Favorite action. Hold Y on a song
+in Library or Folders to toggle its favorite status directly. A heart marks favorites in lists.
+Favorites can contain local music and radio stations added through Player queue actions.
+
+In Player, hold Y for queue actions, including **Save play queue as playlist**, adding the selected
+track to a saved playlist, toggling its favorite status and removing it from the queue. Removing
+an actively playing track stops playback; removing another track keeps the current audio playing.
+**Clear play queue** stops playback and empties the queue after confirmation, without touching
+saved playlists, favorites or music files.
+Editing saved playlists and favorites never edits the live queue. In a saved playlist or Favorites,
+A plays the selected track without clearing the queue, X adds the selected track to the queue,
+and Y plays the collection from the first available track, following the shuffle/repeat settings.
+If a saved local file is unavailable, it is skipped during playback but retained in the saved list.
+
+The shared keyboard uses a QWERTY layout with Shift, Space and Backspace. L/R switch between
+ABC, International and Symbols. Use the directional pad to select keys, A to type, X to erase,
+Y to save (or search) and B to cancel. Shift toggles upper/lowercase and shifted number symbols.
+Names may contain up to 40 Unicode characters. FAT-invalid characters and reserved names are
+rejected, and duplicate names are rejected case-insensitively. Up to 128 named playlists are supported, with up to 10,000 tracks
+per playlist or favorites list. Named playlists are stored as standard M3U files in
+`data/playlists/`, favorites in `data/favorites.m3u`, and the active queue in `data/playlist.m3u`.
+Back up these files to preserve collections. Existing external M3U/M3U8/PLS files can still be
+opened in Folders; save the resulting queue to create a managed playlist.
 
 ## Display and list text size
 
@@ -69,7 +124,7 @@ library views, folder browser and skin selector have Small, Medium and Large fon
 Medium is the new default even for existing users with no `list_text_size` setting. Changes apply
 immediately and retain the selected item. Footer shortcut hints stay at 18px independently of
 the list-size setting.
-The Player footer includes **Hold X — Visualizer**, alongside the normal X layout shortcut.
+The Player footer includes **Hold X — Visualizer** and **Hold Y — Queue**, alongside the layout shortcut.
 The Library and Folder browser use tighter and matching row heights (28/30/36 px) with a clear
 separator above the now-playing strip. The cursor remains on the category just exited at root.
 The expanded playlist now-playing title and elapsed/total time use the selected list font size.
@@ -81,8 +136,9 @@ a matching wider, better-spaced layout.
 ## Automatic and player album covers
 
 The Display & Covers submenu provides **Download album covers** (default Off), **Save covers in
-album folders** (default Off), and **Show cover on player** (default On). A manual **Fetch missing
-covers now** command is in the X menu on the library home screen. Background fetching starts after
+album folders** (default Off), **Show cover on player** (default On), and
+**Show covers in Library** (default On). Turning library covers off widens the list without
+affecting downloaded artwork or Player covers. A manual **Fetch missing covers now** command is in the X menu on the library home screen. Background fetching starts after
 an indexed-library scan when enabled, pauses with the screen off, and does not run during game
 music. Fetching continues when browsing or returning to the Player. To stop it, use the library
 home X menu's **Cancel cover fetch** item. No music files are modified by a cache download.
@@ -250,7 +306,7 @@ The source and build scripts are in `src/`; the runtime assets are in `App/RedAm
 App directory required there. The default FFmpeg source path is `/root/workspace/ffmpeg-4.4.8`. See
 `src/docs/BUILDING.md` and `src/docs/FFMPEG_AUDIO.md`. To install, combine the assets with matching
 ARM `redamp`, `libpadsp_wrap.so`, `lib/*.so*` and `cacert.pem` from the build output. Don't
-distribute host x86 binaries to the Miyoo. For v1.1.11, run `make player` and copy the updated player
+distribute host x86 binaries to the Miyoo. For v1.1.15, run `make player` and copy the updated player
 to the app. The v1.1.10 private FFmpeg libraries, dependency and game-wrapper builds can remain.
 When upgrading from an earlier release, run `make ffmpeg-audio` as well for the v1.1.10 HTTPS
 policy patch and bridge. Older corrected bridges work in verified mode, but explicitly insecure

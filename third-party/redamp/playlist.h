@@ -19,6 +19,7 @@ unsigned pl_revision(void); /* list or asynchronous metadata changed */
 int pl_count(void);
 void pl_clear(void);
 int pl_add(const char *path);
+int pl_add_named(const char *path, const char *title);
 int pl_add_dir(const char *dir, int recursive);
 int pl_dir_has_tracks(const char *dir, int recursive);
 int pl_m3u_has_tracks(const char *path);       // returns tracks added

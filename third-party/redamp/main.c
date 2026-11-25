@@ -26,6 +26,8 @@
 #include "font.h"
 #include "vis.h"
 #include "playlist.h"
+#include "collections.h"
+#include "utf8_text.h"
 #include "core.h"
 #include "gamemusic.h"
 #include "bgm_shm.h"
@@ -41,7 +43,7 @@
 enum { K_UP = 103, K_DOWN = 108, K_LEFT = 105, K_RIGHT = 106, K_A = 57, K_B = 29, K_X = 42, K_Y = 56,
        K_L = 18, K_R = 20, K_L2 = 15, K_R2 = 14, K_START = 28, K_SELECT = 97, K_MENU = 1, K_POWER = 116 };
 
-enum { SCR_PLAYLIST, SCR_EQ, SCR_BROWSER, SCR_OPTIONS, SCR_SKINS, SCR_VIS, SCR_PRESETS, SCR_GM_CONFIRM, SCR_LIBRARY, SCR_DISPLAY, SCR_LIBRARY_MENU, SCR_LIBRARY_VIEWS };
+enum { SCR_PLAYLIST, SCR_EQ, SCR_BROWSER, SCR_OPTIONS, SCR_SKINS, SCR_VIS, SCR_PRESETS, SCR_GM_CONFIRM, SCR_LIBRARY, SCR_DISPLAY, SCR_LIBRARY_MENU, SCR_LIBRARY_VIEWS, SCR_COLLECTION_MENU, SCR_COLLECTION_NAME, SCR_COLLECTION_PICK, SCR_COLLECTION_DELETE, SCR_QUEUE_CLEAR };
 
 // ---------------------------------------------------------------- state
 static m2d_surf *bb;
@@ -90,6 +92,40 @@ static double toast_until;
 static int has_dsp;
 static double last_save;
 static int playlist_dirty;
+static collection favorites, saved;
+static char collection_dir[1024], favorite_file[1024];
+static char collection_names[COL_NAMES][COL_NAME+1], opened_name[COL_NAME+1];
+static int collection_count, favorites_readable=1;
+static void refresh_collections(void){collection_count=col_list(collection_dir,collection_names);}
+static void collection_file(char *out,int n,const char *name){snprintf(out,n,"%s/%s.m3u",collection_dir,name);}
+static void fill(int x,int y,int w,int h,uint32_t c);
+/* Coverage mask from a supersampled curved heart; blend over the row's
+ * actual background, including selected rows and different Winamp skins. */
+static void draw_heart(int x,int cy,uint32_t color){
+    static const unsigned char coverage[14][14]={
+        {0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0},
+        {0, 57, 201, 253, 233, 128, 6, 3, 119, 229, 254, 207, 66, 0},
+        {35, 245, 255, 255, 255, 255, 159, 143, 255, 255, 255, 255, 249, 47},
+        {136, 255, 255, 255, 255, 255, 255, 253, 255, 255, 255, 255, 255, 152},
+        {175, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 191},
+        {146, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 162},
+        {42, 252, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254, 56},
+        {0, 139, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 155, 0},
+        {0, 6, 183, 255, 255, 255, 255, 255, 255, 255, 255, 195, 10, 0},
+        {0, 0, 12, 189, 255, 255, 255, 255, 255, 255, 200, 17, 0, 0},
+        {0, 0, 0, 6, 171, 255, 255, 255, 255, 183, 10, 0, 0, 0},
+        {0, 0, 0, 0, 1, 138, 255, 255, 152, 3, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 114, 129, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+    };
+    for(int y=0;y<14;y++)for(int dx=0;dx<14;dx++){
+        unsigned a=coverage[y][dx];if(!a)continue;
+        uint32_t c=(a<<24)|((((color>>16)&255)*a/255)<<16)|
+                   ((((color>>8)&255)*a/255)<<8)|((color&255)*a/255);
+        fill(x+dx,cy-7+y,1,1,c);
+    }
+}
+
 static int gm_orphaned; // wrapper is present despite the option being Off
 /* Suppress the external low-battery overlay while this foreground app runs.
  * Never remove a marker that another process created, or replaced later. */
@@ -540,7 +576,7 @@ static void draw_playlist_panel(void)
     int top = S.playlist_expanded ? LARGE_PY : PY;
     int height = S.playlist_expanded ? LARGE_PH : PH;
     int visible = playlist_rows();
-    panel_frame_at("PLAYLIST", right, top, height);
+    panel_frame_at("PLAY QUEUE", right, top, height);
     m2d_surf *player_cover=NULL;
     const char *track_path=current>=0?pl_path(current):NULL;
     if(S.cover_player&&track_path&&!radio_is_url(track_path))
@@ -554,7 +590,7 @@ static void draw_playlist_panel(void)
     clamp_scroll(n);
     pl_set_hint(scroll);
     if (!n) {
-        const char *a = "Your playlist is empty.", *b = "Tap SELECT to browse your music library.";
+        const char *a = "Your play queue is empty.", *b = "Tap SELECT to browse your music library.";
         font_draw_mid(bb, LM->pl, PX + (PW - font_width(LM->pl, a)) / 2, top + 90, a, sk->pl_normal);
         font_draw_mid(bb, f_small, PX + (PW - font_width(f_small, b)) / 2, top + 116, b, mix(sk->pl_normal, sk->pl_bg, 0.35f));
         return;
@@ -575,7 +611,9 @@ static void draw_playlist_panel(void)
         if (it.dur_ms > 0) fmt_time(d, sizeof d, it.dur_ms);
         int dw = font_width(LM->pl, d);
         char nm[220];
-        font_fit(LM->pl, it.name, PX + list_width - 30 - dw - nx, nm, sizeof nm);
+        int fav=col_find(&favorites,it.path)>=0;
+        font_fit(LM->pl, it.name, PX + list_width - 30 - dw - nx - (fav?18:0), nm, sizeof nm);
+        if(fav)draw_heart(PX+list_width-27-dw-15,y+ROW_H/2,accent());
         font_draw_mid(bb, LM->pl, nx, y + ROW_H / 2, nm, col);
         if (d[0]) font_draw_mid(bb, LM->pl, PX + list_width - 20 - dw, y + ROW_H / 2, d, col);
     }
@@ -714,7 +752,7 @@ static void pill(int right_x, int cy, const char *val, int on)
 // ---------------------------------------------------------------- options
 enum { OPT_SCREEN, OPT_GAMEMUSIC, OPT_GAMEVOL, OPT_SHUFFLE, OPT_REPEAT, OPT_SLEEP,
        OPT_VOLUME, OPT_BALANCE, OPT_DISPLAY, OPT_STANDBY, OPT_INSECURE, OPT_CLEAR, OPT_QUIT, OPT_N };
-enum { D_SKIN, D_SMOOTH, D_VIS, D_TIME, D_LIST, D_FETCH, D_FOLDER, D_PLAYER, D_N };
+enum { D_SKIN, D_SMOOTH, D_VIS, D_TIME, D_LIST, D_FETCH, D_FOLDER, D_PLAYER, D_LIBRARY, D_N };
 static int display_sel, library_menu_sel;
 static int opt_sel;
 static const int SLEEP_STEPS[] = { 0, 15, 30, 45, 60, 90, 120 };
@@ -753,7 +791,7 @@ static void opt_value(int i, char *out, int n, int *on)
 static void draw_options(void)
 {
     static const char *labels[OPT_N] = { "Turn screen off", "Music in games", "Game music level", "Shuffle", "Repeat", "Sleep timer", "Volume", "Balance",
-                                         "Display...", "Play during standby", "Allow insecure HTTPS", "Clear playlist", "Quit RedAmp" };
+                                         "Display...", "Play during standby", "Allow insecure HTTPS", "Clear play queue", "Quit RedAmp" };
     const int x = 85, y = 14, w = 470, h = 420, rh = 26;
     card(x, y, w, h, "OPTIONS");
     for (int i = 0; i < OPT_N; i++) {
@@ -870,7 +908,7 @@ static void option_change(int dir, int activate)
             current = -1; sel = 0; scroll = 0; S.cur_index = -1;
             playlist_dirty = 1;
             screen = panel = SCR_PLAYLIST;
-            show_toast("%s", "Playlist cleared");
+            show_toast("%s", "Play queue cleared");
         }
         break;
     case OPT_QUIT: if (activate) quit = 1; break;
@@ -888,14 +926,15 @@ static void display_change(int dir,int activate)
     case D_FETCH:S.cover_fetch=!S.cover_fetch;if(!S.cover_fetch)covers_cancel();break;
     case D_FOLDER:S.cover_save_to_folder=!S.cover_save_to_folder;break;
     case D_PLAYER:S.cover_player=!S.cover_player;break;
+    case D_LIBRARY:S.cover_library=!S.cover_library;break;
     }
 }
 static void draw_display(void)
 {
     static const char *labels[D_N]={"Skin", "Smooth scaling", "Mini visualizer",
         "Time display", "List text size", "Download album covers",
-        "Save covers in album folders", "Show cover on player"};
-    const int x=85,y=35,w=470,rh=42;
+        "Save covers in album folders", "Show cover on player", "Show covers in Library"};
+    const int x=85,y=25,w=470,rh=37;
     card(x,y,w,400,"DISPLAY & COVERS");
     for(int i=0;i<D_N;i++){
         int yy=y+50+i*rh;
@@ -911,6 +950,7 @@ static void draw_display(void)
         case D_FETCH:on=S.cover_fetch;snprintf(v,sizeof v,"%s",on?"On":"Off");break;
         case D_FOLDER:on=S.cover_save_to_folder;snprintf(v,sizeof v,"%s",on?"On":"Off");break;
         case D_PLAYER:on=S.cover_player;snprintf(v,sizeof v,"%s",on?"On":"Off");break;
+        case D_LIBRARY:on=S.cover_library;snprintf(v,sizeof v,"%s",on?"On":"Off");break;
         }
         char fit[96];font_fit(f_key,v,110,fit,sizeof fit);
         pill(x+w-20,yy+16,fit,on);
@@ -1174,6 +1214,32 @@ static void play_after_load(int idx, const char *what, int n)
     /* Browser and indexed-library playback must not force the main screen. */
 }
 
+/* Individual track playback preserves the queue in every Library view. */
+static void play_library_track(const char *path, const char *title)
+{
+    if (!path || (!radio_is_url(path) && access(path, R_OK) != 0)) {
+        show_toast("%s", "Track unavailable"); return;
+    }
+    int n = pl_count(), idx = -1;
+    const char *playing = pl_path(current);
+    if (playing && !strcmp(playing, path)) idx = current;
+    else for (int i = 0; i < n; i++) {
+        const char *p = pl_path(i);
+        if (p && !strcmp(p, path)) { idx = i; break; }
+    }
+    if (idx < 0) {
+        if (!pl_add_named(path, title)) {
+            show_toast("%s", "Could not add track to queue"); return;
+        }
+        idx = n;
+        playlist_dirty = 1;
+    }
+    sel = idx;
+    play_index(idx, 0, 0);
+    /* Manual selection starts a new shuffle pass at the selected track. */
+    if (S.shuffle) build_shuffle();
+}
+
 static void browser_activate(int action)   // 0 = A, 1 = X (add), 2 = Y (play folder)
 {
     char p[1400];
@@ -1205,25 +1271,16 @@ static void browser_activate(int action)   // 0 = A, 1 = X (add), 2 = Y (play fo
         show_toast("%s", "Playlist is empty");
         return;
     }
-    audio_stop();
-    pl_clear();
     if (e->m3u) {
+        audio_stop();
+        pl_clear();
         int n = pl_load_m3u(p);
         if (n) play_after_load(0, "Playing list", n);
         else show_toast("%s", "Could not load playlist");
         return;
     }
-    // play this folder's tracks, starting at the chosen one
-    int n = 0, start = 0;
-    for (int i = 0; i < nents; i++) {
-        if (ents[i].dir || ents[i].m3u || ents[i].radio) continue;
-        char q[1400];
-        path_join(q, sizeof q, cwd, ents[i].name);
-        pl_add(q);
-        if (i == b_sel) start = n;
-        n++;
-    }
-    play_after_load(start, "Playing folder", n);
+    // A plays this file without replacing the queue; Y plays the folder.
+    play_library_track(p, NULL);
 }
 
 static void folder_icon(int x, int cy, uint32_t c)
@@ -1314,7 +1371,10 @@ static void draw_browser(void)
         char base[512];
         snprintf(base, sizeof base, "%s", e->name);
         if (!e->dir) { char *d = strrchr(base, '.'); if (d && d != base) *d = 0; }
-        font_fit(LM->lib, base, SCREEN_W - 140, nm, sizeof nm);
+        char fp[1400];path_join(fp,sizeof fp,cwd,e->name);
+        int fav=!e->dir&&!e->m3u&&col_find(&favorites,fp)>=0;
+        font_fit(LM->lib, base, SCREEN_W - 140-(fav?18:0), nm, sizeof nm);
+        if(fav)draw_heart(SCREEN_W-80,cy,acc);
         font_draw_mid(bb, LM->lib, 54, cy, nm,
                       playing_file ? acc : i == b_sel ? C_TEXT : C_MUTED);
         if (!e->dir) {
@@ -1339,13 +1399,31 @@ static void draw_browser(void)
 }
 
 // ---------------------------------------------------------------- indexed library (Artists / Albums / Songs / Folders)
-enum { LV_HOME, LV_ARTISTS, LV_ALBUMS, LV_ARTIST_ALBUMS, LV_TRACKS, LV_SONGS };
+enum { LV_HOME, LV_ARTISTS, LV_ALBUMS, LV_ARTIST_ALBUMS, LV_TRACKS, LV_SONGS, LV_PLAYLISTS, LV_SAVED, LV_FAVORITES, LV_SEARCH };
 static int lv = LV_HOME, lv_sel, lv_scroll, lv_artist, lv_album, lv_parent;
 static int library_visited;
+static char search_query[COL_NAME+1];
+static int search_rows[LIB_MAX_TRACKS], search_count;
+static void begin_search(void);
+/* Run once per query or completed index refresh, never during rendering. */
+static void search_refresh(void){
+    search_count=0;
+    if(!search_query[0])return;
+    for(int i=0;i<library_count()&&search_count<LIB_MAX_TRACKS;i++){
+        const library_track *t=library_song(i);if(!t)continue;
+        const char *base=strrchr(t->path,'/');base=base?base+1:t->path;
+        if(text_contains(t->title,search_query)||text_contains(t->artist,search_query)||
+           text_contains(t->album_artist,search_query)||text_contains(t->album,search_query)||
+           text_contains(base,search_query))search_rows[search_count++]=i;
+    }
+}
 static void start_cover_fetch(int manual);
 #define LIB_ROW_H (LM->lib_h)
 #define LIB_ROWS ((LIB_BOTTOM - LIB_TOP) / LIB_ROW_H)
-static void lib_view(int v) { lv=v; lv_sel=lv_scroll=0; album_art_clear_slot(0); }
+static void lib_view(int v) { lv=v; lv_sel=lv_scroll=0; album_art_clear_slot(0); if(v==LV_PLAYLISTS)refresh_collections(); }
+static collection *active_collection(void){return lv==LV_FAVORITES?&favorites:lv==LV_SAVED?&saved:NULL;}
+static const col_track *collection_track(int row){collection *c=active_collection();return c&&row>=0&&row<c->count?c->items+row:NULL;}
+static int opened_row(void){for(int i=0;i<collection_count;i++)if(!strcmp(opened_name,collection_names[i]))return i;return 0;}
 static void library_return_from_folders(void)
 {
     screen = SCR_LIBRARY;
@@ -1355,7 +1433,11 @@ static void library_return_from_folders(void)
 static int lib_nrows(void)
 {
     switch(lv){
-    case LV_HOME:return 4;
+    case LV_HOME:return 7;
+    case LV_SEARCH:return search_count;
+    case LV_PLAYLISTS:return collection_count+1; /* Create playlist is always available. */
+    case LV_SAVED:return saved.count;
+    case LV_FAVORITES:return favorites.count;
     case LV_ARTISTS:return library_artist_count();
     case LV_ALBUMS:return library_album_count();
     case LV_ARTIST_ALBUMS:{const library_artist *a=library_get_artist(lv_artist);return a?a->album_count:0;}
@@ -1373,6 +1455,7 @@ static int lib_album_at(int row)
 static int lib_song_at(int row)
 {
     if(lv==LV_SONGS)return row;
+    if(lv==LV_SEARCH)return row>=0&&row<search_count?search_rows[row]:-1;
     const library_album *a=library_get_album(lv_album);
     return a?a->first+row:-1;
 }
@@ -1387,12 +1470,13 @@ static void open_library(void)
 static void library_back(void)
 {
     if (lv == LV_HOME) return; /* SELECT is the only Player/Library toggle. */
-    if(lv==LV_TRACKS){lib_view(lv_parent); if(lv_parent==LV_ARTIST_ALBUMS){
+    if(lv==LV_SAVED){lib_view(LV_PLAYLISTS);lv_sel=opened_row();}
+    else if(lv==LV_TRACKS){lib_view(lv_parent); if(lv_parent==LV_ARTIST_ALBUMS){
         const library_artist *a=library_get_artist(lv_artist);if(a)lv_sel=lv_album-a->first_album;
     }else lv_sel=lv_album;}
     else if(lv==LV_ARTIST_ALBUMS){lib_view(LV_ARTISTS);lv_sel=lv_artist;}
     else {
-        int home_sel = lv == LV_ARTISTS ? 0 : lv == LV_ALBUMS ? 1 : 2;
+        int home_sel = lv == LV_ARTISTS ? 0 : lv == LV_ALBUMS ? 1 : lv==LV_PLAYLISTS?4:lv==LV_FAVORITES?5:lv==LV_SEARCH?6:2;
         lib_view(LV_HOME);
         lv_sel = home_sel; /* Return focus to the category just exited. */
     }
@@ -1508,9 +1592,9 @@ static void start_cover_fetch(int manual)
 }
 /* Hold B in any Library view, including nested Folders, to jump directly
  * between the top-level categories without repeatedly backing out. */
-enum { LIBCAT_ARTISTS, LIBCAT_ALBUMS, LIBCAT_SONGS, LIBCAT_FOLDERS, LIBCAT_HOME, LIBCAT_COUNT };
+enum { LIBCAT_ARTISTS, LIBCAT_ALBUMS, LIBCAT_SONGS, LIBCAT_FOLDERS, LIBCAT_PLAYLISTS, LIBCAT_FAVORITES, LIBCAT_SEARCH, LIBCAT_HOME, LIBCAT_COUNT };
 static const char *const library_categories[LIBCAT_COUNT] = {
-    "Artists", "Albums", "Songs", "Folders", "Library home"
+    "Artists", "Albums", "Songs", "Folders", "Playlists", "Favorites", "Search", "Library home"
 };
 static int library_views_sel, library_views_return = SCR_LIBRARY;
 static int current_library_category(void)
@@ -1520,6 +1604,9 @@ static int current_library_category(void)
     if (lv == LV_ALBUMS) return LIBCAT_ALBUMS;
     if (lv == LV_TRACKS) return lv_parent == LV_ARTIST_ALBUMS ? LIBCAT_ARTISTS : LIBCAT_ALBUMS;
     if (lv == LV_SONGS) return LIBCAT_SONGS;
+    if(lv==LV_PLAYLISTS||lv==LV_SAVED)return LIBCAT_PLAYLISTS;
+    if(lv==LV_FAVORITES)return LIBCAT_FAVORITES;
+    if(lv==LV_SEARCH)return LIBCAT_SEARCH;
     return LIBCAT_HOME;
 }
 static void open_library_views(void)
@@ -1535,9 +1622,11 @@ static void choose_library_category(int cat)
     if (cat == LIBCAT_FOLDERS) {
         if (library_views_return == SCR_BROWSER) screen = SCR_BROWSER;
         else { open_browser(); browser_return = SCR_LIBRARY; }
+    } else if(cat==LIBCAT_SEARCH){
+        screen=SCR_LIBRARY;begin_search();
     } else {
         int v = cat == LIBCAT_ARTISTS ? LV_ARTISTS : cat == LIBCAT_ALBUMS ? LV_ALBUMS :
-                cat == LIBCAT_SONGS ? LV_SONGS : LV_HOME;
+                cat == LIBCAT_SONGS ? LV_SONGS : cat==LIBCAT_PLAYLISTS?LV_PLAYLISTS:cat==LIBCAT_FAVORITES?LV_FAVORITES:LV_HOME;
         lib_view(v);
         screen = SCR_LIBRARY;
     }
@@ -1545,7 +1634,7 @@ static void choose_library_category(int cat)
 }
 static void draw_library_views(void)
 {
-    const int x = 158, y = 75, w = 324, h = 320, row_h = 45;
+    const int x = 158, y = 28, w = 324, h = 400, row_h = 42;
     card(x, y, w, h, "LIBRARY VIEWS");
     for (int i = 0; i < LIBCAT_COUNT; i++) {
         int ry = y + 52 + i * row_h;
@@ -1555,6 +1644,250 @@ static void draw_library_views(void)
     }
 }
 
+/* Saved playlists and favorites never mutate the queue until Play or Add. */
+enum { NAME_NEW, NAME_SAVE, NAME_RENAME, NAME_SEARCH };
+enum { CM_FAVORITE,CM_ADD,CM_REMOVE,CM_SAVE,CM_NEW,CM_RENAME,CM_DELETE,CM_CLEAR,CM_SEARCH };
+static int collection_return, cm_count, cm_sel, cm_actions[8], name_mode, name_row, name_col, name_page, name_shift, pick_sel, pick_scroll;
+static char name_text[COL_NAME+1], target_name[COL_NAME+1];
+static col_track selected_track;
+static char selected_path[2048], selected_title[512];
+static const col_track *selected_collection_track(void){
+    selected_path[0]=selected_title[0]=0;
+    if(screen==SCR_PLAYLIST){pl_item it;if(!pl_get(sel,&it))return NULL;snprintf(selected_path,sizeof selected_path,"%s",it.path);snprintf(selected_title,sizeof selected_title,"%s",it.name);}
+    else if(screen==SCR_BROWSER){if(!nents||ents[b_sel].dir||ents[b_sel].m3u||ents[b_sel].radio)return NULL;
+        path_join(selected_path,sizeof selected_path,cwd,ents[b_sel].name);meta_display_name(NULL,selected_path,selected_title,sizeof selected_title);}
+    else if(screen==SCR_LIBRARY){
+        if(active_collection()){const col_track *t=collection_track(lv_sel);if(!t)return NULL;snprintf(selected_path,sizeof selected_path,"%s",t->path);snprintf(selected_title,sizeof selected_title,"%s",t->title);}
+        else if(lv==LV_TRACKS||lv==LV_SONGS||lv==LV_SEARCH){const library_track *t=library_song(lib_song_at(lv_sel));if(!t)return NULL;snprintf(selected_path,sizeof selected_path,"%s",t->path);snprintf(selected_title,sizeof selected_title,"%s",t->title);}
+        else return NULL;
+    }else return NULL;
+    selected_track=(col_track){selected_path,selected_title};return &selected_track;
+}
+static void toggle_favorite(void){
+    if(!selected_path[0])return;
+    if(!favorites_readable){show_toast("%s","Cannot read favorites file");return;}
+    int i=col_find(&favorites,selected_path),ok=1;collection next={0};
+    for(int j=0;j<favorites.count&&ok;j++)if(j!=i)ok=col_add(&next,favorites.items[j].path,favorites.items[j].title);
+    if(i<0&&ok)ok=col_add(&next,selected_path,selected_title);
+    if(ok)ok=col_write(&next,favorite_file);
+    if(ok){col_clear(&favorites);favorites=next;show_toast("%s",i>=0?"Removed from Favorites":"Added to Favorites");}
+    else {col_clear(&next);show_toast("%s","Cannot save favorites");}
+}
+static void collection_enqueue(const collection *c,int play,int start,int single){
+    if(!c->count){show_toast("%s","Playlist is empty");return;}
+    if(start<0||start>=c->count)start=0;
+    int first=single?start:0,last=single?start+1:c->count;
+    int available=0;
+    for(int i=first;i<last;i++)if(radio_is_url(c->items[i].path)||access(c->items[i].path,R_OK)==0)available++;
+    if(!available){show_toast("%s","No available tracks");return;}
+    if(play){audio_stop();pl_clear();current=-1;}
+    int n=0,idx=-1;
+    for(int i=first;i<last;i++){
+        const col_track *t=c->items+i;
+        if(!radio_is_url(t->path)&&access(t->path,R_OK)!=0)continue;
+        if(pl_add_named(t->path,t->title)){if(i>=start&&idx<0)idx=n;n++;}
+    }
+    playlist_dirty=1;
+    if(play&&n)play_after_load(idx<0?0:idx,"Saved playlist",n);
+    else if(play){save_all();show_toast("%s","Could not load playlist");}
+    else {char text[80];snprintf(text,sizeof text,"Added %d tracks to queue",n);show_toast("%s",text);}
+}
+static void begin_name(int mode,const char *initial){
+    name_mode=mode;name_row=1;name_col=0;name_page=0;name_shift=0;snprintf(name_text,sizeof name_text,"%s",initial?initial:"");screen=SCR_COLLECTION_NAME;
+}
+static void begin_search(void){
+    collection_return=SCR_LIBRARY;
+    begin_name(NAME_SEARCH,search_query);
+}
+static int name_exists(const char *name){for(int i=0;i<collection_count;i++)if(!text_casecmp(name,collection_names[i]))return 1;return 0;}
+static void finish_name(void){
+    if(name_mode==NAME_SEARCH){
+        if(!name_text[0]||strspn(name_text," ")==strlen(name_text)){show_toast("%s","Enter a search term");return;}
+        strcpy(search_query,name_text);search_refresh();lib_view(LV_SEARCH);screen=SCR_LIBRARY;return;
+    }
+    if(!col_valid_name(name_text)){show_toast("%s","Enter a valid playlist name");return;}
+    refresh_collections();
+    if(name_mode==NAME_RENAME&&!strcmp(name_text,target_name)){screen=collection_return;return;}
+    if(name_exists(name_text)){show_toast("%s","Playlist name already exists");return;}
+    if(name_mode!=NAME_RENAME&&collection_count>=COL_NAMES){show_toast("%s","Playlist limit reached");return;}
+    char dest[1200],src[1200];collection_file(dest,sizeof dest,name_text);int ok=0;
+    struct stat st;if(lstat(dest,&st)==0){show_toast("%s","Playlist name already exists");return;}
+    if(name_mode==NAME_RENAME){collection_file(src,sizeof src,target_name);ok=rename(src,dest)==0;}
+    else {collection c={0};ok=1;if(name_mode==NAME_SAVE){for(int i=0;i<pl_count();i++){pl_item it;if(!pl_get(i,&it)||!col_add(&c,it.path,it.name)){ok=0;break;}}}if(ok)ok=col_write(&c,dest);col_clear(&c);}
+    if(!ok){show_toast("%s","Could not save playlist");return;}
+    refresh_collections();screen=collection_return;
+    if(screen==SCR_LIBRARY&&lv==LV_PLAYLISTS){for(int i=0;i<collection_count;i++)if(!strcmp(name_text,collection_names[i])){lv_sel=i;break;}}
+    if(name_mode==NAME_RENAME&&lv==LV_SAVED&&!strcmp(opened_name,target_name))strcpy(opened_name,name_text);
+    show_toast("%s",name_mode==NAME_RENAME?"Playlist renamed":"Playlist saved");
+}
+static void open_collection_actions(void){
+    collection_return=screen;cm_count=cm_sel=0;selected_collection_track();target_name[0]=0;
+    if(selected_path[0]){cm_actions[cm_count++]=CM_FAVORITE;cm_actions[cm_count++]=CM_ADD;}
+    if(screen==SCR_PLAYLIST){if(pl_count())cm_actions[cm_count++]=CM_REMOVE;cm_actions[cm_count++]=CM_SAVE;}
+    if(screen==SCR_LIBRARY){
+        if(lv==LV_SAVED&&selected_path[0])cm_actions[cm_count++]=CM_REMOVE;
+        if(lv==LV_PLAYLISTS&&lv_sel<collection_count)strcpy(target_name,collection_names[lv_sel]);
+        else if(lv==LV_SAVED)strcpy(target_name,opened_name);
+        if(target_name[0]){cm_actions[cm_count++]=CM_RENAME;cm_actions[cm_count++]=CM_DELETE;}
+    }
+    cm_actions[cm_count++]=CM_NEW;
+    if(screen!=SCR_PLAYLIST)cm_actions[cm_count++]=CM_SAVE;
+    if(screen==SCR_PLAYLIST&&pl_count())cm_actions[cm_count++]=CM_CLEAR;
+    if(screen==SCR_LIBRARY&&lv==LV_SEARCH)cm_actions[cm_count++]=CM_SEARCH;
+    screen=SCR_COLLECTION_MENU;
+}
+static void remove_selected(void){
+    if(collection_return==SCR_PLAYLIST){
+        if(sel<0||sel>=pl_count())return;
+        if(sel==current){audio_stop();current=-1;}
+        else if(sel<current)current--;
+        pl_remove(sel);clamp_scroll(pl_count());playlist_dirty=1;
+        if(S.shuffle)build_shuffle();
+        save_all();show_toast("%s","Removed from play queue");
+    }else if(lv==LV_FAVORITES){toggle_favorite();}
+    else if(lv==LV_SAVED&&lv_sel<saved.count){
+        char file[1200];collection_file(file,sizeof file,opened_name);collection next={0};int ok=1;
+        for(int j=0;j<saved.count&&ok;j++)if(j!=lv_sel)ok=col_add(&next,saved.items[j].path,saved.items[j].title);
+        if(ok&&col_write(&next,file)){col_clear(&saved);saved=next;show_toast("%s","Removed from saved playlist");}
+        else {col_clear(&next);show_toast("%s","Cannot update playlist");}
+    }
+}
+static void add_to_named(int row){
+    char file[1200];collection_file(file,sizeof file,collection_names[row]);collection c={0};
+    int ok=col_read(&c,file);
+    if(ok){if(col_find(&c,selected_path)>=0){show_toast("%s","Already in playlist");col_clear(&c);screen=collection_return;return;}
+        ok=col_add(&c,selected_path,selected_title)&&col_write(&c,file);}
+    if(ok&&lv==LV_SAVED&&!strcmp(opened_name,collection_names[row]))col_read(&saved,file);
+    col_clear(&c);screen=collection_return;show_toast("%s",ok?"Added to saved playlist":"Cannot update playlist");
+}
+static const char *action_label(int a){
+    switch(a){case CM_FAVORITE:return col_find(&favorites,selected_path)>=0?"Remove from Favorites":"Add to Favorites";
+    case CM_ADD:return "Add to saved playlist";case CM_REMOVE:return collection_return==SCR_PLAYLIST?"Remove from play queue":lv==LV_FAVORITES?"Remove favorite":"Remove track from playlist";
+    case CM_SAVE:return "Save play queue as playlist";case CM_NEW:return "Create empty playlist";case CM_RENAME:return "Rename playlist";case CM_CLEAR:return "Clear play queue";case CM_SEARCH:return "Edit search";default:return "Delete playlist";}
+}
+/* Five rows, centered and staggered like a conventional keyboard. The final
+ * row has wide controls; vertical navigation chooses the nearest key center. */
+static const char *const key_rows[3][2][4]={
+    {{"1234567890","qwertyuiop","asdfghjkl","zxcvbnm"},
+     {"!@#$%^&*()","QWERTYUIOP","ASDFGHJKL","ZXCVBNM"}},
+    {{"àáâãäåæçčć","èéêëěìíîïł","ñńòóôõöøœř","śšßùúûüýÿž"},
+     {"ÀÁÂÃÄÅÆÇČĆ","ÈÉÊËĚÌÍÎÏŁ","ÑŃÒÓÔÕÖØŒŘ","ŚŠẞÙÚÛÜÝŸŽ"}},
+    {{"!@#$%^&*()","-_+=[]{}<>",".,:;!?/\\|~","'\"`€£¥°©®…"},
+     {"!@#$%^&*()","-_+=[]{}<>",".,:;!?/\\|~","'\"`€£¥°©®…"}}
+};
+static int kb_cols(int row){return row==4?3:text_count(key_rows[name_page][name_shift][row]);}
+static void kb_rect(int row,int col,int *x,int *w){
+    if(row==4){static const int pos[]={70,180,450},width[]={100,260,120};*x=pos[col];*w=width[col];return;}
+    int n=kb_cols(row),pitch=n>10?500/n:50;*x=(640-n*pitch)/2+col*pitch+3;*w=pitch-6;
+}
+static int kb_center(int row,int col){int x,w;kb_rect(row,col,&x,&w);return x+w/2;}
+static void kb_vertical(int direction){
+    int center=kb_center(name_row,name_col);name_row=(name_row+5+direction)%5;
+    int best=10000;name_col=0;for(int i=0;i<kb_cols(name_row);i++){
+        int d=abs(kb_center(name_row,i)-center);if(d<best){best=d;name_col=i;}}
+}
+static void kb_label(int row,int col,char out[20]){
+    if(row==4){snprintf(out,20,"%s",col==0?"SHIFT":col==1?"Space":"Backspace");return;}
+    const char *p=key_rows[name_page][name_shift][row];uint32_t cp;
+    for(int i=0;i<col;i++)text_next(&p,&cp);
+    const char *start=p;text_next(&p,&cp);memcpy(out,start,(size_t)(p-start));out[p-start]=0;
+}
+static int kb_allowed(const char *key){
+    return name_mode==NAME_SEARCH||strlen(key)!=1||!strchr("<>:\"/\\|?*",key[0]);
+}
+static void kb_press(void){
+    if(name_row==4&&name_col==0){if(name_page!=2)name_shift=!name_shift;return;}
+    if(name_row==4&&name_col==2){text_erase(name_text);return;}
+    char key[20];if(name_row==4)strcpy(key," ");else kb_label(name_row,name_col,key);
+    if(!kb_allowed(key)){show_toast("%s","Not allowed in playlist names");return;}
+    if(!text_append(name_text,sizeof name_text,COL_NAME_CHARS,key))show_toast("%s","40 character limit");
+}
+static void collection_key(int k,int repeat){
+    if(screen==SCR_COLLECTION_NAME){
+        if(k==K_LEFT)name_col=(name_col+kb_cols(name_row)-1)%kb_cols(name_row);
+        else if(k==K_RIGHT)name_col=(name_col+1)%kb_cols(name_row);
+        else if(k==K_UP)kb_vertical(-1);
+        else if(k==K_DOWN)kb_vertical(1);
+        else if(!repeat&&(k==K_L||k==K_R)){
+            name_page=(name_page+(k==K_L?2:1))%3;name_shift=0;
+            if(name_col>=kb_cols(name_row))name_col=kb_cols(name_row)-1;
+        }
+        else if(!repeat&&k==K_A)kb_press();
+        else if(!repeat&&k==K_X)text_erase(name_text);
+        else if(!repeat&&k==K_Y)finish_name();
+        else if(!repeat&&k==K_B)screen=collection_return;
+        return;
+    }
+    if(screen==SCR_QUEUE_CLEAR){
+        if(!repeat&&k==K_A){audio_stop();current=-1;pl_clear();sel=scroll=0;
+            if(S.shuffle)build_shuffle();
+            playlist_dirty=1;save_all();screen=collection_return;show_toast("%s","Play queue cleared");}
+        else if(!repeat&&k==K_B)screen=SCR_COLLECTION_MENU;
+        return;
+    }
+    if(screen==SCR_COLLECTION_DELETE){if(!repeat&&k==K_A){char file[1200];collection_file(file,sizeof file,target_name);
+            int ok=unlink(file)==0;if(ok){refresh_collections();if(lv==LV_SAVED){col_clear(&saved);lib_view(LV_PLAYLISTS);}}
+            screen=collection_return;show_toast("%s",ok?"Playlist deleted":"Cannot delete playlist");}
+        else if(!repeat&&k==K_B)screen=SCR_COLLECTION_MENU;
+        return;}
+    if(screen==SCR_COLLECTION_PICK){if(k==K_UP)pick_sel=(pick_sel+collection_count-1)%collection_count;
+        else if(k==K_DOWN)pick_sel=(pick_sel+1)%collection_count;
+        else if(!repeat&&k==K_A)add_to_named(pick_sel);
+        else if(!repeat&&k==K_B)screen=SCR_COLLECTION_MENU;
+        return;}
+    if(k==K_UP)cm_sel=(cm_sel+cm_count-1)%cm_count;
+    else if(k==K_DOWN)cm_sel=(cm_sel+1)%cm_count;
+    else if(!repeat&&k==K_B)screen=collection_return;
+    else if(!repeat&&k==K_A){switch(cm_actions[cm_sel]){
+        case CM_FAVORITE:toggle_favorite();screen=collection_return;break;
+        case CM_ADD:refresh_collections();if(collection_count){pick_sel=pick_scroll=0;screen=SCR_COLLECTION_PICK;}else show_toast("%s","Create a playlist first");break;
+        case CM_REMOVE:remove_selected();screen=collection_return;break;
+        case CM_SAVE:begin_name(NAME_SAVE,NULL);break;
+        case CM_NEW:begin_name(NAME_NEW,NULL);break;
+        case CM_RENAME:begin_name(NAME_RENAME,target_name);break;
+        case CM_DELETE:screen=SCR_COLLECTION_DELETE;break;
+        case CM_CLEAR:screen=SCR_QUEUE_CLEAR;break;
+        case CM_SEARCH:begin_search();break;
+    }}
+}
+static void draw_collection_dialog(void){
+    m2d_clear(bb,C_BG,0);
+    if(screen==SCR_COLLECTION_NAME){
+        card(45,20,550,412,name_mode==NAME_SEARCH?"SEARCH MUSIC":name_mode==NAME_RENAME?"RENAME PLAYLIST":name_mode==NAME_SAVE?"SAVE PLAY QUEUE":"CREATE PLAYLIST");
+        rrect(65,72,510,42,7,C_SEL);char fit[COL_NAME+8];font_fit_left(f_mid,name_text,477,fit,sizeof fit);
+        font_draw_mid(bb,f_mid,78,93,fit,C_TEXT);
+        static const char *pages[]={"ABC","International","Symbols"};
+        for(int i=0;i<3;i++){
+            int x=65+i*170;uint32_t c=i==name_page?accent():C_DIM;
+            font_draw_mid(bb,f_small,x+(170-font_width(f_small,pages[i]))/2,134,pages[i],c);
+            if(i==name_page)fill(x+18,148,134,2,c);
+        }
+        for(int r=0;r<5;r++)for(int i=0;i<kb_cols(r);i++){
+            int x,w,y=162+r*45;kb_rect(r,i,&x,&w);char key[20];kb_label(r,i,key);
+            int selected=r==name_row&&i==name_col,shift=r==4&&i==0;
+            int disabled=(shift&&name_page==2)||(r<4&&!kb_allowed(key));
+            uint32_t bg=selected?accent():(shift&&name_shift&&name_page!=2)?C_KEY:C_SEL;
+            unsigned luma=299*((bg>>16)&255)+587*((bg>>8)&255)+114*(bg&255);
+            uint32_t fg=selected?(luma>=140000?C_BG:C_TEXT):(disabled?C_DIM:C_TEXT);
+            rrect(x,y,w,39,6,bg);
+            if(shift&&name_shift&&name_page!=2)fill(x+12,y+32,w-24,2,selected?fg:accent());
+            font_draw_mid(bb,r==4?f_small:f_mid,x+(w-font_width(r==4?f_small:f_mid,key))/2,y+19,key,fg);
+        }
+        hint h[]={{"L/R","Page"},{"A","Type"},{"X","Erase"},{"Y",name_mode==NAME_SEARCH?"Search":"Save"},{"B","Cancel"}};hint_bar(h,5);return;
+    }
+    if(screen==SCR_QUEUE_CLEAR){card(65,140,510,160,"CLEAR PLAY QUEUE?");
+        font_draw_mid(bb,f_mid,88,210,"Stop playback and empty the queue",C_TEXT);
+        font_draw_mid(bb,f_small,88,244,"Saved playlists, favorites and files are kept",C_DIM);
+        hint h[]={{"A","Clear"},{"B","Cancel"}};hint_bar(h,2);return;}
+    if(screen==SCR_COLLECTION_DELETE){card(65,140,510,160,"DELETE PLAYLIST?");char fit[COL_NAME+8];font_fit(f_mid,target_name,450,fit,sizeof fit);
+        font_draw_mid(bb,f_mid,88,210,fit,C_TEXT);font_draw_mid(bb,f_small,88,244,"Music files and play queue are not deleted",C_DIM);
+        hint h[]={{"A","Delete"},{"B","Cancel"}};hint_bar(h,2);return;}
+    int pick=screen==SCR_COLLECTION_PICK,n=pick?collection_count:cm_count,selected=pick?pick_sel:cm_sel;
+    if(pick){if(pick_sel<pick_scroll)pick_scroll=pick_sel;if(pick_sel>=pick_scroll+8)pick_scroll=pick_sel-7;}
+    int first=pick?pick_scroll:0;card(65,28,510,400,pick?"ADD TO PLAYLIST":"ACTIONS");
+    for(int i=first;i<n&&i<first+8;i++){int y=80+(i-first)*42;if(i==selected)rrect(78,y,484,39,7,C_SEL);char fit[COL_NAME+8];font_fit(f_mid,pick?collection_names[i]:action_label(cm_actions[i]),450,fit,sizeof fit);font_draw_mid(bb,f_mid,92,y+19,fit,i==selected?accent():C_TEXT);}
+    hint h[]={{"A","Select"},{"B","Back"}};hint_bar(h,2);
+}
 static void library_action(int k)
 {
     int n=lib_nrows();
@@ -1562,9 +1895,42 @@ static void library_action(int k)
         if(k==K_X){library_menu_sel=0;screen=SCR_LIBRARY_MENU;return;}
         if(k!=K_A)return;
         if(lv_sel==3){open_browser();browser_return=SCR_LIBRARY;return;}
-        lib_view(lv_sel==0?LV_ARTISTS:lv_sel==1?LV_ALBUMS:LV_SONGS);return;
+        if(lv_sel==6){begin_search();return;}
+        lib_view(lv_sel==0?LV_ARTISTS:lv_sel==1?LV_ALBUMS:lv_sel==4?LV_PLAYLISTS:lv_sel==5?LV_FAVORITES:LV_SONGS);return;
+    }
+    if(lv==LV_PLAYLISTS){
+        if(lv_sel==collection_count){if(k==K_A){collection_return=SCR_LIBRARY;begin_name(NAME_NEW,NULL);}return;}
+        if(k==K_A){char file[1200];collection_file(file,sizeof file,collection_names[lv_sel]);
+            if(col_read(&saved,file)){strcpy(opened_name,collection_names[lv_sel]);lib_view(LV_SAVED);}
+            else show_toast("%s","Cannot read playlist");}
+        else if(k==K_X||k==K_Y){collection c={0};char file[1200];collection_file(file,sizeof file,collection_names[lv_sel]);
+            if(col_read(&c,file))collection_enqueue(&c,k==K_Y,0,0);else show_toast("%s","Cannot read playlist");col_clear(&c);}
+        return;
+    }
+    if(lv==LV_SEARCH){
+        if(!n){if(k==K_A)begin_search();return;}
+        if(k==K_X){library_add_range(lib_song_at(lv_sel),1,0,0);return;}
+        if(k==K_A){
+            const library_track *t=library_song(lib_song_at(lv_sel));
+            if(t)play_library_track(t->path,NULL);
+            return;
+        }
+        if(k==K_Y){
+            audio_stop();pl_clear();current=-1;int added=0;
+            for(int i=0;i<n;i++){const library_track *t=library_song(lib_song_at(i));
+                if(t&&pl_add(t->path))added++;}
+            playlist_dirty=1;
+            if(added)play_after_load(0,"Search",added);
+            else show_toast("%s","No available tracks");
+        }return;
     }
     if(n<=0)return;
+    if(active_collection()){
+        if(k==K_A){const col_track *t=collection_track(lv_sel);
+            if(t)play_library_track(t->path,t->title);}
+        else if(k==K_X||k==K_Y)collection_enqueue(active_collection(),k==K_Y,k==K_Y?0:lv_sel,k==K_X);
+        return;
+    }
     if(lv==LV_ARTISTS){
         const library_artist *a=library_get_artist(lv_sel);
         if(!a)return;
@@ -1583,7 +1949,9 @@ static void library_action(int k)
     }else if(lv==LV_TRACKS||lv==LV_SONGS){
         int idx=lib_song_at(lv_sel);
         if(k==K_X)library_add_range(idx,1,0,0);
-        else if(k==K_A||k==K_Y){
+        else if(k==K_A){const library_track *t=library_song(idx);
+            if(t)play_library_track(t->path,NULL);}
+        else if(k==K_Y){
             if(lv==LV_TRACKS){const library_album *a=library_get_album(lv_album);
                 if(a)library_add_range(a->first,a->count,1,lv_sel);}
             else library_add_range(0,library_count(),1,lv_sel);
@@ -1593,14 +1961,20 @@ static void library_action(int k)
 static void draw_library(void)
 {
     m2d_clear(bb,C_BG,0);fill(0,0,SCREEN_W,51,C_PANEL);
-    font_draw_mid(bb,f_title,20,25,"MUSIC LIBRARY",accent());
-    char sub[140];
-    if(library_is_scanning())snprintf(sub,sizeof sub,"Indexing music…");
+    font_draw_mid(bb,f_title,20,25,lv==LV_SEARCH?"SEARCH":lv==LV_PLAYLISTS?"PLAYLISTS":lv==LV_FAVORITES?"FAVORITES":lv==LV_SAVED?"SAVED PLAYLIST":"MUSIC LIBRARY",accent());
+    char sub[COL_NAME+64];
+    if(lv==LV_SEARCH)snprintf(sub,sizeof sub,"%s  ·  %d matches",search_query,search_count);
+    else if(lv==LV_SAVED)snprintf(sub,sizeof sub,"%s  ·  %d tracks",opened_name,saved.count);
+    else if(lv==LV_FAVORITES)snprintf(sub,sizeof sub,"%d favorites",favorites.count);
+    else if(lv==LV_PLAYLISTS)snprintf(sub,sizeof sub,"%d playlists",collection_count);
+    else if(library_is_scanning())snprintf(sub,sizeof sub,"Indexing music…");
     else snprintf(sub,sizeof sub,"%d songs  ·  %d albums  ·  %d artists",library_count(),library_album_count(),library_artist_count());
-    font_draw_mid(bb,f_small,SCREEN_W-20-font_width(f_small,sub),25,sub,C_DIM);
-    static const char *roots[]={"Artists","Albums","Songs","Folders"};
-    int n=lib_nrows(),with_art=(lv==LV_ALBUMS||lv==LV_ARTIST_ALBUMS||lv==LV_TRACKS);
+    char subfit[COL_NAME+64];font_fit(f_small,sub,355,subfit,sizeof subfit);
+    font_draw_mid(bb,f_small,SCREEN_W-20-font_width(f_small,subfit),25,subfit,C_DIM);
+    static const char *roots[]={"Artists","Albums","Songs","Folders","Playlists","Favorites","Search"};
+    int n=lib_nrows(),with_art=S.cover_library&&(lv==LV_ALBUMS||lv==LV_ARTIST_ALBUMS||lv==LV_TRACKS||lv==LV_SEARCH||active_collection());
     if(lv_sel>=n)lv_sel=n?n-1:0;
+    if(lv_sel<0)lv_sel=0;
     if(lv_sel<lv_scroll)lv_scroll=lv_sel;
     if(lv_sel>=lv_scroll+LIB_ROWS)lv_scroll=lv_sel-LIB_ROWS+1;
     int right=with_art?422:SCREEN_W-22;
@@ -1608,20 +1982,24 @@ static void draw_library(void)
     for(int r=0;r<LIB_ROWS&&lv_scroll+r<n;r++){
         int i=lv_scroll+r,y=LIB_TOP+r*LIB_ROW_H;
         if(i==lv_sel)rrect(12,y,right-22,LIB_ROW_H-2,6,C_SEL);
-        const char *label="",*tag="";char b[128]={0};
+        const char *label="",*tag="",*rowpath=NULL;char b[128]={0},fallback[400];
         if(lv==LV_HOME)label=roots[i];
+        else if(lv==LV_PLAYLISTS)label=i==collection_count?"+ Create playlist":collection_names[i];
+        else if(active_collection()){
+            const col_track *t=collection_track(i);if(t){rowpath=t->path;meta_display_name(NULL,t->path,fallback,sizeof fallback);label=t->title[0]?t->title:fallback;}
+        }
         else if(lv==LV_ARTISTS){const library_artist *a=library_get_artist(i);if(a){label=a->name;
             snprintf(b,sizeof b,"%d",a->album_count);tag=b;}}
         else if(lv==LV_ALBUMS||lv==LV_ARTIST_ALBUMS){const library_album *a=library_get_album(lib_album_at(i));
             if(a){label=a->album;snprintf(b,sizeof b,"%d",a->count);tag=b;}}
-        else{const library_track *t=library_song(lib_song_at(i));if(t){label=t->title;
+        else{const library_track *t=library_song(lib_song_at(i));if(t){label=t->title;rowpath=t->path;
+            if(lv==LV_SEARCH){snprintf(fallback,sizeof fallback,"%s · %s%s%s",t->title,t->artist,
+                with_art?"":" · ",with_art?"":t->album);label=fallback;}
             if(t->duration_ms){fmt_time(b,sizeof b,t->duration_ms);tag=b;}}}
-        int is_playing = 0;
-        if (playing && (lv == LV_TRACKS || lv == LV_SONGS)) {
-            const library_track *t = library_song(lib_song_at(i));
-            is_playing = t && !strcmp(t->path, playing);
-        }
-        char fitted[400];font_fit(LM->lib,label,right-135,fitted,sizeof fitted);
+        int is_playing=playing&&rowpath&&!strcmp(rowpath,playing);
+        int fav=col_find(&favorites,rowpath)>=0;
+        char fitted[400];font_fit(LM->lib,label,right-135-(fav?18:0),fitted,sizeof fitted);
+        if(fav)draw_heart(right-84,y+LIB_ROW_H/2,accent());
         if (is_playing) draw_play_marker(20, y + LIB_ROW_H / 2,
                                          audio_state() != A_PLAYING, accent());
         font_draw_mid(bb,LM->lib,38,y+LIB_ROW_H/2,fitted,
@@ -1629,15 +2007,17 @@ static void draw_library(void)
         if(tag[0])font_draw_mid(bb,LM->aux,right-16-font_width(LM->aux,tag),y+LIB_ROW_H/2,tag,C_DIM);
     }
     if(!n&&lv!=LV_HOME){
-        const char *s=library_is_scanning()?"Scanning music files…":"No music indexed. Press B, then X to rescan.";
+        const char *s=lv==LV_SEARCH?"No matches. Press A to search again.":lv==LV_FAVORITES?"No favorites. Hold Y on a song to add it.":lv==LV_SAVED?"Empty playlist. Hold X on a song to add it.":library_is_scanning()?"Scanning music files…":"No music indexed. Press B, then X to rescan.";
         font_draw_mid(bb,f_mid,22,180,s,C_DIM);
     }
     if(with_art){
         int idx=-1;
-        if(lv==LV_TRACKS)idx=lib_song_at(lv_sel);
+        if(active_collection()){idx=-1;}
+        else if(lv==LV_TRACKS||lv==LV_SEARCH)idx=lib_song_at(lv_sel);
         else {const library_album *a=library_get_album(lib_album_at(lv_sel));if(a)idx=a->first;}
         const library_track *track=library_song(idx);
-        m2d_surf *art=track?album_art_for_track(track->path):NULL;
+        const col_track *ct=collection_track(lv_sel);
+        m2d_surf *art=track?album_art_for_track(track->path):ct&&!radio_is_url(ct->path)?album_art_for_track(ct->path):NULL;
         rrect(444,92,170,170,9,C_PANEL);
         if(art)m2d_blit(art,0,0,art->w,art->h,bb,450,98,158,158,0xffffffffu,M2D_REPLACE,0);
         else {font_draw_mid(bb,f_big,510,170,"♪",C_DIM);}
@@ -1702,6 +2082,7 @@ static void on_key(int k, int repeat)
      * for system chords (such as screenshots), never an immediate exit. */
     if (k == K_MENU) return;
     // keys that work everywhere except text-like lists
+    if(screen==SCR_COLLECTION_MENU||screen==SCR_COLLECTION_NAME||screen==SCR_COLLECTION_PICK||screen==SCR_COLLECTION_DELETE||screen==SCR_QUEUE_CLEAR){collection_key(k,repeat);return;}
     if (screen == SCR_GM_CONFIRM) {
         if (repeat) return;
         if (k == K_A) {
@@ -1877,7 +2258,8 @@ static void on_key(int k, int repeat)
 static void draw_frame(void)
 {
     bb = m2d_backbuffer();
-    if (screen == SCR_LIBRARY ||
+    if(screen==SCR_COLLECTION_MENU||screen==SCR_COLLECTION_NAME||screen==SCR_COLLECTION_PICK||screen==SCR_COLLECTION_DELETE||screen==SCR_QUEUE_CLEAR){draw_collection_dialog();}
+    else if (screen == SCR_LIBRARY ||
         ((screen == SCR_OPTIONS || screen == SCR_DISPLAY || screen == SCR_GM_CONFIRM) &&
          (options_return_screen == SCR_LIBRARY || options_return_screen == SCR_BROWSER))) {
         if (options_return_screen == SCR_BROWSER && screen != SCR_LIBRARY) draw_browser();
@@ -1896,9 +2278,9 @@ static void draw_frame(void)
             char stat[64];snprintf(stat,sizeof stat,"Covers %d/%d (%d saved)",cover_done,cover_total,cover_saved);
             font_draw_mid(bb,f_hint,12,464,stat,C_DIM);
         } else {
-            hint h[]={{"A","Play"},{"B","Back / hold: Views"},{"SELECT","Player"},
-                      {"Hold SELECT","Options"}};
-            hint_bar(h,4);
+            if(lv==LV_HOME){hint h[]={{"A","Open"},{"X","Menu"},{"Hold B","Views"},{"SELECT","Player"},{"Hold SELECT","Options"}};hint_bar(h,5);}
+            else if(lv==LV_SONGS||lv==LV_TRACKS||lv==LV_SEARCH||active_collection()){hint h[]={{"A","Play"},{"X","Add"},{"Y","All"},{"Hold X","Menu"},{"Hold Y","Fav"},{"SELECT","Player"}};hint_bar(h,6);}
+            else {hint h[]={{"A","Open"},{"X","Add"},{"Hold X","Menu"},{"B","Back"},{"SELECT","Player"}};hint_bar(h,5);}
         }
         }
     } else if (screen == SCR_LIBRARY_MENU) {
@@ -1912,9 +2294,10 @@ static void draw_frame(void)
         hint_bar(h, 2);
     } else if (screen == SCR_BROWSER) {
         draw_browser();
-        hint h[] = { { "A", "Open" }, { "B", "Back / hold: Views" },
-                     { "SELECT", "Player" }, { "Hold SELECT", "Options" } };
-        hint_bar(h, 4);
+        hint h[] = { { "A", nents&&!(ents[b_sel].dir||ents[b_sel].m3u)?"Play":"Open" },
+                     { "Y", "Folder" }, { "X", "Add" }, { "Hold X", "Menu" },
+                     { "Hold Y", "Fav" }, { "SELECT", "Player" } };
+        hint_bar(h, 6);
     } else if (screen == SCR_VIS) {
         draw_vis();
     } else {
@@ -1937,8 +2320,8 @@ static void draw_frame(void)
             hint_bar(h, 5);
         } else {
             draw_playlist_panel();
-            hint h[] = { { "Y", "EQ" }, { "X", S.playlist_expanded ? "Normal" : "List" },
-                         { "Hold X", "Visualizer" }, { "SELECT", "Library" }, { "Hold SELECT", "Options" } };
+            hint h[] = { { "Y", "EQ" }, { "Hold Y", "Queue" }, { "X", S.playlist_expanded ? "Normal" : "List" },
+                         { "Hold X", "Visualizer" }, { "SELECT", "Library" } };
             hint_bar(h, 5);
         }
         if (screen == SCR_GM_CONFIRM) {
@@ -1969,7 +2352,7 @@ static void draw_frame(void)
 static int main_visible(void)
 {
     if(screen==SCR_VIS||screen==SCR_LIBRARY||screen==SCR_BROWSER||
-       screen==SCR_LIBRARY_MENU||screen==SCR_LIBRARY_VIEWS)return 0;
+       screen==SCR_LIBRARY_MENU||screen==SCR_LIBRARY_VIEWS||screen==SCR_COLLECTION_MENU||screen==SCR_COLLECTION_NAME||screen==SCR_COLLECTION_PICK||screen==SCR_COLLECTION_DELETE||screen==SCR_QUEUE_CLEAR)return 0;
     if((screen==SCR_OPTIONS||screen==SCR_DISPLAY||screen==SCR_GM_CONFIRM)&&
        (options_return_screen==SCR_LIBRARY||options_return_screen==SCR_BROWSER))return 0;
     return !(screen==SCR_PLAYLIST&&panel==SCR_PLAYLIST&&S.playlist_expanded);
@@ -2068,8 +2451,8 @@ static void save_all(void)
     if (playlist_dirty) {
         char p[1024];
         path_join(p, sizeof p, data_dir, "playlist.m3u");
-        pl_save_m3u(p);
-        playlist_dirty = 0;
+        if(pl_save_m3u(p))playlist_dirty=0;
+        else fprintf(stderr,"[queue] failed to save %s\n",p);
     }
 }
 
@@ -2175,6 +2558,10 @@ int main(int argc, char **argv)
     has_dsp = audio_init();
     apply_audio_settings();
     pl_init();
+    path_join(collection_dir,sizeof collection_dir,data_dir,"playlists");mkdir(collection_dir,0755);
+    path_join(favorite_file,sizeof favorite_file,data_dir,"favorites.m3u");
+    if(!col_read(&favorites,favorite_file)&&access(favorite_file,F_OK)==0)favorites_readable=0;
+    refresh_collections();
     { char mus[1024],cache[1024];
       path_join(mus,sizeof mus,root_dir,"Media/Music");
       if(!dir_exists(mus)) path_join(mus,sizeof mus,root_dir,"Music");
@@ -2211,6 +2598,7 @@ int main(int argc, char **argv)
     int menu_held = 0, menu_chord = 0;
     int playlist_x_held = 0, playlist_x_fired = 0;
     double playlist_x_since = 0;
+    int action_held=0,action_fired=0,action_origin=0;double action_since=0;
     int back_held = 0, back_hold_fired = 0;
     double back_since = 0;
     double next_repeat = 0;
@@ -2245,7 +2633,7 @@ int main(int argc, char **argv)
             fprintf(stderr,"[standby] resumed\n");
             held_key=-1;select_held=start_held=combo_consumed=select_hold_fired=0;
             menu_held=menu_chord=playlist_x_held=playlist_x_fired=0;
-            back_held=back_hold_fired=0;
+            back_held=back_hold_fired=0;action_held=action_fired=0;
             memset(key_down,0,sizeof key_down);
             memset(menu_consumed_key,0,sizeof menu_consumed_key);
             pressed=PB_NONE;pressed_until=msg_until=toast_until=vis_info_until=0;
@@ -2286,6 +2674,7 @@ int main(int argc, char **argv)
                     held_key = -1;
                     playlist_x_held = 0;
                     playlist_x_fired = 0;
+                    action_held=action_fired=0;
                     if (menu_chord) {
                         back_held = 0;
                         back_hold_fired = 0;
@@ -2333,6 +2722,13 @@ int main(int argc, char **argv)
                     if (!back_hold_fired && !screen_off) on_key(K_B, 0);
                     back_hold_fired = 0;
                 }
+                continue;
+            }
+            /* Library X/Y and Player Y preserve their taps; holds open actions or favorite. */
+            if ((code==action_held)||(val==1&&!action_held&&!screen_off&&
+                ((screen==SCR_PLAYLIST&&code==K_Y)||((screen==SCR_LIBRARY||screen==SCR_BROWSER)&&(code==K_X||code==K_Y))))) {
+                if(val==1&&!action_held){action_held=code;action_fired=0;action_since=now_t;action_origin=screen;}
+                else if(val==0&&code==action_held){action_held=0;if(!action_fired&&screen==action_origin&&!screen_off)on_key(code,0);action_fired=0;}
                 continue;
             }
             /* X taps switch playlist layout; a 1-second hold opens the
@@ -2421,6 +2817,11 @@ int main(int argc, char **argv)
             screen = SCR_VIS;
             vis_info_until = now_t + 3;
         }
+        if(action_held&&!action_fired&&!menu_held&&!screen_off&&screen==action_origin&&now_t-action_since>=0.75){
+            action_fired=1;ui_wake=1;last_input_at=now_t;
+            if(action_held==K_Y&&screen!=SCR_PLAYLIST&&selected_collection_track())toggle_favorite();
+            else open_collection_actions();
+        }
         if (held_key >= 0 && now_t >= next_repeat && !screen_off) {
             ui_wake=1;last_input_at=now_t;
             on_key(held_key, 1);
@@ -2479,7 +2880,8 @@ int main(int argc, char **argv)
             library_changed=library_poll();
             if(library_changed>0){
                 album_art_clear();
-                lib_view(LV_HOME);
+                if(lv==LV_SEARCH){search_refresh();if(lv_sel>=search_count)lv_sel=search_count?search_count-1:0;lv_scroll=0;}
+                else if(lv!=LV_PLAYLISTS&&lv!=LV_SAVED&&lv!=LV_FAVORITES)lib_view(LV_HOME);
                 show_toast("%s","Music library updated");
                 if(S.cover_fetch)start_cover_fetch(0);
             }else if(library_changed<0)show_toast("%s","Music library scan failed");
@@ -2531,6 +2933,7 @@ int main(int argc, char **argv)
             sooner(&due,back_since+LIBRARY_VIEWS_HOLD_SECONDS);
         if(playlist_x_held&&!playlist_x_fired&&!menu_held)
             sooner(&due,playlist_x_since+X_VIS_HOLD_SECONDS);
+        if(action_held&&!action_fired&&!menu_held)sooner(&due,action_since+0.75);
         if(held_key>=0)sooner(&due,next_repeat);
         if(screen==SCR_SKINS&&preview_idx!=skin_sel)sooner(&due,preview_due);
         sooner(&due,pressed_until);sooner(&due,msg_until);sooner(&due,toast_until);
@@ -2621,6 +3024,7 @@ int main(int argc, char **argv)
     netclock_shutdown();
     library_quit();
     album_art_clear();
+    col_clear(&favorites);col_clear(&saved);
     pl_quit();
     m2d_quit();
     if (handoff) {

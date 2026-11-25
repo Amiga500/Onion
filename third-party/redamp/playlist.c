@@ -126,6 +126,14 @@ static int add_locked(const char *path)
     return 1;
 }
 
+int pl_add_named(const char *path,const char *title)
+{
+    pthread_mutex_lock(&mtx);
+    int ok=add_locked(path);
+    if(ok){if(title&&title[0])snprintf(items[count-1].name,sizeof items[count-1].name,"%s",title);gen++;pthread_cond_broadcast(&cv);}
+    pthread_mutex_unlock(&mtx);return ok;
+}
+
 int pl_add(const char *path)
 {
     pthread_mutex_lock(&mtx);
@@ -338,19 +346,22 @@ void pl_remove(int i)
 
 int pl_save_m3u(const char *path)
 {
-    char tmp[1024];
-    snprintf(tmp, sizeof tmp, "%s.tmp", path);
-    FILE *f = fopen(tmp, "w");
-    if (!f) return 0;
-    fprintf(f, "#EXTM3U\n");
+    char tmp[1200];
+    if(snprintf(tmp,sizeof tmp,"%s.tmp.XXXXXX",path)>=(int)sizeof tmp)return 0;
+    int fd=mkstemp(tmp);if(fd<0)return 0;
+    FILE *f=fdopen(fd,"w");if(!f){close(fd);unlink(tmp);return 0;}
+    int ok=fputs("#EXTM3U\n",f)>=0;
     pthread_mutex_lock(&mtx);
-    for (int i=0;i<count;i++) {
-        if (radio_is_url(items[i].path)) fprintf(f,"#EXTINF:-1,%s\n",items[i].name);
-        fprintf(f,"%s\n",items[i].path);
+    for(int i=0;ok&&i<count;i++){
+        if(strpbrk(items[i].path,"\r\n")){ok=0;break;}
+        if(radio_is_url(items[i].path)&&fprintf(f,"#EXTINF:-1,%.*s\n",(int)strcspn(items[i].name,"\r\n"),items[i].name)<0)ok=0;
+        if(fprintf(f,"%s\n",items[i].path)<0)ok=0;
     }
     pthread_mutex_unlock(&mtx);
-    fclose(f);
-    return rename(tmp, path) == 0;
+    if(fflush(f)||fsync(fd))ok=0;
+    if(fclose(f))ok=0;
+    if(ok&&rename(tmp,path)==0)return 1;
+    unlink(tmp);return 0;
 }
 
 int pl_load_m3u(const char *path)

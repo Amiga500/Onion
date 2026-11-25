@@ -14,7 +14,7 @@
 #include "audio.h"
 #include "playlist.h"
 
-settings S = { .volume = 80, .play_standby = 1, .vis_mode = 1, .skin_smooth = 0, .list_size = 1, .cover_player = 1, .game_mix_volume = 70, .cur_index = -1 };
+settings S = { .volume = 80, .play_standby = 1, .vis_mode = 1, .skin_smooth = 0, .list_size = 1, .cover_player = 1, .cover_library = 1, .game_mix_volume = 70, .cur_index = -1 };
 char app_dir[512], data_dir[512], root_dir[512];
 int current = -1;
 static int *shuffle_order, shuffle_n;
@@ -86,6 +86,7 @@ void settings_load(void)
         else if (!strcmp(k, "cover_fetch")) S.cover_fetch = atoi(v);
         else if (!strcmp(k, "cover_save_to_folder")) S.cover_save_to_folder = atoi(v);
         else if (!strcmp(k, "cover_player")) S.cover_player = atoi(v);
+        else if (!strcmp(k, "cover_library")) S.cover_library = atoi(v);
         else if (!strcmp(k, "playlist_expanded")) S.playlist_expanded = atoi(v);
         else if (!strcmp(k, "last_view")) S.last_view = atoi(v);
         else if (!strcmp(k, "skin")) snprintf(S.skin, sizeof S.skin, "%s", v);
@@ -123,6 +124,7 @@ void settings_load(void)
     S.cover_fetch = !!S.cover_fetch;
     S.cover_save_to_folder = !!S.cover_save_to_folder;
     S.cover_player = !!S.cover_player;
+    S.cover_library = !!S.cover_library;
     S.playlist_expanded = !!S.playlist_expanded;
     S.last_view = !!S.last_view;
     S.game_music = !!S.game_music;
@@ -153,9 +155,9 @@ void settings_save(void)
     int ok = fprintf(f, "volume=%d\nbalance=%d\neq_on=%d\neq_pre=%.1f\neq=", S.volume, S.balance, S.eq_on, S.eq_pre) >= 0;
     for (int i = 0; i < EQ_BANDS; i++)
         if (fprintf(f, "%s%.1f", i ? "," : "", S.eq[i]) < 0) ok = 0;
-    if (fprintf(f, "\neq_preset=%s\nshuffle=%d\nrepeat=%d\nvis_mode=%d\nvis_preset=%d\nremaining=%d\nskin_smooth=%d\nlist_text_size=%d\ninsecure_https=%d\nplay_standby=%d\ncover_fetch=%d\ncover_save_to_folder=%d\ncover_player=%d\nplaylist_expanded=%d\nlast_view=%d\nskin=%s\nlast_dir=%s\ncur_index=%d\ncur_pos_ms=%d\ngame_music=%d\ngame_mix_volume=%d\ngame_hotkeys=%d\nresume_playing=%d\n",
+    if (fprintf(f, "\neq_preset=%s\nshuffle=%d\nrepeat=%d\nvis_mode=%d\nvis_preset=%d\nremaining=%d\nskin_smooth=%d\nlist_text_size=%d\ninsecure_https=%d\nplay_standby=%d\ncover_fetch=%d\ncover_save_to_folder=%d\ncover_player=%d\ncover_library=%d\nplaylist_expanded=%d\nlast_view=%d\nskin=%s\nlast_dir=%s\ncur_index=%d\ncur_pos_ms=%d\ngame_music=%d\ngame_mix_volume=%d\ngame_hotkeys=%d\nresume_playing=%d\n",
                 S.eq_preset, S.shuffle, S.repeat, S.vis_mode, S.vis_preset, S.remaining, S.skin_smooth, S.list_size, S.insecure_https, S.play_standby, S.cover_fetch, S.cover_save_to_folder,
-                S.cover_player, S.playlist_expanded, S.last_view, S.skin, S.last_dir, S.cur_index, S.cur_pos_ms, S.game_music, S.game_mix_volume, S.game_hotkeys, S.resume_playing) < 0) ok = 0;
+                S.cover_player, S.cover_library, S.playlist_expanded, S.last_view, S.skin, S.last_dir, S.cur_index, S.cur_pos_ms, S.game_music, S.game_mix_volume, S.game_hotkeys, S.resume_playing) < 0) ok = 0;
     if (ferror(f) || fflush(f) != 0 || fsync(fd) != 0) ok = 0;
     if (fclose(f) != 0) ok = 0;
     if (ok && rename(tmp, p) == 0) return;

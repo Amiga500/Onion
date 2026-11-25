@@ -1,6 +1,7 @@
 #ifndef REDAMP_LIBRARY_H
 #define REDAMP_LIBRARY_H
 #include <stddef.h>
+#define LIB_MAX_TRACKS 8192
 
 typedef struct {
     char *path, *title, *artist, *album, *album_artist;

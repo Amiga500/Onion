@@ -14,7 +14,7 @@ typedef struct {
     int list_size;              // 0 small, 1 medium (default), 2 large
     int play_standby;            // 1 keep audio running with screen off (default)
     int insecure_https;          // explicit opt-in; default verified TLS
-    int cover_fetch, cover_save_to_folder, cover_player;
+    int cover_fetch, cover_save_to_folder, cover_player, cover_library;
     int playlist_expanded;       // 1 playlist-only view
     int last_view;               // 0 player, 1 library; restored on next launch
     char skin[512];
