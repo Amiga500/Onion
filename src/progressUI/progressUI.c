@@ -12,6 +12,8 @@
  *   @@note <text>         the line in the frame at the bottom
  *   @@panel <1-3> <label>|<value>|<under>   a panel of one's own (a
  *                         download's size, speed...) instead of the counts
+ *   @@tip <text>          one more line for the frame: the note and the
+ *                         tips take turns there, 6 seconds each
  *   @@autoclose           close as soon as the task ends (exit 0)
  *   @@nostop              B does nothing (a task that must not be cut, as
  *                         an update being written to the card)
@@ -52,6 +54,9 @@ static int log_count = 0;
 static int total = 0, item = 0, found = 0, notfound = 0, skipped = 0;
 static bool finished = false, asking = false, autoclose = false, nostop = false;
 static char panels[3][3][64];
+#define MAX_TIPS 8
+static char tips[MAX_TIPS][LINE_MAX_LEN];
+static int tip_count = 0;
 static bool panel_set[3];
 static Uint32 started_at = 0;
 #ifdef PROGRESSUI_NO_MAIN
@@ -112,6 +117,8 @@ static void handle_line(char *line)
             skipped++;
         else if (!strcmp(cmd, "note") && arg)
             snprintf(note, sizeof(note), "%s", arg);
+        else if (!strcmp(cmd, "tip") && arg && tip_count < MAX_TIPS)
+            snprintf(tips[tip_count++], LINE_MAX_LEN, "%s", arg);
         else if (!strcmp(cmd, "autoclose"))
             autoclose = true;
         else if (!strcmp(cmd, "nostop"))
@@ -214,8 +221,16 @@ static void draw(CuiCanvas *c, int battery)
     }
     cui_rrect(c, 20, 378, 600, 34, 8, CUI_TRACK);
     cui_rrect(c, 21, 379, 598, 32, 7, CUI_BG);
-    cui_fit(finished && !strcmp(note, DEFAULT_NOTE) ? "Done. Press A to close this screen." : note,
-            14, 576, fitted, sizeof(fitted));
+    /* the note and the tips take turns, 6 s each; at the end, the note */
+    const char *shown = note;
+    if (!finished && tip_count > 0) {
+        int turn = (SDL_GetTicks() / 6000) % (tip_count + 1);
+        if (turn > 0)
+            shown = tips[turn - 1];
+    }
+    if (finished && !strcmp(note, DEFAULT_NOTE))
+        shown = "Done. Press A to close this screen.";
+    cui_fit(shown, 14, 576, fitted, sizeof(fitted));
     cui_text(c, 32, 395, fitted, 14, CUI_GREY, CUI_LEFT);
 
     cui_rect(c, 0, 428, CUI_W, 52, CUI_HEAD);

@@ -1021,6 +1021,9 @@ if [ -n "$OTA_NATIVE" ] && [ "$cmd" != "check" ]; then
 			echo "@@total 100"
 			echo "@@autoclose"
 			echo "@@note Keep the console charging. Your games and saves are not touched."
+			echo "@@tip B stops the download: nothing is changed on the card."
+			echo "@@tip When it is done, you are asked before anything is installed."
+			echo "@@tip The update is $Release_size_MB: a few minutes on a good Wi-Fi."
 			_t0=$(date +%s)
 			while kill -0 "$_dl_pid" 2> /dev/null; do
 				_d=$(stat -c %s "$2" 2> /dev/null || echo 0)
@@ -1055,6 +1058,8 @@ if [ -n "$OTA_NATIVE" ] && [ "$cmd" != "check" ]; then
 			echo "@@nostop"
 			echo "@@autoclose"
 			echo "@@note Don't turn the console off: it restarts when this is done."
+			echo "@@tip This takes a few minutes."
+			echo "@@tip Then the console restarts to finish the installation."
 			7z x -aoa -o"/mnt/SDCARD" "$1" -x!.tmp_update/updater -x!.tmp_update/runtime.sh
 			echo $? > /tmp/ota_7z_rc
 		} 2>&1 | "$sysdir/bin/progressUI" -t Update -i down

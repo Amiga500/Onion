@@ -222,11 +222,21 @@ if [ -n "$SCRAPER_NATIVE" ]; then
     }
 fi
 
+# The tips the progress screen shows in turn with "If it freezes...".
+scraper_tips() {
+    echo "@@tip B stops at any time: what is scraped so far is kept."
+    echo "@@tip Covers go to Roms/<console>/Imgs: games that have one are skipped."
+    echo "@@tip For big collections a PC is faster (Skraper, for example)."
+    echo "@@tip A free Screenscraper account doubles the requests per day."
+    echo "@@tip Background scraping (Configuration) lets you play meanwhile."
+    echo "@@tip Long sessions drain the battery: keep the console charging."
+}
+
 # One scraper on one console (or one game): on the progress screen in the
 # new UI, in the terminal otherwise.
 run_scraper() { # script system [rom]
     if [ -n "$SCRAPER_NATIVE" ]; then
-        PROGRESS_UI=1 SCRAPER_NO_ACCOUNT_PROMPT=1 "$@" < /dev/null 2>&1 |
+        { scraper_tips; PROGRESS_UI=1 SCRAPER_NO_ACCOUNT_PROMPT=1 "$@" < /dev/null; } 2>&1 |
             progressUI -t Scraper -i image -s "$2 · $(ui_scraper_label "$1")"
         [ $? -eq 2 ] && close_terminal # stopped with B: no next source
         return 0
@@ -1098,6 +1108,7 @@ Scrape_Favorites ()
     fi
     Favorites_Loop() {
         [ -n "$SCRAPER_NATIVE" ] && echo "@@total $count"
+        [ -n "$SCRAPER_NATIVE" ] && scraper_tips
         n=0
         tab=$(printf '\t')
         # The list on fd 3: the scrapers read the keys on stdin.
@@ -1198,6 +1209,7 @@ Scrape_All_Consoles ()
     clear
     Consoles_Loop() {
         [ -n "$SCRAPER_NATIVE" ] && echo "@@total $count"
+        [ -n "$SCRAPER_NATIVE" ] && scraper_tips
         n=0
         # The list on fd 3: the scrapers read the keys on stdin.
         while read -r csys <&3; do
