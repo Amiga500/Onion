@@ -6512,6 +6512,51 @@ check "the preview is blitted to 32-bit first" grep -qF "SDL_BlitSurface(preview
 check "scaled with Catmull-Rom (a = -0.5)" grep -qF "const float a = -0.5f;" "$TS"
 end
 
+begin backup_on_the_progress_screen
+# robcodedev: a progress meter in Backup. With BACKUP_PROGRESS (the app's
+# screens) 7z runs on progressUI: its percentage as the bar, the file under
+# it; the result and the log are as before, and without it nothing changes.
+mkdir -p "$TMP/bin" "$TMP/sd/Saves/CurrentProfile/saves"
+echo data > "$TMP/sd/Saves/CurrentProfile/saves/a.srm"
+# 7z as p7zip draws its progress: the line redrawn with backspaces
+cat > "$TMP/bin/fake7z" << 'EOF'
+#!/bin/sh
+echo "$*" >> "$FAKE_ARGS"
+case "$*" in *-bsp1*)
+    printf '  0%%\010\010\010\010    \010\010\010\010 40%% 1 + Saves/CurrentProfile/saves/a.srm'
+    sleep 1
+    printf '\010\010\010\010 90%% 2 + system.json\n' ;;
+esac
+for a; do case $a in *.part) echo zip > "$a" ;; esac; done
+exit "${FAKE7Z_RC:-0}"
+EOF
+printf '#!/bin/sh\ncat > "%s/screen"\n' "$TMP" > "$TMP/bin/progressUI"
+chmod +x "$TMP/bin/fake7z" "$TMP/bin/progressUI"
+(
+    BACKUP_SD="$TMP/sd" BACKUP_NO_MAIN=1 BACKUP_7Z="$TMP/bin/fake7z"
+    export BACKUP_SD BACKUP_NO_MAIN BACKUP_7Z FAKE_ARGS="$TMP/args" PATH="$TMP/bin:$PATH"
+    . "$ROOT/static/packages/App/Backup (Saves and settings)/App/Backup/launch.sh"
+    LOG=$TMP/log
+    free_kb() { echo 999999; }
+    BACKUP_PROGRESS=1 BACKUP_TITLE="Backing up your saves and settings"
+    make_backup ""
+    echo "rc=$? file=${BACKUP_FILE##*/}" > "$TMP/result"
+    BACKUP_PROGRESS=
+    make_backup _plain
+    echo "rc=$?" >> "$TMP/result"
+) > /dev/null 2>&1
+check "the backup is made ($(head -n 1 "$TMP/result"))" grep -q "^rc=0 file=RedOnion_backup_" "$TMP/result"
+check "the title on the progress screen" grep -q "^@@title Backing up your saves and settings$" "$TMP/screen"
+check "percentages as the bar, the file under it" grep -q "^@@item 41 Saves/CurrentProfile/saves/a.srm$" "$TMP/screen"
+check "the next one too" grep -q "^@@item 91 system.json$" "$TMP/screen"
+check "done: the bar full" grep -q "^@@item 101 Done$" "$TMP/screen"
+check "cannot be cut, closes by itself" sh -c 'grep -q "^@@nostop$" "$1" && grep -q "^@@autoclose$" "$1"' _ "$TMP/screen"
+check "7z's output still in the log" grep -q "system.json" "$TMP/log"
+check "without the screen: as before (-bd, no progress)" sh -c 'sed -n 2p "$1" | grep -q -- " -bd$"' _ "$TMP/args"
+check "and the second backup made too" grep -q "^rc=0$" "$TMP/result"
+check "no temporary files left" sh -c '! ls /tmp/backup_7z.log /tmp/backup_7z_rc > /dev/null 2>&1'
+end
+
 begin clock_unhandled_key_keeps_the_redraw
 check "the default case does not clear dirty" sh -c '! sed -n "/default:/,/break;/p" "$1" | grep -q "dirty = false"' _ "$ROOT/src/clock/main.c"
 check "dirty is cleared only after drawing" test "$(grep -c "dirty = false" "$ROOT/src/clock/main.c")" -eq 1

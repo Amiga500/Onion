@@ -160,6 +160,55 @@ backup_label() {
 # A new backup. $1: what to add to the name ("" or "_before-restore").
 # Sets BACKUP_FILE and BACKUP_ERROR; returns 0 when made, 1 when made but
 # some files could not be read, 2 when not made.
+# 7z on the progress screen (progressUI) when the app's screens ask for it
+# (BACKUP_PROGRESS; the host tests do not): its percentage as the bar, the
+# file it is on under it. 7z writes to a file the screen follows, so it never
+# depends on the screen staying open; its output still ends in $LOG.
+# Without the screen, as before: 7z -bd into $LOG.
+z7_run() { # title, then 7z's arguments
+    _zt=$1
+    shift
+    if [ -z "$BACKUP_PROGRESS" ] || ! command -v progressUI > /dev/null 2>&1; then
+        "$Z7" "$@" -bd >> "$LOG" 2>&1
+        return $?
+    fi
+    [ -n "$busy_pid" ] && ui_busy_end
+    _zlog=/tmp/backup_7z.log
+    rm -f /tmp/backup_7z_rc
+    : > "$_zlog"
+    ("$Z7" "$@" -bsp1 -bb1 > "$_zlog" 2>&1; echo $? > /tmp/backup_7z_rc) &
+    _zpid=$!
+    {
+        echo "@@title $_zt"
+        echo "@@total 100"
+        echo "@@nostop"
+        echo "@@autoclose"
+        echo "@@note Don't turn the console off until it is done."
+        _shown=0
+        while :; do
+            _done=0
+            [ -f /tmp/backup_7z_rc ] && _done=1
+            _size=$(wc -c < "$_zlog")
+            if [ "$_size" -gt "$_shown" ]; then
+                # 7z redraws its line with backspaces: "  42% 17 + Saves/x.srm"
+                tail -c +$((_shown + 1)) "$_zlog" | head -c $((_size - _shown)) | tr '\010\r' '\n\n' |
+                    awk '{ if (match($0, /[0-9]+%/)) { p = substr($0, RSTART, RLENGTH - 1) + 0 }
+                           n = $0; sub(/^.*[+-] /, "", n)
+                           if (p != last && n != $0 && n != "") { print "@@item " (p + 1) " " n; last = p } }'
+                _shown=$_size
+            fi
+            [ $_done = 1 ] && break
+            sleep 1
+        done
+        [ "$(cat /tmp/backup_7z_rc 2> /dev/null)" -le 1 ] 2> /dev/null && echo "@@item 101 Done"
+    } 2> /dev/null | progressUI -t Backup -i archive
+    wait "$_zpid" 2> /dev/null
+    _zrc=$(cat /tmp/backup_7z_rc 2> /dev/null)
+    cat "$_zlog" >> "$LOG" 2> /dev/null
+    rm -f /tmp/backup_7z_rc "$_zlog"
+    return "${_zrc:-2}"
+}
+
 make_backup() {
     suffix=$1
     BACKUP_FILE=""
@@ -202,7 +251,10 @@ EOF
     part="$BACKUP_DIR/.$name.part"
     rm -f "$part"
 
-    (cd "$SD" && "$Z7" a -tzip -mx1 -y -bd "$part" "$@" "$EXCLUDE_ROMSCREENS" "$EXCLUDE_CLOCK" "$EXCLUDE_SYNCTHING") >> "$LOG" 2>&1
+    # the busy message goes before the progress screen takes the display
+    [ -n "$BACKUP_PROGRESS" ] && [ -n "$busy_pid" ] && ui_busy_end
+    (cd "$SD" && z7_run "${BACKUP_TITLE:-Backing up your saves and settings}" \
+        a -tzip -mx1 -y "$part" "$@" "$EXCLUDE_ROMSCREENS" "$EXCLUDE_CLOCK" "$EXCLUDE_SYNCTHING")
     rc=$?
     if [ $rc -gt 1 ] || [ ! -s "$part" ]; then
         rm -f "$part"
@@ -313,7 +365,8 @@ restore_backup() {
         return 1
     fi
 
-    "$Z7" x -y -aoa "-o$SD" "$archive" "$EXCLUDE_CLOCK" "$EXCLUDE_SYNCTHING" >> "$LOG" 2>&1
+    [ -n "$BACKUP_PROGRESS" ] && [ -n "$busy_pid" ] && ui_busy_end
+    z7_run "Restoring your saves and settings" x -y -aoa "-o$SD" "$archive" "$EXCLUDE_CLOCK" "$EXCLUDE_SYNCTHING"
     rc=$?
     if [ $rc -ne 0 ]; then
         sync
@@ -407,8 +460,10 @@ EOF
 
 screen_backup() {
     ui_busy "BACKUP" "Backing up your saves and settings...\n \nThis can take a few minutes."
+    BACKUP_PROGRESS=1 BACKUP_TITLE="Backing up your saves and settings"
     make_backup ""
     rc=$?
+    BACKUP_PROGRESS=
     ui_busy_end
     case $rc in
         0) ui_info "BACKUP DONE" "Saved in the Backups folder:\n$(basename "$BACKUP_FILE")\n($(size_label "$(du -k "$BACKUP_FILE" | awk '{print $1}')"))" ;;
@@ -425,8 +480,10 @@ screen_restore() {
     [ $? -eq 1 ] || return
 
     ui_busy "RESTORE" "Restoring your saves and settings...\n \nThis can take a few minutes."
+    BACKUP_PROGRESS=1 BACKUP_TITLE="Backing up the current saves first"
     restore_backup "$BACKUP_DIR/$PICKED"
     rc=$?
+    BACKUP_PROGRESS=
     ui_busy_end
     if [ $rc -eq 2 ]; then
         # The file's name only (the folders take the room); prompt shrinks
@@ -440,8 +497,10 @@ screen_restore() {
             return
         fi
         ui_busy "RESTORE" "Restoring your saves and settings...\n \nThis can take a few minutes."
+        BACKUP_PROGRESS=1 BACKUP_TITLE="Backing up the current saves first"
         restore_backup "$BACKUP_DIR/$PICKED" 1
         rc=$?
+        BACKUP_PROGRESS=
         ui_busy_end
     fi
     if [ $rc -ne 0 ]; then
