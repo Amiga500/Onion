@@ -2479,7 +2479,7 @@ begin sd_card_dirty_notice
 eval "$(extract_fn "$RUNTIME" sd_card_dirty)"
 eval "$(extract_fn "$RUNTIME" check_sd_card)"
 log() { :; }
-infoPanel() { echo shown >> "$TMP/panel"; }
+sd_card_notice() { echo shown >> "$TMP/panel"; }
 sysdir="$TMP/sys"; mkdir -p "$sysdir/config"
 printf '[    2.1] mmcblk0: mmc0:aaaa SC64G 59.5 GiB\n[    2.3] FAT-fs (mmcblk0p1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.\n' > "$TMP/dirty"
 printf '[    2.1] mmcblk0: mmc0:aaaa SC64G 59.5 GiB\n[    2.4] random: crng init done\n' > "$TMP/clean"
@@ -2502,11 +2502,29 @@ check "a clean boot forgets it" test ! -e "$sysdir/config/.sdDirtyNotified"
 check_sd_card 1
 check "dirty again later: shown again" test "$(grep -c shown "$TMP/panel")" -eq 2
 check "read at boot, shown before the auto launch" sh -c "grep -q 'sd_card_dirty && sd_card_was_dirty=1' '$RUNTIME' && grep -q 'check_sd_card \"\$sd_card_was_dirty\"' '$RUNTIME'"
-msg=$(sed -n 's/.*infoPanel --title "SD card check" --message "\(.*\)"$/\1/p' "$RUNTIME")
-check "the notice fits infoPanel (under 256 chars)" test ${#msg} -gt 0 -a ${#msg} -lt 256
-long=$(printf '%s' "$msg" | sed 's/\\n/\n/g' | awk 'length > 38' | head -n 1)
-check "lines of 38 characters or less ($long)" test -z "$long"
-unset -f infoPanel log
+unset -f sd_card_notice
+# The notice: SD Card Doctor (when installed), how to repair on a PC, OK.
+eval "$(extract_fn "$RUNTIME" sd_card_notice)"
+prompt() { # answers from a file, one per call; records the choices offered
+    shift 2; shift 2
+    echo "$*" >> "$TMP/offered"
+    _a=$(head -n 1 "$TMP/answers"); sed -i 1d "$TMP/answers"; return "${_a:-255}"
+}
+SD_DOCTOR_DIR=$TMP/doctor; mkdir -p "$SD_DOCTOR_DIR"
+printf '#!/bin/sh\necho ran > "%s/doctor_ran"\n' "$TMP" > "$SD_DOCTOR_DIR/launch.sh"; chmod +x "$SD_DOCTOR_DIR/launch.sh"
+rm -f "$TMP/offered"; printf '1\n0\n0\n' > "$TMP/answers"; sd_card_notice
+check "with SD Card Doctor: three choices" grep -q "^Check it now (SD Card Doctor) How to repair it on a PC OK$" "$TMP/offered"
+check "the PC page, then back to the question" test "$(sed -n 2p "$TMP/offered")" = OK
+check "Check it now opens SD Card Doctor" test -f "$TMP/doctor_ran"
+rm -f "$TMP/offered" "$TMP/doctor_ran"; printf '255\n' > "$TMP/answers"; sd_card_notice
+check "B goes on, nothing opened" test ! -f "$TMP/doctor_ran"
+rm -f "$SD_DOCTOR_DIR/launch.sh" "$TMP/offered"; printf '0\n0\n1\n' > "$TMP/answers"; sd_card_notice
+check "without it: two choices" grep -q "^How to repair it on a PC OK$" "$TMP/offered"
+check "the first is the PC page, then OK goes on" test "$(wc -l < "$TMP/offered")" -eq 3
+check "the PC page says how on Windows, Mac and Linux" sh -c 'grep -q "Tools > Check" "$1" && grep -q "First Aid" "$1" && grep -q "fsck.fat -a" "$1"' _ "$RUNTIME"
+long=$(sed -n '/^sd_card_notice()/,/^}/p' "$RUNTIME" | grep -o '\-m "[^"]*"' | sed 's/^-m "//; s/"$//; s/\\n/\n/g' | awk 'length > 44' | head -n 1)
+check "message lines of 44 characters or less ($long)" test -z "$long"
+unset -f prompt sd_card_notice log
 end
 
 begin ota_reboots_like_4_4_0
