@@ -1067,4 +1067,108 @@ if [ -n "$OTA_NATIVE" ] && [ "$cmd" != "check" ]; then
 	}
 fi
 
+
+# ---- OTA demo (new UI test) -------------------------------------------------
+# OTA_DEMO=1 (with OTA_NATIVE): the whole updater on screen with nothing
+# done for real, to see the new UI without a release: no Wi-Fi check, no
+# GitHub, a made-up release, a download that only counts (nothing is
+# written to the card), an installation that only lists files, and no
+# reboot. The saved channel is not changed.
+if [ -n "$OTA_NATIVE" ] && [ -n "$OTA_DEMO" ] && [ "$cmd" != "check" ]; then
+	check_available_space() { sleep 1; }
+	check_wifi_hardware() { :; }
+	wait_boot_network() { :; }
+	enable_wifi() { sleep 1; }
+	check_connection() { sleep 1; }
+	run_bootstrap() { :; }
+
+	channel_choice() {
+		_channels="stable\nbeta\ntesters"
+		ota_menu "$_channels" "Update channel" 3
+		channel=$menu_choice
+		clear
+		case $channel in stable | beta | testers) ;; *) exit 0 ;; esac
+	}
+
+	get_release_info() {
+		sleep 2
+		Current_FullVersion=$(cat "$sysdir/onionVersion/version.txt" 2> /dev/null || echo "4.5.1-b5")
+		Release_FullVersion="4.5.1-b6-demo"
+		Release_Version="4.5.1-b6"
+		Release_size=452460544
+		Release_size_MB="431MB"
+		echo "Retrieving release information... DONE"
+		echo
+		echo "Installed version: $Current_FullVersion"
+		echo "Online version: $Release_FullVersion"
+		echo "Channel: $channel"
+		echo "Size: $Release_size_MB"
+		echo
+		echo "Demo: nothing is downloaded or installed."
+		echo
+		echo "Update available!"
+		return 0
+	}
+
+	download_update() {
+		wait_key "Press A to continue, MENU to exit" || exit 0
+		ota_menu "No\nYes" "Download $Release_Version ($Release_size_MB)?"
+		[ "$menu_choice" = "Yes" ] || exit 4
+		{
+			echo "@@title RedOnion $Release_Version · $channel (demo)"
+			echo "@@total 100"
+			echo "@@autoclose"
+			echo "@@note Keep the console charging. Your games and saves are not touched."
+			echo "@@tip B stops the download: nothing is changed on the card."
+			echo "@@tip When it is done, you are asked before anything is installed."
+			echo "@@tip The update is $Release_size_MB: a few minutes on a good Wi-Fi."
+			_p=0
+			while [ $_p -le 100 ]; do
+				_d=$((Release_size / 100 * _p))
+				_mb=$(awk -v d="$_d" -v t="$Release_size" 'BEGIN { printf "%.1f of %.1f MB", d / 1048576, t / 1048576 }')
+				_left=$(( (100 - _p) * 25 / 100 ))
+				echo "@@item $((_p + 1)) $_mb"
+				echo "@@panel 1 DOWNLOADED|$(echo "$_mb" | cut -d' ' -f1) MB|of $(echo "$_mb" | cut -d' ' -f3) MB"
+				echo "@@panel 2 SPEED|17.3 MB/s|Wi-Fi (demo)"
+				echo "@@panel 3 TIME LEFT|00:$(printf '%02d' $_left)|about"
+				sleep 0.25
+				_p=$((_p + 1))
+			done
+		} | "$sysdir/bin/progressUI" -t Update -i down
+		if [ $? -eq 2 ]; then
+			echo "Download stopped."
+			press_a "Press A to exit"
+			exit 0
+		fi
+		clear
+		ui_busy "Download done, file size OK."
+		sleep 2
+	}
+
+	apply_update() {
+		ota_menu "No\nYes" "Apply update $Release_Version?"
+		[ "$menu_choice" = "Yes" ] || exit 7
+		{
+			echo "@@title Installing RedOnion $Release_Version (demo)"
+			echo "@@nostop"
+			echo "@@autoclose"
+			echo "@@note Don't turn the console off: it restarts when this is done."
+			echo "@@tip This takes a few minutes."
+			echo "@@tip Then the console restarts to finish the installation."
+			for _f in .tmp_update/bin/prompt .tmp_update/bin/progressUI .tmp_update/script/ota_update.sh \
+				.tmp_update/res/icons/ui/down.png Themes/Silky\ RedOnion/skin/background.png \
+				App/Tweaks/tweaks miyoo/app/MainUI; do
+				echo "Extracting $_f"
+				sleep 0.6
+			done
+		} 2>&1 | "$sysdir/bin/progressUI" -t Update -i down
+		clear
+		echo "Update $Release_Version applied."
+		echo
+		echo "Demo: nothing was changed and the console does not restart."
+		press_a "Press A to exit"
+		exit 0
+	}
+fi
+
 main

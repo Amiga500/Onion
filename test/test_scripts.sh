@@ -1492,6 +1492,29 @@ check "percent and MB as the item, three panels" sh -c "grep -q '^@@item [0-9]* 
 check "stopped on the screen: 130 and no partial file" test "$(ota_dl 2)" -eq 130 -a ! -e "$TMP/file"
 end
 
+begin ota_demo_changes_nothing
+# The OTA demo (wip/new-ui): the whole updater on screen with stand-ins for
+# prompt (Continue, Yes...), progressUI and infoPanel; nothing written.
+OTA="$ROOT/static/build/.tmp_update/script/ota_update.sh"
+S="$TMP/sd/.tmp_update"
+mkdir -p "$S/bin" "$S/config" "$S/script"
+echo testers > "$S/config/ota_channel"
+for b in prompt progressUI infoPanel; do
+    printf '#!/bin/sh\necho "%s $*" >> "%s/calls"\ncat > /dev/null 2>&1 < /dev/null\n[ %s = progressUI ] && cat > "%s/ui_in"\nexit 0\n' "$b" "$TMP" "$b" "$TMP" > "$S/bin/$b"
+    chmod +x "$S/bin/$b"
+done
+# shellect: the menus answer with their last item (Yes, testers)
+printf '#!/bin/sh\ntail -n 1\n' > "$S/script/shellect.sh"
+chmod +x "$S/script/shellect.sh"
+sed -e "s#^sysdir=/mnt/SDCARD/.tmp_update#sysdir=$S#" -e "s#/tmp/ota_screen.txt#$TMP/screen.txt#" \
+    -e "s#/tmp/dismiss_info_panel#$TMP/dismiss#" "$OTA" > "$TMP/ota.sh"
+(cd "$TMP" && OTA_NATIVE=1 OTA_DEMO=1 timeout 60 sh "$TMP/ota.sh" > /dev/null 2>&1)
+check "it got to the end (the last message)" grep -q "Demo: nothing was changed" "$TMP/calls"
+check "the download and the installation on progressUI" test "$(grep -c '^progressUI' "$TMP/calls")" -eq 2
+check "nothing downloaded" test ! -e "$S/download"
+check "the saved channel unchanged" test "$(cat "$S/config/ota_channel")" = testers
+end
+
 # ---- ota_update.sh: apply_update keeps the installed boot scripts ----
 
 begin ota_apply_keeps_the_boot_scripts
