@@ -7,3 +7,5 @@ Changes made for RedOnion: the 500 x 370 PNGs are losslessly recompressed
 (map.txt: picture name, original icon). _default.png and search.png
 (the Search entry, Emu/SEARCH) are not KyleBing's: they were made for
 RedOnion in the same style.
+pico.png: the PICO-8 logo is redrawn with the PICO-8 palette and an
+empty centre, as on RedOnion's PICO-8 icon; frame and shadow as before.
