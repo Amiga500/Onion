@@ -1003,8 +1003,10 @@ static void draw_header(Canvas *c) {
     static const char *const tabs[]={"Home","Tests","EQ","Profiles"};
     CuiCanvas *cc=CUI(c);
     int i,x,widths[4],total=0;
+    /* While audio starts (the first frame only) the states are left blank,
+     * so no state flashes before the real one. */
     cui_header(cc,"wave","AudioTune",audio.open?"Audio ready":
-               audio_initializing?"Audio starting":"Audio offline",-1);
+               audio_initializing?"":"Audio offline",-1);
     cui_text(cc,60+cui_text_width("AudioTune",25)+10,31,VERSION,14,CUI_DIM,CUI_LEFT);
     /* pages as tabs, like the Package Manager: L1/R1 change them */
     cui_rect(cc,0,60,W,34,CUI_HEAD);
@@ -1099,12 +1101,12 @@ static void draw_home(Canvas *c,int test,float l,float r) {
     disc(c,214,238,47,CUI_TRACK);
     disc(c,214,238,33,CUI_PANEL);
     disc(c,214,238,20,audio.open?CUI_ACCENT:rgb(90,90,95));
-    ring(c,214,238,18,2,audio.open?TEAL:AMBER);
+    ring(c,214,238,18,2,audio.open?TEAL:audio_initializing?rgb(86,86,92):AMBER);
     rect(c,203,224,5,28,CUI_WHITE);
     rect(c,212,216,5,44,CUI_WHITE);
     rect(c,221,229,5,17,CUI_WHITE);
     centered(c,214,159,audio.open?"SOUND SYSTEM READY":
-             audio_initializing?"INITIALIZING AUDIO":"PLAYBACK UNAVAILABLE",1,
+             audio_initializing?"":"PLAYBACK UNAVAILABLE",1,
              audio.open?TEAL:AMBER);
     centered(c,214,309,vqe_restore_requested?"RESTORE REQUESTED":
              vqe_test_process?"SYSTEM VQE: HOOKED":
@@ -1116,7 +1118,7 @@ static void draw_home(Canvas *c,int test,float l,float r) {
              (music_custom_available()?"CUSTOM MUSIC - LOOPING":"BUILT-IN MUSIC - LOOPING"):
              test>=0?test_names[test]:
              (audio.open?(music_custom_available()?"START: CUSTOM MUSIC":"START: BUILT-IN MUSIC"):
-              audio_error),1,test>=0?TEAL:MUTED);
+              audio_initializing?"":audio_error),1,test>=0?TEAL:MUTED);
     for (i=0;i<3;++i) {
         int y=161+i*74;
         uint32_t border=(i==selected_home)?CUI_ACCENT:CUI_TRACK;
@@ -1159,7 +1161,7 @@ static void draw_tests(Canvas *c,int current,float l,float r,float progress) {
     draw_meter(c,363,330,230,r,"R");
     centered(c,475,379,audio.open?
              (selected_test==TEST_DEMO?"MUSIC LOOPS UNTIL STOPPED":
-              "SOFT OUTPUT - AUTO STOP"):audio_error,1,
+              "SOFT OUTPUT - AUTO STOP"):audio_initializing?"":audio_error,1,
              audio.open?MUTED:AMBER);
 }
 /* EQ as in the mockup: the profile on a strip, then one column per band
