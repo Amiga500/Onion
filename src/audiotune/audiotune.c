@@ -1123,7 +1123,14 @@ static void draw_home(Canvas *c,int test,float l,float r) {
         uint32_t fill=(i==selected_home)?CUI_ACCENT:CUI_TRACK;
         framed_round(c,437,y,172,61,9,border,fill);
         centered(c,523,y+11,names[i],1,WHITE);
-        centered(c,523,y+34,sub[i],1,(i==selected_home)?WHITE:MUTED);
+        {
+            /* "SPEAKER / HEADPHONES" ran past the box (172 px): a line too
+             * wide for it is drawn a size smaller, then fitted */
+            int size=cui_text_width(sub[i],ui_size(1))>156?ui_size(1)-2:ui_size(1);
+            char fit[64];
+            cui_fit(sub[i],size,156,fit,sizeof(fit));
+            cui_text(CUI(c),523,y+39.5f,fit,size,(i==selected_home)?WHITE:MUTED,CUI_CENTER);
+        }
     }
 }
 static void draw_tests(Canvas *c,int current,float l,float r,float progress) {
