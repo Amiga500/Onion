@@ -44,6 +44,41 @@ press_a() { # prompt
     done
 }
 
+# Before the long jobs (all the roms of a console, all favorites, all
+# consoles): a long session keeps the device busy for a long time, hot, on
+# its battery (a Mini Flip froze 5-10 minutes into one, 4.5.1 beta 4). A
+# starts it; MENU closes the scraper (pressMenu2Kill) as in its menus.
+# Returns 1 when the terminal is gone. $ScrapeInBackground: set by the
+# caller from the configuration.
+Long_Scraping_Warning() { # title [first line]
+    clear
+    _lw_cols=$(stty size 2> /dev/null | cut -d' ' -f2)
+    case $_lw_cols in '' | *[!0-9]*) _lw_cols=53 ;; esac
+    _lw_title="--== $1 ==--"
+    _lw_pad=$(( (_lw_cols - ${#_lw_title}) / 2 ))
+    [ "$_lw_pad" -lt 0 ] && _lw_pad=0
+    printf "%${_lw_pad}s"'\033[31;1m%s\033[0m\n\n' "" "$_lw_title"
+    [ -n "$2" ] && printf '%s\n\n' "$2"
+    printf '\033[33;1m%s\033[0m\n' "Long scraping sessions are not recommended:"
+    echo "the device works hard for a long time, heats up"
+    echo "and drains the battery."
+    echo
+    echo "For large collections, scraping on a PC is"
+    echo "faster and safer."
+    echo
+    if [ "$ScrapeInBackground" = "true" ]; then
+        echo "It runs in the background once this menu closes."
+    else
+        echo "You can stop at any time with MENU."
+    fi
+    echo
+    keys_red "Press A to start, MENU to cancel."
+    while IFS= read -n 1 -s -r _lw_key; do
+        [ "$_lw_key" = " " ] && return 0
+    done
+    return 1
+}
+
 # Close the terminal this menu runs in (SIGTERM, as "pkill st" did).
 # "pkill st" matched any process with "st" in its name (hostapd,
 # installUI): only our own st is asked to quit, as shellect.sh's
@@ -617,6 +652,13 @@ Launch_Scraping ()
     Retroarch_enabled=$(echo "$config" | jq -r '.Retroarch_enabled')
     ScrapeInBackground=$(echo "$config" | jq -r '.ScrapeInBackground')
     MediaType=$(echo "$config" | jq -r '.MediaType')
+
+    # All the roms of this console: the warning first ("Scrape current
+    # rom" is one game)
+    if [ "$onerom" != 1 ] &&
+        ! Long_Scraping_Warning "SCRAPE ALL $(basename "$CurrentSystem") ROMS"; then
+        exit
+    fi
     
     
     [ "$onerom" = "1" ] && onerom="$romname" || onerom=""
@@ -925,6 +967,10 @@ Scrape_Favorites ()
     fi
 
     Batch_Prepare
+    if ! Long_Scraping_Warning "SCRAPE ALL FAVORITES" "$count favorite games to scrape."; then
+        rm -f "$list"
+        exit
+    fi
     n=0
     tab=$(printf '\t')
     # The list on fd 3: the scrapers read the keys on stdin.
@@ -1006,15 +1052,14 @@ Scrape_All_Consoles ()
         Menu_Main
         return
     fi
-    confirm=$( echo -e "Scrape $count consoles (may take hours)\nCancel" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== SCRAPE ALL CONSOLES ==--" -b "$FootValidate")
-    if [ "$confirm" != "Scrape $count consoles (may take hours)" ]; then
-        rm -f "$list"
-        Menu_Main
-        return
-    fi
-    clear
 
     Batch_Prepare
+    # The warning is the confirmation ("may take hours" there)
+    if ! Long_Scraping_Warning "SCRAPE ALL CONSOLES" "$count consoles to scrape: this may take hours."; then
+        rm -f "$list"
+        exit
+    fi
+    clear
     n=0
     # The list on fd 3: the scrapers read the keys on stdin.
     while read -r csys <&3; do

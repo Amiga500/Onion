@@ -5551,6 +5551,46 @@ for f in "$SCRAPER_MENU" "$ROOT/static/build/.tmp_update/script/scraper/scrap_sc
 done
 end
 
+begin scraper_long_scraping_warning
+# Before the long jobs (all the roms of a console, all favorites, all
+# consoles): a warning that A starts and MENU cancels. Not for one game.
+SCRAPER_MENU="$ROOT/static/build/.tmp_update/script/scraper/menu.sh"
+noansi() { sed "s/$(printf '\033')\[[0-9;]*m//g"; }
+lw_sh=
+for _s in sh bash "busybox sh"; do
+    if (printf 'x' | $_s -c 'IFS= read -n 1 -r _k') > /dev/null 2>&1; then
+        lw_sh=$_s
+        break
+    fi
+done
+lw_run() { # input, background (true/false), args...
+    _in=$1 _bg=$2
+    shift 2
+    printf "$_in" | ScrapeInBackground=$_bg $lw_sh -c 'clear() { :; }; stty() { :; }; for f in keys_red Long_Scraping_Warning; do eval "$(sed -n "/^$f() {/,/^}/p" "$1")"; done; shift; Long_Scraping_Warning "$@"; echo "|rc=$?"' _ "$SCRAPER_MENU" "$@" | noansi
+}
+if [ -n "$lw_sh" ]; then
+    out=$(lw_run ' ' false "SCRAPE ALL GB ROMS")
+    check "A starts it ($lw_sh)" sh -c 'printf "%s" "$1" | grep -q "|rc=0$"' _ "$out"
+    check "the title" sh -c 'printf "%s" "$1" | grep -q -- "--== SCRAPE ALL GB ROMS ==--"' _ "$out"
+    check "the warning" sh -c 'printf "%s" "$1" | grep -q "Long scraping sessions are not recommended:"' _ "$out"
+    check "MENU stops it, in the foreground" sh -c 'printf "%s" "$1" | grep -q "You can stop at any time with MENU."' _ "$out"
+    check "the keys" sh -c 'printf "%s" "$1" | grep -q "Press A to start, MENU to cancel."' _ "$out"
+    out=$(lw_run '\033[Bx\n' false "SCRAPE ALL CONSOLES" "12 consoles to scrape: this may take hours.")
+    check "other keys don't start it, end of input: 1" sh -c 'printf "%s" "$1" | grep -q "|rc=1$"' _ "$out"
+    check "the first line (the count)" sh -c 'printf "%s" "$1" | grep -q "^12 consoles to scrape: this may take hours.$"' _ "$out"
+    out=$(lw_run ' ' true "SCRAPE ALL FAVORITES")
+    check "in the background: MENU doesn't stop it" sh -c 'printf "%s" "$1" | grep -q "It runs in the background once this menu closes." && ! printf "%s" "$1" | grep -q "stop at any time"' _ "$out"
+else
+    skip "Long_Scraping_Warning tests (no shell with read -n)"
+fi
+unset -f lw_run
+fn() { sed -n "/^$1 *()/,/^}/p" "$SCRAPER_MENU"; }
+check "all the roms of a console: the warning, not for one game" sh -c 'printf "%s" "$1" | grep -q "\"\$onerom\" != 1" && printf "%s" "$1" | grep -q "Long_Scraping_Warning \"SCRAPE ALL"' _ "$(fn Launch_Scraping)"
+check "all favorites: the warning, after Wi-Fi" sh -c 'printf "%s" "$1" | grep -A1 "^ *Batch_Prepare" | grep -q "Long_Scraping_Warning \"SCRAPE ALL FAVORITES\""' _ "$(fn Scrape_Favorites)"
+check "all consoles: the warning, after Wi-Fi" sh -c 'printf "%s" "$1" | grep -A2 "^ *Batch_Prepare" | grep -q "Long_Scraping_Warning \"SCRAPE ALL CONSOLES\""' _ "$(fn Scrape_All_Consoles)"
+check "all consoles: no second confirmation" sh -c '! printf "%s" "$1" | grep -q "shellect"' _ "$(fn Scrape_All_Consoles)"
+end
+
 begin shellect_only_a_confirms
 # Right (Esc [ C, "C2" in shellect's key case) and "l" confirmed like A: a
 # D-pad press could run the highlighted item ("Delete 14 files").
