@@ -206,9 +206,6 @@ core: core-modules
 # Overrider miyoo libraries
 	@cp $(BIN_DIR)/libgamename.so $(BUILD_DIR)/miyoo/lib/
 
-# Button Lab v0.1.1 is robcodedev's binary, in its package
-# (static/packages/App/Button Lab): src/buttonlab is v0.1, built again from
-# there once v0.1.1's source is in.
 apps: $(CACHE)/.setup
 	@$(ECHO) $(PRINT_RECIPE)
 	@cd $(SRC_DIR)/batteryMonitorUI && BUILD_DIR="$(PACKAGES_APP_DEST)/RedOnion Battery Monitor/App/BatteryMonitorUI" make
@@ -218,6 +215,7 @@ apps: $(CACHE)/.setup
 	@cd $(SRC_DIR)/sdcarddoctor && BUILD_DIR="$(PACKAGES_APP_DEST)/SD Card Doctor/App/SDCardDoctor" make
 	@cd $(SRC_DIR)/audiotune && BUILD_DIR="$(PACKAGES_APP_DEST)/AudioTune/App/AudioTune" make
 	@cd $(SRC_DIR)/kidsMode && BUILD_DIR="$(PACKAGES_APP_DEST)/Kids Mode/App/KidsMode/bin" make
+	@cd $(SRC_DIR)/buttonlab && BUILD_DIR="$(PACKAGES_APP_DEST)/Button Lab/App/ButtonLab" make
 	@find $(SRC_DIR)/playActivityUI -depth -type d -name res -exec cp -r {}/. "$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity/res/" \;
 	@find $(SRC_DIR)/packageManager -depth -type d -name res -exec cp -r {}/. $(BUILD_DIR)/App/PackageManager/res/ \;
 	@cd $(SRC_DIR)/clock && BUILD_DIR="$(BIN_DIR)" make

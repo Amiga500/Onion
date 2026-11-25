@@ -70,92 +70,6 @@ static Button buttons[BUTTON_COUNT] = {
 };
 #undef BTN
 
-/* Compact, self-contained 5x7 font (columns stored as 5-bit row masks).
- * No need to locate an Onion or system TTF file. */
-typedef struct { char c; unsigned char bits[7]; } Glyph;
-static const Glyph font[] = {
- {'A',{14,17,17,31,17,17,17}}, {'B',{30,17,17,30,17,17,30}},
- {'C',{14,17,16,16,16,17,14}}, {'D',{30,17,17,17,17,17,30}},
- {'E',{31,16,16,30,16,16,31}}, {'F',{31,16,16,30,16,16,16}},
- {'G',{14,17,16,23,17,17,14}}, {'H',{17,17,17,31,17,17,17}},
- {'I',{31,4,4,4,4,4,31}},       {'J',{7,2,2,2,18,18,12}},
- {'K',{17,18,20,24,20,18,17}}, {'L',{16,16,16,16,16,16,31}},
- {'M',{17,27,21,21,17,17,17}}, {'N',{17,25,21,19,17,17,17}},
- {'O',{14,17,17,17,17,17,14}}, {'P',{30,17,17,30,16,16,16}},
- {'Q',{14,17,17,17,21,18,13}}, {'R',{30,17,17,30,20,18,17}},
- {'S',{15,16,16,14,1,1,30}},  {'T',{31,4,4,4,4,4,4}},
- {'U',{17,17,17,17,17,17,14}}, {'V',{17,17,17,17,17,10,4}},
- {'W',{17,17,17,21,21,21,10}}, {'X',{17,17,10,4,10,17,17}},
- {'Y',{17,17,10,4,4,4,4}},     {'Z',{31,1,2,4,8,16,31}},
- {'0',{14,17,19,21,25,17,14}}, {'1',{4,12,4,4,4,4,14}},
- {'2',{14,17,1,2,4,8,31}},    {'3',{30,1,1,14,1,1,30}},
- {'4',{2,6,10,18,31,2,2}},   {'5',{31,16,16,30,1,1,30}},
- {'6',{14,16,16,30,17,17,14}}, {'7',{31,1,2,4,8,8,8}},
- {'8',{14,17,17,14,17,17,14}}, {'9',{14,17,17,15,1,1,14}},
- {'+',{0,4,4,31,4,4,0}},     {'-',{0,0,0,31,0,0,0}},
- {'/',{1,2,2,4,8,8,16}},     {':',{0,4,4,0,4,4,0}},
- {'.',{0,0,0,0,0,12,12}},    {'!',{4,4,4,4,4,0,4}},
- {'?',{14,17,1,2,4,0,4}},    {'=',{0,31,0,31,0,0,0}},
- {'(',{2,4,8,8,8,4,2}},     {')',{8,4,2,2,2,4,8}},
- {'#',{10,31,10,10,31,10,0}}, {'%',{17,2,4,8,17,0,0}},
- {' ',{0,0,0,0,0,0,0}}
-};
-
-/* Sharp 8x11 screen font: fixed-size monochrome glyphs rendered at native pixel
- * resolution. Unlike 5x7 nearest-neighbour stretching, bottom strokes stay
- * aligned and no characters are resampled at runtime.
- * Raster shapes adapted from the permissively licensed DejaVu Sans Mono. */
-static const uint8_t small_font[][11] = {
-    {0x38,0x38,0x38,0x2c,0x6c,0x7c,0x44,0xc6,0xc6,0x00,0x00}, /* A */
-    {0x7c,0x4c,0x46,0x4c,0x7c,0x46,0x46,0x46,0x7c,0x00,0x00}, /* B */
-    {0x3c,0x30,0x60,0x60,0x60,0x60,0x60,0x30,0x3c,0x00,0x00}, /* C */
-    {0x78,0x6c,0x66,0x66,0x66,0x66,0x66,0x6c,0x78,0x00,0x00}, /* D */
-    {0x7e,0x60,0x60,0x60,0x7c,0x60,0x60,0x60,0x7e,0x00,0x00}, /* E */
-    {0x7e,0x60,0x60,0x60,0x7c,0x60,0x60,0x60,0x60,0x00,0x00}, /* F */
-    {0x3c,0x60,0x60,0x60,0x60,0x6e,0x66,0x66,0x3c,0x00,0x00}, /* G */
-    {0x66,0x66,0x66,0x66,0x7e,0x66,0x66,0x66,0x66,0x00,0x00}, /* H */
-    {0x7c,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x7c,0x00,0x00}, /* I */
-    {0x3c,0x0c,0x0c,0x0c,0x0c,0x0c,0x0c,0x4c,0x78,0x00,0x00}, /* J */
-    {0x66,0x6c,0x78,0x78,0x78,0x78,0x6c,0x6c,0x66,0x00,0x00}, /* K */
-    {0x60,0x60,0x60,0x60,0x60,0x60,0x60,0x60,0x7e,0x00,0x00}, /* L */
-    {0xee,0xee,0xee,0xfe,0xde,0xde,0xc6,0xc6,0xc6,0x00,0x00}, /* M */
-    {0x66,0x66,0x76,0x76,0x56,0x5e,0x4e,0x4e,0x4e,0x00,0x00}, /* N */
-    {0x38,0x6c,0x66,0x46,0xc6,0x46,0x66,0x6c,0x38,0x00,0x00}, /* O */
-    {0x7c,0x6e,0x66,0x6e,0x7c,0x60,0x60,0x60,0x60,0x00,0x00}, /* P */
-    {0x38,0x6c,0x66,0x46,0xc6,0x46,0x66,0x6c,0x3c,0x0c,0x00}, /* Q */
-    {0x7c,0x6c,0x64,0x6c,0x78,0x6c,0x6c,0x66,0x66,0x00,0x00}, /* R */
-    {0x38,0x64,0x60,0x70,0x3c,0x1c,0x06,0x4c,0x7c,0x00,0x00}, /* S */
-    {0xfe,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x00,0x00}, /* T */
-    {0x46,0x46,0x46,0x46,0x46,0x46,0x46,0x6c,0x3c,0x00,0x00}, /* U */
-    {0xc6,0x46,0x64,0x6c,0x6c,0x2c,0x38,0x38,0x38,0x00,0x00}, /* V */
-    {0xc2,0xc6,0xde,0xde,0xfe,0x7e,0x6e,0x6c,0x6c,0x00,0x00}, /* W */
-    {0xc6,0x6c,0x3c,0x38,0x38,0x38,0x7c,0x6c,0xc6,0x00,0x00}, /* X */
-    {0xc6,0x66,0x6c,0x3c,0x38,0x18,0x18,0x18,0x18,0x00,0x00}, /* Y */
-    {0x7e,0x0e,0x0c,0x1c,0x38,0x30,0x70,0x60,0x7e,0x00,0x00}, /* Z */
-    {0x38,0x6c,0x64,0x66,0x7e,0x66,0x64,0x6c,0x38,0x00,0x00}, /* 0 */
-    {0x78,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x7e,0x00,0x00}, /* 1 */
-    {0x38,0x4c,0x0c,0x0c,0x1c,0x18,0x30,0x60,0x7c,0x00,0x00}, /* 2 */
-    {0x38,0x4c,0x0c,0x0c,0x38,0x0c,0x04,0x4c,0x78,0x00,0x00}, /* 3 */
-    {0x1c,0x1c,0x3c,0x2c,0x6c,0x4c,0x7e,0x0c,0x0c,0x00,0x00}, /* 4 */
-    {0x7c,0x60,0x60,0x78,0x0c,0x04,0x04,0x4c,0x78,0x00,0x00}, /* 5 */
-    {0x3c,0x64,0x60,0x7c,0x6c,0x66,0x66,0x6c,0x3c,0x00,0x00}, /* 6 */
-    {0x7c,0x0c,0x0c,0x1c,0x18,0x18,0x30,0x30,0x30,0x00,0x00}, /* 7 */
-    {0x38,0x6c,0x64,0x6c,0x38,0x6c,0x46,0x6c,0x3c,0x00,0x00}, /* 8 */
-    {0x38,0x6c,0x4c,0x4c,0x6e,0x3c,0x04,0x4c,0x38,0x00,0x00}, /* 9 */
-    {0x00,0x00,0x10,0x10,0x10,0xfe,0x10,0x10,0x10,0x00,0x00}, /* + */
-    {0x00,0x00,0x00,0x00,0x3c,0x3c,0x00,0x00,0x00,0x00,0x00}, /* - */
-    {0x04,0x0c,0x08,0x08,0x18,0x10,0x30,0x20,0x60,0x40,0x00}, /* / */
-    {0x00,0x00,0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x00,0x00}, /* : */
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x00,0x00}, /* . */
-    {0x10,0x10,0x10,0x10,0x10,0x10,0x00,0x10,0x10,0x00,0x00}, /* ! */
-    {0x3c,0x4c,0x0c,0x18,0x10,0x30,0x00,0x30,0x30,0x00,0x00}, /* ? */
-    {0x00,0x00,0x00,0x00,0xfe,0x00,0xfe,0x00,0x00,0x00,0x00}, /* = */
-    {0x18,0x10,0x30,0x30,0x30,0x30,0x30,0x10,0x18,0x08,0x00}, /* ( */
-    {0x30,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x30,0x30,0x00}, /* ) */
-    {0x00,0x16,0x34,0x7e,0x2c,0x2c,0xfe,0x58,0x58,0x00,0x00}, /* # */
-    {0x60,0xd0,0xd0,0x66,0x18,0x4e,0x1a,0x1a,0x0e,0x00,0x00}, /* % */
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, /*   */
-};
 
 typedef struct { uint32_t *pixels; int pitch; } Canvas;
 static volatile sig_atomic_t interrupted = 0;
@@ -187,328 +101,185 @@ static void on_fatal(int sig) {
 }
 
 static void on_signal(int s) { (void)s; interrupted = 1; }
-static uint32_t rgb(unsigned r, unsigned g, unsigned b) { return (r << 16) | (g << 8) | b; }
-static void put(Canvas *c, int x, int y, uint32_t color) {
-    if ((unsigned)x < W && (unsigned)y < H) c->pixels[y * c->pitch + x] = color;
-}
-static void rect(Canvas *c, int x, int y, int w, int h, uint32_t color) {
-    int xx, yy;
-    int x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y;
-    int x1 = x + w > W ? W : x + w, y1 = y + h > H ? H : y + h;
-    for (yy = y0; yy < y1; ++yy) {
-        uint32_t *p = c->pixels + yy * c->pitch;
-        for (xx = x0; xx < x1; ++xx) p[xx] = color;
-    }
-}
-static void round_rect(Canvas *c, int x, int y, int w, int h, int r, uint32_t color) {
-    int yy, xx;
-    if (w <= 0 || h <= 0) return;
-    if (r > w / 2) r = w / 2;
-    if (r > h / 2) r = h / 2;
-    for (yy = 0; yy < h; ++yy) {
-        int inset = 0;
-        if (r) {
-            int dy = yy < r ? r - yy - 1 : (yy >= h-r ? yy - (h-r) : -1);
-            if (dy >= 0) {
-                /* Pixel-perfect curved corners without floating point. */
-                while (inset < r && ((r-inset-1)*(r-inset-1) + dy*dy >= r*r)) ++inset;
-            }
-        }
-        for (xx = inset; xx < w - inset; ++xx) put(c, x + xx, y + yy, color);
-    }
-}
-static void framed_round(Canvas *c, int x, int y, int w, int h, int r,
-                         uint32_t frame, uint32_t fill) {
-    round_rect(c, x, y, w, h, r, frame);
-    round_rect(c, x+1, y+1, w-2, h-2, r > 1 ? r-1 : 0, fill);
-}
-static void disc(Canvas *c, int cx, int cy, int radius, uint32_t color) {
-    int dx, dy;
-    for (dy = -radius; dy <= radius; ++dy)
-        for (dx = -radius; dx <= radius; ++dx)
-            if (dx*dx + dy*dy <= radius*radius) put(c,cx+dx,cy+dy,color);
-}
-static void ring(Canvas *c, int cx, int cy, int radius, int thickness, uint32_t color) {
-    int dx, dy, inner = (radius-thickness)*(radius-thickness);
-    for (dy = -radius; dy <= radius; ++dy)
-        for (dx = -radius; dx <= radius; ++dx) {
-            int d = dx*dx + dy*dy;
-            if (d <= radius*radius && d >= inner) put(c,cx+dx,cy+dy,color);
-        }
-}
-/* Small labels use 1:1 pixel glyphs: no scaling, interpolation or blur. */
-#define SMALL_W 8
-#define SMALL_H 11
-#define SMALL_ADVANCE 8
-static void glyph(Canvas *c, int x, int y, char ch, int scale, uint32_t color) {
-    int i, row, col;
-    const unsigned char *bits = NULL;
-    if (ch >= 'a' && ch <= 'z') ch = (char)(ch - ('a' - 'A'));
-    for (i = 0; i < ARRAY_LEN(font); ++i)
-        if (font[i].c == ch) { bits = font[i].bits; break; }
-    if (!bits) return;
-    if (scale == 1) {
-        for (row = 0; row < SMALL_H; ++row) {
-            uint8_t mask = small_font[i][row];
-            for (col = 0; col < SMALL_W; ++col)
-                if (mask & (1u << (7 - col)))
-                    put(c, x + col, y + row, color);
-        }
-    } else {
-        for (row = 0; row < 7; ++row)
-            for (col = 0; col < 5; ++col)
-                if (bits[row] & (1u << (4-col)))
-                    rect(c,x+col*scale,y+row*scale,scale,scale,color);
-    }
-}
-static int text_height(int scale) { return scale == 1 ? SMALL_H : 7*scale; }
-static int text_width(const char *s, int scale) {
-    int count = (int)strlen(s);
-    if (!count) return 0;
-    return scale == 1 ? count * SMALL_ADVANCE - 1 : count * 6*scale - scale;
-}
-static void label(Canvas *c, int x, int y, const char *s, int scale, uint32_t color) {
-    int advance = scale == 1 ? SMALL_ADVANCE : 6*scale;
-    while (*s) { glyph(c,x,y,*s++,scale,color); x += advance; }
-}
-static void centered(Canvas *c, int x, int y, const char *s, int scale, uint32_t color) {
-    label(c,x-text_width(s,scale)/2,y,s,scale,color);
-}
-static uint32_t blend(uint32_t a, uint32_t b, int alpha) {
-    unsigned ar=(a>>16)&255,ag=(a>>8)&255,ab=a&255;
-    unsigned br=(b>>16)&255,bg=(b>>8)&255,bb=b&255;
-    return rgb((ar*(255-alpha)+br*alpha)/255,
-               (ag*(255-alpha)+bg*alpha)/255,
-               (ab*(255-alpha)+bb*alpha)/255);
-}
-static uint32_t key_fill(ButtonId id) {
-    if (buttons[id].down) return rgb(98,229,191);
-    if (buttons[id].seen) return rgb(41,99,104);
-    return rgb(38,50,70);
-}
-static uint32_t key_line(ButtonId id) {
-    if (buttons[id].down) return rgb(180,255,221);
-    if (buttons[id].seen) return rgb(92,214,186);
-    return rgb(75,90,113);
-}
-static uint32_t key_text(ButtonId id) {
-    return buttons[id].down ? rgb(9,40,40) : (buttons[id].seen ? rgb(180,247,226) : rgb(197,210,230));
-}
+/* ---- New UI (RedOnion), on Button Lab's own layout ----
+ * robcodedev's arrangement as it was (the Mini Plus drawn in the middle with
+ * its keys where they are, the last button on the left, the volume keys on
+ * the right), in the colours, fonts, header and footer of the other apps.
+ * A key is grey until tested, outlined in green once seen, red while held. */
+#include "theme/render/canvas_ui.h"
+#define CUI(c) (&(CuiCanvas){(c)->pixels, (c)->pitch})
+#define BL_SEEN CUI_RGB(124, 217, 165)
+#define BL_BODY CUI_RGB(40, 40, 43)
+#define BL_EDGE CUI_RGB(70, 70, 75)
+
 static int core_seen(void) {
     int i, n=0;
     for (i=0;i<BUTTON_COUNT;++i) if (buttons[i].core && buttons[i].seen) ++n;
     return n;
 }
-static void flat_key(Canvas *c, int x, int y, int w, int h, ButtonId id, int fs) {
-    round_rect(c,x,y+4,w,h,11,rgb(10,16,27));
-    framed_round(c,x,y,w,h,11,key_line(id),key_fill(id));
-    int label_y = y + (h - text_height(fs))/2;
-    if (id == L1 || id == L2 || id == R1 || id == R2) label_y -= 3;
-    centered(c,x+w/2,label_y,buttons[id].label,fs,key_text(id));
-    /* A key's fill and outline already indicate tested/held state. */
+/* A key's face: red while held, green outline once tested, grey before. */
+static uint32_t key_face(Canvas *c, float x, float y, float w, float h, float r, ButtonId id) {
+    CuiCanvas *cc = CUI(c);
+    if (buttons[id].down) {
+        cui_rrect(cc,x,y,w,h,r,CUI_ACCENT);
+        return CUI_WHITE;
+    }
+    if (buttons[id].seen) {
+        cui_rrect(cc,x,y,w,h,r,BL_SEEN);
+        cui_rrect(cc,x+2,y+2,w-4,h-4,r-2 > 0 ? r-2 : 0,BL_BODY);
+        return BL_SEEN;
+    }
+    cui_rrect(cc,x,y,w,h,r,CUI_TRACK);
+    return CUI_WHITE;
 }
-static void arrow(Canvas *c, ButtonId id, int cx, int cy) {
-    uint32_t ink = key_text(id);
+static void text_key(Canvas *c, int x, int y, int w, int h, ButtonId id, const char *text, int size) {
+    uint32_t ink = key_face(c,x,y,w,h,h/2.0f < 9 ? h/2.0f : 9,id);
+    /* the shoulder keys' lower part is behind the shell: their label sits
+     * in the part that shows */
+    float cy = (id == L1 || id == L2 || id == R1 || id == R2) ? y + (99 - y) / 2.0f + 1 : y + h / 2.0f;
+    cui_text(CUI(c),x+w/2,cy,text,size,ink,CUI_CENTER);
+}
+/* A filled triangle pointing up, down, left or right, centred on cx,cy. */
+static void triangle(Canvas *c, float cx, float cy, ButtonId dir, uint32_t col) {
+    CuiCanvas *cc = CUI(c);
     int t;
-    for(t=0;t<7;++t) {
-        switch(id) {
-        case UP:    rect(c,cx-t,cy+t,2*t+1,2,ink);break;
-        case DOWN:  rect(c,cx-t,cy-t,2*t+1,2,ink);break;
-        case LEFT:  rect(c,cx+t,cy-t,2,2*t+1,ink);break;
-        case RIGHT: rect(c,cx-t,cy-t,2,2*t+1,ink);break;
+    for (t = 0; t <= 6; ++t) {
+        float half = t * 0.8f;
+        switch (dir) {
+        case UP:    cui_rect(cc,(int)(cx-half),(int)(cy-3+t),(int)(2*half+1),1,col); break;
+        case DOWN:  cui_rect(cc,(int)(cx-half),(int)(cy+3-t),(int)(2*half+1),1,col); break;
+        case LEFT:  cui_rect(cc,(int)(cx-3+t),(int)(cy-half),1,(int)(2*half+1),col); break;
+        case RIGHT: cui_rect(cc,(int)(cx+3-t),(int)(cy-half),1,(int)(2*half+1),col); break;
         default: break;
         }
     }
 }
 static void dpad_key(Canvas *c, int x, int y, int w, int h, ButtonId id) {
-    framed_round(c,x,y,w,h,7,key_line(id),key_fill(id));
-    arrow(c,id,x+w/2,y+h/2);
+    uint32_t ink = key_face(c,x,y,w,h,6,id);
+    triangle(c,x+w/2.0f,y+h/2.0f,id,ink);
 }
-static void face_key(Canvas *c, int cx, int cy, ButtonId id, uint32_t accent) {
-    uint32_t fill = buttons[id].down ? rgb(98,229,191) :
-                    buttons[id].seen ? blend(rgb(24,37,55),accent,115) : blend(rgb(26,35,53),accent,50);
-    disc(c,cx,cy+2,17,rgb(11,16,28));
-    disc(c,cx,cy,17,key_line(id));
-    disc(c,cx,cy,15,fill);
-    centered(c,cx,cy-7,buttons[id].label,2,buttons[id].down ? rgb(9,40,40) : rgb(244,249,255));
-    if (buttons[id].seen && !buttons[id].down) ring(c,cx,cy,12,1,accent);
-}
-static void status_chip(Canvas *c, int x, int y, int w, ButtonId id) {
-    framed_round(c,x,y,w,34,10,key_line(id),key_fill(id));
-    centered(c,x+w/2,y+10,buttons[id].label,2,key_text(id));
-    /* No extra dot: the whole key changes color when detected. */
-}
-/* All positions below use a single 640 x 480 canvas. The center diagram
- * follows the Mini Plus front-panel arrangement: screen above controls,
- * shoulder buttons behind the upper shell, MENU as the small round button
- * above SELECT and START, and speaker slits at the lower right. */
-static void speaker(Canvas *c, int x, int y) {
-    int i, j;
-    for (i = 0; i < 5; ++i)
-        for (j = 0; j < 12; ++j) {
-            /* Small diagonal speaker vents, clipped inside the body. */
-            int xx = x + i * 8 + j/3;
-            int yy = y - j + i/2;
-            rect(c, xx, yy, 2, 2, rgb(9,16,26));
-        }
-}
-static void menu_key(Canvas *c, int cx, int cy) {
-    disc(c,cx,cy+2,10,rgb(8,13,24));
-    disc(c,cx,cy,10,key_line(MENU));
-    disc(c,cx,cy,8,key_fill(MENU));
-    /* The full button illumination is the state indicator. */
-    centered(c,cx,cy+14,"MENU",1,rgb(174,197,218));
-}
-static void panel(Canvas *c, int x, int y, int w, int h) {
-    round_rect(c,x,y+3,w,h,16,rgb(6,11,21));
-    framed_round(c,x,y,w,h,16,rgb(47,66,88),rgb(22,32,49));
-    rect(c,x+14,y+49,w-28,1,rgb(47,66,88));
-}
-static void device_body(Canvas *c) {
-    /* Two pairs of shoulder keys emerge from behind the shell. */
-    /* Physical order on the Mini Plus, from left to right:
-     * L1, L2, R2, R1. */
-    flat_key(c,217,80,47,27,L1,1);
-    flat_key(c,267,80,47,27,L2,1);
-    flat_key(c,326,80,47,27,R2,1);
-    flat_key(c,376,80,47,27,R1,1);
-
-    /* Mini Plus vertical handheld silhouette. */
-    round_rect(c,207,104,226,305,29,rgb(5,10,18));
-    framed_round(c,204,99,232,308,30,rgb(86,106,128),rgb(34,46,63));
-    round_rect(c,209,105,222,295,26,rgb(39,53,72));
-    rect(c,219,115,202,1,rgb(114,137,158));
-
-    /* Screen bezel, 4:3 display, subtle screen gradient. */
-    round_rect(c,216,116,208,157,12,rgb(8,13,22));
-    framed_round(c,218,117,204,153,10,rgb(89,109,129),rgb(10,17,28));
-    framed_round(c,223,122,194,145,5,rgb(21,39,50),rgb(9,20,35));
-    {
-        int y;
-        for (y=125;y<264;++y) {
-            uint32_t shade=blend(rgb(12,25,42),rgb(8,51,55),(y-125)*145/139);
-            rect(c,226,y,188,1,shade);
-        }
+static void face_key(Canvas *c, int cx, int cy, ButtonId id) {
+    CuiCanvas *cc = CUI(c);
+    uint32_t ink;
+    if (buttons[id].down) {
+        cui_disc(cc,cx,cy,17,CUI_ACCENT);
+        ink = CUI_WHITE;
+    } else if (buttons[id].seen) {
+        cui_disc(cc,cx,cy,17,BL_SEEN);
+        cui_disc(cc,cx,cy,15,BL_BODY);
+        ink = BL_SEEN;
+    } else {
+        cui_disc(cc,cx,cy,17,CUI_TRACK);
+        ink = CUI_WHITE;
     }
-    centered(c,320,146,"MIYOO MINI PLUS",1,rgb(126,168,187));
-    rect(c,247,163,146,1,rgb(37,70,81));
-    {
-        char tmp[32];
-        int n=core_seen();
-        snprintf(tmp,sizeof(tmp),"%02d / 15",n);
-        centered(c,320,179,tmp,3,n==15 ? rgb(127,252,201) : rgb(224,247,248));
-        centered(c,320,211,n==15 ? "TEST COMPLETE" : "BUTTONS TESTED",1,
-                 n==15 ? rgb(124,248,193) : rgb(142,189,197));
-        if (last_button >= 0) {
-            snprintf(tmp,sizeof(tmp),"LAST: %s",buttons[last_button].label);
-            centered(c,320,237,tmp,1,rgb(104,224,194));
-        } else centered(c,320,237,"PRESS ANY BUTTON",1,rgb(116,150,173));
-    }
-    /* Real Mini Plus: four-way D-pad on the left. */
+    cui_text(cc,cx,cy,buttons[id].label,17,ink,CUI_CENTER);
+}
+/* The count chip in the header: amber while testing, green once all 15. */
+static void count_chip(Canvas *c, int n) {
+    CuiCanvas *cc = CUI(c);
+    char tmp[24];
+    uint32_t col = n == 15 ? CUI_GOOD : CUI_WARN;
+    snprintf(tmp,sizeof(tmp),"%d / 15",n);
+    int w = cui_text_width(tmp,13) + 22;
+    cui_rrect(cc,624-w,19,w,22,11,col);
+    cui_rrect(cc,624-w+1.5f,20.5f,w-3,19,9.5f,CUI_HEAD);
+    cui_text(cc,624-w/2,30,tmp,13,col,CUI_CENTER);
+}
+static void device_body(Canvas *c, int n) {
+    CuiCanvas *cc = CUI(c);
+    char tmp[32];
+    /* Physical order on the Mini Plus, from left to right: L1, L2, R2, R1,
+     * behind the upper shell. */
+    text_key(c,217,74,47,33,L1,"L1",14);
+    text_key(c,267,74,47,33,L2,"L2",14);
+    text_key(c,326,74,47,33,R2,"R2",14);
+    text_key(c,376,74,47,33,R1,"R1",14);
+
+    /* Mini Plus vertical handheld silhouette, and its 4:3 screen */
+    cui_rrect(cc,204,99,232,308,30,BL_EDGE);
+    cui_rrect(cc,206,101,228,304,28,BL_BODY);
+    cui_rrect(cc,218,117,204,153,10,CUI_RGB(18,18,20));
+    cui_text(cc,320,140,"MIYOO MINI PLUS",12,CUI_DIM,CUI_CENTER);
+    snprintf(tmp,sizeof(tmp),"%02d / 15",n);
+    cui_text(cc,320,182,tmp,34,n == 15 ? CUI_GOOD : CUI_WHITE,CUI_CENTER);
+    cui_text(cc,320,212,n == 15 ? "TEST COMPLETE" : "BUTTONS TESTED",13,
+             n == 15 ? CUI_GOOD : CUI_GREY,CUI_CENTER);
+    if (last_button >= 0) {
+        snprintf(tmp,sizeof(tmp),"Last: %s",buttons[last_button].label);
+        cui_text(cc,320,244,tmp,15,CUI_WHITE,CUI_CENTER);
+    } else
+        cui_text(cc,320,244,"Press any button",15,CUI_GREY,CUI_CENTER);
+
+    /* Real Mini Plus: four-way D-pad on the left */
     dpad_key(c,252,287,24,25,UP);
     dpad_key(c,252,337,24,25,DOWN);
     dpad_key(c,227,312,25,25,LEFT);
     dpad_key(c,276,312,25,25,RIGHT);
-    rect(c,253,313,22,23,rgb(26,38,55));
-    disc(c,264,324,4,rgb(71,93,115));
+    cui_rect(cc,253,313,22,23,CUI_TRACK);
 
-    /* A/B/X/Y follow the physical Mini Plus diamond placement. */
-    face_key(c,375,296,X,rgb(91,158,240));
-    face_key(c,350,321,Y,rgb(231,179,83));
-    face_key(c,400,321,A,rgb(92,229,157));
-    face_key(c,375,346,B,rgb(229,98,144));
+    /* A/B/X/Y in the Mini Plus diamond */
+    face_key(c,375,296,X);
+    face_key(c,350,321,Y);
+    face_key(c,400,321,A);
+    face_key(c,375,346,B);
 
-    /* MENU is the small round button ABOVE SELECT and START. */
-    menu_key(c,319,287);
-    /* Wider keys accommodate the larger small-text font. */
-    flat_key(c,251,372,65,21,SELECT,1);
-    flat_key(c,325,372,65,21,START,1);
-    speaker(c,393,391);
+    /* MENU: the small round button above SELECT and START */
+    text_key(c,299,279,42,20,MENU,"MENU",11);
+    text_key(c,251,372,65,22,SELECT,"SELECT",13);
+    text_key(c,325,372,65,22,START,"START",13);
 }
-static void draw_background(Canvas *c) {
-    int y;
-    for (y=0;y<H;++y) {
-        uint32_t color=blend(rgb(9,16,29),rgb(17,29,48),y*200/H);
-        rect(c,0,y,W,1,color);
-    }
-    rect(c,20,75,600,1,rgb(42,58,77));
+static void side_panel(Canvas *c, int x, const char *title) {
+    CuiCanvas *cc = CUI(c);
+    cui_rrect(cc,x,103,174,302,14,CUI_PANEL);
+    cui_text(cc,x+16,124,title,13,CUI_GREY,CUI_LEFT);
 }
 static void draw(Canvas *c, Uint32 now) {
+    CuiCanvas *cc = CUI(c);
     char tmp[96];
-    int n=core_seen(), i;
-    draw_background(c);
+    int n=core_seen();
 
-    /* Compact, legible header including version number. */
-    round_rect(c,22,19,36,36,10,rgb(39,207,180));
-    rect(c,38,27,5,20,rgb(9,38,42));
-    rect(c,30,35,21,5,rgb(9,38,42));
-    label(c,69,25,"BUTTON LAB",3,rgb(240,249,255));
-    framed_round(c,266,22,64,27,9,rgb(59,95,103),rgb(22,45,57));
-    centered(c,298,30,"V0.1.1",1,rgb(119,235,207));
-    framed_round(c,484,23,134,39,14,rgb(59,92,104),rgb(22,43,57));
-    snprintf(tmp,sizeof(tmp),"%02d / 15",n);
-    centered(c,552,29,tmp,2,n==15 ? rgb(121,251,196) : rgb(167,237,219));
-    centered(c,552,46,"CORE TESTED",1,rgb(143,175,189));
+    cui_rect(cc,0,0,W,H,CUI_BG);
+    cui_header(cc,"pad","Button Lab",NULL,-1);
+    cui_text(cc,60+cui_text_width("Button Lab",25)+10,31,"v0.1.1",14,CUI_DIM,CUI_LEFT);
+    count_chip(c,n);
 
-    /* Side panels flank the actual handheld; they are not gamepad elements. */
-    panel(c,18,103,174,302);
-    rect(c,32,120,4,22,rgb(50,233,195));
-    label(c,45,124,"LIVE INPUT",2,rgb(221,236,248));
-    label(c,33,169,"LAST BUTTON",1,rgb(132,157,184));
+    side_panel(c,18,"LIVE INPUT");
     if (last_button < 0) {
-        centered(c,105,203,"READY",2,rgb(170,187,211));
-        centered(c,105,237,"PRESS A BUTTON",1,rgb(121,147,174));
+        cui_text(cc,105,200,"Ready",24,CUI_GREY,CUI_CENTER);
+        cui_text(cc,105,232,"Press a button",14,CUI_GREY,CUI_CENTER);
     } else {
-        centered(c,105,201,buttons[last_button].label,2,rgb(114,242,202));
-        rect(c,35,234,141,1,rgb(54,72,92));
-        snprintf(tmp,sizeof(tmp),"PRESSES: %u",buttons[last_button].presses);
-        centered(c,105,251,tmp,1,rgb(176,213,224));
-        centered(c,105,277,buttons[last_button].down ? "HELD DOWN" : "RELEASED",1,
-                 buttons[last_button].down ? rgb(122,237,192) : rgb(148,168,189));
+        cui_text(cc,105,200,buttons[last_button].label,28,CUI_WHITE,CUI_CENTER);
+        snprintf(tmp,sizeof(tmp),"%u press%s",buttons[last_button].presses,
+                 buttons[last_button].presses == 1 ? "" : "es");
+        cui_text(cc,105,234,tmp,15,CUI_GREY,CUI_CENTER);
+        cui_text(cc,105,258,buttons[last_button].down ? "Held down" : "Released",15,
+                 buttons[last_button].down ? CUI_RGB(255, 143, 143) : CUI_GREY,CUI_CENTER);
     }
-    rect(c,35,320,141,1,rgb(47,65,82));
-    centered(c,105,338,"GREEN = DETECTED",1,rgb(130,194,181));
-    centered(c,105,366,raw_input ? "ALL 15 TO PASS" : "SDL INPUT MODE",1,
-             raw_input ? rgb(137,157,181) : rgb(238,169,119));
+    cui_text(cc,105,350,"Green = detected",13,BL_SEEN,CUI_CENTER);
+    cui_text(cc,105,374,raw_input ? "All 15 to pass" : "SDL input mode",13,
+             raw_input ? CUI_GREY : CUI_WARN,CUI_CENTER);
 
-    panel(c,448,103,174,302);
-    rect(c,461,120,4,22,rgb(50,233,195));
-    label(c,475,124,"VOLUME KEYS",2,rgb(221,236,248));
-    centered(c,535,169,"OPTIONAL EVENTS",1,rgb(131,157,185));
-    status_chip(c,467,206,136,VOL_DOWN);
-    status_chip(c,467,280,136,VOL_UP);
-    centered(c,535,369,"SYSTEM MAY OVERRIDE",1,rgb(124,146,170));
+    side_panel(c,448,"VOLUME KEYS");
+    text_key(c,467,206,136,34,VOL_DOWN,"VOL -",17);
+    text_key(c,467,256,136,34,VOL_UP,"VOL +",17);
+    cui_text(cc,535,350,"Optional",13,CUI_GREY,CUI_CENTER);
+    cui_text(cc,535,374,"The system may take them",12,CUI_DIM,CUI_CENTER);
 
-    device_body(c);
+    device_body(c,n);
 
-    /* Bottom progress and gestures, always kept outside the drawing. */
-    rect(c,20,419,600,1,rgb(48,69,88));
-    label(c,25,429,n==15 ? "ALL BUTTONS DETECTED" : "TEST EACH BUTTON ONCE",1,
-          n==15 ? rgb(115,244,199) : rgb(172,190,210));
-    snprintf(tmp,sizeof(tmp),"%02d OF 15",n);
-    label(c,546,429,tmp,1,rgb(145,175,196));
-    for (i=0;i<15;++i)
-        round_rect(c,27+i*40,449,33,5,2,i<n ? rgb(67,232,191) : rgb(53,69,90));
-
-    /* Timed gestures show progress after 1 second. SELECT+START still
-     * requires no hold and never displays an exit progress popup. */
-    if (menu_since && now - menu_since >= HOLD_POPUP_DELAY_MS) {
-        unsigned elapsed = now - menu_since;
-        int part = (int)((elapsed >= MENU_EXIT_MS ? MENU_EXIT_MS : elapsed)*276u/MENU_EXIT_MS);
-        framed_round(c,152,420,336,57,11,rgb(70,134,133),rgb(13,32,43));
-        centered(c,320,429,"HOLD MENU TO EXIT",1,rgb(200,238,230));
-        round_rect(c,182,452,276,6,3,rgb(46,65,82));
-        round_rect(c,182,452,part,6,3,rgb(89,232,188));
-    } else if (reset_since && now - reset_since >= HOLD_POPUP_DELAY_MS) {
-        unsigned elapsed = now - reset_since;
-        int part = (int)((elapsed >= RESET_MS ? RESET_MS : elapsed)*276u/RESET_MS);
-        framed_round(c,152,420,336,57,11,rgb(70,134,133),rgb(13,32,43));
-        centered(c,320,429,"HOLD TO RESET",1,rgb(200,238,230));
-        round_rect(c,182,452,276,6,3,rgb(46,65,82));
-        round_rect(c,182,452,part,6,3,rgb(89,232,188));
+    /* footer: the exits, or the progress of a held gesture */
+    cui_rect(cc,0,420,W,60,CUI_HEAD);
+    if ((menu_since && now - menu_since >= HOLD_POPUP_DELAY_MS) ||
+        (reset_since && now - reset_since >= HOLD_POPUP_DELAY_MS)) {
+        bool menu = menu_since && now - menu_since >= HOLD_POPUP_DELAY_MS;
+        unsigned total = menu ? MENU_EXIT_MS : RESET_MS;
+        unsigned elapsed = now - (menu ? menu_since : reset_since);
+        if (elapsed > total) elapsed = total;
+        cui_text(cc,20,440,menu ? "Hold MENU to exit" : "Hold X+Y to reset",17,CUI_WHITE,CUI_LEFT);
+        cui_progress(cc,20,458,600,8,(float)elapsed/(float)total);
     } else {
-        centered(c,320,463,"SELECT+START: EXIT   MENU 3S: EXIT   X+Y 2S: RESET",1,
-                 rgb(136,162,184));
+        cui_hint(cc,20,450,"SELECT+START","EXIT",20);
+        cui_text(cc,620,450,"MENU 3 s: exit · X+Y 2 s: reset",15,CUI_GREY,CUI_RIGHT);
     }
 }
 

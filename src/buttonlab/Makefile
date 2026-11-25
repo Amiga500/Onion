@@ -15,7 +15,7 @@ LDFLAGS := $(LDFLAGS) -no-pie \
            -Wl,--dynamic-linker=/lib/ld-linux-armhf.so.3 \
            -Wl,-rpath,/mnt/SDCARD/.tmp_update/lib \
            -Wl,-z,max-page-size=4096 \
-           -lSDL -lpthread -ldl -lm
+           -lSDL -lSDL_ttf -lpthread -ldl -lm
 
 # config.mk automatically includes *.c in this directory in OFILES.
 include ../common/commands.mk
