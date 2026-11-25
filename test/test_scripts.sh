@@ -5575,6 +5575,7 @@ if [ -n "$lw_sh" ]; then
     check "the warning" sh -c 'printf "%s" "$1" | grep -q "Long scraping sessions are not recommended:"' _ "$out"
     check "MENU stops it, in the foreground" sh -c 'printf "%s" "$1" | grep -q "You can stop at any time with MENU."' _ "$out"
     check "the keys" sh -c 'printf "%s" "$1" | grep -q "Press A to start, MENU to cancel."' _ "$out"
+    check "what to do if it freezes" sh -c 'printf "%s" "$1" | grep -q "If it freezes, hold POWER for at least 10 seconds" && printf "%s" "$1" | grep -q "^until the device turns off.$"' _ "$out"
     out=$(lw_run '\033[Bx\n' false "SCRAPE ALL CONSOLES" "12 consoles to scrape: this may take hours.")
     check "other keys don't start it, end of input: 1" sh -c 'printf "%s" "$1" | grep -q "|rc=1$"' _ "$out"
     check "the first line (the count)" sh -c 'printf "%s" "$1" | grep -q "^12 consoles to scrape: this may take hours.$"' _ "$out"

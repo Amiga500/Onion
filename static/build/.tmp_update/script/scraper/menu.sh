@@ -47,6 +47,8 @@ press_a() { # prompt
 # Before the long jobs (all the roms of a console, all favorites, all
 # consoles): a long session keeps the device busy for a long time, hot, on
 # its battery (a Mini Flip froze 5-10 minutes into one, 4.5.1 beta 4). A
+# frozen device: POWER held down to switch it off (10 s on the Mini Plus and
+# Flip, keymon's setting of the PMIC). A
 # starts it; MENU closes the scraper (pressMenu2Kill) as in its menus.
 # Returns 1 when the terminal is gone. $ScrapeInBackground: set by the
 # caller from the configuration.
@@ -71,6 +73,8 @@ Long_Scraping_Warning() { # title [first line]
     else
         echo "You can stop at any time with MENU."
     fi
+    echo "If it freezes, hold POWER for at least 10 seconds"
+    echo "until the device turns off."
     echo
     keys_red "Press A to start, MENU to cancel."
     while IFS= read -n 1 -s -r _lw_key; do
