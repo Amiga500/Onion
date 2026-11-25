@@ -41,6 +41,10 @@ static char _cached_header_title_str[STR_MAX] = "";
 static SDL_Surface *_cached_header_badge = NULL;
 static char _cached_header_badge_char = '\0';
 
+/* The badge's icon, for the title it was looked up for */
+static SDL_Surface *_cached_header_icon = NULL;
+static char _cached_header_icon_name[32] = "";
+
 /* The title font at 70%, for the earlier levels of a path */
 static TTF_Font *_header_path_font = NULL;
 
@@ -51,6 +55,11 @@ void theme_renderHeader_cleanup(void)
         _cached_header_badge = NULL;
     }
     _cached_header_badge_char = '\0';
+    if (_cached_header_icon) {
+        SDL_FreeSurface(_cached_header_icon);
+        _cached_header_icon = NULL;
+    }
+    _cached_header_icon_name[0] = '\0';
     if (_cached_header_title) {
         SDL_FreeSurface(_cached_header_title);
         _cached_header_title = NULL;
@@ -62,9 +71,69 @@ void theme_renderHeader_cleanup(void)
     }
 }
 
-// Unified look: a badge in the theme's selection colour with the title's
-// first letter (or the theme's logo), then the title, left-aligned.
+/* The icon drawn in the badge for a title: res/icons/ui/<name>.png (a theme
+ * can ship its own as skin/extra/icons/ui/<name>.png). Titles not listed
+ * keep their first letter. */
+static const char *_header_iconName(const char *title)
+{
+    static const struct {
+        const char *word, *icon;
+    } map[] = {
+        {"tweaks", "tweaks"}, {"kids mode", "kid"}, {"controls & tips", "kid"},
+        {"backup", "archive"}, {"gallery", "image"}, {"random game", "dice"},
+        {"guest mode", "user"}, {"package manager", "cube"}, {"battery", "battery"},
+        {"clock", "clock"}, {"theme", "palette"}, {"activity", "chart"},
+        {"update", "down"}, {"download", "down"}, {"scrap", "image"},
+        {"sd card", "sd"}, {"manual", "book"}, {"pico", "game"},
+        {"game core", "pad"}, {"glo", "pad"}, {"hide game", "pad"},
+        {"hidden games", "pad"}, {"netplay", "pad"}, {"join", "pad"},
+        {"host", "pad"}, {"multi-disc", "pad"}, {"port", "pad"},
+        {"advancemenu", "pad"}, {"caching", "refresh"}, {"migration", "refresh"},
+        {"error", "alert"}, {"not found", "alert"}, {"read-only", "alert"},
+        {"read only", "alert"}, {"search", "search"}, {"music", "music"},
+        {"video", "film"}, {"audiotune", "wave"}, {"displaycal", "monitor"},
+    };
+    char low[STR_MAX];
+    int n = 0;
+    for (; title[n] && n < STR_MAX - 1; n++)
+        low[n] = (title[n] >= 'A' && title[n] <= 'Z') ? title[n] + 32 : title[n];
+    low[n] = '\0';
+    for (unsigned i = 0; i < sizeof(map) / sizeof(map[0]); i++)
+        if (strstr(low, map[i].word))
+            return map[i].icon;
+    return NULL;
+}
+
+static SDL_Surface *_header_icon(const char *title)
+{
+    const char *name = _header_iconName(title);
+    if (name == NULL)
+        return NULL;
+    if (strcmp(name, _cached_header_icon_name) != 0) {
+        if (_cached_header_icon)
+            SDL_FreeSurface(_cached_header_icon);
+        char rel[64];
+        snprintf(rel, sizeof(rel), "extra/icons/ui/%s", name);
+        _cached_header_icon = theme_loadImage(theme()->path, rel);
+        snprintf(_cached_header_icon_name, sizeof(_cached_header_icon_name), "%s", name);
+    }
+    return _cached_header_icon;
+}
+
+// Unified look: a badge in the theme's selection colour with the app's
+// icon (or the title's first letter, or the theme's logo), then the title, left-aligned.
 // Returns where the title starts (after the badge or the logo).
+static int _theme_renderHeaderTitleText(SDL_Surface *screen, SDL_Surface *title, int x)
+{
+    if (title) {
+        // Room up to the battery, on the right.
+        SDL_Rect crop = {0, 0, 540.0 * g_scale - x, title->h};
+        SDL_Rect title_rect = {x, 29.0 * g_scale - title->h / 2};
+        SDL_BlitSurface(title, &crop, screen, &title_rect);
+    }
+    return x;
+}
+
 static int _theme_renderHeaderTitle(SDL_Surface *screen, SDL_Surface *title,
                                     const char *title_str, bool show_logo)
 {
@@ -79,6 +148,12 @@ static int _theme_renderHeaderTitle(SDL_Surface *screen, SDL_Surface *title,
         int size = 32.0 * g_scale;
         SDL_Rect badge = {x, cy - size / 2, size, size};
         ui_fillRoundRect(screen, badge, 8.0 * g_scale, ui_map(screen, ui_accent()));
+        SDL_Surface *icon = _header_icon(title_str);
+        if (icon) {
+            SDL_Rect ir = {badge.x + (size - icon->w) / 2, cy - icon->h / 2};
+            SDL_BlitSurface(icon, NULL, screen, &ir);
+            return _theme_renderHeaderTitleText(screen, title, x + size + 12.0 * g_scale);
+        }
         char letter = title_str[0];
         if (letter >= 'a' && letter <= 'z')
             letter -= 'a' - 'A';
@@ -97,13 +172,7 @@ static int _theme_renderHeaderTitle(SDL_Surface *screen, SDL_Surface *title,
         }
         x += size + 12.0 * g_scale;
     }
-    if (title) {
-        // Room up to the battery, on the right.
-        SDL_Rect crop = {0, 0, 540.0 * g_scale - x, title->h};
-        SDL_Rect title_rect = {x, 29.0 * g_scale - title->h / 2};
-        SDL_BlitSurface(title, &crop, screen, &title_rect);
-    }
-    return x;
+    return _theme_renderHeaderTitleText(screen, title, x);
 }
 
 void theme_renderHeader(SDL_Surface *screen, const char *title_str, bool show_logo)

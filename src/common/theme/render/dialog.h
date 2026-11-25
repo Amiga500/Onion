@@ -34,85 +34,103 @@ void theme_renderDialog_cleanup(void)
     }
 }
 
+/* One button of a dialog: a rounded box with the theme's button image and
+ * its word. The safe one (B) is grey with a white outline, as it is the one
+ * already chosen; the action (A) is outlined in the error red. */
+static void _dialog_button(SDL_Surface *screen, SDL_Rect r, SDL_Surface *button,
+                           SDL_Surface *label, bool safe)
+{
+    int rad = 10.0 * g_scale, line = (safe ? 3.0 : 2.0) * g_scale;
+    Uint32 edge = safe ? SDL_MapRGB(screen->format, 255, 255, 255)
+                       : SDL_MapRGB(screen->format, 255, 143, 143);
+    Uint32 fill = safe ? SDL_MapRGB(screen->format, 58, 58, 61)
+                       : SDL_MapRGB(screen->format, 46, 46, 49);
+    ui_fillRoundRect(screen, r, rad, edge);
+    SDL_Rect in = {r.x + line, r.y + line, r.w - 2 * line, r.h - 2 * line};
+    ui_fillRoundRect(screen, in, rad - line, fill);
+    int gap = 8.0 * g_scale;
+    int w = (button ? button->w + gap : 0) + (label ? label->w : 0);
+    int x = r.x + (r.w - w) / 2, cy = r.y + r.h / 2;
+    if (button) {
+        SDL_Rect br = {x, cy - button->h / 2};
+        SDL_BlitSurface(button, NULL, screen, &br);
+        x += button->w + gap;
+    }
+    if (label) {
+        SDL_Rect lr = {x, cy - label->h / 2};
+        SDL_BlitSurface(label, NULL, screen, &lr);
+    }
+}
+
+/* The words on the dialog's buttons, in capitals as in the footer */
+static SDL_Surface *_dialog_label(const char *text, SDL_Color color)
+{
+    char up[64];
+    int n = 0;
+    for (; text[n] && n < 63; n++)
+        up[n] = (text[n] >= 'a' && text[n] <= 'z') ? text[n] - 32 : text[n];
+    up[n] = '\0';
+    return TTF_RenderUTF8_Blended(resource_getFont(HINT), up, color);
+}
+
 void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *message_str, bool show_hint)
 {
     // Cache transparent background — avoids CreateRGBSurface+FillRect+FreeSurface per call
     if (_dialog_transparent_bg == NULL) {
         _dialog_transparent_bg = SDL_CreateRGBSurface(0, g_display.width, g_display.height, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-        /* Test branch (unified look): a darker veil, as behind Tweaks' pop-ups. */
         SDL_FillRect(_dialog_transparent_bg, NULL, /* 66% black */ 0xAA000000);
     }
     SDL_BlitSurface(_dialog_transparent_bg, NULL, screen, NULL);
 
-    /* Test branch (unified look): the card is drawn, not the theme's pop-bg:
-     * a rounded panel like Tweaks' (panel grey, 16 px corners), the title on
-     * the left as in the headers, the message in light grey in the middle,
-     * the button hints at the bottom right. */
-    SDL_Rect center_rect = {(g_display.width - (int)(500.0 * g_scale)) / 2,
-                            (g_display.height - (int)(300.0 * g_scale)) / 2,
-                            (Uint16)(500.0 * g_scale), (Uint16)(300.0 * g_scale)};
-    ui_fillRoundRect(screen, center_rect, (int)(16.0 * g_scale), SDL_MapRGB(screen->format, 46, 46, 49));
+    /* New look: a box in the middle, as tall as its text. The title in
+     * capitals on the left, the message under it in light grey, and, when
+     * the dialog asks something, two buttons: B (safe, already chosen) on
+     * the left, A (the action) on the right. */
+    int pad = 24.0 * g_scale, box_w = 500.0 * g_scale, btn_h = 46.0 * g_scale;
+    int inner_w = box_w - 2 * pad;
 
-    SDL_Surface *title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), title_str, theme()->total.color);
+    char title_up[STR_MAX];
+    int n = 0;
+    for (; title_str && title_str[n] && n < STR_MAX - 1; n++)
+        title_up[n] = (title_str[n] >= 'a' && title_str[n] <= 'z') ? title_str[n] - 32 : title_str[n];
+    title_up[n] = '\0';
+    SDL_Surface *title = n > 0 && strcmp(title_up, " ") != 0
+                             ? TTF_RenderUTF8_Blended(resource_getFont(TITLE), title_up, (SDL_Color){244, 244, 245})
+                             : NULL;
+    SDL_Surface *textbox = theme_textboxSurfaceFit(message_str, (SDL_Color){200, 200, 206, 0}, ALIGN_LEFT,
+                                                   inner_w, (int)(5 * DIALOG_LINE_HEIGHT * g_scale));
+    SDL_Surface *button_a = resource_getSurface(BUTTON_A);
+    SDL_Surface *button_b = resource_getSurface(BUTTON_B);
+    bool buttons = show_hint && button_a != NULL && button_a->w < g_display.width;
+
+    int box_h = pad + (title ? title->h + 10.0 * g_scale : 0) + (textbox ? textbox->h : 0) +
+                (buttons ? 22.0 * g_scale + btn_h : 0) + pad;
+    SDL_Rect box = {(g_display.width - box_w) / 2, (g_display.height - box_h) / 2, box_w, box_h};
+    ui_fillRoundRect(screen, box, (int)(16.0 * g_scale), SDL_MapRGB(screen->format, 46, 46, 49));
+
+    int y = box.y + pad;
     if (title) {
-        SDL_Rect title_rect = {center_rect.x + 28.0 * g_scale, center_rect.y + 40.0 * g_scale - title->h / 2};
-        SDL_BlitSurface(title, NULL, screen, &title_rect);
+        SDL_Rect r = {box.x + pad, y};
+        SDL_Rect crop = {0, 0, inner_w, title->h};
+        SDL_BlitSurface(title, &crop, screen, &r);
+        y += title->h + 10.0 * g_scale;
         SDL_FreeSurface(title);
     }
-
-    // Shrink the font until every line fits the card (5 lines of 30 px).
-    SDL_Surface *textbox = theme_textboxSurfaceFit(message_str, (SDL_Color){220, 220, 224, 0}, ALIGN_CENTER,
-                                                   (int)(DIALOG_WIDTH * g_scale),
-                                                   (int)(5 * DIALOG_LINE_HEIGHT * g_scale));
     if (textbox) {
-        SDL_Rect textbox_rect = {(g_display.width - textbox->w) / 2, center_rect.y + 145.0 * g_scale - textbox->h / 2};
-        SDL_BlitSurface(textbox, NULL, screen, &textbox_rect);
+        SDL_Rect r = {box.x + pad, y};
+        SDL_BlitSurface(textbox, NULL, screen, &r);
+        y += textbox->h;
         SDL_FreeSurface(textbox);
     }
-
-    SDL_Surface *button_a = resource_getSurface(BUTTON_A);
-    if (show_hint && button_a != NULL && button_a->w < g_display.width) {
-        SDL_Rect hint_rect = {center_rect.x + center_rect.w - 4.0 * g_scale, center_rect.y + center_rect.h - 40.0 * g_scale};
-
-        SDL_Surface *button_b = resource_getSurface(BUTTON_B);
-        // Cache OK/Cancel labels — they don't change between calls
+    if (buttons) {
+        y += 22.0 * g_scale;
         if (_dialog_label_ok == NULL)
-            _dialog_label_ok = TTF_RenderUTF8_Blended(resource_getFont(HINT), lang_get(LANG_OK, LANG_FALLBACK_OK), theme()->hint.color);
+            _dialog_label_ok = _dialog_label(lang_get(LANG_OK, LANG_FALLBACK_OK), (SDL_Color){255, 143, 143});
         if (_dialog_label_cancel == NULL)
-            _dialog_label_cancel = TTF_RenderUTF8_Blended(resource_getFont(HINT), lang_get(LANG_CANCEL, LANG_FALLBACK_CANCEL), theme()->hint.color);
-        SDL_Surface *label_ok = _dialog_label_ok;
-        SDL_Surface *label_cancel = _dialog_label_cancel;
-
-        hint_rect.x -= button_a->w + 5.0 * g_scale;
-        if (label_ok) {
-            hint_rect.x -= label_ok->w + 30.0 * g_scale;
-        }
-
-        if (button_b != NULL)
-            hint_rect.x -= button_b->w + 5.0 * g_scale;
-        if (label_cancel) {
-            hint_rect.x -= label_cancel->w + 30.0 * g_scale;
-        }
-
-        if (label_ok) {
-            SDL_Rect button_a_rect = {hint_rect.x, hint_rect.y - button_a->h / 2};
-            hint_rect.x += button_a->w + 5.0 * g_scale;
-            SDL_BlitSurface(button_a, NULL, screen, &button_a_rect);
-
-            SDL_Rect label_ok_rect = {hint_rect.x, hint_rect.y - label_ok->h / 2};
-            hint_rect.x += label_ok->w + 30.0 * g_scale;
-            SDL_BlitSurface(label_ok, NULL, screen, &label_ok_rect);
-        }
-
-        if (label_cancel && button_b != NULL) {
-            SDL_Rect button_b_rect = {hint_rect.x, hint_rect.y - button_b->h / 2};
-            hint_rect.x += button_b->w + 5.0 * g_scale;
-            SDL_BlitSurface(button_b, NULL, screen, &button_b_rect);
-
-            SDL_Rect label_cancel_rect = {hint_rect.x, hint_rect.y - label_cancel->h / 2};
-            hint_rect.x += label_cancel->w + 30.0 * g_scale;
-            SDL_BlitSurface(label_cancel, NULL, screen, &label_cancel_rect);
-        }
+            _dialog_label_cancel = _dialog_label(lang_get(LANG_CANCEL, LANG_FALLBACK_CANCEL), (SDL_Color){244, 244, 245});
+        int gap = 12.0 * g_scale, bw = (inner_w - gap) / 2;
+        _dialog_button(screen, (SDL_Rect){box.x + pad, y, bw, btn_h}, button_b, _dialog_label_cancel, true);
+        _dialog_button(screen, (SDL_Rect){box.x + pad + bw + gap, y, bw, btn_h}, button_a, _dialog_label_ok, false);
     }
 }
 

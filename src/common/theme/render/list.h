@@ -260,7 +260,12 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         item_bg_rect.y += item_padding;
 
         if (i == list->active_pos) {
-            SDL_BlitSurface(item_bg, &item_bg_size, screen, &item_bg_rect);
+            /* New look: the selected row is a rounded pill in the theme's
+             * selection colour, 10 px in from each side. */
+            int inset = 10.0 * g_scale, vpad = 3.0 * g_scale;
+            SDL_Rect pill = {item_bg_rect.x + inset, item_bg_rect.y + vpad,
+                             params.dim.w - 2 * inset, item_bg_size.h - 2 * vpad};
+            ui_fillRoundRect(screen, pill, 10.0 * g_scale, ui_map(screen, ui_accent()));
 
             if (list_item_wantsPreviewLoad(item)) {
                 if (is_file(item->preview_path))
