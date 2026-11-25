@@ -2029,10 +2029,17 @@ static void renderAxpMenu(void)
     renderText("Battery Capacity:", font_Arkhip, col_val, &(SDL_Rect){50, ROW_TY(AXP_MENU_CAPACITY), 180, 20});
     char cap_edit_str[32];
     bool cap_dirty = axp_status.cap_set && axp_edit_capacity != axp_status.capacity_mah;
-    snprintf(cap_edit_str, sizeof(cap_edit_str), "<  %d mAh%s  >", axp_edit_capacity, cap_dirty ? "*" : "");
-    renderTextAlignRight(cap_edit_str, font_Arkhip, axp_menu_selected == AXP_MENU_CAPACITY ? col_val : col_cyan, &(SDL_Rect){605, ROW_TY(AXP_MENU_CAPACITY), 150, 20});
+    // A capacity shown but not saved yet (none in the PMIC) is marked like an
+    // unsaved change, in amber, and says so when selected (Rob read the 3000
+    // shown as saved, 4.5.1 beta 5).
+    snprintf(cap_edit_str, sizeof(cap_edit_str), "<  %d mAh%s  >", axp_edit_capacity,
+             (cap_dirty || !axp_status.cap_set) ? "*" : "");
+    renderTextAlignRight(cap_edit_str, font_Arkhip,
+                         !axp_status.cap_set ? col_warn : axp_menu_selected == AXP_MENU_CAPACITY ? col_val : col_cyan,
+                         &(SDL_Rect){605, ROW_TY(AXP_MENU_CAPACITY), 150, 20});
     if (axp_menu_selected == AXP_MENU_CAPACITY)
-        renderText("[LEFT/RIGHT] Change  [A] Save", font_small ? font_small : font_Arkhip, (SDL_Color){235, 205, 214}, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
+        renderText(axp_status.cap_set ? "[LEFT/RIGHT] Change  [A] Save" : "Not saved yet: [A] Save",
+                   font_small ? font_small : font_Arkhip, (SDL_Color){235, 205, 214}, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
 
     // Item: Shutdown voltage (Voff, REG 31H bits 2-0)
     renderText("Shutdown Voltage:", font_Arkhip, col_val, &(SDL_Rect){50, ROW_TY(AXP_MENU_VOFF), 180, 20});
@@ -2068,7 +2075,7 @@ static void renderAxpMenu(void)
     }
 
     // Item: Sync 100%
-    drawCenteredText("[ A: Set current capacity to 100% ]", font_Arkhip, axp_menu_selected == AXP_MENU_SYNC ? col_val : col_sub, 25, ROW_TY(AXP_MENU_SYNC), 590);
+    drawCenteredText("[ A: Set counter to 100% (battery full now) ]", font_Arkhip, axp_menu_selected == AXP_MENU_SYNC ? col_val : col_sub, 25, ROW_TY(AXP_MENU_SYNC), 590);
 
     // Item: Capacity learning
     const char *cal_btn_txt = axp_status.cal_en ? "[ A: Disable capacity learning ]" : "[ A: Enable capacity learning ]";
@@ -2126,7 +2133,7 @@ static void renderAxpMenu(void)
                                           : "1. First charge to 100%, then save Battery Capacity.",
                        font_small ? font_small : font_Arkhip, axp_status.cap_set ? col_val : col_warn, &(SDL_Rect){ib_x + 16, ib_y + 14, ib_w - 32, 20});
             renderText("2. Discharge to 1%, then charge with the console on.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 40, ib_w - 32, 20});
-            renderText("3. Charge straight to 100% (Correction: In progress).", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 66, ib_w - 32, 20});
+            renderText("3. Charge to 100% without unplugging (Correction: In progress).", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 66, ib_w - 32, 20});
             renderText("4. The PMIC then saves the learned Total Capacity.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 92, ib_w - 32, 20});
         }
 
@@ -2201,7 +2208,7 @@ static void renderAxpMenu(void)
         renderText("The PMIC starts its counter from the battery voltage,", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 20});
         renderText("which reads too high while charging.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 36, ib_w - 32, 20});
         renderText("Best: let it finish charging, then save.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 60, ib_w - 32, 20});
-        renderText("Saving now? Press 'Set current capacity to 100%' at full.", font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){ib_x + 16, ib_y + 84, ib_w - 32, 20});
+        renderText("Saving now? Use 'Set counter to 100%' once it is full.", font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){ib_x + 16, ib_y + 84, ib_w - 32, 20});
 
         int btn_w = 210, btn_h = 38, btn_y = my + 190;
         int b1_x = mx + 35, b2_x = mx + mw - 35 - btn_w;
@@ -2533,8 +2540,8 @@ void renderPage()
     renderTextAlignRight(session_best, font_Arkhip, color_white, &(SDL_Rect){LABEL_BEST_X, LABEL_BEST_Y, LABEL_SIZE_X, LABEL_SIZE_Y});
 
     // Center footer hint: Battery Menu / [SELECT]
-    drawCenteredText("BATTERY MENU", font_Arkhip, color_pastel_blue, 210, LABEL_SESSION_Y, 220);
-    drawCenteredText("[SELECT]", font_Arkhip, color_white, 210, LABEL_CURRENT_Y, 220);
+    drawCenteredText("SELECT: MENU", font_Arkhip, color_pastel_blue, 210, LABEL_SESSION_Y, 220);
+    drawCenteredText("B: EXIT", font_Arkhip, color_white, 210, LABEL_CURRENT_Y, 220);
 
     int half_line_width = (int)(GRAPH_LINE_WIDTH) / 2;
 
@@ -2787,7 +2794,7 @@ int main(int argc, char *argv[])
                         }
                         else if (res == -3) {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                     "Save Battery Capacity first (step 1)");
+                                     "Set Battery Capacity (first row) and press A first");
                         }
                         else {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
@@ -3053,8 +3060,8 @@ int main(int argc, char *argv[])
                         axp_edit_chgv = AXP_CHGV_CODE_OFFERED(axp_status.chgv_code) ? axp_status.chgv_code : 2;
                     changed = true;
                 }
-                else if (keystate[SW_BTN_B] == PRESSED)
-                    quit = true;
+                else if (keystate[SW_BTN_B] == PRESSED || keystate[SW_BTN_MENU] == RELEASED)
+                    quit = true; // MENU leaves too, as in every app
                 else if (keystate[SW_BTN_RIGHT] >= PRESSED) {
                     if (current_page > 0)
                         current_page--;
