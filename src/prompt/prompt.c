@@ -78,6 +78,8 @@ int main(int argc, char *argv[])
     int pargc = 0;
     char **pargs = NULL;
     char title_str[STR_MAX] = "";
+    char parent_str[STR_MAX] = "";
+    bool menu_code = false;
     char message_str[STR_MAX] = "";
     bool required = false;
     int selected = 0;
@@ -90,6 +92,16 @@ int main(int argc, char *argv[])
         if (argv[i][0] == '-') {
             if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--title") == 0) {
                 strncpy(title_str, argv[++i], STR_MAX - 1);
+                continue;
+            }
+            /* New UI: the app the question belongs to, shown before the
+             * title as a path ("Scraper > Configuration"), with its icon. */
+            if (strcmp(argv[i], "--menu-code") == 0) {
+                menu_code = true;
+                continue;
+            }
+            if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--parent") == 0) {
+                strncpy(parent_str, argv[++i], STR_MAX - 1);
                 continue;
             }
             if (strcmp(argv[i], "-m") == 0 ||
@@ -200,6 +212,7 @@ int main(int argc, char *argv[])
     SDLKey changed_key = SDLK_UNKNOWN;
     bool key_changed = false;
     bool info_showned = false;
+    bool menu_combo = false;
 
 #ifdef PLATFORM_MIYOOMINI
     bool first_draw = true;
@@ -234,6 +247,12 @@ int main(int argc, char *argv[])
 #endif
 
         if (updateKeystate(keystate, &quit, true, &changed_key)) {
+            /* MENU leaves on release, unless another button was pressed
+             * with it (MENU+UP/DOWN is the brightness) */
+            if (changed_key == SW_BTN_MENU && keystate[SW_BTN_MENU] == PRESSED)
+                menu_combo = false;
+            else if (changed_key != SW_BTN_MENU && keystate[SW_BTN_MENU] >= PRESSED)
+                menu_combo = true;
             if (keystate[SW_BTN_DOWN] >= PRESSED) {
                 key_changed =
                     list_keyDown(&list, keystate[SW_BTN_DOWN] == REPEATING);
@@ -261,8 +280,14 @@ int main(int argc, char *argv[])
                 footer_changed = true; // So we need to force it to reload
             }
 
-            else if (!required && changed_key == SW_BTN_B &&
-                     keystate[SW_BTN_B] == PRESSED) {
+            else if (!required && changed_key == SW_BTN_MENU && keystate[SW_BTN_MENU] == RELEASED &&
+                     !menu_combo) {
+                /* MENU leaves the app: with --menu-code it returns 254, so a
+                 * script can tell it from B (255); otherwise it is B */
+                return_code = menu_code ? 254 : -1;
+                quit = true;
+            }
+            else if (!required && changed_key == SW_BTN_B && keystate[SW_BTN_B] == PRESSED) {
                 quit = true;
             }
         }
@@ -280,8 +305,13 @@ int main(int argc, char *argv[])
 
         if (acc_ticks >= time_step) {
             if (header_changed || battery_changed) {
-                theme_renderHeader(screen, has_title ? title_str : NULL,
-                                   !has_title);
+                if (parent_str[0] && has_title) {
+                    const char *levels[] = {parent_str, title_str};
+                    theme_renderHeaderPath(screen, levels, 2);
+                }
+                else
+                    theme_renderHeader(screen, has_title ? title_str : NULL,
+                                       !has_title);
             }
             if (list_changed || info_showned) {
                 theme_renderList(screen, &list);

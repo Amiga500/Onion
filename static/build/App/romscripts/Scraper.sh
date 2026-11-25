@@ -7,16 +7,20 @@ echo $0 $*
 sysdir=/mnt/SDCARD/.tmp_update
 rm -f /tmp/scraper_script.sh
 
-# MENU closes the terminal. pressMenu2Kill runs "pkill -f", so the pattern
-# must match the terminal only: "st" alone also matched
-# game_list_options.sh ("list") and killed the GLO with it.
-pressMenu2Kill bin/st &
-
 cd $sysdir
-#./bin/st -q -e 	"/mnt/SDCARD/scrap_screenscraper.sh" "MD"   # quick alternative
-./bin/st -q -e "$sysdir/script/scraper/menu.sh" "$1" "$2"
-
-pkill -9 pressMenu2Kill
+# New UI: the menus, the messages and the scraping are drawn natively
+# (menu.sh with SCRAPER_NATIVE=1: prompt and progressUI); a terminal opens
+# only for the on-screen keyboard. SCRAPER_TERMINAL=1: the terminal menus.
+if [ -z "$SCRAPER_TERMINAL" ]; then
+    SCRAPER_NATIVE=1 sh "$sysdir/script/scraper/menu.sh" "$1" "$2"
+else
+    # MENU closes the terminal. pressMenu2Kill runs "pkill -f", so the
+    # pattern must match the terminal only: "st" alone also matched
+    # game_list_options.sh ("list") and killed the GLO with it.
+    pressMenu2Kill bin/st &
+    ./bin/st -q -e "$sysdir/script/scraper/menu.sh" "$1" "$2"
+    pkill -9 pressMenu2Kill
+fi
 
 # However the menu ended. menu.sh creates /tmp/stay_awake when a scraping
 # starts and removed it only at its normal end, and the scrapers set the

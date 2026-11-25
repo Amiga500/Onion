@@ -819,16 +819,23 @@ printf '#!/bin/sh\ntouch "%s/stay_awake"\necho performance > "%s/governor"\n[ -f
 printf '#!/bin/sh\n:\n' > "$TMP/stub/pressMenu2Kill"
 printf '#!/bin/sh\n:\n' > "$TMP/stub/pkill"
 chmod +x "$TMP/sys/bin/st" "$TMP"/stub/*
+# The new UI runs the menu without the terminal: the same stand-in
+mkdir -p "$TMP/sys/script/scraper"
+cp "$TMP/sys/bin/st" "$TMP/sys/script/scraper/menu.sh"
 sed -e "s#/mnt/SDCARD/.tmp_update#$TMP/sys#g" -e "s#/tmp/stay_awake#$TMP/stay_awake#g" \
     -e "s#/tmp/scraper_script.sh#$TMP/scraper_script.sh#g" \
     -e "s#/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor#$TMP/governor#g" "$SCRAPER_GLO" > "$TMP/Scraper.sh"
-PATH="$TMP/stub:$PATH" sh "$TMP/Scraper.sh" GB "" > /dev/null 2>&1
-check "no stay_awake left" test ! -e "$TMP/stay_awake"
-check "governor back to ondemand" test "$(cat "$TMP/governor")" = ondemand
-touch "$TMP/background"
-PATH="$TMP/stub:$PATH" sh "$TMP/Scraper.sh" GB "" > /dev/null 2>&1
-n=0; while [ ! -f "$TMP/job_log" ] && [ $n -lt 50 ]; do sleep 0.1; n=$((n + 1)); done; sleep 0.2
-check "background job run, then the governor back" test -f "$TMP/job_log" -a "$(cat "$TMP/governor")" = ondemand
+for mode in native terminal; do
+    term=; [ $mode = terminal ] && term=1
+    rm -f "$TMP/stay_awake" "$TMP/background" "$TMP/job_log" "$TMP/governor"
+    SCRAPER_TERMINAL=$term PATH="$TMP/stub:$PATH" sh "$TMP/Scraper.sh" GB "" > /dev/null 2>&1
+    check "$mode: no stay_awake left" test ! -e "$TMP/stay_awake"
+    check "$mode: governor back to ondemand" test "$(cat "$TMP/governor")" = ondemand
+    touch "$TMP/background"
+    SCRAPER_TERMINAL=$term PATH="$TMP/stub:$PATH" sh "$TMP/Scraper.sh" GB "" > /dev/null 2>&1
+    n=0; while [ ! -f "$TMP/job_log" ] && [ $n -lt 50 ]; do sleep 0.1; n=$((n + 1)); done; sleep 0.2
+    check "$mode: background job run, then the governor back" test -f "$TMP/job_log" -a "$(cat "$TMP/governor")" = ondemand
+done
 end
 
 # ---- time sync: the RTC is written in UTC, by both ways ----
@@ -5550,6 +5557,23 @@ unset -f pa_run
 for f in "$SCRAPER_MENU" "$ROOT/static/build/.tmp_update/script/scraper/scrap_screenscraper.sh" "$ROOT/static/build/.tmp_update/script/ota_update.sh"; do
     check "no any-key prompt left in ${f##*/}" sh -c '! grep -q "read -n 1 -s -r -p" "$1"' _ "$f"
 done
+end
+
+begin shellect_native_mode_answers_like_the_terminal
+SHL="$ROOT/static/build/.tmp_update/script/shellect.sh"
+mkdir -p "$TMP/bin"
+printf '#!/bin/sh\nfor a; do printf "<%%s>" "$a"; done >> "%s/args"; echo >> "%s/args"\nexit ${FAKE_RC:-0}\n' "$TMP" "$TMP" > "$TMP/bin/prompt"
+chmod +x "$TMP/bin/prompt"
+sed "s#/mnt/SDCARD/.tmp_update/bin/prompt#$TMP/bin/prompt#" "$SHL" > "$TMP/shellect.sh"
+r=$(printf 'One\nTwo\nBack' | SHELLECT_NATIVE=1 SHELLECT_PARENT=Scraper FAKE_RC=1 sh "$TMP/shellect.sh" -t "--== MAIN MENU ==--" -b x -s 2)
+check "A on the second item: its text" test "$r" = Two
+check "the path, the title in sentence case, the start item" grep -q "<-p><Scraper><-t><Main menu><-s><1><One><Two><Back>" "$TMP/args"
+r=$(printf 'One\nBack' | SHELLECT_NATIVE=1 FAKE_RC=255 sh "$TMP/shellect.sh" -t "--== X ==--")
+check "B: the menu's Back item" test "$r" = Back
+r=$(printf 'One\nTwo' | SHELLECT_NATIVE=1 FAKE_RC=255 sh "$TMP/shellect.sh" -t "--== X ==--")
+check "B without a Back item: nothing" test -z "$r"
+printf 'Yes\nNo' | SHELLECT_NATIVE=1 FAKE_RC=254 sh "$TMP/shellect.sh" -m -t x > /dev/null
+check "MENU with -m: exit 2" test $? -eq 2
 end
 
 begin scraper_long_scraping_warning

@@ -108,6 +108,132 @@ close_terminal() {
 FootValidate="Menu: Exit      A: Validate"
 FootToggle="Menu: Exit      A: On/Off"
 
+# ---- New UI --------------------------------------------------------------
+# Scraper.sh runs this menu outside the terminal with SCRAPER_NATIVE=1 (the
+# terminal is still there for the tests and for SCRAPER_NATIVE unset):
+# - the menus are drawn by prompt (shellect.sh's native mode), with
+#   "Scraper" before their title;
+# - what used to be printed before "Press A" is collected in a file and
+#   shown by prompt above a Continue button;
+# - the scraping itself is shown by progressUI (the scrapers say where they
+#   are with "@@total" and "@@item");
+# - the on-screen keyboard still needs the terminal: ui_readline opens one.
+ui_scraper_label() { # script -> "Screenscraper"
+    case $1 in
+        *screenscraper*) echo Screenscraper ;;
+        *launchbox*) echo LaunchBox ;;
+        *retroarch*) echo RetroArch ;;
+        *) echo Scraper ;;
+    esac
+}
+
+# The username or password, typed on the terminal's keyboard, in
+# /tmp/readline.txt.
+ui_readline() { # what to enter, prompt
+    _rl_help="Press X to display the keyboard.|Press A to enter a key.|Press L1 for shift.|Press R1 for backspace.|Press Enter to validate."
+    if [ -n "$SCRAPER_NATIVE" ]; then
+        "$sysdir/bin/st" -q -e sh -c '
+            IFS="|"; for l in $1; do echo "$l"; done
+            printf "\n\n\n%s\n\n" "$2"
+            printf "\033[?25h"
+            readline -m "$3"' sh "$_rl_help" "$1" "$2"
+        return
+    fi
+    clear
+    echo -ne "\e[?25h"  # display the cursor
+    _ifs=$IFS; IFS="|"
+    for _kb in $_rl_help; do keys_red "$_kb"; echo; done
+    IFS=$_ifs
+    echo -e "\n\n\n$1\n\n"
+    readline -m "$2"
+}
+
+if [ -n "$SCRAPER_NATIVE" ]; then
+    SHELLECT_NATIVE=1
+    SHELLECT_PARENT=Scraper
+    SHELLECT_NATIVE_PID=$$
+    export SHELLECT_NATIVE SHELLECT_PARENT SHELLECT_NATIVE_PID
+    ui_screen=/tmp/scraper_screen.txt
+    : > "$ui_screen"
+    exec > "$ui_screen" 2>&1
+    clear() { : > "$ui_screen"; }
+
+    # The text printed since the last clear, without colours, separator
+    # lines and the blank lines at the ends.
+    ui_message() {
+        _esc=$(printf '\033')
+        sed -e "s/${_esc}\[[0-9;?]*[A-Za-z]//g" -e '/^[ =*-]*$/d' "$ui_screen" | head -n 14
+    }
+
+    press_a() { # prompt
+        _msg=$(ui_message)
+        prompt -t "Scraper" -m "${_msg:- }" "Continue" > /dev/null
+        : > "$ui_screen"
+    }
+
+    Long_Scraping_Warning() { # title [first line]
+        _t=$(printf '%s' "$1" | tr 'A-Z' 'a-z')
+        _t="$(printf '%s' "$_t" | cut -c1 | tr 'a-z' 'A-Z')$(printf '%s' "$_t" | cut -c2-)"
+        _m="Long scraping sessions are not recommended:\nthe device works hard for a long time,\nheats up and drains the battery.\nFor large collections, a PC is faster and safer."
+        if [ "$ScrapeInBackground" = "true" ]; then
+            _m="$_m\nIt runs in the background once this menu closes."
+        else
+            _m="$_m\nYou can stop at any time with B."
+        fi
+        _m="$_m\nIf it freezes, hold POWER for 10 seconds."
+        [ -n "$2" ] && _m="$2\n$_m"
+        prompt -p Scraper -t "$_t" -m "$_m" "Start" "Cancel" > /dev/null
+        [ $? -eq 0 ]
+    }
+
+    close_terminal() {
+        rm -f /tmp/stay_awake
+        exit 0
+    }
+
+    # The account question the scrapers ask before scraping, asked here:
+    # the scrapers' output goes to the progress screen.
+    Native_Account_Question() {
+        [ "$ScrapeInBackground" = "true" ] && return
+        config=$(cat "$ScraperConfigFile")
+        userSS=$(echo "$config" | jq -r '.screenscraper_username')
+        passSS=$(echo "$config" | jq -r '.screenscraper_password')
+        [ "$userSS" = "null" ] || [ "$passSS" = "null" ] || [ -z "$userSS" ] || [ -z "$passSS" ] || return
+        while true; do
+            Mychoice=$(echo -e "No\nYes\nScreenscraper information" | /mnt/SDCARD/.tmp_update/script/shellect.sh -t "--== ADD A SCREENSCRAPER ACCOUNT? ==--")
+            case "$Mychoice" in
+                Yes)
+                    for _which in username password; do
+                        ui_readline "Enter your screenscraper $_which." "$_which: "
+                        _val=$(cat /tmp/readline.txt 2> /dev/null)
+                        _val="${_val// /}"
+                        rm -f /tmp/readline.txt
+                        config=$(cat $ScraperConfigFile)
+                        config=$(echo "$config" | jq --arg v "$_val" ".screenscraper_$_which = \$v")
+                        echo "$config" > $ScraperConfigFile
+                        sync
+                    done
+                    break ;;
+                "Screenscraper information") Screenscraper_information ;;
+                *) break ;;
+            esac
+        done
+        export SCRAPER_NO_ACCOUNT_PROMPT=1
+    }
+fi
+
+# One scraper on one console (or one game): on the progress screen in the
+# new UI, in the terminal otherwise.
+run_scraper() { # script system [rom]
+    if [ -n "$SCRAPER_NATIVE" ]; then
+        PROGRESS_UI=1 SCRAPER_NO_ACCOUNT_PROMPT=1 "$@" < /dev/null 2>&1 |
+            progressUI -t Scraper -i image -s "$2 · $(ui_scraper_label "$1")"
+        [ $? -eq 2 ] && close_terminal # stopped with B: no next source
+        return 0
+    fi
+    "$@"
+}
+
 
 # # for debugging
 # echo "CurrentSystem : $CurrentSystem"
@@ -258,10 +384,7 @@ Menu_Config_SSAccountSettings()
 			
 			case "$Mychoice" in
 				*Username\ *)
-					clear
-					echo -ne "\e[?25h"  # display the cursor
-					echo -e "Press X to display the keyboard.\nPress A to enter a key.\nPress L1 for shift.\nPress R1 for backspace.\nPress Enter to validate.\n\n\n\nEnter your screenscraper username.\n\n"
-					readline -m "username: "
+					ui_readline "Enter your screenscraper username." "username: "
 					userSS=$(cat /tmp/readline.txt)
 					userSS="${userSS// /}"  # removing spaces
 					rm /tmp/readline.txt
@@ -271,10 +394,7 @@ Menu_Config_SSAccountSettings()
 					sync
 					;;
 				*Password:\ *)
-					clear
-					echo -ne "\e[?25h"  # display the cursor
-					echo -e "Press X to display the keyboard.\nPress A to enter a key.\nPress L1 for shift.\nPress R1 for backspace.\nPress Enter to validate.\n\n\n\nEnter your screenscraper password.\n\n"
-					readline -m "password: "
+					ui_readline "Enter your screenscraper password." "password: "
 					passSS=$(cat /tmp/readline.txt)
 					passSS="${passSS// /}"  # removing spaces
 					rm /tmp/readline.txt
@@ -666,6 +786,7 @@ Launch_Scraping ()
     
     
     [ "$onerom" = "1" ] && onerom="$romname" || onerom=""
+    [ -n "$SCRAPER_NATIVE" ] && [ "$Screenscraper_enabled" = "true" ] && Native_Account_Question
     
     # Check the value of each variable and run the corresponding script if the value is "true"
 
@@ -673,7 +794,7 @@ Launch_Scraping ()
         if [ "$ScrapeInBackground" = "true" ]; then
             echo "/mnt/SDCARD/.tmp_update/script/scraper/scrap_screenscraper.sh $CurrentSystem" \"$onerom\" >>/tmp/scraper_script.sh
         else
-            /mnt/SDCARD/.tmp_update/script/scraper/scrap_screenscraper.sh $CurrentSystem "$onerom"
+            run_scraper /mnt/SDCARD/.tmp_update/script/scraper/scrap_screenscraper.sh $CurrentSystem "$onerom"
         fi
     fi
     if [ -f "$romimage" ] && ! [ "$onerom" = "" ] ; then echo exiting $romimage; close_terminal; fi;  # exit if only one rom must be scraped and is already found
@@ -682,7 +803,7 @@ Launch_Scraping ()
         if [ "$ScrapeInBackground" = "true" ]; then
             echo "/mnt/SDCARD/.tmp_update/script/scraper/scrap_launchbox.sh $CurrentSystem" \"$onerom\" >>/tmp/scraper_script.sh
         else
-            /mnt/SDCARD/.tmp_update/script/scraper/scrap_launchbox.sh $CurrentSystem "$onerom"
+            run_scraper /mnt/SDCARD/.tmp_update/script/scraper/scrap_launchbox.sh $CurrentSystem "$onerom"
         fi
     fi
     if [ -f "$romimage" ] && ! [ "$onerom" = "" ] ; then  echo exiting $romimage ; close_terminal; fi;
@@ -691,7 +812,7 @@ Launch_Scraping ()
         if [ "$ScrapeInBackground" = "true" ]; then
             echo "/mnt/SDCARD/.tmp_update/script/scraper/scrap_retroarch.sh $CurrentSystem" \"$onerom\" >>/tmp/scraper_script.sh
         else
-            /mnt/SDCARD/.tmp_update/script/scraper/scrap_retroarch.sh $CurrentSystem "$onerom"
+            run_scraper /mnt/SDCARD/.tmp_update/script/scraper/scrap_retroarch.sh $CurrentSystem "$onerom"
         fi
     fi
     if [ -f "$romimage" ] && ! [ "$onerom" = "" ] ; then  echo exiting $romimage ; close_terminal; fi;
@@ -975,31 +1096,42 @@ Scrape_Favorites ()
         rm -f "$list"
         exit
     fi
-    n=0
-    tab=$(printf '\t')
-    # The list on fd 3: the scrapers read the keys on stdin.
-    while IFS="$tab" read -r fsys from <&3; do
-        n=$((n + 1))
-        fimage="/mnt/SDCARD/Roms/$fsys/Imgs/${from%.*}.png"
-        # Shown by the scrapers under their title (they clear the screen)
-        export SCRAPER_PROGRESS="=== Favorite $n/$count: $from ($fsys) ==="
-        for src in screenscraper launchbox retroarch; do
-            case $src in
-                screenscraper) [ "$Screenscraper_enabled" = "true" ] || continue ;;
-                launchbox) [ "$Launchbox_enabled" = "true" ] || continue ;;
-                retroarch) [ "$Retroarch_enabled" = "true" ] || continue ;;
-            esac
-            if [ "$ScrapeInBackground" = "true" ]; then
-                echo "$sdir/scrap_$src.sh $fsys \"$from\"" >> /tmp/scraper_script.sh
-            else
-                "$sdir/scrap_$src.sh" "$fsys" "$from"
-                # The account question once, not for every game
-                export SCRAPER_NO_ACCOUNT_PROMPT=1
-                # Cover found: the next sources are not needed for this game
-                [ -f "$fimage" ] && break
-            fi
-        done
-    done 3< "$list"
+    Favorites_Loop() {
+        [ -n "$SCRAPER_NATIVE" ] && echo "@@total $count"
+        n=0
+        tab=$(printf '\t')
+        # The list on fd 3: the scrapers read the keys on stdin.
+        while IFS="$tab" read -r fsys from <&3; do
+            n=$((n + 1))
+            [ -n "$SCRAPER_NATIVE" ] && echo "@@item $n $from ($fsys)"
+            fimage="/mnt/SDCARD/Roms/$fsys/Imgs/${from%.*}.png"
+            # Shown by the scrapers under their title (they clear the screen)
+            export SCRAPER_PROGRESS="=== Favorite $n/$count: $from ($fsys) ==="
+            for src in screenscraper launchbox retroarch; do
+                case $src in
+                    screenscraper) [ "$Screenscraper_enabled" = "true" ] || continue ;;
+                    launchbox) [ "$Launchbox_enabled" = "true" ] || continue ;;
+                    retroarch) [ "$Retroarch_enabled" = "true" ] || continue ;;
+                esac
+                if [ "$ScrapeInBackground" = "true" ]; then
+                    echo "$sdir/scrap_$src.sh $fsys \"$from\"" >> /tmp/scraper_script.sh
+                else
+                    "$sdir/scrap_$src.sh" "$fsys" "$from"
+                    # The account question once, not for every game
+                    export SCRAPER_NO_ACCOUNT_PROMPT=1
+                    # Cover found: the next sources are not needed for this game
+                    [ -f "$fimage" ] && break
+                fi
+            done
+        done 3< "$list"
+    }
+    if [ -n "$SCRAPER_NATIVE" ] && [ "$ScrapeInBackground" != "true" ]; then
+        [ "$Screenscraper_enabled" = "true" ] && Native_Account_Question
+        Favorites_Loop < /dev/null 2>&1 | progressUI -t Scraper -i image -s "Favorites"
+        rm -f "$list"
+        close_terminal
+    fi
+    Favorites_Loop
     rm -f "$list"
 
     if [ "$ScrapeInBackground" != "true" ]; then
@@ -1064,27 +1196,38 @@ Scrape_All_Consoles ()
         exit
     fi
     clear
-    n=0
-    # The list on fd 3: the scrapers read the keys on stdin.
-    while read -r csys <&3; do
-        n=$((n + 1))
-        # Shown by the scrapers under their title (they clear the screen)
-        export SCRAPER_PROGRESS="=== Console $n/$count: $csys ==="
-        for src in screenscraper launchbox retroarch; do
-            case $src in
-                screenscraper) [ "$Screenscraper_enabled" = "true" ] || continue ;;
-                launchbox) [ "$Launchbox_enabled" = "true" ] || continue ;;
-                retroarch) [ "$Retroarch_enabled" = "true" ] || continue ;;
-            esac
-            if [ "$ScrapeInBackground" = "true" ]; then
-                echo "$sdir/scrap_$src.sh $csys \"\"" >> /tmp/scraper_script.sh
-            else
-                "$sdir/scrap_$src.sh" "$csys" ""
-                # The account question once, not for every console
-                export SCRAPER_NO_ACCOUNT_PROMPT=1
-            fi
-        done
-    done 3< "$list"
+    Consoles_Loop() {
+        [ -n "$SCRAPER_NATIVE" ] && echo "@@total $count"
+        n=0
+        # The list on fd 3: the scrapers read the keys on stdin.
+        while read -r csys <&3; do
+            n=$((n + 1))
+            [ -n "$SCRAPER_NATIVE" ] && echo "@@item $n $csys"
+            # Shown by the scrapers under their title (they clear the screen)
+            export SCRAPER_PROGRESS="=== Console $n/$count: $csys ==="
+            for src in screenscraper launchbox retroarch; do
+                case $src in
+                    screenscraper) [ "$Screenscraper_enabled" = "true" ] || continue ;;
+                    launchbox) [ "$Launchbox_enabled" = "true" ] || continue ;;
+                    retroarch) [ "$Retroarch_enabled" = "true" ] || continue ;;
+                esac
+                if [ "$ScrapeInBackground" = "true" ]; then
+                    echo "$sdir/scrap_$src.sh $csys \"\"" >> /tmp/scraper_script.sh
+                else
+                    "$sdir/scrap_$src.sh" "$csys" ""
+                    # The account question once, not for every console
+                    export SCRAPER_NO_ACCOUNT_PROMPT=1
+                fi
+            done
+        done 3< "$list"
+    }
+    if [ -n "$SCRAPER_NATIVE" ] && [ "$ScrapeInBackground" != "true" ]; then
+        [ "$Screenscraper_enabled" = "true" ] && Native_Account_Question
+        Consoles_Loop < /dev/null 2>&1 | progressUI -t Scraper -i image -s "All consoles"
+        rm -f "$list"
+        close_terminal
+    fi
+    Consoles_Loop
     rm -f "$list"
 
     if [ "$ScrapeInBackground" != "true" ]; then

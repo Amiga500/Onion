@@ -1034,5 +1034,47 @@ case "$content" in
 esac
 
 num=${num:=1} # num=1 if unset
+
+# New UI: with SHELLECT_NATIVE set (a script run outside the terminal), the
+# same menu is drawn by prompt in the new look, with SHELLECT_PARENT (the
+# app) before the title in the header: "Scraper > Configuration". The
+# answer is the same: the chosen item on stdout. B gives the menu's own
+# Back/Exit/Cancel item when it has one, nothing otherwise. MENU leaves:
+# exit 2 with -m (the caller asks first), else SHELLECT_NATIVE_PID (the
+# app's script) is asked to quit, as MENU quits the terminal.
+if [ -n "$SHELLECT_NATIVE" ]; then
+    title=$(printf '%s' "$msg" | sed -e 's/^[ =-]*//' -e 's/[ =-]*$//')
+    title="$(printf '%s' "$title" | cut -c1)$(printf '%s' "$title" | cut -c2- | tr 'A-Z' 'a-z')"
+    set -f
+    set --
+    IFS=$nl
+    for item in $content; do
+        [ -n "$item" ] && set -- "$@" "$item"
+    done
+    unset IFS
+    sel=0
+    case $start in ''|*[!0-9]*) ;; *) sel=$((start - 1)) ;; esac
+    /mnt/SDCARD/.tmp_update/bin/prompt --menu-code -p "${SHELLECT_PARENT:-Menu}" \
+        -t "$title" -s "$sel" "$@" > /dev/null
+    rc=$?
+    if [ $rc -eq 254 ]; then
+        [ -n "$menu_only_exit" ] && exit 2
+        [ -n "$SHELLECT_NATIVE_PID" ] && kill -TERM "$SHELLECT_NATIVE_PID" 2> /dev/null
+        exit 2
+    fi
+    if [ $rc -eq 255 ]; then
+        for item; do
+            case "$item" in Back|Exit|Cancel) printf '%s' "$item"; exit 0 ;; esac
+        done
+        exit 0
+    fi
+    i=0
+    for item; do
+        [ $i -eq $rc ] && { printf '%s' "$item"; exit 0; }
+        i=$((i + 1))
+    done
+    exit 0
+fi
+
 main <&2 >/dev/tty # why it works, I don't know.
 printf '%s' "$cur" >&1

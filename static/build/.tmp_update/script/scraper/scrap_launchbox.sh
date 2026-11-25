@@ -244,9 +244,18 @@ fi
 
 
 #Roms loop
+# New UI (progressUI, PROGRESS_UI set by the scraper's menu): how many games
+# there are, on stderr so it reaches the progress screen (2>&1) and not the
+# loop's list; the loop says which one it is on with "@@item".
+progress_total() {
+    _pt=$(cat)
+    [ -n "$PROGRESS_UI" ] && printf '@@total %s\n' "$(printf '%s\n' "$_pt" | grep -c .)" >&2
+    printf '%s\n' "$_pt"
+}
+
 for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 	! -name '.*' ! -name '*.xml' ! -name '*.miyoocmd' ! -name '*.cfg' ! -name '*.db' \
-	! -path '*/Imgs/*' ! -path '*/.*/*' $romfilter"); do
+	! -path '*/Imgs/*' ! -path '*/.*/*' $romfilter" | progress_total); do
 
     echo "-------------------------------------------------"
     let romcount++;
@@ -254,6 +263,7 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
     romName=$(basename "$file")
     romNameNoExtension=${romName%.*}	
     echo "$romNameNoExtension"
+    [ -n "$PROGRESS_UI" ] && echo "@@item $romcount $romNameNoExtension"
     
     romNameTrimmed="${romNameNoExtension/".nkit"/}"
     romNameTrimmed="${romNameTrimmed//"!"/}"

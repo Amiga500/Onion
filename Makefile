@@ -221,6 +221,7 @@ apps: $(CACHE)/.setup
 	@find $(SRC_DIR)/playActivityUI -depth -type d -name res -exec cp -r {}/. "$(PACKAGES_APP_DEST)/Activity Tracker/App/PlayActivity/res/" \;
 	@find $(SRC_DIR)/packageManager -depth -type d -name res -exec cp -r {}/. $(BUILD_DIR)/App/PackageManager/res/ \;
 	@cd $(SRC_DIR)/clock && BUILD_DIR="$(BIN_DIR)" make
+	@cd $(SRC_DIR)/progressUI && BUILD_DIR="$(BIN_DIR)" make
 	@cd $(SRC_DIR)/randomGamePicker && BUILD_DIR="$(BIN_DIR)" make
 # Preinstalled apps
 	@cp -a "$(PACKAGES_APP_DEST)/Activity Tracker/." $(BUILD_DIR)/

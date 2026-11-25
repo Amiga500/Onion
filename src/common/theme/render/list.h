@@ -272,7 +272,6 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
     int item_padding = list_small && params.show_dividers ? 4.0 * g_scale : 0;
     int item_height = params.stretch_y ? list_height / list->scroll_height : (list_small ? 60.0 : 90.0) * g_scale;
     int label_y = (list_small ? 27.0 : 37.0) * g_scale;
-    SDL_Surface *item_bg = resource_getSurface(list_small ? BG_LIST_S : BG_LIST_L);
 
     int menu_pos_y = params.stretch_y ? params.pos.y + 4.0 * g_scale + (list_height - list->scroll_height * item_height) / 2
                                       : 420.0 * g_scale - list->scroll_height * item_height;
