@@ -260,8 +260,9 @@ static void draw(Canvas *c, Uint32 now) {
              raw_input ? CUI_GREY : CUI_WARN,CUI_CENTER);
 
     side_panel(c,448,"VOLUME KEYS");
-    text_key(c,467,206,136,34,VOL_DOWN,"VOL -",17);
-    text_key(c,467,256,136,34,VOL_UP,"VOL +",17);
+    /* as on the console's side: + above - */
+    text_key(c,467,206,136,34,VOL_UP,"VOL +",17);
+    text_key(c,467,256,136,34,VOL_DOWN,"VOL -",17);
     cui_text(cc,535,350,"Optional",13,CUI_GREY,CUI_CENTER);
     cui_text(cc,535,374,"The system may take them",12,CUI_DIM,CUI_CENTER);
 
