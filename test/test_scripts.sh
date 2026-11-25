@@ -1463,6 +1463,35 @@ else
     skip "ota_update.sh tests (jq not installed)"
 fi
 
+# ---- ota_update.sh: the new UI's download (progressUI) ----
+
+begin ota_native_download_on_progressui
+OTA="$ROOT/static/build/.tmp_update/script/ota_update.sh"
+mkdir -p "$TMP/sys/bin"
+# progressUI: records what it is told; RC_UI is its answer (2: stopped)
+printf '#!/bin/sh\ncat > "%s/ui_in"\nexit ${RC_UI:-0}\n' "$TMP" > "$TMP/sys/bin/progressUI"
+chmod +x "$TMP/sys/bin/progressUI"
+ota_dl() { # rc of progressUI -> the download's return code
+    rm -f "$TMP/file" "$TMP/ui_in"
+    (
+        eval "$(extract_fn "$OTA" onion_percent)"
+        eval "$(sed -n '/^if \[ -n "\$OTA_NATIVE" \]/,/^fi$/p' "$OTA" | sed -n '/^\tdownload_file() {/,/^\t}/p')"
+        sysdir=$TMP/sys
+        ui_unbusy() { :; }
+        stop_download() { kill "$_dl_pid" 2> /dev/null; }
+        curl() { i=0; while [ $i -lt 3 ]; do printf 'xxxx' >> "$TMP/file"; i=$((i + 1)); sleep 1; done; }
+        Release_Version=4.5.1; channel=testers
+        RC_UI=$1 download_file https://x "$TMP/file" 12
+        echo $? > "$TMP/rc"
+    )
+    cat "$TMP/rc"
+}
+check "done: curl's result" test "$(ota_dl 0)" -eq 0
+check "the title, the steps and closing by itself" sh -c "grep -q '^@@title RedOnion 4.5.1' '$TMP/ui_in' && grep -q '^@@total 100' '$TMP/ui_in' && grep -q '^@@autoclose' '$TMP/ui_in'"
+check "percent and MB as the item, three panels" sh -c "grep -q '^@@item [0-9]* [0-9.]* of 0.0 MB' '$TMP/ui_in' && grep -q '^@@panel 3 TIME LEFT|' '$TMP/ui_in'"
+check "stopped on the screen: 130 and no partial file" test "$(ota_dl 2)" -eq 130 -a ! -e "$TMP/file"
+end
+
 # ---- ota_update.sh: apply_update keeps the installed boot scripts ----
 
 begin ota_apply_keeps_the_boot_scripts
@@ -2990,7 +3019,8 @@ check "no name-based kill left (it hit Open MainUI in mainui-test)" sh -c "! gre
 check "end of input leaves the key loop" grep -q '\[ -n "\$key" \] || exit 1' "$SHELLECT"
 check "MENU (a lone Esc) leaves like START" grep -q 'stty min 0 time 1' "$SHELLECT"
 check "with -m only Up/Down, A and MENU are accepted" grep -q "A2|B2|\"\$space\"?) ;;" "$SHELLECT"
-check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -s "${3:-1}" -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 1
+# (two menus: the terminal's and the new UI's, both with -m)
+check "OTA menus leave with MENU only (-m: START ignored)" test "$(grep -c 'shellect.sh -m -s "${3:-1}" -t' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq "$(grep -c 'shellect.sh ' "$ROOT/static/build/.tmp_update/script/ota_update.sh")"
 check "OTA menus all go through ota_menu" test "$(grep -c '^	ota_menu "' "$ROOT/static/build/.tmp_update/script/ota_update.sh")" -eq 3
 check "with -m MENU returns 2 instead of closing the terminal" grep -q '\[ -z "\$menu_only_exit" \] || { term_reset; exit 2; }' "$SHELLECT"
 end

@@ -10,6 +10,11 @@
  *   @@item <n> <name>     working on item n
  *   @@found / @@notfound / @@skipped    one more of each
  *   @@note <text>         the line in the frame at the bottom
+ *   @@panel <1-3> <label>|<value>|<under>   a panel of one's own (a
+ *                         download's size, speed...) instead of the counts
+ *   @@autoclose           close as soon as the task ends (exit 0)
+ *   @@nostop              B does nothing (a task that must not be cut, as
+ *                         an update being written to the card)
  * Lines with "Scraped!", "No match found" or "already Scraped" count too,
  * for scripts that do not send @@found and the like.
  *
@@ -45,7 +50,9 @@ static char note[LINE_MAX_LEN] = DEFAULT_NOTE;
 static char log_lines[LOG_LINES][LINE_MAX_LEN];
 static int log_count = 0;
 static int total = 0, item = 0, found = 0, notfound = 0, skipped = 0;
-static bool finished = false, asking = false;
+static bool finished = false, asking = false, autoclose = false, nostop = false;
+static char panels[3][3][64];
+static bool panel_set[3];
 static Uint32 started_at = 0;
 #ifdef PROGRESSUI_NO_MAIN
 #define SDL_GetTicks() 120000
@@ -105,6 +112,22 @@ static void handle_line(char *line)
             skipped++;
         else if (!strcmp(cmd, "note") && arg)
             snprintf(note, sizeof(note), "%s", arg);
+        else if (!strcmp(cmd, "autoclose"))
+            autoclose = true;
+        else if (!strcmp(cmd, "nostop"))
+            nostop = true;
+        else if (!strcmp(cmd, "panel") && arg && arg[0] >= '1' && arg[0] <= '3' && arg[1] == ' ') {
+            int n = arg[0] - '1';
+            char *f = arg + 2;
+            for (int k = 0; k < 3; k++) {
+                char *bar = strchr(f, '|');
+                if (bar)
+                    *bar = '\0';
+                snprintf(panels[n][k], sizeof(panels[n][k]), "%s", f);
+                f = bar ? bar + 1 : f + strlen(f);
+            }
+            panel_set[n] = true;
+        }
         return;
     }
     if (strstr(line, "already Scraped"))
@@ -159,6 +182,12 @@ static void draw(CuiCanvas *c, int battery)
     cui_text(c, 20, 150, fitted, 16, CUI_GREY, CUI_LEFT);
 
     char v[32], s[48];
+    if (panel_set[0] || panel_set[1] || panel_set[2]) {
+        for (int k = 0; k < 3; k++)
+            if (panel_set[k])
+                panel(c, 20 + k * 204, 192, panels[k][0], panels[k][1], panels[k][2], CUI_WHITE);
+    }
+    else {
     snprintf(v, sizeof(v), "%d", found);
     snprintf(s, sizeof(s), total ? "of %d" : "so far", total);
     panel(c, 20, 192, "FOUND", v, s, CUI_WHITE);
@@ -173,6 +202,7 @@ static void draw(CuiCanvas *c, int battery)
     else {
         snprintf(v, sizeof(v), "%d", skipped);
         panel(c, 428, 192, "ALREADY THERE", v, "skipped", CUI_WHITE);
+    }
     }
 
     /* the last lines of the task */
@@ -190,7 +220,7 @@ static void draw(CuiCanvas *c, int battery)
     cui_rect(c, 0, 428, CUI_W, 52, CUI_HEAD);
     if (finished)
         cui_hint(c, 16, 454, "A", "CLOSE", 20);
-    else
+    else if (!nostop)
         cui_hint(c, 16, 454, "B", "STOP", 20);
 
     if (asking) {
@@ -272,6 +302,8 @@ int main(int argc, char *argv[])
                 input_open = false;
                 finished = true;
                 dirty = true;
+                if (autoclose)
+                    quit = true;
             }
         }
 
@@ -294,7 +326,7 @@ int main(int argc, char *argv[])
                 else if (key == SW_BTN_B || key == SW_BTN_MENU)
                     asking = false;
             }
-            else if (key == SW_BTN_B || key == SW_BTN_MENU)
+            else if ((key == SW_BTN_B || key == SW_BTN_MENU) && !nostop)
                 asking = true;
             dirty = true;
         }

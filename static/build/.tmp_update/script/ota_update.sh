@@ -10,6 +10,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[1;34m'
 NC='\033[0m' # No Color
 
+# New UI: what the updater is doing, while there is nothing to answer
+# (OTA_NATIVE: an info panel; in the terminal the lines say it).
+ui_busy() { :; }
+
 # Repository name :
 GITHUB_REPOSITORY=Amiga500/Onion
 
@@ -61,6 +65,7 @@ main() {
 	trap 'exit 130' INT TERM HUP
 	quiet_keys
 
+	ui_busy "Checking the Wi-Fi and the connection..."
 	check_available_space
 	check_wifi_hardware
 	wait_boot_network
@@ -71,6 +76,7 @@ main() {
 	sleep 2
 	channel_choice
 
+	ui_busy "Looking for updates on the $channel channel..."
 	get_release_info
 	case $? in
 		0)
@@ -876,8 +882,12 @@ apply_update() {
 		# Without them the installed system still boots until the trigger,
 		# miyoo/app/MainUI (near the end), is there; then check_installer
 		# in runtime.sh starts the installer, which installs the real ones.
-		7z x -aoa -o"/mnt/SDCARD" "$sysdir/download/$Release_Version.zip" \
-			-x!.tmp_update/updater -x!.tmp_update/runtime.sh
+		if [ -n "$OTA_NATIVE" ]; then
+			apply_extract "$sysdir/download/$Release_Version.zip"
+		else
+			7z x -aoa -o"/mnt/SDCARD" "$sysdir/download/$Release_Version.zip" \
+				-x!.tmp_update/updater -x!.tmp_update/runtime.sh
+		fi
 
 		if [ $? -eq 0 ]; then
 			echo -e "${GREEN}Decompression successful.${NC}"
@@ -916,5 +926,140 @@ apply_update() {
 build_date() { echo "$1" | sed -n -e 's/^.*-\([0-9]\{8\}\)-[0-9a-f]\{7,\}$/\1/p' -e 's/^.*-\([0-9]\{8\}\)-[0-9a-f]\{7,\}-[A-Za-z0-9._]*$/\1/p' -e 's/^.*-\([0-9]\{8\}\)$/\1/p' | head -n 1; }
 
 get_version() { echo "$@" | tr -d '[:alpha:]' | awk -F'[.-]' '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
+
+
+# ---- New UI ---------------------------------------------------------------
+# The OTA app runs the updater outside the terminal with OTA_NATIVE=1
+# (OTA_TERMINAL=1: the terminal, as before). The same steps and texts:
+# - what is printed between two questions is collected in a file and shown
+#   by prompt above the answers (Continue / Exit, Reboot...);
+# - the menus are drawn by prompt (shellect.sh's native mode), with
+#   "Update" before their title;
+# - while it works, an info panel says what it does;
+# - the download and the extraction are shown by progressUI.
+if [ -n "$OTA_NATIVE" ] && [ "$cmd" != "check" ]; then
+	SHELLECT_NATIVE=1
+	SHELLECT_PARENT=Update
+	SHELLECT_NATIVE_PID=$$
+	export SHELLECT_NATIVE SHELLECT_PARENT SHELLECT_NATIVE_PID
+	ui_screen=/tmp/ota_screen.txt
+	: > "$ui_screen"
+	exec > "$ui_screen" 2>&1
+	clear() { : > "$ui_screen"; }
+	quiet_keys() { :; }
+	# (on EXIT too: the info panel must not outlive the updater)
+	restore_keys() { ui_unbusy; }
+	drop_keys() { :; }
+
+	# The text printed since the last question: no colours, no frame lines.
+	ui_message() {
+		sed -e "s/${ESC}\[[0-9;?]*[A-Za-z]//g" -e 's/^ *//' -e '/^[ =*-]*$/d' \
+			-e 's/^=* *\([A-Za-z][A-Za-z ]*[A-Za-z]\) *=*$/\1/' "$ui_screen" | head -n 14
+	}
+
+	ui_busy() { # what it is doing
+		ui_unbusy
+		rm -f /tmp/dismiss_info_panel
+		"$sysdir/bin/infoPanel" -t "Update" -m "$1" --persistent > /dev/null 2>&1 &
+		ui_busy_pid=$!
+	}
+
+	ui_unbusy() {
+		[ -n "$ui_busy_pid" ] || return 0
+		touch /tmp/dismiss_info_panel
+		wait "$ui_busy_pid" 2> /dev/null
+		ui_busy_pid=
+		rm -f /tmp/dismiss_info_panel
+	}
+
+	# "Press A to exit": the text, and one button with that word.
+	press_a() { # prompt
+		ui_unbusy
+		_word=${1#Press A to }
+		_word="$(echo "$_word" | cut -c1 | tr 'a-z' 'A-Z')$(echo "$_word" | cut -c2-)"
+		_msg=$(ui_message)
+		"$sysdir/bin/prompt" -t "Update" -m "${_msg:- }" "$_word" > /dev/null
+		: > "$ui_screen"
+	}
+
+	# The release found: Continue (0) or Exit (1, MENU and B too).
+	wait_key() { # prompt
+		ui_unbusy
+		_msg=$(ui_message)
+		"$sysdir/bin/prompt" -t "Update" -m "${_msg:- }" "Continue" "Exit" > /dev/null
+		_wk=$?
+		: > "$ui_screen"
+		[ $_wk -eq 0 ]
+	}
+
+	# Leaving: yes returns 0. B and MENU answer no.
+	ask_leave() { # question
+		ui_unbusy
+		"$sysdir/bin/prompt" -t "Update" -m "$1" "No" "Yes" > /dev/null
+		[ $? -eq 1 ]
+	}
+
+	ota_menu() { # items, title[, the item to start on]
+		ui_unbusy
+		while :; do
+			menu_choice=$(echo -e "$1" | $sysdir/script/shellect.sh -m -s "${3:-1}" -t "--== $(echo "$2" | tr a-z A-Z) ==--")
+			_rc=$?
+			[ $_rc -eq 2 ] || return 0
+			ask_leave "Exit the updater?" && exit 0
+		done
+	}
+
+	# The download on progressUI: the percent, the MB, the speed and the
+	# time left. B there asks "Stop now?": stopped, 130 as in the terminal.
+	download_file() { # url, file, expected size (bytes)
+		ui_unbusy
+		curl -k -L -f -s --connect-timeout 15 --retry 3 --retry-delay 2 \
+			-o "$2" "$1" < /dev/null &
+		_dl_pid=$!
+		{
+			echo "@@title RedOnion $Release_Version · $channel"
+			echo "@@total 100"
+			echo "@@autoclose"
+			echo "@@note Keep the console charging. Your games and saves are not touched."
+			_t0=$(date +%s)
+			while kill -0 "$_dl_pid" 2> /dev/null; do
+				_d=$(stat -c %s "$2" 2> /dev/null || echo 0)
+				onion_percent "$_d" "$3"
+				_el=$(($(date +%s) - _t0))
+				_mb=$(awk -v d="$_d" -v t="$3" 'BEGIN { printf "%.1f of %.1f MB", d / 1048576, t / 1048576 }')
+				_sp=$(awk -v d="$_d" -v s="$_el" 'BEGIN { if (s > 0) printf "%.1f MB/s", d / 1048576 / s; else printf "-" }')
+				_left=$(awk -v d="$_d" -v t="$3" -v s="$_el" 'BEGIN { if (d > 0 && s > 0) { l = (t - d) * s / d; printf "%02d:%02d", l / 60, l % 60 } else printf "--:--" }')
+				echo "@@item $((onion_pct + 1)) $_mb"
+				echo "@@panel 1 DOWNLOADED|$(echo "$_mb" | cut -d' ' -f1) MB|of $(echo "$_mb" | cut -d' ' -f3) MB"
+				echo "@@panel 2 SPEED|$_sp|Wi-Fi"
+				echo "@@panel 3 TIME LEFT|$_left|about"
+				sleep 1
+			done
+		} | "$sysdir/bin/progressUI" -t Update -i down
+		if [ $? -eq 2 ]; then
+			stop_download
+			rm -f "$2"
+			return 130
+		fi
+		wait "$_dl_pid"
+		_dl_rc=$?
+		_dl_pid=
+		return $_dl_rc
+	}
+
+	# The extraction on progressUI, which cannot be stopped there (a card
+	# half written does not start); 7z's own result as before.
+	apply_extract() { # zip
+		{
+			echo "@@title Installing RedOnion $Release_Version"
+			echo "@@nostop"
+			echo "@@autoclose"
+			echo "@@note Don't turn the console off: it restarts when this is done."
+			7z x -aoa -o"/mnt/SDCARD" "$1" -x!.tmp_update/updater -x!.tmp_update/runtime.sh
+			echo $? > /tmp/ota_7z_rc
+		} 2>&1 | "$sysdir/bin/progressUI" -t Update -i down
+		return "$(cat /tmp/ota_7z_rc 2> /dev/null || echo 1)"
+	}
+fi
 
 main
