@@ -79,8 +79,8 @@ V4 display sizes are supported in the code, but feedback is welcome.
    launch, **Start Kids Mode** asks for the profile (Main or Guest) and the
    session timer (or `OFF`); X opens **Controls & tips**. Starting shows a
    reminder of how to leave: hold SELECT + START in the carousel, enter the
-   PIN, then choose **Exit Kids Mode**. The **Exit reminder** row turns that
-   reminder off (and back on); the choice is kept.
+   PIN, then choose **Exit Kids Mode**. **Reminder** in the parent menu turns
+   that reminder off (and back on); the choice is kept.
 
 Kids Mode remains active after a reboot until it is exited through the
 parent menu.
@@ -280,6 +280,8 @@ choose:
   - **Content access** — Games & Media, Games only or Media only.
   - **Media folders** — show or hide Movies, Music, Cartoons, Series and
     Stories.
+- **Reminder** — the message on how to leave Kids Mode, shown before it
+  starts: ON (default) or OFF.
 - **Exit Kids Mode** — restore RedOnion and return to its normal interface.
 
 SELECT on an item shows a short note about it, as in Tweaks; SELECT, A or B

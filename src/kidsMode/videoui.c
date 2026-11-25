@@ -126,7 +126,8 @@ typedef enum { SCREEN_CAROUSEL,
 #define MENU_CAROUSEL_SETTINGS 3
 #define CAROUSEL_FLOORS 0
 #define CAROUSEL_CATEGORIES 1
-#define MENU_UNLOCK 4
+#define MENU_REMINDER 4
+#define MENU_UNLOCK 5
 #define CATEGORY_MOVIES 0
 #define CATEGORY_MUSIC 1
 #define CATEGORY_CARTOONS 2
@@ -2979,7 +2980,9 @@ typedef struct {
     const char *label;
 } FooterHint;
 
-static void renderFooterHints(const FooterHint *hints, int count)
+// Returns where the hints end: their right edge in the classic layout, their
+// left edge in the alternative one.
+static int renderFooterHints(const FooterHint *hints, int count)
 {
     TTF_Font *font = resource_getFont(HINT);
     int gap = (int)(30.0 * g_scale);
@@ -3012,6 +3015,7 @@ static void renderFooterHints(const FooterHint *hints, int count)
     }
     bool alt = theme_footerAltLayout();
     int x = alt ? (int)(620.0 * g_scale) : (int)(20.0 * g_scale);
+    int edge = x;
     for (int i = 0; i < n; i++) {
         if (alt)
             x -= widths[i];
@@ -3024,8 +3028,10 @@ static void renderFooterHints(const FooterHint *hints, int count)
         if (shown[i].label != NULL)
             drawTextAlign(shown[i].label, hx, cy - 1, font, theme()->hint.color, 0,
                           TEXT_LEFT);
+        edge = alt ? x : x + widths[i];
         x = alt ? x - gap : x + widths[i] + gap;
     }
+    return edge;
 }
 
 // The X button the GameSwitcher shows too (theme/resources.h: the theme's
@@ -3407,42 +3413,75 @@ static void renderMenu(List *list, int remaining)
     theme_renderHeaderBattery(screen, batteryPercentage());
     theme_renderList(screen, list);
 
-    // Status line: current remaining time, and — while the add-time row is
-    // selected — what it becomes when applied. Five menu rows leave the last
-    // native list row free for this information above the footer.
-    char info[STR_MAX] = "";
+    // The time left, and, on the add-time row, what it becomes: in the
+    // footer, where the page number goes (the six rows fill the list). The
+    // longest form that fits next to the hints; a theme that hides them has
+    // its own hints in its footer art, so only the page number's room there.
+    // None fits: the time left in its shortest form all the same, while what
+    // adding gives is left out (the row shows the minutes added).
     int rem_min = remaining >= 0 ? (remaining + 59) / 60 : -1;
+    char forms[3][64];
+    int nforms = 0;
     if (list->active_pos == MENU_ADDTIME) {
         int add_min = list->items[MENU_ADDTIME].value * TIMER_STEP;
-        if (add_min == 0 && rem_min >= 0)
-            snprintf(info, sizeof(info),
-                     "Time left: %d min (no limit after)", rem_min);
+        if (add_min == 0 && rem_min >= 0) {
+            snprintf(forms[nforms++], 64, "%d min -> no limit", rem_min);
+            snprintf(forms[nforms++], 64, "No limit");
+        }
         else if (add_min == 0)
-            snprintf(info, sizeof(info), "No timer set");
-        else if (rem_min >= 0)
-            snprintf(info, sizeof(info),
-                     "Time left: %d min (%d min after adding)", rem_min,
+            snprintf(forms[nforms++], 64, "No timer");
+        else if (rem_min >= 0) {
+            snprintf(forms[nforms++], 64, "%d -> %d min", rem_min,
                      rem_min + add_min);
-        else
-            snprintf(info, sizeof(info), "No timer (%d min after adding)",
-                     add_min);
+            snprintf(forms[nforms++], 64, "-> %d min", rem_min + add_min);
+        }
+        else {
+            snprintf(forms[nforms++], 64, "No timer -> %d min", add_min);
+            snprintf(forms[nforms++], 64, "-> %d min", add_min);
+        }
+    }
+    else if (rem_min >= 0) {
+        snprintf(forms[nforms++], 64, "Time left: %d min", rem_min);
+        snprintf(forms[nforms++], 64, "%d min left", rem_min);
+        snprintf(forms[nforms++], 64, "%d min", rem_min);
     }
     else {
-        if (rem_min >= 0)
-            snprintf(info, sizeof(info), "Time left: %d min", rem_min);
-        else
-            snprintf(info, sizeof(info), "No timer set");
+        snprintf(forms[nforms++], 64, "No timer set");
+        snprintf(forms[nforms++], 64, "No timer");
     }
-    drawTextAlign(info, (int)(620.0 * g_scale), (int)(395.0 * g_scale),
-                  resource_getFont(LIST), theme()->list.color,
-                  g_display.width - 40, TEXT_RIGHT);
 
     theme_renderFooter(screen);
     FooterHint hints[] = {{resource_getSurface(BUTTON_A), "OK"},
                           {resource_getSurface(BUTTON_B), "BACK"},
                           {footerIconX(), "HELP"}};
-    renderFooterHints(hints, 3);
-    theme_renderFooterStatus(screen, list->active_pos + 1, list->item_count);
+    int hints_edge = renderFooterHints(hints, 3);
+
+    bool alt = theme_footerAltLayout();
+    int margin = (int)(20.0 * g_scale);
+    int room = alt ? hints_edge - (int)(30.0 * g_scale) - margin
+                   : g_display.width - margin - hints_edge -
+                         (int)(30.0 * g_scale);
+    if (theme()->hideLabels.hints)
+        room = (int)((FOOTER_STATUS_ROOM - 20) * g_scale);
+    TTF_Font *font = resource_getFont(HINT);
+    int pick = list->active_pos == MENU_ADDTIME ? -1 : nforms - 1;
+    for (int i = 0; i < nforms; i++) {
+        int w = 0, h = 0;
+        if (font != NULL && TTF_SizeUTF8(font, forms[i], &w, &h) == 0 &&
+            w <= room) {
+            pick = i;
+            break;
+        }
+    }
+    if (pick < 0)
+        return;
+    int cy = (int)(450.0 * g_scale);
+    if (alt)
+        drawTextAlign(forms[pick], margin, cy - 1, font, theme()->hint.color,
+                      0, TEXT_LEFT);
+    else
+        drawTextAlign(forms[pick], g_display.width - margin, cy - 1, font,
+                      theme()->hint.color, 0, TEXT_RIGHT);
 }
 
 static void renderSettingsList(List *list, const char *title)
@@ -3765,9 +3804,10 @@ static void renderPickProfile(List *list)
 }
 
 // Before Kids Mode starts (Veuks): how to get out of it again. The PIN
-// setup says it too, but only the first time. On by default; the "Exit
-// reminder" row of Start Kids Mode turns it off (zazzagone), kept as a file
-// next to Kids Mode's other state so it outlives the app's updates.
+// setup says it too, but only the first time. On by default; "Reminder" in
+// the parent menu turns it off (zazzagone: on Start Kids Mode, A on the row
+// started Kids Mode instead), kept as a file next to Kids Mode's other state
+// so it outlives the app's updates.
 #define NO_START_REMINDER_FILE "/mnt/SDCARD/Saves/KidsMode/no_start_reminder"
 
 static bool startReminderEnabled(void)
@@ -4062,7 +4102,7 @@ int main(int argc, char *argv[])
     int remaining = -1;
 
     // Parent menu list (native Onion list component)
-    List menu_list = list_create(5, LIST_SMALL);
+    List menu_list = list_create(6, LIST_SMALL);
     // SELECT on an item: its note (as in Tweaks), SELECT, A or B hides it
     if (strcmp(menu_switch_profile, "Main") == 0)
         list_addItemWithInfoNote(&menu_list,
@@ -4108,6 +4148,14 @@ int main(int argc, char *argv[])
                              "What the carousel shows: games,\n"
                              "media or both, and which media\n"
                              "folders.");
+    list_addItemWithInfoNote(&menu_list,
+                             (ListItem){.label = "Reminder",
+                                        .item_type = TOGGLE,
+                                        .value = startReminderEnabled() ? 1 : 0,
+                                        .action = onStartReminderToggle},
+                             "Before Kids Mode starts, a message\n"
+                             "says how to leave it again.\n"
+                             "OFF: Kids Mode starts without it.");
     list_addItemWithInfoNote(&menu_list,
                              (ListItem){.label = "Exit Kids Mode",
                                         .item_type = ACTION},
@@ -4165,7 +4213,7 @@ int main(int argc, char *argv[])
                             .value = show_stories ? 1 : 0,
                             .action = onStoriesToggle});
 
-    List profile_list = list_create(3, LIST_SMALL);
+    List profile_list = list_create(2, LIST_SMALL);
     list_addItem(&profile_list,
                  (ListItem){.label = "Profile",
                             .item_type = MULTIVALUE,
@@ -4180,11 +4228,6 @@ int main(int argc, char *argv[])
                             .value_max = TIMER_MAX / TIMER_STEP,
                             .value = 0,
                             .value_formatter = formatSessionTimer});
-    list_addItem(&profile_list,
-                 (ListItem){.label = "Exit reminder",
-                            .item_type = TOGGLE,
-                            .value = startReminderEnabled() ? 1 : 0,
-                            .action = onStartReminderToggle});
 
     if (set_pin_mode) {
         active_screen = SCREEN_PIN;
@@ -4492,7 +4535,7 @@ int main(int argc, char *argv[])
                     break;
                 case SW_BTN_A:
                 case SW_BTN_START:
-                    if (profile_list.items[2].value) {
+                    if (startReminderEnabled()) {
                         active_screen = SCREEN_CONFIRM_START;
                         dirty = true;
                         break;
@@ -4541,7 +4584,7 @@ int main(int argc, char *argv[])
                     }
                     break;
                 case SW_BTN_X:
-                    // "X HELP" in the footer: the menu keeps its 5 rows
+                    // "X HELP" in the footer
                     help_page = 0;
                     help_return = SCREEN_MENU;
                     active_screen = SCREEN_HELP;
@@ -4586,7 +4629,8 @@ int main(int argc, char *argv[])
                         exit_code = 5;
                         quit = true;
                     }
-                    else if (menu_list.active_pos == MENU_SAVESTATES) {
+                    else if (menu_list.active_pos == MENU_SAVESTATES ||
+                             menu_list.active_pos == MENU_REMINDER) {
                         list_activateItem(&menu_list);
                         dirty = true;
                     }
