@@ -3,9 +3,11 @@
 #include <SDL/SDL_image.h>
 #include <SDL/SDL_ttf.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -108,10 +110,126 @@ static void previewCacheFree(PreviewCacheEntry cache[PREVIEW_CACHE_SIZE])
     }
 }
 
-/* New UI: the preview at 360x270 (from the theme's 480x360 preview.png),
- * kept for the theme it was made for. */
+/* New UI: the preview at 360x270, kept for the theme it was made for.
+ *
+ * The preview.png is first copied to 32-bit RGB with a plain blit, which
+ * reads any PNG IMG_Load gives (paletted, RGB, RGBA): SDL_SoftStretch needs
+ * the same format on both sides, and a paletted preview (PAC-MIYOO, Super
+ * Onion Entertainment System) came out black. The whole image is then
+ * fitted in 360x270 with a bicubic filter (Catmull-Rom, widened when it
+ * shrinks, so every source pixel counts): SoftStretch picked one pixel in
+ * four and lost the fine lines of detailed previews. */
 static SDL_Surface *scaled_preview = NULL;
 static int scaled_preview_page = -1;
+
+#define PREVIEW_W 360
+#define PREVIEW_H 270
+
+static float cubicWeight(float x)
+{
+    const float a = -0.5f;
+    x = fabsf(x);
+    if (x < 1.0f)
+        return ((a + 2.0f) * x - (a + 3.0f)) * x * x + 1.0f;
+    if (x < 2.0f)
+        return ((a * x - 5.0f * a) * x + 8.0f * a) * x - 4.0f * a;
+    return 0.0f;
+}
+
+/* For each of out_n outputs: the first input it reads, how many, and their
+ * weights (normalised), into *first, *count and w[i * max_taps]. */
+static int cubicTaps(int in_n, int out_n, int *first, int *count, float **weights)
+{
+    float scale = (float)in_n / (float)out_n;
+    float filter = scale > 1.0f ? scale : 1.0f;
+    float support = 2.0f * filter;
+    int max_taps = (int)ceilf(support) * 2 + 1;
+    float *w = calloc((size_t)out_n * (size_t)max_taps, sizeof(float));
+    if (w == NULL)
+        return 0;
+    for (int i = 0; i < out_n; i++) {
+        float center = (i + 0.5f) * scale;
+        int lo = (int)(center - support + 0.5f), hi = (int)(center + support + 0.5f);
+        if (lo < 0)
+            lo = 0;
+        if (hi > in_n)
+            hi = in_n;
+        if (hi - lo > max_taps)
+            hi = lo + max_taps;
+        float sum = 0.0f;
+        for (int j = lo; j < hi; j++) {
+            float v = cubicWeight((j + 0.5f - center) / filter);
+            w[i * max_taps + (j - lo)] = v;
+            sum += v;
+        }
+        if (sum != 0.0f)
+            for (int j = 0; j < hi - lo; j++)
+                w[i * max_taps + j] /= sum;
+        first[i] = lo;
+        count[i] = hi - lo;
+    }
+    *weights = w;
+    return max_taps;
+}
+
+static Uint8 clampChannel(float v)
+{
+    return v <= 0.0f ? 0 : v >= 255.0f ? 255 : (Uint8)(v + 0.5f);
+}
+
+/* src (32-bit 0xRRGGBB) to dw x dh at dst + (dx, dy). */
+static void resampleBicubic(SDL_Surface *src, SDL_Surface *dst, int dx, int dy, int dw, int dh)
+{
+    int sw = src->w, sh = src->h;
+    int *fx = malloc(sizeof(int) * dw), *nx = malloc(sizeof(int) * dw);
+    int *fy = malloc(sizeof(int) * dh), *ny = malloc(sizeof(int) * dh);
+    float *wx = NULL, *wy = NULL, *rows = malloc(sizeof(float) * 3 * (size_t)dw * (size_t)sh);
+    int tx = 0, ty = 0;
+    if (fx && nx && fy && ny && rows) {
+        tx = cubicTaps(sw, dw, fx, nx, &wx);
+        ty = cubicTaps(sh, dh, fy, ny, &wy);
+    }
+    if (tx && ty) {
+        /* across: each source row to dw columns */
+        for (int y = 0; y < sh; y++) {
+            const Uint32 *in = (const Uint32 *)((const Uint8 *)src->pixels + y * src->pitch);
+            float *out = rows + 3 * (size_t)dw * y;
+            for (int x = 0; x < dw; x++) {
+                float r = 0, g = 0, b = 0;
+                const float *w = wx + x * tx;
+                for (int k = 0; k < nx[x]; k++) {
+                    Uint32 p = in[fx[x] + k];
+                    r += w[k] * ((p >> 16) & 0xFF);
+                    g += w[k] * ((p >> 8) & 0xFF);
+                    b += w[k] * (p & 0xFF);
+                }
+                out[3 * x] = r, out[3 * x + 1] = g, out[3 * x + 2] = b;
+            }
+        }
+        /* down: each output row from those */
+        for (int y = 0; y < dh; y++) {
+            Uint32 *o = (Uint32 *)((Uint8 *)dst->pixels + (dy + y) * dst->pitch) + dx;
+            const float *w = wy + y * ty;
+            for (int x = 0; x < dw; x++) {
+                float r = 0, g = 0, b = 0;
+                for (int k = 0; k < ny[y]; k++) {
+                    const float *p = rows + 3 * ((size_t)dw * (fy[y] + k) + x);
+                    r += w[k] * p[0];
+                    g += w[k] * p[1];
+                    b += w[k] * p[2];
+                }
+                o[x] = ((Uint32)clampChannel(r) << 16) | ((Uint32)clampChannel(g) << 8) | clampChannel(b);
+            }
+        }
+    }
+    free(fx);
+    free(nx);
+    free(fy);
+    free(ny);
+    free(wx);
+    free(wy);
+    free(rows);
+}
 
 static SDL_Surface *scaledPreview(SDL_Surface *preview, int page)
 {
@@ -121,15 +239,42 @@ static SDL_Surface *scaledPreview(SDL_Surface *preview, int page)
         SDL_FreeSurface(scaled_preview);
     scaled_preview = NULL;
     scaled_preview_page = page;
-    if (preview == NULL)
+    if (preview == NULL || preview->w <= 0 || preview->h <= 0)
         return NULL;
-    SDL_PixelFormat *f = preview->format;
-    scaled_preview = SDL_CreateRGBSurface(0, 360, 270, f->BitsPerPixel, f->Rmask, f->Gmask, f->Bmask, f->Amask);
-    if (scaled_preview == NULL)
+
+    /* any PNG to 32-bit RGB, on the panel grey (for transparent parts) */
+    SDL_Surface *rgb = SDL_CreateRGBSurface(SDL_SWSURFACE, preview->w, preview->h, 32,
+                                            0x00FF0000, 0x0000FF00, 0x000000FF, 0);
+    scaled_preview = SDL_CreateRGBSurface(SDL_SWSURFACE, PREVIEW_W, PREVIEW_H, 32,
+                                          0x00FF0000, 0x0000FF00, 0x000000FF, 0);
+    if (rgb == NULL || scaled_preview == NULL) {
+        if (rgb)
+            SDL_FreeSurface(rgb);
+        if (scaled_preview)
+            SDL_FreeSurface(scaled_preview);
+        scaled_preview = NULL;
         return NULL;
-    SDL_Rect src = {0, 0, preview->w > 480 ? 480 : preview->w, preview->h > 360 ? 360 : preview->h};
-    SDL_Rect dst = {0, 0, 360, 270};
-    SDL_SoftStretch(preview, &src, scaled_preview, &dst);
+    }
+    SDL_FillRect(rgb, NULL, CUI_PANEL);
+    SDL_BlitSurface(preview, NULL, rgb, NULL);
+    SDL_FillRect(scaled_preview, NULL, CUI_PANEL);
+
+    /* the whole preview, fitted and centred (they are 4:3, 480x360) */
+    int dw = PREVIEW_W, dh = PREVIEW_W * rgb->h / rgb->w;
+    if (dh > PREVIEW_H) {
+        dh = PREVIEW_H;
+        dw = PREVIEW_H * rgb->w / rgb->h;
+    }
+    if (dw < 1)
+        dw = 1;
+    if (dh < 1)
+        dh = 1;
+    SDL_LockSurface(rgb);
+    SDL_LockSurface(scaled_preview);
+    resampleBicubic(rgb, scaled_preview, (PREVIEW_W - dw) / 2, (PREVIEW_H - dh) / 2, dw, dh);
+    SDL_UnlockSurface(scaled_preview);
+    SDL_UnlockSurface(rgb);
+    SDL_FreeSurface(rgb);
     return scaled_preview;
 }
 

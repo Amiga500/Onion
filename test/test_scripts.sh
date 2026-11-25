@@ -6502,6 +6502,16 @@ check "each installation starts a new order (both places)" test "$(grep -c 'rm -
 check "the dots are drawn by installUI, not in the pictures" grep -q "draw_dots(&c, current_slide);" "$IUI"
 end
 
+begin themes_previews_any_png_and_bicubic
+# Paletted previews (PAC-MIYOO, Super Onion Entertainment System) were black:
+# SoftStretch needs one format on both sides. Now any PNG is blitted to
+# 32-bit first, and scaled with a bicubic filter (robcodedev).
+TS="$ROOT/src/themeSwitcher/themeSwitcher.c"
+check "no SoftStretch on the preview any more" sh -c '! grep -q "SDL_SoftStretch(preview" "$1"' _ "$TS"
+check "the preview is blitted to 32-bit first" grep -qF "SDL_BlitSurface(preview, NULL, rgb, NULL);" "$TS"
+check "scaled with Catmull-Rom (a = -0.5)" grep -qF "const float a = -0.5f;" "$TS"
+end
+
 begin clock_unhandled_key_keeps_the_redraw
 check "the default case does not clear dirty" sh -c '! sed -n "/default:/,/break;/p" "$1" | grep -q "dirty = false"' _ "$ROOT/src/clock/main.c"
 check "dirty is cleared only after drawing" test "$(grep -c "dirty = false" "$ROOT/src/clock/main.c")" -eq 1
