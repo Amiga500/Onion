@@ -5614,6 +5614,11 @@ check "Miyoo 29x53: 4 rows under it end on the last row" test $((onion_msg_row +
 FAKE_SIZE="40 53"; onion_layout
 check "taller screen: at most 4 more rows" test "$onion_rows" -eq 22
 check "taller screen: rows left free" test $((onion_msg_row + 3)) -le 40
+FAKE_SIZE="25 63"; onion_layout
+check "16 px font, 25x63: the tall onion, 16 rows" test "$onion_tall" -eq 1 -a "$onion_rows" -eq 16
+check "25x63: 4 rows under it end on the last row" test $((onion_msg_row + 3)) -eq 25
+drawn=$(onion_draw 50 | sed "s/$(printf '\033')\[[0-9]*;1H/\n/g; s/$(printf '\033')\[[0-9;]*[mK]//g" | grep -c .)
+check "25x63: the onion draws its 16 rows ($drawn)" test "$drawn" -eq 16
 FAKE_SIZE="24 53"; onion_layout
 check "short screen: the compact onion" test "$onion_tall" -eq 0 -a "$onion_rows" -eq 12
 check "short screen: still fits" test $((onion_msg_row + 3)) -le 24

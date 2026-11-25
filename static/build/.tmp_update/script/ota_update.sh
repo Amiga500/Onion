@@ -604,7 +604,8 @@ ota_menu() { # items, title[, the item to start on: 1 when not given]
 # for the question (MENU), the result or an error with its "Press A" (the
 # updater's messages take up to 3: one more is kept free, so nothing scrolls
 # the onion off the top). The tall onion (18 rows) takes the rows left over,
-# up to 4 more body rows; a compact one (12 rows) on a short screen. The
+# up to 4 more body rows, or gives up to 2 (16 rows: the 25 rows of the
+# terminal's 16 px font); a compact one (12 rows) on a shorter screen. The
 # Miyoo terminal is 29 x 53: a 20-row onion. Without stty: 29 x 53.
 onion_layout() {
 	onion_cols=$(stty size 2> /dev/null | awk '{ print $2 }')
@@ -617,7 +618,7 @@ onion_layout() {
 	onion_tall=1
 	onion_mid=5
 	onion_extra=$((onion_lines - onion_top - 18 - 6))
-	if [ "$onion_extra" -lt 0 ]; then
+	if [ "$onion_extra" -lt -2 ]; then
 		onion_tall=0
 		onion_rows=12
 	else
