@@ -1044,7 +1044,23 @@ num=${num:=1} # num=1 if unset
 # app's script) is asked to quit, as MENU quits the terminal.
 if [ -n "$SHELLECT_NATIVE" ]; then
     title=$(printf '%s' "$msg" | sed -e 's/^[ =-]*//' -e 's/[ =-]*$//')
-    title="$(printf '%s' "$title" | cut -c1)$(printf '%s' "$title" | cut -c2- | tr 'A-Z' 'a-z')"
+    # A title in capitals in sentence case, its abbreviations (ROM, PDF,
+    # GB...) kept. Mixed case (a folder's name) as it is.
+    case $title in
+        *[a-z]*) ;;
+        *) title=$(printf '%s' "$title" | awk '
+            BEGIN { n = split("ROM ROMS PDF GB GBA GBC SD OTA PC OK RW CPU USB ID AXP PMIC NES SNES PS1 MD FPS", a, " ")
+                    for (i = 1; i <= n; i++) keep[a[i]] = 1
+                    name["SCREENSCRAPER"] = "Screenscraper"; name["REDONION"] = "RedOnion"
+                    name["RETROARCH"] = "RetroArch"; name["LAUNCHBOX"] = "LaunchBox" }
+            { for (i = 1; i <= NF; i++) {
+                  w = $i; core = w; gsub(/[^A-Z0-9]/, "", core)
+                  if (core in name) sub(core, name[core], w)
+                  else if (!(core in keep)) w = tolower(w)
+                  if (i == 1) w = toupper(substr(w, 1, 1)) substr(w, 2)
+                  $i = w }
+              print }') ;;
+    esac
     set -f
     set --
     IFS=$nl

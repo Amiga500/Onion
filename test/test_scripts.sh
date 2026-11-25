@@ -3882,6 +3882,9 @@ EOF
     sed -e "s#/mnt/SDCARD#$SD#g" "$PDF_LAUNCH" > "$TMP/pdf.sh"
     sed -e "s#/mnt/SDCARD#$SD#g" -e "s#/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor#$TMP/sys/governor#g" -e "s#/tmp/stay_awake#$TMP/stay_awake#g" -e "s#/tmp/video_playing#$TMP/video_playing#g" "$VID_LAUNCH" > "$TMP/video.sh"
     export FAKE_ST="$TMP/st"
+    # The terminal list (the new UI draws it with prompt: see
+    # file_selector_native_lists below)
+    export LIST_TERMINAL=1
     scenes() { # keys for each time the list opens
         rm -rf "$FAKE_ST" "$TMP/opened" "$TMP/played"
         mkdir -p "$FAKE_ST"
@@ -3925,6 +3928,42 @@ EOF
 else
     skip "PDF / video viewer key tests (python3 not installed)"
 fi
+unset LIST_TERMINAL
+end
+
+begin file_selector_native_lists
+# The new UI: file_selector.sh with SHELLECT_NATIVE, the list drawn by
+# prompt (a stand-in answering from a list: the index, 255 for B).
+SD="$TMP/sd"
+mkdir -p "$SD/Media/PDF/Manuals" "$TMP/bin"
+: > "$SD/Media/PDF/a.pdf"; : > "$SD/Media/PDF/b.pdf"; : > "$SD/Media/PDF/Manuals/m.pdf"
+mkdir -p "$SD/Media/PDF/.state_seen"; : > "$SD/Media/PDF/.state_seen/b.pdf._seen"
+{
+    echo '#!/bin/sh'
+    echo "for a; do printf '<%s>' \"\$a\"; done >> '$TMP/args'; echo >> '$TMP/args'"
+    echo "n=\$(cat '$TMP/n' 2> /dev/null || echo 0); n=\$((n + 1)); echo \$n > '$TMP/n'"
+    echo "exit \$(sed -n \"\${n}p\" '$TMP/answers')"
+} > "$TMP/bin/prompt"
+chmod +x "$TMP/bin/prompt"
+sed -e "s#/mnt/SDCARD/.tmp_update/script/shellect.sh#$TMP/shellect.sh#" "$ROOT/static/build/.tmp_update/script/file_selector.sh" > "$TMP/fs.sh"
+sed -e "s#/mnt/SDCARD/.tmp_update/bin/prompt#$TMP/bin/prompt#" "$ROOT/static/build/.tmp_update/script/shellect.sh" > "$TMP/shellect.sh"
+chmod +x "$TMP/shellect.sh"
+fs_run() { # answers...
+    rm -f "$TMP/args" "$TMP/n" "$SD/Media/PDF/.selected.pls"
+    printf '%s\n' "$@" > "$TMP/answers"
+    SHELLECT_NATIVE=1 sh "$TMP/fs.sh" "PDF Reader" "$SD/Media/PDF" "pdf"
+}
+# ../ is first, as in the terminal. Manuals/ (1), then B in it (255):
+# back in PDF, then b.pdf (seen) (3)
+fs_run 1 255 3
+check "the app before the folder in the header" grep -q '<-p><PDF Reader><-t><PDF>' "$TMP/args"
+check "folders, names, (seen) after an opened one" grep -q '<../><Manuals/><a.pdf><b.pdf (seen)>' "$TMP/args"
+check "B in a folder: back up" test "$(sed -n 3p "$TMP/args" | grep -c '<-t><PDF>')" -eq 1
+check "the file chosen, without (seen)" test "$(cat "$SD/Media/PDF/.selected.pls")" = "$SD/Media/PDF/b.pdf"
+fs_run 255
+check "B in the first folder: leaves, nothing chosen" test ! -f "$SD/Media/PDF/.selected.pls"
+fs_run 2
+check "a new one opened: seen next time" test -f "$SD/Media/PDF/.state_seen/a.pdf._seen"
 end
 
 begin release_named_redonion_with_onionplus_copy

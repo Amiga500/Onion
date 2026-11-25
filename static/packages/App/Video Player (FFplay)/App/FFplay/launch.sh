@@ -11,7 +11,13 @@ do
 	# reopened the last file instead of leaving.
 	rm -f "$mediadir/.selected.pls"
 	cd $sysdir
-	./bin/st -q -e "$sysdir/script/file_selector.sh" "Video Player" "$mediadir" "3g2 3gp asf avi flv h264 m2t m2ts m4v mkv mod mov mp4 mpg tod vob webm wmv"
+	# New UI: the list drawn natively (prompt); B goes up a folder, MENU
+	# leaves. LIST_TERMINAL=1: the terminal list as before.
+	if [ -z "$LIST_TERMINAL" ]; then
+		SHELLECT_NATIVE=1 sh "$sysdir/script/file_selector.sh" "Video Player" "$mediadir" "3g2 3gp asf avi flv h264 m2t m2ts m4v mkv mod mov mp4 mpg tod vob webm wmv"
+	else
+		./bin/st -q -e "$sysdir/script/file_selector.sh" "Video Player" "$mediadir" "3g2 3gp asf avi flv h264 m2t m2ts m4v mkv mod mov mp4 mpg tod vob webm wmv"
+	fi
 	retVal=$?
 	
 	# No file chosen (START, MENU, or the terminal was killed): leave.

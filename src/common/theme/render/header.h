@@ -91,7 +91,7 @@ static const char *_header_iconName(const char *title)
         {"advancemenu", "pad"}, {"caching", "refresh"}, {"migration", "refresh"},
         {"error", "alert"}, {"not found", "alert"}, {"read-only", "alert"},
         {"read only", "alert"}, {"search", "search"}, {"music", "music"},
-        {"video", "film"}, {"audiotune", "wave"}, {"displaycal", "monitor"},
+        {"video", "film"}, {"pdf", "doc"}, {"audiotune", "wave"}, {"displaycal", "monitor"},
     };
     char low[STR_MAX];
     int n = 0;

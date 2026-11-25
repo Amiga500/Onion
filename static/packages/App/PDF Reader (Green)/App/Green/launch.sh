@@ -10,7 +10,13 @@ do
 	# reopened the last file instead of leaving.
 	rm -f "$mediadir/.selected.pls"
 	cd $sysdir
-	./bin/st -q -e "$sysdir/script/file_selector.sh" "PDF Reader" "$mediadir" "pdf" "Menu: Close PDF   Start: Exit   A: Open"
+	# New UI: the list drawn natively (prompt); B goes up a folder, MENU
+	# leaves. LIST_TERMINAL=1: the terminal list as before.
+	if [ -z "$LIST_TERMINAL" ]; then
+		SHELLECT_NATIVE=1 sh "$sysdir/script/file_selector.sh" "PDF Reader" "$mediadir" "pdf" "Menu: Close PDF   Start: Exit   A: Open"
+	else
+		./bin/st -q -e "$sysdir/script/file_selector.sh" "PDF Reader" "$mediadir" "pdf" "Menu: Close PDF   Start: Exit   A: Open"
+	fi
 	retVal=$?
 	
 	# No file chosen (START, MENU, or the terminal was killed): leave.

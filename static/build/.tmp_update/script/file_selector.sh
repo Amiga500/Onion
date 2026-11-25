@@ -39,7 +39,14 @@ show_files() {
             esac
         fi
 
-        if [ -f "$current_dir/.state_seen/$name._seen" ]; then
+        if [ -n "$SHELLECT_NATIVE" ]; then
+            # New UI: the name, "(seen)" after the ones opened before
+            if [ -f "$current_dir/.state_seen/$name._seen" ]; then
+                printf '%s (seen)\n' "$name"
+            else
+                printf '%s\n' "$name"
+            fi
+        elif [ -f "$current_dir/.state_seen/$name._seen" ]; then
             printf '[x] %s\n' "$name"
         else
             printf '[ ] %s\n' "$name"
@@ -47,11 +54,35 @@ show_files() {
     done
 }
 
+# New UI (SHELLECT_NATIVE, set by the apps' launchers): the list is drawn
+# by prompt, "PDF Reader > PDF" in the header; B goes up a folder, and
+# leaves from the first one; MENU leaves (SHELLECT_NATIVE_PID).
+if [ -n "$SHELLECT_NATIVE" ]; then
+    SHELLECT_PARENT=$prompt_title
+    SHELLECT_NATIVE_PID=$$
+    export SHELLECT_PARENT SHELLECT_NATIVE_PID
+fi
+top_dir=$current_dir
+
 while :; do
     dir_short=${current_dir##*/}
-    menu_title=$(printf '%s' "$prompt_title: $dir_short" | tr 'a-z' 'A-Z')
-    selected_file=$(show_files | /mnt/SDCARD/.tmp_update/script/shellect.sh \
-        -t "--== $menu_title ==--" -b "$hint")
+    if [ -n "$SHELLECT_NATIVE" ]; then
+        selected_file=$(show_files | /mnt/SDCARD/.tmp_update/script/shellect.sh \
+            -t "$dir_short")
+        if [ -z "$selected_file" ]; then
+            [ "$current_dir" = "$top_dir" ] && break
+            selected_file=../
+        fi
+        case "$selected_file" in
+            */) ;;
+            *' (seen)') selected_file="[x] ${selected_file% (seen)}" ;;
+            *) selected_file="[ ] $selected_file" ;;
+        esac
+    else
+        menu_title=$(printf '%s' "$prompt_title: $dir_short" | tr 'a-z' 'A-Z')
+        selected_file=$(show_files | /mnt/SDCARD/.tmp_update/script/shellect.sh \
+            -t "--== $menu_title ==--" -b "$hint")
+    fi
 
     if [ -d "$current_dir/$selected_file" ]; then
         current_dir=$(cd -- "$current_dir/$selected_file" >/dev/null 2>&1 && pwd -P) || exit 1

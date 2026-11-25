@@ -28,7 +28,7 @@
 #define FRAMES_PER_SECOND 60
 #define SHUTDOWN_TIMEOUT 500
 
-#define MAX_ELEMENTS 100
+#define MAX_ELEMENTS 1000 // the file lists of the PDF Reader and Video Player (new UI)
 
 static bool quit = false;
 static KeyState keystate[320] = {(KeyState)0};
