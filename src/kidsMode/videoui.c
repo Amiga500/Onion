@@ -2984,28 +2984,45 @@ static void renderFooterHints(const FooterHint *hints, int count)
     TTF_Font *font = resource_getFont(HINT);
     int gap = (int)(30.0 * g_scale);
     int cy = (int)(450.0 * g_scale);
+    // A theme that hides the hint labels (hideLabels.hints, or Tweaks'
+    // override of it) has its own hints in its footer art, often A and B
+    // only, and blank button images (zazzagone, "nanoswitch"): the labels
+    // covered that art. Then only the theme's A and B images, as MainUI and
+    // the standard hints draw them, and no X: the art has no room for it.
+    bool hide_labels = theme()->hideLabels.hints;
+    SDL_Surface *button_a = resource_getSurface(BUTTON_A);
+    SDL_Surface *button_b = resource_getSurface(BUTTON_B);
+    FooterHint shown[4];
     int widths[4] = {0};
+    int n = 0;
     if (count > 4)
         count = 4;
     for (int i = 0; i < count; i++) {
-        int w = 0, h = 0;
-        if (hints[i].label != NULL)
-            TTF_SizeUTF8(font, hints[i].label, &w, &h);
-        widths[i] = (hints[i].icon ? hints[i].icon->w + 5 : 0) + w;
+        FooterHint h = hints[i];
+        if (hide_labels) {
+            h.label = NULL;
+            if (h.icon == NULL || (h.icon != button_a && h.icon != button_b))
+                continue;
+        }
+        int w = 0, th = 0;
+        if (h.label != NULL)
+            TTF_SizeUTF8(font, h.label, &w, &th);
+        widths[n] = (h.icon ? h.icon->w + 5 : 0) + w;
+        shown[n++] = h;
     }
     bool alt = theme_footerAltLayout();
     int x = alt ? (int)(620.0 * g_scale) : (int)(20.0 * g_scale);
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < n; i++) {
         if (alt)
             x -= widths[i];
         int hx = x;
-        if (hints[i].icon != NULL) {
-            SDL_Rect pos = {hx, cy - hints[i].icon->h / 2};
-            SDL_BlitSurface(hints[i].icon, NULL, screen, &pos);
-            hx += hints[i].icon->w + 5;
+        if (shown[i].icon != NULL) {
+            SDL_Rect pos = {hx, cy - shown[i].icon->h / 2};
+            SDL_BlitSurface(shown[i].icon, NULL, screen, &pos);
+            hx += shown[i].icon->w + 5;
         }
-        if (hints[i].label != NULL)
-            drawTextAlign(hints[i].label, hx, cy - 1, font, theme()->hint.color, 0,
+        if (shown[i].label != NULL)
+            drawTextAlign(shown[i].label, hx, cy - 1, font, theme()->hint.color, 0,
                           TEXT_LEFT);
         x = alt ? x - gap : x + widths[i] + gap;
     }
