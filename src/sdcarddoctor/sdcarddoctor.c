@@ -2120,7 +2120,7 @@ static void progress(Canvas *c,int x,int y,int w,int pct) {
 }
 static void header(Canvas *c) {
     draw_background(c);
-    cui_header(CUI(c),"S","SD Card Doctor",
+    cui_header(CUI(c),"sd","SD Card Doctor",
                card.mounted?(card.readonly?"Read only":"Mounted RW"):"No card",card.battery);
     cui_text(CUI(c),60+cui_text_width("SD Card Doctor",25)+10,31,"v0.6.3",14,CUI_DIM,CUI_LEFT);
 }
@@ -2254,7 +2254,7 @@ static void main_list(Canvas *c) {
     for (i=0;i<5;i++) {
         int y=120+i*56;
         bool sel=i==main_selected;
-        if (sel) cui_rect(cc,0,y,W,56,CUI_ACCENT);
+        if (sel) cui_rrect(cc,10,y+3,W-20,50,10,CUI_ACCENT);
         tool_icon(c,i,35,y+28,sel?CUI_WHITE:rgb(220,220,224));
         cui_text(cc,66,y+28,items[i],25,CUI_WHITE,CUI_LEFT);
         cui_text(cc,594,y+28,descs[i],17,sel?CUI_WHITE:CUI_GREY,CUI_RIGHT);

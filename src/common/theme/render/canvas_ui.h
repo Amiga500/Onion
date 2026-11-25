@@ -18,11 +18,13 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "./ui_icons_data.h"
+
 #define CUI_W 640
 #define CUI_H 480
 
 #define CUI_RGB(r, g, b) ((uint32_t)(((r) << 16) | ((g) << 8) | (b)))
-#define CUI_BG CUI_RGB(39, 39, 39)
+#define CUI_BG CUI_RGB(28, 28, 30)
 #define CUI_HEAD CUI_RGB(30, 30, 30)
 #define CUI_PANEL CUI_RGB(46, 46, 49)
 #define CUI_TRACK CUI_RGB(58, 58, 61)
@@ -269,13 +271,71 @@ static inline void cui_battery(CuiCanvas *c, int right, int percent)
         cui_rrect(c, x - 9.5f, 39.5f - level, 6, level, 2, CUI_WHITE);
 }
 
-/* Header like Tweaks: badge with letter, title; status and battery right.
- * battery < 0 hides it. */
-static inline void cui_header(CuiCanvas *c, const char *letter, const char *title, const char *status, int battery)
+/* One of the header icons (res/icons/ui), drawn in white, centred on cx,cy.
+ * Returns false when there is no icon by that name. */
+static inline bool cui_icon(CuiCanvas *c, float cx, float cy, const char *name, uint32_t color)
+{
+    for (unsigned i = 0; i < sizeof(ui_icon_masks) / sizeof(ui_icon_masks[0]); i++) {
+        if (strcmp(ui_icon_masks[i].name, name) != 0)
+            continue;
+        int x0 = (int)(cx - UI_ICON_SIZE / 2.0f + 0.5f), y0 = (int)(cy - UI_ICON_SIZE / 2.0f + 0.5f);
+        for (int y = 0; y < UI_ICON_SIZE; y++)
+            for (int x = 0; x < UI_ICON_SIZE; x++) {
+                unsigned char a = ui_icon_masks[i].a[y * UI_ICON_SIZE + x];
+                if (a)
+                    cui_blend(c, x0 + x, y0 + y, color, a / 255.0f);
+            }
+        return true;
+    }
+    return false;
+}
+
+/* The colour of a status word: green when ready, amber while working, red on
+ * an error, grey otherwise (the same everywhere). */
+static inline uint32_t cui_status_color(const char *status)
+{
+    char low[48];
+    size_t n = 0;
+    for (; status[n] && n < sizeof(low) - 1; n++)
+        low[n] = (status[n] >= 'A' && status[n] <= 'Z') ? status[n] + 32 : status[n];
+    low[n] = '\0';
+    if (strstr(low, "error") || strstr(low, "fail") || strstr(low, "no card") ||
+        strstr(low, "offline") || strstr(low, "read only"))
+        return CUI_BAD;
+    if (strstr(low, "ing") && !strstr(low, "setting"))
+        return CUI_WARN;
+    if (strstr(low, "ready") || strstr(low, "live") || strstr(low, "mounted") ||
+        strstr(low, "ok") || strstr(low, "done"))
+        return CUI_GOOD;
+    return CUI_GREY;
+}
+
+/* Status chip: the word in capitals, outlined in its colour. Drawn with its
+ * right edge at `right`; returns its width. */
+static inline int cui_chip(CuiCanvas *c, int right, float cy, const char *status)
+{
+    char up[48];
+    size_t n = 0;
+    for (; status[n] && n < sizeof(up) - 1; n++)
+        up[n] = (status[n] >= 'a' && status[n] <= 'z') ? status[n] - 32 : status[n];
+    up[n] = '\0';
+    uint32_t col = cui_status_color(status);
+    int w = cui_text_width(up, 12) + 20;
+    cui_rrect(c, right - w, cy - 11, w, 22, 11, col);
+    cui_rrect(c, right - w + 1.5f, cy - 9.5f, w - 3, 19, 9.5f, CUI_HEAD);
+    cui_text(c, right - w / 2, cy, up, 12, col, CUI_CENTER);
+    return w;
+}
+
+/* Header like Tweaks: badge with the app's icon (`icon` is an icon name, or
+ * a single letter), title; status chip and battery right. battery < 0 hides
+ * it. */
+static inline void cui_header(CuiCanvas *c, const char *icon, const char *title, const char *status, int battery)
 {
     cui_rect(c, 0, 0, CUI_W, 60, CUI_HEAD);
     cui_rrect(c, 16, 14, 32, 32, 8, CUI_ACCENT);
-    cui_text(c, 32, 30, letter, 22, CUI_WHITE, CUI_CENTER);
+    if (strlen(icon) <= 1 || !cui_icon(c, 32, 30, icon, CUI_WHITE))
+        cui_text(c, 32, 30, icon, 22, CUI_WHITE, CUI_CENTER);
     cui_text(c, 60, 30, title, 25, CUI_WHITE, CUI_LEFT);
     int right = 624;
     if (battery >= 0) {
@@ -283,7 +343,7 @@ static inline void cui_header(CuiCanvas *c, const char *letter, const char *titl
         right -= cui_text_width("100%", 18) + 36;
     }
     if (status && *status)
-        cui_text(c, right, 30, status, 17, CUI_GREY, CUI_RIGHT);
+        cui_chip(c, right, 30, status);
 }
 
 /* One button hint: accent circle (or pill for SELECT/START) and its label.

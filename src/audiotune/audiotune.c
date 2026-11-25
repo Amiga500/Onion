@@ -1015,7 +1015,7 @@ static void draw_header(Canvas *c) {
     static const char *const tabs[]={"Home","Tests","EQ","Profiles"};
     CuiCanvas *cc=CUI(c);
     int i,x,widths[4],total=0;
-    cui_header(cc,"A","AudioTune",audio.open?"Audio ready":
+    cui_header(cc,"wave","AudioTune",audio.open?"Audio ready":
                audio_initializing?"Audio starting":"Audio offline",-1);
     cui_text(cc,60+cui_text_width("AudioTune",25)+10,31,VERSION,14,CUI_DIM,CUI_LEFT);
     /* pages as tabs, like the Package Manager: L1/R1 change them */
