@@ -2,5 +2,5 @@
   "label": "DisplayCal",
   "icon": "icon.png",
   "launch": "launch.sh",
-  "description": "RGB, warmth and MainUI display settings"
+  "description": "Display colours and settings"
 }

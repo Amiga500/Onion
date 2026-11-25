@@ -3,5 +3,5 @@
     "icon": "/mnt/SDCARD/Icons/Default/app/kidsmode.png",
     "iconsel": "",
     "launch": "launch.sh",
-    "description": "Games and videos in one protected mode"
+    "description": "A protected mode for kids"
 }
