@@ -3444,7 +3444,8 @@ static void renderSettingsList(List *list, const char *title)
 // (LEFT/RIGHT). A or B goes back to the screen it was opened from. Checked
 // against kidsplay_ui.inc (player) and the carousel's own keys.
 // Each page: section titles with a line under them, then the keys in a
-// column (accent color) and what they do next to them (white).
+// column (accent color) and what they do next to them (the theme's list
+// color, so a light theme gets dark text).
 #define HELP_PAGES 3
 static int help_page = 0;
 static Screen help_return = SCREEN_MENU;
@@ -3508,16 +3509,35 @@ static void writePlayerAccent(void)
         remove("/tmp/kidsmode_accent.tmp");
 }
 
+// The page's text: the colour of the theme's list, which the theme picks to
+// read on its own background (white on a dark theme, dark on a light one).
+static SDL_Color helpTextColor(void)
+{
+    return theme()->list.color;
+}
+
+static int colorLuma(SDL_Color c)
+{
+    return (c.r * 299 + c.g * 587 + c.b * 114) / 1000;
+}
+
 // The color of the theme's buttons, as the last-played marker and the
 // player's progress bar use (red in Silky RedOnion, violet in a violet
-// theme), or RedOnion red where that is as light as the text: the keys must
-// stand out.
+// theme), or RedOnion red where that would not stand out: as light as light
+// text, or on the background's side (light keys under dark text on a light
+// theme, dark keys under light text on a dark one).
 static SDL_Color helpAccent(void)
 {
+    const SDL_Color fallback = {0xC4, 0x3B, 0x59};
     uint32_t hex = markerAccentHex();
     SDL_Color c = {(hex >> 16) & 255, (hex >> 8) & 255, hex & 255};
-    if (c.r > 200 && c.g > 200 && c.b > 200)
-        return (SDL_Color){0xC4, 0x3B, 0x59};
+    int accent = colorLuma(c);
+    if (colorLuma(helpTextColor()) >= 128) {
+        if (accent < 70 || (c.r > 200 && c.g > 200 && c.b > 200))
+            return fallback;
+    }
+    else if (accent > 170)
+        return fallback;
     return c;
 }
 
@@ -3542,6 +3562,7 @@ static void renderHelp(int page)
     TTF_Font *key_font = getFontHelpKey();
     TTF_Font *text_font = getFontInfo();
     SDL_Color accent = helpAccent();
+    SDL_Color text_color = helpTextColor();
     uint32_t accent_hex = ((uint32_t)accent.r << 16) |
                           ((uint32_t)accent.g << 8) | accent.b;
 
@@ -3567,7 +3588,7 @@ static void renderHelp(int page)
         if (lines[i].key == NULL) {
             if (i > 0)
                 y += (int)(10.0 * g_scale); // space before a new section
-            drawTextAlign(lines[i].text, left, y, title_font, COLOR_WHITE,
+            drawTextAlign(lines[i].text, left, y, title_font, text_color,
                           right - left, TEXT_LEFT);
             int line_h = (int)(2.0 * g_scale);
             fillRect(left, y + (int)(16.0 * g_scale), right - left,
@@ -3582,7 +3603,7 @@ static void renderHelp(int page)
                          (TTF_FontAscent(key_font) - TTF_FontHeight(key_font) / 2);
             drawTextAlign(lines[i].key, indent, key_y, key_font, accent, key_w,
                           TEXT_LEFT);
-            drawTextAlign(lines[i].text, text_x, y, text_font, COLOR_WHITE,
+            drawTextAlign(lines[i].text, text_x, y, text_font, text_color,
                           right - text_x, TEXT_LEFT);
             y += row;
         }
@@ -3727,7 +3748,39 @@ static void renderPickProfile(List *list)
 }
 
 // Before Kids Mode starts (Veuks): how to get out of it again. The PIN
-// setup says it too, but only the first time.
+// setup says it too, but only the first time. On by default; the "Exit
+// reminder" row of Start Kids Mode turns it off (zazzagone), kept as a file
+// next to Kids Mode's other state so it outlives the app's updates.
+#define NO_START_REMINDER_FILE "/mnt/SDCARD/Saves/KidsMode/no_start_reminder"
+
+static bool startReminderEnabled(void)
+{
+    return access(NO_START_REMINDER_FILE, F_OK) != 0;
+}
+
+static void onStartReminderToggle(void *self)
+{
+    if (((ListItem *)self)->value) {
+        remove(NO_START_REMINDER_FILE);
+        return;
+    }
+    mkdir("/mnt/SDCARD/Saves/KidsMode", 0777);
+    FILE *fp = fopen(NO_START_REMINDER_FILE, "w");
+    if (fp != NULL)
+        fclose(fp);
+}
+
+// Start Kids Mode's answer for kid_mode_loop.sh: the profile and the
+// session's minutes (0: no timer)
+static void writeStartResult(List *list)
+{
+    char minutes_str[16];
+    snprintf(minutes_str, sizeof(minutes_str), "%d",
+             list->items[1].value * TIMER_STEP);
+    writeResult("PROFILE", list->items[0].value == 0 ? "Main" : "Guest",
+                minutes_str);
+}
+
 static void renderConfirmStart(List *list)
 {
     renderPickProfile(list);
@@ -4095,7 +4148,7 @@ int main(int argc, char *argv[])
                             .value = show_stories ? 1 : 0,
                             .action = onStoriesToggle});
 
-    List profile_list = list_create(2, LIST_SMALL);
+    List profile_list = list_create(3, LIST_SMALL);
     list_addItem(&profile_list,
                  (ListItem){.label = "Profile",
                             .item_type = MULTIVALUE,
@@ -4110,6 +4163,11 @@ int main(int argc, char *argv[])
                             .value_max = TIMER_MAX / TIMER_STEP,
                             .value = 0,
                             .value_formatter = formatSessionTimer});
+    list_addItem(&profile_list,
+                 (ListItem){.label = "Exit reminder",
+                            .item_type = TOGGLE,
+                            .value = startReminderEnabled() ? 1 : 0,
+                            .action = onStartReminderToggle});
 
     if (set_pin_mode) {
         active_screen = SCREEN_PIN;
@@ -4417,8 +4475,14 @@ int main(int argc, char *argv[])
                     break;
                 case SW_BTN_A:
                 case SW_BTN_START:
-                    active_screen = SCREEN_CONFIRM_START;
-                    dirty = true;
+                    if (profile_list.items[2].value) {
+                        active_screen = SCREEN_CONFIRM_START;
+                        dirty = true;
+                        break;
+                    }
+                    writeStartResult(&profile_list);
+                    exit_code = 5;
+                    quit = true;
                     break;
                 case SW_BTN_X:
                     help_page = 0;
@@ -4437,17 +4501,10 @@ int main(int argc, char *argv[])
             else if (active_screen == SCREEN_CONFIRM_START) {
                 switch (changed_key) {
                 case SW_BTN_A:
-                    {
-                    char minutes_str[16];
-                    snprintf(minutes_str, sizeof(minutes_str), "%d",
-                             profile_list.items[1].value * TIMER_STEP);
-                    writeResult("PROFILE",
-                                profile_list.items[0].value == 0 ? "Main" : "Guest",
-                                minutes_str);
+                    writeStartResult(&profile_list);
                     exit_code = 5;
                     quit = true;
                     break;
-                    }
                 case SW_BTN_B:
                     active_screen = SCREEN_PICKPROFILE;
                     dirty = true;
