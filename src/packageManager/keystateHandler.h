@@ -41,12 +41,12 @@ bool keystateHandler(bool *quit_flag, bool *apply_changes, bool show_confirm, bo
 
     if (nTab == summary_tab && surfaceSummary != NULL) {
         if (keystate[SW_BTN_R2] >= PRESSED) {
-            if (summaryScrollBy(323))
+            if (summaryScrollBy(PM_SUMMARY_H))
                 state_changed = true;
         }
 
         if (keystate[SW_BTN_L2] >= PRESSED) {
-            if (summaryScrollBy(-323))
+            if (summaryScrollBy(-PM_SUMMARY_H))
                 state_changed = true;
         }
 

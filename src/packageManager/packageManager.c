@@ -31,13 +31,13 @@ int main(int argc, char *argv[])
     initResources();
 
     if (!auto_update) {
-        SDL_Surface *loadingScreen = IMG_Load("res/loading.png");
-        if (loadingScreen != NULL) {
-            SDL_BlitSurface(loadingScreen, NULL, screen, NULL);
-            SDL_BlitSurface(screen, NULL, video, NULL);
-            SDL_Flip(video);
-            SDL_FreeSurface(loadingScreen);
-        }
+        /* New UI: the header, and what it is doing in the middle */
+        CuiCanvas c = {(uint32_t *)screen->pixels, screen->pitch / 4};
+        cui_rect(&c, 0, 0, CUI_W, CUI_H, CUI_BG);
+        cui_header(&c, "cube", "Package Manager", "Loading", -1);
+        cui_text(&c, 320, 240, "Reading the packages...", 22, CUI_GREY, CUI_CENTER);
+        SDL_BlitSurface(screen, NULL, video, NULL);
+        SDL_Flip(video);
     }
 
     loadPackages(auto_update);

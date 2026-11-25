@@ -10,6 +10,9 @@
 
 #include "./globals.h"
 
+/* the summary scrolls in the 7 rows of the lists (7 x 44 px) */
+#define PM_SUMMARY_H 308
+
 int renderSummaryLine(SDL_Surface *surfaceTemp, int pos_y, const char *line_str,
                       int alpha, SDL_Color color)
 {
@@ -28,7 +31,7 @@ int renderSummaryLine(SDL_Surface *surfaceTemp, int pos_y, const char *line_str,
 
 void renderSummary()
 {
-    SDL_Rect rectSummaryFrame = {0, summaryScrollY, 593, 327};
+    SDL_Rect rectSummaryFrame = {0, summaryScrollY, 580, PM_SUMMARY_H};
 
     if (surfaceSummary == NULL) {
         SDL_Surface *surfaceTemp =
@@ -111,7 +114,7 @@ void refreshSummary()
 bool summaryScrollBy(int offset)
 {
     bool changed = false;
-    int y_max = surfaceSummary->h - 323;
+    int y_max = surfaceSummary->h - PM_SUMMARY_H;
 
     if ((offset > 0 && summaryScrollY < y_max) ||
         (offset < 0 && summaryScrollY > 0)) {

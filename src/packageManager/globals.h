@@ -40,7 +40,7 @@ static SDL_Surface *screen = NULL, *surfaceBackground = NULL,
                    *surfaceDotChanged = NULL,
                    *surfaceIconHasRoms = NULL;
 
-static SDL_Rect rectSummaryPos = {30, 85};
+static SDL_Rect rectSummaryPos = {34, 104};
 static SDL_Surface *surfaceSummary = NULL;
 static int summaryScrollY = 0;
 static int scrollSpeed = 28;
