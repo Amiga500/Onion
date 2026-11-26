@@ -2531,9 +2531,13 @@ prompt() { # answers from a file, one per call; records the choices offered
 start_audioserver() { echo started >> "$TMP/audio"; }
 SD_DOCTOR_DIR=$TMP/doctor; mkdir -p "$SD_DOCTOR_DIR"
 printf '#!/bin/sh\necho "ran $*" > "%s/doctor_ran"\n' "$TMP" > "$SD_DOCTOR_DIR/launch.sh"; chmod +x "$SD_DOCTOR_DIR/launch.sh"
-rm -f "$TMP/offered"; printf '1\n0\n0\n' > "$TMP/answers"; sd_card_notice
+rm -f "$TMP/offered"; printf '1\n0\n' > "$TMP/answers"; sd_card_notice
 check "with SD Card Doctor: three choices" grep -q "^Check it now (SD Card Doctor) How to repair it on a PC OK$" "$TMP/offered"
-check "the PC page, then back to the question" test "$(sed -n 2p "$TMP/offered")" = OK
+check "the PC page: OK first, or the check on the console" test "$(sed -n 2p "$TMP/offered")" = "OK Check it now (SD Card Doctor)"
+check "its OK goes on: no question again, nothing opened (it took three presses to leave)" sh -c "test \$(wc -l < '$TMP/offered') -eq 2 && test ! -f '$TMP/doctor_ran'"
+rm -f "$TMP/offered"; printf '1\n1\n' > "$TMP/answers"; sd_card_notice
+check "the check from the PC page opens SD Card Doctor" test -f "$TMP/doctor_ran"
+rm -f "$TMP/offered" "$TMP/doctor_ran"; printf '0\n' > "$TMP/answers"; sd_card_notice
 check "Check it now opens SD Card Doctor" test -f "$TMP/doctor_ran"
 check "on Safe repair, the cursor on CHECK FAT STATUS (--fat-status)" test "$(cat "$TMP/doctor_ran")" = "ran --fat-status"
 check "its launcher passes the option on, the app reads it" sh -c 'grep -qF "./sdcarddoctor \"\$@\"" "$1" && grep -q "strcmp(argv\[1\],\"--fat-status\")==0" "$2"' _ "$ROOT/static/packages/App/SD Card Doctor/App/SDCardDoctor/launch.sh" "$ROOT/src/sdcarddoctor/sdcarddoctor.c"
@@ -2543,9 +2547,9 @@ check "the audio server is started for the notice" test -s "$TMP/audio"
 check "each question plays its click through the audio server (libpadsp.so)" test "$(sed -n '/^sd_card_notice()/,/^}/p' "$RUNTIME" | grep -c 'LD_PRELOAD="\$miyoodir/lib/libpadsp.so" prompt -t')" -eq "$(sed -n '/^sd_card_notice()/,/^}/p' "$RUNTIME" | grep -c 'prompt -t')"
 rm -f "$TMP/offered" "$TMP/doctor_ran"; printf '255\n' > "$TMP/answers"; sd_card_notice
 check "B goes on, nothing opened" test ! -f "$TMP/doctor_ran"
-rm -f "$SD_DOCTOR_DIR/launch.sh" "$TMP/offered"; printf '0\n0\n1\n' > "$TMP/answers"; sd_card_notice
+rm -f "$SD_DOCTOR_DIR/launch.sh" "$TMP/offered"; printf '0\n0\n' > "$TMP/answers"; sd_card_notice
 check "without it: two choices" grep -q "^How to repair it on a PC OK$" "$TMP/offered"
-check "the first is the PC page, then OK goes on" test "$(wc -l < "$TMP/offered")" -eq 3
+check "the first is the PC page, its OK goes on" sh -c "test \$(wc -l < '$TMP/offered') -eq 2 && test \"\$(sed -n 2p '$TMP/offered')\" = OK"
 check "SD Card Doctor is preinstalled (where the notice looks for it)" sh -c 'grep -qF "cp -a \"\$(PACKAGES_APP_DEST)/SD Card Doctor/.\" \$(BUILD_DIR)/" "$1" && test -f "$2/static/packages/App/SD Card Doctor/App/SDCardDoctor/launch.sh" && grep -q "SD_DOCTOR_DIR:-/mnt/SDCARD/App/SDCardDoctor" "$3"' _ "$ROOT/Makefile" "$ROOT" "$RUNTIME"
 check "the PC page says how on Windows, Mac and Linux" sh -c 'grep -q "Tools > Check" "$1" && grep -q "First Aid" "$1" && grep -q "fsck.fat -a" "$1"' _ "$RUNTIME"
 long=$(sed -n '/^sd_card_notice()/,/^}/p' "$RUNTIME" | grep -o '\-m "[^"]*"' | sed 's/^-m "//; s/"$//; s/\\n/\n/g' | awk 'length > 44' | head -n 1)

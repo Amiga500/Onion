@@ -2167,7 +2167,17 @@ sd_card_notice() {
                 return 0
                 ;;
             1)
-                LD_PRELOAD="$miyoodir/lib/libpadsp.so" prompt -t "Repair on a PC" -m "Back up the card first, then check it:\nWindows: This PC > the card > Properties >\nTools > Check\nMac: Disk Utility > the card > First Aid\nLinux: fsck.fat -a on the unmounted card\n \nThis message comes back only after\nanother unclean shutdown." "OK"
+                # OK goes on: it went back to the question, which then needed
+                # its own OK (three presses to leave). The check on the
+                # console stays one press away.
+                _sd_pc_msg="Back up the card first, then check it:\nWindows: This PC > the card > Properties >\nTools > Check\nMac: Disk Utility > the card > First Aid\nLinux: fsck.fat -a on the unmounted card\n \nThis message comes back only after\nanother unclean shutdown."
+                if [ -x "$SD_DOCTOR_DIR/launch.sh" ]; then
+                    LD_PRELOAD="$miyoodir/lib/libpadsp.so" prompt -t "Repair on a PC" -m "$_sd_pc_msg" "OK" "Check it now (SD Card Doctor)"
+                    [ $? -eq 1 ] && (cd "$SD_DOCTOR_DIR" && ./launch.sh --fat-status) > /dev/null 2>&1
+                else
+                    LD_PRELOAD="$miyoodir/lib/libpadsp.so" prompt -t "Repair on a PC" -m "$_sd_pc_msg" "OK"
+                fi
+                return 0
                 ;;
             *) return 0 ;;
         esac
