@@ -46,14 +46,32 @@ installer_reboot() {
 # (0-10), as the boot sets it (runtime.sh: 3 * exp(0.350656 * b), rounded).
 # A fixed 80 (about 9.5) was used: an update showed at nearly full brightness
 # on a console set to 3, until the next boot (robcodedev, 4.5.1 new UI).
-# The settings are read from the card's system.json (/appconfigs/system.json
-# links to it after a boot of RedOnion; on a first installation it is the
-# stock firmware's own file): the copy saved for this console
-# (config/system/<serial>.json) cannot be found yet, as read_uuid is not in
-# the installer's bin and the old one has just been removed. 80 when there is
-# no valid value.
+#
+# Where the brightness is at this point: an update runs at the start of the
+# boot (runtime.sh check_installer), before the settings are put back, and
+# after a shutdown, which moved the card's system.json to this console's
+# saved settings (config/system/<serial>.json) and removed the
+# /appconfigs/system.json link. So, in order:
+# 1. config/system/<serial>.json, the serial from /tmp/deviceSN (written by
+#    runtime.sh just before check_installer; read_uuid itself is gone with
+#    the old system files);
+# 2. /appconfigs/system.json: the stock firmware's own file on a first
+#    installation, or the link left by a start without a clean shutdown;
+# 3. the card's system.json, left the same way;
+# 4. the only saved settings file, when the card has been used in one
+#    console only;
+# then 80.
+INSTALLER_SN_FILE=${INSTALLER_SN_FILE:-/tmp/deviceSN}
+INSTALLER_SETTINGS_DIR=${INSTALLER_SETTINGS_DIR:-/mnt/SDCARD/.tmp_update/config/system}
+
 installer_brightness() {
-    for _bf in /appconfigs/system.json /mnt/SDCARD/system.json; do
+    _bsn=""
+    [ -f "$INSTALLER_SN_FILE" ] && read -r _bsn < "$INSTALLER_SN_FILE"
+    case "$_bsn" in */* | *..*) _bsn="" ;; esac
+    _bonly=""
+    set -- "$INSTALLER_SETTINGS_DIR"/*.json
+    [ "$#" -eq 1 ] && [ -f "$1" ] && _bonly=$1
+    for _bf in ${_bsn:+"$INSTALLER_SETTINGS_DIR/$_bsn.json"} /appconfigs/system.json /mnt/SDCARD/system.json ${_bonly:+"$_bonly"}; do
         [ -f "$_bf" ] || continue
         _bv=$(sed -n 's/.*"brightness"[^0-9]*\([0-9][0-9]*\).*/\1/p' "$_bf" | head -n 1)
         case "$_bv" in

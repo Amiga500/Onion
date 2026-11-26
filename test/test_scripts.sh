@@ -2688,6 +2688,8 @@ end
 begin installer_uses_the_consoles_brightness
 INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
 eval "$(extract_fn "$INST" installer_brightness | sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g")"
+INSTALLER_SN_FILE="$TMP/deviceSN"
+INSTALLER_SETTINGS_DIR="$TMP/sd/.tmp_update/config/system"
 mkdir -p "$TMP/sd" "$TMP/app"
 printf '{\n\t"vol":\t20,\n\t"brightness":\t3,\n\t"lumination":\t7\n}\n' > "$TMP/app/system.json"
 check "brightness 3: the boot's level 9, not the fixed 80" test "$(installer_brightness)" = 9
@@ -2712,6 +2714,27 @@ rm -f "$TMP/sd/system.json"
 check "and with no valid value at all: 80, as before" test "$(installer_brightness)" = 80
 rm -f "$TMP/app/system.json"
 check "no file: 80" test "$(installer_brightness)" = 80
+# An update: after a clean shutdown the settings are only in the console's
+# saved file (the card's system.json moved there, the /appconfigs link gone)
+mkdir -p "$TMP/sd/.tmp_update/config/system"
+printf '{\n\t"brightness":\t3\n}\n' > "$TMP/sd/.tmp_update/config/system/ABC123.json"
+printf 'ABC123' > "$TMP/deviceSN"
+check "update after a shutdown: the console's saved settings (brightness 3)" test "$(installer_brightness)" = 9
+printf '{\n\t"brightness":\t9\n}\n' > "$TMP/sd/.tmp_update/config/system/OTHER9.json"
+check "another console's settings on the card are not used" test "$(installer_brightness)" = 9
+printf '{\n\t"brightness":\t5\n}\n' > "$TMP/app/system.json"
+check "the console's saved settings come before a stale /appconfigs file" test "$(installer_brightness)" = 9
+rm -f "$TMP/app/system.json" "$TMP/deviceSN"
+check "no serial, two consoles' files: 80" test "$(installer_brightness)" = 80
+rm -f "$TMP/sd/.tmp_update/config/system/OTHER9.json"
+check "no serial, one console's file: that one" test "$(installer_brightness)" = 9
+printf '../../etc' > "$TMP/deviceSN"
+rm -f "$TMP/sd/.tmp_update/config/system/ABC123.json"
+check "a serial with a path in it is not followed" test "$(installer_brightness)" = 80
+rm -f "$TMP/deviceSN"
+unset INSTALLER_SN_FILE INSTALLER_SETTINGS_DIR
+check "the serial comes from runtime.sh's /tmp/deviceSN, written before check_installer" sh -c "grep -n 'echo -n \"\$SERIAL_NUMBER\" > /tmp/deviceSN\|^    check_installer\$' '$ROOT/static/build/.tmp_update/runtime.sh' | head -2 | tail -1 | grep -q check_installer"
+check "the shutdown moves the card's system.json away (why it is read from config/system)" grep -q 'mv -f /mnt/SDCARD/system.json' "$ROOT/static/build/.tmp_update/bin/shutdown"
 unset -f installer_brightness
 check "main sets the backlight with it" grep -q '^    installer_brightness > \$pwmdir/pwm0/duty_cycle$' "$INST"
 check "no fixed 80 written to the backlight" sh -c "! grep -q 'echo 80 > \$pwmdir' '$INST'"
