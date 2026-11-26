@@ -290,7 +290,9 @@ int main(int argc, char *argv[])
                 quit = true;
             }
             if (changed_key == SW_BTN_SELECT && keystate[SW_BTN_SELECT] == PRESSED) {
-                if (list_hasInfoNote(&list)) {
+                // Not when the note box under the list shows it whole: the
+                // window repeated the same words (as in Tweaks).
+                if (list_hasInfoNote(&list) && !theme_listNoteShownWhole()) {
                     sound_change();
                     showInfoDialog(&list);
                 }
