@@ -146,6 +146,7 @@ typedef struct {
     long long start_time, end_time, tail_time;
     long long sleep; // a session: seconds asleep within it (clock gaps between entries)
     int sleep_drop;  // a session: percent lost across those gaps
+    int after_level; // a session: the level after a sleep at its end (the next charge's first), else -1
     // a charge: the widest level jump while the console was off (off_to > off_from), else 0
     int off_from, off_to;
 } session_mark;
@@ -709,6 +710,7 @@ void compute_graph(void)
     // sleep found inside the stretch: seconds, and percent lost across it
     long long run_sleep = 0;
     int run_sleep_drop = 0, run_rows = 0, newer_row_level = 0;
+    int run_after_level = -1;             // the level after a sleep at the stretch's newest end
     int run_off_from = 0, run_off_to = 0; // the widest jump in a charge (console off)
     int estimate_shift = 0;
     (void)rows_end_charging;
@@ -869,6 +871,7 @@ void compute_graph(void)
                             m->tail_time = run_tail_time;
                             m->sleep = run_sleep;
                             m->sleep_drop = run_sleep_drop;
+                            m->after_level = run_after_level;
                             m->off_from = run_off_from;
                             m->off_to = run_off_to;
                         }
@@ -889,6 +892,7 @@ void compute_graph(void)
                         run_rows = 0;
                         run_sleep = 0;
                         run_sleep_drop = 0;
+                        run_after_level = -1;
                         run_off_from = run_off_to = 0;
                     }
                     // A charge that went on while the console was off: the level jumps between
@@ -899,19 +903,35 @@ void compute_graph(void)
                         run_off_from = raw_level;
                         run_off_to = newer_row_level;
                     }
+                    // A charge across a clock jump: a long clock gap with almost no level gained
+                    // (seen: 50 % to 51 % "in 37 h" when the network set a clock that had fallen
+                    // back). The clock times would give the charge that length: drop them.
+                    if (run_rows > 0 && is_charging && row_time > 0 && newer_row_time > 0 &&
+                        raw_level <= 100 && newer_row_level < CLOCK_JUMP_LEVEL_MAX) {
+                        long long gap = newer_row_time - row_time - duration;
+                        if (gap >= CLOCK_JUMP_GAP_MIN &&
+                            (long long)(newer_row_level - raw_level) * 3600 < gap * CLOCK_JUMP_RISE_MAX)
+                            run_times_ok = false;
+                    }
                     // Sleep inside a session on battery: the clock gap between this entry's
                     // end and the newer entry's start (batmon is stopped while asleep, so
                     // its duration leaves the sleep out). The level lost across the gap is
                     // what the sleep cost: batmon reads the battery at once on wake.
                     // The newest entry: the gap up to now is a sleep going on at its level, so it
                     // counts in the time asleep; its cost shows when the next level is logged.
+                    // A session's last entry before a charge: the charge's first level is the
+                    // level after the gap (a sleep that ran the battery down until the device
+                    // switched itself off, then the charger), so that drop counts too.
                     if (!is_charging && row_time > 0 && newer_row_time > 0) {
                         long long gap = newer_row_time - row_time - duration;
                         if (gap >= SLEEP_GAP_MIN && gap <= SLEEP_GAP_MAX &&
                             gap * 100 >= (long long)duration * SLEEP_GAP_MIN_PCT) {
                             run_sleep += gap;
-                            if (run_rows > 0 && raw_level <= 100 && newer_row_level <= 100 && raw_level > newer_row_level)
+                            if (!newest_row && raw_level <= 100 && newer_row_level <= 100 && raw_level > newer_row_level) {
                                 run_sleep_drop += raw_level - newer_row_level;
+                                if (run_rows == 0)
+                                    run_after_level = newer_row_level; // the session ends after this sleep
+                            }
                         }
                     }
                     run_rows++;
@@ -962,6 +982,7 @@ void compute_graph(void)
                     m->tail_time = run_tail_time;
                     m->sleep = run_sleep;
                     m->sleep_drop = run_sleep_drop;
+                    m->after_level = run_after_level;
                     m->off_from = run_off_from;
                     m->off_to = run_off_to;
                 }
@@ -2435,41 +2456,37 @@ void renderPage()
             }
         }
         secondsToHoursMinutes(main_len, length_text);
-        // without clock times a charge counts awake time only: when it went on while the
-        // console was off, its length is a lower bound ("0h44+") and the jump is shown
+        // The line: levels first, then labelled times, three spaces apart, e.g.
+        //   100% > 2%   PLAY 0H01   SLEEP 10H05 -98%
+        //   CHARGE 2% > 100%   2H22   +0H40 AT 100%
+        // Without clock times a charge counts awake time only: when it went on while the
+        // console was off, its length is a lower bound ("0H44+") and the jump is shown.
         char off_text[32] = "";
         bool off_gap = sel->is_charge && !sel->has_times && sel->off_to > sel->off_from;
         if (off_gap) {
             strncat(length_text, "+", sizeof(length_text) - strlen(length_text) - 1);
-            snprintf(off_text, sizeof(off_text), " OFF %d-%d%%", sel->off_from, sel->off_to);
+            snprintf(off_text, sizeof(off_text), "   OFF %d-%d%%", sel->off_from, sel->off_to);
         }
+        // a session that ends in a sleep (run down until the device switched off, then the
+        // charger) ends at the level after that sleep
+        int end_level = (!sel->is_charge && sel->after_level >= 0) ? sel->after_level : sel->end_level;
         // the Mini logs no percentage while charging (500)
-        if (sel->start_level <= 100 && sel->end_level <= 100)
-            snprintf(levels_text, sizeof(levels_text), " (%d%%-%d%%)", sel->start_level, sel->end_level);
+        if (sel->start_level <= 100 && end_level <= 100)
+            snprintf(levels_text, sizeof(levels_text), "%d%% > %d%%   ", sel->start_level, end_level);
         if (tail_len >= SESSION_MARK_MIN_LENGTH) {
             char t[12];
             secondsToHoursMinutes(tail_len, t);
-            snprintf(tail_text, sizeof(tail_text), " +%s AT %d%%", t, sel->end_level);
+            snprintf(tail_text, sizeof(tail_text), "   +%s AT %d%%", t, sel->end_level);
         }
-        // a session: the time asleep within it, the percent it cost and the rate per hour
-        // (the rate from half an hour of sleep, shorter is too coarse at 1 % steps). Needs
-        // clock times only around the sleep, not for the whole session.
-        // OFF/SLEEP: from the log alone a sleep and a console switched off look the same.
+        // a session: the time asleep within it and the percent it cost. From the log alone a
+        // sleep and a console switched off look the same, but the clock mostly stops while off.
         if (!sel->is_charge && sel->sleep >= SLEEP_MIN_SHOWN) {
             char t[12];
             secondsToHoursMinutes((int)sel->sleep, t);
-            if (sel->sleep >= SLEEP_RATE_MIN && sel->sleep_drop > 0) {
-                // %/h with one decimal, two below 1 %/h (2 % over 22 h is 0.09, not 0.0)
-                int hundredths = (int)((long long)sel->sleep_drop * 360000 / sel->sleep);
-                if (hundredths < 100)
-                    snprintf(sleep_text, sizeof(sleep_text), " +%s OFF/SLEEP -%d%% (0.%02d%%/H)", t,
-                             sel->sleep_drop, hundredths);
-                else
-                    snprintf(sleep_text, sizeof(sleep_text), " +%s OFF/SLEEP -%d%% (%d.%d%%/H)", t,
-                             sel->sleep_drop, hundredths / 100, hundredths / 10 % 10);
-            }
+            if (sel->sleep_drop > 0)
+                snprintf(sleep_text, sizeof(sleep_text), "   SLEEP %s -%d%%", t, sel->sleep_drop);
             else
-                snprintf(sleep_text, sizeof(sleep_text), " +%s OFF/SLEEP -%d%%", t, sel->sleep_drop);
+                snprintf(sleep_text, sizeof(sleep_text), "   SLEEP %s", t);
         }
         // the date only with a hardware clock (Mini Plus, Mini Flip): the Mini's clock restarts from
         // the time saved at shutdown. Hidden for now (SUB_TITLE_SHOW_DATE): the start date read as
@@ -2478,22 +2495,19 @@ void renderPage()
             time_t t = (time_t)sel->start_time;
             struct tm *lt = localtime(&t);
             if (lt != NULL)
-                strftime(date_text, sizeof(date_text), " %d.%m %H:%M", lt);
+                strftime(date_text, sizeof(date_text), "   %d.%m %H:%M", lt);
         }
-        // Too wide for the screen: drop the sleep rate first, then the date.
+        // Too wide for the screen: drop the date.
         int sub_w = 0, sub_h = 0;
-        for (int fit = 0; fit < 3; fit++) {
-            if (fit == 1) {
-                char *rate = strstr(sleep_text, " (");
-                if (rate == NULL)
-                    continue;
-                *rate = '\0';
-            }
-            if (fit == 2)
+        for (int fit = 0; fit < 2; fit++) {
+            if (fit == 1)
                 date_text[0] = '\0';
-            snprintf(sub_title, sizeof(sub_title), "%s: %s%s%s%s%s%s%s",
-                     sel->is_charge ? "CHARGE" : "SESSION", length_text,
-                     levels_text, off_text, tail_text, sleep_text, date_text, sel->is_current ? " NOW" : "");
+            if (sel->is_charge)
+                snprintf(sub_title, sizeof(sub_title), "CHARGE %s%s%s%s%s%s", levels_text, length_text,
+                         off_text, tail_text, date_text, sel->is_current ? " NOW" : "");
+            else
+                snprintf(sub_title, sizeof(sub_title), "%sPLAY %s%s%s%s", levels_text, length_text,
+                         sleep_text, date_text, sel->is_current ? " NOW" : "");
             if (TTF_SizeUTF8(font_Arkhip, sub_title, &sub_w, &sub_h) != 0 || sub_w <= SUB_TITLE_MAX_W)
                 break;
         }
