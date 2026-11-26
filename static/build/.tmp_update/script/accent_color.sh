@@ -66,6 +66,14 @@ if [ "$theme_name" != "$ACCENT_THEME" ] || [ ! -d "$ACCENT_RES/$colour" ]; then
     rgb="${2:-9E2C45} ${3:-D65670} ${4:-782036}"
 fi
 
+# The colours for the programs, written only when they change (this runs
+# before every MainUI start).
+write_rgb() {
+    [ "$(cat "$ACCENT_RGB" 2> /dev/null)" = "$rgb" ] && return 0
+    mkdir -p "${ACCENT_RGB%/*}"
+    printf '%s\n' "$rgb" > "$ACCENT_RGB.tmp" && mv -f "$ACCENT_RGB.tmp" "$ACCENT_RGB"
+}
+
 # PNG IHDR: big-endian width at offset 16, height at offset 20.
 png_size() {
     set -- $(od -An -tu1 -j16 -N8 "$1" 2> /dev/null)
@@ -87,7 +95,7 @@ state="$theme_name|$colour|$(resized_state)"
 
 # Nothing changed: nothing to do (every boot comes here).
 if [ -f "$LIST" ] && [ "$(head -n 1 "$LIST")" = "$state" ]; then
-    printf '%s\n' "$rgb" > "$ACCENT_RGB.tmp" && mv -f "$ACCENT_RGB.tmp" "$ACCENT_RGB"
+    write_rgb
     exit 0
 fi
 
@@ -148,5 +156,5 @@ fi
 mv -f "$LIST.new" "$LIST"
 rmdir "$OVERRIDES/skin/extra" "$OVERRIDES/skin" 2> /dev/null
 
-printf '%s\n' "$rgb" > "$ACCENT_RGB.tmp" && mv -f "$ACCENT_RGB.tmp" "$ACCENT_RGB"
+write_rgb
 sync
