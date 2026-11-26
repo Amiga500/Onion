@@ -185,8 +185,19 @@ static void _list_noteLine(SDL_Surface *screen, const char *text, int x, int y)
     }
 }
 
+/* Whether the note box under the list, as last drawn, showed the selected
+ * row's note whole: then SELECT has nothing more to show (Tweaks hides its
+ * INFO hint and opens no window, which only repeated the same words). */
+static bool _list_note_whole = false;
+
+static inline bool theme_listNoteShownWhole(void)
+{
+    return _list_note_whole;
+}
+
 static void theme_renderListNote(SDL_Surface *screen, const char *note, SDL_Rect box)
 {
+    _list_note_whole = false;
     if (_list_note_font == NULL)
         _list_note_font = theme_loadFont(theme()->path, theme()->list.font, 16);
     ui_fillRoundRect(screen, box, 10.0 * g_scale, SDL_MapRGB(screen->format, 38, 38, 41));
@@ -228,12 +239,14 @@ static void theme_renderListNote(SDL_Surface *screen, const char *note, SDL_Rect
                 TTF_SizeUTF8(_list_note_font, tryl, &lw, NULL);
             } while (lw > max_w && len-- > 0);
             snprintf(line[1], STR_MAX, "%s", tryl);
-            li = 2;
+            li = 3; /* cut short */
             break;
         }
         li++;
         snprintf(line[li], STR_MAX, "%s", w);
     }
+    /* li 3: cut short with "..."; 2: a word left over after two lines */
+    _list_note_whole = li < 2;
     int lines = line[1][0] ? 2 : 1;
     int y = cy - lines * line_h / 2;
     for (int i = 0; i < lines; i++)
@@ -472,6 +485,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         }
     }
 
+    _list_note_whole = false;
     if (with_note) {
         SDL_Rect box = {12.0 * g_scale, 366.0 * g_scale, params.dim.w - 24.0 * g_scale, 50.0 * g_scale};
         theme_renderListNote(screen, list->items[list->active_pos].info_note, box);

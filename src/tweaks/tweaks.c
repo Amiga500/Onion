@@ -134,7 +134,9 @@ int main(int argc, char *argv[])
                 key_changed = list_resetCurrentItem(menu_stack[menu_level]);
             }
             else if (keystate[SW_BTN_SELECT] == PRESSED) {
-                if (list_hasInfoNote(menu_stack[menu_level])) {
+                // Not when the note box under the list already shows it
+                // whole: the window repeated the same words.
+                if (list_hasInfoNote(menu_stack[menu_level]) && !theme_listNoteShownWhole()) {
                     sound_change();
                     showInfoDialog(menu_stack[menu_level]);
                 }
@@ -204,8 +206,9 @@ int main(int argc, char *argv[])
             __showInfoDialog("Welcome to Tweaks!",
                              ":: TOOLTIPS ::\n"
                              " \n"
-                             "Press SELECT to view a tooltip\n"
-                             "describing the selected option."
+                             "The selected option is described\n"
+                             "at the bottom. When it ends with\n"
+                             "..., press SELECT to read it all.\n"
                              " \n"
                              "Press any button to close");
         }
@@ -263,7 +266,9 @@ int main(int argc, char *argv[])
             // SELECT opens the selected item's info box (the first-run
             // tooltip says so once): its hint is in the footer while the
             // item has one, so the footer is drawn again when that changes.
-            int info_now = list_hasInfoNote(menu_stack[menu_level]) ? 1 : 0;
+            // Only when there is more to read than the note box under the
+            // list shows (a note cut short with "...", or no box).
+            int info_now = list_hasInfoNote(menu_stack[menu_level]) && !theme_listNoteShownWhole() ? 1 : 0;
             if (info_now != footer_info_shown)
                 footer_changed = true;
 
