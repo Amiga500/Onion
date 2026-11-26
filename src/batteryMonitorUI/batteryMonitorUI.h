@@ -78,11 +78,18 @@
 #define SLEEP_MIN_SHOWN 300
 // A clock gap between two entries counts as sleep from this long and this share of the
 // older entry's awake time (batmon's count runs a few percent slow, as each loop pass
-// takes a little over a second); the sleep rate (%/h) is shown from SLEEP_RATE_MIN of sleep
+// takes a little over a second); SLEEP_RATE_MIN: no longer shown (the session line keeps the time and the drop)
 #define SLEEP_GAP_MIN 120
 // %: a charge's level rising more than this between two log entries means the console was off
 // meanwhile (batmon logs nothing then), so without clock times the charge's length is incomplete
 #define CHARGE_OFF_JUMP_MIN 3
+// A clock that jumped during a charge (set from the network after the battery ran flat and the
+// clock fell back): a gap of at least CLOCK_JUMP_GAP_MIN s between two entries below
+// CLOCK_JUMP_LEVEL_MAX % in which the level rose under CLOCK_JUMP_RISE_MAX % per hour. A real
+// charge, awake or asleep, adds far more; so the charge is then timed by awake time.
+#define CLOCK_JUMP_GAP_MIN 1800
+#define CLOCK_JUMP_LEVEL_MAX 95
+#define CLOCK_JUMP_RISE_MAX 2
 #define SLEEP_GAP_MIN_PCT 10
 #define SLEEP_RATE_MIN 1800
 // A gap longer than this is the clock moving, not a sleep: batmon logs start_time from any clock
