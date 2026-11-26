@@ -10,6 +10,41 @@ extern int pthread_setaffinity_np(pthread_t thread, size_t cpusetsize, const cpu
 #define _LARGEFILE64_SOURCE 1
 #include <sys/stat.h>
 
+// A picture made in the theme's red, in the accent colour chosen in Tweaks
+// (theme/accent.h). Left as it is with red.
+static void recolourAccent(SDL_Surface *s)
+{
+    if (s == NULL || !accent_isCustom())
+        return;
+    int bpp = s->format->BytesPerPixel;
+    if (bpp != 3 && bpp != 4)
+        return;
+    if (SDL_MUSTLOCK(s) && SDL_LockSurface(s) != 0)
+        return;
+    for (int y = 0; y < s->h; y++) {
+        Uint8 *row = (Uint8 *)s->pixels + y * s->pitch;
+        for (int x = 0; x < s->w; x++) {
+            Uint8 *p = row + x * bpp;
+            Uint32 v = bpp == 4 ? *(Uint32 *)p : (Uint32)(p[0] | p[1] << 8 | p[2] << 16);
+            Uint8 r, g, b, a;
+            SDL_GetRGBA(v, s->format, &r, &g, &b, &a);
+            if (a == 0)
+                continue;
+            accent_recolourPixel(&r, &g, &b);
+            v = SDL_MapRGBA(s->format, r, g, b, a);
+            if (bpp == 4)
+                *(Uint32 *)p = v;
+            else {
+                p[0] = v & 0xFF;
+                p[1] = (v >> 8) & 0xFF;
+                p[2] = (v >> 16) & 0xFF;
+            }
+        }
+    }
+    if (SDL_MUSTLOCK(s))
+        SDL_UnlockSurface(s);
+}
+
 static bool quit = false;
 static int current_zoom = 1;
 static int current_page = 0;
@@ -219,6 +254,9 @@ void init(void)
     screen = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
     waiting_screen = IMG_Load("./res/waiting_screen.png");
     background = IMG_Load("./res/background.png");
+    // Their header badge and the battery in the accent colour
+    recolourAccent(waiting_screen);
+    recolourAccent(background);
     right_arrow = IMG_Load("./res/right_arrow.png");
     left_arrow = IMG_Load("./res/left_arrow.png");
     end_graph = IMG_Load("./res/end.png");
@@ -1942,7 +1980,12 @@ static void renderAxpMenu(void)
     SDL_Color col_lbl = {163, 163, 168};
     SDL_Color col_val = {255, 255, 255};
     SDL_Color col_green = {126, 201, 152};
-    SDL_Color col_cyan = {235, 150, 170};
+    // Values and hints: the accent, light (as {235, 150, 170} with red)
+    Uint32 tint_val = accent_tint(ACCENT_LIGHT, 0.45f), tint_hint = accent_tint(ACCENT_LIGHT, 0.72f);
+    SDL_Color col_cyan = accent_isCustom() ? (SDL_Color){tint_val >> 16, (tint_val >> 8) & 0xFF, tint_val & 0xFF}
+                                           : (SDL_Color){235, 150, 170};
+    SDL_Color col_hint = accent_isCustom() ? (SDL_Color){tint_hint >> 16, (tint_hint >> 8) & 0xFF, tint_hint & 0xFF}
+                                           : (SDL_Color){235, 205, 214};
     SDL_Color col_warn = {242, 179, 91};
 
     // Header
@@ -2090,7 +2133,7 @@ static void renderAxpMenu(void)
             snprintf(cap_hint, sizeof(cap_hint), "Now %d mAh  [A] Save", axp_status.capacity_mah);
         else
             snprintf(cap_hint, sizeof(cap_hint), "[LEFT/RIGHT] Change  [A] Save");
-        renderText(cap_hint, font_small ? font_small : font_Arkhip, (SDL_Color){235, 205, 214}, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
+        renderText(cap_hint, font_small ? font_small : font_Arkhip, col_hint, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
     }
 
     // Item: Shutdown voltage (Voff, REG 31H bits 2-0)

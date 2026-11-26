@@ -2681,6 +2681,8 @@ check "and before Kids Mode" sh -c "sed -n '/^launch_kids_mode() {/,/^}/p' '$ROO
 check "the Theme Switcher applies it with the theme" grep -q 'accent_color.sh' "$ROOT/src/themeSwitcher/installTheme.h"
 check "the programs without theme images read it" grep -q 'define CUI_ACCENT accent_rgb(ACCENT_MAIN)' "$ROOT/src/common/theme/render/canvas_ui.h"
 check "with red when the file is missing" grep -q '{0x9E2C45, 0xD65670, 0x782036}' "$ROOT/src/common/theme/accent.h"
+check "Battery Monitor's own pictures follow it (header badge, battery)" sh -c "grep -q 'recolourAccent(background);' '$ROOT/src/batteryMonitorUI/batteryMonitorUI.c' && grep -q 'recolourAccent(waiting_screen);' '$ROOT/src/batteryMonitorUI/batteryMonitorUI.c'"
+check "the C recolouring uses the same red as the pictures' script" sh -c "grep -q 'RED = (\"9E2C45\"' '$ROOT/tools/accent/gen_accent.py' && grep -q 'red_h = 0.96345f, red_s = 0.72152f, red_v = 0.61961f' '$ROOT/src/common/theme/accent.h'"
 end
 
 begin installer_uses_the_consoles_brightness
