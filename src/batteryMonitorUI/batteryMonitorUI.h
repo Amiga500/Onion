@@ -61,7 +61,7 @@
 // the area under its curve with this colour (strength out of 256), its start
 // kept this far inside the view
 #define MAX_SESSION_MARKS 256
-#define SESSION_MARK_COLOR 214, 86, 112 // test branch: RedOnion accent, light
+#define SESSION_MARK_COLOR ACCENT_R(ACCENT_LIGHT), ACCENT_G(ACCENT_LIGHT), ACCENT_B(ACCENT_LIGHT) // the accent, light (theme/accent.h)
 #define SESSION_MARK_MARGIN 20
 #define SESSION_MARK_TINT 80
 // the caption under the title for the chosen one: a lighter Onion purple, readable on

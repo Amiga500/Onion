@@ -57,26 +57,34 @@ static inline SDL_Color ui_sampleColor(SDL_Surface *s, SDL_Color fallback)
     return (SDL_Color){r, g, b};
 }
 
+// Sampled once; ui_resetColors() samples them again (Tweaks, after the
+// accent colour changes the theme images).
+static bool _ui_accent_done = false, _ui_bar_done = false;
+
 static inline SDL_Color ui_accent(void)
 {
-    static bool done = false;
     static SDL_Color c;
-    if (!done) {
+    if (!_ui_accent_done) {
         c = ui_sampleColor(resource_getSurface(BG_LIST_S), (SDL_Color){168, 41, 74});
-        done = true;
+        _ui_accent_done = true;
     }
     return c;
 }
 
 static inline SDL_Color ui_bar(void)
 {
-    static bool done = false;
     static SDL_Color c;
-    if (!done) {
+    if (!_ui_bar_done) {
         c = ui_sampleColor(resource_getSurface(BG_TITLE), (SDL_Color){28, 28, 30});
-        done = true;
+        _ui_bar_done = true;
     }
     return c;
+}
+
+static inline void ui_resetColors(void)
+{
+    _ui_accent_done = false;
+    _ui_bar_done = false;
 }
 
 static inline Uint32 ui_map(SDL_Surface *screen, SDL_Color c)

@@ -448,6 +448,9 @@ launch_kids_mode() {
     cd $sysdir
     start_audioserver
 
+    # Accent colour (Silky RedOnion), as before MainUI
+    sh "$sysdir/script/accent_color.sh" 2> /dev/null
+
     # Its launcher and video player flip between two 640x480 pages.
     if [ -x "$sysdir/bin/fbmode" ] && [ -f /tmp/new_res_available ]; then
         probe=$($sysdir/bin/fbmode --probe 2> /dev/null)
@@ -479,6 +482,10 @@ launch_main_ui() {
 
     # Hide any new recents if applicable
     check_hide_recents
+
+    # Accent colour (Silky RedOnion): its images in the theme overrides, or
+    # removed after a theme change. Nothing to do when nothing changed.
+    sh "$sysdir/script/accent_color.sh" 2> /dev/null
 
     # Ensure we've mounted the correct MainUI binary
     mount_main_ui

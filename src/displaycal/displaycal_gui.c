@@ -572,13 +572,36 @@ static const u8 icon_monitor[400] = {
     0,0,0,0,0,0,9,75,84,86,86,85,75,9,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 };
-static u32 accent(void){return px(158,44,69);}
+/* Tweaks > Look and feel > Accent colour: "accent light dark" (RRGGBB) in
+ * config/display/accentRGB, written by script/accent_color.sh; red (the
+ * Silky RedOnion theme's own) when it is missing (theme/accent.h, read here
+ * without libc). */
+static int hexval(char c){return c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:c>='A'&&c<='F'?c-'A'+10:-1;}
+static u32 accent_part(int which){
+    static u32 c[3]={0x9E2C45,0xD65670,0x782036}; static int loaded;
+    if(!loaded){
+        char b[64]; int n=read_small("/mnt/SDCARD/.tmp_update/config/display/accentRGB",b,sizeof(b));
+        u32 v[3]; int k=0,i=0;
+        loaded=1;
+        while(n>0&&k<3&&i<n){
+            int d=0; u32 x=0;
+            while(i<n&&hexval(b[i])<0)i++;
+            while(i<n&&hexval(b[i])>=0&&d<6){x=x*16+(u32)hexval(b[i]);i++;d++;}
+            if(d!=6)break;
+            v[k++]=x;
+        }
+        if(k==3){c[0]=v[0];c[1]=v[1];c[2]=v[2];}
+    }
+    return c[which];
+}
+static u32 accent_px(int which){u32 v=accent_part(which);return px((u8)(v>>16),(u8)(v>>8),(u8)v);}
+static u32 accent(void){return accent_px(0);}
 static u32 ui_bg(void){return px(28,28,30);}
 static u32 ui_head(void){return px(30,30,30);}
 static u32 ui_panel(void){return px(46,46,49);}
 static u32 ui_track(void){return px(58,58,61);}
 static u32 ui_grey(void){return px(163,163,168);}
-static u32 ui_dark_accent(void){return px(120,32,54);}
+static u32 ui_dark_accent(void){return accent_px(2);}
 static int curve_inset(int row,int rad){
     if(row>=rad) return 0;
     int d=rad-row;

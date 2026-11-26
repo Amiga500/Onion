@@ -990,7 +990,7 @@ static void load_settings(void) {
 #define PANEL_BG CUI_PANEL
 #define WHITE CUI_WHITE
 #define MUTED CUI_GREY
-#define TEAL rgb(214,86,112) /* accent, light enough for text on the panels */
+#define TEAL CUI_ACCENT_LIGHT /* accent, light enough for text on the panels */
 #define AMBER CUI_WARN
 
 static void box_panel(Canvas *c,int x,int y,int w,int h) {

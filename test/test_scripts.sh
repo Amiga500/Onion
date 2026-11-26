@@ -2601,6 +2601,88 @@ check "no other plain reboot but the firmware check's (no shutdown script left t
 check "the shutdown script stops the installer's updater" grep -q 'killall -9 updater' "$ROOT/static/build/.tmp_update/bin/shutdown"
 end
 
+begin accent_colour_follows_tweaks_and_the_theme
+AC="$ROOT/static/build/.tmp_update/script/accent_color.sh"
+RES="$ROOT/static/build/.tmp_update/res/accent"
+mkdir -p "$TMP/sd/Themes/Silky RedOnion/skin" "$TMP/sd/Themes/Other/skin" "$TMP/sys/config/display" "$TMP/ov" "$TMP/bin"
+cp "$ROOT/static/build/Themes/Silky RedOnion/skin/bg-list-s.png" "$TMP/sd/Themes/Silky RedOnion/skin/"
+silky_json() { printf '{\n\t"theme":\t"%s/sd/Themes/%s/",\n\t"brightness":\t7\n}\n' "$TMP" "$1" > "$TMP/system.json"; }
+# a stand-in pngresize: copies the picture and notes the size asked
+printf '#!/bin/sh\nfor a; do case "$a" in --*) ;; *) set -- "$@" "$a" ;; esac; shift; done\ncp "$1" "$2"; echo "$3x$4" >> "%s/resized"\n' "$TMP" > "$TMP/bin/pngresize"
+chmod +x "$TMP/bin/pngresize"
+ac() { SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE="$TMP/bin/pngresize" PNGSCALE=/none sh "$AC" "$@"; }
+silky_json "Silky RedOnion"
+ac
+check "no colour chosen: red, nothing copied" test "$(cat "$TMP/sys/config/display/accentRGB")" = "9E2C45 D65670 782036"
+check "and no theme image in the overrides" test ! -e "$TMP/ov/skin/bg-list-s.png"
+echo 1 > "$TMP/sys/config/display/accentColor"
+mkdir -p "$TMP/ov/skin"
+echo mine > "$TMP/ov/skin/icon-A-54.png"
+ac
+check "blue: the colours for the programs" test "$(cat "$TMP/sys/config/display/accentRGB")" = "2F5FB3 5E94F2 224788"
+check "the blue selection in the overrides" cmp -s "$TMP/ov/skin/bg-list-s.png" "$RES/blue/skin/bg-list-s.png"
+check "and the GameSwitcher bar, in skin/extra" cmp -s "$TMP/ov/skin/extra/gs-bottom-bar.png" "$RES/blue/skin/extra/gs-bottom-bar.png"
+check "the user's own override stays" grep -q mine "$TMP/ov/skin/icon-A-54.png"
+check "and is not listed as ours" sh -c "! grep -q '^skin/icon-A-54.png$' '$TMP/ov/.accent_files'"
+check "the state on the first line" test "$(head -n 1 "$TMP/ov/.accent_files")" = "Silky RedOnion|blue|"
+touch -d '2001-01-01' "$TMP/ov/skin/bg-list-s.png" 2> /dev/null || touch -t 200101010000 "$TMP/ov/skin/bg-list-s.png"
+before=$(ls -l "$TMP/ov/skin/bg-list-s.png")
+ac
+check "nothing changed: nothing copied again (every boot)" test "$(ls -l "$TMP/ov/skin/bg-list-s.png")" = "$before"
+# a game-list row count other than 6: the theme's resized selection is matched
+cp "$TMP/sd/Themes/Silky RedOnion/skin/bg-list-s.png" "$TMP/sd/Themes/Silky RedOnion/skin/bg-list-s_8.png"
+ac
+check "the resized selection gets a blue copy" test -f "$TMP/ov/skin/bg-list-s_8.png"
+check "listed with the others" grep -q '^skin/bg-list-s_8.png$' "$TMP/ov/.accent_files"
+check "the state notes the resized images" sh -c "head -n 1 '$TMP/ov/.accent_files' | grep -q 'bg-list-s_8.png:640x60'"
+# same picture size: copied, not resized
+check "a copy as large as the theme's is not resized" test ! -e "$TMP/resized"
+printf '\211PNG\r\n\032\n\000\000\000\rIHDR\000\000\002\200\000\000\000\055' > "$TMP/sd/Themes/Silky RedOnion/skin/bg-list-s_8.png"
+ac
+check "the theme's smaller one: the copy is resized to its size" test "$(cat "$TMP/resized" 2> /dev/null)" = "640x45"
+echo 3 > "$TMP/sys/config/display/accentColor"
+ac
+check "teal: blue's files replaced" cmp -s "$TMP/ov/skin/bg-list-s.png" "$RES/teal/skin/bg-list-s.png"
+echo 0 > "$TMP/sys/config/display/accentColor"
+ac
+check "back to red: the copies removed" test ! -e "$TMP/ov/skin/bg-list-s.png"
+check "the resized one too" test ! -e "$TMP/ov/skin/bg-list-s_8.png"
+check "the user's own override still there" grep -q mine "$TMP/ov/skin/icon-A-54.png"
+echo 2 > "$TMP/sys/config/display/accentColor"
+ac
+check "purple" cmp -s "$TMP/ov/skin/bg-list-s.png" "$RES/purple/skin/bg-list-s.png"
+ac "$TMP/sd/Themes/Other/"
+check "another theme (themeSwitcher's argument): the copies removed" test ! -e "$TMP/ov/skin/bg-list-s.png"
+check "and red for the programs" test "$(cat "$TMP/sys/config/display/accentRGB")" = "9E2C45 D65670 782036"
+silky_json "Silky RedOnion"
+ac
+check "Silky RedOnion again: purple again" cmp -s "$TMP/ov/skin/bg-list-s.png" "$RES/purple/skin/bg-list-s.png"
+echo 9 > "$TMP/sys/config/display/accentColor"
+ac
+check "a value out of range: red" test ! -e "$TMP/ov/skin/bg-list-s.png"
+printf 'skin/../../escape\n' >> "$TMP/ov/.accent_files"
+touch "$TMP/escape"
+echo 1 > "$TMP/sys/config/display/accentColor"
+ac
+check "a listed path out of the overrides is never removed" test -e "$TMP/escape"
+unset -f ac silky_json
+# the colours and the pictures
+check "palette: six colours in the Tweaks order" test "$(grep -v '^#' "$RES/palette.txt" | cut -d' ' -f1 | tr '\n' ' ')" = "red blue purple teal pink orange "
+check "the Tweaks labels in the same order" grep -q '.value_labels = {"Red", "Blue", "Purple", "Teal", "Pink", "Orange"}' "$ROOT/src/tweaks/menus.h"
+for c in blue purple teal pink orange; do
+    [ -f "$RES/$c/skin/bg-list-s.png" ] && [ -f "$RES/$c/skin/icon-A-54.png" ] && [ -f "$RES/$c/skin/ic-game-f.png" ] || echo "$c" >> "$TMP/missing"
+    [ "$(cd "$RES/$c" && find skin -type f | sort | cksum)" = "$(cd "$RES/blue" && find skin -type f | sort | cksum)" ] || echo "$c" >> "$TMP/differ"
+done
+check "every colour has the selection, the A button and the menu icons" test ! -e "$TMP/missing"
+check "and the same files" test ! -e "$TMP/differ"
+check "the RedOnion logo and the empty battery stay red" sh -c "! find '$RES' -name 'miyoo-topbar.png' -o -name 'gs-top-bar.png' -o -name 'power-0%-icon.png' -o -name 'bootScreen.png' | grep -q ."
+check "the boot applies it before MainUI" sh -c "extract_fn() { sed -n \"/^\$2() {/,/^}/p\" \"\$1\"; }; extract_fn '$ROOT/static/build/.tmp_update/runtime.sh' launch_main_ui | grep -q 'script/accent_color.sh'"
+check "and before Kids Mode" sh -c "sed -n '/^launch_kids_mode() {/,/^}/p' '$ROOT/static/build/.tmp_update/runtime.sh' | grep -q 'script/accent_color.sh'"
+check "the Theme Switcher applies it with the theme" grep -q 'accent_color.sh' "$ROOT/src/themeSwitcher/installTheme.h"
+check "the programs without theme images read it" grep -q 'define CUI_ACCENT accent_rgb(ACCENT_MAIN)' "$ROOT/src/common/theme/render/canvas_ui.h"
+check "with red when the file is missing" grep -q '{0x9E2C45, 0xD65670, 0x782036}' "$ROOT/src/common/theme/accent.h"
+end
+
 begin installer_uses_the_consoles_brightness
 INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
 eval "$(extract_fn "$INST" installer_brightness | sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g")"

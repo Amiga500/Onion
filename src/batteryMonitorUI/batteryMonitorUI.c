@@ -1,5 +1,6 @@
 #include "./batteryMonitorUI.h"
 #include "system/device_model.h"
+#include "theme/accent.h"
 
 #include "../batmon/batmonDB.h"
 #include <pthread.h>
@@ -1930,8 +1931,8 @@ static void renderAxpMenu(void)
 
     Uint32 col_card_bg = SDL_MapRGB(screen->format, 46, 46, 49);
     Uint32 col_card_border = SDL_MapRGB(screen->format, 46, 46, 49);
-    Uint32 col_sel_bg = SDL_MapRGB(screen->format, 158, 44, 69);
-    Uint32 col_sel_border = SDL_MapRGB(screen->format, 158, 44, 69);
+    Uint32 col_sel_bg = SDL_MapRGB(screen->format, ACCENT_R(ACCENT_MAIN), ACCENT_G(ACCENT_MAIN), ACCENT_B(ACCENT_MAIN));
+    Uint32 col_sel_border = col_sel_bg;
     Uint32 col_pill_bg = SDL_MapRGB(screen->format, 58, 58, 61);
     Uint32 col_pill_border = SDL_MapRGB(screen->format, 58, 58, 61);
 
@@ -2158,7 +2159,7 @@ static void renderAxpMenu(void)
         dimScreen(190);
         int mw = 520, mh = 290, mx = 60, my = 95;
         Uint32 m_bg = SDL_MapRGB(screen->format, 39, 39, 39);
-        Uint32 m_border = SDL_MapRGB(screen->format, 158, 44, 69);
+        Uint32 m_border = SDL_MapRGB(screen->format, ACCENT_R(ACCENT_MAIN), ACCENT_G(ACCENT_MAIN), ACCENT_B(ACCENT_MAIN));
         drawRectFill(mx, my, mw, mh, m_bg);
         drawFrame2px(mx, my, mw, mh, m_border);
 
@@ -2601,7 +2602,7 @@ void renderPage()
 
     Uint32 white_pixel_color = SDL_MapRGBA(screen->format, 255, 255, 255, 0);
     Uint32 charge_pixel_color = SDL_MapRGBA(screen->format, CHARGE_COLOR, 0); // was 255, 170, 170
-    Uint32 blue_pixel_color = SDL_MapRGBA(screen->format, 214, 86, 112, 0); // test branch: accent, was 89, 167, 255
+    Uint32 blue_pixel_color = SDL_MapRGBA(screen->format, ACCENT_R(ACCENT_LIGHT), ACCENT_G(ACCENT_LIGHT), ACCENT_B(ACCENT_LIGHT), 0); // the accent, light (was 89, 167, 255)
     Uint32 pixel_color = white_pixel_color;
 
     int x;
