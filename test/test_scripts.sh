@@ -2665,6 +2665,23 @@ touch "$TMP/escape"
 echo 1 > "$TMP/sys/config/display/accentColor"
 ac
 check "a listed path out of the overrides is never removed" test -e "$TMP/escape"
+# speed: the usual change starts only a handful of programs (it was one cp,
+# od and mkdir per picture, 1-2 s in Tweaks): count them with stand-ins
+mkdir -p "$TMP/count"
+for c in cp rm mkdir mv rmdir sync od find sed head grep tr cat; do
+    printf '#!/bin/sh\necho %s >> "%s/count/log"\nexec /bin/%s "$@" 2>/dev/null || exec /usr/bin/%s "$@"\n' "$c" "$TMP" "$c" "$c" > "$TMP/count/$c"
+    chmod +x "$TMP/count/$c"
+done
+silky_json "Silky RedOnion"
+rm -f "$TMP/sd/Themes/Silky RedOnion/skin/bg-list-s_8.png" "$TMP/ov/skin/icon-A-54.png" # the usual case: no resized list images, no own overrides
+echo 4 > "$TMP/sys/config/display/accentColor"
+rm -f "$TMP/count/log"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE=/none PNGSCALE=/none PATH="$TMP/count:$PATH" sh "$AC"
+check "a colour change starts at most 10 programs" test "$(wc -l < "$TMP/count/log")" -le 10
+check "pink copied by it" cmp -s "$TMP/ov/skin/bg-list-s.png" "$RES/pink/skin/bg-list-s.png"
+rm -f "$TMP/count/log"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE=/none PNGSCALE=/none PATH="$TMP/count:$PATH" sh "$AC"
+check "nothing changed (every MainUI start): no program at all" test ! -s "$TMP/count/log"
 unset -f ac silky_json
 # the colours and the pictures
 check "palette: six colours in the Tweaks order" test "$(grep -v '^#' "$RES/palette.txt" | cut -d' ' -f1 | tr '\n' ' ')" = "red blue purple teal pink orange "
@@ -2675,6 +2692,7 @@ for c in blue purple teal pink orange; do
 done
 check "every colour has the selection, the A button and the menu icons" test ! -e "$TMP/missing"
 check "and the same files" test ! -e "$TMP/differ"
+check "files.txt lists exactly the pictures of each colour" test "$(sort "$RES/files.txt" | cksum)" = "$(cd "$RES/blue" && find skin -type f | sort | cksum)"
 check "the RedOnion logo and the empty battery stay red" sh -c "! find '$RES' -name 'miyoo-topbar.png' -o -name 'gs-top-bar.png' -o -name 'power-0%-icon.png' -o -name 'bootScreen.png' | grep -q ."
 check "the boot applies it before MainUI" sh -c "extract_fn() { sed -n \"/^\$2() {/,/^}/p\" \"\$1\"; }; extract_fn '$ROOT/static/build/.tmp_update/runtime.sh' launch_main_ui | grep -q 'script/accent_color.sh'"
 check "and before Kids Mode" sh -c "sed -n '/^launch_kids_mode() {/,/^}/p' '$ROOT/static/build/.tmp_update/runtime.sh' | grep -q 'script/accent_color.sh'"

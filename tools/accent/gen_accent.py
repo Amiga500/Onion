@@ -134,6 +134,11 @@ def main():
             dst = os.path.join(OUT, name, rel)
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             out.save(dst, optimize=True)
+    # The pictures, one per line, for accent_color.sh (read with the shell's
+    # own read: no find on the console)
+    with open(os.path.join(OUT, "files.txt"), "w") as f:
+        for rel in sorted(images):
+            f.write(rel + "\n")
     with open(os.path.join(OUT, "palette.txt"), "w") as f:
         f.write("# name accent light dark (RRGGBB), in the Tweaks order. Made by tools/accent/gen_accent.py\n")
         pal = palette()

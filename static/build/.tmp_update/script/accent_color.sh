@@ -10,10 +10,11 @@
 # The colour is the theme's: Open MainUI and the RedOnion programs draw the
 # selection, the buttons and the menu icons from its images. For a colour
 # other than red, the images that carry the red accent, recoloured
-# (res/accent/<colour>/, made by tools/accent/gen_accent.py), are copied
-# into the theme overrides (Saves/CurrentProfile/theme/skin), which both
-# read before the theme's own files. Only with Silky RedOnion: another theme
-# keeps its own colours, and the copies are removed.
+# (res/accent/<colour>/, made by tools/accent/gen_accent.py, listed in
+# res/accent/files.txt), are copied into the theme overrides
+# (Saves/CurrentProfile/theme/skin), which both read before the theme's own
+# files. Only with Silky RedOnion: another theme keeps its own colours, and
+# the copies are removed.
 #
 # The files copied are listed in the overrides' .accent_files, after a first
 # line with the state they were made for; only those are ever removed, so
@@ -26,6 +27,14 @@
 # config/display/accentRGB gets the colour in use, as "accent light dark"
 # (RRGGBB): the programs that draw without theme images read it (red when
 # it is missing).
+#
+# Speed: Tweaks runs this on every change of the colour, and the boot before
+# every MainUI start. A command started here costs a few milliseconds on the
+# console, so the usual paths start almost none: the files are read with
+# the shell's own read, the copies made with one cp and removed with one rm
+# (the first version, one cp, od and mkdir per picture, took 1-2 seconds
+# per change in Tweaks; robcodedev). Only resized theme images, or the
+# user's own overrides among the pictures, take the slower file-by-file way.
 
 SDROOT=${SDROOT:-/mnt/SDCARD}
 sysdir=${SYSDIR:-$SDROOT/.tmp_update}
@@ -39,11 +48,21 @@ PNGSCALE=${PNGSCALE:-$sysdir/bin/pngScale}
 ACCENT_THEME="Silky RedOnion"
 
 LIST=$OVERRIDES/.accent_files
+FILES=$ACCENT_RES/files.txt
 
 # The theme folder: the argument, or system.json's "theme" value.
 theme_path=${1:-}
 if [ -z "$theme_path" ] && [ -f "$SYSTEM_JSON" ]; then
-    theme_path=$(sed -n 's/.*"theme"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SYSTEM_JSON" | head -n 1)
+    while IFS= read -r _l || [ -n "$_l" ]; do
+        case "$_l" in
+            *\"theme\"*:*\"*\"*)
+                _l=${_l#*\"theme\"}
+                _l=${_l#*\"}
+                theme_path=${_l%%\"*}
+                break
+                ;;
+        esac
+    done < "$SYSTEM_JSON"
 fi
 theme_path=${theme_path%/}
 theme_name=${theme_path##*/}
@@ -52,24 +71,50 @@ theme_name=${theme_path##*/}
 index=0
 [ -f "$ACCENT_CONFIG" ] && read -r index < "$ACCENT_CONFIG"
 case "$index" in '' | *[!0-9]*) index=0 ;; esac
-palette() { grep -v '^#' "$ACCENT_RES/palette.txt" 2> /dev/null; }
-line=$(palette | sed -n "$((index + 1))p")
-[ -n "$line" ] || line=$(palette | head -n 1)
-[ -n "$line" ] || line="red 9E2C45 D65670 782036"
-set -- $line
-colour=$1
-rgb="$2 $3 $4"
-
-if [ "$theme_name" != "$ACCENT_THEME" ] || [ ! -d "$ACCENT_RES/$colour" ]; then
-    colour=red
-    set -- $(palette | head -n 1)
-    rgb="${2:-9E2C45} ${3:-D65670} ${4:-782036}"
+colour=red
+rgb="9E2C45 D65670 782036"
+_n=0
+if [ -f "$ACCENT_RES/palette.txt" ]; then
+    while read -r _name _a _l _d; do
+        case "$_name" in '' | \#*) continue ;; esac
+        if [ "$_n" -eq 0 ] || [ "$_n" -eq "$index" ]; then
+            colour=$_name
+            rgb="$_a $_l $_d"
+        fi
+        _n=$((_n + 1))
+    done < "$ACCENT_RES/palette.txt"
+    # out of range: the first (red), already taken above
+    [ "$index" -lt "$_n" ] || {
+        while read -r _name _a _l _d; do
+            case "$_name" in '' | \#*) continue ;; esac
+            colour=$_name
+            rgb="$_a $_l $_d"
+            break
+        done < "$ACCENT_RES/palette.txt"
+    }
 fi
 
-# The colours for the programs, written only when they change (this runs
-# before every MainUI start).
+if [ "$theme_name" != "$ACCENT_THEME" ] || [ "$colour" = red ] || [ ! -d "$ACCENT_RES/$colour" ]; then
+    want_red=1
+else
+    want_red=0
+fi
+if [ "$want_red" -eq 1 ]; then
+    colour=red
+    if [ -f "$ACCENT_RES/palette.txt" ]; then
+        while read -r _name _a _l _d; do
+            case "$_name" in '' | \#*) continue ;; esac
+            rgb="$_a $_l $_d"
+            break
+        done < "$ACCENT_RES/palette.txt"
+    fi
+fi
+
+# The colours for the programs, written only when they change.
 write_rgb() {
-    [ "$(cat "$ACCENT_RGB" 2> /dev/null)" = "$rgb" ] && return 0
+    _old=""
+    [ -f "$ACCENT_RGB" ] && read -r _old < "$ACCENT_RGB"
+    [ "$_old" = "$rgb" ] && return 0
     mkdir -p "${ACCENT_RGB%/*}"
     printf '%s\n' "$rgb" > "$ACCENT_RGB.tmp" && mv -f "$ACCENT_RGB.tmp" "$ACCENT_RGB"
 }
@@ -82,19 +127,21 @@ png_size() {
 }
 
 # The theme's resized list images, by name and size: when they change
-# (Tweaks > Game lists > Layout), the copies are made again.
-resized_state() {
-    for f in "$theme_path"/skin/bg-list-s_*.png "$theme_path"/skin/*.png.bak; do
-        [ -f "$f" ] || continue
-        f=${f%.bak}
-        echo "${f##*/}:$(png_size "$f" | tr ' ' x)"
-    done | tr '\n' ' '
-}
+# (Tweaks > Game lists > Layout), the copies are made again. Usually there
+# are none, and nothing is started.
+resized=""
+for f in "$theme_path"/skin/bg-list-s_*.png "$theme_path"/skin/*.png.bak; do
+    [ -f "$f" ] || continue
+    f=${f%.bak}
+    resized="$resized${f##*/}:$(png_size "$f" | tr ' ' x) "
+done
 
-state="$theme_name|$colour|$(resized_state)"
+state="$theme_name|$colour|$resized"
 
 # Nothing changed: nothing to do (every boot comes here).
-if [ -f "$LIST" ] && [ "$(head -n 1 "$LIST")" = "$state" ]; then
+_first=""
+[ -f "$LIST" ] && read -r _first < "$LIST"
+if [ -f "$LIST" ] && [ "$_first" = "$state" ]; then
     write_rgb
     exit 0
 fi
@@ -107,8 +154,8 @@ scale() { # src dst width height
     fi
 }
 
-# Copies one recoloured image into the overrides, as large as the theme's
-# own file is now (resized for the row count, or as it came).
+# One picture, file by file: as large as the theme's own file is now
+# (resized for the row count, or as it came). For the slow way only.
 place() { # rel_src rel_dst
     src=$ACCENT_RES/$colour/$1
     rel=$2
@@ -131,29 +178,60 @@ place() { # rel_src rel_dst
     echo "$rel" >> "$LIST.new"
 }
 
-# The previous colour's files go first.
+# The previous colour's files go first: one rm for all of them. Only paths
+# under skin/ made of plain file-name characters, never one with "..".
 if [ -f "$LIST" ]; then
-    tail -n +2 "$LIST" | while IFS= read -r f; do
-        case "$f" in
-            *..*) ;;
-            skin/*) rm -f "$OVERRIDES/$f" ;;
-        esac
-    done
+    set --
+    {
+        read -r _skip
+        while IFS= read -r f; do
+            case "$f" in
+                *..* | *[!A-Za-z0-9._/%+\&-]*) ;;
+                skin/*) set -- "$@" "$OVERRIDES/$f" ;;
+            esac
+        done
+    } < "$LIST"
+    [ "$#" -gt 0 ] && rm -f "$@"
 fi
 
-mkdir -p "$OVERRIDES"
+mkdir -p "$OVERRIDES/skin"
 printf '%s\n' "$state" > "$LIST.new"
 if [ "$colour" != red ]; then
-    (cd "$ACCENT_RES/$colour" && find skin -type f -name '*.png') | while IFS= read -r f; do
-        place "$f" "$f"
-    done
-    # The selection for a game-list row count other than 6
-    for f in "$theme_path"/skin/bg-list-s_*.png; do
-        [ -f "$f" ] || continue
-        place skin/bg-list-s.png "skin/${f##*/}"
-    done
+    # The list of pictures (one per line, skin/...); made by find if missing
+    if [ ! -f "$FILES" ]; then
+        FILES=/tmp/accent_files.$$
+        (cd "$ACCENT_RES/$colour" && find skin -type f -name '*.png') > "$FILES"
+    fi
+    # The fast way: no resized theme images and none of the pictures already
+    # overridden by the user (checked with the shell's own test).
+    fast=1
+    [ -n "$resized" ] && fast=0
+    if [ "$fast" -eq 1 ]; then
+        while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            [ -e "$OVERRIDES/$f" ] && {
+                fast=0
+                break
+            }
+        done < "$FILES"
+    fi
+    if [ "$fast" -eq 1 ] && cp -r "$ACCENT_RES/$colour/skin" "$OVERRIDES/"; then
+        while IFS= read -r f; do
+            [ -n "$f" ] && echo "$f" >> "$LIST.new"
+        done < "$FILES"
+    else
+        while IFS= read -r f; do
+            [ -n "$f" ] && place "$f" "$f"
+        done < "$FILES"
+        # The selection for a game-list row count other than 6
+        for f in "$theme_path"/skin/bg-list-s_*.png; do
+            [ -f "$f" ] || continue
+            place skin/bg-list-s.png "skin/${f##*/}"
+        done
+    fi
 fi
 mv -f "$LIST.new" "$LIST"
+case "$FILES" in /tmp/accent_files.*) rm -f "$FILES" ;; esac
 rmdir "$OVERRIDES/skin/extra" "$OVERRIDES/skin" 2> /dev/null
 
 write_rgb
