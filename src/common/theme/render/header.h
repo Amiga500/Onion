@@ -183,7 +183,8 @@ void theme_renderHeader(SDL_Surface *screen, const char *title_str, bool show_lo
         if (strcmp(title_str, _cached_header_title_str) != 0) {
             if (_cached_header_title)
                 SDL_FreeSurface(_cached_header_title);
-            _cached_header_title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), title_str, theme()->title.color);
+            char shown[STR_MAX];
+            _cached_header_title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), ui_pageTitle(title_str, shown, sizeof(shown)), theme()->title.color);
             strncpy(_cached_header_title_str, title_str, STR_MAX - 1);
             _cached_header_title_str[STR_MAX - 1] = '\0';
         }
@@ -204,16 +205,19 @@ static int _header_pathWidth(const char *const *levels, int count, int from)
         return 0;
     if (from > 0 && TTF_SizeUTF8(_header_path_font, "...", &piece, NULL) == 0)
         w += piece + HEADER_PATH_GAP;
-    for (int i = from; i < count - 1; i++)
-        if (TTF_SizeUTF8(_header_path_font, levels[i], &piece, NULL) == 0)
+    for (int i = from; i < count - 1; i++) {
+        char shown[STR_MAX];
+        if (TTF_SizeUTF8(_header_path_font, ui_pageTitle(levels[i], shown, sizeof(shown)), &piece, NULL) == 0)
             w += piece + HEADER_PATH_GAP;
+    }
     return w;
 }
 
 static int _header_pathPiece(SDL_Surface *screen, const char *text, int x, int baseline)
 {
     SDL_Color grey = {163, 163, 168};
-    SDL_Surface *piece = TTF_RenderUTF8_Blended(_header_path_font, text, grey);
+    char shown[STR_MAX];
+    SDL_Surface *piece = TTF_RenderUTF8_Blended(_header_path_font, ui_pageTitle(text, shown, sizeof(shown)), grey);
     if (piece == NULL)
         return x;
     SDL_Rect r = {x, baseline - TTF_FontAscent(_header_path_font)};
@@ -245,7 +249,8 @@ void theme_renderHeaderPath(SDL_Surface *screen, const char *const *levels, int 
     if (strcmp(current, _cached_header_title_str) != 0) {
         if (_cached_header_title)
             SDL_FreeSurface(_cached_header_title);
-        _cached_header_title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), current, theme()->title.color);
+        char shown[STR_MAX];
+        _cached_header_title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), ui_pageTitle(current, shown, sizeof(shown)), theme()->title.color);
         strncpy(_cached_header_title_str, current, STR_MAX - 1);
         _cached_header_title_str[STR_MAX - 1] = '\0';
     }
@@ -282,7 +287,8 @@ void theme_renderHeaderExtra(SDL_Surface *screen, const char *title_str,
 {
     theme_renderHeaderBackground(screen);
 
-    SDL_Surface *title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), title_str, theme()->title.color);
+    char shown[STR_MAX];
+    SDL_Surface *title = TTF_RenderUTF8_Blended(resource_getFont(TITLE), ui_pageTitle(title_str, shown, sizeof(shown)), theme()->title.color);
     if (title == NULL)
         return;
     _theme_renderHeaderTitle(screen, title, title_str, false);

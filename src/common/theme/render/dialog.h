@@ -89,7 +89,8 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     int pad = 24.0 * g_scale, box_w = 500.0 * g_scale, btn_h = 46.0 * g_scale;
     int inner_w = box_w - 2 * pad;
 
-    char title_up[STR_MAX];
+    char title_up[STR_MAX], title_page[STR_MAX];
+    title_str = title_str ? ui_pageTitle(title_str, title_page, sizeof(title_page)) : NULL;
     int n = 0;
     for (; title_str && title_str[n] && n < STR_MAX - 1; n++)
         title_up[n] = (title_str[n] >= 'a' && title_str[n] <= 'z') ? title_str[n] - 32 : title_str[n];

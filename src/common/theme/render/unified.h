@@ -159,4 +159,18 @@ static inline bool ui_opensPage(const char *label)
     return n > 3 && strcmp(label + n - 3, "...") == 0;
 }
 
+// A page's title without the "..." of the entry that opened it ("Edit console
+// icon..." is titled "Edit console icon"): s itself, or a copy in buf.
+static inline const char *ui_pageTitle(const char *s, char *buf, size_t size)
+{
+    if (!ui_opensPage(s) || size == 0)
+        return s;
+    size_t n = strlen(s) - 3;
+    if (n >= size)
+        n = size - 1;
+    memcpy(buf, s, n);
+    buf[n] = '\0';
+    return buf;
+}
+
 #endif // RENDER_UNIFIED_H__
