@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../accent.h"
 #include "./ui_icons_data.h"
 
 #define CUI_W 640
@@ -28,7 +29,12 @@
 #define CUI_HEAD CUI_RGB(30, 30, 30)
 #define CUI_PANEL CUI_RGB(46, 46, 49)
 #define CUI_TRACK CUI_RGB(58, 58, 61)
-#define CUI_ACCENT CUI_RGB(158, 44, 69)
+// Tweaks > Look and feel > Accent colour (theme/accent.h), red by default;
+// CUI_ACCENT_LIGHT for text on the panels, CUI_ACCENT_DARK behind a
+// selected slider.
+#define CUI_ACCENT accent_rgb(ACCENT_MAIN)
+#define CUI_ACCENT_LIGHT accent_rgb(ACCENT_LIGHT)
+#define CUI_ACCENT_DARK accent_rgb(ACCENT_DARK)
 #define CUI_WHITE CUI_RGB(244, 244, 245)
 #define CUI_GREY CUI_RGB(163, 163, 168)
 #define CUI_DIM CUI_RGB(110, 110, 115)

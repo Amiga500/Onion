@@ -637,7 +637,7 @@ void menu_lookAndFeel(void *_)
     settings.blue_light_state = config_flag_get(".blfOn");
     all_changed = true;
     if (!_menu_user_interface._created) {
-        _menu_user_interface = list_createWithTitle(8, LIST_SMALL, "Look and feel");
+        _menu_user_interface = list_createWithTitle(9, LIST_SMALL, "Look and feel");
         list_addItem(&_menu_user_interface,
                      (ListItem){
                          .label = "Theme tweaks...",
@@ -646,6 +646,22 @@ void menu_lookAndFeel(void *_)
                      (ListItem){
                          .label = "Icons...",
                          .action = menu_icons});
+        int accent_color = 0;
+        config_get("display/accentColor", CONFIG_INT, &accent_color);
+        if (accent_color < 0 || accent_color > 5)
+            accent_color = 0;
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Accent colour",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 5,
+                                     .value_labels = {"Red", "Blue", "Purple", "Teal", "Pink", "Orange"},
+                                     .value = accent_color,
+                                     .action = action_setAccentColor},
+                                 "The colour of the selection, buttons\n"
+                                 "and menu icons, in the menus and the\n"
+                                 "RedOnion apps. Silky RedOnion only:\n"
+                                 "other themes keep their own colours.");
         list_addItem(&_menu_user_interface,
                      (ListItem){
                          .label = "Blue light filter...",

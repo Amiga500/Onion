@@ -176,6 +176,22 @@ void action_setLowBatteryAutoSave(void *pt)
     settings.low_battery_autosave_at = battery_exitLevelPercent(((ListItem *)pt)->value);
 }
 
+// Tweaks > Look and feel > Accent colour (Silky RedOnion). Written and
+// applied at once: script/accent_color.sh puts the theme images in the
+// colour into the theme overrides, then Tweaks loads them again and is
+// drawn in it. MainUI and the other programs read them when they start.
+void action_setAccentColor(void *pt)
+{
+    config_setNumber("display/accentColor", ((ListItem *)pt)->value);
+    system("sh /mnt/SDCARD/.tmp_update/script/accent_color.sh");
+    resources_reloadImages();
+    ui_resetColors();
+    theme_renderHeader_cleanup();
+    theme_renderStandardHint_cleanup();
+    theme_renderDialog_cleanup();
+    all_changed = true;
+}
+
 void action_setLaunchScreen(void *pt)
 {
     settings.launch_screen = ((ListItem *)pt)->value;

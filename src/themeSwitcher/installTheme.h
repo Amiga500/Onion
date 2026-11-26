@@ -227,6 +227,12 @@ void installTheme(char *theme_path, bool apply_icons)
              theme_path);
     system(skin_cmd);
 
+    // Accent colour (Tweaks > Look and feel): its images for Silky
+    // RedOnion, removed for any other theme.
+    snprintf(skin_cmd, sizeof(skin_cmd), "sh " SCRIPT_DIR "/accent_color.sh \"%s\"",
+             theme_path);
+    system(skin_cmd);
+
     // List icons sized for the game-list row count, as Tweaks > Game lists >
     // Layout does when its rows or resize option change.
     theme_listRescale(theme_path, THEME_LIST_CONFIG_DIR, THEME_LIST_RESCALE_SCRIPT);

@@ -1,0 +1,7 @@
+# name accent light dark (RRGGBB), in the Tweaks order. Made by tools/accent/gen_accent.py
+red 9E2C45 D65670 782036
+blue 2F5FB3 5E94F2 224788
+purple 6A3FA0 9C6CD9 502F7A
+teal 1F7A75 3FA5A0 165D59
+pink A83A78 E468AE 802B5B
+orange B5541C F58849 893F13

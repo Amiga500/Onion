@@ -333,6 +333,18 @@ SDL_Surface *resource_getSurface(ThemeImages request)
     return resources.surfaces[request];
 }
 
+// The theme images are loaded again when next used: Tweaks, after the
+// accent colour has put other images in the theme overrides.
+void resources_reloadImages(void)
+{
+    _button_x_absent = false;
+    for (int i = 0; i < images_count; i++)
+        if (resources.surfaces[i] != NULL) {
+            SDL_FreeSurface(resources.surfaces[i]);
+            resources.surfaces[i] = NULL;
+        }
+}
+
 /**
  * @brief Remember to free manually !
  * 
