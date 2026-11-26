@@ -31,20 +31,19 @@ with tempfile.TemporaryDirectory(prefix='redamp-standby-') as tmp:
         wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(8000)
         wav.writeframes(b'\0\0'*8000*90)
     (data/'playlist.m3u').write_text('#EXTM3U\n'+str(song)+'\n')
-    (data/'settings.ini').write_text('vis_mode=0\ncur_index=0\nresume_playing=1\n')
+    (data/'settings.ini').write_text('destination=3\nvis_mode=0\ncur_index=0\nresume_playing=1\n')
     env=dict(os.environ,MA_HOME=str(APP),MA_ROOT=str(base),MA_DATA=str(data),
              M2D_INPUT=str(keys),MA_EVENT_TEST='1',MA_NO_DSP='1',
              MA_BATTERY_MARKER=str(base/'battery'),REDAMP_TEST_OFFLINE='1',
              MA_STAY_AWAKE_FLAG=str(flag),MA_STAY_AWAKE_OWNER=str(owner),
              MA_VIDEO_PLAYING_FLAG=str(video),MA_VIDEO_PLAYING_OWNER=str(vowner))
-    # Hold SELECT, wrap to standby (Quit, Clear, HTTPS, Standby), toggle.
-    # Then leave Options, pause/resume, hold X across suspend, release X,
-    # and finally exit normally. X must not toggle the expanded playlist.
-    events=[(200,97,1),(1150,97,0)]
-    for t in (1250,1350,1450,1550): events += [(t,103,1),(t+20,103,0)]
-    events += [(1700,57,1),(1720,57,0),(1850,29,1),(1870,29,0),
-               (2200,28,1),(2220,28,0),(3000,28,1),(3020,28,0),
-               (3700,42,1),(5100,42,0),(5900,1,1),(5950,1,0)]
+    # Settings -> Power & Standby -> Play during standby. Then pause/resume.
+    events=[]
+    for t in (200,320,440,560):events += [(t,108,1),(t+40,108,0)]
+    events += [(700,57,1),(740,57,0),(850,108,1),(890,108,0),
+               (1000,108,1),(1040,108,0),(1200,57,1),(1240,57,0),
+               (1500,29,1),(1540,29,0),(2200,28,1),(2240,28,0),
+               (3000,28,1),(3040,28,0),(5900,1,1),(5950,1,0)]
     keys.write_text(''.join(f'{t} {k} {v}\n' for t,k,v in events))
     with log.open('w') as output:
         p=subprocess.Popen([str(EXE)],env=env,stdout=output,stderr=output)

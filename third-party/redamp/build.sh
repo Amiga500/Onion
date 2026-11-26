@@ -1,5 +1,5 @@
 #!/bin/sh
-# RedAmp v1.1.15 source-only ARM build. MiniCinema ARM GCC, or Zig fallback.
+# RedAmp v1.2.1 source-only ARM build. MiniCinema ARM GCC, or Zig fallback.
 # Outputs: ./redamp, ./libpadsp_wrap.so, ./lib/ (ARM runtime dependencies).
 # No App directory needed. FFmpeg libraries are built by make ffmpeg-audio.
 set -eu

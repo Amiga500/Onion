@@ -28,7 +28,12 @@ static int resolve(const char *path,char artist[160],char album[160]){
 }
 int main(int argc,char **argv){assert(argc==9);
  m2d_surf *s=album_art_for_track(argv[1]);assert(s&&s->w==16&&s->h==16);
- assert(album_art_for_track(argv[1])==s);album_art_clear();
+ assert(album_art_for_track(argv[1])==s);
+ m2d_surf *scaled=album_art_player(argv[1],236);assert(scaled&&scaled->w==236&&scaled->h==236);
+ assert(album_art_player(argv[1],236)==scaled);
+ scaled=album_art_player(argv[1],112);assert(scaled&&scaled->w==112&&scaled->h==112);
+ scaled=album_art_player(argv[1],236);assert(scaled&&scaled->w==236&&scaled->h==236);
+ album_art_clear();
  s=album_art_for_track(argv[2]);assert(s&&s->w==24&&s->h==24);album_art_clear();
  s=album_art_for_track(argv[3]);assert(s&&s->w==32&&s->h==32);album_art_clear();
  album_art_set_cache_dir(argv[4]);

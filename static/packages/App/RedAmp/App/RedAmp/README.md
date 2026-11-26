@@ -1,5 +1,5 @@
 # RedAmp
-Version 1.1.15
+Version 1.2.1
 
 Powerful music player for Miyoo handhelds, designed for RedOnion and compatible OnionOS setups.
 
@@ -7,37 +7,34 @@ RedAmp supports local MP3, FLAC, WAV, Ogg Vorbis, Opus and optional AAC/M4A/ALAC
 radio supports MP3, Vorbis, Opus and optional AAC/HLS using private FFmpeg 4.4.8 libraries. It
 includes equalizer, visualizers, saved playlists, favorites, artwork and an indexed music library.
 
-## Controls
+## Navigation and controls
+
+RedAmp has four destinations: Library, Now Playing, Queue and Settings. SELECT cycles through
+these destinations; the highlighted tab indicates the current view. Library and Settings keep
+their position when switching away. New installations open Library with the Modern appearance.
+Choose Settings > Display & Skins > Playing appearance to switch to the classic Winamp window.
+The active queue is always a separate screen, independent of the selected appearance.
 
 | Button | Action |
 |---|---|
-| MENU (release) | Exit from any screen; MENU+button shortcuts do not exit |
-| SELECT + START | Exit RedAmp |
-| SELECT (tap) | Switch between Player and Library from either screen |
-| SELECT (hold 0.85s) | Open Options in Player or Library without switching views |
-| START | Pause or resume (when pressed alone) |
-| A | Play/select |
-| B (player) | No action; use SELECT to switch between Player and Library |
-| B (library) | Back one level; at Library home stays on Library home |
-| B (hold 0.65s, Library) | Open the quick Library views picker |
-| X (tap) | Toggle normal/expanded playlist when on the main player screen |
-| X (hold 1s) | Open visualizer immediately after holding 1 second, without releasing X |
-| X / Y (library) | Add selected music / play all; home-screen X opens the Library menu |
-| Y (player, tap) | Equalizer |
-| Y (player, hold 0.75s) | Play queue actions |
-| X (library, hold 0.75s) | Collection actions |
-| Y (song in library, hold 0.75s) | Toggle Favorite |
-| L / R | Previous/next track |
-| Left / Right | Seek in playlist and library, or change a selected setting |
-| L2 / R2 (library) | Page through library entries |
+| A | Open or play the selected track; play/pause in Now Playing |
+| B | Back or cancel |
+| X | Toggle favorite on a track |
+| Y | Actions for the selected item or view |
+| SELECT | Cycle Library, Now Playing, Queue, Settings |
+| START | Pause/resume |
+| L/R | Previous/next track (keyboard: switch page) |
+| Left/Right | Navigate Library grid, seek in track lists, or adjust settings |
+| L2/R2 | Page through track lists |
+| MENU (release) | Exit; recognized screenshot chords do not exit |
+| SELECT + START | Exit |
 
-MENU exits when released, not when pressed. Holding MENU and using another button (for example,
-POWER for a system screenshot shortcut) does not exit if both button events reach RedAmp. For
-reliable SELECT + START detection, the individual SELECT and START actions occur on button release.
-Playlist layout and the last Player/Library mode are saved between sessions. In the library, press
-X on its home screen for the manual cover-fetch and rescan menu. In EQ, press X for presets,
-A to apply and hear each preset without leaving the list, and B to return to the EQ controls.
-Preset curves are more distinctive, with preamp headroom to reduce distortion from boosted bands.
+No essential feature needs a long press. Dialogs use A/B for confirmation/cancel; the shared
+keyboard retains A Type, X Erase, Y Save/Search and L/R Page. In EQ, X opens presets, A toggles
+EQ, and B goes back. Open EQ and the full-screen visualizer from Now Playing's Y Actions menu.
+Settings are grouped into Audio & Equalizer, Display & Skins, Album Covers, Internet & Radio,
+Power & Standby, Music in Games and Library Management. Quit RedAmp exits directly.
+Modern appearance uses a standalone equalizer; Winamp retains the classic EQ layout.
 
 ## System battery indicator
 
@@ -46,102 +43,61 @@ blinking low-battery system overlay. It removes the marker when exiting only if 
 A marker created by another process is never deleted by RedAmp. The OS battery-monitoring and
 critical shutdown mechanisms remain active; the marker only changes the warning display.
 
-## Music library
+## Music library and Search
 
-Choose Artists, Albums, Songs, Folders, Playlists, Favorites or Search. RedAmp scans
-`Media/Music` (or `Music` as a fallback) for
-up to 8192 tracks, caching metadata in `data/library-cache-v5.bin`. It does not follow symlink
-directories. Album covers can come from `cover.jpg`, `cover.png`, `folder.jpg`, `folder.png`, MP3
-ID3v2 APIC or FLAC picture tags. The Folders view can also browse outside those library roots.
-Selecting a song or playing an album keeps the indexed album list or Folder browser open; the
-playing song is marked independently of the selected row, and a small playback strip and progress
-bar appear at the bottom. Returning to the library preserves the previous view and scroll position.
-LEFT/RIGHT seeks in the indexed library and Folders browser (including holds); L2/R2 pages through
-entries. Tap SELECT to return to the main player at any library depth; hold SELECT to open Options
-without leaving the current library level. Hold B from any indexed Library level or Folder path
-for the quick views picker; use Up/Down to select any category or Library home,
-A to switch directly and B to cancel. A short B press still goes back one level.
-Backing out of Artists, Albums or Songs restores that category at Library home.
-The Folder browser and indexed Library use the same row counts and regular-weight text. Playing
-tracks have a vertically centred play or pause marker in both views and in the bottom status strip.
-The library and expanded playlist show a compact progress bar when the track length is known.
+Library home has Artists, Albums, Songs, Folders, Playlists, Favorites, Search and Internet Radio.
+Use the directional pad to navigate its grid. RedAmp indexes up to 8192 tracks in `Media/Music`
+(or `Music`) and caches tags in `data/library-cache-v5.bin`. It does not follow symlink directories.
+Folders can browse elsewhere and open M3U/M3U8/PLS files. B goes back one level; SELECT changes
+views without losing the library position. Choose Y > Library views from any library screen
+to jump directly to a category. The playing track is marked independently of selection.
 
-## Search
-
-Open Search from Library home or the hold-B Library Views picker. Type a query with the on-screen
-keyboard (A types, X erases, Y searches and B cancels). Search matches song titles, artists, album
-artists, album titles and filenames using Unicode case-insensitive partial matching. It
-uses the existing library index without rescanning the SD card. Queries may contain up to 40
-characters from the keyboard. Matching is accent-sensitive and does not normalize combining marks.
-Results show track information and selected album details when
-Library covers are enabled. A plays the selected result without clearing the queue, Y plays
-all results, and X adds the selected track to the queue. Hold Y toggles a favorite; hold X opens
-the actions menu, including Edit search and Add to saved playlist. If there are no results, A
-opens the keyboard again. SELECT switches to Player and back without losing the results or cursor.
+Search uses the existing index to match title, artist, album artist, album and filename, with
+Unicode case-insensitive partial matching. Matching is accent-sensitive. Use Y > Edit search
+or A when there are no results. The keyboard offers QWERTY, International and Symbols pages,
+Shift, Space, and UTF-8-aware Backspace. Names and queries support up to 40 Unicode characters.
 
 ## Play queue, saved playlists and favorites
 
-The Player shows the active **PLAY QUEUE**, not the entire music library. Pressing A on any
-individual song in the Library plays it without clearing the queue. If it is already queued,
-RedAmp plays the existing entry; otherwise it appends the song and starts playback. X adds
-music without switching tracks. Y explicitly replaces the queue with the selected collection
-(e.g. a folder, album, or saved playlist). Opening an M3U/PLS file still loads that playlist.
-Shuffle and repeat operate on the active queue. Selecting a song with A starts a fresh shuffle
-pass at that song when shuffle is enabled.
-With repeat off, playback stops after the queue is exhausted.
+A on an individual track plays an existing queue entry or appends it and plays it. It never
+replaces the queue. X toggles a favorite. Y opens the actions menu: Play next, Add to queue,
+Add to saved playlist, Add all to queue, and Play all (replace queue), as appropriate. Replacing
+an existing queue requires confirmation, including opening an external playlist file in Folders.
+In shuffle mode, Play next starts a new shuffle sequence with the selected track next; manual
+queue moves also rebuild the shuffle order. The Queue screen displays stored order, not the
+randomized sequence. START pauses/resumes; shuffle and repeat apply to the active queue.
 
-Library home includes **Playlists** and **Favorites**. Open Playlists to choose a saved collection
-or select **Create playlist**. Hold X on a playlist or on one of its tracks for rename and delete
-commands. Deleting a playlist requires confirmation and never deletes music files or the queue.
-On a song, hold X and choose **Add to saved playlist** or use the Favorite action. Hold Y on a song
-in Library or Folders to toggle its favorite status directly. A heart marks favorites in lists.
-Favorites can contain local music and radio stations added through Player queue actions.
+On Queue, Y offers Move track, Remove from play queue, Save play queue as playlist, and Clear
+play queue. Move track uses Up/Down to choose a destination and A to commit or B to cancel.
+Removing the currently playing track stops playback. Clearing the queue requires confirmation.
+Neither operation affects saved collections or music files.
 
-In Player, hold Y for queue actions, including **Save play queue as playlist**, adding the selected
-track to a saved playlist, toggling its favorite status and removing it from the queue. Removing
-an actively playing track stops playback; removing another track keeps the current audio playing.
-**Clear play queue** stops playback and empties the queue after confirmation, without touching
-saved playlists, favorites or music files.
-Editing saved playlists and favorites never edits the live queue. In a saved playlist or Favorites,
-A plays the selected track without clearing the queue, X adds the selected track to the queue,
-and Y plays the collection from the first available track, following the shuffle/repeat settings.
-If a saved local file is unavailable, it is skipped during playback but retained in the saved list.
-
-The shared keyboard uses a QWERTY layout with Shift, Space and Backspace. L/R switch between
-ABC, International and Symbols. Use the directional pad to select keys, A to type, X to erase,
-Y to save (or search) and B to cancel. Shift toggles upper/lowercase and shifted number symbols.
-Names may contain up to 40 Unicode characters. FAT-invalid characters and reserved names are
-rejected, and duplicate names are rejected case-insensitively. Up to 128 named playlists are supported, with up to 10,000 tracks
-per playlist or favorites list. Named playlists are stored as standard M3U files in
-`data/playlists/`, favorites in `data/favorites.m3u`, and the active queue in `data/playlist.m3u`.
-Back up these files to preserve collections. Existing external M3U/M3U8/PLS files can still be
-opened in Folders; save the resulting queue to create a managed playlist.
+Library > Playlists allows creating, opening, renaming and deleting named collections. Use
+Y Actions to add tracks to playlists or remove a selected saved track. Deleting a playlist
+requires confirmation. Favorites may contain music and radio stations. Press X on a track to
+toggle its status; a smooth heart marks favorites. Playlists and Favorites are independent of
+the active queue. Names must be FAT-safe and unique ignoring case. Saved playlists are stored
+in `data/playlists/*.m3u`, Favorites in `data/favorites.m3u`, and the queue in `data/playlist.m3u`.
+Back up these files to retain collections. Up to 128 playlists and 10,000 tracks per collection
+are supported.
 
 ## Display and list text size
 
-The Options screen now has a **Display & Covers** submenu. Lists in normal and expanded playlists,
-library views, folder browser and skin selector have Small, Medium and Large font and row sizes.
-Medium is the new default even for existing users with no `list_text_size` setting. Changes apply
-immediately and retain the selected item. Footer shortcut hints stay at 18px independently of
-the list-size setting.
-The Player footer includes **Hold X — Visualizer** and **Hold Y — Queue**, alongside the layout shortcut.
-The Library and Folder browser use tighter and matching row heights (28/30/36 px) with a clear
-separator above the now-playing strip. The cursor remains on the category just exited at root.
-The expanded playlist now-playing title and elapsed/total time use the selected list font size.
-The Library and Folder browser now share identical text/progress positioning. Folder entries
-use the same regular-weight row font and selected/unselected colors as indexed Library entries.
-Both Options screens use
-a matching wider, better-spaced layout.
+Settings > Display & Skins provides Modern/Winamp appearance, skin selection, scaling, classic
+mini visualizer, time display and Small/Medium/Large list text sizes. Settings > Album Covers
+controls artwork separately for Now Playing and Library. The Modern Now Playing view uses
+large artwork, title/artist/album information, elapsed time, progress and playback status.
+The Winamp appearance preserves the original classic skin window, with track details below it.
 
 ## Automatic and player album covers
 
-The Display & Covers submenu provides **Download album covers** (default Off), **Save covers in
+Settings > Album Covers provides **Download album covers** (default Off), **Save covers in
 album folders** (default Off), **Show cover on player** (default On), and
 **Show covers in Library** (default On). Turning library covers off widens the list without
-affecting downloaded artwork or Player covers. A manual **Fetch missing covers now** command is in the X menu on the library home screen. Background fetching starts after
+affecting downloaded artwork or Player covers. A manual **Fetch missing covers now** command is in Settings > Library Management (or Library home > Y Actions). Background fetching starts after
 an indexed-library scan when enabled, pauses with the screen off, and does not run during game
 music. Fetching continues when browsing or returning to the Player. To stop it, use the library
-home X menu's **Cancel cover fetch** item. No music files are modified by a cache download.
+maintenance menu's **Cancel cover fetch** item. No music files are modified by a cache download.
 
 The footer reports albums checked and images actually saved. A completion message reports saved,
 existing and unavailable covers, or a clock, network, server, response or storage error. Details
@@ -167,18 +123,16 @@ track artwork takes priority over downloaded art. Tracks without a matching imag
 Existing user folder images are not overwritten. Artwork is refreshed after download completion
 without sharing renderer surfaces between threads.
 
-Normal playlist layout displays a pre-scaled 150x150 cover on the right when available; the track
-list becomes narrower. Expanded playlist has a 22px cover thumbnail in its now-playing footer.
-Without artwork, the full playlist width is used. Radio stations show no placeholder cover. A
-two-slot image cache keeps album-browsing artwork independent of the currently playing song.
+Modern Now Playing displays artwork at 236x236 when enabled; Winamp mode uses a smaller
+cover below the classic skin. A two-slot image cache keeps browsing artwork independent
+of the currently playing song. When artwork is unavailable, Modern shows a generic record icon.
 
 ## Skins
 
 **Ember** is the preferred default if an authentic `Ember.wsz` is installed; otherwise RedOnion is
 used. RedOnion is a CC0 Breeze Dark adaptation with burgundy `#86112B`, with brighter red controls
 and selected text for contrast against dark backgrounds. The original Breeze Dark skin is preserved
-unchanged. Existing saved skin choices are retained. Choose **Smooth scaling** in Options > Display
-& Covers for **Smooth** (bilinear) or **Sharp** (default; classic 2x nearest-neighbor pixels).
+unchanged. Existing saved skin choices are retained. Choose **Smooth scaling** in Settings > Display & Skins for **Smooth** (bilinear) or **Sharp** (default; classic 2x nearest-neighbor pixels).
 Filtering applies only to the Winamp player window, not library text or album artwork. Smooth
 scaling may need hardware performance testing on older Mini models. RedAmp places its name on the
 main player header at runtime for every installed skin, without changing the original bitmaps.
@@ -224,7 +178,7 @@ negotiation have not been verified on-device.
 
 ### Allow insecure HTTPS (optional)
 
-In Options, select **Allow insecure HTTPS** and press A. Default: Off. This setting is persistent.
+In Settings > Internet & Radio, select **Allow insecure HTTPS** and press A. Default: Off. This setting is persistent.
 When enabled, RedAmp skips its NTP synchronization and disables HTTPS certificate and hostname
 verification for radio and cover requests, including redirects. The updated private FFmpeg bridge
 and HLS patch also disable TLS verification for live streams, nested playlists, segments and AES
@@ -246,9 +200,9 @@ original audio file is never modified. For this fix, you must install the newly 
 
 ## Optional music in games
 
-Music in games is disabled until explicitly enabled in Options. RedAmp itself does not replace
+Music in games is disabled until explicitly enabled in Settings > Music in Games. RedAmp itself does not replace
 RedOnion's `miyoo/lib/libpadsp.so`. This feature requires RedOnion's game/menu launcher to source
-`redonion-launch-audio.sh` before launching the target process. The Options menu reports unverified
+`redonion-launch-audio.sh` before launching the target process. The settings screen reports unverified
 RedOnion launch integration until a launcher has sourced the hook at least once. A separate **Game
 music level** defaults to 70% for mixing headroom; the regular music volume setting is independent.
 The feature remains experimental and needs device-specific validation. AAC/HLS playback is not
@@ -276,14 +230,13 @@ Sample rate, decoder and resampling quality are unchanged. The game-music ring r
 previous output chunk size.
 
 The mini spectrum/scope and full-screen visualizer require FFT analysis and frequent redraws,
-and are particularly costly. For maximum battery life, turn **Mini visualizer** off in Display &
-Covers, use screen-off playback, lower the backlight, and disable automatic cover downloads when
+and are particularly costly. For maximum battery life, turn **Mini visualizer** off in Settings > Display & Skins, use screen-off playback, lower the backlight, and disable automatic cover downloads when
 unnecessary. Sharp skin rendering is also less CPU-intensive than Smooth. Actual battery savings
 have not been measured. `MA_PROFILE=1` logs frame/CPU statistics and total loop/frame counts.
 
 ## Screen-off playback
 
-In Options, select **Play during standby** and press A. Default: On. This setting is persistent.
+In Settings > Power & Standby, select **Play during standby** and press A. Default: On. This setting is persistent.
 
 - On: RedAmp uses `/tmp/stay_awake` while playing. With compatible keymon versions, POWER or
   closing the lid turns off the screen while music keeps playing.
@@ -306,7 +259,7 @@ The source and build scripts are in `src/`; the runtime assets are in `App/RedAm
 App directory required there. The default FFmpeg source path is `/root/workspace/ffmpeg-4.4.8`. See
 `src/docs/BUILDING.md` and `src/docs/FFMPEG_AUDIO.md`. To install, combine the assets with matching
 ARM `redamp`, `libpadsp_wrap.so`, `lib/*.so*` and `cacert.pem` from the build output. Don't
-distribute host x86 binaries to the Miyoo. For v1.1.15, run `make player` and copy the updated player
+distribute host x86 binaries to the Miyoo. For v1.2.1, run `make player` and copy the updated player
 to the app. The v1.1.10 private FFmpeg libraries, dependency and game-wrapper builds can remain.
 When upgrading from an earlier release, run `make ffmpeg-audio` as well for the v1.1.10 HTTPS
 policy patch and bridge. Older corrected bridges work in verified mode, but explicitly insecure

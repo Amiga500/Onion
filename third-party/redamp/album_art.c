@@ -170,7 +170,8 @@ m2d_surf *album_art_for_track(const char *path)
 static m2d_surf *scaled_for_player(int sz)
 {
     art_slot *s=&slots[1];
-    m2d_surf **dst=sz==150?&s->large:&s->small;
+    m2d_surf **dst=sz>=100?&s->large:&s->small;
+    if(*dst&&((*dst)->w!=sz||(*dst)->h!=sz)){m2d_surface_free(*dst);*dst=NULL;}
     if(!s->source)return NULL;
     if(!*dst) {
         *dst=m2d_surface_new(sz,sz);
@@ -184,7 +185,7 @@ static m2d_surf *scaled_for_player(int sz)
 }
 m2d_surf *album_art_player(const char *path,int size)
 {
-    if(size!=150&&size!=22)return NULL;
+    if(size<16||size>256)return NULL;
     if(!album_art_for_track_slot(path,1))return NULL;
     return scaled_for_player(size);
 }

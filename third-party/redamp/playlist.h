@@ -29,6 +29,7 @@ const char *pl_path(int i);                           // valid until the list ch
 void pl_set_hint(int first_visible);                  // metadata worker looks here first
 long long pl_total_ms(int *complete);
 void pl_remove(int i);
+int pl_move(int from,int to);
 
 int pl_save_m3u(const char *path);
 int pl_load_m3u(const char *path);

@@ -213,7 +213,7 @@ static void *radio_worker(void *ctx) {
         curl_easy_setopt(c,CURLOPT_NOSIGNAL,1L);
         char agent[96];
         snprintf(agent,sizeof agent,"RedAmp/%s (RedOnion)",
-                 getenv("MA_VERSION") ? getenv("MA_VERSION") : "1.1.15");
+                 getenv("MA_VERSION") ? getenv("MA_VERSION") : "1.2.1");
         curl_easy_setopt(c,CURLOPT_USERAGENT,agent);
         curl_easy_setopt(c,CURLOPT_HTTPHEADER,NULL);
         curl_easy_setopt(c,CURLOPT_WRITEFUNCTION,radio_write);

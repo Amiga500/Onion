@@ -119,7 +119,7 @@ static int get_url(const char *url,response *r,long *http)
     r->n=0;r->retry_after=0;*http=0;
     char ua[256];
     snprintf(ua,sizeof ua,"RedAmp/%s (https://github.com/Amiga500/Onion)",
-             getenv("MA_VERSION")?getenv("MA_VERSION"):"1.1.15");
+             getenv("MA_VERSION")?getenv("MA_VERSION"):"1.2.1");
     curl_easy_setopt(c,CURLOPT_URL,url);
     curl_easy_setopt(c,CURLOPT_USERAGENT,ua);
     curl_easy_setopt(c,CURLOPT_FOLLOWLOCATION,1L);

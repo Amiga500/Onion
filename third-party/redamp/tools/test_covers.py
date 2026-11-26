@@ -152,7 +152,7 @@ if app.joinpath('skins').is_dir() and player.is_file():
         assert list((data/'covers').glob('*.jpg')),proc.stderr
         assert 'saved=1' in proc.stderr,proc.stderr
         frames=sorted(shots.glob('*.ppm'));assert frames
-        def color(frame):return Image.open(frame).convert('RGB').getpixel((510,350))
+        def color(frame):return Image.open(frame).convert('RGB').getpixel((140,180))
         pixel=color(frames[-1]);assert all(abs(a-b)<8 for a,b in zip(pixel,(150,50,70))), (pixel,proc.stderr)
         print('PASS downloaded cover visible on Player after switching away from Library')
     # A saved station and automatic cover fetching must not contact a server

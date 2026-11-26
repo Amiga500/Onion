@@ -1,5 +1,14 @@
 # RedAmp source
-Version 1.1.15
+Version 1.2.1
+
+Version 1.2.1 refines Now Playing typography, adds a cached antialiased artwork fallback,
+standalone Modern EQ, bolder playback strips, Library Views shortcuts and direct Settings Quit.
+Use `make player`.
+
+Version 1.2.0 introduces four destinations, a Modern/Winamp Now Playing appearance,
+explicit queue actions, a Library grid, and grouped Settings. `ui_route.inc` holds the
+new route renderers and input dispatch; audio and networking remain unchanged.
+Use `make player`. The Route B controller regression replaces legacy shortcut tests.
 
 Version 1.1.15 preserves the play queue when A plays an individual Library track. It reuses
 an existing entry or appends the selected track, without clearing the rest of the queue.

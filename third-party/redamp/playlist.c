@@ -344,6 +344,14 @@ void pl_remove(int i)
     pthread_mutex_unlock(&mtx);
 }
 
+int pl_move(int from,int to)
+{
+    pthread_mutex_lock(&mtx);
+    int ok=from>=0&&from<count&&to>=0&&to<count;
+    if(ok&&from!=to){pl_item item=items[from];if(from<to)memmove(items+from,items+from+1,(to-from)*sizeof *items);else memmove(items+to+1,items+to,(from-to)*sizeof *items);items[to]=item;gen++;}
+    pthread_mutex_unlock(&mtx);return ok;
+}
+
 int pl_save_m3u(const char *path)
 {
     char tmp[1200];

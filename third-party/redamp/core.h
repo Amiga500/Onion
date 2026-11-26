@@ -16,6 +16,7 @@ typedef struct {
     int insecure_https;          // explicit opt-in; default verified TLS
     int cover_fetch, cover_save_to_folder, cover_player, cover_library;
     int playlist_expanded;       // 1 playlist-only view
+    int destination, classic_player; /* Route B destination, optional Winamp appearance */
     int last_view;               // 0 player, 1 library; restored on next launch
     char skin[512];
     char last_dir[1024];
@@ -34,6 +35,7 @@ void path_join(char *out, int n, const char *a, const char *b);
 void settings_load(void);
 void settings_save(void);
 void core_build_shuffle(void);
+void core_shuffle_next(int index);
 int core_play_index(int i, int start_ms, int paused);
 int core_next_index(int dir);
 void core_skip(int dir);

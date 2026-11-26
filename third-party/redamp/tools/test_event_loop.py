@@ -15,7 +15,7 @@ EXE = ROOT/'build'/'redamp-host'
 def run(case, music, vis, view, events, duration):
     case.mkdir(); data=case/'data'; data.mkdir(); keys=case/'keys'
     (data/'playlist.m3u').write_text('#EXTM3U\n'+str(music)+'\n')
-    (data/'settings.ini').write_text(f'vis_mode={vis}\nlast_view={view}\n'
+    (data/'settings.ini').write_text(f'vis_mode={vis}\ndestination={view}\nclassic_player={1 if vis else 0}\n'
                                     'cur_index=0\nresume_playing=1\nskin_smooth=1\n')
     keys.write_text(''.join(f'{t} {k} {v}\n' for t,k,v in events+[
         (duration-100,1,1),(duration,1,0)]))
@@ -39,17 +39,14 @@ def main():
             wav.writeframes(b'\0\0'*8000*120)
         idle=run(root/'idle',song,0,0,[],5000)
         assert idle[1]<35 and idle[0]<100,idle
-        animated=run(root/'animated',song,1,0,[],3000)
+        animated=run(root/'animated',song,1,1,[],3000)
         assert animated[1]>=65,animated
-        # X fires while held, independent of frame count; release is consumed.
-        hold=run(root/'hold',song,0,0,[(1000,42,1),(2400,42,0)],3500)
-        assert hold[1]>50,hold
-        # Screen-off simulated in host event-test mode. Playback continues but no UI animation.
-        off=run(root/'off',song,1,0,[(100,97,1),(1100,97,0),
-                                    (1200,57,1),(1250,57,0)],5000)
+        # Enter Settings -> Power & Standby -> Turn screen off.
+        off=run(root/'off',song,1,3,[(100,108,1),(140,108,0),(220,108,1),(260,108,0),
+            (340,108,1),(380,108,0),(460,108,1),(500,108,0),(580,57,1),(620,57,0),
+            (740,57,1),(780,57,0)],5000)
         assert off[1]<55 and off[0]<85,off
-        print(f'PASS deadline scheduler: static loops/frames={idle}, mini vis={animated}, '
-              f'hold-X={hold}, screen-off={off}')
+        print(f'PASS deadline scheduler: static loops/frames={idle}, mini vis={animated}, screen-off={off}')
 
 
 if __name__=='__main__': main()
