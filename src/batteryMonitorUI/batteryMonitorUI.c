@@ -1377,7 +1377,7 @@ static int axp_set_charge_voltage(int code)
 //   bit 4 correction status (0: not correcting, 1: correcting).
 // When enabling with no capacity on the PMIC (REG E0H/E1H unconfigured or 0), saves
 // axp_edit_capacity first with the same read-back check as axp_set_capacity() (the dialog
-// shows that value: "1. Saves Capacity: 3000 mAh", "[A] Save & Enable").
+// shows that value: "1. [A] saves Capacity: 3000 mAh", "[A] Save & Enable").
 // Returns 0 on success, -1 on I2C failure, -2 when REG B8H did not accept bit 5,
 // -3 when REG E0H/E1H did not keep the saved capacity (learning is then left off).
 static int axp_set_calibration(bool on)
@@ -2187,11 +2187,11 @@ static void renderAxpMenu(void)
             // With no capacity on the PMIC, [A] saves the Capacity row's value first: shown here.
             char step1[80];
             if (axp_status.cap_set)
-                snprintf(step1, sizeof(step1), "1. Capacity is set: %d mAh (row 1, press A to change).", axp_status.capacity_mah);
+                snprintf(step1, sizeof(step1), "1. Capacity is set: %d mAh (change it on row 1).", axp_status.capacity_mah);
             else if (axp_status.is_charging)
-                snprintf(step1, sizeof(step1), "1. Saves Capacity: %d mAh (first row to change).", axp_edit_capacity);
+                snprintf(step1, sizeof(step1), "1. [A] saves Capacity: %d mAh (set it on row 1).", axp_edit_capacity);
             else
-                snprintf(step1, sizeof(step1), "1. Saves Capacity: %d mAh (best at 100%%; row 1 edits).", axp_edit_capacity);
+                snprintf(step1, sizeof(step1), "1. [A] saves Capacity: %d mAh (best at 100%%; set on row 1).", axp_edit_capacity);
             renderText(step1, font_small ? font_small : font_Arkhip, axp_status.cap_set ? col_val : col_warn, &(SDL_Rect){ib_x + 16, ib_y + 14, ib_w - 32, 20});
             renderText("2. Discharge to 1%, then charge with the console on.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 40, ib_w - 32, 20});
             renderText("3. Charge to 100% without unplugging (Correction: In progress).", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 66, ib_w - 32, 20});
@@ -2853,7 +2853,7 @@ int main(int argc, char *argv[])
                         if (res == 0) {
                             if (saving_cap)
                                 snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                         "Saved %d mAh & enabled learning", saved_mah);
+                                         "Saved %d mAh, learning enabled", saved_mah);
                             else
                                 snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
                                          new_state ? "Capacity learning enabled (CC on)" : "Capacity learning disabled (CC stays on)");
