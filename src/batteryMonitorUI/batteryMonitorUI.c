@@ -41,13 +41,15 @@ static bool axp_confirm_btest = false;
 static bool axp_confirm_cap = false;  // saving a capacity while the battery is still charging
 static bool axp_confirm_sync = false; // setting the counter to 100 %
 static bool axp_confirm_voff = false; // a shutdown voltage above the 2.9 V default
-// "Set current capacity to 100%" is only right on a full battery: charging has ended, and the voltage,
-// read with the console's own load on it, is at least this (a cell charged to 4.10 V rests near 4.08 V).
+// "Set counter to 100% (battery full now)" is only right on a full battery with a capacity saved:
+// charging has ended, and the voltage, read with the console's own load on it, is at least this
+// (a cell charged to 4.10 V rests near 4.08 V).
 #define AXP_SYNC_MIN_MV 4000
 #define AXP_SYNC_OK 0
 #define AXP_SYNC_NO_PMIC 1
-#define AXP_SYNC_CHARGING 2
-#define AXP_SYNC_NOT_FULL 3
+#define AXP_SYNC_NO_CAP 2
+#define AXP_SYNC_CHARGING 3
+#define AXP_SYNC_NOT_FULL 4
 enum {
     AXP_MENU_CAPACITY = 0,
     AXP_MENU_VOFF,
@@ -1284,10 +1286,12 @@ static int axp_set_coulomb_counter(int mah)
 }
 
 // Whether the counter may be set to 100 % now (AXP_SYNC_OK), or why not.
-static int axp_sync_check(bool available, bool charging, int voltage_mv)
+static int axp_sync_check(bool available, bool cap_set, bool charging, int voltage_mv)
 {
     if (!available)
         return AXP_SYNC_NO_PMIC;
+    if (!cap_set)
+        return AXP_SYNC_NO_CAP;
     if (charging)
         return AXP_SYNC_CHARGING;
     if (voltage_mv < AXP_SYNC_MIN_MV)
@@ -1371,9 +1375,11 @@ static int axp_set_charge_voltage(int code)
 //   bit 7 fuel gauge enable, bit 6 coulomb counter enable,
 //   bit 5 battery total capacity correction enable (RW, persistent switch),
 //   bit 4 correction status (0: not correcting, 1: correcting).
-// Returns 0 on success, -1 on I2C failure, -2 when the PMIC did not accept the new bit 5 value,
-// -3 when learning is to be enabled with no capacity saved (E0H bit 15 clear or value 0;
-// nothing written).
+// When enabling with no capacity on the PMIC (REG E0H/E1H unconfigured or 0), saves
+// axp_edit_capacity first with the same read-back check as axp_set_capacity() (the dialog
+// shows that value: "1. Saves Capacity: 3000 mAh", "[A] Save & Enable").
+// Returns 0 on success, -1 on I2C failure, -2 when REG B8H did not accept bit 5,
+// -3 when REG E0H/E1H did not keep the saved capacity (learning is then left off).
 static int axp_set_calibration(bool on)
 {
     if (!HAS_AXP())
@@ -1389,16 +1395,11 @@ static int axp_set_calibration(bool on)
         close(fd);
         return -1;
     }
-    // Always keep Gauge (bit 7) and Coulomb Counter (bit 6) enabled.
-    // Bits 3-0 are reserved ("do not change"); bit 4 is a status bit, written back as read.
-    unsigned char new_b8 = (unsigned char)((b8 | 0xC0));
     if (on) {
-        new_b8 |= 0x20;
-        // No capacity saved (E0H/E1H 0): refused, nothing written. It used to write the
-        // Capacity row's value (3000, or a change left unsaved), not shown in this dialog,
-        // and before B8H: a failed B8H write left it changed. The dialog's step 1 is to
-        // save Battery Capacity first. A failed read (-1) stops here too, or a capacity the
-        // PMIC holds could be taken for none.
+        // If design capacity is unconfigured or zero, initialize it with selected capacity
+        // and verify with read-back before enabling learning.
+        // A failed read (-1) is not "unconfigured": it stops here, or the capacity the PMIC
+        // holds (a learned one, maybe) would be overwritten with the menu's value.
         int e01 = axp_i2c_read16(fd, REG_AXP_E0);
         if (e01 < 0) {
             close(fd);
@@ -1406,9 +1407,27 @@ static int axp_set_calibration(bool on)
         }
         if (!(e01 & 0x8000) || (e01 & 0x7FFF) == 0) { // as axp_status.cap_set
             close(fd);
-            return -3;
+            int cap_res = axp_set_capacity(axp_edit_capacity);
+            if (cap_res != 0)
+                return (cap_res == -2) ? -3 : -1;
+            fd = open(AXP_I2C_DEV, O_RDWR);
+            if (fd < 0)
+                return -1;
+            ioctl(fd, I2C_TIMEOUT, 5);
+            ioctl(fd, I2C_RETRIES, 1);
+            b8 = axp_i2c_read(fd, REG_AXP_CTL);
+            if (b8 < 0) {
+                close(fd);
+                return -1;
+            }
         }
     }
+
+    // Always keep Gauge (bit 7) and Coulomb Counter (bit 6) enabled.
+    // Bits 3-0 are reserved ("do not change"); bit 4 is a status bit, written back as read.
+    unsigned char new_b8 = (unsigned char)(b8 | 0xC0);
+    if (on)
+        new_b8 |= 0x20;
     else
         new_b8 &= ~0x20;
 
@@ -1895,6 +1914,8 @@ static void axp_save_capacity(Uint32 now)
         snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "I2C error: capacity not saved");
     axp_feedback_until = now + 3000;
     axp_poll_data();
+    if (res == 0 && axp_status.cap_set)
+        axp_edit_capacity = axp_status.capacity_mah;
 }
 
 static void renderAxpMenu(void)
@@ -2049,18 +2070,27 @@ static void renderAxpMenu(void)
     // Item: Capacity
     renderText("Battery Capacity:", font_Arkhip, col_val, &(SDL_Rect){50, ROW_TY(AXP_MENU_CAPACITY), 180, 20});
     char cap_edit_str[32];
-    bool cap_dirty = axp_status.cap_set && axp_edit_capacity != axp_status.capacity_mah;
-    // A capacity shown but not saved yet (none in the PMIC) is marked like an
-    // unsaved change, in amber, and says so when selected (Rob read the 3000
-    // shown as saved, 4.5.1 beta 5).
-    snprintf(cap_edit_str, sizeof(cap_edit_str), "<  %d mAh%s  >", axp_edit_capacity,
-             (cap_dirty || !axp_status.cap_set) ? "*" : "");
+    // No capacity on the PMIC yet: "Not saved" and the value in orange, also with the
+    // cursor on another row, so the row does not look saved.
+    bool cap_unsaved = !axp_status.cap_set;
+    bool cap_dirty = cap_unsaved || (axp_edit_capacity != axp_status.capacity_mah);
+    snprintf(cap_edit_str, sizeof(cap_edit_str), "<  %d mAh%s  >", axp_edit_capacity, cap_dirty ? "*" : "");
     renderTextAlignRight(cap_edit_str, font_Arkhip,
-                         !axp_status.cap_set ? col_warn : axp_menu_selected == AXP_MENU_CAPACITY ? col_val : col_cyan,
-                         &(SDL_Rect){605, ROW_TY(AXP_MENU_CAPACITY), 150, 20});
-    if (axp_menu_selected == AXP_MENU_CAPACITY)
-        renderText(axp_status.cap_set ? "[LEFT/RIGHT] Change  [A] Save" : "Not saved yet: [A] Save",
-                   font_small ? font_small : font_Arkhip, (SDL_Color){235, 205, 214}, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
+                         cap_dirty ? col_warn : axp_menu_selected == AXP_MENU_CAPACITY ? col_val
+                                                                                       : col_cyan,
+                         &(SDL_Rect){605, ROW_TY(AXP_MENU_CAPACITY), 160, 20});
+    if (cap_unsaved) {
+        renderText(axp_menu_selected == AXP_MENU_CAPACITY ? "Not saved  [A] Save" : "Not saved",
+                   font_small ? font_small : font_Arkhip, col_warn, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
+    }
+    else if (axp_menu_selected == AXP_MENU_CAPACITY) {
+        char cap_hint[48];
+        if (cap_dirty)
+            snprintf(cap_hint, sizeof(cap_hint), "Now %d mAh  [A] Save", axp_status.capacity_mah);
+        else
+            snprintf(cap_hint, sizeof(cap_hint), "[LEFT/RIGHT] Change  [A] Save");
+        renderText(cap_hint, font_small ? font_small : font_Arkhip, (SDL_Color){235, 205, 214}, &(SDL_Rect){215, ROW_TY(AXP_MENU_CAPACITY) + 2, 210, 16});
+    }
 
     // Item: Shutdown voltage (Voff, REG 31H bits 2-0)
     renderText("Shutdown Voltage:", font_Arkhip, col_val, &(SDL_Rect){50, ROW_TY(AXP_MENU_VOFF), 180, 20});
@@ -2132,8 +2162,12 @@ static void renderAxpMenu(void)
         drawRectFill(mx, my, mw, mh, m_bg);
         drawFrame2px(mx, my, mw, mh, m_border);
 
+        bool calib_saves_cap = !axp_status.cal_en && !axp_status.cap_set;
         drawCenteredText("BATTERY CALIBRATION", font_title ? font_title : font_Arkhip, col_val, mx, my + 18, mw);
-        drawCenteredText("Teaches the PMIC your battery's real capacity", font_small ? font_small : font_Arkhip, col_title, mx, my + 44, mw);
+        if (calib_saves_cap && axp_status.is_charging)
+            drawCenteredText("Charging now: counter starts high (sync at 100% later)", font_small ? font_small : font_Arkhip, col_warn, mx, my + 44, mw);
+        else
+            drawCenteredText("Teaches the PMIC your battery's real capacity", font_small ? font_small : font_Arkhip, col_title, mx, my + 44, mw);
 
         int ib_x = mx + 20, ib_y = my + 72, ib_w = mw - 40, ib_h = 130;
         Uint32 ib_bg = SDL_MapRGB(screen->format, 46, 46, 49);
@@ -2150,9 +2184,15 @@ static void renderAxpMenu(void)
         else {
             // The safe order: capacity saved after a finished charge, so the counter starts right.
             // Correction starts when the charger goes in after a discharge to ~1 %; no Voff cut needed (observed on a Mini Plus).
-            renderText(axp_status.cap_set ? "1. Capacity is set (best saved right after a full charge)."
-                                          : "1. First charge to 100%, then save Battery Capacity.",
-                       font_small ? font_small : font_Arkhip, axp_status.cap_set ? col_val : col_warn, &(SDL_Rect){ib_x + 16, ib_y + 14, ib_w - 32, 20});
+            // With no capacity on the PMIC, [A] saves the Capacity row's value first: shown here.
+            char step1[80];
+            if (axp_status.cap_set)
+                snprintf(step1, sizeof(step1), "1. Capacity is set: %d mAh (row 1, press A to change).", axp_status.capacity_mah);
+            else if (axp_status.is_charging)
+                snprintf(step1, sizeof(step1), "1. Saves Capacity: %d mAh (first row to change).", axp_edit_capacity);
+            else
+                snprintf(step1, sizeof(step1), "1. Saves Capacity: %d mAh (best at 100%%; row 1 edits).", axp_edit_capacity);
+            renderText(step1, font_small ? font_small : font_Arkhip, axp_status.cap_set ? col_val : col_warn, &(SDL_Rect){ib_x + 16, ib_y + 14, ib_w - 32, 20});
             renderText("2. Discharge to 1%, then charge with the console on.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 40, ib_w - 32, 20});
             renderText("3. Charge to 100% without unplugging (Correction: In progress).", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 66, ib_w - 32, 20});
             renderText("4. The PMIC then saves the learned Total Capacity.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 92, ib_w - 32, 20});
@@ -2166,7 +2206,7 @@ static void renderAxpMenu(void)
         Uint32 b1_border = axp_status.cal_en ? SDL_MapRGB(screen->format, 180, 70, 70) : SDL_MapRGB(screen->format, 60, 180, 90);
         drawRectFill(b1_x, btn_y, btn_w, btn_h, b1_bg);
         drawFrame2px(b1_x, btn_y, btn_w, btn_h, b1_border);
-        const char *m_act_txt = axp_status.cal_en ? "[A] Disable" : "[A] Enable";
+        const char *m_act_txt = axp_status.cal_en ? "[A] Disable" : (calib_saves_cap ? "[A] Save & Enable" : "[A] Enable");
         drawCenteredText(m_act_txt, font_Arkhip, col_val, b1_x, btn_y + 8, btn_w);
 
         // Button 2 (Cancel)
@@ -2807,18 +2847,24 @@ int main(int argc, char *argv[])
                     }
                     else if (keystate[SW_BTN_A] == PRESSED) {
                         bool new_state = !axp_status.cal_en;
+                        bool saving_cap = new_state && !axp_status.cap_set;
+                        int saved_mah = axp_edit_capacity;
                         int res = axp_set_calibration(new_state);
                         if (res == 0) {
+                            if (saving_cap)
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                                         "Saved %d mAh & enabled learning", saved_mah);
+                            else
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                                         new_state ? "Capacity learning enabled (CC on)" : "Capacity learning disabled (CC stays on)");
+                        }
+                        else if (res == -3) {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                     new_state ? "Capacity learning enabled (CC on)" : "Capacity learning disabled (CC stays on)");
+                                     "PMIC did not keep the capacity (REG E0H/E1H)");
                         }
                         else if (res == -2) {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
                                      "PMIC rejected the change (REG B8H unchanged)");
-                        }
-                        else if (res == -3) {
-                            snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                     "Set Battery Capacity (top row) and save it with A");
                         }
                         else {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
@@ -2827,6 +2873,8 @@ int main(int argc, char *argv[])
                         axp_feedback_until = now + 3000;
                         axp_confirm_calib = false;
                         axp_poll_data();
+                        if (saving_cap && res == 0 && axp_status.cap_set)
+                            axp_edit_capacity = axp_status.capacity_mah;
                         changed = true;
                     }
                     else if (keystate[SW_BTN_SELECT] == PRESSED) {
@@ -2865,10 +2913,13 @@ int main(int argc, char *argv[])
                         axp_confirm_sync = false;
                         // Checked again: the charger may have gone in while the dialog was open.
                         axp_poll_data();
-                        int cap = (axp_status.capacity_mah > 0) ? axp_status.capacity_mah : axp_edit_capacity;
-                        int sync = axp_sync_check(axp_status.available, axp_status.is_charging, axp_status.voltage_mv);
+                        int sync = axp_sync_check(axp_status.available, axp_status.cap_set, axp_status.is_charging, axp_status.voltage_mv);
                         if (sync == AXP_SYNC_NO_PMIC) {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "I2C error: PMIC not read");
+                        }
+                        else if (sync == AXP_SYNC_NO_CAP) {
+                            // no capacity saved: the counter alone would be set, Total Capacity left unset
+                            snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Save Battery Capacity first (first row, press A)");
                         }
                         else if (sync == AXP_SYNC_CHARGING) {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Charging: counter left as it is");
@@ -2877,6 +2928,7 @@ int main(int argc, char *argv[])
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Battery not full: counter left as it is");
                         }
                         else {
+                            int cap = axp_status.capacity_mah;
                             int res = axp_set_coulomb_counter(cap);
                             if (res == 0)
                                 snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "Synced counter to 100%% (%d mAh)", cap);
@@ -2930,7 +2982,7 @@ int main(int argc, char *argv[])
                             int next = ((axp_edit_capacity - 1) / 50) * 50;
                             if (next > 4000)
                                 next = 4000; // from a PMIC value above the menu's range
-                            if (next >= 1500) {
+                            if (next >= 1500 && next != axp_edit_capacity) {
                                 axp_edit_capacity = next;
                                 changed = true;
                             }
@@ -2939,7 +2991,7 @@ int main(int argc, char *argv[])
                             int next = (axp_edit_capacity / 50 + 1) * 50;
                             if (next < 1500)
                                 next = 1500; // from a PMIC value under the menu's range
-                            if (next <= 4000) {
+                            if (next <= 4000 && next != axp_edit_capacity) {
                                 axp_edit_capacity = next;
                                 changed = true;
                             }
@@ -3015,12 +3067,17 @@ int main(int argc, char *argv[])
                         if (keystate[SW_BTN_A] == PRESSED) {
                             // Setting the counter to 100 % on a battery that is not full makes the
                             // percentage read too high: no low-battery warning or autosave, then a
-                            // sudden power-off. So: only with the charge ended and a full voltage,
-                            // and only after a confirmation.
+                            // sudden power-off. So: only with a capacity saved, the charge ended and
+                            // a full voltage, and only after a confirmation.
                             axp_poll_data();
-                            int sync = axp_sync_check(axp_status.available, axp_status.is_charging, axp_status.voltage_mv);
+                            int sync = axp_sync_check(axp_status.available, axp_status.cap_set, axp_status.is_charging, axp_status.voltage_mv);
                             if (sync == AXP_SYNC_NO_PMIC) {
                                 snprintf(axp_feedback_msg, sizeof(axp_feedback_msg), "I2C error: PMIC not read");
+                                axp_feedback_until = now + 3000;
+                            }
+                            else if (sync == AXP_SYNC_NO_CAP) {
+                                snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
+                                         "Save Battery Capacity first (first row, press A)");
                                 axp_feedback_until = now + 3000;
                             }
                             else if (sync == AXP_SYNC_CHARGING) {
