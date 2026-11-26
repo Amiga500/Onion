@@ -62,7 +62,7 @@ This beta brings the **release candidate 11 of Open MainUI 1.1.1** by @robcodede
 ### 🔋 RedOnion Battery Monitor (ksielick's 2.3.3 and 2.3.4)
 
 - **Clearer first-time setup** (Mini+ and Mini Flip, PMIC page): "Set counter to 100% (battery full now)" (it read like it saved the battery capacity) is refused until a capacity is saved, as it set the counter alone. Battery Capacity shows **Not saved** in orange until you save it. **Enable capacity learning** with no capacity saved now saves it for you ("[A] Save & Enable", the value shown first), checks the PMIC kept it, and only then turns learning on. Thanks to robcodedev for the report.
-- **A sleep that ran the battery flat** showed "-0%": it now shows what it used ("SLEEP 10H05 -98%"). A charge across a clock correction from Wi-Fi no longer shows a huge time. The session line reads "100% > 45%   PLAY 3H12   SLEEP 1H07 -15%".
+- **A sleep that ran the battery flat** showed "-0%": it now shows what it used ("SLEEP 10h05 -98%"). A charge across a clock correction from Wi-Fi no longer shows a huge time. The session line reads "100% > 45%   PLAY 3h12   SLEEP 1h07 -15%".
 
 ### 🛠️ Tweaks
 
