@@ -60,6 +60,11 @@ This beta brings the **release candidate 11 of Open MainUI 1.1.1** by @robcodede
 - **Mini Flip: no more freeze while scraping box art from LaunchBox.** Box art was shrunk with the graphics hardware without checking that video memory was there: after a few minutes of scraping, a Flip could freeze (screen stuck, the console hot). Box art is now shrunk in software, and pngScale checks video memory before using it. A picture that cannot be converted is skipped ("Picture could not be converted."), and one cut by MENU is no longer kept as the game's picture: that game is scraped again next time. Thanks to ToastedLion for the report and AP for testing the fix.
 - **A warning before scraping a whole console, all favorites or all consoles:** long sessions heat the device and drain the battery (on a PC it is faster), and if it ever freezes, hold POWER for at least 10 seconds until it turns off. You can still start or cancel.
 
+### 🔋 RedOnion Battery Monitor (ksielick's 2.3.3 and 2.3.4)
+
+- **Clearer first-time setup** (Mini+ and Mini Flip, PMIC page): "Set counter to 100% (battery full now)" (it read like it saved the battery capacity) is refused until a capacity is saved, as it set the counter alone. Battery Capacity shows **Not saved** in orange until you save it. **Enable capacity learning** with no capacity saved now saves it for you ("[A] Save & Enable", the value shown first), checks the PMIC kept it, and only then turns learning on. Thanks to robcodedev for the report.
+- **A sleep that ran the battery flat** showed "-0%": it now shows what it used ("SLEEP 10H05 -98%"). A charge across a clock correction from Wi-Fi no longer shows a huge time. The session line reads "100% > 45%   PLAY 3H12   SLEEP 1H07 -15%".
+
 ### 🛠️ Tweaks
 
 - **A "[SELECT] INFO" hint** at the bottom of the screen whenever the selected option has an explanation: SELECT has always opened it, but nothing said so. Thanks to Machiavellian. (Also hidden until now: **Y** puts the selected option back to the value it had when you opened Tweaks.)
