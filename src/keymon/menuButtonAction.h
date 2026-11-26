@@ -212,13 +212,13 @@ void action_MainUI_contextMenu(void)
 void action_MainUI_gameSwitcher(void)
 {
     set_gameSwitcher();
-    kill_mainUI();
+    kill_mainUI_keepScreen();
 }
 
 void action_MainUI_resumeGame(void)
 {
     set_resumeGame();
-    kill_mainUI();
+    kill_mainUI_keepScreen();
 }
 
 static void _saveAndQuitRetroArch(bool quickSwitch)
