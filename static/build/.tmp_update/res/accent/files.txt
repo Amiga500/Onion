@@ -4,6 +4,7 @@ skin/bg-io-testing.png
 skin/bg-keysetting-f.png
 skin/bg-keysetting.png
 skin/bg-list-l.png
+skin/bg-list-popup-s.png
 skin/bg-list-s.png
 skin/charging-02.png
 skin/charging-03.png
