@@ -71,7 +71,20 @@ if [ "$0" = "/tmp/_shutdown" ]; then
 	umount /mnt/SDCARD/RetroArch/retroarch
 	umount /customer/lib/libgamename.so
 	swapoff /mnt/SDCARD/cachefile
-	umount -r /mnt/SDCARD
+	# The card still in use here is left with its FAT "dirty": the SD card
+	# check notice then shows at the next start. It did after an update
+	# (4.5.1 new UI test), cause unknown: what still holds the card is
+	# written to the console's own memory (not the card), for the next
+	# start to be read. Only when the unmount fails.
+	if ! umount -r /mnt/SDCARD; then
+		{
+			echo "umount failed: $1 $(date)"
+			for p in $(fuser -m /mnt/SDCARD 2> /dev/null); do
+				echo "$p: $(tr '\0' ' ' < /proc/$p/cmdline 2> /dev/null) [$(readlink /proc/$p/cwd 2> /dev/null)]"
+			done
+			grep mmcblk /proc/mounts
+		} > /appconfigs/shutdown_busy.log 2>&1
+	fi
 	umount /mnt/SDCARD
 
 	############# DEBUG #############
