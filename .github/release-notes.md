@@ -55,6 +55,11 @@ This beta brings the **release candidate 11 of Open MainUI 1.1.1** by @robcodede
 
 - **Game Info text scrolls by itself**, so long descriptions (from the scraper, for example) can be read to the end: Tweaks › Game lists › Previews › Game Info text: auto scroll is now **on**, 2 s before it starts, 20 px/s. It is turned on once with this update, even if you had switched it off: switch it off again and it stays off. Thanks to Machiavellian.
 
+### 🔍 Scraper
+
+- **Mini Flip: no more freeze while scraping box art from LaunchBox.** Box art was shrunk with the graphics hardware without checking that video memory was there: after a few minutes of scraping, a Flip could freeze (screen stuck, the console hot). Box art is now shrunk in software, and pngScale checks video memory before using it. A picture that cannot be converted is skipped ("Picture could not be converted."), and one cut by MENU is no longer kept as the game's picture: that game is scraped again next time. Thanks to ToastedLion for the report and AP for testing the fix.
+- **A warning before scraping a whole console, all favorites or all consoles:** long sessions heat the device and drain the battery (on a PC it is faster), and if it ever freezes, hold POWER for at least 10 seconds until it turns off. You can still start or cancel.
+
 ### 🛠️ Tweaks
 
 - **A "[SELECT] INFO" hint** at the bottom of the screen whenever the selected option has an explanation: SELECT has always opened it, but nothing said so. Thanks to Machiavellian. (Also hidden until now: **Y** puts the selected option back to the value it had when you opened Tweaks.)
@@ -104,7 +109,7 @@ Please report RedOnion issues on the [RedOnion tracker](https://github.com/Amiga
 
 ## 🙏 Thanks
 
-Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI, MiniCinema, RedAmp, SD Card Doctor, AudioTune, DisplayCal, the faster scripts and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode and MiniCinema; to KyleBing for the console pictures; to SundownerSport for the GameTank core, Clyde Shaffer for the GameTank and its emulator, and tenlevels for the GameTank icon; to QuackWalks for the Mini Flip lid report; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
+Thanks to the Onion team and the community, whose work RedOnion sits on. Thanks to @robcodedev for Open MainUI, MiniCinema, RedAmp, SD Card Doctor, AudioTune, DisplayCal, the faster scripts and many fixes; to ksielick for the Battery Monitor; to Veuks for Kids Mode and MiniCinema; to KyleBing for the console pictures; to SundownerSport for the GameTank core, Clyde Shaffer for the GameTank and its emulator, and tenlevels for the GameTank icon; to QuackWalks for the Mini Flip lid report; to ToastedLion and AP for the Mini Flip scraper freeze; and to the RedOnion testers Machiavellian, Veuks and zazzagone.
 
 ## 🔗 Links
 
