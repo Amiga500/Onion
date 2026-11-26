@@ -2601,6 +2601,38 @@ check "no other plain reboot but the firmware check's (no shutdown script left t
 check "the shutdown script stops the installer's updater" grep -q 'killall -9 updater' "$ROOT/static/build/.tmp_update/bin/shutdown"
 end
 
+begin installer_uses_the_consoles_brightness
+INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
+eval "$(extract_fn "$INST" installer_brightness | sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g")"
+mkdir -p "$TMP/sd" "$TMP/app"
+printf '{\n\t"vol":\t20,\n\t"brightness":\t3,\n\t"lumination":\t7\n}\n' > "$TMP/app/system.json"
+check "brightness 3: the boot's level 9, not the fixed 80" test "$(installer_brightness)" = 9
+for pair in 0:3 1:4 2:6 4:12 5:17 6:25 7:35 8:50 9:70 10:100; do
+    printf '{\n\t"brightness":\t%s\n}\n' "${pair%%:*}" > "$TMP/app/system.json"
+    [ "$(installer_brightness)" = "${pair#*:}" ] || echo "${pair%%:*} gave $(installer_brightness)" >> "$TMP/bad"
+done
+check "every level the same as runtime.sh's formula" test ! -e "$TMP/bad"
+# the levels against the boot's own formula, so the two cannot drift apart
+for b in 0 1 2 3 4 5 6 7 8 9 10; do
+    printf '{"brightness": %s}\n' "$b" > "$TMP/app/system.json"
+    [ "$(installer_brightness)" = "$(awk "BEGIN { print int(3 * exp(0.350656 * $b) + 0.5) }")" ] || echo "$b" >> "$TMP/bad2"
+done
+check "and as its awk line computes them" test ! -e "$TMP/bad2"
+check "the formula is still runtime.sh's" grep -q 'int(3 \* exp(0.350656 \* \$brightness) + 0.5)' "$ROOT/static/build/.tmp_update/runtime.sh"
+rm -f "$TMP/app/system.json"
+printf '{\n\t"brightness":\t5\n}\n' > "$TMP/sd/system.json"
+check "no /appconfigs copy: the card's system.json" test "$(installer_brightness)" = 17
+printf '{\n\t"brightness":\t12\n}\n' > "$TMP/app/system.json"
+check "a value out of range is skipped for the next file" test "$(installer_brightness)" = 17
+rm -f "$TMP/sd/system.json"
+check "and with no valid value at all: 80, as before" test "$(installer_brightness)" = 80
+rm -f "$TMP/app/system.json"
+check "no file: 80" test "$(installer_brightness)" = 80
+unset -f installer_brightness
+check "main sets the backlight with it" grep -q '^    installer_brightness > \$pwmdir/pwm0/duty_cycle$' "$INST"
+check "no fixed 80 written to the backlight" sh -c "! grep -q 'echo 80 > \$pwmdir' '$INST'"
+end
+
 begin shutdown_survives_its_terminal_and_has_a_fallback
 # bin/shutdown run on stand-ins: its paths moved into $TMP, the commands it
 # calls replaced by stubs that log what they were asked.

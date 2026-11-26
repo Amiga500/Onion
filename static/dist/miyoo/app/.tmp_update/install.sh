@@ -42,6 +42,32 @@ installer_reboot() {
     reboot
 }
 
+# The backlight level for the installer screens: the console's brightness
+# (0-10), as the boot sets it (runtime.sh: 3 * exp(0.350656 * b), rounded).
+# A fixed 80 (about 9.5) was used: an update showed at nearly full brightness
+# on a console set to 3, until the next boot (robcodedev, 4.5.1 new UI).
+# The settings are read from the card's system.json (/appconfigs/system.json
+# links to it after a boot of RedOnion; on a first installation it is the
+# stock firmware's own file): the copy saved for this console
+# (config/system/<serial>.json) cannot be found yet, as read_uuid is not in
+# the installer's bin and the old one has just been removed. 80 when there is
+# no valid value.
+installer_brightness() {
+    for _bf in /appconfigs/system.json /mnt/SDCARD/system.json; do
+        [ -f "$_bf" ] || continue
+        _bv=$(sed -n 's/.*"brightness"[^0-9]*\([0-9][0-9]*\).*/\1/p' "$_bf" | head -n 1)
+        case "$_bv" in
+            0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10)
+                set -- 3 4 6 9 12 17 25 35 50 70 100
+                shift "$_bv"
+                echo "$1"
+                return
+                ;;
+        esac
+    done
+    echo 80
+}
+
 MODEL_MM=283
 MODEL_MMF=285
 MODEL_MMP=354
@@ -113,11 +139,11 @@ main() {
         fi
     fi
 
-    # init backlight
+    # init backlight, at the console's own brightness
     pwmdir=/sys/class/pwm/pwmchip0
     echo 0 > $pwmdir/export
     echo 800 > $pwmdir/pwm0/period
-    echo 80 > $pwmdir/pwm0/duty_cycle
+    installer_brightness > $pwmdir/pwm0/duty_cycle
     echo 1 > $pwmdir/pwm0/enable
 
     killall keymon
