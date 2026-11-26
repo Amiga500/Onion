@@ -1,5 +1,6 @@
 #include "batmon.h"
 #include "./warn_reload.h"
+#include "./warn_show.h"
 #include "system/device_model.h"
 #include "utils/process.h"
 #include <stdio.h>
@@ -143,15 +144,11 @@ int main(int argc, char *argv[])
         }
 
 #ifdef PLATFORM_MIYOOMINI
-        if (is_suspended || current_percentage == 500) {
-            batteryWarning_hide();
-        }
-        else if (current_percentage >= 0 && current_percentage < warn_at && !warningDisabled()) {
+        if (batteryWarning_wanted(is_suspended, is_charging, current_percentage, warn_at) &&
+            !warningDisabled())
             batteryWarning_show();
-        }
-        else {
+        else
             batteryWarning_hide();
-        }
 #endif
         if (battery_current_state_duration > MAX_DURATION_BEFORE_UPDATE)
             update_current_duration();
