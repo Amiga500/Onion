@@ -299,11 +299,12 @@ int main(int argc, char *argv[])
                 draw_dots(&c, current_slide);
             cui_header(&c, "R", "RedOnion", version_str, -1);
 
-            // footer: the message, then the progress bar under it
+            // footer: the message, centred like the logo and the tips above
+            // it (robcodedev), then the progress bar under it
             cui_rect(&c, 0, 420, 640, 60, CUI_HEAD);
             char fitted[STR_MAX];
             cui_fit(message_str, 21, 592, fitted, sizeof(fitted));
-            cui_text(&c, 24, 441, fitted, 21, failed ? CUI_BAD : CUI_WHITE, CUI_LEFT);
+            cui_text(&c, 320, 441, fitted, 21, failed ? CUI_BAD : CUI_WHITE, CUI_CENTER);
             draw_progress(&c, 24, 461, 592, 8, progress, failed, spinner_tick);
             SDL_BlitSurface(screen, NULL, video, NULL);
             SDL_Flip(video);
