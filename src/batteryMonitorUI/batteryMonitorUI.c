@@ -2208,7 +2208,7 @@ static void renderAxpMenu(void)
         renderText("The PMIC starts its counter from the battery voltage,", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 12, ib_w - 32, 20});
         renderText("which reads too high while charging.", font_small ? font_small : font_Arkhip, col_val, &(SDL_Rect){ib_x + 16, ib_y + 36, ib_w - 32, 20});
         renderText("Best: let it finish charging, then save.", font_small ? font_small : font_Arkhip, col_green, &(SDL_Rect){ib_x + 16, ib_y + 60, ib_w - 32, 20});
-        renderText("Saving now? Use 'Set counter to 100%' once it is full.", font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){ib_x + 16, ib_y + 84, ib_w - 32, 20});
+        renderText("If you save now, use 'Set counter to 100%' when it is full.", font_small ? font_small : font_Arkhip, col_sub, &(SDL_Rect){ib_x + 16, ib_y + 84, ib_w - 32, 20});
 
         int btn_w = 210, btn_h = 38, btn_y = my + 190;
         int b1_x = mx + 35, b2_x = mx + mw - 35 - btn_w;
@@ -2804,7 +2804,7 @@ int main(int argc, char *argv[])
                         }
                         else if (res == -3) {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),
-                                     "Set Battery Capacity (first row) and press A first");
+                                     "Set Battery Capacity (top row) and save it with A");
                         }
                         else {
                             snprintf(axp_feedback_msg, sizeof(axp_feedback_msg),

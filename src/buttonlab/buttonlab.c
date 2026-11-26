@@ -256,7 +256,7 @@ static void draw(Canvas *c, Uint32 now) {
                  buttons[last_button].down ? CUI_RGB(255, 143, 143) : CUI_GREY,CUI_CENTER);
     }
     cui_text(cc,105,350,"Green = detected",13,BL_SEEN,CUI_CENTER);
-    cui_text(cc,105,374,raw_input ? "All 15 to pass" : "SDL input mode",13,
+    cui_text(cc,105,374,raw_input ? "Press all 15 to pass" : "SDL input mode",13,
              raw_input ? CUI_GREY : CUI_WARN,CUI_CENTER);
 
     side_panel(c,448,"VOLUME KEYS");
@@ -264,7 +264,7 @@ static void draw(Canvas *c, Uint32 now) {
     text_key(c,467,206,136,34,VOL_UP,"VOL +",17);
     text_key(c,467,256,136,34,VOL_DOWN,"VOL -",17);
     cui_text(cc,535,350,"Optional",13,CUI_GREY,CUI_CENTER);
-    cui_text(cc,535,374,"The system may take them",12,CUI_DIM,CUI_CENTER);
+    cui_text(cc,535,374,"May be used by the system",12,CUI_DIM,CUI_CENTER);
 
     device_body(c,n);
 

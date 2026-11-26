@@ -135,8 +135,8 @@ static void draw(CuiCanvas *c, int battery)
         triangle(c, cx, top + 102, false, CUI_WHITE, sel ? 0.9f : 0.45f);
         x += w + gap;
     }
-    cui_text(c, CUI_W / 2, 318, "Seconds are set to 00 when you save.", 17, CUI_GREY, CUI_CENTER);
-    cui_text(c, CUI_W / 2, 344, "The time counts on while the console is on.", 17, CUI_GREY, CUI_CENTER);
+    cui_text(c, CUI_W / 2, 318, "The time shown stays still while you edit it.", 17, CUI_GREY, CUI_CENTER);
+    cui_text(c, CUI_W / 2, 344, "Saving sets it, with the seconds at 00.", 17, CUI_GREY, CUI_CENTER);
 
     cui_rect(c, 0, 420, CUI_W, 60, CUI_HEAD);
     int hx = 16;

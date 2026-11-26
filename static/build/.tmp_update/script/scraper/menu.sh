@@ -209,7 +209,7 @@ if [ -n "$SCRAPER_NATIVE" ]; then
             case "$Mychoice" in
                 Yes)
                     for _which in username password; do
-                        ui_readline "Enter your screenscraper $_which." "$_which: "
+                        ui_readline "Enter your ScreenScraper $_which." "$_which: "
                         _val=$(cat /tmp/readline.txt 2> /dev/null)
                         _val="${_val// /}"
                         rm -f /tmp/readline.txt
@@ -230,9 +230,9 @@ fi
 # The tips the progress screen shows in turn with "If it freezes...".
 scraper_tips() {
     echo "@@tip B stops at any time: what is scraped so far is kept."
-    echo "@@tip Covers go to Roms/<console>/Imgs: games that have one are skipped."
+    echo "@@tip Covers go to Roms/<console>/Imgs: what a game already has is not downloaded again."
     echo "@@tip For big collections a PC is faster (Skraper, for example)."
-    echo "@@tip A free Screenscraper account doubles the requests per day."
+    echo "@@tip A free ScreenScraper account doubles the requests per day."
     echo "@@tip Background scraping (Configuration) lets you play meanwhile."
     echo "@@tip Long sessions drain the battery: keep the console charging."
 }
@@ -420,7 +420,7 @@ Menu_Config_SSAccountSettings()
 			
 			case "$Mychoice" in
 				*Username\ *)
-					ui_readline "Enter your screenscraper username." "username: "
+					ui_readline "Enter your ScreenScraper username." "username: "
 					userSS=$(cat /tmp/readline.txt)
 					userSS="${userSS// /}"  # removing spaces
 					rm /tmp/readline.txt
@@ -430,7 +430,7 @@ Menu_Config_SSAccountSettings()
 					sync
 					;;
 				*Password:\ *)
-					ui_readline "Enter your screenscraper password." "password: "
+					ui_readline "Enter your ScreenScraper password." "password: "
 					passSS=$(cat /tmp/readline.txt)
 					passSS="${passSS// /}"  # removing spaces
 					rm /tmp/readline.txt
