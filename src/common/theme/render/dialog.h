@@ -98,7 +98,11 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     SDL_Surface *title = n > 0 && strcmp(title_up, " ") != 0
                              ? TTF_RenderUTF8_Blended(resource_getFont(TITLE), title_up, (SDL_Color){244, 244, 245})
                              : NULL;
-    SDL_Surface *textbox = theme_textboxSurfaceFit(message_str, (SDL_Color){200, 200, 206, 0}, ALIGN_LEFT,
+    /* No title and no buttons (the LOADING and SAVING screens over the
+     * game's picture): the message alone, centred in the box. */
+    bool centred = title == NULL && !show_hint;
+    SDL_Surface *textbox = theme_textboxSurfaceFit(message_str, (SDL_Color){200, 200, 206, 0},
+                                                   centred ? ALIGN_CENTER : ALIGN_LEFT,
                                                    inner_w, (int)(5 * DIALOG_LINE_HEIGHT * g_scale));
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
     SDL_Surface *button_b = resource_getSurface(BUTTON_B);
@@ -118,7 +122,7 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
         SDL_FreeSurface(title);
     }
     if (textbox) {
-        SDL_Rect r = {box.x + pad, y};
+        SDL_Rect r = {box.x + pad + (centred && textbox->w < inner_w ? (inner_w - textbox->w) / 2 : 0), y};
         SDL_BlitSurface(textbox, NULL, screen, &r);
         y += textbox->h;
         SDL_FreeSurface(textbox);
