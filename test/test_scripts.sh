@@ -2528,12 +2528,19 @@ prompt() { # answers from a file, one per call; records the choices offered
     echo "$*" >> "$TMP/offered"
     _a=$(head -n 1 "$TMP/answers"); sed -i 1d "$TMP/answers"; return "${_a:-255}"
 }
+start_audioserver() { echo started >> "$TMP/audio"; }
 SD_DOCTOR_DIR=$TMP/doctor; mkdir -p "$SD_DOCTOR_DIR"
-printf '#!/bin/sh\necho ran > "%s/doctor_ran"\n' "$TMP" > "$SD_DOCTOR_DIR/launch.sh"; chmod +x "$SD_DOCTOR_DIR/launch.sh"
+printf '#!/bin/sh\necho "ran $*" > "%s/doctor_ran"\n' "$TMP" > "$SD_DOCTOR_DIR/launch.sh"; chmod +x "$SD_DOCTOR_DIR/launch.sh"
 rm -f "$TMP/offered"; printf '1\n0\n0\n' > "$TMP/answers"; sd_card_notice
 check "with SD Card Doctor: three choices" grep -q "^Check it now (SD Card Doctor) How to repair it on a PC OK$" "$TMP/offered"
 check "the PC page, then back to the question" test "$(sed -n 2p "$TMP/offered")" = OK
 check "Check it now opens SD Card Doctor" test -f "$TMP/doctor_ran"
+check "on Safe repair, the cursor on CHECK FAT STATUS (--fat-status)" test "$(cat "$TMP/doctor_ran")" = "ran --fat-status"
+check "its launcher passes the option on, the app reads it" sh -c 'grep -qF "./sdcarddoctor \"\$@\"" "$1" && grep -q "strcmp(argv\[1\],\"--fat-status\")==0" "$2"' _ "$ROOT/static/packages/App/SD Card Doctor/App/SDCardDoctor/launch.sh" "$ROOT/src/sdcarddoctor/sdcarddoctor.c"
+# prompt's click without libpadsp.so, with the audio server running: killed
+# by SIGFPE on A (exit 136) at boot, so SD Card Doctor never started.
+check "the audio server is started for the notice" test -s "$TMP/audio"
+check "each question plays its click through the audio server (libpadsp.so)" test "$(sed -n '/^sd_card_notice()/,/^}/p' "$RUNTIME" | grep -c 'LD_PRELOAD="\$miyoodir/lib/libpadsp.so" prompt -t')" -eq "$(sed -n '/^sd_card_notice()/,/^}/p' "$RUNTIME" | grep -c 'prompt -t')"
 rm -f "$TMP/offered" "$TMP/doctor_ran"; printf '255\n' > "$TMP/answers"; sd_card_notice
 check "B goes on, nothing opened" test ! -f "$TMP/doctor_ran"
 rm -f "$SD_DOCTOR_DIR/launch.sh" "$TMP/offered"; printf '0\n0\n1\n' > "$TMP/answers"; sd_card_notice
@@ -2543,7 +2550,7 @@ check "SD Card Doctor is preinstalled (where the notice looks for it)" sh -c 'gr
 check "the PC page says how on Windows, Mac and Linux" sh -c 'grep -q "Tools > Check" "$1" && grep -q "First Aid" "$1" && grep -q "fsck.fat -a" "$1"' _ "$RUNTIME"
 long=$(sed -n '/^sd_card_notice()/,/^}/p' "$RUNTIME" | grep -o '\-m "[^"]*"' | sed 's/^-m "//; s/"$//; s/\\n/\n/g' | awk 'length > 44' | head -n 1)
 check "message lines of 44 characters or less ($long)" test -z "$long"
-unset -f prompt sd_card_notice log
+unset -f prompt sd_card_notice log start_audioserver
 end
 
 begin ota_reboots_like_4_4_0

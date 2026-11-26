@@ -20,7 +20,7 @@ if [ ! -x ./sdcarddoctor ]; then
     echo "sdcarddoctor executable missing or not executable" >>"$LOG"
     exit 127
 fi
-./sdcarddoctor >>"$LOG" 2>&1
+./sdcarddoctor "$@" >>"$LOG" 2>&1
 code=$?
 printf '%s\n' "--- exit status: $code ---" >>"$LOG" 2>&1
 exit "$code"

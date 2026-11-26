@@ -2137,13 +2137,18 @@ check_sd_card() { # 1 if the card was dirty at boot
 # to repair the card on a PC, which is what clears the flag. B or OK goes on.
 SD_DOCTOR_DIR=${SD_DOCTOR_DIR:-/mnt/SDCARD/App/SDCardDoctor}
 sd_card_notice() {
+    # prompt plays a click on each key: through the audio server, as everywhere
+    # else (libpadsp.so). Without it, with the server running, prompt opened
+    # the audio device itself and was killed by SIGFPE on A (exit 136), so
+    # SD Card Doctor never started (seen on a Miyoo, 4.5.1 new UI test).
+    start_audioserver
     while :; do
         if [ -x "$SD_DOCTOR_DIR/launch.sh" ]; then
-            prompt -t "SD card check" -m "The SD card was not shut down cleanly\n(power lost, card removed or a crash).\nIt is often fine, but worth a check:\nSD Card Doctor checks it here, read only;\nthe repair itself is done on a PC." \
+            LD_PRELOAD="$miyoodir/lib/libpadsp.so" prompt -t "SD card check" -m "The SD card was not shut down cleanly\n(power lost, card removed or a crash).\nIt is often fine, but worth a check:\nSD Card Doctor checks it here, read only;\nthe repair itself is done on a PC." \
                 "Check it now (SD Card Doctor)" "How to repair it on a PC" "OK"
             _sd_choice=$?
         else
-            prompt -t "SD card check" -m "The SD card was not shut down cleanly\n(power lost, card removed or a crash).\nIt is often fine, but worth a check:\nthe repair is done on a PC." \
+            LD_PRELOAD="$miyoodir/lib/libpadsp.so" prompt -t "SD card check" -m "The SD card was not shut down cleanly\n(power lost, card removed or a crash).\nIt is often fine, but worth a check:\nthe repair is done on a PC." \
                 "How to repair it on a PC" "OK"
             _sd_choice=$?
             # the same numbers as with SD Card Doctor
@@ -2151,11 +2156,11 @@ sd_card_notice() {
         fi
         case $_sd_choice in
             0)
-                (cd "$SD_DOCTOR_DIR" && ./launch.sh) > /dev/null 2>&1
+                (cd "$SD_DOCTOR_DIR" && ./launch.sh --fat-status) > /dev/null 2>&1
                 return 0
                 ;;
             1)
-                prompt -t "Repair on a PC" -m "Back up the card first, then check it:\nWindows: This PC > the card > Properties >\nTools > Check\nMac: Disk Utility > the card > First Aid\nLinux: fsck.fat -a on the unmounted card\n \nThis message comes back only after\nanother unclean shutdown." "OK"
+                LD_PRELOAD="$miyoodir/lib/libpadsp.so" prompt -t "Repair on a PC" -m "Back up the card first, then check it:\nWindows: This PC > the card > Properties >\nTools > Check\nMac: Disk Utility > the card > First Aid\nLinux: fsck.fat -a on the unmounted card\n \nThis message comes back only after\nanother unclean shutdown." "OK"
                 ;;
             *) return 0 ;;
         esac

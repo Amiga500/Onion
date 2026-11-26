@@ -2952,7 +2952,13 @@ int main(int argc,char **argv) {
     uint32_t *pixels=NULL;
     Uint32 last_frame=0,last_refresh=0,last_checker_poll=0;
     int result=1;
-    (void)argc;(void)argv;
+    /* RedOnion's boot notice after an unclean shutdown opens it with
+     * --fat-status: on Safe repair, the cursor on CHECK FAT STATUS (the
+     * card's "not unmounted cleanly" flag, read only). B goes back to the
+     * main page, on Safe repair. */
+    if (argc>1 && strcmp(argv[1],"--fat-status")==0) {
+        page=PAGE_REPAIR_MENU;main_selected=4;repair_selected=0;
+    }
     signal(SIGINT,signal_stop);signal(SIGTERM,signal_stop);
     scan.file_fd=-1;speedtest.fd=-1;
     refresh_card();
