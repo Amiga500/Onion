@@ -28,12 +28,19 @@ static void text(MainUITheme *theme, SDL_Surface *screen, TTF_Font *font, SDL_Co
     SDL_SetClipRect(screen, NULL);
 }
 
-static void frame(MainUITheme *theme, SDL_Surface *screen, const char *title, int page, int pages)
+/* back: B's hint in the footer; not on the main menu, where B does nothing */
+static void frame(MainUITheme *theme, SDL_Surface *screen, const char *title, int page, int pages,
+                  bool back)
 {
     SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format, 24, 24, 24));
     blit(screen, theme->background, 0, 0);
     mainui_draw_header(screen, theme, title);
-    mainui_draw_footer(screen, theme, page, pages);
+    if (back) {
+        mainui_draw_footer(screen, theme, page, pages);
+    }
+    else {
+        mainui_draw_home_footer(screen, theme);
+    }
 }
 
 static void clear_consoles(MainUIMenuView *view)
@@ -355,7 +362,7 @@ void mainui_menu_draw_home(MainUIMenuView *view, SDL_Surface *screen, const Main
                            const MainUIViewport *position)
 {
     MainUITheme *theme = view->theme;
-    frame(theme, screen, "MIYOO", 0, -1);
+    frame(theme, screen, "MIYOO", 0, -1, false);
     int columns = menu->count < 4 ? menu->count : 4;
     if (!columns) {
         return;
@@ -476,7 +483,7 @@ void mainui_menu_draw_systems(MainUIMenuView *view, SDL_Surface *screen, MainUIC
           !strcmp(catalog->pages[0].title, "Expert") ? mainui_menu_label(MAINUI_MENU_EXPERT)
                                                      : mainui_menu_label(MAINUI_MENU_GAMES),
           position->total ? position->start / capacity + 1 : 0,
-          (position->total + capacity - 1) / capacity);
+          (position->total + capacity - 1) / capacity, true);
     mainui_menu_view_page(view, catalog, position);
     /* Stock Games: 4x2, margins 10, 155x170 cells. Expert: 3x3, no margins,
      * 213x120 cells, centered 192x72 icon crop, label bottom offset 28. */
@@ -1075,7 +1082,7 @@ void mainui_menu_draw_carousel(MainUIMenuView *view, SDL_Surface *screen, MainUI
     cell_centre += console->offset_y;
     frame(theme, screen,
           expert ? mainui_menu_label(MAINUI_MENU_EXPERT) : mainui_menu_label(MAINUI_MENU_GAMES),
-          position->total ? position->selected + 1 : 0, position->total);
+          position->total ? position->selected + 1 : 0, position->total, true);
     if (!position->total || position->selected < 0) {
         mainui_draw_empty(screen, theme);
         view->sliding = false;

@@ -15,13 +15,16 @@ static void footer(SDL_Surface *screen, MainUITheme *theme, int page, int total,
         SDL_BlitSurface(theme->background, &clip, screen, &destination);
     }
     mainui_blit(screen, theme->footer, 0, 420);
-    const char *hints[] = {theme->hide_hints ? " " : open, theme->hide_hints ? " " : back};
+    /* No `back` (the main menu, where B does nothing): A's hint alone. */
+    int count = back ? 2 : 1;
+    const char *hints[] = {theme->hide_hints ? " " : open,
+                           theme->hide_hints || !back ? " " : back};
     /* Each hint is its button, 5 px, then its text; hints are 30 px apart.
      * Stock's layout starts A's at x 20. The alternative ends B's then A's
      * at x 620, so each button keeps its own action. */
     SDL_Surface *label[2] = {NULL, NULL};
     int width[2] = {0, 0};
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < count; i++) {
         if (theme->buttons[i]) {
             width[i] = theme->buttons[i]->w + 5;
         }
@@ -30,9 +33,9 @@ static void footer(SDL_Surface *screen, MainUITheme *theme, int page, int total,
             width[i] += label[i] ? label[i]->w : 0;
         }
     }
-    int x = theme->footer_alt ? 620 - width[1] - 30 - width[0] : 20;
-    for (int n = 0; n < 2; n++) {
-        int i = theme->footer_alt ? 1 - n : n;
+    int x = theme->footer_alt ? 620 - (count == 2 ? width[1] + 30 : 0) - width[0] : 20;
+    for (int n = 0; n < count; n++) {
+        int i = theme->footer_alt ? count - 1 - n : n;
         SDL_Surface *button = theme->buttons[i];
         int left = x;
         if (button) {
@@ -72,6 +75,13 @@ void mainui_draw_footer(SDL_Surface *screen, MainUITheme *theme, int page, int t
 {
     footer(screen, theme, page, total, mainui_translate(88, "SELECT"),
            mainui_translate(89, "BACK"));
+}
+
+/* The main menu's: B has no action there (mainui_screen_home_key), so no
+ * "B BACK" hint (RedOnion UI review, 4.5.1). */
+void mainui_draw_home_footer(SDL_Surface *screen, MainUITheme *theme)
+{
+    footer(screen, theme, 0, -1, mainui_translate(88, "SELECT"), NULL);
 }
 
 /* The Wi-Fi (or hotspot) icon. `left` is the battery's leftmost pixel, icon

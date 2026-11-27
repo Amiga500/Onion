@@ -25,6 +25,8 @@ void mainui_draw_media_context(SDL_Surface *screen, MainUITheme *theme,
                                const MainUIContext *context);
 void mainui_draw_languages(SDL_Surface *screen, MainUITheme *theme, const MainUILanguages *list);
 void mainui_draw_footer(SDL_Surface *screen, MainUITheme *theme, int page, int total);
+/* The main menu's footer: A's hint only (B does nothing there). */
+void mainui_draw_home_footer(SDL_Surface *screen, MainUITheme *theme);
 void mainui_draw_settings(SDL_Surface *screen, MainUITheme *theme,
                           const MainUIStockSettings *settings);
 /* favorite[row], for the four rows from view->start (NULL for none): the
