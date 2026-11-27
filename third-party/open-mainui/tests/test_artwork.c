@@ -8,6 +8,7 @@
 #undef NDEBUG
 #endif
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,6 +49,123 @@ static void swatch(const char *directory, const char *name, Uint8 r, Uint8 g, Ui
     SDL_FillRect(surface, NULL, SDL_MapRGB(surface->format, r, g, b));
     assert(SDL_SaveBMP(surface, path) == 0);
     SDL_FreeSurface(surface);
+}
+
+/* A size by size swatch */
+static void swatch_sized(const char *directory, const char *name, int size, Uint8 r, Uint8 g,
+                         Uint8 b)
+{
+    char path[4096];
+    snprintf(path, sizeof path, "%s/%s", directory, name);
+    SDL_Surface *surface =
+        SDL_CreateRGBSurface(SDL_SWSURFACE, size, size, 32, 0xff0000, 0xff00, 0xff, 0);
+    assert(surface);
+    SDL_FillRect(surface, NULL, SDL_MapRGB(surface->format, r, g, b));
+    assert(SDL_SaveBMP(surface, path) == 0);
+    SDL_FreeSurface(surface);
+}
+
+/* An RGBA PNG of a 32-bit surface (stored, not compressed): SDL 1.2 saves
+ * no alpha, and settings icons are PNGs with see-through margins. */
+static uint32_t png_crc(const unsigned char *data, size_t n, uint32_t crc)
+{
+    crc = ~crc;
+    for (size_t i = 0; i < n; i++) {
+        crc ^= data[i];
+        for (int k = 0; k < 8; k++) {
+            crc = crc & 1 ? (crc >> 1) ^ 0xedb88320u : crc >> 1;
+        }
+    }
+    return ~crc;
+}
+
+static void png_chunk(FILE *f, const char *type, const unsigned char *data, uint32_t n)
+{
+    unsigned char head[8] = {n >> 24, n >> 16, n >> 8, n, type[0], type[1], type[2], type[3]};
+    fwrite(head, 1, 8, f);
+    if (n) {
+        fwrite(data, 1, n, f);
+    }
+    uint32_t crc = png_crc(head + 4, 4, 0);
+    crc = png_crc(data, n, crc);
+    unsigned char tail[4] = {crc >> 24, crc >> 16, crc >> 8, crc};
+    fwrite(tail, 1, 4, f);
+}
+
+static void write_rgba_png(SDL_Surface *surface, const char *path)
+{
+    int w = surface->w, h = surface->h;
+    size_t raw_n = (size_t)h * (1 + 4 * (size_t)w);
+    unsigned char *raw = malloc(raw_n);
+    assert(raw && SDL_LockSurface(surface) == 0);
+    for (int y = 0; y < h; y++) {
+        unsigned char *row = raw + (size_t)y * (1 + 4 * (size_t)w);
+        row[0] = 0;
+        for (int x = 0; x < w; x++) {
+            Uint32 pixel = ((Uint32 *)((Uint8 *)surface->pixels + y * surface->pitch))[x];
+            SDL_GetRGBA(pixel, surface->format, &row[1 + 4 * x], &row[2 + 4 * x], &row[3 + 4 * x],
+                        &row[4 + 4 * x]);
+        }
+    }
+    SDL_UnlockSurface(surface);
+    assert(raw_n < 65535); /* one stored deflate block */
+    size_t z_n = 2 + 5 + raw_n + 4;
+    unsigned char *z = malloc(z_n);
+    assert(z);
+    z[0] = 0x78;
+    z[1] = 0x01;
+    z[2] = 1;
+    z[3] = raw_n & 0xff;
+    z[4] = raw_n >> 8;
+    z[5] = ~raw_n & 0xff;
+    z[6] = (~raw_n >> 8) & 0xff;
+    memcpy(z + 7, raw, raw_n);
+    uint32_t a = 1, b = 0;
+    for (size_t i = 0; i < raw_n; i++) {
+        a = (a + raw[i]) % 65521;
+        b = (b + a) % 65521;
+    }
+    uint32_t adler = b << 16 | a;
+    z[7 + raw_n] = adler >> 24;
+    z[8 + raw_n] = adler >> 16;
+    z[9 + raw_n] = adler >> 8;
+    z[10 + raw_n] = adler;
+    FILE *f = fopen(path, "wb");
+    assert(f);
+    static const unsigned char signature[8] = {137, 80, 78, 71, 13, 10, 26, 10};
+    fwrite(signature, 1, 8, f);
+    unsigned char ihdr[13] = {w >> 24, w >> 16, w >> 8, w, h >> 24, h >> 16, h >> 8, h, 8, 6, 0, 0, 0};
+    png_chunk(f, "IHDR", ihdr, 13);
+    png_chunk(f, "IDAT", z, (uint32_t)z_n);
+    png_chunk(f, "IEND", NULL, 0);
+    fclose(f);
+    free(z);
+    free(raw);
+}
+
+/* A size by size picture, see-through, with a dark size_in square at
+ * (offset, offset) */
+static void framed(const char *directory, const char *name, int size, int offset, int size_in)
+{
+    char path[4096];
+    snprintf(path, sizeof path, "%s/%s", directory, name);
+    SDL_Surface *surface = SDL_CreateRGBSurface(SDL_SWSURFACE, size, size, 32, 0xff0000, 0xff00,
+                                                0xff, 0xff000000);
+    assert(surface);
+    SDL_FillRect(surface, NULL, 0);
+    SDL_FillRect(surface, &(SDL_Rect){(Sint16)offset, (Sint16)offset, (Uint16)size_in, (Uint16)size_in},
+                 SDL_MapRGBA(surface->format, 40, 60, 80, 255));
+    write_rgba_png(surface, path);
+    SDL_FreeSurface(surface);
+}
+
+static Uint8 alpha_at(SDL_Surface *icon, int x, int y)
+{
+    assert(icon && icon->format->BytesPerPixel == 4 && SDL_LockSurface(icon) == 0);
+    Uint8 r, g, b, a;
+    SDL_GetRGBA(((Uint32 *)((Uint8 *)icon->pixels + y * icon->pitch))[x], icon->format, &r, &g, &b, &a);
+    SDL_UnlockSurface(icon);
+    return a;
 }
 
 /* Mostly white, with a dark band (white icons with dark outlines) */
@@ -191,6 +309,53 @@ static void settings_icon_tint_tests(const char *root)
                      : icon_is(art->icons[SET_WIFI], 255, 255, 255));
         mainui_theme_close(&theme);
     }
+    /* Borrowed icons larger than the theme's own are scaled down to them
+     * (the built-in ones are drawn for a 48 px slot), never up */
+    char big[1024], small[1024];
+    snprintf(big, sizeof big, "%s/size-base", root);
+    snprintf(small, sizeof small, "%s/size-theme", root);
+    const char *size_dirs[] = {big, small};
+    for (int i = 0; i < 2; i++) {
+        assert(mkdir_0755(size_dirs[i]) == 0);
+        TEST_PATH(path, "%s/skin", size_dirs[i]);
+        assert(mkdir_0755(path) == 0);
+    }
+    for (int i = 0; i < SET_COUNT; i++) {
+        swatch_sized(big, mainui_stock_setting_icon(i), i == SET_THEMES ? 6 : 16, 255, 255, 255);
+        if (i != SET_WIFI && i != SET_THEMES) {
+            swatch_sized(small, mainui_stock_setting_icon(i), 8, 40, 60, 80);
+        }
+    }
+    initialize(&theme, small, big);
+    art = mainui_theme_settings_artwork(&theme);
+    assert(art->icons[SET_WIFI] && art->icons[SET_WIFI]->w == 8 && art->icons[SET_WIFI]->h == 8);
+    assert(icon_is(art->icons[SET_WIFI], 40, 60, 80));
+    /* not enlarged: 6 px in a picture as large as the theme's own (8), its
+     * margin see-through */
+    assert(art->icons[SET_THEMES] && art->icons[SET_THEMES]->w == 8);
+    assert(alpha_at(art->icons[SET_THEMES], 0, 0) == 0 && alpha_at(art->icons[SET_THEMES], 4, 4) > 128);
+    assert(art->icons[SET_BRIGHTNESS]->w == 8);
+    mainui_theme_close(&theme);
+    /* In the same place as the theme's own: their drawings 10 px in a 20 px
+     * picture, 5 px from its left; the built-in one (16 px, no margin) comes
+     * out 10 px, 5 px from the left of a 20 px picture */
+    char placed[1024];
+    snprintf(placed, sizeof placed, "%s/place-theme", root);
+    assert(mkdir_0755(placed) == 0);
+    TEST_PATH(path, "%s/skin", placed);
+    assert(mkdir_0755(path) == 0);
+    for (int i = 0; i < SET_COUNT; i++) {
+        if (i != SET_WIFI && i != SET_THEMES) {
+            framed(placed, mainui_stock_setting_icon(i), 20, 5, 10);
+        }
+    }
+    initialize(&theme, placed, big);
+    art = mainui_theme_settings_artwork(&theme);
+    SDL_Surface *wifi = art->icons[SET_WIFI];
+    assert(wifi && wifi->w == 20 && wifi->h == 20);
+    assert(alpha_at(wifi, 4, 10) == 0 && alpha_at(wifi, 5, 10) > 128 && alpha_at(wifi, 14, 10) > 128 &&
+           alpha_at(wifi, 15, 10) == 0);
+    mainui_theme_close(&theme);
     /* The built-in theme itself is never changed */
     initialize(&theme, base, base);
     art = mainui_theme_settings_artwork(&theme);

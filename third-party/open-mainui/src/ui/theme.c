@@ -2,6 +2,7 @@
  * Asset/config conventions from Onion src/common/theme/{config,load}.h.
  */
 #include "ui/theme.h"
+#include "ui/image_scale.h"
 #include "cJSON.h"
 #include "platform/system_config.h"
 #include "ui/artwork.h"
@@ -499,6 +500,139 @@ static void tint_icon(SDL_Surface *icon, Uint8 r, Uint8 g, Uint8 b)
     SDL_UnlockSurface(icon);
 }
 
+/* The box around an icon's solid pixels (alpha 128 and more). False when it
+ * has none. */
+static bool icon_box(SDL_Surface *icon, SDL_Rect *box)
+{
+    if (!pixel_access(icon)) {
+        return false;
+    }
+    int left = icon->w, right = -1, top = icon->h, bottom = -1;
+    for (int y = 0; y < icon->h; y++) {
+        const Uint32 *row = pixel_row(icon, y);
+        for (int x = 0; x < icon->w; x++) {
+            Uint8 pr, pg, pb, pa;
+            SDL_GetRGBA(row[x], icon->format, &pr, &pg, &pb, &pa);
+            if (pa >= 128) {
+                left = x < left ? x : left;
+                right = x > right ? x : right;
+                top = y < top ? y : top;
+                bottom = y > bottom ? y : bottom;
+            }
+        }
+    }
+    SDL_UnlockSurface(icon);
+    if (right < 0) {
+        return false;
+    }
+    *box = (SDL_Rect){(Sint16)left, (Sint16)top, (Uint16)(right - left + 1),
+                      (Uint16)(bottom - top + 1)};
+    return true;
+}
+
+static int median_of(int *values, int n)
+{
+    for (int i = 1; i < n; i++) {
+        for (int j = i; j > 0 && values[j - 1] > values[j]; j--) {
+            int t = values[j];
+            values[j] = values[j - 1];
+            values[j - 1] = t;
+        }
+    }
+    return values[n / 2];
+}
+
+/* A copy of part of a surface, alpha included. */
+static SDL_Surface *copy_rect(SDL_Surface *source, SDL_Rect rect, int width, int height, int x,
+                              int y)
+{
+    SDL_PixelFormat *f = source->format;
+    /* with an alpha channel even when the source has none: the margin added
+     * around the drawing must be see-through */
+    SDL_Surface *out =
+        f->Amask ? SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32, f->Rmask, f->Gmask,
+                                        f->Bmask, f->Amask)
+                 : SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32, 0x00ff0000, 0x0000ff00,
+                                        0x000000ff, 0xff000000);
+    if (!out) {
+        return NULL;
+    }
+    SDL_FillRect(out, NULL, 0);
+    Uint32 flags = source->flags & SDL_SRCALPHA;
+    Uint8 alpha = f->alpha;
+    SDL_SetAlpha(source, 0, SDL_ALPHA_OPAQUE); /* copy the alpha, do not blend */
+    SDL_Rect to = {(Sint16)x, (Sint16)y, 0, 0};
+    SDL_BlitSurface(source, &rect, out, &to);
+    SDL_SetAlpha(source, flags, alpha);
+    SDL_SetAlpha(out, SDL_SRCALPHA, SDL_ALPHA_OPAQUE);
+    return out;
+}
+
+/* Borrowed icons as large as the theme's own and in the same place: the
+ * built-in ones are drawn for a 48 px slot with no margin, a theme's own are
+ * often smaller and have one, and Settings draws every icon from x 20, so
+ * they stood out by their size and sat off to the side (Onion Boy DX: Wi-Fi,
+ * Themes and Tweaks white, larger and to the left of small violet ones;
+ * RedOnion, Amiga500's photo). Each borrowed icon's drawing is taken out of its
+ * margin, scaled down (never up) to the median size of the theme's own when
+ * more than 15% larger, and put in a picture as large as theme's own, its
+ * centre where theirs is. */
+static void settings_icon_fit(MainUISettingsArtwork *art, const bool borrowed[SET_COUNT])
+{
+    int sizes[SET_COUNT], widths[SET_COUNT], heights[SET_COUNT], cx[SET_COUNT], cy[SET_COUNT];
+    int n = 0;
+    for (int i = 0; i < SET_COUNT; i++) {
+        SDL_Rect box;
+        if (borrowed[i] || !art->icons[i] || !icon_box(art->icons[i], &box)) {
+            continue;
+        }
+        sizes[n] = box.w > box.h ? box.w : box.h;
+        widths[n] = art->icons[i]->w;
+        heights[n] = art->icons[i]->h;
+        cx[n] = 2 * box.x + box.w; /* doubled, to stay in integers */
+        cy[n] = 2 * box.y + box.h;
+        n++;
+    }
+    if (!n) {
+        return;
+    }
+    int size = median_of(sizes, n), width = median_of(widths, n), height = median_of(heights, n);
+    int centre_x = median_of(cx, n), centre_y = median_of(cy, n);
+    for (int i = 0; i < SET_COUNT; i++) {
+        SDL_Surface *icon = art->icons[i];
+        SDL_Rect box;
+        if (!borrowed[i] || !icon || !icon_box(icon, &box)) {
+            continue;
+        }
+        SDL_Surface *drawing = copy_rect(icon, box, box.w, box.h, 0, 0);
+        if (!drawing) {
+            continue;
+        }
+        int larger = box.w > box.h ? box.w : box.h;
+        if (larger * 100 > size * 115) {
+            int w = box.w * size / larger, h = box.h * size / larger;
+            SDL_Surface *smaller =
+                mainui_image_bilinear_copy(drawing, w > 0 ? w : 1, h > 0 ? h : 1);
+            if (smaller) {
+                SDL_FreeSurface(drawing);
+                drawing = smaller;
+            }
+        }
+        int w = width > drawing->w ? width : drawing->w;
+        int h = height > drawing->h ? height : drawing->h;
+        int x = (centre_x - drawing->w) / 2, y = (centre_y - drawing->h) / 2;
+        x = x < 0 ? 0 : x + drawing->w > w ? w - drawing->w : x;
+        y = y < 0 ? 0 : y + drawing->h > h ? h - drawing->h : y;
+        SDL_Surface *placed =
+            copy_rect(drawing, (SDL_Rect){0, 0, (Uint16)drawing->w, (Uint16)drawing->h}, w, h, x, y);
+        SDL_FreeSurface(drawing);
+        if (placed) {
+            SDL_FreeSurface(icon);
+            art->icons[i] = placed;
+        }
+    }
+}
+
 const MainUISettingsArtwork *mainui_theme_settings_artwork(MainUITheme *theme)
 {
     MainUISettingsArtwork *art = &theme->settings_artwork;
@@ -525,6 +659,9 @@ const MainUISettingsArtwork *mainui_theme_settings_artwork(MainUITheme *theme)
                     tint_icon(art->icons[i], r, g, b);
                 }
             }
+        }
+        if (any_borrowed && own) {
+            settings_icon_fit(art, borrowed);
         }
     }
     return art;
