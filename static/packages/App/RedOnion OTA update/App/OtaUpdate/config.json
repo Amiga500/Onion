@@ -1,5 +1,5 @@
 {
-	"label": "RedOnion OTA update",
+	"label": "RedOnion OTA Update",
 	"icon": "/mnt/SDCARD/Icons/Default/app/redonion_ota.png",
 	"launch": "launch.sh",
 	"description": "Update RedOnion over internet"

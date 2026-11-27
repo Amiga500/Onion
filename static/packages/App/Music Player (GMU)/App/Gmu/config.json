@@ -2,5 +2,5 @@
 "label":"Music Player",
 "icon":"../../Icons/Default/app/music.png",
 "launch":"launch.sh",
-"description":"GMU (Menu+Select to exit)"
+"description":"Play music (GMU, MENU+SELECT exits)"
 }

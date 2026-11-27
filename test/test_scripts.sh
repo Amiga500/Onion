@@ -4589,6 +4589,22 @@ OTA_APP_CONFIG="$TMP/none.json" sh "$MIG25"; rc=$?
 check "no app: nothing to do" test $rc -eq 0 -a ! -e "$TMP/none.json"
 end
 
+begin migration_app_labels_from_the_ui_review
+# A package update keeps the label already installed: the new names from
+# the UI review reach the old defaults only, a name the user gave stays.
+MIG30="$ROOT/static/build/.tmp_update/script/migration/00030_app_labels.sh"
+printf '{\n\t"label": "RedOnion OTA update",\n\t"launch": "launch.sh"\n}\n' > "$TMP/ota.json"
+printf '{\n\t"label":"Display Calibration",\n\t"launch": "launch.sh"\n}\n' > "$TMP/suite.json"
+OTA_APP_CONFIG="$TMP/ota.json" SUITE_APP_CONFIG="$TMP/suite.json" sh "$MIG30"
+check "OTA: title case" grep -q '"label": "RedOnion OTA Update"' "$TMP/ota.json"
+check "Display Calibration: 240p Test Suite" grep -q '"label": "240p Test Suite"' "$TMP/suite.json"
+check "the rest kept" grep -q '"launch": "launch.sh"' "$TMP/suite.json"
+printf '{\n\t"label": "My updater"\n}\n' > "$TMP/mine.json"
+OTA_APP_CONFIG="$TMP/mine.json" SUITE_APP_CONFIG="$TMP/none.json" sh "$MIG30"; rc=$?
+check "a name the user chose is kept, no app is nothing to do" test $rc -eq 0 -a ! -e "$TMP/none.json" -a "$(grep -c 'My updater' "$TMP/mine.json")" = 1
+check "the packages ship the new names" sh -c "grep -q '\"RedOnion OTA Update\"' '$ROOT/static/packages/App/RedOnion OTA update/App/OtaUpdate/config.json' && grep -q '\"240p Test Suite\"' '$ROOT/static/packages/App/240p Test Suite (Screen test patterns)/App/240pSuite/config.json'"
+end
+
 begin migration_adds_core_systemid
 mig="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/static/build/.tmp_update/script/migration/00024_core_info_systemid.sh"
 mkdir -p "$TMP/cores"

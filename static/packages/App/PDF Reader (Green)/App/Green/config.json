@@ -3,5 +3,5 @@
 "icon":"../../Icons/Default/app/pdf.png",
 "iconsel":"",
 "launch":"launch.sh",
-"description":"Green"
+"description":"Read PDF files (Green)"
 }
