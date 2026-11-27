@@ -3316,6 +3316,15 @@ rm -f "$TMP/calls"
 echo 3 > "$TMP/config/display/launchScreen"
 show_launch_screen LOADING no_screenshot; wait
 check "Saved Games, message only: unchanged" has_line "$TMP/calls" 'infoPanel --message LOADING --persistent'
+# None (robcodedev, beta 6): nothing shown, the screen stays as it was
+rm -f "$TMP/calls"
+echo 4 > "$TMP/config/display/launchScreen"
+show_launch_screen LOADING; wait
+show_launch_screen SAVING; wait
+show_launch_screen LOADING no_screenshot; wait
+check "None: nothing shown, nothing to dismiss (Saved Games too)" test ! -s "$TMP/calls"
+check "None in Tweaks, last" grep -q '.value_labels = {"Popup", "Full screen", "Black", "Full popup", "None"}' "$ROOT/src/tweaks/menus.h"
+check "None when saving (keymon) and in the GameSwitcher" sh -c "grep -A1 'case 4:' '$ROOT/src/keymon/menuButtonAction.h' | grep -q 'break;' && grep -q 'if (settings.launch_screen == 4)' '$ROOT/src/gameSwitcher/gs_render.h'"
 rm -f "$TMP/calls"
 echo 0 > "$TMP/config/display/launchScreen"
 show_launch_screen LOADING ""; wait

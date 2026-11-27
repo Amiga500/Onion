@@ -54,9 +54,12 @@ void renderCentered(SDL_Surface *image, int view_mode, SDL_Rect *overrideSrcRect
 
 // "LOADING"/"SAVING", per Tweaks > Look and feel > Loading/saving screen
 // (settings.launch_screen): 0 a popup over the game screenshot, 1 the
-// screenshot alone, 2 black, 3 the message on the theme's full-screen panel.
+// screenshot alone, 2 black, 3 the message on the theme's full-screen
+// panel, 4 nothing: the GameSwitcher stays as it was.
 void render_showFullscreenMessage(const char *message, bool draw_bg)
 {
+    if (settings.launch_screen == 4)
+        return;
     if (settings.launch_screen == 2) {
         SDL_FillRect(screen, NULL, 0);
         render();

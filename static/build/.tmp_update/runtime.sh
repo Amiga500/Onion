@@ -2043,7 +2043,8 @@ start_networking() {
 # Screen shown while a game starts ("LOADING") or saves on exit ("SAVING"),
 # per Tweaks > Look and feel > Loading/saving screen: 0 the game screenshot
 # with a popup (as in Onion), 1 the screenshot alone, 2 black, 3 the message
-# on the theme's full-screen panel (no screenshot).
+# on the theme's full-screen panel (no screenshot), 4 none: nothing shown,
+# the screen stays as it was (robcodedev, 4.5.1 beta 6).
 # show_launch_screen MESSAGE [no_screenshot]
 # no_screenshot: the GameSwitcher screenshot is not the state being loaded
 # (Saved Games), so "Screenshot + message" shows the message only and
@@ -2053,10 +2054,12 @@ show_launch_screen() {
     if [ "$2" = "no_screenshot" ]; then
         case "$_ls_mode" in
             1 | 2) _ls_mode=2 ;;
+            4) ;;
             *) _ls_mode=3 ;;
         esac
     fi
     case "$_ls_mode" in
+        4) ;;
         1)
             infoPanel --persistent --romscreen &
             touch /tmp/dismiss_info_panel
