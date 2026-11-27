@@ -4576,9 +4576,7 @@ int main(int argc, char *argv[])
             else if (active_screen == SCREEN_MENU) {
                 switch (changed_key) {
                 case SW_BTN_SELECT:
-                    // Not when the note box under the list shows it whole:
-                    // the window repeated the same words (as in Tweaks).
-                    if (list_hasInfoNote(&menu_list) && !theme_listNoteShownWhole()) {
+                    if (list_hasInfoNote(&menu_list)) {
                         info_list = &menu_list;
                         info_return = SCREEN_MENU;
                         active_screen = SCREEN_INFO;
@@ -4683,7 +4681,7 @@ int main(int argc, char *argv[])
             else if (active_screen == SCREEN_CAROUSEL_SETTINGS) {
                 switch (changed_key) {
                 case SW_BTN_SELECT:
-                    if (list_hasInfoNote(&carousel_settings_list) && !theme_listNoteShownWhole()) {
+                    if (list_hasInfoNote(&carousel_settings_list)) {
                         info_list = &carousel_settings_list;
                         info_return = SCREEN_CAROUSEL_SETTINGS;
                         active_screen = SCREEN_INFO;
