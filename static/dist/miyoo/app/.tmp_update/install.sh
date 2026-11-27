@@ -390,6 +390,10 @@ run_installation() {
         remove_old_search
     fi
 
+    # The OTA update demo (test builds of the new UI only) is gone: its
+    # launcher, left on the card, would now start the real updater.
+    rm -rf /mnt/SDCARD/App/OtaDemo 2> /dev/null
+
     if [ $install_ra -eq 1 ]; then
         verify_file
         install_core "1/2: $verb RedOnion..."

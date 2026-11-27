@@ -1,6 +1,0 @@
-{
-	"label": "OTA update demo",
-	"icon": "/mnt/SDCARD/Icons/Default/app/redonion_ota.png",
-	"launch": "launch.sh",
-	"description": "The updater's new screens (test)"
-}
