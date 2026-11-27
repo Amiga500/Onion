@@ -1517,7 +1517,7 @@ void menu_carouselLook(void *_)
                 .action_id = CONSOLEVIEW_SELECTION,
                 .action = consoleview_action_option},
             "The box behind the selected console:\n"
-            "the theme's colour, none, or white at\n"
+            "the theme's color, none, or white at\n"
             "12% (Light) or 22% (Bright).");
         list_addItemWithInfoNote(
             &_menu_carousel_look,

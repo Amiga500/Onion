@@ -2,5 +2,5 @@
   "label": "DisplayCal",
   "icon": "icon.png",
   "launch": "launch.sh",
-  "description": "Display colours and settings"
+  "description": "Display colors and settings"
 }

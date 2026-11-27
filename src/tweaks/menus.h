@@ -650,16 +650,16 @@ void menu_lookAndFeel(void *_)
         config_get("display/accentColor", CONFIG_INT, &accent_color);
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
-                                     .label = "Accent colour",
+                                     .label = "Accent color",
                                      .item_type = MULTIVALUE,
                                      .value_max = ACCENT_COUNT - 1,
                                      .value_labels = {"Red", "Orange", "Gold", "Green", "Teal", "Blue", "Purple", "Pink", "Graphite"},
                                      .value = accent_listPosition(accent_color),
                                      .action = action_setAccentColor},
-                                 "The colour of the selection, buttons\n"
+                                 "The color of the selection, buttons\n"
                                  "and menu icons, in the menus and the\n"
                                  "RedOnion apps. Silky RedOnion only:\n"
-                                 "other themes keep their own colours.");
+                                 "other themes keep their own colors.");
         list_addItem(&_menu_user_interface,
                      (ListItem){
                          .label = "Blue light filter...",
