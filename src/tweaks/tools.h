@@ -58,9 +58,7 @@ void _runCommandPopup(const char *tool_name, const char *_cmd)
     static char msg_apply[] = "Applying tool...\n \n \n ";
 
     keys_enabled = false;
-    char full_title[STR_MAX];
-    sprintf(full_title, "Tool: %s", tool_name);
-    _toolDialog(full_title, msg_apply, false);
+    _toolDialog(tool_name, msg_apply, false);
 
     char cmd[STR_MAX];
     strncpy(cmd, _cmd, STR_MAX - 1);
@@ -77,12 +75,12 @@ void _runCommandPopup(const char *tool_name, const char *_cmd)
         msleep(300);
         if (!thread_active)
             break;
-        _toolDialog(full_title, msg_apply, true);
+        _toolDialog(tool_name, msg_apply, true);
     }
 
     if (video != NULL)
         msleep(300);
-    _toolDialog(full_title, thread_success ? "Done" : "Tool failed", false);
+    _toolDialog(tool_name, thread_success ? "Done" : "Tool failed", false);
 
     if (video != NULL)
         msleep(1200);
@@ -116,46 +114,46 @@ void _displayM3uTotal()
     char message[28];
     snprintf(message, sizeof(message), "%d playlist files created.", value);
 
-    _toolDialog("M3U Generator", message, false);
+    _toolDialog("Make M3U files", message, false);
     if (video != NULL)
         msleep(1200);
 }
 
 void tool_generateCueFiles(void *pt)
 {
-    _runCommandPopup(tools_short_names[0], "/mnt/SDCARD/.tmp_update/script/cue_gen.sh");
+    _runCommandPopup(tools_names[0], "/mnt/SDCARD/.tmp_update/script/cue_gen.sh");
 }
 
 void tool_generateM3uFiles_sd(void *pt)
 {
-    _runCommandPopup(tools_short_names[1], "/mnt/SDCARD/.tmp_update/script/m3u_gen.sh -sd");
+    _runCommandPopup(tools_names[1], "/mnt/SDCARD/.tmp_update/script/m3u_gen.sh -sd");
     _displayM3uTotal();
 }
 
 void tool_generateM3uFiles_md(void *pt)
 {
-    _runCommandPopup(tools_short_names[2], "/mnt/SDCARD/.tmp_update/script/m3u_gen.sh -md");
+    _runCommandPopup(tools_names[2], "/mnt/SDCARD/.tmp_update/script/m3u_gen.sh -md");
     _displayM3uTotal();
 }
 
 void tool_buildShortRomGameList(void *pt)
 {
-    _runCommandPopup(tools_short_names[3], "./bin/gameNameList /mnt/SDCARD /mnt/SDCARD/BIOS/arcade_lists");
+    _runCommandPopup(tools_names[3], "./bin/gameNameList /mnt/SDCARD /mnt/SDCARD/BIOS/arcade_lists");
 }
 
 void tool_generateMiyoogamelists(void *pt)
 {
-    _runCommandPopup(tools_short_names[4], "/mnt/SDCARD/.tmp_update/script/miyoogamelist_gen.sh");
+    _runCommandPopup(tools_names[4], "/mnt/SDCARD/.tmp_update/script/miyoogamelist_gen.sh");
 }
 
 void tool_sortAppsAZ(void *pt)
 {
-    _runCommandPopup(tools_short_names[5], "/mnt/SDCARD/.tmp_update/script/app_sorter.sh");
+    _runCommandPopup(tools_names[5], "/mnt/SDCARD/.tmp_update/script/app_sorter.sh");
 }
 
 void tool_sortAppsZA(void *pt)
 {
-    _runCommandPopup(tools_short_names[6], "/mnt/SDCARD/.tmp_update/script/app_sorter.sh desc");
+    _runCommandPopup(tools_names[6], "/mnt/SDCARD/.tmp_update/script/app_sorter.sh desc");
 }
 
 void tool_screenRecorder(void *pt)

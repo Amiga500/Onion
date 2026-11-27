@@ -58,7 +58,7 @@ void formatter_appShortcut(void *pt, char *out_label)
     // tools
     value -= installed_apps_count;
     if (value < NUM_TOOLS) {
-        sprintf(out_label, "Tool: %s", tools_short_names[value]);
+        sprintf(out_label, "Tool: %s", tools_names[value]);
         return;
     }
 
