@@ -203,8 +203,9 @@ static inline SDL_Surface *ui_tinted(SDL_Surface *icon, SDL_Color c)
             _ui_tint[i].key == key)
             return _ui_tint[i].tinted ? _ui_tint[i].tinted : icon;
     SDL_Surface *out = NULL;
-    if (SDL_LockSurface(icon) == 0) {
-        bool white = true; // every visible pixel near white: a line icon
+    bool white = false; // every visible pixel near white: a line icon
+    if (icon->format->BytesPerPixel == 4 && SDL_LockSurface(icon) == 0) {
+        white = true;
         for (int y = 0; y < icon->h && white; y++)
             for (int x = 0; x < icon->w; x++) {
                 Uint8 r, g, b, a;
@@ -214,21 +215,35 @@ static inline SDL_Surface *ui_tinted(SDL_Surface *icon, SDL_Color c)
                     break;
                 }
             }
-        if (white)
-            out = SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, icon->w, icon->h, 32,
-                                       0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-        if (out && SDL_LockSurface(out) == 0) {
+        SDL_UnlockSurface(icon);
+    }
+    // Made as resources.h makes the X button (which the device draws
+    // right): ABGR, then told to blit with its own alpha. Without
+    // SDL_SetAlpha the device's SDL drew it as a solid square (4.5.1,
+    // Amiga500's photo): it does not set SDL_SRCALPHA by itself.
+    if (white) {
+        out = SDL_CreateRGBSurface(SDL_SWSURFACE, icon->w, icon->h, 32, 0x000000ff,
+                                   0x0000ff00, 0x00ff0000, 0xff000000);
+        if (out)
+            SDL_SetAlpha(out, SDL_SRCALPHA, 255);
+    }
+    if (out && out->format->BytesPerPixel == 4 && SDL_LockSurface(out) == 0) {
+        if (SDL_LockSurface(icon) == 0) {
             for (int y = 0; y < icon->h; y++) {
                 Uint32 *row = (Uint32 *)((Uint8 *)out->pixels + y * out->pitch);
                 for (int x = 0; x < icon->w; x++) {
                     Uint8 r, g, b, a;
                     SDL_GetRGBA(_ui_getPixel(icon, x, y), icon->format, &r, &g, &b, &a);
-                    row[x] = (Uint32)a << 24 | key;
+                    row[x] = SDL_MapRGBA(out->format, c.r, c.g, c.b, a);
                 }
             }
-            SDL_UnlockSurface(out);
+            SDL_UnlockSurface(icon);
         }
-        SDL_UnlockSurface(icon);
+        SDL_UnlockSurface(out);
+    }
+    else if (out) {
+        SDL_FreeSurface(out);
+        out = NULL;
     }
     int i = _ui_tint_next;
     _ui_tint_next = (_ui_tint_next + 1) % UI_TINT_CACHE;
