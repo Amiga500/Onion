@@ -232,9 +232,11 @@ int main(int argc, char *argv[])
             // A long value or label on the selected row scrolls: redrawn
             // every frame while it does (2-3 px each, list.h), none
             // otherwise. Every 33 ms it was slow or jerky (robcodedev).
-            // When nothing else changed, only that row is drawn and put on
-            // the screen (below): the whole list at every frame was too
-            // much work for 60 a second.
+            // When nothing else changed, only that row is drawn (below):
+            // the whole list at every frame was too much work for 60 a
+            // second. The whole picture still goes to the screen, a
+            // hardware copy: putting out the row's rectangle alone left a
+            // line of the selection above it on the console (MI_GFX).
             bool scroll_frame = theme_listValueScrolling;
             if (isMenu(&_menu_date_time) || isMenu(&_menu_user_blue_light)) {
                 if (isMenu(&_menu_date_time)) {
@@ -264,7 +266,7 @@ int main(int argc, char *argv[])
             if (scroll_frame && !list_changed && !header_changed && !footer_changed && !battery_changed) {
                 SDL_Rect row;
                 if (theme_renderListActiveRow(screen, menu_stack[menu_level], &row)) {
-                    SDL_BlitSurface(screen, &row, video, &row);
+                    SDL_BlitSurface(screen, NULL, video, NULL);
                     SDL_Flip(video);
                     fps_row++;
                 }
