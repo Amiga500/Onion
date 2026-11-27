@@ -204,8 +204,9 @@ static int accent_listPosition(int palette_index)
 // B"). The choice is only saved while on its page, which stays quick; the
 // colour is applied once it is chosen: on leaving the page (B, or another
 // page opened from it), and on leaving Tweaks, where only its pictures are
-// copied (leaving: true), Tweaks has nothing more to draw. MainUI and Kids
-// Mode apply the saved one when they start anyway (runtime.sh).
+// copied (leaving: true), Tweaks has nothing more to draw. While choosing,
+// the colour shows at once where Tweaks draws it (accent_preview). MainUI
+// and Kids Mode apply the saved one when they start anyway (runtime.sh).
 static bool accent_pending = false;
 static List *accent_pending_page = NULL;
 
@@ -227,6 +228,56 @@ void accent_applyPending(bool leaving)
     all_changed = true;
 }
 
+// The accent (first) colour of a palette line (res/accent/palette.txt:
+// "name accent light dark", RRGGBB; comment lines skipped). False when it
+// is not there.
+#define ACCENT_PALETTE "/mnt/SDCARD/.tmp_update/res/accent/palette.txt"
+static bool accent_paletteColour(int index, SDL_Color *out)
+{
+    FILE *fp = fopen(ACCENT_PALETTE, "r");
+    if (fp == NULL)
+        return false;
+    char line[128], name[32];
+    unsigned int rgb;
+    int n = 0;
+    bool found = false;
+    while (fgets(line, sizeof(line), fp)) {
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r')
+            continue;
+        if (n++ != index)
+            continue;
+        if (sscanf(line, "%31s %6x", name, &rgb) == 2) {
+            *out = (SDL_Color){(rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF};
+            found = true;
+        }
+        break;
+    }
+    fclose(fp);
+    return found;
+}
+
+// The colour shows at once on what Tweaks draws in the accent (the
+// selected row, switches, the header badge, SELECT): its pictures follow
+// on leaving the page. Only with Silky RedOnion, the theme it changes.
+static void accent_preview(int palette_index)
+{
+    const char *path = theme()->path;
+    size_t len = strlen(path);
+    while (len > 0 && path[len - 1] == '/')
+        len--;
+    const char *name = path + len;
+    while (name > path && name[-1] != '/')
+        name--;
+    if ((size_t)(path + len - name) != strlen("Silky RedOnion") ||
+        strncmp(name, "Silky RedOnion", path + len - name) != 0)
+        return;
+    SDL_Color c;
+    if (accent_paletteColour(palette_index, &c)) {
+        ui_previewAccent(c);
+        all_changed = true;
+    }
+}
+
 void action_setAccentColor(void *pt)
 {
     int pos = ((ListItem *)pt)->value;
@@ -235,6 +286,7 @@ void action_setAccentColor(void *pt)
     config_setNumber("display/accentColor", ACCENT_ORDER[pos]);
     accent_pending = true;
     accent_pending_page = menu_stack[menu_level];
+    accent_preview(ACCENT_ORDER[pos]);
 }
 
 void action_setLaunchScreen(void *pt)

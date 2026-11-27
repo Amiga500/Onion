@@ -2790,6 +2790,20 @@ check "a saved number the list does not have is red" grep -q "return 0;" "$ROOT/
 # choosing (beta 6). Saved at once, applied on leaving its page or Tweaks.
 check "Tweaks: the colour only saved while choosing" sh -c "sed -n '/^void action_setAccentColor/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'accent_pending = true' && ! sed -n '/^void action_setAccentColor/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'accent_color.sh'"
 check "applied once its page is left" sh -c "sed -n '/^void accent_applyPending/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'menu_stack\[menu_level\] == accent_pending_page'"
+# Nothing applied while choosing left no preview (Amiga500): the colour from
+# the palette shows at once where Tweaks draws the accent; the pictures'
+# own selection is the same colour, so nothing changes when applied.
+check "a preview of the colour while choosing" sh -c "sed -n '/^void action_setAccentColor/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'accent_preview(ACCENT_ORDER\[pos\])'"
+check "the accent drawn in the preview colour" sh -c "sed -n '/^static inline SDL_Color ui_accent(void)/,/^}/p' '$ROOT/src/common/theme/render/unified.h' | grep -q 'return _ui_accent_preview_colour'"
+check "ended once the pictures are reloaded" sh -c "sed -n '/^static inline void ui_resetColors(void)/,/^}/p' '$ROOT/src/common/theme/render/unified.h' | grep -q '_ui_accent_preview = false'"
+check "only with Silky RedOnion" sh -c "sed -n '/^static void accent_preview/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'Silky RedOnion'"
+for c in $(grep -v '^#' "$RES/palette.txt" | cut -d' ' -f1); do
+    pal=$(grep "^$c " "$RES/palette.txt" | cut -d' ' -f2)
+    if [ "$c" = red ]; then f="$ROOT/static/build/Themes/Silky RedOnion/skin/bg-list-s.png"; else f="$RES/$c/skin/bg-list-s.png"; fi
+    mid=$(python3 -c "from PIL import Image; i=Image.open('$f').convert('RGB'); print('%02X%02X%02X' % i.getpixel((i.width//2, i.height//2)))" 2> /dev/null)
+    [ -z "$mid" ] || [ "$mid" = "$pal" ] || echo "$c: palette $pal, picture $mid" >> "$TMP/accent_mid"
+done
+check "the preview colour is the pictures' own (every colour)" test ! -e "$TMP/accent_mid"
 check "Tweaks: checked in its loop before all_changed is read, and on leaving" sh -c "awk '/accent_applyPending\(false\);/ { a = NR } /if \(all_changed\) \{/ && !b { b = NR } END { exit !(a && b && a < b) }' '$ROOT/src/tweaks/tweaks.c' && grep -q 'accent_applyPending(true);' '$ROOT/src/tweaks/tweaks.c'"
 # White text on the selection: as readable as on the first six (4.5:1 or more)
 grep -v '^#' "$RES/palette.txt" | while read -r n a l d; do

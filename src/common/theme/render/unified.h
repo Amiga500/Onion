@@ -61,9 +61,23 @@ static inline SDL_Color ui_sampleColor(SDL_Surface *s, SDL_Color fallback)
 // accent colour changes the theme images).
 static bool _ui_accent_done = false, _ui_bar_done = false;
 
+// Tweaks' accent colour preview: while a colour is chosen, what is drawn
+// in the accent (the selection, switches, badges) shows it at once; its
+// pictures follow once it is applied (ui_resetColors ends the preview).
+static bool _ui_accent_preview = false;
+static SDL_Color _ui_accent_preview_colour;
+
+static inline void ui_previewAccent(SDL_Color c)
+{
+    _ui_accent_preview = true;
+    _ui_accent_preview_colour = c;
+}
+
 static inline SDL_Color ui_accent(void)
 {
     static SDL_Color c;
+    if (_ui_accent_preview)
+        return _ui_accent_preview_colour;
     if (!_ui_accent_done) {
         c = ui_sampleColor(resource_getSurface(BG_LIST_S), (SDL_Color){168, 41, 74});
         _ui_accent_done = true;
@@ -85,6 +99,7 @@ static inline void ui_resetColors(void)
 {
     _ui_accent_done = false;
     _ui_bar_done = false;
+    _ui_accent_preview = false;
 }
 
 static inline Uint32 ui_map(SDL_Surface *screen, SDL_Color c)
