@@ -146,8 +146,7 @@ static int _theme_renderListDescRight(SDL_Surface *screen, const char *desc,
 {
     if (desc == NULL || desc[0] == '\0')
         return right_x;
-    SDL_Color c = active ? (SDL_Color){255, 255, 255}
-                         : (SDL_Color){UI_GREY_R, UI_GREY_G, UI_GREY_B};
+    SDL_Color c = active ? ui_onAccent() : ui_secondary();
     SDL_Surface *text = TTF_RenderUTF8_Blended(_theme_listDescFont(), desc, c);
     if (text == NULL)
         return right_x;
@@ -416,7 +415,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         int offset_x = scaled_20;
 
         if (item->icon_ptr != NULL) {
-            SDL_Surface *icon = (SDL_Surface *)item->icon_ptr;
+            SDL_Surface *icon = ui_tinted((SDL_Surface *)item->icon_ptr,
+                                          ui_iconColour(i == list->active_pos));
             if (icon->w > 1) {
                 SDL_Rect icon_rect = {offset_x, item_center_y - icon->h / 2};
                 SDL_BlitSurface(icon, NULL, screen, &icon_rect);
@@ -432,7 +432,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         }
         else if (item->item_type == ACTION &&
                  (ui_opensPage(item->label) || (list_small && item->description[0] != '\0'))) {
-            SDL_Color c = i == list->active_pos ? (SDL_Color){255, 255, 255}
+            SDL_Color c = i == list->active_pos ? ui_onAccent()
+                          : ui_lightList()      ? ui_secondary()
                                                 : (SDL_Color){122, 122, 128};
             int half = 7.0 * g_scale;
             ui_drawChevron(screen, scaled_620 - 2, item_center_y, half, 1, ui_map(screen, c));
@@ -456,7 +457,7 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
             label_end = arrow_left_pos.x;
             const SDL_Color value_color = i == list->active_pos
                                               ? list_color
-                                              : (SDL_Color){UI_GREY_R, UI_GREY_G, UI_GREY_B};
+                                              : ui_secondary();
 
             // Cache MULTIVALUE label — only re-render when value or color changes
             /* Miyoo SDL_Color is RGB-only (no unused/.a field). */

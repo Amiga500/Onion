@@ -394,6 +394,7 @@ static int _theme_renderHeaderTitle(SDL_Surface *screen, SDL_Surface *title,
         ui_fillRoundRect(screen, badge, 8.0 * g_scale, ui_map(screen, ui_accent()));
         SDL_Surface *icon = _header_icon(title_str);
         if (icon) {
+            icon = ui_tinted(icon, ui_onAccent()); // dark on a light badge
             SDL_Rect ir = {badge.x + (size - icon->w) / 2, cy - icon->h / 2};
             SDL_BlitSurface(icon, NULL, screen, &ir);
             return _theme_renderHeaderTitleText(screen, title, x + size + 12.0 * g_scale);
@@ -406,7 +407,7 @@ static int _theme_renderHeaderTitle(SDL_Surface *screen, SDL_Surface *title,
                 SDL_FreeSurface(_cached_header_badge);
             char text[2] = {letter, '\0'};
             _cached_header_badge = TTF_RenderUTF8_Blended(resource_getFont(TITLE), text,
-                                                          (SDL_Color){255, 255, 255});
+                                                          ui_onAccent());
             _cached_header_badge_char = letter;
         }
         if (_cached_header_badge) {
@@ -459,7 +460,9 @@ static int _header_pathWidth(const char *const *levels, int count, int from)
 
 static int _header_pathPiece(SDL_Surface *screen, const char *text, int x, int baseline)
 {
-    SDL_Color grey = {163, 163, 168};
+    // the earlier levels: grey, darker on a light bar
+    SDL_Color grey = ui_luma(ui_bar()) > 170 ? (SDL_Color){100, 100, 106}
+                                             : (SDL_Color){163, 163, 168};
     char shown[STR_MAX];
     SDL_Surface *piece = TTF_RenderUTF8_Blended(_header_path_font, ui_pageTitle(text, shown, sizeof(shown)), grey);
     if (piece == NULL)

@@ -16,11 +16,16 @@
 #define FOOTER_FILL_PILL(screen, rect) \
     ui_fillRoundRect((screen), (rect), (rect).h / 2, ui_map((screen), ui_accent()))
 #endif
-// The page pill: "<" and ">" drawn in it, white.
+// The page pill: "<" and ">" drawn in it, in FOOTER_ON_ACCENT's colour.
 #ifndef FOOTER_DRAW_CHEVRON
 #include "./unified.h"
 #define FOOTER_DRAW_CHEVRON(screen, x, cy, half, dir) \
-    ui_drawChevron((screen), (x), (cy), (half), (dir), ui_map((screen), (SDL_Color){255, 255, 255}))
+    ui_drawChevron((screen), (x), (cy), (half), (dir), ui_map((screen), FOOTER_ON_ACCENT()))
+#endif
+// What is written on the pills: white, dark on a light selection colour.
+#ifndef FOOTER_ON_ACCENT
+#include "./unified.h"
+#define FOOTER_ON_ACCENT() ui_onAccent()
 #endif
 #ifndef FOOTER_PILL_FONT
 // The theme's hint font, smaller, to fit the pill; the hint font itself
@@ -144,7 +149,7 @@ static SDL_Surface *_footer_selectWord(void)
 {
     if (_cached_select_word == NULL)
         _cached_select_word = TTF_RenderUTF8_Blended(FOOTER_PILL_FONT(), "SELECT",
-                                                     (SDL_Color){255, 255, 255});
+                                                     FOOTER_ON_ACCENT());
     return _cached_select_word;
 }
 

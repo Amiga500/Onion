@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "theme/config.h"
+#include "theme/background.h"
 #include "theme/resources.h"
 
 #define UI_GREY_R 163
@@ -100,6 +101,145 @@ static inline void ui_resetColors(void)
     _ui_accent_done = false;
     _ui_bar_done = false;
     _ui_accent_preview = false;
+}
+
+// Themes other than dark ones: the white icons, the white words on the
+// selection and the grey descriptions of the new look could hardly be seen
+// on a light list (NanoSwitch: white list, light grey selection, #424242
+// text; 4.5.1, Amiga500's photo), and the grey descriptions not at all on a
+// coloured one (PSPmini Blue, Poketch...). On a dark list (Silky RedOnion)
+// the colours stay as designed; on any other the theme's own list text
+// colour is used, which the theme made to be read on it.
+static inline int ui_luma(SDL_Color c)
+{
+    return (c.r * 299 + c.g * 587 + c.b * 114) / 1000;
+}
+
+// The mean brightness of the background behind the list (y 60 to 420),
+// found once per background picture.
+static inline int ui_listBackgroundLuma(void)
+{
+    static SDL_Surface *seen = NULL;
+    static int luma = 0;
+    SDL_Surface *bg = theme_background();
+    if (bg == NULL)
+        return 0;
+    if (bg == seen)
+        return luma;
+    seen = bg;
+    luma = 0;
+    long sum = 0, n = 0;
+    if (SDL_MUSTLOCK(bg) && SDL_LockSurface(bg) != 0)
+        return 0;
+    int step = 8;
+    for (int y = 60.0 * g_scale; y < 420.0 * g_scale && y < bg->h; y += step)
+        for (int x = 0; x < bg->w; x += step) {
+            Uint8 r, g, b;
+            SDL_GetRGB(_ui_getPixel(bg, x, y), bg->format, &r, &g, &b);
+            sum += (r * 299 + g * 587 + b * 114) / 1000;
+            n++;
+        }
+    if (SDL_MUSTLOCK(bg))
+        SDL_UnlockSurface(bg);
+    luma = n ? (int)(sum / n) : 0;
+    return luma;
+}
+
+// A dark list (the new look's own case): grey and white as designed.
+static inline bool ui_darkList(void)
+{
+    return ui_listBackgroundLuma() < 70;
+}
+
+// Kept for the callers: a list that is not dark.
+static inline bool ui_lightList(void)
+{
+    return !ui_darkList();
+}
+
+// What is drawn on the selection (accent): white, or dark on a light one.
+static inline SDL_Color ui_onAccent(void)
+{
+    if (ui_luma(ui_accent()) <= 170)
+        return (SDL_Color){255, 255, 255};
+    SDL_Color t = theme()->list.color;
+    return ui_luma(t) < 110 ? t : (SDL_Color){28, 28, 30};
+}
+
+// Descriptions and values beside the rows: grey on a dark list, else the
+// theme's list text colour.
+static inline SDL_Color ui_secondary(void)
+{
+    return ui_darkList() ? (SDL_Color){UI_GREY_R, UI_GREY_G, UI_GREY_B}
+                         : theme()->list.color;
+}
+
+// A row's line icon: white on a dark list, else the list's text colour;
+// the colour on the selection for the selected row.
+static inline SDL_Color ui_iconColour(bool selected)
+{
+    if (selected)
+        return ui_onAccent();
+    return ui_darkList() ? (SDL_Color){255, 255, 255} : theme()->list.color;
+}
+
+// A white line icon in colour c (a copy, kept): the icon itself when c is
+// white, or when the icon is not white (a picture, a coloured icon).
+#define UI_TINT_CACHE 32
+static struct {
+    SDL_Surface *src, *tinted;
+    int w, h;
+    Uint32 key;
+} _ui_tint[UI_TINT_CACHE];
+static int _ui_tint_next = 0;
+
+static inline SDL_Surface *ui_tinted(SDL_Surface *icon, SDL_Color c)
+{
+    if (icon == NULL || (c.r == 255 && c.g == 255 && c.b == 255))
+        return icon;
+    Uint32 key = (Uint32)c.r << 16 | (Uint32)c.g << 8 | c.b;
+    for (int i = 0; i < UI_TINT_CACHE; i++)
+        if (_ui_tint[i].src == icon && _ui_tint[i].w == icon->w && _ui_tint[i].h == icon->h &&
+            _ui_tint[i].key == key)
+            return _ui_tint[i].tinted ? _ui_tint[i].tinted : icon;
+    SDL_Surface *out = NULL;
+    if (SDL_LockSurface(icon) == 0) {
+        bool white = true; // every visible pixel near white: a line icon
+        for (int y = 0; y < icon->h && white; y++)
+            for (int x = 0; x < icon->w; x++) {
+                Uint8 r, g, b, a;
+                SDL_GetRGBA(_ui_getPixel(icon, x, y), icon->format, &r, &g, &b, &a);
+                if (a > 32 && (r < 200 || g < 200 || b < 200)) {
+                    white = false;
+                    break;
+                }
+            }
+        if (white)
+            out = SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, icon->w, icon->h, 32,
+                                       0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+        if (out && SDL_LockSurface(out) == 0) {
+            for (int y = 0; y < icon->h; y++) {
+                Uint32 *row = (Uint32 *)((Uint8 *)out->pixels + y * out->pitch);
+                for (int x = 0; x < icon->w; x++) {
+                    Uint8 r, g, b, a;
+                    SDL_GetRGBA(_ui_getPixel(icon, x, y), icon->format, &r, &g, &b, &a);
+                    row[x] = (Uint32)a << 24 | key;
+                }
+            }
+            SDL_UnlockSurface(out);
+        }
+        SDL_UnlockSurface(icon);
+    }
+    int i = _ui_tint_next;
+    _ui_tint_next = (_ui_tint_next + 1) % UI_TINT_CACHE;
+    if (_ui_tint[i].tinted)
+        SDL_FreeSurface(_ui_tint[i].tinted);
+    _ui_tint[i].src = icon;
+    _ui_tint[i].w = icon->w;
+    _ui_tint[i].h = icon->h;
+    _ui_tint[i].key = key;
+    _ui_tint[i].tinted = out;
+    return out ? out : icon;
 }
 
 static inline Uint32 ui_map(SDL_Surface *screen, SDL_Color c)

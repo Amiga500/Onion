@@ -29,6 +29,7 @@ static int pill_fills = 0;
 static SDL_Rect last_pill;
 #define FOOTER_FILL_PILL(screen, rect) (pill_fills++, last_pill = (rect))
 #define FOOTER_PILL_FONT() resource_getFont(HINT)
+#define FOOTER_ON_ACCENT() ((SDL_Color){255, 255, 255})
 /* The page pill's chevrons: where they are drawn, and which way. */
 static int chevrons = 0, chevron_x[4], chevron_dir[4];
 #define FOOTER_DRAW_CHEVRON(screen, x, cy, half, dir) \
