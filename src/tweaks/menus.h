@@ -648,15 +648,13 @@ void menu_lookAndFeel(void *_)
                          .action = menu_icons});
         int accent_color = 0;
         config_get("display/accentColor", CONFIG_INT, &accent_color);
-        if (accent_color < 0 || accent_color > 5)
-            accent_color = 0;
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
                                      .label = "Accent colour",
                                      .item_type = MULTIVALUE,
-                                     .value_max = 5,
-                                     .value_labels = {"Red", "Blue", "Purple", "Teal", "Pink", "Orange"},
-                                     .value = accent_color,
+                                     .value_max = ACCENT_COUNT - 1,
+                                     .value_labels = {"Red", "Orange", "Gold", "Green", "Teal", "Blue", "Purple", "Pink", "Graphite"},
+                                     .value = accent_listPosition(accent_color),
                                      .action = action_setAccentColor},
                                  "The colour of the selection, buttons\n"
                                  "and menu icons, in the menus and the\n"

@@ -2731,9 +2731,30 @@ SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_
 check "nothing changed (every MainUI start): no program at all" test ! -s "$TMP/count/log"
 unset -f ac silky_json
 # the colours and the pictures
-check "palette: six colours in the Tweaks order" test "$(grep -v '^#' "$RES/palette.txt" | cut -d' ' -f1 | tr '\n' ' ')" = "red blue purple teal pink orange "
-check "the Tweaks labels in the same order" grep -q '.value_labels = {"Red", "Blue", "Purple", "Teal", "Pink", "Orange"}' "$ROOT/src/tweaks/menus.h"
-for c in blue purple teal pink orange; do
+check "palette: the saved numbers' order, new colours at the end" test "$(grep -v '^#' "$RES/palette.txt" | cut -d' ' -f1 | tr '\n' ' ')" = "red blue purple teal pink orange green gold graphite "
+check "Tweaks: the colours in rainbow order" grep -q '.value_labels = {"Red", "Orange", "Gold", "Green", "Teal", "Blue", "Purple", "Pink", "Graphite"}' "$ROOT/src/tweaks/menus.h"
+# Each row of Tweaks saves the number of the colour it names
+order=$(sed -n 's/^static const int ACCENT_ORDER\[\] = {\(.*\)};$/\1/p' "$ROOT/src/tweaks/actions.h" | tr -d ' ')
+labels=$(sed -n 's/.*\.value_labels = {\("Red", "Orange".*\)},$/\1/p' "$ROOT/src/tweaks/menus.h" | tr -d '" ' | tr 'A-Z' 'a-z')
+palette=$(grep -v '^#' "$RES/palette.txt" | cut -d' ' -f1 | tr '\n' ' ')
+i=1
+for n in $(echo "$order" | tr ',' ' '); do
+    label=$(echo "$labels" | cut -d, -f$i)
+    name=$(echo "$palette" | cut -d' ' -f$((n + 1)))
+    [ "$label" = "$name" ] || echo "row $i: $label saves $name" >> "$TMP/accent_map"
+    i=$((i + 1))
+done
+check "every row saves the colour it names (red, orange, gold...)" test ! -e "$TMP/accent_map" -a "$i" -eq 10
+check "a saved number the list does not have is red" grep -q "return 0;" "$ROOT/src/tweaks/actions.h"
+# White text on the selection: as readable as on the first six (4.5:1 or more)
+grep -v '^#' "$RES/palette.txt" | while read -r n a l d; do
+    awk -v h="$a" 'function lin(c) { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ^ 2.4 }
+        function hx(s,  i, v) { v = 0; for (i = 1; i <= 2; i++) v = v * 16 + index("0123456789ABCDEF", substr(s, i, 1)) - 1; return v }
+        BEGIN { L = 0.2126 * lin(hx(substr(h, 1, 2))) + 0.7152 * lin(hx(substr(h, 3, 2))) + 0.0722 * lin(hx(substr(h, 5, 2)))
+                exit (1.05 / (L + 0.05) >= 4.5 ? 0 : 1) }' || echo "$n" >> "$TMP/accent_dim"
+done
+check "white text reads on every colour's selection (4.5:1)" test ! -e "$TMP/accent_dim"
+for c in blue purple teal pink orange green gold graphite; do
     [ -f "$RES/$c/skin/bg-list-s.png" ] && [ -f "$RES/$c/skin/icon-A-54.png" ] && [ -f "$RES/$c/skin/ic-game-f.png" ] || echo "$c" >> "$TMP/missing"
     [ "$(cd "$RES/$c" && find skin -type f | sort | cksum)" = "$(cd "$RES/blue" && find skin -type f | sort | cksum)" ] || echo "$c" >> "$TMP/differ"
 done

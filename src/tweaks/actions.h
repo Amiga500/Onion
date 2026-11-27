@@ -180,9 +180,28 @@ void action_setLowBatteryAutoSave(void *pt)
 // applied at once: script/accent_color.sh puts the theme images in the
 // colour into the theme overrides, then Tweaks loads them again and is
 // drawn in it. MainUI and the other programs read them when they start.
+// Tweaks lists the accent colours in rainbow order; the number saved is the
+// colour's line in res/accent/palette.txt (red, blue, purple, teal, pink,
+// orange, green, gold, graphite), where new colours are added at the end so
+// a saved choice keeps its colour.
+static const int ACCENT_ORDER[] = {0, 5, 7, 6, 3, 1, 2, 4, 8};
+#define ACCENT_COUNT ((int)(sizeof(ACCENT_ORDER) / sizeof(ACCENT_ORDER[0])))
+
+// The row of Tweaks' list for a saved colour (red for an unknown one)
+static int accent_listPosition(int palette_index)
+{
+    for (int i = 0; i < ACCENT_COUNT; i++)
+        if (ACCENT_ORDER[i] == palette_index)
+            return i;
+    return 0;
+}
+
 void action_setAccentColor(void *pt)
 {
-    config_setNumber("display/accentColor", ((ListItem *)pt)->value);
+    int pos = ((ListItem *)pt)->value;
+    if (pos < 0 || pos >= ACCENT_COUNT)
+        pos = 0;
+    config_setNumber("display/accentColor", ACCENT_ORDER[pos]);
     system("sh /mnt/SDCARD/.tmp_update/script/accent_color.sh");
     resources_reloadImages();
     ui_resetColors();

@@ -40,8 +40,18 @@ COLOURS = {
     "teal": "1F7A75",
     "pink": "A83A78",
     "orange": "B5541C",
+    # Added in 4.5.1 beta 7: the gaps in the hues (green, yellow) and a
+    # neutral. Green and gold darkened until white text on the selection
+    # reads as well as on the others (contrast 4.5:1 or more); black was
+    # left out, invisible on the theme's near-black background.
+    "green": "39853C",
+    "gold": "917016",
+    "graphite": "5E6470",
 }
-ORDER = ["red", "blue", "purple", "teal", "pink", "orange"]
+# palette.txt's order: the number saved by Tweaks (config/display/accentColor)
+# is a line of it, so new colours go at the end and a saved choice keeps its
+# colour. Tweaks shows them in rainbow order (ACCENT_ORDER in actions.h).
+ORDER = ["red", "blue", "purple", "teal", "pink", "orange", "green", "gold", "graphite"]
 
 # Theme images left red: the full-screen brand art and the empty battery,
 # red as a warning whatever the accent. The top bars' logo (miyoo-topbar,
