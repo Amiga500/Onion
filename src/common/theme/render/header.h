@@ -93,6 +93,8 @@ static bool _header_classic = false;
 // title longer than the room left of it starts after it instead (TechDweeb
 // Orange's logo reaches x 250: "Game lists: scrolling" still began over it)
 static int _header_art_end = 0;
+// the bar's mean colour as drawn (the background, then bg-title)
+static SDL_Color _header_bar_mean = {28, 28, 30};
 
 // The bar's own picture (bg-title, without the background under it): the
 // last column of the block its art starts with, before gap px with none,
@@ -170,6 +172,7 @@ static bool _header_titlebarHasArt(void)
     _header_checked_bg = bg;
     _header_classic = false;
     _header_art_end = 0;
+    _header_bar_mean = (SDL_Color){28, 28, 30};
     SDL_Rect area = theme_scaleRect((SDL_Rect){0, 0, 640, 60});
     SDL_Surface *seen = SDL_CreateRGBSurface(SDL_SWSURFACE, area.w, area.h, 32,
                                              0x00FF0000, 0x0000FF00, 0x000000FF, 0);
@@ -180,8 +183,11 @@ static bool _header_titlebarHasArt(void)
         SDL_BlitSurface(bg, &area, seen, NULL);
     if (bar)
         SDL_BlitSurface(bar, &area, seen, NULL);
-    int sharp = 0, pairs = 0;
+    int sharp = 0, pairs = 0, lsharp = 0, lpairs = 0;
     int x0 = 16.0 * g_scale, x1 = 360.0 * g_scale, step = 2;
+    // the left end, where the badge and the path start
+    int lx0 = 8.0 * g_scale, lx1 = 120.0 * g_scale;
+    long mr = 0, mg = 0, mb = 0, mn = 0;
     if (x1 > seen->w - step)
         x1 = seen->w - step;
     // the art's end: from the first column with sharp steps, the last one
@@ -201,6 +207,10 @@ static bool _header_titlebarHasArt(void)
                 Uint32 c = ((const Uint32 *)((Uint8 *)seen->pixels + y * seen->pitch))[x];
                 sum += (((c >> 16) & 0xFF) * 299 + ((c >> 8) & 0xFF) * 587 + (c & 0xFF) * 114) / 1000;
                 n++;
+                mr += (c >> 16) & 0xFF;
+                mg += (c >> 8) & 0xFF;
+                mb += c & 0xFF;
+                mn++;
             }
             bright[columns++] = n ? sum / n : 0;
         }
@@ -217,6 +227,10 @@ static bool _header_titlebarHasArt(void)
                     sharp += d > 80;
                     pairs++;
                 }
+                if (x >= lx0 && x < lx1) {
+                    lsharp += d > 80;
+                    lpairs++;
+                }
             }
             if (column > 0 && (last < 0 || x - last <= gap)) {
                 if (first < 0)
@@ -227,8 +241,12 @@ static bool _header_titlebarHasArt(void)
         SDL_UnlockSurface(seen);
     }
     SDL_FreeSurface(seen);
-    // more than 4 in 100 sharp steps: lines, letters, a picture
-    _header_classic = pairs > 0 && sharp * 25 > pairs;
+    if (mn > 0)
+        _header_bar_mean = (SDL_Color){mr / mn, mg / mn, mb / mn};
+    // more than 4 in 100 sharp steps: lines, letters, a picture; or more
+    // than 5 in 100 at the left end alone: a small logo where the badge
+    // goes (OOSFC, AmalgaM, MiNook Mini, PICO-DEV, of the 248 themes)
+    _header_classic = (pairs > 0 && sharp * 25 > pairs) || (lpairs > 0 && lsharp * 20 > lpairs);
     if (_header_classic) {
         // where the art ends: from the bar's own picture when it has a
         // block on the left, else from the bar as drawn
@@ -310,6 +328,18 @@ static void _header_classicTitle(SDL_Surface *screen, SDL_Surface *title, const 
     SDL_BlitSurface(shown, &crop, screen, &r);
 }
 
+// A theme that hides its title (size 0 or 1, as gry64 and Zelda Oracle;
+// or its colour that of the bar, as less's black on black) gets no badge,
+// path or title either: they showed alone over its art (the 248 themes).
+static bool _header_titleHidden(void)
+{
+    _header_titlebarHasArt();
+    if (theme()->title.size <= 2)
+        return true;
+    SDL_Color t = theme()->title.color, b = _header_bar_mean;
+    return abs(t.r - b.r) + abs(t.g - b.g) + abs(t.b - b.b) < 40;
+}
+
 /* The icon drawn in the badge for a title: res/icons/ui/<name>.png (a theme
  * can ship its own as skin/extra/icons/ui/<name>.png). Titles not listed
  * keep their first letter. */
@@ -377,6 +407,8 @@ static int _theme_renderHeaderTitle(SDL_Surface *screen, SDL_Surface *title,
                                     const char *title_str, bool show_logo)
 {
     int x = 16.0 * g_scale, cy = 30.0 * g_scale;
+    if (!show_logo && _header_titleHidden())
+        return x; // the theme hides its title: nothing over its bar
     if (!show_logo && _header_titlebarHasArt()) {
         // centered, no badge (see _header_titlebarHasArt)
         _header_classicTitle(screen, title, title_str);
@@ -461,8 +493,9 @@ static int _header_pathWidth(const char *const *levels, int count, int from)
 static int _header_pathPiece(SDL_Surface *screen, const char *text, int x, int baseline)
 {
     // the earlier levels: grey, darker on a light bar
-    SDL_Color grey = ui_luma(ui_bar()) > 170 ? (SDL_Color){100, 100, 106}
-                                             : (SDL_Color){163, 163, 168};
+    _header_titlebarHasArt();
+    SDL_Color grey = ui_luma(_header_bar_mean) > 150 ? (SDL_Color){100, 100, 106}
+                                                     : (SDL_Color){163, 163, 168};
     char shown[STR_MAX];
     SDL_Surface *piece = TTF_RenderUTF8_Blended(_header_path_font, ui_pageTitle(text, shown, sizeof(shown)), grey);
     if (piece == NULL)
@@ -492,6 +525,8 @@ void theme_renderHeaderPath(SDL_Surface *screen, const char *const *levels, int 
         return;
     }
     theme_renderHeaderBackground(screen);
+    if (_header_titleHidden())
+        return; // the theme hides its title: nothing over its bar
     const char *current = levels[count - 1];
     if (strcmp(current, _cached_header_title_str) != 0) {
         if (_cached_header_title)

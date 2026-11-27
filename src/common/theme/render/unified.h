@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "theme/config.h"
@@ -74,13 +75,67 @@ static inline void ui_previewAccent(SDL_Color c)
     _ui_accent_preview_colour = c;
 }
 
+// The mean colour of the background behind the list (y 60 to 420), found
+// once per background picture.
+static inline SDL_Color ui_listBackgroundMean(void)
+{
+    static SDL_Surface *seen = NULL;
+    static SDL_Color mean = {0, 0, 0};
+    SDL_Surface *bg = theme_background();
+    if (bg == NULL)
+        return (SDL_Color){0, 0, 0};
+    if (bg == seen)
+        return mean;
+    seen = bg;
+    mean = (SDL_Color){0, 0, 0};
+    long r_sum = 0, g_sum = 0, b_sum = 0, n = 0;
+    if (SDL_MUSTLOCK(bg) && SDL_LockSurface(bg) != 0)
+        return mean;
+    int step = 8;
+    for (int y = 60.0 * g_scale; y < 420.0 * g_scale && y < bg->h; y += step)
+        for (int x = 0; x < bg->w; x += step) {
+            Uint8 r, g, b;
+            SDL_GetRGB(_ui_getPixel(bg, x, y), bg->format, &r, &g, &b);
+            r_sum += r;
+            g_sum += g;
+            b_sum += b;
+            n++;
+        }
+    if (SDL_MUSTLOCK(bg))
+        SDL_UnlockSurface(bg);
+    if (n)
+        mean = (SDL_Color){r_sum / n, g_sum / n, b_sum / n};
+    return mean;
+}
+
+static inline int _ui_colourDistance(SDL_Color a, SDL_Color b)
+{
+    return abs(a.r - b.r) + abs(a.g - b.g) + abs(a.b - b.b);
+}
+
+// The selection colour when the middle of bg-list-s is the list's own
+// colour (80 of the 248 themes: an outline, a glow, a picture whose middle
+// is see-through or the background's): the selection did not show. Then it
+// is moved a quarter of the way toward the list's text colour: dark grey
+// on a black list with white text, mid grey on NanoSwitch's light one.
+// The theme's text on it stays readable, which the border or glow colour
+// did not (white on white on 2CleanMini, TMNT, sharp...).
+static inline SDL_Color _ui_visibleSelection(SDL_Color c)
+{
+    if (_ui_colourDistance(c, ui_listBackgroundMean()) >= 60)
+        return c;
+    SDL_Color t = theme()->list.color;
+    return (SDL_Color){(c.r * 3 + t.r) / 4, (c.g * 3 + t.g) / 4, (c.b * 3 + t.b) / 4};
+}
+
 static inline SDL_Color ui_accent(void)
 {
     static SDL_Color c;
     if (_ui_accent_preview)
         return _ui_accent_preview_colour;
     if (!_ui_accent_done) {
-        c = ui_sampleColor(resource_getSurface(BG_LIST_S), (SDL_Color){168, 41, 74});
+        c = _ui_visibleSelection(
+            ui_sampleColor(resource_getSurface(BG_LIST_S), (SDL_Color){168, 41, 74}));
         _ui_accent_done = true;
     }
     return c;
@@ -115,34 +170,11 @@ static inline int ui_luma(SDL_Color c)
     return (c.r * 299 + c.g * 587 + c.b * 114) / 1000;
 }
 
-// The mean brightness of the background behind the list (y 60 to 420),
-// found once per background picture.
+// The mean brightness of the background behind the list.
 static inline int ui_listBackgroundLuma(void)
 {
-    static SDL_Surface *seen = NULL;
-    static int luma = 0;
-    SDL_Surface *bg = theme_background();
-    if (bg == NULL)
-        return 0;
-    if (bg == seen)
-        return luma;
-    seen = bg;
-    luma = 0;
-    long sum = 0, n = 0;
-    if (SDL_MUSTLOCK(bg) && SDL_LockSurface(bg) != 0)
-        return 0;
-    int step = 8;
-    for (int y = 60.0 * g_scale; y < 420.0 * g_scale && y < bg->h; y += step)
-        for (int x = 0; x < bg->w; x += step) {
-            Uint8 r, g, b;
-            SDL_GetRGB(_ui_getPixel(bg, x, y), bg->format, &r, &g, &b);
-            sum += (r * 299 + g * 587 + b * 114) / 1000;
-            n++;
-        }
-    if (SDL_MUSTLOCK(bg))
-        SDL_UnlockSurface(bg);
-    luma = n ? (int)(sum / n) : 0;
-    return luma;
+    SDL_Color c = ui_listBackgroundMean();
+    return (c.r * 299 + c.g * 587 + c.b * 114) / 1000;
 }
 
 // A dark list (the new look's own case): grey and white as designed.
@@ -157,13 +189,17 @@ static inline bool ui_lightList(void)
     return !ui_darkList();
 }
 
-// What is drawn on the selection (accent): white, or dark on a light one.
+// What is drawn on the selection (accent): the theme's list text colour,
+// as the row's own name, when it stands out on it (white on Silky
+// RedOnion's colours and the stock orange, #424242 on NanoSwitch's light
+// grey); else white, or dark on a light selection.
 static inline SDL_Color ui_onAccent(void)
 {
-    if (ui_luma(ui_accent()) <= 170)
-        return (SDL_Color){255, 255, 255};
     SDL_Color t = theme()->list.color;
-    return ui_luma(t) < 110 ? t : (SDL_Color){28, 28, 30};
+    int a = ui_luma(ui_accent());
+    if (abs(ui_luma(t) - a) >= 50)
+        return t;
+    return a > 140 ? (SDL_Color){28, 28, 30} : (SDL_Color){255, 255, 255};
 }
 
 // Descriptions and values beside the rows: grey on a dark list, else the

@@ -82,7 +82,10 @@ static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
                                          int label_end, bool disabled,
                                          bool is_active, bool was_scrolling)
 {
-    uint32_t hash = _label_hash_fnv1a(item->label);
+    // the colour is part of the key: the selected row's name can be drawn
+    // in another colour than the others (ui_onAccent)
+    uint32_t hash = _label_hash_fnv1a(item->label) ^
+                    (((uint32_t)fg.r << 16 | (uint32_t)fg.g << 8 | fg.b) * 2654435761u);
     if (item->_label_cache == NULL || item->_label_hash != hash) {
         if (item->_label_cache != NULL)
             SDL_FreeSurface((SDL_Surface *)item->_label_cache);
@@ -514,7 +517,11 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         }
 
         // Use cached label rendering for main item label (avoids TTF_RenderUTF8 per frame)
-        _theme_renderListLabelCached(screen, item, list_color,
+        // the selected row's name: the theme's list colour, or what stands
+        // out on the selection when it does not (ui_onAccent; the same on
+        // Silky RedOnion)
+        _theme_renderListLabelCached(screen, item,
+                                     i == list->active_pos ? ui_onAccent() : list_color,
                                      offset_x, item_bg_rect.y + label_y,
                                      label_end, show_disabled,
                                      i == list->active_pos, was_scrolling);
