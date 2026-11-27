@@ -45,10 +45,11 @@ This beta brings the **release candidate 11 of Open MainUI 1.1.1** by @robcodede
 
 ### 🎮 Open MainUI 1.1.1 rc11
 
-- MainUI can now keep the exact screen it is on when it is asked to close, and open it again: RedOnion will use it to bring you back from the GameSwitcher in a coming build.
+- **Back from the GameSwitcher, MainUI is where you left it:** MainUI can now keep the exact screen it is on, with the list position, when it is asked to close, and RedOnion now asks it that way when it opens the GameSwitcher or resumes your last game. Thanks to robcodedev.
 - **Settings › Sleep** has its own icon (a moon), no longer About's.
 - **Expert:** the names under the icons are bigger with the Silky RedOnion theme (22 instead of 18), still inside their boxes. Thanks to robcodedev.
 - Lumination, when `system.json` has none, is your model's default (7 on the Mini and Mini v4, 10 on the Mini+ and Mini Flip): it was 7 on every model.
+- **Silky RedOnion:** the selected row of a context menu is rounded at both ends (it was cut off on the right). Thanks to robcodedev.
 
 ### 📜 Game lists
 
@@ -64,6 +65,14 @@ This beta brings the **release candidate 11 of Open MainUI 1.1.1** by @robcodede
 - **Clearer first-time setup** (Mini+ and Mini Flip, PMIC page): "Set counter to 100% (battery full now)" now needs a saved capacity first: it only sets the counter, but read as if it saved the battery capacity. Battery Capacity shows **Not saved** in orange until you save it. **Enable capacity learning** with no capacity saved now saves it for you (the button reads "[A] Save & Enable", and the value is shown first), checks that the PMIC kept it, and only then turns learning on. Thanks to robcodedev for the report.
 - **A sleep that ran the battery flat** showed "-0%": it now shows what it used ("SLEEP 10h05 -98%"). A charge across a clock correction from Wi-Fi no longer shows a huge time. The session line reads "100% > 45%   PLAY 3h12   SLEEP 1h07 -15%".
 
+### 🧒 Kids Mode
+
+- **The parent menu in five rows:** Switch to Main/Guest profile, Add play time, Carousel settings, **Other options**, Exit Kids Mode. Other options holds the switches you set once: Save/load states, **Reminder** (the note on how to leave Kids Mode, shown before it starts) and the new **Video overlay**: Off (the default), LCD grid or Scanlines, over videos only (not games or music). Thanks to Veuks.
+
+### 🔌 Battery
+
+- **The red low-battery icon goes away as soon as you plug in the charger** (Mini+ and Mini Flip): their level stays low for a while after the charger is connected, and the icon stayed until it rose above the warning level. It comes back if you unplug while the level is still low. Thanks to robcodedev.
+
 ### 🛠️ Tweaks
 
 - **A "[SELECT] INFO" hint** at the bottom of the screen whenever the selected option has an explanation: SELECT has always opened it, but nothing said so. Thanks to Machiavellian. (Also hidden until now: **Y** puts the selected option back to the value it had when you opened Tweaks.)
@@ -74,6 +83,8 @@ This beta brings the **release candidate 11 of Open MainUI 1.1.1** by @robcodede
 ### 🔄 Updates (OTA)
 
 - **The Update channel menu starts on the channel you chose last time** (it always started on stable, so pressing A straight away moved a tester to the stable channel).
+- **An OTA update keeps the settings you changed since the console was last switched off** (brightness, volume, display colours…): they came back as they were at that switch-off.
+- **The installation screens use your brightness** instead of nearly full brightness. Thanks to robcodedev.
 
 ### 🖥️ Display
 
@@ -90,14 +101,15 @@ This beta brings the **release candidate 11 of Open MainUI 1.1.1** by @robcodede
 - SD Card Doctor, AudioTune and DisplayCal are built from source. AudioTune's MP3 decoder (minimp3, CC0) is kept in the tree at the exact version its author checked, so the build needs no download.
 - MiniCinema's and RedAmp's sources are kept in `third-party/minicinema` and `third-party/redamp`.
 - AudioTune's launcher writes its whole-line checks in a form the firmware's BusyBox understands (with `grep -x` the saved EQ would never have been found).
-- Tests for the model default Lumination, the OTA menu starting on your channel, the Console page choices, the SELECT hint, the Game Info scroll, the Video Player's standby and the faster game options menu (compared with the old one); the testers' OTA from beta 4 to beta 5. The script tests also pass under BusyBox 1.20.2, the version in the firmware.
+- When the card cannot be unmounted at power-off, the shutdown writes what still holds it to `/appconfigs/shutdown_busy.log` (in the console's own memory), to find out why the SD card check notice sometimes shows after an update.
+- Tests for the low-battery icon while charging, the MainUI stop for the GameSwitcher, the installer's brightness and the settings kept by an OTA update, Kids Mode's video overlay choice, the model default Lumination, the OTA menu starting on your channel, the Console page choices, the SELECT hint, the Game Info scroll, the Video Player's standby and the faster game options menu (compared with the old one); the testers' OTA from beta 4 to beta 5. The script tests also pass under BusyBox 1.20.2, the version in the firmware.
 
 ## ⚠️ Known issues
 
 - **RedAmp, "Music in games":** it needs RedOnion to start games and MainUI through RedAmp's audio hook, which is not in this build: leave it **off**. Turned on, the music does not reach games or MainUI, and its background player keeps the console from suspending games on POWER.
 - **RedAmp, Play during standby:** a standby started while music plays has no automatic power-off, also after the music ends. Wake the console, or switch it off, when you are done.
 - **MiniCinema after a power-off:** reopening the video you were watching at the next start is still experimental.
-- **Kids Mode:** the progress bar of videos and audio is still violet with every theme. Kids Mode passes the theme's colour to its player; the player will use it from its next build.
+- **Kids Mode:** the progress bar of videos and audio is still violet with every theme, and the **Video overlay** does not show yet. Kids Mode passes both to its player; the player will use them from its next build.
 - **AudioTune in games:** the EQ outside the app is a beta and needs the exact firmware audio library it was checked against; on other firmware only the app's own preview uses it. It is set up when you leave AudioTune: after a restart, open and close AudioTune once to have it in games again.
 - **Game Info auto scroll** after a Reinstall on a card where it was switched off stays off: switch it on in Tweaks.
 - **SD card check after an OTA update:** the OTA still restarts the console without unmounting the card, so you may see a one-time "SD card check" notice. Checking the card on a PC clears it.
