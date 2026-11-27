@@ -618,7 +618,7 @@ void menu_wifi(void *_)
         strcpy(_menu_wifi.title, "Wi-Fi hotspot and WPS");
         list_addItem(&_menu_wifi,
                      (ListItem){
-                         .label = "IP address: N/A",
+                         .label = "IP address: not connected",
                          .disabled = true,
                          .action = NULL});
         list_addItemWithInfoNote(&_menu_wifi,
@@ -660,7 +660,7 @@ void menu_network(void *_)
 
         list_addItem(&_menu_network,
                      (ListItem){
-                         .label = "IP address: N/A",
+                         .label = "IP address: not connected",
                          .disabled = true,
                          .action = NULL});
         list_addItem(&_menu_network,

@@ -72,7 +72,7 @@ void netinfo_getHostnameAndIpAddress(char *hostname, char *ip_address)
         }
         else {
             print_debug("Failed to retrieve IP address");
-            strncpy(ip_address, "IP address: -", STR_MAX - 1);
+            strncpy(ip_address, "IP address: not connected", STR_MAX - 1);
         }
     }
     else {

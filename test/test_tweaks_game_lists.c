@@ -1373,10 +1373,10 @@ TEST(greyed_out_options_in_other_menus)
                            "                                     .disabled = !network_state.vncserv,"));
     /* The blue light times while the schedule is off (same). */
     ASSERT_TRUE(source_has("../src/tweaks/menus.h",
-                           ".label = \"Time (On)\",\n"
+                           ".label = \"Turn on at\",\n"
                            "                                         .disabled = !settings.blue_light_schedule,"));
     ASSERT_TRUE(source_has("../src/tweaks/menus.h",
-                           ".label = \"Time (Off)\",\n"
+                           ".label = \"Turn off at\",\n"
                            "                                         .disabled = !settings.blue_light_schedule,"));
     /* Battery percentage: the rest while Visible is Off, at once. */
     ASSERT_TRUE(source_has("../src/tweaks/menus.h", ".action = battery_action_visible}"));

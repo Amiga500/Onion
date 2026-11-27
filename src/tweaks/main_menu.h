@@ -846,11 +846,11 @@ void menu_mainContextItems(void *_)
         list_addItemWithInfoNote(
             &_menu_main_context_items,
             (ListItem){
-                .label = "L1+R1+L2+R2 shows all entries",
+                .label = "L+R+L2+R2 shows all entries",
                 .item_type = TOGGLE,
                 .value = mainmenu_load_hotkey_state(),
                 .action = mainmenu_action_hotkey},
-            "Holding L1, R1, L2 and R2 on the home\n"
+            "Holding L, R, L2 and R2 on the home\n"
             "screen opens this menu with every entry,\n"
             "also the hidden ones: a way back if you\n"
             "hid too much. Default: on.");
@@ -1418,7 +1418,7 @@ void menu_consolePage(void *_)
             "From the last console go on to the\n"
             "first, in the carousel and the grid.\n"
             "Off: stops at the first and last console,\n"
-            "and Up/Down stop at the grid's top and\n"
+            "and UP/DOWN stop at the grid's top and\n"
             "bottom rows.");
         list_addItemWithInfoNote(
             &_menu_console_view,
@@ -1430,11 +1430,11 @@ void menu_consolePage(void *_)
                 .value = consoleview_option(CONSOLEVIEW_GRID_NAV),
                 .action_id = CONSOLEVIEW_GRID_NAV,
                 .action = consoleview_action_option},
-            "Linear: Left/Right go through the consoles\n"
-            "in order; Up/Down stop at the top and\n"
+            "Linear: LEFT/RIGHT go through the consoles\n"
+            "in order; UP/DOWN stop at the top and\n"
             "bottom row. Stock: like the original\n"
             "MainUI, a page at a time at the row's\n"
-            "end, Up/Down go round within the page\n"
+            "end, UP/DOWN go round within the page\n"
             "(not with Wrap around Off).");
         list_addItemWithInfoNote(
             &_menu_console_view,
@@ -1530,7 +1530,7 @@ void menu_carouselLook(void *_)
                 .action_id = CONSOLEVIEW_PADDING,
                 .action = consoleview_action_option},
             "Space between the selected picture and\n"
-            "its box. 12 px is Open MainUI's own.");
+            "its box. 12 px is the default.");
         list_addItemWithInfoNote(
             &_menu_carousel_look,
             (ListItem){
@@ -1542,8 +1542,8 @@ void menu_carouselLook(void *_)
                 .action_id = CONSOLEVIEW_OPACITY,
                 .action = consoleview_action_option},
             "How the consoles beside the selected one\n"
-            "look: Clear, Dimmed (50%, Open MainUI's\n"
-            "own) or Faint (30%).");
+            "look: Clear, Dimmed (50%, the default)\n"
+            "or Faint (30%).");
         list_addItemWithInfoNote(
             &_menu_carousel_look,
             (ListItem){
@@ -1555,7 +1555,7 @@ void menu_carouselLook(void *_)
                 .action_id = CONSOLEVIEW_SCALE,
                 .action = consoleview_action_option},
             "Size of the consoles beside the selected\n"
-            "one. 70% is Open MainUI's own.");
+            "one. 70% is the default.");
         list_addItemWithInfoNote(
             &_menu_carousel_look,
             (ListItem){
@@ -1567,7 +1567,7 @@ void menu_carouselLook(void *_)
                 .action_id = CONSOLEVIEW_GAP,
                 .action = consoleview_action_option},
             "Space between the console pictures.\n"
-            "40 px is Open MainUI's own.");
+            "40 px is the default.");
     }
     consoleview_update_enabled();
     menu_stack[++menu_level] = &_menu_carousel_look;
@@ -1615,7 +1615,7 @@ void menu_carouselMovement(void *_)
                 .action_id = CONSOLEVIEW_DURATION,
                 .action = consoleview_action_option},
             "How long a slide takes: shorter is\n"
-            "snappier. 180 ms is Open MainUI's own.\n"
+            "snappier. 180 ms is the default.\n"
             "Only with Slide.");
         list_addItemWithInfoNote(
             &_menu_carousel_movement,
@@ -1627,7 +1627,7 @@ void menu_carouselMovement(void *_)
                 .value = consoleview_option(CONSOLEVIEW_REPEAT),
                 .action_id = CONSOLEVIEW_REPEAT,
                 .action = consoleview_action_option},
-            "Time between moves while Left/Right is\n"
+            "Time between moves while LEFT/RIGHT is\n"
             "held. With Slide it is never shorter\n"
             "than the slide time. Auto: one move per\n"
             "slide; with None, as fast as the key\n"

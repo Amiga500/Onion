@@ -398,7 +398,7 @@ void menu_buttonAction(void *_)
                                  "twice (its shortcuts).");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
-                                     .label = "CPU speed keys (SEL+START+L/R)",
+                                     .label = "CPU speed keys (SELECT+START+L/R)",
                                      .item_type = TOGGLE,
                                      .value = config_flag_get(".cpuClockHotkey"),
                                      .action = action_setCpuClockHotkey},
@@ -602,7 +602,7 @@ void menu_blueLight(void *_)
         if (schedule_show) {
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
-                                         .label = "Time (On)",
+                                         .label = "Turn on at",
                                          .disabled = !settings.blue_light_schedule,
                                          .item_type = MULTIVALUE,
                                          .value_max = 95,
@@ -612,7 +612,7 @@ void menu_blueLight(void *_)
                                      "When the schedule turns the filter on.");
             list_addItemWithInfoNote(&_menu_user_blue_light,
                                      (ListItem){
-                                         .label = "Time (Off)",
+                                         .label = "Turn off at",
                                          .disabled = !settings.blue_light_schedule,
                                          .item_type = MULTIVALUE,
                                          .value_max = 95,
@@ -712,12 +712,13 @@ void menu_lookAndFeel(void *_)
                                      .value = value_osdStyle(),
                                      .action = action_setOsdStyle},
                                  "Shown while you change the brightness,\n"
-                                 "or the volume on the Mini Plus: Onion's\n"
-                                 "bar on the left edge, or a panel with\n"
-                                 "an icon and a bar, at the bottom or top.");
+                                 "or the volume on the Mini Plus: the\n"
+                                 "classic bar on the left edge, or a panel\n"
+                                 "with an icon and a bar, at the bottom\n"
+                                 "or top.");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
-                                     .label = "Volume/brightness bar",
+                                     .label = "Volume/brightness bar width",
                                      .item_type = MULTIVALUE,
                                      .value_max = 15,
                                      .value_formatter = formatter_meterWidth,
