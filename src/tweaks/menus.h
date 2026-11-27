@@ -669,11 +669,11 @@ void menu_lookAndFeel(void *_)
                                      .label = "Loading/saving screen",
                                      .item_type = MULTIVALUE,
                                      .value_max = 4,
-                                     .value_labels = {"Popup", "Full screen", "Black", "Full popup", "None"},
+                                     .value_labels = {"Screenshot + message", "Screenshot only", "Black", "Message only", "None"},
                                      .value = settings.launch_screen,
                                      .action = action_setLaunchScreen},
                                  "Shown while a game starts or saves:\n"
-                                 "the game screenshot with a popup,\n"
+                                 "the game screenshot with the message,\n"
                                  "the screenshot alone, black, the\n"
                                  "message on the theme's full screen,\n"
                                  "or None: the screen stays as it was.");

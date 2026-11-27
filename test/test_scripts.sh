@@ -3327,7 +3327,7 @@ show_launch_screen LOADING; wait
 show_launch_screen SAVING; wait
 show_launch_screen LOADING no_screenshot; wait
 check "None: nothing shown, nothing to dismiss (Saved Games too)" test ! -s "$TMP/calls"
-check "None in Tweaks, last" grep -q '.value_labels = {"Popup", "Full screen", "Black", "Full popup", "None"}' "$ROOT/src/tweaks/menus.h"
+check "None in Tweaks, last; the others named by what they show" grep -q '.value_labels = {"Screenshot + message", "Screenshot only", "Black", "Message only", "None"}' "$ROOT/src/tweaks/menus.h"
 check "None when saving (keymon) and in the GameSwitcher" sh -c "grep -A1 'case 4:' '$ROOT/src/keymon/menuButtonAction.h' | grep -q 'break;' && grep -q 'if (settings.launch_screen == 4)' '$ROOT/src/gameSwitcher/gs_render.h'"
 rm -f "$TMP/calls"
 echo 0 > "$TMP/config/display/launchScreen"
