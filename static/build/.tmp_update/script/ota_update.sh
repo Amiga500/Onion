@@ -264,17 +264,20 @@ enable_wifi() {
 		pkill -9 wpa_supplicant 2> /dev/null
 		start_wpa_supplicant
 		# Joining took 30-60 s on a Mini Plus 3 m from the router: the
-		# driver scans for a while before it associates. Not joined: no
-		# address will come either, check_connection says so at once
-		# (it waited 20 s more for one).
+		# driver scans for a while before it associates.
 		if wait_for_link 50; then
 			ui_busy "Connected to Wi-Fi: getting an address..."
-			pkill -9 udhcpc 2> /dev/null
-			udhcpc -i wlan0 -s /etc/init.d/udhcpc.script > /dev/null 2>&1 &
-			# Once joined the address comes in a few seconds; up to 20 s,
-			# then check_connection reports a failure.
-			wait_for_ip 20
+		else
+			# Not joined yet: udhcpc all the same, as before beta 6, so a
+			# join that comes later still gets an address (or a driver
+			# that never says "up"; Fable review, 4.5.1).
+			ui_busy "Still connecting to Wi-Fi..."
 		fi
+		pkill -9 udhcpc 2> /dev/null
+		udhcpc -i wlan0 -s /etc/init.d/udhcpc.script > /dev/null 2>&1 &
+		# Once joined the address comes in a few seconds; up to 20 s,
+		# then check_connection reports a failure.
+		wait_for_ip 20
 		clear
 	fi
 }
