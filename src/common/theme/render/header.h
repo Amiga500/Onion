@@ -130,6 +130,37 @@ static int _header_barArtLast(SDL_Surface *bar, int xe, int gap, int step)
     return last;
 }
 
+// A plate on the left of the bar as drawn: columns whose mean brightness
+// is far from the bar's usual one (the median of all columns), from one
+// within 100 px of the left edge, the last before 40 px without any.
+// -1 when there is none, or when it reaches xe (not a plate).
+static int _header_plateLast(const int *bright, int columns, int step, int xe)
+{
+    if (columns < 8)
+        return -1;
+    int sorted[1024];
+    memcpy(sorted, bright, columns * sizeof(int));
+    for (int i = 1; i < columns; i++) // insertion sort, a few hundred values
+        for (int j = i; j > 0 && sorted[j - 1] > sorted[j]; j--) {
+            int t = sorted[j];
+            sorted[j] = sorted[j - 1];
+            sorted[j - 1] = t;
+        }
+    int base = sorted[columns / 2], last = -1;
+    int start = 100.0 * g_scale, gap = 40.0 * g_scale;
+    for (int i = 0; i < columns && i * step < xe; i++) {
+        int x = i * step;
+        if (abs(bright[i] - base) <= 48)
+            continue;
+        if (last < 0 && x > start)
+            break;
+        if (last >= 0 && x - last > gap)
+            break;
+        last = x;
+    }
+    return last >= 0 && last < xe - gap ? last : -1;
+}
+
 static bool _header_titlebarHasArt(void)
 {
     SDL_Surface *bar = resource_getSurface(BG_TITLE), *bg = theme_background();
@@ -158,7 +189,21 @@ static bool _header_titlebarHasArt(void)
     int xe = 400.0 * g_scale, gap = 60.0 * g_scale, first = -1, last = -1;
     if (xe > seen->w - step)
         xe = seen->w - step;
+    // each column's mean brightness over the whole width, for a plate
+    // brighter or darker than the rest of the bar (TechDweeb Orange: its
+    // logo is in the background picture, its bg-title see-through)
+    static int bright[1024];
+    int columns = 0;
     if (SDL_LockSurface(seen) == 0) {
+        for (int x = 0; x + step < seen->w && columns < 1024; x += step) {
+            int sum = 0, n = 0;
+            for (int y = 8.0 * g_scale; y < 52.0 * g_scale && y < seen->h; y += 4) {
+                Uint32 c = ((const Uint32 *)((Uint8 *)seen->pixels + y * seen->pitch))[x];
+                sum += (((c >> 16) & 0xFF) * 299 + ((c >> 8) & 0xFF) * 587 + (c & 0xFF) * 114) / 1000;
+                n++;
+            }
+            bright[columns++] = n ? sum / n : 0;
+        }
         for (int x = 0; x < xe; x += step) {
             int column = 0;
             for (int y = 10.0 * g_scale; y < 50.0 * g_scale && y < seen->h; y += 4) {
@@ -188,8 +233,11 @@ static bool _header_titlebarHasArt(void)
         // where the art ends: from the bar's own picture when it has a
         // block on the left, else from the bar as drawn
         int own = _header_barArtLast(bar, xe, gap, step);
+        int plate = _header_plateLast(bright, columns, step, xe);
         if (own >= 0)
             last = own;
+        else if (plate >= 0)
+            last = plate;
         // a block reaching the end of the look (a picture across the whole
         // bar, not a logo): nothing to keep clear of, the title centered
         if (last >= 0 && last < xe - gap)
