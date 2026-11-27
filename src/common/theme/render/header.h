@@ -94,6 +94,42 @@ static bool _header_classic = false;
 // Orange's logo reaches x 250: "Game lists: scrolling" still began over it)
 static int _header_art_end = 0;
 
+// The bar's own picture (bg-title, without the background under it): the
+// last column of the block its art starts with, before gap px with none,
+// up to x xe; -1 when it has none. A step is sharp between two opaque
+// pixels of very different colours, or between an opaque one and a
+// see-through one (a plate's edge). The background seen through the bar
+// is not looked at: TechDweeb Orange's bricks there made the whole left
+// half "art", and the title went to x 410.
+static int _header_barArtLast(SDL_Surface *bar, int xe, int gap, int step)
+{
+    if (bar == NULL || bar->format->BytesPerPixel != 4 || bar->h < 50.0 * g_scale)
+        return -1;
+    if (xe > bar->w - step)
+        xe = bar->w - step;
+    int last = -1;
+    if (SDL_LockSurface(bar) != 0)
+        return -1;
+    for (int x = 0; x < xe; x += step) {
+        int column = 0;
+        for (int y = 10.0 * g_scale; y < 50.0 * g_scale; y += 4) {
+            const Uint32 *row = (const Uint32 *)((Uint8 *)bar->pixels + y * bar->pitch);
+            Uint8 r1, g1, b1, a1, r2, g2, b2, a2;
+            SDL_GetRGBA(row[x], bar->format, &r1, &g1, &b1, &a1);
+            SDL_GetRGBA(row[x + step], bar->format, &r2, &g2, &b2, &a2);
+            if (a1 < 128 && a2 < 128)
+                continue;
+            if ((a1 < 128) != (a2 < 128) ||
+                abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2) > 80)
+                column++;
+        }
+        if (column > 0 && (last < 0 || x - last <= gap))
+            last = x;
+    }
+    SDL_UnlockSurface(bar);
+    return last;
+}
+
 static bool _header_titlebarHasArt(void)
 {
     SDL_Surface *bar = resource_getSurface(BG_TITLE), *bg = theme_background();
@@ -148,8 +184,17 @@ static bool _header_titlebarHasArt(void)
     SDL_FreeSurface(seen);
     // more than 4 in 100 sharp steps: lines, letters, a picture
     _header_classic = pairs > 0 && sharp * 25 > pairs;
-    if (_header_classic && last >= 0)
-        _header_art_end = last + step;
+    if (_header_classic) {
+        // where the art ends: from the bar's own picture when it has a
+        // block on the left, else from the bar as drawn
+        int own = _header_barArtLast(bar, xe, gap, step);
+        if (own >= 0)
+            last = own;
+        // a block reaching the end of the look (a picture across the whole
+        // bar, not a logo): nothing to keep clear of, the title centered
+        if (last >= 0 && last < xe - gap)
+            _header_art_end = last + step;
+    }
     return _header_classic;
 }
 
