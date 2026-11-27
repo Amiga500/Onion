@@ -12,6 +12,11 @@ if [ ! -d "$appdir/.tmp_update" ] || [ ! -f "$appdir/.tmp_update/install.sh" ] |
     exit 1
 fi
 
+# The console's brightness and display colours first: removing the old
+# system below takes seconds, shown at the firmware's own start-up
+# brightness (robcodedev, 4.5.1 beta 6). install.sh sets them again.
+sh "$appdir/.tmp_update/install.sh" --display
+
 if [ -d $sysdir ]; then
     cd $sysdir
 

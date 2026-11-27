@@ -74,12 +74,14 @@ installer_reboot() {
 # then 80.
 INSTALLER_SN_FILE=${INSTALLER_SN_FILE:-/tmp/deviceSN}
 INSTALLER_SETTINGS_DIR=${INSTALLER_SETTINGS_DIR:-/mnt/SDCARD/.tmp_update/config/system}
+INSTALLER_CARD_JSON=${INSTALLER_CARD_JSON:-/mnt/SDCARD/system.json}
+INSTALLER_STOCK_JSON=${INSTALLER_STOCK_JSON:-/appconfigs/system.json}
 
 # The card's system.json when the installation starts: there only when the
 # console was not shut down cleanly (an OTA update reboots plainly), and
 # then the live settings (installer_reboot keeps them).
 card_settings_live=0
-[ -f /mnt/SDCARD/system.json ] && card_settings_live=1
+[ -f "$INSTALLER_CARD_JSON" ] && card_settings_live=1
 
 # The settings files to read, in that order, one per line
 installer_settings_files() {
@@ -89,7 +91,7 @@ installer_settings_files() {
     _bonly=""
     set -- "$INSTALLER_SETTINGS_DIR"/*.json
     [ "$#" -eq 1 ] && [ -f "$1" ] && _bonly=$1
-    for _bf in /mnt/SDCARD/system.json ${_bsn:+"$INSTALLER_SETTINGS_DIR/$_bsn.json"} /appconfigs/system.json ${_bonly:+"$_bonly"}; do
+    for _bf in "$INSTALLER_CARD_JSON" ${_bsn:+"$INSTALLER_SETTINGS_DIR/$_bsn.json"} "$INSTALLER_STOCK_JSON" ${_bonly:+"$_bonly"}; do
         [ -f "$_bf" ] && echo "$_bf"
     done
 }
@@ -134,6 +136,26 @@ installer_display_colours() {
     done
     # csc <device> <matrix 3 = BT709> <contrast> <hue> <luma> <saturation> <sharpness> <gain>
     echo "csc 0 3 $(((_c_contrast + 15) * 2)) $((_c_hue * 5)) $((_c_lumination + 35)) $((_c_saturation * 5)) 0 0" > "$INSTALLER_DISP_NODE" 2> /dev/null
+}
+
+# The backlight at the console's brightness and its display colours, for
+# the installer's screens. The installer's MainUI calls it first too
+# (install.sh --display), before it removes the old system files: that
+# took seconds at the firmware's own start-up brightness (robcodedev,
+# 4.5.1 beta 6). One line per call in config/.installer_display.log (the
+# last installation's only), to see what was set and from which file.
+INSTALLER_PWM_DIR=${INSTALLER_PWM_DIR:-/sys/class/pwm/pwmchip0}
+INSTALLER_DISPLAY_LOG=${INSTALLER_DISPLAY_LOG:-/mnt/SDCARD/.tmp_update/config/.installer_display.log}
+installer_display() { # stage
+    _duty=$(installer_brightness)
+    echo 0 > $INSTALLER_PWM_DIR/export 2> /dev/null
+    echo 800 > $INSTALLER_PWM_DIR/pwm0/period
+    echo "$_duty" > $INSTALLER_PWM_DIR/pwm0/duty_cycle
+    echo 1 > $INSTALLER_PWM_DIR/pwm0/enable
+    installer_display_colours
+    [ -d "${INSTALLER_DISPLAY_LOG%/*}" ] || return 0
+    [ "$1" = pre ] && : > "$INSTALLER_DISPLAY_LOG"
+    echo "$1: model $DEVICE_ID, settings $(installer_settings_files | head -n 1), duty $_duty (now $(cat $INSTALLER_PWM_DIR/pwm0/duty_cycle 2> /dev/null), period $(cat $INSTALLER_PWM_DIR/pwm0/period 2> /dev/null))" >> "$INSTALLER_DISPLAY_LOG" 2> /dev/null
 }
 
 MODEL_MM=283
@@ -207,13 +229,8 @@ main() {
         fi
     fi
 
-    # init backlight, at the console's own brightness
-    pwmdir=/sys/class/pwm/pwmchip0
-    echo 0 > $pwmdir/export
-    echo 800 > $pwmdir/pwm0/period
-    installer_brightness > $pwmdir/pwm0/duty_cycle
-    echo 1 > $pwmdir/pwm0/enable
-    installer_display_colours
+    # init backlight, at the console's own brightness, and the colours
+    installer_display main
 
     killall keymon
 
@@ -898,6 +915,13 @@ unzip_progress() {
 free_mma() {
     /mnt/SDCARD/.tmp_update/bin/freemma
 }
+
+# The installer's MainUI, before anything else (installer_display)
+if [ "${1:-}" = "--display" ]; then
+    check_device_model
+    installer_display pre
+    exit 0
+fi
 
 main
 installer_reboot

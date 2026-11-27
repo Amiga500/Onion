@@ -2786,10 +2786,11 @@ done
 check "every row saves the colour it names (red, orange, gold...)" test ! -e "$TMP/accent_map" -a "$i" -eq 10
 check "a saved number the list does not have is red" grep -q "return 0;" "$ROOT/src/tweaks/actions.h"
 # Stepping through the colours applied each one (eight in a row from Red to
-# Graphite, the list stuck meanwhile: beta 6). Saved at once, applied once it
-# stays 500 ms, and on leaving Tweaks.
-check "Tweaks: the colour applied once it stays put, not at every step" sh -c "sed -n '/^void action_setAccentColor/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'accent_pending = true' && ! sed -n '/^void action_setAccentColor/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'accent_color.sh'"
-check "Tweaks: checked in its loop, and on leaving" sh -c "grep -q 'accent_applyPending(ticks, false);' '$ROOT/src/tweaks/tweaks.c' && grep -q 'accent_applyPending(0, true);' '$ROOT/src/tweaks/tweaks.c'"
+# Graphite), then each one that stayed 500 ms: the list stuck while
+# choosing (beta 6). Saved at once, applied on leaving its page or Tweaks.
+check "Tweaks: the colour only saved while choosing" sh -c "sed -n '/^void action_setAccentColor/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'accent_pending = true' && ! sed -n '/^void action_setAccentColor/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'accent_color.sh'"
+check "applied once its page is left" sh -c "sed -n '/^void accent_applyPending/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'menu_stack\[menu_level\] == accent_pending_page'"
+check "Tweaks: checked in its loop before all_changed is read, and on leaving" sh -c "awk '/accent_applyPending\(false\);/ { a = NR } /if \(all_changed\) \{/ && !b { b = NR } END { exit !(a && b && a < b) }' '$ROOT/src/tweaks/tweaks.c' && grep -q 'accent_applyPending(true);' '$ROOT/src/tweaks/tweaks.c'"
 # White text on the selection: as readable as on the first six (4.5:1 or more)
 grep -v '^#' "$RES/palette.txt" | while read -r n a l d; do
     awk -v h="$a" 'function lin(c) { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ^ 2.4 }
@@ -2819,6 +2820,7 @@ end
 begin installer_uses_the_consoles_brightness
 INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
 eval "$(extract_fn "$INST" installer_settings_files | sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g")"
+INSTALLER_CARD_JSON="$TMP/sd/system.json" INSTALLER_STOCK_JSON="$TMP/app/system.json"
 eval "$(extract_fn "$INST" installer_brightness)"
 INSTALLER_SN_FILE="$TMP/deviceSN"
 INSTALLER_SETTINGS_DIR="$TMP/sd/.tmp_update/config/system"
@@ -2871,13 +2873,28 @@ printf '{\n\t"brightness":\t10\n}\n' > "$TMP/sd/system.json"
 check "OTA update (no shutdown): the card's live settings, not the older saved ones" test "$(installer_brightness)" = 100
 rm -f "$TMP/sd/system.json" "$TMP/sd/.tmp_update/config/system/ABC123.json"
 rm -f "$TMP/deviceSN"
-unset INSTALLER_SN_FILE INSTALLER_SETTINGS_DIR
+unset INSTALLER_SN_FILE INSTALLER_SETTINGS_DIR INSTALLER_CARD_JSON INSTALLER_STOCK_JSON
 check "the serial comes from runtime.sh's /tmp/deviceSN, written before check_installer" sh -c "grep -n 'echo -n \"\$SERIAL_NUMBER\" > /tmp/deviceSN\|^    check_installer\$' '$ROOT/static/build/.tmp_update/runtime.sh' | head -2 | tail -1 | grep -q check_installer"
 check "the shutdown moves the card's system.json away (why it is read from config/system)" grep -q 'mv -f /mnt/SDCARD/system.json' "$ROOT/static/build/.tmp_update/bin/shutdown"
 unset -f installer_brightness
 check "the card's settings are looked at before main runs (nothing has saved them yet)" sh -c "grep -n '^card_settings_live=0\$\|^main\$' '$INST' | head -1 | grep -q card_settings_live"
 check "the OTA update reboots plainly (why the card's file can be the live one)" grep -q '^			reboot$' "$ROOT/static/build/.tmp_update/script/ota_update.sh"
-check "main sets the backlight with it" grep -q '^    installer_brightness > \$pwmdir/pwm0/duty_cycle$' "$INST"
+check "main sets the backlight with it" sh -c "extract_fn() { sed -n \"/^\$2() {/,/^}/p\" \"\$1\"; }; extract_fn '$INST' main | grep -q '^    installer_display main\$' && extract_fn '$INST' installer_display | grep -q '_duty=\$(installer_brightness)'"
+# The installer's MainUI removes the old system first, seconds shown at the
+# firmware's start-up brightness (beta 6): install.sh --display before it.
+mkdir -p "$TMP/pwm/pwm0" "$TMP/cfg" "$TMP/sys/config/system"
+echo 0123SN > "$TMP/sn"
+printf '{\n\t"brightness":\t1,\n\t"lumination":\t5\n}\n' > "$TMP/sys/config/system/0123SN.json"
+: > "$TMP/disp"
+INSTALLER_PWM_DIR="$TMP/pwm" INSTALLER_DISP_NODE="$TMP/disp" INSTALLER_DISPLAY_LOG="$TMP/cfg/.installer_display.log" \
+    INSTALLER_SN_FILE="$TMP/sn" INSTALLER_SETTINGS_DIR="$TMP/sys/config/system" \
+    INSTALLER_CARD_JSON="$TMP/none.json" INSTALLER_STOCK_JSON="$TMP/none.json" sh "$INST" --display > "$TMP/display_out" 2>&1
+check "--display: the console's brightness 1 (duty 4)" test "$(cat "$TMP/pwm/pwm0/duty_cycle" 2> /dev/null)" = 4
+check "--display: the backlight on, period 800" test "$(cat "$TMP/pwm/pwm0/enable" 2> /dev/null)/$(cat "$TMP/pwm/pwm0/period" 2> /dev/null)" = 1/800
+check "--display: its display colours too" grep -q '^csc 0 3 50 50 40 50 0 0$' "$TMP/disp"
+check "--display: a log line saying from which file" grep -q "^pre: .*settings $TMP/sys/config/system/0123SN.json, duty 4 (now 4, period 800)" "$TMP/cfg/.installer_display.log"
+check "--display: nothing else done (no installation)" test ! -s "$TMP/display_out"
+check "the installer's MainUI calls it before removing the old system" sh -c "awk '/install.sh\" --display/ { a = NR } /-exec rm -rf/ { b = NR } END { exit !(a && b && a < b) }' '$ROOT/static/dist/miyoo/app/MainUI'"
 check "no fixed 80 written to the backlight" sh -c "! grep -q 'echo 80 > \$pwmdir' '$INST'"
 end
 
@@ -2887,6 +2904,7 @@ begin installer_uses_the_consoles_display_colours
 # console's with a lowered lumination or contrast (robcodedev, beta 6)
 INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
 eval "$(extract_fn "$INST" installer_settings_files | sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g")"
+INSTALLER_CARD_JSON="$TMP/sd/system.json" INSTALLER_STOCK_JSON="$TMP/app/system.json"
 eval "$(extract_fn "$INST" installer_display_colours)"
 INSTALLER_SN_FILE="$TMP/deviceSN" INSTALLER_SETTINGS_DIR="$TMP/sd/.tmp_update/config/system"
 INSTALLER_DISP_NODE="$TMP/mi_disp0" MODEL_MM=283 DEVICE_ID=354
@@ -2910,10 +2928,10 @@ rm -f "$TMP/mi_disp0"
 installer_display_colours
 check "no display node: nothing written" test ! -e "$TMP/mi_disp0"
 check "same formula as runtime.sh" grep -qF 'echo "csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0"' "$ROOT/static/build/.tmp_update/runtime.sh"
-check "main sets them after the backlight" sh -c "grep -A1 '^    echo 1 > \$pwmdir/pwm0/enable\$' '$INST' | grep -q '^    installer_display_colours\$'"
+check "set right after the backlight" sh -c "sed -n '/^installer_display() {/,/^}/p' '$INST' | grep -A1 'pwm0/enable\$' | grep -q '^    installer_display_colours\$'"
 rm -f "$TMP/app/system.json"
 unset -f installer_settings_files installer_display_colours
-unset INSTALLER_SN_FILE INSTALLER_SETTINGS_DIR INSTALLER_DISP_NODE MODEL_MM DEVICE_ID
+unset INSTALLER_SN_FILE INSTALLER_SETTINGS_DIR INSTALLER_DISP_NODE MODEL_MM DEVICE_ID INSTALLER_CARD_JSON INSTALLER_STOCK_JSON
 end
 
 begin shutdown_survives_its_terminal_and_has_a_fallback
