@@ -495,8 +495,12 @@ bool list_item_wantsPreviewLoad(const ListItem *item)
 // hidden, elapsed_ms after it was first shown. It rests at the start, slides
 // to the end, rests, slides back, and so on (LIST_VALUE_SCROLL_*). 0 when
 // it fits.
+//
+// 28 px/s: at most one pixel per redraw, as Tweaks redraws a scrolling row
+// every 33-35 ms (two frames). At 40 px/s it moved 1, 1, then 2 px per
+// redraw, a jerky slide (robcodedev, 4.5.1 beta 6).
 #define LIST_VALUE_SCROLL_PAUSE_MS 1500
-#define LIST_VALUE_SCROLL_SPEED 40 // px/s
+#define LIST_VALUE_SCROLL_SPEED 28 // px/s
 
 int list_valueScrollOffset(uint32_t elapsed_ms, int overflow)
 {
