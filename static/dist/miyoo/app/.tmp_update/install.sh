@@ -96,6 +96,25 @@ installer_settings_files() {
     done
 }
 
+# The one file the screen's settings come from: the first with a brightness
+# (0-10), as installer_brightness reads it, else the first there. The
+# colours were taken from the first file there: a card system.json left
+# empty by a crash gave the brightness of the saved settings and the
+# model's default colours (Fable review, 4.5.1).
+installer_settings_file() {
+    _sfirst=""
+    for _sf in $(installer_settings_files); do
+        [ -n "$_sfirst" ] || _sfirst=$_sf
+        case "$(sed -n 's/.*"brightness"[^0-9]*\([0-9][0-9]*\).*/\1/p' "$_sf" | head -n 1)" in
+            0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10)
+                echo "$_sf"
+                return
+                ;;
+        esac
+    done
+    [ -n "$_sfirst" ] && echo "$_sfirst"
+}
+
 installer_brightness() {
     # (fixed paths, without spaces)
     for _bf in $(installer_settings_files); do
@@ -121,7 +140,7 @@ installer_brightness() {
 INSTALLER_DISP_NODE=${INSTALLER_DISP_NODE:-/proc/mi_modules/mi_disp/mi_disp0}
 installer_display_colours() {
     [ -e "$INSTALLER_DISP_NODE" ] || return 0
-    _cf=$(installer_settings_files | head -n 1)
+    _cf=$(installer_settings_file)
     for _v in lumination hue saturation contrast; do
         _x=""
         [ -n "$_cf" ] && _x=$(sed -n "s/.*\"$_v\"[^0-9]*\\([0-9][0-9]*\\).*/\\1/p" "$_cf" | head -n 1)
@@ -155,7 +174,7 @@ installer_display() { # stage
     installer_display_colours
     [ -d "${INSTALLER_DISPLAY_LOG%/*}" ] || return 0
     [ "$1" = pre ] && : > "$INSTALLER_DISPLAY_LOG"
-    echo "$1: model $DEVICE_ID, settings $(installer_settings_files | head -n 1), duty $_duty (now $(cat $INSTALLER_PWM_DIR/pwm0/duty_cycle 2> /dev/null), period $(cat $INSTALLER_PWM_DIR/pwm0/period 2> /dev/null))" >> "$INSTALLER_DISPLAY_LOG" 2> /dev/null
+    echo "$1: model $DEVICE_ID, settings $(installer_settings_file), duty $_duty (now $(cat $INSTALLER_PWM_DIR/pwm0/duty_cycle 2> /dev/null), period $(cat $INSTALLER_PWM_DIR/pwm0/period 2> /dev/null))" >> "$INSTALLER_DISPLAY_LOG" 2> /dev/null
 }
 
 MODEL_MM=283
