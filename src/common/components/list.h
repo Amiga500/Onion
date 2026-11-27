@@ -518,6 +518,19 @@ int list_valueScrollOffset(uint32_t elapsed_ms, int overflow)
     return overflow - (int)((uint64_t)(t - 2u * pause - travel) * (uint32_t)overflow / travel);
 }
 
+// The offset to draw, from the one drawn last (drawn) toward the one for
+// the time (target), one pixel at most: a redraw that comes late (a frame
+// slept 20 ms instead of 16) does not make the text jump 2 px. It catches
+// up during the pause at each end.
+int list_valueScrollStep(int drawn, int target)
+{
+    if (target > drawn)
+        return drawn + 1;
+    if (target < drawn)
+        return drawn - 1;
+    return drawn;
+}
+
 // FNV-1a over a rendered label: cache key for the MULTIVALUE value surface.
 // Keyed on the text itself, not on item->value, because a formatter can
 // render a different string for the same value.

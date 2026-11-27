@@ -60,9 +60,11 @@ static bool theme_listValueScrolling = false;
 static const ListItem *_value_scroll_item = NULL;
 static uint32_t _value_scroll_hash = 0;
 static uint32_t _value_scroll_start = 0;
+static int _value_scroll_drawn = 0; // offset drawn last (list_valueScrollStep)
 static const ListItem *_label_scroll_item = NULL;
 static uint32_t _label_scroll_hash = 0;
 static uint32_t _label_scroll_start = 0;
+static int _label_scroll_drawn = 0;
 
 // Render a list label with per-item TTF surface caching
 // Caches the TTF render in item->_label_cache; only re-renders when label changes.
@@ -103,9 +105,12 @@ static void _theme_renderListLabelCached(SDL_Surface *screen, ListItem *item,
             _label_scroll_item = item;
             _label_scroll_hash = hash;
             _label_scroll_start = now;
+            _label_scroll_drawn = 0;
         }
-        label_crop.x = list_valueScrollOffset(now - _label_scroll_start,
-                                              item_label->w - label_crop.w);
+        _label_scroll_drawn = list_valueScrollStep(
+            _label_scroll_drawn,
+            list_valueScrollOffset(now - _label_scroll_start, item_label->w - label_crop.w));
+        label_crop.x = _label_scroll_drawn;
         theme_listValueScrolling = true;
     }
 
@@ -452,9 +457,12 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
                     _value_scroll_item = item;
                     _value_scroll_hash = value_hash;
                     _value_scroll_start = now;
+                    _value_scroll_drawn = 0;
                 }
-                value_size.x = list_valueScrollOffset(now - _value_scroll_start,
-                                                      value_label->w - scaled_226);
+                _value_scroll_drawn = list_valueScrollStep(
+                    _value_scroll_drawn,
+                    list_valueScrollOffset(now - _value_scroll_start, value_label->w - scaled_226));
+                value_size.x = _value_scroll_drawn;
                 theme_listValueScrolling = true;
             }
             SDL_Rect value_pos = {

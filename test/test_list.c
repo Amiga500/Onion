@@ -2036,6 +2036,33 @@ TEST(value_scroll_offset)
     ASSERT_TRUE(steps > 400); /* and it did move */
 }
 
+/* A late redraw (a frame slept 20 ms: redraws 40 ms apart) asks for 1.12
+ * px: the step drawn is one pixel at most, and the text still reaches each
+ * end during its pause. */
+TEST(value_scroll_step)
+{
+    ASSERT_EQ(list_valueScrollStep(0, 0), 0);
+    ASSERT_EQ(list_valueScrollStep(5, 7), 6);
+    ASSERT_EQ(list_valueScrollStep(7, 5), 6);
+    ASSERT_EQ(list_valueScrollStep(6, 6), 6);
+
+    const int overflow = 200;
+    int drawn = 0, reached_end = 0, back_at_start = 0;
+    for (uint32_t t = 40; t < 30000; t += 40) {
+        int next = list_valueScrollStep(drawn, list_valueScrollOffset(t, overflow));
+        int d = next > drawn ? next - drawn : drawn - next;
+        ASSERT_TRUE(d <= 1);
+        ASSERT_TRUE(next >= 0 && next <= overflow);
+        drawn = next;
+        if (drawn == overflow)
+            reached_end = 1;
+        if (reached_end && drawn == 0)
+            back_at_start = 1;
+    }
+    ASSERT_TRUE(reached_end);
+    ASSERT_TRUE(back_at_start);
+}
+
 int main(void)
 {
     printf("\n=== list.h Unit Tests ===\n\n");
@@ -2247,6 +2274,7 @@ int main(void)
     RUN_TEST(count_visible_single_enabled);
     RUN_TEST(count_visible_single_disabled);
     RUN_TEST(value_scroll_offset);
+    RUN_TEST(value_scroll_step);
 
     RUN_TEST(empty_list_keys_do_nothing);
     RUN_TEST(empty_list_modulo_and_scroll);
