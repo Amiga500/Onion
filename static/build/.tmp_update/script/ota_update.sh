@@ -195,6 +195,7 @@ wait_for_ip() { # seconds
 wait_boot_network() {
 	pgrep -f update_networking.sh > /dev/null 2>&1 || return 0
 	network_ready && return 0
+	ui_busy "Waiting for the network start-up..."
 	echo "Waiting for the network start-up..."
 	i=0
 	while [ $i -lt 45 ] && pgrep -f update_networking.sh > /dev/null 2>&1 &&
@@ -233,10 +234,15 @@ enable_wifi() {
 		# On but not connected yet (just after start-up, or reconnecting):
 		# wait for it instead of starting a second wpa_supplicant and
 		# killing the system's udhcpc.
+		ui_busy "Waiting for Wi-Fi to connect..."
 		echo "Waiting for Wi-Fi..."
 		wait_for_ip 20
 		clear
 	elif [ "$IP" = "" ]; then
+		# Each step on the screen: with Wi-Fi off this takes up to a minute
+		# and a half, and the screen said "Checking the Wi-Fi and the
+		# connection..." all along (4.5.1 beta 6).
+		ui_busy "Wi-Fi is off: turning it on for the update..."
 		echo "Wifi is disabled - trying to enable it..."
 		wifi_started_here=1
 		insmod /mnt/SDCARD/8188fu.ko 2> /dev/null
@@ -253,17 +259,22 @@ enable_wifi() {
 		# Same commands as wifi_on in update_networking.sh. wpa_supplicant is
 		# not on the PATH of apps, and udhcpc in the foreground never returns
 		# without a network: the updater stayed on a black screen.
+		ui_busy "Connecting to Wi-Fi (this can take up to a minute)..."
 		echo "Connecting (this can take up to a minute)..."
 		pkill -9 wpa_supplicant 2> /dev/null
 		start_wpa_supplicant
 		# Joining took 30-60 s on a Mini Plus 3 m from the router: the
-		# driver scans for a while before it associates.
-		wait_for_link 50
-		pkill -9 udhcpc 2> /dev/null
-		udhcpc -i wlan0 -s /etc/init.d/udhcpc.script > /dev/null 2>&1 &
-		# Once joined the address comes in a few seconds; up to 20 s,
-		# then check_connection reports a failure.
-		wait_for_ip 20
+		# driver scans for a while before it associates. Not joined: no
+		# address will come either, check_connection says so at once
+		# (it waited 20 s more for one).
+		if wait_for_link 50; then
+			ui_busy "Connected to Wi-Fi: getting an address..."
+			pkill -9 udhcpc 2> /dev/null
+			udhcpc -i wlan0 -s /etc/init.d/udhcpc.script > /dev/null 2>&1 &
+			# Once joined the address comes in a few seconds; up to 20 s,
+			# then check_connection reports a failure.
+			wait_for_ip 20
+		fi
 		clear
 	fi
 }
@@ -278,6 +289,7 @@ enable_wifi() {
 # after the HTTP 200 until the 30 s limit (curl error 28), while a phone
 # hotspot worked (#311, thanks Nyiz). The check only needs the answer.
 check_connection() {
+	ui_busy "Checking the connection to GitHub..."
 	echo -n "Checking internet connection... "
 	_why=$(curl -k -sS -I -L -f --connect-timeout 15 --max-time 30 -o /dev/null https://github.com 2>&1)
 	_rc=$?

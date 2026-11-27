@@ -1611,6 +1611,8 @@ eval "$(extract_fn "$OTA" enable_wifi)"
 
 begin ota_wifi_off_does_not_hang
 # No network ever comes up: udhcpc keeps retrying, as the real one does.
+ui_busy() { echo "$1" >> "$TMP/busy"; }
+wait_for_link() { return 0; }
 ip() { :; }
 sleep() { :; }
 insmod() { :; }
@@ -1635,7 +1637,20 @@ check "wpa_supplicant called by its full path" \
 check "connection check has a timeout" grep -q 'curl -k -sS -I -L -f --connect-timeout [0-9]* --max-time [0-9]' "$OTA"
 check "connection check asks for the headers only (#311)" grep -q 'curl -k -sS -I -L -f' "$OTA"
 wait
-unset -f ip sleep insmod ifconfig pkill clear udhcpc
+# Each step on the screen: "Checking the Wi-Fi and the connection..." stayed
+# up to a minute and a half while Wi-Fi was turned on (beta 6)
+check "the steps on the screen: on, connecting, address" test "$(tr '\n' '|' < "$TMP/busy")" = "Wi-Fi is off: turning it on for the update...|Connecting to Wi-Fi (this can take up to a minute)...|Connected to Wi-Fi: getting an address...|"
+# Not joined (far from the router, a wrong password): no 20 s more for an
+# address that cannot come
+rm -f "$TMP/busy" "$TMP/udhcpc_args"
+wait_for_link() { return 1; }
+wait_for_ip() { echo waited > "$TMP/waited_ip"; }
+enable_wifi > /dev/null 2>&1
+check "not joined: no udhcpc" test ! -e "$TMP/udhcpc_args"
+check "not joined: no wait for an address" test ! -e "$TMP/waited_ip"
+check "not joined: the last step shown is connecting" test "$(tail -n 1 "$TMP/busy")" = "Connecting to Wi-Fi (this can take up to a minute)..."
+check "the connection check says it too" grep -q '^	ui_busy "Checking the connection to GitHub..."$' "$OTA"
+unset -f ip sleep insmod ifconfig pkill clear udhcpc ui_busy wait_for_link wait_for_ip
 end
 
 # ---- ota_update.sh: Wi-Fi turned on by the updater goes off again ----
@@ -1687,11 +1702,12 @@ wifi_started_here=0
 ip() { :; }
 wifi_radio_running() { return 1; }
 wifi_setting_on() { return 0; }
+wait_for_link() { return 0; }
 (enable_wifi > /dev/null 2>&1; echo "$wifi_started_here" > "$TMP/started")
 check "off but on in system.json: turned on" test -e "$TMP/udhcpc"
 check "off but on in system.json: marked as turned on here" test "$(cat "$TMP/started")" = 1
 check "decided by the process, not the setting" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -q 'wifi_radio_running' && ! sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -q 'wifi_setting_on'"
-unset -f ip sleep clear pkill udhcpc wifi_setting_on wifi_radio_running
+unset -f ip sleep clear pkill udhcpc wifi_setting_on wifi_radio_running wait_for_link
 end
 
 begin ota_waits_for_boot_network
@@ -1754,7 +1770,7 @@ rm -f "$TMP/slept"
 wlan0_linked() { return 1; }
 wait_for_link 20
 check "never joined: goes on after 20 s" test $? -eq 1 -a "$(wc -l < "$TMP/slept")" -eq 40
-check "udhcpc started after the link is up" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A4 'start_wpa_supplicant' | grep -q 'wait_for_link'"
+check "udhcpc started after the link is up" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A6 'start_wpa_supplicant' | grep -q 'if wait_for_link 50; then'"
 unset -f wlan0_linked sleep wait_for_link
 end
 
