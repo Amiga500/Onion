@@ -48,6 +48,11 @@ static char _cached_header_icon_name[32] = "";
 /* The title font at 70%, for the earlier levels of a path */
 static TTF_Font *_header_path_font = NULL;
 
+/* A title too long for its room on a bar with art, at 70% (and cut with
+ * "..." if need be), for the string it was made for */
+static SDL_Surface *_cached_header_small = NULL;
+static char _cached_header_small_str[STR_MAX] = "";
+
 void theme_renderHeader_cleanup(void)
 {
     if (_cached_header_badge) {
@@ -65,6 +70,11 @@ void theme_renderHeader_cleanup(void)
         _cached_header_title = NULL;
     }
     _cached_header_title_str[0] = '\0';
+    if (_cached_header_small) {
+        SDL_FreeSurface(_cached_header_small);
+        _cached_header_small = NULL;
+    }
+    _cached_header_small_str[0] = '\0';
     if (_header_path_font) {
         TTF_CloseFont(_header_path_font);
         _header_path_font = NULL;
@@ -158,6 +168,55 @@ static int _header_classicX(int w)
     return x;
 }
 
+static TTF_Font *_header_pathFont(void)
+{
+    if (_header_path_font == NULL)
+        _header_path_font = theme_loadFont(theme()->path, theme()->title.font,
+                                           (int)(theme()->title.size * 0.7 + 0.5));
+    return _header_path_font;
+}
+
+// The title on a bar with art (title: in the title font; str: its text).
+// When it does not fit between the art and the battery, it is drawn at
+// 70%, and cut with "..." if still too long, not cut off mid-word
+// (TechDweeb Orange: "Game lists: scrolling" showed as "Game list:").
+static void _header_classicTitle(SDL_Surface *screen, SDL_Surface *title, const char *str)
+{
+    if (title == NULL)
+        return;
+    int after = _header_art_end > 0 ? _header_art_end + (int)(12.0 * g_scale) : (int)(16.0 * g_scale);
+    int room = 540.0 * g_scale - after;
+    SDL_Surface *shown = title;
+    TTF_Font *small = str ? _header_pathFont() : NULL;
+    if (title->w > room && small) {
+        if (strcmp(str, _cached_header_small_str) != 0) {
+            if (_cached_header_small)
+                SDL_FreeSurface(_cached_header_small);
+            char buf[STR_MAX], text[STR_MAX], cut[STR_MAX + 4];
+            snprintf(text, sizeof(text), "%s", ui_pageTitle(str, buf, sizeof(buf)));
+            snprintf(cut, sizeof(cut), "%s", text);
+            int w = 0;
+            size_t n = strlen(text);
+            while (TTF_SizeUTF8(small, cut, &w, NULL) == 0 && w > room && n > 1) {
+                n--; // whole UTF-8 characters only
+                while (n > 1 && ((unsigned char)text[n] & 0xC0) == 0x80)
+                    n--;
+                while (n > 1 && text[n - 1] == ' ')
+                    n--;
+                snprintf(cut, sizeof(cut), "%.*s...", (int)n, text);
+            }
+            _cached_header_small = TTF_RenderUTF8_Blended(small, cut, theme()->title.color);
+            snprintf(_cached_header_small_str, sizeof(_cached_header_small_str), "%s", str);
+        }
+        if (_cached_header_small)
+            shown = _cached_header_small;
+    }
+    int x = _header_classicX(shown->w);
+    SDL_Rect crop = {0, 0, 540.0 * g_scale - x, shown->h};
+    SDL_Rect r = {x, 29.0 * g_scale - shown->h / 2};
+    SDL_BlitSurface(shown, &crop, screen, &r);
+}
+
 /* The icon drawn in the badge for a title: res/icons/ui/<name>.png (a theme
  * can ship its own as skin/extra/icons/ui/<name>.png). Titles not listed
  * keep their first letter. */
@@ -227,9 +286,8 @@ static int _theme_renderHeaderTitle(SDL_Surface *screen, SDL_Surface *title,
     int x = 16.0 * g_scale, cy = 30.0 * g_scale;
     if (!show_logo && _header_titlebarHasArt()) {
         // centered, no badge (see _header_titlebarHasArt)
-        if (title)
-            x = _header_classicX(title->w);
-        return _theme_renderHeaderTitleText(screen, title, x);
+        _header_classicTitle(screen, title, title_str);
+        return title ? _header_classicX(title->w) : x;
     }
     if (show_logo) {
         SDL_Surface *logo = resource_getSurface(LOGO);
@@ -349,9 +407,7 @@ void theme_renderHeaderPath(SDL_Surface *screen, const char *const *levels, int 
     }
     /* badge only: the title is placed after the path below */
     int x = _theme_renderHeaderTitle(screen, NULL, levels[0], false);
-    if (_header_path_font == NULL)
-        _header_path_font = theme_loadFont(theme()->path, theme()->title.font,
-                                           (int)(theme()->title.size * 0.7 + 0.5));
+    _header_pathFont();
     SDL_Surface *title = _cached_header_title;
     int title_w = title ? title->w : 0, avail = 540.0 * g_scale - x;
     int from = 0, prefix_w = _header_pathWidth(levels, count, from);
@@ -366,8 +422,8 @@ void theme_renderHeaderPath(SDL_Surface *screen, const char *const *levels, int 
     if (_header_titlebarHasArt()) {
         // no badge drawn: the title alone, centered, as in MainUI (the
         // path, wider, went over the art again)
-        path_shown = false;
-        x = _header_classicX(title_w);
+        _header_classicTitle(screen, title, current);
+        return;
     }
     if (path_shown) {
         if (from > 0)
