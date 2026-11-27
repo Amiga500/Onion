@@ -256,6 +256,249 @@ SDL_Surface *mainui_theme_image(const MainUITheme *theme, const char *name)
     return asset(theme, theme->directory, theme->fallback, name);
 }
 
+/* Same bytes in both files (small files only: settings icons are a few KiB).
+ * A file that cannot be read is not the same. */
+static bool same_file(const char *a, const char *b)
+{
+    FILE *fa = fopen(a, "rb"), *fb = fopen(b, "rb");
+    bool same = fa && fb;
+    char ba[4096], bb[4096];
+    size_t total = 0;
+    while (same) {
+        size_t na = fread(ba, 1, sizeof ba, fa), nb = fread(bb, 1, sizeof bb, fb);
+        total += na;
+        if (na != nb || memcmp(ba, bb, na) || total > 1024u * 1024u) {
+            same = false;
+        }
+        else if (na < sizeof ba) {
+            break;
+        }
+    }
+    if (fa) {
+        fclose(fa);
+    }
+    if (fb) {
+        fclose(fb);
+    }
+    return same;
+}
+
+static bool pixel_access(SDL_Surface *surface)
+{
+    return surface && surface->format->BytesPerPixel == 4 && SDL_LockSurface(surface) == 0;
+}
+
+static Uint32 *pixel_row(SDL_Surface *surface, int y)
+{
+    return (Uint32 *)((Uint8 *)surface->pixels + (size_t)y * surface->pitch);
+}
+
+/* The same picture: same size, and every pixel within a few levels (a theme
+ * that saved the stock icon again, with other bytes). */
+static bool same_pixels(SDL_Surface *a, SDL_Surface *b)
+{
+    if (!a || !b || a->w != b->w || a->h != b->h || !pixel_access(a)) {
+        return false;
+    }
+    if (!pixel_access(b)) {
+        SDL_UnlockSurface(a);
+        return false;
+    }
+    bool same = true;
+    for (int y = 0; same && y < a->h; y++) {
+        const Uint32 *ra = pixel_row(a, y), *rb = pixel_row(b, y);
+        for (int x = 0; same && x < a->w; x++) {
+            Uint8 c[2][4];
+            SDL_GetRGBA(ra[x], a->format, &c[0][0], &c[0][1], &c[0][2], &c[0][3]);
+            SDL_GetRGBA(rb[x], b->format, &c[1][0], &c[1][1], &c[1][2], &c[1][3]);
+            int channels = c[0][3] < 16 && c[1][3] < 16 ? 1 : 4; /* both clear: alpha only */
+            for (int k = 4 - channels; k < 4; k++) {
+                if (abs(c[0][k] - c[1][k]) > 8) {
+                    same = false;
+                }
+            }
+        }
+    }
+    SDL_UnlockSurface(b);
+    SDL_UnlockSurface(a);
+    return same;
+}
+
+/* A settings icon the active theme does not draw itself: missing from it (the
+ * built-in one is used), or the built-in one copied in. Many themes were made
+ * before the Wi-Fi, Themes and Tweaks entries and have no icon for them, or
+ * ship the stock white ones: on a theme with dark or coloured icons those
+ * stood out (white among black on NanoSwitch). An Onion profile override is
+ * the user's own choice and is never borrowed. */
+static bool settings_icon_borrowed(const MainUITheme *theme, const char *name, SDL_Surface *icon)
+{
+    char path[4096], base[4096];
+    if (profile_path(theme, name, path) || !strcmp(theme->directory, theme->fallback) ||
+        !join(path, theme->directory, name) || !join(base, theme->fallback, name)) {
+        return false;
+    }
+    if (!mainui_file_stamp(path).exists || same_file(path, base)) {
+        return true;
+    }
+    SDL_Surface *stock = load_asset_image(theme, base, false);
+    bool same = same_pixels(icon, stock);
+    SDL_FreeSurface(stock);
+    return same;
+}
+
+/* An icon's main colour: the most common one among its solid pixels (16
+ * levels per channel), as the average of the pixels that have it. */
+static bool near_white(Uint8 r, Uint8 g, Uint8 b)
+{
+    return r >= 200 && g >= 200 && b >= 200;
+}
+
+static bool icon_main_colour(SDL_Surface *icon, uint32_t *count, bool skip_white, Uint8 colour[3])
+{
+    if (!pixel_access(icon)) {
+        return false;
+    }
+    memset(count, 0, 4096 * 4 * sizeof *count);
+    for (int y = 0; y < icon->h; y++) {
+        const Uint32 *row = pixel_row(icon, y);
+        for (int x = 0; x < icon->w; x++) {
+            Uint8 pr, pg, pb, pa;
+            SDL_GetRGBA(row[x], icon->format, &pr, &pg, &pb, &pa);
+            if (pa < 128 || (skip_white && near_white(pr, pg, pb))) {
+                continue;
+            }
+            uint32_t *bucket = count + 4 * ((pr >> 4) << 8 | (pg >> 4) << 4 | pb >> 4);
+            bucket[0]++;
+            bucket[1] += pr;
+            bucket[2] += pg;
+            bucket[3] += pb;
+        }
+    }
+    SDL_UnlockSurface(icon);
+    int best = -1;
+    for (int i = 0; i < 4096; i++) {
+        if (count[4 * i] && (best < 0 || count[4 * i] > count[4 * best])) {
+            best = i;
+        }
+    }
+    if (best < 0) {
+        return false;
+    }
+    uint32_t n = count[4 * best];
+    for (int k = 0; k < 3; k++) {
+        colour[k] = (Uint8)((count[4 * best + 1 + k] + n / 2) / n);
+    }
+    return true;
+}
+
+/* The theme's own settings icons' colour: each icon's main colour is a vote,
+ * and the colour most of them share (within 48 levels per channel) wins, as
+ * their average. By pixels, one big filled icon outweighed several thin ones. */
+static bool settings_icon_vote(const MainUISettingsArtwork *art, const bool borrowed[SET_COUNT],
+                               bool skip_white, Uint8 *r, Uint8 *g, Uint8 *b)
+{
+    uint32_t *count = malloc(4096 * 4 * sizeof *count);
+    if (!count) {
+        return false;
+    }
+    Uint8 colours[SET_COUNT][3];
+    int n = 0;
+    for (int i = 0; i < SET_COUNT; i++) {
+        if (!borrowed[i] && icon_main_colour(art->icons[i], count, skip_white, colours[n])) {
+            n++;
+        }
+    }
+    free(count);
+    int best = -1, best_votes = 0;
+    for (int i = 0; i < n; i++) {
+        int votes = 0;
+        for (int j = 0; j < n; j++) {
+            votes += abs(colours[i][0] - colours[j][0]) <= 48 &&
+                     abs(colours[i][1] - colours[j][1]) <= 48 &&
+                     abs(colours[i][2] - colours[j][2]) <= 48;
+        }
+        if (votes > best_votes) {
+            best = i;
+            best_votes = votes;
+        }
+    }
+    if (best < 0) {
+        return false;
+    }
+    unsigned sum[3] = {0, 0, 0}, members = 0;
+    for (int j = 0; j < n; j++) {
+        if (abs(colours[best][0] - colours[j][0]) <= 48 &&
+            abs(colours[best][1] - colours[j][1]) <= 48 &&
+            abs(colours[best][2] - colours[j][2]) <= 48) {
+            for (int k = 0; k < 3; k++) {
+                sum[k] += colours[j][k];
+            }
+            members++;
+        }
+    }
+    *r = (Uint8)((sum[0] + members / 2) / members);
+    *g = (Uint8)((sum[1] + members / 2) / members);
+    *b = (Uint8)((sum[2] + members / 2) / members);
+    return true;
+}
+
+/* The background under the menus is light: white icons would not show. */
+static bool light_background(SDL_Surface *background)
+{
+    if (!pixel_access(background)) {
+        return false;
+    }
+    unsigned long sum = 0, n = 0;
+    for (int y = background->h / 8; y < background->h * 7 / 8; y += 4) {
+        const Uint32 *row = pixel_row(background, y);
+        for (int x = 0; x < background->w; x += 4) {
+            Uint8 pr, pg, pb;
+            SDL_GetRGB(row[x], background->format, &pr, &pg, &pb);
+            sum += (299u * pr + 587u * pg + 114u * pb) / 1000u;
+            n++;
+        }
+    }
+    SDL_UnlockSurface(background);
+    return n && sum / n > 170;
+}
+
+/* The colour for the borrowed icons, or false to keep them white: when the
+ * theme's own icons are white too, unless the background is light (icons
+ * drawn white with dark outlines, as on BMO: then their other colour). */
+static bool settings_icon_colour(const MainUITheme *theme, const MainUISettingsArtwork *art,
+                                 const bool borrowed[SET_COUNT], Uint8 *r, Uint8 *g, Uint8 *b)
+{
+    if (!settings_icon_vote(art, borrowed, false, r, g, b)) {
+        return false;
+    }
+    if (!near_white(*r, *g, *b)) {
+        return true;
+    }
+    return light_background(theme->background) &&
+           settings_icon_vote(art, borrowed, true, r, g, b) && !near_white(*r, *g, *b);
+}
+
+/* The built-in icons are white: shades of grey keep their shading, scaled to
+ * the colour; transparency is kept. */
+static void tint_icon(SDL_Surface *icon, Uint8 r, Uint8 g, Uint8 b)
+{
+    if (!pixel_access(icon)) {
+        return;
+    }
+    for (int y = 0; y < icon->h; y++) {
+        Uint32 *row = pixel_row(icon, y);
+        for (int x = 0; x < icon->w; x++) {
+            Uint8 pr, pg, pb, pa;
+            SDL_GetRGBA(row[x], icon->format, &pr, &pg, &pb, &pa);
+            unsigned grey = (pr + pg + pb + 1u) / 3u;
+            row[x] = SDL_MapRGBA(icon->format, (Uint8)((r * grey + 127u) / 255u),
+                                 (Uint8)((g * grey + 127u) / 255u),
+                                 (Uint8)((b * grey + 127u) / 255u), pa);
+        }
+    }
+    SDL_UnlockSurface(icon);
+}
+
 const MainUISettingsArtwork *mainui_theme_settings_artwork(MainUITheme *theme)
 {
     MainUISettingsArtwork *art = &theme->settings_artwork;
@@ -264,8 +507,24 @@ const MainUISettingsArtwork *mainui_theme_settings_artwork(MainUITheme *theme)
         art->selection = mainui_theme_image(theme, "skin/bg-list-s.png");
         art->left = mainui_theme_image(theme, "skin/icon-left-arrow-24.png");
         art->right = mainui_theme_image(theme, "skin/icon-right-arrow-24.png");
+        bool borrowed[SET_COUNT], any_borrowed = false;
+        int own = 0;
         for (int i = 0; i < SET_COUNT; i++) {
             art->icons[i] = mainui_theme_image(theme, mainui_stock_setting_icon(i));
+            borrowed[i] =
+                settings_icon_borrowed(theme, mainui_stock_setting_icon(i), art->icons[i]);
+            any_borrowed |= borrowed[i] && art->icons[i];
+            own += !borrowed[i] && art->icons[i];
+        }
+        /* Borrowed icons take the colour of the theme's own, unless they
+         * match as they are (settings_icon_colour). */
+        Uint8 r, g, b;
+        if (any_borrowed && own && settings_icon_colour(theme, art, borrowed, &r, &g, &b)) {
+            for (int i = 0; i < SET_COUNT; i++) {
+                if (borrowed[i]) {
+                    tint_icon(art->icons[i], r, g, b);
+                }
+            }
         }
     }
     return art;

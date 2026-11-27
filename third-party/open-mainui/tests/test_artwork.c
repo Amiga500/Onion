@@ -9,6 +9,7 @@
 #endif
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -36,6 +37,167 @@ static void initialize(MainUITheme *theme, const char *active, const char *fallb
 {
     strcpy(theme->directory, active);
     strcpy(theme->fallback, fallback);
+}
+
+static void swatch(const char *directory, const char *name, Uint8 r, Uint8 g, Uint8 b)
+{
+    char path[4096];
+    snprintf(path, sizeof path, "%s/%s", directory, name);
+    SDL_Surface *surface = SDL_CreateRGBSurface(SDL_SWSURFACE, 8, 8, 32, 0xff0000, 0xff00, 0xff, 0);
+    assert(surface);
+    SDL_FillRect(surface, NULL, SDL_MapRGB(surface->format, r, g, b));
+    assert(SDL_SaveBMP(surface, path) == 0);
+    SDL_FreeSurface(surface);
+}
+
+/* Mostly white, with a dark band (white icons with dark outlines) */
+static void outlined(const char *directory, const char *name)
+{
+    char path[4096];
+    snprintf(path, sizeof path, "%s/%s", directory, name);
+    SDL_Surface *surface = SDL_CreateRGBSurface(SDL_SWSURFACE, 8, 8, 32, 0xff0000, 0xff00, 0xff, 0);
+    assert(surface);
+    SDL_FillRect(surface, NULL, SDL_MapRGB(surface->format, 255, 255, 255));
+    SDL_FillRect(surface, &(SDL_Rect){0, 6, 8, 2}, SDL_MapRGB(surface->format, 10, 20, 30));
+    assert(SDL_SaveBMP(surface, path) == 0);
+    SDL_FreeSurface(surface);
+}
+
+/* White saved again in 16 bits: other bytes, the same picture */
+static void white_16bit(const char *directory, const char *name)
+{
+    char path[4096];
+    snprintf(path, sizeof path, "%s/%s", directory, name);
+    SDL_Surface *surface = SDL_CreateRGBSurface(SDL_SWSURFACE, 8, 8, 16, 0xf800, 0x07e0, 0x001f, 0);
+    assert(surface);
+    SDL_FillRect(surface, NULL, SDL_MapRGB(surface->format, 255, 255, 255));
+    assert(SDL_SaveBMP(surface, path) == 0);
+    SDL_FreeSurface(surface);
+}
+
+static void copy_file(const char *from, const char *to)
+{
+    FILE *in = fopen(from, "rb"), *out = fopen(to, "wb");
+    assert(in && out);
+    char buffer[4096];
+    size_t n;
+    while ((n = fread(buffer, 1, sizeof buffer, in)) > 0) {
+        assert(fwrite(buffer, 1, n, out) == n);
+    }
+    assert(fclose(in) == 0 && fclose(out) == 0);
+}
+
+static void icon_colour(const SDL_Surface *icon, Uint8 *r, Uint8 *g, Uint8 *b)
+{
+    assert(icon && icon->format->BytesPerPixel == 4);
+    assert(SDL_LockSurface((SDL_Surface *)icon) == 0);
+    Uint8 a;
+    SDL_GetRGBA(*(const Uint32 *)icon->pixels, icon->format, r, g, b, &a);
+    SDL_UnlockSurface((SDL_Surface *)icon);
+}
+
+static bool icon_is(const SDL_Surface *icon, Uint8 r, Uint8 g, Uint8 b)
+{
+    Uint8 ir, ig, ib;
+    icon_colour(icon, &ir, &ig, &ib);
+    return ir == r && ig == g && ib == b;
+}
+
+/* Settings icons a theme does not draw itself (missing, or a byte copy of the
+ * built-in white one) take the colour of its own; a white theme, or the
+ * user's profile override, keeps them as they are. Needs the display format
+ * (32-bit), as on the device. */
+static void settings_icon_tint_tests(const char *root)
+{
+    setenv("SDL_VIDEODRIVER", "dummy", 1);
+    assert(SDL_InitSubSystem(SDL_INIT_VIDEO) == 0);
+    assert(SDL_SetVideoMode(64, 64, 32, SDL_SWSURFACE));
+    char base[1024], dark[1024], white[1024], path[4096], from[4096];
+    snprintf(base, sizeof base, "%s/tint-base", root);
+    snprintf(dark, sizeof dark, "%s/tint-dark", root);
+    snprintf(white, sizeof white, "%s/tint-white", root);
+    const char *dirs[] = {base, dark, white};
+    for (int i = 0; i < 3; i++) {
+        assert(mkdir_0755(dirs[i]) == 0);
+        TEST_PATH(path, "%s/skin", dirs[i]);
+        assert(mkdir_0755(path) == 0);
+    }
+    for (int i = 0; i < SET_COUNT; i++) {
+        swatch(base, mainui_stock_setting_icon(i), 255, 255, 255);
+    }
+    swatch(base, mainui_stock_setting_icon(SET_THEMES), 128, 128, 128); /* a shade */
+    /* A dark theme without Wi-Fi and Themes icons, and with the stock Tweaks
+     * one copied in */
+    for (int i = 0; i < SET_COUNT; i++) {
+        if (i != SET_WIFI && i != SET_THEMES && i != SET_TWEAKS && i != SET_LANGUAGE) {
+            swatch(dark, mainui_stock_setting_icon(i), 40, 60, 80);
+        }
+    }
+    white_16bit(dark, mainui_stock_setting_icon(SET_LANGUAGE));
+    TEST_PATH(from, "%s/%s", base, mainui_stock_setting_icon(SET_TWEAKS));
+    TEST_PATH(path, "%s/%s", dark, mainui_stock_setting_icon(SET_TWEAKS));
+    copy_file(from, path);
+    MainUITheme theme = {0};
+    initialize(&theme, dark, base);
+    const MainUISettingsArtwork *art = mainui_theme_settings_artwork(&theme);
+    assert(icon_is(art->icons[SET_WIFI], 40, 60, 80));
+    assert(icon_is(art->icons[SET_TWEAKS], 40, 60, 80));
+    assert(icon_is(art->icons[SET_LANGUAGE], 39, 59, 78)); /* its shade, 249 */
+    assert(icon_is(art->icons[SET_THEMES], 20, 30, 40));
+    assert(icon_is(art->icons[SET_BRIGHTNESS], 40, 60, 80));
+    mainui_theme_close(&theme);
+    /* The user's own icon (profile override) is kept */
+    char profile[1024];
+    snprintf(profile, sizeof profile, "%s/tint-profile", root);
+    assert(mkdir_0755(profile) == 0);
+    TEST_PATH(path, "%s/skin", profile);
+    assert(mkdir_0755(path) == 0);
+    swatch(profile, mainui_stock_setting_icon(SET_WIFI), 255, 255, 255);
+    initialize(&theme, dark, base);
+    strcpy(theme.profile, profile);
+    art = mainui_theme_settings_artwork(&theme);
+    assert(icon_is(art->icons[SET_WIFI], 255, 255, 255));
+    assert(icon_is(art->icons[SET_TWEAKS], 40, 60, 80));
+    mainui_theme_close(&theme);
+    /* A theme with white icons: the built-in ones are left white */
+    for (int i = 0; i < SET_COUNT; i++) {
+        if (i != SET_WIFI) {
+            swatch(white, mainui_stock_setting_icon(i), 250, 250, 250);
+        }
+    }
+    initialize(&theme, white, base);
+    assert(icon_is(mainui_theme_settings_artwork(&theme)->icons[SET_WIFI], 255, 255, 255));
+    mainui_theme_close(&theme);
+    /* White icons with dark outlines: on a light background the borrowed ones
+     * take the outline colour, on a dark one they stay white */
+    char outline[1024];
+    snprintf(outline, sizeof outline, "%s/tint-outline", root);
+    assert(mkdir_0755(outline) == 0);
+    TEST_PATH(path, "%s/skin", outline);
+    assert(mkdir_0755(path) == 0);
+    for (int i = 0; i < SET_COUNT; i++) {
+        if (i != SET_WIFI) {
+            outlined(outline, mainui_stock_setting_icon(i));
+        }
+    }
+    for (int light = 0; light < 2; light++) {
+        swatch(outline, "skin/background.png", light ? 230 : 30, light ? 230 : 30,
+               light ? 230 : 30);
+        initialize(&theme, outline, base);
+        theme.background = mainui_theme_image(&theme, "skin/background.png");
+        assert(theme.background);
+        art = mainui_theme_settings_artwork(&theme);
+        assert(light ? icon_is(art->icons[SET_WIFI], 10, 20, 30)
+                     : icon_is(art->icons[SET_WIFI], 255, 255, 255));
+        mainui_theme_close(&theme);
+    }
+    /* The built-in theme itself is never changed */
+    initialize(&theme, base, base);
+    art = mainui_theme_settings_artwork(&theme);
+    assert(icon_is(art->icons[SET_WIFI], 255, 255, 255));
+    assert(icon_is(art->icons[SET_THEMES], 128, 128, 128));
+    mainui_theme_close(&theme);
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
 /* Bilinear scaling, as for Carousel artwork: sizes,
@@ -489,8 +651,9 @@ int main(int argc, char **argv)
     SDL_FreeSurface(screen);
     free(apps);
     TTF_Quit();
+    settings_icon_tint_tests(root);
     SDL_Quit();
-    puts("Artwork reuse, cached misses, theme invalidation, popup fallback and theme overrides "
-         "passed");
+    puts("Artwork reuse, cached misses, theme invalidation, popup fallback, theme overrides "
+         "and settings icon colours passed");
     return 0;
 }
