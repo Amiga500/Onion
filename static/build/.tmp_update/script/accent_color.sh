@@ -33,8 +33,9 @@
 # console, so the usual paths start almost none: the files are read with
 # the shell's own read, the copies made with one cp and removed with one rm
 # (the first version, one cp, od and mkdir per picture, took 1-2 seconds
-# per change in Tweaks; robcodedev). Only resized theme images, or the
-# user's own overrides among the pictures, take the slower file-by-file way.
+# per change in Tweaks; robcodedev). Resized theme images (the game-list
+# row count) are fitted one by one after that cp, only them; only the
+# user's own overrides among the pictures take the file-by-file way.
 
 SDROOT=${SDROOT:-/mnt/SDCARD}
 sysdir=${SYSDIR:-$SDROOT/.tmp_update}
@@ -185,6 +186,19 @@ place() { # rel_src rel_dst
     echo "$rel" >> "$LIST.new"
 }
 
+# A picture already copied (the fast way) whose theme image was resized
+# for the row count: made as large as it from the colour's own. Left as
+# copied when it cannot be (no size, the resize failed).
+fit() { # rel
+    want=$(png_size "$theme_path/$1" 2> /dev/null)
+    have=$(png_size "$OVERRIDES/$1" 2> /dev/null)
+    [ -n "$want" ] && [ "$want" != "$have" ] || return 0
+    set -- "$1" $want
+    scale "$ACCENT_RES/$colour/$1" "$OVERRIDES/$1.tmp" "$2" "$3" > /dev/null 2>&1 &&
+        [ -s "$OVERRIDES/$1.tmp" ] && mv -f "$OVERRIDES/$1.tmp" "$OVERRIDES/$1" ||
+        rm -f "$OVERRIDES/$1.tmp"
+}
+
 # The previous colour's files go first: one rm for all of them. Only paths
 # under skin/ made of plain file-name characters, never one with "..".
 if [ -f "$LIST" ]; then
@@ -209,35 +223,40 @@ if [ "$colour" != red ]; then
         FILES=/tmp/accent_files.$$
         (cd "$ACCENT_RES/$colour" && find skin -type f -name '*.png') > "$FILES"
     fi
-    # The fast way: no resized theme images and none of the pictures already
-    # overridden by the user (checked with the shell's own test).
+    # The fast way: one cp for all the pictures, when none of them is
+    # already overridden by the user (checked with the shell's own test).
+    # Resized theme images do not stop it: only those few are fitted after
+    # it (below). They made every picture go the slow way, about 170
+    # programs started, seconds stuck in Tweaks at each change once the
+    # list icons had been resized, even back at 6 rows (their .bak stays;
+    # robcodedev, 4.5.1 beta 6).
     fast=1
-    [ -n "$resized" ] && fast=0
-    if [ "$fast" -eq 1 ]; then
-        while IFS= read -r f; do
-            case "$f" in '' | \#*) continue ;; esac
-            [ -e "$OVERRIDES/$f" ] && {
-                fast=0
-                break
-            }
-        done < "$FILES"
-    fi
+    while IFS= read -r f; do
+        case "$f" in '' | \#*) continue ;; esac
+        [ -e "$OVERRIDES/$f" ] && {
+            fast=0
+            break
+        }
+    done < "$FILES"
     if [ "$fast" -eq 1 ] && cp -r "$ACCENT_RES/$colour/skin" "$OVERRIDES/"; then
         while IFS= read -r f; do
             case "$f" in '' | \#*) continue ;; esac
-            echo "$f" >> "$LIST.new"
-        done < "$FILES"
+            echo "$f"
+            # a theme image resized for the row count (it has a .bak):
+            # the copy made as large
+            [ -f "$theme_path/$f.bak" ] && fit "$f"
+        done < "$FILES" >> "$LIST.new"
     else
         while IFS= read -r f; do
             case "$f" in '' | \#*) continue ;; esac
             place "$f" "$f"
         done < "$FILES"
-        # The selection for a game-list row count other than 6
-        for f in "$theme_path"/skin/bg-list-s_*.png; do
-            [ -f "$f" ] || continue
-            place skin/bg-list-s.png "skin/${f##*/}"
-        done
     fi
+    # The selection for a game-list row count other than 6
+    for f in "$theme_path"/skin/bg-list-s_*.png; do
+        [ -f "$f" ] || continue
+        place skin/bg-list-s.png "skin/${f##*/}"
+    done
 fi
 mv -f "$LIST.new" "$LIST"
 case "$FILES" in /tmp/accent_files.*) rm -f "$FILES" ;; esac

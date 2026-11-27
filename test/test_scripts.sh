@@ -2745,6 +2745,29 @@ check "pink copied by it" cmp -s "$TMP/ov/skin/bg-list-s.png" "$RES/pink/skin/bg
 rm -f "$TMP/count/log"
 SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE=/none PNGSCALE=/none PATH="$TMP/count:$PATH" sh "$AC"
 check "nothing changed (every MainUI start): no program at all" test ! -s "$TMP/count/log"
+# The list icons resized once (Tweaks > Game lists): .bak originals stay,
+# even back at 6 rows. Every picture went the slow way (one cp, two od and
+# a mkdir each: seconds stuck at each change, beta 6). Now one cp for all,
+# and only the resized one fitted.
+cp "$ROOT/static/build/Themes/Silky RedOnion/skin/ic-favorite-mark.png" "$TMP/sd/Themes/Silky RedOnion/skin/ic-favorite-mark.png.bak"
+cp "$TMP/sd/Themes/Silky RedOnion/skin/ic-favorite-mark.png.bak" "$TMP/sd/Themes/Silky RedOnion/skin/ic-favorite-mark.png"
+echo 1 > "$TMP/sys/config/display/accentColor"
+rm -f "$TMP/count/log" "$TMP/resized"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE="$TMP/bin/pngresize" PNGSCALE=/none PATH="$TMP/count:$PATH" sh "$AC"
+check "icons resized once, back at 6 rows (.bak left): still a handful of programs" test "$(wc -l < "$TMP/count/log")" -le 14
+check "one cp for the pictures" test "$(grep -c '^cp$' "$TMP/count/log")" -eq 1
+check "blue copied by it" cmp -s "$TMP/ov/skin/bg-list-s.png" "$RES/blue/skin/bg-list-s.png"
+check "the icon as large as the theme's: copied, not resized" sh -c "cmp -s '$TMP/ov/skin/ic-favorite-mark.png' '$RES/blue/skin/ic-favorite-mark.png' && test ! -e '$TMP/resized'"
+# the theme's icon smaller (rows other than 6): the copy fitted to it
+printf '\211PNG\r\n\032\n\000\000\000\rIHDR\000\000\000\030\000\000\000\030' > "$TMP/sd/Themes/Silky RedOnion/skin/ic-favorite-mark.png"
+echo 5 > "$TMP/sys/config/display/accentColor"
+rm -f "$TMP/count/log" "$TMP/resized"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE="$TMP/bin/pngresize" PNGSCALE=/none PATH="$TMP/count:$PATH" sh "$AC"
+check "resized icon: the copy fitted to the theme's size" test "$(cat "$TMP/resized" 2> /dev/null)" = "24x24"
+check "the others copied as they are (orange)" cmp -s "$TMP/ov/skin/bg-list-s.png" "$RES/orange/skin/bg-list-s.png"
+check "still a handful of programs" test "$(wc -l < "$TMP/count/log")" -le 16
+check "no .tmp left" test -z "$(find "$TMP/ov" -name '*.tmp')"
+rm -f "$TMP/sd/Themes/Silky RedOnion/skin/ic-favorite-mark.png" "$TMP/sd/Themes/Silky RedOnion/skin/ic-favorite-mark.png.bak"
 unset -f ac silky_json
 # the colours and the pictures
 check "palette: the saved numbers' order, new colours at the end" test "$(grep -v '^#' "$RES/palette.txt" | cut -d' ' -f1 | tr '\n' ' ')" = "red blue purple teal pink orange green gold graphite "
