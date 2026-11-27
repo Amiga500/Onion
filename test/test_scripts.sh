@@ -1355,7 +1355,7 @@ if command -v jq > /dev/null; then
     # 4.5.1-b1 for the testers, then the beta channel: offered over the 4.5.0
     # stable there, not on the stable channel, and the 4.5.1 stable offered
     # to it later. Also as a build made by hand (no commit hash).
-    check "the Makefile's version is 4.5.1-b5" test "$(sed -n 's/^VERSION_BASE=//p' "$ROOT/Makefile")" = 4.5.1-b5
+    check "the Makefile's version is 4.5.1-b6" test "$(sed -n 's/^VERSION_BASE=//p' "$ROOT/Makefile")" = 4.5.1-b6
     check "4.5.1 is newer than 4.5.0" test "$(get_version 4.5.1)" -gt "$(get_version 4.5.0)"
     installUI() { echo "4.5.0-20261106-3d9f2add"; }
     channel=beta
@@ -1414,6 +1414,17 @@ if command -v jq > /dev/null; then
     installUI() { echo "4.5.1-b5-20261125-4d5e6f7a"; }
     get_release_info > /dev/null
     check "testers channel on 4.5.1-b5: b4 not offered back" test "$?" -eq 1
+    # 4.5.1-b6 for the testers (the new look), over the b5 they have
+    installUI() { echo "4.5.1-b5-20261125-b102b879"; }
+    printf '[%s]' "$(ota_asset 4.5.1-b6-20261127-393be556 true)" > "$TMP/testers.json"
+    get_release_info > /dev/null
+    check "testers channel on 4.5.1-b5: 4.5.1-b6 offered" test "$?" -eq 0 -a "$Release_FullVersion" = 4.5.1-b6-20261127-393be556
+    printf '[%s]' "$(ota_asset 4.5.1-b5-20261125-b102b879 true)" > "$TMP/testers.json"
+    get_release_info > /dev/null
+    check "testers channel on 4.5.1-b5: the same b5 is up to date" test "$?" -eq 1
+    installUI() { echo "4.5.1-b6-20261127-393be556"; }
+    get_release_info > /dev/null
+    check "testers channel on 4.5.1-b6: b5 not offered back" test "$?" -eq 1
     channel=beta
     installUI() { echo "4.5.1-b2-20261119"; }
     ota_asset 4.5.1-20261201-5e6f7a8b false > "$TMP/latest.json"
