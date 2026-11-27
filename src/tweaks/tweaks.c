@@ -108,6 +108,12 @@ int main(int argc, char *argv[])
     bool show_help_tooltip = !config_flag_get(".tweaksHelpCompleted");
     theme_listCanScroll = true; // redrawn below while a row scrolls
 
+    // Measure (config/.tweaksFps): while a row scrolls, one line a second in
+    // /tmp/tweaks_fps.log, the frames drawn (only the row, or everything).
+    const bool fps_log = config_flag_get(".tweaksFps");
+    uint32_t fps_at = SDL_GetTicks();
+    int fps_row = 0, fps_full = 0;
+
     while (!quit) {
         uint32_t ticks = SDL_GetTicks();
         acc_ticks += ticks - last_ticks;
@@ -226,8 +232,10 @@ int main(int argc, char *argv[])
             // A long value or label on the selected row scrolls: redrawn
             // every frame while it does (2-3 px each, list.h), none
             // otherwise. Every 33 ms it was slow or jerky (robcodedev).
-            if (theme_listValueScrolling)
-                list_changed = true;
+            // When nothing else changed, only that row is drawn and put on
+            // the screen (below): the whole list at every frame was too
+            // much work for 60 a second.
+            bool scroll_frame = theme_listValueScrolling;
             if (isMenu(&_menu_date_time) || isMenu(&_menu_user_blue_light)) {
                 if (isMenu(&_menu_date_time)) {
                     if (_writeDateString(_menu_date_time.items[0].label)) {
@@ -251,6 +259,33 @@ int main(int argc, char *argv[])
                         strcpy(_menu_wifi.items[0].label, ip_address_label);
                     list_changed = true;
                 }
+            }
+
+            if (scroll_frame && !list_changed && !header_changed && !footer_changed && !battery_changed) {
+                SDL_Rect row;
+                if (theme_renderListActiveRow(screen, menu_stack[menu_level], &row)) {
+                    SDL_BlitSurface(screen, &row, video, &row);
+                    SDL_Flip(video);
+                    fps_row++;
+                }
+                else
+                    list_changed = true;
+            }
+            else if (scroll_frame)
+                list_changed = true;
+            if (scroll_frame && list_changed)
+                fps_full++;
+            if (fps_log && ticks - fps_at >= 1000) {
+                if (fps_row + fps_full > 0) {
+                    FILE *fp = fopen("/tmp/tweaks_fps.log", "a");
+                    if (fp) {
+                        fprintf(fp, "%d frames/s while scrolling: %d the row only, %d all\n",
+                                (fps_row + fps_full) * 1000 / (int)(ticks - fps_at), fps_row, fps_full);
+                        fclose(fp);
+                    }
+                }
+                fps_at = ticks;
+                fps_row = fps_full = 0;
             }
 
             if (header_changed || battery_changed) {

@@ -66,6 +66,12 @@ static uint32_t _label_scroll_hash = 0;
 static uint32_t _label_scroll_start = 0;
 static int _label_scroll_drawn = 0;
 
+// theme_renderListActiveRow: only the selected row is drawn (the row that
+// scrolls), over its own part of the background; _list_row_rect is where.
+static bool _list_only_active = false;
+static bool _list_row_drawn = false;
+static SDL_Rect _list_row_rect;
+
 // Render a list label with per-item TTF surface caching
 // Caches the TTF render in item->_label_cache; only re-renders when label changes.
 // The selected row's label, when too wide, scrolls back and forth like a long
@@ -274,9 +280,21 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
 {
     // Coming back to a row starts its scroll over, not from where it was.
     const bool was_scrolling = theme_listValueScrolling;
+
+    // Only the selected row: not with a sticky note or a preview picture,
+    // which are drawn over other rows (then the caller draws it all).
+    _list_row_drawn = false;
+    if (_list_only_active &&
+        (list->has_sticky || list->active_pos < list->scroll_pos ||
+         list->active_pos >= list->scroll_pos + list->scroll_height ||
+         list->active_pos >= list->item_count ||
+         list->items[list->active_pos].preview_path[0] != '\0' ||
+         list->items[list->active_pos].preview_ptr != NULL))
+        return;
+
     theme_listValueScrolling = false;
 
-    if (params.background)
+    if (params.background && !_list_only_active)
         SDL_BlitSurface(params.background, &params.dim, screen, &params.pos);
 
     bool list_small = list->list_type == LIST_SMALL;
@@ -348,6 +366,8 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
     const SDL_Color grid_color = theme()->grid.color;
 
     for (int i = list->scroll_pos; i < last_item; i++) {
+        if (_list_only_active && i != list->active_pos)
+            continue;
         ListItem *item = &list->items[i];
         bool show_disabled = item->disabled && !item->show_opaque;
 
@@ -359,6 +379,18 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
 
         // Unified look: no divider lines between rows.
         item_bg_rect.y += item_padding;
+
+        if (_list_only_active) {
+            // the row's own part of the background, then the row
+            _list_row_rect = (SDL_Rect){params.pos.x, item_bg_rect.y, params.dim.w, item_bg_size.h};
+            if (params.background) {
+                SDL_Rect src = {params.dim.x, params.dim.y + (item_bg_rect.y - params.pos.y),
+                                params.dim.w, item_bg_size.h};
+                SDL_Rect dst = _list_row_rect;
+                SDL_BlitSurface(params.background, &src, screen, &dst);
+            }
+            _list_row_drawn = true;
+        }
 
         if (i == list->active_pos) {
             /* New look: the selected row is a rounded pill in the theme's
@@ -493,6 +525,9 @@ void theme_renderListCustom(SDL_Surface *screen, List *list, ListRenderParams_s 
         }
     }
 
+    if (_list_only_active)
+        return; // the note and the preview are not in the row
+
     _list_note_whole = false;
     if (with_note) {
         SDL_Rect box = {12.0 * g_scale, 366.0 * g_scale, params.dim.w - 24.0 * g_scale, 50.0 * g_scale};
@@ -553,6 +588,22 @@ void theme_renderList(SDL_Surface *screen, List *list)
     };
 
     theme_renderListCustom(screen, list, params);
+}
+
+// Only the selected row of theme_renderList, over its part of the
+// background: a row that scrolls (Tweaks) is redrawn at every frame, and
+// the whole list was too much work for 60 a second (robcodedev: "requires
+// higher fps"). False when it can't be done alone (a sticky note, a
+// preview picture): then the caller draws the whole list. *rect: where it
+// was drawn, to put on the screen.
+bool theme_renderListActiveRow(SDL_Surface *screen, List *list, SDL_Rect *rect)
+{
+    _list_only_active = true;
+    theme_renderList(screen, list);
+    _list_only_active = false;
+    if (_list_row_drawn && rect != NULL)
+        *rect = _list_row_rect;
+    return _list_row_drawn;
 }
 
 #endif // RENDER_MENU_H__
