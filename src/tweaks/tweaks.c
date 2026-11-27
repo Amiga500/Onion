@@ -54,35 +54,97 @@ void check_networkChanged(void)
     temp_flag_set("network_changed", modified);
 }
 
-// The scrolling row's lines from the picture to the screen, copied in
-// memory. The console's hardware copy of that rectangle alone
-// (SDL_BlitSurface, MI_GFX) put it a few pixels lower: a line of the
-// selection stayed above it (Amiga500's video, Mini+). The whole picture with
-// the hardware copy is right but slow (33 frames a second against 50).
-// Other pixel formats: the whole picture, as before.
-static void tweaks_putRow(SDL_Rect *row)
+// The scrolling row's pixels from the picture to the screen, copied in
+// memory. On the Mini+ the screen's memory is the panel's, turned 180
+// degrees: the console's SDL turns the picture when it copies it there.
+// Its hardware copy of the row's rectangle alone put it 6 px off (a row at
+// y 212, 50 high, went to 480 - 212 - 50 = 218 turned): a line of the
+// selection stayed above it (Amiga500's video). The whole picture is right but
+// slow (33 frames a second against 50); a plain copy of the row came out
+// upside down.
+//
+// So the first time, the whole picture is copied the usual way and 64
+// points of the screen's memory compared with it, straight and turned:
+// the way that matches is used for the rows (each pixel (x, y) to
+// (x, y), or to (w-1-x, h-1-y)). Neither for sure (another panel, other
+// formats or sizes): always the whole picture, as before.
+enum { PUTROW_UNKNOWN = -1, PUTROW_STRAIGHT, PUTROW_TURNED, PUTROW_WHOLE };
+static int putrow_mode = PUTROW_UNKNOWN;
+
+static bool tweaks_lockBoth(void)
 {
-    SDL_Rect r = *row;
-    if (r.x < 0 || r.y < 0 || r.x + r.w > screen->w || r.y + r.h > screen->h ||
-        r.x + r.w > video->w || r.y + r.h > video->h ||
-        screen->format->BytesPerPixel != 4 || video->format->BytesPerPixel != 4 ||
+    if (SDL_LockSurface(screen) != 0)
+        return false;
+    if (SDL_LockSurface(video) != 0) {
+        SDL_UnlockSurface(screen);
+        return false;
+    }
+    return true;
+}
+
+static void tweaks_unlockBoth(void)
+{
+    SDL_UnlockSurface(video);
+    SDL_UnlockSurface(screen);
+}
+
+static Uint32 tweaks_pixel(SDL_Surface *s, int x, int y)
+{
+    return ((Uint32 *)((Uint8 *)s->pixels + y * s->pitch))[x] & 0xFFFFFF;
+}
+
+static int tweaks_putRowMode(void)
+{
+    if (screen->format->BytesPerPixel != 4 || video->format->BytesPerPixel != 4 ||
         screen->format->Rmask != video->format->Rmask ||
         screen->format->Gmask != video->format->Gmask ||
         screen->format->Bmask != video->format->Bmask ||
-        SDL_LockSurface(screen) != 0) {
+        video->w != screen->w || video->h != screen->h)
+        return PUTROW_WHOLE;
+    SDL_BlitSurface(screen, NULL, video, NULL);
+    if (!tweaks_lockBoth())
+        return PUTROW_WHOLE;
+    int straight = 0, turned = 0, n = 0;
+    const int w = screen->w, h = screen->h;
+    for (int i = 0; i < 8; i++)
+        for (int j = 0; j < 8; j++) {
+            int x = w * (2 * i + 1) / 16 + i, y = h * (2 * j + 1) / 16 + 3 * j;
+            Uint32 p = tweaks_pixel(screen, x, y);
+            straight += tweaks_pixel(video, x, y) == p;
+            turned += tweaks_pixel(video, w - 1 - x, h - 1 - y) == p;
+            n++;
+        }
+    tweaks_unlockBoth();
+    if (straight == n && turned < n)
+        return PUTROW_STRAIGHT;
+    if (turned == n && straight < n)
+        return PUTROW_TURNED;
+    return PUTROW_WHOLE;
+}
+
+static void tweaks_putRow(SDL_Rect *row)
+{
+    SDL_Rect r = *row;
+    if (putrow_mode == PUTROW_UNKNOWN) {
+        putrow_mode = tweaks_putRowMode();
+        return; // this frame: the whole picture, just copied
+    }
+    if (putrow_mode == PUTROW_WHOLE || r.x < 0 || r.y < 0 || r.w <= 0 || r.h <= 0 ||
+        r.x + r.w > screen->w || r.y + r.h > screen->h || !tweaks_lockBoth()) {
         SDL_BlitSurface(screen, NULL, video, NULL);
         return;
     }
-    if (SDL_LockSurface(video) != 0) {
-        SDL_UnlockSurface(screen);
-        SDL_BlitSurface(screen, NULL, video, NULL);
-        return;
+    for (int y = r.y; y < r.y + r.h; y++) {
+        const Uint32 *src = (const Uint32 *)((Uint8 *)screen->pixels + y * screen->pitch);
+        if (putrow_mode == PUTROW_TURNED) {
+            Uint32 *dst = (Uint32 *)((Uint8 *)video->pixels + (video->h - 1 - y) * video->pitch);
+            for (int x = r.x; x < r.x + r.w; x++)
+                dst[video->w - 1 - x] = src[x];
+        }
+        else
+            memcpy((Uint32 *)((Uint8 *)video->pixels + y * video->pitch) + r.x, src + r.x, r.w * 4);
     }
-    for (int y = r.y; y < r.y + r.h; y++)
-        memcpy((Uint8 *)video->pixels + y * video->pitch + r.x * 4,
-               (Uint8 *)screen->pixels + y * screen->pitch + r.x * 4, r.w * 4);
-    SDL_UnlockSurface(video);
-    SDL_UnlockSurface(screen);
+    tweaks_unlockBoth();
 }
 
 int main(int argc, char *argv[])
