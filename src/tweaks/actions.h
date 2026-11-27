@@ -196,12 +196,24 @@ static int accent_listPosition(int palette_index)
     return 0;
 }
 
-void action_setAccentColor(void *pt)
+// Applying a colour (its pictures copied, Tweaks' own reloaded) takes a
+// moment. LEFT/RIGHT step through the colours: it was done at every step,
+// so going from Red to Graphite applied all nine one after the other and
+// the list stuck for many seconds (robcodedev, 4.5.1 beta 6). The choice
+// is saved at once and applied once the colour stays 500 ms, or on leaving
+// Tweaks (accent_applyPending); MainUI applies the saved one when it starts
+// anyway (runtime.sh).
+#define ACCENT_APPLY_DELAY_MS 500
+static bool accent_pending = false;
+static uint32_t accent_pending_since = 0;
+
+void accent_applyPending(uint32_t now, bool now_or_never)
 {
-    int pos = ((ListItem *)pt)->value;
-    if (pos < 0 || pos >= ACCENT_COUNT)
-        pos = 0;
-    config_setNumber("display/accentColor", ACCENT_ORDER[pos]);
+    if (!accent_pending)
+        return;
+    if (!now_or_never && now - accent_pending_since < ACCENT_APPLY_DELAY_MS)
+        return;
+    accent_pending = false;
     system("sh /mnt/SDCARD/.tmp_update/script/accent_color.sh");
     resources_reloadImages();
     ui_resetColors();
@@ -209,6 +221,16 @@ void action_setAccentColor(void *pt)
     theme_renderStandardHint_cleanup();
     theme_renderDialog_cleanup();
     all_changed = true;
+}
+
+void action_setAccentColor(void *pt)
+{
+    int pos = ((ListItem *)pt)->value;
+    if (pos < 0 || pos >= ACCENT_COUNT)
+        pos = 0;
+    config_setNumber("display/accentColor", ACCENT_ORDER[pos]);
+    accent_pending = true;
+    accent_pending_since = SDL_GetTicks();
 }
 
 void action_setLaunchScreen(void *pt)

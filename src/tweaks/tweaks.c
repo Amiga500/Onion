@@ -216,6 +216,9 @@ int main(int argc, char *argv[])
         if (battery_hasChanged(ticks, &battery_percentage))
             battery_changed = true;
 
+        // The accent colour chosen, once it stays put (actions.h)
+        accent_applyPending(ticks, false);
+
         blf_changing = exists("/tmp/blue_light_script.lock");
 
         if (acc_ticks >= time_step) {
@@ -310,6 +313,9 @@ int main(int argc, char *argv[])
         if (acc_ticks < time_step)
             SDL_Delay(time_step - acc_ticks);
     }
+
+    // A colour chosen just before leaving (actions.h)
+    accent_applyPending(0, true);
 
     // Clear the screen when exiting
     SDL_FillRect(video, NULL, 0);
