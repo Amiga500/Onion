@@ -2568,6 +2568,24 @@ rm -f "$TMP/sd/.tmp_update/config/system/0123abcd.json"
 echo '{"brightness": 7}' > "$TMP/sd/system.json"
 installer_reboot
 check "none saved (a first installation): the card's copy stays, for the shutdown to save" test -f "$TMP/sd/system.json"
+# An OTA update reboots plainly: the card's system.json was there when the
+# installation started, the live settings, newer than the saved ones
+echo '{"brightness": 3}' > "$TMP/sd/.tmp_update/config/system/0123abcd.json"
+echo '{"brightness": 10}' > "$TMP/sd/system.json"
+card_settings_live=1
+installer_reboot
+check "the card's copy there at the start (OTA update): kept, for the shutdown to save" grep -q '"brightness": 10' "$TMP/sd/system.json"
+card_settings_live=0
+installer_reboot
+check "not there at the start (after a shutdown): dropped" test ! -e "$TMP/sd/system.json"
+echo '{"brightness": 7}' > "$TMP/sd/system.json"
+reset_configs=1
+installer_reboot
+check "Reinstall (reset settings): the card's defaults are kept" test -f "$TMP/sd/system.json"
+unset reset_configs
+rm -f "$TMP/sd/.tmp_update/config/system/0123abcd.json"
+echo '{"brightness": 7}' > "$TMP/sd/system.json"
+unset card_settings_live
 read_uuid() { return 1; }
 installer_reboot
 check "no serial number: the card's copy stays" test -f "$TMP/sd/system.json"
@@ -2730,11 +2748,20 @@ check "no serial, one console's file: that one" test "$(installer_brightness)" =
 printf '../../etc' > "$TMP/deviceSN"
 rm -f "$TMP/sd/.tmp_update/config/system/ABC123.json"
 check "a serial with a path in it is not followed" test "$(installer_brightness)" = 80
+# An OTA update reboots plainly: the card's system.json is still there, the
+# live settings; the saved ones are from the shutdown before
+printf 'ABC123' > "$TMP/deviceSN"
+printf '{\n\t"brightness":\t3\n}\n' > "$TMP/sd/.tmp_update/config/system/ABC123.json"
+printf '{\n\t"brightness":\t10\n}\n' > "$TMP/sd/system.json"
+check "OTA update (no shutdown): the card's live settings, not the older saved ones" test "$(installer_brightness)" = 100
+rm -f "$TMP/sd/system.json" "$TMP/sd/.tmp_update/config/system/ABC123.json"
 rm -f "$TMP/deviceSN"
 unset INSTALLER_SN_FILE INSTALLER_SETTINGS_DIR
 check "the serial comes from runtime.sh's /tmp/deviceSN, written before check_installer" sh -c "grep -n 'echo -n \"\$SERIAL_NUMBER\" > /tmp/deviceSN\|^    check_installer\$' '$ROOT/static/build/.tmp_update/runtime.sh' | head -2 | tail -1 | grep -q check_installer"
 check "the shutdown moves the card's system.json away (why it is read from config/system)" grep -q 'mv -f /mnt/SDCARD/system.json' "$ROOT/static/build/.tmp_update/bin/shutdown"
 unset -f installer_brightness
+check "the card's settings are looked at before main runs (nothing has saved them yet)" sh -c "grep -n '^card_settings_live=0\$\|^main\$' '$INST' | head -1 | grep -q card_settings_live"
+check "the OTA update reboots plainly (why the card's file can be the live one)" grep -q '^			reboot$' "$ROOT/static/build/.tmp_update/script/ota_update.sh"
 check "main sets the backlight with it" grep -q '^    installer_brightness > \$pwmdir/pwm0/duty_cycle$' "$INST"
 check "no fixed 80 written to the backlight" sh -c "! grep -q 'echo 80 > \$pwmdir' '$INST'"
 end
