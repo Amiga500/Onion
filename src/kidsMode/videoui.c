@@ -3252,7 +3252,7 @@ static void renderEmpty(void)
              (int)(g_display.height * 0.42),
              getFontBigValue(), theme()->list.color, g_display.width - 40);
     drawText(videos ? "Add media to Media/KidsMode"
-                    : "Add games to Onion Favorites",
+                    : "Add games to your Favorites",
              cx,
              (int)(g_display.height * 0.58), getFontInfo(),
              theme()->list.color, g_display.width - 40);

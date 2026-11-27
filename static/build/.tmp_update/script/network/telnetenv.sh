@@ -13,5 +13,5 @@ export PWD=/mnt/SDCARD
 export HOME=/mnt/SDCARD/
 cd /mnt/SDCARD
 
-echo -e "Welcome to Onion\n "
+echo -e "Welcome to RedOnion\n "
 /bin/sh

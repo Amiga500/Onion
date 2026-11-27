@@ -1656,7 +1656,7 @@ switch_kids_profile() {
 
     if [ ! -d "$incoming_profile" ]; then
         log "Profile switch unavailable: $source_profile -> $target_profile"
-        infoPanel -t "Kids Mode" -m "The requested Onion profile is unavailable." --auto
+        infoPanel -t "Kids Mode" -m "The requested profile is unavailable." --auto
         return 1
     fi
 
@@ -1728,7 +1728,7 @@ switch_kids_profile() {
                 apply_profile_isolation
                 start_ticker
             fi
-            infoPanel -t "Kids Mode" -m "The requested Onion profile is unavailable." --auto
+            infoPanel -t "Kids Mode" -m "The requested profile is unavailable." --auto
             return 1
         fi
         log "Preserved stale ${parked_profile##*/} as profile-recovery/$recovery_name."
@@ -2082,7 +2082,7 @@ disarm() {
     rm -f "$sysdir/cmd_to_run.sh" "$uiresult"
     sync
     log "Kids Mode disarmed."
-    infoPanel -t "Kids Mode" -m "Unlocked!\nReturning to Onion." --auto
+    infoPanel -t "Kids Mode" -m "Unlocked!\nReturning to RedOnion." --auto
     # Reset the framebuffer (page/pan) so the relaunched MainUI is actually
     # visible — without this the screen can stay on our last-flipped page.
     bootScreen clear 2> /dev/null
@@ -2960,7 +2960,7 @@ cmd_run() {
                 if [ "$ui_fails" -ge 3 ]; then
                     # Fail open: a broken Kids Mode must never brick the
                     # device. Parent can re-arm after fixing the SD card.
-                    infoPanel -t "Kids Mode" -m "Interface failed.\nReturning to normal Onion." --auto
+                    infoPanel -t "Kids Mode" -m "Interface failed.\nReturning to RedOnion." --auto
                     disarm
                     return 1
                 fi
@@ -2995,7 +2995,7 @@ cmd_arm() {
     fi
 
     if ! install_hook; then
-        infoPanel -t "Kids Mode" -m "kidmode_checkoff.sh is missing.\nReinstall Kids Mode." --auto
+        infoPanel -t "Kids Mode" -m "Kids Mode is incomplete.\nReinstall Kids Mode." --auto
         return 1
     fi
 
