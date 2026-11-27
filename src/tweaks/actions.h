@@ -228,11 +228,12 @@ void accent_applyPending(bool leaving)
     all_changed = true;
 }
 
-// The accent (first) colour of a palette line (res/accent/palette.txt:
-// "name accent light dark", RRGGBB; comment lines skipped). False when it
-// is not there.
-#define ACCENT_PALETTE "/mnt/SDCARD/.tmp_update/res/accent/palette.txt"
-static bool accent_paletteColour(int index, SDL_Color *out)
+// The name and accent (first) colour of a palette line
+// (res/accent/palette.txt: "name accent light dark", RRGGBB; comment lines
+// skipped). False when it is not there.
+#define ACCENT_RES "/mnt/SDCARD/.tmp_update/res/accent"
+#define ACCENT_PALETTE ACCENT_RES "/palette.txt"
+static bool accent_paletteColour(int index, SDL_Color *out, char *out_name)
 {
     FILE *fp = fopen(ACCENT_PALETTE, "r");
     if (fp == NULL)
@@ -248,6 +249,7 @@ static bool accent_paletteColour(int index, SDL_Color *out)
             continue;
         if (sscanf(line, "%31s %6x", name, &rgb) == 2) {
             *out = (SDL_Color){(rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF};
+            strcpy(out_name, name);
             found = true;
         }
         break;
@@ -256,9 +258,40 @@ static bool accent_paletteColour(int index, SDL_Color *out)
     return found;
 }
 
+// The A, B and X buttons of the footer in the colour chosen: its own
+// small pictures (res/accent/<colour>/skin, the theme's for red), loaded
+// in place of the ones in use (a few ms; nothing copied). Tweaks' images
+// are all loaded again once the colour is applied (resources_reloadImages).
+static void accent_previewButtons(const char *theme_path, const char *colour)
+{
+    static const struct {
+        ThemeImages request;
+        const char *rel;
+    } buttons[] = {{BUTTON_A, "skin/icon-A-54.png"},
+                   {BUTTON_B, "skin/icon-B-54.png"},
+                   {BUTTON_X, "skin/extra/icon-X-54.png"}};
+    for (size_t i = 0; i < sizeof(buttons) / sizeof(buttons[0]); i++) {
+        char path[STR_MAX * 2];
+        if (strcmp(colour, "red") == 0)
+            snprintf(path, sizeof(path), "%s/%s", theme_path, buttons[i].rel);
+        else
+            snprintf(path, sizeof(path), ACCENT_RES "/%s/%s", colour, buttons[i].rel);
+        if (!exists(path))
+            continue;
+        SDL_Surface *s = theme_loadImageFile(path);
+        if (s == NULL)
+            continue;
+        if (resources.surfaces[buttons[i].request] != NULL)
+            SDL_FreeSurface(resources.surfaces[buttons[i].request]);
+        resources.surfaces[buttons[i].request] = s;
+    }
+    _button_x_absent = false;
+}
+
 // The colour shows at once on what Tweaks draws in the accent (the
-// selected row, switches, the header badge, SELECT): its pictures follow
-// on leaving the page. Only with Silky RedOnion, the theme it changes.
+// selected row, switches, the header badge, SELECT) and on the A, B and X
+// buttons: the other pictures follow on leaving the page. Only with Silky
+// RedOnion, the theme it changes.
 static void accent_preview(int palette_index)
 {
     const char *path = theme()->path;
@@ -272,8 +305,12 @@ static void accent_preview(int palette_index)
         strncmp(name, "Silky RedOnion", path + len - name) != 0)
         return;
     SDL_Color c;
-    if (accent_paletteColour(palette_index, &c)) {
+    char colour[32];
+    if (accent_paletteColour(palette_index, &c, colour)) {
         ui_previewAccent(c);
+        char theme_path[STR_MAX];
+        snprintf(theme_path, sizeof(theme_path), "%.*s", (int)len, path);
+        accent_previewButtons(theme_path, colour);
         all_changed = true;
     }
 }

@@ -25,11 +25,10 @@ void theme_initScaling(double scale, ScaleSurfaceFunc scaleSurface)
     scaleSurfaceFunc = scaleSurface;
 }
 
-SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
+// A picture file as the theme's are loaded: 32 bits with alpha, scaled for
+// the screen. NULL when it can't be loaded.
+SDL_Surface *theme_loadImageFile(const char *image_path)
 {
-    char image_path[512];
-    theme_getImagePath(theme_path, name, image_path);
-
     printf_debug("Loading image: %s\n", image_path);
 
     SDL_Surface *image = IMG_Load(image_path);
@@ -55,6 +54,13 @@ SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
     }
 
     return image;
+}
+
+SDL_Surface *theme_loadImage(const char *theme_path, const char *name)
+{
+    char image_path[512];
+    theme_getImagePath(theme_path, name, image_path);
+    return theme_loadImageFile(image_path);
 }
 
 TTF_Font *theme_loadFont(const char *theme_path, const char *font, int size)
