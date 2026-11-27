@@ -79,6 +79,10 @@ void theme_renderHeader_cleanup(void)
  * 360 (the badge and a title), where neighbouring pixels differ sharply. */
 static SDL_Surface *_header_checked_bar = NULL, *_header_checked_bg = NULL;
 static bool _header_classic = false;
+// where the art on the left of the bar ends (0: none found): a centered
+// title longer than the room left of it starts after it instead (TechDweeb
+// Orange's logo reaches x 250: "Game lists: scrolling" still began over it)
+static int _header_art_end = 0;
 
 static bool _header_titlebarHasArt(void)
 {
@@ -88,6 +92,7 @@ static bool _header_titlebarHasArt(void)
     _header_checked_bar = bar;
     _header_checked_bg = bg;
     _header_classic = false;
+    _header_art_end = 0;
     SDL_Rect area = theme_scaleRect((SDL_Rect){0, 0, 640, 60});
     SDL_Surface *seen = SDL_CreateRGBSurface(SDL_SWSURFACE, area.w, area.h, 32,
                                              0x00FF0000, 0x0000FF00, 0x000000FF, 0);
@@ -102,16 +107,30 @@ static bool _header_titlebarHasArt(void)
     int x0 = 16.0 * g_scale, x1 = 360.0 * g_scale, step = 2;
     if (x1 > seen->w - step)
         x1 = seen->w - step;
+    // the art's end: from the first column with sharp steps, the last one
+    // before 60 px without any, looked for up to x 400
+    int xe = 400.0 * g_scale, gap = 60.0 * g_scale, first = -1, last = -1;
+    if (xe > seen->w - step)
+        xe = seen->w - step;
     if (SDL_LockSurface(seen) == 0) {
-        for (int y = 10.0 * g_scale; y < 50.0 * g_scale && y < seen->h; y += 4) {
-            const Uint32 *row = (const Uint32 *)((Uint8 *)seen->pixels + y * seen->pitch);
-            for (int x = x0; x < x1; x += step) {
+        for (int x = 0; x < xe; x += step) {
+            int column = 0;
+            for (int y = 10.0 * g_scale; y < 50.0 * g_scale && y < seen->h; y += 4) {
+                const Uint32 *row = (const Uint32 *)((Uint8 *)seen->pixels + y * seen->pitch);
                 Uint32 a = row[x], b = row[x + step];
                 int d = abs((int)((a >> 16) & 0xFF) - (int)((b >> 16) & 0xFF)) +
                         abs((int)((a >> 8) & 0xFF) - (int)((b >> 8) & 0xFF)) +
                         abs((int)(a & 0xFF) - (int)(b & 0xFF));
-                sharp += d > 80;
-                pairs++;
+                column += d > 80;
+                if (x >= x0 && x < x1) {
+                    sharp += d > 80;
+                    pairs++;
+                }
+            }
+            if (column > 0 && (last < 0 || x - last <= gap)) {
+                if (first < 0)
+                    first = x;
+                last = x;
             }
         }
         SDL_UnlockSurface(seen);
@@ -119,7 +138,24 @@ static bool _header_titlebarHasArt(void)
     SDL_FreeSurface(seen);
     // more than 4 in 100 sharp steps: lines, letters, a picture
     _header_classic = pairs > 0 && sharp * 25 > pairs;
+    if (_header_classic && last >= 0)
+        _header_art_end = last + step;
     return _header_classic;
+}
+
+// x for a title w wide on a bar with art: centered, else just after the
+// art on the left, never past the battery (then cut there)
+static int _header_classicX(int w)
+{
+    int x = (int)(320.0 * g_scale) - w / 2;
+    if (x + w > 540.0 * g_scale)
+        x = 540.0 * g_scale - w;
+    int after = _header_art_end > 0 ? _header_art_end + (int)(12.0 * g_scale) : 0;
+    if (x < after)
+        x = after;
+    if (x < 16.0 * g_scale)
+        x = 16.0 * g_scale;
+    return x;
 }
 
 /* The icon drawn in the badge for a title: res/icons/ui/<name>.png (a theme
@@ -192,7 +228,7 @@ static int _theme_renderHeaderTitle(SDL_Surface *screen, SDL_Surface *title,
     if (!show_logo && _header_titlebarHasArt()) {
         // centered, no badge (see _header_titlebarHasArt)
         if (title)
-            x = title->w < 540.0 * g_scale ? (int)(320.0 * g_scale) - title->w / 2 : x;
+            x = _header_classicX(title->w);
         return _theme_renderHeaderTitleText(screen, title, x);
     }
     if (show_logo) {
@@ -331,12 +367,7 @@ void theme_renderHeaderPath(SDL_Surface *screen, const char *const *levels, int 
         // no badge drawn: the title alone, centered, as in MainUI (the
         // path, wider, went over the art again)
         path_shown = false;
-        int w = title_w;
-        int centered = (int)(320.0 * g_scale) - w / 2;
-        if (centered + w > 540.0 * g_scale) // clear of the battery
-            centered = 540.0 * g_scale - w;
-        if (centered > x)
-            x = centered;
+        x = _header_classicX(title_w);
     }
     if (path_shown) {
         if (from > 0)
