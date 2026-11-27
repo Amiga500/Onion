@@ -2762,8 +2762,8 @@ for n in $(echo "$order" | tr ',' ' '); do
 done
 check "every row saves the colour it names (red, orange, gold...)" test ! -e "$TMP/accent_map" -a "$i" -eq 10
 check "a saved number the list does not have is red" grep -q "return 0;" "$ROOT/src/tweaks/actions.h"
-# Stepping through the colours applied each one (nine in a row from Red to
-# Graphite: many seconds stuck, beta 6). Saved at once, applied once it
+# Stepping through the colours applied each one (eight in a row from Red to
+# Graphite, the list stuck meanwhile: beta 6). Saved at once, applied once it
 # stays 500 ms, and on leaving Tweaks.
 check "Tweaks: the colour applied once it stays put, not at every step" sh -c "sed -n '/^void action_setAccentColor/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'accent_pending = true' && ! sed -n '/^void action_setAccentColor/,/^}/p' '$ROOT/src/tweaks/actions.h' | grep -q 'accent_color.sh'"
 check "Tweaks: checked in its loop, and on leaving" sh -c "grep -q 'accent_applyPending(ticks, false);' '$ROOT/src/tweaks/tweaks.c' && grep -q 'accent_applyPending(0, true);' '$ROOT/src/tweaks/tweaks.c'"

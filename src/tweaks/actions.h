@@ -199,8 +199,8 @@ static int accent_listPosition(int palette_index)
 
 // Applying a colour (its pictures copied, Tweaks' own reloaded) takes a
 // moment. LEFT/RIGHT step through the colours: it was done at every step,
-// so going from Red to Graphite applied all nine one after the other and
-// the list stuck for many seconds (robcodedev, 4.5.1 beta 6). The choice
+// so going from Red to Graphite applied the eight after Red one after the
+// other, the list stuck meanwhile (robcodedev, 4.5.1 beta 6). The choice
 // is saved at once and applied once the colour stays 500 ms; on leaving
 // Tweaks (leaving: true) only its pictures are copied, Tweaks has nothing
 // more to draw. MainUI and Kids Mode apply the saved one when they start
