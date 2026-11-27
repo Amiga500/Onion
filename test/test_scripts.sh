@@ -1640,15 +1640,17 @@ wait
 # Each step on the screen: "Checking the Wi-Fi and the connection..." stayed
 # up to a minute and a half while Wi-Fi was turned on (beta 6)
 check "the steps on the screen: on, connecting, address" test "$(tr '\n' '|' < "$TMP/busy")" = "Wi-Fi is off: turning it on for the update...|Connecting to Wi-Fi (this can take up to a minute)...|Connected to Wi-Fi: getting an address...|"
-# Not joined (far from the router, a wrong password): no 20 s more for an
-# address that cannot come
+# Not joined in 50 s (it took up to 60 s, or a driver that never says
+# "up"): udhcpc all the same, as before beta 6, so a later join still
+# gets an address (Fable review, 4.5.1)
 rm -f "$TMP/busy" "$TMP/udhcpc_args"
 wait_for_link() { return 1; }
 wait_for_ip() { echo waited > "$TMP/waited_ip"; }
 enable_wifi > /dev/null 2>&1
-check "not joined: no udhcpc" test ! -e "$TMP/udhcpc_args"
-check "not joined: no wait for an address" test ! -e "$TMP/waited_ip"
-check "not joined: the last step shown is connecting" test "$(tail -n 1 "$TMP/busy")" = "Connecting to Wi-Fi (this can take up to a minute)..."
+wait # udhcpc runs in the background
+check "not joined yet: udhcpc all the same" test -e "$TMP/udhcpc_args"
+check "and up to 20 s for an address" test -e "$TMP/waited_ip"
+check "not joined yet: said on the screen" test "$(tail -n 1 "$TMP/busy")" = "Still connecting to Wi-Fi..."
 check "the connection check says it too" grep -q '^	ui_busy "Checking the connection to GitHub..."$' "$OTA"
 unset -f ip sleep insmod ifconfig pkill clear udhcpc ui_busy wait_for_link wait_for_ip
 end
@@ -1770,7 +1772,7 @@ rm -f "$TMP/slept"
 wlan0_linked() { return 1; }
 wait_for_link 20
 check "never joined: goes on after 20 s" test $? -eq 1 -a "$(wc -l < "$TMP/slept")" -eq 40
-check "udhcpc started after the link is up" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A6 'start_wpa_supplicant' | grep -q 'if wait_for_link 50; then'"
+check "udhcpc started once the link is up (or the wait is over)" sh -c "sed -n '/^enable_wifi() {/,/^}/p' \"$OTA\" | grep -A6 'start_wpa_supplicant' | grep -q 'if wait_for_link 50; then'"
 unset -f wlan0_linked sleep wait_for_link
 end
 
@@ -2768,6 +2770,42 @@ check "the others copied as they are (orange)" cmp -s "$TMP/ov/skin/bg-list-s.pn
 check "still a handful of programs" test "$(wc -l < "$TMP/count/log")" -le 16
 check "no .tmp left" test -z "$(find "$TMP/ov" -name '*.tmp')"
 rm -f "$TMP/sd/Themes/Silky RedOnion/skin/ic-favorite-mark.png" "$TMP/sd/Themes/Silky RedOnion/skin/ic-favorite-mark.png.bak"
+check "a finished run leaves no busy mark" test ! -e "$TMP/ov/.accent_files.busy"
+# Cut short (the console turned off) during the copy: the next run takes
+# what it left for ours, not the user's (Fable review, 4.5.1). The cp of
+# all the pictures copies, then the run is killed.
+mkdir -p "$TMP/cut"
+printf '#!/bin/sh
+case "$1" in -r) /bin/cp "$@"; kill -9 $PPID; exit 1 ;; esac
+exec /bin/cp "$@"
+' > "$TMP/cut/cp"
+chmod +x "$TMP/cut/cp"
+echo 3 > "$TMP/sys/config/display/accentColor"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE=/none PNGSCALE=/none PATH="$TMP/cut:$PATH" sh "$AC" 2> /dev/null
+check "cut short: the busy mark stays" test -e "$TMP/ov/.accent_files.busy"
+check "and the pictures copied are listed" grep -q '^skin/bg-list-s.png$' "$TMP/ov/.accent_files"
+ac
+check "the same colour again: done again, not taken as done" test ! -e "$TMP/ov/.accent_files.busy"
+echo 2 > "$TMP/sys/config/display/accentColor"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE=/none PNGSCALE=/none PATH="$TMP/cut:$PATH" sh "$AC" 2> /dev/null
+echo 1 > "$TMP/sys/config/display/accentColor"
+rm -f "$TMP/count/log"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE=/none PNGSCALE=/none PATH="$TMP/count:$PATH" sh "$AC"
+check "another colour after a cut: every picture replaced" sh -c "cmp -s '$TMP/ov/skin/bg-list-s.png' '$RES/blue/skin/bg-list-s.png' && cmp -s '$TMP/ov/skin/extra/gs-top-bar.png' '$RES/blue/skin/extra/gs-top-bar.png'"
+check "the fast way still (one cp)" test "$(grep -c '^cp$' "$TMP/count/log")" -eq 1
+# The cp of all the pictures fails part-way (a full card): what it wrote is
+# ours, so the pictures go one by one and are all listed.
+printf '#!/bin/sh
+case "$1" in -r) /bin/cp "$@"; exit 1 ;; esac
+exec /bin/cp "$@"
+' > "$TMP/cut/cp"
+echo 5 > "$TMP/sys/config/display/accentColor"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$RES" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE=/none PNGSCALE=/none PATH="$TMP/cut:$PATH" sh "$AC"
+check "cp failed: every picture placed (orange)" cmp -s "$TMP/ov/skin/bg-list-s.png" "$RES/orange/skin/bg-list-s.png"
+check "and every one listed" test "$(grep -c '^skin/' "$TMP/ov/.accent_files")" -eq "$(grep -c '^skin/' "$RES/files.txt")"
+echo 0 > "$TMP/sys/config/display/accentColor"
+ac
+check "then red: none left" test -z "$(find "$TMP/ov" -name '*.png')"
 unset -f ac silky_json
 # the colours and the pictures
 check "palette: the saved numbers' order, new colours at the end" test "$(grep -v '^#' "$RES/palette.txt" | cut -d' ' -f1 | tr '\n' ' ')" = "red blue purple teal pink orange green gold graphite "
@@ -2924,6 +2962,7 @@ INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
 eval "$(extract_fn "$INST" installer_settings_files | sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g")"
 INSTALLER_CARD_JSON="$TMP/sd/system.json" INSTALLER_STOCK_JSON="$TMP/app/system.json"
 eval "$(extract_fn "$INST" installer_display_colours)"
+eval "$(extract_fn "$INST" installer_settings_file)"
 INSTALLER_SN_FILE="$TMP/deviceSN" INSTALLER_SETTINGS_DIR="$TMP/sd/.tmp_update/config/system"
 INSTALLER_DISP_NODE="$TMP/mi_disp0" MODEL_MM=283 DEVICE_ID=354
 mkdir -p "$TMP/sd" "$TMP/app"
@@ -2942,13 +2981,23 @@ check "none saved on the Mini: its lumination 7" test "$(cat "$TMP/mi_disp0")" =
 printf '{\n\t"lumination":\t99,\n\t"contrast":\t3\n}\n' > "$TMP/app/system.json"
 installer_display_colours
 check "a value out of range: its default" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 36 50 42 50 0 0"
+# The card's system.json left empty by a crash: the colours come from the
+# file the brightness comes from, the saved settings (Fable review, 4.5.1)
+: > "$TMP/sd/system.json"
+echo SERIAL1 > "$TMP/deviceSN"
+mkdir -p "$TMP/sd/.tmp_update/config/system"
+printf '{\n\t"brightness":\t5,\n\t"lumination":\t3\n}\n' > "$TMP/sd/.tmp_update/config/system/SERIAL1.json"
+installer_display_colours
+check "an empty card system.json: the saved settings' colours" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 50 50 38 50 0 0"
+check "the same file as the brightness" test "$(installer_settings_file)" = "$TMP/sd/.tmp_update/config/system/SERIAL1.json"
+rm -rf "$TMP/sd/system.json" "$TMP/deviceSN" "$TMP/sd/.tmp_update"
 rm -f "$TMP/mi_disp0"
 installer_display_colours
 check "no display node: nothing written" test ! -e "$TMP/mi_disp0"
 check "same formula as runtime.sh" grep -qF 'echo "csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0"' "$ROOT/static/build/.tmp_update/runtime.sh"
 check "set right after the backlight" sh -c "sed -n '/^installer_display() {/,/^}/p' '$INST' | grep -A1 'pwm0/enable\$' | grep -q '^    installer_display_colours\$'"
 rm -f "$TMP/app/system.json"
-unset -f installer_settings_files installer_display_colours
+unset -f installer_settings_files installer_display_colours installer_settings_file
 unset INSTALLER_SN_FILE INSTALLER_SETTINGS_DIR INSTALLER_DISP_NODE MODEL_MM DEVICE_ID INSTALLER_CARD_JSON INSTALLER_STOCK_JSON
 end
 
@@ -7128,6 +7177,19 @@ check "the app removed" test ! -e "$TMP/sd/App/Filter"
 rm -f "$TMP/calls"
 SDROOT="$TMP/sd" sh "$MIG31"; rc=$?
 check "not installed: nothing done" test $rc -eq 0 -a ! -e "$TMP/calls"
+# The uninstall failed (a filter that cannot run): its command files and
+# rows go anyway, the games' rows stay.
+mkdir -p "$TMP/sd/App/Filter" "$TMP/sd/Roms/GBA" "$TMP/sd/Roms/SNES"
+printf '#!/bin/sh\nexit 139\n' > "$TMP/sd/.tmp_update/bin/filter"
+touch "$TMP/sd/Roms/GBA/~Filter.miyoocmd" "$TMP/sd/Roms/GBA/~Refresh roms.miyoocmd" "$TMP/sd/Roms/GBA/zelda.gba"
+printf '#!/bin/sh\necho "$*" >> "%s/sql"\n' "$TMP" > "$TMP/sqlite3"
+chmod +x "$TMP/sqlite3"
+echo x > "$TMP/sd/Roms/GBA/GBA_cache6.db"
+SDROOT="$TMP/sd" PATH="$TMP:$PATH" sh "$MIG31"
+check "uninstall failed: its command files removed" test ! -e "$TMP/sd/Roms/GBA/~Filter.miyoocmd" -a ! -e "$TMP/sd/Roms/GBA/~Refresh roms.miyoocmd"
+check "a game stays" test -e "$TMP/sd/Roms/GBA/zelda.gba"
+check "their rows only, and only in that list" sh -c "test \"\$(wc -l < '$TMP/sql')\" -eq 1 && grep -q 'GBA_cache6.db DELETE FROM \"GBA_roms\" WHERE path LIKE .%.miyoocmd. AND disp IN' '$TMP/sql'"
+check "the app removed all the same" test ! -e "$TMP/sd/App/Filter"
 check "the package is no longer built" sh -c "! grep -q 'List shortcuts (Filter+Refresh)/App/Filter' '$ROOT/Makefile' && grep -q 'rm -rf \$(BUILD_DIR)/App/Filter' '$ROOT/Makefile' && test ! -e '$ROOT/static/packages/App/List shortcuts (Filter+Refresh)'"
 end
 

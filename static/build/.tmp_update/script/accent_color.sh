@@ -19,7 +19,9 @@
 # The files copied are listed in the overrides' .accent_files, after a first
 # line with the state they were made for; only those are ever removed, so
 # the user's own theme tweaks stay. A file the user already overrides is
-# not replaced. The theme's list images resized for the game-list row count
+# not replaced. (A picture the user puts later in place of one of these
+# copies, same name, is taken for the copy and goes at the next change:
+# telling them apart would cost a program per picture at every change.) The theme's list images resized for the game-list row count
 # (rescale_theme_list_icons.sh: bg-list-s_N.png, *.png.bak originals) are
 # matched: the copy is resized the same way, or the theme's red resized
 # image would be used.
@@ -147,9 +149,11 @@ case "$files_id" in "# set "*) files_id=${files_id#\# set } ;; *) files_id= ;; e
 state="$theme_name|$colour|$resized|$files_id"
 
 # Nothing changed: nothing to do (every boot comes here).
+# A run cut short (the console turned off) leaves $LIST.busy: then it is
+# done again, even for the same state.
 _first=""
 [ -f "$LIST" ] && read -r _first < "$LIST"
-if [ -f "$LIST" ] && [ "$_first" = "$state" ]; then
+if [ -f "$LIST" ] && [ "$_first" = "$state" ] && [ ! -f "$LIST.busy" ]; then
     write_rgb
     exit 0
 fi
@@ -183,7 +187,7 @@ place() { # rel_src rel_dst
     else
         cp -f "$src" "$dst" || return 0
     fi
-    echo "$rel" >> "$LIST.new"
+    echo "$rel" >> "$LIST"
 }
 
 # A picture already copied (the fast way) whose theme image was resized
@@ -199,9 +203,11 @@ fit() { # rel
         rm -f "$OVERRIDES/$1.tmp"
 }
 
-# The previous colour's files go first: one rm for all of them. Only paths
-# under skin/ made of plain file-name characters, never one with "..".
-if [ -f "$LIST" ]; then
+# The files listed (after the list's first line, its state) removed: one rm
+# for all of them. Only paths under skin/ made of plain file-name
+# characters, never one with "..".
+remove_listed() {
+    [ -f "$LIST" ] || return 0
     set --
     {
         read -r _skip
@@ -213,10 +219,19 @@ if [ -f "$LIST" ]; then
         done
     } < "$LIST"
     [ "$#" -gt 0 ] && rm -f "$@"
-fi
+}
 
+# The list is kept up to date as the copies are made, never written at the
+# end only: cut short by a power-off, a run left copies listed nowhere, the
+# next took them for the user's own, kept them (a colour mixed with
+# another) and never took the fast way again (Fable review, 4.5.1). Until
+# the run ends, $LIST.busy says it is not complete.
 mkdir -p "$OVERRIDES/skin"
-printf '%s\n' "$state" > "$LIST.new"
+: > "$LIST.busy"
+
+# The previous colour's files go first.
+remove_listed
+printf '%s\n' "$state" > "$LIST"
 if [ "$colour" != red ]; then
     # The list of pictures (one per line, skin/...); made by find if missing
     if [ ! -f "$FILES" ]; then
@@ -238,15 +253,28 @@ if [ "$colour" != red ]; then
             break
         }
     done < "$FILES"
-    if [ "$fast" -eq 1 ] && cp -r "$ACCENT_RES/$colour/skin" "$OVERRIDES/"; then
+    if [ "$fast" -eq 1 ]; then
+        # listed before they are copied: none of them was there
         while IFS= read -r f; do
             case "$f" in '' | \#*) continue ;; esac
             echo "$f"
+        done < "$FILES" >> "$LIST"
+        if cp -r "$ACCENT_RES/$colour/skin" "$OVERRIDES/"; then
             # a theme image resized for the row count (it has a .bak):
             # the copy made as large
-            [ -f "$theme_path/$f.bak" ] && fit "$f"
-        done < "$FILES" >> "$LIST.new"
-    else
+            while IFS= read -r f; do
+                case "$f" in '' | \#*) continue ;; esac
+                [ -f "$theme_path/$f.bak" ] && fit "$f"
+            done < "$FILES"
+        else
+            # Stopped part-way (a full card): what it copied is ours, not
+            # the user's; removed, then the pictures one by one.
+            remove_listed
+            printf '%s\n' "$state" > "$LIST"
+            fast=0
+        fi
+    fi
+    if [ "$fast" -eq 0 ]; then
         while IFS= read -r f; do
             case "$f" in '' | \#*) continue ;; esac
             place "$f" "$f"
@@ -258,7 +286,7 @@ if [ "$colour" != red ]; then
         place skin/bg-list-s.png "skin/${f##*/}"
     done
 fi
-mv -f "$LIST.new" "$LIST"
+rm -f "$LIST.busy"
 case "$FILES" in /tmp/accent_files.*) rm -f "$FILES" ;; esac
 rmdir "$OVERRIDES/skin/extra" "$OVERRIDES/skin" 2> /dev/null
 
