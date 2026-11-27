@@ -433,6 +433,7 @@ static SDL_AudioDeviceID audio_dev;
 
 static void kp_init(VideoState *is);
 static void kp_capture_uploaded_texture(SDL_Texture *texture);
+static void kp_apply_screen_overlay(SDL_Texture *texture);
 static void kp_compose_video(VideoState *is, SDL_Texture *texture);
 static void kp_after_present(VideoState *is);
 static void kp_audio_display(VideoState *is);
@@ -1150,6 +1151,7 @@ static void video_image_display(VideoState *is)
          * second time for the OSD snapshot.  The Miyoo Mini renderer can
          * otherwise fail inside its first lock/present transition. */
         kp_capture_uploaded_texture(is->vid_texture);
+        kp_apply_screen_overlay(is->vid_texture);
         vp->uploaded = 1;
         vp->flip_v = vp->frame->linesize[0] < 0;
     }

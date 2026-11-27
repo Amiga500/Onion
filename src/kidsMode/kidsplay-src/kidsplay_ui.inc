@@ -65,6 +65,7 @@ typedef struct KidsPlayUi {
     int battery_offset_x;
     int battery_offset_y;
     Uint8 accent[3]; // progress bar: the theme's button colour (VC_ACCENT)
+    uint32_t *screen_overlay; // VC_OVERLAY: 640x480 ARGB over every frame
     int startup_osd_pending;
     int clean_ready;
     int clean_pitch;
@@ -238,6 +239,86 @@ static void kp_update_status(VideoState *is, int force)
         kp.duration = is->ic->duration / AV_TIME_BASE;
 }
 
+/* The screen overlay (VC_OVERLAY, Parent Menu > Other options > Video
+ * overlay): a 640x480 PNG with transparency, as MiniCinema's overlays,
+ * drawn over every video frame. Anything else, or none: no overlay. */
+static void kp_load_screen_overlay(const char *path)
+{
+    SDL_Surface *image, *argb;
+    int y;
+    if (!path || !*path)
+        return;
+    image = IMG_Load(path);
+    if (!image) {
+        av_log(NULL, AV_LOG_WARNING, "KidsPlay: overlay %s not loaded\n", path);
+        return;
+    }
+    if (image->w != KP_W || image->h != KP_H || !image->format->Amask) {
+        av_log(NULL, AV_LOG_WARNING, "KidsPlay: overlay %s is not 640x480 with transparency\n", path);
+        SDL_FreeSurface(image);
+        return;
+    }
+    argb = SDL_ConvertSurfaceFormat(image, SDL_PIXELFORMAT_ARGB8888, 0);
+    SDL_FreeSurface(image);
+    if (!argb)
+        return;
+    kp.screen_overlay = av_malloc((size_t)KP_W * KP_H * 4);
+    if (kp.screen_overlay && SDL_LockSurface(argb) == 0) {
+        for (y = 0; y < KP_H; y++)
+            memcpy(kp.screen_overlay + y * KP_W, (uint8_t *)argb->pixels + y * argb->pitch, KP_W * 4);
+        SDL_UnlockSurface(argb);
+    } else {
+        av_freep(&kp.screen_overlay);
+    }
+    SDL_FreeSurface(argb);
+}
+
+/* x / 255, rounded, for x up to 255 * 255 */
+static inline uint32_t kp_div255(uint32_t x)
+{
+    x += 128;
+    return (x + (x >> 8)) >> 8;
+}
+
+/* Blends the overlay into ARGB8888 frame pixels (the texture, locked). Its
+ * transparent pixels are skipped: the overlays are grids and lines. */
+static void kp_blend_screen_overlay(uint8_t *pixels, int pitch)
+{
+    int x, y;
+    if (!kp.screen_overlay || !pixels)
+        return;
+    for (y = 0; y < KP_H; y++) {
+        uint32_t *row = (uint32_t *)(pixels + y * pitch);
+        const uint32_t *over = kp.screen_overlay + y * KP_W;
+        for (x = 0; x < KP_W; x++) {
+            uint32_t o = over[x], a = o >> 24, inv, d;
+            if (!a)
+                continue;
+            inv = 255 - a;
+            d = row[x];
+            row[x] = 0xFF000000u |
+                     kp_div255(((d >> 16) & 255) * inv + ((o >> 16) & 255) * a) << 16 |
+                     kp_div255(((d >> 8) & 255) * inv + ((o >> 8) & 255) * a) << 8 |
+                     kp_div255((d & 255) * inv + (o & 255) * a);
+        }
+    }
+}
+
+/* After a new frame is uploaded and its clean copy kept (the copy the OSD
+ * restores and the resume picture is saved from, without the overlay). Not
+ * on the first frame: the Miyoo renderer must present it before the texture
+ * is locked again (kp_init). */
+static void kp_apply_screen_overlay(SDL_Texture *texture)
+{
+    void *pixels = NULL;
+    int pitch = 0;
+    if (!kp.screen_overlay || kp.startup_osd_pending || !texture ||
+        SDL_LockTexture(texture, NULL, &pixels, &pitch) < 0)
+        return;
+    kp_blend_screen_overlay(pixels, pitch);
+    SDL_UnlockTexture(texture);
+}
+
 static void kp_init(VideoState *is)
 {
     const char *kind;
@@ -288,6 +369,8 @@ static void kp_init(VideoState *is)
     }
     kind = getenv("VC_MEDIA_KIND");
     kp.audio_only = kind && !strcmp(kind, "audio");
+    if (!kp.audio_only)
+        kp_load_screen_overlay(getenv("VC_OVERLAY"));
     start = getenv("VC_START_SECONDS");
     kp.position = start ? strtol(start, NULL, 10) : 0;
     kp.saved_brightness = kp_read_number(kp.brightness_state_file);
@@ -922,6 +1005,7 @@ static void kp_compose_video(VideoState *is, SDL_Texture *texture)
         return;
     for (y = 0; y < KP_H; y++)
         memcpy((uint8_t *)pixels + y * pitch, kp.clean_pixels + y * kp.clean_pitch, KP_W * 4);
+    kp_blend_screen_overlay(pixels, pitch); // under the OSD, as on every frame
     if (kp_overlay_visible(is) && SDL_PixelFormatEnumToMasks(SDL_PIXELFORMAT_ARGB8888, &bpp, &rmask, &gmask, &bmask, &amask)) {
         surface = SDL_CreateRGBSurfaceFrom(pixels, KP_W, KP_H, bpp, pitch, rmask, gmask, bmask, amask);
         if (surface) {
@@ -1201,5 +1285,6 @@ static void kp_shutdown(VideoState *is)
     if (kp.font_timer) TTF_CloseFont(kp.font_timer);
     TTF_Quit();
     av_freep(&kp.clean_pixels);
+    av_freep(&kp.screen_overlay);
     kp.initialized = 0;
 }

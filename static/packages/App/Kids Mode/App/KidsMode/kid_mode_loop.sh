@@ -2364,6 +2364,20 @@ play_video() {
         [0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) ;;
         *) accent= ;;
     esac
+    # The video overlay (Parent Menu > Other options > Video overlay), for
+    # videos only: kidui keeps the choice in Saves/KidsMode/video_overlay
+    # ("lcd_grid" or "scanlines"; none = off). Its PNG goes to KidsPlay as
+    # VC_OVERLAY; a missing PNG is no overlay.
+    video_overlay=
+    if [ "$media_kind" != audio ] && [ -r "$backupdir/video_overlay" ]; then
+        IFS= read -r overlay_choice < "$backupdir/video_overlay"
+        case "$overlay_choice" in
+            lcd_grid) video_overlay="$appdir/overlays/lcd_grid_fine.png" ;;
+            scanlines) video_overlay="$appdir/overlays/scanlines_light.png" ;;
+        esac
+        [ -f "$video_overlay" ] || video_overlay=
+        [ -n "$video_overlay" ] && log "Video overlay: $video_overlay"
+    fi
     theme_config="${theme_path%/}/config.json"
     if [ -r "$theme_config" ]; then
         profile_theme_config=/mnt/SDCARD/Saves/CurrentProfile/theme/config.json
@@ -2475,6 +2489,7 @@ play_video() {
             VC_BATTERY_OFFSET_Y="$battery_offset_y" \
             VC_THEME_PATH="$theme_path" \
             VC_ACCENT="$accent" \
+            VC_OVERLAY="$video_overlay" \
             LD_LIBRARY_PATH="$player_library_path" \
             LD_PRELOAD="$player_preload" SDL_VIDEODRIVER=mini \
             SDL_AUDIODRIVER=dsp \
