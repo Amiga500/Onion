@@ -63,13 +63,17 @@ void check_networkChanged(void)
 // slow (33 frames a second against 50); a plain copy of the row came out
 // upside down.
 //
-// So the first time, the whole picture is copied the usual way and 64
-// points of the screen's memory compared with it, straight and turned:
-// the way that matches is used for the rows (each pixel (x, y) to
-// (x, y), or to (w-1-x, h-1-y)). Neither for sure (another panel, other
-// formats or sizes): always the whole picture, as before.
+// So the first time, the screen's memory as the last frame left it (copied
+// the usual way, long done: the hardware copy runs on its own, read at
+// once it was not there yet, Amiga500's log) is compared with the picture at
+// 256 points outside the row, straight and turned: the way that matches
+// them all is used for the rows from then on (each pixel (x, y) to (x, y),
+// or to (w-1-x, h-1-y)). Neither for sure (another panel, other formats
+// or sizes): always the whole picture, as before. With the measure on
+// (config/.tweaksFps), /tmp/tweaks_fps.log says which.
 enum { PUTROW_UNKNOWN = -1, PUTROW_STRAIGHT, PUTROW_TURNED, PUTROW_WHOLE };
 static int putrow_mode = PUTROW_UNKNOWN;
+static int putrow_straight = 0, putrow_turned = 0, putrow_points = 0;
 
 static bool tweaks_lockBoth(void)
 {
@@ -93,31 +97,32 @@ static Uint32 tweaks_pixel(SDL_Surface *s, int x, int y)
     return ((Uint32 *)((Uint8 *)s->pixels + y * s->pitch))[x] & 0xFFFFFF;
 }
 
-static int tweaks_putRowMode(void)
+static int tweaks_putRowMode(const SDL_Rect *row)
 {
     if (screen->format->BytesPerPixel != 4 || video->format->BytesPerPixel != 4 ||
         screen->format->Rmask != video->format->Rmask ||
         screen->format->Gmask != video->format->Gmask ||
         screen->format->Bmask != video->format->Bmask ||
-        video->w != screen->w || video->h != screen->h)
+        video->w != screen->w || video->h != screen->h || !tweaks_lockBoth())
         return PUTROW_WHOLE;
-    SDL_BlitSurface(screen, NULL, video, NULL);
-    if (!tweaks_lockBoth())
-        return PUTROW_WHOLE;
-    int straight = 0, turned = 0, n = 0;
     const int w = screen->w, h = screen->h;
-    for (int i = 0; i < 8; i++)
-        for (int j = 0; j < 8; j++) {
-            int x = w * (2 * i + 1) / 16 + i, y = h * (2 * j + 1) / 16 + 3 * j;
+    putrow_straight = putrow_turned = putrow_points = 0;
+    for (int i = 0; i < 16; i++)
+        for (int j = 0; j < 16; j++) {
+            int x = w * (2 * i + 1) / 32 + i % 3, y = h * (2 * j + 1) / 32 + j % 3;
+            // not the row just drawn, nor where it is turned
+            if ((y >= row->y && y < row->y + row->h) ||
+                (h - 1 - y >= row->y && h - 1 - y < row->y + row->h))
+                continue;
             Uint32 p = tweaks_pixel(screen, x, y);
-            straight += tweaks_pixel(video, x, y) == p;
-            turned += tweaks_pixel(video, w - 1 - x, h - 1 - y) == p;
-            n++;
+            putrow_straight += tweaks_pixel(video, x, y) == p;
+            putrow_turned += tweaks_pixel(video, w - 1 - x, h - 1 - y) == p;
+            putrow_points++;
         }
     tweaks_unlockBoth();
-    if (straight == n && turned < n)
+    if (putrow_points > 0 && putrow_straight == putrow_points && putrow_turned < putrow_points)
         return PUTROW_STRAIGHT;
-    if (turned == n && straight < n)
+    if (putrow_points > 0 && putrow_turned == putrow_points && putrow_straight < putrow_points)
         return PUTROW_TURNED;
     return PUTROW_WHOLE;
 }
@@ -125,12 +130,14 @@ static int tweaks_putRowMode(void)
 static void tweaks_putRow(SDL_Rect *row)
 {
     SDL_Rect r = *row;
-    if (putrow_mode == PUTROW_UNKNOWN) {
-        putrow_mode = tweaks_putRowMode();
-        return; // this frame: the whole picture, just copied
+    if (r.x < 0 || r.y < 0 || r.w <= 0 || r.h <= 0 ||
+        r.x + r.w > screen->w || r.y + r.h > screen->h) {
+        SDL_BlitSurface(screen, NULL, video, NULL);
+        return;
     }
-    if (putrow_mode == PUTROW_WHOLE || r.x < 0 || r.y < 0 || r.w <= 0 || r.h <= 0 ||
-        r.x + r.w > screen->w || r.y + r.h > screen->h || !tweaks_lockBoth()) {
+    if (putrow_mode == PUTROW_UNKNOWN)
+        putrow_mode = tweaks_putRowMode(&r);
+    if (putrow_mode == PUTROW_WHOLE || !tweaks_lockBoth()) {
         SDL_BlitSurface(screen, NULL, video, NULL);
         return;
     }
@@ -372,8 +379,10 @@ int main(int argc, char *argv[])
                 if (fps_row + fps_full > 0) {
                     FILE *fp = fopen("/tmp/tweaks_fps.log", "a");
                     if (fp) {
-                        fprintf(fp, "%d frames/s while scrolling: %d the row only, %d all\n",
-                                (fps_row + fps_full) * 1000 / (int)(ticks - fps_at), fps_row, fps_full);
+                        fprintf(fp, "%d frames/s while scrolling: %d the row only, %d all; row copy %s (straight %d, turned %d of %d)\n",
+                                (fps_row + fps_full) * 1000 / (int)(ticks - fps_at), fps_row, fps_full,
+                                putrow_mode == PUTROW_STRAIGHT ? "straight" : putrow_mode == PUTROW_TURNED ? "turned" : putrow_mode == PUTROW_WHOLE ? "whole picture" : "not yet",
+                                putrow_straight, putrow_turned, putrow_points);
                         fclose(fp);
                     }
                 }
