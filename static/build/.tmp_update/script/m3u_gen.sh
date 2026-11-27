@@ -74,7 +74,7 @@ helpmsg() {
   echo ""
   echo "  -h, --help                 display this help message"
   echo ""
-  echo "Swap Disc: Retroarch > [Load Your Game] > Quick Menu > Disc Control"
+  echo "Swap disc: RetroArch > [your game] > Quick Menu > Disc Control"
 }
 
 if [ "$1" = -h ] || [ "$1" = --help ]; then
@@ -85,7 +85,7 @@ elif [ "$1" = -md ]; then
 elif [ "$1" = -sd ]; then
   TARGETFOLDER="-sd"
 else # case for eventual GLO menu
-  LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so prompt -t "Multi-disc - Target Directory" -m "Choose the sub folder name where\noriginal disc files will be stored." \
+  LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so prompt -t "Multi-disc: target folder" -m "Choose the sub folder name where\noriginal disc files will be stored." \
     "Single directory (\".multi-disc\")" \
     "Multiple directories (\".Game_Name\")"
   retcode=$?

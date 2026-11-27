@@ -5,7 +5,7 @@ sysdir=/mnt/SDCARD/.tmp_update
 result=`randomGamePicker $*`
 
 if [ $? -eq 99 ]; then
-    infoPanel --title "RANDOM GAME" --message "NO GAMES FOUND\n \nIt looks like you don't have\nany valid roms." --auto
+    infoPanel --title "Random Game" --message "No games found\n \nThere are no games to pick from." --auto
     exit 1
 fi
 
@@ -21,7 +21,7 @@ rompath=`get_info_value "$result" path`
 imgpath=`get_info_value "$result" img`
 launchpath=`get_info_value "$result" launch`
 
-infoPanel -t "RANDOM GAME" -i "$imgpath" -m "$(echo "$label" | fold -s -w 35)\n \n$emuname"
+infoPanel -t "Random Game" -i "$imgpath" -m "$(echo "$label" | fold -s -w 35)\n \n$emuname"
 retcode=$?
 
 echo "retcode: $retcode"

@@ -331,7 +331,7 @@ EOF
 $menu_option_info
 EOF
 
-    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "GLO" -i "$@"
+    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "Game options" -i "$@"
 }
 
 check_is_game() {
@@ -630,11 +630,11 @@ change_core() {
     log "corenames: $available_corenames"
 
     if [ $is_valid -eq 0 ]; then
-        infoPanel --title "GAME CORE (.$ext)" --message "Not available for this rom\n(.$ext files)" --auto
+        infoPanel --title "Game core (.$ext)" --message "Not available for this game\n(.$ext files)" --auto
         exit 1
     fi
 
-    runcmd="LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t \"GAME CORE (.$ext)\" -s $selected_index $available_corenames"
+    runcmd="LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t \"Game core (.$ext)\" -s $selected_index $available_corenames"
     eval $runcmd
     retcode=$?
 
@@ -648,7 +648,7 @@ change_core() {
 
     # For this game only, or as the default of every game of the system.
     # A core chosen for a single game keeps winning over the system one.
-    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "GAME CORE" \
+    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "Game core" \
         "Only this game" "All ${system_label:-these} games"
     scope=$?
     if [ $scope -eq 1 ]; then
@@ -706,7 +706,7 @@ reset_core() {
 
 get_core_extensions() {
     if [ ! -f "$ext_cache_path" ]; then
-        ./bin/infoPanel --title "CACHING CORES" --message "Caching core info\n \nThis may take a minute..." --persistent &
+        ./bin/infoPanel --title "Game core" --message "Reading the cores...\n \nThis may take a minute." --persistent &
         ./script/build_ext_cache.sh "$radir"
         touch /tmp/dismiss_info_panel
         sync
@@ -798,16 +798,16 @@ drop_rom_list_cache() {
 hide_game() {
     log ":: hide_game $rompath"
     _hg_name=$(basename "$rompath")
-    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "HIDE GAME" \
+    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "Hide game" \
         "Hide ${_hg_name%.*}" "Cancel"
     [ $? -eq 0 ] || exit 1
     _hg_dir="$(dirname "$rompath")/.hidden/${_hg_name%.*}"
     if [ -e "$_hg_dir" ]; then
-        infoPanel --title "HIDE GAME" --message "A hidden game with this name\nis already there." --auto
+        infoPanel --title "Hide game" --message "A hidden game with this name\nis already there." --auto
         return
     fi
     if ! mkdir -p "$_hg_dir"; then
-        infoPanel --title "HIDE GAME" --message "Could not create the hidden folder." --auto
+        infoPanel --title "Hide game" --message "Could not create the hidden folder." --auto
         return
     fi
     # The whole list first: the .cue is read for its tracks before it moves.
@@ -829,7 +829,7 @@ show_hidden_games() {
         [ -d "$_sh_d" ] && set -- "$@" "$(basename "$_sh_d")"
     done
     [ $# -gt 0 ] || exit 1
-    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "HIDDEN GAMES" "$@"
+    LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so ./bin/prompt -t "Hidden games" "$@"
     _sh_i=$?
     [ $_sh_i -lt $# ] || exit 1
     shift $_sh_i
@@ -842,7 +842,7 @@ unhide_game() { # .hidden/<rom name> folder
     for _ug_f in "$1"/* "$1"/.[!.]*; do
         [ -e "$_ug_f" ] || continue
         if [ -e "$_ug_dest/$(basename "$_ug_f")" ]; then
-            infoPanel --title "HIDDEN GAMES" --message "$(basename "$_ug_f")\nis already in the list folder." --auto
+            infoPanel --title "Hidden games" --message "$(basename "$_ug_f")\nis already in the list folder." --auto
             return
         fi
     done
@@ -923,7 +923,7 @@ run_script() {
         fi
         exit $retcode
     else
-        infoPanel --title "SCRIPT NOT FOUND" --message "$(basename "$scriptpath")" --auto
+        infoPanel --title "Script not found" --message "$(basename "$scriptpath")" --auto
     fi
 }
 
@@ -943,7 +943,7 @@ transfer_mgba_save() {
         fi
 
         # Show info panel
-        infoPanel --title "MIGRATION SUCCESSFUL" --message "mGBA save transferred to gpSP." --auto
+        infoPanel --title "Save transferred" --message "mGBA save transferred to gpSP." --auto
     fi
 }
 

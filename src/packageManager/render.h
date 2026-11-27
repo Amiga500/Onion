@@ -120,7 +120,7 @@ bool confirmDoNothing(KeyState *keystate)
             c.px[y * c.pitch + x] = cui_mix(c.px[y * c.pitch + x], 0, 0.6f);
     int bx = 70, by = 150, bw = 500, bh = 170;
     cui_rrect(&c, bx, by, bw, bh, 16, CUI_PANEL);
-    cui_text(&c, bx + 24, by + 38, "LEAVE WITHOUT CHANGES?", 24, CUI_WHITE, CUI_LEFT);
+    cui_text(&c, bx + 24, by + 38, "Leave without changes?", 24, CUI_WHITE, CUI_LEFT);
     cui_text(&c, bx + 24, by + 74, "Nothing will be installed or removed.", 17, CUI_GREY, CUI_LEFT);
     int btn_w = (bw - 48 - 12) / 2, btn_y = by + 100;
     cui_rrect(&c, bx + 24, btn_y, btn_w, 46, 10, CUI_WHITE);
@@ -222,7 +222,7 @@ void renderApplication(void)
             hx += cui_hint(&c, hx, 456, "A", "APPLY", 20);
         }
         else {
-            cui_text(&c, 320, 250, "NO CHANGES", 30, CUI_WHITE, CUI_CENTER);
+            cui_text(&c, 320, 250, "No changes", 30, CUI_WHITE, CUI_CENTER);
             cui_text(&c, 320, 285, "Turn packages on or off in the other tabs.", 17, CUI_GREY, CUI_CENTER);
             hx += cui_hint(&c, hx, 456, "A", "EXIT", 20);
         }

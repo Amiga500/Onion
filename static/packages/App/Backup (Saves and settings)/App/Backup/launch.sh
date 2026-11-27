@@ -459,7 +459,7 @@ EOF
 }
 
 screen_backup() {
-    ui_busy "BACKUP" "Backing up your saves and settings...\n \nThis can take a few minutes."
+    ui_busy "Backup" "Backing up your saves and settings...\n \nThis can take a few minutes."
     BACKUP_PROGRESS=1 BACKUP_TITLE="Backing up your saves and settings"
     make_backup ""
     rc=$?
@@ -479,7 +479,7 @@ screen_restore() {
         "Cancel" "Restore"
     [ $? -eq 1 ] || return
 
-    ui_busy "RESTORE" "Restoring your saves and settings...\n \nThis can take a few minutes."
+    ui_busy "Restore" "Restoring your saves and settings...\n \nThis can take a few minutes."
     BACKUP_PROGRESS=1 BACKUP_TITLE="Backing up the current saves first"
     restore_backup "$BACKUP_DIR/$PICKED"
     rc=$?
@@ -496,7 +496,7 @@ screen_restore() {
             restore_cancel
             return
         fi
-        ui_busy "RESTORE" "Restoring your saves and settings...\n \nThis can take a few minutes."
+        ui_busy "Restore" "Restoring your saves and settings...\n \nThis can take a few minutes."
         BACKUP_PROGRESS=1 BACKUP_TITLE="Backing up the current saves first"
         restore_backup "$BACKUP_DIR/$PICKED" 1
         rc=$?
@@ -542,7 +542,7 @@ main() {
     : > "$LOG"
     selected=0
     while true; do
-        LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so prompt -t "BACKUP" -i -s "$selected" \
+        LD_PRELOAD=/mnt/SDCARD/miyoo/lib/libpadsp.so prompt -t "Backup" -i -s "$selected" \
             "Back up now" "Restore a backup..." "Delete a backup..." \
             "$NOTE_BACKUP" "$NOTE_RESTORE" "$NOTE_DELETE"
         selected=$?
