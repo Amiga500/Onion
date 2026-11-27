@@ -176,10 +176,11 @@ void action_setLowBatteryAutoSave(void *pt)
     settings.low_battery_autosave_at = battery_exitLevelPercent(((ListItem *)pt)->value);
 }
 
-// Tweaks > Look and feel > Accent colour (Silky RedOnion). Written and
-// applied at once: script/accent_color.sh puts the theme images in the
-// colour into the theme overrides, then Tweaks loads them again and is
-// drawn in it. MainUI and the other programs read them when they start.
+// Tweaks > Look and feel > Accent colour (Silky RedOnion). Written at once,
+// applied once it stays put (below): script/accent_color.sh puts the theme
+// images in the colour into the theme overrides, then Tweaks loads them
+// again and is drawn in it. MainUI and the other programs read them when
+// they start.
 // Tweaks lists the accent colours in rainbow order; the number saved is the
 // colour's line in res/accent/palette.txt (red, blue, purple, teal, pink,
 // orange, green, gold, graphite), where new colours are added at the end so
@@ -200,21 +201,24 @@ static int accent_listPosition(int palette_index)
 // moment. LEFT/RIGHT step through the colours: it was done at every step,
 // so going from Red to Graphite applied all nine one after the other and
 // the list stuck for many seconds (robcodedev, 4.5.1 beta 6). The choice
-// is saved at once and applied once the colour stays 500 ms, or on leaving
-// Tweaks (accent_applyPending); MainUI applies the saved one when it starts
+// is saved at once and applied once the colour stays 500 ms; on leaving
+// Tweaks (leaving: true) only its pictures are copied, Tweaks has nothing
+// more to draw. MainUI and Kids Mode apply the saved one when they start
 // anyway (runtime.sh).
 #define ACCENT_APPLY_DELAY_MS 500
 static bool accent_pending = false;
 static uint32_t accent_pending_since = 0;
 
-void accent_applyPending(uint32_t now, bool now_or_never)
+void accent_applyPending(uint32_t now, bool leaving)
 {
     if (!accent_pending)
         return;
-    if (!now_or_never && now - accent_pending_since < ACCENT_APPLY_DELAY_MS)
+    if (!leaving && now - accent_pending_since < ACCENT_APPLY_DELAY_MS)
         return;
     accent_pending = false;
     system("sh /mnt/SDCARD/.tmp_update/script/accent_color.sh");
+    if (leaving)
+        return;
     resources_reloadImages();
     ui_resetColors();
     theme_renderHeader_cleanup();
