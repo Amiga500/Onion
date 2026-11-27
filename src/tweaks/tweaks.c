@@ -69,11 +69,13 @@ void check_networkChanged(void)
 // 256 points outside the row, straight and turned: the way that matches
 // them all is used for the rows from then on (each pixel (x, y) to (x, y),
 // or to (w-1-x, h-1-y)). Neither for sure (another panel, other formats
-// or sizes): always the whole picture, as before. With the measure on
-// (config/.tweaksFps), /tmp/tweaks_fps.log says which.
+// or sizes, or no answer in a few frames): always the whole picture, as
+// before. With the measure on (config/.tweaksFps), /tmp/tweaks_fps.log
+// says which.
 enum { PUTROW_UNKNOWN = -1, PUTROW_STRAIGHT, PUTROW_TURNED, PUTROW_WHOLE };
 static int putrow_mode = PUTROW_UNKNOWN;
-static int putrow_straight = 0, putrow_turned = 0, putrow_points = 0;
+static int putrow_straight = 0, putrow_turned = 0, putrow_points = 0, putrow_tries = 0;
+#define PUTROW_MAX_TRIES 8
 
 static bool tweaks_lockBoth(void)
 {
@@ -124,7 +126,9 @@ static int tweaks_putRowMode(const SDL_Rect *row)
         return PUTROW_STRAIGHT;
     if (putrow_points > 0 && putrow_turned == putrow_points && putrow_straight < putrow_points)
         return PUTROW_TURNED;
-    return PUTROW_WHOLE;
+    // Neither: maybe the last frame's copy had not landed yet (frames
+    // run back to back after a slow step); asked again next time
+    return PUTROW_UNKNOWN;
 }
 
 static void tweaks_putRow(SDL_Rect *row)
@@ -135,9 +139,15 @@ static void tweaks_putRow(SDL_Rect *row)
         SDL_BlitSurface(screen, NULL, video, NULL);
         return;
     }
-    if (putrow_mode == PUTROW_UNKNOWN)
+    // A few tries: decided once for all on the first frame, a copy still
+    // on its way left the whole picture for the session (Fable review,
+    // 4.5.1). Each frame without an answer puts out the whole picture.
+    if (putrow_mode == PUTROW_UNKNOWN) {
         putrow_mode = tweaks_putRowMode(&r);
-    if (putrow_mode == PUTROW_WHOLE || !tweaks_lockBoth()) {
+        if (putrow_mode == PUTROW_UNKNOWN && ++putrow_tries >= PUTROW_MAX_TRIES)
+            putrow_mode = PUTROW_WHOLE;
+    }
+    if (putrow_mode == PUTROW_UNKNOWN || putrow_mode == PUTROW_WHOLE || !tweaks_lockBoth()) {
         SDL_BlitSurface(screen, NULL, video, NULL);
         return;
     }
