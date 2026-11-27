@@ -71,6 +71,57 @@ void theme_renderHeader_cleanup(void)
     }
 }
 
+/* A theme whose title bar carries art on its left (TechDweeb Orange's logo)
+ * gets its title centered, without the badge, as Onion and MainUI draw
+ * it: the badge and the left-aligned title went over the art (4.5.1,
+ * Amiga500's video). A plain or gradient bar (Silky RedOnion) keeps the badge.
+ * Found once per bar: the background and the bar as drawn, from x 16 to
+ * 360 (the badge and a title), where neighbouring pixels differ sharply. */
+static SDL_Surface *_header_checked_bar = NULL, *_header_checked_bg = NULL;
+static bool _header_classic = false;
+
+static bool _header_titlebarHasArt(void)
+{
+    SDL_Surface *bar = resource_getSurface(BG_TITLE), *bg = theme_background();
+    if (bar == _header_checked_bar && bg == _header_checked_bg)
+        return _header_classic;
+    _header_checked_bar = bar;
+    _header_checked_bg = bg;
+    _header_classic = false;
+    SDL_Rect area = theme_scaleRect((SDL_Rect){0, 0, 640, 60});
+    SDL_Surface *seen = SDL_CreateRGBSurface(SDL_SWSURFACE, area.w, area.h, 32,
+                                             0x00FF0000, 0x0000FF00, 0x000000FF, 0);
+    if (seen == NULL)
+        return false;
+    SDL_FillRect(seen, NULL, 0);
+    if (bg)
+        SDL_BlitSurface(bg, &area, seen, NULL);
+    if (bar)
+        SDL_BlitSurface(bar, &area, seen, NULL);
+    int sharp = 0, pairs = 0;
+    int x0 = 16.0 * g_scale, x1 = 360.0 * g_scale, step = 2;
+    if (x1 > seen->w - step)
+        x1 = seen->w - step;
+    if (SDL_LockSurface(seen) == 0) {
+        for (int y = 10.0 * g_scale; y < 50.0 * g_scale && y < seen->h; y += 4) {
+            const Uint32 *row = (const Uint32 *)((Uint8 *)seen->pixels + y * seen->pitch);
+            for (int x = x0; x < x1; x += step) {
+                Uint32 a = row[x], b = row[x + step];
+                int d = abs((int)((a >> 16) & 0xFF) - (int)((b >> 16) & 0xFF)) +
+                        abs((int)((a >> 8) & 0xFF) - (int)((b >> 8) & 0xFF)) +
+                        abs((int)(a & 0xFF) - (int)(b & 0xFF));
+                sharp += d > 80;
+                pairs++;
+            }
+        }
+        SDL_UnlockSurface(seen);
+    }
+    SDL_FreeSurface(seen);
+    // more than 4 in 100 sharp steps: lines, letters, a picture
+    _header_classic = pairs > 0 && sharp * 25 > pairs;
+    return _header_classic;
+}
+
 /* The icon drawn in the badge for a title: res/icons/ui/<name>.png (a theme
  * can ship its own as skin/extra/icons/ui/<name>.png). Titles not listed
  * keep their first letter. */
@@ -138,6 +189,12 @@ static int _theme_renderHeaderTitle(SDL_Surface *screen, SDL_Surface *title,
                                     const char *title_str, bool show_logo)
 {
     int x = 16.0 * g_scale, cy = 30.0 * g_scale;
+    if (!show_logo && _header_titlebarHasArt()) {
+        // centered, no badge (see _header_titlebarHasArt)
+        if (title)
+            x = title->w < 540.0 * g_scale ? (int)(320.0 * g_scale) - title->w / 2 : x;
+        return _theme_renderHeaderTitleText(screen, title, x);
+    }
     if (show_logo) {
         SDL_Surface *logo = resource_getSurface(LOGO);
         SDL_Rect logo_rect = {x, cy - logo->h / 2};
@@ -269,7 +326,19 @@ void theme_renderHeaderPath(SDL_Surface *screen, const char *const *levels, int 
     TTF_Font *title_font = resource_getFont(TITLE);
     int title_y = 29.0 * g_scale - (title ? title->h / 2 : 0);
     int baseline = title_y + (title_font ? TTF_FontAscent(title_font) : 0);
-    if (_header_path_font && prefix_w > 0 && prefix_w + title_w <= avail) {
+    bool path_shown = _header_path_font && prefix_w > 0 && prefix_w + title_w <= avail;
+    if (_header_titlebarHasArt()) {
+        // no badge drawn: the title alone, centered, as in MainUI (the
+        // path, wider, went over the art again)
+        path_shown = false;
+        int w = title_w;
+        int centered = (int)(320.0 * g_scale) - w / 2;
+        if (centered + w > 540.0 * g_scale) // clear of the battery
+            centered = 540.0 * g_scale - w;
+        if (centered > x)
+            x = centered;
+    }
+    if (path_shown) {
         if (from > 0)
             x = _header_pathPiece(screen, "...", x, baseline);
         for (int i = from; i < count - 1; i++)
