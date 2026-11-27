@@ -496,11 +496,13 @@ bool list_item_wantsPreviewLoad(const ListItem *item)
 // to the end, rests, slides back, and so on (LIST_VALUE_SCROLL_*). 0 when
 // it fits.
 //
-// 28 px/s: at most one pixel per redraw, as Tweaks redraws a scrolling row
-// every 33-35 ms (two frames). At 40 px/s it moved 1, 1, then 2 px per
-// redraw, a jerky slide (robcodedev, 4.5.1 beta 6).
+// 150 px/s, drawn by Tweaks at every frame (60 a second): 2-3 px each, at
+// most LIST_VALUE_SCROLL_MAX_STEP (list_valueScrollStep). It was redrawn
+// every 33 ms: at 40 px/s it moved 1, 1, then 2 px, jerky; at 28 px/s, one
+// pixel at a time, smooth but far too slow (robcodedev, 4.5.1 beta 6).
 #define LIST_VALUE_SCROLL_PAUSE_MS 1500
-#define LIST_VALUE_SCROLL_SPEED 28 // px/s
+#define LIST_VALUE_SCROLL_SPEED 150 // px/s
+#define LIST_VALUE_SCROLL_MAX_STEP 3 // px per redraw
 
 int list_valueScrollOffset(uint32_t elapsed_ms, int overflow)
 {
@@ -519,16 +521,17 @@ int list_valueScrollOffset(uint32_t elapsed_ms, int overflow)
 }
 
 // The offset to draw, from the one drawn last (drawn) toward the one for
-// the time (target), one pixel at most: a redraw that comes late (a frame
-// slept 20 ms instead of 16) does not make the text jump 2 px. It catches
+// the time (target), LIST_VALUE_SCROLL_MAX_STEP pixels at most: a redraw
+// that comes late (a slow frame) does not make the text jump. It catches
 // up during the pause at each end.
 int list_valueScrollStep(int drawn, int target)
 {
-    if (target > drawn)
-        return drawn + 1;
-    if (target < drawn)
-        return drawn - 1;
-    return drawn;
+    int d = target - drawn;
+    if (d > LIST_VALUE_SCROLL_MAX_STEP)
+        d = LIST_VALUE_SCROLL_MAX_STEP;
+    if (d < -LIST_VALUE_SCROLL_MAX_STEP)
+        d = -LIST_VALUE_SCROLL_MAX_STEP;
+    return drawn + d;
 }
 
 // FNV-1a over a rendered label: cache key for the MULTIVALUE value surface.

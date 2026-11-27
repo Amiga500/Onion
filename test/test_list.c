@@ -1998,69 +1998,80 @@ TEST(count_visible_single_disabled) {
 
 /* ---- main ---- */
 
-/* A value too wide for its place scrolls: 1.5 s at the start, 28 px/s to
+/* A value too wide for its place scrolls: 1.5 s at the start, 150 px/s to
  * the end, 1.5 s there, and back. */
 TEST(value_scroll_offset)
 {
     ASSERT_EQ(list_valueScrollOffset(5000, 0), 0);
     ASSERT_EQ(list_valueScrollOffset(5000, -3), 0);
-    /* 84 px too wide: 3000 ms each way. */
-    ASSERT_EQ(list_valueScrollOffset(0, 84), 0);
-    ASSERT_EQ(list_valueScrollOffset(1499, 84), 0);
-    ASSERT_EQ(list_valueScrollOffset(1500, 84), 0);
-    ASSERT_EQ(list_valueScrollOffset(1500 + 1500, 84), 42);
-    ASSERT_EQ(list_valueScrollOffset(1500 + 2999, 84), 83);
-    ASSERT_EQ(list_valueScrollOffset(1500 + 3000, 84), 84);
-    ASSERT_EQ(list_valueScrollOffset(2 * 1500 + 3000 - 1, 84), 84);
-    ASSERT_EQ(list_valueScrollOffset(2 * 1500 + 3000 + 1500, 84), 42);
-    ASSERT_EQ(list_valueScrollOffset(2 * (1500 + 3000), 84), 0);
+    /* 150 px too wide: 1000 ms each way. */
+    ASSERT_EQ(list_valueScrollOffset(0, 150), 0);
+    ASSERT_EQ(list_valueScrollOffset(1499, 150), 0);
+    ASSERT_EQ(list_valueScrollOffset(1500, 150), 0);
+    ASSERT_EQ(list_valueScrollOffset(1500 + 500, 150), 75);
+    ASSERT_EQ(list_valueScrollOffset(1500 + 999, 150), 149);
+    ASSERT_EQ(list_valueScrollOffset(1500 + 1000, 150), 150);
+    ASSERT_EQ(list_valueScrollOffset(2 * 1500 + 1000 - 1, 150), 150);
+    ASSERT_EQ(list_valueScrollOffset(2 * 1500 + 1000 + 500, 150), 75);
+    ASSERT_EQ(list_valueScrollOffset(2 * (1500 + 1000), 150), 0);
     /* and round again */
-    ASSERT_EQ(list_valueScrollOffset(2 * (1500 + 3000) + 1500 + 1500, 84), 42);
+    ASSERT_EQ(list_valueScrollOffset(2 * (1500 + 1000) + 1500 + 500, 150), 75);
     /* never outside 0..overflow, for any time */
     for (uint32_t t = 0; t < 20000; t += 7) {
         int o = list_valueScrollOffset(t, 33);
         ASSERT_TRUE(o >= 0 && o <= 33);
     }
     ASSERT_TRUE(list_valueScrollOffset(0xFFFFFFF0u, 33) <= 33);
-    /* Tweaks redraws a scrolling row every 33-35 ms (two frames at 60 fps):
-     * the text moves at most one pixel per redraw, never 2 (it moved 1, 1,
-     * 2 at 40 px/s: jerky). */
-    int prev = list_valueScrollOffset(0, 200), steps = 0;
-    for (uint32_t t = 33; t < 20000; t += 33 + t % 3) {
-        int o = list_valueScrollOffset(t, 200);
-        int d = o > prev ? o - prev : prev - o;
-        ASSERT_TRUE(d <= 1);
-        steps += d;
-        prev = o;
-    }
-    ASSERT_TRUE(steps > 400); /* and it did move */
 }
 
-/* A late redraw (a frame slept 20 ms: redraws 40 ms apart) asks for 1.12
- * px: the step drawn is one pixel at most, and the text still reaches each
- * end during its pause. */
+/* Tweaks draws a scrolling row at every frame (16-17 ms apart at 60 fps):
+ * the text moves 2 or 3 px each while it slides, never more, never a
+ * stop, so about 150 px/s (it was redrawn every 33 ms, at 28 px/s: one
+ * pixel at a time, far too slow, robcodedev). A late frame (40 ms) moves
+ * it 3 px at most too, and it still reaches each end and comes back. */
 TEST(value_scroll_step)
 {
     ASSERT_EQ(list_valueScrollStep(0, 0), 0);
-    ASSERT_EQ(list_valueScrollStep(5, 7), 6);
-    ASSERT_EQ(list_valueScrollStep(7, 5), 6);
+    ASSERT_EQ(list_valueScrollStep(5, 7), 7);
+    ASSERT_EQ(list_valueScrollStep(5, 20), 8);
+    ASSERT_EQ(list_valueScrollStep(20, 5), 17);
     ASSERT_EQ(list_valueScrollStep(6, 6), 6);
 
     const int overflow = 200;
-    int drawn = 0, reached_end = 0, back_at_start = 0;
-    for (uint32_t t = 40; t < 30000; t += 40) {
+    int drawn = 0, reached_end = 0, back_at_start = 0, steps = 0, moving = 0;
+    uint32_t end_at = 0;
+    for (uint32_t t = 16; t < 20000; t += 16 + (t / 16) % 3 / 2) {
         int next = list_valueScrollStep(drawn, list_valueScrollOffset(t, overflow));
         int d = next > drawn ? next - drawn : drawn - next;
-        ASSERT_TRUE(d <= 1);
+        ASSERT_TRUE(d <= LIST_VALUE_SCROLL_MAX_STEP);
         ASSERT_TRUE(next >= 0 && next <= overflow);
+        /* sliding forward: 2 or 3 px a frame, no hiccup */
+        if (!reached_end && drawn > 0 && next < overflow) {
+            ASSERT_TRUE(d >= 2);
+            moving++;
+        }
+        steps += d;
         drawn = next;
-        if (drawn == overflow)
+        if (drawn == overflow && !reached_end) {
             reached_end = 1;
+            end_at = t;
+        }
         if (reached_end && drawn == 0)
             back_at_start = 1;
     }
     ASSERT_TRUE(reached_end);
     ASSERT_TRUE(back_at_start);
+    ASSERT_TRUE(moving > 50);
+    /* 200 px in about 1.33 s after the 1.5 s pause: at most 1.5 s */
+    ASSERT_TRUE(end_at <= 1500 + 1500);
+
+    /* late frames, 40 ms apart: still 3 px at most */
+    drawn = 0;
+    for (uint32_t t = 40; t < 10000; t += 40) {
+        int next = list_valueScrollStep(drawn, list_valueScrollOffset(t, overflow));
+        ASSERT_TRUE((next > drawn ? next - drawn : drawn - next) <= 3);
+        drawn = next;
+    }
 }
 
 int main(void)
