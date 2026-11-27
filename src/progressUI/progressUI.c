@@ -1,7 +1,7 @@
 /* progressUI (RedOnion, new UI): shows a long task run by a script, in the
  * new look, instead of its output scrolling in the terminal.
  *
- *   some_task.sh | progressUI -t "Scraper" [-i image] [-s "Game Boy Advance"]
+ *   some_task.sh | progressUI -t "Scraper" [-i image] [-s "Game Boy Advance"] [-c]
  *
  * It reads the task's output on stdin. Lines starting with "@@" tell it
  * where the task is; the others are shown, last four, in the log box:
@@ -19,6 +19,11 @@
  *                         an update being written to the card)
  * Lines with "Scraped!", "No match found" or "already Scraped" count too,
  * for scripts that do not send @@found and the like.
+ *
+ * The panels: the task's own (@@panel); with -c (the scraper) or once a
+ * count came, FOUND / NOT FOUND / TIME LEFT; otherwise DONE, ELAPSED and
+ * TIME LEFT. An update or a backup showed FOUND 0, NOT FOUND 0 and ALREADY
+ * THERE 0 while it worked (the OTA's installation, 4.5.1 beta 6).
  *
  * B asks "Stop?" (B continues, A stops). Stopping closes stdin, so the task
  * ends at its next line (SIGPIPE), and progressUI exits with 2. When the
@@ -53,6 +58,7 @@ static char log_lines[LOG_LINES][LINE_MAX_LEN];
 static int log_count = 0;
 static int total = 0, item = 0, found = 0, notfound = 0, skipped = 0;
 static bool finished = false, asking = false, autoclose = false, nostop = false;
+static bool counts = false; /* found / not found / skipped: -c, or one came */
 static char panels[3][3][64];
 #define MAX_TIPS 8
 static char tips[MAX_TIPS][LINE_MAX_LEN];
@@ -109,12 +115,18 @@ static void handle_line(char *line)
             char *name = strchr(arg, ' ');
             snprintf(item_name, sizeof(item_name), "%s", name ? name + 1 : "");
         }
-        else if (!strcmp(cmd, "found"))
+        else if (!strcmp(cmd, "found")) {
             found++;
-        else if (!strcmp(cmd, "notfound"))
+            counts = true;
+        }
+        else if (!strcmp(cmd, "notfound")) {
             notfound++;
-        else if (!strcmp(cmd, "skipped"))
+            counts = true;
+        }
+        else if (!strcmp(cmd, "skipped")) {
             skipped++;
+            counts = true;
+        }
         else if (!strcmp(cmd, "note") && arg)
             snprintf(note, sizeof(note), "%s", arg);
         else if (!strcmp(cmd, "tip") && arg && tip_count < MAX_TIPS)
@@ -138,11 +150,11 @@ static void handle_line(char *line)
         return;
     }
     if (strstr(line, "already Scraped"))
-        skipped++;
+        skipped++, counts = true;
     else if (strstr(line, "Scraped!"))
-        found++;
+        found++, counts = true;
     else if (strstr(line, "No match found"))
-        notfound++;
+        notfound++, counts = true;
     /* separators and empty lines are not worth a log line */
     bool only_marks = true;
     for (const char *p = line; *p; p++)
@@ -188,7 +200,7 @@ static void draw(CuiCanvas *c, int battery)
         snprintf(line, sizeof(line), "Finished: %d of %d", total, total);
     else if (finished)
         snprintf(line, sizeof(line), "Ended at %d of %d", item, total);
-    else if (total > 0 && item > 0 && !(panel_set[0] || panel_set[1] || panel_set[2]))
+    else if (counts && total > 0 && item > 0 && !(panel_set[0] || panel_set[1] || panel_set[2]))
         snprintf(line, sizeof(line), "%d of %d · %s", item, total, item_name);
     else
         snprintf(line, sizeof(line), "%s", item_name);
@@ -200,6 +212,24 @@ static void draw(CuiCanvas *c, int battery)
         for (int k = 0; k < 3; k++)
             if (panel_set[k])
                 panel(c, 20 + k * 204, 192, panels[k][0], panels[k][1], panels[k][2], CUI_WHITE);
+    }
+    else if (!counts) {
+        /* a task without counts (an update, a backup): how far, how long */
+        Uint32 elapsed = (SDL_GetTicks() - started_at) / 1000;
+        if (percent >= 0)
+            snprintf(v, sizeof(v), "%d%%", percent);
+        else
+            snprintf(v, sizeof(v), "--");
+        panel(c, 20, 192, "DONE", v, finished ? "finished" : "so far", CUI_WHITE);
+        snprintf(v, sizeof(v), "%02u:%02u", elapsed / 60, elapsed % 60);
+        panel(c, 224, 192, "ELAPSED", v, "since it started", CUI_WHITE);
+        if (!finished && total > 0 && item > 1) {
+            Uint32 left = elapsed * (total - item + 1) / (item - 1);
+            snprintf(v, sizeof(v), "%02u:%02u", left / 60, left % 60);
+            panel(c, 428, 192, "TIME LEFT", v, "about", CUI_WHITE);
+        }
+        else
+            panel(c, 428, 192, "TIME LEFT", finished ? "00:00" : "--:--", finished ? "done" : "working it out", CUI_WHITE);
     }
     else {
     snprintf(v, sizeof(v), "%d", found);
@@ -278,6 +308,9 @@ int main(int argc, char *argv[])
         else if (!strcmp(argv[i], "-s"))
             snprintf(task_title, sizeof(task_title), "%s", argv[++i]);
     }
+    for (int i = 1; i < argc; i++)
+        if (!strcmp(argv[i], "-c"))
+            counts = true;
     signal(SIGPIPE, SIG_IGN);
     fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 

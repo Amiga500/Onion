@@ -250,7 +250,7 @@ run_scraper() { # script system [rom]
         mkfifo "$_fifo" || return 0
         (scraper_tips; export PROGRESS_UI=1 SCRAPER_NO_ACCOUNT_PROMPT=1; exec "$@" < /dev/null) > "$_fifo" 2>&1 &
         _spid=$!
-        progressUI -t Scraper -i image -s "$2 · $(ui_scraper_label "$1")" < "$_fifo"
+        progressUI -t Scraper -i image -c -s "$2 · $(ui_scraper_label "$1")" < "$_fifo"
         _rc=$?
         if kill -0 "$_spid" 2> /dev/null; then
             # stopped with B (or progressUI gone): TERM runs the scraper's
@@ -1164,7 +1164,7 @@ Scrape_Favorites ()
     }
     if [ -n "$SCRAPER_NATIVE" ] && [ "$ScrapeInBackground" != "true" ]; then
         [ "$Screenscraper_enabled" = "true" ] && Native_Account_Question
-        Favorites_Loop < /dev/null 2>&1 | progressUI -t Scraper -i image -s "Favorites"
+        Favorites_Loop < /dev/null 2>&1 | progressUI -t Scraper -i image -c -s "Favorites"
         rm -f "$list"
         close_terminal
     fi
@@ -1261,7 +1261,7 @@ Scrape_All_Consoles ()
     }
     if [ -n "$SCRAPER_NATIVE" ] && [ "$ScrapeInBackground" != "true" ]; then
         [ "$Screenscraper_enabled" = "true" ] && Native_Account_Question
-        Consoles_Loop < /dev/null 2>&1 | progressUI -t Scraper -i image -s "All consoles"
+        Consoles_Loop < /dev/null 2>&1 | progressUI -t Scraper -i image -c -s "All consoles"
         rm -f "$list"
         close_terminal
     fi

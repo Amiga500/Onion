@@ -1060,34 +1060,44 @@ if [ -n "$OTA_NATIVE" ] && [ "$cmd" != "check" ]; then
 		# 7z writes to a log, not to the screen: in a pipe into progressUI
 		# it was killed by SIGPIPE mid-extraction if the screen went away
 		# (SDL failing to start, a crash). The screen follows the log.
+		# -bsp1: 7z's percentage, for the bar and the panels (the screen
+		# showed FOUND 0 / NOT FOUND 0 / ALREADY THERE 0 all along, 4.5.1
+		# beta 6); -bb1: the file it is on, shown under the bar.
 		rm -f /tmp/ota_7z_rc
 		: > /tmp/ota_7z.log
 		(
-			7z x -aoa -o"/mnt/SDCARD" "$1" -x!.tmp_update/updater -x!.tmp_update/runtime.sh > /tmp/ota_7z.log 2>&1
+			7z x -aoa -bsp1 -bb1 -o"/mnt/SDCARD" "$1" -x!.tmp_update/updater -x!.tmp_update/runtime.sh > /tmp/ota_7z.log 2>&1
 			echo $? > /tmp/ota_7z_rc
 		) &
 		_zpid=$!
 		{
 			echo "@@title Installing RedOnion $Release_Version"
+			echo "@@total 100"
 			echo "@@nostop"
 			echo "@@autoclose"
 			echo "@@note Don't turn the console off: it restarts when this is done."
 			echo "@@tip This takes a few minutes."
 			echo "@@tip Then the console restarts to finish the installation."
-			# the log's new lines every second (no tail -f: not in every
-			# BusyBox), and the last ones once 7z is done
+			# the log's new part every second (no tail -f: not in every
+			# BusyBox), and the rest once 7z is done. 7z redraws its line
+			# with backspaces: "  42% 1730 - miyoo/app/skin/x.png"
 			_shown=0
 			while :; do
 				_done=0
 				[ -f /tmp/ota_7z_rc ] && _done=1
-				_lines=$(wc -l < /tmp/ota_7z.log)
-				if [ "$_lines" -gt "$_shown" ]; then
-					sed -n "$((_shown + 1)),${_lines}p" /tmp/ota_7z.log
-					_shown=$_lines
+				_size=$(wc -c < /tmp/ota_7z.log)
+				if [ "$_size" -gt "$_shown" ]; then
+					tail -c +$((_shown + 1)) /tmp/ota_7z.log | head -c $((_size - _shown)) | tr '\010\r' '\n\n' |
+						awk '{ if (match($0, /[0-9]+%/)) { p = substr($0, RSTART, RLENGTH - 1) + 0 }
+							n = $0; sub(/^.*[+-] /, "", n)
+							if (p != last && n != $0 && n != "") { print "@@item " (p + 1) " " n; last = p }
+							if ($0 ~ /ERROR|WARNING/) print $0 }'
+					_shown=$_size
 				fi
 				[ $_done = 1 ] && break
 				sleep 1
 			done
+			[ "$(cat /tmp/ota_7z_rc 2> /dev/null)" = 0 ] && echo "@@item 101 Done"
 		} 2> /dev/null | "$sysdir/bin/progressUI" -t Update -i down
 		wait "$_zpid" 2> /dev/null
 		_rc=$(cat /tmp/ota_7z_rc 2> /dev/null)

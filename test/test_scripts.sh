@@ -6761,7 +6761,50 @@ OTA="$ROOT/static/build/.tmp_update/script/ota_update.sh"
 ax=$(sed -n '/apply_extract() { # zip/,/^	}/p' "$OTA")
 check "7z writes to a log, not into progressUI" sh -c 'printf "%s" "$1" | grep -qF "runtime.sh > /tmp/ota_7z.log 2>&1"' _ "$ax"
 check "the old result removed first" sh -c 'printf "%s\n" "$1" | grep -q "rm -f /tmp/ota_7z_rc$"' _ "$ax"
-check "the screen follows the log" sh -c 'printf "%s" "$1" | grep -qF "sed -n \"\$((_shown + 1)),\${_lines}p\" /tmp/ota_7z.log"' _ "$ax"
+check "the screen follows the log" sh -c 'printf "%s" "$1" | grep -qF "tail -c +\$((_shown + 1)) /tmp/ota_7z.log"' _ "$ax"
+# Run: 7z's percentage as the bar, the file under it, not the scraper's
+# FOUND / NOT FOUND / ALREADY THERE (all 0 while it worked, beta 6)
+mkdir -p "$TMP/otax/bin" "$TMP/otax/sys/bin"
+cat > "$TMP/otax/bin/7z" << 'EOF'
+#!/bin/sh
+echo "$*" > "$OTAX/args"
+case "$*" in *-bsp1*)
+    printf '  0%%\010\010\010\010    \010\010\010\010 35%% 120 - miyoo/app/skin/a.png'
+    sleep 1
+    printf '\010\010\010\010 80%% 900 - .tmp_update/bin/keymon\n'
+    [ -n "$FAKE7Z_RC" ] && echo "ERROR: Disk full : miyoo/app/MainUI" ;;
+esac
+exit "${FAKE7Z_RC:-0}"
+EOF
+printf '#!/bin/sh\ncat > "%s/otax/screen"\n' "$TMP" > "$TMP/otax/sys/bin/progressUI"
+chmod +x "$TMP/otax/bin/7z" "$TMP/otax/sys/bin/progressUI"
+(
+    OTAX="$TMP/otax" PATH="$TMP/otax/bin:$PATH" sysdir="$TMP/otax/sys" Release_Version=4.5.1-b7
+    export OTAX
+    eval "$ax"
+    apply_extract "$TMP/otax/RedOnion.zip"
+    echo "rc=$?" > "$TMP/otax/result"
+) > /dev/null 2>&1
+check "the extraction ends well" grep -q "^rc=0$" "$TMP/otax/result"
+check "7z asked for its percentage and the files" grep -q -- "-bsp1 -bb1" "$TMP/otax/args"
+check "a bar of 100 steps" grep -q "^@@total 100$" "$TMP/otax/screen"
+check "35%: the file under the bar" grep -q "^@@item 36 miyoo/app/skin/a.png$" "$TMP/otax/screen"
+check "80%: the next one" grep -q "^@@item 81 .tmp_update/bin/keymon$" "$TMP/otax/screen"
+check "done: the bar full" grep -q "^@@item 101 Done$" "$TMP/otax/screen"
+(
+    OTAX="$TMP/otax" PATH="$TMP/otax/bin:$PATH" sysdir="$TMP/otax/sys" Release_Version=4.5.1-b7 FAKE7Z_RC=2
+    export OTAX FAKE7Z_RC
+    eval "$ax"
+    apply_extract "$TMP/otax/RedOnion.zip"
+    echo "rc=$?" > "$TMP/otax/result"
+) > /dev/null 2>&1
+check "7z's error shown in the log box" grep -q "^ERROR: Disk full : miyoo/app/MainUI$" "$TMP/otax/screen"
+check "a failed extraction: 7z's result, the bar not filled" sh -c 'grep -q "^rc=2$" "$1/result" && ! grep -q "^@@item 101" "$1/screen"' _ "$TMP/otax"
+check "no temporary files left" sh -c '! ls /tmp/ota_7z.log /tmp/ota_7z_rc > /dev/null 2>&1'
+PU="$ROOT/src/progressUI/progressUI.c"
+check "progressUI: the counts only for the scraper (-c) or once one came" grep -qF "static bool counts = false;" "$PU"
+check "without counts: DONE, ELAPSED and TIME LEFT" sh -c 'grep -qF "panel(c, 20, 192, \"DONE\"" "$1" && grep -qF "\"ELAPSED\"" "$1"' _ "$PU"
+check "the scraper's three screens ask for the counts" test "$(grep -c 'progressUI -t Scraper -i image -c ' "$ROOT/static/build/.tmp_update/script/scraper/menu.sh")" -eq 3
 check "no terminal lines in the native download" grep -qF 'if [ -z "$OTA_NATIVE" ]; then' "$OTA"
 end
 
