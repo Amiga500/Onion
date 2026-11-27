@@ -435,7 +435,12 @@ int main(int argc, char *argv[])
                             b_btn_text = lang_get(LANG_EXIT, LANG_FALLBACK_EXIT);
                         }
 
-                        if (wait_confirm)
+                        // Several pages (Quick Guide): LEFT/RIGHT turn them
+                        // too, shown as "< > PAGE" like Themes and Activity
+                        // Tracker.
+                        if (wait_confirm && !info_panel_mode && g_images_paths_count > 1)
+                            theme_renderStandardHintNav(screen, a_btn_text, b_btn_text, "PAGE");
+                        else if (wait_confirm)
                             theme_renderStandardHint(screen, a_btn_text, b_btn_text);
                     }
 

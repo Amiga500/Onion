@@ -16,6 +16,12 @@
 #define FOOTER_FILL_PILL(screen, rect) \
     ui_fillRoundRect((screen), (rect), (rect).h / 2, ui_map((screen), ui_accent()))
 #endif
+// The page pill: "<" and ">" drawn in it, white.
+#ifndef FOOTER_DRAW_CHEVRON
+#include "./unified.h"
+#define FOOTER_DRAW_CHEVRON(screen, x, cy, half, dir) \
+    ui_drawChevron((screen), (x), (cy), (half), (dir), ui_map((screen), (SDL_Color){255, 255, 255}))
+#endif
 #ifndef FOOTER_PILL_FONT
 // The theme's hint font, smaller, to fit the pill; the hint font itself
 // when it can't be opened.
@@ -165,15 +171,39 @@ static void _footer_drawSelect(SDL_Surface *screen, SDL_Surface *word,
     }
 }
 
+// The page pill: "< >" in a pill as wide as it is tall plus 12 px, like
+// the LEFT/RIGHT hint of Themes and Activity Tracker, then the label (PAGE).
+#define FOOTER_NAV_PILL_W 40
+static int _footer_navWidth(SDL_Surface *label)
+{
+    return FOOTER_NAV_PILL_W * g_scale + FOOTER_PILL_GAP * g_scale + (label ? label->w : 0);
+}
+
+static void _footer_drawNav(SDL_Surface *screen, SDL_Surface *label, int x)
+{
+    int h = 28.0 * g_scale;
+    int cy = 450.0 * g_scale;
+    SDL_Rect pill = {x, cy - h / 2, FOOTER_NAV_PILL_W * g_scale, h};
+    FOOTER_FILL_PILL(screen, pill);
+    int half = 6.0 * g_scale;
+    FOOTER_DRAW_CHEVRON(screen, x + 17.0 * g_scale, cy, half, -1); // open side at 17
+    FOOTER_DRAW_CHEVRON(screen, x + 28.0 * g_scale, cy, half, 1); // tip at 28
+    if (label) {
+        SDL_Rect label_rect = {x + pill.w + FOOTER_PILL_GAP * g_scale, 449.0 * g_scale - label->h / 2, 0, 0};
+        SDL_BlitSurface(label, NULL, screen, &label_rect);
+    }
+}
+
 // A, B, an optional X hint (btn_x_str NULL: none) and an optional SELECT
-// hint (select_str NULL: none). In the alternative layout they go right to
+// hint (select_str NULL: none), or with nav the page pill instead of SELECT
+// ("< >", then select_str). In the alternative layout they go right to
 // left from A, otherwise left to right. Themes have no SELECT button image:
 // it is drawn as a pill in the theme's selection colour with SELECT in it,
 // then the label (INFO) in the hint font and colour; left out when the
 // theme hides the hint labels.
 static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
                                 const char *btn_b_str, const char *btn_x_str,
-                                const char *select_str)
+                                const char *select_str, bool nav)
 {
     char label_a_str[STR_MAX] = " ", label_b_str[STR_MAX] = " ", label_x_str[STR_MAX] = " ";
 
@@ -201,8 +231,9 @@ static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
     SDL_Surface *label_x = show_x ? _footer_hintLabel(&_cached_label_x, _cached_label_x_str, label_x_str) : NULL;
     SDL_Surface *label_select =
         show_select ? _footer_hintLabel(&_cached_label_select, _cached_label_select_str, label_select_str) : NULL;
-    SDL_Surface *select_word = show_select ? _footer_selectWord() : NULL;
-    int width_select = show_select ? _footer_selectWidth(select_word, label_select) : 0;
+    SDL_Surface *select_word = show_select && !nav ? _footer_selectWord() : NULL;
+    int width_select = !show_select ? 0 : nav ? _footer_navWidth(label_select)
+                                              : _footer_selectWidth(select_word, label_select);
 
     int gap = 30.0 * g_scale; // between two hints
     int width_a = _footer_hintWidth(button_a, label_a);
@@ -223,8 +254,12 @@ static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
         // Only where it leaves room for the page number on the left (a long
         // translation of SELECT or BACK, a big theme font): left out else.
         if (show_select && label_select &&
-            x_next - gap - width_select >= FOOTER_STATUS_ROOM * g_scale)
-            _footer_drawSelect(screen, select_word, label_select, x_next - gap - width_select);
+            x_next - gap - width_select >= FOOTER_STATUS_ROOM * g_scale) {
+            if (nav)
+                _footer_drawNav(screen, label_select, x_next - gap - width_select);
+            else
+                _footer_drawSelect(screen, select_word, label_select, x_next - gap - width_select);
+        }
         return;
     }
 
@@ -241,21 +276,33 @@ static void _footer_renderHints(SDL_Surface *screen, const char *btn_a_str,
     }
     // Only where it leaves room for the page number on the right.
     if (show_select && label_select &&
-        x_next + width_select <= (640 - FOOTER_STATUS_ROOM) * g_scale)
-        _footer_drawSelect(screen, select_word, label_select, x_next);
+        x_next + width_select <= (640 - FOOTER_STATUS_ROOM) * g_scale) {
+        if (nav)
+            _footer_drawNav(screen, label_select, x_next);
+        else
+            _footer_drawSelect(screen, select_word, label_select, x_next);
+    }
 }
 
 void theme_renderStandardHintX(SDL_Surface *screen, const char *btn_a_str,
                                const char *btn_b_str, const char *btn_x_str)
 {
-    _footer_renderHints(screen, btn_a_str, btn_b_str, btn_x_str, NULL);
+    _footer_renderHints(screen, btn_a_str, btn_b_str, btn_x_str, NULL, false);
 }
 
 // A and B, then "[SELECT] <select_str>" (NULL or empty: A and B only).
 void theme_renderStandardHintSelect(SDL_Surface *screen, const char *btn_a_str,
                                     const char *btn_b_str, const char *select_str)
 {
-    _footer_renderHints(screen, btn_a_str, btn_b_str, NULL, select_str);
+    _footer_renderHints(screen, btn_a_str, btn_b_str, NULL, select_str, false);
+}
+
+// A and B, then "< > <nav_str>": pages also turned with LEFT/RIGHT (the
+// Info panel's pages: Quick Guide). Left out where it does not fit.
+void theme_renderStandardHintNav(SDL_Surface *screen, const char *btn_a_str,
+                                 const char *btn_b_str, const char *nav_str)
+{
+    _footer_renderHints(screen, btn_a_str, btn_b_str, NULL, nav_str, true);
 }
 
 void theme_renderStandardHint(SDL_Surface *screen, const char *btn_a_str,

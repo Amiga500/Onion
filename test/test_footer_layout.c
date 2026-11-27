@@ -29,6 +29,10 @@ static int pill_fills = 0;
 static SDL_Rect last_pill;
 #define FOOTER_FILL_PILL(screen, rect) (pill_fills++, last_pill = (rect))
 #define FOOTER_PILL_FONT() resource_getFont(HINT)
+/* The page pill's chevrons: where they are drawn, and which way. */
+static int chevrons = 0, chevron_x[4], chevron_dir[4];
+#define FOOTER_DRAW_CHEVRON(screen, x, cy, half, dir) \
+    ((void)(half), chevrons < 4 ? (chevron_x[chevrons] = (x), chevron_dir[chevrons] = (dir)) : 0, chevrons++)
 #include "utils/str.h"
 
 /* ---- SDL_ttf and theme stubs (footer.h's dependencies) ---- */
@@ -343,6 +347,35 @@ TEST(select_hint_follows_b)
     ASSERT_NULL(find("[SELECT] INFO"));
 }
 
+/* Info panel pages (Quick Guide): A and B, then "< >" in a 40 px pill and
+ * PAGE, where SELECT would be; B A layout: before B. */
+TEST(nav_hint_follows_b)
+{
+    reset(false);
+    pill_fills = 0;
+    chevrons = 0;
+    theme_renderStandardHintNav(&screen, "NEXT", "BACK", "PAGE");
+    ASSERT_EQ(find("[A]")->x, 20);
+    ASSERT_EQ(find("[B]")->x, 20 + 54 + 5 + 40 + 30);
+    ASSERT_EQ(pill_fills, 1);
+    ASSERT_EQ(last_pill.x, find("BACK")->x + 40 + 30);
+    ASSERT_EQ(last_pill.w, 40);
+    ASSERT_EQ(last_pill.h, 28);
+    ASSERT_EQ(last_pill.y, 450 - 14);
+    ASSERT_EQ(chevrons, 2);
+    ASSERT_EQ(chevron_dir[0], -1);
+    ASSERT_EQ(chevron_dir[1], 1);
+    ASSERT_TRUE(chevron_x[0] > last_pill.x && chevron_x[1] < last_pill.x + 40);
+    ASSERT_EQ(find("PAGE")->x, last_pill.x + 40 + 6);
+    ASSERT_NULL(find("SELECT"));
+
+    reset(true);
+    theme_renderStandardHintNav(&screen, "NEXT", "BACK", "PAGE");
+    ASSERT_EQ(find("NEXT")->x + 40, 620);
+    ASSERT_EQ(find("PAGE")->x + 40 + 30, find("[B]")->x);
+    ASSERT_EQ(last_pill.x + 40 + 6, find("PAGE")->x);
+}
+
 /* Hidden hint labels (theme override): icons stay, in the same order. */
 TEST(hidden_labels_keep_icon_order)
 {
@@ -433,6 +466,7 @@ int main(void)
     RUN_TEST(x_hint_follows_b);
     RUN_TEST(x_hint_absent);
     RUN_TEST(select_hint_follows_b);
+    RUN_TEST(nav_hint_follows_b);
     RUN_TEST(alt_layout_page_left_b_then_a_right);
     RUN_TEST(alt_layout_without_b_hint);
     RUN_TEST(missing_b_icon_draws_label_only);
