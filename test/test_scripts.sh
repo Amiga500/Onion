@@ -2807,7 +2807,7 @@ check "the preview colour is the pictures' own (every colour)" test ! -e "$TMP/a
 check "Tweaks: checked in its loop before all_changed is read, and on leaving" sh -c "awk '/accent_applyPending\(false\);/ { a = NR } /if \(all_changed\) \{/ && !b { b = NR } END { exit !(a && b && a < b) }' '$ROOT/src/tweaks/tweaks.c' && grep -q 'accent_applyPending(true);' '$ROOT/src/tweaks/tweaks.c'"
 # A scrolling row: only it redrawn and put on the screen when nothing
 # else changed (the whole list at every frame was too slow, robcodedev).
-check "Tweaks: a scrolling row alone is drawn, the whole picture put out" sh -c "grep -A1 'theme_renderListActiveRow(screen, menu_stack\[menu_level\], &row)' '$ROOT/src/tweaks/tweaks.c' | grep -q 'SDL_BlitSurface(screen, NULL, video, NULL);' && ! grep -q 'SDL_BlitSurface(screen, &row, video, &row);' '$ROOT/src/tweaks/tweaks.c'"
+check "Tweaks: a scrolling row alone is drawn, its lines copied in memory" sh -c "grep -A1 'theme_renderListActiveRow(screen, menu_stack\[menu_level\], &row)' '$ROOT/src/tweaks/tweaks.c' | grep -q 'tweaks_putRow(&row);' && ! grep -q 'SDL_BlitSurface(screen, &row, video, &row);' '$ROOT/src/tweaks/tweaks.c'"
 check "not with a sticky note or a preview picture (the whole list then)" sh -c "sed -n '/^void theme_renderListCustom/,/^}/p' '$ROOT/src/common/theme/render/list.h' | grep -q 'list->has_sticky' && sed -n '/^void theme_renderListCustom/,/^}/p' '$ROOT/src/common/theme/render/list.h' | grep -q 'preview_path\[0\]'"
 # White text on the selection: as readable as on the first six (4.5:1 or more)
 grep -v '^#' "$RES/palette.txt" | while read -r n a l d; do

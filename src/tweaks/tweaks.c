@@ -54,6 +54,37 @@ void check_networkChanged(void)
     temp_flag_set("network_changed", modified);
 }
 
+// The scrolling row's lines from the picture to the screen, copied in
+// memory. The console's hardware copy of that rectangle alone
+// (SDL_BlitSurface, MI_GFX) put it a few pixels lower: a line of the
+// selection stayed above it (Amiga500's video, Mini+). The whole picture with
+// the hardware copy is right but slow (33 frames a second against 50).
+// Other pixel formats: the whole picture, as before.
+static void tweaks_putRow(SDL_Rect *row)
+{
+    SDL_Rect r = *row;
+    if (r.x < 0 || r.y < 0 || r.x + r.w > screen->w || r.y + r.h > screen->h ||
+        r.x + r.w > video->w || r.y + r.h > video->h ||
+        screen->format->BytesPerPixel != 4 || video->format->BytesPerPixel != 4 ||
+        screen->format->Rmask != video->format->Rmask ||
+        screen->format->Gmask != video->format->Gmask ||
+        screen->format->Bmask != video->format->Bmask ||
+        SDL_LockSurface(screen) != 0) {
+        SDL_BlitSurface(screen, NULL, video, NULL);
+        return;
+    }
+    if (SDL_LockSurface(video) != 0) {
+        SDL_UnlockSurface(screen);
+        SDL_BlitSurface(screen, NULL, video, NULL);
+        return;
+    }
+    for (int y = r.y; y < r.y + r.h; y++)
+        memcpy((Uint8 *)video->pixels + y * video->pitch + r.x * 4,
+               (Uint8 *)screen->pixels + y * screen->pitch + r.x * 4, r.w * 4);
+    SDL_UnlockSurface(video);
+    SDL_UnlockSurface(screen);
+}
+
 int main(int argc, char *argv[])
 {
     log_setName("tweaks");
@@ -232,11 +263,9 @@ int main(int argc, char *argv[])
             // A long value or label on the selected row scrolls: redrawn
             // every frame while it does (2-3 px each, list.h), none
             // otherwise. Every 33 ms it was slow or jerky (robcodedev).
-            // When nothing else changed, only that row is drawn (below):
-            // the whole list at every frame was too much work for 60 a
-            // second. The whole picture still goes to the screen, a
-            // hardware copy: putting out the row's rectangle alone left a
-            // line of the selection above it on the console (MI_GFX).
+            // When nothing else changed, only that row is drawn and only its
+            // lines are put on the screen (below): the whole list at every
+            // frame was too much work for 60 a second (robcodedev).
             bool scroll_frame = theme_listValueScrolling;
             if (isMenu(&_menu_date_time) || isMenu(&_menu_user_blue_light)) {
                 if (isMenu(&_menu_date_time)) {
@@ -266,7 +295,7 @@ int main(int argc, char *argv[])
             if (scroll_frame && !list_changed && !header_changed && !footer_changed && !battery_changed) {
                 SDL_Rect row;
                 if (theme_renderListActiveRow(screen, menu_stack[menu_level], &row)) {
-                    SDL_BlitSurface(screen, NULL, video, NULL);
+                    tweaks_putRow(&row);
                     SDL_Flip(video);
                     fps_row++;
                 }
