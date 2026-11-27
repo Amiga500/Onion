@@ -106,7 +106,6 @@ int main(int argc, char *argv[])
     SDLKey changed_key = SDLK_UNKNOWN;
 
     bool show_help_tooltip = !config_flag_get(".tweaksHelpCompleted");
-    uint32_t last_value_scroll = 0;
     theme_listCanScroll = true; // redrawn below while a row scrolls
 
     while (!quit) {
@@ -187,6 +186,11 @@ int main(int argc, char *argv[])
             key_changed = false;
         }
 
+        // The accent colour chosen, once its page is left (actions.h).
+        // Before all_changed is read below: applied after it, the redraw
+        // it asks for was dropped (robcodedev, 4.5.1 beta 6).
+        accent_applyPending(false);
+
         if (reset_menus)
             menu_resetAll();
 
@@ -216,18 +220,14 @@ int main(int argc, char *argv[])
         if (battery_hasChanged(ticks, &battery_percentage))
             battery_changed = true;
 
-        // The accent colour chosen, once it stays put (actions.h)
-        accent_applyPending(ticks, false);
-
         blf_changing = exists("/tmp/blue_light_script.lock");
 
         if (acc_ticks >= time_step) {
-            // A long value or label on the selected row scrolls: about 30
-            // redraws a second while it does, none otherwise.
-            if (theme_listValueScrolling && ticks - last_value_scroll >= 33) {
+            // A long value or label on the selected row scrolls: redrawn
+            // every frame while it does (2-3 px each, list.h), none
+            // otherwise. Every 33 ms it was slow or jerky (robcodedev).
+            if (theme_listValueScrolling)
                 list_changed = true;
-                last_value_scroll = ticks;
-            }
             if (isMenu(&_menu_date_time) || isMenu(&_menu_user_blue_light)) {
                 if (isMenu(&_menu_date_time)) {
                     if (_writeDateString(_menu_date_time.items[0].label)) {
@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
     }
 
     // A colour chosen just before leaving (actions.h)
-    accent_applyPending(0, true);
+    accent_applyPending(true);
 
     // Clear the screen when exiting
     SDL_FillRect(video, NULL, 0);

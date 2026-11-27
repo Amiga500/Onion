@@ -177,7 +177,7 @@ void action_setLowBatteryAutoSave(void *pt)
 }
 
 // Tweaks > Look and feel > Accent colour (Silky RedOnion). Written at once,
-// applied once it stays put (below): script/accent_color.sh puts the theme
+// applied once chosen (below): script/accent_color.sh puts the theme
 // images in the colour into the theme overrides, then Tweaks loads them
 // again and is drawn in it. MainUI and the other programs read them when
 // they start.
@@ -197,24 +197,24 @@ static int accent_listPosition(int palette_index)
     return 0;
 }
 
-// Applying a colour (its pictures copied, Tweaks' own reloaded) takes a
-// moment. LEFT/RIGHT step through the colours: it was done at every step,
-// so going from Red to Graphite applied the eight after Red one after the
-// other, the list stuck meanwhile (robcodedev, 4.5.1 beta 6). The choice
-// is saved at once and applied once the colour stays 500 ms; on leaving
-// Tweaks (leaving: true) only its pictures are copied, Tweaks has nothing
-// more to draw. MainUI and Kids Mode apply the saved one when they start
-// anyway (runtime.sh).
-#define ACCENT_APPLY_DELAY_MS 500
+// Applying a colour (its pictures copied, Tweaks' own reloaded) takes about
+// half a second. LEFT/RIGHT step through the colours: it was done at every
+// step, then once the colour stayed 500 ms; either way the list stuck
+// while choosing (robcodedev, 4.5.1 beta 6: "nothing should happen until
+// B"). The choice is only saved while on its page, which stays quick; the
+// colour is applied once it is chosen: on leaving the page (B, or another
+// page opened from it), and on leaving Tweaks, where only its pictures are
+// copied (leaving: true), Tweaks has nothing more to draw. MainUI and Kids
+// Mode apply the saved one when they start anyway (runtime.sh).
 static bool accent_pending = false;
-static uint32_t accent_pending_since = 0;
+static List *accent_pending_page = NULL;
 
-void accent_applyPending(uint32_t now, bool leaving)
+void accent_applyPending(bool leaving)
 {
     if (!accent_pending)
         return;
-    if (!leaving && now - accent_pending_since < ACCENT_APPLY_DELAY_MS)
-        return;
+    if (!leaving && menu_stack[menu_level] == accent_pending_page)
+        return; // still choosing
     accent_pending = false;
     system("sh /mnt/SDCARD/.tmp_update/script/accent_color.sh");
     if (leaving)
@@ -234,7 +234,7 @@ void action_setAccentColor(void *pt)
         pos = 0;
     config_setNumber("display/accentColor", ACCENT_ORDER[pos]);
     accent_pending = true;
-    accent_pending_since = SDL_GetTicks();
+    accent_pending_page = menu_stack[menu_level];
 }
 
 void action_setLaunchScreen(void *pt)
