@@ -112,6 +112,7 @@ typedef enum { SCREEN_CAROUSEL,
                SCREEN_TIMESUP,
                SCREEN_MENU,
                SCREEN_CAROUSEL_SETTINGS,
+               SCREEN_OTHER_OPTIONS,
                SCREEN_CATEGORIES,
                SCREEN_PICKTIMER,
                SCREEN_PICKPROFILE,
@@ -120,14 +121,15 @@ typedef enum { SCREEN_CAROUSEL,
                SCREEN_CONFIRM_START,
                SCREEN_INFO } Screen;
 
+// The parent menu, down to five rows (Veuks); the switches set once and left
+// alone are in Other options.
 #define MENU_SWITCHPROFILE 0
 #define MENU_ADDTIME 1
-#define MENU_SAVESTATES 2
-#define MENU_CAROUSEL_SETTINGS 3
+#define MENU_CAROUSEL_SETTINGS 2
+#define MENU_OTHER_OPTIONS 3
+#define MENU_UNLOCK 4
 #define CAROUSEL_FLOORS 0
 #define CAROUSEL_CATEGORIES 1
-#define MENU_REMINDER 4
-#define MENU_UNLOCK 5
 #define CATEGORY_MOVIES 0
 #define CATEGORY_MUSIC 1
 #define CATEGORY_CARTOONS 2
@@ -3360,6 +3362,55 @@ static void formatCarouselFloors(void *self, char *out_label)
     strcpy(out_label, value == 1 ? "Games only" : value == 2 ? "Media only" : "Games&Media");
 }
 
+// The video overlay (Other options), for videos only: kid_mode_loop.sh hands
+// its PNG (App/KidsMode/overlays, copies of MiniCinema's) to KidsPlay as
+// VC_OVERLAY. Kept as a file next to Kids Mode's other state, so it outlives
+// the app's updates; none is Off, the default.
+#define VIDEO_OVERLAY_FILE "/mnt/SDCARD/Saves/KidsMode/video_overlay"
+#define VIDEO_OVERLAY_OFF 0
+#define VIDEO_OVERLAY_LCD_GRID 1
+#define VIDEO_OVERLAY_SCANLINES 2
+
+static int videoOverlayChoice(void)
+{
+    char line[32] = "";
+    FILE *fp = fopen(VIDEO_OVERLAY_FILE, "r");
+    if (fp == NULL)
+        return VIDEO_OVERLAY_OFF;
+    if (fgets(line, sizeof(line), fp) == NULL)
+        line[0] = '\0';
+    fclose(fp);
+    line[strcspn(line, "\r\n")] = '\0';
+    if (strcmp(line, "lcd_grid") == 0)
+        return VIDEO_OVERLAY_LCD_GRID;
+    if (strcmp(line, "scanlines") == 0)
+        return VIDEO_OVERLAY_SCANLINES;
+    return VIDEO_OVERLAY_OFF;
+}
+
+static void formatVideoOverlay(void *self, char *out_label)
+{
+    int value = ((ListItem *)self)->value;
+    strcpy(out_label, value == VIDEO_OVERLAY_LCD_GRID    ? "LCD grid"
+                      : value == VIDEO_OVERLAY_SCANLINES ? "Scanlines"
+                                                         : "Off");
+}
+
+static void onVideoOverlayChange(void *self)
+{
+    int value = ((ListItem *)self)->value;
+    if (value != VIDEO_OVERLAY_LCD_GRID && value != VIDEO_OVERLAY_SCANLINES) {
+        remove(VIDEO_OVERLAY_FILE);
+        return;
+    }
+    mkdir("/mnt/SDCARD/Saves/KidsMode", 0777);
+    FILE *fp = fopen(VIDEO_OVERLAY_FILE, "w");
+    if (fp == NULL)
+        return;
+    fputs(value == VIDEO_OVERLAY_LCD_GRID ? "lcd_grid\n" : "scanlines\n", fp);
+    fclose(fp);
+}
+
 static void onSaveStatesToggle(void *self)
 {
     FILE *fp = fopen(SAVESTATES_RESULT_FILE, "w");
@@ -3805,7 +3856,7 @@ static void renderPickProfile(List *list)
 
 // Before Kids Mode starts (Veuks): how to get out of it again. The PIN
 // setup says it too, but only the first time. On by default; "Reminder" in
-// the parent menu turns it off (zazzagone: on Start Kids Mode, A on the row
+// the parent menu's Other options turns it off (zazzagone: on Start Kids Mode, A on the row
 // started Kids Mode instead), kept as a file next to Kids Mode's other state
 // so it outlives the app's updates.
 #define NO_START_REMINDER_FILE "/mnt/SDCARD/Saves/KidsMode/no_start_reminder"
@@ -4102,7 +4153,7 @@ int main(int argc, char *argv[])
     int remaining = -1;
 
     // Parent menu list (native Onion list component)
-    List menu_list = list_create(6, LIST_SMALL);
+    List menu_list = list_create(5, LIST_SMALL);
     // SELECT on an item: its note (as in Tweaks), SELECT, A or B hides it
     if (strcmp(menu_switch_profile, "Main") == 0)
         list_addItemWithInfoNote(&menu_list,
@@ -4135,6 +4186,25 @@ int main(int argc, char *argv[])
                              "OFF: no time limit for the rest\n"
                              "of the session.");
     list_addItemWithInfoNote(&menu_list,
+                             (ListItem){.label = "Carousel settings",
+                                        .item_type = ACTION},
+                             "What the carousel shows: games,\n"
+                             "media or both, and which media\n"
+                             "folders.");
+    list_addItemWithInfoNote(&menu_list,
+                             (ListItem){.label = "Other options",
+                                        .item_type = ACTION},
+                             "Save/load states, video overlay\n"
+                             "and the reminder before Kids Mode\n"
+                             "starts.");
+    list_addItemWithInfoNote(&menu_list,
+                             (ListItem){.label = "Exit Kids Mode",
+                                        .item_type = ACTION},
+                             "Restore RedOnion and go back to\n"
+                             "its normal interface.");
+
+    List other_options_list = list_create(3, LIST_SMALL);
+    list_addItemWithInfoNote(&other_options_list,
                              (ListItem){.label = "Save/load states",
                                         .item_type = TOGGLE,
                                         .value = menu_allow_save_states,
@@ -4142,13 +4212,18 @@ int main(int argc, char *argv[])
                              "Let the child use RetroArch's save\n"
                              "and load state hotkeys in games,\n"
                              "or keep them locked.");
-    list_addItemWithInfoNote(&menu_list,
-                             (ListItem){.label = "Carousel settings",
-                                        .item_type = ACTION},
-                             "What the carousel shows: games,\n"
-                             "media or both, and which media\n"
-                             "folders.");
-    list_addItemWithInfoNote(&menu_list,
+    list_addItemWithInfoNote(&other_options_list,
+                             (ListItem){.label = "Video overlay",
+                                        .item_type = MULTIVALUE,
+                                        .value_min = VIDEO_OVERLAY_OFF,
+                                        .value_max = VIDEO_OVERLAY_SCANLINES,
+                                        .value = videoOverlayChoice(),
+                                        .value_formatter = formatVideoOverlay,
+                                        .action = onVideoOverlayChange},
+                             "A screen effect over videos: an LCD\n"
+                             "grid or scanlines. Not over games\n"
+                             "or music. Off by default.");
+    list_addItemWithInfoNote(&other_options_list,
                              (ListItem){.label = "Reminder",
                                         .item_type = TOGGLE,
                                         .value = startReminderEnabled() ? 1 : 0,
@@ -4156,11 +4231,6 @@ int main(int argc, char *argv[])
                              "Before Kids Mode starts, a message\n"
                              "says how to leave it again.\n"
                              "OFF: Kids Mode starts without it.");
-    list_addItemWithInfoNote(&menu_list,
-                             (ListItem){.label = "Exit Kids Mode",
-                                        .item_type = ACTION},
-                             "Restore RedOnion and go back to\n"
-                             "its normal interface.");
 
     List carousel_settings_list = list_create(2, LIST_SMALL);
     list_addItemWithInfoNote(&carousel_settings_list,
@@ -4629,13 +4699,12 @@ int main(int argc, char *argv[])
                         exit_code = 5;
                         quit = true;
                     }
-                    else if (menu_list.active_pos == MENU_SAVESTATES ||
-                             menu_list.active_pos == MENU_REMINDER) {
-                        list_activateItem(&menu_list);
-                        dirty = true;
-                    }
                     else if (menu_list.active_pos == MENU_CAROUSEL_SETTINGS) {
                         active_screen = SCREEN_CAROUSEL_SETTINGS;
+                        dirty = true;
+                    }
+                    else if (menu_list.active_pos == MENU_OTHER_OPTIONS) {
+                        active_screen = SCREEN_OTHER_OPTIONS;
                         dirty = true;
                     }
                     else if (menu_list.active_pos == MENU_SWITCHPROFILE &&
@@ -4710,6 +4779,45 @@ int main(int argc, char *argv[])
                         active_screen = SCREEN_CATEGORIES;
                     else
                         list_activateItem(&carousel_settings_list);
+                    dirty = true;
+                    break;
+                case SW_BTN_B:
+                    active_screen = SCREEN_MENU;
+                    dirty = true;
+                    break;
+                default:
+                    break;
+                }
+            }
+            else if (active_screen == SCREEN_OTHER_OPTIONS) {
+                switch (changed_key) {
+                case SW_BTN_SELECT:
+                    if (list_hasInfoNote(&other_options_list)) {
+                        info_list = &other_options_list;
+                        info_return = SCREEN_OTHER_OPTIONS;
+                        active_screen = SCREEN_INFO;
+                        dirty = true;
+                    }
+                    break;
+                case SW_BTN_UP:
+                    list_keyUp(&other_options_list, false);
+                    dirty = true;
+                    break;
+                case SW_BTN_DOWN:
+                    list_keyDown(&other_options_list, false);
+                    dirty = true;
+                    break;
+                case SW_BTN_LEFT:
+                    if (list_keyLeft(&other_options_list, false))
+                        dirty = true;
+                    break;
+                case SW_BTN_RIGHT:
+                    if (list_keyRight(&other_options_list, false))
+                        dirty = true;
+                    break;
+                case SW_BTN_A:
+                case SW_BTN_START:
+                    list_activateItem(&other_options_list);
                     dirty = true;
                     break;
                 case SW_BTN_B:
@@ -4947,6 +5055,9 @@ int main(int argc, char *argv[])
             case SCREEN_CAROUSEL_SETTINGS:
                 renderSettingsList(&carousel_settings_list, "Carousel settings");
                 break;
+            case SCREEN_OTHER_OPTIONS:
+                renderSettingsList(&other_options_list, "Other options");
+                break;
             case SCREEN_HELP:
                 renderHelp(help_page);
                 break;
@@ -4966,6 +5077,8 @@ int main(int argc, char *argv[])
                 if (info_return == SCREEN_CAROUSEL_SETTINGS)
                     renderSettingsList(&carousel_settings_list,
                                        "Carousel settings");
+                else if (info_return == SCREEN_OTHER_OPTIONS)
+                    renderSettingsList(&other_options_list, "Other options");
                 else
                     renderMenu(&menu_list, menu_remaining);
                 if (info_list != NULL && list_currentItem(info_list) != NULL)
@@ -5023,6 +5136,7 @@ int main(int argc, char *argv[])
         TTF_CloseFont(font_help_key);
     list_free(&menu_list);
     list_free(&carousel_settings_list);
+    list_free(&other_options_list);
     list_free(&category_list);
     list_free(&profile_list);
     if (icon_x_plain != NULL)

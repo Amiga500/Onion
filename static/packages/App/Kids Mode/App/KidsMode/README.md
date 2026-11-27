@@ -79,8 +79,9 @@ V4 display sizes are supported in the code, but feedback is welcome.
    launch, **Start Kids Mode** asks for the profile (Main or Guest) and the
    session timer (or `OFF`); X opens **Controls & tips**. Starting shows a
    reminder of how to leave: hold SELECT + START in the carousel, enter the
-   PIN, then choose **Exit Kids Mode**. **Reminder** in the parent menu turns
-   that reminder off (and back on); the choice is kept.
+   PIN, then choose **Exit Kids Mode**. **Reminder** in the parent menu's
+   **Other options** turns that reminder off (and back on); the choice is
+   kept.
 
 Kids Mode remains active after a reboot until it is exited through the
 parent menu.
@@ -274,14 +275,18 @@ choose:
   and saves.
 - **Add play time** — add 5 to 120 minutes to the current session, or none
   to continue without a time limit.
-- **Save/load states** — let the child use RetroArch's save and load state
-  hotkeys, or keep them locked.
 - **Carousel settings**:
   - **Content access** — Games & Media, Games only or Media only.
   - **Media folders** — show or hide Movies, Music, Cartoons, Series and
     Stories.
-- **Reminder** — the message on how to leave Kids Mode, shown before it
-  starts: ON (default) or OFF.
+- **Other options**:
+  - **Save/load states** — let the child use RetroArch's save and load
+    state hotkeys, or keep them locked.
+  - **Video overlay** — a screen effect over videos: Off (default), LCD grid
+    or Scanlines. Not over games or music. The two PNGs are in
+    `App/KidsMode/overlays` (copies of MiniCinema's).
+  - **Reminder** — the message on how to leave Kids Mode, shown before it
+    starts: ON (default) or OFF.
 - **Exit Kids Mode** — restore RedOnion and return to its normal interface.
 
 SELECT on an item shows a short note about it, as in Tweaks; SELECT, A or B

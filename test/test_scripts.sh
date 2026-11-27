@@ -5079,6 +5079,39 @@ check "the Apps entry only arms (runtime.sh starts the launcher)" sh -c "grep -q
 unset -f install_hook log
 end
 
+begin kids_mode_video_overlay
+# Parent Menu > Other options > Video overlay: kidui keeps the choice in
+# Saves/KidsMode/video_overlay, kid_mode_loop.sh hands its PNG to KidsPlay
+# as VC_OVERLAY, for videos only (Veuks).
+sed -n '/# The video overlay (Parent Menu > Other options/,/^    theme_config=/p' "$KIDS_LOOP" | sed '$d' > "$TMP/overlay_block.sh"
+check "the overlay block is found" test -s "$TMP/overlay_block.sh"
+overlay_for() { # media_kind, choice (or "none")
+    (
+        appdir="$TMP/kapp" backupdir="$TMP/ksaves" media_kind=$1
+        log() { :; }
+        mkdir -p "$appdir/overlays" "$backupdir"
+        : > "$appdir/overlays/lcd_grid_fine.png"; : > "$appdir/overlays/scanlines_light.png"
+        rm -f "$backupdir/video_overlay"
+        [ "$2" = none ] || echo "$2" > "$backupdir/video_overlay"
+        . "$TMP/overlay_block.sh"
+        echo "${video_overlay:-none}"
+    )
+}
+check "Off (no file): none" test "$(overlay_for video none)" = none
+check "LCD grid: lcd_grid_fine.png" test "$(overlay_for video lcd_grid)" = "$TMP/kapp/overlays/lcd_grid_fine.png"
+check "Scanlines: scanlines_light.png" test "$(overlay_for video scanlines)" = "$TMP/kapp/overlays/scanlines_light.png"
+check "not for music" test "$(overlay_for audio lcd_grid)" = none
+check "an unknown choice: none" test "$(overlay_for video ../../etc/passwd)" = none
+rm -f "$TMP/kapp/overlays/lcd_grid_fine.png"
+check "a missing PNG: none" test "$( ( appdir="$TMP/kapp" backupdir="$TMP/ksaves" media_kind=video; log() { :; }; echo lcd_grid > "$backupdir/video_overlay"; . "$TMP/overlay_block.sh"; echo "${video_overlay:-none}" ) )" = none
+check "passed to KidsPlay for videos" grep -q 'VC_OVERLAY="$video_overlay"' "$KIDS_LOOP"
+check "only once (the video call, not the audio one)" test "$(grep -c 'VC_OVERLAY=' "$KIDS_LOOP")" -eq 1
+check "the two PNGs ship with Kids Mode" sh -c "test -s '$KIDS_APP/overlays/lcd_grid_fine.png' && test -s '$KIDS_APP/overlays/scanlines_light.png'"
+check "kidui writes the names the loop reads" sh -c "grep -q 'lcd_grid\\\\n' '$ROOT/src/kidsMode/videoui.c' && grep -q 'scanlines\\\\n' '$ROOT/src/kidsMode/videoui.c' && grep -q 'Saves/KidsMode/video_overlay' '$ROOT/src/kidsMode/videoui.c'"
+check "KidsPlay reads VC_OVERLAY for videos only" sh -c "grep -q 'if (!kp.audio_only)' '$ROOT/src/kidsMode/kidsplay-src/kidsplay_ui.inc' && grep -q 'kp_load_screen_overlay(getenv(\"VC_OVERLAY\"))' '$ROOT/src/kidsMode/kidsplay-src/kidsplay_ui.inc'"
+unset -f overlay_for
+end
+
 begin kids_mode_checkoff_saves_play_time
 sed -e "s#/mnt/SDCARD/.kidmode#$TMP/.kidmode#" -e "s#/tmp/kidsmode_timer_used#$TMP/used#" \
     -e "s#/mnt/SDCARD/Saves/KidsMode#$TMP/saves#" "$KIDS_APP/kidmode_checkoff.sh" > "$TMP/off.sh"
