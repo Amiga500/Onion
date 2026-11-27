@@ -879,12 +879,44 @@ clear_filter() {
     log ":: clear_filter $*"
     log "./bin/filter clear_filter \"$emupath\""
     filter clear_filter "$emupath"
+    filter_drop_rows clear
 }
 
 filter_roms() {
     log ":: filter_roms $*"
     log "./bin/filter filter \"$emupath\""
     filter filter "$emupath"
+    # set, or left as it was; an empty keyword or no filter: cleared
+    if [ -f "$emupath/active_filter" ]; then
+        filter_drop_rows filter
+    else
+        filter_drop_rows clear
+    fi
+}
+
+# The filter tool puts rows of its own in the game list: "~Filter" and
+# "~Refresh roms" (put back each time a filter is cleared), "~Clear
+# filter" while one is set. They are commands of the old "List shortcuts"
+# app, which RedOnion no longer has (UI review, 4.5.1): without it they
+# open nothing, and Refresh roms is in the SELECT menu. They are dropped
+# from the rom list cache; set, the filter keeps its "~Filter: keyword"
+# row, which marks it (filter_is_applied), and GLO's Clear filter clears
+# it. With the app still installed (its ~Filter.miyoocmd there), nothing
+# is dropped.
+filter_drop_rows() { # clear | filter
+    [ -n "$romroot" ] || return 0
+    [ -f "$romroot/~Filter.miyoocmd" ] && return 0
+    cache_name=$(basename "$romroot")
+    cache_db="$romroot/${cache_name}_cache6.db"
+    [ -f "$cache_db" ] || return 0
+    cache_table=$(echo "${cache_name}_roms" | sed 's/"/""/g')
+    if [ "$1" = filter ]; then
+        rows="disp = '~Refresh roms' OR disp = '~Clear filter'"
+        rm -f "$romroot/~Clear filter.miyoocmd"
+    else
+        rows="disp = '~Filter' OR disp = '~Refresh roms' OR disp = '~Clear filter'"
+    fi
+    sqlite3 "$cache_db" "DELETE FROM \"$cache_table\" WHERE path LIKE '%.miyoocmd' AND ($rows);" 2> /dev/null
 }
 
 # A filter is kept in two places: the keyword in $emupath/active_filter and

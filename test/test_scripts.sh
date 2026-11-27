@@ -7053,6 +7053,84 @@ check "and the second backup made too" grep -q "^rc=0$" "$TMP/result"
 check "no temporary files left" sh -c '! ls /tmp/backup_7z.log /tmp/backup_7z_rc > /dev/null 2>&1'
 end
 
+# ---- the filter's own rows out of the game lists (UI review, 4.5.1) ----
+
+if ! command -v python3 > /dev/null 2>&1 || ! python3 -c 'import sqlite3' 2> /dev/null; then
+    skip glo_filter_rows_dropped "python3 with sqlite3"
+else
+begin glo_filter_rows_dropped
+# "~Filter", "~Refresh roms" and "~Clear filter" are commands of the old
+# List shortcuts app; a set filter keeps "~Filter: keyword", its mark.
+for fn in filter_drop_rows clear_filter filter_roms; do
+    eval "$(extract_fn "$GLO" $fn)"
+done
+log() { :; }
+sqlite3() { python3 -c 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.executescript(sys.argv[2]); c.commit()' "$@"; }
+rows() { python3 -c 'import sqlite3,sys; print("|".join(r[0] for r in sqlite3.connect(sys.argv[1]).execute("SELECT disp FROM GBA_roms ORDER BY id")))' "$TMP/Roms/GBA/GBA_cache6.db"; }
+newdb() { # rows: disp=path ...
+    rm -f "$TMP/Roms/GBA/GBA_cache6.db"
+    sqlite3 "$TMP/Roms/GBA/GBA_cache6.db" "CREATE TABLE GBA_roms (id INTEGER PRIMARY KEY AUTOINCREMENT, disp TEXT, path TEXT);"
+    for r; do
+        sqlite3 "$TMP/Roms/GBA/GBA_cache6.db" "INSERT INTO GBA_roms (disp, path) VALUES ('${r%%=*}', '${r#*=}');"
+    done
+}
+emupath=$TMP/Emu/GBA
+romroot=$TMP/Roms/GBA
+mkdir -p "$emupath" "$romroot"
+R=$romroot
+# clearing a filter: the tool put "~Filter" and "~Refresh roms" back
+filter() { :; }
+newdb "Zelda=$R/Zelda.gba" "~Filter=$R/~Filter.miyoocmd" "~Refresh roms=$R/~Refresh roms.miyoocmd"
+clear_filter
+check "cleared: the tool's rows dropped, the games stay" test "$(rows)" = "Zelda"
+# setting one: its mark stays, Clear filter and Refresh roms go
+filter() { echo zelda > "$emupath/active_filter"; : > "$romroot/~Clear filter.miyoocmd"; }
+newdb "Zelda=$R/Zelda.gba" "~Filter: zelda=$R/~Filter.miyoocmd" "~Clear filter=$R/~Clear filter.miyoocmd" "~Refresh roms=$R/~Refresh roms.miyoocmd"
+filter_roms
+check "set: the ~Filter: keyword row stays, the others go" test "$(rows)" = "Zelda|~Filter: zelda"
+check "set: its Clear filter command removed (GLO's Clear filter clears it)" test ! -e "$romroot/~Clear filter.miyoocmd"
+# the keyboard left empty or cancelled with no filter: as cleared
+rm -f "$emupath/active_filter"
+filter() { :; }
+newdb "Zelda=$R/Zelda.gba" "~Filter=$R/~Filter.miyoocmd" "~Refresh roms=$R/~Refresh roms.miyoocmd"
+filter_roms
+check "no filter after the keyboard: as cleared" test "$(rows)" = "Zelda"
+# a game whose name starts with ~ is a game, not a command
+newdb "~Filter=$R/~Filter.gba" "~Refresh roms=$R/~Refresh roms.zip"
+clear_filter
+check "a game named like a command stays (not a .miyoocmd)" test "$(rows)" = "~Filter|~Refresh roms"
+# the List shortcuts app still installed: its rows stay
+: > "$romroot/~Filter.miyoocmd"
+newdb "Zelda=$R/Zelda.gba" "~Filter=$R/~Filter.miyoocmd" "~Refresh roms=$R/~Refresh roms.miyoocmd"
+clear_filter
+check "the app still installed: nothing dropped" test "$(rows)" = "Zelda|~Filter|~Refresh roms"
+rm -f "$romroot/~Filter.miyoocmd"
+# no cache: nothing to do
+rm -f "$TMP/Roms/GBA/GBA_cache6.db"
+( clear_filter ); rc=$?
+check "no cache: nothing done, no error" test $rc -eq 0 -a ! -e "$TMP/Roms/GBA/GBA_cache6.db"
+unset -f sqlite3 rows newdb filter log filter_drop_rows clear_filter filter_roms
+end
+fi
+
+begin migration_removes_list_shortcuts
+# Installed: filters set are cleared first (the uninstall drops the rows
+# that mark them), then its uninstall, then the app is gone.
+MIG31="$ROOT/static/build/.tmp_update/script/migration/00031_remove_list_shortcuts.sh"
+mkdir -p "$TMP/sd/App/Filter" "$TMP/sd/Emu/GBA" "$TMP/sd/Emu/SNES" "$TMP/sd/RApp/PS" "$TMP/sd/.tmp_update/bin"
+echo zelda > "$TMP/sd/Emu/GBA/active_filter"
+echo ff > "$TMP/sd/RApp/PS/active_filter"
+printf '#!/bin/sh\necho "$*" >> "%s/calls"\n' "$TMP" > "$TMP/sd/.tmp_update/bin/filter"
+chmod +x "$TMP/sd/.tmp_update/bin/filter"
+SDROOT="$TMP/sd" sh "$MIG31"
+check "the set filters cleared, then the uninstall" test "$(tr '\n' '|' < "$TMP/calls")" = "clear_filter $TMP/sd/Emu/GBA|clear_filter $TMP/sd/RApp/PS|uninstall_filter|"
+check "the app removed" test ! -e "$TMP/sd/App/Filter"
+rm -f "$TMP/calls"
+SDROOT="$TMP/sd" sh "$MIG31"; rc=$?
+check "not installed: nothing done" test $rc -eq 0 -a ! -e "$TMP/calls"
+check "the package is no longer built" sh -c "! grep -q 'List shortcuts (Filter+Refresh)/App/Filter' '$ROOT/Makefile' && grep -q 'rm -rf \$(BUILD_DIR)/App/Filter' '$ROOT/Makefile' && test ! -e '$ROOT/static/packages/App/List shortcuts (Filter+Refresh)'"
+end
+
 begin clock_unhandled_key_keeps_the_redraw
 check "the default case does not clear dirty" sh -c '! sed -n "/default:/,/break;/p" "$1" | grep -q "dirty = false"' _ "$ROOT/src/clock/main.c"
 check "dirty is cleared only after drawing" test "$(grep -c "dirty = false" "$ROOT/src/clock/main.c")" -eq 1
