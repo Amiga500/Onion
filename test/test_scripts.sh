@@ -2623,11 +2623,31 @@ check "the blue selection in the overrides" cmp -s "$TMP/ov/skin/bg-list-s.png" 
 check "and the GameSwitcher bar, in skin/extra" cmp -s "$TMP/ov/skin/extra/gs-bottom-bar.png" "$RES/blue/skin/extra/gs-bottom-bar.png"
 check "the user's own override stays" grep -q mine "$TMP/ov/skin/icon-A-54.png"
 check "and is not listed as ours" sh -c "! grep -q '^skin/icon-A-54.png$' '$TMP/ov/.accent_files'"
-check "the state on the first line" test "$(head -n 1 "$TMP/ov/.accent_files")" = "Silky RedOnion|blue|"
+files_id=$(sed -n '1s/^# set //p' "$RES/files.txt")
+check "files.txt starts with the id of its set of pictures" test -n "$files_id"
+check "the state on the first line" test "$(head -n 1 "$TMP/ov/.accent_files")" = "Silky RedOnion|blue||$files_id"
+check "the id line is not taken for a picture" sh -c "! grep -q '^#' '$TMP/ov/.accent_files'"
+check "the top bars' logo follows the colour" cmp -s "$TMP/ov/skin/miyoo-topbar.png" "$RES/blue/skin/miyoo-topbar.png"
+check "in the GameSwitcher too" cmp -s "$TMP/ov/skin/extra/gs-top-bar.png" "$RES/blue/skin/extra/gs-top-bar.png"
 touch -d '2001-01-01' "$TMP/ov/skin/bg-list-s.png" 2> /dev/null || touch -t 200101010000 "$TMP/ov/skin/bg-list-s.png"
 before=$(ls -l "$TMP/ov/skin/bg-list-s.png")
 ac
 check "nothing changed: nothing copied again (every boot)" test "$(ls -l "$TMP/ov/skin/bg-list-s.png")" = "$before"
+# An update that brings another set of pictures (the top bars, 4.5.1):
+# copied again for the colour already applied, from the state it left
+mkdir -p "$TMP/res2"
+cp -r "$RES/." "$TMP/res2/"
+rm -f "$TMP/ov/skin/miyoo-topbar.png"
+sed -i '/^skin\/miyoo-topbar.png$/d' "$TMP/ov/.accent_files"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$TMP/res2" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE="$TMP/bin/pngresize" PNGSCALE=/none sh "$AC"
+check "same set: the missing copy stays missing (nothing done)" test ! -e "$TMP/ov/skin/miyoo-topbar.png"
+sed -i '1s/.*/# set 0123456789ab/' "$TMP/res2/files.txt"
+SDROOT="$TMP/sd" SYSDIR="$TMP/sys" ACCENT_RES="$TMP/res2" OVERRIDES="$TMP/ov" SYSTEM_JSON="$TMP/system.json" PNGRESIZE="$TMP/bin/pngresize" PNGSCALE=/none sh "$AC"
+check "a new set: copied again for the same colour" cmp -s "$TMP/ov/skin/miyoo-topbar.png" "$RES/blue/skin/miyoo-topbar.png"
+check "with the new id in the state" grep -q '|0123456789ab$' "$TMP/ov/.accent_files"
+sed -i '1s/^/x/' "$TMP/ov/.accent_files"
+ac
+check "back to this set (a state from before the id): copied again" test "$(head -n 1 "$TMP/ov/.accent_files")" = "Silky RedOnion|blue||$files_id"
 # a game-list row count other than 6: the theme's resized selection is matched
 cp "$TMP/sd/Themes/Silky RedOnion/skin/bg-list-s.png" "$TMP/sd/Themes/Silky RedOnion/skin/bg-list-s_8.png"
 ac
@@ -2691,8 +2711,9 @@ for c in blue purple teal pink orange; do
 done
 check "every colour has the selection, the A button and the menu icons" test ! -e "$TMP/missing"
 check "and the same files" test ! -e "$TMP/differ"
-check "files.txt lists exactly the pictures of each colour" test "$(sort "$RES/files.txt" | cksum)" = "$(cd "$RES/blue" && find skin -type f | sort | cksum)"
-check "the RedOnion logo and the empty battery stay red" sh -c "! find '$RES' -name 'miyoo-topbar.png' -o -name 'gs-top-bar.png' -o -name 'power-0%-icon.png' -o -name 'bootScreen.png' | grep -q ."
+check "files.txt lists exactly the pictures of each colour" test "$(grep -v '^#' "$RES/files.txt" | sort | cksum)" = "$(cd "$RES/blue" && find skin -type f | sort | cksum)"
+check "the top bars' logo is among them (MainUI and the GameSwitcher)" sh -c "grep -q '^skin/miyoo-topbar.png$' '$RES/files.txt' && grep -q '^skin/extra/gs-top-bar.png$' '$RES/files.txt'"
+check "the full-screen brand art and the empty battery stay red" sh -c "! find '$RES' -name 'power-0%-icon.png' -o -name 'bootScreen.png' -o -name 'chargingState*' -o -name 'Screen_Off*' -o -name 'splash-saving.png' | grep -q ."
 check "the boot applies it before MainUI" sh -c "extract_fn() { sed -n \"/^\$2() {/,/^}/p\" \"\$1\"; }; extract_fn '$ROOT/static/build/.tmp_update/runtime.sh' launch_main_ui | grep -q 'script/accent_color.sh'"
 check "and before Kids Mode" sh -c "sed -n '/^launch_kids_mode() {/,/^}/p' '$ROOT/static/build/.tmp_update/runtime.sh' | grep -q 'script/accent_color.sh'"
 check "the Theme Switcher applies it with the theme" grep -q 'accent_color.sh' "$ROOT/src/themeSwitcher/installTheme.h"

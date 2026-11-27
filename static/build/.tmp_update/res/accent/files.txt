@@ -1,3 +1,4 @@
+# set 13e124ec8dd2
 skin/Empty.png
 skin/bg-game-item-f.png
 skin/bg-io-testing.png
@@ -13,6 +14,7 @@ skin/charging-05.png
 skin/dot-a.png
 skin/extra/gs-bottom-bar-alt.png
 skin/extra/gs-bottom-bar.png
+skin/extra/gs-top-bar.png
 skin/extra/icon-X-54.png
 skin/extra/lum0.png
 skin/extra/lum1.png
@@ -49,6 +51,7 @@ skin/mask-LR.png
 skin/mask-cross-key.png
 skin/mask-insert&start.png
 skin/mask-menu.png
+skin/miyoo-topbar.png
 skin/num-bg.png
 skin/progress-dot.png
 skin/thumb-default.png

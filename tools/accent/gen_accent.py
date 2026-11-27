@@ -11,12 +11,15 @@ and the RedOnion programs read before the theme's own files.
 Only the accent changes: a pixel's red hue is moved to the new colour's hue,
 and its saturation and brightness are scaled by the new colour's against the
 red's, so shading, outlines and transparency stay as they are. Pixels of
-other hues (the greys, white, green) are left alone. Brand art (the
-RedOnion logo, the boot, charging and screen-off pictures) stays red.
+other hues (the greys, white, green) are left alone. The "Red" of the
+RedOnion logo in the top bars (MainUI's and the GameSwitcher's) follows the
+colour too; the full-screen brand art (the boot, charging, saving and
+screen-off pictures) stays red.
 
 Run from the repository root:  python3 tools/accent/gen_accent.py
 """
 import colorsys
+import hashlib
 import os
 import shutil
 import sys
@@ -40,10 +43,12 @@ COLOURS = {
 }
 ORDER = ["red", "blue", "purple", "teal", "pink", "orange"]
 
-# Theme images left red: the RedOnion logo (top bars, brand art) and the
-# empty battery, red as a warning whatever the accent.
-SKIP = {"miyoo-topbar.png", "power-0%-icon.png"}
-SKIP_EXTRA_PREFIX = ("chargingState", "bootScreen", "Screen_Off", "splash-saving", "gs-legend", "gs-top-bar")
+# Theme images left red: the full-screen brand art and the empty battery,
+# red as a warning whatever the accent. The top bars' logo (miyoo-topbar,
+# gs-top-bar) follows the accent: with another colour, its "Red" was the
+# only red left on the menus.
+SKIP = {"power-0%-icon.png"}
+SKIP_EXTRA_PREFIX = ("chargingState", "bootScreen", "Screen_Off", "splash-saving", "gs-legend")
 
 
 def hsv(hexrgb):
@@ -135,8 +140,16 @@ def main():
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             out.save(dst, optimize=True)
     # The pictures, one per line, for accent_color.sh (read with the shell's
-    # own read: no find on the console)
+    # own read: no find on the console). First line: an id of the set (the
+    # paths and the theme's pictures), so the console copies them again when
+    # it changes, even for the colour already applied.
+    digest = hashlib.sha1()
+    for rel in sorted(images):
+        digest.update(rel.encode() + b"\0")
+        with open(os.path.join(THEME, rel), "rb") as src:
+            digest.update(src.read())
     with open(os.path.join(OUT, "files.txt"), "w") as f:
+        f.write("# set %s\n" % digest.hexdigest()[:12])
         for rel in sorted(images):
             f.write(rel + "\n")
     with open(os.path.join(OUT, "palette.txt"), "w") as f:

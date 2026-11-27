@@ -136,7 +136,14 @@ for f in "$theme_path"/skin/bg-list-s_*.png "$theme_path"/skin/*.png.bak; do
     resized="$resized${f##*/}:$(png_size "$f" | tr ' ' x) "
 done
 
-state="$theme_name|$colour|$resized"
+# The set of pictures: files.txt's first line ("# set <id>", made by
+# gen_accent.py), so an update that brings other pictures (the top bars'
+# logo, 4.5.1) copies them again, even for the colour already applied.
+files_id=
+[ -f "$FILES" ] && IFS= read -r files_id < "$FILES"
+case "$files_id" in "# set "*) files_id=${files_id#\# set } ;; *) files_id= ;; esac
+
+state="$theme_name|$colour|$resized|$files_id"
 
 # Nothing changed: nothing to do (every boot comes here).
 _first=""
@@ -208,7 +215,7 @@ if [ "$colour" != red ]; then
     [ -n "$resized" ] && fast=0
     if [ "$fast" -eq 1 ]; then
         while IFS= read -r f; do
-            [ -n "$f" ] || continue
+            case "$f" in '' | \#*) continue ;; esac
             [ -e "$OVERRIDES/$f" ] && {
                 fast=0
                 break
@@ -217,11 +224,13 @@ if [ "$colour" != red ]; then
     fi
     if [ "$fast" -eq 1 ] && cp -r "$ACCENT_RES/$colour/skin" "$OVERRIDES/"; then
         while IFS= read -r f; do
-            [ -n "$f" ] && echo "$f" >> "$LIST.new"
+            case "$f" in '' | \#*) continue ;; esac
+            echo "$f" >> "$LIST.new"
         done < "$FILES"
     else
         while IFS= read -r f; do
-            [ -n "$f" ] && place "$f" "$f"
+            case "$f" in '' | \#*) continue ;; esac
+            place "$f" "$f"
         done < "$FILES"
         # The selection for a game-list row count other than 6
         for f in "$theme_path"/skin/bg-list-s_*.png; do
