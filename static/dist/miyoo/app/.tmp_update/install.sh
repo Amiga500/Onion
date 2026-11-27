@@ -81,7 +81,8 @@ INSTALLER_SETTINGS_DIR=${INSTALLER_SETTINGS_DIR:-/mnt/SDCARD/.tmp_update/config/
 card_settings_live=0
 [ -f /mnt/SDCARD/system.json ] && card_settings_live=1
 
-installer_brightness() {
+# The settings files to read, in that order, one per line
+installer_settings_files() {
     _bsn=""
     [ -f "$INSTALLER_SN_FILE" ] && read -r _bsn < "$INSTALLER_SN_FILE"
     case "$_bsn" in */* | *..*) _bsn="" ;; esac
@@ -89,7 +90,13 @@ installer_brightness() {
     set -- "$INSTALLER_SETTINGS_DIR"/*.json
     [ "$#" -eq 1 ] && [ -f "$1" ] && _bonly=$1
     for _bf in /mnt/SDCARD/system.json ${_bsn:+"$INSTALLER_SETTINGS_DIR/$_bsn.json"} /appconfigs/system.json ${_bonly:+"$_bonly"}; do
-        [ -f "$_bf" ] || continue
+        [ -f "$_bf" ] && echo "$_bf"
+    done
+}
+
+installer_brightness() {
+    # (fixed paths, without spaces)
+    for _bf in $(installer_settings_files); do
         _bv=$(sed -n 's/.*"brightness"[^0-9]*\([0-9][0-9]*\).*/\1/p' "$_bf" | head -n 1)
         case "$_bv" in
             0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10)
@@ -101,6 +108,32 @@ installer_brightness() {
         esac
     done
     echo 80
+}
+
+# The display colours (Settings › Display: lumination, hue, saturation,
+# contrast) from the same file, as runtime.sh's restore_display_colours
+# writes them. Nothing set them during the installation: the screen showed
+# the panel's own colours, brighter than the console's with a lowered
+# lumination or contrast (robcodedev, 4.5.1 beta 6, after the brightness).
+# Missing or odd values: the model's defaults, as in runtime.sh.
+INSTALLER_DISP_NODE=${INSTALLER_DISP_NODE:-/proc/mi_modules/mi_disp/mi_disp0}
+installer_display_colours() {
+    [ -e "$INSTALLER_DISP_NODE" ] || return 0
+    _cf=$(installer_settings_files | head -n 1)
+    for _v in lumination hue saturation contrast; do
+        _x=""
+        [ -n "$_cf" ] && _x=$(sed -n "s/.*\"$_v\"[^0-9]*\\([0-9][0-9]*\\).*/\\1/p" "$_cf" | head -n 1)
+        case "$_x" in
+            '' | *[!0-9]*) _x=-1 ;;
+        esac
+        if [ "$_x" -lt 0 ] || [ "$_x" -gt 20 ]; then
+            _x=10
+            [ "$_v" = lumination ] && [ "$DEVICE_ID" = "$MODEL_MM" ] && _x=7
+        fi
+        eval "_c_$_v=\$_x"
+    done
+    # csc <device> <matrix 3 = BT709> <contrast> <hue> <luma> <saturation> <sharpness> <gain>
+    echo "csc 0 3 $(((_c_contrast + 15) * 2)) $((_c_hue * 5)) $((_c_lumination + 35)) $((_c_saturation * 5)) 0 0" > "$INSTALLER_DISP_NODE" 2> /dev/null
 }
 
 MODEL_MM=283
@@ -180,6 +213,7 @@ main() {
     echo 800 > $pwmdir/pwm0/period
     installer_brightness > $pwmdir/pwm0/duty_cycle
     echo 1 > $pwmdir/pwm0/enable
+    installer_display_colours
 
     killall keymon
 

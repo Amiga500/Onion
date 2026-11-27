@@ -2790,7 +2790,8 @@ end
 
 begin installer_uses_the_consoles_brightness
 INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
-eval "$(extract_fn "$INST" installer_brightness | sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g")"
+eval "$(extract_fn "$INST" installer_settings_files | sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g")"
+eval "$(extract_fn "$INST" installer_brightness)"
 INSTALLER_SN_FILE="$TMP/deviceSN"
 INSTALLER_SETTINGS_DIR="$TMP/sd/.tmp_update/config/system"
 mkdir -p "$TMP/sd" "$TMP/app"
@@ -2850,6 +2851,41 @@ check "the card's settings are looked at before main runs (nothing has saved the
 check "the OTA update reboots plainly (why the card's file can be the live one)" grep -q '^			reboot$' "$ROOT/static/build/.tmp_update/script/ota_update.sh"
 check "main sets the backlight with it" grep -q '^    installer_brightness > \$pwmdir/pwm0/duty_cycle$' "$INST"
 check "no fixed 80 written to the backlight" sh -c "! grep -q 'echo 80 > \$pwmdir' '$INST'"
+end
+
+begin installer_uses_the_consoles_display_colours
+# Settings › Display's colours during the installation, from the same file
+# as the brightness: the panel's own colours looked brighter than the
+# console's with a lowered lumination or contrast (robcodedev, beta 6)
+INST="$ROOT/static/dist/miyoo/app/.tmp_update/install.sh"
+eval "$(extract_fn "$INST" installer_settings_files | sed -e "s#/mnt/SDCARD#$TMP/sd#g" -e "s#/appconfigs#$TMP/app#g")"
+eval "$(extract_fn "$INST" installer_display_colours)"
+INSTALLER_SN_FILE="$TMP/deviceSN" INSTALLER_SETTINGS_DIR="$TMP/sd/.tmp_update/config/system"
+INSTALLER_DISP_NODE="$TMP/mi_disp0" MODEL_MM=283 DEVICE_ID=354
+mkdir -p "$TMP/sd" "$TMP/app"
+: > "$TMP/mi_disp0"
+printf '{\n\t"brightness":\t7,\n\t"lumination":\t4,\n\t"hue":\t10,\n\t"saturation":\t12,\n\t"contrast":\t6\n}\n' > "$TMP/sd/system.json"
+installer_display_colours
+# runtime.sh: csc 0 3 (c+15)*2 h*5 l+35 s*5 0 0
+check "the console's colours, as runtime.sh writes them" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 42 50 39 60 0 0"
+rm -f "$TMP/sd/system.json"
+printf '{\n\t"brightness":\t7\n}\n' > "$TMP/app/system.json"
+installer_display_colours
+check "none saved: the defaults (Mini+ / Flip lumination 10)" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 50 50 45 50 0 0"
+DEVICE_ID=283
+installer_display_colours
+check "none saved on the Mini: its lumination 7" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 50 50 42 50 0 0"
+printf '{\n\t"lumination":\t99,\n\t"contrast":\t3\n}\n' > "$TMP/app/system.json"
+installer_display_colours
+check "a value out of range: its default" test "$(cat "$TMP/mi_disp0")" = "csc 0 3 36 50 42 50 0 0"
+rm -f "$TMP/mi_disp0"
+installer_display_colours
+check "no display node: nothing written" test ! -e "$TMP/mi_disp0"
+check "same formula as runtime.sh" grep -qF 'echo "csc 0 3 $(((_c + 15) * 2)) $((_h * 5)) $((_l + 35)) $((_s * 5)) 0 0"' "$ROOT/static/build/.tmp_update/runtime.sh"
+check "main sets them after the backlight" sh -c "grep -A1 '^    echo 1 > \$pwmdir/pwm0/enable\$' '$INST' | grep -q '^    installer_display_colours\$'"
+rm -f "$TMP/app/system.json"
+unset -f installer_settings_files installer_display_colours
+unset INSTALLER_SN_FILE INSTALLER_SETTINGS_DIR INSTALLER_DISP_NODE MODEL_MM DEVICE_ID
 end
 
 begin shutdown_survives_its_terminal_and_has_a_fallback
