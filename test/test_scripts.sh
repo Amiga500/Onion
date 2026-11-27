@@ -761,6 +761,23 @@ check "default config has the key" sh -c "jq -e '.ScreenscraperGameInfo == \"des
 check "config_repair adds it to old configs" grep -q 'if .ScreenscraperGameInfo == null then .ScreenscraperGameInfo = "desc,box2dfront,box2dback,box3d,screenshot"' "$ROOT/static/build/.tmp_update/script/scraper/config_repair.sh"
 check "scraper: Game Info after the cover, whatever happened to it" grep -q '\[ -n "\$gi_todo" \] && gi_download "\$gi_todo"' "$SCRAPER_SS"
 check "scraper: a ROM is skipped only with its cover and all its Game Info" grep -q 'if \[ "\$cover_present" = true \] && \[ -z "\$gi_todo" \]; then' "$SCRAPER_SS"
+# The game's result on the progress screen when no line says it: a cover
+# already there with new Game Info media is FOUND (it counted nowhere,
+# beta 6), with nothing new ALREADY THERE; no cover and no picture or a
+# failed download: NOT FOUND, unless Game Info media came
+sed -n '/# Something new for the game: found, even without a new cover./,/^        fi$/p' "$SCRAPER_SS" > "$TMP/gi_result.sh"
+check "the result block is found" test -s "$TMP/gi_result.sh"
+gi_res() { # result set by the cover, Game Info before, after
+    (gi_result=$1 gi_before=$2 GameInfo_Success=$3 PROGRESS_UI=1; . "$TMP/gi_result.sh")
+}
+check "cover there, Game Info downloaded: found" test "$(gi_res skipped 4 6)" = "@@found"
+check "cover there, nothing new: skipped" test "$(gi_res skipped 4 4)" = "@@skipped"
+check "no cover found, Game Info downloaded: found" test "$(gi_res notfound 0 1)" = "@@found"
+check "no cover found, nothing: not found" test "$(gi_res notfound 0 0)" = "@@notfound"
+check "a new cover (Scraped!, counted by progressUI): nothing more" test -z "$(gi_res '' 0 3)"
+check "in the terminal: no @@ line" test -z "$( (gi_result=skipped gi_before=0 GameInfo_Success=1 PROGRESS_UI=; . "$TMP/gi_result.sh") )"
+check "each case sets its result" sh -c 'test "$(grep -c "gi_result=\(skipped\|notfound\)$" "$1")" -eq 3' _ "$SCRAPER_SS"
+unset -f gi_res
 end
 
 # ---- runtime.sh: MainUI return path ----

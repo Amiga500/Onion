@@ -899,12 +899,20 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 									.[0].url' | head -n 1)
 
 
+        # The game's result on the progress screen when no line says it
+        # ("Scraped!" is counted there by itself): set below, decided after
+        # the Game Info media. A game whose cover was there and that got its
+        # Game Info media counted nowhere (FOUND stayed 0, 4.5.1 beta 6).
+        gi_result=
+        gi_before=$GameInfo_Success
         if [ "$cover_present" = true ]; then
             echo -e "${YELLOW}Cover already there${NONE}"
             let Scrap_notrequired++
+            gi_result=skipped
         elif [ -z "$MediaURL" ] || [ "$MediaURL" = null ]; then 
             echo -e "${YELLOW}Game matches but no media found!${NONE}"
             let Scrap_Fail++
+            gi_result=notfound
         else
         
         # echo -e "Downloading Images for $romNameNoExtension \nScreenscraper ID : $gameIDSS \n url :$MediaURL\n\n"        # for debugging
@@ -925,12 +933,18 @@ for file in $(eval "find /mnt/SDCARD/Roms/$CurrentSystem -maxdepth 2 -type f \
 		else
 			echo -e "${RED}Download failed.${NONE}"
 			let Scrap_Fail++;
+			gi_result=notfound
 		fi
         fi
 
         # Game Info media (description, boxes, screenshots...), whatever
         # happened to the cover.
         [ -n "$gi_todo" ] && gi_download "$gi_todo"
+        # Something new for the game: found, even without a new cover.
+        if [ -n "$gi_result" ] && [ -n "$PROGRESS_UI" ]; then
+            [ "$GameInfo_Success" -gt "$gi_before" ] && gi_result=found
+            echo "@@$gi_result"
+        fi
         
         
         #pngscale "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png" "/mnt/SDCARD/Roms/$CurrentSystem/Imgs/$romNameNoExtension.png"
