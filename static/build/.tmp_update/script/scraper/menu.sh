@@ -601,7 +601,7 @@ Menu_Config_MediaType()
     echo -e " All the media types are not available on\n each scraper engine.\n\n"
     echo -e "	SS = Screenscraper" 
     echo -e "	LB = Launchbox" 
-    echo -e "	RA = Retroarch\n\n"
+    echo -e "	RA = RetroArch\n\n"
   
     echo -e "====================================================\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
 	
@@ -744,7 +744,7 @@ Menu_Config_ScrapingSource()
 
     [ "$Screenscraper_enabled" = "true" ] && Screenscraper="[x] Screenscraper" || Screenscraper="[ ] Screenscraper"
     [ "$Launchbox_enabled" = "true" ] && Launchbox="[x] Launchbox" || Launchbox="[ ] Launchbox"
-    [ "$Retroarch_enabled" = "true" ] && Retroarch="[x] Retroarch" || Retroarch="[ ] Retroarch"    
+    [ "$Retroarch_enabled" = "true" ] && Retroarch="[x] RetroArch" || Retroarch="[ ] RetroArch"    
     
     while true; do
     
@@ -754,8 +754,8 @@ Menu_Config_ScrapingSource()
         [ "$Mychoice" = "[x] Screenscraper" ] && Screenscraper="[ ] Screenscraper"
         [ "$Mychoice" = "[ ] Launchbox" ] && Launchbox="[x] Launchbox"
         [ "$Mychoice" = "[x] Launchbox" ] && Launchbox="[ ] Launchbox"
-        [ "$Mychoice" = "[ ] Retroarch" ] && Retroarch="[x] Retroarch"
-        [ "$Mychoice" = "[x] Retroarch" ] && Retroarch="[ ] Retroarch"
+        [ "$Mychoice" = "[ ] RetroArch" ] && Retroarch="[x] RetroArch"
+        [ "$Mychoice" = "[x] RetroArch" ] && Retroarch="[ ] RetroArch"
 
         [ "$Mychoice" = "Back" ] && break
     
@@ -763,7 +763,7 @@ Menu_Config_ScrapingSource()
     
     [ "$Screenscraper" = "[x] Screenscraper" ] && Screenscraper_enabled="true" || Screenscraper_enabled="false"    
     [ "$Launchbox" = "[x] Launchbox" ] && Launchbox_enabled="true" || Launchbox_enabled="false"
-    [ "$Retroarch" = "[x] Retroarch" ] && Retroarch_enabled="true" || Retroarch_enabled="false"
+    [ "$Retroarch" = "[x] RetroArch" ] && Retroarch_enabled="true" || Retroarch_enabled="false"
    
 
     # Modify the JSON string with the new variable values

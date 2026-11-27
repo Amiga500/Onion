@@ -243,7 +243,7 @@ enable_wifi() {
 		# and a half, and the screen said "Checking the Wi-Fi and the
 		# connection..." all along (4.5.1 beta 6).
 		ui_busy "Wi-Fi is off: turning it on for the update..."
-		echo "Wifi is disabled - trying to enable it..."
+		echo "Wi-Fi is off: turning it on..."
 		wifi_started_here=1
 		insmod /mnt/SDCARD/8188fu.ko 2> /dev/null
 		ifconfig lo up

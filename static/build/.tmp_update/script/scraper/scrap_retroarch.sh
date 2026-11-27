@@ -111,7 +111,7 @@ config=$(cat $ScraperConfigFile)
 MediaType=$(echo "$config" | jq -r '.RetroarchMediaType')
 if [ -z "$MediaType" ]; then
 	ssMediaType=$(echo "$config" | jq -r '.ScreenscraperMediaType')
-    echo -e " The currently selected media ($ssMediaType)\n is not compatible with Retroarch scraper.\n\n\n\n\n\n\n\n\n\n\n\n Exiting."
+    echo -e " The currently selected media ($ssMediaType)\n is not compatible with the RetroArch scraper.\n\n\n\n\n\n\n\n\n\n\n\n Exiting."
 	sleep 5
 	exit
 fi
@@ -206,7 +206,7 @@ echo "Alread present       : $Scrap_notrequired"
 echo "Failed or not found  : $Scrap_Fail"
 echo -e "--------------------------\n"
 sleep 2
-echo "**********   Retroarch scraping finished   **********"
+echo "**********   RetroArch scraping finished   **********"
 
 echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 
