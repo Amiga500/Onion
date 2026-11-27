@@ -29,11 +29,20 @@ unset LD_PRELOAD
 # (4.5.1 beta 3). With the console's settings already saved, the card's copy
 # is dropped first: the boot makes it again from them, as after a plain
 # reboot.
+#
+# Only when the installation started without it (card_settings_live, below):
+# an OTA update restarts with a plain reboot (ota_update.sh), which leaves
+# the card's system.json in place, the console's live settings, newer than
+# the saved ones from the last shutdown. Dropping it lost every change since
+# then (brightness set to full before an OTA update came back lower).
+# Nor after "Reinstall (reset settings)": the card's copy is then the
+# defaults on purpose (run_installation), and the saved settings came back.
 installer_reboot() {
     sync
     if [ -x /mnt/SDCARD/.tmp_update/bin/shutdown ]; then
         _serial=$(read_uuid 2> /dev/null)
-        if [ -n "$_serial" ] && [ -f "/mnt/SDCARD/.tmp_update/config/system/$_serial.json" ]; then
+        if [ "${card_settings_live:-0}" -eq 0 ] && [ "${reset_configs:-0}" -eq 0 ] && [ -n "$_serial" ] &&
+            [ -f "/mnt/SDCARD/.tmp_update/config/system/$_serial.json" ]; then
             rm -f /mnt/SDCARD/system.json
             sync
         fi
@@ -48,21 +57,29 @@ installer_reboot() {
 # on a console set to 3, until the next boot (robcodedev, 4.5.1 new UI).
 #
 # Where the brightness is at this point: an update runs at the start of the
-# boot (runtime.sh check_installer), before the settings are put back, and
-# after a shutdown, which moved the card's system.json to this console's
-# saved settings (config/system/<serial>.json) and removed the
-# /appconfigs/system.json link. So, in order:
-# 1. config/system/<serial>.json, the serial from /tmp/deviceSN (written by
+# boot (runtime.sh check_installer), before the settings are put back. After
+# a shutdown, the card's system.json was moved to this console's saved
+# settings (config/system/<serial>.json) and the /appconfigs/system.json
+# link removed. After a plain reboot (an OTA update, a crash) both are still
+# there, and the card's file is the newest. So, in order:
+# 1. the card's system.json, there only without a clean shutdown: the live
+#    settings (the saved ones are from the shutdown before);
+# 2. config/system/<serial>.json, the serial from /tmp/deviceSN (written by
 #    runtime.sh just before check_installer; read_uuid itself is gone with
 #    the old system files);
-# 2. /appconfigs/system.json: the stock firmware's own file on a first
-#    installation, or the link left by a start without a clean shutdown;
-# 3. the card's system.json, left the same way;
+# 3. /appconfigs/system.json: the stock firmware's own file on a first
+#    installation;
 # 4. the only saved settings file, when the card has been used in one
 #    console only;
 # then 80.
 INSTALLER_SN_FILE=${INSTALLER_SN_FILE:-/tmp/deviceSN}
 INSTALLER_SETTINGS_DIR=${INSTALLER_SETTINGS_DIR:-/mnt/SDCARD/.tmp_update/config/system}
+
+# The card's system.json when the installation starts: there only when the
+# console was not shut down cleanly (an OTA update reboots plainly), and
+# then the live settings (installer_reboot keeps them).
+card_settings_live=0
+[ -f /mnt/SDCARD/system.json ] && card_settings_live=1
 
 installer_brightness() {
     _bsn=""
@@ -71,7 +88,7 @@ installer_brightness() {
     _bonly=""
     set -- "$INSTALLER_SETTINGS_DIR"/*.json
     [ "$#" -eq 1 ] && [ -f "$1" ] && _bonly=$1
-    for _bf in ${_bsn:+"$INSTALLER_SETTINGS_DIR/$_bsn.json"} /appconfigs/system.json /mnt/SDCARD/system.json ${_bonly:+"$_bonly"}; do
+    for _bf in /mnt/SDCARD/system.json ${_bsn:+"$INSTALLER_SETTINGS_DIR/$_bsn.json"} /appconfigs/system.json ${_bonly:+"$_bonly"}; do
         [ -f "$_bf" ] || continue
         _bv=$(sed -n 's/.*"brightness"[^0-9]*\([0-9][0-9]*\).*/\1/p' "$_bf" | head -n 1)
         case "$_bv" in
