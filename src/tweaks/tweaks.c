@@ -54,23 +54,22 @@ void check_networkChanged(void)
     temp_flag_set("network_changed", modified);
 }
 
-// The scrolling row's pixels from the picture to the screen, copied in
-// memory. On the Mini+ the screen's memory is the panel's, turned 180
-// degrees: the console's SDL turns the picture when it copies it there.
-// Its hardware copy of the row's rectangle alone put it 6 px off (a row at
-// y 212, 50 high, went to 480 - 212 - 50 = 218 turned): a line of the
-// selection stayed above it (Amiga500's video). The whole picture is right but
-// slow (33 frames a second against 50); a plain copy of the row came out
-// upside down.
+// The scrolling row from the picture to the screen. On the Mini+ the
+// screen's memory is the panel's, turned 180 degrees: the console's SDL
+// turns the pixels when it copies there, but leaves a rectangle where it
+// was asked, so the row's rectangle alone landed 6 px off (a row at y 212,
+// 50 high, at 480 - 212 - 50 = 218): a line of the selection stayed above
+// it (Amiga500's video). The whole picture is right but slow (33 frames a
+// second against 50); a plain CPU copy came out upside down.
 //
 // So the first time, the screen's memory as the last frame left it (copied
 // the usual way, long done: the hardware copy runs on its own, read at
 // once it was not there yet, Amiga500's log) is compared with the picture at
-// 256 points outside the row, straight and turned: the way that matches
-// them all is used for the rows from then on (each pixel (x, y) to (x, y),
-// or to (w-1-x, h-1-y)). Neither for sure (another panel, other formats
-// or sizes): always the whole picture, as before. With the measure on
-// (config/.tweaksFps), /tmp/tweaks_fps.log says which.
+// 256 points outside the row, straight and turned: turned (the Mini+,
+// 224 of 224), the row is put at the turned place (below). Neither for
+// sure (another panel, other formats or sizes): always the whole picture,
+// as before. With the measure on (config/.tweaksFps), /tmp/tweaks_fps.log
+// says which.
 enum { PUTROW_UNKNOWN = -1, PUTROW_STRAIGHT, PUTROW_TURNED, PUTROW_WHOLE };
 static int putrow_mode = PUTROW_UNKNOWN;
 static int putrow_straight = 0, putrow_turned = 0, putrow_points = 0;
@@ -137,21 +136,21 @@ static void tweaks_putRow(SDL_Rect *row)
     }
     if (putrow_mode == PUTROW_UNKNOWN)
         putrow_mode = tweaks_putRowMode(&r);
-    if (putrow_mode == PUTROW_WHOLE || !tweaks_lockBoth()) {
+    if (putrow_mode == PUTROW_WHOLE) {
         SDL_BlitSurface(screen, NULL, video, NULL);
         return;
     }
-    for (int y = r.y; y < r.y + r.h; y++) {
-        const Uint32 *src = (const Uint32 *)((Uint8 *)screen->pixels + y * screen->pitch);
-        if (putrow_mode == PUTROW_TURNED) {
-            Uint32 *dst = (Uint32 *)((Uint8 *)video->pixels + (video->h - 1 - y) * video->pitch);
-            for (int x = r.x; x < r.x + r.w; x++)
-                dst[video->w - 1 - x] = src[x];
-        }
-        else
-            memcpy((Uint32 *)((Uint8 *)video->pixels + y * video->pitch) + r.x, src + r.x, r.w * 4);
+    // The hardware copy turns the pixels but leaves the rectangle where it
+    // was asked, in the screen's own (turned) memory: asked at the turned
+    // place, the row lands where it is drawn. Copied by the CPU instead,
+    // pixel by pixel, it was right but as slow as the whole picture (33
+    // frames a second): that memory is not cached.
+    SDL_Rect dst = r;
+    if (putrow_mode == PUTROW_TURNED) {
+        dst.x = video->w - r.x - r.w;
+        dst.y = video->h - r.y - r.h;
     }
-    tweaks_unlockBoth();
+    SDL_BlitSurface(screen, &r, video, &dst);
 }
 
 int main(int argc, char *argv[])
