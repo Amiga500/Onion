@@ -37,6 +37,8 @@ TESTS += test_tweaks_reset_keep
 TESTS += test_powersave_recover
 # Tweaks > Home screen: the last way back to Tweaks stays on
 TESTS += test_tweaks_lockout
+# keymon: starts again by itself after a crash
+TESTS += test_keymon_crash_restart
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -1004,3 +1006,11 @@ test_tweaks_lockout: $(BUILD_DIR)/test_tweaks_lockout
 $(BUILD_DIR)/test_tweaks_lockout: test_tweaks_lockout.c onion_test.h ../src/tweaks/main_menu.h ../src/common/components/list.h stubs/SDL/SDL.h $(COMMON_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) -Istubs $(CFLAGS) -o $@ test_tweaks_lockout.c $(COMMON_SRCS) ../include/cjson/cJSON.c $(LDFLAGS) -lm
+
+test_keymon_crash_restart: $(BUILD_DIR)/test_keymon_crash_restart
+	@echo ""
+	@$(BUILD_DIR)/test_keymon_crash_restart
+
+$(BUILD_DIR)/test_keymon_crash_restart: test_keymon_crash_restart.c onion_test.h ../src/keymon/crash_restart.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_keymon_crash_restart.c $(LDFLAGS)

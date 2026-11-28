@@ -38,6 +38,7 @@
 #include "utils/process.h"
 #include "utils/str.h"
 
+#include "./crash_restart.h"
 #include "./flip_suspend.h"
 #include "./input_fd.h"
 #include "./konami.h"
@@ -963,12 +964,19 @@ int read_lid_state(void)
 //
 //    Main
 //
-int main(void)
+int main(int argc, char *argv[])
 {
+    (void)argc;
     // Initialize
     signal(SIGTERM, quit);
-    signal(SIGSEGV, quit);
     signal(SIGUSR1, signal_refresh);
+    // A crash starts keymon again at once (crash_restart.h), also during a
+    // standby, when runtime.sh is stopped and could not start it; it used
+    // to run quit() from the SIGSEGV handler.
+    int restarts = crashRestart_install("/proc/self/exe", argv, environ);
+    if (restarts > 0) {
+        printf_debug("Started again after a crash (%d)\n", restarts);
+    }
     log_setName("keymon");
 
     getDeviceModel();
@@ -1000,7 +1008,9 @@ int main(void)
     suspend_recover();
 
     // Prepare for Poll button input
-    input_fd = open("/dev/input/event0", O_RDONLY);
+    // Not passed on by a restart after a crash: its grab would hold every
+    // key back from the new keymon.
+    input_fd = open("/dev/input/event0", O_RDONLY | O_CLOEXEC);
     memset(&fds, 0, sizeof(fds));
     fds[0].fd = input_fd;
     fds[0].events = POLLIN;
