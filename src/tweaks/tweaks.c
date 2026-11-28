@@ -414,12 +414,12 @@ int main(int argc, char *argv[])
                 theme_renderList(screen, menu_stack[menu_level]);
 
             // SELECT opens the selected item's info box (the first-run
-            // tooltip says so once): its hint is in the footer while the
+            // tooltip says so once): its hint is in the footer whenever the
             // item has one, so the footer is drawn again when that changes.
-            // The hint only when there is more to read than the note box
-            // under the list shows (a note cut short with "...", or no
-            // box); SELECT opens the window either way, in larger text.
-            int info_now = list_hasInfoNote(menu_stack[menu_level]) && !theme_listNoteShownWhole() ? 1 : 0;
+            // It was left out when the box under the list showed the note
+            // whole, but SELECT opens the window then too (in larger text):
+            // the hint came and went from row to row (4.5.1, Amiga500).
+            int info_now = list_hasInfoNote(menu_stack[menu_level]) ? 1 : 0;
             if (info_now != footer_info_shown)
                 footer_changed = true;
 
