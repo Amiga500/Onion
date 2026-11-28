@@ -227,6 +227,7 @@ int main(int argc, char *argv[])
     SDLKey changed_key = SDLK_UNKNOWN;
     bool key_changed = false;
     bool info_showned = false;
+    int footer_info_shown = -1;
     bool menu_combo = false;
     /* MENU's press seen here: a release left over from the screen before
      * (MENU still held when this prompt opened) must not answer it. */
@@ -342,11 +343,21 @@ int main(int argc, char *argv[])
                     SDL_BlitSurface(message, NULL, screen, &message_rect);
             }
 
+            // SELECT INFO in the footer whenever the selected option has a
+            // note, as in Tweaks: Game options (GLO) and the other prompts
+            // opened the note with SELECT without saying so (4.5.1,
+            // Amiga500).
+            int info_now = list_hasInfoNote(&list) ? 1 : 0;
+            if (info_now != footer_info_shown)
+                footer_changed = true;
+
             if (footer_changed) {
+                footer_info_shown = info_now;
                 theme_renderFooter(screen);
-                theme_renderStandardHint(
+                theme_renderStandardHintSelect(
                     screen, lang_get(LANG_SELECT, LANG_FALLBACK_SELECT),
-                    required ? NULL : lang_get(LANG_BACK, LANG_FALLBACK_BACK));
+                    required ? NULL : lang_get(LANG_BACK, LANG_FALLBACK_BACK),
+                    info_now ? "INFO" : NULL);
             }
 
             if (footer_changed || list_changed)

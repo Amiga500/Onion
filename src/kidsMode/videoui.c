@@ -3542,7 +3542,10 @@ static void renderSettingsList(List *list, const char *title)
     theme_renderHeaderBattery(screen, batteryPercentage());
     theme_renderList(screen, list);
     theme_renderFooter(screen);
-    theme_renderStandardHint(screen, "OK", "BACK");
+    // SELECT INFO whenever the option has a note, as in Tweaks (4.5.1,
+    // Amiga500).
+    theme_renderStandardHintSelect(screen, "OK", "BACK",
+                                   list_hasInfoNote(list) ? "INFO" : NULL);
     theme_renderFooterStatus(screen, list->active_pos + 1, list->item_count);
 }
 
@@ -5082,10 +5085,11 @@ int main(int argc, char *argv[])
                 else
                     renderMenu(&menu_list, menu_remaining);
                 if (info_list != NULL && list_currentItem(info_list) != NULL)
-                    theme_renderDialog(screen,
-                                       list_currentItem(info_list)->label,
-                                       list_currentItem(info_list)->info_note,
-                                       false);
+                    // As Tweaks' notes: wrapped to the window, the title
+                    // centred (4.5.1, Amiga500).
+                    theme_renderDialogWrapped(screen,
+                                              list_currentItem(info_list)->label,
+                                              list_currentItem(info_list)->info_note);
                 break;
             }
             if (hold_started != 0)
