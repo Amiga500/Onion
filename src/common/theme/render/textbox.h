@@ -23,6 +23,10 @@ typedef enum { ALIGN_LEFT,
  * @param align The text alignment within the textbox.
  * @return An SDL_Surface containing the rendered textbox, or NULL if nothing could be rendered.
  */
+/* Set by theme_textboxSurfaceWrap for one call: the textbox made at least
+ * this wide, and a heading line (":: TOOLTIPS ::") centred in it. */
+static int _textbox_width = 0;
+
 SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
                                   SDL_Color fg, text_alignment_e align)
 {
@@ -85,6 +89,9 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
         return NULL;
     }
 
+    if (_textbox_width > max_width)
+        max_width = _textbox_width;
+
     // --- Calculate textbox height
     int textbox_height = (line_count - empty_lines) * line_height +
                          empty_lines * paragraph_spacing;
@@ -107,7 +114,7 @@ SDL_Surface *theme_textboxSurface(const char *message, TTF_Font *font,
                 SDL_SetAlpha(surf, 0, 0);
                 SDL_Rect r = {0, y};
                 // horizontal alignment
-                if (align == ALIGN_CENTER)
+                if (align == ALIGN_CENTER || (_textbox_width > 0 && strncmp(lines[i], "::", 2) == 0))
                     r.x = (max_width - surf->w) / 2;
                 else if (align == ALIGN_RIGHT)
                     r.x = max_width - surf->w;
@@ -246,7 +253,9 @@ SDL_Surface *theme_textboxSurfaceWrap(const char *message, SDL_Color fg,
     SDL_Surface *textbox = NULL;
     if (font) {
         _textbox_wrap(font, joined, max_w, wrapped, sizeof(wrapped));
+        _textbox_width = max_w;
         textbox = theme_textboxSurface(wrapped, font, fg, align);
+        _textbox_width = 0;
     }
     if (owned)
         TTF_CloseFont(owned);
