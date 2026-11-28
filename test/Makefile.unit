@@ -33,6 +33,8 @@ TESTS := test_str test_perf test_file test_images_browser test_hash test_json te
 TESTS += test_mainui_flags test_footer_layout test_gs_bottom_bar test_mainui_shortcut test_gs_state_ratio
 # Tweaks > Reset system tweaks: what it keeps, the default migrations again
 TESTS += test_tweaks_reset_keep
+# keymon standby recovery: the CPU state powersave saves in /tmp
+TESTS += test_powersave_recover
 
 BINARIES := $(addprefix $(BUILD_DIR)/, $(TESTS))
 
@@ -983,3 +985,12 @@ test_button_x: $(BUILD_DIR)/test_button_x
 $(BUILD_DIR)/test_button_x: test_button_x.c onion_test.h ../src/common/theme/button_x.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ test_button_x.c $(LDFLAGS)
+
+
+test_powersave_recover: $(BUILD_DIR)/test_powersave_recover
+	@echo ""
+	@$(BUILD_DIR)/test_powersave_recover
+
+$(BUILD_DIR)/test_powersave_recover: test_powersave_recover.c onion_test.h ../src/common/system/system.h $(COMMON_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ test_powersave_recover.c $(COMMON_SRCS) $(LDFLAGS) -lrt

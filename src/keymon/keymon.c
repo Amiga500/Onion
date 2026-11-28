@@ -314,6 +314,21 @@ void takeScreenshot(void)
     settings_setBrightness(settings.brightness, true, false);
 }
 
+// The processes stopped for standby, kept in /tmp while they are: a keymon
+// that starts again meanwhile (crash_restart.h) had no list, and they all
+// stayed stopped, runtime.sh included.
+#define SUSPEND_STATE_PATH "/tmp/.keymon_suspended"
+
+static void suspend_state_save(void)
+{
+    FILE *fp = fopen(SUSPEND_STATE_PATH, "w");
+    if (fp == NULL)
+        return;
+    for (uint32_t i = 1; i <= suspendpid[0]; i++)
+        fprintf(fp, "%u\n", (unsigned int)suspendpid[i]);
+    fclose(fp);
+}
+
 //
 //    Suspend / Kill processes
 //        mode: 0:STOP 1:TERM 2:KILL
@@ -409,6 +424,9 @@ int suspend(uint32_t mode)
     }
     closedir(procdp);
 
+    if (!mode)
+        suspend_state_save();
+
     // reset display when anything killed
     if (mode == 2 && ret)
         display_reset();
@@ -427,6 +445,37 @@ void resume(void)
             kill(suspendpid[i], SIGCONT);
         suspendpid[0] = 0;
     }
+    remove(SUSPEND_STATE_PATH);
+}
+
+//
+//    A standby that keymon did not end (it crashed or was restarted):
+//    CPU, stopped processes, screen and volume go back as on a wake-up.
+//
+static void suspend_recover(void)
+{
+    if (!exists(SUSPEND_STATE_PATH) && !exists(POWERSAVE_STATE_PATH))
+        return;
+
+    system_powersave_recover();
+
+    FILE *fp = fopen(SUSPEND_STATE_PATH, "r");
+    if (fp != NULL) {
+        unsigned int pid;
+        while (fscanf(fp, "%u", &pid) == 1) {
+            if (pid > 2)
+                kill((pid_t)pid, SIGCONT);
+        }
+        fclose(fp);
+    }
+    remove(SUSPEND_STATE_PATH);
+
+    // As on a wake-up: Kids Mode kept the LCD on, only its backlight black.
+    if (!kidsmode_active())
+        display_on();
+    display_setBrightness(settings.brightness);
+    setVolume(settings.mute ? 0 : settings.volume);
+    print_debug("Recovered from an interrupted standby");
 }
 
 //
@@ -946,6 +995,9 @@ int main(void)
                  settings.brightness);
 
     display_init(true);
+
+    // Does nothing unless a standby was left unfinished.
+    suspend_recover();
 
     // Prepare for Poll button input
     input_fd = open("/dev/input/event0", O_RDONLY);
