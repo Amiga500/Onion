@@ -1285,14 +1285,20 @@ int main(void)
 
                 break;
             case HW_BTN_X:
-                if (val == PRESSED && system_state == MODE_MAIN_UI)
+            case HW_BTN_Y:
+                // The cached state can still be the app or game just left:
+                // runtime.sh touches /tmp/state_changed before MainUI starts,
+                // and a key read in between scanned (no MainUI yet) and
+                // removed the flag. X then did nothing on the home screen
+                // until the next state change, "not always" (4.5.1,
+                // Amiga500). Read it again on the press, as SELECT does; not
+                // in a game or app (cmd_to_run.sh), where X and Y are played.
+                if (val == PRESSED && !exists(CMD_TO_RUN_PATH))
+                    system_state_update();
+                if (ev.code == HW_BTN_X && val == PRESSED && system_state == MODE_MAIN_UI)
                     temp_flag_set("launch_alt", false);
                 if (val == PRESSED)
-                    applyExtraButtonShortcut(0);
-                break;
-            case HW_BTN_Y:
-                if (val == PRESSED)
-                    applyExtraButtonShortcut(1);
+                    applyExtraButtonShortcut(ev.code == HW_BTN_X ? 0 : 1);
                 break;
             case HW_BTN_A:
                 if (val == PRESSED) {
