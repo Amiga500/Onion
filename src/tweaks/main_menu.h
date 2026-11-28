@@ -799,13 +799,17 @@ void menu_mainMenuItems(void *_)
         _menu_main_menu_items = list_createWithTitle(
             MAINMENU_MENU_COUNT, LIST_SMALL, "Tabs");
         for (int i = 0; i < MAINMENU_MENU_COUNT; i++) {
-            list_addItem(&_menu_main_menu_items,
-                         (ListItem){
-                             .label = "",
-                             .item_type = TOGGLE,
-                             .value = menu_states[i],
-                             .action_id = i,
-                             .action = mainmenu_action_menu_item});
+            char note[STR_MAX];
+            snprintf(note, sizeof(note), "Show the %s tab on the home\nscreen.",
+                     mainmenu_menu_labels[i]);
+            list_addItemWithInfoNote(&_menu_main_menu_items,
+                                     (ListItem){
+                                         .label = "",
+                                         .item_type = TOGGLE,
+                                         .value = menu_states[i],
+                                         .action_id = i,
+                                         .action = mainmenu_action_menu_item},
+                                     note);
             strcpy(_menu_main_menu_items.items[i].label, mainmenu_menu_labels[i]);
         }
     }
@@ -838,8 +842,23 @@ void menu_mainContextItems(void *_)
                                          "Not defined: give it a label and a\n"
                                          "launch command under \"custom\" in\n"
                                          "config/main-menu.json to show it.");
-            else
-                list_addItem(&_menu_main_context_items, item);
+            else {
+                // Every entry says what it is (4.5.1, Amiga500).
+                char note[STR_MAX];
+                if (i >= 11)
+                    snprintf(note, sizeof(note), "Show your own entry (\"custom\" in\n"
+                                                 "config/main-menu.json) in the SELECT\n"
+                                                 "menu of the home screen.");
+                else if (i == 1)
+                    snprintf(note, sizeof(note), "Show Refresh all roms (scan every\n"
+                                                 "game list again) in the SELECT menu\n"
+                                                 "of the home screen.");
+                else
+                    snprintf(note, sizeof(note), "Show %s in the SELECT menu of the\n"
+                                                 "home screen.",
+                             mainmenu_context_labels[i]);
+                list_addItemWithInfoNote(&_menu_main_context_items, item, note);
+            }
             strcpy(_menu_main_context_items.items[i].label,
                    mainmenu_context_labels[i]);
         }

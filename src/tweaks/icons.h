@@ -483,14 +483,19 @@ void menu_icons(void *_)
     if (!_menu_icons._created) {
         _menu_icons = list_create(5, LIST_SMALL);
         strcpy(_menu_icons.title, "Icons");
-        list_addItem(&_menu_icons, (ListItem){.label = "Apply icon pack...",
-                                              .action = menu_icon_packs});
-        list_addItem(&_menu_icons, (ListItem){.label = "Edit console icon...",
-                                              .action = menu_console_icons});
-        list_addItem(&_menu_icons, (ListItem){.label = "Edit app icon...",
-                                              .action = menu_app_icons});
-        list_addItem(&_menu_icons, (ListItem){.label = "Edit expert icon...",
-                                              .action = menu_expert_icons});
+        list_addItemWithInfoNote(&_menu_icons, (ListItem){.label = "Apply icon pack...", .action = menu_icon_packs},
+                                 "Change all the console, app and expert\n"
+                                 "icons at once, with a pack from the\n"
+                                 "Icons folder or a theme's icons.");
+        list_addItemWithInfoNote(&_menu_icons, (ListItem){.label = "Edit console icon...", .action = menu_console_icons},
+                                 "Pick another icon for one console, from\n"
+                                 "the icon packs.");
+        list_addItemWithInfoNote(&_menu_icons, (ListItem){.label = "Edit app icon...", .action = menu_app_icons},
+                                 "Pick another icon for one app, from the\n"
+                                 "icon packs.");
+        list_addItemWithInfoNote(&_menu_icons, (ListItem){.label = "Edit expert icon...", .action = menu_expert_icons},
+                                 "Pick another icon for one Expert\n"
+                                 "console, from the icon packs.");
     }
     menu_stack[++menu_level] = &_menu_icons;
     header_changed = true;

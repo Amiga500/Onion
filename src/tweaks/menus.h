@@ -154,8 +154,9 @@ void menu_datetime(void *_)
                                          .value_formatter = formatter_timezone,
                                          .value = value_timezone(),
                                          .action = network_setTzSelectState},
-                                     "Manually set your time zone.\n"
-                                     "You need to adjust for DST as well.");
+                                     "Set your time zone by hand. Daylight\n"
+                                     "saving time is not applied by itself:\n"
+                                     "change it when the clocks change.");
         }
         list_addItemWithInfoNote(&_menu_date_time,
                                  (ListItem){
@@ -179,18 +180,24 @@ void menu_system(void *_)
 {
     if (!_menu_system._created) {
         _menu_system = list_createWithTitle(6, LIST_SMALL, "System");
-        list_addItem(&_menu_system,
-                     (ListItem){
-                         .label = "Startup...",
-                         .action = menu_systemStartup});
+        list_addItemWithInfoNote(&_menu_system,
+                                 (ListItem){
+                                     .label = "Startup...",
+                                     .action = menu_systemStartup},
+                                 "What happens when the device starts:\n"
+                                 "resume the last game, what opens first\n"
+                                 "and the home screen tab.");
         // list_addItem(&_menu_system,
         //              (ListItem){
         //                  .label = "Display...",
         //                  .action = menu_systemDisplay});
-        list_addItem(&_menu_system,
-                     (ListItem){
-                         .label = "Date and time...",
-                         .action = menu_datetime});
+        list_addItemWithInfoNote(&_menu_system,
+                                 (ListItem){
+                                     .label = "Date and time...",
+                                     .action = menu_datetime},
+                                 "The clock: sync it over the internet,\n"
+                                 "the time zone, and a time skip for\n"
+                                 "devices without a clock battery.");
         list_addItemWithInfoNote(&_menu_system,
                                  (ListItem){
                                      .label = "Low battery warning",
@@ -396,7 +403,9 @@ void menu_buttonAction(void *_)
                                                           "MENU+UP/DOWN"},
                                          .value = config_flag_get(".altBrightness"),
                                          .action = action_setAltBrightness},
-                                     "Change the shortcut for brightness.");
+                                     "The shortcut that changes the\n"
+                                     "brightness: SELECT+R2/L2 or\n"
+                                     "MENU+UP/DOWN.");
         }
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
@@ -449,62 +458,79 @@ void menu_batteryPercentage(void *_)
 {
     if (!_menu_battery_percentage._created) {
         _menu_battery_percentage = list_createWithTitle(7, LIST_SMALL, "Battery percentage");
-        list_addItem(&_menu_battery_percentage,
-                     (ListItem){
-                         .label = "Visible",
-                         .item_type = MULTIVALUE,
-                         .value_max = 2,
-                         .value_labels = THEME_TOGGLE_LABELS,
-                         .value = value_batteryPercentageVisible(),
-                         .action = battery_action_visible});
-        list_addItem(&_menu_battery_percentage,
-                     (ListItem){
-                         .label = "Font family",
-                         .item_type = MULTIVALUE,
-                         .value_max = num_font_families,
-                         .value_formatter = formatter_fontFamily,
-                         .value = value_batteryPercentageFontFamily(),
-                         .action = action_batteryPercentageFontFamily});
-        list_addItem(&_menu_battery_percentage,
-                     (ListItem){
-                         .label = "Font size",
-                         .item_type = MULTIVALUE,
-                         .value_max = num_font_sizes,
-                         .value_formatter = formatter_fontSize,
-                         .value = value_batteryPercentageFontSize(),
-                         .action = action_batteryPercentageFontSize});
-        list_addItem(&_menu_battery_percentage,
-                     (ListItem){
-                         .label = "Text alignment",
-                         .item_type = MULTIVALUE,
-                         .value_max = 3,
-                         .value_labels = {"-", "Left", "Center", "Right"},
-                         .value = value_batteryPercentagePosition(),
-                         .action = action_batteryPercentagePosition});
-        list_addItem(&_menu_battery_percentage,
-                     (ListItem){
-                         .label = "Fixed position",
-                         .item_type = MULTIVALUE,
-                         .value_max = 2,
-                         .value_labels = THEME_TOGGLE_LABELS,
-                         .value = value_batteryPercentageFixed(),
-                         .action = action_batteryPercentageFixed});
-        list_addItem(&_menu_battery_percentage,
-                     (ListItem){
-                         .label = "Horizontal offset",
-                         .item_type = MULTIVALUE,
-                         .value_max = BATTPERC_MAX_OFFSET * 2 + 1,
-                         .value_formatter = formatter_positionOffset,
-                         .value = value_batteryPercentageOffsetX(),
-                         .action = action_batteryPercentageOffsetX});
-        list_addItem(&_menu_battery_percentage,
-                     (ListItem){
-                         .label = "Vertical offset",
-                         .item_type = MULTIVALUE,
-                         .value_max = BATTPERC_MAX_OFFSET * 2 + 1,
-                         .value_formatter = formatter_positionOffset,
-                         .value = value_batteryPercentageOffsetY(),
-                         .action = action_batteryPercentageOffsetY});
+        list_addItemWithInfoNote(&_menu_battery_percentage,
+                                 (ListItem){
+                                     .label = "Visible",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 2,
+                                     .value_labels = THEME_TOGGLE_LABELS,
+                                     .value = value_batteryPercentageVisible(),
+                                     .action = battery_action_visible},
+                                 "Show the battery percentage beside the\n"
+                                 "battery icon. \"-\" keeps the theme's\n"
+                                 "setting, as in every option here.");
+        list_addItemWithInfoNote(&_menu_battery_percentage,
+                                 (ListItem){
+                                     .label = "Font family",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = num_font_families,
+                                     .value_formatter = formatter_fontFamily,
+                                     .value = value_batteryPercentageFontFamily(),
+                                     .action = action_batteryPercentageFontFamily},
+                                 "The font of the battery percentage.");
+        list_addItemWithInfoNote(&_menu_battery_percentage,
+                                 (ListItem){
+                                     .label = "Font size",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = num_font_sizes,
+                                     .value_formatter = formatter_fontSize,
+                                     .value = value_batteryPercentageFontSize(),
+                                     .action = action_batteryPercentageFontSize},
+                                 "The size of the battery percentage.");
+        list_addItemWithInfoNote(&_menu_battery_percentage,
+                                 (ListItem){
+                                     .label = "Text alignment",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 3,
+                                     .value_labels = {"-", "Left", "Center", "Right"},
+                                     .value = value_batteryPercentagePosition(),
+                                     .action = action_batteryPercentagePosition},
+                                 "Where the percentage goes. Left: after\n"
+                                 "the icon. Right: before it. Center: on\n"
+                                 "the icon.");
+        list_addItemWithInfoNote(&_menu_battery_percentage,
+                                 (ListItem){
+                                     .label = "Fixed position",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = 2,
+                                     .value_labels = THEME_TOGGLE_LABELS,
+                                     .value = value_batteryPercentageFixed(),
+                                     .action = action_batteryPercentageFixed},
+                                 "On: the percentage stays within the\n"
+                                 "icon's width, at its left, middle or\n"
+                                 "right (Text alignment), for themes with\n"
+                                 "room for it in the icon. Off: beside the\n"
+                                 "icon.");
+        list_addItemWithInfoNote(&_menu_battery_percentage,
+                                 (ListItem){
+                                     .label = "Horizontal offset",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = BATTPERC_MAX_OFFSET * 2 + 1,
+                                     .value_formatter = formatter_positionOffset,
+                                     .value = value_batteryPercentageOffsetX(),
+                                     .action = action_batteryPercentageOffsetX},
+                                 "Move the percentage left (-) or right\n"
+                                 "(+), up to 48 px.");
+        list_addItemWithInfoNote(&_menu_battery_percentage,
+                                 (ListItem){
+                                     .label = "Vertical offset",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = BATTPERC_MAX_OFFSET * 2 + 1,
+                                     .value_formatter = formatter_positionOffset,
+                                     .value = value_batteryPercentageOffsetY(),
+                                     .action = action_batteryPercentageOffsetY},
+                                 "Move the percentage up (-) or down (+),\n"
+                                 "up to 48 px.");
         battery_update_enabled();
     }
     menu_stack[++menu_level] = &_menu_battery_percentage;
@@ -516,10 +542,13 @@ void menu_themeOverrides(void *_)
     if (!_menu_theme_overrides._created) {
         _menu_theme_overrides = list_create(7, LIST_SMALL);
         strcpy(_menu_theme_overrides.title, "Theme tweaks");
-        list_addItem(&_menu_theme_overrides,
-                     (ListItem){
-                         .label = "Battery percentage...",
-                         .action = menu_batteryPercentage});
+        list_addItemWithInfoNote(&_menu_theme_overrides,
+                                 (ListItem){
+                                     .label = "Battery percentage...",
+                                     .action = menu_batteryPercentage},
+                                 "Show or hide the battery percentage, its\n"
+                                 "font, size and place. \"-\" keeps the\n"
+                                 "theme's setting.");
         list_addItemWithInfoNote(&_menu_theme_overrides,
                                  (ListItem){
                                      .label = "Mute background music",
@@ -648,14 +677,21 @@ void menu_lookAndFeel(void *_)
     all_changed = true;
     if (!_menu_user_interface._created) {
         _menu_user_interface = list_createWithTitle(9, LIST_SMALL, "Look and feel");
-        list_addItem(&_menu_user_interface,
-                     (ListItem){
-                         .label = "Theme tweaks...",
-                         .action = menu_themeOverrides});
-        list_addItem(&_menu_user_interface,
-                     (ListItem){
-                         .label = "Icons...",
-                         .action = menu_icons});
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Theme tweaks...",
+                                     .action = menu_themeOverrides},
+                                 "Change parts of the theme without\n"
+                                 "editing it: the battery percentage,\n"
+                                 "background music, icon labels and button\n"
+                                 "hints.");
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Icons...",
+                                     .action = menu_icons},
+                                 "Console, app and expert icons: apply an\n"
+                                 "icon pack (from Icons or a theme), or\n"
+                                 "change one icon at a time.");
         int accent_color = 0;
         config_get("display/accentColor", CONFIG_INT, &accent_color);
         list_addItemWithInfoNote(&_menu_user_interface,
@@ -670,10 +706,13 @@ void menu_lookAndFeel(void *_)
                                  "and menu icons, in the menus and the\n"
                                  "RedOnion apps. Silky RedOnion only:\n"
                                  "other themes keep their own colors.");
-        list_addItem(&_menu_user_interface,
-                     (ListItem){
-                         .label = "Blue light filter...",
-                         .action = menu_blueLight});
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Blue light filter...",
+                                     .action = menu_blueLight},
+                                 "A warmer screen, easier on the eyes at\n"
+                                 "night: turn it on now, or on and off by\n"
+                                 "itself at set times.");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
                                      .label = "Loading/saving screen",
@@ -750,12 +789,16 @@ void menu_resetSettings(void *_)
                                  (ListItem){
                                      .label = "Reset system tweaks",
                                      .action = action_resetTweaks},
-                                 "Reset all RedOnion system tweaks,\n"
-                                 "including network setup.");
-        list_addItem(&_menu_reset_settings,
-                     (ListItem){
-                         .label = "Reset theme tweaks",
-                         .action = action_resetThemeOverrides});
+                                 "Tweaks' settings back to their defaults,\n"
+                                 "the network setup too. The theme, games\n"
+                                 "and saves are kept.");
+        list_addItemWithInfoNote(&_menu_reset_settings,
+                                 (ListItem){
+                                     .label = "Reset theme tweaks",
+                                     .action = action_resetThemeOverrides},
+                                 "Battery percentage, icon labels and\n"
+                                 "button hints back to the theme's own\n"
+                                 "settings.");
         list_addItemWithInfoNote(&_menu_reset_settings,
                                  (ListItem){
                                      .label = "Reset MainUI settings",
@@ -763,21 +806,36 @@ void menu_resetSettings(void *_)
                                  "Resets the settings stored on the device,\n"
                                  "such as theme, display options and\n"
                                  "volume. Also resets the Wi-Fi setup.");
-        list_addItem(&_menu_reset_settings,
-                     (ListItem){
-                         .label = "Reset RetroArch main configuration",
-                         .action = action_resetRAMain});
-        list_addItem(&_menu_reset_settings,
-                     (ListItem){
-                         .label = "Reset all RetroArch core overrides",
-                         .action = action_resetRACores});
-        list_addItem(&_menu_reset_settings,
-                     (ListItem){
-                         .label = "Reset AdvanceMENU/MAME/MESS",
-                         .action = action_resetAdvanceMENU});
-        list_addItem(&_menu_reset_settings,
-                     (ListItem){
-                         .label = "Reset everything", .action = action_resetAll});
+        list_addItemWithInfoNote(&_menu_reset_settings,
+                                 (ListItem){
+                                     .label = "Reset RetroArch main configuration",
+                                     .action = action_resetRAMain},
+                                 "RetroArch's main settings\n"
+                                 "(retroarch.cfg: video, audio,\n"
+                                 "hotkeys...) back to RedOnion's defaults.\n"
+                                 "Core options and game overrides are\n"
+                                 "kept.");
+        list_addItemWithInfoNote(&_menu_reset_settings,
+                                 (ListItem){
+                                     .label = "Reset all RetroArch core overrides",
+                                     .action = action_resetRACores},
+                                 "Removes the options and overrides saved\n"
+                                 "for each core and game, and puts back\n"
+                                 "RedOnion's. Saves and save states are\n"
+                                 "kept.");
+        list_addItemWithInfoNote(&_menu_reset_settings,
+                                 (ListItem){
+                                     .label = "Reset AdvanceMENU/MAME/MESS",
+                                     .action = action_resetAdvanceMENU},
+                                 "AdvanceMENU and the AdvanceMAME/MESS\n"
+                                 "settings back to RedOnion's defaults.");
+        list_addItemWithInfoNote(&_menu_reset_settings,
+                                 (ListItem){
+                                     .label = "Reset everything", .action = action_resetAll},
+                                 "All the resets above at once: Tweaks,\n"
+                                 "theme tweaks, MainUI (Wi-Fi setup too),\n"
+                                 "RetroArch and AdvanceMENU. Games, saves\n"
+                                 "and save states are kept.");
     }
     menu_stack[++menu_level] = &_menu_reset_settings;
     header_changed = true;
@@ -842,7 +900,9 @@ void menu_advanced(void *_)
                                      .value = value_getFrameThrottle(),
                                      .value_formatter = formatter_fastForward,
                                      .action = action_advancedSetFrameThrottle},
-                                 "Set the maximum fast forward rate.");
+                                 "The highest fast forward speed in\n"
+                                 "RetroArch. Unlimited: as fast as the\n"
+                                 "game can run.");
         list_addItemWithInfoNote(&_menu_advanced,
                                  (ListItem){
                                      .label = "Screen PWM frequency",
@@ -863,18 +923,27 @@ void menu_advanced(void *_)
                                          .value_labels = {"Off (default)", "-0.1V", "-0.2V", "-0.3V", "-0.4V"},
                                          .value = value_getLcdVoltage(),
                                          .action = action_advancedSetLcdVoltage},
-                                     "Use this option if you're seeing\n"
-                                     "small artifacts on the display.");
+                                     "Lowers the screen's voltage. Try it if\n"
+                                     "you see small artifacts (lines or\n"
+                                     "flicker) on the display. Off is the\n"
+                                     "default.");
         }
-        list_addItem(&_menu_advanced,
-                     (ListItem){
-                         .label = "Diagnostics...",
-                         .action = menu_diagnostics});
+        list_addItemWithInfoNote(&_menu_advanced,
+                                 (ListItem){
+                                     .label = "Diagnostics...",
+                                     .action = menu_diagnostics},
+                                 "Logging, and scripts that check or fix\n"
+                                 "common problems: network check, log\n"
+                                 "export and more.");
         if (exists(RESET_CONFIGS_PAK)) {
-            list_addItem(&_menu_advanced,
-                         (ListItem){
-                             .label = "Reset settings...",
-                             .action = menu_resetSettings});
+            list_addItemWithInfoNote(&_menu_advanced,
+                                     (ListItem){
+                                         .label = "Reset settings...",
+                                         .action = menu_resetSettings},
+                                     "Put settings back to their defaults:\n"
+                                     "Tweaks, theme tweaks, MainUI, RetroArch,\n"
+                                     "AdvanceMENU, or all of them. Games and\n"
+                                     "saves are kept.");
         }
     }
     menu_stack[++menu_level] = &_menu_advanced;
@@ -995,10 +1064,10 @@ void menu_tools(void *_)
                                  (ListItem){
                                      .label = "Make game list for short-name roms",
                                      .action = tool_buildShortRomGameList},
-                                 "This tool replaces the short names in\n"
-                                 "game caches with their equivalent real\n"
-                                 "names. This ensures the list is sorted\n"
-                                 "correctly.");
+                                 "For arcade games with short file names\n"
+                                 "(e.g. sf2.zip): shows their real names\n"
+                                 "in the game list and sorts them by\n"
+                                 "those.");
         list_addItemWithInfoNote(&_menu_tools,
                                  (ListItem){
                                      .label = "Make miyoogamelist with digest names",
@@ -1019,10 +1088,14 @@ void menu_tools(void *_)
                                      .label = "Sort apps: Z to A",
                                      .action = tool_sortAppsZA},
                                  "Sort the Apps list from Z to A.");
-        list_addItem(&_menu_tools,
-                     (ListItem){
-                         .label = "Screen recorder...",
-                         .action = menu_screen_recorder});
+        list_addItemWithInfoNote(&_menu_tools,
+                                 (ListItem){
+                                     .label = "Screen recorder...",
+                                     .action = menu_screen_recorder},
+                                 "Record the screen to a video\n"
+                                 "(Media/Videos/Recorded): start and stop,\n"
+                                 "countdown, MENU+A hotkey, delete\n"
+                                 "recordings.");
     }
     menu_stack[++menu_level] = &_menu_tools;
     header_changed = true;

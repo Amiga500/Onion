@@ -528,8 +528,8 @@ void menu_ftp(void *pt)
                                  "Username: onion\n"
                                  "Password: onion\n"
                                  " \n"
-                                 "A new login system: passwords you\n"
-                                 "choose will come in a future update.");
+                                 "Passwords of your own will come in a\n"
+                                 "future update.");
     }
     menu_stack[++menu_level] = &_menu_ftp;
     header_changed = true;
@@ -573,8 +573,8 @@ void menu_ssh(void *pt)
                                  "Username: onion\n"
                                  "Password: onion\n"
                                  " \n"
-                                 "A new login system: passwords you\n"
-                                 "choose will come in a future update.");
+                                 "Passwords of your own will come in a\n"
+                                 "future update.");
     }
     menu_stack[++menu_level] = &_menu_ssh;
     header_changed = true;
@@ -587,12 +587,15 @@ void menu_vnc(void *pt)
     if (!_menu_vnc._created) {
         _menu_vnc = list_create(2, LIST_SMALL);
         strcpy(_menu_vnc.title, "Screen sharing (VNC)");
-        list_addItem(&_menu_vnc,
-                     (ListItem){
-                         .label = "Enable",
-                         .item_type = TOGGLE,
-                         .value = (int)network_state.vncserv,
-                         .action = network_toggleVNC});
+        list_addItemWithInfoNote(&_menu_vnc,
+                                 (ListItem){
+                                     .label = "Enable",
+                                     .item_type = TOGGLE,
+                                     .value = (int)network_state.vncserv,
+                                     .action = network_toggleVNC},
+                                 "Turn screen sharing on, then connect to\n"
+                                 "the device's IP address from a VNC\n"
+                                 "viewer on your PC, phone or tablet.");
         list_addItemWithInfoNote(&_menu_vnc,
                                  (ListItem){
                                      .label = "Framerate",
@@ -663,10 +666,13 @@ void menu_network(void *_)
                          .label = "IP address: not connected",
                          .disabled = true,
                          .action = NULL});
-        list_addItem(&_menu_network,
-                     (ListItem){
-                         .label = "Wi-Fi hotspot and WPS...",
-                         .action = menu_wifi});
+        list_addItemWithInfoNote(&_menu_network,
+                                 (ListItem){
+                                     .label = "Wi-Fi hotspot and WPS...",
+                                     .action = menu_wifi},
+                                 "Make the device's own Wi-Fi network\n"
+                                 "(hotspot), or connect to your router\n"
+                                 "with its WPS button.");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
                                      .label = "File sharing (Samba)...",
@@ -704,10 +710,11 @@ void menu_network(void *_)
                                      .arrow_action = network_setSshState,
                                      .value = (int)network_state.ssh,
                                      .action = menu_ssh},
-                                 "SSH provides a secure command line host\n"
-                                 "for communicating with your device remotely.\n"
+                                 "Use the device's command line from your\n"
+                                 "PC, securely (SSH).\n"
                                  " \n"
-                                 "SFTP provides a secure file transfer protocol.");
+                                 "SFTP sends files the same secure way,\n"
+                                 "with an SFTP client (e.g. WinSCP).");
         list_addItemWithInfoNote(&_menu_network,
                                  (ListItem){
                                      .label = "File transfer (FTP)...",
