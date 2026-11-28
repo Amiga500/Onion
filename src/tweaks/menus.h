@@ -330,14 +330,24 @@ void menu_buttonAction(void *_)
 {
     if (!_menu_button_action._created) {
         _menu_button_action = list_createWithTitle(9, LIST_SMALL, "Buttons");
-        list_addItem(&_menu_button_action,
-                     (ListItem){
-                         .label = "MENU in game...",
-                         .action = menu_buttonActionInGameMenu});
-        list_addItem(&_menu_button_action,
-                     (ListItem){
-                         .label = "MENU in MainUI...",
-                         .action = menu_buttonActionMainUIMenu});
+        list_addItemWithInfoNote(&_menu_button_action,
+                                 (ListItem){
+                                     .label = "MENU in game...",
+                                     .action = menu_buttonActionInGameMenu},
+                                 "What MENU does while you play, for a\n"
+                                 "short, long or double press:\n"
+                                 "GameSwitcher, Exit to menu (saves and\n"
+                                 "quits), Quick switch (the game played\n"
+                                 "before this one), Quick menu\n"
+                                 "(RetroArch's menu) or Off.");
+        list_addItemWithInfoNote(&_menu_button_action,
+                                 (ListItem){
+                                     .label = "MENU in MainUI...",
+                                     .action = menu_buttonActionMainUIMenu},
+                                 "What MENU does in MainUI, for a short,\n"
+                                 "long or double press: the SELECT menu,\n"
+                                 "the GameSwitcher, or Resume game (the\n"
+                                 "last game played, where you left off).");
 
         getInstalledApps(true);
         list_addItemWithInfoNote(&_menu_button_action,
