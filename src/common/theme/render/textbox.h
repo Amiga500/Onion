@@ -164,6 +164,95 @@ SDL_Surface *theme_textboxSurfaceFit(const char *message, SDL_Color fg,
     return textbox;
 }
 
+/* The text wrapped at max_w pixels in font: each paragraph (textbox_reflow
+ * keeps its breaks) cut at spaces into lines that fit. Returns the number of
+ * lines; out gets the text with '\n' between them. */
+static int _textbox_wrap(TTF_Font *font, const char *text, int max_w, char *out, size_t n)
+{
+    size_t o = 0;
+    int lines = 0;
+    const char *para = text;
+    while (o + 1 < n) {
+        const char *end = strchr(para, '\n');
+        size_t len = end ? (size_t)(end - para) : strlen(para);
+        char line[STR_MAX] = "";
+        size_t i = 0;
+        bool empty = true;
+        while (i <= len) {
+            size_t j = i;
+            while (j < len && para[j] != ' ')
+                j++;
+            char word[STR_MAX];
+            snprintf(word, sizeof(word), "%.*s", (int)(j - i), para + i);
+            char tryl[STR_MAX];
+            snprintf(tryl, sizeof(tryl), "%s%s%s", line, empty ? "" : " ", word);
+            int w = 0;
+            TTF_SizeUTF8(font, tryl, &w, NULL);
+            if (!empty && w > max_w) {
+                o += snprintf(out + o, n - o, "%s\n", line);
+                lines++;
+                snprintf(line, sizeof(line), "%s", word);
+            }
+            else {
+                snprintf(line, sizeof(line), "%s", tryl);
+            }
+            empty = false;
+            i = j + 1;
+            if (o + 1 >= n)
+                break;
+        }
+        if (o + 1 < n)
+            o += snprintf(out + o, n - o, "%s%s", line, end ? "\n" : "");
+        lines++;
+        if (!end || o + 1 >= n)
+            break;
+        para = end + 1;
+    }
+    if (o >= n)
+        out[n - 1] = '\0';
+    return lines;
+}
+
+/**
+ * @brief Like theme_textboxSurfaceFit, but the text is wrapped to the width
+ *        first: its soft line breaks joined (textbox_reflow), then cut at
+ *        spaces to fill max_w, and the font made smaller only while the lines
+ *        do not fit in max_h.
+ *
+ * Tweaks' notes are written in short lines for the old dialog: shown as they
+ * were, they kept to the left of the wider new window, a short line here and
+ * there (4.5.1, Amiga500). Wrapped at the window's width they fill it.
+ */
+SDL_Surface *theme_textboxSurfaceWrap(const char *message, SDL_Color fg,
+                                      text_alignment_e align, int max_w, int max_h)
+{
+    char joined[STR_MAX], wrapped[STR_MAX * 2];
+    textbox_reflow(message ? message : "", joined, sizeof(joined));
+    int size = theme()->title.size;
+    TTF_Font *font = resource_getFont(TITLE), *owned = NULL;
+    for (int tries = 0; font != NULL && tries < 24; tries++) {
+        int lines = _textbox_wrap(font, joined, max_w, wrapped, sizeof(wrapped));
+        int h = (int)(1.2 * TTF_FontLineSkip(font)) * lines;
+        if (h <= max_h || size <= TEXTBOX_FIT_MIN_SIZE)
+            break;
+        size = size - 2 < TEXTBOX_FIT_MIN_SIZE ? TEXTBOX_FIT_MIN_SIZE : size - 2;
+        TTF_Font *smaller = theme_loadFont(theme()->path, theme()->title.font, size);
+        if (smaller == NULL)
+            break;
+        if (owned)
+            TTF_CloseFont(owned);
+        font = owned = smaller;
+    }
+    SDL_Surface *textbox = NULL;
+    if (font) {
+        _textbox_wrap(font, joined, max_w, wrapped, sizeof(wrapped));
+        textbox = theme_textboxSurface(wrapped, font, fg, align);
+    }
+    if (owned)
+        TTF_CloseFont(owned);
+    return textbox;
+}
+
 /**
  * @brief Creates an SDL_Surface containing text with a solid background color
  *

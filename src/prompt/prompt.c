@@ -41,7 +41,7 @@ void __showInfoDialog(const char *title, const char *message)
     SDL_Surface *background_surface = SDL_CreateRGBSurface(SDL_HWSURFACE, 640, 480, 32, 0, 0, 0, 0);
     SDL_BlitSurface(screen, NULL, background_surface, NULL);
 
-    theme_renderDialog(screen, title, message, false);
+    theme_renderDialogWrapped(screen, title, message);
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
 

@@ -73,6 +73,43 @@ TEST(bad_measurements_change_nothing)
     ASSERT_EQ(textbox_fit_size(30, -5, 50, 600, 280, 14), 30);
 }
 
+static const char *reflowed(const char *in)
+{
+    static char out[256];
+    textbox_reflow(in, out, sizeof(out));
+    return out;
+}
+
+TEST(soft_line_breaks_are_joined)
+{
+    /* a Tweaks note written in short lines for the old dialog */
+    ASSERT_STREQ(reflowed("If you turn the device off while a game\n"
+                           "is running, the game resumes where you\n"
+                           "left off at the next startup."),
+                  "If you turn the device off while a game is running, the game resumes "
+                  "where you left off at the next startup.");
+}
+
+TEST(paragraphs_lists_and_headings_keep_their_breaks)
+{
+    ASSERT_STREQ(reflowed(":: TOOLTIPS ::\n \nThe selected option is described\nat the bottom.\n"
+                           " \nPress any button to close"),
+                  ":: TOOLTIPS ::\n \nThe selected option is described at the bottom.\n \n"
+                  "Press any button to close");
+    ASSERT_STREQ(reflowed("Choices:\n- Off\n- On\n1. first\n2) second"),
+                  "Choices:\n- Off\n- On\n1. first\n2) second");
+    ASSERT_STREQ(reflowed("One\n\nTwo"), "One\n\nTwo");
+}
+
+TEST(reflow_stays_in_its_buffer)
+{
+    char out[8];
+    textbox_reflow("a long line\nand more", out, sizeof(out));
+    ASSERT_EQ((int)strlen(out), 7);
+    textbox_reflow("", out, sizeof(out));
+    ASSERT_STREQ(out, "");
+}
+
 int main(void)
 {
     RUN_TEST(fitting_text_keeps_its_size);
@@ -83,6 +120,9 @@ int main(void)
     RUN_TEST(never_below_the_minimum);
     RUN_TEST(shrinking_converges_in_a_few_steps);
     RUN_TEST(bad_measurements_change_nothing);
+    RUN_TEST(soft_line_breaks_are_joined);
+    RUN_TEST(paragraphs_lists_and_headings_keep_their_breaks);
+    RUN_TEST(reflow_stays_in_its_buffer);
     TEST_REPORT();
     return test_failures;
 }

@@ -14,7 +14,7 @@ void __showInfoDialog(const char *title, const char *message)
 
     keys_enabled = false;
 
-    theme_renderDialog(screen, title, message, false);
+    theme_renderDialogWrapped(screen, title, message);
     SDL_BlitSurface(screen, NULL, video, NULL);
     SDL_Flip(video);
 

@@ -73,6 +73,10 @@ static SDL_Surface *_dialog_label(const char *text, SDL_Color color)
     return TTF_RenderUTF8_Blended(resource_getFont(HINT), up, color);
 }
 
+// The next dialog's message wrapped to the window's width (an info note
+// written in short lines), see theme_renderDialogWrapped.
+static bool _dialog_wrap = false;
+
 void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *message_str, bool show_hint)
 {
     // Cache transparent background — avoids CreateRGBSurface+FillRect+FreeSurface per call
@@ -101,9 +105,13 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     /* No title and no buttons (the LOADING and SAVING screens over the
      * game's picture): the message alone, centred in the box. */
     bool centred = title == NULL && !show_hint;
-    SDL_Surface *textbox = theme_textboxSurfaceFit(message_str, (SDL_Color){200, 200, 206, 0},
-                                                   centred ? ALIGN_CENTER : ALIGN_LEFT,
-                                                   inner_w, (int)(5 * DIALOG_LINE_HEIGHT * g_scale));
+    SDL_Surface *textbox =
+        _dialog_wrap ? theme_textboxSurfaceWrap(message_str, (SDL_Color){200, 200, 206, 0},
+                                                centred ? ALIGN_CENTER : ALIGN_LEFT, inner_w,
+                                                (int)(9 * DIALOG_LINE_HEIGHT * g_scale))
+                     : theme_textboxSurfaceFit(message_str, (SDL_Color){200, 200, 206, 0},
+                                               centred ? ALIGN_CENTER : ALIGN_LEFT, inner_w,
+                                               (int)(5 * DIALOG_LINE_HEIGHT * g_scale));
     SDL_Surface *button_a = resource_getSurface(BUTTON_A);
     SDL_Surface *button_b = resource_getSurface(BUTTON_B);
     bool buttons = show_hint && button_a != NULL && button_a->w < g_display.width;
@@ -137,6 +145,16 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
         _dialog_button(screen, (SDL_Rect){box.x + pad, y, bw, btn_h}, button_b, _dialog_label_cancel, true);
         _dialog_button(screen, (SDL_Rect){box.x + pad + bw + gap, y, bw, btn_h}, button_a, _dialog_label_ok, false);
     }
+}
+
+/* A dialog whose message is an info note: wrapped to the window's width
+ * instead of kept in the lines it was written in (Tweaks' and the prompt's
+ * SELECT notes, the first-run tooltip). */
+void theme_renderDialogWrapped(SDL_Surface *screen, const char *title_str, const char *message_str)
+{
+    _dialog_wrap = true;
+    theme_renderDialog(screen, title_str, message_str, false);
+    _dialog_wrap = false;
 }
 
 void theme_renderDialogProgress(SDL_Surface *screen, const char *title_str,
