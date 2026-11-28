@@ -123,7 +123,9 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
 
     int y = box.y + pad;
     if (title) {
-        SDL_Rect r = {box.x + pad, y};
+        // An info note's title in the middle of its window (4.5.1, Amiga500).
+        int tx = _dialog_wrap && title->w < inner_w ? (inner_w - title->w) / 2 : 0;
+        SDL_Rect r = {box.x + pad + tx, y};
         SDL_Rect crop = {0, 0, inner_w, title->h};
         SDL_BlitSurface(title, &crop, screen, &r);
         y += title->h + 10.0 * g_scale;
