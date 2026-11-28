@@ -107,22 +107,34 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
      * down to TEXTBOX_FIT_MIN_SIZE, not cut at the box's edge (4.5.1,
      * Amiga500). */
     if (title && title->w > inner_w) {
-        for (int size = theme()->title.size - 1; size >= TEXTBOX_FIT_MIN_SIZE; size--) {
-            TTF_Font *smaller = theme_loadFont(theme()->path, theme()->title.font, size);
-            if (!smaller)
-                break;
-            int w = 0;
-            TTF_SizeUTF8(smaller, title_up, &w, NULL);
-            if (w <= inner_w || size == TEXTBOX_FIT_MIN_SIZE) {
-                SDL_Surface *fit = TTF_RenderUTF8_Blended(smaller, title_up, (SDL_Color){244, 244, 245});
-                TTF_CloseFont(smaller);
-                if (fit) {
-                    SDL_FreeSurface(title);
-                    title = fit;
+        // The size found is kept with its font: a progress dialog draws its
+        // title again at each step, and opening fonts from the SD card each
+        // time slowed it down.
+        static char fit_title[STR_MAX] = "";
+        static TTF_Font *fit_font = NULL;
+        if (fit_font == NULL || strcmp(fit_title, title_up) != 0) {
+            if (fit_font)
+                TTF_CloseFont(fit_font);
+            fit_font = NULL;
+            fit_title[0] = '\0';
+            for (int size = theme()->title.size - 1; size >= TEXTBOX_FIT_MIN_SIZE; size--) {
+                TTF_Font *smaller = theme_loadFont(theme()->path, theme()->title.font, size);
+                if (!smaller)
+                    break;
+                int w = 0;
+                TTF_SizeUTF8(smaller, title_up, &w, NULL);
+                if (w <= inner_w || size == TEXTBOX_FIT_MIN_SIZE) {
+                    fit_font = smaller;
+                    snprintf(fit_title, sizeof(fit_title), "%s", title_up);
+                    break;
                 }
-                break;
+                TTF_CloseFont(smaller);
             }
-            TTF_CloseFont(smaller);
+        }
+        SDL_Surface *fit = fit_font ? TTF_RenderUTF8_Blended(fit_font, title_up, (SDL_Color){244, 244, 245}) : NULL;
+        if (fit) {
+            SDL_FreeSurface(title);
+            title = fit;
         }
     }
     /* No title and no buttons (the LOADING and SAVING screens over the
