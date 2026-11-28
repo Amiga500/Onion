@@ -102,6 +102,29 @@ void theme_renderDialog(SDL_Surface *screen, const char *title_str, const char *
     SDL_Surface *title = n > 0 && strcmp(title_up, " ") != 0
                              ? TTF_RenderUTF8_Blended(resource_getFont(TITLE), title_up, (SDL_Color){244, 244, 245})
                              : NULL;
+    /* A title wider than the box (a reset named as in its menu, "RESET
+     * RETROARCH MAIN CONFIGURATION") in a smaller size of the same font,
+     * down to TEXTBOX_FIT_MIN_SIZE, not cut at the box's edge (4.5.1,
+     * Amiga500). */
+    if (title && title->w > inner_w) {
+        for (int size = theme()->title.size - 1; size >= TEXTBOX_FIT_MIN_SIZE; size--) {
+            TTF_Font *smaller = theme_loadFont(theme()->path, theme()->title.font, size);
+            if (!smaller)
+                break;
+            int w = 0;
+            TTF_SizeUTF8(smaller, title_up, &w, NULL);
+            if (w <= inner_w || size == TEXTBOX_FIT_MIN_SIZE) {
+                SDL_Surface *fit = TTF_RenderUTF8_Blended(smaller, title_up, (SDL_Color){244, 244, 245});
+                TTF_CloseFont(smaller);
+                if (fit) {
+                    SDL_FreeSurface(title);
+                    title = fit;
+                }
+                break;
+            }
+            TTF_CloseFont(smaller);
+        }
+    }
     /* No title and no buttons (the LOADING and SAVING screens over the
      * game's picture): the message alone, centred in the box. */
     bool centred = title == NULL && !show_hint;

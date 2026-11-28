@@ -104,8 +104,8 @@ void action_resetTweaks(void *pt)
 
 void action_resetThemeOverrides(void *pt)
 {
-    const char title_str[] = "Reset theme overrides";
-    if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset theme overrides?"))
+    const char title_str[] = "Reset theme tweaks";
+    if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to\nreset theme tweaks?"))
         return;
     file_remove_recursive("/mnt/SDCARD/Saves/CurrentProfile/theme");
     mkdirs("/mnt/SDCARD/Saves/CurrentProfile/theme");
@@ -151,7 +151,7 @@ void action_resetMainUI(void *pt)
 
 void action_resetRAMain(void *pt)
 {
-    const char title_str[] = "Reset RetroArch configuration";
+    const char title_str[] = "Reset RetroArch main configuration";
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to reset\nRetroArch main configuration?"))
         return;
     system("7z x -aoa " RESET_CONFIGS_PAK " -o/mnt/SDCARD/ -ir!RetroArch/*");
@@ -162,7 +162,7 @@ void action_resetRAMain(void *pt)
 
 void action_resetRACores(void *pt)
 {
-    const char title_str[] = "Reset all RA core overrides";
+    const char title_str[] = "Reset all RetroArch core overrides";
     if (!_disable_confirm && !_confirmReset(title_str, "Are you sure you want to reset\nall RetroArch core overrides?"))
         return;
     file_remove_recursive("/mnt/SDCARD/Saves/CurrentProfile/config");
