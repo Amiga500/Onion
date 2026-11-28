@@ -265,7 +265,7 @@ TEST(font_family_default) {
     TestListItem item = make_item(0);
     char out[STR_MAX] = {0};
     formatter_fontFamily(&item, out);
-    ASSERT_STREQ(out, "-");
+    ASSERT_STREQ(out, "Theme");
 }
 
 TEST(font_family_first) {
@@ -288,7 +288,7 @@ TEST(font_size_default) {
     TestListItem item = make_item(0);
     char out[STR_MAX] = {0};
     formatter_fontSize(&item, out);
-    ASSERT_STREQ(out, "-");
+    ASSERT_STREQ(out, "Theme");
 }
 
 TEST(font_size_13px) {
@@ -334,7 +334,7 @@ TEST(position_offset_default) {
     TestListItem item = make_item(0);
     char out[STR_MAX] = {0};
     formatter_positionOffset(&item, out);
-    ASSERT_STREQ(out, "-");
+    ASSERT_STREQ(out, "Theme");
 }
 
 TEST(position_offset_zero) {

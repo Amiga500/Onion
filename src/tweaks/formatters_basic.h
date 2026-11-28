@@ -138,7 +138,7 @@ void formatter_fontFamily(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
     if (item->value == 0)
-        strcpy(out_label, "-");
+        strcpy(out_label, "Theme");
     else
         strcpy(out_label, font_families[item->value - 1]);
 }
@@ -149,7 +149,7 @@ void formatter_fontSize(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
     if (item->value == 0)
-        strcpy(out_label, "-");
+        strcpy(out_label, "Theme");
     else
         sprintf(out_label, "%d px", font_sizes[item->value - 1]);
 }
@@ -168,7 +168,7 @@ void formatter_positionOffset(void *pt, char *out_label)
 {
     ListItem *item = (ListItem *)pt;
     if (item->value == 0)
-        strcpy(out_label, "-");
+        strcpy(out_label, "Theme");
     else
         sprintf(out_label, "%d px", item->value - 1 - BATTPERC_MAX_OFFSET);
 }

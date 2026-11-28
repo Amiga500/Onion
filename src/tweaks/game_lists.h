@@ -355,7 +355,7 @@ void menu_gameListsScrolling(void *_)
 {
     (void)_;
     if (!_menu_game_lists_scrolling._created) {
-        _menu_game_lists_scrolling = list_createWithTitle(5, LIST_SMALL, "Game lists: scrolling");
+        _menu_game_lists_scrolling = list_createWithTitle(3, LIST_SMALL, "Game lists: scrolling");
         list_addItemWithInfoNote(
             &_menu_game_lists_scrolling,
             (ListItem){
@@ -390,28 +390,6 @@ void menu_gameListsScrolling(void *_)
                 .action = gamelists_action_scroll_speed},
             "How fast long titles scroll, in pixels\n"
             "per second.");
-        list_addItemWithInfoNote(
-            &_menu_game_lists_scrolling,
-            (ListItem){
-                .label = "Held button: delay",
-                .item_type = MULTIVALUE,
-                .value_max = 38,
-                .value = gamelists_value_repeat_delay(),
-                .value_formatter = gamelists_formatter_repeat_delay,
-                .action = gamelists_action_repeat_delay},
-            "Wait before a held button starts to\n"
-            "repeat, in all MainUI screens.");
-        list_addItemWithInfoNote(
-            &_menu_game_lists_scrolling,
-            (ListItem){
-                .label = "Held button: repeat",
-                .item_type = MULTIVALUE,
-                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_repeat_intervals) - 1,
-                .value = gamelists_value_repeat_interval(),
-                .value_formatter = gamelists_formatter_repeat_interval,
-                .action = gamelists_action_repeat_interval},
-            "Time between repeats while a button\n"
-            "is held, in all MainUI screens.");
         gamelists_update_list(&_menu_game_lists_scrolling);
     }
     menu_stack[++menu_level] = &_menu_game_lists_scrolling;

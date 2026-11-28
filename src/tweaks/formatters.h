@@ -20,9 +20,9 @@
         "Off", "GameSwitcher", "Exit to menu", "Quick switch", "Quick menu" \
     }
 
-#define THEME_TOGGLE_LABELS \
-    {                       \
-        "-", "Off", "On"    \
+#define THEME_TOGGLE_LABELS  \
+    {                        \
+        "Theme", "Off", "On" \
     }
 
 #define BLUELIGHT_LABELS                                                                    \

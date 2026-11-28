@@ -1238,8 +1238,9 @@ TEST(game_lists_options_follow_what_they_depend_on)
     gamelists_set(sc, "Long names: start after", 0);
     ASSERT_TRUE(gamelists_item(sc, "Long names: style")->disabled);
     ASSERT_TRUE(gamelists_item(sc, "Long names: speed")->disabled);
-    ASSERT_FALSE(gamelists_item(sc, "Held button: delay")->disabled);
-    ASSERT_FALSE(gamelists_item(sc, "Held button: repeat")->disabled);
+    /* Held-button repeat is MainUI-wide: under Buttons, not here. */
+    ASSERT_TRUE(gamelists_item(sc, "Held button: delay") == NULL);
+    ASSERT_TRUE(gamelists_item(sc, "Held button: repeat") == NULL);
     gamelists_set(sc, "Long names: start after", 3);
     ASSERT_FALSE(gamelists_item(sc, "Long names: style")->disabled);
     ASSERT_FALSE(gamelists_item(sc, "Long names: speed")->disabled);

@@ -336,7 +336,7 @@ void menu_buttonActionInGameMenu(void *_)
 void menu_buttonAction(void *_)
 {
     if (!_menu_button_action._created) {
-        _menu_button_action = list_createWithTitle(9, LIST_SMALL, "Buttons");
+        _menu_button_action = list_createWithTitle(11, LIST_SMALL, "Buttons");
         list_addItemWithInfoNote(&_menu_button_action,
                                  (ListItem){
                                      .label = "MENU in game...",
@@ -431,18 +431,42 @@ void menu_buttonAction(void *_)
                                      .action = action_advancedSetSwapTriggers},
                                  "Swap the function of L<>L2 and R<>R2\n"
                                  "(only affects in-game actions).");
+        // Held-button repeat is MainUI's, everywhere in it: here with the
+        // other buttons, not under Game lists (4.5.1, Amiga500).
+        list_addItemWithInfoNote(
+            &_menu_button_action,
+            (ListItem){
+                .label = "Held button: delay",
+                .item_type = MULTIVALUE,
+                .value_max = 38,
+                .value = gamelists_value_repeat_delay(),
+                .value_formatter = gamelists_formatter_repeat_delay,
+                .action = gamelists_action_repeat_delay},
+            "Wait before a held button starts to\n"
+            "repeat, in all MainUI screens.");
+        list_addItemWithInfoNote(
+            &_menu_button_action,
+            (ListItem){
+                .label = "Held button: repeat",
+                .item_type = MULTIVALUE,
+                .value_max = GAMELISTS_ARRAY_COUNT(gamelists_repeat_intervals) - 1,
+                .value = gamelists_value_repeat_interval(),
+                .value_formatter = gamelists_formatter_repeat_interval,
+                .action = gamelists_action_repeat_interval},
+            "Time between repeats while a button\n"
+            "is held, in all MainUI screens.");
     }
     menu_stack[++menu_level] = &_menu_button_action;
     header_changed = true;
 }
 
 // Battery percentage: its look only matters while it is shown: Visible On,
-// or "-" with a theme that shows it.
+// or Theme with a theme that shows it.
 static void battery_update_enabled(void)
 {
     if (!_menu_battery_percentage._created)
         return;
-    int visible = _menu_battery_percentage.items[0].value; // "-", Off, On
+    int visible = _menu_battery_percentage.items[0].value; // Theme, Off, On
     bool off = visible == 1 || (visible == 0 && !resources.theme_back.batteryPercentage.visible);
     for (int i = 1; i < _menu_battery_percentage.item_count; i++)
         _menu_battery_percentage.items[i].disabled = off;
@@ -467,8 +491,8 @@ void menu_batteryPercentage(void *_)
                                      .value = value_batteryPercentageVisible(),
                                      .action = battery_action_visible},
                                  "Show the battery percentage beside the\n"
-                                 "battery icon. \"-\" keeps the theme's\n"
-                                 "setting, as in every option here.");
+                                 "battery icon. Theme: as the theme sets\n"
+                                 "it, the same in every option here.");
         list_addItemWithInfoNote(&_menu_battery_percentage,
                                  (ListItem){
                                      .label = "Font family",
@@ -492,7 +516,7 @@ void menu_batteryPercentage(void *_)
                                      .label = "Text alignment",
                                      .item_type = MULTIVALUE,
                                      .value_max = 3,
-                                     .value_labels = {"-", "Left", "Center", "Right"},
+                                     .value_labels = {"Theme", "Left", "Center", "Right"},
                                      .value = value_batteryPercentagePosition(),
                                      .action = action_batteryPercentagePosition},
                                  "Where the percentage goes. Left: after\n"
@@ -547,8 +571,8 @@ void menu_themeOverrides(void *_)
                                      .label = "Battery percentage...",
                                      .action = menu_batteryPercentage},
                                  "Show or hide the battery percentage, its\n"
-                                 "font, size and place. \"-\" keeps the\n"
-                                 "theme's setting.");
+                                 "font, size and place. Theme: as the\n"
+                                 "theme sets it.");
         list_addItemWithInfoNote(&_menu_theme_overrides,
                                  (ListItem){
                                      .label = "Mute background music",
@@ -677,6 +701,22 @@ void menu_lookAndFeel(void *_)
     all_changed = true;
     if (!_menu_user_interface._created) {
         _menu_user_interface = list_createWithTitle(9, LIST_SMALL, "Look and feel");
+        // The accent colour first: the look's most visible choice (4.5.1,
+        // Amiga500).
+        int accent_color = 0;
+        config_get("display/accentColor", CONFIG_INT, &accent_color);
+        list_addItemWithInfoNote(&_menu_user_interface,
+                                 (ListItem){
+                                     .label = "Accent color",
+                                     .item_type = MULTIVALUE,
+                                     .value_max = ACCENT_COUNT - 1,
+                                     .value_labels = {"Red", "Orange", "Gold", "Green", "Teal", "Blue", "Purple", "Pink", "Graphite"},
+                                     .value = accent_listPosition(accent_color),
+                                     .action = action_setAccentColor},
+                                 "The color of the selection, buttons\n"
+                                 "and menu icons, in the menus and the\n"
+                                 "RedOnion apps. Silky RedOnion only:\n"
+                                 "other themes keep their own colors.");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
                                      .label = "Theme tweaks...",
@@ -692,20 +732,6 @@ void menu_lookAndFeel(void *_)
                                  "Console, app and expert icons: apply an\n"
                                  "icon pack (from Icons or a theme), or\n"
                                  "change one icon at a time.");
-        int accent_color = 0;
-        config_get("display/accentColor", CONFIG_INT, &accent_color);
-        list_addItemWithInfoNote(&_menu_user_interface,
-                                 (ListItem){
-                                     .label = "Accent color",
-                                     .item_type = MULTIVALUE,
-                                     .value_max = ACCENT_COUNT - 1,
-                                     .value_labels = {"Red", "Orange", "Gold", "Green", "Teal", "Blue", "Purple", "Pink", "Graphite"},
-                                     .value = accent_listPosition(accent_color),
-                                     .action = action_setAccentColor},
-                                 "The color of the selection, buttons\n"
-                                 "and menu icons, in the menus and the\n"
-                                 "RedOnion apps. Silky RedOnion only:\n"
-                                 "other themes keep their own colors.");
         list_addItemWithInfoNote(&_menu_user_interface,
                                  (ListItem){
                                      .label = "Blue light filter...",
@@ -1144,8 +1170,8 @@ void menu_gameListsMenu(void *_)
                                  "the favorite star in game lists.");
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "Scrolling...", .action = menu_gameListsScrolling},
-                                 "How long game names scroll, and how a\n"
-                                 "held button repeats.");
+                                 "How long game names scroll: when they\n"
+                                 "start, how and how fast.");
         list_addItemWithInfoNote(&_menu_game_lists,
                                  (ListItem){.label = "Previews...", .action = menu_gameListsPreviews},
                                  "Video preview in the lists and the Game\n"
