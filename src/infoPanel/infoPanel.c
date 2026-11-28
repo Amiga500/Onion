@@ -203,6 +203,11 @@ int main(int argc, char *argv[])
             else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--persistent") == 0) {
                 wait_confirm = false;
                 is_persistent = true;
+                // No button to press: no button bar either. The LOADING and
+                // SAVING screen (Loading/saving screen: Message only) was
+                // the background with a lighter empty bar at the bottom;
+                // it is now one colour (4.5.1, Amiga500).
+                no_footer = true;
             }
         }
     }
